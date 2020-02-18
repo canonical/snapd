@@ -619,6 +619,29 @@ func (ovs *overlordSuite) TestEnsureLoopPruneRunsMultipleTimes(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func (ovs *overlordSuite) TestOverlordStartUpSetsStartOfOperation(c *C) {
+	restoreIntv := overlord.MockPruneInterval(100*time.Millisecond, 1000*time.Millisecond, 1*time.Hour)
+	defer restoreIntv()
+
+	// use real overlord, we need device manager to be there
+	o, err := overlord.New(nil)
+	c.Assert(err, IsNil)
+
+	st := o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	// sanity check, not set
+	var opTime time.Time
+	c.Assert(st.Get("start-of-operation-time", &opTime), Equals, state.ErrNoState)
+	st.Unlock()
+
+	c.Assert(o.StartUp(), IsNil)
+
+	st.Lock()
+	c.Assert(st.Get("start-of-operation-time", &opTime), IsNil)
+}
+
 func (ovs *overlordSuite) TestEnsureLoopPruneDoesntAbortBeforeStartOfOperation(c *C) {
 	restoreIntv := overlord.MockPruneInterval(100*time.Millisecond, 1000*time.Millisecond, 1*time.Hour)
 	defer restoreIntv()
