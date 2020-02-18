@@ -78,7 +78,10 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 }
 
 // Initialize prepares customized apparmor policy for snap-confine.
-func (b *Backend) Initialize() error {
+func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
+	if opts != nil && opts.Preseed {
+		b.preseed = true
+	}
 	// NOTE: It would be nice if we could also generate the profile for
 	// snap-confine executing from the core snap, right here, and not have to
 	// do this in the Setup function below. I sadly don't think this is
@@ -544,11 +547,6 @@ func (b *Backend) Remove(snapName string) error {
 		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, errEnsure)
 	}
 	return errUnload
-}
-
-// SetPreseedMode switches apparmor backend into preseed mode.
-func (b *Backend) SetPreseedMode() {
-	b.preseed = true
 }
 
 var (

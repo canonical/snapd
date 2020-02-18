@@ -1231,7 +1231,7 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyNoNFS(c *C) {
 	defer cmd.Restore()
 
 	// Setup generated policy for snap-confine.
-	err := (&apparmor.Backend{}).Initialize()
+	err := (&apparmor.Backend{}).Initialize(nil)
 	c.Assert(err, IsNil)
 	c.Assert(cmd.Calls(), HasLen, 0)
 
@@ -1287,7 +1287,7 @@ func (s *backendSuite) testSetupSnapConfineGeneratedPolicyWithNFS(c *C, profileF
 	c.Assert(ioutil.WriteFile(profilePath, []byte(""), 0644), IsNil)
 
 	// Setup generated policy for snap-confine.
-	err = (&apparmor.Backend{}).Initialize()
+	err = (&apparmor.Backend{}).Initialize(nil)
 	c.Assert(err, IsNil)
 
 	// Because NFS is being used, we have the extra policy file.
@@ -1340,7 +1340,7 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithNFSAndReExec(c *C)
 	defer restore()
 
 	// Setup generated policy for snap-confine.
-	err = (&apparmor.Backend{}).Initialize()
+	err = (&apparmor.Backend{}).Initialize(nil)
 	c.Assert(err, IsNil)
 
 	// Because NFS is being used, we have the extra policy file.
@@ -1385,7 +1385,7 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError1(c *C) {
 	defer restore()
 
 	// Setup generated policy for snap-confine.
-	err = (&apparmor.Backend{}).Initialize()
+	err = (&apparmor.Backend{}).Initialize(nil)
 	// NOTE: Errors in determining NFS are non-fatal to prevent snapd from
 	// failing to operate. A warning message is logged but system operates as
 	// if NFS was not active.
@@ -1422,7 +1422,7 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError2(c *C) {
 	defer restore()
 
 	// Setup generated policy for snap-confine.
-	err := (&apparmor.Backend{}).Initialize()
+	err := (&apparmor.Backend{}).Initialize(nil)
 	c.Assert(err, ErrorMatches, "cannot read .*corrupt-proc-self-exe: .*")
 
 	// We didn't create the policy file.
@@ -1461,7 +1461,7 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError3(c *C) {
 	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SystemApparmorDir, "usr.lib.snapd.snap-confine"), []byte(""), 0644), IsNil)
 
 	// Setup generated policy for snap-confine.
-	err = (&apparmor.Backend{}).Initialize()
+	err = (&apparmor.Backend{}).Initialize(nil)
 	c.Assert(err, ErrorMatches, "cannot reload snap-confine apparmor profile: .*\n.*\ntesting\n")
 
 	// While created the policy file initially we also removed it so that
@@ -1483,7 +1483,7 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError4(c *C) {
 	c.Assert(err, IsNil)
 
 	// Setup generated policy for snap-confine.
-	err = (&apparmor.Backend{}).Initialize()
+	err = (&apparmor.Backend{}).Initialize(nil)
 	c.Assert(err, ErrorMatches, "*.: not a directory")
 }
 
@@ -1530,7 +1530,7 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError5(c *C) {
 	defer os.Chmod(dirs.SnapConfineAppArmorDir, 0755)
 
 	// Setup generated policy for snap-confine.
-	err = (&apparmor.Backend{}).Initialize()
+	err = (&apparmor.Backend{}).Initialize(nil)
 	c.Assert(err, ErrorMatches, `cannot synchronize snap-confine policy: remove .*/generated-test: permission denied`)
 
 	// The policy directory was unchanged.
@@ -1556,7 +1556,7 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyNoOverlay(c *C) {
 	defer cmd.Restore()
 
 	// Setup generated policy for snap-confine.
-	err := (&apparmor.Backend{}).Initialize()
+	err := (&apparmor.Backend{}).Initialize(nil)
 	c.Assert(err, IsNil)
 	c.Assert(cmd.Calls(), HasLen, 0)
 
@@ -1609,7 +1609,7 @@ func (s *backendSuite) testSetupSnapConfineGeneratedPolicyWithOverlay(c *C, prof
 	c.Assert(ioutil.WriteFile(profilePath, []byte(""), 0644), IsNil)
 
 	// Setup generated policy for snap-confine.
-	err = (&apparmor.Backend{}).Initialize()
+	err = (&apparmor.Backend{}).Initialize(nil)
 	c.Assert(err, IsNil)
 
 	// Because overlay is being used, we have the extra policy file.
@@ -1661,7 +1661,7 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithOverlayAndReExec(c
 	defer restore()
 
 	// Setup generated policy for snap-confine.
-	err = (&apparmor.Backend{}).Initialize()
+	err = (&apparmor.Backend{}).Initialize(nil)
 	c.Assert(err, IsNil)
 
 	// Because overlay is being used, we have the extra policy file.
@@ -2114,9 +2114,18 @@ func (s *backendSuite) TestSetupManySmoke(c *C) {
 func (s *backendSuite) TestInstallingSnapInPreseedMode(c *C) {
 	aa, ok := s.Backend.(*apparmor.Backend)
 	c.Assert(ok, Equals, true)
-	aa.SetPreseedMode()
+
+	opts := interfaces.SecurityBackendOptions{Preseed: true}
+	c.Assert(aa.Initialize(&opts), IsNil)
+
+	snapConfineProfile := filepath.Join(dirs.SystemApparmorDir, "usr.lib.snapd.snap-confine")
+	c.Check(s.parserCmd.Calls(), DeepEquals, [][]string{
+		{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "--skip-kernel-load", "--skip-read-cache", "--quiet", snapConfineProfile},
+	})
+	s.parserCmd.ForgetCalls()
 
 	s.InstallSnap(c, interfaces.ConfinementOptions{}, "", ifacetest.SambaYamlV1, 1)
+
 	updateNSProfile := filepath.Join(dirs.SnapAppArmorDir, "snap-update-ns.samba")
 	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
 	// file called "snap.sambda.smbd" was created
@@ -2131,7 +2140,9 @@ func (s *backendSuite) TestInstallingSnapInPreseedMode(c *C) {
 func (s *backendSuite) TestSetupManyInPreseedMode(c *C) {
 	aa, ok := s.Backend.(*apparmor.Backend)
 	c.Assert(ok, Equals, true)
-	aa.SetPreseedMode()
+
+	opts := interfaces.SecurityBackendOptions{Preseed: true}
+	c.Assert(aa.Initialize(&opts), IsNil)
 
 	for _, opts := range testedConfinementOpts {
 		snapInfo1 := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 1)

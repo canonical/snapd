@@ -40,7 +40,7 @@ import (
 type Backend struct{}
 
 // Initialize does nothing.
-func (b *Backend) Initialize() error {
+func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
 	return nil
 }
 
