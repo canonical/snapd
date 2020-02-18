@@ -1079,6 +1079,7 @@ var createTransientScope = func(securityTag string) error {
 			case "org.freedesktop.DBus.Error.UnknownMethod":
 				// The DBus API is not supported on this system. This can happen on
 				// very old versions of Systemd, for instance on Ubuntu 14.04.
+				logger.Debugf("cannot create transient scope on this system: %s", err)
 				return nil
 			case "org.freedesktop.systemd1.UnitExists":
 				// Starting a scope with a name that already exists is an
