@@ -23,11 +23,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/strutil"
 )
 
 const (
@@ -36,6 +39,8 @@ const (
 	ubuntuDataLabel = "ubuntu-data"
 
 	sectorSize gadget.Size = 512
+
+	createdPartitionAttr = "59"
 )
 
 // sfdiskDeviceDump represents the sfdisk --dump JSON output format.
@@ -57,6 +62,7 @@ type sfdiskPartition struct {
 	Node  string `json:"node"`
 	Start uint64 `json:"start"`
 	Size  uint64 `json:"size"`
+	Attrs string `json:"attrs"`
 	Type  string `json:"type"`
 	UUID  string `json:"uuid"`
 	Name  string `json:"name"`
@@ -77,7 +83,8 @@ type DeviceLayout struct {
 type DeviceStructure struct {
 	gadget.LaidOutStructure
 
-	Node string
+	Node    string
+	Created bool
 }
 
 // NewDeviceLayout obtains the partitioning and filesystem information from the
@@ -124,14 +131,9 @@ func (dl *DeviceLayout) CreateMissing(pv *gadget.LaidOutVolume) ([]DeviceStructu
 		return created, osutil.OutputErr(output, err)
 	}
 
-	// Re-read the partition table using the BLKPG ioctl, which doesn't
-	// remove existing partitions only appends new partitions with the right
-	// size and offset. As long as we provide consistent partitioning from
-	// userspace we're safe. At this point we also trigger udev to create
-	// the new partition device nodes.
-	output, err := exec.Command("partx", "-u", dl.Device).CombinedOutput()
-	if err != nil {
-		return nil, osutil.OutputErr(output, err)
+	// Re-read the partition table
+	if err := reloadPartitionTable(dl.Device); err != nil {
+		return nil, err
 	}
 
 	// Make sure the devices for the partitions we created are available
@@ -140,6 +142,46 @@ func (dl *DeviceLayout) CreateMissing(pv *gadget.LaidOutVolume) ([]DeviceStructu
 	}
 
 	return created, nil
+}
+
+// RemoveCreated removes partitions added during a previous failed install
+// attempt.
+func (dl *DeviceLayout) RemoveCreated() error {
+	toDelete := listCreatedPartitions(dl)
+	if len(toDelete) == 0 {
+		return nil
+	}
+
+	// Delete disk partitions
+	logger.Noticef("partitions to remove: %v", toDelete)
+	cmd := exec.Command("sfdisk", append([]string{"--no-reread", "--delete", dl.Device}, toDelete...)...)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return osutil.OutputErr(output, err)
+	}
+
+	// Reload the partition table
+	if err := reloadPartitionTable(dl.Device); err != nil {
+		return err
+	}
+
+	// Re-read the partition table from the device to update our partition list
+	layout, err := DeviceLayoutFromDisk(dl.Device)
+	if err != nil {
+		return fmt.Errorf("cannot read disk layout: %v", err)
+	}
+	if dl.ID != layout.ID {
+		return fmt.Errorf("partition table IDs don't match")
+	}
+	dl.Structure = layout.Structure
+	dl.partitionTable = layout.partitionTable
+
+	// Ensure all created partitions were removed
+	remaining := listCreatedPartitions(dl)
+	if len(remaining) != 0 {
+		return fmt.Errorf("cannot remove partitions %v", remaining)
+	}
+
+	return nil
 }
 
 // ensureNodeExists makes sure the device nodes for all device structures are
@@ -191,6 +233,13 @@ func deviceLayoutFromDump(dump *sfdiskDeviceDump) (*DeviceLayout, error) {
 		}
 		bd := info.BlockDevices[0]
 
+		// verify whether this partition was created during the install process
+		createdPartition := false
+		if p.Attrs != "" {
+			attrs := strings.Split(strings.TrimPrefix(p.Attrs, "GUID:"), ",")
+			createdPartition = strutil.ListContains(attrs, createdPartitionAttr)
+		}
+
 		structure[i] = gadget.VolumeStructure{
 			Name:       p.Name,
 			Size:       gadget.Size(p.Size) * sectorSize,
@@ -204,7 +253,8 @@ func deviceLayoutFromDump(dump *sfdiskDeviceDump) (*DeviceLayout, error) {
 				StartOffset:     gadget.Size(p.Start) * sectorSize,
 				Index:           i + 1,
 			},
-			Node: p.Node,
+			Node:    p.Node,
+			Created: createdPartition,
 		}
 	}
 
@@ -259,11 +309,9 @@ func buildPartitionList(ptable *sfdiskPartitionTable, pv *gadget.LaidOutVolume) 
 		// build from there could be safer if the disk partitions are not consecutive
 		// (can this actually happen in our images?)
 		node := deviceName(ptable.Device, p.Index)
-		fmt.Fprintf(buf, "%s : start=%12d, size=%12d, type=%s, name=%q\n", node, p.StartOffset/sectorSize,
-			s.Size/sectorSize, partitionType(ptable.Label, p.Type), s.Name)
-
-		// TODO:UC20: also add an attribute to mark partitions created at install
-		//            time so they can be removed case the installation fails.
+		fmt.Fprintf(buf, "%s : start=%12d, size=%12d, type=%s, name=%q, attrs=\"GUID:%s\"\n", node,
+			p.StartOffset/sectorSize, s.Size/sectorSize, partitionType(ptable.Label, p.Type),
+			s.Name, createdPartitionAttr)
 
 		// Set expected labels based on role
 		switch s.Role {
@@ -275,16 +323,44 @@ func buildPartitionList(ptable *sfdiskPartitionTable, pv *gadget.LaidOutVolume) 
 			s.Label = ubuntuDataLabel
 		}
 
-		toBeCreated = append(toBeCreated, DeviceStructure{p, node})
+		toBeCreated = append(toBeCreated, DeviceStructure{p, node, true})
 	}
 
 	return buf, toBeCreated
+}
+
+// listCreatedPartitions returns a list of indexes of partitions that are
+// marked as created by the installer.
+func listCreatedPartitions(dl *DeviceLayout) []string {
+	created := make([]string, 0, len(dl.Structure))
+	for n, ds := range dl.Structure {
+		if ds.Created {
+			logger.Noticef("existing partition %s was created during install", ds.Node)
+			created = append(created, strconv.Itoa(n+1))
+		}
+	}
+	return created
 }
 
 // udevTrigger triggers udev for the specified device and waits until
 // all events in the udev queue are handled.
 func udevTrigger(device string) error {
 	if output, err := exec.Command("udevadm", "trigger", "--settle", device).CombinedOutput(); err != nil {
+		return osutil.OutputErr(output, err)
+	}
+	return nil
+}
+
+// reloadPartitionTable instructs the kernel to re-read the partition
+// table of a given block device.
+func reloadPartitionTable(device string) error {
+	// Re-read the partition table using the BLKPG ioctl, which doesn't
+	// remove existing partitions, only appends new partitions with the right
+	// size and offset. As long as we provide consistent partitioning from
+	// userspace we're safe. At this point we also trigger udev to create
+	// the new partition device nodes.
+	output, err := exec.Command("partx", "-u", device).CombinedOutput()
+	if err != nil {
 		return osutil.OutputErr(output, err)
 	}
 	return nil
