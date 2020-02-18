@@ -972,7 +972,6 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	// For more information about systemd cgroups, including unit types, see:
 	// https://www.freedesktop.org/wiki/Software/systemd/ControlGroupInterface/
 	if app := info.Apps[snapApp]; app == nil || !app.IsService() {
-		logger.Debugf("creating transient scope %s", securityTag)
 		if err := createTransientScope(securityTag); err != nil {
 			return err
 		}
@@ -1005,6 +1004,7 @@ var createTransientScope = func(securityTag string) error {
 		return nil
 	}
 
+	logger.Debugf("creating transient scope %s", securityTag)
 	// The scope is created with a DBus call to systemd running either on
 	// system or session bus, depending on if we are starting a program as root
 	// or as a regular user.
