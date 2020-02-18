@@ -283,10 +283,20 @@ func (s *startPreseedSuite) TestRunPreseedUnsupportedVersion(c *C) {
 	mockTargetSnapd := testutil.MockCommand(c, filepath.Join(targetSnapdRoot, "usr/lib/snapd/snapd"), "")
 	defer mockTargetSnapd.Restore()
 
-	infoFile := filepath.Join(filepath.Join(targetSnapdRoot, dirs.CoreLibExecDir, "info"))
+	infoFile := filepath.Join(targetSnapdRoot, dirs.CoreLibExecDir, "info")
 	c.Assert(ioutil.WriteFile(infoFile, []byte("VERSION=2.43.0"), 0644), IsNil)
 
 	parser := testParser(c)
 	c.Check(main.Run(parser, []string{tmpDir}), ErrorMatches,
 		`snapd 2.43.0 from the target system does not support preseeding, the minimum required version is 2.44.0`)
+}
+
+func (s *startPreseedSuite) TestVersionCheckWithGitVer(c *C) {
+	tmpDir := c.MkDir()
+	dirs.SetRootDir(tmpDir)
+
+	infoFile := filepath.Join(tmpDir, "info")
+	c.Assert(ioutil.WriteFile(infoFile, []byte("VERSION=2.43.0+git123"), 0644), IsNil)
+
+	c.Check(main.CheckTargetSnapdVersion(infoFile), IsNil)
 }

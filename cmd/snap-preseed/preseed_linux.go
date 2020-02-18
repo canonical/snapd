@@ -24,6 +24,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/snapcore/snapd/cmd/cmdutil"
@@ -112,6 +113,12 @@ func checkTargetSnapdVersion(infoPath string) error {
 	if err != nil {
 		return err
 	}
+
+	// to enable testing agaist code from edge before 2.44.
+	if strings.Contains(ver, "+git") {
+		return nil
+	}
+
 	res, err := strutil.VersionCompare(ver, snapdPreseedSupportVer)
 	if err != nil {
 		return err
