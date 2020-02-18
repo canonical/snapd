@@ -17,8 +17,9 @@
 #ifndef CORE_LAUNCHER_UTILS_H
 #define CORE_LAUNCHER_UTILS_H
 
-#include <stdlib.h>
+#include <stdarg.h>
 #include <stdbool.h>
+#include <stdlib.h>
 
 __attribute__((noreturn))
     __attribute__((format(printf, 1, 2)))
@@ -35,6 +36,25 @@ void debug(const char *fmt, ...);
  **/
 __attribute__((format(printf, 1, 2)))
 void sc_explain(const char *fmt, ...);
+
+/**
+ * sc_explain_start_section starts a new section with an (optional)
+ * section description.
+ *
+ * This function has effects only if explain mode is in effect.
+ **/
+void sc_explain_start_section(const char *fmt, ...);
+
+/**
+ * sc_explain_end_section ends the current section *
+ **/
+void sc_explain_end_section(void);
+
+/**
+ * sc_explain_li writes out a new list-item
+ **/
+__attribute__((format(printf, 1, 2)))
+void sc_explain_li(const char *fmt, ...);
 
 /**
  * sc_explain_header prints an explain-style header to stdout.

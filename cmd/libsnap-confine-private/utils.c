@@ -131,16 +131,59 @@ void debug(const char *msg, ...)
 	}
 }
 
-void sc_explain(const char *fmt, ...)
-{
+typedef struct sc_explain_state {
+        int indent;
+} sc_explain_state;
+
+static struct sc_explain_state es;
+
+static void sc_explain_va(const char *fmt, va_list ap) {
 	if (sc_is_explain_enabled()) {
-		va_list ap;
-		va_start(ap, fmt);
+                for (int i=es.indent; i > 0; i--) {
+                        fprintf(stdout, "    ");
+                }
 		vprintf(fmt, ap);
-		va_end(ap);
+                fprintf(stdout, "\n");
 		fflush(stdout);
 	}
 }
+
+void sc_explain(const char *fmt, ...)
+{
+        va_list ap;
+        va_start(ap, fmt);
+        sc_explain_va(fmt, ap);
+        va_end(ap);
+}
+
+void sc_explain_start_section(const char *fmt, ...)
+{
+        va_list va;
+
+        if (strlen(fmt) > 0) {
+                va_start(va, fmt);
+                sc_explain_va(fmt, va);
+                va_end(va);
+        }
+        es.indent++;
+}
+
+void sc_explain_end_section()
+{
+        es.indent--;
+}
+
+void sc_explain_li(const char *fmt, ...)
+{
+        char buf[256] = "- \0";
+        strncpy(&buf[2], fmt, sizeof(buf)-3);
+
+        va_list va;
+        va_start(va, fmt);
+        sc_explain_va(buf, va);
+        va_end(va);
+}
+
 
 void sc_explain_header(const char *name)
 {
