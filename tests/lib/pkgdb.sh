@@ -636,7 +636,6 @@ pkg_dependencies_ubuntu_classic(){
             echo "
                 evolution-data-server
                 fwupd
-                kpartx
                 packagekit
                 qemu-utils
                 "
@@ -645,7 +644,6 @@ pkg_dependencies_ubuntu_classic(){
             echo "
                 evolution-data-server
                 gccgo-9
-                kpartx
                 packagekit
                 qemu-utils
                 "

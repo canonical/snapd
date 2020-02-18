@@ -110,15 +110,20 @@ backends:
                 workers: 6
                 storage: preserve-size
 
-    google-unstable:
-        type: google
-        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-        location: computeengine/us-east1-b
-        halt-timeout: 2h
-        systems:
             - centos-7-64:
                 workers: 6
                 image: centos-7-64
+
+    # TODO: spread is really unhappy when it sees a backend without any systems,
+    # so this block is intentially kept commented out, until we need to add
+    # systems to it
+    #
+    # google-unstable:
+    #     type: google
+    #     key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
+    #     location: computeengine/us-east1-b
+    #     halt-timeout: 2h
+    #     systems:
 
     google-tpm:
         type: google
@@ -844,7 +849,7 @@ suites:
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
-            distro_install_package snapd qemu qemu-utils kpartx genisoimage sshpass qemu-kvm cloud-image-utils ubuntu-image
+            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ubuntu-image
 
         restore: |
             #shellcheck source=tests/lib/nested.sh

@@ -1,0 +1,52 @@
+summary: Ensure that snap create-user works in ubuntu-core
+# FIXME: combine this test with tests/core/create-user-2?
+
+# TODO:UC20: enable for UC20
+systems: [ubuntu-core-1*]
+
+restore: |
+    # FIXME: use deluser here now that it supports --extrausers
+    sed -i '/^mvo/d' /var/lib/extrausers/passwd
+    sed -i '/^mvo/d' /var/lib/extrausers/shadow
+    sed -i '/^mvo/d' /var/lib/extrausers/group
+    rm -rf /home/mvo
+    rm -f create.error
+
+execute: |
+    if [ "$MANAGED_DEVICE" = "true" ]; then
+        if snap create-user --sudoer mvo@ubuntu.com 2>create.error; then
+            echo "Did not get expected error creating user in managed device"
+            exit 1
+        fi
+        MATCH "cannot create user: device already managed" < create.error
+        exit 0
+    fi
+    echo "Adding invalid user"
+    expected='error: while creating user: cannot create user "nosuchuser@example.com"'
+    if output=$(snap create-user nosuchuser@example.com 2>&1); then
+        echo "snap create-user should fail for unknown users but it did not"
+        exit 1
+    fi
+    MATCH "$expected" <<<"$output"
+
+    echo "Adding valid user"
+    expected='created user "mvo"'
+    output=$(snap create-user --sudoer mvo@ubuntu.com)
+    if [ "$output" != "$expected" ]; then
+        echo "Unexpected output $output"
+        exit 1
+    fi
+    echo "Ensure there are ssh keys imported"
+    MATCH ssh-rsa < /home/mvo/.ssh/authorized_keys
+
+    echo "Ensure the user is a sudo user"
+    sudo -u mvo sudo true
+
+    echo "ensure the user's home directory exists"
+    test -d /home/mvo
+
+    echo "ensure ~/.snap/auth.json was created"
+    test -f /home/mvo/.snap/auth.json
+
+    echo "ensure user's email was stored in ~/.snap/auth.json"
+    MATCH '"email":"mvo@ubuntu.com"' < /home/mvo/.snap/auth.json

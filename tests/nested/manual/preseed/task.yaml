@@ -11,18 +11,10 @@ environment:
   IMAGE_MOUNTPOINT: /mnt/cloudimg
 
 prepare: |
-  mkdir -p "$IMAGE_MOUNTPOINT"
-
   #shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB/nested.sh"
   create_nested_classic_vm
-  CLOUD_IMAGE=$(get_nested_classic_image_path)
-
-  #shellcheck source=tests/lib/preseed.sh
-  . "$TESTSLIB/preseed.sh"
-
-  mount_ubuntu_image "$CLOUD_IMAGE" "$IMAGE_MOUNTPOINT"
-  setup_preseeding "$IMAGE_MOUNTPOINT"
+  mkdir -p "$IMAGE_MOUNTPOINT"
 
 restore: |
   #shellcheck source=tests/lib/nested.sh
@@ -34,6 +26,16 @@ restore: |
   umount_ubuntu_image "$IMAGE_MOUNTPOINT" || true
 
 execute: |
+  #shellcheck source=tests/lib/nested.sh
+  . "$TESTSLIB/nested.sh"
+
+  #shellcheck source=tests/lib/preseed.sh
+  . "$TESTSLIB/preseed.sh"
+
+  CLOUD_IMAGE=$(get_nested_classic_image_path)
+  mount_ubuntu_image "$CLOUD_IMAGE" "$IMAGE_MOUNTPOINT"
+  setup_preseeding "$IMAGE_MOUNTPOINT"
+
   echo "Running pre-seeeding"
   /usr/lib/snapd/snap-preseed "$IMAGE_MOUNTPOINT"
 

@@ -125,6 +125,15 @@ unix (connect, receive, send)
     type=stream
     peer=(addr="@/tmp/ibus/dbus-*"),
 
+# abstract path in ibus >= 1.5.22 uses $XDG_CACHE_HOME (ie, @{HOME}/.cache)
+# This should use this, but due to LP: #1856738 we cannot
+#unix (connect, receive, send)
+#    type=stream
+#    peer=(addr="@@{HOME}/.cache/ibus/dbus-*"),
+unix (connect, receive, send)
+     type=stream
+     peer=(addr="@/home/*/.cache/ibus/dbus-*"),
+
 
 # mozc
 # allow communicating with mozc server

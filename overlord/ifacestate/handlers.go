@@ -1077,8 +1077,8 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// XXX: if preseed mode is active and there are hooks, then make them wait for preseed-done barrier task.
 	if m.preseed && len(autots.Tasks()) > 2 { // connect task and setup-profiles tasks are 2 tasks, other tasks are hooks
+		// TODO: in preseed mode make interface hooks wait for mark-preseeded task.
 		for _, t := range autots.Tasks() {
 			if t.Kind() == "run-hook" {
 				return fmt.Errorf("interface hooks are not yet supported in preseed mode")

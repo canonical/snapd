@@ -35,7 +35,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/release"
 
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/cmdstate"
@@ -322,9 +321,6 @@ func (o *Overlord) StartUp() error {
 // StartupTimeout computes a usable timeout for the startup
 // initializations by using a pessimistic estimate.
 func (o *Overlord) StartupTimeout() (timeout time.Duration, reasoning string, err error) {
-	if release.PreseedMode() {
-		return 0, "", nil
-	}
 	// TODO: adjust based on real hardware measurements
 	st := o.State()
 	st.Lock()

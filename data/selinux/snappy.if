@@ -31,7 +31,6 @@ interface(`snappy_domtrans',`
 	gen_require(`
 		type snappy_t, snappy_exec_t;
 	')
-
 	corecmd_search_bin($1)
 	domtrans_pattern($1, snappy_exec_t, snappy_t)
 ')
@@ -47,18 +46,16 @@ interface(`snappy_domtrans',`
 ## </param>
 #
 interface(`snappy_systemctl',`
-        gen_require(`
-                type snappy_t;
-                type snappy_unit_file_t;
-        ')
-
-        systemd_exec_systemctl($1)
-        init_reload_services($1)
-        allow $1 snappy_unit_file_t:unix_stream_socket create_stream_socket_perms;
-        allow $1 snappy_unit_file_t:file read_file_perms;
-        allow $1 snappy_unit_file_t:service manage_service_perms;
-
-        ps_process_pattern($1, snappy_t)
+	gen_require(`
+		type snappy_t;
+		type snappy_unit_file_t;
+	')
+	systemd_exec_systemctl($1)
+	init_reload_services($1)
+	allow $1 snappy_unit_file_t:unix_stream_socket create_stream_socket_perms;
+	allow $1 snappy_unit_file_t:file read_file_perms;
+	allow $1 snappy_unit_file_t:service manage_service_perms;
+	ps_process_pattern($1, snappy_t)
 ')
 
 
@@ -76,7 +73,6 @@ interface(`snappy_read_config',`
 	gen_require(`
 		type snappy_config_t;
 	')
-
 	files_search_etc($1)
 	allow $1 snappy_config_t:dir list_dir_perms;
 	allow $1 snappy_config_t:file read_file_perms;
@@ -96,11 +92,9 @@ interface(`snappy_read_config',`
 ## </param>
 #
 interface(`snappy_filetrans_home_content',`
-
 	gen_require(`
 		type snappy_home_t;
 	')
-
 	userdom_user_home_dir_filetrans($1, snappy_home_t, dir, "snap")
 ')
 
@@ -118,12 +112,11 @@ interface(`snappy_filetrans_home_content',`
 interface(`snappy_read_user_home_files',`
 	gen_require(`
 		type snappy_home_t;
-		')
-
-		allow $1 snappy_home_t:dir list_dir_perms;
-		allow $1 snappy_home_t:file read_file_perms;
-		allow $1 snappy_home_t:lnk_file read_lnk_file_perms;
-		userdom_search_user_home_dirs($1)
+	')
+	allow $1 snappy_home_t:dir list_dir_perms;
+	allow $1 snappy_home_t:file read_file_perms;
+	allow $1 snappy_home_t:lnk_file read_lnk_file_perms;
+	userdom_search_user_home_dirs($1)
 ')
 
 ########################################
@@ -139,10 +132,9 @@ interface(`snappy_read_user_home_files',`
 interface(`snappy_write_user_home_files',`
 	gen_require(`
 		type snappy_home_t;
-		')
-
-		write_files_pattern($1, snappy_home_t, snappy_home_t)
-		userdom_search_user_home_dirs($1)
+	')
+	write_files_pattern($1, snappy_home_t, snappy_home_t)
+	userdom_search_user_home_dirs($1)
 ')
 
 ########################################
@@ -158,9 +150,8 @@ interface(`snappy_write_user_home_files',`
 interface(`snappy_dontaudit_rw_user_home_files',`
 	gen_require(`
 		type snappy_home_t;
-		')
-
-		dontaudit $1 snappy_home_t:file rw_inherited_file_perms;
+	')
+	dontaudit $1 snappy_home_t:file rw_inherited_file_perms;
 ')
 
 ########################################
@@ -176,10 +167,9 @@ interface(`snappy_dontaudit_rw_user_home_files',`
 interface(`snappy_dontaudit_manage_user_home_files',`
 	gen_require(`
 		type snappy_home_t;
-		')
-
-		dontaudit $1 snappy_home_t:dir manage_dir_perms;
-		dontaudit $1 snappy_home_t:file manage_file_perms;
+	')
+	dontaudit $1 snappy_home_t:dir manage_dir_perms;
+	dontaudit $1 snappy_home_t:file manage_file_perms;
 ')
 
 ########################################
@@ -195,10 +185,9 @@ interface(`snappy_dontaudit_manage_user_home_files',`
 interface(`snappy_stream_connect',`
 	gen_require(`
 		type snappy_t, snappy_var_run_t;
-		')
-
-		files_search_pids($1)
-		stream_connect_pattern($1, snappy_var_run_t, snappy_var_run_t, snappy_t)
+	')
+	files_search_pids($1)
+	stream_connect_pattern($1, snappy_var_run_t, snappy_var_run_t, snappy_t)
 ')
 
 #######################################
@@ -223,13 +212,9 @@ interface(`snappy_admin',`
 		type snappy_t, snappy_config_t;
 		type snappy_var_run_t;
 	')
-
 	allow $1 snappy_t:process signal_perms;
-
 	ps_process_pattern($1, snappy_t);
-
 	admin_pattern($1, snappy_config_t);
-
 	files_list_pids($1, snappy_var_run_t);
 	admin_pattern($1, snappy_var_run_t);
 ')
@@ -248,7 +233,6 @@ interface(`snappy_cli_domtrans',`
 	gen_require(`
 		type snappy_cli_t, snappy_cli_exec_t;
 	')
-
 	corecmd_search_bin($1)
 	domtrans_pattern($1, snappy_cli_exec_t, snappy_cli_t)
 ')
@@ -267,7 +251,6 @@ interface(`snappy_confine_domtrans',`
 	gen_require(`
 		type snappy_confine_t, snappy_confine_exec_t;
 	')
-
 	corecmd_search_bin($1)
 	domtrans_pattern($1, snappy_confine_exec_t, snappy_confine_t)
 ')
@@ -286,7 +269,6 @@ interface(`snappy_mount_domtrans',`
 	gen_require(`
 		type snappy_mount_t, snappy_mount_exec_t;
 	')
-
 	corecmd_search_bin($1)
 	domtrans_pattern($1, snappy_mount_exec_t, snappy_mount_t)
 ')
