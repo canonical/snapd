@@ -477,13 +477,16 @@ func (s *State) Prune(startOfOperation time.Time, pruneWait, abortWait time.Dura
 	}
 
 	for _, chg := range changes {
-		spawnTime := chg.SpawnTime()
 		readyTime := chg.ReadyTime()
+		spawnTime := chg.SpawnTime()
+		if spawnTime.Before(startOfOperation) {
+			spawnTime = startOfOperation
+		}
 		if readyTime.IsZero() {
 			if spawnTime.Before(pruneLimit) && len(chg.Tasks()) == 0 {
 				chg.Abort()
 				delete(s.changes, chg.ID())
-			} else if spawnTime.Before(abortLimit) && spawnTime.After(startOfOperation) {
+			} else if spawnTime.Before(abortLimit) {
 				chg.Abort()
 			}
 			continue

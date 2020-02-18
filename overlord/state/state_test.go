@@ -937,24 +937,28 @@ func (ss *stateSuite) TestPruneHonorsStartOperationTime(c *C) {
 
 	now := time.Now()
 
-	spawnTime := 10 * 24 * time.Hour
+	startTime := 2 * time.Hour
+	spawnTime := 10 * time.Hour
 	pruneWait := 1 * time.Hour
 	abortWait := 3 * time.Hour
 
 	chg := st.NewChange("change", "...")
 	t := st.NewTask("foo", "")
 	chg.AddTask(t)
+	// change spawned 10h ago
 	state.MockChangeTimes(chg, now.Add(-spawnTime), time.Time{})
 
-	// start operation time is 10h ago, change not aborted
-	past := time.Now().AddDate(0, 0, -10)
-	st.Prune(past, pruneWait, abortWait, 100)
+	// start operation time is 2h ago, change is not aborted because
+	// it's less than abortWait limit.
+	opTime := now.Add(-startTime)
+	st.Prune(opTime, pruneWait, abortWait, 100)
 	c.Assert(st.Changes(), HasLen, 1)
 	c.Check(chg.Status(), Equals, state.DoStatus)
 
-	// start operation time is 1 month ago, change is aborted
-	past = time.Now().AddDate(0, -1, 0)
-	st.Prune(past, pruneWait, abortWait, 100)
+	// start operation time is 9h ago, change is aborted.
+	startTime = 9 * time.Hour
+	opTime = time.Now().Add(-startTime)
+	st.Prune(opTime, pruneWait, abortWait, 100)
 	c.Assert(st.Changes(), HasLen, 1)
 	c.Check(chg.Status(), Equals, state.HoldStatus)
 }
