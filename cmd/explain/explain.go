@@ -31,6 +31,12 @@ var (
 	enabled = false
 )
 
+type explainState struct {
+	indent int
+}
+
+var cs explainState
+
 // Say prints an explanatory message to standard output.
 //
 // Say is only effective if Enable was called earlier.
@@ -38,33 +44,26 @@ func Say(f string, args ...interface{}) {
 	if !enabled {
 		return
 	}
+
+	for i := cs.indent; i > 0; i-- {
+		f = "\t" + f
+	}
 	f = strings.Replace(f, "\t", "  ", -1) + "\n"
 	fmt.Fprintf(stdout, f, args...)
 	stdout.Sync() // Ignore errors
 }
 
-type FormatOptions struct {
-	// How a header/prefix for items (e.g. maps/lists)
-	Prefix string
-	// Join lists instead of printing them in multiple lines
-	Join bool
-	// Show with indent
-	Indent int
-	// ...
-	IsBullet bool
+func StartSection(f string, args ...interface{}) {
+	Say(f, args...)
+	cs.indent++
 }
 
-func Say1(f string, opts *FormatOptions, args ...interface{}) {
-	if opts == nil {
-		opts = &FormatOptions{}
-	}
+func EndSection() {
+	cs.indent--
+}
 
-	if opts.IsBullet {
-		f = "-" + f
-	}
-	for i := opts.Indent; i > 0; i-- {
-		f = "\t" + f
-	}
+func ListItem(f string, args ...interface{}) {
+	f = "- " + f
 	Say(f, args...)
 }
 
@@ -81,28 +80,11 @@ func SayExtraEnv(env []string) {
 		}
 	}
 	if len(extraEnv) > 0 {
-		SayList(extraEnv, &FormatOptions{
-			Prefix: "with environment additions",
-			Indent: 1,
-		})
-	}
-}
-
-func SayList(l []string, opts *FormatOptions) {
-	if opts == nil {
-		opts = &FormatOptions{}
-	}
-
-	if opts.Prefix != "" {
-		Say1(opts.Prefix, opts)
-	}
-	if opts.Join {
-		Say1("%s: %s", opts, opts.Prefix, strings.Join(l, " "))
-		return
-	} else {
-		for _, s := range l {
-			Say1("%s", &FormatOptions{IsBullet: opts.IsBullet, Indent: opts.Indent + 1}, s)
+		StartSection("with environment additions")
+		for _, ee := range extraEnv {
+			Say(ee)
 		}
+		EndSection()
 	}
 }
 

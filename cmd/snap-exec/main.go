@@ -234,17 +234,18 @@ func execApp(snapApp, revision, command string, args []string) error {
 
 	explain.Do(func() {
 		if len(app.CommandChain) > 0 {
-			explain.Say("Will transition through command chain:")
-			explain.SayList(app.CommandChain, nil)
+			explain.StartSection("Will transition through command chain:")
+			for _, chainCmd := range app.CommandChain {
+				explain.ListItem("%s", chainCmd)
+			}
+			explain.EndSection()
 		}
-		explain.Say("Executing command: %s", fullCmd[0])
+		explain.StartSection("Executing command: %s", fullCmd[0])
 		if len(fullCmd) > 1 {
-			explain.SayList(fullCmd[1:], &explain.FormatOptions{
-				Prefix: "with arguments",
-				Join:   true,
-			})
+			explain.Say("with arguments: %s", strings.Join(fullCmd[1:], " "))
 		}
 		explain.SayExtraEnv(env)
+		explain.EndSection()
 	})
 	explain.Header(fmt.Sprintf("%s.%s", app.Snap.SnapName(), app.Name), "snap app")
 

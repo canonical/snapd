@@ -357,16 +357,15 @@ func createUserDataDirs(info *snap.Info) error {
 		snapUserDir := snap.UserSnapDir(usr.HomeDir, info.SnapName())
 		createDirs = append(createDirs, snapUserDir)
 	}
-	explain.SayList(createDirs, &explain.FormatOptions{
-		Prefix: "Creating user data directories:",
-	})
-
+	explain.StartSection("Creating user data directories:")
 	for _, d := range createDirs {
+		explain.ListItem("%s", strings.Replace(d, os.Getenv("HOME"), "~", 1))
 		if err := os.MkdirAll(d, 0755); err != nil {
 			// TRANSLATORS: %q is the directory whose creation failed, %v the error message
 			return fmt.Errorf(i18n.G("cannot create %q: %v"), d, err)
 		}
 	}
+	explain.EndSection()
 
 	if err := createOrUpdateUserDataSymlink(info, usr); err != nil {
 		return err
@@ -434,19 +433,22 @@ func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
 	if err != nil {
 		return err
 	}
-	explain.Say("Inferred application details:")
-	explain.Say1("snap name: %s", &explain.FormatOptions{Indent: 1}, snapName)
-	explain.Say1("app name: %s", &explain.FormatOptions{Indent: 1}, appName)
-	explain.Say1("confinement: %s", &explain.FormatOptions{Indent: 1}, info.Confinement)
+	explain.StartSection("Inferred application details:")
+	explain.Say("snap name: %s", snapName)
+	explain.Say("app name: %s", appName)
+	explain.Say("confinement: %s", info.Confinement)
 	// TODO: add core16 -> core handling here
 	if info.Base == "" {
-		explain.Say1("base: core (implicit)", &explain.FormatOptions{Indent: 1})
+		explain.Say("base: core (implicit)")
 	} else {
-		explain.Say1("base: %s", &explain.FormatOptions{Indent: 1}, info.Base)
+		explain.Say("base: %s", info.Base)
 	}
-	explain.Say("Will exec through the following tools:")
-	explain.Say1("snap-confine (execution environment and sandboxing)", &explain.FormatOptions{Indent: 1, IsBullet: true})
-	explain.Say1("snap-exec (command chain and environment variables)", &explain.FormatOptions{Indent: 1, IsBullet: true})
+	explain.EndSection()
+
+	explain.StartSection("Will exec through the following tools:")
+	explain.ListItem("snap-confine (execution environment and sandboxing)")
+	explain.ListItem("snap-exec (command chain and environment variables)")
+	explain.EndSection()
 
 	app := info.Apps[appName]
 	if app == nil {
@@ -993,13 +995,14 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	} else if x.useStrace() {
 		return x.runCmdUnderStrace(cmd, env)
 	} else {
-		explain.Say("Executing snap-confine %s", cmd[0])
+		explain.StartSection("Executing snap-confine %s", cmd[0])
 		if len(cmd) > 1 {
-			explain.Say1("with arguments: %s", &explain.FormatOptions{Indent: 1}, strings.Join(cmd[1:], " "))
+			explain.Say("with arguments: %s", strings.Join(cmd[1:], " "))
 		}
 		explain.Do(func() {
 			explain.SayExtraEnv(env)
 		})
+		explain.EndSection()
 		return syscallExec(cmd[0], cmd, env)
 	}
 }

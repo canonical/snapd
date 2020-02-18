@@ -116,17 +116,17 @@ func (c *Change) createPath(path string, pokeHoles bool, as *Assumptions) ([]*Ch
 		err = MkdirAll(path, mode, uid, gid, rs)
 		if err == nil && !c.Entry.XSnapdSynthetic() {
 			// XXX: use new Format{IsBullet: true} ?
-			explain.Say1("Created %s (placeholder directory)", &explain.FormatOptions{Indent: 1, IsBullet: true}, path)
+			explain.ListItem("Created %s (placeholder directory)", path)
 		}
 	case "file":
 		err = MkfileAll(path, mode, uid, gid, rs)
 		if err == nil && !c.Entry.XSnapdSynthetic() {
-			explain.Say1("Created %s (placeholder file)", &explain.FormatOptions{Indent: 1, IsBullet: true}, path)
+			explain.ListItem("Created %s (placeholder file)", path)
 		}
 	case "symlink":
 		err = MksymlinkAll(path, mode, uid, gid, c.Entry.XSnapdSymlink(), rs)
 		if err == nil && !c.Entry.XSnapdSynthetic() {
-			explain.Say1("Created %s (symbolic link to %s)", &explain.FormatOptions{Indent: 1, IsBullet: true}, path, c.Entry.XSnapdSymlink())
+			explain.ListItem("Created %s (symbolic link to %s)", path, c.Entry.XSnapdSymlink())
 		}
 	}
 	if needsMimic, mimicPath := mimicRequired(err); needsMimic && pokeHoles {
@@ -325,7 +325,7 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 				mountOpts = append(mountOpts, fmt.Sprintf("%#x", unknownFlags))
 			}
 			if err == nil && !c.Entry.XSnapdSynthetic() {
-				explain.Say("Mounted %s from %s (type:%q, options:%s, data:%q)", &explain.FormatOptions{Indent: 1, IsBullet: true}, c.Entry.Dir, c.Entry.Name, c.Entry.Type, strings.Join(mountOpts, "|"), strings.Join(unparsed, ","))
+				explain.Say("Mounted %s from %s (type:%q, options:%s, data:%q)", c.Entry.Dir, c.Entry.Name, c.Entry.Type, strings.Join(mountOpts, "|"), strings.Join(unparsed, ","))
 			}
 			logger.Debugf("mount name:%q dir:%q type:%q opts:%s unparsed:%q (error: %v)",
 				c.Entry.Name, c.Entry.Dir, c.Entry.Type, strings.Join(mountOpts, "|"), strings.Join(unparsed, ","), err)
@@ -341,7 +341,7 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 				logger.Debugf("mount name:%q dir:%q type:%q opts:%s unparsed:%q (error: %v)",
 					"none", c.Entry.Dir, "", strings.Join(mountOpts, "|"), strings.Join(unparsed, ","), err)
 				if err == nil && !c.Entry.XSnapdSynthetic() {
-					explain.Say1("Changed mount propagation of %s (options:%s)", &explain.FormatOptions{Indent: 1, IsBullet: true}, c.Entry.Dir, strings.Join(mountOpts, "|"))
+					explain.ListItem("Changed mount propagation of %s (options:%s)", c.Entry.Dir, strings.Join(mountOpts, "|"))
 				}
 			}
 			if err == nil {
@@ -355,7 +355,7 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 		case "symlink":
 			err = osRemove(c.Entry.Dir)
 			if err == nil {
-				explain.Say1("Removed symbolic link %s", &explain.FormatOptions{Indent: 1, IsBullet: true}, c.Entry.Dir)
+				explain.ListItem("Removed symbolic link %s", c.Entry.Dir)
 			}
 			logger.Debugf("remove %q (error: %v)", c.Entry.Dir, err)
 		case "", "file":
@@ -372,7 +372,7 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 				err = sysMount("none", c.Entry.Dir, "", syscall.MS_REC|syscall.MS_PRIVATE, "")
 				logger.Debugf("mount --make-rprivate %q (error: %v)", c.Entry.Dir, err)
 				if err == nil && !c.Entry.XSnapdSynthetic() {
-					explain.Say1("Changed mount propagation of %s (options:%s)", &explain.FormatOptions{Indent: 1, IsBullet: true}, c.Entry.Dir, strings.Join([]string{"MS_REC", "MS_PRIVATE"}, "|"))
+					explain.ListItem("Changed mount propagation of %s (options:%s)", c.Entry.Dir, strings.Join([]string{"MS_REC", "MS_PRIVATE"}, "|"))
 				}
 			}
 
@@ -385,7 +385,7 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 				}
 				logger.Debugf("umount %q %s (error: %v)", c.Entry.Dir, strings.Join(umountOpts, "|"), err)
 				if err == nil && !c.Entry.XSnapdSynthetic() {
-					explain.Say1("Unmounted %s (options:%s)", &explain.FormatOptions{Indent: 1, IsBullet: true}, c.Entry.Dir, strings.Join(umountOpts, "|"))
+					explain.ListItem("Unmounted %s (options:%s)", c.Entry.Dir, strings.Join(umountOpts, "|"))
 				}
 				if err != nil {
 					return err
@@ -433,7 +433,7 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 			err = osRemove(path)
 			logger.Debugf("remove %q (error: %v)", path, err)
 			if err == nil {
-				explain.Say1("Removed %s", &explain.FormatOptions{Indent: 1, IsBullet: true}, path)
+				explain.ListItem("Removed %s", path)
 			}
 			// Unpack the low-level error that osRemove wraps into PathError.
 			if packed, ok := err.(*os.PathError); ok {

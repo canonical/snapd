@@ -91,6 +91,6 @@ func run() error {
 		explain.Header("snap-update-ns", "mount namespace")
 		upCtx = NewSystemProfileUpdateContext(opts.Positionals.SnapName, opts.FromSnapConfine)
 	}
-	explain.Say("Configuring mount namespace according to mount profile")
+	explain.StartSection("Configuring mount namespace according to mount profile")
 	return executeMountProfileUpdate(upCtx)
 }
