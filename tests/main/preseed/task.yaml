@@ -15,13 +15,7 @@ prepare: |
   #shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB/nested.sh"
   wget "$(get_image_url_for_nested_vm)" -O cloudimg.img
-  
-  #shellcheck source=tests/lib/preseed.sh
-  . "$TESTSLIB/preseed.sh"
-
   mkdir -p "$IMAGE_MOUNTPOINT"
-  mount_ubuntu_image cloudimg.img "$IMAGE_MOUNTPOINT"
-  setup_preseeding "$IMAGE_MOUNTPOINT"
 
 restore: |
   # any of the restore commands can fail depending on where execute part stopped,
@@ -29,6 +23,11 @@ restore: |
   umount_ubuntu_image "$IMAGE_MOUNTPOINT" || true
 
 execute: |
+  #shellcheck source=tests/lib/preseed.sh
+  . "$TESTSLIB/preseed.sh"
+  mount_ubuntu_image cloudimg.img "$IMAGE_MOUNTPOINT"
+  setup_preseeding "$IMAGE_MOUNTPOINT"
+
   echo "Checking missing chroot path arg error"
   /usr/lib/snapd/snap-preseed 2>&1 | MATCH "error: need chroot path as argument"
 
@@ -108,3 +107,6 @@ execute: |
   echo "LXD service shouldn't be enabled at this point"
   test ! -e "$SYSTEMD_UNITS"/system/multi-user.target.wants/snap.lxd.activate.service
 
+  #shellcheck source=tests/lib/preseed.sh
+  . "$TESTSLIB/preseed.sh"
+  umount_ubuntu_image "$IMAGE_MOUNTPOINT"
