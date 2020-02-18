@@ -659,7 +659,7 @@ func (ovs *overlordSuite) TestEnsureLoopPruneDoesntAbortBeforeStartOfOperation(c
 
 	// start the loop that runs the prune ticker
 	o.Loop()
-	time.Sleep(1500 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 	c.Assert(o.Stop(), IsNil)
 
 	st.Lock()
@@ -709,7 +709,7 @@ func (ovs *overlordSuite) TestEnsureLoopPruneAbortsOld(c *C) {
 
 	// start the loop that runs the prune ticker
 	o.Loop()
-	time.Sleep(1500 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 	c.Assert(o.Stop(), IsNil)
 
 	st.Lock()
@@ -760,7 +760,7 @@ func (ovs *overlordSuite) TestEnsureLoopNoPruneWhenPreseed(c *C) {
 	st.Unlock()
 	// start the loop that runs the prune ticker
 	o.Loop()
-	time.Sleep(1500 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 	c.Assert(o.Stop(), IsNil)
 
 	st.Lock()
