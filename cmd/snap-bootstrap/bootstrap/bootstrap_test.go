@@ -93,7 +93,8 @@ var mockDeviceLayout = partition.DeviceLayout{
 				},
 				StartOffset: 0,
 			},
-			Node: "/dev/node1",
+			Node:    "/dev/node1",
+			Created: false,
 		},
 		{
 			LaidOutStructure: gadget.LaidOutStructure{
@@ -103,7 +104,19 @@ var mockDeviceLayout = partition.DeviceLayout{
 				},
 				StartOffset: 1 * gadget.SizeMiB,
 			},
-			Node: "/dev/node2",
+			Node:    "/dev/node2",
+			Created: false,
+		},
+		{
+			LaidOutStructure: gadget.LaidOutStructure{
+				VolumeStructure: &gadget.VolumeStructure{
+					Name: "Local",
+					Size: 10 * gadget.SizeMiB,
+				},
+				StartOffset: 2 * gadget.SizeMiB,
+			},
+			Node:    "/dev/node3",
+			Created: true,
 		},
 	},
 	ID:         "anything",
@@ -114,7 +127,7 @@ var mockDeviceLayout = partition.DeviceLayout{
 }
 
 func (s *bootstrapSuite) TestLayoutCompatibility(c *C) {
-	// same contents
+	// same contents (the locally created structure should be ignored)
 	gadgetLayout := layoutFromYaml(c, mockGadgetYaml)
 	err := bootstrap.EnsureLayoutCompatibility(gadgetLayout, &mockDeviceLayout)
 	c.Assert(err, IsNil)

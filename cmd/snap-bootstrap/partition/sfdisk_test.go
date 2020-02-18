@@ -43,7 +43,7 @@ echo '{
       "lastlba": 8388574,
       "partitions": [
          {"node": "/dev/node1", "start": 2048, "size": 2048, "type": "21686148-6449-6E6F-744E-656564454649", "uuid": "2E59D969-52AB-430B-88AC-F83873519F6F", "name": "BIOS Boot"},
-         {"node": "/dev/node2", "start": 4096, "size": 2457600, "type": "C12A7328-F81F-11D2-BA4B-00A0C93EC93B", "uuid": "44C3D5C3-CAE1-4306-83E8-DF437ACDB32F", "name": "Recovery"}
+         {"node": "/dev/node2", "start": 4096, "size": 2457600, "type": "C12A7328-F81F-11D2-BA4B-00A0C93EC93B", "uuid": "44C3D5C3-CAE1-4306-83E8-DF437ACDB32F", "name": "Recovery", "attrs": "GUID:59"}
       ]
    }
 }'`
@@ -75,6 +75,15 @@ const mockLsblkScript = `echo '{
         {"name": "nodeX", "fstype": null, "label": null, "uuid": null, "mountpoint": null}
     ]
 }'`
+
+const mockLsblkScriptBiosAndRecovery = `
+[ "$3" == "/dev/node1" ] && echo '{
+    "blockdevices": [ {"name": "node1", "fstype": null, "label": null, "uuid": null, "mountpoint": null} ]
+}'
+[ "$3" == "/dev/node2" ] && echo '{
+    "blockdevices": [ {"name": "node2", "fstype": "vfat", "label": "ubuntu-seed", "uuid": "A644-B807", "mountpoint": null} ]
+}'
+exit 0`
 
 const gadgetContent = `volumes:
   pc:
@@ -112,14 +121,7 @@ func (s *partitionTestSuite) TestDeviceInfo(c *C) {
 	cmdSfdisk := testutil.MockCommand(c, "sfdisk", mockSfdiskScriptBiosAndRecovery)
 	defer cmdSfdisk.Restore()
 
-	cmdLsblk := testutil.MockCommand(c, "lsblk", `
-[ "$3" == "/dev/node1" ] && echo '{
-   "blockdevices": [ {"name": "node1", "fstype": null, "label": null, "uuid": null, "mountpoint": null} ]
-}'
-[ "$3" == "/dev/node2" ] && echo '{
-   "blockdevices": [ {"name": "node2", "fstype": "vfat", "label": "ubuntu-seed", "uuid": "A644-B807", "mountpoint": null} ]
-}'
-exit 0`)
+	cmdLsblk := testutil.MockCommand(c, "lsblk", mockLsblkScriptBiosAndRecovery)
 	defer cmdLsblk.Restore()
 
 	dl, err := partition.DeviceLayoutFromDisk("/dev/node")
@@ -151,7 +153,8 @@ exit 0`)
 				StartOffset: 0x100000,
 				Index:       1,
 			},
-			Node: "/dev/node1",
+			Node:    "/dev/node1",
+			Created: false,
 		},
 		{
 			LaidOutStructure: gadget.LaidOutStructure{
@@ -165,7 +168,8 @@ exit 0`)
 				StartOffset: 0x200000,
 				Index:       2,
 			},
-			Node: "/dev/node2",
+			Node:    "/dev/node2",
+			Created: true,
 		},
 	})
 }
@@ -264,8 +268,8 @@ func (s *partitionTestSuite) TestBuildPartitionList(c *C) {
 	c.Assert(err, IsNil)
 
 	sfdiskInput, created := partition.BuildPartitionList(ptable, pv)
-	c.Assert(sfdiskInput.String(), Equals, `/dev/node2 : start=        4096, size=     2457600, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, name="Recovery"
-/dev/node3 : start=     2461696, size=     2457600, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Writable"
+	c.Assert(sfdiskInput.String(), Equals, `/dev/node2 : start=        4096, size=     2457600, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, name="Recovery", attrs="GUID:59"
+/dev/node3 : start=     2461696, size=     2457600, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Writable", attrs="GUID:59"
 `)
 	c.Assert(created, DeepEquals, []partition.DeviceStructure{mockDeviceStructureSystemSeed, mockDeviceStructureWritable})
 }
@@ -310,6 +314,36 @@ func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 	c.Assert(cmdPartx.Calls(), DeepEquals, [][]string{
 		{"partx", "-u", "/dev/node"},
 	})
+}
+
+func (s *partitionTestSuite) TestRemovePartitionsTrivial(c *C) {
+	// no locally created partitions
+	cmdSfdisk := testutil.MockCommand(c, "sfdisk", mockSfdiskScriptBios)
+	defer cmdSfdisk.Restore()
+
+	cmdLsblk := testutil.MockCommand(c, "lsblk", mockLsblkScriptBiosAndRecovery)
+	defer cmdLsblk.Restore()
+
+	cmdPartx := testutil.MockCommand(c, "partx", "")
+	defer cmdPartx.Restore()
+
+	dl, err := partition.DeviceLayoutFromDisk("/dev/node")
+	c.Assert(err, IsNil)
+
+	err = dl.RemoveCreated()
+	c.Assert(err, IsNil)
+}
+
+func (s *partitionTestSuite) TestListCreatedPartitions(c *C) {
+	cmdSfdisk := testutil.MockCommand(c, "sfdisk", mockSfdiskScriptBiosAndRecovery)
+	defer cmdSfdisk.Restore()
+
+	cmdLsblk := testutil.MockCommand(c, "lsblk", mockLsblkScriptBiosAndRecovery)
+	defer cmdLsblk.Restore()
+
+	dl, err := partition.DeviceLayoutFromDisk("/dev/node")
+	c.Assert(err, IsNil)
+	c.Assert(partition.ListCreatedPartitions(dl), DeepEquals, []string{"2"})
 }
 
 func (s *partitionTestSuite) TestFilesystemInfo(c *C) {

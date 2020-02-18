@@ -28,10 +28,11 @@ type SFDiskPartitionTable = sfdiskPartitionTable
 type SFDiskPartition = sfdiskPartition
 
 var (
-	FilesystemInfo     = filesystemInfo
-	BuildPartitionList = buildPartitionList
-	Mkfs               = mkfs
-	EnsureNodesExist   = ensureNodesExist
+	FilesystemInfo        = filesystemInfo
+	BuildPartitionList    = buildPartitionList
+	Mkfs                  = mkfs
+	EnsureNodesExist      = ensureNodesExist
+	ListCreatedPartitions = listCreatedPartitions
 )
 
 func MockDeployMountpoint(new string) (restore func()) {
