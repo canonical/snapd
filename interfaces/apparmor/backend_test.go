@@ -2112,24 +2112,27 @@ func (s *backendSuite) TestSetupManySmoke(c *C) {
 }
 
 func (s *backendSuite) TestInstallingSnapInPreseedMode(c *C) {
+	// Intercept the /proc/self/exe symlink and point it to the snapd from the
+	// mounted core snap. This indicates that snapd has re-executed and
+	// should not reload snap-confine policy.
+	fakeExe := filepath.Join(s.RootDir, "fake-proc-self-exe")
+	err := os.Symlink(filepath.Join(dirs.SnapMountDir, "/core/1234/usr/lib/snapd/snapd"), fakeExe)
+	c.Assert(err, IsNil)
+	restore := apparmor.MockProcSelfExe(fakeExe)
+	defer restore()
+
 	aa, ok := s.Backend.(*apparmor.Backend)
 	c.Assert(ok, Equals, true)
 
 	opts := interfaces.SecurityBackendOptions{Preseed: true}
 	c.Assert(aa.Initialize(&opts), IsNil)
 
-	snapConfineProfile := filepath.Join(dirs.SystemApparmorDir, "usr.lib.snapd.snap-confine")
-	c.Check(s.parserCmd.Calls(), DeepEquals, [][]string{
-		{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "--skip-kernel-load", "--skip-read-cache", "--quiet", snapConfineProfile},
-	})
-	s.parserCmd.ForgetCalls()
-
 	s.InstallSnap(c, interfaces.ConfinementOptions{}, "", ifacetest.SambaYamlV1, 1)
 
 	updateNSProfile := filepath.Join(dirs.SnapAppArmorDir, "snap-update-ns.samba")
 	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
 	// file called "snap.sambda.smbd" was created
-	_, err := os.Stat(profile)
+	_, err = os.Stat(profile)
 	c.Check(err, IsNil)
 	// apparmor_parser was used to load that file
 	c.Check(s.parserCmd.Calls(), DeepEquals, [][]string{
