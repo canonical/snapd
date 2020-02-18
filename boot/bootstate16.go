@@ -21,7 +21,6 @@ package boot
 
 import (
 	"fmt"
-	"path/filepath"
 
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/snap"
@@ -156,7 +155,7 @@ func (s16 *bootState16) markSuccessful(update bootStateUpdate) (bootStateUpdate,
 }
 
 func (s16 *bootState16) setNext(s snap.PlaceInfo) (rebootRequired bool, u bootStateUpdate, err error) {
-	nextBoot := filepath.Base(s.MountFile())
+	nextBoot := s.Filename()
 
 	nextBootVar := fmt.Sprintf("snap_try_%s", s16.varSuffix)
 	goodBootVar := fmt.Sprintf("snap_%s", s16.varSuffix)

@@ -291,7 +291,7 @@ func generateMountsModeRun() error {
 			// trying we just fallback to using the normal kernel
 		}
 
-		kernelPath := filepath.Join(dataDir, "system-data", dirs.SnapBlobDir, filepath.Base(kernel.MountFile()))
+		kernelPath := filepath.Join(dataDir, "system-data", dirs.SnapBlobDir, kernel.Filename())
 		fmt.Fprintf(stdout, "%s %s\n", kernelPath, filepath.Join(runMnt, "kernel"))
 	}
 	// 3.1 Write the modeenv out again
