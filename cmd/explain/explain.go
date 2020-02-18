@@ -22,6 +22,7 @@ package explain
 import (
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 )
 
@@ -40,6 +41,69 @@ func Say(f string, args ...interface{}) {
 	f = strings.Replace(f, "\t", "  ", -1) + "\n"
 	fmt.Fprintf(stdout, f, args...)
 	stdout.Sync() // Ignore errors
+}
+
+type FormatOptions struct {
+	// How a header/prefix for items (e.g. maps/lists)
+	Prefix string
+	// Join lists instead of printing them in multiple lines
+	Join bool
+	// Show with indent
+	Indent int
+	// ...
+	IsBullet bool
+}
+
+func Say1(f string, opts *FormatOptions, args ...interface{}) {
+	if opts == nil {
+		opts = &FormatOptions{}
+	}
+
+	if opts.IsBullet {
+		f = "-" + f
+	}
+	for i := opts.Indent; i > 0; i-- {
+		f = "\t" + f
+	}
+	Say(f, args...)
+}
+
+func SayExtraEnv(env []string) {
+	envCopy := make([]string, len(env))
+	copy(envCopy, env)
+	sort.Strings(envCopy)
+	extraEnv := make([]string, 0, len(env))
+	for _, envItem := range envCopy {
+		keyValue := strings.SplitN(envItem, "=", 2)
+		key, value := keyValue[0], keyValue[1]
+		if os.Getenv(key) != value {
+			extraEnv = append(extraEnv, envItem)
+		}
+	}
+	if len(extraEnv) > 0 {
+		SayList(extraEnv, &FormatOptions{
+			Prefix: "with environment additions",
+			Indent: 1,
+		})
+	}
+}
+
+func SayList(l []string, opts *FormatOptions) {
+	if opts == nil {
+		opts = &FormatOptions{}
+	}
+
+	if opts.Prefix != "" {
+		Say1(opts.Prefix, opts)
+	}
+	if opts.Join {
+		Say1("%s: %s", opts, opts.Prefix, strings.Join(l, " "))
+		return
+	} else {
+		for _, s := range l {
+			Say1("%s", &FormatOptions{IsBullet: opts.IsBullet, Indent: opts.Indent + 1}, s)
+		}
+	}
 }
 
 // Header prints a spaced header, usually separating subsequent programs.

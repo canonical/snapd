@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"syscall"
 
@@ -236,29 +235,16 @@ func execApp(snapApp, revision, command string, args []string) error {
 	explain.Do(func() {
 		if len(app.CommandChain) > 0 {
 			explain.Say("Will transition through command chain:")
-			for _, chainCmd := range app.CommandChain {
-				explain.Say("\t- %s", chainCmd)
-			}
+			explain.SayList(app.CommandChain, nil)
 		}
 		explain.Say("Executing command: %s", fullCmd[0])
 		if len(fullCmd) > 1 {
-			explain.Say("\twith arguments: %s", strings.Join(fullCmd[1:], " "))
+			explain.SayList(fullCmd[1:], &explain.FormatOptions{
+				Prefix: "with arguments",
+				Join:   true,
+			})
 		}
-		header := false
-		envCopy := make([]string, len(env))
-		copy(envCopy, env)
-		sort.Strings(envCopy)
-		for _, envItem := range envCopy {
-			keyValue := strings.SplitN(envItem, "=", 2)
-			key, value := keyValue[0], keyValue[1]
-			if os.Getenv(key) != value {
-				if !header {
-					explain.Say("\twith environment additions:")
-					header = true
-				}
-				explain.Say("\t\t%s: %s", key, value)
-			}
-		}
+		explain.SayExtraEnv(env)
 	})
 	explain.Header(fmt.Sprintf("%s.%s", app.Snap.SnapName(), app.Name), "snap app")
 

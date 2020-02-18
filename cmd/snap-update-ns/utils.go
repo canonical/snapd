@@ -645,7 +645,7 @@ func execWritableMimic(plan []*Change, as *Assumptions) ([]*Change, error) {
 	}
 	// The very first item in the plan is a "stashing" bind mount that
 	// describes where we create the mimic.
-	explain.Say("  - Altered %s (writable mimic using %d operations)", plan[0].Entry.Name, len(plan))
+	explain.Say1("Altered %s (writable mimic using %d operations)", &explain.FormatOptions{Indent: 1, IsBullet: true}, plan[0].Entry.Name, len(plan))
 	return undoChanges, nil
 }
 

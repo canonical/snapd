@@ -29,7 +29,6 @@ import (
 	"os/user"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"syscall"
@@ -358,9 +357,11 @@ func createUserDataDirs(info *snap.Info) error {
 		snapUserDir := snap.UserSnapDir(usr.HomeDir, info.SnapName())
 		createDirs = append(createDirs, snapUserDir)
 	}
-	explain.Say("Creating user data directories:")
+	explain.SayList(createDirs, &explain.FormatOptions{
+		Prefix: "Creating user data directories:",
+	})
+
 	for _, d := range createDirs {
-		explain.Say("\t- %s", strings.Replace(d, os.Getenv("HOME"), "~", 1))
 		if err := os.MkdirAll(d, 0755); err != nil {
 			// TRANSLATORS: %q is the directory whose creation failed, %v the error message
 			return fmt.Errorf(i18n.G("cannot create %q: %v"), d, err)
@@ -434,18 +435,18 @@ func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
 		return err
 	}
 	explain.Say("Inferred application details:")
-	explain.Say("\tsnap name: %s", snapName)
-	explain.Say("\tapp name: %s", appName)
-	explain.Say("\tconfinement: %s", info.Confinement)
+	explain.Say1("snap name: %s", &explain.FormatOptions{Indent: 1}, snapName)
+	explain.Say1("app name: %s", &explain.FormatOptions{Indent: 1}, appName)
+	explain.Say1("confinement: %s", &explain.FormatOptions{Indent: 1}, info.Confinement)
 	// TODO: add core16 -> core handling here
 	if info.Base == "" {
-		explain.Say("\tbase: core (implicit)")
+		explain.Say1("base: core (implicit)", &explain.FormatOptions{Indent: 1})
 	} else {
-		explain.Say("\tbase: %s", info.Base)
+		explain.Say1("base: %s", &explain.FormatOptions{Indent: 1}, info.Base)
 	}
 	explain.Say("Will exec through the following tools:")
-	explain.Say("\t- snap-confine (execution environment and sandboxing)")
-	explain.Say("\t- snap-exec (command chain and environment variables)")
+	explain.Say1("snap-confine (execution environment and sandboxing)", &explain.FormatOptions{Indent: 1, IsBullet: true})
+	explain.Say1("snap-exec (command chain and environment variables)", &explain.FormatOptions{Indent: 1, IsBullet: true})
 
 	app := info.Apps[appName]
 	if app == nil {
@@ -994,24 +995,10 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	} else {
 		explain.Say("Executing snap-confine %s", cmd[0])
 		if len(cmd) > 1 {
-			explain.Say("\twith arguments: %s", strings.Join(cmd[1:], " "))
+			explain.Say1("with arguments: %s", &explain.FormatOptions{Indent: 1}, strings.Join(cmd[1:], " "))
 		}
 		explain.Do(func() {
-			header := false
-			envCopy := make([]string, len(env))
-			copy(envCopy, env)
-			sort.Strings(envCopy)
-			for _, envItem := range envCopy {
-				keyValue := strings.SplitN(envItem, "=", 2)
-				key, value := keyValue[0], keyValue[1]
-				if os.Getenv(key) != value {
-					if !header {
-						explain.Say("\twith environment additions:")
-						header = true
-					}
-					explain.Say("\t\t%s: %s", key, value)
-				}
-			}
+			explain.SayExtraEnv(env)
 		})
 		return syscallExec(cmd[0], cmd, env)
 	}
