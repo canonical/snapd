@@ -1,17 +1,25 @@
-name: snapd-snap
+name: snapcraft-snap
 
-on:
-  push:
+on: 
+  push: 
     tags:
-      - "[0-9]+**"
-      - "v[0-9]+**"
+      - "3.9.[0-9]+**"
+      - "v3.9.[0-9]+**"
 
 jobs:
-  my-job:
+  build_and_release:
     runs-on: ubuntu-latest
+    env:
+      action_enabled: ${{ secrets.GITHUB_ACTION_ENABLED }}
+      publish_on_github: ${{ secrets.PUBLISH_GITHUB }}
+      publish_on_snapcraft: ${{ secrets.PUBLISH_SNAPCRAFT_STORE }}
 
     steps:
+      - name: Configure
+        run: "echo 'Action enabled: ${{ env.action_enabled }}'"      
+
       - uses: actions/checkout@v2
+        if: env.action_enabled == 1
 
       - uses: frabert/replace-string-action@v1.1
         id: git-tag
@@ -19,27 +27,42 @@ jobs:
           pattern: 'refs/tags/'
           string: ${{ github.ref }}
           replace-with: ''
+        if: env.action_enabled == 1
 
       - uses: jhenstridge/snapcraft-build-action@v1
         id: snapcraft
+        if: env.action_enabled == 1
 
       - name: Create Release
         id: create_release
         uses: actions/create-release@v1.0.0
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # TODO: FIXME: check if this already exist
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ github.ref }}
           release_name: Release ${{ github.ref }}
           draft: false
           prerelease: false
-      - name: Upload Release Asset
-        id: upload-release-asset
+        if: env.action_enabled == 1 && env.publish_on_github == 1
+
+
+      - name: Upload Release Asset to github
+        id: upload-release-asset 
         uses: actions/upload-release-asset@v1.0.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps
+          upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps 
           asset_path: ./${{ steps.snapcraft.outputs.snap }}
           asset_name: ${{ github.workflow }}-${{ steps.git-tag.outputs.replaced }}
           asset_content_type: application/zip
+        if: env.action_enabled == 1 && env.publish_on_github == 1
+
+
+      - name: Upload release asset to snapcraft.io
+        uses: jhenstridge/snapcraft-publish-action@master
+        with:
+          store_login: ${{ secrets.STORE_LOGIN }}
+          snap: ${{ steps.snapcraft.outputs.snap }}
+          release: edge
+        if: env.action_enabled == 1 && env.publish_on_snapcraft == 1
