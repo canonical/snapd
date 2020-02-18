@@ -195,7 +195,7 @@ func (s *writerSuite) doFillMetaDownloadedSnap(c *C, w *seedwriter.Writer, sn *s
 func (s *writerSuite) fillDownloadedSnap(c *C, w *seedwriter.Writer, sn *seedwriter.SeedSnap) {
 	info := s.doFillMetaDownloadedSnap(c, w, sn)
 
-	c.Assert(sn.Path, Equals, filepath.Join(s.opts.SeedDir, "snaps", filepath.Base(info.MountFile())))
+	c.Assert(sn.Path, Equals, filepath.Join(s.opts.SeedDir, "snaps", info.Filename()))
 	err := os.Rename(s.AssertedSnap(sn.SnapName()), sn.Path)
 	c.Assert(err, IsNil)
 }
@@ -809,7 +809,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore18(c *C) {
 	for i, name := range []string{"snapd", "pc-kernel", "core18", "pc", "cont-consumer", "cont-producer"} {
 		info := s.AssertedSnapInfo(name)
 
-		fn := filepath.Base(info.MountFile())
+		fn := info.Filename()
 		p := filepath.Join(s.opts.SeedDir, "snaps", fn)
 		c.Check(p, testutil.FilePresent)
 
@@ -1044,7 +1044,7 @@ func (s *writerSuite) TestLocalSnapsCore18FullUse(c *C) {
 			assertedNum++
 		}
 
-		fn := filepath.Base(info.MountFile())
+		fn := info.Filename()
 		p := filepath.Join(s.opts.SeedDir, "snaps", fn)
 		c.Check(p, testutil.FilePresent)
 
@@ -1258,7 +1258,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaClassicWithCore(c *C) {
 	for i, name := range []string{"core", "classic-gadget", "required"} {
 		info := s.AssertedSnapInfo(name)
 
-		fn := filepath.Base(info.MountFile())
+		fn := info.Filename()
 		p := filepath.Join(s.opts.SeedDir, "snaps", fn)
 		c.Check(p, testutil.FilePresent)
 
@@ -1314,7 +1314,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaClassicSnapdOnly(c *C) {
 	for i, name := range []string{"snapd", "core18", "classic-gadget18", "required18"} {
 		info := s.AssertedSnapInfo(name)
 
-		fn := filepath.Base(info.MountFile())
+		fn := info.Filename()
 		p := filepath.Join(s.opts.SeedDir, "snaps", fn)
 		c.Check(p, testutil.FilePresent)
 
@@ -1423,7 +1423,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaExtraSnaps(c *C) {
 	for i, name := range []string{"snapd", "core", "pc-kernel", "core18", "pc", "cont-consumer", "cont-producer", "required"} {
 		info := s.AssertedSnapInfo(name)
 
-		fn := filepath.Base(info.MountFile())
+		fn := info.Filename()
 		p := filepath.Join(s.opts.SeedDir, "snaps", fn)
 		c.Check(osutil.FileExists(p), Equals, true)
 
@@ -1575,7 +1575,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaLocalExtraSnaps(c *C) {
 			unasserted = true
 		}
 
-		fn := filepath.Base(info.MountFile())
+		fn := info.Filename()
 		p := filepath.Join(s.opts.SeedDir, "snaps", fn)
 		c.Check(osutil.FileExists(p), Equals, true)
 
@@ -1709,7 +1709,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20(c *C) {
 	for _, name := range []string{"snapd", "pc-kernel", "core20", "pc", "core18", "cont-consumer", "cont-producer"} {
 		info := s.AssertedSnapInfo(name)
 
-		fn := filepath.Base(info.MountFile())
+		fn := info.Filename()
 		p := filepath.Join(s.opts.SeedDir, "snaps", fn)
 		c.Check(p, testutil.FilePresent)
 	}
@@ -2376,7 +2376,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ModelOverrideSnapd(c *C) {
 	for _, name := range []string{"snapd", "pc-kernel", "core20", "pc"} {
 		info := s.AssertedSnapInfo(name)
 
-		fn := filepath.Base(info.MountFile())
+		fn := info.Filename()
 		p := filepath.Join(s.opts.SeedDir, "snaps", fn)
 		c.Check(p, testutil.FilePresent)
 	}
@@ -2544,7 +2544,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ExtraSnaps(c *C) {
 
 		info := s.doFillMetaDownloadedSnap(c, w, sn)
 
-		c.Assert(sn.Path, Equals, filepath.Join(s.opts.SeedDir, "systems", s.opts.Label, "snaps", filepath.Base(info.MountFile())))
+		c.Assert(sn.Path, Equals, filepath.Join(s.opts.SeedDir, "systems", s.opts.Label, "snaps", info.Filename()))
 		err := os.Rename(s.AssertedSnap(sn.SnapName()), sn.Path)
 		c.Assert(err, IsNil)
 	}
