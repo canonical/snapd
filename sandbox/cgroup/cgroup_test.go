@@ -376,11 +376,13 @@ func (s *cgroupSuite) TestPidsOfAggregation(c *C) {
 	})
 }
 
-func (s *cgroupSuite) TestPidsOfUnrelated(c *C) {
-	// We are not confusing snaps with other snaps and with non-snap hierarchies.
+func (s *cgroupSuite) TestPidsOfSnapUnrelated(c *C) {
+	// We are not confusing snaps with other snaps, instances of our snap, and
+	// with non-snap hierarchies.
 	s.writePids(c, "user.slice/.../snap.$RANDOM1.pkg.app.scope", []int{1})
 	s.writePids(c, "user.slice/.../snap.$RANDOM2.other.snap.scope", []int{2})
 	s.writePids(c, "user.slice/.../pkg.service", []int{3})
+	s.writePids(c, "user.slice/.../snap.$RANDOM3.pkg_instance.app.scope", []int{4})
 
 	pids, err := cgroup.PidsOfSnap("pkg")
 	c.Assert(err, IsNil)
