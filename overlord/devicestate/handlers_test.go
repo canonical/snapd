@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/timings"
 )
 
 // TODO: should we move this into a new handlers suite?
@@ -434,6 +435,7 @@ type preseedBaseSuite struct {
 	deviceMgrBaseSuite
 	restorePreseedMode func()
 	cmdUmount          *testutil.MockCmd
+	cmdSystemctl       *testutil.MockCmd
 }
 
 func (s *preseedBaseSuite) SetUpTest(c *C, preseed bool) {
@@ -443,6 +445,7 @@ func (s *preseedBaseSuite) SetUpTest(c *C, preseed bool) {
 	s.deviceMgrBaseSuite.SetUpTest(c)
 
 	s.cmdUmount = testutil.MockCommand(c, "umount", "")
+	s.cmdSystemctl = testutil.MockCommand(c, "systemctl", "")
 
 	st := s.state
 	st.Lock()
@@ -468,6 +471,7 @@ apps:
 func (s *preseedBaseSuite) TearDownTest(c *C) {
 	s.deviceMgrBaseSuite.TearDownTest(c)
 	s.cmdUmount.Restore()
+	s.cmdSystemctl.Restore()
 }
 
 type preseedModeSuite struct {
@@ -526,6 +530,20 @@ func (s *preseedModeSuite) TestDoMarkPreseeded(c *C) {
 	c.Check(t.Status(), Equals, state.DoingStatus)
 }
 
+func (s *preseedModeSuite) TestEnsureSeededPreseedFlag(c *C) {
+	called := false
+	restore := devicestate.MockPopulateStateFromSeed(func(st *state.State, opts *devicestate.PopulateStateFromSeedOptions, tm timings.Measurer) ([]*state.TaskSet, error) {
+		called = true
+		c.Check(opts.Preseed, Equals, true)
+		return nil, nil
+	})
+	defer restore()
+
+	err := devicestate.EnsureSeeded(s.mgr)
+	c.Assert(err, IsNil)
+	c.Check(called, Equals, true)
+}
+
 type preseedDoneSuite struct {
 	preseedBaseSuite
 }
@@ -559,4 +577,8 @@ func (s *preseedDoneSuite) TestDoMarkPreseededAfterFirstboot(c *C) {
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 	c.Check(s.cmdUmount.Calls(), HasLen, 0)
 	c.Check(s.restartRequests, HasLen, 0)
+
+	c.Check(s.cmdSystemctl.Calls(), DeepEquals, [][]string{
+		{"systemctl", "--root", dirs.GlobalRootDir, "enable", "snap.test-snap.srv.service"},
+	})
 }

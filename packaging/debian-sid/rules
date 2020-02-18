@@ -255,7 +255,9 @@ override_dh_install-arch:
 	# snap-preseed is currently only useful on ubuntu and tailored for preseeding
 	# of ubuntu cloud images due to certain assumptions about runtime environment
 	# of the host and of the preseeded image.
+ifneq ($(shell dpkg-vendor --query Vendor),Ubuntu)
 	rm -f ${CURDIR}/debian/tmp/usr/bin/snap-preseed
+endif
 
 	dh_install
 
