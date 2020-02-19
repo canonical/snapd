@@ -85,7 +85,7 @@ disable_refreshes() {
 }
 
 setup_systemd_snapd_overrides() {
-    START_LIMIT_INTERVAL="StartLimitInterval=0"
+    START_LIMIT_INTERVAL="StartLimitInterval=100"
     mkdir -p /etc/systemd/system/snapd.service.d
     cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
 [Unit]
