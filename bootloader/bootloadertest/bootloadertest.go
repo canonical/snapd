@@ -226,6 +226,8 @@ func (b *MockBootloader) GetRunKernelImageFunctionSnapCalls(f string) ([]snap.Pl
 // EnableKernel enables the kernel; part of ExtractedRunKernelImageBootloader.
 func (b *MockBootloader) EnableKernel(s snap.PlaceInfo) error {
 	b.runKernelImageEnableKernelCalls = append(b.runKernelImageEnableKernelCalls, s)
+
+	b.runKernelImageEnabledKernel = s
 	return b.runKernelImageMockedErrs["EnableKernel"]
 }
 
@@ -233,6 +235,7 @@ func (b *MockBootloader) EnableKernel(s snap.PlaceInfo) error {
 // ExtractedRunKernelImageBootloader.
 func (b *MockBootloader) EnableTryKernel(s snap.PlaceInfo) error {
 	b.runKernelImageEnableTryKernelCalls = append(b.runKernelImageEnableTryKernelCalls, s)
+	b.runKernelImageEnabledTryKernel = s
 	return b.runKernelImageMockedErrs["EnableTryKernel"]
 }
 
