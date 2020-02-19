@@ -20,41 +20,47 @@
 package inputwatch
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/snapcore/snapd/logger"
 )
 
-type Input interface {
-	FindMatchingDevices(filter InputCapabilityFilter) ([]InputDevice, error)
+type inputProvider interface {
+	FindMatchingDevices(filter inputEventFilter) ([]inputDevice, error)
 }
 
-type KeyEvent struct {
-	Dev InputDevice
+type keyEvent struct {
+	Dev inputDevice
 	Err error
 }
 
-type InputDevice interface {
-	WaitForTrigger(chan KeyEvent)
+type inputDevice interface {
+	WaitForTrigger(chan keyEvent)
 	String() string
 }
 
-type InputCapabilityFilter struct {
+type inputEventFilter struct {
 	Key string
 }
 
 var (
 	// input mechanism
-	input Input
+	input inputProvider
 
 	// wait for '1' to be pressed
-	triggerFilter = InputCapabilityFilter{Key: "KEY_1"}
+	triggerFilter = inputEventFilter{Key: "KEY_1"}
 
 	// key wait timeout
 	timeout = 5 * time.Second
+
+	ErrKeyNotDetected = errors.New("interrupt key not detected")
 )
 
+// WaitTriggerKey wait for trigger key on the available input devices. Returns
+// nil if one was detected, ErrKeyNotDetected if there was none, or other
+// non-nil error.
 func WaitTriggerKey() error {
 	if input == nil {
 		logger.Panicf("input is unset")
@@ -71,7 +77,7 @@ func WaitTriggerKey() error {
 	logger.Noticef("waiting for key: %v", chooserTriggerKey.Name)
 
 	// wait for a couple of second for the key
-	detectKeyCh := make(chan KeyEvent, len(devices))
+	detectKeyCh := make(chan keyEvent, len(devices))
 
 	for _, kbd := range devices {
 		go kbd.WaitForTrigger(detectKeyCh)
@@ -86,7 +92,7 @@ func WaitTriggerKey() error {
 		return err
 	case <-time.After(timeout):
 		logger.Noticef("- no key detected")
-		return fmt.Errorf("interrupt key not detected")
+		return ErrKeyNotDetected
 	}
 
 	return nil

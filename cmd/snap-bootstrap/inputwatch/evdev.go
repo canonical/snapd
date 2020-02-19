@@ -44,7 +44,7 @@ type evdevKeyboardInputDevice struct {
 	dev     *evdev.InputDevice
 }
 
-func (e *evdevKeyboardInputDevice) WaitForTrigger(ch chan KeyEvent) {
+func (e *evdevKeyboardInputDevice) WaitForTrigger(ch chan keyEvent) {
 	const triggerHeldCount = 20
 
 	heldCount := uint(0)
@@ -57,7 +57,7 @@ func (e *evdevKeyboardInputDevice) WaitForTrigger(ch chan KeyEvent) {
 	for {
 		ies, err := e.dev.Read()
 		if err != nil {
-			ch <- KeyEvent{Err: err, Dev: e}
+			ch <- keyEvent{Err: err, Dev: e}
 		}
 		for _, ie := range ies {
 			if ie.Type != evdev.EV_KEY || ie.Code != e.keyCode {
@@ -72,7 +72,7 @@ func (e *evdevKeyboardInputDevice) WaitForTrigger(ch chan KeyEvent) {
 			}
 			logger.Noticef("%s held: %v", e.dev.Phys, heldCount)
 			if heldCount >= triggerHeldCount {
-				ch <- KeyEvent{Dev: e}
+				ch <- keyEvent{Dev: e}
 			}
 		}
 	}
@@ -84,7 +84,7 @@ func (e *evdevKeyboardInputDevice) String() string {
 
 type evdevInput struct{}
 
-func (e *evdevInput) FindMatchingDevices(filter InputCapabilityFilter) ([]InputDevice, error) {
+func (e *evdevInput) FindMatchingDevices(filter inputEventFilter) ([]inputDevice, error) {
 	devices, err := evdev.ListInputDevices()
 	if err != nil {
 		return nil, fmt.Errorf("cannot list input devices: %v", err)
@@ -98,7 +98,7 @@ func (e *evdevInput) FindMatchingDevices(filter InputCapabilityFilter) ([]InputD
 	// chooserTriggerKey is what activates the chooser when held down
 	cap := evdev.CapabilityCode{Code: kc, Name: filter.Key}
 
-	match := func(dev *evdev.InputDevice) InputDevice {
+	match := func(dev *evdev.InputDevice) inputDevice {
 		for _, cc := range dev.Capabilities[evKeyCapability] {
 			if cc == cap {
 				return &evdevKeyboardInputDevice{
@@ -112,7 +112,7 @@ func (e *evdevInput) FindMatchingDevices(filter InputCapabilityFilter) ([]InputD
 	// Find the first devices that has keys and the trigger key
 	// and assume it's the keyboard. I guess we could even support
 	// multiple keyboards but let's keep it simple for now.
-	var devs []InputDevice
+	var devs []inputDevice
 	for _, dev := range devices {
 		idev := match(dev)
 		if idev != nil {

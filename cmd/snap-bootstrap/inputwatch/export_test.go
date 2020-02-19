@@ -22,7 +22,7 @@ import (
 	"time"
 )
 
-func MockInput(newInput Input) (restore func()) {
+func MockInput(newInput InputProvider) (restore func()) {
 	oldInput := input
 	input = newInput
 	return func() {
@@ -37,3 +37,8 @@ func MockTimeout(newTimeout time.Duration) (restore func()) {
 		timeout = oldTimeout
 	}
 }
+
+type InputProvider = inputProvider
+type InputDevice = inputDevice
+type InputCapabilityFilter = inputEventFilter
+type KeyEvent = keyEvent
