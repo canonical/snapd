@@ -24,7 +24,9 @@ import (
 	"time"
 
 	// TODO:UC20: not packaged, reimplment the minimal things we need?
-	"github.com/gvalkov/golang-evdev"
+	evdev "github.com/gvalkov/golang-evdev"
+
+	"github.com/snapcore/snapd/logger"
 )
 
 func init() {
@@ -56,21 +58,28 @@ var (
 	chooserTriggerKey = evdev.CapabilityCode{Code: 2, Name: "KEY_1"}
 )
 
-func findKeyboard(devices []*evdev.InputDevice) *evdev.InputDevice {
+func findKeyboards(devices []*evdev.InputDevice) []*evdev.InputDevice {
 	// Find the first devices that has keys and the trigger key
 	// and assume it's the keyboard. I guess we could even support
 	// multiple keyboards but let's keep it simple for now.
+	var devs []*evdev.InputDevice
 	for _, dev := range devices {
 		for _, cc := range dev.Capabilities[evKeyCapability] {
 			if cc == chooserTriggerKey {
-				return dev
+				logger.Noticef("keyboard: %s", dev.String())
+				devs = append(devs, dev)
 			}
 		}
 	}
-	return nil
+	return devs
 }
 
-func waitForKey(dev *evdev.InputDevice, keyCode uint16, ch chan error) {
+type keyEvent struct {
+	dev *evdev.InputDevice
+	err error
+}
+
+func waitForKey(dev *evdev.InputDevice, keyCode uint16, ch chan keyEvent) {
 	const triggerHeldCount = 20
 
 	heldCount := uint(0)
@@ -78,7 +87,7 @@ func waitForKey(dev *evdev.InputDevice, keyCode uint16, ch chan error) {
 	for {
 		ies, err := dev.Read()
 		if err != nil {
-			ch <- err
+			ch <- keyEvent{err: err, dev: dev}
 		}
 		for _, ie := range ies {
 			if ie.Type != evdev.EV_KEY || ie.Code != keyCode {
@@ -91,9 +100,9 @@ func waitForKey(dev *evdev.InputDevice, keyCode uint16, ch chan error) {
 			case evdev.KeyUp:
 				heldCount = 0
 			}
-			fmt.Printf("held: %v\n", heldCount)
+			logger.Noticef("%s held: %v", dev.Phys, heldCount)
 			if heldCount >= triggerHeldCount {
-				close(ch)
+				ch <- keyEvent{dev: dev}
 			}
 		}
 	}
@@ -105,25 +114,26 @@ func checkChooserTriggerKey() error {
 	if err != nil {
 		return fmt.Errorf("cannot list input devices: %v", err)
 	}
-	dev := findKeyboard(devices)
-	if dev == nil {
-		return fmt.Errorf("cannot find keyboard")
+	keyDevs := findKeyboards(devices)
+	if keyDevs == nil {
+		return fmt.Errorf("cannot find keyboards")
 	}
-	fmt.Printf("* using keyboard: %s (%s)\n", dev.Fn, dev.Name)
-	fmt.Printf("* waiting for key: %v\n", chooserTriggerKey.Name)
+	logger.Noticef("waiting for key: %v", chooserTriggerKey.Name)
 
 	// wait for a couple of second for the key
-	detectKeyCh := make(chan error)
-	go waitForKey(dev, uint16(chooserTriggerKey.Code), detectKeyCh)
+	detectKeyCh := make(chan keyEvent, len(keyDevs))
+	for _, kbd := range keyDevs {
+		go waitForKey(kbd, uint16(chooserTriggerKey.Code), detectKeyCh)
+	}
 	select {
-	case err := <-detectKeyCh:
-		if err == nil {
+	case kev := <-detectKeyCh:
+		if kev.err == nil {
 			// channel got closed without an error
-			fmt.Printf("+ got key %v\n", chooserTriggerKey)
+			logger.Noticef("%s: + got key %v", kev.dev.Phys, chooserTriggerKey)
 		}
 		return err
 	case <-time.After(5 * time.Second):
-		fmt.Printf("- no key detected\n")
+		logger.Noticef("- no key detected")
 		return fmt.Errorf("interrupt key not detected")
 	}
 
