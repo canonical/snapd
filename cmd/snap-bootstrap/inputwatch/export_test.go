@@ -16,33 +16,24 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-
-package main
+package inputwatch
 
 import (
-	"github.com/snapcore/snapd/cmd/snap-bootstrap/inputwatch"
+	"time"
 )
 
-func init() {
-	const (
-		short = "Check if the chooser should be run"
-		long  = ""
-	)
-
-	if _, err := parser.AddCommand("check-chooser", short, long, &cmdCheckChooser{}); err != nil {
-		panic(err)
+func MockInput(newInput Input) (restore func()) {
+	oldInput := input
+	input = newInput
+	return func() {
+		input = oldInput
 	}
 }
 
-var inputwatchWaitKey = inputwatch.WaitTriggerKey
-
-type cmdCheckChooser struct{}
-
-func (c *cmdCheckChooser) Execute(args []string) error {
-	// TODO:UC20: check in the gadget if there is a hook or some
-	// binary we should run for chooser detection/display. This
-	// will require some design work and also thinking if/how such
-	// a hook can be confined.
-
-	return inputwatchWaitKey()
+func MockTimeout(newTimeout time.Duration) (restore func()) {
+	oldTimeout := timeout
+	timeout = newTimeout
+	return func() {
+		timeout = oldTimeout
+	}
 }

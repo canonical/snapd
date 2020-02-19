@@ -17,32 +17,24 @@
  *
  */
 
-package main
+package main_test
 
 import (
-	"github.com/snapcore/snapd/cmd/snap-bootstrap/inputwatch"
+	. "gopkg.in/check.v1"
+
+	main "github.com/snapcore/snapd/cmd/snap-bootstrap"
 )
 
-func init() {
-	const (
-		short = "Check if the chooser should be run"
-		long  = ""
-	)
+func (s *cmdSuite) TestCheckChooser(c *C) {
+	n := 0
+	restore := main.MockInputwatchWaitKey(func() error {
+		n++
+		return nil
+	})
+	defer restore()
 
-	if _, err := parser.AddCommand("check-chooser", short, long, &cmdCheckChooser{}); err != nil {
-		panic(err)
-	}
-}
-
-var inputwatchWaitKey = inputwatch.WaitTriggerKey
-
-type cmdCheckChooser struct{}
-
-func (c *cmdCheckChooser) Execute(args []string) error {
-	// TODO:UC20: check in the gadget if there is a hook or some
-	// binary we should run for chooser detection/display. This
-	// will require some design work and also thinking if/how such
-	// a hook can be confined.
-
-	return inputwatchWaitKey()
+	rest, err := main.Parser.ParseArgs([]string{"check-chooser"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, HasLen, 0)
+	c.Assert(n, Equals, 1)
 }

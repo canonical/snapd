@@ -60,3 +60,11 @@ func MockRunMnt(newRunMnt string) (restore func()) {
 		runMnt = oldRunMnt
 	}
 }
+
+func MockInputwatchWaitKey(f func() error) (restore func()) {
+	oldInputwatchWait := inputwatchWaitKey
+	inputwatchWaitKey = f
+	return func() {
+		inputwatchWaitKey = oldInputwatchWait
+	}
+}
