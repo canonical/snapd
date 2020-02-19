@@ -23,6 +23,8 @@ import (
 	"os"
 
 	"github.com/jessevdk/go-flags"
+
+	"github.com/snapcore/snapd/logger"
 )
 
 var (
@@ -35,6 +37,13 @@ such as initramfs.
 	opts   struct{}
 	parser *flags.Parser = flags.NewParser(&opts, flags.HelpFlag|flags.PassDoubleDash|flags.PassAfterNonOption)
 )
+
+func init() {
+	err := logger.SimpleSetup()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "WARNING: failed to activate logging: %s\n", err)
+	}
+}
 
 func main() {
 	err := run(os.Args[1:])
