@@ -120,7 +120,8 @@ func (t *firstBootBaseTest) startOverlord(c *C) {
 	c.Assert(ovld.StartUp(), IsNil)
 
 	// don't actually try to talk to the store on snapstate.Ensure
-	// needs doing after the call to devicestate.Manager (which happens in overlord.New)
+	// needs doing after the call to devicestate.Manager (which happens in
+	// overlord.New)
 	snapstate.CanAutoRefresh = nil
 }
 
