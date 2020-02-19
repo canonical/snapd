@@ -116,7 +116,7 @@ func isBigEndian() bool {
 // libseccomp wrapper to generate a version string that will be used to
 // determine if we need to recompile seccomp policy due to system
 // changes outside of snapd.
-func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
+func (b *Backend) Initialize(*interfaces.SecurityBackendOptions) error {
 	dir := dirs.SnapSeccompDir
 	fname := "global.bin"
 	var globalProfile []byte
