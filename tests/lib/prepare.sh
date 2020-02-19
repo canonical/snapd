@@ -98,7 +98,7 @@ setup_systemd_snapd_overrides() {
     cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
 [Unit]
 # Set StartLimitInterval to something large to allow many restarts, but not 0, 
-# becuase we want OnFailure to run if snapd fails to start, and setting the 
+# because we want OnFailure to run if snapd fails to start, and setting the 
 # limit to 0 effectively disables any rate limiting, but systemd doesn't run 
 # OnFailure until after the rate limited restarting is exhausted. This isn't 
 # well documented in systemd, but see this comment from systemd devs:
@@ -113,7 +113,7 @@ EOF
     cat <<EOF > /etc/systemd/system/snapd.socket.d/local.conf
 [Unit]
 # Set StartLimitInterval to something large to allow many restarts, but not 0, 
-# becuase we want OnFailure to run if snapd fails to start, and setting the 
+# because we want OnFailure to run if snapd fails to start, and setting the 
 # limit to 0 effectively disables any rate limiting, but systemd doesn't run 
 # OnFailure until after the rate limited restarting is exhausted. This isn't 
 # well documented in systemd, but see this comment from systemd devs:
