@@ -38,6 +38,8 @@ type MockBootloader struct {
 	name    string
 	bootdir string
 
+	RebootStatusVar string
+
 	ExtractKernelAssetsCalls []snap.PlaceInfo
 	RemoveKernelAssetsCalls  []snap.PlaceInfo
 
@@ -73,6 +75,10 @@ func Mock(name, bootdir string) *MockBootloader {
 		panicMethods:                 make(map[string]bool),
 		runKernelImageMockedErrs:     make(map[string]error),
 		runKernelImageMockedNumCalls: make(map[string]int),
+
+		// this is for UC16/UC18 boot var for reboot
+		// for UC20, set to "kernel_status"
+		RebootStatusVar: "snap_mode",
 	}
 }
 
@@ -131,10 +137,10 @@ func (b *MockBootloader) SetBootBase(base string) {
 }
 
 func (b *MockBootloader) SetTryingDuringReboot() error {
-	if b.BootVars["snap_mode"] != "try" {
+	if b.BootVars[b.RebootStatusVar] != "try" {
 		return fmt.Errorf("bootloader must be in 'try' mode")
 	}
-	b.BootVars["snap_mode"] = "trying"
+	b.BootVars[b.RebootStatusVar] = "trying"
 	return nil
 }
 
