@@ -93,7 +93,7 @@ setup_systemd_snapd_overrides() {
     # Since xenial systemd is < 230, we use StartLimitInterval to work 
     # everywhere.
     START_LIMIT_INTERVAL="StartLimitInterval=1"
-    START_LIMIT_BURST="StartLimitBurst=1000"
+    START_LIMIT_BURST="StartLimitBurst=10"
     mkdir -p /etc/systemd/system/snapd.service.d
     cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
 [Unit]
