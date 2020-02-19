@@ -300,8 +300,9 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededAlsoOnClassic(c *C) {
 	release.OnClassic = true
 
 	called := false
-	restore := devicestate.MockPopulateStateFromSeed(func(*state.State, *devicestate.PopulateStateFromSeedOptions, timings.Measurer) ([]*state.TaskSet, error) {
+	restore := devicestate.MockPopulateStateFromSeed(func(st *state.State, opts *devicestate.PopulateStateFromSeedOptions, tm timings.Measurer) ([]*state.TaskSet, error) {
 		called = true
+		c.Check(opts, IsNil)
 		return nil, nil
 	})
 	defer restore()
@@ -1135,4 +1136,71 @@ func (s *deviceMgrSuite) TestDeviceManagerEmptyOperatingModeRun(c *C) {
 
 	// empty is returned as "run"
 	c.Check(s.mgr.OperatingMode(), Equals, "run")
+}
+
+func (s *deviceMgrSuite) TestStartOfOperationTimeFromSeedTime(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	seedTime := time.Now().AddDate(0, -1, 0)
+	st.Set("seed-time", seedTime)
+
+	operationTime, err := s.mgr.StartOfOperationTime()
+	c.Assert(err, IsNil)
+	c.Check(operationTime.Equal(seedTime), Equals, true)
+
+	var op time.Time
+	st.Get("start-of-operation-time", &op)
+	c.Check(op.Equal(operationTime), Equals, true)
+}
+
+func (s *deviceMgrSuite) TestStartOfOperationTimeAlreadySet(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	op := time.Now().AddDate(0, -1, 0)
+	st.Set("start-of-operation-time", op)
+
+	operationTime, err := s.mgr.StartOfOperationTime()
+	c.Assert(err, IsNil)
+	c.Check(operationTime.Equal(op), Equals, true)
+}
+
+func (s *deviceMgrSuite) TestStartOfOperationTimeNoSeedTime(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	now := time.Now().Add(-1 * time.Second)
+	devicestate.MockTimeNow(func() time.Time {
+		return now
+	})
+
+	operationTime, err := s.mgr.StartOfOperationTime()
+	c.Assert(err, IsNil)
+	c.Check(operationTime.Equal(now), Equals, true)
+
+	// repeated call returns already set time
+	prev := now
+	now = time.Now().Add(-10 * time.Hour)
+	operationTime, err = s.mgr.StartOfOperationTime()
+	c.Assert(err, IsNil)
+	c.Check(operationTime.Equal(prev), Equals, true)
+}
+
+func (s *deviceMgrSuite) TestStartOfOperationErrorIfPreseed(c *C) {
+	restore := release.MockPreseedMode(func() bool { return true })
+	defer restore()
+
+	st := s.state
+
+	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
+	c.Assert(err, IsNil)
+
+	st.Lock()
+	defer st.Unlock()
+	_, err = mgr.StartOfOperationTime()
+	c.Assert(err, ErrorMatches, `internal error: unexpected call to StartOfOperationTime in preseed mode`)
 }

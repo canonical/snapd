@@ -140,7 +140,7 @@ func (l *lk) SetBootVars(values map[string]string) error {
 // in case this function is called as part of image creation,
 // boot image is extracted to the file
 func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
-	blobName := filepath.Base(s.MountFile())
+	blobName := s.Filename()
 
 	logger.Debugf("ExtractKernelAssets (%s)", blobName)
 
@@ -202,7 +202,7 @@ func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 }
 
 func (l *lk) RemoveKernelAssets(s snap.PlaceInfo) error {
-	blobName := filepath.Base(s.MountFile())
+	blobName := s.Filename()
 	logger.Debugf("RemoveKernelAssets (%s)", blobName)
 	env := lkenv.NewEnv(l.envFile())
 	if err := env.Load(); err != nil && !os.IsNotExist(err) {

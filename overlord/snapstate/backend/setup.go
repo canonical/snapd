@@ -80,7 +80,7 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 	}
 
 	// generate the mount unit for the squashfs
-	if err := addMountUnit(s, meter); err != nil {
+	if err := addMountUnit(s, b.preseed, meter); err != nil {
 		return snapType, nil, err
 	}
 

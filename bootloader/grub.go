@@ -141,7 +141,7 @@ func (g *grub) SetBootVars(values map[string]string) error {
 func (g *grub) extractedKernelDir(prefix string, s snap.PlaceInfo) string {
 	return filepath.Join(
 		prefix,
-		filepath.Base(s.MountFile()),
+		s.Filename(),
 	)
 }
 
@@ -181,7 +181,7 @@ func (g *grub) makeKernelEfiSymlink(s snap.PlaceInfo, name string) error {
 	// use a relative symlink destination so that it resolves properly, if grub
 	// is located at /run/mnt/ubuntu-boot or /boot/grub, etc.
 	target := filepath.Join(
-		filepath.Base(s.MountFile()),
+		s.Filename(),
 		"kernel.efi",
 	)
 

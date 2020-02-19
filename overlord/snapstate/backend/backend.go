@@ -25,7 +25,9 @@ import (
 )
 
 // Backend exposes all the low-level primitives to manage snaps and their installation on disk.
-type Backend struct{}
+type Backend struct {
+	preseed bool
+}
 
 // Candidate is a test hook.
 func (b Backend) Candidate(*snap.SideInfo) {}
@@ -48,4 +50,8 @@ func OpenSnapFile(snapPath string, sideInfo *snap.SideInfo) (*snap.Info, snap.Co
 	}
 
 	return info, snapf, nil
+}
+
+func NewForPreseedMode() Backend {
+	return Backend{preseed: true}
 }

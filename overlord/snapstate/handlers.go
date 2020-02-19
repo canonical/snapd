@@ -1324,8 +1324,12 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	t.SetStatus(state.DoneStatus)
 
 	// if we just installed a core snap, request a restart
-	// so that we switch executing its snapd
-	maybeRestart(t, newInfo, reboot, deviceCtx)
+	// so that we switch executing its snapd.
+	// Don't restart when preseeding - we will switch to new snapd on
+	// first boot.
+	if !m.preseed {
+		maybeRestart(t, newInfo, reboot, deviceCtx)
+	}
 
 	return nil
 }

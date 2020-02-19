@@ -20,6 +20,8 @@
 package devicestate_test
 
 import (
+	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -34,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/seed/seedtest"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -65,16 +68,18 @@ func checkPreseedTasks(c *C, tsAll []*state.TaskSet) {
 
 func checkPreseedTaskStates(c *C, st *state.State) {
 	doneTasks := map[string]bool{
-		"prerequisites":        true,
-		"prepare-snap":         true,
-		"link-snap":            true,
-		"mount-snap":           true,
-		"setup-profiles":       true,
-		"update-gadget-assets": true,
-		"copy-snap-data":       true,
-		"set-auto-aliases":     true,
-		"setup-aliases":        true,
-		"auto-connect":         true,
+		"prerequisites":    true,
+		"prepare-snap":     true,
+		"link-snap":        true,
+		"mount-snap":       true,
+		"setup-profiles":   true,
+		"copy-snap-data":   true,
+		"set-auto-aliases": true,
+		"setup-aliases":    true,
+		"auto-connect":     true,
+	}
+	if !release.OnClassic {
+		doneTasks["update-gadget-assets"] = true
 	}
 	doTasks := map[string]bool{
 		"run-hook":            true,
@@ -231,6 +236,71 @@ func (s *firstbootPreseed16Suite) TestPreseedHappy(c *C) {
 
 	st.Lock()
 	defer st.Unlock()
+
+	c.Assert(err, IsNil)
+	c.Assert(chg.Err(), IsNil)
+
+	checkPreseedTaskStates(c, st)
+}
+
+func (s *firstbootPreseed16Suite) TestPreseedOnClassicHappy(c *C) {
+	restore := release.MockPreseedMode(func() bool { return true })
+	defer restore()
+
+	restoreRelease := release.MockOnClassic(true)
+	defer restoreRelease()
+
+	mockMountCmd := testutil.MockCommand(c, "mount", "")
+	defer mockMountCmd.Restore()
+
+	mockUmountCmd := testutil.MockCommand(c, "umount", "")
+	defer mockUmountCmd.Restore()
+
+	coreFname, _, _ := s.makeCoreSnaps(c, "")
+
+	// put a firstboot snap into the SnapBlobDir
+	snapYaml := `name: foo
+version: 1.0
+`
+	fooFname, fooDecl, fooRev := s.MakeAssertedSnap(c, snapYaml, nil, snap.R(128), "developerid")
+	s.WriteAssertions("foo.asserts", s.devAcct, fooRev, fooDecl)
+
+	// add a model assertion and its chain
+	assertsChain := s.makeModelAssertionChain(c, "my-model-classic", nil)
+	s.WriteAssertions("model.asserts", assertsChain...)
+
+	// create a seed.yaml
+	content := []byte(fmt.Sprintf(`
+snaps:
+ - name: foo
+   file: %s
+ - name: core
+   file: %s
+`, fooFname, coreFname))
+	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	c.Assert(err, IsNil)
+
+	// run the firstboot stuff
+	s.startOverlord(c)
+	st := s.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	opts := &devicestate.PopulateStateFromSeedOptions{Preseed: true}
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, opts, s.perfTimings)
+	c.Assert(err, IsNil)
+
+	chg := st.NewChange("seed", "run the populate from seed changes")
+	for _, ts := range tsAll {
+		chg.AddAll(ts)
+	}
+	c.Assert(st.Changes(), HasLen, 1)
+
+	checkPreseedOrder(c, tsAll, "core", "foo")
+
+	st.Unlock()
+	err = s.overlord.Settle(settleTimeout)
+	st.Lock()
 
 	c.Assert(err, IsNil)
 	c.Assert(chg.Err(), IsNil)

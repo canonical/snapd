@@ -29,7 +29,10 @@ execute: |
         # we cannot restore in "restore:" because we need a reboot
         # right now to get a clean state again
         systemctl stop snapd.service snapd.socket snapd.autoimport.service snapd.snap-repair.service
+        umount "/snap/snapd/$(readlink /snap/snapd/current)"
+
         rm -f /etc/systemd/system/usr-lib-snapd.mount
+        rm -f /etc/systemd/system/snap-snapd-*.mount
         rm -f /etc/systemd/system/snapd.{service,timer,socket}
         rm -f /etc/systemd/system/snapd.*.{service,timer,socket}
         rm -f /etc/systemd/system/*.wants/snapd.*.{service,timer,socket}
@@ -43,5 +46,8 @@ execute: |
         REBOOT
     fi
     snap list
+    snap remove snapd
     # and we can still run the rsync snap after the reboot
     rsync --help
+restore: |
+    not test -d /snap/snapd

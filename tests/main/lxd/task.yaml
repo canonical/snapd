@@ -69,13 +69,26 @@ execute: |
     # prep two containers, the my-ubuntu normal container and the 
     # my-nesting-ubuntu nesting container
 
-    . /etc/os-release
-    # TODO:2004: remove version check once the image for ubuntu 20.04 is published
-    if [ "$VERSION_ID" == 20.04 ]; then
-        VERSION_ID=19.10
+    (
+        . /etc/os-release
+        # TODO:2004: remove version check once the image for ubuntu 20.04 is published
+        if [ "$VERSION_ID" == 20.04 ]; then
+            # shellcheck disable=SC2031
+            VERSION_ID=19.10
+        fi
+        lxd.lxc launch --quiet "ubuntu:${VERSION_ID:-}" my-ubuntu
+        lxd.lxc launch --quiet "ubuntu:${VERSION_ID:-}" my-nesting-ubuntu -c security.nesting=true
+    )
+    if [ "$(uname -m)" = x86_64 ] && lxd.lxc info my-ubuntu | grep "Architecture: i686"; then
+        echo "LXD spawned 32bit userspace container on a 64bit host, WAT?"
+        snap info lxd
+        exit 1
     fi
-    lxd.lxc launch --quiet "ubuntu:${VERSION_ID}" my-ubuntu
-    lxd.lxc launch --quiet "ubuntu:${VERSION_ID}" my-nesting-ubuntu -c security.nesting=true
+    if [ "$(uname -m)" = x86_64 ] && lxd.lxc info my-nesting-ubuntu | grep "Architecture: i686"; then
+        echo "LXD spawned 32bit userspace container on a 64bit host, WAT?"
+        snap info lxd
+        exit 1
+    fi
 
     for cont_name in my-ubuntu my-nesting-ubuntu; do
         echo "Ensure we can run things inside"
@@ -126,7 +139,16 @@ execute: |
     lxd.lxc exec my-nesting-ubuntu -- snap set lxd waitready.timeout=240
     lxd.lxc exec my-nesting-ubuntu -- lxd waitready
     lxd.lxc exec my-nesting-ubuntu -- lxd init --auto
-    lxd.lxc exec my-nesting-ubuntu -- lxd.lxc launch "ubuntu:${VERSION_ID}" my-inner-ubuntu
+
+    (
+        . /etc/os-release
+        # TODO:2004: remove version check once the image for ubuntu 20.04 is published
+        if [ "$VERSION_ID" == 20.04 ]; then
+            # shellcheck disable=SC2031
+            VERSION_ID=19.10
+        fi
+        lxd.lxc exec my-nesting-ubuntu -- lxd.lxc launch "ubuntu:${VERSION_ID:-}" my-inner-ubuntu
+    )
     lxd.lxc exec my-nesting-ubuntu -- lxd.lxc exec my-inner-ubuntu -- echo "from-the-INSIDE-inside" | MATCH from-the-INSIDE-inside
 
     echo "Install lxd-demo server to exercise the lxd interface"
