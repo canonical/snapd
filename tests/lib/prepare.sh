@@ -89,6 +89,12 @@ setup_systemd_snapd_overrides() {
     mkdir -p /etc/systemd/system/snapd.service.d
     cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
 [Unit]
+# Set StartLimitInterval to something large to allow restarts, but not 0, 
+# becuase we want OnFailure to run if snapd fails to start, and setting the 
+# limit to 0 effectively disables any rate limiting, but systemd doesn't run 
+# OnFailure until after the rate limited restarting is exhausted. This isn't 
+# well documented in systemd, but see this comment from systemd devs:
+# https://bugs.freedesktop.org/show_bug.cgi?id=87799#c7
 $START_LIMIT_INTERVAL
 [Service]
 Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_REBOOT_DELAY=10m SNAPD_CONFIGURE_HOOK_TIMEOUT=30s SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE
@@ -97,6 +103,12 @@ EOF
     mkdir -p /etc/systemd/system/snapd.socket.d
     cat <<EOF > /etc/systemd/system/snapd.socket.d/local.conf
 [Unit]
+# Set StartLimitInterval to something large to allow restarts, but not 0, 
+# becuase we want OnFailure to run if snapd fails to start, and setting the 
+# limit to 0 effectively disables any rate limiting, but systemd doesn't run 
+# OnFailure until after the rate limited restarting is exhausted. This isn't 
+# well documented in systemd, but see this comment from systemd devs:
+# https://bugs.freedesktop.org/show_bug.cgi?id=87799#c7
 $START_LIMIT_INTERVAL
 EOF
 
