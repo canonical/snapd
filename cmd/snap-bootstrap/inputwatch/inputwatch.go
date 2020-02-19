@@ -85,11 +85,11 @@ func WaitTriggerKey() error {
 
 	select {
 	case kev := <-detectKeyCh:
-		if kev.Err == nil {
-			// channel got closed without an error
-			logger.Noticef("%s: + got key %v", kev.Dev, chooserTriggerKey)
+		if kev.Err != nil {
+			return err
 		}
-		return err
+		// channel got closed without an error
+		logger.Noticef("%s: + got key %v", kev.Dev, chooserTriggerKey)
 	case <-time.After(timeout):
 		logger.Noticef("- no key detected")
 		return ErrKeyNotDetected
