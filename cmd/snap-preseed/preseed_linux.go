@@ -24,7 +24,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"syscall"
 
 	"github.com/snapcore/snapd/cmd/cmdutil"
@@ -106,17 +105,12 @@ var systemSnapFromSeed = func(rootDir string) (string, error) {
 	return coreSnapPath, nil
 }
 
-const snapdPreseedSupportVer = `2.44.0`
+const snapdPreseedSupportVer = `2.43.3+`
 
 func checkTargetSnapdVersion(infoPath string) error {
 	ver, err := cmdutil.SnapdVersionFromInfoFile(infoPath)
 	if err != nil {
 		return err
-	}
-
-	// to enable testing agaist code from edge before 2.44.
-	if strings.Contains(ver, "+git") {
-		return nil
 	}
 
 	res, err := strutil.VersionCompare(ver, snapdPreseedSupportVer)
