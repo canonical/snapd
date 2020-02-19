@@ -7601,6 +7601,13 @@ func (s *interfaceManagerSuite) TestResolveDisconnectFromConns(c *C) {
 			SlotRef: interfaces.SlotRef{Snap: "core", Name: "slot"}},
 	})
 
+	ref, err = mgr.ResolveDisconnect("", "", "core", "slot", forget)
+	c.Check(err, IsNil)
+	c.Check(ref, DeepEquals, []*interfaces.ConnRef{
+		{PlugRef: interfaces.PlugRef{Snap: "some-snap", Name: "plug"},
+			SlotRef: interfaces.SlotRef{Snap: "core", Name: "slot"}},
+	})
+
 	_, err = mgr.ResolveDisconnect("", "plug", "", "slot", forget)
 	c.Check(err, ErrorMatches, `cannot forget connection core:plug from core:slot, it was not connected`)
 
