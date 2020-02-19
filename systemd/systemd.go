@@ -474,9 +474,6 @@ func (s *systemd) Status(unitNames ...string) ([]*UnitStatus, error) {
 
 // IsEnabled checkes whether the given service is enabled
 func (s *systemd) IsEnabled(serviceName string) (bool, error) {
-	if s.mode == GlobalUserMode {
-		panic("cannot call is-enabled with GlobalUserMode")
-	}
 	_, err := s.systemctl("--root", s.rootDir, "is-enabled", serviceName)
 	if err == nil {
 		return true, nil

@@ -22,6 +22,7 @@ package wrappers_test
 import (
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -41,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
+	"github.com/snapcore/snapd/usersession/agent"
 	"github.com/snapcore/snapd/wrappers"
 )
 
@@ -52,6 +54,8 @@ type servicesTestSuite struct {
 	systemctlRestorer, delaysRestorer func()
 
 	perfTimings timings.Measurer
+
+	agent *agent.SessionAgent
 }
 
 var _ = Suite(&servicesTestSuite{})
@@ -68,12 +72,22 @@ func (s *servicesTestSuite) SetUpTest(c *C) {
 	s.delaysRestorer = systemd.MockStopDelays(time.Millisecond, 25*time.Second)
 	s.perfTimings = timings.New(nil)
 
+	xdgRuntimeDir := fmt.Sprintf("%s/%d", dirs.XdgRuntimeDirBase, os.Getuid())
+	err := os.MkdirAll(xdgRuntimeDir, 0700)
+	c.Assert(err, IsNil)
+	s.agent, err = agent.New()
+	c.Assert(err, IsNil)
+	s.agent.Start()
 }
 
 func (s *servicesTestSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
 	s.systemctlRestorer()
 	s.delaysRestorer()
+	if s.agent != nil {
+		err := s.agent.Stop()
+		c.Check(err, IsNil)
+	}
 }
 
 func (s *servicesTestSuite) TestAddSnapServicesAndRemove(c *C) {
@@ -112,6 +126,45 @@ func (s *servicesTestSuite) TestAddSnapServicesAndRemove(c *C) {
 	c.Check(osutil.FileExists(svcFile), Equals, false)
 	c.Assert(s.sysdLog, HasLen, 2)
 	c.Check(s.sysdLog[0], DeepEquals, []string{"--root", dirs.GlobalRootDir, "disable", filepath.Base(svcFile)})
+	c.Check(s.sysdLog[1], DeepEquals, []string{"daemon-reload"})
+}
+
+func (s *servicesTestSuite) TestAddSnapServicesAndRemoveUserDaemons(c *C) {
+	info := snaptest.MockSnap(c, packageHello+`
+ svc1:
+  daemon: simple
+  daemon-mode: user
+`, &snap.SideInfo{Revision: snap.R(12)})
+	svcFile := filepath.Join(s.tempdir, "/etc/systemd/user/snap.hello-snap.svc1.service")
+
+	err := wrappers.AddSnapServices(info, nil, progress.Null)
+	c.Assert(err, IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"--user", "--global", "--root", dirs.GlobalRootDir, "enable", filepath.Base(svcFile)},
+		{"daemon-reload"},
+	})
+
+	content, err := ioutil.ReadFile(svcFile)
+	c.Assert(err, IsNil)
+
+	expected := "ExecStart=/usr/bin/snap run hello-snap.svc1"
+	c.Check(string(content), Matches, "(?ms).*^"+regexp.QuoteMeta(expected)) // check.v1 adds ^ and $ around the regexp provided
+
+	s.sysdLog = nil
+	err = wrappers.StopServices(info.Services(), "", progress.Null, s.perfTimings)
+	c.Assert(err, IsNil)
+	c.Assert(s.sysdLog, HasLen, 2)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"--user", "stop", filepath.Base(svcFile)},
+		{"--user", "show", "--property=ActiveState", "snap.hello-snap.svc1.service"},
+	})
+
+	s.sysdLog = nil
+	err = wrappers.RemoveSnapServices(info, progress.Null)
+	c.Assert(err, IsNil)
+	c.Check(osutil.FileExists(svcFile), Equals, false)
+	c.Assert(s.sysdLog, HasLen, 2)
+	c.Check(s.sysdLog[0], DeepEquals, []string{"--user", "--global", "--root", dirs.GlobalRootDir, "disable", filepath.Base(svcFile)})
 	c.Check(s.sysdLog[1], DeepEquals, []string{"daemon-reload"})
 }
 
@@ -523,6 +576,23 @@ func (s *servicesTestSuite) TestStartServices(c *C) {
 	c.Assert(s.sysdLog, DeepEquals, [][]string{
 		{"--root", s.tempdir, "is-enabled", filepath.Base(svcFile)},
 		{"start", filepath.Base(svcFile)},
+	})
+}
+
+func (s *servicesTestSuite) TestStartServicesUserDaemons(c *C) {
+	info := snaptest.MockSnap(c, packageHello+`
+ svc1:
+  daemon: simple
+  daemon-mode: user
+`, &snap.SideInfo{Revision: snap.R(12)})
+	svcFile := filepath.Join(s.tempdir, "/etc/systemd/user/snap.hello-snap.svc1.service")
+
+	err := wrappers.StartServices(info.Services(), nil, s.perfTimings)
+	c.Assert(err, IsNil)
+
+	c.Assert(s.sysdLog, DeepEquals, [][]string{
+		{"--user", "--global", "--root", s.tempdir, "is-enabled", filepath.Base(svcFile)},
+		{"--user", "start", filepath.Base(svcFile)},
 	})
 }
 

@@ -819,6 +819,9 @@ func (s *SystemdTestSuite) TestGlobalUserMode(c *C) {
 	c.Check(s.argses[2], DeepEquals, []string{"--user", "--global", "--root", rootDir, "mask", "foo"})
 	c.Assert(sysd.Unmask("foo"), IsNil)
 	c.Check(s.argses[3], DeepEquals, []string{"--user", "--global", "--root", rootDir, "unmask", "foo"})
+	_, err := sysd.IsEnabled("foo")
+	c.Check(err, IsNil)
+	c.Check(s.argses[4], DeepEquals, []string{"--user", "--global", "--root", rootDir, "is-enabled", "foo"})
 
 	// Commands that don't make sense for GlobalUserMode panic
 	c.Check(sysd.DaemonReload, Panics, "cannot call daemon-reload with GlobalUserMode")
@@ -828,7 +831,6 @@ func (s *SystemdTestSuite) TestGlobalUserMode(c *C) {
 	c.Check(func() { sysd.Restart("foo", 0) }, Panics, "cannot call restart with GlobalUserMode")
 	c.Check(func() { sysd.Kill("foo", "HUP", "") }, Panics, "cannot call kill with GlobalUserMode")
 	c.Check(func() { sysd.Status("foo") }, Panics, "cannot call status with GlobalUserMode")
-	c.Check(func() { sysd.IsEnabled("foo") }, Panics, "cannot call is-enabled with GlobalUserMode")
 	c.Check(func() { sysd.IsActive("foo") }, Panics, "cannot call is-active with GlobalUserMode")
 }
 
