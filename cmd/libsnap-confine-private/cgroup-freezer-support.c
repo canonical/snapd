@@ -92,7 +92,7 @@ bool sc_cgroup_freezer_occupied(const char *snap_name)
 	size_t line_buf_size = 0;
 	ssize_t num_read;
 	struct stat statbuf;
-	do {
+	for (;;) {
 		num_read = getline(&line_buf, &line_buf_size, cgroup_procs);
 		if (num_read < 0 && errno != 0) {
 			die("cannot read next PID belonging to snap %s",
@@ -119,7 +119,7 @@ bool sc_cgroup_freezer_occupied(const char *snap_name)
 		debug("found process %s belonging to user %d",
 		      line_buf, statbuf.st_uid);
 		return true;
-	} while (num_read > 0);
+	}
 
 	return false;
 }
