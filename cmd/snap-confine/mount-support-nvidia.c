@@ -201,7 +201,7 @@ static void sc_populate_libgl_with_hostfs_symlinks(const char *libgl_dir,
 			hostfs_symlink_target[0] = 0;
 			num_read =
 			    readlink(pathname, hostfs_symlink_target,
-				     sizeof hostfs_symlink_target);
+				     sizeof hostfs_symlink_target - 1);
 			if (num_read == -1) {
 				die("cannot read symbolic link %s", pathname);
 			}
