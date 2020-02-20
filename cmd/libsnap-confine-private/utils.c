@@ -145,7 +145,12 @@ sc_identity sc_set_effective_identity(sc_identity identity)
 	debug("set_effective_identity uid:%d (change: %s), gid:%d (change: %s)",
 	      identity.uid, identity.change_uid ? "yes" : "no",
 	      identity.gid, identity.change_gid ? "yes" : "no");
-	sc_identity old = {.change_gid = 0,.change_uid = 0 };
+	/* We are being careful not to return a value instructing us to change GID
+	 * or UID by accident. */
+	sc_identity old = {
+		.change_gid = 0,
+		.change_uid = 0,
+	};
 
 	if (identity.change_gid) {
 		old.gid = getegid();
