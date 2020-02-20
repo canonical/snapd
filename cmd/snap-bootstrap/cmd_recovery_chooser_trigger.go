@@ -32,12 +32,12 @@ import (
 
 func init() {
 	const (
-		short = "Check for the Ubuntu Core chooser trigger"
+		short = "Check for the Ubuntu Core recovery chooser trigger"
 		long  = ""
 	)
 
 	addCommandBuilder(func(parser *flags.Parser) {
-		if _, err := parser.AddCommand("check-chooser", short, long, &cmdCheckChooser{}); err != nil {
+		if _, err := parser.AddCommand("recovery-chooser-trigger", short, long, &cmdRecoveryChooserTrigger{}); err != nil {
 			panic(err)
 		}
 	})
@@ -53,12 +53,12 @@ var (
 	defaultMarkerFile = "/run/snapd-trigger-detected"
 )
 
-type cmdCheckChooser struct {
+type cmdRecoveryChooserTrigger struct {
 	MarkerFile  string `long:"marker-file" value-name:"filename" description:"trigger marker file location"`
 	WaitTimeout string `long:"wait-timeout" value-name:"duration" description:"trigger wait timeout"`
 }
 
-func (c *cmdCheckChooser) Execute(args []string) error {
+func (c *cmdRecoveryChooserTrigger) Execute(args []string) error {
 	// TODO:UC20: check in the gadget if there is a hook or some binary we
 	// should run for trigger detection. This will require some design work
 	// and also thinking if/how such a hook can be confined.

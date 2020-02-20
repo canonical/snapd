@@ -32,7 +32,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-func (s *cmdSuite) TestCheckChooserDefaults(c *C) {
+func (s *cmdSuite) TestRecoveryChooserTriggerDefaults(c *C) {
 	n := 0
 	marker := filepath.Join(c.MkDir(), "marker")
 	passedTimeout := time.Duration(0)
@@ -47,7 +47,7 @@ func (s *cmdSuite) TestCheckChooserDefaults(c *C) {
 	})
 	defer restore()
 
-	rest, err := main.Parser().ParseArgs([]string{"check-chooser"})
+	rest, err := main.Parser().ParseArgs([]string{"recovery-chooser-trigger"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, HasLen, 0)
 	c.Check(n, Equals, 1)
@@ -55,7 +55,7 @@ func (s *cmdSuite) TestCheckChooserDefaults(c *C) {
 	c.Check(marker, testutil.FilePresent)
 }
 
-func (s *cmdSuite) TestCheckChooserNoTrigger(c *C) {
+func (s *cmdSuite) TestRecoveryChooserTriggerNoTrigger(c *C) {
 	n := 0
 	marker := filepath.Join(c.MkDir(), "marker")
 
@@ -68,13 +68,13 @@ func (s *cmdSuite) TestCheckChooserNoTrigger(c *C) {
 	})
 	defer restore()
 
-	_, err := main.Parser().ParseArgs([]string{"check-chooser"})
+	_, err := main.Parser().ParseArgs([]string{"recovery-chooser-trigger"})
 	c.Assert(err, IsNil)
 	c.Check(n, Equals, 1)
 	c.Check(marker, testutil.FileAbsent)
 }
 
-func (s *cmdSuite) TestCheckChooserTakesOptions(c *C) {
+func (s *cmdSuite) TestRecoveryChooserTriggerTakesOptions(c *C) {
 	marker := filepath.Join(c.MkDir(), "foobar")
 	n := 0
 	passedTimeout := time.Duration(0)
@@ -88,7 +88,7 @@ func (s *cmdSuite) TestCheckChooserTakesOptions(c *C) {
 	defer restore()
 
 	rest, err := main.Parser().ParseArgs([]string{
-		"check-chooser",
+		"recovery-chooser-trigger",
 		"--wait-timeout", "2m",
 		"--marker-file", marker,
 	})
@@ -99,7 +99,7 @@ func (s *cmdSuite) TestCheckChooserTakesOptions(c *C) {
 	c.Check(marker, testutil.FilePresent)
 }
 
-func (s *cmdSuite) TestCheckChooserDoesNothingWhenMarkerPresent(c *C) {
+func (s *cmdSuite) TestRecoveryChooserTriggerDoesNothingWhenMarkerPresent(c *C) {
 	marker := filepath.Join(c.MkDir(), "foobar")
 	n := 0
 	restore := main.MockTriggerwatchWait(func(_ time.Duration) error {
@@ -112,7 +112,7 @@ func (s *cmdSuite) TestCheckChooserDoesNothingWhenMarkerPresent(c *C) {
 	c.Assert(err, IsNil)
 
 	rest, err := main.Parser().ParseArgs([]string{
-		"check-chooser",
+		"recovery-chooser-trigger",
 		"--marker-file", marker,
 	})
 	c.Assert(err, IsNil)
@@ -121,7 +121,7 @@ func (s *cmdSuite) TestCheckChooserDoesNothingWhenMarkerPresent(c *C) {
 	c.Check(n, Equals, 0)
 }
 
-func (s *cmdSuite) TestCheckChooserBadDurationFallback(c *C) {
+func (s *cmdSuite) TestRecoveryChooserTriggerBadDurationFallback(c *C) {
 	n := 0
 	passedTimeout := time.Duration(0)
 
@@ -134,7 +134,7 @@ func (s *cmdSuite) TestCheckChooserBadDurationFallback(c *C) {
 	defer restore()
 
 	_, err := main.Parser().ParseArgs([]string{
-		"check-chooser",
+		"recovery-chooser-trigger",
 		"--wait-timeout=foobar",
 	})
 	c.Assert(err, IsNil)
