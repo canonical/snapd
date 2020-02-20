@@ -128,9 +128,7 @@ func (e *evdevInput) FindMatchingDevices(filter triggerEventFilter) ([]triggerDe
 		}
 		return nil
 	}
-	// Find the first devices that has keys and the trigger key
-	// and assume it's the keyboard. I guess we could even support
-	// multiple keyboards but let's keep it simple for now.
+	// collect all input devices that can emit the trigger key
 	var devs []triggerDevice
 	for _, dev := range devices {
 		idev := match(dev)

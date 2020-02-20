@@ -32,7 +32,7 @@ import (
 
 func init() {
 	const (
-		short = "Check for the Ubuntu Core recovery chooser trigger"
+		short = "Detect Ubuntu Core recovery chooser trigger"
 		long  = ""
 	)
 
