@@ -386,9 +386,12 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		// that we are re-execing from
 		char *src = NULL;
 		char self[PATH_MAX + 1] = { 0 };
-		if (readlink("/proc/self/exe", self, sizeof(self) - 1) < 0) {
+		ssize_t nread;
+		nread = readlink("/proc/self/exe", self, sizeof self - 1);
+		if (nread < 0) {
 			die("cannot read /proc/self/exe");
 		}
+		self[nread] = '\0';
 		// this cannot happen except when the kernel is buggy
 		if (strstr(self, "/snap-confine") == NULL) {
 			die("cannot use result from readlink: %s", self);
