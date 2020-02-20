@@ -154,6 +154,7 @@ bool sc_apply_seccomp_profile_for_security_tag(const char *security_tag)
 
 	char bpf[MAX_BPF_SIZE + 1] = { 0 };	// account for EOF
 	size_t num_read = sc_read_seccomp_filter(profile_path, bpf, sizeof bpf);
+	bpf[num_read] = '\0';
 	if (sc_streq(bpf, "@unrestricted\n")) {
 		return false;
 	}
