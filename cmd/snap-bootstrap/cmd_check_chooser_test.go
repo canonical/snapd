@@ -20,27 +20,123 @@
 package main_test
 
 import (
+	"errors"
+	"io/ioutil"
+	"path/filepath"
 	"time"
 
 	. "gopkg.in/check.v1"
 
 	main "github.com/snapcore/snapd/cmd/snap-bootstrap"
+	"github.com/snapcore/snapd/cmd/snap-bootstrap/triggerwatch"
+	"github.com/snapcore/snapd/testutil"
 )
 
-func (s *cmdSuite) TestCheckChooser(c *C) {
+func (s *cmdSuite) TestCheckChooserDefaults(c *C) {
+	n := 0
+	marker := filepath.Join(c.MkDir(), "marker")
+	passedTimeout := time.Duration(0)
+
+	restore := main.MockDefaultMarkerFile(marker)
+	defer restore()
+	restore = main.MockTriggerwatchWait(func(timeout time.Duration) error {
+		passedTimeout = timeout
+		n++
+		// trigger happened
+		return nil
+	})
+	defer restore()
+
+	rest, err := main.Parser().ParseArgs([]string{"check-chooser"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, HasLen, 0)
+	c.Check(n, Equals, 1)
+	c.Check(passedTimeout, Equals, main.DefaultTimeout)
+	c.Check(marker, testutil.FilePresent)
+}
+
+func (s *cmdSuite) TestCheckChooserNoTrigger(c *C) {
+	n := 0
+	marker := filepath.Join(c.MkDir(), "marker")
+
+	restore := main.MockDefaultMarkerFile(marker)
+	defer restore()
+	restore = main.MockTriggerwatchWait(func(_ time.Duration) error {
+		n++
+		// trigger did not happen
+		return triggerwatch.ErrTriggerNotDetected
+	})
+	defer restore()
+
+	_, err := main.Parser().ParseArgs([]string{"check-chooser"})
+	c.Assert(err, IsNil)
+	c.Check(n, Equals, 1)
+	c.Check(marker, testutil.FileAbsent)
+}
+
+func (s *cmdSuite) TestCheckChooserTakesOptions(c *C) {
+	marker := filepath.Join(c.MkDir(), "foobar")
 	n := 0
 	passedTimeout := time.Duration(0)
 
 	restore := main.MockTriggerwatchWait(func(timeout time.Duration) error {
 		passedTimeout = timeout
 		n++
+		// trigger happened
 		return nil
 	})
 	defer restore()
 
-	rest, err := main.Parser.ParseArgs([]string{"check-chooser"})
+	rest, err := main.Parser().ParseArgs([]string{
+		"check-chooser",
+		"--wait-timeout", "2m",
+		"--marker-file", marker,
+	})
 	c.Assert(err, IsNil)
 	c.Assert(rest, HasLen, 0)
-	c.Assert(n, Equals, 1)
-	c.Assert(passedTimeout, Equals, 5*time.Second)
+	c.Check(n, Equals, 1)
+	c.Check(passedTimeout, Equals, 2*time.Minute)
+	c.Check(marker, testutil.FilePresent)
+}
+
+func (s *cmdSuite) TestCheckChooserDoesNothingWhenMarkerPresent(c *C) {
+	marker := filepath.Join(c.MkDir(), "foobar")
+	n := 0
+	restore := main.MockTriggerwatchWait(func(_ time.Duration) error {
+		n++
+		return errors.New("unexpected call")
+	})
+	defer restore()
+
+	err := ioutil.WriteFile(marker, nil, 0644)
+	c.Assert(err, IsNil)
+
+	rest, err := main.Parser().ParseArgs([]string{
+		"check-chooser",
+		"--marker-file", marker,
+	})
+	c.Assert(err, IsNil)
+	c.Assert(rest, HasLen, 0)
+	// not called
+	c.Check(n, Equals, 0)
+}
+
+func (s *cmdSuite) TestCheckChooserBadDurationFallback(c *C) {
+	n := 0
+	passedTimeout := time.Duration(0)
+
+	restore := main.MockTriggerwatchWait(func(timeout time.Duration) error {
+		passedTimeout = timeout
+		n++
+		// trigger happened
+		return triggerwatch.ErrTriggerNotDetected
+	})
+	defer restore()
+
+	_, err := main.Parser().ParseArgs([]string{
+		"check-chooser",
+		"--wait-timeout=foobar",
+	})
+	c.Assert(err, IsNil)
+	c.Check(passedTimeout, Equals, main.DefaultTimeout)
 }

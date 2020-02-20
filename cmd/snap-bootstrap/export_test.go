@@ -69,3 +69,13 @@ func MockTriggerwatchWait(f func(_ time.Duration) error) (restore func()) {
 		triggerwatchWait = oldTriggerwatchWait
 	}
 }
+
+var DefaultTimeout = defaultTimeout
+
+func MockDefaultMarkerFile(p string) (restore func()) {
+	old := defaultMarkerFile
+	defaultMarkerFile = p
+	return func() {
+		defaultMarkerFile = old
+	}
+}

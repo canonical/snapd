@@ -20,9 +20,14 @@
 package main
 
 import (
+	"fmt"
+	"os"
 	"time"
 
+	"github.com/jessevdk/go-flags"
+
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/triggerwatch"
+	"github.com/snapcore/snapd/logger"
 )
 
 func init() {
@@ -31,25 +36,72 @@ func init() {
 		long  = ""
 	)
 
-	if _, err := parser.AddCommand("check-chooser", short, long, &cmdCheckChooser{}); err != nil {
-		panic(err)
-	}
+	addCommandBuilder(func(parser *flags.Parser) {
+		if _, err := parser.AddCommand("check-chooser", short, long, &cmdCheckChooser{}); err != nil {
+			panic(err)
+		}
+	})
 }
 
 var (
 	triggerwatchWait = triggerwatch.Wait
 
-	// timeout waiting for trigger
-	timeout = 5 * time.Second
+	// default trigger wait timeout
+	defaultTimeout = 5 * time.Second
+
+	// default marker file location
+	defaultMarkerFile = "/run/snapd-trigger-detected"
 )
 
-type cmdCheckChooser struct{}
+type cmdCheckChooser struct {
+	MarkerFile  string `long:"marker-file" value-name:"filename" description:"trigger marker file location"`
+	WaitTimeout string `long:"wait-timeout" value-name:"duration" description:"trigger wait timeout"`
+}
 
 func (c *cmdCheckChooser) Execute(args []string) error {
-	// TODO:UC20: check in the gadget if there is a hook or some
-	// binary we should run for chooser detection/display. This
-	// will require some design work and also thinking if/how such
-	// a hook can be confined.
+	// TODO:UC20: check in the gadget if there is a hook or some binary we
+	// should run for trigger detection. This will require some design work
+	// and also thinking if/how such a hook can be confined.
 
-	return triggerwatchWait(timeout)
+	timeout := defaultTimeout
+	markerFile := defaultMarkerFile
+
+	if c.WaitTimeout != "" {
+		userTimeout, err := time.ParseDuration(c.WaitTimeout)
+		if err != nil {
+			logger.Noticef("cannot parse duration %q, using default", c.WaitTimeout)
+		} else {
+			timeout = userTimeout
+		}
+	}
+	if c.MarkerFile != "" {
+		markerFile = c.MarkerFile
+	}
+	logger.Noticef("trigger timeout %v", timeout)
+	logger.Noticef("marker file %v", markerFile)
+
+	m, err := os.Open(markerFile)
+	if err == nil {
+		m.Close()
+		logger.Noticef("marker already present")
+		return nil
+	}
+
+	err = triggerwatchWait(timeout)
+	if err != nil {
+		if err == triggerwatch.ErrTriggerNotDetected {
+			logger.Noticef("trigger no detected")
+			return nil
+		}
+		return err
+	}
+
+	// got the trigger, try to create the marker file
+	m, err = os.Create(markerFile)
+	if err != nil {
+		return fmt.Errorf("cannot create the marker file: %q", err)
+	}
+	m.Close()
+
+	return nil
 }

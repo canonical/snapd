@@ -79,7 +79,6 @@ func Wait(timeout time.Duration) error {
 		// channel got closed without an error
 		logger.Noticef("%s: + got trigger key %v", kev.Dev, chooserTriggerKey)
 	case <-time.After(timeout):
-		logger.Noticef("- trigger no detected")
 		return ErrTriggerNotDetected
 	}
 
