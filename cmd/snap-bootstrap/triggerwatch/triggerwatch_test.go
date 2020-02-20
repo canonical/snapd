@@ -38,6 +38,7 @@ var _ = Suite(&triggerwatchSuite{})
 
 type mockTriggerDevice struct {
 	waitForTriggerCalls int
+	closeCalls          int
 	ev                  *triggerwatch.KeyEvent
 }
 
@@ -51,6 +52,7 @@ func (m *mockTriggerDevice) WaitForTrigger(n chan triggerwatch.KeyEvent) {
 }
 
 func (m *mockTriggerDevice) String() string { return "mock-device" }
+func (m *mockTriggerDevice) Close()         { m.closeCalls++ }
 
 type mockTrigger struct {
 	f   triggerwatch.TriggerCapabilityFilter
@@ -85,7 +87,7 @@ func (s *triggerwatchSuite) TestNoDevsWaitKey(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(mi.findMatchingCalls, Equals, 1)
 	c.Assert(md.waitForTriggerCalls, Equals, 1)
-
+	c.Assert(md.closeCalls, Equals, 1)
 }
 
 func (s *triggerwatchSuite) TestNoDevsWaitKeyTimeout(c *C) {
@@ -98,6 +100,7 @@ func (s *triggerwatchSuite) TestNoDevsWaitKeyTimeout(c *C) {
 	c.Assert(err, Equals, triggerwatch.ErrTriggerNotDetected)
 	c.Assert(mi.findMatchingCalls, Equals, 1)
 	c.Assert(md.waitForTriggerCalls, Equals, 1)
+	c.Assert(md.closeCalls, Equals, 1)
 }
 
 func (s *triggerwatchSuite) TestNoDevsWaitNoMatching(c *C) {

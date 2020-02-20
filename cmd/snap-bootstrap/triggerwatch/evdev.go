@@ -67,6 +67,7 @@ func (e *evdevKeyboardInputDevice) WaitForTrigger(ch chan keyEvent) {
 		ies, err := e.dev.Read()
 		if err != nil {
 			ch <- keyEvent{Err: err, Dev: e}
+			break
 		}
 		for _, ie := range ies {
 			if ie.Type != evdev.EV_KEY || ie.Code != e.keyCode {
@@ -82,6 +83,7 @@ func (e *evdevKeyboardInputDevice) WaitForTrigger(ch chan keyEvent) {
 			logger.Noticef("%s held: %v", e.dev.Phys, heldCount)
 			if heldCount >= triggerHeldCount {
 				ch <- keyEvent{Dev: e}
+				break
 			}
 		}
 	}
@@ -89,6 +91,10 @@ func (e *evdevKeyboardInputDevice) WaitForTrigger(ch chan keyEvent) {
 
 func (e *evdevKeyboardInputDevice) String() string {
 	return fmt.Sprintf("%s: %s", e.dev.Phys, e.dev.Name)
+}
+
+func (e *evdevKeyboardInputDevice) Close() {
+	e.dev.File.Close()
 }
 
 type evdevInput struct{}

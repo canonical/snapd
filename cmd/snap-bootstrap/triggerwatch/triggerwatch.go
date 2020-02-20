@@ -34,6 +34,7 @@ type triggerProvider interface {
 type triggerDevice interface {
 	WaitForTrigger(chan keyEvent)
 	String() string
+	Close()
 }
 
 var (
@@ -69,6 +70,7 @@ func Wait(timeout time.Duration) error {
 
 	for _, kbd := range devices {
 		go kbd.WaitForTrigger(detectKeyCh)
+		defer kbd.Close()
 	}
 
 	select {
