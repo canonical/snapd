@@ -56,7 +56,13 @@ __attribute__((format(printf, 1, 2)))
 void sc_explain_li(const char *fmt, ...);
 
 /**
- * sc_explain_key_value writes out a new key: value item.
+ * sc_explain_li_kv writes out a new key: value list-item.
+ **/
+__attribute__((format(printf, 2, 3)))
+void sc_explain_li_kv(const char *key, const char *value_fmt, ...);
+
+/**
+ * sc_explain_kv writes out a new key: value item.
  **/
 __attribute__((format(printf, 2, 3)))
 void sc_explain_kv(const char *key, const char *value_fmt, ...);

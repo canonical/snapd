@@ -26,6 +26,7 @@
 #include "cleanup-funcs.h"
 #include "panic.h"
 #include "utils.h"
+#include "string-utils.h"
 
 void die(const char *msg, ...)
 {
@@ -156,16 +157,6 @@ void sc_explain(const char *fmt, ...)
         va_end(ap);
 }
 
-void sc_explain_kv(const char *key, const char *value_fmt, ...)
-{
-        fprintf(stdout, "%s: ", key);
-
-        va_list ap;
-        va_start(ap, value_fmt);
-        sc_explain_va(value_fmt, ap);
-        va_end(ap);
-}
-
 void sc_explain_start_section()
 {
         es.indent++;
@@ -174,6 +165,27 @@ void sc_explain_start_section()
 void sc_explain_end_section()
 {
         es.indent--;
+}
+
+void sc_explain_li_kv(const char *key, const char *value_fmt, ...) {
+        char buf[256];
+        sc_must_snprintf(buf, sizeof buf, "- %s: %s", key, value_fmt);
+
+        va_list ap;
+        va_start(ap, value_fmt);
+        sc_explain_va(buf, ap);
+        va_end(ap);
+}        
+        
+void sc_explain_kv(const char *key, const char *value_fmt, ...)
+{
+        char buf[256];
+        sc_must_snprintf(buf, sizeof buf, "%s: %s", key, value_fmt);
+
+        va_list ap;
+        va_start(ap, value_fmt);
+        sc_explain_va(buf, ap);
+        va_end(ap);
 }
 
 void sc_explain_li(const char *fmt, ...)

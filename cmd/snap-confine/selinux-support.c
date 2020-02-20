@@ -46,10 +46,10 @@ static void sc_context_free(context_t *ctx) {
 int sc_selinux_set_snap_execcon(void) {
     if (is_selinux_enabled() < 1) {
         debug("SELinux not enabled");
-        sc_explain_li("SELinux: disabled in the kernel");
+        sc_explain_li_kv("SELinux", "disabled in the kernel");
         return 0;
     }
-    sc_explain_li("SELinux: enabled in the kernel");
+    sc_explain_li_kv("SELinux", "enabled in the kernel");
 
     char *ctx_str SC_CLEANUP(sc_freecon) = NULL;
     if (getcon(&ctx_str) < 0) {

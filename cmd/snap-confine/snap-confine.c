@@ -532,7 +532,7 @@ int main(int argc, char **argv)
 	// Now that we've dropped and regained SYS_ADMIN, we can load the
 	// seccomp profiles.
 	if (sc_apply_seccomp_profile_for_security_tag(invocation.security_tag)) {
-		sc_explain_li("Applied seccomp profile: %s",
+                sc_explain_li_kv("Applied seccomp profile", "%s",
 			   invocation.security_tag);
                 sc_explain_start_section();
 		sc_explain_kv("source", "/var/lib/snapd/seccomp/bpf/%s.src",
@@ -544,9 +544,9 @@ int main(int argc, char **argv)
 		// If the process is not explicitly unconfined then load the
 		// global profile as well.
 		sc_apply_global_seccomp_profile();
-		sc_explain_li("Applied seccomp profile: global profile for all snaps");
+		sc_explain_li_kv("Applied seccomp profile", "global profile for all snaps");
                 sc_explain_start_section();
-		sc_explain("binary: /var/lib/snapd/seccomp/bpf/global.bin");
+		sc_explain_kv("binary", "/var/lib/snapd/seccomp/bpf/global.bin");
 		sc_explain("\n");
                 sc_explain_end_section();
 	}
@@ -669,19 +669,19 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 	struct snappy_udev udev_s;
 	if (snappy_udev_init(inv->security_tag, &udev_s) == 0) {
 		if (sc_cgroup_is_v2()) {
-			sc_explain_li("Device cgroup v1: "
-				   "unsupported, system in v2 mode\n");
+			sc_explain_li_kv("Device cgroup v1",
+				   "unsupported, system in v2 mode");
 		} else {
 			setup_devices_cgroup(inv->security_tag, &udev_s);
-			sc_explain_li("Device cgroup v1: %s\n",
+			sc_explain_li_kv("Device cgroup v1", "%s",
 				   inv->security_tag);
                         sc_explain_start_section();
-			sc_explain("path: /sys/fs/cgroup/devices/%s\n",
+			sc_explain_kv("path", "/sys/fs/cgroup/devices/%s",
 				   inv->security_tag);
 			// TODO: this needs changes once improved device cgroup
 			// configuration is merged. Right now we only ever use device cgroup v1
 			// when we are in restrictive mode.
-			sc_explain("mode: restricted\n");
+			sc_explain_kv("mode", "restricted");
                         sc_explain_end_section();
 		}
 	}
@@ -732,13 +732,13 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 		}
 		sc_explain_li("Creating new per-snap mount namespace");
                 sc_explain_start_section();
-		sc_explain("desired mount profile: "
+		sc_explain_kv("desired mount profile",
 			   "/var/lib/snapd/mount/snap.%s.fstab",
 			   inv->snap_instance);
-		sc_explain("effective mount profile: "
+		sc_explain_kv("effective mount profile",
 			   "/run/snapd/ns/snap.%s.fstab", inv->snap_instance);
-		sc_explain("info file: " "/run/snapd/ns/snap.%s.info",
-			   inv->snap_instance);
+		sc_explain_kv("info file ",
+                              "/run/snapd/ns/snap.%s.info", inv->snap_instance);
 		sc_populate_mount_ns(aa, snap_update_ns_fd, inv, real_gid,
 				     saved_gid);
 		sc_store_ns_info(inv);
@@ -766,7 +766,7 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
                         sc_explain_header("snap-confine");
 			sc_explain_li("Creating new per-user mount namespace");
                         sc_explain_start_section();
-			sc_explain("desired user mount profile "
+			sc_explain_kv("desired user mount profile",
 				   "/var/lib/snapd/mount/snap.%s.user-fstab",
 				   inv->snap_instance);
                         sc_explain_end_section();
@@ -787,7 +787,7 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 			    (SC_FEATURE_PER_USER_MOUNT_NAMESPACE)) {
 				sc_preserve_populated_per_user_mount_ns(group);
                                 sc_explain_start_section();
-				sc_explain("effective user fstab "
+				sc_explain_kv("effective user fstab",
 					   "/run/snapd/ns/snap.%s.%d.fstab",
 					   inv->snap_instance, getuid());
                                 sc_explain_end_section();
@@ -816,13 +816,13 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 		}
 	}
 	if (sc_cgroup_is_v2()) {
-		sc_explain_li("Freezer cgroup v1: "
+		sc_explain_li_kv("Freezer cgroup v1",
 			   "unsupported, system in v2 mode");
 	} else {
 		sc_explain_li("Freezer cgroup v1: supported");
 		sc_cgroup_freezer_join(inv->snap_instance, getpid());
                 sc_explain_start_section();
-		sc_explain("path: /sys/fs/cgroup/freezer/%s",
+		sc_explain_kv("path", "/sys/fs/cgroup/freezer/%s",
 			   inv->snap_instance);
                 sc_explain_end_section();
 	}
@@ -871,13 +871,13 @@ static void maybe_join_tracking_cgroup(const sc_invocation * inv,
 		}
 	}
 	if (sc_cgroup_is_v2()) {
-		sc_explain_li
-		    ("Pids cgroup v1: unsupported, system in v2 mode");
+		sc_explain_li_kv
+                        ("Pids cgroup v1", "unsupported, system in v2 mode");
 	} else {
 		if (sc_feature_enabled(SC_FEATURE_REFRESH_APP_AWARENESS)) {
-			sc_explain_li("Pids cgroup v1: supported");
+			sc_explain_li_kv("Pids cgroup v1","supported");
 			sc_cgroup_pids_join(inv->security_tag, getpid());
-			sc_explain_li("path: /sys/fs/cgroup/pids/%s",
+			sc_explain_li_kv("path", "/sys/fs/cgroup/pids/%s",
 				   inv->snap_instance);
 		}
 	}
