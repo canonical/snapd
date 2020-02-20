@@ -20,6 +20,8 @@
 package main
 
 import (
+	"time"
+
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/triggerwatch"
 )
 
@@ -34,7 +36,12 @@ func init() {
 	}
 }
 
-var triggerwatchWaitKey = triggerwatch.WaitTriggerKey
+var (
+	triggerwatchWait = triggerwatch.Wait
+
+	// timeout waiting for trigger
+	timeout = 5 * time.Second
+)
 
 type cmdCheckChooser struct{}
 
@@ -44,5 +51,5 @@ func (c *cmdCheckChooser) Execute(args []string) error {
 	// will require some design work and also thinking if/how such
 	// a hook can be confined.
 
-	return triggerwatchWaitKey()
+	return triggerwatchWait(timeout)
 }

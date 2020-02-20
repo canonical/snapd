@@ -20,6 +20,8 @@
 package main_test
 
 import (
+	"time"
+
 	. "gopkg.in/check.v1"
 
 	main "github.com/snapcore/snapd/cmd/snap-bootstrap"
@@ -27,7 +29,10 @@ import (
 
 func (s *cmdSuite) TestCheckChooser(c *C) {
 	n := 0
-	restore := main.MockTriggerwatchWaitKey(func() error {
+	passedTimeout := time.Duration(0)
+
+	restore := main.MockTriggerwatchWait(func(timeout time.Duration) error {
+		passedTimeout = timeout
 		n++
 		return nil
 	})
@@ -37,4 +42,5 @@ func (s *cmdSuite) TestCheckChooser(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rest, HasLen, 0)
 	c.Assert(n, Equals, 1)
+	c.Assert(passedTimeout, Equals, 5*time.Second)
 }

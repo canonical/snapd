@@ -21,6 +21,7 @@ package main
 
 import (
 	"io"
+	"time"
 
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/bootstrap"
 )
@@ -61,10 +62,10 @@ func MockRunMnt(newRunMnt string) (restore func()) {
 	}
 }
 
-func MockTriggerwatchWaitKey(f func() error) (restore func()) {
-	oldTriggerwatchWait := triggerwatchWaitKey
-	triggerwatchWaitKey = f
+func MockTriggerwatchWait(f func(_ time.Duration) error) (restore func()) {
+	oldTriggerwatchWait := triggerwatchWait
+	triggerwatchWait = f
 	return func() {
-		triggerwatchWaitKey = oldTriggerwatchWait
+		triggerwatchWait = oldTriggerwatchWait
 	}
 }

@@ -18,23 +18,11 @@
  */
 package triggerwatch
 
-import (
-	"time"
-)
-
 func MockInput(newInput TriggerProvider) (restore func()) {
 	oldInput := trigger
 	trigger = newInput
 	return func() {
 		trigger = oldInput
-	}
-}
-
-func MockTimeout(newTimeout time.Duration) (restore func()) {
-	oldTimeout := timeout
-	timeout = newTimeout
-	return func() {
-		timeout = oldTimeout
 	}
 }
 

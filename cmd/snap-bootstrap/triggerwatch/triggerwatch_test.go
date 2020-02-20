@@ -73,13 +73,15 @@ func (m *mockTrigger) FindMatchingDevices(f triggerwatch.TriggerCapabilityFilter
 	return nil, nil
 }
 
+const testTriggerTimeout = 5 * time.Millisecond
+
 func (s *triggerwatchSuite) TestNoDevsWaitKey(c *C) {
 	md := &mockTriggerDevice{ev: &triggerwatch.KeyEvent{}}
 	mi := &mockTrigger{d: md}
 	restore := triggerwatch.MockInput(mi)
 	defer restore()
 
-	err := triggerwatch.WaitTriggerKey()
+	err := triggerwatch.Wait(testTriggerTimeout)
 	c.Assert(err, IsNil)
 	c.Assert(mi.findMatchingCalls, Equals, 1)
 	c.Assert(md.waitForTriggerCalls, Equals, 1)
@@ -91,11 +93,9 @@ func (s *triggerwatchSuite) TestNoDevsWaitKeyTimeout(c *C) {
 	mi := &mockTrigger{d: md}
 	restore := triggerwatch.MockInput(mi)
 	defer restore()
-	restore = triggerwatch.MockTimeout(5 * time.Millisecond)
-	defer restore()
 
-	err := triggerwatch.WaitTriggerKey()
-	c.Assert(err, ErrorMatches, "interrupt key not detected")
+	err := triggerwatch.Wait(testTriggerTimeout)
+	c.Assert(err, Equals, triggerwatch.ErrTriggerNotDetected)
 	c.Assert(mi.findMatchingCalls, Equals, 1)
 	c.Assert(md.waitForTriggerCalls, Equals, 1)
 }
@@ -105,7 +105,7 @@ func (s *triggerwatchSuite) TestNoDevsWaitNoMatching(c *C) {
 	restore := triggerwatch.MockInput(mi)
 	defer restore()
 
-	err := triggerwatch.WaitTriggerKey()
+	err := triggerwatch.Wait(testTriggerTimeout)
 	c.Assert(err, ErrorMatches, "cannot find matching devices")
 }
 
@@ -114,7 +114,7 @@ func (s *triggerwatchSuite) TestNoDevsWaitMatchingError(c *C) {
 	restore := triggerwatch.MockInput(mi)
 	defer restore()
 
-	err := triggerwatch.WaitTriggerKey()
+	err := triggerwatch.Wait(testTriggerTimeout)
 	c.Assert(err, ErrorMatches, "cannot list trigger devices: failed")
 }
 
@@ -122,5 +122,6 @@ func (s *triggerwatchSuite) TestChecksInput(c *C) {
 	restore := triggerwatch.MockInput(nil)
 	defer restore()
 
-	c.Assert(func() { triggerwatch.WaitTriggerKey() }, Panics, "trigger is unset")
+	c.Assert(func() { triggerwatch.Wait(testTriggerTimeout) },
+		Panics, "trigger is unset")
 }

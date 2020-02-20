@@ -52,16 +52,13 @@ var (
 	// wait for '1' to be pressed
 	triggerFilter = triggerEventFilter{Key: "KEY_1"}
 
-	// key wait timeout
-	timeout = 5 * time.Second
-
-	ErrKeyNotDetected = errors.New("interrupt key not detected")
+	ErrTriggerNotDetected = errors.New("trigger not detected")
 )
 
-// WaitTriggerKey wait for trigger key on the available input devices. Returns
-// nil if one was detected, ErrKeyNotDetected if there was none, or other
-// non-nil error.
-func WaitTriggerKey() error {
+// Wait wait for trigger on the available trigger devices for a given amount of
+// time. Returns nil if one was detected, ErrTriggerNotDetected if timeout was
+// hit, or other non-nil error.
+func Wait(timeout time.Duration) error {
 	if trigger == nil {
 		logger.Panicf("trigger is unset")
 	}
@@ -74,7 +71,7 @@ func WaitTriggerKey() error {
 		return fmt.Errorf("cannot find matching devices")
 	}
 
-	logger.Noticef("waiting for key: %v", chooserTriggerKey.Name)
+	logger.Noticef("waiting for trigger key: %v", chooserTriggerKey.Name)
 
 	// wait for a couple of second for the key
 	detectKeyCh := make(chan keyEvent, len(devices))
@@ -89,10 +86,10 @@ func WaitTriggerKey() error {
 			return err
 		}
 		// channel got closed without an error
-		logger.Noticef("%s: + got key %v", kev.Dev, chooserTriggerKey)
+		logger.Noticef("%s: + got trigger key %v", kev.Dev, chooserTriggerKey)
 	case <-time.After(timeout):
-		logger.Noticef("- no key detected")
-		return ErrKeyNotDetected
+		logger.Noticef("- trigger no detected")
+		return ErrTriggerNotDetected
 	}
 
 	return nil
