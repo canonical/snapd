@@ -72,7 +72,7 @@ execute: |
   MATCH "Done .+ setup-profiles +Setup snap \"core18\" \(unset\) security profiles" < tasks.log
   MATCH "Done .+ link-snap +Make snap \"core18\" \(unset\) available to the system" < tasks.log
   MATCH "Done .+ auto-connect +Automatically connect eligible plugs and slots of snap \"core18\"" < tasks.log
-  MATCH "Done .+ setup-profiles +Setup snap \"core18\" \(unset\) security profiles for auto-connections" < tasks.log
+  MATCH "Done .+ setup-profiles +Setup snap \"core18\" \(unset\) security profiles" < tasks.log
   MATCH "Done .+ set-auto-aliases +Set automatic aliases for snap \"core18\"" < tasks.log
   MATCH "Done .+ setup-aliases +Setup snap \"core18\" aliases" < tasks.log
 
@@ -95,15 +95,10 @@ execute: |
   SYSTEMD_UNITS="$IMAGE_MOUNTPOINT"/etc/systemd
   test -f "$SYSTEMD_UNITS"/system/snap-snapd-*.mount
   test -f "$SYSTEMD_UNITS"/system/snap-core18-*.mount
-  for unit in snap.lxd.daemon.service snap.lxd.daemon.unix.socket snap.lxd.activate.service; do
-    test -f "$SYSTEMD_UNITS/system/$unit"
-  done
 
   echo "Checking enabled systemd mount units"
   test -L "$SYSTEMD_UNITS"/system/multi-user.target.wants/snap-snapd-*.mount
   test -L "$SYSTEMD_UNITS"/system/multi-user.target.wants/snap-core18-*.mount
-  echo "LXD service shouldn't be enabled at this point"
-  test ! -e "$SYSTEMD_UNITS"/system/multi-user.target.wants/snap.lxd.activate.service
 
   #shellcheck source=tests/lib/preseed.sh
   . "$TESTSLIB/preseed.sh"
