@@ -83,24 +83,27 @@ var systemSnapFromSeed = func(rootDir string) (string, error) {
 		return "", err
 	}
 
-	// TODO: handle core18, snapd snap.
+	var required string
 	if seed.UsesSnapdSnap() {
-		return "", fmt.Errorf("preseeding with snapd snap is not supported yet")
+		required = "snapd"
+	} else {
+		required = "core"
 	}
 
-	var coreSnapPath string
+	var snapPath string
 	ess := seed.EssentialSnaps()
 	if len(ess) > 0 {
-		if ess[0].SnapName() == "core" {
-			coreSnapPath = ess[0].Path
+		// core / snapd snap is the first essential snap.
+		if ess[0].SnapName() == required {
+			snapPath = ess[0].Path
 		}
 	}
 
-	if coreSnapPath == "" {
-		return "", fmt.Errorf("core snap not found")
+	if snapPath == "" {
+		return "", fmt.Errorf("%s snap not found", required)
 	}
 
-	return coreSnapPath, nil
+	return snapPath, nil
 }
 
 func prepareChroot(preseedChroot string) (func(), error) {

@@ -214,6 +214,22 @@ func (s *startPreseedSuite) TestSystemSnapFromSeed(c *C) {
 	c.Check(path, Equals, "/some/path/core")
 }
 
+func (s *startPreseedSuite) TestSystemSnapFromSnapdSeed(c *C) {
+	tmpDir := c.MkDir()
+
+	restore := main.MockSeedOpen(func(rootDir, label string) (seed.Seed, error) {
+		return &Fake16Seed{
+			Essential: []*seed.Snap{{Path: "/some/path/snapd.snap", SideInfo: &snap.SideInfo{RealName: "snapd"}}},
+			UsesSnapd: true,
+		}, nil
+	})
+	defer restore()
+
+	path, err := main.SystemSnapFromSeed(tmpDir)
+	c.Assert(err, IsNil)
+	c.Check(path, Equals, "/some/path/snapd.snap")
+}
+
 func (s *startPreseedSuite) TestSystemSnapFromSeedOpenError(c *C) {
 	tmpDir := c.MkDir()
 
@@ -239,10 +255,6 @@ func (s *startPreseedSuite) TestSystemSnapFromSeedErrors(c *C) {
 	fakeSeed.Essential = []*seed.Snap{{Path: "/some/path", SideInfo: &snap.SideInfo{RealName: "foosnap"}}}
 	_, err = main.SystemSnapFromSeed(tmpDir)
 	c.Assert(err, ErrorMatches, "core snap not found")
-
-	fakeSeed.UsesSnapd = true
-	_, err = main.SystemSnapFromSeed(tmpDir)
-	c.Assert(err, ErrorMatches, "preseeding with snapd snap is not supported yet")
 
 	fakeSeed.LoadMetaErr = fmt.Errorf("load meta failed")
 	_, err = main.SystemSnapFromSeed(tmpDir)
