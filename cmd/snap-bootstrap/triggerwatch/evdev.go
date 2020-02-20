@@ -28,6 +28,15 @@ import (
 	"github.com/snapcore/snapd/logger"
 )
 
+type keyEvent struct {
+	Dev triggerDevice
+	Err error
+}
+
+type triggerEventFilter struct {
+	Key string
+}
+
 var (
 	evKeyCapability = evdev.CapabilityType{Type: evdev.EV_KEY, Name: "EV_KEY"}
 

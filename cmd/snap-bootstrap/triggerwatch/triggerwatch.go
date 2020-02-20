@@ -31,18 +31,9 @@ type triggerProvider interface {
 	FindMatchingDevices(filter triggerEventFilter) ([]triggerDevice, error)
 }
 
-type keyEvent struct {
-	Dev triggerDevice
-	Err error
-}
-
 type triggerDevice interface {
 	WaitForTrigger(chan keyEvent)
 	String() string
-}
-
-type triggerEventFilter struct {
-	Key string
 }
 
 var (
