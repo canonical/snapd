@@ -6,34 +6,37 @@ systems: [ubuntu-16.04-64]
 # Start early as it takes a long time.
 priority: 100
 
+prepare: |
+    echo "Install snapcraft from candidate"
+    snap install snapcraft --candidate --classic
+
 restore: |
     cd "$PROJECT_PATH"
     echo "Cleanup build artifacts"
-    not command -v snapcraft >/dev/null || snapcraft clean
+    not command -v snapcraft >/dev/null || snapcraft clean --destructive-mode
     echo "Cleanup the installed snapcraft"
-    apt autoremove -y snapcraft
+    snap remove snapcraft
     echo "Cleanup the build snapd snap"
-    rm -f snapd_*.snap
+    rm -f snapd_spread-test.snap
 
 execute: |
-    echo "Installing snapscraft"
-    apt install -y snapcraft
     # shellcheck disable=SC2164
     cd "$PROJECT_PATH"
-    snapcraft
+    echo "Build the snap natively (with --destructive-mode)"
+    snapcraft snap --destructive-mode --output=snapd_spread-test.snap
 
     echo "Ensure we have the fc-cache binaries"
-    unsquashfs -ll snapd_*.snap | MATCH bin/fc-cache-v6
-    unsquashfs -ll snapd_*.snap | MATCH bin/fc-cache-v7
+    unsquashfs -ll snapd_spread-test.snap | MATCH bin/fc-cache-v6
+    unsquashfs -ll snapd_spread-test.snap | MATCH bin/fc-cache-v7
 
     echo "Ensure we have xdelta3"
-    unsquashfs -ll snapd_*.snap | MATCH bin/xdelta3
+    unsquashfs -ll snapd_spread-test.snap | MATCH bin/xdelta3
 
     echo "Ensure we have mksquashfs (and the dependencies)"
-    unsquashfs -ll snapd_*.snap | MATCH bin/mksquashfs
-    unsquashfs -ll snapd_*.snap | MATCH liblzma.so.5
+    unsquashfs -ll snapd_spread-test.snap | MATCH bin/mksquashfs
+    unsquashfs -ll snapd_spread-test.snap | MATCH liblzma.so.5
 
     echo "Ensure we have ld.so.conf"
-    unsquashfs -ll snapd_*.snap | MATCH etc/ld.so.conf
+    unsquashfs -ll snapd_spread-test.snap | MATCH etc/ld.so.conf
     echo "Ensure we have libc"
-    unsquashfs -ll snapd_*.snap | MATCH libc.so
+    unsquashfs -ll snapd_spread-test.snap | MATCH libc.so
