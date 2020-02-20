@@ -80,9 +80,8 @@ func (c *cmdRecoveryChooserTrigger) Execute(args []string) error {
 	logger.Noticef("trigger timeout %v", timeout)
 	logger.Noticef("marker file %v", markerFile)
 
-	m, err := os.Open(markerFile)
+	_, err := os.Stat(markerFile)
 	if err == nil {
-		m.Close()
 		logger.Noticef("marker already present")
 		return nil
 	}
@@ -97,7 +96,7 @@ func (c *cmdRecoveryChooserTrigger) Execute(args []string) error {
 	}
 
 	// got the trigger, try to create the marker file
-	m, err = os.Create(markerFile)
+	m, err := os.Create(markerFile)
 	if err != nil {
 		return fmt.Errorf("cannot create the marker file: %q", err)
 	}
