@@ -1,12 +1,12 @@
 [Unit]
-Description=Check for the Ubuntu Core chooser trigger
+Description=Wait for the Ubuntu Core chooser trigger
 Before=snapd.service
 # don't run on classic or uc16/uc18
 ConditionKernelCommandLine=snapd_recovery_mode
 
 [Service]
 Type=simple
-ExecStart=@libexecdir@/snapd/snap-bootstrap check-chooser
+ExecStart=@libexecdir@/snapd/snap-bootstrap recovery-chooser-trigger
 RemainAfterExit=true
 
 [Install]
