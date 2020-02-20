@@ -391,6 +391,10 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		if (nread < 0) {
 			die("cannot read /proc/self/exe");
 		}
+		// Though we initialized self to NULs and passed one less to
+		// readlink, therefore guaranteeing that self is
+		// zero-terminated, perform an explicit assignment to make
+		// Coverity happy.
 		self[nread] = '\0';
 		// this cannot happen except when the kernel is buggy
 		if (strstr(self, "/snap-confine") == NULL) {
