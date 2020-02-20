@@ -421,9 +421,8 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	}
 	// Create the hostfs directory if one is missing. This directory is a part
 	// of packaging now so perhaps this code can be removed later.
-	if (access(SC_HOSTFS_DIR, F_OK) != 0) {
-		debug("creating missing hostfs directory");
-		if (mkdir(SC_HOSTFS_DIR, 0755) != 0) {
+	if (mkdir(SC_HOSTFS_DIR, 0755) < 0) {
+		if (errno != EEXIST) {
 			die("cannot perform operation: mkdir %s",
 			    SC_HOSTFS_DIR);
 		}
