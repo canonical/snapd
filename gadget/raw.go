@@ -280,7 +280,7 @@ func (r *RawStructureUpdater) updateDifferent(disk io.WriteSeeker, pc *LaidOutCo
 
 	if osutil.FileExists(backupPath + ".same") {
 		// content the same, no update needed
-		return nil
+		return ErrNoUpdate
 	}
 
 	if !osutil.FileExists(backupPath + ".backup") {
@@ -310,10 +310,20 @@ func (r *RawStructureUpdater) Update() error {
 	}
 	defer disk.Close()
 
+	skipped := 0
 	for _, pc := range structForDevice.LaidOutContent {
 		if err := r.updateDifferent(disk, &pc); err != nil {
+			if err == ErrNoUpdate {
+				skipped++
+				continue
+			}
 			return fmt.Errorf("cannot update image %v: %v", pc, err)
 		}
+	}
+
+	if skipped == len(structForDevice.LaidOutContent) {
+		// all content is identical, nothing was updated
+		return ErrNoUpdate
 	}
 
 	return nil

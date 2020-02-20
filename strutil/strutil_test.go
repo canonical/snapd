@@ -21,7 +21,6 @@ package strutil_test
 
 import (
 	"math"
-	"math/rand"
 	"sort"
 	"testing"
 
@@ -35,17 +34,6 @@ func Test(t *testing.T) { check.TestingT(t) }
 type strutilSuite struct{}
 
 var _ = check.Suite(&strutilSuite{})
-
-func (ts *strutilSuite) TestMakeRandomString(c *check.C) {
-	// for our tests
-	rand.Seed(1)
-
-	s1 := strutil.MakeRandomString(10)
-	c.Assert(s1, check.Equals, "pw7MpXh0JB")
-
-	s2 := strutil.MakeRandomString(5)
-	c.Assert(s2, check.Equals, "4PQyl")
-}
 
 func (*strutilSuite) TestQuoted(c *check.C) {
 	for _, t := range []struct {

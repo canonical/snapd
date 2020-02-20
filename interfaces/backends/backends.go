@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/systemd"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/release"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 )
 
@@ -71,7 +72,11 @@ func backends() []interfaces.SecurityBackend {
 	// profiles that keep applications operational, in forced-devmode.
 	switch apparmor_sandbox.ProbedLevel() {
 	case apparmor_sandbox.Partial, apparmor_sandbox.Full:
-		all = append(all, &apparmor.Backend{})
+		aa := &apparmor.Backend{}
+		if release.PreseedMode() {
+			aa.SetPreseedMode()
+		}
+		all = append(all, aa)
 	}
 	return all
 }

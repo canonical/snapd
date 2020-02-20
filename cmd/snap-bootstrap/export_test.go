@@ -37,14 +37,6 @@ func MockBootstrapRun(f func(string, string, bootstrap.Options) error) (restore 
 	}
 }
 
-func MockProcCmdline(newPath string) (restore func()) {
-	oldProcCmdline := procCmdline
-	procCmdline = newPath
-	return func() {
-		procCmdline = oldProcCmdline
-	}
-}
-
 func MockStdout(newStdout io.Writer) (restore func()) {
 	oldStdout := stdout
 	stdout = newStdout

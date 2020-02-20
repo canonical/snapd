@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/rand"
 	"os"
 	"strings"
 	"time"
@@ -38,15 +37,15 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/store"
-	"github.com/snapcore/snapd/strutil"
 )
 
 var (
-	snapdTransitionDelayWithRandomess = 3*time.Hour + time.Duration(rand.Int63n(int64(4*time.Hour)))
+	snapdTransitionDelayWithRandomess = 3*time.Hour + randutil.RandomDuration(4*time.Hour)
 )
 
 // overridden in the tests
@@ -62,6 +61,8 @@ type SnapManager struct {
 	catalogRefresh *catalogRefresh
 
 	lastUbuntuCoreTransitionAttempt time.Time
+
+	preseed bool
 }
 
 // SnapSetup holds the necessary snap details to perform most snap manager tasks.
@@ -390,12 +391,18 @@ func Store(st *state.State, deviceCtx DeviceContext) StoreService {
 
 // Manager returns a new snap manager.
 func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
+	preseed := release.PreseedMode()
 	m := &SnapManager{
 		state:          st,
-		backend:        backend.Backend{},
 		autoRefresh:    newAutoRefresh(st),
 		refreshHints:   newRefreshHints(st),
 		catalogRefresh: newCatalogRefresh(st),
+		preseed:        preseed,
+	}
+	if preseed {
+		m.backend = backend.NewForPreseedMode()
+	} else {
+		m.backend = backend.Backend{}
 	}
 
 	if err := os.MkdirAll(dirs.SnapCookieDir, 0700); err != nil {
@@ -493,7 +500,7 @@ func genRefreshRequestSalt(st *state.State) error {
 		return nil
 	}
 
-	refreshPrivacyKey = strutil.MakeRandomString(16)
+	refreshPrivacyKey = randutil.RandomString(16)
 	st.Set("refresh-privacy-key", refreshPrivacyKey)
 
 	return nil
@@ -824,6 +831,10 @@ func (m *SnapManager) localInstallCleanup() error {
 
 // Ensure implements StateManager.Ensure.
 func (m *SnapManager) Ensure() error {
+	if m.preseed {
+		return nil
+	}
+
 	// do not exit right away on error
 	errs := []error{
 		m.atSeed(),

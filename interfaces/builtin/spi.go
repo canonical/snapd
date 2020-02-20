@@ -62,6 +62,10 @@ func (iface *spiInterface) path(slotRef *interfaces.SlotRef, attrs interfaces.At
 	if err := attrs.Attr("path", &path); err != nil || path == "" {
 		return "", fmt.Errorf("slot %q must have a path attribute", slotRef)
 	}
+	// XXX: this interface feeds the cleaned path into the regex and is
+	// left unchanged here for historical reasons. New interfaces (eg,
+	// like raw-volume) should instead use verifySlotPathAttribute() which
+	// performs additional verification.
 	path = filepath.Clean(path)
 	if !spiDevPattern.MatchString(path) {
 		return "", fmt.Errorf("%q is not a valid SPI device", path)

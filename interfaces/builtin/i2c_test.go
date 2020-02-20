@@ -36,8 +36,10 @@ type I2cInterfaceSuite struct {
 	iface interfaces.Interface
 
 	// OS Snap
-	testSlot1     *interfaces.ConnectedSlot
-	testSlot1Info *snap.SlotInfo
+	testSlot1           *interfaces.ConnectedSlot
+	testSlot1Info       *snap.SlotInfo
+	testSlotCleaned     *interfaces.ConnectedSlot
+	testSlotCleanedInfo *snap.SlotInfo
 
 	// Gadget Snap
 	testUDev1                  *interfaces.ConnectedSlot
@@ -90,8 +92,12 @@ slots:
   test-port-1:
     interface: i2c
     path: /dev/i2c-0
+  test-port-unclean:
+    interface: i2c
+    path: /dev/i2c-1/./
 `, nil)
 	s.testSlot1Info = osSnapInfo.Slots["test-port-1"]
+	s.testSlotCleanedInfo = osSnapInfo.Slots["test-port-unclean"]
 
 	// Mock for Gadget Snap
 	gadgetSnapInfo := snaptest.MockInfo(c, `
@@ -196,6 +202,8 @@ func (s *I2cInterfaceSuite) TestName(c *C) {
 
 func (s *I2cInterfaceSuite) TestSanitizeCoreSnapSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testSlot1Info), IsNil)
+	// Verify historically filepath.Clean()d paths are still valid
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testSlotCleanedInfo), IsNil)
 }
 
 func (s *I2cInterfaceSuite) TestSanitizeGadgetSnapSlot(c *C) {

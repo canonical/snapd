@@ -193,6 +193,22 @@ if [ "$STATIC" = 1 ]; then
         exit 1
     fi
 
+    echo 'Check for direct usages of math/rand'
+    got=""
+    for dir in $(go list -f '{{.Dir}}' ./... | grep -v '/vendor/' ); do
+        # shellcheck disable=SC2063
+        s="$(grep -nP --exclude '*_test.go' --exclude 'randutil/*.go' math/rand "$dir"/*.go || true)"
+        if [ -n "$s" ]; then
+            got="$s\\n$got"
+        fi
+    done
+
+    if [ -n "$got" ]; then
+        echo 'Direct usages of math/rand, we prefer randutil:'
+        echo "$got"
+        exit 1
+    fi
+
     if command -v shellcheck >/dev/null; then
         echo Checking shell scripts...
         ( git ls-files -z 2>/dev/null ||
@@ -235,7 +251,11 @@ if [ "$STATIC" = 1 ]; then
     got=$(go list ./... | grep -v '/osutil/udev/' | grep -v '/vendor/' | xargs nakedret 2>&1)
     if [ -n "$got" ]; then
         echo "$got"
-        exit 1
+        if [ -z "${SKIP_NAKEDRET:-}" ]; then
+            exit 1
+        else
+            echo "Ignoring nakedret errors as requested"
+        fi
     fi
 
     echo Checking all interfaces have minimal spread test
@@ -303,6 +323,14 @@ if [ "$UNIT" = 1 ]; then
 fi
 
 if [ -n "$SPREAD" ]; then
+    if [ -n "${TRAVIS_PULL_REQUEST:-}" ] && [ "${TRAVIS_PULL_REQUEST:-}" != "false" ]; then
+        echo "Checking whether PR author requested to skip spread"
+        if ./check-pr-skip-spread.py "$TRAVIS_PULL_REQUEST"; then
+            echo "Skipping spread job on request"
+            exit 0
+        fi
+    fi
+
     TMP_SPREAD="$(mktemp -d)"
     addtrap "rm -rf \"$TMP_SPREAD\""
 
@@ -320,7 +348,12 @@ if [ -n "$SPREAD" ]; then
             spread "google:[^u]...:tests/..."
             ;;
         unstable)
-            spread "google-unstable:"
+            # check if we have any systems first
+            if spread -list "google-unstable:" 2>&1 | grep -q -E 'nothing matches'; then
+                echo "No unstable systems to run the tests on"
+            else
+                spread "google-unstable:"
+            fi
             ;;
         *)
             echo "Spread parameter $SPREAD not supported"

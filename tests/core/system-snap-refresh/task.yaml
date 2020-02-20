@@ -1,0 +1,99 @@
+summary: Check that the ubuntu-core system is rebooted after the core snap is refreshed
+
+details: |
+    This test checks that when invoking a manual refresh/revert for core or core18 snaps,
+    a reboot is triggered and the command would exit after the first phase of the installation
+    reporting "snapd is about to reboot the system"
+
+# the test is only meaningful on core devices
+# TODO:UC20: enable for UC20
+systems: [ubuntu-core-1*]
+
+
+restore: |
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+    TARGET_SNAP_NAME=core
+    if is_core18_system; then
+        TARGET_SNAP_NAME=core18
+    fi
+
+    if not snap remove "$TARGET_SNAP_NAME" --revision=x2; then
+        snap changes
+        exit 1
+    fi
+
+execute: |
+    #shellcheck source=tests/lib/journalctl.sh
+    . "$TESTSLIB"/journalctl.sh
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+
+    TARGET_SNAP_NAME=core
+    if is_core18_system; then
+        TARGET_SNAP_NAME=core18
+    fi    
+
+    # After installing a new version of the core/core18 snap the system is rebooted
+    if [ "$SPREAD_REBOOT" = 0 ]; then
+        currRev="$(readlink /snap/${TARGET_SNAP_NAME}/current)"
+        echo "$currRev" > initialRev
+
+        # use journalctl wrapper to grep only the logs collected while the test is running
+        if get_journalctl_log | MATCH "Waiting for system reboot"; then
+            echo "Already waiting for system reboot, exiting..."
+            exit 1
+        fi
+
+        # install new target snap
+
+        snap install --dangerous "/var/lib/snapd/snaps/${TARGET_SNAP_NAME}_${currRev}.snap" &> refresh.log
+        MATCH "snapd is about to reboot the system" < refresh.log
+
+        # Detect in the logs when the reboot can been triggered
+        for _ in $(seq 50); do
+            if check_journalctl_log "Waiting for system reboot"; then
+                 break
+            fi
+            sleep 2
+        done
+
+        if ! check_journalctl_log "Waiting for system reboot"; then
+            echo "Taking too long to reach waiting for reboot"
+            exit 1
+        fi
+
+        REBOOT
+    elif [ "$SPREAD_REBOOT" = 1 ]; then
+        # Wait for the install to complete.
+        snap watch --last=install
+
+        # Check the current revision has changed
+        currRev="$(readlink /snap/${TARGET_SNAP_NAME}/current)"
+        [ "$(cat initialRev)" !=  "$currRev" ]
+
+        # revert the target snap
+        snap revert "$TARGET_SNAP_NAME" &> revert.log
+        MATCH "snapd is about to reboot the system" < revert.log
+
+        # Detect in the logs when the reboot can been triggered
+        for _ in $(seq 50); do
+            if check_journalctl_log "Waiting for system reboot" -b; then
+                 break
+            fi
+            sleep 2
+        done
+
+        if ! check_journalctl_log "Waiting for system reboot" -b; then
+            echo "Taking too long to reach waiting for reboot"
+            exit 1
+        fi
+
+        REBOOT
+    elif [  "$SPREAD_REBOOT" = 2 ]; then
+        # Wait for the revert to complete.
+        snap watch --last=revert-snap
+        # Check the current revision is the same than the original
+        currRev="$(readlink /snap/${TARGET_SNAP_NAME}/current)"
+        [ "$(cat initialRev)" ==  "$currRev" ]
+    fi

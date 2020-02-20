@@ -372,7 +372,7 @@ func makeTestSnap(c *C, snapYaml string) string {
 
 	dest := filepath.Join(tmp, "foo.snap")
 	snap := squashfs.New(dest)
-	err = snap.Build(snapSource, m.Type)
+	err = snap.Build(snapSource, &squashfs.BuildOpts{SnapType: m.Type})
 	c.Assert(err, IsNil)
 
 	return dest

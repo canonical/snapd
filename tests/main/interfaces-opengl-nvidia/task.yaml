@@ -2,11 +2,15 @@ summary: Ensure that basic opengl works with faked nvidia
 
 systems: [ubuntu-14.04-*, ubuntu-16.04-*, ubuntu-18.04-*]
 
+environment:
+    NV_VERSION/stable: "123.456"
+    NV_VERSION/experimental: "123.456.02" # because reality
+
 prepare: |
     # mock nvidia driver
     mount -t tmpfs tmp /sys/module
     mkdir -p /sys/module/nvidia
-    echo "123.456" > /sys/module/nvidia/version
+    echo "$NV_VERSION" > /sys/module/nvidia/version
 
     # mock nvidia icd file
     test ! -d /usr/share/vulkan
@@ -27,38 +31,38 @@ prepare: |
         mkdir -p /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/vdpau
         echo "canary-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/libGLX.so.0.0.1
         echo "canary-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/libGLX_nvidia.so.0.0.1
-        echo "canary-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/libnvidia-glcore.so.123.456
-        echo "canary-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/tls/libnvidia-tls.so.123.456
-        echo "canary-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/libnvidia-tls.so.123.456
-        echo "canary-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/vdpau/libvdpau_nvidia.so.123.456
+        echo "canary-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/libnvidia-glcore.so."$NV_VERSION"
+        echo "canary-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/tls/libnvidia-tls.so."$NV_VERSION"
+        echo "canary-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/libnvidia-tls.so."$NV_VERSION"
+        echo "canary-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/vdpau/libvdpau_nvidia.so."$NV_VERSION"
         if [[ "$(uname -m)" == x86_64 ]]; then
             mkdir -p /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/tls
             mkdir -p /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/vdpau
             echo "canary-32-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/libGLX.so.0.0.1
             echo "canary-32-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/libGLX_nvidia.so.0.0.1
-            echo "canary-32-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/libnvidia-glcore.so.123.456
-            echo "canary-32-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/tls/libnvidia-tls.so.123.456
-            echo "canary-32-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/libnvidia-tls.so.123.456
-            echo "canary-32-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/vdpau/libvdpau_nvidia.so.123.456
+            echo "canary-32-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/libnvidia-glcore.so."$NV_VERSION"
+            echo "canary-32-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/tls/libnvidia-tls.so."$NV_VERSION"
+            echo "canary-32-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/libnvidia-tls.so."$NV_VERSION"
+            echo "canary-32-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/vdpau/libvdpau_nvidia.so."$NV_VERSION"
         fi
     fi
     mkdir -p /usr/lib/nvidia-123/tls
     mkdir -p /usr/lib/nvidia-123/vdpau
     echo "canary-legacy" >> /usr/lib/nvidia-123/libGLX.so.0.0.1
     echo "canary-legacy" >> /usr/lib/nvidia-123/libGLX_nvidia.so.0.0.1
-    echo "canary-legacy" >> /usr/lib/nvidia-123/libnvidia-glcore.so.123.456
-    echo "canary-legacy" >> /usr/lib/nvidia-123/tls/libnvidia-tls.so.123.456
-    echo "canary-legacy" >> /usr/lib/nvidia-123/libnvidia-tls.so.123.456
-    echo "canary-legacy" >> /usr/lib/nvidia-123/vdpau/libvdpau_nvidia.so.123.456
+    echo "canary-legacy" >> /usr/lib/nvidia-123/libnvidia-glcore.so."$NV_VERSION"
+    echo "canary-legacy" >> /usr/lib/nvidia-123/tls/libnvidia-tls.so."$NV_VERSION"
+    echo "canary-legacy" >> /usr/lib/nvidia-123/libnvidia-tls.so."$NV_VERSION"
+    echo "canary-legacy" >> /usr/lib/nvidia-123/vdpau/libvdpau_nvidia.so."$NV_VERSION"
     if [[ "$(uname -m)" == x86_64 ]]; then
         mkdir -p /usr/lib32/nvidia-123/tls
         mkdir -p /usr/lib32/nvidia-123/vdpau
         echo "canary-32-legacy" >> /usr/lib32/nvidia-123/libGLX.so.0.0.1
         echo "canary-32-legacy" >> /usr/lib32/nvidia-123/libGLX_nvidia.so.0.0.1
-        echo "canary-32-legacy" >> /usr/lib32/nvidia-123/libnvidia-glcore.so.123.456
-        echo "canary-32-legacy" >> /usr/lib32/nvidia-123/tls/libnvidia-tls.so.123.456
-        echo "canary-32-legacy" >> /usr/lib32/nvidia-123/libnvidia-tls.so.123.456
-        echo "canary-32-legacy" >> /usr/lib32/nvidia-123/vdpau/libvdpau_nvidia.so.123.456
+        echo "canary-32-legacy" >> /usr/lib32/nvidia-123/libnvidia-glcore.so."$NV_VERSION"
+        echo "canary-32-legacy" >> /usr/lib32/nvidia-123/tls/libnvidia-tls.so."$NV_VERSION"
+        echo "canary-32-legacy" >> /usr/lib32/nvidia-123/libnvidia-tls.so."$NV_VERSION"
+        echo "canary-32-legacy" >> /usr/lib32/nvidia-123/vdpau/libvdpau_nvidia.so."$NV_VERSION"
     fi
 
 restore: |
@@ -73,15 +77,15 @@ restore: |
         rm -rf /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/vdpau
         rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/libGLX.so.0.0.1
         rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/libGLX_nvidia.so.0.0.1
-        rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/libnvidia-glcore.so.123.456
-        rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/libnvidia-tls.so.123.456
+        rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/libnvidia-glcore.so."$NV_VERSION"
+        rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/libnvidia-tls.so."$NV_VERSION"
         if [[ "$(uname -m)" == x86_64 ]]; then
             rm -rf /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/tls
             rm -rf /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/vdpau
             rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/libGLX.so.0.0.1
             rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/libGLX_nvidia.so.0.0.1
-            rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/libnvidia-glcore.so.123.456
-            rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/libnvidia-tls.so.123.456
+            rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/libnvidia-glcore.so."$NV_VERSION"
+            rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/libnvidia-tls.so."$NV_VERSION"
         fi
     fi
     rm -rf /usr/lib/nvidia-123
@@ -103,7 +107,7 @@ execute: |
     if [[ "$SPREAD_SYSTEM" == ubuntu-18.04-* ]]; then
         expected="canary-triplet"
     fi
-    files="libGLX.so.0.0.1 libGLX_nvidia.so.0.0.1 libnvidia-glcore.so.123.456 tls/libnvidia-tls.so.123.456 libnvidia-tls.so.123.456 vdpau/libvdpau_nvidia.so.123.456"
+    files="libGLX.so.0.0.1 libGLX_nvidia.so.0.0.1 libnvidia-glcore.so.$NV_VERSION tls/libnvidia-tls.so.$NV_VERSION libnvidia-tls.so.$NV_VERSION vdpau/libvdpau_nvidia.so.$NV_VERSION"
     for f in $files; do
        snap run test-snapd-policy-app-consumer.opengl -c "cat /var/lib/snapd/lib/gl/$f" | MATCH "$expected"
     done
