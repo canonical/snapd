@@ -88,6 +88,9 @@ func Run(tr config.Conf) error {
 	if err := validateNetworkSettings(tr); err != nil {
 		return err
 	}
+	if err := validateBacklightServiceSettings(tr); err != nil {
+		return err
+	}
 	if err := validateAutomaticSnapshotsExpiration(tr); err != nil {
 		return err
 	}
@@ -134,6 +137,10 @@ func Run(tr config.Conf) error {
 	}
 	// network.disable-ipv6
 	if err := handleNetworkConfiguration(tr); err != nil {
+		return err
+	}
+	// system.disable-backlight-service
+	if err := handleBacklightServiceConfiguration(tr); err != nil {
 		return err
 	}
 
