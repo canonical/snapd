@@ -104,6 +104,7 @@ backends:
             - opensuse-tumbleweed-64:
                 workers: 6
             - arch-linux-64:
+                manual: true
                 workers: 6
 
             - amazon-linux-2-64:
