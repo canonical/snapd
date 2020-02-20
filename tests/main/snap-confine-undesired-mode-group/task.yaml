@@ -14,14 +14,15 @@ execute: |
     # Look for files that are owned by the test user, group owned by the test
     # user or are world-writable in /run/snapd as well as in /sys/fs/cgroup
     # trees.
-    for dname in /run/snapd /sys/fs/cgroup; do
+    for dname in /run/snapd /sys/fs/cgroup /tmp/snap.*; do
         find "$dname" -user test >> wrong-user.txt
         find "$dname" -group test >> wrong-group.txt
         # NOTE: filter out the following elements:
         # - sockets, we don't create any and there are some that are 777
         # - symbolic links, those are always 777
         # - the file cgroup.event_control which is ugo+w for some reason
-        find "$dname" ! -type s ! -type l ! -name cgroup.event_control -perm /o+w >> world-writable.txt
+        # - the per-snap tmp directory as it ought to be world-writable
+        find "$dname" ! -type s ! -type l ! -name cgroup.event_control ! -name tmp -perm /o+w >> world-writable.txt
     done
 
     # The test fails if any such file is detected
