@@ -17,7 +17,7 @@
  *
  */
 
-package inputwatch
+package triggerwatch
 
 import (
 	"errors"
@@ -27,30 +27,30 @@ import (
 	"github.com/snapcore/snapd/logger"
 )
 
-type inputProvider interface {
-	FindMatchingDevices(filter inputEventFilter) ([]inputDevice, error)
+type triggerProvider interface {
+	FindMatchingDevices(filter triggerEventFilter) ([]triggerDevice, error)
 }
 
 type keyEvent struct {
-	Dev inputDevice
+	Dev triggerDevice
 	Err error
 }
 
-type inputDevice interface {
+type triggerDevice interface {
 	WaitForTrigger(chan keyEvent)
 	String() string
 }
 
-type inputEventFilter struct {
+type triggerEventFilter struct {
 	Key string
 }
 
 var (
-	// input mechanism
-	input inputProvider
+	// trigger mechanism
+	trigger triggerProvider
 
 	// wait for '1' to be pressed
-	triggerFilter = inputEventFilter{Key: "KEY_1"}
+	triggerFilter = triggerEventFilter{Key: "KEY_1"}
 
 	// key wait timeout
 	timeout = 5 * time.Second
@@ -62,13 +62,13 @@ var (
 // nil if one was detected, ErrKeyNotDetected if there was none, or other
 // non-nil error.
 func WaitTriggerKey() error {
-	if input == nil {
-		logger.Panicf("input is unset")
+	if trigger == nil {
+		logger.Panicf("trigger is unset")
 	}
 
-	devices, err := input.FindMatchingDevices(triggerFilter)
+	devices, err := trigger.FindMatchingDevices(triggerFilter)
 	if err != nil {
-		return fmt.Errorf("cannot list input devices: %v", err)
+		return fmt.Errorf("cannot list trigger devices: %v", err)
 	}
 	if devices == nil {
 		return fmt.Errorf("cannot find matching devices")

@@ -1,4 +1,4 @@
-indent-tabs-mode: t -*-
+// -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
  * Copyright (C) 2020 Canonical Ltd
@@ -16,8 +16,29 @@ indent-tabs-mode: t -*-
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+package triggerwatch
 
-package inputwatch
+import (
+	"time"
+)
 
-func MockInput(input Input) {
+func MockInput(newInput TriggerProvider) (restore func()) {
+	oldInput := trigger
+	trigger = newInput
+	return func() {
+		trigger = oldInput
+	}
 }
+
+func MockTimeout(newTimeout time.Duration) (restore func()) {
+	oldTimeout := timeout
+	timeout = newTimeout
+	return func() {
+		timeout = oldTimeout
+	}
+}
+
+type TriggerProvider = triggerProvider
+type TriggerDevice = triggerDevice
+type TriggerCapabilityFilter = triggerEventFilter
+type KeyEvent = keyEvent

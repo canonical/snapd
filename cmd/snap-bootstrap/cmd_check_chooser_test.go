@@ -27,7 +27,7 @@ import (
 
 func (s *cmdSuite) TestCheckChooser(c *C) {
 	n := 0
-	restore := main.MockInputwatchWaitKey(func() error {
+	restore := main.MockTriggerwatchWaitKey(func() error {
 		n++
 		return nil
 	})

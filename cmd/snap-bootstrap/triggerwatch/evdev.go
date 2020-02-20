@@ -17,7 +17,7 @@
  *
  */
 
-package inputwatch
+package triggerwatch
 
 import (
 	"fmt"
@@ -36,7 +36,7 @@ var (
 )
 
 func init() {
-	input = &evdevInput{}
+	trigger = &evdevInput{}
 }
 
 type evdevKeyboardInputDevice struct {
@@ -84,7 +84,7 @@ func (e *evdevKeyboardInputDevice) String() string {
 
 type evdevInput struct{}
 
-func (e *evdevInput) FindMatchingDevices(filter inputEventFilter) ([]inputDevice, error) {
+func (e *evdevInput) FindMatchingDevices(filter triggerEventFilter) ([]triggerDevice, error) {
 	devices, err := evdev.ListInputDevices()
 	if err != nil {
 		return nil, fmt.Errorf("cannot list input devices: %v", err)
@@ -98,7 +98,7 @@ func (e *evdevInput) FindMatchingDevices(filter inputEventFilter) ([]inputDevice
 	// chooserTriggerKey is what activates the chooser when held down
 	cap := evdev.CapabilityCode{Code: kc, Name: filter.Key}
 
-	match := func(dev *evdev.InputDevice) inputDevice {
+	match := func(dev *evdev.InputDevice) triggerDevice {
 		for _, cc := range dev.Capabilities[evKeyCapability] {
 			if cc == cap {
 				return &evdevKeyboardInputDevice{
@@ -112,7 +112,7 @@ func (e *evdevInput) FindMatchingDevices(filter inputEventFilter) ([]inputDevice
 	// Find the first devices that has keys and the trigger key
 	// and assume it's the keyboard. I guess we could even support
 	// multiple keyboards but let's keep it simple for now.
-	var devs []inputDevice
+	var devs []triggerDevice
 	for _, dev := range devices {
 		idev := match(dev)
 		if idev != nil {

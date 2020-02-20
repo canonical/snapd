@@ -61,10 +61,10 @@ func MockRunMnt(newRunMnt string) (restore func()) {
 	}
 }
 
-func MockInputwatchWaitKey(f func() error) (restore func()) {
-	oldInputwatchWait := inputwatchWaitKey
-	inputwatchWaitKey = f
+func MockTriggerwatchWaitKey(f func() error) (restore func()) {
+	oldTriggerwatchWait := triggerwatchWaitKey
+	triggerwatchWaitKey = f
 	return func() {
-		inputwatchWaitKey = oldInputwatchWait
+		triggerwatchWaitKey = oldTriggerwatchWait
 	}
 }
