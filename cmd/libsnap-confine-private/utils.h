@@ -65,7 +65,7 @@ static inline sc_identity sc_root_group_identity(void)
 		/* Explicitly set our intent of changing just the GID.
 		 * Refactoring of this code must retain this property. */
 		.change_uid = 0,
-		.change_gid = 1
+		.change_gid = 1,
 		.gid = 0,
 	};
 	return id;
