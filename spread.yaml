@@ -104,11 +104,8 @@ backends:
             - opensuse-tumbleweed-64:
                 workers: 6
             - arch-linux-64:
+                manual: true
                 workers: 6
-
-            - amazon-linux-2-64:
-                workers: 6
-                storage: preserve-size
 
             - centos-7-64:
                 workers: 6
@@ -118,12 +115,16 @@ backends:
     # so this block is intentially kept commented out, until we need to add
     # systems to it
     #
-    # google-unstable:
-    #     type: google
-    #     key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-    #     location: computeengine/us-east1-b
-    #     halt-timeout: 2h
-    #     systems:
+    google-unstable:
+        type: google
+        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
+        location: computeengine/us-east1-b
+        halt-timeout: 2h
+        systems:
+            - amazon-linux-2-64:
+                workers: 6
+                storage: preserve-size
+
 
     google-tpm:
         type: google
