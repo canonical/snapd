@@ -117,9 +117,9 @@ sc_maybe_aa_change_onexec(struct sc_apparmor *apparmor, const char *profile)
 	debug("requesting changing of apparmor profile on next exec to %s",
 	      profile);
 	sc_explain_li("Apparmor profile: %s", profile);
-        sc_explain_start_section("");
-	sc_explain("source: /var/lib/snapd/apparmor/profiles/%s", profile);
-	sc_explain("binary: (loaded into the kernel, cached by the platform)");
+        sc_explain_start_section();
+	sc_explain_kv("source", "/var/lib/snapd/apparmor/profiles/%s", profile);
+	sc_explain_kv("binary", "(loaded into the kernel, cached by the platform)");
         sc_explain_end_section();
 	if (aa_change_onexec(profile) < 0) {
 		if (secure_getenv("SNAPPY_LAUNCHER_INSIDE_TESTS") == NULL) {
@@ -127,7 +127,7 @@ sc_maybe_aa_change_onexec(struct sc_apparmor *apparmor, const char *profile)
 		}
 	}
 #else
-	sc_explain("  - Apparmor not compiled into snap-confine\n");
+	sc_explain_li("Apparmor not compiled into snap-confine\n");
 #endif				// ifdef HAVE_APPARMOR
 }
 

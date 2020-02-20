@@ -38,15 +38,14 @@ __attribute__((format(printf, 1, 2)))
 void sc_explain(const char *fmt, ...);
 
 /**
- * sc_explain_start_section starts a new section with an (optional)
- * section description.
+ * sc_explain_start_section starts a new section.
  *
  * This function has effects only if explain mode is in effect.
  **/
-void sc_explain_start_section(const char *fmt, ...);
+void sc_explain_start_section(void);
 
 /**
- * sc_explain_end_section ends the current section *
+ * sc_explain_end_section ends the current section.
  **/
 void sc_explain_end_section(void);
 
@@ -55,6 +54,12 @@ void sc_explain_end_section(void);
  **/
 __attribute__((format(printf, 1, 2)))
 void sc_explain_li(const char *fmt, ...);
+
+/**
+ * sc_explain_key_value writes out a new key: value item.
+ **/
+__attribute__((format(printf, 2, 3)))
+void sc_explain_kv(const char *key, const char *value_fmt, ...);
 
 /**
  * sc_explain_header prints an explain-style header to stdout.

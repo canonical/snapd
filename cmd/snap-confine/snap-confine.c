@@ -458,7 +458,8 @@ int main(int argc, char **argv)
 	setup_user_xdg_runtime_dir();
 #endif
 	sc_explain_header("... snap-confine");
-	sc_explain_start_section("Sandbox overview:");
+        sc_explain("Sandbox overview");
+	sc_explain_start_section();
 	// https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement
 	sc_maybe_aa_change_onexec(&apparmor, invocation.security_tag);
 #ifdef HAVE_SELINUX
@@ -533,10 +534,10 @@ int main(int argc, char **argv)
 	if (sc_apply_seccomp_profile_for_security_tag(invocation.security_tag)) {
 		sc_explain_li("Applied seccomp profile: %s",
 			   invocation.security_tag);
-                sc_explain_start_section("");
-		sc_explain("source: /var/lib/snapd/seccomp/bpf/%s.src",
+                sc_explain_start_section();
+		sc_explain_kv("source", "/var/lib/snapd/seccomp/bpf/%s.src",
 			   invocation.security_tag);
-		sc_explain("binary: /var/lib/snapd/seccomp/bpf/%s.bin "
+		sc_explain_kv("binary", "/var/lib/snapd/seccomp/bpf/%s.bin "
 			   "(built with snap-seccomp)",
 			   invocation.security_tag);
                 sc_explain_end_section();
@@ -544,7 +545,7 @@ int main(int argc, char **argv)
 		// global profile as well.
 		sc_apply_global_seccomp_profile();
 		sc_explain_li("Applied seccomp profile: global profile for all snaps");
-                sc_explain_start_section("");
+                sc_explain_start_section();
 		sc_explain("binary: /var/lib/snapd/seccomp/bpf/global.bin");
 		sc_explain("\n");
                 sc_explain_end_section();
@@ -642,7 +643,8 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 						    gid_t real_gid,
 						    gid_t saved_gid)
 {
-	sc_explain_start_section("Execution environment:");
+         sc_explain("Execution environment");
+         sc_explain_start_section();
 	// main() reassociated with the mount ns of PID 1 to make /run/snapd/ns
 	// visible
 
@@ -673,7 +675,7 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 			setup_devices_cgroup(inv->security_tag, &udev_s);
 			sc_explain_li("Device cgroup v1: %s\n",
 				   inv->security_tag);
-                        sc_explain_start_section("");
+                        sc_explain_start_section();
 			sc_explain("path: /sys/fs/cgroup/devices/%s\n",
 				   inv->security_tag);
 			// TODO: this needs changes once improved device cgroup
@@ -729,7 +731,7 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 			die("cannot unshare the mount namespace");
 		}
 		sc_explain_li("Creating new per-snap mount namespace");
-                sc_explain_start_section("");
+                sc_explain_start_section();
 		sc_explain("desired mount profile: "
 			   "/var/lib/snapd/mount/snap.%s.fstab",
 			   inv->snap_instance);
@@ -763,7 +765,7 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 		if (retval == ESRCH) {
                         sc_explain_header("snap-confine");
 			sc_explain_li("Creating new per-user mount namespace");
-                        sc_explain_start_section("");
+                        sc_explain_start_section();
 			sc_explain("desired user mount profile "
 				   "/var/lib/snapd/mount/snap.%s.user-fstab",
 				   inv->snap_instance);
@@ -784,7 +786,7 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 			if (sc_feature_enabled
 			    (SC_FEATURE_PER_USER_MOUNT_NAMESPACE)) {
 				sc_preserve_populated_per_user_mount_ns(group);
-                                sc_explain_start_section("");
+                                sc_explain_start_section();
 				sc_explain("effective user fstab "
 					   "/run/snapd/ns/snap.%s.%d.fstab",
 					   inv->snap_instance, getuid());
@@ -819,7 +821,7 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 	} else {
 		sc_explain_li("Freezer cgroup v1: supported");
 		sc_cgroup_freezer_join(inv->snap_instance, getpid());
-                sc_explain_start_section("");
+                sc_explain_start_section();
 		sc_explain("path: /sys/fs/cgroup/freezer/%s",
 			   inv->snap_instance);
                 sc_explain_end_section();

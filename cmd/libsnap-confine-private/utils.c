@@ -156,15 +156,18 @@ void sc_explain(const char *fmt, ...)
         va_end(ap);
 }
 
-void sc_explain_start_section(const char *fmt, ...)
+void sc_explain_kv(const char *key, const char *value_fmt, ...)
 {
-        va_list va;
+        fprintf(stdout, "%s: ", key);
 
-        if (strlen(fmt) > 0) {
-                va_start(va, fmt);
-                sc_explain_va(fmt, va);
-                va_end(va);
-        }
+        va_list ap;
+        va_start(ap, value_fmt);
+        sc_explain_va(value_fmt, ap);
+        va_end(ap);
+}
+
+void sc_explain_start_section()
+{
         es.indent++;
 }
 
