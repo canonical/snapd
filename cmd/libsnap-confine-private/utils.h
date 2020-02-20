@@ -63,6 +63,7 @@ static inline sc_identity sc_root_group_identity(void)
 {
 	sc_identity id = {
 		.gid = 0,
+		.change_uid = 0,
 		.change_gid = 1
 	};
 	return id;
