@@ -61,6 +61,10 @@ func (e *evdevKeyboardInputDevice) WaitForTrigger(ch chan keyEvent) {
 	// TODO: find a reliable way to get/set key repeat rate? EVIOCGREP seems
 	// to return bad info; the support varies from driver to driver,
 	// gpio-keys may require 'autorepeat' enabled at the devicetree level
+
+	rep := e.dev.GetRepeatRate()
+	// restore original repeat settings
+	defer e.dev.SetRepeatRate(rep[0], rep[1])
 	e.dev.SetRepeatRate(1000, 0)
 
 	for {
