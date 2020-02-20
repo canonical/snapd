@@ -196,7 +196,7 @@ static void sc_populate_libgl_with_hostfs_symlinks(const char *libgl_dir,
 		switch (stat_buf.st_mode & S_IFMT) {
 		case S_IFLNK:;
 			// Read the target of the symbolic link
-			char hostfs_symlink_target[512];
+			char hostfs_symlink_target[512] = { 0 };
 			ssize_t num_read;
 			hostfs_symlink_target[0] = 0;
 			num_read =
