@@ -32,7 +32,7 @@ import (
 
 func init() {
 	const (
-		short = "Check if the chooser should be run"
+		short = "Check for the Ubuntu Core chooser trigger"
 		long  = ""
 	)
 
