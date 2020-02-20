@@ -50,7 +50,7 @@ var (
 	defaultTimeout = 5 * time.Second
 
 	// default marker file location
-	defaultMarkerFile = "/run/snapd-trigger-detected"
+	defaultMarkerFile = "/run/snapd-recovery-chooser-triggered"
 )
 
 type cmdRecoveryChooserTrigger struct {
