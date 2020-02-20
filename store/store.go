@@ -1614,6 +1614,7 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 
 // DownloadStream will copy the snap from the request to the io.Reader
 func (s *Store) DownloadStream(ctx context.Context, name string, downloadInfo *snap.DownloadInfo, resume int64, user *auth.UserState) (io.ReadCloser, int, error) {
+	// XXX: coverage of this is rather poor
 	if path := s.cacher.GetPath(downloadInfo.Sha3_384); path != "" {
 		logger.Debugf("Cache hit for SHA3_384 …%.5s.", downloadInfo.Sha3_384)
 		file, err := os.OpenFile(path, os.O_RDONLY, 0600)

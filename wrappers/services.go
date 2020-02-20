@@ -317,6 +317,22 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, inter interacter) (err
 	return nil
 }
 
+// EnableSnapServices enables all services of the snap; the main use case for this is
+// the first boot of a pre-seeded image with service files already in place but not enabled.
+// XXX: it should go away once services are fixed and enabled on start.
+func EnableSnapServices(s *snap.Info, inter interacter) (err error) {
+	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
+	for _, app := range s.Apps {
+		if app.IsService() {
+			svcName := app.ServiceName()
+			if err := sysd.Enable(svcName); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 // StopServices stops service units for the applications from the snap which are services.
 func StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, inter interacter, tm timings.Measurer) error {
 	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
