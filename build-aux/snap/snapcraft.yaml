@@ -10,7 +10,7 @@ description: |
 
   Start with 'snap list' to see installed snaps.
 adopt-info: snapd
-# build-base is needed here for snapcraft to build this snap as with "modern" 
+# build-base is needed here for snapcraft to build this snap as with "modern"
 # snapcraft
 build-base: core
 grade: stable
@@ -108,6 +108,7 @@ parts:
   # the version in Ubuntu 16.04 (cache v6)
   fontconfig-xenial:
     plugin: nil
+    build-packages: [python3-apt]
     source: https://github.com/snapcore/fc-cache-static-builder.git
     override-build: |
       ./build-from-security.py xenial
@@ -118,6 +119,7 @@ parts:
   # the version in Ubuntu 18.04 (cache v7)
   fontconfig-bionic:
     plugin: nil
+    build-packages: [python3-apt]
     source: https://github.com/snapcore/fc-cache-static-builder.git
     override-build: |
       ./build-from-security.py bionic
