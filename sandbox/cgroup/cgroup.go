@@ -349,10 +349,14 @@ func PidsOfSnap(snapInstanceName string) (map[string][]int, error) {
 		return nil, err
 	}
 	if ver == V2 {
-		// In v2 mode scan all of /sys/fs/cgroup
+		// In v2 mode scan all of /sys/fs/cgroup as there is no specialization
+		// anymore (each directory represents a hierarchy with equal
+		// capabilities and old split into controllers is gone).
 		cgroupPathToScan = filepath.Join(rootPath, expectedMountPoint)
 	} else {
-		// In v1 mode scan just /sys/fs/cgroup/systemd
+		// In v1 mode scan just /sys/fs/cgroup/systemd as that is sufficient
+		// for finding snap-specific cgroup names. Systemd uses this for
+		// tracking and scopes and services are represented there.
 		cgroupPathToScan = filepath.Join(rootPath, expectedMountPoint, "systemd")
 	}
 	// NOTE: Walk is internally performed in lexical order so the output is
