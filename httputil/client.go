@@ -58,6 +58,7 @@ func addLocalSSLCertificates(conf *tls.Config) (allCAs *x509.CertPool, err error
 		return nil, err
 	}
 	for _, p := range extraCertFiles {
+		// XXX: cache these reads?
 		extraCert, err := ioutil.ReadFile(p)
 		if err != nil {
 			return nil, fmt.Errorf("cannot read extra certificate: %v", err)
@@ -100,10 +101,12 @@ func NewHTTPClient(opts *ClientOptions) *http.Client {
 	}
 
 	transport := newDefaultTransport()
-	// remember the original ClientOptions.TLSConfig when making
+	// Remember the original ClientOptions.TLSConfig when making
 	// tls connection.
+	// Note that we only set TLSClientConfig here because it's extracted
+	// by the cmd/snap-repair/runner_test.go
 	transport.TLSClientConfig = opts.TLSConfig
-	transport.DialTLS = (&dialTLS{transport.TLSClientConfig}).dialTLS
+	transport.DialTLS = (&dialTLS{opts.TLSConfig}).dialTLS
 	if opts.Proxy != nil {
 		transport.Proxy = opts.Proxy
 	}
