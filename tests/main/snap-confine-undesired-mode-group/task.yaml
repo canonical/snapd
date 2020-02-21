@@ -26,7 +26,7 @@ execute: |
         # - symbolic links, those are always 777
         # - the file cgroup.event_control which is ugo+w for some reason
         # - the per-snap tmp directory as it is meant to be world-writable
-        find "$dname" ! -type s ! -type l ! -name cgroup.event_control ! -path /tmp/snap.test-snapd-app/tmp -perm /o+w >> world-writable.txt
+        find "$dname" ! -type s ! -type l ! -name cgroup.event_control ! -path '/tmp/snap.*/tmp' -perm /o+w >> world-writable.txt
     done
 
     # The test fails if any such file is detected
