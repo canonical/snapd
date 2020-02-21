@@ -30,8 +30,7 @@ import (
 
 const (
 	// Handles are in the block reserved for owner objects (0x01800000 - 0x01bfffff)
-	pinHandle          = 0x01800000
-	policyRevokeHandle = 0x01800001
+	pinHandle = 0x01800000
 
 	runCmdline = "console=ttyS0 console=tty1 panic=-1 systemd.gpt_auto=0 snapd_recovery_mode=run"
 )
@@ -52,8 +51,6 @@ type tpmSupport struct {
 	tconn *fdeutil.TPMConnection
 	// Lockout authorization
 	lockoutAuth []byte
-	// Owner authorization
-	ownerAuth []byte
 	// List of paths to shim files
 	shimFiles []string
 	// List of paths to bootloader files
@@ -116,7 +113,7 @@ func setOSComponents(c *[]string, pathList []string) error {
 
 // Provision tries to clear and provision the TPM.
 func (t *tpmSupport) Provision() error {
-	if err := provisionTPM(t.tconn, fdeutil.ProvisionModeFull, t.lockoutAuth, nil); err != nil {
+	if err := provisionTPM(t.tconn, fdeutil.ProvisionModeFull, t.lockoutAuth); err != nil {
 		return fmt.Errorf("cannot provision TPM: %v", err)
 	}
 
@@ -162,9 +159,7 @@ func (t *tpmSupport) Seal(key []byte, keyDest, privDest string) error {
 	}
 
 	createParams := fdeutil.CreationParams{
-		PolicyRevocationHandle: policyRevokeHandle,
-		PinHandle:              pinHandle,
-		OwnerAuth:              t.ownerAuth,
+		PinHandle: pinHandle,
 	}
 
 	if err := sealKeyToTPM(t.tconn, keyDest, privDest, &createParams, policyParams, key); err != nil {

@@ -357,7 +357,7 @@ func activateWithTPM(name, device, keyFilePath, ekCertFilePath, pinFilePath stri
 				if !reprovisionAttempted {
 					reprovisionAttempted = true
 					fmt.Fprintf(os.Stderr, "TPM is not provisioned correctly - attempting automatic recovery...\n")
-					if err := fdeutil.ProvisionTPM(tpm, fdeutil.ProvisionModeWithoutLockout, nil, nil); err == nil {
+					if err := fdeutil.ProvisionTPM(tpm, fdeutil.ProvisionModeWithoutLockout, nil); err == nil {
 						fmt.Fprintf(os.Stderr, " ...automatic recovery succeeded. Retrying key unseal operation now\n")
 						goto RetryUnseal
 					} else {

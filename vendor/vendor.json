@@ -7,10 +7,10 @@
 			"revision": ""
 		},
 		{
-			"checksumSHA1": "VqAvxeJE9hORJ6vYCC1dFGboZlw=",
+			"checksumSHA1": "05OPl0Gp5HMGc02OtXjrmIlmaMg=",
 			"path": "github.com/chrisccoulson/go-tpm2",
-			"revision": "698c7fec6160afc27f9839fa4984429bbe1ebbcf",
-			"revisionTime": "2019-12-02T18:42:20Z"
+			"revision": "d0e3238284aa6f0637de57ecca7dd7187cac652d",
+			"revisionTime": "2020-02-12T10:30:20Z"
 		},
 		{
 			"checksumSHA1": "0yt6RUiXSQXAVdHJeyZNzMCtLWE=",
@@ -19,9 +19,9 @@
 			"revisionTime": "2019-10-18T19:34:49Z"
 		},
 		{
-			"checksumSHA1": "BIwlr3uHEe9dWjPUtmbbScn7NR4=",
+			"checksumSHA1": "UZ4xSA5tgWuuISh+A2Nfp8wR2bs=",
 			"path": "github.com/chrisccoulson/ubuntu-core-fde-utils",
-			"revision": "c4c676a69a8296bbe4461f8eed2fb1f20ce9118a",
+			"revision": "30df6e151dd047419e63da2039a9a59e19004de7",
 			"revisionTime": "2020-01-30T13:38:46Z"
 		},
 		{
