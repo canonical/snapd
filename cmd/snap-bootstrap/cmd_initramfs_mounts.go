@@ -25,6 +25,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/jessevdk/go-flags"
+
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
@@ -40,9 +42,11 @@ func init() {
 		long  = "Generate mount tuples for the initramfs until nothing more can be done"
 	)
 
-	if _, err := parser.AddCommand("initramfs-mounts", short, long, &cmdInitramfsMounts{}); err != nil {
-		panic(err)
-	}
+	addCommandBuilder(func(parser *flags.Parser) {
+		if _, err := parser.AddCommand("initramfs-mounts", short, long, &cmdInitramfsMounts{}); err != nil {
+			panic(err)
+		}
+	})
 
 	snap.SanitizePlugsSlots = func(*snap.Info) {}
 }
@@ -103,13 +107,13 @@ func generateMountsModeInstall(recoverySystem string) error {
 			return err
 		}
 		perf := timings.New(nil)
-		// XXX: LoadMeta will verify all the snaps in the
+		// TODO:UC20: LoadMeta will verify all the snaps in the
 		// seed, that is probably too much. We can expose more
 		// dedicated helpers for this later.
 		if err := systemSeed.LoadMeta(perf); err != nil {
 			return err
 		}
-		// XXX: do we need more cross checks here?
+		// TODO:UC20: do we need more cross checks here?
 		for _, essentialSnap := range systemSeed.EssentialSnaps() {
 			snapf, err := snap.Open(essentialSnap.Path)
 			if err != nil {
@@ -291,7 +295,7 @@ func generateMountsModeRun() error {
 			// trying we just fallback to using the normal kernel
 		}
 
-		kernelPath := filepath.Join(dataDir, "system-data", dirs.SnapBlobDir, filepath.Base(kernel.MountFile()))
+		kernelPath := filepath.Join(dataDir, "system-data", dirs.SnapBlobDir, kernel.Filename())
 		fmt.Fprintf(stdout, "%s %s\n", kernelPath, filepath.Join(runMnt, "kernel"))
 	}
 	// 3.1 Write the modeenv out again

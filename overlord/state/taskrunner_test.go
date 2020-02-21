@@ -184,11 +184,12 @@ func (ts *taskRunnerSuite) TestSequenceTests(c *C) {
 	r.AddHandler("do", fn("do"), nil)
 	r.AddHandler("do-undo", fn("do"), fn("undo"))
 
+	past := time.Now().AddDate(-1, 0, 0)
 	for _, test := range sequenceTests {
 		st.Lock()
 
 		// Delete previous changes.
-		st.Prune(1, 1, 1)
+		st.Prune(past, 1, 1, 1)
 
 		chg := st.NewChange("install", "...")
 		tasks := make(map[string]*state.Task)

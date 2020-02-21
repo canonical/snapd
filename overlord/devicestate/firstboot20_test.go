@@ -247,9 +247,11 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20Happy(c *C) {
 	// already booted from, we should only have checked what the current kernel
 	// is
 
-	// the 2 calls here are 1 from GetCurrentBoot() and 1 from SetNext()
+	// the 3 calls here are 1 from GetCurrentBoot() (and thus markSuccessful())
+	// and 1 from SetNext(), and 1 from InUse() (from installPath() in
+	// o/snapstate)
 	_, numKernelCalls := bloader.GetRunKernelImageFunctionSnapCalls("Kernel")
-	c.Assert(numKernelCalls, Equals, 2)
+	c.Assert(numKernelCalls, Equals, 3)
 
 	actual, _ := bloader.GetRunKernelImageFunctionSnapCalls("EnableKernel")
 	c.Assert(actual, HasLen, 0)

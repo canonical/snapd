@@ -67,8 +67,9 @@ func (m *InterfaceManager) addInterfaces(extra []interfaces.Interface) error {
 }
 
 func (m *InterfaceManager) addBackends(extra []interfaces.SecurityBackend) error {
+	opts := interfaces.SecurityBackendOptions{Preseed: m.preseed}
 	for _, backend := range backends.All {
-		if err := backend.Initialize(); err != nil {
+		if err := backend.Initialize(&opts); err != nil {
 			return err
 		}
 		if err := m.repo.AddBackend(backend); err != nil {
@@ -76,7 +77,7 @@ func (m *InterfaceManager) addBackends(extra []interfaces.SecurityBackend) error
 		}
 	}
 	for _, backend := range extra {
-		if err := backend.Initialize(); err != nil {
+		if err := backend.Initialize(&opts); err != nil {
 			return err
 		}
 		if err := m.repo.AddBackend(backend); err != nil {
