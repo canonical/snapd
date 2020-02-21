@@ -298,7 +298,60 @@ func generateMountsModeRun() error {
 		kernelPath := filepath.Join(dataDir, "system-data", dirs.SnapBlobDir, kernel.Filename())
 		fmt.Fprintf(stdout, "%s %s\n", kernelPath, filepath.Join(runMnt, "kernel"))
 	}
-	// 3.1 Write the modeenv out again
+
+	// 3.1 Maybe mount the snapd snap on first boot of run-mode
+	// TODO:UC20: Make RecoverySystem empty after successful first boot
+	// somewhere in devicestate
+	if modeEnv.RecoverySystem != "" {
+		isSnapdMounted, err := osutilIsMounted(filepath.Join(runMnt, "snapd"))
+		if err != nil {
+			return err
+		}
+
+		if !isSnapdMounted {
+			// load the recovery system  and generate mounts for kernel/base
+			systemSeed, err := seed.Open(seedDir, modeEnv.RecoverySystem)
+			if err != nil {
+				return fmt.Errorf("cannot open seed: %v", err)
+			}
+			// load assertions into a temporary database
+			if err := systemSeed.LoadAssertions(nil, nil); err != nil {
+				return fmt.Errorf("cannot load assertions from seed %s: %v", modeEnv.RecoverySystem, err)
+			}
+			perf := timings.New(nil)
+			// TODO:UC20: LoadMeta will verify all the snaps in the
+			// seed, that is probably too much. We can expose more
+			// dedicated helpers for this later.
+			if err := systemSeed.LoadMeta(perf); err != nil {
+				return fmt.Errorf("cannot load metadata from seed %s: %v", modeEnv.RecoverySystem, err)
+			}
+			// TODO:UC20: do we need more cross checks here?
+			snapdSnapPath := ""
+			for _, essentialSnap := range systemSeed.EssentialSnaps() {
+				snapf, err := snap.Open(essentialSnap.Path)
+				if err != nil {
+					return err
+				}
+				info, err := snap.ReadInfoFromSnapFile(snapf, essentialSnap.SideInfo)
+				if err != nil {
+					return err
+				}
+				if info.GetType() == snap.TypeSnapd {
+					snapdSnapPath = essentialSnap.Path
+				}
+			}
+			if snapdSnapPath == "" {
+				// this should be impossible, LoadMeta and LoadAssertions will have
+				// validated that the seed is valid and the snapd snap must exist
+				// to be a valid seed
+				return fmt.Errorf("internal error: seed on recovery system %s is broken", modeEnv.RecoverySystem)
+			}
+
+			fmt.Fprintf(stdout, "%s %s\n", snapdSnapPath, filepath.Join(runMnt, "snapd"))
+		}
+	}
+
+	// 4.1 Write the modeenv out again
 	return modeEnv.Write(filepath.Join(dataDir, "system-data"))
 }
 

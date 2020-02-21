@@ -279,6 +279,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2(c *C) {
 		case 5:
 			c.Check(path, Equals, filepath.Join(s.runMnt, "kernel"))
 			return false, nil
+		case 6:
+			c.Check(path, Equals, filepath.Join(s.runMnt, "snapd"))
+			return false, nil
 		}
 		return false, fmt.Errorf("unexpected number of calls: %v", n)
 	})
@@ -286,7 +289,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2(c *C) {
 
 	// write modeenv
 	modeEnv := boot.Modeenv{
-		Base: "core20_123.snap",
+		RecoverySystem: "20191118",
+		Base:           "core20_123.snap",
 	}
 	err := modeEnv.Write(filepath.Join(s.runMnt, "ubuntu-data", "system-data"))
 	c.Assert(err, IsNil)
@@ -304,9 +308,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2(c *C) {
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
-	c.Assert(n, Equals, 5)
+	c.Assert(n, Equals, 6)
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/core20_123.snap %[1]s/base
 %[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/pc-kernel_1.snap %[1]s/kernel
+%[1]s/ubuntu-seed/snaps/snapd_1.snap %[1]s/snapd
 `, s.runMnt))
 }
 
