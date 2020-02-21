@@ -5,9 +5,19 @@ Before=snapd.service
 ConditionKernelCommandLine=snapd_recovery_mode
 
 [Service]
-Type=simple
+# blocks the service startup until a trigger is detected or a timeout is hit
+Type=oneshot
 ExecStart=@libexecdir@/snapd/snap-bootstrap recovery-chooser-trigger
 RemainAfterExit=true
+Restart=on-failure
 
 [Install]
 WantedBy=multi-user.target
+
+# started on boot only
+# X-Snapd-Snap: do-not-start
+
+# added by core20 build
+#[Unit]
+#Before=console-conf@tty1.service
+#Before=console-conf@ttyS0.service
