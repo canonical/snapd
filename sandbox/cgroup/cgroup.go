@@ -288,11 +288,11 @@ func securityTagFromCgroupPath(path string) (securityTag string) {
 //
 // The return value is a snapshot of the pids of a given snap, grouped by
 // security tag. The result may be immediately stale as processes fork and
-// exit but it has the following guarantee.
+// exit.
 //
-// If the per-snap lock is held while computing the set, then the following
-// guarantee is true: if a security tag is not among the results then no such
-// tag can come into existence while the lock is held.
+// Importantly, if the per-snap lock is held while computing the set, then the
+// following guarantee is true: if a security tag is not among the results then
+// no such tag can come into existence while the lock is held.
 //
 // This can be used to classify the activity of a given snap into activity
 // classes, based on the nature of the security tags encountered.
