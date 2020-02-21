@@ -382,6 +382,7 @@ func (client *Client) Download(name string, options *DownloadOptions) (dlInfo *D
 		SuggestedFileName: matches[1],
 		Size:              rsp.ContentLength,
 		Sha3_384:          rsp.Header.Get("Snap-Sha3-384"),
+		ResumeToken:       rsp.Header.Get("Snap-Download-Token"),
 	}
 
 	return dlInfo, rsp.Body, nil

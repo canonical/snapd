@@ -446,6 +446,7 @@ func (cs *clientSuite) TestClientOpDownload(c *check.C) {
 	cs.header = http.Header{
 		"Content-Disposition": {"attachment; filename=foo_2.snap"},
 		"Snap-Sha3-384":       {"sha3sha3sha3"},
+		"Snap-Download-Token": {"some-token"},
 	}
 	cs.contentLength = 1234
 
@@ -464,6 +465,7 @@ func (cs *clientSuite) TestClientOpDownload(c *check.C) {
 		SuggestedFileName: "foo_2.snap",
 		Size:              1234,
 		Sha3_384:          "sha3sha3sha3",
+		ResumeToken:       "some-token",
 	})
 
 	// check we posted the right stuff
