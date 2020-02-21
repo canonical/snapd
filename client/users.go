@@ -59,15 +59,14 @@ type userAction struct {
 	*RemoveUserOptions
 }
 
-func (client *Client) doUserAction(act *userAction) ([]*CreateUserResult, error) {
+func (client *Client) doUserAction(act *userAction, result interface{}) error {
 	data, err := json.Marshal(act)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	var result []*CreateUserResult
-	_, err = client.doSync("POST", "/v2/users", nil, nil, bytes.NewReader(data), &result)
-	return result, err
+	_, err = client.doSync("POST", "/v2/users", nil, nil, bytes.NewReader(data), result)
+	return err
 }
 
 // CreateUser creates a local system user. See CreateUserOptions for details.
@@ -76,7 +75,8 @@ func (client *Client) CreateUser(options *CreateUserOptions) (*CreateUserResult,
 		return nil, fmt.Errorf("cannot create a user without providing an email")
 	}
 
-	result, err := client.doUserAction(&userAction{Action: "create", CreateUserOptions: options})
+	var result []*CreateUserResult
+	err := client.doUserAction(&userAction{Action: "create", CreateUserOptions: options}, &result)
 	if err != nil {
 		return nil, fmt.Errorf("while creating user: %v", err)
 	}
@@ -96,7 +96,8 @@ func (client *Client) CreateUsers(options []*CreateUserOptions) ([]*CreateUserRe
 	var results []*CreateUserResult
 	var errs []error
 	for _, opts := range options {
-		result, err := client.doUserAction(&userAction{Action: "create", CreateUserOptions: opts})
+		var result []*CreateUserResult
+		err := client.doUserAction(&userAction{Action: "create", CreateUserOptions: opts}, &result)
 		if err != nil {
 			errs = append(errs, err)
 		} else {
@@ -118,12 +119,17 @@ func (client *Client) CreateUsers(options []*CreateUserOptions) ([]*CreateUserRe
 }
 
 // RemoveUser removes a local system user.
-func (client *Client) RemoveUser(options *RemoveUserOptions) error {
+func (client *Client) RemoveUser(options *RemoveUserOptions) (removed []*User, err error) {
 	if options == nil || options.Username == "" {
-		return fmt.Errorf("cannot remove a user without providing a username")
+		return nil, fmt.Errorf("cannot remove a user without providing a username")
 	}
-	_, err := client.doUserAction(&userAction{Action: "remove", RemoveUserOptions: options})
-	return err
+	var result struct {
+		Removed []*User `json:"removed"`
+	}
+	if err := client.doUserAction(&userAction{Action: "remove", RemoveUserOptions: options}, &result); err != nil {
+		return nil, err
+	}
+	return result.Removed, nil
 }
 
 // Users returns the local users.

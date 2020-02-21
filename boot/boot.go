@@ -27,6 +27,19 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+const (
+	// DefaultStatus is the value of a status boot variable when nothing is
+	// being tried
+	DefaultStatus = ""
+	// TryStatus is the value of a status boot variable when something is about
+	// to be tried
+	TryStatus = "try"
+	// TryingStatus is the value of a status boot variable after we have
+	// attempted a boot with a try snap - this status is only set in the early
+	// boot sequence (bootloader, initramfs, etc.)
+	TryingStatus = "trying"
+)
+
 // A BootParticipant handles the boot process details for a snap involved in it.
 type BootParticipant interface {
 	// SetNextBoot will schedule the snap to be used in the next boot. For
@@ -154,8 +167,8 @@ func applicable(s snap.PlaceInfo, t snap.Type, dev Device) bool {
 type bootState interface {
 	// revisions retrieves the revisions of the current snap and
 	// the try snap (only the latter might not be set), and
-	// whether the snap is in "trying" state.
-	revisions() (snap, trySnap snap.PlaceInfo, trying bool, err error)
+	// the status of the trying snap.
+	revisions() (curSnap, trySnap snap.PlaceInfo, tryingStatus string, err error)
 
 	// setNext lazily implements setting the next boot target for
 	// the type's boot snap. actually committing the update
@@ -254,12 +267,12 @@ func GetCurrentBoot(t snap.Type, dev Device) (snap.PlaceInfo, error) {
 		return nil, err
 	}
 
-	snap, _, trying, err := s.revisions()
+	snap, _, status, err := s.revisions()
 	if err != nil {
 		return nil, err
 	}
 
-	if trying {
+	if status == TryingStatus {
 		return nil, ErrBootNameAndRevisionNotReady
 	}
 

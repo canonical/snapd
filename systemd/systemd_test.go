@@ -709,8 +709,23 @@ func (s *SystemdTestSuite) TestJctl(c *C) {
 
 func (s *SystemdTestSuite) TestIsActiveIsInactive(c *C) {
 	sysErr := &Error{}
+	// manpage states that systemctl returns exit code 3 for inactive
+	// services, however we should check any non-0 exit status
 	sysErr.SetExitCode(1)
 	sysErr.SetMsg([]byte("inactive\n"))
+	s.errors = []error{sysErr}
+
+	active, err := New("xyzzy", SystemMode, s.rep).IsActive("foo")
+	c.Assert(active, Equals, false)
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "is-active", "foo"}})
+}
+
+func (s *SystemdTestSuite) TestIsActiveIsFailed(c *C) {
+	sysErr := &Error{}
+	// seen in the wild to be reported for a 'failed' service
+	sysErr.SetExitCode(3)
+	sysErr.SetMsg([]byte("failed\n"))
 	s.errors = []error{sysErr}
 
 	active, err := New("xyzzy", SystemMode, s.rep).IsActive("foo")
@@ -728,7 +743,7 @@ func (s *SystemdTestSuite) TestIsActiveIsActive(c *C) {
 	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "is-active", "foo"}})
 }
 
-func (s *SystemdTestSuite) TestIsActiveErr(c *C) {
+func (s *SystemdTestSuite) TestIsActiveUnexpectedErr(c *C) {
 	sysErr := &Error{}
 	sysErr.SetExitCode(1)
 	sysErr.SetMsg([]byte("random-failure\n"))

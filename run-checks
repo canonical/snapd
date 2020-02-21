@@ -323,6 +323,14 @@ if [ "$UNIT" = 1 ]; then
 fi
 
 if [ -n "$SPREAD" ]; then
+    if [ -n "${TRAVIS_PULL_REQUEST:-}" ] && [ "${TRAVIS_PULL_REQUEST:-}" != "false" ]; then
+        echo "Checking whether PR author requested to skip spread"
+        if ./check-pr-skip-spread.py "$TRAVIS_PULL_REQUEST"; then
+            echo "Skipping spread job on request"
+            exit 0
+        fi
+    fi
+
     TMP_SPREAD="$(mktemp -d)"
     addtrap "rm -rf \"$TMP_SPREAD\""
 
@@ -340,7 +348,12 @@ if [ -n "$SPREAD" ]; then
             spread "google:[^u]...:tests/..."
             ;;
         unstable)
-            spread "google-unstable:"
+            # check if we have any systems first
+            if spread -list "google-unstable:" 2>&1 | grep -q -E 'nothing matches'; then
+                echo "No unstable systems to run the tests on"
+            else
+                spread "google-unstable:"
+            fi
             ;;
         *)
             echo "Spread parameter $SPREAD not supported"

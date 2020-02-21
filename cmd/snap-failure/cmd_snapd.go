@@ -133,6 +133,10 @@ func (c *cmdSnapd) Execute(args []string) error {
 	}
 
 	logger.Noticef("restarting snapd socket")
+	// we need to reset the failure state to be able to restart again
+	if output, err := exec.Command("systemctl", "reset-failed", "snapd.socket").CombinedOutput(); err != nil {
+		return osutil.OutputErr(output, err)
+	}
 	// at this point our manually started snapd stopped and
 	// removed the /run/snap* sockets (this is a feature of
 	// golang) - we need to restart snapd.socket to make them

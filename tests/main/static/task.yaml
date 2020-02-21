@@ -12,4 +12,4 @@ environment:
 
 execute: |
     CGO_ENABLED=0 go build -o snapd.static github.com/snapcore/snapd/cmd/snapd
-    ldd snapd.static | MATCH 'not a dynamic executable'
+    ldd snapd.static 2>&1 | MATCH 'not a dynamic executable'
