@@ -24,7 +24,7 @@ execute: |
     inspect_connection() {
       CONN="$1"
       # shellcheck disable=SC2002
-      cat /var/lib/snapd/state.json | jq -r '.data["conns"] | has("'"$CONN"'")'
+      cat /var/lib/snapd/state.json | jq --arg CONN "$CONN" -r '.data["conns"] | has($CONN)'
     }
 
     DISCONNECTED_PATTERN='-\s+home-consumer:home'

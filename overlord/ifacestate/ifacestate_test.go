@@ -1760,7 +1760,7 @@ func (s *interfaceManagerSuite) TestForgetUndo(c *C) {
 	mgr := s.manager(c)
 
 	// sanity
-	_ = s.getConnection(c, "consumer", "plug", "producer", "slot")
+	s.getConnection(c, "consumer", "plug", "producer", "slot")
 
 	s.state.Lock()
 	change := s.state.NewChange("disconnect", "...")
@@ -1794,7 +1794,7 @@ func (s *interfaceManagerSuite) TestForgetUndo(c *C) {
 	c.Assert(s.state.Get("conns", &conns), IsNil)
 	c.Assert(conns, DeepEquals, connState)
 
-	_ = s.getConnection(c, "consumer", "plug", "producer", "slot")
+	s.getConnection(c, "consumer", "plug", "producer", "slot")
 }
 
 func (s *interfaceManagerSuite) TestStaleConnectionsIgnoredInReloadConnections(c *C) {
