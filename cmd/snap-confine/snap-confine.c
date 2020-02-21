@@ -62,15 +62,20 @@
 // this directory was created with permissions 1777.
 static void sc_maybe_fixup_permissions(void)
 {
+	int fd SC_CLEANUP(sc_cleanup_close) = -1;
 	struct stat buf;
-	if (stat("/var/lib", &buf) != 0) {
+	fd = open("/var/lib", O_PATH | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
+	if (fd < 0) {
+		die("cannot open /var/lib");
+	}
+	if (fstat(fd, &buf) < 0) {
 		die("cannot stat /var/lib");
 	}
 	if ((buf.st_mode & 0777) == 0777) {
-		if (chmod("/var/lib", 0755) != 0) {
+		if (fchmod(fd, 0755) != 0) {
 			die("cannot chmod /var/lib");
 		}
-		if (chown("/var/lib", 0, 0) != 0) {
+		if (fchown(fd, 0, 0) != 0) {
 			die("cannot chown /var/lib");
 		}
 	}
