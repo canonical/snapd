@@ -449,7 +449,7 @@ func (s *State) tasksIn(tids []string) []*Task {
 //    state will also removed even if they are below the pruneWait duration.
 //
 //  * it removes expired warnings.
-func (s *State) Prune(pruneWait, abortWait time.Duration, maxReadyChanges int) {
+func (s *State) Prune(startOfOperation time.Time, pruneWait, abortWait time.Duration, maxReadyChanges int) {
 	now := time.Now()
 	pruneLimit := now.Add(-pruneWait)
 	abortLimit := now.Add(-abortWait)
@@ -477,8 +477,11 @@ func (s *State) Prune(pruneWait, abortWait time.Duration, maxReadyChanges int) {
 	}
 
 	for _, chg := range changes {
-		spawnTime := chg.SpawnTime()
 		readyTime := chg.ReadyTime()
+		spawnTime := chg.SpawnTime()
+		if spawnTime.Before(startOfOperation) {
+			spawnTime = startOfOperation
+		}
 		if readyTime.IsZero() {
 			if spawnTime.Before(pruneLimit) && len(chg.Tasks()) == 0 {
 				chg.Abort()
