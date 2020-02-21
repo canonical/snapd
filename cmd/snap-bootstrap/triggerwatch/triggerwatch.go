@@ -47,9 +47,9 @@ var (
 	ErrTriggerNotDetected = errors.New("trigger not detected")
 )
 
-// Wait wait for trigger on the available trigger devices for a given amount of
-// time. Returns nil if one was detected, ErrTriggerNotDetected if timeout was
-// hit, or other non-nil error.
+// Wait waits for a trigger on the available trigger devices for a given amount
+// of time. Returns nil if one was detected, ErrTriggerNotDetected if timeout
+// was hit, or other non-nil error.
 func Wait(timeout time.Duration) error {
 	if trigger == nil {
 		logger.Panicf("trigger is unset")
@@ -63,7 +63,7 @@ func Wait(timeout time.Duration) error {
 		return fmt.Errorf("cannot find matching devices")
 	}
 
-	logger.Noticef("waiting for trigger key: %v", chooserTriggerKey.Name)
+	logger.Noticef("waiting for trigger key: %v", triggerFilter.Key)
 
 	// wait for a couple of second for the key
 	detectKeyCh := make(chan keyEvent, len(devices))
@@ -79,7 +79,7 @@ func Wait(timeout time.Duration) error {
 			return err
 		}
 		// channel got closed without an error
-		logger.Noticef("%s: + got trigger key %v", kev.Dev, chooserTriggerKey)
+		logger.Noticef("%s: + got trigger key %v", kev.Dev, triggerFilter.Key)
 	case <-time.After(timeout):
 		return ErrTriggerNotDetected
 	}
