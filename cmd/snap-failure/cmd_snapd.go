@@ -142,16 +142,15 @@ func (c *cmdSnapd) Execute(args []string) error {
 	if output, err := exec.Command("systemctl", "reset-failed", "snapd.socket").CombinedOutput(); err != nil {
 		logger.Noticef("failed to reset-failed snapd.socket: %v", osutil.OutputErr(output, err))
 		// don't die if we fail to reset the failed state of snapd.socket, as
-		// the restart it self could still work
+		// the restart itself could still work
 	}
 	// be extra robust and if the socket file still somehow exists delete it
 	// before restarting, otherwise the restart command will fail because the
 	// systemd can't create the file
-	if osutil.FileExists(dirs.SnapdSocket) {
-		err := os.Remove(dirs.SnapdSocket)
-		if err != nil {
-			logger.Noticef("snapd socket still exists before restarting socket service, but unable to remove: %v", err)
-		}
+	// always remove to avoid TOCTOU issues but don't complain about ENOENT
+	err = os.Remove(dirs.SnapdSocket)
+	if err != nil && !os.IsNotExist(err) {
+		logger.Noticef("snapd socket still exists before restarting socket service, but unable to remove: %v", err)
 	}
 	output, err = exec.Command("systemctl", "restart", "snapd.socket").CombinedOutput()
 	if err != nil {
