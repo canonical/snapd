@@ -133,17 +133,22 @@ func (c *cmdSnapd) Execute(args []string) error {
 	}
 
 	logger.Noticef("restarting snapd socket")
+	// we need to reset the failure state to be able to restart again
+	resetCmd := exec.Command("systemctl", "reset-failed", "snapd.socket")
+	resetCmd.Env = os.Environ()
+	resetCmd.Stdout = Stdout
+	resetCmd.Stderr = Stderr
+
+	if err = resetCmd.Run(); err != nil {
+		// don't die if we fail to reset the failed state of snapd.socket, as
+		// the restart itself could still work
+		logger.Noticef("failed to reset-failed snapd.socket: %v", err)
+	}
 	// at this point our manually started snapd stopped and
 	// should have removed the /run/snap* sockets (this is a feature of
 	// golang) - we need to restart snapd.socket to make them
 	// available again.
 
-	// we need to reset the failure state to be able to restart again
-	if output, err := exec.Command("systemctl", "reset-failed", "snapd.socket").CombinedOutput(); err != nil {
-		logger.Noticef("failed to reset-failed snapd.socket: %v", osutil.OutputErr(output, err))
-		// don't die if we fail to reset the failed state of snapd.socket, as
-		// the restart itself could still work
-	}
 	// be extra robust and if the socket file still somehow exists delete it
 	// before restarting, otherwise the restart command will fail because the
 	// systemd can't create the file
@@ -152,9 +157,14 @@ func (c *cmdSnapd) Execute(args []string) error {
 	if err != nil && !os.IsNotExist(err) {
 		logger.Noticef("snapd socket still exists before restarting socket service, but unable to remove: %v", err)
 	}
-	output, err = exec.Command("systemctl", "restart", "snapd.socket").CombinedOutput()
-	if err != nil {
-		return osutil.OutputErr(output, err)
+
+	restartCmd := exec.Command("systemctl", "restart", "snapd.socket")
+	restartCmd.Env = os.Environ()
+	restartCmd.Stdout = Stdout
+	restartCmd.Stderr = Stderr
+
+	if err := restartCmd.Run(); err != nil {
+		logger.Noticef("failed to restart snapd.socket: %v", err)
 	}
 
 	return nil
