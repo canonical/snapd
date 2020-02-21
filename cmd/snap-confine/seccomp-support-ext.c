@@ -45,11 +45,15 @@ int seccomp(unsigned int operation, unsigned int flags, void *args) {
 #endif
 
 size_t sc_read_seccomp_filter(const char *filename, char *buf, size_t buf_size) {
+    if (buf_size == 0) {
+        die("seccomp load buffer cannot be empty");
+    }
     FILE *file = fopen(filename, "rb");
     if (file == NULL) {
         die("cannot open seccomp filter %s", filename);
     }
-    size_t num_read = fread(buf, 1, buf_size, file);
+    size_t num_read = fread(buf, 1, buf_size - 1, file);
+    buf[num_read] = '\0';
     if (ferror(file) != 0) {
         die("cannot read seccomp profile %s", filename);
     }

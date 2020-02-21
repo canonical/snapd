@@ -35,6 +35,6 @@ type cmdSuite struct{}
 var _ = Suite(&cmdSuite{})
 
 func (s *cmdSuite) TestNoArgsErrors(c *C) {
-	_, err := main.Parser.ParseArgs(nil)
+	_, err := main.Parser().ParseArgs(nil)
 	c.Assert(err, ErrorMatches, "Please specify .*")
 }
