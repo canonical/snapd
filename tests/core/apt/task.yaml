@@ -19,5 +19,6 @@ execute: |
         # UC18+ does not have apt-get at all
         if command -v apt-get; then
             echo "apt-get command exists on Ubuntu Core, but should not!"
+            exit 1
         fi
     fi
