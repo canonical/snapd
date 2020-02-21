@@ -124,8 +124,10 @@ func (s *cmdSuite) TestRecoveryChooserTriggerDoesNothingWhenMarkerPresent(c *C) 
 func (s *cmdSuite) TestRecoveryChooserTriggerBadDurationFallback(c *C) {
 	n := 0
 	passedTimeout := time.Duration(0)
+	restore := main.MockDefaultMarkerFile(filepath.Join(c.MkDir(), "marker"))
+	defer restore()
 
-	restore := main.MockTriggerwatchWait(func(timeout time.Duration) error {
+	restore = main.MockTriggerwatchWait(func(timeout time.Duration) error {
 		passedTimeout = timeout
 		n++
 		// trigger happened
@@ -138,5 +140,6 @@ func (s *cmdSuite) TestRecoveryChooserTriggerBadDurationFallback(c *C) {
 		"--wait-timeout=foobar",
 	})
 	c.Assert(err, IsNil)
+	c.Check(n, Equals, 1)
 	c.Check(passedTimeout, Equals, main.DefaultTimeout)
 }
