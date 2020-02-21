@@ -302,7 +302,7 @@ func PidsOfSnap(snapInstanceName string) (map[string][]int, error) {
 	securityTagPrefix := "snap." + snapInstanceName + "."
 
 	// Walk the cgroup tree and look for "cgroup.procs" files. Having found one
-	// we try to derive the snap security tag from one. If successful and the
+	// we try to derive the snap security tag from it. If successful and the
 	// tag matches the snap we are interested in, we harvest the snapshot of
 	// PIDs that belong to the cgroup and put them into a bucket associated
 	// with the security tag.
