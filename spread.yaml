@@ -104,7 +104,6 @@ backends:
             - opensuse-tumbleweed-64:
                 workers: 6
             - arch-linux-64:
-                manual: true
                 workers: 6
 
             - centos-7-64:
