@@ -386,9 +386,16 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		// that we are re-execing from
 		char *src = NULL;
 		char self[PATH_MAX + 1] = { 0 };
-		if (readlink("/proc/self/exe", self, sizeof(self) - 1) < 0) {
+		ssize_t nread;
+		nread = readlink("/proc/self/exe", self, sizeof self - 1);
+		if (nread < 0) {
 			die("cannot read /proc/self/exe");
 		}
+		// Though we initialized self to NULs and passed one less to
+		// readlink, therefore guaranteeing that self is
+		// zero-terminated, perform an explicit assignment to make
+		// Coverity happy.
+		self[nread] = '\0';
 		// this cannot happen except when the kernel is buggy
 		if (strstr(self, "/snap-confine") == NULL) {
 			die("cannot use result from readlink: %s", self);
@@ -418,9 +425,8 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	}
 	// Create the hostfs directory if one is missing. This directory is a part
 	// of packaging now so perhaps this code can be removed later.
-	if (access(SC_HOSTFS_DIR, F_OK) != 0) {
-		debug("creating missing hostfs directory");
-		if (mkdir(SC_HOSTFS_DIR, 0755) != 0) {
+	if (mkdir(SC_HOSTFS_DIR, 0755) < 0) {
+		if (errno != EEXIST) {
 			die("cannot perform operation: mkdir %s",
 			    SC_HOSTFS_DIR);
 		}
