@@ -20,6 +20,8 @@
 package main
 
 import (
+	"github.com/jessevdk/go-flags"
+
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/bootstrap"
 )
 
@@ -31,9 +33,11 @@ func init() {
 		long  = ""
 	)
 
-	if _, err := parser.AddCommand("create-partitions", short, long, &cmdCreatePartitions{}); err != nil {
-		panic(err)
-	}
+	addCommandBuilder(func(parser *flags.Parser) {
+		if _, err := parser.AddCommand("create-partitions", short, long, &cmdCreatePartitions{}); err != nil {
+			panic(err)
+		}
+	})
 }
 
 type cmdCreatePartitions struct {

@@ -638,6 +638,7 @@ pkg_dependencies_ubuntu_classic(){
                 evolution-data-server
                 fwupd
                 packagekit
+                qemu-utils
                 "
             ;;
         ubuntu-20.04-64)
@@ -645,6 +646,7 @@ pkg_dependencies_ubuntu_classic(){
                 evolution-data-server
                 gccgo-9
                 packagekit
+                qemu-utils
                 "
             ;;
         ubuntu-*)
