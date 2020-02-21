@@ -308,6 +308,7 @@ snaps:
 	c.Assert(chg.Err(), IsNil)
 
 	checkPreseedTaskStates(c, st)
+	c.Check(chg.Status(), Equals, state.DoingStatus)
 
 	// verify
 	r, err := os.Open(dirs.SnapStateFile)
@@ -398,6 +399,7 @@ snaps:
 	c.Assert(err, IsNil)
 
 	checkPreseedTaskStates(c, st)
+	c.Check(chg.Status(), Equals, state.DoingStatus)
 
 	// verify
 	r, err := os.Open(dirs.SnapStateFile)

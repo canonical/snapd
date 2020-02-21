@@ -36,7 +36,7 @@ execute: |
 
     CORE=$(ls core18*.snap)
     SNAPD=$(ls snapd*.snap)
-    sed seed.yaml.in  -E -e 's/@CORE@/'"$CORE"'/' -e 's/@SNAPD@/'"$SNAPD"'/' > "$SEEDS_DIR"/seed.yaml
+    sed seed.yaml.in  -E -e "s/@CORE@/$CORE/" -e "s/@SNAPD@/$SNAPD/" > "$SEEDS_DIR"/seed.yaml
 
     cp "$CORE" "$SNAPD" "$SEEDS_DIR"/snaps/
   }
