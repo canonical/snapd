@@ -155,10 +155,10 @@ func (s *tlsSuite) SetUpTest(c *check.C) {
 
 	s.tmpdir = c.MkDir()
 	dirs.SetRootDir(s.tmpdir)
-	err := os.MkdirAll(dirs.SnapdExtraSslCertsDir, 0755)
+	err := os.MkdirAll(dirs.SnapdExtraSSLCertsDir, 0755)
 	c.Assert(err, check.IsNil)
 
-	s.certpath = filepath.Join(dirs.SnapdExtraSslCertsDir, "good.pem")
+	s.certpath = filepath.Join(dirs.SnapdExtraSSLCertsDir, "good.pem")
 	s.keypath = filepath.Join(c.MkDir(), "key.pem")
 	generateTestCert(c, s.certpath, s.keypath)
 
@@ -191,7 +191,7 @@ func (s *tlsSuite) TestClientNoExtraSSLRefuses(c *check.C) {
 }
 
 func (s *tlsSuite) TestClientExtraSSLCertInvalidCertWarnsAndRefuses(c *check.C) {
-	err := ioutil.WriteFile(filepath.Join(dirs.SnapdExtraSslCertsDir, "garbage.pem"), []byte("garbage"), 0644)
+	err := ioutil.WriteFile(filepath.Join(dirs.SnapdExtraSSLCertsDir, "garbage.pem"), []byte("garbage"), 0644)
 	c.Assert(err, check.IsNil)
 
 	cli := httputil.NewHTTPClient(nil)

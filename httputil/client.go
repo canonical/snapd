@@ -41,7 +41,7 @@ type ClientOptions struct {
 	Proxy      func(*http.Request) (*url.URL, error)
 }
 
-func addLocalSslCertificates(conf *tls.Config) (allCAs *x509.CertPool, err error) {
+func addLocalSSLCertificates(conf *tls.Config) (allCAs *x509.CertPool, err error) {
 	if conf != nil && conf.RootCAs != nil {
 		allCAs = conf.RootCAs
 	} else {
@@ -53,7 +53,7 @@ func addLocalSslCertificates(conf *tls.Config) (allCAs *x509.CertPool, err error
 	if allCAs == nil {
 		return nil, fmt.Errorf("cannot use empty certificate pool")
 	}
-	extraCertFiles, err := filepath.Glob(filepath.Join(dirs.SnapdExtraSslCertsDir, "*.pem"))
+	extraCertFiles, err := filepath.Glob(filepath.Join(dirs.SnapdExtraSSLCertsDir, "*.pem"))
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +82,7 @@ func (d *dialTLS) dialTLS(network, addr string) (net.Conn, error) {
 		var emptyConfig tls.Config
 		d.conf = &emptyConfig
 	}
-	certs, err := addLocalSslCertificates(d.conf)
+	certs, err := addLocalSSLCertificates(d.conf)
 	if err != nil {
 		logger.Noticef("cannot add local ssl certificates: %v", err)
 	}

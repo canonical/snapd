@@ -23,7 +23,7 @@ var (
 	GetFlags                = (*LoggedTransport).getFlags
 	StripUnsafeRunes        = stripUnsafeRunes
 	SanitizeKernelVersion   = sanitizeKernelVersion
-	AddLocalSslCertificates = addLocalSslCertificates
+	AddLocalSSLCertificates = addLocalSSLCertificates
 )
 
 func MockUserAgent(mock string) (restore func()) {
