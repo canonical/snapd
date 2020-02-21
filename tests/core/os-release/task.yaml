@@ -1,0 +1,15 @@
+summary: check that os-release is correct
+
+# TODO:UC20: enable with DISTRIB_RELEASE=20
+systems: [ubuntu-core-1*]
+
+execute: |
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+
+    if is_core18_system; then
+        MATCH "DISTRIB_RELEASE=18" < /etc/lsb-release
+    else
+        MATCH "DISTRIB_RELEASE=16" < /etc/lsb-release
+    fi
+    MATCH "ID=ubuntu-core" < /etc/os-release

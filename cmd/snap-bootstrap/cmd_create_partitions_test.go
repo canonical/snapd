@@ -36,7 +36,7 @@ func (s *cmdSuite) TestCreatePartitionsHappy(c *C) {
 	})
 	defer restore()
 
-	rest, err := main.Parser.ParseArgs([]string{"create-partitions", "gadget-dir", "device"})
+	rest, err := main.Parser().ParseArgs([]string{"create-partitions", "gadget-dir", "device"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, HasLen, 0)
 	c.Assert(n, Equals, 1)
@@ -53,7 +53,7 @@ func (s *cmdSuite) TestCreatePartitionsMount(c *C) {
 	})
 	defer restore()
 
-	rest, err := main.Parser.ParseArgs([]string{"create-partitions", "--mount", "gadget-dir", "device"})
+	rest, err := main.Parser().ParseArgs([]string{"create-partitions", "--mount", "gadget-dir", "device"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, HasLen, 0)
 	c.Assert(n, Equals, 1)
@@ -71,7 +71,7 @@ func (s *cmdSuite) TestCreatePartitionsWithEncryption(c *C) {
 	})
 	defer restore()
 
-	rest, err := main.Parser.ParseArgs([]string{"create-partitions", "--encrypt", "--key-file", "keyfile", "gadget-dir", "device"})
+	rest, err := main.Parser().ParseArgs([]string{"create-partitions", "--encrypt", "--key-file", "keyfile", "gadget-dir", "device"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, HasLen, 0)
 	c.Assert(n, Equals, 1)

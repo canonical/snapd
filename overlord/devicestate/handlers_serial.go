@@ -331,10 +331,29 @@ func prepareSerialRequest(t *state.Task, regCtx registrationContext, privKey ass
 	resp, err := client.Do(req)
 	if err != nil {
 		if !httputil.ShouldRetryError(err) {
-			// a non temporary net error, like a DNS no
-			// host, error out and do full retries
+			// a non temporary net error fully errors out and triggers a retry
+			// retries
 			return "", fmt.Errorf("cannot retrieve request-id for making a request for a serial: %v", err)
 		}
+		if httputil.NoNetwork(err) {
+			// If there is no network there is no need to count
+			// this as a tentatives attempt. If we do it this
+			// way the risk is that we tried a bunch of times
+			// with no network and if we hit the server for real
+			// and it replies with something we need to retry
+			// we will not because nTentatives is way over the
+			// limit.
+			st.Lock()
+			t.Set("pre-poll-tentatives", 0)
+			st.Unlock()
+			// Retry quickly if there is no network
+			// (yet). This ensures that we try to get a serial
+			// as soon as the user configured the network of the
+			// device
+			noNetworkRetryInterval := retryInterval / 2
+			return "", &state.Retry{After: noNetworkRetryInterval}
+		}
+
 		return "", retryErr(t, nTentatives, "cannot retrieve request-id for making a request for a serial: %v", err)
 	}
 	defer resp.Body.Close()
@@ -455,6 +474,8 @@ func submitSerialRequest(t *state.Task, serialRequest string, client *http.Clien
 	return serial, batch, nil
 }
 
+var httputilNewHTTPClient = httputil.NewHTTPClient
+
 func getSerial(t *state.Task, regCtx registrationContext, privKey asserts.PrivateKey, device *auth.DeviceState, tm timings.Measurer) (serial *asserts.Serial, ancillaryBatch *asserts.Batch, err error) {
 	var serialSup serialSetup
 	err = t.Get("serial-setup", &serialSup)
@@ -473,7 +494,7 @@ func getSerial(t *state.Task, regCtx registrationContext, privKey asserts.Privat
 
 	st := t.State()
 	proxyConf := proxyconf.New(st)
-	client := httputil.NewHTTPClient(&httputil.ClientOptions{
+	client := httputilNewHTTPClient(&httputil.ClientOptions{
 		Timeout:    30 * time.Second,
 		MayLogBody: true,
 		Proxy:      proxyConf.Conf,

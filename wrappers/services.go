@@ -204,7 +204,7 @@ func StartServices(apps []*snap.AppInfo, inter interacter, tm timings.Measurer) 
 // AddSnapServices adds service units for the applications from the snap which are services.
 func AddSnapServices(s *snap.Info, disabledSvcs []string, inter interacter) (err error) {
 	if s.GetType() == snap.TypeSnapd {
-		return writeSnapdServicesOnCore(s, inter)
+		return fmt.Errorf("internal error: adding explicit services for snapd snap is unexpected")
 	}
 
 	// check if any previously disabled services are now no longer services and
@@ -317,6 +317,22 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, inter interacter) (err
 	return nil
 }
 
+// EnableSnapServices enables all services of the snap; the main use case for this is
+// the first boot of a pre-seeded image with service files already in place but not enabled.
+// XXX: it should go away once services are fixed and enabled on start.
+func EnableSnapServices(s *snap.Info, inter interacter) (err error) {
+	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
+	for _, app := range s.Apps {
+		if app.IsService() {
+			svcName := app.ServiceName()
+			if err := sysd.Enable(svcName); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 // StopServices stops service units for the applications from the snap which are services.
 func StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, inter interacter, tm timings.Measurer) error {
 	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
@@ -383,8 +399,13 @@ func ServicesEnableState(s *snap.Info, inter interacter) (map[string]bool, error
 	return snapSvcsState, nil
 }
 
-// RemoveSnapServices disables and removes service units for the applications from the snap which are services.
+// RemoveSnapServices disables and removes service units for the applications
+// from the snap which are services. The optional flag indicates whether
+// services are removed as part of undoing of first install of a given snap.
 func RemoveSnapServices(s *snap.Info, inter interacter) error {
+	if s.GetType() == snap.TypeSnapd {
+		return fmt.Errorf("internal error: removing explicit services for snapd snap is unexpected")
+	}
 	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
 	nservices := 0
 

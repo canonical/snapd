@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/snap"
 )
 
 const desktopSummary = `allows access to basic graphical desktop resources`
@@ -204,23 +203,8 @@ dbus (receive, send)
 deny /var/lib/snapd/desktop/icons/ r,
 `
 
-type desktopInterface struct{}
-
-func (iface *desktopInterface) Name() string {
-	return "desktop"
-}
-
-func (iface *desktopInterface) StaticInfo() interfaces.StaticInfo {
-	return interfaces.StaticInfo{
-		Summary:              desktopSummary,
-		ImplicitOnClassic:    true,
-		BaseDeclarationSlots: desktopBaseDeclarationSlots,
-	}
-}
-
-func (iface *desktopInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
-	// allow what declarations allowed
-	return true
+type desktopInterface struct {
+	commonInterface
 }
 
 func (iface *desktopInterface) fontconfigDirs() []string {
@@ -290,5 +274,12 @@ func (iface *desktopInterface) MountConnectedPlug(spec *mount.Specification, plu
 }
 
 func init() {
-	registerIface(&desktopInterface{})
+	registerIface(&desktopInterface{
+		commonInterface: commonInterface{
+			name:                 "desktop",
+			summary:              desktopSummary,
+			implicitOnClassic:    true,
+			baseDeclarationSlots: desktopBaseDeclarationSlots,
+		},
+	})
 }

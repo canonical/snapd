@@ -211,9 +211,11 @@ type AuxStoreInfo = auxStoreInfo
 // link, misc handlers
 var (
 	MissingDisabledServices = missingDisabledServices
-
-	MaybeUndoRemodelBootChanges = maybeUndoRemodelBootChanges
 )
+
+func (m *SnapManager) MaybeUndoRemodelBootChanges(t *state.Task) error {
+	return m.maybeUndoRemodelBootChanges(t)
+}
 
 func MockPidsOfSnap(f func(instanceName string) (map[string][]int, error)) func() {
 	old := pidsOfSnap

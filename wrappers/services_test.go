@@ -526,6 +526,18 @@ func (s *servicesTestSuite) TestStartServices(c *C) {
 	})
 }
 
+func (s *servicesTestSuite) TestEnableServices(c *C) {
+	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
+	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+
+	err := wrappers.EnableSnapServices(info, nil)
+	c.Assert(err, IsNil)
+
+	c.Assert(s.sysdLog, DeepEquals, [][]string{
+		{"--root", s.tempdir, "enable", filepath.Base(svcFile)},
+	})
+}
+
 func (s *servicesTestSuite) TestNoStartDisabledServices(c *C) {
 	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
 	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
@@ -1357,4 +1369,14 @@ func (s *servicesTestSuite) TestServiceRestartDelay(c *C) {
 	content, err = ioutil.ReadFile(filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc3.service"))
 	c.Assert(err, IsNil)
 	c.Check(strings.Contains(string(content), "RestartSec="), Equals, false)
+}
+
+func (s *servicesTestSuite) TestAddRemoveSnapServiceWithSnapd(c *C) {
+	info := makeMockSnapdSnap(c)
+
+	err := wrappers.AddSnapServices(info, nil, progress.Null)
+	c.Check(err, ErrorMatches, "internal error: adding explicit services for snapd snap is unexpected")
+
+	err = wrappers.RemoveSnapServices(info, progress.Null)
+	c.Check(err, ErrorMatches, "internal error: removing explicit services for snapd snap is unexpected")
 }
