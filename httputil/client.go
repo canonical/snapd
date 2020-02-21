@@ -62,9 +62,8 @@ func addLocalSslCertificates(conf *tls.Config) (allCAs *x509.CertPool, err error
 		if err != nil {
 			return nil, fmt.Errorf("cannot read extra certificate: %v", err)
 		}
-		// XXX: continue here trying to add others?
 		if ok := allCAs.AppendCertsFromPEM(extraCert); !ok {
-			return nil, fmt.Errorf("cannot append extra ssl certificate: %v", p)
+			logger.Noticef("cannot append extra store ssl certificate: %v", p)
 		}
 	}
 	return allCAs, nil

@@ -198,9 +198,9 @@ func (s *tlsSuite) TestClientExtraSSLCertInvalidCertWarnsAndRefuses(c *check.C) 
 	c.Assert(cli, check.NotNil)
 
 	_, err = cli.Get(s.srv.URL)
-	c.Assert(err, check.ErrorMatches, ".* certificate signed by unknown authority")
+	c.Assert(err, check.IsNil)
 
-	c.Assert(s.logbuf.String(), check.Matches, "(?m).* cannot add local ssl certificates: cannot append extra ssl certificate: .*/var/lib/snapd/ssl/store-certs/garbage.pem")
+	c.Assert(s.logbuf.String(), check.Matches, "(?m).* cannot append extra store ssl certificate: .*/var/lib/snapd/ssl/store-certs/garbage.pem")
 }
 
 func (s *tlsSuite) TestClientExtraSSLCertIntegration(c *check.C) {
