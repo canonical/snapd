@@ -12,18 +12,11 @@ debug: |
     journalctl -u snapd.socket || true
     ls -l /snap/snapd/
 
-prepare: |
-    cp -a /etc/systemd/system/snapd.service.d/local.conf local.conf.bak
-    sed -i 's/^StartLimitInterval=0/StartLimitInterval=10s/g' /etc/systemd/system/snapd.service.d/local.conf
-    systemctl daemon-reload
-
 restore: |
     # Stop snapd.failure.service in case it is active
     if systemctl is-active snapd.failure.service | MATCH active; then
         systemctl stop snapd.failure.service
     fi
-    cp -a local.conf.bak /etc/systemd/system/snapd.service.d/local.conf
-    systemctl daemon-reload
 
 execute: |
     echo "Testing failover handling of the snapd snap"
@@ -52,7 +45,10 @@ execute: |
 
     echo "And verify that snap commands still work and snapd is reverted"
     retry-tool -n 30 --wait 5 systemctl is-active snapd.failure.service
-    snap list | MATCH "^snapd .* $current .*"
+
+    # just because snapd.failure.service is active doesn't mean that we are 
+    # fully ready; we should wait until the snap command shows up again
+    retry-tool -n 60 --wait 1 bash -c 'snap list | MATCH "^snapd .* $current .*"'
 
     echo "Verify we got the expected error message"
     snap change --last=install|MATCH "there was a snapd rollback across the restart"
