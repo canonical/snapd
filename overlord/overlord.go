@@ -50,6 +50,7 @@ import (
 	_ "github.com/snapcore/snapd/overlord/snapstate/policy"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/timings"
 )
@@ -78,6 +79,9 @@ type Overlord struct {
 	ensureNext  time.Time
 	ensureRun   int32
 	pruneTicker *time.Ticker
+
+	startOfOperationTime time.Time
+
 	// restarts
 	restartBehavior RestartBehavior
 	// managers
@@ -306,6 +310,19 @@ func (o *Overlord) StartUp() error {
 	}
 	o.startedUp = true
 
+	// account for deviceMgr == nil as it's not always present in
+	// the tests.
+	if o.deviceMgr != nil && !release.PreseedMode() {
+		var err error
+		st := o.State()
+		st.Lock()
+		o.startOfOperationTime, err = o.deviceMgr.StartOfOperationTime()
+		st.Unlock()
+		if err != nil {
+			return fmt.Errorf("cannot get start of operation time: %s", err)
+		}
+	}
+
 	// slow down for tests
 	if s := os.Getenv("SNAPD_SLOW_STARTUP"); s != "" {
 		if d, err := time.ParseDuration(s); err == nil {
@@ -388,6 +405,7 @@ func (o *Overlord) requestRestart(t state.RestartType) {
 // Loop runs a loop in a goroutine to ensure the current state regularly through StateEngine Ensure.
 func (o *Overlord) Loop() {
 	o.ensureTimerSetup()
+	preseed := release.PreseedMode()
 	o.loopTomb.Go(func() error {
 		for {
 			// TODO: pass a proper context into Ensure
@@ -401,9 +419,14 @@ func (o *Overlord) Loop() {
 				return nil
 			case <-o.ensureTimer.C:
 			case <-o.pruneTicker.C:
+				if preseed {
+					// in preseed mode avoid setting StartOfOperationTime (it's
+					// an error), and don't Prune.
+					continue
+				}
 				st := o.State()
 				st.Lock()
-				st.Prune(pruneWait, abortWait, pruneMaxChanges)
+				st.Prune(o.startOfOperationTime, pruneWait, abortWait, pruneMaxChanges)
 				st.Unlock()
 			}
 		}
