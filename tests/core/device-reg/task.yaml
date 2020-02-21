@@ -2,6 +2,9 @@ summary: |
     Ensure after device initialisation registration worked and
     we have a serial and can acquire a session macaroon
 
+# TODO:UC20: enable on arm when we have the model names for these devices
+systems: [-ubuntu-core-20-arm*]
+
 execute: |
     #shellcheck source=tests/lib/names.sh
     . "$TESTSLIB"/names.sh
