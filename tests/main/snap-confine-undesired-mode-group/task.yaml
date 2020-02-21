@@ -14,17 +14,19 @@ execute: |
     su test -c 'snap run test-snapd-app.sh -c /bin/true'
 
     # Look for files that are owned by the test user, group owned by the test
-    # user or are world-writable in /run/snapd as well as in /sys/fs/cgroup
-    # trees.
+    # user or are world-writable in /run/snapd, /sys/fs/cgroup and in /tmp
+    # trees. Such files may indicate that parts of code invomed from
+    # snap-confine (which includes snap-update-ns and snap-discard-ns) ran as
+    # the group of the calling user and did not manage that properly.
     for dname in /run/snapd /sys/fs/cgroup /tmp/snap.*; do
         find "$dname" -user test >> wrong-user.txt
         find "$dname" -group test >> wrong-group.txt
-        # NOTE: filter out the following elements:
+        # Filter out the following elements:
         # - sockets, we don't create any and there are some that are 777
         # - symbolic links, those are always 777
         # - the file cgroup.event_control which is ugo+w for some reason
-        # - the per-snap tmp directory as it ought to be world-writable
-        find "$dname" ! -type s ! -type l ! -name cgroup.event_control ! -name tmp -perm /o+w >> world-writable.txt
+        # - the per-snap tmp directory as it is meant to be world-writable
+        find "$dname" ! -type s ! -type l ! -name cgroup.event_control ! -path /tmp/snap.test-snapd-app/tmp -perm /o+w >> world-writable.txt
     done
 
     # The test fails if any such file is detected
