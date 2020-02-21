@@ -331,8 +331,8 @@ type DownloadInfo struct {
 type DownloadOptions struct {
 	SnapOptions
 
-	HeaderPeek  bool   `json:"header-peek,omitempty"`
-	ResumeToken string `json:"resume-token,omitempty"`
+	HeaderPeek  bool
+	ResumeToken string
 }
 
 // Download will stream the given snap to the client
