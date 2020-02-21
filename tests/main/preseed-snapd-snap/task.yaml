@@ -19,6 +19,9 @@ prepare: |
   mkdir -p "$IMAGE_MOUNTPOINT"
 
 restore: |
+  #shellcheck source=tests/lib/preseed.sh
+  . "$TESTSLIB/preseed.sh"
+
   # any of the restore commands can fail depending on where execute part stopped,
   # account for that with ||true.
   umount_ubuntu_image "$IMAGE_MOUNTPOINT" || true
