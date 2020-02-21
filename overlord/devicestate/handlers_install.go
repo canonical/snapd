@@ -68,11 +68,13 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 	if useEncryption {
+		ubuntuBootDir := filepath.Join(dirs.RunMnt, "ubuntu-boot")
+
 		args = append(args,
 			// enable data encryption
 			"--encrypt",
 			// location to store the keyfile
-			"--key-file", filepath.Join(dirs.RunMnt, "ubuntu-boot", "keyfile.unsealed"),
+			"--key-file", filepath.Join(ubuntuBootDir, "ubuntu-data.keyfile.unsealed"),
 		)
 	}
 	args = append(args, gadgetDir)
