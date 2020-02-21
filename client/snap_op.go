@@ -314,11 +314,12 @@ type snapRevisionOptions struct {
 }
 
 type downloadAction struct {
-	SnapName    string `json:"snap-name"`
-	HeaderPeek  bool   `json:"header-peek,omitempty"`
-	ResumeToken string `json:"resume-token,omitempty"`
+	SnapName string `json:"snap-name"`
 
 	snapRevisionOptions
+
+	HeaderPeek  bool   `json:"header-peek,omitempty"`
+	ResumeToken string `json:"resume-token,omitempty"`
 }
 
 type DownloadInfo struct {
