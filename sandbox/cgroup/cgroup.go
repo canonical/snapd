@@ -291,7 +291,7 @@ func securityTagFromCgroupPath(path string) (securityTag string) {
 // exit but it has the following guarantee.
 //
 // If the per-snap lock is held while computing the set, then the following
-// guarantee is true: If a security tag is not among the result then no such
+// guarantee is true: if a security tag is not among the result then no such
 // tag can come into existence while the lock is held.
 //
 // This can be used to classify the activity of a given snap into activity
