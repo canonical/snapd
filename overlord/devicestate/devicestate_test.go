@@ -1138,7 +1138,41 @@ func (s *deviceMgrSuite) TestDeviceManagerEmptyOperatingModeRun(c *C) {
 	c.Check(s.mgr.OperatingMode(), Equals, "run")
 }
 
-func (s *deviceMgrSuite) TestStartOfOperationTimeFromSeedTime(c *C) {
+type startOfOperationTimeSuite struct {
+	state  *state.State
+	mgr    *devicestate.DeviceManager
+	runner *state.TaskRunner
+}
+
+var _ = Suite(&startOfOperationTimeSuite{})
+
+func (s *startOfOperationTimeSuite) SetUpTest(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	os.MkdirAll(dirs.SnapRunDir, 0755)
+
+	s.state = state.New(nil)
+	s.runner = state.NewTaskRunner(s.state)
+	s.mgr = nil
+}
+
+func (s *startOfOperationTimeSuite) TearDownTest(c *C) {
+	dirs.SetRootDir("")
+}
+
+func (s *startOfOperationTimeSuite) manager(c *C) *devicestate.DeviceManager {
+	if s.mgr == nil {
+		hookMgr, err := hookstate.Manager(s.state, s.runner)
+		c.Assert(err, IsNil)
+		mgr, err := devicestate.Manager(s.state, hookMgr, s.runner, nil)
+		c.Assert(err, IsNil)
+		s.mgr = mgr
+	}
+	return s.mgr
+}
+
+func (s *startOfOperationTimeSuite) TestStartOfOperationTimeFromSeedTime(c *C) {
+	mgr := s.manager(c)
+
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
@@ -1146,7 +1180,7 @@ func (s *deviceMgrSuite) TestStartOfOperationTimeFromSeedTime(c *C) {
 	seedTime := time.Now().AddDate(0, -1, 0)
 	st.Set("seed-time", seedTime)
 
-	operationTime, err := s.mgr.StartOfOperationTime()
+	operationTime, err := mgr.StartOfOperationTime()
 	c.Assert(err, IsNil)
 	c.Check(operationTime.Equal(seedTime), Equals, true)
 
@@ -1155,7 +1189,9 @@ func (s *deviceMgrSuite) TestStartOfOperationTimeFromSeedTime(c *C) {
 	c.Check(op.Equal(operationTime), Equals, true)
 }
 
-func (s *deviceMgrSuite) TestStartOfOperationTimeAlreadySet(c *C) {
+func (s *startOfOperationTimeSuite) TestStartOfOperationTimeAlreadySet(c *C) {
+	mgr := s.manager(c)
+
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
@@ -1163,12 +1199,14 @@ func (s *deviceMgrSuite) TestStartOfOperationTimeAlreadySet(c *C) {
 	op := time.Now().AddDate(0, -1, 0)
 	st.Set("start-of-operation-time", op)
 
-	operationTime, err := s.mgr.StartOfOperationTime()
+	operationTime, err := mgr.StartOfOperationTime()
 	c.Assert(err, IsNil)
 	c.Check(operationTime.Equal(op), Equals, true)
 }
 
-func (s *deviceMgrSuite) TestStartOfOperationTimeNoSeedTime(c *C) {
+func (s *startOfOperationTimeSuite) TestStartOfOperationTimeNoSeedTime(c *C) {
+	mgr := s.manager(c)
+
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
@@ -1178,29 +1216,27 @@ func (s *deviceMgrSuite) TestStartOfOperationTimeNoSeedTime(c *C) {
 		return now
 	})
 
-	operationTime, err := s.mgr.StartOfOperationTime()
+	operationTime, err := mgr.StartOfOperationTime()
 	c.Assert(err, IsNil)
 	c.Check(operationTime.Equal(now), Equals, true)
 
 	// repeated call returns already set time
 	prev := now
 	now = time.Now().Add(-10 * time.Hour)
-	operationTime, err = s.mgr.StartOfOperationTime()
+	operationTime, err = s.manager(c).StartOfOperationTime()
 	c.Assert(err, IsNil)
 	c.Check(operationTime.Equal(prev), Equals, true)
 }
 
-func (s *deviceMgrSuite) TestStartOfOperationErrorIfPreseed(c *C) {
+func (s *startOfOperationTimeSuite) TestStartOfOperationErrorIfPreseed(c *C) {
 	restore := release.MockPreseedMode(func() bool { return true })
 	defer restore()
 
+	mgr := s.manager(c)
 	st := s.state
-
-	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
-	c.Assert(err, IsNil)
 
 	st.Lock()
 	defer st.Unlock()
-	_, err = mgr.StartOfOperationTime()
+	_, err := mgr.StartOfOperationTime()
 	c.Assert(err, ErrorMatches, `internal error: unexpected call to StartOfOperationTime in preseed mode`)
 }
