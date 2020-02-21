@@ -286,7 +286,7 @@ func securityTagFromCgroupPath(path string) (securityTag string) {
 // If the feature is was never enabled then only service process are correctly
 // accounted for.
 //
-// The return value is a snapshot of the pids of a given snap, grouped by
+// The return value is a snapshot of the pids for a given snap, grouped by
 // security tag. The result may be immediately stale as processes fork and
 // exit.
 //
