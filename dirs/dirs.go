@@ -277,8 +277,7 @@ func SetRootDir(rootdir string) {
 	SnapRunNsDir = filepath.Join(SnapRunDir, "/ns")
 	SnapRunLockDir = filepath.Join(SnapRunDir, "/lock")
 
-	// XXX: is this a good name?
-	SnapdExtraSslCertsDir = filepath.Join(rootdir, snappyDir, "ssl/snapd-only")
+	SnapdExtraSslCertsDir = filepath.Join(rootdir, snappyDir, "ssl/store-certs")
 
 	// keep in sync with the debian/snapd.socket file:
 	SnapdSocket = filepath.Join(rootdir, "/run/snapd.socket")
