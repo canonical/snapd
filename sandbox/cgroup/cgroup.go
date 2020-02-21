@@ -283,7 +283,7 @@ func securityTagFromCgroupPath(path string) (securityTag string) {
 //
 // NOTE: This function returns reliable result only if refresh-app-awareness
 // feature was enabled since all process related to the given snap was started.
-// If the feature is was never enabled then only service process are correctly
+// If the feature wasn't always enabled then only service process are correctly
 // accounted for.
 //
 // The return value is a snapshot of the pids for a given snap, grouped by
