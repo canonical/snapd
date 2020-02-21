@@ -47,7 +47,7 @@ var (
 	triggerwatchWait = triggerwatch.Wait
 
 	// default trigger wait timeout
-	defaultTimeout = 5 * time.Second
+	defaultTimeout = 20 * time.Second
 
 	// default marker file location
 	defaultMarkerFile = "/run/snapd-recovery-chooser-triggered"
