@@ -932,7 +932,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	// if we just put back a previous a core snap, request a restart
 	// so that we switch executing its snapd
-	maybeRestart(t, oldInfo, reboot, deviceCtx)
+	m.maybeRestart(t, oldInfo, reboot, deviceCtx)
 
 	return nil
 }
@@ -1325,18 +1325,20 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 
 	// if we just installed a core snap, request a restart
 	// so that we switch executing its snapd.
-	// Don't restart when preseeding - we will switch to new snapd on
-	// first boot.
-	if !m.preseed {
-		maybeRestart(t, newInfo, reboot, deviceCtx)
-	}
+	m.maybeRestart(t, newInfo, reboot, deviceCtx)
 
 	return nil
 }
 
 // maybeRestart will schedule a reboot or restart as needed for the
 // just linked snap with info if it's a core or snapd or kernel snap.
-func maybeRestart(t *state.Task, info *snap.Info, rebootRequired bool, deviceCtx DeviceContext) {
+func (m *SnapManager) maybeRestart(t *state.Task, info *snap.Info, rebootRequired bool, deviceCtx DeviceContext) {
+	// Don't restart when preseeding - we will switch to new snapd on
+	// first boot.
+	if m.preseed {
+		return
+	}
+
 	st := t.State()
 
 	if rebootRequired {
@@ -1386,7 +1388,7 @@ func daemonRestartReason(st *state.State, typ snap.Type) string {
 // bootloader. This can happen if e.g. a new kernel gets installed. This
 // will switch the bootloader to the new kernel but if the change is later
 // undone we need to switch back to the kernel of the old model.
-func maybeUndoRemodelBootChanges(t *state.Task) error {
+func (m *SnapManager) maybeUndoRemodelBootChanges(t *state.Task) error {
 	// get the new and the old model
 	deviceCtx, err := DeviceCtx(t.State(), t, nil)
 	if err != nil {
@@ -1445,7 +1447,7 @@ func maybeUndoRemodelBootChanges(t *state.Task) error {
 
 	// we may just have switch back to the old kernel/base/core so
 	// we may need to restart
-	maybeRestart(t, info, reboot, groundDeviceCtx)
+	m.maybeRestart(t, info, reboot, groundDeviceCtx)
 
 	return nil
 }
@@ -1616,7 +1618,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	if err := maybeUndoRemodelBootChanges(t); err != nil {
+	if err := m.maybeUndoRemodelBootChanges(t); err != nil {
 		return err
 	}
 
@@ -1627,7 +1629,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 			return err
 		}
 		const rebootRequired = false
-		maybeRestart(t, newInfo, rebootRequired, deviceCtx)
+		m.maybeRestart(t, newInfo, rebootRequired, deviceCtx)
 	}
 
 	// mark as inactive
