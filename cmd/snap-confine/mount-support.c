@@ -84,6 +84,9 @@ static void setup_private_mount(const char *snap_name)
 	sc_must_snprintf(base_dir, sizeof(base_dir), "/tmp/snap.%s", snap_name);
 	sc_must_snprintf(tmp_dir, sizeof(tmp_dir), "%s/tmp", base_dir);
 
+	/* Switch to root group so that mkdir and open calls below create filesystem
+	 * elements that are not owned by the user calling into snap-confine. */
+	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
 	// Create /tmp/snap.$SNAP_NAME/ 0700 root.root. Ignore EEXIST since we want
 	// to reuse and we will open with O_NOFOLLOW, below.
 	if (mkdir(base_dir, 0700) < 0 && errno != EEXIST) {
@@ -94,6 +97,13 @@ static void setup_private_mount(const char *snap_name)
 	if (base_dir_fd < 0) {
 		die("cannot open base directory %s", base_dir);
 	}
+	/* This seems redundant on first read but it has the non-obvious
+	 * property of changing existing directories  that have already existed
+	 * but had incorrect ownership or permission. This is possible due to
+	 * earlier bugs in snap-confine and due to the fact that some systems
+	 * use persistent /tmp directory and may not clean up leftover files
+	 * for arbitrarily long. This comment applies the following two pairs
+	 * of fchmod and fchown. */
 	if (fchmod(base_dir_fd, 0700) < 0) {
 		die("cannot chmod base directory %s to 0700", base_dir);
 	}
@@ -105,6 +115,7 @@ static void setup_private_mount(const char *snap_name)
 	if (mkdirat(base_dir_fd, "tmp", 01777) < 0 && errno != EEXIST) {
 		die("cannot create private tmp directory %s/tmp", base_dir);
 	}
+	(void)sc_set_effective_identity(old);
 	tmp_dir_fd = openat(base_dir_fd, "tmp",
 			    O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
 	if (tmp_dir_fd < 0) {
@@ -255,9 +266,14 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// disabling the "is_bidirectional" flag as can be seen below.
 	for (const struct sc_mount * mnt = config->mounts; mnt->path != NULL;
 	     mnt++) {
-		if (mnt->is_bidirectional && mkdir(mnt->path, 0755) < 0 &&
-		    errno != EEXIST) {
-			die("cannot create %s", mnt->path);
+
+		if (mnt->is_bidirectional) {
+			sc_identity old =
+			    sc_set_effective_identity(sc_root_group_identity());
+			if (mkdir(mnt->path, 0755) < 0 && errno != EEXIST) {
+				die("cannot create %s", mnt->path);
+			}
+			(void)sc_set_effective_identity(old);
 		}
 		sc_must_snprintf(dst, sizeof dst, "%s/%s", scratch_dir,
 				 mnt->path);
@@ -425,12 +441,13 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	}
 	// Create the hostfs directory if one is missing. This directory is a part
 	// of packaging now so perhaps this code can be removed later.
+	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
 	if (mkdir(SC_HOSTFS_DIR, 0755) < 0) {
 		if (errno != EEXIST) {
-			die("cannot perform operation: mkdir %s",
-			    SC_HOSTFS_DIR);
+			die("cannot perform operation: mkdir %s", SC_HOSTFS_DIR);
 		}
 	}
+	(void)sc_set_effective_identity(old);
 	// Ensure that hostfs isgroup owned by root. We may have (now or earlier)
 	// created the directory as the user who first ran a snap on a given
 	// system and the group identity of that user is visilbe on disk.
@@ -678,22 +695,8 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 		sc_bootstrap_mount_namespace(&legacy_config);
 	}
 
-	// set up private mounts
-	if (getegid() != 0 && saved_gid == 0) {
-		// Temporarily raise egid so we can create, chmod and chown
-		// the mount without causing a noisy fsetid capability denial
-		if (setegid(0) != 0) {
-			die("cannot set effective group id to root");
-		}
-	}
 	// TODO: rename this and fold it into bootstrap
 	setup_private_mount(inv->snap_instance);
-	if (geteuid() == 0 && real_gid != 0) {
-		if (setegid(real_gid) != 0) {
-			die("cannot set effective group id to %d", real_gid);
-		}
-	}
-
 	// set up private /dev/pts
 	// TODO: fold this into bootstrap
 	setup_private_pts();
@@ -761,7 +764,9 @@ void sc_setup_user_mounts(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 	// to slave mode, so we see changes from the parent namespace
 	// but don't propagate our own changes.
 	sc_do_mount("none", "/", NULL, MS_REC | MS_SLAVE, NULL);
+	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
 	sc_call_snap_update_ns_as_user(snap_update_ns_fd, snap_name, apparmor);
+	(void)sc_set_effective_identity(old);
 }
 
 void sc_ensure_snap_dir_shared_mounts(void)
