@@ -44,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
@@ -616,6 +617,181 @@ func (ovs *overlordSuite) TestEnsureLoopPruneRunsMultipleTimes(c *C) {
 	// cleanup loop ticker
 	err := o.Stop()
 	c.Assert(err, IsNil)
+}
+
+func (ovs *overlordSuite) TestOverlordStartUpSetsStartOfOperation(c *C) {
+	restoreIntv := overlord.MockPruneInterval(100*time.Millisecond, 1000*time.Millisecond, 1*time.Hour)
+	defer restoreIntv()
+
+	// use real overlord, we need device manager to be there
+	o, err := overlord.New(nil)
+	c.Assert(err, IsNil)
+
+	st := o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	// sanity check, not set
+	var opTime time.Time
+	c.Assert(st.Get("start-of-operation-time", &opTime), Equals, state.ErrNoState)
+	st.Unlock()
+
+	c.Assert(o.StartUp(), IsNil)
+
+	st.Lock()
+	c.Assert(st.Get("start-of-operation-time", &opTime), IsNil)
+}
+
+func (ovs *overlordSuite) TestEnsureLoopPruneDoesntAbortShortlyAfterStartOfOperation(c *C) {
+	restoreIntv := overlord.MockPruneInterval(100*time.Millisecond, 1000*time.Millisecond, 1*time.Hour)
+	defer restoreIntv()
+
+	// use real overlord, we need device manager to be there
+	o, err := overlord.New(nil)
+	c.Assert(err, IsNil)
+
+	markSeeded(o)
+
+	// avoid immediate transition to Done due to unknown kind
+	o.TaskRunner().AddHandler("bar", func(t *state.Task, _ *tomb.Tomb) error {
+		return &state.Retry{}
+	}, nil)
+
+	st := o.State()
+	st.Lock()
+
+	// start of operation time is 50min ago, this is less then abort limit
+	opTime := time.Now().Add(-50 * time.Minute)
+	st.Set("start-of-operation-time", opTime)
+
+	// spawn time one month ago
+	spawnTime := time.Now().AddDate(0, -1, 0)
+	restoreTimeNow := state.MockTime(spawnTime)
+
+	t := st.NewTask("bar", "...")
+	chg := st.NewChange("other-change", "...")
+	chg.AddTask(t)
+
+	restoreTimeNow()
+
+	// sanity
+	c.Check(st.Changes(), HasLen, 1)
+
+	st.Unlock()
+	c.Assert(o.StartUp(), IsNil)
+
+	// start the loop that runs the prune ticker
+	o.Loop()
+	time.Sleep(1500 * time.Millisecond)
+	c.Assert(o.Stop(), IsNil)
+
+	st.Lock()
+	defer st.Unlock()
+	c.Assert(st.Changes(), HasLen, 1)
+	c.Check(chg.Status(), Equals, state.DoingStatus)
+}
+
+func (ovs *overlordSuite) TestEnsureLoopPruneAbortsOld(c *C) {
+	restoreIntv := overlord.MockPruneInterval(100*time.Millisecond, 24*time.Hour, 1*time.Hour)
+	defer restoreIntv()
+
+	// use real overlord, we need device manager to be there
+	o, err := overlord.New(nil)
+	c.Assert(err, IsNil)
+
+	// avoid immediate transition to Done due to having unknown kind
+	o.TaskRunner().AddHandler("bar", func(t *state.Task, _ *tomb.Tomb) error {
+		return &state.Retry{}
+	}, nil)
+
+	markSeeded(o)
+
+	st := o.State()
+	st.Lock()
+
+	// start of operation time is a year ago
+	opTime := time.Now().AddDate(-1, 0, 0)
+	st.Set("start-of-operation-time", opTime)
+
+	st.Unlock()
+	c.Assert(o.StartUp(), IsNil)
+	st.Lock()
+
+	// spawn time one month ago
+	spawnTime := time.Now().AddDate(0, -1, 0)
+	restoreTimeNow := state.MockTime(spawnTime)
+	t := st.NewTask("bar", "...")
+	chg := st.NewChange("other-change", "...")
+	chg.AddTask(t)
+
+	restoreTimeNow()
+
+	// sanity
+	c.Check(st.Changes(), HasLen, 1)
+	st.Unlock()
+
+	// start the loop that runs the prune ticker
+	o.Loop()
+	time.Sleep(1500 * time.Millisecond)
+	c.Assert(o.Stop(), IsNil)
+
+	st.Lock()
+	defer st.Unlock()
+
+	// sanity
+	op, err := o.DeviceManager().StartOfOperationTime()
+	c.Assert(err, IsNil)
+	c.Check(op.Equal(opTime), Equals, true)
+
+	c.Assert(st.Changes(), HasLen, 1)
+	// change was aborted
+	c.Check(chg.Status(), Equals, state.HoldStatus)
+}
+
+func (ovs *overlordSuite) TestEnsureLoopNoPruneWhenPreseed(c *C) {
+	restoreIntv := overlord.MockPruneInterval(100*time.Millisecond, 1000*time.Millisecond, 1*time.Hour)
+	defer restoreIntv()
+
+	restore := release.MockPreseedMode(func() bool { return true })
+	defer restore()
+
+	o, err := overlord.New(nil)
+	c.Assert(err, IsNil)
+
+	// avoid immediate transition to Done due to unknown kind
+	o.TaskRunner().AddHandler("bar", func(t *state.Task, _ *tomb.Tomb) error {
+		return &state.Retry{}
+	}, nil)
+
+	// sanity
+	_, err = o.DeviceManager().StartOfOperationTime()
+	c.Assert(err, ErrorMatches, `internal error: unexpected call to StartOfOperationTime in preseed mode`)
+
+	c.Assert(o.StartUp(), IsNil)
+
+	st := o.State()
+	st.Lock()
+
+	// spawn time one month ago
+	spawnTime := time.Now().AddDate(0, -1, 0)
+	restoreTimeNow := state.MockTime(spawnTime)
+	t := st.NewTask("bar", "...")
+	chg := st.NewChange("change", "...")
+	chg.AddTask(t)
+	restoreTimeNow()
+
+	st.Unlock()
+	// start the loop that runs the prune ticker
+	o.Loop()
+	time.Sleep(1500 * time.Millisecond)
+	c.Assert(o.Stop(), IsNil)
+
+	st.Lock()
+	defer st.Unlock()
+
+	var opTime time.Time
+	c.Assert(st.Get("start-of-operation-time", &opTime), Equals, state.ErrNoState)
+	c.Check(chg.Status(), Equals, state.DoingStatus)
 }
 
 func (ovs *overlordSuite) TestCheckpoint(c *C) {

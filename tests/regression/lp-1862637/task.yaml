@@ -2,13 +2,37 @@ summary: /var/lib/dhcp is shared with host
 prepare: |
     snap pack test-snapd-app
     snap install --dangerous ./test-snapd-app_1_all.snap
-    snap connect test-snapd-app:network-control
+    snap disconnect test-snapd-app:network-control
+    if [ -d /var/lib/dhcp ]; then
+        touch /var/lib/dhcp/.canary
+    fi
 restore: |
-    rm -f /var/lib/dhcp/.canary
+    if [ -d /var/lib/dhcp ]; then
+        rm -f /var/lib/dhcp/.canary
+    fi
     snap remove test-snapd-app
     rm -f test-snapd-app_1_all.snap
 execute: |
-    # The directory may not exist on the host but running the snap will create it.
+    # The snap always sees /var/lib/dhcp. 
     test-snapd-app.sh -c 'test -d /var/lib/dhcp'
-    touch /var/lib/dhcp/.canary
-    test-snapd-app.sh -c 'test -f /var/lib/dhcp/.canary'
+    if [ -d /var/lib/dhcp ]; then
+        if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
+            # If the host is not a core 16 system *and* it has /var/lib/dhpc
+            # and the network-control plug is connected then the snap sees the
+            # same directory.
+            test-snapd-app.sh -c 'test ! -f /var/lib/dhcp/.canary'
+            snap connect test-snapd-app:network-control
+            test-snapd-app.sh -c 'test -f /var/lib/dhcp/.canary'
+            snap disconnect test-snapd-app:network-control
+            test-snapd-app.sh -c 'test ! -f /var/lib/dhcp/.canary'
+        else
+            # If the host is a core 16 system then sharing is implicit because
+            # host's / is used as snap's / starting point. Disconnecting the
+            # interface does not hide the canary file.
+            test-snapd-app.sh -c 'test -f /var/lib/dhcp/.canary'
+            snap connect test-snapd-app:network-control
+            test-snapd-app.sh -c 'test -f /var/lib/dhcp/.canary'
+            snap disconnect test-snapd-app:network-control
+            test-snapd-app.sh -c 'test -f /var/lib/dhcp/.canary'
+        fi
+    fi

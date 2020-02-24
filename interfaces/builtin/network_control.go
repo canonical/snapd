@@ -287,7 +287,7 @@ var networkControlConnectedPlugUDev = []string{
 var networkControlConnectedPlugMount = []osutil.MountEntry{{
 	Name:    "/var/lib/snapd/hostfs/var/lib/dhcp",
 	Dir:     "/var/lib/dhcp",
-	Options: []string{"rw", "bind"},
+	Options: []string{"bind", "rw", osutil.XSnapdIgnoreMissing()},
 }}
 
 var networkControlConnectedPlugUpdateNSAppArmor = `
@@ -297,7 +297,7 @@ var networkControlConnectedPlugUpdateNSAppArmor = `
 /var/lib/snapd/hostfs/ r,
 /var/lib/snapd/hostfs/var/ r,
 /var/lib/snapd/hostfs/var/lib/ r,
-/var/lib/snapd/hostfs/var/lib/dhcp/ rw, # create on the host, if needed.
+/var/lib/snapd/hostfs/var/lib/dhcp/ r,
 /var/lib/dhcp/ r,
 mount options=(rw bind) /var/lib/snapd/hostfs/var/lib/dhcp/ -> /var/lib/dhcp/,
 umount /var/lib/dhcp/,

@@ -88,7 +88,7 @@ func (s *NetworkControlInterfaceSuite) TestAppArmorSpec(c *C) {
 /var/lib/snapd/hostfs/ r,
 /var/lib/snapd/hostfs/var/ r,
 /var/lib/snapd/hostfs/var/lib/ r,
-/var/lib/snapd/hostfs/var/lib/dhcp/ rw, # create on the host, if needed.
+/var/lib/snapd/hostfs/var/lib/dhcp/ r,
 /var/lib/dhcp/ r,
 mount options=(rw bind) /var/lib/snapd/hostfs/var/lib/dhcp/ -> /var/lib/dhcp/,
 umount /var/lib/dhcp/,
@@ -118,7 +118,7 @@ func (s *NetworkControlInterfaceSuite) TestMountSpec(c *C) {
 	c.Assert(spec.MountEntries(), DeepEquals, []osutil.MountEntry{{
 		Name:    "/var/lib/snapd/hostfs/var/lib/dhcp",
 		Dir:     "/var/lib/dhcp",
-		Options: []string{"rw", "bind"},
+		Options: []string{"bind", "rw", "x-snapd.ignore-missing"},
 	}})
 }
 

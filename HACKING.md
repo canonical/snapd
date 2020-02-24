@@ -234,7 +234,7 @@ To get started from a pristine tree you want to do this:
 ./mkversion.sh
 cd cmd/
 autoreconf -i -f
-./configure --prefix=/usr --libexecdir=/usr/lib/snapd --enable-nvidia-multiarch --with-host-arch-triplet=$(dpkg-architecture -qDEB_HOST_MULTIARCH)"
+./configure --prefix=/usr --libexecdir=/usr/lib/snapd --enable-nvidia-multiarch --with-host-arch-triplet="$(dpkg-architecture -qDEB_HOST_MULTIARCH)"
 ```
 
 This will drop makefiles and let you build stuff. You may find the `make hack`

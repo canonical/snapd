@@ -609,6 +609,7 @@ case "$*" in
     sleep 1
     ;;
 esac
+export LANG=C
 exec /bin/tar "$@"
 `)
 	defer mocktar.Restore()

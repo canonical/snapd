@@ -62,15 +62,20 @@
 // this directory was created with permissions 1777.
 static void sc_maybe_fixup_permissions(void)
 {
+	int fd SC_CLEANUP(sc_cleanup_close) = -1;
 	struct stat buf;
-	if (stat("/var/lib", &buf) != 0) {
+	fd = open("/var/lib", O_PATH | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
+	if (fd < 0) {
+		die("cannot open /var/lib");
+	}
+	if (fstat(fd, &buf) < 0) {
 		die("cannot stat /var/lib");
 	}
 	if ((buf.st_mode & 0777) == 0777) {
-		if (chmod("/var/lib", 0755) != 0) {
+		if (fchmod(fd, 0755) != 0) {
 			die("cannot chmod /var/lib");
 		}
-		if (chown("/var/lib", 0, 0) != 0) {
+		if (fchown(fd, 0, 0) != 0) {
 			die("cannot chown /var/lib");
 		}
 	}
@@ -350,16 +355,8 @@ int main(int argc, char **argv)
 	debug("rgid: %d, egid: %d, sgid: %d",
 	      real_gid, effective_gid, saved_gid);
 
-	// snap-confine runs as both setuid root and setgid root.
-	// Temporarily drop group privileges here and reraise later
-	// as needed.
-	if (effective_gid == 0 && real_gid != 0) {
-		if (setegid(real_gid) != 0) {
-			die("cannot set effective group id to %d", real_gid);
-		}
-	}
-	// This code always needs to run as root for the cgroup/udev setup.
-	if (geteuid() != 0) {
+	// snap-confine needs to run as root for cgroup/udev/mount/apparmor/etc setup.
+	if (effective_uid != 0) {
 		die("need to run as root or suid");
 	}
 
@@ -434,19 +431,20 @@ int main(int argc, char **argv)
 							real_uid,
 							real_gid, saved_gid);
 	}
-
-	// Temporarily drop privs back to calling user (we'll permanently drop
-	// after loading seccomp).
-	if (setegid(real_gid) != 0)
-		die("setegid failed");
-	if (seteuid(real_uid) != 0)
-		die("seteuid failed");
-
-	if (real_gid != 0 && geteuid() == 0)
-		die("dropping privs did not work");
-	if (real_uid != 0 && getegid() == 0)
-		die("dropping privs did not work");
-	// Ensure that the user data path exists.
+	// Temporarily drop privileges back to the calling user until we can
+	// permanently drop (which we can't do just yet due to seccomp, see
+	// below).
+	sc_identity real_user_identity = {
+		.uid = real_uid,
+		.gid = real_gid,
+		.change_uid = 1,
+		.change_gid = 1,
+	};
+	sc_set_effective_identity(real_user_identity);
+	// Ensure that the user data path exists. When creating it use the identity
+	// of the calling user (by using real user and group identifiers). This
+	// allows the creation of directories inside ~/ on NFS with root_squash
+	// attribute.
 	setup_user_data();
 #if 0
 	setup_user_xdg_runtime_dir();
@@ -738,19 +736,8 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 	// This simplifies testing if any processes belonging to a given snap are
 	// still alive as well as to properly account for each application and
 	// service.
-	if (getegid() != 0 && saved_gid == 0) {
-		// Temporarily raise egid so we can chown the freezer cgroup under LXD.
-		if (setegid(0) != 0) {
-			die("cannot set effective group id to root");
-		}
-	}
 	if (!sc_cgroup_is_v2()) {
 		sc_cgroup_freezer_join(inv->snap_instance, getpid());
-	}
-	if (geteuid() == 0 && real_gid != 0) {
-		if (setegid(real_gid) != 0) {
-			die("cannot set effective group id to %d", real_gid);
-		}
 	}
 
 	maybe_join_tracking_cgroup(inv, real_gid, saved_gid);
@@ -787,20 +774,9 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 static void maybe_join_tracking_cgroup(const sc_invocation * inv,
 				       gid_t real_gid, gid_t saved_gid)
 {
-	if (getegid() != 0 && saved_gid == 0) {
-		/* Temporarily raise egid so we can chown the cgroup under LXD. */
-		if (setegid(0) != 0) {
-			die("cannot set effective group id to root");
-		}
-	}
 	if (!sc_cgroup_is_v2()) {
 		if (sc_feature_enabled(SC_FEATURE_REFRESH_APP_AWARENESS)) {
 			sc_cgroup_pids_join(inv->security_tag, getpid());
-		}
-	}
-	if (geteuid() == 0 && real_gid != 0) {
-		if (setegid(real_gid) != 0) {
-			die("cannot set effective group id to %d", real_gid);
 		}
 	}
 }

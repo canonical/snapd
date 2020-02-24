@@ -74,7 +74,7 @@ func (s *mountunitSuite) TestAddMountUnit(c *C) {
 		Version:       "1.1",
 		Architectures: []string{"all"},
 	}
-	err := backend.AddMountUnit(info, progress.Null)
+	err := backend.AddMountUnit(info, false, progress.Null)
 	c.Assert(err, IsNil)
 
 	// ensure correct mount unit
@@ -106,7 +106,7 @@ func (s *mountunitSuite) TestRemoveMountUnit(c *C) {
 		Architectures: []string{"all"},
 	}
 
-	err := backend.AddMountUnit(info, progress.Null)
+	err := backend.AddMountUnit(info, false, progress.Null)
 	c.Assert(err, IsNil)
 
 	// ensure we have the files
