@@ -2115,6 +2115,183 @@ type: kernel`
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 }
 
+func (s *mgrsSuite) TestInstallKernelSnap20UndoUpdatesBootloaderEnv(c *C) {
+	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	// the reboot var we care about for UC20 is kernel_status
+	bloader.RebootStatusVar = "kernel_status"
+
+	// we have revision 1 installed
+	kernel, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
+	c.Assert(err, IsNil)
+	restore := bloader.SetRunKernelImageEnabledKernel(kernel)
+	defer restore()
+
+	restore = release.MockOnClassic(false)
+	defer restore()
+
+	uc20ModelDefaults := map[string]interface{}{
+		"architecture": "amd64",
+		"base":         "core20",
+		"store":        "my-brand-store-id",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              snaptest.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              snaptest.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			}},
+	}
+
+	model := s.brands.Model("my-brand", "my-model", uc20ModelDefaults)
+
+	const packageKernel = `
+name: pc-kernel
+version: 4.0-1
+type: kernel`
+
+	files := [][]string{
+		{"kernel.efi", "I'm a kernel.efi"},
+		{"meta/kernel.yaml", "version: 4.2"},
+	}
+	kernelSnapSideInfo := &snap.SideInfo{RealName: "pc-kernel"}
+	kernelSnapPath, kernelSnapInfo := snaptest.MakeTestSnapInfoWithFiles(c, packageKernel, files, kernelSnapSideInfo)
+
+	// mock the modeenv file
+	m := boot.Modeenv{
+		Mode:           "run",
+		RecoverySystem: "20191127",
+		Base:           "core20_1.snap",
+	}
+	err = m.Write("")
+	c.Assert(err, IsNil)
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	si1 := &snap.SideInfo{RealName: "pc-kernel", Revision: snap.R(1)}
+	snapstate.Set(st, "pc-kernel", &snapstate.SnapState{
+		SnapType: "kernel",
+		Active:   true,
+		Sequence: []*snap.SideInfo{si1},
+		Current:  si1.Revision,
+	})
+	snaptest.MockSnapWithFiles(c, packageKernel, si1, [][]string{
+		{"meta/kernel.yaml", ""},
+	})
+	si2 := &snap.SideInfo{RealName: "core20", Revision: snap.R(1)}
+	snapstate.Set(st, "core20", &snapstate.SnapState{
+		SnapType: "base",
+		Active:   true,
+		Sequence: []*snap.SideInfo{si2},
+		Current:  si2.Revision,
+	})
+
+	// setup model assertion
+	assertstatetest.AddMany(st, s.brands.AccountsAndKeys("my-brand")...)
+	devicestatetest.SetDevice(st, &auth.DeviceState{
+		Brand:  "my-brand",
+		Model:  "my-model",
+		Serial: "serialserialserial",
+	})
+	err = assertstate.Add(st, model)
+	c.Assert(err, IsNil)
+
+	ts, _, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "pc-kernel"}, kernelSnapPath, "", "", snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	terr := st.NewTask("error-trigger", "provoking total undo")
+	terr.WaitFor(ts.Tasks()[len(ts.Tasks())-1])
+	ts.AddTask(terr)
+	chg := st.NewChange("install-snap", "...")
+	chg.AddAll(ts)
+
+	// run, this will trigger a wait for the restart
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(bloader.BootVars, DeepEquals, map[string]string{
+		"kernel_status": boot.TryStatus,
+	})
+
+	// the kernelSnapInfo we mocked earlier will not have a revision set for the
+	// SideInfo, but since the previous revision was "1", the next revision will
+	// be x1 since it's unasserted, so we can set the Revision on the SideInfo
+	// here to make comparison easier
+	kernelSnapInfo.SideInfo.Revision = snap.R(-1)
+
+	// check that we extracted the kernel snap assets
+	extractedKernels := bloader.ExtractKernelAssetsCalls
+	c.Assert(extractedKernels, HasLen, 1)
+	c.Assert(extractedKernels[0].Filename(), Equals, kernelSnapInfo.Filename())
+
+	// and that we enabled the try kernel
+	enabledTryKernels, _ := bloader.GetRunKernelImageFunctionSnapCalls("EnableTryKernel")
+	c.Assert(enabledTryKernels, HasLen, 1)
+	c.Assert(enabledTryKernels[0].Filename(), Equals, kernelSnapInfo.Filename())
+
+	// we won't disable any try kernels nor will we enable any kernels
+	_, nDisableTryKernelCalls := bloader.GetRunKernelImageFunctionSnapCalls("DisableTryKernel")
+	c.Assert(nDisableTryKernelCalls, Equals, 0)
+	_, nEnableKernelCalls := bloader.GetRunKernelImageFunctionSnapCalls("EnableKernel")
+	c.Assert(nEnableKernelCalls, Equals, 0)
+
+	// we are in restarting state and the change is not done yet
+	restarting, _ := st.Restarting()
+	c.Check(restarting, Equals, true)
+	c.Check(chg.Status(), Equals, state.DoingStatus)
+	// pretend we restarted
+	s.mockSuccessfulReboot(c, bloader)
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Status(), Equals, state.ErrorStatus)
+
+	// we should have triggered a reboot to undo the boot changes
+	restarting, _ = st.Restarting()
+	c.Check(restarting, Equals, true)
+
+	// we need to reboot with a "new" try kernel, so kernel_status was set again
+	c.Assert(bloader.BootVars, DeepEquals, map[string]string{
+		"kernel_status": boot.TryStatus,
+	})
+
+	// we should not have extracted any more kernel assets than before, since
+	// the fallback kernel was already extracted
+	extractedKernels = bloader.ExtractKernelAssetsCalls
+	c.Assert(extractedKernels, HasLen, 1) // same as above check
+
+	// we should have enabled a try kernel, which is now the original kernel
+	// snap
+	enabledTryKernels, _ = bloader.GetRunKernelImageFunctionSnapCalls("EnableTryKernel")
+	c.Assert(enabledTryKernels, HasLen, 2) // same as above, but 1 more
+	c.Assert(enabledTryKernels[1].Filename(), Equals, "pc-kernel_1.snap")
+
+	// we should have disabled the try-kernel we just booted and then enabled
+	// a new kernel (which is the original kernel)
+	_, nDisableTryKernelCalls = bloader.GetRunKernelImageFunctionSnapCalls("DisableTryKernel")
+	c.Assert(nDisableTryKernelCalls, Equals, 1)
+
+	// we should have enabled the new kernel, as that technically finished
+	enabledKernels, _ := bloader.GetRunKernelImageFunctionSnapCalls("EnableKernel")
+	c.Assert(enabledKernels, HasLen, 1)
+	c.Assert(enabledKernels[0].Filename(), Equals, kernelSnapInfo.Filename())
+}
+
 func (s *mgrsSuite) installLocalTestSnap(c *C, snapYamlContent string) *snap.Info {
 	st := s.o.State()
 
