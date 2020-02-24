@@ -52,6 +52,14 @@ func MockPruneInterval(prunei, prunew, abortw time.Duration) (restore func()) {
 	}
 }
 
+func MockPruneTicker(f func(t *time.Ticker) <-chan time.Time) (restore func()) {
+	old := pruneTickerC
+	pruneTickerC = f
+	return func() {
+		pruneTickerC = old
+	}
+}
+
 // MockEnsureNext sets o.ensureNext for tests.
 func MockEnsureNext(o *Overlord, t time.Time) {
 	o.ensureNext = t

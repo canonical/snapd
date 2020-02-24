@@ -518,7 +518,7 @@ func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureBeforeOutsideEnsure(c *C) 
 }
 
 func (ovs *overlordSuite) TestEnsureLoopPrune(c *C) {
-	restoreIntv := overlord.MockPruneInterval(200*time.Millisecond, 1000*time.Millisecond, 1000*time.Millisecond)
+	restoreIntv := overlord.MockPruneInterval(5*time.Millisecond, 1000*time.Millisecond, 1000*time.Millisecond)
 	defer restoreIntv()
 	o := overlord.Mock()
 
@@ -578,7 +578,7 @@ func (ovs *overlordSuite) TestEnsureLoopPrune(c *C) {
 }
 
 func (ovs *overlordSuite) TestEnsureLoopPruneRunsMultipleTimes(c *C) {
-	restoreIntv := overlord.MockPruneInterval(100*time.Millisecond, 1000*time.Millisecond, 1*time.Hour)
+	restoreIntv := overlord.MockPruneInterval(1*time.Millisecond, 5*time.Millisecond, 1*time.Hour)
 	defer restoreIntv()
 	o := overlord.Mock()
 
@@ -596,20 +596,23 @@ func (ovs *overlordSuite) TestEnsureLoopPruneRunsMultipleTimes(c *C) {
 	c.Check(st.Changes(), HasLen, 2)
 	st.Unlock()
 
+	w, restoreTicker := fakePruneTicker()
+	defer restoreTicker()
+
 	// start the loop that runs the prune ticker
 	o.Loop()
 
-	// ensure the first change is pruned
-	time.Sleep(1500 * time.Millisecond)
+	time.Sleep(6 * time.Millisecond)
+	w.tick(2)
+
 	st.Lock()
 	c.Check(st.Changes(), HasLen, 1)
-	st.Unlock()
-
-	// ensure the second is also purged after it is ready
-	st.Lock()
 	chg2.SetStatus(state.DoneStatus)
 	st.Unlock()
-	time.Sleep(1500 * time.Millisecond)
+
+	time.Sleep(6 * time.Millisecond)
+	w.tick(2)
+
 	st.Lock()
 	c.Check(st.Changes(), HasLen, 0)
 	st.Unlock()
@@ -620,7 +623,7 @@ func (ovs *overlordSuite) TestEnsureLoopPruneRunsMultipleTimes(c *C) {
 }
 
 func (ovs *overlordSuite) TestOverlordStartUpSetsStartOfOperation(c *C) {
-	restoreIntv := overlord.MockPruneInterval(100*time.Millisecond, 1000*time.Millisecond, 1*time.Hour)
+	restoreIntv := overlord.MockPruneInterval(5*time.Millisecond, 1000*time.Millisecond, 1*time.Hour)
 	defer restoreIntv()
 
 	// use real overlord, we need device manager to be there
@@ -643,7 +646,10 @@ func (ovs *overlordSuite) TestOverlordStartUpSetsStartOfOperation(c *C) {
 }
 
 func (ovs *overlordSuite) TestEnsureLoopPruneDoesntAbortShortlyAfterStartOfOperation(c *C) {
-	restoreIntv := overlord.MockPruneInterval(100*time.Millisecond, 1000*time.Millisecond, 1*time.Hour)
+	w, restoreTicker := fakePruneTicker()
+	defer restoreTicker()
+
+	restoreIntv := overlord.MockPruneInterval(1*time.Millisecond, 1000*time.Millisecond, 1*time.Hour)
 	defer restoreIntv()
 
 	// use real overlord, we need device manager to be there
@@ -682,7 +688,8 @@ func (ovs *overlordSuite) TestEnsureLoopPruneDoesntAbortShortlyAfterStartOfOpera
 
 	// start the loop that runs the prune ticker
 	o.Loop()
-	time.Sleep(1500 * time.Millisecond)
+	w.tick(10)
+
 	c.Assert(o.Stop(), IsNil)
 
 	st.Lock()
@@ -691,8 +698,34 @@ func (ovs *overlordSuite) TestEnsureLoopPruneDoesntAbortShortlyAfterStartOfOpera
 	c.Check(chg.Status(), Equals, state.DoingStatus)
 }
 
+type ticker struct {
+	tickerChannel chan time.Time
+}
+
+func (w *ticker) tick(n int) {
+	for i := 0; i < n; i++ {
+		w.tickerChannel <- time.Time{}
+	}
+}
+
+func fakePruneTicker() (w *ticker, restore func()) {
+	w = &ticker{
+		tickerChannel: make(chan time.Time),
+	}
+	restore = overlord.MockPruneTicker(func(t *time.Ticker) <-chan time.Time {
+		return w.tickerChannel
+	})
+	return w, restore
+}
+
 func (ovs *overlordSuite) TestEnsureLoopPruneAbortsOld(c *C) {
-	restoreIntv := overlord.MockPruneInterval(100*time.Millisecond, 24*time.Hour, 1*time.Hour)
+	restoreEnsureIntv := overlord.MockEnsureInterval(10 * time.Hour)
+	defer restoreEnsureIntv()
+
+	w, restoreTicker := fakePruneTicker()
+	defer restoreTicker()
+
+	restoreIntv := overlord.MockPruneInterval(1*time.Millisecond, 24*time.Hour, 1*time.Hour)
 	defer restoreIntv()
 
 	// use real overlord, we need device manager to be there
@@ -704,8 +737,6 @@ func (ovs *overlordSuite) TestEnsureLoopPruneAbortsOld(c *C) {
 		return &state.Retry{}
 	}, nil)
 
-	markSeeded(o)
-
 	st := o.State()
 	st.Lock()
 
@@ -713,15 +744,11 @@ func (ovs *overlordSuite) TestEnsureLoopPruneAbortsOld(c *C) {
 	opTime := time.Now().AddDate(-1, 0, 0)
 	st.Set("start-of-operation-time", opTime)
 
-	st.Unlock()
-	c.Assert(o.StartUp(), IsNil)
-	st.Lock()
-
 	// spawn time one month ago
 	spawnTime := time.Now().AddDate(0, -1, 0)
 	restoreTimeNow := state.MockTime(spawnTime)
 	t := st.NewTask("bar", "...")
-	chg := st.NewChange("other-change", "...")
+	chg := st.NewChange("foo-change", "...")
 	chg.AddTask(t)
 
 	restoreTimeNow()
@@ -729,10 +756,14 @@ func (ovs *overlordSuite) TestEnsureLoopPruneAbortsOld(c *C) {
 	// sanity
 	c.Check(st.Changes(), HasLen, 1)
 	st.Unlock()
+	markSeeded(o)
+
+	c.Assert(o.StartUp(), IsNil)
 
 	// start the loop that runs the prune ticker
 	o.Loop()
-	time.Sleep(1500 * time.Millisecond)
+	w.tick(10)
+
 	c.Assert(o.Stop(), IsNil)
 
 	st.Lock()
@@ -749,7 +780,10 @@ func (ovs *overlordSuite) TestEnsureLoopPruneAbortsOld(c *C) {
 }
 
 func (ovs *overlordSuite) TestEnsureLoopNoPruneWhenPreseed(c *C) {
-	restoreIntv := overlord.MockPruneInterval(100*time.Millisecond, 1000*time.Millisecond, 1*time.Hour)
+	w, restoreTicker := fakePruneTicker()
+	defer restoreTicker()
+
+	restoreIntv := overlord.MockPruneInterval(1*time.Millisecond, 1000*time.Millisecond, 1*time.Hour)
 	defer restoreIntv()
 
 	restore := release.MockPreseedMode(func() bool { return true })
@@ -783,7 +817,8 @@ func (ovs *overlordSuite) TestEnsureLoopNoPruneWhenPreseed(c *C) {
 	st.Unlock()
 	// start the loop that runs the prune ticker
 	o.Loop()
-	time.Sleep(1500 * time.Millisecond)
+	w.tick(10)
+
 	c.Assert(o.Stop(), IsNil)
 
 	st.Lock()

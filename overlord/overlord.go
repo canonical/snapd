@@ -68,6 +68,10 @@ var (
 	configstateInit = configstate.Init
 )
 
+var pruneTickerC = func(t *time.Ticker) <-chan time.Time {
+	return t.C
+}
+
 // Overlord is the central manager of a snappy system, keeping
 // track of all available state managers and related helpers.
 type Overlord struct {
@@ -414,11 +418,12 @@ func (o *Overlord) Loop() {
 			// continue to the next Ensure() try for now
 			o.stateEng.Ensure()
 			o.ensureDidRun()
+			pruneC := pruneTickerC(o.pruneTicker)
 			select {
 			case <-o.loopTomb.Dying():
 				return nil
 			case <-o.ensureTimer.C:
-			case <-o.pruneTicker.C:
+			case <-pruneC:
 				if preseed {
 					// in preseed mode avoid setting StartOfOperationTime (it's
 					// an error), and don't Prune.
