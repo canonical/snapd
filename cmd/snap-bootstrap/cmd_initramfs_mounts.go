@@ -300,11 +300,13 @@ func generateMountsModeRun() error {
 			// check for the try kernel
 			tryKernel, tryKernelExists, err := ebl.TryKernel()
 			// TODO:UC20: can we log somewhere if err != nil here?
-			// TODO:UC20: can we log somewhere if this kernel snap isn't in the
-			//            list of trusted kernel snaps?
-			tryKernelFile := tryKernel.Filename()
-			if tryKernelExists && err == nil && validKernels[tryKernelFile] {
-				kernelFile = tryKernelFile
+			if tryKernelExists && err == nil {
+				// TODO:UC20: can we log somewhere if this kernel snap isn't in the
+				//            list of trusted kernel snaps?
+				tryKernelFile := tryKernel.Filename()
+				if validKernels[tryKernelFile] {
+					kernelFile = tryKernelFile
+				}
 			}
 			// if we didn't have a try kernel, but we do have kernel_status ==
 			// trying we just fallback to using the normal kernel
