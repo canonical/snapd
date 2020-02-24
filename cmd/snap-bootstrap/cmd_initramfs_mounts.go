@@ -300,7 +300,7 @@ func generateMountsModeRun() error {
 			// check for the try kernel
 			tryKernel, tryKernelExists, err := ebl.TryKernel()
 			// TODO:UC20: can we log somewhere if err != nil here?
-			if tryKernelExists && err == nil {
+			if err == nil && tryKernelExists {
 				// TODO:UC20: can we log somewhere if this kernel snap isn't in the
 				//            list of trusted kernel snaps?
 				tryKernelFile := tryKernel.Filename()
