@@ -2,7 +2,6 @@ summary: /var/lib/dhcp is shared with host
 prepare: |
     snap pack test-snapd-app
     snap install --dangerous ./test-snapd-app_1_all.snap
-    snap disconnect test-snapd-app:network-control
     if [ -d /var/lib/dhcp ]; then
         touch /var/lib/dhcp/.canary
     fi
