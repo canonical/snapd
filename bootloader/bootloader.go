@@ -31,7 +31,7 @@ import (
 )
 
 var (
-	// ErrBootloader is returned if the bootloader can not be determined
+	// ErrBootloader is returned if the bootloader can not be determined.
 	ErrBootloader = errors.New("cannot determine bootloader")
 )
 
@@ -55,18 +55,18 @@ type Options struct {
 }
 
 // Bootloader provides an interface to interact with the system
-// bootloader
+// bootloader.
 type Bootloader interface {
-	// Return the value of the specified bootloader variable
+	// Return the value of the specified bootloader variable.
 	GetBootVars(names ...string) (map[string]string, error)
 
-	// Set the value of the specified bootloader variable
+	// Set the value of the specified bootloader variable.
 	SetBootVars(values map[string]string) error
 
-	// Name returns the bootloader name
+	// Name returns the bootloader name.
 	Name() string
 
-	// ConfigFile returns the name of the config file
+	// ConfigFile returns the name of the config file.
 	ConfigFile() string
 
 	// InstallBootConfig will try to install the boot config in the
