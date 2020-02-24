@@ -95,13 +95,42 @@ type RecoveryAwareBootloader interface {
 	SetRecoverySystemEnv(recoverySystemDir string, values map[string]string) error
 }
 
+// ExtractedRunKernelImageBootloader is a Bootloader that also supports specific
+// methods needed to setup booting from an extracted kernel, which is needed to
+// implement encryption and/or secure boot. Prototypical implementation is UC20
+// grub implementation with FDE.
 type ExtractedRunKernelImageBootloader interface {
 	Bootloader
-	EnableKernel(snap.PlaceInfo) error    // makes the symlink
-	EnableTryKernel(snap.PlaceInfo) error // makes the symlink
-	Kernel() (snap.PlaceInfo, error)      // gives the symlink
-	TryKernel() (snap.PlaceInfo, error)   // gives the symlink (if exists)
-	DisableTryKernel() error              // removes the symlink
+
+	// EnableKernel enables the specified kernel on ubuntu-boot to be used
+	// during normal boots. The specified snap should already have been
+	// extracted.
+	EnableKernel(snap.PlaceInfo) error
+
+	// EnableTryKernel enables the specified kernel on ubuntu-boot to be tried
+	// by the bootloader on a reboot, to be used in conjunction with setting
+	// "kernel_status" to "try". This is usually be implemented with a
+	// "try-kernel.efi" symlink pointing to the extracted kernel image.
+	// The specified kernel should already have been extracted.
+	EnableTryKernel(snap.PlaceInfo) error
+
+	// Kernel returns the current enabled kernel on the bootloader, not
+	// necessarily the kernel that was used to boot the current session, but the
+	// kernel that is enabled to boot on "normal" boots.
+	// If error is not nil, the first argument shall be non-nil.
+	Kernel() (snap.PlaceInfo, error)
+
+	// TryKernel returns the current enabled try-kernel on the bootloader, if
+	// there is no such enabled try-kernel, then ErrNoTryKernelRef is returned.
+	// If error is not nil, the first argument shall be non-nil.
+	TryKernel() (snap.PlaceInfo, error)
+
+	// DisableTryKernel disables the current enabled try-kernel on the
+	// bootloader, if it exists. It does not need to return an error if the
+	// enabled try-kernel does not exist or is in an inconsistent state before
+	// disabling it, errors should only be returned when the implementation
+	// fails to disable the try-kernel.
+	DisableTryKernel() error
 }
 
 func genericInstallBootConfig(gadgetFile, systemFile string) (bool, error) {
