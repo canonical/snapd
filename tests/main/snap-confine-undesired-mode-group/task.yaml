@@ -7,9 +7,6 @@ prepare: |
     snap install --dangerous ./test-snapd-app_1.0_all.snap
     snap connect test-snapd-app:opengl
     snap connect test-snapd-app:joystick
-    # Remove any stale temp file left over by other runs.
-    # TODO: move this to generic restore code.
-    rm -rf /tmp/snap.*
 execute: |
     # Run the snap as a non-root user.
     su test -c 'snap run test-snapd-app.sh -c /bin/true'
