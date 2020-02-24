@@ -60,6 +60,7 @@ type MockBootloader struct {
 
 // ensure MockBootloader implements the Bootloader interface
 var _ bootloader.Bootloader = (*MockBootloader)(nil)
+var _ bootloader.ExtractedRunKernelImageBootloader = (*MockBootloader)(nil)
 
 func Mock(name, bootdir string) *MockBootloader {
 	return &MockBootloader{
