@@ -40,7 +40,7 @@ execute: |
             test-snapd-app.sh -c 'test ! -f /var/lib/dhcp/.canary'
         fi
     else
-        # Variant 3) The host is not a core16 system.
+        # Variant 3) The host is a core16 system.
         # Directory is always, effectively, bind mounted.
         # Writing permission depends on interface connection.
         touch /var/lib/dhcp/.canary
