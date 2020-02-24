@@ -619,6 +619,7 @@ var (
 		"network-status":          {"app"},
 		"ofono":                   {"app", "core"},
 		"online-accounts-service": {"app"},
+		"power-control":           {"core"},
 		"ppp":         {"core"},
 		"pulseaudio":  {"app", "core"},
 		"raw-volume":  {"core", "gadget"},
