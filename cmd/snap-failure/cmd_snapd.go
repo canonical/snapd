@@ -134,7 +134,7 @@ func (c *cmdSnapd) Execute(args []string) error {
 
 	logger.Noticef("restarting snapd socket")
 	// we need to reset the failure state to be able to restart again
-	resetCmd := exec.Command("systemctl", "reset-failed", "snapd.socket")
+	resetCmd := exec.Command("systemctl", "reset-failed", "snapd.socket", "snapd")
 	resetCmd.Env = os.Environ()
 	resetCmd.Stdout = Stdout
 	resetCmd.Stderr = Stderr
