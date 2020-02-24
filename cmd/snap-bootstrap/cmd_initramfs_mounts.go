@@ -309,21 +309,23 @@ func generateMountsModeRun() error {
 		}
 
 		if !isSnapdMounted {
+			// TODO:UC20: refactor to combine this code with the install mode
+			// bit in generateMountsModeInstall
 			// load the recovery system  and generate mounts for kernel/base
 			systemSeed, err := seed.Open(seedDir, modeEnv.RecoverySystem)
 			if err != nil {
-				return fmt.Errorf("cannot open seed: %v", err)
+				return err
 			}
 			// load assertions into a temporary database
 			if err := systemSeed.LoadAssertions(nil, nil); err != nil {
-				return fmt.Errorf("cannot load assertions from seed %s: %v", modeEnv.RecoverySystem, err)
+				return err
 			}
 			perf := timings.New(nil)
 			// TODO:UC20: LoadMeta will verify all the snaps in the
 			// seed, that is probably too much. We can expose more
 			// dedicated helpers for this later.
 			if err := systemSeed.LoadMeta(perf); err != nil {
-				return fmt.Errorf("cannot load metadata from seed %s: %v", modeEnv.RecoverySystem, err)
+				return err
 			}
 			// TODO:UC20: do we need more cross checks here?
 			snapdSnapPath := ""
