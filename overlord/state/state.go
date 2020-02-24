@@ -283,7 +283,7 @@ func (s *State) Restarting() (bool, RestartType) {
 
 var ErrExpectedReboot = errors.New("expected reboot did not happen")
 
-// VerifyReboot checks if the state rembers that a system restart was
+// VerifyReboot checks if the state remembers that a system restart was
 // requested and whether it succeeded based on the provided current
 // boot id.  It returns ErrExpectedReboot if the expected reboot did
 // not happen yet.  It must be called early in the usage of state and
