@@ -9,7 +9,6 @@ ConditionKernelCommandLine=snapd_recovery_mode
 Type=oneshot
 ExecStart=@libexecdir@/snapd/snap-bootstrap recovery-chooser-trigger
 RemainAfterExit=true
-Restart=on-failure
 
 [Install]
 WantedBy=multi-user.target
