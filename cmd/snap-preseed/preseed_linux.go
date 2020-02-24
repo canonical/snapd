@@ -85,6 +85,14 @@ var systemSnapFromSeed = func(rootDir string) (string, error) {
 		return "", err
 	}
 
+	model, err := seed.Model()
+	if err != nil {
+		return "", err
+	}
+	if !model.Classic() {
+		return "", fmt.Errorf("preseeding is only supported on classic systems")
+	}
+
 	var required string
 	if seed.UsesSnapdSnap() {
 		required = "snapd"
