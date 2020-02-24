@@ -25,6 +25,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/jessevdk/go-flags"
+
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
@@ -40,9 +42,11 @@ func init() {
 		long  = "Generate mount tuples for the initramfs until nothing more can be done"
 	)
 
-	if _, err := parser.AddCommand("initramfs-mounts", short, long, &cmdInitramfsMounts{}); err != nil {
-		panic(err)
-	}
+	addCommandBuilder(func(parser *flags.Parser) {
+		if _, err := parser.AddCommand("initramfs-mounts", short, long, &cmdInitramfsMounts{}); err != nil {
+			panic(err)
+		}
+	})
 
 	snap.SanitizePlugsSlots = func(*snap.Info) {}
 }
