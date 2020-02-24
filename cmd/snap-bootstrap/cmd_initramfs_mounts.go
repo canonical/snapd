@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
@@ -229,15 +230,19 @@ func generateMountsModeRun() error {
 					// snap
 					modeEnv.BaseStatus = boot.TryingStatus
 					base = modeEnv.TryBase
+				} else {
+					logger.Noticef("try-base snap %q does not exist", modeEnv.TryBase)
 				}
-				// TODO:UC20: log a message somewhere if try base snap does not
-				//            exist?
+			} else {
+				logger.Noticef("try-base snap is empty, but \"base_status\" is \"trying\"")
 			}
 			// TODO:UC20: log a message if try_base is unset here?
 		} else if modeEnv.BaseStatus == boot.TryingStatus {
 			// snapd failed to start with the base snap update, so we need to
 			// fallback to the old base snap and clear base_status
 			modeEnv.BaseStatus = boot.DefaultStatus
+		} else if modeEnv.BaseStatus != boot.DefaultStatus {
+			logger.Noticef("\"base_status\" has an invalid setting: %q", modeEnv.BaseStatus)
 		}
 
 		baseSnapPath := filepath.Join(dataDir, "system-data", dirs.SnapBlobDir, base)
@@ -299,14 +304,15 @@ func generateMountsModeRun() error {
 		if m["kernel_status"] == boot.TryingStatus {
 			// check for the try kernel
 			tryKernel, err := ebl.TryKernel()
-			// TODO:UC20: can we log somewhere if err != nil here?
 			if err == nil {
-				// TODO:UC20: can we log somewhere if this kernel snap isn't in the
-				//            list of trusted kernel snaps?
 				tryKernelFile := tryKernel.Filename()
 				if validKernels[tryKernelFile] {
 					kernelFile = tryKernelFile
+				} else {
+					logger.Noticef("try-kernel %q is not trusted in the modeenv", tryKernelFile)
 				}
+			} else if err != bootloader.ErrNoTryKernelRef {
+				logger.Noticef("missing try-kernel, even though \"kernel_status\" is \"trying\"")
 			}
 			// if we didn't have a try kernel, but we do have kernel_status ==
 			// trying we just fallback to using the normal kernel
