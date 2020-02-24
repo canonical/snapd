@@ -32,7 +32,7 @@ const (
 	// Handles are in the block reserved for owner objects (0x01800000 - 0x01bfffff)
 	pinHandle = 0x01800000
 
-	runCmdline = "console=ttyS0 console=tty1 panic=-1 systemd.gpt_auto=0 snapd_recovery_mode=run"
+	runCmdline = "console=ttyS0 console=tty1 panic=-1 systemd.gpt_auto=0 init=/sbin/init snapd_recovery_mode=run"
 )
 
 var (
