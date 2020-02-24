@@ -33,6 +33,10 @@ import (
 var (
 	// ErrBootloader is returned if the bootloader can not be determined.
 	ErrBootloader = errors.New("cannot determine bootloader")
+
+	// ErrNoTryKernelRef is returned if the bootloader cannot find an enabled
+	// try-kernel.
+	ErrNoTryKernelRef = errors.New("cannot find try-kernel")
 )
 
 // Options carries bootloader options.
@@ -93,11 +97,11 @@ type RecoveryAwareBootloader interface {
 
 type ExtractedRunKernelImageBootloader interface {
 	Bootloader
-	EnableKernel(snap.PlaceInfo) error        // makes the symlink
-	EnableTryKernel(snap.PlaceInfo) error     // makes the symlink
-	Kernel() (snap.PlaceInfo, error)          // gives the symlink
-	TryKernel() (snap.PlaceInfo, bool, error) // gives the symlink (if exists)
-	DisableTryKernel() error                  // removes the symlink
+	EnableKernel(snap.PlaceInfo) error    // makes the symlink
+	EnableTryKernel(snap.PlaceInfo) error // makes the symlink
+	Kernel() (snap.PlaceInfo, error)      // gives the symlink
+	TryKernel() (snap.PlaceInfo, error)   // gives the symlink (if exists)
+	DisableTryKernel() error              // removes the symlink
 }
 
 func genericInstallBootConfig(gadgetFile, systemFile string) (bool, error) {

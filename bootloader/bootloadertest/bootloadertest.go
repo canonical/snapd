@@ -250,16 +250,16 @@ func (b *MockBootloader) Kernel() (snap.PlaceInfo, error) {
 
 // TryKernel returns the current kernel set in the bootloader; part of
 // ExtractedRunKernelImageBootloader.
-func (b *MockBootloader) TryKernel() (snap.PlaceInfo, bool, error) {
+func (b *MockBootloader) TryKernel() (snap.PlaceInfo, error) {
 	b.runKernelImageMockedNumCalls["TryKernel"]++
 	err := b.runKernelImageMockedErrs["TryKernel"]
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 	if b.runKernelImageEnabledTryKernel == nil {
-		return nil, false, nil
+		return nil, bootloader.ErrNoTryKernelRef
 	}
-	return b.runKernelImageEnabledTryKernel, true, nil
+	return b.runKernelImageEnabledTryKernel, nil
 }
 
 // DisableTryKernel removes the current try-kernel "symlink" set in the
