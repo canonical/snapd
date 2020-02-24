@@ -94,6 +94,19 @@ func allowedSetting(setting string) bool {
 	return snap.ValidAppName(base)
 }
 
+func settingWithSub(setting string, subproperty string) string {
+	return fmt.Sprintf("%s/%s", setting, subproperty)
+}
+
+func settingForLog(setting string) string {
+	settingParts := strings.SplitN(string(setting), "/", 2)
+	if len(settingParts) > 1 {
+		return fmt.Sprintf("%q subproperty %q", settingParts[0], settingParts[1])
+	} else {
+		return fmt.Sprintf("%q", settingParts[0])
+	}
+}
+
 func settingWhitelisted(setting string) *dbus.Error {
 	// Trim off any subproperty from the check
 	settingTrimmed := strings.SplitN(string(setting), "/", 2)[0]
@@ -124,7 +137,7 @@ func desktopFile(s *Settings, command string, setting string, desktopValue strin
 	}
 
 	if !allowedSetting(desktopValue) {
-		return "", dbus.MakeFailedError(fmt.Errorf("cannot %q setting %q to value %q: value not allowed", command, setting, desktopValue))
+		return "", dbus.MakeFailedError(fmt.Errorf("cannot %q setting %s to value %q: value not allowed", command, settingForLog(setting), desktopValue))
 	}
 
 	// FIXME: this works only for desktop files
@@ -171,7 +184,7 @@ func setDialog(s *Settings, setting string, desktopFile string, sender dbus.Send
 
 	answeredYes := dialog.YesNo(
 		i18n.G("Allow settings change?"),
-		fmt.Sprintf(i18n.G("Allow snap %q to change %q to %q ?"), snap, setting, desktopFile),
+		fmt.Sprintf(i18n.G("Allow snap %q to change %s to %q ?"), snap, settingForLog(setting), desktopFile),
 		&ui.DialogOptions{
 			Timeout: defaultConfirmDialogTimeout,
 			Footer:  i18n.G("This dialog will close automatically after 5 minutes of inactivity."),
@@ -186,7 +199,7 @@ func setDialog(s *Settings, setting string, desktopFile string, sender dbus.Send
 func checkOutput(cmd *exec.Cmd, command string, setting string) (string, *dbus.Error) {
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return "", dbus.MakeFailedError(fmt.Errorf("cannot %s setting %s: %s", command, setting, osutil.OutputErr(output, err)))
+		return "", dbus.MakeFailedError(fmt.Errorf("cannot %q setting %s: %q", command, settingForLog(setting), osutil.OutputErr(output, err)))
 	}
 	return string(output), nil
 }
@@ -241,14 +254,14 @@ func (s *Settings) Check(setting string, check string, sender dbus.Sender) (stri
 //
 // Example usage: dbus-send --session --dest=io.snapcraft.Settings --type=method_call --print-reply /io/snapcraft/Settings io.snapcraft.Settings.CheckSub string:'default-url-scheme-handler' string:'irc' string:'ircclient.desktop'
 func (s *Settings) CheckSub(setting string, subproperty string, check string, sender dbus.Sender) (string, *dbus.Error) {
-	settingWithSub := fmt.Sprintf("%s/%s", setting, subproperty)
-	desktopFile, err := desktopFile(s, "check", settingWithSub, check, sender)
+	settingSub := settingWithSub(setting, subproperty)
+	desktopFile, err := desktopFile(s, "check", settingSub, check, sender)
 	if err != nil {
 		return "", err
 	}
 
 	cmd := exec.Command("xdg-settings", "check", setting, subproperty, desktopFile)
-	output, err := checkOutput(cmd, "check", settingWithSub)
+	output, err := checkOutput(cmd, "check", settingSub)
 	if err != nil {
 		return "", err
 	}
@@ -279,13 +292,13 @@ func (s *Settings) Get(setting string, sender dbus.Sender) (string, *dbus.Error)
 //
 // Example usage: dbus-send --session --dest=io.snapcraft.Settings --type=method_call --print-reply /io/snapcraft/Settings io.snapcraft.Settings.GetSub string:'default-url-scheme-handler' string:'irc'
 func (s *Settings) GetSub(setting string, subproperty string, sender dbus.Sender) (string, *dbus.Error) {
-	settingWithSub := fmt.Sprintf("%s/%s", setting, subproperty)
-	if err := settingWhitelisted(settingWithSub); err != nil {
+	settingSub := settingWithSub(setting, subproperty)
+	if err := settingWhitelisted(settingSub); err != nil {
 		return "", err
 	}
 
 	cmd := exec.Command("xdg-settings", "get", setting, subproperty)
-	output, err := checkOutput(cmd, "get", settingWithSub)
+	output, err := checkOutput(cmd, "get", settingSub)
 	if err != nil {
 		return "", err
 	}
@@ -320,18 +333,18 @@ func (s *Settings) Set(setting string, new string, sender dbus.Sender) *dbus.Err
 //
 // Example usage: dbus-send --session --dest=io.snapcraft.Settings --type=method_call --print-reply /io/snapcraft/Settings io.snapcraft.Settings.SetSub string:'default-url-scheme-handler' string:'irc' string:'ircclient.desktop'
 func (s *Settings) SetSub(setting string, subproperty string, new string, sender dbus.Sender) *dbus.Error {
-	settingWithSub := fmt.Sprintf("%s/%s", setting, subproperty)
-	desktopFile, err := desktopFile(s, "set", settingWithSub, new, sender)
+	settingSub := settingWithSub(setting, subproperty)
+	desktopFile, err := desktopFile(s, "set", settingSub, new, sender)
 	if err != nil {
 		return err
 	}
 
-	if err := setDialog(s, settingWithSub, desktopFile, sender); err != nil {
+	if err := setDialog(s, settingSub, desktopFile, sender); err != nil {
 		return err
 	}
 
 	cmd := exec.Command("xdg-settings", "set", setting, subproperty, desktopFile)
-	if _, err := checkOutput(cmd, "set", settingWithSub); err != nil {
+	if _, err := checkOutput(cmd, "set", settingSub); err != nil {
 		return err
 	}
 

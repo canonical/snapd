@@ -28,6 +28,7 @@ case "$1" in
         fi
         ;;
     *)
-        echo "unknown action $*"
+        >&2 echo "unknown action $*"
         exit 1
+        ;;
 esac
