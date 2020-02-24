@@ -106,7 +106,6 @@ func (e *evdevKeyboardInputDevice) WaitForTrigger(ch chan keyEvent) {
 		// looks like the key is pressed initially, we don't know when
 		// that happened, but prentend got pressed now
 		logger.Noticef("%s: key is already down", e)
-		// XXX: consider shortening the hold time?
 	}
 
 	type evdevEvent struct {
@@ -157,16 +156,31 @@ Loop:
 			kev := ev.kev
 			switch kev.State {
 			case evdev.KeyDown:
+				if holdState {
+					// unexpected, but possible if we missed
+					// a key up event right after checking
+					// the initial keyboard state when the
+					// key was still down
+					if !holdTimer.Stop() {
+						// drain the channel before the
+						// timer gets reset
+						<-holdTimer.C
+					}
+				}
 				holdState = true
+				// timer is stopped at this point
 				holdTimer.Reset(holdToTrigger)
 				logger.Noticef("%s: trigger key down", e)
 			case evdev.KeyHold:
 				if !holdState {
 					holdState = true
+					// timer is not running yet at this point
 					holdTimer.Reset(holdToTrigger)
 					logger.Noticef("%s: unexpected hold without down", e)
 				}
 			case evdev.KeyUp:
+				// no need to drain the channel, if it expired,
+				// we'll handle it in next iteration
 				holdTimer.Stop()
 				holdState = false
 				logger.Noticef("%s: trigger key up", e)
@@ -195,7 +209,8 @@ func (e *evdevInput) FindMatchingDevices(filter triggerEventFilter) ([]triggerDe
 		return nil, fmt.Errorf("cannot list input devices: %v", err)
 	}
 
-	// XXX: this is set up to support key input only
+	// XXX: support key input devices only
+
 	kc, ok := strToKey[filter.Key]
 	if !ok {
 		return nil, fmt.Errorf("cannot find a key matching the filter %q", filter.Key)
