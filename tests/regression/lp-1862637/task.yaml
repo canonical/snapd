@@ -37,6 +37,7 @@ execute: |
             test-snapd-app.sh -c 'test ! -f /var/lib/dhcp/.canary'
 
             snap disconnect test-snapd-app:network-control
+            not test-snapd-app.sh -c 'echo bye > /var/lib/dhcp/.canary'
             test-snapd-app.sh -c 'test ! -f /var/lib/dhcp/.canary'
         fi
     else
