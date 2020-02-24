@@ -290,6 +290,7 @@ var networkControlConnectedPlugMount = []osutil.MountEntry{{
 	Options: []string{"bind", "rw", osutil.XSnapdIgnoreMissing()},
 }}
 
+// TODO: Add a layer that derives this sort of data from mount entry like the one above.
 var networkControlConnectedPlugUpdateNSAppArmor = `
 /var/ r,
 /var/lib/ r,
