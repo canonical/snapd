@@ -218,7 +218,7 @@ func generateMountsModeRun() error {
 			// we have no fallback base!
 			return fmt.Errorf("modeenv corrupt: missing base setting")
 		}
-		if modeEnv.BaseStatus == "try" {
+		if modeEnv.BaseStatus == boot.TryStatus {
 			// then we are trying a base snap update and there should be a
 			// try_base set in the modeenv too
 			if modeEnv.TryBase != "" {
@@ -227,17 +227,17 @@ func generateMountsModeRun() error {
 				if osutil.FileExists(tryBaseSnapPath) {
 					// set the TryBase and have the initramfs mount this base
 					// snap
-					modeEnv.BaseStatus = "trying"
+					modeEnv.BaseStatus = boot.TryingStatus
 					base = modeEnv.TryBase
 				}
 				// TODO:UC20: log a message somewhere if try base snap does not
 				//            exist?
 			}
 			// TODO:UC20: log a message if try_base is unset here?
-		} else if modeEnv.BaseStatus == "trying" {
+		} else if modeEnv.BaseStatus == boot.TryingStatus {
 			// snapd failed to start with the base snap update, so we need to
 			// fallback to the old base snap and clear base_status
-			modeEnv.BaseStatus = ""
+			modeEnv.BaseStatus = boot.DefaultStatus
 		}
 
 		baseSnapPath := filepath.Join(dataDir, "system-data", dirs.SnapBlobDir, base)
@@ -296,7 +296,7 @@ func generateMountsModeRun() error {
 			return fmt.Errorf("cannot get kernel_status from bootloader %s", ebl.Name())
 		}
 
-		if m["kernel_status"] == "trying" {
+		if m["kernel_status"] == boot.TryingStatus {
 			// check for the try kernel
 			tryKernel, err := ebl.TryKernel()
 			// TODO:UC20: can we log somewhere if err != nil here?
