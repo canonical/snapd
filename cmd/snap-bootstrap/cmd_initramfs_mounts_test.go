@@ -679,7 +679,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUntrustedKernelSnap(c *
 	r := bloader.SetRunKernelImageEnabledKernel(kernel)
 	defer r()
 
-	_, err = main.Parser.ParseArgs([]string{"initramfs-mounts"})
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, ErrorMatches, fmt.Sprintf("fallback kernel snap %q is not trusted in the modeenv", "pc-kernel_2.snap"))
 	c.Assert(n, Equals, 5)
 }
@@ -736,7 +736,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUntrustedTryKernelSnapF
 	r = bloader.SetRunKernelImageEnabledKernel(kernel1)
 	defer r()
 
-	_, err = main.Parser.ParseArgs([]string{"initramfs-mounts"})
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 
 	// TODO:UC20: if we have somewhere to log errors from snap-bootstrap during
 	// the initramfs, check that log here
