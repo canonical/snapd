@@ -1184,7 +1184,7 @@ func (s *linkSnapSuite) TestUndoLinkSnapdNthInstall(c *C) {
 	c.Check(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Check(s.fakeBackend.ops, DeepEquals, expected)
 
-	// 1 restarts, one from link snap, the other restart happens
+	// 1 restart from link snap, the other restart happens
 	// in undoUnlinkCurrentSnap (not tested here)
 	c.Check(s.stateBackend.restartRequested, DeepEquals, []state.RestartType{state.RestartDaemon})
 	c.Check(t.Log(), HasLen, 2)
