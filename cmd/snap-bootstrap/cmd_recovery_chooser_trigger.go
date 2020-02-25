@@ -89,7 +89,7 @@ func (c *cmdRecoveryChooserTrigger) Execute(args []string) error {
 	err = triggerwatchWait(timeout)
 	if err != nil {
 		if err == triggerwatch.ErrTriggerNotDetected {
-			logger.Noticef("trigger no detected")
+			logger.Noticef("trigger not detected")
 			return nil
 		}
 		return err

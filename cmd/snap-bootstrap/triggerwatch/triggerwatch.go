@@ -68,9 +68,9 @@ func Wait(timeout time.Duration) error {
 	// wait for a couple of second for the key
 	detectKeyCh := make(chan keyEvent, len(devices))
 
-	for _, kbd := range devices {
-		go kbd.WaitForTrigger(detectKeyCh)
-		defer kbd.Close()
+	for _, dev := range devices {
+		go dev.WaitForTrigger(detectKeyCh)
+		defer dev.Close()
 	}
 
 	select {

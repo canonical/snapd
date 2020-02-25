@@ -98,13 +98,13 @@ func (e *evdevKeyboardInputDevice) WaitForTrigger(ch chan keyEvent) {
 	// but the wrapper is passing is passing (repeat, delay)
 	// https://github.com/gvalkov/golang-evdev/blob/287e62b94bcb850ab42e711bd74b2875da83af2c/device.go#L226-L230
 
-	holdState, err := e.probeKeyState()
+	keyDown, err := e.probeKeyState()
 	if err != nil {
 		ch <- keyEvent{Err: fmt.Errorf("cannot obtain initial key state: %v", err), Dev: e}
 	}
-	if holdState {
+	if keyDown {
 		// looks like the key is pressed initially, we don't know when
-		// that happened, but prentend got pressed now
+		// that happened, but pretend it happened just now
 		logger.Noticef("%s: key is already down", e)
 	}
 
@@ -140,10 +140,12 @@ func (e *evdevKeyboardInputDevice) WaitForTrigger(ch chan keyEvent) {
 	// no sense to keep it running later either
 	defer holdTimer.Stop()
 
-	if !holdState {
+	if !keyDown {
 		// key isn't held yet, stop the timer
 		holdTimer.Stop()
 	}
+
+	// invariant: tholdTimer is running iff keyDown is true, otherwise is stopped
 Loop:
 	for {
 		select {
@@ -156,7 +158,7 @@ Loop:
 			kev := ev.kev
 			switch kev.State {
 			case evdev.KeyDown:
-				if holdState {
+				if keyDown {
 					// unexpected, but possible if we missed
 					// a key up event right after checking
 					// the initial keyboard state when the
@@ -167,13 +169,13 @@ Loop:
 						<-holdTimer.C
 					}
 				}
-				holdState = true
+				keyDown = true
 				// timer is stopped at this point
 				holdTimer.Reset(holdToTrigger)
 				logger.Noticef("%s: trigger key down", e)
 			case evdev.KeyHold:
-				if !holdState {
-					holdState = true
+				if !keyDown {
+					keyDown = true
 					// timer is not running yet at this point
 					holdTimer.Reset(holdToTrigger)
 					logger.Noticef("%s: unexpected hold without down", e)
@@ -182,7 +184,7 @@ Loop:
 				// no need to drain the channel, if it expired,
 				// we'll handle it in next iteration
 				holdTimer.Stop()
-				holdState = false
+				keyDown = false
 				logger.Noticef("%s: trigger key up", e)
 			}
 		case <-holdTimer.C:
@@ -209,7 +211,7 @@ func (e *evdevInput) FindMatchingDevices(filter triggerEventFilter) ([]triggerDe
 		return nil, fmt.Errorf("cannot list input devices: %v", err)
 	}
 
-	// XXX: support key input devices only
+	// NOTE: this supports so far only key input devices
 
 	kc, ok := strToKey[filter.Key]
 	if !ok {
