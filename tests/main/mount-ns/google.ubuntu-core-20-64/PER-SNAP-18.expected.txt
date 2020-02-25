@@ -86,7 +86,8 @@
 -2:-35 /usr/share/gdb/auto-load /usr/share/gdb/auto-load ro,nodev,relatime master:36 - squashfs /dev/loop2 ro
 +2:+36 / /usr/share/gdb/test rw,relatime - tmpfs tmpfs rw
 -2:-38 /usr/src /usr/src ro,relatime master:1 - squashfs /dev/loop0 ro
-+1:+1 /system-data/var/lib/extrausers /var/lib/extrausers rw,relatime master:+12 - ext4 /dev/sda4 rw
++1:+1 /system-data/var/lib/dhcp /var/lib/dhcp rw,relatime master:+12 - ext4 /dev/sda4 rw
++0:+0 /system-data/var/lib/extrausers /var/lib/extrausers rw,relatime master:+0 - ext4 /dev/sda4 rw
 +0:+0 /system-data/var/lib/snapd /var/lib/snapd rw,relatime master:+0 - ext4 /dev/sda4 rw
 -1:-1 / /var/lib/snapd/hostfs ro,relatime master:-12 - squashfs /dev/loop0 ro
 +1:+1 /system-data/var/lib/snapd/hostfs /var/lib/snapd/hostfs rw,relatime - ext4 /dev/sda4 rw
