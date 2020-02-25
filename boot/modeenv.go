@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/mvo5/goconfigparser"
 
@@ -39,9 +40,7 @@ type Modeenv struct {
 	Base           string
 	TryBase        string
 	BaseStatus     string
-	// TODO:UC20: instead of setting what the kernel is from the modeenv, we
-	//            should have a list of "valid" kernel snaps that could have
-	//            booted
+	CurrentKernels []string
 
 	// read is set to true when a modenv was read successfully
 	read bool
@@ -85,12 +84,28 @@ func readModeenvImpl(rootdir string) (*Modeenv, error) {
 	base, _ := cfg.Get("", "base")
 	baseStatus, _ := cfg.Get("", "base_status")
 	tryBase, _ := cfg.Get("", "try_base")
+
+	// current_kernels is a comma-delimited list in a string
+	kernelsString, _ := cfg.Get("", "current_kernels")
+	var kernels []string
+	if kernelsString != "" {
+		kernels = strings.Split(kernelsString, ",")
+		// drop empty strings
+		nonEmptyKernels := make([]string, 0, len(kernels))
+		for _, kernel := range kernels {
+			if kernel != "" {
+				nonEmptyKernels = append(nonEmptyKernels, kernel)
+			}
+		}
+		kernels = nonEmptyKernels
+	}
 	return &Modeenv{
 		Mode:           mode,
 		RecoverySystem: recoverySystem,
 		Base:           base,
 		TryBase:        tryBase,
 		BaseStatus:     baseStatus,
+		CurrentKernels: kernels,
 		read:           true,
 	}, nil
 }
@@ -122,6 +137,9 @@ func (m *Modeenv) Write(rootdir string) error {
 	}
 	if m.BaseStatus != "" {
 		fmt.Fprintf(buf, "base_status=%s\n", m.BaseStatus)
+	}
+	if len(m.CurrentKernels) != 0 {
+		fmt.Fprintf(buf, "current_kernels=%s\n", strings.Join(m.CurrentKernels, ","))
 	}
 
 	if err := osutil.AtomicWriteFile(modeenvPath, buf.Bytes(), 0644, 0); err != nil {

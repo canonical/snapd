@@ -70,6 +70,14 @@ func MockMaxTentatives(max int) (restore func()) {
 	}
 }
 
+func MockTimeNow(f func() time.Time) (restore func()) {
+	old := timeNow
+	timeNow = f
+	return func() {
+		timeNow = old
+	}
+}
+
 func KeypairManager(m *DeviceManager) asserts.KeypairManager {
 	return m.keypairMgr
 }

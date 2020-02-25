@@ -30,9 +30,10 @@ import (
 // MockBootloader mocks the bootloader interface and records all
 // set/get calls.
 type MockBootloader struct {
-	BootVars map[string]string
-	SetErr   error
-	GetErr   error
+	BootVars         map[string]string
+	SetBootVarsCalls int
+	SetErr           error
+	GetErr           error
 
 	name    string
 	bootdir string
@@ -73,6 +74,7 @@ func Mock(name, bootdir string) *MockBootloader {
 }
 
 func (b *MockBootloader) SetBootVars(values map[string]string) error {
+	b.SetBootVarsCalls++
 	for k, v := range values {
 		b.BootVars[k] = v
 	}
