@@ -250,6 +250,12 @@ func generateMountsModeRun() error {
 		return err
 	}
 	if !isKernelMounted {
+		// make a map to easily check if a kernel snap is valid or not
+		validKernels := make(map[string]bool, len(modeEnv.CurrentKernels))
+		for _, validKernel := range modeEnv.CurrentKernels {
+			validKernels[validKernel] = true
+		}
+
 		// find ubuntu-boot bootloader to get the kernel_status and kernel.efi
 		// status so we can determine the right kernel snap to have mounted
 
@@ -278,6 +284,12 @@ func generateMountsModeRun() error {
 			return fmt.Errorf("no fallback kernel snap: %v", err)
 		}
 
+		kernelFile := kernel.Filename()
+		if !validKernels[kernelFile] {
+			// we don't trust the fallback kernel!
+			return fmt.Errorf("fallback kernel snap %q is not trusted in the modeenv", kernelFile)
+		}
+
 		// get kernel_status
 		m, err := ebl.GetBootVars("kernel_status")
 		if err != nil {
@@ -288,14 +300,21 @@ func generateMountsModeRun() error {
 			// check for the try kernel
 			tryKernel, tryKernelExists, err := ebl.TryKernel()
 			// TODO:UC20: can we log somewhere if err != nil here?
-			if tryKernelExists && err == nil {
-				kernel = tryKernel
+			if err == nil && tryKernelExists {
+				// TODO:UC20: can we log somewhere if this kernel snap isn't in the
+				//            list of trusted kernel snaps?
+				tryKernelFile := tryKernel.Filename()
+				if validKernels[tryKernelFile] {
+					kernelFile = tryKernelFile
+				}
 			}
 			// if we didn't have a try kernel, but we do have kernel_status ==
 			// trying we just fallback to using the normal kernel
+			// same goes for try kernel being untrusted - we will fallback to
+			// the normal kernel snap
 		}
 
-		kernelPath := filepath.Join(dataDir, "system-data", dirs.SnapBlobDir, kernel.Filename())
+		kernelPath := filepath.Join(dataDir, "system-data", dirs.SnapBlobDir, kernelFile)
 		fmt.Fprintf(stdout, "%s %s\n", kernelPath, filepath.Join(runMnt, "kernel"))
 	}
 	// 3.1 Write the modeenv out again
