@@ -13,9 +13,13 @@ debug: |
     if is_core16_system; then
         ls -l /snap/core/
     fi
+    ls -l /snap/snapd/
 
-    # the snapd snap could accidentally still be around even on UC16
-    ls -l /snap/snapd/ || true
+    cat /etc/systemd/system/snapd.service
+    cat /etc/systemd/system/usr-lib-snapd.mount
+    /snap/snapd/x1/usr/bin/snap debug state /var/lib/snapd/state.json || true
+    /snap/snapd/x1/usr/bin/snap debug state --change="$(snap debug state /var/lib/snapd/state.json|tail -n1|awk '{print $1}')" /var/lib/snapd/state.json || true
+
 
 execute: |
     # shellcheck source=tests/lib/journalctl.sh
