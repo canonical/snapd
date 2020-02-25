@@ -779,9 +779,7 @@ EOF
     # /dev/loop19  0 0  1  1 /var/lib/snapd/snaps/test-snapd-netplan-apply_75.snap  0     512
     devloop=$(losetup --list --noheadings | grep "$IMAGE_HOME/$IMAGE" | awk '{print $1}')
     dev=$(basename "$devloop")
-    if is_core18_system; then
-        mount "/dev/mapper/${dev}p3" /mnt
-    elif is_core20_system; then
+    if is_core20_system; then
         # (ab)use ubuntu-seed
         mount "/dev/mapper/${dev}p2" /mnt
     else
