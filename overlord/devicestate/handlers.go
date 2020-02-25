@@ -100,11 +100,18 @@ func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("internal error: mark-seeded task not expected in pre-seeding mode")
 	}
 
-	// unset recovery_system because that is only needed during install mode
-	m.modeEnv.RecoverySystem = ""
-	err := m.modeEnv.Write("")
+	deviceCtx, err := DeviceCtx(st, t, nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot get device context: %v", err)
+	}
+
+	if deviceCtx.HasModeenv() && deviceCtx.RunMode() {
+		// unset recovery_system because that is only needed during install mode
+		m.modeEnv.RecoverySystem = ""
+		err := m.modeEnv.Write("")
+		if err != nil {
+			return err
+		}
 	}
 
 	st.Set("seed-time", time.Now())
