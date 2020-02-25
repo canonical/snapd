@@ -641,10 +641,6 @@ EOF
 setup_reflash_magic() {
     # install the stuff we need
     distro_install_package kpartx busybox-static
-    # for core20 we need debootstrap to build the initramfs in the kernel snap
-    if is_core20_system; then
-        distro_install_package debootstrap
-    fi
 
     distro_install_local_package "$GOHOME"/snapd_*.deb
     distro_clean_package_cache
