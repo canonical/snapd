@@ -210,7 +210,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 		c.Assert(mockSnapBootstrapCmd.Calls(), DeepEquals, [][]string{
 			{
 				"snap-bootstrap", "create-partitions", "--mount", "--encrypt",
-				"--key-file", filepath.Join(dirs.RunMnt, "ubuntu-boot/keyfile.unsealed"),
+				"--key-file", filepath.Join(dirs.RunMnt, "ubuntu-boot/ubuntu-data.keyfile.unsealed"),
 				filepath.Join(dirs.SnapMountDir, "/pc/1"),
 			},
 		})
