@@ -81,3 +81,11 @@ func MockConfigstateInit(new func(*state.State, *hookstate.HookManager) error) (
 		configstateInit = configstate.Init
 	}
 }
+
+func MockExitWithError(f func(err error)) (restore func()) {
+	old := exitWithError
+	exitWithError = f
+	return func() {
+		exitWithError = old
+	}
+}

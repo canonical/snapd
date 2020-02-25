@@ -402,17 +402,28 @@ func (o *Overlord) requestRestart(t state.RestartType) {
 	}
 }
 
+var exitWithError = func(err error) {
+	logger.Noticef("exiting overlord: %s", err)
+	os.Exit(1)
+}
+
 // Loop runs a loop in a goroutine to ensure the current state regularly through StateEngine Ensure.
 func (o *Overlord) Loop() {
 	o.ensureTimerSetup()
 	preseed := release.PreseedMode()
+	if preseed {
+		o.runner.SetTaskErrorCallback(exitWithError)
+	}
 	o.loopTomb.Go(func() error {
 		for {
 			// TODO: pass a proper context into Ensure
 			o.ensureTimerReset()
 			// in case of errors engine logs them,
 			// continue to the next Ensure() try for now
-			o.stateEng.Ensure()
+			err := o.stateEng.Ensure()
+			if err != nil && preseed {
+				exitWithError(err)
+			}
 			o.ensureDidRun()
 			select {
 			case <-o.loopTomb.Dying():
