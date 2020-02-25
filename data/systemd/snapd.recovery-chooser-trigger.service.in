@@ -15,8 +15,3 @@ WantedBy=multi-user.target
 
 # started on boot only
 # X-Snapd-Snap: do-not-start
-
-# added by core20 build
-#[Unit]
-#Before=console-conf@tty1.service
-#Before=console-conf@ttyS0.service
