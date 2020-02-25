@@ -126,6 +126,7 @@ func (c *cmdSnapd) Execute(args []string) error {
 	cmd := exec.Command(snapdPath)
 	cmd.Env = os.Environ()
 	cmd.Env = append(cmd.Env, "SNAPD_REVERT_TO_REV="+prevRev)
+	cmd.Env = append(cmd.Env, "SNAPD_DEBUG=1")
 	cmd.Stdout = Stdout
 	cmd.Stderr = Stderr
 	if err = cmd.Run(); err != nil {
