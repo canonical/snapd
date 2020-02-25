@@ -1622,7 +1622,9 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	if newInfo.GetType() == snap.TypeSnapd {
+	// only restart here if snapd was the installed and needs to
+	// get uninstalled again
+	if linkCtx.FirstInstall && newInfo.GetType() == snap.TypeSnapd {
 		// only way to get
 		deviceCtx, err := DeviceCtx(st, t, nil)
 		if err != nil {
