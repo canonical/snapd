@@ -130,7 +130,7 @@ func generateMountsModeInstall(recoverySystem string) error {
 				}
 			case snap.TypeKernel:
 				if !isKernelMounted {
-					// XXX: we need to cross-check the kernel path with snapd_recovery_kernel used by grub
+					// TODO:UC20: we need to cross-check the kernel path with snapd_recovery_kernel used by grub
 					fmt.Fprintf(stdout, "%s %s\n", essentialSnap.Path, filepath.Join(runMnt, "kernel"))
 				}
 			case snap.TypeSnapd:
@@ -317,7 +317,62 @@ func generateMountsModeRun() error {
 		kernelPath := filepath.Join(dataDir, "system-data", dirs.SnapBlobDir, kernelFile)
 		fmt.Fprintf(stdout, "%s %s\n", kernelPath, filepath.Join(runMnt, "kernel"))
 	}
-	// 3.1 Write the modeenv out again
+
+	// 3.1 Maybe mount the snapd snap on first boot of run-mode
+	// TODO:UC20: Make RecoverySystem empty after successful first boot
+	// somewhere in devicestate
+	if modeEnv.RecoverySystem != "" {
+		isSnapdMounted, err := osutilIsMounted(filepath.Join(runMnt, "snapd"))
+		if err != nil {
+			return err
+		}
+
+		if !isSnapdMounted {
+			// TODO:UC20: refactor to combine this code with the install mode
+			// bit in generateMountsModeInstall
+			// load the recovery system  and generate mounts for kernel/base
+			systemSeed, err := seed.Open(seedDir, modeEnv.RecoverySystem)
+			if err != nil {
+				return err
+			}
+			// load assertions into a temporary database
+			if err := systemSeed.LoadAssertions(nil, nil); err != nil {
+				return err
+			}
+			perf := timings.New(nil)
+			// TODO:UC20: LoadMeta will verify all the snaps in the
+			// seed, that is probably too much. We can expose more
+			// dedicated helpers for this later.
+			if err := systemSeed.LoadMeta(perf); err != nil {
+				return err
+			}
+			// TODO:UC20: do we need more cross checks here?
+			snapdSnapPath := ""
+			for _, essentialSnap := range systemSeed.EssentialSnaps() {
+				snapf, err := snap.Open(essentialSnap.Path)
+				if err != nil {
+					return err
+				}
+				info, err := snap.ReadInfoFromSnapFile(snapf, essentialSnap.SideInfo)
+				if err != nil {
+					return err
+				}
+				if info.GetType() == snap.TypeSnapd {
+					snapdSnapPath = essentialSnap.Path
+				}
+			}
+			if snapdSnapPath == "" {
+				// this should be impossible, LoadMeta and LoadAssertions will have
+				// validated that the seed is valid and the snapd snap must exist
+				// to be a valid seed
+				return fmt.Errorf("internal error: seed on recovery system %s is broken", modeEnv.RecoverySystem)
+			}
+
+			fmt.Fprintf(stdout, "%s %s\n", snapdSnapPath, filepath.Join(runMnt, "snapd"))
+		}
+	}
+
+	// 4.1 Write the modeenv out again
 	return modeEnv.Write(filepath.Join(dataDir, "system-data"))
 }
 
