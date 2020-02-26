@@ -1249,12 +1249,22 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterUpdate(c *C) {
 		{name: "boot-assets/some-dir/empty-file", target: "some-dir/empty-file", content: ""},
 		{name: "boot-assets/nested-dir/more-nested/more", target: "/nested-copy/more-nested/more", content: "data"},
 	}
+	// data inside the gadget that will be skipped due to being part of
+	// 'preserve' list
 	gdNotWritten := []gadgetData{
 		{name: "foo", target: "/foo", content: "data"},
 		{name: "boot-assets/some-dir/data", target: "data-copy", content: "data"},
 		{name: "boot-assets/nested-dir/nested", target: "/nested-copy/nested", content: "data"},
 	}
-	makeGadgetData(c, s.dir, append(gdWritten, gdNotWritten...))
+	// data inside the gadget that is identical to what is already present in the target
+	gdIdentical := []gadgetData{
+		{name: "boot-assets/nested-dir/more-nested/identical", target: "/nested-copy/more-nested/identical", content: "same-as-target"},
+		{name: "boot-assets/nested-dir/same-as-target-dir/identical", target: "/nested-copy/same-as-target-dir/identical", content: "same-as-target"},
+	}
+
+	gd := append(gdWritten, gdNotWritten...)
+	gd = append(gd, gdIdentical...)
+	makeGadgetData(c, s.dir, gd)
 
 	// these exist in the root directory and are preserved
 	preserve := []string{
@@ -1275,6 +1285,9 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterUpdate(c *C) {
 	for _, en := range preserve {
 		p := filepath.Join(outDir, en)
 		makeSizedFile(c, p, 0, []byte("can't touch this"))
+	}
+	for _, en := range gdIdentical {
+		makeSizedFile(c, filepath.Join(outDir, en.target), 0, []byte(en.content))
 	}
 
 	ps := &gadget.LaidOutStructure{
@@ -1329,6 +1342,11 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterUpdate(c *C) {
 	err = rw.Backup()
 	c.Assert(err, IsNil)
 
+	// identical files were identified as such
+	for _, en := range gdIdentical {
+		c.Check(filepath.Join(s.backup, "struct-0", en.target)+".same", testutil.FilePresent)
+	}
+
 	err = rw.Update()
 	c.Assert(err, IsNil)
 
@@ -1338,7 +1356,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterUpdate(c *C) {
 		c.Check(p, testutil.FileEquals, "can't touch this")
 	}
 	// everything else was written
-	verifyWrittenGadgetData(c, outDir, gdWritten)
+	verifyWrittenGadgetData(c, outDir, append(gdWritten, gdIdentical...))
 }
 
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterUpdateLookupFails(c *C) {
@@ -1531,7 +1549,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterEmptyDir(c *C) {
 	c.Assert(rw, NotNil)
 
 	err = rw.Update()
-	c.Assert(err, IsNil)
+	c.Assert(err, Equals, gadget.ErrNoUpdate)
 
 	verifyDirContents(c, outDir, map[string]contentType{
 		// / -> /
@@ -1592,7 +1610,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterSameFileSkipped(c *C) {
 	makeSizedFile(c, filepath.Join(s.backup, "struct-0/some-dir/foo.same"), 0, nil)
 
 	err = rw.Update()
-	c.Assert(err, IsNil)
+	c.Assert(err, Equals, gadget.ErrNoUpdate)
 	// files were not modified
 	verifyWrittenGadgetData(c, outDir, []gadgetData{
 		{target: "foo", content: "same"},

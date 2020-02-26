@@ -1,0 +1,16 @@
+summary: Ensure that the apt output on UC16 is correct
+
+# TODO:UC20: test that apt-get doesn't exist on UC18 / UC20 in this tests and
+#            re-enable
+systems: [ubuntu-core-16-*]
+
+execute: |
+    expected="Ubuntu Core does not use apt-get, see 'snap --help'!"
+    if apt-get update > output.txt; then
+        echo "apt should exit 1 but did not"
+        exit 1
+    fi
+    if [ "$(cat output.txt)" != "$expected" ]; then
+        echo "Unexpected apt output: $(cat output.txt)"
+        exit 1
+    fi

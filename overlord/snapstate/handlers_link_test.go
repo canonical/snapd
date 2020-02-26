@@ -1184,12 +1184,12 @@ func (s *linkSnapSuite) TestUndoLinkSnapdNthInstall(c *C) {
 	c.Check(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Check(s.fakeBackend.ops, DeepEquals, expected)
 
-	// 2 restarts, one from link snap, another one from undo
-	c.Check(s.stateBackend.restartRequested, DeepEquals, []state.RestartType{state.RestartDaemon, state.RestartDaemon})
-	c.Check(t.Log(), HasLen, 3)
+	// 1 restarts, one from link snap, the other restart happens
+	// in undoUnlinkCurrentSnap (not tested here)
+	c.Check(s.stateBackend.restartRequested, DeepEquals, []state.RestartType{state.RestartDaemon})
+	c.Check(t.Log(), HasLen, 2)
 	c.Check(t.Log()[0], Matches, `.*INFO Requested daemon restart \(snapd snap\)\.`)
 	c.Check(t.Log()[1], Matches, `.*INFO unlink`)
-	c.Check(t.Log()[2], Matches, `.*INFO Requested daemon restart \(snapd snap\)\.`)
 }
 
 func (s *linkSnapSuite) TestDoUnlinkSnapRefreshAwarenessHardCheck(c *C) {
@@ -1283,7 +1283,7 @@ func (s *linkSnapSuite) TestMaybeUndoRemodelBootChangesUnrelatedAppDoesNothing(c
 		},
 	})
 
-	err := snapstate.MaybeUndoRemodelBootChanges(t)
+	err := s.snapmgr.MaybeUndoRemodelBootChanges(t)
 	c.Assert(err, IsNil)
 	c.Check(s.stateBackend.restartRequested, HasLen, 0)
 }
@@ -1302,7 +1302,7 @@ func (s *linkSnapSuite) TestMaybeUndoRemodelBootChangesSameKernel(c *C) {
 		Type: "kernel",
 	})
 
-	err := snapstate.MaybeUndoRemodelBootChanges(t)
+	err := s.snapmgr.MaybeUndoRemodelBootChanges(t)
 	c.Assert(err, IsNil)
 	c.Check(s.stateBackend.restartRequested, HasLen, 0)
 }
@@ -1360,7 +1360,7 @@ func (s *linkSnapSuite) TestMaybeUndoRemodelBootChangesNeedsUndo(c *C) {
 	})
 
 	// now we simulate that the new kernel is getting undone
-	err = snapstate.MaybeUndoRemodelBootChanges(t)
+	err = s.snapmgr.MaybeUndoRemodelBootChanges(t)
 	c.Assert(err, IsNil)
 
 	// that will schedule a boot into the previous kernel

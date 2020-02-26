@@ -1,0 +1,75 @@
+summary: Check that preseeded ubuntu cloud image boots.
+
+description: |
+  This test checks that preseeding of Ubuntu cloud images with snap-preseed
+  command works, and the resulting image boots and finalizes seeding.
+  The test assumes cloud image with a core and lxd snaps in its seeds/.
+
+systems: [ubuntu-19.10-*,ubuntu-20.04-*]
+
+environment:
+  IMAGE_MOUNTPOINT: /mnt/cloudimg
+
+prepare: |
+  #shellcheck source=tests/lib/nested.sh
+  . "$TESTSLIB/nested.sh"
+  create_nested_classic_vm
+  mkdir -p "$IMAGE_MOUNTPOINT"
+
+restore: |
+  #shellcheck source=tests/lib/nested.sh
+  . "$TESTSLIB/nested.sh"
+  destroy_nested_vm
+
+  # any of the restore commands can fail depending on where execute part stopped,
+  # account for that with ||true.
+  umount_ubuntu_image "$IMAGE_MOUNTPOINT" || true
+
+execute: |
+  #shellcheck source=tests/lib/nested.sh
+  . "$TESTSLIB/nested.sh"
+
+  #shellcheck source=tests/lib/preseed.sh
+  . "$TESTSLIB/preseed.sh"
+
+  CLOUD_IMAGE=$(get_nested_classic_image_path)
+  mount_ubuntu_image "$CLOUD_IMAGE" "$IMAGE_MOUNTPOINT"
+  setup_preseeding "$IMAGE_MOUNTPOINT"
+
+  echo "Running pre-seeeding"
+  /usr/lib/snapd/snap-preseed "$IMAGE_MOUNTPOINT"
+
+  # mark-preseeded task is where snap-preseed stopped, therefore it's in Doing.
+  snap debug state "$IMAGE_MOUNTPOINT"/var/lib/snapd/state.json --change=1 | MATCH "Doing .+ mark-preseeded +Mark system pre-seeded"
+  snap debug state "$IMAGE_MOUNTPOINT"/var/lib/snapd/state.json | MATCH "Doing .+ Initialize system state"
+
+  cp "$IMAGE_MOUNTPOINT/var/lib/snapd/system-key" system-key.preseeded
+
+  #shellcheck source=tests/lib/preseed.sh
+  . "$TESTSLIB/preseed.sh"
+  umount_ubuntu_image "$IMAGE_MOUNTPOINT"
+
+  #shellcheck source=tests/lib/nested.sh
+  . "$TESTSLIB/nested.sh"
+  start_nested_classic_vm
+
+  echo "Waiting for firstboot seeding to finish"
+  execute_remote "sudo snap wait system seed.loaded"
+  execute_remote "snap changes" | MATCH "Done .+ Initialize system state"
+
+  echo "Checking that the system-key after first boot is the same as that from preseeding"
+  # note, this doesn't actually test the functionality, but acts as a canary:
+  # the test is run against a vm image with ubuntu release matching that from spread host;
+  # system-key check can fail if the nested vm image differs too much from the spread host system,
+  # e.g. when the list of apparmor features differs due to significant kernel update.
+  execute_remote "cat /var/lib/snapd/system-key" > system-key.real
+  diff -u -w system-key.real system-key.preseeded
+
+  echo "Checking that lxd snap is operational"
+  execute_remote "snap list" | not MATCH "broken"
+  execute_remote "snap services" | MATCH "lxd.activate +enabled +inactive"
+  execute_remote "snap services" | MATCH "lxd.daemon +enabled +inactive +socket-activated"
+  execute_remote "sudo lxd init --auto"
+  execute_remote "snap services" | MATCH "+lxd.daemon +enabled +active +socket-activated"
+
+
