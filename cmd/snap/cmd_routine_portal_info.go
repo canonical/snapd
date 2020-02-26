@@ -115,10 +115,15 @@ func (x *cmdRoutinePortalInfo) Execute(args []string) error {
 	// XXX: on non-AppArmor systems, or systems where there is only a
 	// partial AppArmor support, the snap may still be able to access the
 	// network despite the 'network' interface being disconnected
-	var hasNetwork bool
+	var hasNetworkStatus bool
 	for _, conn := range connections.Established {
+		// TODO: this should check for network-status plugs
+		// instead, but that interface is not currently in a
+		// usable state (not usable on classic systems, likely
+		// never worked with indicator-network).  This can be
+		// changed when the interface is fixed.
 		if conn.Plug.Snap == snap.Name && conn.Interface == "network" {
-			hasNetwork = true
+			hasNetworkStatus = true
 			break
 		}
 	}
@@ -131,19 +136,19 @@ AppName={{.App.Name}}
 {{- if .DesktopFile}}
 DesktopFile={{.DesktopFile}}
 {{- end}}
-HasNetwork={{.HasNetwork}}
+HasNetworkStatus={{.HasNetworkStatus}}
 `
 	t := template.Must(template.New("portal-info").Parse(portalInfoTemplate))
 	data := struct {
-		Snap        *client.Snap
-		App         *client.AppInfo
-		DesktopFile string
-		HasNetwork  bool
+		Snap             *client.Snap
+		App              *client.AppInfo
+		DesktopFile      string
+		HasNetworkStatus bool
 	}{
-		Snap:        snap,
-		App:         app,
-		DesktopFile: desktopFile,
-		HasNetwork:  hasNetwork,
+		Snap:             snap,
+		App:              app,
+		DesktopFile:      desktopFile,
+		HasNetworkStatus: hasNetworkStatus,
 	}
 	if err := t.Execute(Stdout, data); err != nil {
 		return fmt.Errorf("cannot render output template: %s", err)
