@@ -74,7 +74,7 @@ func init() {
 func fetchSnapAssertionsDirect(tsto downloadStore, snapPath string, snapInfo *snap.Info) (string, error) {
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
-		Trusted:   sysdb.Trusted(),
+		Trusted:   cmdDownloadSysdbTrusted,
 	})
 	if err != nil {
 		return "", err
@@ -89,6 +89,9 @@ func fetchSnapAssertionsDirect(tsto downloadStore, snapPath string, snapInfo *sn
 
 	encoder := asserts.NewEncoder(w)
 	save := func(a asserts.Assertion) error {
+		if err := db.Add(a); err != nil && !asserts.IsUnaccceptedUpdate(err) {
+			return err
+		}
 		return encoder.Encode(a)
 	}
 	f := tsto.AssertionFetcher(db, save)
@@ -117,6 +120,8 @@ type downloadStore interface {
 	DownloadSnap(name string, opts image.DownloadOptions) (targetFn string, info *snap.Info, err error)
 	AssertionFetcher(db *asserts.Database, save func(asserts.Assertion) error) asserts.Fetcher
 }
+
+var cmdDownloadSysdbTrusted = sysdb.Trusted()
 
 var newDownloadStore = func() (downloadStore, error) {
 	return image.NewToolingStore()

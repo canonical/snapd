@@ -23,17 +23,20 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
 	snapCmd "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/image"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
-// these only cover errors that happen before hitting the network,
-// because we're not (yet!) mocking the tooling store
+var brandPrivKey, _ = assertstest.GenerateKey(752)
 
 func (s *SnapSuite) TestDownloadBadBasename(c *check.C) {
 	_, err := snapCmd.Parser(snapCmd.Client()).ParseArgs([]string{
@@ -86,28 +89,130 @@ func (s *SnapSuite) TestPrintInstalHint(c *check.C) {
 `)
 }
 
-type mockDownloadStore struct{}
+// mockDownloadStore is a helper that can mock a store. It does not provide
+// more support than errors right now. To be a fully functional store it
+// needs full assertion mocking.
+type mockDownloadStore struct {
+	StoreSigning *assertstest.StoreStack
+
+	// name -> path
+	snaps map[string]string
+	// name -> info
+	infos map[string]*snap.Info
+
+	downloadCalled    []string
+	assertionsFetched []*asserts.Ref
+}
+
+func newMockDownloadStore() *mockDownloadStore {
+	return &mockDownloadStore{
+		StoreSigning: assertstest.NewStoreStack("can0nical", nil),
+	}
+}
+
+func (m *mockDownloadStore) makeAssertedSnap(c *check.C, snapYaml string) {
+	// XXX: maybe make configurable later
+	developerID := "can0nical"
+	revision := snap.R(1)
+
+	info, err := snap.InfoFromSnapYaml([]byte(snapYaml))
+	c.Assert(err, check.IsNil)
+	snapName := info.SnapName()
+
+	snapFile := snaptest.MakeTestSnapWithFiles(c, snapYaml, nil)
+
+	snapID := snapName + "-id"
+	declA, err := m.StoreSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+		"series":       "16",
+		"snap-id":      snapID,
+		"publisher-id": developerID,
+		"snap-name":    snapName,
+		"timestamp":    time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, check.IsNil)
+	err = m.StoreSigning.Database.Add(declA)
+	c.Assert(err, check.IsNil)
+
+	sha3_384, size, err := asserts.SnapFileSHA3_384(snapFile)
+	c.Assert(err, check.IsNil)
+
+	revA, err := m.StoreSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
+		"snap-sha3-384": sha3_384,
+		"snap-size":     fmt.Sprintf("%d", size),
+		"snap-id":       snapID,
+		"developer-id":  developerID,
+		"snap-revision": revision.String(),
+		"timestamp":     time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, check.IsNil)
+	err = m.StoreSigning.Add(revA)
+	c.Assert(err, check.IsNil)
+
+	if !revision.Unset() {
+		info.SnapID = snapID
+		info.Revision = revision
+	}
+
+	if m.snaps == nil {
+		m.snaps = make(map[string]string)
+		m.infos = make(map[string]*snap.Info)
+	}
+
+	m.snaps[snapName] = snapFile
+	info.SideInfo.RealName = snapName
+	m.infos[snapName] = info
+}
 
 func (m *mockDownloadStore) DownloadSnap(name string, opts image.DownloadOptions) (targetFn string, info *snap.Info, err error) {
-	return "", nil, fmt.Errorf("mockDownloadStore cannot provide snaps")
+	m.downloadCalled = append(m.downloadCalled, name)
+	if snapPath := m.snaps[name]; snapPath != "" {
+		return snapPath, m.infos[name], nil
+	}
+	return "", nil, fmt.Errorf("mockDownloadStore.DownloadSnap says NO")
 }
 
 func (m *mockDownloadStore) AssertionFetcher(db *asserts.Database, save func(asserts.Assertion) error) asserts.Fetcher {
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
-		return nil, fmt.Errorf("mockDownloadStore does not have assertions")
+		headers, err := asserts.HeadersFromPrimaryKey(ref.Type, ref.PrimaryKey)
+		if err != nil {
+			return nil, err
+		}
+		m.assertionsFetched = append(m.assertionsFetched, ref)
+		return m.StoreSigning.Database.Find(ref.Type, headers)
 	}
 	return asserts.NewFetcher(db, retrieve, save)
 }
 
-func (s *SnapSuite) TestDownloadDirect(c *check.C) {
+func (s *SnapSuite) TestDownloadDirectStoreError(c *check.C) {
 	restore := snapCmd.MockNewDownloadStore(func() (snapCmd.DownloadStore, error) {
 		return &mockDownloadStore{}, nil
 	})
 	defer restore()
 
-	// we just test here that direct hits our fake tooling store,
-	// mocking the full download is more work, i.e. we need to mock
-	// the assertions download as well
-	_, err := snapCmd.Parser(snapCmd.Client()).ParseArgs([]string{"download", "a-snap"})
-	c.Assert(err, check.ErrorMatches, "mockDownloadStore cannot provide snaps")
+	_, err := snapCmd.Parser(snapCmd.Client()).ParseArgs([]string{"download", "foo"})
+	c.Assert(err, check.ErrorMatches, "mockDownloadStore.DownloadSnap says NO")
+}
+
+func (s *SnapSuite) TestDownloadDirectStoreHappy(c *check.C) {
+	mockStore := newMockDownloadStore()
+	mockStore.makeAssertedSnap(c, "name: foo\nversion: 1.0")
+
+	restore := snapCmd.MockNewDownloadStore(func() (snapCmd.DownloadStore, error) {
+		return mockStore, nil
+	})
+	defer restore()
+	restore = snapCmd.MockCmdDownloadSysdbTrusted(mockStore.StoreSigning.Trusted)
+	defer restore()
+
+	_, err := snapCmd.Parser(snapCmd.Client()).ParseArgs([]string{"download", "foo"})
+	c.Assert(err, check.IsNil)
+	c.Assert(mockStore.downloadCalled, check.DeepEquals, []string{"foo"})
+	// snap-rev, snap-decl, account-key
+	c.Assert(mockStore.assertionsFetched, check.HasLen, 3)
+	// smoke test that the assertions are written
+	snapDownloadDir := filepath.Dir(mockStore.snaps["foo"])
+	downloadedAsserts, err := filepath.Glob(filepath.Join(snapDownloadDir, "*.assert"))
+	c.Assert(err, check.IsNil)
+	c.Assert(downloadedAsserts, check.HasLen, 1)
+	c.Assert(downloadedAsserts[0], testutil.FileContains, "type: snap-declaration")
 }

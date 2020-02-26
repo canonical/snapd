@@ -26,6 +26,7 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/image"
 	"github.com/snapcore/snapd/sandbox/selinux"
@@ -331,5 +332,13 @@ func MockNewDownloadStore(f func() (downloadStore, error)) (restore func()) {
 	newDownloadStore = f
 	return func() {
 		newDownloadStore = old
+	}
+}
+
+func MockCmdDownloadSysdbTrusted(new []asserts.Assertion) (restore func()) {
+	old := cmdDownloadSysdbTrusted
+	cmdDownloadSysdbTrusted = new
+	return func() {
+		cmdDownloadSysdbTrusted = old
 	}
 }
