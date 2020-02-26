@@ -692,6 +692,9 @@ func (ovs *overlordSuite) TestEnsureLoopPruneDoesntAbortShortlyAfterStartOfOpera
 }
 
 func (ovs *overlordSuite) TestEnsureLoopPruneAbortsOld(c *C) {
+	restoreEnsureIntv := overlord.MockEnsureInterval(1 * time.Millisecond)
+	defer restoreEnsureIntv()
+
 	restoreIntv := overlord.MockPruneInterval(100*time.Millisecond, 24*time.Hour, 1*time.Hour)
 	defer restoreIntv()
 
@@ -732,7 +735,7 @@ func (ovs *overlordSuite) TestEnsureLoopPruneAbortsOld(c *C) {
 
 	// start the loop that runs the prune ticker
 	o.Loop()
-	time.Sleep(1500 * time.Millisecond)
+	time.Sleep(3 * time.Second)
 	c.Assert(o.Stop(), IsNil)
 
 	st.Lock()
