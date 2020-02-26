@@ -86,7 +86,7 @@ is_classic_confinement_supported() {
 
 # repack_core_snap_into_snapd_snap will re-pack the core snap as the snapd snap,
 # using the snapd snap from edge as the set of files to use from the core snap.
-# This is primarly meant to be used in UC16 tests that need to use the snapd 
+# This is primarily meant to be used in UC16 tests that need to use the snapd
 # snap because the snapd snap, nor the deb built for the spread run are seeded 
 # on the image
 # The build snap is located in the current working directory at with the 
