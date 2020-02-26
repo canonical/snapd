@@ -1,9 +1,5 @@
 summary: Check that snapd failure handling works
 
-# TODO:UC20: enable for UC20, currently snapd.failure.service does not work on
-#            UC20, it currently isn't activated for some reason
-systems: [-ubuntu-core-20-*]
-
 prepare: |
     # shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB/systems.sh"
