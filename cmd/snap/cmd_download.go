@@ -266,10 +266,12 @@ func fetchSnapAssertionsViaSnapd(cli *client.Client, assertFname, hexSha3_384 st
 }
 
 func (x *cmdDownload) downloadViaSnapd(snapName string, rev snap.Revision) error {
-	opts := &client.SnapOptions{
-		Channel:   x.Channel,
-		CohortKey: x.CohortKey,
-		Revision:  rev.String(),
+	opts := &client.DownloadOptions{
+		SnapOptions: client.SnapOptions{
+			Channel:   x.Channel,
+			CohortKey: x.CohortKey,
+			Revision:  rev.String(),
+		},
 	}
 	dlInfo, stream, err := x.client.Download(snapName, opts)
 	if err != nil {
