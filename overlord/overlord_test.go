@@ -720,7 +720,7 @@ func fakePruneTicker() (w *ticker, restore func()) {
 }
 
 func (ovs *overlordSuite) TestEnsureLoopPruneAbortsOld(c *C) {
-	restoreEnsureIntv := overlord.MockEnsureInterval(1 * time.Millisecond)
+	restoreEnsureIntv := overlord.MockEnsureInterval(10 * time.Hour)
 	defer restoreEnsureIntv()
 
 	w, restoreTicker := fakePruneTicker()
@@ -766,7 +766,7 @@ func (ovs *overlordSuite) TestEnsureLoopPruneAbortsOld(c *C) {
 
 	// start the loop that runs the prune ticker
 	o.Loop()
-	w.tick(50)
+	w.tick(10)
 
 	c.Assert(o.Stop(), IsNil)
 
