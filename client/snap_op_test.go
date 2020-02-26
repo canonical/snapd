@@ -446,24 +446,30 @@ func (cs *clientSuite) TestClientOpDownload(c *check.C) {
 	cs.header = http.Header{
 		"Content-Disposition": {"attachment; filename=foo_2.snap"},
 		"Snap-Sha3-384":       {"sha3sha3sha3"},
+		"Snap-Download-Token": {"some-token"},
 	}
 	cs.contentLength = 1234
 
 	cs.rsp = `lots-of-foo-data`
 
-	dlInfo, rc, err := cs.cli.Download("foo", &client.SnapOptions{
-		Revision: "2",
-		Channel:  "edge",
+	dlInfo, rc, err := cs.cli.Download("foo", &client.DownloadOptions{
+		SnapOptions: client.SnapOptions{
+			Revision: "2",
+			Channel:  "edge",
+		},
+		HeaderPeek: true,
 	})
 	c.Check(err, check.IsNil)
 	c.Check(dlInfo, check.DeepEquals, &client.DownloadInfo{
 		SuggestedFileName: "foo_2.snap",
 		Size:              1234,
 		Sha3_384:          "sha3sha3sha3",
+		ResumeToken:       "some-token",
 	})
 
 	// check we posted the right stuff
 	c.Assert(cs.req.Header.Get("Content-Type"), check.Equals, "application/json")
+	c.Assert(cs.req.Header.Get("range"), check.Equals, "")
 	body, err := ioutil.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
 	var jsonBody client.DownloadAction
@@ -472,6 +478,56 @@ func (cs *clientSuite) TestClientOpDownload(c *check.C) {
 	c.Check(jsonBody.SnapName, check.DeepEquals, "foo")
 	c.Check(jsonBody.Revision, check.Equals, "2")
 	c.Check(jsonBody.Channel, check.Equals, "edge")
+	c.Check(jsonBody.HeaderPeek, check.Equals, true)
+
+	// ensure we can read the response
+	content, err := ioutil.ReadAll(rc)
+	c.Assert(err, check.IsNil)
+	c.Check(string(content), check.Equals, cs.rsp)
+	// and we can close it
+	c.Check(rc.Close(), check.IsNil)
+}
+
+func (cs *clientSuite) TestClientOpDownloadResume(c *check.C) {
+	cs.status = 200
+	cs.header = http.Header{
+		"Content-Disposition": {"attachment; filename=foo_2.snap"},
+		"Snap-Sha3-384":       {"sha3sha3sha3"},
+	}
+	// we resume
+	cs.contentLength = 1234 - 64
+
+	cs.rsp = `lots-of-foo-data`
+
+	dlInfo, rc, err := cs.cli.Download("foo", &client.DownloadOptions{
+		SnapOptions: client.SnapOptions{
+			Revision: "2",
+			Channel:  "edge",
+		},
+		HeaderPeek:  true,
+		ResumeToken: "some-token",
+		Resume:      64,
+	})
+	c.Check(err, check.IsNil)
+	c.Check(dlInfo, check.DeepEquals, &client.DownloadInfo{
+		SuggestedFileName: "foo_2.snap",
+		Size:              1234 - 64,
+		Sha3_384:          "sha3sha3sha3",
+	})
+
+	// check we posted the right stuff
+	c.Assert(cs.req.Header.Get("Content-Type"), check.Equals, "application/json")
+	c.Assert(cs.req.Header.Get("range"), check.Equals, "bytes: 64-")
+	body, err := ioutil.ReadAll(cs.req.Body)
+	c.Assert(err, check.IsNil)
+	var jsonBody client.DownloadAction
+	err = json.Unmarshal(body, &jsonBody)
+	c.Assert(err, check.IsNil)
+	c.Check(jsonBody.SnapName, check.DeepEquals, "foo")
+	c.Check(jsonBody.Revision, check.Equals, "2")
+	c.Check(jsonBody.Channel, check.Equals, "edge")
+	c.Check(jsonBody.HeaderPeek, check.Equals, true)
+	c.Check(jsonBody.ResumeToken, check.Equals, "some-token")
 
 	// ensure we can read the response
 	content, err := ioutil.ReadAll(rc)

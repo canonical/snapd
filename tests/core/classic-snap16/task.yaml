@@ -1,5 +1,7 @@
 summary: Ensure classic dimension works correctly
 
+# classic snap is not maintained for UC18+, for these releases the lxd snaps is
+# recommended instead of the classic snap
 systems: [ubuntu-core-16-*]
 
 environment:
