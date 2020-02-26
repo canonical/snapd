@@ -24,6 +24,15 @@ debug: |
 execute: |
     echo "Add totally unconnected network namespace"
     ip netns add testns
+
+    for _ in $(seq 10); do
+        nsenter --net=/var/run/netns/testns ./detect-retry http://www.ubuntu.com > output.txt
+        if MATCH "NoNetwork: true" < output.txt; then
+            break
+        fi
+        sleep 1
+    done
+
     SNAPD_DEBUG=1 nsenter --net=/var/run/netns/testns ./detect-retry http://www.ubuntu.com > output.txt 2>stderr
     # XXX: ShouldRetryError is slightly misbehaving, if we know we don't have
     #      a network connection we should not retry. However we keep it as
@@ -34,7 +43,7 @@ execute: |
     MATCH "(Temporary failure in name resolution|network is unreachable)" < stderr
 
     echo "Now without DNS resolver"
-    UBUNTU_IP="$(getent hosts www.ubuntu.com|awk '{print $1 }' | head -n1)"
+    UBUNTU_IP="$(nslookup www.ubuntu.com | grep 'Server:' | awk '{print $2 }')"
     SNAPD_DEBUG=1 nsenter --net=/var/run/netns/testns ./detect-retry "http://$UBUNTU_IP" > output.txt 2>stderr
     # XXX: ShouldRetryError is slightly misbehaving, see comment above
     MATCH "ShouldRetryError: true" < output.txt
