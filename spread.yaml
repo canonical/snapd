@@ -201,7 +201,7 @@ backends:
                 username: ubuntu
                 password: ubuntu
             - ubuntu-core-20-64:
-                image: ubuntu-18.04-64
+                image: ubuntu-20.04-64
                 username: ubuntu
                 password: ubuntu
                 flags: [virtio]

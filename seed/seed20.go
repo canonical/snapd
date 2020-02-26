@@ -362,6 +362,7 @@ func (s *seed20) addModelSnap(modelSnap *asserts.ModelSnap, essential bool, tm t
 	seedSnap.Essential = essential
 	seedSnap.Required = essential || modelSnap.Presence == "required"
 	if essential {
+		seedSnap.EssentialType = snapTypeFromModel(modelSnap)
 		s.essentialSnapsNum++
 	}
 
