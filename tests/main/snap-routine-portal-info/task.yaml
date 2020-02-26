@@ -31,7 +31,7 @@ execute: |
     InstanceName=test-snapd-desktop
     AppName=cmd
     DesktopFile=test-snapd-desktop_cmd.desktop
-    HasNetwork=false
+    HasNetworkStatus=false
     EOF
 
     kill "$pid1"
