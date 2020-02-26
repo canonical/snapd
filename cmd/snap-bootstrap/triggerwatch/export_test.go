@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -16,35 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+package triggerwatch
 
-package main_test
-
-import (
-	"testing"
-
-	. "gopkg.in/check.v1"
-
-	main "github.com/snapcore/snapd/cmd/snap-bootstrap"
-	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/testutil"
-)
-
-// Hook up check.v1 into the "go test" runner
-func Test(t *testing.T) { TestingT(t) }
-
-type cmdSuite struct {
-	testutil.BaseTest
+func MockInput(newInput TriggerProvider) (restore func()) {
+	oldInput := trigger
+	trigger = newInput
+	return func() {
+		trigger = oldInput
+	}
 }
 
-var _ = Suite(&cmdSuite{})
-
-func (s *cmdSuite) SetUpTest(c *C) {
-	s.BaseTest.SetUpTest(c)
-	_, r := logger.MockLogger()
-	s.AddCleanup(r)
-}
-
-func (s *cmdSuite) TestNoArgsErrors(c *C) {
-	_, err := main.Parser().ParseArgs(nil)
-	c.Assert(err, ErrorMatches, "Please specify .*")
-}
+type TriggerProvider = triggerProvider
+type TriggerDevice = triggerDevice
+type TriggerCapabilityFilter = triggerEventFilter
+type KeyEvent = keyEvent
