@@ -87,7 +87,7 @@ func (s *SnapSuite) TestPortalInfo(c *C) {
 		return "hello", nil
 	})
 	defer restore()
-	restore = snap.MockApparmorSnapNameFromPid(func(pid int) (string, string, string, error) {
+	restore = snap.MockApparmorSnapAppFromPid(func(pid int) (string, string, string, error) {
 		c.Check(pid, Equals, 42)
 		return "hello", "universe", "", nil
 	})
@@ -147,7 +147,7 @@ func (s *SnapSuite) TestPortalInfoNoAppInfo(c *C) {
 		return "hello", nil
 	})
 	defer restore()
-	restore = snap.MockApparmorSnapNameFromPid(func(pid int) (string, string, string, error) {
+	restore = snap.MockApparmorSnapAppFromPid(func(pid int) (string, string, string, error) {
 		c.Check(pid, Equals, 42)
 		return "", "", "", errors.New("no apparmor")
 	})

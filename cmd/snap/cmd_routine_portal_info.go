@@ -59,8 +59,8 @@ func init() {
 }
 
 var (
-	cgroupSnapNameFromPid   = cgroup.SnapNameFromPid
-	apparmorSnapNameFromPid = apparmor.SnapAppFromPid
+	cgroupSnapNameFromPid  = cgroup.SnapNameFromPid
+	apparmorSnapAppFromPid = apparmor.SnapAppFromPid
 )
 
 func (x *cmdRoutinePortalInfo) Execute(args []string) error {
@@ -79,7 +79,7 @@ func (x *cmdRoutinePortalInfo) Execute(args []string) error {
 
 	// Try to identify the application name from AppArmor
 	var app *client.AppInfo
-	if snapName, appName, _, err := apparmorSnapNameFromPid(x.PortalInfoOptions.Pid); err == nil && snapName == snap.Name && appName != "" {
+	if snapName, appName, _, err := apparmorSnapAppFromPid(x.PortalInfoOptions.Pid); err == nil && snapName == snap.Name && appName != "" {
 		for i := range snap.Apps {
 			if snap.Apps[i].Name == appName {
 				app = &snap.Apps[i]
