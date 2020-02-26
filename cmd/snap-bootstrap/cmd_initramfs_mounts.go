@@ -115,15 +115,7 @@ func generateMountsModeInstall(recoverySystem string) error {
 		}
 		// TODO:UC20: do we need more cross checks here?
 		for _, essentialSnap := range systemSeed.EssentialSnaps() {
-			snapf, err := snap.Open(essentialSnap.Path)
-			if err != nil {
-				return err
-			}
-			info, err := snap.ReadInfoFromSnapFile(snapf, essentialSnap.SideInfo)
-			if err != nil {
-				return err
-			}
-			switch info.GetType() {
+			switch essentialSnap.EssentialType {
 			case snap.TypeBase:
 				if !isBaseMounted {
 					fmt.Fprintf(stdout, "%s %s\n", essentialSnap.Path, filepath.Join(runMnt, "base"))
@@ -349,16 +341,9 @@ func generateMountsModeRun() error {
 			// TODO:UC20: do we need more cross checks here?
 			snapdSnapPath := ""
 			for _, essentialSnap := range systemSeed.EssentialSnaps() {
-				snapf, err := snap.Open(essentialSnap.Path)
-				if err != nil {
-					return err
-				}
-				info, err := snap.ReadInfoFromSnapFile(snapf, essentialSnap.SideInfo)
-				if err != nil {
-					return err
-				}
-				if info.GetType() == snap.TypeSnapd {
+				if essentialSnap.EssentialType == snap.TypeSnapd {
 					snapdSnapPath = essentialSnap.Path
+					break
 				}
 			}
 			if snapdSnapPath == "" {
