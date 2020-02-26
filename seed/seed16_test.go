@@ -441,23 +441,26 @@ func (s *seed16Suite) TestLoadMetaCore16Minimal(c *C) {
 
 	c.Check(essSnaps, DeepEquals, []*seed.Snap{
 		{
-			Path:      s.expectedPath("core"),
-			SideInfo:  &s.AssertedSnapInfo("core").SideInfo,
-			Essential: true,
-			Required:  true,
-			Channel:   "stable",
+			Path:          s.expectedPath("core"),
+			SideInfo:      &s.AssertedSnapInfo("core").SideInfo,
+			EssentialType: snap.TypeOS,
+			Essential:     true,
+			Required:      true,
+			Channel:       "stable",
 		}, {
-			Path:      s.expectedPath("pc-kernel"),
-			SideInfo:  &s.AssertedSnapInfo("pc-kernel").SideInfo,
-			Essential: true,
-			Required:  true,
-			Channel:   "stable",
+			Path:          s.expectedPath("pc-kernel"),
+			SideInfo:      &s.AssertedSnapInfo("pc-kernel").SideInfo,
+			EssentialType: snap.TypeKernel,
+			Essential:     true,
+			Required:      true,
+			Channel:       "stable",
 		}, {
-			Path:      s.expectedPath("pc"),
-			SideInfo:  &s.AssertedSnapInfo("pc").SideInfo,
-			Essential: true,
-			Required:  true,
-			Channel:   "stable",
+			Path:          s.expectedPath("pc"),
+			SideInfo:      &s.AssertedSnapInfo("pc").SideInfo,
+			EssentialType: snap.TypeGadget,
+			Essential:     true,
+			Required:      true,
+			Channel:       "stable",
 		},
 	})
 
@@ -514,29 +517,33 @@ func (s *seed16Suite) TestLoadMetaCore18Minimal(c *C) {
 
 	c.Check(essSnaps, DeepEquals, []*seed.Snap{
 		{
-			Path:      s.expectedPath("snapd"),
-			SideInfo:  &s.AssertedSnapInfo("snapd").SideInfo,
-			Essential: true,
-			Required:  true,
-			Channel:   "stable",
+			Path:          s.expectedPath("snapd"),
+			SideInfo:      &s.AssertedSnapInfo("snapd").SideInfo,
+			EssentialType: snap.TypeSnapd,
+			Essential:     true,
+			Required:      true,
+			Channel:       "stable",
 		}, {
-			Path:      s.expectedPath("core18"),
-			SideInfo:  &s.AssertedSnapInfo("core18").SideInfo,
-			Essential: true,
-			Required:  true,
-			Channel:   "stable",
+			Path:          s.expectedPath("core18"),
+			SideInfo:      &s.AssertedSnapInfo("core18").SideInfo,
+			EssentialType: snap.TypeBase,
+			Essential:     true,
+			Required:      true,
+			Channel:       "stable",
 		}, {
-			Path:      s.expectedPath("pc-kernel"),
-			SideInfo:  &s.AssertedSnapInfo("pc-kernel").SideInfo,
-			Essential: true,
-			Required:  true,
-			Channel:   "18",
+			Path:          s.expectedPath("pc-kernel"),
+			SideInfo:      &s.AssertedSnapInfo("pc-kernel").SideInfo,
+			EssentialType: snap.TypeKernel,
+			Essential:     true,
+			Required:      true,
+			Channel:       "18",
 		}, {
-			Path:      s.expectedPath("pc"),
-			SideInfo:  &s.AssertedSnapInfo("pc").SideInfo,
-			Essential: true,
-			Required:  true,
-			Channel:   "18",
+			Path:          s.expectedPath("pc"),
+			SideInfo:      &s.AssertedSnapInfo("pc").SideInfo,
+			EssentialType: snap.TypeGadget,
+			Essential:     true,
+			Required:      true,
+			Channel:       "18",
 		},
 	})
 
@@ -564,29 +571,33 @@ func (s *seed16Suite) TestLoadMetaCore18(c *C) {
 
 	c.Check(essSnaps, DeepEquals, []*seed.Snap{
 		{
-			Path:      s.expectedPath("snapd"),
-			SideInfo:  &s.AssertedSnapInfo("snapd").SideInfo,
-			Essential: true,
-			Required:  true,
-			Channel:   "stable",
+			Path:          s.expectedPath("snapd"),
+			SideInfo:      &s.AssertedSnapInfo("snapd").SideInfo,
+			EssentialType: snap.TypeSnapd,
+			Essential:     true,
+			Required:      true,
+			Channel:       "stable",
 		}, {
-			Path:      s.expectedPath("core18"),
-			SideInfo:  &s.AssertedSnapInfo("core18").SideInfo,
-			Essential: true,
-			Required:  true,
-			Channel:   "stable",
+			Path:          s.expectedPath("core18"),
+			SideInfo:      &s.AssertedSnapInfo("core18").SideInfo,
+			EssentialType: snap.TypeBase,
+			Essential:     true,
+			Required:      true,
+			Channel:       "stable",
 		}, {
-			Path:      s.expectedPath("pc-kernel"),
-			SideInfo:  &s.AssertedSnapInfo("pc-kernel").SideInfo,
-			Essential: true,
-			Required:  true,
-			Channel:   "18",
+			Path:          s.expectedPath("pc-kernel"),
+			SideInfo:      &s.AssertedSnapInfo("pc-kernel").SideInfo,
+			EssentialType: snap.TypeKernel,
+			Essential:     true,
+			Required:      true,
+			Channel:       "18",
 		}, {
-			Path:      s.expectedPath("pc"),
-			SideInfo:  &s.AssertedSnapInfo("pc").SideInfo,
-			Essential: true,
-			Required:  true,
-			Channel:   "18",
+			Path:          s.expectedPath("pc"),
+			SideInfo:      &s.AssertedSnapInfo("pc").SideInfo,
+			EssentialType: snap.TypeGadget,
+			Essential:     true,
+			Required:      true,
+			Channel:       "18",
 		},
 	})
 
@@ -653,11 +664,12 @@ func (s *seed16Suite) TestLoadMetaClassicCore(c *C) {
 	c.Check(essSnaps, HasLen, 1)
 	c.Check(essSnaps, DeepEquals, []*seed.Snap{
 		{
-			Path:      s.expectedPath("core"),
-			SideInfo:  &s.AssertedSnapInfo("core").SideInfo,
-			Essential: true,
-			Required:  true,
-			Channel:   "stable",
+			Path:          s.expectedPath("core"),
+			SideInfo:      &s.AssertedSnapInfo("core").SideInfo,
+			EssentialType: snap.TypeOS,
+			Essential:     true,
+			Required:      true,
+			Channel:       "stable",
 		},
 	})
 
@@ -693,18 +705,20 @@ func (s *seed16Suite) TestLoadMetaClassicCoreWithGadget(c *C) {
 	c.Check(essSnaps, HasLen, 2)
 	c.Check(essSnaps, DeepEquals, []*seed.Snap{
 		{
-			Path:      s.expectedPath("core"),
-			SideInfo:  &s.AssertedSnapInfo("core").SideInfo,
-			Essential: true,
-			Required:  true,
-			Channel:   "stable",
+			Path:          s.expectedPath("core"),
+			SideInfo:      &s.AssertedSnapInfo("core").SideInfo,
+			EssentialType: snap.TypeOS,
+			Essential:     true,
+			Required:      true,
+			Channel:       "stable",
 		},
 		{
-			Path:      s.expectedPath("classic-gadget"),
-			SideInfo:  &s.AssertedSnapInfo("classic-gadget").SideInfo,
-			Essential: true,
-			Required:  true,
-			Channel:   "stable",
+			Path:          s.expectedPath("classic-gadget"),
+			SideInfo:      &s.AssertedSnapInfo("classic-gadget").SideInfo,
+			EssentialType: snap.TypeGadget,
+			Essential:     true,
+			Required:      true,
+			Channel:       "stable",
 		},
 	})
 
@@ -731,11 +745,12 @@ func (s *seed16Suite) TestLoadMetaClassicSnapd(c *C) {
 	c.Check(essSnaps, HasLen, 1)
 	c.Check(essSnaps, DeepEquals, []*seed.Snap{
 		{
-			Path:      s.expectedPath("snapd"),
-			SideInfo:  &s.AssertedSnapInfo("snapd").SideInfo,
-			Essential: true,
-			Required:  true,
-			Channel:   "stable",
+			Path:          s.expectedPath("snapd"),
+			SideInfo:      &s.AssertedSnapInfo("snapd").SideInfo,
+			EssentialType: snap.TypeSnapd,
+			Essential:     true,
+			Required:      true,
+			Channel:       "stable",
 		},
 	})
 
@@ -775,20 +790,26 @@ func (s *seed16Suite) TestLoadMetaClassicSnapdWithGadget(c *C) {
 	c.Check(essSnaps, HasLen, 3)
 	c.Check(essSnaps, DeepEquals, []*seed.Snap{
 		{
-			Path:      s.expectedPath("snapd"),
-			SideInfo:  &s.AssertedSnapInfo("snapd").SideInfo,
+			Path:          s.expectedPath("snapd"),
+			SideInfo:      &s.AssertedSnapInfo("snapd").SideInfo,
+			EssentialType: snap.TypeSnapd,
+
 			Essential: true,
 			Required:  true,
 			Channel:   "stable",
 		}, {
-			Path:      s.expectedPath("classic-gadget"),
-			SideInfo:  &s.AssertedSnapInfo("classic-gadget").SideInfo,
+			Path:          s.expectedPath("classic-gadget"),
+			SideInfo:      &s.AssertedSnapInfo("classic-gadget").SideInfo,
+			EssentialType: snap.TypeGadget,
+
 			Essential: true,
 			Required:  true,
 			Channel:   "stable",
 		}, {
-			Path:      s.expectedPath("core"),
-			SideInfo:  &s.AssertedSnapInfo("core").SideInfo,
+			Path:          s.expectedPath("core"),
+			SideInfo:      &s.AssertedSnapInfo("core").SideInfo,
+			EssentialType: snap.TypeOS,
+
 			Essential: true,
 			Required:  true,
 			Channel:   "stable",
@@ -819,20 +840,26 @@ func (s *seed16Suite) TestLoadMetaClassicSnapdWithGadget18(c *C) {
 	c.Check(essSnaps, HasLen, 3)
 	c.Check(essSnaps, DeepEquals, []*seed.Snap{
 		{
-			Path:      s.expectedPath("snapd"),
-			SideInfo:  &s.AssertedSnapInfo("snapd").SideInfo,
+			Path:          s.expectedPath("snapd"),
+			SideInfo:      &s.AssertedSnapInfo("snapd").SideInfo,
+			EssentialType: snap.TypeSnapd,
+
 			Essential: true,
 			Required:  true,
 			Channel:   "stable",
 		}, {
-			Path:      s.expectedPath("classic-gadget18"),
-			SideInfo:  &s.AssertedSnapInfo("classic-gadget18").SideInfo,
+			Path:          s.expectedPath("classic-gadget18"),
+			SideInfo:      &s.AssertedSnapInfo("classic-gadget18").SideInfo,
+			EssentialType: snap.TypeGadget,
+
 			Essential: true,
 			Required:  true,
 			Channel:   "stable",
 		}, {
-			Path:      s.expectedPath("core18"),
-			SideInfo:  &s.AssertedSnapInfo("core18").SideInfo,
+			Path:          s.expectedPath("core18"),
+			SideInfo:      &s.AssertedSnapInfo("core18").SideInfo,
+			EssentialType: snap.TypeBase,
+
 			Essential: true,
 			Required:  true,
 			Channel:   "stable",
@@ -881,29 +908,33 @@ func (s *seed16Suite) TestLoadMetaCore18Local(c *C) {
 
 	c.Check(essSnaps, DeepEquals, []*seed.Snap{
 		{
-			Path:      s.expectedPath("snapd"),
-			SideInfo:  &s.AssertedSnapInfo("snapd").SideInfo,
-			Essential: true,
-			Required:  true,
-			Channel:   "stable",
+			Path:          s.expectedPath("snapd"),
+			SideInfo:      &s.AssertedSnapInfo("snapd").SideInfo,
+			EssentialType: snap.TypeSnapd,
+			Essential:     true,
+			Required:      true,
+			Channel:       "stable",
 		}, {
-			Path:      s.expectedPath("core18"),
-			SideInfo:  &s.AssertedSnapInfo("core18").SideInfo,
-			Essential: true,
-			Required:  true,
-			Channel:   "stable",
+			Path:          s.expectedPath("core18"),
+			SideInfo:      &s.AssertedSnapInfo("core18").SideInfo,
+			EssentialType: snap.TypeBase,
+			Essential:     true,
+			Required:      true,
+			Channel:       "stable",
 		}, {
-			Path:      s.expectedPath("pc-kernel"),
-			SideInfo:  &s.AssertedSnapInfo("pc-kernel").SideInfo,
-			Essential: true,
-			Required:  true,
-			Channel:   "18",
+			Path:          s.expectedPath("pc-kernel"),
+			SideInfo:      &s.AssertedSnapInfo("pc-kernel").SideInfo,
+			EssentialType: snap.TypeKernel,
+			Essential:     true,
+			Required:      true,
+			Channel:       "18",
 		}, {
-			Path:      s.expectedPath("pc"),
-			SideInfo:  &s.AssertedSnapInfo("pc").SideInfo,
-			Essential: true,
-			Required:  true,
-			Channel:   "18",
+			Path:          s.expectedPath("pc"),
+			SideInfo:      &s.AssertedSnapInfo("pc").SideInfo,
+			EssentialType: snap.TypeGadget,
+			Essential:     true,
+			Required:      true,
+			Channel:       "18",
 		},
 	})
 
@@ -991,29 +1022,33 @@ func (s *seed16Suite) TestLoadMetaCore18EnforcePinnedTracks(c *C) {
 
 	c.Check(essSnaps, DeepEquals, []*seed.Snap{
 		{
-			Path:      s.expectedPath("snapd"),
-			SideInfo:  &s.AssertedSnapInfo("snapd").SideInfo,
-			Essential: true,
-			Required:  true,
-			Channel:   "stable",
+			Path:          s.expectedPath("snapd"),
+			SideInfo:      &s.AssertedSnapInfo("snapd").SideInfo,
+			EssentialType: snap.TypeSnapd,
+			Essential:     true,
+			Required:      true,
+			Channel:       "stable",
 		}, {
-			Path:      s.expectedPath("core18"),
-			SideInfo:  &s.AssertedSnapInfo("core18").SideInfo,
-			Essential: true,
-			Required:  true,
-			Channel:   "stable",
+			Path:          s.expectedPath("core18"),
+			SideInfo:      &s.AssertedSnapInfo("core18").SideInfo,
+			EssentialType: snap.TypeBase,
+			Essential:     true,
+			Required:      true,
+			Channel:       "stable",
 		}, {
-			Path:      s.expectedPath("pc-kernel"),
-			SideInfo:  &s.AssertedSnapInfo("pc-kernel").SideInfo,
-			Essential: true,
-			Required:  true,
-			Channel:   "18",
+			Path:          s.expectedPath("pc-kernel"),
+			SideInfo:      &s.AssertedSnapInfo("pc-kernel").SideInfo,
+			EssentialType: snap.TypeKernel,
+			Essential:     true,
+			Required:      true,
+			Channel:       "18",
 		}, {
-			Path:      s.expectedPath("pc"),
-			SideInfo:  &s.AssertedSnapInfo("pc").SideInfo,
-			Essential: true,
-			Required:  true,
-			Channel:   "18/edge",
+			Path:          s.expectedPath("pc"),
+			SideInfo:      &s.AssertedSnapInfo("pc").SideInfo,
+			EssentialType: snap.TypeGadget,
+			Essential:     true,
+			Required:      true,
+			Channel:       "18/edge",
 		},
 	})
 

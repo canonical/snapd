@@ -147,9 +147,6 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 		return nil, err
 	}
 
-	// collected snap infos
-	infos := make([]*snap.Info, 0, len(essentialSeedSnaps)+len(seedSnaps))
-
 	tsAll := []*state.TaskSet{}
 	configTss := []*state.TaskSet{}
 
@@ -203,6 +200,9 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 			tsAll = chainTs(tsAll, ts)
 		}
 	}
+
+	// collected snap infos
+	infos := make([]*snap.Info, 0, len(essentialSeedSnaps)+len(seedSnaps))
 
 	infoToTs := make(map[*snap.Info]*state.TaskSet, len(essentialSeedSnaps))
 

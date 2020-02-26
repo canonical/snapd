@@ -155,22 +155,18 @@ if [ "$STATIC" = 1 ]; then
         ./check-pr-title.py "$TRAVIS_PULL_REQUEST"
     fi
 
-    echo Checking formatting
-    fmt=""
-    for dir in $(go list -f '{{.Dir}}' ./... | grep -v '/vendor/' ); do
-        s="$(${GOFMT:-gofmt} -s -l -d "$dir" | grep -v /vendor/ || true)"
-        if [ -n "$s" ]; then
-            fmt="$s\\n$fmt"
-        fi
-    done
-
-    if [ -n "$fmt" ]; then
-        echo "Formatting wrong in following files:"
-        echo "$fmt" | sed -e 's/\\n/\n/g'
-        if [ -z "${SKIP_GOFMT:-}" ]; then
-            exit 1
-        else
-            echo "Ignoring gofmt errors as requested"
+    if [ -z "${SKIP_GOFMT:-}" ]; then
+        echo Checking formatting
+        fmt=""
+        for dir in $(go list -f '{{.Dir}}' ./... | grep -v '/vendor/' ); do
+            s="$(${GOFMT:-gofmt} -s -l -d "$dir" | grep -v /vendor/ || true)"
+            if [ -n "$s" ]; then
+                fmt="$s\\n$fmt"
+            fi
+        done
+        if [ -n "$fmt" ]; then
+            echo "Formatting wrong in following files:"
+            echo "$fmt" | sed -e 's/\\n/\n/g'
         fi
     fi
 

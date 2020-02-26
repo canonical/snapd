@@ -100,3 +100,20 @@ func readInfo(snapPath string, si *snap.SideInfo) (*snap.Info, error) {
 	}
 	return snap.ReadInfoFromSnapFile(snapf, si)
 }
+
+func snapTypeFromModel(modSnap *asserts.ModelSnap) snap.Type {
+	switch modSnap.SnapType {
+	case "base":
+		return snap.TypeBase
+	case "core":
+		return snap.TypeOS
+	case "gadget":
+		return snap.TypeGadget
+	case "kernel":
+		return snap.TypeKernel
+	case "snapd":
+		return snap.TypeSnapd
+	default:
+		return snap.TypeApp
+	}
+}
