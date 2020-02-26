@@ -99,7 +99,7 @@ func settingWithSub(setting string, subproperty string) string {
 }
 
 func settingForLog(setting string) string {
-	settingParts := strings.SplitN(string(setting), "/", 2)
+	settingParts := strings.SplitN(setting, "/", 2)
 	if len(settingParts) > 1 {
 		return fmt.Sprintf("%q subproperty %q", settingParts[0], settingParts[1])
 	} else {
@@ -109,7 +109,7 @@ func settingForLog(setting string) string {
 
 func settingWhitelisted(setting string) *dbus.Error {
 	// Trim off any subproperty from the check
-	settingTrimmed := strings.SplitN(string(setting), "/", 2)[0]
+	settingTrimmed := strings.SplitN(setting, "/", 2)[0]
 	for _, whitelisted := range settingsWhitelist {
 		if settingTrimmed == whitelisted {
 			return nil
