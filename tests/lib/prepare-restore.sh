@@ -564,7 +564,7 @@ restore_suite_each() {
 
     # reset the failed status of snapd, snapd.socket, and snapd.failure.socket
     # to prevent hitting the system restart rate-limit for these services
-    systemctl reset-failed snapd snapd.socket snapd.failure
+    systemctl reset-failed snapd.service snapd.socket snapd.failure.service
 }
 
 restore_suite() {
