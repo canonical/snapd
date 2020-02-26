@@ -1,5 +1,5 @@
 summary: Check that preseeding of current ubuntu cloud image works with snapd
-  and core18 works.
+  and core18.
 description: |
   This test checks that preseeding of Ubuntu cloud images with snap-preseed
   command works, up to the point where the image is ready to be booted.
