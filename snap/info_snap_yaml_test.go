@@ -1497,6 +1497,22 @@ apps:
 	c.Check(info.Apps, DeepEquals, map[string]*snap.AppInfo{"svc": &app})
 }
 
+func (s *YamlSuite) TestDaemonUserDaemon(c *C) {
+	y := []byte(`name: wat
+version: 42
+apps:
+ svc:
+   command: svc1
+   daemon: simple
+   daemon-mode: user
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+
+	// If daemon-mode is unset, default to system mode
+	c.Check(info.Apps["svc"].DaemonMode, Equals, snap.UserDaemon)
+}
+
 func (s *YamlSuite) TestDaemonNoDaemonMode(c *C) {
 	y := []byte(`name: wat
 version: 42

@@ -205,15 +205,15 @@ func validateSocketAddrPath(socket *SocketInfo, fieldName string, path string) e
 	case SystemDaemon:
 		if !(strings.HasPrefix(path, "$SNAP_DATA/") || strings.HasPrefix(path, "$SNAP_COMMON/") || strings.HasPrefix(path, "$XDG_RUNTIME_DIR/")) {
 			return fmt.Errorf(
-				"invalid %q: must have a prefix of $SNAP_DATA, $SNAP_COMMON or $XDG_RUNTIME_DIR", fieldName)
+				"invalid %q: system daemon sockets must have a prefix of $SNAP_DATA, $SNAP_COMMON or $XDG_RUNTIME_DIR", fieldName)
 		}
 	case UserDaemon:
 		if !(strings.HasPrefix(path, "$SNAP_USER_DATA/") || strings.HasPrefix(path, "$SNAP_USER_COMMON/") || strings.HasPrefix(path, "$XDG_RUNTIME_DIR/")) {
 			return fmt.Errorf(
-				"invalid %q: must have a prefix of $SNAP_USER_DATA, $SNAP_USER_COMMON, or $XDG_RUNTIME_DIR", fieldName)
+				"invalid %q: user daemon sockets must have a prefix of $SNAP_USER_DATA, $SNAP_USER_COMMON, or $XDG_RUNTIME_DIR", fieldName)
 		}
 	default:
-		panic("unknown systemd.InstanceMode")
+		panic("unknown snap.DaemonMode")
 	}
 
 	return nil
@@ -619,14 +619,14 @@ func ValidateApp(app *AppInfo) error {
 	switch app.DaemonMode {
 	case "":
 		if app.Daemon != "" {
-			return fmt.Errorf(`"daemon-mode" should be set for daemons`)
+			return fmt.Errorf(`"daemon-mode" must be set for daemons`)
 		}
 	case SystemDaemon, UserDaemon:
 		if app.Daemon == "" {
-			return fmt.Errorf(`"daemon-mode" should only be set for daemons`)
+			return fmt.Errorf(`"daemon-mode" can only be set for daemons`)
 		}
 	default:
-		return fmt.Errorf(`"daemon-mode" field contains invalid value %q`, app.DaemonMode)
+		return fmt.Errorf(`invalid "daemon-mode": %q`, app.DaemonMode)
 	}
 
 	// Validate app name

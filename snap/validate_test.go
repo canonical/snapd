@@ -254,7 +254,7 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPath(c *C) {
 	for _, invalidAddress := range invalidListenAddresses {
 		socket.ListenStream = invalidAddress
 		err := ValidateApp(app)
-		c.Assert(err, ErrorMatches, `invalid definition of socket "sock": invalid "listen-stream": must have a prefix of .*`)
+		c.Assert(err, ErrorMatches, `invalid definition of socket "sock": invalid "listen-stream": system daemon sockets must have a prefix of .*`)
 	}
 }
 
@@ -279,7 +279,7 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPathPrefix(c *C
 		err := ValidateApp(app)
 		c.Assert(
 			err, ErrorMatches,
-			`invalid definition of socket "sock": invalid "listen-stream": must have a prefix of \$SNAP_DATA, \$SNAP_COMMON or \$XDG_RUNTIME_DIR`)
+			`invalid definition of socket "sock": invalid "listen-stream": system daemon sockets must have a prefix of \$SNAP_DATA, \$SNAP_COMMON or \$XDG_RUNTIME_DIR`)
 	}
 }
 
@@ -379,7 +379,7 @@ func (s *ValidateSuite) TestValidateAppUserSocketsInvalidListenStreamPath(c *C) 
 	for _, invalidAddress := range invalidListenAddresses {
 		socket.ListenStream = invalidAddress
 		err := ValidateApp(app)
-		c.Assert(err, ErrorMatches, `invalid definition of socket "sock": invalid "listen-stream": must have a prefix of .*`)
+		c.Assert(err, ErrorMatches, `invalid definition of socket "sock": invalid "listen-stream": user daemon sockets must have a prefix of .*`)
 	}
 }
 
@@ -455,11 +455,11 @@ func (s *ValidateSuite) TestAppDaemonModeValue(c *C) {
 		if t.ok {
 			c.Check(err, IsNil)
 		} else if t.daemon == "" {
-			c.Check(err, ErrorMatches, `"daemon-mode" should only be set for daemons`)
+			c.Check(err, ErrorMatches, `"daemon-mode" can only be set for daemons`)
 		} else if t.daemonMode == "" {
-			c.Check(err, ErrorMatches, `"daemon-mode" should be set for daemons`)
+			c.Check(err, ErrorMatches, `"daemon-mode" must be set for daemons`)
 		} else {
-			c.Check(err, ErrorMatches, fmt.Sprintf(`"daemon-mode" field contains invalid value %q`, t.daemonMode))
+			c.Check(err, ErrorMatches, fmt.Sprintf(`invalid "daemon-mode": %q`, t.daemonMode))
 		}
 	}
 }
