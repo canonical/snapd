@@ -473,6 +473,10 @@ func ServicesEnableState(s *snap.Info, inter interacter) (map[string]bool, error
 		if !app.IsService() {
 			continue
 		}
+		// FIXME: handle user daemons
+		if app.DaemonScope != snap.SystemDaemon {
+			continue
+		}
 		state, err := sysd.IsEnabled(app.ServiceName())
 		if err != nil {
 			return nil, err

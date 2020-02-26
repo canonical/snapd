@@ -249,6 +249,10 @@ func (s *servicesTestSuite) TestServicesEnableState(c *C) {
  svc2:
   command: bin/hello
   daemon: forking
+ svc3:
+  command: bin/hello
+  daemon: simple
+  daemon-scope: user
 `, &snap.SideInfo{Revision: snap.R(12)})
 	svc1File := "snap.hello-snap.svc1.service"
 	svc2File := "snap.hello-snap.svc2.service"
