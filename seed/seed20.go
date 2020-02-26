@@ -405,7 +405,7 @@ func (s *seed20) LoadEssentialMeta(essentialTypes []snap.Type, tm timings.Measur
 	}
 
 	if s.essentialSnapsNum != len(essentialTypes) {
-		// did not found all the explicitly asked essential types
+		// did not find all the explicitly asked essential types
 		return fmt.Errorf("model does not specify all the requested essential snaps: %v", essentialTypes)
 	}
 
