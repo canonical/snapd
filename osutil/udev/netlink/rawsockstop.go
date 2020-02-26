@@ -36,8 +36,6 @@ func RawSockStopper(fd int) (readableOrStop func() (bool, error), stop func(), e
 	return readableOrStop, stop, nil
 }
 
-var stopperSelectTimeout *syscall.Timeval
-
 func stopperSelectReadable(fd, stopFd int) (bool, error) {
 	maxFd := fd
 	if maxFd < stopFd {
