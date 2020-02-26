@@ -71,7 +71,7 @@ func init() {
 	}})
 }
 
-func fetchSnapAssertions(tsto *image.ToolingStore, snapPath string, snapInfo *snap.Info) (string, error) {
+func fetchSnapAssertionsDirect(tsto downloadStore, snapPath string, snapInfo *snap.Info) (string, error) {
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
 		Trusted:   sysdb.Trusted(),
@@ -113,6 +113,45 @@ func printInstallHint(assertPath, snapPath string) {
 `), assertPath, snapPath)
 }
 
+type downloadStore interface {
+	DownloadSnap(name string, opts image.DownloadOptions) (targetFn string, info *snap.Info, err error)
+	AssertionFetcher(db *asserts.Database, save func(asserts.Assertion) error) asserts.Fetcher
+}
+
+var newDownloadStore = func() (downloadStore, error) {
+	return image.NewToolingStore()
+}
+
+func (x *cmdDownload) downloadDirect(snapName string, revision snap.Revision) error {
+	tsto, err := newDownloadStore()
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprintf(Stdout, i18n.G("Fetching snap %q\n"), snapName)
+	dlOpts := image.DownloadOptions{
+		TargetDir: x.TargetDir,
+		Basename:  x.Basename,
+		Channel:   x.Channel,
+		CohortKey: x.CohortKey,
+		Revision:  revision,
+		// if something goes wrong, don't force it to start over again
+		LeavePartialOnError: true,
+	}
+	snapPath, snapInfo, err := tsto.DownloadSnap(snapName, dlOpts)
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprintf(Stdout, i18n.G("Fetching assertions for %q\n"), snapName)
+	assertPath, err := fetchSnapAssertionsDirect(tsto, snapPath, snapInfo)
+	if err != nil {
+		return err
+	}
+	printInstallHint(assertPath, snapPath)
+	return nil
+}
+
 func (x *cmdDownload) Execute(args []string) error {
 	if strings.ContainsRune(x.Basename, filepath.Separator) {
 		return fmt.Errorf(i18n.G("cannot specify a path in basename (use --target-dir for that)"))
@@ -144,32 +183,7 @@ func (x *cmdDownload) Execute(args []string) error {
 
 	snapName := string(x.Positional.Snap)
 
-	tsto, err := image.NewToolingStore()
-	if err != nil {
-		return err
-	}
+	err := x.downloadDirect(snapName, revision)
 
-	fmt.Fprintf(Stdout, i18n.G("Fetching snap %q\n"), snapName)
-	dlOpts := image.DownloadOptions{
-		TargetDir: x.TargetDir,
-		Basename:  x.Basename,
-		Channel:   x.Channel,
-		CohortKey: x.CohortKey,
-		Revision:  revision,
-		// if something goes wrong, don't force it to start over again
-		LeavePartialOnError: true,
-	}
-	snapPath, snapInfo, err := tsto.DownloadSnap(snapName, dlOpts)
-	if err != nil {
-		return err
-	}
-
-	fmt.Fprintf(Stdout, i18n.G("Fetching assertions for %q\n"), snapName)
-	assertPath, err := fetchSnapAssertions(tsto, snapPath, snapInfo)
-	if err != nil {
-		return err
-	}
-	printInstallHint(assertPath, snapPath)
-
-	return nil
+	return err
 }
