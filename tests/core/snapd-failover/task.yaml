@@ -91,36 +91,44 @@ execute: |
         unsquashfs -d ./snapd-broken "$SNAPD_SNAP"
         echo "" > ./snapd-broken/usr/lib/snapd/snapd
         (cd ./snapd-broken && snap pack .)
-        echo "Now install the broken snapd"
-        if snap install --dangerous ./snapd-broken/snapd_*.snap; then
-            echo "installing a broken snapd should not work, test broken"
-            exit 1
-        fi
 
-        echo "Verify that snapd.failure was activated when we tried to install a broken snapd"
-        for _ in $(seq 60); do
-            # get the number of times that snapd.failure was started
-            started_after="$(get_journalctl_log -u snapd.failure | grep -c 'Started Failure handling of the snapd snap.' || true)"
-            if [ "$started_after" -gt "$started_before" ] ; then
-                break
+        # try to install a broken snapd snap multiple times, so that if a device
+        # wants to keep trying a refresh to a broken snapd snap for some reason
+        # it will be able to revert and fallback as many times as needed
+        for _ in $(seq 1 2); do
+            started_before="$(get_journalctl_log -u snapd.failure | grep -c 'Started Failure handling of the snapd snap.' || true)"
+
+            echo "Install the broken snapd"
+            if snap install --dangerous ./snapd-broken/snapd_*.snap; then
+                echo "installing a broken snapd should not work, test broken"
+                exit 1
             fi
-            sleep 1
+
+            echo "Verify that snapd.failure was activated when we tried to install a broken snapd"
+            for _ in $(seq 60); do
+                # get the number of times that snapd.failure was started
+                started_after="$(get_journalctl_log -u snapd.failure | grep -c 'Started Failure handling of the snapd snap.' || true)"
+                if [ "$started_after" -gt "$started_before" ] ; then
+                    break
+                fi
+                sleep 1
+            done
+
+            # just because snapd.failure.service is active doesn't mean that we are 
+            # fully ready; we should wait until the snap command shows up again
+            echo "And verify that snap commands still work and snapd is reverted"
+            retry-tool -n 30 --wait 1 bash -c 'snap list | MATCH "^snapd .* $current .*"'
+
+            echo "Verify we got the expected error message"
+            snap change --last=install|MATCH "there was a snapd rollback across the restart"
+
+            echo "restart snapd and ensure we can still talk to it"
+            systemctl restart snapd.socket snapd.service
+
+            # we should still have the snapd snap and it should have the revision we had
+            # before the broken one was installed
+            snap list | MATCH "^snapd .* $current .*"
         done
-
-        # just because snapd.failure.service is active doesn't mean that we are 
-        # fully ready; we should wait until the snap command shows up again
-        echo "And verify that snap commands still work and snapd is reverted"
-        retry-tool -n 30 --wait 1 bash -c 'snap list | MATCH "^snapd .* $current .*"'
-
-        echo "Verify we got the expected error message"
-        snap change --last=install|MATCH "there was a snapd rollback across the restart"
-
-        echo "restart snapd and ensure we can still talk to it"
-        systemctl restart snapd.socket snapd.service
-
-        # we should still have the snapd snap and it should have the revision we had
-        # before the broken one was installed
-        snap list | MATCH "^snapd .* $current .*"
 
         # we cannot undo the core -> snapd installation we did in the prepare 
         # section during restore, because we can't reboot during restore, so instead

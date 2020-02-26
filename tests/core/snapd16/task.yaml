@@ -22,13 +22,22 @@ execute: |
         echo "And snapd from the snap is run in the CGroup"
         systemctl status snapd|MATCH "/snap/snapd/x1/usr/lib/snapd/snapd"
 
+        echo "And we can refresh the snapd snap again"
+        prev=$(readlink /snap/snapd/current)
+        snap install snapd-from-core.snap --dangerous
+        next=$(readlink /snap/snapd/current)
+        if [ "$next" = "$prev" ]; then
+            echo "Failed to refresh the snapd snap, still on same revision"
+            exit 1
+        fi
+
         echo "And after a reboot the snapd snap is still ok"
         REBOOT
     elif [ "$SPREAD_REBOOT" = 1 ]; then
         echo "still installed"
         snap list snapd
         echo "and running the right snapd"
-        systemctl status snapd|MATCH "/snap/snapd/x1/usr/lib/snapd/snapd"
+        systemctl status snapd|MATCH "/snap/snapd/x2/usr/lib/snapd/snapd"
 
         # RESTORE CODE
         # we cannot restore in "restore:" because we need a reboot
