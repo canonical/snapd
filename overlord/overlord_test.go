@@ -755,8 +755,8 @@ func (ovs *overlordSuite) TestEnsureLoopNoPruneWhenPreseed(c *C) {
 	restore := release.MockPreseedMode(func() bool { return true })
 	defer restore()
 
-	restoreExitWithErr := overlord.MockExitWithError(func(err error) {})
-	defer restoreExitWithErr()
+	restorePreseedExitWithErr := overlord.MockPreseedExitWithError(func(err error) {})
+	defer restorePreseedExitWithErr()
 
 	o, err := overlord.New(nil)
 	c.Assert(err, IsNil)
@@ -1049,7 +1049,7 @@ func (ovs *overlordSuite) TestEnsureErrorWhenPreseeding(c *C) {
 	defer restoreIntv()
 
 	var errorCallbackError error
-	restoreExitWithErr := overlord.MockExitWithError(func(err error) {
+	restoreExitWithErr := overlord.MockPreseedExitWithError(func(err error) {
 		errorCallbackError = err
 	})
 	defer restoreExitWithErr()

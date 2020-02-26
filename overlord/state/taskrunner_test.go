@@ -917,7 +917,7 @@ func (ts *taskRunnerSuite) TestErrorCallbackCalledOnError(c *C) {
 	r := state.NewTaskRunner(st)
 
 	var called bool
-	r.SetTaskErrorCallback(func(err error) {
+	r.OnTaskError(func(err error) {
 		called = true
 	})
 
@@ -949,7 +949,7 @@ func (ts *taskRunnerSuite) TestErrorCallbackNotCalled(c *C) {
 	r := state.NewTaskRunner(st)
 
 	var called bool
-	r.SetTaskErrorCallback(func(err error) {
+	r.OnTaskError(func(err error) {
 		called = true
 	})
 

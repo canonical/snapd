@@ -402,8 +402,8 @@ func (o *Overlord) requestRestart(t state.RestartType) {
 	}
 }
 
-var exitWithError = func(err error) {
-	logger.Noticef("exiting overlord: %s", err)
+var preseedExitWithError = func(err error) {
+	fmt.Fprintf(os.Stderr, "cannot preseed: %v\n", err)
 	os.Exit(1)
 }
 
@@ -412,7 +412,7 @@ func (o *Overlord) Loop() {
 	o.ensureTimerSetup()
 	preseed := release.PreseedMode()
 	if preseed {
-		o.runner.SetTaskErrorCallback(exitWithError)
+		o.runner.OnTaskError(preseedExitWithError)
 	}
 	o.loopTomb.Go(func() error {
 		for {
@@ -422,7 +422,12 @@ func (o *Overlord) Loop() {
 			// continue to the next Ensure() try for now
 			err := o.stateEng.Ensure()
 			if err != nil && preseed {
-				exitWithError(err)
+				st := o.State()
+				// acquire state lock to ensure nothing attempts to write state
+				// as we are exiting.
+				st.Lock()
+				defer st.Unlock()
+				preseedExitWithError(err)
 			}
 			o.ensureDidRun()
 			select {

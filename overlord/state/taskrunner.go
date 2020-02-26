@@ -88,8 +88,8 @@ func NewTaskRunner(s *State) *TaskRunner {
 	}
 }
 
-// SetTaskErrorCallback sett error callback to execute when task errors out.
-func (r *TaskRunner) SetTaskErrorCallback(f func(err error)) {
+// OnTaskError sets error callback to execute when task errors out.
+func (r *TaskRunner) OnTaskError(f func(err error)) {
 	r.taskErrorCallback = f
 }
 

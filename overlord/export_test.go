@@ -82,10 +82,10 @@ func MockConfigstateInit(new func(*state.State, *hookstate.HookManager) error) (
 	}
 }
 
-func MockExitWithError(f func(err error)) (restore func()) {
-	old := exitWithError
-	exitWithError = f
+func MockPreseedExitWithError(f func(err error)) (restore func()) {
+	old := preseedExitWithError
+	preseedExitWithError = f
 	return func() {
-		exitWithError = old
+		preseedExitWithError = old
 	}
 }
