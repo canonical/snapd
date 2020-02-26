@@ -89,6 +89,8 @@ var systemSnapFromSeed = func(rootDir string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
+	// TODO: implement preseeding for core.
 	if !model.Classic() {
 		return "", fmt.Errorf("preseeding is only supported on classic systems")
 	}
