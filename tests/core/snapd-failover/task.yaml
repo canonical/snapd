@@ -95,6 +95,7 @@ execute: |
         # try to install a broken snapd snap multiple times, so that if a device
         # wants to keep trying a refresh to a broken snapd snap for some reason
         # it will be able to revert and fallback as many times as needed
+        #shellcheck disable=SC2167
         for _ in $(seq 1 2); do
             started_before="$(get_journalctl_log -u snapd.failure | grep -c 'Started Failure handling of the snapd snap.' || true)"
 
@@ -105,6 +106,7 @@ execute: |
             fi
 
             echo "Verify that snapd.failure was activated when we tried to install a broken snapd"
+            #shellcheck disable=SC2165
             for _ in $(seq 60); do
                 # get the number of times that snapd.failure was started
                 started_after="$(get_journalctl_log -u snapd.failure | grep -c 'Started Failure handling of the snapd snap.' || true)"
@@ -117,7 +119,7 @@ execute: |
             # just because snapd.failure.service is active doesn't mean that we are 
             # fully ready; we should wait until the snap command shows up again
             echo "And verify that snap commands still work and snapd is reverted"
-            retry-tool -n 30 --wait 1 bash -c 'snap list | MATCH "^snapd .* $current .*"'
+            retry-tool -n 30 --wait 1 bash -c "snap list | MATCH '^snapd .* $current .*'"
 
             echo "Verify we got the expected error message"
             snap change --last=install|MATCH "there was a snapd rollback across the restart"
