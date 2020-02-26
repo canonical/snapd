@@ -8,7 +8,9 @@ environment:
     USER_NAME: mvo
 
 restore: |
-    snap remove-user "$USER_NAME"
+    if [ "$(snap managed)" = "false" ]; then
+        snap remove-user "$USER_NAME"
+    fi
 
 execute: |
     echo "snap create-user -- ensure failure when run as non-root user without sudo"
