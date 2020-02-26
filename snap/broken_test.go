@@ -78,14 +78,14 @@ func (s *brokenSuite) TestGuessAppsForBrokenServices(c *C) {
 	info := &snap.Info{SuggestedName: "foo"}
 	apps := snap.GuessAppsForBroken(info)
 	c.Check(apps, HasLen, 2)
-	c.Check(apps["foo"], DeepEquals, &snap.AppInfo{Snap: info, Name: "foo", Daemon: "simple", DaemonMode: snap.SystemDaemon})
-	c.Check(apps["bar"], DeepEquals, &snap.AppInfo{Snap: info, Name: "bar", Daemon: "simple", DaemonMode: snap.SystemDaemon})
+	c.Check(apps["foo"], DeepEquals, &snap.AppInfo{Snap: info, Name: "foo", Daemon: "simple", DaemonScope: snap.SystemDaemon})
+	c.Check(apps["bar"], DeepEquals, &snap.AppInfo{Snap: info, Name: "bar", Daemon: "simple", DaemonScope: snap.SystemDaemon})
 
 	info = &snap.Info{SuggestedName: "foo", InstanceKey: "instance"}
 	apps = snap.GuessAppsForBroken(info)
 	c.Check(apps, HasLen, 2)
-	c.Check(apps["foo"], DeepEquals, &snap.AppInfo{Snap: info, Name: "foo", Daemon: "simple", DaemonMode: snap.SystemDaemon})
-	c.Check(apps["baz"], DeepEquals, &snap.AppInfo{Snap: info, Name: "baz", Daemon: "simple", DaemonMode: snap.SystemDaemon})
+	c.Check(apps["foo"], DeepEquals, &snap.AppInfo{Snap: info, Name: "foo", Daemon: "simple", DaemonScope: snap.SystemDaemon})
+	c.Check(apps["baz"], DeepEquals, &snap.AppInfo{Snap: info, Name: "baz", Daemon: "simple", DaemonScope: snap.SystemDaemon})
 }
 
 func (s *brokenSuite) TestGuessAppsForBrokenUserServices(c *C) {
@@ -97,14 +97,14 @@ func (s *brokenSuite) TestGuessAppsForBrokenUserServices(c *C) {
 	info := &snap.Info{SuggestedName: "foo"}
 	apps := snap.GuessAppsForBroken(info)
 	c.Check(apps, HasLen, 2)
-	c.Check(apps["foo"], DeepEquals, &snap.AppInfo{Snap: info, Name: "foo", Daemon: "simple", DaemonMode: snap.UserDaemon})
-	c.Check(apps["bar"], DeepEquals, &snap.AppInfo{Snap: info, Name: "bar", Daemon: "simple", DaemonMode: snap.UserDaemon})
+	c.Check(apps["foo"], DeepEquals, &snap.AppInfo{Snap: info, Name: "foo", Daemon: "simple", DaemonScope: snap.UserDaemon})
+	c.Check(apps["bar"], DeepEquals, &snap.AppInfo{Snap: info, Name: "bar", Daemon: "simple", DaemonScope: snap.UserDaemon})
 
 	info = &snap.Info{SuggestedName: "foo", InstanceKey: "instance"}
 	apps = snap.GuessAppsForBroken(info)
 	c.Check(apps, HasLen, 2)
-	c.Check(apps["foo"], DeepEquals, &snap.AppInfo{Snap: info, Name: "foo", Daemon: "simple", DaemonMode: snap.UserDaemon})
-	c.Check(apps["baz"], DeepEquals, &snap.AppInfo{Snap: info, Name: "baz", Daemon: "simple", DaemonMode: snap.UserDaemon})
+	c.Check(apps["foo"], DeepEquals, &snap.AppInfo{Snap: info, Name: "foo", Daemon: "simple", DaemonScope: snap.UserDaemon})
+	c.Check(apps["baz"], DeepEquals, &snap.AppInfo{Snap: info, Name: "baz", Daemon: "simple", DaemonScope: snap.UserDaemon})
 }
 
 func (s *brokenSuite) TestForceRenamePlug(c *C) {

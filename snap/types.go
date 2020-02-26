@@ -144,40 +144,40 @@ const (
 	StopReasonDisable ServiceStopReason = "disable"
 )
 
-// DaemonMode represents the mode of the systemd instance a daemon runs under
-type DaemonMode string
+// DaemonScope represents the scope of the daemon running under systemd
+type DaemonScope string
 
 const (
-	SystemDaemon DaemonMode = "system"
-	UserDaemon   DaemonMode = "user"
+	SystemDaemon DaemonScope = "system"
+	UserDaemon   DaemonScope = "user"
 )
 
-// UnmarshalJSON sets *daemonMode to a copy of data, assuming validation passes
-func (daemonMode *DaemonMode) UnmarshalJSON(data []byte) error {
+// UnmarshalJSON sets *daemonScope to a copy of data, assuming validation passes
+func (daemonScope *DaemonScope) UnmarshalJSON(data []byte) error {
 	var s string
 	if err := json.Unmarshal(data, &s); err != nil {
 		return err
 	}
 
-	return daemonMode.fromString(s)
+	return daemonScope.fromString(s)
 }
 
-// UnmarshalYAML so DaemonMode implements yaml's Unmarshaler interface
-func (daemonMode *DaemonMode) UnmarshalYAML(unmarshal func(interface{}) error) error {
+// UnmarshalYAML so DaemonScope implements yaml's Unmarshaler interface
+func (daemonScope *DaemonScope) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var s string
 	if err := unmarshal(&s); err != nil {
 		return err
 	}
 
-	return daemonMode.fromString(s)
+	return daemonScope.fromString(s)
 }
 
-func (daemonMode *DaemonMode) fromString(str string) error {
-	d := DaemonMode(str)
+func (daemonScope *DaemonScope) fromString(str string) error {
+	d := DaemonScope(str)
 	if d != SystemDaemon && d != UserDaemon {
-		return fmt.Errorf("invalid daemon mode: %q", str)
+		return fmt.Errorf("invalid daemon scope: %q", str)
 	}
 
-	*daemonMode = d
+	*daemonScope = d
 	return nil
 }

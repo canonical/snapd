@@ -1459,7 +1459,7 @@ apps:
    stop-timeout: 25s
    start-timeout: 42m
    daemon: forking
-   daemon-mode: system
+   daemon-scope: system
    stop-command: stop-cmd
    post-stop-command: post-stop-cmd
    restart-condition: on-abnormal
@@ -1477,7 +1477,7 @@ apps:
 		Name:            "svc",
 		Command:         "svc1",
 		Daemon:          "forking",
-		DaemonMode:      snap.SystemDaemon,
+		DaemonScope:     snap.SystemDaemon,
 		RestartCond:     snap.RestartOnAbnormal,
 		StopTimeout:     timeout.Timeout(25 * time.Second),
 		StartTimeout:    timeout.Timeout(42 * time.Minute),
@@ -1504,16 +1504,14 @@ apps:
  svc:
    command: svc1
    daemon: simple
-   daemon-mode: user
+   daemon-scope: user
 `)
 	info, err := snap.InfoFromSnapYaml(y)
 	c.Assert(err, IsNil)
-
-	// If daemon-mode is unset, default to system mode
-	c.Check(info.Apps["svc"].DaemonMode, Equals, snap.UserDaemon)
+	c.Check(info.Apps["svc"].DaemonScope, Equals, snap.UserDaemon)
 }
 
-func (s *YamlSuite) TestDaemonNoDaemonMode(c *C) {
+func (s *YamlSuite) TestDaemonNoDaemonScope(c *C) {
 	y := []byte(`name: wat
 version: 42
 apps:
@@ -1524,8 +1522,8 @@ apps:
 	info, err := snap.InfoFromSnapYaml(y)
 	c.Assert(err, IsNil)
 
-	// If daemon-mode is unset, default to system mode
-	c.Check(info.Apps["svc"].DaemonMode, Equals, snap.SystemDaemon)
+	// If daemon-scope is unset, default to system scope
+	c.Check(info.Apps["svc"].DaemonScope, Equals, snap.SystemDaemon)
 }
 
 func (s *YamlSuite) TestDaemonListenStreamAsInteger(c *C) {
@@ -1575,16 +1573,16 @@ apps:
 		"  line 9: cannot unmarshal !!str `asdfasdf` into os.FileMode")
 }
 
-func (s *YamlSuite) TestDaemonInvalidDaemonMode(c *C) {
+func (s *YamlSuite) TestDaemonInvalidDaemonScope(c *C) {
 	y := []byte(`name: wat
 version: 42
 apps:
  svc:
    command: svc
-   daemon-mode: invalid
+   daemon-scope: invalid
 `)
 	_, err := snap.InfoFromSnapYaml(y)
-	c.Check(err.Error(), Equals, "cannot parse snap.yaml: invalid daemon mode: \"invalid\"")
+	c.Check(err.Error(), Equals, "cannot parse snap.yaml: invalid daemon scope: \"invalid\"")
 }
 
 func (s *YamlSuite) TestSnapYamlGlobalEnvironment(c *C) {

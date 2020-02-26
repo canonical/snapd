@@ -133,7 +133,7 @@ func (s *servicesTestSuite) TestAddSnapServicesAndRemoveUserDaemons(c *C) {
 	info := snaptest.MockSnap(c, packageHello+`
  svc1:
   daemon: simple
-  daemon-mode: user
+  daemon-scope: user
 `, &snap.SideInfo{Revision: snap.R(12)})
 	svcFile := filepath.Join(s.tempdir, "/etc/systemd/user/snap.hello-snap.svc1.service")
 
@@ -583,7 +583,7 @@ func (s *servicesTestSuite) TestStartServicesUserDaemons(c *C) {
 	info := snaptest.MockSnap(c, packageHello+`
  svc1:
   daemon: simple
-  daemon-mode: user
+  daemon-scope: user
 `, &snap.SideInfo{Revision: snap.R(12)})
 	svcFile := filepath.Join(s.tempdir, "/etc/systemd/user/snap.hello-snap.svc1.service")
 
@@ -838,7 +838,7 @@ func (s *servicesTestSuite) TestAddSnapUserSocketFiles(c *C) {
 	info := snaptest.MockSnap(c, packageHello+`
  svc1:
   daemon: simple
-  daemon-mode: user
+  daemon-scope: user
   plugs: [network-bind]
   sockets:
     sock1:

@@ -4,7 +4,7 @@ apps:
     test-snapd-user-service-sockets:
         command: bin/start
         daemon: simple
-        daemon-mode: user
+        daemon-scope: user
         plugs: [network-bind]
         sockets:
             common:

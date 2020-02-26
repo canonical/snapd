@@ -201,7 +201,7 @@ func validateSocketAddrPath(socket *SocketInfo, fieldName string, path string) e
 		return fmt.Errorf("invalid %q: %q should be written as %q", fieldName, path, clean)
 	}
 
-	switch socket.App.DaemonMode {
+	switch socket.App.DaemonScope {
 	case SystemDaemon:
 		if !(strings.HasPrefix(path, "$SNAP_DATA/") || strings.HasPrefix(path, "$SNAP_COMMON/") || strings.HasPrefix(path, "$XDG_RUNTIME_DIR/")) {
 			return fmt.Errorf(
@@ -213,7 +213,7 @@ func validateSocketAddrPath(socket *SocketInfo, fieldName string, path string) e
 				"invalid %q: user daemon sockets must have a prefix of $SNAP_USER_DATA, $SNAP_USER_COMMON, or $XDG_RUNTIME_DIR", fieldName)
 		}
 	default:
-		panic("unknown snap.DaemonMode")
+		panic("unknown snap.DaemonScope")
 	}
 
 	return nil
@@ -524,8 +524,8 @@ func validateAppOrderNames(app *AppInfo, dependencies []string) error {
 			return fmt.Errorf("before/after references a non-service application %q", dep)
 		}
 
-		if app.DaemonMode != other.DaemonMode {
-			return fmt.Errorf("before/after references service with different daemon-mode %q", dep)
+		if app.DaemonScope != other.DaemonScope {
+			return fmt.Errorf("before/after references service with different daemon-scope %q", dep)
 		}
 	}
 	return nil
@@ -616,17 +616,17 @@ func ValidateApp(app *AppInfo) error {
 		return fmt.Errorf(`"daemon" field contains invalid value %q`, app.Daemon)
 	}
 
-	switch app.DaemonMode {
+	switch app.DaemonScope {
 	case "":
 		if app.Daemon != "" {
-			return fmt.Errorf(`"daemon-mode" must be set for daemons`)
+			return fmt.Errorf(`"daemon-scope" must be set for daemons`)
 		}
 	case SystemDaemon, UserDaemon:
 		if app.Daemon == "" {
-			return fmt.Errorf(`"daemon-mode" can only be set for daemons`)
+			return fmt.Errorf(`"daemon-scope" can only be set for daemons`)
 		}
 	default:
-		return fmt.Errorf(`invalid "daemon-mode": %q`, app.DaemonMode)
+		return fmt.Errorf(`invalid "daemon-scope": %q`, app.DaemonScope)
 	}
 
 	// Validate app name

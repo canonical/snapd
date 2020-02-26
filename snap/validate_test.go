@@ -50,10 +50,10 @@ func createSampleApp() *AppInfo {
 				Revision: R(20),
 			},
 		},
-		Name:       "foo",
-		Daemon:     "simple",
-		DaemonMode: SystemDaemon,
-		Plugs:      map[string]*PlugInfo{"network-bind": {}},
+		Name:        "foo",
+		Daemon:      "simple",
+		DaemonScope: SystemDaemon,
+		Plugs:       map[string]*PlugInfo{"network-bind": {}},
 		Sockets: map[string]*SocketInfo{
 			"sock": socket,
 		},
@@ -303,7 +303,7 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamAbstractSocket(
 func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamAddress(c *C) {
 	app := createSampleApp()
 	app.Daemon = "simple"
-	app.DaemonMode = SystemDaemon
+	app.DaemonScope = SystemDaemon
 	invalidListenAddresses := []string{
 		"10.0.1.1:8080",
 		"[fafa::baba]:8080",
@@ -340,7 +340,7 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPort(c *C) {
 
 func (s *ValidateSuite) TestValidateAppUserSocketsValidListenStreamAddresses(c *C) {
 	app := createSampleApp()
-	app.DaemonMode = UserDaemon
+	app.DaemonScope = UserDaemon
 	validListenAddresses := []string{
 		// socket paths using variables as prefix
 		"$SNAP_USER_DATA/my.socket",
@@ -367,7 +367,7 @@ func (s *ValidateSuite) TestValidateAppUserSocketsValidListenStreamAddresses(c *
 
 func (s *ValidateSuite) TestValidateAppUserSocketsInvalidListenStreamPath(c *C) {
 	app := createSampleApp()
-	app.DaemonMode = UserDaemon
+	app.DaemonScope = UserDaemon
 	invalidListenAddresses := []string{
 		// socket paths out of the snap dirs
 		"/some/path/my.socket",
@@ -422,23 +422,23 @@ func (s *ValidateSuite) TestAppDaemonValue(c *C) {
 		// bad
 		{"invalid-thing", false},
 	} {
-		var daemonMode DaemonMode
+		var daemonScope DaemonScope
 		if t.daemon != "" {
-			daemonMode = SystemDaemon
+			daemonScope = SystemDaemon
 		}
 		if t.ok {
-			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: t.daemon, DaemonMode: daemonMode}), IsNil)
+			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: t.daemon, DaemonScope: daemonScope}), IsNil)
 		} else {
-			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: t.daemon, DaemonMode: daemonMode}), ErrorMatches, fmt.Sprintf(`"daemon" field contains invalid value %q`, t.daemon))
+			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: t.daemon, DaemonScope: daemonScope}), ErrorMatches, fmt.Sprintf(`"daemon" field contains invalid value %q`, t.daemon))
 		}
 	}
 }
 
-func (s *ValidateSuite) TestAppDaemonModeValue(c *C) {
+func (s *ValidateSuite) TestAppDaemonScopeValue(c *C) {
 	for _, t := range []struct {
-		daemon     string
-		daemonMode DaemonMode
-		ok         bool
+		daemon      string
+		daemonScope DaemonScope
+		ok          bool
 	}{
 		// good
 		{"", "", true},
@@ -450,16 +450,16 @@ func (s *ValidateSuite) TestAppDaemonModeValue(c *C) {
 		{"", UserDaemon, false},
 		{"simple", "invalid-mode", false},
 	} {
-		app := &AppInfo{Name: "foo", Daemon: t.daemon, DaemonMode: t.daemonMode}
+		app := &AppInfo{Name: "foo", Daemon: t.daemon, DaemonScope: t.daemonScope}
 		err := ValidateApp(app)
 		if t.ok {
 			c.Check(err, IsNil)
 		} else if t.daemon == "" {
-			c.Check(err, ErrorMatches, `"daemon-mode" can only be set for daemons`)
-		} else if t.daemonMode == "" {
-			c.Check(err, ErrorMatches, `"daemon-mode" must be set for daemons`)
+			c.Check(err, ErrorMatches, `"daemon-scope" can only be set for daemons`)
+		} else if t.daemonScope == "" {
+			c.Check(err, ErrorMatches, `"daemon-scope" must be set for daemons`)
 		} else {
-			c.Check(err, ErrorMatches, fmt.Sprintf(`invalid "daemon-mode": %q`, t.daemonMode))
+			c.Check(err, ErrorMatches, fmt.Sprintf(`invalid "daemon-scope": %q`, t.daemonScope))
 		}
 	}
 }
@@ -484,9 +484,9 @@ func (s *ValidateSuite) TestAppStopMode(c *C) {
 		{"invalid-thing", false},
 	} {
 		if t.ok {
-			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", DaemonMode: SystemDaemon, StopMode: t.stopMode}), IsNil)
+			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", DaemonScope: SystemDaemon, StopMode: t.stopMode}), IsNil)
 		} else {
-			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", DaemonMode: SystemDaemon, StopMode: t.stopMode}), ErrorMatches, fmt.Sprintf(`"stop-mode" field contains invalid value %q`, t.stopMode))
+			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", DaemonScope: SystemDaemon, StopMode: t.stopMode}), ErrorMatches, fmt.Sprintf(`"stop-mode" field contains invalid value %q`, t.stopMode))
 		}
 	}
 
@@ -508,7 +508,7 @@ func (s *ValidateSuite) TestAppRefreshMode(c *C) {
 		// bad
 		{"invalid-thing", false},
 	} {
-		err := ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", DaemonMode: SystemDaemon, RefreshMode: t.refreshMode})
+		err := ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", DaemonScope: SystemDaemon, RefreshMode: t.refreshMode})
 		if t.ok {
 			c.Check(err, IsNil)
 		} else {
@@ -1207,7 +1207,7 @@ apps:
    daemon: simple
  bar:
    daemon: simple
-   daemon-mode: user
+   daemon-scope: user
    after: [foo]
 `)
 
@@ -1256,7 +1256,7 @@ apps:
 	}, {
 		name: "user daemon wants system daemon",
 		desc: mixedSystemUserDaemons,
-		err:  `invalid definition of application "bar": before/after references service with different daemon-mode "foo"`,
+		err:  `invalid definition of application "bar": before/after references service with different daemon-scope "foo"`,
 	}}
 	for _, tc := range tcs {
 		c.Logf("trying %q", tc.name)

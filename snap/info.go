@@ -837,7 +837,7 @@ type AppInfo struct {
 	CommonID      string
 
 	Daemon          string
-	DaemonMode      DaemonMode
+	DaemonScope     DaemonScope
 	StopTimeout     timeout.Timeout
 	StartTimeout    timeout.Timeout
 	WatchdogTimeout timeout.Timeout
@@ -1007,13 +1007,13 @@ func (app *AppInfo) ServiceName() string {
 }
 
 func (app *AppInfo) serviceDir() string {
-	switch app.DaemonMode {
+	switch app.DaemonScope {
 	case SystemDaemon:
 		return dirs.SnapServicesDir
 	case UserDaemon:
 		return dirs.SnapUserServicesDir
 	default:
-		panic("unknown daemon mode")
+		panic("unknown daemon scope")
 	}
 }
 

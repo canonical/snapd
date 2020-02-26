@@ -103,7 +103,7 @@ func stopService(sysd systemd.Systemd, app *snap.AppInfo, inter interacter) erro
 		extraServices = append(extraServices, filepath.Base(app.Timer.File()))
 	}
 
-	switch app.DaemonMode {
+	switch app.DaemonScope {
 	case snap.SystemDaemon:
 		stopErrors := []error{}
 		for _, service := range extraServices {
@@ -153,7 +153,7 @@ func StartServices(apps []*snap.AppInfo, inter interacter, tm timings.Measurer) 
 		}
 
 		var sysd systemd.Systemd
-		switch app.DaemonMode {
+		switch app.DaemonScope {
 		case snap.SystemDaemon:
 			sysd = systemSysd
 		case snap.UserDaemon:
@@ -191,7 +191,7 @@ func StartServices(apps []*snap.AppInfo, inter interacter, tm timings.Measurer) 
 				return err
 			}
 			if isEnabled {
-				switch app.DaemonMode {
+				switch app.DaemonScope {
 				case snap.SystemDaemon:
 
 					systemServices = append(systemServices, app.ServiceName())
@@ -209,7 +209,7 @@ func StartServices(apps []*snap.AppInfo, inter interacter, tm timings.Measurer) 
 			}
 
 			timings.Run(tm, "start-socket-service", fmt.Sprintf("start socket service %q", socketService), func(nested timings.Measurer) {
-				switch app.DaemonMode {
+				switch app.DaemonScope {
 				case snap.SystemDaemon:
 					err = sysd.Start(socketService)
 				case snap.UserDaemon:
@@ -229,7 +229,7 @@ func StartServices(apps []*snap.AppInfo, inter interacter, tm timings.Measurer) 
 			}
 
 			timings.Run(tm, "start-timer-service", fmt.Sprintf("start timer service %q", timerService), func(nested timings.Measurer) {
-				switch app.DaemonMode {
+				switch app.DaemonScope {
 				case snap.SystemDaemon:
 					err = sysd.Start(timerService)
 				case snap.UserDaemon:
@@ -369,7 +369,7 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, inter interacter) (err
 		}
 
 		svcName := app.ServiceName()
-		switch app.DaemonMode {
+		switch app.DaemonScope {
 		case snap.SystemDaemon:
 			if strutil.ListContains(disabledSvcs, app.Name) {
 				// service is disabled, nothing to do
@@ -449,7 +449,7 @@ func StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, inter int
 
 		// ensure the service is really stopped on remove regardless
 		// of stop-mode
-		if reason == snap.StopReasonRemove && !app.StopMode.KillAll() && app.DaemonMode == snap.SystemDaemon {
+		if reason == snap.StopReasonRemove && !app.StopMode.KillAll() && app.DaemonScope == snap.SystemDaemon {
 			// FIXME: make this smarter and avoid the killWait
 			//        delay if not needed (i.e. if all processes
 			//        have died)
@@ -500,7 +500,7 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 		nservices++
 
 		var sysd systemd.Systemd
-		switch app.DaemonMode {
+		switch app.DaemonScope {
 		case snap.SystemDaemon:
 			sysd = systemSysd
 		case snap.UserDaemon:
@@ -686,7 +686,7 @@ WantedBy={{.ServicesTarget}}
 		// systemd runs as PID 1 so %h will not work.
 		Home: "/root",
 	}
-	switch appInfo.DaemonMode {
+	switch appInfo.DaemonScope {
 	case snap.SystemDaemon:
 		wrapperData.ServicesTarget = systemd.ServicesTarget
 		wrapperData.PrerequisiteTarget = systemd.PrerequisiteTarget
@@ -698,7 +698,7 @@ WantedBy={{.ServicesTarget}}
 		// unit fails if the directory doesn't exist.
 		wrapperData.WorkingDir = appInfo.Snap.DataDir()
 	default:
-		panic("unknown snap.DaemonMode")
+		panic("unknown snap.DaemonScope")
 	}
 
 	if err := t.Execute(&templateOut, wrapperData); err != nil {
@@ -751,13 +751,13 @@ WantedBy={{.SocketsTarget}}
 		SocketInfo:      socket,
 		ListenStream:    listenStream,
 	}
-	switch appInfo.DaemonMode {
+	switch appInfo.DaemonScope {
 	case snap.SystemDaemon:
 		wrapperData.MountUnit = filepath.Base(systemd.MountUnitPath(appInfo.Snap.MountDir()))
 	case snap.UserDaemon:
 		// nothing
 	default:
-		panic("unknown snap.DaemonMode")
+		panic("unknown snap.DaemonScope")
 	}
 
 	if err := t.Execute(&templateOut, wrapperData); err != nil {
@@ -783,7 +783,7 @@ func generateSnapSocketFiles(app *snap.AppInfo) (*map[string][]byte, error) {
 func renderListenStream(socket *snap.SocketInfo) string {
 	s := socket.App.Snap
 	listenStream := socket.ListenStream
-	switch socket.App.DaemonMode {
+	switch socket.App.DaemonScope {
 	case snap.SystemDaemon:
 		listenStream = strings.Replace(listenStream, "$SNAP_DATA", s.DataDir(), -1)
 		// TODO: when we support User/Group in the generated
@@ -798,7 +798,7 @@ func renderListenStream(socket *snap.SocketInfo) string {
 		// FIXME: find some way to share code with snap.UserXdgRuntimeDir()
 		listenStream = strings.Replace(listenStream, "$XDG_RUNTIME_DIR", fmt.Sprintf("%%t/snap.%s", s.InstanceName()), -1)
 	default:
-		panic("unknown snap.DaemonMode")
+		panic("unknown snap.DaemonScope")
 	}
 	return listenStream
 }
@@ -844,13 +844,13 @@ WantedBy={{.TimersTarget}}
 		TimerName:       app.Name,
 		Schedules:       schedules,
 	}
-	switch app.DaemonMode {
+	switch app.DaemonScope {
 	case snap.SystemDaemon:
 		wrapperData.MountUnit = filepath.Base(systemd.MountUnitPath(app.Snap.MountDir()))
 	case snap.UserDaemon:
 		// nothing
 	default:
-		panic("unknown systemd.InstanceMode")
+		panic("unknown snap.DaemonScope")
 	}
 
 	if err := t.Execute(&templateOut, wrapperData); err != nil {

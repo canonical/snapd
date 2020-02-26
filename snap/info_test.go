@@ -1210,7 +1210,7 @@ apps:
     daemon: no
   svc3:
     daemon: simple
-    daemon-mode: user
+    daemon-scope: user
   app1:
   app2:
 `))
@@ -1218,14 +1218,14 @@ apps:
 
 	svc := info.Apps["svc1"]
 	c.Check(svc.IsService(), Equals, true)
-	c.Check(svc.DaemonMode, Equals, snap.SystemDaemon)
+	c.Check(svc.DaemonScope, Equals, snap.SystemDaemon)
 	c.Check(svc.ServiceName(), Equals, "snap.pans.svc1.service")
 	c.Check(svc.ServiceFile(), Equals, dirs.GlobalRootDir+"/etc/systemd/system/snap.pans.svc1.service")
 
 	c.Check(info.Apps["svc2"].IsService(), Equals, true)
 	userSvc := info.Apps["svc3"]
 	c.Check(userSvc.IsService(), Equals, true)
-	c.Check(userSvc.DaemonMode, Equals, snap.UserDaemon)
+	c.Check(userSvc.DaemonScope, Equals, snap.UserDaemon)
 	c.Check(userSvc.ServiceName(), Equals, "snap.pans.svc3.service")
 	c.Check(userSvc.ServiceFile(), Equals, dirs.GlobalRootDir+"/etc/systemd/user/snap.pans.svc3.service")
 	c.Check(info.Apps["app1"].IsService(), Equals, false)

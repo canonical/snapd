@@ -4,4 +4,4 @@ apps:
     test-snapd-user-service:
         command: bin/start
         daemon: simple
-        daemon-mode: user
+        daemon-scope: user

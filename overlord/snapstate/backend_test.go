@@ -256,10 +256,10 @@ func (f *fakeStore) snap(spec snapSpec, user *auth.UserState) (*snap.Info, error
 	case "channel-for-user-daemon":
 		info.Apps = map[string]*snap.AppInfo{
 			"user-daemon": {
-				Snap:       info,
-				Name:       "user-daemon",
-				Daemon:     "simple",
-				DaemonMode: "user",
+				Snap:        info,
+				Name:        "user-daemon",
+				Daemon:      "simple",
+				DaemonScope: "user",
 			},
 		}
 	}

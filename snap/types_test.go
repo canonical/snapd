@@ -227,7 +227,7 @@ func (s *typeSuite) TestJsonUnmarshalInvalidConfinementTypes(c *C) {
 	}
 }
 
-func (s *typeSuite) TestYamlMarshalDaemonModes(c *C) {
+func (s *typeSuite) TestYamlMarshalDaemonScopes(c *C) {
 	out, err := yaml.Marshal(SystemDaemon)
 	c.Assert(err, IsNil)
 	c.Check(string(out), Equals, "system\n")
@@ -237,29 +237,29 @@ func (s *typeSuite) TestYamlMarshalDaemonModes(c *C) {
 	c.Check(string(out), Equals, "user\n")
 }
 
-func (s *typeSuite) TestYamlUnmarshalDaemonModes(c *C) {
-	var daemonMode DaemonMode
-	err := yaml.Unmarshal([]byte("system"), &daemonMode)
+func (s *typeSuite) TestYamlUnmarshalDaemonScopes(c *C) {
+	var daemonScope DaemonScope
+	err := yaml.Unmarshal([]byte("system"), &daemonScope)
 	c.Assert(err, IsNil)
-	c.Check(daemonMode, Equals, SystemDaemon)
+	c.Check(daemonScope, Equals, SystemDaemon)
 
-	err = yaml.Unmarshal([]byte("user"), &daemonMode)
+	err = yaml.Unmarshal([]byte("user"), &daemonScope)
 	c.Assert(err, IsNil)
-	c.Check(daemonMode, Equals, UserDaemon)
+	c.Check(daemonScope, Equals, UserDaemon)
 }
 
-func (s *typeSuite) TestYamlUnmarshalInvalidDaemonModes(c *C) {
-	var invalidDaemonModes = []string{
+func (s *typeSuite) TestYamlUnmarshalInvalidDaemonScopes(c *C) {
+	var invalidDaemonScopes = []string{
 		"foo", "system-", "_user",
 	}
-	var daemonMode DaemonMode
-	for _, thisDaemonMode := range invalidDaemonModes {
-		err := yaml.Unmarshal([]byte(thisDaemonMode), &daemonMode)
-		c.Assert(err, NotNil, Commentf("Expected '%s' to be an invalid daemon mode", thisDaemonMode))
+	var daemonScope DaemonScope
+	for _, thisDaemonScope := range invalidDaemonScopes {
+		err := yaml.Unmarshal([]byte(thisDaemonScope), &daemonScope)
+		c.Assert(err, NotNil, Commentf("Expected '%s' to be an invalid daemon scope", thisDaemonScope))
 	}
 }
 
-func (s *typeSuite) TestJsonMarshalDaemonModes(c *C) {
+func (s *typeSuite) TestJsonMarshalDaemonScopes(c *C) {
 	out, err := json.Marshal(SystemDaemon)
 	c.Assert(err, IsNil)
 	c.Check(string(out), Equals, "\"system\"")
@@ -269,24 +269,24 @@ func (s *typeSuite) TestJsonMarshalDaemonModes(c *C) {
 	c.Check(string(out), Equals, "\"user\"")
 }
 
-func (s *typeSuite) TestJsonUnmarshalDaemonModes(c *C) {
-	var daemonMode DaemonMode
-	err := json.Unmarshal([]byte("\"system\""), &daemonMode)
+func (s *typeSuite) TestJsonUnmarshalDaemonScopes(c *C) {
+	var daemonScope DaemonScope
+	err := json.Unmarshal([]byte("\"system\""), &daemonScope)
 	c.Assert(err, IsNil)
-	c.Check(daemonMode, Equals, SystemDaemon)
+	c.Check(daemonScope, Equals, SystemDaemon)
 
-	err = json.Unmarshal([]byte("\"user\""), &daemonMode)
+	err = json.Unmarshal([]byte("\"user\""), &daemonScope)
 	c.Assert(err, IsNil)
-	c.Check(daemonMode, Equals, UserDaemon)
+	c.Check(daemonScope, Equals, UserDaemon)
 }
 
-func (s *typeSuite) TestJsonUnmarshalInvalidDaemonModes(c *C) {
-	var invalidDaemonModes = []string{
+func (s *typeSuite) TestJsonUnmarshalInvalidDaemonScopes(c *C) {
+	var invalidDaemonScopes = []string{
 		"foo", "system-", "_user",
 	}
-	var daemonMode DaemonMode
-	for _, thisDaemonMode := range invalidDaemonModes {
-		err := json.Unmarshal([]byte(fmt.Sprintf("%q", thisDaemonMode)), &daemonMode)
-		c.Assert(err, NotNil, Commentf("Expected '%s' to be an invalid daemon mode", thisDaemonMode))
+	var daemonScope DaemonScope
+	for _, thisDaemonScope := range invalidDaemonScopes {
+		err := json.Unmarshal([]byte(fmt.Sprintf("%q", thisDaemonScope)), &daemonScope)
+		c.Assert(err, NotNil, Commentf("Expected '%s' to be an invalid daemon scope", thisDaemonScope))
 	}
 }

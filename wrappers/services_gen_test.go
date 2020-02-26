@@ -217,7 +217,7 @@ func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileTypeForking(c *C) {
 		PostStopCommand: "bin/foo post-stop",
 		StopTimeout:     timeout.DefaultTimeout,
 		Daemon:          "forking",
-		DaemonMode:      snap.SystemDaemon,
+		DaemonScope:     snap.SystemDaemon,
 	}
 
 	generatedWrapper, err := wrappers.GenerateSnapServiceFile(service)
@@ -239,7 +239,7 @@ func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileIllegalChars(c *C) 
 		PostStopCommand: "bin/foo post-stop",
 		StopTimeout:     timeout.DefaultTimeout,
 		Daemon:          "simple",
-		DaemonMode:      snap.SystemDaemon,
+		DaemonScope:     snap.SystemDaemon,
 	}
 
 	_, err := wrappers.GenerateSnapServiceFile(service)
@@ -308,7 +308,7 @@ apps:
         post-stop-command: bin/stop --post
         stop-timeout: 10s
         daemon: simple
-        daemon-mode: user
+        daemon-scope: user
 `
 	info, err := snap.InfoFromSnapYaml([]byte(yamlText))
 	c.Assert(err, IsNil)
@@ -359,12 +359,12 @@ WantedBy=sockets.target
 		SideInfo:      snap.SideInfo{Revision: snap.R(44)},
 	}
 	service := &snap.AppInfo{
-		Snap:       si,
-		Name:       "app",
-		Command:    "bin/foo start",
-		Daemon:     "simple",
-		DaemonMode: snap.SystemDaemon,
-		Plugs:      map[string]*snap.PlugInfo{"network-bind": {}},
+		Snap:        si,
+		Name:        "app",
+		Command:     "bin/foo start",
+		Daemon:      "simple",
+		DaemonScope: snap.SystemDaemon,
+		Plugs:       map[string]*snap.PlugInfo{"network-bind": {}},
 		Sockets: map[string]*snap.SocketInfo{
 			"sock1": {
 				Name:         "sock1",
@@ -429,35 +429,35 @@ WantedBy=multi-user.target
 			SideInfo:      snap.SideInfo{Revision: snap.R(44)},
 			Apps: map[string]*snap.AppInfo{
 				"foo": {
-					Name:       "foo",
-					Snap:       &snap.Info{SuggestedName: "snap"},
-					Daemon:     "forking",
-					DaemonMode: snap.SystemDaemon,
+					Name:        "foo",
+					Snap:        &snap.Info{SuggestedName: "snap"},
+					Daemon:      "forking",
+					DaemonScope: snap.SystemDaemon,
 				},
 				"bar": {
-					Name:       "bar",
-					Snap:       &snap.Info{SuggestedName: "snap"},
-					Daemon:     "forking",
-					DaemonMode: snap.SystemDaemon,
+					Name:        "bar",
+					Snap:        &snap.Info{SuggestedName: "snap"},
+					Daemon:      "forking",
+					DaemonScope: snap.SystemDaemon,
 				},
 				"zed": {
-					Name:       "zed",
-					Snap:       &snap.Info{SuggestedName: "snap"},
-					Daemon:     "forking",
-					DaemonMode: snap.SystemDaemon,
+					Name:        "zed",
+					Snap:        &snap.Info{SuggestedName: "snap"},
+					Daemon:      "forking",
+					DaemonScope: snap.SystemDaemon,
 				},
 				"baz": {
-					Name:       "baz",
-					Snap:       &snap.Info{SuggestedName: "snap"},
-					Daemon:     "forking",
-					DaemonMode: snap.SystemDaemon,
+					Name:        "baz",
+					Snap:        &snap.Info{SuggestedName: "snap"},
+					Daemon:      "forking",
+					DaemonScope: snap.SystemDaemon,
 				},
 			},
 		},
 		Name:        "app",
 		Command:     "bin/foo start",
 		Daemon:      "simple",
-		DaemonMode:  snap.SystemDaemon,
+		DaemonScope: snap.SystemDaemon,
 		StopTimeout: timeout.DefaultTimeout,
 	}
 
@@ -517,7 +517,7 @@ WantedBy=timers.target
 		Name:        "app",
 		Command:     "bin/foo start",
 		Daemon:      "simple",
-		DaemonMode:  snap.SystemDaemon,
+		DaemonScope: snap.SystemDaemon,
 		StopTimeout: timeout.DefaultTimeout,
 		Timer: &snap.TimerInfo{
 			Timer: "10:00-12:00/2",
@@ -542,7 +542,7 @@ func (s *servicesWrapperGenSuite) TestServiceTimerUnitBadTimer(c *C) {
 		Name:        "app",
 		Command:     "bin/foo start",
 		Daemon:      "simple",
-		DaemonMode:  snap.SystemDaemon,
+		DaemonScope: snap.SystemDaemon,
 		StopTimeout: timeout.DefaultTimeout,
 		Timer: &snap.TimerInfo{
 			Timer: "bad-timer",
@@ -586,7 +586,7 @@ WantedBy=multi-user.target
 		Name:        "app",
 		Command:     "bin/foo start",
 		Daemon:      "simple",
-		DaemonMode:  snap.SystemDaemon,
+		DaemonScope: snap.SystemDaemon,
 		StopTimeout: timeout.DefaultTimeout,
 		Timer: &snap.TimerInfo{
 			Timer: "10:00-12:00,,mon,23:00~01:00/2",
@@ -739,11 +739,11 @@ func (s *servicesWrapperGenSuite) TestKillModeSig(c *C) {
 				Version:       "0.3.4",
 				SideInfo:      snap.SideInfo{Revision: snap.R(44)},
 			},
-			Name:       "app",
-			Command:    "bin/foo start",
-			Daemon:     "simple",
-			DaemonMode: snap.SystemDaemon,
-			StopMode:   snap.StopModeType(rm),
+			Name:        "app",
+			Command:     "bin/foo start",
+			Daemon:      "simple",
+			DaemonScope: snap.SystemDaemon,
+			StopMode:    snap.StopModeType(rm),
 		}
 
 		generatedWrapper, err := wrappers.GenerateSnapServiceFile(service)
@@ -783,7 +783,7 @@ func (s *servicesWrapperGenSuite) TestRestartDelay(c *C) {
 		Name:         "app",
 		Command:      "bin/foo start",
 		Daemon:       "simple",
-		DaemonMode:   snap.SystemDaemon,
+		DaemonScope:  snap.SystemDaemon,
 		RestartDelay: timeout.Timeout(20 * time.Second),
 	}
 
