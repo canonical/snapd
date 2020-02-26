@@ -399,18 +399,17 @@ func (s *seed20) LoadMeta(tm timings.Measurer) error {
 
 func (s *seed20) LoadEssentialMeta(essentialTypes []snap.Type, tm timings.Measurer) error {
 	filterEssential := essentialSnapTypesToModelFilter(essentialTypes)
-	expectedEssentialSnapsNum := len(essentialTypes)
 
 	if err := s.loadModelMeta(filterEssential, tm); err != nil {
 		return err
 	}
 
-	if s.essentialSnapsNum == expectedEssentialSnapsNum {
-		// found all the explicitly asked essential types
-		return nil
+	if s.essentialSnapsNum != len(essentialTypes) {
+		// did not found all the explicitly asked essential types
+		return fmt.Errorf("model does not specify all the requested essential snaps: %v", essentialTypes)
 	}
 
-	return fmt.Errorf("model does not specify all the requested essential snaps: %v", essentialTypes)
+	return nil
 }
 
 func (s *seed20) loadModelMeta(filterEssential func(*asserts.ModelSnap) bool, tm timings.Measurer) error {
@@ -470,7 +469,7 @@ func (s *seed20) loadModelMeta(filterEssential func(*asserts.ModelSnap) bool, tm
 			// TODO: when we allow extend models for classic
 			// we need to add the gadget base here
 
-			// done with essential snaps
+			// done with essential snaps, gadget is the last one
 			essential = false
 			if essentialOnly {
 				// will not find more
