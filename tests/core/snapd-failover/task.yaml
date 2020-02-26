@@ -8,40 +8,17 @@ prepare: |
     # shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB/systems.sh"
 
+    # shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+
     # on UC16, we should transition to using the snapd snap before running the 
     # test because it by default uses the core snap
     # there is a different test for the transition between the core snap and the
     # snapd snap
     if is_core16_system; then
-        # FIXME: maybe build the snapd snap from the deb in prepare_ubuntu_core
-        # and include it somewhere in the image so we don't need to do this hack
-        # here?
-
-        # get the snap.yaml and a list of all the snapd snap files using edge
-        # NOTE: this may break if a spread run adds files to the snapd snap that
-        # don't exist in the snapd snap on edge and those files are necessary
-        # for snapd to run or revert, etc.
-        snap download snapd --basename=snapd-upstream --edge
-        unsquashfs -d ./snapd-upstream snapd-upstream.snap
-        ( cd snapd-upstream; find . \( -type l -o -type f \) | cut -c3- > ../files.txt )
-        
-        current=$(readlink /snap/core/current)
-        CORE_SNAP=$(ls /var/lib/snapd/snaps/core_"$current".snap)
-
-        # only unpack files from the core snap that are in the snapd snap - this
-        # is kosher because the set of files in the core snap is a superset of 
-        # all the files in the snapd snap
-        unsquashfs -d ./snapd-local "$CORE_SNAP" $(cat files.txt)
-        
-        # replace snap.yaml from the core snap with the snapd snap
-        cp snapd-upstream/meta/snap.yaml snapd-local/meta/snap.yaml
-
-        # pack and install
-        snap pack snapd-local --filename=snapd-from-core.snap
-        snap install --dangerous $PWD/snapd-from-core.snap
-
-        # cleanup the snaps we downloaded and built
-        rm -rf snapd-local snapd-upstream* files.txt
+        # rebuild the core snap into the snapd snap and install it
+        repack_core_snap_into_snapd_snap
+        snap install --dangerous snapd-from-core.snap
     fi
     # ensure we are in snapd snap world
     snap list snapd
@@ -65,6 +42,15 @@ debug: |
     /snap/snapd/x1/usr/bin/snap debug state /var/lib/snapd/state.json || true
     /snap/snapd/x1/usr/bin/snap debug state --change="$(/snap/snapd/x1/usr/bin/snap debug state /var/lib/snapd/state.json|tail -n1|awk '{print $1}')" /var/lib/snapd/state.json || true
 
+restore: |
+    # shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB/systems.sh"
+
+    if is_core16_system; then
+        echo "ensuring we reverted fully to core snap system"
+        not test -d /snap/snapd
+    fi
+
 execute: |
     # shellcheck source=tests/lib/journalctl.sh
     . "$TESTSLIB/journalctl.sh"
@@ -72,65 +58,100 @@ execute: |
     # shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB/systems.sh"
 
-    echo "Testing failover handling of the snapd snap"
+    if [ "$SPREAD_REBOOT" = 0 ]; then
+        echo "Testing failover handling of the snapd snap"
 
-    # for debugging
-    snap list --all
+        # for debugging
+        snap list --all
 
-    # get the number of times that snapd.failure was started before we do 
-    # anything
-    started_before="$(get_journalctl_log -u snapd.failure | grep -c 'Started Failure handling of the snapd snap.' || true)"
+        # get the number of times that snapd.failure was started before we do 
+        # anything
+        started_before="$(get_journalctl_log -u snapd.failure | grep -c 'Started Failure handling of the snapd snap.' || true)"
 
-    # test that random signals don't trigger snapd-failure
-    current=$(readlink /snap/snapd/current)
+        # test that random signals don't trigger snapd-failure
+        current=$(readlink /snap/snapd/current)
 
-    echo "Verify that a random signal does not trigger the failure handling"
-    echo "and snapd is just restarted"
-    systemctl kill --signal=SIGSEGV snapd.service
+        echo "Verify that a random signal does not trigger the failure handling"
+        echo "and snapd is just restarted"
+        systemctl kill --signal=SIGSEGV snapd.service
 
-    started_after_rand_sig="$(get_journalctl_log -u snapd.failure | grep -c 'Started Failure handling of the snapd snap.' || true)"
+        started_after_rand_sig="$(get_journalctl_log -u snapd.failure | grep -c 'Started Failure handling of the snapd snap.' || true)"
 
-    if [ "$started_after_rand_sig" -gt "$started_before" ] ; then
-        echo "snapd.failure inadvertently started with a random signal!"
-        exit 1
-    fi
-
-    echo "Snap list is working still"
-    snap list | MATCH "^snapd .* $current .*"
-
-    SNAPD_SNAP=$(ls /var/lib/snapd/snaps/snapd_"$current".snap)
-
-    echo "Break snapd"
-    unsquashfs -d ./snapd-broken "$SNAPD_SNAP"
-    echo "" > ./snapd-broken/usr/lib/snapd/snapd
-    (cd ./snapd-broken && snap pack .)
-    echo "Now install the broken snapd"
-    if snap install --dangerous ./snapd-broken/snapd_*.snap; then
-        echo "installing a broken snapd should not work, test broken"
-        exit 1
-    fi
-
-    echo "Verify that snapd.failure was activated when we tried to install a broken snapd"
-    for _ in $(seq 60); do
-        # get the number of times that snapd.failure was started
-        started_after="$(get_journalctl_log -u snapd.failure | grep -c 'Started Failure handling of the snapd snap.' || true)"
-        if [ "$started_after" -gt "$started_before" ] ; then
-            break
+        if [ "$started_after_rand_sig" -gt "$started_before" ] ; then
+            echo "snapd.failure inadvertently started with a random signal!"
+            exit 1
         fi
-        sleep 1
-    done
 
-    # just because snapd.failure.service is active doesn't mean that we are 
-    # fully ready; we should wait until the snap command shows up again
-    echo "And verify that snap commands still work and snapd is reverted"
-    retry-tool -n 30 --wait 1 bash -c 'snap list | MATCH "^snapd .* $current .*"'
+        echo "Snap list is working still"
+        snap list | MATCH "^snapd .* $current .*"
 
-    echo "Verify we got the expected error message"
-    snap change --last=install|MATCH "there was a snapd rollback across the restart"
+        SNAPD_SNAP=$(ls /var/lib/snapd/snaps/snapd_"$current".snap)
 
-    echo "restart snapd and ensure we can still talk to it"
-    systemctl restart snapd.socket snapd.service
+        echo "Break snapd"
+        unsquashfs -d ./snapd-broken "$SNAPD_SNAP"
+        echo "" > ./snapd-broken/usr/lib/snapd/snapd
+        (cd ./snapd-broken && snap pack .)
+        echo "Now install the broken snapd"
+        if snap install --dangerous ./snapd-broken/snapd_*.snap; then
+            echo "installing a broken snapd should not work, test broken"
+            exit 1
+        fi
 
-    # we should still have the snapd snap and it should have the revision we had
-    # before the broken one was installed
-    snap list | MATCH "^snapd .* $current .*"
+        echo "Verify that snapd.failure was activated when we tried to install a broken snapd"
+        for _ in $(seq 60); do
+            # get the number of times that snapd.failure was started
+            started_after="$(get_journalctl_log -u snapd.failure | grep -c 'Started Failure handling of the snapd snap.' || true)"
+            if [ "$started_after" -gt "$started_before" ] ; then
+                break
+            fi
+            sleep 1
+        done
+
+        # just because snapd.failure.service is active doesn't mean that we are 
+        # fully ready; we should wait until the snap command shows up again
+        echo "And verify that snap commands still work and snapd is reverted"
+        retry-tool -n 30 --wait 1 bash -c 'snap list | MATCH "^snapd .* $current .*"'
+
+        echo "Verify we got the expected error message"
+        snap change --last=install|MATCH "there was a snapd rollback across the restart"
+
+        echo "restart snapd and ensure we can still talk to it"
+        systemctl restart snapd.socket snapd.service
+
+        # we should still have the snapd snap and it should have the revision we had
+        # before the broken one was installed
+        snap list | MATCH "^snapd .* $current .*"
+
+        # we cannot undo the core -> snapd installation we did in the prepare 
+        # section during restore, because we can't reboot during restore, so instead
+        # do that restoration here
+        if is_core16_system; then
+            echo "Manually uninstall the snapd snap on UC16"
+            systemctl stop snapd.service snapd.socket snapd.autoimport.service snapd.snap-repair.service snapd.snap-repair.timer
+            umount "/snap/snapd/$(readlink /snap/snapd/current)"
+
+            rm -f /etc/systemd/system/usr-lib-snapd.mount
+            rm -f /etc/systemd/system/snap-snapd-*.mount
+            rm -f /etc/systemd/system/snapd.{service,timer,socket}
+            rm -f /etc/systemd/system/snapd.*.{service,timer,socket}
+            rm -f /etc/systemd/system/*.wants/snapd.*.{service,timer,socket}
+            systemctl daemon-reload
+            # this will have the "snapd" snap /usr/lib/snapd bind mounted
+            umount --lazy /usr/lib/snapd
+            systemctl start snapd.service snapd.socket
+            systemctl status snapd|MATCH " /usr/lib/snapd/snapd"
+
+            echo "Reboot to get a clean system again"
+            REBOOT
+        fi
+    else
+        # technically this check is unnecessary because we only reboot during
+        # the test's execution on uc16, but just be extra safe
+        if is_core16_system; then
+            # now remove the snapd snap since we booted with the core snap
+            snap list
+            snap remove snapd
+            # and we can still run the rsync snap after the reboot
+            rsync --help
+        fi
+    fi
