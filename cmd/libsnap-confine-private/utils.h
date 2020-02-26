@@ -39,6 +39,50 @@ bool sc_is_debug_enabled(void);
  **/
 bool sc_is_reexec_enabled(void);
 
+/**
+ * sc_identity describes the user performing certain operation.
+ *
+ * UID and GID represent user and group accounts numbers and are controlled by
+ * change_uid and change_gid flags.
+**/
+typedef struct sc_identity {
+	uid_t uid;
+	gid_t gid;
+	unsigned change_uid:1;
+	unsigned change_gid:1;
+} sc_identity;
+
+/**
+ * Identity of the root group.
+ *
+ * The return value is suitable for passing to sc_set_effective_identity. It
+ * causes the effective group to change to the root group. No change is made to
+ * effective user identity.
+ **/
+static inline sc_identity sc_root_group_identity(void)
+{
+	sc_identity id = {
+		/* Explicitly set our intent of changing just the GID.
+		 * Refactoring of this code must retain this property. */
+		.change_uid = 0,
+		.change_gid = 1,
+		.gid = 0,
+	};
+	return id;
+}
+
+/**
+ * Set the effective user and group IDs to given values.
+ *
+ * Effective user and group identifiers are applied to the system. The
+ * current values are returned as another identity that can be restored via
+ * another call to sc_set_effective_identity.
+ *
+ * The fields change_uid and change_gid control if user and group ID is changed.
+ * The returned old identity has identical values of both use flags.
+**/
+sc_identity sc_set_effective_identity(sc_identity identity);
+
 void write_string_to_file(const char *filepath, const char *buf);
 
 /**

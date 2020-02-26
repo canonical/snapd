@@ -452,25 +452,21 @@ uc20_build_initramfs_kernel_snap() {
         #shellcheck disable=SC2010
         kver=$(ls "config"-* | grep -Po 'config-\K.*')
 
-        # XXX: ideally we should use unpack the initrd, replace snap-boostrap and
-        # repack it using ubuntu-core-initramfs --skeleton=..., this does not
+        # XXX: ideally we should unpack the initrd, replace snap-boostrap and
+        # repack it using ubuntu-core-initramfs --skeleton=<unpacked> this does not
         # work and the rebuilt kernel.efi panics unable to start init, but we
         # still need the unpacked initrd to get the right kernel modules
         objcopy -j .initrd -O binary kernel.efi initrd
         # this works on 20.04 but not on 18.04
         unmkinitramfs initrd unpacked-initrd
-        # XXX: this does not produce the same result as using distro's
-        # /usr/lib/ubuntu-core-initramfs skeleton
-        skeletondir=/usr/lib/ubuntu-core-initramfs/
-        cp -ar "$skeletondir" skeleton
-        # replace the main bits
-        rm -rf skeleton/main
-        cp -ar unpacked-initrd/main skeleton/
 
-        # all the skeleton edits go to the distro directory
+        # use distro skeleton
+        cp -ar /usr/lib/ubuntu-core-initramfs skeleton
+        # all the skeleton edits go to a local copy of distro directory
+        skeletondir=$PWD/skeleton
         cp -a /usr/lib/snapd/snap-bootstrap "$skeletondir/main/usr/lib/snapd/snap-bootstrap"
         # modify the-tool to verify that our version is used when booting - this
-        # is verified in the tests/core20/basic spread test
+        # is verified in the tests/core/basic20 spread test
         sed -i -e 's/set -e/set -ex/' "$skeletondir/main/usr/lib/the-tool"
         echo "" >> "$skeletondir/main/usr/lib/the-tool"
         echo "if test -d /run/mnt/ubuntu-data/system-data; then touch /run/mnt/ubuntu-data/system-data/the-tool-ran; fi" >> \
@@ -480,10 +476,12 @@ uc20_build_initramfs_kernel_snap() {
         # modules from the unpacked initrd, rather than the host which may be
         # running a different kernel
         (
-            # accommodate assumptions about paths
-            cd skeleton/main
+            # accommodate assumptions about tree layout, use the unpacked initrd
+            # to pick up the right modules
+            cd unpacked-initrd/main
             ubuntu-core-initramfs create-initrd \
                                   --kernelver "$kver" \
+                                  --skeleton "$skeletondir" \
                                   --kerneldir "lib/modules" \
                                   --output ../../repacked-initrd
         )
@@ -643,10 +641,6 @@ EOF
 setup_reflash_magic() {
     # install the stuff we need
     distro_install_package kpartx busybox-static
-    # for core20 we need debootstrap to build the initramfs in the kernel snap
-    if is_core20_system; then
-        distro_install_package debootstrap
-    fi
 
     distro_install_local_package "$GOHOME"/snapd_*.deb
     distro_clean_package_cache
@@ -654,16 +648,23 @@ setup_reflash_magic() {
     # need to be seeded to proceed with snap install
     snap wait system seed.loaded
 
+    # download the snapd snap for all uc systems except uc16
+    if ! is_core16_system; then
+        snap download "--channel=${SNAPD_CHANNEL}" snapd
+    fi
+
     # we cannot use "names.sh" here because no snaps are installed yet
     core_name="core"
     if is_core18_system; then
-        snap download "--channel=${SNAPD_CHANNEL}" snapd
         core_name="core18"
-    elif is_core20_system; then
-        snap download "--channel=${SNAPD_CHANNEL}" snapd
+    elif is_core20_system; then        
         core_name="core20"
     fi
     snap install "--channel=${CORE_CHANNEL}" "$core_name"
+    if is_core16_system || is_core18_system; then
+        UNPACK_DIR="/tmp/$core_name-snap"
+        unsquashfs -no-progress -d "$UNPACK_DIR" /var/lib/snapd/snaps/${core_name}_*.snap
+    fi
 
     # install ubuntu-image
     snap install --classic --edge ubuntu-image
@@ -687,15 +688,9 @@ setup_reflash_magic() {
         IMAGE=core18-amd64.img
     elif is_core20_system; then
         repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$IMAGE_HOME"
-        # TODO:UC20: use canonical model instead of "mvo" one
         cp "$TESTSLIB/assertions/ubuntu-core-20-amd64.model" "$IMAGE_HOME/pc.model"
         IMAGE=core20-amd64.img
     else
-        # modify the core snap so that the current root-pw works there
-        # for spread to do the first login
-        UNPACK_DIR="/tmp/core-snap"
-        unsquashfs -no-progress -d "$UNPACK_DIR" /var/lib/snapd/snaps/core_*.snap
-
         # FIXME: install would be better but we don't have dpkg on
         #        the image
         # unpack our freshly build snapd into the new snapd snap
@@ -785,9 +780,7 @@ EOF
     # /dev/loop19  0 0  1  1 /var/lib/snapd/snaps/test-snapd-netplan-apply_75.snap  0     512
     devloop=$(losetup --list --noheadings | grep "$IMAGE_HOME/$IMAGE" | awk '{print $1}')
     dev=$(basename "$devloop")
-    if is_core18_system; then
-        mount "/dev/mapper/${dev}p3" /mnt
-    elif is_core20_system; then
+    if is_core20_system; then
         # (ab)use ubuntu-seed
         mount "/dev/mapper/${dev}p2" /mnt
     else
@@ -800,12 +793,18 @@ EOF
     # - golang archive files and built packages dir
     # - govendor .cache directory and the binary,
     if is_core16_system || is_core18_system; then
+        # we need to include "core" here because -C option says to ignore 
+        # files the way CVS(?!) does, so it ignores files named "core" which
+        # are core dumps, but we have a test suite named "core", so including 
+        # this here will ensure that portion of the git tree is included in the
+        # image
         rsync -a -C \
           --exclude '*.a' \
           --exclude '*.deb' \
           --exclude /gopath/.cache/ \
           --exclude /gopath/bin/govendor \
           --exclude /gopath/pkg/ \
+          --include core/ \
           /home/gopath /mnt/user-data/
     elif is_core20_system; then
         # prepare passwd for run-mode-overlay-data
@@ -834,12 +833,7 @@ EOF
           /home/gopath /root/test-etc /var/lib/extrausers
     fi
 
-    # now modify the image writable partition
-    if is_core18_system; then
-        UNPACK_DIR="/tmp/core18-snap"
-        unsquashfs -no-progress -d "$UNPACK_DIR" /var/lib/snapd/snaps/core18_*.snap
-    fi
-    # modifying "writable" is only possible on uc16/uc18
+    # now modify the image writable partition - only possible on uc16 / uc18
     if is_core16_system || is_core18_system; then
         # modify the writable partition of "core" so that we have the
         # test user

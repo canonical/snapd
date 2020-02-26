@@ -209,7 +209,7 @@ func extractKernelAssetsToBootDir(dstDir string, s snap.PlaceInfo, snapf snap.Co
 
 func removeKernelAssetsFromBootDir(bootDir string, s snap.PlaceInfo) error {
 	// remove the kernel blob
-	blobName := filepath.Base(s.MountFile())
+	blobName := s.Filename()
 	dstDir := filepath.Join(bootDir, blobName)
 	if err := os.RemoveAll(dstDir); err != nil {
 		return err

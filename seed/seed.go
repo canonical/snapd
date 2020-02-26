@@ -40,6 +40,10 @@ type Snap struct {
 
 	SideInfo *snap.SideInfo
 
+	// EssentialType is the type of the snap as specified by the model.
+	// Provided only for essential snaps (Essential = true).
+	EssentialType snap.Type
+
 	Essential bool
 	Required  bool
 

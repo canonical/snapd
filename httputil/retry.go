@@ -98,7 +98,20 @@ func ShouldRetryAttempt(attempt *retry.Attempt, err error) bool {
 	return ShouldRetryError(err)
 }
 
-func ShouldRetryError(err error) bool {
+// ShouldRetryError returns true for transient network errors like when
+// the remote side returns a connection reset and it's sensible to retry
+// after a short time.
+//
+// XXX: Note that currently also NoNetwork(err) errors are reported
+// with true here.
+func ShouldRetryError(err error) (b bool) {
+	if err == nil {
+		return false
+	}
+	defer func() {
+		logger.Debugf("ShouldRetryError: %v %T -> %v", err, err, b)
+	}()
+
 	if urlErr, ok := err.(*url.Error); ok {
 		err = urlErr.Err
 	}
@@ -174,7 +187,20 @@ func ShouldRetryError(err error) bool {
 	return false
 }
 
+// NoNetwork returns true if the error indicates that there is no network
+// connection available, i.e. network unreachable or down or DNS unavailable.
+func NoNetwork(err error) (b bool) {
+	defer func() {
+		logger.Debugf("NoNetwork: %v %T -> %v", err, err, b)
+	}()
+
+	return isNetworkDown(err) || isDnsUnavailable(err)
+}
+
 func isNetworkDown(err error) bool {
+	if err == nil {
+		return false
+	}
 	urlErr, ok := err.(*url.Error)
 	if !ok {
 		return false
@@ -199,6 +225,10 @@ func isNetworkDown(err error) bool {
 }
 
 func isDnsUnavailable(err error) bool {
+	if err == nil {
+		return false
+	}
+
 	urlErr, ok := err.(*url.Error)
 	if !ok {
 		return false

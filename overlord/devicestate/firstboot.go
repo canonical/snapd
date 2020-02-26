@@ -53,6 +53,24 @@ func installSeedSnap(st *state.State, sn *seed.Snap, flags snapstate.Flags) (*st
 	return snapstate.InstallPath(st, sn.SideInfo, sn.Path, "", sn.Channel, flags)
 }
 
+func criticalTaskEdges(ts *state.TaskSet) (beginEdge, beforeHooksEdge, hooksEdge *state.Task, err error) {
+	// we expect all three edges, or none (the latter is the case with config tasksets).
+	beginEdge, err = ts.Edge(snapstate.BeginEdge)
+	if err != nil {
+		return nil, nil, nil, nil
+	}
+	beforeHooksEdge, err = ts.Edge(snapstate.BeforeHooksEdge)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	hooksEdge, err = ts.Edge(snapstate.HooksEdge)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	return beginEdge, beforeHooksEdge, hooksEdge, nil
+}
+
 func trivialSeeding(st *state.State, markSeeded *state.Task) []*state.TaskSet {
 	// give the internal core config a chance to run (even if core is
 	// not used at all we put system configuration there)
@@ -62,17 +80,23 @@ func trivialSeeding(st *state.State, markSeeded *state.Task) []*state.TaskSet {
 }
 
 type populateStateFromSeedOptions struct {
-	Label string
-	Mode  string
+	Label   string
+	Mode    string
+	Preseed bool
 }
 
 func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptions, tm timings.Measurer) ([]*state.TaskSet, error) {
 	mode := "run"
 	sysLabel := ""
+	preseed := false
 	if opts != nil {
-		mode = opts.Mode
+		if opts.Mode != "" {
+			mode = opts.Mode
+		}
 		sysLabel = opts.Label
+		preseed = opts.Preseed
 	}
+
 	// check that the state is empty
 	var seeded bool
 	err := st.Get("seeded", &seeded)
@@ -83,6 +107,10 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 		return nil, fmt.Errorf("cannot populate state: already seeded")
 	}
 
+	var preseedDoneTask *state.Task
+	if preseed {
+		preseedDoneTask = st.NewTask("mark-preseeded", i18n.G("Mark system pre-seeded"))
+	}
 	markSeeded := st.NewTask("mark-seeded", i18n.G("Mark system seeded"))
 
 	deviceSeed, err := seed.Open(dirs.SnapSeedDir, sysLabel)
@@ -103,6 +131,9 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 
 	err = deviceSeed.LoadMeta(tm)
 	if release.OnClassic && err == seed.ErrNoMeta {
+		if preseed {
+			return nil, fmt.Errorf("no snaps to preseed")
+		}
 		// on classic it is ok to not seed any snaps
 		return trivialSeeding(st, markSeeded), nil
 	}
@@ -121,13 +152,50 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 
 	tsAll := []*state.TaskSet{}
 	configTss := []*state.TaskSet{}
-	chainTs := func(all []*state.TaskSet, ts *state.TaskSet) []*state.TaskSet {
+
+	var lastBeforeHooksTask *state.Task
+	var chainTs func(all []*state.TaskSet, ts *state.TaskSet) []*state.TaskSet
+
+	chainTsPreseeding := func(all []*state.TaskSet, ts *state.TaskSet) []*state.TaskSet {
+		// mark-preseeded task needs to be inserted between preliminary setup and hook tasks
+		beginTask, beforeHooksTask, hooksTask, err := criticalTaskEdges(ts)
+		if err != nil {
+			// XXX: internal error?
+			panic(err)
+		}
+		// we either have all edges or none
+		if beginTask != nil {
+			// hooks must wait for mark-preseeded
+			hooksTask.WaitFor(preseedDoneTask)
+			if lastBeforeHooksTask != nil {
+				beginTask.WaitFor(lastBeforeHooksTask)
+			}
+			preseedDoneTask.WaitFor(beforeHooksTask)
+			lastBeforeHooksTask = beforeHooksTask
+		} else {
+			n := len(all)
+			// no edges: it is a configure snap taskset for core/gadget/kernel
+			if n != 0 {
+				ts.WaitAll(all[n-1])
+			}
+		}
+		return append(all, ts)
+	}
+
+	chainTsFullSeeding := func(all []*state.TaskSet, ts *state.TaskSet) []*state.TaskSet {
 		n := len(all)
 		if n != 0 {
 			ts.WaitAll(all[n-1])
 		}
 		return append(all, ts)
 	}
+
+	if preseed {
+		chainTs = chainTsPreseeding
+	} else {
+		chainTs = chainTsFullSeeding
+	}
+
 	chainSorted := func(infos []*snap.Info, infoToTs map[*snap.Info]*state.TaskSet) {
 		sort.Stable(snap.ByType(infos))
 		for _, info := range infos {
@@ -140,7 +208,7 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 
 	if len(essentialSeedSnaps) != 0 {
 		// we *always* configure "core" here even if bases are used
-		// for booting. "core" if where the system config lives.
+		// for booting. "core" is where the system config lives.
 		configTss = chainTs(configTss, snapstate.ConfigureSnap(st, "core", snapstate.UseConfigDefaults))
 	}
 
@@ -164,6 +232,9 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	// chain together configuring core, kernel, and gadget after
 	// installing them so that defaults are availabble from gadget
 	if len(configTss) > 0 {
+		if preseed {
+			configTss[0].WaitFor(preseedDoneTask)
+		}
 		configTss[0].WaitAll(tsAll[len(tsAll)-1])
 		tsAll = append(tsAll, configTss...)
 	}
@@ -198,6 +269,12 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 
 	ts := tsAll[len(tsAll)-1]
 	endTs := state.NewTaskSet()
+
+	if preseed {
+		endTs.AddTask(preseedDoneTask)
+		markSeeded.WaitFor(preseedDoneTask)
+	}
+
 	markSeeded.WaitAll(ts)
 	endTs.AddTask(markSeeded)
 	tsAll = append(tsAll, endTs)

@@ -65,6 +65,8 @@ type DeviceManager struct {
 	becomeOperationalBackoff     time.Duration
 	registered                   bool
 	reg                          chan struct{}
+
+	preseed bool
 }
 
 // Manager returns a new device manager.
@@ -81,6 +83,8 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		keypairMgr: keypairMgr,
 		newStore:   newStore,
 		reg:        make(chan struct{}),
+		// TODO: handle here via devicestate, similar to DeviceContext.
+		preseed: release.PreseedMode(),
 	}
 
 	modeEnv, err := boot.ReadModeenv("")
@@ -103,6 +107,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 
 	runner.AddHandler("generate-device-key", m.doGenerateDeviceKey, nil)
 	runner.AddHandler("request-serial", m.doRequestSerial, nil)
+	runner.AddHandler("mark-preseeded", m.doMarkPreseeded, nil)
 	runner.AddHandler("mark-seeded", m.doMarkSeeded, nil)
 	runner.AddHandler("setup-run-system", m.doSetupRunSystem, nil)
 	runner.AddHandler("prepare-remodeling", m.doPrepareRemodeling, nil)
@@ -439,6 +444,10 @@ func (m *DeviceManager) ensureSeeded() error {
 			Mode:  m.modeEnv.Mode,
 		}
 	}
+	if m.preseed {
+		opts = &populateStateFromSeedOptions{Preseed: true}
+	}
+
 	var tsAll []*state.TaskSet
 	timings.Run(perfTimings, "state-from-seed", "populate state from seed", func(tm timings.Measurer) {
 		tsAll, err = populateStateFromSeed(m.state, opts, tm)
@@ -545,6 +554,40 @@ func (m *DeviceManager) ensureInstalled() error {
 	return nil
 }
 
+var timeNow = time.Now
+
+// StartOfOperationTime returns the time when snapd started operating,
+// and sets it in the state when called for the first time.
+// The StartOfOperationTime time is seed-time if available,
+// or current time otherwise.
+func (m *DeviceManager) StartOfOperationTime() (time.Time, error) {
+	var opTime time.Time
+	if m.preseed {
+		return opTime, fmt.Errorf("internal error: unexpected call to StartOfOperationTime in preseed mode")
+	}
+	err := m.state.Get("start-of-operation-time", &opTime)
+	if err == nil {
+		return opTime, nil
+	}
+	if err != nil && err != state.ErrNoState {
+		return opTime, err
+	}
+
+	// start-of-operation-time not set yet, use seed-time if available
+	var seedTime time.Time
+	err = m.state.Get("seed-time", &seedTime)
+	if err != nil && err != state.ErrNoState {
+		return opTime, err
+	}
+	if err == nil {
+		opTime = seedTime
+	} else {
+		opTime = timeNow()
+	}
+	m.state.Set("start-of-operation-time", opTime)
+	return opTime, nil
+}
+
 func markSeededInConfig(st *state.State) error {
 	var seedDone bool
 	tr := config.NewTransaction(st)
@@ -612,20 +655,23 @@ func (m *DeviceManager) Ensure() error {
 	if err := m.ensureSeeded(); err != nil {
 		errs = append(errs, err)
 	}
-	if err := m.ensureOperational(); err != nil {
-		errs = append(errs, err)
-	}
 
-	if err := m.ensureBootOk(); err != nil {
-		errs = append(errs, err)
-	}
+	if !m.preseed {
+		if err := m.ensureOperational(); err != nil {
+			errs = append(errs, err)
+		}
 
-	if err := m.ensureSeedInConfig(); err != nil {
-		errs = append(errs, err)
-	}
+		if err := m.ensureBootOk(); err != nil {
+			errs = append(errs, err)
+		}
 
-	if err := m.ensureInstalled(); err != nil {
-		errs = append(errs, err)
+		if err := m.ensureSeedInConfig(); err != nil {
+			errs = append(errs, err)
+		}
+
+		if err := m.ensureInstalled(); err != nil {
+			errs = append(errs, err)
+		}
 	}
 
 	if len(errs) > 0 {
