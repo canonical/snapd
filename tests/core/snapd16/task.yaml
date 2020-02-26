@@ -28,7 +28,7 @@ execute: |
         # RESTORE CODE
         # we cannot restore in "restore:" because we need a reboot
         # right now to get a clean state again
-        systemctl stop snapd.service snapd.socket snapd.autoimport.service snapd.snap-repair.service
+        systemctl stop snapd.service snapd.socket snapd.autoimport.service snapd.snap-repair.service snapd.snap-repair.timer
         umount "/snap/snapd/$(readlink /snap/snapd/current)"
 
         rm -f /etc/systemd/system/usr-lib-snapd.mount
