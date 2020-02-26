@@ -25,7 +25,7 @@ prepare: |
 restore: |
     systemctl stop user@"$(id -u test)".service
     rm -rf /run/user/"$(id -u test)"/*
-    snap set system experimental.user-daemons=null
+    snap unset system experimental.user-daemons
     if [ -f agent-was-enabled ]; then
         systemctl --user --global disable snapd.session-agent.socket
         rm agent-was-enabled
