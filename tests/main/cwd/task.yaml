@@ -10,7 +10,7 @@ prepare: |
     . "$TESTSLIB"/snaps.sh
     install_local test-snapd-sh
 restore: |
-    snap remove test-snapd-sh
+    snap remove --purge test-snapd-sh
     rmdir /tmp/test || true
 execute: |
     # The current working directory that exists in the snap mount namespace and

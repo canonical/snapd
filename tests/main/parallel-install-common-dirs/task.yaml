@@ -46,7 +46,7 @@ execute: |
     test -d "/var/snap/test-snapd-sh"
 
     # remove foo instance snap
-    snap remove test-snapd-sh_foo
+    snap remove --purge test-snapd-sh_foo
     # foo instance directories should be gone now
     not test -d "$SNAP_MOUNT_DIR/test-snapd-sh_foo"
     not test -d "/var/snap/test-snapd-sh_foo"
@@ -56,13 +56,13 @@ execute: |
     test -d "/var/snap/test-snapd-sh"
 
     # remove instance-key-less one
-    snap remove test-snapd-sh
+    snap remove --purge test-snapd-sh
     # common directories are still around, required by test-snapd-sh_bar
     test -d "$SNAP_MOUNT_DIR/test-snapd-sh"
     test -d "/var/snap/test-snapd-sh"
 
     # remove bar instance
-    snap remove test-snapd-sh_bar
+    snap remove --purge test-snapd-sh_bar
     not test -d "$SNAP_MOUNT_DIR/test-snapd-sh_bar"
     not test -d "/var/snap/test-snapd-sh_bar"
 
@@ -76,7 +76,7 @@ execute: |
     install_local test-snapd-sh
     test -d "$SNAP_MOUNT_DIR/test-snapd-sh"
     test -d "/var/snap/test-snapd-sh"
-    snap remove test-snapd-sh
+    snap remove --purge test-snapd-sh
     not test -d "$SNAP_MOUNT_DIR/test-snapd-sh"
     not test -d "/var/snap/test-snapd-sh"
 

@@ -26,9 +26,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/snapcore/snapd/osutil/sys"
-	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/randutil"
 )
 
 // AtomicWriteFlags are a bitfield of flags for AtomicWriteFile
@@ -93,7 +94,7 @@ func NewAtomicFile(filename string, perm os.FileMode, flags AtomicWriteFlags, ui
 	// aa-enforce. Tools from this package enumerate all profiles by loading
 	// parsing any file found in /etc/apparmor.d/, skipping only very specific
 	// suffixes, such as the one we selected below.
-	tmp := filename + "." + strutil.MakeRandomString(12) + "~"
+	tmp := filename + "." + randutil.RandomString(12) + "~"
 
 	fd, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC|os.O_EXCL, perm)
 	if err != nil {
@@ -225,4 +226,81 @@ func AtomicWriteChown(filename string, reader io.Reader, perm os.FileMode, flags
 	}
 
 	return aw.Commit()
+}
+
+// AtomicRename attempts to rename a path from oldName to newName atomically.
+func AtomicRename(oldName, newName string) error {
+	var oldDir, newDir *os.File
+
+	// snapdUnsafeIO controls the ability to ignore expensive disk
+	// synchronization. It is only used inside tests.
+	if !snapdUnsafeIO {
+		oldDirPath := filepath.Dir(oldName)
+		newDirPath := filepath.Dir(newName)
+
+		oldDir, err := os.Open(oldDirPath)
+		if err != nil {
+			return err
+		}
+		defer oldDir.Close()
+
+		newDir, err := os.Open(newDirPath)
+		if err != nil {
+			return err
+		}
+		defer newDir.Close()
+
+		oldInfo, err := oldDir.Stat()
+		if err != nil {
+			return err
+		}
+		newInfo, err := newDir.Stat()
+		if err != nil {
+			return err
+		}
+		if oldStat, ok := oldInfo.Sys().(*syscall.Stat_t); ok {
+			if newStat, ok := newInfo.Sys().(*syscall.Stat_t); ok {
+				// Old and new directories refer to the same location. We can only sync once.
+				if oldStat.Dev == newStat.Dev && oldStat.Ino == newStat.Ino {
+					newDir = nil
+				}
+			}
+		}
+	}
+
+	if err := os.Rename(oldName, newName); err != nil {
+		return err
+	}
+	var err1, err2 error
+	if oldDir != nil {
+		err1 = oldDir.Sync()
+	}
+	if newDir != nil {
+		err2 = newDir.Sync()
+	}
+	if err1 != nil {
+		return err1
+	}
+	return err2
+}
+
+const maxSymlinkTries = 10
+
+// AtomicSymlink attempts to atomically create a symlink at linkPath, pointing
+// to a given target. The process creates a temporary symlink object pointing to
+// the target, and then proceeds to rename it atomically, replacing the
+// linkPath.
+func AtomicSymlink(target, linkPath string) error {
+	for tries := 0; tries < maxSymlinkTries; tries++ {
+		tmp := linkPath + "." + randutil.RandomString(12) + "~"
+		if err := os.Symlink(target, tmp); err != nil {
+			if os.IsExist(err) {
+				continue
+			}
+			return err
+		}
+		defer os.Remove(tmp)
+		return AtomicRename(tmp, linkPath)
+	}
+	return errors.New("cannot create a temporary symlink")
 }

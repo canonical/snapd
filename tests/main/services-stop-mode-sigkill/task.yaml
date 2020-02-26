@@ -7,7 +7,7 @@ backends: [-autopkgtest]
 
 restore: |
     # remove to ensure all services are stopped
-    snap remove test-snapd-service || true
+    snap remove --purge test-snapd-service || true
     pkill sleep || true
 
 debug: |

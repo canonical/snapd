@@ -26,4 +26,4 @@ execute: |
     test-snapd-packagekit.pkcon resolve snapd | MATCH "Installed[[:space:]]+snapd"
 
 restore: |
-    snap remove test-snapd-packagekit
+    snap remove --purge test-snapd-packagekit

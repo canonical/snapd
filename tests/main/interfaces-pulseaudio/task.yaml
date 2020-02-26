@@ -1,10 +1,13 @@
 summary: Ensure that the pulseaudio interface works
 
 # Classic Ubuntu is sufficient to test the feature
-systems: [ ubuntu-1*-*64, ubuntu-2*-*64 ]
+systems: [ubuntu-1*-*64, ubuntu-2*-*64]
+
+kill-timeout: 3m
 
 environment:
     PLAY_FILE: "/snap/test-snapd-pulseaudio/current/usr/share/sounds/alsa/Noise.wav"
+    PA_TEST_LOG: /home/test/pulseaudio.log
 
 prepare: |
     #shellcheck source=tests/lib/pkgdb.sh
@@ -25,33 +28,61 @@ prepare: |
     mkdir -m 700 /home/test/.config/pulse
     chown test:test /home/test/.config /home/test/.config/pulse
 
+    # prepare the script for pulseaudio daemon
+    cat <<'EOF' > /home/test/pulse-test.pa
+    .fail
+    load-module module-null-sink sink_name=void
+    set-default-sink void
+    load-module module-native-protocol-unix
+    .ifexists module-snap-policy.so
+    load-module module-snap-policy
+    .endif
+    EOF
+    chown test:test /home/test/pulse-test.pa
+    # make sure there are no running pulseaudio processes owned by the test user
+    pkill -9 --uid 12345 pulseaudio || true
+    # make sure there is no socket
+    rm -f /run/user/12345/pulse/native
+
 restore: |
-    HOME=/home/test XDG_RUNTIME_DIR=/run/user/12345 su -p -c "pulseaudio --kill" test || true
-    snap remove test-snapd-pulseaudio
+    su -l -c "HOME=/home/test XDG_RUNTIME_DIR=/run/user/12345  pulseaudio --kill" test || true
+    snap remove --purge test-snapd-pulseaudio
     apt-get autoremove --purge -y pulseaudio pulseaudio-utils
     rm -rf /run/user/12345 /home/test/.config/pulse
     if [ -d /home/test/.config.spread ]; then
         rm -rf /home/test/.config
         mv /home/test/.config.spread /home/test/.config
     fi
+    rm -f /home/test/pulse-test.pa
+    rm -f /run/user/12345/pulse/native
+    rm -f $PA_TEST_LOG
+
+debug: |
+    if [ -f $PA_TEST_LOG ]; then
+        cat $PA_TEST_LOG
+    fi
 
 execute: |
-    # we need -p so that XDG_RUNTIME_DIR is honored, but that preserves HOME,
-    # so specify it too since pulseaudio fails to start otherwise
+    as_user() {
+        su -l -c "HOME=/home/test XDG_RUNTIME_DIR=/run/user/12345 $*" test
+    }
+
+
     echo "Start pulseaudio"
-    HOME=/home/test XDG_RUNTIME_DIR=/run/user/12345 su -p -c "pulseaudio --exit-idle-time=30" test &
+    as_user "pulseaudio --exit-idle-time=300 -n -F /home/test/pulse-test.pa --log-level=4 --verbose 2>&1 | tee $PA_TEST_LOG >/dev/null" &
+    papid=$!
 
     echo "Then wait for the socket to show up"
     retry-tool -n 10 test -S /run/user/12345/pulse/native
 
     echo "Check pulseaudio"
-    HOME=/home/test XDG_RUNTIME_DIR=/run/user/12345 retry-tool -n 10 su -p -c "pulseaudio --check" test
+    retry-tool -n 10 su -l -c "HOME=/home/test XDG_RUNTIME_DIR=/run/user/12345 pulseaudio --check" test
 
     echo "The unconfined user can play audio"
-    HOME=/home/test XDG_RUNTIME_DIR=/run/user/12345 su -p -c "/usr/bin/paplay $PLAY_FILE" test
+    as_user "PULSE_LOG=4 /usr/bin/paplay $PLAY_FILE"
 
     echo "The unconfined user can record audio"
-    HOME=/home/test XDG_RUNTIME_DIR=/run/user/12345 su -p -c "/snap/test-snapd-pulseaudio/current/bin/parec-simple" test
+    as_user "PULSE_LOG=4 /snap/test-snapd-pulseaudio/current/bin/parec-simple"
 
     echo "The interface is disconnected by default"
     snap connections test-snapd-pulseaudio | MATCH "pulseaudio +test-snapd-pulseaudio:pulseaudio +- +-"
@@ -60,10 +91,10 @@ execute: |
     snap connect test-snapd-pulseaudio:pulseaudio
 
     echo "Then the snap can play audio"
-    su -l -c "test-snapd-pulseaudio.play $PLAY_FILE" test
+    as_user "test-snapd-pulseaudio.play $PLAY_FILE"
 
     echo "Then the snap can record audio"
-    if ! su -l -c "test-snapd-pulseaudio.recsimple" test ; then
+    if ! as_user "test-snapd-pulseaudio.recsimple" ; then
         echo "Could not record audio"
         exit 1
     fi
@@ -76,7 +107,11 @@ execute: |
     snap disconnect test-snapd-pulseaudio:pulseaudio
 
     echo "Then the snap command is not able to connect to the pulseaudio socket"
-    if su -l -c "test-snapd-pulseaudio.play $PLAY_FILE" test ; then
+    if as_user "test-snapd-pulseaudio.play $PLAY_FILE" ; then
         echo "Expected error with plug disconnected"
         exit 1
     fi
+
+    # make sure it's killed otherwise spread ssh pty is kept busy
+    as_user "pulseaudio --kill" || true
+    kill -9 "$papid" || true

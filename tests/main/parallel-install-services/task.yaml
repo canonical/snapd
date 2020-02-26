@@ -44,7 +44,7 @@ execute: |
     snap list | MATCH '^test-snapd-service_longname '
 
     echo "Removing one instance does not remove services from other instances"
-    snap remove test-snapd-service_foo
+    snap remove --purge test-snapd-service_foo
     not test -f /etc/systemd/system/snap.test-snapd-service_foo.test-snapd-service.service
     test -f /etc/systemd/system/snap.test-snapd-service_longname.test-snapd-service.service
     test -f /etc/systemd/system/snap.test-snapd-service.test-snapd-service.service
@@ -53,11 +53,11 @@ execute: |
     check_services_active test-snapd-service
     check_services_active test-snapd-service_longname
 
-    snap remove test-snapd-service
+    snap remove --purge test-snapd-service
     not test -f /etc/systemd/system/snap.test-snapd-service.test-snapd-service.service
     test -f /etc/systemd/system/snap.test-snapd-service_longname.test-snapd-service.service
     echo "The services of remaining snap are active"
     check_services_active test-snapd-service_longname
 
-    snap remove test-snapd-service_longname
+    snap remove --purge test-snapd-service_longname
     not test -f /etc/systemd/system/snap.test-snapd-service_longname.test-snapd-service.service

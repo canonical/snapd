@@ -7,7 +7,7 @@ details: |
     before re-refreshing to the expected one.
 
 prepare: |
-    snap remove test-snapd-epoch
+    snap remove --purge test-snapd-epoch
     snap install test-snapd-epoch
 
 debug: |

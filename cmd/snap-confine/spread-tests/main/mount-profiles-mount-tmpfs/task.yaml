@@ -2,7 +2,7 @@ summary: Check that mount profiles cannot be used to mount tmpfs
 # This is blacklisted on debian because we first have to get the dpkg-vendor patches
 systems: [-debian-8]
 restore: |
-    snap remove snapd-hacker-toolbelt
+    snap remove --purge snapd-hacker-toolbelt
     rm -rf /var/snap/snapd-hacker-toolbelt
     rm -f /var/lib/snapd/mount/snap.snapd-hacker-toolbelt.busybox.fstab
 execute: |

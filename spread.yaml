@@ -66,9 +66,9 @@ backends:
                 workers: 8
             - ubuntu-18.04-64:
                 workers: 8
-            - ubuntu-19.04-64:
-                workers: 6
             - ubuntu-19.10-64:
+                workers: 6
+            - ubuntu-20.04-64:
                 workers: 6
             - ubuntu-core-16-64:
                 image: ubuntu-16.04-64
@@ -77,9 +77,8 @@ backends:
                 image: ubuntu-16.04-64
                 workers: 6
             - ubuntu-core-20-64:
-                image: ubuntu-1804-64-uefi-enabled
-                #TODO:UC20: enable more workers once we have more tests
-                workers: 1
+                image: ubuntu-2004-64-virt-uefi-enabled
+                workers: 6
                 storage: 20G
 
             - debian-9-64:
@@ -102,25 +101,45 @@ backends:
                 manual: true
             - opensuse-15.1-64:
                 workers: 6
+            - opensuse-tumbleweed-64:
+                workers: 6
             - arch-linux-64:
+                manual: true
                 workers: 6
 
             - amazon-linux-2-64:
                 workers: 6
                 storage: preserve-size
+            - centos-7-64:
+                workers: 6
+                image: centos-7-64
 
-    google-unstable:
+    # TODO: spread is really unhappy when it sees a backend without any systems,
+    # so this block is intentially kept commented out, until we need to add
+    # systems to it
+    #
+    # google-unstable:
+    #    type: google
+    #    key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
+    #    location: computeengine/us-east1-b
+    #    halt-timeout: 2h
+    #    systems:
+
+    google-tpm:
         type: google
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
         location: computeengine/us-east1-b
         halt-timeout: 2h
         systems:
-            - centos-7-64:
-                workers: 6
-                image: centos-7-64
-            # zypper either segfaults or hangs installing snapd build dependencies
-            - opensuse-tumbleweed-64:
-                workers: 6
+            - ubuntu-18.04-64:
+                workers: 1
+                image: ubuntu-1804-64-tpm-enabled
+            - ubuntu-19.10-64:
+                workers: 1
+                image: ubuntu-1910-64-tpm-enabled
+            - ubuntu-20.04-64:
+                workers: 1
+                image: ubuntu-2004-64-tpm-enabled
 
     google-sru:
         type: google
@@ -150,6 +169,12 @@ backends:
             - ubuntu-18.04-64:
                 image: ubuntu-1804-64-virt-enabled
                 workers: 1
+            - ubuntu-19.10-64:
+                image: ubuntu-1910-64-virt-enabled
+                workers: 1
+            - ubuntu-20.04-64:
+                image: ubuntu-2004-64-virt-uefi-enabled
+                workers: 1
 
     qemu:
         # TODO:UC20: uc20 needs 2G or grub will not loopback the kernel snap
@@ -176,7 +201,7 @@ backends:
                 username: ubuntu
                 password: ubuntu
             - ubuntu-core-20-64:
-                image: ubuntu-18.04-64
+                image: ubuntu-20.04-64
                 username: ubuntu
                 password: ubuntu
                 flags: [virtio]
@@ -343,7 +368,7 @@ backends:
             - ubuntu-19.04-arm64:
                 username: ubuntu
                 password: ubuntu
-            # Eccentric Eel (not final name!)
+            # Eoan
             - ubuntu-19.10-amd64:
                 username: ubuntu
                 password: ubuntu
@@ -362,7 +387,7 @@ backends:
             - ubuntu-19.10-arm64:
                 username: ubuntu
                 password: ubuntu
-            # Flaming Falcon (not final name!)
+            # Focal
             - ubuntu-20.04-amd64:
                 username: ubuntu
                 password: ubuntu
@@ -428,6 +453,8 @@ exclude:
     - "*.o"
     - "*.a"
     - ./vendor
+    - "*.snap"
+    - "*.img"
 
 debug-each: |
     if [ "$SPREAD_DEBUG_EACH" = 1 ]; then
@@ -649,8 +676,6 @@ suites:
     # All other tests run now and will heavily modify the system.
     tests/main/:
         summary: Full-system tests for snapd
-        # TODO:UC20: enable for uc20
-        systems: [-ubuntu-core-20-*]
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
@@ -664,20 +689,9 @@ suites:
                 systemctl status snapd.socket || true
                 journalctl -e
             fi
-    tests/core18/:
-        summary: Subset of core18 specific tests
-        systems: [ubuntu-core-18-*]
-        prepare: |
-            "$TESTSLIB"/prepare-restore.sh --prepare-suite
-        prepare-each: |
-            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
-        restore-each: |
-            "$TESTSLIB"/prepare-restore.sh --restore-suite-each
-        restore: |
-            "$TESTSLIB"/prepare-restore.sh --restore-suite
-    tests/core20/:
-        summary: Subset of core20 specific tests
-        systems: [ubuntu-core-20-*]
+    tests/core/:
+        summary: Subset of Ubuntu Core specific tests
+        systems: [ubuntu-core-*]
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
@@ -816,6 +830,35 @@ suites:
             "$TESTSLIB"/prepare-restore.sh --restore-suite-each
         restore: |
             "$TESTSLIB"/prepare-restore.sh --restore-suite
+
+    tests/nested/manual/:
+        summary: Tests for nested images controlled manually from the tests
+        backends: [google-nested]
+        systems: [ubuntu-19.10-64, ubuntu-20.04-64]
+        environment:
+            NESTED_TYPE: "classic"
+            # Channel used to create the nested vm
+            CORE_CHANNEL: '$(HOST: echo "${SPREAD_CORE_CHANNEL:-stable}")'
+            # Channel used to refresh when testing refresh and revert
+            CORE_REFRESH_CHANNEL: '$(HOST: echo "${SPREAD_CORE_REFRESH_CHANNEL:-edge}")'
+            # Channel used to update the core/snapd snaps on some tests
+            NEW_CORE_CHANNEL: '$(HOST: echo "${SPREAD_NEW_CORE_CHANNEL:-edge}")'
+        manual: true
+        prepare: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite
+            #shellcheck source=tests/lib/pkgdb.sh
+            . "$TESTSLIB"/pkgdb.sh
+            distro_update_package_db
+            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ubuntu-image
+
+        restore: |
+            #shellcheck source=tests/lib/nested.sh
+            . "$TESTSLIB/nested.sh"
+            cleanup_nested_env
+
+            #shellcheck source=tests/lib/pkgdb.sh
+            . "$TESTSLIB"/pkgdb.sh
+            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils ubuntu-image
 
     tests/nested/classic/:
         summary: Tests for nested images

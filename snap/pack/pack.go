@@ -180,10 +180,33 @@ func excludesFile() (filename string, err error) {
 	return filename, err
 }
 
+type Options struct {
+	// TargetDir is the direction where the snap file will be placed, or empty
+	// to use the current directory
+	TargetDir string
+	// SnapName is the name of the snap file, or empty to use the default name
+	// which is <snapname>_<version>_<architecture>.snap
+	SnapName string
+	// Compression method to use
+	Compression string
+}
+
+var Defaults *Options = nil
+
 // Snap the given sourceDirectory and return the generated
 // snap file
-func Snap(sourceDir, targetDir, snapName string) (string, error) {
-	info, err := prepare(sourceDir, targetDir)
+func Snap(sourceDir string, opts *Options) (string, error) {
+	if opts == nil {
+		opts = &Options{}
+	}
+	switch opts.Compression {
+	case "xz", "":
+		// fine
+	default:
+		return "", fmt.Errorf("cannot use compression %q", opts.Compression)
+	}
+
+	info, err := prepare(sourceDir, opts.TargetDir)
 	if err != nil {
 		return "", err
 	}
@@ -194,9 +217,13 @@ func Snap(sourceDir, targetDir, snapName string) (string, error) {
 	}
 	defer os.Remove(excludes)
 
-	snapName = snapPath(info, targetDir, snapName)
+	snapName := snapPath(info, opts.TargetDir, opts.SnapName)
 	d := squashfs.New(snapName)
-	if err = d.Build(sourceDir, string(info.GetType()), excludes); err != nil {
+	if err = d.Build(sourceDir, &squashfs.BuildOpts{
+		SnapType:     string(info.GetType()),
+		Compression:  opts.Compression,
+		ExcludeFiles: []string{excludes},
+	}); err != nil {
 		return "", err
 	}
 

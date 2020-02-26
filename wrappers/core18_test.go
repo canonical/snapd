@@ -104,7 +104,7 @@ func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnCore(c *C) {
 
 	info := makeMockSnapdSnap(c)
 	// add the snapd service
-	err := wrappers.AddSnapServices(info, nil, progress.Null)
+	err := wrappers.AddSnapdSnapServices(info, progress.Null)
 	c.Assert(err, IsNil)
 
 	mountUnit := fmt.Sprintf(`[Unit]
@@ -192,7 +192,7 @@ func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnClassic(c *C) {
 
 	info := makeMockSnapdSnap(c)
 	// add the snapd service
-	err := wrappers.AddSnapServices(info, nil, progress.Null)
+	err := wrappers.AddSnapdSnapServices(info, progress.Null)
 	c.Assert(err, IsNil)
 
 	// check that snapd services were *not* created
@@ -207,7 +207,19 @@ func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnClassic(c *C) {
 	c.Check(s.sysdLog, IsNil)
 }
 
-func (s *servicesTestSuite) TestRemoveSnapServicesForSnapdOnCore(c *C) {
+func (s *servicesTestSuite) TestAddSnapdServicesWithNonSnapd(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	info := snaptest.MockInfo(c, "name: foo\nversion: 1.0", &snap.SideInfo{})
+	restore = release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
+	defer restore()
+
+	err := wrappers.AddSnapdSnapServices(info, progress.Null)
+	c.Assert(err, ErrorMatches, `internal error: adding explicit snapd services for snap "foo" type "app" is unexpected`)
+}
+
+func (s *servicesTestSuite) TestRemoveSnapServicesForFirstInstallSnapdOnCore(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
@@ -269,7 +281,7 @@ func (s *servicesTestSuite) TestRemoveSnapServicesForSnapdOnCore(c *C) {
 	snaptest.PopulateDir("/", coreUnits)
 
 	// remove the snapd service
-	err := wrappers.UndoSnapdServicesOnCore(info, progress.Null)
+	err := wrappers.RemoveSnapdSnapServicesOnCore(info, progress.Null)
 	c.Assert(err, IsNil)
 
 	for _, unit := range units {
@@ -305,4 +317,16 @@ func (s *servicesTestSuite) TestRemoveSnapServicesForSnapdOnCore(c *C) {
 		{"stop", "usr-lib-snapd.mount"},
 		{"show", "--property=ActiveState", "usr-lib-snapd.mount"},
 	})
+}
+
+func (s *servicesTestSuite) TestRemoveSnapdServicesWithNonSnapd(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	info := snaptest.MockInfo(c, "name: foo\nversion: 1.0", &snap.SideInfo{})
+	restore = release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
+	defer restore()
+
+	err := wrappers.RemoveSnapdSnapServicesOnCore(info, progress.Null)
+	c.Assert(err, ErrorMatches, `internal error: removing explicit snapd services for snap "foo" type "app" is unexpected`)
 }

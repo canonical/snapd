@@ -350,7 +350,7 @@ type mgrsSuite struct {
 	baseMgrsSuite
 }
 
-var settleTimeout = 15 * time.Second
+var settleTimeout = 45 * time.Second
 
 func makeTestSnapWithFiles(c *C, snapYamlContent string, files [][]string) string {
 	info, err := snap.InfoFromSnapYaml([]byte(snapYamlContent))
@@ -4369,8 +4369,7 @@ func (ms *kernelSuite) TestRemodelSwitchToDifferentKernel(c *C) {
 	c.Assert(err, IsNil)
 
 	st.Unlock()
-	// regular settleTimeout is not enough on arm builds :/
-	err = ms.o.Settle(4 * settleTimeout)
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 	c.Assert(chg.Err(), IsNil)
@@ -4401,8 +4400,7 @@ func (ms *kernelSuite) TestRemodelSwitchToDifferentKernel(c *C) {
 
 	// continue
 	st.Unlock()
-	// regular settleTimeout is not enough on arm builds :/
-	err = ms.o.Settle(4 * settleTimeout)
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -4462,8 +4460,7 @@ func (ms *kernelSuite) TestRemodelSwitchToDifferentKernelUndo(c *C) {
 	c.Assert(err, IsNil)
 
 	st.Unlock()
-	// regular settleTimeout is not enough on arm builds :/
-	err = ms.o.Settle(4 * settleTimeout)
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 	c.Assert(chg.Err(), IsNil)
@@ -4478,8 +4475,7 @@ func (ms *kernelSuite) TestRemodelSwitchToDifferentKernelUndo(c *C) {
 
 	// continue
 	st.Unlock()
-	// regular settleTimeout is not enough on arm builds :/
-	err = ms.o.Settle(4 * settleTimeout)
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -4520,8 +4516,7 @@ func (ms *kernelSuite) TestRemodelSwitchToDifferentKernelUndoOnRollback(c *C) {
 	c.Assert(err, IsNil)
 
 	st.Unlock()
-	// regular settleTimeout is not enough on arm builds :/
-	err = ms.o.Settle(4 * settleTimeout)
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 	c.Assert(chg.Err(), IsNil)
@@ -4536,8 +4531,7 @@ func (ms *kernelSuite) TestRemodelSwitchToDifferentKernelUndoOnRollback(c *C) {
 
 	// continue
 	st.Unlock()
-	// regular settleTimeout is not enough on arm builds :/
-	err = ms.o.Settle(4 * settleTimeout)
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 

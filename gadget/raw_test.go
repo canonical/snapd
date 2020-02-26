@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type rawTestSuite struct {
@@ -327,8 +328,8 @@ func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreSame(c *C) {
 	err = ru.Backup()
 	c.Assert(err, IsNil)
 
-	c.Check(osutil.FileExists(gadget.RawContentBackupPath(r.backup, ps, &ps.LaidOutContent[0])+".same"), Equals, true)
-	c.Check(osutil.FileExists(gadget.RawContentBackupPath(r.backup, ps, &ps.LaidOutContent[1])+".same"), Equals, true)
+	c.Check(gadget.RawContentBackupPath(r.backup, ps, &ps.LaidOutContent[0])+".same", testutil.FilePresent)
+	c.Check(gadget.RawContentBackupPath(r.backup, ps, &ps.LaidOutContent[1])+".same", testutil.FilePresent)
 
 	emptyDiskPath := filepath.Join(r.dir, "disk-not-written.img")
 	err = osutil.AtomicWriteFile(emptyDiskPath, nil, 0644, 0)
@@ -342,7 +343,7 @@ func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreSame(c *C) {
 	c.Assert(ru, NotNil)
 
 	err = ru.Update()
-	c.Assert(err, IsNil)
+	c.Assert(err, Equals, gadget.ErrNoUpdate)
 	c.Check(getFileSize(c, emptyDiskPath), Equals, int64(0))
 
 	// rollback also is a noop
@@ -354,9 +355,10 @@ func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreSame(c *C) {
 func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreDifferent(c *C) {
 
 	diskPath := filepath.Join(r.dir, "partition.img")
-	mutateFile(c, diskPath, 2048, []mutateWrite{
+	mutateFile(c, diskPath, 4096, []mutateWrite{
 		{[]byte("foo foo foo"), 0},
 		{[]byte("bar bar bar"), 1024},
+		{[]byte("unchanged unchanged"), 2048},
 	})
 
 	pristinePath := filepath.Join(r.dir, "pristine.img")
@@ -364,16 +366,18 @@ func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreDifferent(c *C) {
 	c.Assert(err, IsNil)
 
 	expectedPath := filepath.Join(r.dir, "expected.img")
-	mutateFile(c, expectedPath, 2048, []mutateWrite{
+	mutateFile(c, expectedPath, 4096, []mutateWrite{
 		{[]byte("zzz zzz zzz zzz"), 0},
 		{[]byte("xxx xxx xxx xxx"), 1024},
+		{[]byte("unchanged unchanged"), 2048},
 	})
 
 	makeSizedFile(c, filepath.Join(r.dir, "foo.img"), 128, []byte("zzz zzz zzz zzz"))
 	makeSizedFile(c, filepath.Join(r.dir, "bar.img"), 256, []byte("xxx xxx xxx xxx"))
+	makeSizedFile(c, filepath.Join(r.dir, "unchanged.img"), 128, []byte("unchanged unchanged"))
 	ps := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
-			Size: 2048,
+			Size: 4096,
 		},
 		StartOffset: 1 * gadget.SizeMiB,
 		LaidOutContent: []gadget.LaidOutContent{
@@ -390,6 +394,13 @@ func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreDifferent(c *C) {
 				StartOffset: 1*gadget.SizeMiB + 1024,
 				Size:        256,
 				Index:       1,
+			}, {
+				VolumeContent: &gadget.VolumeContent{
+					Image: "unchanged.img",
+				},
+				StartOffset: 1*gadget.SizeMiB + 2048,
+				Size:        128,
+				Index:       2,
 			},
 		},
 	}
@@ -411,12 +422,16 @@ func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreDifferent(c *C) {
 	}{
 		{gadget.RawContentBackupPath(r.backup, ps, &ps.LaidOutContent[0]) + ".backup", 128, true},
 		{gadget.RawContentBackupPath(r.backup, ps, &ps.LaidOutContent[1]) + ".backup", 256, true},
+		{gadget.RawContentBackupPath(r.backup, ps, &ps.LaidOutContent[2]) + ".backup", 0, false},
 		{gadget.RawContentBackupPath(r.backup, ps, &ps.LaidOutContent[1]) + ".same", 0, false},
 		{gadget.RawContentBackupPath(r.backup, ps, &ps.LaidOutContent[1]) + ".same", 0, false},
+		{gadget.RawContentBackupPath(r.backup, ps, &ps.LaidOutContent[2]) + ".same", 0, true},
 	} {
-		c.Check(osutil.FileExists(e.path), Equals, e.exists)
 		if e.exists {
+			c.Check(e.path, testutil.FilePresent)
 			c.Check(getFileSize(c, e.path), Equals, e.size)
+		} else {
+			c.Check(e.path, testutil.FileAbsent)
 		}
 	}
 
@@ -496,7 +511,7 @@ func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreNoPartition(c *C) {
 		{gadget.RawContentBackupPath(r.backup, ps, &ps.LaidOutContent[0]) + ".backup", 128},
 		{gadget.RawContentBackupPath(r.backup, ps, &ps.LaidOutContent[1]) + ".backup", 256},
 	} {
-		c.Check(osutil.FileExists(e.path), Equals, true)
+		c.Check(e.path, testutil.FilePresent)
 		c.Check(getFileSize(c, e.path), Equals, e.size)
 	}
 
@@ -541,14 +556,14 @@ func (r *rawTestSuite) TestRawUpdaterBackupErrors(c *C) {
 
 	err = ru.Backup()
 	c.Assert(err, ErrorMatches, "cannot open device for reading: .*")
-	c.Check(osutil.FileExists(gadget.RawContentBackupPath(r.backup, ps, &ps.LaidOutContent[0])+".backup"), Equals, false)
+	c.Check(gadget.RawContentBackupPath(r.backup, ps, &ps.LaidOutContent[0])+".backup", testutil.FileAbsent)
 
 	// 0 sized disk, copying will fail with early EOF
 	makeSizedFile(c, diskPath, 0, nil)
 
 	err = ru.Backup()
 	c.Assert(err, ErrorMatches, "cannot backup image .*: cannot backup original image: EOF")
-	c.Check(osutil.FileExists(gadget.RawContentBackupPath(r.backup, ps, &ps.LaidOutContent[0])+".backup"), Equals, false)
+	c.Check(gadget.RawContentBackupPath(r.backup, ps, &ps.LaidOutContent[0])+".backup", testutil.FileAbsent)
 
 	// make proper disk image now
 	err = os.Remove(diskPath)
@@ -557,7 +572,7 @@ func (r *rawTestSuite) TestRawUpdaterBackupErrors(c *C) {
 
 	err = ru.Backup()
 	c.Assert(err, ErrorMatches, "cannot backup image .*: cannot checksum update image: .*")
-	c.Check(osutil.FileExists(gadget.RawContentBackupPath(r.backup, ps, &ps.LaidOutContent[0])+".backup"), Equals, false)
+	c.Check(gadget.RawContentBackupPath(r.backup, ps, &ps.LaidOutContent[0])+".backup", testutil.FileAbsent)
 }
 
 func (r *rawTestSuite) TestRawUpdaterBackupIdempotent(c *C) {

@@ -464,32 +464,6 @@ func (cs *clientSuite) TestIsRetryable(c *C) {
 	c.Check(client.IsRetryable(&client.Error{Kind: client.ErrorKindChangeConflict}), Equals, true)
 }
 
-func (cs *clientSuite) TestClientCreateUser(c *C) {
-	_, err := cs.cli.CreateUser(&client.CreateUserOptions{})
-	c.Assert(err, ErrorMatches, "cannot create a user without providing an email")
-
-	cs.rsp = `{
-		"type": "sync",
-		"result": {
-                        "username": "karl",
-                        "ssh-keys": ["one", "two"]
-		}
-	}`
-	rsp, err := cs.cli.CreateUser(&client.CreateUserOptions{Email: "one@email.com", Sudoer: true, Known: true})
-	c.Assert(cs.req.Method, Equals, "POST")
-	c.Assert(cs.req.URL.Path, Equals, "/v2/create-user")
-	c.Assert(err, IsNil)
-
-	body, err := ioutil.ReadAll(cs.req.Body)
-	c.Assert(err, IsNil)
-	c.Assert(string(body), Equals, `{"email":"one@email.com","sudoer":true,"known":true}`)
-
-	c.Assert(rsp, DeepEquals, &client.CreateUserResult{
-		Username: "karl",
-		SSHKeys:  []string{"one", "two"},
-	})
-}
-
 func (cs *clientSuite) TestUserAgent(c *C) {
 	cli := client.New(&client.Config{UserAgent: "some-agent/9.87"})
 	cli.SetDoer(cs)
@@ -498,81 +472,6 @@ func (cs *clientSuite) TestUserAgent(c *C) {
 	_, _ = cli.Do("GET", "/", nil, nil, &v, client.DoFlags{})
 	c.Assert(cs.req, NotNil)
 	c.Check(cs.req.Header.Get("User-Agent"), Equals, "some-agent/9.87")
-}
-
-var createUsersTests = []struct {
-	options   []*client.CreateUserOptions
-	bodies    []string
-	responses []string
-	results   []*client.CreateUserResult
-	error     string
-}{{
-	options: []*client.CreateUserOptions{{}},
-	error:   "cannot create user from store details without an email to query for",
-}, {
-	options: []*client.CreateUserOptions{{
-		Email:  "one@example.com",
-		Sudoer: true,
-	}, {
-		Known: true,
-	}},
-	bodies: []string{
-		`{"email":"one@example.com","sudoer":true}`,
-		`{"known":true}`,
-	},
-	responses: []string{
-		`{"type": "sync", "result": {"username": "one", "ssh-keys":["a", "b"]}}`,
-		`{"type": "sync", "result": [{"username": "two"}, {"username": "three"}]}`,
-	},
-	results: []*client.CreateUserResult{{
-		Username: "one",
-		SSHKeys:  []string{"a", "b"},
-	}, {
-		Username: "two",
-	}, {
-		Username: "three",
-	}},
-}}
-
-func (cs *clientSuite) TestClientCreateUsers(c *C) {
-	for _, test := range createUsersTests {
-		cs.rsps = test.responses
-
-		results, err := cs.cli.CreateUsers(test.options)
-		if test.error != "" {
-			c.Assert(err, ErrorMatches, test.error)
-		}
-		c.Assert(results, DeepEquals, test.results)
-
-		var bodies []string
-		for _, req := range cs.reqs {
-			c.Assert(req.Method, Equals, "POST")
-			c.Assert(req.URL.Path, Equals, "/v2/create-user")
-			data, err := ioutil.ReadAll(req.Body)
-			c.Assert(err, IsNil)
-			bodies = append(bodies, string(data))
-		}
-
-		c.Assert(bodies, DeepEquals, test.bodies)
-	}
-}
-
-func (cs *clientSuite) TestClientJSONError(c *C) {
-	cs.rsp = `some non-json error message`
-	_, err := cs.cli.SysInfo()
-	c.Assert(err, ErrorMatches, `cannot obtain system details: cannot decode "some non-json error message": invalid char.*`)
-}
-
-func (cs *clientSuite) TestUsers(c *C) {
-	cs.rsp = `{"type": "sync", "result":
-                     [{"username": "foo","email":"foo@example.com"},
-                      {"username": "bar","email":"bar@example.com"}]}`
-	users, err := cs.cli.Users()
-	c.Check(err, IsNil)
-	c.Check(users, DeepEquals, []*client.User{
-		{Username: "foo", Email: "foo@example.com"},
-		{Username: "bar", Email: "bar@example.com"},
-	})
 }
 
 func (cs *clientSuite) TestDebugEnsureStateSoon(c *C) {

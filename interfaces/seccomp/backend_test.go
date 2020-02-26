@@ -86,7 +86,7 @@ if [ "$1" = "version-info" ]; then
     echo "abcdef 1.2.3 1234abcd -"
 fi`)
 
-	s.Backend.Initialize()
+	s.Backend.Initialize(nil)
 	s.profileHeader = `# snap-seccomp version information:
 # abcdef 1.2.3 1234abcd -
 `
@@ -108,7 +108,7 @@ func (s *backendSuite) TearDownTest(c *C) {
 }
 
 func (s *backendSuite) TestInitialize(c *C) {
-	err := s.Backend.Initialize()
+	err := s.Backend.Initialize(nil)
 	c.Assert(err, IsNil)
 	fname := filepath.Join(dirs.SnapSeccompDir, "global.bin")
 	if seccomp.IsBigEndian() {
@@ -163,7 +163,7 @@ fi`)
 	defer snapSeccompOnCore.Restore()
 
 	// rerun initialization
-	err := s.Backend.Initialize()
+	err := s.Backend.Initialize(nil)
 	c.Assert(err, IsNil)
 
 	s.InstallSnap(c, interfaces.ConfinementOptions{}, "", ifacetest.SambaYamlV1, 0)
@@ -484,7 +484,7 @@ fi`)
 	defer snapSeccomp.Restore()
 
 	// reload cached version info
-	err := s.Backend.Initialize()
+	err := s.Backend.Initialize(nil)
 	c.Assert(err, IsNil)
 	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{"kernel:foo", "kernel:bar", "bpf-argument-filtering", "bpf-actlog"})
 }
@@ -665,7 +665,7 @@ fi`)
 # abcdef 2.3.3 2345abcd -
 `
 	// reload cached version info
-	err = s.Backend.Initialize()
+	err = s.Backend.Initialize(nil)
 	c.Assert(err, IsNil)
 
 	c.Check(s.snapSeccomp.Calls(), HasLen, 2)
@@ -715,7 +715,7 @@ fi`)
 	defer snapSeccompInMounted.Restore()
 
 	// rerun initialization
-	err = s.Backend.Initialize()
+	err = s.Backend.Initialize(nil)
 	c.Assert(err, IsNil)
 
 	// ensure the snap-seccomp from the regular path was *not* used
@@ -736,7 +736,7 @@ func (s *backendSuite) TestCompilerInitUnhappy(c *C) {
 		return "", errors.New("failed")
 	})
 	defer restore()
-	err := s.Backend.Initialize()
+	err := s.Backend.Initialize(nil)
 	c.Assert(err, ErrorMatches, "cannot initialize seccomp profile compiler: failed")
 }
 
@@ -844,7 +844,7 @@ fi
 	defer snapSeccomp.Restore()
 
 	// rerun initialization
-	err := s.Backend.Initialize()
+	err := s.Backend.Initialize(nil)
 	c.Assert(err, IsNil)
 
 	smbdProfile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")

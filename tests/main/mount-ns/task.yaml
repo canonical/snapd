@@ -107,6 +107,7 @@ prepare: |
             --display-order mount_point \
             --display-order mount_source \
             --display-order fs_type \
+            --differential \
             .dev .root_dir .mount_point .mount_opts .opt_fields .fs_type .mount_source .sb_opts \
             "$@"
     }
@@ -171,10 +172,10 @@ prepare: |
     deterministic-mountinfo-tool                                              -f HOST-AFTER.raw.txt  >HOST-AFTER.deterministic.txt
 
     if snap debug sandbox-features --required confinement-options:classic; then
-        snap remove test-snapd-mountinfo-classic
+        snap remove --purge test-snapd-mountinfo-classic
     fi
-    snap remove test-snapd-mountinfo-core16
-    snap remove test-snapd-mountinfo-core18
+    snap remove --purge test-snapd-mountinfo-core16
+    snap remove --purge test-snapd-mountinfo-core18
 execute: |
     if [ -e please-skip-this-test ]; then
         exit 0

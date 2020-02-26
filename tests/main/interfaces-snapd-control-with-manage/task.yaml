@@ -1,5 +1,8 @@
 summary: Ensure that the snapd-control "refresh-schedule" attribute works.
 
+# TODO:UC20: enable once we use the canonical model assertion
+systems: [-ubuntu-core-20-*]
+
 environment:
   BLOB_DIR: $(pwd)/fake-store-blobdir
 

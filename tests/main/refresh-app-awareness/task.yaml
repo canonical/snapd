@@ -15,7 +15,7 @@ environment:
     CONFINEMENT/classic: classic
     CONFINEMENT/strict: strict
 restore: |
-    snap remove test-snapd-refresh
+    snap remove --purge test-snapd-refresh
     rm -f test-snapd-refresh-{1,2}_all.snap
     rm -f test-snapd-refresh.*/meta/snap.yaml
     rmdir /sys/fs/cgroup/pids/snap.test-snapd-refresh.sh || true

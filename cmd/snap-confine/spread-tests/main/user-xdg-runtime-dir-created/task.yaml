@@ -17,5 +17,5 @@ execute: |
     echo "And see that the XDG_RUNTIME_DIR directory was created"
     test -d /run/user/`id -u`/snapd-hacker-toolbelt
 restore: |
-    snap remove snapd-hacker-toolbelt
+    snap remove --purge snapd-hacker-toolbelt
     rm -rf "/run/user/`id -u`/snapd-hacker-toolbelt"

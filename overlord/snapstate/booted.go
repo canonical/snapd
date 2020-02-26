@@ -69,16 +69,16 @@ func UpdateBootRevisions(st *state.State) error {
 	}
 
 	var tsAll []*state.TaskSet
-	for _, actual := range []*boot.NameAndRevision{kernel, base} {
-		info, err := CurrentInfo(st, actual.Name)
+	for _, actual := range []snap.PlaceInfo{kernel, base} {
+		info, err := CurrentInfo(st, actual.SnapName())
 		if err != nil {
-			logger.Noticef("cannot get info for %q: %s", actual.Name, err)
+			logger.Noticef("cannot get info for %q: %s", actual.SnapName(), err)
 			continue
 		}
-		if actual.Revision != info.SideInfo.Revision {
+		if actual.SnapRevision() != info.SideInfo.Revision {
 			// FIXME: check that there is no task
 			//        for this already in progress
-			ts, err := RevertToRevision(st, actual.Name, actual.Revision, Flags{})
+			ts, err := RevertToRevision(st, actual.SnapName(), actual.SnapRevision(), Flags{})
 			if err != nil {
 				return err
 			}

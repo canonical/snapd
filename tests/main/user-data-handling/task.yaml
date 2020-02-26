@@ -26,7 +26,7 @@ execute: |
     done
 
     echo "When the snap is removed"
-    snap remove test-snapd-sh
+    snap remove --purge test-snapd-sh
 
     echo "Then all user data and root data is gone"
     for h in "${homes[@]}"; do

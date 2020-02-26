@@ -128,7 +128,7 @@ execute: |
     snap list | MATCH "$SNAP"
 
     echo "Check the snap is properly removed"
-    snap remove "$SNAP"
+    snap remove --purge "$SNAP"
 
     if snap list | MATCH "$SNAP"; then
         echo "Snap $SNAP not removed properly"

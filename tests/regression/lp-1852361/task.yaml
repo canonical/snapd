@@ -20,6 +20,6 @@ execute: |
     snap install --dangerous test-snapd-layout_1_all.snap
     invariant
 restore: |
-    snap remove test-snapd-layout
+    snap remove --purge test-snapd-layout
     rm -f test-snapd-layout_1_all.snap
     snap unset core experimental.robust-mount-namespace-updates

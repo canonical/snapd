@@ -632,11 +632,20 @@ pkg_dependencies_ubuntu_classic(){
                 packagekit
                 "
             ;;
-        ubuntu-19.04-64|ubuntu-19.10-64)
+        ubuntu-19.10-64)
             echo "
                 evolution-data-server
                 fwupd
                 packagekit
+                qemu-utils
+                "
+            ;;
+        ubuntu-20.04-64)
+            echo "
+                evolution-data-server
+                gccgo-9
+                packagekit
+                qemu-utils
                 "
             ;;
         ubuntu-*)
@@ -701,6 +710,7 @@ pkg_dependencies_fedora(){
         redhat-lsb-core
         rpm-build
         udisks2
+        upower
         xdg-user-dirs
         xdg-utils
         strace
@@ -730,6 +740,7 @@ pkg_dependencies_amazon(){
         xdg-user-dirs
         xdg-utils
         udisks2
+        upower
         "
 }
 
@@ -753,6 +764,7 @@ pkg_dependencies_opensuse(){
         netcat-openbsd
         osc
         udisks2
+        upower
         uuidd
         xdg-user-dirs
         xdg-utils
@@ -789,6 +801,7 @@ pkg_dependencies_arch(){
     shellcheck
     strace
     udisks2
+    upower
     xdg-user-dirs
     xdg-utils
     xfsprogs
