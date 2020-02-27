@@ -195,8 +195,8 @@ func generateMountsModeRun() error {
 	}
 	if !isDataMounted {
 		name := filepath.Base(dataDir)
-		device := filepath.Join("/dev/disk/by-label", name)
-		if err := unlockIfEncrypted(device, name); err != nil {
+		device, err := unlockIfEncrypted(name)
+		if err != nil {
 			return err
 		}
 
@@ -398,16 +398,21 @@ func generateInitramfsMounts() error {
 	return fmt.Errorf("internal error: mode in generateInitramfsMounts not handled")
 }
 
-func unlockIfEncrypted(device, name string) error {
+func unlockIfEncrypted(name string) (string, error) {
 	// TODO:UC20: will need to unseal key to unlock LUKS here
+	device := filepath.Join("/dev/disk/by-label", name)
 	keyfile := filepath.Join(dirs.RunMnt, "ubuntu-boot", name+".keyfile.unsealed")
 	if osutil.FileExists(keyfile) {
-		cmd := exec.Command("/usr/lib/systemd/systemd-cryptsetup", "attach", "ubuntu-data", "/dev/disk/by-label/ubuntu-data-enc", keyfile)
+		// TODO:UC20: snap-bootstrap should validate that <name>-enc is what
+		//            we expect (and not e.g. an external disk), and also that
+		//            <name> is from <name>-enc and not an unencrypted partition
+		//            with the same name (LP #1863886)
+		cmd := exec.Command("/usr/lib/systemd/systemd-cryptsetup", "attach", name, device+"-enc", keyfile)
 		cmd.Env = os.Environ()
 		cmd.Env = append(cmd.Env, "SYSTEMD_LOG_TARGET=console")
 		if output, err := cmd.CombinedOutput(); err != nil {
-			return osutil.OutputErr(output, err)
+			return "", osutil.OutputErr(output, err)
 		}
 	}
-	return nil
+	return device, nil
 }
