@@ -88,7 +88,7 @@ func NewTaskRunner(s *State) *TaskRunner {
 	}
 }
 
-// OnTaskError sets error callback to execute when task errors out.
+// OnTaskError sets an error callback executed when any task errors out.
 func (r *TaskRunner) OnTaskError(f func(err error)) {
 	r.taskErrorCallback = f
 }
