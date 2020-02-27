@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -19,7 +19,7 @@
 
 package builtin
 
-const powerControlSummary = `allows access to power setting`
+const powerControlSummary = `allows setting system power settings`
 
 const powerControlBaseDeclarationSlots = `
   power-control:
@@ -29,19 +29,20 @@ const powerControlBaseDeclarationSlots = `
     deny-auto-connection: true
 `
 
+// https://www.kernel.org/doc/Documentation/ABI/testing/sysfs-devices-power
 const powerControlConnectedPlugAppArmor = `
-# Description: Allow access to power setting.
+# Description: This interface allows setting system power settings.
 # Allow read of all power setting
 /sys/devices/**/power/{,*} r,
 
-# Allow configuring wakeup events for devices that support
+# Allow configuring wakeup events for supported devices
 /sys/devices/**/power/wakeup w,
 
-# Allow configuring power management of the device at runtime
+# Allow configuring power management of supported devices at runtime
 /sys/devices/**/power/control w,
 
-# for now, omit configuring asynchronous callbacks since it is often unsafe, and also
-# autosuspend delay and PM QoS.
+# For now, omit configuring asynchronous callbacks since they are often unsafe
+# Also omit autosuspend delay and PM QoS for now.
 #/sys/devices/**/power/async w,
 #/sys/devices/**/power/autosuspend_delay_ms w,
 #/sys/devices/**/power/pm_qos* w,
