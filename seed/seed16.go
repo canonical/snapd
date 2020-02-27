@@ -196,7 +196,7 @@ func (s *seed16) LoadMeta(tm timings.Measurer) error {
 	}
 
 	// add the essential snaps
-	addEssential := func(snapName string, pinnedTrack string) (*Snap, error) {
+	addEssential := func(snapName string, pinnedTrack string, essType snap.Type) (*Snap, error) {
 		// be idempotent
 		if added[snapName] {
 			return nil, nil
@@ -211,6 +211,11 @@ func (s *seed16) LoadMeta(tm timings.Measurer) error {
 			return nil, err
 		}
 
+		if essType == snap.TypeBase && snapName == "core" {
+			essType = snap.TypeOS
+		}
+
+		seedSnap.EssentialType = essType
 		seedSnap.Essential = true
 		seedSnap.Required = true
 		added[snapName] = true
@@ -222,25 +227,25 @@ func (s *seed16) LoadMeta(tm timings.Measurer) error {
 	if len(yamlSnaps) != 0 {
 		// ensure "snapd" snap is installed first
 		if model.Base() != "" || classicWithSnapd {
-			if _, err := addEssential("snapd", ""); err != nil {
+			if _, err := addEssential("snapd", "", snap.TypeSnapd); err != nil {
 				return err
 			}
 		}
 		if !classicWithSnapd {
-			if _, err := addEssential(baseSnap, ""); err != nil {
+			if _, err := addEssential(baseSnap, "", snap.TypeBase); err != nil {
 				return err
 			}
 		}
 	}
 
 	if kernelName := model.Kernel(); kernelName != "" {
-		if _, err := addEssential(kernelName, model.KernelTrack()); err != nil {
+		if _, err := addEssential(kernelName, model.KernelTrack(), snap.TypeKernel); err != nil {
 			return err
 		}
 	}
 
 	if gadgetName := model.Gadget(); gadgetName != "" {
-		gadget, err := addEssential(gadgetName, model.GadgetTrack())
+		gadget, err := addEssential(gadgetName, model.GadgetTrack(), snap.TypeGadget)
 		if err != nil {
 			return err
 		}
@@ -260,7 +265,7 @@ func (s *seed16) LoadMeta(tm timings.Measurer) error {
 		if baseSnap != "" && gadgetBase != baseSnap {
 			return fmt.Errorf("cannot use gadget snap because its base %q is different from model base %q", gadgetBase, model.Base())
 		}
-		if _, err = addEssential(gadgetBase, ""); err != nil {
+		if _, err = addEssential(gadgetBase, "", snap.TypeBase); err != nil {
 			return err
 		}
 	}

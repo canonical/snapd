@@ -1,6 +1,5 @@
 name: snapd
-# TODO: enable this when the store is ready
-# type: snapd
+type: snapd
 summary: Daemon and tooling that enable snap packages
 description: |
   Install, configure, refresh and remove snap packages. Snaps are
