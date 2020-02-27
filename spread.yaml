@@ -99,10 +99,6 @@ backends:
             - opensuse-15.0-64:
                 workers: 6
                 manual: true
-            - opensuse-15.1-64:
-                workers: 6
-            - opensuse-tumbleweed-64:
-                workers: 6
             - arch-linux-64:
                 manual: true
                 workers: 6
@@ -121,12 +117,17 @@ backends:
     # so this block is intentially kept commented out, until we need to add
     # systems to it
     #
-    # google-unstable:
-    #    type: google
-    #    key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-    #    location: computeengine/us-east1-b
-    #    halt-timeout: 2h
-    #    systems:
+    google-unstable:
+       type: google
+       key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
+       location: computeengine/us-east1-b
+       halt-timeout: 2h
+       systems:
+            - opensuse-15.1-64:
+                workers: 6
+            - opensuse-tumbleweed-64:
+                workers: 6
+
 
     google-tpm:
         type: google
