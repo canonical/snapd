@@ -25,7 +25,7 @@ execute: |
     echo "Add totally unconnected network namespace"
     ip netns add testns
 
-    # Without having "lo" the ipv6 test will retrun EADDRNOTAVAIL which
+    # Without having "lo" up the ipv6 test will retrun EADDRNOTAVAIL which
     # is misleading, it just means that there is no ipv6 addresses in the
     # namespace, adding localhost fixes this.
     echo "but make sure we have localhost available so that ipv6 works"
