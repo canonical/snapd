@@ -33,11 +33,13 @@ execute: |
     # be paranoid and look at the low-level go error as well
     MATCH "(Temporary failure in name resolution|network is unreachable)" < stderr
 
-    echo "Now without DNS resolver"
-    UBUNTU_IP="$(getent hosts www.ubuntu.com|awk '{print $1 }' | head -n1)"
+    echo "Now without DNS resolver with ipv4"
+    UBUNTU_IP="$(getent ahostsv4 www.ubuntu.com|awk '{print $1 }' | head -n1)"
     SNAPD_DEBUG=1 nsenter --net=/var/run/netns/testns ./detect-retry "http://$UBUNTU_IP" > output.txt 2>stderr
     # XXX: ShouldRetryError is slightly misbehaving, see comment above
     MATCH "ShouldRetryError: true" < output.txt
     MATCH "NoNetwork: true" < output.txt
     # be paranoid and look at the low-level go error as well
     MATCH "network is unreachable" < stderr
+
+    # XXX: also test with ipv6
