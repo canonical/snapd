@@ -656,6 +656,7 @@ pkg_dependencies_ubuntu_classic(){
             ;;
         debian-*)
             echo "
+                dnsutils
                 eatmydata
                 evolution-data-server
                 fwupd
@@ -689,6 +690,7 @@ pkg_dependencies_ubuntu_core(){
 
 pkg_dependencies_fedora(){
     echo "
+        bind-utils
         clang
         curl
         dbus-x11
@@ -721,6 +723,7 @@ pkg_dependencies_fedora(){
 
 pkg_dependencies_amazon(){
     echo "
+        bind-utils
         curl
         dbus-x11
         expect
@@ -781,6 +784,7 @@ pkg_dependencies_arch(){
     bash-completion
     clang
     curl
+    dnsutils
     evolution-data-server
     expect
     fontconfig
