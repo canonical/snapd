@@ -484,6 +484,11 @@ kernel_read_net_sysctls(snappy_mount_t)
 kernel_search_network_sysctl(snappy_mount_t)
 dev_read_sysfs(snappy_mount_t)
 
+# snap-update-ns is started using a file descriptor, meaning ld.so runs in the
+# mount ns and may try to read/mmap cache files inside
+fs_read_tmpfs_files(snappy_mount_t)
+mmap_read_files_pattern(snappy_mount_t, tmpfs_t, tmpfs_t)
+
 ########################################
 #
 # snap-confine local policy
