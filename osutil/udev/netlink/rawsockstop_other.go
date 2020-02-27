@@ -1,4 +1,6 @@
-// + build !arm64
+// +build !arm64
+// don't remove the whitespace below!
+
 package netlink
 
 import "syscall"
