@@ -117,3 +117,25 @@ func snapTypeFromModel(modSnap *asserts.ModelSnap) snap.Type {
 		return snap.TypeApp
 	}
 }
+
+func essentialSnapTypesToModelFilter(essentialTypes []snap.Type) func(modSnap *asserts.ModelSnap) bool {
+	m := make(map[string]bool, len(essentialTypes))
+	for _, t := range essentialTypes {
+		switch t {
+		case snap.TypeBase:
+			m["base"] = true
+		case snap.TypeOS:
+			m["core"] = true
+		case snap.TypeGadget:
+			m["gadget"] = true
+		case snap.TypeKernel:
+			m["kernel"] = true
+		case snap.TypeSnapd:
+			m["snapd"] = true
+		}
+	}
+
+	return func(modSnap *asserts.ModelSnap) bool {
+		return m[modSnap.SnapType]
+	}
+}
