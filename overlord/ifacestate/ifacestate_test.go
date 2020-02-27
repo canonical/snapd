@@ -6022,21 +6022,16 @@ func (s *interfaceManagerSuite) TestSnapstateOpConflictWithDisconnect(c *C) {
 }
 
 type udevMonitorMock struct {
-	ConnectError, RunError                             error
-	ConnectCalls, RunCalls, StopCalls, DisconnectCalls int
-	AddDevice                                          udevmonitor.DeviceAddedFunc
-	RemoveDevice                                       udevmonitor.DeviceRemovedFunc
-	EnumerationDone                                    udevmonitor.EnumerationDoneFunc
+	ConnectError, RunError            error
+	ConnectCalls, RunCalls, StopCalls int
+	AddDevice                         udevmonitor.DeviceAddedFunc
+	RemoveDevice                      udevmonitor.DeviceRemovedFunc
+	EnumerationDone                   udevmonitor.EnumerationDoneFunc
 }
 
 func (u *udevMonitorMock) Connect() error {
 	u.ConnectCalls++
 	return u.ConnectError
-}
-
-func (u *udevMonitorMock) Disconnect() error {
-	u.DisconnectCalls++
-	return nil
 }
 
 func (u *udevMonitorMock) Run() error {
@@ -6127,7 +6122,6 @@ func (s *interfaceManagerSuite) TestUDevMonitorInitErrors(c *C) {
 	c.Assert(u.ConnectCalls, Equals, 2)
 	c.Assert(u.RunCalls, Equals, 1)
 	c.Assert(u.StopCalls, Equals, 0)
-	c.Assert(u.DisconnectCalls, Equals, 1)
 
 	u.RunError = nil
 	c.Assert(s.se.Ensure(), IsNil)
@@ -7752,6 +7746,36 @@ plugs:
 		"consumer:test gadget:test1": map[string]interface{}{"auto": true, "interface": "test"},
 	})
 	c.Check(repo.Interfaces().Connections, HasLen, 1)
+}
+
+func (s *interfaceManagerSuite) TestPreseedAutoConnectErrorWithInterfaceHooks(c *C) {
+	restore := release.MockPreseedMode(func() bool { return true })
+	defer restore()
+
+	s.MockModel(c, nil)
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
+
+	snapInfo := s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+
+	// Initialize the manager. This registers the OS snap.
+	_ = s.manager(c)
+
+	// Run the setup-snap-security task and let it finish.
+	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: snapInfo.SnapName(),
+			Revision: snapInfo.Revision,
+		},
+	})
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure that the task succeeded.
+	c.Check(change.Status(), Equals, state.ErrorStatus)
+	c.Check(change.Err(), ErrorMatches, `cannot perform the following tasks:\n.*interface hooks are not yet supported in preseed mode.*`)
 }
 
 // Tests for ResolveDisconnect()

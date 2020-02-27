@@ -5,6 +5,7 @@ details: |
   (e.g. from when the user installed it) should be preserved.
 
 # run on ubuntu-{14,16,18,20+} and ubuntu-core-16-*
+# TODO:UC20: enable for UC20
 systems: [ubuntu-1*, ubuntu-2*, ubuntu-3*, ubuntu-core-1*]
 
 environment:

@@ -25,16 +25,26 @@ import (
 	. "gopkg.in/check.v1"
 
 	main "github.com/snapcore/snapd/cmd/snap-bootstrap"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/testutil"
 )
 
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
-type cmdSuite struct{}
+type cmdSuite struct {
+	testutil.BaseTest
+}
 
 var _ = Suite(&cmdSuite{})
 
+func (s *cmdSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	_, r := logger.MockLogger()
+	s.AddCleanup(r)
+}
+
 func (s *cmdSuite) TestNoArgsErrors(c *C) {
-	_, err := main.Parser.ParseArgs(nil)
+	_, err := main.Parser().ParseArgs(nil)
 	c.Assert(err, ErrorMatches, "Please specify .*")
 }

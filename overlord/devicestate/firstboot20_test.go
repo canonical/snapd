@@ -26,7 +26,6 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/boot"
-	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
@@ -118,12 +117,14 @@ volumes:
 }
 
 func (s *firstBoot20Suite) TestPopulateFromSeedCore20Happy(c *C) {
-	r := boottest.ForceModeenv("", &boot.Modeenv{
+	m := boot.Modeenv{
 		Mode:           "run",
 		RecoverySystem: "20191018",
 		Base:           "core20_1.snap",
-	})
-	defer r()
+	}
+	err := m.Write("")
+	c.Assert(err, IsNil)
+	defer os.Remove(dirs.SnapModeenvFileUnder(dirs.GlobalRootDir))
 
 	// restart overlord to pick up the modeenv
 	s.startOverlord(c)
@@ -149,7 +150,7 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20Happy(c *C) {
 	// bootloader, so set the current kernel there
 	kernel, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
 	c.Assert(err, IsNil)
-	r = bloader.SetRunKernelImageEnabledKernel(kernel)
+	r := bloader.SetRunKernelImageEnabledKernel(kernel)
 	defer r()
 
 	opts := devicestate.PopulateStateFromSeedOptions{
@@ -237,6 +238,16 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20Happy(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(seedTime.IsZero(), Equals, false)
 
+	// check that we removed recovery_system from modeenv
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Assert(m2.RecoverySystem, Equals, "")
+	c.Assert(m2.Base, Equals, m.Base)
+	c.Assert(m2.Mode, Equals, m.Mode)
+	// Note that we don't check CurrentKernels in the modeenv, even though in a
+	// real first boot that would also be set here, because setting that is done
+	// in the snapstate manager, not the devicestate manager
+
 	// check that the default device ctx has a Modeenv
 	dev, err := devicestate.DeviceCtx(s.overlord.State(), nil, nil)
 	c.Assert(err, IsNil)
@@ -247,9 +258,11 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20Happy(c *C) {
 	// already booted from, we should only have checked what the current kernel
 	// is
 
-	// the 2 calls here are 1 from GetCurrentBoot() and 1 from SetNext()
+	// the 3 calls here are 1 from GetCurrentBoot() (and thus markSuccessful())
+	// and 1 from SetNext(), and 1 from InUse() (from installPath() in
+	// o/snapstate)
 	_, numKernelCalls := bloader.GetRunKernelImageFunctionSnapCalls("Kernel")
-	c.Assert(numKernelCalls, Equals, 2)
+	c.Assert(numKernelCalls, Equals, 3)
 
 	actual, _ := bloader.GetRunKernelImageFunctionSnapCalls("EnableKernel")
 	c.Assert(actual, HasLen, 0)

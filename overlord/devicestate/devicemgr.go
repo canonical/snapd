@@ -554,6 +554,40 @@ func (m *DeviceManager) ensureInstalled() error {
 	return nil
 }
 
+var timeNow = time.Now
+
+// StartOfOperationTime returns the time when snapd started operating,
+// and sets it in the state when called for the first time.
+// The StartOfOperationTime time is seed-time if available,
+// or current time otherwise.
+func (m *DeviceManager) StartOfOperationTime() (time.Time, error) {
+	var opTime time.Time
+	if m.preseed {
+		return opTime, fmt.Errorf("internal error: unexpected call to StartOfOperationTime in preseed mode")
+	}
+	err := m.state.Get("start-of-operation-time", &opTime)
+	if err == nil {
+		return opTime, nil
+	}
+	if err != nil && err != state.ErrNoState {
+		return opTime, err
+	}
+
+	// start-of-operation-time not set yet, use seed-time if available
+	var seedTime time.Time
+	err = m.state.Get("seed-time", &seedTime)
+	if err != nil && err != state.ErrNoState {
+		return opTime, err
+	}
+	if err == nil {
+		opTime = seedTime
+	} else {
+		opTime = timeNow()
+	}
+	m.state.Set("start-of-operation-time", opTime)
+	return opTime, nil
+}
+
 func markSeededInConfig(st *state.State) error {
 	var seedDone bool
 	tr := config.NewTransaction(st)
