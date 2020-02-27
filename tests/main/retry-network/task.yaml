@@ -25,13 +25,7 @@ execute: |
     echo "Add totally unconnected network namespace"
     ip netns add testns
 
-    for _ in $(seq 10); do
-        nsenter --net=/var/run/netns/testns ./detect-retry http://www.ubuntu.com > output.txt
-        if MATCH "NoNetwork: true" < output.txt; then
-            break
-        fi
-        sleep 1
-    done
+    retry-tool -n 10 --wait 1 bash -c 'nsenter --net=/var/run/netns/testns ./detect-retry http://www.ubuntu.com | tee output.txt | MATCH "NoNetwork: true"'
 
     SNAPD_DEBUG=1 nsenter --net=/var/run/netns/testns ./detect-retry http://www.ubuntu.com > output.txt 2>stderr
     # XXX: ShouldRetryError is slightly misbehaving, if we know we don't have
