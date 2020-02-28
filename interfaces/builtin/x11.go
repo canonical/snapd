@@ -154,7 +154,9 @@ type x11Interface struct {
 }
 
 func (iface *x11Interface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	if !release.OnClassic {
+	// Only apply slot snippet when running as application snap
+	// on classic, slot side can be system or application
+	if !implicitSystemConnectedSlot(slot) {
 		old := "###PLUG_SECURITY_TAGS###"
 		new := plugAppLabelExpr(plug)
 		snippet := strings.Replace(x11ConnectedSlotAppArmor, old, new, -1)
@@ -171,7 +173,7 @@ func (iface *x11Interface) SecCompPermanentSlot(spec *seccomp.Specification, slo
 }
 
 func (iface *x11Interface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
-	if !release.OnClassic {
+	if !implicitSystemPermanentSlot(slot) {
 		spec.AddSnippet(x11PermanentSlotAppArmor)
 	}
 	return nil
