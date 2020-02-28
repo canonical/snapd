@@ -411,7 +411,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkBootloaderHappy(c *C) {
 	s.setPCModelInState(c)
 
 	s.bootloader.SetBootVars(map[string]string{
-		"snap_mode":     "trying",
+		"snap_mode":     boot.TryingStatus,
 		"snap_try_core": "core_1.snap",
 	})
 
@@ -478,7 +478,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkNotRunAgain(c *C) {
 	s.setPCModelInState(c)
 
 	s.bootloader.SetBootVars(map[string]string{
-		"snap_mode":     "trying",
+		"snap_mode":     boot.TryingStatus,
 		"snap_try_core": "core_1.snap",
 	})
 	s.bootloader.SetErr = fmt.Errorf("ensure bootloader is not used")
