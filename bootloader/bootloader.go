@@ -34,9 +34,9 @@ var (
 	// ErrBootloader is returned if the bootloader can not be determined.
 	ErrBootloader = errors.New("cannot determine bootloader")
 
-	// ErrNoTryKernelRef is returned if the bootloader cannot find an enabled
+	// ErrNoTryKernelRef is returned if the bootloader finds no enabled
 	// try-kernel.
-	ErrNoTryKernelRef = errors.New("cannot find try-kernel")
+	ErrNoTryKernelRef = errors.New("no try-kernel referenced")
 )
 
 // Options carries bootloader options.
@@ -103,15 +103,16 @@ type ExtractedRunKernelImageBootloader interface {
 	Bootloader
 
 	// EnableKernel enables the specified kernel on ubuntu-boot to be used
-	// during normal boots. The specified snap should already have been
-	// extracted.
+	// during normal boots. The specified kernel should already have been
+	// extracted. This is usually be implemented with a "kernel.efi" symlink
+	// pointing to the extracted kernel image.
 	EnableKernel(snap.PlaceInfo) error
 
-	// EnableTryKernel enables the specified kernel on ubuntu-boot to be tried
-	// by the bootloader on a reboot, to be used in conjunction with setting
-	// "kernel_status" to "try". This is usually be implemented with a
+	// EnableTryKernel enables the specified kernel on ubuntu-boot to be
+	// tried by the bootloader on a reboot, to be used in conjunction with
+	// setting "kernel_status" to "try". The specified kernel should already
+	// have been extracted. This is usually be implemented with a
 	// "try-kernel.efi" symlink pointing to the extracted kernel image.
-	// The specified kernel should already have been extracted.
 	EnableTryKernel(snap.PlaceInfo) error
 
 	// Kernel returns the current enabled kernel on the bootloader, not
