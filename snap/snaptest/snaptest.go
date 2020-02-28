@@ -206,27 +206,21 @@ func MakeTestSnapWithFiles(c *check.C, snapYamlContent string, files [][]string)
 func MakeTestSnapInfoWithFiles(c *check.C, snapYamlContent string, files [][]string, si *snap.SideInfo) (snapFilePath string, info *snap.Info) {
 	tmpdir := c.MkDir()
 	snapSource := filepath.Join(tmpdir, "snapsrc")
-
 	err := os.MkdirAll(filepath.Join(snapSource, "meta"), 0755)
 	c.Assert(err, check.IsNil)
-
 	snapYamlFn := filepath.Join(snapSource, "meta", "snap.yaml")
 	err = ioutil.WriteFile(snapYamlFn, []byte(snapYamlContent), 0644)
 	c.Assert(err, check.IsNil)
-
 	PopulateDir(snapSource, files)
-
 	restoreSanitize := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 	defer restoreSanitize()
 
 	// Parse the yaml (we need the Name).
 	snapInfo, err := snap.InfoFromSnapYaml([]byte(snapYamlContent))
 	c.Assert(err, check.IsNil)
-
 	if si != nil {
 		snapInfo.SideInfo = *si
 	}
-
 	err = osutil.ChDir(snapSource, func() error {
 		var err error
 		snapFilePath, err = pack.Snap(snapSource, nil)
