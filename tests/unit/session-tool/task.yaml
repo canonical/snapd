@@ -3,7 +3,7 @@ summary: tests for session-tool
 systems: [-ubuntu-14.04-*]
 kill-timeout: 1m
 execute: |
-    # User switching realy works
+    # User switching really works
     session-tool -u test id -u | MATCH 12345
     # We get XDG_RUNTIME_DIR
     session-tool -u test env | MATCH XDG_RUNTIME_DIR=/run/user/12345
