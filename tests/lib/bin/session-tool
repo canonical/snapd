@@ -128,6 +128,11 @@ busctl \
 		ExecStart "a(sasb)" 1 \
 			/bin/sh 3 /bin/sh -c "exec runuser -l $user - -c \"$*\" <$tmp_dir/stdin.pipe >$tmp_dir/stdout.pipe 2>$tmp_dir/stderr.pipe" false \
 	0
+# FIXME: ^ the line above invokes runuser via sh has broken quoting.
+# This is done so that we can configure file redirects. Once Ubuntu 16.04 is no
+# longer supported we can use Standard{Input,Output,Error}=file:path property
+# of systemd, or perhaps even StandardInputFileDescriptor and pass a file
+# descriptor to the fifos we open in the script above.
 
 # Wait for the service to terminate. The trigger is a successful read
 # from the result fifo. In case we are signaled in one of the familiar
