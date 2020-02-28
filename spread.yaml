@@ -100,7 +100,6 @@ backends:
                 workers: 6
                 manual: true
             - arch-linux-64:
-                manual: true
                 workers: 6
 
             - amazon-linux-2-64:
