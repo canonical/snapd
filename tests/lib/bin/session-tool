@@ -80,7 +80,7 @@ busctl \
 	0
 
 # Wait for the service to terminate. The trigger is a successful read
-# from a the result fifo. In case we are signaled in one of the familiar
+# from the result fifo. In case we are signaled in one of the familiar
 # ways, kill the started service with the same signal. The reading occurs
 # in a loop as the signal will first interrupt the read process, which will
 # fail and return nothing.
@@ -94,7 +94,7 @@ for sig in INT TERM QUIT; do
 done
 trap - INT TERM QUIT
 
-# Kill dbus-monitor that otherwise runs it notices the pipe is no longer
+# Kill dbus-monitor that otherwise runs until it notices the pipe is no longer
 # connected, which happens after a longer while.
 kill $dbus_monitor_pid || true
 wait $dbus_monitor_pid || true
