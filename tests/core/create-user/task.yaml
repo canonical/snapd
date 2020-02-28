@@ -36,7 +36,7 @@ execute: |
     MATCH "$expected" <<<"$output"
 
     echo "Adding valid user"
-    expected='created user "$USER_NAME"'
+    expected="created user \"$USER_EMAIL\""
     output=$(snap create-user --sudoer "$USER_EMAIL")
     if [ "$output" != "$expected" ]; then
         echo "Unexpected output $output"
@@ -55,4 +55,4 @@ execute: |
     test -f /home/"$USER_NAME"/.snap/auth.json
 
     echo "ensure user's email was stored in ~/.snap/auth.json"
-    MATCH '"email":""$USER_EMAIL""' < /home/"$USER_NAME"/.snap/auth.json
+    MATCH "\"email\":\"$USER_EMAIL\"" < /home/"$USER_NAME"/.snap/auth.json
