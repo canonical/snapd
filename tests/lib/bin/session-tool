@@ -57,6 +57,10 @@ BEGIN {
 	ready=0;
 }
 
+# Once we get the NameAcquired message we are sure dbus-monitor is connected
+# and will receive JobRemoved once it is sent. The reason we are getting this
+# message despite the filter we establish above is that it is sent directly to
+# us, which bypasses DBus filter expressions.
 /member=NameAcquired/ {
 	if (!ready) {
 		ready=1;
@@ -65,6 +69,9 @@ BEGIN {
 	}
 }
 
+# This part matches an argument to JobRemoved that contains the name of the
+# session-tool-xxx.service name we picked earlier. Once we see this we are sure
+# the job is gone.
 /   string \"$unit_name\"/ {
 	found=1;
 	print \"found service file\";
@@ -72,6 +79,11 @@ BEGIN {
 	next;
 }
 
+# This matches any string argument but only takes effect once we found our
+# JobRemoved message. The order of arguments to JobRemoved is such that the
+# immediate successor of the service name is the result word. This is
+# translated to a pass / fail exit code from session-tool. Scanning this part
+# terminates awk.
 /string \".*\"/ {
 	if (found==1) {
 		print \"found result\";
