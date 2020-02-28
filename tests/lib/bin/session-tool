@@ -51,7 +51,37 @@ monitor_expr="type='signal', sender='org.freedesktop.systemd1', interface='org.f
 stdbuf -oL dbus-monitor --system --monitor "$monitor_expr" > "$tmp_dir/dbus-monitor.pipe" &
 dbus_monitor_pid=$!
 
-awk_expr="BEGIN {found=0; ready=0;} /member=NameAcquired/ { if (!ready) {ready=1; print ready > \"$tmp_dir/ready.pipe\"; close(\"$tmp_dir/ready.pipe\"); } } /   string \"$unit_name\"/ {found=1; print \"found service file\"; fflush(); next; }; /string \".*\"/ { if (found==1) {print \"found result\"; print \$2 > \"$tmp_dir/result.pipe\"; fflush(\"\"); close(\"$tmp_dir/result.pipe\"); exit; } }"
+awk_expr="
+BEGIN {
+	found=0;
+	ready=0;
+}
+
+/member=NameAcquired/ {
+	if (!ready) {
+		ready=1;
+		print ready > \"$tmp_dir/ready.pipe\";
+		close(\"$tmp_dir/ready.pipe\");
+	}
+}
+
+/   string \"$unit_name\"/ {
+	found=1;
+	print \"found service file\";
+	fflush();
+	next;
+}
+
+/string \".*\"/ {
+	if (found==1) {
+		print \"found result\";
+		print \$2 > \"$tmp_dir/result.pipe\";
+		fflush(\"\");
+		close(\"$tmp_dir/result.pipe\");
+		exit;
+	}
+}
+"
 awk -W interactive "$awk_expr" <"$tmp_dir/dbus-monitor.pipe" >"$tmp_dir/awk.log" 2>&1 &
 awk_pid=$!
 
