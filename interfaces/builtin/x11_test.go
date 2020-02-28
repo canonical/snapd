@@ -33,13 +33,13 @@ import (
 )
 
 type X11InterfaceSuite struct {
-	iface           interfaces.Interface
-	coreSlotInfo    *snap.SlotInfo
-	coreSlot        *interfaces.ConnectedSlot
-	classicSlotInfo *snap.SlotInfo
-	classicSlot     *interfaces.ConnectedSlot
-	plugInfo        *snap.PlugInfo
-	plug            *interfaces.ConnectedPlug
+	iface            interfaces.Interface
+	providerSlotInfo *snap.SlotInfo
+	providerSlot     *interfaces.ConnectedSlot
+	classicSlotInfo  *snap.SlotInfo
+	classicSlot      *interfaces.ConnectedSlot
+	plugInfo         *snap.PlugInfo
+	plug             *interfaces.ConnectedPlug
 }
 
 var _ = Suite(&X11InterfaceSuite{
@@ -53,16 +53,16 @@ apps:
   plugs: [x11]
 `
 
-// an x11 slot on an x11 snap (as installed on a core/all-snap system)
-const x11CoreYaml = `name: x11
+// an x11 slot on an x11 snap (as installed on a system)
+const x11ProviderYaml = `name: x11
 version: 0
 apps:
  app1:
   slots: [x11]
 `
 
-// an x11 slot on the core snap (as automatically added on classic)
-const x11ClassicYaml = `name: core
+// an x11 slot on the classic snap (as automatically added on classic)
+const x11ClassicYaml = `name: classic
 version: 0
 type: os
 slots:
@@ -72,7 +72,7 @@ slots:
 
 func (s *X11InterfaceSuite) SetUpTest(c *C) {
 	s.plug, s.plugInfo = MockConnectedPlug(c, x11MockPlugSnapInfoYaml, nil, "x11")
-	s.coreSlot, s.coreSlotInfo = MockConnectedSlot(c, x11CoreYaml, nil, "x11")
+	s.providerSlot, s.providerSlotInfo = MockConnectedSlot(c, x11ProviderYaml, nil, "x11")
 	s.classicSlot, s.classicSlotInfo = MockConnectedSlot(c, x11ClassicYaml, nil, "x11")
 }
 
@@ -81,7 +81,7 @@ func (s *X11InterfaceSuite) TestName(c *C) {
 }
 
 func (s *X11InterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.coreSlotInfo), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.providerSlotInfo), IsNil)
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.classicSlotInfo), IsNil)
 }
 
@@ -90,32 +90,32 @@ func (s *X11InterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *X11InterfaceSuite) TestAppArmorSpec(c *C) {
-	// on a core system with x11 slot coming from a regular app snap.
+	// on a provider system with x11 slot coming from a regular app snap.
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	// connected plug to core slot
+	// connected plug to provider slot
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.providerSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "fontconfig")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "owner /run/user/[0-9]*/.Xauthority r,")
 
-	// connected core slot to plug
+	// connected provider to plug
 	spec = &apparmor.Specification{}
-	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.coreSlot), IsNil)
+	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.providerSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.x11.app1"})
 	c.Assert(spec.SnippetForTag("snap.x11.app1"), testutil.Contains, `peer=(label="snap.consumer.app"),`)
 
-	// permanent core slot
+	// permanent provider slot
 	spec = &apparmor.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, s.providerSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.x11.app1"})
 	c.Assert(spec.SnippetForTag("snap.x11.app1"), testutil.Contains, "capability sys_tty_config,")
 }
 
 func (s *X11InterfaceSuite) TestAppArmorSpecOnClassic(c *C) {
-	// on a classic system with x11 slot coming from the core snap.
+	// on a classic system with x11 slot coming from the classic snap.
 	restore := release.MockOnClassic(true)
 	defer restore()
 
@@ -126,21 +126,21 @@ func (s *X11InterfaceSuite) TestAppArmorSpecOnClassic(c *C) {
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "fontconfig")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "owner /run/user/[0-9]*/.Xauthority r,")
 
-	// connected core slot to plug
+	// connected classic slot to plug
 	spec = &apparmor.Specification{}
-	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.coreSlot), IsNil)
+	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.classicSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.x11.app1"})
 	c.Assert(spec.SnippetForTag("snap.x11.app1"), testutil.Contains, `peer=(label="snap.consumer.app"),`)
 
 	// permanent classic slot
 	spec = &apparmor.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, s.classicSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.x11.app1"})
 	c.Assert(spec.SnippetForTag("snap.x11.app1"), testutil.Contains, "capability sys_tty_config,")
 }
 
 func (s *X11InterfaceSuite) TestSecCompOnClassic(c *C) {
-	// on a classic system with x11 slot coming from the core snap.
+	// on a classic system with x11 slot coming from the provider snap.
 	restore := release.MockOnClassic(true)
 	defer restore()
 
@@ -155,15 +155,15 @@ func (s *X11InterfaceSuite) TestSecCompOnClassic(c *C) {
 	c.Assert(seccompSpec.SnippetForTag("snap.consumer.app"), testutil.Contains, "bind\n")
 }
 
-func (s *X11InterfaceSuite) TestSecCompOnCore(c *C) {
-	// on a core system with x11 slot coming from a snap.
+func (s *X11InterfaceSuite) TestSecCompOnProvider(c *C) {
+	// on a provider system with x11 slot coming from a snap.
 	restore := release.MockOnClassic(false)
 	defer restore()
 
 	seccompSpec := &seccomp.Specification{}
-	err := seccompSpec.AddPermanentSlot(s.iface, s.coreSlotInfo)
+	err := seccompSpec.AddPermanentSlot(s.iface, s.providerSlotInfo)
 	c.Assert(err, IsNil)
-	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.coreSlot)
+	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.providerSlot)
 	c.Assert(err, IsNil)
 
 	// both app and x11 have secomp rules set
@@ -173,12 +173,12 @@ func (s *X11InterfaceSuite) TestSecCompOnCore(c *C) {
 }
 
 func (s *X11InterfaceSuite) TestUDev(c *C) {
-	// on a core system with x11 slot coming from a regular app snap.
+	// on a provider system with x11 slot coming from a regular app snap.
 	restore := release.MockOnClassic(false)
 	defer restore()
 
 	spec := &udev.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, s.providerSlotInfo), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 6)
 	c.Assert(spec.Snippets(), testutil.Contains, `# x11
 KERNEL=="event[0-9]*", TAG+="snap_x11_app1"`)
@@ -193,12 +193,12 @@ KERNEL=="tty[0-9]*", TAG+="snap_x11_app1"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_x11_app1", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_x11_app1 $devpath $major:$minor"`)
 	c.Assert(spec.TriggeredSubsystems(), DeepEquals, []string{"input"})
 
-	// on a classic system with x11 slot coming from the core snap.
+	// on a classic system with x11 slot coming from the provider snap.
 	restore = release.MockOnClassic(true)
 	defer restore()
 
 	spec = &udev.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, s.providerSlotInfo), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 0)
 	c.Assert(spec.TriggeredSubsystems(), IsNil)
 }
@@ -212,7 +212,7 @@ func (s *X11InterfaceSuite) TestStaticInfo(c *C) {
 }
 
 func (s *X11InterfaceSuite) TestAutoConnect(c *C) {
-	c.Assert(s.iface.AutoConnect(s.plugInfo, s.coreSlotInfo), Equals, true)
+	c.Assert(s.iface.AutoConnect(s.plugInfo, s.providerSlotInfo), Equals, true)
 	c.Assert(s.iface.AutoConnect(s.plugInfo, s.classicSlotInfo), Equals, true)
 }
 
