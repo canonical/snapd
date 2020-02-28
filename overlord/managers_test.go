@@ -2104,6 +2104,15 @@ type: kernel`
 	c.Assert(nDisableTryKernelCalls, Equals, 1)
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
+
+	// also check that we are active on the second revision
+	var snapst snapstate.SnapState
+	err = snapstate.Get(st, "pc-kernel", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.Sequence, HasLen, 2)
+	c.Check(snapst.Sequence, DeepEquals, []*snap.SideInfo{si1, &kernelSnapInfo.SideInfo})
+	c.Check(snapst.Active, Equals, true)
+	c.Check(snapst.Current, DeepEquals, snap.R(-1))
 }
 
 func (s *mgrsSuite) TestInstallKernelSnap20UndoUpdatesBootloaderEnv(c *C) {
@@ -2278,6 +2287,15 @@ type: kernel`
 	enabledKernels, _ := bloader.GetRunKernelImageFunctionSnapCalls("EnableKernel")
 	c.Assert(enabledKernels, HasLen, 1)
 	c.Assert(enabledKernels[0].Filename(), Equals, kernelSnapInfo.Filename())
+
+	// also check that we are active on the first revision again
+	var snapst snapstate.SnapState
+	err = snapstate.Get(st, "pc-kernel", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.Sequence, HasLen, 1)
+	c.Check(snapst.Sequence, DeepEquals, []*snap.SideInfo{si1})
+	c.Check(snapst.Active, Equals, true)
+	c.Check(snapst.Current, DeepEquals, snap.R(1))
 }
 
 func (s *mgrsSuite) installLocalTestSnap(c *C, snapYamlContent string) *snap.Info {
