@@ -3,7 +3,8 @@ summary: |
     with the prepare-device gadget hook and this can set request headers,
     a proposed serial and the body of the serial assertion
 
-# TODO:UC20: enable for UC20
+# TODO:UC20: enable for UC20, it assumes /var/lib/snapd/seed/assertions/model
+#            which we don't have currently
 systems: [ubuntu-core-1*-64]
 
 prepare: |

@@ -1,7 +1,9 @@
 summary: |
-   Test that configuration defaults are only applied once.
+    Test that configuration defaults are only applied once.
 
-# ubuntu-core-16: it is not yet possible to install snapd on core16
+# it is not yet possible to install snapd on UC16
+# TODO:UC20: enable for UC20, currently fails because there is no seed.yaml in
+#            the same place as UC18
 systems: [ubuntu-core-18-*]
 
 environment:
