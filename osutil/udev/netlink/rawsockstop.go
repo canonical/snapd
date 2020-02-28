@@ -36,8 +36,6 @@ func RawSockStopper(fd int) (readableOrStop func() (bool, error), stop func(), e
 	return readableOrStop, stop, nil
 }
 
-var stopperSelectTimeout *syscall.Timeval
-
 func stopperSelectReadable(fd, stopFd int) (bool, error) {
 	maxFd := fd
 	if maxFd < stopFd {
@@ -51,11 +49,12 @@ func stopperSelectReadable(fd, stopFd int) (bool, error) {
 	stopFdIdx := stopFd / bits.UintSize
 	stopFdShift := uint(stopFd) % bits.UintSize
 	readable := false
+	tout := stopperSelectTimeout()
 	for {
 		var r syscall.FdSet
 		r.Bits[fdIdx] = 1 << fdShift
 		r.Bits[stopFdIdx] |= 1 << stopFdShift
-		_, err := syscall.Select(maxFd+1, &r, nil, nil, stopperSelectTimeout)
+		_, err := syscall.Select(maxFd+1, &r, nil, nil, tout)
 		if errno, ok := err.(syscall.Errno); ok && errno.Temporary() {
 			continue
 		}

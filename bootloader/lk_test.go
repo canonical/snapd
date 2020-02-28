@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/lkenv"
 	"github.com/snapcore/snapd/osutil"
@@ -67,13 +68,13 @@ func (s *lkTestSuite) TestNewLkImageBuildingTime(c *C) {
 func (s *lkTestSuite) TestSetGetBootVar(c *C) {
 	bootloader.MockLkFiles(c, s.rootdir, nil)
 	l := bootloader.NewLk(s.rootdir, nil)
-	bootVars := map[string]string{"snap_mode": "try"}
+	bootVars := map[string]string{"snap_mode": boot.TryStatus}
 	l.SetBootVars(bootVars)
 
 	v, err := l.GetBootVars("snap_mode")
 	c.Assert(err, IsNil)
 	c.Check(v, HasLen, 1)
-	c.Check(v["snap_mode"], Equals, "try")
+	c.Check(v["snap_mode"], Equals, boot.TryStatus)
 }
 
 func (s *lkTestSuite) TestExtractKernelAssetsUnpacksBootimgImageBuilding(c *C) {
