@@ -36,7 +36,7 @@ execute: |
     MATCH "$expected" <<<"$output"
 
     echo "Adding valid user"
-    expected="created user \"$USER_EMAIL\""
+    expected="created user \"$USER_NAME\""
     output=$(snap create-user --sudoer "$USER_EMAIL")
     if [ "$output" != "$expected" ]; then
         echo "Unexpected output $output"
