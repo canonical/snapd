@@ -1,6 +1,7 @@
 summary: Ensure remove-user functionality
 
-# TODO:UC20: enable for uc20
+# TODO:UC20: enable for uc20, userdel --extrausers "$USER" is failing
+# right now with: "user $USER does not exist'
 systems: [ubuntu-core-1*]
 
 environment:
@@ -9,7 +10,9 @@ environment:
     USER_NAME: mvo
 
 prepare: |
-    snap create-user --sudoer "$USER_EMAIL"
+    # some core devices will be managed already when this test runs
+    snap managed > is-managed
+    snap create-user --force-managed --sudoer "$USER_EMAIL"
 
 restore: |
     userdel --extrausers -r "$USER_NAME" || true
@@ -53,6 +56,12 @@ execute: |
     test ! -f "/etc/sudoers.d/create-user-$USER_NAME"
     echo "user no longer has a home"
     test ! -d "/home/$USER_NAME"
+
+    echo "user is no longer managed by snapd"
+    if [ "$(cat is-managed)" = "false"] && [ "$(snap managed)" != "false" ]; then
+        echo "user removed but system still managd"
+        exit 1
+    fi
 
     echo "snap remove-user cannot remove arbitrary users"
     expected="error: user \"root\" is not known"
