@@ -42,7 +42,7 @@ read -r uuid < /proc/sys/kernel/random/uuid
 unit_name="session-tool-$uuid.service"
 tmp_dir="/tmp/session-tool-$uuid"
 mkdir "$tmp_dir"
-mkfifo -m 0666 "$tmp_dir/dbus-monitor.pipe" "$tmp_dir/result.pipe" "$tmp_dir/stdin.pipe" "$tmp_dir/stdout.pipe" "$tmp_dir/stderr.pipe"
+mkfifo -m 0666 "$tmp_dir/dbus-monitor.pipe" "$tmp_dir/ready.pipe" "$tmp_dir/result.pipe" "$tmp_dir/stdin.pipe" "$tmp_dir/stdout.pipe" "$tmp_dir/stderr.pipe"
 trap 'rm -rf $tmp_dir' EXIT
 
 # Run dbus-monitor waiting for systemd JobRemoved signal. Process the output
@@ -51,9 +51,12 @@ monitor_expr="type='signal', sender='org.freedesktop.systemd1', interface='org.f
 stdbuf -oL dbus-monitor --system --monitor "$monitor_expr" > "$tmp_dir/dbus-monitor.pipe" &
 dbus_monitor_pid=$!
 
-awk_expr="BEGIN {found=0} /   string \"$unit_name\"/ {found=1; print \"found service file\"; fflush(); next; }; /string \".*\"/ { if (found==1) {print \"found result\"; print \$2 > \"$tmp_dir/result.pipe\"; fflush(\"\"); close(\"$tmp_dir/result.pipe\"); exit; } }"
+awk_expr="BEGIN {found=0; ready=0;} /member=NameAcquired/ { if (!ready) {ready=1; print ready > \"$tmp_dir/ready.pipe\"; close(\"$tmp_dir/ready.pipe\"); } } /   string \"$unit_name\"/ {found=1; print \"found service file\"; fflush(); next; }; /string \".*\"/ { if (found==1) {print \"found result\"; print \$2 > \"$tmp_dir/result.pipe\"; fflush(\"\"); close(\"$tmp_dir/result.pipe\"); exit; } }"
 awk -W interactive "$awk_expr" <"$tmp_dir/dbus-monitor.pipe" >"$tmp_dir/awk.log" 2>&1 &
 awk_pid=$!
+
+# Wait for dbus-monitor to start.
+cat "$tmp_dir/ready.pipe" >/dev/null
 
 # Use busctl to spawn a command. The command is wrapped in shell, runuser -l
 # and redirects to capture output. Sadly busctl doesn't support passing file
