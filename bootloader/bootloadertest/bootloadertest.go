@@ -79,7 +79,8 @@ func Mock(name, bootdir string) *MockBootloader {
 	}
 }
 
-func (b *MockBootloader) UC20RebootMode() *MockBootloader {
+func (b *MockBootloader) UC20RunModeRebootReady() *MockBootloader {
+	// FIXME: this clearly shows mixing of responsibilities here with boottest.
 	b.RebootStatusVar = "kernel_status"
 	return b
 }

@@ -1957,7 +1957,7 @@ type: kernel`
 }
 
 func (s *mgrsSuite) TestInstallKernelSnap20UpdatesBootloaderEnv(c *C) {
-	bloader := bootloadertest.Mock("mock", c.MkDir()).UC20RebootMode()
+	bloader := bootloadertest.Mock("mock", c.MkDir()).UC20RunModeRebootReady()
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 
@@ -2116,7 +2116,7 @@ type: kernel`
 }
 
 func (s *mgrsSuite) TestInstallKernelSnap20UndoUpdatesBootloaderEnv(c *C) {
-	bloader := bootloadertest.Mock("mock", c.MkDir()).UC20RebootMode()
+	bloader := bootloadertest.Mock("mock", c.MkDir()).UC20RunModeRebootReady()
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 
