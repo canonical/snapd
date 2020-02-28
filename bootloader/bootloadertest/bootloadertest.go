@@ -79,6 +79,11 @@ func Mock(name, bootdir string) *MockBootloader {
 	}
 }
 
+func (b *MockBootloader) UC20RebootMode() *MockBootloader {
+	b.RebootStatusVar = "kernel_status"
+	return b
+}
+
 func (b *MockBootloader) SetBootVars(values map[string]string) error {
 	b.SetBootVarsCalls++
 	for k, v := range values {

@@ -1957,12 +1957,9 @@ type: kernel`
 }
 
 func (s *mgrsSuite) TestInstallKernelSnap20UpdatesBootloaderEnv(c *C) {
-	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bloader := bootloadertest.Mock("mock", c.MkDir()).UC20RebootMode()
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
-
-	// the reboot var we care about for UC20 is kernel_status
-	bloader.RebootStatusVar = "kernel_status"
 
 	// we have revision 1 installed
 	kernel, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
@@ -2110,12 +2107,9 @@ type: kernel`
 }
 
 func (s *mgrsSuite) TestInstallKernelSnap20UndoUpdatesBootloaderEnv(c *C) {
-	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bloader := bootloadertest.Mock("mock", c.MkDir()).UC20RebootMode()
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
-
-	// the reboot var we care about for UC20 is kernel_status
-	bloader.RebootStatusVar = "kernel_status"
 
 	// we have revision 1 installed
 	kernel, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
