@@ -68,6 +68,11 @@ static const char *sc_test_use_fake_lock_dir(void)
 // Check that locking a namespace actually flock's the mutex with LOCK_EX
 static void test_sc_lock_unlock(void)
 {
+	if (geteuid() != 0) {
+		g_test_skip("this test only runs as root");
+		return;
+	}
+
 	const char *lock_dir = sc_test_use_fake_lock_dir();
 	int fd = sc_lock_generic("foo", 123);
 	// Construct the name of the lock file
@@ -95,6 +100,11 @@ static void test_sc_lock_unlock(void)
 // Check that holding a lock is properly detected.
 static void test_sc_verify_snap_lock__locked(void)
 {
+	if (geteuid() != 0) {
+		g_test_skip("this test only runs as root");
+		return;
+	}
+
 	(void)sc_test_use_fake_lock_dir();
 	int fd = sc_lock_snap("foo");
 	sc_verify_snap_lock("foo");
@@ -104,6 +114,11 @@ static void test_sc_verify_snap_lock__locked(void)
 // Check that holding a lock is properly detected.
 static void test_sc_verify_snap_lock__unlocked(void)
 {
+	if (geteuid() != 0) {
+		g_test_skip("this test only runs as root");
+		return;
+	}
+
 	(void)sc_test_use_fake_lock_dir();
 	if (g_test_subprocess()) {
 		sc_verify_snap_lock("foo");
@@ -117,6 +132,11 @@ static void test_sc_verify_snap_lock__unlocked(void)
 
 static void test_sc_enable_sanity_timeout(void)
 {
+	if (geteuid() != 0) {
+		g_test_skip("this test only runs as root");
+		return;
+	}
+
 	if (g_test_subprocess()) {
 		sc_enable_sanity_timeout();
 		debug("waiting...");
