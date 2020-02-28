@@ -104,14 +104,14 @@ type ExtractedRunKernelImageBootloader interface {
 
 	// EnableKernel enables the specified kernel on ubuntu-boot to be used
 	// during normal boots. The specified kernel should already have been
-	// extracted. This is usually be implemented with a "kernel.efi" symlink
+	// extracted. This is usually implemented with a "kernel.efi" symlink
 	// pointing to the extracted kernel image.
 	EnableKernel(snap.PlaceInfo) error
 
 	// EnableTryKernel enables the specified kernel on ubuntu-boot to be
 	// tried by the bootloader on a reboot, to be used in conjunction with
 	// setting "kernel_status" to "try". The specified kernel should already
-	// have been extracted. This is usually be implemented with a
+	// have been extracted. This is usually implemented with a
 	// "try-kernel.efi" symlink pointing to the extracted kernel image.
 	EnableTryKernel(snap.PlaceInfo) error
 
