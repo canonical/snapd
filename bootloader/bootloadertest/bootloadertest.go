@@ -144,6 +144,8 @@ func (b *MockBootloader) SetTryingDuringReboot() error {
 // boot failed. In this case the bootloader will clear
 // "snap_try_{core,kernel}" and "snap_mode" which means the "old" kernel,core
 // in "snap_{core,kernel}" will be used.
+// TODO:UC20: implement this for UC20 kernel boot vars and maybe modeenv as well
+// for base snaps?
 func (b *MockBootloader) SetRollbackAcrossReboot() error {
 	if b.BootVars["snap_mode"] != "try" {
 		return fmt.Errorf("rollback can only be simulated in 'try' mode")
@@ -237,7 +239,6 @@ func (b *MockBootloader) GetRunKernelImageFunctionSnapCalls(f string) ([]snap.Pl
 // EnableKernel enables the kernel; part of ExtractedRunKernelImageBootloader.
 func (b *MockBootloader) EnableKernel(s snap.PlaceInfo) error {
 	b.runKernelImageEnableKernelCalls = append(b.runKernelImageEnableKernelCalls, s)
-
 	b.runKernelImageEnabledKernel = s
 	return b.runKernelImageMockedErrs["EnableKernel"]
 }
