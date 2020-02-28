@@ -7,7 +7,7 @@ execute: |
     session-tool -u test id -u | MATCH 12345
     # We get XDG_RUNTIME_DIR
     session-tool -u test env | MATCH XDG_RUNTIME_DIR=/run/user/12345
-    # We get a logincd session
+    # We get a logind session
     session-tool -u test loginctl show-user test | MATCH State=active
     # Exit code is forwarded
     session-tool -u test true
