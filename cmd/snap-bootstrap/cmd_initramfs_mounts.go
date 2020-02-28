@@ -190,8 +190,8 @@ func generateMountsModeRun() error {
 	}
 	if !isDataMounted {
 		name := filepath.Base(dataDir)
-		device := filepath.Join("/dev/disk/by-label", name)
-		if err := unlockIfEncrypted(device, name); err != nil {
+		device, err := unlockIfEncrypted(name)
+		if err != nil {
 			return err
 		}
 
@@ -290,13 +290,18 @@ func generateInitramfsMounts() error {
 	return fmt.Errorf("internal error: mode in generateInitramfsMounts not handled")
 }
 
-func unlockIfEncrypted(device, name string) error {
+func unlockIfEncrypted(name string) (string, error) {
+	device := filepath.Join("/dev/disk/by-label", name)
 	encdev := device + "-enc"
 	if osutil.FileExists(encdev) {
+		// TODO:UC20: snap-bootstrap should validate that <name>-enc is what
+		//            we expect (and not e.g. an external disk), and also that
+		//            <name> is from <name>-enc and not an unencrypted partition
+		//            with the same name (LP #1863886)
 		sealedKeyPath := filepath.Join(dirs.RunMnt, "ubuntu-boot", name+".keyfile.sealed")
 		if err := unlockEncryptedPartition(name, encdev, sealedKeyPath, ""); err != nil {
-			return fmt.Errorf("cannot unlock %s: %v", name, err)
+			return "", fmt.Errorf("cannot unlock %s: %v", name, err)
 		}
 	}
-	return nil
+	return device, nil
 }
