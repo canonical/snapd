@@ -586,8 +586,9 @@ func (s *imageSuite) TestSetupSeed(c *C) {
 
 			SideInfo: &info.SideInfo,
 
-			Essential: true,
-			Required:  true,
+			EssentialType: info.GetType(),
+			Essential:     true,
+			Required:      true,
 
 			Channel: stableChannel,
 		})
@@ -707,6 +708,7 @@ func (s *imageSuite) TestSetupSeedLocalCoreBrandKernel(c *C) {
 		info := s.AssertedSnapInfo(name)
 		var pinfo snap.PlaceInfo = info
 		var sideInfo *snap.SideInfo
+		var snapType snap.Type
 		if info == nil {
 			switch name {
 			case "core_x1.snap":
@@ -715,9 +717,11 @@ func (s *imageSuite) TestSetupSeedLocalCoreBrandKernel(c *C) {
 					RealName: "core",
 				}
 				channel = ""
+				snapType = snap.TypeOS
 			}
 		} else {
 			sideInfo = &info.SideInfo
+			snapType = info.GetType()
 		}
 
 		fn := pinfo.Filename()
@@ -728,8 +732,9 @@ func (s *imageSuite) TestSetupSeedLocalCoreBrandKernel(c *C) {
 
 			SideInfo: sideInfo,
 
-			Essential: true,
-			Required:  true,
+			EssentialType: snapType,
+			Essential:     true,
+			Required:      true,
 
 			Channel: channel,
 		})
@@ -792,11 +797,12 @@ func (s *imageSuite) TestSetupSeedDevmodeSnap(c *C) {
 	for i, name := range []string{"core", "pc-kernel", "pc"} {
 		info := s.AssertedSnapInfo(name)
 		c.Check(essSnaps[i], DeepEquals, &seed.Snap{
-			Path:      filepath.Join(seedsnapsdir, info.Filename()),
-			SideInfo:  &info.SideInfo,
-			Essential: true,
-			Required:  true,
-			Channel:   "beta",
+			Path:          filepath.Join(seedsnapsdir, info.Filename()),
+			SideInfo:      &info.SideInfo,
+			EssentialType: info.GetType(),
+			Essential:     true,
+			Required:      true,
+			Channel:       "beta",
 		})
 	}
 	c.Check(runSnaps[0], DeepEquals, &seed.Snap{
@@ -891,6 +897,7 @@ func (s *imageSuite) TestSetupSeedWithBase(c *C) {
 						RealName: "core18",
 						Revision: snap.R("18"),
 					},
+					SnapType: snap.TypeBase,
 				}
 			}
 		}
@@ -899,11 +906,12 @@ func (s *imageSuite) TestSetupSeedWithBase(c *C) {
 		p := filepath.Join(seedsnapsdir, fn)
 		c.Check(p, testutil.FilePresent)
 		c.Check(essSnaps[i], DeepEquals, &seed.Snap{
-			Path:      p,
-			SideInfo:  &info.SideInfo,
-			Essential: true,
-			Required:  true,
-			Channel:   stableChannel,
+			Path:          p,
+			SideInfo:      &info.SideInfo,
+			EssentialType: info.GetType(),
+			Essential:     true,
+			Required:      true,
+			Channel:       stableChannel,
 		})
 	}
 	c.Check(runSnaps[0], DeepEquals, &seed.Snap{
@@ -1050,6 +1058,7 @@ func (s *imageSuite) TestSetupSeedWithBaseLegacySnap(c *C) {
 						RealName: "core18",
 						Revision: snap.R("18"),
 					},
+					SnapType: snap.TypeBase,
 				}
 			}
 		}
@@ -1058,11 +1067,12 @@ func (s *imageSuite) TestSetupSeedWithBaseLegacySnap(c *C) {
 		p := filepath.Join(seedsnapsdir, fn)
 		c.Check(p, testutil.FilePresent)
 		c.Check(essSnaps[i], DeepEquals, &seed.Snap{
-			Path:      p,
-			SideInfo:  &info.SideInfo,
-			Essential: true,
-			Required:  true,
-			Channel:   stableChannel,
+			Path:          p,
+			SideInfo:      &info.SideInfo,
+			EssentialType: info.GetType(),
+			Essential:     true,
+			Required:      true,
+			Channel:       stableChannel,
 		})
 	}
 	c.Check(runSnaps[0], DeepEquals, &seed.Snap{
@@ -1213,6 +1223,7 @@ func (s *imageSuite) TestSetupSeedLocalSnapsWithStoreAsserts(c *C) {
 						SnapID:   s.AssertedSnapID("core"),
 						Revision: snap.R(3),
 					},
+					SnapType: snap.TypeOS,
 				}
 			default:
 				c.Errorf("cannot have %s", name)
@@ -1223,11 +1234,12 @@ func (s *imageSuite) TestSetupSeedLocalSnapsWithStoreAsserts(c *C) {
 		p := filepath.Join(seedsnapsdir, fn)
 		c.Check(p, testutil.FilePresent)
 		c.Check(essSnaps[i], DeepEquals, &seed.Snap{
-			Path:      p,
-			SideInfo:  &info.SideInfo,
-			Essential: true,
-			Required:  true,
-			Channel:   stableChannel,
+			Path:          p,
+			SideInfo:      &info.SideInfo,
+			EssentialType: info.GetType(),
+			Essential:     true,
+			Required:      true,
+			Channel:       stableChannel,
 		})
 	}
 	c.Check(runSnaps[0], DeepEquals, &seed.Snap{
@@ -1307,6 +1319,7 @@ func (s *imageSuite) TestSetupSeedLocalSnapsWithChannels(c *C) {
 						SnapID:   s.AssertedSnapID("core"),
 						Revision: snap.R(3),
 					},
+					SnapType: snap.TypeOS,
 				}
 				channel = "candidate"
 			default:
@@ -1318,11 +1331,12 @@ func (s *imageSuite) TestSetupSeedLocalSnapsWithChannels(c *C) {
 		p := filepath.Join(seedsnapsdir, fn)
 		c.Check(p, testutil.FilePresent)
 		c.Check(essSnaps[i], DeepEquals, &seed.Snap{
-			Path:      p,
-			SideInfo:  &info.SideInfo,
-			Essential: true,
-			Required:  true,
-			Channel:   channel,
+			Path:          p,
+			SideInfo:      &info.SideInfo,
+			EssentialType: info.GetType(),
+			Essential:     true,
+			Required:      true,
+			Channel:       channel,
 		})
 	}
 	c.Check(runSnaps[0], DeepEquals, &seed.Snap{
@@ -1492,25 +1506,28 @@ func (s *imageSuite) TestSetupSeedWithKernelAndGadgetTrack(c *C) {
 	c.Check(runSnaps, HasLen, 0)
 
 	c.Check(essSnaps[0], DeepEquals, &seed.Snap{
-		Path:      filepath.Join(seedsnapsdir, "core_3.snap"),
-		SideInfo:  &s.AssertedSnapInfo("core").SideInfo,
-		Essential: true,
-		Required:  true,
-		Channel:   "stable",
+		Path:          filepath.Join(seedsnapsdir, "core_3.snap"),
+		SideInfo:      &s.AssertedSnapInfo("core").SideInfo,
+		EssentialType: snap.TypeOS,
+		Essential:     true,
+		Required:      true,
+		Channel:       "stable",
 	})
 	c.Check(essSnaps[1], DeepEquals, &seed.Snap{
-		Path:      filepath.Join(seedsnapsdir, "pc-kernel_2.snap"),
-		SideInfo:  &s.AssertedSnapInfo("pc-kernel").SideInfo,
-		Essential: true,
-		Required:  true,
-		Channel:   "18/stable",
+		Path:          filepath.Join(seedsnapsdir, "pc-kernel_2.snap"),
+		SideInfo:      &s.AssertedSnapInfo("pc-kernel").SideInfo,
+		EssentialType: snap.TypeKernel,
+		Essential:     true,
+		Required:      true,
+		Channel:       "18/stable",
 	})
 	c.Check(essSnaps[2], DeepEquals, &seed.Snap{
-		Path:      filepath.Join(seedsnapsdir, "pc_1.snap"),
-		SideInfo:  &s.AssertedSnapInfo("pc").SideInfo,
-		Essential: true,
-		Required:  true,
-		Channel:   "18/stable",
+		Path:          filepath.Join(seedsnapsdir, "pc_1.snap"),
+		SideInfo:      &s.AssertedSnapInfo("pc").SideInfo,
+		EssentialType: snap.TypeGadget,
+		Essential:     true,
+		Required:      true,
+		Channel:       "18/stable",
 	})
 
 	// check the downloads
@@ -1566,25 +1583,28 @@ func (s *imageSuite) TestSetupSeedWithKernelTrackWithDefaultChannel(c *C) {
 	c.Check(runSnaps, HasLen, 0)
 
 	c.Check(essSnaps[0], DeepEquals, &seed.Snap{
-		Path:      filepath.Join(seedsnapsdir, "core_3.snap"),
-		SideInfo:  &s.AssertedSnapInfo("core").SideInfo,
-		Essential: true,
-		Required:  true,
-		Channel:   "edge",
+		Path:          filepath.Join(seedsnapsdir, "core_3.snap"),
+		SideInfo:      &s.AssertedSnapInfo("core").SideInfo,
+		EssentialType: snap.TypeOS,
+		Essential:     true,
+		Required:      true,
+		Channel:       "edge",
 	})
 	c.Check(essSnaps[1], DeepEquals, &seed.Snap{
-		Path:      filepath.Join(seedsnapsdir, "pc-kernel_2.snap"),
-		SideInfo:  &s.AssertedSnapInfo("pc-kernel").SideInfo,
-		Essential: true,
-		Required:  true,
-		Channel:   "18/edge",
+		Path:          filepath.Join(seedsnapsdir, "pc-kernel_2.snap"),
+		SideInfo:      &s.AssertedSnapInfo("pc-kernel").SideInfo,
+		EssentialType: snap.TypeKernel,
+		Essential:     true,
+		Required:      true,
+		Channel:       "18/edge",
 	})
 	c.Check(essSnaps[2], DeepEquals, &seed.Snap{
-		Path:      filepath.Join(seedsnapsdir, "pc_1.snap"),
-		SideInfo:  &s.AssertedSnapInfo("pc").SideInfo,
-		Essential: true,
-		Required:  true,
-		Channel:   "edge",
+		Path:          filepath.Join(seedsnapsdir, "pc_1.snap"),
+		SideInfo:      &s.AssertedSnapInfo("pc").SideInfo,
+		EssentialType: snap.TypeGadget,
+		Essential:     true,
+		Required:      true,
+		Channel:       "edge",
 	})
 }
 
@@ -1626,18 +1646,20 @@ func (s *imageSuite) TestSetupSeedWithKernelTrackOnLocalSnap(c *C) {
 	c.Check(runSnaps, HasLen, 0)
 
 	c.Check(essSnaps[0], DeepEquals, &seed.Snap{
-		Path:      filepath.Join(seedsnapsdir, "core_3.snap"),
-		SideInfo:  &s.AssertedSnapInfo("core").SideInfo,
-		Essential: true,
-		Required:  true,
-		Channel:   "beta",
+		Path:          filepath.Join(seedsnapsdir, "core_3.snap"),
+		SideInfo:      &s.AssertedSnapInfo("core").SideInfo,
+		EssentialType: snap.TypeOS,
+		Essential:     true,
+		Required:      true,
+		Channel:       "beta",
 	})
 	c.Check(essSnaps[1], DeepEquals, &seed.Snap{
-		Path:      filepath.Join(seedsnapsdir, "pc-kernel_2.snap"),
-		SideInfo:  &s.AssertedSnapInfo("pc-kernel").SideInfo,
-		Essential: true,
-		Required:  true,
-		Channel:   "18/beta",
+		Path:          filepath.Join(seedsnapsdir, "pc-kernel_2.snap"),
+		SideInfo:      &s.AssertedSnapInfo("pc-kernel").SideInfo,
+		EssentialType: snap.TypeKernel,
+		Essential:     true,
+		Required:      true,
+		Channel:       "18/beta",
 	})
 }
 
@@ -2022,19 +2044,21 @@ func (s *imageSuite) TestSetupSeedClassic(c *C) {
 
 	// check the files are in place
 	c.Check(essSnaps[0], DeepEquals, &seed.Snap{
-		Path:      filepath.Join(seedsnapsdir, "core_3.snap"),
-		SideInfo:  &s.AssertedSnapInfo("core").SideInfo,
-		Essential: true,
-		Required:  true,
-		Channel:   stableChannel,
+		Path:          filepath.Join(seedsnapsdir, "core_3.snap"),
+		SideInfo:      &s.AssertedSnapInfo("core").SideInfo,
+		EssentialType: snap.TypeOS,
+		Essential:     true,
+		Required:      true,
+		Channel:       stableChannel,
 	})
 	c.Check(essSnaps[0].Path, testutil.FilePresent)
 	c.Check(essSnaps[1], DeepEquals, &seed.Snap{
-		Path:      filepath.Join(seedsnapsdir, "classic-gadget_5.snap"),
-		SideInfo:  &s.AssertedSnapInfo("classic-gadget").SideInfo,
-		Essential: true,
-		Required:  true,
-		Channel:   stableChannel,
+		Path:          filepath.Join(seedsnapsdir, "classic-gadget_5.snap"),
+		SideInfo:      &s.AssertedSnapInfo("classic-gadget").SideInfo,
+		EssentialType: snap.TypeGadget,
+		Essential:     true,
+		Required:      true,
+		Channel:       stableChannel,
 	})
 	c.Check(essSnaps[1].Path, testutil.FilePresent)
 	c.Check(runSnaps[0], DeepEquals, &seed.Snap{
@@ -2096,11 +2120,12 @@ func (s *imageSuite) TestSetupSeedClassicWithLocalClassicSnap(c *C) {
 	c.Check(runSnaps, HasLen, 1)
 
 	c.Check(essSnaps[0], DeepEquals, &seed.Snap{
-		Path:      filepath.Join(seedsnapsdir, "core_3.snap"),
-		SideInfo:  &s.AssertedSnapInfo("core").SideInfo,
-		Essential: true,
-		Required:  true,
-		Channel:   stableChannel,
+		Path:          filepath.Join(seedsnapsdir, "core_3.snap"),
+		SideInfo:      &s.AssertedSnapInfo("core").SideInfo,
+		EssentialType: snap.TypeOS,
+		Essential:     true,
+		Required:      true,
+		Channel:       stableChannel,
 	})
 	c.Check(essSnaps[0].Path, testutil.FilePresent)
 
@@ -2166,11 +2191,12 @@ func (s *imageSuite) TestSetupSeedClassicSnapdOnly(c *C) {
 		p := filepath.Join(seedsnapsdir, fn)
 		c.Check(p, testutil.FilePresent)
 		c.Check(essSnaps[i], DeepEquals, &seed.Snap{
-			Path:      p,
-			SideInfo:  &info.SideInfo,
-			Essential: true,
-			Required:  true,
-			Channel:   stableChannel,
+			Path:          p,
+			SideInfo:      &info.SideInfo,
+			EssentialType: info.GetType(),
+			Essential:     true,
+			Required:      true,
+			Channel:       stableChannel,
 		})
 	}
 	c.Check(runSnaps[0], DeepEquals, &seed.Snap{
@@ -2390,11 +2416,12 @@ func (s *imageSuite) TestSetupSeedCore20(c *C) {
 		p := filepath.Join(seedsnapsdir, fn)
 		c.Check(p, testutil.FilePresent)
 		c.Check(essSnaps[i], DeepEquals, &seed.Snap{
-			Path:      p,
-			SideInfo:  &info.SideInfo,
-			Essential: true,
-			Required:  true,
-			Channel:   channel,
+			Path:          p,
+			SideInfo:      &info.SideInfo,
+			EssentialType: info.GetType(),
+			Essential:     true,
+			Required:      true,
+			Channel:       channel,
 		})
 	}
 	c.Check(runSnaps[0], DeepEquals, &seed.Snap{

@@ -110,7 +110,7 @@ base_status=try
 	c.Check(modeenv.RecoverySystem, Equals, "20191126")
 	c.Check(modeenv.Base, Equals, "core20_123.snap")
 	c.Check(modeenv.TryBase, Equals, "core20_124.snap")
-	c.Check(modeenv.BaseStatus, Equals, "try")
+	c.Check(modeenv.BaseStatus, Equals, boot.TryStatus)
 }
 
 func (s *modeenvSuite) TestReadModeWithCurrentKernels(c *C) {
@@ -186,7 +186,7 @@ func (s *modeenvSuite) TestWriteNonExistingFull(c *C) {
 		RecoverySystem: "20191128",
 		Base:           "core20_321.snap",
 		TryBase:        "core20_322.snap",
-		BaseStatus:     "try",
+		BaseStatus:     boot.TryStatus,
 		CurrentKernels: []string{"pc-kernel_1.snap", "pc-kernel_2.snap"},
 	}
 	err := modeenv.Write(s.tmpdir)

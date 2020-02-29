@@ -155,7 +155,7 @@ install::
 ifeq ($(with_core_bits),0)
 # Remove systemd units that are only used on core devices.
 install::
-	rm -f $(addprefix $(DESTDIR)$(unitdir)/,snapd.autoimport.service snapd.system-shutdown.service snapd.snap-repair.timer snapd.snap-repair.service snapd.core-fixup.service)
+	rm -f $(addprefix $(DESTDIR)$(unitdir)/,snapd.autoimport.service snapd.system-shutdown.service snapd.snap-repair.timer snapd.snap-repair.service snapd.core-fixup.service snapd.recovery-chooser-trigger.service)
 
 # Remove fixup script that is only used on core devices.
 install::

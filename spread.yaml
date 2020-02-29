@@ -99,31 +99,33 @@ backends:
             - opensuse-15.0-64:
                 workers: 6
                 manual: true
-            - opensuse-15.1-64:
-                workers: 6
-            - opensuse-tumbleweed-64:
-                workers: 6
             - arch-linux-64:
-                manual: true
                 workers: 6
 
+            - amazon-linux-2-64:
+                workers: 6
+                storage: preserve-size
             - centos-7-64:
                 workers: 6
                 image: centos-7-64
+            - centos-8-64:
+                workers: 4
+                image: centos-8-64
 
     # TODO: spread is really unhappy when it sees a backend without any systems,
     # so this block is intentially kept commented out, until we need to add
     # systems to it
     #
     google-unstable:
-        type: google
-        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-        location: computeengine/us-east1-b
-        halt-timeout: 2h
-        systems:
-            - amazon-linux-2-64:
+       type: google
+       key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
+       location: computeengine/us-east1-b
+       halt-timeout: 2h
+       systems:
+            - opensuse-15.1-64:
                 workers: 6
-                storage: preserve-size
+            - opensuse-tumbleweed-64:
+                workers: 6
 
 
     google-tpm:
@@ -202,7 +204,7 @@ backends:
                 username: ubuntu
                 password: ubuntu
             - ubuntu-core-20-64:
-                image: ubuntu-18.04-64
+                image: ubuntu-20.04-64
                 username: ubuntu
                 password: ubuntu
                 flags: [virtio]
@@ -586,6 +588,11 @@ prepare: |
         apt-get update && apt-get install -y eatmydata
     fi
 
+    if [[ "$SPREAD_SYSTEM" == centos-* ]]; then
+        # make sure EPEL is enabled
+        yum install -y epel-release
+    fi
+
     # Unpack delta, or move content out of the prefixed directory (see rename and repack above).
     # (needs to be in spread.yaml directly because there's nothing else on the filesystem yet)
     if [ -f current.delta ]; then
@@ -597,11 +604,11 @@ prepare: |
                 apt-get update >& "$tf" || ( cat "$tf"; exit 1 )
                 apt-get install -y xdelta3 curl eatmydata >& "$tf" || ( cat "$tf"; exit 1 )
                 ;;
-            fedora-*)
-                dnf install --refresh -y xdelta curl &> "$tf" || (cat "$tf"; exit 1)
-                ;;
-            amazon-*|centos-*)
+            amazon-*|centos-7-*)
                 yum install -y xdelta curl &> "$tf" || (cat "$tf"; exit 1)
+                ;;
+            fedora-*|centos-*)
+                dnf install --refresh -y xdelta curl &> "$tf" || (cat "$tf"; exit 1)
                 ;;
             opensuse-*)
                 zypper -q --gpg-auto-import-keys refresh
