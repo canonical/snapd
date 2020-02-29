@@ -129,14 +129,12 @@ func (s *X11InterfaceSuite) TestAppArmorSpecOnClassic(c *C) {
 	// connected classic slot to plug
 	spec = &apparmor.Specification{}
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.classicSlot), IsNil)
-	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.x11.app1"})
-	c.Assert(spec.SnippetForTag("snap.x11.app1"), testutil.Contains, `peer=(label="snap.consumer.app"),`)
+	c.Assert(spec.SecurityTags(), HasLen, 0)
 
 	// permanent classic slot
 	spec = &apparmor.Specification{}
 	c.Assert(spec.AddPermanentSlot(s.iface, s.classicSlotInfo), IsNil)
-	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.x11.app1"})
-	c.Assert(spec.SnippetForTag("snap.x11.app1"), testutil.Contains, "capability sys_tty_config,")
+	c.Assert(spec.SecurityTags(), HasLen, 0)
 }
 
 func (s *X11InterfaceSuite) TestAppArmorSpecProviderOnClassic(c *C) {
