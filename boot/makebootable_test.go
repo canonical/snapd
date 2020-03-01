@@ -38,7 +38,7 @@ import (
 )
 
 type makeBootableSuite struct {
-	baseBootSetSuite
+	baseBootenvSuite
 
 	bootloader *bootloadertest.MockBootloader
 }
@@ -46,7 +46,7 @@ type makeBootableSuite struct {
 var _ = Suite(&makeBootableSuite{})
 
 func (s *makeBootableSuite) SetUpTest(c *C) {
-	s.baseBootSetSuite.SetUpTest(c)
+	s.baseBootenvSuite.SetUpTest(c)
 
 	s.bootloader = bootloadertest.Mock("mock", c.MkDir())
 	s.forceBootloader(s.bootloader)
