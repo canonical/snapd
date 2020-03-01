@@ -146,7 +146,7 @@ func (s *bootenvSuite) TestSetNextBootForKernel(c *C) {
 	c.Check(reboot, Equals, false)
 }
 
-func (s *bootenvSuite) TestSetNextBoot20ForKernel(c *C) {
+func (s *bootenv20Suite) TestSetNextBoot20ForKernel(c *C) {
 	coreDev := boottest.MockUC20Device("pc-kernel")
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
@@ -224,7 +224,7 @@ func (s *bootenvSuite) TestSetNextBootForKernelForTheSameKernel(c *C) {
 	c.Check(reboot, Equals, false)
 }
 
-func (s *bootenvSuite) TestSetNextBoot20ForKernelForTheSameKernel(c *C) {
+func (s *bootenv20Suite) TestSetNextBoot20ForKernelForTheSameKernel(c *C) {
 	coreDev := boottest.MockUC20Device("pc-kernel")
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
@@ -303,7 +303,7 @@ func (s *bootenvSuite) TestSetNextBootForKernelForTheSameKernelTryMode(c *C) {
 	c.Check(reboot, Equals, false)
 }
 
-func (s *bootenvSuite) TestSetNextBoot20ForKernelForTheSameKernelTryMode(c *C) {
+func (s *bootenv20Suite) TestSetNextBoot20ForKernelForTheSameKernelTryMode(c *C) {
 	coreDev := boottest.MockUC20Device("pc-kernel")
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
