@@ -963,10 +963,10 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	// the systemd design. See:
 	// https://www.freedesktop.org/wiki/Software/systemd/ControlGroupInterface/
 	//
-	// Services are placed under system.slice (for system services) or
-	// user.slice (for user services). Non-service applications and hooks are
-	// placed in a hierarchy representing the invoking user, typically inside a
-	// particular session.
+	// Programs running as root, like system-wide services and programs invoked
+	// using tools like sudo are placed under system.slice. Programs running as
+	// a non-root user are placed under user.slice, specifically in a scope
+	// specific to a logind session.
 	//
 	// This arrangement allows for proper accounting and control of resources
 	// used by snap application processes of each type.
