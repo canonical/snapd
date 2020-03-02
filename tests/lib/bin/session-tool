@@ -41,7 +41,7 @@ done
 # ttyname failed inappropriate ioctl for device" which pollutes output from
 # invoked programs.
 # TODO: move this to spread wide project setup.
-sed -i -e 's/mesg n .*true/tty -s \&\& mesg n/g' /root/.profile
+test -f /root/.profile && sed -i -e 's/mesg n .*true/tty -s \&\& mesg n/g' /root/.profile
 
 read -r uuid < /proc/sys/kernel/random/uuid
 unit_name="session-tool-$uuid.service"
