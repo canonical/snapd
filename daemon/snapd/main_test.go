@@ -17,7 +17,7 @@
  *
  */
 
-package main_test
+package snapd_test
 
 import (
 	"fmt"
@@ -36,7 +36,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/testutil"
 
-	snapd "github.com/snapcore/snapd/cmd/snapd"
+	snapd "github.com/snapcore/snapd/daemon/snapd"
 )
 
 // Hook up check.v1 into the "go test" runner

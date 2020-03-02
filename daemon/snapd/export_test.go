@@ -17,7 +17,7 @@
  *
  */
 
-package main
+package snapd
 
 import (
 	"time"

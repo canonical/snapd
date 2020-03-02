@@ -36,6 +36,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/cmd"
+	"github.com/snapcore/snapd/daemon/snapd"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n"
@@ -467,6 +468,12 @@ func main() {
 		err = cmd.Execute(os.Args)
 		fmt.Fprintf(Stderr, i18n.G("internal error, please report: running %q failed: %v\n"), snapApp, err)
 		os.Exit(46)
+	}
+
+	maybeSnapd := filepath.Base(os.Args[0])
+	if maybeSnapd == "snapd" {
+		snapd.Main()
+		os.Exit(0)
 	}
 
 	defer func() {
