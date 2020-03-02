@@ -280,6 +280,10 @@ func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicEmptySeedYaml(c *C) {
 
 	_, err = devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
 	c.Assert(err, ErrorMatches, "cannot proceed, no snaps to seed")
+	st.Unlock()
+	st.Lock()
+	// note, cannot use st.Tasks() here as it filters out tasks with no change
+	c.Check(st.TaskCount(), Equals, 0)
 }
 
 func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicNoSeedYamlWithCloudInstanceData(c *C) {
@@ -361,6 +365,8 @@ func (s *firstBoot16Suite) TestPopulateFromSeedErrorsOnState(c *C) {
 
 	_, err := devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
 	c.Assert(err, ErrorMatches, "cannot populate state: already seeded")
+	// note, cannot use st.Tasks() here as it filters out tasks with no change
+	c.Check(st.TaskCount(), Equals, 0)
 }
 
 func (s *firstBoot16BaseTest) makeCoreSnaps(c *C, extraGadgetYaml string) (coreFname, kernelFname, gadgetFname string) {
@@ -1415,6 +1421,8 @@ snaps:
 
 	_, err = devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
 	c.Assert(err, ErrorMatches, `cannot use gadget snap because its base "core" is different from model base "core18"`)
+	// note, cannot use st.Tasks() here as it filters out tasks with no change
+	c.Check(st.TaskCount(), Equals, 0)
 }
 
 func (s *firstBoot16Suite) TestPopulateFromSeedWrongContentProviderOrder(c *C) {
@@ -1657,6 +1665,33 @@ snaps:
 	err = state.Get("seed-time", &seedTime)
 	c.Assert(err, IsNil)
 	c.Check(seedTime.IsZero(), Equals, false)
+}
+
+func (s *firstBoot16Suite) TestPopulateFromSeedMissingAssertions(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	core18Fname, snapdFname, _, _ := s.makeCore18Snaps(c, &core18SnapsOpts{})
+
+	// create a seed.yaml
+	content := []byte(fmt.Sprintf(`
+snaps:
+ - name: snapd
+   file: %s
+ - name: core18
+   file: %s
+`, snapdFname, core18Fname))
+	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	c.Assert(err, IsNil)
+
+	// run the firstboot stuff
+	st := s.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	_, err = devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
+	c.Assert(err, NotNil)
+	// note, cannot use st.Tasks() here as it filters out tasks with no change
+	c.Check(st.TaskCount(), Equals, 0)
 }
 
 func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicWithSnapdOnlyAndGadgetHappy(c *C) {
