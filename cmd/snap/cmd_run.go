@@ -946,7 +946,7 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	env := snapenv.ExecEnv(info, extraEnv)
 
 	// Systemd automatically places services under a unique cgroup encoding the
-	// security tag, for apps and hooks we need to create a transient scope
+	// security tag but for apps and hooks we need to create a transient scope
 	// with similar purpose.
 	//
 	// The way this happens is as follows:
