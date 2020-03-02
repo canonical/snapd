@@ -7,8 +7,14 @@ details: |
     Connecting to the interface grants access network connectivity
     status via xdg-desktop-portal.
 
-# the network-status interface is not implicit on core
-systems: [-ubuntu-core-*]
+systems:
+  # the network-status interface is not implicit on core
+  - -ubuntu-core-*
+  # stub portal implementation doesn't seem to start on 14.04
+  - -ubuntu-14.04-*
+  # CentOS 7 does not include Python 3 D-Bus bindings
+  - -centos-7-*
+  - -amazon-linux-2-*
 
 prepare: |
     #shellcheck source=tests/lib/dbus.sh
