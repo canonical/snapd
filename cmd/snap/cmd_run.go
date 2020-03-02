@@ -953,8 +953,8 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	//
 	// 1) Services are implemented using systemd service units. Starting an
 	// unit automatically places it in a cgroup named after the service unit
-	// name. Snapd controls the name of the service units thus, indirectly, of
-	// the cgroup name.
+	// name. Snapd controls the name of the service units thus indirectly
+	// controls the cgroup name.
 	//
 	// 2) Non-services are started inside systemd transient scopes. Scopes are
 	// a systemd unit type that is defined programmatically and is meant for
