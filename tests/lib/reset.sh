@@ -50,6 +50,7 @@ reset_classic() {
         ls -lR "$SNAP_MOUNT_DIR"/ /var/snap/
         exit 1
     fi
+    rm -rf /tmp/snap.*
 
     case "$SPREAD_SYSTEM" in
         fedora-*|centos-*)
@@ -160,6 +161,7 @@ reset_all_snap() {
     systemctl stop snapd.service snapd.socket
     restore_snapd_state
     rm -rf /root/.snap
+    rm -rf /tmp/snap.*
     if [ "$1" != "--keep-stopped" ]; then
         systemctl start snapd.service snapd.socket
     fi
