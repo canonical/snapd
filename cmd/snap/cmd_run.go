@@ -957,9 +957,11 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	// controls the cgroup name.
 	//
 	// 2) Non-services are started inside systemd transient scopes. Scopes are
-	// a systemd unit type that is defined programmatically and is meant for
-	// groups of processes started and stopped by _arbitrary process_, that is,
-	// not systemd, through fork. This model fits snap applications very well.
+	// a systemd unit type that are defined programmatically and are meant for
+	// groups of processes started and stopped by an _arbitrary process_ (ie,
+	// not systemd). Transient scopes allow launched snaps to integrate into
+	// the systemd design. See:
+	// https://www.freedesktop.org/wiki/Software/systemd/ControlGroupInterface/
 	//
 	// Services are placed under system.slice (for system services) or
 	// user.slice (for user services). Non-service applications and hooks are
