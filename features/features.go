@@ -47,7 +47,7 @@ const (
 	ClassicPreservesXdgRuntimeDir
 	// RobustMountNamespaceUpdates controls how snap-update-ns updates existing mount namespaces.
 	RobustMountNamespaceUpdates
-	// UserDaemons controls availability of user mode service support
+	// UserDaemons controls availability of user mode service support.
 	UserDaemons
 	// lastFeature is the final known feature, it is only used for testing.
 	lastFeature
