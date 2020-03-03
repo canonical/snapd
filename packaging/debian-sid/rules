@@ -15,12 +15,11 @@ export DH_GOPKG := github.com/snapcore/snapd
 #export DEB_BUILD_OPTIONS=nocheck
 export DH_GOLANG_EXCLUDES=tests
 export DH_GOLANG_BUILDPKG = $(strip $(addprefix $(DH_GOPKG)/, \
-    cmd/snap \
+    cmd/snapd \
     cmd/snap-exec \
     cmd/snap-seccomp \
     cmd/snap-update-ns \
     cmd/snapctl \
-    cmd/snapd \
     cmd/snapd-apparmor \
     ))
 # skip Go generate, all source code should have been committed
@@ -173,7 +172,7 @@ override_dh_auto_build: snapd.defines.mk
 	# go.mod file
 	GO111MODULE=off dh_auto_build -- $(BUILDFLAGS) -tags "$(TAGS)" $(GCCGOFLAGS)
 
-	GO111MODULE=off $(MAKE) -f packaging/snapd.mk $(CURDIR)/_build/bin/snap SNAPD_DEFINES_DIR=$(CURDIR)
+	GO111MODULE=off $(MAKE) -f packaging/snapd.mk $(CURDIR)/_build/bin/snapd SNAPD_DEFINES_DIR=$(CURDIR)
 
 	# (static linking on powerpc with cgo is broken)
 ifneq ($(shell dpkg-architecture -qDEB_HOST_ARCH),powerpc)
@@ -297,7 +296,7 @@ snap.8:
 	# fix reproducible builds as reported by:
 	#   https://tests.reproducible-builds.org/debian/rb-pkg/unstable/amd64/snapd.html
 	# once golang-go-flags is fixed we can remove the "sed" expression
-	$(CURDIR)/_build/bin/snap help --man | sed '1 s/^.*/.TH snap 8 "$(shell date --reference=debian/changelog +"%d %B %Y")"/' > $@
+	bash -c 'exec -a snap $(CURDIR)/_build/bin/snapd help --man' | sed '1 s/^.*/.TH snap 8 "$(shell date --reference=debian/changelog +"%d %B %Y")"/' > $@
 
 override_dh_auto_clean:
 	dh_auto_clean -O--buildsystem=golang

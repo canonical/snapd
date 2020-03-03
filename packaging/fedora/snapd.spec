@@ -358,7 +358,8 @@ Provides:      golang(%{import_path}/bootloader/lkenv) = %{version}-%{release}
 Provides:      golang(%{import_path}/bootloader/ubootenv) = %{version}-%{release}
 Provides:      golang(%{import_path}/client) = %{version}-%{release}
 Provides:      golang(%{import_path}/client/clientutil) = %{version}-%{release}
-Provides:      golang(%{import_path}/cmd/snap) = %{version}-%{release}
+Provides:      golang(%{import_path}/cmd/snapd/cli) = %{version}-%{release}
+Provides:      golang(%{import_path}/cmd/snapd/daemon) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snap-bootstrap) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snap-bootstrap/triggerwatch) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snap-exec) = %{version}-%{release}
@@ -775,10 +776,10 @@ for file in $(find . -iname "*_test.go"); do
     cp -pav $file %{buildroot}/%{gopath}/src/%{import_path}/$file
     echo "%%{gopath}/src/%%{import_path}/$file" >> unit-test-devel.file-list
 done
-if [ -d cmd/snap/testdata ]; then
-    echo "%%dir %%{gopath}/src/%%{import_path}/cmd/snap/testdata" >> devel.file-list
-    install -d -p %{buildroot}/%{gopath}/src/%{import_path}/cmd/snap/testdata
-    for file in cmd/snap/testdata/*; do
+if [ -d cmd/snapd/cli/testdata ]; then
+    echo "%%dir %%{gopath}/src/%%{import_path}/cmd/snapd/cli/testdata" >> devel.file-list
+    install -d -p %{buildroot}/%{gopath}/src/%{import_path}/cmd/snapd/cli/testdata
+    for file in cmd/snapd/cli/testdata/*; do
         cp -pav $file %{buildroot}/%{gopath}/src/%{import_path}/$file
         echo "%%{gopath}/src/%%{import_path}/$file" >> unit-test-devel.file-list
     done
