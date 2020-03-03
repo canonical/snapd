@@ -1,0 +1,35 @@
+summary: check that udev is not broken in lxd
+systems: [ubuntu-18.04-64]
+prepare: |
+    snap install lxd
+    lxd waitready
+    lxd init --auto
+    echo "Setting up proxy for lxc"
+    if [ -n "${http_proxy:-}" ]; then
+        lxd.lxc config set core.proxy_http "$http_proxy"
+    fi
+    if [ -n "${https_proxy:-}" ]; then
+        lxd.lxc config set core.proxy_https "$http_proxy"
+    fi
+    # Make the container online
+    lxd.lxc remote add buildd https://cloud-images.ubuntu.com/buildd/daily --protocol simplestreams
+    lxd.lxc launch buildd:20.04 container
+    lxd.lxc file push --quiet 10-eth0.network container/etc/systemd/network/
+    lxd.lxc exec container -- systemctl restart --wait systemd-networkd-wait-online.service
+    # Install locally built snapd.
+    lxd.lxc file push --quiet "$GOHOME"/snapd_*.deb container/tmp/
+    lxd.lxc exec container -- apt update
+    lxd.lxc exec container -- apt install -y fuse
+    lxd.lxc exec container -- sh -c "apt install -y /tmp/snapd_*.deb"
+    # Disable re-exec so that installing snapd snap doesn't run store code.
+    lxd.lxc exec container -- mkdir -p /etc/systemd/system/snapd.service.d
+    lxd.lxc exec container -- sh -c 'echo "[Service]\nEnvironment=SNAPD_REEXEC=0\n" > /etc/systemd/system/snapd.service.d/reexec.conf'
+    lxd.lxc exec container -- systemctl daemon-reload
+    lxd.lxc exec container -- systemctl restart snapd.service
+execute: |
+    # Install snapd from the store. Any snap with udev rules would also work.
+    lxd.lxc exec container -- snap install snapd
+restore: |
+    lxc stop --force container
+    snap remove --purge lxd
+    lxd-tool undo-lxd-mount-changes

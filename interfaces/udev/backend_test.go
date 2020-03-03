@@ -21,6 +21,7 @@ package udev_test
 
 import (
 	"bytes"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -81,6 +82,13 @@ func (s *backendSuite) TearDownTest(c *C) {
 	s.udevadmCmd.Restore()
 
 	s.BackendSuite.TearDownTest(c)
+}
+
+func (s *backendSuite) TestAvailable(c *C) {
+	c.Check(udev.Available(), Equals, false)
+	c.Check(os.MkdirAll(dirs.RunUdevDir, 0755), IsNil)
+	c.Check(ioutil.WriteFile(filepath.Join(dirs.RunUdevDir, "control"), nil, 0644), IsNil)
+	c.Check(udev.Available(), Equals, true)
 }
 
 // Tests for Setup() and Remove()

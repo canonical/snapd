@@ -42,6 +42,12 @@ import (
 // Backend is responsible for maintaining udev rules.
 type Backend struct{}
 
+// Available returns true if /run/udev/control exists.
+func Available() bool {
+	_, err := os.Stat(filepath.Join(dirs.RunUdevDir, "control"))
+	return err == nil
+}
+
 // Initialize does nothing.
 func (b *Backend) Initialize(*interfaces.SecurityBackendOptions) error {
 	return nil
