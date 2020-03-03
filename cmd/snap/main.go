@@ -36,7 +36,6 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/cmd"
-	"github.com/snapcore/snapd/daemon/snapd"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n"
@@ -472,8 +471,8 @@ func main() {
 
 	maybeSnapd := filepath.Base(os.Args[0])
 	if maybeSnapd == "snapd" {
-		snapd.Main()
-		os.Exit(0)
+		snapdMain()
+		// noreturn
 	}
 
 	defer func() {
