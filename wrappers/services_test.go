@@ -536,10 +536,12 @@ func (s *servicesTestSuite) TestAddSnapServicesWithPreseed(c *C) {
 }
 
 func (s *servicesTestSuite) TestStopServicesWithSockets(c *C) {
-	var sysdLog []string
+	var sysServices, userServices []string
 	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		if cmd[0] == "stop" {
-			sysdLog = append(sysdLog, cmd[1])
+			sysServices = append(sysServices, cmd[1])
+		} else if cmd[0] == "--user" && cmd[1] == "stop" {
+			userServices = append(userServices, cmd[2])
 		}
 		return []byte("ActiveState=inactive\n"), nil
 	})
@@ -555,19 +557,33 @@ func (s *servicesTestSuite) TestStopServicesWithSockets(c *C) {
       socket-mode: 0666
     sock2:
       listen-stream: $SNAP_DATA/sock2.socket
+ svc2:
+  daemon: simple
+  daemon-scope: user
+  plugs: [network-bind]
+  sockets:
+    sock1:
+      listen-stream: $SNAP_USER_COMMON/sock1.socket
+      socket-mode: 0666
+    sock2:
+      listen-stream: $SNAP_USER_DATA/sock2.socket
 `, &snap.SideInfo{Revision: snap.R(12)})
 
 	err := wrappers.AddSnapServices(info, nil, progress.Null)
 	c.Assert(err, IsNil)
 
-	sysdLog = nil
+	sysServices = nil
+	userServices = nil
 
 	err = wrappers.StopServices(info.Services(), "", &progress.Null, s.perfTimings)
 	c.Assert(err, IsNil)
 
-	sort.Strings(sysdLog)
-	c.Check(sysdLog, DeepEquals, []string{
+	sort.Strings(sysServices)
+	c.Check(sysServices, DeepEquals, []string{
 		"snap.hello-snap.svc1.service", "snap.hello-snap.svc1.sock1.socket", "snap.hello-snap.svc1.sock2.socket"})
+	sort.Strings(userServices)
+	c.Check(userServices, DeepEquals, []string{
+		"snap.hello-snap.svc2.service", "snap.hello-snap.svc2.sock1.socket", "snap.hello-snap.svc2.sock2.socket"})
 }
 
 func (s *servicesTestSuite) TestStartServices(c *C) {
