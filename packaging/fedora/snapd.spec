@@ -352,7 +352,6 @@ Provides:      golang(%{import_path}/bootloader/lkenv) = %{version}-%{release}
 Provides:      golang(%{import_path}/bootloader/ubootenv) = %{version}-%{release}
 Provides:      golang(%{import_path}/client) = %{version}-%{release}
 Provides:      golang(%{import_path}/client/clientutil) = %{version}-%{release}
-Provides:      golang(%{import_path}/cmd/snap) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snap-bootstrap) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snap-bootstrap/triggerwatch) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snap-exec) = %{version}-%{release}
