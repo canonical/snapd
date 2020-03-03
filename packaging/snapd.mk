@@ -62,7 +62,7 @@ snap_mount_dir = /snap
 endif
 
 # The list of go binaries we are expected to build.
-go_binaries = $(addprefix $(builddir)/, snap snapctl snap-seccomp snap-update-ns snap-exec snapd snapd-apparmor)
+go_binaries = $(addprefix $(builddir)/, snap snapctl snap-seccomp snap-update-ns snap-exec snapd-apparmor)
 
 GO_TAGS = nosecboot
 ifeq ($(with_testkeys),1)
@@ -128,7 +128,6 @@ prepare-debian-build-tree:
 # FIXME: not all Go toolchains we build with support '-B gobuildid', replace a
 # random GNU build ID with something more predictable, use something similar to
 # https://pagure.io/go-rpm-macros/c/1980932bf3a21890a9571effaa23fbe034fd388d
-$(builddir)/snap: GO_TAGS += nomanagers
 $(builddir)/snap $(builddir)/snap-seccomp $(builddir)/snapd-apparmor:
 	go build -o $@ $(if $(GO_TAGS),-tags "$(GO_TAGS)") \
 		-buildmode=pie \
@@ -194,17 +193,6 @@ check-static-binaries:
 	fi
 	@echo "All static binary checks passed."
 
-# XXX see the note about build ID in rule for building 'snap'
-# Snapd can be built with test keys. This is only used by the internal test
-# suite to add test assertions. Do not enable this in distribution packages.
-$(builddir)/snapd:
-	go build -o $@ -buildmode=pie \
-		-ldflags="$(EXTRA_GO_LDFLAGS)" \
-		$(GO_MOD) \
-		$(if $(GO_TAGS),-tags "$(GO_TAGS)") \
-		$(EXTRA_GO_BUILD_FLAGS) \
-		$(import_path)/cmd/$(notdir $@)
-
 # Know how to create certain directories.
 $(addprefix $(DESTDIR),$(libexecdir)/snapd $(bindir) $(mandir)/man8 /$(sharedstatedir)/snapd $(localstatedir)/cache/snapd $(snap_mount_dir)):
 	install -m 755 -d $@
@@ -216,12 +204,16 @@ install:: $(builddir)/snap | $(DESTDIR)$(bindir)
 	install -m 755 $^ $|
 
 # Install snapctl snapd, snap-{exec,update-ns,seccomp} into /usr/lib/snapd/
-install:: $(addprefix $(builddir)/,snapctl snapd snap-exec snap-update-ns snap-seccomp snapd-apparmor) | $(DESTDIR)$(libexecdir)/snapd
+install:: $(addprefix $(builddir)/,snapctl snap-exec snap-update-ns snap-seccomp snapd-apparmor) | $(DESTDIR)$(libexecdir)/snapd
 	install -m 755 $^ $|
 
 # Ensure /usr/bin/snapctl is a symlink to /usr/lib/snapd/snapctl
 install:: | $(DESTDIR)$(bindir)
-	ln -s $(libexecdir)/snapd/snapctl $|/snapctl
+	ln -v -s -r $(libexecdir)/snapd/snapctl $|/snapctl
+
+# Ensure $(libexecdir)/snapd/snapd is a symlink to /usr/bin/snap
+install:: | $(DESTDIR)$(libexecdir)/snapd
+	ln -v -s -r $(DESTDIR)$(bindir)/snap $|/snapd
 
 # Generate and install man page for snap command
 install:: $(builddir)/snap | $(DESTDIR)$(mandir)/man8

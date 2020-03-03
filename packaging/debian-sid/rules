@@ -289,6 +289,9 @@ override_dh_install-arch:
 	rm $(CURDIR)/debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/snapd.gpio-chardev-setup.target
 
 	dh_install
+	# TODO: temporary hack
+	rm $(CURDIR)/debian/snapd/usr/lib/snapd/snapd
+
 
 override_dh_auto_install: snap.8
 	dh_auto_install -O--buildsystem=golang
