@@ -474,7 +474,6 @@ sed -e "s:github.com/snapcore/bolt:github.com/boltdb/bolt:g" -i advisor/*.go err
 # We have to build snapd first to prevent the build from
 # building various things from the tree without additional
 # set tags.
-%gobuild -o bin/snapd $GOFLAGS %{import_path}/cmd/snapd
 %gobuild -o bin/snap $GOFLAGS %{import_path}/cmd/snap
 %gobuild -o bin/snap-failure $GOFLAGS %{import_path}/cmd/snap-failure
 
@@ -566,12 +565,13 @@ install -d -p %{buildroot}%{_datadir}/selinux/packages
 install -p -m 0755 bin/snap %{buildroot}%{_bindir}
 install -p -m 0755 bin/snap-exec %{buildroot}%{_libexecdir}/snapd
 install -p -m 0755 bin/snap-failure %{buildroot}%{_libexecdir}/snapd
-install -p -m 0755 bin/snapd %{buildroot}%{_libexecdir}/snapd
+ln -sf %{_bindir}/snap %{buildroot}%{_libexecdir}/snapd/snapd
 install -p -m 0755 bin/snap-update-ns %{buildroot}%{_libexecdir}/snapd
 install -p -m 0755 bin/snap-seccomp %{buildroot}%{_libexecdir}/snapd
 # Ensure /usr/bin/snapctl is a symlink to /usr/libexec/snapd/snapctl
 install -p -m 0755 bin/snapctl %{buildroot}%{_libexecdir}/snapd/snapctl
 ln -sf %{_libexecdir}/snapd/snapctl %{buildroot}%{_bindir}/snapctl
+
 
 %if 0%{?with_selinux}
 # Install SELinux module

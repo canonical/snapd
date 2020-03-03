@@ -1,2 +1,3 @@
 ../../usr/lib/snapd/snap-device-helper  /lib/udev/snappy-app-dev
 usr/lib/snapd/snapctl usr/bin/snapctl
+usr/bin/snap usr/lib/snapd/snapd

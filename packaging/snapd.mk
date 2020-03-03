@@ -86,12 +86,16 @@ install:: snap | $(DESTDIR)$(bindir)
 	install -m 755 $^ $|
 
 # Install snapctl snapd, snap-{exec,update-ns,seccomp} into /usr/lib/snapd/
-install:: snapctl snapd snap-exec snap-update-ns snap-seccomp | $(DESTDIR)$(libexecdir)/snapd
+install:: snapctl snap-exec snap-update-ns snap-seccomp | $(DESTDIR)$(libexecdir)/snapd
 	install -m 755 $^ $|
 
 # Ensure /usr/bin/snapctl is a symlink to /usr/lib/snapd/snapctl
 install:: | $(DESTDIR)$(bindir)
 	ln -s $(libexecdir)/snapd/snapctl $|/snapctl
+
+# Ensure $(libexecdir)/snapd/snapd is a symlink to /usr/bin/snap
+install:: | $(DESTDIR)$(libexecdir)/snapd
+	ln -s $(bindir)/snap $|/snapd
 
 # Generate and install man page for snap command
 install:: snap | $(DESTDIR)$(mandir)/man8
