@@ -1258,27 +1258,72 @@ apps:
 
 }
 
+func (s *servicesTestSuite) TestStartSnapSocketEnableStart(c *C) {
+	svc1Name := "snap.hello-snap.svc1.service"
+	// svc2Name := "snap.hello-snap.svc2.service"
+	svc2Sock := "snap.hello-snap.svc2.sock.socket"
+	svc3Sock := "snap.hello-snap.svc3.sock.socket"
+
+	info := snaptest.MockSnap(c, packageHello+`
+ svc2:
+  command: bin/hello
+  daemon: simple
+  sockets:
+    sock:
+      listen-stream: $SNAP_COMMON/sock1.socket
+ svc3:
+  command: bin/hello
+  daemon: simple
+  daemon-scope: user
+  sockets:
+    sock:
+      listen-stream: $SNAP_USER_COMMON/sock1.socket
+`, &snap.SideInfo{Revision: snap.R(12)})
+
+	// fix the apps order to make the test stable
+	apps := []*snap.AppInfo{info.Apps["svc1"], info.Apps["svc2"], info.Apps["svc3"]}
+	err := wrappers.StartServices(apps, nil, s.perfTimings)
+	c.Assert(err, IsNil)
+	c.Assert(s.sysdLog, HasLen, 6, Commentf("len: %v calls: %v", len(s.sysdLog), s.sysdLog))
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"--root", dirs.GlobalRootDir, "is-enabled", svc1Name},
+		{"--root", dirs.GlobalRootDir, "enable", svc2Sock},
+		{"start", svc2Sock},
+		{"--user", "--global", "--root", dirs.GlobalRootDir, "enable", svc3Sock},
+		{"--user", "start", svc3Sock},
+		{"start", svc1Name},
+	}, Commentf("calls: %v", s.sysdLog))
+}
+
 func (s *servicesTestSuite) TestStartSnapTimerEnableStart(c *C) {
 	svc1Name := "snap.hello-snap.svc1.service"
 	// svc2Name := "snap.hello-snap.svc2.service"
 	svc2Timer := "snap.hello-snap.svc2.timer"
+	svc3Timer := "snap.hello-snap.svc3.timer"
 
 	info := snaptest.MockSnap(c, packageHello+`
  svc2:
   command: bin/hello
   daemon: simple
   timer: 10:00-12:00
+ svc3:
+  command: bin/hello
+  daemon: simple
+  daemon-scope: user
+  timer: 10:00-12:00
 `, &snap.SideInfo{Revision: snap.R(12)})
 
 	// fix the apps order to make the test stable
-	apps := []*snap.AppInfo{info.Apps["svc1"], info.Apps["svc2"]}
+	apps := []*snap.AppInfo{info.Apps["svc1"], info.Apps["svc2"], info.Apps["svc3"]}
 	err := wrappers.StartServices(apps, nil, s.perfTimings)
 	c.Assert(err, IsNil)
-	c.Assert(s.sysdLog, HasLen, 4, Commentf("len: %v calls: %v", len(s.sysdLog), s.sysdLog))
+	c.Assert(s.sysdLog, HasLen, 6, Commentf("len: %v calls: %v", len(s.sysdLog), s.sysdLog))
 	c.Check(s.sysdLog, DeepEquals, [][]string{
 		{"--root", dirs.GlobalRootDir, "is-enabled", svc1Name},
 		{"--root", dirs.GlobalRootDir, "enable", svc2Timer},
 		{"start", svc2Timer},
+		{"--user", "--global", "--root", dirs.GlobalRootDir, "enable", svc3Timer},
+		{"--user", "start", svc3Timer},
 		{"start", svc1Name},
 	}, Commentf("calls: %v", s.sysdLog))
 }

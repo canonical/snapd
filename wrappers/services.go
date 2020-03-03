@@ -208,14 +208,16 @@ func StartServices(apps []*snap.AppInfo, inter interacter, tm timings.Measurer) 
 				return err
 			}
 
-			timings.Run(tm, "start-socket-service", fmt.Sprintf("start socket service %q", socketService), func(nested timings.Measurer) {
-				switch app.DaemonScope {
-				case snap.SystemDaemon:
+			switch app.DaemonScope {
+			case snap.SystemDaemon:
+				timings.Run(tm, "start-system-socket-service", fmt.Sprintf("start system socket service %q", socketService), func(nested timings.Measurer) {
 					err = sysd.Start(socketService)
-				case snap.UserDaemon:
+				})
+			case snap.UserDaemon:
+				timings.Run(tm, "start-user-socket-service", fmt.Sprintf("start user socket service %q", socketService), func(nested timings.Measurer) {
 					err = startUserServices(cli, inter, socketService)
-				}
-			})
+				})
+			}
 			if err != nil {
 				return err
 			}
@@ -228,14 +230,16 @@ func StartServices(apps []*snap.AppInfo, inter interacter, tm timings.Measurer) 
 				return err
 			}
 
-			timings.Run(tm, "start-timer-service", fmt.Sprintf("start timer service %q", timerService), func(nested timings.Measurer) {
-				switch app.DaemonScope {
-				case snap.SystemDaemon:
+			switch app.DaemonScope {
+			case snap.SystemDaemon:
+				timings.Run(tm, "start-system-timer-service", fmt.Sprintf("start system timer service %q", timerService), func(nested timings.Measurer) {
 					err = sysd.Start(timerService)
-				case snap.UserDaemon:
+				})
+			case snap.UserDaemon:
+				timings.Run(tm, "start-user-timer-service", fmt.Sprintf("start user timer service %q", timerService), func(nested timings.Measurer) {
 					err = startUserServices(cli, inter, timerService)
-				}
-			})
+				})
+			}
 			if err != nil {
 				return err
 			}
