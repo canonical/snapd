@@ -605,9 +605,13 @@ var rootSetUidGidSyscalls = `
 # filtering. AppArmor has corresponding CAP_SETUID, CAP_SETGID and CAP_CHOWN
 # rules.
 
-# allow use of setgroups(0, NULL)
-setgroups 0 0
-setgroups32 0 0
+# allow use of setgroups(0, ...). Note: while the setgroups() man page states
+# that 'setgroups(0, NULL) should be used to clear all supplementary groups,
+# the kernel will not consult the group list when size is '0', so we allow it
+# to be anything for compatibility with (arguably buggy) programs that expect
+# to clear the groups with 'setgroups(0, <non-null>).
+setgroups 0 -
+setgroups32 0 -
 
 # allow setgid to root
 setgid g:root
