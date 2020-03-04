@@ -67,6 +67,11 @@ func (s *backendSuite) SetUpTest(c *C) {
 	s.BackendSuite.SetUpTest(c)
 	c.Assert(s.Repo.AddBackend(s.Backend), IsNil)
 
+	// Pretend that there's a udev control socket.
+	dirs.SetRootDir(c.MkDir())
+	c.Check(os.MkdirAll(dirs.RunUdevDir, 0755), IsNil)
+	c.Check(ioutil.WriteFile(filepath.Join(dirs.RunUdevDir, "control"), nil, 0644), IsNil)
+
 	// Mock away any real udev interaction
 	s.udevadmCmd = testutil.MockCommand(c, "udevadm", "")
 	// Prepare a directory for udev rules
@@ -80,15 +85,8 @@ func (s *backendSuite) SetUpTest(c *C) {
 
 func (s *backendSuite) TearDownTest(c *C) {
 	s.udevadmCmd.Restore()
-
 	s.BackendSuite.TearDownTest(c)
-}
-
-func (s *backendSuite) TestAvailable(c *C) {
-	c.Check(udev.Available(), Equals, false)
-	c.Check(os.MkdirAll(dirs.RunUdevDir, 0755), IsNil)
-	c.Check(ioutil.WriteFile(filepath.Join(dirs.RunUdevDir, "control"), nil, 0644), IsNil)
-	c.Check(udev.Available(), Equals, true)
+	dirs.SetRootDir("/")
 }
 
 // Tests for Setup() and Remove()

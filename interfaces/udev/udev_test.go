@@ -20,10 +20,14 @@
 package udev_test
 
 import (
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"testing"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -35,6 +39,17 @@ func Test(t *testing.T) {
 type uDevSuite struct{}
 
 var _ = Suite(&uDevSuite{})
+
+func (s *uDevSuite) SetUpTest(c *C) {
+	// Pretend that there's a udev control socket.
+	dirs.SetRootDir(c.MkDir())
+	c.Check(os.MkdirAll(dirs.RunUdevDir, 0755), IsNil)
+	c.Check(ioutil.WriteFile(filepath.Join(dirs.RunUdevDir, "control"), nil, 0644), IsNil)
+}
+
+func (s *uDevSuite) TearDownTest(c *C) {
+	dirs.SetRootDir("/")
+}
 
 // Tests for ReloadRules()
 

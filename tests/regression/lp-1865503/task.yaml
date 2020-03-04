@@ -1,5 +1,6 @@
 summary: check that udev is not broken in lxd
-systems: [ubuntu-18.04-64]
+# The host OS should match container OS because we install the package we built on the host.
+systems: [ubuntu-20.04-64]
 prepare: |
     snap install lxd
     lxd waitready
@@ -15,7 +16,9 @@ prepare: |
     lxd.lxc remote add buildd https://cloud-images.ubuntu.com/buildd/daily --protocol simplestreams
     lxd.lxc launch buildd:20.04 container
     lxd.lxc file push --quiet 10-eth0.network container/etc/systemd/network/
-    lxd.lxc exec container -- systemctl restart --wait systemd-networkd-wait-online.service
+    lxd.lxc restart container
+    lxd.lxc exec container -- /lib/systemd/systemd-networkd-wait-online -o routable
+    sleep 4s # because ^ is not working
     # Install locally built snapd.
     lxd.lxc file push --quiet "$GOHOME"/snapd_*.deb container/tmp/
     lxd.lxc exec container -- apt update

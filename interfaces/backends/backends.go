@@ -42,13 +42,10 @@ func backends() []interfaces.SecurityBackend {
 		&systemd.Backend{},
 		&seccomp.Backend{},
 		&dbus.Backend{},
+		&udev.Backend{},
+		&mount.Backend{},
+		&kmod.Backend{},
 	}
-
-	if udev.Available() {
-		all = append(all, &udev.Backend{})
-	}
-
-	all = append(all, &mount.Backend{}, &kmod.Backend{})
 
 	// TODO use something like:
 	// level, summary := apparmor.ProbeResults()

@@ -21,8 +21,18 @@ package udev
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
+
+	"github.com/snapcore/snapd/dirs"
 )
+
+// available returns true if /run/udev/control exists.
+func available() bool {
+	_, err := os.Stat(filepath.Join(dirs.RunUdevDir, "control"))
+	return err == nil
+}
 
 // ReloadRules runs three commands that reload udev rule database.
 //
@@ -33,6 +43,10 @@ import (
 //                   udevadm trigger --subsystem-match=input
 //                   udevadm trigger --property-match=ID_INPUT_JOYSTICK=1
 func ReloadRules(subsystemTriggers []string) error {
+	if !available() {
+		return nil
+	}
+
 	output, err := exec.Command("udevadm", "control", "--reload-rules").CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("cannot reload udev rules: %s\nudev output:\n%s", err, string(output))
