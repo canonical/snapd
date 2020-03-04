@@ -53,6 +53,7 @@ execute: |
     install_local test-snapd-user-service
 
     echo "We can see the service running"
+    systemctl_user status snap.test-snapd-user-service.test-snapd-user-service
     systemctl_user is-active snap.test-snapd-user-service.test-snapd-user-service
 
     echo "Remove the snap"
