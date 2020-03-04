@@ -273,6 +273,13 @@ func StartServices(apps []*snap.AppInfo, inter interacter, tm timings.Measurer) 
 	return nil
 }
 
+func userDaemonReload() error {
+	cli := client.New()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout.DefaultTimeout))
+	defer cancel()
+	return cli.ServicesDaemonReload(ctx)
+}
+
 // AddSnapServices adds service units for the applications from the snap which are services.
 func AddSnapServices(s *snap.Info, disabledSvcs []string, inter interacter) (err error) {
 	if s.GetType() == snap.TypeSnapd {
@@ -293,6 +300,7 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, inter interacter) (err
 	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
 	userSysd := systemd.New(dirs.GlobalRootDir, systemd.GlobalUserMode, inter)
 	var written []string
+	var writtenSystem, writtenUser bool
 	var enabled []string
 	var userEnabled []string
 	defer func() {
@@ -314,9 +322,14 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, inter interacter) (err
 				inter.Notify(fmt.Sprintf("while trying to remove %s due to previous failure: %v", s, e))
 			}
 		}
-		if len(written) > 0 {
+		if writtenSystem {
 			if e := sysd.DaemonReload(); e != nil {
 				inter.Notify(fmt.Sprintf("while trying to perform systemd daemon-reload due to previous failure: %v", e))
+			}
+		}
+		if writtenUser {
+			if e := userDaemonReload(); e != nil {
+				inter.Notify(fmt.Sprintf("while trying to perform user systemd daemon-reload due to previous failure: %v", e))
 			}
 		}
 	}()
@@ -339,6 +352,12 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, inter interacter) (err
 			return err
 		}
 		written = append(written, svcFilePath)
+		switch (app.DaemonScope) {
+		case snap.SystemDaemon:
+			writtenSystem = true
+		case snap.UserDaemon:
+			writtenUser = true
+		}
 
 		// Generate systemd .socket files if needed
 		socketFiles, err := generateSnapSocketFiles(app)
@@ -396,9 +415,16 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, inter interacter) (err
 		}
 	}
 
-	if len(written) > 0 && !preseedMode() {
-		if err := sysd.DaemonReload(); err != nil {
-			return err
+	if !preseedMode() {
+		if writtenSystem {
+			if err := sysd.DaemonReload(); err != nil {
+				return err
+			}
+		}
+		if writtenUser {
+			if err := userDaemonReload(); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -499,20 +525,21 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 	}
 	systemSysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
 	userSysd := systemd.New(dirs.GlobalRootDir, systemd.GlobalUserMode, inter)
-	nservices := 0
+	var removedSystem, removedUser bool
 
 	for _, app := range s.Apps {
 		if !app.IsService() || !osutil.FileExists(app.ServiceFile()) {
 			continue
 		}
-		nservices++
 
 		var sysd systemd.Systemd
 		switch app.DaemonScope {
 		case snap.SystemDaemon:
 			sysd = systemSysd
+			removedSystem = true
 		case snap.UserDaemon:
 			sysd = userSysd
+			removedUser = true
 		}
 		serviceName := filepath.Base(app.ServiceFile())
 
@@ -552,8 +579,13 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 	}
 
 	// only reload if we actually had services
-	if nservices > 0 {
+	if removedSystem {
 		if err := systemSysd.DaemonReload(); err != nil {
+			return err
+		}
+	}
+	if removedUser {
+		if err := userDaemonReload(); err != nil {
 			return err
 		}
 	}

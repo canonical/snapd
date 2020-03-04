@@ -141,7 +141,7 @@ func (s *servicesTestSuite) TestAddSnapServicesAndRemoveUserDaemons(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
 		{"--user", "--global", "--root", dirs.GlobalRootDir, "enable", filepath.Base(svcFile)},
-		{"daemon-reload"},
+		{"--user", "daemon-reload"},
 	})
 
 	content, err := ioutil.ReadFile(svcFile)
@@ -164,8 +164,10 @@ func (s *servicesTestSuite) TestAddSnapServicesAndRemoveUserDaemons(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(osutil.FileExists(svcFile), Equals, false)
 	c.Assert(s.sysdLog, HasLen, 2)
-	c.Check(s.sysdLog[0], DeepEquals, []string{"--user", "--global", "--root", dirs.GlobalRootDir, "disable", filepath.Base(svcFile)})
-	c.Check(s.sysdLog[1], DeepEquals, []string{"daemon-reload"})
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"--user", "--global", "--root", dirs.GlobalRootDir, "disable", filepath.Base(svcFile)},
+		{"--user", "daemon-reload"},
+	})
 }
 
 var snapdYaml = `name: snapd
