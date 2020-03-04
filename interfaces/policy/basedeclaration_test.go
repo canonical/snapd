@@ -616,7 +616,7 @@ var (
 		"mpris":                   {"app"},
 		"network-manager":         {"app", "core"},
 		"network-manager-observe": {"app", "core"},
-		"network-status":          {"app", "core"},
+		"network-status":          {"core"},
 		"ofono":                   {"app", "core"},
 		"online-accounts-service": {"app"},
 		"ppp":         {"core"},

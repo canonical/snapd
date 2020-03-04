@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -25,15 +25,12 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
 
 type NetworkStatusSuite struct {
 	iface        interfaces.Interface
-	appSlotInfo  *snap.SlotInfo
-	appSlot      *interfaces.ConnectedSlot
 	coreSlotInfo *snap.SlotInfo
 	coreSlot     *interfaces.ConnectedSlot
 	plugInfo     *snap.PlugInfo
@@ -45,15 +42,6 @@ var _ = Suite(&NetworkStatusSuite{
 })
 
 func (s *NetworkStatusSuite) SetUpSuite(c *C) {
-	const appProviderYaml = `name: provider
-version: 1.0
-apps:
-  app:
-    command: foo
-    slots: [network-status]
-`
-	s.appSlot, s.appSlotInfo = MockConnectedSlot(c, appProviderYaml, nil, "network-status")
-
 	const coreProviderYaml = `name: core
 type: os
 version: 0
@@ -79,15 +67,6 @@ func (s *NetworkStatusSuite) TestName(c *C) {
 func (s *NetworkStatusSuite) TestAppArmorConnectedPlug(c *C) {
 	// If the slot is provided by a snap, access is restricted to the snap's label
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.appSlot), IsNil)
-	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `peer=(label="snap.provider.app")`)
-	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "interface=org.freedesktop.portal.NetworkMonitor")
-
-	// If the slot is implicit, the peer must be unconfined
-	restore := release.MockOnClassic(true)
-	defer restore()
-	spec = &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `peer=(label=unconfined)`)
@@ -96,28 +75,12 @@ func (s *NetworkStatusSuite) TestAppArmorConnectedPlug(c *C) {
 
 func (s *NetworkStatusSuite) TestAppArmorConnectedSlot(c *C) {
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.appSlot), IsNil)
-	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.provider.app"})
-	c.Check(spec.SnippetForTag("snap.provider.app"), testutil.Contains, `# Description: allow providing network connectivity status`)
-
-	// No slot side rules are emitted for an implicit slot
-	restore := release.MockOnClassic(true)
-	defer restore()
-	spec = &apparmor.Specification{}
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 }
 
 func (s *NetworkStatusSuite) TestAppArmorPermanentSlot(c *C) {
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.appSlotInfo), IsNil)
-	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.provider.app"})
-	c.Check(spec.SnippetForTag("snap.provider.app"), testutil.Contains, `# Description: allow providing network connectivity status`)
-
-	// No slot side rules are emitted for an implicit slot
-	restore := release.MockOnClassic(true)
-	defer restore()
-	spec = &apparmor.Specification{}
 	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 }
