@@ -20,8 +20,6 @@
 package backends
 
 import (
-	"fmt"
-
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/dbus"
@@ -30,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/systemd"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/logger"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 )
 
@@ -60,7 +59,7 @@ func backends() []interfaces.SecurityBackend {
 	// By printing this directly we ensure it will end up the journal for the
 	// snapd.service. This aspect should be retained even after the switch to
 	// user-warning.
-	fmt.Printf("AppArmor status: %s\n", apparmor_sandbox.Summary())
+	logger.Noticef("AppArmor status: %s\n", apparmor_sandbox.Summary())
 
 	// Enable apparmor backend if there is any level of apparmor support,
 	// including partial feature set. This will allow snap-confine to always
