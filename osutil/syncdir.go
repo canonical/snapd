@@ -73,6 +73,10 @@ type MemoryFileState struct {
 	Mode    os.FileMode
 }
 
+func (blob *MemoryFileState) String() string {
+	return fmt.Sprintf("blob{content: %q, mode: %v}", string(blob.Content), blob.Mode)
+}
+
 // State returns a reader of the in-memory contents of a file, along with other meta-data.
 func (blob *MemoryFileState) State() (io.ReadCloser, int64, os.FileMode, error) {
 	return ioutil.NopCloser(bytes.NewReader(blob.Content)), int64(len(blob.Content)), blob.Mode, nil
