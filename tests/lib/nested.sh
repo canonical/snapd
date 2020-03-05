@@ -39,16 +39,10 @@ prepare_ssh(){
 }
 
 create_assertions_disk(){
-    ASSERTION="$TESTSLIB/assertions/auto-import.assert"
-    #TODO:UC20: Remove once the canonical model is used for uc20
-    if is_core_20_nested_system; then
-        ASSERTION="$TESTSLIB/assertions/auto-import-nested.assert"
-    fi
-    cp -f "$ASSERTION" "$WORK_DIR/auto-import.assert"
     mkdir -p "$WORK_DIR"
     dd if=/dev/null of="$WORK_DIR/assertions.disk" bs=1M seek=1
     mkfs.ext4 -F "$WORK_DIR/assertions.disk"
-    debugfs -w -R "write $WORK_DIR/auto-import.assert auto-import.assert" "$WORK_DIR/assertions.disk"
+    debugfs -w -R "write $TESTSLIB/assertions/auto-import.assert auto-import.assert" "$WORK_DIR/assertions.disk"
 }
 
 get_qemu_for_nested_vm(){
@@ -206,6 +200,7 @@ create_nested_core_vm(){
         UBUNTU_IMAGE=$(command -v ubuntu-image)
 
         # create ubuntu-core image
+        local EXTRA_FUNDAMENTAL=""
         local EXTRA_SNAPS=""
         if [ -d "${PWD}/extra-snaps" ] && [ "$(find "${PWD}/extra-snaps/" -type f -name "*.snap" | wc -l)" -gt 0 ]; then
             EXTRA_SNAPS="--extra-snaps ${PWD}/extra-snaps/*.snap"
@@ -221,6 +216,19 @@ create_nested_core_vm(){
             ;;
         ubuntu-20.04-64)
             NESTED_MODEL="$TESTSLIB/assertions/nested-20-amd64.model"
+
+            # shellcheck source=tests/lib/prepare.sh
+            . "$TESTSLIB"/prepare.sh
+            
+            snap download --basename=pc-kernel --channel="20/$CORE_CHANNEL" pc-kernel
+            # make sure we have the snap
+            test -e pc-kernel.snap
+            # build the initramfs with our snapd assets into the kernel snap
+            uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$WORK_DIR/image"
+
+            EXTRA_FUNDAMENTAL="--extra-snaps $WORK_DIR/image/pc-kernel_*.snap"
+            chmod 0600 "$WORK_DIR"/image/pc-kernel_*.snap
+            rm -f "$PWD/pc-kernel.snap"
             ;;
         *)
             echo "unsupported system"
@@ -230,7 +238,9 @@ create_nested_core_vm(){
 
         "$UBUNTU_IMAGE" --image-size 3G "$NESTED_MODEL" \
             --channel "$CORE_CHANNEL" \
-            --output "$WORK_DIR/image/ubuntu-core.img" "$EXTRA_SNAPS"
+            --output "$WORK_DIR/image/ubuntu-core.img" \
+            "$EXTRA_FUNDAMENTAL" \
+            "$EXTRA_SNAPS"
 
         create_assertions_disk
     fi
@@ -242,26 +252,53 @@ start_nested_core_vm(){
     # As core18 systems use to fail to start the assetion disk when using the
     # snapshot feature, we copy the original image and use that copy to start
     # the VM.
-    IMAGE="$WORK_DIR/image/ubuntu-core-new.img"
-    BIOS=
-    MEM="2048"
-    if is_core_20_nested_system; then        
-        MEM="4096"
+    IMAGE_FILE="$WORK_DIR/image/ubuntu-core-new.img"
+    cp -f "$WORK_DIR/image/ubuntu-core.img" "$IMAGE_FILE"
+
+    # Now qemu parameters are defined
+    PARAM_MEM="-m 2048"
+    PARAM_DISPLAY="-nographic"
+    PARAM_EXTRA="-machine accel=kvm"
+    PARAM_NETWORK="-net nic,model=virtio -net user,hostfwd=tcp::$SSH_PORT-:22"
+    PARAM_ASSERTIONS="-drive file=$WORK_DIR/assertions.disk,cache=none,format=raw"
+    PARAM_MONITOR="-monitor tcp:127.0.0.1:$MON_PORT,server,nowait -usb"
+    if is_core_20_nested_system; then
         if is_focal_system; then
-            BIOS="-bios /usr/share/OVMF/OVMF_CODE.ms.fd"
-        elif is_bionic_system; then
-            BIOS="-bios /usr/share/OVMF/OVMF_CODE.fd"
+            cp -f /usr/share/OVMF/OVMF_VARS.snakeoil.fd "$WORK_DIR/image/OVMF_VARS.snakeoil.fd"
+            if ! snap list swtpm-mvo; then
+                snap install swtpm-mvo --beta
+            fi
+
+            PARAM_CPU="-smp 2"
+            PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE.secboot.fd,if=pflash,format=raw,unit=0,readonly=on -drive file=$WORK_DIR/image/OVMF_VARS.snakeoil.fd,if=pflash,format=raw,unit=1"
+            PARAM_IMAGE="-drive file=$IMAGE_FILE,cache=none,format=raw,if=none,id=disk1 -device virtio-blk-pci,drive=disk1,bootindex=1"
+            PARAM_MACHINE="-machine q35 -global ICH9-LPC.disable_s3=1"
+            PARAM_TPM="-chardev socket,id=chrtpm,path=/var/snap/swtpm-mvo/current/swtpm-sock -tpmdev emulator,id=tpm0,chardev=chrtpm -device tpm-tis,tpmdev=tpm0"
+        else
+            echo "Not supported host system for UC20"
+            exit 1
         fi
+    else
+        PARAM_CPU=""
+        PARAM_BIOS=""
+        PARAM_IMAGE="-drive file=$IMAGE_FILE,cache=none,format=raw"
+        PARAM_MACHINE=""
+        PARAM_TPM=""
     fi
 
-    cp -f "$WORK_DIR/image/ubuntu-core.img" "$IMAGE"
-    systemd_create_and_start_unit "$NESTED_VM" "${QEMU} -m $MEM -nographic \
-        -net nic,model=virtio -net user,hostfwd=tcp::$SSH_PORT-:22 \
-        -drive file=$IMAGE,cache=none,format=raw \
-        -drive file=$WORK_DIR/assertions.disk,cache=none,format=raw \
-        -monitor tcp:127.0.0.1:$MON_PORT,server,nowait -usb \
-        $BIOS \
-        -snapshot -machine accel=kvm"
+    # Systemdd unit is created, it is important to respect the qemu parameters order
+    systemd_create_and_start_unit "$NESTED_VM" "${QEMU} \
+        ${PARAM_CPU} \
+        ${PARAM_MEM} \
+        ${PARAM_MACHINE} \
+        ${PARAM_DISPLAY} \
+        ${PARAM_NETWORK} \
+        ${PARAM_BIOS} \
+        ${PARAM_TPM} \
+        ${PARAM_IMAGE} \
+        ${PARAM_ASSERTIONS} \
+        ${PARAM_MONITOR} \
+        ${PARAM_EXTRA} "
 
     if ! wait_for_ssh; then
         systemctl restart nested-vm
