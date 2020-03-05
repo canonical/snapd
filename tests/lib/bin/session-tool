@@ -112,6 +112,17 @@ cat "$tmp_dir/ready.pipe" >/dev/null
 cat >"$tmp_dir/stdin.pipe" &
 cat <"$tmp_dir/stdout.pipe" >&1 &
 cat <"$tmp_dir/stderr.pipe" >&2 &
+(
+	echo "#!/bin/sh"
+	echo -n "exec "
+	for arg in "$@"; do
+		echo -n "\"$arg\" "
+	done
+	echo
+)>"$tmp_dir/exec"
+# cat "$tmp_dir/exec"
+chmod +x "$tmp_dir/exec"
+
 busctl \
 	--allow-interactive-authorization=no --quiet \
 	--system \
@@ -126,7 +137,7 @@ busctl \
 		Type s oneshot \
 		Environment as 1 TERM=xterm-256color \
 		ExecStart "a(sasb)" 1 \
-			/bin/sh 3 /bin/sh -c "exec runuser -l $user - -c \"$*\" <$tmp_dir/stdin.pipe >$tmp_dir/stdout.pipe 2>$tmp_dir/stderr.pipe" false \
+			"$(command -v runuser)" 6 "$(command -v runuser)" -l "$user" - -c "exec $tmp_dir/exec <$tmp_dir/stdin.pipe >$tmp_dir/stdout.pipe 2>$tmp_dir/stderr.pipe" false \
 	0
 # FIXME: ^ the line above invokes runuser via sh has broken quoting.
 # This is done so that we can configure file redirects. Once Ubuntu 16.04 is no
