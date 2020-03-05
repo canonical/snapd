@@ -65,12 +65,19 @@ type ConfinementOptions struct {
 	Classic bool
 }
 
+// SecurityBackendOptions carries extra flags that affect initialization of the
+// backends.
+type SecurityBackendOptions struct {
+	// Preseed flag is set when snapd runs in preseed mode.
+	Preseed bool
+}
+
 // SecurityBackend abstracts interactions between the interface system and the
 // needs of a particular security system.
 type SecurityBackend interface {
 	// Initialize performs any initialization required by the backend.
 	// It is called during snapd startup process.
-	Initialize() error
+	Initialize(opts *SecurityBackendOptions) error
 
 	// Name returns the name of the backend.
 	// This is intended for diagnostic messages.

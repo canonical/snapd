@@ -29,6 +29,7 @@ import (
 
 	failure "github.com/snapcore/snapd/cmd/snap-failure"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -89,6 +90,7 @@ func (r *failureSuite) TestCallPrevSnapdFromSnap(c *C) {
 	})
 	c.Check(systemctlCmd.Calls(), DeepEquals, [][]string{
 		{"systemctl", "stop", "snapd.socket"},
+		{"systemctl", "reset-failed", "snapd.socket"},
 		{"systemctl", "restart", "snapd.socket"},
 	})
 }
@@ -120,6 +122,7 @@ func (r *failureSuite) TestCallPrevSnapdFromCore(c *C) {
 	})
 	c.Check(systemctlCmd.Calls(), DeepEquals, [][]string{
 		{"systemctl", "stop", "snapd.socket"},
+		{"systemctl", "reset-failed", "snapd.socket"},
 		{"systemctl", "restart", "snapd.socket"},
 	})
 }
@@ -232,4 +235,44 @@ exit 123
 	c.Check(systemctlCmd.Calls(), DeepEquals, [][]string{
 		{"systemctl", "stop", "snapd.socket"},
 	})
+}
+
+func (r *failureSuite) TestStickySnapdSocket(c *C) {
+	origArgs := os.Args
+	defer func() { os.Args = origArgs }()
+
+	writeSeqFile(c, "snapd", snap.R(123), []*snap.SideInfo{
+		{Revision: snap.R(100)},
+		{Revision: snap.R(123)},
+	})
+
+	err := os.MkdirAll(filepath.Dir(dirs.SnapdSocket), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(dirs.SnapdSocket, []byte{}, 0755)
+	c.Assert(err, IsNil)
+
+	// mock snapd in the core snap
+	snapdCmd := testutil.MockCommand(c, filepath.Join(dirs.SnapMountDir, "snapd", "100", "/usr/lib/snapd/snapd"),
+		`test "$SNAPD_REVERT_TO_REV" = "100"`)
+	defer snapdCmd.Restore()
+
+	systemctlCmd := testutil.MockCommand(c, "systemctl", "")
+	defer systemctlCmd.Restore()
+
+	os.Args = []string{"snap-failure", "snapd"}
+	err = failure.Run()
+	c.Check(err, IsNil)
+	c.Check(r.Stderr(), HasLen, 0)
+
+	c.Check(snapdCmd.Calls(), DeepEquals, [][]string{
+		{"snapd"},
+	})
+	c.Check(systemctlCmd.Calls(), DeepEquals, [][]string{
+		{"systemctl", "stop", "snapd.socket"},
+		{"systemctl", "reset-failed", "snapd.socket"},
+		{"systemctl", "restart", "snapd.socket"},
+	})
+
+	// make sure the socket file was deleted
+	c.Assert(osutil.FileExists(dirs.SnapdSocket), Equals, false)
 }

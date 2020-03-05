@@ -121,8 +121,6 @@ static const char *nvidia_globs[] = {
 static const size_t nvidia_globs_len =
     sizeof nvidia_globs / sizeof *nvidia_globs;
 
-#define LIBNVIDIA_GLCORE_SO_PATTERN "libnvidia-glcore.so.%d.%d"
-
 #endif				// defined(NVIDIA_BIARCH) || defined(NVIDIA_MULTIARCH)
 
 // Populate libgl_dir with a symlink farm to files matching glob_list.
@@ -184,10 +182,13 @@ static void sc_populate_libgl_with_hostfs_symlinks(const char *libgl_dir,
 			sc_must_snprintf(prefix_dir, sizeof prefix_dir,
 					 "%s%s", libgl_dir,
 					 &directory_name[source_dir_len]);
+			sc_identity old =
+			    sc_set_effective_identity(sc_root_group_identity());
 			if (sc_nonfatal_mkpath(prefix_dir, 0755) != 0) {
 				die("failed to create prefix path: %s",
 				    prefix_dir);
 			}
+			(void)sc_set_effective_identity(old);
 		}
 
 		struct stat stat_buf;
@@ -198,12 +199,12 @@ static void sc_populate_libgl_with_hostfs_symlinks(const char *libgl_dir,
 		switch (stat_buf.st_mode & S_IFMT) {
 		case S_IFLNK:;
 			// Read the target of the symbolic link
-			char hostfs_symlink_target[512];
+			char hostfs_symlink_target[512] = { 0 };
 			ssize_t num_read;
 			hostfs_symlink_target[0] = 0;
 			num_read =
 			    readlink(pathname, hostfs_symlink_target,
-				     sizeof hostfs_symlink_target);
+				     sizeof hostfs_symlink_target - 1);
 			if (num_read == -1) {
 				die("cannot read symbolic link %s", pathname);
 			}
@@ -261,6 +262,7 @@ static void sc_mkdir_and_mount_and_glob_files(const char *rootfs_dir,
 	sc_must_snprintf(buf, sizeof(buf), "%s%s", rootfs_dir, tgt_dir);
 	const char *libgl_dir = buf;
 
+	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
 	int res = mkdir(libgl_dir, 0755);
 	if (res != 0 && errno != EEXIST) {
 		die("cannot create tmpfs target %s", libgl_dir);
@@ -269,6 +271,7 @@ static void sc_mkdir_and_mount_and_glob_files(const char *rootfs_dir,
 		// Adjust the ownership only if we created the directory.
 		die("cannot change ownership of %s", libgl_dir);
 	}
+	(void)sc_set_effective_identity(old);
 
 	debug("mounting tmpfs at %s", libgl_dir);
 	if (mount("none", libgl_dir, "tmpfs", MS_NODEV | MS_NOEXEC, NULL) != 0) {
@@ -345,55 +348,62 @@ static void sc_mount_nvidia_driver_biarch(const char *rootfs_dir)
 
 #ifdef NVIDIA_MULTIARCH
 
-struct sc_nvidia_driver {
-	int major_version;
-	int minor_version;
-};
+typedef struct {
+	int major;
+	// Driver version format is MAJOR.MINOR[.MICRO] but we only care about the
+	// major version and the full version string. The micro component has been
+	// seen with relevant leading zeros (e.g. "440.48.02").
+	char raw[128]; // The size was picked as "big enough" for version strings.
+} sc_nv_version;
 
-static void sc_probe_nvidia_driver(struct sc_nvidia_driver *driver)
+static void sc_probe_nvidia_driver(sc_nv_version * version)
 {
+	memset(version, 0, sizeof *version);
+
 	FILE *file SC_CLEANUP(sc_cleanup_file) = NULL;
 	debug("opening file describing nvidia driver version");
 	file = fopen(SC_NVIDIA_DRIVER_VERSION_FILE, "rt");
 	if (file == NULL) {
 		if (errno == ENOENT) {
 			debug("nvidia driver version file doesn't exist");
-			driver->major_version = 0;
-			driver->minor_version = 0;
 			return;
 		}
 		die("cannot open file describing nvidia driver version");
 	}
-	// Driver version format is MAJOR.MINOR where both MAJOR and MINOR are
-	// integers. We can use sscanf to parse this data.
-	if (fscanf
-	    (file, "%d.%d", &driver->major_version,
-	     &driver->minor_version) != 2) {
-		die("cannot parse nvidia driver version string");
+	int nread = fread(version->raw, 1, sizeof version->raw - 1, file);
+	if (nread < 0) {
+		die("cannot read nvidia driver version string");
 	}
-	debug("parsed nvidia driver version: %d.%d", driver->major_version,
-	      driver->minor_version);
+	if (nread == sizeof version->raw - 1 && !feof(file)) {
+		die("cannot fit entire nvidia driver version string");
+	}
+	version->raw[nread] = '\0';
+	if (nread > 0 && version->raw[nread - 1] == '\n') {
+		version->raw[nread - 1] = '\0';
+	}
+	if (sscanf(version->raw, "%d.", &version->major) != 1) {
+		die("cannot parse major version from nvidia driver version string");
+	}
 }
 
 static void sc_mkdir_and_mount_and_bind(const char *rootfs_dir,
 					const char *src_dir,
 					const char *tgt_dir)
 {
-	struct sc_nvidia_driver driver;
+	sc_nv_version version;
 
 	// Probe sysfs to get the version of the driver that is currently inserted.
-	sc_probe_nvidia_driver(&driver);
+	sc_probe_nvidia_driver(&version);
 
 	// If there's driver in the kernel then don't mount userspace.
-	if (driver.major_version == 0) {
+	if (version.major == 0) {
 		return;
 	}
 	// Construct the paths for the driver userspace libraries
 	// and for the gl directory.
 	char src[PATH_MAX] = { 0 };
 	char dst[PATH_MAX] = { 0 };
-	sc_must_snprintf(src, sizeof src, "%s-%d", src_dir,
-			 driver.major_version);
+	sc_must_snprintf(src, sizeof src, "%s-%d", src_dir, version.major);
 	sc_must_snprintf(dst, sizeof dst, "%s%s", rootfs_dir, tgt_dir);
 
 	// If there is no userspace driver available then don't try to mount it.
@@ -404,6 +414,7 @@ static void sc_mkdir_and_mount_and_bind(const char *rootfs_dir,
 	if (access(src, F_OK) != 0) {
 		return;
 	}
+	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
 	int res = mkdir(dst, 0755);
 	if (res != 0 && errno != EEXIST) {
 		die("cannot create directory %s", dst);
@@ -412,6 +423,7 @@ static void sc_mkdir_and_mount_and_bind(const char *rootfs_dir,
 		// Adjust the ownership only if we created the directory.
 		die("cannot change ownership of %s", dst);
 	}
+	(void)sc_set_effective_identity(old);
 	// Bind mount the binary nvidia driver into $tgt_dir (i.e. /var/lib/snapd/lib/gl).
 	debug("bind mounting nvidia driver %s -> %s", src, dst);
 	if (mount(src, dst, NULL, MS_BIND, NULL) != 0) {
@@ -423,21 +435,24 @@ static int sc_mount_nvidia_is_driver_in_dir(const char *dir)
 {
 	char driver_path[512] = { 0 };
 
-	struct sc_nvidia_driver driver;
+	sc_nv_version version;
 
 	// Probe sysfs to get the version of the driver that is currently inserted.
-	sc_probe_nvidia_driver(&driver);
+	sc_probe_nvidia_driver(&version);
 
 	// If there's no driver then we should not bother ourselves with finding the
 	// matching library
-	if (driver.major_version == 0) {
+	if (version.major == 0) {
 		return 0;
 	}
-	// Probe if a well known library is found in directory dir
-	sc_must_snprintf(driver_path, sizeof driver_path,
-			 "%s/" LIBNVIDIA_GLCORE_SO_PATTERN, dir,
-			 driver.major_version, driver.minor_version);
 
+	// Probe if a well known library is found in directory dir. We must use the
+	// raw version because it may contain more than just major.minor. In
+	// practice the micro version may have leading zeros that are relevant.
+	sc_must_snprintf(driver_path, sizeof driver_path,
+			 "%s/libnvidia-glcore.so.%s", dir, version.raw);
+
+	debug("looking for nvidia canary file %s", driver_path);
 	if (access(driver_path, F_OK) == 0) {
 		debug("nvidia library detected at path %s", driver_path);
 		return 1;
@@ -527,6 +542,7 @@ void sc_mount_nvidia_driver(const char *rootfs_dir)
 		return;
 	}
 
+	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
 	int res = mkdir(SC_LIB, 0755);
 	if (res != 0 && errno != EEXIST) {
 		die("cannot create " SC_LIB);
@@ -535,6 +551,7 @@ void sc_mount_nvidia_driver(const char *rootfs_dir)
 		// Adjust the ownership only if we created the directory.
 		die("cannot change ownership of " SC_LIB);
 	}
+	(void)sc_set_effective_identity(old);
 #ifdef NVIDIA_MULTIARCH
 	sc_mount_nvidia_driver_multiarch(rootfs_dir);
 #endif				// ifdef NVIDIA_MULTIARCH

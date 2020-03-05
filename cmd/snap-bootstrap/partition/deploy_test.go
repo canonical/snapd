@@ -131,14 +131,7 @@ func (s *deploySuite) TestMountFilesystem(c *C) {
 	err := partition.MountFilesystem(mockDeviceStructureBiosBoot, dirs.RunMnt)
 	c.Assert(err, ErrorMatches, "cannot mount a partition with no filesystem")
 
-	// try to mount a filesystem with no label
-	err = partition.MountFilesystem(mockDeviceStructureSystemSeed, dirs.RunMnt)
-	c.Assert(err, ErrorMatches, "cannot mount a filesystem with no label")
-
-	// now set a label...
-	mockDeviceStructureSystemSeed.Label = "ubuntu-seed"
-	defer func() { mockDeviceStructureSystemSeed.Label = "" }()
-
+	// mount a filesystem...
 	err = partition.MountFilesystem(mockDeviceStructureSystemSeed, dirs.RunMnt)
 	c.Assert(err, IsNil)
 
@@ -148,4 +141,12 @@ func (s *deploySuite) TestMountFilesystem(c *C) {
 	c.Check(s.mockMountCalls, DeepEquals, []struct{ source, target, fstype string }{
 		{"/dev/node2", node2MountPoint, "vfat"},
 	})
+
+	// now try to mount a filesystem with no label
+	mockDeviceStructureSystemSeed.Label = ""
+	defer func() { mockDeviceStructureSystemSeed.Label = "ubuntu-seed" }()
+
+	err = partition.MountFilesystem(mockDeviceStructureSystemSeed, dirs.RunMnt)
+	c.Assert(err, ErrorMatches, "cannot mount a filesystem with no label")
+
 }

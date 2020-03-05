@@ -21,6 +21,7 @@ package main
 
 import (
 	"io"
+	"time"
 
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/bootstrap"
 )
@@ -29,19 +30,11 @@ var (
 	Parser = parser
 )
 
-func MockBootstrapRun(f func(string, string, *bootstrap.Options) error) (restore func()) {
+func MockBootstrapRun(f func(string, string, bootstrap.Options) error) (restore func()) {
 	oldBootstrapRun := bootstrapRun
 	bootstrapRun = f
 	return func() {
 		bootstrapRun = oldBootstrapRun
-	}
-}
-
-func MockProcCmdline(newPath string) (restore func()) {
-	oldProcCmdline := procCmdline
-	procCmdline = newPath
-	return func() {
-		procCmdline = oldProcCmdline
 	}
 }
 
@@ -66,5 +59,23 @@ func MockRunMnt(newRunMnt string) (restore func()) {
 	runMnt = newRunMnt
 	return func() {
 		runMnt = oldRunMnt
+	}
+}
+
+func MockTriggerwatchWait(f func(_ time.Duration) error) (restore func()) {
+	oldTriggerwatchWait := triggerwatchWait
+	triggerwatchWait = f
+	return func() {
+		triggerwatchWait = oldTriggerwatchWait
+	}
+}
+
+var DefaultTimeout = defaultTimeout
+
+func MockDefaultMarkerFile(p string) (restore func()) {
+	old := defaultMarkerFile
+	defaultMarkerFile = p
+	return func() {
+		defaultMarkerFile = old
 	}
 }

@@ -21,33 +21,11 @@ package strutil
 
 import (
 	"fmt"
-	"math/rand"
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 	"unicode/utf8"
 )
-
-func init() {
-	// golang does not init Seed() itself
-	rand.Seed(time.Now().UTC().UnixNano())
-}
-
-const letters = "BCDFGHJKLMNPQRSTVWXYbcdfghjklmnpqrstvwxy0123456789"
-
-// MakeRandomString returns a random string of length length
-//
-// The vowels are omitted to avoid that words are created by pure
-// chance. Numbers are included.
-func MakeRandomString(length int) string {
-	out := ""
-	for i := 0; i < length; i++ {
-		out += string(letters[rand.Intn(len(letters))])
-	}
-
-	return out
-}
 
 // Convert the given size in btes to a readable string
 func SizeToStr(size int64) string {

@@ -14,7 +14,7 @@ import sys
 import urllib.parse
 
 
-class ProxyHandler (http.server.BaseHTTPRequestHandler):
+class ProxyHandler(http.server.BaseHTTPRequestHandler):
     server_version = "testsproxy/1.0"
 
     def log_request(self, m=""):
@@ -23,13 +23,13 @@ class ProxyHandler (http.server.BaseHTTPRequestHandler):
         sys.stderr.flush()
 
     def handle(self):
-        (ip, port) =  self.client_address
+        (ip, port) = self.client_address
         super().handle()
 
     def _connect_to(self, netloc, soc):
-        i = netloc.find(':')
+        i = netloc.find(":")
         if i >= 0:
-            host_port = netloc[:i], int(netloc[i+1:])
+            host_port = netloc[:i], int(netloc[i + 1 :])
         else:
             host_port = netloc, 80
         try:
@@ -60,8 +60,9 @@ class ProxyHandler (http.server.BaseHTTPRequestHandler):
 
     def do_GET(self):
         (scm, netloc, path, params, query, fragment) = urllib.parse.urlparse(
-            self.path, 'http')
-        if scm != 'http' or fragment or not netloc:
+            self.path, "http"
+        )
+        if scm != "http" or fragment or not netloc:
             s = "bad url {}".format(self.path)
             self.send_error(400, s.encode())
             return
@@ -71,11 +72,12 @@ class ProxyHandler (http.server.BaseHTTPRequestHandler):
                 self.log_request()
                 s = "{} {} {}\r\n".format(
                     self.command,
-                    urllib.parse.urlunparse(('', '', path, params, query, '')),
-                    self.request_version)
+                    urllib.parse.urlunparse(("", "", path, params, query, "")),
+                    self.request_version,
+                )
                 soc.send(s.encode())
-                self.headers['Connection'] = 'close'
-                del self.headers['Proxy-Connection']
+                self.headers["Connection"] = "close"
+                del self.headers["Proxy-Connection"]
                 for key, val in self.headers.items():
                     s = "{}: {}\r\n".format(key, val)
                     soc.send(s.encode())
@@ -109,12 +111,12 @@ class ProxyHandler (http.server.BaseHTTPRequestHandler):
 
     do_HEAD = do_GET
     do_POST = do_GET
-    do_PUT  = do_GET
-    do_DELETE=do_GET
+    do_PUT = do_GET
+    do_DELETE = do_GET
 
 
 def maybe_sd_notify(s: str) -> None:
-    addr = os.getenv('NOTIFY_SOCKET')
+    addr = os.getenv("NOTIFY_SOCKET")
     if not addr:
         return
     soc = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
@@ -122,14 +124,13 @@ def maybe_sd_notify(s: str) -> None:
     soc.sendall(s.encode())
 
 
-class ThreadingHTTPServer (socketserver.ThreadingMixIn,
-                           http.server.HTTPServer):
+class ThreadingHTTPServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
     def __init__(self, *args):
         super().__init__(*args)
         maybe_sd_notify("READY=1")
 
 
-if __name__ == '__main__':
-    port=3128
+if __name__ == "__main__":
+    port = 3128
     print("starting tinyproxy on port {}".format(port))
     http.server.test(ProxyHandler, ThreadingHTTPServer, port=port)

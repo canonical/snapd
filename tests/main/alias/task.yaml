@@ -52,6 +52,6 @@ execute: |
     alias1|MATCH "ok command 1"
 
     echo "Removing the snap should remove the aliases"
-    snap remove aliases
+    snap remove --purge aliases
     test ! -e "$SNAP_MOUNT_DIR/bin/alias1"
     test ! -e "$SNAP_MOUNT_DIR/bin/alias2"

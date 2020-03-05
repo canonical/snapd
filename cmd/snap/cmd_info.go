@@ -656,9 +656,6 @@ func (chInfos *channelInfos) addFromRemote(remote *client.Snap) {
 		for _, risk := range channelRisks {
 			chName := fmt.Sprintf("%s/%s", tr, risk)
 			ch, ok := remote.Channels[chName]
-			if tr == "latest" {
-				chName = risk
-			}
 			if ok {
 				chInfos.addOpenChannel(chName, ch.Version, ch.Revision, ch.ReleasedAt, ch.Size, NotesFromChannelSnapInfo(ch))
 				trackHasOpenChannel = true

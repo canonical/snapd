@@ -16,7 +16,7 @@ prepare: |
     # Install a snap declaring a plug on timeserver-control
     install_local test-snapd-timedate-control-consumer
 
-    if [[ "$SPREAD_SYSTEM" == ubuntu-19.10-* ]]; then
+    if [[ "$SPREAD_SYSTEM" == ubuntu-19.10-* ]] || [[ "$SPREAD_SYSTEM" == ubuntu-20.04-* ]]; then
         # ensure chrony is not installed as it interferes with
         # the systemd-timesyncd.service
         apt remove -y chrony
@@ -24,7 +24,7 @@ prepare: |
     fi
 
 restore: |
-    if [[ "$SPREAD_SYSTEM" == ubuntu-19.10-* ]]; then
+    if [[ "$SPREAD_SYSTEM" == ubuntu-19.10-* ]] || [[ "$SPREAD_SYSTEM" == ubuntu-20.04-* ]]; then
         # bring it back
         apt install -y chrony
         systemctl restart systemd-timesyncd.service

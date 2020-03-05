@@ -64,13 +64,13 @@ execute: |
     fi
 
     # removal of snaps should not fail
-    snap remove test-snapd-sh
+    snap remove --purge test-snapd-sh
     if is_classic_system ; then
-        snap remove test-snapd-classic-confinement
+        snap remove --purge test-snapd-classic-confinement
     fi
 
     # neither should the removal of instances
-    snap remove test-snapd-sh_foo
+    snap remove --purge test-snapd-sh_foo
     if is_classic_system ; then
-        snap remove test-snapd-classic-confinement_foo
+        snap remove --purge test-snapd-classic-confinement_foo
     fi

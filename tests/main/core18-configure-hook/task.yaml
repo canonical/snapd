@@ -33,5 +33,5 @@ execute: |
 
 restore: |
     if snap list test-snapd-with-configure-core18; then
-        snap remove test-snapd-with-configure-core18
+        snap remove --purge test-snapd-with-configure-core18
     fi

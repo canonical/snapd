@@ -31,7 +31,7 @@ def export_ready(read_fd: int, _) -> bool:
     """export_ready is run when the "export" file is ready for reading"""
     pin = read_gpio_pin(read_fd)
     # allow quit
-    if pin == 'quit':
+    if pin == "quit":
         return False
     if pin:
         with open(pin, "w"):
@@ -61,7 +61,7 @@ def dispatch(sel):
 
 
 def maybe_sd_notify(s: str) -> None:
-    addr = os.getenv('NOTIFY_SOCKET')
+    addr = os.getenv("NOTIFY_SOCKET")
     if not addr:
         return
     soc = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
@@ -79,8 +79,7 @@ def main():
     mock_gpio_dir = tempfile.mkdtemp("mock-gpio")
     atexit.register(shutil.rmtree, mock_gpio_dir)
     os.chdir(mock_gpio_dir)
-    subprocess.check_call(
-        ["mount", "--bind", mock_gpio_dir, "/sys/class/gpio"])
+    subprocess.check_call(["mount", "--bind", mock_gpio_dir, "/sys/class/gpio"])
     atexit.register(lambda: subprocess.call(["umount", "/sys/class/gpio"]))
 
     # fake gpio export/unexport files

@@ -42,7 +42,7 @@ execute: |
     snap list | MATCH '^test-snapd-sh_longname '
 
     echo "Removing one instance does not remove other instances' directories"
-    snap remove test-snapd-sh_foo
+    snap remove --purge test-snapd-sh_foo
     test -d "$SNAP_MOUNT_DIR/test-snapd-sh_longname/x1"
     test -d "$SNAP_MOUNT_DIR/test-snapd-sh/x1"
 

@@ -70,11 +70,11 @@ execute: |
     test "$(readlink "$SNAP_MOUNT_DIR"/bin/alias1)" = "aliases.cmd1"
 
     echo "Removing the aliases snap should remove its aliases"
-    snap remove aliases
+    snap remove --purge aliases
     test ! -e "$SNAP_MOUNT_DIR/bin/alias1"
 
     echo "Aliases of aliases_foo remain unchanged"
     test "$(readlink "$SNAP_MOUNT_DIR"/bin/alias2)" = "aliases_foo.cmd2"
 
-    snap remove aliases_foo
+    snap remove --purge aliases_foo
     test ! -e "$SNAP_MOUNT_DIR/bin/alias2"

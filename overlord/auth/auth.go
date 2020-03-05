@@ -64,6 +64,16 @@ type UserState struct {
 	StoreDischarges []string `json:"store-discharges,omitempty"`
 }
 
+// identificationOnly returns a *UserState with only the
+// identification information from u.
+func (u *UserState) identificationOnly() *UserState {
+	return &UserState{
+		ID:       u.ID,
+		Username: u.Username,
+		Email:    u.Email,
+	}
+}
+
 // HasStoreAuth returns true if the user has store authorization.
 func (u *UserState) HasStoreAuth() bool {
 	if u == nil {
@@ -168,31 +178,43 @@ func NewUser(st *state.State, username, email, macaroon string, discharges []str
 
 var ErrInvalidUser = errors.New("invalid user")
 
-// RemoveUser removes a user from the state given its ID
-func RemoveUser(st *state.State, userID int) error {
+// RemoveUser removes a user from the state given its ID.
+func RemoveUser(st *state.State, userID int) (removed *UserState, err error) {
+	return removeUser(st, func(u *UserState) bool { return u.ID == userID })
+}
+
+// RemoveUserByUsername removes a user from the state given its username. Returns a *UserState with the identification information for them.
+func RemoveUserByUsername(st *state.State, username string) (removed *UserState, err error) {
+	return removeUser(st, func(u *UserState) bool { return u.Username == username })
+}
+
+// removeUser removes the first user matching given predicate.
+func removeUser(st *state.State, p func(*UserState) bool) (*UserState, error) {
 	var authStateData AuthState
 
 	err := st.Get("auth", &authStateData)
 	if err == state.ErrNoState {
-		return ErrInvalidUser
+		return nil, ErrInvalidUser
 	}
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	for i := range authStateData.Users {
-		if authStateData.Users[i].ID == userID {
+		u := &authStateData.Users[i]
+		if p(u) {
+			removed := u.identificationOnly()
 			// delete without preserving order
 			n := len(authStateData.Users) - 1
 			authStateData.Users[i] = authStateData.Users[n]
 			authStateData.Users[n] = UserState{}
 			authStateData.Users = authStateData.Users[:n]
 			st.Set("auth", authStateData)
-			return nil
+			return removed, nil
 		}
 	}
 
-	return ErrInvalidUser
+	return nil, ErrInvalidUser
 }
 
 func Users(st *state.State) ([]*UserState, error) {
@@ -213,8 +235,18 @@ func Users(st *state.State) ([]*UserState, error) {
 	return users, nil
 }
 
-// User returns a user from the state given its ID
+// User returns a user from the state given its ID.
 func User(st *state.State, id int) (*UserState, error) {
+	return findUser(st, func(u *UserState) bool { return u.ID == id })
+}
+
+// UserByUsername returns a user from the state given its username.
+func UserByUsername(st *state.State, username string) (*UserState, error) {
+	return findUser(st, func(u *UserState) bool { return u.Username == username })
+}
+
+// findUser finds the first user matching given predicate.
+func findUser(st *state.State, p func(*UserState) bool) (*UserState, error) {
 	var authStateData AuthState
 
 	err := st.Get("auth", &authStateData)
@@ -225,9 +257,10 @@ func User(st *state.State, id int) (*UserState, error) {
 		return nil, err
 	}
 
-	for _, user := range authStateData.Users {
-		if user.ID == id {
-			return &user, nil
+	for i := range authStateData.Users {
+		u := &authStateData.Users[i]
+		if p(u) {
+			return u, nil
 		}
 	}
 	return nil, ErrInvalidUser

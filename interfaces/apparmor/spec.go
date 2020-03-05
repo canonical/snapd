@@ -337,8 +337,9 @@ func (spec *Specification) Snippets() map[string][]string {
 	return copySnippets(spec.snippets)
 }
 
-// SnippetForTag returns a combined snippet for given security tag with individual snippets
-// joined with newline character. Empty string is returned for non-existing security tag.
+// SnippetForTag returns a combined snippet for given security tag with
+// individual snippets joined with the newline character. Empty string is
+// returned for non-existing security tag.
 func (spec *Specification) SnippetForTag(tag string) string {
 	return strings.Join(spec.snippets[tag], "\n")
 }
@@ -430,11 +431,13 @@ func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *sn
 	return nil
 }
 
-// SetUsesPtraceTrace records when to omit explicit ptrace deny rules
+// SetUsesPtraceTrace records when to omit explicit ptrace deny rules.
 func (spec *Specification) SetUsesPtraceTrace() {
 	spec.usesPtraceTrace = true
 }
 
+// UsesPtraceTrace returns whether ptrace is being used by any of the interfaces
+// in the spec.
 func (spec *Specification) UsesPtraceTrace() bool {
 	return spec.usesPtraceTrace
 }
@@ -444,15 +447,20 @@ func (spec *Specification) SetSuppressPtraceTrace() {
 	spec.suppressPtraceTrace = true
 }
 
+// SuppressPtraceTrace returns whether ptrace should be suppressed as dictated
+// by any of the interfaces in the spec.
 func (spec *Specification) SuppressPtraceTrace() bool {
 	return spec.suppressPtraceTrace
 }
 
-// SetSuppressHomeIx to request explicit ptrace deny rules
+// SetSuppressHomeIx records suppression of the ix rules for the home
+// interface.
 func (spec *Specification) SetSuppressHomeIx() {
 	spec.suppressHomeIx = true
 }
 
+// SuppressHomeIx returns whether the ix rules of the home interface should be
+// suppressed.
 func (spec *Specification) SuppressHomeIx() bool {
 	return spec.suppressHomeIx
 }

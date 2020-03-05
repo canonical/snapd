@@ -42,7 +42,7 @@ execute: |
     $LIBEXECDIR/snapd/snap-discard-ns test-snapd-tools
     test ! -e /run/snapd/ns/test-snapd-tools.mnt
     test ! -e /run/snapd/ns/test-snapd-tools.1000.mnt
-    test ! -e /run/snapd/ns/test-snapd-tools.info
+    test ! -e /run/snapd/ns/snap.test-snapd-tools.info
 
     echo "We can fake a current mount profile and see that it is removed too"
     test-snapd-tools.success

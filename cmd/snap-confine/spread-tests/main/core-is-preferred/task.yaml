@@ -5,6 +5,6 @@ prepare: |
 execute: |
     snapd-hacker-toolbelt.busybox cat /meta/snap.yaml | grep -q -F 'name: core'
 restore: |
-    snap remove snapd-hacker-toolbelt
+    snap remove --purge snapd-hacker-toolbelt
     # XXX: the core snap cannot be removed, we should use a trick to remove it
     # in some other way but this can wait.

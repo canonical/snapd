@@ -1812,7 +1812,7 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 		var conns []*interfaces.ConnRef
 		repo := c.d.overlord.InterfaceManager().Repository()
 		summary = fmt.Sprintf("Disconnect %s:%s from %s:%s", a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
-		conns, err = repo.ResolveDisconnect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
+		conns, err = c.d.overlord.InterfaceManager().ResolveDisconnect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
 		if err == nil {
 			if len(conns) == 0 {
 				return InterfacesUnchanged("nothing to do")

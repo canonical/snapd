@@ -20,7 +20,7 @@ execute: |
     snap install --dangerous ./basic_1.0_all.snap | MATCH "$expected"
 
     echo "Sideloaded snap with (deprecated) --force-dangerous option"
-    snap remove basic
+    snap remove --purge basic
     snap install --force-dangerous ./basic_1.0_all.snap | MATCH "$expected"
 
     echo "Sideloaded snap executes commands"

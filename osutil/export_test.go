@@ -35,6 +35,7 @@ import (
 var (
 	StreamsEqualChunked  = streamsEqualChunked
 	FilesAreEqualChunked = filesAreEqualChunked
+	SudoersFile          = sudoersFile
 )
 
 func MockUserLookup(mock func(name string) (*user.User, error)) func() {
@@ -105,6 +106,11 @@ func SetUnsafeIO(b bool) func() {
 	return func() {
 		snapdUnsafeIO = oldSnapdUnsafeIO
 	}
+}
+
+func GetUnsafeIO() bool {
+	// a getter so that tests do not attempt to modify that directly
+	return snapdUnsafeIO
 }
 
 func MockOsReadlink(f func(string) (string, error)) func() {
@@ -192,3 +198,5 @@ func MockFindGid(mock func(name string) (uint64, error)) (restore func()) {
 	findGid = mock
 	return func() { findGid = old }
 }
+
+const MaxSymlinkTries = maxSymlinkTries

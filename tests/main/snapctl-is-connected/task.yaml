@@ -5,7 +5,7 @@ prepare: |
   snap install --dangerous test-snap_1_all.snap
 
 restore: |
-  snap remove test-snap
+  snap remove --purge test-snap
 
 execute: |
   check_empty() {
