@@ -29,6 +29,14 @@ restore: |
 
     lxd-tool undo-lxd-mount-changes
 
+    rm -f avc-after
+
+debug: |
+    if [ -e avc-after ]; then
+        echo "AVC log from the test"
+        cat avc-after
+    fi
+
 execute: |
     snap install lxd
     ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
@@ -65,6 +73,9 @@ execute: |
     # there is a known problem with the reference policy that disallows systemd
     # from creating a BPF map for unconfined_service_t, see:
     # https://bugzilla.redhat.com/show_bug.cgi?id=1694115
-    ausearch --checkpoint stamp --start checkpoint -m AVC 2>&1 | \
-        grep -v -E 'avc:  denied  { map_create } for  pid=[0-9]+ comm="systemd"' | \
+    #
+    # ausearch exits with 1 when there are no denials, which we expect on
+    # centos-8, but not on centos-7
+    ausearch --checkpoint stamp --start checkpoint -m AVC > avc-after 2>&1 || true
+    grep -v -E 'avc:  denied  { map_create } for  pid=[0-9]+ comm="systemd"' < avc-after | \
         not MATCH 'type=AVC'
