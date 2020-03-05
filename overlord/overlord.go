@@ -424,9 +424,9 @@ func (o *Overlord) Loop() {
 			if err != nil && preseed {
 				st := o.State()
 				// acquire state lock to ensure nothing attempts to write state
-				// as we are exiting.
+				// as we are exiting; there is no deferred unlock to avoid
+				// potential race on exit.
 				st.Lock()
-				defer st.Unlock()
 				preseedExitWithError(err)
 			}
 			o.ensureDidRun()
