@@ -757,7 +757,6 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"lxd":                       true,
 		"maliit":                    true,
 		"mir":                       true,
-		"network-status":            true,
 		"online-accounts-service":   true,
 		"raw-volume":                true,
 		"storage-framework-service": true,

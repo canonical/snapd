@@ -26,7 +26,6 @@ const networkStatusBaseDeclarationSlots = `
     allow-installation:
       slot-snap-type:
         - core
-    deny-connection: true
 `
 
 const networkStatusConnectedPlugAppArmor = `
