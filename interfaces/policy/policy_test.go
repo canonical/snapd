@@ -2481,3 +2481,364 @@ func (s *policySuite) TestNameConstraintsAutoConnection(c *C) {
 	}
 
 }
+
+// Test miscellaneous store patterns when base declaration has
+// 'allow-installation: false' and we grant based on interface attributes
+// such as with personal-files, system-files, etc.
+//
+// While this is also tested elsewhere, combining this into a single test
+// makes it easy to verify correctness of a related set of patterns
+//
+// Eg, if base decl has:
+//   slots:
+//     system-files:
+//       allow-installation:
+//         slot-snap-type:
+//           - core
+//   plugs:
+//     system-files:
+//       allow-installation: false
+//
+// then test snap decls of the form:
+//   plugs:
+//     system-files:
+//       allow-installation:
+//         write: ...
+// or:
+//   plugs:
+//     system-files:
+//       -
+//         allow-installation:
+//           write: ...
+// or:
+//   plugs:
+//     system-files:
+//       -
+//         allow-installation:
+//           write: ...
+//       -
+//         allow-installation:
+//           write: ...
+func (s *policySuite) TestSnapDeclListAttribWithBaseAllowInstallationFalse(c *C) {
+	baseDeclStr := `type: base-declaration
+authority-id: canonical
+series: 16
+slots:
+  base-allow-install-false:
+    allow-installation:
+      slot-snap-type:
+        - core
+plugs:
+  base-allow-install-false:
+    allow-installation: false
+timestamp: 2016-09-30T12:00:00Z
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw==`
+	a, err := asserts.Decode([]byte(baseDeclStr))
+	c.Assert(err, IsNil)
+	baseDecl := a.(*asserts.BaseDeclaration)
+
+	tests := []struct {
+		installYaml        string
+		snapDeclPlugsSlots string
+		expected           string // "" => no error
+	}{
+		// expected match
+		{`name: install-snap
+version: 0
+plugs:
+  p1:
+    interface: base-allow-install-false
+    write:
+    - /path1
+`, `plugs:
+  base-allow-install-false:
+    allow-installation:
+      plug-attributes:
+        write: /path1
+`, ``},
+		{`name: install-snap
+version: 0
+plugs:
+  p1:
+    interface: base-allow-install-false
+    write:
+    - /path1
+`, `plugs:
+  base-allow-install-false:
+    allow-installation:
+      plug-attributes:
+        write: /path1a?
+`, ``},
+		{`name: install-snap
+version: 0
+plugs:
+  p1:
+    interface: base-allow-install-false
+    write:
+    - /path1a
+`, `plugs:
+  base-allow-install-false:
+    allow-installation:
+      plug-attributes:
+        write: /path1a?
+`, ``},
+		{`name: install-snap
+version: 0
+plugs:
+  p1:
+    interface: base-allow-install-false
+    write:
+    - /path1
+    - /path1a
+`, `plugs:
+  base-allow-install-false:
+    allow-installation:
+      plug-attributes:
+        write: /path1a?
+`, ``},
+
+		// expected match single alternation
+		{`name: install-snap
+version: 0
+plugs:
+  p1:
+    interface: base-allow-install-false
+    write:
+    - /path1
+`, `plugs:
+  base-allow-install-false:
+    allow-installation:
+      -
+        plug-attributes:
+          write: /path1
+`, ``},
+		{`name: install-snap
+version: 0
+plugs:
+  p1:
+    interface: base-allow-install-false
+    write:
+    - /path1
+`, `plugs:
+  base-allow-install-false:
+    allow-installation:
+      -
+        plug-attributes:
+          write: /path1a?
+`, ``},
+		{`name: install-snap
+version: 0
+plugs:
+  p1:
+    interface: base-allow-install-false
+    write:
+    - /path1a
+`, `plugs:
+  base-allow-install-false:
+    allow-installation:
+      -
+        plug-attributes:
+          write: /path1a?
+`, ``},
+
+		{`name: install-snap
+version: 0
+plugs:
+  p1:
+    interface: base-allow-install-false
+    write:
+    - /path1
+    - /path1a
+`, `plugs:
+  base-allow-install-false:
+    allow-installation:
+      -
+        plug-attributes:
+          write: /path1a?
+`, ``},
+		// expected match two
+		{`name: install-snap
+version: 0
+plugs:
+  p1:
+    interface: base-allow-install-false
+    write:
+    - /path1
+  p2:
+    interface: base-allow-install-false
+    write:
+    - /path1a
+`, `plugs:
+  base-allow-install-false:
+    allow-installation:
+      plug-attributes:
+        write: /path1a?
+`, ``},
+		{`name: install-snap
+version: 0
+plugs:
+  p1:
+    interface: base-allow-install-false
+    write:
+    - /path1
+  p2:
+    interface: base-allow-install-false
+    write:
+    - /path1a
+`, `plugs:
+  base-allow-install-false:
+    allow-installation:
+      -
+        plug-attributes:
+          write: /path1a?
+`, ``},
+		{`name: install-snap
+version: 0
+plugs:
+  p1:
+    interface: base-allow-install-false
+    write:
+    - /path1
+  p2:
+    interface: base-allow-install-false
+    write:
+    - /path1a
+`, `plugs:
+  base-allow-install-false:
+    allow-installation:
+      -
+        plug-attributes:
+          write: /path1
+      -
+        plug-attributes:
+          write: /path1a
+`, ``},
+		// expected no match
+		{`name: install-snap
+version: 0
+plugs:
+  p1:
+    interface: base-allow-install-false
+    write:
+    - /path1
+    - /path1a
+`, `plugs:
+  base-allow-install-false:
+    allow-installation:
+      plug-attributes:
+        write: /path1
+`, `installation not allowed by "p1" plug rule of interface "base-allow-install-false" for "install-snap" snap`},
+		{`name: install-snap
+version: 0
+plugs:
+  p1:
+    interface: base-allow-install-false
+    write:
+    - /path1
+    - /path1a
+`, `plugs:
+  base-allow-install-false:
+    allow-installation:
+      -
+        plug-attributes:
+          write: /path1
+`, `installation not allowed by "p1" plug rule of interface "base-allow-install-false" for "install-snap" snap`},
+		{`name: install-snap
+version: 0
+plugs:
+  p1:
+    interface: base-allow-install-false
+    write:
+    - /path1
+  p2:
+    interface: base-allow-install-false
+    write:
+    - /path1nomatch
+`, `plugs:
+  base-allow-install-false:
+    allow-installation:
+      -
+        plug-attributes:
+          write: /path1a?
+`, `installation not allowed by "p2" plug rule of interface "base-allow-install-false" for "install-snap" snap`},
+		{`name: install-snap
+version: 0
+plugs:
+  p1:
+    interface: base-allow-install-false
+    write:
+    - /path1
+  p2:
+    interface: base-allow-install-false
+    write:
+    - /path1nomatch
+`, `plugs:
+  base-allow-install-false:
+    allow-installation:
+      -
+        plug-attributes:
+          write: /path1
+      -
+        plug-attributes:
+          write: /path1a
+`, `installation not allowed by "p2" plug rule of interface "base-allow-install-false" for "install-snap" snap`},
+		{`name: install-snap
+version: 0
+plugs:
+  p1:
+    interface: base-allow-install-false
+`, `plugs:
+  base-allow-install-false:
+    allow-installation:
+      plug-attributes:
+        write: /path1
+`, `installation not allowed by "p1" plug rule of interface "base-allow-install-false" for "install-snap" snap`},
+		{`name: install-snap
+version: 0
+plugs:
+  p1:
+    interface: base-allow-install-false
+    write: /path2
+`, `plugs:
+  base-allow-install-false:
+    allow-installation:
+      plug-attributes:
+        read: /path1
+        write: /path2
+`, `installation not allowed by "p1" plug rule of interface "base-allow-install-false" for "install-snap" snap`},
+	}
+
+	for _, t := range tests {
+		installSnap := snaptest.MockInfo(c, t.installYaml, nil)
+
+		snapDeclStr := strings.Replace(`type: snap-declaration
+authority-id: canonical
+series: 16
+snap-name: install-snap
+snap-id: installsnap6idididididididididid
+publisher-id: publisher
+@plugsSlots@
+timestamp: 2016-09-30T12:00:00Z
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw==`, "@plugsSlots@", strings.TrimSpace(t.snapDeclPlugsSlots), 1)
+		b, err := asserts.Decode([]byte(snapDeclStr))
+		c.Assert(err, IsNil)
+		snapDecl := b.(*asserts.SnapDeclaration)
+
+		cand := policy.InstallCandidate{
+			Snap:            installSnap,
+			SnapDeclaration: snapDecl,
+			BaseDeclaration: baseDecl,
+		}
+
+		err = cand.Check()
+		if t.expected == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, t.expected)
+		}
+	}
+}
