@@ -87,12 +87,14 @@ func (d *dialTLS) dialTLS(network, addr string) (net.Conn, error) {
 		var emptyConfig tls.Config
 		d.conf = &emptyConfig
 	}
+
 	// ensure we never using anything lower then tls v1.2, see
 	// https://github.com/snapcore/snapd/pull/8100/files#r384046667
 	if d.conf.MinVersion < tls.VersionTLS12 {
 		d.conf.MinVersion = tls.VersionTLS12
 	}
 
+	// add extraSSLCerts if needed
 	certs, err := d.addLocalSSLCertificates()
 	if err != nil {
 		logger.Noticef("cannot add local ssl certificates: %v", err)
@@ -100,12 +102,19 @@ func (d *dialTLS) dialTLS(network, addr string) (net.Conn, error) {
 	if certs != nil {
 		d.conf.RootCAs = certs
 	}
+
 	return tls.Dial(network, addr, d.conf)
 }
 
 // addLocalSSLCertificates() is an internal helper that is called by
 // dialTLS to add an extra certificates.
 func (d *dialTLS) addLocalSSLCertificates() (allCAs *x509.CertPool, err error) {
+	if d.extraSSLCerts == nil {
+		// nothing to add
+		return nil, nil
+	}
+
+	// start with all our current certs
 	if d.conf.RootCAs != nil {
 		allCAs = d.conf.RootCAs
 	} else {
@@ -117,6 +126,7 @@ func (d *dialTLS) addLocalSSLCertificates() (allCAs *x509.CertPool, err error) {
 	if allCAs == nil {
 		return nil, fmt.Errorf("cannot use empty certificate pool")
 	}
+	// and now add new ones
 	extraCerts, err := d.extraSSLCerts.Certs()
 	if err != nil {
 		return nil, err
@@ -154,15 +164,11 @@ func NewHTTPClient(opts *ClientOptions) *http.Client {
 	// Note that we only set TLSClientConfig here because it's extracted
 	// by the cmd/snap-repair/runner_test.go
 	transport.TLSClientConfig = opts.TLSConfig
-
-	// if the caller provides a certs interface, support it
-	if opts.ExtraSSLCerts != nil {
-		dialTLS := &dialTLS{
-			conf:          opts.TLSConfig,
-			extraSSLCerts: opts.ExtraSSLCerts,
-		}
-		transport.DialTLS = dialTLS.dialTLS
+	dialTLS := &dialTLS{
+		conf:          opts.TLSConfig,
+		extraSSLCerts: opts.ExtraSSLCerts,
 	}
+	transport.DialTLS = dialTLS.dialTLS
 
 	return &http.Client{
 		Transport: &LoggedTransport{
