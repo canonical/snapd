@@ -33,19 +33,27 @@ import (
 	"github.com/snapcore/snapd/logger"
 )
 
+// CertData contains the raw data of a certificate and the origin of
+// the cert, this is usually a file path on disk and is just used
+// for error reporting.
 type CertData struct {
 	Raw    []byte
 	Origin string
 }
 
+// ExtraSSLCerts is an interface that provides a way to add extra
+// SSL certificates to the httputil.Client
 type ExtraSSLCerts interface {
 	Certs() ([]*CertData, error)
 }
 
+// ExtraSSLCertsFromDir implements ExtraSSLCerts and provides all the
+// pem encoded certs from the given directory.
 type ExtraSSLCertsFromDir struct {
 	Dir string
 }
 
+// Certs returns a slice CertData or an error.
 func (e *ExtraSSLCertsFromDir) Certs() ([]*CertData, error) {
 	extraCertFiles, err := filepath.Glob(filepath.Join(e.Dir, "*.pem"))
 	if err != nil {
@@ -95,6 +103,8 @@ func (d *dialTLS) dialTLS(network, addr string) (net.Conn, error) {
 	return tls.Dial(network, addr, d.conf)
 }
 
+// addLocalSSLCertificates() is an internal helper that is called by
+// dialTLS to add an extra certificates.
 func (d *dialTLS) addLocalSSLCertificates() (allCAs *x509.CertPool, err error) {
 	if d.conf.RootCAs != nil {
 		allCAs = d.conf.RootCAs
