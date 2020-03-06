@@ -194,7 +194,9 @@ func (s *tlsSuite) TestClientExtraSSLCertInvalidCertWarnsAndRefuses(c *check.C) 
 	c.Assert(err, check.IsNil)
 
 	cli := httputil.NewHTTPClient(&httputil.ClientOptions{
-		ExtraSSLCerts: &httputil.ExtraSSLCertsFromDir{},
+		ExtraSSLCerts: &httputil.ExtraSSLCertsFromDir{
+			dirs.SnapdExtraSSLCertsDir,
+		},
 	})
 	c.Assert(cli, check.NotNil)
 
@@ -207,7 +209,9 @@ func (s *tlsSuite) TestClientExtraSSLCertInvalidCertWarnsAndRefuses(c *check.C) 
 func (s *tlsSuite) TestClientExtraSSLCertIntegration(c *check.C) {
 	// create a client that will load our cert
 	cli := httputil.NewHTTPClient(&httputil.ClientOptions{
-		ExtraSSLCerts: &httputil.ExtraSSLCertsFromDir{},
+		ExtraSSLCerts: &httputil.ExtraSSLCertsFromDir{
+			dirs.SnapdExtraSSLCertsDir,
+		},
 	})
 	c.Assert(cli, check.NotNil)
 	c.Assert(s.logbuf.String(), check.Equals, "")

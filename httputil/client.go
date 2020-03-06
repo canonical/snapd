@@ -30,7 +30,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 )
 
@@ -43,10 +42,12 @@ type ExtraSSLCerts interface {
 	Certs() ([]*CertData, error)
 }
 
-type ExtraSSLCertsFromDir struct{}
+type ExtraSSLCertsFromDir struct {
+	Dir string
+}
 
 func (e *ExtraSSLCertsFromDir) Certs() ([]*CertData, error) {
-	extraCertFiles, err := filepath.Glob(filepath.Join(dirs.SnapdExtraSSLCertsDir, "*.pem"))
+	extraCertFiles, err := filepath.Glob(filepath.Join(e.Dir, "*.pem"))
 	if err != nil {
 		return nil, err
 	}

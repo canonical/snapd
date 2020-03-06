@@ -286,6 +286,7 @@ func NewRunner() *Runner {
 		TLSConfig: &tls.Config{
 			Time: run.now,
 		},
+		ExtraSSLCerts: &httputil.ExtraSSLCertsFromDir{dirs.SnapdExtraSSLCertsDir},
 	}
 	run.cli = httputil.NewHTTPClient(&opts)
 	return run

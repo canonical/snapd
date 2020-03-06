@@ -374,9 +374,10 @@ func New(cfg *Config, dauthCtx DeviceAndAuthContext) *Store {
 		proxy:           cfg.Proxy,
 
 		client: httputil.NewHTTPClient(&httputil.ClientOptions{
-			Timeout:    10 * time.Second,
-			MayLogBody: true,
-			Proxy:      cfg.Proxy,
+			Timeout:       10 * time.Second,
+			MayLogBody:    true,
+			Proxy:         cfg.Proxy,
+			ExtraSSLCerts: &httputil.ExtraSSLCertsFromDir{dirs.SnapdExtraSSLCertsDir},
 		}),
 	}
 	store.SetCacheDownloads(cfg.CacheDownloads)
@@ -1293,9 +1294,10 @@ func (s *Store) WriteCatalogs(ctx context.Context, names io.Writer, adder SnapAd
 
 	// do not log body for catalog updates (its huge)
 	client := httputil.NewHTTPClient(&httputil.ClientOptions{
-		MayLogBody: false,
-		Timeout:    10 * time.Second,
-		Proxy:      s.proxy,
+		MayLogBody:    false,
+		Timeout:       10 * time.Second,
+		Proxy:         s.proxy,
+		ExtraSSLCerts: &httputil.ExtraSSLCertsFromDir{dirs.SnapdExtraSSLCertsDir},
 	})
 	doRequest := func() (*http.Response, error) {
 		return s.doRequest(ctx, client, reqOptions, nil)
@@ -1523,7 +1525,11 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 			return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
 		}
 		var resp *http.Response
-		resp, finalErr = s.doRequest(ctx, httputil.NewHTTPClient(&httputil.ClientOptions{Proxy: s.proxy}), reqOptions, user)
+		cli := httputil.NewHTTPClient(&httputil.ClientOptions{
+			Proxy:         s.proxy,
+			ExtraSSLCerts: &httputil.ExtraSSLCertsFromDir{dirs.SnapdExtraSSLCertsDir},
+		})
+		resp, finalErr = s.doRequest(ctx, cli, reqOptions, user)
 
 		if cancelled(ctx) {
 			return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
@@ -1665,7 +1671,11 @@ func doDownloadReqImpl(ctx context.Context, storeURL *url.URL, cdnHeader string,
 	if resume > 0 {
 		reqOptions.ExtraHeaders["Range"] = fmt.Sprintf("bytes=%d-", resume)
 	}
-	return s.doRequest(ctx, httputil.NewHTTPClient(&httputil.ClientOptions{Proxy: s.proxy}), reqOptions, user)
+	cli := httputil.NewHTTPClient(&httputil.ClientOptions{
+		Proxy:         s.proxy,
+		ExtraSSLCerts: &httputil.ExtraSSLCertsFromDir{dirs.SnapdExtraSSLCertsDir},
+	})
+	return s.doRequest(ctx, cli, reqOptions, user)
 }
 
 // downloadDelta downloads the delta for the preferred format, returning the path.
