@@ -46,8 +46,10 @@ type MockBootloader struct {
 	InstallBootConfigErr    error
 }
 
-// ensure MockBootloader implements the Bootloader interface
+// ensure MockBootloader(s) implement the Bootloader interfaceces
 var _ bootloader.Bootloader = (*MockBootloader)(nil)
+var _ bootloader.ExtractedRunKernelImageBootloader = (*MockExtractedRunKernelImageBootloader)(nil)
+var _ bootloader.RecoveryAwareBootloader = (*MockRecoveryAwareBootloader)(nil)
 
 func Mock(name, bootdir string) *MockBootloader {
 	return &MockBootloader{
@@ -234,16 +236,16 @@ func (b *MockExtractedRunKernelImageBootloader) Kernel() (snap.PlaceInfo, error)
 
 // TryKernel returns the current kernel set in the bootloader; part of
 // ExtractedRunKernelImageBootloader.
-func (b *MockExtractedRunKernelImageBootloader) TryKernel() (snap.PlaceInfo, bool, error) {
+func (b *MockExtractedRunKernelImageBootloader) TryKernel() (snap.PlaceInfo, error) {
 	b.runKernelImageMockedNumCalls["TryKernel"]++
 	err := b.runKernelImageMockedErrs["TryKernel"]
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 	if b.runKernelImageEnabledTryKernel == nil {
-		return nil, false, nil
+		return nil, bootloader.ErrNoTryKernelRef
 	}
-	return b.runKernelImageEnabledTryKernel, true, nil
+	return b.runKernelImageEnabledTryKernel, nil
 }
 
 // DisableTryKernel removes the current try-kernel "symlink" set in the
