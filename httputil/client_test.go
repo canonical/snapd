@@ -177,11 +177,23 @@ func (s *tlsSuite) SetUpTest(c *check.C) {
 	s.AddCleanup(restore)
 }
 
-func (s *tlsSuite) TestClientNoExtraSSLRefuses(c *check.C) {
-	// clear rootdir, no extra certs now
-	dirs.SetRootDir(c.MkDir())
-
+func (s *tlsSuite) TestClientNoExtraSSLCertsByDefault(c *check.C) {
+	// no extra ssl certs by default
 	cli := httputil.NewHTTPClient(nil)
+	c.Assert(cli, check.NotNil)
+	c.Assert(s.logbuf.String(), check.Equals, "")
+
+	_, err := cli.Get(s.srv.URL)
+	c.Assert(err, check.ErrorMatches, ".* certificate signed by unknown authority")
+}
+
+func (s *tlsSuite) TestClientEmptyExtraSSLCertsDirWorks(c *check.C) {
+	cli := httputil.NewHTTPClient(&httputil.ClientOptions{
+		ExtraSSLCerts: &httputil.ExtraSSLCertsFromDir{
+			// empty extra ssl certs dir
+			c.MkDir(),
+		},
+	})
 	c.Assert(cli, check.NotNil)
 	c.Assert(s.logbuf.String(), check.Equals, "")
 
