@@ -79,6 +79,12 @@ func (d *dialTLS) dialTLS(network, addr string) (net.Conn, error) {
 		var emptyConfig tls.Config
 		d.conf = &emptyConfig
 	}
+	// ensure we never using anything lower then tls v1.2, see
+	// https://github.com/snapcore/snapd/pull/8100/files#r384046667
+	if d.conf.MinVersion < tls.VersionTLS12 {
+		d.conf.MinVersion = tls.VersionTLS12
+	}
+
 	certs, err := d.addLocalSSLCertificates()
 	if err != nil {
 		logger.Noticef("cannot add local ssl certificates: %v", err)
@@ -90,7 +96,7 @@ func (d *dialTLS) dialTLS(network, addr string) (net.Conn, error) {
 }
 
 func (d *dialTLS) addLocalSSLCertificates() (allCAs *x509.CertPool, err error) {
-	if d.conf != nil && d.conf.RootCAs != nil {
+	if d.conf.RootCAs != nil {
 		allCAs = d.conf.RootCAs
 	} else {
 		allCAs, err = x509.SystemCertPool()
