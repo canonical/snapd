@@ -181,7 +181,6 @@ func (s *tlsSuite) TestClientNoExtraSSLRefuses(c *check.C) {
 	// clear rootdir, no extra certs now
 	dirs.SetRootDir(c.MkDir())
 
-	// create a client, it should pick up our test cert
 	cli := httputil.NewHTTPClient(nil)
 	c.Assert(cli, check.NotNil)
 	c.Assert(s.logbuf.String(), check.Equals, "")
@@ -194,7 +193,9 @@ func (s *tlsSuite) TestClientExtraSSLCertInvalidCertWarnsAndRefuses(c *check.C) 
 	err := ioutil.WriteFile(filepath.Join(dirs.SnapdExtraSSLCertsDir, "garbage.pem"), []byte("garbage"), 0644)
 	c.Assert(err, check.IsNil)
 
-	cli := httputil.NewHTTPClient(nil)
+	cli := httputil.NewHTTPClient(&httputil.ClientOptions{
+		ExtraSSLCerts: &httputil.ExtraSSLCertsFromDir{},
+	})
 	c.Assert(cli, check.NotNil)
 
 	_, err = cli.Get(s.srv.URL)
@@ -205,7 +206,9 @@ func (s *tlsSuite) TestClientExtraSSLCertInvalidCertWarnsAndRefuses(c *check.C) 
 
 func (s *tlsSuite) TestClientExtraSSLCertIntegration(c *check.C) {
 	// create a client that will load our cert
-	cli := httputil.NewHTTPClient(nil)
+	cli := httputil.NewHTTPClient(&httputil.ClientOptions{
+		ExtraSSLCerts: &httputil.ExtraSSLCertsFromDir{},
+	})
 	c.Assert(cli, check.NotNil)
 	c.Assert(s.logbuf.String(), check.Equals, "")
 	res, err := cli.Get(s.srv.URL)

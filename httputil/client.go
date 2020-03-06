@@ -34,46 +34,41 @@ import (
 	"github.com/snapcore/snapd/logger"
 )
 
-type ClientOptions struct {
-	Timeout    time.Duration
-	TLSConfig  *tls.Config
-	MayLogBody bool
-	Proxy      func(*http.Request) (*url.URL, error)
+type CertData struct {
+	Raw    []byte
+	Origin string
 }
 
-func addLocalSSLCertificates(conf *tls.Config) (allCAs *x509.CertPool, err error) {
-	if conf != nil && conf.RootCAs != nil {
-		allCAs = conf.RootCAs
-	} else {
-		allCAs, err = x509.SystemCertPool()
-		if err != nil {
-			return nil, fmt.Errorf("cannot read system certificates: %v", err)
-		}
-	}
-	if allCAs == nil {
-		return nil, fmt.Errorf("cannot use empty certificate pool")
-	}
+type ExtraSSLCerts interface {
+	Certs() ([]*CertData, error)
+}
+
+type ExtraSSLCertsFromDir struct{}
+
+func (e *ExtraSSLCertsFromDir) Certs() ([]*CertData, error) {
 	extraCertFiles, err := filepath.Glob(filepath.Join(dirs.SnapdExtraSSLCertsDir, "*.pem"))
 	if err != nil {
 		return nil, err
 	}
+	extraCerts := make([]*CertData, 0, len(extraCertFiles))
 	for _, p := range extraCertFiles {
-		// XXX: cache these reads?
-		extraCert, err := ioutil.ReadFile(p)
+		cert, err := ioutil.ReadFile(p)
 		if err != nil {
 			return nil, fmt.Errorf("cannot read extra certificate: %v", err)
 		}
-		if ok := allCAs.AppendCertsFromPEM(extraCert); !ok {
-			logger.Noticef("cannot append store ssl certificate: %v", p)
-		}
+		extraCerts = append(extraCerts, &CertData{
+			Raw:    cert,
+			Origin: p,
+		})
 	}
-	return allCAs, nil
+	return extraCerts, nil
 }
 
 // dialTLS holds a tls.Config that is used by the dialTLS.dialTLS()
 // function.
 type dialTLS struct {
-	conf *tls.Config
+	conf          *tls.Config
+	extraSSLCerts ExtraSSLCerts
 }
 
 // dialTLS will use it's tls.Config and use that to do a tls connection.
@@ -83,7 +78,7 @@ func (d *dialTLS) dialTLS(network, addr string) (net.Conn, error) {
 		var emptyConfig tls.Config
 		d.conf = &emptyConfig
 	}
-	certs, err := addLocalSSLCertificates(d.conf)
+	certs, err := d.addLocalSSLCertificates()
 	if err != nil {
 		logger.Noticef("cannot add local ssl certificates: %v", err)
 	}
@@ -91,6 +86,38 @@ func (d *dialTLS) dialTLS(network, addr string) (net.Conn, error) {
 		d.conf.RootCAs = certs
 	}
 	return tls.Dial(network, addr, d.conf)
+}
+
+func (d *dialTLS) addLocalSSLCertificates() (allCAs *x509.CertPool, err error) {
+	if d.conf != nil && d.conf.RootCAs != nil {
+		allCAs = d.conf.RootCAs
+	} else {
+		allCAs, err = x509.SystemCertPool()
+		if err != nil {
+			return nil, fmt.Errorf("cannot read system certificates: %v", err)
+		}
+	}
+	if allCAs == nil {
+		return nil, fmt.Errorf("cannot use empty certificate pool")
+	}
+	extraCerts, err := d.extraSSLCerts.Certs()
+	if err != nil {
+		return nil, err
+	}
+	for _, cert := range extraCerts {
+		if ok := allCAs.AppendCertsFromPEM(cert.Raw); !ok {
+			logger.Noticef("cannot append store ssl certificate: %v", cert.Origin)
+		}
+	}
+	return allCAs, nil
+}
+
+type ClientOptions struct {
+	Timeout       time.Duration
+	TLSConfig     *tls.Config
+	MayLogBody    bool
+	Proxy         func(*http.Request) (*url.URL, error)
+	ExtraSSLCerts ExtraSSLCerts
 }
 
 // NewHTTPCLient returns a new http.Client with a LoggedTransport, a
@@ -101,16 +128,24 @@ func NewHTTPClient(opts *ClientOptions) *http.Client {
 	}
 
 	transport := newDefaultTransport()
+	if opts.Proxy != nil {
+		transport.Proxy = opts.Proxy
+	}
+	transport.ProxyConnectHeader = http.Header{"User-Agent": []string{UserAgent()}}
 	// Remember the original ClientOptions.TLSConfig when making
 	// tls connection.
 	// Note that we only set TLSClientConfig here because it's extracted
 	// by the cmd/snap-repair/runner_test.go
 	transport.TLSClientConfig = opts.TLSConfig
-	transport.DialTLS = (&dialTLS{opts.TLSConfig}).dialTLS
-	if opts.Proxy != nil {
-		transport.Proxy = opts.Proxy
+
+	// if the caller provides a certs interface, support it
+	if opts.ExtraSSLCerts != nil {
+		dialTLS := &dialTLS{
+			conf:          opts.TLSConfig,
+			extraSSLCerts: opts.ExtraSSLCerts,
+		}
+		transport.DialTLS = dialTLS.dialTLS
 	}
-	transport.ProxyConnectHeader = http.Header{"User-Agent": []string{UserAgent()}}
 
 	return &http.Client{
 		Transport: &LoggedTransport{
