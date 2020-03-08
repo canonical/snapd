@@ -161,13 +161,28 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet)
 		return err
 	}
 
-	// TODO:UC20: extract kernel for e.g. ARM
-
 	// now install the recovery system specific boot config
 	bl, err := bootloader.Find(rootdir, opts)
 	if err != nil {
 		return fmt.Errorf("internal error: cannot find bootloader: %v", err)
 	}
+
+	// on e.g. ARM we need to extract the kernel assets on the recovery system
+	// as well
+	ekrbl, ok := bl.(bootloader.ExtractedRecoveryKernelImageBootloader)
+	if ok {
+		kernelf, err := snap.Open(bootWith.KernelPath)
+		if err != nil {
+			return err
+		}
+
+		return ekrbl.ExtractRecoveryKernelAssets(
+			bootWith.RecoverySystemDir,
+			bootWith.Kernel,
+			kernelf,
+		)
+	}
+
 	rbl, ok := bl.(bootloader.RecoveryAwareBootloader)
 	if !ok {
 		return fmt.Errorf("cannot use %s bootloader: does not support recovery systems", bl.Name())
