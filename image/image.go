@@ -369,7 +369,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 	}
 
 	if opts.Classic {
-		// TODO: consider Core 20 extended models vs classic
+		// TODO:UC20: consider Core 20 extended models vs classic
 		seedFn := filepath.Join(seedDir, "seed.yaml")
 		// warn about ownership if not root:root
 		fi, err := os.Stat(seedFn)
