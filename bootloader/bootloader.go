@@ -90,6 +90,11 @@ type installableBootloader interface {
 	setRootDir(string)
 }
 
+type ExtractedRecoveryKernelImageBootloader interface {
+	Bootloader
+	ExtractRecoveryKernelAssets(recoverySystemDir string, s snap.PlaceInfo, snapf snap.Container) error
+}
+
 type RecoveryAwareBootloader interface {
 	Bootloader
 	SetRecoverySystemEnv(recoverySystemDir string, values map[string]string) error
