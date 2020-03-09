@@ -1705,13 +1705,10 @@ func (s *Store) downloadDelta(deltaName string, downloadInfo *snap.DownloadInfo,
 }
 
 func getXdelta3Cmd(args ...string) (*exec.Cmd, error) {
-	switch {
-	case osutil.ExecutableExists("xdelta3"):
+	if osutil.ExecutableExists("xdelta3") {
 		return exec.Command("xdelta3", args...), nil
-	case osutil.FileExists(filepath.Join(dirs.SnapMountDir, "/core/current/usr/bin/xdelta3")):
-		return cmdutil.CommandFromSystemSnap("/usr/bin/xdelta3", args...)
 	}
-	return nil, fmt.Errorf("cannot find xdelta3 binary in PATH or core snap")
+	return cmdutil.CommandFromSystemSnap("/usr/bin/xdelta3", args...)
 }
 
 // applyDelta generates a target snap from a previously downloaded snap and a downloaded delta.

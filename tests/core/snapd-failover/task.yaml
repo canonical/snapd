@@ -1,16 +1,18 @@
 summary: Check that snapd failure handling works
 
-# TODO:UC20: enable for UC20, currently snapd.failure.service does not work on
-#            UC20, it currently isn't activated for some reason
 # UC16 still uses the core snap rather than the snapd snap, so disable this test
 # for UC16
-systems: [-ubuntu-core-20-*, -ubuntu-core-16-*]
+systems: [-ubuntu-core-16-*]
 
 debug: |
     # dump failure data
     journalctl -u snapd.failure.service
     journalctl -u snapd.socket || true
     ls -l /snap/snapd/
+    cat /etc/systemd/system/snapd.service
+    cat /etc/systemd/system/usr-lib-snapd.mount
+    /snap/snapd/x1/usr/bin/snap debug state /var/lib/snapd/state.json || true
+    /snap/snapd/x1/usr/bin/snap debug state --change="$(/snap/snapd/x1/usr/bin/snap debug state /var/lib/snapd/state.json|tail -n1|awk '{print $1}')" /var/lib/snapd/state.json || true
 
 prepare: |
     cp -a /etc/systemd/system/snapd.service.d/local.conf local.conf.bak

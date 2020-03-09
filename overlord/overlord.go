@@ -402,17 +402,33 @@ func (o *Overlord) requestRestart(t state.RestartType) {
 	}
 }
 
+var preseedExitWithError = func(err error) {
+	fmt.Fprintf(os.Stderr, "cannot preseed: %v\n", err)
+	os.Exit(1)
+}
+
 // Loop runs a loop in a goroutine to ensure the current state regularly through StateEngine Ensure.
 func (o *Overlord) Loop() {
 	o.ensureTimerSetup()
 	preseed := release.PreseedMode()
+	if preseed {
+		o.runner.OnTaskError(preseedExitWithError)
+	}
 	o.loopTomb.Go(func() error {
 		for {
 			// TODO: pass a proper context into Ensure
 			o.ensureTimerReset()
 			// in case of errors engine logs them,
 			// continue to the next Ensure() try for now
-			o.stateEng.Ensure()
+			err := o.stateEng.Ensure()
+			if err != nil && preseed {
+				st := o.State()
+				// acquire state lock to ensure nothing attempts to write state
+				// as we are exiting; there is no deferred unlock to avoid
+				// potential race on exit.
+				st.Lock()
+				preseedExitWithError(err)
+			}
 			o.ensureDidRun()
 			select {
 			case <-o.loopTomb.Dying():
