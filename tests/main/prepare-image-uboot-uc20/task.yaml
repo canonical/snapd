@@ -1,0 +1,92 @@
+summary: Check that prepare-image works for uc20 uboot systems
+
+# running this on one machine is enough
+systems: [ubuntu-18.04-64]
+
+environment:
+    ROOT: /home/test/tmp/
+    IMAGE: /home/test/tmp/image
+    GADGET: /home/test/tmp/gadget
+    STORE_DIR: $(pwd)/fake-store-blobdir
+    STORE_ADDR: localhost:11028
+    
+prepare: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
+    #shellcheck source=tests/lib/store.sh
+    . "$TESTSLIB"/store.sh
+    setup_fake_store "$STORE_DIR"
+
+restore: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
+    #shellcheck source=tests/lib/store.sh
+    . "$TESTSLIB"/store.sh
+    teardown_fake_store "$STORE_DIR"
+    rm -rf "$ROOT"
+
+execute: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+    if [ "$REMOTE_STORE" = "staging" ]; then
+        echo "SKIP: cannot run with staging store yet"
+        exit 0
+    fi
+
+    echo Expose the needed assertions through the fakestore
+    cp "$TESTSLIB"/assertions/developer1.account "$STORE_DIR/asserts"
+    cp "$TESTSLIB"/assertions/developer1.account-key "$STORE_DIR/asserts"
+    # have snap use the fakestore for assertions (but nothing else)
+    export SNAPPY_FORCE_SAS_URL=http://$STORE_ADDR
+
+    echo Creating model assertion
+    cat > "$ROOT/model.assertion" <<EOF
+    type: model
+    series: 16
+    authority-id: my-brand
+    brand-id: my-brand
+    model: my-model
+    architecture: armhf
+    base: core20
+    grade: dangerous
+    snaps:
+      -
+        default-channel: 20/stable
+        id: YbGa9O3dAXl88YLI6Y1bGG74pwBxZyKg
+        name: pi
+        type: gadget
+      -
+        default-channel: 20/stable
+        id: jeIuP6tfFrvAdic8DMWqHmoaoukAPNbJ
+        name: pi-kernel
+        type: kernel
+      -
+        default-channel: latest/stable
+        id: DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q
+        name: core20
+        type: base
+      -
+        default-channel: latest/stable
+        id: PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4
+        name: snapd
+        type: snapd
+    timestamp: 2020-03-09T10:00:00+01:00
+    sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+    AXNpZw==
+    EOF
+
+    echo Running prepare-image as a user
+    su -c "SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE snap prepare-image --channel edge --extra-snaps test-snapd-tools $ROOT/model.assertion $ROOT" test
+
+    echo Verifying the result
+    ls -lR "$IMAGE"
+    # TODO:UC20: add a bunch of checks like for the unpacked kernel
