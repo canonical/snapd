@@ -1,3 +1,26 @@
+snapd (2.44~pre2) xenial; urgency=medium
+
+  * New upstream release, LP: #1864808
+    - overlord: disable Test..AbortShortlyAfterStartOfOperation for 2.44
+    - ovelord/snapstate: update only system wide fonts cache
+    - wrappers: import /etc/environment in all services
+    - interfaces/u2f: Add Titan USB-C key
+    - overlord, taskrunner: exit on task/ensure error when preseeding
+    - overlord/snapstate/backend: update snapd services contents in unit
+      tests
+    - wrappers: add mount unit dependency for snapd services on core
+      devices
+    - Revert "tests: remove /tmp/snap.* left over by other tests"
+    - Revert "packaging: work around review-tools and snap-confine"
+    - netlink: fix panic on arm64 with the new rawsockstop code
+    - spread, data/selinux: add CentOS 8, update policy
+    - spread.yaml: mv opensuse tumbleweed to unstable too
+    - spread.yaml: mv opensuse 15.1 to unstable
+    - tests: use ipv4 in retry-network to unblock failing master
+    - data/systemd: improve the description
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 09 Mar 2020 15:37:52 +0100
+
 snapd (2.44~pre1) xenial; urgency=medium
 
   * New upstream release, LP: #1864808
