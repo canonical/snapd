@@ -464,6 +464,17 @@ var defaultTemplate = `
   # from the snap base runtime.
   /usr/share/dbus-1/services/{,*} r,
   /usr/share/dbus-1/system-services/{,*} r,
+  # Allow apps to perform DBus introspection on org.freedesktop.DBus for both
+  # the system and session buses.
+  # Note: this does not grant access to the DBus sockets of these buses, but
+  # we grant it here since it is missing from the dbus abstractions
+  # (LP: #1866168)
+  dbus (send)
+      bus={session,system}
+      path=/org/freedesktop/DBus
+      interface=org.freedesktop.DBus.Introspectable
+      member=Introspect
+      peer=(label=unconfined),
 
   # Allow apps from the same package to signal each other via signals
   signal peer=snap.@{SNAP_INSTANCE_NAME}.*,
