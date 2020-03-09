@@ -643,6 +643,11 @@ func (ovs *overlordSuite) TestOverlordStartUpSetsStartOfOperation(c *C) {
 }
 
 func (ovs *overlordSuite) TestEnsureLoopPruneDoesntAbortShortlyAfterStartOfOperation(c *C) {
+	// TODO: This test fails due to races in the test mocks.
+	// There are two PRs for master (#8198 and #8201) that will
+	// fix it so once one is in merge it here and remove the skip
+	c.Skip("skipped until fixed properly in master")
+
 	restoreIntv := overlord.MockPruneInterval(100*time.Millisecond, 1000*time.Millisecond, 1*time.Hour)
 	defer restoreIntv()
 
@@ -692,6 +697,11 @@ func (ovs *overlordSuite) TestEnsureLoopPruneDoesntAbortShortlyAfterStartOfOpera
 }
 
 func (ovs *overlordSuite) TestEnsureLoopPruneAbortsOld(c *C) {
+	// TODO: This test fails due to races in the test mocks.
+	// There are two PRs for master (#8198 and #8201) that will
+	// fix it so once one is in merge it here and remove the skip
+	c.Skip("skipped until fixed properly in master")
+
 	restoreIntv := overlord.MockPruneInterval(100*time.Millisecond, 24*time.Hour, 1*time.Hour)
 	defer restoreIntv()
 
