@@ -374,10 +374,12 @@ func New(cfg *Config, dauthCtx DeviceAndAuthContext) *Store {
 		proxy:           cfg.Proxy,
 
 		client: httputil.NewHTTPClient(&httputil.ClientOptions{
-			Timeout:       10 * time.Second,
-			MayLogBody:    true,
-			Proxy:         cfg.Proxy,
-			ExtraSSLCerts: &httputil.ExtraSSLCertsFromDir{dirs.SnapdExtraSSLCertsDir},
+			Timeout:    10 * time.Second,
+			MayLogBody: true,
+			Proxy:      cfg.Proxy,
+			ExtraSSLCerts: &httputil.ExtraSSLCertsFromDir{
+				Dir: dirs.SnapdExtraSSLCertsDir,
+			},
 		}),
 	}
 	store.SetCacheDownloads(cfg.CacheDownloads)
@@ -1294,10 +1296,12 @@ func (s *Store) WriteCatalogs(ctx context.Context, names io.Writer, adder SnapAd
 
 	// do not log body for catalog updates (its huge)
 	client := httputil.NewHTTPClient(&httputil.ClientOptions{
-		MayLogBody:    false,
-		Timeout:       10 * time.Second,
-		Proxy:         s.proxy,
-		ExtraSSLCerts: &httputil.ExtraSSLCertsFromDir{dirs.SnapdExtraSSLCertsDir},
+		MayLogBody: false,
+		Timeout:    10 * time.Second,
+		Proxy:      s.proxy,
+		ExtraSSLCerts: &httputil.ExtraSSLCertsFromDir{
+			Dir: dirs.SnapdExtraSSLCertsDir,
+		},
 	})
 	doRequest := func() (*http.Response, error) {
 		return s.doRequest(ctx, client, reqOptions, nil)
@@ -1526,8 +1530,10 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 		}
 		var resp *http.Response
 		cli := httputil.NewHTTPClient(&httputil.ClientOptions{
-			Proxy:         s.proxy,
-			ExtraSSLCerts: &httputil.ExtraSSLCertsFromDir{dirs.SnapdExtraSSLCertsDir},
+			Proxy: s.proxy,
+			ExtraSSLCerts: &httputil.ExtraSSLCertsFromDir{
+				Dir: dirs.SnapdExtraSSLCertsDir,
+			},
 		})
 		resp, finalErr = s.doRequest(ctx, cli, reqOptions, user)
 
@@ -1672,8 +1678,10 @@ func doDownloadReqImpl(ctx context.Context, storeURL *url.URL, cdnHeader string,
 		reqOptions.ExtraHeaders["Range"] = fmt.Sprintf("bytes=%d-", resume)
 	}
 	cli := httputil.NewHTTPClient(&httputil.ClientOptions{
-		Proxy:         s.proxy,
-		ExtraSSLCerts: &httputil.ExtraSSLCertsFromDir{dirs.SnapdExtraSSLCertsDir},
+		Proxy: s.proxy,
+		ExtraSSLCerts: &httputil.ExtraSSLCertsFromDir{
+			Dir: dirs.SnapdExtraSSLCertsDir,
+		},
 	})
 	return s.doRequest(ctx, cli, reqOptions, user)
 }
