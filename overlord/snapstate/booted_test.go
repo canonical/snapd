@@ -29,6 +29,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
@@ -304,7 +305,7 @@ func (bs *bootedSuite) TestWaitRestartCore(c *C) {
 
 	// core snap, restarted, waiting for current core revision
 	state.MockRestarting(st, state.RestartUnset)
-	bs.bootloader.BootVars["snap_mode"] = "trying"
+	bs.bootloader.BootVars["snap_mode"] = boot.TryingStatus
 	err = snapstate.WaitRestart(task, snapsup)
 	c.Check(err, DeepEquals, &state.Retry{After: 5 * time.Second})
 
@@ -355,7 +356,7 @@ func (bs *bootedSuite) TestWaitRestartBootableBase(c *C) {
 
 	// core snap, restarted, waiting for current core revision
 	state.MockRestarting(st, state.RestartUnset)
-	bs.bootloader.BootVars["snap_mode"] = "trying"
+	bs.bootloader.BootVars["snap_mode"] = boot.TryingStatus
 	err = snapstate.WaitRestart(task, snapsup)
 	c.Check(err, DeepEquals, &state.Retry{After: 5 * time.Second})
 
@@ -407,7 +408,7 @@ func (bs *bootedSuite) TestWaitRestartKernel(c *C) {
 
 	// kernel snap, restarted, waiting for current core revision
 	state.MockRestarting(st, state.RestartUnset)
-	bs.bootloader.BootVars["snap_mode"] = "trying"
+	bs.bootloader.BootVars["snap_mode"] = boot.TryingStatus
 	err = snapstate.WaitRestart(task, snapsup)
 	c.Check(err, DeepEquals, &state.Retry{After: 5 * time.Second})
 
