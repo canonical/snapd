@@ -364,8 +364,12 @@ var defaultTemplate = `
   @{PROC}/sys/fs/file-max r,
   @{PROC}/sys/fs/inotify/max_* r,
   @{PROC}/sys/kernel/pid_max r,
-  @{PROC}/sys/kernel/random/uuid r,
   @{PROC}/sys/kernel/random/boot_id r,
+  @{PROC}/sys/kernel/random/uuid r,
+  # Allow access to the uuidd daemon (this daemon is a thin wrapper around
+  # time and getrandom()/{,u}random and, when available, runs under an
+  # unprivilged, dedicated user).
+  /run/uuidd/request r,
   /sys/devices/virtual/tty/{console,tty*}/active r,
   /sys/fs/cgroup/memory/memory.limit_in_bytes r,
   /sys/fs/cgroup/memory/snap.@{SNAP_INSTANCE_NAME}{,.*}/memory.limit_in_bytes r,
