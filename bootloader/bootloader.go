@@ -90,14 +90,14 @@ type installableBootloader interface {
 	setRootDir(string)
 }
 
-type ExtractedRecoveryKernelImageBootloader interface {
-	Bootloader
-	ExtractRecoveryKernelAssets(recoverySystemDir string, s snap.PlaceInfo, snapf snap.Container) error
-}
-
 type RecoveryAwareBootloader interface {
 	Bootloader
 	SetRecoverySystemEnv(recoverySystemDir string, values map[string]string) error
+}
+
+type ExtractedRecoveryKernelImageBootloader interface {
+	RecoveryAwareBootloader
+	ExtractRecoveryKernelAssets(recoverySystemDir string, s snap.PlaceInfo, snapf snap.Container) error
 }
 
 // ExtractedRunKernelImageBootloader is a Bootloader that also supports specific
