@@ -53,6 +53,7 @@ After=%s-snap-44.mount network.target
 X-Snappy=yes
 
 [Service]
+EnvironmentFile=-/etc/environment
 ExecStart=/usr/bin/snap run snap.app
 SyslogIdentifier=snap.app
 Restart=%s
@@ -87,6 +88,7 @@ After=%s-xkcd\x2dwebserver-44.mount network.target
 X-Snappy=yes
 
 [Service]
+EnvironmentFile=-/etc/environment
 ExecStart=/usr/bin/snap run xkcd-webserver
 SyslogIdentifier=xkcd-webserver.xkcd-webserver
 Restart=on-failure
@@ -362,6 +364,7 @@ Before=%s
 X-Snappy=yes
 
 [Service]
+EnvironmentFile=-/etc/environment
 ExecStart=/usr/bin/snap run snap.app
 SyslogIdentifier=snap.app
 Restart=%s
@@ -509,6 +512,7 @@ After=%s-snap-44.mount network.target
 X-Snappy=yes
 
 [Service]
+EnvironmentFile=-/etc/environment
 ExecStart=/usr/bin/snap run --timer="10:00-12:00,,mon,23:00~01:00/2" snap.app
 SyslogIdentifier=snap.app
 Restart=%s
@@ -700,6 +704,7 @@ After=%s-snap-44.mount network.target
 X-Snappy=yes
 
 [Service]
+EnvironmentFile=-/etc/environment
 ExecStart=/usr/bin/snap run snap.app
 SyslogIdentifier=snap.app
 Restart=on-failure
@@ -740,6 +745,7 @@ After=%s-snap-44.mount network.target
 X-Snappy=yes
 
 [Service]
+EnvironmentFile=-/etc/environment
 ExecStart=/usr/bin/snap run snap.app
 SyslogIdentifier=snap.app
 Restart=on-failure

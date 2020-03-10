@@ -8,6 +8,9 @@ environment:
     USER_NAME: mvo
 
 restore: |
+    if [ -e managed.device ]; then
+        exit 0
+    fi
     snap remove-user "$USER_NAME"
 
 execute: |
@@ -15,7 +18,7 @@ execute: |
     expected="error: while creating user: access denied"
     if obtained=$(su - test /bin/sh -c "snap create-user $USER_EMAIL 2>&1"); then
         echo "create-user command should have failed"
-    fi
+    fi 
     [[ "$obtained" =~ $expected ]]
 
     if [ "$(snap managed)" = "true" ]; then
@@ -25,6 +28,10 @@ execute: |
             exit 1
         fi
         MATCH "cannot create user: device already managed" < create.error
+
+        # Leave a file indicating the device was initially managed
+        touch managed.device
+
         exit 0
     fi
 

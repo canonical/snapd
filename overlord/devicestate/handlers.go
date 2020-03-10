@@ -28,6 +28,8 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/wrappers"
 )
 
 func (m *DeviceManager) doMarkPreseeded(t *state.Task, _ *tomb.Tomb) error {
@@ -54,12 +56,12 @@ func (m *DeviceManager) doMarkPreseeded(t *state.Task, _ *tomb.Tomb) error {
 			// unmount all snaps
 			// TODO: move to snapstate.UnmountAllSnaps.
 			for _, snapSt := range snaps {
-				inf, err := snapSt.CurrentInfo()
+				info, err := snapSt.CurrentInfo()
 				if err != nil {
 					return err
 				}
-				logger.Debugf("unmounting snap %s at %s", inf.InstanceName(), inf.MountDir())
-				if _, err := exec.Command("umount", "-d", "-l", inf.MountDir()).CombinedOutput(); err != nil {
+				logger.Debugf("unmounting snap %s at %s", info.InstanceName(), info.MountDir())
+				if _, err := exec.Command("umount", "-d", "-l", info.MountDir()).CombinedOutput(); err != nil {
 					return err
 				}
 			}
@@ -72,7 +74,20 @@ func (m *DeviceManager) doMarkPreseeded(t *state.Task, _ *tomb.Tomb) error {
 		return &state.Retry{Reason: "mark-preseeded will be marked done when snapd is executed in normal mode"}
 	}
 
-	// normal snapd run after snapd restart (not in pre-bake mode anymore)
+	// normal snapd run after snapd restart (not in preseed mode anymore)
+
+	// enable all services generated as part of preseeding, but not enabled
+	// XXX: this should go away once the problem of install & services is fixed.
+	for _, snapSt := range snaps {
+		info, err := snapSt.CurrentInfo()
+		if err != nil {
+			return err
+		}
+		if err := wrappers.EnableSnapServices(info, progress.Null); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -84,9 +99,20 @@ func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
 	if m.preseed {
 		return fmt.Errorf("internal error: mark-seeded task not expected in pre-seeding mode")
 	}
-	// TODO:UC20: update "modeenv" and remove "recovery_system" from
-	// it because this information is only needed for the initial
-	// seeding.
+
+	deviceCtx, err := DeviceCtx(st, t, nil)
+	if err != nil {
+		return fmt.Errorf("cannot get device context: %v", err)
+	}
+
+	if deviceCtx.HasModeenv() && deviceCtx.RunMode() {
+		// unset recovery_system because that is only needed during install mode
+		m.modeEnv.RecoverySystem = ""
+		err := m.modeEnv.Write("")
+		if err != nil {
+			return err
+		}
+	}
 
 	st.Set("seed-time", time.Now())
 	st.Set("seeded", true)

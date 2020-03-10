@@ -21,6 +21,7 @@ package main_test
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -30,6 +31,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/cmd/snap-preseed"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/seed"
@@ -154,6 +156,9 @@ func (s *startPreseedSuite) TestRunPreseedHappy(c *C) {
 `)
 	defer mockTargetSnapd.Restore()
 
+	infoFile := filepath.Join(filepath.Join(targetSnapdRoot, dirs.CoreLibExecDir, "info"))
+	c.Assert(ioutil.WriteFile(infoFile, []byte("VERSION=2.44.0"), 0644), IsNil)
+
 	parser := testParser(c)
 	c.Check(main.Run(parser, []string{tmpDir}), IsNil)
 
@@ -167,6 +172,7 @@ func (s *startPreseedSuite) TestRunPreseedHappy(c *C) {
 }
 
 type Fake16Seed struct {
+	AssertsModel      *asserts.Model
 	Essential         []*seed.Snap
 	LoadMetaErr       error
 	LoadAssertionsErr error
@@ -175,12 +181,25 @@ type Fake16Seed struct {
 
 // Fake implementation of seed.Seed interface
 
+func mockClassicModel() *asserts.Model {
+	headers := map[string]interface{}{
+		"type":         "model",
+		"authority-id": "brand",
+		"series":       "16",
+		"brand-id":     "brand",
+		"model":        "classicbaz-3000",
+		"classic":      "true",
+		"timestamp":    "2018-01-01T08:00:00+00:00",
+	}
+	return assertstest.FakeAssertion(headers, nil).(*asserts.Model)
+}
+
 func (fs *Fake16Seed) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Batch) error) error {
 	return fs.LoadAssertionsErr
 }
 
 func (fs *Fake16Seed) Model() (*asserts.Model, error) {
-	panic("not implemented")
+	return fs.AssertsModel, nil
 }
 
 func (fs *Fake16Seed) LoadMeta(tm timings.Measurer) error {
@@ -204,7 +223,8 @@ func (s *startPreseedSuite) TestSystemSnapFromSeed(c *C) {
 
 	restore := main.MockSeedOpen(func(rootDir, label string) (seed.Seed, error) {
 		return &Fake16Seed{
-			Essential: []*seed.Snap{{Path: "/some/path/core", SideInfo: &snap.SideInfo{RealName: "core"}}},
+			AssertsModel: mockClassicModel(),
+			Essential:    []*seed.Snap{{Path: "/some/path/core", SideInfo: &snap.SideInfo{RealName: "core"}}},
 		}, nil
 	})
 	defer restore()
@@ -212,6 +232,23 @@ func (s *startPreseedSuite) TestSystemSnapFromSeed(c *C) {
 	path, err := main.SystemSnapFromSeed(tmpDir)
 	c.Assert(err, IsNil)
 	c.Check(path, Equals, "/some/path/core")
+}
+
+func (s *startPreseedSuite) TestSystemSnapFromSnapdSeed(c *C) {
+	tmpDir := c.MkDir()
+
+	restore := main.MockSeedOpen(func(rootDir, label string) (seed.Seed, error) {
+		return &Fake16Seed{
+			AssertsModel: mockClassicModel(),
+			Essential:    []*seed.Snap{{Path: "/some/path/snapd.snap", SideInfo: &snap.SideInfo{RealName: "snapd"}}},
+			UsesSnapd:    true,
+		}, nil
+	})
+	defer restore()
+
+	path, err := main.SystemSnapFromSeed(tmpDir)
+	c.Assert(err, IsNil)
+	c.Check(path, Equals, "/some/path/snapd.snap")
 }
 
 func (s *startPreseedSuite) TestSystemSnapFromSeedOpenError(c *C) {
@@ -228,6 +265,7 @@ func (s *startPreseedSuite) TestSystemSnapFromSeedErrors(c *C) {
 	tmpDir := c.MkDir()
 
 	fakeSeed := &Fake16Seed{}
+	fakeSeed.AssertsModel = mockClassicModel()
 
 	restore := main.MockSeedOpen(func(rootDir, label string) (seed.Seed, error) { return fakeSeed, nil })
 	defer restore()
@@ -240,10 +278,6 @@ func (s *startPreseedSuite) TestSystemSnapFromSeedErrors(c *C) {
 	_, err = main.SystemSnapFromSeed(tmpDir)
 	c.Assert(err, ErrorMatches, "core snap not found")
 
-	fakeSeed.UsesSnapd = true
-	_, err = main.SystemSnapFromSeed(tmpDir)
-	c.Assert(err, ErrorMatches, "preseeding with snapd snap is not supported yet")
-
 	fakeSeed.LoadMetaErr = fmt.Errorf("load meta failed")
 	_, err = main.SystemSnapFromSeed(tmpDir)
 	c.Assert(err, ErrorMatches, "load meta failed")
@@ -252,4 +286,72 @@ func (s *startPreseedSuite) TestSystemSnapFromSeedErrors(c *C) {
 	fakeSeed.LoadAssertionsErr = fmt.Errorf("load assertions failed")
 	_, err = main.SystemSnapFromSeed(tmpDir)
 	c.Assert(err, ErrorMatches, "load assertions failed")
+}
+
+func (s *startPreseedSuite) TestClassicRequired(c *C) {
+	tmpDir := c.MkDir()
+
+	headers := map[string]interface{}{
+		"type":         "model",
+		"authority-id": "brand",
+		"series":       "16",
+		"brand-id":     "brand",
+		"model":        "baz-3000",
+		"architecture": "armhf",
+		"gadget":       "brand-gadget",
+		"kernel":       "kernel",
+		"timestamp":    "2018-01-01T08:00:00+00:00",
+	}
+
+	fakeSeed := &Fake16Seed{}
+	fakeSeed.AssertsModel = assertstest.FakeAssertion(headers, nil).(*asserts.Model)
+
+	restore := main.MockSeedOpen(func(rootDir, label string) (seed.Seed, error) { return fakeSeed, nil })
+	defer restore()
+
+	_, err := main.SystemSnapFromSeed(tmpDir)
+	c.Assert(err, ErrorMatches, "preseeding is only supported on classic systems")
+}
+
+func (s *startPreseedSuite) TestRunPreseedUnsupportedVersion(c *C) {
+	tmpDir := c.MkDir()
+	dirs.SetRootDir(tmpDir)
+	mockChrootDirs(c, tmpDir)
+
+	restoreOsGuid := main.MockOsGetuid(func() int { return 0 })
+	defer restoreOsGuid()
+
+	restoreSyscallChroot := main.MockSyscallChroot(func(path string) error { return nil })
+	defer restoreSyscallChroot()
+
+	mockMountCmd := testutil.MockCommand(c, "mount", "")
+	defer mockMountCmd.Restore()
+
+	targetSnapdRoot := filepath.Join(tmpDir, "target-core-mounted-here")
+	restoreMountPath := main.MockSnapdMountPath(targetSnapdRoot)
+	defer restoreMountPath()
+
+	restoreSystemSnapFromSeed := main.MockSystemSnapFromSeed(func(string) (string, error) { return "/a/core.snap", nil })
+	defer restoreSystemSnapFromSeed()
+
+	c.Assert(os.MkdirAll(filepath.Join(targetSnapdRoot, "usr/lib/snapd/"), 0755), IsNil)
+	mockTargetSnapd := testutil.MockCommand(c, filepath.Join(targetSnapdRoot, "usr/lib/snapd/snapd"), "")
+	defer mockTargetSnapd.Restore()
+
+	infoFile := filepath.Join(targetSnapdRoot, dirs.CoreLibExecDir, "info")
+	c.Assert(ioutil.WriteFile(infoFile, []byte("VERSION=2.43.0"), 0644), IsNil)
+
+	parser := testParser(c)
+	c.Check(main.Run(parser, []string{tmpDir}), ErrorMatches,
+		`snapd 2.43.0 from the target system does not support preseeding, the minimum required version is 2.43.3\+`)
+}
+
+func (s *startPreseedSuite) TestVersionCheckWithGitVer(c *C) {
+	tmpDir := c.MkDir()
+	dirs.SetRootDir(tmpDir)
+
+	infoFile := filepath.Join(tmpDir, "info")
+	c.Assert(ioutil.WriteFile(infoFile, []byte("VERSION=2.43.3+git123"), 0644), IsNil)
+
+	c.Check(main.CheckTargetSnapdVersion(infoFile), IsNil)
 }

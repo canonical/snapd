@@ -620,6 +620,7 @@ install -m 644 -D data/sysctl/rhel7-snap.conf %{buildroot}%{_sysctldir}/99-snap.
 rm -fv %{buildroot}%{_unitdir}/snapd.system-shutdown.service
 rm -fv %{buildroot}%{_unitdir}/snapd.snap-repair.*
 rm -fv %{buildroot}%{_unitdir}/snapd.core-fixup.*
+rm -fv %{buildroot}%{_unitdir}/snapd.recovery-chooser-trigger.service
 
 # Remove snappy core specific scripts
 rm %{buildroot}%{_libexecdir}/snapd/snapd.core-fixup.sh
@@ -772,7 +773,7 @@ popd
 %dir %{_libexecdir}/snapd
 # For now, we can't use caps
 # FIXME: Switch to "%%attr(0755,root,root) %%caps(cap_sys_admin=pe)" asap!
-%attr(6755,root,root) %{_libexecdir}/snapd/snap-confine
+%attr(4755,root,root) %{_libexecdir}/snapd/snap-confine
 %{_libexecdir}/snapd/snap-device-helper
 %{_libexecdir}/snapd/snap-discard-ns
 %{_libexecdir}/snapd/snap-gdb-shim

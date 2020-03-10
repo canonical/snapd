@@ -22,6 +22,7 @@ package boot_test
 import (
 	"errors"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
@@ -167,6 +168,15 @@ func (s *coreBootSetSuite) TestSetNextBoot20ForKernel(c *C) {
 	coreDev := boottest.MockUC20Device("pc-kernel")
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
+	// default modeenv state
+	m := &boot.Modeenv{
+		Base:           "core20_1.snap",
+		CurrentKernels: []string{"pc-kernel_1.snap"},
+	}
+	err := m.Write("")
+	c.Assert(err, IsNil)
+	defer os.Remove(dirs.SnapModeenvFileUnder(dirs.GlobalRootDir))
+
 	// setup current kernel
 	kernel1, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
 	c.Assert(err, IsNil)
@@ -202,6 +212,11 @@ func (s *coreBootSetSuite) TestSetNextBoot20ForKernel(c *C) {
 	// check that SetNextBoot asked the bootloader for a kernel
 	_, nKernelCalls := s.bootloader.GetRunKernelImageFunctionSnapCalls("Kernel")
 	c.Assert(nKernelCalls, Equals, 1)
+
+	// and that the modeenv now has this kernel listed
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Assert(m2.CurrentKernels, DeepEquals, []string{"pc-kernel_1.snap", "pc-kernel_2.snap"})
 }
 
 func (s *coreBootSetSuite) TestSetNextBootForKernelForTheSameKernel(c *C) {
@@ -230,6 +245,15 @@ func (s *coreBootSetSuite) TestSetNextBootForKernelForTheSameKernel(c *C) {
 func (s *coreBootSetSuite) TestSetNextBoot20ForKernelForTheSameKernel(c *C) {
 	coreDev := boottest.MockUC20Device("pc-kernel")
 	c.Assert(coreDev.HasModeenv(), Equals, true)
+
+	// default modeenv state
+	m := &boot.Modeenv{
+		Base:           "core20_1.snap",
+		CurrentKernels: []string{"pc-kernel_1.snap"},
+	}
+	err := m.Write("")
+	c.Assert(err, IsNil)
+	defer os.Remove(dirs.SnapModeenvFileUnder(dirs.GlobalRootDir))
 
 	// setup current kernel
 	kernel1, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
@@ -262,6 +286,11 @@ func (s *coreBootSetSuite) TestSetNextBoot20ForKernelForTheSameKernel(c *C) {
 	// check that SetNextBoot asked the bootloader for a kernel
 	_, nKernelCalls := s.bootloader.GetRunKernelImageFunctionSnapCalls("Kernel")
 	c.Assert(nKernelCalls, Equals, 1)
+
+	// and that the modeenv now has this kernel listed
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Assert(m2.CurrentKernels, DeepEquals, []string{"pc-kernel_1.snap"})
 }
 
 func (s *coreBootSetSuite) TestSetNextBootForKernelForTheSameKernelTryMode(c *C) {
@@ -295,6 +324,15 @@ func (s *coreBootSetSuite) TestSetNextBootForKernelForTheSameKernelTryMode(c *C)
 func (s *coreBootSetSuite) TestSetNextBoot20ForKernelForTheSameKernelTryMode(c *C) {
 	coreDev := boottest.MockUC20Device("pc-kernel")
 	c.Assert(coreDev.HasModeenv(), Equals, true)
+
+	// default modeenv state
+	m := &boot.Modeenv{
+		Base:           "core20_1.snap",
+		CurrentKernels: []string{"pc-kernel_1.snap"},
+	}
+	err := m.Write("")
+	c.Assert(err, IsNil)
+	defer os.Remove(dirs.SnapModeenvFileUnder(dirs.GlobalRootDir))
 
 	// setup current kernel
 	kernel1, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
@@ -332,6 +370,11 @@ func (s *coreBootSetSuite) TestSetNextBoot20ForKernelForTheSameKernelTryMode(c *
 	// check that SetNextBoot asked the bootloader for a kernel
 	_, nKernelCalls := s.bootloader.GetRunKernelImageFunctionSnapCalls("Kernel")
 	c.Assert(nKernelCalls, Equals, 1)
+
+	// and that the modeenv didn't change
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Assert(m2.CurrentKernels, DeepEquals, m.CurrentKernels)
 }
 
 // ubootBootSetSuite tests the uboot specific code in the bootloader handling
