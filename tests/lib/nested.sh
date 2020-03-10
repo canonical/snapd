@@ -197,13 +197,17 @@ create_nested_core_vm(){
     mkdir -p "$WORK_DIR/image"
     if [ ! -f "$WORK_DIR/image/ubuntu-core.img" ]; then
         local UBUNTU_IMAGE
-        UBUNTU_IMAGE=$(command -v ubuntu-image)
+
+        if ! snap list ubuntu-image; then
+            snap install ubuntu-image --classic
+        fi
+        UBUNTU_IMAGE=/snap/bin/ubuntu-image
 
         # create ubuntu-core image
         local EXTRA_FUNDAMENTAL=""
         local EXTRA_SNAPS=""
         if [ -d "${PWD}/extra-snaps" ] && [ "$(find "${PWD}/extra-snaps/" -type f -name "*.snap" | wc -l)" -gt 0 ]; then
-            EXTRA_SNAPS="--extra-snaps ${PWD}/extra-snaps/*.snap"
+            EXTRA_SNAPS="--snap ${PWD}/extra-snaps/*.snap"
         fi
 
         local NESTED_MODEL=""
@@ -220,13 +224,13 @@ create_nested_core_vm(){
             # shellcheck source=tests/lib/prepare.sh
             . "$TESTSLIB"/prepare.sh
             
-            snap download --basename=pc-kernel --channel="20/$CORE_CHANNEL" pc-kernel
+            snap download --basename=pc-kernel --channel="20/edge" pc-kernel
             # make sure we have the snap
             test -e pc-kernel.snap
             # build the initramfs with our snapd assets into the kernel snap
             uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$WORK_DIR/image"
 
-            EXTRA_FUNDAMENTAL="--extra-snaps $WORK_DIR/image/pc-kernel_*.snap"
+            EXTRA_FUNDAMENTAL="--snap $WORK_DIR/image/pc-kernel_*.snap"
             chmod 0600 "$WORK_DIR"/image/pc-kernel_*.snap
             rm -f "$PWD/pc-kernel.snap"
             ;;
@@ -236,13 +240,13 @@ create_nested_core_vm(){
             ;;
         esac
 
-        "$UBUNTU_IMAGE" --image-size 3G "$NESTED_MODEL" \
+        "$UBUNTU_IMAGE" --image-size 5G "$NESTED_MODEL" \
             --channel "$CORE_CHANNEL" \
             --output "$WORK_DIR/image/ubuntu-core.img" \
             "$EXTRA_FUNDAMENTAL" \
             "$EXTRA_SNAPS"
 
-        create_assertions_disk
+        create_assertions_disk  
     fi
 }
 
@@ -263,21 +267,24 @@ start_nested_core_vm(){
     PARAM_ASSERTIONS="-drive file=$WORK_DIR/assertions.disk,cache=none,format=raw"
     PARAM_MONITOR="-monitor tcp:127.0.0.1:$MON_PORT,server,nowait -usb"
     if is_core_20_nested_system; then
-        if is_focal_system; then
-            cp -f /usr/share/OVMF/OVMF_VARS.snakeoil.fd "$WORK_DIR/image/OVMF_VARS.snakeoil.fd"
-            if ! snap list swtpm-mvo; then
-                snap install swtpm-mvo --beta
-            fi
-
-            PARAM_CPU="-smp 2"
-            PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE.secboot.fd,if=pflash,format=raw,unit=0,readonly=on -drive file=$WORK_DIR/image/OVMF_VARS.snakeoil.fd,if=pflash,format=raw,unit=1"
-            PARAM_IMAGE="-drive file=$IMAGE_FILE,cache=none,format=raw,if=none,id=disk1 -device virtio-blk-pci,drive=disk1,bootindex=1"
-            PARAM_MACHINE="-machine q35 -global ICH9-LPC.disable_s3=1"
-            PARAM_TPM="-chardev socket,id=chrtpm,path=/var/snap/swtpm-mvo/current/swtpm-sock -tpmdev emulator,id=tpm0,chardev=chrtpm -device tpm-tis,tpmdev=tpm0"
-        else
-            echo "Not supported host system for UC20"
-            exit 1
+        if ! is_focal_system; then
+            cp /etc/apt/sources.list /etc/apt/sources.list.back
+            echo "deb http://us-east1.gce.archive.ubuntu.com/ubuntu/ focal main restricted" >> /etc/apt/sources.list
+            apt update
+            apt install -y ovmf
+            mv /etc/apt/sources.list.back /etc/apt/sources.list
+            apt update
         fi
+        cp -f /usr/share/OVMF/OVMF_VARS.snakeoil.fd "$WORK_DIR/image/OVMF_VARS.snakeoil.fd"
+        if ! snap list swtpm-mvo; then
+            snap install swtpm-mvo --beta
+        fi
+
+        PARAM_CPU="-smp 2"
+        PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE.secboot.fd,if=pflash,format=raw,unit=0,readonly=on -drive file=$WORK_DIR/image/OVMF_VARS.snakeoil.fd,if=pflash,format=raw,unit=1"
+        PARAM_IMAGE="-drive file=$IMAGE_FILE,cache=none,format=raw,id=disk1,if=none -device virtio-blk-pci,drive=disk1,bootindex=1"
+        PARAM_MACHINE="-machine q35 -global ICH9-LPC.disable_s3=1"
+        PARAM_TPM="-chardev socket,id=chrtpm,path=/var/snap/swtpm-mvo/current/swtpm-sock -tpmdev emulator,id=tpm0,chardev=chrtpm -device tpm-tis,tpmdev=tpm0"
     else
         PARAM_CPU=""
         PARAM_BIOS=""
@@ -300,8 +307,13 @@ start_nested_core_vm(){
         ${PARAM_MONITOR} \
         ${PARAM_EXTRA} "
 
+    # This is a workaround for the issue when the user assertion is not autoimported correctly
     if ! wait_for_ssh; then
         systemctl restart nested-vm
+        # This is a workaround for the issue connecting to the swtpm-mvo snap
+        if systemctl status nested-vm | grep 'Active: failed'; then
+            systemctl restart nested-vm
+        fi
     fi
 
     if wait_for_ssh; then

@@ -7,7 +7,7 @@
     "architecture": "amd64",
     "base": "core20",
     "grade": "dangerous",
-    "timestamp": "2020-03-02T18:06:04+00:00",
+    "timestamp": "2019-05-16T18:06:04+00:00",
     "snaps": [
         {"default-channel": "20/stable", "id": "UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH", "name": "pc", "type": "gadget"},
         {"default-channel": "latest/edge", "id": "DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q", "name": "core20", "type": "base"},
