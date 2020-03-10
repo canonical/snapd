@@ -88,7 +88,7 @@ func (d *dialTLS) dialTLS(network, addr string) (net.Conn, error) {
 		d.conf = &emptyConfig
 	}
 
-	// ensure we never using anything lower then tls v1.2, see
+	// ensure we never use anything lower than TLS v1.2, see
 	// https://github.com/snapcore/snapd/pull/8100/files#r384046667
 	if d.conf.MinVersion < tls.VersionTLS12 {
 		d.conf.MinVersion = tls.VersionTLS12
