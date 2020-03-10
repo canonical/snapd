@@ -38,7 +38,8 @@ type BootableSet struct {
 	Kernel     *snap.Info
 	KernelPath string
 
-	RecoverySystemDir string
+	RecoverySystemLabel string
+	RecoverySystemDir   string
 
 	UnpackedGadgetDir string
 
@@ -149,7 +150,6 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet)
 	if len(recoverySystems) > 1 {
 		return fmt.Errorf("cannot make multiple recovery systems bootable yet")
 	}
-
 	opts := &bootloader.Options{
 		PrepareImageTime: true,
 		// setup the recovery bootloader
@@ -167,8 +167,9 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet)
 		return fmt.Errorf("internal error: cannot find bootloader: %v", err)
 	}
 
-	// on e.g. ARM we need to extract the kernel assets on the recovery system
-	// as well
+	// on e.g. ARM we need to extract the kernel assets on the recovery
+	// system as well, but the bootloader does not load any environment from
+	// the recovery system
 	ekrbl, ok := bl.(bootloader.ExtractedRecoveryKernelImageBootloader)
 	if ok {
 		kernelf, err := snap.Open(bootWith.KernelPath)
@@ -176,11 +177,24 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet)
 			return err
 		}
 
-		return ekrbl.ExtractRecoveryKernelAssets(
+		err = ekrbl.ExtractRecoveryKernelAssets(
 			bootWith.RecoverySystemDir,
 			bootWith.Kernel,
 			kernelf,
 		)
+		if err != nil {
+			return fmt.Errorf("cannot extract recovery system kernel assets: %v", err)
+		}
+
+		// record which recovery system is to be used
+		// TODO:UC20: should we do this for all bootloaders?
+		whereRecoveryEnv := map[string]string{
+			"snapd_recovery_system": bootWith.RecoverySystemLabel,
+		}
+		if err := bl.SetBootVars(whereRecoveryEnv); err != nil {
+			return fmt.Errorf("cannot set system environment: %v", err)
+		}
+		return nil
 	}
 
 	rbl, ok := bl.(bootloader.RecoveryAwareBootloader)
