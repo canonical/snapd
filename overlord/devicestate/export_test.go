@@ -212,6 +212,14 @@ func MockBootMakeBootable(f func(model *asserts.Model, rootdir string, bootWith 
 	}
 }
 
+func MockCheckTPMAvailability(f func() error) (restore func()) {
+	old := checkTPMAvailability
+	checkTPMAvailability = f
+	return func() {
+		checkTPMAvailability = old
+	}
+}
+
 func MockHttputilNewHTTPClient(f func(opts *httputil.ClientOptions) *http.Client) (restore func()) {
 	old := httputilNewHTTPClient
 	httputilNewHTTPClient = f
