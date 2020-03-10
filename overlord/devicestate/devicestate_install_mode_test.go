@@ -215,6 +215,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 			{
 				"snap-bootstrap", "create-partitions", "--mount", "--encrypt",
 				"--key-file", filepath.Join(dirs.RunMnt, "ubuntu-boot/ubuntu-data.keyfile.unsealed"),
+				"--recovery-key-file", filepath.Join(dirs.RunMnt, "ubuntu-data/system-data/recovery-key"),
 				filepath.Join(dirs.SnapMountDir, "/pc/1"),
 			},
 		})
