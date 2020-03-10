@@ -191,7 +191,7 @@ func (s *tlsSuite) TestClientEmptyExtraSSLCertsDirWorks(c *check.C) {
 	cli := httputil.NewHTTPClient(&httputil.ClientOptions{
 		ExtraSSLCerts: &httputil.ExtraSSLCertsFromDir{
 			// empty extra ssl certs dir
-			c.MkDir(),
+			Dir: c.MkDir(),
 		},
 	})
 	c.Assert(cli, check.NotNil)
@@ -207,7 +207,7 @@ func (s *tlsSuite) TestClientExtraSSLCertInvalidCertWarnsAndRefuses(c *check.C) 
 
 	cli := httputil.NewHTTPClient(&httputil.ClientOptions{
 		ExtraSSLCerts: &httputil.ExtraSSLCertsFromDir{
-			dirs.SnapdExtraSSLCertsDir,
+			Dir: dirs.SnapdExtraSSLCertsDir,
 		},
 	})
 	c.Assert(cli, check.NotNil)
@@ -222,7 +222,7 @@ func (s *tlsSuite) TestClientExtraSSLCertIntegration(c *check.C) {
 	// create a client that will load our cert
 	cli := httputil.NewHTTPClient(&httputil.ClientOptions{
 		ExtraSSLCerts: &httputil.ExtraSSLCertsFromDir{
-			dirs.SnapdExtraSSLCertsDir,
+			Dir: dirs.SnapdExtraSSLCertsDir,
 		},
 	})
 	c.Assert(cli, check.NotNil)
