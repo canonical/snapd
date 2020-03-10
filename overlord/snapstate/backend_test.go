@@ -726,6 +726,8 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 		info.Epoch = snap.Epoch{}
 	case "some-epoch-snap":
 		info.Epoch = snap.E("13")
+	case "some-snap-with-base":
+		info.Base = "core18"
 	case "gadget", "brand-gadget":
 		info.SnapType = snap.TypeGadget
 	case "core":
