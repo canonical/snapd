@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,16 +17,34 @@
  *
  */
 
-package userd
+package cgroup
 
 import (
-	"github.com/godbus/dbus"
+	"fmt"
+	"path/filepath"
+	"strings"
 )
 
-func MockSnapFromSender(f func(*dbus.Conn, dbus.Sender) (string, error)) func() {
-	origSnapFromSender := snapFromSender
-	snapFromSender = f
-	return func() {
-		snapFromSender = origSnapFromSender
+func SnapNameFromPid(pid int) (string, error) {
+	if IsUnified() {
+		// not supported
+		return "", fmt.Errorf("not supported")
 	}
+
+	group, err := ProcGroup(pid, MatchV1Controller("freezer"))
+	if err != nil {
+		return "", fmt.Errorf("cannot determine cgroup path of pid %v: %v", pid, err)
+	}
+
+	if !strings.HasPrefix(group, "/snap.") {
+		return "", fmt.Errorf("cannot find a snap for pid %v", pid)
+	}
+
+	snapName := strings.SplitN(filepath.Base(group), ".", 2)[1]
+
+	if snapName == "" {
+		return "", fmt.Errorf("snap name in cgroup path is empty")
+	}
+
+	return snapName, nil
 }
