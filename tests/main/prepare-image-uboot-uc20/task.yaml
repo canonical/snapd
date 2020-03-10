@@ -75,6 +75,8 @@ execute: |
     test -e "$ROOT/system-seed/systems/$systemid/kernel/kernel.img"
     test "$(find "$ROOT/system-seed/systems/$systemid/kernel/dtbs/" | wc -l)" -gt 0
 
+    strings "$ROOT/system-seed/boot/uboot/uboot.env" | MATCH "snapd_recovery_system=$systemid"
+
     test -e "$ROOT"/system-seed/snaps/core20_*.snap
     test -e "$ROOT"/system-seed/snaps/pi-kernel_*.snap
     test -e "$ROOT"/system-seed/snaps/snapd_*.snap
