@@ -82,7 +82,15 @@ func (iface *uioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 	//  - $sysfs_base/portio/port[0-9]+/{name,start,size,porttype}
 	// The expression below matches them all as they all may be required for
 	// userspace drivers to operate.
-	spec.AddSnippet(fmt.Sprintf("/sys/devices/platform/**/uio/%s/** r,", strings.TrimPrefix(path, "/dev/")))
+	//
+	// NOTE: This is a constant string to avoid apparmor_parser efficiency
+	// issue. This is detailed in the (private) bug LP: #1866349
+	//
+	// The workaround grants read only access to all uio sysfs files and
+	// control writable access to the specific device node. In addition the
+	// snippet added here is de-duplicated by the system before handing the
+	// text to compile in apparmor_parser.
+	spec.AddDeduplicatedSnippet("/sys/devices/platform/**/uio/uio[0-9]** r,")
 	return nil
 }
 
