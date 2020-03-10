@@ -72,7 +72,7 @@ func (s *cmdSuite) TestCreatePartitionsWithEncryption(c *C) {
 	})
 	defer restore()
 
-	rest, err := main.Parser.ParseArgs([]string{
+	rest, err := main.Parser().ParseArgs([]string{
 		"create-partitions", "--encrypt", "--key-file", "keyfile",
 		"--recovery-key-file", "recovery", "gadget-dir", "device",
 	})

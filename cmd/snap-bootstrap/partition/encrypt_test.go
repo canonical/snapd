@@ -136,4 +136,5 @@ func (s *encryptSuite) TestRecoveryKeyStore(c *C) {
 	data, err := ioutil.ReadFile("test-key")
 	c.Assert(err, IsNil)
 	c.Assert(data, DeepEquals, rkey[:])
+	os.Remove("test-key")
 }
