@@ -141,7 +141,13 @@ func (s *deviceMgrInstallModeSuite) makeMockInstalledPcGadget(c *C, grade string
 	return mockModel
 }
 
-func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade string, tpm, bypass, res bool, e string) {
+type encTestCase struct {
+	tpm     bool
+	bypass  bool
+	encrypt bool
+}
+
+func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade string, tc encTestCase) error {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
@@ -149,7 +155,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	defer mockSnapBootstrapCmd.Restore()
 
 	restoreTPM := devicestate.MockCheckTPMAvailability(func() error {
-		if tpm {
+		if tc.tpm {
 			return nil
 		} else {
 			return fmt.Errorf("TPM not available")
@@ -162,7 +168,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	s.state.Unlock()
 
 	bypassEncryptionPath := filepath.Join(dirs.RunMnt, "ubuntu-seed", ".force-unencrypted")
-	if bypass {
+	if tc.bypass {
 		err := os.MkdirAll(filepath.Dir(bypassEncryptionPath), 0755)
 		c.Assert(err, IsNil)
 		f, err := os.Create(bypassEncryptionPath)
@@ -196,21 +202,19 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	c.Assert(installSystem, NotNil)
 
 	// and was run successfully
-	if e != "" {
-		c.Assert(installSystem.Err(), ErrorMatches, e)
+	if err := installSystem.Err(); err != nil {
 		// we failed, no further checks needed
-		return
+		return err
 	}
 
-	c.Assert(installSystem.Err(), IsNil)
 	c.Assert(installSystem.Status(), Equals, state.DoneStatus)
 
 	// in the right way
-	if res {
+	if tc.encrypt {
 		c.Assert(mockSnapBootstrapCmd.Calls(), DeepEquals, [][]string{
 			{
 				"snap-bootstrap", "create-partitions", "--mount", "--encrypt",
-				"--key-file", filepath.Join(dirs.RunMnt, "ubuntu-boot/keyfile"),
+				"--key-file", filepath.Join(dirs.RunMnt, "ubuntu-boot/ubuntu-data.keyfile.unsealed"),
 				filepath.Join(dirs.SnapMountDir, "/pc/1"),
 			},
 		})
@@ -224,6 +228,8 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	}
 	c.Assert(bootMakeBootableCalled, Equals, 1)
 	c.Assert(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystem})
+
+	return nil
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallTaskErrors(c *C) {
@@ -287,41 +293,51 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeNotClassic(c *C) {
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallDangerous(c *C) {
-	s.doRunChangeTestWithEncryption(c, "dangerous", false, false, false, "")
+	err := s.doRunChangeTestWithEncryption(c, "dangerous", encTestCase{tpm: false, bypass: false, encrypt: false})
+	c.Assert(err, IsNil)
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallDangerousWithTPM(c *C) {
-	s.doRunChangeTestWithEncryption(c, "dangerous", true, false, true, "")
+	err := s.doRunChangeTestWithEncryption(c, "dangerous", encTestCase{tpm: true, bypass: false, encrypt: true})
+	c.Assert(err, IsNil)
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallDangerousBypassEncryption(c *C) {
-	s.doRunChangeTestWithEncryption(c, "dangerous", false, true, false, "")
+	err := s.doRunChangeTestWithEncryption(c, "dangerous", encTestCase{tpm: false, bypass: true, encrypt: false})
+	c.Assert(err, IsNil)
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallDangerousWithTPMBypassEncryption(c *C) {
-	s.doRunChangeTestWithEncryption(c, "dangerous", true, true, false, "")
+	err := s.doRunChangeTestWithEncryption(c, "dangerous", encTestCase{tpm: true, bypass: true, encrypt: false})
+	c.Assert(err, IsNil)
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallSigned(c *C) {
-	s.doRunChangeTestWithEncryption(c, "signed", false, false, false, "")
+	err := s.doRunChangeTestWithEncryption(c, "signed", encTestCase{tpm: false, bypass: false, encrypt: false})
+	c.Assert(err, IsNil)
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallSignedWithTPM(c *C) {
-	s.doRunChangeTestWithEncryption(c, "signed", true, false, true, "")
+	err := s.doRunChangeTestWithEncryption(c, "signed", encTestCase{tpm: true, bypass: false, encrypt: true})
+	c.Assert(err, IsNil)
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallSignedBypassEncryption(c *C) {
-	s.doRunChangeTestWithEncryption(c, "signed", false, true, false, "")
+	err := s.doRunChangeTestWithEncryption(c, "signed", encTestCase{tpm: false, bypass: true, encrypt: false})
+	c.Assert(err, IsNil)
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallSecured(c *C) {
-	s.doRunChangeTestWithEncryption(c, "secured", false, false, false, "(?s).*cannot encrypt secured device: TPM not available.*")
+	err := s.doRunChangeTestWithEncryption(c, "secured", encTestCase{tpm: false, bypass: false, encrypt: false})
+	c.Assert(err, ErrorMatches, "(?s).*cannot encrypt secured device: TPM not available.*")
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallSecuredWithTPM(c *C) {
-	s.doRunChangeTestWithEncryption(c, "signed", true, false, true, "")
+	err := s.doRunChangeTestWithEncryption(c, "secured", encTestCase{tpm: true, bypass: false, encrypt: true})
+	c.Assert(err, IsNil)
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallSecuredBypassEncryption(c *C) {
-	s.doRunChangeTestWithEncryption(c, "secured", false, true, false, "(?s).*cannot encrypt secured device: TPM not available.*")
+	err := s.doRunChangeTestWithEncryption(c, "secured", encTestCase{tpm: false, bypass: true, encrypt: false})
+	c.Assert(err, ErrorMatches, "(?s).*cannot encrypt secured device: TPM not available.*")
 }

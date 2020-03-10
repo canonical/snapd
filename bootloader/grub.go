@@ -141,7 +141,7 @@ func (g *grub) SetBootVars(values map[string]string) error {
 func (g *grub) extractedKernelDir(prefix string, s snap.PlaceInfo) string {
 	return filepath.Join(
 		prefix,
-		filepath.Base(s.MountFile()),
+		s.Filename(),
 	)
 }
 
@@ -181,7 +181,7 @@ func (g *grub) makeKernelEfiSymlink(s snap.PlaceInfo, name string) error {
 	// use a relative symlink destination so that it resolves properly, if grub
 	// is located at /run/mnt/ubuntu-boot or /boot/grub, etc.
 	target := filepath.Join(
-		filepath.Base(s.MountFile()),
+		s.Filename(),
 		"kernel.efi",
 	)
 
@@ -285,7 +285,7 @@ func (g *grub) Kernel() (snap.PlaceInfo, error) {
 // TryKernel will return the kernel snap currently being tried if it exists and
 // false if there is not currently a try-kernel.efi symlink. Note if the symlink
 // exists but does not point to an existing file an error will be returned.
-func (g *grub) TryKernel() (snap.PlaceInfo, bool, error) {
+func (g *grub) TryKernel() (snap.PlaceInfo, error) {
 	// check that the _symlink_ exists, not that it points to something real
 	// we check for whether it is a dangling symlink inside readKernelSymlink,
 	// which returns an error when the symlink is dangling
@@ -295,9 +295,9 @@ func (g *grub) TryKernel() (snap.PlaceInfo, bool, error) {
 		// if we failed to read the symlink, then the try kernel isn't usable,
 		// so return err because the symlink is there
 		if err != nil {
-			return nil, false, err
+			return nil, err
 		}
-		return p, true, nil
+		return p, nil
 	}
-	return nil, false, nil
+	return nil, ErrNoTryKernelRef
 }

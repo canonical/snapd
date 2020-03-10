@@ -251,6 +251,10 @@ mount options=(rw, bind) /dev/null -> /proc/kcore,
 mount options=(rw, bind) /dev/null -> /proc/sched_debug,
 mount options=(rw, bind) /dev/null -> /proc/timer_stats,
 
+# greengrass will also mount over /proc/latency_stats when running on
+# kernels configured with CONFIG_LATENCYTOP set
+mount options=(rw, bind) /dev/null -> /proc/latency_stats,
+
 # umounts for tearing down containers
 umount /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/**,
 

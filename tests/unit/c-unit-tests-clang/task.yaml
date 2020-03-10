@@ -27,5 +27,7 @@ execute: |
     build_dir="$SPREAD_PATH/cmd/autogarbage"
     BUILD_DIR=$build_dir CC=clang ./autogen.sh
     cd "$build_dir"
-    # Build and run unit tests
+    # Build and run unit tests as root and as a user
     make check
+    chown -R test.test "$build_dir"
+    su test -c 'make check'

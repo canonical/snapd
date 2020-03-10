@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/snap"
 )
@@ -30,9 +31,10 @@ import (
 // MockBootloader mocks the bootloader interface and records all
 // set/get calls.
 type MockBootloader struct {
-	BootVars map[string]string
-	SetErr   error
-	GetErr   error
+	BootVars         map[string]string
+	SetBootVarsCalls int
+	SetErr           error
+	GetErr           error
 
 	name    string
 	bootdir string
@@ -59,6 +61,7 @@ type MockBootloader struct {
 
 // ensure MockBootloader implements the Bootloader interface
 var _ bootloader.Bootloader = (*MockBootloader)(nil)
+var _ bootloader.ExtractedRunKernelImageBootloader = (*MockBootloader)(nil)
 
 func Mock(name, bootdir string) *MockBootloader {
 	return &MockBootloader{
@@ -73,6 +76,7 @@ func Mock(name, bootdir string) *MockBootloader {
 }
 
 func (b *MockBootloader) SetBootVars(values map[string]string) error {
+	b.SetBootVarsCalls++
 	for k, v := range values {
 		b.BootVars[k] = v
 	}
@@ -119,10 +123,10 @@ func (b *MockBootloader) SetBootBase(base string) {
 }
 
 func (b *MockBootloader) SetTryingDuringReboot() error {
-	if b.BootVars["snap_mode"] != "try" {
+	if b.BootVars["snap_mode"] != boot.TryStatus {
 		return fmt.Errorf("bootloader must be in 'try' mode")
 	}
-	b.BootVars["snap_mode"] = "trying"
+	b.BootVars["snap_mode"] = boot.TryingStatus
 	return nil
 }
 
@@ -132,14 +136,14 @@ func (b *MockBootloader) SetTryingDuringReboot() error {
 // "snap_try_{core,kernel}" and "snap_mode" which means the "old" kernel,core
 // in "snap_{core,kernel}" will be used.
 func (b *MockBootloader) SetRollbackAcrossReboot() error {
-	if b.BootVars["snap_mode"] != "try" {
+	if b.BootVars["snap_mode"] != boot.TryStatus {
 		return fmt.Errorf("rollback can only be simulated in 'try' mode")
 	}
 	if b.BootVars["snap_core"] == "" && b.BootVars["snap_kernel"] == "" {
 		return fmt.Errorf("rollback can only be simulated if either snap_core or snap_kernel is set")
 	}
 	// clean try bootvars and snap_mode
-	b.BootVars["snap_mode"] = ""
+	b.BootVars["snap_mode"] = boot.DefaultStatus
 	b.BootVars["snap_try_core"] = ""
 	b.BootVars["snap_try_kernel"] = ""
 	return nil
@@ -247,16 +251,16 @@ func (b *MockBootloader) Kernel() (snap.PlaceInfo, error) {
 
 // TryKernel returns the current kernel set in the bootloader; part of
 // ExtractedRunKernelImageBootloader.
-func (b *MockBootloader) TryKernel() (snap.PlaceInfo, bool, error) {
+func (b *MockBootloader) TryKernel() (snap.PlaceInfo, error) {
 	b.runKernelImageMockedNumCalls["TryKernel"]++
 	err := b.runKernelImageMockedErrs["TryKernel"]
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 	if b.runKernelImageEnabledTryKernel == nil {
-		return nil, false, nil
+		return nil, bootloader.ErrNoTryKernelRef
 	}
-	return b.runKernelImageEnabledTryKernel, true, nil
+	return b.runKernelImageEnabledTryKernel, nil
 }
 
 // DisableTryKernel removes the current try-kernel "symlink" set in the

@@ -349,25 +349,19 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 
 	installSet := state.NewTaskSet(tasks...)
 	installSet.WaitAll(ts)
-	ts.AddAll(installSet)
+	installSet.MarkEdge(prereq, BeginEdge)
+	installSet.MarkEdge(setupAliases, BeforeHooksEdge)
+	if installHook != nil {
+		installSet.MarkEdge(installHook, HooksEdge)
+	}
+	ts.AddAllWithEdges(installSet)
 	if checkAsserts != nil {
 		ts.MarkEdge(checkAsserts, DownloadAndChecksDoneEdge)
 	}
 
 	if flags&skipConfigure != 0 {
-		if installHook != nil {
-			installSet.MarkEdge(installHook, HooksEdge)
-		}
-		installSet.MarkEdge(prereq, BeginEdge)
-		installSet.MarkEdge(setupAliases, BeforeHooksEdge)
 		return installSet, nil
 	}
-
-	if installHook != nil {
-		ts.MarkEdge(installHook, HooksEdge)
-	}
-	ts.MarkEdge(prereq, BeginEdge)
-	ts.MarkEdge(setupAliases, BeforeHooksEdge)
 
 	// we do not support configuration for bases or the "snapd" snap yet
 	if snapsup.Type != snap.TypeBase && snapsup.Type != snap.TypeSnapd {
@@ -574,14 +568,6 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 }
 
 func checkInstallPreconditions(st *state.State, info *snap.Info, flags Flags, snapst *SnapState, deviceCtx DeviceContext) error {
-	// Check if the snapd can be installed on Ubuntu Core systems, it is
-	// always ok to install on classic
-	if info.GetType() == snap.TypeSnapd && !release.OnClassic {
-		if deviceCtx.Model().Base() == "" {
-			return fmt.Errorf("cannot install snapd snap on a model without a base snap yet")
-		}
-	}
-
 	if err := validateInfoAndFlags(info, snapst, flags); err != nil {
 		return err
 	}

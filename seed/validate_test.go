@@ -242,7 +242,7 @@ func (s *validateSuite) TestValidateFromYamlSnapSnapInvalid(c *C) {
 	// need to build the snap "manually" pack.Snap() will do validation
 	snapFilePath := filepath.Join(c.MkDir(), "some-snap-invalid-yaml_1.snap")
 	d := squashfs.New(snapFilePath)
-	err = d.Build(snapBuildDir, "app")
+	err = d.Build(snapBuildDir, nil)
 	c.Assert(err, IsNil)
 
 	// put the broken snap in place

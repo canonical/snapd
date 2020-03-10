@@ -77,7 +77,7 @@
 
 
 Name:           snapd
-Version:        2.43.2
+Version:        2.43.3
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -385,7 +385,7 @@ fi
 %ghost %{_sharedstatedir}/snapd/state.json
 %ghost %{_sharedstatedir}/snapd/system-key
 %ghost %{snap_mount_dir}/README
-%verify(not user group mode) %attr(06755,root,root) %{_libexecdir}/snapd/snap-confine
+%verify(not user group mode) %attr(04755,root,root) %{_libexecdir}/snapd/snap-confine
 %{_bindir}/snap
 %{_bindir}/snapctl
 %{_datadir}/applications/snap-handle-link.desktop

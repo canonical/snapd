@@ -3,6 +3,7 @@ summary: Ensure that classic confinement works
 environment:
     CLASSIC_SNAP: test-snapd-classic-confinement
 
+# TODO: enable for other systems too?
 systems: [ubuntu-core-1*, fedora-*]
 
 prepare: |
