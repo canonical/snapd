@@ -47,6 +47,9 @@ execute: |
     # have snap use the fakestore for assertions (but nothing else)
     export SNAPPY_FORCE_SAS_URL=http://$STORE_ADDR
 
+    mkdir -p "$ROOT"
+    chown test:test "$ROOT"
+
     echo Creating model assertion
     cat > "$ROOT/model.assertion" <<EOF
     type: model
