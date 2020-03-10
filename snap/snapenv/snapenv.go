@@ -20,24 +20,16 @@
 package snapenv
 
 import (
-	"fmt"
 	"os"
 	"os/user"
 	"path/filepath"
-	"strings"
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/snap"
-)
-
-type preserveUnsafeEnvFlag int8
-
-const (
-	discardUnsafeFlag preserveUnsafeEnvFlag = iota
-	preserveUnsafeFlag
+	"github.com/snapcore/snapd/strutil"
 )
 
 // ExecEnv returns the full environment that is required for
@@ -52,49 +44,47 @@ const (
 //
 // With the extra parameter additional environment variables can be
 // supplied which will be set in the execution environment.
-func ExecEnv(info *snap.Info, extra map[string]string) []string {
-	// merge environment and the snap environment, note that the
-	// snap environment overrides pre-existing env entries
-	preserve := discardUnsafeFlag
+func ExecEnv(info *snap.Info) (*strutil.Environment, error) {
+	// Start with OS environment.
+	env, err := strutil.OSEnvironment()
+	if err != nil {
+		// If environment is maliciously corrupted it may not parse correctly.
+		return nil, err
+	}
+
+	// For snaps using classic confinement preserve variables that are
+	// automatically discarded by executing setuid executables.
 	if info.NeedsClassic() {
-		preserve = preserveUnsafeFlag
+		env.Transform(func(key, value string) (string, string) {
+			if unsafeEnv[key] {
+				key = PreservedUnsafePrefix + key
+			}
+			return key, value
+		})
 	}
-	env := envMap(os.Environ(), preserve)
-	snapEnv := snapEnv(info)
-	for k, v := range snapEnv {
-		env[k] = v
-	}
-	for k, v := range extra {
-		env[k] = v
-	}
-	return envFromMap(env)
+
+	// Apply a delta with all SNAP_XXX variables.
+	env.ApplyDelta(snapEnv(info))
+
+	return env, nil
 }
 
-// snapEnv returns the extra environment that is required for
-// snap-{confine,exec} to work.
-func snapEnv(info *snap.Info) map[string]string {
-	var home string
-
-	usr, err := user.Current()
-	if err == nil {
-		home = usr.HomeDir
+func snapEnv(info *snap.Info) *strutil.EnvironmentDelta {
+	// Start with the delta containing the basic snap variables like SNAP_NAME.
+	delta := basicEnv(info)
+	// If we know the home directory also apply a delta with SNAP_USER_DATA and the like.
+	if usr, err := user.Current(); err == nil && usr.HomeDir != "" {
+		delta.Merge(userEnv(info, usr.HomeDir))
 	}
-
-	env := basicEnv(info)
-	if home != "" {
-		for k, v := range userEnv(info, home) {
-			env[k] = v
-		}
-	}
-	return env
+	return delta
 }
 
 // basicEnv returns the app-level environment variables for a snap.
 // Despite this being a bit snap-specific, this is in helpers.go because it's
 // used by so many other modules, we run into circular dependencies if it's
 // somewhere more reasonable like the snappy module.
-func basicEnv(info *snap.Info) map[string]string {
-	return map[string]string{
+func basicEnv(info *snap.Info) *strutil.EnvironmentDelta {
+	return strutil.NewEnvironmentDelta(
 		// This uses CoreSnapMountDir because the computed environment
 		// variables are conveyed to the started application process which
 		// shall *either* execute with the new mount namespace where snaps are
@@ -105,43 +95,43 @@ func basicEnv(info *snap.Info) map[string]string {
 		// environment of each snap instance appear as if it's the only
 		// snap, i.e. SNAP paths point to the same locations within the
 		// mount namespace
-		"SNAP":               filepath.Join(dirs.CoreSnapMountDir, info.SnapName(), info.Revision.String()),
-		"SNAP_COMMON":        snap.CommonDataDir(info.SnapName()),
-		"SNAP_DATA":          snap.DataDir(info.SnapName(), info.Revision),
-		"SNAP_NAME":          info.SnapName(),
-		"SNAP_INSTANCE_NAME": info.InstanceName(),
-		"SNAP_INSTANCE_KEY":  info.InstanceKey,
-		"SNAP_VERSION":       info.Version,
-		"SNAP_REVISION":      info.Revision.String(),
-		"SNAP_ARCH":          arch.DpkgArchitecture(),
+		"SNAP", filepath.Join(dirs.CoreSnapMountDir, info.SnapName(), info.Revision.String()),
+		"SNAP_COMMON", snap.CommonDataDir(info.SnapName()),
+		"SNAP_DATA", snap.DataDir(info.SnapName(), info.Revision),
+		"SNAP_NAME", info.SnapName(),
+		"SNAP_INSTANCE_NAME", info.InstanceName(),
+		"SNAP_INSTANCE_KEY", info.InstanceKey,
+		"SNAP_VERSION", info.Version,
+		"SNAP_REVISION", info.Revision.String(),
+		"SNAP_ARCH", arch.DpkgArchitecture(),
 		// see https://github.com/snapcore/snapd/pull/2732#pullrequestreview-18827193
-		"SNAP_LIBRARY_PATH": "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/void",
-		"SNAP_REEXEC":       os.Getenv("SNAP_REEXEC"),
-	}
+		"SNAP_LIBRARY_PATH", "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/void",
+		"SNAP_REEXEC", os.Getenv("SNAP_REEXEC"),
+	)
 }
 
 // userEnv returns the user-level environment variables for a snap.
 // Despite this being a bit snap-specific, this is in helpers.go because it's
 // used by so many other modules, we run into circular dependencies if it's
 // somewhere more reasonable like the snappy module.
-func userEnv(info *snap.Info, home string) map[string]string {
+func userEnv(info *snap.Info, home string) *strutil.EnvironmentDelta {
 	// To keep things simple the user variables always point to the
 	// instance-specific directories.
-	result := map[string]string{
-		"SNAP_USER_COMMON": info.UserCommonDataDir(home),
-		"SNAP_USER_DATA":   info.UserDataDir(home),
-	}
+	result := strutil.NewEnvironmentDelta(
+		"SNAP_USER_COMMON", info.UserCommonDataDir(home),
+		"SNAP_USER_DATA", info.UserDataDir(home),
+	)
 	if info.NeedsClassic() {
 		// Snaps using classic confinement don't have an override for
 		// HOME but may have an override for XDG_RUNTIME_DIR.
 		if !features.ClassicPreservesXdgRuntimeDir.IsEnabled() {
-			result["XDG_RUNTIME_DIR"] = info.UserXdgRuntimeDir(sys.Geteuid())
+			result.Set("XDG_RUNTIME_DIR", info.UserXdgRuntimeDir(sys.Geteuid()))
 		}
 	} else {
 		// Snaps using strict or devmode confinement get an override for both
 		// HOME and XDG_RUNTIME_DIR.
-		result["HOME"] = info.UserDataDir(home)
-		result["XDG_RUNTIME_DIR"] = info.UserXdgRuntimeDir(sys.Geteuid())
+		result.Set("HOME", info.UserDataDir(home))
+		result.Set("XDG_RUNTIME_DIR", info.UserXdgRuntimeDir(sys.Geteuid()))
 	}
 	return result
 }
@@ -177,42 +167,3 @@ var unsafeEnv = map[string]bool{
 }
 
 const PreservedUnsafePrefix = "SNAP_SAVED_"
-
-// envMap creates a map from the given environment string list,
-// e.g. the list returned from os.Environ(). If preserveUnsafeVars
-// rename variables that will be stripped out by the dynamic linker
-// executing the setuid snap-confine by prepending their names with
-// PreservedUnsafePrefix.
-func envMap(env []string, preserveUnsafeEnv preserveUnsafeEnvFlag) map[string]string {
-	envMap := map[string]string{}
-	for _, kv := range env {
-		// snap-exec unconditionally renames variables
-		// starting with PreservedUnsafePrefix so skip any
-		// that are already present in the environment to
-		// avoid confusion.
-		if strings.HasPrefix(kv, PreservedUnsafePrefix) {
-			continue
-		}
-		l := strings.SplitN(kv, "=", 2)
-		if len(l) < 2 {
-			continue // strange
-		}
-		k, v := l[0], l[1]
-		if preserveUnsafeEnv == preserveUnsafeFlag && unsafeEnv[k] {
-			k = PreservedUnsafePrefix + k
-		}
-		envMap[k] = v
-	}
-	return envMap
-}
-
-// envFromMap creates a list of strings of the form k=v from a dict. This is
-// useful in combination with envMap to create an environment suitable to
-// pass to e.g. syscall.Exec()
-func envFromMap(em map[string]string) []string {
-	var out []string
-	for k, v := range em {
-		out = append(out, fmt.Sprintf("%s=%s", k, v))
-	}
-	return out
-}

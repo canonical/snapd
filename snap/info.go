@@ -1010,14 +1010,11 @@ func (app *AppInfo) ServiceFile() string {
 	return filepath.Join(dirs.SnapServicesDir, app.ServiceName())
 }
 
-// Env returns the app specific environment overrides
-func (app *AppInfo) Env() []string {
-	appEnv := app.Snap.Environment.Copy()
-	for _, k := range app.Environment.Keys() {
-		appEnv.Set(k, app.Environment.Get(k))
-	}
-
-	return envFromMap(appEnv)
+// EnvironmentOverrides returns the app-specific environment overrides.
+func (app *AppInfo) EnvironmentOverrides() *strutil.EnvironmentDelta {
+	delta := &strutil.EnvironmentDelta{OrderedMap: *app.Snap.Environment.Copy()}
+	delta.Merge(&strutil.EnvironmentDelta{OrderedMap: *app.Environment.Copy()})
+	return delta
 }
 
 // IsService returns whether app represents a daemon/service.
@@ -1033,23 +1030,11 @@ func (hook *HookInfo) SecurityTag() string {
 	return HookSecurityTag(hook.Snap.InstanceName(), hook.Name)
 }
 
-// Env returns the hook-specific environment overrides
-func (hook *HookInfo) Env() []string {
-	hookEnv := hook.Snap.Environment.Copy()
-	for _, k := range hook.Environment.Keys() {
-		hookEnv.Set(k, hook.Environment.Get(k))
-	}
-
-	return envFromMap(hookEnv)
-}
-
-func envFromMap(envMap *strutil.OrderedMap) []string {
-	env := []string{}
-	for _, k := range envMap.Keys() {
-		env = append(env, fmt.Sprintf("%s=%s", k, envMap.Get(k)))
-	}
-
-	return env
+// EnvironmentOverrides returns the hook-specific environment overrides.
+func (hook *HookInfo) EnvironmentOverrides() *strutil.EnvironmentDelta {
+	delta := &strutil.EnvironmentDelta{OrderedMap: *hook.Snap.Environment.Copy()}
+	delta.Merge(&strutil.EnvironmentDelta{OrderedMap: *hook.Environment.Copy()})
+	return delta
 }
 
 func infoFromSnapYamlWithSideInfo(meta []byte, si *SideInfo, strk *scopedTracker) (*Info, error) {

@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snap/squashfs"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -523,9 +524,9 @@ apps:
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	env := info.Apps["foo"].Env()
-	sort.Strings(env)
-	c.Check(env, DeepEquals, []string{
+	var env strutil.Environment
+	env.ApplyDelta(info.Apps["foo"].EnvironmentOverrides())
+	c.Check(env.RawEnvironment(), DeepEquals, strutil.RawEnvironment{
 		"app-k=app-v",
 		"global-k=global-v",
 	})
@@ -547,9 +548,9 @@ apps:
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	env := info.Apps["foo"].Env()
-	sort.Strings(env)
-	c.Check(env, DeepEquals, []string{
+	var env strutil.Environment
+	env.ApplyDelta(info.Apps["foo"].EnvironmentOverrides())
+	c.Check(env.RawEnvironment(), DeepEquals, strutil.RawEnvironment{
 		"app-k=app-v",
 		"global-and-local=local-v",
 		"global-k=global-v",
@@ -570,9 +571,9 @@ hooks:
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	env := info.Hooks["foo"].Env()
-	sort.Strings(env)
-	c.Check(env, DeepEquals, []string{
+	var env strutil.Environment
+	env.ApplyDelta(info.Hooks["foo"].EnvironmentOverrides())
+	c.Check(env.RawEnvironment(), DeepEquals, strutil.RawEnvironment{
 		"app-k=app-v",
 		"global-k=global-v",
 	})
@@ -594,9 +595,9 @@ hooks:
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	env := info.Hooks["foo"].Env()
-	sort.Strings(env)
-	c.Check(env, DeepEquals, []string{
+	var env strutil.Environment
+	env.ApplyDelta(info.Hooks["foo"].EnvironmentOverrides())
+	c.Check(env.RawEnvironment(), DeepEquals, strutil.RawEnvironment{
 		"app-k=app-v",
 		"global-and-local=local-v",
 		"global-k=global-v",

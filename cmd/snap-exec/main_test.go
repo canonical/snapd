@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/testutil"
 
 	snapExec "github.com/snapcore/snapd/cmd/snap-exec"
@@ -176,13 +177,11 @@ func (s *snapExecSuite) TestSnapExecAppIntegration(c *C) {
 	c.Check(execEnv, testutil.Contains, "BASE_PATH=/some/path")
 	c.Check(execEnv, testutil.Contains, "LD_LIBRARY_PATH=/some/path/lib")
 	c.Check(execEnv, testutil.Contains, fmt.Sprintf("MY_PATH=%s", os.Getenv("PATH")))
-	// Note that TEST_PATH has two values: environment sets it to /vanilla
-	// but snap.yaml sets it to /custom. One would expect that only one
-	// value prevails but due to
-	// https://bugs.launchpad.net/snapd/+bug/1860369 both environment items
-	// exist as distinct entries.
-	c.Check(execEnv, testutil.Contains, "TEST_PATH=/vanilla")
-	c.Check(execEnv, testutil.Contains, "TEST_PATH=/custom") // Surprise!
+	// TEST_PATH is properly handled and we only see one value, /custom, defined
+	// as an app-specific override.
+	// See also https://bugs.launchpad.net/snapd/+bug/1860369
+	c.Check(execEnv, Not(testutil.Contains), "TEST_PATH=/vanilla")
+	c.Check(execEnv, testutil.Contains, "TEST_PATH=/custom")
 }
 
 func (s *snapExecSuite) TestSnapExecAppCommandChainIntegration(c *C) {
@@ -479,8 +478,11 @@ func (s *snapExecSuite) TestSnapExecExpandEnvCmdArgs(c *C) {
 			expected: []string{"foo", "bar", "baz"},
 		},
 	} {
-		c.Check(snapExec.ExpandEnvCmdArgs(t.args, t.env), DeepEquals, t.expected)
-
+		var env strutil.Environment
+		for k, v := range t.env {
+			env.Set(k, v)
+		}
+		c.Check(snapExec.ExpandEnvCmdArgs(t.args, &env), DeepEquals, t.expected)
 	}
 }
 
