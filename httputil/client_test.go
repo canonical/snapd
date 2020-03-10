@@ -215,7 +215,7 @@ func (s *tlsSuite) TestClientExtraSSLCertInvalidCertWarnsAndRefuses(c *check.C) 
 	_, err = cli.Get(s.srv.URL)
 	c.Assert(err, check.IsNil)
 
-	c.Assert(s.logbuf.String(), check.Matches, "(?m).* cannot append store ssl certificate: .*/var/lib/snapd/ssl/store-certs/garbage.pem")
+	c.Assert(s.logbuf.String(), check.Matches, "(?m).* cannot load ssl certificate: .*/var/lib/snapd/ssl/store-certs/garbage.pem")
 }
 
 func (s *tlsSuite) TestClientExtraSSLCertIntegration(c *check.C) {

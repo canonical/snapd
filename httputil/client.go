@@ -63,7 +63,7 @@ func (e *ExtraSSLCertsFromDir) Certs() ([]*CertData, error) {
 	for _, p := range extraCertFiles {
 		cert, err := ioutil.ReadFile(p)
 		if err != nil {
-			return nil, fmt.Errorf("cannot read extra certificate: %v", err)
+			return nil, fmt.Errorf("cannot read certificate: %v", err)
 		}
 		extraCerts = append(extraCerts, &CertData{
 			Raw:    cert,
@@ -133,7 +133,7 @@ func (d *dialTLS) addLocalSSLCertificates() (allCAs *x509.CertPool, err error) {
 	}
 	for _, cert := range extraCerts {
 		if ok := allCAs.AppendCertsFromPEM(cert.Raw); !ok {
-			logger.Noticef("cannot append store ssl certificate: %v", cert.Origin)
+			logger.Noticef("cannot load ssl certificate: %v", cert.Origin)
 		}
 	}
 	return allCAs, nil
