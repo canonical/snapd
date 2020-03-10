@@ -7,9 +7,9 @@ environment:
     ROOT: /home/test/tmp/
     IMAGE: /home/test/tmp/image
     GADGET: /home/test/tmp/gadget
-    STORE_DIR: $(pwd)/fake-store-blobdir
     STORE_ADDR: localhost:11028
-    
+    STORE_DIR: $(pwd)/fake-store-blobdir
+
 prepare: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
@@ -19,6 +19,12 @@ prepare: |
     #shellcheck source=tests/lib/store.sh
     . "$TESTSLIB"/store.sh
     setup_fake_store "$STORE_DIR"
+
+    mkdir "$ROOT"
+    chown -R test:test "$ROOT"
+
+    # sign the model assertion
+    gendeveloper1model < "$TESTSLIB"/assertions/developer1-pi-uc20.model.json > "$ROOT/model.assertion"
 
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -44,52 +50,31 @@ execute: |
     echo Expose the needed assertions through the fakestore
     cp "$TESTSLIB"/assertions/developer1.account "$STORE_DIR/asserts"
     cp "$TESTSLIB"/assertions/developer1.account-key "$STORE_DIR/asserts"
+    cp "$TESTSLIB"/assertions/testrootorg-store.account-key "$STORE_DIR/asserts"
     # have snap use the fakestore for assertions (but nothing else)
     export SNAPPY_FORCE_SAS_URL=http://$STORE_ADDR
 
-    mkdir -p "$ROOT"
-    chown test:test "$ROOT"
-
-    echo Creating model assertion
-    cat > "$ROOT/model.assertion" <<EOF
-    type: model
-    series: 16
-    authority-id: my-brand
-    brand-id: my-brand
-    model: my-model
-    architecture: armhf
-    base: core20
-    grade: dangerous
-    snaps:
-      -
-        default-channel: 20/stable
-        id: YbGa9O3dAXl88YLI6Y1bGG74pwBxZyKg
-        name: pi
-        type: gadget
-      -
-        default-channel: 20/stable
-        id: jeIuP6tfFrvAdic8DMWqHmoaoukAPNbJ
-        name: pi-kernel
-        type: kernel
-      -
-        default-channel: latest/stable
-        id: DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q
-        name: core20
-        type: base
-      -
-        default-channel: latest/stable
-        id: PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4
-        name: snapd
-        type: snapd
-    timestamp: 2020-03-09T10:00:00+01:00
-    sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
-
-    AXNpZw==
-    EOF
+    # TODO:UC20 remove when pi gadget is published to 20-pi/edge
+    curl -L -O https://launchpad.net/~canonical-foundations/+snap/pi-arm64-20/+build/862694/+files/pi_20-1_arm64.snap
+    mv pi_20-1_arm64.snap "$ROOT"
 
     echo Running prepare-image as a user
-    su -c "SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE snap prepare-image --channel edge --extra-snaps test-snapd-tools $ROOT/model.assertion $ROOT" test
+    # TODO:UC20: remove --snap pi_20 once the gadget has been published
+    su -c "SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE snap prepare-image --channel edge --snap $ROOT/pi_20-1_arm64.snap $ROOT/model.assertion $ROOT" test
+
+    systemid="$(date +%Y%m%d)"
 
     echo Verifying the result
-    ls -lR "$IMAGE"
-    # TODO:UC20: add a bunch of checks like for the unpacked kernel
+    find "$ROOT/system-seed/" -ls
+
+    # TODO:UC20: refine the checks
+    test -e "$ROOT/system-seed/boot/uboot/uboot.env"
+
+    test -e "$ROOT/system-seed/systems/$systemid/model"
+    test -e "$ROOT/system-seed/systems/$systemid/kernel/initrd.img"
+    test -e "$ROOT/system-seed/systems/$systemid/kernel/kernel.img"
+    test "$(find "$ROOT/system-seed/systems/$systemid/kernel/dtbs/" | wc -l)" -gt 0
+
+    test -e "$ROOT"/system-seed/snaps/core20_*.snap
+    test -e "$ROOT"/system-seed/snaps/pi-kernel_*.snap
+    test -e "$ROOT"/system-seed/snaps/snapd_*.snap
