@@ -12,11 +12,14 @@ func TestRawSockStopperReadable(t *testing.T) {
 		t.Fatalf("cannot make test pipe: %v", err)
 	}
 
-	stopperSelectTimeout = &syscall.Timeval{
-		Usec: 50 * 1000, // 50ms
+	oldStopperSelectTimeout := stopperSelectTimeout
+	stopperSelectTimeout = func() *syscall.Timeval {
+		return &syscall.Timeval{
+			Usec: 50 * 1000, // 50ms
+		}
 	}
 	defer func() {
-		stopperSelectTimeout = nil
+		stopperSelectTimeout = oldStopperSelectTimeout
 	}()
 
 	readableOrStop, _, err := RawSockStopper(int(r.Fd()))

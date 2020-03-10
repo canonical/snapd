@@ -967,9 +967,8 @@ func (s *bootSetSuite) TestHappyMarkBootSuccessfulKernelUpgradeSetBootVarsPanics
 	// trying == true, because the symlink is still there, the snapstate mgr
 	// is responsible for cleaning it up when it notices the boot with the try
 	// kernel failed - that is done a level above this test
-	afterTryKernel, afterTrying, err := s.bootloader.TryKernel()
+	afterTryKernel, err := s.bootloader.TryKernel()
 	c.Assert(err, IsNil)
-	c.Assert(afterTrying, Equals, true)
 	c.Assert(afterTryKernel, Equals, kernel2)
 }
 
@@ -1049,9 +1048,8 @@ func (s *bootSetSuite) TestHappyMarkBootSuccessfulKernelUpgradeEnableKernelPanic
 	// trying == true, because the symlink is still there, the snapstate mgr
 	// is responsible for cleaning it up when it notices the boot with the try
 	// kernel failed - that is done a level above this test
-	afterTryKernel, afterTrying, err := s.bootloader.TryKernel()
+	afterTryKernel, err := s.bootloader.TryKernel()
 	c.Assert(err, IsNil)
-	c.Assert(afterTrying, Equals, true)
 	c.Assert(afterTryKernel, Equals, kernel2)
 }
 
@@ -1131,9 +1129,8 @@ func (s *bootSetSuite) TestHappyMarkBootSuccessfulKernelUpgradeDisableTryKernelP
 	// trying == true, because the symlink is still there, the snapstate mgr
 	// is responsible for cleaning it up when it notices the boot with the try
 	// kernel failed - that is done a level above this test
-	afterTryKernel, afterTrying, err := s.bootloader.TryKernel()
+	afterTryKernel, err := s.bootloader.TryKernel()
 	c.Assert(err, IsNil)
-	c.Assert(afterTrying, Equals, true)
 	c.Assert(afterTryKernel, Equals, kernel2)
 }
 
@@ -1303,9 +1300,8 @@ func (s *bootSetSuite) TestHappyCoreParticipant20SetNextKernelSnapSetBootVarsPan
 	// trying == true, because the symlink is still there, the snapstate mgr
 	// is responsible for cleaning it up when it notices the boot with the try
 	// kernel failed - that is done a level above this test
-	afterTryKernel, afterTrying, err := s.bootloader.TryKernel()
+	afterTryKernel, err := s.bootloader.TryKernel()
 	c.Assert(err, IsNil)
-	c.Assert(afterTrying, Equals, true)
 	c.Assert(afterTryKernel, Equals, kernel2)
 }
 
@@ -1332,9 +1328,8 @@ func runBootloaderLogic(c *C, ebl bootloader.ExtractedRunKernelImageBootloader) 
 		changed = true
 
 		// ensure that the try-kernel exists
-		tryKern, trying, err := ebl.TryKernel()
+		tryKern, err := ebl.TryKernel()
 		c.Assert(err, IsNil)
-		c.Assert(trying, Equals, true)
 		c.Assert(tryKern, Not(IsNil))
 		kern = tryKern
 

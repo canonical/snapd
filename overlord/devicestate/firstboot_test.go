@@ -1161,7 +1161,7 @@ type core18SnapsOpts struct {
 	gadget  bool
 }
 
-func (s *firstBoot16Suite) makeCore18Snaps(c *C, opts *core18SnapsOpts) (core18Fn, snapdFn, kernelFn, gadgetFn string) {
+func (s *firstBoot16BaseTest) makeCore18Snaps(c *C, opts *core18SnapsOpts) (core18Fn, snapdFn, kernelFn, gadgetFn string) {
 	if opts == nil {
 		opts = &core18SnapsOpts{}
 	}
