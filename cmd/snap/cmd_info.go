@@ -207,11 +207,10 @@ func wrapGeneric(out io.Writer, text []rune, indent, indent2 string, termWidth i
 	width := termWidth - indentWidth
 
 	// establish the indent of the whole block
-	idx := 0
 	var err error
 	for len(text) > width && err == nil {
 		// find a good place to chop the text
-		idx = runesLastIndexSpace(text[:width+1])
+		idx := runesLastIndexSpace(text[:width+1])
 		if idx < 0 {
 			// there's no whitespace; just chop at line width
 			idx = width

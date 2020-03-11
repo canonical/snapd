@@ -67,6 +67,7 @@ apps:
    BASE_PATH: /some/path
    LD_LIBRARY_PATH: ${BASE_PATH}/lib
    MY_PATH: $PATH
+   TEST_PATH: /custom
  app2:
   command: run-app2
   stop-command: stop-app2
@@ -161,6 +162,12 @@ func (s *snapExecSuite) TestSnapExecAppIntegration(c *C) {
 	})
 	defer restore()
 
+	// FIXME: TEST_PATH was meant to be just PATH but this uncovers another
+	// bug in the test suite where mocking binaries misbehaves.
+	oldPath := os.Getenv("TEST_PATH")
+	os.Setenv("TEST_PATH", "/vanilla")
+	defer os.Setenv("TEST_PATH", oldPath)
+
 	// launch and verify its run the right way
 	err := snapExec.ExecApp("snapname.app", "42", "stop", []string{"arg1", "arg2"})
 	c.Assert(err, IsNil)
@@ -169,6 +176,13 @@ func (s *snapExecSuite) TestSnapExecAppIntegration(c *C) {
 	c.Check(execEnv, testutil.Contains, "BASE_PATH=/some/path")
 	c.Check(execEnv, testutil.Contains, "LD_LIBRARY_PATH=/some/path/lib")
 	c.Check(execEnv, testutil.Contains, fmt.Sprintf("MY_PATH=%s", os.Getenv("PATH")))
+	// Note that TEST_PATH has two values: environment sets it to /vanilla
+	// but snap.yaml sets it to /custom. One would expect that only one
+	// value prevails but due to
+	// https://bugs.launchpad.net/snapd/+bug/1860369 both environment items
+	// exist as distinct entries.
+	c.Check(execEnv, testutil.Contains, "TEST_PATH=/vanilla")
+	c.Check(execEnv, testutil.Contains, "TEST_PATH=/custom") // Surprise!
 }
 
 func (s *snapExecSuite) TestSnapExecAppCommandChainIntegration(c *C) {
