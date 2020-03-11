@@ -206,14 +206,6 @@ func (s *envSuite) TestDel(c *C) {
 	c.Assert(env["missing"], Equals, "")
 }
 
-func (s *envSuite) TestSet(c *C) {
-	var env osutil.Environment
-	env.Set("K", "1")
-	c.Assert(env["K"], Equals, "1")
-	env.Set("K", "2")
-	c.Assert(env["K"], Equals, "2")
-}
-
 func (s *envSuite) TestForExec(c *C) {
 	env := osutil.NewEnvironment(map[string]string{"K1": "V1", "K2": "V2"})
 	c.Check(env.ForExec(), DeepEquals, []string{"K1=V1", "K2=V2"})
@@ -272,8 +264,8 @@ func (s *envSuite) TestMergeDeltas(c *C) {
 }
 
 func (s *envSuite) TestApplyDelta(c *C) {
-	var env osutil.Environment
-	env.Set("A", "a")
+	env := make(osutil.Environment)
+	env["A"] = "a"
 	undef := env.ApplyDelta(osutil.NewEnvironmentDelta(
 		"B", "$C",
 		"C", "$A",
@@ -284,8 +276,8 @@ func (s *envSuite) TestApplyDelta(c *C) {
 }
 
 func (s *envSuite) TestApplyDeltaForEnvOverride(c *C) {
-	var env osutil.Environment
-	env.Set("PATH", "system-value")
+	env := make(osutil.Environment)
+	env["PATH"] = "system-value"
 	undef := env.ApplyDelta(osutil.NewEnvironmentDelta(
 		"PATH", "snap-level-override",
 	))
@@ -298,8 +290,8 @@ func (s *envSuite) TestApplyDeltaForEnvOverride(c *C) {
 }
 
 func (s *envSuite) TestApplyDeltaForEnvExpansion(c *C) {
-	var env osutil.Environment
-	env.Set("PATH", "system-value")
+	env := make(osutil.Environment)
+	env["PATH"] = "system-value"
 	undef := env.ApplyDelta(osutil.NewEnvironmentDelta(
 		"PATH", "snap-ext:$PATH",
 	))
@@ -333,9 +325,9 @@ func (s *envSuite) TestApplyDeltaVarious(c *C) {
 	} {
 		delta, err := osutil.ParseRawEnvironmentDelta(strings.Split(t.env, ","))
 		c.Assert(err, IsNil)
-		var env osutil.Environment
+		env := make(osutil.Environment)
 		if strings.Contains(t.env, "PATH") {
-			env.Set("PATH", os.Getenv("PATH"))
+			env["PATH"] = os.Getenv("PATH")
 		}
 		env.ApplyDelta(delta)
 		delete(env, "PATH")

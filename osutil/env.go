@@ -142,14 +142,6 @@ func (env *Environment) Transform(tr func(key, value string) (string, string)) {
 	*env = newEntries
 }
 
-// Set adds or replaces the given environment variable.
-func (env *Environment) Set(key, value string) {
-	if *env == nil {
-		*env = make(Environment)
-	}
-	(*env)[key] = value
-}
-
 // ForExec returns environment suitable for using with exec family of functions.
 //
 // The returned environment is sorted lexicographically by variable name.
@@ -204,6 +196,10 @@ func (delta *EnvironmentDelta) Merge(other *EnvironmentDelta) {
 // The return value is the ordered list of variables that were referenced by
 // the delta but were never defined. They are expanded to an empty string.
 func (env *Environment) ApplyDelta(delta *EnvironmentDelta) []string {
+	if *env == nil {
+		*env = make(Environment)
+	}
+
 	keys := delta.Keys()
 	applied := make(map[string]bool, len(keys))
 
@@ -230,7 +226,7 @@ func (env *Environment) ApplyDelta(delta *EnvironmentDelta) []string {
 				}
 				applied[key] = true
 				changed = true
-				env.Set(key, valueExp)
+				(*env)[key] = valueExp
 			}
 		}
 	}
@@ -254,7 +250,7 @@ func (env *Environment) ApplyDelta(delta *EnvironmentDelta) []string {
 				}
 				return varValue
 			})
-			env.Set(key, valueExp)
+			(*env)[key] = valueExp
 		}
 	}
 

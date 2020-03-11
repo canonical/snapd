@@ -713,7 +713,9 @@ func activateXdgDocumentPortal(info *snap.Info, snapApp, hook string) error {
 }
 
 func (x *cmdRun) runCmdUnderGdb(origCmd []string, env osutil.Environment) error {
-	env.Set("SNAP_CONFINE_RUN_UNDER_GDB", "1")
+	// Environment is not nil here because it comes from snapenv.ExecEnv and
+	// that guarantees this property.
+	env["SNAP_CONFINE_RUN_UNDER_GDB"] = "1"
 
 	cmd := []string{"sudo", "-E", "gdb", "-ex=run", "-ex=catch exec", "-ex=continue", "--args"}
 	cmd = append(cmd, origCmd...)
@@ -943,7 +945,9 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 		return err
 	}
 	if len(xauthPath) > 0 {
-		env.Set("XAUTHORITY", xauthPath)
+		// Environment is not nil here because it comes from snapenv.ExecEnv
+		// and that guarantees this property.
+		env["XAUTHORITY"] = xauthPath
 	}
 
 	if x.TraceExec {
