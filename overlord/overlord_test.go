@@ -58,6 +58,26 @@ type overlordSuite struct {
 
 var _ = Suite(&overlordSuite{})
 
+type ticker struct {
+	tickerChannel chan time.Time
+}
+
+func (w *ticker) tick(n int) {
+	for i := 0; i < n; i++ {
+		w.tickerChannel <- time.Time{}
+	}
+}
+
+func fakePruneTicker() (w *ticker, restore func()) {
+	w = &ticker{
+		tickerChannel: make(chan time.Time),
+	}
+	restore = overlord.MockPruneTicker(func(t *time.Ticker) <-chan time.Time {
+		return w.tickerChannel
+	})
+	return w, restore
+}
+
 func (ovs *overlordSuite) SetUpTest(c *C) {
 	tmpdir := c.MkDir()
 	dirs.SetRootDir(tmpdir)
@@ -698,26 +718,6 @@ func (ovs *overlordSuite) TestEnsureLoopPruneDoesntAbortShortlyAfterStartOfOpera
 	c.Check(chg.Status(), Equals, state.DoingStatus)
 }
 
-type ticker struct {
-	tickerChannel chan time.Time
-}
-
-func (w *ticker) tick(n int) {
-	for i := 0; i < n; i++ {
-		w.tickerChannel <- time.Time{}
-	}
-}
-
-func fakePruneTicker() (w *ticker, restore func()) {
-	w = &ticker{
-		tickerChannel: make(chan time.Time),
-	}
-	restore = overlord.MockPruneTicker(func(t *time.Ticker) <-chan time.Time {
-		return w.tickerChannel
-	})
-	return w, restore
-}
-
 func (ovs *overlordSuite) TestEnsureLoopPruneAbortsOld(c *C) {
 	restoreEnsureIntv := overlord.MockEnsureInterval(10 * time.Hour)
 	defer restoreEnsureIntv()
@@ -737,6 +737,8 @@ func (ovs *overlordSuite) TestEnsureLoopPruneAbortsOld(c *C) {
 		return &state.Retry{}
 	}, nil)
 
+	markSeeded(o)
+
 	st := o.State()
 	st.Lock()
 
@@ -744,11 +746,15 @@ func (ovs *overlordSuite) TestEnsureLoopPruneAbortsOld(c *C) {
 	opTime := time.Now().AddDate(-1, 0, 0)
 	st.Set("start-of-operation-time", opTime)
 
+	st.Unlock()
+	c.Assert(o.StartUp(), IsNil)
+	st.Lock()
+
 	// spawn time one month ago
 	spawnTime := time.Now().AddDate(0, -1, 0)
 	restoreTimeNow := state.MockTime(spawnTime)
 	t := st.NewTask("bar", "...")
-	chg := st.NewChange("foo-change", "...")
+	chg := st.NewChange("other-change", "...")
 	chg.AddTask(t)
 
 	restoreTimeNow()
@@ -756,9 +762,6 @@ func (ovs *overlordSuite) TestEnsureLoopPruneAbortsOld(c *C) {
 	// sanity
 	c.Check(st.Changes(), HasLen, 1)
 	st.Unlock()
-	markSeeded(o)
-
-	c.Assert(o.StartUp(), IsNil)
 
 	// start the loop that runs the prune ticker
 	o.Loop()
