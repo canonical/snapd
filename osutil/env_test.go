@@ -24,16 +24,16 @@ import (
 	"math"
 	"os"
 
-	"gopkg.in/check.v1"
+	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/osutil"
 )
 
 type envSuite struct{}
 
-var _ = check.Suite(&envSuite{})
+var _ = Suite(&envSuite{})
 
-func (s *envSuite) TestGetenvBoolTrue(c *check.C) {
+func (s *envSuite) TestGetenvBoolTrue(c *C) {
 	key := "__XYZZY__"
 	os.Unsetenv(key)
 
@@ -41,58 +41,58 @@ func (s *envSuite) TestGetenvBoolTrue(c *check.C) {
 		"1", "t", "TRUE",
 	} {
 		os.Setenv(key, s)
-		c.Assert(os.Getenv(key), check.Equals, s)
-		c.Check(osutil.GetenvBool(key), check.Equals, true, check.Commentf(s))
-		c.Check(osutil.GetenvBool(key, false), check.Equals, true, check.Commentf(s))
-		c.Check(osutil.GetenvBool(key, true), check.Equals, true, check.Commentf(s))
+		c.Assert(os.Getenv(key), Equals, s)
+		c.Check(osutil.GetenvBool(key), Equals, true, Commentf(s))
+		c.Check(osutil.GetenvBool(key, false), Equals, true, Commentf(s))
+		c.Check(osutil.GetenvBool(key, true), Equals, true, Commentf(s))
 	}
 }
 
-func (s *envSuite) TestGetenvBoolFalse(c *check.C) {
+func (s *envSuite) TestGetenvBoolFalse(c *C) {
 	key := "__XYZZY__"
 	os.Unsetenv(key)
-	c.Assert(osutil.GetenvBool(key), check.Equals, false)
+	c.Assert(osutil.GetenvBool(key), Equals, false)
 
 	for _, s := range []string{
 		"", "0", "f", "FALSE", "potato",
 	} {
 		os.Setenv(key, s)
-		c.Assert(os.Getenv(key), check.Equals, s)
-		c.Check(osutil.GetenvBool(key), check.Equals, false, check.Commentf(s))
-		c.Check(osutil.GetenvBool(key, false), check.Equals, false, check.Commentf(s))
+		c.Assert(os.Getenv(key), Equals, s)
+		c.Check(osutil.GetenvBool(key), Equals, false, Commentf(s))
+		c.Check(osutil.GetenvBool(key, false), Equals, false, Commentf(s))
 	}
 }
 
-func (s *envSuite) TestGetenvBoolFalseDefaultTrue(c *check.C) {
+func (s *envSuite) TestGetenvBoolFalseDefaultTrue(c *C) {
 	key := "__XYZZY__"
 	os.Unsetenv(key)
-	c.Assert(osutil.GetenvBool(key), check.Equals, false)
+	c.Assert(osutil.GetenvBool(key), Equals, false)
 
 	for _, s := range []string{
 		"0", "f", "FALSE",
 	} {
 		os.Setenv(key, s)
-		c.Assert(os.Getenv(key), check.Equals, s)
-		c.Check(osutil.GetenvBool(key, true), check.Equals, false, check.Commentf(s))
+		c.Assert(os.Getenv(key), Equals, s)
+		c.Check(osutil.GetenvBool(key, true), Equals, false, Commentf(s))
 	}
 
 	for _, s := range []string{
 		"", "potato", // etc
 	} {
 		os.Setenv(key, s)
-		c.Assert(os.Getenv(key), check.Equals, s)
-		c.Check(osutil.GetenvBool(key, true), check.Equals, true, check.Commentf(s))
+		c.Assert(os.Getenv(key), Equals, s)
+		c.Check(osutil.GetenvBool(key, true), Equals, true, Commentf(s))
 	}
 }
 
-func (s *envSuite) TestGetenvInt64(c *check.C) {
+func (s *envSuite) TestGetenvInt64(c *C) {
 	key := "__XYZZY__"
 	os.Unsetenv(key)
 
-	c.Check(osutil.GetenvInt64(key), check.Equals, int64(0))
-	c.Check(osutil.GetenvInt64(key, -1), check.Equals, int64(-1))
-	c.Check(osutil.GetenvInt64(key, math.MaxInt64), check.Equals, int64(math.MaxInt64))
-	c.Check(osutil.GetenvInt64(key, math.MinInt64), check.Equals, int64(math.MinInt64))
+	c.Check(osutil.GetenvInt64(key), Equals, int64(0))
+	c.Check(osutil.GetenvInt64(key, -1), Equals, int64(-1))
+	c.Check(osutil.GetenvInt64(key, math.MaxInt64), Equals, int64(math.MaxInt64))
+	c.Check(osutil.GetenvInt64(key, math.MinInt64), Equals, int64(math.MinInt64))
 
 	for _, n := range []int64{
 		0, -1, math.MinInt64, math.MaxInt64,
@@ -100,8 +100,8 @@ func (s *envSuite) TestGetenvInt64(c *check.C) {
 		for _, tpl := range []string{"%d", "  %d  ", "%#x", "%#X", "%#o"} {
 			v := fmt.Sprintf(tpl, n)
 			os.Setenv(key, v)
-			c.Assert(os.Getenv(key), check.Equals, v)
-			c.Check(osutil.GetenvInt64(key), check.Equals, n, check.Commentf(v))
+			c.Assert(os.Getenv(key), Equals, v)
+			c.Check(osutil.GetenvInt64(key), Equals, n, Commentf(v))
 		}
 	}
 }
