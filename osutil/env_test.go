@@ -234,43 +234,27 @@ func (s *envSuite) TestParseRawExpandableEnvDuplicateKey(c *C) {
 }
 
 func (s *envSuite) TestSetExpandableEnv(c *C) {
-	env := make(osutil.Environment)
-	env["A"] = "a"
-	undef := env.SetExpandableEnv(osutil.NewExpandableEnv(
-		"B", "$C",
-		"C", "$A",
-		"D", "$D",
+	env := osutil.Environment{"A": "a"}
+	env.SetExpandableEnv(osutil.NewExpandableEnv(
+		"B", "$C", // $C is undefined so it expands to ""
+		"C", "$A", // $A is defined in the environment so it expands to "a"
+		"D", "$D", // $D is undefined so it expands to ""
 	))
-	c.Check(undef, DeepEquals, []string{"D"})
-	c.Check(env.ForExec(), DeepEquals, []string{"A=a", "B=a", "C=a", "D="})
+	c.Check(env, DeepEquals, osutil.Environment{"A": "a", "B": "", "C": "a", "D": ""})
 }
 
 func (s *envSuite) TestSetExpandableEnvForEnvOverride(c *C) {
-	env := make(osutil.Environment)
-	env["PATH"] = "system-value"
-	undef := env.SetExpandableEnv(osutil.NewExpandableEnv(
-		"PATH", "snap-level-override",
-	))
-	c.Check(undef, HasLen, 0)
-	undef = env.SetExpandableEnv(osutil.NewExpandableEnv(
-		"PATH", "app-level-override",
-	))
-	c.Check(undef, HasLen, 0)
-	c.Check(env.ForExec(), DeepEquals, []string{"PATH=app-level-override"})
+	env := osutil.Environment{"PATH": "system-value"}
+	env.SetExpandableEnv(osutil.NewExpandableEnv("PATH", "snap-level-override"))
+	env.SetExpandableEnv(osutil.NewExpandableEnv("PATH", "app-level-override"))
+	c.Check(env, DeepEquals, osutil.Environment{"PATH": "app-level-override"})
 }
 
 func (s *envSuite) TestSetExpandableEnvForEnvExpansion(c *C) {
-	env := make(osutil.Environment)
-	env["PATH"] = "system-value"
-	undef := env.SetExpandableEnv(osutil.NewExpandableEnv(
-		"PATH", "snap-ext:$PATH",
-	))
-	c.Check(undef, HasLen, 0)
-	undef = env.SetExpandableEnv(osutil.NewExpandableEnv(
-		"PATH", "app-ext:$PATH",
-	))
-	c.Check(undef, HasLen, 0)
-	c.Check(env.ForExec(), DeepEquals, []string{"PATH=app-ext:snap-ext:system-value"})
+	env := osutil.Environment{"PATH": "system-value"}
+	env.SetExpandableEnv(osutil.NewExpandableEnv("PATH", "snap-ext:$PATH"))
+	env.SetExpandableEnv(osutil.NewExpandableEnv("PATH", "app-ext:$PATH"))
+	c.Check(env, DeepEquals, osutil.Environment{"PATH": "app-ext:snap-ext:system-value"})
 }
 
 func (s *envSuite) TestSetExpandableEnvVarious(c *C) {
@@ -295,7 +279,7 @@ func (s *envSuite) TestSetExpandableEnvVarious(c *C) {
 	} {
 		eenv, err := osutil.ParseRawExpandableEnv(strings.Split(t.env, ","))
 		c.Assert(err, IsNil)
-		env := make(osutil.Environment)
+		env := osutil.Environment{}
 		if strings.Contains(t.env, "PATH") {
 			env["PATH"] = os.Getenv("PATH")
 		}

@@ -166,77 +166,15 @@ func NewExpandableEnv(pairs ...string) ExpandableEnv {
 //
 // Environment is modified in place. Each variable defined by expandable
 // environment is expanded according to os.Expand, using the environment itself
-// as data source.
-//
-// The return value is the ordered list of variables that were referenced by
-// the expandable environment but were never defined. They are expanded to an
-// empty string.
-func (env *Environment) SetExpandableEnv(eenv ExpandableEnv) []string {
+// as data source. Undefined variables expand to an empty string.
+func (env *Environment) SetExpandableEnv(eenv ExpandableEnv) {
 	if *env == nil {
 		*env = make(Environment)
 	}
 
-	keys := eenv.Keys()
-	applied := make(map[string]bool, len(keys))
-
-	// Keep trying to expand variables for as long as we are making progress.
-	changed := true
-	for changed {
-		changed = false
-		for _, key := range keys {
-			if !applied[key] {
-				// Attempt to expand each value and if successful, update the
-				// environment and record this .
-				value := eenv.Get(key)
-				good := true
-				valueExp := os.Expand(value, func(varName string) string {
-					varValue, ok := (*env)[varName]
-					if !ok {
-						good = false
-					}
-					return varValue
-				})
-				if !good {
-					// If we cannot expand the value yet then just continue.
-					continue
-				}
-				applied[key] = true
-				changed = true
-				(*env)[key] = valueExp
-			}
-		}
+	for _, key := range eenv.Keys() {
+		(*env)[key] = os.Expand(eenv.Get(key), func(varName string) string {
+			return (*env)[varName]
+		})
 	}
-
-	// If we've expanded all the values then there's no need to continue.
-	if len(applied) == len(keys) {
-		return nil
-	}
-
-	// We've reached a stable state but were unable to expand some variables.
-	// Expand them to the empty string and collect their names.
-	undefined := make(map[string]bool, len(keys)-len(applied))
-	for _, key := range keys {
-		if !applied[key] {
-			value := eenv.Get(key)
-			valueExp := os.Expand(value, func(varName string) string {
-				varValue, ok := (*env)[varName]
-				if !ok {
-					undefined[varName] = true
-					return ""
-				}
-				return varValue
-			})
-			(*env)[key] = valueExp
-		}
-	}
-
-	// Return the information about undefined variables.
-	vars := make([]string, 0, len(undefined))
-	for name, ok := range undefined {
-		if ok {
-			vars = append(vars, name)
-		}
-	}
-	sort.Strings(vars)
-	return vars
 }
