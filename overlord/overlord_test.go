@@ -64,7 +64,7 @@ type ticker struct {
 
 func (w *ticker) tick(n int) {
 	for i := 0; i < n; i++ {
-		w.tickerChannel <- time.Time{}
+		w.tickerChannel <- time.Now()
 	}
 }
 
@@ -623,7 +623,7 @@ func (ovs *overlordSuite) TestEnsureLoopPruneRunsMultipleTimes(c *C) {
 	o.Loop()
 
 	// this needs to be more than pruneWait=5ms mocked above
-	time.Sleep(6 * time.Millisecond)
+	time.Sleep(10 * time.Millisecond)
 	w.tick(2)
 
 	st.Lock()
@@ -632,7 +632,8 @@ func (ovs *overlordSuite) TestEnsureLoopPruneRunsMultipleTimes(c *C) {
 	st.Unlock()
 
 	// this needs to be more than pruneWait=5ms mocked above
-	time.Sleep(6 * time.Millisecond)
+	time.Sleep(10 * time.Millisecond)
+	// tick twice for extra Ensure
 	w.tick(2)
 
 	st.Lock()
@@ -710,7 +711,7 @@ func (ovs *overlordSuite) TestEnsureLoopPruneDoesntAbortShortlyAfterStartOfOpera
 
 	// start the loop that runs the prune ticker
 	o.Loop()
-	w.tick(10)
+	w.tick(2)
 
 	c.Assert(o.Stop(), IsNil)
 
@@ -721,6 +722,7 @@ func (ovs *overlordSuite) TestEnsureLoopPruneDoesntAbortShortlyAfterStartOfOpera
 }
 
 func (ovs *overlordSuite) TestEnsureLoopPruneAbortsOld(c *C) {
+	// Ensure interval is not relevant for this test
 	restoreEnsureIntv := overlord.MockEnsureInterval(10 * time.Hour)
 	defer restoreEnsureIntv()
 
@@ -767,7 +769,7 @@ func (ovs *overlordSuite) TestEnsureLoopPruneAbortsOld(c *C) {
 
 	// start the loop that runs the prune ticker
 	o.Loop()
-	w.tick(10)
+	w.tick(2)
 
 	c.Assert(o.Stop(), IsNil)
 
@@ -825,7 +827,7 @@ func (ovs *overlordSuite) TestEnsureLoopNoPruneWhenPreseed(c *C) {
 	st.Unlock()
 	// start the loop that runs the prune ticker
 	o.Loop()
-	w.tick(10)
+	w.tick(2)
 
 	c.Assert(o.Stop(), IsNil)
 
