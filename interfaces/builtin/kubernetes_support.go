@@ -64,6 +64,7 @@ capability sys_resource,
 capability dac_override,
 
 /usr/bin/systemd-run Cxr -> systemd_run,
+/run/systemd/private r,
 profile systemd_run (attach_disconnected,mediate_deleted) {
   # Common rules for kubernetes use of systemd_run
   #include <abstractions/base>
@@ -153,6 +154,12 @@ const kubernetesSupportConnectedPlugAppArmorKubeletSystemdRun = `
   # For mounting volume subPaths
   mount /var/snap/@{SNAP_INSTANCE_NAME}/common/{,**} -> /var/snap/@{SNAP_INSTANCE_NAME}/common/{,**},
   mount options=(rw, remount, bind) -> /var/snap/@{SNAP_INSTANCE_NAME}/common/{,**},
+  # nvme0-99, 1-63 partitions with 1-63 optional namespaces
+  mount /dev/nvme{[0-9],[1-9][0-9]}n{[1-9],[1-5][0-9],6[0-3]}{,p{[1-9],[1-5][0-9],6[0-3]}} -> /var/snap/@{SNAP_INSTANCE_NAME}/common/**,
+  # SCSI sda-sdiv, 1-15 partitions
+  mount /dev/sd{[a-z],[a-h][a-z],i[a-v]}{[1-9],1[0-5]} -> /var/snap/@{SNAP_INSTANCE_NAME}/common/**,
+  # virtio vda-vdz, 1-63 partitions
+  mount /dev/vd[a-z]{[1-9],[1-5][0-9],6[0-3]} -> /var/snap/@{SNAP_INSTANCE_NAME}/common/**,
   umount /var/snap/@{SNAP_INSTANCE_NAME}/common/**,
   # When mounting a volume subPath, kubelet binds mounts on an open fd (eg,
   # /proc/.../fd/N) which triggers a ptrace 'trace' denial on the parent
