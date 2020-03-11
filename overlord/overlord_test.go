@@ -598,7 +598,7 @@ func (ovs *overlordSuite) TestEnsureLoopPrune(c *C) {
 }
 
 func (ovs *overlordSuite) TestEnsureLoopPruneRunsMultipleTimes(c *C) {
-	restoreIntv := overlord.MockPruneInterval(1*time.Millisecond, 5*time.Millisecond, 1*time.Hour)
+	restoreIntv := overlord.MockPruneInterval(100*time.Millisecond, 5*time.Millisecond, 1*time.Hour)
 	defer restoreIntv()
 	o := overlord.Mock()
 
