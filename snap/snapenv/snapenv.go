@@ -69,7 +69,7 @@ func ExecEnv(info *snap.Info) (osutil.Environment, error) {
 	return env, nil
 }
 
-func snapEnv(info *snap.Info) *osutil.EnvironmentDelta {
+func snapEnv(info *snap.Info) *osutil.ExpandableEnv {
 	// Start with the delta containing the basic snap variables like SNAP_NAME.
 	delta := basicEnv(info)
 	// If we know the home directory also apply a delta with SNAP_USER_DATA and the like.
@@ -83,8 +83,8 @@ func snapEnv(info *snap.Info) *osutil.EnvironmentDelta {
 // Despite this being a bit snap-specific, this is in helpers.go because it's
 // used by so many other modules, we run into circular dependencies if it's
 // somewhere more reasonable like the snappy module.
-func basicEnv(info *snap.Info) *osutil.EnvironmentDelta {
-	return osutil.NewEnvironmentDelta(
+func basicEnv(info *snap.Info) *osutil.ExpandableEnv {
+	return osutil.NewExpandableEnv(
 		// This uses CoreSnapMountDir because the computed environment
 		// variables are conveyed to the started application process which
 		// shall *either* execute with the new mount namespace where snaps are
@@ -114,10 +114,10 @@ func basicEnv(info *snap.Info) *osutil.EnvironmentDelta {
 // Despite this being a bit snap-specific, this is in helpers.go because it's
 // used by so many other modules, we run into circular dependencies if it's
 // somewhere more reasonable like the snappy module.
-func userEnv(info *snap.Info, home string) *osutil.EnvironmentDelta {
+func userEnv(info *snap.Info, home string) *osutil.ExpandableEnv {
 	// To keep things simple the user variables always point to the
 	// instance-specific directories.
-	result := osutil.NewEnvironmentDelta(
+	result := osutil.NewExpandableEnv(
 		"SNAP_USER_COMMON", info.UserCommonDataDir(home),
 		"SNAP_USER_DATA", info.UserDataDir(home),
 	)

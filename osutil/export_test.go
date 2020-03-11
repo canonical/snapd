@@ -202,8 +202,8 @@ func MockFindGid(mock func(name string) (uint64, error)) (restore func()) {
 
 const MaxSymlinkTries = maxSymlinkTries
 
-// ParseRawEnvironmentDelta returns a new environment delta parsed from key=value strings.
-func ParseRawEnvironmentDelta(entries []string) (*EnvironmentDelta, error) {
+// ParseRawExpandableEnv returns a new environment delta parsed from key=value strings.
+func ParseRawExpandableEnv(entries []string) (*ExpandableEnv, error) {
 	om := strutil.NewOrderedMap()
 	for _, entry := range entries {
 		key, value, err := parseEnvEntry(entry)
@@ -215,5 +215,5 @@ func ParseRawEnvironmentDelta(entries []string) (*EnvironmentDelta, error) {
 		}
 		om.Set(key, value)
 	}
-	return &EnvironmentDelta{OrderedMap: *om}, nil
+	return &ExpandableEnv{OrderedMap: *om}, nil
 }

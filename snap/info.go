@@ -1012,9 +1012,9 @@ func (app *AppInfo) ServiceFile() string {
 }
 
 // EnvironmentOverrides returns the app-specific environment overrides.
-func (app *AppInfo) EnvironmentOverrides() *osutil.EnvironmentDelta {
-	delta := &osutil.EnvironmentDelta{OrderedMap: *app.Snap.Environment.Copy()}
-	delta.Merge(&osutil.EnvironmentDelta{OrderedMap: *app.Environment.Copy()})
+func (app *AppInfo) EnvironmentOverrides() *osutil.ExpandableEnv {
+	delta := &osutil.ExpandableEnv{OrderedMap: *app.Snap.Environment.Copy()}
+	delta.Merge(&osutil.ExpandableEnv{OrderedMap: *app.Environment.Copy()})
 	return delta
 }
 
@@ -1032,9 +1032,9 @@ func (hook *HookInfo) SecurityTag() string {
 }
 
 // EnvironmentOverrides returns the hook-specific environment overrides.
-func (hook *HookInfo) EnvironmentOverrides() *osutil.EnvironmentDelta {
-	delta := &osutil.EnvironmentDelta{OrderedMap: *hook.Snap.Environment.Copy()}
-	delta.Merge(&osutil.EnvironmentDelta{OrderedMap: *hook.Environment.Copy()})
+func (hook *HookInfo) EnvironmentOverrides() *osutil.ExpandableEnv {
+	delta := &osutil.ExpandableEnv{OrderedMap: *hook.Snap.Environment.Copy()}
+	delta.Merge(&osutil.ExpandableEnv{OrderedMap: *hook.Environment.Copy()})
 	return delta
 }
 

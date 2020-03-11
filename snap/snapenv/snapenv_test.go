@@ -81,7 +81,7 @@ func (s *HTestSuite) TearDownTest(c *C) {
 
 func (ts *HTestSuite) TestBasic(c *C) {
 	env := basicEnv(mockSnapInfo)
-	c.Assert(env, DeepEquals, osutil.NewEnvironmentDelta(
+	c.Assert(env, DeepEquals, osutil.NewExpandableEnv(
 		"SNAP", fmt.Sprintf("%s/foo/17", dirs.CoreSnapMountDir),
 		"SNAP_COMMON", "/var/snap/foo/common",
 		"SNAP_DATA", "/var/snap/foo/17",
@@ -98,7 +98,7 @@ func (ts *HTestSuite) TestBasic(c *C) {
 
 func (ts *HTestSuite) TestUser(c *C) {
 	env := userEnv(mockSnapInfo, "/root")
-	c.Assert(env, DeepEquals, osutil.NewEnvironmentDelta(
+	c.Assert(env, DeepEquals, osutil.NewExpandableEnv(
 		"SNAP_USER_COMMON", "/root/snap/foo/common",
 		"SNAP_USER_DATA", "/root/snap/foo/17",
 		"HOME", "/root/snap/foo/17",
@@ -114,7 +114,7 @@ func (ts *HTestSuite) TestUserForClassicConfinement(c *C) {
 	// With the classic-preserves-xdg-runtime-dir feature disabled the snap
 	// per-user environment contains an override for XDG_RUNTIME_DIR.
 	env := userEnv(mockClassicSnapInfo, "/root")
-	c.Assert(env, DeepEquals, osutil.NewEnvironmentDelta(
+	c.Assert(env, DeepEquals, osutil.NewExpandableEnv(
 		// NOTE: Both HOME and XDG_RUNTIME_DIR are not defined here.
 		"SNAP_USER_COMMON", "/root/snap/foo/common",
 		"SNAP_USER_DATA", "/root/snap/foo/17",
@@ -126,7 +126,7 @@ func (ts *HTestSuite) TestUserForClassicConfinement(c *C) {
 	f := features.ClassicPreservesXdgRuntimeDir
 	c.Assert(ioutil.WriteFile(f.ControlFile(), nil, 0644), IsNil)
 	env = userEnv(mockClassicSnapInfo, "/root")
-	c.Assert(env, DeepEquals, osutil.NewEnvironmentDelta(
+	c.Assert(env, DeepEquals, osutil.NewExpandableEnv(
 		// NOTE: Both HOME and XDG_RUNTIME_DIR are not defined here.
 		"SNAP_USER_COMMON", "/root/snap/foo/common",
 		"SNAP_USER_DATA", "/root/snap/foo/17",
@@ -151,7 +151,7 @@ func (s *HTestSuite) TestSnapRunSnapExecEnv(c *C) {
 		}
 
 		env := snapEnv(info)
-		c.Check(env, DeepEquals, osutil.NewEnvironmentDelta(
+		c.Check(env, DeepEquals, osutil.NewExpandableEnv(
 			"SNAP", fmt.Sprintf("%s/snapname/42", dirs.CoreSnapMountDir),
 			"SNAP_COMMON", "/var/snap/snapname/common",
 			"SNAP_DATA", "/var/snap/snapname/42",
@@ -191,7 +191,7 @@ func (s *HTestSuite) TestParallelInstallSnapRunSnapExecEnv(c *C) {
 		}
 
 		env := snapEnv(info)
-		c.Check(env, DeepEquals, osutil.NewEnvironmentDelta(
+		c.Check(env, DeepEquals, osutil.NewExpandableEnv(
 			// Those are mapped to snap-specific directories by
 			// mount namespace setup
 			"SNAP", fmt.Sprintf("%s/snapname/42", dirs.CoreSnapMountDir),
@@ -220,7 +220,7 @@ func (ts *HTestSuite) TestParallelInstallUser(c *C) {
 	info.InstanceKey = "bar"
 	env := userEnv(&info, "/root")
 
-	c.Assert(env, DeepEquals, osutil.NewEnvironmentDelta(
+	c.Assert(env, DeepEquals, osutil.NewExpandableEnv(
 		"SNAP_USER_COMMON", "/root/snap/foo_bar/common",
 		"SNAP_USER_DATA", "/root/snap/foo_bar/17",
 		"HOME", "/root/snap/foo_bar/17",
@@ -239,7 +239,7 @@ func (ts *HTestSuite) TestParallelInstallUserForClassicConfinement(c *C) {
 	// With the classic-preserves-xdg-runtime-dir feature disabled the snap
 	// per-user environment contains an override for XDG_RUNTIME_DIR.
 	env := userEnv(&info, "/root")
-	c.Assert(env, DeepEquals, osutil.NewEnvironmentDelta(
+	c.Assert(env, DeepEquals, osutil.NewExpandableEnv(
 		"SNAP_USER_COMMON", "/root/snap/foo_bar/common",
 		"SNAP_USER_DATA", "/root/snap/foo_bar/17",
 		"XDG_RUNTIME_DIR", fmt.Sprintf(dirs.GlobalRootDir+"/run/user/%d/snap.foo_bar", sys.Geteuid()),
@@ -250,7 +250,7 @@ func (ts *HTestSuite) TestParallelInstallUserForClassicConfinement(c *C) {
 	f := features.ClassicPreservesXdgRuntimeDir
 	c.Assert(ioutil.WriteFile(f.ControlFile(), nil, 0644), IsNil)
 	env = userEnv(&info, "/root")
-	c.Assert(env, DeepEquals, osutil.NewEnvironmentDelta(
+	c.Assert(env, DeepEquals, osutil.NewExpandableEnv(
 		// NOTE, Both HOME and XDG_RUNTIME_DIR are not defined here.
 		"SNAP_USER_COMMON", "/root/snap/foo_bar/common",
 		"SNAP_USER_DATA", "/root/snap/foo_bar/17",

@@ -158,29 +158,29 @@ func (env Environment) ForExec() []string {
 	return raw
 }
 
-// EnvironmentDelta describes alterations to an environment.
+// ExpandableEnv describes alterations to an environment.
 //
 // Differential environment can refer to existing entries by using shell-like
 // syntax $KEY or ${KEY}. Entries inside an environment delta are ordered.
-type EnvironmentDelta struct {
+type ExpandableEnv struct {
 	strutil.OrderedMap
 }
 
-// NewEnvironmentDelta returns a new environment delta comprised of given pairs.
-func NewEnvironmentDelta(pairs ...string) *EnvironmentDelta {
-	return &EnvironmentDelta{OrderedMap: *strutil.NewOrderedMap(pairs...)}
+// NewExpandableEnv returns a new environment delta comprised of given pairs.
+func NewExpandableEnv(pairs ...string) *ExpandableEnv {
+	return &ExpandableEnv{OrderedMap: *strutil.NewOrderedMap(pairs...)}
 }
 
 // Copy returns a copy of the environment delta.
-func (delta *EnvironmentDelta) Copy() *EnvironmentDelta {
-	return &EnvironmentDelta{OrderedMap: *delta.OrderedMap.Copy()}
+func (delta *ExpandableEnv) Copy() *ExpandableEnv {
+	return &ExpandableEnv{OrderedMap: *delta.OrderedMap.Copy()}
 }
 
 // Merge combines two environment deltas.
 //
 // Clashing environment variables are overwritten and the value from the
 // "other" delta prevails.
-func (delta *EnvironmentDelta) Merge(other *EnvironmentDelta) {
+func (delta *ExpandableEnv) Merge(other *ExpandableEnv) {
 	for _, key := range other.Keys() {
 		value := other.Get(key)
 		delta.Set(key, value)
@@ -195,7 +195,7 @@ func (delta *EnvironmentDelta) Merge(other *EnvironmentDelta) {
 //
 // The return value is the ordered list of variables that were referenced by
 // the delta but were never defined. They are expanded to an empty string.
-func (env *Environment) ApplyDelta(delta *EnvironmentDelta) []string {
+func (env *Environment) ApplyDelta(delta *ExpandableEnv) []string {
 	if *env == nil {
 		*env = make(Environment)
 	}
