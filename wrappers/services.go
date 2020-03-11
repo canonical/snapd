@@ -486,6 +486,7 @@ Before={{ stringsJoin .Before " "}}
 X-Snappy=yes
 
 [Service]
+EnvironmentFile=-/etc/environment
 ExecStart={{.App.LauncherCommand}}
 SyslogIdentifier={{.App.Snap.InstanceName}}.{{.App.Name}}
 Restart={{.Restart}}

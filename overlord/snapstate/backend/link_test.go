@@ -523,8 +523,12 @@ type: os
 	c.Check(oldCmdV6.Calls(), HasLen, 0)
 	c.Check(oldCmdV7.Calls(), HasLen, 0)
 
-	c.Check(newCmdV6.Calls(), HasLen, 1)
-	c.Check(newCmdV7.Calls(), HasLen, 1)
+	c.Check(newCmdV6.Calls(), DeepEquals, [][]string{
+		{"fc-cache-v6", "--system-only"},
+	})
+	c.Check(newCmdV7.Calls(), DeepEquals, [][]string{
+		{"fc-cache-v7", "--system-only"},
+	})
 }
 
 func (s *linkCleanupSuite) testLinkCleanupFailedSnapdSnapOnCorePastWrappers(c *C, firstInstall bool) {
