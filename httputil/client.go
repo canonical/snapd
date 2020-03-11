@@ -95,12 +95,8 @@ func (d *dialTLS) dialTLS(network, addr string) (net.Conn, error) {
 	}
 
 	// add extraSSLCerts if needed
-	certs, err := d.addLocalSSLCertificates()
-	if err != nil {
+	if err := d.addLocalSSLCertificates(); err != nil {
 		logger.Noticef("cannot add local ssl certificates: %v", err)
-	}
-	if certs != nil {
-		d.conf.RootCAs = certs
 	}
 
 	return tls.Dial(network, addr, d.conf)
@@ -108,35 +104,40 @@ func (d *dialTLS) dialTLS(network, addr string) (net.Conn, error) {
 
 // addLocalSSLCertificates() is an internal helper that is called by
 // dialTLS to add an extra certificates.
-func (d *dialTLS) addLocalSSLCertificates() (allCAs *x509.CertPool, err error) {
+func (d *dialTLS) addLocalSSLCertificates() (err error) {
 	if d.extraSSLCerts == nil {
 		// nothing to add
-		return nil, nil
+		return nil
 	}
 
+	var allCAs *x509.CertPool
 	// start with all our current certs
 	if d.conf.RootCAs != nil {
 		allCAs = d.conf.RootCAs
 	} else {
 		allCAs, err = x509.SystemCertPool()
 		if err != nil {
-			return nil, fmt.Errorf("cannot read system certificates: %v", err)
+			return fmt.Errorf("cannot read system certificates: %v", err)
 		}
 	}
 	if allCAs == nil {
-		return nil, fmt.Errorf("cannot use empty certificate pool")
+		return fmt.Errorf("cannot use empty certificate pool")
 	}
-	// and now add new ones
+
+	// and now collect any new ones
 	extraCerts, err := d.extraSSLCerts.Certs()
 	if err != nil {
-		return nil, err
+		return err
 	}
 	for _, cert := range extraCerts {
 		if ok := allCAs.AppendCertsFromPEM(cert.Raw); !ok {
 			logger.Noticef("cannot load ssl certificate: %v", cert.Origin)
 		}
 	}
-	return allCAs, nil
+
+	// and add them
+	d.conf.RootCAs = allCAs
+	return nil
 }
 
 type ClientOptions struct {
