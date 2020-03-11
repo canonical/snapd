@@ -378,7 +378,7 @@ func New(cfg *Config, dauthCtx DeviceAndAuthContext) *Store {
 			MayLogBody: true,
 			Proxy:      cfg.Proxy,
 			ExtraSSLCerts: &httputil.ExtraSSLCertsFromDir{
-				Dir: dirs.SnapdExtraSSLCertsDir,
+				Dir: dirs.SnapdStoreSSLCertsDir,
 			},
 		}),
 	}
@@ -1300,7 +1300,7 @@ func (s *Store) WriteCatalogs(ctx context.Context, names io.Writer, adder SnapAd
 		Timeout:    10 * time.Second,
 		Proxy:      s.proxy,
 		ExtraSSLCerts: &httputil.ExtraSSLCertsFromDir{
-			Dir: dirs.SnapdExtraSSLCertsDir,
+			Dir: dirs.SnapdStoreSSLCertsDir,
 		},
 	})
 	doRequest := func() (*http.Response, error) {
@@ -1532,7 +1532,7 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 		cli := httputil.NewHTTPClient(&httputil.ClientOptions{
 			Proxy: s.proxy,
 			ExtraSSLCerts: &httputil.ExtraSSLCertsFromDir{
-				Dir: dirs.SnapdExtraSSLCertsDir,
+				Dir: dirs.SnapdStoreSSLCertsDir,
 			},
 		})
 		resp, finalErr = s.doRequest(ctx, cli, reqOptions, user)
@@ -1680,7 +1680,7 @@ func doDownloadReqImpl(ctx context.Context, storeURL *url.URL, cdnHeader string,
 	cli := httputil.NewHTTPClient(&httputil.ClientOptions{
 		Proxy: s.proxy,
 		ExtraSSLCerts: &httputil.ExtraSSLCertsFromDir{
-			Dir: dirs.SnapdExtraSSLCertsDir,
+			Dir: dirs.SnapdStoreSSLCertsDir,
 		},
 	})
 	return s.doRequest(ctx, cli, reqOptions, user)

@@ -287,7 +287,7 @@ func NewRunner() *Runner {
 			Time: run.now,
 		},
 		ExtraSSLCerts: &httputil.ExtraSSLCertsFromDir{
-			Dir: dirs.SnapdExtraSSLCertsDir,
+			Dir: dirs.SnapdStoreSSLCertsDir,
 		},
 	}
 	run.cli = httputil.NewHTTPClient(&opts)
