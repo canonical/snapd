@@ -41,9 +41,9 @@ type Specification struct {
 	// of the application or hook.
 	snippets map[string][]string
 
-	// dedupSnippets are just like snippets but are expensive to de-duplicate
-	// in apparmor_parser and are explicitly de-duplicated in the specification
-	// and backend system.
+	// dedupSnippets are just like snippets but are added only once to the
+	// resulting policy in an effort to avoid certain expensive to de-duplicate
+	// rules by apparmor_parser.
 	dedupSnippets map[string]*strutil.OrderedSet
 
 	// updateNS describe parts of apparmor policy for snap-update-ns executing
@@ -98,10 +98,13 @@ func (spec *Specification) AddSnippet(snippet string) {
 
 // AddDeduplicatedSnippet adds a new apparmor snippet to all applications and hooks using the interface.
 //
-// Multiple identical snippets may be computationally expensive to de-duplicate
-// in apparmor_parser. Using this function allows snapd to de-duplicate them at
-// the cost of somewhat more complex auditing process of the text of generated
-// apparmor profile.
+// Certain combinations of snippets may be computationally expensive for
+// apparmor_parser in its de-duplication step. This function lets snapd
+// perform de-duplication of identical rules at the potential cost of a
+// somewhat more complex auditing process of the text of generated
+// apparmor profile. Identical mount rules should typically use this, but
+// this function can also be used to avoid repeated rules that inhibit
+// auditability.
 func (spec *Specification) AddDeduplicatedSnippet(snippet string) {
 	if len(spec.securityTags) == 0 {
 		return

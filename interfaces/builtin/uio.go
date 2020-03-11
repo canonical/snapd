@@ -83,13 +83,22 @@ func (iface *uioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 	// The expression below matches them all as they all may be required for
 	// userspace drivers to operate.
 	//
-	// NOTE: This is a constant string to avoid apparmor_parser efficiency
-	// issue. This is detailed in the (private) bug LP: #1866349
+	// While it is more accurate to use:
 	//
-	// The workaround grants read only access to all uio sysfs files and
-	// control writable access to the specific device node. In addition the
-	// snippet added here is de-duplicated by the system before handing the
-	// text to compile in apparmor_parser.
+	//   "/sys/devices/platform/**/uio/%s/** r,", strings.TrimPrefix(path, "/dev/")
+	//
+	// multiple interface connections will result in overlapping deep
+	// globs of the form:
+	//
+	//   /sys/devices/platform/**/uio/uio1/** r,
+	//   /sys/devices/platform/**/uio/uio2/** r,
+	//   /sys/devices/platform/**/uio/uioN/** r,
+	//
+	// which are computationally difficult to de-duplicate provided
+	// large enough N. Instead, grant read only access to all uio
+	// sysfs files and control writable access to the specific
+	// device node in /dev. Use AddDeduplicatedSnippet() for clariry
+	// in the resulting rules.
 	spec.AddDeduplicatedSnippet("/sys/devices/platform/**/uio/uio[0-9]** r,")
 	return nil
 }
