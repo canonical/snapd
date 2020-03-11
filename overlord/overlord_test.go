@@ -704,7 +704,6 @@ type ticker struct {
 
 func (w *ticker) tick(n int) {
 	for i := 0; i < n; i++ {
-		time.Sleep(1 * time.Millisecond)
 		w.tickerChannel <- time.Time{}
 	}
 }
@@ -738,8 +737,6 @@ func (ovs *overlordSuite) TestEnsureLoopPruneAbortsOld(c *C) {
 		return &state.Retry{}
 	}, nil)
 
-	markSeeded(o)
-
 	st := o.State()
 	st.Lock()
 
@@ -747,15 +744,11 @@ func (ovs *overlordSuite) TestEnsureLoopPruneAbortsOld(c *C) {
 	opTime := time.Now().AddDate(-1, 0, 0)
 	st.Set("start-of-operation-time", opTime)
 
-	st.Unlock()
-	c.Assert(o.StartUp(), IsNil)
-	st.Lock()
-
 	// spawn time one month ago
 	spawnTime := time.Now().AddDate(0, -1, 0)
 	restoreTimeNow := state.MockTime(spawnTime)
 	t := st.NewTask("bar", "...")
-	chg := st.NewChange("other-change", "...")
+	chg := st.NewChange("foo-change", "...")
 	chg.AddTask(t)
 
 	restoreTimeNow()
@@ -763,6 +756,9 @@ func (ovs *overlordSuite) TestEnsureLoopPruneAbortsOld(c *C) {
 	// sanity
 	c.Check(st.Changes(), HasLen, 1)
 	st.Unlock()
+	markSeeded(o)
+
+	c.Assert(o.StartUp(), IsNil)
 
 	// start the loop that runs the prune ticker
 	o.Loop()
@@ -825,6 +821,8 @@ func (ovs *overlordSuite) TestEnsureLoopNoPruneWhenPreseed(c *C) {
 	// start the loop that runs the prune ticker
 	o.Loop()
 	w.tick(10)
+
+	c.Assert(o.Stop(), IsNil)
 
 	st.Lock()
 	defer st.Unlock()
