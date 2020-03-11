@@ -44,7 +44,7 @@ import (
 //
 // With the extra parameter additional environment variables can be
 // supplied which will be set in the execution environment.
-func ExecEnv(info *snap.Info) (*osutil.Environment, error) {
+func ExecEnv(info *snap.Info) (osutil.Environment, error) {
 	// Start with OS environment.
 	env, err := osutil.OSEnvironment()
 	if err != nil {

@@ -482,7 +482,7 @@ func (s *snapExecSuite) TestSnapExecExpandEnvCmdArgs(c *C) {
 		for k, v := range t.env {
 			env.Set(k, v)
 		}
-		c.Check(snapExec.ExpandEnvCmdArgs(t.args, &env), DeepEquals, t.expected)
+		c.Check(snapExec.ExpandEnvCmdArgs(t.args, env), DeepEquals, t.expected)
 	}
 }
 

@@ -138,7 +138,7 @@ func absoluteCommandChain(snapInfo *snap.Info, commandChain []string) []string {
 
 // expandEnvCmdArgs takes the string list of commandline arguments
 // and expands any $VAR with the given var from the env argument.
-func expandEnvCmdArgs(args []string, env *osutil.Environment) []string {
+func expandEnvCmdArgs(args []string, env osutil.Environment) []string {
 	cmdArgs := make([]string, 0, len(args))
 	for _, arg := range args {
 		maybeExpanded := os.Expand(arg, func(varName string) string {
