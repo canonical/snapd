@@ -99,7 +99,7 @@ func (iface *uioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 	// sysfs files and control writable access to the specific
 	// device node in /dev. Use AddDeduplicatedSnippet() for clarity
 	// in the resulting rules.
-	spec.AddDeduplicatedSnippet("/sys/devices/platform/**/uio/uio[0-9]** r,")
+	spec.AddDeduplicatedSnippet("/sys/devices/platform/**/uio/uio[0-9]** r,  # common rule for all uio connections")
 	return nil
 }
 

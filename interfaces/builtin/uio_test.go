@@ -113,7 +113,7 @@ func (s *uioInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), Equals, ""+
 		"/dev/uio0 rw,\n"+
 		"/dev/uio1 rw,\n"+
-		"/sys/devices/platform/**/uio/uio[0-9]** r,")
+		"/sys/devices/platform/**/uio/uio[0-9]** r,  # common rule for all uio connections")
 }
 
 func (s *uioInterfaceSuite) TestStaticInfo(c *C) {
