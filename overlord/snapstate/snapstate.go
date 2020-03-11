@@ -2025,6 +2025,7 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 	}
 
 	snapsup := &SnapSetup{
+		Base:        info.Base,
 		SideInfo:    snapst.Sequence[i],
 		Flags:       flags.ForSnapSetup(),
 		Type:        info.GetType(),
