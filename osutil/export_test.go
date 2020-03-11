@@ -204,7 +204,7 @@ const MaxSymlinkTries = maxSymlinkTries
 
 var ParseRawEnvironment = parseRawEnvironment
 
-// ParseRawExpandableEnv returns a new environment delta parsed from key=value strings.
+// ParseRawExpandableEnv returns a new expandable environment parsed from key=value strings.
 func ParseRawExpandableEnv(entries []string) (ExpandableEnv, error) {
 	om := strutil.NewOrderedMap()
 	for _, entry := range entries {

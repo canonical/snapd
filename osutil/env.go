@@ -152,12 +152,12 @@ func (env Environment) ForExec() []string {
 // ExpandableEnv describes alterations to an environment.
 //
 // Differential environment can refer to existing entries by using shell-like
-// syntax $KEY or ${KEY}. Entries inside an environment delta are ordered.
+// syntax $KEY or ${KEY}. Entries are ordered.
 type ExpandableEnv struct {
 	*strutil.OrderedMap
 }
 
-// NewExpandableEnv returns a new environment delta comprised of given pairs.
+// NewExpandableEnv returns a new expandable environment comprised of given pairs.
 func NewExpandableEnv(pairs ...string) ExpandableEnv {
 	return ExpandableEnv{OrderedMap: strutil.NewOrderedMap(pairs...)}
 }
