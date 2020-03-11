@@ -79,6 +79,10 @@ store_exit_code() {
 }
 
 exit_with_exit_code() {
+    if [ "$EXIT_CODE" != 0 ]; then
+        # debug
+        ps afx
+    fi
     exit $EXIT_CODE
 }
 

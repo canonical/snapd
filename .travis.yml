@@ -17,6 +17,29 @@ matrix:
         - set -e
         - ./run-checks --static
         - ./run-checks --short-unit
+    # slightly sad that the arm64 section duplicates most of the amd64
+    # section above. But it looks like doing "arch: [amd64, arm64]"
+    # does not work for some reason so this duplication is necessary.
+    - stage: quick
+      name: ARM64 unit tests
+      os: linux
+      arch: arm64
+      dist: xenial
+      # go1.10 here because that is what we use to build arm64 snaps/debs
+      go: "1.10.x"
+      before_install:
+        # no "deb-src" entries in the lxd arm64 container so we need to add
+        # it here
+        - echo "deb-src http://ports.ubuntu.com/ubuntu-ports xenial-updates main" | sudo tee -a /etc/apt/sources.list
+        - sudo apt --quiet -o Dpkg::Progress-Fancy=false update
+      install:
+        - sudo apt --quiet -o Dpkg::Progress-Fancy=false build-dep snapd
+        - ./get-deps.sh
+      script:
+        - set -e
+        - ./run-checks --static
+        - ./run-checks --short-unit
+
     - stage: quick
       go: "1.10.x"
       name: OSX build and minimal runtime sanity check
@@ -87,6 +110,7 @@ matrix:
         - ./run-checks --spread-unstable
   allow_failures:
     - name: Unstable systems
+    - name: ARM64 unit tests
   global:
     # SPREAD_LINODE_KEY
     - secure: "bzALrfNSLwM0bjceal1PU5rFErvqVhi00Sygx8jruo6htpZay3hrC2sHCKCQKPn1kvCfHidrHX1vnomg5N+B9o25GZEYSjKSGxuvdNDfCZYqPNjMbz5y7xXYfKWgyo+xtrKRM85Nqy121SfRz3KLDvrOLwwreb+pZv8DG1WraFTd7D6rK7nLnnYNUyw665XBMFVnM8ue3Zu9496Ih/TfQXhnNpsZY8xFWte4+cH7JvVCVTs8snjoGVZi3972PzinNkfBgJa24cUzxFMfiN/AwSBXJQKdVv+FsbB4uRgXAqTNwuus7PptiPNxpWWojuhm1Qgbk0XhGIdJxyUYkmNA4UrZ3C29nIRWbuAiHJ6ZWd1ur3dqphqOcgFInltSHkpfEdlL3YK4dCa2SmJESzotUGnyowCUUCXkWdDaZmFTwyK0Y6He9oyXDK5f+/U7SFlPvok0caJCvB9HbTQR1kYdh048I/R+Ht5QrFOZPk21DYWDOYhn7SzthBDZLsaL6n5gX7Y547SsL4B35YVbpaeHzccG6Mox8rI4bqlGFvP1U5i8uXD4uQjJChlVxpmozUEMok9T5RVediJs540p5uc8DQl48Nke02tXzC/XpGAvpnXT7eiiRNW67zOj2QcIV+ni3lBj3HvZeB9cgjzLNrZSl/t9vseqnNwQWpl3V6nd/bU="
