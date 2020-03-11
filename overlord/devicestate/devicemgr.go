@@ -723,6 +723,14 @@ func (m *DeviceManager) Serial() (*asserts.Serial, error) {
 	return findSerial(m.state, nil)
 }
 
+// Systems list the available recovery/seeding systems.
+func (m *DeviceManager) Systems() ([]string, error) {
+	// TODO:UC20 list available systems in the seed, load each with
+	// seed.LoadAssertions()
+	// TODO:UC20 convert brand-id to user friendly brand name
+	return nil, fmt.Errorf("not implemented")
+}
+
 // implement storecontext.Backend
 
 type storeContextBackend struct {
