@@ -397,10 +397,10 @@ func (cs *clientSuite) TestClientFindFromPathErrIsWrapped(c *check.C) {
 	// check that all the functions that use snapsFromPath() get a
 	// wrapped error
 	_, _, err = cs.cli.FindOne("snap")
-	c.Assert(xerrors.As(err, &e), check.Equals, true)
+	c.Assert(xerrors.As(err, &e), check.Equals, true, check.Commentf("unexpected find error %v %T", e, e))
 
 	_, _, err = cs.cli.Find(nil)
-	c.Assert(xerrors.As(err, &e), check.Equals, true)
+	c.Assert(xerrors.As(err, &e), check.Equals, true, check.Commentf("unexpected find error %v %T", e, e))
 
 	_, err = cs.cli.List([]string{"snap"}, nil)
 	c.Assert(xerrors.As(err, &e), check.Equals, true)
