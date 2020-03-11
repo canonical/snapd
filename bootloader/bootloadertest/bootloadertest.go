@@ -39,6 +39,8 @@ type MockBootloader struct {
 	name    string
 	bootdir string
 
+	RebootStatusVar string
+
 	ExtractKernelAssetsCalls []snap.PlaceInfo
 	RemoveKernelAssetsCalls  []snap.PlaceInfo
 
@@ -72,7 +74,17 @@ func Mock(name, bootdir string) *MockBootloader {
 
 		runKernelImageMockedErrs:     make(map[string]error),
 		runKernelImageMockedNumCalls: make(map[string]int),
+
+		// this is for UC16/UC18 boot var for reboot
+		// for UC20, set to "kernel_status"
+		RebootStatusVar: "snap_mode",
 	}
+}
+
+func (b *MockBootloader) UC20RunModeRebootReady() *MockBootloader {
+	// FIXME: this clearly shows mixing of responsibilities here with boottest.
+	b.RebootStatusVar = "kernel_status"
+	return b
 }
 
 func (b *MockBootloader) SetBootVars(values map[string]string) error {
@@ -123,10 +135,10 @@ func (b *MockBootloader) SetBootBase(base string) {
 }
 
 func (b *MockBootloader) SetTryingDuringReboot() error {
-	if b.BootVars["snap_mode"] != boot.TryStatus {
+	if b.BootVars[b.RebootStatusVar] != boot.TryStatus {
 		return fmt.Errorf("bootloader must be in 'try' mode")
 	}
-	b.BootVars["snap_mode"] = boot.TryingStatus
+	b.BootVars[b.RebootStatusVar] = boot.TryingStatus
 	return nil
 }
 
@@ -135,6 +147,8 @@ func (b *MockBootloader) SetTryingDuringReboot() error {
 // boot failed. In this case the bootloader will clear
 // "snap_try_{core,kernel}" and "snap_mode" which means the "old" kernel,core
 // in "snap_{core,kernel}" will be used.
+// TODO:UC20: implement this for UC20 kernel boot vars and maybe modeenv as well
+// for base snaps?
 func (b *MockBootloader) SetRollbackAcrossReboot() error {
 	if b.BootVars["snap_mode"] != boot.TryStatus {
 		return fmt.Errorf("rollback can only be simulated in 'try' mode")
@@ -228,6 +242,7 @@ func (b *MockBootloader) GetRunKernelImageFunctionSnapCalls(f string) ([]snap.Pl
 // EnableKernel enables the kernel; part of ExtractedRunKernelImageBootloader.
 func (b *MockBootloader) EnableKernel(s snap.PlaceInfo) error {
 	b.runKernelImageEnableKernelCalls = append(b.runKernelImageEnableKernelCalls, s)
+	b.runKernelImageEnabledKernel = s
 	return b.runKernelImageMockedErrs["EnableKernel"]
 }
 
@@ -235,6 +250,7 @@ func (b *MockBootloader) EnableKernel(s snap.PlaceInfo) error {
 // ExtractedRunKernelImageBootloader.
 func (b *MockBootloader) EnableTryKernel(s snap.PlaceInfo) error {
 	b.runKernelImageEnableTryKernelCalls = append(b.runKernelImageEnableTryKernelCalls, s)
+	b.runKernelImageEnabledTryKernel = s
 	return b.runKernelImageMockedErrs["EnableTryKernel"]
 }
 
