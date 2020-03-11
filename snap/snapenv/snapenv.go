@@ -63,28 +63,33 @@ func ExecEnv(info *snap.Info) (osutil.Environment, error) {
 		})
 	}
 
-	// Apply a delta with all SNAP_XXX variables.
-	env.ApplyDelta(snapEnv(info))
-
+	// Set various SNAP_ environment variables as well as some non-SNAP variables,
+	// depending on snap confinement mode. Note that this does not include environment
+	// set by snap-exec.
+	for k, v := range snapEnv(info) {
+		env[k] = v
+	}
 	return env, nil
 }
 
-func snapEnv(info *snap.Info) *osutil.ExpandableEnv {
-	// Start with the delta containing the basic snap variables like SNAP_NAME.
-	delta := basicEnv(info)
-	// If we know the home directory also apply a delta with SNAP_USER_DATA and the like.
+func snapEnv(info *snap.Info) osutil.Environment {
+	// Environment variables with basic properties of a snap.
+	env := basicEnv(info)
 	if usr, err := user.Current(); err == nil && usr.HomeDir != "" {
-		delta.Merge(userEnv(info, usr.HomeDir))
+		// Environment variables with values specific to the calling user.
+		for k, v := range userEnv(info, usr.HomeDir) {
+			env[k] = v
+		}
 	}
-	return delta
+	return env
 }
 
 // basicEnv returns the app-level environment variables for a snap.
 // Despite this being a bit snap-specific, this is in helpers.go because it's
 // used by so many other modules, we run into circular dependencies if it's
 // somewhere more reasonable like the snappy module.
-func basicEnv(info *snap.Info) *osutil.ExpandableEnv {
-	return osutil.NewExpandableEnv(
+func basicEnv(info *snap.Info) osutil.Environment {
+	return osutil.Environment{
 		// This uses CoreSnapMountDir because the computed environment
 		// variables are conveyed to the started application process which
 		// shall *either* execute with the new mount namespace where snaps are
@@ -95,45 +100,45 @@ func basicEnv(info *snap.Info) *osutil.ExpandableEnv {
 		// environment of each snap instance appear as if it's the only
 		// snap, i.e. SNAP paths point to the same locations within the
 		// mount namespace
-		"SNAP", filepath.Join(dirs.CoreSnapMountDir, info.SnapName(), info.Revision.String()),
-		"SNAP_COMMON", snap.CommonDataDir(info.SnapName()),
-		"SNAP_DATA", snap.DataDir(info.SnapName(), info.Revision),
-		"SNAP_NAME", info.SnapName(),
-		"SNAP_INSTANCE_NAME", info.InstanceName(),
-		"SNAP_INSTANCE_KEY", info.InstanceKey,
-		"SNAP_VERSION", info.Version,
-		"SNAP_REVISION", info.Revision.String(),
-		"SNAP_ARCH", arch.DpkgArchitecture(),
+		"SNAP":               filepath.Join(dirs.CoreSnapMountDir, info.SnapName(), info.Revision.String()),
+		"SNAP_COMMON":        snap.CommonDataDir(info.SnapName()),
+		"SNAP_DATA":          snap.DataDir(info.SnapName(), info.Revision),
+		"SNAP_NAME":          info.SnapName(),
+		"SNAP_INSTANCE_NAME": info.InstanceName(),
+		"SNAP_INSTANCE_KEY":  info.InstanceKey,
+		"SNAP_VERSION":       info.Version,
+		"SNAP_REVISION":      info.Revision.String(),
+		"SNAP_ARCH":          arch.DpkgArchitecture(),
 		// see https://github.com/snapcore/snapd/pull/2732#pullrequestreview-18827193
-		"SNAP_LIBRARY_PATH", "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/void",
-		"SNAP_REEXEC", os.Getenv("SNAP_REEXEC"),
-	)
+		"SNAP_LIBRARY_PATH": "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/void",
+		"SNAP_REEXEC":       os.Getenv("SNAP_REEXEC"),
+	}
 }
 
 // userEnv returns the user-level environment variables for a snap.
 // Despite this being a bit snap-specific, this is in helpers.go because it's
 // used by so many other modules, we run into circular dependencies if it's
 // somewhere more reasonable like the snappy module.
-func userEnv(info *snap.Info, home string) *osutil.ExpandableEnv {
+func userEnv(info *snap.Info, home string) osutil.Environment {
 	// To keep things simple the user variables always point to the
 	// instance-specific directories.
-	result := osutil.NewExpandableEnv(
-		"SNAP_USER_COMMON", info.UserCommonDataDir(home),
-		"SNAP_USER_DATA", info.UserDataDir(home),
-	)
+	env := osutil.Environment{
+		"SNAP_USER_COMMON": info.UserCommonDataDir(home),
+		"SNAP_USER_DATA":   info.UserDataDir(home),
+	}
 	if info.NeedsClassic() {
 		// Snaps using classic confinement don't have an override for
 		// HOME but may have an override for XDG_RUNTIME_DIR.
 		if !features.ClassicPreservesXdgRuntimeDir.IsEnabled() {
-			result.Set("XDG_RUNTIME_DIR", info.UserXdgRuntimeDir(sys.Geteuid()))
+			env["XDG_RUNTIME_DIR"] = info.UserXdgRuntimeDir(sys.Geteuid())
 		}
 	} else {
 		// Snaps using strict or devmode confinement get an override for both
 		// HOME and XDG_RUNTIME_DIR.
-		result.Set("HOME", info.UserDataDir(home))
-		result.Set("XDG_RUNTIME_DIR", info.UserXdgRuntimeDir(sys.Geteuid()))
+		env["HOME"] = info.UserDataDir(home)
+		env["XDG_RUNTIME_DIR"] = info.UserXdgRuntimeDir(sys.Geteuid())
 	}
-	return result
+	return env
 }
 
 // Environment variables glibc strips out when running a setuid binary.

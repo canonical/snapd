@@ -524,11 +524,9 @@ apps:
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	var env osutil.Environment
-	env.ApplyDelta(info.Apps["foo"].EnvironmentOverrides())
-	c.Check(env.ForExec(), DeepEquals, []string{
-		"app-k=app-v",
-		"global-k=global-v",
+	c.Check(info.Apps["foo"].EnvStack(), DeepEquals, []osutil.ExpandableEnv{
+		osutil.NewExpandableEnv("global-k", "global-v"),
+		osutil.NewExpandableEnv("app-k", "app-v"),
 	})
 }
 
@@ -548,12 +546,9 @@ apps:
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	var env osutil.Environment
-	env.ApplyDelta(info.Apps["foo"].EnvironmentOverrides())
-	c.Check(env.ForExec(), DeepEquals, []string{
-		"app-k=app-v",
-		"global-and-local=local-v",
-		"global-k=global-v",
+	c.Check(info.Apps["foo"].EnvStack(), DeepEquals, []osutil.ExpandableEnv{
+		osutil.NewExpandableEnv("global-k", "global-v", "global-and-local", "global-v"),
+		osutil.NewExpandableEnv("app-k", "app-v", "global-and-local", "local-v"),
 	})
 }
 
@@ -571,11 +566,9 @@ hooks:
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	var env osutil.Environment
-	env.ApplyDelta(info.Hooks["foo"].EnvironmentOverrides())
-	c.Check(env.ForExec(), DeepEquals, []string{
-		"app-k=app-v",
-		"global-k=global-v",
+	c.Check(info.Hooks["foo"].EnvStack(), DeepEquals, []osutil.ExpandableEnv{
+		osutil.NewExpandableEnv("global-k", "global-v"),
+		osutil.NewExpandableEnv("app-k", "app-v"),
 	})
 }
 
@@ -595,12 +588,9 @@ hooks:
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	var env osutil.Environment
-	env.ApplyDelta(info.Hooks["foo"].EnvironmentOverrides())
-	c.Check(env.ForExec(), DeepEquals, []string{
-		"app-k=app-v",
-		"global-and-local=local-v",
-		"global-k=global-v",
+	c.Check(info.Hooks["foo"].EnvStack(), DeepEquals, []osutil.ExpandableEnv{
+		osutil.NewExpandableEnv("global-k", "global-v", "global-and-local", "global-v"),
+		osutil.NewExpandableEnv("app-k", "app-v", "global-and-local", "local-v"),
 	})
 }
 

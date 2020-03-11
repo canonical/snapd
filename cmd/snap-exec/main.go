@@ -194,7 +194,9 @@ func execApp(snapApp, revision, command string, args []string) error {
 		key = strings.TrimPrefix(key, snapenv.PreservedUnsafePrefix)
 		return key, value
 	})
-	env.ApplyDelta(app.EnvironmentOverrides())
+	for _, eenv := range app.EnvStack() {
+		env.ApplyDelta(eenv)
+	}
 
 	// strings.Split() is ok here because we validate all app fields and the
 	// whitelist is pretty strict (see snap/validate.go:appContentWhitelist)
@@ -258,7 +260,9 @@ func execHook(snapName, revision, hookName string) error {
 	if err != nil {
 		return err
 	}
-	env.ApplyDelta(hook.EnvironmentOverrides())
+	for _, eenv := range hook.EnvStack() {
+		env.ApplyDelta(eenv)
+	}
 
 	// run the hook
 	cmd := append(absoluteCommandChain(hook.Snap, hook.CommandChain), filepath.Join(hook.Snap.HooksDir(), hook.Name))

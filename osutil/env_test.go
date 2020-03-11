@@ -211,56 +211,34 @@ func (s *envSuite) TestForExec(c *C) {
 	c.Check(env.ForExec(), DeepEquals, []string{"K1=V1", "K2=V2"})
 }
 func (s *envSuite) TestNewExpandableEnv(c *C) {
-	delta := osutil.NewExpandableEnv("K1", "V1", "K2", "$K1")
-	c.Check(delta.Get("K1"), Equals, "V1")
-	c.Check(delta.Get("K2"), Equals, "$K1")
+	eenv := osutil.NewExpandableEnv("K1", "V1", "K2", "$K1")
+	c.Check(eenv.Get("K1"), Equals, "V1")
+	c.Check(eenv.Get("K2"), Equals, "$K1")
 }
 
 func (s *envSuite) TestParseRawExpandableEnvHappy(c *C) {
-	delta, err := osutil.ParseRawExpandableEnv([]string{"K1=V1", "K2=$K1"})
+	eenv, err := osutil.ParseRawExpandableEnv([]string{"K1=V1", "K2=$K1"})
 	c.Assert(err, IsNil)
-	c.Check(delta.Get("K1"), Equals, "V1")
-	c.Check(delta.Get("K2"), Equals, "$K1")
+	c.Check(eenv.Get("K1"), Equals, "V1")
+	c.Check(eenv.Get("K2"), Equals, "$K1")
 }
 
 func (s *envSuite) TestParseRawExpandableEnvNotKeyValue(c *C) {
-	delta, err := osutil.ParseRawExpandableEnv([]string{"KEY"})
+	eenv, err := osutil.ParseRawExpandableEnv([]string{"KEY"})
 	c.Assert(err, ErrorMatches, `cannot parse environment entry: "KEY"`)
-	c.Assert(delta, IsNil)
+	c.Assert(eenv, DeepEquals, osutil.ExpandableEnv{})
 }
 
 func (s *envSuite) TestParseRawExpandableEnvEmptyKey(c *C) {
-	delta, err := osutil.ParseRawExpandableEnv([]string{"=VALUE"})
+	eenv, err := osutil.ParseRawExpandableEnv([]string{"=VALUE"})
 	c.Assert(err, ErrorMatches, `environment variable name cannot be empty: "=VALUE"`)
-	c.Assert(delta, IsNil)
+	c.Assert(eenv, DeepEquals, osutil.ExpandableEnv{})
 }
 
 func (s *envSuite) TestParseRawExpandableEnvDuplicateKey(c *C) {
-	delta, err := osutil.ParseRawExpandableEnv([]string{"K=1", "K=2"})
+	eenv, err := osutil.ParseRawExpandableEnv([]string{"K=1", "K=2"})
 	c.Assert(err, ErrorMatches, `cannot overwrite earlier value of "K"`)
-	c.Assert(delta, IsNil)
-}
-
-func (s *envSuite) TestCopyDelta(c *C) {
-	d1 := osutil.NewExpandableEnv("K1", "V1", "K2", "$K1")
-	d2 := d1.Copy()
-	c.Check(d2, DeepEquals, d1)
-
-	d1.Set("K3", "foo")
-	c.Check(d2.Get("K3"), Equals, "")
-
-	d2.Set("K4", "bar")
-	c.Check(d1.Get("K4"), Equals, "")
-
-	c.Check(d1.Get("K3"), Equals, "foo")
-	c.Check(d2.Get("K4"), Equals, "bar")
-}
-
-func (s *envSuite) TestMergeDeltas(c *C) {
-	d1 := osutil.NewExpandableEnv("K1", "V1-old", "K2", "$K1")
-	d2 := osutil.NewExpandableEnv("K1", "V1-new", "K3", "V3")
-	d1.Merge(d2)
-	c.Check(d1, DeepEquals, osutil.NewExpandableEnv("K2", "$K1", "K1", "V1-new", "K3", "V3"))
+	c.Assert(eenv, DeepEquals, osutil.ExpandableEnv{})
 }
 
 func (s *envSuite) TestApplyDelta(c *C) {
@@ -323,13 +301,13 @@ func (s *envSuite) TestApplyDeltaVarious(c *C) {
 		{"A=$B,B=$A", "A=,B="},
 		{"A=$B,B=$C,C=$A", "A=,B=,C="},
 	} {
-		delta, err := osutil.ParseRawExpandableEnv(strings.Split(t.env, ","))
+		eenv, err := osutil.ParseRawExpandableEnv(strings.Split(t.env, ","))
 		c.Assert(err, IsNil)
 		env := make(osutil.Environment)
 		if strings.Contains(t.env, "PATH") {
 			env["PATH"] = os.Getenv("PATH")
 		}
-		env.ApplyDelta(delta)
+		env.ApplyDelta(eenv)
 		delete(env, "PATH")
 		c.Check(strings.Join(env.ForExec(), ","), DeepEquals, t.expected, Commentf("invalid result for %q, got %q expected %q", t.env, env, t.expected))
 	}

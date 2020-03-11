@@ -203,17 +203,17 @@ func MockFindGid(mock func(name string) (uint64, error)) (restore func()) {
 const MaxSymlinkTries = maxSymlinkTries
 
 // ParseRawExpandableEnv returns a new environment delta parsed from key=value strings.
-func ParseRawExpandableEnv(entries []string) (*ExpandableEnv, error) {
+func ParseRawExpandableEnv(entries []string) (ExpandableEnv, error) {
 	om := strutil.NewOrderedMap()
 	for _, entry := range entries {
 		key, value, err := parseEnvEntry(entry)
 		if err != nil {
-			return nil, err
+			return ExpandableEnv{}, err
 		}
 		if om.Get(key) != "" {
-			return nil, fmt.Errorf("cannot overwrite earlier value of %q", key)
+			return ExpandableEnv{}, fmt.Errorf("cannot overwrite earlier value of %q", key)
 		}
 		om.Set(key, value)
 	}
-	return &ExpandableEnv{OrderedMap: *om}, nil
+	return ExpandableEnv{OrderedMap: om}, nil
 }

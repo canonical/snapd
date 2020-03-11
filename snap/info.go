@@ -1011,16 +1011,16 @@ func (app *AppInfo) ServiceFile() string {
 	return filepath.Join(dirs.SnapServicesDir, app.ServiceName())
 }
 
-// EnvironmentOverrides returns the app-specific environment overrides.
-func (app *AppInfo) EnvironmentOverrides() *osutil.ExpandableEnv {
-	delta := &osutil.ExpandableEnv{OrderedMap: *app.Snap.Environment.Copy()}
-	delta.Merge(&osutil.ExpandableEnv{OrderedMap: *app.Environment.Copy()})
-	return delta
-}
-
 // IsService returns whether app represents a daemon/service.
 func (app *AppInfo) IsService() bool {
 	return app.Daemon != ""
+}
+
+func (app *AppInfo) EnvStack() []osutil.ExpandableEnv {
+	return []osutil.ExpandableEnv{
+		osutil.ExpandableEnv{OrderedMap: &app.Snap.Environment},
+		osutil.ExpandableEnv{OrderedMap: &app.Environment},
+	}
 }
 
 // SecurityTag returns the hook-specific security tag.
@@ -1031,11 +1031,11 @@ func (hook *HookInfo) SecurityTag() string {
 	return HookSecurityTag(hook.Snap.InstanceName(), hook.Name)
 }
 
-// EnvironmentOverrides returns the hook-specific environment overrides.
-func (hook *HookInfo) EnvironmentOverrides() *osutil.ExpandableEnv {
-	delta := &osutil.ExpandableEnv{OrderedMap: *hook.Snap.Environment.Copy()}
-	delta.Merge(&osutil.ExpandableEnv{OrderedMap: *hook.Environment.Copy()})
-	return delta
+func (hook *HookInfo) EnvStack() []osutil.ExpandableEnv {
+	return []osutil.ExpandableEnv{
+		osutil.ExpandableEnv{OrderedMap: &hook.Snap.Environment},
+		osutil.ExpandableEnv{OrderedMap: &hook.Environment},
+	}
 }
 
 func infoFromSnapYamlWithSideInfo(meta []byte, si *SideInfo, strk *scopedTracker) (*Info, error) {
