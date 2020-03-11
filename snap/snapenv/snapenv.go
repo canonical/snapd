@@ -55,12 +55,7 @@ func ExecEnv(info *snap.Info) (osutil.Environment, error) {
 	// For snaps using classic confinement preserve variables that are
 	// automatically discarded by executing setuid executables.
 	if info.NeedsClassic() {
-		env.Transform(func(key, value string) (string, string) {
-			if unsafeEnv[key] {
-				key = PreservedUnsafePrefix + key
-			}
-			return key, value
-		})
+		env.EscapeUnsafeVariables()
 	}
 
 	// Set various SNAP_ environment variables as well as some non-SNAP variables,
@@ -140,35 +135,3 @@ func userEnv(info *snap.Info, home string) osutil.Environment {
 	}
 	return env
 }
-
-// Environment variables glibc strips out when running a setuid binary.
-// Taken from https://sourceware.org/git/?p=glibc.git;a=blob_plain;f=sysdeps/generic/unsecvars.h;hb=HEAD
-// TODO: use go generate to obtain this list at build time.
-var unsafeEnv = map[string]bool{
-	"GCONV_PATH":       true,
-	"GETCONF_DIR":      true,
-	"GLIBC_TUNABLES":   true,
-	"HOSTALIASES":      true,
-	"LD_AUDIT":         true,
-	"LD_DEBUG":         true,
-	"LD_DEBUG_OUTPUT":  true,
-	"LD_DYNAMIC_WEAK":  true,
-	"LD_HWCAP_MASK":    true,
-	"LD_LIBRARY_PATH":  true,
-	"LD_ORIGIN_PATH":   true,
-	"LD_PRELOAD":       true,
-	"LD_PROFILE":       true,
-	"LD_SHOW_AUXV":     true,
-	"LD_USE_LOAD_BIAS": true,
-	"LOCALDOMAIN":      true,
-	"LOCPATH":          true,
-	"MALLOC_TRACE":     true,
-	"NIS_PATH":         true,
-	"NLSPATH":          true,
-	"RESOLV_HOST_CONF": true,
-	"RES_OPTIONS":      true,
-	"TMPDIR":           true,
-	"TZDIR":            true,
-}
-
-const PreservedUnsafePrefix = "SNAP_SAVED_"

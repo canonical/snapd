@@ -31,7 +31,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snapenv"
 )
 
 // for the tests
@@ -190,10 +189,7 @@ func execApp(snapApp, revision, command string, args []string) error {
 	if err != nil {
 		return err
 	}
-	env.Transform(func(key, value string) (string, string) {
-		key = strings.TrimPrefix(key, snapenv.PreservedUnsafePrefix)
-		return key, value
-	})
+	env.UnescapeSaved()
 	for _, eenv := range app.EnvStack() {
 		env.SetExpandableEnv(eenv)
 	}
@@ -260,6 +256,7 @@ func execHook(snapName, revision, hookName string) error {
 	if err != nil {
 		return err
 	}
+	// NOTE: we do not do env.UnescapeSaved()
 	for _, eenv := range hook.EnvStack() {
 		env.SetExpandableEnv(eenv)
 	}

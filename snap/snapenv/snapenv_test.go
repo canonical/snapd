@@ -272,7 +272,7 @@ func (s *HTestSuite) TestExecEnvNoRenameTMPDIRForNonClassic(c *C) {
 	env, err := ExecEnv(mockSnapInfo)
 	c.Assert(err, IsNil)
 	c.Assert(env["TMPDIR"], Equals, "/var/tmp")
-	c.Assert(env[PreservedUnsafePrefix+"TMPDIR"], Equals, "")
+	c.Assert(env["SNAP_SAVED_TMPDIR"], Equals, "")
 }
 
 func (s *HTestSuite) TestExecEnvRenameTMPDIRForClassic(c *C) {
@@ -281,5 +281,5 @@ func (s *HTestSuite) TestExecEnvRenameTMPDIRForClassic(c *C) {
 	env, err := ExecEnv(mockClassicSnapInfo)
 	c.Assert(err, IsNil)
 	c.Assert(env["TMPDIR"], Equals, "")
-	c.Assert(env[PreservedUnsafePrefix+"TMPDIR"], Equals, "/var/tmp")
+	c.Assert(env["SNAP_SAVED_TMPDIR"], Equals, "/var/tmp")
 }

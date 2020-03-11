@@ -156,34 +156,6 @@ func (s *envSuite) TestOSEnvironment(c *C) {
 	c.Check(os.Getenv("PATH"), Equals, env["PATH"])
 }
 
-func (s *envSuite) TestTransformRewriting(c *C) {
-	env := osutil.Environment{"K": "V"}
-	env.Transform(func(key, value string) (string, string) {
-		return "key-" + key, "value-" + value
-	})
-	c.Assert(env.ForExec(), DeepEquals, []string{"key-K=value-V"})
-}
-
-func (s *envSuite) TestTransformSquashing(c *C) {
-	env := osutil.Environment{"K": "1", "prefix-K": "2"}
-	env.Transform(func(key, value string) (string, string) {
-		key = strings.TrimPrefix(key, "prefix-")
-		return key, value
-	})
-	c.Assert(env.ForExec(), DeepEquals, []string{"K=2"})
-}
-
-func (s *envSuite) TestTransformDeleting(c *C) {
-	env := osutil.Environment{"K": "1", "prefix-K": "2"}
-	env.Transform(func(key, value string) (string, string) {
-		if strings.HasPrefix(key, "prefix-") {
-			return "", ""
-		}
-		return key, value
-	})
-	c.Assert(env.ForExec(), DeepEquals, []string{"K=1"})
-}
-
 func (s *envSuite) TestGet(c *C) {
 	env := osutil.Environment{"K": "V"}
 	c.Assert(env["K"], Equals, "V")
@@ -287,4 +259,28 @@ func (s *envSuite) TestSetExpandableEnvVarious(c *C) {
 		delete(env, "PATH")
 		c.Check(strings.Join(env.ForExec(), ","), DeepEquals, t.expected, Commentf("invalid result for %q, got %q expected %q", t.env, env, t.expected))
 	}
+}
+
+func (s *envSuite) TestEscapeUnsafeVariables(c *C) {
+	env := osutil.Environment{
+		"FOO":        "foo",
+		"LD_PRELOAD": "/opt/lib/libfunky.so",
+	}
+	env.EscapeUnsafeVariables()
+	c.Check(env, DeepEquals, osutil.Environment{
+		"FOO":                   "foo",
+		"SNAP_SAVED_LD_PRELOAD": "/opt/lib/libfunky.so",
+	})
+}
+
+func (s *envSuite) TestUnescapeVariables(c *C) {
+	env := osutil.Environment{
+		"FOO":                   "foo",
+		"SNAP_SAVED_LD_PRELOAD": "/opt/lib/libfunky.so",
+	}
+	env.UnescapeSaved()
+	c.Check(env, DeepEquals, osutil.Environment{
+		"FOO":        "foo",
+		"LD_PRELOAD": "/opt/lib/libfunky.so",
+	})
 }
