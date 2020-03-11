@@ -538,7 +538,7 @@ func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureBeforeOutsideEnsure(c *C) 
 }
 
 func (ovs *overlordSuite) TestEnsureLoopPrune(c *C) {
-	restoreIntv := overlord.MockPruneInterval(5*time.Millisecond, 1000*time.Millisecond, 1000*time.Millisecond)
+	restoreIntv := overlord.MockPruneInterval(200*time.Millisecond, 1000*time.Millisecond, 1000*time.Millisecond)
 	defer restoreIntv()
 	o := overlord.Mock()
 
@@ -622,6 +622,7 @@ func (ovs *overlordSuite) TestEnsureLoopPruneRunsMultipleTimes(c *C) {
 	// start the loop that runs the prune ticker
 	o.Loop()
 
+	// this needs to be more than pruneWait=5ms mocked above
 	time.Sleep(6 * time.Millisecond)
 	w.tick(2)
 
@@ -630,6 +631,7 @@ func (ovs *overlordSuite) TestEnsureLoopPruneRunsMultipleTimes(c *C) {
 	chg2.SetStatus(state.DoneStatus)
 	st.Unlock()
 
+	// this needs to be more than pruneWait=5ms mocked above
 	time.Sleep(6 * time.Millisecond)
 	w.tick(2)
 
@@ -643,7 +645,7 @@ func (ovs *overlordSuite) TestEnsureLoopPruneRunsMultipleTimes(c *C) {
 }
 
 func (ovs *overlordSuite) TestOverlordStartUpSetsStartOfOperation(c *C) {
-	restoreIntv := overlord.MockPruneInterval(5*time.Millisecond, 1000*time.Millisecond, 1*time.Hour)
+	restoreIntv := overlord.MockPruneInterval(100*time.Millisecond, 1000*time.Millisecond, 1*time.Hour)
 	defer restoreIntv()
 
 	// use real overlord, we need device manager to be there
