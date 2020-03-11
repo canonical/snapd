@@ -519,11 +519,11 @@ type integrationSuite struct{}
 var _ = Suite(&integrationSuite{})
 
 func (cs *integrationSuite) TestClientTimeoutLP1837804(c *C) {
-	restore := client.MockDoTimings(time.Millisecond, 5*time.Millisecond)
+	restore := client.MockDoTimings(10*time.Millisecond, 50*time.Millisecond)
 	defer restore()
 
 	testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-		time.Sleep(25 * time.Millisecond)
+		time.Sleep(200 * time.Millisecond)
 	}))
 	defer func() { testServer.Close() }()
 
