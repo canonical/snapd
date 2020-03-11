@@ -444,7 +444,6 @@ func (m *InterfaceManager) initUDevMonitor() error {
 		return err
 	}
 	if err := mon.Run(); err != nil {
-		mon.Disconnect()
 		return err
 	}
 

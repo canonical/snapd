@@ -140,26 +140,27 @@ func (*apparmorSuite) TestMockAppArmorFeatures(c *C) {
 	restore()
 }
 
+const featuresSysPath = "sys/kernel/security/apparmor/features"
+
 func (s *apparmorSuite) TestProbeAppArmorKernelFeatures(c *C) {
 	d := c.MkDir()
 
 	// Pretend that apparmor kernel features directory doesn't exist.
-	restore := apparmor.MockFeaturesSysPath(filepath.Join(d, "non-existent"))
+	restore := apparmor.MockFsRootPath(d)
 	defer restore()
 	features, err := apparmor.ProbeKernelFeatures()
 	c.Assert(os.IsNotExist(err), Equals, true)
 	c.Check(features, DeepEquals, []string{})
 
 	// Pretend that apparmor kernel features directory exists but is empty.
-	restore = apparmor.MockFeaturesSysPath(d)
-	defer restore()
+	c.Assert(os.MkdirAll(filepath.Join(d, featuresSysPath), 0755), IsNil)
 	features, err = apparmor.ProbeKernelFeatures()
 	c.Assert(err, IsNil)
 	c.Check(features, DeepEquals, []string{})
 
 	// Pretend that apparmor kernel features directory contains some entries.
-	c.Assert(os.Mkdir(filepath.Join(d, "foo"), 0755), IsNil)
-	c.Assert(os.Mkdir(filepath.Join(d, "bar"), 0755), IsNil)
+	c.Assert(os.Mkdir(filepath.Join(d, featuresSysPath, "foo"), 0755), IsNil)
+	c.Assert(os.Mkdir(filepath.Join(d, featuresSysPath, "bar"), 0755), IsNil)
 	features, err = apparmor.ProbeKernelFeatures()
 	c.Assert(err, IsNil)
 	c.Check(features, DeepEquals, []string{"bar", "foo"})
@@ -203,10 +204,10 @@ func (s *apparmorSuite) TestInterfaceSystemKey(c *C) {
 	apparmor.FreshAppArmorAssessment()
 
 	d := c.MkDir()
-	restore := apparmor.MockFeaturesSysPath(d)
+	restore := apparmor.MockFsRootPath(d)
 	defer restore()
-	c.Assert(os.MkdirAll(filepath.Join(d, "policy"), 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(d, "network"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(d, featuresSysPath, "policy"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(d, featuresSysPath, "network"), 0755), IsNil)
 
 	mockParserCmd := testutil.MockCommand(c, "apparmor_parser", "")
 	defer mockParserCmd.Restore()
@@ -245,10 +246,10 @@ func (s *apparmorSuite) TestFeaturesProbedOnce(c *C) {
 	apparmor.FreshAppArmorAssessment()
 
 	d := c.MkDir()
-	restore := apparmor.MockFeaturesSysPath(d)
+	restore := apparmor.MockFsRootPath(d)
 	defer restore()
-	c.Assert(os.MkdirAll(filepath.Join(d, "policy"), 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(d, "network"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(d, featuresSysPath, "policy"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(d, featuresSysPath, "network"), 0755), IsNil)
 
 	mockParserCmd := testutil.MockCommand(c, "apparmor_parser", "")
 	defer mockParserCmd.Restore()

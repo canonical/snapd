@@ -1,9 +1,5 @@
 summary: Check that `snap set {system,core} network.disable-ipv6` works
 
-# the test is only meaningful on core devices
-# TODO:UC20: enable for UC20
-systems: [ubuntu-core-1*]
-
 environment:
     snap_nick/system: system
     snap_nick/core: core
@@ -11,7 +7,7 @@ environment:
 execute: |
     echo "Ensure we have inet6"
     ip addr | MATCH inet6
-    
+
     echo "Disable ipv6"
     # shellcheck disable=SC2154
     snap set "$snap_nick" network.disable-ipv6=true
