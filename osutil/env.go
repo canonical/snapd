@@ -76,15 +76,6 @@ func GetenvInt64(key string, dflt ...int64) int64 {
 // environment variable definitions from being constructed.
 type Environment map[string]string
 
-// NewEnvironment returns an environment with a copy of given entries.
-func NewEnvironment(entries map[string]string) Environment {
-	env := make(Environment, len(entries))
-	for key, value := range entries {
-		env[key] = value
-	}
-	return env
-}
-
 func parseEnvEntry(entry string) (string, string, error) {
 	parts := strings.SplitN(entry, "=", 2)
 	if len(parts) != 2 {

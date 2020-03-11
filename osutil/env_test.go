@@ -107,14 +107,6 @@ func (s *envSuite) TestGetenvInt64(c *C) {
 	}
 }
 
-func (s *envSuite) TestNewEnvironment(c *C) {
-	env := osutil.NewEnvironment(nil)
-	c.Assert(env.ForExec(), DeepEquals, []string{})
-
-	env = osutil.NewEnvironment(map[string]string{"K": "V", "K2": "V2"})
-	c.Assert(env.ForExec(), DeepEquals, []string{"K=V", "K2=V2"})
-}
-
 func (s *envSuite) TestParseRawEnvironmentHappy(c *C) {
 	for _, t := range []struct {
 		env      []string
@@ -135,7 +127,7 @@ func (s *envSuite) TestParseRawEnvironmentHappy(c *C) {
 	} {
 		env, err := osutil.ParseRawEnvironment(t.env)
 		c.Assert(err, IsNil)
-		c.Check(env, DeepEquals, osutil.NewEnvironment(t.expected), Commentf("invalid result for %q, got %q expected %q", t.env, env, t.expected))
+		c.Check(env, DeepEquals, osutil.Environment(t.expected), Commentf("invalid result for %q, got %q expected %q", t.env, env, t.expected))
 	}
 }
 
@@ -165,7 +157,7 @@ func (s *envSuite) TestOSEnvironment(c *C) {
 }
 
 func (s *envSuite) TestTransformRewriting(c *C) {
-	env := osutil.NewEnvironment(map[string]string{"K": "V"})
+	env := osutil.Environment{"K": "V"}
 	env.Transform(func(key, value string) (string, string) {
 		return "key-" + key, "value-" + value
 	})
@@ -173,7 +165,7 @@ func (s *envSuite) TestTransformRewriting(c *C) {
 }
 
 func (s *envSuite) TestTransformSquashing(c *C) {
-	env := osutil.NewEnvironment(map[string]string{"K": "1", "prefix-K": "2"})
+	env := osutil.Environment{"K": "1", "prefix-K": "2"}
 	env.Transform(func(key, value string) (string, string) {
 		key = strings.TrimPrefix(key, "prefix-")
 		return key, value
@@ -182,7 +174,7 @@ func (s *envSuite) TestTransformSquashing(c *C) {
 }
 
 func (s *envSuite) TestTransformDeleting(c *C) {
-	env := osutil.NewEnvironment(map[string]string{"K": "1", "prefix-K": "2"})
+	env := osutil.Environment{"K": "1", "prefix-K": "2"}
 	env.Transform(func(key, value string) (string, string) {
 		if strings.HasPrefix(key, "prefix-") {
 			return "", ""
@@ -193,13 +185,13 @@ func (s *envSuite) TestTransformDeleting(c *C) {
 }
 
 func (s *envSuite) TestGet(c *C) {
-	env := osutil.NewEnvironment(map[string]string{"K": "V"})
+	env := osutil.Environment{"K": "V"}
 	c.Assert(env["K"], Equals, "V")
 	c.Assert(env["missing"], Equals, "")
 }
 
 func (s *envSuite) TestDel(c *C) {
-	env := osutil.NewEnvironment(map[string]string{"K": "V"})
+	env := osutil.Environment{"K": "V"}
 	delete(env, "K")
 	c.Assert(env["K"], Equals, "")
 	delete(env, "missing")
@@ -207,7 +199,7 @@ func (s *envSuite) TestDel(c *C) {
 }
 
 func (s *envSuite) TestForExec(c *C) {
-	env := osutil.NewEnvironment(map[string]string{"K1": "V1", "K2": "V2"})
+	env := osutil.Environment{"K1": "V1", "K2": "V2"}
 	c.Check(env.ForExec(), DeepEquals, []string{"K1=V1", "K2=V2"})
 }
 func (s *envSuite) TestNewExpandableEnv(c *C) {

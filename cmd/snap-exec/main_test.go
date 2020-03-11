@@ -478,7 +478,7 @@ func (s *snapExecSuite) TestSnapExecExpandEnvCmdArgs(c *C) {
 			expected: []string{"foo", "bar", "baz"},
 		},
 	} {
-		env := osutil.NewEnvironment(t.env)
+		env := osutil.Environment(t.env)
 		c.Check(snapExec.ExpandEnvCmdArgs(t.args, env), DeepEquals, t.expected)
 	}
 }
