@@ -793,6 +793,9 @@ func (ovs *overlordSuite) TestEnsureLoopNoPruneWhenPreseed(c *C) {
 	restore := release.MockPreseedMode(func() bool { return true })
 	defer restore()
 
+	restorePreseedExitWithErr := overlord.MockPreseedExitWithError(func(err error) {})
+	defer restorePreseedExitWithErr()
+
 	o, err := overlord.New(nil)
 	c.Assert(err, IsNil)
 
@@ -1073,6 +1076,48 @@ func (ovs *overlordSuite) TestSettleExplicitEnsureBefore(c *C) {
 	err := s.Get("ensureCount", &v)
 	c.Check(err, IsNil)
 	c.Check(v, Equals, 2)
+}
+
+func (ovs *overlordSuite) TestEnsureErrorWhenPreseeding(c *C) {
+	restore := release.MockPreseedMode(func() bool { return true })
+	defer restore()
+
+	restoreIntv := overlord.MockEnsureInterval(1 * time.Millisecond)
+	defer restoreIntv()
+
+	var errorCallbackError error
+	restoreExitWithErr := overlord.MockPreseedExitWithError(func(err error) {
+		errorCallbackError = err
+	})
+	defer restoreExitWithErr()
+
+	o, err := overlord.New(nil)
+	c.Assert(err, IsNil)
+	markSeeded(o)
+
+	err = o.StartUp()
+	c.Assert(err, IsNil)
+
+	o.TaskRunner().AddHandler("bar", func(t *state.Task, _ *tomb.Tomb) error {
+		return fmt.Errorf("bar error")
+	}, nil)
+
+	s := o.State()
+	s.Lock()
+	defer s.Unlock()
+
+	chg := s.NewChange("chg", "...")
+	t := s.NewTask("bar", "...")
+	chg.AddTask(t)
+
+	s.Unlock()
+	o.Loop()
+	time.Sleep(1 * time.Second)
+	o.Stop()
+
+	s.Lock()
+	c.Check(t.Status(), Equals, state.ErrorStatus)
+	c.Check(errorCallbackError, ErrorMatches, "bar error")
 }
 
 func (ovs *overlordSuite) TestRequestRestartNoHandler(c *C) {

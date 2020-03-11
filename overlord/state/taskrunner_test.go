@@ -910,3 +910,66 @@ func (ts *taskRunnerSuite) TestCleanup(c *C) {
 	c.Assert(chgIsClean(), Equals, true)
 	c.Assert(called, Equals, 2)
 }
+
+func (ts *taskRunnerSuite) TestErrorCallbackCalledOnError(c *C) {
+	sb := &stateBackend{}
+	st := state.New(sb)
+	r := state.NewTaskRunner(st)
+
+	var called bool
+	r.OnTaskError(func(err error) {
+		called = true
+	})
+
+	r.AddHandler("foo", func(t *state.Task, tomb *tomb.Tomb) error {
+		return fmt.Errorf("handler error for %q", t.Kind())
+	}, nil)
+
+	st.Lock()
+	chg := st.NewChange("install", "...")
+	t1 := st.NewTask("foo", "...")
+	chg.AddTask(t1)
+	st.Unlock()
+
+	// Mark tasks as done.
+	ensureChange(c, r, sb, chg)
+	r.Stop()
+
+	st.Lock()
+	defer st.Unlock()
+
+	c.Check(t1.Status(), Equals, state.ErrorStatus)
+	c.Check(strings.Join(t1.Log(), ""), Matches, `.*handler error for "foo"`)
+	c.Check(called, Equals, true)
+}
+
+func (ts *taskRunnerSuite) TestErrorCallbackNotCalled(c *C) {
+	sb := &stateBackend{}
+	st := state.New(sb)
+	r := state.NewTaskRunner(st)
+
+	var called bool
+	r.OnTaskError(func(err error) {
+		called = true
+	})
+
+	r.AddHandler("foo", func(t *state.Task, tomb *tomb.Tomb) error {
+		return nil
+	}, nil)
+
+	st.Lock()
+	chg := st.NewChange("install", "...")
+	t1 := st.NewTask("foo", "...")
+	chg.AddTask(t1)
+	st.Unlock()
+
+	// Mark tasks as done.
+	ensureChange(c, r, sb, chg)
+	r.Stop()
+
+	st.Lock()
+	defer st.Unlock()
+
+	c.Check(t1.Status(), Equals, state.DoneStatus)
+	c.Check(called, Equals, false)
+}
