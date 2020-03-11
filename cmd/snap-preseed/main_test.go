@@ -409,13 +409,7 @@ func (s *startPreseedSuite) TestReset(c *C) {
 		filepath.Join(dirs.SnapCookieDir, "foo"),
 		filepath.Join(dirs.SnapSeqDir, "foo.json"),
 		filepath.Join(dirs.SnapMountDir, "foo", "bin"),
-	}
-
-	checkArtifacts := func(exists bool) {
-		for _, filePath := range artifacts {
-			fullPath := filepath.Join(tmpDir, filePath)
-			c.Check(osutil.FileExists(fullPath), Equals, exists)
-		}
+		filepath.Join(dirs.SnapSeccompDir, "foo.bin"),
 	}
 
 	for _, filePath := range artifacts {
@@ -423,6 +417,13 @@ func (s *startPreseedSuite) TestReset(c *C) {
 		// create parent dir
 		c.Assert(os.MkdirAll(filepath.Dir(fullPath), 0755), IsNil)
 		c.Assert(ioutil.WriteFile(fullPath, nil, os.ModePerm), IsNil)
+	}
+
+	checkArtifacts := func(exists bool) {
+		for _, filePath := range artifacts {
+			fullPath := filepath.Join(tmpDir, filePath)
+			c.Check(osutil.FileExists(fullPath), Equals, exists)
+		}
 	}
 
 	// sanity

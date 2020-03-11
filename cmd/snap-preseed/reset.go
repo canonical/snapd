@@ -50,8 +50,7 @@ func resetPreseededChroot(preseedChroot string) error {
 		}
 		for _, path := range matches {
 			if err := os.Remove(path); err != nil {
-				// report the error and carry on
-				fmt.Fprintf(Stderr, "error removing %s: %v\n", path, err)
+				return fmt.Errorf("error removing %s: %v", path, err)
 			}
 		}
 	}
@@ -72,8 +71,7 @@ func resetPreseededChroot(preseedChroot string) error {
 		}
 		for _, path := range matches {
 			if err := os.RemoveAll(path); err != nil {
-				// report the error and carry on
-				fmt.Fprintf(Stderr, "error removing %s: %v\n", path, err)
+				return fmt.Errorf("error removing %s: %v", path, err)
 			}
 		}
 	}
@@ -90,14 +88,13 @@ func resetPreseededChroot(preseedChroot string) error {
 		dirs.SnapAppArmorDir,
 		dirs.SnapSeqDir,
 		dirs.SnapMountDir,
-		// XXX: dirs.SnapSeccompDir points at seccomp/bpf
-		"/var/lib/snapd/seccomp",
+		dirs.SnapSeccompBase,
 	}
 
 	for _, path := range paths {
 		if err := os.RemoveAll(filepath.Join(preseedChroot, path)); err != nil {
 			// report the error and carry on
-			fmt.Fprintf(Stderr, "error removing %s: %v\n", path, err)
+			return fmt.Errorf("error removing %s: %v", path, err)
 		}
 	}
 
