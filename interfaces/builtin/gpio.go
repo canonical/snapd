@@ -21,10 +21,12 @@ package builtin
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/systemd"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -89,6 +91,13 @@ func (iface *gpioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, 
 	// requires symlinks to be dereferenced, evaluate the GPIO
 	// path and add the correct absolute path to the AppArmor snippet.
 	dereferencedPath, err := evalSymlinks(path)
+	if err != nil && os.IsNotExist(err) {
+		// If the specific gpio is not available there is no point
+		// exporting it, we should also not fail because this
+		// will block snapd updates (LP: 1866424)
+		logger.Noticef("cannot export not existing gpio %s", path)
+		return nil
+	}
 	if err != nil {
 		return err
 	}
