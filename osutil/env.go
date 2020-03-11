@@ -88,11 +88,11 @@ func parseEnvEntry(entry string) (string, string, error) {
 	return key, value, nil
 }
 
-// ParseRawEnvironment parsers raw environment.
+// parseRawEnvironment parsers raw environment.
 //
 // This function fails if any of the provided values are not in the form of
 // key=value or if there are duplicate keys.
-func ParseRawEnvironment(raw []string) (Environment, error) {
+func parseRawEnvironment(raw []string) (Environment, error) {
 	env := make(Environment, len(raw))
 	for _, entry := range raw {
 		key, value, err := parseEnvEntry(entry)
@@ -109,7 +109,7 @@ func ParseRawEnvironment(raw []string) (Environment, error) {
 
 // OSEnvironment returns the environment of the calling process.
 func OSEnvironment() (Environment, error) {
-	return ParseRawEnvironment(os.Environ())
+	return parseRawEnvironment(os.Environ())
 }
 
 // Transform programmatically replaces all keys and values.

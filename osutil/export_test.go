@@ -202,6 +202,8 @@ func MockFindGid(mock func(name string) (uint64, error)) (restore func()) {
 
 const MaxSymlinkTries = maxSymlinkTries
 
+var ParseRawEnvironment = parseRawEnvironment
+
 // ParseRawExpandableEnv returns a new environment delta parsed from key=value strings.
 func ParseRawExpandableEnv(entries []string) (ExpandableEnv, error) {
 	om := strutil.NewOrderedMap()
