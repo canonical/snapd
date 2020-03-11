@@ -93,7 +93,7 @@ func DeviceLayoutFromDisk(device string) (*DeviceLayout, error) {
 		return nil, fmt.Errorf("cannot parse sfdisk output: %v", err)
 	}
 
-	dl, err := deviceLayoutFromDump(&dump)
+	dl, err := deviceLayoutFromPartitionTable(dump.PartitionTable)
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +109,7 @@ var (
 // CreateMissing creates the partitions listed in the positioned volume pv
 // that are missing from the existing device layout.
 func (dl *DeviceLayout) CreateMissing(pv *gadget.LaidOutVolume) ([]DeviceStructure, error) {
-	buf, created := buildPartitionList(dl.partitionTable, pv)
+	buf, created := buildPartitionList(dl, pv)
 	if len(created) == 0 {
 		return created, nil
 	}
@@ -166,11 +166,9 @@ func ensureNodesExistImpl(ds []DeviceStructure, timeout time.Duration) error {
 	return nil
 }
 
-// deviceLayoutFromDump takes an sfdisk dump format and returns the partitioning
-// information as a device layout.
-func deviceLayoutFromDump(dump *sfdiskDeviceDump) (*DeviceLayout, error) {
-	ptable := dump.PartitionTable
-
+// deviceLayoutFromPartitionTable takes an sfdisk dump partition table and returns
+// the partitioning information as a device layout.
+func deviceLayoutFromPartitionTable(ptable sfdiskPartitionTable) (*DeviceLayout, error) {
 	if ptable.Unit != "sectors" {
 		return nil, fmt.Errorf("cannot position partitions: unknown unit %q", ptable.Unit)
 	}
@@ -235,11 +233,21 @@ func deviceName(name string, index int) string {
 // device contents and gadget structure list, in sfdisk dump
 // format. Return a partitioning description suitable for sfdisk input
 // and a list of the partitions to be created
-func buildPartitionList(ptable *sfdiskPartitionTable, pv *gadget.LaidOutVolume) (sfdiskInput *bytes.Buffer, toBeCreated []DeviceStructure) {
+func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume) (sfdiskInput *bytes.Buffer, toBeCreated []DeviceStructure) {
+	ptable := dl.partitionTable
 	// Keep track what partitions we already have on disk
 	seen := map[uint64]bool{}
 	for _, p := range ptable.Partitions {
 		seen[p.Start] = true
+	}
+
+	// Check if the last partition has a system-data role
+	expandData := false
+	if n := len(pv.LaidOutStructure); n > 0 {
+		last := pv.LaidOutStructure[n-1]
+		if last.VolumeStructure.Role == gadget.SystemData {
+			expandData = true
+		}
 	}
 
 	// Write new partition data in named-fields format
@@ -255,12 +263,19 @@ func buildPartitionList(ptable *sfdiskPartitionTable, pv *gadget.LaidOutVolume) 
 		if seen[uint64(start)] {
 			continue
 		}
+
+		// Check if the data partition should be expanded
+		size := s.Size
+		if s.Role == gadget.SystemData && expandData && p.StartOffset+s.Size < dl.Size {
+			size = dl.Size - p.StartOffset
+		}
+
 		// Can we use the index here? Get the largest existing partition number and
 		// build from there could be safer if the disk partitions are not consecutive
 		// (can this actually happen in our images?)
 		node := deviceName(ptable.Device, p.Index)
 		fmt.Fprintf(buf, "%s : start=%12d, size=%12d, type=%s, name=%q\n", node, p.StartOffset/sectorSize,
-			s.Size/sectorSize, partitionType(ptable.Label, p.Type), s.Name)
+			size/sectorSize, partitionType(ptable.Label, p.Type), s.Name)
 
 		// TODO:UC20: also add an attribute to mark partitions created at install
 		//            time so they can be removed case the installation fails.

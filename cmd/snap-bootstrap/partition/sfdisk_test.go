@@ -238,7 +238,7 @@ func (s *partitionTestSuite) TestBuildPartitionList(c *C) {
 	cmdLsblk := testutil.MockCommand(c, "lsblk", mockLsblkScript)
 	defer cmdLsblk.Restore()
 
-	ptable := &partition.SFDiskPartitionTable{
+	ptable := partition.SFDiskPartitionTable{
 		Label:    "gpt",
 		ID:       "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA",
 		Device:   "/dev/node",
@@ -263,9 +263,13 @@ func (s *partitionTestSuite) TestBuildPartitionList(c *C) {
 	pv, err := gadget.PositionedVolumeFromGadget(gadgetRoot)
 	c.Assert(err, IsNil)
 
-	sfdiskInput, created := partition.BuildPartitionList(ptable, pv)
+	dl, err := partition.DeviceLayoutFromPartitionTable(ptable)
+	c.Assert(err, IsNil)
+
+	// the expected expanded writable partition size is (1200M + 8388574*512 - (2M + 1200M + 1200M))/512
+	sfdiskInput, created := partition.BuildPartitionList(dl, pv)
 	c.Assert(sfdiskInput.String(), Equals, `/dev/node2 : start=        4096, size=     2457600, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, name="Recovery"
-/dev/node3 : start=     2461696, size=     2457600, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Writable"
+/dev/node3 : start=     2461696, size=     5926878, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Writable"
 `)
 	c.Assert(created, DeepEquals, []partition.DeviceStructure{mockDeviceStructureSystemSeed, mockDeviceStructureWritable})
 }
