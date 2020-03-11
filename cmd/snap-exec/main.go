@@ -228,7 +228,7 @@ func execApp(snapApp, revision, command string, args []string) error {
 
 	fullCmd = append(absoluteCommandChain(app.Snap, app.CommandChain), fullCmd...)
 
-	if err := syscallExec(fullCmd[0], fullCmd, env.RawEnvironment()); err != nil {
+	if err := syscallExec(fullCmd[0], fullCmd, env.ForExec()); err != nil {
 		return fmt.Errorf("cannot exec %q: %s", fullCmd[0], err)
 	}
 	// this is never reached except in tests
@@ -262,5 +262,5 @@ func execHook(snapName, revision, hookName string) error {
 
 	// run the hook
 	cmd := append(absoluteCommandChain(hook.Snap, hook.CommandChain), filepath.Join(hook.Snap.HooksDir(), hook.Name))
-	return syscallExec(cmd[0], cmd, env.RawEnvironment())
+	return syscallExec(cmd[0], cmd, env.ForExec())
 }

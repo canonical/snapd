@@ -526,7 +526,7 @@ apps:
 
 	var env osutil.Environment
 	env.ApplyDelta(info.Apps["foo"].EnvironmentOverrides())
-	c.Check(env.RawEnvironment(), DeepEquals, osutil.RawEnvironment{
+	c.Check(env.ForExec(), DeepEquals, []string{
 		"app-k=app-v",
 		"global-k=global-v",
 	})
@@ -550,7 +550,7 @@ apps:
 
 	var env osutil.Environment
 	env.ApplyDelta(info.Apps["foo"].EnvironmentOverrides())
-	c.Check(env.RawEnvironment(), DeepEquals, osutil.RawEnvironment{
+	c.Check(env.ForExec(), DeepEquals, []string{
 		"app-k=app-v",
 		"global-and-local=local-v",
 		"global-k=global-v",
@@ -573,7 +573,7 @@ hooks:
 
 	var env osutil.Environment
 	env.ApplyDelta(info.Hooks["foo"].EnvironmentOverrides())
-	c.Check(env.RawEnvironment(), DeepEquals, osutil.RawEnvironment{
+	c.Check(env.ForExec(), DeepEquals, []string{
 		"app-k=app-v",
 		"global-k=global-v",
 	})
@@ -597,7 +597,7 @@ hooks:
 
 	var env osutil.Environment
 	env.ApplyDelta(info.Hooks["foo"].EnvironmentOverrides())
-	c.Check(env.RawEnvironment(), DeepEquals, osutil.RawEnvironment{
+	c.Check(env.ForExec(), DeepEquals, []string{
 		"app-k=app-v",
 		"global-and-local=local-v",
 		"global-k=global-v",

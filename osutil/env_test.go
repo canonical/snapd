@@ -109,10 +109,10 @@ func (s *envSuite) TestGetenvInt64(c *C) {
 
 func (s *envSuite) TestNewEnvironment(c *C) {
 	env := osutil.NewEnvironment(nil)
-	c.Assert(env.RawEnvironment(), DeepEquals, osutil.RawEnvironment{})
+	c.Assert(env.ForExec(), DeepEquals, []string{})
 
 	env = osutil.NewEnvironment(map[string]string{"K": "V", "K2": "V2"})
-	c.Assert(env.RawEnvironment(), DeepEquals, osutil.RawEnvironment{"K=V", "K2=V2"})
+	c.Assert(env.ForExec(), DeepEquals, []string{"K=V", "K2=V2"})
 }
 
 func (s *envSuite) TestParseRawEnvironmentHappy(c *C) {
@@ -160,7 +160,7 @@ func (s *envSuite) TestParseRawEnvironmentDuplicateKey(c *C) {
 func (s *envSuite) TestOSEnvironment(c *C) {
 	env, err := osutil.OSEnvironment()
 	c.Assert(err, IsNil)
-	c.Check(len(os.Environ()), Equals, len(env.RawEnvironment()))
+	c.Check(len(os.Environ()), Equals, len(env.ForExec()))
 	c.Check(os.Getenv("PATH"), Equals, env.Get("PATH"))
 }
 
@@ -169,7 +169,7 @@ func (s *envSuite) TestTransformRewriting(c *C) {
 	env.Transform(func(key, value string) (string, string) {
 		return "key-" + key, "value-" + value
 	})
-	c.Assert(env.RawEnvironment(), DeepEquals, osutil.RawEnvironment{"key-K=value-V"})
+	c.Assert(env.ForExec(), DeepEquals, []string{"key-K=value-V"})
 }
 
 func (s *envSuite) TestTransformSquashing(c *C) {
@@ -178,7 +178,7 @@ func (s *envSuite) TestTransformSquashing(c *C) {
 		key = strings.TrimPrefix(key, "prefix-")
 		return key, value
 	})
-	c.Assert(env.RawEnvironment(), DeepEquals, osutil.RawEnvironment{"K=2"})
+	c.Assert(env.ForExec(), DeepEquals, []string{"K=2"})
 }
 
 func (s *envSuite) TestTransformDeleting(c *C) {
@@ -189,7 +189,7 @@ func (s *envSuite) TestTransformDeleting(c *C) {
 		}
 		return key, value
 	})
-	c.Assert(env.RawEnvironment(), DeepEquals, osutil.RawEnvironment{"K=1"})
+	c.Assert(env.ForExec(), DeepEquals, []string{"K=1"})
 }
 
 func (s *envSuite) TestGet(c *C) {
@@ -222,9 +222,9 @@ func (s *envSuite) TestSet(c *C) {
 	c.Assert(env.Get("K"), Equals, "2")
 }
 
-func (s *envSuite) TestRawEnvironment(c *C) {
+func (s *envSuite) TestForExec(c *C) {
 	env := osutil.NewEnvironment(map[string]string{"K1": "V1", "K2": "V2"})
-	c.Check(env.RawEnvironment(), DeepEquals, osutil.RawEnvironment{"K1=V1", "K2=V2"})
+	c.Check(env.ForExec(), DeepEquals, []string{"K1=V1", "K2=V2"})
 }
 func (s *envSuite) TestNewEnvironmentDelta(c *C) {
 	delta := osutil.NewEnvironmentDelta("K1", "V1", "K2", "$K1")
@@ -288,7 +288,7 @@ func (s *envSuite) TestApplyDelta(c *C) {
 		"D", "$D",
 	))
 	c.Check(undef, DeepEquals, []string{"D"})
-	c.Check(env.RawEnvironment(), DeepEquals, osutil.RawEnvironment{"A=a", "B=a", "C=a", "D="})
+	c.Check(env.ForExec(), DeepEquals, []string{"A=a", "B=a", "C=a", "D="})
 }
 
 func (s *envSuite) TestApplyDeltaForEnvOverride(c *C) {
@@ -302,7 +302,7 @@ func (s *envSuite) TestApplyDeltaForEnvOverride(c *C) {
 		"PATH", "app-level-override",
 	))
 	c.Check(undef, HasLen, 0)
-	c.Check(env.RawEnvironment(), DeepEquals, osutil.RawEnvironment{"PATH=app-level-override"})
+	c.Check(env.ForExec(), DeepEquals, []string{"PATH=app-level-override"})
 }
 
 func (s *envSuite) TestApplyDeltaForEnvExpansion(c *C) {
@@ -316,7 +316,7 @@ func (s *envSuite) TestApplyDeltaForEnvExpansion(c *C) {
 		"PATH", "app-ext:$PATH",
 	))
 	c.Check(undef, HasLen, 0)
-	c.Check(env.RawEnvironment(), DeepEquals, osutil.RawEnvironment{"PATH=app-ext:snap-ext:system-value"})
+	c.Check(env.ForExec(), DeepEquals, []string{"PATH=app-ext:snap-ext:system-value"})
 }
 
 func (s *envSuite) TestApplyDeltaVarious(c *C) {
@@ -347,11 +347,6 @@ func (s *envSuite) TestApplyDeltaVarious(c *C) {
 		}
 		env.ApplyDelta(delta)
 		env.Del("PATH")
-		c.Check(strings.Join(env.RawEnvironment(), ","), DeepEquals, t.expected, Commentf("invalid result for %q, got %q expected %q", t.env, env, t.expected))
+		c.Check(strings.Join(env.ForExec(), ","), DeepEquals, t.expected, Commentf("invalid result for %q, got %q expected %q", t.env, env, t.expected))
 	}
-}
-
-func (s *envSuite) TestRawEnvironmentstring(c *C) {
-	raw := osutil.RawEnvironment{"K=V", "K2=V2"}
-	c.Check(raw.String(), Equals, `"K=V", "K2=V2"`)
 }

@@ -722,7 +722,7 @@ func (x *cmdRun) runCmdUnderGdb(origCmd []string, env *osutil.Environment) error
 	gcmd.Stdin = os.Stdin
 	gcmd.Stdout = os.Stdout
 	gcmd.Stderr = os.Stderr
-	gcmd.Env = env.RawEnvironment()
+	gcmd.Env = env.ForExec()
 	return gcmd.Run()
 }
 
@@ -761,7 +761,7 @@ func (x *cmdRun) runCmdWithTraceExec(origCmd []string, env *osutil.Environment) 
 		return err
 	}
 	// run
-	cmd.Env = env.RawEnvironment()
+	cmd.Env = env.ForExec()
 	cmd.Stdin = Stdin
 	cmd.Stdout = Stdout
 	cmd.Stderr = Stderr
@@ -792,7 +792,7 @@ func (x *cmdRun) runCmdUnderStrace(origCmd []string, env *osutil.Environment) er
 	}
 
 	// run with filter
-	cmd.Env = env.RawEnvironment()
+	cmd.Env = env.ForExec()
 	cmd.Stdin = Stdin
 	cmd.Stdout = Stdout
 	stderr, err := cmd.StderrPipe()
@@ -953,6 +953,6 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	} else if x.useStrace() {
 		return x.runCmdUnderStrace(cmd, env)
 	} else {
-		return syscallExec(cmd[0], cmd, env.RawEnvironment())
+		return syscallExec(cmd[0], cmd, env.ForExec())
 	}
 }
