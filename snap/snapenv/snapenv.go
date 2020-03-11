@@ -27,9 +27,9 @@ import (
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/strutil"
 )
 
 // ExecEnv returns the full environment that is required for
@@ -44,9 +44,9 @@ import (
 //
 // With the extra parameter additional environment variables can be
 // supplied which will be set in the execution environment.
-func ExecEnv(info *snap.Info) (*strutil.Environment, error) {
+func ExecEnv(info *snap.Info) (*osutil.Environment, error) {
 	// Start with OS environment.
-	env, err := strutil.OSEnvironment()
+	env, err := osutil.OSEnvironment()
 	if err != nil {
 		// If environment is maliciously corrupted it may not parse correctly.
 		return nil, err
@@ -69,7 +69,7 @@ func ExecEnv(info *snap.Info) (*strutil.Environment, error) {
 	return env, nil
 }
 
-func snapEnv(info *snap.Info) *strutil.EnvironmentDelta {
+func snapEnv(info *snap.Info) *osutil.EnvironmentDelta {
 	// Start with the delta containing the basic snap variables like SNAP_NAME.
 	delta := basicEnv(info)
 	// If we know the home directory also apply a delta with SNAP_USER_DATA and the like.
@@ -83,8 +83,8 @@ func snapEnv(info *snap.Info) *strutil.EnvironmentDelta {
 // Despite this being a bit snap-specific, this is in helpers.go because it's
 // used by so many other modules, we run into circular dependencies if it's
 // somewhere more reasonable like the snappy module.
-func basicEnv(info *snap.Info) *strutil.EnvironmentDelta {
-	return strutil.NewEnvironmentDelta(
+func basicEnv(info *snap.Info) *osutil.EnvironmentDelta {
+	return osutil.NewEnvironmentDelta(
 		// This uses CoreSnapMountDir because the computed environment
 		// variables are conveyed to the started application process which
 		// shall *either* execute with the new mount namespace where snaps are
@@ -114,10 +114,10 @@ func basicEnv(info *snap.Info) *strutil.EnvironmentDelta {
 // Despite this being a bit snap-specific, this is in helpers.go because it's
 // used by so many other modules, we run into circular dependencies if it's
 // somewhere more reasonable like the snappy module.
-func userEnv(info *snap.Info, home string) *strutil.EnvironmentDelta {
+func userEnv(info *snap.Info, home string) *osutil.EnvironmentDelta {
 	// To keep things simple the user variables always point to the
 	// instance-specific directories.
-	result := strutil.NewEnvironmentDelta(
+	result := osutil.NewEnvironmentDelta(
 		"SNAP_USER_COMMON", info.UserCommonDataDir(home),
 		"SNAP_USER_DATA", info.UserDataDir(home),
 	)

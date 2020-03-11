@@ -47,7 +47,6 @@ import (
 	"github.com/snapcore/snapd/sandbox/selinux"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapenv"
-	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/strutil/shlex"
 	"github.com/snapcore/snapd/timeutil"
 	"github.com/snapcore/snapd/x11"
@@ -713,7 +712,7 @@ func activateXdgDocumentPortal(info *snap.Info, snapApp, hook string) error {
 	return nil
 }
 
-func (x *cmdRun) runCmdUnderGdb(origCmd []string, env *strutil.Environment) error {
+func (x *cmdRun) runCmdUnderGdb(origCmd []string, env *osutil.Environment) error {
 	env.Set("SNAP_CONFINE_RUN_UNDER_GDB", "1")
 
 	cmd := []string{"sudo", "-E", "gdb", "-ex=run", "-ex=catch exec", "-ex=continue", "--args"}
@@ -727,7 +726,7 @@ func (x *cmdRun) runCmdUnderGdb(origCmd []string, env *strutil.Environment) erro
 	return gcmd.Run()
 }
 
-func (x *cmdRun) runCmdWithTraceExec(origCmd []string, env *strutil.Environment) error {
+func (x *cmdRun) runCmdWithTraceExec(origCmd []string, env *osutil.Environment) error {
 	// setup private tmp dir with strace fifo
 	straceTmp, err := ioutil.TempDir("", "exec-trace")
 	if err != nil {
@@ -782,7 +781,7 @@ func (x *cmdRun) runCmdWithTraceExec(origCmd []string, env *strutil.Environment)
 	return err
 }
 
-func (x *cmdRun) runCmdUnderStrace(origCmd []string, env *strutil.Environment) error {
+func (x *cmdRun) runCmdUnderStrace(origCmd []string, env *osutil.Environment) error {
 	extraStraceOpts, raw, err := x.straceOpts()
 	if err != nil {
 		return err

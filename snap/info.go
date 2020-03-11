@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
@@ -1011,9 +1012,9 @@ func (app *AppInfo) ServiceFile() string {
 }
 
 // EnvironmentOverrides returns the app-specific environment overrides.
-func (app *AppInfo) EnvironmentOverrides() *strutil.EnvironmentDelta {
-	delta := &strutil.EnvironmentDelta{OrderedMap: *app.Snap.Environment.Copy()}
-	delta.Merge(&strutil.EnvironmentDelta{OrderedMap: *app.Environment.Copy()})
+func (app *AppInfo) EnvironmentOverrides() *osutil.EnvironmentDelta {
+	delta := &osutil.EnvironmentDelta{OrderedMap: *app.Snap.Environment.Copy()}
+	delta.Merge(&osutil.EnvironmentDelta{OrderedMap: *app.Environment.Copy()})
 	return delta
 }
 
@@ -1031,9 +1032,9 @@ func (hook *HookInfo) SecurityTag() string {
 }
 
 // EnvironmentOverrides returns the hook-specific environment overrides.
-func (hook *HookInfo) EnvironmentOverrides() *strutil.EnvironmentDelta {
-	delta := &strutil.EnvironmentDelta{OrderedMap: *hook.Snap.Environment.Copy()}
-	delta.Merge(&strutil.EnvironmentDelta{OrderedMap: *hook.Environment.Copy()})
+func (hook *HookInfo) EnvironmentOverrides() *osutil.EnvironmentDelta {
+	delta := &osutil.EnvironmentDelta{OrderedMap: *hook.Snap.Environment.Copy()}
+	delta.Merge(&osutil.EnvironmentDelta{OrderedMap: *hook.Environment.Copy()})
 	return delta
 }
 

@@ -30,10 +30,10 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
-	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/testutil"
 
 	snapExec "github.com/snapcore/snapd/cmd/snap-exec"
@@ -478,7 +478,7 @@ func (s *snapExecSuite) TestSnapExecExpandEnvCmdArgs(c *C) {
 			expected: []string{"foo", "bar", "baz"},
 		},
 	} {
-		var env strutil.Environment
+		var env osutil.Environment
 		for k, v := range t.env {
 			env.Set(k, v)
 		}

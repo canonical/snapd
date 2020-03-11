@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/osutil/sys"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var (
@@ -200,3 +201,19 @@ func MockFindGid(mock func(name string) (uint64, error)) (restore func()) {
 }
 
 const MaxSymlinkTries = maxSymlinkTries
+
+// ParseRawEnvironmentDelta returns a new environment delta parsed from key=value strings.
+func ParseRawEnvironmentDelta(entries []string) (*EnvironmentDelta, error) {
+	om := strutil.NewOrderedMap()
+	for _, entry := range entries {
+		key, value, err := parseEnvEntry(entry)
+		if err != nil {
+			return nil, err
+		}
+		if om.Get(key) != "" {
+			return nil, fmt.Errorf("cannot overwrite earlier value of %q", key)
+		}
+		om.Set(key, value)
+	}
+	return &EnvironmentDelta{OrderedMap: *om}, nil
+}

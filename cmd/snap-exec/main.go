@@ -29,9 +29,9 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapenv"
-	"github.com/snapcore/snapd/strutil"
 )
 
 // for the tests
@@ -138,7 +138,7 @@ func absoluteCommandChain(snapInfo *snap.Info, commandChain []string) []string {
 
 // expandEnvCmdArgs takes the string list of commandline arguments
 // and expands any $VAR with the given var from the env argument.
-func expandEnvCmdArgs(args []string, env *strutil.Environment) []string {
+func expandEnvCmdArgs(args []string, env *osutil.Environment) []string {
 	cmdArgs := make([]string, 0, len(args))
 	for _, arg := range args {
 		maybeExpanded := os.Expand(arg, func(varName string) string {
@@ -186,7 +186,7 @@ func execApp(snapApp, revision, command string, args []string) error {
 	// build the environment from the yaml, translating TMPDIR and
 	// similar variables back from where they were hidden when
 	// invoking the setuid snap-confine.
-	env, err := strutil.OSEnvironment()
+	env, err := osutil.OSEnvironment()
 	if err != nil {
 		return err
 	}
@@ -254,7 +254,7 @@ func execHook(snapName, revision, hookName string) error {
 	}
 
 	// build the environment
-	env, err := strutil.OSEnvironment()
+	env, err := osutil.OSEnvironment()
 	if err != nil {
 		return err
 	}

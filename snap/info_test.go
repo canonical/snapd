@@ -33,10 +33,10 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snap/squashfs"
-	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -524,9 +524,9 @@ apps:
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	var env strutil.Environment
+	var env osutil.Environment
 	env.ApplyDelta(info.Apps["foo"].EnvironmentOverrides())
-	c.Check(env.RawEnvironment(), DeepEquals, strutil.RawEnvironment{
+	c.Check(env.RawEnvironment(), DeepEquals, osutil.RawEnvironment{
 		"app-k=app-v",
 		"global-k=global-v",
 	})
@@ -548,9 +548,9 @@ apps:
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	var env strutil.Environment
+	var env osutil.Environment
 	env.ApplyDelta(info.Apps["foo"].EnvironmentOverrides())
-	c.Check(env.RawEnvironment(), DeepEquals, strutil.RawEnvironment{
+	c.Check(env.RawEnvironment(), DeepEquals, osutil.RawEnvironment{
 		"app-k=app-v",
 		"global-and-local=local-v",
 		"global-k=global-v",
@@ -571,9 +571,9 @@ hooks:
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	var env strutil.Environment
+	var env osutil.Environment
 	env.ApplyDelta(info.Hooks["foo"].EnvironmentOverrides())
-	c.Check(env.RawEnvironment(), DeepEquals, strutil.RawEnvironment{
+	c.Check(env.RawEnvironment(), DeepEquals, osutil.RawEnvironment{
 		"app-k=app-v",
 		"global-k=global-v",
 	})
@@ -595,9 +595,9 @@ hooks:
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	var env strutil.Environment
+	var env osutil.Environment
 	env.ApplyDelta(info.Hooks["foo"].EnvironmentOverrides())
-	c.Check(env.RawEnvironment(), DeepEquals, strutil.RawEnvironment{
+	c.Check(env.RawEnvironment(), DeepEquals, osutil.RawEnvironment{
 		"app-k=app-v",
 		"global-and-local=local-v",
 		"global-k=global-v",
