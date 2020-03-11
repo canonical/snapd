@@ -97,7 +97,7 @@ func (iface *uioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 	// which are computationally difficult to de-duplicate provided
 	// large enough N. Instead, grant read only access to all uio
 	// sysfs files and control writable access to the specific
-	// device node in /dev. Use AddDeduplicatedSnippet() for clariry
+	// device node in /dev. Use AddDeduplicatedSnippet() for clarity
 	// in the resulting rules.
 	spec.AddDeduplicatedSnippet("/sys/devices/platform/**/uio/uio[0-9]** r,")
 	return nil
