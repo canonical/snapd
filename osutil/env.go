@@ -162,20 +162,21 @@ func NewExpandableEnv(pairs ...string) ExpandableEnv {
 	return ExpandableEnv{OrderedMap: strutil.NewOrderedMap(pairs...)}
 }
 
-// ApplyDelta applies a delta to the environment.
+// SetExpandableEnv sets variables defined by expandable environment
 //
-// Environment is modified in place. Delta acts like an environment that can
-// contain additional key=value pairs, where values can refer to any key set in
-// the environment or eventually computed by applying the delta.
+// Environment is modified in place. Each variable defined by expandable
+// environment is expanded according to os.Expand, using the environment itself
+// as data source.
 //
 // The return value is the ordered list of variables that were referenced by
-// the delta but were never defined. They are expanded to an empty string.
-func (env *Environment) ApplyDelta(delta ExpandableEnv) []string {
+// the expandable environment but were never defined. They are expanded to an
+// empty string.
+func (env *Environment) SetExpandableEnv(eenv ExpandableEnv) []string {
 	if *env == nil {
 		*env = make(Environment)
 	}
 
-	keys := delta.Keys()
+	keys := eenv.Keys()
 	applied := make(map[string]bool, len(keys))
 
 	// Keep trying to expand variables for as long as we are making progress.
@@ -186,7 +187,7 @@ func (env *Environment) ApplyDelta(delta ExpandableEnv) []string {
 			if !applied[key] {
 				// Attempt to expand each value and if successful, update the
 				// environment and record this .
-				value := delta.Get(key)
+				value := eenv.Get(key)
 				good := true
 				valueExp := os.Expand(value, func(varName string) string {
 					varValue, ok := (*env)[varName]
@@ -216,7 +217,7 @@ func (env *Environment) ApplyDelta(delta ExpandableEnv) []string {
 	undefined := make(map[string]bool, len(keys)-len(applied))
 	for _, key := range keys {
 		if !applied[key] {
-			value := delta.Get(key)
+			value := eenv.Get(key)
 			valueExp := os.Expand(value, func(varName string) string {
 				varValue, ok := (*env)[varName]
 				if !ok {

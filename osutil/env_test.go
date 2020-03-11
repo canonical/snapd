@@ -233,10 +233,10 @@ func (s *envSuite) TestParseRawExpandableEnvDuplicateKey(c *C) {
 	c.Assert(eenv, DeepEquals, osutil.ExpandableEnv{})
 }
 
-func (s *envSuite) TestApplyDelta(c *C) {
+func (s *envSuite) TestSetExpandableEnv(c *C) {
 	env := make(osutil.Environment)
 	env["A"] = "a"
-	undef := env.ApplyDelta(osutil.NewExpandableEnv(
+	undef := env.SetExpandableEnv(osutil.NewExpandableEnv(
 		"B", "$C",
 		"C", "$A",
 		"D", "$D",
@@ -245,35 +245,35 @@ func (s *envSuite) TestApplyDelta(c *C) {
 	c.Check(env.ForExec(), DeepEquals, []string{"A=a", "B=a", "C=a", "D="})
 }
 
-func (s *envSuite) TestApplyDeltaForEnvOverride(c *C) {
+func (s *envSuite) TestSetExpandableEnvForEnvOverride(c *C) {
 	env := make(osutil.Environment)
 	env["PATH"] = "system-value"
-	undef := env.ApplyDelta(osutil.NewExpandableEnv(
+	undef := env.SetExpandableEnv(osutil.NewExpandableEnv(
 		"PATH", "snap-level-override",
 	))
 	c.Check(undef, HasLen, 0)
-	undef = env.ApplyDelta(osutil.NewExpandableEnv(
+	undef = env.SetExpandableEnv(osutil.NewExpandableEnv(
 		"PATH", "app-level-override",
 	))
 	c.Check(undef, HasLen, 0)
 	c.Check(env.ForExec(), DeepEquals, []string{"PATH=app-level-override"})
 }
 
-func (s *envSuite) TestApplyDeltaForEnvExpansion(c *C) {
+func (s *envSuite) TestSetExpandableEnvForEnvExpansion(c *C) {
 	env := make(osutil.Environment)
 	env["PATH"] = "system-value"
-	undef := env.ApplyDelta(osutil.NewExpandableEnv(
+	undef := env.SetExpandableEnv(osutil.NewExpandableEnv(
 		"PATH", "snap-ext:$PATH",
 	))
 	c.Check(undef, HasLen, 0)
-	undef = env.ApplyDelta(osutil.NewExpandableEnv(
+	undef = env.SetExpandableEnv(osutil.NewExpandableEnv(
 		"PATH", "app-ext:$PATH",
 	))
 	c.Check(undef, HasLen, 0)
 	c.Check(env.ForExec(), DeepEquals, []string{"PATH=app-ext:snap-ext:system-value"})
 }
 
-func (s *envSuite) TestApplyDeltaVarious(c *C) {
+func (s *envSuite) TestSetExpandableEnvVarious(c *C) {
 	for _, t := range []struct {
 		env      string
 		expected string
@@ -299,7 +299,7 @@ func (s *envSuite) TestApplyDeltaVarious(c *C) {
 		if strings.Contains(t.env, "PATH") {
 			env["PATH"] = os.Getenv("PATH")
 		}
-		env.ApplyDelta(eenv)
+		env.SetExpandableEnv(eenv)
 		delete(env, "PATH")
 		c.Check(strings.Join(env.ForExec(), ","), DeepEquals, t.expected, Commentf("invalid result for %q, got %q expected %q", t.env, env, t.expected))
 	}

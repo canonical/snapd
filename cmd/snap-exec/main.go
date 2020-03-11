@@ -195,7 +195,7 @@ func execApp(snapApp, revision, command string, args []string) error {
 		return key, value
 	})
 	for _, eenv := range app.EnvStack() {
-		env.ApplyDelta(eenv)
+		env.SetExpandableEnv(eenv)
 	}
 
 	// strings.Split() is ok here because we validate all app fields and the
@@ -261,7 +261,7 @@ func execHook(snapName, revision, hookName string) error {
 		return err
 	}
 	for _, eenv := range hook.EnvStack() {
-		env.ApplyDelta(eenv)
+		env.SetExpandableEnv(eenv)
 	}
 
 	// run the hook
