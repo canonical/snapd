@@ -1728,19 +1728,18 @@ type: os
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 }
 
-// XXX distinguish kernel vs base
 type rebootEnv interface {
-	SetTryingDuringReboot() error
-	SetRollbackAcrossReboot() error
+	SetTryingDuringReboot(which []snap.Type) error
+	SetRollbackAcrossReboot(which []snap.Type) error
 }
 
-func (s *baseMgrsSuite) mockSuccessfulReboot(c *C, be rebootEnv) {
+func (s *baseMgrsSuite) mockSuccessfulReboot(c *C, be rebootEnv, which []snap.Type) {
 	st := s.o.State()
 	restarting, restartType := st.Restarting()
 	c.Assert(restarting, Equals, true, Commentf("mockSuccessfulReboot called when there was no pending restart"))
 	c.Assert(restartType, Equals, state.RestartSystem, Commentf("mockSuccessfulReboot called but restartType is not SystemRestart but %v", restartType))
 	state.MockRestarting(st, state.RestartUnset)
-	err := be.SetTryingDuringReboot()
+	err := be.SetTryingDuringReboot(which)
 	c.Assert(err, IsNil)
 	s.o.DeviceManager().ResetBootOk()
 	st.Unlock()
@@ -1749,13 +1748,13 @@ func (s *baseMgrsSuite) mockSuccessfulReboot(c *C, be rebootEnv) {
 	c.Assert(err, IsNil)
 }
 
-func (s *baseMgrsSuite) mockRollbackAcrossReboot(c *C, be rebootEnv) {
+func (s *baseMgrsSuite) mockRollbackAcrossReboot(c *C, be rebootEnv, which []snap.Type) {
 	st := s.o.State()
 	restarting, restartType := st.Restarting()
 	c.Assert(restarting, Equals, true, Commentf("mockRollbackAcrossReboot called when there was no pending restart"))
 	c.Assert(restartType, Equals, state.RestartSystem, Commentf("mockRollbackAcrossReboot called but restartType is not SystemRestart but %v", restartType))
 	state.MockRestarting(st, state.RestartUnset)
-	err := be.SetRollbackAcrossReboot()
+	err := be.SetRollbackAcrossReboot(which)
 	c.Assert(err, IsNil)
 	s.o.DeviceManager().ResetBootOk()
 	st.Unlock()
@@ -1845,7 +1844,7 @@ type: kernel`
 		"snap_mode":       boot.TryStatus,
 	})
 	// pretend we restarted
-	s.mockSuccessfulReboot(c, bloader)
+	s.mockSuccessfulReboot(c, bloader, []snap.Type{snap.TypeKernel})
 
 	st.Unlock()
 	err = s.o.Settle(settleTimeout)
@@ -1942,7 +1941,7 @@ type: kernel`
 	c.Check(restarting, Equals, true)
 	c.Check(chg.Status(), Equals, state.DoingStatus)
 	// pretend we restarted
-	s.mockSuccessfulReboot(c, bloader)
+	s.mockSuccessfulReboot(c, bloader, []snap.Type{snap.TypeKernel})
 
 	st.Unlock()
 	err = s.o.Settle(settleTimeout)
@@ -2094,7 +2093,7 @@ type: kernel`
 	c.Assert(nEnableKernelCalls, Equals, 0)
 
 	// pretend we restarted
-	s.mockSuccessfulReboot(c, bloader)
+	s.mockSuccessfulReboot(c, bloader, []snap.Type{snap.TypeKernel})
 
 	st.Unlock()
 	err = s.o.Settle(settleTimeout)
@@ -2256,7 +2255,7 @@ type: kernel`
 	c.Check(restarting, Equals, true)
 	c.Check(chg.Status(), Equals, state.DoingStatus)
 	// pretend we restarted
-	s.mockSuccessfulReboot(c, bloader)
+	s.mockSuccessfulReboot(c, bloader, []snap.Type{snap.TypeKernel})
 
 	st.Unlock()
 	err = s.o.Settle(settleTimeout)
@@ -4392,7 +4391,7 @@ version: 20.04`
 		"snap_kernel":   "pc-kernel_1.snap",
 	})
 	// simulate successful restart happened
-	ms.mockSuccessfulReboot(c, bloader)
+	ms.mockSuccessfulReboot(c, bloader, []snap.Type{snap.TypeBase})
 	c.Assert(bloader.BootVars, DeepEquals, map[string]string{
 		"snap_mode":       boot.DefaultStatus,
 		"snap_core":       "core20_2.snap",
@@ -4531,7 +4530,7 @@ version: 20.04`
 		"snap_kernel":   "pc-kernel_1.snap",
 	})
 	// simulate successful restart happened
-	ms.mockRollbackAcrossReboot(c, bloader)
+	ms.mockRollbackAcrossReboot(c, bloader, []snap.Type{snap.TypeBase})
 	c.Assert(bloader.BootVars, DeepEquals, map[string]string{
 		"snap_mode":       boot.DefaultStatus,
 		"snap_core":       "core18_1.snap",
@@ -4675,7 +4674,7 @@ func (s *kernelSuite) TestRemodelSwitchKernelTrack(c *C) {
 	c.Assert(t.Status(), Equals, state.DoingStatus)
 
 	// simulate successful restart happened
-	s.mockSuccessfulReboot(c, s.bloader)
+	s.mockSuccessfulReboot(c, s.bloader, []snap.Type{snap.TypeKernel})
 
 	// continue
 	st.Unlock()
@@ -4738,7 +4737,7 @@ func (ms *kernelSuite) TestRemodelSwitchToDifferentKernel(c *C) {
 	})
 	// simulate successful system-restart bootenv updates (those
 	// vars will be cleared by snapd on a restart)
-	ms.mockSuccessfulReboot(c, ms.bloader)
+	ms.mockSuccessfulReboot(c, ms.bloader, []snap.Type{snap.TypeKernel})
 	// bootvars are as expected
 	c.Assert(ms.bloader.BootVars, DeepEquals, map[string]string{
 		"snap_core":       "core_1.snap",
@@ -4821,7 +4820,7 @@ func (ms *kernelSuite) TestRemodelSwitchToDifferentKernelUndo(c *C) {
 	c.Assert(t.Status(), Equals, state.DoingStatus)
 
 	// simulate successful restart happened
-	ms.mockSuccessfulReboot(c, ms.bloader)
+	ms.mockSuccessfulReboot(c, ms.bloader, []snap.Type{snap.TypeKernel})
 
 	// continue
 	st.Unlock()
@@ -4877,7 +4876,7 @@ func (ms *kernelSuite) TestRemodelSwitchToDifferentKernelUndoOnRollback(c *C) {
 	c.Assert(t.Status(), Equals, state.DoingStatus)
 
 	// simulate rollback of the kernel during reboot
-	ms.mockRollbackAcrossReboot(c, ms.bloader)
+	ms.mockRollbackAcrossReboot(c, ms.bloader, []snap.Type{snap.TypeKernel})
 
 	// continue
 	st.Unlock()
@@ -5757,7 +5756,7 @@ type: kernel`
 	restarting, _ := st.Restarting()
 	c.Check(restarting, Equals, true)
 	c.Check(chg.Status(), Equals, state.DoingStatus)
-	s.mockRollbackAcrossReboot(c, bloader)
+	s.mockRollbackAcrossReboot(c, bloader, []snap.Type{snap.TypeKernel})
 
 	// the kernel revision got rolled back
 	var snapst snapstate.SnapState

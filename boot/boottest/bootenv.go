@@ -23,13 +23,16 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
+	"github.com/snapcore/snapd/snap"
 )
 
+// Bootenv16 implements manipulating a UC16/18 boot env for testing.
 type Bootenv16 struct {
 	*bootloadertest.MockBootloader
 }
 
-// XXX ...
+// MockUC16Bootenv wraps a mock bootloader for UC16/18 boot env
+// manipulation.
 func MockUC16Bootenv(b *bootloadertest.MockBootloader) *Bootenv16 {
 	return &Bootenv16{b}
 }
@@ -46,7 +49,9 @@ func (b16 Bootenv16) SetBootBase(base string) {
 	b16.SetBootVars(map[string]string{"snap_core": base})
 }
 
-func (b16 Bootenv16) SetTryingDuringReboot() error {
+// SetTryingDuringReboot indicates that new kernel or base are being tried
+// same as done by bootloader config.
+func (b16 Bootenv16) SetTryingDuringReboot(which []snap.Type) error {
 	if b16.BootVars["snap_mode"] != "try" {
 		return fmt.Errorf("bootloader must be in 'try' mode")
 	}
@@ -54,37 +59,77 @@ func (b16 Bootenv16) SetTryingDuringReboot() error {
 	return nil
 }
 
+func includesType(which []snap.Type, t snap.Type) bool {
+	for _, t1 := range which {
+		if t1 == t {
+			return true
+		}
+	}
+	return true
+}
+
+func exactlyType(which []snap.Type, t snap.Type) bool {
+	if len(which) != 1 {
+		return false
+	}
+	if which[0] != t {
+		return false
+	}
+	return true
+}
+
 // SetRollbackAcrossReboot will simulate a rollback across reboots. This
 // means that the bootloader had "snap_try_{core,kernel}" set but this
 // boot failed. In this case the bootloader will clear
 // "snap_try_{core,kernel}" and "snap_mode" which means the "old" kernel,core
-// in "snap_{core,kernel}" will be used.
-func (b16 Bootenv16) SetRollbackAcrossReboot() error {
+// in "snap_{core,kernel}" will be used. which indicates whether rollback
+// applies to kernel, base or both.
+func (b16 Bootenv16) SetRollbackAcrossReboot(which []snap.Type) error {
 	if b16.BootVars["snap_mode"] != "try" {
 		return fmt.Errorf("rollback can only be simulated in 'try' mode")
 	}
-	if b16.BootVars["snap_core"] == "" && b16.BootVars["snap_kernel"] == "" {
-		return fmt.Errorf("rollback can only be simulated if either snap_core or snap_kernel is set")
+	rollbackBase := includesType(which, snap.TypeBase)
+	rollbackKernel := includesType(which, snap.TypeKernel)
+	if !rollbackBase && !rollbackKernel {
+		return fmt.Errorf("rollback of either base or kernel must be requested")
+	}
+	if rollbackBase && b16.BootVars["snap_core"] == "" && b16.BootVars["snap_kernel"] == "" {
+		return fmt.Errorf("base rollback can only be simulated if snap_core is set")
+	}
+	if rollbackKernel && b16.BootVars["snap_kernel"] == "" {
+		return fmt.Errorf("kernel rollback can only be simulated if snap_kernel is set")
 	}
 	// clean try bootvars and snap_mode
 	b16.BootVars["snap_mode"] = ""
-	b16.BootVars["snap_try_core"] = ""
-	b16.BootVars["snap_try_kernel"] = ""
+	if rollbackBase {
+		b16.BootVars["snap_try_core"] = ""
+	}
+	if rollbackKernel {
+		b16.BootVars["snap_try_kernel"] = ""
+	}
 	return nil
 }
 
-// XXX
+// RunBootenv16 implements manipulating a UC20 run-mode boot env for
+// testing.
 type RunBootenv20 struct {
 	*bootloadertest.MockExtractedRunKernelImageBootloader
 }
 
-// XXX ...
+// MockUC20RunBootenv wraps a mock bootloader for UC20 run-mode boot
+// env manipulation.
 func MockUC20RunBootenv(b *bootloadertest.MockBootloader) *RunBootenv20 {
 	return &RunBootenv20{b.WithExtractedRunKernelImage()}
 }
 
-// XXX distinguish kernel vs base
-func (b20 RunBootenv20) SetTryingDuringReboot() error {
+// TODO:UC20: expose actual snap-boostrap logic for testing
+
+// SetTryingDuringReboot indicates that new kernel or base are being tried
+// same as done by bootloader config.
+func (b20 RunBootenv20) SetTryingDuringReboot(which []snap.Type) error {
+	if !exactlyType(which, snap.TypeKernel) {
+		return fmt.Errorf("for now only kernel related simulation is supported")
+	}
 	if b20.BootVars["kernel_status"] != "try" {
 		return fmt.Errorf("bootloader must be in 'try' mode")
 	}
@@ -92,14 +137,16 @@ func (b20 RunBootenv20) SetTryingDuringReboot() error {
 	return nil
 }
 
-// XXX distinguish kernel vs base
-func (b20 RunBootenv20) SetRollbackAcrossReboot() error {
+// SetRollbackAcrossReboot will simulate a rollback across reboots for either
+// a new base or kernel or both, as indicated by which.
+// TODO: only kernel is supported for now.
+func (b20 RunBootenv20) SetRollbackAcrossReboot(which []snap.Type) error {
+	if !exactlyType(which, snap.TypeKernel) {
+		return fmt.Errorf("for now only kernel related simulation is supported")
+	}
 	if b20.BootVars["kernel_status"] != "try" {
 		return fmt.Errorf("rollback can only be simulated in 'try' mode")
 	}
-	/* XXX if b20.BootVars["snap_core"] == "" && b20.BootVars["snap_kernel"] == "" {
-		return fmt.Errorf("rollback can only be simulated if either snap_core or snap_kernel is set")
-	}*/
 	// clean try bootvars and snap_mode
 	b20.BootVars["kernel_status"] = ""
 	return nil

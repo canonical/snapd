@@ -48,8 +48,8 @@ type MockBootloader struct {
 
 // ensure MockBootloader(s) implement the Bootloader interfaceces
 var _ bootloader.Bootloader = (*MockBootloader)(nil)
-var _ bootloader.ExtractedRunKernelImageBootloader = (*MockExtractedRunKernelImageBootloader)(nil)
 var _ bootloader.RecoveryAwareBootloader = (*MockRecoveryAwareBootloader)(nil)
+var _ bootloader.ExtractedRunKernelImageBootloader = (*MockExtractedRunKernelImageBootloader)(nil)
 
 func Mock(name, bootdir string) *MockBootloader {
 	return &MockBootloader{
@@ -102,7 +102,8 @@ func (b *MockBootloader) InstallBootConfig(gadgetDir string, opts *bootloader.Op
 	return b.InstallBootConfigResult, b.InstallBootConfigErr
 }
 
-// XXX ...
+// MockRecoveryAwareBootloader mocks a bootloader implementing the
+// RecoveryAware interface.
 type MockRecoveryAwareBootloader struct {
 	*MockBootloader
 
@@ -110,7 +111,8 @@ type MockRecoveryAwareBootloader struct {
 	RecoverySystemBootVars map[string]string
 }
 
-// XXX ...
+// RecoveryAware derives a MockRecoveryAwareBootloader from a base
+// MockBootloader.
 func (b *MockBootloader) RecoveryAware() *MockRecoveryAwareBootloader {
 	return &MockRecoveryAwareBootloader{MockBootloader: b}
 }
@@ -126,7 +128,8 @@ func (b *MockRecoveryAwareBootloader) SetRecoverySystemEnv(recoverySystemDir str
 	return nil
 }
 
-// XXX ...
+// MockExtractedRunKernelImageBootloader mocks a bootloader
+// implementing the ExtractedRunKernelImageBootloader interface.
 type MockExtractedRunKernelImageBootloader struct {
 	*MockBootloader
 
@@ -140,7 +143,8 @@ type MockExtractedRunKernelImageBootloader struct {
 	runKernelImageMockedNumCalls map[string]int
 }
 
-// XXX ...
+// WithExtractedRunKernelImage derives a MockExtractedRunKernelImageBootloader
+// from a base MockBootloader.
 func (b *MockBootloader) WithExtractedRunKernelImage() *MockExtractedRunKernelImageBootloader {
 	return &MockExtractedRunKernelImageBootloader{
 		MockBootloader: b,
