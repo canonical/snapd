@@ -142,22 +142,6 @@ func (env *Environment) Transform(tr func(key, value string) (string, string)) {
 	*env = newEntries
 }
 
-// Get returns the value of a given environment variable.
-func (env Environment) Get(key string) string {
-	return env[key]
-}
-
-// Contains returns true if given environment variable is set.
-func (env Environment) Contains(key string) bool {
-	_, ok := env[key]
-	return ok
-}
-
-// Del removes the given environment variable.
-func (env Environment) Del(key string) {
-	delete(env, key)
-}
-
 // Set adds or replaces the given environment variable.
 func (env *Environment) Set(key, value string) {
 	if *env == nil {
@@ -234,10 +218,11 @@ func (env *Environment) ApplyDelta(delta *EnvironmentDelta) []string {
 				value := delta.Get(key)
 				good := true
 				valueExp := os.Expand(value, func(varName string) string {
-					if !env.Contains(varName) {
+					varValue, ok := (*env)[varName]
+					if !ok {
 						good = false
 					}
-					return env.Get(varName)
+					return varValue
 				})
 				if !good {
 					// If we cannot expand the value yet then just continue.
@@ -262,11 +247,12 @@ func (env *Environment) ApplyDelta(delta *EnvironmentDelta) []string {
 		if !applied[key] {
 			value := delta.Get(key)
 			valueExp := os.Expand(value, func(varName string) string {
-				if !env.Contains(varName) {
+				varValue, ok := (*env)[varName]
+				if !ok {
 					undefined[varName] = true
 					return ""
 				}
-				return env.Get(varName)
+				return varValue
 			})
 			env.Set(key, valueExp)
 		}

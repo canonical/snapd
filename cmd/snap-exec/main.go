@@ -142,7 +142,7 @@ func expandEnvCmdArgs(args []string, env osutil.Environment) []string {
 	cmdArgs := make([]string, 0, len(args))
 	for _, arg := range args {
 		maybeExpanded := os.Expand(arg, func(varName string) string {
-			return env.Get(varName)
+			return env[varName]
 		})
 		if maybeExpanded != "" {
 			cmdArgs = append(cmdArgs, maybeExpanded)

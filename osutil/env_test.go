@@ -161,7 +161,7 @@ func (s *envSuite) TestOSEnvironment(c *C) {
 	env, err := osutil.OSEnvironment()
 	c.Assert(err, IsNil)
 	c.Check(len(os.Environ()), Equals, len(env.ForExec()))
-	c.Check(os.Getenv("PATH"), Equals, env.Get("PATH"))
+	c.Check(os.Getenv("PATH"), Equals, env["PATH"])
 }
 
 func (s *envSuite) TestTransformRewriting(c *C) {
@@ -194,32 +194,24 @@ func (s *envSuite) TestTransformDeleting(c *C) {
 
 func (s *envSuite) TestGet(c *C) {
 	env := osutil.NewEnvironment(map[string]string{"K": "V"})
-	c.Assert(env.Get("K"), Equals, "V")
-	c.Assert(env.Get("missing"), Equals, "")
-}
-
-func (s *envSuite) TestContains(c *C) {
-	env := osutil.NewEnvironment(map[string]string{"K": "V"})
-	c.Assert(env.Contains("K"), Equals, true)
-	c.Assert(env.Contains("missing"), Equals, false)
+	c.Assert(env["K"], Equals, "V")
+	c.Assert(env["missing"], Equals, "")
 }
 
 func (s *envSuite) TestDel(c *C) {
 	env := osutil.NewEnvironment(map[string]string{"K": "V"})
-	env.Del("K")
-	c.Assert(env.Get("K"), Equals, "")
-	c.Assert(env.Contains("K"), Equals, false)
-	env.Del("missing")
-	c.Assert(env.Get("missing"), Equals, "")
-	c.Assert(env.Contains("missing"), Equals, false)
+	delete(env, "K")
+	c.Assert(env["K"], Equals, "")
+	delete(env, "missing")
+	c.Assert(env["missing"], Equals, "")
 }
 
 func (s *envSuite) TestSet(c *C) {
 	var env osutil.Environment
 	env.Set("K", "1")
-	c.Assert(env.Get("K"), Equals, "1")
+	c.Assert(env["K"], Equals, "1")
 	env.Set("K", "2")
-	c.Assert(env.Get("K"), Equals, "2")
+	c.Assert(env["K"], Equals, "2")
 }
 
 func (s *envSuite) TestForExec(c *C) {
@@ -346,7 +338,7 @@ func (s *envSuite) TestApplyDeltaVarious(c *C) {
 			env.Set("PATH", os.Getenv("PATH"))
 		}
 		env.ApplyDelta(delta)
-		env.Del("PATH")
+		delete(env, "PATH")
 		c.Check(strings.Join(env.ForExec(), ","), DeepEquals, t.expected, Commentf("invalid result for %q, got %q expected %q", t.env, env, t.expected))
 	}
 }
