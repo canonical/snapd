@@ -181,12 +181,15 @@ func (s *ubootTestSuite) TestUbootSetRecoverySystemEnv(c *C) {
 	bootloader.MockUbootFiles(c, s.rootdir)
 	u := bootloader.NewUboot(s.rootdir)
 
+	rau, ok := u.(bootloader.RecoveryAwareBootloader)
+	c.Assert(ok, Equals, true)
+
 	// check that we can set a recovery system specific bootenv
 	bvars := map[string]string{
 		"snapd_recovery_kernel": "/snaps/pi-kernel_1.snap",
 		"other_options":         "are-supported",
 	}
-	err := u.SetRecoverySystemEnv("/systems/20191209", bvars)
+	err := rau.SetRecoverySystemEnv("/systems/20191209", bvars)
 	c.Assert(err, IsNil)
 	recoverySystemUbootenv := filepath.Join(s.rootdir, "/systems/20191209/uboot.env")
 	c.Assert(recoverySystemUbootenv, testutil.FilePresent)

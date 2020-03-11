@@ -96,7 +96,7 @@ type RecoveryAwareBootloader interface {
 }
 
 type ExtractedRecoveryKernelImageBootloader interface {
-	RecoveryAwareBootloader
+	Bootloader
 	ExtractRecoveryKernelAssets(recoverySystemDir string, s snap.PlaceInfo, snapf snap.Container) error
 }
 
