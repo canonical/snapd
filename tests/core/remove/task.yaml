@@ -1,17 +1,26 @@
 summary: Check that removal of essential snaps does not work
 
-# TODO:UC20: enable for UC20+ with core20 as an unremovable base snap
-systems: [ubuntu-core-18-*]
+# UC16 does not seed the snapd snap (yet)
+systems: [-ubuntu-core-16-*]
 
 execute: |
+    # shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB/systems.sh"
+
     echo "Ensure snapd cannot be removed"
     if snap remove --purge snapd; then
         echo "The snapd snap should not be removable"
         exit 1
     fi
-    echo "Ensure core18 cannot be removed"
-    if snap remove --purge core18; then
-        echo "The core18 snap should not removable"
+
+    if is_core18_system; then
+        base=core18
+    elif is_core20_system; then
+        base=core20
+    fi
+    echo "Ensure $base cannot be removed"
+    if snap remove --purge "$base"; then
+        echo "The $base snap should not removable"
         exit 1
     fi
 
@@ -19,7 +28,7 @@ execute: |
     snap install test-snapd-sh
     snap list | MATCH '^core '
     if snap remove --purge core; then
-        echo "core should not be removalble because test-snapd-tools needs it"
+        echo "core should not be removable because test-snapd-tools needs it"
         exit 1
     fi
 

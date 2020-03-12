@@ -641,10 +641,6 @@ EOF
 setup_reflash_magic() {
     # install the stuff we need
     distro_install_package kpartx busybox-static
-    # for core20 we need debootstrap to build the initramfs in the kernel snap
-    if is_core20_system; then
-        distro_install_package debootstrap
-    fi
 
     distro_install_local_package "$GOHOME"/snapd_*.deb
     distro_clean_package_cache
@@ -652,16 +648,23 @@ setup_reflash_magic() {
     # need to be seeded to proceed with snap install
     snap wait system seed.loaded
 
+    # download the snapd snap for all uc systems except uc16
+    if ! is_core16_system; then
+        snap download "--channel=${SNAPD_CHANNEL}" snapd
+    fi
+
     # we cannot use "names.sh" here because no snaps are installed yet
     core_name="core"
     if is_core18_system; then
-        snap download "--channel=${SNAPD_CHANNEL}" snapd
         core_name="core18"
-    elif is_core20_system; then
-        snap download "--channel=${SNAPD_CHANNEL}" snapd
+    elif is_core20_system; then        
         core_name="core20"
     fi
     snap install "--channel=${CORE_CHANNEL}" "$core_name"
+    if is_core16_system || is_core18_system; then
+        UNPACK_DIR="/tmp/$core_name-snap"
+        unsquashfs -no-progress -d "$UNPACK_DIR" /var/lib/snapd/snaps/${core_name}_*.snap
+    fi
 
     # install ubuntu-image
     snap install --classic --edge ubuntu-image
@@ -685,15 +688,9 @@ setup_reflash_magic() {
         IMAGE=core18-amd64.img
     elif is_core20_system; then
         repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$IMAGE_HOME"
-        # TODO:UC20: use canonical model instead of "mvo" one
         cp "$TESTSLIB/assertions/ubuntu-core-20-amd64.model" "$IMAGE_HOME/pc.model"
         IMAGE=core20-amd64.img
     else
-        # modify the core snap so that the current root-pw works there
-        # for spread to do the first login
-        UNPACK_DIR="/tmp/core-snap"
-        unsquashfs -no-progress -d "$UNPACK_DIR" /var/lib/snapd/snaps/core_*.snap
-
         # FIXME: install would be better but we don't have dpkg on
         #        the image
         # unpack our freshly build snapd into the new snapd snap
@@ -783,9 +780,7 @@ EOF
     # /dev/loop19  0 0  1  1 /var/lib/snapd/snaps/test-snapd-netplan-apply_75.snap  0     512
     devloop=$(losetup --list --noheadings | grep "$IMAGE_HOME/$IMAGE" | awk '{print $1}')
     dev=$(basename "$devloop")
-    if is_core18_system; then
-        mount "/dev/mapper/${dev}p3" /mnt
-    elif is_core20_system; then
+    if is_core20_system; then
         # (ab)use ubuntu-seed
         mount "/dev/mapper/${dev}p2" /mnt
     else
@@ -838,12 +833,7 @@ EOF
           /home/gopath /root/test-etc /var/lib/extrausers
     fi
 
-    # now modify the image writable partition
-    if is_core18_system; then
-        UNPACK_DIR="/tmp/core18-snap"
-        unsquashfs -no-progress -d "$UNPACK_DIR" /var/lib/snapd/snaps/core18_*.snap
-    fi
-    # modifying "writable" is only possible on uc16/uc18
+    # now modify the image writable partition - only possible on uc16 / uc18
     if is_core16_system || is_core18_system; then
         # modify the writable partition of "core" so that we have the
         # test user

@@ -28,6 +28,8 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
@@ -1184,12 +1186,12 @@ func (s *linkSnapSuite) TestUndoLinkSnapdNthInstall(c *C) {
 	c.Check(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Check(s.fakeBackend.ops, DeepEquals, expected)
 
-	// 2 restarts, one from link snap, another one from undo
-	c.Check(s.stateBackend.restartRequested, DeepEquals, []state.RestartType{state.RestartDaemon, state.RestartDaemon})
-	c.Check(t.Log(), HasLen, 3)
+	// 1 restarts, one from link snap, the other restart happens
+	// in undoUnlinkCurrentSnap (not tested here)
+	c.Check(s.stateBackend.restartRequested, DeepEquals, []state.RestartType{state.RestartDaemon})
+	c.Check(t.Log(), HasLen, 2)
 	c.Check(t.Log()[0], Matches, `.*INFO Requested daemon restart \(snapd snap\)\.`)
 	c.Check(t.Log()[1], Matches, `.*INFO unlink`)
-	c.Check(t.Log()[2], Matches, `.*INFO Requested daemon restart \(snapd snap\)\.`)
 }
 
 func (s *linkSnapSuite) TestDoUnlinkSnapRefreshAwarenessHardCheck(c *C) {
@@ -1283,7 +1285,7 @@ func (s *linkSnapSuite) TestMaybeUndoRemodelBootChangesUnrelatedAppDoesNothing(c
 		},
 	})
 
-	err := snapstate.MaybeUndoRemodelBootChanges(t)
+	err := s.snapmgr.MaybeUndoRemodelBootChanges(t)
 	c.Assert(err, IsNil)
 	c.Check(s.stateBackend.restartRequested, HasLen, 0)
 }
@@ -1302,7 +1304,7 @@ func (s *linkSnapSuite) TestMaybeUndoRemodelBootChangesSameKernel(c *C) {
 		Type: "kernel",
 	})
 
-	err := snapstate.MaybeUndoRemodelBootChanges(t)
+	err := s.snapmgr.MaybeUndoRemodelBootChanges(t)
 	c.Assert(err, IsNil)
 	c.Check(s.stateBackend.restartRequested, HasLen, 0)
 }
@@ -1329,7 +1331,7 @@ func (s *linkSnapSuite) TestMaybeUndoRemodelBootChangesNeedsUndo(c *C) {
 
 	// and we pretend that we booted into the "new-kernel" already
 	// and now that needs to be undone
-	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bloader := boottest.MockUC16Bootenv(bootloadertest.Mock("mock", c.MkDir()))
 	bootloader.Force(bloader)
 	bloader.SetBootKernel("new-kernel_1.snap")
 
@@ -1360,12 +1362,12 @@ func (s *linkSnapSuite) TestMaybeUndoRemodelBootChangesNeedsUndo(c *C) {
 	})
 
 	// now we simulate that the new kernel is getting undone
-	err = snapstate.MaybeUndoRemodelBootChanges(t)
+	err = s.snapmgr.MaybeUndoRemodelBootChanges(t)
 	c.Assert(err, IsNil)
 
 	// that will schedule a boot into the previous kernel
 	c.Assert(bloader.BootVars, DeepEquals, map[string]string{
-		"snap_mode":       "try",
+		"snap_mode":       boot.TryStatus,
 		"snap_kernel":     "new-kernel_1.snap",
 		"snap_try_kernel": "kernel_1.snap",
 	})

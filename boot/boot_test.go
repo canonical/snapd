@@ -21,6 +21,7 @@ package boot_test
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -36,17 +37,15 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-// set up gocheck
 func TestBoot(t *testing.T) { TestingT(t) }
 
-// baseBootSuite is used to setup the common test environment
-type baseBootSetSuite struct {
+type baseBootenvSuite struct {
 	testutil.BaseTest
 
 	bootdir string
 }
 
-func (s *baseBootSetSuite) SetUpTest(c *C) {
+func (s *baseBootenvSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
 	dirs.SetRootDir(c.MkDir())
@@ -57,29 +56,42 @@ func (s *baseBootSetSuite) SetUpTest(c *C) {
 	s.bootdir = filepath.Join(dirs.GlobalRootDir, "boot")
 }
 
-func (s *baseBootSetSuite) forceBootloader(bloader bootloader.Bootloader) {
+func (s *baseBootenvSuite) forceBootloader(bloader bootloader.Bootloader) {
 	bootloader.Force(bloader)
 	s.AddCleanup(func() { bootloader.Force(nil) })
 }
 
-// bootSetSuite tests the abstract BootSet interface, and tools that
-// don't depend on a specific BootSet implementation
-type bootSetSuite struct {
-	baseBootSetSuite
+type bootenvSuite struct {
+	baseBootenvSuite
 
 	bootloader *bootloadertest.MockBootloader
 }
 
-var _ = Suite(&bootSetSuite{})
+var _ = Suite(&bootenvSuite{})
 
-func (s *bootSetSuite) SetUpTest(c *C) {
-	s.baseBootSetSuite.SetUpTest(c)
+func (s *bootenvSuite) SetUpTest(c *C) {
+	s.baseBootenvSuite.SetUpTest(c)
 
 	s.bootloader = bootloadertest.Mock("mock", c.MkDir())
 	s.forceBootloader(s.bootloader)
 }
 
-func (s *bootSetSuite) TestInUseClassic(c *C) {
+type bootenv20Suite struct {
+	baseBootenvSuite
+
+	bootloader *bootloadertest.MockExtractedRunKernelImageBootloader
+}
+
+var _ = Suite(&bootenv20Suite{})
+
+func (s *bootenv20Suite) SetUpTest(c *C) {
+	s.baseBootenvSuite.SetUpTest(c)
+
+	s.bootloader = bootloadertest.Mock("mock", c.MkDir()).WithExtractedRunKernelImage()
+	s.forceBootloader(s.bootloader)
+}
+
+func (s *bootenvSuite) TestInUseClassic(c *C) {
 	classicDev := boottest.MockDevice("")
 
 	// make bootloader.Find fail but shouldn't matter
@@ -90,7 +102,7 @@ func (s *bootSetSuite) TestInUseClassic(c *C) {
 	c.Check(inUse("core18", snap.R(41)), Equals, false)
 }
 
-func (s *bootSetSuite) TestInUseIrrelevantTypes(c *C) {
+func (s *bootenvSuite) TestInUseIrrelevantTypes(c *C) {
 	coreDev := boottest.MockDevice("some-snap")
 
 	// make bootloader.Find fail but shouldn't matter
@@ -101,7 +113,7 @@ func (s *bootSetSuite) TestInUseIrrelevantTypes(c *C) {
 	c.Check(inUse("gadget", snap.R(41)), Equals, false)
 }
 
-func (s *bootSetSuite) TestInUse(c *C) {
+func (s *bootenvSuite) TestInUse(c *C) {
 	coreDev := boottest.MockDevice("some-snap")
 
 	for _, t := range []struct {
@@ -135,7 +147,7 @@ func (s *bootSetSuite) TestInUse(c *C) {
 	}
 }
 
-func (s *bootSetSuite) TestInUseEphemeral(c *C) {
+func (s *bootenvSuite) TestInUseEphemeral(c *C) {
 	coreDev := boottest.MockDevice("some-snap@install")
 
 	// make bootloader.Find fail but shouldn't matter
@@ -146,7 +158,7 @@ func (s *bootSetSuite) TestInUseEphemeral(c *C) {
 	c.Check(inUse("whatever", snap.R(0)), Equals, true)
 }
 
-func (s *bootSetSuite) TestInUseUnhappy(c *C) {
+func (s *bootenvSuite) TestInUseUnhappy(c *C) {
 	coreDev := boottest.MockDevice("some-snap")
 
 	// make GetVars fail
@@ -160,7 +172,7 @@ func (s *bootSetSuite) TestInUseUnhappy(c *C) {
 	c.Check(err, ErrorMatches, `cannot get boot settings: broken bootloader`)
 }
 
-func (s *bootSetSuite) TestCurrentBootNameAndRevision(c *C) {
+func (s *bootenvSuite) TestCurrentBootNameAndRevision(c *C) {
 	coreDev := boottest.MockDevice("some-snap")
 
 	s.bootloader.BootVars["snap_core"] = "core_2.snap"
@@ -181,7 +193,7 @@ func (s *bootSetSuite) TestCurrentBootNameAndRevision(c *C) {
 	c.Check(err, Equals, boot.ErrBootNameAndRevisionNotReady)
 }
 
-func (s *bootSetSuite) TestCurrentBoot20NameAndRevision(c *C) {
+func (s *bootenv20Suite) TestCurrentBoot20NameAndRevision(c *C) {
 	coreDev := boottest.MockUC20Device("some-snap")
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
@@ -212,7 +224,7 @@ func (s *bootSetSuite) TestCurrentBoot20NameAndRevision(c *C) {
 	c.Check(err, Equals, boot.ErrBootNameAndRevisionNotReady)
 }
 
-func (s *bootSetSuite) TestCurrentBootNameAndRevisionUnhappy(c *C) {
+func (s *bootenvSuite) TestCurrentBootNameAndRevisionUnhappy(c *C) {
 	coreDev := boottest.MockDevice("some-snap")
 
 	_, err := boot.GetCurrentBoot(snap.TypeKernel, coreDev)
@@ -246,7 +258,7 @@ func (s *bootSetSuite) TestCurrentBootNameAndRevisionUnhappy(c *C) {
 	c.Check(err, ErrorMatches, "cannot get boot settings: broken bootloader")
 }
 
-func (s *bootSetSuite) TestParticipant(c *C) {
+func (s *bootenvSuite) TestParticipant(c *C) {
 	info := &snap.Info{}
 	info.RealName = "some-snap"
 
@@ -271,7 +283,7 @@ func (s *bootSetSuite) TestParticipant(c *C) {
 	}
 }
 
-func (s *bootSetSuite) TestParticipantBaseWithModel(c *C) {
+func (s *bootenvSuite) TestParticipantBaseWithModel(c *C) {
 	core := &snap.Info{SideInfo: snap.SideInfo{RealName: "core"}, SnapType: snap.TypeOS}
 	core18 := &snap.Info{SideInfo: snap.SideInfo{RealName: "core18"}, SnapType: snap.TypeBase}
 
@@ -332,7 +344,7 @@ func (s *bootSetSuite) TestParticipantBaseWithModel(c *C) {
 	}
 }
 
-func (s *bootSetSuite) TestKernelWithModel(c *C) {
+func (s *bootenvSuite) TestKernelWithModel(c *C) {
 	info := &snap.Info{}
 	info.RealName = "kernel"
 
@@ -370,7 +382,7 @@ func (s *bootSetSuite) TestKernelWithModel(c *C) {
 	}
 }
 
-func (s *bootSetSuite) TestCoreKernel20(c *C) {
+func (s *bootenv20Suite) TestCoreKernel20(c *C) {
 	coreDev := boottest.MockUC20Device("pc-kernel")
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
@@ -401,9 +413,18 @@ func (s *bootSetSuite) TestCoreKernel20(c *C) {
 	c.Assert(s.bootloader.RemoveKernelAssetsCalls, DeepEquals, []snap.PlaceInfo{kernel})
 }
 
-func (s *bootSetSuite) TestCoreParticipant20SetNextSameKernelSnap(c *C) {
+func (s *bootenv20Suite) TestCoreParticipant20SetNextSameKernelSnap(c *C) {
 	coreDev := boottest.MockUC20Device("pc-kernel")
 	c.Assert(coreDev.HasModeenv(), Equals, true)
+
+	// default modeenv state
+	m := &boot.Modeenv{
+		Base:           "core20_1.snap",
+		CurrentKernels: []string{"pc-kernel_1.snap"},
+	}
+	err := m.Write("")
+	c.Assert(err, IsNil)
+	defer os.Remove(dirs.SnapModeenvFileUnder(dirs.GlobalRootDir))
 
 	// set the current kernel
 	kernel, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
@@ -435,14 +456,28 @@ func (s *bootSetSuite) TestCoreParticipant20SetNextSameKernelSnap(c *C) {
 	_, enableKernelCalls := s.bootloader.GetRunKernelImageFunctionSnapCalls("EnableTryKernel")
 	c.Assert(enableKernelCalls, Equals, 0)
 
+	// the modeenv is still the same as well
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Assert(m2.CurrentKernels, DeepEquals, []string{"pc-kernel_1.snap"})
+
 	// finally we didn't call SetBootVars on the bootloader because nothing
 	// changed
 	c.Assert(s.bootloader.SetBootVarsCalls, Equals, 0)
 }
 
-func (s *bootSetSuite) TestCoreParticipant20SetNextNewKernelSnap(c *C) {
+func (s *bootenv20Suite) TestCoreParticipant20SetNextNewKernelSnap(c *C) {
 	coreDev := boottest.MockUC20Device("pc-kernel")
 	c.Assert(coreDev.HasModeenv(), Equals, true)
+
+	// default modeenv state
+	m := &boot.Modeenv{
+		Base:           "core20_1.snap",
+		CurrentKernels: []string{"pc-kernel_1.snap"},
+	}
+	err := m.Write("")
+	c.Assert(err, IsNil)
+	defer os.Remove(dirs.SnapModeenvFileUnder(dirs.GlobalRootDir))
 
 	// set the current kernel
 	kernel, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
@@ -477,9 +512,14 @@ func (s *bootSetSuite) TestCoreParticipant20SetNextNewKernelSnap(c *C) {
 	// and we were asked to enable kernel2 as the try kernel
 	actual, _ := s.bootloader.GetRunKernelImageFunctionSnapCalls("EnableTryKernel")
 	c.Assert(actual, DeepEquals, []snap.PlaceInfo{kernel2})
+
+	// and that the modeenv now has this kernel listed
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Assert(m2.CurrentKernels, DeepEquals, []string{"pc-kernel_1.snap", "pc-kernel_2.snap"})
 }
 
-func (s *bootSetSuite) TestMarkBootSuccessful20KernelStatusTryingNoKernelSnapCleansUp(c *C) {
+func (s *bootenv20Suite) TestMarkBootSuccessful20KernelStatusTryingNoKernelSnapCleansUp(c *C) {
 	r := boottest.ForceModeenv(dirs.GlobalRootDir, &boot.Modeenv{
 		Mode:           "run",
 		RecoverySystem: "20191018",
@@ -528,7 +568,7 @@ func (s *bootSetSuite) TestMarkBootSuccessful20KernelStatusTryingNoKernelSnapCle
 	c.Assert(nDisableTryCalls, Equals, 0)
 }
 
-func (s *bootSetSuite) TestMarkBootSuccessful20BaseStatusTryingNoBaseSnapCleansUp(c *C) {
+func (s *bootenv20Suite) TestMarkBootSuccessful20BaseStatusTryingNoBaseSnapCleansUp(c *C) {
 	m := &boot.Modeenv{
 		Mode:           "run",
 		RecoverySystem: "20191018",
@@ -563,7 +603,7 @@ func (s *bootSetSuite) TestMarkBootSuccessful20BaseStatusTryingNoBaseSnapCleansU
 	c.Assert(m3.TryBase, Equals, m.TryBase)
 }
 
-func (s *bootSetSuite) TestCoreParticipant20SetNextSameBaseSnap(c *C) {
+func (s *bootenv20Suite) TestCoreParticipant20SetNextSameBaseSnap(c *C) {
 	coreDev := boottest.MockUC20Device("core20")
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
@@ -598,7 +638,7 @@ func (s *bootSetSuite) TestCoreParticipant20SetNextSameBaseSnap(c *C) {
 	c.Assert(m2.TryBase, Equals, m.TryBase)
 }
 
-func (s *bootSetSuite) TestCoreParticipant20SetNextNewBaseSnap(c *C) {
+func (s *bootenv20Suite) TestCoreParticipant20SetNextNewBaseSnap(c *C) {
 	coreDev := boottest.MockUC20Device("core20")
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
@@ -631,7 +671,7 @@ func (s *bootSetSuite) TestCoreParticipant20SetNextNewBaseSnap(c *C) {
 	c.Assert(m2.TryBase, Equals, "core20_2.snap")
 }
 
-func (s *bootSetSuite) TestMarkBootSuccessfulAllSnap(c *C) {
+func (s *bootenvSuite) TestMarkBootSuccessfulAllSnap(c *C) {
 	coreDev := boottest.MockDevice("some-snap")
 
 	s.bootloader.BootVars["snap_mode"] = boot.TryingStatus
@@ -657,15 +697,16 @@ func (s *bootSetSuite) TestMarkBootSuccessfulAllSnap(c *C) {
 	c.Assert(s.bootloader.BootVars, DeepEquals, expected)
 }
 
-func (s *bootSetSuite) TestMarkBootSuccessful20AllSnap(c *C) {
+func (s *bootenv20Suite) TestMarkBootSuccessful20AllSnap(c *C) {
 	coreDev := boottest.MockUC20Device("some-snap")
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
 	// we were trying a base snap
 	m := &boot.Modeenv{
-		Base:       "core20_1.snap",
-		TryBase:    "core20_2.snap",
-		BaseStatus: boot.TryingStatus,
+		Base:           "core20_1.snap",
+		TryBase:        "core20_2.snap",
+		BaseStatus:     boot.TryingStatus,
+		CurrentKernels: []string{"pc-kernel_1.snap", "pc-kernel_2.snap"},
 	}
 	err := m.Write("")
 	c.Assert(err, IsNil)
@@ -708,6 +749,7 @@ func (s *bootSetSuite) TestMarkBootSuccessful20AllSnap(c *C) {
 	c.Assert(m2.Base, Equals, "core20_2.snap")
 	c.Assert(m2.TryBase, Equals, "")
 	c.Assert(m2.BaseStatus, Equals, boot.DefaultStatus)
+	c.Assert(m2.CurrentKernels, DeepEquals, []string{"pc-kernel_2.snap"})
 
 	// do it again, verify its still valid
 	err = boot.MarkBootSuccessful(coreDev)
@@ -721,7 +763,7 @@ func (s *bootSetSuite) TestMarkBootSuccessful20AllSnap(c *C) {
 	c.Assert(nDisableTryCalls, Equals, 1)
 }
 
-func (s *bootSetSuite) TestMarkBootSuccessfulKernelUpdate(c *C) {
+func (s *bootenvSuite) TestMarkBootSuccessfulKernelUpdate(c *C) {
 	coreDev := boottest.MockDevice("some-snap")
 
 	s.bootloader.BootVars["snap_mode"] = boot.TryingStatus
@@ -743,7 +785,7 @@ func (s *bootSetSuite) TestMarkBootSuccessfulKernelUpdate(c *C) {
 	})
 }
 
-func (s *bootSetSuite) TestMarkBootSuccessfulBaseUpdate(c *C) {
+func (s *bootenvSuite) TestMarkBootSuccessfulBaseUpdate(c *C) {
 	coreDev := boottest.MockDevice("some-snap")
 
 	s.bootloader.BootVars["snap_mode"] = boot.TryingStatus
@@ -765,13 +807,14 @@ func (s *bootSetSuite) TestMarkBootSuccessfulBaseUpdate(c *C) {
 	})
 }
 
-func (s *bootSetSuite) TestMarkBootSuccessful20KernelUpdate(c *C) {
-	r := boottest.ForceModeenv(dirs.GlobalRootDir, &boot.Modeenv{
-		Mode:           "run",
-		RecoverySystem: "20191018",
+func (s *bootenv20Suite) TestMarkBootSuccessful20KernelUpdate(c *C) {
+	// default modeenv
+	m := &boot.Modeenv{
 		Base:           "core20_1.snap",
-	})
-	defer r()
+		CurrentKernels: []string{"pc-kernel_1.snap", "pc-kernel_2.snap"},
+	}
+	err := m.Write("")
+	c.Assert(err, IsNil)
 
 	coreDev := boottest.MockUC20Device("some-snap")
 	c.Assert(coreDev.HasModeenv(), Equals, true)
@@ -782,7 +825,7 @@ func (s *bootSetSuite) TestMarkBootSuccessful20KernelUpdate(c *C) {
 	// set the current Kernel
 	kernel1, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
 	c.Assert(err, IsNil)
-	r = s.bootloader.SetRunKernelImageEnabledKernel(kernel1)
+	r := s.bootloader.SetRunKernelImageEnabledKernel(kernel1)
 	defer r()
 
 	// set the current try kernel
@@ -807,6 +850,11 @@ func (s *bootSetSuite) TestMarkBootSuccessful20KernelUpdate(c *C) {
 	_, nDisableTryCalls := s.bootloader.GetRunKernelImageFunctionSnapCalls("DisableTryKernel")
 	c.Assert(nDisableTryCalls, Equals, 1)
 
+	// check that the new kernel is the only one in modeenv
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Assert(m2.CurrentKernels, DeepEquals, []string{"pc-kernel_2.snap"})
+
 	// do it again, verify its still valid
 	err = boot.MarkBootSuccessful(coreDev)
 	c.Assert(err, IsNil)
@@ -819,7 +867,7 @@ func (s *bootSetSuite) TestMarkBootSuccessful20KernelUpdate(c *C) {
 	c.Assert(nDisableTryCalls, Equals, 1)
 }
 
-func (s *bootSetSuite) TestMarkBootSuccessful20BaseUpdate(c *C) {
+func (s *bootenv20Suite) TestMarkBootSuccessful20BaseUpdate(c *C) {
 	// we were trying a base snap
 	m := &boot.Modeenv{
 		Base:       "core20_1.snap",

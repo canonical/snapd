@@ -34,9 +34,16 @@ snap-bootstrap is a tool to bootstrap Ubuntu Core from ephemeral systems
 such as initramfs.
 `
 
-	opts   struct{}
-	parser *flags.Parser = flags.NewParser(&opts, flags.HelpFlag|flags.PassDoubleDash|flags.PassAfterNonOption)
+	opts            struct{}
+	commandBuilders []func(*flags.Parser)
 )
+
+func init() {
+	err := logger.SimpleSetup()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "WARNING: failed to activate logging: %s\n", err)
+	}
+}
 
 func main() {
 	err := run(os.Args[1:])
@@ -55,9 +62,22 @@ func run(args []string) error {
 }
 
 func parseArgs(args []string) error {
-	parser.ShortDescription = shortHelp
-	parser.LongDescription = longHelp
+	p := parser()
 
-	_, err := parser.ParseArgs(args)
+	_, err := p.ParseArgs(args)
 	return err
+}
+
+func parser() *flags.Parser {
+	p := flags.NewParser(&opts, flags.HelpFlag|flags.PassDoubleDash|flags.PassAfterNonOption)
+	p.ShortDescription = shortHelp
+	p.LongDescription = longHelp
+	for _, builder := range commandBuilders {
+		builder(p)
+	}
+	return p
+}
+
+func addCommandBuilder(builder func(*flags.Parser)) {
+	commandBuilders = append(commandBuilders, builder)
 }

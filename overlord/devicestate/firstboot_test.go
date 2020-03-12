@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
+	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
@@ -120,7 +121,8 @@ func (t *firstBootBaseTest) startOverlord(c *C) {
 	c.Assert(ovld.StartUp(), IsNil)
 
 	// don't actually try to talk to the store on snapstate.Ensure
-	// needs doing after the call to devicestate.Manager (which happens in overlord.New)
+	// needs doing after the call to devicestate.Manager (which happens in
+	// overlord.New)
 	snapstate.CanAutoRefresh = nil
 }
 
@@ -512,7 +514,7 @@ snaps:
 }
 
 func (s *firstBoot16Suite) TestPopulateFromSeedHappy(c *C) {
-	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bloader := boottest.MockUC16Bootenv(bootloadertest.Mock("mock", c.MkDir()))
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 	bloader.SetBootKernel("pc-kernel_1.snap")
@@ -642,7 +644,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedMissingBootloader(c *C) {
 }
 
 func (s *firstBoot16Suite) TestPopulateFromSeedHappyMultiAssertsFiles(c *C) {
-	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bloader := boottest.MockUC16Bootenv(bootloadertest.Mock("mock", c.MkDir()))
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 	bloader.SetBootKernel("pc-kernel_1.snap")
@@ -741,7 +743,7 @@ snaps:
 }
 
 func (s *firstBoot16Suite) TestPopulateFromSeedConfigureHappy(c *C) {
-	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bloader := boottest.MockUC16Bootenv(bootloadertest.Mock("mock", c.MkDir()))
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 	bloader.SetBootKernel("pc-kernel_1.snap")
@@ -894,7 +896,7 @@ snaps:
 }
 
 func (s *firstBoot16Suite) TestPopulateFromSeedGadgetConnectHappy(c *C) {
-	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bloader := boottest.MockUC16Bootenv(bootloadertest.Mock("mock", c.MkDir()))
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 	bloader.SetBootKernel("pc-kernel_1.snap")
@@ -1160,7 +1162,7 @@ type core18SnapsOpts struct {
 	gadget  bool
 }
 
-func (s *firstBoot16Suite) makeCore18Snaps(c *C, opts *core18SnapsOpts) (core18Fn, snapdFn, kernelFn, gadgetFn string) {
+func (s *firstBoot16BaseTest) makeCore18Snaps(c *C, opts *core18SnapsOpts) (core18Fn, snapdFn, kernelFn, gadgetFn string) {
 	if opts == nil {
 		opts = &core18SnapsOpts{}
 	}
@@ -1221,7 +1223,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedWithBaseHappy(c *C) {
 	})
 	defer systemctlRestorer()
 
-	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bloader := boottest.MockUC16Bootenv(bootloadertest.Mock("mock", c.MkDir()))
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 	bloader.SetBootKernel("pc-kernel_1.snap")
@@ -1418,7 +1420,7 @@ snaps:
 }
 
 func (s *firstBoot16Suite) TestPopulateFromSeedWrongContentProviderOrder(c *C) {
-	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bloader := boottest.MockUC16Bootenv(bootloadertest.Mock("mock", c.MkDir()))
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 	bloader.SetBootKernel("pc-kernel_1.snap")

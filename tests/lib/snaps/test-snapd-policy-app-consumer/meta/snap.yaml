@@ -299,6 +299,9 @@ apps:
   physical-memory-observe:
     command: bin/run
     plugs: [ physical-memory-observe ]
+  power-control:
+    command: bin/run
+    plugs: [ power-control ]
   ppp:
     command: bin/run
     plugs: [ ppp ]

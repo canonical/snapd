@@ -377,6 +377,9 @@ func New(cfg *Config, dauthCtx DeviceAndAuthContext) *Store {
 			Timeout:    10 * time.Second,
 			MayLogBody: true,
 			Proxy:      cfg.Proxy,
+			ExtraSSLCerts: &httputil.ExtraSSLCertsFromDir{
+				Dir: dirs.SnapdStoreSSLCertsDir,
+			},
 		}),
 	}
 	store.SetCacheDownloads(cfg.CacheDownloads)
@@ -1296,6 +1299,9 @@ func (s *Store) WriteCatalogs(ctx context.Context, names io.Writer, adder SnapAd
 		MayLogBody: false,
 		Timeout:    10 * time.Second,
 		Proxy:      s.proxy,
+		ExtraSSLCerts: &httputil.ExtraSSLCertsFromDir{
+			Dir: dirs.SnapdStoreSSLCertsDir,
+		},
 	})
 	doRequest := func() (*http.Response, error) {
 		return s.doRequest(ctx, client, reqOptions, nil)
@@ -1523,7 +1529,13 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 			return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
 		}
 		var resp *http.Response
-		resp, finalErr = s.doRequest(ctx, httputil.NewHTTPClient(&httputil.ClientOptions{Proxy: s.proxy}), reqOptions, user)
+		cli := httputil.NewHTTPClient(&httputil.ClientOptions{
+			Proxy: s.proxy,
+			ExtraSSLCerts: &httputil.ExtraSSLCertsFromDir{
+				Dir: dirs.SnapdStoreSSLCertsDir,
+			},
+		})
+		resp, finalErr = s.doRequest(ctx, cli, reqOptions, user)
 
 		if cancelled(ctx) {
 			return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
@@ -1665,7 +1677,13 @@ func doDownloadReqImpl(ctx context.Context, storeURL *url.URL, cdnHeader string,
 	if resume > 0 {
 		reqOptions.ExtraHeaders["Range"] = fmt.Sprintf("bytes=%d-", resume)
 	}
-	return s.doRequest(ctx, httputil.NewHTTPClient(&httputil.ClientOptions{Proxy: s.proxy}), reqOptions, user)
+	cli := httputil.NewHTTPClient(&httputil.ClientOptions{
+		Proxy: s.proxy,
+		ExtraSSLCerts: &httputil.ExtraSSLCertsFromDir{
+			Dir: dirs.SnapdStoreSSLCertsDir,
+		},
+	})
+	return s.doRequest(ctx, cli, reqOptions, user)
 }
 
 // downloadDelta downloads the delta for the preferred format, returning the path.
@@ -1695,13 +1713,10 @@ func (s *Store) downloadDelta(deltaName string, downloadInfo *snap.DownloadInfo,
 }
 
 func getXdelta3Cmd(args ...string) (*exec.Cmd, error) {
-	switch {
-	case osutil.ExecutableExists("xdelta3"):
+	if osutil.ExecutableExists("xdelta3") {
 		return exec.Command("xdelta3", args...), nil
-	case osutil.FileExists(filepath.Join(dirs.SnapMountDir, "/core/current/usr/bin/xdelta3")):
-		return cmdutil.CommandFromSystemSnap("/usr/bin/xdelta3", args...)
 	}
-	return nil, fmt.Errorf("cannot find xdelta3 binary in PATH or core snap")
+	return cmdutil.CommandFromSystemSnap("/usr/bin/xdelta3", args...)
 }
 
 // applyDelta generates a target snap from a previously downloaded snap and a downloaded delta.
