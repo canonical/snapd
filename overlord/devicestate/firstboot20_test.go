@@ -140,8 +140,7 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20Happy(c *C) {
 	sysLabel := "20191018"
 	s.setupCore20Seed(c, sysLabel)
 
-	// XXX Core 20 has multiple bootenvs
-	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bloader := bootloadertest.Mock("mock", c.MkDir()).WithExtractedRunKernelImage()
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 

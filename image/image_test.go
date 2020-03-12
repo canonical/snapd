@@ -2372,6 +2372,9 @@ func (s *imageSuite) makeUC20Model(extraHeaders map[string]interface{}) *asserts
 }
 
 func (s *imageSuite) TestSetupSeedCore20(c *C) {
+	bl := bootloadertest.Mock("grub", c.MkDir()).RecoveryAware()
+	bootloader.Force(bl)
+
 	restore := image.MockTrusted(s.StoreSigning.Trusted)
 	defer restore()
 
@@ -2451,8 +2454,8 @@ func (s *imageSuite) TestSetupSeedCore20(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(systems, HasLen, 1)
 
-	c.Check(s.bootloader.RecoverySystemDir, Equals, fmt.Sprintf("/systems/%s", filepath.Base(systems[0])))
-	c.Check(s.bootloader.RecoverySystemBootVars, DeepEquals, map[string]string{
+	c.Check(bl.RecoverySystemDir, Equals, fmt.Sprintf("/systems/%s", filepath.Base(systems[0])))
+	c.Check(bl.RecoverySystemBootVars, DeepEquals, map[string]string{
 		"snapd_recovery_kernel": "/snaps/pc-kernel_1.snap",
 	})
 
