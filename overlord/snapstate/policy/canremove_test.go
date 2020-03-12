@@ -21,7 +21,7 @@ type canRemoveSuite struct {
 	testutil.BaseTest
 	st *state.State
 
-	bootloader *bootloadertest.MockBootloader
+	bootloader *boottest.Bootenv16
 }
 
 var _ = check.Suite(&canRemoveSuite{})
@@ -31,7 +31,7 @@ func (s *canRemoveSuite) SetUpTest(c *check.C) {
 	dirs.SetRootDir(c.MkDir())
 	s.st = state.New(nil)
 
-	s.bootloader = bootloadertest.Mock("mock", c.MkDir())
+	s.bootloader = boottest.MockUC16Bootenv(bootloadertest.Mock("mock", c.MkDir()))
 	bootloader.Force(s.bootloader)
 	s.bootloader.SetBootBase("base_99.snap")
 	s.bootloader.SetBootKernel("kernel_99.snap")

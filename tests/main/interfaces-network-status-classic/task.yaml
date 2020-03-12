@@ -1,0 +1,55 @@
+summary: Ensure that the network-status interface works on classic
+
+details: |
+    The network-status interface is an implicit slot on classic
+    systems.
+
+    Connecting to the interface grants access network connectivity
+    status via xdg-desktop-portal.
+
+systems:
+  # the network-status interface is not implicit on core
+  - -ubuntu-core-*
+  # stub portal implementation doesn't seem to start on 14.04
+  - -ubuntu-14.04-*
+  # CentOS 7 does not include Python 3 D-Bus bindings
+  - -centos-7-*
+  - -amazon-linux-2-*
+
+prepare: |
+    #shellcheck source=tests/lib/dbus.sh
+    . "$TESTSLIB/dbus.sh"
+
+    echo "Start the stub xdg-desktop-portal NetworkMonitor provider"
+    start_dbus_unit ./fake-portal-network-monitor.py
+
+restore: |
+    #shellcheck source=tests/lib/dbus.sh
+    . "$TESTSLIB/dbus.sh"
+    stop_dbus_unit
+
+execute: |
+    #shellcheck disable=SC2046
+    export $(cat dbus.env)
+
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+
+    echo "Install a snap that plugs network-status"
+    install_local test-snapd-network-status-client
+
+    echo "The network-status plug is connected by default"
+    snap connections test-snapd-network-status-client | MATCH "network-status +test-snapd-network-status-client:network-status +:network-status +-"
+
+    echo "The snap can access connectivity status"
+    test-snapd-network-status-client.connectivity | MATCH "uint32 4"
+
+    if ! snap debug sandbox-features --required apparmor:kernel:dbus; then
+        exit 0
+    fi
+
+    echo "When the plug is disconnected"
+    snap disconnect test-snapd-network-status-client:network-status
+
+    echo "The connectivity status can no longer be accessed"
+    not test-snapd-network-status-client.connectivity
