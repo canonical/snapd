@@ -128,10 +128,11 @@ func (env Environment) ForExec() []string {
 	return raw
 }
 
-// ExpandableEnv describes alterations to an environment.
+// ExpandableEnv represents alterations to an environment as ordered
+// key, value entries.
 //
-// Differential environment can refer to existing entries by using shell-like
-// syntax $KEY or ${KEY}. Entries are ordered.
+// Values can refer to predefined entries by using shell-like
+// syntax $KEY or ${KEY}.
 type ExpandableEnv struct {
 	*strutil.OrderedMap
 }
@@ -141,12 +142,12 @@ func NewExpandableEnv(pairs ...string) ExpandableEnv {
 	return ExpandableEnv{OrderedMap: strutil.NewOrderedMap(pairs...)}
 }
 
-// SetExpandableEnv sets variables defined by expandable environment
+// ExtendWithExpanded extends the environment with eenv.
 //
-// Environment is modified in place. Each variable defined by expandable
-// environment is expanded according to os.Expand, using the environment itself
-// as data source. Undefined variables expand to an empty string.
-func (env *Environment) SetExpandableEnv(eenv ExpandableEnv) {
+// Environment is modified in place. Each variable defined by eenv is
+// expanded according to os.Expand, using the environment itself as it
+// gets extended. Undefined variables expand to an empty string.
+func (env *Environment) ExtendWithExpanded(eenv ExpandableEnv) {
 	if *env == nil {
 		*env = make(Environment)
 	}

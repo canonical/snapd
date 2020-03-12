@@ -190,8 +190,8 @@ func execApp(snapApp, revision, command string, args []string) error {
 		return err
 	}
 	env.UnescapeSaved()
-	for _, eenv := range app.EnvStack() {
-		env.SetExpandableEnv(eenv)
+	for _, eenv := range app.EnvChain() {
+		env.ExtendWithExpanded(eenv)
 	}
 
 	// strings.Split() is ok here because we validate all app fields and the
@@ -257,8 +257,8 @@ func execHook(snapName, revision, hookName string) error {
 		return err
 	}
 	// NOTE: we do not do env.UnescapeSaved()
-	for _, eenv := range hook.EnvStack() {
-		env.SetExpandableEnv(eenv)
+	for _, eenv := range hook.EnvChain() {
+		env.ExtendWithExpanded(eenv)
 	}
 
 	// run the hook

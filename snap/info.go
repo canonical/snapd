@@ -1016,7 +1016,9 @@ func (app *AppInfo) IsService() bool {
 	return app.Daemon != ""
 }
 
-func (app *AppInfo) EnvStack() []osutil.ExpandableEnv {
+// EnvChain returns the chain of environment overrides, possibly with
+// expandable $ vars, specific for the app.
+func (app *AppInfo) EnvChain() []osutil.ExpandableEnv {
 	return []osutil.ExpandableEnv{
 		osutil.ExpandableEnv{OrderedMap: &app.Snap.Environment},
 		osutil.ExpandableEnv{OrderedMap: &app.Environment},
@@ -1031,7 +1033,9 @@ func (hook *HookInfo) SecurityTag() string {
 	return HookSecurityTag(hook.Snap.InstanceName(), hook.Name)
 }
 
-func (hook *HookInfo) EnvStack() []osutil.ExpandableEnv {
+// EnvChain returns the chain of environment overrides, possibly with
+// expandable $ vars, specific for the hook.
+func (hook *HookInfo) EnvChain() []osutil.ExpandableEnv {
 	return []osutil.ExpandableEnv{
 		osutil.ExpandableEnv{OrderedMap: &hook.Snap.Environment},
 		osutil.ExpandableEnv{OrderedMap: &hook.Environment},

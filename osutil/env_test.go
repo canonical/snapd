@@ -205,9 +205,9 @@ func (s *envSuite) TestParseRawExpandableEnvDuplicateKey(c *C) {
 	c.Assert(eenv, DeepEquals, osutil.ExpandableEnv{})
 }
 
-func (s *envSuite) TestSetExpandableEnv(c *C) {
+func (s *envSuite) TestExtendWithExpanded(c *C) {
 	env := osutil.Environment{"A": "a"}
-	env.SetExpandableEnv(osutil.NewExpandableEnv(
+	env.ExtendWithExpanded(osutil.NewExpandableEnv(
 		"B", "$C", // $C is undefined so it expands to ""
 		"C", "$A", // $A is defined in the environment so it expands to "a"
 		"D", "$D", // $D is undefined so it expands to ""
@@ -215,21 +215,32 @@ func (s *envSuite) TestSetExpandableEnv(c *C) {
 	c.Check(env, DeepEquals, osutil.Environment{"A": "a", "B": "", "C": "a", "D": ""})
 }
 
-func (s *envSuite) TestSetExpandableEnvForEnvOverride(c *C) {
+func (s *envSuite) TestExtendWithExpandedOfNil(c *C) {
+	var env osutil.Environment
+	env.ExtendWithExpanded(osutil.NewExpandableEnv(
+		"A", "a",
+		"B", "$C", // $C is undefined so it expands to ""
+		"C", "$A", // $A is defined in the environment so it expands to "a"
+		"D", "$D", // $D is undefined so it expands to ""
+	))
+	c.Check(env, DeepEquals, osutil.Environment{"A": "a", "B": "", "C": "a", "D": ""})
+}
+
+func (s *envSuite) TestExtendWithExpandedForEnvOverride(c *C) {
 	env := osutil.Environment{"PATH": "system-value"}
-	env.SetExpandableEnv(osutil.NewExpandableEnv("PATH", "snap-level-override"))
-	env.SetExpandableEnv(osutil.NewExpandableEnv("PATH", "app-level-override"))
+	env.ExtendWithExpanded(osutil.NewExpandableEnv("PATH", "snap-level-override"))
+	env.ExtendWithExpanded(osutil.NewExpandableEnv("PATH", "app-level-override"))
 	c.Check(env, DeepEquals, osutil.Environment{"PATH": "app-level-override"})
 }
 
-func (s *envSuite) TestSetExpandableEnvForEnvExpansion(c *C) {
+func (s *envSuite) TestExtendWithExpandedForEnvExpansion(c *C) {
 	env := osutil.Environment{"PATH": "system-value"}
-	env.SetExpandableEnv(osutil.NewExpandableEnv("PATH", "snap-ext:$PATH"))
-	env.SetExpandableEnv(osutil.NewExpandableEnv("PATH", "app-ext:$PATH"))
+	env.ExtendWithExpanded(osutil.NewExpandableEnv("PATH", "snap-ext:$PATH"))
+	env.ExtendWithExpanded(osutil.NewExpandableEnv("PATH", "app-ext:$PATH"))
 	c.Check(env, DeepEquals, osutil.Environment{"PATH": "app-ext:snap-ext:system-value"})
 }
 
-func (s *envSuite) TestSetExpandableEnvVarious(c *C) {
+func (s *envSuite) TestExtendWithExpandedVarious(c *C) {
 	for _, t := range []struct {
 		env      string
 		expected string
@@ -255,7 +266,7 @@ func (s *envSuite) TestSetExpandableEnvVarious(c *C) {
 		if strings.Contains(t.env, "PATH") {
 			env["PATH"] = os.Getenv("PATH")
 		}
-		env.SetExpandableEnv(eenv)
+		env.ExtendWithExpanded(eenv)
 		delete(env, "PATH")
 		c.Check(strings.Join(env.ForExec(), ","), DeepEquals, t.expected, Commentf("invalid result for %q, got %q expected %q", t.env, env, t.expected))
 	}
@@ -268,14 +279,14 @@ func (s *envSuite) TestEscapeUnsafeVariables(c *C) {
 	}
 	env.EscapeUnsafeVariables()
 	c.Check(env, DeepEquals, osutil.Environment{
-		"FOO":                   "foo",
+		"FOO": "foo",
 		"SNAP_SAVED_LD_PRELOAD": "/opt/lib/libfunky.so",
 	})
 }
 
 func (s *envSuite) TestUnescapeVariables(c *C) {
 	env := osutil.Environment{
-		"FOO":                   "foo",
+		"FOO": "foo",
 		"SNAP_SAVED_LD_PRELOAD": "/opt/lib/libfunky.so",
 	}
 	env.UnescapeSaved()

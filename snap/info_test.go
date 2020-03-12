@@ -524,7 +524,7 @@ apps:
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	c.Check(info.Apps["foo"].EnvStack(), DeepEquals, []osutil.ExpandableEnv{
+	c.Check(info.Apps["foo"].EnvChain(), DeepEquals, []osutil.ExpandableEnv{
 		osutil.NewExpandableEnv("global-k", "global-v"),
 		osutil.NewExpandableEnv("app-k", "app-v"),
 	})
@@ -546,7 +546,7 @@ apps:
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	c.Check(info.Apps["foo"].EnvStack(), DeepEquals, []osutil.ExpandableEnv{
+	c.Check(info.Apps["foo"].EnvChain(), DeepEquals, []osutil.ExpandableEnv{
 		osutil.NewExpandableEnv("global-k", "global-v", "global-and-local", "global-v"),
 		osutil.NewExpandableEnv("app-k", "app-v", "global-and-local", "local-v"),
 	})
@@ -566,7 +566,7 @@ hooks:
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	c.Check(info.Hooks["foo"].EnvStack(), DeepEquals, []osutil.ExpandableEnv{
+	c.Check(info.Hooks["foo"].EnvChain(), DeepEquals, []osutil.ExpandableEnv{
 		osutil.NewExpandableEnv("global-k", "global-v"),
 		osutil.NewExpandableEnv("app-k", "app-v"),
 	})
@@ -588,7 +588,7 @@ hooks:
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	c.Check(info.Hooks["foo"].EnvStack(), DeepEquals, []osutil.ExpandableEnv{
+	c.Check(info.Hooks["foo"].EnvChain(), DeepEquals, []osutil.ExpandableEnv{
 		osutil.NewExpandableEnv("global-k", "global-v", "global-and-local", "global-v"),
 		osutil.NewExpandableEnv("app-k", "app-v", "global-and-local", "local-v"),
 	})
