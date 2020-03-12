@@ -169,6 +169,24 @@ const kubernetesSupportConnectedPlugAppArmorKubeletSystemdRun = `
   ptrace (trace) peer=snap.@{SNAP_INSTANCE_NAME}.@{SNAP_COMMAND_NAME},
 `
 
+// k8s.io/apiserver/pkg/storage/etcd3/logger.go pulls in go-systemd via
+// go.etcd.io/etcd/clientv3. See:
+// https://github.com/coreos/go-systemd/blob/master/journal/journal.go#L211
+const kubernetesSupportConnectedPlugAppArmorAutobindUnix = `
+# Allow using the 'autobind' feature of bind() (eg, for journald).
+#unix (bind) type=dgram addr=none,
+# Due to LP: 1867216, we cannot use the above rule and must instead use this
+# less specific rule that allows bind() to arbitrary SOCK_DGRAM abstract socket
+# names (separate send and receive rules are still required for communicating
+# over the socket).
+unix (bind) type=dgram,
+`
+
+const kubernetesSupportConnectedPlugSeccompAutobindUnix = `
+# Allow using the 'autobind' feature of bind() (eg, for journald).
+bind
+`
+
 const kubernetesSupportConnectedPlugSeccompKubelet = `
 # Allow running as the kubelet service
 mount
@@ -222,17 +240,25 @@ func (iface *kubernetesSupportInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 	snippet := kubernetesSupportConnectedPlugAppArmorCommon
 	systemd_run_extra := ""
 
+	// All flavors should include the autobind-unix rules, but we break it
+	// out so other k8s daemons can use this flavor without getting the
+	// privileged rules.
 	switch k8sFlavor(plug) {
 	case "kubelet":
 		systemd_run_extra = kubernetesSupportConnectedPlugAppArmorKubeletSystemdRun
 		snippet += kubernetesSupportConnectedPlugAppArmorKubelet
+		snippet += kubernetesSupportConnectedPlugAppArmorAutobindUnix
 		spec.SetUsesPtraceTrace()
 	case "kubeproxy":
 		snippet += kubernetesSupportConnectedPlugAppArmorKubeproxy
+		snippet += kubernetesSupportConnectedPlugAppArmorAutobindUnix
+	case "autobind-unix":
+		snippet = kubernetesSupportConnectedPlugAppArmorAutobindUnix
 	default:
 		systemd_run_extra = kubernetesSupportConnectedPlugAppArmorKubeletSystemdRun
 		snippet += kubernetesSupportConnectedPlugAppArmorKubelet
 		snippet += kubernetesSupportConnectedPlugAppArmorKubeproxy
+		snippet += kubernetesSupportConnectedPlugAppArmorAutobindUnix
 		spec.SetUsesPtraceTrace()
 	}
 
@@ -242,11 +268,14 @@ func (iface *kubernetesSupportInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 }
 
 func (iface *kubernetesSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	// All flavors should include the autobind-unix rules, but we add the
+	// privileged kubelet rules conditionally.
+	snippet := kubernetesSupportConnectedPlugSeccompAutobindUnix
 	flavor := k8sFlavor(plug)
 	if flavor == "kubelet" || flavor == "" {
-		snippet := kubernetesSupportConnectedPlugSeccompKubelet
-		spec.AddSnippet(snippet)
+		snippet += kubernetesSupportConnectedPlugSeccompKubelet
 	}
+	spec.AddSnippet(snippet)
 	return nil
 }
 
@@ -274,9 +303,9 @@ func (iface *kubernetesSupportInterface) KModConnectedPlug(spec *kmod.Specificat
 
 func (iface *kubernetesSupportInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 	// It's fine if flavor isn't specified, but if it is, it needs to be
-	// either "kubelet" or "kubeproxy"
-	if t, ok := plug.Attrs["flavor"]; ok && t != "kubelet" && t != "kubeproxy" {
-		return fmt.Errorf(`kubernetes-support plug requires "flavor" to be either "kubelet" or "kubeproxy"`)
+	// either "kubelet", "kubeproxy" or "autobind-unix"
+	if t, ok := plug.Attrs["flavor"]; ok && t != "kubelet" && t != "kubeproxy" && t != "autobind-unix" {
+		return fmt.Errorf(`kubernetes-support plug requires "flavor" to be either "kubelet", "kubeproxy" or "autobind-unix"`)
 	}
 
 	return nil
