@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2018 Canonical Ltd
+ * Copyright (C) 2014-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -120,6 +120,8 @@ type Config struct {
 
 	DetailFields []string
 	InfoFields   []string
+	// search v2 fields
+	SearchFields []string
 	DeltaFormat  string
 
 	// CacheDownloads is the number of downloads that should be cached
@@ -161,6 +163,7 @@ type Store struct {
 
 	detailFields []string
 	infoFields   []string
+	searchFields []string
 	deltaFormat  string
 	// reused http client
 	client *http.Client
@@ -313,6 +316,17 @@ func init() {
 	}
 	defaultConfig.DetailFields = jsonutil.StructFields((*snapDetails)(nil), "snap_yaml_raw")
 	defaultConfig.InfoFields = jsonutil.StructFields((*storeSnap)(nil), "snap-yaml")
+	defaultConfig.SearchFields = append(jsonutil.StructFields((*storeSnap)(nil),
+		"architectures", "created-at", "epoch", "name", "website", "store-url",
+		"common-ids", "snap-id", "snap-yaml"), "channel")
+}
+
+type searchV2Results struct {
+	Results   []*storeFindInfo `json:"results"`
+	ErrorList []struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	} `json:"error-list"`
 }
 
 type searchResults struct {
@@ -346,6 +360,11 @@ func New(cfg *Config, dauthCtx DeviceAndAuthContext) *Store {
 		infoFields = defaultConfig.InfoFields
 	}
 
+	searchFields := cfg.SearchFields
+	if searchFields == nil {
+		searchFields = defaultConfig.SearchFields
+	}
+
 	architecture := cfg.Architecture
 	if cfg.Architecture == "" {
 		architecture = arch.DpkgArchitecture()
@@ -369,6 +388,7 @@ func New(cfg *Config, dauthCtx DeviceAndAuthContext) *Store {
 		fallbackStoreID: cfg.StoreID,
 		detailFields:    detailFields,
 		infoFields:      infoFields,
+		searchFields:    searchFields,
 		dauthCtx:        dauthCtx,
 		deltaFormat:     deltaFormat,
 		proxy:           cfg.Proxy,
@@ -405,6 +425,7 @@ const (
 	snapActionEndpPath = "v2/snaps/refresh"
 	snapInfoEndpPath   = "v2/snaps/info"
 	cohortsEndpPath    = "v2/cohorts"
+	searchEndpPathV2   = "v2/snaps/search"
 
 	deviceNonceEndpPath   = "api/v1/snaps/auth/nonces"
 	deviceSessionEndpPath = "api/v1/snaps/auth/sessions"
@@ -1178,6 +1199,93 @@ func (s *Store) Find(ctx context.Context, search *Search, user *auth.UserState) 
 		return nil, ErrBadQuery
 	}
 
+	q := url.Values{}
+	q.Set("fields", strings.Join(s.searchFields, ","))
+	q.Set("architecture", s.architecture)
+
+	if search.Private {
+		q.Set("private", "true")
+	}
+
+	if search.Prefix {
+		q.Set("name", searchTerm)
+	} else {
+		if search.CommonID != "" {
+			q.Set("common-id", search.CommonID)
+		}
+		if searchTerm != "" {
+			q.Set("q", searchTerm)
+		}
+	}
+
+	// section is "category" in search v2
+	if search.Section != "" {
+		q.Set("category", search.Section)
+	}
+
+	// with search v2 all risks are searched by default (same as scope=wide
+	// with v1) so we need to restrict channel if scope is not passed.
+	if search.Scope == "" {
+		q.Set("channel", "stable")
+	}
+
+	if release.OnClassic {
+		q.Set("confinement", "strict,classic")
+	} else {
+		q.Set("confinement", "strict")
+	}
+
+	u := s.endpointURL(searchEndpPathV2, q)
+	reqOptions := &requestOptions{
+		Method:   "GET",
+		URL:      u,
+		APILevel: apiV2Endps,
+	}
+
+	var searchData searchV2Results
+	resp, err := s.retryRequestDecodeJSON(ctx, reqOptions, user, &searchData, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != 200 {
+		// fallback to search v1; v2 may not be available on some proxies
+		if resp.StatusCode == 404 {
+			return s.findV1(ctx, search, user)
+		}
+		return nil, respToError(resp, "search")
+	}
+
+	if ct := resp.Header.Get("Content-Type"); ct != jsonContentType {
+		return nil, fmt.Errorf("received an unexpected content type (%q) when trying to search via %q", ct, resp.Request.URL)
+	}
+
+	snaps := make([]*snap.Info, len(searchData.Results))
+	for i, res := range searchData.Results {
+		info, err := infoFromStoreSearchResult(res)
+		if err != nil {
+			return nil, err
+		}
+		snaps[i] = info
+	}
+
+	err = s.decorateOrders(snaps, user)
+	if err != nil {
+		logger.Noticef("cannot get user orders: %v", err)
+	}
+
+	s.extractSuggestedCurrency(resp)
+
+	return snaps, nil
+}
+
+func (s *Store) findV1(ctx context.Context, search *Search, user *auth.UserState) ([]*snap.Info, error) {
+	if search.Private && user == nil {
+		return nil, ErrUnauthenticated
+	}
+
+	// search.Query is already verified for illegal characters by Find()
+	searchTerm := strings.TrimSpace(search.Query)
 	q := s.defaultSnapQuery()
 
 	if search.Private {

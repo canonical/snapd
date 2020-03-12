@@ -175,6 +175,10 @@ func copyNonZeroFrom(src, dst *storeSnap) {
 	if src.Download.URL != "" {
 		dst.Download = src.Download
 	}
+	// search v2 results do not contain download url, only size
+	if src.Download.Size != 0 {
+		dst.Download.Size = src.Download.Size
+	}
 	if src.Epoch.String() != "0" {
 		dst.Epoch = src.Epoch
 	}
