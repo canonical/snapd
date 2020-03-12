@@ -89,7 +89,7 @@ execute: |
     /usr/lib/snapd/snap-bootstrap create-partitions --mount ./gadget-dir "$LOOP"
     sfdisk -l "$LOOP" | MATCH '110M\s* Linux filesystem'
     sfdisk -l "$LOOP" | MATCH '120M\s* Linux filesystem'
-    sfdisk -l "$LOOP" | MATCH '130M\s* Linux filesystem'
+    sfdisk -l "$LOOP" | MATCH '1\.6G\s* Linux filesystem'
 
     echo "check that the filesystems are created and mounted"
     mount
