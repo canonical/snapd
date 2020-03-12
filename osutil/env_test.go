@@ -156,6 +156,23 @@ func (s *envSuite) TestOSEnvironment(c *C) {
 	c.Check(os.Getenv("PATH"), Equals, env["PATH"])
 }
 
+func (s *envSuite) TestOSEnvironmentUnescapeUnsafe(c *C) {
+	os.Setenv("SNAPD_UNSAFE_PREFIX_A", "a")
+	defer os.Unsetenv("SNAPD_UNSAFE_PREFIX_A")
+	os.Setenv("SNAPDEXTRA", "2")
+	defer os.Unsetenv("SNAPDEXTRA")
+	os.Setenv("SNAPD_UNSAFE_PREFIX_SNAPDEXTRA", "1")
+	defer os.Unsetenv("SNAPD_UNSAFE_PREFIX_SNAPDEXTRA")
+
+	env, err := osutil.OSEnvironmentUnescapeUnsafe("SNAPD_UNSAFE_PREFIX_")
+	c.Assert(err, IsNil)
+	// -1 because only the unescaped SNAPDEXTRA is kept
+	c.Check(len(os.Environ())-1, Equals, len(env.ForExec()))
+	c.Check(os.Getenv("PATH"), Equals, env["PATH"])
+	c.Check("a", Equals, env["A"])
+	c.Check("2", Equals, env["SNAPDEXTRA"])
+}
+
 func (s *envSuite) TestGet(c *C) {
 	env := osutil.Environment{"K": "V"}
 	c.Assert(env["K"], Equals, "V")
@@ -272,26 +289,44 @@ func (s *envSuite) TestExtendWithExpandedVarious(c *C) {
 	}
 }
 
-func (s *envSuite) TestEscapeUnsafeVariables(c *C) {
+func (s *envSuite) TestForExecEscapeUnsafe(c *C) {
 	env := osutil.Environment{
-		"FOO":        "foo",
-		"LD_PRELOAD": "/opt/lib/libfunky.so",
+		"FOO":             "foo",
+		"LD_PRELOAD":      "/opt/lib/libfunky.so",
+		"SNAP_DATA":       "snap-data",
+		"SNAP_SAVED_WHAT": "what", // will be dropped
+		"SNAP_SAVED":      "snap-saved",
+		"SNAP_S":          "snap-s",
+		"XDG_STUFF":       "xdg-stuff", // will be prefixed
+		"TMPDIR":          "/var/tmp",  // will be prefixed
 	}
-	env.EscapeUnsafeVariables()
-	c.Check(env, DeepEquals, osutil.Environment{
-		"FOO": "foo",
-		"SNAP_SAVED_LD_PRELOAD": "/opt/lib/libfunky.so",
+	raw := env.ForExecEscapeUnsafe("SNAP_SAVED_")
+	c.Check(raw, DeepEquals, []string{
+		"FOO=foo",
+		"SNAP_DATA=snap-data",
+		"SNAP_S=snap-s",
+		"SNAP_SAVED=snap-saved",
+		"SNAP_SAVED_LD_PRELOAD=/opt/lib/libfunky.so",
+		"SNAP_SAVED_TMPDIR=/var/tmp",
+		"XDG_STUFF=xdg-stuff",
 	})
 }
 
-func (s *envSuite) TestUnescapeVariables(c *C) {
+func (s *envSuite) TestForExecEscapeUnsafeNothingToEscape(c *C) {
 	env := osutil.Environment{
-		"FOO": "foo",
-		"SNAP_SAVED_LD_PRELOAD": "/opt/lib/libfunky.so",
+		"FOO":             "foo",
+		"SNAP_DATA":       "snap-data",
+		"SNAP_SAVED_WHAT": "what",
+		"SNAP_SAVED":      "snap-saved",
+		"SNAP_S":          "snap-s",
+		"XDG_STUFF":       "xdg-stuff",
 	}
-	env.UnescapeSaved()
-	c.Check(env, DeepEquals, osutil.Environment{
-		"FOO":        "foo",
-		"LD_PRELOAD": "/opt/lib/libfunky.so",
+	raw := env.ForExecEscapeUnsafe("SNAP_SAVED_")
+	c.Check(raw, DeepEquals, []string{
+		"FOO=foo",
+		"SNAP_DATA=snap-data",
+		"SNAP_S=snap-s",
+		"SNAP_SAVED=snap-saved",
+		"XDG_STUFF=xdg-stuff",
 	})
 }

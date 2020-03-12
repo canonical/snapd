@@ -588,9 +588,11 @@ func (s *snapExecSuite) TestSnapExecCompleteClassicNoReexec(c *C) {
 
 	execArgv0 := ""
 	execArgs := []string{}
+	execEnv := []string{}
 	restore = snapExec.MockSyscallExec(func(argv0 string, argv []string, env []string) error {
 		execArgv0 = argv0
 		execArgs = argv
+		execEnv = env
 		return nil
 	})
 	defer restore()
@@ -605,6 +607,8 @@ func (s *snapExecSuite) TestSnapExecCompleteClassicNoReexec(c *C) {
 	// setup env
 	os.Setenv("SNAP_DATA", "/var/snap/snapname/42")
 	defer os.Unsetenv("SNAP_DATA")
+	os.Setenv("SNAP_SAVED_TMPDIR", "/var/tmp99")
+	defer os.Unsetenv("SNAP_SAVED_TMPDIR")
 
 	// launch and verify its run the right way
 	err := snapExec.ExecApp("snapname.app", "42", "complete", []string{"foo"})
@@ -614,4 +618,6 @@ func (s *snapExecSuite) TestSnapExecCompleteClassicNoReexec(c *C) {
 		filepath.Join(dirs.DistroLibExecDir, "etelpmoc.sh"),
 		filepath.Join(dirs.SnapMountDir, "snapname/42/you/complete/me"),
 		"foo"})
+	c.Check(execEnv, testutil.Contains, "SNAP_DATA=/var/snap/snapname/42")
+	c.Check(execEnv, testutil.Contains, "TMPDIR=/var/tmp99")
 }

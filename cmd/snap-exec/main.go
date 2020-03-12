@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapenv"
 )
 
 // for the tests
@@ -185,11 +186,10 @@ func execApp(snapApp, revision, command string, args []string) error {
 	// build the environment from the yaml, translating TMPDIR and
 	// similar variables back from where they were hidden when
 	// invoking the setuid snap-confine.
-	env, err := osutil.OSEnvironment()
+	env, err := osutil.OSEnvironmentUnescapeUnsafe(snapenv.PreservedUnsafePrefix)
 	if err != nil {
 		return err
 	}
-	env.UnescapeSaved()
 	for _, eenv := range app.EnvChain() {
 		env.ExtendWithExpanded(eenv)
 	}
@@ -252,11 +252,13 @@ func execHook(snapName, revision, hookName string) error {
 	}
 
 	// build the environment
+	// NOTE: we do not use OSEnvironmentUnescapeUnsafe, we do not
+	// particurly want to transmit snapd exec environment details
+	// to the hooks
 	env, err := osutil.OSEnvironment()
 	if err != nil {
 		return err
 	}
-	// NOTE: we do not do env.UnescapeSaved()
 	for _, eenv := range hook.EnvChain() {
 		env.ExtendWithExpanded(eenv)
 	}

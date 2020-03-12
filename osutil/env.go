@@ -112,7 +112,34 @@ func OSEnvironment() (Environment, error) {
 	return parseRawEnvironment(os.Environ())
 }
 
-// ForExec returns environment suitable for using with exec family of functions.
+// OSEnvironmentUnescapeUnsafe returns the environment of the calling process.
+// It will also strip unsafeEscapePrefix from any variable starting with it.
+// Use-case/assumption is that ForExecEscapeUnsafe was used previously
+// along the exec chain.
+func OSEnvironmentUnescapeUnsafe(unsafeEscapePrefix string) (Environment, error) {
+	env, err := parseRawEnvironment(os.Environ())
+	if err != nil {
+		return nil, err
+	}
+
+	for key, value := range env {
+		if newKey := strings.TrimPrefix(key, unsafeEscapePrefix); key != newKey {
+			delete(env, key)
+			if _, ok := env[newKey]; ok {
+				// assume newKey was originally
+				// dropped when the escaped key and
+				// value were set so current value is
+				// newer here, keep it
+				continue
+			}
+			env[newKey] = value
+		}
+	}
+	return env, nil
+}
+
+// ForExec returns the environment in a form suitable for using with
+// the exec family of functions.
 //
 // The returned environment is sorted lexicographically by variable name.
 func (env Environment) ForExec() []string {
@@ -124,6 +151,46 @@ func (env Environment) ForExec() []string {
 	sort.Strings(keys)
 	for _, key := range keys {
 		raw = append(raw, fmt.Sprintf("%s=%s", key, env[key]))
+	}
+	return raw
+}
+
+// ForExecEscapeUnsafe returns the environment in a form suitable for
+// using with the exec family of functions.
+//
+// Further variables that are usually stripped out by ld.so when starting a
+// setuid process are renamed by prepending unsafeEscapePrefix to
+// them.
+//
+// Unlikely variables already starting with the prefix will be dropped,
+// they would be mishandled down chain.
+//
+// The returned environment is sorted lexicographically by final variable name.
+func (env Environment) ForExecEscapeUnsafe(unsafeEscapePrefix string) []string {
+	raw := make([]string, 0, len(env))
+	keys := make([]string, 0, len(env))
+	escaped := 0
+	for key := range env {
+		if strings.HasPrefix(key, unsafeEscapePrefix) {
+			continue
+		}
+		if unsafeEnv[key] {
+			key = unsafeEscapePrefix + key
+			escaped += 1
+		}
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	var firstEscaped int
+	if escaped > 0 {
+		firstEscaped = sort.SearchStrings(keys, unsafeEscapePrefix)
+	}
+	for i, key := range keys {
+		envKey := key
+		if i >= firstEscaped && i < (firstEscaped+escaped) {
+			envKey = key[len(unsafeEscapePrefix):]
+		}
+		raw = append(raw, fmt.Sprintf("%s=%s", key, env[envKey]))
 	}
 	return raw
 }
@@ -159,25 +226,6 @@ func (env *Environment) ExtendWithExpanded(eenv ExpandableEnv) {
 	}
 }
 
-func (env Environment) EscapeUnsafeVariables() {
-	for key, value := range env {
-		if unsafeEnv[key] {
-			newKey := preservedUnsafePrefix + key
-			delete(env, key)
-			env[newKey] = value
-		}
-	}
-}
-
-func (env Environment) UnescapeSaved() {
-	for key, value := range env {
-		if newKey := strings.TrimPrefix(key, preservedUnsafePrefix); key != newKey {
-			delete(env, key)
-			env[newKey] = value
-		}
-	}
-}
-
 // unsafeEnv is a set of unsafe environment variables.
 //
 // Environment variables glibc strips out when running a setuid binary.
@@ -209,5 +257,3 @@ var unsafeEnv = map[string]bool{
 	"TMPDIR":           true,
 	"TZDIR":            true,
 }
-
-const preservedUnsafePrefix = "SNAP_SAVED_"

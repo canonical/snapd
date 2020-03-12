@@ -266,7 +266,6 @@ func (s *HTestSuite) TestExtendEnvForRunForNonClassic(c *C) {
 	c.Assert(env["SNAP_DATA"], Equals, "/var/snap/foo/17")
 
 	c.Assert(env["TMPDIR"], Equals, "/var/tmp")
-	c.Assert(env["SNAP_SAVED_TMPDIR"], Equals, "")
 }
 
 func (s *HTestSuite) TestExtendEnvForRunForClassic(c *C) {
@@ -278,6 +277,5 @@ func (s *HTestSuite) TestExtendEnvForRunForClassic(c *C) {
 	c.Assert(env["SNAP_COMMON"], Equals, "/var/snap/foo/common")
 	c.Assert(env["SNAP_DATA"], Equals, "/var/snap/foo/17")
 
-	c.Assert(env["TMPDIR"], Equals, "")
-	c.Assert(env["SNAP_SAVED_TMPDIR"], Equals, "/var/tmp")
+	c.Assert(env["TMPDIR"], Equals, "/var/tmp")
 }

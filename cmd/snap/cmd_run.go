@@ -712,11 +712,9 @@ func activateXdgDocumentPortal(info *snap.Info, snapApp, hook string) error {
 	return nil
 }
 
-func (x *cmdRun) runCmdUnderGdb(origCmd []string, env osutil.Environment) error {
-	// Environment is not nil here because it comes from osutil.OSEnvironment and
-	// that guarantees this property.
-	env["SNAP_CONFINE_RUN_UNDER_GDB"] = "1"
+type envForExecFunc func(extra map[string]string) []string
 
+func (x *cmdRun) runCmdUnderGdb(origCmd []string, envForExec envForExecFunc) error {
 	cmd := []string{"sudo", "-E", "gdb", "-ex=run", "-ex=catch exec", "-ex=continue", "--args"}
 	cmd = append(cmd, origCmd...)
 
@@ -724,11 +722,11 @@ func (x *cmdRun) runCmdUnderGdb(origCmd []string, env osutil.Environment) error 
 	gcmd.Stdin = os.Stdin
 	gcmd.Stdout = os.Stdout
 	gcmd.Stderr = os.Stderr
-	gcmd.Env = env.ForExec()
+	gcmd.Env = envForExec(map[string]string{"SNAP_CONFINE_RUN_UNDER_GDB": "1"})
 	return gcmd.Run()
 }
 
-func (x *cmdRun) runCmdWithTraceExec(origCmd []string, env osutil.Environment) error {
+func (x *cmdRun) runCmdWithTraceExec(origCmd []string, envForExec envForExecFunc) error {
 	// setup private tmp dir with strace fifo
 	straceTmp, err := ioutil.TempDir("", "exec-trace")
 	if err != nil {
@@ -763,7 +761,7 @@ func (x *cmdRun) runCmdWithTraceExec(origCmd []string, env osutil.Environment) e
 		return err
 	}
 	// run
-	cmd.Env = env.ForExec()
+	cmd.Env = envForExec(nil)
 	cmd.Stdin = Stdin
 	cmd.Stdout = Stdout
 	cmd.Stderr = Stderr
@@ -783,7 +781,7 @@ func (x *cmdRun) runCmdWithTraceExec(origCmd []string, env osutil.Environment) e
 	return err
 }
 
-func (x *cmdRun) runCmdUnderStrace(origCmd []string, env osutil.Environment) error {
+func (x *cmdRun) runCmdUnderStrace(origCmd []string, envForExec envForExecFunc) error {
 	extraStraceOpts, raw, err := x.straceOpts()
 	if err != nil {
 		return err
@@ -794,7 +792,7 @@ func (x *cmdRun) runCmdUnderStrace(origCmd []string, env osutil.Environment) err
 	}
 
 	// run with filter
-	cmd.Env = env.ForExec()
+	cmd.Env = envForExec(nil)
 	cmd.Stdin = Stdin
 	cmd.Stdout = Stdout
 	stderr, err := cmd.StderrPipe()
@@ -953,13 +951,31 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 		env["XAUTHORITY"] = xauthPath
 	}
 
+	// on each run variant path this will be used once to get
+	// the environment plus additions in the right form
+	envForExec := func(extra map[string]string) []string {
+		for varName, value := range extra {
+			env[varName] = value
+		}
+		if !info.NeedsClassic() {
+			return env.ForExec()
+		}
+		// For a classic snap, environment variables that are
+		// usually stripped out by ld.so when starting a
+		// setuid process are presevered by being renamed by
+		// prepending PreservedUnsafePrefix -- which snap-exec
+		// will remove, restoring the variables to their
+		// original names.
+		return env.ForExecEscapeUnsafe(snapenv.PreservedUnsafePrefix)
+	}
+
 	if x.TraceExec {
-		return x.runCmdWithTraceExec(cmd, env)
+		return x.runCmdWithTraceExec(cmd, envForExec)
 	} else if x.Gdb {
-		return x.runCmdUnderGdb(cmd, env)
+		return x.runCmdUnderGdb(cmd, envForExec)
 	} else if x.useStrace() {
-		return x.runCmdUnderStrace(cmd, env)
+		return x.runCmdUnderStrace(cmd, envForExec)
 	} else {
-		return syscallExec(cmd[0], cmd, env.ForExec())
+		return syscallExec(cmd[0], cmd, envForExec(nil))
 	}
 }
