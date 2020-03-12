@@ -32,26 +32,19 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// ExecEnv returns the full environment that is required for
-// snap-{confine,exec}(like SNAP_{NAME,REVISION} etc are all set).
+// ExtendEnvForRun extends the given environment with what is is
+// required for snap-{confine,exec}, that means SNAP_{NAME,REVISION}
+// etc are all set.
 //
-// It merges it with the existing os.Environ() and ensures the SNAP_*
-// overrides the any pre-existing environment variables. For a classic
-// snap, environment variables that are usually stripped out by ld.so
-// when starting a setuid process are renamed by prepending
-// PreservedUnsafePrefix -- which snap-exec will remove, restoring the
-// variables to their original names.
+// It ensures all SNAP_* override any pre-existing environment
+// variables.
 //
-// With the extra parameter additional environment variables can be
-// supplied which will be set in the execution environment.
-func ExecEnv(info *snap.Info) (osutil.Environment, error) {
-	// Start with OS environment.
-	env, err := osutil.OSEnvironment()
-	if err != nil {
-		// If environment is maliciously corrupted it may not parse correctly.
-		return nil, err
-	}
-
+// For a classic snap, environment variables that are usually stripped
+// out by ld.so when starting a setuid process are renamed by
+// prepending PreservedUnsafePrefix -- which snap-exec will remove,
+// restoring the variables to their original names.
+// TODO: move this last responsibility elsewhere
+func ExtendEnvForRun(env osutil.Environment, info *snap.Info) {
 	// For snaps using classic confinement preserve variables that are
 	// automatically discarded by executing setuid executables.
 	if info.NeedsClassic() {
@@ -64,7 +57,6 @@ func ExecEnv(info *snap.Info) (osutil.Environment, error) {
 	for k, v := range snapEnv(info) {
 		env[k] = v
 	}
-	return env, nil
 }
 
 func snapEnv(info *snap.Info) osutil.Environment {

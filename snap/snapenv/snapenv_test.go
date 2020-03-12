@@ -256,30 +256,28 @@ func (ts *HTestSuite) TestParallelInstallUserForClassicConfinement(c *C) {
 	})
 }
 
-func setenvWithReset(s *HTestSuite, key string, val string) {
-	tmpdirEnv, tmpdirFound := os.LookupEnv("TMPDIR")
-	os.Setenv("TMPDIR", "/var/tmp")
-	if tmpdirFound {
-		s.AddCleanup(func() { os.Setenv("TMPDIR", tmpdirEnv) })
-	} else {
-		s.AddCleanup(func() { os.Unsetenv("TMPDIR") })
-	}
-}
+func (s *HTestSuite) TestExtendEnvForRunForNonClassic(c *C) {
+	env := osutil.Environment{"TMPDIR": "/var/tmp"}
 
-func (s *HTestSuite) TestExecEnvNoRenameTMPDIRForNonClassic(c *C) {
-	setenvWithReset(s, "TMPDIR", "/var/tmp")
+	ExtendEnvForRun(env, mockSnapInfo)
 
-	env, err := ExecEnv(mockSnapInfo)
-	c.Assert(err, IsNil)
+	c.Assert(env["SNAP_NAME"], Equals, "foo")
+	c.Assert(env["SNAP_COMMON"], Equals, "/var/snap/foo/common")
+	c.Assert(env["SNAP_DATA"], Equals, "/var/snap/foo/17")
+
 	c.Assert(env["TMPDIR"], Equals, "/var/tmp")
 	c.Assert(env["SNAP_SAVED_TMPDIR"], Equals, "")
 }
 
-func (s *HTestSuite) TestExecEnvRenameTMPDIRForClassic(c *C) {
-	setenvWithReset(s, "TMPDIR", "/var/tmp")
+func (s *HTestSuite) TestExtendEnvForRunForClassic(c *C) {
+	env := osutil.Environment{"TMPDIR": "/var/tmp"}
 
-	env, err := ExecEnv(mockClassicSnapInfo)
-	c.Assert(err, IsNil)
+	ExtendEnvForRun(env, mockClassicSnapInfo)
+
+	c.Assert(env["SNAP_NAME"], Equals, "foo")
+	c.Assert(env["SNAP_COMMON"], Equals, "/var/snap/foo/common")
+	c.Assert(env["SNAP_DATA"], Equals, "/var/snap/foo/17")
+
 	c.Assert(env["TMPDIR"], Equals, "")
 	c.Assert(env["SNAP_SAVED_TMPDIR"], Equals, "/var/tmp")
 }
