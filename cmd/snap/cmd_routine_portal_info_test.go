@@ -104,20 +104,20 @@ func (s *SnapSuite) TestPortalInfo(c *C) {
 			c.Check(r.URL.Path, Equals, "/v2/connections")
 			c.Check(r.URL.Query(), DeepEquals, url.Values{
 				"snap":      []string{"hello"},
-				"interface": []string{"network"},
+				"interface": []string{"network-status"},
 			})
 			result := client.Connections{
 				Established: []client.Connection{
 					{
 						Slot: client.SlotRef{
 							Snap: "core",
-							Name: "network",
+							Name: "network-status",
 						},
 						Plug: client.PlugRef{
 							Snap: "hello",
-							Name: "network",
+							Name: "network-status",
 						},
-						Interface: "network",
+						Interface: "network-status",
 					},
 				},
 			}
@@ -164,7 +164,7 @@ func (s *SnapSuite) TestPortalInfoNoAppInfo(c *C) {
 			c.Check(r.URL.Path, Equals, "/v2/connections")
 			c.Check(r.URL.Query(), DeepEquals, url.Values{
 				"snap":      []string{"hello"},
-				"interface": []string{"network"},
+				"interface": []string{"network-status"},
 			})
 			result := client.Connections{}
 			EncodeResponseBody(c, w, map[string]interface{}{
