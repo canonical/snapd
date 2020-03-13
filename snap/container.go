@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -36,6 +37,13 @@ import (
 type Container interface {
 	// Size returns the size of the snap in bytes.
 	Size() (int64, error)
+
+	// RandomAccessFile returns an implementation to read at any
+	// given location for a single file inside the snap.
+	RandomAccessFile(relative string) (interface {
+		io.ReaderAt
+		io.Closer
+	}, error)
 
 	// ReadFile returns the content of a single file from the snap.
 	ReadFile(relative string) ([]byte, error)
