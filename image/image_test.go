@@ -2506,11 +2506,11 @@ func newMockUBootBootloader(c *C) *mockUBootBootloader {
 	return &m
 }
 
-var _ bootloader.ExtractedRunKernelImageBootloader = (*mockUBootBootloader)(nil)
+var _ bootloader.ExtractedRecoveryKernelImageBootloader = (*mockUBootBootloader)(nil)
 
 func (m *mockUBootBootloader) ExtractRecoveryKernelAssets(recoverySystemDir string, s snap.PlaceInfo, snapf snap.Container) error {
 	if recoverySystemDir == "" {
-		panic("MockBootloader.SetRecoverySystemEnv called without recoverySystemDir")
+		panic("MockBootloader.ExtractRecoveryKernelAssets called without recoverySystemDir")
 	}
 	m.ExtractRecoveryKernelAssetsCalls = append(m.ExtractRecoveryKernelAssetsCalls, erkaCall{
 		recovery: recoverySystemDir,
@@ -2587,7 +2587,6 @@ func (s *imageSuite) TestSetupSeedCore20UBoot(c *C) {
 	c.Assert(systems, HasLen, 1)
 	c.Check(filepath.Base(systems[0]), Equals, expectedLabel)
 
-	c.Check(ub.RecoverySystemBootVars, HasLen, 0)
 	c.Check(ub.BootVars, DeepEquals, map[string]string{
 		"snapd_recovery_system": expectedLabel,
 	})
