@@ -30,6 +30,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	main "github.com/snapcore/snapd/cmd/snap-bootstrap"
@@ -297,7 +298,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2(c *C) {
 	c.Assert(err, IsNil)
 
 	// mock a bootloader
-	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bloader := boottest.MockUC20RunBootenv(bootloadertest.Mock("mock", c.MkDir()))
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 
@@ -613,7 +614,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeKernelSnapUpgradeHappy(
 	defer os.Remove(tryBaseSnap)
 
 	// mock a bootloader
-	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bloader := boottest.MockUC20RunBootenv(bootloadertest.Mock("mock", c.MkDir()))
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 
@@ -674,7 +675,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUntrustedKernelSnap(c *
 	c.Assert(err, IsNil)
 
 	// mock a bootloader
-	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bloader := boottest.MockUC20RunBootenv(bootloadertest.Mock("mock", c.MkDir()))
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 
@@ -725,7 +726,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUntrustedTryKernelSnapF
 	c.Assert(err, IsNil)
 
 	// mock a bootloader
-	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bloader := boottest.MockUC20RunBootenv(bootloadertest.Mock("mock", c.MkDir()))
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 
@@ -787,7 +788,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeKernelStatusTryingNoTry
 	c.Assert(err, IsNil)
 
 	// mock a bootloader
-	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bloader := boottest.MockUC20RunBootenv(bootloadertest.Mock("mock", c.MkDir()))
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 
