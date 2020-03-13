@@ -58,4 +58,10 @@ execute: |
         systemctl reset-failed snap.test-snapd-service.test-snapd-service-refuses-to-stop.service
     fi
 
-    systemctl --no-legend --full | not MATCH "snap\..*\.(service|timer|socket)"
+    # XXX: use retry-tool instead
+    sleep 5
+    systemctl --no-legend --full > output.txt
+    if grep -E "snap\..*\.(service|timer|socket)" < output.txt; then
+        echo "found unexpected leftovers"
+        exit 1
+    fi
