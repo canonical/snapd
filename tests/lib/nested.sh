@@ -194,6 +194,8 @@ cleanup_nested_env(){
 }
 
 create_nested_core_vm(){
+    local BUILD_FROM_CURRENT=$1
+
     mkdir -p "$WORK_DIR/image"
     if [ ! -f "$WORK_DIR/image/ubuntu-core.img" ]; then
         local UBUNTU_IMAGE
@@ -223,11 +225,7 @@ create_nested_core_vm(){
 
             # shellcheck source=tests/lib/prepare.sh
             . "$TESTSLIB"/prepare.sh
-            
             snap download --basename=pc-kernel --channel="20/edge" pc-kernel
-            # make sure we have the snap
-            test -e pc-kernel.snap
-            # build the initramfs with our snapd assets into the kernel snap
             uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$WORK_DIR/image"
 
             EXTRA_FUNDAMENTAL="--snap $WORK_DIR/image/pc-kernel_*.snap"
@@ -239,6 +237,18 @@ create_nested_core_vm(){
             exit 1
             ;;
         esac
+
+        if [ "$BUILD_FROM_CURRENT" == true ]; then
+            if is_core_16_nested_system; then
+                echo "Build from current branch is not supported yet for uc16"
+                exit 1
+            fi
+            # shellcheck source=tests/lib/prepare.sh
+            . "$TESTSLIB"/prepare.sh
+            snap download --channel="latest/edge" snapd
+            repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$PWD/new-snapd"
+            EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-snapd/snapd_*.snap"
+        fi
 
         "$UBUNTU_IMAGE" --image-size 5G "$NESTED_MODEL" \
             --channel "$CORE_CHANNEL" \
