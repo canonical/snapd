@@ -184,7 +184,7 @@ version: 1.0
 func (s *linkSuite) TestLinkSetNextBoot(c *C) {
 	coreDev := boottest.MockDevice("base")
 
-	bl := bootloadertest.Mock("mock", c.MkDir())
+	bl := boottest.MockUC16Bootenv(bootloadertest.Mock("mock", c.MkDir()))
 	bootloader.Force(bl)
 	defer bootloader.Force(nil)
 	bl.SetBootBase("base_1.snap")
@@ -523,8 +523,12 @@ type: os
 	c.Check(oldCmdV6.Calls(), HasLen, 0)
 	c.Check(oldCmdV7.Calls(), HasLen, 0)
 
-	c.Check(newCmdV6.Calls(), HasLen, 1)
-	c.Check(newCmdV7.Calls(), HasLen, 1)
+	c.Check(newCmdV6.Calls(), DeepEquals, [][]string{
+		{"fc-cache-v6", "--system-only"},
+	})
+	c.Check(newCmdV7.Calls(), DeepEquals, [][]string{
+		{"fc-cache-v7", "--system-only"},
+	})
 }
 
 func (s *linkCleanupSuite) testLinkCleanupFailedSnapdSnapOnCorePastWrappers(c *C, firstInstall bool) {
