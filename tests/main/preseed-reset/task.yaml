@@ -26,7 +26,7 @@ restore: |
 
 execute: |
   find_files() {
-    find "$IMAGE_MOUNTPOINT/etc/" "$IMAGE_MOUNTPOINT/var/"
+    find "$IMAGE_MOUNTPOINT/etc/" "$IMAGE_MOUNTPOINT/usr/" "$IMAGE_MOUNTPOINT/var/"
   }
 
   #shellcheck source=tests/lib/preseed.sh
