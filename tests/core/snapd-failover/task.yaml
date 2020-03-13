@@ -42,23 +42,25 @@ execute: |
     echo "Snap list is working still"
     snap list | MATCH "^snapd .* $current .*"
 
-    echo "Break snapd"
-    unsquashfs -d ./snapd-broken "$SNAPD_SNAP"
-    echo "" > ./snapd-broken/usr/lib/snapd/snapd
-    (cd ./snapd-broken && snap pack .)
-    echo "Now install the broken snapd"
-    if snap install --dangerous ./snapd-broken/snapd_*.snap; then
-        echo "installing a broken snapd should not work, test broken"
-        exit 1
-    fi
+    for _ in $(seq 2); do
+        echo "Break snapd"
+        unsquashfs -d ./snapd-broken "$SNAPD_SNAP"
+        echo "" > ./snapd-broken/usr/lib/snapd/snapd
+        (cd ./snapd-broken && snap pack .)
+        echo "Now install the broken snapd"
+        if snap install --dangerous ./snapd-broken/snapd_*.snap; then
+            echo "installing a broken snapd should not work, test broken"
+            exit 1
+        fi
 
-    echo "And verify that snap commands still work and snapd is reverted"
-    retry-tool -n 30 --wait 5 systemctl is-active snapd.failure.service
-    snap list | MATCH "^snapd .* $current .*"
+        echo "And verify that snap commands still work and snapd is reverted"
+        retry-tool -n 30 --wait 5 systemctl is-active snapd.failure.service
+        snap list | MATCH "^snapd .* $current .*"
 
-    echo "Verify we got the expected error message"
-    snap change --last=install|MATCH "there was a snapd rollback across the restart"
+        echo "Verify we got the expected error message"
+        snap change --last=install|MATCH "there was a snapd rollback across the restart"
 
-    echo "restart snapd and ensure we can still talk to it"
-    systemctl restart snapd.socket snapd.service
-    snap list | MATCH "^snapd .* $current .*"
+        echo "restart snapd and ensure we can still talk to it"
+        systemctl restart snapd.socket snapd.service
+        snap list | MATCH "^snapd .* $current .*"
+    done
