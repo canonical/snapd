@@ -57,6 +57,13 @@ func (s *SnapDir) Install(targetPath, mountDir string) (bool, error) {
 	return false, os.Symlink(s.path, targetPath)
 }
 
+func (s *SnapDir) RandomAccessFile(file string) (interface {
+	io.ReaderAt
+	io.Closer
+}, error) {
+	return os.Open(filepath.Join(s.path, file))
+}
+
 func (s *SnapDir) ReadFile(file string) (content []byte, err error) {
 	return ioutil.ReadFile(filepath.Join(s.path, file))
 }
