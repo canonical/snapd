@@ -153,8 +153,7 @@ func (s *partitionTestSuite) TestDeviceInfo(c *C) {
 				StartOffset: 0x100000,
 				Index:       1,
 			},
-			Node:    "/dev/node1",
-			Created: false,
+			Node: "/dev/node1",
 		},
 		{
 			LaidOutStructure: gadget.LaidOutStructure{
@@ -168,8 +167,7 @@ func (s *partitionTestSuite) TestDeviceInfo(c *C) {
 				StartOffset: 0x200000,
 				Index:       2,
 			},
-			Node:    "/dev/node2",
-			Created: true,
+			Node: "/dev/node2",
 		},
 	})
 }
@@ -242,7 +240,7 @@ func (s *partitionTestSuite) TestBuildPartitionList(c *C) {
 	cmdLsblk := testutil.MockCommand(c, "lsblk", mockLsblkScript)
 	defer cmdLsblk.Restore()
 
-	ptable := &partition.SFDiskPartitionTable{
+	ptable := partition.SFDiskPartitionTable{
 		Label:    "gpt",
 		ID:       "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA",
 		Device:   "/dev/node",
@@ -267,11 +265,14 @@ func (s *partitionTestSuite) TestBuildPartitionList(c *C) {
 	pv, err := gadget.PositionedVolumeFromGadget(gadgetRoot)
 	c.Assert(err, IsNil)
 
-	sfdiskInput, created := partition.BuildPartitionList(ptable, pv)
+	dl, err := partition.DeviceLayoutFromPartitionTable(ptable)
+	c.Assert(err, IsNil)
+
+	sfdiskInput, create := partition.BuildPartitionList(dl, pv)
 	c.Assert(sfdiskInput.String(), Equals, `/dev/node2 : start=        4096, size=     2457600, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, name="Recovery", attrs="GUID:59"
 /dev/node3 : start=     2461696, size=     2457600, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Writable", attrs="GUID:59"
 `)
-	c.Assert(created, DeepEquals, []partition.DeviceStructure{mockDeviceStructureSystemSeed, mockDeviceStructureWritable})
+	c.Assert(create, DeepEquals, []partition.DeviceStructure{mockDeviceStructureSystemSeed, mockDeviceStructureWritable})
 }
 
 func (s *partitionTestSuite) TestCreatePartitions(c *C) {
@@ -343,7 +344,7 @@ func (s *partitionTestSuite) TestListCreatedPartitions(c *C) {
 
 	dl, err := partition.DeviceLayoutFromDisk("/dev/node")
 	c.Assert(err, IsNil)
-	c.Assert(partition.ListCreatedPartitions(dl), DeepEquals, []string{"2"})
+	c.Assert(partition.ListCreatedPartitions(dl), DeepEquals, []string{"/dev/node2"})
 }
 
 func (s *partitionTestSuite) TestFilesystemInfo(c *C) {

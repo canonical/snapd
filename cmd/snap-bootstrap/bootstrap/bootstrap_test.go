@@ -93,8 +93,7 @@ var mockDeviceLayout = partition.DeviceLayout{
 				},
 				StartOffset: 0,
 			},
-			Node:    "/dev/node1",
-			Created: false,
+			Node: "/dev/node1",
 		},
 		{
 			LaidOutStructure: gadget.LaidOutStructure{
@@ -104,19 +103,7 @@ var mockDeviceLayout = partition.DeviceLayout{
 				},
 				StartOffset: 1 * gadget.SizeMiB,
 			},
-			Node:    "/dev/node2",
-			Created: false,
-		},
-		{
-			LaidOutStructure: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					Name: "Local",
-					Size: 10 * gadget.SizeMiB,
-				},
-				StartOffset: 2 * gadget.SizeMiB,
-			},
-			Node:    "/dev/node3",
-			Created: true,
+			Node: "/dev/node2",
 		},
 	},
 	ID:         "anything",
@@ -127,6 +114,11 @@ var mockDeviceLayout = partition.DeviceLayout{
 }
 
 func (s *bootstrapSuite) TestLayoutCompatibility(c *C) {
+	restore := partition.MockListCreatedPartitions(func(dl *partition.DeviceLayout) []string {
+		return []string{}
+	})
+	defer restore()
+
 	// same contents (the locally created structure should be ignored)
 	gadgetLayout := layoutFromYaml(c, mockGadgetYaml)
 	err := bootstrap.EnsureLayoutCompatibility(gadgetLayout, &mockDeviceLayout)
@@ -165,6 +157,11 @@ func (s *bootstrapSuite) TestLayoutCompatibility(c *C) {
 }
 
 func (s *bootstrapSuite) TestSchemaCompatibility(c *C) {
+	restore := partition.MockListCreatedPartitions(func(dl *partition.DeviceLayout) []string {
+		return []string{"/dev/node3"}
+	})
+	defer restore()
+
 	gadgetLayout := layoutFromYaml(c, mockGadgetYaml)
 	deviceLayout := mockDeviceLayout
 
@@ -203,6 +200,11 @@ func (s *bootstrapSuite) TestSchemaCompatibility(c *C) {
 }
 
 func (s *bootstrapSuite) TestIDCompatibility(c *C) {
+	restore := partition.MockListCreatedPartitions(func(dl *partition.DeviceLayout) []string {
+		return []string{"/dev/node3"}
+	})
+	defer restore()
+
 	gadgetLayout := layoutFromYaml(c, mockGadgetYaml)
 	deviceLayout := mockDeviceLayout
 

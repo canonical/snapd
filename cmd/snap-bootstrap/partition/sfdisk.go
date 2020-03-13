@@ -83,8 +83,7 @@ type DeviceLayout struct {
 type DeviceStructure struct {
 	gadget.LaidOutStructure
 
-	Node    string
-	Created bool
+	Node string
 }
 
 // NewDeviceLayout obtains the partitioning and filesystem information from the
@@ -100,7 +99,7 @@ func DeviceLayoutFromDisk(device string) (*DeviceLayout, error) {
 		return nil, fmt.Errorf("cannot parse sfdisk output: %v", err)
 	}
 
-	dl, err := deviceLayoutFromDump(&dump)
+	dl, err := deviceLayoutFromPartitionTable(dump.PartitionTable)
 	if err != nil {
 		return nil, err
 	}
@@ -110,13 +109,22 @@ func DeviceLayoutFromDisk(device string) (*DeviceLayout, error) {
 }
 
 var (
-	ensureNodesExist = ensureNodesExistImpl
+	ensureNodesExist      = ensureNodesExistImpl
+	ListCreatedPartitions = listCreatedPartitionsImpl
 )
+
+func MockListCreatedPartitions(f func(dl *DeviceLayout) []string) (restore func()) {
+	old := ListCreatedPartitions
+	ListCreatedPartitions = f
+	return func() {
+		ListCreatedPartitions = old
+	}
+}
 
 // CreateMissing creates the partitions listed in the positioned volume pv
 // that are missing from the existing device layout.
 func (dl *DeviceLayout) CreateMissing(pv *gadget.LaidOutVolume) ([]DeviceStructure, error) {
-	buf, created := buildPartitionList(dl.partitionTable, pv)
+	buf, created := buildPartitionList(dl, pv)
 	if len(created) == 0 {
 		return created, nil
 	}
@@ -147,14 +155,24 @@ func (dl *DeviceLayout) CreateMissing(pv *gadget.LaidOutVolume) ([]DeviceStructu
 // RemoveCreated removes partitions added during a previous failed install
 // attempt.
 func (dl *DeviceLayout) RemoveCreated() error {
-	toDelete := listCreatedPartitions(dl)
-	if len(toDelete) == 0 {
+	toRemove := ListCreatedPartitions(dl)
+	if len(toRemove) == 0 {
 		return nil
 	}
 
+	params := []string{"--no-reread", "--delete", dl.Device}
+	for _, node := range toRemove {
+		for i, p := range dl.partitionTable.Partitions {
+			if node == p.Node {
+				params = append(params, strconv.Itoa(i+1))
+				break
+			}
+		}
+	}
+
 	// Delete disk partitions
-	logger.Noticef("partitions to remove: %v", toDelete)
-	cmd := exec.Command("sfdisk", append([]string{"--no-reread", "--delete", dl.Device}, toDelete...)...)
+	logger.Noticef("partitions to remove: %v", toRemove)
+	cmd := exec.Command("sfdisk", params...)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return osutil.OutputErr(output, err)
 	}
@@ -176,9 +194,9 @@ func (dl *DeviceLayout) RemoveCreated() error {
 	dl.partitionTable = layout.partitionTable
 
 	// Ensure all created partitions were removed
-	remaining := listCreatedPartitions(dl)
-	if len(remaining) != 0 {
-		return fmt.Errorf("cannot remove partitions %v", remaining)
+	remaining := ListCreatedPartitions(dl)
+	if len(remaining) > 0 {
+		return fmt.Errorf("cannot remove partitions: %s", strings.Join(remaining, ", "))
 	}
 
 	return nil
@@ -208,11 +226,9 @@ func ensureNodesExistImpl(ds []DeviceStructure, timeout time.Duration) error {
 	return nil
 }
 
-// deviceLayoutFromDump takes an sfdisk dump format and returns the partitioning
-// information as a device layout.
-func deviceLayoutFromDump(dump *sfdiskDeviceDump) (*DeviceLayout, error) {
-	ptable := dump.PartitionTable
-
+// deviceLayoutFromPartitionTable takes an sfdisk dump partition table and returns
+// the partitioning information as a device layout.
+func deviceLayoutFromPartitionTable(ptable sfdiskPartitionTable) (*DeviceLayout, error) {
 	if ptable.Unit != "sectors" {
 		return nil, fmt.Errorf("cannot position partitions: unknown unit %q", ptable.Unit)
 	}
@@ -233,13 +249,6 @@ func deviceLayoutFromDump(dump *sfdiskDeviceDump) (*DeviceLayout, error) {
 		}
 		bd := info.BlockDevices[0]
 
-		// verify whether this partition was created during the install process
-		createdPartition := false
-		if p.Attrs != "" {
-			attrs := strings.Split(strings.TrimPrefix(p.Attrs, "GUID:"), ",")
-			createdPartition = strutil.ListContains(attrs, createdPartitionAttr)
-		}
-
 		structure[i] = gadget.VolumeStructure{
 			Name:       p.Name,
 			Size:       gadget.Size(p.Size) * sectorSize,
@@ -253,8 +262,7 @@ func deviceLayoutFromDump(dump *sfdiskDeviceDump) (*DeviceLayout, error) {
 				StartOffset:     gadget.Size(p.Start) * sectorSize,
 				Index:           i + 1,
 			},
-			Node:    p.Node,
-			Created: createdPartition,
+			Node: p.Node,
 		}
 	}
 
@@ -282,10 +290,12 @@ func deviceName(name string, index int) string {
 }
 
 // buildPartitionList builds a list of partitions based on the current
-// device contents and gadget structure list, in sfdisk dump
-// format. Return a partitioning description suitable for sfdisk input
-// and a list of the partitions to be created
-func buildPartitionList(ptable *sfdiskPartitionTable, pv *gadget.LaidOutVolume) (sfdiskInput *bytes.Buffer, toBeCreated []DeviceStructure) {
+// device contents and gadget structure list, in sfdisk dump format, and
+// return a partitioning description suitable for sfdisk input, a list of
+// partitions to be removed, and a list of the partitions to be created.
+func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume) (sfdiskInput *bytes.Buffer, toBeCreated []DeviceStructure) {
+	ptable := dl.partitionTable
+
 	// Keep track what partitions we already have on disk
 	seen := map[uint64]bool{}
 	for _, p := range ptable.Partitions {
@@ -323,23 +333,25 @@ func buildPartitionList(ptable *sfdiskPartitionTable, pv *gadget.LaidOutVolume) 
 			s.Label = ubuntuDataLabel
 		}
 
-		toBeCreated = append(toBeCreated, DeviceStructure{p, node, true})
+		toBeCreated = append(toBeCreated, DeviceStructure{p, node})
 	}
 
 	return buf, toBeCreated
 }
 
-// listCreatedPartitions returns a list of indexes of partitions that are
-// marked as created by the installer.
-func listCreatedPartitions(dl *DeviceLayout) []string {
-	created := make([]string, 0, len(dl.Structure))
-	for n, ds := range dl.Structure {
-		if ds.Created {
-			logger.Noticef("existing partition %s was created during install", ds.Node)
-			created = append(created, strconv.Itoa(n+1))
+// ListCreatedPartitions returns a list of partitions created during the
+// install process.
+func listCreatedPartitionsImpl(dl *DeviceLayout) []string {
+	parts := make([]string, 0, len(dl.partitionTable.Partitions))
+	for _, p := range dl.partitionTable.Partitions {
+		if p.Attrs != "" {
+			attrs := strings.Split(strings.TrimPrefix(p.Attrs, "GUID:"), ",")
+			if strutil.ListContains(attrs, createdPartitionAttr) {
+				parts = append(parts, p.Node)
+			}
 		}
 	}
-	return created
+	return parts
 }
 
 // udevTrigger triggers udev for the specified device and waits until

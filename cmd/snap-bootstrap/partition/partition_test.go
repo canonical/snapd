@@ -55,8 +55,7 @@ var mockDeviceStructureBiosBoot = partition.DeviceStructure{
 }
 
 var mockDeviceStructureSystemSeed = partition.DeviceStructure{
-	Created: true,
-	Node:    "/dev/node2",
+	Node: "/dev/node2",
 	LaidOutStructure: gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Name:       "Recovery",
@@ -78,8 +77,7 @@ var mockDeviceStructureSystemSeed = partition.DeviceStructure{
 }
 
 var mockDeviceStructureWritable = partition.DeviceStructure{
-	Created: true,
-	Node:    "/dev/node3",
+	Node: "/dev/node3",
 	LaidOutStructure: gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Name:       "Writable",

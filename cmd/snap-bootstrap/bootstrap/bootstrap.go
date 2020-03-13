@@ -24,6 +24,7 @@ import (
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/partition"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/strutil"
 )
 
 const (
@@ -175,8 +176,9 @@ func ensureLayoutCompatibility(gadgetLayout *gadget.LaidOutVolume, diskLayout *p
 
 	// Check if all existing device partitions, except those that we added
 	// ourselves, are also in gadget
+	toRemove := partition.ListCreatedPartitions(diskLayout)
 	for _, ds := range diskLayout.Structure {
-		if !ds.Created && !contains(gadgetLayout.LaidOutStructure, ds) {
+		if !strutil.ListContains(toRemove, ds.Node) && !contains(gadgetLayout.LaidOutStructure, ds) {
 			return fmt.Errorf("cannot find disk partition %s (starting at %d) in gadget", ds.Node, ds.StartOffset)
 		}
 	}
