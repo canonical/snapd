@@ -404,5 +404,6 @@ func CompleteShPath(base string) string {
 
 func IsCompleteShSymlink(compPath string) bool {
 	target, err := os.Readlink(compPath)
-	return err == nil && filepath.Base(target) == "complete.sh"
+	// check if the target paths ends with "/snapd/complete.sh"
+	return err == nil && filepath.Base(filepath.Dir(target)) == "snapd" && filepath.Base(target) == "complete.sh"
 }

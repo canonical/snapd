@@ -416,7 +416,7 @@ func (s *startPreseedSuite) TestReset(c *C) {
 		{filepath.Join(dirs.SnapMountDir, "foo", "bin"), ""},
 		{filepath.Join(dirs.SnapSeccompDir, "foo.bin"), ""},
 		// bash-completion symlinks
-		{filepath.Join(dirs.CompletersDir, "foo.bar"), "/a/complete.sh"},
+		{filepath.Join(dirs.CompletersDir, "foo.bar"), "/a/snapd/complete.sh"},
 		{filepath.Join(dirs.CompletersDir, "foo"), "foo.bar"},
 	}
 
