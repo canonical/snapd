@@ -1,7 +1,7 @@
 summary: Check that tpm works properly on UC20
 
 description: |
-  This test check UC20 can boot with secure boot sucessfully and UC18 doesn't boot with secure boot
+  This test check UC20 can boot with secure boot successfully and UC18 doesn't boot with secure boot
 
 systems: [ubuntu-18.04-*, ubuntu-20.04-*]
 
