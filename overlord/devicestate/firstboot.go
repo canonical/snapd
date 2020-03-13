@@ -71,10 +71,15 @@ func criticalTaskEdges(ts *state.TaskSet) (beginEdge, beforeHooksEdge, hooksEdge
 	return beginEdge, beforeHooksEdge, hooksEdge, nil
 }
 
-func trivialSeeding(st *state.State, markSeeded *state.Task) []*state.TaskSet {
+func markSeededTask(st *state.State) *state.Task {
+	return st.NewTask("mark-seeded", i18n.G("Mark system seeded"))
+}
+
+func trivialSeeding(st *state.State) []*state.TaskSet {
 	// give the internal core config a chance to run (even if core is
 	// not used at all we put system configuration there)
 	configTs := snapstate.ConfigureSnap(st, "core", 0)
+	markSeeded := markSeededTask(st)
 	markSeeded.WaitAll(configTs)
 	return []*state.TaskSet{configTs, state.NewTaskSet(markSeeded)}
 }
@@ -120,12 +125,8 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 		return nil, err
 	}
 
-	createMarkSeeded := func() *state.Task {
-		return st.NewTask("mark-seeded", i18n.G("Mark system seeded"))
-	}
-
 	if err == errNothingToDo {
-		return trivialSeeding(st, createMarkSeeded()), nil
+		return trivialSeeding(st), nil
 	}
 
 	err = deviceSeed.LoadMeta(tm)
@@ -134,7 +135,7 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 			return nil, fmt.Errorf("no snaps to preseed")
 		}
 		// on classic it is ok to not seed any snaps
-		return trivialSeeding(st, createMarkSeeded()), nil
+		return trivialSeeding(st), nil
 	}
 	if err != nil {
 		return nil, err
@@ -274,7 +275,7 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	ts := tsAll[len(tsAll)-1]
 	endTs := state.NewTaskSet()
 
-	markSeeded := createMarkSeeded()
+	markSeeded := markSeededTask(st)
 	if preseed {
 		endTs.AddTask(preseedDoneTask)
 		markSeeded.WaitFor(preseedDoneTask)
