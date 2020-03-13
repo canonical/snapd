@@ -78,6 +78,13 @@ ptrace (read),
 /var/lib/snapd/hostfs/etc/os-release rk,
 /var/lib/snapd/hostfs/usr/lib/os-release rk,
 
+# Allow discovering system-wide CFS Bandwidth Control information
+# https://www.kernel.org/doc/html/latest/scheduler/sched-bwc.html
+/sys/fs/cgroup/cpu,cpuacct/cpu.cfs_period_us r,
+/sys/fs/cgroup/cpu,cpuacct/cpu.cfs_quota_us r,
+/sys/fs/cgroup/cpu,cpuacct/cpu.shares r,
+/sys/fs/cgroup/cpu,cpuacct/cpu.stat r,
+
 #include <abstractions/dbus-strict>
 
 # do not use peer=(label=unconfined) here since this is DBus activated

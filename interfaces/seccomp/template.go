@@ -259,15 +259,19 @@ munmap
 
 nanosleep
 
+# Argument filtering with gt/ge/lt/le does not work properly with
+# libseccomp < 2.4 or golang-seccomp < 0.9.1. See:
+# - https://bugs.launchpad.net/snapd/+bug/1825052/comments/9
+# - https://github.com/seccomp/libseccomp/issues/69
+# Eventually we want to use >=0, but we need libseccomp and golang-seccomp to
+# be updated everywhere first. In the meantime, use <=19 and rely on the fact
+# that AppArmor mediates CAP_SYS_NICE (and for systems without AppArmor, we
+# ignore this lack of mediation since snaps are not meaningfully confined).
+#
 # Allow using nice() with default or lower priority
-# FIXME: https://github.com/seccomp/libseccomp/issues/69 which means we
-# currently have to use <=19. When that bug is fixed, use >=0
 nice <=19
 # Allow using setpriority to set the priority of the calling process to default
 # or lower priority (eg, 'nice -n 9 <command>')
-# default or lower priority.
-# FIXME: https://github.com/seccomp/libseccomp/issues/69 which means we
-# currently have to use <=19. When that bug is fixed, use >=0
 setpriority PRIO_PROCESS 0 <=19
 
 # LP: #1446748 - support syscall arg filtering for mode_t with O_CREAT
