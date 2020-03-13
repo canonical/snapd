@@ -385,44 +385,61 @@ func (s *startPreseedSuite) TestReset(c *C) {
 	tmpDir := c.MkDir()
 
 	// mock some preseeding artifacts
-	artifacts := []string{
-		dirs.SnapStateFile,
-		dirs.SnapSystemKeyFile,
-		filepath.Join(dirs.SnapDesktopFilesDir, "foo.desktop"),
-		filepath.Join(dirs.SnapDesktopIconsDir, "foo.png"),
-		filepath.Join(dirs.SnapMountPolicyDir, "foo.fstab"),
-		filepath.Join(dirs.SnapBlobDir, "foo.snap"),
-		filepath.Join(dirs.SnapUdevRulesDir, "foo-snap.bar.rules"),
-		filepath.Join(dirs.SnapBusPolicyDir, "snap.foo.bar.conf"),
-		filepath.Join(dirs.SnapServicesDir, "snap.foo.service"),
-		filepath.Join(dirs.SnapServicesDir, "snap.foo.timer"),
-		filepath.Join(dirs.SnapServicesDir, "snap.foo.socket"),
-		filepath.Join(dirs.SnapServicesDir, "snap-foo.mount"),
-		filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", "snap-foo.mount"),
-		filepath.Join(dirs.SnapDataDir, "foo", "bar"),
-		filepath.Join(dirs.SnapCacheDir, "foocache", "bar"),
-		filepath.Join(dirs.AppArmorCacheDir, "foo", "bar"),
-		filepath.Join(dirs.SnapAppArmorDir, "foo"),
-		filepath.Join(dirs.SnapAssertsDBDir, "foo"),
-		filepath.Join(dirs.FeaturesDir, "foo"),
-		filepath.Join(dirs.SnapDeviceDir, "foo-1", "bar"),
-		filepath.Join(dirs.SnapCookieDir, "foo"),
-		filepath.Join(dirs.SnapSeqDir, "foo.json"),
-		filepath.Join(dirs.SnapMountDir, "foo", "bin"),
-		filepath.Join(dirs.SnapSeccompDir, "foo.bin"),
+	artifacts := []struct {
+		path string
+		// if symlinkTarget is not empty, then a path -> symlinkTarget symlink
+		// will be created instead of a regular file.
+		symlinkTarget string
+	}{
+		{dirs.SnapStateFile, ""},
+		{dirs.SnapSystemKeyFile, ""},
+		{filepath.Join(dirs.SnapDesktopFilesDir, "foo.desktop"), ""},
+		{filepath.Join(dirs.SnapDesktopIconsDir, "foo.png"), ""},
+		{filepath.Join(dirs.SnapMountPolicyDir, "foo.fstab"), ""},
+		{filepath.Join(dirs.SnapBlobDir, "foo.snap"), ""},
+		{filepath.Join(dirs.SnapUdevRulesDir, "foo-snap.bar.rules"), ""},
+		{filepath.Join(dirs.SnapBusPolicyDir, "snap.foo.bar.conf"), ""},
+		{filepath.Join(dirs.SnapServicesDir, "snap.foo.service"), ""},
+		{filepath.Join(dirs.SnapServicesDir, "snap.foo.timer"), ""},
+		{filepath.Join(dirs.SnapServicesDir, "snap.foo.socket"), ""},
+		{filepath.Join(dirs.SnapServicesDir, "snap-foo.mount"), ""},
+		{filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", "snap-foo.mount"), ""},
+		{filepath.Join(dirs.SnapDataDir, "foo", "bar"), ""},
+		{filepath.Join(dirs.SnapCacheDir, "foocache", "bar"), ""},
+		{filepath.Join(dirs.AppArmorCacheDir, "foo", "bar"), ""},
+		{filepath.Join(dirs.SnapAppArmorDir, "foo"), ""},
+		{filepath.Join(dirs.SnapAssertsDBDir, "foo"), ""},
+		{filepath.Join(dirs.FeaturesDir, "foo"), ""},
+		{filepath.Join(dirs.SnapDeviceDir, "foo-1", "bar"), ""},
+		{filepath.Join(dirs.SnapCookieDir, "foo"), ""},
+		{filepath.Join(dirs.SnapSeqDir, "foo.json"), ""},
+		{filepath.Join(dirs.SnapMountDir, "foo", "bin"), ""},
+		{filepath.Join(dirs.SnapSeccompDir, "foo.bin"), ""},
+		// bash-completion symlinks
+		{filepath.Join(dirs.CompletersDir, "foo.bar"), "/a/complete.sh"},
+		{filepath.Join(dirs.CompletersDir, "foo"), "foo.bar"},
 	}
 
-	for _, filePath := range artifacts {
-		fullPath := filepath.Join(tmpDir, filePath)
+	for _, art := range artifacts {
+		fullPath := filepath.Join(tmpDir, art.path)
 		// create parent dir
 		c.Assert(os.MkdirAll(filepath.Dir(fullPath), 0755), IsNil)
-		c.Assert(ioutil.WriteFile(fullPath, nil, os.ModePerm), IsNil)
+		if art.symlinkTarget != "" {
+			// note, symlinkTarget is not relative to tmpDir
+			c.Assert(os.Symlink(art.symlinkTarget, fullPath), IsNil)
+		} else {
+			c.Assert(ioutil.WriteFile(fullPath, nil, os.ModePerm), IsNil)
+		}
 	}
 
 	checkArtifacts := func(exists bool) {
-		for _, filePath := range artifacts {
-			fullPath := filepath.Join(tmpDir, filePath)
-			c.Check(osutil.FileExists(fullPath), Equals, exists)
+		for _, art := range artifacts {
+			fullPath := filepath.Join(tmpDir, art.path)
+			if art.symlinkTarget != "" {
+				c.Check(osutil.IsSymlink(fullPath), Equals, exists, Commentf("offending symlink: %s", fullPath))
+			} else {
+				c.Check(osutil.FileExists(fullPath), Equals, exists, Commentf("offending file: %s", fullPath))
+			}
 		}
 	}
 
