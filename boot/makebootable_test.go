@@ -38,7 +38,7 @@ import (
 )
 
 type makeBootableSuite struct {
-	baseBootSetSuite
+	baseBootenvSuite
 
 	bootloader *bootloadertest.MockBootloader
 }
@@ -46,17 +46,17 @@ type makeBootableSuite struct {
 var _ = Suite(&makeBootableSuite{})
 
 func (s *makeBootableSuite) SetUpTest(c *C) {
-	s.baseBootSetSuite.SetUpTest(c)
+	s.baseBootenvSuite.SetUpTest(c)
 
 	s.bootloader = bootloadertest.Mock("mock", c.MkDir())
 	s.forceBootloader(s.bootloader)
 }
 
-func (s *makeBootableSuite) makeSnap(c *C, name, yaml string, revno snap.Revision) (fn string, info *snap.Info) {
-	return s.makeSnapWithFiles(c, name, yaml, revno, nil)
+func makeSnap(c *C, name, yaml string, revno snap.Revision) (fn string, info *snap.Info) {
+	return makeSnapWithFiles(c, name, yaml, revno, nil)
 }
 
-func (s *makeBootableSuite) makeSnapWithFiles(c *C, name, yaml string, revno snap.Revision, files [][]string) (fn string, info *snap.Info) {
+func makeSnapWithFiles(c *C, name, yaml string, revno snap.Revision, files [][]string) (fn string, info *snap.Info) {
 	si := &snap.SideInfo{
 		RealName: name,
 		Revision: revno,
@@ -98,14 +98,14 @@ func (s *makeBootableSuite) TestMakeBootable(c *C) {
 	err = os.MkdirAll(seedSnapsDirs, 0755)
 	c.Assert(err, IsNil)
 
-	baseFn, baseInfo := s.makeSnap(c, "core18", `name: core18
+	baseFn, baseInfo := makeSnap(c, "core18", `name: core18
 type: base
 version: 4.0
 `, snap.R(3))
 	baseInSeed := filepath.Join(seedSnapsDirs, baseInfo.Filename())
 	err = os.Rename(baseFn, baseInSeed)
 	c.Assert(err, IsNil)
-	kernelFn, kernelInfo := s.makeSnap(c, "pc-kernel", `name: pc-kernel
+	kernelFn, kernelInfo := makeSnap(c, "pc-kernel", `name: pc-kernel
 type: kernel
 version: 4.0
 `, snap.R(5))
@@ -151,6 +151,21 @@ version: 4.0
 	c.Check(filepath.Join(rootdir, "boot", "grub/grub.cfg"), testutil.FileEquals, grubCfg)
 }
 
+type makeBootable20Suite struct {
+	baseBootenvSuite
+
+	bootloader *bootloadertest.MockRecoveryAwareBootloader
+}
+
+var _ = Suite(&makeBootable20Suite{})
+
+func (s *makeBootable20Suite) SetUpTest(c *C) {
+	s.baseBootenvSuite.SetUpTest(c)
+
+	s.bootloader = bootloadertest.Mock("mock", c.MkDir()).RecoveryAware()
+	s.forceBootloader(s.bootloader)
+}
+
 func makeMockUC20Model() *asserts.Model {
 	headers := map[string]interface{}{
 		"type":         "model",
@@ -179,7 +194,7 @@ func makeMockUC20Model() *asserts.Model {
 	return assertstest.FakeAssertion(headers).(*asserts.Model)
 }
 
-func (s *makeBootableSuite) TestMakeBootable20(c *C) {
+func (s *makeBootable20Suite) TestMakeBootable20(c *C) {
 	dirs.SetRootDir("")
 
 	model := makeMockUC20Model()
@@ -198,14 +213,14 @@ func (s *makeBootableSuite) TestMakeBootable20(c *C) {
 	err = os.MkdirAll(seedSnapsDirs, 0755)
 	c.Assert(err, IsNil)
 
-	baseFn, baseInfo := s.makeSnap(c, "core20", `name: core20
+	baseFn, baseInfo := makeSnap(c, "core20", `name: core20
 type: base
 version: 5.0
 `, snap.R(3))
 	baseInSeed := filepath.Join(seedSnapsDirs, baseInfo.Filename())
 	err = os.Rename(baseFn, baseInSeed)
 	c.Assert(err, IsNil)
-	kernelFn, kernelInfo := s.makeSnapWithFiles(c, "pc-kernel", `name: pc-kernel
+	kernelFn, kernelInfo := makeSnapWithFiles(c, "pc-kernel", `name: pc-kernel
 type: kernel
 version: 5.0
 `, snap.R(5), [][]string{
@@ -247,7 +262,7 @@ version: 5.0
 	})
 }
 
-func (s *makeBootableSuite) TestMakeBootable20MultipleRecoverySystemsError(c *C) {
+func (s *makeBootable20Suite) TestMakeBootable20MultipleRecoverySystemsError(c *C) {
 	dirs.SetRootDir("")
 
 	model := makeMockUC20Model()
@@ -263,7 +278,7 @@ func (s *makeBootableSuite) TestMakeBootable20MultipleRecoverySystemsError(c *C)
 	c.Assert(err, ErrorMatches, "cannot make multiple recovery systems bootable yet")
 }
 
-func (s *makeBootableSuite) TestMakeBootable20RunMode(c *C) {
+func (s *makeBootable20Suite) TestMakeBootable20RunMode(c *C) {
 	dirs.SetRootDir("")
 	bootloader.Force(nil)
 
@@ -291,14 +306,14 @@ func (s *makeBootableSuite) TestMakeBootable20RunMode(c *C) {
 	err = ioutil.WriteFile(mockBootGrubCfg, nil, 0644)
 	c.Assert(err, IsNil)
 
-	baseFn, baseInfo := s.makeSnap(c, "core20", `name: core20
+	baseFn, baseInfo := makeSnap(c, "core20", `name: core20
 type: base
 version: 5.0
 `, snap.R(3))
 	baseInSeed := filepath.Join(seedSnapsDirs, baseInfo.Filename())
 	err = os.Rename(baseFn, baseInSeed)
 	c.Assert(err, IsNil)
-	kernelFn, kernelInfo := s.makeSnapWithFiles(c, "pc-kernel", `name: pc-kernel
+	kernelFn, kernelInfo := makeSnapWithFiles(c, "pc-kernel", `name: pc-kernel
 type: kernel
 version: 5.0
 `, snap.R(5),

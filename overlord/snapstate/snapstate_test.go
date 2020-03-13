@@ -114,8 +114,6 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	s.bl = bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(s.bl)
 	s.AddCleanup(func() { bootloader.Force(nil) })
-	s.bl.SetBootBase("base_6789.snap")
-	s.bl.SetBootKernel("kernel_6789.snap")
 
 	oldSetupInstallHook := snapstate.SetupInstallHook
 	oldSetupPreRefreshHook := snapstate.SetupPreRefreshHook

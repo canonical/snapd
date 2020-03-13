@@ -184,7 +184,7 @@ version: 1.0
 func (s *linkSuite) TestLinkSetNextBoot(c *C) {
 	coreDev := boottest.MockDevice("base")
 
-	bl := bootloadertest.Mock("mock", c.MkDir())
+	bl := boottest.MockUC16Bootenv(bootloadertest.Mock("mock", c.MkDir()))
 	bootloader.Force(bl)
 	defer bootloader.Force(nil)
 	bl.SetBootBase("base_1.snap")

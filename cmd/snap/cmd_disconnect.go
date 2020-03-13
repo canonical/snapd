@@ -30,6 +30,7 @@ import (
 
 type cmdDisconnect struct {
 	waitMixin
+	Forget      bool `long:"forget"`
 	Positionals struct {
 		Offer disconnectSlotOrPlugSpec `required:"true"`
 		Use   disconnectSlotSpec
@@ -49,12 +50,17 @@ $ snap disconnect <snap>:<slot or plug>
 
 Disconnects everything from the provided plug or slot.
 The snap name may be omitted for the core snap.
+
+When an automatic connection is manually disconnected, its disconnected state
+is retained after a snap refresh. The --forget flag can be added to the
+disconnect command to reset this behaviour, and consequently re-enable
+an automatic reconnection after a snap refresh.
 `)
 
 func init() {
 	addCommand("disconnect", shortDisconnectHelp, longDisconnectHelp, func() flags.Commander {
 		return &cmdDisconnect{}
-	}, waitDescs, []argDesc{
+	}, waitDescs.also(map[string]string{"forget": "Forget remembered state about the given connection."}), []argDesc{
 		// TRANSLATORS: This needs to begin with < and end with >
 		{name: i18n.G("<snap>:<plug>")},
 		// TRANSLATORS: This needs to begin with < and end with >
@@ -80,7 +86,8 @@ func (x *cmdDisconnect) Execute(args []string) error {
 		return fmt.Errorf("please provide the plug or slot name to disconnect from snap %q", use.Snap)
 	}
 
-	id, err := x.client.Disconnect(offer.Snap, offer.Name, use.Snap, use.Name)
+	opts := &client.DisconnectOptions{Forget: x.Forget}
+	id, err := x.client.Disconnect(offer.Snap, offer.Name, use.Snap, use.Name, opts)
 	if err != nil {
 		if client.IsInterfacesUnchangedError(err) {
 			fmt.Fprintf(Stdout, i18n.G("No connections to disconnect"))
