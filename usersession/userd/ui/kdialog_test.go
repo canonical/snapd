@@ -69,7 +69,7 @@ func (s *kdialogSuite) TestYesNoSimpleFooter(c *C) {
 }
 
 func (s *kdialogSuite) TestYesNoSimpleTimeout(c *C) {
-	mock := testutil.MockCommand(c, "kdialog", "sleep 9999999")
+	mock := testutil.MockCommand(c, "kdialog", "sleep 30")
 	defer mock.Restore()
 
 	z := &ui.KDialog{}

@@ -46,9 +46,15 @@ $ snap disconnect <snap>:<slot or plug>
 Disconnects everything from the provided plug or slot.
 The snap name may be omitted for the core snap.
 
+When an automatic connection is manually disconnected, its disconnected state
+is retained after a snap refresh. The --forget flag can be added to the
+disconnect command to reset this behaviour, and consequently re-enable
+an automatic reconnection after a snap refresh.
+
 [disconnect command options]
       --no-wait          Do not wait for the operation to finish but just print
                          the change id.
+      --forget           Forget remembered state about the given connection.
 `
 	s.testSubCommandHelp(c, "disconnect", msg)
 }
@@ -83,6 +89,43 @@ func (s *SnapSuite) TestDisconnectExplicitEverything(c *C) {
 		}
 	})
 	rest, err := Parser(Client()).ParseArgs([]string{"disconnect", "producer:plug", "consumer:slot"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	c.Assert(s.Stdout(), Equals, "")
+	c.Assert(s.Stderr(), Equals, "")
+}
+
+func (s *SnapSuite) TestDisconnectWithForgetFlag(c *C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v2/interfaces":
+			c.Check(r.Method, Equals, "POST")
+			c.Check(DecodedRequestBody(c, r), DeepEquals, map[string]interface{}{
+				"action": "disconnect",
+				"forget": true,
+				"plugs": []interface{}{
+					map[string]interface{}{
+						"snap": "consumer",
+						"plug": "plug",
+					},
+				},
+				"slots": []interface{}{
+					map[string]interface{}{
+						"snap": "producer",
+						"slot": "slot",
+					},
+				},
+			})
+			w.WriteHeader(202)
+			fmt.Fprintln(w, `{"type":"async", "status-code": 202, "change": "zzz"}`)
+		case "/v2/changes/zzz":
+			c.Check(r.Method, Equals, "GET")
+			fmt.Fprintln(w, `{"type":"sync", "result":{"ready": true, "status": "Done"}}`)
+		default:
+			c.Fatalf("unexpected path %q", r.URL.Path)
+		}
+	})
+	rest, err := Parser(Client()).ParseArgs([]string{"disconnect", "--forget", "consumer:plug", "producer:slot"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Assert(s.Stdout(), Equals, "")
