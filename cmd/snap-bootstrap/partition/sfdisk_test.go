@@ -48,6 +48,31 @@ echo '{
    }
 }'`
 
+const mockSfdiskScriptBiosAndRemovableRecovery = `
+if [ -f %[1]s/2 ]; then
+   rm %[1]s/[0-9]
+elif [ -f %[1]s/1 ]; then
+   touch %[1]s/2
+   exit 0
+else
+   PART=',{"node": "/dev/node2", "start": 4096, "size": 2457600, "type": "C12A7328-F81F-11D2-BA4B-00A0C93EC93B", "uuid": "44C3D5C3-CAE1-4306-83E8-DF437ACDB32F", "name": "Recovery", "attrs": "GUID:59"}'
+   touch %[1]s/1
+fi
+echo '{
+   "partitiontable": {
+      "label": "gpt",
+      "id": "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA",
+      "device": "/dev/node",
+      "unit": "sectors",
+      "firstlba": 34,
+      "lastlba": 8388574,
+      "partitions": [
+         {"node": "/dev/node1", "start": 2048, "size": 2048, "type": "21686148-6449-6E6F-744E-656564454649", "uuid": "2E59D969-52AB-430B-88AC-F83873519F6F", "name": "BIOS Boot"}
+         '"$PART
+      ]
+   }
+}"`
+
 const mockSfdiskScriptBios = `echo '{
     "partitiontable": {
         "label": "gpt",
@@ -333,6 +358,50 @@ func (s *partitionTestSuite) TestRemovePartitionsTrivial(c *C) {
 
 	err = dl.RemoveCreated()
 	c.Assert(err, IsNil)
+
+	c.Assert(cmdSfdisk.Calls(), DeepEquals, [][]string{
+		{"sfdisk", "--json", "-d", "/dev/node"},
+	})
+}
+
+func (s *partitionTestSuite) TestRemovePartitions(c *C) {
+	cmdSfdisk := testutil.MockCommand(c, "sfdisk", fmt.Sprintf(mockSfdiskScriptBiosAndRemovableRecovery, s.dir))
+	defer cmdSfdisk.Restore()
+
+	cmdLsblk := testutil.MockCommand(c, "lsblk", mockLsblkScriptBiosAndRecovery)
+	defer cmdLsblk.Restore()
+
+	cmdPartx := testutil.MockCommand(c, "partx", "")
+	defer cmdPartx.Restore()
+
+	dl, err := partition.DeviceLayoutFromDisk("/dev/node")
+	c.Assert(err, IsNil)
+
+	err = dl.RemoveCreated()
+	c.Assert(err, IsNil)
+
+	c.Assert(cmdSfdisk.Calls(), DeepEquals, [][]string{
+		{"sfdisk", "--json", "-d", "/dev/node"},
+		{"sfdisk", "--no-reread", "--delete", "/dev/node", "2"},
+		{"sfdisk", "--json", "-d", "/dev/node"},
+	})
+}
+
+func (s *partitionTestSuite) TestRemovePartitionsError(c *C) {
+	cmdSfdisk := testutil.MockCommand(c, "sfdisk", mockSfdiskScriptBiosAndRecovery)
+	defer cmdSfdisk.Restore()
+
+	cmdLsblk := testutil.MockCommand(c, "lsblk", mockLsblkScriptBiosAndRecovery)
+	defer cmdLsblk.Restore()
+
+	cmdPartx := testutil.MockCommand(c, "partx", "")
+	defer cmdPartx.Restore()
+
+	dl, err := partition.DeviceLayoutFromDisk("/dev/node")
+	c.Assert(err, IsNil)
+
+	err = dl.RemoveCreated()
+	c.Assert(err, ErrorMatches, "cannot remove partitions: /dev/node2")
 }
 
 func (s *partitionTestSuite) TestListCreatedPartitions(c *C) {
