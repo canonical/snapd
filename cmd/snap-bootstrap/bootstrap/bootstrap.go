@@ -31,6 +31,10 @@ const (
 	ubuntuDataLabel = "ubuntu-data"
 )
 
+var (
+	partitionListCreatedPartitions = partition.ListCreatedPartitions
+)
+
 type Options struct {
 	// Also mount the filesystems after creation
 	Mount bool
@@ -176,7 +180,7 @@ func ensureLayoutCompatibility(gadgetLayout *gadget.LaidOutVolume, diskLayout *p
 
 	// Check if all existing device partitions, except those that we added
 	// ourselves, are also in gadget
-	toRemove := partition.ListCreatedPartitions(diskLayout)
+	toRemove := partitionListCreatedPartitions(diskLayout)
 	for _, ds := range diskLayout.Structure {
 		if !strutil.ListContains(toRemove, ds.Node) && !contains(gadgetLayout.LaidOutStructure, ds) {
 			return fmt.Errorf("cannot find disk partition %s (starting at %d) in gadget", ds.Node, ds.StartOffset)

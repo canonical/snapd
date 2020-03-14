@@ -109,17 +109,8 @@ func DeviceLayoutFromDisk(device string) (*DeviceLayout, error) {
 }
 
 var (
-	ensureNodesExist      = ensureNodesExistImpl
-	ListCreatedPartitions = listCreatedPartitionsImpl
+	ensureNodesExist = ensureNodesExistImpl
 )
-
-func MockListCreatedPartitions(f func(dl *DeviceLayout) []string) (restore func()) {
-	old := ListCreatedPartitions
-	ListCreatedPartitions = f
-	return func() {
-		ListCreatedPartitions = old
-	}
-}
 
 // CreateMissing creates the partitions listed in the positioned volume pv
 // that are missing from the existing device layout.
@@ -341,7 +332,7 @@ func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume) (sfdiskInput
 
 // ListCreatedPartitions returns a list of partitions created during the
 // install process.
-func listCreatedPartitionsImpl(dl *DeviceLayout) []string {
+func ListCreatedPartitions(dl *DeviceLayout) []string {
 	parts := make([]string, 0, len(dl.partitionTable.Partitions))
 	for _, p := range dl.partitionTable.Partitions {
 		if p.Attrs != "" {

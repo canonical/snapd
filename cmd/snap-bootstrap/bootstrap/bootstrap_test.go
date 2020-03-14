@@ -114,7 +114,7 @@ var mockDeviceLayout = partition.DeviceLayout{
 }
 
 func (s *bootstrapSuite) TestLayoutCompatibility(c *C) {
-	restore := partition.MockListCreatedPartitions(func(dl *partition.DeviceLayout) []string {
+	restore := bootstrap.MockListCreatedPartitions(func(dl *partition.DeviceLayout) []string {
 		return []string{}
 	})
 	defer restore()
@@ -157,7 +157,7 @@ func (s *bootstrapSuite) TestLayoutCompatibility(c *C) {
 }
 
 func (s *bootstrapSuite) TestSchemaCompatibility(c *C) {
-	restore := partition.MockListCreatedPartitions(func(dl *partition.DeviceLayout) []string {
+	restore := bootstrap.MockListCreatedPartitions(func(dl *partition.DeviceLayout) []string {
 		return []string{"/dev/node3"}
 	})
 	defer restore()
@@ -200,7 +200,7 @@ func (s *bootstrapSuite) TestSchemaCompatibility(c *C) {
 }
 
 func (s *bootstrapSuite) TestIDCompatibility(c *C) {
-	restore := partition.MockListCreatedPartitions(func(dl *partition.DeviceLayout) []string {
+	restore := bootstrap.MockListCreatedPartitions(func(dl *partition.DeviceLayout) []string {
 		return []string{"/dev/node3"}
 	})
 	defer restore()

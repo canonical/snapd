@@ -18,7 +18,19 @@
  */
 package bootstrap
 
+import (
+	"github.com/snapcore/snapd/cmd/snap-bootstrap/partition"
+)
+
 var (
 	EnsureLayoutCompatibility = ensureLayoutCompatibility
 	DeviceFromRole            = deviceFromRole
 )
+
+func MockListCreatedPartitions(f func(dl *partition.DeviceLayout) []string) (restore func()) {
+	old := partitionListCreatedPartitions
+	partitionListCreatedPartitions = f
+	return func() {
+		partitionListCreatedPartitions = old
+	}
+}
