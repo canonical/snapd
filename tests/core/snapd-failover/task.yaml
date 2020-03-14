@@ -63,4 +63,6 @@ execute: |
         echo "restart snapd and ensure we can still talk to it"
         systemctl restart snapd.socket snapd.service
         snap list | MATCH "^snapd .* $current .*"
+
+        rm -rf ./snapd-broken
     done
