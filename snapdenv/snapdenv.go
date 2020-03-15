@@ -55,3 +55,21 @@ func MockTesting(testing bool) (restore func()) {
 		mockTesting = old
 	}
 }
+
+var mockUseStagingStore *bool
+
+// UseStagingStore returns whether snapd compontents should use the staging store.
+func UseStagingStore() bool {
+	if mockUseStagingStore != nil {
+		return *mockUseStagingStore
+	}
+	return osutil.GetenvBool("SNAPPY_USE_STAGING_STORE")
+}
+
+func MockUseStagingStore(testing bool) (restore func()) {
+	old := mockUseStagingStore
+	mockUseStagingStore = &testing
+	return func() {
+		mockUseStagingStore = old
+	}
+}

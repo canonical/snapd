@@ -70,3 +70,40 @@ func (s *snapdenvSuite) TestMockTesting(c *C) {
 	snapdenv.MockTesting(false)
 	c.Check(snapdenv.Testing(), Equals, false)
 }
+
+func (s *snapdenvSuite) TestUseStagingStore(c *C) {
+	oldUseStagingStore := os.Getenv("SNAPPY_USE_STAGING_STORE")
+	defer func() {
+		if oldUseStagingStore == "" {
+			os.Unsetenv("SNAPPY_USE_STAGING_STORE")
+		} else {
+			os.Setenv("SNAPPY_USE_STAGING_STORE", oldUseStagingStore)
+		}
+	}()
+
+	os.Setenv("SNAPPY_USE_STAGING_STORE", "1")
+	c.Check(snapdenv.UseStagingStore(), Equals, true)
+
+	os.Unsetenv("SNAPPY_USE_STAGING_STORE")
+	c.Check(snapdenv.UseStagingStore(), Equals, false)
+}
+
+func (s *snapdenvSuite) TestMockUseStagingStore(c *C) {
+	oldUseStagingStore := os.Getenv("SNAPPY_USE_STAGING_STORE")
+	defer func() {
+		if oldUseStagingStore == "" {
+			os.Unsetenv("SNAPPY_USE_STAGING_STORE")
+		} else {
+			os.Setenv("SNAPPY_USE_STAGING_STORE", oldUseStagingStore)
+		}
+	}()
+	os.Unsetenv("SNAPPY_USE_STAGING_STORE")
+
+	r := snapdenv.MockUseStagingStore(true)
+	defer r()
+
+	c.Check(snapdenv.UseStagingStore(), Equals, true)
+
+	snapdenv.MockUseStagingStore(false)
+	c.Check(snapdenv.UseStagingStore(), Equals, false)
+}

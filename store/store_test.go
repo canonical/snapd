@@ -3458,33 +3458,30 @@ func (s *storeTestSuite) TestFindClientUserAgent(c *C) {
 }
 
 func (s *storeTestSuite) TestAuthLocationDependsOnEnviron(c *C) {
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", ""), IsNil)
+	defer snapdenv.MockUseStagingStore(false)()
 	before := store.AuthLocation()
 
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", "1"), IsNil)
-	defer os.Setenv("SNAPPY_USE_STAGING_STORE", "")
+	snapdenv.MockUseStagingStore(true)
 	after := store.AuthLocation()
 
 	c.Check(before, Not(Equals), after)
 }
 
 func (s *storeTestSuite) TestAuthURLDependsOnEnviron(c *C) {
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", ""), IsNil)
+	defer snapdenv.MockUseStagingStore(false)()
 	before := store.AuthURL()
 
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", "1"), IsNil)
-	defer os.Setenv("SNAPPY_USE_STAGING_STORE", "")
+	snapdenv.MockUseStagingStore(true)
 	after := store.AuthURL()
 
 	c.Check(before, Not(Equals), after)
 }
 
 func (s *storeTestSuite) TestApiURLDependsOnEnviron(c *C) {
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", ""), IsNil)
+	defer snapdenv.MockUseStagingStore(false)()
 	before := store.ApiURL()
 
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", "1"), IsNil)
-	defer os.Setenv("SNAPPY_USE_STAGING_STORE", "")
+	snapdenv.MockUseStagingStore(true)
 	after := store.ApiURL()
 
 	c.Check(before, Not(Equals), after)
@@ -3532,11 +3529,10 @@ func (s *storeTestSuite) TestStoreURLBadEnvironCPI(c *C) {
 }
 
 func (s *storeTestSuite) TestStoreDeveloperURLDependsOnEnviron(c *C) {
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", ""), IsNil)
+	defer snapdenv.MockUseStagingStore(false)()
 	before := store.StoreDeveloperURL()
 
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", "1"), IsNil)
-	defer os.Setenv("SNAPPY_USE_STAGING_STORE", "")
+	snapdenv.MockUseStagingStore(true)
 	after := store.StoreDeveloperURL()
 
 	c.Check(before, Not(Equals), after)

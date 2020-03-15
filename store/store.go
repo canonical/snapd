@@ -207,10 +207,6 @@ func useDeltas() bool {
 	return osutil.GetenvBool("SNAPD_USE_DELTAS_EXPERIMENTAL", true)
 }
 
-func useStaging() bool {
-	return osutil.GetenvBool("SNAPPY_USE_STAGING_STORE")
-}
-
 // endpointURL clones a base URL and updates it with optional path and query.
 func endpointURL(base *url.URL, path string, query url.Values) *url.URL {
 	u := *base
@@ -227,7 +223,7 @@ func endpointURL(base *url.URL, path string, query url.Values) *url.URL {
 // apiURL returns the system default base API URL.
 func apiURL() *url.URL {
 	s := "https://api.snapcraft.io/"
-	if useStaging() {
+	if snapdenv.UseStagingStore() {
 		s = "https://api.staging.snapcraft.io/"
 	}
 	u, _ := url.Parse(s)
@@ -274,7 +270,7 @@ func assertsURL() (*url.URL, error) {
 }
 
 func authLocation() string {
-	if useStaging() {
+	if snapdenv.UseStagingStore() {
 		return "login.staging.ubuntu.com"
 	}
 	return "login.ubuntu.com"
@@ -290,7 +286,7 @@ func authURL() string {
 var defaultStoreDeveloperURL = "https://dashboard.snapcraft.io/"
 
 func storeDeveloperURL() string {
-	if useStaging() {
+	if snapdenv.UseStagingStore() {
 		return "https://dashboard.staging.snapcraft.io/"
 	}
 	return defaultStoreDeveloperURL

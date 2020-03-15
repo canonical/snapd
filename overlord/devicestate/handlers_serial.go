@@ -36,7 +36,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -47,12 +46,8 @@ import (
 	"github.com/snapcore/snapd/timings"
 )
 
-func useStaging() bool {
-	return osutil.GetenvBool("SNAPPY_USE_STAGING_STORE")
-}
-
 func baseURL() *url.URL {
-	if useStaging() {
+	if snapdenv.UseStagingStore() {
 		return mustParse("https://api.staging.snapcraft.io/")
 	}
 	return mustParse("https://api.snapcraft.io/")
