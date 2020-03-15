@@ -49,7 +49,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -58,6 +57,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -1247,7 +1247,7 @@ func (s *storeTestSuite) TestApplyDelta(c *C) {
 }
 
 var (
-	userAgent = httputil.UserAgent()
+	userAgent = snapdenv.UserAgent()
 )
 
 func (s *storeTestSuite) TestDoRequestSetsAuth(c *C) {
