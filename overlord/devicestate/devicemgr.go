@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -83,8 +84,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		keypairMgr: keypairMgr,
 		newStore:   newStore,
 		reg:        make(chan struct{}),
-		// TODO: handle here via devicestate, similar to DeviceContext.
-		preseed: release.PreseedMode(),
+		preseed:    snapdenv.Preseeding(),
 	}
 
 	modeEnv, err := boot.ReadModeenv("")
