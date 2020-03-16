@@ -21,6 +21,8 @@ package client
 
 import (
 	"golang.org/x/xerrors"
+
+	"github.com/snapcore/snapd/snap"
 )
 
 // SystemModelData contains information about the model
@@ -34,15 +36,6 @@ type SystemModelData struct {
 	DisplayName string `json:"display-name,omitempty"`
 }
 
-// SystemBrandData contains information about the model's brand
-type SystemBrandData struct {
-	// BrandID if the model publisher
-	BrandID string `json:"brand-id,omitempty"`
-	// Brand name, corresponds to display-name of account with given brand-id
-	Brand string `json:"brand,omitempty"`
-	// XXX: include validation status?
-}
-
 type System struct {
 	// Current is true when the system running now was installed from that
 	// recovery seed
@@ -52,7 +45,7 @@ type System struct {
 	// Model information
 	Model SystemModelData `json:"model,omitempty"`
 	// Brand information
-	Brand SystemBrandData `json:"brand,omitempty"`
+	Brand snap.StoreAccount `json:"brand,omitempty"`
 	// Actions available for this system
 	Actions []SystemAction `json:"actions,omitempty"`
 }

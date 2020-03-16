@@ -23,6 +23,7 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/snap"
 )
 
 func (cs *clientSuite) TestListSystemsSome(c *check.C) {
@@ -40,8 +41,9 @@ func (cs *clientSuite) TestListSystemsSome(c *check.C) {
 	                    "display-name": "wonky model"
 	                },
 	                "brand": {
-	                    "brand-id": "brand-id-1",
-	                    "brand": "wonky publishing"
+	                    "id": "brand-id-1",
+	                    "username": "brand",
+	                    "display-name": "wonky publishing"
 	                },
 	                "actions": [
 	                    {"id": "action-1", "title": "recover", "mode": "run"},
@@ -55,8 +57,9 @@ func (cs *clientSuite) TestListSystemsSome(c *check.C) {
 	                    "display-name": "bulky model"
 	                },
 	                "brand": {
-	                    "brand-id": "bulky-brand-id-1",
-	                    "brand": "bulky publishing"
+	                    "id": "bulky-brand-id-1",
+	                    "username": "bulky-brand",
+	                    "display-name": "bulky publishing"
 	                },
 	                "actions": [
 	                    {"id": "action-1", "title": "factory-reset", "mode": "run"}
@@ -78,9 +81,10 @@ func (cs *clientSuite) TestListSystemsSome(c *check.C) {
 				BrandID:     "brand-id-1",
 				DisplayName: "wonky model",
 			},
-			Brand: client.SystemBrandData{
-				BrandID: "brand-id-1",
-				Brand:   "wonky publishing",
+			Brand: snap.StoreAccount{
+				ID:          "brand-id-1",
+				Username:    "brand",
+				DisplayName: "wonky publishing",
 			},
 			Actions: []client.SystemAction{
 				{ID: "action-1", Title: "recover", Mode: "run"},
@@ -93,9 +97,10 @@ func (cs *clientSuite) TestListSystemsSome(c *check.C) {
 				BrandID:     "bulky-brand-id-1",
 				DisplayName: "bulky model",
 			},
-			Brand: client.SystemBrandData{
-				BrandID: "bulky-brand-id-1",
-				Brand:   "bulky publishing",
+			Brand: snap.StoreAccount{
+				ID:          "bulky-brand-id-1",
+				Username:    "bulky-brand",
+				DisplayName: "bulky publishing",
 			},
 			Actions: []client.SystemAction{
 				{ID: "action-1", Title: "factory-reset", Mode: "run"},
