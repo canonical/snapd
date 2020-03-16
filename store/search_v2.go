@@ -23,7 +23,21 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-func infoFromStoreSearchResult(si *storeFindInfo) (*snap.Info, error) {
+// storeSearchChannelSnap is the snap revision plus a channel name
+type storeSearchChannelSnap struct {
+	storeSnap
+	Channel string `json:"channel"`
+}
+
+// storeSearchResult is the result of v2/search calls
+type storeSearchResult struct {
+	Revision storeSearchChannelSnap `json:"revision"`
+	Snap     storeSnap              `json:"snap"`
+	Name     string                 `json:"name"`
+	SnapID   string                 `json:"snap-id"`
+}
+
+func infoFromStoreSearchResult(si *storeSearchResult) (*snap.Info, error) {
 	thisSnap := si.Snap
 
 	copyNonZeroFrom(&si.Snap, &thisSnap)
@@ -38,18 +52,4 @@ func infoFromStoreSearchResult(si *storeFindInfo) (*snap.Info, error) {
 	info.RealName = si.Name
 	info.Channel = si.Revision.Channel
 	return info, nil
-}
-
-// storeSearchChannelSnap is the snap plus a channel name
-type storeSearchChannelSnap struct {
-	storeSnap
-	Channel string `json:"channel"`
-}
-
-// storeFindInfo is the result of v2/search calls
-type storeFindInfo struct {
-	Revision storeSearchChannelSnap `json:"revision"`
-	Snap     storeSnap              `json:"snap"`
-	Name     string                 `json:"name"`
-	SnapID   string                 `json:"snap-id"`
 }

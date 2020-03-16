@@ -322,7 +322,7 @@ func init() {
 }
 
 type searchV2Results struct {
-	Results   []*storeFindInfo `json:"results"`
+	Results   []*storeSearchResult `json:"results"`
 	ErrorList []struct {
 		Code    string `json:"code"`
 		Message string `json:"message"`
@@ -1239,6 +1239,7 @@ func (s *Store) Find(ctx context.Context, search *Search, user *auth.UserState) 
 	reqOptions := &requestOptions{
 		Method:   "GET",
 		URL:      u,
+		Accept:   jsonContentType,
 		APILevel: apiV2Endps,
 	}
 
@@ -1280,10 +1281,6 @@ func (s *Store) Find(ctx context.Context, search *Search, user *auth.UserState) 
 }
 
 func (s *Store) findV1(ctx context.Context, search *Search, user *auth.UserState) ([]*snap.Info, error) {
-	if search.Private && user == nil {
-		return nil, ErrUnauthenticated
-	}
-
 	// search.Query is already verified for illegal characters by Find()
 	searchTerm := strings.TrimSpace(search.Query)
 	q := s.defaultSnapQuery()
