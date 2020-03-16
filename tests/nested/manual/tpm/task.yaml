@@ -23,7 +23,7 @@ execute: |
 
     # Check tpm status on the nested vm   
     if is_core_20_nested_system; then
-        execute_remote "mokutil --sb-state" | MATCH "SecureBoot enabled"
+        execute_remote "test -e /sys/kernel/security/tpm0/binary_bios_measurements"
     else        
         execute_remote "dmesg | grep -i tpm" | MATCH "No TPM chip found"
     fi
