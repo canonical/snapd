@@ -40,6 +40,8 @@ execute: |
         systemctl status snapd|MATCH "/snap/snapd/x2/usr/lib/snapd/snapd"
 
         # RESTORE CODE
+        # TODO: move this to restore section when spread is fixed
+        # see https://github.com/snapcore/spread/pull/85
         # we cannot restore in "restore:" because we need a reboot
         # right now to get a clean state again
         systemctl stop snapd.service snapd.socket snapd.autoimport.service snapd.snap-repair.service snapd.snap-repair.timer

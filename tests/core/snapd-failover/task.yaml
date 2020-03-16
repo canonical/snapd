@@ -133,6 +133,8 @@ execute: |
         # we cannot undo the core -> snapd installation we did in the prepare 
         # section during restore, because we can't reboot during restore, so instead
         # do that restoration here
+        # TODO: move this to restore section when spread is fixed
+        # see https://github.com/snapcore/spread/pull/85
         if is_core16_system; then
             echo "Manually uninstall the snapd snap on UC16"
             systemctl stop snapd.service snapd.socket snapd.autoimport.service snapd.snap-repair.service snapd.snap-repair.timer
@@ -152,12 +154,14 @@ execute: |
             echo "Reboot to get a clean system again"
             REBOOT
         fi
-    else
+    else # "$SPREAD_REBOOT" != 0
         # technically this check is unnecessary because we only reboot during
         # the test's execution on uc16, but just be extra safe
         if is_core16_system; then
             # now remove the snapd snap since we booted with the core snap
             snap list
+            # this only succeeds because we reverted back to having the core 
+            # snap on UC16, and the snapd snap is in a broken state
             snap remove snapd
             # and we can still run the rsync snap after the reboot
             rsync --help
