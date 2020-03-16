@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"github.com/jessevdk/go-flags"
@@ -30,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
@@ -199,18 +201,22 @@ func generateMountsModeRun() error {
 		}
 	}
 
-	// TODO:UC20: possibly will need to unseal key, and unlock LUKS here before
-	//            proceeding to mount data
-
 	// 1.2 mount Data, and exit, as it needs to be mounted for us to do step 2
 	isDataMounted, err := osutilIsMounted(dataDir)
 	if err != nil {
 		return err
 	}
 	if !isDataMounted {
-		fmt.Fprintf(stdout, "/dev/disk/by-label/%s %s\n", filepath.Base(dataDir), dataDir)
+		name := filepath.Base(dataDir)
+		device, err := unlockIfEncrypted(name)
+		if err != nil {
+			return err
+		}
+
+		fmt.Fprintf(stdout, "%s %s\n", device, dataDir)
 		return nil
 	}
+
 	// 2.1 read modeenv
 	modeEnv, err := boot.ReadModeenv(filepath.Join(dataDir, "system-data"))
 	if err != nil {
@@ -230,7 +236,7 @@ func generateMountsModeRun() error {
 			// we have no fallback base!
 			return fmt.Errorf("modeenv corrupt: missing base setting")
 		}
-		if modeEnv.BaseStatus == "try" {
+		if modeEnv.BaseStatus == boot.TryStatus {
 			// then we are trying a base snap update and there should be a
 			// try_base set in the modeenv too
 			if modeEnv.TryBase != "" {
@@ -239,17 +245,21 @@ func generateMountsModeRun() error {
 				if osutil.FileExists(tryBaseSnapPath) {
 					// set the TryBase and have the initramfs mount this base
 					// snap
-					modeEnv.BaseStatus = "trying"
+					modeEnv.BaseStatus = boot.TryingStatus
 					base = modeEnv.TryBase
+				} else {
+					logger.Noticef("try-base snap %q does not exist", modeEnv.TryBase)
 				}
-				// TODO:UC20: log a message somewhere if try base snap does not
-				//            exist?
+			} else {
+				logger.Noticef("try-base snap is empty, but \"base_status\" is \"trying\"")
 			}
 			// TODO:UC20: log a message if try_base is unset here?
-		} else if modeEnv.BaseStatus == "trying" {
+		} else if modeEnv.BaseStatus == boot.TryingStatus {
 			// snapd failed to start with the base snap update, so we need to
 			// fallback to the old base snap and clear base_status
-			modeEnv.BaseStatus = ""
+			modeEnv.BaseStatus = boot.DefaultStatus
+		} else if modeEnv.BaseStatus != boot.DefaultStatus {
+			logger.Noticef("\"base_status\" has an invalid setting: %q", modeEnv.BaseStatus)
 		}
 
 		baseSnapPath := filepath.Join(dataDir, "system-data", dirs.SnapBlobDir, base)
@@ -308,17 +318,18 @@ func generateMountsModeRun() error {
 			return fmt.Errorf("cannot get kernel_status from bootloader %s", ebl.Name())
 		}
 
-		if m["kernel_status"] == "trying" {
+		if m["kernel_status"] == boot.TryingStatus {
 			// check for the try kernel
-			tryKernel, tryKernelExists, err := ebl.TryKernel()
-			// TODO:UC20: can we log somewhere if err != nil here?
-			if err == nil && tryKernelExists {
-				// TODO:UC20: can we log somewhere if this kernel snap isn't in the
-				//            list of trusted kernel snaps?
+			tryKernel, err := ebl.TryKernel()
+			if err == nil {
 				tryKernelFile := tryKernel.Filename()
 				if validKernels[tryKernelFile] {
 					kernelFile = tryKernelFile
+				} else {
+					logger.Noticef("try-kernel %q is not trusted in the modeenv", tryKernelFile)
 				}
+			} else if err != bootloader.ErrNoTryKernelRef {
+				logger.Noticef("missing try-kernel, even though \"kernel_status\" is \"trying\"")
 			}
 			// if we didn't have a try kernel, but we do have kernel_status ==
 			// trying we just fallback to using the normal kernel
@@ -368,4 +379,23 @@ func generateInitramfsMounts() error {
 	}
 	// this should never be reached
 	return fmt.Errorf("internal error: mode in generateInitramfsMounts not handled")
+}
+
+func unlockIfEncrypted(name string) (string, error) {
+	// TODO:UC20: will need to unseal key to unlock LUKS here
+	device := filepath.Join("/dev/disk/by-label", name)
+	keyfile := filepath.Join(dirs.RunMnt, "ubuntu-boot", name+".keyfile.unsealed")
+	if osutil.FileExists(keyfile) {
+		// TODO:UC20: snap-bootstrap should validate that <name>-enc is what
+		//            we expect (and not e.g. an external disk), and also that
+		//            <name> is from <name>-enc and not an unencrypted partition
+		//            with the same name (LP #1863886)
+		cmd := exec.Command("/usr/lib/systemd/systemd-cryptsetup", "attach", name, device+"-enc", keyfile)
+		cmd.Env = os.Environ()
+		cmd.Env = append(cmd.Env, "SYSTEMD_LOG_TARGET=console")
+		if output, err := cmd.CombinedOutput(); err != nil {
+			return "", osutil.OutputErr(output, err)
+		}
+	}
+	return device, nil
 }

@@ -62,6 +62,9 @@ type TaskRunner struct {
 	blocked     []blockedFunc
 	someBlocked bool
 
+	// optional callback executed on task errors
+	taskErrorCallback func(err error)
+
 	// go-routines lifecycle
 	tombs map[string]*tomb.Tomb
 }
@@ -83,6 +86,11 @@ func NewTaskRunner(s *State) *TaskRunner {
 		cleanups: make(map[string]HandlerFunc),
 		tombs:    make(map[string]*tomb.Tomb),
 	}
+}
+
+// OnTaskError sets an error callback executed when any task errors out.
+func (r *TaskRunner) OnTaskError(f func(err error)) {
+	r.taskErrorCallback = f
 }
 
 // AddHandler registers the functions to concurrently call for doing and
@@ -259,6 +267,9 @@ func (r *TaskRunner) run(t *Task) {
 			r.abortLanes(t.Change(), t.Lanes())
 			t.SetStatus(ErrorStatus)
 			t.Errorf("%s", err)
+			if r.taskErrorCallback != nil {
+				r.taskErrorCallback(err)
+			}
 		}
 
 		return nil

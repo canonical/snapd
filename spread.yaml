@@ -100,7 +100,6 @@ backends:
                 workers: 6
                 manual: true
             - arch-linux-64:
-                manual: true
                 workers: 6
 
             - amazon-linux-2-64:
@@ -124,7 +123,9 @@ backends:
                 workers: 6
             - opensuse-tumbleweed-64:
                 workers: 6
-
+            - centos-8-64:
+                workers: 4
+                image: centos-8-64
 
     google-tpm:
         type: google
@@ -586,6 +587,11 @@ prepare: |
         apt-get update && apt-get install -y eatmydata
     fi
 
+    if [[ "$SPREAD_SYSTEM" == centos-* ]]; then
+        # make sure EPEL is enabled
+        yum install -y epel-release
+    fi
+
     # Unpack delta, or move content out of the prefixed directory (see rename and repack above).
     # (needs to be in spread.yaml directly because there's nothing else on the filesystem yet)
     if [ -f current.delta ]; then
@@ -597,11 +603,11 @@ prepare: |
                 apt-get update >& "$tf" || ( cat "$tf"; exit 1 )
                 apt-get install -y xdelta3 curl eatmydata >& "$tf" || ( cat "$tf"; exit 1 )
                 ;;
-            fedora-*)
-                dnf install --refresh -y xdelta curl &> "$tf" || (cat "$tf"; exit 1)
-                ;;
-            amazon-*|centos-*)
+            amazon-*|centos-7-*)
                 yum install -y xdelta curl &> "$tf" || (cat "$tf"; exit 1)
+                ;;
+            fedora-*|centos-*)
+                dnf install --refresh -y xdelta curl &> "$tf" || (cat "$tf"; exit 1)
                 ;;
             opensuse-*)
                 zypper -q --gpg-auto-import-keys refresh
