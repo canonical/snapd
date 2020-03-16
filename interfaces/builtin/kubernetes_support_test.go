@@ -34,17 +34,19 @@ import (
 )
 
 type KubernetesSupportInterfaceSuite struct {
-	iface             interfaces.Interface
-	slotInfo          *snap.SlotInfo
-	slot              *interfaces.ConnectedSlot
-	plugInfo          *snap.PlugInfo
-	plug              *interfaces.ConnectedPlug
-	plugKubeletInfo   *snap.PlugInfo
-	plugKubelet       *interfaces.ConnectedPlug
-	plugKubeproxyInfo *snap.PlugInfo
-	plugKubeproxy     *interfaces.ConnectedPlug
-	plugBadInfo       *snap.PlugInfo
-	plugBad           *interfaces.ConnectedPlug
+	iface                interfaces.Interface
+	slotInfo             *snap.SlotInfo
+	slot                 *interfaces.ConnectedSlot
+	plugInfo             *snap.PlugInfo
+	plug                 *interfaces.ConnectedPlug
+	plugKubeletInfo      *snap.PlugInfo
+	plugKubelet          *interfaces.ConnectedPlug
+	plugKubeproxyInfo    *snap.PlugInfo
+	plugKubeproxy        *interfaces.ConnectedPlug
+	plugKubeAutobindInfo *snap.PlugInfo
+	plugKubeAutobind     *interfaces.ConnectedPlug
+	plugBadInfo          *snap.PlugInfo
+	plugBad              *interfaces.ConnectedPlug
 }
 
 const k8sMockPlugSnapInfoYaml = `name: kubernetes-support
@@ -58,6 +60,9 @@ plugs:
   k8s-kubeproxy:
     interface: kubernetes-support
     flavor: kubeproxy
+  k8s-autobind-unix:
+    interface: kubernetes-support
+    flavor: autobind-unix
   k8s-bad:
     interface: kubernetes-support
     flavor: bad
@@ -68,6 +73,8 @@ apps:
   plugs: [k8s-kubelet]
  kubeproxy:
   plugs: [k8s-kubeproxy]
+ kube-autobind-unix:
+  plugs: [k8s-autobind-unix]
 `
 
 var _ = Suite(&KubernetesSupportInterfaceSuite{
@@ -92,6 +99,9 @@ func (s *KubernetesSupportInterfaceSuite) SetUpTest(c *C) {
 	s.plugKubeproxyInfo = plugSnap.Plugs["k8s-kubeproxy"]
 	s.plugKubeproxy = interfaces.NewConnectedPlug(s.plugKubeproxyInfo, nil, nil)
 
+	s.plugKubeAutobindInfo = plugSnap.Plugs["k8s-autobind-unix"]
+	s.plugKubeAutobind = interfaces.NewConnectedPlug(s.plugKubeAutobindInfo, nil, nil)
+
 	s.plugBadInfo = plugSnap.Plugs["k8s-bad"]
 	s.plugBad = interfaces.NewConnectedPlug(s.plugBadInfo, nil, nil)
 }
@@ -108,7 +118,7 @@ func (s *KubernetesSupportInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugKubeletInfo), IsNil)
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugKubeproxyInfo), IsNil)
-	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugBadInfo), ErrorMatches, `kubernetes-support plug requires "flavor" to be either "kubelet" or "kubeproxy"`)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugBadInfo), ErrorMatches, `kubernetes-support plug requires "flavor" to be either "kubelet", "kubeproxy" or "autobind-unix"`)
 }
 
 func (s *KubernetesSupportInterfaceSuite) TestKModConnectedPlug(c *C) {
@@ -146,7 +156,7 @@ func (s *KubernetesSupportInterfaceSuite) TestKModConnectedPlug(c *C) {
 }
 
 func (s *KubernetesSupportInterfaceSuite) TestAppArmorConnectedPlug(c *C) {
-	// default should have kubeproxy and kubelet rules
+	// default should have kubeproxy, kubelet and autobind rules
 	spec := &apparmor.Specification{}
 	err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
@@ -156,9 +166,10 @@ func (s *KubernetesSupportInterfaceSuite) TestAppArmorConnectedPlug(c *C) {
 	c.Check(spec.SnippetForTag("snap.kubernetes-support.default"), testutil.Contains, "# Allow running as the kubeproxy service\n")
 	c.Check(spec.SnippetForTag("snap.kubernetes-support.default"), testutil.Contains, "# Common rules for kubernetes use of systemd_run\n")
 	c.Check(spec.SnippetForTag("snap.kubernetes-support.default"), testutil.Contains, "# kubelet mount rules\n")
+	c.Check(spec.SnippetForTag("snap.kubernetes-support.default"), testutil.Contains, "# Allow using the 'autobind' feature of bind() (eg, for journald).\n")
 	c.Check(spec.UsesPtraceTrace(), Equals, true)
 
-	// kubeproxy should have only its rules
+	// kubeproxy should have its rules and autobind rules
 	spec = &apparmor.Specification{}
 	err = spec.AddConnectedPlug(s.iface, s.plugKubeproxy, s.slot)
 	c.Assert(err, IsNil)
@@ -168,9 +179,10 @@ func (s *KubernetesSupportInterfaceSuite) TestAppArmorConnectedPlug(c *C) {
 	c.Check(spec.SnippetForTag("snap.kubernetes-support.kubeproxy"), Not(testutil.Contains), "# Allow running as the kubelet service\n")
 	c.Check(spec.SnippetForTag("snap.kubernetes-support.kubeproxy"), testutil.Contains, "# Common rules for kubernetes use of systemd_run\n")
 	c.Check(spec.SnippetForTag("snap.kubernetes-support.kubeproxy"), Not(testutil.Contains), "# kubelet mount rules\n")
+	c.Check(spec.SnippetForTag("snap.kubernetes-support.kubeproxy"), testutil.Contains, "# Allow using the 'autobind' feature of bind() (eg, for journald).\n")
 	c.Check(spec.UsesPtraceTrace(), Equals, false)
 
-	// kubelet should have only its rules
+	// kubelet should have its rules and autobind rules
 	spec = &apparmor.Specification{}
 	err = spec.AddConnectedPlug(s.iface, s.plugKubelet, s.slot)
 	c.Assert(err, IsNil)
@@ -180,7 +192,21 @@ func (s *KubernetesSupportInterfaceSuite) TestAppArmorConnectedPlug(c *C) {
 	c.Check(spec.SnippetForTag("snap.kubernetes-support.kubelet"), Not(testutil.Contains), "# Allow running as the kubeproxy service\n")
 	c.Check(spec.SnippetForTag("snap.kubernetes-support.kubelet"), testutil.Contains, "# Common rules for kubernetes use of systemd_run\n")
 	c.Check(spec.SnippetForTag("snap.kubernetes-support.kubelet"), testutil.Contains, "# kubelet mount rules\n")
+	c.Check(spec.SnippetForTag("snap.kubernetes-support.kubelet"), testutil.Contains, "# Allow using the 'autobind' feature of bind() (eg, for journald).\n")
 	c.Check(spec.UsesPtraceTrace(), Equals, true)
+
+	// kube-autobind-unix should have only its autobind rules
+	spec = &apparmor.Specification{}
+	err = spec.AddConnectedPlug(s.iface, s.plugKubeAutobind, s.slot)
+	c.Assert(err, IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.kubernetes-support.kube-autobind-unix"})
+	c.Check(spec.SnippetForTag("snap.kubernetes-support.kube-autobind-unix"), Not(testutil.Contains), "# Common rules for running as a kubernetes node\n")
+	c.Check(spec.SnippetForTag("snap.kubernetes-support.kube-autobind-unix"), Not(testutil.Contains), "# Allow running as the kubelet service\n")
+	c.Check(spec.SnippetForTag("snap.kubernetes-support.kube-autobind-unix"), Not(testutil.Contains), "# Allow running as the kubeproxy service\n")
+	c.Check(spec.SnippetForTag("snap.kubernetes-support.kube-autobind-unix"), Not(testutil.Contains), "# Common rules for kubernetes use of systemd_run\n")
+	c.Check(spec.SnippetForTag("snap.kubernetes-support.kube-autobind-unix"), Not(testutil.Contains), "# kubelet mount rules\n")
+	c.Check(spec.SnippetForTag("snap.kubernetes-support.kube-autobind-unix"), testutil.Contains, "# Allow using the 'autobind' feature of bind() (eg, for journald).\n")
+	c.Check(spec.UsesPtraceTrace(), Equals, false)
 }
 
 func (s *KubernetesSupportInterfaceSuite) TestSecCompConnectedPlug(c *C) {
@@ -190,19 +216,31 @@ func (s *KubernetesSupportInterfaceSuite) TestSecCompConnectedPlug(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.kubernetes-support.default"})
 	c.Check(spec.SnippetForTag("snap.kubernetes-support.default"), testutil.Contains, "# Allow running as the kubelet service\n")
+	c.Check(spec.SnippetForTag("snap.kubernetes-support.default"), testutil.Contains, "# Allow using the 'autobind' feature of bind() (eg, for journald).\n")
 
-	// kubeproxy should not have any rules
+	// kubeproxy should have the autobind rules
 	spec = &seccomp.Specification{}
 	err = spec.AddConnectedPlug(s.iface, s.plugKubeproxy, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(spec.SecurityTags(), HasLen, 0)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.kubernetes-support.kubeproxy"})
+	c.Check(spec.SnippetForTag("snap.kubernetes-support.kubeproxy"), Not(testutil.Contains), "# Allow running as the kubelet service\n")
+	c.Check(spec.SnippetForTag("snap.kubernetes-support.kubeproxy"), testutil.Contains, "# Allow using the 'autobind' feature of bind() (eg, for journald).\n")
 
-	// kubelet should have only its rules
+	// kubelet should have its rules and the autobind rules
 	spec = &seccomp.Specification{}
 	err = spec.AddConnectedPlug(s.iface, s.plugKubelet, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.kubernetes-support.kubelet"})
 	c.Check(spec.SnippetForTag("snap.kubernetes-support.kubelet"), testutil.Contains, "# Allow running as the kubelet service\n")
+	c.Check(spec.SnippetForTag("snap.kubernetes-support.kubelet"), testutil.Contains, "# Allow using the 'autobind' feature of bind() (eg, for journald).\n")
+
+	// kube-autobind-unix should have the autobind rules
+	spec = &seccomp.Specification{}
+	err = spec.AddConnectedPlug(s.iface, s.plugKubeAutobind, s.slot)
+	c.Assert(err, IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.kubernetes-support.kube-autobind-unix"})
+	c.Check(spec.SnippetForTag("snap.kubernetes-support.kube-autobind-unix"), Not(testutil.Contains), "# Allow running as the kubelet service\n")
+	c.Check(spec.SnippetForTag("snap.kubernetes-support.kube-autobind-unix"), testutil.Contains, "# Allow using the 'autobind' feature of bind() (eg, for journald).\n")
 }
 
 func (s *KubernetesSupportInterfaceSuite) TestUDevConnectedPlug(c *C) {
