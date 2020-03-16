@@ -55,6 +55,10 @@ func checkChroot(preseedChroot string) error {
 		return fmt.Errorf("cannot verify %q: is not a directory", preseedChroot)
 	}
 
+	if osutil.FileExists(filepath.Join(preseedChroot, dirs.SnapStateFile)) {
+		return fmt.Errorf("the system at %q appears to be preseeded, pass --reset flag to clean it up", preseedChroot)
+	}
+
 	// sanity checks of the critical mountpoints inside chroot directory
 	for _, p := range []string{"/sys/kernel/security/apparmor", "/proc/self", "/dev/mem"} {
 		path := filepath.Join(preseedChroot, p)
