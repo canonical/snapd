@@ -46,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -127,7 +128,7 @@ func parseAuthFile(authFn string, data []byte) (*authData, error) {
 }
 
 func snapcraftLoginSection() string {
-	if osutil.GetenvBool("SNAPPY_USE_STAGING_STORE") {
+	if snapdenv.UseStagingStore() {
 		return "login.staging.ubuntu.com"
 	}
 	return "login.ubuntu.com"

@@ -17,8 +17,17 @@
  *
  */
 
-package httputil
+package snapdenv
 
 var (
-	GetFlags = (*LoggedTransport).getFlags
+	StripUnsafeRunes      = stripUnsafeRunes
+	SanitizeKernelVersion = sanitizeKernelVersion
 )
+
+func MockUserAgent(mock string) (restore func()) {
+	old := userAgent
+	userAgent = mock
+	return func() {
+		userAgent = old
+	}
+}

@@ -57,6 +57,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -175,7 +176,11 @@ type Store struct {
 	suggestedCurrency string
 
 	cacher downloadCache
-	proxy  func(*http.Request) (*url.URL, error)
+
+	proxy              func(*http.Request) (*url.URL, error)
+	proxyConnectHeader http.Header
+
+	userAgent string
 }
 
 var ErrTooManyRequests = errors.New("too many requests")
@@ -205,10 +210,6 @@ func useDeltas() bool {
 	return osutil.GetenvBool("SNAPD_USE_DELTAS_EXPERIMENTAL", true)
 }
 
-func useStaging() bool {
-	return osutil.GetenvBool("SNAPPY_USE_STAGING_STORE")
-}
-
 // endpointURL clones a base URL and updates it with optional path and query.
 func endpointURL(base *url.URL, path string, query url.Values) *url.URL {
 	u := *base
@@ -225,7 +226,7 @@ func endpointURL(base *url.URL, path string, query url.Values) *url.URL {
 // apiURL returns the system default base API URL.
 func apiURL() *url.URL {
 	s := "https://api.snapcraft.io/"
-	if useStaging() {
+	if snapdenv.UseStagingStore() {
 		s = "https://api.staging.snapcraft.io/"
 	}
 	u, _ := url.Parse(s)
@@ -272,7 +273,7 @@ func assertsURL() (*url.URL, error) {
 }
 
 func authLocation() string {
-	if useStaging() {
+	if snapdenv.UseStagingStore() {
 		return "login.staging.ubuntu.com"
 	}
 	return "login.ubuntu.com"
@@ -288,7 +289,7 @@ func authURL() string {
 var defaultStoreDeveloperURL = "https://dashboard.snapcraft.io/"
 
 func storeDeveloperURL() string {
-	if useStaging() {
+	if snapdenv.UseStagingStore() {
 		return "https://dashboard.staging.snapcraft.io/"
 	}
 	return defaultStoreDeveloperURL
@@ -380,28 +381,28 @@ func New(cfg *Config, dauthCtx DeviceAndAuthContext) *Store {
 		deltaFormat = defaultSupportedDeltaFormat
 	}
 
-	store := &Store{
-		cfg:             cfg,
-		series:          series,
-		architecture:    architecture,
-		noCDN:           osutil.GetenvBool("SNAPPY_STORE_NO_CDN"),
-		fallbackStoreID: cfg.StoreID,
-		detailFields:    detailFields,
-		infoFields:      infoFields,
-		searchFields:    searchFields,
-		dauthCtx:        dauthCtx,
-		deltaFormat:     deltaFormat,
-		proxy:           cfg.Proxy,
+	userAgent := snapdenv.UserAgent()
+	proxyConnectHeader := http.Header{"User-Agent": []string{userAgent}}
 
-		client: httputil.NewHTTPClient(&httputil.ClientOptions{
-			Timeout:    10 * time.Second,
-			MayLogBody: true,
-			Proxy:      cfg.Proxy,
-			ExtraSSLCerts: &httputil.ExtraSSLCertsFromDir{
-				Dir: dirs.SnapdStoreSSLCertsDir,
-			},
-		}),
+	store := &Store{
+		cfg:                cfg,
+		series:             series,
+		architecture:       architecture,
+		noCDN:              osutil.GetenvBool("SNAPPY_STORE_NO_CDN"),
+		fallbackStoreID:    cfg.StoreID,
+		detailFields:       detailFields,
+		infoFields:         infoFields,
+		searchFields:       searchFields,
+		dauthCtx:           dauthCtx,
+		deltaFormat:        deltaFormat,
+		proxy:              cfg.Proxy,
+		proxyConnectHeader: proxyConnectHeader,
+		userAgent:          userAgent,
 	}
+	store.client = store.newHTTPClient(&httputil.ClientOptions{
+		Timeout:    10 * time.Second,
+		MayLogBody: true,
+	})
 	store.SetCacheDownloads(cfg.CacheDownloads)
 
 	return store
@@ -432,6 +433,18 @@ const (
 
 	assertionsPath = "api/v1/snaps/assertions"
 )
+
+func (s *Store) newHTTPClient(opts *httputil.ClientOptions) *http.Client {
+	if opts == nil {
+		opts = &httputil.ClientOptions{}
+	}
+	opts.Proxy = s.cfg.Proxy
+	opts.ProxyConnectHeader = s.proxyConnectHeader
+	opts.ExtraSSLCerts = &httputil.ExtraSSLCertsFromDir{
+		Dir: dirs.SnapdStoreSSLCertsDir,
+	}
+	return httputil.NewHTTPClient(opts)
+}
 
 func (s *Store) defaultSnapQuery() url.Values {
 	q := url.Values{}
@@ -948,7 +961,7 @@ func (s *Store) newRequest(ctx context.Context, reqOptions *requestOptions, user
 		authenticateUser(req, user)
 	}
 
-	req.Header.Set("User-Agent", httputil.UserAgent())
+	req.Header.Set("User-Agent", s.userAgent)
 	req.Header.Set("Accept", reqOptions.Accept)
 	req.Header.Set(hdrSnapDeviceArchitecture[reqOptions.APILevel], s.architecture)
 	req.Header.Set(hdrSnapDeviceSeries[reqOptions.APILevel], s.series)
@@ -1406,13 +1419,9 @@ func (s *Store) WriteCatalogs(ctx context.Context, names io.Writer, adder SnapAd
 	}
 
 	// do not log body for catalog updates (its huge)
-	client := httputil.NewHTTPClient(&httputil.ClientOptions{
+	client := s.newHTTPClient(&httputil.ClientOptions{
 		MayLogBody: false,
 		Timeout:    10 * time.Second,
-		Proxy:      s.proxy,
-		ExtraSSLCerts: &httputil.ExtraSSLCertsFromDir{
-			Dir: dirs.SnapdStoreSSLCertsDir,
-		},
 	})
 	doRequest := func() (*http.Response, error) {
 		return s.doRequest(ctx, client, reqOptions, nil)
@@ -1640,12 +1649,7 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 			return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
 		}
 		var resp *http.Response
-		cli := httputil.NewHTTPClient(&httputil.ClientOptions{
-			Proxy: s.proxy,
-			ExtraSSLCerts: &httputil.ExtraSSLCertsFromDir{
-				Dir: dirs.SnapdStoreSSLCertsDir,
-			},
-		})
+		cli := s.newHTTPClient(nil)
 		resp, finalErr = s.doRequest(ctx, cli, reqOptions, user)
 
 		if cancelled(ctx) {
@@ -1788,12 +1792,7 @@ func doDownloadReqImpl(ctx context.Context, storeURL *url.URL, cdnHeader string,
 	if resume > 0 {
 		reqOptions.ExtraHeaders["Range"] = fmt.Sprintf("bytes=%d-", resume)
 	}
-	cli := httputil.NewHTTPClient(&httputil.ClientOptions{
-		Proxy: s.proxy,
-		ExtraSSLCerts: &httputil.ExtraSSLCertsFromDir{
-			Dir: dirs.SnapdStoreSSLCertsDir,
-		},
-	})
+	cli := s.newHTTPClient(nil)
 	return s.doRequest(ctx, cli, reqOptions, user)
 }
 
