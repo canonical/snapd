@@ -102,12 +102,12 @@ func (x *cmdRoutinePortalInfo) Execute(args []string) error {
 		desktopFile = filepath.Base(app.DesktopFile)
 	}
 
-	// Determine whether the snap has access to the network
+	// Determine whether the snap has access to the network status
 	// TODO: use direct API for asking about interface being connected if
 	// that becomes available
 	connections, err := x.client.Connections(&client.ConnectionOptions{
 		Snap:      snap.Name,
-		Interface: "network",
+		Interface: "network-status",
 	})
 	if err != nil {
 		return fmt.Errorf("cannot get connections for snap %q: %v", snap.Name, err)
@@ -117,12 +117,7 @@ func (x *cmdRoutinePortalInfo) Execute(args []string) error {
 	// network despite the 'network' interface being disconnected
 	var hasNetworkStatus bool
 	for _, conn := range connections.Established {
-		// TODO: this should check for network-status plugs
-		// instead, but that interface is not currently in a
-		// usable state (not usable on classic systems, likely
-		// never worked with indicator-network).  This can be
-		// changed when the interface is fixed.
-		if conn.Plug.Snap == snap.Name && conn.Interface == "network" {
+		if conn.Plug.Snap == snap.Name && conn.Interface == "network-status" {
 			hasNetworkStatus = true
 			break
 		}
