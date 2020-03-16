@@ -160,7 +160,7 @@ func (dl *DeviceLayout) RemoveCreated() error {
 	indexes := make([]string, 0, len(dl.partitionTable.Partitions))
 	for _, node := range toRemove {
 		for i, p := range dl.partitionTable.Partitions {
-			if node == p.Node && strutil.ListContains(createdPartitionGUID, p.Type) {
+			if node == p.Node {
 				indexes = append(indexes, strconv.Itoa(i+1))
 				break
 			}
@@ -353,7 +353,7 @@ func ListCreatedPartitions(dl *DeviceLayout) []string {
 	for _, p := range dl.partitionTable.Partitions {
 		if p.Attrs != "" {
 			attrs := strings.Split(strings.TrimPrefix(p.Attrs, "GUID:"), ",")
-			if strutil.ListContains(attrs, createdPartitionAttr) {
+			if strutil.ListContains(attrs, createdPartitionAttr) && strutil.ListContains(createdPartitionGUID, p.Type) {
 				parts = append(parts, p.Node)
 			}
 		}
