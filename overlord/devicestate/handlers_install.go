@@ -89,6 +89,12 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("cannot create partitions: %v", osutil.OutputErr(output, err))
 	}
 
+	// configure the run system
+	if err := configureRunSystem(); err != nil {
+		return err
+	}
+
+	// make it bootable
 	kernelInfo, err := snapstate.KernelInfo(st, deviceCtx)
 	if err != nil {
 		return fmt.Errorf("cannot get gadget info: %v", err)
@@ -98,7 +104,6 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return fmt.Errorf("cannot get boot base info: %v", err)
 	}
-
 	recoverySystemDir := filepath.Join("/systems", m.modeEnv.RecoverySystem)
 	bootWith := &boot.BootableSet{
 		Base:              bootBaseInfo,
@@ -107,21 +112,9 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		KernelPath:        kernelInfo.MountFile(),
 		RecoverySystemDir: recoverySystemDir,
 	}
-
 	rootdir := dirs.GlobalRootDir
 	if err := bootMakeBootable(deviceCtx.Model(), rootdir, bootWith); err != nil {
 		return fmt.Errorf("cannot make run system bootable: %v", err)
-	}
-
-	// disable cloud-init by default (as it's not confined)
-	// TODO:UC20: 1. allow drop-in cloud.cfg.d/* in mode dangerous
-	//            2. allow gadget cloud.cfg.d/* (with whitelisted keys?)
-	ubuntuDataCloud := filepath.Join(dirs.RunMnt, "ubuntu-data/system-data/etc/cloud/")
-	if err := os.MkdirAll(ubuntuDataCloud, 0755); err != nil {
-		return fmt.Errorf("cannot make cloud config dir: %v", err)
-	}
-	if err := ioutil.WriteFile(filepath.Join(ubuntuDataCloud, "cloud-init.disabled"), nil, 0644); err != nil {
-		return fmt.Errorf("cannot disable cloud-init: %v", err)
 	}
 
 	// request a restart as the last action after a successful install
@@ -156,4 +149,22 @@ func checkEncryption(model *asserts.Model) (res bool, err error) {
 	}
 
 	return true, nil
+}
+
+// configureRunSystem configures the ubuntu-data partition with any
+// configuration needed from e.g. the gadget or for cloud-init
+func configureRunSystem() error {
+	// disable cloud-init by default (as it's not confined)
+	// TODO:UC20: 1. allow drop-in cloud.cfg.d/* in mode dangerous
+	//            2. allow gadget cloud.cfg.d/* (with whitelisted keys?)
+	//            3. allow cloud.cfg.d (with whitelisted keys) for non
+	//               grade dangerous systems
+	ubuntuDataCloud := filepath.Join(dirs.RunMnt, "ubuntu-data/system-data/etc/cloud/")
+	if err := os.MkdirAll(ubuntuDataCloud, 0755); err != nil {
+		return fmt.Errorf("cannot make cloud config dir: %v", err)
+	}
+	if err := ioutil.WriteFile(filepath.Join(ubuntuDataCloud, "cloud-init.disabled"), nil, 0644); err != nil {
+		return fmt.Errorf("cannot disable cloud-init: %v", err)
+	}
+	return nil
 }
