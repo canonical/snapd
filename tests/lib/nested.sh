@@ -320,9 +320,11 @@ start_nested_core_vm(){
     # This is a workaround for the issue when the user assertion is not autoimported correctly
     if ! wait_for_ssh; then
         systemctl restart nested-vm
+
         # This is a workaround for the issue connecting to the swtpm-mvo snap
-        if systemctl status nested-vm | grep 'Active: failed'; then
+        while ! systemctl is-active nested-vm; then
             systemctl restart nested-vm
+            sleep 5
         fi
     fi
 

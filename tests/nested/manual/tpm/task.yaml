@@ -21,11 +21,14 @@ execute: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
 
-    # Check tpm status on the nested vm   
+    # Check tpm status on the nested vm
     if is_core_20_nested_system; then
+        #TODO: check secure boot is enabled using test-snapd-mokutil snap
+        execute_remote "dmesg | grep -i tpm" | MATCH "efi: +SMBIOS=.* +TPMFinalLog=.*"
         execute_remote "test -e /sys/kernel/security/tpm0/binary_bios_measurements"
-    else        
+    else
         execute_remote "dmesg | grep -i tpm" | MATCH "No TPM chip found"
+        execute_remote "! test -e /sys/kernel/security/tpm0/binary_bios_measurements"
     fi
 
     # Check the nested image runs the current branch  
