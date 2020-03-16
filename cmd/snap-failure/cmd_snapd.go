@@ -93,6 +93,19 @@ func prevRevision(snapName string) (string, error) {
 	return prev, nil
 }
 
+func runCmd(prog string, args []string, env []string) *exec.Cmd {
+	cmd := exec.Command(prog, args...)
+	cmd.Env = os.Environ()
+	for _, envVar := range env {
+		cmd.Env = append(cmd.Env, envVar)
+	}
+
+	cmd.Stdout = Stdout
+	cmd.Stderr = Stderr
+
+	return cmd
+}
+
 // FIXME: also do error reporting via errtracker
 func (c *cmdSnapd) Execute(args []string) error {
 	var snapdPath string
@@ -123,23 +136,14 @@ func (c *cmdSnapd) Execute(args []string) error {
 
 	logger.Noticef("restoring invoking snapd from: %v", snapdPath)
 	// start previous snapd
-	cmd := exec.Command(snapdPath)
-	cmd.Env = os.Environ()
-	cmd.Env = append(cmd.Env, "SNAPD_REVERT_TO_REV="+prevRev)
-	cmd.Env = append(cmd.Env, "SNAPD_DEBUG=1")
-	cmd.Stdout = Stdout
-	cmd.Stderr = Stderr
+	cmd := runCmd(snapdPath, nil, []string{"SNAPD_REVERT_TO_REV=" + prevRev, "SNAPD_DEBUG=1"})
 	if err = cmd.Run(); err != nil {
 		return fmt.Errorf("snapd failed: %v", err)
 	}
 
 	logger.Noticef("restarting snapd socket")
 	// we need to reset the failure state to be able to restart again
-	resetCmd := exec.Command("systemctl", "reset-failed", "snapd.socket", "snapd.service")
-	resetCmd.Env = os.Environ()
-	resetCmd.Stdout = Stdout
-	resetCmd.Stderr = Stderr
-
+	resetCmd := runCmd("systemctl", []string{"reset-failed", "snapd.socket", "snapd.service"}, nil)
 	if err = resetCmd.Run(); err != nil {
 		// don't die if we fail to reset the failed state of snapd.socket, as
 		// the restart itself could still work
@@ -159,11 +163,7 @@ func (c *cmdSnapd) Execute(args []string) error {
 		logger.Noticef("snapd socket still exists before restarting socket service, but unable to remove: %v", err)
 	}
 
-	restartCmd := exec.Command("systemctl", "restart", "snapd.socket")
-	restartCmd.Env = os.Environ()
-	restartCmd.Stdout = Stdout
-	restartCmd.Stderr = Stderr
-
+	restartCmd := runCmd("systemctl", []string{"restart", "snapd.socket"}, nil)
 	if err := restartCmd.Run(); err != nil {
 		logger.Noticef("failed to restart snapd.socket: %v", err)
 	}
