@@ -2,7 +2,7 @@
 // +build withtestkeys
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -18,9 +18,9 @@
  *
  */
 
-package httputil
+package snapdenv
 
 func init() {
 	// mark as testing if we carry testing keys
-	isTesting = true
+	testingBinary = true
 }
