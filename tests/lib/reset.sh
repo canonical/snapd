@@ -63,7 +63,7 @@ reset_classic() {
 
     # systemd retains the failed state of service units, even after they are
     # removed, we need to reset their 'failed state'
-    systemctl --failed --no-legend --full | awk '/^snap\..*\.service +(error|not-found) +failed/ {print $1}' | while read -r unit; do
+    systemctl --plain --failed --no-legend --full | awk '/^ *snap\..*\.service +(error|not-found) +failed/ {print $1}' | while read -r unit; do
         systemctl reset-failed "$unit" || true
     done
 
