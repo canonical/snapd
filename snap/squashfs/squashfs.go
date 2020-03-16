@@ -23,6 +23,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -171,20 +172,48 @@ func (s *Snap) Size() (size int64, err error) {
 	return st.Size(), nil
 }
 
-// ReadFile returns the content of a single file inside a squashfs snap.
-func (s *Snap) ReadFile(filePath string) (content []byte, err error) {
+func (s *Snap) withUnpackedFile(filePath string, f func(p string) error) error {
 	tmpdir, err := ioutil.TempDir("", "read-file")
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer os.RemoveAll(tmpdir)
 
 	unpackDir := filepath.Join(tmpdir, "unpack")
 	if output, err := exec.Command("unsquashfs", "-n", "-i", "-d", unpackDir, s.path, filePath).CombinedOutput(); err != nil {
-		return nil, fmt.Errorf("cannot run unsquashfs: %v", osutil.OutputErr(output, err))
+		return fmt.Errorf("cannot run unsquashfs: %v", osutil.OutputErr(output, err))
 	}
 
-	return ioutil.ReadFile(filepath.Join(unpackDir, filePath))
+	return f(filepath.Join(unpackDir, filePath))
+}
+
+// RandomAccessFile returns an implementation to read at any given location
+// for a single file inside the squashfs snap.
+func (s *Snap) RandomAccessFile(filePath string) (interface {
+	io.ReaderAt
+	io.Closer
+}, error) {
+	var f *os.File
+	err := s.withUnpackedFile(filePath, func(p string) (err error) {
+		f, err = os.Open(p)
+		return
+	})
+	if err != nil {
+		return nil, err
+	}
+	return f, nil
+}
+
+// ReadFile returns the content of a single file inside a squashfs snap.
+func (s *Snap) ReadFile(filePath string) (content []byte, err error) {
+	err = s.withUnpackedFile(filePath, func(p string) (err error) {
+		content, err = ioutil.ReadFile(p)
+		return
+	})
+	if err != nil {
+		return nil, err
+	}
+	return content, nil
 }
 
 // skipper is used to track directories that should be skipped
