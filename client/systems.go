@@ -51,8 +51,6 @@ type System struct {
 }
 
 type SystemAction struct {
-	// ID used when referencing given action in recover requests
-	ID string `json:"id,omitempty"`
 	// Title is a user presentable action description
 	Title string `json:"title,omitempty"`
 	// Mode given action can be executed in

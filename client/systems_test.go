@@ -46,8 +46,8 @@ func (cs *clientSuite) TestListSystemsSome(c *check.C) {
 	                    "display-name": "wonky publishing"
 	                },
 	                "actions": [
-	                    {"id": "action-1", "title": "recover", "mode": "run"},
-	                    {"id": "action-2", "title": "reinstall", "mode": "run"}
+	                    {"title": "recover", "mode": "recover"},
+	                    {"title": "reinstall", "mode": "install"}
 	                ]
 	           }, {
 	                "label": "20200311",
@@ -62,7 +62,7 @@ func (cs *clientSuite) TestListSystemsSome(c *check.C) {
 	                    "display-name": "bulky publishing"
 	                },
 	                "actions": [
-	                    {"id": "action-1", "title": "factory-reset", "mode": "run"}
+	                    {"title": "factory-reset", "mode": "install"}
 	                ]
 	            }
 	        ]
@@ -87,8 +87,8 @@ func (cs *clientSuite) TestListSystemsSome(c *check.C) {
 				DisplayName: "wonky publishing",
 			},
 			Actions: []client.SystemAction{
-				{ID: "action-1", Title: "recover", Mode: "run"},
-				{ID: "action-2", Title: "reinstall", Mode: "run"},
+				{Title: "recover", Mode: "recover"},
+				{Title: "reinstall", Mode: "install"},
 			},
 		}, {
 			Label: "20200311",
@@ -103,7 +103,7 @@ func (cs *clientSuite) TestListSystemsSome(c *check.C) {
 				DisplayName: "bulky publishing",
 			},
 			Actions: []client.SystemAction{
-				{ID: "action-1", Title: "factory-reset", Mode: "run"},
+				{Title: "factory-reset", Mode: "install"},
 			},
 		},
 	})
