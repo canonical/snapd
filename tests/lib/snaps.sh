@@ -110,7 +110,7 @@ repack_core_snap_into_snapd_snap() {
   )
 
   current=$(readlink /snap/core/current)
-  CORE_SNAP=$(ls /var/lib/snapd/snaps/core_"$current".snap)
+  CORE_SNAP=/var/lib/snapd/snaps/core_"$current".snap
 
   # only unpack files from the core snap that are in the snapd snap - this
   # is kosher because the set of files in the core snap is a superset of 

@@ -81,7 +81,7 @@ execute: |
         echo "Snap list is working still"
         snap list | MATCH "^snapd .* $current .*"
 
-        SNAPD_SNAP=$(ls /var/lib/snapd/snaps/snapd_"$current".snap)
+        SNAPD_SNAP=/var/lib/snapd/snaps/snapd_"$current".snap
 
         echo "Break snapd"
         unsquashfs -d ./snapd-broken "$SNAPD_SNAP"
