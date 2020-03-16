@@ -66,9 +66,9 @@ func UseStagingStore() bool {
 	return osutil.GetenvBool("SNAPPY_USE_STAGING_STORE")
 }
 
-func MockUseStagingStore(testing bool) (restore func()) {
+func MockUseStagingStore(useStaging bool) (restore func()) {
 	old := mockUseStagingStore
-	mockUseStagingStore = &testing
+	mockUseStagingStore = &useStaging
 	return func() {
 		mockUseStagingStore = old
 	}
