@@ -43,10 +43,10 @@ const (
 	createdPartitionAttr = "59"
 )
 
-// XXX: should also add CA7D7CCB-63ED-4C53-861C-1742536059CC (LUKS partition)
 var createdPartitionGUID = []string{
 	"0FC63DAF-8483-4772-8E79-3D69D8477DE4", // Linux filesystem data
 	"0657FD6D-A4AB-43C4-84E5-0933C84B4F4F", // Linux swap partition
+	"CA7D7CCB-63ED-4C53-861C-1742536059CC", // LUKS partition
 }
 
 // sfdiskDeviceDump represents the sfdisk --dump JSON output format.
@@ -120,8 +120,8 @@ var (
 
 // CreateMissing creates the partitions listed in the positioned volume pv
 // that are missing from the existing device layout.
-func (dl *DeviceLayout) CreateMissing(pv *gadget.LaidOutVolume) ([]DeviceStructure, error) {
-	buf, created := buildPartitionList(dl, pv)
+func (dl *DeviceLayout) CreateMissing(pv *gadget.LaidOutVolume, encryptData bool) ([]DeviceStructure, error) {
+	buf, created := buildPartitionList(dl, pv, encryptData)
 	if len(created) == 0 {
 		return created, nil
 	}
@@ -294,7 +294,7 @@ func deviceName(name string, index int) string {
 // device contents and gadget structure list, in sfdisk dump format, and
 // return a partitioning description suitable for sfdisk input, a list of
 // partitions to be removed, and a list of the partitions to be created.
-func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume) (sfdiskInput *bytes.Buffer, toBeCreated []DeviceStructure) {
+func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume, encryptData bool) (sfdiskInput *bytes.Buffer, toBeCreated []DeviceStructure) {
 	ptable := dl.partitionTable
 
 	// Keep track what partitions we already have on disk
@@ -316,6 +316,12 @@ func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume) (sfdiskInput
 		if seen[uint64(start)] {
 			continue
 		}
+
+		// Check if this partition should be encrypted
+		if encryptData && s.Role == gadget.SystemData {
+			p.Type = "e8,CA7D7CCB-63ED-4C53-861C-1742536059CC"
+		}
+
 		// Can we use the index here? Get the largest existing partition number and
 		// build from there could be safer if the disk partitions are not consecutive
 		// (can this actually happen in our images?)

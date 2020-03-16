@@ -293,11 +293,19 @@ func (s *partitionTestSuite) TestBuildPartitionList(c *C) {
 	dl, err := partition.DeviceLayoutFromPartitionTable(ptable)
 	c.Assert(err, IsNil)
 
-	sfdiskInput, create := partition.BuildPartitionList(dl, pv)
+	// without encrypted partition
+	sfdiskInput, create := partition.BuildPartitionList(dl, pv, false)
 	c.Assert(sfdiskInput.String(), Equals, `/dev/node2 : start=        4096, size=     2457600, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, name="Recovery", attrs="GUID:59"
 /dev/node3 : start=     2461696, size=     2457600, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Writable", attrs="GUID:59"
 `)
 	c.Assert(create, DeepEquals, []partition.DeviceStructure{mockDeviceStructureSystemSeed, mockDeviceStructureWritable})
+
+	// with encrypted partition
+	sfdiskInput, create = partition.BuildPartitionList(dl, pv, true)
+	c.Assert(sfdiskInput.String(), Equals, `/dev/node2 : start=        4096, size=     2457600, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, name="Recovery", attrs="GUID:59"
+/dev/node3 : start=     2461696, size=     2457600, type=CA7D7CCB-63ED-4C53-861C-1742536059CC, name="Writable", attrs="GUID:59"
+`)
+	c.Assert(create, DeepEquals, []partition.DeviceStructure{mockDeviceStructureSystemSeed, mockDeviceStructureWritableEncrypted})
 }
 
 func (s *partitionTestSuite) TestCreatePartitions(c *C) {
@@ -323,11 +331,53 @@ func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 
 	dl, err := partition.DeviceLayoutFromDisk("/dev/node")
 	c.Assert(err, IsNil)
-	created, err := dl.CreateMissing(pv)
+	created, err := dl.CreateMissing(pv, false)
 	c.Assert(err, IsNil)
 	c.Assert(created, DeepEquals, []partition.DeviceStructure{
 		mockDeviceStructureSystemSeed,
 		mockDeviceStructureWritable,
+	})
+
+	// Check partition table read and write
+	c.Assert(cmdSfdisk.Calls(), DeepEquals, [][]string{
+		{"sfdisk", "--json", "-d", "/dev/node"},
+		{"sfdisk", "--append", "--no-reread", "/dev/node"},
+	})
+
+	// Check partition table update
+	c.Assert(cmdPartx.Calls(), DeepEquals, [][]string{
+		{"partx", "-u", "/dev/node"},
+	})
+}
+
+func (s *partitionTestSuite) TestCreatePartitionsWithEncryption(c *C) {
+	restore := partition.MockEnsureNodesExist(func(ds []partition.DeviceStructure, timeout time.Duration) error {
+		return nil
+	})
+	defer restore()
+
+	cmdSfdisk := testutil.MockCommand(c, "sfdisk", mockSfdiskScriptBios)
+	defer cmdSfdisk.Restore()
+
+	cmdLsblk := testutil.MockCommand(c, "lsblk", mockLsblkScript)
+	defer cmdLsblk.Restore()
+
+	cmdPartx := testutil.MockCommand(c, "partx", "")
+	defer cmdPartx.Restore()
+
+	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
+	err := makeMockGadget(gadgetRoot, gadgetContent)
+	c.Assert(err, IsNil)
+	pv, err := gadget.PositionedVolumeFromGadget(gadgetRoot)
+	c.Assert(err, IsNil)
+
+	dl, err := partition.DeviceLayoutFromDisk("/dev/node")
+	c.Assert(err, IsNil)
+	created, err := dl.CreateMissing(pv, true)
+	c.Assert(err, IsNil)
+	c.Assert(created, DeepEquals, []partition.DeviceStructure{
+		mockDeviceStructureSystemSeed,
+		mockDeviceStructureWritableEncrypted,
 	})
 
 	// Check partition table read and write

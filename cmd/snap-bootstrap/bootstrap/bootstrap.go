@@ -100,7 +100,7 @@ func Run(gadgetRoot, device string, options Options) error {
 		return fmt.Errorf("cannot remove partitions from previous install: %v", err)
 	}
 
-	created, err := diskLayout.CreateMissing(lv)
+	created, err := diskLayout.CreateMissing(lv, options.Encrypt)
 	if err != nil {
 		return fmt.Errorf("cannot create the partitions: %v", err)
 	}
