@@ -99,7 +99,7 @@ execute: |
 
             echo "Install the broken snapd"
             if snap install --dangerous ./snapd-broken/snapd_*.snap; then
-                echo "installing a broken snapd should not work, test broken"
+                echo "installing a broken snapd should not work, test failed"
                 exit 1
             fi
 
