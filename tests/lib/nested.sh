@@ -322,10 +322,10 @@ start_nested_core_vm(){
         systemctl restart nested-vm
 
         # This is a workaround for the issue connecting to the swtpm-mvo snap
-        while ! systemctl is-active nested-vm; then
+        while ! systemctl is-active nested-vm; do
             systemctl restart nested-vm
             sleep 5
-        fi
+        done
     fi
 
     if wait_for_ssh; then
