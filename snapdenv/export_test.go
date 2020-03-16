@@ -1,8 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build !linux
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2016-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -18,24 +17,17 @@
  *
  */
 
-package main
+package snapdenv
 
-import (
-	"errors"
+var (
+	StripUnsafeRunes      = stripUnsafeRunes
+	SanitizeKernelVersion = sanitizeKernelVersion
 )
 
-var preseedNotAvailableError = errors.New("preseed mode not available for systems other than linux")
-
-func checkChroot(preseedChroot string) error {
-	return preseedNotAvailableError
+func MockUserAgent(mock string) (restore func()) {
+	old := userAgent
+	userAgent = mock
+	return func() {
+		userAgent = old
+	}
 }
-
-func prepareChroot(preseedChroot string) (func(), error) {
-	return nil, preseedNotAvailableError
-}
-
-func runPreseedMode(rootDir string) error {
-	return preseedNotAvailableError
-}
-
-func cleanup() {}

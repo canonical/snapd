@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2017-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -27,6 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snapdenv"
 )
 
 func init() {
@@ -47,7 +48,7 @@ var baseURL *url.URL
 
 func init() {
 	var baseurl string
-	if osutil.GetenvBool("SNAPPY_USE_STAGING_STORE") {
+	if snapdenv.UseStagingStore() {
 		baseurl = "https://api.staging.snapcraft.io/v2/"
 	} else {
 		baseurl = "https://api.snapcraft.io/v2/"

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2018-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -79,10 +79,8 @@ func (s *clientSuite) TestClientOptionsWithProxy(c *check.C) {
 	c.Check(url.String(), check.Equals, "http://some-proxy:3128")
 }
 
-func (s *clientSuite) TestClientProxySetsUserAgent(c *check.C) {
+func (s *clientSuite) TestClientProxyTakesUserAgent(c *check.C) {
 	myUserAgent := "snapd yadda yadda"
-
-	defer httputil.MockUserAgent(myUserAgent)()
 
 	called := false
 	proxyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -94,6 +92,7 @@ func (s *clientSuite) TestClientProxySetsUserAgent(c *check.C) {
 		Proxy: func(*http.Request) (*url.URL, error) {
 			return mustParse(c, proxyServer.URL), nil
 		},
+		ProxyConnectHeader: http.Header{"User-Agent": []string{myUserAgent}},
 	})
 	_, err := cli.Get("https://localhost:9999")
 	c.Check(err, check.NotNil) // because we didn't do anything in the handler

@@ -59,6 +59,7 @@ type interfaceJSON struct {
 // interfaceAction is an action performed on the interface system.
 type interfaceAction struct {
 	Action string     `json:"action"`
+	Forget bool       `json:"forget,omitempty"`
 	Plugs  []plugJSON `json:"plugs,omitempty"`
 	Slots  []slotJSON `json:"slots,omitempty"`
 }
