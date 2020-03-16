@@ -43,6 +43,12 @@ const (
 	createdPartitionAttr = "59"
 )
 
+// XXX: should also add CA7D7CCB-63ED-4C53-861C-1742536059CC (LUKS partition)
+var createdPartitionGUID = []string{
+	"0FC63DAF-8483-4772-8E79-3D69D8477DE4", // Linux filesystem data
+	"0657FD6D-A4AB-43C4-84E5-0933C84B4F4F", // Linux swap partition
+}
+
 // sfdiskDeviceDump represents the sfdisk --dump JSON output format.
 type sfdiskDeviceDump struct {
 	PartitionTable sfdiskPartitionTable `json:"partitiontable"`
@@ -151,19 +157,23 @@ func (dl *DeviceLayout) RemoveCreated() error {
 		return nil
 	}
 
-	params := []string{"--no-reread", "--delete", dl.Device}
+	indexes := make([]string, 0, len(dl.partitionTable.Partitions))
 	for _, node := range toRemove {
 		for i, p := range dl.partitionTable.Partitions {
-			if node == p.Node {
-				params = append(params, strconv.Itoa(i+1))
+			if node == p.Node && strutil.ListContains(createdPartitionGUID, p.Type) {
+				indexes = append(indexes, strconv.Itoa(i+1))
 				break
 			}
 		}
 	}
 
+	if len(indexes) == 0 {
+		return nil
+	}
+
 	// Delete disk partitions
 	logger.Noticef("partitions to remove: %v", toRemove)
-	cmd := exec.Command("sfdisk", params...)
+	cmd := exec.Command("sfdisk", append([]string{"--no-reread", "--delete", dl.Device}, indexes...)...)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return osutil.OutputErr(output, err)
 	}

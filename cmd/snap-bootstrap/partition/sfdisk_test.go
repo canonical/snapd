@@ -43,7 +43,7 @@ echo '{
       "lastlba": 8388574,
       "partitions": [
          {"node": "/dev/node1", "start": 2048, "size": 2048, "type": "21686148-6449-6E6F-744E-656564454649", "uuid": "2E59D969-52AB-430B-88AC-F83873519F6F", "name": "BIOS Boot"},
-         {"node": "/dev/node2", "start": 4096, "size": 2457600, "type": "C12A7328-F81F-11D2-BA4B-00A0C93EC93B", "uuid": "44C3D5C3-CAE1-4306-83E8-DF437ACDB32F", "name": "Recovery", "attrs": "GUID:59"}
+         {"node": "/dev/node2", "start": 4096, "size": 2457600, "type": "0FC63DAF-8483-4772-8E79-3D69D8477DE4", "uuid": "44C3D5C3-CAE1-4306-83E8-DF437ACDB32F", "name": "Recovery", "attrs": "GUID:59"}
       ]
    }
 }'`
@@ -55,7 +55,7 @@ elif [ -f %[1]s/1 ]; then
    touch %[1]s/2
    exit 0
 else
-   PART=',{"node": "/dev/node2", "start": 4096, "size": 2457600, "type": "C12A7328-F81F-11D2-BA4B-00A0C93EC93B", "uuid": "44C3D5C3-CAE1-4306-83E8-DF437ACDB32F", "name": "Recovery", "attrs": "GUID:59"}'
+   PART=',{"node": "/dev/node2", "start": 4096, "size": 2457600, "type": "0FC63DAF-8483-4772-8E79-3D69D8477DE4", "uuid": "44C3D5C3-CAE1-4306-83E8-DF437ACDB32F", "name": "Recovery", "attrs": "GUID:59"}'
    touch %[1]s/1
 fi
 echo '{
@@ -186,7 +186,7 @@ func (s *partitionTestSuite) TestDeviceInfo(c *C) {
 					Name:       "Recovery",
 					Size:       0x4b000000,
 					Label:      "ubuntu-seed",
-					Type:       "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
+					Type:       "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
 					Filesystem: "vfat",
 				},
 				StartOffset: 0x200000,
