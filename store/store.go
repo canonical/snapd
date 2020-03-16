@@ -1252,7 +1252,13 @@ func (s *Store) Find(ctx context.Context, search *Search, user *auth.UserState) 
 	if resp.StatusCode != 200 {
 		// fallback to search v1; v2 may not be available on some proxies
 		if resp.StatusCode == 404 {
-			return s.findV1(ctx, search, user)
+			verstr := resp.Header.Get("Snap-Store-Version")
+			ver, err := strconv.Atoi(verstr)
+			if err != nil {
+				logger.Debugf("Bogus Snap-Store-Version header %q.", verstr)
+			} else if ver < 19 {
+				return s.findV1(ctx, search, user)
+			}
 		}
 		return nil, respToError(resp, "search")
 	}

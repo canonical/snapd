@@ -386,6 +386,13 @@ func createTestDevice() *auth.DeviceState {
 	}
 }
 
+const storeVerWithV1Search = "18"
+
+func forceSearchV1(w http.ResponseWriter) {
+	w.Header().Set("Snap-Store-Version", storeVerWithV1Search)
+	http.Error(w, http.StatusText(404), 404)
+}
+
 func (s *storeTestSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
@@ -2762,7 +2769,7 @@ func (s *storeTestSuite) TestFindV1Queries(c *C) {
 	var v1Fallback bool
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Path, searchV2Path) {
-			http.Error(w, http.StatusText(404), 404)
+			forceSearchV1(w)
 			return
 		}
 		v1Fallback = true
@@ -3147,8 +3154,7 @@ func (s *storeTestSuite) TestFindV1(c *C) {
 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Path, searchV2Path) {
-			// force search api v1
-			http.Error(w, http.StatusText(404), 404)
+			forceSearchV1(w)
 			return
 		}
 		assertRequest(c, r, "GET", searchPath)
@@ -3261,8 +3267,7 @@ func (s *storeTestSuite) TestFindV1Private(c *C) {
 	var v1Fallback bool
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Path, searchV2Path) {
-			// force search api v1
-			http.Error(w, http.StatusText(404), 404)
+			forceSearchV1(w)
 			return
 		}
 		v1Fallback = true
@@ -3356,8 +3361,7 @@ func (s *storeTestSuite) TestFindV1Fails(c *C) {
 	var v1Fallback bool
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Path, searchV2Path) {
-			// force search api v1
-			http.Error(w, http.StatusText(404), 404)
+			forceSearchV1(w)
 			return
 		}
 		v1Fallback = true
@@ -3407,8 +3411,7 @@ func (s *storeTestSuite) testFindBadContentType(c *C, apiV1 bool) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if apiV1 {
 			if strings.Contains(r.URL.Path, searchV2Path) {
-				// force search api v1
-				http.Error(w, http.StatusText(404), 404)
+				forceSearchV1(w)
 				return
 			}
 			v1Fallback = true
@@ -3456,8 +3459,7 @@ func (s *storeTestSuite) testFindBadBody(c *C, apiV1 bool) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if apiV1 {
 			if strings.Contains(r.URL.Path, searchV2Path) {
-				// force search api v1
-				http.Error(w, http.StatusText(404), 404)
+				forceSearchV1(w)
 				return
 			}
 			v1Fallback = true
@@ -3508,8 +3510,7 @@ func (s *storeTestSuite) testFind500(c *C, apiV1 bool) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if apiV1 {
 			if strings.Contains(r.URL.Path, searchV2Path) {
-				// force search api v1
-				http.Error(w, http.StatusText(404), 404)
+				forceSearchV1(w)
 				return
 			}
 			assertRequest(c, r, "GET", searchPath)
@@ -3554,8 +3555,7 @@ func (s *storeTestSuite) testFind500once(c *C, apiV1 bool) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if apiV1 {
 			if strings.Contains(r.URL.Path, searchV2Path) {
-				// force search api v1
-				http.Error(w, http.StatusText(404), 404)
+				forceSearchV1(w)
 				return
 			}
 			v1Fallback = true
@@ -3611,8 +3611,7 @@ func (s *storeTestSuite) testFindAuthFailed(c *C, apiV1 bool) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if apiV1 {
 			if strings.Contains(r.URL.Path, searchV2Path) {
-				// force search api v1
-				http.Error(w, http.StatusText(404), 404)
+				forceSearchV1(w)
 				return
 			}
 		}
@@ -3686,8 +3685,7 @@ func (s *storeTestSuite) testFindCommonIDs(c *C, apiV1 bool) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if apiV1 {
 			if strings.Contains(r.URL.Path, searchV2Path) {
-				// force search api v1
-				http.Error(w, http.StatusText(404), 404)
+				forceSearchV1(w)
 				return
 			}
 			assertRequest(c, r, "GET", searchPath)
@@ -3755,8 +3753,7 @@ func (s *storeTestSuite) testFindByCommonID(c *C, apiV1 bool) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if apiV1 {
 			if strings.Contains(r.URL.Path, searchV2Path) {
-				// force search api v1
-				http.Error(w, http.StatusText(404), 404)
+				forceSearchV1(w)
 				return
 			}
 			assertRequest(c, r, "GET", searchPath)
