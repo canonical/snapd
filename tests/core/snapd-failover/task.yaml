@@ -45,6 +45,8 @@ restore: |
     if is_core16_system; then
         echo "ensuring we reverted fully to core snap system"
         not test -d /snap/snapd
+        # cleanup the snapd-from-core snap we built
+        rm -f snapd-from-core.snap
     fi
 
 execute: |
