@@ -21,6 +21,7 @@ package devicestate
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -88,6 +89,12 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("cannot create partitions: %v", osutil.OutputErr(output, err))
 	}
 
+	// configure the run system
+	if err := configureRunSystem(deviceCtx); err != nil {
+		return err
+	}
+
+	// make it bootable
 	kernelInfo, err := snapstate.KernelInfo(st, deviceCtx)
 	if err != nil {
 		return fmt.Errorf("cannot get gadget info: %v", err)
@@ -97,7 +104,6 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return fmt.Errorf("cannot get boot base info: %v", err)
 	}
-
 	recoverySystemDir := filepath.Join("/systems", m.modeEnv.RecoverySystem)
 	bootWith := &boot.BootableSet{
 		Base:              bootBaseInfo,
@@ -106,28 +112,9 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		KernelPath:        kernelInfo.MountFile(),
 		RecoverySystemDir: recoverySystemDir,
 	}
-
 	rootdir := dirs.GlobalRootDir
 	if err := bootMakeBootable(deviceCtx.Model(), rootdir, bootWith); err != nil {
 		return fmt.Errorf("cannot make run system bootable: %v", err)
-	}
-
-	// support dropping cloud-init for grade: dangerous
-	cloudCfg := filepath.Join(dirs.RunMnt, "ubuntu-seed/cloud.cfg.d")
-	if osutil.IsDirectory(cloudCfg) && deviceCtx.Model().Grade() == asserts.ModelDangerous {
-		ubuntuDataCloudCfgDir := filepath.Join(dirs.RunMnt, "ubuntu-data/system-data/etc/cloud/cloud.cfg.d/")
-		if err := os.MkdirAll(ubuntuDataCloudCfgDir, 0755); err != nil {
-			return fmt.Errorf("cannot make cloud config dir: %v", err)
-		}
-		ccl, err := filepath.Glob(filepath.Join(cloudCfg, "*.cfg"))
-		if err != nil {
-			return err
-		}
-		for _, cc := range ccl {
-			if err := osutil.CopyFile(cc, filepath.Join(ubuntuDataCloudCfgDir, filepath.Base(cc)), 0); err != nil {
-				return err
-			}
-		}
 	}
 
 	// request a restart as the last action after a successful install
@@ -162,4 +149,53 @@ func checkEncryption(model *asserts.Model) (res bool, err error) {
 	}
 
 	return true, nil
+}
+
+func configureCloudInit(deviceCtx snapstate.DeviceContext) error {
+	// disable cloud-init by default (as it's not confined)
+
+	// 0. TODO:UC20: check gadget cloud.cfg.d/* (with whitelisted keys?)
+
+	// 1. check for grade: dangerous and a custom cloud init
+	cloudCfg := filepath.Join(dirs.RunMnt, "ubuntu-seed/cloud.cfg.d")
+	if osutil.IsDirectory(cloudCfg) && deviceCtx.Model().Grade() == asserts.ModelDangerous {
+		ubuntuDataCloudCfgDir := filepath.Join(dirs.RunMnt, "ubuntu-data/system-data/etc/cloud/cloud.cfg.d/")
+		if err := os.MkdirAll(ubuntuDataCloudCfgDir, 0755); err != nil {
+			return fmt.Errorf("cannot make cloud config dir: %v", err)
+		}
+		ccl, err := filepath.Glob(filepath.Join(cloudCfg, "*.cfg"))
+		if err != nil {
+			return err
+		}
+		for _, cc := range ccl {
+			if err := osutil.CopyFile(cc, filepath.Join(ubuntuDataCloudCfgDir, filepath.Base(cc)), 0); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	// 2. TODO:UC20: allow cloud.cfg.d (with whitelisted keys) for non
+	//    grade dangerous systems
+
+	// 3. nothing of the above applied, disable cloud-init
+	ubuntuDataCloud := filepath.Join(dirs.RunMnt, "ubuntu-data/system-data/etc/cloud/")
+	if err := os.MkdirAll(ubuntuDataCloud, 0755); err != nil {
+		return fmt.Errorf("cannot make cloud config dir: %v", err)
+	}
+	if err := ioutil.WriteFile(filepath.Join(ubuntuDataCloud, "cloud-init.disabled"), nil, 0644); err != nil {
+		return fmt.Errorf("cannot disable cloud-init: %v", err)
+	}
+
+	return nil
+}
+
+// configureRunSystem configures the ubuntu-data partition with any
+// configuration needed from e.g. the gadget or for cloud-init
+func configureRunSystem(deviceCtx snapstate.DeviceContext) error {
+	if err := configureCloudInit(deviceCtx); err != nil {
+		return err
+	}
+
+	return nil
 }

@@ -401,3 +401,39 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeNoCloudInitForSigned(c *C) {
 	c.Check(filepath.Join(ubuntuDataCloudCfg, "foo.cfg"), testutil.FileAbsent)
 	c.Check(filepath.Join(ubuntuDataCloudCfg, "bar.cfg"), testutil.FileAbsent)
 }
+
+func (s *deviceMgrInstallModeSuite) TestInstallModeDisablesCloudInit(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	mockSnapBootstrapCmd := testutil.MockCommand(c, filepath.Join(dirs.DistroLibExecDir, "snap-bootstrap"), "")
+	defer mockSnapBootstrapCmd.Restore()
+
+	s.state.Lock()
+	s.makeMockInstalledPcGadget(c, "dangerous")
+	s.state.Unlock()
+
+	restore = devicestate.MockBootMakeBootable(func(model *asserts.Model, rootdir string, bootWith *boot.BootableSet) error {
+		return nil
+	})
+	defer restore()
+
+	devicestate.SetOperatingMode(s.mgr, "install")
+	devicestate.SetRecoverySystem(s.mgr, "20191218")
+
+	s.settle(c)
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// the install-system change is created
+	installSystem := s.findInstallSystem()
+	c.Assert(installSystem, NotNil)
+
+	// and was run successfully
+	c.Check(installSystem.Err(), IsNil)
+	c.Check(installSystem.Status(), Equals, state.DoneStatus)
+
+	// and cloud init is disabled
+	ubuntuDataCloudDisabled := filepath.Join(dirs.RunMnt, "ubuntu-data/system-data/etc/cloud/cloud-init.disabled/")
+	c.Check(ubuntuDataCloudDisabled, testutil.FilePresent)
+}
