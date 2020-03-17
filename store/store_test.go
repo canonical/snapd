@@ -3096,9 +3096,88 @@ func (s *storeTestSuite) TestSnapCommandsTooMany(c *C) {
 	c.Check(n, Equals, 1)
 }
 
-func (s *storeTestSuite) testFind(c *C, cfg *store.Config) *snap.Info {
+func (s *storeTestSuite) testFind(c *C, apiV1 bool) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	var v1Fallback, v2Hit bool
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if apiV1 {
+			if strings.Contains(r.URL.Path, searchV2Path) {
+				forceSearchV1(w)
+				return
+			}
+			v1Fallback = true
+			assertRequest(c, r, "GET", searchPath)
+		} else {
+			v2Hit = true
+			assertRequest(c, r, "GET", searchV2Path)
+		}
+		query := r.URL.Query()
+
+		q := query.Get("q")
+		c.Check(q, Equals, "hello")
+
+		c.Check(r.UserAgent(), Equals, userAgent)
+
+		if apiV1 {
+			// check device authorization is set, implicitly checking doRequest was used
+			c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+			// no store ID by default
+			storeID := r.Header.Get("X-Ubuntu-Store")
+			c.Check(storeID, Equals, "")
+
+			c.Check(r.URL.Query().Get("fields"), Equals, "abc,def")
+
+			c.Check(r.Header.Get("X-Ubuntu-Series"), Equals, release.Series)
+			c.Check(r.Header.Get("X-Ubuntu-Architecture"), Equals, arch.DpkgArchitecture())
+			c.Check(r.Header.Get("X-Ubuntu-Classic"), Equals, "false")
+
+			c.Check(r.Header.Get("X-Ubuntu-Confinement"), Equals, "")
+
+			w.Header().Set("X-Suggested-Currency", "GBP")
+
+			w.Header().Set("Content-Type", "application/hal+json")
+			w.WriteHeader(200)
+
+			io.WriteString(w, MockSearchJSON)
+		} else {
+
+			// check device authorization is set, implicitly checking doRequest was used
+			c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+			// no store ID by default
+			storeID := r.Header.Get("Snap-Device-Store")
+			c.Check(storeID, Equals, "")
+
+			c.Check(r.URL.Query().Get("fields"), Equals, "abc,def")
+
+			c.Check(r.Header.Get("Snap-Device-Series"), Equals, release.Series)
+			c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, arch.DpkgArchitecture())
+			c.Check(r.Header.Get("Snap-Classic"), Equals, "false")
+
+			w.Header().Set("X-Suggested-Currency", "GBP")
+
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(200)
+
+			io.WriteString(w, MockSearchJSONv2)
+		}
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+		DetailFields: []string{"abc", "def"},
+		SearchFields: []string{"abc", "def"},
+	}
+
 	dauthCtx := &testDauthContext{c: c, device: s.device}
-	sto := store.New(cfg, dauthCtx)
+	sto := store.New(&cfg, dauthCtx)
 
 	snaps, err := sto.Find(s.ctx, &store.Search{Query: "hello"}, nil)
 	c.Assert(err, IsNil)
@@ -3145,61 +3224,22 @@ func (s *storeTestSuite) testFind(c *C, cfg *store.Config) *snap.Info {
 
 	c.Check(sto.SuggestedCurrency(), Equals, "GBP")
 
-	// return resulting snap for extra checks
-	return snp
+	if apiV1 {
+		c.Check(snp.Architectures, DeepEquals, []string{"all"})
+		c.Check(snp.Sha3_384, Matches, `[[:xdigit:]]{96}`)
+		c.Check(v1Fallback, Equals, true)
+	} else {
+		c.Check(v2Hit, Equals, true)
+	}
 }
 
 func (s *storeTestSuite) TestFindV1(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
+	apiV1 := true
+	s.testFind(c, apiV1)
+}
 
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.Contains(r.URL.Path, searchV2Path) {
-			forceSearchV1(w)
-			return
-		}
-		assertRequest(c, r, "GET", searchPath)
-		query := r.URL.Query()
-
-		q := query.Get("q")
-		c.Check(q, Equals, "hello")
-
-		c.Check(r.UserAgent(), Equals, userAgent)
-
-		// check device authorization is set, implicitly checking doRequest was used
-		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
-
-		// no store ID by default
-		storeID := r.Header.Get("X-Ubuntu-Store")
-		c.Check(storeID, Equals, "")
-
-		c.Check(r.URL.Query().Get("fields"), Equals, "abc,def")
-
-		c.Check(r.Header.Get("X-Ubuntu-Series"), Equals, release.Series)
-		c.Check(r.Header.Get("X-Ubuntu-Architecture"), Equals, arch.DpkgArchitecture())
-		c.Check(r.Header.Get("X-Ubuntu-Classic"), Equals, "false")
-
-		c.Check(r.Header.Get("X-Ubuntu-Confinement"), Equals, "")
-
-		w.Header().Set("X-Suggested-Currency", "GBP")
-
-		w.Header().Set("Content-Type", "application/hal+json")
-		w.WriteHeader(200)
-
-		io.WriteString(w, MockSearchJSON)
-	}))
-
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-
-	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := store.Config{
-		StoreBaseURL: mockServerURL,
-		DetailFields: []string{"abc", "def"},
-	}
-	snp := s.testFind(c, &cfg)
-	c.Check(snp.Architectures, DeepEquals, []string{"all"})
-	c.Check(snp.Sha3_384, Matches, `[[:xdigit:]]{96}`)
+func (s *storeTestSuite) TestFindV2(c *C) {
+	s.testFind(c, false)
 }
 
 func (s *storeTestSuite) TestFindV2SearchFields(c *C) {
@@ -3214,53 +3254,63 @@ func (s *storeTestSuite) TestFindV2SearchFields(c *C) {
 		"summary", "title", "type", "version"})
 }
 
-func (s *storeTestSuite) TestFindV2(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
+func (s *storeTestSuite) testFindPrivate(c *C, apiV1 bool) {
+	n := 0
+	var v1Fallback, v2Hit bool
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assertRequest(c, r, "GET", searchV2Path)
+		if apiV1 {
+			if strings.Contains(r.URL.Path, searchV2Path) {
+				forceSearchV1(w)
+				return
+			}
+			v1Fallback = true
+			assertRequest(c, r, "GET", searchPath)
+		} else {
+			v2Hit = true
+			assertRequest(c, r, "GET", searchV2Path)
+		}
+
 		query := r.URL.Query()
-
+		name := query.Get("name")
 		q := query.Get("q")
-		c.Check(q, Equals, "hello")
 
-		c.Check(r.UserAgent(), Equals, userAgent)
+		switch n {
+		case 0:
+			c.Check(r.URL.Path, Matches, ".*/search")
+			c.Check(name, Equals, "")
+			c.Check(q, Equals, "foo")
+			c.Check(query.Get("private"), Equals, "true")
+		case 1:
+			c.Check(r.URL.Path, Matches, ".*/search")
+			c.Check(name, Equals, "foo")
+			c.Check(q, Equals, "")
+			c.Check(query.Get("private"), Equals, "true")
+		default:
+			c.Fatalf("what? %d", n)
+		}
 
-		// check device authorization is set, implicitly checking doRequest was used
-		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+		if apiV1 {
+			w.Header().Set("Content-Type", "application/hal+json")
+			w.WriteHeader(200)
+			io.WriteString(w, strings.Replace(MockSearchJSON, `"EUR": 2.99, "USD": 3.49`, "", -1))
 
-		// no store ID by default
-		storeID := r.Header.Get("Snap-Device-Store")
-		c.Check(storeID, Equals, "")
+		} else {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(200)
+			io.WriteString(w, strings.Replace(MockSearchJSON, `"EUR": "2.99", "USD": "3.49"`, "", -1))
+		}
 
-		c.Check(r.URL.Query().Get("fields"), Equals, "abc,def")
-
-		c.Check(r.Header.Get("Snap-Device-Series"), Equals, release.Series)
-		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, arch.DpkgArchitecture())
-		c.Check(r.Header.Get("Snap-Classic"), Equals, "false")
-
-		w.Header().Set("X-Suggested-Currency", "GBP")
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(200)
-
-		io.WriteString(w, MockSearchJSONv2)
+		n++
 	}))
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	mockServerURL, _ := url.Parse(mockServer.URL)
+	serverURL, _ := url.Parse(mockServer.URL)
 	cfg := store.Config{
-		StoreBaseURL: mockServerURL,
-		SearchFields: []string{"abc", "def"},
+		StoreBaseURL: serverURL,
 	}
 
-	s.testFind(c, &cfg)
-}
-
-func (s *storeTestSuite) testFindPrivate(c *C, cfg *store.Config) {
-	sto := store.New(cfg, nil)
+	sto := store.New(&cfg, nil)
 
 	_, err := sto.Find(s.ctx, &store.Search{Query: "foo", Private: true}, s.user)
 	c.Check(err, IsNil)
@@ -3273,112 +3323,47 @@ func (s *storeTestSuite) testFindPrivate(c *C, cfg *store.Config) {
 
 	_, err = sto.Find(s.ctx, &store.Search{Query: "name:foo", Private: true}, s.user)
 	c.Check(err, Equals, store.ErrBadQuery)
+
+	c.Check(n, Equals, 2)
+
+	if apiV1 {
+		c.Check(v1Fallback, Equals, true)
+	} else {
+		c.Check(v2Hit, Equals, true)
+	}
 }
 
 func (s *storeTestSuite) TestFindV1Private(c *C) {
-	n := 0
-	var v1Fallback bool
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.Contains(r.URL.Path, searchV2Path) {
-			forceSearchV1(w)
-			return
-		}
-		v1Fallback = true
-		assertRequest(c, r, "GET", searchPath)
-		query := r.URL.Query()
-
-		name := query.Get("name")
-		q := query.Get("q")
-
-		switch n {
-		case 0:
-			c.Check(r.URL.Path, Matches, ".*/search")
-			c.Check(name, Equals, "")
-			c.Check(q, Equals, "foo")
-			c.Check(query.Get("private"), Equals, "true")
-		case 1:
-			c.Check(r.URL.Path, Matches, ".*/search")
-			c.Check(name, Equals, "foo")
-			c.Check(q, Equals, "")
-			c.Check(query.Get("private"), Equals, "true")
-		default:
-			c.Fatalf("what? %d", n)
-		}
-
-		w.Header().Set("Content-Type", "application/hal+json")
-		w.WriteHeader(200)
-		io.WriteString(w, strings.Replace(MockSearchJSON, `"EUR": 2.99, "USD": 3.49`, "", -1))
-
-		n++
-	}))
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-
-	serverURL, _ := url.Parse(mockServer.URL)
-	cfg := store.Config{
-		StoreBaseURL: serverURL,
-	}
-	s.testFindPrivate(c, &cfg)
-	c.Check(v1Fallback, Equals, true)
-	c.Check(n, Equals, 2)
+	apiV1 := true
+	s.testFindPrivate(c, apiV1)
 }
 
 func (s *storeTestSuite) TestFindV2Private(c *C) {
-	n := 0
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assertRequest(c, r, "GET", searchV2Path)
-		query := r.URL.Query()
-
-		name := query.Get("name")
-		q := query.Get("q")
-
-		switch n {
-		case 0:
-			c.Check(r.URL.Path, Matches, ".*/search")
-			c.Check(name, Equals, "")
-			c.Check(q, Equals, "foo")
-			c.Check(query.Get("private"), Equals, "true")
-		case 1:
-			c.Check(r.URL.Path, Matches, ".*/search")
-			c.Check(name, Equals, "foo")
-			c.Check(q, Equals, "")
-			c.Check(query.Get("private"), Equals, "true")
-		default:
-			c.Fatalf("what? %d", n)
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(200)
-		io.WriteString(w, strings.Replace(MockSearchJSON, `"EUR": "2.99", "USD": "3.49"`, "", -1))
-
-		n++
-	}))
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-
-	serverURL, _ := url.Parse(mockServer.URL)
-	cfg := store.Config{
-		StoreBaseURL: serverURL,
-	}
-	s.testFindPrivate(c, &cfg)
-	c.Check(n, Equals, 2)
+	s.testFindPrivate(c, false)
 }
 
 func (s *storeTestSuite) TestFindFailures(c *C) {
+	// bad query check is done early in Find(), so the test covers both search
+	// v1 & v2
 	sto := store.New(&store.Config{StoreBaseURL: new(url.URL)}, nil)
 	_, err := sto.Find(s.ctx, &store.Search{Query: "foo:bar"}, nil)
 	c.Check(err, Equals, store.ErrBadQuery)
 }
 
-func (s *storeTestSuite) TestFindV1Fails(c *C) {
-	var v1Fallback bool
+func (s *storeTestSuite) testFindFails(c *C, apiV1 bool) {
+	var v1Fallback, v2Hit bool
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.Contains(r.URL.Path, searchV2Path) {
-			forceSearchV1(w)
-			return
+		if apiV1 {
+			if strings.Contains(r.URL.Path, searchV2Path) {
+				forceSearchV1(w)
+				return
+			}
+			v1Fallback = true
+			assertRequest(c, r, "GET", searchPath)
+		} else {
+			assertRequest(c, r, "GET", searchV2Path)
+			v2Hit = true
 		}
-		v1Fallback = true
-		assertRequest(c, r, "GET", searchPath)
 		c.Check(r.URL.Query().Get("q"), Equals, "hello")
 		http.Error(w, http.StatusText(418), 418) // I'm a teapot
 	}))
@@ -3389,38 +3374,31 @@ func (s *storeTestSuite) TestFindV1Fails(c *C) {
 	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 		DetailFields: []string{}, // make the error less noisy
+		SearchFields: []string{},
 	}
 	sto := store.New(&cfg, nil)
 
 	snaps, err := sto.Find(s.ctx, &store.Search{Query: "hello"}, nil)
 	c.Check(err, ErrorMatches, `cannot search: got unexpected HTTP status code 418 via GET to "http://\S+[?&]q=hello.*"`)
 	c.Check(snaps, HasLen, 0)
-	c.Check(v1Fallback, Equals, true)
+	if apiV1 {
+		c.Check(v1Fallback, Equals, true)
+	} else {
+		c.Check(v2Hit, Equals, true)
+	}
+}
+
+func (s *storeTestSuite) TestFindV1Fails(c *C) {
+	apiV1 := true
+	s.testFindFails(c, apiV1)
 }
 
 func (s *storeTestSuite) TestFindV2Fails(c *C) {
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assertRequest(c, r, "GET", searchV2Path)
-		c.Check(r.URL.Query().Get("q"), Equals, "hello")
-		http.Error(w, http.StatusText(418), 418) // I'm a teapot
-	}))
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-
-	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := store.Config{
-		StoreBaseURL: mockServerURL,
-		SearchFields: []string{}, // make the error less noisy
-	}
-	sto := store.New(&cfg, nil)
-
-	snaps, err := sto.Find(s.ctx, &store.Search{Query: "hello"}, nil)
-	c.Check(err, ErrorMatches, `cannot search: got unexpected HTTP status code 418 via GET to "http://\S+[?&]q=hello.*"`)
-	c.Check(snaps, HasLen, 0)
+	s.testFindFails(c, false)
 }
 
 func (s *storeTestSuite) testFindBadContentType(c *C, apiV1 bool) {
-	var v1Fallback bool
+	var v1Fallback, v2Hit bool
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if apiV1 {
 			if strings.Contains(r.URL.Path, searchV2Path) {
@@ -3430,6 +3408,7 @@ func (s *storeTestSuite) testFindBadContentType(c *C, apiV1 bool) {
 			v1Fallback = true
 			assertRequest(c, r, "GET", searchPath)
 		} else {
+			v2Hit = true
 			assertRequest(c, r, "GET", searchV2Path)
 		}
 		c.Check(r.URL.Query().Get("q"), Equals, "hello")
@@ -3455,6 +3434,8 @@ func (s *storeTestSuite) testFindBadContentType(c *C, apiV1 bool) {
 	c.Check(snaps, HasLen, 0)
 	if apiV1 {
 		c.Check(v1Fallback, Equals, true)
+	} else {
+		c.Check(v2Hit, Equals, true)
 	}
 }
 
@@ -3468,7 +3449,7 @@ func (s *storeTestSuite) TestFindV2BadContentType(c *C) {
 }
 
 func (s *storeTestSuite) testFindBadBody(c *C, apiV1 bool) {
-	var v1Fallback bool
+	var v1Fallback, v2Hit bool
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if apiV1 {
 			if strings.Contains(r.URL.Path, searchV2Path) {
@@ -3478,6 +3459,7 @@ func (s *storeTestSuite) testFindBadBody(c *C, apiV1 bool) {
 			v1Fallback = true
 			assertRequest(c, r, "GET", searchPath)
 		} else {
+			v2Hit = true
 			assertRequest(c, r, "GET", searchV2Path)
 		}
 		query := r.URL.Query()
@@ -3505,6 +3487,8 @@ func (s *storeTestSuite) testFindBadBody(c *C, apiV1 bool) {
 	c.Check(snaps, HasLen, 0)
 	if apiV1 {
 		c.Check(v1Fallback, Equals, true)
+	} else {
+		c.Check(v2Hit, Equals, true)
 	}
 }
 
@@ -3519,16 +3503,17 @@ func (s *storeTestSuite) TestFindV2BadBody(c *C) {
 
 func (s *storeTestSuite) testFind500(c *C, apiV1 bool) {
 	var n = 0
-	var v1Fallback bool
+	var v1Fallback, v2Hit bool
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if apiV1 {
 			if strings.Contains(r.URL.Path, searchV2Path) {
 				forceSearchV1(w)
 				return
 			}
-			assertRequest(c, r, "GET", searchPath)
 			v1Fallback = true
+			assertRequest(c, r, "GET", searchPath)
 		} else {
+			v2Hit = true
 			assertRequest(c, r, "GET", searchV2Path)
 		}
 		n++
@@ -3550,6 +3535,8 @@ func (s *storeTestSuite) testFind500(c *C, apiV1 bool) {
 	c.Assert(n, Equals, 5)
 	if apiV1 {
 		c.Check(v1Fallback, Equals, true)
+	} else {
+		c.Check(v2Hit, Equals, true)
 	}
 }
 
@@ -3564,7 +3551,7 @@ func (s *storeTestSuite) TestFindV2_500(c *C) {
 
 func (s *storeTestSuite) testFind500once(c *C, apiV1 bool) {
 	var n = 0
-	var v1Fallback bool
+	var v1Fallback, v2Hit bool
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if apiV1 {
 			if strings.Contains(r.URL.Path, searchV2Path) {
@@ -3574,6 +3561,7 @@ func (s *storeTestSuite) testFind500once(c *C, apiV1 bool) {
 			v1Fallback = true
 			assertRequest(c, r, "GET", searchPath)
 		} else {
+			v2Hit = true
 			assertRequest(c, r, "GET", searchV2Path)
 		}
 		n++
@@ -3608,6 +3596,8 @@ func (s *storeTestSuite) testFind500once(c *C, apiV1 bool) {
 	c.Assert(n, Equals, 2)
 	if apiV1 {
 		c.Check(v1Fallback, Equals, true)
+	} else {
+		c.Check(v2Hit, Equals, true)
 	}
 }
 
