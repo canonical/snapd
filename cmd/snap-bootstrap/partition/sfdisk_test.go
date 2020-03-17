@@ -43,7 +43,25 @@ echo '{
       "lastlba": 8388574,
       "partitions": [
          {"node": "/dev/node1", "start": 2048, "size": 2048, "type": "21686148-6449-6E6F-744E-656564454649", "uuid": "2E59D969-52AB-430B-88AC-F83873519F6F", "name": "BIOS Boot"},
-         {"node": "/dev/node2", "start": 4096, "size": 2457600, "type": "0FC63DAF-8483-4772-8E79-3D69D8477DE4", "uuid": "44C3D5C3-CAE1-4306-83E8-DF437ACDB32F", "name": "Recovery", "attrs": "GUID:59"}
+         {"node": "/dev/node2", "start": 4096, "size": 2457600, "type": "C12A7328-F81F-11D2-BA4B-00A0C93EC93B", "uuid": "44C3D5C3-CAE1-4306-83E8-DF437ACDB32F", "name": "Recovery", "attrs": "GUID:59"}
+      ]
+   }
+}'`
+
+const mockSfdiskScriptBiosRecoveryWritable = `
+>&2 echo "Some warning from sfdisk"
+echo '{
+   "partitiontable": {
+      "label": "gpt",
+      "id": "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA",
+      "device": "/dev/node",
+      "unit": "sectors",
+      "firstlba": 34,
+      "lastlba": 8388574,
+      "partitions": [
+         {"node": "/dev/node1", "start": 2048, "size": 2048, "type": "21686148-6449-6E6F-744E-656564454649", "uuid": "2E59D969-52AB-430B-88AC-F83873519F6F", "name": "BIOS Boot"},
+         {"node": "/dev/node2", "start": 4096, "size": 2457600, "type": "C12A7328-F81F-11D2-BA4B-00A0C93EC93B", "uuid": "44C3D5C3-CAE1-4306-83E8-DF437ACDB32F", "name": "Recovery"},
+         {"node": "/dev/node3", "start": 2461696, "size": 2457600, "type": "0FC63DAF-8483-4772-8E79-3D69D8477DE4", "uuid": "f940029d-bfbb-4887-9d44-321e85c63866", "name": "Writable", "attrs": "GUID:59"}
       ]
    }
 }'`
@@ -107,6 +125,18 @@ const mockLsblkScriptBiosAndRecovery = `
 }'
 [ "$3" == "/dev/node2" ] && echo '{
     "blockdevices": [ {"name": "node2", "fstype": "vfat", "label": "ubuntu-seed", "uuid": "A644-B807", "mountpoint": null} ]
+}'
+exit 0`
+
+const mockLsblkScriptBiosRecoveryWritable = `
+[ "$3" == "/dev/node1" ] && echo '{
+    "blockdevices": [ {"name": "node1", "fstype": null, "label": null, "uuid": null, "mountpoint": null} ]
+}'
+[ "$3" == "/dev/node2" ] && echo '{
+    "blockdevices": [ {"name": "node2", "fstype": "vfat", "label": "ubuntu-seed", "uuid": "A644-B807", "mountpoint": null} ]
+}'
+[ "$3" == "/dev/node3" ] && echo '{
+    "blockdevices": [ {"name": "node3", "fstype": "ext4", "label": "ubuntu-data", "uuid": "8781-433a", "mountpoint": null} ]
 }'
 exit 0`
 
@@ -186,7 +216,7 @@ func (s *partitionTestSuite) TestDeviceInfo(c *C) {
 					Name:       "Recovery",
 					Size:       0x4b000000,
 					Label:      "ubuntu-seed",
-					Type:       "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+					Type:       "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
 					Filesystem: "vfat",
 				},
 				StartOffset: 0x200000,
@@ -281,6 +311,14 @@ func (s *partitionTestSuite) TestBuildPartitionList(c *C) {
 				UUID:  "2E59D969-52AB-430B-88AC-F83873519F6F",
 				Name:  "BIOS Boot",
 			},
+			{
+				Node:  "/dev/node2",
+				Start: 4096,
+				Size:  2457600,
+				Type:  "EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
+				UUID:  "216c34ff-9be6-4787-9ab3-a4c1429c3e73",
+				Name:  "Recovery",
+			},
 		},
 	}
 
@@ -295,17 +333,15 @@ func (s *partitionTestSuite) TestBuildPartitionList(c *C) {
 
 	// without encrypted partition
 	sfdiskInput, create := partition.BuildPartitionList(dl, pv, false)
-	c.Assert(sfdiskInput.String(), Equals, `/dev/node2 : start=        4096, size=     2457600, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, name="Recovery", attrs="GUID:59"
-/dev/node3 : start=     2461696, size=     2457600, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Writable", attrs="GUID:59"
+	c.Assert(sfdiskInput.String(), Equals, `/dev/node3 : start=     2461696, size=     2457600, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Writable", attrs="GUID:59"
 `)
-	c.Assert(create, DeepEquals, []partition.DeviceStructure{mockDeviceStructureSystemSeed, mockDeviceStructureWritable})
+	c.Assert(create, DeepEquals, []partition.DeviceStructure{mockDeviceStructureWritable})
 
 	// with encrypted partition
 	sfdiskInput, create = partition.BuildPartitionList(dl, pv, true)
-	c.Assert(sfdiskInput.String(), Equals, `/dev/node2 : start=        4096, size=     2457600, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, name="Recovery", attrs="GUID:59"
-/dev/node3 : start=     2461696, size=     2457600, type=CA7D7CCB-63ED-4C53-861C-1742536059CC, name="Writable", attrs="GUID:59"
+	c.Assert(sfdiskInput.String(), Equals, `/dev/node3 : start=     2461696, size=     2457600, type=CA7D7CCB-63ED-4C53-861C-1742536059CC, name="Writable", attrs="GUID:59"
 `)
-	c.Assert(create, DeepEquals, []partition.DeviceStructure{mockDeviceStructureSystemSeed, mockDeviceStructureWritableEncrypted})
+	c.Assert(create, DeepEquals, []partition.DeviceStructure{mockDeviceStructureWritableEncrypted})
 }
 
 func (s *partitionTestSuite) TestCreatePartitions(c *C) {
@@ -314,7 +350,7 @@ func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 	})
 	defer restore()
 
-	cmdSfdisk := testutil.MockCommand(c, "sfdisk", mockSfdiskScriptBios)
+	cmdSfdisk := testutil.MockCommand(c, "sfdisk", mockSfdiskScriptBiosAndRecovery)
 	defer cmdSfdisk.Restore()
 
 	cmdLsblk := testutil.MockCommand(c, "lsblk", mockLsblkScript)
@@ -334,7 +370,6 @@ func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 	created, err := dl.CreateMissing(pv, false)
 	c.Assert(err, IsNil)
 	c.Assert(created, DeepEquals, []partition.DeviceStructure{
-		mockDeviceStructureSystemSeed,
 		mockDeviceStructureWritable,
 	})
 
@@ -356,7 +391,7 @@ func (s *partitionTestSuite) TestCreatePartitionsWithEncryption(c *C) {
 	})
 	defer restore()
 
-	cmdSfdisk := testutil.MockCommand(c, "sfdisk", mockSfdiskScriptBios)
+	cmdSfdisk := testutil.MockCommand(c, "sfdisk", mockSfdiskScriptBiosAndRecovery)
 	defer cmdSfdisk.Restore()
 
 	cmdLsblk := testutil.MockCommand(c, "lsblk", mockLsblkScript)
@@ -376,7 +411,6 @@ func (s *partitionTestSuite) TestCreatePartitionsWithEncryption(c *C) {
 	created, err := dl.CreateMissing(pv, true)
 	c.Assert(err, IsNil)
 	c.Assert(created, DeepEquals, []partition.DeviceStructure{
-		mockDeviceStructureSystemSeed,
 		mockDeviceStructureWritableEncrypted,
 	})
 
@@ -438,10 +472,10 @@ func (s *partitionTestSuite) TestRemovePartitions(c *C) {
 }
 
 func (s *partitionTestSuite) TestRemovePartitionsError(c *C) {
-	cmdSfdisk := testutil.MockCommand(c, "sfdisk", mockSfdiskScriptBiosAndRecovery)
+	cmdSfdisk := testutil.MockCommand(c, "sfdisk", mockSfdiskScriptBiosRecoveryWritable)
 	defer cmdSfdisk.Restore()
 
-	cmdLsblk := testutil.MockCommand(c, "lsblk", mockLsblkScriptBiosAndRecovery)
+	cmdLsblk := testutil.MockCommand(c, "lsblk", mockLsblkScriptBiosRecoveryWritable)
 	defer cmdLsblk.Restore()
 
 	cmdPartx := testutil.MockCommand(c, "partx", "")
@@ -451,7 +485,7 @@ func (s *partitionTestSuite) TestRemovePartitionsError(c *C) {
 	c.Assert(err, IsNil)
 
 	err = dl.RemoveCreated()
-	c.Assert(err, ErrorMatches, "cannot remove partitions: /dev/node2")
+	c.Assert(err, ErrorMatches, "cannot remove partitions: /dev/node3")
 }
 
 func (s *partitionTestSuite) TestListCreatedPartitions(c *C) {

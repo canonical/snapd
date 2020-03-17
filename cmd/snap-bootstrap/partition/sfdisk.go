@@ -324,13 +324,18 @@ func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume, encryptData 
 			p.Type = "e8,CA7D7CCB-63ED-4C53-861C-1742536059CC"
 		}
 
+		// Only allow the creation of partitions with known GUIDs
+		ptype := partitionType(ptable.Label, p.Type)
+		if !strutil.ListContains(createdPartitionGUID, strings.ToUpper(ptype)) {
+			continue
+		}
+
 		// Can we use the index here? Get the largest existing partition number and
 		// build from there could be safer if the disk partitions are not consecutive
 		// (can this actually happen in our images?)
 		node := deviceName(ptable.Device, p.Index)
 		fmt.Fprintf(buf, "%s : start=%12d, size=%12d, type=%s, name=%q, attrs=\"GUID:%s\"\n", node,
-			p.StartOffset/sectorSize, s.Size/sectorSize, partitionType(ptable.Label, p.Type),
-			s.Name, createdPartitionAttr)
+			p.StartOffset/sectorSize, s.Size/sectorSize, ptype, s.Name, createdPartitionAttr)
 
 		// Set expected labels based on role
 		switch s.Role {
