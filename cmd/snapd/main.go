@@ -31,7 +31,6 @@ import (
 	"github.com/snapcore/snapd/errtracker"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sanity"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/systemd"
@@ -52,9 +51,9 @@ func init() {
 }
 
 func main() {
-	// In preseed mode re-exec is not used
-	if release.PreseedMode() {
-		logger.Noticef("running in preseed mode")
+	// When preseeding re-exec is not used
+	if snapdenv.Preseeding() {
+		logger.Noticef("running for preseeding")
 	} else {
 		cmd.ExecInSnapdOrCoreSnap()
 	}

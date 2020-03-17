@@ -66,10 +66,29 @@ func UseStagingStore() bool {
 	return osutil.GetenvBool("SNAPPY_USE_STAGING_STORE")
 }
 
-func MockUseStagingStore(testing bool) (restore func()) {
+func MockUseStagingStore(useStaging bool) (restore func()) {
 	old := mockUseStagingStore
-	mockUseStagingStore = &testing
+	mockUseStagingStore = &useStaging
 	return func() {
 		mockUseStagingStore = old
+	}
+}
+
+var mockPreseeding *bool
+
+// Preseeding returns whether snapd is preseeding, i.e. performing a
+// partial first boot updating only filesystem state inside a chroot.
+func Preseeding() bool {
+	if mockPreseeding != nil {
+		return *mockPreseeding
+	}
+	return osutil.GetenvBool("SNAPD_PRESEED")
+}
+
+func MockPreseeding(preseeding bool) (restore func()) {
+	old := mockPreseeding
+	mockPreseeding = &preseeding
+	return func() {
+		mockPreseeding = old
 	}
 }

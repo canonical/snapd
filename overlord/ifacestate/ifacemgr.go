@@ -31,8 +31,8 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -85,7 +85,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		// extras
 		extraInterfaces: extraInterfaces,
 		extraBackends:   extraBackends,
-		preseed:         release.PreseedMode(),
+		preseed:         snapdenv.Preseeding(),
 	}
 
 	taskKinds := map[string]bool{}

@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -216,7 +217,7 @@ func (s *firstbootPreseed16Suite) SetUpTest(c *C) {
 }
 
 func (s *firstbootPreseed16Suite) TestPreseedHappy(c *C) {
-	restore := release.MockPreseedMode(func() bool { return true })
+	restore := snapdenv.MockPreseeding(true)
 	defer restore()
 
 	mockMountCmd := testutil.MockCommand(c, "mount", "")
@@ -247,7 +248,7 @@ func (s *firstbootPreseed16Suite) TestPreseedHappy(c *C) {
 }
 
 func (s *firstbootPreseed16Suite) TestPreseedOnClassicHappy(c *C) {
-	restore := release.MockPreseedMode(func() bool { return true })
+	restore := snapdenv.MockPreseeding(true)
 	defer restore()
 
 	restoreRelease := release.MockOnClassic(true)
@@ -333,7 +334,7 @@ snaps:
 }
 
 func (s *firstbootPreseed16Suite) TestPreseedClassicWithSnapdOnlyHappy(c *C) {
-	restorePreseedMode := release.MockPreseedMode(func() bool { return true })
+	restorePreseedMode := snapdenv.MockPreseeding(true)
 	defer restorePreseedMode()
 
 	restore := release.MockOnClassic(true)
