@@ -2458,6 +2458,9 @@ func (s *imageSuite) TestSetupSeedCore20(c *C) {
 	c.Check(bl.RecoverySystemBootVars, DeepEquals, map[string]string{
 		"snapd_recovery_kernel": "/snaps/pc-kernel_1.snap",
 	})
+	c.Check(bl.BootVars, DeepEquals, map[string]string{
+		"snapd_recovery_system": filepath.Base(systems[0]),
+	})
 
 	// check the downloads
 	c.Check(s.storeActions, HasLen, 5)
