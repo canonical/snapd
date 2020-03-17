@@ -95,8 +95,12 @@ func (s *Snap) Install(targetPath, mountDir string) (bool, error) {
 
 	overlayRoot, err := isRootWritableOverlay()
 	if err != nil {
-		logger.Noticef("cannot determine if root filesystem on overlay: %v", err)
+		logger.Noticef("cannot detect root filesystem on overlay: %v", err)
 	}
+	// Hard-linking on overlayfs is identical to a full blown
+	// copy.  When we are operating on a overlayfs based system (e.g. live
+	// installer) use symbolic links.
+	// https://bugs.launchpad.net/snapd/+bug/1867415
 	if overlayRoot == "" {
 		// try to (hard)link the file, but go on to trying to copy it
 		// if it fails for whatever reason
