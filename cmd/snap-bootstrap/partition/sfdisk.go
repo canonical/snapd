@@ -317,7 +317,9 @@ func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume, encryptData 
 			continue
 		}
 
-		// Check if this partition should be encrypted
+		// Check if this partition should be encrypted. We update the type in place
+		// because p is a copy and will be added to the list of created partitions
+		// returned by this function.
 		if encryptData && s.Role == gadget.SystemData {
 			p.Type = "e8,CA7D7CCB-63ED-4C53-861C-1742536059CC"
 		}
