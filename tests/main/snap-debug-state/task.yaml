@@ -25,9 +25,12 @@ execute: |
     echo "Tasks can be listed"
     snap debug state --change=1 /var/lib/snapd/state.json | MATCH "mark-seeded .*Mark system seeded"
 
+    # find the id of mark-seeded task
+    TASK_ID=$(snap debug state --change=1 /var/lib/snapd/state.json | grep "mark-seeded" | awk '{print $2}')
+
     echo "Individual task can be examined"
-    snap debug state --task=1 /var/lib/snapd/state.json | MATCH "kind: mark-seeded"
-    snap debug state --task=1 /var/lib/snapd/state.json | MATCH "summary: Mark system seeded"
+    snap debug state --task="$TASK_ID" /var/lib/snapd/state.json | MATCH "kind: mark-seeded"
+    snap debug state --task="$TASK_ID" /var/lib/snapd/state.json | MATCH "summary: Mark system seeded"
 
     # sanity check, dot shouldn't fail
     if [[ "$SPREAD_SYSTEM" == ubuntu-1* ]]; then
