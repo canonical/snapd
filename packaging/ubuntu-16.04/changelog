@@ -1,6 +1,22 @@
-snapd (2.44~pre2) xenial; urgency=medium
+snapd (2.44) xenial; urgency=medium
 
   * New upstream release, LP: #1864808
+    - daemon: do a forceful serer shutdown if we hit a deadline
+    - snap: whitelist lzo as support compression for snap pack
+    - data/selinux: update policy to allow more ops
+    - interfaces/greengrass-support: add new 1.9 access
+    - snap: do not hardlink on overlayfs
+    - cmd/snap-preseed: handle --reset flag
+    - interfaces/kubernetes-support: allow autobind to journald socket
+    - snap-seccomp: allow mprotect() to unblock the tests
+    - tests/lib/reset: workaround unicode dot in systemctl output
+    - interfaces: work around apparmor_parser slowness affecting uio
+    - interfaces/udisks2: also allow Introspection on
+      /org/freedesktop/UDisks2/**
+    - tests: mock prune ticker in overlord tests to reduce wait times
+    - interfaces/{docker,kubernetes}-support: updates for lastest k8s
+    - interfaces: miscellaneous policy updates
+    - interfaces/audio_playback: Fix pulseaudio config access
     - overlord: disable Test..AbortShortlyAfterStartOfOperation for 2.44
     - ovelord/snapstate: update only system wide fonts cache
     - wrappers: import /etc/environment in all services
@@ -18,12 +34,6 @@ snapd (2.44~pre2) xenial; urgency=medium
     - spread.yaml: mv opensuse 15.1 to unstable
     - tests: use ipv4 in retry-network to unblock failing master
     - data/systemd: improve the description
-
- -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 09 Mar 2020 15:37:52 +0100
-
-snapd (2.44~pre1) xenial; urgency=medium
-
-  * New upstream release, LP: #1864808
     - tests/lib/prepare.sh: simplify, combine code paths
     - tests/main/user-session-env: add test verifying environment
       variables inside the user session
@@ -327,7 +337,7 @@ snapd (2.44~pre1) xenial; urgency=medium
     - tests: disable apt-hooks test until it can be properly fixed
     - tests: 16.04 and 18.04 now have mediating pulseaudio
 
- -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 26 Feb 2020 09:19:24 +0100
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 17 Mar 2020 20:55:47 +0100
 
 snapd (2.43.3) xenial; urgency=medium
 
