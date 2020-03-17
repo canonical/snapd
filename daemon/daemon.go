@@ -580,9 +580,9 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	err := d.tomb.Wait()
 	if err != nil {
 		if err == context.DeadlineExceeded {
-			logger.Noticef("WARNING: cannot gracefully shut down the snapd API: %v", err)
+			logger.Noticef("WARNING: cannot gracefully shut down in-flight snapd API activity within: %v", shutdownTimeout)
 			// the process is shutting down anyway, so we may just
-			// as well close he connections right now
+			// as well close the active connections right now
 			d.serve.Close()
 		} else {
 			// do not stop the shutdown even if the tomb errors
