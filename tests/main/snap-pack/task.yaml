@@ -23,3 +23,9 @@ execute: |
     not su test -c "snap pack "$SNAP_MOUNT_DIR/core18/current" . --filename core18-as-user.snap" 2> stderr.log
     MATCH 'error: cannot pack ".*core18.*": cannot access the following locations in the snap source directory:' < stderr.log
     MATCH -- '- etc.* \(owner .* mode .*\)' < stderr.log
+
+    echo "Packing a simple snap with lzo works"
+    snap pack --compression=lzo "$TESTSLIB/snaps/test-snapd-sh" . --filename test-snapd-sh-lzo.snap
+    test -e test-snapd-sh-lzo.snap
+    unsquashfs -l test-snapd-sh-lzo.snap
+    unsquashfs -s test-snapd-sh-lzo.snap | MATCH "Compression lzo"
