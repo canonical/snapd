@@ -425,7 +425,7 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 				// 2) rmdir of a bind mount (from a normal writable filesystem like ext4)
 				//    over a read-only filesystem also yields EROFS without any indication
 				//    that this is to be expected.
-				logger.Debugf("cannot mount point on read-only filesystem %q", path)
+				logger.Debugf("cannot remove a mount point on read-only filesystem %q", path)
 				return nil
 			}
 			// If we were removing a directory but it was not empty then just
