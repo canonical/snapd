@@ -325,8 +325,9 @@ func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume, encryptData 
 		}
 
 		// Only allow the creation of partitions with known GUIDs
+		// TODO:UC20: also provide a mechanism for MBR (RPi)
 		ptype := partitionType(ptable.Label, p.Type)
-		if !strutil.ListContains(createdPartitionGUID, strings.ToUpper(ptype)) {
+		if ptable.Label == "gpt" && !strutil.ListContains(createdPartitionGUID, strings.ToUpper(ptype)) {
 			continue
 		}
 
@@ -355,6 +356,7 @@ func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume, encryptData 
 
 // listCreatedPartitions returns a list of partitions created during the
 // install process.
+// TODO:UC20: also provide a mechanism for MBR (RPi)
 func listCreatedPartitions(dl *DeviceLayout) []string {
 	created := make([]string, 0, len(dl.partitionTable.Partitions))
 	for _, p := range dl.partitionTable.Partitions {
