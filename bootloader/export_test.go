@@ -43,7 +43,7 @@ func MockAndroidBootFile(c *C, rootdir string, mode os.FileMode) {
 	c.Assert(err, IsNil)
 }
 
-func NewUboot(rootdir string) RecoveryAwareBootloader {
+func NewUboot(rootdir string) ExtractedRecoveryKernelImageBootloader {
 	return newUboot(rootdir)
 }
 

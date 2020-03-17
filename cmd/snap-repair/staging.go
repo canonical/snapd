@@ -2,7 +2,7 @@
 // +build withtestkeys withstagingkeys
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2017-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -24,7 +24,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snapdenv"
 )
 
 const (
@@ -75,7 +75,7 @@ func init() {
 	if err != nil {
 		panic(fmt.Sprintf("cannot decode trusted account-key: %v", err))
 	}
-	if osutil.GetenvBool("SNAPPY_USE_STAGING_STORE") {
+	if snapdenv.UseStagingStore() {
 		trustedRepairRootKeys = append(trustedRepairRootKeys, repairRootAccountKey.(*asserts.AccountKey))
 	}
 }

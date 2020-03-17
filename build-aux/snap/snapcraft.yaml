@@ -30,18 +30,12 @@ parts:
     plugin: nil
     source: .
     build-snaps: [go/1.10/stable]
-    # this is needed because the base image doesn't have tzdata so when this pkg
-    # gets pulled in, for some reason the build-dep command in override-pull
-    # doesn't obey DEBIAN_FRONTEND=noninteractive, so instead have snapcraft
-    # install the build-package for us, as snapcraft can successfully trick apt
-    # somehow
-    build-packages: [tzdata]
     override-pull: |
       snapcraftctl pull
       # install build dependencies
       export DEBIAN_FRONTEND=noninteractive
       export DEBCONF_NONINTERACTIVE_SEEN=true
-      sudo apt-get build-dep -y ./
+      sudo -E apt-get build-dep -y ./
       ./get-deps.sh --skip-unused-check
       # set version after installing dependencies so we have all the tools here
       snapcraftctl set-version "$(./mkversion.sh --output-only)"

@@ -53,6 +53,24 @@ func (s *SnapdirTestSuite) TestReadFile(c *C) {
 	c.Assert(content, DeepEquals, needle)
 }
 
+func (s *SnapdirTestSuite) TestRandomAccessFile(c *C) {
+	d := c.MkDir()
+	needle := []byte(`stuff`)
+	err := ioutil.WriteFile(filepath.Join(d, "foo"), needle, 0644)
+	c.Assert(err, IsNil)
+
+	snap := snapdir.New(d)
+	r, err := snap.RandomAccessFile("foo")
+	c.Assert(err, IsNil)
+	defer r.Close()
+
+	b := make([]byte, 2)
+	n, err := r.ReadAt(b, 2)
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 2)
+	c.Check(string(b), Equals, "uf")
+}
+
 func (s *SnapdirTestSuite) TestListDir(c *C) {
 	d := c.MkDir()
 

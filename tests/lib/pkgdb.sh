@@ -791,6 +791,7 @@ pkg_dependencies_arch(){
     libseccomp
     libcap
     libx11
+    man
     net-tools
     nfs-utils
     openbsd-netcat

@@ -26,7 +26,6 @@ slots:
   mir: null
   mpris:
     name: test-policy-app-provider-classic
-  network-status: null
   online-accounts-service: null
   storage-framework-service: null
   thumbnailer-service: null
@@ -72,9 +71,6 @@ apps:
   mpris:
     command: bin/run
     slots: [ mpris ]
-  network-status:
-    command: bin/run
-    slots: [ network-status ]
   online-accounts-service:
     command: bin/run
     slots: [ online-accounts-service ]

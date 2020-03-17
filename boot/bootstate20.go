@@ -136,12 +136,12 @@ func (ks20 *bootState20Kernel) revisions() (curSnap, trySnap snap.PlaceInfo, try
 		return nil, nil, "", fmt.Errorf("cannot identify kernel snap with bootloader %s: %v", ks20.ebl.Name(), err)
 	}
 
-	tryKernel, tryKernelExists, err := ks20.ebl.TryKernel()
-	if err != nil {
+	tryKernel, err := ks20.ebl.TryKernel()
+	if err != nil && err != bootloader.ErrNoTryKernelRef {
 		return nil, nil, "", fmt.Errorf("cannot identify try kernel snap with bootloader %s: %v", ks20.ebl.Name(), err)
 	}
 
-	if tryKernelExists {
+	if err == nil {
 		tryBootSn = tryKernel
 	}
 
