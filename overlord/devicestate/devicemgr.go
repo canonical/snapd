@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2019 Canonical Ltd
+ * Copyright (C) 2016-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -408,7 +408,7 @@ func (m *DeviceManager) ensureOperational() error {
 	chg := m.state.NewChange("become-operational", i18n.G("Initialize device"))
 	chg.AddAll(state.NewTaskSet(tasks...))
 
-	perfTimings.AddTag("change-id", chg.ID())
+	state.TagTimingsWithChange(perfTimings, chg)
 	perfTimings.Save(m.state)
 
 	return nil
@@ -466,7 +466,7 @@ func (m *DeviceManager) ensureSeeded() error {
 	}
 	m.state.EnsureBefore(0)
 
-	perfTimings.AddTag("change-id", chg.ID())
+	state.TagTimingsWithChange(perfTimings, chg)
 	perfTimings.Save(m.state)
 	return nil
 }
