@@ -33,6 +33,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -3199,6 +3200,18 @@ func (s *storeTestSuite) TestFindV1(c *C) {
 	snp := s.testFind(c, &cfg)
 	c.Check(snp.Architectures, DeepEquals, []string{"all"})
 	c.Check(snp.Sha3_384, Matches, `[[:xdigit:]]{96}`)
+}
+
+func (s *storeTestSuite) TestFindV2SearchFields(c *C) {
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(nil, dauthCtx)
+
+	searchFields := sto.SearchFields()
+	sort.Strings(searchFields)
+	c.Assert(searchFields, DeepEquals, []string{
+		"base", "channel", "confinement", "contact", "description", "download",
+		"license", "media", "prices", "private", "publisher", "revision",
+		"summary", "title", "type", "version"})
 }
 
 func (s *storeTestSuite) TestFindV2(c *C) {
