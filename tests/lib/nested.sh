@@ -313,7 +313,7 @@ start_nested_core_vm(){
         systemctl restart "$NESTED_VM"
 
         # This is a workaround for the issue connecting to the swtpm-mvo snap
-        retry-tool -n 5 --wait 3 systemctl restart "$NESTED_VM" && systemctl is-active "$NESTED_VM"
+        retry-tool -n 5 --wait 3 sh -c "systemctl restart $NESTED_VM && systemctl is-active $NESTED_VM"
     fi
 
     if wait_for_ssh; then
