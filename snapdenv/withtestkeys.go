@@ -1,8 +1,8 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build !linux
+// +build withtestkeys
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2016-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -18,24 +18,9 @@
  *
  */
 
-package main
+package snapdenv
 
-import (
-	"errors"
-)
-
-var preseedNotAvailableError = errors.New("preseed mode not available for systems other than linux")
-
-func checkChroot(preseedChroot string) error {
-	return preseedNotAvailableError
+func init() {
+	// mark as testing if we carry testing keys
+	testingBinary = true
 }
-
-func prepareChroot(preseedChroot string) (func(), error) {
-	return nil, preseedNotAvailableError
-}
-
-func runPreseedMode(rootDir string) error {
-	return preseedNotAvailableError
-}
-
-func cleanup() {}
