@@ -2799,7 +2799,7 @@ func (s *storeTestSuite) TestFindV1Queries(c *C) {
 		case 1:
 			c.Check(name, Equals, "")
 			c.Check(q, Equals, "hello")
-			c.Check(query.Get("scope"), Equals, "maastricht")
+			c.Check(query.Get("scope"), Equals, "wide")
 			c.Check(section, Equals, "")
 		case 2:
 			c.Check(name, Equals, "")
@@ -2830,7 +2830,7 @@ func (s *storeTestSuite) TestFindV1Queries(c *C) {
 
 	for _, query := range []store.Search{
 		{Query: "hello", Prefix: true},
-		{Query: "hello", Scope: "maastricht"},
+		{Query: "hello", Scope: "wide"},
 		{Section: "db"},
 		{Query: "hello", Section: "db"},
 	} {
@@ -3348,6 +3348,14 @@ func (s *storeTestSuite) TestFindFailures(c *C) {
 	sto := store.New(&store.Config{StoreBaseURL: new(url.URL)}, nil)
 	_, err := sto.Find(s.ctx, &store.Search{Query: "foo:bar"}, nil)
 	c.Check(err, Equals, store.ErrBadQuery)
+}
+
+func (s *storeTestSuite) TestFindInvalidScope(c *C) {
+	// bad query check is done early in Find(), so the test covers both search
+	// v1 & v2
+	sto := store.New(&store.Config{StoreBaseURL: new(url.URL)}, nil)
+	_, err := sto.Find(s.ctx, &store.Search{Query: "", Scope: "foo"}, nil)
+	c.Check(err, Equals, store.ErrInvalidScope)
 }
 
 func (s *storeTestSuite) testFindFails(c *C, apiV1 bool) {

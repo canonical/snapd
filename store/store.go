@@ -1240,6 +1240,8 @@ func (s *Store) Find(ctx context.Context, search *Search, user *auth.UserState) 
 	// with v1) so we need to restrict channel if scope is not passed.
 	if search.Scope == "" {
 		q.Set("channel", "stable")
+	} else if search.Scope != "wide" {
+		return nil, ErrInvalidScope
 	}
 
 	if release.OnClassic {
