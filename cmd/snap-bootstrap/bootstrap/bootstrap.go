@@ -24,15 +24,10 @@ import (
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/partition"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
-	"github.com/snapcore/snapd/strutil"
 )
 
 const (
 	ubuntuDataLabel = "ubuntu-data"
-)
-
-var (
-	partitionListCreatedPartitions = partition.ListCreatedPartitions
 )
 
 type Options struct {
@@ -178,11 +173,9 @@ func ensureLayoutCompatibility(gadgetLayout *gadget.LaidOutVolume, diskLayout *p
 		return fmt.Errorf("disk ID %q doesn't match gadget volume ID %q", diskLayout.ID, gadgetLayout.Volume.ID)
 	}
 
-	// Check if all existing device partitions, except those that we added
-	// ourselves, are also in gadget
-	toRemove := partitionListCreatedPartitions(diskLayout)
+	// Check if all existing device partitions are also in gadget
 	for _, ds := range diskLayout.Structure {
-		if !strutil.ListContains(toRemove, ds.Node) && !contains(gadgetLayout.LaidOutStructure, ds) {
+		if !contains(gadgetLayout.LaidOutStructure, ds) {
 			return fmt.Errorf("cannot find disk partition %s (starting at %d) in gadget", ds.Node, ds.StartOffset)
 		}
 	}

@@ -152,7 +152,7 @@ func (dl *DeviceLayout) CreateMissing(pv *gadget.LaidOutVolume, encryptData bool
 // RemoveCreated removes partitions added during a previous failed install
 // attempt.
 func (dl *DeviceLayout) RemoveCreated() error {
-	toRemove := ListCreatedPartitions(dl)
+	toRemove := listCreatedPartitions(dl)
 	if len(toRemove) == 0 {
 		return nil
 	}
@@ -195,7 +195,7 @@ func (dl *DeviceLayout) RemoveCreated() error {
 	dl.partitionTable = layout.partitionTable
 
 	// Ensure all created partitions were removed
-	remaining := ListCreatedPartitions(dl)
+	remaining := listCreatedPartitions(dl)
 	if len(remaining) > 0 {
 		return fmt.Errorf("cannot remove partitions: %s", strings.Join(remaining, ", "))
 	}
@@ -346,19 +346,19 @@ func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume, encryptData 
 	return buf, toBeCreated
 }
 
-// ListCreatedPartitions returns a list of partitions created during the
+// listCreatedPartitions returns a list of partitions created during the
 // install process.
-func ListCreatedPartitions(dl *DeviceLayout) []string {
-	parts := make([]string, 0, len(dl.partitionTable.Partitions))
+func listCreatedPartitions(dl *DeviceLayout) []string {
+	created := make([]string, 0, len(dl.partitionTable.Partitions))
 	for _, p := range dl.partitionTable.Partitions {
 		if p.Attrs != "" {
 			attrs := strings.Split(strings.TrimPrefix(p.Attrs, "GUID:"), ",")
 			if strutil.ListContains(attrs, createdPartitionAttr) && strutil.ListContains(createdPartitionGUID, strings.ToUpper(p.Type)) {
-				parts = append(parts, p.Node)
+				created = append(created, p.Node)
 			}
 		}
 	}
-	return parts
+	return created
 }
 
 // udevTrigger triggers udev for the specified device and waits until
