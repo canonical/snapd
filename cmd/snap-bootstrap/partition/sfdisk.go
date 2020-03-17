@@ -353,7 +353,7 @@ func ListCreatedPartitions(dl *DeviceLayout) []string {
 	for _, p := range dl.partitionTable.Partitions {
 		if p.Attrs != "" {
 			attrs := strings.Split(strings.TrimPrefix(p.Attrs, "GUID:"), ",")
-			if strutil.ListContains(attrs, createdPartitionAttr) && strutil.ListContains(createdPartitionGUID, p.Type) {
+			if strutil.ListContains(attrs, createdPartitionAttr) && strutil.ListContains(createdPartitionGUID, strings.ToUpper(p.Type)) {
 				parts = append(parts, p.Node)
 			}
 		}

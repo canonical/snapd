@@ -455,15 +455,64 @@ func (s *partitionTestSuite) TestRemovePartitionsError(c *C) {
 }
 
 func (s *partitionTestSuite) TestListCreatedPartitions(c *C) {
-	cmdSfdisk := testutil.MockCommand(c, "sfdisk", mockSfdiskScriptBiosAndRecovery)
-	defer cmdSfdisk.Restore()
-
-	cmdLsblk := testutil.MockCommand(c, "lsblk", mockLsblkScriptBiosAndRecovery)
+	cmdLsblk := testutil.MockCommand(c, "lsblk", `echo '{ "blockdevices": [ {"fstype":"ext4", "label":null} ] }'`)
 	defer cmdLsblk.Restore()
 
-	dl, err := partition.DeviceLayoutFromDisk("/dev/node")
+	ptable := partition.SFDiskPartitionTable{
+		Label:    "gpt",
+		ID:       "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA",
+		Device:   "/dev/node",
+		Unit:     "sectors",
+		FirstLBA: 34,
+		LastLBA:  8388574,
+		Partitions: []partition.SFDiskPartition{
+			{
+				Node:  "/dev/node1",
+				Start: 1024,
+				Size:  1024,
+				Type:  "0fc63daf-8483-4772-8e79-3d69d8477de4",
+				UUID:  "641764aa-a680-4d36-a7ad-f7bd01fd8d12",
+				Name:  "Linux filesystem",
+			},
+			{
+				Node:  "/dev/node2",
+				Start: 2048,
+				Size:  2048,
+				Type:  "0657FD6D-A4AB-43C4-84E5-0933C84B4F4F",
+				UUID:  "7ea3a75a-3f6d-4647-8134-89ae61fe88d5",
+				Name:  "Linux swap",
+			},
+			{
+				Node:  "/dev/node3",
+				Start: 4096,
+				Size:  4096,
+				Type:  "ca7d7ccb-63ed-4c53-861c-1742536059cc",
+				UUID:  "167fb6c4-4a4e-4f1a-b896-631f4ab748ad",
+				Name:  "Encrypt",
+			},
+			{
+				Node:  "/dev/node4",
+				Start: 8192,
+				Size:  8192,
+				Type:  "21686148-6449-6E6F-744E-656564454649",
+				UUID:  "30a26851-4b08-4b8d-8aea-f686e723ed8c",
+				Name:  "BIOS boot partition",
+			},
+		},
+	}
+
+	dl, err := partition.DeviceLayoutFromPartitionTable(ptable)
 	c.Assert(err, IsNil)
-	c.Assert(partition.ListCreatedPartitions(dl), DeepEquals, []string{"/dev/node2"})
+
+	list := partition.ListCreatedPartitions(dl)
+	c.Assert(list, HasLen, 0)
+
+	for i := range ptable.Partitions {
+		ptable.Partitions[i].Attrs = "GUID:58,59"
+	}
+
+	list = partition.ListCreatedPartitions(dl)
+	c.Assert(list, DeepEquals, []string{"/dev/node1", "/dev/node2", "/dev/node3"})
 }
 
 func (s *partitionTestSuite) TestFilesystemInfo(c *C) {
