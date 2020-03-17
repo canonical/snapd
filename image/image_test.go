@@ -2488,39 +2488,8 @@ func (s *imageSuite) TestSetupSeedCore20(c *C) {
 	})
 }
 
-type erkaCall struct {
-	recovery string
-	s        snap.PlaceInfo
-}
-
-type mockUBootBootloader struct {
-	*bootloadertest.MockBootloader
-
-	ExtractRecoveryKernelAssetsCalls []erkaCall
-}
-
-func newMockUBootBootloader(c *C) *mockUBootBootloader {
-	m := mockUBootBootloader{
-		MockBootloader: bootloadertest.Mock("uboot", c.MkDir()),
-	}
-	return &m
-}
-
-var _ bootloader.ExtractedRecoveryKernelImageBootloader = (*mockUBootBootloader)(nil)
-
-func (m *mockUBootBootloader) ExtractRecoveryKernelAssets(recoverySystemDir string, s snap.PlaceInfo, snapf snap.Container) error {
-	if recoverySystemDir == "" {
-		panic("MockBootloader.ExtractRecoveryKernelAssets called without recoverySystemDir")
-	}
-	m.ExtractRecoveryKernelAssetsCalls = append(m.ExtractRecoveryKernelAssetsCalls, erkaCall{
-		recovery: recoverySystemDir,
-		s:        s,
-	})
-	return nil
-}
-
 func (s *imageSuite) TestSetupSeedCore20UBoot(c *C) {
-	ub := newMockUBootBootloader(c)
+	ub := bootloadertest.Mock("mock", c.MkDir()).ExtractedRecoveryKernelImage()
 	bootloader.Force(ub)
 	defer bootloader.Force(s.bootloader)
 	restore := image.MockTrusted(s.StoreSigning.Trusted)
@@ -2592,8 +2561,8 @@ func (s *imageSuite) TestSetupSeedCore20UBoot(c *C) {
 	})
 
 	c.Check(ub.ExtractRecoveryKernelAssetsCalls, HasLen, 1)
-	c.Check(ub.ExtractRecoveryKernelAssetsCalls[0].recovery, Equals, "/systems/"+expectedLabel)
-	c.Check(ub.ExtractRecoveryKernelAssetsCalls[0].s.InstanceName(), Equals, "arm-kernel")
+	c.Check(ub.ExtractRecoveryKernelAssetsCalls[0].RecoverySystemDir, Equals, "/systems/"+expectedLabel)
+	c.Check(ub.ExtractRecoveryKernelAssetsCalls[0].S.InstanceName(), Equals, "arm-kernel")
 }
 
 type toolingStoreContextSuite struct {
