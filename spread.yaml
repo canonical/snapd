@@ -929,7 +929,7 @@ suites:
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
             distro_install_package snapd qemu genisoimage sshpass qemu-kvm cloud-image-utils ubuntu-image ovmf
-            
+
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
             create_nested_core_vm

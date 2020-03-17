@@ -124,10 +124,7 @@ is_classic_nested_system(){
 }
 
 is_focal_system(){
-    if lsb_release -a | grep focal; then
-        return 0
-    fi
-    return 1
+    test "$(lsb_release -cs)" = focal
 }
 
 is_core_20_nested_system(){
@@ -138,10 +135,7 @@ is_core_20_nested_system(){
 }
 
 is_bionic_system(){
-    if lsb_release -a | grep bionic; then
-        return 0
-    fi
-    return 1
+    test "$(lsb_release -cs)" = bionic
 }
 
 is_core_18_nested_system(){
@@ -152,10 +146,7 @@ is_core_18_nested_system(){
 }
 
 is_xenial_system(){
-    if lsb_release -a | grep xenial; then
-        return 0
-    fi
-    return 1
+    test "$(lsb_release -cs)" = xenial
 }
 
 is_core_16_nested_system(){
@@ -256,7 +247,7 @@ create_nested_core_vm(){
             "$EXTRA_FUNDAMENTAL" \
             "$EXTRA_SNAPS"
 
-        create_assertions_disk  
+        create_assertions_disk
     fi
 }
 
@@ -303,7 +294,7 @@ start_nested_core_vm(){
         PARAM_TPM=""
     fi
 
-    # Systemdd unit is created, it is important to respect the qemu parameters order
+    # Systemd unit is created, it is important to respect the qemu parameters order
     systemd_create_and_start_unit "$NESTED_VM" "${QEMU} \
         ${PARAM_CPU} \
         ${PARAM_MEM} \
@@ -319,13 +310,10 @@ start_nested_core_vm(){
 
     # This is a workaround for the issue when the user assertion is not autoimported correctly
     if ! wait_for_ssh; then
-        systemctl restart nested-vm
+        systemctl restart "$NESTED_VM"
 
         # This is a workaround for the issue connecting to the swtpm-mvo snap
-        while ! systemctl is-active nested-vm; do
-            systemctl restart nested-vm
-            sleep 5
-        done
+        retry-tool -n 5 --wait 3 systemctl restart "$NESTED_VM" && systemctl is-active "$NESTED_VM"
     fi
 
     if wait_for_ssh; then
