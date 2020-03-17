@@ -32,6 +32,30 @@ import (
 )
 
 func handleCertConfiguration(tr config.Conf) error {
+	// This handles the "snap revert core" case:
+	// We need to go over each pem cert on disk and check if there is
+	// a matching config entry - if not->delete the cert
+	//
+	// XXX: remove this code once we have a general way to handle
+	//      "snap revert" and config updates
+	storeCerts, err := filepath.Glob(filepath.Join(dirs.SnapdStoreSSLCertsDir, "*.pem"))
+	if err != nil {
+		return fmt.Errorf("cannot get exiting store certs: %v", err)
+	}
+	for _, storeCertPath := range storeCerts {
+		optionName := strings.TrimSuffix(filepath.Base(storeCertPath), ".pem")
+		v, err := coreCfg(tr, "certs."+optionName)
+		if err != nil {
+			return err
+		}
+		if v == "" {
+			if err := os.Remove(storeCertPath); err != nil {
+				return err
+			}
+		}
+	}
+
+	// add/remove regular (non revert) changes
 	for _, name := range tr.Changes() {
 		if !strings.HasPrefix(name, "core.certs.") {
 			continue

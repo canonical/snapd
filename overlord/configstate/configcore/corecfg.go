@@ -115,7 +115,7 @@ func Run(tr config.Conf) error {
 		return err
 	}
 
-	// certs are ok on clasic too
+	// certs are ok on classic too
 	if err := handleCertConfiguration(tr); err != nil {
 		return err
 	}
