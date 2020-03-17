@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,7 +17,7 @@
  *
  */
 
-package httputil
+package snapdenv
 
 import (
 	"fmt"
@@ -29,16 +29,7 @@ import (
 )
 
 // UserAgent to send
-// TODO: this should actually be set per client request, and include the client user agent
 var userAgent = "unset"
-
-var isTesting bool
-
-func init() {
-	if osutil.GetenvBool("SNAPPY_TESTING") {
-		isTesting = true
-	}
-}
 
 // SetUserAgentFromVersion sets up a user-agent string.
 func SetUserAgentFromVersion(version string, extraProds ...string) (restore func()) {
@@ -50,7 +41,7 @@ func SetUserAgentFromVersion(version string, extraProds ...string) (restore func
 	if release.ReleaseInfo.ForceDevMode() {
 		extras = append(extras, "devmode")
 	}
-	if isTesting {
+	if Testing() {
 		extras = append(extras, "testing")
 	}
 	extraProdStr := ""
