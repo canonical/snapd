@@ -161,6 +161,9 @@ apps:
   hostname-control:
     command: bin/run
     plugs: [ hostname-control ]
+  hugepages-control:
+    command: bin/run
+    plugs: [ hugepages-control ]
   intel-mei:
     command: bin/run
     plugs: [ intel-mei ]
