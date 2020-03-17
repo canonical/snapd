@@ -35,9 +35,9 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
@@ -433,13 +433,19 @@ func (s *deviceMgrSuite) TestDoPrepareRemodeling(c *C) {
 
 type preseedBaseSuite struct {
 	deviceMgrBaseSuite
-	restorePreseedMode func()
-	cmdUmount          *testutil.MockCmd
-	cmdSystemctl       *testutil.MockCmd
+
+	// TODO: use this in deviceMgrBaseSuite itself
+	testutil.BaseTest
+
+	cmdUmount    *testutil.MockCmd
+	cmdSystemctl *testutil.MockCmd
 }
 
 func (s *preseedBaseSuite) SetUpTest(c *C, preseed bool) {
-	s.restorePreseedMode = release.MockPreseedMode(func() bool { return preseed })
+	s.BaseTest.SetUpTest(c)
+
+	s.AddCleanup(snapdenv.MockPreseeding(preseed))
+
 	// preseed mode helper needs to be mocked before setting up
 	// deviceMgrBaseSuite due to device Manager init.
 	s.deviceMgrBaseSuite.SetUpTest(c)
@@ -474,6 +480,9 @@ func (s *preseedBaseSuite) TearDownTest(c *C) {
 	s.cmdSystemctl.Restore()
 }
 
+// TODO: rename preesed mode to just preseeding as much as possible,
+// preseed mode souns like a UC20 system mode but is just a snapd mode
+// but preseed snapd mode is a mouthful
 type preseedModeSuite struct {
 	preseedBaseSuite
 }

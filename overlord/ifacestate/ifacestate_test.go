@@ -54,6 +54,7 @@ import (
 	seccomp_compiler "github.com/snapcore/snapd/sandbox/seccomp"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
@@ -8007,7 +8008,7 @@ plugs:
 }
 
 func (s *interfaceManagerSuite) TestPreseedAutoConnectErrorWithInterfaceHooks(c *C) {
-	restore := release.MockPreseedMode(func() bool { return true })
+	restore := snapdenv.MockPreseeding(true)
 	defer restore()
 
 	s.MockModel(c, nil)
