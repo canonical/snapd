@@ -396,7 +396,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeSupportsCloudInitInDangerous(
 func (s *deviceMgrInstallModeSuite) TestInstallModeNoCloudInitForSigned(c *C) {
 	s.testInstallModeSupportsCloudInit(c, "signed")
 
-	// and did copy the cloud-init files
+	// and did not copy the cloud-init files
 	ubuntuDataCloudCfg := filepath.Join(dirs.RunMnt, "ubuntu-data/system-data/etc/cloud/cloud.cfg.d/")
 	c.Check(filepath.Join(ubuntuDataCloudCfg, "foo.cfg"), testutil.FileAbsent)
 	c.Check(filepath.Join(ubuntuDataCloudCfg, "bar.cfg"), testutil.FileAbsent)
