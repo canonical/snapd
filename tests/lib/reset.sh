@@ -50,6 +50,7 @@ reset_classic() {
         ls -lR "$SNAP_MOUNT_DIR"/ /var/snap/
         exit 1
     fi
+    rm -rf /tmp/snap.*
 
     case "$SPREAD_SYSTEM" in
         fedora-*|centos-*)
@@ -62,7 +63,7 @@ reset_classic() {
 
     # systemd retains the failed state of service units, even after they are
     # removed, we need to reset their 'failed state'
-    systemctl --failed --no-legend --full | awk '/^snap\..*\.service +(error|not-found) +failed/ {print $1}' | while read -r unit; do
+    systemctl --plain --failed --no-legend --full | awk '/^ *snap\..*\.service +(error|not-found) +failed/ {print $1}' | while read -r unit; do
         systemctl reset-failed "$unit" || true
     done
 
@@ -160,6 +161,7 @@ reset_all_snap() {
     systemctl stop snapd.service snapd.socket
     restore_snapd_state
     rm -rf /root/.snap
+    rm -rf /tmp/snap.*
     if [ "$1" != "--keep-stopped" ]; then
         systemctl start snapd.service snapd.socket
     fi

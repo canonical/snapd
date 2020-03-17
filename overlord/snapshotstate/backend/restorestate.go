@@ -25,7 +25,7 @@ import (
 	"regexp"
 
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/randutil"
 )
 
 // RestoreState stores information that can be used to cleanly revert (or finish
@@ -56,7 +56,7 @@ func (rs *RestoreState) Cleanup() {
 }
 
 func restoreStateFilename(fn string) string {
-	return fmt.Sprintf("%s.~%s~", fn, strutil.MakeRandomString(9))
+	return fmt.Sprintf("%s.~%s~", fn, randutil.RandomString(9))
 }
 
 var restoreStateRx = regexp.MustCompile(`\.~[a-zA-Z0-9]{9}~$`)

@@ -140,6 +140,25 @@ static void sc_udev_allow_uhid(int devices_allow_fd)
 }
 
 /**
+ * Allow access to /dev/net/tun
+ *
+ * When CONFIG_TUN=m, /dev/net/tun will exist but using it doesn't
+ * autoload the tun module but also /dev/net/tun isn't udev tagged
+ * until it is loaded. To work around this, if /dev/net/tun exists, add
+ * it unconditionally to the cgroup and rely on AppArmor to mediate the
+ * access. LP: #1859084
+ **/
+static void sc_udev_allow_dev_net_tun(int devices_allow_fd)
+{
+	struct stat sbuf;
+
+	if (stat("/dev/net/tun", &sbuf) == 0) {
+		sc_dprintf(devices_allow_fd, "c %u:%u rwm", major(sbuf.st_rdev),
+			   minor(sbuf.st_rdev));
+	}
+}
+
+/**
  * Allow access to assigned devices.
  *
  * The snapd udev security backend uses udev rules to tag matching devices with
@@ -186,6 +205,7 @@ static void sc_udev_setup_acls(int devices_allow_fd, int devices_deny_fd,
 	sc_udev_allow_pty_slaves(devices_allow_fd);
 	sc_udev_allow_nvidia(devices_allow_fd);
 	sc_udev_allow_uhid(devices_allow_fd);
+	sc_udev_allow_dev_net_tun(devices_allow_fd);
 	sc_udev_allow_assigned(devices_allow_fd, udev, assigned);
 }
 

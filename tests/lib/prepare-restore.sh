@@ -270,9 +270,7 @@ prepare_project() {
 
     create_test_user
 
-    if ! distro_update_package_db; then
-        echo "Error updating the package db, continue with the system preparation"
-    fi
+    distro_update_package_db
 
     if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
         # perform system upgrade on Arch so that we run with most recent kernel
@@ -376,9 +374,7 @@ prepare_project() {
             ;;
     esac
 
-    if ! install_pkg_dependencies; then
-        echo "Error installing test dependencies, continue with the system preparation"
-    fi
+    install_pkg_dependencies
 
     # We take a special case for Debian/Ubuntu where we install additional build deps
     # base on the packaging. In Fedora/Suse this is handled via mock/osc
@@ -450,6 +446,9 @@ prepare_project() {
     # Build additional utilities we need for testing
     go get ./tests/lib/fakedevicesvc
     go get ./tests/lib/systemd-escape
+
+    # Build the tool for signing model assertions
+    go get ./tests/lib/gendeveloper1model
 
     # On core systems, the journal service is configured once the final core system
     # is created and booted what is done during the first test suite preparation

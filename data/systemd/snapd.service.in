@@ -1,5 +1,5 @@
 [Unit]
-Description=Snappy daemon
+Description=Snap Daemon
 Requires=snapd.socket
 OnFailure=snapd.failure.service
 # This is handled by snapd

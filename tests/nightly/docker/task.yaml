@@ -1,5 +1,7 @@
 summary: Check that the docker snap works
 
+# TODO:UC20: enable for UC20 too
+# FIXME: this seems to duplicate the docker-smoke test we have?
 systems: [ubuntu-16.04-*, ubuntu-core-16-*, ubuntu-14.04-64]
 
 prepare: |

@@ -45,13 +45,13 @@ func makeMockSnapdSnap(c *C) *snap.Info {
 
 	info := snaptest.MockSnapWithFiles(c, snapdYaml, &snap.SideInfo{Revision: snap.R(1)}, [][]string{
 		// system services
-		{"lib/systemd/system/snapd.service", "[Unit]\nExecStart=/usr/lib/snapd/snapd\n# X-Snapd-Snap: do-not-start"},
-		{"lib/systemd/system/snapd.system-shutdown.service", "[Unit]\nExecStart=/bin/umount --everything\n# X-Snapd-Snap: do-not-start"},
-		{"lib/systemd/system/snapd.autoimport.service", "[Unit]\nExecStart=/usr/bin/snap auto-import"},
+		{"lib/systemd/system/snapd.service", "[Unit]\n[Service]\nExecStart=/usr/lib/snapd/snapd\n# X-Snapd-Snap: do-not-start"},
+		{"lib/systemd/system/snapd.system-shutdown.service", "[Unit]\n[Service]\nExecStart=/bin/umount --everything\n# X-Snapd-Snap: do-not-start"},
+		{"lib/systemd/system/snapd.autoimport.service", "[Unit]\n[Service]\nExecStart=/usr/bin/snap auto-import"},
 		{"lib/systemd/system/snapd.socket", "[Unit]\n[Socket]\nListenStream=/run/snapd.socket"},
 		{"lib/systemd/system/snapd.snap-repair.timer", "[Unit]\n[Timer]\nOnCalendar=*-*-* 5,11,17,23:00"},
 		// user services
-		{"usr/lib/systemd/user/snapd.session-agent.service", "[Unit]\nExecStart=/usr/bin/snap session-agent"},
+		{"usr/lib/systemd/user/snapd.session-agent.service", "[Unit]\n[Service]\nExecStart=/usr/bin/snap session-agent"},
 		{"usr/lib/systemd/user/snapd.session-agent.socket", "[Unit]\n[Socket]\nListenStream=%t/snap-session.socket"},
 	})
 
@@ -104,7 +104,7 @@ func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnCore(c *C) {
 
 	info := makeMockSnapdSnap(c)
 	// add the snapd service
-	err := wrappers.AddSnapServices(info, nil, progress.Null)
+	err := wrappers.AddSnapdSnapServices(info, progress.Null)
 	c.Assert(err, IsNil)
 
 	mountUnit := fmt.Sprintf(`[Unit]
@@ -124,17 +124,17 @@ WantedBy=snapd.service
 		// check that snapd.service is created
 		filepath.Join(dirs.SnapServicesDir, "snapd.service"),
 		// and paths get re-written
-		fmt.Sprintf("[Unit]\nExecStart=%s/snapd/1/usr/lib/snapd/snapd\n# X-Snapd-Snap: do-not-start", dirs.SnapMountDir),
+		fmt.Sprintf("[Unit]\n[Service]\nExecStart=%[1]s/snapd/1/usr/lib/snapd/snapd\n# X-Snapd-Snap: do-not-start\n[Unit]\nRequiresMountsFor=%[1]s/snapd/1\n", dirs.SnapMountDir),
 	}, {
 		// check that snapd.autoimport.service is created
 		filepath.Join(dirs.SnapServicesDir, "snapd.autoimport.service"),
 		// and paths get re-written
-		fmt.Sprintf("[Unit]\nExecStart=%s/snapd/1/usr/bin/snap auto-import", dirs.SnapMountDir),
+		fmt.Sprintf("[Unit]\n[Service]\nExecStart=%[1]s/snapd/1/usr/bin/snap auto-import\n[Unit]\nRequiresMountsFor=%[1]s/snapd/1\n", dirs.SnapMountDir),
 	}, {
 		// check that snapd.system-shutdown.service is created
 		filepath.Join(dirs.SnapServicesDir, "snapd.system-shutdown.service"),
 		// and paths *do not* get re-written
-		"[Unit]\nExecStart=/bin/umount --everything\n# X-Snapd-Snap: do-not-start",
+		"[Unit]\n[Service]\nExecStart=/bin/umount --everything\n# X-Snapd-Snap: do-not-start",
 	}, {
 		// check that usr-lib-snapd.mount is created
 		filepath.Join(dirs.SnapServicesDir, "usr-lib-snapd.mount"),
@@ -143,7 +143,7 @@ WantedBy=snapd.service
 		// check that snapd.session-agent.service is created
 		filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.service"),
 		// and paths get re-written
-		fmt.Sprintf("[Unit]\nExecStart=%s/snapd/1/usr/bin/snap session-agent", dirs.SnapMountDir),
+		fmt.Sprintf("[Unit]\n[Service]\nExecStart=%[1]s/snapd/1/usr/bin/snap session-agent\n[Unit]\nRequiresMountsFor=%[1]s/snapd/1\n", dirs.SnapMountDir),
 	}, {
 		// check that snapd.session-agent.socket is created
 		filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.socket"),
@@ -192,7 +192,7 @@ func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnClassic(c *C) {
 
 	info := makeMockSnapdSnap(c)
 	// add the snapd service
-	err := wrappers.AddSnapServices(info, nil, progress.Null)
+	err := wrappers.AddSnapdSnapServices(info, progress.Null)
 	c.Assert(err, IsNil)
 
 	// check that snapd services were *not* created
@@ -207,7 +207,19 @@ func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnClassic(c *C) {
 	c.Check(s.sysdLog, IsNil)
 }
 
-func (s *servicesTestSuite) TestRemoveSnapServicesForSnapdOnCore(c *C) {
+func (s *servicesTestSuite) TestAddSnapdServicesWithNonSnapd(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	info := snaptest.MockInfo(c, "name: foo\nversion: 1.0", &snap.SideInfo{})
+	restore = release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
+	defer restore()
+
+	err := wrappers.AddSnapdSnapServices(info, progress.Null)
+	c.Assert(err, ErrorMatches, `internal error: adding explicit snapd services for snap "foo" type "app" is unexpected`)
+}
+
+func (s *servicesTestSuite) TestRemoveSnapServicesForFirstInstallSnapdOnCore(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
@@ -269,7 +281,7 @@ func (s *servicesTestSuite) TestRemoveSnapServicesForSnapdOnCore(c *C) {
 	snaptest.PopulateDir("/", coreUnits)
 
 	// remove the snapd service
-	err := wrappers.UndoSnapdServicesOnCore(info, progress.Null)
+	err := wrappers.RemoveSnapdSnapServicesOnCore(info, progress.Null)
 	c.Assert(err, IsNil)
 
 	for _, unit := range units {
@@ -305,4 +317,16 @@ func (s *servicesTestSuite) TestRemoveSnapServicesForSnapdOnCore(c *C) {
 		{"stop", "usr-lib-snapd.mount"},
 		{"show", "--property=ActiveState", "usr-lib-snapd.mount"},
 	})
+}
+
+func (s *servicesTestSuite) TestRemoveSnapdServicesWithNonSnapd(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	info := snaptest.MockInfo(c, "name: foo\nversion: 1.0", &snap.SideInfo{})
+	restore = release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
+	defer restore()
+
+	err := wrappers.RemoveSnapdSnapServicesOnCore(info, progress.Null)
+	c.Assert(err, ErrorMatches, `internal error: removing explicit snapd services for snap "foo" type "app" is unexpected`)
 }

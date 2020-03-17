@@ -23,7 +23,21 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/snap"
+)
+
+const (
+	// DefaultStatus is the value of a status boot variable when nothing is
+	// being tried
+	DefaultStatus = ""
+	// TryStatus is the value of a status boot variable when something is about
+	// to be tried
+	TryStatus = "try"
+	// TryingStatus is the value of a status boot variable after we have
+	// attempted a boot with a try snap - this status is only set in the early
+	// boot sequence (bootloader, initramfs, etc.)
+	TryingStatus = "trying"
 )
 
 // A BootParticipant handles the boot process details for a snap involved in it.
@@ -96,12 +110,21 @@ func Participant(s snap.PlaceInfo, t snap.Type, dev Device) BootParticipant {
 	return trivial{}
 }
 
+// bootloaderOptionsForDeviceKernel returns a set of bootloader options that
+// enable correct kernel extraction and removal for given device
+func bootloaderOptionsForDeviceKernel(dev Device) *bootloader.Options {
+	return &bootloader.Options{
+		// unified extractable kernel if in uc20 mode
+		ExtractedRunKernelImage: dev.HasModeenv(),
+	}
+}
+
 // Kernel checks that the given arguments refer to a kernel snap
 // that participates in the boot process, and returns the associated
 // BootKernel, or a trivial implementation otherwise.
 func Kernel(s snap.PlaceInfo, t snap.Type, dev Device) BootKernel {
 	if t == snap.TypeKernel && applicable(s, t, dev) {
-		return &coreKernel{s: s}
+		return &coreKernel{s: s, bopts: bootloaderOptionsForDeviceKernel(dev)}
 	}
 	return trivial{}
 }
@@ -144,8 +167,8 @@ func applicable(s snap.PlaceInfo, t snap.Type, dev Device) bool {
 type bootState interface {
 	// revisions retrieves the revisions of the current snap and
 	// the try snap (only the latter might not be set), and
-	// whether the snap is in "trying" state.
-	revisions() (snap, trySnap snap.PlaceInfo, trying bool, err error)
+	// the status of the trying snap.
+	revisions() (curSnap, trySnap snap.PlaceInfo, tryingStatus string, err error)
 
 	// setNext lazily implements setting the next boot target for
 	// the type's boot snap. actually committing the update
@@ -165,11 +188,15 @@ func bootStateFor(typ snap.Type, dev Device) (s bootState, err error) {
 	if !dev.RunMode() {
 		return nil, fmt.Errorf("internal error: no boot state handling for ephemeral modes")
 	}
+	newBootState := newBootState16
+	if dev.HasModeenv() {
+		newBootState = newBootState20
+	}
 	switch typ {
 	case snap.TypeOS, snap.TypeBase:
-		return newBootState16(snap.TypeBase), nil
+		return newBootState(snap.TypeBase), nil
 	case snap.TypeKernel:
-		return newBootState16(snap.TypeKernel), nil
+		return newBootState(snap.TypeKernel), nil
 	default:
 		return nil, fmt.Errorf("internal error: no boot state handling for snap type %q", typ)
 	}
@@ -240,12 +267,12 @@ func GetCurrentBoot(t snap.Type, dev Device) (snap.PlaceInfo, error) {
 		return nil, err
 	}
 
-	snap, _, trying, err := s.revisions()
+	snap, _, status, err := s.revisions()
 	if err != nil {
 		return nil, err
 	}
 
-	if trying {
+	if status == TryingStatus {
 		return nil, ErrBootNameAndRevisionNotReady
 	}
 

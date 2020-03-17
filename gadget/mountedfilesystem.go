@@ -336,10 +336,19 @@ func (f *MountedFilesystemUpdater) Update() error {
 
 	backupRoot := fsStructBackupPath(f.backupDir, f.ps)
 
+	skipped := 0
 	for _, c := range f.ps.Content {
 		if err := f.updateVolumeContent(mount, &c, preserveInDst, backupRoot); err != nil {
+			if err == ErrNoUpdate {
+				skipped++
+				continue
+			}
 			return fmt.Errorf("cannot update content: %v", err)
 		}
+	}
+
+	if skipped == len(f.ps.Content) {
+		return ErrNoUpdate
 	}
 
 	return nil
@@ -386,6 +395,7 @@ func (f *MountedFilesystemUpdater) updateDirectory(dstRoot, source, target strin
 		return fmt.Errorf("cannot write directory: %v", err)
 	}
 	// and write the content of source to target
+	skipped := 0
 	for _, fi := range fis {
 		pSrc := filepath.Join(source, fi.Name())
 		pDst := filepath.Join(target, fi.Name())
@@ -399,8 +409,16 @@ func (f *MountedFilesystemUpdater) updateDirectory(dstRoot, source, target strin
 			update = f.updateDirectory
 		}
 		if err := update(dstRoot, pSrc, pDst, preserveInDst, backupDir); err != nil {
+			if err == ErrNoUpdate {
+				skipped++
+				continue
+			}
 			return err
 		}
+	}
+
+	if skipped == len(fis) {
+		return ErrNoUpdate
 	}
 
 	return nil
@@ -418,11 +436,11 @@ func (f *MountedFilesystemUpdater) updateOrSkipFile(dstRoot, source, target stri
 	if osutil.FileExists(dstPath) {
 		if strutil.SortedListContains(preserveInDst, dstPath) {
 			// file is to be preserved
-			return nil
+			return ErrNoUpdate
 		}
 		if osutil.FileExists(backupPath + ".same") {
 			// file is the same as current copy
-			return nil
+			return ErrNoUpdate
 		}
 		if !osutil.FileExists(backupPath + ".backup") {
 			// not preserved & different than the update, error out

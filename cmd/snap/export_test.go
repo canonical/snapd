@@ -322,12 +322,20 @@ func MockSignalNotify(newSignalNotify func(sig ...os.Signal) (chan os.Signal, fu
 	}
 }
 
-func MockProcCmdline(newPath string) (restore func()) {
-	old := procCmdline
-	procCmdline = newPath
+type ServiceName = serviceName
+
+func MockApparmorSnapAppFromPid(f func(pid int) (string, string, string, error)) (restore func()) {
+	old := apparmorSnapAppFromPid
+	apparmorSnapAppFromPid = f
 	return func() {
-		procCmdline = old
+		apparmorSnapAppFromPid = old
 	}
 }
 
-type ServiceName = serviceName
+func MockCgroupSnapNameFromPid(f func(pid int) (string, error)) (restore func()) {
+	old := cgroupSnapNameFromPid
+	cgroupSnapNameFromPid = f
+	return func() {
+		cgroupSnapNameFromPid = old
+	}
+}

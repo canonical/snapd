@@ -26,6 +26,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
 // AttrMatchContext has contextual helpers for evaluating attribute constraints.
@@ -39,6 +40,8 @@ const (
 	dollarAttrConstraintsFeature = "dollar-attr-constraints"
 	// feature label for on-store/on-brand/on-model
 	deviceScopeConstraintsFeature = "device-scope-constraints"
+	// feature label for plug-names/slot-names constraints
+	nameConstraintsFeature = "name-constraints"
 )
 
 type attrMatcher interface {
@@ -501,6 +504,91 @@ func compileDeviceScopeConstraint(cMap map[string]interface{}, context string) (
 	}, nil
 }
 
+type nameMatcher interface {
+	match(name string, special map[string]string) error
+}
+
+var (
+	// validates special name constraints like $INTERFACE
+	validSpecialNameConstraint = regexp.MustCompile("^\\$[A-Z][A-Z0-9_]*$")
+)
+
+func compileNameMatcher(whichName string, v interface{}) (nameMatcher, error) {
+	s, ok := v.(string)
+	if !ok {
+		return nil, fmt.Errorf("%s constraint entry must be a regexp or special $ value", whichName)
+	}
+	if strings.HasPrefix(s, "$") {
+		if !validSpecialNameConstraint.MatchString(s) {
+			return nil, fmt.Errorf("%s constraint entry special value %q is invalid", whichName, s)
+		}
+		return specialNameMatcher{special: s}, nil
+	}
+	if strings.IndexFunc(s, unicode.IsSpace) != -1 {
+		return nil, fmt.Errorf("%s constraint entry regexp contains unexpected spaces", whichName)
+	}
+	rx, err := regexp.Compile("^(" + s + ")$")
+	if err != nil {
+		return nil, fmt.Errorf("cannot compile %s constraint entry %q: %v", whichName, s, err)
+	}
+	return regexpNameMatcher{rx}, nil
+}
+
+type regexpNameMatcher struct {
+	*regexp.Regexp
+}
+
+func (matcher regexpNameMatcher) match(name string, special map[string]string) error {
+	if !matcher.Regexp.MatchString(name) {
+		return fmt.Errorf("%q does not match %v", name, matcher.Regexp)
+	}
+	return nil
+}
+
+type specialNameMatcher struct {
+	special string
+}
+
+func (matcher specialNameMatcher) match(name string, special map[string]string) error {
+	expected := special[matcher.special]
+	if expected == "" || expected != name {
+		return fmt.Errorf("%q does not match %v", name, matcher.special)
+	}
+	return nil
+}
+
+// NameConstraints implements a set of constraints on the names of slots or plugs.
+// See https://forum.snapcraft.io/t/plug-slot-rules-plug-names-slot-names-constraints/12439
+type NameConstraints struct {
+	matchers []nameMatcher
+}
+
+func compileNameConstraints(whichName string, constraints interface{}) (*NameConstraints, error) {
+	l, ok := constraints.([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("%s constraints must be a list of regexps and special $ values", whichName)
+	}
+	matchers := make([]nameMatcher, 0, len(l))
+	for _, nm := range l {
+		matcher, err := compileNameMatcher(whichName, nm)
+		if err != nil {
+			return nil, err
+		}
+		matchers = append(matchers, matcher)
+	}
+	return &NameConstraints{matchers: matchers}, nil
+}
+
+// Check checks whether name doesn't match the constraints.
+func (nc *NameConstraints) Check(whichName, name string, special map[string]string) error {
+	for _, m := range nc.matchers {
+		if err := m.match(name, special); err == nil {
+			return nil
+		}
+	}
+	return fmt.Errorf("%s %q does not match constraints", whichName, name)
+}
+
 // rules
 
 var (
@@ -535,13 +623,14 @@ func checkMapOrShortcut(v interface{}) (m map[string]interface{}, invert bool, e
 }
 
 type constraintsHolder interface {
+	setNameConstraints(field string, cstrs *NameConstraints)
 	setAttributeConstraints(field string, cstrs *AttributeConstraints)
 	setIDConstraints(field string, cstrs []string)
 	setOnClassicConstraint(onClassic *OnClassicConstraint)
 	setDeviceScopeConstraint(deviceScope *DeviceScopeConstraint)
 }
 
-func baseCompileConstraints(context *subruleContext, cDef constraintsDef, target constraintsHolder, attrConstraints, idConstraints []string) error {
+func baseCompileConstraints(context *subruleContext, cDef constraintsDef, target constraintsHolder, nameConstraints, attrConstraints, idConstraints []string) error {
 	cMap := cDef.cMap
 	if cMap == nil {
 		fixed := AlwaysMatchAttributes // "true"
@@ -554,15 +643,17 @@ func baseCompileConstraints(context *subruleContext, cDef constraintsDef, target
 		return nil
 	}
 	defaultUsed := 0
-	for _, field := range idConstraints {
-		lst, err := checkStringListInMap(cMap, field, fmt.Sprintf("%s in %s", field, context), validIDConstraints[field])
-		if err != nil {
-			return err
-		}
-		if lst == nil {
+	for _, field := range nameConstraints {
+		v := cMap[field]
+		if v != nil {
+			nc, err := compileNameConstraints(field, v)
+			if err != nil {
+				return err
+			}
+			target.setNameConstraints(field, nc)
+		} else {
 			defaultUsed++
 		}
-		target.setIDConstraints(field, lst)
 	}
 	for _, field := range attrConstraints {
 		cstrs := AlwaysMatchAttributes
@@ -577,6 +668,16 @@ func baseCompileConstraints(context *subruleContext, cDef constraintsDef, target
 			defaultUsed++
 		}
 		target.setAttributeConstraints(field, cstrs)
+	}
+	for _, field := range idConstraints {
+		lst, err := checkStringListInMap(cMap, field, fmt.Sprintf("%s in %s", field, context), validIDConstraints[field])
+		if err != nil {
+			return err
+		}
+		if lst == nil {
+			defaultUsed++
+		}
+		target.setIDConstraints(field, lst)
 	}
 	for _, field := range sideArityConstraints {
 		v := cMap[field]
@@ -632,8 +733,8 @@ func baseCompileConstraints(context *subruleContext, cDef constraintsDef, target
 	// well-formed
 	// +1+1 accounts for defaults for missing on-classic plus missing
 	// on-store/on-brand/on-model
-	if defaultUsed == len(attributeConstraints)+len(idConstraints)+len(sideArityConstraints)+1+1 {
-		return fmt.Errorf("%s must specify at least one of %s, %s, %s, on-classic, on-store, on-brand, on-model", context, strings.Join(attrConstraints, ", "), strings.Join(idConstraints, ", "), strings.Join(sideArityConstraints, ", "))
+	if defaultUsed == len(nameConstraints)+len(attributeConstraints)+len(idConstraints)+len(sideArityConstraints)+1+1 {
+		return fmt.Errorf("%s must specify at least one of %s, %s, %s, %s, on-classic, on-store, on-brand, on-model", context, strings.Join(nameConstraints, ", "), strings.Join(attrConstraints, ", "), strings.Join(idConstraints, ", "), strings.Join(sideArityConstraints, ", "))
 	}
 	return nil
 }
@@ -844,6 +945,8 @@ func (r *PlugRule) setConstraints(field string, cstrs []constraintsHolder) {
 type PlugInstallationConstraints struct {
 	PlugSnapTypes []string
 
+	PlugNames *NameConstraints
+
 	PlugAttributes *AttributeConstraints
 
 	OnClassic *OnClassicConstraint
@@ -855,7 +958,19 @@ func (c *PlugInstallationConstraints) feature(flabel string) bool {
 	if flabel == deviceScopeConstraintsFeature {
 		return c.DeviceScope != nil
 	}
+	if flabel == nameConstraintsFeature {
+		return c.PlugNames != nil
+	}
 	return c.PlugAttributes.feature(flabel)
+}
+
+func (c *PlugInstallationConstraints) setNameConstraints(field string, cstrs *NameConstraints) {
+	switch field {
+	case "plug-names":
+		c.PlugNames = cstrs
+	default:
+		panic("unknown PlugInstallationConstraints field " + field)
+	}
 }
 
 func (c *PlugInstallationConstraints) setAttributeConstraints(field string, cstrs *AttributeConstraints) {
@@ -886,7 +1001,7 @@ func (c *PlugInstallationConstraints) setDeviceScopeConstraint(deviceScope *Devi
 
 func compilePlugInstallationConstraints(context *subruleContext, cDef constraintsDef) (constraintsHolder, error) {
 	plugInstCstrs := &PlugInstallationConstraints{}
-	err := baseCompileConstraints(context, cDef, plugInstCstrs, []string{"plug-attributes"}, []string{"plug-snap-type"})
+	err := baseCompileConstraints(context, cDef, plugInstCstrs, []string{"plug-names"}, []string{"plug-attributes"}, []string{"plug-snap-type"})
 	if err != nil {
 		return nil, err
 	}
@@ -900,6 +1015,9 @@ type PlugConnectionConstraints struct {
 	SlotSnapTypes    []string
 	SlotSnapIDs      []string
 	SlotPublisherIDs []string
+
+	PlugNames *NameConstraints
+	SlotNames *NameConstraints
 
 	PlugAttributes *AttributeConstraints
 	SlotAttributes *AttributeConstraints
@@ -918,7 +1036,21 @@ func (c *PlugConnectionConstraints) feature(flabel string) bool {
 	if flabel == deviceScopeConstraintsFeature {
 		return c.DeviceScope != nil
 	}
+	if flabel == nameConstraintsFeature {
+		return c.PlugNames != nil || c.SlotNames != nil
+	}
 	return c.PlugAttributes.feature(flabel) || c.SlotAttributes.feature(flabel)
+}
+
+func (c *PlugConnectionConstraints) setNameConstraints(field string, cstrs *NameConstraints) {
+	switch field {
+	case "plug-names":
+		c.PlugNames = cstrs
+	case "slot-names":
+		c.SlotNames = cstrs
+	default:
+		panic("unknown PlugConnectionConstraints field " + field)
+	}
 }
 
 func (c *PlugConnectionConstraints) setAttributeConstraints(field string, cstrs *AttributeConstraints) {
@@ -970,13 +1102,14 @@ func (c *PlugConnectionConstraints) setDeviceScopeConstraint(deviceScope *Device
 }
 
 var (
+	nameConstraints      = []string{"plug-names", "slot-names"}
 	attributeConstraints = []string{"plug-attributes", "slot-attributes"}
 	plugIDConstraints    = []string{"slot-snap-type", "slot-publisher-id", "slot-snap-id"}
 )
 
 func compilePlugConnectionConstraints(context *subruleContext, cDef constraintsDef) (constraintsHolder, error) {
 	plugConnCstrs := &PlugConnectionConstraints{}
-	err := baseCompileConstraints(context, cDef, plugConnCstrs, attributeConstraints, plugIDConstraints)
+	err := baseCompileConstraints(context, cDef, plugConnCstrs, nameConstraints, attributeConstraints, plugIDConstraints)
 	if err != nil {
 		return nil, err
 	}
@@ -1116,6 +1249,8 @@ func (r *SlotRule) setConstraints(field string, cstrs []constraintsHolder) {
 type SlotInstallationConstraints struct {
 	SlotSnapTypes []string
 
+	SlotNames *NameConstraints
+
 	SlotAttributes *AttributeConstraints
 
 	OnClassic *OnClassicConstraint
@@ -1127,7 +1262,19 @@ func (c *SlotInstallationConstraints) feature(flabel string) bool {
 	if flabel == deviceScopeConstraintsFeature {
 		return c.DeviceScope != nil
 	}
+	if flabel == nameConstraintsFeature {
+		return c.SlotNames != nil
+	}
 	return c.SlotAttributes.feature(flabel)
+}
+
+func (c *SlotInstallationConstraints) setNameConstraints(field string, cstrs *NameConstraints) {
+	switch field {
+	case "slot-names":
+		c.SlotNames = cstrs
+	default:
+		panic("unknown SlotInstallationConstraints field " + field)
+	}
 }
 
 func (c *SlotInstallationConstraints) setAttributeConstraints(field string, cstrs *AttributeConstraints) {
@@ -1158,7 +1305,7 @@ func (c *SlotInstallationConstraints) setDeviceScopeConstraint(deviceScope *Devi
 
 func compileSlotInstallationConstraints(context *subruleContext, cDef constraintsDef) (constraintsHolder, error) {
 	slotInstCstrs := &SlotInstallationConstraints{}
-	err := baseCompileConstraints(context, cDef, slotInstCstrs, []string{"slot-attributes"}, []string{"slot-snap-type"})
+	err := baseCompileConstraints(context, cDef, slotInstCstrs, []string{"slot-names"}, []string{"slot-attributes"}, []string{"slot-snap-type"})
 	if err != nil {
 		return nil, err
 	}
@@ -1172,6 +1319,9 @@ type SlotConnectionConstraints struct {
 	PlugSnapTypes    []string
 	PlugSnapIDs      []string
 	PlugPublisherIDs []string
+
+	SlotNames *NameConstraints
+	PlugNames *NameConstraints
 
 	SlotAttributes *AttributeConstraints
 	PlugAttributes *AttributeConstraints
@@ -1190,7 +1340,21 @@ func (c *SlotConnectionConstraints) feature(flabel string) bool {
 	if flabel == deviceScopeConstraintsFeature {
 		return c.DeviceScope != nil
 	}
+	if flabel == nameConstraintsFeature {
+		return c.PlugNames != nil || c.SlotNames != nil
+	}
 	return c.PlugAttributes.feature(flabel) || c.SlotAttributes.feature(flabel)
+}
+
+func (c *SlotConnectionConstraints) setNameConstraints(field string, cstrs *NameConstraints) {
+	switch field {
+	case "plug-names":
+		c.PlugNames = cstrs
+	case "slot-names":
+		c.SlotNames = cstrs
+	default:
+		panic("unknown SlotConnectionConstraints field " + field)
+	}
 }
 
 func (c *SlotConnectionConstraints) setAttributeConstraints(field string, cstrs *AttributeConstraints) {
@@ -1247,7 +1411,7 @@ func (c *SlotConnectionConstraints) setDeviceScopeConstraint(deviceScope *Device
 
 func compileSlotConnectionConstraints(context *subruleContext, cDef constraintsDef) (constraintsHolder, error) {
 	slotConnCstrs := &SlotConnectionConstraints{}
-	err := baseCompileConstraints(context, cDef, slotConnCstrs, attributeConstraints, slotIDConstraints)
+	err := baseCompileConstraints(context, cDef, slotConnCstrs, nameConstraints, attributeConstraints, slotIDConstraints)
 	if err != nil {
 		return nil, err
 	}

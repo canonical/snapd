@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2016 Canonical Ltd
+ * Copyright (C) 2014-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -33,12 +33,14 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snapdenv"
 )
 
 const autoImportsName = "auto-import.assert"
@@ -55,6 +57,8 @@ func autoImportCandidates() ([]string, error) {
 		return nil, err
 	}
 	defer f.Close()
+
+	isTesting := snapdenv.Testing()
 
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
@@ -85,7 +89,7 @@ func autoImportCandidates() ([]string, error) {
 			continue
 		}
 		// skip all ram disks (unless in tests)
-		if !osutil.GetenvBool("SNAPPY_TESTING") && strings.HasPrefix(mountSrc, "/dev/ram") {
+		if !isTesting && strings.HasPrefix(mountSrc, "/dev/ram") {
 			continue
 		}
 
@@ -263,20 +267,11 @@ var procCmdline = "/proc/cmdline"
 
 // inInstallmode returns true if it's UC20 system in install mode
 func inInstallMode() bool {
-	f, err := os.Open(procCmdline)
+	mode, _, err := boot.ModeAndRecoverySystemFromKernelCommandLine()
 	if err != nil {
 		return false
 	}
-	defer f.Close()
-
-	scanner := bufio.NewScanner(f)
-	scanner.Split(bufio.ScanWords)
-	for scanner.Scan() {
-		if scanner.Text() == "snapd_recovery_mode=install" {
-			return true
-		}
-	}
-	return false
+	return mode == "install"
 }
 
 func (x *cmdAutoImport) Execute(args []string) error {

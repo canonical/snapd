@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/snap"
 )
 
 const desktopSummary = `allows access to basic graphical desktop resources`
@@ -105,7 +104,7 @@ dbus (receive)
     bus=session
     path=/org/freedesktop/Notifications
     interface=org.freedesktop.Notifications
-    member={ActionInvoked,NotificationClosed}
+    member={ActionInvoked,NotificationClosed,NotificationReplied}
     peer=(label=unconfined),
 
 # DesktopAppInfo Launched
@@ -130,6 +129,29 @@ dbus (send)
   path=/org/gnome/SettingsDaemon/MediaKeys
   member="Get{,All}"
   peer=(label=unconfined),
+
+# Allow accessing the GNOME crypto services prompt APIs as used by
+# applications using libgcr (such as pinentry-gnome3) for secure pin
+# entry to unlock GPG keys etc. See:
+# https://developer.gnome.org/gcr/unstable/GcrPrompt.html
+# https://developer.gnome.org/gcr/unstable/GcrSecretExchange.html
+dbus (send)
+    bus=session
+    path=/org/gnome/keyring/Prompter
+    interface=org.gnome.keyring.internal.Prompter
+    member="{BeginPrompting,PerformPrompt,StopPrompting}"
+    peer=(label=unconfined),
+
+# While the DBus path is not snap-specific, by the time an application
+# registers the prompt path via DBus, Gcr will check that it isn't
+# already in use and send the client an error if it is. See:
+# https://github.com/snapcore/snapd/pull/7673#issuecomment-592229711
+dbus (receive)
+    bus=session
+    path=/org/gnome/keyring/Prompt/p[0-9]*
+    interface=org.gnome.keyring.internal.Prompter.Callback
+    member="{PromptReady,PromptDone}"
+    peer=(label=unconfined),
 
 # Allow use of snapd's internal 'xdg-open'
 /usr/bin/xdg-open ixr,
@@ -204,23 +226,8 @@ dbus (receive, send)
 deny /var/lib/snapd/desktop/icons/ r,
 `
 
-type desktopInterface struct{}
-
-func (iface *desktopInterface) Name() string {
-	return "desktop"
-}
-
-func (iface *desktopInterface) StaticInfo() interfaces.StaticInfo {
-	return interfaces.StaticInfo{
-		Summary:              desktopSummary,
-		ImplicitOnClassic:    true,
-		BaseDeclarationSlots: desktopBaseDeclarationSlots,
-	}
-}
-
-func (iface *desktopInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
-	// allow what declarations allowed
-	return true
+type desktopInterface struct {
+	commonInterface
 }
 
 func (iface *desktopInterface) fontconfigDirs() []string {
@@ -290,5 +297,12 @@ func (iface *desktopInterface) MountConnectedPlug(spec *mount.Specification, plu
 }
 
 func init() {
-	registerIface(&desktopInterface{})
+	registerIface(&desktopInterface{
+		commonInterface: commonInterface{
+			name:                 "desktop",
+			summary:              desktopSummary,
+			implicitOnClassic:    true,
+			baseDeclarationSlots: desktopBaseDeclarationSlots,
+		},
+	})
 }

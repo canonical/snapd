@@ -97,6 +97,7 @@ dbus (receive)
     interface=org.freedesktop.DBus.Properties
     path=/org/mpris/MediaPlayer2
     peer=(label=###PLUG_SECURITY_TAGS###),
+
 dbus (receive)
     bus=session
     interface=org.freedesktop.DBus.Introspectable
@@ -106,6 +107,13 @@ dbus (receive)
     bus=session
     interface="org.mpris.MediaPlayer2{,.*}"
     path=/org/mpris/MediaPlayer2
+    peer=(label=###PLUG_SECURITY_TAGS###),
+
+dbus (send)
+    bus=session
+    interface=org.freedesktop.DBus.Properties
+    path=/org/mpris/MediaPlayer2
+    member=PropertiesChanged
     peer=(label=###PLUG_SECURITY_TAGS###),
 `
 
