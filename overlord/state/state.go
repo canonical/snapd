@@ -511,8 +511,8 @@ func (s *State) Prune(startOfOperation time.Time, pruneWait, abortWait time.Dura
 	}
 }
 
-// GetTimings implements timings.GetSaver
-func (s *State) GetTimings(timings interface{}) error {
+// GetMaybeTimings implements timings.GetSaver
+func (s *State) GetMaybeTimings(timings interface{}) error {
 	err := s.Get("timings", timings)
 	if err != nil && err != ErrNoState {
 		return err

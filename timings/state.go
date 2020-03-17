@@ -117,7 +117,10 @@ func flattenRecursive(data *rootTimingsJSON, timings []*Span, nestLevel int, max
 
 // A GetSaver helps storing Timings (ignoring their details).
 type GetSaver interface {
-	GetTimings(timings interface{}) error
+	// GetMaybeTimings gets the saved timings.
+	// It will not return an error if none were saved yet.
+	GetMaybeTimings(timings interface{}) error
+	// SaveTimings saves the given timings.
 	SaveTimings(timings interface{})
 }
 
@@ -129,7 +132,7 @@ type GetSaver interface {
 // function.
 func (t *Timings) Save(s GetSaver) {
 	var stateTimings []*json.RawMessage
-	if err := s.GetTimings(&stateTimings); err != nil {
+	if err := s.GetMaybeTimings(&stateTimings); err != nil {
 		logger.Noticef("could not get timings data from the state: %v", err)
 		return
 	}
@@ -157,7 +160,7 @@ func (t *Timings) Save(s GetSaver) {
 // If GetSaver is a state.State, it's responsibility of the caller to lock the state before calling this function.
 func Get(s GetSaver, maxLevel int, filter func(tags map[string]string) bool) ([]*TimingsInfo, error) {
 	var stateTimings []rootTimingsJSON
-	if err := s.GetTimings(&stateTimings); err != nil {
+	if err := s.GetMaybeTimings(&stateTimings); err != nil {
 		return nil, fmt.Errorf("could not get timings data from the state: %v", err)
 	}
 

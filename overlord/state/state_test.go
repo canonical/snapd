@@ -1040,13 +1040,13 @@ func (ss *stateSuite) TestTimingsSupport(c *C) {
 
 	var tims []int
 
-	err := st.GetTimings(&tims)
+	err := st.GetMaybeTimings(&tims)
 	c.Assert(err, IsNil)
 	c.Check(tims, IsNil)
 
 	st.SaveTimings([]int{1, 2, 3})
 
-	err = st.GetTimings(&tims)
+	err = st.GetMaybeTimings(&tims)
 	c.Assert(err, IsNil)
 	c.Check(tims, DeepEquals, []int{1, 2, 3})
 }
