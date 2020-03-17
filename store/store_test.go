@@ -3509,6 +3509,31 @@ func (s *storeTestSuite) TestFindV2BadBody(c *C) {
 	s.testFindBadBody(c, false)
 }
 
+func (s *storeTestSuite) TestFindV2_404NoFallbackIfNewStore(c *C) {
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Assert(n, Equals, 0)
+		n++
+		assertRequest(c, r, "GET", searchV2Path)
+		c.Check(r.URL.Query().Get("q"), Equals, "hello")
+		w.Header().Set("Snap-Store-Version", "30")
+		w.WriteHeader(404)
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+		SearchFields: []string{},
+	}
+	sto := store.New(&cfg, nil)
+
+	_, err := sto.Find(s.ctx, &store.Search{Query: "hello"}, nil)
+	c.Check(err, ErrorMatches, `.*got unexpected HTTP status code 404.*`)
+	c.Check(n, Equals, 1)
+}
+
 func (s *storeTestSuite) testFind500(c *C, apiV1 bool) {
 	var n = 0
 	var v1Fallback, v2Hit bool
