@@ -36,12 +36,18 @@ import (
 
 	"github.com/snapcore/snapd/cmd/cmdutil"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/strutil"
 )
 
-// Magic is the magic prefix of squashfs snap files.
-var Magic = []byte{'h', 's', 'q', 's'}
+var (
+	// Magic is the magic prefix of squashfs snap files.
+	Magic = []byte{'h', 's', 'q', 's'}
+
+	// for testing
+	isRootWritableOverlay = osutil.IsRootWritableOverlay
+)
 
 // Snap is the squashfs based snap.
 type Snap struct {
@@ -87,14 +93,20 @@ func (s *Snap) Install(targetPath, mountDir string) (bool, error) {
 		return didNothing, nil
 	}
 
-	// try to (hard)link the file, but go on to trying to copy it
-	// if it fails for whatever reason
-	//
-	// link(2) returns EPERM on filesystems that don't support
-	// hard links (like vfat), so checking the error here doesn't
-	// make sense vs just trying to copy it.
-	if err := osLink(s.path, targetPath); err == nil {
-		return false, nil
+	overlayRoot, err := isRootWritableOverlay()
+	if err != nil {
+		logger.Noticef("cannot determine if root filesystem on overlay: %v", err)
+	}
+	if overlayRoot == "" {
+		// try to (hard)link the file, but go on to trying to copy it
+		// if it fails for whatever reason
+		//
+		// link(2) returns EPERM on filesystems that don't support
+		// hard links (like vfat), so checking the error here doesn't
+		// make sense vs just trying to copy it.
+		if err := osLink(s.path, targetPath); err == nil {
+			return false, nil
+		}
 	}
 
 	// if the file is a seed, but the hardlink failed, symlinking it
