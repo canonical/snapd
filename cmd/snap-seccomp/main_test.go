@@ -249,6 +249,8 @@ readlinkat
 faccessat
 # i386 from amd64
 restart_syscall
+# libc6 2.31
+mprotect
 `
 	bpfPath := filepath.Join(c.MkDir(), "bpf")
 	err := main.Compile([]byte(common+seccompWhitelist), bpfPath)

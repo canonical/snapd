@@ -114,8 +114,6 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	s.bl = bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(s.bl)
 	s.AddCleanup(func() { bootloader.Force(nil) })
-	s.bl.SetBootBase("base_6789.snap")
-	s.bl.SetBootKernel("kernel_6789.snap")
 
 	oldSetupInstallHook := snapstate.SetupInstallHook
 	oldSetupPreRefreshHook := snapstate.SetupPreRefreshHook
@@ -9203,6 +9201,103 @@ func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 		Revision: snap.R(7),
 	})
 	c.Assert(snapst.Block(), DeepEquals, []snap.Revision{snap.R(7)})
+}
+
+func (s *snapmgrTestSuite) TestRevertWithBaseRunThrough(c *C) {
+	si := snap.SideInfo{
+		RealName: "some-snap-with-base",
+		Revision: snap.R(7),
+	}
+	siOld := snap.SideInfo{
+		RealName: "some-snap-with-base",
+		Revision: snap.R(2),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// core18 with snapd, no core snap
+	snapstate.Set(s.state, "core", nil)
+	snapstate.Set(s.state, "core18", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "core18", SnapID: "core18-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "base",
+	})
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "snapd", SnapID: "snapd-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	// test snap to revert
+	snapstate.Set(s.state, "some-snap-with-base", &snapstate.SnapState{
+		Active:   true,
+		SnapType: "app",
+		Sequence: []*snap.SideInfo{&siOld, &si},
+		Current:  si.Revision,
+	})
+
+	chg := s.state.NewChange("revert", "revert a snap backwards")
+	ts, err := snapstate.Revert(s.state, "some-snap-with-base", snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	expected := fakeOps{
+		{
+			op:   "remove-snap-aliases",
+			name: "some-snap-with-base",
+		},
+		{
+			op:   "unlink-snap",
+			path: filepath.Join(dirs.SnapMountDir, "some-snap-with-base/7"),
+		},
+		{
+			op:    "setup-profiles:Doing",
+			name:  "some-snap-with-base",
+			revno: snap.R(2),
+		},
+		{
+			op: "candidate",
+			sinfo: snap.SideInfo{
+				RealName: "some-snap-with-base",
+				Revision: snap.R(2),
+			},
+		},
+		{
+			op:   "link-snap",
+			path: filepath.Join(dirs.SnapMountDir, "some-snap-with-base/2"),
+		},
+		{
+			op:    "auto-connect:Doing",
+			name:  "some-snap-with-base",
+			revno: snap.R(2),
+		},
+		{
+			op: "update-aliases",
+		},
+	}
+	// start with an easier-to-read error if this fails:
+	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
+	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
+
+	// verify that the R(2) version is active now and R(7) is still there
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap-with-base", &snapst)
+	c.Assert(err, IsNil)
+
+	c.Assert(snapst.Active, Equals, true)
+	c.Assert(snapst.Current, Equals, snap.R(2))
 }
 
 func (s *snapmgrTestSuite) TestParallelInstanceRevertRunThrough(c *C) {

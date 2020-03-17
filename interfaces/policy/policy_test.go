@@ -2469,7 +2469,7 @@ func (s *policySuite) TestNameConstraintsAutoConnection(c *C) {
 		if t.ok {
 			c.Check(err, IsNil, Commentf("%s:%s", t.plug, t.slot))
 		} else {
-			expected := ""
+			var expected string
 			if cand.Plug.Interface() == "plugs-name-bound" {
 				expected = `auto-connection not allowed by plug rule of interface "plugs-name-bound".*`
 			} else {

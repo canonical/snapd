@@ -179,7 +179,7 @@ dbus (receive, send)
 # do not use peer=(label=unconfined) here since this is DBus activated
 dbus (send)
     bus=system
-    path=/org/freedesktop/UDisks2
+    path=/org/freedesktop/UDisks2{,/**}
     interface=org.freedesktop.DBus.Introspectable
     member=Introspect,
 `
