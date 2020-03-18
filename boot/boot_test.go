@@ -903,10 +903,10 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BaseUpdate(c *C) {
 	c.Assert(m3.BaseStatus, Equals, "")
 }
 
-// TestHappyMarkBootSuccessfulKernelSetBootVarsPanics emulates a reboot during
-// SetBootVars, for the kernel snap when we commit the boot state during
-// MarkBootSuccessful
-func (s *bootenv20Suite) TestHappyMarkBootSuccessfulKernelUpgradeSetBootVarsPanics(c *C) {
+// TestHappyMarkBootSuccessfulKernelRebootBeforeSetBootVars
+// emulates a reboot during SetBootVars, for the kernel snap when we
+// commit the boot state during MarkBootSuccessful
+func (s *bootenv20Suite) TestHappyMarkBootSuccessfulKernelUpgradeRebootBeforeSetBootVars(c *C) {
 	r := boottest.ForceModeenv(dirs.GlobalRootDir, &boot.Modeenv{
 		Mode:           "run",
 		RecoverySystem: "20191018",
@@ -983,10 +983,10 @@ func (s *bootenv20Suite) TestHappyMarkBootSuccessfulKernelUpgradeSetBootVarsPani
 	c.Assert(afterTryKernel, Equals, kernel2)
 }
 
-// TestHappyMarkBootSuccessfulKernelUpgradeEnableKernelPanics emulates a reboot during
-// EnableKernel, for the kernel snap when we commit the boot state during
-// MarkBootSuccessful
-func (s *bootenv20Suite) TestHappyMarkBootSuccessfulKernelUpgradeEnableKernelPanics(c *C) {
+// TestHappyMarkBootSuccessfulKernelUpgradeRebootBeforeEnableKernel
+// emulates a reboot during EnableKernel, for the kernel snap when we
+// commit the boot state during MarkBootSuccessful
+func (s *bootenv20Suite) TestHappyMarkBootSuccessfulKernelUpgradeRebootBeforeEnableKernel(c *C) {
 	r := boottest.ForceModeenv(dirs.GlobalRootDir, &boot.Modeenv{
 		Mode:           "run",
 		RecoverySystem: "20191018",
@@ -1064,10 +1064,10 @@ func (s *bootenv20Suite) TestHappyMarkBootSuccessfulKernelUpgradeEnableKernelPan
 	c.Assert(afterTryKernel, Equals, kernel2)
 }
 
-// TestHappyMarkBootSuccessfulKernelUpgradeDisableTryKernelPanics emulates a reboot during
-// DisableTryKernel, for the kernel snap when we commit the boot state during
-// MarkBootSuccessful
-func (s *bootenv20Suite) TestHappyMarkBootSuccessfulKernelUpgradeDisableTryKernelPanics(c *C) {
+// TestHappyMarkBootSuccessfulKernelUpgradeRebootBeforeDisableTryKernel
+// emulates a reboot during DisableTryKernel, for the kernel snap when
+// we commit the boot state during MarkBootSuccessful
+func (s *bootenv20Suite) TestHappyMarkBootSuccessfulKernelUpgradeRebootBeforeDisableTryKernel(c *C) {
 	r := boottest.ForceModeenv(dirs.GlobalRootDir, &boot.Modeenv{
 		Mode:           "run",
 		RecoverySystem: "20191018",
@@ -1145,10 +1145,11 @@ func (s *bootenv20Suite) TestHappyMarkBootSuccessfulKernelUpgradeDisableTryKerne
 	c.Assert(afterTryKernel, Equals, kernel2)
 }
 
-// TestHappyCoreParticipant20SetNextKernelSnapEnableTryKernelPanics emulates a reboot during
-// EnableTryKernel, for the kernel snap when we commit the boot state during
-// SetNextBoot to prepare to try a new kernel snap
-func (s *bootenv20Suite) TestHappyCoreParticipant20SetNextKernelSnapEnableTryKernelPanics(c *C) {
+// TestHappyCoreParticipant20SetNextKernelSnapRebootBeforeEnableTryKernel
+// emulates a reboot during EnableTryKernel, for the kernel snap when
+// we commit the boot state during SetNextBoot to prepare to try a new
+// kernel snap
+func (s *bootenv20Suite) TestHappyCoreParticipant20SetNextKernelSnapRebootBeforeEnableTryKernel(c *C) {
 	coreDev := boottest.MockUC20Device("pc-kernel")
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
@@ -1226,10 +1227,11 @@ func (s *bootenv20Suite) TestHappyCoreParticipant20SetNextKernelSnapEnableTryKer
 	c.Assert(vars, DeepEquals, map[string]string{"kernel_status": boot.DefaultStatus})
 }
 
-// TestHappyCoreParticipant20SetNextKernelSnapSetBootVarsPanics emulates a reboot during
-// SetBootVars, for the kernel snap when we commit the boot state during
-// SetNextBoot to prepare to try a new kernel snap
-func (s *bootenv20Suite) TestHappyCoreParticipant20SetNextKernelSnapSetBootVarsPanics(c *C) {
+// TestHappyCoreParticipant20SetNextKernelSnapRebootBeforeSetBootVars
+// emulates a reboot during SetBootVars, for the kernel snap when we
+// commit the boot state during SetNextBoot to prepare to try a new
+// kernel snap
+func (s *bootenv20Suite) TestHappyCoreParticipant20SetNextKernelSnapRebootBeforeSetBootVars(c *C) {
 	coreDev := boottest.MockUC20Device("pc-kernel")
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
