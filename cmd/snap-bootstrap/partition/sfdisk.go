@@ -292,7 +292,7 @@ func deviceName(name string, index int) string {
 
 // buildPartitionList builds a list of partitions based on the current
 // device contents and gadget structure list, in sfdisk dump format, and
-// return a partitioning description suitable for sfdisk input, a list of
+// returns a partitioning description suitable for sfdisk input, a list of
 // partitions to be removed, and a list of the partitions to be created.
 func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume, encryptData bool) (sfdiskInput *bytes.Buffer, toBeCreated []DeviceStructure) {
 	ptable := dl.partitionTable
@@ -317,16 +317,14 @@ func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume, encryptData 
 			continue
 		}
 
-		// Check if this partition should be encrypted. We update the type in place
-		// because p is a copy and will be added to the list of created partitions
-		// returned by this function.
-		if encryptData && s.Role == gadget.SystemData {
-			p.Type = "e8,CA7D7CCB-63ED-4C53-861C-1742536059CC"
-		}
-
 		// Only allow the creation of partitions with known GUIDs
 		// TODO:UC20: also provide a mechanism for MBR (RPi)
-		ptype := partitionType(ptable.Label, p.Type)
+		var ptype string
+		if encryptData && s.Role == gadget.SystemData {
+			ptype = partitionType(ptable.Label, "e8,CA7D7CCB-63ED-4C53-861C-1742536059CC")
+		} else {
+			ptype = partitionType(ptable.Label, p.Type)
+		}
 		if ptable.Label == "gpt" && !strutil.ListContains(createdPartitionGUID, strings.ToUpper(ptype)) {
 			continue
 		}

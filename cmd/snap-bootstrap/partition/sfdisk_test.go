@@ -341,7 +341,7 @@ func (s *partitionTestSuite) TestBuildPartitionList(c *C) {
 	sfdiskInput, create = partition.BuildPartitionList(dl, pv, true)
 	c.Assert(sfdiskInput.String(), Equals, `/dev/node3 : start=     2461696, size=     2457600, type=CA7D7CCB-63ED-4C53-861C-1742536059CC, name="Writable", attrs="GUID:59"
 `)
-	c.Assert(create, DeepEquals, []partition.DeviceStructure{mockDeviceStructureWritableEncrypted})
+	c.Assert(create, DeepEquals, []partition.DeviceStructure{mockDeviceStructureWritable})
 }
 
 func (s *partitionTestSuite) TestCreatePartitions(c *C) {
@@ -369,9 +369,7 @@ func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 	c.Assert(err, IsNil)
 	created, err := dl.CreateMissing(pv, false)
 	c.Assert(err, IsNil)
-	c.Assert(created, DeepEquals, []partition.DeviceStructure{
-		mockDeviceStructureWritable,
-	})
+	c.Assert(created, DeepEquals, []partition.DeviceStructure{mockDeviceStructureWritable})
 
 	// Check partition table read and write
 	c.Assert(cmdSfdisk.Calls(), DeepEquals, [][]string{
@@ -410,9 +408,7 @@ func (s *partitionTestSuite) TestCreatePartitionsWithEncryption(c *C) {
 	c.Assert(err, IsNil)
 	created, err := dl.CreateMissing(pv, true)
 	c.Assert(err, IsNil)
-	c.Assert(created, DeepEquals, []partition.DeviceStructure{
-		mockDeviceStructureWritableEncrypted,
-	})
+	c.Assert(created, DeepEquals, []partition.DeviceStructure{mockDeviceStructureWritable})
 
 	// Check partition table read and write
 	c.Assert(cmdSfdisk.Calls(), DeepEquals, [][]string{

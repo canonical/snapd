@@ -103,22 +103,6 @@ var mockDeviceStructureWritable = partition.DeviceStructure{
 	},
 }
 
-var mockDeviceStructureWritableEncrypted = partition.DeviceStructure{
-	Node: "/dev/node3",
-	LaidOutStructure: gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
-			Name:       "Writable",
-			Size:       1258291200,
-			Type:       "e8,CA7D7CCB-63ED-4C53-861C-1742536059CC",
-			Role:       "system-data",
-			Label:      "ubuntu-data",
-			Filesystem: "ext4",
-		},
-		StartOffset: 1260388352,
-		Index:       3,
-	},
-}
-
 func makeMockGadget(gadgetRoot, gadgetContent string) error {
 	if err := os.MkdirAll(filepath.Join(gadgetRoot, "meta"), 0755); err != nil {
 		return err
