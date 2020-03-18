@@ -579,14 +579,21 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 
 	err := d.tomb.Wait()
 	if err != nil {
-		// do not stop the shutdown even if the tomb errors
-		// because we already scheduled a slow shutdown and
-		// exiting here will just restart snapd (via systemd)
-		// which will lead to confusing results.
-		if restartSystem {
-			logger.Noticef("WARNING: cannot stop daemon: %v", err)
+		if err == context.DeadlineExceeded {
+			logger.Noticef("WARNING: cannot gracefully shut down in-flight snapd API activity within: %v", shutdownTimeout)
+			// the process is shutting down anyway, so we may just
+			// as well close the active connections right now
+			d.serve.Close()
 		} else {
-			return err
+			// do not stop the shutdown even if the tomb errors
+			// because we already scheduled a slow shutdown and
+			// exiting here will just restart snapd (via systemd)
+			// which will lead to confusing results.
+			if restartSystem {
+				logger.Noticef("WARNING: cannot stop daemon: %v", err)
+			} else {
+				return err
+			}
 		}
 	}
 

@@ -142,7 +142,7 @@ int main(int argc, char** argv)
 {
     uint32_t l[7];
     int syscall_ret, ret = 0;
-    for (int i = 0; i < 7; i++) {
+    for (int i = 0; i < 7 && argv[i+1] != NULL; i++) {
         errno = 0;
         l[i] = strtoll(argv[i + 1], NULL, 10);
 	// exit '11' let's us know strtoll failed
@@ -249,7 +249,7 @@ readlinkat
 faccessat
 # i386 from amd64
 restart_syscall
-# libc6 2.31
+# libc6 2.31/gcc-9.3
 mprotect
 `
 	bpfPath := filepath.Join(c.MkDir(), "bpf")
@@ -330,6 +330,11 @@ mprotect
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	err = cmd.Run()
+	// the exit code of the test binary is either 0 or 10, everything
+	// else is unexpected (segv, strtoll failure, ...)
+	exitCode, e := osutil.ExitCode(err)
+	c.Assert(e, IsNil)
+	c.Assert(exitCode == 0 || exitCode == 10, Equals, true, Commentf("unexpected exit code: %v for %v - test setup broken", exitCode, seccompWhitelist))
 	switch expected {
 	case Allow:
 		if err != nil {

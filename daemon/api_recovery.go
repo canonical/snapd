@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,42 +21,15 @@ package daemon
 
 import (
 	"net/http"
-	"time"
 
-	"github.com/snapcore/snapd/overlord"
+	"github.com/snapcore/snapd/overlord/auth"
 )
 
-type Resp = resp
-type ErrorResult = errorResult
-
-var MinLane = minLane
-
-func NewWithOverlord(o *overlord.Overlord) *Daemon {
-	d := &Daemon{overlord: o}
-	d.addRoutes()
-	return d
+var systemsCmd = &Command{
+	Path: "/v2/systems",
+	GET:  getSystems,
 }
 
-func MockMuxVars(vars func(*http.Request) map[string]string) (restore func()) {
-	old := muxVars
-	muxVars = vars
-	return func() {
-		muxVars = old
-	}
-}
-
-func MockBuildID(mock string) (restore func()) {
-	old := buildID
-	buildID = mock
-	return func() {
-		buildID = old
-	}
-}
-
-func MockShutdownTimeout(tm time.Duration) (restore func()) {
-	old := shutdownTimeout
-	shutdownTimeout = tm
-	return func() {
-		shutdownTimeout = old
-	}
+func getSystems(c *Command, r *http.Request, user *auth.UserState) Response {
+	return InternalError("listing available systems is not implemented yet")
 }
