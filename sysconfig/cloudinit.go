@@ -49,7 +49,7 @@ func installCloudInitCfg(src string) error {
 //            2. allow gadget cloud.cfg.d/* (with whitelisted keys?)
 //            3. allow cloud.cfg.d (with whitelisted keys) for non
 //               grade dangerous systems
-func configureCloudInit(opts Opts) (err error) {
+func configureCloudInit(opts *Options) (err error) {
 	switch opts.CloudInitSrcDir {
 	case "":
 		err = DisableCloudInit()

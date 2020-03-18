@@ -92,7 +92,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// configure the run system
-	if err := sysconfigConfigureRunSystem(sysconfig.Opts{}); err != nil {
+	if err := sysconfigConfigureRunSystem(&sysconfig.Options{}); err != nil {
 		return err
 	}
 

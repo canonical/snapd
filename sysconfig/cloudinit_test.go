@@ -50,7 +50,7 @@ func (s *sysconfigSuite) SetUpTest(c *C) {
 }
 
 func (s *sysconfigSuite) TestCloudInitDisablesByDefault(c *C) {
-	err := sysconfig.ConfigureRunSystem(sysconfig.Opts{})
+	err := sysconfig.ConfigureRunSystem(&sysconfig.Options{})
 	c.Assert(err, IsNil)
 
 	ubuntuDataCloudDisabled := filepath.Join(dirs.RunMnt, "ubuntu-data/system-data/etc/cloud/cloud-init.disabled/")
@@ -58,7 +58,7 @@ func (s *sysconfigSuite) TestCloudInitDisablesByDefault(c *C) {
 }
 
 func (s *sysconfigSuite) TestCloudInitInstalls(c *C) {
-	err := sysconfig.ConfigureRunSystem(sysconfig.Opts{
+	err := sysconfig.ConfigureRunSystem(&sysconfig.Options{
 		CloudInitSrcDir: "some-dir",
 	})
 	c.Assert(err, ErrorMatches, "installCloudInitCfg not implemented yet")

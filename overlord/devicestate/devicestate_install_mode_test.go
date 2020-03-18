@@ -360,7 +360,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeRunSysconfig(c *C) {
 	defer restore()
 
 	configureRunSystemCalls := 0
-	restore = devicestate.MockSysconfigConfigureRunSystem(func(opts sysconfig.Opts) error {
+	restore = devicestate.MockSysconfigConfigureRunSystem(func(opts *sysconfig.Options) error {
 		configureRunSystemCalls++
 		return nil
 	})
@@ -402,7 +402,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeRunSysconfigErr(c *C) {
 	defer restore()
 
 	configureRunSystemCalls := 0
-	restore = devicestate.MockSysconfigConfigureRunSystem(func(opts sysconfig.Opts) error {
+	restore = devicestate.MockSysconfigConfigureRunSystem(func(opts *sysconfig.Options) error {
 		configureRunSystemCalls++
 		return fmt.Errorf("error from sysconfig.ConfigureRunSystem")
 	})
