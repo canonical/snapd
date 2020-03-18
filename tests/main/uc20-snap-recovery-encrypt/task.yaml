@@ -61,8 +61,10 @@ execute: |
     test "$(stat --printf="%s" ./keyfile)" = 32
 
     echo "Check that the partitions are created"
-    sfdisk -l "$LOOP" | MATCH '1M\s+BIOS boot'
-    sfdisk -l "$LOOP" | MATCH '1\.2G\s+EFI System'
+    sfdisk -d "$LOOP" | MATCH "^${LOOP}p1 .*size=\s*2048, type=21686148-6449-6E6F-744E-656564454649,.*BIOS Boot"
+    sfdisk -d "$LOOP" | MATCH "^${LOOP}p2 .*size=\s*2457600, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B,.*ubuntu-seed"
+    sfdisk -d "$LOOP" | MATCH "^${LOOP}p3 .*size=\s*1536000, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4,.*ubuntu-boot"
+    sfdisk -d "$LOOP" | MATCH "^${LOOP}p4 .*size=\s*6291456, type=CA7D7CCB-63ED-4C53-861C-1742536059CC,.*ubuntu-data"
 
     not cryptsetup isLuks "${LOOP}p1"
     not cryptsetup isLuks "${LOOP}p2"

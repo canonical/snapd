@@ -68,6 +68,7 @@ type sfdiskPartition struct {
 	Node  string `json:"node"`
 	Start uint64 `json:"start"`
 	Size  uint64 `json:"size"`
+	// List of GPT partition attributes in <attr>[ <attr>] format. Numeric attributes are listed as GUID:n[,n].
 	Attrs string `json:"attrs"`
 	Type  string `json:"type"`
 	UUID  string `json:"uuid"`
@@ -321,6 +322,8 @@ func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume, encryptData 
 		// TODO:UC20: also provide a mechanism for MBR (RPi)
 		var ptype string
 		if encryptData && s.Role == gadget.SystemData {
+			// e8 - MBR type for LUKS encrypted partition
+			// CA7D7CCB-63ED-4C53-861C-1742536059CC - GPT partition type for encrypted partition
 			ptype = partitionType(ptable.Label, "e8,CA7D7CCB-63ED-4C53-861C-1742536059CC")
 		} else {
 			ptype = partitionType(ptable.Label, p.Type)
@@ -359,10 +362,12 @@ func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume, encryptData 
 func listCreatedPartitions(dl *DeviceLayout) []string {
 	created := make([]string, 0, len(dl.partitionTable.Partitions))
 	for _, p := range dl.partitionTable.Partitions {
-		if p.Attrs != "" {
-			attrs := strings.Split(strings.TrimPrefix(p.Attrs, "GUID:"), ",")
-			if strutil.ListContains(attrs, createdPartitionAttr) && strutil.ListContains(createdPartitionGUID, strings.ToUpper(p.Type)) {
-				created = append(created, p.Node)
+		for _, a := range strings.Fields(p.Attrs) {
+			if idx := strings.Index(a, "GUID:"); idx >= 0 {
+				attrs := strings.Split(a[idx+5:], ",")
+				if strutil.ListContains(attrs, createdPartitionAttr) && strutil.ListContains(createdPartitionGUID, strings.ToUpper(p.Type)) {
+					created = append(created, p.Node)
+				}
 			}
 		}
 	}

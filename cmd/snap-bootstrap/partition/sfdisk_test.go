@@ -538,7 +538,7 @@ func (s *partitionTestSuite) TestListCreatedPartitions(c *C) {
 	c.Assert(list, HasLen, 0)
 
 	for i := range ptable.Partitions {
-		ptable.Partitions[i].Attrs = "GUID:58,59"
+		ptable.Partitions[i].Attrs = "RequiredPartition LegacyBIOSBootable GUID:58,59"
 	}
 
 	list = partition.ListCreatedPartitions(dl)
