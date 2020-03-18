@@ -1,8 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build withtestkeys
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -18,9 +17,19 @@
  *
  */
 
-package httputil
+package daemon
 
-func init() {
-	// mark as testing if we carry testing keys
-	isTesting = true
+import (
+	"net/http"
+
+	"github.com/snapcore/snapd/overlord/auth"
+)
+
+var systemsCmd = &Command{
+	Path: "/v2/systems",
+	GET:  getSystems,
+}
+
+func getSystems(c *Command, r *http.Request, user *auth.UserState) Response {
+	return InternalError("listing available systems is not implemented yet")
 }
