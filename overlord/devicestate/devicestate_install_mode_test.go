@@ -364,6 +364,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeRunSysconfig(c *C) {
 		configureRunSystemCalls++
 		return nil
 	})
+	defer restore()
 
 	devicestate.SetOperatingMode(s.mgr, "install")
 	devicestate.SetRecoverySystem(s.mgr, "20191218")
