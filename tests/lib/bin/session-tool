@@ -8,15 +8,24 @@ if [ -z "$(command -v busctl)" ]; then
     exit 1
 fi
 if [ $# -eq 0 ]; then
-	echo "usage: session-tool [-u USER] [--] <CMD>"
+	echo "usage: session-tool [-u USER] [-p PID_FILE] [--] <CMD>"
 	exit 1
 fi
 user=root
+pid_file=
 while [ $# -gt 0 ]; do
 	case "$1" in
 		--)
 			shift
 			break
+			;;
+		-p)
+			if [ $# -eq 1 ]; then
+				echo "session-tool: option -p requires an argument" >&2
+				exit 1
+			fi
+			pid_file="$2"
+			shift 2
 			;;
 		-u)
 			if [ $# -eq 1 ]; then
@@ -114,9 +123,10 @@ cat <"$tmp_dir/stdout.pipe" >&1 &
 cat <"$tmp_dir/stderr.pipe" >&2 &
 (
 	echo "#!/bin/sh"
-	echo -n "exec "
+	test -n "$pid_file" && echo "echo \$$ >\"$pid_file\""
+	printf "exec "
 	for arg in "$@"; do
-		echo -n "\"$arg\" "
+		printf '"%s" ' "$arg"
 	done
 	echo
 )>"$tmp_dir/exec"
