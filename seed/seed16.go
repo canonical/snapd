@@ -113,16 +113,7 @@ func (s *seed16) Model() (*asserts.Model, error) {
 }
 
 func (s *seed16) Brand() (*asserts.Account, error) {
-	if s.model == nil {
-		return nil, fmt.Errorf("internal error: cannot query brand with model assertion unset")
-	}
-	a, err := s.db.Find(asserts.AccountType, map[string]string{
-		"account-id": s.model.BrandID(),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("cannot find brand account assertion: %v", err)
-	}
-	return a.(*asserts.Account), nil
+	return findBrand(s, s.db)
 }
 
 func (s *seed16) addSnap(sn *internal.Snap16, pinnedTrack string, tm timings.Measurer) (*Snap, error) {
