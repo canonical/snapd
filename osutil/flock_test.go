@@ -67,8 +67,10 @@ func (s *flockSuite) TestLockUnlockWorks(c *C) {
 
 	// Run a flock command in another process, it should succeed because it can
 	// lock the lock as we didn't do it yet.
-	cmd := exec.Command("flock", "--exclusive", "--nonblock", lock.Path(), "true")
+	// use --no-fork so that the kill command below works
+	cmd := exec.Command("flock", "--no-fork", "--exclusive", "--nonblock", lock.Path(), "true")
 	c.Assert(cmd.Run(), IsNil)
+	defer cmd.Process.Kill()
 
 	// Lock the lock.
 	c.Assert(lock.Lock(), IsNil)
@@ -127,7 +129,8 @@ func (s *flockSuite) TestLockUnlockNonblockingWorks(c *C) {
 
 	// Use the "flock" command to grab a lock for 9999 seconds in another process.
 	lockPath := filepath.Join(c.MkDir(), "lock")
-	cmd := exec.Command("flock", "--exclusive", lockPath, "sleep", "9999")
+	// use --no-fork so that the kill command below works
+	cmd := exec.Command("flock", "--no-fork", "--exclusive", lockPath, "sleep", "30")
 	c.Assert(cmd.Start(), IsNil)
 	defer cmd.Process.Kill()
 
