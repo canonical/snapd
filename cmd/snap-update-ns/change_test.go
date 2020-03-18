@@ -2824,7 +2824,7 @@ func (s *changeSuite) TestPerformCreateSymlinkWithAvoidedTrespassing(c *C) {
 
 // Change.Perform handles unknown actions.
 func (s *changeSuite) TestPerformUnknownAction(c *C) {
-	chg := &update.Change{Action: update.Action(42)}
+	chg := &update.Change{Action: update.Action("42")}
 	synth, err := chg.Perform(s.as)
 	c.Assert(err, ErrorMatches, `cannot process mount change: unknown action: .*`)
 	c.Assert(synth, HasLen, 0)
