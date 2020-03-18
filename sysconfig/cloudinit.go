@@ -28,7 +28,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 )
 
-func disableCloudInit() error {
+func DisableCloudInit() error {
 	ubuntuDataCloud := filepath.Join(dirs.RunMnt, "ubuntu-data/system-data/etc/cloud/")
 	if err := os.MkdirAll(ubuntuDataCloud, 0755); err != nil {
 		return fmt.Errorf("cannot make cloud config dir: %v", err)
@@ -52,7 +52,7 @@ func installCloudInitCfg(src string) error {
 func configureCloudInit(opts Opts) (err error) {
 	switch opts.CloudInitSrcDir {
 	case "":
-		err = disableCloudInit()
+		err = DisableCloudInit()
 	default:
 		err = installCloudInitCfg(opts.CloudInitSrcDir)
 	}
