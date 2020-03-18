@@ -23,14 +23,32 @@ import (
 	"time"
 )
 
-type Bus = bus
+type (
+	DesktopLauncher = desktopLauncher
+	PortalLauncher  = portalLauncher
+	UserdLauncher   = userdLauncher
 
-func MockSessionBus(m func() (Bus, error)) (restore func()) {
-	old := sessionBus
-	sessionBus = m
-	return func() {
-		sessionBus = old
-	}
+	ResponseError = responseError
+)
+
+const (
+	DesktopPortalBusName      = desktopPortalBusName
+	DesktopPortalObjectPath   = desktopPortalObjectPath
+	DesktopPortalOpenURIIface = desktopPortalOpenURIIface
+	DesktopPortalRequestIface = desktopPortalRequestIface
+
+	UserdLauncherBusName    = userdLauncherBusName
+	UserdLauncherObjectPath = userdLauncherObjectPath
+	UserdLauncherIface      = userdLauncherIface
+)
+
+var (
+	Launch        = launch
+	LaunchWithOne = launchWithOne
+)
+
+func MakeResponseError(msg string) error {
+	return &responseError{msg: msg}
 }
 
 func MockPortalTimeout(t time.Duration) (restore func()) {
