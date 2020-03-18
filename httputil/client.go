@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2018-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -141,10 +141,13 @@ func (d *dialTLS) addLocalSSLCertificates() (err error) {
 }
 
 type ClientOptions struct {
-	Timeout       time.Duration
-	TLSConfig     *tls.Config
-	MayLogBody    bool
-	Proxy         func(*http.Request) (*url.URL, error)
+	Timeout    time.Duration
+	TLSConfig  *tls.Config
+	MayLogBody bool
+
+	Proxy              func(*http.Request) (*url.URL, error)
+	ProxyConnectHeader http.Header
+
 	ExtraSSLCerts ExtraSSLCerts
 }
 
@@ -159,7 +162,7 @@ func NewHTTPClient(opts *ClientOptions) *http.Client {
 	if opts.Proxy != nil {
 		transport.Proxy = opts.Proxy
 	}
-	transport.ProxyConnectHeader = http.Header{"User-Agent": []string{UserAgent()}}
+	transport.ProxyConnectHeader = opts.ProxyConnectHeader
 	// Remember the original ClientOptions.TLSConfig when making
 	// tls connection.
 	// Note that we only set TLSClientConfig here because it's extracted

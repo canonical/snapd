@@ -44,8 +44,8 @@ import (
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -793,7 +793,7 @@ func (ovs *overlordSuite) TestEnsureLoopNoPruneWhenPreseed(c *C) {
 	restoreIntv := overlord.MockPruneInterval(1*time.Millisecond, 1000*time.Millisecond, 1*time.Hour)
 	defer restoreIntv()
 
-	restore := release.MockPreseedMode(func() bool { return true })
+	restore := snapdenv.MockPreseeding(true)
 	defer restore()
 
 	restorePreseedExitWithErr := overlord.MockPreseedExitWithError(func(err error) {})
@@ -1084,7 +1084,7 @@ func (ovs *overlordSuite) TestSettleExplicitEnsureBefore(c *C) {
 }
 
 func (ovs *overlordSuite) TestEnsureErrorWhenPreseeding(c *C) {
-	restore := release.MockPreseedMode(func() bool { return true })
+	restore := snapdenv.MockPreseeding(true)
 	defer restore()
 
 	restoreIntv := overlord.MockEnsureInterval(1 * time.Millisecond)

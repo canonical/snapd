@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2016 Canonical Ltd
+ * Copyright (C) 2014-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snapdenv"
 )
 
 const autoImportsName = "auto-import.assert"
@@ -56,6 +57,8 @@ func autoImportCandidates() ([]string, error) {
 		return nil, err
 	}
 	defer f.Close()
+
+	isTesting := snapdenv.Testing()
 
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
@@ -86,7 +89,7 @@ func autoImportCandidates() ([]string, error) {
 			continue
 		}
 		// skip all ram disks (unless in tests)
-		if !osutil.GetenvBool("SNAPPY_TESTING") && strings.HasPrefix(mountSrc, "/dev/ram") {
+		if !isTesting && strings.HasPrefix(mountSrc, "/dev/ram") {
 			continue
 		}
 

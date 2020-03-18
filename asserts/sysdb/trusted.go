@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -23,7 +23,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snapdenv"
 )
 
 const (
@@ -130,7 +130,7 @@ func init() {
 // Trusted returns a copy of the current set of trusted assertions as used by Open.
 func Trusted() []asserts.Assertion {
 	trusted := []asserts.Assertion(nil)
-	if !osutil.GetenvBool("SNAPPY_USE_STAGING_STORE") {
+	if !snapdenv.UseStagingStore() {
 		trusted = append(trusted, trustedAssertions...)
 	} else {
 		if len(trustedStagingAssertions) == 0 {
