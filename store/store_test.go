@@ -3758,7 +3758,6 @@ func (s *storeTestSuite) testFindCommonIDs(c *C, apiV1 bool) {
 		} else {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(200)
-			// XXX check if common ids are expected with v2
 			io.WriteString(w, MockSearchJSONv2)
 		}
 
@@ -3779,6 +3778,8 @@ func (s *storeTestSuite) testFindCommonIDs(c *C, apiV1 bool) {
 	// XXX check if common ids are expected with v2
 	if apiV1 {
 		c.Check(infos[0].CommonIDs, DeepEquals, []string{"org.hello"})
+	} else {
+		c.Check(infos[0].CommonIDs, DeepEquals, []string{"aaa", "bbb"})
 	}
 }
 
