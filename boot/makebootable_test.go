@@ -281,7 +281,7 @@ version: 5.0
 	})
 }
 
-func (s *makeBootable20Suite) TestMakeBootable20MultipleRecoverySystemsError(c *C) {
+func (s *makeBootable20Suite) TestMakeBootable20UnsetRecoverySystemLabelError(c *C) {
 	dirs.SetRootDir("")
 
 	model := makeMockUC20Model()
@@ -308,7 +308,7 @@ func (s *makeBootable20Suite) TestMakeBootable20MultipleRecoverySystemsError(c *
 	c.Assert(err, ErrorMatches, "internal error: recovery system label unset")
 }
 
-func (s *makeBootable20Suite) TestMakeBootable20UnsetRecoverySystemLabelError(c *C) {
+func (s *makeBootable20Suite) TestMakeBootable20MultipleRecoverySystemsError(c *C) {
 	dirs.SetRootDir("")
 
 	model := makeMockUC20Model()
@@ -480,6 +480,10 @@ version: 5.0
 	// check that the recovery bootloader configuration was copied with
 	// the correct content
 	c.Check(filepath.Join(rootdir, "boot/uboot/uboot.env"), testutil.FileEquals, ubootEnv)
+
+	c.Check(s.bootloader.BootVars, DeepEquals, map[string]string{
+		"snapd_recovery_system": label,
+	})
 
 	// ensure the correct recovery system configuration was set
 	c.Check(
