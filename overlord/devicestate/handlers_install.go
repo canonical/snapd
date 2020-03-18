@@ -21,8 +21,6 @@ package devicestate
 
 import (
 	"fmt"
-	"io/ioutil"
-	"os"
 	"os/exec"
 	"path/filepath"
 
@@ -34,10 +32,14 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/timings"
 )
 
-var bootMakeBootable = boot.MakeBootable
+var (
+	bootMakeBootable            = boot.MakeBootable
+	sysconfigConfigureRunSystem = sysconfig.ConfigureRunSystem
+)
 
 func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
@@ -90,7 +92,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// configure the run system
-	if err := configureRunSystem(); err != nil {
+	if err := sysconfigConfigureRunSystem(sysconfig.Opts{}); err != nil {
 		return err
 	}
 
@@ -149,22 +151,4 @@ func checkEncryption(model *asserts.Model) (res bool, err error) {
 	}
 
 	return true, nil
-}
-
-// configureRunSystem configures the ubuntu-data partition with any
-// configuration needed from e.g. the gadget or for cloud-init
-func configureRunSystem() error {
-	// disable cloud-init by default (as it's not confined)
-	// TODO:UC20: 1. allow drop-in cloud.cfg.d/* in mode dangerous
-	//            2. allow gadget cloud.cfg.d/* (with whitelisted keys?)
-	//            3. allow cloud.cfg.d (with whitelisted keys) for non
-	//               grade dangerous systems
-	ubuntuDataCloud := filepath.Join(dirs.RunMnt, "ubuntu-data/system-data/etc/cloud/")
-	if err := os.MkdirAll(ubuntuDataCloud, 0755); err != nil {
-		return fmt.Errorf("cannot make cloud config dir: %v", err)
-	}
-	if err := ioutil.WriteFile(filepath.Join(ubuntuDataCloud, "cloud-init.disabled"), nil, 0644); err != nil {
-		return fmt.Errorf("cannot disable cloud-init: %v", err)
-	}
-	return nil
 }
