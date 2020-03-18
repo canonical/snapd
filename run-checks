@@ -169,6 +169,7 @@ if [ "$STATIC" = 1 ]; then
         if [ -n "$fmt" ]; then
             echo "Formatting wrong in following files:"
             echo "$fmt" | sed -e 's/\\n/\n/g'
+            exit 1
         fi
     fi
 
