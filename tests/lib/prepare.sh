@@ -363,7 +363,7 @@ repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks() {
     cp /usr/lib/snapd/info "$UNPACK_DIR"/usr/lib/
 
     if [ "$ENABLE_SSH" = true ]; then
-        # now install a unit that setups enough so that we can connect
+        # now install a unit that sets up enough so that we can connect
         cat > "$UNPACK_DIR"/lib/systemd/system/snapd.spread-tests-run-mode-tweaks.service <<'EOF'
 [Unit]
 Description=Tweaks to run mode for spread tests

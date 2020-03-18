@@ -34,27 +34,8 @@ wait_for_no_ssh(){
     done
 }
 
-count_ready_in_log(){
-    journalctl -u "$NESTED_VM" | grep -c "Press enter to configure"
-}
-
-wait_for_ready(){
-    pre_ready="${1:-0}"
-    retry="${2:-120}"
-    wait="${3:-2}"
-
-    while [ $(count_ready_in_log) == $pre_ready ] ; do
-        retry=$(( retry - 1 ))
-        if [ $retry -le 0 ]; then
-            echo "Timed out waiting to be ready. Aborting!"
-            return 1
-        fi
-        sleep $wait
-    done
-}
-
 test_ssh(){
-    execute_remote true
+    sshpass -p ubuntu ssh -p 8022 -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no user1@localhost true
 }
 
 prepare_ssh(){
@@ -266,7 +247,7 @@ create_nested_core_vm(){
             EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-snapd/snapd_*.snap"
         fi
 
-        "$UBUNTU_IMAGE" --image-size 5G "$NESTED_MODEL" \
+        "$UBUNTU_IMAGE" --image-size 10G "$NESTED_MODEL" \
             --channel "$CORE_CHANNEL" \
             --output "$WORK_DIR/image/ubuntu-core.img" \
             "$EXTRA_FUNDAMENTAL" \
@@ -334,10 +315,8 @@ start_nested_core_vm(){
         ${PARAM_EXTRA} "
 
     # Wait until the system has been initialized
-    wait_for_ready
-
-    # In case it is not possible to connect through ssh restart the vm
-    if ! test_ssh; then        
+    if ! wait_for_ssh; then
+        # In case it is not possible to connect through ssh restart the vm
         systemctl stop "$NESTED_VM"
         sleep 5
         systemctl start "$NESTED_VM"
