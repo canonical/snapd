@@ -318,8 +318,8 @@ func init() {
 	defaultConfig.DetailFields = jsonutil.StructFields((*snapDetails)(nil), "snap_yaml_raw")
 	defaultConfig.InfoFields = jsonutil.StructFields((*storeSnap)(nil), "snap-yaml")
 	defaultConfig.SearchFields = append(jsonutil.StructFields((*storeSnap)(nil),
-		"architectures", "created-at", "epoch", "name", "website", "store-url",
-		"common-ids", "snap-id", "snap-yaml"), "channel")
+		"architectures", "created-at", "epoch", "name", "snap-id", "snap-yaml"),
+		"channel")
 }
 
 type searchV2Results struct {

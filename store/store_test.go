@@ -2733,6 +2733,7 @@ const MockSearchJSONv2 = `
 			 "version" : "6.3",
 			 "confinement" : "strict",
 			 "revision" : 27,
+			 "common-ids" : ["aaa", "bbb"],
 			 "channel" : "stable"
 		  },
 		  "snap" : {
@@ -2754,6 +2755,8 @@ const MockSearchJSONv2 = `
 				}
 			 ],
 			 "summary" : "The 'hello-world' of snaps",
+			 "store-url" : "https://snapcraft.io/hello-world",
+			 "website": "https://ubuntu.com",
 			 "private" : false,
 			 "prices": {"EUR": "2.99", "USD": "3.49"},
 			 "description" : "This is a simple hello world example.",
@@ -3229,6 +3232,9 @@ func (s *storeTestSuite) testFind(c *C, apiV1 bool) {
 		c.Check(snp.Sha3_384, Matches, `[[:xdigit:]]{96}`)
 		c.Check(v1Fallback, Equals, true)
 	} else {
+		c.Check(snp.Website, Equals, "https://ubuntu.com")
+		c.Check(snp.StoreURL, Equals, "https://snapcraft.io/hello-world")
+		c.Check(snp.CommonIDs, DeepEquals, []string{"aaa", "bbb"})
 		c.Check(v2Hit, Equals, true)
 	}
 }
@@ -3249,9 +3255,10 @@ func (s *storeTestSuite) TestFindV2SearchFields(c *C) {
 	searchFields := sto.SearchFields()
 	sort.Strings(searchFields)
 	c.Assert(searchFields, DeepEquals, []string{
-		"base", "channel", "confinement", "contact", "description", "download",
-		"license", "media", "prices", "private", "publisher", "revision",
-		"summary", "title", "type", "version"})
+		"base", "channel", "common-ids", "confinement", "contact",
+		"description", "download", "license", "media", "prices", "private",
+		"publisher", "revision", "store-url", "summary", "title", "type",
+		"version", "website"})
 }
 
 func (s *storeTestSuite) testFindPrivate(c *C, apiV1 bool) {
