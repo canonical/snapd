@@ -60,7 +60,7 @@ execute: |
 
     echo Running prepare-image as a user
     # TODO:UC20: remove --snap pi_20 once the gadget has been published
-    session-tool -u test "SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE snap prepare-image --channel edge --snap $ROOT/pi_20-1_arm64.snap $ROOT/model.assertion $ROOT"
+    su -c "SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE snap prepare-image --channel edge --snap $ROOT/pi_20-1_arm64.snap $ROOT/model.assertion $ROOT" test
 
     systemid="$(date +%Y%m%d)"
 
