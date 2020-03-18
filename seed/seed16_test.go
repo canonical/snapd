@@ -204,7 +204,7 @@ func (s *seed16Suite) TestSkippedLoadAssertion(c *C) {
 	c.Check(err, ErrorMatches, "internal error: model assertion unset")
 
 	_, err = s.seed16.Brand()
-	c.Check(err, ErrorMatches, "internal error: brand account assertion unset")
+	c.Check(err, ErrorMatches, "internal error: cannot query brand with model assertion unset")
 }
 
 func (s *seed16Suite) TestLoadMetaNoMeta(c *C) {

@@ -49,7 +49,6 @@ type seed16 struct {
 	db asserts.RODatabase
 
 	model *asserts.Model
-	brand *asserts.Account
 
 	snaps             []*Snap
 	essentialSnapsNum int
@@ -70,16 +69,12 @@ func (s *seed16) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Ba
 	assertSeedDir := filepath.Join(s.seedDir, "assertions")
 	// collect assertions and find model assertion
 	var modelRef *asserts.Ref
-	var acctRefs []*asserts.Ref
 	checkForModel := func(ref *asserts.Ref) error {
-		switch ref.Type {
-		case asserts.ModelType:
+		if ref.Type == asserts.ModelType {
 			if modelRef != nil && modelRef.Unique() != ref.Unique() {
 				return fmt.Errorf("cannot have multiple model assertions in seed")
 			}
 			modelRef = ref
-		case asserts.AccountType:
-			acctRefs = append(acctRefs, ref)
 		}
 		return nil
 	}
@@ -102,24 +97,10 @@ func (s *seed16) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Ba
 	if err != nil {
 		return fmt.Errorf("internal error: cannot find just added assertion %v: %v", modelRef, err)
 	}
-	modelAssertion := a.(*asserts.Model)
 
-	var brandAssertion *asserts.Account
-	for _, acctRef := range acctRefs {
-		a, err := acctRef.Resolve(db.Find)
-		if err != nil {
-			return fmt.Errorf("internal error: cannot find just added assertion %v: %v", modelRef, err)
-		}
-		acctAssertion := a.(*asserts.Account)
-		if acctAssertion.AccountID() == modelAssertion.BrandID() {
-			brandAssertion = acctAssertion
-			break
-		}
-	}
 	// remember db for later use
 	s.db = db
-	s.model = modelAssertion
-	s.brand = brandAssertion
+	s.model = a.(*asserts.Model)
 
 	return nil
 }
@@ -132,10 +113,16 @@ func (s *seed16) Model() (*asserts.Model, error) {
 }
 
 func (s *seed16) Brand() (*asserts.Account, error) {
-	if s.brand == nil {
-		return nil, fmt.Errorf("internal error: brand account assertion unset")
+	if s.model == nil {
+		return nil, fmt.Errorf("internal error: cannot query brand with model assertion unset")
 	}
-	return s.brand, nil
+	a, err := s.db.Find(asserts.AccountType, map[string]string{
+		"account-id": s.model.BrandID(),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("cannot find brand account assertion: %v", err)
+	}
+	return a.(*asserts.Account), nil
 }
 
 func (s *seed16) addSnap(sn *internal.Snap16, pinnedTrack string, tm timings.Measurer) (*Snap, error) {

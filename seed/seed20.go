@@ -52,7 +52,6 @@ type seed20 struct {
 	db asserts.RODatabase
 
 	model *asserts.Model
-	brand *asserts.Account
 
 	snapDeclsByID   map[string]*asserts.SnapDeclaration
 	snapDeclsByName map[string]*asserts.SnapDeclaration
@@ -84,7 +83,6 @@ func (s *seed20) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Ba
 	// collect assertions that are not the model
 	var declRefs []*asserts.Ref
 	var revRefs []*asserts.Ref
-	var acctRefs []*asserts.Ref
 	checkAssertion := func(ref *asserts.Ref) error {
 		switch ref.Type {
 		case asserts.ModelType:
@@ -93,8 +91,6 @@ func (s *seed20) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Ba
 			declRefs = append(declRefs, ref)
 		case asserts.SnapRevisionType:
 			revRefs = append(revRefs, ref)
-		case asserts.AccountType:
-			acctRefs = append(acctRefs, ref)
 		}
 		return nil
 	}
@@ -170,24 +166,10 @@ func (s *seed20) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Ba
 		}
 	}
 
-	var brandAssertion *asserts.Account
-	for _, acctRef := range acctRefs {
-		a, err := find(acctRef)
-		if err != nil {
-			return err
-		}
-		acctAssertion := a.(*asserts.Account)
-		if acctAssertion.AccountID() == modelAssertion.BrandID() {
-			brandAssertion = acctAssertion
-			break
-		}
-	}
-
 	// remember db for later use
 	s.db = db
 	// remember
 	s.model = modelAssertion
-	s.brand = brandAssertion
 	s.snapDeclsByID = snapDeclsByID
 	s.snapDeclsByName = snapDeclsByName
 	s.snapRevsByID = snapRevsByID
@@ -203,10 +185,16 @@ func (s *seed20) Model() (*asserts.Model, error) {
 }
 
 func (s *seed20) Brand() (*asserts.Account, error) {
-	if s.brand == nil {
-		return nil, fmt.Errorf("internal error: brand account assertion unset")
+	if s.model == nil {
+		return nil, fmt.Errorf("internal error: cannot query brand with model assertion unset")
 	}
-	return s.brand, nil
+	a, err := s.db.Find(asserts.AccountType, map[string]string{
+		"account-id": s.model.BrandID(),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("cannot find brand account assertion: %v", err)
+	}
+	return a.(*asserts.Account), nil
 }
 
 func (s *seed20) UsesSnapdSnap() bool {
