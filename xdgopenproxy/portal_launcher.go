@@ -92,15 +92,14 @@ func (p *portalLauncher) portalCall(bus *dbus.Conn, call func() (dbus.ObjectPath
 		close(signals)
 	}()
 
-	match := []dbus.MatchOption{
-		dbus.WithMatchSender(desktopPortalBusName),
-		dbus.WithMatchInterface(desktopPortalRequestIface),
-		dbus.WithMatchMember("Response"),
-	}
-	if err := bus.AddMatchSignal(match...); err != nil {
+	// TODO: this should use dbus.Conn.AddMatchSignal, but that
+	// does not exist in the external copies of godbus on some
+	// supported platforms.
+	const matchRule = "type='signal',sender='" + desktopPortalBusName + "',interface='" + desktopPortalRequestIface + "',member='Response'"
+	if err := bus.BusObject().Call("org.freedesktop.DBus.AddMatch", 0, matchRule).Store(); err != nil {
 		return err
 	}
-	defer bus.RemoveMatchSignal(match...)
+	defer bus.BusObject().Call("org.freedesktop.DBus.RemoveMatch", 0, matchRule)
 
 	requestPath, err := call()
 	if err != nil {
