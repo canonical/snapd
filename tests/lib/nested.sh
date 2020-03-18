@@ -9,27 +9,52 @@ SSH_PORT=8022
 MON_PORT=8888
 
 wait_for_ssh(){
-    retry=150
+    retry="${1:-120}"
+    wait="${2:-1}"
     while ! execute_remote true; do
         retry=$(( retry - 1 ))
         if [ $retry -le 0 ]; then
             echo "Timed out waiting for ssh. Aborting!"
             return 1
         fi
-        sleep 1
+        sleep $wait
     done
 }
 
 wait_for_no_ssh(){
-    retry=150
+    retry="${1:-120}"
+    wait="${2:-1}"
     while execute_remote true; do
         retry=$(( retry - 1 ))
         if [ $retry -le 0 ]; then
             echo "Timed out waiting for no ssh. Aborting!"
             return 1
         fi
-        sleep 1
+        sleep $wait
     done
+}
+
+count_ready_in_log(){
+    journalctl -u "$NESTED_VM" | grep -c "Press enter to configure"
+}
+
+wait_for_ready(){
+    pre_ready="${1:-0}"
+    retry="${2:-120}"
+    wait="${3:-2}"
+
+    while [ $(count_ready_in_log) == $pre_ready ] ; do
+        retry=$(( retry - 1 ))
+        if [ $retry -le 0 ]; then
+            echo "Timed out waiting to be ready. Aborting!"
+            return 1
+        fi
+        sleep $wait
+    done
+}
+
+test_ssh(){
+    execute_remote true
 }
 
 prepare_ssh(){
@@ -308,14 +333,17 @@ start_nested_core_vm(){
         ${PARAM_MONITOR} \
         ${PARAM_EXTRA} "
 
-    # This is a workaround for the issue when the user assertion is not autoimported correctly
-    if ! wait_for_ssh; then
-        systemctl restart "$NESTED_VM"
+    # Wait until the system has been initialized
+    wait_for_ready
 
-        # This is a workaround for the issue connecting to the swtpm-mvo snap
-        retry-tool -n 5 --wait 3 sh -c "systemctl restart $NESTED_VM && systemctl is-active $NESTED_VM"
+    # In case it is not possible to connect through ssh restart the vm
+    if ! test_ssh; then        
+        systemctl stop "$NESTED_VM"
+        sleep 5
+        systemctl start "$NESTED_VM"
     fi
 
+    # Wait until ssh is ready and configure ssh
     if wait_for_ssh; then
         prepare_ssh
     else
