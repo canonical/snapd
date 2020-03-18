@@ -326,6 +326,7 @@ func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume, encryptData 
 			ptype = partitionType(ptable.Label, p.Type)
 		}
 		if ptable.Label == "gpt" && !strutil.ListContains(createdPartitionGUID, strings.ToUpper(ptype)) {
+			logger.Noticef("cannot create partition with unsupported type %s", ptype)
 			continue
 		}
 
