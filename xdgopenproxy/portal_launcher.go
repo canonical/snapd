@@ -37,14 +37,32 @@ const (
 // portalLauncher is a launcher that forwards the requests to xdg-desktop-portal DBus API
 type portalLauncher struct{}
 
-// ensureDesktopPortal ensures that the xdg-desktop-portal service is available
-func (p *portalLauncher) ensureDesktopPortal(bus *dbus.Conn) (dbus.BusObject, error) {
+// desktopPortal gets a reference to the xdg-desktop-portal D-Bus service
+func (p *portalLauncher) desktopPortal(bus *dbus.Conn) (dbus.BusObject, error) {
 	// We call StartServiceByName since old versions of
 	// xdg-desktop-portal do not include the AssumedAppArmorLabel
 	// key in their service activation file.
 	var startResult uint32
-	if err := bus.BusObject().Call("org.freedesktop.DBus.StartServiceByName", 0, desktopPortalBusName, uint32(0)).Store(&startResult); err != nil {
+	err := bus.BusObject().Call("org.freedesktop.DBus.StartServiceByName", 0, desktopPortalBusName, uint32(0)).Store(&startResult)
+	if dbusErr, ok := err.(dbus.Error); ok {
+		// If it is not possible to activate the service
+		// (i.e. there is no .service file or the systemd unit
+		// has been masked), assume it is already
+		// running. Subsequent method calls will fail if this
+		// assumption is false.
+		if dbusErr.Name == "org.freedesktop.DBus.Error.ServiceUnknown" || dbusErr.Name == "org.freedesktop.systemd1.Masked" {
+			err = nil
+			startResult = 2
+		}
+	}
+	if err != nil {
 		return nil, err
+	}
+	switch startResult {
+	case 1: // DBUS_START_REPLY_SUCCESS
+	case 2: // DBUS_START_REPLY_ALREADY_RUNNING
+	default:
+		return nil, fmt.Errorf("unexpected response from StartServiceByName (code %v)", startResult)
 	}
 	return bus.Object(desktopPortalBusName, desktopPortalObjectPath), nil
 }
@@ -117,7 +135,7 @@ func (p *portalLauncher) portalCall(bus *dbus.Conn, call func() (dbus.ObjectPath
 }
 
 func (p *portalLauncher) OpenFile(bus *dbus.Conn, filename string) error {
-	portal, err := p.ensureDesktopPortal(bus)
+	portal, err := p.desktopPortal(bus)
 	if err != nil {
 		return err
 	}
@@ -140,7 +158,7 @@ func (p *portalLauncher) OpenFile(bus *dbus.Conn, filename string) error {
 }
 
 func (p *portalLauncher) OpenURI(bus *dbus.Conn, uri string) error {
-	portal, err := p.ensureDesktopPortal(bus)
+	portal, err := p.desktopPortal(bus)
 	if err != nil {
 		return err
 	}
