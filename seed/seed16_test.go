@@ -189,6 +189,11 @@ func (s *seed16Suite) TestLoadAssertionsModelTempDBHappy(c *C) {
 	model, err := s.seed16.Model()
 	c.Assert(err, IsNil)
 	c.Check(model.Model(), Equals, "my-model")
+
+	brand, err := s.seed16.Brand()
+	c.Assert(err, IsNil)
+	c.Check(brand.AccountID(), Equals, "my-brand")
+	c.Check(brand.DisplayName(), Equals, "My-brand")
 }
 
 func (s *seed16Suite) TestSkippedLoadAssertion(c *C) {
@@ -197,6 +202,9 @@ func (s *seed16Suite) TestSkippedLoadAssertion(c *C) {
 
 	err = s.seed16.LoadMeta(s.perfTimings)
 	c.Check(err, ErrorMatches, "internal error: model assertion unset")
+
+	_, err = s.seed16.Brand()
+	c.Check(err, ErrorMatches, "internal error: brand account assertion unset")
 }
 
 func (s *seed16Suite) TestLoadMetaNoMeta(c *C) {
