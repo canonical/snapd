@@ -107,3 +107,40 @@ func (s *snapdenvSuite) TestMockUseStagingStore(c *C) {
 	snapdenv.MockUseStagingStore(false)
 	c.Check(snapdenv.UseStagingStore(), Equals, false)
 }
+
+func (s *snapdenvSuite) TestPreseeding(c *C) {
+	oldPreseeding := os.Getenv("SNAPD_PRESEED")
+	defer func() {
+		if oldPreseeding == "" {
+			os.Unsetenv("SNAPD_PRESEED")
+		} else {
+			os.Setenv("SNAPD_PRESEED", oldPreseeding)
+		}
+	}()
+
+	os.Setenv("SNAPD_PRESEED", "1")
+	c.Check(snapdenv.Preseeding(), Equals, true)
+
+	os.Unsetenv("SNAPD_PRESEED")
+	c.Check(snapdenv.Preseeding(), Equals, false)
+}
+
+func (s *snapdenvSuite) TestMockPreseeding(c *C) {
+	oldPreseeding := os.Getenv("SNAPD_PRESEED")
+	defer func() {
+		if oldPreseeding == "" {
+			os.Unsetenv("SNAPD_PRESEED")
+		} else {
+			os.Setenv("SNAPD_PRESEED", oldPreseeding)
+		}
+	}()
+	os.Unsetenv("SNAPD_PRESEED")
+
+	r := snapdenv.MockPreseeding(true)
+	defer r()
+
+	c.Check(snapdenv.Preseeding(), Equals, true)
+
+	snapdenv.MockPreseeding(false)
+	c.Check(snapdenv.Preseeding(), Equals, false)
+}
