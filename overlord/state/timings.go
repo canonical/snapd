@@ -27,7 +27,11 @@ import (
 // Returned Timings tree has "task-id", "change-id" and "task-kind"
 // tags set automatically from the respective task.
 func TimingsForTask(task *Task) *timings.Timings {
-	tags := map[string]string{"task-id": task.ID(), "task-kind": task.Kind(), "task-status": task.Status().String()}
+	tags := map[string]string{
+		"task-id":     task.ID(),
+		"task-kind":   task.Kind(),
+		"task-status": task.Status().String(),
+	}
 	if chg := task.Change(); chg != nil {
 		tags["change-id"] = chg.ID()
 	}

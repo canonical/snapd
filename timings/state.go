@@ -155,9 +155,11 @@ func (t *Timings) Save(s GetSaver) {
 	s.SaveTimings(stateTimings)
 }
 
-// Get returns timings for which filter predicate is true and filters out nested timings whose level is greater than maxLevel.
+// Get returns timings for which filter predicate is true and filters
+// out nested timings whose level is greater than maxLevel.
 // Negative maxLevel value disables filtering by level.
-// If GetSaver is a state.State, it's responsibility of the caller to lock the state before calling this function.
+// If GetSaver is a state.State, it's responsibility of the caller to
+// lock the state before calling this function.
 func Get(s GetSaver, maxLevel int, filter func(tags map[string]string) bool) ([]*TimingsInfo, error) {
 	var stateTimings []rootTimingsJSON
 	if err := s.GetMaybeTimings(&stateTimings); err != nil {
