@@ -1535,7 +1535,7 @@ func (s *deviceMgrSerialSuite) TestNewEnoughProxy(c *C) {
 	defer os.Unsetenv("SNAPD_DEBUG")
 
 	expecteds := []string{
-		`Head http://\S+: EOF`,
+		`Head \"?http://\S+\"?: EOF`,
 		`Head request returned 403 Forbidden.`,
 		`Bogus Snap-Store-Version header "5pre1".`,
 		``,
