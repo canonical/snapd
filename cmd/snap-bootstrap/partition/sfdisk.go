@@ -362,12 +362,16 @@ func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume, encryptData 
 func listCreatedPartitions(dl *DeviceLayout) []string {
 	created := make([]string, 0, len(dl.partitionTable.Partitions))
 	for _, p := range dl.partitionTable.Partitions {
+		if !strutil.ListContains(createdPartitionGUID, strings.ToUpper(p.Type)) {
+			continue
+		}
 		for _, a := range strings.Fields(p.Attrs) {
-			if idx := strings.Index(a, "GUID:"); idx >= 0 {
-				attrs := strings.Split(a[idx+5:], ",")
-				if strutil.ListContains(attrs, createdPartitionAttr) && strutil.ListContains(createdPartitionGUID, strings.ToUpper(p.Type)) {
-					created = append(created, p.Node)
-				}
+			if !strings.HasPrefix(a, "GUID:") {
+				continue
+			}
+			attrs := strings.Split(a[5:], ",")
+			if strutil.ListContains(attrs, createdPartitionAttr) {
+				created = append(created, p.Node)
 			}
 		}
 	}
