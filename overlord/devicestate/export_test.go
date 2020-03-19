@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
+	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -225,5 +226,13 @@ func MockHttputilNewHTTPClient(f func(opts *httputil.ClientOptions) *http.Client
 	httputilNewHTTPClient = f
 	return func() {
 		httputilNewHTTPClient = old
+	}
+}
+
+func MockSysconfigConfigureRunSystem(f func(opts *sysconfig.Options) error) (restore func()) {
+	old := sysconfigConfigureRunSystem
+	sysconfigConfigureRunSystem = f
+	return func() {
+		sysconfigConfigureRunSystem = old
 	}
 }

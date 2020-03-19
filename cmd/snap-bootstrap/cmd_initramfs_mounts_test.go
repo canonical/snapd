@@ -226,6 +226,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep4(c *C) {
 	c.Check(modeEnv, testutil.FileEquals, `mode=install
 recovery_system=20191118
 `)
+	cloudInitDisable := filepath.Join(s.runMnt, "/ubuntu-data/system-data/etc/cloud/cloud-init.disabled")
+	c.Check(cloudInitDisable, testutil.FilePresent)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1(c *C) {
