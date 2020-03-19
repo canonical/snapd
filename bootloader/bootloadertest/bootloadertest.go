@@ -50,6 +50,7 @@ type MockBootloader struct {
 var _ bootloader.Bootloader = (*MockBootloader)(nil)
 var _ bootloader.RecoveryAwareBootloader = (*MockRecoveryAwareBootloader)(nil)
 var _ bootloader.ExtractedRunKernelImageBootloader = (*MockExtractedRunKernelImageBootloader)(nil)
+var _ bootloader.ExtractedRecoveryKernelImageBootloader = (*MockExtractedRecoveryKernelImageBootloader)(nil)
 
 func Mock(name, bootdir string) *MockBootloader {
 	return &MockBootloader{
@@ -109,6 +110,42 @@ type MockRecoveryAwareBootloader struct {
 
 	RecoverySystemDir      string
 	RecoverySystemBootVars map[string]string
+}
+
+type ExtractedRecoveryKernelCall struct {
+	RecoverySystemDir string
+	S                 snap.PlaceInfo
+}
+
+// MockExtractedRecoveryKernelImageBootloader mocks a bootloader implementing
+// the ExtractedRecoveryKernelImage interface.
+type MockExtractedRecoveryKernelImageBootloader struct {
+	*MockBootloader
+
+	ExtractRecoveryKernelAssetsCalls []ExtractedRecoveryKernelCall
+}
+
+// ExtractedRecoveryKernelImage derives a MockRecoveryAwareBootloader from a base
+// MockBootloader.
+func (b *MockBootloader) ExtractedRecoveryKernelImage() *MockExtractedRecoveryKernelImageBootloader {
+	return &MockExtractedRecoveryKernelImageBootloader{MockBootloader: b}
+}
+
+// ExtractRecoveryKernelAssets extracts the kernel assets for the provided
+// kernel snap into the specified recovery system dir; part of
+// RecoveryAwareBootloader.
+func (b *MockExtractedRecoveryKernelImageBootloader) ExtractRecoveryKernelAssets(recoverySystemDir string, s snap.PlaceInfo, snapf snap.Container) error {
+	if recoverySystemDir == "" {
+		panic("MockBootloader.ExtractRecoveryKernelAssets called without recoverySystemDir")
+	}
+
+	b.ExtractRecoveryKernelAssetsCalls = append(
+		b.ExtractRecoveryKernelAssetsCalls,
+		ExtractedRecoveryKernelCall{
+			S:                 s,
+			RecoverySystemDir: recoverySystemDir},
+	)
+	return nil
 }
 
 // RecoveryAware derives a MockRecoveryAwareBootloader from a base
