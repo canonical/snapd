@@ -68,7 +68,10 @@ type sfdiskPartition struct {
 	Node  string `json:"node"`
 	Start uint64 `json:"start"`
 	Size  uint64 `json:"size"`
-	// List of GPT partition attributes in <attr>[ <attr>] format. Numeric attributes are listed as GUID:n[,n].
+	// List of GPT partition attributes in <attr>[ <attr>] format, numeric attributes
+	// are listed as GUID:<bit>[,<bit>]. Note that the even though the sfdisk(8) manpage
+	// says --part-attrs takes a space or comma separated list, the output from
+	// --json/--dump uses a different format.
 	Attrs string `json:"attrs"`
 	Type  string `json:"type"`
 	UUID  string `json:"uuid"`
@@ -293,8 +296,8 @@ func deviceName(name string, index int) string {
 
 // buildPartitionList builds a list of partitions based on the current
 // device contents and gadget structure list, in sfdisk dump format, and
-// returns a partitioning description suitable for sfdisk input, a list of
-// partitions to be removed, and a list of the partitions to be created.
+// returns a partitioning description suitable for sfdisk input and a
+// list of the partitions to be created.
 func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume, encryptData bool) (sfdiskInput *bytes.Buffer, toBeCreated []DeviceStructure) {
 	ptable := dl.partitionTable
 
