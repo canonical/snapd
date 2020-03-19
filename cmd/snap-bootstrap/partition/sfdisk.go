@@ -46,7 +46,6 @@ const (
 var createdPartitionGUID = []string{
 	"0FC63DAF-8483-4772-8E79-3D69D8477DE4", // Linux filesystem data
 	"0657FD6D-A4AB-43C4-84E5-0933C84B4F4F", // Linux swap partition
-	"CA7D7CCB-63ED-4C53-861C-1742536059CC", // LUKS partition
 }
 
 // sfdiskDeviceDump represents the sfdisk --dump JSON output format.
@@ -124,8 +123,8 @@ var (
 
 // CreateMissing creates the partitions listed in the positioned volume pv
 // that are missing from the existing device layout.
-func (dl *DeviceLayout) CreateMissing(pv *gadget.LaidOutVolume, encryptData bool) ([]DeviceStructure, error) {
-	buf, created := buildPartitionList(dl, pv, encryptData)
+func (dl *DeviceLayout) CreateMissing(pv *gadget.LaidOutVolume) ([]DeviceStructure, error) {
+	buf, created := buildPartitionList(dl, pv)
 	if len(created) == 0 {
 		return created, nil
 	}
@@ -298,7 +297,7 @@ func deviceName(name string, index int) string {
 // device contents and gadget structure list, in sfdisk dump format, and
 // returns a partitioning description suitable for sfdisk input and a
 // list of the partitions to be created.
-func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume, encryptData bool) (sfdiskInput *bytes.Buffer, toBeCreated []DeviceStructure) {
+func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume) (sfdiskInput *bytes.Buffer, toBeCreated []DeviceStructure) {
 	ptable := dl.partitionTable
 
 	// Keep track what partitions we already have on disk
@@ -323,14 +322,7 @@ func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume, encryptData 
 
 		// Only allow the creation of partitions with known GUIDs
 		// TODO:UC20: also provide a mechanism for MBR (RPi)
-		var ptype string
-		if encryptData && s.Role == gadget.SystemData {
-			// e8 - MBR type for LUKS encrypted partition
-			// CA7D7CCB-63ED-4C53-861C-1742536059CC - GPT partition type for encrypted partition
-			ptype = partitionType(ptable.Label, "e8,CA7D7CCB-63ED-4C53-861C-1742536059CC")
-		} else {
-			ptype = partitionType(ptable.Label, p.Type)
-		}
+		ptype := partitionType(ptable.Label, p.Type)
 		if ptable.Label == "gpt" && !strutil.ListContains(createdPartitionGUID, strings.ToUpper(ptype)) {
 			logger.Noticef("cannot create partition with unsupported type %s", ptype)
 			continue
