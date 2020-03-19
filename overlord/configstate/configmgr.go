@@ -40,7 +40,7 @@ func MockConfigcoreRun(f func(config.Conf) error) (restore func()) {
 	}
 }
 
-func MockConfigcoreExportExperimentalFlags(mock func(tr config.Conf) error) (restore func()) {
+func MockConfigcoreExportExperimentalFlags(mock func(tr config.ConfReader, opts *config.ApplyOptions) error) (restore func()) {
 	old := configcoreExportExperimentalFlags
 	configcoreExportExperimentalFlags = mock
 	return func() {
@@ -65,7 +65,7 @@ func Init(st *state.State, hookManager *hookstate.HookManager) error {
 	st.Lock()
 	defer st.Unlock()
 	tr := config.NewTransaction(st)
-	if err := configcoreExportExperimentalFlags(tr); err != nil {
+	if err := configcoreExportExperimentalFlags(tr, nil); err != nil {
 		return fmt.Errorf("cannot export experimental config flags: %v", err)
 	}
 	return nil

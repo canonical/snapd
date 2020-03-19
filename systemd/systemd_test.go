@@ -864,7 +864,7 @@ WantedBy=multi-user.target
 `
 
 func (s *SystemdTestSuite) TestPreseedModeAddMountUnit(c *C) {
-	sysd := NewEmulationMode()
+	sysd := NewEmulationMode(dirs.GlobalRootDir)
 
 	restore := squashfs.MockNeedsFuse(false)
 	defer restore()
@@ -889,7 +889,7 @@ func (s *SystemdTestSuite) TestPreseedModeAddMountUnit(c *C) {
 }
 
 func (s *SystemdTestSuite) TestPreseedModeAddMountUnitWithFuse(c *C) {
-	sysd := NewEmulationMode()
+	sysd := NewEmulationMode(dirs.GlobalRootDir)
 
 	restore := MockSquashFsType(func() (string, []string, error) { return "fuse.squashfuse", []string{"a,b,c"}, nil })
 	defer restore()
@@ -909,7 +909,7 @@ func (s *SystemdTestSuite) TestPreseedModeAddMountUnitWithFuse(c *C) {
 }
 
 func (s *SystemdTestSuite) TestPreseedModeMountError(c *C) {
-	sysd := NewEmulationMode()
+	sysd := NewEmulationMode(dirs.GlobalRootDir)
 
 	restore := squashfs.MockNeedsFuse(false)
 	defer restore()
@@ -936,7 +936,7 @@ func (s *SystemdTestSuite) TestPreseedModeRemoveMountUnit(c *C) {
 	mockUmountCmd := testutil.MockCommand(c, "umount", "")
 	defer mockUmountCmd.Restore()
 
-	sysd := NewEmulationMode()
+	sysd := NewEmulationMode(dirs.GlobalRootDir)
 
 	mountUnit := makeMockMountUnit(c, mountDir)
 	symlinkPath := filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", filepath.Base(mountUnit))
@@ -965,7 +965,7 @@ func (s *SystemdTestSuite) TestPreseedModeRemoveMountUnitUnmounted(c *C) {
 	mockUmountCmd := testutil.MockCommand(c, "umount", "")
 	defer mockUmountCmd.Restore()
 
-	sysd := NewEmulationMode()
+	sysd := NewEmulationMode(dirs.GlobalRootDir)
 	mountUnit := makeMockMountUnit(c, mountDir)
 	symlinkPath := filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", filepath.Base(mountUnit))
 	c.Assert(os.Symlink(mountUnit, symlinkPath), IsNil)
@@ -983,7 +983,7 @@ func (s *SystemdTestSuite) TestPreseedModeRemoveMountUnitUnmounted(c *C) {
 }
 
 func (s *SystemdTestSuite) TestPreseedModeBindmountNotSupported(c *C) {
-	sysd := NewEmulationMode()
+	sysd := NewEmulationMode(dirs.GlobalRootDir)
 
 	restore := squashfs.MockNeedsFuse(false)
 	defer restore()

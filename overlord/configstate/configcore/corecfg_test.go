@@ -131,3 +131,20 @@ func (r *runCfgSuite) TestConfigureUnknownOption(c *C) {
 	err := configcore.Run(conf)
 	c.Check(err, ErrorMatches, `cannot set "core.unknown.option": unsupported system option`)
 }
+
+// applyCfgSuite tests configcore.Apply()
+type applyCfgSuite struct {
+	tmpDir        string
+	systemctlArgs [][]string
+}
+
+var _ = Suite(&applyCfgSuite{})
+
+func (s *applyCfgSuite) SetUpTest(c *C) {
+	s.tmpDir = c.MkDir()
+	dirs.SetRootDir(s.tmpDir)
+}
+
+func (s *applyCfgSuite) TearDownTest(c *C) {
+	dirs.SetRootDir("")
+}

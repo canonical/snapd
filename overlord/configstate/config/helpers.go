@@ -279,8 +279,21 @@ type Conf interface {
 	State() *state.State
 }
 
+// ConfReader is an interface for reading of config values.
+type ConfReader interface {
+	Get(snapName, key string, result interface{}) error
+}
+
+// ApplyOptions encapsulates extra options passed to individual core config
+// handlers when configuration is applied to a specific root directory with
+// Apply().
+type ApplyOptions struct {
+	Preseeding bool
+	RootDir    string
+}
+
 // GetFeatureFlag returns the value of a given feature flag.
-func GetFeatureFlag(tr Conf, feature features.SnapdFeature) (bool, error) {
+func GetFeatureFlag(tr ConfReader, feature features.SnapdFeature) (bool, error) {
 	var isEnabled interface{}
 	snapName, confName := feature.ConfigOption()
 	if err := tr.Get(snapName, confName, &isEnabled); err != nil && !IsNoOption(err) {

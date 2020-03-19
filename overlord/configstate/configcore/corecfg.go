@@ -22,6 +22,7 @@ package configcore
 import (
 	"fmt"
 	"os"
+	"reflect"
 
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/release"
@@ -33,7 +34,7 @@ var (
 )
 
 // coreCfg returns the configuration value for the core snap.
-func coreCfg(tr config.Conf, key string) (result string, err error) {
+func coreCfg(tr config.ConfReader, key string) (result string, err error) {
 	var v interface{} = ""
 	if err := tr.Get("core", key, &v); err != nil && !config.IsNoOption(err) {
 		return "", err
@@ -48,7 +49,7 @@ func coreCfg(tr config.Conf, key string) (result string, err error) {
 // The actual values are populated by `init()` functions in each module.
 var supportedConfigurations = make(map[string]bool, 32)
 
-func validateBoolFlag(tr config.Conf, flag string) error {
+func validateBoolFlag(tr config.ConfReader, flag string) error {
 	value, err := coreCfg(tr, flag)
 	if err != nil {
 		return err
@@ -59,6 +60,83 @@ func validateBoolFlag(tr config.Conf, flag string) error {
 	default:
 		return fmt.Errorf("%s can only be set to 'true' or 'false'", flag)
 	}
+	return nil
+}
+
+// PlainCoreConfig carries a read-only copy of core config and implements
+// config.ConfReader interface.
+type PlainCoreConfig map[string]interface{}
+
+// Get implements config.ConfReader interface.
+func (cfg PlainCoreConfig) Get(snapName, key string, result interface{}) error {
+	if snapName != "core" {
+		return fmt.Errorf("internal error: expected core snap in Get(), %q was requested", snapName)
+	}
+
+	// XXX: should we support nesting with dotted key?
+	val, ok := cfg[key]
+	if !ok {
+		return &config.NoOptionError{SnapName: snapName, Key: key}
+	}
+
+	rv := reflect.ValueOf(result)
+	rv.Elem().Set(reflect.ValueOf(val))
+	return nil
+}
+
+// Apply applies filesystem modifications under rootDir, according to the
+// cfg configuration. This is a subset of core config options that is important
+// early during boot, before all the configuration is applied as part of
+// normal execution of configure hook.
+func Apply(rootDir string, cfg config.ConfReader) error {
+	opts := &config.ApplyOptions{
+		Preseeding: true,
+		RootDir:    rootDir,
+	}
+
+	if err := validateExperimentalSettings(cfg); err != nil {
+		return err
+	}
+	if err := validateWatchdogOptions(cfg); err != nil {
+		return err
+	}
+	if err := validateNetworkSettings(cfg); err != nil {
+		return err
+	}
+
+	// Export experimental.* flags to a place easily accessible from snapd helpers.
+	if err := ExportExperimentalFlags(cfg, opts); err != nil {
+		return err
+	}
+
+	// see if it makes sense to run at all
+	if release.OnClassic {
+		// nothing to do
+		return nil
+	}
+
+	// handle some of the core config options:
+	// service.*.disable
+	if err := handleServiceDisableConfiguration(cfg, opts); err != nil {
+		return err
+	}
+	// system.power-key-action
+	if err := handlePowerButtonConfiguration(cfg, opts); err != nil {
+		return err
+	}
+	// pi-config.*
+	if err := handlePiConfiguration(cfg, opts); err != nil {
+		return err
+	}
+	// watchdog.{runtime-timeout,shutdown-timeout}
+	if err := handleWatchdogConfiguration(cfg, opts); err != nil {
+		return err
+	}
+	// network.disable-ipv6
+	if err := handleNetworkConfiguration(cfg, opts); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -99,7 +177,7 @@ func Run(tr config.Conf) error {
 	}
 
 	// Export experimental.* flags to a place easily accessible from snapd helpers.
-	if err := ExportExperimentalFlags(tr); err != nil {
+	if err := ExportExperimentalFlags(tr, nil); err != nil {
 		return err
 	}
 
@@ -113,15 +191,15 @@ func Run(tr config.Conf) error {
 
 	// handle the various core config options:
 	// service.*.disable
-	if err := handleServiceDisableConfiguration(tr); err != nil {
+	if err := handleServiceDisableConfiguration(tr, nil); err != nil {
 		return err
 	}
 	// system.power-key-action
-	if err := handlePowerButtonConfiguration(tr); err != nil {
+	if err := handlePowerButtonConfiguration(tr, nil); err != nil {
 		return err
 	}
 	// pi-config.*
-	if err := handlePiConfiguration(tr); err != nil {
+	if err := handlePiConfiguration(tr, nil); err != nil {
 		return err
 	}
 	// proxy.{http,https,ftp}
@@ -129,11 +207,11 @@ func Run(tr config.Conf) error {
 		return err
 	}
 	// watchdog.{runtime-timeout,shutdown-timeout}
-	if err := handleWatchdogConfiguration(tr); err != nil {
+	if err := handleWatchdogConfiguration(tr, nil); err != nil {
 		return err
 	}
 	// network.disable-ipv6
-	if err := handleNetworkConfiguration(tr); err != nil {
+	if err := handleNetworkConfiguration(tr, nil); err != nil {
 		return err
 	}
 
