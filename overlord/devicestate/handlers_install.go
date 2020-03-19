@@ -92,7 +92,12 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// configure the run system
-	if err := sysconfigConfigureRunSystem(&sysconfig.Options{}); err != nil {
+	opts := &sysconfig.Options{}
+	cloudCfg := filepath.Join(dirs.RunMnt, "ubuntu-seed/cloud.cfg.d")
+	if osutil.IsDirectory(cloudCfg) && deviceCtx.Model().Grade() == asserts.ModelDangerous {
+		opts.CloudInitSrcDir = cloudCfg
+	}
+	if err := sysconfigConfigureRunSystem(opts); err != nil {
 		return err
 	}
 
