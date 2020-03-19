@@ -21,6 +21,7 @@ package osutil_test
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -67,10 +68,8 @@ func (s *flockSuite) TestLockUnlockWorks(c *C) {
 
 	// Run a flock command in another process, it should succeed because it can
 	// lock the lock as we didn't do it yet.
-	// use --no-fork so that the kill command below works
-	cmd := exec.Command("flock", "--no-fork", "--exclusive", "--nonblock", lock.Path(), "true")
+	cmd := exec.Command("flock", "--exclusive", "--nonblock", lock.Path(), "true")
 	c.Assert(cmd.Run(), IsNil)
-	defer cmd.Process.Kill()
 
 	// Lock the lock.
 	c.Assert(lock.Lock(), IsNil)
@@ -129,10 +128,11 @@ func (s *flockSuite) TestLockUnlockNonblockingWorks(c *C) {
 
 	// Use the "flock" command to grab a lock for 9999 seconds in another process.
 	lockPath := filepath.Join(c.MkDir(), "lock")
-	// use --no-fork so that the kill command below works
-	cmd := exec.Command("flock", "--no-fork", "--exclusive", lockPath, "sleep", "30")
+	sleeperKillerPath := filepath.Join(c.MkDir(), "pid")
+	// we can't use --no-fork because we still support 14.04
+	cmd := exec.Command("flock", "--exclusive", lockPath, "-c", fmt.Sprintf("echo \"kill $$\" > %s && exec sleep 30", sleeperKillerPath))
 	c.Assert(cmd.Start(), IsNil)
-	defer cmd.Process.Kill()
+	defer func() { exec.Command("/bin/sh", sleeperKillerPath).Run() }()
 
 	// Give flock some chance to create the lock file.
 	for i := 0; i < 10; i++ {
