@@ -750,14 +750,14 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 	// connecting with these interfaces needs to be allowed on
 	// case-by-case basis
 	noconnect := map[string]bool{
-		"content":                   true,
-		"docker":                    true,
-		"fwupd":                     true,
-		"location-control":          true,
-		"location-observe":          true,
-		"lxd":                       true,
-		"maliit":                    true,
-		"mir":                       true,
+		"content":          true,
+		"docker":           true,
+		"fwupd":            true,
+		"location-control": true,
+		"location-observe": true,
+		"lxd":              true,
+		"maliit":           true,
+		"mir":              true,
 		"online-accounts-service":   true,
 		"raw-volume":                true,
 		"storage-framework-service": true,
