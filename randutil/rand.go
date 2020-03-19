@@ -23,21 +23,23 @@
 package randutil
 
 import (
-	cryptorand "crypto/rand"
-	"fmt"
-	"math"
-	"math/big"
+	//cryptorand "crypto/rand"
+	//"fmt"
+	//"math"
+	//"math/big"
 	"math/rand"
+	"os"
 	"time"
 )
 
 func init() {
 	// golang does not init Seed() itself
-	bigSeed, err := cryptorand.Int(cryptorand.Reader, big.NewInt(math.MaxInt64))
+	/*bigSeed, err := cryptorand.Int(cryptorand.Reader, big.NewInt(math.MaxInt64))
 	if err != nil {
 		panic(fmt.Sprintf("cannot obtain random seed: %v", err))
 	}
-	rand.Seed(bigSeed.Int64())
+	rand.Seed(bigSeed.Int64())*/
+	rand.Seed(time.Now().UnixNano() + int64(os.Getpid()))
 }
 
 const letters = "BCDFGHJKLMNPQRSTVWXYbcdfghjklmnpqrstvwxy0123456789"
