@@ -62,8 +62,6 @@ owner @{HOME}/.local/share/fonts/{,**} r,
 
 # subset of gnome abstraction
 /etc/gnome/defaults.list r,
-/usr/share/gnome/applications/             r,
-/usr/share/applications/mimeinfo.cache     r,
 
 /etc/gtk-*/*                               r,
 /usr/lib{,32,64}/gtk-*/**                  mr,
@@ -80,22 +78,24 @@ owner @{HOME}/.local/share/fonts/{,**} r,
 /usr/share/icons/*/index.theme             rk,
 /usr/share/pixmaps/                        r,
 /usr/share/pixmaps/**                      r,
-/usr/share/unity/icons/**                  r,
-/usr/share/thumbnailer/icons/**            r,
-/usr/share/themes/**                       r,
 
 # The snapcraft desktop part may look for schema files in various locations, so
 # allow reading system installed schemas.
 /usr/share/glib*/schemas/{,*}              r,
-/usr/share/gnome/glib*/schemas/{,*}        r,
-/usr/share/ubuntu/glib*/schemas/{,*}       r,
 
 # Snappy's 'xdg-open' talks to the snapd-xdg-open service which currently works
 # only in environments supporting dbus-send (eg, X11). In the future once
 # snappy's xdg-open supports all snaps images, this access may move to another
 # interface.
 /usr/bin/xdg-open ixr,
-/usr/share/applications/{,*} r,
+/usr/share/applications/ r,
+/usr/share/applications/mimeapps.list r,
+/usr/share/applications/xdg-open.desktop r,
+# silence noisy denials from desktop files in core* snaps that aren't usable by
+# snaps
+deny /usr/share/applications/python*.desktop r,
+deny /usr/share/applications/vim.desktop r,
+deny /usr/share/applications/snap-handle-link.desktop r,  # core16
 
 # This allow access to the first version of the snapd-xdg-open
 # version which was shipped outside of snapd
