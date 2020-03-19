@@ -157,12 +157,26 @@ type makeBootable20Suite struct {
 	bootloader *bootloadertest.MockRecoveryAwareBootloader
 }
 
+type makeBootable20UbootSuite struct {
+	baseBootenvSuite
+
+	bootloader *bootloadertest.MockExtractedRecoveryKernelImageBootloader
+}
+
 var _ = Suite(&makeBootable20Suite{})
+var _ = Suite(&makeBootable20UbootSuite{})
 
 func (s *makeBootable20Suite) SetUpTest(c *C) {
 	s.baseBootenvSuite.SetUpTest(c)
 
 	s.bootloader = bootloadertest.Mock("mock", c.MkDir()).RecoveryAware()
+	s.forceBootloader(s.bootloader)
+}
+
+func (s *makeBootable20UbootSuite) SetUpTest(c *C) {
+	s.baseBootenvSuite.SetUpTest(c)
+
+	s.bootloader = bootloadertest.Mock("mock", c.MkDir()).ExtractedRecoveryKernelImage()
 	s.forceBootloader(s.bootloader)
 }
 
@@ -230,15 +244,17 @@ version: 5.0
 	err = os.Rename(kernelFn, kernelInSeed)
 	c.Assert(err, IsNil)
 
-	recoverySystemDir := "/systems/20191209"
+	label := "20191209"
+	recoverySystemDir := filepath.Join("/systems", label)
 	bootWith := &boot.BootableSet{
-		Base:              baseInfo,
-		BasePath:          baseInSeed,
-		Kernel:            kernelInfo,
-		KernelPath:        kernelInSeed,
-		RecoverySystemDir: recoverySystemDir,
-		UnpackedGadgetDir: unpackedGadgetDir,
-		Recovery:          true,
+		Base:                baseInfo,
+		BasePath:            baseInSeed,
+		Kernel:              kernelInfo,
+		KernelPath:          kernelInSeed,
+		RecoverySystemDir:   recoverySystemDir,
+		RecoverySystemLabel: label,
+		UnpackedGadgetDir:   unpackedGadgetDir,
+		Recovery:            true,
 	}
 
 	err = boot.MakeBootable(model, rootdir, bootWith)
@@ -260,6 +276,36 @@ version: 5.0
 	c.Check(s.bootloader.RecoverySystemBootVars, DeepEquals, map[string]string{
 		"snapd_recovery_kernel": "/snaps/pc-kernel_5.snap",
 	})
+	c.Check(s.bootloader.BootVars, DeepEquals, map[string]string{
+		"snapd_recovery_system": label,
+	})
+}
+
+func (s *makeBootable20Suite) TestMakeBootable20UnsetRecoverySystemLabelError(c *C) {
+	dirs.SetRootDir("")
+
+	model := makeMockUC20Model()
+
+	unpackedGadgetDir := c.MkDir()
+	grubRecoveryCfg := []byte("#grub-recovery cfg")
+	err := ioutil.WriteFile(filepath.Join(unpackedGadgetDir, "grub-recovery.conf"), grubRecoveryCfg, 0644)
+	c.Assert(err, IsNil)
+	grubCfg := []byte("#grub cfg")
+	err = ioutil.WriteFile(filepath.Join(unpackedGadgetDir, "grub.conf"), grubCfg, 0644)
+	c.Assert(err, IsNil)
+
+	rootdir := c.MkDir()
+
+	label := "20191209"
+	recoverySystemDir := filepath.Join("/systems", label)
+	bootWith := &boot.BootableSet{
+		RecoverySystemDir: recoverySystemDir,
+		UnpackedGadgetDir: unpackedGadgetDir,
+		Recovery:          true,
+	}
+
+	err = boot.MakeBootable(model, rootdir, bootWith)
+	c.Assert(err, ErrorMatches, "internal error: recovery system label unset")
 }
 
 func (s *makeBootable20Suite) TestMakeBootable20MultipleRecoverySystemsError(c *C) {
@@ -373,4 +419,79 @@ recovery_system=20191216
 base=core20_3.snap
 current_kernels=pc-kernel_5.snap
 `)
+}
+
+func (s *makeBootable20UbootSuite) TestUbootMakeBootable20(c *C) {
+	dirs.SetRootDir("")
+
+	model := makeMockUC20Model()
+
+	unpackedGadgetDir := c.MkDir()
+	ubootEnv := []byte("#uboot env")
+	err := ioutil.WriteFile(filepath.Join(unpackedGadgetDir, "uboot.conf"), ubootEnv, 0644)
+	c.Assert(err, IsNil)
+
+	rootdir := c.MkDir()
+	// on uc20 the seed layout if different
+	seedSnapsDirs := filepath.Join(rootdir, "/snaps")
+	err = os.MkdirAll(seedSnapsDirs, 0755)
+	c.Assert(err, IsNil)
+
+	baseFn, baseInfo := makeSnap(c, "core20", `name: core20
+type: base
+version: 5.0
+`, snap.R(3))
+	baseInSeed := filepath.Join(seedSnapsDirs, baseInfo.Filename())
+	err = os.Rename(baseFn, baseInSeed)
+	c.Assert(err, IsNil)
+	kernelFn, kernelInfo := makeSnapWithFiles(c, "arm-kernel", `name: arm-kernel
+type: kernel
+version: 5.0
+`, snap.R(5), [][]string{
+		{"kernel.img", "I'm a kernel"},
+		{"initrd.img", "...and I'm an initrd"},
+		{"dtbs/foo.dtb", "foo dtb"},
+		{"dtbs/bar.dto", "bar dtbo"},
+	})
+	kernelInSeed := filepath.Join(seedSnapsDirs, kernelInfo.Filename())
+	err = os.Rename(kernelFn, kernelInSeed)
+	c.Assert(err, IsNil)
+
+	label := "20191209"
+	recoverySystemDir := filepath.Join("/systems", label)
+	bootWith := &boot.BootableSet{
+		Base:                baseInfo,
+		BasePath:            baseInSeed,
+		Kernel:              kernelInfo,
+		KernelPath:          kernelInSeed,
+		RecoverySystemDir:   recoverySystemDir,
+		RecoverySystemLabel: label,
+		UnpackedGadgetDir:   unpackedGadgetDir,
+		Recovery:            true,
+	}
+
+	err = boot.MakeBootable(model, rootdir, bootWith)
+	c.Assert(err, IsNil)
+
+	// ensure only a single file got copied (the uboot.env)
+	files, err := filepath.Glob(filepath.Join(rootdir, "boot/uboot/*"))
+	c.Assert(err, IsNil)
+	c.Check(files, HasLen, 1)
+	// check that the recovery bootloader configuration was copied with
+	// the correct content
+	c.Check(filepath.Join(rootdir, "boot/uboot/uboot.env"), testutil.FileEquals, ubootEnv)
+
+	c.Check(s.bootloader.BootVars, DeepEquals, map[string]string{
+		"snapd_recovery_system": label,
+	})
+
+	// ensure the correct recovery system configuration was set
+	c.Check(
+		s.bootloader.ExtractRecoveryKernelAssetsCalls,
+		DeepEquals,
+		[]bootloadertest.ExtractedRecoveryKernelCall{{
+			RecoverySystemDir: recoverySystemDir,
+			S:                 kernelInfo,
+		}},
+	)
 }
