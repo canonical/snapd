@@ -17,6 +17,21 @@ matrix:
         - set -e
         - ./run-checks --static
         - ./run-checks --short-unit
+    # XXX: why does travis not support go: ["1.9.x", "master"] here?
+    #      this would avoid this ugly copy
+    - stage: quick
+      name: go master/xenial static and unit test suites
+      dist: xenial
+      go: "master"
+      before_install:
+        - sudo apt --quiet -o Dpkg::Progress-Fancy=false update
+      install:
+        - sudo apt --quiet -o Dpkg::Progress-Fancy=false build-dep snapd
+        - ./get-deps.sh
+      script:
+        - set -e
+        - SKIP_GOFMT=1 ./run-checks --static
+        - ./run-checks --short-unit
     - stage: quick
       go: "1.10.x"
       name: OSX build and minimal runtime sanity check

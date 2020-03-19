@@ -33,6 +33,7 @@ var (
 	Mkfs                           = mkfs
 	EnsureNodesExist               = ensureNodesExist
 	DeviceLayoutFromPartitionTable = deviceLayoutFromPartitionTable
+	ListCreatedPartitions          = listCreatedPartitions
 )
 
 func MockDeployMountpoint(new string) (restore func()) {

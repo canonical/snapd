@@ -21,19 +21,21 @@
 package main
 
 import (
-	"fmt"
+	"errors"
 )
 
+var preseedNotAvailableError = errors.New("preseed mode not available for systems other than linux")
+
 func checkChroot(preseedChroot string) error {
-	return fmt.Errorf("preseed mode not available for systems other than linux")
+	return preseedNotAvailableError
 }
 
 func prepareChroot(preseedChroot string) (func(), error) {
-	return nil, fmt.Errorf("preseed mode not available for systems other than linux")
+	return nil, preseedNotAvailableError
 }
 
 func runPreseedMode(rootDir string) error {
-	return fmt.Errorf("preseed mode not available for systems other than linux")
+	return preseedNotAvailableError
 }
 
 func cleanup() {}

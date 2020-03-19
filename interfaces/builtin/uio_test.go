@@ -33,11 +33,13 @@ import (
 
 type uioInterfaceSuite struct {
 	testutil.BaseTest
-	iface          interfaces.Interface
-	slotGadgetInfo *snap.SlotInfo
-	slotGadget     *interfaces.ConnectedSlot
-	plugInfo       *snap.PlugInfo
-	plug           *interfaces.ConnectedPlug
+	iface           interfaces.Interface
+	slotGadgetInfo0 *snap.SlotInfo
+	slotGadgetInfo1 *snap.SlotInfo
+	slotGadget0     *interfaces.ConnectedSlot
+	slotGadget1     *interfaces.ConnectedSlot
+	plugInfo        *snap.PlugInfo
+	plug            *interfaces.ConnectedPlug
 }
 
 var _ = Suite(&uioInterfaceSuite{
@@ -53,9 +55,14 @@ slots:
   uio-0:
     interface: uio
     path: /dev/uio0
+  uio-1:
+    interface: uio
+    path: /dev/uio1
 `, nil)
-	s.slotGadgetInfo = info.Slots["uio-0"]
-	s.slotGadget = interfaces.NewConnectedSlot(s.slotGadgetInfo, nil, nil)
+	s.slotGadgetInfo0 = info.Slots["uio-0"]
+	s.slotGadgetInfo1 = info.Slots["uio-1"]
+	s.slotGadget0 = interfaces.NewConnectedSlot(s.slotGadgetInfo0, nil, nil)
+	s.slotGadget1 = interfaces.NewConnectedSlot(s.slotGadgetInfo1, nil, nil)
 
 	info = snaptest.MockInfo(c, `
 name: consumer
@@ -76,7 +83,7 @@ func (s *uioInterfaceSuite) TestName(c *C) {
 }
 
 func (s *uioInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotGadgetInfo), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotGadgetInfo0), IsNil)
 	brokenSlot := snaptest.MockInfo(c, `
 name: broken-gadget
 version: 1
@@ -90,7 +97,7 @@ slots:
 
 func (s *uioInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slotGadget), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slotGadget0), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# uio
 SUBSYSTEM=="uio", KERNEL=="uio0", TAG+="snap_consumer_app"`)
@@ -99,11 +106,14 @@ SUBSYSTEM=="uio", KERNEL=="uio0", TAG+="snap_consumer_app"`)
 
 func (s *uioInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slotGadget), IsNil)
+	// Simulate two UIO connections.
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slotGadget0), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slotGadget1), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), Equals, ""+
 		"/dev/uio0 rw,\n"+
-		"/sys/devices/platform/**/uio/uio0/** r,")
+		"/dev/uio1 rw,\n"+
+		"/sys/devices/platform/**/uio/uio[0-9]** r,  # common rule for all uio connections")
 }
 
 func (s *uioInterfaceSuite) TestStaticInfo(c *C) {
