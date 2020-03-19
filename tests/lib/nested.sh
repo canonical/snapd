@@ -235,7 +235,7 @@ create_nested_core_vm(){
             ;;
         esac
 
-        if [ "$BUILD_FROM_CURRENT" == true ]; then
+        if [ "$BUILD_FROM_CURRENT" = "true" ]; then
             if is_core_16_nested_system; then
                 echo "Build from current branch is not supported yet for uc16"
                 exit 1
