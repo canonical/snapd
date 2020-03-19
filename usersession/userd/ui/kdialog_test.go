@@ -74,9 +74,9 @@ func (s *kdialogSuite) TestYesNoSimpleFooter(c *C) {
 func (s *kdialogSuite) TestYesNoSimpleTimeout(c *C) {
 	killSleeper := filepath.Join(c.MkDir(), "kill-sleeper")
 	script := fmt.Sprintf(`#!/bin/sh
-sleep 30 &
-echo "kill $!" > %s
-fg %%1
+# store kill-script for the cleanup
+echo "kill $$" > %s
+exec sleep 30
 `, killSleeper)
 	defer func() { exec.Command("/bin/sh", killSleeper).Run() }()
 
