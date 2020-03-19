@@ -497,6 +497,8 @@ dbus (receive)
 /usr/share/applications/ r,
 # this leaks the names of snaps with desktop files
 /var/lib/snapd/desktop/applications/ r,
+# There isn't anything useful in this file that snaps can use, but many
+# applications read it so leave it for compatibility.
 /var/lib/snapd/desktop/applications/mimeinfo.cache r,
 # Support BAMF_DESKTOP_FILE_HINT by allowing reading our desktop files
 # parallel-installs: when @{SNAP_INSTANCE_NAME} == @{SNAP_NAME},
