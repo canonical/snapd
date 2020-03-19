@@ -111,19 +111,34 @@ deny capability mknod,
 `
 
 const browserSupportConnectedPlugAppArmorWithSandbox = `
-# Leaks installed applications
 # TODO: should this be somewhere else?
 /etc/mailcap r,
-# Snaps should be using xdg-open from the runtime instead of reading these
-# files directly since the snap is unable to do anything with these files
-# but these accesses have been allowed for a long time and remain so as not
-# to break existing snaps. These could be changed to explicit deny rules,
-# but that provides a worse debugging experience. Combined, the risks
-# outweigh the benefits of closing this information leak for the small
-# number of snaps allowed to use allow-sandbox: true. Reference:
-# https://forum.snapcraft.io/t/cannot-open-pdf-attachment-with-thunderbird/11845
-/usr/share/applications/{,*} r,
-/var/lib/snapd/desktop/applications/{,*} r,
+
+# While /usr/share/applications comes from the base runtime of the snap, it
+# has some things that snaps actually need, so allow access to those and deny
+# access to the others. This is duplicated from desktop for compatibility with
+# existing snaps.
+/usr/share/applications/ r,
+/usr/share/applications/mimeapps.list r,
+/usr/share/applications/xdg-open.desktop r,
+# silence noisy denials from desktop files in core* snaps that aren't usable by
+# snaps
+deny /usr/share/applications/python*.desktop r,
+deny /usr/share/applications/vim.desktop r,
+deny /usr/share/applications/snap-handle-link.desktop r,  # core16
+
+# Snaps should use xdg-open from the runtime instead of reading these
+# files directly. When apps read these files, it is in an effort to offer
+# alternatives but those alternatives may not be usable by the snap (eg, the
+# snap might try to execute applications directly). Furthermore, access to the
+# desktop files in /var/lib/snapd/desktop/applications breaks GLib's portals
+# support since g_app_info_launch_default_for_uri() only calls out to the
+# portal if it can't find a .desktop file that can handle the mime type.
+# LP: #1868051. Note: a future update may suppress noisy denials.
+/var/lib/snapd/desktop/applications/ r,
+/var/lib/snapd/desktop/applications/@{SNAP_INSTANCE_NAME}_*.desktop r,
+
+# Chromium content api unfortunately needs these for normal operation
 owner @{PROC}/@{pid}/fd/[0-9]* w,
 
 # Various files in /run/udev/data needed by Chrome Settings. Leaks device
