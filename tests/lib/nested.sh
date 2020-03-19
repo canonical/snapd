@@ -17,7 +17,7 @@ wait_for_ssh(){
             echo "Timed out waiting for ssh. Aborting!"
             return 1
         fi
-        sleep $wait
+        sleep "$wait"
     done
 }
 
@@ -30,7 +30,7 @@ wait_for_no_ssh(){
             echo "Timed out waiting for no ssh. Aborting!"
             return 1
         fi
-        sleep $wait
+        sleep "$wait"
     done
 }
 
