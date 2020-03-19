@@ -9,7 +9,7 @@ SSH_PORT=8022
 MON_PORT=8888
 
 wait_for_ssh(){
-    retry="${1:-120}"
+    retry="${1:-150}"
     wait="${2:-1}"
     while ! execute_remote true; do
         retry=$(( retry - 1 ))

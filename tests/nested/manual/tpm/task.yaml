@@ -5,6 +5,8 @@ description: |
 
 systems: [ubuntu-18.04-*, ubuntu-20.04-*]
 
+kill-timeout: 40m
+
 prepare: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
