@@ -528,6 +528,14 @@ func (s *partitionTestSuite) TestListCreatedPartitions(c *C) {
 				UUID:  "30a26851-4b08-4b8d-8aea-f686e723ed8c",
 				Name:  "BIOS boot partition",
 			},
+			{
+				Node:  "/dev/node5",
+				Start: 16384,
+				Size:  16384,
+				Type:  "0fc63daf-8483-4772-8e79-3d69d8477de4",
+				UUID:  "8ab3e8fd-d53d-4d72-9c5e-56146915fd07",
+				Name:  "Another Linux filesystem",
+			},
 		},
 	}
 
@@ -537,7 +545,8 @@ func (s *partitionTestSuite) TestListCreatedPartitions(c *C) {
 	list := partition.ListCreatedPartitions(dl)
 	c.Assert(list, HasLen, 0)
 
-	for i := range ptable.Partitions {
+	// Set attribute bit for all partitions except the last one
+	for i := 0; i < len(ptable.Partitions)-1; i++ {
 		ptable.Partitions[i].Attrs = "RequiredPartition LegacyBIOSBootable GUID:58,59"
 	}
 
