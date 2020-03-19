@@ -9,8 +9,8 @@ SSH_PORT=8022
 MON_PORT=8888
 
 wait_for_ssh(){
-    retry="${1:-150}"
-    wait="${2:-1}"
+    retry=150
+    wait=1
     while ! execute_remote true; do
         retry=$(( retry - 1 ))
         if [ $retry -le 0 ]; then
@@ -22,8 +22,8 @@ wait_for_ssh(){
 }
 
 wait_for_no_ssh(){
-    retry="${1:-120}"
-    wait="${2:-1}"
+    retry=120
+    wait=1
     while execute_remote true; do
         retry=$(( retry - 1 ))
         if [ $retry -le 0 ]; then
