@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2017-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -27,8 +27,8 @@ import (
 
 	repair "github.com/snapcore/snapd/cmd/snap-repair"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -49,7 +49,7 @@ type repairSuite struct {
 
 func (r *repairSuite) SetUpSuite(c *C) {
 	r.baseRunnerSuite.SetUpSuite(c)
-	r.restore = httputil.SetUserAgentFromVersion("", "")
+	r.restore = snapdenv.SetUserAgentFromVersion("", "")
 }
 
 func (r *repairSuite) TearDownSuite(c *C) {

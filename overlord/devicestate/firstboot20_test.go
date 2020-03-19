@@ -26,7 +26,6 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/boot"
-	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
@@ -118,12 +117,14 @@ volumes:
 }
 
 func (s *firstBoot20Suite) TestPopulateFromSeedCore20Happy(c *C) {
-	r := boottest.ForceModeenv("", &boot.Modeenv{
+	m := boot.Modeenv{
 		Mode:           "run",
 		RecoverySystem: "20191018",
 		Base:           "core20_1.snap",
-	})
-	defer r()
+	}
+	err := m.Write("")
+	c.Assert(err, IsNil)
+	defer os.Remove(dirs.SnapModeenvFileUnder(dirs.GlobalRootDir))
 
 	// restart overlord to pick up the modeenv
 	s.startOverlord(c)
@@ -139,8 +140,7 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20Happy(c *C) {
 	sysLabel := "20191018"
 	s.setupCore20Seed(c, sysLabel)
 
-	// XXX Core 20 has multiple bootenvs
-	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bloader := bootloadertest.Mock("mock", c.MkDir()).WithExtractedRunKernelImage()
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 
@@ -149,7 +149,7 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20Happy(c *C) {
 	// bootloader, so set the current kernel there
 	kernel, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
 	c.Assert(err, IsNil)
-	r = bloader.SetRunKernelImageEnabledKernel(kernel)
+	r := bloader.SetRunKernelImageEnabledKernel(kernel)
 	defer r()
 
 	opts := devicestate.PopulateStateFromSeedOptions{
@@ -236,6 +236,16 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20Happy(c *C) {
 	err = state.Get("seed-time", &seedTime)
 	c.Assert(err, IsNil)
 	c.Check(seedTime.IsZero(), Equals, false)
+
+	// check that we removed recovery_system from modeenv
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Assert(m2.RecoverySystem, Equals, "")
+	c.Assert(m2.Base, Equals, m.Base)
+	c.Assert(m2.Mode, Equals, m.Mode)
+	// Note that we don't check CurrentKernels in the modeenv, even though in a
+	// real first boot that would also be set here, because setting that is done
+	// in the snapstate manager, not the devicestate manager
 
 	// check that the default device ctx has a Modeenv
 	dev, err := devicestate.DeviceCtx(s.overlord.State(), nil, nil)

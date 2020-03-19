@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
+	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
@@ -120,7 +121,8 @@ func (t *firstBootBaseTest) startOverlord(c *C) {
 	c.Assert(ovld.StartUp(), IsNil)
 
 	// don't actually try to talk to the store on snapstate.Ensure
-	// needs doing after the call to devicestate.Manager (which happens in overlord.New)
+	// needs doing after the call to devicestate.Manager (which happens in
+	// overlord.New)
 	snapstate.CanAutoRefresh = nil
 }
 
@@ -280,6 +282,10 @@ func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicEmptySeedYaml(c *C) {
 
 	_, err = devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
 	c.Assert(err, ErrorMatches, "cannot proceed, no snaps to seed")
+	st.Unlock()
+	st.Lock()
+	// note, cannot use st.Tasks() here as it filters out tasks with no change
+	c.Check(st.TaskCount(), Equals, 0)
 }
 
 func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicNoSeedYamlWithCloudInstanceData(c *C) {
@@ -361,6 +367,8 @@ func (s *firstBoot16Suite) TestPopulateFromSeedErrorsOnState(c *C) {
 
 	_, err := devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
 	c.Assert(err, ErrorMatches, "cannot populate state: already seeded")
+	// note, cannot use st.Tasks() here as it filters out tasks with no change
+	c.Check(st.TaskCount(), Equals, 0)
 }
 
 func (s *firstBoot16BaseTest) makeCoreSnaps(c *C, extraGadgetYaml string) (coreFname, kernelFname, gadgetFname string) {
@@ -512,7 +520,7 @@ snaps:
 }
 
 func (s *firstBoot16Suite) TestPopulateFromSeedHappy(c *C) {
-	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bloader := boottest.MockUC16Bootenv(bootloadertest.Mock("mock", c.MkDir()))
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 	bloader.SetBootKernel("pc-kernel_1.snap")
@@ -642,7 +650,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedMissingBootloader(c *C) {
 }
 
 func (s *firstBoot16Suite) TestPopulateFromSeedHappyMultiAssertsFiles(c *C) {
-	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bloader := boottest.MockUC16Bootenv(bootloadertest.Mock("mock", c.MkDir()))
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 	bloader.SetBootKernel("pc-kernel_1.snap")
@@ -741,7 +749,7 @@ snaps:
 }
 
 func (s *firstBoot16Suite) TestPopulateFromSeedConfigureHappy(c *C) {
-	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bloader := boottest.MockUC16Bootenv(bootloadertest.Mock("mock", c.MkDir()))
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 	bloader.SetBootKernel("pc-kernel_1.snap")
@@ -894,7 +902,7 @@ snaps:
 }
 
 func (s *firstBoot16Suite) TestPopulateFromSeedGadgetConnectHappy(c *C) {
-	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bloader := boottest.MockUC16Bootenv(bootloadertest.Mock("mock", c.MkDir()))
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 	bloader.SetBootKernel("pc-kernel_1.snap")
@@ -1160,7 +1168,7 @@ type core18SnapsOpts struct {
 	gadget  bool
 }
 
-func (s *firstBoot16Suite) makeCore18Snaps(c *C, opts *core18SnapsOpts) (core18Fn, snapdFn, kernelFn, gadgetFn string) {
+func (s *firstBoot16BaseTest) makeCore18Snaps(c *C, opts *core18SnapsOpts) (core18Fn, snapdFn, kernelFn, gadgetFn string) {
 	if opts == nil {
 		opts = &core18SnapsOpts{}
 	}
@@ -1221,7 +1229,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedWithBaseHappy(c *C) {
 	})
 	defer systemctlRestorer()
 
-	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bloader := boottest.MockUC16Bootenv(bootloadertest.Mock("mock", c.MkDir()))
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 	bloader.SetBootKernel("pc-kernel_1.snap")
@@ -1415,10 +1423,12 @@ snaps:
 
 	_, err = devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
 	c.Assert(err, ErrorMatches, `cannot use gadget snap because its base "core" is different from model base "core18"`)
+	// note, cannot use st.Tasks() here as it filters out tasks with no change
+	c.Check(st.TaskCount(), Equals, 0)
 }
 
 func (s *firstBoot16Suite) TestPopulateFromSeedWrongContentProviderOrder(c *C) {
-	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bloader := boottest.MockUC16Bootenv(bootloadertest.Mock("mock", c.MkDir()))
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 	bloader.SetBootKernel("pc-kernel_1.snap")
@@ -1657,6 +1667,33 @@ snaps:
 	err = state.Get("seed-time", &seedTime)
 	c.Assert(err, IsNil)
 	c.Check(seedTime.IsZero(), Equals, false)
+}
+
+func (s *firstBoot16Suite) TestPopulateFromSeedMissingAssertions(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	core18Fname, snapdFname, _, _ := s.makeCore18Snaps(c, &core18SnapsOpts{})
+
+	// create a seed.yaml
+	content := []byte(fmt.Sprintf(`
+snaps:
+ - name: snapd
+   file: %s
+ - name: core18
+   file: %s
+`, snapdFname, core18Fname))
+	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	c.Assert(err, IsNil)
+
+	// run the firstboot stuff
+	st := s.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	_, err = devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
+	c.Assert(err, NotNil)
+	// note, cannot use st.Tasks() here as it filters out tasks with no change
+	c.Check(st.TaskCount(), Equals, 0)
 }
 
 func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicWithSnapdOnlyAndGadgetHappy(c *C) {

@@ -72,6 +72,7 @@ type Interface struct {
 // InterfaceAction represents an action performed on the interface system.
 type InterfaceAction struct {
 	Action string `json:"action"`
+	Forget bool   `json:"forget,omitempty"`
 	Plugs  []Plug `json:"plugs,omitempty"`
 	Slots  []Slot `json:"slots,omitempty"`
 }
@@ -83,6 +84,11 @@ type InterfaceOptions struct {
 	Plugs     bool
 	Slots     bool
 	Connected bool
+}
+
+// DisconnectOptions represents extra options for disconnect op
+type DisconnectOptions struct {
+	Forget bool
 }
 
 func (client *Client) Interfaces(opts *InterfaceOptions) ([]*Interface, error) {
@@ -133,9 +139,10 @@ func (client *Client) Connect(plugSnapName, plugName, slotSnapName, slotName str
 }
 
 // Disconnect breaks the connection between a plug and a slot.
-func (client *Client) Disconnect(plugSnapName, plugName, slotSnapName, slotName string) (changeID string, err error) {
+func (client *Client) Disconnect(plugSnapName, plugName, slotSnapName, slotName string, opts *DisconnectOptions) (changeID string, err error) {
 	return client.performInterfaceAction(&InterfaceAction{
 		Action: "disconnect",
+		Forget: opts != nil && opts.Forget,
 		Plugs:  []Plug{{Snap: plugSnapName, Name: plugName}},
 		Slots:  []Slot{{Snap: slotSnapName, Name: slotName}},
 	})

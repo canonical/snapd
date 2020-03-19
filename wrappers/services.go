@@ -35,7 +35,6 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/randutil"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
@@ -280,10 +279,18 @@ func userDaemonReload() error {
 	return cli.ServicesDaemonReload(ctx)
 }
 
+type AddSnapServicesOptions struct {
+	Preseeding bool
+}
+
 // AddSnapServices adds service units for the applications from the snap which are services.
-func AddSnapServices(s *snap.Info, disabledSvcs []string, inter interacter) (err error) {
+func AddSnapServices(s *snap.Info, disabledSvcs []string, opts *AddSnapServicesOptions, inter interacter) (err error) {
 	if s.GetType() == snap.TypeSnapd {
 		return fmt.Errorf("internal error: adding explicit services for snapd snap is unexpected")
+	}
+
+	if opts == nil {
+		opts = &AddSnapServicesOptions{}
 	}
 
 	// check if any previously disabled services are now no longer services and
@@ -335,7 +342,7 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, inter interacter) (err
 	}()
 
 	// TODO: remove once services get enabled on start and not when created.
-	preseedMode := release.PreseedMode
+	preseeding := opts.Preseeding
 
 	for _, app := range s.Apps {
 		if !app.IsService() {
@@ -352,7 +359,7 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, inter interacter) (err
 			return err
 		}
 		written = append(written, svcFilePath)
-		switch (app.DaemonScope) {
+		switch app.DaemonScope {
 		case snap.SystemDaemon:
 			writtenSystem = true
 		case snap.UserDaemon:
@@ -399,14 +406,14 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, inter interacter) (err
 				continue
 			}
 
-			if !preseedMode() {
+			if !preseeding {
 				if err := sysd.Enable(svcName); err != nil {
 					return err
 				}
 				enabled = append(enabled, svcName)
 			}
 		case snap.UserDaemon:
-			if !preseedMode() {
+			if !preseeding {
 				if err := userSysd.Enable(svcName); err != nil {
 					return err
 				}
@@ -415,7 +422,7 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, inter interacter) (err
 		}
 	}
 
-	if !preseedMode() {
+	if !preseeding {
 		if writtenSystem {
 			if err := sysd.DaemonReload(); err != nil {
 				return err
@@ -621,6 +628,7 @@ Before={{ stringsJoin .Before " "}}
 X-Snappy=yes
 
 [Service]
+EnvironmentFile=-/etc/environment
 ExecStart={{.App.LauncherCommand}}
 SyslogIdentifier={{.App.Snap.InstanceName}}.{{.App.Name}}
 Restart={{.Restart}}

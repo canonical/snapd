@@ -334,6 +334,7 @@ type DownloadOptions struct {
 
 	HeaderPeek  bool
 	ResumeToken string
+	Resume      int64
 }
 
 // Download will stream the given snap to the client
@@ -357,6 +358,9 @@ func (client *Client) Download(name string, options *DownloadOptions) (dlInfo *D
 	}
 	headers := map[string]string{
 		"Content-Type": "application/json",
+	}
+	if options.Resume > 0 {
+		headers["range"] = fmt.Sprintf("bytes: %d-", options.Resume)
 	}
 
 	// no deadline for downloads

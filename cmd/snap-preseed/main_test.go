@@ -31,8 +31,10 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/cmd/snap-preseed"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
@@ -107,6 +109,19 @@ func (s *startPreseedSuite) TestChrootValidationUnhappy(c *C) {
 	c.Check(main.Run(parser, []string{tmpDir}), ErrorMatches, `cannot pre-seed without access to ".*sys/kernel/security/apparmor"`)
 }
 
+func (s *startPreseedSuite) TestChrootValidationAlreadyPreseeded(c *C) {
+	restore := main.MockOsGetuid(func() int { return 0 })
+	defer restore()
+
+	tmpDir := c.MkDir()
+	snapdDir := filepath.Dir(dirs.SnapStateFile)
+	c.Assert(os.MkdirAll(filepath.Join(tmpDir, snapdDir), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(tmpDir, dirs.SnapStateFile), nil, os.ModePerm), IsNil)
+
+	parser := testParser(c)
+	c.Check(main.Run(parser, []string{tmpDir}), ErrorMatches, fmt.Sprintf("the system at %q appears to be preseeded, pass --reset flag to clean it up", tmpDir))
+}
+
 func (s *startPreseedSuite) TestChrootFailure(c *C) {
 	restoreOsGuid := main.MockOsGetuid(func() int { return 0 })
 	defer restoreOsGuid()
@@ -171,6 +186,7 @@ func (s *startPreseedSuite) TestRunPreseedHappy(c *C) {
 }
 
 type Fake16Seed struct {
+	AssertsModel      *asserts.Model
 	Essential         []*seed.Snap
 	LoadMetaErr       error
 	LoadAssertionsErr error
@@ -179,12 +195,36 @@ type Fake16Seed struct {
 
 // Fake implementation of seed.Seed interface
 
+func mockClassicModel() *asserts.Model {
+	headers := map[string]interface{}{
+		"type":         "model",
+		"authority-id": "brand",
+		"series":       "16",
+		"brand-id":     "brand",
+		"model":        "classicbaz-3000",
+		"classic":      "true",
+		"timestamp":    "2018-01-01T08:00:00+00:00",
+	}
+	return assertstest.FakeAssertion(headers, nil).(*asserts.Model)
+}
+
 func (fs *Fake16Seed) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Batch) error) error {
 	return fs.LoadAssertionsErr
 }
 
 func (fs *Fake16Seed) Model() (*asserts.Model, error) {
-	panic("not implemented")
+	return fs.AssertsModel, nil
+}
+
+func (fs *Fake16Seed) Brand() (*asserts.Account, error) {
+	headers := map[string]interface{}{
+		"type":         "account",
+		"account-id":   "brand",
+		"display-name": "fake brand",
+		"username":     "brand",
+		"timestamp":    "2018-01-01T08:00:00+00:00",
+	}
+	return assertstest.FakeAssertion(headers, nil).(*asserts.Account), nil
 }
 
 func (fs *Fake16Seed) LoadMeta(tm timings.Measurer) error {
@@ -208,7 +248,8 @@ func (s *startPreseedSuite) TestSystemSnapFromSeed(c *C) {
 
 	restore := main.MockSeedOpen(func(rootDir, label string) (seed.Seed, error) {
 		return &Fake16Seed{
-			Essential: []*seed.Snap{{Path: "/some/path/core", SideInfo: &snap.SideInfo{RealName: "core"}}},
+			AssertsModel: mockClassicModel(),
+			Essential:    []*seed.Snap{{Path: "/some/path/core", SideInfo: &snap.SideInfo{RealName: "core"}}},
 		}, nil
 	})
 	defer restore()
@@ -216,6 +257,23 @@ func (s *startPreseedSuite) TestSystemSnapFromSeed(c *C) {
 	path, err := main.SystemSnapFromSeed(tmpDir)
 	c.Assert(err, IsNil)
 	c.Check(path, Equals, "/some/path/core")
+}
+
+func (s *startPreseedSuite) TestSystemSnapFromSnapdSeed(c *C) {
+	tmpDir := c.MkDir()
+
+	restore := main.MockSeedOpen(func(rootDir, label string) (seed.Seed, error) {
+		return &Fake16Seed{
+			AssertsModel: mockClassicModel(),
+			Essential:    []*seed.Snap{{Path: "/some/path/snapd.snap", SideInfo: &snap.SideInfo{RealName: "snapd"}}},
+			UsesSnapd:    true,
+		}, nil
+	})
+	defer restore()
+
+	path, err := main.SystemSnapFromSeed(tmpDir)
+	c.Assert(err, IsNil)
+	c.Check(path, Equals, "/some/path/snapd.snap")
 }
 
 func (s *startPreseedSuite) TestSystemSnapFromSeedOpenError(c *C) {
@@ -232,6 +290,7 @@ func (s *startPreseedSuite) TestSystemSnapFromSeedErrors(c *C) {
 	tmpDir := c.MkDir()
 
 	fakeSeed := &Fake16Seed{}
+	fakeSeed.AssertsModel = mockClassicModel()
 
 	restore := main.MockSeedOpen(func(rootDir, label string) (seed.Seed, error) { return fakeSeed, nil })
 	defer restore()
@@ -244,10 +303,6 @@ func (s *startPreseedSuite) TestSystemSnapFromSeedErrors(c *C) {
 	_, err = main.SystemSnapFromSeed(tmpDir)
 	c.Assert(err, ErrorMatches, "core snap not found")
 
-	fakeSeed.UsesSnapd = true
-	_, err = main.SystemSnapFromSeed(tmpDir)
-	c.Assert(err, ErrorMatches, "preseeding with snapd snap is not supported yet")
-
 	fakeSeed.LoadMetaErr = fmt.Errorf("load meta failed")
 	_, err = main.SystemSnapFromSeed(tmpDir)
 	c.Assert(err, ErrorMatches, "load meta failed")
@@ -256,6 +311,31 @@ func (s *startPreseedSuite) TestSystemSnapFromSeedErrors(c *C) {
 	fakeSeed.LoadAssertionsErr = fmt.Errorf("load assertions failed")
 	_, err = main.SystemSnapFromSeed(tmpDir)
 	c.Assert(err, ErrorMatches, "load assertions failed")
+}
+
+func (s *startPreseedSuite) TestClassicRequired(c *C) {
+	tmpDir := c.MkDir()
+
+	headers := map[string]interface{}{
+		"type":         "model",
+		"authority-id": "brand",
+		"series":       "16",
+		"brand-id":     "brand",
+		"model":        "baz-3000",
+		"architecture": "armhf",
+		"gadget":       "brand-gadget",
+		"kernel":       "kernel",
+		"timestamp":    "2018-01-01T08:00:00+00:00",
+	}
+
+	fakeSeed := &Fake16Seed{}
+	fakeSeed.AssertsModel = assertstest.FakeAssertion(headers, nil).(*asserts.Model)
+
+	restore := main.MockSeedOpen(func(rootDir, label string) (seed.Seed, error) { return fakeSeed, nil })
+	defer restore()
+
+	_, err := main.SystemSnapFromSeed(tmpDir)
+	c.Assert(err, ErrorMatches, "preseeding is only supported on classic systems")
 }
 
 func (s *startPreseedSuite) TestRunPreseedUnsupportedVersion(c *C) {
@@ -299,4 +379,94 @@ func (s *startPreseedSuite) TestVersionCheckWithGitVer(c *C) {
 	c.Assert(ioutil.WriteFile(infoFile, []byte("VERSION=2.43.3+git123"), 0644), IsNil)
 
 	c.Check(main.CheckTargetSnapdVersion(infoFile), IsNil)
+}
+
+func (s *startPreseedSuite) TestRunPreseedAgainstFilesystemRoot(c *C) {
+	restore := main.MockOsGetuid(func() int { return 0 })
+	defer restore()
+
+	parser := testParser(c)
+	c.Assert(main.Run(parser, []string{"/"}), ErrorMatches, `cannot run snap-preseed against /`)
+}
+
+func (s *startPreseedSuite) TestReset(c *C) {
+	restore := main.MockOsGetuid(func() int { return 0 })
+	defer restore()
+
+	tmpDir := c.MkDir()
+
+	// mock some preseeding artifacts
+	artifacts := []struct {
+		path string
+		// if symlinkTarget is not empty, then a path -> symlinkTarget symlink
+		// will be created instead of a regular file.
+		symlinkTarget string
+	}{
+		{dirs.SnapStateFile, ""},
+		{dirs.SnapSystemKeyFile, ""},
+		{filepath.Join(dirs.SnapDesktopFilesDir, "foo.desktop"), ""},
+		{filepath.Join(dirs.SnapDesktopIconsDir, "foo.png"), ""},
+		{filepath.Join(dirs.SnapMountPolicyDir, "foo.fstab"), ""},
+		{filepath.Join(dirs.SnapBlobDir, "foo.snap"), ""},
+		{filepath.Join(dirs.SnapUdevRulesDir, "foo-snap.bar.rules"), ""},
+		{filepath.Join(dirs.SnapBusPolicyDir, "snap.foo.bar.conf"), ""},
+		{filepath.Join(dirs.SnapServicesDir, "snap.foo.service"), ""},
+		{filepath.Join(dirs.SnapServicesDir, "snap.foo.timer"), ""},
+		{filepath.Join(dirs.SnapServicesDir, "snap.foo.socket"), ""},
+		{filepath.Join(dirs.SnapServicesDir, "snap-foo.mount"), ""},
+		{filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", "snap-foo.mount"), ""},
+		{filepath.Join(dirs.SnapDataDir, "foo", "bar"), ""},
+		{filepath.Join(dirs.SnapCacheDir, "foocache", "bar"), ""},
+		{filepath.Join(dirs.AppArmorCacheDir, "foo", "bar"), ""},
+		{filepath.Join(dirs.SnapAppArmorDir, "foo"), ""},
+		{filepath.Join(dirs.SnapAssertsDBDir, "foo"), ""},
+		{filepath.Join(dirs.FeaturesDir, "foo"), ""},
+		{filepath.Join(dirs.SnapDeviceDir, "foo-1", "bar"), ""},
+		{filepath.Join(dirs.SnapCookieDir, "foo"), ""},
+		{filepath.Join(dirs.SnapSeqDir, "foo.json"), ""},
+		{filepath.Join(dirs.SnapMountDir, "foo", "bin"), ""},
+		{filepath.Join(dirs.SnapSeccompDir, "foo.bin"), ""},
+		// bash-completion symlinks
+		{filepath.Join(dirs.CompletersDir, "foo.bar"), "/a/snapd/complete.sh"},
+		{filepath.Join(dirs.CompletersDir, "foo"), "foo.bar"},
+	}
+
+	for _, art := range artifacts {
+		fullPath := filepath.Join(tmpDir, art.path)
+		// create parent dir
+		c.Assert(os.MkdirAll(filepath.Dir(fullPath), 0755), IsNil)
+		if art.symlinkTarget != "" {
+			// note, symlinkTarget is not relative to tmpDir
+			c.Assert(os.Symlink(art.symlinkTarget, fullPath), IsNil)
+		} else {
+			c.Assert(ioutil.WriteFile(fullPath, nil, os.ModePerm), IsNil)
+		}
+	}
+
+	checkArtifacts := func(exists bool) {
+		for _, art := range artifacts {
+			fullPath := filepath.Join(tmpDir, art.path)
+			if art.symlinkTarget != "" {
+				c.Check(osutil.IsSymlink(fullPath), Equals, exists, Commentf("offending symlink: %s", fullPath))
+			} else {
+				c.Check(osutil.FileExists(fullPath), Equals, exists, Commentf("offending file: %s", fullPath))
+			}
+		}
+	}
+
+	// sanity
+	checkArtifacts(true)
+
+	snapdDir := filepath.Dir(dirs.SnapStateFile)
+	c.Assert(os.MkdirAll(filepath.Join(tmpDir, snapdDir), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(tmpDir, dirs.SnapStateFile), nil, os.ModePerm), IsNil)
+
+	parser := testParser(c)
+	c.Assert(main.Run(parser, []string{"--reset", tmpDir}), IsNil)
+
+	checkArtifacts(false)
+
+	// running reset again is ok
+	parser = testParser(c)
+	c.Assert(main.Run(parser, []string{"--reset", tmpDir}), IsNil)
 }

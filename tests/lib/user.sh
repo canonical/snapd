@@ -58,5 +58,11 @@ as_user() {
 }
 
 as_user_simple() {
-    su -l -c "$*" "$TEST_USER"
+    su -l -c "$@" "$TEST_USER"
+}
+
+as_given_user() {
+    local user="$1"
+    shift
+    su -l -c "$@" "$user"
 }
