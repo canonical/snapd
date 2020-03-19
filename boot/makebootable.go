@@ -173,9 +173,9 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet)
 	}
 
 	// record which recovery system is to be used on the bootloader, note that
-	// this goes on the main bootloader, and not on the recovery system 
-	// bootloader, for example for grub bootloader, this env var is set on 
-	// the ubuntu-seed root grubenv, and not on the recovery system grubenv in 
+	// this goes on the main bootloader, and not on the recovery system
+	// bootloader, for example for grub bootloader, this env var is set on
+	// the ubuntu-seed root grubenv, and not on the recovery system grubenv in
 	// the systems/20200314/ subdir on ubuntu-seed
 	blVars := map[string]string{
 		"snapd_recovery_system": bootWith.RecoverySystemLabel,

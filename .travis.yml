@@ -30,7 +30,7 @@ matrix:
         - ./get-deps.sh
       script:
         - set -e
-        - ./run-checks --static
+        - SKIP_GOFMT=1 ./run-checks --static
         - ./run-checks --short-unit
     - stage: quick
       go: "1.10.x"
