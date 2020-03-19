@@ -2,7 +2,7 @@
 
 The packaging is maintained in the upstream git repo at
 
-   github.com/snapcore/snapd:packaging/debian-sid
+github.com/snapcore/snapd in the packaging/debian-sid dir
 
 Please push any debian changes back there to make packaging
 easier.
