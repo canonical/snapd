@@ -38,10 +38,10 @@ import (
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snapdenv"
 )
 
 var (
@@ -481,7 +481,7 @@ func report(errMsg, dupSig string, extra map[string]string) (string, error) {
 	}
 
 	// see if we run in testing mode
-	if osutil.GetenvBool("SNAPPY_TESTING") {
+	if snapdenv.Testing() {
 		logger.Noticef("errtracker.Report is *not* sent because SNAPPY_TESTING is set")
 		logger.Noticef("report: %v", report)
 		return "oops-not-sent", nil
@@ -498,7 +498,7 @@ func report(errMsg, dupSig string, extra map[string]string) (string, error) {
 		return "", err
 	}
 	req.Header.Add("Content-Type", "application/octet-stream")
-	req.Header.Add("X-Whoopsie-Version", httputil.UserAgent())
+	req.Header.Add("X-Whoopsie-Version", snapdenv.UserAgent())
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", err

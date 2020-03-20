@@ -29,6 +29,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
@@ -1185,7 +1186,7 @@ func (s *linkSnapSuite) TestUndoLinkSnapdNthInstall(c *C) {
 	c.Check(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Check(s.fakeBackend.ops, DeepEquals, expected)
 
-	// 1 restarts, one from link snap, the other restart happens
+	// 1 restart from link snap, the other restart happens
 	// in undoUnlinkCurrentSnap (not tested here)
 	c.Check(s.stateBackend.restartRequested, DeepEquals, []state.RestartType{state.RestartDaemon})
 	c.Check(t.Log(), HasLen, 2)
@@ -1330,7 +1331,7 @@ func (s *linkSnapSuite) TestMaybeUndoRemodelBootChangesNeedsUndo(c *C) {
 
 	// and we pretend that we booted into the "new-kernel" already
 	// and now that needs to be undone
-	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bloader := boottest.MockUC16Bootenv(bootloadertest.Mock("mock", c.MkDir()))
 	bootloader.Force(bloader)
 	bloader.SetBootKernel("new-kernel_1.snap")
 

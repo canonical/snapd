@@ -95,6 +95,11 @@ type RecoveryAwareBootloader interface {
 	SetRecoverySystemEnv(recoverySystemDir string, values map[string]string) error
 }
 
+type ExtractedRecoveryKernelImageBootloader interface {
+	Bootloader
+	ExtractRecoveryKernelAssets(recoverySystemDir string, s snap.PlaceInfo, snapf snap.Container) error
+}
+
 // ExtractedRunKernelImageBootloader is a Bootloader that also supports specific
 // methods needed to setup booting from an extracted kernel, which is needed to
 // implement encryption and/or secure boot. Prototypical implementation is UC20

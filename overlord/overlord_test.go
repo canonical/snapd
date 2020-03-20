@@ -44,8 +44,8 @@ import (
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -57,6 +57,26 @@ type overlordSuite struct {
 }
 
 var _ = Suite(&overlordSuite{})
+
+type ticker struct {
+	tickerChannel chan time.Time
+}
+
+func (w *ticker) tick(n int) {
+	for i := 0; i < n; i++ {
+		w.tickerChannel <- time.Now()
+	}
+}
+
+func fakePruneTicker() (w *ticker, restore func()) {
+	w = &ticker{
+		tickerChannel: make(chan time.Time),
+	}
+	restore = overlord.MockPruneTicker(func(t *time.Ticker) <-chan time.Time {
+		return w.tickerChannel
+	})
+	return w, restore
+}
 
 func (ovs *overlordSuite) SetUpTest(c *C) {
 	tmpdir := c.MkDir()
@@ -578,7 +598,7 @@ func (ovs *overlordSuite) TestEnsureLoopPrune(c *C) {
 }
 
 func (ovs *overlordSuite) TestEnsureLoopPruneRunsMultipleTimes(c *C) {
-	restoreIntv := overlord.MockPruneInterval(100*time.Millisecond, 1000*time.Millisecond, 1*time.Hour)
+	restoreIntv := overlord.MockPruneInterval(100*time.Millisecond, 5*time.Millisecond, 1*time.Hour)
 	defer restoreIntv()
 	o := overlord.Mock()
 
@@ -596,20 +616,26 @@ func (ovs *overlordSuite) TestEnsureLoopPruneRunsMultipleTimes(c *C) {
 	c.Check(st.Changes(), HasLen, 2)
 	st.Unlock()
 
+	w, restoreTicker := fakePruneTicker()
+	defer restoreTicker()
+
 	// start the loop that runs the prune ticker
 	o.Loop()
 
-	// ensure the first change is pruned
-	time.Sleep(1500 * time.Millisecond)
+	// this needs to be more than pruneWait=5ms mocked above
+	time.Sleep(10 * time.Millisecond)
+	w.tick(2)
+
 	st.Lock()
 	c.Check(st.Changes(), HasLen, 1)
-	st.Unlock()
-
-	// ensure the second is also purged after it is ready
-	st.Lock()
 	chg2.SetStatus(state.DoneStatus)
 	st.Unlock()
-	time.Sleep(1500 * time.Millisecond)
+
+	// this needs to be more than pruneWait=5ms mocked above
+	time.Sleep(10 * time.Millisecond)
+	// tick twice for extra Ensure
+	w.tick(2)
+
 	st.Lock()
 	c.Check(st.Changes(), HasLen, 0)
 	st.Unlock()
@@ -643,8 +669,8 @@ func (ovs *overlordSuite) TestOverlordStartUpSetsStartOfOperation(c *C) {
 }
 
 func (ovs *overlordSuite) TestEnsureLoopPruneDoesntAbortShortlyAfterStartOfOperation(c *C) {
-	restoreIntv := overlord.MockPruneInterval(100*time.Millisecond, 1000*time.Millisecond, 1*time.Hour)
-	defer restoreIntv()
+	w, restoreTicker := fakePruneTicker()
+	defer restoreTicker()
 
 	// use real overlord, we need device manager to be there
 	o, err := overlord.New(nil)
@@ -682,7 +708,8 @@ func (ovs *overlordSuite) TestEnsureLoopPruneDoesntAbortShortlyAfterStartOfOpera
 
 	// start the loop that runs the prune ticker
 	o.Loop()
-	time.Sleep(1500 * time.Millisecond)
+	w.tick(2)
+
 	c.Assert(o.Stop(), IsNil)
 
 	st.Lock()
@@ -692,8 +719,12 @@ func (ovs *overlordSuite) TestEnsureLoopPruneDoesntAbortShortlyAfterStartOfOpera
 }
 
 func (ovs *overlordSuite) TestEnsureLoopPruneAbortsOld(c *C) {
-	restoreIntv := overlord.MockPruneInterval(100*time.Millisecond, 24*time.Hour, 1*time.Hour)
-	defer restoreIntv()
+	// Ensure interval is not relevant for this test
+	restoreEnsureIntv := overlord.MockEnsureInterval(10 * time.Hour)
+	defer restoreEnsureIntv()
+
+	w, restoreTicker := fakePruneTicker()
+	defer restoreTicker()
 
 	// use real overlord, we need device manager to be there
 	o, err := overlord.New(nil)
@@ -732,7 +763,8 @@ func (ovs *overlordSuite) TestEnsureLoopPruneAbortsOld(c *C) {
 
 	// start the loop that runs the prune ticker
 	o.Loop()
-	time.Sleep(1500 * time.Millisecond)
+	w.tick(2)
+
 	c.Assert(o.Stop(), IsNil)
 
 	st.Lock()
@@ -749,10 +781,10 @@ func (ovs *overlordSuite) TestEnsureLoopPruneAbortsOld(c *C) {
 }
 
 func (ovs *overlordSuite) TestEnsureLoopNoPruneWhenPreseed(c *C) {
-	restoreIntv := overlord.MockPruneInterval(100*time.Millisecond, 1000*time.Millisecond, 1*time.Hour)
-	defer restoreIntv()
+	w, restoreTicker := fakePruneTicker()
+	defer restoreTicker()
 
-	restore := release.MockPreseedMode(func() bool { return true })
+	restore := snapdenv.MockPreseeding(true)
 	defer restore()
 
 	restorePreseedExitWithErr := overlord.MockPreseedExitWithError(func(err error) {})
@@ -786,7 +818,8 @@ func (ovs *overlordSuite) TestEnsureLoopNoPruneWhenPreseed(c *C) {
 	st.Unlock()
 	// start the loop that runs the prune ticker
 	o.Loop()
-	time.Sleep(1500 * time.Millisecond)
+	w.tick(2)
+
 	c.Assert(o.Stop(), IsNil)
 
 	st.Lock()
@@ -1042,7 +1075,7 @@ func (ovs *overlordSuite) TestSettleExplicitEnsureBefore(c *C) {
 }
 
 func (ovs *overlordSuite) TestEnsureErrorWhenPreseeding(c *C) {
-	restore := release.MockPreseedMode(func() bool { return true })
+	restore := snapdenv.MockPreseeding(true)
 	defer restore()
 
 	restoreIntv := overlord.MockEnsureInterval(1 * time.Millisecond)

@@ -108,9 +108,6 @@ backends:
             - centos-7-64:
                 workers: 6
                 image: centos-7-64
-            - centos-8-64:
-                workers: 4
-                image: centos-8-64
 
     # TODO: spread is really unhappy when it sees a backend without any systems,
     # so this block is intentially kept commented out, until we need to add
@@ -126,7 +123,9 @@ backends:
                 workers: 6
             - opensuse-tumbleweed-64:
                 workers: 6
-
+            - centos-8-64:
+                workers: 4
+                image: centos-8-64
 
     google-tpm:
         type: google
@@ -168,15 +167,19 @@ backends:
         systems:
             - ubuntu-16.04-64:
                 image: ubuntu-1604-64-virt-enabled
+                storage: 20G
                 workers: 1
             - ubuntu-18.04-64:
                 image: ubuntu-1804-64-virt-enabled
+                storage: 20G
                 workers: 1
             - ubuntu-19.10-64:
                 image: ubuntu-1910-64-virt-enabled
+                storage: 20G
                 workers: 1
             - ubuntu-20.04-64:
-                image: ubuntu-2004-64-virt-uefi-enabled
+                image: ubuntu-2004-64-virt-enabled
+                storage: 20G
                 workers: 1
 
     qemu:
@@ -857,7 +860,7 @@ suites:
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
-            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ubuntu-image
+            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ubuntu-image ovmf
 
         restore: |
             #shellcheck source=tests/lib/nested.sh
@@ -871,7 +874,7 @@ suites:
     tests/nested/classic/:
         summary: Tests for nested images
         backends: [google-nested]
-        systems: [ubuntu-16.04-64, ubuntu-18.04-64]
+        systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64]
         environment:
             NESTED_TYPE: "classic"
             # Channel used to create the nested vm
@@ -886,7 +889,7 @@ suites:
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
-            distro_install_package snapd qemu genisoimage sshpass qemu-kvm cloud-image-utils ubuntu-image
+            distro_install_package snapd qemu genisoimage sshpass qemu-kvm cloud-image-utils ubuntu-image ovmf
 
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
@@ -911,7 +914,7 @@ suites:
     tests/nested/core/:
         summary: Tests for nested images
         backends: [google-nested]
-        systems: [ubuntu-16.04-64, ubuntu-18.04-64]
+        systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64]
         environment:
             NESTED_TYPE: "core"
             # Channel used to create the nested vm
@@ -925,7 +928,7 @@ suites:
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
-            distro_install_package snapd qemu genisoimage sshpass qemu-kvm cloud-image-utils ubuntu-image
+            distro_install_package snapd qemu genisoimage sshpass qemu-kvm cloud-image-utils ubuntu-image ovmf
 
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"

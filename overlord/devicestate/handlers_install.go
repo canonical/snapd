@@ -32,17 +32,20 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/timings"
+	"github.com/snapcore/snapd/sysconfig"
 )
 
-var bootMakeBootable = boot.MakeBootable
+var (
+	bootMakeBootable            = boot.MakeBootable
+	sysconfigConfigureRunSystem = sysconfig.ConfigureRunSystem
+)
 
 func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
 
-	perfTimings := timings.NewForTask(t)
+	perfTimings := state.TimingsForTask(t)
 	defer perfTimings.Save(st)
 
 	// get gadget dir
@@ -90,6 +93,12 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("cannot create partitions: %v", osutil.OutputErr(output, err))
 	}
 
+	// configure the run system
+	if err := sysconfigConfigureRunSystem(&sysconfig.Options{}); err != nil {
+		return err
+	}
+
+	// make it bootable
 	kernelInfo, err := snapstate.KernelInfo(st, deviceCtx)
 	if err != nil {
 		return fmt.Errorf("cannot get gadget info: %v", err)
@@ -99,7 +108,6 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return fmt.Errorf("cannot get boot base info: %v", err)
 	}
-
 	recoverySystemDir := filepath.Join("/systems", m.modeEnv.RecoverySystem)
 	bootWith := &boot.BootableSet{
 		Base:              bootBaseInfo,
@@ -108,7 +116,6 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		KernelPath:        kernelInfo.MountFile(),
 		RecoverySystemDir: recoverySystemDir,
 	}
-
 	rootdir := dirs.GlobalRootDir
 	if err := bootMakeBootable(deviceCtx.Model(), rootdir, bootWith); err != nil {
 		return fmt.Errorf("cannot make run system bootable: %v", err)

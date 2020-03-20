@@ -83,3 +83,45 @@ is_classic_confinement_supported() {
     fi
     return 1
 }
+
+# repack_core_snap_into_snapd_snap will re-pack the core snap as the snapd snap,
+# using the snapd snap from edge as the set of files to use from the core snap.
+# This is primarily meant to be used in UC16 tests that need to use the snapd
+# snap because the snapd snap, nor the deb built for the spread run are seeded 
+# on the image
+# The build snap is located in the current working directory at with the 
+# filename snapd-from-core.snap.
+repack_core_snap_into_snapd_snap() {
+  # FIXME: maybe build the snapd snap from the deb in prepare_ubuntu_core /
+  # setup_reflash_magic and include it somewhere in the image so we don't need
+  # to do this hack here?
+
+  # get the snap.yaml and a list of all the snapd snap files using edge
+  # NOTE: this may break if a spread run adds files to the snapd snap that
+  # don't exist in the snapd snap on edge and those files are necessary
+  # for snapd to run or revert, etc.
+  snap download snapd --basename=snapd-upstream --edge
+  unsquashfs -d ./snapd-upstream snapd-upstream.snap
+  ( 
+    cd snapd-upstream || exit 1
+    # find all files and symlinks - not directories because when unsquashfs
+    # is provided a directory it will extract all the files in that directory
+    find . \( -type l -o -type f \) | cut -c3- > ../files.txt 
+  )
+
+  current=$(readlink /snap/core/current)
+  CORE_SNAP=/var/lib/snapd/snaps/core_"$current".snap
+
+  # only unpack files from the core snap that are in the snapd snap - this
+  # is kosher because the set of files in the core snap is a superset of 
+  # all the files in the snapd snap
+  #shellcheck disable=2046
+  unsquashfs -d ./snapd-local "$CORE_SNAP" $(cat files.txt)
+
+  # replace snap.yaml from the core snap with the snapd snap, and pack the snap
+  cp snapd-upstream/meta/snap.yaml snapd-local/meta/snap.yaml
+  snap pack snapd-local --filename=snapd-from-core.snap
+
+  # cleanup the snaps we downloaded and built
+  rm -rf snapd-local snapd-upstream* files.txt
+}

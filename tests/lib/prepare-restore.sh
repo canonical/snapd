@@ -74,6 +74,11 @@ build_deb(){
     # Use fake version to ensure we are always bigger than anything else
     dch --newversion "1337.$(dpkg-parsechangelog --show-field Version)" "testing build"
 
+    if [[ "$SPREAD_SYSTEM" == debian-sid-* ]]; then
+        # ensure we really build without vendored packages
+        rm -rf vendor/*/*
+    fi
+
     su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackage -tc -b -Zgzip" test
     # put our debs to a safe place
     cp ../*.deb "$GOHOME"
@@ -447,6 +452,9 @@ prepare_project() {
     go get ./tests/lib/fakedevicesvc
     go get ./tests/lib/systemd-escape
 
+    # Build the tool for signing model assertions
+    go get ./tests/lib/gendeveloper1model
+
     # On core systems, the journal service is configured once the final core system
     # is created and booted what is done during the first test suite preparation
     if is_classic_system; then
@@ -561,6 +569,10 @@ restore_suite_each() {
         fi
         sleep 1
     done
+
+    # reset the failed status of snapd, snapd.socket, and snapd.failure.socket
+    # to prevent hitting the system restart rate-limit for these services
+    systemctl reset-failed snapd.service snapd.socket snapd.failure.service
 }
 
 restore_suite() {

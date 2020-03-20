@@ -364,8 +364,12 @@ var defaultTemplate = `
   @{PROC}/sys/fs/file-max r,
   @{PROC}/sys/fs/inotify/max_* r,
   @{PROC}/sys/kernel/pid_max r,
-  @{PROC}/sys/kernel/random/uuid r,
   @{PROC}/sys/kernel/random/boot_id r,
+  @{PROC}/sys/kernel/random/uuid r,
+  # Allow access to the uuidd daemon (this daemon is a thin wrapper around
+  # time and getrandom()/{,u}random and, when available, runs under an
+  # unprivilged, dedicated user).
+  /run/uuidd/request rw,
   /sys/devices/virtual/tty/{console,tty*}/active r,
   /sys/fs/cgroup/memory/memory.limit_in_bytes r,
   /sys/fs/cgroup/memory/snap.@{SNAP_INSTANCE_NAME}{,.*}/memory.limit_in_bytes r,
@@ -460,6 +464,17 @@ var defaultTemplate = `
   # from the snap base runtime.
   /usr/share/dbus-1/services/{,*} r,
   /usr/share/dbus-1/system-services/{,*} r,
+  # Allow apps to perform DBus introspection on org.freedesktop.DBus for both
+  # the system and session buses.
+  # Note: this does not grant access to the DBus sockets of these buses, but
+  # we grant it here since it is missing from the dbus abstractions
+  # (LP: #1866168)
+  dbus (send)
+      bus={session,system}
+      path=/org/freedesktop/DBus
+      interface=org.freedesktop.DBus.Introspectable
+      member=Introspect
+      peer=(label=unconfined),
 
   # Allow apps from the same package to signal each other via signals
   signal peer=snap.@{SNAP_INSTANCE_NAME}.*,
@@ -717,11 +732,6 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
 
   # golang runtime variables
   /sys/kernel/mm/transparent_hugepage/hpage_pmd_size r,
-
-  # Allow access to the uuidd daemon (this daemon is a thin wrapper around
-  # time and getrandom()/{,u}random and, when available, runs under an
-  # unprivilged, dedicated user).
-  /run/uuidd/request r,
 
   # Allow reading the command line (snap-update-ns uses it in pre-Go bootstrap code).
   @{PROC}/@{pid}/cmdline r,

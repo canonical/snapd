@@ -30,6 +30,7 @@ import (
 	"gopkg.in/macaroon.v1"
 
 	"github.com/snapcore/snapd/httputil"
+	"github.com/snapcore/snapd/snapdenv"
 )
 
 var (
@@ -140,7 +141,7 @@ func requestStoreMacaroon(httpClient *http.Client) (string, error) {
 	}
 
 	headers := map[string]string{
-		"User-Agent":   httputil.UserAgent(),
+		"User-Agent":   snapdenv.UserAgent(),
 		"Accept":       "application/json",
 		"Content-Type": "application/json",
 	}
@@ -175,7 +176,7 @@ func requestDischargeMacaroon(httpClient *http.Client, endpoint string, data map
 	var msg ssoMsg
 
 	headers := map[string]string{
-		"User-Agent":   httputil.UserAgent(),
+		"User-Agent":   snapdenv.UserAgent(),
 		"Accept":       "application/json",
 		"Content-Type": "application/json",
 	}
@@ -247,7 +248,7 @@ func requestStoreDeviceNonce(httpClient *http.Client, deviceNonceEndpoint string
 	}
 
 	headers := map[string]string{
-		"User-Agent": httputil.UserAgent(),
+		"User-Agent": snapdenv.UserAgent(),
 		"Accept":     "application/json",
 	}
 	resp, err := retryPostRequestDecodeJSON(httpClient, deviceNonceEndpoint, headers, nil, &responseData, nil)
@@ -292,7 +293,7 @@ func requestDeviceSession(httpClient *http.Client, deviceSessionEndpoint string,
 	}
 
 	headers := map[string]string{
-		"User-Agent":   httputil.UserAgent(),
+		"User-Agent":   snapdenv.UserAgent(),
 		"Accept":       "application/json",
 		"Content-Type": "application/json",
 	}
