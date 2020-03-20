@@ -23,10 +23,10 @@
 package randutil
 
 import (
-	cryptorand "crypto/rand"
-	"math"
-	"math/big"
+	"crypto/sha256"
+	"encoding/binary"
 	"math/rand"
+	"net"
 	"os"
 	"sync"
 	"time"
@@ -37,17 +37,26 @@ func init() {
 	rand.Seed(time.Now().UnixNano() + int64(os.Getpid()))
 }
 
-var higherEntropySeedOnce sync.Once
+var moreMixedSeedOnce sync.Once
 
-func higherEntropySeed() {
-	higherEntropySeedOnce.Do(func() {
-		bigSeed, err := cryptorand.Int(cryptorand.Reader, big.NewInt(math.MaxInt64))
-		if err != nil {
-			// too bad
-			// TODO: log this?
-			return
+func moreMixedSeed() {
+	moreMixedSeedOnce.Do(func() {
+		h := sha256.New224()
+		// do this instead of asking for time and pid again
+		var b [8]byte
+		rand.Read(b[:])
+		h.Write(b[:])
+		if hostname, err := os.Hostname(); err == nil {
+			h.Write([]byte(hostname))
 		}
-		rand.Seed(bigSeed.Int64())
+		if ifaces, err := net.Interfaces(); err == nil {
+			for _, iface := range ifaces {
+				h.Write(iface.HardwareAddr)
+			}
+		}
+		hs := h.Sum(nil)
+		s := binary.LittleEndian.Uint64(hs[0:])
+		rand.Seed(int64(s))
 	})
 }
 
@@ -76,9 +85,9 @@ var (
 
 // RandomDuration returns a random duration up to the given length.
 func RandomDuration(d time.Duration) time.Duration {
-	// try to switch to higher entropy seed to avoid subsets of
+	// try to switch to more mixed seed to avoid subsets of a
 	// fleet of machines with similar initial conditions to behave
 	// the same
-	higherEntropySeed()
+	moreMixedSeed()
 	return time.Duration(Int63n(int64(d)))
 }
