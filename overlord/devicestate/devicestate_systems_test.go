@@ -20,9 +20,10 @@
 package devicestate_test
 
 import (
-	. "gopkg.in/check.v1"
 	"os"
 	"path/filepath"
+
+	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
@@ -164,7 +165,28 @@ func (s *deviceMgrSystemsSuite) TestListNoSystems(c *C) {
 	dirs.SetRootDir(c.MkDir())
 
 	systems, err := s.mgr.Systems()
+	c.Assert(err, Equals, devicestate.ErrNoSystems)
+	c.Assert(systems, HasLen, 0)
+
+	err = os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "systems"), 0755)
 	c.Assert(err, IsNil)
+
+	systems, err = s.mgr.Systems()
+	c.Assert(err, Equals, devicestate.ErrNoSystems)
+	c.Assert(systems, HasLen, 0)
+}
+
+func (s *deviceMgrSystemsSuite) TestListSystemsNotPossible(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root")
+	}
+	err := os.Chmod(filepath.Join(dirs.SnapSeedDir, "systems"), 0000)
+	c.Assert(err, IsNil)
+	defer os.Chmod(filepath.Join(dirs.SnapSeedDir, "systems"), 0755)
+
+	// stdlib swallows up the errors when opening the target directory
+	systems, err := s.mgr.Systems()
+	c.Assert(err, Equals, devicestate.ErrNoSystems)
 	c.Assert(systems, HasLen, 0)
 }
 

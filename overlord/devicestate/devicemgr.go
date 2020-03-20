@@ -20,6 +20,7 @@
 package devicestate
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -765,16 +766,20 @@ func systemSeedModelAndBrand(label string) (model *asserts.Model, brand *asserts
 	return model, brand, nil
 }
 
-// Systems list the available recovery/seeding systems.
+var ErrNoSystems = errors.New("no systems seeds")
+
+// Systems list the available recovery/seeding systems. Returns the list of
+// systems, ErrNoSystems when no systems seeds were found or other error.
 func (m *DeviceManager) Systems() ([]System, error) {
 	systemLabels, err := filepath.Glob(filepath.Join(dirs.SnapSeedDir, "systems", "*"))
-	if err != nil {
-		if os.IsNotExist(err) {
-			// maybe not a UC20 system
-			return nil, nil
-		}
+	if err != nil && !os.IsNotExist(err) {
 		return nil, fmt.Errorf("cannot list available systems: %v", err)
 	}
+	if len(systemLabels) == 0 {
+		// maybe not a UC20 system
+		return nil, ErrNoSystems
+	}
+
 	var systems []System
 	for _, fpLabel := range systemLabels {
 		label := filepath.Base(fpLabel)
