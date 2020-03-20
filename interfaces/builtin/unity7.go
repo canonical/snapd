@@ -86,7 +86,8 @@ owner @{HOME}/.local/share/fonts/{,**} r,
 # Snappy's 'xdg-open' talks to the snapd-xdg-open service which currently works
 # only in environments supporting dbus-send (eg, X11). In the future once
 # snappy's xdg-open supports all snaps images, this access may move to another
-# interface.
+# interface. This is duplicated from desktop for compatibility with existing
+# snaps.
 /usr/bin/xdg-open ixr,
 /usr/share/applications/ r,
 /usr/share/applications/mimeapps.list r,
@@ -492,18 +493,35 @@ dbus (receive)
     member=Get*
     peer=(label=unconfined),
 
-# unity messaging menu
-# first, allow finding the desktop file
+# While /usr/share/applications comes from the base runtime of the snap, it
+# has some things that snaps actually need, so allow access to those and deny
+# access to the others. This is duplicated from desktop for compatibility with
+# existing snaps.
 /usr/share/applications/ r,
-# this leaks the names of snaps with desktop files
+/usr/share/applications/mimeapps.list r,
+/usr/share/applications/xdg-open.desktop r,
+# silence noisy denials from desktop files in core* snaps that aren't usable by
+# snaps
+deny /usr/share/applications/python*.desktop r,
+deny /usr/share/applications/vim.desktop r,
+deny /usr/share/applications/snap-handle-link.desktop r,  # core16
+
+# support applications which use the unity messaging menu, xdg-mime, etc
+# This leaks the names of snaps with desktop files
 /var/lib/snapd/desktop/applications/ r,
-# There isn't anything useful in this file that snaps can use, but many
-# applications read it so leave it for compatibility.
-/var/lib/snapd/desktop/applications/mimeinfo.cache r,
-# Support BAMF_DESKTOP_FILE_HINT by allowing reading our desktop files
-# parallel-installs: when @{SNAP_INSTANCE_NAME} == @{SNAP_NAME},
-# this leaks read access to desktop files of parallel installs of the snap
+# allowing reading only our desktop files (required by (at least) the unity
+# messaging menu). Note: a future update may suppress noisy denials when
+# attempting to read other desktop files.
+# parallel-installs: this leaks read access to desktop files owned by keyed
+# instances of @{SNAP_NAME} to @{SNAP_NAME} snap
 /var/lib/snapd/desktop/applications/@{SNAP_INSTANCE_NAME}_*.desktop r,
+# Snaps are unable to use the data in mimeinfo.cache (since they can't execute
+# the returned desktop file themselves). unity messaging menu doesn't require
+# mimeinfo.cache and xdg-mime will fallback to reading the desktop files
+# directly to look for MimeType. Since reading the snap's own desktop files is
+# allowed, we can safely deny access to this file (and xdg-mime will either
+# return one of the snap's mimetypes, or none).
+deny /var/lib/snapd/desktop/applications/mimeinfo.cache r,
 
 # then allow talking to Unity DBus service
 dbus (send)

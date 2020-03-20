@@ -234,15 +234,23 @@ dbus (send)
     interface=org.gtk.vfs.MountTracker
     member=LookupMount,
 
+# support applications which use the unity messaging menu, xdg-mime, etc
 # This leaks the names of snaps with desktop files
 /var/lib/snapd/desktop/applications/ r,
-# There isn't anything useful in this file that snaps can use, but many
-# applications read it so leave it for compatibility.
-/var/lib/snapd/desktop/applications/mimeinfo.cache r,
-# Support BAMF_DESKTOP_FILE_HINT by allowing reading our desktop files
+# allowing reading only our desktop files (required by (at least) the unity
+# messaging menu). Note: a future update may suppress noisy denials when
+# attempting to read other desktop files.
 # parallel-installs: this leaks read access to desktop files owned by keyed
 # instances of @{SNAP_NAME} to @{SNAP_NAME} snap
 /var/lib/snapd/desktop/applications/@{SNAP_INSTANCE_NAME}_*.desktop r,
+
+# Snaps are unable to use the data in mimeinfo.cache (since they can't execute
+# the returned desktop file themselves). unity messaging menu doesn't require
+# mimeinfo.cache and xdg-mime will fallback to reading the desktop files
+# directly to look for MimeType. Since reading the snap's own desktop files is
+# allowed, we can safely deny access to this file (and xdg-mime will either
+# return one of the snap's mimetypes, or none).
+deny /var/lib/snapd/desktop/applications/mimeinfo.cache r,
 
 # glib-networking's GLib proxy (different than the portal's proxy service
 # org.freedesktop.portal.ProxyResolver)
