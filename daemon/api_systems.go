@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -41,10 +42,12 @@ func getSystems(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	seedSystems, err := c.d.overlord.DeviceManager().Systems()
 	if err != nil {
+		if err == devicestate.ErrNoSystems {
+			// no systems available
+			return SyncResponse(&rsp, nil)
+		}
+
 		return InternalError(err.Error())
-	}
-	if len(seedSystems) == 0 {
-		return SyncResponse(&rsp, nil)
 	}
 
 	rsp.Systems = make([]client.System, 0, len(seedSystems))
