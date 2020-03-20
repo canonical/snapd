@@ -411,7 +411,7 @@ func (m *DeviceManager) ensureOperational() error {
 	chg := m.state.NewChange("become-operational", i18n.G("Initialize device"))
 	chg.AddAll(state.NewTaskSet(tasks...))
 
-	perfTimings.AddTag("change-id", chg.ID())
+	state.TagTimingsWithChange(perfTimings, chg)
 	perfTimings.Save(m.state)
 
 	return nil
@@ -469,7 +469,7 @@ func (m *DeviceManager) ensureSeeded() error {
 	}
 	m.state.EnsureBefore(0)
 
-	perfTimings.AddTag("change-id", chg.ID())
+	state.TagTimingsWithChange(perfTimings, chg)
 	perfTimings.Save(m.state)
 	return nil
 }
