@@ -23,7 +23,6 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/snap"
@@ -81,12 +80,6 @@ func (s *OpenvSwitchSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(spec.Modules(), DeepEquals, map[string]bool{
 		"openvswitch": true,
 	})
-
-	apparmorSpec := &apparmor.Specification{}
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
-	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "/run/uuidd/request rw")
 }
 
 func (s *OpenvSwitchSupportInterfaceSuite) TestInterfaces(c *C) {

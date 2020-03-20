@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019-2020 Canonical Ltd
+ * Copyright (C) 2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,12 +17,20 @@
  *
  */
 
-package timings
+package sysconfig
 
-// Run creates, starts and then stops a nested Span under parent Measurer. The nested
-// Span is passed to the measured function and can used to create further spans.
-func Run(meas Measurer, label, summary string, f func(nestedTiming Measurer)) {
-	nested := meas.StartSpan(label, summary)
-	f(nested)
-	nested.Stop()
+type Options struct {
+	// TODO: do we really want this kind of specific dir pointers
+	// or more general ones?
+	CloudInitSrcDir string
+}
+
+// ConfigureRunSystem configures the ubuntu-data partition with any
+// configuration needed from e.g. the gadget or for cloud-init.
+func ConfigureRunSystem(opts *Options) error {
+	if err := configureCloudInit(opts); err != nil {
+		return err
+	}
+
+	return nil
 }

@@ -216,6 +216,17 @@ func (fs *Fake16Seed) Model() (*asserts.Model, error) {
 	return fs.AssertsModel, nil
 }
 
+func (fs *Fake16Seed) Brand() (*asserts.Account, error) {
+	headers := map[string]interface{}{
+		"type":         "account",
+		"account-id":   "brand",
+		"display-name": "fake brand",
+		"username":     "brand",
+		"timestamp":    "2018-01-01T08:00:00+00:00",
+	}
+	return assertstest.FakeAssertion(headers, nil).(*asserts.Account), nil
+}
+
 func (fs *Fake16Seed) LoadMeta(tm timings.Measurer) error {
 	return fs.LoadMetaErr
 }
