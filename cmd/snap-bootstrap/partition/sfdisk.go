@@ -323,7 +323,7 @@ func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume) (sfdiskInput
 		// Only allow the creation of partitions with known GUIDs
 		// TODO:UC20: also provide a mechanism for MBR (RPi)
 		ptype := partitionType(ptable.Label, p.Type)
-		if ptable.Label == "gpt" && !strutil.ListContains(createdPartitionGUID, strings.ToUpper(ptype)) {
+		if ptable.Label == "gpt" && !creationSupported(ptype) {
 			logger.Noticef("cannot create partition with unsupported type %s", ptype)
 			continue
 		}
@@ -357,7 +357,7 @@ func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume) (sfdiskInput
 func listCreatedPartitions(dl *DeviceLayout) []string {
 	created := make([]string, 0, len(dl.partitionTable.Partitions))
 	for _, p := range dl.partitionTable.Partitions {
-		if !strutil.ListContains(createdPartitionGUID, strings.ToUpper(p.Type)) {
+		if !creationSupported(p.Type) {
 			continue
 		}
 		for _, a := range strings.Fields(p.Attrs) {
@@ -371,6 +371,13 @@ func listCreatedPartitions(dl *DeviceLayout) []string {
 		}
 	}
 	return created
+}
+
+// creationSupported returns whether we support and expect to create partitions
+// of the given type, it also means we are ready to remove them for re-installation
+// or retried installation if they are appropriately marked with createdPartitionAttr.
+func creationSupported(ptype string) bool {
+	return strutil.ListContains(createdPartitionGUID, strings.ToUpper(ptype))
 }
 
 // udevTrigger triggers udev for the specified device and waits until
