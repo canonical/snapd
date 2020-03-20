@@ -93,7 +93,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 
 	// configure the run system
 	opts := &sysconfig.Options{}
-	cloudCfg := filepath.Join(dirs.RunMnt, "ubuntu-seed/cloud.cfg.d")
+	cloudCfg := filepath.Join(dirs.RunMnt, "ubuntu-seed/data/etc/cloud/cloud.cfg.d")
 	// Support custom cloud.cfg.d/*.cfg files on the ubuntu-seed partition
 	// during install when in grade "dangerous". We will support configs
 	// from the gadget later too, see sysconfig/cloudinit.go

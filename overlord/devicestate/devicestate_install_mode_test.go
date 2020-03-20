@@ -417,7 +417,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeRunSysconfigErr(c *C) {
 
 func (s *deviceMgrInstallModeSuite) TestInstallModeSupportsCloudInitInDangerous(c *C) {
 	// pretend we have a cloud-init config on the seed partition
-	cloudCfg := filepath.Join(dirs.RunMnt, "ubuntu-seed/cloud.cfg.d")
+	cloudCfg := filepath.Join(dirs.RunMnt, "ubuntu-seed/data/etc/cloud/cloud.cfg.d")
 	err := os.MkdirAll(cloudCfg, 0755)
 	c.Assert(err, IsNil)
 	for _, mockCfg := range []string{"foo.cfg", "bar.cfg"} {
@@ -429,13 +429,13 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeSupportsCloudInitInDangerous(
 
 	// and did tell sysconfig about the cloud-init files
 	c.Assert(s.configureRunSystemOptsPassed, DeepEquals, []*sysconfig.Options{
-		{CloudInitSrcDir: filepath.Join(dirs.RunMnt, "ubuntu-seed/cloud.cfg.d")},
+		{CloudInitSrcDir: filepath.Join(dirs.RunMnt, "ubuntu-seed/data/etc/cloud/cloud.cfg.d")},
 	})
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallModeNoCloudInitForSigned(c *C) {
 	// pretend we have a cloud-init config on the seed partition
-	cloudCfg := filepath.Join(dirs.RunMnt, "ubuntu-seed/cloud.cfg.d")
+	cloudCfg := filepath.Join(dirs.RunMnt, "ubuntu-seed/data/etc/cloud/cloud.cfg.d")
 	err := os.MkdirAll(cloudCfg, 0755)
 	c.Assert(err, IsNil)
 	for _, mockCfg := range []string{"foo.cfg", "bar.cfg"} {
