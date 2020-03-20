@@ -23,23 +23,32 @@
 package randutil
 
 import (
-	//cryptorand "crypto/rand"
-	//"fmt"
-	//"math"
-	//"math/big"
+	cryptorand "crypto/rand"
+	"math"
+	"math/big"
 	"math/rand"
 	"os"
+	"sync"
 	"time"
 )
 
 func init() {
 	// golang does not init Seed() itself
-	/*bigSeed, err := cryptorand.Int(cryptorand.Reader, big.NewInt(math.MaxInt64))
-	if err != nil {
-		panic(fmt.Sprintf("cannot obtain random seed: %v", err))
-	}
-	rand.Seed(bigSeed.Int64())*/
 	rand.Seed(time.Now().UnixNano() + int64(os.Getpid()))
+}
+
+var higherEntropySeedOnce sync.Once
+
+func higherEntropySeed() {
+	higherEntropySeedOnce.Do(func() {
+		bigSeed, err := cryptorand.Int(cryptorand.Reader, big.NewInt(math.MaxInt64))
+		if err != nil {
+			// too bad
+			// TODO: log this?
+			return
+		}
+		rand.Seed(bigSeed.Int64())
+	})
 }
 
 const letters = "BCDFGHJKLMNPQRSTVWXYbcdfghjklmnpqrstvwxy0123456789"
@@ -67,5 +76,9 @@ var (
 
 // RandomDuration returns a random duration up to the given length.
 func RandomDuration(d time.Duration) time.Duration {
+	// try to switch to higher entropy seed to avoid subsets of
+	// fleet of machines with similar initial conditions to behave
+	// the same
+	higherEntropySeed()
 	return time.Duration(Int63n(int64(d)))
 }
