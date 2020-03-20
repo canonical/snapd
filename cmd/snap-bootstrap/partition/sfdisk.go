@@ -275,7 +275,7 @@ func deviceLayoutFromPartitionTable(ptable sfdiskPartitionTable) (*DeviceLayout,
 		ID:             ptable.ID,
 		Device:         ptable.Device,
 		Schema:         ptable.Label,
-		Size:           gadget.Size(ptable.LastLBA) * sectorSize,
+		Size:           gadget.Size(ptable.LastLBA+1) * sectorSize,
 		SectorSize:     sectorSize,
 		partitionTable: &ptable,
 	}
@@ -307,11 +307,11 @@ func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume) (sfdiskInput
 	}
 
 	// Check if the last partition has a system-data role
-	expandData := false
+	canExpandData := false
 	if n := len(pv.LaidOutStructure); n > 0 {
 		last := pv.LaidOutStructure[n-1]
 		if last.VolumeStructure.Role == gadget.SystemData {
-			expandData = true
+			canExpandData = true
 		}
 	}
 
@@ -339,7 +339,7 @@ func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume) (sfdiskInput
 
 		// Check if the data partition should be expanded
 		size := s.Size
-		if s.Role == gadget.SystemData && expandData && p.StartOffset+s.Size < dl.Size {
+		if s.Role == gadget.SystemData && canExpandData && p.StartOffset+s.Size < dl.Size {
 			size = dl.Size - p.StartOffset
 		}
 
