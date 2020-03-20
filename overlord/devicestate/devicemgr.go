@@ -785,7 +785,8 @@ func (m *DeviceManager) Systems() ([]System, error) {
 		label := filepath.Base(fpLabel)
 		model, brand, err := systemSeedModelAndBrand(label)
 		if err != nil {
-			// skip broken seed?
+			// TODO:UC20 add a Broken field to the seed system like
+			// we do for snap.Info
 			logger.Noticef("cannot load system %q seed: %v", label, err)
 			continue
 		}
