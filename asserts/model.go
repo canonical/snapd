@@ -535,12 +535,10 @@ func checkAuthorityMatchesBrand(a Assertion) error {
 func checkOptionalSerialAuthority(headers map[string]interface{}, brandID string) ([]string, error) {
 	ids := []string{brandID}
 	const name = "serial-authority"
-	_, ok := headers[name]
-	if !ok {
+	if _, ok := headers[name]; !ok {
 		return ids, nil
 	}
-	lst, err := checkStringListMatches(headers, name, validAccountID)
-	if err == nil {
+	if lst, err := checkStringListMatches(headers, name, validAccountID); err == nil {
 		if !strutil.ListContains(lst, brandID) {
 			lst = append(ids, lst...)
 		}
