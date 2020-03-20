@@ -149,7 +149,14 @@ func ensureLayoutCompatibility(gadgetLayout *gadget.LaidOutVolume, diskLayout *p
 	eq := func(ds partition.DeviceStructure, gs gadget.LaidOutStructure) bool {
 		dv := ds.VolumeStructure
 		gv := gs.VolumeStructure
-		return dv.Name == gv.Name && ds.StartOffset == gs.StartOffset && dv.Size == gv.Size && dv.Filesystem == gv.Filesystem
+		check := dv.Name == gv.Name && ds.StartOffset == gs.StartOffset && dv.Filesystem == gv.Filesystem
+
+		// Don't test system-data size, it could have been expanded
+		if gv.Role == gadget.SystemData {
+			return check
+		} else {
+			return check && dv.Size == gv.Size
+		}
 	}
 	contains := func(haystack []gadget.LaidOutStructure, needle partition.DeviceStructure) bool {
 		for _, h := range haystack {
