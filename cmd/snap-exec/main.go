@@ -138,11 +138,11 @@ func absoluteCommandChain(snapInfo *snap.Info, commandChain []string) []string {
 
 // expandEnvCmdArgs takes the string list of commandline arguments
 // and expands any $VAR with the given var from the env argument.
-func expandEnvCmdArgs(args []string, env map[string]string) []string {
+func expandEnvCmdArgs(args []string, env osutil.Environment) []string {
 	cmdArgs := make([]string, 0, len(args))
 	for _, arg := range args {
-		maybeExpanded := os.Expand(arg, func(k string) string {
-			return env[k]
+		maybeExpanded := os.Expand(arg, func(varName string) string {
+			return env[varName]
 		})
 		if maybeExpanded != "" {
 			cmdArgs = append(cmdArgs, maybeExpanded)
@@ -186,21 +186,20 @@ func execApp(snapApp, revision, command string, args []string) error {
 	// build the environment from the yaml, translating TMPDIR and
 	// similar variables back from where they were hidden when
 	// invoking the setuid snap-confine.
-	env := []string{}
-	for _, kv := range os.Environ() {
-		if strings.HasPrefix(kv, snapenv.PreservedUnsafePrefix) {
-			kv = kv[len(snapenv.PreservedUnsafePrefix):]
-		}
-		env = append(env, kv)
+	env, err := osutil.OSEnvironmentUnescapeUnsafe(snapenv.PreservedUnsafePrefix)
+	if err != nil {
+		return err
 	}
-	env = append(env, osutil.SubstituteEnv(app.Env())...)
+	for _, eenv := range app.EnvChain() {
+		env.ExtendWithExpanded(eenv)
+	}
 
 	// strings.Split() is ok here because we validate all app fields and the
 	// whitelist is pretty strict (see snap/validate.go:appContentWhitelist)
 	// (see also overlord/snapstate/check_snap.go's normPath)
 	tmpArgv := strings.Split(cmdAndArgs, " ")
 	cmd := tmpArgv[0]
-	cmdArgs := expandEnvCmdArgs(tmpArgv[1:], osutil.EnvMap(env))
+	cmdArgs := expandEnvCmdArgs(tmpArgv[1:], env)
 
 	// run the command
 	fullCmd := []string{filepath.Join(app.Snap.MountDir(), cmd)}
@@ -227,7 +226,7 @@ func execApp(snapApp, revision, command string, args []string) error {
 
 	fullCmd = append(absoluteCommandChain(app.Snap, app.CommandChain), fullCmd...)
 
-	if err := syscallExec(fullCmd[0], fullCmd, env); err != nil {
+	if err := syscallExec(fullCmd[0], fullCmd, env.ForExec()); err != nil {
 		return fmt.Errorf("cannot exec %q: %s", fullCmd[0], err)
 	}
 	// this is never reached except in tests
@@ -253,9 +252,18 @@ func execHook(snapName, revision, hookName string) error {
 	}
 
 	// build the environment
-	env := append(os.Environ(), osutil.SubstituteEnv(hook.Env())...)
+	// NOTE: we do not use OSEnvironmentUnescapeUnsafe, we do not
+	// particurly want to transmit snapd exec environment details
+	// to the hooks
+	env, err := osutil.OSEnvironment()
+	if err != nil {
+		return err
+	}
+	for _, eenv := range hook.EnvChain() {
+		env.ExtendWithExpanded(eenv)
+	}
 
 	// run the hook
 	cmd := append(absoluteCommandChain(hook.Snap, hook.CommandChain), filepath.Join(hook.Snap.HooksDir(), hook.Name))
-	return syscallExec(cmd[0], cmd, env)
+	return syscallExec(cmd[0], cmd, env.ForExec())
 }
