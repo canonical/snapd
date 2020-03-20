@@ -127,19 +127,6 @@ deny /usr/share/applications/python*.desktop r,
 deny /usr/share/applications/vim.desktop r,
 deny /usr/share/applications/snap-handle-link.desktop r,  # core16
 
-# Snaps should use xdg-open from the runtime instead of reading these
-# files directly. When apps read these files, it is in an effort to offer
-# alternatives but those alternatives may not be usable by the snap (eg, the
-# snap might try to execute applications directly). Furthermore, access to the
-# desktop files in /var/lib/snapd/desktop/applications breaks GLib's portals
-# support since g_app_info_launch_default_for_uri() only calls out to the
-# portal if it can't find a .desktop file that can handle the mime type.
-# LP: #1868051. This is duplicated from desktop-legacy for compatibilty with
-# existing snaps (eg, unity messaging, xdg-mime, etc). Note: a future update
-# may suppress noisy denials.
-/var/lib/snapd/desktop/applications/ r,
-/var/lib/snapd/desktop/applications/@{SNAP_INSTANCE_NAME}_*.desktop r,
-
 # Chromium content api unfortunately needs these for normal operation
 owner @{PROC}/@{pid}/fd/[0-9]* w,
 
