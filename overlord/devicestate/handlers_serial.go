@@ -82,7 +82,7 @@ func (m *DeviceManager) doGenerateDeviceKey(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	perfTimings := timings.NewForTask(t)
+	perfTimings := state.TimingsForTask(t)
 	defer perfTimings.Save(st)
 
 	device, err := m.device()
@@ -649,7 +649,7 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	perfTimings := timings.NewForTask(t)
+	perfTimings := state.TimingsForTask(t)
 	defer perfTimings.Save(st)
 
 	regCtx, err := m.registrationCtx(t)

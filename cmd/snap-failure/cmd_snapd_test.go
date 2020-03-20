@@ -90,7 +90,7 @@ func (r *failureSuite) TestCallPrevSnapdFromSnap(c *C) {
 	})
 	c.Check(systemctlCmd.Calls(), DeepEquals, [][]string{
 		{"systemctl", "stop", "snapd.socket"},
-		{"systemctl", "reset-failed", "snapd.socket"},
+		{"systemctl", "reset-failed", "snapd.socket", "snapd.service"},
 		{"systemctl", "restart", "snapd.socket"},
 	})
 }
@@ -122,7 +122,7 @@ func (r *failureSuite) TestCallPrevSnapdFromCore(c *C) {
 	})
 	c.Check(systemctlCmd.Calls(), DeepEquals, [][]string{
 		{"systemctl", "stop", "snapd.socket"},
-		{"systemctl", "reset-failed", "snapd.socket"},
+		{"systemctl", "reset-failed", "snapd.socket", "snapd.service"},
 		{"systemctl", "restart", "snapd.socket"},
 	})
 }
@@ -269,7 +269,7 @@ func (r *failureSuite) TestStickySnapdSocket(c *C) {
 	})
 	c.Check(systemctlCmd.Calls(), DeepEquals, [][]string{
 		{"systemctl", "stop", "snapd.socket"},
-		{"systemctl", "reset-failed", "snapd.socket"},
+		{"systemctl", "reset-failed", "snapd.socket", "snapd.service"},
 		{"systemctl", "restart", "snapd.socket"},
 	})
 

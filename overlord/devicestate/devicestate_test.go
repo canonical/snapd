@@ -54,6 +54,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store/storetest"
 	"github.com/snapcore/snapd/timings"
 )
@@ -1183,7 +1184,7 @@ func (s *startOfOperationTimeSuite) TestStartOfOperationTimeNoSeedTime(c *C) {
 }
 
 func (s *startOfOperationTimeSuite) TestStartOfOperationErrorIfPreseed(c *C) {
-	restore := release.MockPreseedMode(func() bool { return true })
+	restore := snapdenv.MockPreseeding(true)
 	defer restore()
 
 	mgr := s.manager(c)

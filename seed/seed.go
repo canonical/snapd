@@ -77,6 +77,10 @@ type Seed interface {
 	// error to call Model before LoadAssertions.
 	Model() (*asserts.Model, error)
 
+	// Brand returns the brand information of the seed. It is an
+	// error to call Brand before LoadAssertions.
+	Brand() (*asserts.Account, error)
+
 	// LoadMeta loads the seed and seed's snaps metadata while
 	// verifying the underlying snaps against assertions. It can
 	// return ErrNoMeta if there is no metadata nor snaps in the
