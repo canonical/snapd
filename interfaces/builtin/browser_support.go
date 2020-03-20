@@ -134,7 +134,9 @@ deny /usr/share/applications/snap-handle-link.desktop r,  # core16
 # desktop files in /var/lib/snapd/desktop/applications breaks GLib's portals
 # support since g_app_info_launch_default_for_uri() only calls out to the
 # portal if it can't find a .desktop file that can handle the mime type.
-# LP: #1868051. Note: a future update may suppress noisy denials.
+# LP: #1868051. This is duplicated from desktop-legacy for compatibilty with
+# existing snaps (eg, unity messaging, xdg-mime, etc). Note: a future update
+# may suppress noisy denials.
 /var/lib/snapd/desktop/applications/ r,
 /var/lib/snapd/desktop/applications/@{SNAP_INSTANCE_NAME}_*.desktop r,
 
