@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2019 Canonical Ltd
+ * Copyright (C) 2016-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -83,8 +84,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		keypairMgr: keypairMgr,
 		newStore:   newStore,
 		reg:        make(chan struct{}),
-		// TODO: handle here via devicestate, similar to DeviceContext.
-		preseed: release.PreseedMode(),
+		preseed:    snapdenv.Preseeding(),
 	}
 
 	modeEnv, err := boot.ReadModeenv("")
@@ -408,7 +408,7 @@ func (m *DeviceManager) ensureOperational() error {
 	chg := m.state.NewChange("become-operational", i18n.G("Initialize device"))
 	chg.AddAll(state.NewTaskSet(tasks...))
 
-	perfTimings.AddTag("change-id", chg.ID())
+	state.TagTimingsWithChange(perfTimings, chg)
 	perfTimings.Save(m.state)
 
 	return nil
@@ -466,7 +466,7 @@ func (m *DeviceManager) ensureSeeded() error {
 	}
 	m.state.EnsureBefore(0)
 
-	perfTimings.AddTag("change-id", chg.ID())
+	state.TagTimingsWithChange(perfTimings, chg)
 	perfTimings.Save(m.state)
 	return nil
 }
@@ -721,6 +721,14 @@ func (m *DeviceManager) Model() (*asserts.Model, error) {
 // Serial returns the device serial assertion.
 func (m *DeviceManager) Serial() (*asserts.Serial, error) {
 	return findSerial(m.state, nil)
+}
+
+// Systems list the available recovery/seeding systems.
+func (m *DeviceManager) Systems() ([]string, error) {
+	// TODO:UC20 list available systems in the seed, load each with
+	// seed.LoadAssertions()
+	// TODO:UC20 convert brand-id to user friendly brand name
+	return nil, fmt.Errorf("not implemented")
 }
 
 // implement storecontext.Backend

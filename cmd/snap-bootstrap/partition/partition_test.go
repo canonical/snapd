@@ -28,13 +28,24 @@ import (
 
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/partition"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func TestPartition(t *testing.T) { TestingT(t) }
 
-type partitionTestSuite struct{}
+type partitionTestSuite struct {
+	testutil.BaseTest
+
+	dir string
+}
 
 var _ = Suite(&partitionTestSuite{})
+
+func (s *partitionTestSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+
+	s.dir = c.MkDir()
+}
 
 var mockDeviceStructureBiosBoot = partition.DeviceStructure{
 	Node: "/dev/node1",

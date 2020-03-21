@@ -120,7 +120,7 @@ func (s *clientSuite) TestAgentTimeout(c *C) {
 }`))
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 80*time.Millisecond)
 	defer cancel()
 	si, err := s.cli.SessionInfo(ctx)
 

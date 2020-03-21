@@ -80,7 +80,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 	task.State().Lock()
 	defer task.State().Unlock()
 
-	perfTimings := timings.NewForTask(task)
+	perfTimings := state.TimingsForTask(task)
 	defer perfTimings.Save(task.State())
 
 	// Get snap.Info from bits handed by the snap manager.
@@ -213,7 +213,7 @@ func (m *InterfaceManager) doRemoveProfiles(task *state.Task, tomb *tomb.Tomb) e
 	st.Lock()
 	defer st.Unlock()
 
-	perfTimings := timings.NewForTask(task)
+	perfTimings := state.TimingsForTask(task)
 	defer perfTimings.Save(st)
 
 	// Get SnapSetup for this snap. This is gives us the name of the snap.
@@ -258,7 +258,7 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 	st.Lock()
 	defer st.Unlock()
 
-	perfTimings := timings.NewForTask(task)
+	perfTimings := state.TimingsForTask(task)
 	defer perfTimings.Save(st)
 
 	var corePhase2 bool
@@ -390,7 +390,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	perfTimings := timings.NewForTask(task)
+	perfTimings := state.TimingsForTask(task)
 	defer perfTimings.Save(st)
 
 	plugRef, slotRef, err := getPlugAndSlotRefs(task)
@@ -524,7 +524,7 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	perfTimings := timings.NewForTask(task)
+	perfTimings := state.TimingsForTask(task)
 	defer perfTimings.Save(st)
 
 	plugRef, slotRef, err := getPlugAndSlotRefs(task)
@@ -532,9 +532,17 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	cref := interfaces.ConnRef{PlugRef: plugRef, SlotRef: slotRef}
+
 	conns, err := getConns(st)
 	if err != nil {
 		return err
+	}
+
+	// forget flag can be passed with snap disconnect --forget
+	var forget bool
+	if err := task.Get("forget", &forget); err != nil && err != state.ErrNoState {
+		return fmt.Errorf("internal error: cannot read 'forget' flag: %s", err)
 	}
 
 	var snapStates []snapstate.SnapState
@@ -551,10 +559,27 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
+	conn, ok := conns[cref.ID()]
+	if !ok {
+		return fmt.Errorf("internal error: connection %q not found in state", cref.ID())
+	}
+
+	// store old connection for undo
+	task.Set("old-conn", conn)
+
 	err = m.repo.Disconnect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
 	if err != nil {
+		_, notConnected := err.(*interfaces.NotConnectedError)
+		_, noPlugOrSlot := err.(*interfaces.NoPlugOrSlotError)
+		// not connected, just forget it.
+		if forget && (notConnected || noPlugOrSlot) {
+			delete(conns, cref.ID())
+			setConns(st, conns)
+			return nil
+		}
 		return fmt.Errorf("snapd changed, please retry the operation: %v", err)
 	}
+
 	for _, snapst := range snapStates {
 		snapInfo, err := snapst.CurrentInfo()
 		if err != nil {
@@ -565,15 +590,6 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 			return err
 		}
 	}
-
-	cref := interfaces.ConnRef{PlugRef: plugRef, SlotRef: slotRef}
-	conn, ok := conns[cref.ID()]
-	if !ok {
-		return fmt.Errorf("internal error: connection %q not found in state", cref.ID())
-	}
-
-	// store old connection for undo
-	task.Set("old-conn", conn)
 
 	// "auto-disconnect" flag indicates it's a disconnect triggered automatically as part of snap removal;
 	// such disconnects should not set undesired flag and instead just remove the connection.
@@ -590,6 +606,8 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 	}
 
 	switch {
+	case forget:
+		delete(conns, cref.ID())
 	case byHotplug:
 		conn.HotplugGone = true
 		conns[cref.ID()] = conn
@@ -613,7 +631,7 @@ func (m *InterfaceManager) undoDisconnect(task *state.Task, _ *tomb.Tomb) error 
 	st.Lock()
 	defer st.Unlock()
 
-	perfTimings := timings.NewForTask(task)
+	perfTimings := state.TimingsForTask(task)
 	defer perfTimings.Save(st)
 
 	var oldconn connState
@@ -623,6 +641,11 @@ func (m *InterfaceManager) undoDisconnect(task *state.Task, _ *tomb.Tomb) error 
 	}
 	if err != nil {
 		return err
+	}
+
+	var forget bool
+	if err := task.Get("forget", &forget); err != nil && err != state.ErrNoState {
+		return fmt.Errorf("internal error: cannot read 'forget' flag: %s", err)
 	}
 
 	plugRef, slotRef, err := getPlugAndSlotRefs(task)
@@ -647,10 +670,18 @@ func (m *InterfaceManager) undoDisconnect(task *state.Task, _ *tomb.Tomb) error 
 	connRef := &interfaces.ConnRef{PlugRef: plugRef, SlotRef: slotRef}
 
 	plug := m.repo.Plug(connRef.PlugRef.Snap, connRef.PlugRef.Name)
+	slot := m.repo.Slot(connRef.SlotRef.Snap, connRef.SlotRef.Name)
+	if forget && (plug == nil || slot == nil) {
+		// we were trying to forget an inactive connection that was
+		// referring to a non-existing plug or slot; just restore it
+		// in the conns state but do not reconnect via repository.
+		conns[connRef.ID()] = &oldconn
+		setConns(st, conns)
+		return nil
+	}
 	if plug == nil {
 		return fmt.Errorf("snap %q has no %q plug", connRef.PlugRef.Snap, connRef.PlugRef.Name)
 	}
-	slot := m.repo.Slot(connRef.SlotRef.Snap, connRef.SlotRef.Name)
 	if slot == nil {
 		return fmt.Errorf("snap %q has no %q slot", connRef.SlotRef.Snap, connRef.SlotRef.Name)
 	}

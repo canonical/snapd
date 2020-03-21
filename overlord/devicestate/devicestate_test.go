@@ -55,6 +55,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store/storetest"
 	"github.com/snapcore/snapd/timings"
 )
@@ -411,7 +412,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkBootloaderHappy(c *C) {
 	s.setPCModelInState(c)
 
 	s.bootloader.SetBootVars(map[string]string{
-		"snap_mode":     "trying",
+		"snap_mode":     boot.TryingStatus,
 		"snap_try_core": "core_1.snap",
 	})
 
@@ -478,7 +479,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkNotRunAgain(c *C) {
 	s.setPCModelInState(c)
 
 	s.bootloader.SetBootVars(map[string]string{
-		"snap_mode":     "trying",
+		"snap_mode":     boot.TryingStatus,
 		"snap_try_core": "core_1.snap",
 	})
 	s.bootloader.SetErr = fmt.Errorf("ensure bootloader is not used")
@@ -1229,7 +1230,7 @@ func (s *startOfOperationTimeSuite) TestStartOfOperationTimeNoSeedTime(c *C) {
 }
 
 func (s *startOfOperationTimeSuite) TestStartOfOperationErrorIfPreseed(c *C) {
-	restore := release.MockPreseedMode(func() bool { return true })
+	restore := snapdenv.MockPreseeding(true)
 	defer restore()
 
 	mgr := s.manager(c)

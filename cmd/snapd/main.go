@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -29,11 +29,10 @@ import (
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/errtracker"
-	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sanity"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -52,9 +51,9 @@ func init() {
 }
 
 func main() {
-	// In preseed mode re-exec is not used
-	if release.PreseedMode() {
-		logger.Noticef("running in preseed mode")
+	// When preseeding re-exec is not used
+	if snapdenv.Preseeding() {
+		logger.Noticef("running for preseeding")
 	} else {
 		cmd.ExecInSnapdOrCoreSnap()
 	}
@@ -109,7 +108,7 @@ var checkRunningConditionsRetryDelay = 300 * time.Second
 
 func run(ch chan os.Signal) error {
 	t0 := time.Now().Truncate(time.Millisecond)
-	httputil.SetUserAgentFromVersion(cmd.Version)
+	snapdenv.SetUserAgentFromVersion(cmd.Version)
 
 	d, err := daemon.New()
 	if err != nil {

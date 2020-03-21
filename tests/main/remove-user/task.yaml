@@ -1,6 +1,7 @@
 summary: Ensure remove-user functionality
 
-# TODO:UC20: enable for uc20
+# TODO:UC20: enable for uc20, userdel --extrausers "$USER" is failing
+# right now with: "user $USER does not exist'
 systems: [ubuntu-core-1*]
 
 environment:
@@ -67,6 +68,9 @@ execute: |
     test ! -f "/etc/sudoers.d/create-user-$USER_NAME"
     echo "user no longer has a home"
     test ! -d "/home/$USER_NAME"
+
+    echo "user is no longer managed by snapd"
+    [ "$(snap managed)" = "false" ]
 
     echo "snap remove-user cannot remove arbitrary users"
     expected="error: user \"root\" is not known"

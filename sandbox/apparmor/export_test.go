@@ -19,11 +19,11 @@
 
 package apparmor
 
-func MockFeaturesSysPath(path string) (restorer func()) {
-	old := featuresSysPath
-	featuresSysPath = path
+func MockFsRootPath(path string) (restorer func()) {
+	old := rootPath
+	rootPath = path
 	return func() {
-		featuresSysPath = old
+		rootPath = old
 	}
 }
 
@@ -43,6 +43,8 @@ var (
 	RequiredParserFeatures  = requiredParserFeatures
 	PreferredKernelFeatures = preferredKernelFeatures
 	PreferredParserFeatures = preferredParserFeatures
+
+	DecodeLabel = decodeLabel
 )
 
 func FreshAppArmorAssessment() {
