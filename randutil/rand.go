@@ -46,9 +46,11 @@ func moreMixedSeed() {
 		var b [8]byte
 		rand.Read(b[:])
 		h.Write(b[:])
+		// mix in the hostname
 		if hostname, err := os.Hostname(); err == nil {
 			h.Write([]byte(hostname))
 		}
+		// mix in net interfaces hw addresses (MACs etc)
 		if ifaces, err := net.Interfaces(); err == nil {
 			for _, iface := range ifaces {
 				h.Write(iface.HardwareAddr)
