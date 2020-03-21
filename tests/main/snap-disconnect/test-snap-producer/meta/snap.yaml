@@ -1,0 +1,8 @@
+name: test-snap-producer
+version: 1
+slots:
+    shared-content-slot:
+        interface: content
+        content: mylib
+        read:
+            - /

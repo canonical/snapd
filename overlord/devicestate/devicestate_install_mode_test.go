@@ -20,6 +20,7 @@
 package devicestate_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -36,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -62,7 +64,7 @@ func (s *deviceMgrInstallModeSuite) SetUpTest(c *C) {
 	s.state.Set("seeded", true)
 }
 
-func (s *deviceMgrInstallModeSuite) makeMockInstalledPcGadget(c *C) *asserts.Model {
+func (s *deviceMgrInstallModeSuite) makeMockInstalledPcGadget(c *C, grade string) *asserts.Model {
 	const (
 		pcSnapID       = "pcididididididididididididididid"
 		pcKernelSnapID = "pckernelidididididididididididid"
@@ -116,6 +118,7 @@ func (s *deviceMgrInstallModeSuite) makeMockInstalledPcGadget(c *C) *asserts.Mod
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
+		"grade":        grade,
 		"snaps": []interface{}{
 			map[string]interface{}{
 				"name":            "pc-kernel",
@@ -139,16 +142,42 @@ func (s *deviceMgrInstallModeSuite) makeMockInstalledPcGadget(c *C) *asserts.Mod
 	return mockModel
 }
 
-func (s *deviceMgrInstallModeSuite) TestInstallModeRunChange(c *C) {
+type encTestCase struct {
+	tpm     bool
+	bypass  bool
+	encrypt bool
+}
+
+func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade string, tc encTestCase) error {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
 	mockSnapBootstrapCmd := testutil.MockCommand(c, filepath.Join(dirs.DistroLibExecDir, "snap-bootstrap"), "")
 	defer mockSnapBootstrapCmd.Restore()
 
+	restoreTPM := devicestate.MockCheckTPMAvailability(func() error {
+		if tc.tpm {
+			return nil
+		} else {
+			return fmt.Errorf("TPM not available")
+		}
+	})
+	defer restoreTPM()
+
 	s.state.Lock()
-	mockModel := s.makeMockInstalledPcGadget(c)
+	mockModel := s.makeMockInstalledPcGadget(c, grade)
 	s.state.Unlock()
+
+	bypassEncryptionPath := filepath.Join(dirs.RunMnt, "ubuntu-seed", ".force-unencrypted")
+	if tc.bypass {
+		err := os.MkdirAll(filepath.Dir(bypassEncryptionPath), 0755)
+		c.Assert(err, IsNil)
+		f, err := os.Create(bypassEncryptionPath)
+		c.Assert(err, IsNil)
+		f.Close()
+	} else {
+		os.RemoveAll(bypassEncryptionPath)
+	}
 
 	bootMakeBootableCalled := 0
 	restore = devicestate.MockBootMakeBootable(func(model *asserts.Model, rootdir string, bootWith *boot.BootableSet) error {
@@ -166,22 +195,42 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeRunChange(c *C) {
 	devicestate.SetRecoverySystem(s.mgr, "20191218")
 
 	s.settle(c)
-	s.state.Lock()
-	defer s.state.Unlock()
 
 	// the install-system change is created
+	s.state.Lock()
+	defer s.state.Unlock()
 	installSystem := s.findInstallSystem()
 	c.Assert(installSystem, NotNil)
 
 	// and was run successfully
-	c.Check(installSystem.Err(), IsNil)
-	c.Check(installSystem.Status(), Equals, state.DoneStatus)
+	if err := installSystem.Err(); err != nil {
+		// we failed, no further checks needed
+		return err
+	}
+
+	c.Assert(installSystem.Status(), Equals, state.DoneStatus)
+
 	// in the right way
-	c.Check(mockSnapBootstrapCmd.Calls(), DeepEquals, [][]string{
-		{"snap-bootstrap", "create-partitions", "--mount", filepath.Join(dirs.SnapMountDir, "/pc/1")},
-	})
-	c.Check(bootMakeBootableCalled, Equals, 1)
-	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystem})
+	if tc.encrypt {
+		c.Assert(mockSnapBootstrapCmd.Calls(), DeepEquals, [][]string{
+			{
+				"snap-bootstrap", "create-partitions", "--mount", "--encrypt",
+				"--key-file", filepath.Join(dirs.RunMnt, "ubuntu-boot/ubuntu-data.keyfile.unsealed"),
+				filepath.Join(dirs.SnapMountDir, "/pc/1"),
+			},
+		})
+	} else {
+		c.Assert(mockSnapBootstrapCmd.Calls(), DeepEquals, [][]string{
+			{
+				"snap-bootstrap", "create-partitions", "--mount",
+				filepath.Join(dirs.SnapMountDir, "/pc/1"),
+			},
+		})
+	}
+	c.Assert(bootMakeBootableCalled, Equals, 1)
+	c.Assert(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystem})
+
+	return nil
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallTaskErrors(c *C) {
@@ -192,7 +241,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallTaskErrors(c *C) {
 	defer mockSnapBootstrapCmd.Restore()
 
 	s.state.Lock()
-	s.makeMockInstalledPcGadget(c)
+	s.makeMockInstalledPcGadget(c, "dangerous")
 	devicestate.SetOperatingMode(s.mgr, "install")
 	s.state.Unlock()
 
@@ -242,4 +291,134 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeNotClassic(c *C) {
 	// the install-system change is *not* created (we're on classic)
 	installSystem := s.findInstallSystem()
 	c.Assert(installSystem, IsNil)
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallDangerous(c *C) {
+	err := s.doRunChangeTestWithEncryption(c, "dangerous", encTestCase{tpm: false, bypass: false, encrypt: false})
+	c.Assert(err, IsNil)
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallDangerousWithTPM(c *C) {
+	err := s.doRunChangeTestWithEncryption(c, "dangerous", encTestCase{tpm: true, bypass: false, encrypt: true})
+	c.Assert(err, IsNil)
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallDangerousBypassEncryption(c *C) {
+	err := s.doRunChangeTestWithEncryption(c, "dangerous", encTestCase{tpm: false, bypass: true, encrypt: false})
+	c.Assert(err, IsNil)
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallDangerousWithTPMBypassEncryption(c *C) {
+	err := s.doRunChangeTestWithEncryption(c, "dangerous", encTestCase{tpm: true, bypass: true, encrypt: false})
+	c.Assert(err, IsNil)
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallSigned(c *C) {
+	err := s.doRunChangeTestWithEncryption(c, "signed", encTestCase{tpm: false, bypass: false, encrypt: false})
+	c.Assert(err, IsNil)
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallSignedWithTPM(c *C) {
+	err := s.doRunChangeTestWithEncryption(c, "signed", encTestCase{tpm: true, bypass: false, encrypt: true})
+	c.Assert(err, IsNil)
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallSignedBypassEncryption(c *C) {
+	err := s.doRunChangeTestWithEncryption(c, "signed", encTestCase{tpm: false, bypass: true, encrypt: false})
+	c.Assert(err, IsNil)
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallSecured(c *C) {
+	err := s.doRunChangeTestWithEncryption(c, "secured", encTestCase{tpm: false, bypass: false, encrypt: false})
+	c.Assert(err, ErrorMatches, "(?s).*cannot encrypt secured device: TPM not available.*")
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallSecuredWithTPM(c *C) {
+	err := s.doRunChangeTestWithEncryption(c, "secured", encTestCase{tpm: true, bypass: false, encrypt: true})
+	c.Assert(err, IsNil)
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallSecuredBypassEncryption(c *C) {
+	err := s.doRunChangeTestWithEncryption(c, "secured", encTestCase{tpm: false, bypass: true, encrypt: false})
+	c.Assert(err, ErrorMatches, "(?s).*cannot encrypt secured device: TPM not available.*")
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallModeRunSysconfig(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	mockSnapBootstrapCmd := testutil.MockCommand(c, filepath.Join(dirs.DistroLibExecDir, "snap-bootstrap"), "")
+	defer mockSnapBootstrapCmd.Restore()
+
+	s.state.Lock()
+	s.makeMockInstalledPcGadget(c, "dangerous")
+	s.state.Unlock()
+
+	restore = devicestate.MockBootMakeBootable(func(model *asserts.Model, rootdir string, bootWith *boot.BootableSet) error {
+		return nil
+	})
+	defer restore()
+
+	configureRunSystemCalls := 0
+	restore = devicestate.MockSysconfigConfigureRunSystem(func(opts *sysconfig.Options) error {
+		configureRunSystemCalls++
+		return nil
+	})
+	defer restore()
+
+	devicestate.SetOperatingMode(s.mgr, "install")
+	devicestate.SetRecoverySystem(s.mgr, "20191218")
+
+	s.settle(c)
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// the install-system change is created
+	installSystem := s.findInstallSystem()
+	c.Assert(installSystem, NotNil)
+
+	// and was run successfully
+	c.Check(installSystem.Err(), IsNil)
+	c.Check(installSystem.Status(), Equals, state.DoneStatus)
+
+	// and sysconfig.ConfigureRunSystem was run exactly once
+	c.Assert(configureRunSystemCalls, Equals, 1)
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallModeRunSysconfigErr(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	mockSnapBootstrapCmd := testutil.MockCommand(c, filepath.Join(dirs.DistroLibExecDir, "snap-bootstrap"), "")
+	defer mockSnapBootstrapCmd.Restore()
+
+	s.state.Lock()
+	s.makeMockInstalledPcGadget(c, "dangerous")
+	s.state.Unlock()
+
+	restore = devicestate.MockBootMakeBootable(func(model *asserts.Model, rootdir string, bootWith *boot.BootableSet) error {
+		return nil
+	})
+	defer restore()
+
+	configureRunSystemCalls := 0
+	restore = devicestate.MockSysconfigConfigureRunSystem(func(opts *sysconfig.Options) error {
+		configureRunSystemCalls++
+		return fmt.Errorf("error from sysconfig.ConfigureRunSystem")
+	})
+	defer restore()
+
+	devicestate.SetOperatingMode(s.mgr, "install")
+	devicestate.SetRecoverySystem(s.mgr, "20191218")
+
+	s.settle(c)
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// the install-system was run but errored as specified in the above mock
+	installSystem := s.findInstallSystem()
+	c.Check(installSystem.Err(), ErrorMatches, `(?ms)cannot perform the following tasks:
+- Setup system for run mode \(error from sysconfig.ConfigureRunSystem\)`)
+	// and sysconfig.ConfigureRunSystem was run exactly once
+	c.Assert(configureRunSystemCalls, Equals, 1)
 }

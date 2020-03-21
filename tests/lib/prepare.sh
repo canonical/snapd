@@ -85,19 +85,11 @@ disable_refreshes() {
 }
 
 setup_systemd_snapd_overrides() {
-    START_LIMIT_INTERVAL="StartLimitInterval=0"
     mkdir -p /etc/systemd/system/snapd.service.d
     cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
-[Unit]
-$START_LIMIT_INTERVAL
 [Service]
 Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_REBOOT_DELAY=10m SNAPD_CONFIGURE_HOOK_TIMEOUT=30s SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE
 ExecStartPre=/bin/touch /dev/iio:device0
-EOF
-    mkdir -p /etc/systemd/system/snapd.socket.d
-    cat <<EOF > /etc/systemd/system/snapd.socket.d/local.conf
-[Unit]
-$START_LIMIT_INTERVAL
 EOF
 
     # We change the service configuration so reload and restart
@@ -349,6 +341,7 @@ repack_snapd_snap_with_deb_content() {
 
 repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks() {
     local TARGET="$1"
+    local ENABLE_SSH="${2:-true}"
 
     local UNPACK_DIR="/tmp/snapd-unpack"
     unsquashfs -no-progress -d "$UNPACK_DIR" snapd_*.snap
@@ -361,8 +354,9 @@ repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks() {
     dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$UNPACK_DIR"
     cp /usr/lib/snapd/info "$UNPACK_DIR"/usr/lib/
 
-    # now install a unit that setups enough so that we can connect
-    cat > "$UNPACK_DIR"/lib/systemd/system/snapd.spread-tests-run-mode-tweaks.service <<'EOF'
+    if [ "$ENABLE_SSH" = "true" ]; then
+        # now install a unit that sets up enough so that we can connect
+        cat > "$UNPACK_DIR"/lib/systemd/system/snapd.spread-tests-run-mode-tweaks.service <<'EOF'
 [Unit]
 Description=Tweaks to run mode for spread tests
 Before=snapd.service
@@ -376,8 +370,8 @@ RemainAfterExit=true
 [Install]
 WantedBy=multi-user.target
 EOF
-    # XXX: this duplicates a lot of setup_test_user_by_modify_writable()
-    cat > "$UNPACK_DIR"/usr/lib/snapd/snapd.spread-tests-run-mode-tweaks.sh <<'EOF'
+        # XXX: this duplicates a lot of setup_test_user_by_modify_writable()
+        cat > "$UNPACK_DIR"/usr/lib/snapd/snapd.spread-tests-run-mode-tweaks.sh <<'EOF'
 #!/bin/sh
 set -e
 # ensure we don't enable ssh in install mode or spread will get confused
@@ -427,7 +421,9 @@ systemctl reload ssh
 
 touch /root/spread-setup-done
 EOF
-    chmod 0755 "$UNPACK_DIR"/usr/lib/snapd/snapd.spread-tests-run-mode-tweaks.sh
+        chmod 0755 "$UNPACK_DIR"/usr/lib/snapd/snapd.spread-tests-run-mode-tweaks.sh
+    fi
+
     snap pack "$UNPACK_DIR" "$TARGET"
     rm -rf "$UNPACK_DIR"
 }

@@ -31,8 +31,8 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -85,7 +85,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		// extras
 		extraInterfaces: extraInterfaces,
 		extraBackends:   extraBackends,
-		preseed:         release.PreseedMode(),
+		preseed:         snapdenv.Preseeding(),
 	}
 
 	taskKinds := map[string]bool{}
@@ -313,26 +313,62 @@ func (m *InterfaceManager) ConnectionStates() (connStateByRef map[string]Connect
 // In both cases the snap name can be omitted to implicitly refer to the core
 // snap. If there's no core snap it is simply assumed to be called "core" to
 // provide consistent error messages.
-func (m *InterfaceManager) ResolveDisconnect(plugSnapName, plugName, slotSnapName, slotName string) ([]*interfaces.ConnRef, error) {
-	connected := func(plugSn, plug, slotSn, slot string) (bool, error) {
-		_, err := m.repo.Connection(&interfaces.ConnRef{
-			PlugRef: interfaces.PlugRef{Snap: plugSn, Name: plug},
-			SlotRef: interfaces.SlotRef{Snap: slotSn, Name: slot},
-		})
-		if _, notConnected := err.(*interfaces.NotConnectedError); notConnected {
-			return false, nil
-		}
-		if err != nil {
-			return false, err
-		}
-		return true, nil
-	}
+func (m *InterfaceManager) ResolveDisconnect(plugSnapName, plugName, slotSnapName, slotName string, forget bool) ([]*interfaces.ConnRef, error) {
+	var connected func(plugSn, plug, slotSn, slot string) (bool, error)
+	var connectedPlugOrSlot func(snapName, plugOrSlotName string) ([]*interfaces.ConnRef, error)
 
-	connectedPlugOrSlot := func(snapName, plugOrSlotName string) ([]*interfaces.ConnRef, error) {
-		return m.repo.Connected(snapName, plugOrSlotName)
+	if forget {
+		conns, err := getConns(m.state)
+		if err != nil {
+			return nil, err
+		}
+		connected = func(plugSn, plug, slotSn, slot string) (bool, error) {
+			cref := interfaces.ConnRef{
+				PlugRef: interfaces.PlugRef{Snap: plugSn, Name: plug},
+				SlotRef: interfaces.SlotRef{Snap: slotSn, Name: slot},
+			}
+			_, ok := conns[cref.ID()]
+			return ok, nil
+		}
+
+		connectedPlugOrSlot = func(snapName, plugOrSlotName string) ([]*interfaces.ConnRef, error) {
+			var refs []*interfaces.ConnRef
+			for connID := range conns {
+				cref, err := interfaces.ParseConnRef(connID)
+				if err != nil {
+					return nil, err
+				}
+				if cref.PlugRef.Snap == snapName && cref.PlugRef.Name == plugOrSlotName {
+					refs = append(refs, cref)
+				}
+				if cref.SlotRef.Snap == snapName && cref.SlotRef.Name == plugOrSlotName {
+					refs = append(refs, cref)
+				}
+			}
+			return refs, nil
+		}
+	} else {
+		connected = func(plugSn, plug, slotSn, slot string) (bool, error) {
+			_, err := m.repo.Connection(&interfaces.ConnRef{
+				PlugRef: interfaces.PlugRef{Snap: plugSn, Name: plug},
+				SlotRef: interfaces.SlotRef{Snap: slotSn, Name: slot},
+			})
+			if _, notConnected := err.(*interfaces.NotConnectedError); notConnected {
+				return false, nil
+			}
+			if err != nil {
+				return false, err
+			}
+			return true, nil
+		}
+
+		connectedPlugOrSlot = func(snapName, plugOrSlotName string) ([]*interfaces.ConnRef, error) {
+			return m.repo.Connected(snapName, plugOrSlotName)
+		}
 	}
 
 	coreSnapName := SystemSnapName()
+
 	// There are two allowed forms (see snap disconnect --help)
 	switch {
 	// 1: <snap>:<plug> <snap>:<slot>
@@ -352,6 +388,10 @@ func (m *InterfaceManager) ResolveDisconnect(plugSnapName, plugName, slotSnapNam
 			return nil, err
 		}
 		if !isConnected {
+			if forget {
+				return nil, fmt.Errorf("cannot forget connection %s:%s from %s:%s, it was not connected",
+					plugSnapName, plugName, slotSnapName, slotName)
+			}
 			return nil, fmt.Errorf("cannot disconnect %s:%s from %s:%s, it is not connected",
 				plugSnapName, plugName, slotSnapName, slotName)
 		}

@@ -71,10 +71,15 @@ func criticalTaskEdges(ts *state.TaskSet) (beginEdge, beforeHooksEdge, hooksEdge
 	return beginEdge, beforeHooksEdge, hooksEdge, nil
 }
 
-func trivialSeeding(st *state.State, markSeeded *state.Task) []*state.TaskSet {
+func markSeededTask(st *state.State) *state.Task {
+	return st.NewTask("mark-seeded", i18n.G("Mark system seeded"))
+}
+
+func trivialSeeding(st *state.State) []*state.TaskSet {
 	// give the internal core config a chance to run (even if core is
 	// not used at all we put system configuration there)
 	configTs := snapstate.ConfigureSnap(st, "core", 0)
+	markSeeded := markSeededTask(st)
 	markSeeded.WaitAll(configTs)
 	return []*state.TaskSet{configTs, state.NewTaskSet(markSeeded)}
 }
@@ -107,12 +112,6 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 		return nil, fmt.Errorf("cannot populate state: already seeded")
 	}
 
-	var preseedDoneTask *state.Task
-	if preseed {
-		preseedDoneTask = st.NewTask("mark-preseeded", i18n.G("Mark system pre-seeded"))
-	}
-	markSeeded := st.NewTask("mark-seeded", i18n.G("Mark system seeded"))
-
 	deviceSeed, err := seed.Open(dirs.SnapSeedDir, sysLabel)
 	if err != nil {
 		return nil, err
@@ -122,11 +121,12 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	timings.Run(tm, "import-assertions", "import assertions from seed", func(nested timings.Measurer) {
 		_, err = importAssertionsFromSeed(st, deviceSeed)
 	})
-	if err == errNothingToDo {
-		return trivialSeeding(st, markSeeded), nil
-	}
-	if err != nil {
+	if err != nil && err != errNothingToDo {
 		return nil, err
+	}
+
+	if err == errNothingToDo {
+		return trivialSeeding(st), nil
 	}
 
 	err = deviceSeed.LoadMeta(tm)
@@ -135,7 +135,7 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 			return nil, fmt.Errorf("no snaps to preseed")
 		}
 		// on classic it is ok to not seed any snaps
-		return trivialSeeding(st, markSeeded), nil
+		return trivialSeeding(st), nil
 	}
 	if err != nil {
 		return nil, err
@@ -147,14 +147,16 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 		return nil, err
 	}
 
-	// collected snap infos
-	infos := make([]*snap.Info, 0, len(essentialSeedSnaps)+len(seedSnaps))
-
 	tsAll := []*state.TaskSet{}
 	configTss := []*state.TaskSet{}
 
 	var lastBeforeHooksTask *state.Task
 	var chainTs func(all []*state.TaskSet, ts *state.TaskSet) []*state.TaskSet
+
+	var preseedDoneTask *state.Task
+	if preseed {
+		preseedDoneTask = st.NewTask("mark-preseeded", i18n.G("Mark system pre-seeded"))
+	}
 
 	chainTsPreseeding := func(all []*state.TaskSet, ts *state.TaskSet) []*state.TaskSet {
 		// mark-preseeded task needs to be inserted between preliminary setup and hook tasks
@@ -203,6 +205,9 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 			tsAll = chainTs(tsAll, ts)
 		}
 	}
+
+	// collected snap infos
+	infos := make([]*snap.Info, 0, len(essentialSeedSnaps)+len(seedSnaps))
 
 	infoToTs := make(map[*snap.Info]*state.TaskSet, len(essentialSeedSnaps))
 
@@ -270,6 +275,7 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	ts := tsAll[len(tsAll)-1]
 	endTs := state.NewTaskSet()
 
+	markSeeded := markSeededTask(st)
 	if preseed {
 		endTs.AddTask(preseedDoneTask)
 		markSeeded.WaitFor(preseedDoneTask)

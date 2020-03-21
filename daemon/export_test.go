@@ -21,6 +21,7 @@ package daemon
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/snapcore/snapd/overlord"
 )
@@ -49,5 +50,13 @@ func MockBuildID(mock string) (restore func()) {
 	buildID = mock
 	return func() {
 		buildID = old
+	}
+}
+
+func MockShutdownTimeout(tm time.Duration) (restore func()) {
+	old := shutdownTimeout
+	shutdownTimeout = tm
+	return func() {
+		shutdownTimeout = old
 	}
 }

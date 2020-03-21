@@ -263,6 +263,20 @@ func (s *SquashfsTestSuite) TestReadFileFail(c *C) {
 	c.Assert(err, ErrorMatches, "cannot run unsquashfs: boom")
 }
 
+func (s *SquashfsTestSuite) TestRandomAccessFile(c *C) {
+	snap := makeSnap(c, "name: foo", "")
+
+	r, err := snap.RandomAccessFile("meta/snap.yaml")
+	c.Assert(err, IsNil)
+	defer r.Close()
+
+	b := make([]byte, 4)
+	n, err := r.ReadAt(b, 4)
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 4)
+	c.Check(string(b), Equals, ": fo")
+}
+
 func (s *SquashfsTestSuite) TestListDir(c *C) {
 	snap := makeSnap(c, "name: foo", "")
 
