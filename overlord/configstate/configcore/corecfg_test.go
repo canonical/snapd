@@ -134,8 +134,7 @@ func (r *runCfgSuite) TestConfigureUnknownOption(c *C) {
 
 // applyCfgSuite tests configcore.Apply()
 type applyCfgSuite struct {
-	tmpDir        string
-	systemctlArgs [][]string
+	tmpDir string
 }
 
 var _ = Suite(&applyCfgSuite{})
@@ -147,4 +146,14 @@ func (s *applyCfgSuite) SetUpTest(c *C) {
 
 func (s *applyCfgSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
+}
+
+func (s *applyCfgSuite) TestEmptyRootDir(c *C) {
+	err := configcore.Apply("", nil)
+	c.Check(err, ErrorMatches, `internal error: root directory for configcore.Apply\(\) not set`)
+}
+
+func (s *applyCfgSuite) TestSmoke(c *C) {
+	conf := &mockConf{}
+	c.Assert(configcore.Apply(s.tmpDir, conf), IsNil)
 }

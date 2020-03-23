@@ -88,8 +88,7 @@ func (cfg PlainCoreConfig) Get(snapName, key string, result interface{}) error {
 // handlers when configuration is applied to a specific root directory with
 // Apply().
 type ApplyOptions struct {
-	Preseeding bool
-	RootDir    string
+	RootDir string
 }
 
 // Apply applies filesystem modifications under rootDir, according to the
@@ -97,10 +96,11 @@ type ApplyOptions struct {
 // early during boot, before all the configuration is applied as part of
 // normal execution of configure hook.
 func Apply(rootDir string, cfg config.ConfGetter) error {
-	opts := &ApplyOptions{
-		Preseeding: true,
-		RootDir:    rootDir,
+	if rootDir == "" {
+		return fmt.Errorf("internal error: root directory for configcore.Apply() not set")
 	}
+
+	opts := &ApplyOptions{RootDir: rootDir}
 
 	if err := validateExperimentalSettings(cfg); err != nil {
 		return err

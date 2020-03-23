@@ -80,7 +80,7 @@ func handleNetworkConfiguration(tr config.ConfGetter, opts *ApplyOptions) error 
 		return err
 	}
 
-	if opts == nil || !opts.Preseeding {
+	if opts == nil || opts.RootDir == "" {
 		// load the new config into the kernel
 		if len(changed) > 0 || len(removed) > 0 {
 			output, err := exec.Command("sysctl", "-w", sysctl).CombinedOutput()

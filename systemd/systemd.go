@@ -211,6 +211,9 @@ func New(rootDir string, mode InstanceMode, rep reporter) Systemd {
 // systemd is not really called, but instead its functions are emulated
 // by other means.
 func NewEmulationMode(rootDir string) Systemd {
+	if rootDir == "" {
+		rootDir = dirs.GlobalRootDir
+	}
 	return &emulation{
 		rootDir: rootDir,
 	}
