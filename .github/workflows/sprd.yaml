@@ -1,0 +1,31 @@
+name: Spread 
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+jobs:
+  GCE:
+    runs-on: [self-hosted]
+    strategy:
+      matrix:
+        system:
+        - ubuntu-14.04-64
+        - ubuntu-16.04-64
+        - ubuntu-18.04-64
+        - ubuntu-20.04-64
+        - ubuntu-core-16-64
+        - ubuntu-core-18-64
+        - ubuntu-core-20-64
+        - debian-9-64
+        - debian-sid-64
+        - fedora-30-64
+        - fedora-31-64
+        - arch-linux-64
+        - amazon-linux-2-64
+        - centos-7-64
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+    - name: Run spread tests
+      run: spread -v google:${{ matrix.system }}:tests/...
