@@ -5,7 +5,9 @@ on:
   pull_request:
     branches: [ master ]
 jobs:
-  linux:
+  # TODO: run static checks before we run unit tests
+  # TODO: run spread tests, in a matrix, after we run unit tests
+  go-unit-tests:
     runs-on: ubuntu-latest
     env:
       GOPATH: ${{ github.workspace }}
@@ -44,5 +46,7 @@ jobs:
           ${{ github.workspace }}/bin/govendor sync
     - name: Build
       run: go build github.com/snapcore/snapd/...
-    - name: Test
-      run: go build github.com/snapcore/snapd/...
+    - name: Run Go unit tests
+      run: go test github.com/snapcore/snapd/...
+      # XXX: those are just Go unit tests, there are more tests missing that
+      # need to be ported from run-checks.
