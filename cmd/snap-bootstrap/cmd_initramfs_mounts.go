@@ -126,6 +126,17 @@ func generateMountsModeInstall(recoverySystem string) error {
 	return nil
 }
 
+func copyUbuntuDataAuth(src, dst string) error {
+	// TODO:UC20:
+	// cp -a $src/system-data/var/lib/extrausers/* $dst/system-data/var/lib/extrausers
+	// cp -a $src/system-data/etc/ssh/* $dst/system-data/etc/ssh
+
+	// cp -a --dir-only $src/user-data/* $dst/user-data/
+	// cp -a $src/user-data/*/.ssh $dst/user-data/
+
+	return nil
+}
+
 func generateMountsModeRecover(recoverySystem string) error {
 	var buf bytes.Buffer
 	if err := generateMountsCommonInstallRecover(recoverySystem, &buf); err != nil {
@@ -143,11 +154,16 @@ func generateMountsModeRecover(recoverySystem string) error {
 		return err
 	}
 	if !isRecoverDataMounted {
+		println("meep")
 		fmt.Fprintf(stdout, "/dev/disk/by-label/ubuntu-data %s\n", recoverDataDir)
 		return nil
 	}
 
-	// TODO:UC20: copy auth data from real recover-ubuntu-data to tmpfs ubuntu-data
+	// now copy the auth data from the real recover-ubuntu-data dir to
+	// the ephemeral ubuntu-data dir
+	if err := copyUbuntuDataAuth(recoverDataDir, filepath.Join(dirs.RunMnt, "ubuntu-data")); err != nil {
+		return err
+	}
 
 	// n+2: final step: write $(ubuntu_data)/var/lib/snapd/modeenv - this
 	//      is the tmpfs we just created above
