@@ -84,12 +84,20 @@ func (cfg PlainCoreConfig) Get(snapName, key string, result interface{}) error {
 	return nil
 }
 
+// ApplyOptions encapsulates extra options passed to individual core config
+// handlers when configuration is applied to a specific root directory with
+// Apply().
+type ApplyOptions struct {
+	Preseeding bool
+	RootDir    string
+}
+
 // Apply applies filesystem modifications under rootDir, according to the
 // cfg configuration. This is a subset of core config options that is important
 // early during boot, before all the configuration is applied as part of
 // normal execution of configure hook.
 func Apply(rootDir string, cfg config.ConfGetter) error {
-	opts := &config.ApplyOptions{
+	opts := &ApplyOptions{
 		Preseeding: true,
 		RootDir:    rootDir,
 	}

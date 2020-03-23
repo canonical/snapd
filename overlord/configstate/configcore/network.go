@@ -39,7 +39,7 @@ func validateNetworkSettings(tr config.ConfGetter) error {
 	return validateBoolFlag(tr, "network.disable-ipv6")
 }
 
-func handleNetworkConfiguration(tr config.ConfGetter, opts *config.ApplyOptions) error {
+func handleNetworkConfiguration(tr config.ConfGetter, opts *ApplyOptions) error {
 	root := dirs.GlobalRootDir
 	if opts != nil && opts.RootDir != "" {
 		root = opts.RootDir

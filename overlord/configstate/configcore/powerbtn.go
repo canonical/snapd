@@ -33,7 +33,7 @@ func init() {
 	supportedConfigurations["core.system.power-key-action"] = true
 }
 
-func powerBtnCfg(opts *config.ApplyOptions) string {
+func powerBtnCfg(opts *ApplyOptions) string {
 	rootDir := dirs.GlobalRootDir
 	if opts != nil && opts.RootDir != "" {
 		rootDir = opts.RootDir
@@ -42,7 +42,7 @@ func powerBtnCfg(opts *config.ApplyOptions) string {
 }
 
 // switchHandlePowerKey changes the behavior when the power key is pressed
-func switchHandlePowerKey(action string, opts *config.ApplyOptions) error {
+func switchHandlePowerKey(action string, opts *ApplyOptions) error {
 	validActions := map[string]bool{
 		"ignore":       true,
 		"poweroff":     true,
@@ -71,7 +71,7 @@ HandlePowerKey=%s
 	return osutil.AtomicWriteFile(powerBtnCfg(opts), []byte(content), 0644, 0)
 }
 
-func handlePowerButtonConfiguration(tr config.ConfGetter, opts *config.ApplyOptions) error {
+func handlePowerButtonConfiguration(tr config.ConfGetter, opts *ApplyOptions) error {
 	output, err := coreCfg(tr, "system.power-key-action")
 	if err != nil {
 		return err

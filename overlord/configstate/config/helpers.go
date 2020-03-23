@@ -284,14 +284,6 @@ type ConfGetter interface {
 	Get(snapName, key string, result interface{}) error
 }
 
-// ApplyOptions encapsulates extra options passed to individual core config
-// handlers when configuration is applied to a specific root directory with
-// Apply().
-type ApplyOptions struct {
-	Preseeding bool
-	RootDir    string
-}
-
 // GetFeatureFlag returns the value of a given feature flag.
 func GetFeatureFlag(tr ConfGetter, feature features.SnapdFeature) (bool, error) {
 	var isEnabled interface{}

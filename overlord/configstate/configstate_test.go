@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -229,7 +230,7 @@ func (s *configcoreHijackSuite) SetUpTest(c *C) {
 	hookMgr, err := hookstate.Manager(s.state, s.o.TaskRunner())
 	c.Assert(err, IsNil)
 	s.o.AddManager(hookMgr)
-	r := configstate.MockConfigcoreExportExperimentalFlags(func(_ config.ConfGetter, _ *config.ApplyOptions) error {
+	r := configstate.MockConfigcoreExportExperimentalFlags(func(_ config.ConfGetter, _ *configcore.ApplyOptions) error {
 		return nil
 	})
 	s.AddCleanup(r)
@@ -344,7 +345,7 @@ func (s *configcoreExportSuite) TestExportHappy(c *C) {
 	tr.Set("core", "experimental.key", "foobar")
 	tr.Commit()
 
-	r := configstate.MockConfigcoreExportExperimentalFlags(func(conf config.ConfGetter, opts *config.ApplyOptions) error {
+	r := configstate.MockConfigcoreExportExperimentalFlags(func(conf config.ConfGetter, opts *configcore.ApplyOptions) error {
 		calls++
 		err := conf.Get("core", "experimental.keys", &val)
 		c.Assert(err, IsNil)
@@ -360,7 +361,7 @@ func (s *configcoreExportSuite) TestExportHappy(c *C) {
 func (s *configcoreExportSuite) TestExportErr(c *C) {
 	var calls int
 
-	r := configstate.MockConfigcoreExportExperimentalFlags(func(conf config.ConfGetter, opts *config.ApplyOptions) error {
+	r := configstate.MockConfigcoreExportExperimentalFlags(func(conf config.ConfGetter, opts *configcore.ApplyOptions) error {
 		calls++
 		return fmt.Errorf("bad bad")
 	})
