@@ -17,6 +17,23 @@ jobs:
       uses: actions/checkout@v2
       with:
         path: ./src/github.com/${{ github.repository }}
+    - name: Cache GOPATH/pkg directory
+      if: github.event_name == 'pull_request'
+      id: cache-go-pkg
+      uses: actions/cache@v1
+      with:
+        path: ${{ github.workspace }}/pkg
+        # Cache the pkg of a given thing that has landed on master that is the
+        # base of the pull request being attempted.
+        key: go-pkg-base-${{ github.pull_request.base.sha }}
+    - name: Cache ~/.cache/go-build directory
+      if: github.event_name == 'pull_request'
+      id: cache-go-build
+      uses: actions/cache@v1
+      with:
+        path: ~/.cache/go-build
+        # See the description of the cache above.
+        key: go-build-base-${{ github.pull_request.base.sha }}
     - name: Cache go's .cache directory (used by govendor)
       id: cache-go-govendor
       uses: actions/cache@v1
