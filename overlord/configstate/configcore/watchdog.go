@@ -65,7 +65,7 @@ func updateWatchdogConfig(config map[string]uint, opts *config.ApplyOptions) err
 	return err
 }
 
-func handleWatchdogConfiguration(tr config.ConfReader, opts *config.ApplyOptions) error {
+func handleWatchdogConfiguration(tr config.ConfGetter, opts *config.ApplyOptions) error {
 	config := map[string]uint{}
 
 	for _, key := range []string{"runtime-timeout", "shutdown-timeout"} {
@@ -108,7 +108,7 @@ func getSystemdConfSeconds(timeStr string) (uint, error) {
 	return uint(dur.Seconds()), nil
 }
 
-func validateWatchdogOptions(tr config.ConfReader) error {
+func validateWatchdogOptions(tr config.ConfGetter) error {
 	for _, key := range []string{"runtime-timeout", "shutdown-timeout"} {
 		option, err := coreCfg(tr, "watchdog."+key)
 		if err != nil {

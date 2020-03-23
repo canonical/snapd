@@ -279,8 +279,8 @@ type Conf interface {
 	State() *state.State
 }
 
-// ConfReader is an interface for reading of config values.
-type ConfReader interface {
+// ConfGetter is an interface for reading of config values.
+type ConfGetter interface {
 	Get(snapName, key string, result interface{}) error
 }
 
@@ -293,7 +293,7 @@ type ApplyOptions struct {
 }
 
 // GetFeatureFlag returns the value of a given feature flag.
-func GetFeatureFlag(tr ConfReader, feature features.SnapdFeature) (bool, error) {
+func GetFeatureFlag(tr ConfGetter, feature features.SnapdFeature) (bool, error) {
 	var isEnabled interface{}
 	snapName, confName := feature.ConfigOption()
 	if err := tr.Get(snapName, confName, &isEnabled); err != nil && !IsNoOption(err) {

@@ -129,7 +129,7 @@ func switchDisableService(serviceName, value string, opts *config.ApplyOptions) 
 }
 
 // services that can be disabled
-func handleServiceDisableConfiguration(tr config.ConfReader, opts *config.ApplyOptions) error {
+func handleServiceDisableConfiguration(tr config.ConfGetter, opts *config.ApplyOptions) error {
 	for _, service := range services {
 		output, err := coreCfg(tr, fmt.Sprintf("service.%s.disable", service.configName))
 		if err != nil {

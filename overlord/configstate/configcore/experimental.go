@@ -36,7 +36,7 @@ func init() {
 	}
 }
 
-func validateExperimentalSettings(tr config.ConfReader) error {
+func validateExperimentalSettings(tr config.ConfGetter) error {
 	for k := range supportedConfigurations {
 		if !strings.HasPrefix(k, "core.experimental.") {
 			continue
@@ -48,7 +48,7 @@ func validateExperimentalSettings(tr config.ConfReader) error {
 	return nil
 }
 
-func ExportExperimentalFlags(tr config.ConfReader, opts *config.ApplyOptions) error {
+func ExportExperimentalFlags(tr config.ConfGetter, opts *config.ApplyOptions) error {
 	var dir string
 	if opts != nil && opts.RootDir != "" {
 		dir = dirs.FeaturesDirUnder(opts.RootDir)

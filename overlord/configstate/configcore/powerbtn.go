@@ -71,7 +71,7 @@ HandlePowerKey=%s
 	return osutil.AtomicWriteFile(powerBtnCfg(opts), []byte(content), 0644, 0)
 }
 
-func handlePowerButtonConfiguration(tr config.ConfReader, opts *config.ApplyOptions) error {
+func handlePowerButtonConfiguration(tr config.ConfGetter, opts *config.ApplyOptions) error {
 	output, err := coreCfg(tr, "system.power-key-action")
 	if err != nil {
 		return err

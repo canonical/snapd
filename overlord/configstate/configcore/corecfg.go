@@ -34,7 +34,7 @@ var (
 )
 
 // coreCfg returns the configuration value for the core snap.
-func coreCfg(tr config.ConfReader, key string) (result string, err error) {
+func coreCfg(tr config.ConfGetter, key string) (result string, err error) {
 	var v interface{} = ""
 	if err := tr.Get("core", key, &v); err != nil && !config.IsNoOption(err) {
 		return "", err
@@ -49,7 +49,7 @@ func coreCfg(tr config.ConfReader, key string) (result string, err error) {
 // The actual values are populated by `init()` functions in each module.
 var supportedConfigurations = make(map[string]bool, 32)
 
-func validateBoolFlag(tr config.ConfReader, flag string) error {
+func validateBoolFlag(tr config.ConfGetter, flag string) error {
 	value, err := coreCfg(tr, flag)
 	if err != nil {
 		return err
@@ -64,10 +64,10 @@ func validateBoolFlag(tr config.ConfReader, flag string) error {
 }
 
 // PlainCoreConfig carries a read-only copy of core config and implements
-// config.ConfReader interface.
+// config.ConfGetter interface.
 type PlainCoreConfig map[string]interface{}
 
-// Get implements config.ConfReader interface.
+// Get implements config.ConfGetter interface.
 func (cfg PlainCoreConfig) Get(snapName, key string, result interface{}) error {
 	if snapName != "core" {
 		return fmt.Errorf("internal error: expected core snap in Get(), %q was requested", snapName)
@@ -88,7 +88,7 @@ func (cfg PlainCoreConfig) Get(snapName, key string, result interface{}) error {
 // cfg configuration. This is a subset of core config options that is important
 // early during boot, before all the configuration is applied as part of
 // normal execution of configure hook.
-func Apply(rootDir string, cfg config.ConfReader) error {
+func Apply(rootDir string, cfg config.ConfGetter) error {
 	opts := &config.ApplyOptions{
 		Preseeding: true,
 		RootDir:    rootDir,
