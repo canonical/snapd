@@ -23,10 +23,10 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 
 	"github.com/jessevdk/go-flags"
+	"github.com/snapcore/secboot"
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
@@ -385,20 +385,53 @@ func generateInitramfsMounts() error {
 }
 
 func unlockIfEncrypted(name string) (string, error) {
-	// TODO:UC20: will need to unseal key to unlock LUKS here
 	device := filepath.Join("/dev/disk/by-label", name)
-	keyfile := filepath.Join(dirs.RunMnt, "ubuntu-boot", name+".keyfile.unsealed")
-	if osutil.FileExists(keyfile) {
+	encdev := device + "-enc"
+	if osutil.FileExists(encdev) {
 		// TODO:UC20: snap-bootstrap should validate that <name>-enc is what
 		//            we expect (and not e.g. an external disk), and also that
 		//            <name> is from <name>-enc and not an unencrypted partition
 		//            with the same name (LP #1863886)
-		cmd := exec.Command("/usr/lib/systemd/systemd-cryptsetup", "attach", name, device+"-enc", keyfile)
-		cmd.Env = os.Environ()
-		cmd.Env = append(cmd.Env, "SYSTEMD_LOG_TARGET=console")
-		if output, err := cmd.CombinedOutput(); err != nil {
-			return "", osutil.OutputErr(output, err)
+		sealedKeyPath := filepath.Join(dirs.RunMnt, "ubuntu-boot", name+".keyfile.sealed")
+		if err := unlockEncryptedPartition(name, encdev, sealedKeyPath, "", ""); err != nil {
+			return device, fmt.Errorf("cannot unlock %s: %v", name, err)
 		}
 	}
 	return device, nil
+}
+
+// unlockEncryptedPartition unseals the keyfile and opens an encrypted device.
+func unlockEncryptedPartition(name, device, keyfile, ekcfile, pinfile string) error {
+	// TODO:UC20: use the EK certificate
+	insecure := true
+
+	tpm, err := func() (*secboot.TPMConnection, error) {
+		if !insecure {
+			ekCertReader, err := os.Open(ekcfile)
+			if err != nil {
+				return nil, fmt.Errorf("cannot open endorsement key certificate file: %v", err)
+			}
+			defer ekCertReader.Close()
+			return secboot.SecureConnectToDefaultTPM(ekCertReader, nil)
+		}
+		return secboot.ConnectToDefaultTPM()
+	}()
+	if err != nil {
+		return fmt.Errorf("cannot open TPM connection: %v", err)
+	}
+	defer tpm.Close()
+
+	options := secboot.ActivateWithTPMSealedKeyOptions{
+		PINTries:            1,
+		RecoveryKeyTries:    3,
+		ActivateOptions:     []string{},
+		LockSealedKeyAccess: true,
+	}
+
+	if err := secboot.ActivateVolumeWithTPMSealedKey(tpm, name, device, keyfile, nil, &options); err != nil {
+		return err
+	}
+
+	logger.Noticef("successfully activated device %s with TPM", device)
+	return nil
 }

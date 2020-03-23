@@ -111,10 +111,13 @@
 			"revisionTime": "2017-09-28T14:21:59Z"
 		},
 		{
-			"checksumSHA1": "EzsRq79yZKRWzcwxtiwbXNThfV0=",
+			"checksumSHA1": "DR763FnfgLT38aQGZTdArrLzUVQ=",
+			"origin": "github.com/chrisccoulson/secboot",
 			"path": "github.com/snapcore/secboot",
-			"revision": "d4e74f335b09510bbf58295f984f169d9d488175",
-			"revisionTime": "2020-03-20T15:37:47Z"
+			"revision": "9d19b1a451b69e8819b322292f42bf518bf329f7",
+			"revisionTime": "2020-03-20T11:45:35Z",
+			"version": "add-crypt-helpers",
+			"versionExact": "add-crypt-helpers"
 		},
 		{
 			"checksumSHA1": "3AmEm18mKj8XxBuru/ix4OOpRkE=",
