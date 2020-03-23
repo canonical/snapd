@@ -802,6 +802,132 @@ func (s *servicesTestSuite) TestAddSnapMultiServicesStartFailOnSystemdReloadClea
 	})
 }
 
+func (s *servicesTestSuite) TestAddSnapMultiUserServicesFailEnableCleanup(c *C) {
+	var sysdLog [][]string
+	svc1Name := "snap.hello-snap.svc1.service"
+	svc2Name := "snap.hello-snap.svc2.service"
+	numEnables := 0
+
+	// sanity check: there are no service files
+	svcFiles, _ := filepath.Glob(filepath.Join(dirs.SnapUserServicesDir, "snap.hello-snap.*.service"))
+	c.Check(svcFiles, HasLen, 0)
+
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		fmt.Println(cmd)
+		sysdLog = append(sysdLog, cmd)
+		if len(cmd) >= 1 && cmd[0] == "--user" {
+			cmd = cmd[1:]
+		}
+		if len(cmd) >= 1 && cmd[0] == "--global" {
+			cmd = cmd[1:]
+		}
+		sdcmd := cmd[0]
+		if len(cmd) >= 2 {
+			sdcmd = cmd[len(cmd)-2]
+		}
+		switch sdcmd {
+		case "enable":
+			numEnables++
+			switch numEnables {
+			case 1:
+				if cmd[len(cmd)-1] == svc2Name {
+					// the services are being iterated in the "wrong" order
+					svc1Name, svc2Name = svc2Name, svc1Name
+				}
+				return nil, nil
+			case 2:
+				return nil, fmt.Errorf("failed")
+			default:
+				panic("expected no more than 2 enables")
+			}
+		case "disable", "daemon-reload":
+			return nil, nil
+		default:
+			panic("unexpected systemctl command " + sdcmd)
+		}
+	})
+	defer r()
+
+	info := snaptest.MockSnap(c, packageHello+`
+ svc1:
+  command: bin/hello
+  daemon: simple
+  daemon-scope: user
+ svc2:
+  command: bin/hello
+  daemon: simple
+  daemon-scope: user
+`, &snap.SideInfo{Revision: snap.R(12)})
+
+	err := wrappers.AddSnapServices(info, nil, nil, progress.Null)
+	c.Assert(err, ErrorMatches, "failed")
+
+	// the services are cleaned up
+	svcFiles, _ = filepath.Glob(filepath.Join(dirs.SnapUserServicesDir, "snap.hello-snap.*.service"))
+	c.Check(svcFiles, HasLen, 0)
+	c.Check(sysdLog, DeepEquals, [][]string{
+		{"--user", "--global", "--root", dirs.GlobalRootDir, "enable", svc1Name},
+		{"--user", "--global", "--root", dirs.GlobalRootDir, "enable", svc2Name}, // this one fails
+		{"--user", "--global", "--root", dirs.GlobalRootDir, "disable", svc1Name},
+		{"--user", "daemon-reload"},
+	})
+}
+
+func (s *servicesTestSuite) TestAddSnapMultiUserServicesStartFailOnSystemdReloadCleanup(c *C) {
+	// this test might be overdoing it (it's mostly covering the same ground as the previous one), but ... :-)
+	var sysdLog [][]string
+	svc1Name := "snap.hello-snap.svc1.service"
+	svc2Name := "snap.hello-snap.svc2.service"
+
+	// sanity check: there are no service files
+	svcFiles, _ := filepath.Glob(filepath.Join(dirs.SnapUserServicesDir, "snap.hello-snap.*.service"))
+	c.Check(svcFiles, HasLen, 0)
+
+	first := true
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		sysdLog = append(sysdLog, cmd)
+		if len(cmd) < 3 {
+			return nil, fmt.Errorf("failed")
+		}
+		if first {
+			first = false
+			if cmd[len(cmd)-1] == svc2Name {
+				// the services are being iterated in the "wrong" order
+				svc1Name, svc2Name = svc2Name, svc1Name
+			}
+		}
+		return nil, nil
+
+	})
+	defer r()
+
+	info := snaptest.MockSnap(c, packageHello+`
+ svc1:
+  command: bin/hello
+  daemon: simple
+  daemon-scope: user
+ svc2:
+  command: bin/hello
+  daemon: simple
+  daemon-scope: user
+`, &snap.SideInfo{Revision: snap.R(12)})
+
+	err := wrappers.AddSnapServices(info, nil, nil, progress.Null)
+	c.Assert(err, ErrorMatches, "cannot reload daemon: failed")
+
+	// the services are cleaned up
+	svcFiles, _ = filepath.Glob(filepath.Join(dirs.SnapUserServicesDir, "snap.hello-snap.*.service"))
+	c.Check(svcFiles, HasLen, 0)
+	c.Check(sysdLog, DeepEquals, [][]string{
+		{"--user", "--global", "--root", dirs.GlobalRootDir, "enable", svc1Name},
+		{"--user", "--global", "--root", dirs.GlobalRootDir, "enable", svc2Name},
+		{"--user", "daemon-reload"}, // this one fails
+		{"--user", "--global", "--root", dirs.GlobalRootDir, "disable", svc1Name},
+		{"--user", "--global", "--root", dirs.GlobalRootDir, "disable", svc2Name},
+		{"--user", "daemon-reload"}, // so does this one :-)
+	})
+}
+
 func (s *servicesTestSuite) TestAddSnapSocketFiles(c *C) {
 	info := snaptest.MockSnap(c, packageHello+`
  svc1:
