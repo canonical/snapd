@@ -49,7 +49,7 @@ var timeNow = func() time.Time {
 //
 // In addition, a few helpers exist to simplify typical use cases, for example the above example
 // can be reduced to:
-//   troot := timings.NewForTask(task) // tags set automatically from task
+//   troot := state.TimingsForTask(task) // tags set automatically from task
 //   t1 := troot.StartSpan("computation", "...")
 //   timings.Run(t1, "sub-computation", "...", func(nested *Span) {
 //          ... expensive computation
