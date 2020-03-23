@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2016 Canonical Ltd
+ * Copyright (C) 2015-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -37,7 +37,6 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/netutil"
@@ -47,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/overlord/standby"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/polkit"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/systemd"
 )
@@ -89,10 +89,9 @@ type Command struct {
 	Path       string
 	PathPrefix string
 	//
-	GET    ResponseFunc
-	PUT    ResponseFunc
-	POST   ResponseFunc
-	DELETE ResponseFunc
+	GET  ResponseFunc
+	PUT  ResponseFunc
+	POST ResponseFunc
 	// can guest GET?
 	GuestOK bool
 	// can non-admin GET?
@@ -123,7 +122,7 @@ var polkitCheckAuthorization = polkit.CheckAuthorization
 //
 // - if the user is `root` everything is allowed
 // - if a user is logged in (via `snap login`) and the command doesn't have RootOnly, everything is allowed
-// - POST/PUT/DELETE all require `root`, or just `snap login` if not RootOnly
+// - POST/PUT all require `root`, or just `snap login` if not RootOnly
 //
 // Otherwise for GET requests the following parameters are honored:
 // - GuestOK: anyone can access GET
@@ -252,8 +251,6 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		rspf = c.PUT
 	case "POST":
 		rspf = c.POST
-	case "DELETE":
-		rspf = c.DELETE
 	}
 
 	if rspf != nil {
@@ -343,7 +340,7 @@ func (d *Daemon) Init() error {
 
 	d.addRoutes()
 
-	logger.Noticef("started %v.", httputil.UserAgent())
+	logger.Noticef("started %v.", snapdenv.UserAgent())
 
 	return nil
 }
@@ -499,6 +496,8 @@ func (d *Daemon) HandleRestart(t state.RestartType) {
 		d.mu.Lock()
 		defer d.mu.Unlock()
 		d.restartSocket = true
+	case state.StopDaemon:
+		logger.Noticef("stopping snapd as requested")
 	default:
 		logger.Noticef("internal error: restart handler called with unknown restart type: %v", t)
 	}
@@ -580,14 +579,21 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 
 	err := d.tomb.Wait()
 	if err != nil {
-		// do not stop the shutdown even if the tomb errors
-		// because we already scheduled a slow shutdown and
-		// exiting here will just restart snapd (via systemd)
-		// which will lead to confusing results.
-		if restartSystem {
-			logger.Noticef("WARNING: cannot stop daemon: %v", err)
+		if err == context.DeadlineExceeded {
+			logger.Noticef("WARNING: cannot gracefully shut down in-flight snapd API activity within: %v", shutdownTimeout)
+			// the process is shutting down anyway, so we may just
+			// as well close the active connections right now
+			d.serve.Close()
 		} else {
-			return err
+			// do not stop the shutdown even if the tomb errors
+			// because we already scheduled a slow shutdown and
+			// exiting here will just restart snapd (via systemd)
+			// which will lead to confusing results.
+			if restartSystem {
+				logger.Noticef("WARNING: cannot stop daemon: %v", err)
+			} else {
+				return err
+			}
 		}
 	}
 

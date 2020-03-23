@@ -21,14 +21,17 @@ package devicestate
 
 import (
 	"context"
+	"net/http"
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
+	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -65,6 +68,14 @@ func MockMaxTentatives(max int) (restore func()) {
 	maxTentatives = max
 	return func() {
 		maxTentatives = old
+	}
+}
+
+func MockTimeNow(f func() time.Time) (restore func()) {
+	old := timeNow
+	timeNow = f
+	return func() {
+		timeNow = old
 	}
 }
 
@@ -174,6 +185,8 @@ var (
 	GadgetUpdateBlocked = gadgetUpdateBlocked
 	CurrentGadgetInfo   = currentGadgetInfo
 	PendingGadgetInfo   = pendingGadgetInfo
+
+	CriticalTaskEdges = criticalTaskEdges
 )
 
 func MockGadgetUpdate(mock func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc) error) (restore func()) {
@@ -197,5 +210,29 @@ func MockBootMakeBootable(f func(model *asserts.Model, rootdir string, bootWith 
 	bootMakeBootable = f
 	return func() {
 		bootMakeBootable = old
+	}
+}
+
+func MockCheckTPMAvailability(f func() error) (restore func()) {
+	old := checkTPMAvailability
+	checkTPMAvailability = f
+	return func() {
+		checkTPMAvailability = old
+	}
+}
+
+func MockHttputilNewHTTPClient(f func(opts *httputil.ClientOptions) *http.Client) (restore func()) {
+	old := httputilNewHTTPClient
+	httputilNewHTTPClient = f
+	return func() {
+		httputilNewHTTPClient = old
+	}
+}
+
+func MockSysconfigConfigureRunSystem(f func(opts *sysconfig.Options) error) (restore func()) {
+	old := sysconfigConfigureRunSystem
+	sysconfigConfigureRunSystem = f
+	return func() {
+		sysconfigConfigureRunSystem = old
 	}
 }

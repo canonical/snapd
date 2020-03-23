@@ -45,6 +45,7 @@ var (
 	AppArmorCacheDir          string
 	SnapAppArmorAdditionalDir string
 	SnapConfineAppArmorDir    string
+	SnapSeccompBase           string
 	SnapSeccompDir            string
 	SnapMountPolicyDir        string
 	SnapUdevRulesDir          string
@@ -56,6 +57,8 @@ var (
 	SnapRunDir                string
 	SnapRunNsDir              string
 	SnapRunLockDir            string
+
+	SnapdStoreSSLCertsDir string
 
 	SnapSeedDir   string
 	SnapDeviceDir string
@@ -239,8 +242,17 @@ func SetRootDir(rootdir string) {
 	}
 	GlobalRootDir = rootdir
 
+	altDirDistros := []string{
+		"antergos",
+		"arch",
+		"archlinux",
+		"fedora",
+		"manjaro",
+		"manjaro-arm",
+	}
+
 	isInsideBase, _ := isInsideBaseSnap()
-	if !isInsideBase && release.DistroLike("fedora", "arch", "archlinux", "manjaro", "antergos") {
+	if !isInsideBase && release.DistroLike(altDirDistros...) {
 		SnapMountDir = filepath.Join(rootdir, "/var/lib/snapd/snap")
 	} else {
 		SnapMountDir = filepath.Join(rootdir, defaultSnapMountDir)
@@ -253,7 +265,8 @@ func SetRootDir(rootdir string) {
 	AppArmorCacheDir = filepath.Join(rootdir, "/var/cache/apparmor")
 	SnapAppArmorAdditionalDir = filepath.Join(rootdir, snappyDir, "apparmor", "additional")
 	SnapDownloadCacheDir = filepath.Join(rootdir, snappyDir, "cache")
-	SnapSeccompDir = filepath.Join(rootdir, snappyDir, "seccomp", "bpf")
+	SnapSeccompBase = filepath.Join(rootdir, snappyDir, "seccomp")
+	SnapSeccompDir = filepath.Join(SnapSeccompBase, "bpf")
 	SnapMountPolicyDir = filepath.Join(rootdir, snappyDir, "mount")
 	SnapMetaDir = filepath.Join(rootdir, snappyDir, "meta")
 	SnapBlobDir = SnapBlobDirUnder(rootdir)
@@ -265,6 +278,8 @@ func SetRootDir(rootdir string) {
 	SnapRunDir = filepath.Join(rootdir, "/run/snapd")
 	SnapRunNsDir = filepath.Join(SnapRunDir, "/ns")
 	SnapRunLockDir = filepath.Join(SnapRunDir, "/lock")
+
+	SnapdStoreSSLCertsDir = filepath.Join(rootdir, snappyDir, "ssl/store-certs")
 
 	// keep in sync with the debian/snapd.socket file:
 	SnapdSocket = filepath.Join(rootdir, "/run/snapd.socket")
@@ -331,7 +346,7 @@ func SetRootDir(rootdir string) {
 	}
 
 	XdgRuntimeDirBase = filepath.Join(rootdir, "/run/user")
-	XdgRuntimeDirGlob = filepath.Join(rootdir, XdgRuntimeDirBase, "*/")
+	XdgRuntimeDirGlob = filepath.Join(XdgRuntimeDirBase, "*/")
 
 	CompletionHelperInCore = filepath.Join(CoreLibExecDir, "etelpmoc.sh")
 	CompletersDir = filepath.Join(rootdir, "/usr/share/bash-completion/completions/")
@@ -389,5 +404,6 @@ func CompleteShPath(base string) string {
 
 func IsCompleteShSymlink(compPath string) bool {
 	target, err := os.Readlink(compPath)
-	return err == nil && filepath.Base(target) == "complete.sh"
+	// check if the target paths ends with "/snapd/complete.sh"
+	return err == nil && filepath.Base(filepath.Dir(target)) == "snapd" && filepath.Base(target) == "complete.sh"
 }

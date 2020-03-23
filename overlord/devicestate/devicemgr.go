@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2019 Canonical Ltd
+ * Copyright (C) 2016-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,8 +20,10 @@
 package devicestate
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -31,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -40,6 +43,8 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/seed"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -65,6 +70,8 @@ type DeviceManager struct {
 	becomeOperationalBackoff     time.Duration
 	registered                   bool
 	reg                          chan struct{}
+
+	preseed bool
 }
 
 // Manager returns a new device manager.
@@ -74,7 +81,6 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	keypairMgr, err := asserts.OpenFSKeypairManager(dirs.SnapDeviceDir)
 	if err != nil {
 		return nil, err
-
 	}
 
 	m := &DeviceManager{
@@ -82,6 +88,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		keypairMgr: keypairMgr,
 		newStore:   newStore,
 		reg:        make(chan struct{}),
+		preseed:    snapdenv.Preseeding(),
 	}
 
 	modeEnv, err := boot.ReadModeenv("")
@@ -104,6 +111,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 
 	runner.AddHandler("generate-device-key", m.doGenerateDeviceKey, nil)
 	runner.AddHandler("request-serial", m.doRequestSerial, nil)
+	runner.AddHandler("mark-preseeded", m.doMarkPreseeded, nil)
 	runner.AddHandler("mark-seeded", m.doMarkSeeded, nil)
 	runner.AddHandler("setup-run-system", m.doSetupRunSystem, nil)
 	runner.AddHandler("prepare-remodeling", m.doPrepareRemodeling, nil)
@@ -275,8 +283,6 @@ func (m *DeviceManager) ensureOperational() error {
 		return nil
 	}
 
-	perfTimings := timings.New(map[string]string{"ensure": "become-operational"})
-
 	device, err := m.device()
 	if err != nil {
 		return err
@@ -286,6 +292,8 @@ func (m *DeviceManager) ensureOperational() error {
 		// serial is set, we are all set
 		return nil
 	}
+
+	perfTimings := timings.New(map[string]string{"ensure": "become-operational"})
 
 	// conditions to trigger device registration
 	//
@@ -404,7 +412,7 @@ func (m *DeviceManager) ensureOperational() error {
 	chg := m.state.NewChange("become-operational", i18n.G("Initialize device"))
 	chg.AddAll(state.NewTaskSet(tasks...))
 
-	perfTimings.AddTag("change-id", chg.ID())
+	state.TagTimingsWithChange(perfTimings, chg)
 	perfTimings.Save(m.state)
 
 	return nil
@@ -418,8 +426,6 @@ func (m *DeviceManager) ensureSeeded() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	perfTimings := timings.New(map[string]string{"ensure": "seed"})
-
 	var seeded bool
 	err := m.state.Get("seeded", &seeded)
 	if err != nil && err != state.ErrNoState {
@@ -428,6 +434,8 @@ func (m *DeviceManager) ensureSeeded() error {
 	if seeded {
 		return nil
 	}
+
+	perfTimings := timings.New(map[string]string{"ensure": "seed"})
 
 	if m.changeInFlight("seed") {
 		return nil
@@ -440,6 +448,10 @@ func (m *DeviceManager) ensureSeeded() error {
 			Mode:  m.modeEnv.Mode,
 		}
 	}
+	if m.preseed {
+		opts = &populateStateFromSeedOptions{Preseed: true}
+	}
+
 	var tsAll []*state.TaskSet
 	timings.Run(perfTimings, "state-from-seed", "populate state from seed", func(tm timings.Measurer) {
 		tsAll, err = populateStateFromSeed(m.state, opts, tm)
@@ -458,7 +470,7 @@ func (m *DeviceManager) ensureSeeded() error {
 	}
 	m.state.EnsureBefore(0)
 
-	perfTimings.AddTag("change-id", chg.ID())
+	state.TagTimingsWithChange(perfTimings, chg)
 	perfTimings.Save(m.state)
 	return nil
 }
@@ -546,6 +558,40 @@ func (m *DeviceManager) ensureInstalled() error {
 	return nil
 }
 
+var timeNow = time.Now
+
+// StartOfOperationTime returns the time when snapd started operating,
+// and sets it in the state when called for the first time.
+// The StartOfOperationTime time is seed-time if available,
+// or current time otherwise.
+func (m *DeviceManager) StartOfOperationTime() (time.Time, error) {
+	var opTime time.Time
+	if m.preseed {
+		return opTime, fmt.Errorf("internal error: unexpected call to StartOfOperationTime in preseed mode")
+	}
+	err := m.state.Get("start-of-operation-time", &opTime)
+	if err == nil {
+		return opTime, nil
+	}
+	if err != nil && err != state.ErrNoState {
+		return opTime, err
+	}
+
+	// start-of-operation-time not set yet, use seed-time if available
+	var seedTime time.Time
+	err = m.state.Get("seed-time", &seedTime)
+	if err != nil && err != state.ErrNoState {
+		return opTime, err
+	}
+	if err == nil {
+		opTime = seedTime
+	} else {
+		opTime = timeNow()
+	}
+	m.state.Set("start-of-operation-time", opTime)
+	return opTime, nil
+}
+
 func markSeededInConfig(st *state.State) error {
 	var seedDone bool
 	tr := config.NewTransaction(st)
@@ -613,20 +659,23 @@ func (m *DeviceManager) Ensure() error {
 	if err := m.ensureSeeded(); err != nil {
 		errs = append(errs, err)
 	}
-	if err := m.ensureOperational(); err != nil {
-		errs = append(errs, err)
-	}
 
-	if err := m.ensureBootOk(); err != nil {
-		errs = append(errs, err)
-	}
+	if !m.preseed {
+		if err := m.ensureOperational(); err != nil {
+			errs = append(errs, err)
+		}
 
-	if err := m.ensureSeedInConfig(); err != nil {
-		errs = append(errs, err)
-	}
+		if err := m.ensureBootOk(); err != nil {
+			errs = append(errs, err)
+		}
 
-	if err := m.ensureInstalled(); err != nil {
-		errs = append(errs, err)
+		if err := m.ensureSeedInConfig(); err != nil {
+			errs = append(errs, err)
+		}
+
+		if err := m.ensureInstalled(); err != nil {
+			errs = append(errs, err)
+		}
 	}
 
 	if len(errs) > 0 {
@@ -676,6 +725,82 @@ func (m *DeviceManager) Model() (*asserts.Model, error) {
 // Serial returns the device serial assertion.
 func (m *DeviceManager) Serial() (*asserts.Serial, error) {
 	return findSerial(m.state, nil)
+}
+
+type SystemAction struct {
+	Title string
+	Mode  string
+}
+
+type System struct {
+	// Current is true when the system running now was installed from that
+	// seed
+	Current bool
+	// Label of the seed system
+	Label string
+	// Model assertion of the system
+	Model *asserts.Model
+	// Brand information
+	Brand *asserts.Account
+	// Actions available for this system
+	Actions []SystemAction
+}
+
+func systemSeedModelAndBrand(label string) (model *asserts.Model, brand *asserts.Account, err error) {
+	s, err := seed.Open(dirs.SnapSeedDir, label)
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot open: %v", err)
+	}
+	if err := s.LoadAssertions(nil, nil); err != nil {
+		return nil, nil, fmt.Errorf("cannot load assertions: %v", err)
+	}
+	// get the model
+	model, err = s.Model()
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot obtain model: %v", err)
+	}
+	brand, err = s.Brand()
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot obtain brand: %v", err)
+	}
+	return model, brand, nil
+}
+
+var ErrNoSystems = errors.New("no systems seeds")
+
+// Systems list the available recovery/seeding systems. Returns the list of
+// systems, ErrNoSystems when no systems seeds were found or other error.
+func (m *DeviceManager) Systems() ([]System, error) {
+	systemLabels, err := filepath.Glob(filepath.Join(dirs.SnapSeedDir, "systems", "*"))
+	if err != nil && !os.IsNotExist(err) {
+		return nil, fmt.Errorf("cannot list available systems: %v", err)
+	}
+	if len(systemLabels) == 0 {
+		// maybe not a UC20 system
+		return nil, ErrNoSystems
+	}
+
+	var systems []System
+	for _, fpLabel := range systemLabels {
+		label := filepath.Base(fpLabel)
+		model, brand, err := systemSeedModelAndBrand(label)
+		if err != nil {
+			// TODO:UC20 add a Broken field to the seed system like
+			// we do for snap.Info
+			logger.Noticef("cannot load system %q seed: %v", label, err)
+			continue
+		}
+		systems = append(systems, System{
+			// TODO:UC20 check if current installation was done with that
+			// system
+			Current: false,
+			Label:   label,
+			Model:   model,
+			Brand:   brand,
+			// TODO:UC20: fill actions
+		})
+	}
+	return systems, nil
 }
 
 // implement storecontext.Backend

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -37,19 +37,19 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snapdenv"
 )
 
 func init() {
 	// set User-Agent for when 'snap' talks to the store directly (snap download etc...)
-	httputil.SetUserAgentFromVersion(cmd.Version, "snap")
+	snapdenv.SetUserAgentFromVersion(cmd.Version, "snap")
 
-	if osutil.GetenvBool("SNAPD_DEBUG") || osutil.GetenvBool("SNAPPY_TESTING") {
+	if osutil.GetenvBool("SNAPD_DEBUG") || snapdenv.Testing() {
 		// in tests or when debugging, enforce the "tidy" lint checks
 		noticef = logger.Panicf
 	}
@@ -104,6 +104,9 @@ var commands []*cmdInfo
 // debugCommands holds information about all debug commands.
 var debugCommands []*cmdInfo
 
+// routineCommands holds information about all internal commands.
+var routineCommands []*cmdInfo
+
 // addCommand replaces parser.addCommand() in a way that is compatible with
 // re-constructing a pristine parser.
 func addCommand(name, shortHelp, longHelp string, builder func() flags.Commander, optDescs map[string]string, argDescs []argDesc) *cmdInfo {
@@ -132,6 +135,22 @@ func addDebugCommand(name, shortHelp, longHelp string, builder func() flags.Comm
 		argDescs:  argDescs,
 	}
 	debugCommands = append(debugCommands, info)
+	return info
+}
+
+// addRoutineCommand replaces parser.addCommand() in a way that is
+// compatible with re-constructing a pristine parser. It is meant for
+// adding "snap routine" commands.
+func addRoutineCommand(name, shortHelp, longHelp string, builder func() flags.Commander, optDescs map[string]string, argDescs []argDesc) *cmdInfo {
+	info := &cmdInfo{
+		name:      name,
+		shortHelp: shortHelp,
+		longHelp:  longHelp,
+		builder:   builder,
+		optDescs:  optDescs,
+		argDescs:  argDescs,
+	}
+	routineCommands = append(routineCommands, info)
 	return info
 }
 
@@ -230,42 +249,9 @@ func completionHandler(comps []flags.Completion) {
 	}
 }
 
-// Parser creates and populates a fresh parser.
-// Since commands have local state a fresh parser is required to isolate tests
-// from each other.
-func Parser(cli *client.Client) *flags.Parser {
-	optionsData.Version = func() {
-		printVersions(cli)
-		panic(&exitStatus{0})
-	}
-	flagopts := flags.Options(flags.PassDoubleDash)
-	if firstNonOptionIsRun() {
-		flagopts |= flags.PassAfterNonOption
-	}
-	parser := flags.NewParser(&optionsData, flagopts)
-	parser.CompletionHandler = completionHandler
-	parser.ShortDescription = i18n.G("Tool to interact with snaps")
-	parser.LongDescription = longSnapDescription
-	// hide the unhelpful "[OPTIONS]" from help output
-	parser.Usage = ""
-	if version := parser.FindOptionByLongName("version"); version != nil {
-		version.Description = i18n.G("Print the version and exit")
-		version.Hidden = true
-	}
-	// add --help like what go-flags would do for us, but hidden
-	addHelp(parser)
-
-	seen := make(map[string]bool, len(commands)+len(debugCommands))
-	checkUnique := func(ci *cmdInfo, kind string) {
-		if seen[ci.shortHelp] && ci.shortHelp != "Internal" && ci.shortHelp != "Deprecated (hidden)" {
-			logger.Panicf(`%scommand %q has an already employed description != "Internal"|"Deprecated (hidden)": %s`, kind, ci.name, ci.shortHelp)
-		}
-		seen[ci.shortHelp] = true
-	}
-
-	// Add all regular commands
+func registerCommands(cli *client.Client, parser *flags.Parser, baseCmd *flags.Command, commands []*cmdInfo, checkUnique func(*cmdInfo)) {
 	for _, c := range commands {
-		checkUnique(c, "")
+		checkUnique(c)
 		markForNoCompletion(c)
 
 		obj := c.builder()
@@ -276,7 +262,7 @@ func Parser(cli *client.Client) *flags.Parser {
 			x.setParser(parser)
 		}
 
-		cmd, err := parser.AddCommand(c.name, c.shortHelp, strings.TrimSpace(c.longHelp), obj)
+		cmd, err := baseCmd.AddCommand(c.name, c.shortHelp, strings.TrimSpace(c.longHelp), obj)
 		if err != nil {
 			logger.Panicf("cannot add command %q: %v", c.name, err)
 		}
@@ -323,6 +309,45 @@ func Parser(cli *client.Client) *flags.Parser {
 			c.extra(cmd)
 		}
 	}
+}
+
+// Parser creates and populates a fresh parser.
+// Since commands have local state a fresh parser is required to isolate tests
+// from each other.
+func Parser(cli *client.Client) *flags.Parser {
+	optionsData.Version = func() {
+		printVersions(cli)
+		panic(&exitStatus{0})
+	}
+	flagopts := flags.Options(flags.PassDoubleDash)
+	if firstNonOptionIsRun() {
+		flagopts |= flags.PassAfterNonOption
+	}
+	parser := flags.NewParser(&optionsData, flagopts)
+	parser.CompletionHandler = completionHandler
+	parser.ShortDescription = i18n.G("Tool to interact with snaps")
+	parser.LongDescription = longSnapDescription
+	// hide the unhelpful "[OPTIONS]" from help output
+	parser.Usage = ""
+	if version := parser.FindOptionByLongName("version"); version != nil {
+		version.Description = i18n.G("Print the version and exit")
+		version.Hidden = true
+	}
+	// add --help like what go-flags would do for us, but hidden
+	addHelp(parser)
+
+	seen := make(map[string]bool, len(commands)+len(debugCommands)+len(routineCommands))
+	checkUnique := func(ci *cmdInfo, kind string) {
+		if seen[ci.shortHelp] && ci.shortHelp != "Internal" && ci.shortHelp != "Deprecated (hidden)" {
+			logger.Panicf(`%scommand %q has an already employed description != "Internal"|"Deprecated (hidden)": %s`, kind, ci.name, ci.shortHelp)
+		}
+		seen[ci.shortHelp] = true
+	}
+
+	// Add all regular commands
+	registerCommands(cli, parser, parser.Command, commands, func(ci *cmdInfo) {
+		checkUnique(ci, "")
+	})
 	// Add the debug command
 	debugCommand, err := parser.AddCommand("debug", shortDebugHelp, longDebugHelp, &cmdDebug{})
 	debugCommand.Hidden = true
@@ -330,54 +355,19 @@ func Parser(cli *client.Client) *flags.Parser {
 		logger.Panicf("cannot add command %q: %v", "debug", err)
 	}
 	// Add all the sub-commands of the debug command
-	for _, c := range debugCommands {
-		checkUnique(c, "debug ")
-		markForNoCompletion(c)
-
-		obj := c.builder()
-		if x, ok := obj.(clientSetter); ok {
-			x.setClient(cli)
-		}
-		cmd, err := debugCommand.AddCommand(c.name, c.shortHelp, strings.TrimSpace(c.longHelp), obj)
-		if err != nil {
-			logger.Panicf("cannot add debug command %q: %v", c.name, err)
-		}
-		cmd.Hidden = c.hidden
-		opts := cmd.Options()
-		if c.optDescs != nil && len(opts) != len(c.optDescs) {
-			logger.Panicf("wrong number of option descriptions for %s: expected %d, got %d", c.name, len(opts), len(c.optDescs))
-		}
-		for _, opt := range opts {
-			name := opt.LongName
-			if name == "" {
-				name = string(opt.ShortName)
-			}
-			desc, ok := c.optDescs[name]
-			if !(c.optDescs == nil || ok) {
-				logger.Panicf("%s missing description for %s", c.name, name)
-			}
-			lintDesc(c.name, name, desc, opt.Description)
-			if desc != "" {
-				opt.Description = desc
-			}
-		}
-
-		args := cmd.Args()
-		if c.argDescs != nil && len(args) != len(c.argDescs) {
-			logger.Panicf("wrong number of argument descriptions for %s: expected %d, got %d", c.name, len(args), len(c.argDescs))
-		}
-		for i, arg := range args {
-			name, desc := arg.Name, ""
-			if c.argDescs != nil {
-				name = c.argDescs[i].name
-				desc = c.argDescs[i].desc
-			}
-			lintArg(c.name, name, desc, arg.Description)
-			name = fixupArg(name)
-			arg.Name = name
-			arg.Description = desc
-		}
+	registerCommands(cli, parser, debugCommand, debugCommands, func(ci *cmdInfo) {
+		checkUnique(ci, "debug ")
+	})
+	// Add the internal command
+	routineCommand, err := parser.AddCommand("routine", shortRoutineHelp, longRoutineHelp, &cmdRoutine{})
+	routineCommand.Hidden = true
+	if err != nil {
+		logger.Panicf("cannot add command %q: %v", "internal", err)
 	}
+	// Add all the sub-commands of the routine command
+	registerCommands(cli, parser, routineCommand, routineCommands, func(ci *cmdInfo) {
+		checkUnique(ci, "routine ")
+	})
 	return parser
 }
 
@@ -397,7 +387,7 @@ func mkClient() *client.Client {
 	cfg := &ClientConfig
 	// Set client user-agent when talking to the snapd daemon to the
 	// same value as when talking to the store.
-	cfg.UserAgent = httputil.UserAgent()
+	cfg.UserAgent = snapdenv.UserAgent()
 
 	cli := client.New(cfg)
 	goos := runtime.GOOS

@@ -55,13 +55,17 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store/storetest"
+	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
 
 func TestDeviceManager(t *testing.T) { TestingT(t) }
 
 type deviceMgrBaseSuite struct {
+	testutil.BaseTest
+
 	o       *overlord.Overlord
 	state   *state.State
 	se      *overlord.StateEngine
@@ -117,6 +121,8 @@ var (
 )
 
 func (s *deviceMgrBaseSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+
 	dirs.SetRootDir(c.MkDir())
 	os.MkdirAll(dirs.SnapRunDir, 0755)
 
@@ -300,8 +306,9 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededAlsoOnClassic(c *C) {
 	release.OnClassic = true
 
 	called := false
-	restore := devicestate.MockPopulateStateFromSeed(func(*state.State, *devicestate.PopulateStateFromSeedOptions, timings.Measurer) ([]*state.TaskSet, error) {
+	restore := devicestate.MockPopulateStateFromSeed(func(st *state.State, opts *devicestate.PopulateStateFromSeedOptions, tm timings.Measurer) ([]*state.TaskSet, error) {
 		called = true
+		c.Check(opts, IsNil)
 		return nil, nil
 	})
 	defer restore()
@@ -410,7 +417,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkBootloaderHappy(c *C) {
 	s.setPCModelInState(c)
 
 	s.bootloader.SetBootVars(map[string]string{
-		"snap_mode":     "trying",
+		"snap_mode":     boot.TryingStatus,
 		"snap_try_core": "core_1.snap",
 	})
 
@@ -477,7 +484,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkNotRunAgain(c *C) {
 	s.setPCModelInState(c)
 
 	s.bootloader.SetBootVars(map[string]string{
-		"snap_mode":     "trying",
+		"snap_mode":     boot.TryingStatus,
 		"snap_try_core": "core_1.snap",
 	})
 	s.bootloader.SetErr = fmt.Errorf("ensure bootloader is not used")
@@ -1135,4 +1142,107 @@ func (s *deviceMgrSuite) TestDeviceManagerEmptyOperatingModeRun(c *C) {
 
 	// empty is returned as "run"
 	c.Check(s.mgr.OperatingMode(), Equals, "run")
+}
+
+type startOfOperationTimeSuite struct {
+	state  *state.State
+	mgr    *devicestate.DeviceManager
+	runner *state.TaskRunner
+}
+
+var _ = Suite(&startOfOperationTimeSuite{})
+
+func (s *startOfOperationTimeSuite) SetUpTest(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	os.MkdirAll(dirs.SnapRunDir, 0755)
+
+	s.state = state.New(nil)
+	s.runner = state.NewTaskRunner(s.state)
+	s.mgr = nil
+}
+
+func (s *startOfOperationTimeSuite) TearDownTest(c *C) {
+	dirs.SetRootDir("")
+}
+
+func (s *startOfOperationTimeSuite) manager(c *C) *devicestate.DeviceManager {
+	if s.mgr == nil {
+		hookMgr, err := hookstate.Manager(s.state, s.runner)
+		c.Assert(err, IsNil)
+		mgr, err := devicestate.Manager(s.state, hookMgr, s.runner, nil)
+		c.Assert(err, IsNil)
+		s.mgr = mgr
+	}
+	return s.mgr
+}
+
+func (s *startOfOperationTimeSuite) TestStartOfOperationTimeFromSeedTime(c *C) {
+	mgr := s.manager(c)
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	seedTime := time.Now().AddDate(0, -1, 0)
+	st.Set("seed-time", seedTime)
+
+	operationTime, err := mgr.StartOfOperationTime()
+	c.Assert(err, IsNil)
+	c.Check(operationTime.Equal(seedTime), Equals, true)
+
+	var op time.Time
+	st.Get("start-of-operation-time", &op)
+	c.Check(op.Equal(operationTime), Equals, true)
+}
+
+func (s *startOfOperationTimeSuite) TestStartOfOperationTimeAlreadySet(c *C) {
+	mgr := s.manager(c)
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	op := time.Now().AddDate(0, -1, 0)
+	st.Set("start-of-operation-time", op)
+
+	operationTime, err := mgr.StartOfOperationTime()
+	c.Assert(err, IsNil)
+	c.Check(operationTime.Equal(op), Equals, true)
+}
+
+func (s *startOfOperationTimeSuite) TestStartOfOperationTimeNoSeedTime(c *C) {
+	mgr := s.manager(c)
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	now := time.Now().Add(-1 * time.Second)
+	devicestate.MockTimeNow(func() time.Time {
+		return now
+	})
+
+	operationTime, err := mgr.StartOfOperationTime()
+	c.Assert(err, IsNil)
+	c.Check(operationTime.Equal(now), Equals, true)
+
+	// repeated call returns already set time
+	prev := now
+	now = time.Now().Add(-10 * time.Hour)
+	operationTime, err = s.manager(c).StartOfOperationTime()
+	c.Assert(err, IsNil)
+	c.Check(operationTime.Equal(prev), Equals, true)
+}
+
+func (s *startOfOperationTimeSuite) TestStartOfOperationErrorIfPreseed(c *C) {
+	restore := snapdenv.MockPreseeding(true)
+	defer restore()
+
+	mgr := s.manager(c)
+	st := s.state
+
+	st.Lock()
+	defer st.Unlock()
+	_, err := mgr.StartOfOperationTime()
+	c.Assert(err, ErrorMatches, `internal error: unexpected call to StartOfOperationTime in preseed mode`)
 }

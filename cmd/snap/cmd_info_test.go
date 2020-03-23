@@ -273,7 +273,7 @@ func (s *infoSuite) TestMaybePrintBuildDate(c *check.C) {
 	c.Assert(ioutil.WriteFile(arbfile, nil, 0600), check.IsNil)
 	filename := filepath.Join(c.MkDir(), "foo.snap")
 	diskSnap := squashfs.New(filename)
-	c.Assert(diskSnap.Build(dir, "app"), check.IsNil)
+	c.Assert(diskSnap.Build(dir, nil), check.IsNil)
 	buildDate := diskSnap.BuildDate().Format(time.Kitchen)
 
 	// no disk snap -> no build date
@@ -305,7 +305,7 @@ func (s *infoSuite) TestMaybePrintSum(c *check.C) {
 	dir := c.MkDir()
 	filename := filepath.Join(c.MkDir(), "foo.snap")
 	diskSnap := squashfs.New(filename)
-	c.Assert(diskSnap.Build(dir, "app"), check.IsNil)
+	c.Assert(diskSnap.Build(dir, nil), check.IsNil)
 	iw := snap.NewInfoWriter(&buf)
 	snap.SetVerbose(iw, true)
 

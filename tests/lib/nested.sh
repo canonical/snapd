@@ -10,26 +10,32 @@ MON_PORT=8888
 
 wait_for_ssh(){
     retry=150
+    wait=1
     while ! execute_remote true; do
         retry=$(( retry - 1 ))
         if [ $retry -le 0 ]; then
             echo "Timed out waiting for ssh. Aborting!"
             return 1
         fi
-        sleep 1
+        sleep "$wait"
     done
 }
 
 wait_for_no_ssh(){
-    retry=150
+    retry=120
+    wait=1
     while execute_remote true; do
         retry=$(( retry - 1 ))
         if [ $retry -le 0 ]; then
             echo "Timed out waiting for no ssh. Aborting!"
             return 1
         fi
-        sleep 1
+        sleep "$wait"
     done
+}
+
+test_ssh(){
+    sshpass -p ubuntu ssh -p 8022 -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no user1@localhost true
 }
 
 prepare_ssh(){
@@ -49,19 +55,54 @@ get_qemu_for_nested_vm(){
     command -v qemu-system-x86_64
 }
 
-get_image_url_for_nested_vm(){
+get_google_image_url_for_nested_vm(){
     case "$SPREAD_SYSTEM" in
-    ubuntu-16.04-64)
-        echo "https://cloud-images.ubuntu.com/xenial/current/xenial-server-cloudimg-amd64-disk1.img"
-        ;;
-    ubuntu-18.04-64)
-        echo "https://cloud-images.ubuntu.com/bionic/current/bionic-server-cloudimg-amd64.img"
-        ;;
-    *)
-        echo "unsupported system"
-        exit 1
-        ;;
-    esac
+        ubuntu-16.04-64)
+            echo "https://storage.googleapis.com/spread-snapd-tests/images/xenial-server-cloudimg-amd64-disk1.img"
+            ;;
+        ubuntu-18.04-64)
+            echo "https://storage.googleapis.com/spread-snapd-tests/images/bionic-server-cloudimg-amd64.img"
+            ;;
+        ubuntu-19.10-64)
+            echo "https://storage.googleapis.com/spread-snapd-tests/images/eoan-server-cloudimg-amd64.img"
+            ;;
+        ubuntu-20.04-64)
+            echo "https://storage.googleapis.com/spread-snapd-tests/images/focal-server-cloudimg-amd64.img"
+            ;;
+        *)
+            echo "unsupported system"
+            exit 1
+            ;;
+        esac
+}
+
+get_ubuntu_image_url_for_nested_vm(){
+    case "$SPREAD_SYSTEM" in
+        ubuntu-16.04-64)
+            echo "https://cloud-images.ubuntu.com/xenial/current/xenial-server-cloudimg-amd64-disk1.img"
+            ;;
+        ubuntu-18.04-64)
+            echo "https://cloud-images.ubuntu.com/bionic/current/bionic-server-cloudimg-amd64.img"
+            ;;
+        ubuntu-19.10-64)
+            echo "https://cloud-images.ubuntu.com/eoan/current/eoan-server-cloudimg-amd64.img"
+            ;;
+        ubuntu-20.04-64)
+            echo "https://cloud-images.ubuntu.com/focal/current/focal-server-cloudimg-amd64.img"
+            ;;
+        *)
+            echo "unsupported system"
+            exit 1
+            ;;
+        esac
+}
+
+get_image_url_for_nested_vm(){
+    if [[ "$SPREAD_BACKEND" == google* ]]; then
+        get_google_image_url_for_nested_vm
+    else
+        get_ubuntu_image_url_for_nested_vm
+    fi
 }
 
 is_core_nested_system(){
@@ -88,11 +129,30 @@ is_classic_nested_system(){
     return 1
 }
 
+is_focal_system(){
+    test "$(lsb_release -cs)" = focal
+}
+
+is_core_20_nested_system(){
+    if [ "$SPREAD_SYSTEM" = ubuntu-20.04-64 ]; then
+        return 0
+    fi
+    return 1
+}
+
+is_bionic_system(){
+    test "$(lsb_release -cs)" = bionic
+}
+
 is_core_18_nested_system(){
     if [ "$SPREAD_SYSTEM" = ubuntu-18.04-64 ]; then
         return 0
     fi
     return 1
+}
+
+is_xenial_system(){
+    test "$(lsb_release -cs)" = xenial
 }
 
 is_core_16_nested_system(){
@@ -114,7 +174,7 @@ refresh_to_new_core(){
             execute_remote "snap info core" | grep -E "^tracking: +latest/${NEW_CHANNEL}"
         fi
 
-        if is_core_18_nested_system; then
+        if is_core_18_nested_system || is_core_20_nested_system; then
             execute_remote "snap refresh snapd --${NEW_CHANNEL}"
             execute_remote "snap info snapd" | grep -E "^tracking: +latest/${NEW_CHANNEL}"
         else
@@ -131,15 +191,22 @@ cleanup_nested_env(){
 }
 
 create_nested_core_vm(){
+    local BUILD_FROM_CURRENT="${1:-}"
+
     mkdir -p "$WORK_DIR/image"
     if [ ! -f "$WORK_DIR/image/ubuntu-core.img" ]; then
         local UBUNTU_IMAGE
-        UBUNTU_IMAGE=$(command -v ubuntu-image)
+
+        if ! snap list ubuntu-image; then
+            snap install ubuntu-image --classic
+        fi
+        UBUNTU_IMAGE=/snap/bin/ubuntu-image
 
         # create ubuntu-core image
+        local EXTRA_FUNDAMENTAL=""
         local EXTRA_SNAPS=""
         if [ -d "${PWD}/extra-snaps" ] && [ "$(find "${PWD}/extra-snaps/" -type f -name "*.snap" | wc -l)" -gt 0 ]; then
-            EXTRA_SNAPS="--extra-snaps ${PWD}/extra-snaps/*.snap"
+            EXTRA_SNAPS="--snap ${PWD}/extra-snaps/*.snap"
         fi
 
         local NESTED_MODEL=""
@@ -150,15 +217,41 @@ create_nested_core_vm(){
         ubuntu-18.04-64)
             NESTED_MODEL="$TESTSLIB/assertions/nested-18-amd64.model"
             ;;
+        ubuntu-20.04-64)
+            NESTED_MODEL="$TESTSLIB/assertions/nested-20-amd64.model"
+
+            # shellcheck source=tests/lib/prepare.sh
+            . "$TESTSLIB"/prepare.sh
+            snap download --basename=pc-kernel --channel="20/edge" pc-kernel
+            uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$WORK_DIR/image"
+
+            EXTRA_FUNDAMENTAL="--snap $WORK_DIR/image/pc-kernel_*.snap"
+            chmod 0600 "$WORK_DIR"/image/pc-kernel_*.snap
+            rm -f "$PWD/pc-kernel.snap"
+            ;;
         *)
             echo "unsupported system"
             exit 1
             ;;
         esac
 
-        "$UBUNTU_IMAGE" --image-size 3G "$NESTED_MODEL" \
+        if [ "$BUILD_FROM_CURRENT" = "true" ]; then
+            if is_core_16_nested_system; then
+                echo "Build from current branch is not supported yet for uc16"
+                exit 1
+            fi
+            # shellcheck source=tests/lib/prepare.sh
+            . "$TESTSLIB"/prepare.sh
+            snap download --channel="latest/edge" snapd
+            repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$PWD/new-snapd" "false"
+            EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-snapd/snapd_*.snap"
+        fi
+
+        "$UBUNTU_IMAGE" --image-size 10G "$NESTED_MODEL" \
             --channel "$CORE_CHANNEL" \
-            --output "$WORK_DIR/image/ubuntu-core.img" "$EXTRA_SNAPS"
+            --output "$WORK_DIR/image/ubuntu-core.img" \
+            "$EXTRA_FUNDAMENTAL" \
+            "$EXTRA_SNAPS"
 
         create_assertions_disk
     fi
@@ -170,20 +263,66 @@ start_nested_core_vm(){
     # As core18 systems use to fail to start the assetion disk when using the
     # snapshot feature, we copy the original image and use that copy to start
     # the VM.
-    IMAGE="$WORK_DIR/image/ubuntu-core-new.img"
+    IMAGE_FILE="$WORK_DIR/image/ubuntu-core-new.img"
+    cp -f "$WORK_DIR/image/ubuntu-core.img" "$IMAGE_FILE"
 
-    cp -f "$WORK_DIR/image/ubuntu-core.img" "$IMAGE"
-    systemd_create_and_start_unit "$NESTED_VM" "${QEMU} -m 2048 -nographic \
-        -net nic,model=virtio -net user,hostfwd=tcp::$SSH_PORT-:22 \
-        -drive file=$IMAGE,cache=none,format=raw \
-        -drive file=$WORK_DIR/assertions.disk,cache=none,format=raw \
-        -monitor tcp:127.0.0.1:$MON_PORT,server,nowait -usb \
-        -machine accel=kvm"
+    # Now qemu parameters are defined
+    PARAM_MEM="-m 2048"
+    PARAM_DISPLAY="-nographic"
+    PARAM_EXTRA="-machine accel=kvm"
+    PARAM_NETWORK="-net nic,model=virtio -net user,hostfwd=tcp::$SSH_PORT-:22"
+    PARAM_ASSERTIONS="-drive file=$WORK_DIR/assertions.disk,cache=none,format=raw"
+    PARAM_MONITOR="-monitor tcp:127.0.0.1:$MON_PORT,server,nowait -usb"
+    if is_core_20_nested_system; then
+        if ! is_focal_system; then
+            cp /etc/apt/sources.list /etc/apt/sources.list.back
+            echo "deb http://us-east1.gce.archive.ubuntu.com/ubuntu/ focal main restricted" >> /etc/apt/sources.list
+            apt update
+            apt install -y ovmf
+            mv /etc/apt/sources.list.back /etc/apt/sources.list
+            apt update
+        fi
+        cp -f /usr/share/OVMF/OVMF_VARS.snakeoil.fd "$WORK_DIR/image/OVMF_VARS.snakeoil.fd"
+        if ! snap list swtpm-mvo; then
+            snap install swtpm-mvo --beta
+        fi
 
-    if ! wait_for_ssh; then
-        systemctl restart nested-vm
+        PARAM_CPU="-smp 2"
+        PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE.secboot.fd,if=pflash,format=raw,unit=0,readonly=on -drive file=$WORK_DIR/image/OVMF_VARS.snakeoil.fd,if=pflash,format=raw,unit=1"
+        PARAM_IMAGE="-drive file=$IMAGE_FILE,cache=none,format=raw,id=disk1,if=none -device virtio-blk-pci,drive=disk1,bootindex=1"
+        PARAM_MACHINE="-machine q35 -global ICH9-LPC.disable_s3=1"
+        PARAM_TPM="-chardev socket,id=chrtpm,path=/var/snap/swtpm-mvo/current/swtpm-sock -tpmdev emulator,id=tpm0,chardev=chrtpm -device tpm-tis,tpmdev=tpm0"
+    else
+        PARAM_CPU=""
+        PARAM_BIOS=""
+        PARAM_IMAGE="-drive file=$IMAGE_FILE,cache=none,format=raw"
+        PARAM_MACHINE=""
+        PARAM_TPM=""
     fi
 
+    # Systemd unit is created, it is important to respect the qemu parameters order
+    systemd_create_and_start_unit "$NESTED_VM" "${QEMU} \
+        ${PARAM_CPU} \
+        ${PARAM_MEM} \
+        ${PARAM_MACHINE} \
+        ${PARAM_DISPLAY} \
+        ${PARAM_NETWORK} \
+        ${PARAM_BIOS} \
+        ${PARAM_TPM} \
+        ${PARAM_IMAGE} \
+        ${PARAM_ASSERTIONS} \
+        ${PARAM_MONITOR} \
+        ${PARAM_EXTRA} "
+
+    # Wait until the system has been initialized
+    if ! wait_for_ssh; then
+        # In case it is not possible to connect through ssh restart the vm
+        systemctl stop "$NESTED_VM"
+        sleep 5
+        systemctl start "$NESTED_VM"
+    fi
+
+    # Wait until ssh is ready and configure ssh
     if wait_for_ssh; then
         prepare_ssh
     else
@@ -226,12 +365,16 @@ create_nested_classic_vm(){
     fi
 }
 
+get_nested_classic_image_path() {
+    ls $WORK_DIR/image/*.img
+}
+
 start_nested_classic_vm(){
     local IMAGE QEMU
     IMAGE=$(ls $WORK_DIR/image/*.img)
     QEMU=$(get_qemu_for_nested_vm)
 
-    systemd_create_and_start_unit "$NESTED_VM" "${QEMU} -m 2048 -nographic \
+    systemd_create_and_start_unit "$NESTED_VM" "${QEMU} -m 2048 -nographic  \
         -net nic,model=virtio -net user,hostfwd=tcp::$SSH_PORT-:22 \
         -drive file=$IMAGE,if=virtio \
         -drive file=$WORK_DIR/seed.img,if=virtio \

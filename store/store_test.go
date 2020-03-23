@@ -49,7 +49,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -58,6 +57,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -114,7 +114,7 @@ func (suite *configTestSuite) TestSetBaseURLStoreURLBadEnviron(c *C) {
 
 	cfg := store.DefaultConfig()
 	err := cfg.SetBaseURL(store.ApiURL())
-	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_API_URL: parse ://example.com: missing protocol scheme")
+	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_API_URL: parse \"?://example.com\"?: missing protocol scheme")
 }
 
 func (suite *configTestSuite) TestSetBaseURLAssertsOverrides(c *C) {
@@ -135,7 +135,7 @@ func (suite *configTestSuite) TestSetBaseURLAssertsURLBadEnviron(c *C) {
 
 	cfg := store.DefaultConfig()
 	err := cfg.SetBaseURL(store.ApiURL())
-	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_SAS_URL: parse ://example.com: missing protocol scheme")
+	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_SAS_URL: parse \"?://example.com\"?: missing protocol scheme")
 }
 
 const (
@@ -454,10 +454,15 @@ func (s *storeTestSuite) expectedAuthorization(c *C, user *auth.UserState) strin
 
 func (s *storeTestSuite) TestDownloadStreamOK(c *C) {
 	expectedContent := []byte("I was downloaded")
-	restore := store.MockDoDownloadReq(func(ctx context.Context, url *url.URL, cdnHeader string, s *store.Store, user *auth.UserState) (*http.Response, error) {
+	restore := store.MockDoDownloadReq(func(ctx context.Context, url *url.URL, cdnHeader string, resume int64, s *store.Store, user *auth.UserState) (*http.Response, error) {
 		c.Check(url.String(), Equals, "http://anon-url")
 		r := &http.Response{
-			Body: ioutil.NopCloser(bytes.NewReader(expectedContent)),
+			Body: ioutil.NopCloser(bytes.NewReader(expectedContent[resume:])),
+		}
+		if resume > 0 {
+			r.StatusCode = 206
+		} else {
+			r.StatusCode = 200
 		}
 		return r, nil
 	})
@@ -469,12 +474,58 @@ func (s *storeTestSuite) TestDownloadStreamOK(c *C) {
 	snap.DownloadURL = "AUTH-URL"
 	snap.Size = int64(len(expectedContent))
 
-	stream, err := s.store.DownloadStream(context.TODO(), "foo", &snap.DownloadInfo, nil)
+	stream, status, err := s.store.DownloadStream(context.TODO(), "foo", &snap.DownloadInfo, 0, nil)
 	c.Assert(err, IsNil)
+	c.Assert(status, Equals, 200)
 
 	buf := new(bytes.Buffer)
 	buf.ReadFrom(stream)
 	c.Check(buf.String(), Equals, string(expectedContent))
+
+	stream, status, err = s.store.DownloadStream(context.TODO(), "foo", &snap.DownloadInfo, 2, nil)
+	c.Assert(err, IsNil)
+	c.Check(status, Equals, 206)
+
+	buf = new(bytes.Buffer)
+	buf.ReadFrom(stream)
+	c.Check(buf.String(), Equals, string(expectedContent[2:]))
+}
+
+func (s *storeTestSuite) TestDownloadStreamCachedOK(c *C) {
+	expectedContent := []byte("I was NOT downloaded")
+	defer store.MockDoDownloadReq(func(context.Context, *url.URL, string, int64, *store.Store, *auth.UserState) (*http.Response, error) {
+		c.Fatalf("should not be here")
+		return nil, nil
+	})()
+
+	c.Assert(os.MkdirAll(dirs.SnapDownloadCacheDir, 0700), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapDownloadCacheDir, "sha3_384-of-foo"), expectedContent, 0600), IsNil)
+
+	cache := store.NewCacheManager(dirs.SnapDownloadCacheDir, 1)
+	defer s.store.MockCacher(cache)()
+
+	snap := &snap.Info{}
+	snap.RealName = "foo"
+	snap.AnonDownloadURL = "http://anon-url"
+	snap.DownloadURL = "AUTH-URL"
+	snap.Size = int64(len(expectedContent))
+	snap.Sha3_384 = "sha3_384-of-foo"
+
+	stream, status, err := s.store.DownloadStream(context.TODO(), "foo", &snap.DownloadInfo, 0, nil)
+	c.Check(err, IsNil)
+	c.Check(status, Equals, 200)
+
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(stream)
+	c.Check(buf.String(), Equals, string(expectedContent))
+
+	stream, status, err = s.store.DownloadStream(context.TODO(), "foo", &snap.DownloadInfo, 2, nil)
+	c.Assert(err, IsNil)
+	c.Check(status, Equals, 206)
+
+	buf = new(bytes.Buffer)
+	buf.ReadFrom(stream)
+	c.Check(buf.String(), Equals, string(expectedContent[2:]))
 }
 
 func (s *storeTestSuite) TestDownloadOK(c *C) {
@@ -571,6 +622,9 @@ func (s *storeTestSuite) TestDownloadEOFHandlesResumeHashCorrectly(c *C) {
 			w.Write(buf[0 : len(buf)-5])
 			mockServer.CloseClientConnections()
 			return
+		}
+		if len(r.Header["Range"]) > 0 {
+			w.WriteHeader(206)
 		}
 		w.Write(buf[len(buf)-5:])
 	}))
@@ -671,6 +725,43 @@ func (s *storeTestSuite) TestResumeOfCompletedRetriedOnHashFailure(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(targetFn, testutil.FileEquals, buf)
+
+	c.Assert(s.logbuf.String(), Matches, "(?s).*sha3-384 mismatch.*")
+}
+
+func (s *storeTestSuite) TestResumeOfTooMuchDataWorks(c *C) {
+	var mockServer *httptest.Server
+
+	// our mock download content
+	snapContent := "snap-content"
+	// the partial file has too much data
+	tooMuchLocalData := "way-way-way-too-much-snap-content"
+
+	h := crypto.SHA3_384.New()
+	io.Copy(h, bytes.NewBufferString(snapContent))
+
+	n := 0
+	mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		w.Write([]byte(snapContent))
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	snap := &snap.Info{}
+	snap.RealName = "foo"
+	snap.AnonDownloadURL = mockServer.URL
+	snap.DownloadURL = "AUTH-URL"
+	snap.Sha3_384 = fmt.Sprintf("%x", h.Sum(nil))
+	snap.Size = int64(len(snapContent))
+
+	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
+	c.Assert(ioutil.WriteFile(targetFn+".partial", []byte(tooMuchLocalData), 0644), IsNil)
+	err := s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 1)
+
+	c.Assert(targetFn, testutil.FileEquals, snapContent)
 
 	c.Assert(s.logbuf.String(), Matches, "(?s).*sha3-384 mismatch.*")
 }
@@ -1156,7 +1247,7 @@ func (s *storeTestSuite) TestApplyDelta(c *C) {
 }
 
 var (
-	userAgent = httputil.UserAgent()
+	userAgent = snapdenv.UserAgent()
 )
 
 func (s *storeTestSuite) TestDoRequestSetsAuth(c *C) {
@@ -2267,7 +2358,7 @@ func (s *storeTestSuite) TestInfoAndChannels(c *C) {
 			Revision:    snap.R(27),
 			Version:     "6.3",
 			Confinement: snap.StrictConfinement,
-			Channel:     "stable",
+			Channel:     "latest/stable",
 			Size:        20480,
 			Epoch:       snap.E("0"),
 			ReleasedAt:  time.Date(2019, 1, 1, 10, 11, 12, 123456789, time.UTC),
@@ -2276,7 +2367,7 @@ func (s *storeTestSuite) TestInfoAndChannels(c *C) {
 			Revision:    snap.R(27),
 			Version:     "6.3",
 			Confinement: snap.StrictConfinement,
-			Channel:     "candidate",
+			Channel:     "latest/candidate",
 			Size:        20480,
 			Epoch:       snap.E("0"),
 			ReleasedAt:  time.Date(2019, 1, 2, 10, 11, 12, 123456789, time.UTC),
@@ -2285,7 +2376,7 @@ func (s *storeTestSuite) TestInfoAndChannels(c *C) {
 			Revision:    snap.R(27),
 			Version:     "6.3",
 			Confinement: snap.StrictConfinement,
-			Channel:     "beta",
+			Channel:     "latest/beta",
 			Size:        20480,
 			Epoch:       snap.E("0"),
 			ReleasedAt:  time.Date(2019, 1, 3, 10, 11, 12, 123456789, time.UTC),
@@ -2294,7 +2385,7 @@ func (s *storeTestSuite) TestInfoAndChannels(c *C) {
 			Revision:    snap.R(28),
 			Version:     "6.3",
 			Confinement: snap.StrictConfinement,
-			Channel:     "edge",
+			Channel:     "latest/edge",
 			Size:        20480,
 			Epoch:       snap.E("0"),
 			ReleasedAt:  time.Date(2019, 1, 4, 10, 11, 12, 123456789, time.UTC),
@@ -2342,8 +2433,8 @@ func (s *storeTestSuite) TestInfoMoreChannels(c *C) {
 	result, err := sto.SnapInfo(s.ctx, store.SnapSpec{Name: "eh"}, nil)
 	c.Assert(err, IsNil)
 	expected := map[string]*snap.ChannelSnapInfo{
-		"latest/stable":  {Channel: "stable", ReleasedAt: time.Date(2018, 12, 17, 9, 17, 16, 288554000, time.UTC)},
-		"latest/edge":    {Channel: "edge", ReleasedAt: time.Date(2018, 11, 6, 0, 46, 3, 348730000, time.UTC)},
+		"latest/stable":  {Channel: "latest/stable", ReleasedAt: time.Date(2018, 12, 17, 9, 17, 16, 288554000, time.UTC)},
+		"latest/edge":    {Channel: "latest/edge", ReleasedAt: time.Date(2018, 11, 6, 0, 46, 3, 348730000, time.UTC)},
 		"1.6/stable":     {Channel: "1.6/stable", ReleasedAt: time.Date(2017, 5, 17, 21, 18, 42, 224979000, time.UTC)},
 		"1.7/stable":     {Channel: "1.7/stable", ReleasedAt: time.Date(2017, 6, 2, 1, 16, 52, 640258000, time.UTC)},
 		"1.8/stable":     {Channel: "1.8/stable", ReleasedAt: time.Date(2018, 2, 7, 23, 8, 59, 152984000, time.UTC)},
@@ -3367,33 +3458,30 @@ func (s *storeTestSuite) TestFindClientUserAgent(c *C) {
 }
 
 func (s *storeTestSuite) TestAuthLocationDependsOnEnviron(c *C) {
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", ""), IsNil)
+	defer snapdenv.MockUseStagingStore(false)()
 	before := store.AuthLocation()
 
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", "1"), IsNil)
-	defer os.Setenv("SNAPPY_USE_STAGING_STORE", "")
+	snapdenv.MockUseStagingStore(true)
 	after := store.AuthLocation()
 
 	c.Check(before, Not(Equals), after)
 }
 
 func (s *storeTestSuite) TestAuthURLDependsOnEnviron(c *C) {
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", ""), IsNil)
+	defer snapdenv.MockUseStagingStore(false)()
 	before := store.AuthURL()
 
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", "1"), IsNil)
-	defer os.Setenv("SNAPPY_USE_STAGING_STORE", "")
+	snapdenv.MockUseStagingStore(true)
 	after := store.AuthURL()
 
 	c.Check(before, Not(Equals), after)
 }
 
 func (s *storeTestSuite) TestApiURLDependsOnEnviron(c *C) {
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", ""), IsNil)
+	defer snapdenv.MockUseStagingStore(false)()
 	before := store.ApiURL()
 
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", "1"), IsNil)
-	defer os.Setenv("SNAPPY_USE_STAGING_STORE", "")
+	snapdenv.MockUseStagingStore(true)
 	after := store.ApiURL()
 
 	c.Check(before, Not(Equals), after)
@@ -3430,22 +3518,21 @@ func (s *storeTestSuite) TestStoreURLBadEnvironAPI(c *C) {
 	c.Assert(os.Setenv("SNAPPY_FORCE_API_URL", "://force-api.local/"), IsNil)
 	defer os.Setenv("SNAPPY_FORCE_API_URL", "")
 	_, err := store.StoreURL(store.ApiURL())
-	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_API_URL: parse ://force-api.local/: missing protocol scheme")
+	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_API_URL: parse \"?://force-api.local/\"?: missing protocol scheme")
 }
 
 func (s *storeTestSuite) TestStoreURLBadEnvironCPI(c *C) {
 	c.Assert(os.Setenv("SNAPPY_FORCE_CPI_URL", "://force-cpi.local/api/v1/"), IsNil)
 	defer os.Setenv("SNAPPY_FORCE_CPI_URL", "")
 	_, err := store.StoreURL(store.ApiURL())
-	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_CPI_URL: parse ://force-cpi.local/: missing protocol scheme")
+	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_CPI_URL: parse \"?://force-cpi.local/\"?: missing protocol scheme")
 }
 
 func (s *storeTestSuite) TestStoreDeveloperURLDependsOnEnviron(c *C) {
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", ""), IsNil)
+	defer snapdenv.MockUseStagingStore(false)()
 	before := store.StoreDeveloperURL()
 
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", "1"), IsNil)
-	defer os.Setenv("SNAPPY_USE_STAGING_STORE", "")
+	snapdenv.MockUseStagingStore(true)
 	after := store.StoreDeveloperURL()
 
 	c.Check(before, Not(Equals), after)
@@ -6324,6 +6411,11 @@ func (s *storeTestSuite) TestSnapActionErrorError(c *C) {
 	}}
 	c.Check(e.Error(), Equals, `cannot refresh snap "foo": sad refresh`)
 
+	op, name, err := e.SingleOpError()
+	c.Check(op, Equals, "refresh")
+	c.Check(name, Equals, "foo")
+	c.Check(err, ErrorMatches, "sad refresh")
+
 	e = &store.SnapActionError{Refresh: map[string]error{
 		"foo": fmt.Errorf("sad refresh 1"),
 		"bar": fmt.Errorf("sad refresh 2"),
@@ -6333,10 +6425,20 @@ func (s *storeTestSuite) TestSnapActionErrorError(c *C) {
 	c.Check(errMsg, testutil.Contains, "\nsad refresh 1: \"foo\"")
 	c.Check(errMsg, testutil.Contains, "\nsad refresh 2: \"bar\"")
 
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "")
+	c.Check(name, Equals, "")
+	c.Check(err, IsNil)
+
 	e = &store.SnapActionError{Install: map[string]error{
 		"foo": fmt.Errorf("sad install"),
 	}}
 	c.Check(e.Error(), Equals, `cannot install snap "foo": sad install`)
+
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "install")
+	c.Check(name, Equals, "foo")
+	c.Check(err, ErrorMatches, "sad install")
 
 	e = &store.SnapActionError{Install: map[string]error{
 		"foo": fmt.Errorf("sad install 1"),
@@ -6347,10 +6449,20 @@ func (s *storeTestSuite) TestSnapActionErrorError(c *C) {
 	c.Check(errMsg, testutil.Contains, "\nsad install 1: \"foo\"")
 	c.Check(errMsg, testutil.Contains, "\nsad install 2: \"bar\"")
 
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "")
+	c.Check(name, Equals, "")
+	c.Check(err, IsNil)
+
 	e = &store.SnapActionError{Download: map[string]error{
 		"foo": fmt.Errorf("sad download"),
 	}}
 	c.Check(e.Error(), Equals, `cannot download snap "foo": sad download`)
+
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "download")
+	c.Check(name, Equals, "foo")
+	c.Check(err, ErrorMatches, "sad download")
 
 	e = &store.SnapActionError{Download: map[string]error{
 		"foo": fmt.Errorf("sad download 1"),
@@ -6360,6 +6472,11 @@ func (s *storeTestSuite) TestSnapActionErrorError(c *C) {
 	c.Check(strings.HasPrefix(errMsg, "cannot download:\n"), Equals, true)
 	c.Check(errMsg, testutil.Contains, "\nsad download 1: \"foo\"")
 	c.Check(errMsg, testutil.Contains, "\nsad download 2: \"bar\"")
+
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "")
+	c.Check(name, Equals, "")
+	c.Check(err, IsNil)
 
 	e = &store.SnapActionError{Refresh: map[string]error{
 		"foo": fmt.Errorf("sad refresh 1"),
@@ -6371,6 +6488,11 @@ func (s *storeTestSuite) TestSnapActionErrorError(c *C) {
 sad refresh 1: "foo"
 sad install 2: "bar"`)
 
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "")
+	c.Check(name, Equals, "")
+	c.Check(err, IsNil)
+
 	e = &store.SnapActionError{Refresh: map[string]error{
 		"foo": fmt.Errorf("sad refresh 1"),
 	},
@@ -6381,6 +6503,11 @@ sad install 2: "bar"`)
 sad refresh 1: "foo"
 sad download 2: "bar"`)
 
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "")
+	c.Check(name, Equals, "")
+	c.Check(err, IsNil)
+
 	e = &store.SnapActionError{Install: map[string]error{
 		"foo": fmt.Errorf("sad install 1"),
 	},
@@ -6390,6 +6517,11 @@ sad download 2: "bar"`)
 	c.Check(e.Error(), Equals, `cannot install or download:
 sad install 1: "foo"
 sad download 2: "bar"`)
+
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "")
+	c.Check(name, Equals, "")
+	c.Check(err, IsNil)
 
 	e = &store.SnapActionError{Refresh: map[string]error{
 		"foo": fmt.Errorf("sad refresh 1"),
@@ -6405,11 +6537,21 @@ sad refresh 1: "foo"
 sad install 2: "bar"
 sad download 3: "baz"`)
 
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "")
+	c.Check(name, Equals, "")
+	c.Check(err, IsNil)
+
 	e = &store.SnapActionError{
 		NoResults: true,
 		Other:     []error{fmt.Errorf("other error")},
 	}
 	c.Check(e.Error(), Equals, `cannot refresh, install, or download: other error`)
+
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "")
+	c.Check(name, Equals, "")
+	c.Check(err, IsNil)
 
 	e = &store.SnapActionError{
 		Other: []error{fmt.Errorf("other error 1"), fmt.Errorf("other error 2")},
@@ -6417,6 +6559,11 @@ sad download 3: "baz"`)
 	c.Check(e.Error(), Equals, `cannot refresh, install, or download:
 other error 1
 other error 2`)
+
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "")
+	c.Check(name, Equals, "")
+	c.Check(err, IsNil)
 
 	e = &store.SnapActionError{
 		Install: map[string]error{
@@ -6429,10 +6576,20 @@ sad install: "bar"
 other error 1
 other error 2`)
 
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "")
+	c.Check(name, Equals, "")
+	c.Check(err, IsNil)
+
 	e = &store.SnapActionError{
 		NoResults: true,
 	}
 	c.Check(e.Error(), Equals, "no install/refresh information results from the store")
+
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "")
+	c.Check(name, Equals, "")
+	c.Check(err, IsNil)
 }
 
 func (s *storeTestSuite) TestSnapActionRefreshesBothAuths(c *C) {

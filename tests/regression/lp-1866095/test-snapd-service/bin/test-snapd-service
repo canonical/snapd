@@ -1,0 +1,2 @@
+#!/bin/sh -xe
+env > "$SNAP_COMMON/env"

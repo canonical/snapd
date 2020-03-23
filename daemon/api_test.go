@@ -1002,7 +1002,6 @@ func (s *apiSuite) TestRootCmd(c *check.C) {
 	// check it only does GET
 	c.Check(rootCmd.PUT, check.IsNil)
 	c.Check(rootCmd.POST, check.IsNil)
-	c.Check(rootCmd.DELETE, check.IsNil)
 	c.Assert(rootCmd.GET, check.NotNil)
 
 	rec := httptest.NewRecorder()
@@ -1029,7 +1028,6 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 	// check it only does GET
 	c.Check(sysInfoCmd.PUT, check.IsNil)
 	c.Check(sysInfoCmd.POST, check.IsNil)
-	c.Check(sysInfoCmd.DELETE, check.IsNil)
 	c.Assert(sysInfoCmd.GET, check.NotNil)
 
 	rec := httptest.NewRecorder()
@@ -5255,6 +5253,42 @@ func (s *apiSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
 	})
 }
 
+func (s *apiSuite) TestDisconnectForgetPlugFailureNotConnected(c *check.C) {
+	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	defer revert()
+	s.daemon(c)
+
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+
+	action := &interfaceAction{
+		Action: "disconnect",
+		Forget: true,
+		Plugs:  []plugJSON{{Snap: "consumer", Name: "plug"}},
+		Slots:  []slotJSON{{Snap: "producer", Name: "slot"}},
+	}
+	text, err := json.Marshal(action)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	interfacesCmd.POST(interfacesCmd, req, nil).ServeHTTP(rec, req)
+
+	c.Check(rec.Code, check.Equals, 400)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"result": map[string]interface{}{
+			"message": "cannot forget connection consumer:plug from producer:slot, it was not connected",
+		},
+		"status":      "Bad Request",
+		"status-code": 400.0,
+		"type":        "error",
+	})
+}
+
 func (s *apiSuite) TestDisconnectConflict(c *check.C) {
 	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	defer revert()
@@ -7431,6 +7465,15 @@ func (s *apiSuite) TestErrToResponse(c *check.C) {
 
 	e := errors.New("other error")
 
+	sa1e := &store.SnapActionError{Refresh: map[string]error{"foo": store.ErrSnapNotFound}}
+	sa2e := &store.SnapActionError{Refresh: map[string]error{
+		"foo": store.ErrSnapNotFound,
+		"bar": store.ErrSnapNotFound,
+	}}
+	saOe := &store.SnapActionError{Other: []error{e}}
+	// this one can't happen (but fun to test):
+	saXe := &store.SnapActionError{Refresh: map[string]error{"foo": sa1e}}
+
 	makeErrorRsp := func(kind errorKind, err error, value interface{}) Response {
 		return SyncResponse(&resp{
 			Type:   ResponseTypeError,
@@ -7457,6 +7500,13 @@ func (s *apiSuite) TestErrToResponse(c *check.C) {
 		{netoe, BadRequest("ERR: %v", netoe)},
 		{nettmpe, BadRequest("ERR: %v", nettmpe)},
 		{e, BadRequest("ERR: %v", e)},
+
+		// action error unwrapping:
+		{sa1e, SnapNotFound("foo", store.ErrSnapNotFound)},
+		{saXe, SnapNotFound("foo", store.ErrSnapNotFound)},
+		// action errors, unwrapped:
+		{sa2e, BadRequest(`ERR: cannot refresh: snap not found: "bar", "foo"`)},
+		{saOe, BadRequest("ERR: cannot refresh, install, or download: other error")},
 	}
 
 	for _, t := range tests {

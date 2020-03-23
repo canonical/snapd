@@ -5,7 +5,7 @@ systems: [ ubuntu-1*-*64, ubuntu-2*-*64 ]
 
 environment:
     PLAY_FILE: "/snap/test-snapd-audio-record/current/usr/share/sounds/alsa/Noise.wav"
-    # today, only 19.04 and 19.10 have a mediating pulseaudio
+    # today, only 19.10 has a mediating pulseaudio
     EXFAIL: "ubuntu-1[468]"
 
 prepare: |

@@ -251,6 +251,10 @@ mount options=(rw, bind) /dev/null -> /proc/kcore,
 mount options=(rw, bind) /dev/null -> /proc/sched_debug,
 mount options=(rw, bind) /dev/null -> /proc/timer_stats,
 
+# greengrass will also mount over /proc/latency_stats when running on
+# kernels configured with CONFIG_LATENCYTOP set
+mount options=(rw, bind) /dev/null -> /proc/latency_stats,
+
 # umounts for tearing down containers
 umount /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/**,
 
@@ -275,6 +279,9 @@ owner /{var/,}run/greengrassd.pid rw,
 # be here, but that work isn't done yet
 # Additionally see LP bug #1791711 for apparmor resolving file accesses after
 # a pivot_root
+
+# for IPC communication via lambda helpers
+/[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]/upper/{,greengrass_ipc.sock} rw,
 
 # for child container lambda certificates
 /certs/ r,

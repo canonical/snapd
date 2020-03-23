@@ -40,6 +40,10 @@ type Snap struct {
 
 	SideInfo *snap.SideInfo
 
+	// EssentialType is the type of the snap as specified by the model.
+	// Provided only for essential snaps (Essential = true).
+	EssentialType snap.Type
+
 	Essential bool
 	Required  bool
 
@@ -73,7 +77,12 @@ type Seed interface {
 	// error to call Model before LoadAssertions.
 	Model() (*asserts.Model, error)
 
-	// LoadMeta loads the seed and seed's snaps metadata. It can
+	// Brand returns the brand information of the seed. It is an
+	// error to call Brand before LoadAssertions.
+	Brand() (*asserts.Account, error)
+
+	// LoadMeta loads the seed and seed's snaps metadata while
+	// verifying the underlying snaps against assertions. It can
 	// return ErrNoMeta if there is no metadata nor snaps in the
 	// seed, this is legitimate only on classic. It is an error to
 	// call LoadMeta before LoadAssertions.
@@ -90,6 +99,20 @@ type Seed interface {
 	// ModeSnaps returns the snaps that should be available
 	// in the given mode as defined by the seed, after LoadMeta.
 	ModeSnaps(mode string) ([]*Snap, error)
+}
+
+// EssentialMetaLoaderSeed is a Seed that can be asked to load and verify
+// only a subset of the essential model snaps via LoadEssentialMeta.
+type EssentialMetaLoaderSeed interface {
+	Seed
+
+	// LoadEssentialMeta loads the seed's snaps metadata for the
+	// essential snaps with types in the essentialTypes set while
+	// verifying them against assertions. It can return ErrNoMeta
+	// if there is no metadata nor snaps in the seed, this is
+	// legitimate only on classic. It is an error to call LoadMeta
+	// before LoadAssertions or to mix it with LoadMeta.
+	LoadEssentialMeta(essentialTypes []snap.Type, tm timings.Measurer) error
 }
 
 // Open returns a Seed implementation for the seed at seedDir.

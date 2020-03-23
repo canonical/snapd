@@ -61,6 +61,8 @@ var (
 	BatchConnectTasks = batchConnectTasks
 )
 
+type ConnectOpts = connectOpts
+
 func NewConnectOptsWithAutoSet() connectOpts {
 	return connectOpts{AutoConnect: true, ByGadget: false}
 }

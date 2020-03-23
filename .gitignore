@@ -78,3 +78,9 @@ cmd/test-driver
 # Mypy
 .mypy
 .mypy_cache
+
+# Snap files
+*.snap
+
+# Image files
+*.img

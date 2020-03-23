@@ -17,6 +17,7 @@ description: |
     exporting the pin, would always run before the apparmor backend, which
     could now rely on the pin being exposed to userspace.
 
+# TODO:UC20: enable for UC20? requires changes to UC20 spread built-image
 systems: [ubuntu-core-1*-64]
 
 prepare: |

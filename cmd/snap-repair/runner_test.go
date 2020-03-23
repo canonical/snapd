@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2017-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -43,9 +43,9 @@ import (
 	"github.com/snapcore/snapd/asserts/sysdb"
 	repair "github.com/snapcore/snapd/cmd/snap-repair"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -170,7 +170,7 @@ type runnerSuite struct {
 
 func (s *runnerSuite) SetUpSuite(c *C) {
 	s.baseRunnerSuite.SetUpSuite(c)
-	s.restore = httputil.SetUserAgentFromVersion("1", "snap-repair")
+	s.restore = snapdenv.SetUserAgentFromVersion("1", "snap-repair")
 }
 
 func (s *runnerSuite) TearDownSuite(c *C) {

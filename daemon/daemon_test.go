@@ -138,9 +138,8 @@ func (s *daemonSuite) TestCommandMethodDispatch(c *check.C) {
 	cmd.GET = rf
 	cmd.PUT = rf
 	cmd.POST = rf
-	cmd.DELETE = rf
 
-	for _, method := range []string{"GET", "POST", "PUT", "DELETE"} {
+	for _, method := range []string{"GET", "POST", "PUT"} {
 		req, err := http.NewRequest(method, "", nil)
 		req.Header.Add("User-Agent", fakeUserAgent)
 		c.Assert(err, check.IsNil)
@@ -638,7 +637,6 @@ func (s *daemonSuite) TestGracefulStop(c *check.C) {
 		} else {
 			w.Write([]byte("Gone"))
 		}
-		return
 	})
 
 	// mark as already seeded
@@ -719,6 +717,98 @@ func (s *daemonSuite) TestGracefulStop(c *check.C) {
 	select {
 	case <-alright:
 	case <-time.After(2 * time.Second):
+		c.Fatal("never got proper response")
+	}
+}
+
+func (s *daemonSuite) TestGracefulStopHasLimits(c *check.C) {
+	d := newTestDaemon(c)
+
+	// mark as already seeded
+	s.markSeeded(d)
+
+	restore := MockShutdownTimeout(time.Second)
+	defer restore()
+
+	responding := make(chan struct{})
+	doRespond := make(chan bool, 1)
+
+	d.router.HandleFunc("/endp", func(w http.ResponseWriter, r *http.Request) {
+		close(responding)
+		if <-doRespond {
+			for {
+				// write in a loop to keep the handler running
+				if _, err := w.Write([]byte("OKOK")); err != nil {
+					break
+				}
+				time.Sleep(50 * time.Millisecond)
+			}
+		} else {
+			w.Write([]byte("Gone"))
+		}
+	})
+
+	snapdL, err := net.Listen("tcp", "127.0.0.1:0")
+	c.Assert(err, check.IsNil)
+
+	snapL, err := net.Listen("tcp", "127.0.0.1:0")
+	c.Assert(err, check.IsNil)
+
+	snapdAccept := make(chan struct{})
+	snapdClosed := make(chan struct{})
+	d.snapdListener = &witnessAcceptListener{Listener: snapdL, accept: snapdAccept, closed: snapdClosed}
+
+	snapAccept := make(chan struct{})
+	d.snapListener = &witnessAcceptListener{Listener: snapL, accept: snapAccept}
+
+	c.Assert(d.Start(), check.IsNil)
+
+	snapdAccepting := make(chan struct{})
+	go func() {
+		select {
+		case <-snapdAccept:
+		case <-time.After(2 * time.Second):
+			c.Fatal("snapd accept was not called")
+		}
+		close(snapdAccepting)
+	}()
+
+	snapAccepting := make(chan struct{})
+	go func() {
+		select {
+		case <-snapAccept:
+		case <-time.After(2 * time.Second):
+			c.Fatal("snapd accept was not called")
+		}
+		close(snapAccepting)
+	}()
+
+	<-snapdAccepting
+	<-snapAccepting
+
+	clientErr := make(chan error)
+
+	go func() {
+		_, err := http.Get(fmt.Sprintf("http://%s/endp", snapdL.Addr()))
+		c.Assert(err, check.NotNil)
+		clientErr <- err
+		close(clientErr)
+	}()
+	go func() {
+		<-snapdClosed
+		time.Sleep(200 * time.Millisecond)
+		doRespond <- true
+	}()
+
+	<-responding
+	err = d.Stop(nil)
+	doRespond <- false
+	c.Check(err, check.IsNil)
+
+	select {
+	case cErr := <-clientErr:
+		c.Check(cErr, check.ErrorMatches, ".*: EOF")
+	case <-time.After(5 * time.Second):
 		c.Fatal("never got proper response")
 	}
 }

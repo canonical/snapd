@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -83,6 +83,8 @@ const (
 	// RestartSocket will restart the daemon so that it goes into
 	// socket activation mode.
 	RestartSocket
+	// Stop just stops the daemon (used with image pre-seeding)
+	StopDaemon
 )
 
 // State represents an evolving system state that persists across restarts.
@@ -281,7 +283,7 @@ func (s *State) Restarting() (bool, RestartType) {
 
 var ErrExpectedReboot = errors.New("expected reboot did not happen")
 
-// VerifyReboot checks if the state rembers that a system restart was
+// VerifyReboot checks if the state remembers that a system restart was
 // requested and whether it succeeded based on the provided current
 // boot id.  It returns ErrExpectedReboot if the expected reboot did
 // not happen yet.  It must be called early in the usage of state and
@@ -447,7 +449,7 @@ func (s *State) tasksIn(tids []string) []*Task {
 //    state will also removed even if they are below the pruneWait duration.
 //
 //  * it removes expired warnings.
-func (s *State) Prune(pruneWait, abortWait time.Duration, maxReadyChanges int) {
+func (s *State) Prune(startOfOperation time.Time, pruneWait, abortWait time.Duration, maxReadyChanges int) {
 	now := time.Now()
 	pruneLimit := now.Add(-pruneWait)
 	abortLimit := now.Add(-abortWait)
@@ -475,8 +477,11 @@ func (s *State) Prune(pruneWait, abortWait time.Duration, maxReadyChanges int) {
 	}
 
 	for _, chg := range changes {
-		spawnTime := chg.SpawnTime()
 		readyTime := chg.ReadyTime()
+		spawnTime := chg.SpawnTime()
+		if spawnTime.Before(startOfOperation) {
+			spawnTime = startOfOperation
+		}
 		if readyTime.IsZero() {
 			if spawnTime.Before(pruneLimit) && len(chg.Tasks()) == 0 {
 				chg.Abort()
@@ -504,6 +509,20 @@ func (s *State) Prune(pruneWait, abortWait time.Duration, maxReadyChanges int) {
 			delete(s.tasks, tid)
 		}
 	}
+}
+
+// GetMaybeTimings implements timings.GetSaver
+func (s *State) GetMaybeTimings(timings interface{}) error {
+	err := s.Get("timings", timings)
+	if err != nil && err != ErrNoState {
+		return err
+	}
+	return nil
+}
+
+// SaveTimings implements timings.GetSaver
+func (s *State) SaveTimings(timings interface{}) {
+	s.Set("timings", timings)
 }
 
 // ReadState returns the state deserialized from r.
