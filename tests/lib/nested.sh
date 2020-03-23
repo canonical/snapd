@@ -265,14 +265,15 @@ configure_cloud_init_nested_core_vm(){
     create_cloud_init_config "$WORK_DIR/data.cfg"
 
     loops=$(kpartx -avs "$WORK_DIR/image/ubuntu-core.img"  | cut -d' ' -f 3)
-    part=$(echo "$loops" | tail -1)
     tmp=$(mktemp -d)
-    mount "/dev/mapper/$part" "$tmp"
-
-    mkdir -p "$tmp/ubuntu-seed/data/etc/cloud/cloud.cfg.d/"
-    cp "$WORK_DIR/data.cfg" "$tmp/ubuntu-seed/data/etc/cloud/cloud.cfg.d/"
-
-    umount "$tmp"
+    for part in $parts; do
+        mount -t tmpfs "/dev/mapper/$part" "$tmp"
+        if [ -d "$tmp/ubuntu-seed" ]; then
+            mkdir -p "$tmp/ubuntu-seed/data/etc/cloud/cloud.cfg.d/"
+            cp "$WORK_DIR/data.cfg" "$tmp/ubuntu-seed/data/etc/cloud/cloud.cfg.d/"
+        fi
+        umount "$tmp"
+    done
     kpartx -d "$WORK_DIR/image/ubuntu-core.img"
 }
 

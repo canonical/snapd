@@ -23,7 +23,7 @@ restore: |
     destroy_nested_vm
     cleanup_nested_env
 
-    rm -rf "$PREAD_DIR"
+    rm -rf "$SPREAD_DIR"
 
 execute: |
 
