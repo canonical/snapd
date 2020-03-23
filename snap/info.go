@@ -1020,8 +1020,8 @@ func (app *AppInfo) IsService() bool {
 // expandable $ vars, specific for the app.
 func (app *AppInfo) EnvChain() []osutil.ExpandableEnv {
 	return []osutil.ExpandableEnv{
-		osutil.ExpandableEnv{OrderedMap: &app.Snap.Environment},
-		osutil.ExpandableEnv{OrderedMap: &app.Environment},
+		{OrderedMap: &app.Snap.Environment},
+		{OrderedMap: &app.Environment},
 	}
 }
 
@@ -1037,8 +1037,8 @@ func (hook *HookInfo) SecurityTag() string {
 // expandable $ vars, specific for the hook.
 func (hook *HookInfo) EnvChain() []osutil.ExpandableEnv {
 	return []osutil.ExpandableEnv{
-		osutil.ExpandableEnv{OrderedMap: &hook.Snap.Environment},
-		osutil.ExpandableEnv{OrderedMap: &hook.Environment},
+		{OrderedMap: &hook.Snap.Environment},
+		{OrderedMap: &hook.Environment},
 	}
 }
 
