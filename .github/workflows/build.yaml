@@ -21,12 +21,12 @@ jobs:
       with:
         path: ${{ github.workspace }}/pkg
         key: ${{ runner.os }}-go-pkg
-    - name: Cache go vendor packages
-      id: cache-go-vendor
+    - name: Cache go's .cache directory (used by govendor)
+      id: cache-go-govendor
       uses: actions/cache@v1
       with:
-        path: ${{ github.workspace }}/src/github.com/${{ github.repository }}/vendor
-        key: ${{ runner.os }}-go-vendor
+        path: ${{ github.workspace }}/.cache/govendor
+        key: go-govendor
     - name: Set up go 1.9
       uses: actions/setup-go@v1
       with:
