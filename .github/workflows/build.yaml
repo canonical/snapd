@@ -28,7 +28,7 @@ jobs:
       uses: actions/cache@v1
       with:
         path: ${{ github.workspace }}/.cache/govendor
-        key: go-govendor
+        key: go-govendor-{{ hashFiles('**/vendor.json') }}
     - name: Set up go 1.9
       uses: actions/setup-go@v1
       with:
