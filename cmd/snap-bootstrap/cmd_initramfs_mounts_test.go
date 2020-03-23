@@ -940,13 +940,62 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep4(c *C) {
 	})
 	defer restore()
 
-	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	// mock a auth data in real ubuntu-recover
+	ephemeralUbuntuData := filepath.Join(s.runMnt, "ubuntu-data")
+	err := os.MkdirAll(ephemeralUbuntuData, 0755)
+	c.Assert(err, IsNil)
+	recoverUbuntuData := filepath.Join(s.runMnt, "recover-ubuntu-data")
+	err = os.MkdirAll(recoverUbuntuData, 0755)
+	c.Assert(err, IsNil)
+	mockAuthFiles := []string{
+		// extrausers
+		"system-data/var/lib/extrausers/passwd",
+		"system-data/var/lib/extrausers/shadow",
+		"system-data/var/lib/extrausers/group",
+		"system-data/var/lib/extrausers/gshadow",
+		// sshd
+		"system-data/etc/ssh/ssh_host_rsa.key",
+		"system-data/etc/ssh/ssh_host_rsa.key.pub",
+		// user ssh
+		"user-data/user1/.ssh/authorized_keys",
+		"user-data/user2/.ssh/authorized_keys",
+	}
+	mockUnrelatedFiles := []string{
+		"system-data/var/lib/foo",
+		"system-data/etc/passwd",
+		"user-data/user1/some-random-data",
+		"user-data/user2/other-random-data",
+	}
+	for _, mockAuthFile := range append(mockAuthFiles, mockUnrelatedFiles...) {
+		p := filepath.Join(recoverUbuntuData, mockAuthFile)
+		err = os.MkdirAll(filepath.Dir(p), 0750)
+		c.Assert(err, IsNil)
+		mockContent := fmt.Sprintf("content of %s", filepath.Base(mockAuthFile))
+		err = ioutil.WriteFile(p, []byte(mockContent), 0640)
+		c.Assert(err, IsNil)
+	}
+
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 6)
 	c.Check(s.Stdout.String(), Equals, "")
 
-	modeEnv := filepath.Join(s.runMnt, "/ubuntu-data/system-data/var/lib/snapd/modeenv")
+	modeEnv := filepath.Join(ephemeralUbuntuData, "/system-data/var/lib/snapd/modeenv")
 	c.Check(modeEnv, testutil.FileEquals, `mode=recover
 recovery_system=20191118
 `)
+	for _, p := range mockUnrelatedFiles {
+		c.Check(filepath.Join(ephemeralUbuntuData, p), testutil.FileAbsent)
+	}
+	for _, p := range mockAuthFiles {
+		c.Check(filepath.Join(ephemeralUbuntuData, p), testutil.FilePresent)
+		fi, err := os.Stat(filepath.Join(ephemeralUbuntuData, p))
+		// check file mode is set
+		c.Assert(err, IsNil)
+		c.Check(fi.Mode(), Equals, os.FileMode(0640))
+		// check dir mode is set in parent dir
+		fiParent, err := os.Stat(filepath.Dir(filepath.Join(ephemeralUbuntuData, p)))
+		c.Assert(err, IsNil)
+		c.Check(fiParent.Mode(), Equals, os.FileMode(os.ModeDir|0750))
+	}
 }

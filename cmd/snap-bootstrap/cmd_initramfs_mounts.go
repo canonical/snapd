@@ -26,6 +26,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
+	"syscall"
 
 	"github.com/jessevdk/go-flags"
 
@@ -126,13 +128,51 @@ func generateMountsModeInstall(recoverySystem string) error {
 	return nil
 }
 
+// copyUbuntuDataAuth copies the authenication files like
+//  - extrausers passwd,shadow etc
+//  - sshd host configuration
+//  - user .ssh dir
+// to the target directory. This is used to copy the authentication
+// data from a real uc20 ubuntu-data partition into a ephemeral one.
 func copyUbuntuDataAuth(src, dst string) error {
-	// TODO:UC20:
-	// cp -a $src/system-data/var/lib/extrausers/* $dst/system-data/var/lib/extrausers
-	// cp -a $src/system-data/etc/ssh/* $dst/system-data/etc/ssh
-
-	// cp -a --dir-only $src/user-data/* $dst/user-data/
-	// cp -a $src/user-data/*/.ssh $dst/user-data/
+	for _, globEx := range []string{
+		"system-data/var/lib/extrausers/*",
+		"system-data/etc/ssh/*",
+		"user-data/*/.ssh/*",
+		// this ensures we also get non-ssh enabled accounts copied
+		"user-data/*/.profile",
+	} {
+		matches, err := filepath.Glob(filepath.Join(src, globEx))
+		if err != nil {
+			return err
+		}
+		for _, p := range matches {
+			comps := strings.Split(strings.TrimPrefix(p, src), "/")
+			for i := range comps {
+				part := filepath.Join(comps[0 : i+1]...)
+				fi, err := os.Stat(filepath.Join(src, part))
+				if err != nil {
+					return err
+				}
+				if fi.IsDir() {
+					if err := os.Mkdir(filepath.Join(dst, part), fi.Mode()); err != nil && !os.IsExist(err) {
+						return err
+					}
+					st, ok := fi.Sys().(*syscall.Stat_t)
+					if !ok {
+						return fmt.Errorf("cannot get stat data: %v", err)
+					}
+					if err := os.Chown(filepath.Join(dst, part), int(st.Uid), int(st.Gid)); err != nil {
+						return err
+					}
+				} else {
+					if err := osutil.CopyFile(p, filepath.Join(dst, part), osutil.CopyFlagPreserveAll); err != nil {
+						return err
+					}
+				}
+			}
+		}
+	}
 
 	return nil
 }
@@ -154,7 +194,6 @@ func generateMountsModeRecover(recoverySystem string) error {
 		return err
 	}
 	if !isRecoverDataMounted {
-		println("meep")
 		fmt.Fprintf(stdout, "/dev/disk/by-label/ubuntu-data %s\n", recoverDataDir)
 		return nil
 	}
