@@ -24,11 +24,13 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"github.com/snapcore/secboot"
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -59,6 +61,12 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 	gadgetDir := gadgetInfo.MountDir()
 
+	kernelInfo, err := snapstate.KernelInfo(st, deviceCtx)
+	if err != nil {
+		return fmt.Errorf("cannot get kernel info: %v", err)
+	}
+	kernelDir := kernelInfo.MountDir()
+
 	args := []string{
 		// create partitions missing from the device
 		"create-partitions",
@@ -78,14 +86,21 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 			// enable data encryption
 			"--encrypt",
 			// location to store the keyfile
-			"--key-file", filepath.Join(ubuntuBootDir, "ubuntu-data.keyfile.unsealed"),
+			"--key-file", filepath.Join(ubuntuBootDir, "ubuntu-data.keyfile.sealed"),
 			// location to store the recovery keyfile
 			"--recovery-key-file", filepath.Join(ubuntuDataDir, "recovery-key"),
+			// location to store the lockout authorization data
+			"--lockout-auth-file", filepath.Join(ubuntuDataDir, "lockout-auth"),
+			// location to store the authorization policy update data
+			"--auth-update-file", filepath.Join(ubuntuDataDir, "auth-update"),
+			// path to the kernel to install
+			"--kernel", filepath.Join(kernelDir, "kernel.efi"),
 		)
 	}
 	args = append(args, gadgetDir)
 
 	// run the create partition code
+	logger.Noticef("create and deploy partitions")
 	st.Unlock()
 	output, err := exec.Command(filepath.Join(dirs.DistroLibExecDir, "snap-bootstrap"), args...).CombinedOutput()
 	st.Lock()
@@ -99,11 +114,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// make it bootable
-	kernelInfo, err := snapstate.KernelInfo(st, deviceCtx)
-	if err != nil {
-		return fmt.Errorf("cannot get gadget info: %v", err)
-	}
-
+	logger.Noticef("make system bootable")
 	bootBaseInfo, err := snapstate.BootBaseInfo(st, deviceCtx)
 	if err != nil {
 		return fmt.Errorf("cannot get boot base info: %v", err)
@@ -122,14 +133,21 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// request a restart as the last action after a successful install
+	logger.Noticef("request system restart")
 	st.RequestRestart(state.RestartSystem)
 
 	return nil
 }
 
-// TODO:UC20: set to real TPM availability check function
 var checkTPMAvailability = func() error {
-	return nil
+	logger.Noticef("checking TPM device availability...")
+	tconn, err := secboot.ConnectToDefaultTPM()
+	if err != nil {
+		logger.Noticef("connection to TPM device failed: %v", err)
+		return err
+	}
+	logger.Noticef("TPM device detected")
+	return tconn.Close()
 }
 
 // checkEncryption verifies whether encryption should be used based on the
