@@ -130,7 +130,7 @@ func (s *flockSuite) TestLockUnlockNonblockingWorks(c *C) {
 	lockPath := filepath.Join(c.MkDir(), "lock")
 	sleeperKillerPath := filepath.Join(c.MkDir(), "pid")
 	// we can't use --no-fork because we still support 14.04
-	cmd := exec.Command("flock", "--exclusive", lockPath, "-c", fmt.Sprintf("echo \"kill $$\" > %s && exec sleep 30", sleeperKillerPath))
+	cmd := exec.Command("flock", "--exclusive", lockPath, "-c", fmt.Sprintf(`echo "kill $$" > %s && exec sleep 30`, sleeperKillerPath))
 	c.Assert(cmd.Start(), IsNil)
 	defer func() { exec.Command("/bin/sh", sleeperKillerPath).Run() }()
 
