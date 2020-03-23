@@ -5,7 +5,7 @@ description: |
 
 systems: [ubuntu-20.04-*]
 
-kill-timeout: 20m
+kill-timeout: 40m
 
 environment:
    SPREAD_DIR: $PWD/spread-dir

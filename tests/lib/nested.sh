@@ -9,7 +9,7 @@ SSH_PORT=8022
 MON_PORT=8888
 
 wait_for_ssh(){
-    retry=180
+    retry=150
     wait=1
     while ! execute_remote true; do
         retry=$(( retry - 1 ))
@@ -219,15 +219,6 @@ create_nested_core_vm(){
             ;;
         ubuntu-20.04-64)
             NESTED_MODEL="$TESTSLIB/assertions/nested-20-amd64.model"
-
-            # shellcheck source=tests/lib/prepare.sh
-            . "$TESTSLIB"/prepare.sh
-            snap download --basename=pc-kernel --channel="20/edge" pc-kernel
-            uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$WORK_DIR/image"
-
-            EXTRA_FUNDAMENTAL="--snap $WORK_DIR/image/pc-kernel_*.snap"
-            chmod 0600 "$WORK_DIR"/image/pc-kernel_*.snap
-            rm -f "$PWD/pc-kernel.snap"
             ;;
         *)
             echo "unsupported system"
@@ -266,7 +257,8 @@ configure_cloud_init_nested_core_vm(){
 
     loops=$(kpartx -avs "$WORK_DIR/image/ubuntu-core.img"  | cut -d' ' -f 3)
     tmp=$(mktemp -d)
-    for part in $parts; do
+
+    for part in $loops; do
         mount -t tmpfs "/dev/mapper/$part" "$tmp"
         if [ -d "$tmp/ubuntu-seed" ]; then
             mkdir -p "$tmp/ubuntu-seed/data/etc/cloud/cloud.cfg.d/"
@@ -336,12 +328,12 @@ start_nested_core_vm(){
         ${PARAM_EXTRA} "
 
     # Wait until the system has been initialized
-    #if ! wait_for_ssh; then
-    #    # In case it is not possible to connect through ssh restart the vm
-    #    systemctl stop "$NESTED_VM"
-    #    sleep 5
-    #    systemctl start "$NESTED_VM"
-    #fi
+    if ! wait_for_ssh; then
+        # In case it is not possible to connect through ssh restart the vm
+        systemctl stop "$NESTED_VM"
+        sleep 5
+        systemctl start "$NESTED_VM"
+    fi
 
     # Wait until ssh is ready and configure ssh
     if wait_for_ssh; then
