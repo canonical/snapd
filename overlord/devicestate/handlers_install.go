@@ -33,7 +33,6 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/sysconfig"
-	"github.com/snapcore/snapd/timings"
 )
 
 var (
@@ -46,7 +45,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	perfTimings := timings.NewForTask(t)
+	perfTimings := state.TimingsForTask(t)
 	defer perfTimings.Save(st)
 
 	// get gadget dir
@@ -92,7 +91,17 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// configure the run system
-	if err := sysconfigConfigureRunSystem(&sysconfig.Options{}); err != nil {
+	opts := &sysconfig.Options{}
+	cloudCfg := filepath.Join(dirs.RunMnt, "ubuntu-seed/data/etc/cloud/cloud.cfg.d")
+	// Support custom cloud.cfg.d/*.cfg files on the ubuntu-seed partition
+	// during install when in grade "dangerous". We will support configs
+	// from the gadget later too, see sysconfig/cloudinit.go
+	//
+	// XXX: maybe move policy decision into configureRunSystem later?
+	if osutil.IsDirectory(cloudCfg) && deviceCtx.Model().Grade() == asserts.ModelDangerous {
+		opts.CloudInitSrcDir = cloudCfg
+	}
+	if err := sysconfigConfigureRunSystem(opts); err != nil {
 		return err
 	}
 

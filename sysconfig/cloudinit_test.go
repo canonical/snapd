@@ -20,6 +20,8 @@
 package sysconfig_test
 
 import (
+	"fmt"
+	"io/ioutil"
 	"path/filepath"
 	"testing"
 
@@ -58,8 +60,19 @@ func (s *sysconfigSuite) TestCloudInitDisablesByDefault(c *C) {
 }
 
 func (s *sysconfigSuite) TestCloudInitInstalls(c *C) {
+	cloudCfgSrcDir := c.MkDir()
+	for _, mockCfg := range []string{"foo.cfg", "bar.cfg"} {
+		err := ioutil.WriteFile(filepath.Join(cloudCfgSrcDir, mockCfg), []byte(fmt.Sprintf("%s config", mockCfg)), 0644)
+		c.Assert(err, IsNil)
+	}
+
 	err := sysconfig.ConfigureRunSystem(&sysconfig.Options{
-		CloudInitSrcDir: "some-dir",
+		CloudInitSrcDir: cloudCfgSrcDir,
 	})
-	c.Assert(err, ErrorMatches, "installCloudInitCfg not implemented yet")
+	c.Assert(err, IsNil)
+
+	// and did copy the cloud-init files
+	ubuntuDataCloudCfg := filepath.Join(dirs.RunMnt, "ubuntu-data/system-data/etc/cloud/cloud.cfg.d/")
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "foo.cfg"), testutil.FileEquals, "foo.cfg config")
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "bar.cfg"), testutil.FileEquals, "bar.cfg config")
 }
