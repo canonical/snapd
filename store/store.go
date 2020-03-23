@@ -1265,12 +1265,9 @@ func (s *Store) Find(ctx context.Context, search *Search, user *auth.UserState) 
 	}
 	readResponse := func(resp *http.Response) error {
 		ok := (resp.StatusCode == 200 || resp.StatusCode == 201)
-		// always decode on success; decode failures only if body is not empty
-		if !ok && resp.ContentLength == 0 {
-			return nil
-		}
 		ct := resp.Header.Get("Content-Type")
-		if ct != jsonContentType {
+		// always decode on success; decode failures only if body is not empty
+		if !ok && (resp.ContentLength == 0 || ct != jsonContentType) {
 			return nil
 		}
 		return json.NewDecoder(resp.Body).Decode(&searchData)
