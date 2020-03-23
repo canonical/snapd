@@ -33,6 +33,9 @@ prepare: |
         snap alias test-snapd-curl.curl curl
     fi
 
+    echo "Ensure session agent service is ready to reply"
+    retry-tool curl --unix-socket "${USER_RUNTIME_DIR}/snapd-session-agent.socket" http://localhost/v1/service-control
+
 restore: |
     snap remove test-snapd-curl
     systemctl stop "user@${TEST_UID}.service"
