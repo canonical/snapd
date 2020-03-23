@@ -67,14 +67,24 @@ func (s *cmdSuite) TestCreatePartitionsWithEncryption(c *C) {
 		c.Check(opts.Encrypt, Equals, true)
 		c.Check(opts.KeyFile, Equals, "keyfile")
 		c.Check(opts.RecoveryKeyFile, Equals, "recovery")
+		c.Check(opts.LockoutAuthFile, Equals, "lockout")
+		c.Check(opts.AuthUpdateFile, Equals, "update")
+		c.Check(opts.KernelPath, Equals, "kernel")
 		n++
 		return nil
 	})
 	defer restore()
 
 	rest, err := main.Parser().ParseArgs([]string{
-		"create-partitions", "--encrypt", "--key-file", "keyfile",
-		"--recovery-key-file", "recovery", "gadget-dir", "device",
+		"create-partitions",
+		"--encrypt",
+		"--key-file", "keyfile",
+		"--recovery-key-file", "recovery",
+		"--lockout-auth-file", "lockout",
+		"--auth-update-file", "update",
+		"--kernel", "kernel",
+		"gadget-dir",
+		"device",
 	})
 	c.Assert(err, IsNil)
 	c.Assert(rest, HasLen, 0)
