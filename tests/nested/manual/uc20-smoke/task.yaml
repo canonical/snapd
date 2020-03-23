@@ -1,0 +1,39 @@
+summary: Run a smoke test on UC20 with encription enabled
+
+description: |
+  This test check UC20 pass the smoke test suite with secure boot
+
+systems: [ubuntu-20.04-*]
+
+kill-timeout: 20m
+
+environment:
+   SPREAD_DIR: $PWD/spread-dir
+   BUILD_WITH_CLOUD_INIT: true
+
+prepare: |
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+    create_nested_core_vm true
+    start_nested_core_vm
+
+restore: |
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+    destroy_nested_vm
+    cleanup_nested_env
+
+    rm -rf "$PREAD_DIR"
+
+execute: |
+
+    ( cd "$PREAD_DIR" && curl -s -O https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz && tar xzvf spread-amd64.tar.gz )
+
+    export SPREAD_EXTERNAL_ADDRESS=localhost:8022
+
+    sshpass -p ubuntu ssh -q -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -p 8022 user1@$localhost "sudo adduser --extrausers --quiet --disabled-password --gecos '' test"
+    sshpass -p ubuntu ssh -q -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -p 8022 user1@$localhost "echo test:ubuntu | sudo chpasswd"
+    sshpass -p ubuntu ssh -q -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -p 8022 user1@$localhost "echo 'test ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/create-user-test"
+
+    cd "$PROJECT_PATH"
+    "$PREAD_DIR/spread" external:ubuntu-core-20-64:tests/smoke/
