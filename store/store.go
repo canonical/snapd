@@ -833,6 +833,7 @@ func decodeJSONBody(resp *http.Response, success interface{}, failure interface{
 	if !ok {
 		result = failure
 	}
+	// XXX should we check content-type first?
 	if result != nil {
 		return json.NewDecoder(resp.Body).Decode(result)
 	}
