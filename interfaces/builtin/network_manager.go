@@ -142,7 +142,7 @@ dbus (send)
      bus=system
      path="/org/freedesktop/resolve1"
      interface="org.freedesktop.resolve1.Manager"
-     member="SetLink{DNS,Domains}"
+     member="SetLink{DNS,MulticastDNS,Domains,LLMNR}"
      peer=(label=unconfined),
 
 dbus (send)
