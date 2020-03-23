@@ -1259,7 +1259,22 @@ func (s *Store) Find(ctx context.Context, search *Search, user *auth.UserState) 
 	}
 
 	var searchData searchV2Results
-	resp, err := s.retryRequestDecodeJSON(ctx, reqOptions, user, &searchData, nil)
+	doRequest := func() (*http.Response, error) {
+		return s.doRequest(ctx, s.client, reqOptions, user)
+	}
+	readResponse := func(resp *http.Response) error {
+		ok := (resp.StatusCode == 200 || resp.StatusCode == 201)
+		// always decode on success; decode failures only if body is not empty
+		if !ok && resp.ContentLength == 0 {
+			return nil
+		}
+		ct := resp.Header.Get("Content-Type")
+		if ct != jsonContentType {
+			return nil
+		}
+		return json.NewDecoder(resp.Body).Decode(&searchData)
+	}
+	resp, err := httputil.RetryRequest(u.String(), doRequest, readResponse, defaultRetryStrategy)
 	if err != nil {
 		return nil, err
 	}
@@ -1274,6 +1289,9 @@ func (s *Store) Find(ctx context.Context, search *Search, user *auth.UserState) 
 			} else if ver < 19 {
 				return s.findV1(ctx, search, user)
 			}
+		}
+		if len(searchData.ErrorList) > 0 {
+			return nil, translateSnapActionError("", "", searchData.ErrorList[0].Code, searchData.ErrorList[0].Message, nil)
 		}
 		return nil, respToError(resp, "search")
 	}

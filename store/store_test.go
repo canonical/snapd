@@ -3349,6 +3349,34 @@ func (s *storeTestSuite) TestFindV2Private(c *C) {
 	s.testFindPrivate(c, false)
 }
 
+func (s *storeTestSuite) TestFindV2ErrorList(c *C) {
+	const errJSON = `{
+		"error-list": [
+			{
+				"code": "api-error",
+				"message": "api error occured"
+			}
+		]
+	}`
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "GET", searchV2Path)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(400)
+		io.WriteString(w, errJSON)
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+		SearchFields: []string{},
+	}
+	sto := store.New(&cfg, nil)
+	_, err := sto.Find(s.ctx, &store.Search{Query: "x"}, nil)
+	c.Check(err, ErrorMatches, `api error occured`)
+}
+
 func (s *storeTestSuite) TestFindFailures(c *C) {
 	// bad query check is done early in Find(), so the test covers both search
 	// v1 & v2
@@ -3589,7 +3617,7 @@ func (s *storeTestSuite) TestFindV2_500(c *C) {
 	s.testFind500(c, false)
 }
 
-func (s *storeTestSuite) testFind500once(c *C, apiV1 bool) {
+func (s *storeTestSuite) testFind500Once(c *C, apiV1 bool) {
 	var n = 0
 	var v1Fallback, v2Hit bool
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -3643,11 +3671,11 @@ func (s *storeTestSuite) testFind500once(c *C, apiV1 bool) {
 
 func (s *storeTestSuite) TestFindV1_500once(c *C) {
 	apiV1 := true
-	s.testFind500once(c, apiV1)
+	s.testFind500Once(c, apiV1)
 }
 
 func (s *storeTestSuite) TestFindV2_500once(c *C) {
-	s.testFind500once(c, false)
+	s.testFind500Once(c, false)
 }
 
 func (s *storeTestSuite) testFindAuthFailed(c *C, apiV1 bool) {
@@ -3775,7 +3803,6 @@ func (s *storeTestSuite) testFindCommonIDs(c *C, apiV1 bool) {
 	infos, err := sto.Find(s.ctx, &store.Search{Query: "foo"}, nil)
 	c.Check(err, IsNil)
 	c.Assert(infos, HasLen, 1)
-	// XXX check if common ids are expected with v2
 	if apiV1 {
 		c.Check(infos[0].CommonIDs, DeepEquals, []string{"org.hello"})
 	} else {
@@ -3829,7 +3856,6 @@ func (s *storeTestSuite) testFindByCommonID(c *C, apiV1 bool) {
 		} else {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(200)
-			// XXX check if common ids are expected with v2
 			io.WriteString(w, MockSearchJSONv2)
 		}
 
@@ -3847,9 +3873,10 @@ func (s *storeTestSuite) testFindByCommonID(c *C, apiV1 bool) {
 	infos, err := sto.Find(s.ctx, &store.Search{CommonID: "org.hello"}, nil)
 	c.Check(err, IsNil)
 	c.Assert(infos, HasLen, 1)
-	// XXX check if common ids are expected with v2
 	if apiV1 {
 		c.Check(infos[0].CommonIDs, DeepEquals, []string{"org.hello"})
+	} else {
+		c.Check(infos[0].CommonIDs, DeepEquals, []string{"aaa", "bbb"})
 	}
 }
 
@@ -4588,6 +4615,7 @@ func (s *storeTestSuite) TestBuy(c *C) {
 				if test.buyErrorCode == "" {
 					io.WriteString(w, test.buyResponse)
 				} else {
+					w.Header().Set("Content-Type", "application/json")
 					w.WriteHeader(test.buyStatus)
 					// TODO(matt): this is fugly!
 					fmt.Fprintf(w, `
