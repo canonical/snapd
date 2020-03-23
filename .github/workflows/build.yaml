@@ -47,3 +47,31 @@ jobs:
       run: go build -v github.com/snapcore/snapd/...
     - name: Test
       run: go build -v github.com/snapcore/snapd/...
+  spread-smoke:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Cache spread
+      id: cache-spread
+      uses: actions/cache@v1
+      with:
+        path: /tmp/spread
+        key: spread-binary
+    - name: Install spread
+      if: steps.cache-spread.outputs.cache-hit != 'true'
+      run: |
+          cd /tmp
+          wget --quiet https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz
+          tar zxf spread-amd64.tar.gz
+    - name: Install xdelta
+      run: sudo apt-get install xdelta3
+    - name: Checkout code
+      uses: actions/checkout@v2
+    - name: Debugging
+      run: env
+    - name: Run partial integration test
+      run: SPREAD_GOOGLE_KEY=${{ secrets.SPREAD_GOOGLE_KEY }} google:ubuntu-16.04-64:tests/main/ | tee /tmp/spread.log
+    - name: Save spread log file
+      uses: actions/upload-artifact@v1
+      with:
+        name: text log from spread run
+        path: /tmp/spread.log
