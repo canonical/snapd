@@ -27,11 +27,10 @@ jobs:
       with:
         path: ${{ github.workspace }}/src/github.com/${{ github.repository }}/vendor
         key: ${{ runner.os }}-go-vendor
-    # XXX: is this the right version of go?
-    - name: Set up go 1.10
+    - name: Set up go 1.9
       uses: actions/setup-go@v1
       with:
-        go-version: 1.10
+        go-version: 1.9
       id: go  # XXX: what is this for?
     - name: Install govendor
       run: go get -u github.com/kardianos/govendor
