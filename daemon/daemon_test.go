@@ -52,6 +52,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/polkit"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
@@ -570,6 +571,44 @@ func (s *daemonSuite) TestStartStop(c *check.C) {
 	<-snapDone
 
 	err = d.Stop(nil)
+	c.Check(err, check.IsNil)
+
+	c.Check(s.notified, check.DeepEquals, []string{extendedTimeoutUSec, "READY=1", "STOPPING=1"})
+}
+
+func (s *daemonSuite) TestStartStopFailoverSnapdReverting(c *check.C) {
+	// in the case of a failover snapd revert we should
+	// not open the sockets at all
+
+	defer snapdenv.MockFailoverSnapdReverting("9999")()
+
+	d := newTestDaemon(c)
+	// mark as already seeded
+	s.markSeeded(d)
+	// and pretend we have snaps
+	st := d.overlord.State()
+	st.Lock()
+	snapstate.Set(st, "core", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "core", Revision: snap.R(1), SnapID: "core-snap-id"},
+		},
+		Current: snap.R(1),
+	})
+	st.Unlock()
+	// 1 snap => extended timeout 30s + 5s
+	const extendedTimeoutUSec = "EXTEND_TIMEOUT_USEC=35000000"
+
+	c.Check(d.Init(), check.IsNil)
+
+	c.Check(d.snapdListener, check.IsNil)
+	c.Check(d.snapListener, check.IsNil)
+
+	c.Assert(d.Start(), check.IsNil)
+
+	c.Check(s.notified, check.DeepEquals, []string{extendedTimeoutUSec, "READY=1"})
+
+	err := d.Stop(nil)
 	c.Check(err, check.IsNil)
 
 	c.Check(s.notified, check.DeepEquals, []string{extendedTimeoutUSec, "READY=1", "STOPPING=1"})

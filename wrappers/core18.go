@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeout"
 )
@@ -265,7 +266,9 @@ func AddSnapdSnapServices(s *snap.Info, inter interacter) error {
 	}
 	// and finally start snapd.service (it will stop by itself and gets
 	// started by systemd then)
+	logger.Debugf("starting snapd.service [failover revert? %s]", snapdenv.FailoverSnapdReverting())
 	if err := sysd.Start("snapd.service"); err != nil {
+		logger.Debugf("error starting snapd.service: %v", err)
 		return err
 	}
 	if err := sysd.StartNoBlock("snapd.seeded.service"); err != nil {

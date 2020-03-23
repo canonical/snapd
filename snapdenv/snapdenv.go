@@ -92,3 +92,24 @@ func MockPreseeding(preseeding bool) (restore func()) {
 		mockPreseeding = old
 	}
 }
+
+var mockSnapdRevertToRev *string
+
+// FailoverSnapdReverting returns a string representing the revision
+// to revert to if snapd is being ephemerally run to revert to a
+// previous revision for failover.
+func FailoverSnapdReverting() (rev string) {
+	if mockSnapdRevertToRev != nil {
+		return *mockSnapdRevertToRev
+	}
+
+	return os.Getenv("SNAPD_REVERT_TO_REV")
+}
+
+func MockFailoverSnapdReverting(snapdRevertToRev string) (restore func()) {
+	old := mockSnapdRevertToRev
+	mockSnapdRevertToRev = &snapdRevertToRev
+	return func() {
+		mockSnapdRevertToRev = old
+	}
+}

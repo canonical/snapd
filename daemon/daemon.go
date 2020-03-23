@@ -318,6 +318,12 @@ func logit(handler http.Handler) http.Handler {
 // Init sets up the Daemon's internal workings.
 // Don't call more than once.
 func (d *Daemon) Init() error {
+	// TODO: do the same when preseeding?
+	if snapdRev := snapdenv.FailoverSnapdReverting(); snapdRev != "" {
+		logger.Noticef("started for failover reverting (%s) %v.", snapdRev, snapdenv.UserAgent())
+		return nil
+	}
+
 	listenerMap, err := netutil.ActivationListeners()
 	if err != nil {
 		return err
@@ -447,29 +453,39 @@ func (d *Daemon) Start() error {
 		ConnState: d.connTracker.trackConn,
 	}
 
-	// enable standby handling
-	d.initStandbyHandling()
+	if d.snapdListener == nil {
+		// ephemeral run without sockets, standby handling
+		// is not relevant
+	} else {
+		// enable standby handling
+		d.initStandbyHandling()
+	}
 
 	// the loop runs in its own goroutine
 	d.overlord.Loop()
 
-	d.tomb.Go(func() error {
-		if d.snapListener != nil {
-			d.tomb.Go(func() error {
-				if err := d.serve.Serve(d.snapListener); err != http.ErrServerClosed && d.tomb.Err() == tomb.ErrStillAlive {
-					return err
-				}
+	if d.snapdListener == nil {
+		// nothing to do
+	} else {
+		// serve requests on the daemon sockets
+		d.tomb.Go(func() error {
+			if d.snapListener != nil {
+				d.tomb.Go(func() error {
+					if err := d.serve.Serve(d.snapListener); err != http.ErrServerClosed && d.tomb.Err() == tomb.ErrStillAlive {
+						return err
+					}
 
-				return nil
-			})
-		}
+					return nil
+				})
+			}
 
-		if err := d.serve.Serve(d.snapdListener); err != http.ErrServerClosed && d.tomb.Err() == tomb.ErrStillAlive {
-			return err
-		}
+			if err := d.serve.Serve(d.snapdListener); err != http.ErrServerClosed && d.tomb.Err() == tomb.ErrStillAlive {
+				return err
+			}
 
-		return nil
-	})
+			return nil
+		})
+	}
 
 	// notify systemd that we are ready
 	systemdSdNotify("READY=1")
@@ -528,8 +544,10 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	restartSocket := d.restartSocket
 	d.mu.Unlock()
 
-	d.snapdListener.Close()
-	d.standbyOpinions.Stop()
+	if d.snapdListener != nil {
+		d.snapdListener.Close()
+		d.standbyOpinions.Stop()
+	}
 
 	if d.snapListener != nil {
 		// stop running hooks first
@@ -562,7 +580,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 
 	}
 
-	if restartSocket {
+	if d.standbyOpinions != nil && restartSocket {
 		// At this point we processed all open requests (and
 		// stopped accepting new requests) - before going into
 		// socket activated mode we need to check if any of
@@ -575,9 +593,16 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 			d.restartSocket = false
 		}
 	}
+
 	d.overlord.Stop()
 
-	err := d.tomb.Wait()
+	var err error
+	if d.snapdListener == nil {
+		// no goroutine was run
+		err = d.tomb.Err()
+	} else {
+		err = d.tomb.Wait()
+	}
 	if err != nil {
 		if err == context.DeadlineExceeded {
 			logger.Noticef("WARNING: cannot gracefully shut down in-flight snapd API activity within: %v", shutdownTimeout)

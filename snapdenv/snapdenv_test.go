@@ -144,3 +144,37 @@ func (s *snapdenvSuite) TestMockPreseeding(c *C) {
 	snapdenv.MockPreseeding(false)
 	c.Check(snapdenv.Preseeding(), Equals, false)
 }
+
+func (s *snapdenvSuite) TestFailoverSnapdReverting(c *C) {
+	oldSnapdRevertToRev := os.Getenv("SNAPD_REVERT_TO_REV")
+	defer func() {
+		if oldSnapdRevertToRev == "" {
+			os.Unsetenv("SNAPD_REVERT_TO_REV")
+		} else {
+			os.Setenv("SNAPD_REVERT_TO_REV", oldSnapdRevertToRev)
+		}
+	}()
+
+	os.Setenv("SNAPD_REVERT_TO_REV", "33")
+	c.Check(snapdenv.FailoverSnapdReverting(), Equals, "33")
+
+	os.Unsetenv("SNAPD_REVERT_TO_REV")
+	c.Check(snapdenv.FailoverSnapdReverting(), Equals, "")
+}
+
+func (s *snapdenvSuite) TestMockFailoverSnapdReverting(c *C) {
+	oldSnapdRevertToRev := os.Getenv("SNAPD_REVERT_TO_REV")
+	defer func() {
+		if oldSnapdRevertToRev == "" {
+			os.Unsetenv("SNAPD_REVERT_TO_REV")
+		} else {
+			os.Setenv("SNAPD_REVERT_TO_REV", oldSnapdRevertToRev)
+		}
+	}()
+	os.Unsetenv("SNAPD_REVERT_TO_REV")
+
+	r := snapdenv.MockFailoverSnapdReverting("66")
+	defer r()
+
+	c.Check(snapdenv.FailoverSnapdReverting(), Equals, "66")
+}

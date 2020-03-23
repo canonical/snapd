@@ -930,6 +930,14 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	// mark as active again
 	Set(st, snapsup.InstanceName(), snapst)
 
+	// TODO: consider setting Status to UndoStatus to avoid reruns while
+	// here
+
+	// TODO: in the case of a snapd failover revert (see
+	// cmd/snap-failure) make sure we have saved state
+	// before we start the reverted snapd, we might need some form
+	// of CommitAndExit on state
+
 	// if we just put back a previous a core snap, request a restart
 	// so that we switch executing its snapd
 	m.maybeRestart(t, oldInfo, reboot, deviceCtx)

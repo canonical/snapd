@@ -422,6 +422,15 @@ func (o *Overlord) Loop() {
 		for {
 			// TODO: pass a proper context into Ensure
 			o.ensureTimerReset()
+
+			// TODO: in the case of a snapd failover
+			// revert (see cmd/snap-failure) make sure we
+			// only do what is strictly necessary in terms
+			// of:
+			//  * ensure logic
+			//  * run only the lane with the revert, not
+			//    other changes
+
 			// in case of errors engine logs them,
 			// continue to the next Ensure() try for now
 			err := o.stateEng.Ensure()

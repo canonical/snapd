@@ -25,7 +25,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"sort"
 	"time"
 
@@ -45,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -433,7 +433,7 @@ func WaitRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 		return &state.Retry{}
 	}
 
-	if snapsup.Type == snap.TypeSnapd && os.Getenv("SNAPD_REVERT_TO_REV") != "" {
+	if snapsup.Type == snap.TypeSnapd && snapdenv.FailoverSnapdReverting() != "" {
 		return fmt.Errorf("there was a snapd rollback across the restart")
 	}
 

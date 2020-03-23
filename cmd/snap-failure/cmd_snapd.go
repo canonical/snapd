@@ -147,6 +147,7 @@ func (c *cmdSnapd) Execute(args []string) error {
 		return fmt.Errorf("snapd failed: %v", err)
 	}
 
+	logger.Noticef("checking is-failed status of snapd.socket, snapd.service")
 	isFailedCmd := runCmd("systemctl", []string{"is-failed", "snapd.socket", "snapd.service"}, nil)
 	if err := isFailedCmd.Run(); err != nil {
 		// seems not to be failed anymore, sample for sanely
@@ -155,6 +156,7 @@ func (c *cmdSnapd) Execute(args []string) error {
 			if i != 0 {
 				time.Sleep(sampleForActiveInterval)
 			}
+			logger.Noticef("sampling is-active status of snapd.socket, snapd.service")
 			isActiveCmd := runCmd("systemctl", []string{"is-active", "snapd.socket", "snapd.service"}, nil)
 			err := isActiveCmd.Run()
 			if err == nil && osutil.FileExists(dirs.SnapdSocket) && osutil.FileExists(dirs.SnapSocket) {
