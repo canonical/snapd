@@ -3,6 +3,7 @@ summary: Verify xdg-open forwarding requests to the desktop portal
 # Only enable the test on systems we know portals to function on.
 # Expand as needed.
 systems:
+  - arch-linux-*
   - debian-sid-*
   - fedora-*
   - opensuse-*
