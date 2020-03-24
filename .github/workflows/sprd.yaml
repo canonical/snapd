@@ -29,3 +29,9 @@ jobs:
       uses: actions/checkout@v2
     - name: Run spread tests
       run: spread -v google:${{ matrix.system }}:tests/...
+    - name: Discard spread workers
+      run: |
+        shopt -s nullglob;
+        for r in .spread-reuse.*.yaml; do
+          spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
+        done
