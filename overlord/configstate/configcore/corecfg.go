@@ -182,6 +182,9 @@ func Run(tr config.Conf) error {
 	if err := validateNetworkSettings(tr); err != nil {
 		return err
 	}
+	if err := validateVitalitySettings(tr); err != nil {
+		return err
+	}
 	if err := validateAutomaticSnapshotsExpiration(tr); err != nil {
 		return err
 	}
@@ -189,6 +192,10 @@ func Run(tr config.Conf) error {
 
 	// capture cloud information
 	if err := setCloudInfoWhenSeeding(tr); err != nil {
+		return err
+	}
+	// resilience.vitality-hint
+	if err := handleVitalityConfiguration(tr); err != nil {
 		return err
 	}
 
