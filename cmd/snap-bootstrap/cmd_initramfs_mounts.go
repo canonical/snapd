@@ -29,9 +29,7 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/boot"
-	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
@@ -69,6 +67,8 @@ var (
 	osutilIsMounted = osutil.IsMounted
 )
 
+// TODO:UC20: re-write the install mode function to use the boot pkg functions
+// and get rid of this function
 func recoverySystemEssentialSnaps(seedDir, recoverySystem string, essentialTypes []snap.Type) ([]*seed.Snap, error) {
 	systemSeed, err := seed.Open(seedDir, recoverySystem)
 	if err != nil {
@@ -135,6 +135,9 @@ func generateMountsModeInstall(recoverySystem string) error {
 		if !isSnapdMounted {
 			whichTypes = append(whichTypes, snap.TypeSnapd)
 		}
+		// TODO:UC20: use more generalized version of
+		//            boot.InitramfsRunModeSnapsToMount here to fully move
+		//            recoverySystemEssentialSnaps to boot pkg
 		essSnaps, err := recoverySystemEssentialSnaps(seedDir, recoverySystem, whichTypes)
 		if err != nil {
 			return fmt.Errorf("cannot load metadata and verify essential bootstrap snaps %v: %v", whichTypes, err)
@@ -220,151 +223,44 @@ func generateMountsModeRun() error {
 		return nil
 	}
 
-	// 2.1 read modeenv
-	modeEnv, err := boot.ReadModeenv(filepath.Join(dataDir, "system-data"))
-	if err != nil {
-		return err
-	}
-
-	// 2.2.1 check if base is mounted
+	// 2. check if base is mounted
 	isBaseMounted, err := osutilIsMounted(filepath.Join(dirs.RunMnt, "base"))
-	if err != nil {
-		return err
-	}
-	if !isBaseMounted {
-		// 2.2.2 use modeenv base_status and try_base to see  if we are trying
-		// an update to the base snap
-		base := modeEnv.Base
-		if base == "" {
-			// we have no fallback base!
-			return fmt.Errorf("modeenv corrupt: missing base setting")
-		}
-		if modeEnv.BaseStatus == boot.TryStatus {
-			// then we are trying a base snap update and there should be a
-			// try_base set in the modeenv too
-			if modeEnv.TryBase != "" {
-				// check that the TryBase exists in ubuntu-data
-				tryBaseSnapPath := filepath.Join(dataDir, "system-data", dirs.SnapBlobDir, modeEnv.TryBase)
-				if osutil.FileExists(tryBaseSnapPath) {
-					// set the TryBase and have the initramfs mount this base
-					// snap
-					modeEnv.BaseStatus = boot.TryingStatus
-					base = modeEnv.TryBase
-				} else {
-					logger.Noticef("try-base snap %q does not exist", modeEnv.TryBase)
-				}
-			} else {
-				logger.Noticef("try-base snap is empty, but \"base_status\" is \"trying\"")
-			}
-			// TODO:UC20: log a message if try_base is unset here?
-		} else if modeEnv.BaseStatus == boot.TryingStatus {
-			// snapd failed to start with the base snap update, so we need to
-			// fallback to the old base snap and clear base_status
-			modeEnv.BaseStatus = boot.DefaultStatus
-		} else if modeEnv.BaseStatus != boot.DefaultStatus {
-			logger.Noticef("\"base_status\" has an invalid setting: %q", modeEnv.BaseStatus)
-		}
-
-		baseSnapPath := filepath.Join(dataDir, "system-data", dirs.SnapBlobDir, base)
-		fmt.Fprintf(stdout, "%s %s\n", baseSnapPath, filepath.Join(dirs.RunMnt, "base"))
-	}
-
-	// 2.3.1 check if the kernel is mounted
+	// 3. check if kernel is mounted
 	isKernelMounted, err := osutilIsMounted(filepath.Join(dirs.RunMnt, "kernel"))
-	if err != nil {
-		return err
-	}
-	if !isKernelMounted {
-		// make a map to easily check if a kernel snap is valid or not
-		validKernels := make(map[string]bool, len(modeEnv.CurrentKernels))
-		for _, validKernel := range modeEnv.CurrentKernels {
-			validKernels[validKernel] = true
+	// 4. check if snapd is mounted (only on first-boot will we mount it)
+	isSnapdMounted, err := osutilIsMounted(filepath.Join(dirs.RunMnt, "snapd"))
+
+	if !isBaseMounted || !isKernelMounted || !isSnapdMounted {
+		// load the recovery system and generate mounts for kernel/base
+		// and snapd
+		var whichTypes []snap.Type
+		if !isBaseMounted {
+			whichTypes = append(whichTypes, snap.TypeBase)
+		}
+		if !isKernelMounted {
+			whichTypes = append(whichTypes, snap.TypeKernel)
+		}
+		if !isSnapdMounted {
+			whichTypes = append(whichTypes, snap.TypeSnapd)
 		}
 
-		// find ubuntu-boot bootloader to get the kernel_status and kernel.efi
-		// status so we can determine the right kernel snap to have mounted
-
-		// TODO:UC20: should all this logic move to boot package? feels awfully
-		// similar to the logic in revisions() for bootState20
-
-		// At this point the run mode bootloader is under the native
-		// layout, no /boot mount.
-		opts := &bootloader.Options{NoSlashBoot: true}
-		bl, err := bootloader.Find(bootDir, opts)
-		if err != nil {
-			return fmt.Errorf("internal error: cannot find run system bootloader: %v", err)
-		}
-
-		// make sure it supports extracted run kernel images, as we have to find the
-		// extracted run kernel image
-		ebl, ok := bl.(bootloader.ExtractedRunKernelImageBootloader)
-		if !ok {
-			return fmt.Errorf("cannot use %s bootloader: does not support extracted run kernel images", bl.Name())
-		}
-
-		// get the primary extracted run kernel
-		kernel, err := ebl.Kernel()
-		if err != nil {
-			// we don't have a fallback kernel!
-			return fmt.Errorf("no fallback kernel snap: %v", err)
-		}
-
-		kernelFile := kernel.Filename()
-		if !validKernels[kernelFile] {
-			// we don't trust the fallback kernel!
-			return fmt.Errorf("fallback kernel snap %q is not trusted in the modeenv", kernelFile)
-		}
-
-		// get kernel_status
-		m, err := ebl.GetBootVars("kernel_status")
-		if err != nil {
-			return fmt.Errorf("cannot get kernel_status from bootloader %s", ebl.Name())
-		}
-
-		if m["kernel_status"] == boot.TryingStatus {
-			// check for the try kernel
-			tryKernel, err := ebl.TryKernel()
-			if err == nil {
-				tryKernelFile := tryKernel.Filename()
-				if validKernels[tryKernelFile] {
-					kernelFile = tryKernelFile
-				} else {
-					logger.Noticef("try-kernel %q is not trusted in the modeenv", tryKernelFile)
-				}
-			} else if err != bootloader.ErrNoTryKernelRef {
-				logger.Noticef("missing try-kernel, even though \"kernel_status\" is \"trying\"")
-			}
-			// if we didn't have a try kernel, but we do have kernel_status ==
-			// trying we just fallback to using the normal kernel
-			// same goes for try kernel being untrusted - we will fallback to
-			// the normal kernel snap
-		}
-
-		kernelPath := filepath.Join(dataDir, "system-data", dirs.SnapBlobDir, kernelFile)
-		fmt.Fprintf(stdout, "%s %s\n", kernelPath, filepath.Join(dirs.RunMnt, "kernel"))
-	}
-
-	// 3.1 Maybe mount the snapd snap on first boot of run-mode
-	// TODO:UC20: Make RecoverySystem empty after successful first boot
-	// somewhere in devicestate
-	if modeEnv.RecoverySystem != "" {
-		isSnapdMounted, err := osutilIsMounted(filepath.Join(dirs.RunMnt, "snapd"))
+		mounts, err := boot.InitramfsRunModeSnapsToMount(whichTypes)
 		if err != nil {
 			return err
 		}
-
-		if !isSnapdMounted {
-			// load the recovery system and generate mount for snapd
-			essSnaps, err := recoverySystemEssentialSnaps(seedDir, modeEnv.RecoverySystem, []snap.Type{snap.TypeSnapd})
-			if err != nil {
-				return fmt.Errorf("cannot load metadata and verify snapd snap: %v", err)
-			}
-			fmt.Fprintf(stdout, "%s %s\n", essSnaps[0].Path, filepath.Join(dirs.RunMnt, "snapd"))
+		// TODO:UC20: should we have more cross-checks here?
+		if _, ok := mounts[snap.TypeBase]; ok {
+			fmt.Fprintf(stdout, "%s %s\n", mounts[snap.TypeBase], filepath.Join(dirs.RunMnt, "base"))
+		}
+		if _, ok := mounts[snap.TypeKernel]; ok {
+			fmt.Fprintf(stdout, "%s %s\n", mounts[snap.TypeKernel], filepath.Join(dirs.RunMnt, "kernel"))
+		}
+		if _, ok := mounts[snap.TypeSnapd]; ok {
+			fmt.Fprintf(stdout, "%s %s\n", mounts[snap.TypeSnapd], filepath.Join(dirs.RunMnt, "snapd"))
 		}
 	}
 
-	// 4.1 Write the modeenv out again
-	return modeEnv.Write(filepath.Join(dataDir, "system-data"))
+	return nil
 }
 
 func generateInitramfsMounts() error {
