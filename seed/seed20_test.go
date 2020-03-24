@@ -315,7 +315,7 @@ func (s *seed20Suite) TestLoadAssertionsMultiSnapRev(c *C) {
 	seed20, err := seed.Open(s.SeedDir, sysLabel)
 	c.Assert(err, IsNil)
 	err = seed20.LoadAssertions(s.db, s.commitTo)
-	c.Check(err, ErrorMatches, `cannot have multiple snap-revisions for the same snap-id: core20ididididididididididididid`)
+	c.Check(err, ErrorMatches, `cannot have multiple snap-revisions for the same snap-id: DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q`)
 }
 
 func (s *seed20Suite) TestLoadAssertionsMultiSnapDecl(c *C) {
@@ -359,7 +359,38 @@ func (s *seed20Suite) TestLoadAssertionsMultiSnapDecl(c *C) {
 
 func (s *seed20Suite) TestLoadMetaMissingSnapDeclByName(c *C) {
 	sysLabel := "20191031"
-	sysDir := s.makeCore20MinimalSeed(c, sysLabel)
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "core20",
+				// no id
+				"type": "base",
+			}},
+	}, nil)
+
+	sysDir := filepath.Join(s.SeedDir, "systems", sysLabel)
 
 	wrongDecl, err := s.StoreSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",

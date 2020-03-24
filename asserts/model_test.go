@@ -27,6 +27,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 type modelSuite struct {
@@ -607,6 +608,7 @@ func (mods *modelSuite) TestCore20DecodeOK(c *C) {
 	c.Check(model.Base(), Equals, "core20")
 	c.Check(model.BaseSnap(), DeepEquals, &asserts.ModelSnap{
 		Name:           "core20",
+		SnapID:         naming.WellKnownSnapID("core20"),
 		SnapType:       "base",
 		Modes:          []string{"run", "ephemeral"},
 		DefaultChannel: "latest/stable",
@@ -764,6 +766,7 @@ func (mods *modelSuite) TestCore20DecodeInvalid(c *C) {
 
 	invalidTests := []struct{ original, invalid, expectedErr string }{
 		{"base: core20\n", "", `"base" header is mandatory`},
+		{"base: core20\n", "base: alt-base\n", `cannot specify not well-known base "alt-base" without a corresponding "snaps" header entry`},
 		{"OTHER", "classic: true\n", `cannot use extended snaps header for a classic model \(yet\)`},
 		{snapsStanza, "snaps: snap\n", `"snaps" header must be a list of maps`},
 		{snapsStanza, "snaps:\n  - snap\n", `"snaps" header must be a list of maps`},
