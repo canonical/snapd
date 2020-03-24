@@ -160,7 +160,7 @@ func (s *modeenvSuite) TestWriteNonExisting(c *C) {
 	c.Assert(s.mockModeenvPath, testutil.FileAbsent)
 
 	modeenv := &boot.Modeenv{Mode: "run"}
-	err := modeenv.Write(s.tmpdir)
+	err := modeenv.WriteTo(s.tmpdir)
 	c.Assert(err, IsNil)
 
 	c.Assert(s.mockModeenvPath, testutil.FileEquals, "mode=run\n")
@@ -172,7 +172,7 @@ func (s *modeenvSuite) TestWriteExisting(c *C) {
 	modeenv, err := boot.ReadModeenv(s.tmpdir)
 	c.Assert(err, IsNil)
 	modeenv.Mode = "recovery"
-	err = modeenv.Write(s.tmpdir)
+	err = modeenv.WriteTo(s.tmpdir)
 	c.Assert(err, IsNil)
 
 	c.Assert(s.mockModeenvPath, testutil.FileEquals, "mode=recovery\n")
@@ -189,7 +189,7 @@ func (s *modeenvSuite) TestWriteNonExistingFull(c *C) {
 		BaseStatus:     boot.TryStatus,
 		CurrentKernels: []string{"pc-kernel_1.snap", "pc-kernel_2.snap"},
 	}
-	err := modeenv.Write(s.tmpdir)
+	err := modeenv.WriteTo(s.tmpdir)
 	c.Assert(err, IsNil)
 
 	c.Assert(s.mockModeenvPath, testutil.FileEquals, `mode=run

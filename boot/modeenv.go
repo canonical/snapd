@@ -44,6 +44,10 @@ type Modeenv struct {
 
 	// read is set to true when a modenv was read successfully
 	read bool
+
+	// origindir is set to the location where the modeenv was read from, and
+	// where it will be written back to
+	origindir string
 }
 
 var readModeenv = readModeenvImpl
@@ -107,6 +111,7 @@ func readModeenvImpl(rootdir string) (*Modeenv, error) {
 		BaseStatus:     baseStatus,
 		CurrentKernels: kernels,
 		read:           true,
+		origindir:      rootdir,
 	}, nil
 }
 
@@ -115,8 +120,18 @@ func (m *Modeenv) Unset() bool {
 	return !m.read
 }
 
-// Write outputs the modeenv to the file at <rootdir>/var/lib/snapd/modeenv.
-func (m *Modeenv) Write(rootdir string) error {
+// Write outputs the modeenv to the file where it was read, only valid on
+// modeenv that has been read
+func (m *Modeenv) Write() error {
+	if m.read {
+		return m.WriteTo(m.origindir)
+	}
+	// use default dir
+	return m.WriteTo("")
+}
+
+// WriteTo outputs the modeenv to the file at <rootdir>/var/lib/snapd/modeenv.
+func (m *Modeenv) WriteTo(rootdir string) error {
 	modeenvPath := modeenvFile(rootdir)
 
 	if err := os.MkdirAll(filepath.Dir(modeenvPath), 0755); err != nil {

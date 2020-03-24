@@ -108,7 +108,7 @@ func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
 	if deviceCtx.HasModeenv() && deviceCtx.RunMode() {
 		// unset recovery_system because that is only needed during install mode
 		m.modeEnv.RecoverySystem = ""
-		err := m.modeEnv.Write("")
+		err := m.modeEnv.Write()
 		if err != nil {
 			return err
 		}

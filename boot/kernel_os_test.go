@@ -155,7 +155,7 @@ func (s *bootenv20Suite) TestSetNextBoot20ForKernel(c *C) {
 		Base:           "core20_1.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap"},
 	}
-	err := m.Write("")
+	err := m.Write()
 	c.Assert(err, IsNil)
 	defer os.Remove(dirs.SnapModeenvFileUnder(dirs.GlobalRootDir))
 
@@ -233,7 +233,7 @@ func (s *bootenv20Suite) TestSetNextBoot20ForKernelForTheSameKernel(c *C) {
 		Base:           "core20_1.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap"},
 	}
-	err := m.Write("")
+	err := m.Write()
 	c.Assert(err, IsNil)
 	defer os.Remove(dirs.SnapModeenvFileUnder(dirs.GlobalRootDir))
 
@@ -312,7 +312,7 @@ func (s *bootenv20Suite) TestSetNextBoot20ForKernelForTheSameKernelTryMode(c *C)
 		Base:           "core20_1.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap"},
 	}
-	err := m.Write("")
+	err := m.Write()
 	c.Assert(err, IsNil)
 	defer os.Remove(dirs.SnapModeenvFileUnder(dirs.GlobalRootDir))
 

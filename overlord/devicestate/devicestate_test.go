@@ -367,7 +367,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededHappyWithModeenv(c *C) {
 		Mode:           "install",
 		RecoverySystem: "20191127",
 	}
-	err := m.Write("")
+	err := m.Write()
 	c.Assert(err, IsNil)
 
 	// re-create manager so that modeenv file is-read
@@ -1121,7 +1121,7 @@ func (s *deviceMgrSuite) TestDevicemgrCanStandby(c *C) {
 
 func (s *deviceMgrSuite) TestDeviceManagerReadsModeenv(c *C) {
 	modeEnv := &boot.Modeenv{Mode: "install"}
-	err := modeEnv.Write("")
+	err := modeEnv.Write()
 	c.Assert(err, IsNil)
 
 	runner := s.o.TaskRunner()
