@@ -308,8 +308,9 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		name = "snap-content-plug"
 	case "snap-content-slot-id":
 		name = "snap-content-slot"
-	case "snapd-id":
+	case "snapd-snap-id":
 		name = "snapd"
+		typ = snap.TypeSnapd
 	case "kernel-id":
 		name = "kernel"
 		typ = snap.TypeKernel
@@ -732,6 +733,8 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 		info.SnapType = snap.TypeGadget
 	case "core":
 		info.SnapType = snap.TypeOS
+	case "snapd":
+		info.SnapType = snap.TypeSnapd
 	case "services-snap":
 		var err error
 		// fix services after/before so that there is only one solution

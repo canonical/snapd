@@ -679,9 +679,6 @@ version: 1.0
 }
 
 func (s *snapmgrTestSuite) TestInstallSnapdSnapType(c *C) {
-	restore := snap.MockSnapdSnapID("snapd-id") // id provided by fakeStore
-	defer restore()
-
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -1368,9 +1365,6 @@ func (s *snapmgrTestSuite) TestUpdateManyWaitForBasesUC18(c *C) {
 	r := snapstatetest.MockDeviceModel(ModelWithBase("core18"))
 	defer r()
 
-	restore := snap.MockSnapdSnapID("snapd-id")
-	defer restore()
-
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -1395,7 +1389,7 @@ func (s *snapmgrTestSuite) TestUpdateManyWaitForBasesUC18(c *C) {
 	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
-			{RealName: "snapd", SnapID: "snapd-id", Revision: snap.R(1)},
+			{RealName: "snapd", SnapID: "snapd-snap-id", Revision: snap.R(1)},
 		},
 		Current:  snap.R(1),
 		SnapType: "app",
@@ -9229,7 +9223,7 @@ func (s *snapmgrTestSuite) TestRevertWithBaseRunThrough(c *C) {
 	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
-			{RealName: "snapd", SnapID: "snapd-id", Revision: snap.R(1)},
+			{RealName: "snapd", SnapID: "snapd-snap-id", Revision: snap.R(1)},
 		},
 		Current:  snap.R(1),
 		SnapType: "app",
@@ -15573,9 +15567,6 @@ func (s *snapmgrTestSuite) TestNoConfigureForSnapdSnap(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	restore := snap.MockSnapdSnapID("snapd-id")
-	defer restore()
-
 	// snapd cannot be installed unless the model uses a base snap
 	r := snapstatetest.MockDeviceModel(ModelWithBase("core18"))
 	defer r()
@@ -15589,7 +15580,7 @@ func (s *snapmgrTestSuite) TestNoConfigureForSnapdSnap(c *C) {
 	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
 		Active:          true,
 		TrackingChannel: "latest/edge",
-		Sequence:        []*snap.SideInfo{{RealName: "snapd", SnapID: "snapd-id", Revision: snap.R(1)}},
+		Sequence:        []*snap.SideInfo{{RealName: "snapd", SnapID: "snapd-snap-id", Revision: snap.R(1)}},
 		Current:         snap.R(1),
 		SnapType:        "app",
 	})
