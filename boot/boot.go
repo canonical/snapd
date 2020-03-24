@@ -163,6 +163,18 @@ func applicable(s snap.PlaceInfo, t snap.Type, dev Device) bool {
 	return true
 }
 
+// earlyBootState exposes the boot state for a type of boot snap during the
+// early boot, i.e. during the initramfs or, strictly for testing purposes, the
+// bootloader stages.
+type earlyBootState interface {
+	// chooseSnapInitramfsMount chooses which snap should be mounted during the
+	// early boot sequence, i.e. the initramfs. actually committing the choice
+	// is done via the returned bootStateUpdate's commit method. Note that there
+	// may or may not actually be anything to commit, for example the kernel
+	// snap does not have anything to commit during the initramfs
+	chooseSnapInitramfsMount(bootStateUpdate) (sn snap.PlaceInfo, choices bootStateUpdate, err error)
+}
+
 // runningBootState exposes the boot state for a type of boot snap during
 // normal running state, i.e. after the pivot_root and after the initramfs.
 type runningBootState interface {

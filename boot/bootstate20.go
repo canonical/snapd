@@ -21,8 +21,12 @@ package boot
 
 import (
 	"fmt"
+	"path/filepath"
 
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -37,12 +41,37 @@ func newBootState20(typ snap.Type) runningBootState {
 	}
 }
 
+// newEarlyBootState20 is like newBootState20, but it initializes the
+// bootState with the provided bootloader and/or modeenv - mainly to be used
+// with the initramfs logic where we load the modeenv and bootloader slightly
+// differently than normal.
+func newEarlyBootState20(typ snap.Type) earlyBootState {
+	switch typ {
+	case snap.TypeBase:
+		bs := &bootState20Base{}
+		bs.earlyBoot = true
+		return bs
+	case snap.TypeKernel:
+		bs := &bootState20Kernel{earlyBoot: true}
+		return bs
+	case snap.TypeSnapd:
+		bs := &bootState20Snapd{}
+		bs.earlyBoot = true
+		return bs
+	default:
+		panic(fmt.Sprintf("cannot make a bootState20 for snap type %q", typ))
+	}
+}
+
 //
 // modeenv methods
 //
 
 type bootState20Modeenv struct {
 	modeenv *Modeenv
+
+	// this just controls where to try to find the modeenv
+	earlyBoot bool
 }
 
 func (bsm *bootState20Modeenv) loadModeenv() error {
@@ -50,7 +79,11 @@ func (bsm *bootState20Modeenv) loadModeenv() error {
 	if bsm.modeenv != nil {
 		return nil
 	}
-	modeenv, err := ReadModeenv("")
+	dir := ""
+	if bsm.earlyBoot {
+		dir = filepath.Join(dirs.EarlyBootUbuntuData, "system-data")
+	}
+	modeenv, err := ReadModeenv(dir)
 	if err != nil {
 		return fmt.Errorf("cannot get snap revision: unable to read modeenv: %v", err)
 	}
@@ -88,7 +121,11 @@ type bootState20Kernel struct {
 	// bootState20Modeenv in bootState20Base when both bootState20Base and
 	// bootState20Kernel are embedded in bootState20MarkSuccessful
 	// also we only need to use it with setNext()
-	kModeenv bootState20Modeenv
+	kModeenv *bootState20Modeenv
+
+	// earlyBoot is whether this bootState20Kernel is for the early boot process
+	// in which case only some of the methods are used / make sense
+	earlyBoot bool
 }
 
 func (ks20 *bootState20Kernel) loadBootenv() error {
@@ -96,9 +133,18 @@ func (ks20 *bootState20Kernel) loadBootenv() error {
 	if ks20.ebl != nil {
 		return nil
 	}
+
+	// for the early boot, we need to specify a specific dir and a specific opt
+	// for finding the bootloader
+	opts := &bootloader.Options{}
+	blDir := ""
+	if ks20.earlyBoot {
+		opts.NoSlashBoot = true
+		blDir = dirs.EarlyBootUbuntuBoot
+	}
 	// find the bootloader and ensure it's an extracted run kernel image
 	// bootloader
-	bl, err := bootloader.Find("", nil)
+	bl, err := bootloader.Find(blDir, opts)
 	if err != nil {
 		return err
 	}
@@ -164,6 +210,9 @@ func (ks20 *bootState20Kernel) markSuccessful(update bootStateUpdate) (bootState
 
 func (ks20 *bootState20Kernel) setNext(next snap.PlaceInfo) (rebootRequired bool, u bootStateUpdate, err error) {
 	// commit() for setNext() also needs to add to the kernels in modeenv
+	if ks20.kModeenv == nil {
+		ks20.kModeenv = &bootState20Modeenv{earlyBoot: ks20.earlyBoot}
+	}
 	err = ks20.kModeenv.loadModeenv()
 	if err != nil {
 		return false, nil, err
@@ -243,6 +292,49 @@ func (ks20 *bootState20Kernel) commit() error {
 	}
 
 	return nil
+}
+
+func (ks20 *bootState20Kernel) chooseSnapInitramfsMount(prevChoices bootStateUpdate) (
+	sn snap.PlaceInfo,
+	nextChoices bootStateUpdate,
+	err error,
+) {
+	if ks20.kModeenv == nil {
+		ks20.kModeenv = &bootState20Modeenv{earlyBoot: ks20.earlyBoot}
+	}
+	err = ks20.kModeenv.loadModeenv()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// first do the generic choice of which snap to use
+	first, second, err := genericEarlyBootChooseSnap(ks20, "kernel")
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// now validate the chosen kernel snap against the modeenv CurrentKernel's
+	// setting
+	// make a map to easily check if a kernel snap is valid or not
+	validKernels := make(map[string]bool, len(ks20.kModeenv.modeenv.CurrentKernels))
+	for _, validKernel := range ks20.kModeenv.modeenv.CurrentKernels {
+		validKernels[validKernel] = true
+	}
+
+	if !validKernels[first.Filename()] {
+		if second != nil {
+			// try the second snap, which will always be the fallback snap if
+			// set
+			if !validKernels[second.Filename()] {
+				return nil, nil, fmt.Errorf("fallback kernel snap %q is not trusted in the modeenv", second.Filename())
+			}
+			// log message that first (try snap) wasn't trusted
+			logger.Noticef("cannot use try-kernel snap: %q is not trusted in the modeenv", first.Filename())
+			return first, prevChoices, nil
+		}
+	}
+
+	return first, prevChoices, nil
 }
 
 //
@@ -372,6 +464,103 @@ func (bs20 *bootState20Base) commit() error {
 		return bs20.modeenv.Write("")
 	}
 	return nil
+}
+
+type bootState20Initramfs struct {
+	modeenv *Modeenv
+}
+
+func (bi20 *bootState20Initramfs) commit() error {
+	if bi20.modeenv != nil {
+		return bi20.modeenv.Write(filepath.Join(dirs.EarlyBootUbuntuData, "system-data"))
+	}
+	return nil
+}
+
+func (bs20 *bootState20Base) chooseSnapInitramfsMount(prevChoices bootStateUpdate) (
+	sn snap.PlaceInfo,
+	nextChoices bootStateUpdate,
+	err error,
+) {
+	err = bs20.loadModeenv()
+	if err != nil {
+		return nil, nil, err
+	}
+	var prevChoicesInitramfs *bootState20Initramfs
+	if prevChoices == nil {
+		prevChoicesInitramfs = &bootState20Initramfs{
+			modeenv: bs20.modeenv,
+		}
+	} else {
+		var ok bool
+		prevChoicesInitramfs, ok = prevChoices.(*bootState20Initramfs)
+		if !ok {
+			return nil, nil, fmt.Errorf("internal error: unknown bootStateUpdate type %T, expected bootState20Initramfs", prevChoices)
+		}
+	}
+
+	// first do the generic choice of which snap to use
+	first, second, err := genericEarlyBootChooseSnap(bs20, "base")
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// apply the update logic to the choices modeenv
+	switch prevChoicesInitramfs.modeenv.BaseStatus {
+	case TryStatus:
+		if second != nil {
+			// then we have the first as a try snap and we are indeed trying a
+			// new base snap, so change status to TryingStatus
+			prevChoicesInitramfs.modeenv.BaseStatus = TryingStatus
+		}
+	case TryingStatus:
+		// we tried to boot a try base snap and failed, so reset
+		prevChoicesInitramfs.modeenv.BaseStatus = DefaultStatus
+	case DefaultStatus:
+		// nothing to do
+	default:
+		// log a message about invalid setting
+		logger.Noticef("invalid setting for \"base_status\" in modeenv : %q", prevChoicesInitramfs.modeenv.BaseStatus)
+	}
+
+	return first, prevChoicesInitramfs, nil
+}
+
+//
+// snapd methods
+//
+type bootState20Snapd struct {
+	bootState20Modeenv
+}
+
+func (ss20 *bootState20Snapd) chooseSnapInitramfsMount(prevChoices bootStateUpdate) (
+	sn snap.PlaceInfo,
+	nextChoices bootStateUpdate,
+	err error,
+) {
+	err = ss20.loadModeenv()
+
+	// only mount the snapd snap if we are during first boot, which is
+	// indicated by modeenv.RecoverySystem being set (it is unset in
+	// the devicestate after seeding is completed)
+	if ss20.modeenv.RecoverySystem != "" {
+		// load the recovery system and generate mount for snapd
+		essSnaps, err := recoverySystemEssentialSnaps(
+			dirs.EarlyBootUbuntuSeed,
+			ss20.modeenv.RecoverySystem,
+			[]snap.Type{snap.TypeSnapd},
+		)
+		if err != nil {
+			return nil, nil, fmt.Errorf("cannot load metadata and verify snapd snap: %v", err)
+		}
+		sn, err := snap.ParsePlaceInfoFromSnapFileName(filepath.Base(essSnaps[0].Path))
+		if err != nil {
+			return nil, nil, err
+		}
+		return sn, prevChoices, nil
+	}
+
+	return nil, prevChoices, nil
 }
 
 //
@@ -587,4 +776,63 @@ func (bsmark *bootState20MarkSuccessful) commit() error {
 	}
 
 	return nil
+}
+
+// genericEarlyBootChooseSnap will run the logic to choose which snap should be
+// mounted during the early boot, i.e. initramfs. Specifically, it only works
+// with kernel and base snaps. It returns the first and second choice for what
+// snaps to mount, if second is set, then it is the primary fallback snap, and
+// the first snap is the try snap, if second is unset, then first is the primary
+// fallback snap. It returns both so that a higher level function can do
+// additional verification of the try snap if it wants, such as the kernel snaps
+// being verified in the modeenv, or the base snaps updating the modeenv with
+// new values for base_status, etc.
+func genericEarlyBootChooseSnap(bs runningBootState, typeString string) (
+	firstChoice, secondChoice snap.PlaceInfo,
+	err error,
+) {
+	curSnap, trySnap, snapTryStatus, err := bs.revisions()
+
+	if err != nil && !IsTrySnapError(err) {
+		// we have no fallback snap!
+		return nil, nil, fmt.Errorf("fallback %s snap unusable: %v", typeString, err)
+	}
+
+	file := curSnap.Filename()
+
+	snapPath := filepath.Join(dirs.EarlyBootUbuntuData, "system-data", dirs.SnapBlobDir, file)
+	if !osutil.FileExists(snapPath) {
+		// somehow the kernel snap on ubuntu-boot doesn't exist in ubuntu-data
+		// this could happen if we have some bug where ubuntu-boot isn't
+		// properly updated and never changes, but snapd thinks it was
+		// updated and eventually snapd garbage collects old revisions of
+		// the kernel snap as it is "refreshed"
+		return nil, nil, fmt.Errorf("%s snap %q does not exist on ubuntu-data", typeString, file)
+	}
+
+	if err != nil && IsTrySnapError(err) {
+		// just log that we had issues with the try snap and continue with
+		// using the normal base
+		logger.Noticef("unable to process try %s snap: %v", typeString, err)
+	} else {
+		switch snapTryStatus {
+		case TryStatus:
+			// then we are trying a snap update and there should be a try snap
+			if trySnap != nil {
+				// check that the TryBase exists in ubuntu-data
+				trySnapPath := filepath.Join(dirs.EarlyBootUbuntuData, "system-data", dirs.SnapBlobDir, trySnap.Filename())
+				if osutil.FileExists(trySnapPath) {
+					return trySnap, curSnap, nil
+				}
+				logger.Noticef("try-%s snap %q does not exist", typeString, trySnap.Filename())
+			} else {
+				logger.Noticef("try-%[1]s snap is empty, but \"%[1]s_status\" is \"trying\"", typeString)
+			}
+		case TryingStatus, DefaultStatus:
+		default:
+			logger.Noticef("\"%s_status\" has an invalid setting: %q", typeString, snapTryStatus)
+		}
+	}
+
+	return curSnap, nil, nil
 }
