@@ -4,9 +4,13 @@ summary: Verify xdg-open forwarding requests to the desktop portal
 # Expand as needed.
 systems:
   - arch-linux-*
+  # Debian 9 ships xdg-desktop-portal 0.5, which seems to have trouble
+  # with the test harness.  Debian 10 should be fine when we add it.
   - debian-sid-*
   - fedora-*
-  - opensuse-*
+  # OpenSUSE 15.1 ships xdg-desktop-portal 0.10, which also seems to
+  # be problematic.  OpenSUSE 15.2 will hopefully be fine.
+  - opensuse-tumbleweed-*
   - ubuntu-18.04-*
   - ubuntu-19.10-*
   - ubuntu-20.04-*
