@@ -89,6 +89,9 @@ type bootState20Kernel struct {
 	// bootState20Kernel are embedded in bootState20MarkSuccessful
 	// also we only need to use it with setNext()
 	kModeenv bootState20Modeenv
+
+	blOpts *bootloader.Options
+	blDir  string
 }
 
 func (ks20 *bootState20Kernel) loadBootenv() error {
@@ -96,9 +99,10 @@ func (ks20 *bootState20Kernel) loadBootenv() error {
 	if ks20.ebl != nil {
 		return nil
 	}
+
 	// find the bootloader and ensure it's an extracted run kernel image
 	// bootloader
-	bl, err := bootloader.Find("", nil)
+	bl, err := bootloader.Find(ks20.blDir, ks20.blOpts)
 	if err != nil {
 		return err
 	}
