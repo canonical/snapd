@@ -1028,20 +1028,13 @@ func flatten(path string, cfg interface{}, out map[string]interface{}) {
 }
 
 // CoreDefaults returns default system (or core) configuration from gadget defaults.
-func CoreDefaults(gadgetDefaults map[string]map[string]interface{}, coreSnapID string) (map[string]interface{}, error) {
-	coreDefaults := map[string]interface{}{}
-	if defaults, ok := gadgetDefaults["system"]; ok {
-		flatten("", defaults, coreDefaults)
-		return coreDefaults, nil
-	}
-	if defaults, ok := gadgetDefaults[coreSnapID]; ok {
-		if values, ok := defaults["core"]; ok {
-			if _, ok := values.(map[string]interface{}); ok {
-				flatten("", values, coreDefaults)
-				return coreDefaults, nil
-			}
-			return nil, fmt.Errorf("invalid structure of core defaults")
+func CoreDefaults(gadgetDefaults map[string]map[string]interface{}, coreSnapID string) map[string]interface{} {
+	for _, systemSnap := range []string{"system", coreSnapID} {
+		if defaults, ok := gadgetDefaults[systemSnap]; ok {
+			coreDefaults := map[string]interface{}{}
+			flatten("", defaults, coreDefaults)
+			return coreDefaults
 		}
 	}
-	return nil, nil
+	return nil
 }

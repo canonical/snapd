@@ -127,9 +127,8 @@ defaults:
 var mockClassicGadgetCoreDefaultsYaml = []byte(`
 defaults:
   otheridididididididididididididi:
-    core:
-      ssh:
-        disable: true
+    ssh:
+      disable: true
 `)
 
 var mockClassicGadgetMultilineDefaultsYaml = []byte(`
@@ -396,8 +395,7 @@ func (s *gadgetYamlTestSuite) TestCoreConfigDefaults(c *C) {
 
 	ginfo, err := gadget.ReadInfo(s.dir, &modelConstraints{classic: true})
 	c.Assert(err, IsNil)
-	defaults, err := gadget.CoreDefaults(ginfo.Defaults, "otheridididididididididididididi")
-	c.Assert(err, IsNil)
+	defaults := gadget.CoreDefaults(ginfo.Defaults, "otheridididididididididididididi")
 	c.Check(defaults, DeepEquals, map[string]interface{}{
 		"ssh.disable": true,
 	})
@@ -412,8 +410,7 @@ func (s *gadgetYamlTestSuite) TestCoreConfigDefaults(c *C) {
 	ginfo, err = gadget.ReadInfo(s.dir, &modelConstraints{classic: true})
 	c.Assert(err, IsNil)
 
-	defaults, err = gadget.CoreDefaults(ginfo.Defaults, "otheridididididididididididididi")
-	c.Assert(err, IsNil)
+	defaults = gadget.CoreDefaults(ginfo.Defaults, "otheridididididididididididididi")
 	c.Check(defaults, DeepEquals, map[string]interface{}{
 		"something": true,
 	})
