@@ -16,7 +16,9 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v2
       with:
-        path: ./src/github.com/${{ github.repository }}
+        # NOTE: checkout the code in a fixed location, even for forks, as this
+        # is relevant for go's import system.
+        path: ./src/github.com/snapcore/snapd
     - name: Cache go's .cache directory (used by govendor)
       id: cache-go-govendor
       uses: actions/cache@v1
@@ -33,10 +35,10 @@ jobs:
     # This dominates the duration of the test. Can we get a smaller set that is
     # enough to build embedded C parts?
     - name: Get C dependencies
-      run: sudo apt-get build-dep -y ./src/github.com/${{ github.repository }}
+      run: sudo apt-get build-dep -y ./src/github.com/snapcore/snapd
     - name: Get Go dependencies
       run: |
-          cd ${{ github.workspace }}/src/github.com/${{ github.repository }}
+          cd ${{ github.workspace }}/src/github.com/snapcore/snapd
           ${{ github.workspace }}/bin/govendor sync
     - name: Build
       run: go build github.com/snapcore/snapd/...
