@@ -203,7 +203,7 @@ func checkModelSnap(snap map[string]interface{}, grade ModelGrade) (*ModelSnap, 
 	_, ok := snap["id"]
 	if ok {
 		var err error
-		snapID, err = checkStringMatchesWhat(snap, "id", what, validSnapID)
+		snapID, err = checkStringMatchesWhat(snap, "id", what, naming.ValidSnapID)
 		if err != nil {
 			return nil, err
 		}

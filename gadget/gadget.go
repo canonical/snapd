@@ -36,11 +36,9 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/metautil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
 )
-
-// The fixed length of valid snap IDs.
-const validSnapIDLength = 32
 
 const (
 	// MBR identifies a Master Boot Record partitioning schema, or an MBR like role
@@ -284,7 +282,7 @@ func parseSnapIDColonName(s string) (snapID, name string, err error) {
 }
 
 func systemOrSnapID(s string) bool {
-	if s != "system" && len(s) != validSnapIDLength {
+	if s != "system" && naming.ValidateSnapID(s) != nil {
 		return false
 	}
 	return true

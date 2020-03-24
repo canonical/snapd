@@ -12644,7 +12644,7 @@ func tasksWithKind(ts *state.TaskSet, kind string) []*state.Task {
 
 var gadgetYaml = `
 defaults:
-    some-snap-ididididididididididid:
+    somesnapidididididididididididid:
         key: value
 
 volumes:
@@ -12709,7 +12709,7 @@ func (s *snapmgrTestSuite) TestConfigDefaults(c *C) {
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
-			{RealName: "some-snap", Revision: snap.R(11), SnapID: "some-snap-ididididididididididid"},
+			{RealName: "some-snap", Revision: snap.R(11), SnapID: "somesnapidididididididididididid"},
 		},
 		Current:  snap.R(11),
 		SnapType: "app",
@@ -12769,7 +12769,7 @@ func (s *snapmgrTestSuite) TestConfigDefaultsSmokeUC20(c *C) {
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
-			{RealName: "some-snap", Revision: snap.R(11), SnapID: "some-snap-ididididididididididid"},
+			{RealName: "some-snap", Revision: snap.R(11), SnapID: "somesnapidididididididididididid"},
 		},
 		Current:  snap.R(11),
 		SnapType: "app",
@@ -12796,7 +12796,7 @@ func (s *snapmgrTestSuite) TestConfigDefaultsNoGadget(c *C) {
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
-			{RealName: "some-snap", Revision: snap.R(11), SnapID: "some-snap-ididididididididididid"},
+			{RealName: "some-snap", Revision: snap.R(11), SnapID: "somesnapidididididididididididid"},
 		},
 		Current:  snap.R(11),
 		SnapType: "app",
@@ -12903,7 +12903,7 @@ func (s *snapmgrTestSuite) TestConfigDefaultsSystemConflictsCoreSnapId(c *C) {
 defaults:
     system:
         foo: bar
-    the-core-snapidididididididididi:
+    thecoresnapididididididididididi:
         foo: other-bar
         other-key: other-key-default
 `)
@@ -12913,7 +12913,7 @@ defaults:
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
-			{RealName: "core", SnapID: "the-core-snapidididididididididi", Revision: snap.R(1)},
+			{RealName: "core", SnapID: "thecoresnapididididididididididi", Revision: snap.R(1)},
 		},
 		Current:  snap.R(1),
 		SnapType: "os",
