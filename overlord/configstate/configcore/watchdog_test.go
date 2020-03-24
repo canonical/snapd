@@ -211,7 +211,7 @@ ShutdownWatchdogSec=20
 	c.Check(osutil.FileExists(canary), Equals, true)
 }
 
-func (s *watchdogSuite) TestApply(c *C) {
+func (s *watchdogSuite) TestFilesystemOnlyApply(c *C) {
 	restorer := release.MockOnClassic(false)
 	defer restorer()
 
@@ -221,13 +221,13 @@ func (s *watchdogSuite) TestApply(c *C) {
 
 	tmpDir := c.MkDir()
 	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "/etc/systemd/system.conf.d"), 0755), IsNil)
-	c.Assert(configcore.Apply(tmpDir, conf), IsNil)
+	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf), IsNil)
 
 	watchdogCfg := filepath.Join(tmpDir, "/etc/systemd/system.conf.d/10-snapd-watchdog.conf")
 	c.Check(watchdogCfg, testutil.FileEquals, "[Manager]\nRuntimeWatchdogSec=4\n")
 }
 
-func (s *watchdogSuite) TestApplyValidationFails(c *C) {
+func (s *watchdogSuite) TestFilesystemOnlyApplyValidationFails(c *C) {
 	restorer := release.MockOnClassic(false)
 	defer restorer()
 
@@ -236,5 +236,5 @@ func (s *watchdogSuite) TestApplyValidationFails(c *C) {
 	})
 
 	tmpDir := c.MkDir()
-	c.Assert(configcore.Apply(tmpDir, conf), ErrorMatches, `cannot parse "foo": time: invalid duration foo`)
+	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf), ErrorMatches, `cannot parse "foo": time: invalid duration foo`)
 }

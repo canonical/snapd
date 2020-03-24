@@ -51,7 +51,7 @@ func (l *sysdLogger) Notify(status string) {
 
 // switchDisableSSHService handles the special case of disabling/enabling ssh
 // service on core devices.
-func switchDisableSSHService(sysd systemd.Systemd, serviceName, value string, opts *ApplyOptions) error {
+func switchDisableSSHService(sysd systemd.Systemd, serviceName, value string, opts *fsOnlyContext) error {
 	rootDir := dirs.GlobalRootDir
 	if opts != nil {
 		rootDir = opts.RootDir
@@ -88,7 +88,7 @@ func switchDisableSSHService(sysd systemd.Systemd, serviceName, value string, op
 
 // switchDisableTypicalService switches a service in/out of disabled state
 // where "true" means disabled and "false" means enabled.
-func switchDisableService(serviceName, value string, opts *ApplyOptions) error {
+func switchDisableService(serviceName, value string, opts *fsOnlyContext) error {
 	var sysd systemd.Systemd
 	if opts != nil {
 		sysd = systemd.NewEmulationMode(opts.RootDir)
@@ -129,7 +129,7 @@ func switchDisableService(serviceName, value string, opts *ApplyOptions) error {
 }
 
 // services that can be disabled
-func handleServiceDisableConfiguration(tr config.ConfGetter, opts *ApplyOptions) error {
+func handleServiceDisableConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error {
 	for _, service := range services {
 		output, err := coreCfg(tr, fmt.Sprintf("service.%s.disable", service.configName))
 		if err != nil {

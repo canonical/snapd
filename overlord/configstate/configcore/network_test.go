@@ -116,7 +116,7 @@ func (s *networkSuite) TestConfigureNetworkIntegrationNoSetting(c *C) {
 	c.Check(s.mockSysctl.Calls(), HasLen, 0)
 }
 
-func (s *networkSuite) TestApply(c *C) {
+func (s *networkSuite) TestFilesystemOnlyApply(c *C) {
 	restorer := release.MockOnClassic(false)
 	defer restorer()
 
@@ -126,7 +126,7 @@ func (s *networkSuite) TestApply(c *C) {
 
 	tmpDir := c.MkDir()
 	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "/etc/sysctl.d/"), 0755), IsNil)
-	c.Assert(configcore.Apply(tmpDir, conf), IsNil)
+	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf), IsNil)
 
 	networkSysctlPath := filepath.Join(tmpDir, "/etc/sysctl.d/10-snapd-network.conf")
 	c.Check(networkSysctlPath, testutil.FileEquals, "net.ipv6.conf.all.disable_ipv6=1\n")
@@ -135,7 +135,7 @@ func (s *networkSuite) TestApply(c *C) {
 	c.Check(s.mockSysctl.Calls(), HasLen, 0)
 }
 
-func (s *networkSuite) TestApplyValidationFails(c *C) {
+func (s *networkSuite) TestFilesystemOnlyApplyValidationFails(c *C) {
 	restorer := release.MockOnClassic(false)
 	defer restorer()
 
@@ -144,5 +144,5 @@ func (s *networkSuite) TestApplyValidationFails(c *C) {
 	})
 
 	tmpDir := c.MkDir()
-	c.Assert(configcore.Apply(tmpDir, conf), ErrorMatches, `network.disable-ipv6 can only be set to 'true' or 'false'`)
+	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf), ErrorMatches, `network.disable-ipv6 can only be set to 'true' or 'false'`)
 }

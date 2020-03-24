@@ -36,7 +36,7 @@ func init() {
 	supportedConfigurations["core.watchdog.shutdown-timeout"] = true
 }
 
-func updateWatchdogConfig(config map[string]uint, opts *ApplyOptions) error {
+func updateWatchdogConfig(config map[string]uint, opts *fsOnlyContext) error {
 	dir := dirs.SnapSystemdConfDir
 	if opts != nil {
 		dir = dirs.SnapSystemdConfDirUnder(opts.RootDir)
@@ -65,7 +65,7 @@ func updateWatchdogConfig(config map[string]uint, opts *ApplyOptions) error {
 	return err
 }
 
-func handleWatchdogConfiguration(tr config.ConfGetter, opts *ApplyOptions) error {
+func handleWatchdogConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error {
 	config := map[string]uint{}
 
 	for _, key := range []string{"runtime-timeout", "shutdown-timeout"} {

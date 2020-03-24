@@ -93,23 +93,23 @@ func (cfg PlainCoreConfig) GetMaybe(instanceName, key string, result interface{}
 	return nil
 }
 
-// ApplyOptions encapsulates extra options passed to individual core config
+// fsOnlyContext encapsulates extra options passed to individual core config
 // handlers when configuration is applied to a specific root directory with
-// Apply().
-type ApplyOptions struct {
+// FilesystemOnlyApply().
+type fsOnlyContext struct {
 	RootDir string
 }
 
-// Apply applies filesystem modifications under rootDir, according to the
+// FilesystemOnlyApply applies filesystem modifications under rootDir, according to the
 // cfg configuration. This is a subset of core config options that is important
 // early during boot, before all the configuration is applied as part of
 // normal execution of configure hook.
-func Apply(rootDir string, cfg config.ConfGetter) error {
+func FilesystemOnlyApply(rootDir string, cfg config.ConfGetter) error {
 	if rootDir == "" {
-		return fmt.Errorf("internal error: root directory for configcore.Apply() not set")
+		return fmt.Errorf("internal error: root directory for configcore.FilesystemOnlyApply() not set")
 	}
 
-	opts := &ApplyOptions{RootDir: rootDir}
+	opts := &fsOnlyContext{RootDir: rootDir}
 
 	if err := validateExperimentalSettings(cfg); err != nil {
 		return err
@@ -122,7 +122,7 @@ func Apply(rootDir string, cfg config.ConfGetter) error {
 	}
 
 	// Export experimental.* flags to a place easily accessible from snapd helpers.
-	if err := ExportExperimentalFlags(cfg, opts); err != nil {
+	if err := doExportExperimentalFlags(cfg, opts); err != nil {
 		return err
 	}
 
@@ -194,7 +194,7 @@ func Run(tr config.Conf) error {
 	}
 
 	// Export experimental.* flags to a place easily accessible from snapd helpers.
-	if err := ExportExperimentalFlags(tr, nil); err != nil {
+	if err := doExportExperimentalFlags(tr, nil); err != nil {
 		return err
 	}
 

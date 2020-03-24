@@ -48,7 +48,7 @@ func validateExperimentalSettings(tr config.ConfGetter) error {
 	return nil
 }
 
-func ExportExperimentalFlags(tr config.ConfGetter, opts *ApplyOptions) error {
+func doExportExperimentalFlags(tr config.ConfGetter, opts *fsOnlyContext) error {
 	var dir string
 	if opts != nil {
 		dir = dirs.FeaturesDirUnder(opts.RootDir)
@@ -74,4 +74,8 @@ func ExportExperimentalFlags(tr config.ConfGetter, opts *ApplyOptions) error {
 	}
 	_, _, err := osutil.EnsureDirState(dir, "*", content)
 	return err
+}
+
+func ExportExperimentalFlags(tr config.ConfGetter) error {
+	return doExportExperimentalFlags(tr, nil)
 }
