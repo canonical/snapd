@@ -39,8 +39,6 @@ type storeSearchResult struct {
 
 func infoFromStoreSearchResult(si *storeSearchResult) (*snap.Info, error) {
 	thisSnap := si.Snap
-
-	copyNonZeroFrom(&si.Snap, &thisSnap)
 	copyNonZeroFrom(&si.Revision.storeSnap, &thisSnap)
 
 	info, err := infoFromStoreSnap(&thisSnap)
