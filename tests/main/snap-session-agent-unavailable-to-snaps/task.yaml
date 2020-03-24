@@ -7,10 +7,6 @@ systems:
     - -amazon-linux-2-*
     - -centos-7-*
 
-environment:
-    TEST_UID: $(id -u test)
-    USER_RUNTIME_DIR: /run/user/${TEST_UID}
-
 prepare: |
     # Ensure that snapd.session-agent.socket is enabled.  This may not
     # be the case on distributions where presets have been used to
@@ -20,22 +16,29 @@ prepare: |
         systemctl --user --global enable snapd.session-agent.socket
         touch agent-was-enabled
     fi
-    mkdir -p "$USER_RUNTIME_DIR"
-    chmod u=rwX,go= "$USER_RUNTIME_DIR"
-    chown test:test "$USER_RUNTIME_DIR"
-    systemctl start "user@${TEST_UID}.service"
+
+    #shellcheck source=tests/lib/user.sh
+    . "$TESTSLIB/user.sh"
+    start_user_session
+    # Wait for sockets.target to finish starting so the session agent
+    # socket is available.
+    as_user systemctl --user start sockets.target
 
 restore: |
-    systemctl stop "user@${TEST_UID}.service"
-    # this guards against removing .. but also ..foo OTOH those are highly
-    # unlikely to occur
-    rm -rf "${USER_RUNTIME_DIR:?}"/* "${USER_RUNTIME_DIR:?}"/.[!.]*
+    #shellcheck source=tests/lib/user.sh
+    . "$TESTSLIB/user.sh"
+    stop_user_session
+    purge_user_session_data
+
     if [ -f agent-was-enabled ]; then
         systemctl --user --global disable snapd.session-agent.socket
         rm agent-was-enabled
     fi
 
 execute: |
+    #shellcheck source=tests/lib/user.sh
+    . "$TESTSLIB/user.sh"
+
     if [ "$(snap debug confinement)" != strict ]; then
         exit 0
     fi

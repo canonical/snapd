@@ -67,11 +67,11 @@ def run_cmd(cmd, n, wait, maxmins, verbose):
         attempts = itertools.count(1)
         t0 = time.time()
         after = "{} minutes".format(maxmins)
-        of = ""
+        of_attempts_suffix = ""
     else:
         attempts = range(1, n + 1)
         after = "{} attempts".format(n)
-        of = " of {}".format(n)
+        of_attempts_suffix = " of {}".format(n)
     retcode = 0
     i = 0
     for i in attempts:
@@ -91,7 +91,7 @@ def run_cmd(cmd, n, wait, maxmins, verbose):
             if verbose:
                 print(
                     "retry: next attempt in {} second(s) (attempt {}{})".format(
-                        wait, i, of
+                        wait, i, of_attempts_suffix
                     ),
                     file=sys.stderr,
                 )
