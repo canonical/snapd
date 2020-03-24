@@ -84,6 +84,15 @@ func (cfg PlainCoreConfig) Get(snapName, key string, result interface{}) error {
 	return nil
 }
 
+// GetMaybe implements config.ConfGetter interface.
+func (cfg PlainCoreConfig) GetMaybe(instanceName, key string, result interface{}) error {
+	err := cfg.Get(instanceName, key, result)
+	if err != nil && !config.IsNoOption(err) {
+		return err
+	}
+	return nil
+}
+
 // ApplyOptions encapsulates extra options passed to individual core config
 // handlers when configuration is applied to a specific root directory with
 // Apply().

@@ -274,6 +274,7 @@ func DeleteSnapConfig(st *state.State, snapName string) error {
 // Conf is an interface describing both state and transaction.
 type Conf interface {
 	Get(snapName, key string, result interface{}) error
+	GetMaybe(snapName, key string, result interface{}) error
 	Set(snapName, key string, value interface{}) error
 	Changes() []string
 	State() *state.State
@@ -282,6 +283,7 @@ type Conf interface {
 // ConfGetter is an interface for reading of config values.
 type ConfGetter interface {
 	Get(snapName, key string, result interface{}) error
+	GetMaybe(snapName, key string, result interface{}) error
 }
 
 // GetFeatureFlag returns the value of a given feature flag.
