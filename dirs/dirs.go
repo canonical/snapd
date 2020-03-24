@@ -125,6 +125,10 @@ var (
 	FeaturesDir string
 
 	RunMnt string
+
+	EarlyBootUbuntuData string
+	EarlyBootUbuntuBoot string
+	EarlyBootUbuntuSeed string
 )
 
 const (
@@ -381,6 +385,9 @@ func SetRootDir(rootdir string) {
 	FeaturesDir = filepath.Join(rootdir, snappyDir, "features")
 
 	RunMnt = filepath.Join(rootdir, "/run/mnt")
+	EarlyBootUbuntuData = filepath.Join(RunMnt, "ubuntu-data")
+	EarlyBootUbuntuBoot = filepath.Join(RunMnt, "ubuntu-boot")
+	EarlyBootUbuntuSeed = filepath.Join(RunMnt, "ubuntu-seed")
 }
 
 // what inside a (non-classic) snap is /usr/lib/snapd, outside can come from different places
