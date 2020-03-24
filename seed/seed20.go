@@ -264,7 +264,7 @@ func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef, snapsDir string)
 			return "", nil, nil, &NoSnapDeclarationError{snapRef}
 		}
 	} else {
-		if s.model.Grade() != asserts.ModelDangerous && snapRef.SnapName() != "snapd" && snapRef.SnapName() != s.model.Base() /* TODO: use snap-id for snapd*/ {
+		if s.model.Grade() != asserts.ModelDangerous {
 			return "", nil, nil, fmt.Errorf("all system snaps must be identified by snap-id, missing for %q", snapRef.SnapName())
 		}
 		snapName := snapRef.SnapName()
