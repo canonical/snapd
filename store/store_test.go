@@ -3187,7 +3187,10 @@ func (s *storeTestSuite) testFind(c *C, apiV1 bool) {
 	c.Assert(snaps, HasLen, 1)
 	snp := snaps[0]
 	c.Check(snp.InstanceName(), Equals, "hello-world")
-	//c.Check(snp.Architectures, DeepEquals, []string{"all"})
+	if apiV1 {
+		c.Check(snp.Architectures, DeepEquals, []string{"all"})
+		c.Check(snp.Sha3_384, Matches, `[[:xdigit:]]{96}`)
+	}
 	c.Check(snp.Revision, Equals, snap.R(27))
 	c.Check(snp.SnapID, Equals, helloWorldSnapID)
 	c.Check(snp.Publisher, Equals, snap.StoreAccount{
@@ -3197,7 +3200,6 @@ func (s *storeTestSuite) testFind(c *C, apiV1 bool) {
 		Validation:  "verified",
 	})
 	c.Check(snp.Version, Equals, "6.3")
-	//c.Check(snp.Sha3_384, Matches, `[[:xdigit:]]{96}`)
 	c.Check(snp.Size, Equals, int64(20480))
 	c.Check(snp.Channel, Equals, "stable")
 	c.Check(snp.Description(), Equals, "This is a simple hello world example.")
