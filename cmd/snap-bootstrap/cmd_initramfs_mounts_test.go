@@ -52,7 +52,6 @@ type initramfsMountsSuite struct {
 	Stdout *bytes.Buffer
 
 	seedDir  string
-	runMnt   string
 	sysLabel string
 }
 
@@ -66,12 +65,12 @@ func (s *initramfsMountsSuite) SetUpTest(c *C) {
 	s.AddCleanup(restore)
 
 	// mock /run/mnt
-	s.runMnt = c.MkDir()
-	restore = main.MockRunMnt(s.runMnt)
+	dirs.SetRootDir(c.MkDir())
+	restore = func() { dirs.SetRootDir("") }
 	s.AddCleanup(restore)
 
 	// pretend /run/mnt/ubuntu-seed has a valid seed
-	s.seedDir = filepath.Join(s.runMnt, "ubuntu-seed")
+	s.seedDir = filepath.Join(dirs.RunMnt, "ubuntu-seed")
 
 	// now create a minimal uc20 seed dir with snaps/assertions
 	seed20 := &seedtest.TestingSeed20{SeedDir: s.seedDir}
@@ -141,7 +140,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep1(c *C) {
 		n++
 		switch n {
 		case 1:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-seed"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "ubuntu-seed"))
 			return false, nil
 		}
 		return false, fmt.Errorf("unexpected number of calls: %v", n)
@@ -151,7 +150,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep1(c *C) {
 	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 1)
-	c.Check(s.Stdout.String(), Equals, fmt.Sprintf("/dev/disk/by-label/ubuntu-seed %s/ubuntu-seed\n", s.runMnt))
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf("/dev/disk/by-label/ubuntu-seed %s/ubuntu-seed\n", dirs.RunMnt))
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep2(c *C) {
@@ -162,19 +161,19 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep2(c *C) {
 		n++
 		switch n {
 		case 1:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-seed"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "ubuntu-seed"))
 			return true, nil
 		case 2:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "base"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "base"))
 			return false, nil
 		case 3:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "kernel"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "kernel"))
 			return false, nil
 		case 4:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "snapd"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "snapd"))
 			return false, nil
 		case 5:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-data"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "ubuntu-data"))
 			return false, nil
 		}
 		return false, fmt.Errorf("unexpected number of calls: %v", n)
@@ -188,7 +187,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep2(c *C) {
 %[1]s/snaps/pc-kernel_1.snap %[2]s/kernel
 %[1]s/snaps/core20_1.snap %[2]s/base
 --type=tmpfs tmpfs /run/mnt/ubuntu-data
-`, s.seedDir, s.runMnt))
+`, s.seedDir, dirs.RunMnt))
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep4(c *C) {
@@ -199,19 +198,19 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep4(c *C) {
 		n++
 		switch n {
 		case 1:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-seed"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "ubuntu-seed"))
 			return true, nil
 		case 2:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "base"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "base"))
 			return true, nil
 		case 3:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "kernel"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "kernel"))
 			return true, nil
 		case 4:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "snapd"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "snapd"))
 			return true, nil
 		case 5:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-data"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "ubuntu-data"))
 			return true, nil
 		}
 		return false, fmt.Errorf("unexpected number of calls: %v", n)
@@ -222,11 +221,11 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep4(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 5)
 	c.Check(s.Stdout.String(), Equals, "")
-	modeEnv := filepath.Join(s.runMnt, "/ubuntu-data/system-data/var/lib/snapd/modeenv")
+	modeEnv := filepath.Join(dirs.RunMnt, "/ubuntu-data/system-data/var/lib/snapd/modeenv")
 	c.Check(modeEnv, testutil.FileEquals, `mode=install
 recovery_system=20191118
 `)
-	cloudInitDisable := filepath.Join(s.runMnt, "/ubuntu-data/system-data/etc/cloud/cloud-init.disabled")
+	cloudInitDisable := filepath.Join(dirs.RunMnt, "/ubuntu-data/system-data/etc/cloud/cloud-init.disabled")
 	c.Check(cloudInitDisable, testutil.FilePresent)
 }
 
@@ -238,13 +237,13 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1(c *C) {
 		n++
 		switch n {
 		case 1:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-seed"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "ubuntu-seed"))
 			return false, nil
 		case 2:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-boot"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "ubuntu-boot"))
 			return false, nil
 		case 3:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-data"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "ubuntu-data"))
 			return false, nil
 		}
 		return false, fmt.Errorf("unexpected number of calls: %v", n)
@@ -257,7 +256,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1(c *C) {
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`/dev/disk/by-label/ubuntu-seed %[1]s/ubuntu-seed
 /dev/disk/by-label/ubuntu-boot %[1]s/ubuntu-boot
 /dev/disk/by-label/ubuntu-data %[1]s/ubuntu-data
-`, s.runMnt))
+`, dirs.RunMnt))
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2(c *C) {
@@ -268,22 +267,22 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2(c *C) {
 		n++
 		switch n {
 		case 1:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-seed"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "ubuntu-seed"))
 			return true, nil
 		case 2:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-boot"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "ubuntu-boot"))
 			return true, nil
 		case 3:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-data"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "ubuntu-data"))
 			return true, nil
 		case 4:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "base"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "base"))
 			return false, nil
 		case 5:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "kernel"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "kernel"))
 			return false, nil
 		case 6:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "snapd"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "snapd"))
 			return false, nil
 		}
 		return false, fmt.Errorf("unexpected number of calls: %v", n)
@@ -316,7 +315,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2(c *C) {
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/core20_123.snap %[1]s/base
 %[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/pc-kernel_1.snap %[1]s/kernel
 %[1]s/ubuntu-seed/snaps/snapd_1.snap %[1]s/snapd
-`, s.runMnt))
+`, dirs.RunMnt))
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeBaseSnapUpgradeFailsHappy(c *C) {
@@ -327,19 +326,19 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeBaseSnapUpgradeFailsHap
 		n++
 		switch n {
 		case 1:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-seed"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "ubuntu-seed"))
 			return true, nil
 		case 2:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-boot"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "ubuntu-boot"))
 			return true, nil
 		case 3:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-data"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "ubuntu-data"))
 			return true, nil
 		case 4:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "base"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "base"))
 			return false, nil
 		case 5:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "kernel"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "kernel"))
 			return true, nil
 		}
 		return false, fmt.Errorf("unexpected number of calls: %v", n)
@@ -356,7 +355,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeBaseSnapUpgradeFailsHap
 	err := modeEnv.WriteTo(filepath.Join(dirs.RunMnt, "ubuntu-data", "system-data"))
 	c.Assert(err, IsNil)
 
-	tryBaseSnap := filepath.Join(s.runMnt, "ubuntu-data", "system-data", dirs.SnapBlobDir, "core20_124.snap")
+	tryBaseSnap := filepath.Join(dirs.RunMnt, "ubuntu-data", "system-data", dirs.SnapBlobDir, "core20_124.snap")
 	err = os.MkdirAll(filepath.Dir(tryBaseSnap), 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(tryBaseSnap, []byte{0}, 0644)
@@ -367,10 +366,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeBaseSnapUpgradeFailsHap
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 5)
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/core20_123.snap %[1]s/base
-`, s.runMnt))
+`, dirs.RunMnt))
 
 	// check that the modeenv was re-written
-	newModeenv, err := boot.ReadModeenv(filepath.Join(s.runMnt, "ubuntu-data", "system-data"))
+	newModeenv, err := boot.ReadModeenv(filepath.Join(dirs.RunMnt, "ubuntu-data", "system-data"))
 	c.Assert(err, IsNil)
 	// BaseStatus was re-set to default
 	c.Assert(newModeenv.BaseStatus, DeepEquals, boot.DefaultStatus)
@@ -386,19 +385,19 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeModeenvTryBaseEmptyHapp
 		n++
 		switch n {
 		case 1:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-seed"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "ubuntu-seed"))
 			return true, nil
 		case 2:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-boot"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "ubuntu-boot"))
 			return true, nil
 		case 3:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-data"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "ubuntu-data"))
 			return true, nil
 		case 4:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "base"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "base"))
 			return false, nil
 		case 5:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "kernel"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "kernel"))
 			return true, nil
 		}
 		return false, fmt.Errorf("unexpected number of calls: %v", n)
@@ -417,10 +416,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeModeenvTryBaseEmptyHapp
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 5)
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/core20_123.snap %[1]s/base
-`, s.runMnt))
+`, dirs.RunMnt))
 
 	// check that the modeenv is the same
-	newModeenv, err := boot.ReadModeenv(filepath.Join(s.runMnt, "ubuntu-data", "system-data"))
+	newModeenv, err := boot.ReadModeenv(filepath.Join(dirs.RunMnt, "ubuntu-data", "system-data"))
 	c.Assert(err, IsNil)
 	c.Assert(newModeenv.BaseStatus, DeepEquals, modeEnv.BaseStatus)
 	c.Assert(newModeenv.TryBase, DeepEquals, modeEnv.TryBase)
@@ -435,19 +434,19 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeBaseSnapUpgradeHappy(c 
 		n++
 		switch n {
 		case 1:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-seed"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "ubuntu-seed"))
 			return true, nil
 		case 2:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-boot"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "ubuntu-boot"))
 			return true, nil
 		case 3:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-data"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "ubuntu-data"))
 			return true, nil
 		case 4:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "base"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "base"))
 			return false, nil
 		case 5:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "kernel"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "kernel"))
 			return true, nil
 		}
 		return false, fmt.Errorf("unexpected number of calls: %v", n)
@@ -463,7 +462,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeBaseSnapUpgradeHappy(c 
 	err := modeEnv.WriteTo(filepath.Join(dirs.RunMnt, "ubuntu-data", "system-data"))
 	c.Assert(err, IsNil)
 
-	tryBaseSnap := filepath.Join(s.runMnt, "ubuntu-data", "system-data", dirs.SnapBlobDir, "core20_124.snap")
+	tryBaseSnap := filepath.Join(dirs.SnapBlobDirUnder(filepath.Join(dirs.RunMnt, "ubuntu-data", "system-data")), "core20_124.snap")
 	err = os.MkdirAll(filepath.Dir(tryBaseSnap), 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(tryBaseSnap, []byte{0}, 0644)
@@ -474,10 +473,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeBaseSnapUpgradeHappy(c 
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 5)
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/core20_124.snap %[1]s/base
-`, s.runMnt))
+`, dirs.RunMnt))
 
 	// check that the modeenv was re-written
-	newModeenv, err := boot.ReadModeenv(filepath.Join(s.runMnt, "ubuntu-data", "system-data"))
+	newModeenv, err := boot.ReadModeenv(filepath.Join(dirs.RunMnt, "ubuntu-data", "system-data"))
 	c.Assert(err, IsNil)
 	c.Assert(newModeenv.BaseStatus, DeepEquals, boot.TryingStatus)
 	c.Assert(newModeenv.TryBase, DeepEquals, modeEnv.TryBase)
@@ -492,19 +491,19 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeModeenvBaseEmptyUnhappy
 		n++
 		switch n {
 		case 1:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-seed"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "ubuntu-seed"))
 			return true, nil
 		case 2:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-boot"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "ubuntu-boot"))
 			return true, nil
 		case 3:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-data"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "ubuntu-data"))
 			return true, nil
 		case 4:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "base"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "base"))
 			return false, nil
 		case 5:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "kernel"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "kernel"))
 			return true, nil
 		}
 		return false, fmt.Errorf("unexpected number of calls: %v", n)
@@ -530,19 +529,19 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeModeenvTryBaseNotExists
 		n++
 		switch n {
 		case 1:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-seed"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "ubuntu-seed"))
 			return true, nil
 		case 2:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-boot"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "ubuntu-boot"))
 			return true, nil
 		case 3:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-data"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "ubuntu-data"))
 			return true, nil
 		case 4:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "base"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "base"))
 			return false, nil
 		case 5:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "kernel"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "kernel"))
 			return true, nil
 		}
 		return false, fmt.Errorf("unexpected number of calls: %v", n)
@@ -563,10 +562,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeModeenvTryBaseNotExists
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 5)
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/core20_123.snap %[1]s/base
-`, s.runMnt))
+`, dirs.RunMnt))
 
 	// check that the modeenv is the same
-	newModeenv, err := boot.ReadModeenv(filepath.Join(s.runMnt, "ubuntu-data", "system-data"))
+	newModeenv, err := boot.ReadModeenv(filepath.Join(dirs.RunMnt, "ubuntu-data", "system-data"))
 	c.Assert(err, IsNil)
 	c.Assert(newModeenv.BaseStatus, DeepEquals, modeEnv.BaseStatus)
 	c.Assert(newModeenv.TryBase, DeepEquals, modeEnv.TryBase)
@@ -581,19 +580,19 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeKernelSnapUpgradeHappy(
 		n++
 		switch n {
 		case 1:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-seed"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "ubuntu-seed"))
 			return true, nil
 		case 2:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-boot"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "ubuntu-boot"))
 			return true, nil
 		case 3:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-data"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "ubuntu-data"))
 			return true, nil
 		case 4:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "base"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "base"))
 			return true, nil
 		case 5:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "kernel"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "kernel"))
 			return false, nil
 		}
 		return false, fmt.Errorf("unexpected number of calls: %v", n)
@@ -608,7 +607,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeKernelSnapUpgradeHappy(
 	err := modeEnv.WriteTo(filepath.Join(dirs.RunMnt, "ubuntu-data", "system-data"))
 	c.Assert(err, IsNil)
 
-	tryBaseSnap := filepath.Join(s.runMnt, "ubuntu-data", "system-data", dirs.SnapBlobDir, "core20_124.snap")
+	tryBaseSnap := filepath.Join(dirs.SnapBlobDirUnder(filepath.Join(dirs.RunMnt, "ubuntu-data", "system-data")), "core20_124.snap")
 	err = os.MkdirAll(filepath.Dir(tryBaseSnap), 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(tryBaseSnap, []byte{0}, 0644)
@@ -638,7 +637,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeKernelSnapUpgradeHappy(
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 5)
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/pc-kernel_2.snap %[1]s/kernel
-`, s.runMnt))
+`, dirs.RunMnt))
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUntrustedKernelSnap(c *C) {
@@ -649,19 +648,19 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUntrustedKernelSnap(c *
 		n++
 		switch n {
 		case 1:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-seed"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "ubuntu-seed"))
 			return true, nil
 		case 2:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-boot"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "ubuntu-boot"))
 			return true, nil
 		case 3:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-data"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "ubuntu-data"))
 			return true, nil
 		case 4:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "base"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "base"))
 			return true, nil
 		case 5:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "kernel"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "kernel"))
 			return false, nil
 		}
 		return false, fmt.Errorf("unexpected number of calls: %v", n)
@@ -700,19 +699,19 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUntrustedTryKernelSnapF
 		n++
 		switch n {
 		case 1:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-seed"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "ubuntu-seed"))
 			return true, nil
 		case 2:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-boot"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "ubuntu-boot"))
 			return true, nil
 		case 3:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-data"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "ubuntu-data"))
 			return true, nil
 		case 4:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "base"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "base"))
 			return true, nil
 		case 5:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "kernel"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "kernel"))
 			return false, nil
 		}
 		return false, fmt.Errorf("unexpected number of calls: %v", n)
@@ -751,7 +750,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUntrustedTryKernelSnapF
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 5)
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/pc-kernel_1.snap %[1]s/kernel
-`, s.runMnt))
+`, dirs.RunMnt))
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeKernelStatusTryingNoTryKernel(c *C) {
@@ -762,19 +761,19 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeKernelStatusTryingNoTry
 		n++
 		switch n {
 		case 1:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-seed"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "ubuntu-seed"))
 			return true, nil
 		case 2:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-boot"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "ubuntu-boot"))
 			return true, nil
 		case 3:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-data"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "ubuntu-data"))
 			return true, nil
 		case 4:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "base"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "base"))
 			return true, nil
 		case 5:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "kernel"))
+			c.Check(path, Equals, filepath.Join(dirs.RunMnt, "kernel"))
 			return false, nil
 		}
 		return false, fmt.Errorf("unexpected number of calls: %v", n)
@@ -812,5 +811,5 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeKernelStatusTryingNoTry
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 5)
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/pc-kernel_1.snap %[1]s/kernel
-`, s.runMnt))
+`, dirs.RunMnt))
 }

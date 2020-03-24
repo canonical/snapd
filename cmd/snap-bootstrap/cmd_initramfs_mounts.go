@@ -244,7 +244,7 @@ func generateMountsModeRun() error {
 			// try_base set in the modeenv too
 			if modeEnv.TryBase != "" {
 				// check that the TryBase exists in ubuntu-data
-				tryBaseSnapPath := filepath.Join(dataDir, "system-data", dirs.SnapBlobDir, modeEnv.TryBase)
+				tryBaseSnapPath := filepath.Join(dirs.SnapBlobDirUnder(filepath.Join(dataDir, "system-data")), modeEnv.TryBase)
 				if osutil.FileExists(tryBaseSnapPath) {
 					// set the TryBase and have the initramfs mount this base
 					// snap
@@ -265,7 +265,7 @@ func generateMountsModeRun() error {
 			logger.Noticef("\"base_status\" has an invalid setting: %q", modeEnv.BaseStatus)
 		}
 
-		baseSnapPath := filepath.Join(dataDir, "system-data", dirs.SnapBlobDir, base)
+		baseSnapPath := filepath.Join(dirs.SnapBlobDirUnder(filepath.Join(dataDir, "system-data")), base)
 		fmt.Fprintf(stdout, "%s %s\n", baseSnapPath, filepath.Join(dirs.RunMnt, "base"))
 	}
 
@@ -340,7 +340,7 @@ func generateMountsModeRun() error {
 			// the normal kernel snap
 		}
 
-		kernelPath := filepath.Join(dataDir, "system-data", dirs.SnapBlobDir, kernelFile)
+		kernelPath := filepath.Join(dirs.SnapBlobDirUnder(filepath.Join(dataDir, "system-data")), kernelFile)
 		fmt.Fprintf(stdout, "%s %s\n", kernelPath, filepath.Join(dirs.RunMnt, "kernel"))
 	}
 
