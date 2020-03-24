@@ -395,7 +395,7 @@ func (s *gadgetYamlTestSuite) TestCoreConfigDefaults(c *C) {
 
 	ginfo, err := gadget.ReadInfo(s.dir, &modelConstraints{classic: true})
 	c.Assert(err, IsNil)
-	defaults := gadget.CoreDefaults(ginfo.Defaults, "otheridididididididididididididi")
+	defaults := gadget.SystemDefaults(ginfo.Defaults, "otheridididididididididididididi")
 	c.Check(defaults, DeepEquals, map[string]interface{}{
 		"ssh.disable": true,
 	})
@@ -410,7 +410,7 @@ func (s *gadgetYamlTestSuite) TestCoreConfigDefaults(c *C) {
 	ginfo, err = gadget.ReadInfo(s.dir, &modelConstraints{classic: true})
 	c.Assert(err, IsNil)
 
-	defaults = gadget.CoreDefaults(ginfo.Defaults, "otheridididididididididididididi")
+	defaults = gadget.SystemDefaults(ginfo.Defaults, "otheridididididididididididididi")
 	c.Check(defaults, DeepEquals, map[string]interface{}{
 		"something": true,
 	})
