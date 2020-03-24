@@ -73,7 +73,6 @@ func (cfg PlainCoreConfig) Get(snapName, key string, result interface{}) error {
 		return fmt.Errorf("internal error: expected core snap in Get(), %q was requested", snapName)
 	}
 
-	// XXX: should we support nesting with dotted key?
 	val, ok := cfg[key]
 	if !ok {
 		return &config.NoOptionError{SnapName: snapName, Key: key}
