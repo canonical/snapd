@@ -290,7 +290,7 @@ type ConfGetter interface {
 func GetFeatureFlag(tr ConfGetter, feature features.SnapdFeature) (bool, error) {
 	var isEnabled interface{}
 	snapName, confName := feature.ConfigOption()
-	if err := tr.Get(snapName, confName, &isEnabled); err != nil && !IsNoOption(err) {
+	if err := tr.GetMaybe(snapName, confName, &isEnabled); err != nil {
 		return false, err
 	}
 	switch isEnabled {
