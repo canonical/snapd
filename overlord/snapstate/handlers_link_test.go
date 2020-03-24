@@ -377,6 +377,47 @@ func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
 	c.Check(ok, Equals, true)
 }
 
+func (s *linkSnapSuite) TestDoLinkSnapWithVitalityScore(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	// a hook might have set some config
+	cfg := json.RawMessage(`{"resilience":{"vitality-hint":"bar,foo,baz"}}`)
+	err := config.SetSnapConfig(s.state, "core", &cfg)
+	c.Assert(err, IsNil)
+
+	si := &snap.SideInfo{
+		RealName: "foo",
+		Revision: snap.R(33),
+	}
+	t := s.state.NewTask("link-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si,
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+
+	for i := 0; i < 6; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	s.state.Lock()
+	expected := fakeOps{
+		{
+			op:    "candidate",
+			sinfo: *si,
+		},
+		{
+			op:           "link-snap",
+			path:         filepath.Join(dirs.SnapMountDir, "foo/33"),
+			vitalityRank: 2,
+		},
+	}
+	c.Check(s.fakeBackend.ops, DeepEquals, expected)
+}
+
 func (s *linkSnapSuite) TestDoLinkSnapTryToCleanupOnError(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
