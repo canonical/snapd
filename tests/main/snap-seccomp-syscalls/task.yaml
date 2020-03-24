@@ -18,6 +18,9 @@ restore: |
     rm -f syscalls.*
 
 execute: |
+    # XXX: this should be part of our images
+    apt install gperf -y
+
     # build a list of syscalls known to libseccomp by using the internal test
     # tool arch-syscall-dump
     git clone https://github.com/seccomp/libseccomp
