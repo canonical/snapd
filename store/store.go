@@ -833,7 +833,6 @@ func decodeJSONBody(resp *http.Response, success interface{}, failure interface{
 	if !ok {
 		result = failure
 	}
-	// XXX should we check content-type first?
 	if result != nil {
 		return json.NewDecoder(resp.Body).Decode(result)
 	}
@@ -1260,6 +1259,9 @@ func (s *Store) Find(ctx context.Context, search *Search, user *auth.UserState) 
 	}
 
 	var searchData searchV2Results
+
+	// TODO: use retryRequestDecodeJSON (may require content-type check there,
+	// requires checking other handlers, their tests and store).
 	doRequest := func() (*http.Response, error) {
 		return s.doRequest(ctx, s.client, reqOptions, user)
 	}
