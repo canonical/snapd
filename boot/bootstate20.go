@@ -26,7 +26,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-func newBootState20(typ snap.Type) bootState {
+func newBootState20(typ snap.Type) runningBootState {
 	switch typ {
 	case snap.TypeBase:
 		return &bootState20Base{}
@@ -381,7 +381,7 @@ func (bs20 *bootState20Base) commit() error {
 // genericSetNext implements the generic logic for setting up a snap to be tried
 // for boot and works for both kernel and base snaps (though not
 // simultaneously).
-func genericSetNext(b bootState, next snap.PlaceInfo) (setStatus string, err error) {
+func genericSetNext(b runningBootState, next snap.PlaceInfo) (setStatus string, err error) {
 	// get the current snap
 	current, _, _, err := b.revisions()
 	if err != nil {
@@ -445,7 +445,7 @@ func threadBootState20MarkSuccessful(update bootStateUpdate) (*bootState20MarkSu
 // genericMarkSuccessful sets the necessary boot variables, etc. to mark the
 // given boot snap as successful and a valid rollback target. If err is nil,
 // then the first return value is guaranteed to always be non-nil.
-func genericMarkSuccessful(b bootState, update bootStateUpdate) (bsmark *bootState20MarkSuccessful, trySnap snap.PlaceInfo, err error) {
+func genericMarkSuccessful(b runningBootState, update bootStateUpdate) (bsmark *bootState20MarkSuccessful, trySnap snap.PlaceInfo, err error) {
 	// create a new object or combine the existing one with this type
 	bsmark, err = threadBootState20MarkSuccessful(update)
 	if err != nil {

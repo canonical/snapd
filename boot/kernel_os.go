@@ -28,7 +28,7 @@ import (
 
 type coreBootParticipant struct {
 	s  snap.PlaceInfo
-	bs bootState
+	bs runningBootState
 }
 
 // ensure coreBootParticipant is a BootParticipant
