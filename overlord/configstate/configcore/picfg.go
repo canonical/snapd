@@ -89,7 +89,7 @@ func updatePiConfig(path string, config map[string]string) error {
 
 func piConfigFile(opts *ApplyOptions) string {
 	rootDir := dirs.GlobalRootDir
-	if opts != nil && opts.RootDir != "" {
+	if opts != nil {
 		rootDir = opts.RootDir
 	}
 	return filepath.Join(rootDir, "/boot/uboot/config.txt")

@@ -50,7 +50,7 @@ func validateExperimentalSettings(tr config.ConfGetter) error {
 
 func ExportExperimentalFlags(tr config.ConfGetter, opts *ApplyOptions) error {
 	var dir string
-	if opts != nil && opts.RootDir != "" {
+	if opts != nil {
 		dir = dirs.FeaturesDirUnder(opts.RootDir)
 	} else {
 		dir = dirs.FeaturesDir

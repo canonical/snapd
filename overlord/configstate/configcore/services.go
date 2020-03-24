@@ -53,7 +53,7 @@ func (l *sysdLogger) Notify(status string) {
 // service on core devices.
 func switchDisableSSHService(sysd systemd.Systemd, serviceName, value string, opts *ApplyOptions) error {
 	rootDir := dirs.GlobalRootDir
-	if opts != nil && opts.RootDir != "" {
+	if opts != nil {
 		rootDir = opts.RootDir
 	}
 	sshCanary := filepath.Join(rootDir, "/etc/ssh/sshd_not_to_be_run")
@@ -63,7 +63,7 @@ func switchDisableSSHService(sysd systemd.Systemd, serviceName, value string, op
 		if err := ioutil.WriteFile(sshCanary, []byte("SSH has been disabled by snapd system configuration\n"), 0644); err != nil {
 			return err
 		}
-		if opts == nil || opts.RootDir == "" {
+		if opts == nil {
 			return sysd.Stop(serviceName, 5*time.Minute)
 		}
 		return nil
@@ -77,7 +77,7 @@ func switchDisableSSHService(sysd systemd.Systemd, serviceName, value string, op
 		// versions of snapd.
 		sysd.Unmask("sshd.service")
 		sysd.Unmask("ssh.service")
-		if opts == nil || opts.RootDir == "" {
+		if opts == nil {
 			return sysd.Start(serviceName)
 		}
 		return nil
@@ -90,7 +90,7 @@ func switchDisableSSHService(sysd systemd.Systemd, serviceName, value string, op
 // where "true" means disabled and "false" means enabled.
 func switchDisableService(serviceName, value string, opts *ApplyOptions) error {
 	var sysd systemd.Systemd
-	if opts != nil && opts.RootDir != "" {
+	if opts != nil {
 		sysd = systemd.NewEmulationMode(opts.RootDir)
 	} else {
 		sysd = systemd.New(dirs.GlobalRootDir, systemd.SystemMode, &sysdLogger{})
@@ -108,7 +108,7 @@ func switchDisableService(serviceName, value string, opts *ApplyOptions) error {
 		if err := sysd.Mask(serviceName); err != nil {
 			return err
 		}
-		if opts == nil || opts.RootDir == "" {
+		if opts == nil {
 			return sysd.Stop(serviceName, 5*time.Minute)
 		}
 		return nil
@@ -119,7 +119,7 @@ func switchDisableService(serviceName, value string, opts *ApplyOptions) error {
 		if err := sysd.Enable(serviceName); err != nil {
 			return err
 		}
-		if opts == nil || opts.RootDir == "" {
+		if opts == nil {
 			return sysd.Start(serviceName)
 		}
 		return nil

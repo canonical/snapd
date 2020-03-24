@@ -35,7 +35,7 @@ func init() {
 
 func powerBtnCfg(opts *ApplyOptions) string {
 	rootDir := dirs.GlobalRootDir
-	if opts != nil && opts.RootDir != "" {
+	if opts != nil {
 		rootDir = opts.RootDir
 	}
 	return filepath.Join(rootDir, "/etc/systemd/logind.conf.d/00-snap-core.conf")

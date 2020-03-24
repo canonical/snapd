@@ -38,7 +38,7 @@ func init() {
 
 func updateWatchdogConfig(config map[string]uint, opts *ApplyOptions) error {
 	dir := dirs.SnapSystemdConfDir
-	if opts != nil && opts.RootDir != "" {
+	if opts != nil {
 		dir = dirs.SnapSystemdConfDirUnder(opts.RootDir)
 	}
 	name := "10-snapd-watchdog.conf"
