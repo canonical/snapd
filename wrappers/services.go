@@ -57,12 +57,12 @@ func serviceStopTimeout(app *snap.AppInfo) time.Duration {
 	return time.Duration(tout)
 }
 
-func generateSnapServiceFile(app *snap.AppInfo) ([]byte, error) {
+func generateSnapServiceFile(app *snap.AppInfo, opts *AddSnapServicesOptions) ([]byte, error) {
 	if err := snap.ValidateApp(app); err != nil {
 		return nil, err
 	}
 
-	return genServiceFile(app), nil
+	return genServiceFile(app, opts), nil
 }
 
 func stopService(sysd systemd.Systemd, app *snap.AppInfo, inter interacter) error {
@@ -201,7 +201,8 @@ func StartServices(apps []*snap.AppInfo, inter interacter, tm timings.Measurer) 
 }
 
 type AddSnapServicesOptions struct {
-	Preseeding bool
+	Preseeding   bool
+	VitalityRank int
 }
 
 // AddSnapServices adds service units for the applications from the snap which are services.
@@ -257,7 +258,7 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, opts *AddSnapServicesO
 			continue
 		}
 		// Generate service file
-		content, err := generateSnapServiceFile(app)
+		content, err := generateSnapServiceFile(app, opts)
 		if err != nil {
 			return err
 		}
@@ -480,7 +481,11 @@ func genServiceNames(snap *snap.Info, appNames []string) []string {
 	return names
 }
 
-func genServiceFile(appInfo *snap.AppInfo) []byte {
+func genServiceFile(appInfo *snap.AppInfo, opts *AddSnapServicesOptions) []byte {
+	if opts == nil {
+		opts = &AddSnapServicesOptions{}
+	}
+
 	serviceTemplate := `[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application {{.App.Snap.InstanceName}}.{{.App.Name}}
@@ -532,6 +537,9 @@ KillMode={{.KillMode}}
 {{- if .KillSignal}}
 KillSignal={{.KillSignal}}
 {{- end}}
+{{- if .VitalityScore }}
+OOMScoreAdjust=-{{.VitalityScore}}
+{{- end}}
 {{- if not .App.Sockets}}
 
 [Install]
@@ -548,6 +556,12 @@ WantedBy={{.ServicesTarget}}
 	restartCond := appInfo.RestartCond.String()
 	if restartCond == "" {
 		restartCond = snap.RestartOnFailure.String()
+	}
+
+	const baseScore = 899
+	var vitalityScore int
+	if opts.VitalityRank > 0 {
+		vitalityScore = baseScore - opts.VitalityRank
 	}
 
 	var remain string
@@ -577,6 +591,7 @@ WantedBy={{.ServicesTarget}}
 		Remain             string
 		KillMode           string
 		KillSignal         string
+		VitalityScore      int
 		Before             []string
 		After              []string
 
@@ -594,6 +609,7 @@ WantedBy={{.ServicesTarget}}
 		Remain:             remain,
 		KillMode:           killMode,
 		KillSignal:         appInfo.StopMode.KillSignal(),
+		VitalityScore:      vitalityScore,
 
 		Before: genServiceNames(appInfo.Snap, appInfo.Before),
 		After:  genServiceNames(appInfo.Snap, appInfo.After),
