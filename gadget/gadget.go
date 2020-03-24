@@ -123,8 +123,9 @@ type VolumeStructure struct {
 	// For backwards compatibility type 'mbr' is also accepted, and the
 	// structure is treated as if it is of role 'mbr'.
 	Type string `yaml:"type"`
-	// Role describes the role of given structure, can be one of 'mbr',
-	// 'system-data', 'system-boot', 'bootimg', 'bootselect'. Structures of type 'mbr', must have a
+	// Role describes the role of given structure, can be one of
+	// 'mbr', 'system-data', 'system-boot', 'system-boot-image',
+	// 'system-boot-select'. Structures of type 'mbr', must have a
 	// size of 446 bytes and must start at 0 offset.
 	Role string `yaml:"role"`
 	// ID is the GPT partition ID
