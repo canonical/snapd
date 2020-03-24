@@ -74,6 +74,7 @@ func (s16 *bootState16) revisions() (s, tryS snap.PlaceInfo, status string, err 
 		if vName == "snap_mode" {
 			status = v
 		} else {
+			// TODO: use trySnapError here somehow?
 			if v == "" {
 				return nil, nil, "", fmt.Errorf("cannot get name and revision of %s (%s): boot variable unset", s16.errName, vName)
 			}

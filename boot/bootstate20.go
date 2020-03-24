@@ -141,8 +141,9 @@ func (ks20 *bootState20Kernel) revisions() (curSnap, trySnap snap.PlaceInfo, try
 	}
 
 	tryKernel, err := ks20.ebl.TryKernel()
+	// if err is ErrNoTryKernelRef, then we will just return nil as the trySnap
 	if err != nil && err != bootloader.ErrNoTryKernelRef {
-		return nil, nil, "", fmt.Errorf("cannot identify try kernel snap with bootloader %s: %v", ks20.ebl.Name(), err)
+		return bootSn, nil, "", trySnapError(fmt.Sprintf("cannot identify try kernel snap with bootloader %s: %v", ks20.ebl.Name(), err))
 	}
 
 	if err == nil {
@@ -309,7 +310,7 @@ func (bs20 *bootState20Base) revisions() (curSnap, trySnap snap.PlaceInfo, tryin
 	if bs20.modeenv.BaseStatus == TryingStatus && bs20.modeenv.TryBase != "" {
 		tryBootSn, err = snap.ParsePlaceInfoFromSnapFileName(bs20.modeenv.TryBase)
 		if err != nil {
-			return nil, nil, "", fmt.Errorf("cannot get snap revision: modeenv try base boot variable is invalid: %v", err)
+			return bootSn, nil, "", trySnapError(fmt.Sprintf("cannot get snap revision: modeenv try base boot variable is invalid: %v", err))
 		}
 	}
 
