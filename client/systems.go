@@ -22,6 +22,7 @@ package client
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 
 	"golang.org/x/xerrors"
 
@@ -74,22 +75,30 @@ func (client *Client) ListSystems() ([]System, error) {
 	return rsp.Systems, nil
 }
 
-// RequestSystemAction issues a request to run the given seed system in the
-// provided mode.
-func (client *Client) RequestSystemAction(systemLabel, actionMode string) error {
+// DoSystemAction issues a request to perform an action using the given seed
+// system and its mode.
+func (client *Client) DoSystemAction(systemLabel string, action *SystemAction) error {
+	if systemLabel == "" {
+		return fmt.Errorf("cannot request an action without the system")
+	}
+	if action == nil {
+		return fmt.Errorf("cannot request an action without one")
+	}
+	// deeper verification is done by the backend
+
 	req := struct {
-		Label string `json:"label"`
-		Mode  string `json:"mode"`
+		Action string `json:"action"`
+		*SystemAction
 	}{
-		Label: systemLabel,
-		Mode:  actionMode,
+		Action:       "do",
+		SystemAction: action,
 	}
 
 	var body bytes.Buffer
 	if err := json.NewEncoder(&body).Encode(&req); err != nil {
 		return err
 	}
-	if _, err := client.doSync("POST", "/v2/systems", nil, nil, &body, nil); err != nil {
+	if _, err := client.doSync("POST", "/v2/systems/"+systemLabel, nil, nil, &body, nil); err != nil {
 		return xerrors.Errorf("cannot request system action: %v", err)
 	}
 	return nil

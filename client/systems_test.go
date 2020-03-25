@@ -131,10 +131,13 @@ func (cs *clientSuite) TestRequestSystemActionHappy(c *check.C) {
 	    "status-code": 200,
 	    "result": {}
 	}`
-	err := cs.cli.RequestSystemAction("1234", "install")
+	err := cs.cli.DoSystemAction("1234", &client.SystemAction{
+		Title: "reinstall",
+		Mode:  "install",
+	})
 	c.Assert(err, check.IsNil)
 	c.Check(cs.req.Method, check.Equals, "POST")
-	c.Check(cs.req.URL.Path, check.Equals, "/v2/systems")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/systems/1234")
 
 	body, err := ioutil.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
@@ -142,8 +145,9 @@ func (cs *clientSuite) TestRequestSystemActionHappy(c *check.C) {
 	err = json.Unmarshal(body, &req)
 	c.Assert(err, check.IsNil)
 	c.Assert(req, check.DeepEquals, map[string]interface{}{
-		"label": "1234",
-		"mode":  "install",
+		"action": "do",
+		"title":  "reinstall",
+		"mode":   "install",
 	})
 }
 
@@ -153,8 +157,15 @@ func (cs *clientSuite) TestRequestSystemActionError(c *check.C) {
 	    "status-code": 500,
 	    "result": {"message": "failed"}
 	}`
-	err := cs.cli.RequestSystemAction("1234", "install")
+	err := cs.cli.DoSystemAction("1234", &client.SystemAction{Mode: "install"})
 	c.Assert(err, check.ErrorMatches, "cannot request system action: failed")
 	c.Check(cs.req.Method, check.Equals, "POST")
-	c.Check(cs.req.URL.Path, check.Equals, "/v2/systems")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/systems/1234")
+}
+
+func (cs *clientSuite) TestRequestSystemActionInvalid(c *check.C) {
+	err := cs.cli.DoSystemAction("", &client.SystemAction{})
+	c.Assert(err, check.ErrorMatches, "cannot request an action without the system")
+	err = cs.cli.DoSystemAction("1234", nil)
+	c.Assert(err, check.ErrorMatches, "cannot request an action without one")
 }
