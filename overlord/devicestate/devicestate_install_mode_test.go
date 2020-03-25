@@ -21,6 +21,7 @@ package devicestate_test
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -43,6 +44,9 @@ import (
 
 type deviceMgrInstallModeSuite struct {
 	deviceMgrBaseSuite
+
+	configureRunSystemOptsPassed []*sysconfig.Options
+	configureRunSystemErr        error
 }
 
 var _ = Suite(&deviceMgrInstallModeSuite{})
@@ -58,6 +62,14 @@ func (s *deviceMgrInstallModeSuite) findInstallSystem() *state.Change {
 
 func (s *deviceMgrInstallModeSuite) SetUpTest(c *C) {
 	s.deviceMgrBaseSuite.SetUpTest(c)
+
+	s.configureRunSystemOptsPassed = nil
+	s.configureRunSystemErr = nil
+	restore := devicestate.MockSysconfigConfigureRunSystem(func(opts *sysconfig.Options) error {
+		s.configureRunSystemOptsPassed = append(s.configureRunSystemOptsPassed, opts)
+		return s.configureRunSystemErr
+	})
+	s.AddCleanup(restore)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -343,7 +355,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallSecuredBypassEncryption(c *C) {
 	c.Assert(err, ErrorMatches, "(?s).*cannot encrypt secured device: TPM not available.*")
 }
 
-func (s *deviceMgrInstallModeSuite) TestInstallModeRunSysconfig(c *C) {
+func (s *deviceMgrInstallModeSuite) mockInstallModeChange(c *C, modelGrade string) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
@@ -351,17 +363,11 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeRunSysconfig(c *C) {
 	defer mockSnapBootstrapCmd.Restore()
 
 	s.state.Lock()
-	s.makeMockInstalledPcGadget(c, "dangerous")
+	mockModel := s.makeMockInstalledPcGadget(c, modelGrade)
 	s.state.Unlock()
+	c.Check(mockModel.Grade(), Equals, asserts.ModelGrade(modelGrade))
 
 	restore = devicestate.MockBootMakeBootable(func(model *asserts.Model, rootdir string, bootWith *boot.BootableSet) error {
-		return nil
-	})
-	defer restore()
-
-	configureRunSystemCalls := 0
-	restore = devicestate.MockSysconfigConfigureRunSystem(func(opts *sysconfig.Options) error {
-		configureRunSystemCalls++
 		return nil
 	})
 	defer restore()
@@ -370,6 +376,11 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeRunSysconfig(c *C) {
 	devicestate.SetRecoverySystem(s.mgr, "20191218")
 
 	s.settle(c)
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallModeRunSysconfig(c *C) {
+	s.mockInstallModeChange(c, "dangerous")
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -382,36 +393,15 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeRunSysconfig(c *C) {
 	c.Check(installSystem.Status(), Equals, state.DoneStatus)
 
 	// and sysconfig.ConfigureRunSystem was run exactly once
-	c.Assert(configureRunSystemCalls, Equals, 1)
+	c.Assert(s.configureRunSystemOptsPassed, DeepEquals, []*sysconfig.Options{
+		{},
+	})
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallModeRunSysconfigErr(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
+	s.configureRunSystemErr = fmt.Errorf("error from sysconfig.ConfigureRunSystem")
+	s.mockInstallModeChange(c, "dangerous")
 
-	mockSnapBootstrapCmd := testutil.MockCommand(c, filepath.Join(dirs.DistroLibExecDir, "snap-bootstrap"), "")
-	defer mockSnapBootstrapCmd.Restore()
-
-	s.state.Lock()
-	s.makeMockInstalledPcGadget(c, "dangerous")
-	s.state.Unlock()
-
-	restore = devicestate.MockBootMakeBootable(func(model *asserts.Model, rootdir string, bootWith *boot.BootableSet) error {
-		return nil
-	})
-	defer restore()
-
-	configureRunSystemCalls := 0
-	restore = devicestate.MockSysconfigConfigureRunSystem(func(opts *sysconfig.Options) error {
-		configureRunSystemCalls++
-		return fmt.Errorf("error from sysconfig.ConfigureRunSystem")
-	})
-	defer restore()
-
-	devicestate.SetOperatingMode(s.mgr, "install")
-	devicestate.SetRecoverySystem(s.mgr, "20191218")
-
-	s.settle(c)
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -420,5 +410,44 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeRunSysconfigErr(c *C) {
 	c.Check(installSystem.Err(), ErrorMatches, `(?ms)cannot perform the following tasks:
 - Setup system for run mode \(error from sysconfig.ConfigureRunSystem\)`)
 	// and sysconfig.ConfigureRunSystem was run exactly once
-	c.Assert(configureRunSystemCalls, Equals, 1)
+	c.Assert(s.configureRunSystemOptsPassed, DeepEquals, []*sysconfig.Options{
+		{},
+	})
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallModeSupportsCloudInitInDangerous(c *C) {
+	// pretend we have a cloud-init config on the seed partition
+	cloudCfg := filepath.Join(dirs.RunMnt, "ubuntu-seed/data/etc/cloud/cloud.cfg.d")
+	err := os.MkdirAll(cloudCfg, 0755)
+	c.Assert(err, IsNil)
+	for _, mockCfg := range []string{"foo.cfg", "bar.cfg"} {
+		err = ioutil.WriteFile(filepath.Join(cloudCfg, mockCfg), []byte(fmt.Sprintf("%s config", mockCfg)), 0644)
+		c.Assert(err, IsNil)
+	}
+
+	s.mockInstallModeChange(c, "dangerous")
+
+	// and did tell sysconfig about the cloud-init files
+	c.Assert(s.configureRunSystemOptsPassed, DeepEquals, []*sysconfig.Options{
+		{CloudInitSrcDir: filepath.Join(dirs.RunMnt, "ubuntu-seed/data/etc/cloud/cloud.cfg.d")},
+	})
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallModeNoCloudInitForSigned(c *C) {
+	// pretend we have a cloud-init config on the seed partition
+	cloudCfg := filepath.Join(dirs.RunMnt, "ubuntu-seed/data/etc/cloud/cloud.cfg.d")
+	err := os.MkdirAll(cloudCfg, 0755)
+	c.Assert(err, IsNil)
+	for _, mockCfg := range []string{"foo.cfg", "bar.cfg"} {
+		err = ioutil.WriteFile(filepath.Join(cloudCfg, mockCfg), []byte(fmt.Sprintf("%s config", mockCfg)), 0644)
+		c.Assert(err, IsNil)
+	}
+
+	// but it is signed
+	s.mockInstallModeChange(c, "signed")
+
+	// so no cloud-init src dir is passed
+	c.Assert(s.configureRunSystemOptsPassed, DeepEquals, []*sysconfig.Options{
+		{},
+	})
 }

@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 )
 
 func DisableCloudInit() error {
@@ -41,13 +42,30 @@ func DisableCloudInit() error {
 }
 
 func installCloudInitCfg(src string) error {
-	return fmt.Errorf("installCloudInitCfg not implemented yet")
+	ccl, err := filepath.Glob(filepath.Join(src, "*.cfg"))
+	if err != nil {
+		return err
+	}
+	if len(ccl) == 0 {
+		return nil
+	}
+
+	ubuntuDataCloudCfgDir := filepath.Join(dirs.RunMnt, "ubuntu-data/system-data/etc/cloud/cloud.cfg.d/")
+	if err := os.MkdirAll(ubuntuDataCloudCfgDir, 0755); err != nil {
+		return fmt.Errorf("cannot make cloud config dir: %v", err)
+	}
+
+	for _, cc := range ccl {
+		if err := osutil.CopyFile(cc, filepath.Join(ubuntuDataCloudCfgDir, filepath.Base(cc)), 0); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // disable cloud-init by default (as it's not confined)
-// TODO:UC20: 1. allow drop-in cloud.cfg.d/* in mode dangerous
-//            2. allow gadget cloud.cfg.d/* (with whitelisted keys?)
-//            3. allow cloud.cfg.d (with whitelisted keys) for non
+// TODO:UC20: - allow gadget cloud.cfg.d/* (with whitelisted keys?)
+//            - allow cloud.cfg.d (with whitelisted keys) for non
 //               grade dangerous systems
 func configureCloudInit(opts *Options) (err error) {
 	switch opts.CloudInitSrcDir {

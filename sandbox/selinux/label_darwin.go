@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+
 package selinux
 
 // VerifyPathContext checks whether a given path is labeled according to its default
