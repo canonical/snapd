@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+
 package bootstrap
 
 import (
@@ -84,12 +85,15 @@ func Run(gadgetRoot, device string, options Options) error {
 		return fmt.Errorf("cannot read %v partitions: %v", device, err)
 	}
 
-	// TODO:UC20: if there are partitions on disk that were added during
-	//            a failed install attempt, remove them before proceeding.
-
-	// check if the current partition table is compatible with the gadget
+	// check if the current partition table is compatible with the gadget,
+	// ignoring partitions added by the installer (will be removed later)
 	if err := ensureLayoutCompatibility(lv, diskLayout); err != nil {
 		return fmt.Errorf("gadget and %v partition table not compatible: %v", device, err)
+	}
+
+	// remove partitions added during a previous (failed) install attempt
+	if err := diskLayout.RemoveCreated(); err != nil {
+		return fmt.Errorf("cannot remove partitions from previous install: %v", err)
 	}
 
 	created, err := diskLayout.CreateMissing(lv)

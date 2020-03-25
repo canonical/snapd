@@ -226,6 +226,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep4(c *C) {
 	c.Check(modeEnv, testutil.FileEquals, `mode=install
 recovery_system=20191118
 `)
+	cloudInitDisable := filepath.Join(s.runMnt, "/ubuntu-data/system-data/etc/cloud/cloud-init.disabled")
+	c.Check(cloudInitDisable, testutil.FilePresent)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1(c *C) {
@@ -294,7 +296,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2(c *C) {
 		Base:           "core20_123.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap"},
 	}
-	err := modeEnv.Write(filepath.Join(s.runMnt, "ubuntu-data", "system-data"))
+	err := modeEnv.WriteTo(filepath.Join(dirs.RunMnt, "ubuntu-data", "system-data"))
 	c.Assert(err, IsNil)
 
 	// mock a bootloader
@@ -351,7 +353,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeBaseSnapUpgradeFailsHap
 		TryBase:    "core20_124.snap",
 		BaseStatus: boot.TryingStatus,
 	}
-	err := modeEnv.Write(filepath.Join(s.runMnt, "ubuntu-data", "system-data"))
+	err := modeEnv.WriteTo(filepath.Join(dirs.RunMnt, "ubuntu-data", "system-data"))
 	c.Assert(err, IsNil)
 
 	tryBaseSnap := filepath.Join(s.runMnt, "ubuntu-data", "system-data", dirs.SnapBlobDir, "core20_124.snap")
@@ -408,7 +410,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeModeenvTryBaseEmptyHapp
 		Base:       "core20_123.snap",
 		BaseStatus: boot.TryStatus,
 	}
-	err := modeEnv.Write(filepath.Join(s.runMnt, "ubuntu-data", "system-data"))
+	err := modeEnv.WriteTo(filepath.Join(dirs.RunMnt, "ubuntu-data", "system-data"))
 	c.Assert(err, IsNil)
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
@@ -458,7 +460,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeBaseSnapUpgradeHappy(c 
 		TryBase:    "core20_124.snap",
 		BaseStatus: boot.TryStatus,
 	}
-	err := modeEnv.Write(filepath.Join(s.runMnt, "ubuntu-data", "system-data"))
+	err := modeEnv.WriteTo(filepath.Join(dirs.RunMnt, "ubuntu-data", "system-data"))
 	c.Assert(err, IsNil)
 
 	tryBaseSnap := filepath.Join(s.runMnt, "ubuntu-data", "system-data", dirs.SnapBlobDir, "core20_124.snap")
@@ -511,7 +513,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeModeenvBaseEmptyUnhappy
 
 	// write an empty modeenv
 	modeEnv := &boot.Modeenv{}
-	err := modeEnv.Write(filepath.Join(s.runMnt, "ubuntu-data", "system-data"))
+	err := modeEnv.WriteTo(filepath.Join(dirs.RunMnt, "ubuntu-data", "system-data"))
 	c.Assert(err, IsNil)
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
@@ -554,7 +556,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeModeenvTryBaseNotExists
 		TryBase:    "core20_124.snap",
 		BaseStatus: boot.TryStatus,
 	}
-	err := modeEnv.Write(filepath.Join(s.runMnt, "ubuntu-data", "system-data"))
+	err := modeEnv.WriteTo(filepath.Join(dirs.RunMnt, "ubuntu-data", "system-data"))
 	c.Assert(err, IsNil)
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
@@ -603,7 +605,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeKernelSnapUpgradeHappy(
 		Base:           "core20_123.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap", "pc-kernel_2.snap"},
 	}
-	err := modeEnv.Write(filepath.Join(s.runMnt, "ubuntu-data", "system-data"))
+	err := modeEnv.WriteTo(filepath.Join(dirs.RunMnt, "ubuntu-data", "system-data"))
 	c.Assert(err, IsNil)
 
 	tryBaseSnap := filepath.Join(s.runMnt, "ubuntu-data", "system-data", dirs.SnapBlobDir, "core20_124.snap")
@@ -671,7 +673,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUntrustedKernelSnap(c *
 		Base:           "core20_123.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap"},
 	}
-	err := modeEnv.Write(filepath.Join(s.runMnt, "ubuntu-data", "system-data"))
+	err := modeEnv.WriteTo(filepath.Join(dirs.RunMnt, "ubuntu-data", "system-data"))
 	c.Assert(err, IsNil)
 
 	// mock a bootloader
@@ -722,7 +724,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUntrustedTryKernelSnapF
 		Base:           "core20_123.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap"},
 	}
-	err := modeEnv.Write(filepath.Join(s.runMnt, "ubuntu-data", "system-data"))
+	err := modeEnv.WriteTo(filepath.Join(dirs.RunMnt, "ubuntu-data", "system-data"))
 	c.Assert(err, IsNil)
 
 	// mock a bootloader
@@ -784,7 +786,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeKernelStatusTryingNoTry
 		Base:           "core20_123.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap"},
 	}
-	err := modeEnv.Write(filepath.Join(s.runMnt, "ubuntu-data", "system-data"))
+	err := modeEnv.WriteTo(filepath.Join(dirs.RunMnt, "ubuntu-data", "system-data"))
 	c.Assert(err, IsNil)
 
 	// mock a bootloader

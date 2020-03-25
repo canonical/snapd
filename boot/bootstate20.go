@@ -219,7 +219,7 @@ func (ks20 *bootState20Kernel) commit() error {
 			ks20.kModeenv.modeenv.CurrentKernels,
 			ks20.tryKernelSnap.Filename(),
 		)
-		err := ks20.kModeenv.modeenv.Write("")
+		err := ks20.kModeenv.modeenv.Write()
 		if err != nil {
 			return err
 		}
@@ -368,7 +368,7 @@ func (bs20 *bootState20Base) commit() error {
 
 	// only write the modeenv if we actually changed it
 	if changed {
-		return bs20.modeenv.Write("")
+		return bs20.modeenv.Write()
 	}
 	return nil
 }
@@ -582,7 +582,7 @@ func (bsmark *bootState20MarkSuccessful) commit() error {
 
 	// write the modeenv
 	if modeenvChanged {
-		return bsmark.modeenv.Write("")
+		return bsmark.modeenv.Write()
 	}
 
 	return nil

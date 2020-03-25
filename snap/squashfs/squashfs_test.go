@@ -152,6 +152,40 @@ exec /bin/cp "$@"
 	c.Check(cmd.Calls(), HasLen, 0)
 }
 
+func (s *SquashfsTestSuite) TestInstallSimpleOnOverlayfs(c *C) {
+	cmd := testutil.MockCommand(c, "cp", "")
+	defer cmd.Restore()
+
+	// mock link but still link
+	linked := 0
+	r := squashfs.MockLink(func(a, b string) error {
+		linked++
+		return os.Link(a, b)
+	})
+	defer r()
+
+	// pretend we are on overlayfs
+	restore := squashfs.MockIsRootWritableOverlay(func() (string, error) {
+		return "/upper", nil
+	})
+	defer restore()
+
+	c.Assert(os.MkdirAll(dirs.SnapSeedDir, 0755), IsNil)
+	snap := makeSnapInDir(c, dirs.SnapSeedDir, "name: test2", "")
+	targetPath := filepath.Join(c.MkDir(), "target.snap")
+	_, err := os.Lstat(targetPath)
+	c.Check(os.IsNotExist(err), Equals, true)
+
+	didNothing, err := snap.Install(targetPath, c.MkDir())
+	c.Assert(err, IsNil)
+	c.Assert(didNothing, Equals, false)
+	// symlink in place
+	c.Check(osutil.IsSymlink(targetPath), Equals, true)
+	// no link / no cp
+	c.Check(linked, Equals, 0)
+	c.Check(cmd.Calls(), HasLen, 0)
+}
+
 func noLink() func() {
 	return squashfs.MockLink(func(string, string) error { return errors.New("no.") })
 }
@@ -227,6 +261,20 @@ func (s *SquashfsTestSuite) TestReadFileFail(c *C) {
 	snap := makeSnap(c, "name: foo", "")
 	_, err := snap.ReadFile("meta/snap.yaml")
 	c.Assert(err, ErrorMatches, "cannot run unsquashfs: boom")
+}
+
+func (s *SquashfsTestSuite) TestRandomAccessFile(c *C) {
+	snap := makeSnap(c, "name: foo", "")
+
+	r, err := snap.RandomAccessFile("meta/snap.yaml")
+	c.Assert(err, IsNil)
+	defer r.Close()
+
+	b := make([]byte, 4)
+	n, err := r.ReadAt(b, 4)
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 4)
+	c.Check(string(b), Equals, ": fo")
 }
 
 func (s *SquashfsTestSuite) TestListDir(c *C) {

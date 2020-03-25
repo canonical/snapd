@@ -1,8 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build withtestkeys
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -18,9 +17,20 @@
  *
  */
 
-package httputil
+package sysconfig
 
-func init() {
-	// mark as testing if we carry testing keys
-	isTesting = true
+type Options struct {
+	// TODO: do we really want this kind of specific dir pointers
+	// or more general ones?
+	CloudInitSrcDir string
+}
+
+// ConfigureRunSystem configures the ubuntu-data partition with any
+// configuration needed from e.g. the gadget or for cloud-init.
+func ConfigureRunSystem(opts *Options) error {
+	if err := configureCloudInit(opts); err != nil {
+		return err
+	}
+
+	return nil
 }

@@ -139,6 +139,9 @@ override_dh_auto_build:
 	# Build golang bits
 	mkdir -p _build/src/$(DH_GOPKG)/cmd/snap/test-data
 	cp -a cmd/snap/test-data/*.gpg _build/src/$(DH_GOPKG)/cmd/snap/test-data/
+	# exclude certain parts that won't be used by debian
+	rm -rf _build/src/$(DH_GOPKG)/cmd/snap-bootstrap
+	# and build
 	dh_auto_build -- $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS)
 
 	# (static linking on powerpc with cgo is broken)
