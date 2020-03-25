@@ -122,8 +122,8 @@ type Config struct {
 	DetailFields []string
 	InfoFields   []string
 	// search v2 fields
-	SearchFields []string
-	DeltaFormat  string
+	FindFields  []string
+	DeltaFormat string
 
 	// CacheDownloads is the number of downloads that should be cached
 	CacheDownloads int
@@ -164,7 +164,7 @@ type Store struct {
 
 	detailFields []string
 	infoFields   []string
-	searchFields []string
+	findFields   []string
 	deltaFormat  string
 	// reused http client
 	client *http.Client
@@ -317,7 +317,7 @@ func init() {
 	}
 	defaultConfig.DetailFields = jsonutil.StructFields((*snapDetails)(nil), "snap_yaml_raw")
 	defaultConfig.InfoFields = jsonutil.StructFields((*storeSnap)(nil), "snap-yaml")
-	defaultConfig.SearchFields = append(jsonutil.StructFields((*storeSnap)(nil),
+	defaultConfig.FindFields = append(jsonutil.StructFields((*storeSnap)(nil),
 		"architectures", "created-at", "epoch", "name", "snap-id", "snap-yaml"),
 		"channel")
 }
@@ -361,9 +361,9 @@ func New(cfg *Config, dauthCtx DeviceAndAuthContext) *Store {
 		infoFields = defaultConfig.InfoFields
 	}
 
-	searchFields := cfg.SearchFields
-	if searchFields == nil {
-		searchFields = defaultConfig.SearchFields
+	findFields := cfg.FindFields
+	if findFields == nil {
+		findFields = defaultConfig.FindFields
 	}
 
 	architecture := cfg.Architecture
@@ -392,7 +392,7 @@ func New(cfg *Config, dauthCtx DeviceAndAuthContext) *Store {
 		fallbackStoreID:    cfg.StoreID,
 		detailFields:       detailFields,
 		infoFields:         infoFields,
-		searchFields:       searchFields,
+		findFields:         findFields,
 		dauthCtx:           dauthCtx,
 		deltaFormat:        deltaFormat,
 		proxy:              cfg.Proxy,
@@ -426,7 +426,7 @@ const (
 	snapActionEndpPath = "v2/snaps/refresh"
 	snapInfoEndpPath   = "v2/snaps/info"
 	cohortsEndpPath    = "v2/cohorts"
-	searchEndpPathV2   = "v2/snaps/find"
+	findEndpPath       = "v2/snaps/find"
 
 	deviceNonceEndpPath   = "api/v1/snaps/auth/nonces"
 	deviceSessionEndpPath = "api/v1/snaps/auth/sessions"
@@ -1213,7 +1213,7 @@ func (s *Store) Find(ctx context.Context, search *Search, user *auth.UserState) 
 	}
 
 	q := url.Values{}
-	q.Set("fields", strings.Join(s.searchFields, ","))
+	q.Set("fields", strings.Join(s.findFields, ","))
 	q.Set("architecture", s.architecture)
 
 	if search.Private {
@@ -1250,7 +1250,7 @@ func (s *Store) Find(ctx context.Context, search *Search, user *auth.UserState) 
 		q.Set("confinement", "strict")
 	}
 
-	u := s.endpointURL(searchEndpPathV2, q)
+	u := s.endpointURL(findEndpPath, q)
 	reqOptions := &requestOptions{
 		Method:   "GET",
 		URL:      u,

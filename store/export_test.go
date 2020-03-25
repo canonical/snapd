@@ -169,8 +169,8 @@ func (sto *Store) SessionUnlock() {
 	sto.sessionMu.Unlock()
 }
 
-func (sto *Store) SearchFields() []string {
-	return sto.searchFields
+func (sto *Store) FindFields() []string {
+	return sto.findFields
 }
 
 func (cfg *Config) SetBaseURL(u *url.URL) error {
