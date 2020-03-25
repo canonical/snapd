@@ -810,10 +810,10 @@ func (m *DeviceManager) Systems() ([]*System, error) {
 	return systems, nil
 }
 
-// RequestSystemModel request provided system to be run in a given mode. A
+// RequestSystemAction request provided system to be run in a given mode. A
 // system reboot will be requested when the request can be successfully carried
 // out.
-func (m *DeviceManager) RequestSystemMode(systemLabel, action string) error {
+func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAction) error {
 	systemSeedDir := filepath.Join(dirs.SnapSeedDir, "systems", systemLabel)
 	if _, err := os.Stat(systemSeedDir); err != nil {
 		return err
@@ -825,14 +825,14 @@ func (m *DeviceManager) RequestSystemMode(systemLabel, action string) error {
 
 	var sysAction *SystemAction
 	for _, act := range system.Actions {
-		if action == act.Mode {
+		if action.Mode == act.Mode {
 			sysAction = &act
 			break
 		}
 	}
 	if sysAction == nil {
-		return fmt.Errorf("cannot request mode %q unsupported by system %q",
-			action, systemLabel)
+		return fmt.Errorf("cannot request unsupported mode %q for system %q",
+			action.Mode, systemLabel)
 	}
 
 	// TODO:UC20 request action

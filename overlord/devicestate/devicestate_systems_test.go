@@ -244,20 +244,20 @@ func (s *deviceMgrSystemsSuite) TestBrokenSeedSystems(c *C) {
 }
 
 func (s *deviceMgrSystemsSuite) TestRequestModeHappy(c *C) {
-	err := s.mgr.RequestSystemMode("20191119", "install")
+	err := s.mgr.RequestSystemAction("20191119", devicestate.SystemAction{Mode: "install"})
 	c.Assert(err, IsNil)
 	// TODO:UC20 verify bootenv
 }
 
 func (s *deviceMgrSystemsSuite) TestRequestModeNotFound(c *C) {
-	err := s.mgr.RequestSystemMode("not-found", "install")
+	err := s.mgr.RequestSystemAction("not-found", devicestate.SystemAction{Mode: "install"})
 	c.Assert(err, NotNil)
 	c.Assert(os.IsNotExist(err), Equals, true)
 }
 
 func (s *deviceMgrSystemsSuite) TestRequestModeBadMode(c *C) {
-	err := s.mgr.RequestSystemMode("20191119", "unknown-mode")
-	c.Assert(err, ErrorMatches, `cannot request mode "unknown-mode" unsupported by system "20191119"`)
+	err := s.mgr.RequestSystemAction("20191119", devicestate.SystemAction{Mode: "unknown-mode"})
+	c.Assert(err, ErrorMatches, `cannot request unsupported mode "unknown-mode" for system "20191119"`)
 }
 
 func (s *deviceMgrSystemsSuite) TestRequestModeBroken(c *C) {
@@ -265,6 +265,6 @@ func (s *deviceMgrSystemsSuite) TestRequestModeBroken(c *C) {
 	err := os.Remove(filepath.Join(dirs.SnapSeedDir, "systems", s.mockedSystemSeeds[0].label, "model"))
 	c.Assert(err, IsNil)
 
-	err = s.mgr.RequestSystemMode("20191119", "install")
+	err = s.mgr.RequestSystemAction("20191119", devicestate.SystemAction{Mode: "install"})
 	c.Assert(err, ErrorMatches, "cannot load seed system: cannot load assertions: .*")
 }
