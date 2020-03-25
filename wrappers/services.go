@@ -935,6 +935,12 @@ func generateOnCalendarSchedules(schedule []*timeutil.Schedule) []string {
 		}
 
 		for _, day := range days {
+			if len(startTimes) == 0 {
+				// current schedule is days only
+				calendarEvents = append(calendarEvents, day)
+				continue
+			}
+
 			for _, startTime := range startTimes {
 				calendarEvents = append(calendarEvents, fmt.Sprintf("%s %s", day, startTime))
 			}
