@@ -209,6 +209,23 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, opts *AddSnapServicesO
 	if s.GetType() == snap.TypeSnapd {
 		return fmt.Errorf("internal error: adding explicit services for snapd snap is unexpected")
 	}
+	units, err := systemdSystemUnits(s)
+	if err != nil {
+		return err
+	}
+	dir := dirs.SnapServicesDir
+	globs := []string{
+		fmt.Sprintf("snap.%s.*.service", s.InstanceName()),
+		fmt.Sprintf("snap.%s.*.socket", s.InstanceName()),
+		fmt.Sprintf("snap.%s.*.timer", s.InstanceName()),
+	}
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+	changed, removed, err := osutil.EnsureDirStateGlobs(dir, globs, units)
+	if err != nil {
+		return err
+	}
 
 	if opts == nil {
 		opts = &AddSnapServicesOptions{}
@@ -225,8 +242,10 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, opts *AddSnapServicesO
 		}
 	}
 
+	// TODO: remove once services get enabled on start and not when created.
+	preseeding := opts.Preseeding
+
 	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
-	var written []string
 	var enabled []string
 	defer func() {
 		if err == nil {
@@ -237,73 +256,33 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, opts *AddSnapServicesO
 				inter.Notify(fmt.Sprintf("while trying to disable %s due to previous failure: %v", s, e))
 			}
 		}
-		for _, s := range written {
-			if e := os.Remove(s); e != nil {
+		for _, s := range changed {
+			if e := os.Remove(filepath.Join(dir, s)); e != nil {
 				inter.Notify(fmt.Sprintf("while trying to remove %s due to previous failure: %v", s, e))
 			}
 		}
-		if len(written) > 0 {
+		if len(changed) > 0 && !preseeding {
 			if e := sysd.DaemonReload(); e != nil {
 				inter.Notify(fmt.Sprintf("while trying to perform systemd daemon-reload due to previous failure: %v", e))
 			}
 		}
 	}()
 
-	// TODO: remove once services get enabled on start and not when created.
-	preseeding := opts.Preseeding
-
+	// Go and enable all the services.
 	for _, app := range s.Apps {
 		if !app.IsService() {
 			continue
 		}
-		// Generate service file
-		content, err := generateSnapServiceFile(app)
-		if err != nil {
-			return err
-		}
-		svcFilePath := app.ServiceFile()
-		os.MkdirAll(filepath.Dir(svcFilePath), 0755)
-		if err := osutil.AtomicWriteFile(svcFilePath, content, 0644, 0); err != nil {
-			return err
-		}
-		written = append(written, svcFilePath)
-
-		// Generate systemd .socket files if needed
-		socketFiles, err := generateSnapSocketFiles(app)
-		if err != nil {
-			return err
-		}
-		for path, content := range *socketFiles {
-			os.MkdirAll(filepath.Dir(path), 0755)
-			if err := osutil.AtomicWriteFile(path, content, 0644, 0); err != nil {
-				return err
-			}
-			written = append(written, path)
-		}
-
-		if app.Timer != nil {
-			content, err := generateSnapTimerFile(app)
-			if err != nil {
-				return err
-			}
-			path := app.Timer.File()
-			os.MkdirAll(filepath.Dir(path), 0755)
-			if err := osutil.AtomicWriteFile(path, content, 0644, 0); err != nil {
-				return err
-			}
-			written = append(written, path)
-		}
 
 		if app.Timer != nil || len(app.Sockets) != 0 {
-			// service is socket or timer activated, not during the
-			// boot
+			// Service is socket or timer activated, not during the boot.
 			continue
 		}
 
 		svcName := app.ServiceName()
 
 		if strutil.ListContains(disabledSvcs, app.Name) {
-			// service is disabled, nothing to do
+			// Service is disabled, nothing to do
 			continue
 		}
 
@@ -315,7 +294,7 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, opts *AddSnapServicesO
 		enabled = append(enabled, svcName)
 	}
 
-	if len(written) > 0 && !preseeding {
+	if (len(changed) > 0 || len(removed) > 0) && !preseeding {
 		if err := sysd.DaemonReload(); err != nil {
 			return err
 		}
@@ -348,7 +327,10 @@ func StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, inter int
 	for _, app := range apps {
 		// Handle the case where service file doesn't exist and don't try to stop it as it will fail.
 		// This can happen with snap try when snap.yaml is modified on the fly and a daemon line is added.
-		if !app.IsService() || !osutil.FileExists(app.ServiceFile()) {
+		if !app.IsService() {
+			continue
+		}
+		if !osutil.FileExists(app.ServiceFile()) {
 			continue
 		}
 		// Skip stop on refresh when refresh mode is set to something
@@ -478,6 +460,43 @@ func genServiceNames(snap *snap.Info, appNames []string) []string {
 		}
 	}
 	return names
+}
+
+// systemdSystemUnits returns a map of expected systemd services, sockets and timers.
+func systemdSystemUnits(snapInfo *snap.Info) (map[string]osutil.FileState, error) {
+	capacity := len(snapInfo.Apps) // rough estimate
+	units := make(map[string]osutil.FileState, capacity)
+	for _, app := range snapInfo.Apps {
+		// XXX: why do we validate here? Is this redundant?
+		if err := snap.ValidateApp(app); err != nil {
+			return nil, err
+		}
+		if !app.IsService() {
+			continue
+		}
+		units[app.ServiceName()] = &osutil.MemoryFileState{
+			Content: genServiceFile(app),
+			Mode:    0644,
+		}
+		for name, socket := range app.Sockets {
+			units[socket.FileName()] = &osutil.MemoryFileState{
+				Content: genServiceSocketFile(app, name),
+				Mode:    0644,
+			}
+		}
+		if timer := app.Timer; timer != nil {
+			// XXX: this should not return an error for parity with other generate functions.
+			timerBytes, err := generateSnapTimerFile(app)
+			if err != nil {
+				return nil, err
+			}
+			units[timer.FileName()] = &osutil.MemoryFileState{
+				Content: timerBytes,
+				Mode:    0644,
+			}
+		}
+	}
+	return units, nil
 }
 
 func genServiceFile(appInfo *snap.AppInfo) []byte {
