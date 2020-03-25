@@ -22,8 +22,10 @@ package boot
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -39,6 +41,40 @@ const (
 	// boot sequence (bootloader, initramfs, etc.)
 	TryingStatus = "trying"
 )
+
+var (
+	// EarlyRunMnt is the rootdir where ubuntu partitions are mounted during the
+	// early boot (i.e. the initramfs)
+	EarlyRunMnt = filepath.Join(dirs.GlobalRootDir, "run/mnt")
+
+	// EarlyUbuntuData is the location of ubuntu-data during early boot (i.e.
+	// the initramfs)
+	EarlyUbuntuData = filepath.Join(EarlyRunMnt, "ubuntu-data")
+
+	// EarlyUbuntuBoot is the location of ubuntu-boot during early boot (i.e.
+	// the initramfs)
+	EarlyUbuntuBoot = filepath.Join(EarlyRunMnt, "ubuntu-boot")
+
+	// EarlyUbuntuSeed is the location of ubuntu-seed during early boot (i.e.
+	// the initramfs)
+	EarlyUbuntuSeed = filepath.Join(EarlyRunMnt, "ubuntu-seed")
+
+	// EarlyWritable is the location of the writable partition during the early
+	// boot (i.e. during the initramfs)
+	EarlyWritable = filepath.Join(EarlyUbuntuData, "system-data")
+)
+
+func init() {
+	// register to change the values of Early* dir values when the global
+	// root dir changes
+	dirs.AddRootDirCallback(func(rootdir string) {
+		EarlyRunMnt = filepath.Join(rootdir, "run/mnt")
+		EarlyUbuntuData = filepath.Join(EarlyRunMnt, "ubuntu-data")
+		EarlyUbuntuBoot = filepath.Join(EarlyRunMnt, "ubuntu-boot")
+		EarlyUbuntuSeed = filepath.Join(EarlyRunMnt, "ubuntu-seed")
+		EarlyWritable = filepath.Join(EarlyUbuntuData, "system-data")
+	})
+}
 
 // A BootParticipant handles the boot process details for a snap involved in it.
 type BootParticipant interface {
