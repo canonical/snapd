@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+
 package partition
 
 import (
@@ -77,7 +78,7 @@ func NewEncryptedDevice(part *DeviceStructure, key EncryptionKey, name string) (
 		Node: fmt.Sprintf("/dev/mapper/%s", name),
 	}
 
-	if err := cryptsetupFormat(key, part.Node); err != nil {
+	if err := cryptsetupFormat(key, name+"-enc", part.Node); err != nil {
 		return nil, fmt.Errorf("cannot format encrypted device: %v", err)
 	}
 
@@ -92,7 +93,7 @@ func (dev *EncryptedDevice) Close() error {
 	return cryptsetupClose(dev.name)
 }
 
-func cryptsetupFormat(key EncryptionKey, node string) error {
+func cryptsetupFormat(key EncryptionKey, label, node string) error {
 	// We use a keyfile with the same entropy as the derived key so we can
 	// keep the KDF iteration count to a minimum. Longer processing will not
 	// increase security in this case.
@@ -107,6 +108,8 @@ func cryptsetupFormat(key EncryptionKey, node string) error {
 		"--key-file", "-",
 		// user Argon2 for PBKDF
 		"--pbkdf", "argon2i", "--iter-time", "1",
+		// set LUKS2 label
+		"--label", label,
 		// device to format
 		node,
 	}

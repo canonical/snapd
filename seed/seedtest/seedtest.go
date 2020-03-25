@@ -213,7 +213,7 @@ type TestingSeed20 struct {
 	SeedDir string
 }
 
-func (s *TestingSeed20) MakeSeed(c *C, label, brandID, modelID string, modelHeaders map[string]interface{}, optSnaps []*seedwriter.OptionsSnap) {
+func (s *TestingSeed20) MakeSeed(c *C, label, brandID, modelID string, modelHeaders map[string]interface{}, optSnaps []*seedwriter.OptionsSnap) *asserts.Model {
 	model := s.Brands.Model(brandID, modelID, modelHeaders)
 
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
@@ -239,7 +239,7 @@ func (s *TestingSeed20) MakeSeed(c *C, label, brandID, modelID string, modelHead
 		}
 		return asserts.NewFetcher(db, retrieve, save2)
 	}
-	assertstest.AddMany(s.StoreSigning, s.Brands.AccountsAndKeys("my-brand")...)
+	assertstest.AddMany(s.StoreSigning, s.Brands.AccountsAndKeys(brandID)...)
 
 	opts := seedwriter.Options{
 		SeedDir: s.SeedDir,
@@ -281,7 +281,7 @@ func (s *TestingSeed20) MakeSeed(c *C, label, brandID, modelID string, modelHead
 			name := sn.SnapName()
 
 			info := s.AssertedSnapInfo(name)
-			c.Assert(info, NotNil, Commentf("%s", name))
+			c.Assert(info, NotNil, Commentf("no snap info for %q", name))
 			err := w.SetInfo(sn, info)
 			c.Assert(err, IsNil)
 
@@ -289,6 +289,11 @@ func (s *TestingSeed20) MakeSeed(c *C, label, brandID, modelID string, modelHead
 			err = rf.Save(s.snapRevs[name])
 			c.Assert(err, IsNil)
 			sn.ARefs = rf.Refs()[prev:]
+
+			if _, err := os.Stat(sn.Path); err == nil {
+				// snap is already present
+				continue
+			}
 
 			err = os.Rename(s.AssertedSnap(name), sn.Path)
 			c.Assert(err, IsNil)
@@ -310,4 +315,6 @@ func (s *TestingSeed20) MakeSeed(c *C, label, brandID, modelID string, modelHead
 
 	err = w.WriteMeta()
 	c.Assert(err, IsNil)
+
+	return model
 }

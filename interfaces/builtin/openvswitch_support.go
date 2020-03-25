@@ -29,10 +29,6 @@ const openvswitchSupportBaseDeclarationSlots = `
     deny-auto-connection: true
 `
 
-const openvswitchSupportConnectedPlugAppArmor = `
-/run/uuidd/request rw,
-`
-
 var openvswitchSupportConnectedPlugKmod = []string{`openvswitch`}
 
 func init() {
@@ -43,6 +39,5 @@ func init() {
 		implicitOnClassic:        true,
 		baseDeclarationSlots:     openvswitchSupportBaseDeclarationSlots,
 		connectedPlugKModModules: openvswitchSupportConnectedPlugKmod,
-		connectedPlugAppArmor:    openvswitchSupportConnectedPlugAppArmor,
 	})
 }

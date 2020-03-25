@@ -388,6 +388,14 @@ allow snappy_t self:key { search write };
 # runuser logs to audit
 logging_send_audit_msgs(snappy_t)
 
+# allow snapd to remove snap specific user's data under
+# /run/user/<uid>/snap.<snap> on snap remove;
+# also desktop-helpers do cp -a on user-dirs.locale, what creates a config_home_t
+# file inside ~/snap, which would normally be snappy_home_t
+gnome_manage_home_config(snappy_t)
+gnome_manage_home_config_dirs(snappy_t)
+userdom_manage_user_tmp_symlinks(snappy_t)
+
 ########################################
 #
 # snap-update-ns, snap-dicsard-ns local policy
@@ -400,6 +408,20 @@ admin_pattern(snappy_mount_t, snappy_var_run_t)
 files_pid_filetrans(snappy_mount_t, snappy_var_run_t, {file dir})
 
 # layouts are built using tmpfs
+fs_manage_tmpfs_files(snappy_mount_t)
+fs_manage_tmpfs_dirs(snappy_mount_t)
+fs_manage_tmpfs_symlinks(snappy_mount_t)
+fs_mount_tmpfs(snappy_mount_t)
+fs_unmount_tmpfs(snappy_mount_t)
+fs_remount_tmpfs(snappy_mount_t)
+fs_getattr_tmpfs(snappy_mount_t)
+# this only gives mounton on directories
+fs_mounton_tmpfs(snappy_mount_t)
+# layouts may need to mount on files
+allow snappy_mount_t tmpfs_t:file mounton;
+# or (re)create symlinks
+fs_manage_tmpfs_symlinks(snappy_mount_t)
+
 # any tmp_t files or directories get snappy_tmp_t
 files_tmp_filetrans(snappy_mount_t, snappy_tmp_t, { file dir })
 userdom_user_tmp_filetrans(snappy_mount_t, snappy_tmp_t, { file dir})
@@ -430,18 +452,18 @@ allow snappy_mount_t self:capability { sys_chroot sys_admin setgid };
 
 manage_files_pattern(snappy_mount_t, snappy_snap_t, snappy_snap_t)
 manage_dirs_pattern(snappy_mount_t, snappy_snap_t, snappy_snap_t)
+manage_lnk_files_pattern(snappy_mount_t, snappy_snap_t, snappy_snap_t)
 
 read_files_pattern(snappy_mount_t, snappy_var_lib_t, snappy_var_lib_t)
 getattr_files_pattern(snappy_mount_t, snappy_var_lib_t, snappy_var_lib_t)
 read_lnk_files_pattern(snappy_mount_t, snappy_var_lib_t, snappy_var_lib_t)
+list_dirs_pattern(snappy_mount_t, snappy_var_lib_t, snappy_var_lib_t)
 
 fs_getattr_all_fs(snappy_mount_t)
-fs_getattr_tmpfs(snappy_mount_t)
 fs_getattr_xattr_fs(snappy_mount_t)
 # snap-discard-ns pokes, reads and unmounts the mount ns captured at <snap>.mnt
 fs_read_nsfs_files(snappy_mount_t)
 fs_unmount_nsfs(snappy_mount_t)
-fs_unmount_tmpfs(snappy_mount_t)
 
 # due to mounting /usr/libexec/snapd
 allow snappy_mount_t bin_t:dir mounton;
@@ -462,14 +484,11 @@ allow snappy_mount_t lib_t:dir mounton;
 # mount and unmount on top of snaps
 allow snappy_mount_t snappy_snap_t:dir mounton;
 allow snappy_mount_t snappy_snap_t:file mounton;
-allow snappy_mount_t snappy_snap_t:filesystem unmount;
+allow snappy_mount_t snappy_snap_t:filesystem { unmount remount };
 
 # freezer
 fs_manage_cgroup_dirs(snappy_mount_t)
 fs_manage_cgroup_files(snappy_mount_t)
-# TODO: further tweaks may be needed for layouts
-# reading tmpfs symlinks, eg. /etc/os-release
-fs_read_tmpfs_symlinks(snappy_mount_t)
 
 # because /run/snapd/ns/*.mnt gets a label of the process context
 gen_require(`
@@ -488,6 +507,10 @@ dev_read_sysfs(snappy_mount_t)
 # mount ns and may try to read/mmap cache files inside
 fs_read_tmpfs_files(snappy_mount_t)
 mmap_read_files_pattern(snappy_mount_t, tmpfs_t, tmpfs_t)
+
+# with robust mount namespace update snap-update-ns can remount filesystems that
+# were mounted from the host when updating the ns
+fs_remount_xattr_fs(snappy_mount_t)
 
 ########################################
 #

@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+
 package partition_test
 
 import (
@@ -55,15 +56,20 @@ func (s *encryptSuite) TestEncryptHappy(c *C) {
 	s.mockCryptsetup = testutil.MockCommand(c, "cryptsetup", "")
 	s.AddCleanup(s.mockCryptsetup.Restore)
 
-	// XXX: create empty key to prevent blocking on lack of system entropy
+	// create empty key to prevent blocking on lack of system entropy
 	key := partition.EncryptionKey{}
 	dev, err := partition.NewEncryptedDevice(&mockDeviceStructure, key, "some-label")
 	c.Assert(err, IsNil)
 	c.Assert(dev.Node, Equals, "/dev/mapper/some-label")
 
 	c.Assert(s.mockCryptsetup.Calls(), DeepEquals, [][]string{
-		{"cryptsetup", "-q", "luksFormat", "--type", "luks2", "--key-file", "-", "--pbkdf", "argon2i", "--iter-time", "1", "/dev/node1"},
-		{"cryptsetup", "open", "--key-file", "-", "/dev/node1", "some-label"},
+		{
+			"cryptsetup", "-q", "luksFormat", "--type", "luks2", "--key-file", "-",
+			"--pbkdf", "argon2i", "--iter-time", "1", "--label", "some-label-enc", "/dev/node1",
+		},
+		{
+			"cryptsetup", "open", "--key-file", "-", "/dev/node1", "some-label",
+		},
 	})
 
 	err = dev.Close()

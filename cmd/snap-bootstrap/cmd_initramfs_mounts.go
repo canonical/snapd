@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"github.com/jessevdk/go-flags"
@@ -34,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -64,8 +66,6 @@ var (
 )
 
 var (
-	runMnt = "/run/mnt"
-
 	osutilIsMounted = osutil.IsMounted
 )
 
@@ -97,7 +97,7 @@ func recoverySystemEssentialSnaps(seedDir, recoverySystem string, essentialTypes
 // generateMountsMode* is called multiple times from initramfs until it
 // no longer generates more mount points and just returns an empty output.
 func generateMountsModeInstall(recoverySystem string) error {
-	seedDir := filepath.Join(runMnt, "ubuntu-seed")
+	seedDir := filepath.Join(dirs.RunMnt, "ubuntu-seed")
 
 	// 1. always ensure seed partition is mounted
 	isMounted, err := osutilIsMounted(seedDir)
@@ -110,15 +110,15 @@ func generateMountsModeInstall(recoverySystem string) error {
 	}
 
 	// 2. (auto) select recovery system for now
-	isBaseMounted, err := osutilIsMounted(filepath.Join(runMnt, "base"))
+	isBaseMounted, err := osutilIsMounted(filepath.Join(dirs.RunMnt, "base"))
 	if err != nil {
 		return err
 	}
-	isKernelMounted, err := osutilIsMounted(filepath.Join(runMnt, "kernel"))
+	isKernelMounted, err := osutilIsMounted(filepath.Join(dirs.RunMnt, "kernel"))
 	if err != nil {
 		return err
 	}
-	isSnapdMounted, err := osutilIsMounted(filepath.Join(runMnt, "snapd"))
+	isSnapdMounted, err := osutilIsMounted(filepath.Join(dirs.RunMnt, "snapd"))
 	if err != nil {
 		return err
 	}
@@ -144,18 +144,18 @@ func generateMountsModeInstall(recoverySystem string) error {
 		for _, essentialSnap := range essSnaps {
 			switch essentialSnap.EssentialType {
 			case snap.TypeBase:
-				fmt.Fprintf(stdout, "%s %s\n", essentialSnap.Path, filepath.Join(runMnt, "base"))
+				fmt.Fprintf(stdout, "%s %s\n", essentialSnap.Path, filepath.Join(dirs.RunMnt, "base"))
 			case snap.TypeKernel:
 				// TODO:UC20: we need to cross-check the kernel path with snapd_recovery_kernel used by grub
-				fmt.Fprintf(stdout, "%s %s\n", essentialSnap.Path, filepath.Join(runMnt, "kernel"))
+				fmt.Fprintf(stdout, "%s %s\n", essentialSnap.Path, filepath.Join(dirs.RunMnt, "kernel"))
 			case snap.TypeSnapd:
-				fmt.Fprintf(stdout, "%s %s\n", essentialSnap.Path, filepath.Join(runMnt, "snapd"))
+				fmt.Fprintf(stdout, "%s %s\n", essentialSnap.Path, filepath.Join(dirs.RunMnt, "snapd"))
 			}
 		}
 	}
 
 	// 3. mount "ubuntu-data" on a tmpfs
-	isMounted, err = osutilIsMounted(filepath.Join(runMnt, "ubuntu-data"))
+	isMounted, err = osutilIsMounted(filepath.Join(dirs.RunMnt, "ubuntu-data"))
 	if err != nil {
 		return err
 	}
@@ -171,7 +171,11 @@ func generateMountsModeInstall(recoverySystem string) error {
 		Mode:           "install",
 		RecoverySystem: recoverySystem,
 	}
-	if err := modeEnv.Write(filepath.Join(runMnt, "ubuntu-data", "system-data")); err != nil {
+	if err := modeEnv.WriteTo(filepath.Join(dirs.RunMnt, "ubuntu-data", "system-data")); err != nil {
+		return err
+	}
+	// and disable cloud-init in install mode
+	if err := sysconfig.DisableCloudInit(); err != nil {
 		return err
 	}
 
@@ -185,9 +189,9 @@ func generateMountsModeRecover(recoverySystem string) error {
 }
 
 func generateMountsModeRun() error {
-	seedDir := filepath.Join(runMnt, "ubuntu-seed")
-	bootDir := filepath.Join(runMnt, "ubuntu-boot")
-	dataDir := filepath.Join(runMnt, "ubuntu-data")
+	seedDir := filepath.Join(dirs.RunMnt, "ubuntu-seed")
+	bootDir := filepath.Join(dirs.RunMnt, "ubuntu-boot")
+	dataDir := filepath.Join(dirs.RunMnt, "ubuntu-data")
 
 	// 1.1 always ensure basic partitions are mounted
 	for _, d := range []string{seedDir, bootDir} {
@@ -200,18 +204,22 @@ func generateMountsModeRun() error {
 		}
 	}
 
-	// TODO:UC20: possibly will need to unseal key, and unlock LUKS here before
-	//            proceeding to mount data
-
 	// 1.2 mount Data, and exit, as it needs to be mounted for us to do step 2
 	isDataMounted, err := osutilIsMounted(dataDir)
 	if err != nil {
 		return err
 	}
 	if !isDataMounted {
-		fmt.Fprintf(stdout, "/dev/disk/by-label/%s %s\n", filepath.Base(dataDir), dataDir)
+		name := filepath.Base(dataDir)
+		device, err := unlockIfEncrypted(name)
+		if err != nil {
+			return err
+		}
+
+		fmt.Fprintf(stdout, "%s %s\n", device, dataDir)
 		return nil
 	}
+
 	// 2.1 read modeenv
 	modeEnv, err := boot.ReadModeenv(filepath.Join(dataDir, "system-data"))
 	if err != nil {
@@ -219,7 +227,7 @@ func generateMountsModeRun() error {
 	}
 
 	// 2.2.1 check if base is mounted
-	isBaseMounted, err := osutilIsMounted(filepath.Join(runMnt, "base"))
+	isBaseMounted, err := osutilIsMounted(filepath.Join(dirs.RunMnt, "base"))
 	if err != nil {
 		return err
 	}
@@ -258,11 +266,11 @@ func generateMountsModeRun() error {
 		}
 
 		baseSnapPath := filepath.Join(dataDir, "system-data", dirs.SnapBlobDir, base)
-		fmt.Fprintf(stdout, "%s %s\n", baseSnapPath, filepath.Join(runMnt, "base"))
+		fmt.Fprintf(stdout, "%s %s\n", baseSnapPath, filepath.Join(dirs.RunMnt, "base"))
 	}
 
 	// 2.3.1 check if the kernel is mounted
-	isKernelMounted, err := osutilIsMounted(filepath.Join(runMnt, "kernel"))
+	isKernelMounted, err := osutilIsMounted(filepath.Join(dirs.RunMnt, "kernel"))
 	if err != nil {
 		return err
 	}
@@ -333,14 +341,14 @@ func generateMountsModeRun() error {
 		}
 
 		kernelPath := filepath.Join(dataDir, "system-data", dirs.SnapBlobDir, kernelFile)
-		fmt.Fprintf(stdout, "%s %s\n", kernelPath, filepath.Join(runMnt, "kernel"))
+		fmt.Fprintf(stdout, "%s %s\n", kernelPath, filepath.Join(dirs.RunMnt, "kernel"))
 	}
 
 	// 3.1 Maybe mount the snapd snap on first boot of run-mode
 	// TODO:UC20: Make RecoverySystem empty after successful first boot
 	// somewhere in devicestate
 	if modeEnv.RecoverySystem != "" {
-		isSnapdMounted, err := osutilIsMounted(filepath.Join(runMnt, "snapd"))
+		isSnapdMounted, err := osutilIsMounted(filepath.Join(dirs.RunMnt, "snapd"))
 		if err != nil {
 			return err
 		}
@@ -351,12 +359,12 @@ func generateMountsModeRun() error {
 			if err != nil {
 				return fmt.Errorf("cannot load metadata and verify snapd snap: %v", err)
 			}
-			fmt.Fprintf(stdout, "%s %s\n", essSnaps[0].Path, filepath.Join(runMnt, "snapd"))
+			fmt.Fprintf(stdout, "%s %s\n", essSnaps[0].Path, filepath.Join(dirs.RunMnt, "snapd"))
 		}
 	}
 
 	// 4.1 Write the modeenv out again
-	return modeEnv.Write(filepath.Join(dataDir, "system-data"))
+	return modeEnv.Write()
 }
 
 func generateInitramfsMounts() error {
@@ -374,4 +382,23 @@ func generateInitramfsMounts() error {
 	}
 	// this should never be reached
 	return fmt.Errorf("internal error: mode in generateInitramfsMounts not handled")
+}
+
+func unlockIfEncrypted(name string) (string, error) {
+	// TODO:UC20: will need to unseal key to unlock LUKS here
+	device := filepath.Join("/dev/disk/by-label", name)
+	keyfile := filepath.Join(dirs.RunMnt, "ubuntu-boot", name+".keyfile.unsealed")
+	if osutil.FileExists(keyfile) {
+		// TODO:UC20: snap-bootstrap should validate that <name>-enc is what
+		//            we expect (and not e.g. an external disk), and also that
+		//            <name> is from <name>-enc and not an unencrypted partition
+		//            with the same name (LP #1863886)
+		cmd := exec.Command("/usr/lib/systemd/systemd-cryptsetup", "attach", name, device+"-enc", keyfile)
+		cmd.Env = os.Environ()
+		cmd.Env = append(cmd.Env, "SYSTEMD_LOG_TARGET=console")
+		if output, err := cmd.CombinedOutput(); err != nil {
+			return "", osutil.OutputErr(output, err)
+		}
+	}
+	return device, nil
 }

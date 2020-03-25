@@ -280,6 +280,9 @@ owner /{var/,}run/greengrassd.pid rw,
 # Additionally see LP bug #1791711 for apparmor resolving file accesses after
 # a pivot_root
 
+# for IPC communication via lambda helpers
+/[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]/upper/{,greengrass_ipc.sock} rw,
+
 # for child container lambda certificates
 /certs/ r,
 /certs/** r,

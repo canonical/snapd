@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -236,7 +237,7 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 	return snapshot, nil
 }
 
-var isTesting = osutil.GetenvBool("SNAPPY_TESTING")
+var isTesting = snapdenv.Testing()
 
 func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, username string, entry, dir string) error {
 	parent, revdir := filepath.Split(dir)

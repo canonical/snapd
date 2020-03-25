@@ -55,13 +55,17 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store/storetest"
+	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
 
 func TestDeviceManager(t *testing.T) { TestingT(t) }
 
 type deviceMgrBaseSuite struct {
+	testutil.BaseTest
+
 	o       *overlord.Overlord
 	state   *state.State
 	se      *overlord.StateEngine
@@ -117,6 +121,8 @@ var (
 )
 
 func (s *deviceMgrBaseSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+
 	dirs.SetRootDir(c.MkDir())
 	os.MkdirAll(dirs.SnapRunDir, 0755)
 
@@ -366,7 +372,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededHappyWithModeenv(c *C) {
 		Mode:           "install",
 		RecoverySystem: "20191127",
 	}
-	err := m.Write("")
+	err := m.WriteTo("")
 	c.Assert(err, IsNil)
 
 	// re-create manager so that modeenv file is-read
@@ -1120,7 +1126,7 @@ func (s *deviceMgrSuite) TestDevicemgrCanStandby(c *C) {
 
 func (s *deviceMgrSuite) TestDeviceManagerReadsModeenv(c *C) {
 	modeEnv := &boot.Modeenv{Mode: "install"}
-	err := modeEnv.Write("")
+	err := modeEnv.WriteTo("")
 	c.Assert(err, IsNil)
 
 	runner := s.o.TaskRunner()
@@ -1229,7 +1235,7 @@ func (s *startOfOperationTimeSuite) TestStartOfOperationTimeNoSeedTime(c *C) {
 }
 
 func (s *startOfOperationTimeSuite) TestStartOfOperationErrorIfPreseed(c *C) {
-	restore := release.MockPreseedMode(func() bool { return true })
+	restore := snapdenv.MockPreseeding(true)
 	defer restore()
 
 	mgr := s.manager(c)

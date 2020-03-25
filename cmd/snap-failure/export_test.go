@@ -19,7 +19,20 @@
 
 package main
 
+import "time"
+
 var (
 	Run       = run
 	ParseArgs = parseArgs
 )
+
+func MockWaitTimes(sampleForActive, restartSnapdCoolOff time.Duration) (restore func()) {
+	oldSampleForActive := sampleForActiveInterval
+	oldRestartSnapdCoolOff := restartSnapdCoolOffWait
+	sampleForActiveInterval = sampleForActive
+	restartSnapdCoolOffWait = restartSnapdCoolOff
+	return func() {
+		sampleForActiveInterval = oldSampleForActive
+		restartSnapdCoolOffWait = oldRestartSnapdCoolOff
+	}
+}

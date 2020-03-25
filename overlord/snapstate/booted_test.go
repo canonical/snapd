@@ -30,6 +30,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
@@ -45,7 +46,8 @@ import (
 
 type bootedSuite struct {
 	testutil.BaseTest
-	bootloader *bootloadertest.MockBootloader
+
+	bootloader *boottest.Bootenv16
 
 	o           *overlord.Overlord
 	state       *state.State
@@ -68,7 +70,7 @@ func (bs *bootedSuite) SetUpTest(c *C) {
 	// booted is not running on classic
 	release.MockOnClassic(false)
 
-	bs.bootloader = bootloadertest.Mock("mock", c.MkDir())
+	bs.bootloader = boottest.MockUC16Bootenv(bootloadertest.Mock("mock", c.MkDir()))
 	bs.bootloader.SetBootKernel("canonical-pc-linux_2.snap")
 	bs.bootloader.SetBootBase("core_2.snap")
 	bootloader.Force(bs.bootloader)

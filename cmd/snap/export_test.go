@@ -331,3 +331,19 @@ func MockCreateTransientScope(fn func(securitTag string) error) func() {
 		createTransientScope = old
 	}
 }
+
+func MockApparmorSnapAppFromPid(f func(pid int) (string, string, string, error)) (restore func()) {
+	old := apparmorSnapAppFromPid
+	apparmorSnapAppFromPid = f
+	return func() {
+		apparmorSnapAppFromPid = old
+	}
+}
+
+func MockCgroupSnapNameFromPid(f func(pid int) (string, error)) (restore func()) {
+	old := cgroupSnapNameFromPid
+	cgroupSnapNameFromPid = f
+	return func() {
+		cgroupSnapNameFromPid = old
+	}
+}

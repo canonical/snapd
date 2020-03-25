@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2019 Canonical Ltd
+ * Copyright (C) 2016-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,8 +20,10 @@
 package devicestate
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -31,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -40,6 +43,8 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/seed"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -83,8 +88,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		keypairMgr: keypairMgr,
 		newStore:   newStore,
 		reg:        make(chan struct{}),
-		// TODO: handle here via devicestate, similar to DeviceContext.
-		preseed: release.PreseedMode(),
+		preseed:    snapdenv.Preseeding(),
 	}
 
 	modeEnv, err := boot.ReadModeenv("")
@@ -408,7 +412,7 @@ func (m *DeviceManager) ensureOperational() error {
 	chg := m.state.NewChange("become-operational", i18n.G("Initialize device"))
 	chg.AddAll(state.NewTaskSet(tasks...))
 
-	perfTimings.AddTag("change-id", chg.ID())
+	state.TagTimingsWithChange(perfTimings, chg)
 	perfTimings.Save(m.state)
 
 	return nil
@@ -466,7 +470,7 @@ func (m *DeviceManager) ensureSeeded() error {
 	}
 	m.state.EnsureBefore(0)
 
-	perfTimings.AddTag("change-id", chg.ID())
+	state.TagTimingsWithChange(perfTimings, chg)
 	perfTimings.Save(m.state)
 	return nil
 }
@@ -721,6 +725,82 @@ func (m *DeviceManager) Model() (*asserts.Model, error) {
 // Serial returns the device serial assertion.
 func (m *DeviceManager) Serial() (*asserts.Serial, error) {
 	return findSerial(m.state, nil)
+}
+
+type SystemAction struct {
+	Title string
+	Mode  string
+}
+
+type System struct {
+	// Current is true when the system running now was installed from that
+	// seed
+	Current bool
+	// Label of the seed system
+	Label string
+	// Model assertion of the system
+	Model *asserts.Model
+	// Brand information
+	Brand *asserts.Account
+	// Actions available for this system
+	Actions []SystemAction
+}
+
+func systemSeedModelAndBrand(label string) (model *asserts.Model, brand *asserts.Account, err error) {
+	s, err := seed.Open(dirs.SnapSeedDir, label)
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot open: %v", err)
+	}
+	if err := s.LoadAssertions(nil, nil); err != nil {
+		return nil, nil, fmt.Errorf("cannot load assertions: %v", err)
+	}
+	// get the model
+	model, err = s.Model()
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot obtain model: %v", err)
+	}
+	brand, err = s.Brand()
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot obtain brand: %v", err)
+	}
+	return model, brand, nil
+}
+
+var ErrNoSystems = errors.New("no systems seeds")
+
+// Systems list the available recovery/seeding systems. Returns the list of
+// systems, ErrNoSystems when no systems seeds were found or other error.
+func (m *DeviceManager) Systems() ([]System, error) {
+	systemLabels, err := filepath.Glob(filepath.Join(dirs.SnapSeedDir, "systems", "*"))
+	if err != nil && !os.IsNotExist(err) {
+		return nil, fmt.Errorf("cannot list available systems: %v", err)
+	}
+	if len(systemLabels) == 0 {
+		// maybe not a UC20 system
+		return nil, ErrNoSystems
+	}
+
+	var systems []System
+	for _, fpLabel := range systemLabels {
+		label := filepath.Base(fpLabel)
+		model, brand, err := systemSeedModelAndBrand(label)
+		if err != nil {
+			// TODO:UC20 add a Broken field to the seed system like
+			// we do for snap.Info
+			logger.Noticef("cannot load system %q seed: %v", label, err)
+			continue
+		}
+		systems = append(systems, System{
+			// TODO:UC20 check if current installation was done with that
+			// system
+			Current: false,
+			Label:   label,
+			Model:   model,
+			Brand:   brand,
+			// TODO:UC20: fill actions
+		})
+	}
+	return systems, nil
 }
 
 // implement storecontext.Backend

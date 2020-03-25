@@ -168,29 +168,6 @@ func (s *timingsSuite) TestSaveNoTimings(c *C) {
 	c.Assert(s.st.Get("timings", &stateTimings), Equals, state.ErrNoState)
 }
 
-func (s *timingsSuite) TestSaveNoTimingsWithChangeID(c *C) {
-	s.st.Lock()
-	defer s.st.Unlock()
-
-	chg := s.st.NewChange("change", "...")
-	task := s.st.NewTask("kind", "...")
-	task.SetStatus(state.DoingStatus)
-	chg.AddTask(task)
-
-	timing := timings.New(nil)
-	timing.LinkChange(chg)
-	timing.Save(s.st)
-
-	var stateTimings []interface{}
-	c.Assert(s.st.Get("timings", &stateTimings), IsNil)
-	c.Assert(stateTimings, DeepEquals, []interface{}{
-		map[string]interface{}{
-			"tags":       map[string]interface{}{"change-id": chg.ID()},
-			"start-time": "0001-01-01T00:00:00Z",
-			"stop-time":  "0001-01-01T00:00:00Z",
-		}})
-}
-
 func (s *timingsSuite) TestDuration(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
@@ -348,36 +325,6 @@ func (s *timingsSuite) TestPurgeOnSave(c *C) {
 	c.Check(stateTimings[0].(map[string]interface{})["tags"], DeepEquals, map[string]interface{}{"number": "7"})
 	c.Check(stateTimings[1].(map[string]interface{})["tags"], DeepEquals, map[string]interface{}{"number": "8"})
 	c.Check(stateTimings[2].(map[string]interface{})["tags"], DeepEquals, map[string]interface{}{"number": "9"})
-}
-
-func (s *timingsSuite) TestNewForTask(c *C) {
-	s.st.Lock()
-	defer s.st.Unlock()
-
-	task := s.st.NewTask("kind", "...")
-	task.SetStatus(state.DoingStatus)
-	chg := s.st.NewChange("change", "...")
-	chg.AddTask(task)
-
-	troot := timings.NewForTask(task)
-	span := troot.StartSpan("foo", "bar")
-	span.Stop()
-	troot.Save(s.st)
-
-	var stateTimings []interface{}
-	c.Assert(s.st.Get("timings", &stateTimings), IsNil)
-	c.Assert(stateTimings, DeepEquals, []interface{}{
-		map[string]interface{}{
-			"tags":       map[string]interface{}{"change-id": chg.ID(), "task-id": task.ID(), "task-kind": "kind", "task-status": "Doing"},
-			"start-time": "2019-03-11T09:01:00.001Z",
-			"stop-time":  "2019-03-11T09:01:00.002Z",
-			"timings": []interface{}{
-				map[string]interface{}{
-					"label":    "foo",
-					"summary":  "bar",
-					"duration": float64(1000000),
-				},
-			}}})
 }
 
 func (s *timingsSuite) TestGet(c *C) {

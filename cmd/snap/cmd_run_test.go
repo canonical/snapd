@@ -162,6 +162,13 @@ func (s *RunSuite) TestSnapRunWhenMissingConfine(c *check.C) {
 func (s *RunSuite) TestSnapRunAppIntegration(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
+	tmpdir := os.Getenv("TMPDIR")
+	if tmpdir == "" {
+		tmpdir = "/var/tmp"
+		os.Setenv("TMPDIR", tmpdir)
+		defer os.Unsetenv("TMPDIR")
+	}
+
 	// mock installed snap
 	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
 		Revision: snap.R("x2"),
@@ -190,10 +197,18 @@ func (s *RunSuite) TestSnapRunAppIntegration(c *check.C) {
 		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
 		"snapname.app", "--arg1", "arg2"})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=x2")
+	c.Check(execEnv, testutil.Contains, fmt.Sprintf("TMPDIR=%s", tmpdir))
 }
 
 func (s *RunSuite) TestSnapRunClassicAppIntegration(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
+
+	tmpdir := os.Getenv("TMPDIR")
+	if tmpdir == "" {
+		tmpdir = "/var/tmp"
+		os.Setenv("TMPDIR", tmpdir)
+		defer os.Unsetenv("TMPDIR")
+	}
 
 	// mock installed snap
 	snaptest.MockSnapCurrent(c, string(mockYaml)+"confinement: classic\n", &snap.SideInfo{
@@ -223,7 +238,7 @@ func (s *RunSuite) TestSnapRunClassicAppIntegration(c *check.C) {
 		filepath.Join(dirs.DistroLibExecDir, "snap-exec"),
 		"snapname.app", "--arg1", "arg2"})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=x2")
-
+	c.Check(execEnv, testutil.Contains, fmt.Sprintf("SNAP_SAVED_TMPDIR=%s", tmpdir))
 }
 
 func (s *RunSuite) TestSnapRunClassicAppIntegrationReexecedFromCore(c *check.C) {
