@@ -20,8 +20,6 @@
 package boot
 
 import (
-	"fmt"
-
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/snap"
 )
@@ -45,7 +43,6 @@ func InitramfsRunModeChooseSnapsToMount(
 		switch typ {
 		case snap.TypeBase:
 			bs := &bootState20Base{}
-			fmt.Println("bs.modeenv from top level func is", modeenv)
 			bs.modeenv = modeenv
 			sn, err = bs.chooseAndCommitSnapInitramfsMount()
 			if err != nil {
