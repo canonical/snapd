@@ -29,7 +29,7 @@ type storeSearchChannelSnap struct {
 	Channel string `json:"channel"`
 }
 
-// storeSearchResult is the result of v2/search calls
+// storeSearchResult is the result of v2/find calls
 type storeSearchResult struct {
 	Revision storeSearchChannelSnap `json:"revision"`
 	Snap     storeSnap              `json:"snap"`

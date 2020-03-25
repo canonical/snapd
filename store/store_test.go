@@ -150,7 +150,7 @@ const (
 	searchPath         = "/api/v1/snaps/search"
 	sectionsPath       = "/api/v1/snaps/sections"
 	// v2
-	searchV2Path    = "/v2/snaps/search"
+	searchV2Path    = "/v2/snaps/find"
 	snapActionPath  = "/v2/snaps/refresh"
 	infoPathPattern = "/v2/snaps/info/.*"
 	cohortsPath     = "/v2/cohorts"
@@ -3281,12 +3281,20 @@ func (s *storeTestSuite) testFindPrivate(c *C, apiV1 bool) {
 
 		switch n {
 		case 0:
-			c.Check(r.URL.Path, Matches, ".*/search")
+			if apiV1 {
+				c.Check(r.URL.Path, Matches, ".*/search")
+			} else {
+				c.Check(r.URL.Path, Matches, ".*/find")
+			}
 			c.Check(name, Equals, "")
 			c.Check(q, Equals, "foo")
 			c.Check(query.Get("private"), Equals, "true")
 		case 1:
-			c.Check(r.URL.Path, Matches, ".*/search")
+			if apiV1 {
+				c.Check(r.URL.Path, Matches, ".*/search")
+			} else {
+				c.Check(r.URL.Path, Matches, ".*/find")
+			}
 			c.Check(name, Equals, "foo")
 			c.Check(q, Equals, "")
 			c.Check(query.Get("private"), Equals, "true")
@@ -3768,7 +3776,11 @@ func (s *storeTestSuite) testFindCommonIDs(c *C, apiV1 bool) {
 
 		switch n {
 		case 0:
-			c.Check(r.URL.Path, Matches, ".*/search")
+			if apiV1 {
+				c.Check(r.URL.Path, Matches, ".*/search")
+			} else {
+				c.Check(r.URL.Path, Matches, ".*/find")
+			}
 			c.Check(name, Equals, "")
 			c.Check(q, Equals, "foo")
 		default:
@@ -3833,10 +3845,11 @@ func (s *storeTestSuite) testFindByCommonID(c *C, apiV1 bool) {
 
 		switch n {
 		case 0:
-			c.Check(r.URL.Path, Matches, ".*/search")
 			if apiV1 {
+				c.Check(r.URL.Path, Matches, ".*/search")
 				c.Check(query["common_id"], DeepEquals, []string{"org.hello"})
 			} else {
+				c.Check(r.URL.Path, Matches, ".*/find")
 				c.Check(query["common-id"], DeepEquals, []string{"org.hello"})
 			}
 			c.Check(query["name"], IsNil)

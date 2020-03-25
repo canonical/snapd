@@ -426,7 +426,7 @@ const (
 	snapActionEndpPath = "v2/snaps/refresh"
 	snapInfoEndpPath   = "v2/snaps/info"
 	cohortsEndpPath    = "v2/cohorts"
-	searchEndpPathV2   = "v2/snaps/search"
+	searchEndpPathV2   = "v2/snaps/find"
 
 	deviceNonceEndpPath   = "api/v1/snaps/auth/nonces"
 	deviceSessionEndpPath = "api/v1/snaps/auth/sessions"
