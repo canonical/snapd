@@ -71,13 +71,11 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 	if useEncryption {
-		ubuntuBootDir := filepath.Join(dirs.RunMnt, "ubuntu-boot")
-
 		args = append(args,
 			// enable data encryption
 			"--encrypt",
 			// location to store the keyfile
-			"--key-file", filepath.Join(ubuntuBootDir, "ubuntu-data.keyfile.unsealed"),
+			"--key-file", filepath.Join(dirs.EarlyBootUbuntuBoot, "ubuntu-data.keyfile.unsealed"),
 		)
 	}
 	args = append(args, gadgetDir)
@@ -147,7 +145,7 @@ func checkEncryption(model *asserts.Model) (res bool, err error) {
 
 	// check if we should disable encryption non-secured devices
 	// TODO:UC20: this is not the final mechanism to bypass encryption
-	if dangerous && osutil.FileExists(filepath.Join(dirs.RunMnt, "ubuntu-seed", ".force-unencrypted")) {
+	if dangerous && osutil.FileExists(filepath.Join(dirs.EarlyBootUbuntuSeed, ".force-unencrypted")) {
 		return false, nil
 	}
 

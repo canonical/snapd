@@ -180,7 +180,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	mockModel := s.makeMockInstalledPcGadget(c, grade)
 	s.state.Unlock()
 
-	bypassEncryptionPath := filepath.Join(dirs.RunMnt, "ubuntu-seed", ".force-unencrypted")
+	bypassEncryptionPath := filepath.Join(dirs.EarlyBootUbuntuSeed, ".force-unencrypted")
 	if tc.bypass {
 		err := os.MkdirAll(filepath.Dir(bypassEncryptionPath), 0755)
 		c.Assert(err, IsNil)

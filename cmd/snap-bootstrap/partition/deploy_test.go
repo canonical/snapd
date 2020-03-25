@@ -137,10 +137,9 @@ func (s *deploySuite) TestMountFilesystem(c *C) {
 	c.Assert(err, IsNil)
 
 	// ...and check if it was mounted at the right mount point
-	node2MountPoint := filepath.Join(dirs.RunMnt, "ubuntu-seed")
 	c.Check(s.mockMountCalls, HasLen, 1)
 	c.Check(s.mockMountCalls, DeepEquals, []struct{ source, target, fstype string }{
-		{"/dev/node2", node2MountPoint, "vfat"},
+		{"/dev/node2", dirs.EarlyBootUbuntuSeed, "vfat"},
 	})
 
 	// now try to mount a filesystem with no label

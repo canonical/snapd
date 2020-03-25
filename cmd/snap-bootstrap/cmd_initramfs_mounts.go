@@ -97,15 +97,13 @@ func recoverySystemEssentialSnaps(seedDir, recoverySystem string, essentialTypes
 // generateMountsMode* is called multiple times from initramfs until it
 // no longer generates more mount points and just returns an empty output.
 func generateMountsModeInstall(recoverySystem string) error {
-	seedDir := filepath.Join(dirs.RunMnt, "ubuntu-seed")
-
 	// 1. always ensure seed partition is mounted
-	isMounted, err := osutilIsMounted(seedDir)
+	isMounted, err := osutilIsMounted(dirs.EarlyBootUbuntuSeed)
 	if err != nil {
 		return err
 	}
 	if !isMounted {
-		fmt.Fprintf(stdout, "/dev/disk/by-label/ubuntu-seed %s\n", seedDir)
+		fmt.Fprintf(stdout, "/dev/disk/by-label/ubuntu-seed %s\n", dirs.EarlyBootUbuntuSeed)
 		return nil
 	}
 
@@ -135,7 +133,7 @@ func generateMountsModeInstall(recoverySystem string) error {
 		if !isSnapdMounted {
 			whichTypes = append(whichTypes, snap.TypeSnapd)
 		}
-		essSnaps, err := recoverySystemEssentialSnaps(seedDir, recoverySystem, whichTypes)
+		essSnaps, err := recoverySystemEssentialSnaps(dirs.EarlyBootUbuntuSeed, recoverySystem, whichTypes)
 		if err != nil {
 			return fmt.Errorf("cannot load metadata and verify essential bootstrap snaps %v: %v", whichTypes, err)
 		}
@@ -155,7 +153,7 @@ func generateMountsModeInstall(recoverySystem string) error {
 	}
 
 	// 3. mount "ubuntu-data" on a tmpfs
-	isMounted, err = osutilIsMounted(filepath.Join(dirs.RunMnt, "ubuntu-data"))
+	isMounted, err = osutilIsMounted(dirs.EarlyBootUbuntuData)
 	if err != nil {
 		return err
 	}
@@ -171,7 +169,7 @@ func generateMountsModeInstall(recoverySystem string) error {
 		Mode:           "install",
 		RecoverySystem: recoverySystem,
 	}
-	if err := modeEnv.WriteTo(filepath.Join(dirs.RunMnt, "ubuntu-data", "system-data")); err != nil {
+	if err := modeEnv.WriteTo(filepath.Join(dirs.EarlyBootUbuntuData, "system-data")); err != nil {
 		return err
 	}
 	// and disable cloud-init in install mode
@@ -189,12 +187,8 @@ func generateMountsModeRecover(recoverySystem string) error {
 }
 
 func generateMountsModeRun() error {
-	seedDir := filepath.Join(dirs.RunMnt, "ubuntu-seed")
-	bootDir := filepath.Join(dirs.RunMnt, "ubuntu-boot")
-	dataDir := filepath.Join(dirs.RunMnt, "ubuntu-data")
-
 	// 1.1 always ensure basic partitions are mounted
-	for _, d := range []string{seedDir, bootDir} {
+	for _, d := range []string{dirs.EarlyBootUbuntuSeed, dirs.EarlyBootUbuntuBoot} {
 		isMounted, err := osutilIsMounted(d)
 		if err != nil {
 			return err
@@ -205,23 +199,23 @@ func generateMountsModeRun() error {
 	}
 
 	// 1.2 mount Data, and exit, as it needs to be mounted for us to do step 2
-	isDataMounted, err := osutilIsMounted(dataDir)
+	isDataMounted, err := osutilIsMounted(dirs.EarlyBootUbuntuData)
 	if err != nil {
 		return err
 	}
 	if !isDataMounted {
-		name := filepath.Base(dataDir)
+		name := filepath.Base(dirs.EarlyBootUbuntuData)
 		device, err := unlockIfEncrypted(name)
 		if err != nil {
 			return err
 		}
 
-		fmt.Fprintf(stdout, "%s %s\n", device, dataDir)
+		fmt.Fprintf(stdout, "%s %s\n", device, dirs.EarlyBootUbuntuData)
 		return nil
 	}
 
 	// 2.1 read modeenv
-	modeEnv, err := boot.ReadModeenv(filepath.Join(dataDir, "system-data"))
+	modeEnv, err := boot.ReadModeenv(filepath.Join(dirs.EarlyBootUbuntuData, "system-data"))
 	if err != nil {
 		return err
 	}
@@ -244,7 +238,7 @@ func generateMountsModeRun() error {
 			// try_base set in the modeenv too
 			if modeEnv.TryBase != "" {
 				// check that the TryBase exists in ubuntu-data
-				tryBaseSnapPath := filepath.Join(dirs.SnapBlobDirUnder(filepath.Join(dataDir, "system-data")), modeEnv.TryBase)
+				tryBaseSnapPath := filepath.Join(dirs.SnapBlobDirUnder(filepath.Join(dirs.EarlyBootUbuntuData, "system-data")), modeEnv.TryBase)
 				if osutil.FileExists(tryBaseSnapPath) {
 					// set the TryBase and have the initramfs mount this base
 					// snap
@@ -265,7 +259,7 @@ func generateMountsModeRun() error {
 			logger.Noticef("\"base_status\" has an invalid setting: %q", modeEnv.BaseStatus)
 		}
 
-		baseSnapPath := filepath.Join(dirs.SnapBlobDirUnder(filepath.Join(dataDir, "system-data")), base)
+		baseSnapPath := filepath.Join(dirs.SnapBlobDirUnder(filepath.Join(dirs.EarlyBootUbuntuData, "system-data")), base)
 		fmt.Fprintf(stdout, "%s %s\n", baseSnapPath, filepath.Join(dirs.RunMnt, "base"))
 	}
 
@@ -290,7 +284,7 @@ func generateMountsModeRun() error {
 		// At this point the run mode bootloader is under the native
 		// layout, no /boot mount.
 		opts := &bootloader.Options{NoSlashBoot: true}
-		bl, err := bootloader.Find(bootDir, opts)
+		bl, err := bootloader.Find(dirs.EarlyBootUbuntuBoot, opts)
 		if err != nil {
 			return fmt.Errorf("internal error: cannot find run system bootloader: %v", err)
 		}
@@ -340,7 +334,7 @@ func generateMountsModeRun() error {
 			// the normal kernel snap
 		}
 
-		kernelPath := filepath.Join(dirs.SnapBlobDirUnder(filepath.Join(dataDir, "system-data")), kernelFile)
+		kernelPath := filepath.Join(dirs.SnapBlobDirUnder(filepath.Join(dirs.EarlyBootUbuntuData, "system-data")), kernelFile)
 		fmt.Fprintf(stdout, "%s %s\n", kernelPath, filepath.Join(dirs.RunMnt, "kernel"))
 	}
 
@@ -355,7 +349,7 @@ func generateMountsModeRun() error {
 
 		if !isSnapdMounted {
 			// load the recovery system and generate mount for snapd
-			essSnaps, err := recoverySystemEssentialSnaps(seedDir, modeEnv.RecoverySystem, []snap.Type{snap.TypeSnapd})
+			essSnaps, err := recoverySystemEssentialSnaps(dirs.EarlyBootUbuntuSeed, modeEnv.RecoverySystem, []snap.Type{snap.TypeSnapd})
 			if err != nil {
 				return fmt.Errorf("cannot load metadata and verify snapd snap: %v", err)
 			}
@@ -387,7 +381,7 @@ func generateInitramfsMounts() error {
 func unlockIfEncrypted(name string) (string, error) {
 	// TODO:UC20: will need to unseal key to unlock LUKS here
 	device := filepath.Join("/dev/disk/by-label", name)
-	keyfile := filepath.Join(dirs.RunMnt, "ubuntu-boot", name+".keyfile.unsealed")
+	keyfile := filepath.Join(dirs.EarlyBootUbuntuBoot, name+".keyfile.unsealed")
 	if osutil.FileExists(keyfile) {
 		// TODO:UC20: snap-bootstrap should validate that <name>-enc is what
 		//            we expect (and not e.g. an external disk), and also that
