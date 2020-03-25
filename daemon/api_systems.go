@@ -33,7 +33,11 @@ import (
 var systemsCmd = &Command{
 	Path: "/v2/systems",
 	GET:  getSystems,
-	POST: postSystems,
+}
+
+var systemsActionCmd = &Command{
+	Path: "/v2/systems/{label}",
+	POST: postSystemsAction,
 }
 
 type systemsResponse struct {
@@ -87,30 +91,39 @@ func getSystems(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 type systemActionRequest struct {
-	Label string `json:"label"`
-	Mode  string `json:"mode"`
+	Action string `json:"action"`
+	client.SystemAction
 }
 
-func postSystems(c *Command, r *http.Request, user *auth.UserState) Response {
-	var action systemActionRequest
+func postSystemsAction(c *Command, r *http.Request, user *auth.UserState) Response {
+	var req systemActionRequest
+
+	systemLabel := muxVars(r)["label"]
+	if systemLabel == "" {
+		return BadRequest("system action requires the system label to be provided")
+	}
 
 	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&action); err != nil {
+	if err := decoder.Decode(&req); err != nil {
 		return BadRequest("cannot decode request body into system action: %v", err)
 	}
 	if decoder.More() {
 		return BadRequest("extra content found in request body")
 	}
-	if action.Label == "" {
-		return BadRequest("system action requires the system label to be provided")
+	if req.Action != "do" {
+		return BadRequest("unsupported action %q", req.Action)
 	}
-	if action.Mode == "" {
+	if req.Mode == "" {
 		return BadRequest("system action requires the mode to be provided")
 	}
 
-	if err := c.d.overlord.DeviceManager().RequestSystemMode(action.Label, action.Mode); err != nil {
+	sa := devicestate.SystemAction{
+		Title: req.Title,
+		Mode:  req.Mode,
+	}
+	if err := c.d.overlord.DeviceManager().RequestSystemAction(systemLabel, sa); err != nil {
 		if os.IsNotExist(err) {
-			return NotFound("requested seed system %q does not exist", action.Label)
+			return NotFound("requested seed system %q does not exist", systemLabel)
 		}
 		// distinguish bad action?
 		return InternalError(err.Error())

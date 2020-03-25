@@ -109,6 +109,7 @@ var api = []*Command{
 	cohortsCmd,
 	serialModelCmd,
 	systemsCmd,
+	systemsActionCmd,
 }
 
 var (

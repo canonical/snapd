@@ -174,25 +174,32 @@ func (s *apiSuite) TestGetSystemsNone(c *check.C) {
 }
 
 func (s *apiSuite) TestSystemActionRequestInvalid(c *check.C) {
-	type table struct{ body, error string }
+	type table struct{ label, body, error string }
 	tests := []table{
 		{
+			label: "foobar",
 			body:  `"bogus"`,
 			error: "cannot decode request body into system action:.*",
 		}, {
-			body:  `{"mode":"install"}`,
+			label: "",
+			body:  `{"action":"do","mode":"install"}`,
 			error: "system action requires the system label to be provided",
 		}, {
-			body:  `{"label":"1234"}`,
+			label: "foobar",
+			body:  `{"action":"do"}`,
 			error: "system action requires the mode to be provided",
+		}, {
+			label: "foobar",
+			body:  `{"action":"nope","mode":"install"}`,
+			error: `unsupported action "nope"`,
 		},
 	}
 	for _, tc := range tests {
-		c.Logf("tc: %v", tc)
-		// no label
-		req, err := http.NewRequest("POST", "/v2/systems", strings.NewReader(tc.body))
+		s.vars = map[string]string{"label": tc.label}
+		c.Logf("tc: %#v", tc)
+		req, err := http.NewRequest("POST", "/v2/systems/"+tc.label, strings.NewReader(tc.body))
 		c.Assert(err, check.IsNil)
-		rsp := postSystems(systemsCmd, req, nil).(*resp)
+		rsp := postSystemsAction(systemsActionCmd, req, nil).(*resp)
 		c.Assert(rsp.Type, check.Equals, ResponseTypeError)
 		c.Check(rsp.Status, check.Equals, 400)
 		c.Check(rsp.ErrorResult().Message, check.Matches, tc.error)
@@ -207,14 +214,15 @@ func (s *apiSuite) TestSystemActionRequestNoSystem(c *check.C) {
 	c.Assert(err, check.IsNil)
 	d.overlord.AddManager(mgr)
 
-	body := `{"label":"1234","mode":"install"}`
-	req, err := http.NewRequest("POST", "/v2/systems", strings.NewReader(body))
+	s.vars = map[string]string{"label": "20191119"}
+	body := `{"action":"do","mode":"install"}`
+	req, err := http.NewRequest("POST", "/v2/systems/20191119", strings.NewReader(body))
 	c.Assert(err, check.IsNil)
-	rsp := postSystems(systemsCmd, req, nil).(*resp)
+	rsp := postSystemsAction(systemsActionCmd, req, nil).(*resp)
 
 	c.Assert(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, 404)
-	c.Check(rsp.ErrorResult().Message, check.Equals, `requested seed system "1234" does not exist`)
+	c.Check(rsp.ErrorResult().Message, check.Equals, `requested seed system "20191119" does not exist`)
 }
 
 func (s *apiSuite) TestSystemActionRequestHappy(c *check.C) {
@@ -228,10 +236,11 @@ func (s *apiSuite) TestSystemActionRequestHappy(c *check.C) {
 	restore := s.mockSystemSeeds(c)
 	defer restore()
 
-	body := `{"label":"20191119","mode":"install"}`
-	req, err := http.NewRequest("POST", "/v2/systems", strings.NewReader(body))
+	s.vars = map[string]string{"label": "20191119"}
+	body := `{"action":"do","title":"reinstall","mode":"install"}`
+	req, err := http.NewRequest("POST", "/v2/systems/20191119", strings.NewReader(body))
 	c.Assert(err, check.IsNil)
-	rsp := postSystems(systemsCmd, req, nil).(*resp)
+	rsp := postSystemsAction(systemsActionCmd, req, nil).(*resp)
 	c.Check(rsp.Status, check.Equals, 200)
 }
 
@@ -249,10 +258,11 @@ func (s *apiSuite) TestSystemActionBrokenSeed(c *check.C) {
 	err = os.Remove(filepath.Join(dirs.SnapSeedDir, "systems", "20191119", "model"))
 	c.Assert(err, check.IsNil)
 
-	body := `{"label":"20191119","mode":"install"}`
-	req, err := http.NewRequest("POST", "/v2/systems", strings.NewReader(body))
+	s.vars = map[string]string{"label": "20191119"}
+	body := `{"action":"do","title":"reinstall","mode":"install"}`
+	req, err := http.NewRequest("POST", "/v2/systems/20191119", strings.NewReader(body))
 	c.Assert(err, check.IsNil)
-	rsp := postSystems(systemsCmd, req, nil).(*resp)
+	rsp := postSystemsAction(systemsActionCmd, req, nil).(*resp)
 	c.Check(rsp.Status, check.Equals, 500)
 	c.Check(rsp.ErrorResult().Message, check.Matches, `cannot load seed system: cannot load assertions: .*`)
 }
