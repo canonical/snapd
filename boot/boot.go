@@ -169,10 +169,10 @@ type bootState interface {
 	// revisions retrieves the revisions of the current snap and
 	// the try snap (only the latter might not be set), and
 	// the status of the trying snap.
-	// Note that the error could be ErrorKindTrySnap, in which case curSnap may
-	// still be non-nil and valid. Callers concerned with robustness should
-	// always inspect a non-nil error with IsTrySnapError, and use curSnap
-	// instead if the error is only for the trySnap or tryingStatus.
+	// Note that the error could be only specific to the try snap, in which case
+	// curSnap may still be non-nil and valid. Callers concerned with robustness
+	// should always inspect a non-nil error with IsTrySnapError, and use
+	// curSnap instead if the error is only for the trySnap or tryingStatus.
 	revisions() (curSnap, trySnap snap.PlaceInfo, tryingStatus string, err error)
 
 	// setNext lazily implements setting the next boot target for
