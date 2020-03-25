@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/partition"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
@@ -129,24 +130,24 @@ func (s *deploySuite) TestMountFilesystem(c *C) {
 	mockDeviceStructureBiosBoot.Label = "bios-boot"
 	defer func() { mockDeviceStructureBiosBoot.Label = "" }()
 
-	err := partition.MountFilesystem(mockDeviceStructureBiosBoot, dirs.RunMnt)
+	err := partition.MountFilesystem(mockDeviceStructureBiosBoot, boot.EarlyRunMnt)
 	c.Assert(err, ErrorMatches, "cannot mount a partition with no filesystem")
 
 	// mount a filesystem...
-	err = partition.MountFilesystem(mockDeviceStructureSystemSeed, dirs.RunMnt)
+	err = partition.MountFilesystem(mockDeviceStructureSystemSeed, boot.EarlyRunMnt)
 	c.Assert(err, IsNil)
 
 	// ...and check if it was mounted at the right mount point
 	c.Check(s.mockMountCalls, HasLen, 1)
 	c.Check(s.mockMountCalls, DeepEquals, []struct{ source, target, fstype string }{
-		{"/dev/node2", dirs.EarlyBootUbuntuSeed, "vfat"},
+		{"/dev/node2", boot.EarlyUbuntuSeed, "vfat"},
 	})
 
 	// now try to mount a filesystem with no label
 	mockDeviceStructureSystemSeed.Label = ""
 	defer func() { mockDeviceStructureSystemSeed.Label = "ubuntu-seed" }()
 
-	err = partition.MountFilesystem(mockDeviceStructureSystemSeed, dirs.RunMnt)
+	err = partition.MountFilesystem(mockDeviceStructureSystemSeed, boot.EarlyRunMnt)
 	c.Assert(err, ErrorMatches, "cannot mount a filesystem with no label")
 
 }

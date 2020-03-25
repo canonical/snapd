@@ -123,12 +123,6 @@ var (
 	SysfsDir        string
 
 	FeaturesDir string
-
-	RunMnt string
-
-	EarlyBootUbuntuData string
-	EarlyBootUbuntuBoot string
-	EarlyBootUbuntuSeed string
 )
 
 const (
@@ -391,11 +385,6 @@ func SetRootDir(rootdir string) {
 	SysfsDir = filepath.Join(rootdir, "/sys")
 
 	FeaturesDir = filepath.Join(rootdir, snappyDir, "features")
-
-	RunMnt = filepath.Join(rootdir, "/run/mnt")
-	EarlyBootUbuntuData = filepath.Join(RunMnt, "ubuntu-data")
-	EarlyBootUbuntuBoot = filepath.Join(RunMnt, "ubuntu-boot")
-	EarlyBootUbuntuSeed = filepath.Join(RunMnt, "ubuntu-seed")
 
 	// call the callbacks last so that the callbacks can just reference the
 	// global vars if they want, instead of using the new rootdir directly
