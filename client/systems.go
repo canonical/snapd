@@ -20,6 +20,9 @@
 package client
 
 import (
+	"bytes"
+	"encoding/json"
+
 	"golang.org/x/xerrors"
 
 	"github.com/snapcore/snapd/snap"
@@ -69,4 +72,25 @@ func (client *Client) ListSystems() ([]System, error) {
 		return nil, xerrors.Errorf("cannot list recovery systems: %v", err)
 	}
 	return rsp.Systems, nil
+}
+
+// RequestSystemAction issues a request to run the given seed system in the
+// provided mode.
+func (client *Client) RequestSystemAction(systemLabel, actionMode string) error {
+	req := struct {
+		Label string `json:"label"`
+		Mode  string `json:"mode"`
+	}{
+		Label: systemLabel,
+		Mode:  actionMode,
+	}
+
+	var body bytes.Buffer
+	if err := json.NewEncoder(&body).Encode(&req); err != nil {
+		return err
+	}
+	if _, err := client.doSync("POST", "/v2/systems", nil, nil, &body, nil); err != nil {
+		return xerrors.Errorf("cannot request system action: %v", err)
+	}
+	return nil
 }

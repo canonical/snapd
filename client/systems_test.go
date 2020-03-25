@@ -20,6 +20,9 @@
 package client_test
 
 import (
+	"encoding/json"
+	"io/ioutil"
+
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
@@ -120,4 +123,38 @@ func (cs *clientSuite) TestListSystemsNone(c *check.C) {
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/systems")
 	c.Check(systems, check.HasLen, 0)
+}
+
+func (cs *clientSuite) TestRequestSystemActionHappy(c *check.C) {
+	cs.rsp = `{
+	    "type": "sync",
+	    "status-code": 200,
+	    "result": {}
+	}`
+	err := cs.cli.RequestSystemAction("1234", "install")
+	c.Assert(err, check.IsNil)
+	c.Check(cs.req.Method, check.Equals, "POST")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/systems")
+
+	body, err := ioutil.ReadAll(cs.req.Body)
+	c.Assert(err, check.IsNil)
+	var req map[string]interface{}
+	err = json.Unmarshal(body, &req)
+	c.Assert(err, check.IsNil)
+	c.Assert(req, check.DeepEquals, map[string]interface{}{
+		"label": "1234",
+		"mode":  "install",
+	})
+}
+
+func (cs *clientSuite) TestRequestSystemActionError(c *check.C) {
+	cs.rsp = `{
+	    "type": "error",
+	    "status-code": 500,
+	    "result": {"message": "failed"}
+	}`
+	err := cs.cli.RequestSystemAction("1234", "install")
+	c.Assert(err, check.ErrorMatches, "cannot request system action: failed")
+	c.Check(cs.req.Method, check.Equals, "POST")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/systems")
 }
