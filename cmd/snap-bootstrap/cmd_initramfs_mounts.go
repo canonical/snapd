@@ -171,7 +171,7 @@ func generateMountsModeInstall(recoverySystem string) error {
 		Mode:           "install",
 		RecoverySystem: recoverySystem,
 	}
-	if err := modeEnv.Write(filepath.Join(dirs.RunMnt, "ubuntu-data", "system-data")); err != nil {
+	if err := modeEnv.WriteTo(filepath.Join(dirs.RunMnt, "ubuntu-data", "system-data")); err != nil {
 		return err
 	}
 	// and disable cloud-init in install mode
@@ -364,7 +364,7 @@ func generateMountsModeRun() error {
 	}
 
 	// 4.1 Write the modeenv out again
-	return modeEnv.Write(filepath.Join(dataDir, "system-data"))
+	return modeEnv.Write()
 }
 
 func generateInitramfsMounts() error {
