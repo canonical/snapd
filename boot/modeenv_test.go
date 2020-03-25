@@ -156,7 +156,7 @@ current_kernels=`+t.kernelString+"\n")
 	}
 }
 
-func (s *modeenvSuite) TestWriteNonExisting(c *C) {
+func (s *modeenvSuite) TestWriteToNonExisting(c *C) {
 	c.Assert(s.mockModeenvPath, testutil.FileAbsent)
 
 	modeenv := &boot.Modeenv{Mode: "run"}
@@ -166,7 +166,7 @@ func (s *modeenvSuite) TestWriteNonExisting(c *C) {
 	c.Assert(s.mockModeenvPath, testutil.FileEquals, "mode=run\n")
 }
 
-func (s *modeenvSuite) TestWriteExisting(c *C) {
+func (s *modeenvSuite) TestWriteToExisting(c *C) {
 	s.makeMockModeenvFile(c, "mode=run")
 
 	modeenv, err := boot.ReadModeenv(s.tmpdir)
@@ -178,7 +178,26 @@ func (s *modeenvSuite) TestWriteExisting(c *C) {
 	c.Assert(s.mockModeenvPath, testutil.FileEquals, "mode=recovery\n")
 }
 
-func (s *modeenvSuite) TestWriteNonExistingFull(c *C) {
+func (s *modeenvSuite) TestWriteExisting(c *C) {
+	s.makeMockModeenvFile(c, "mode=run")
+
+	modeenv, err := boot.ReadModeenv(s.tmpdir)
+	c.Assert(err, IsNil)
+	modeenv.Mode = "recovery"
+	err = modeenv.Write()
+	c.Assert(err, IsNil)
+
+	c.Assert(s.mockModeenvPath, testutil.FileEquals, "mode=recovery\n")
+}
+
+func (s *modeenvSuite) TestWriteFreshError(c *C) {
+	modeenv := &boot.Modeenv{Mode: "recovery"}
+
+	err := modeenv.Write()
+	c.Assert(err, ErrorMatches, `internal error: must use WriteTo with modeenv not read from disk`)
+}
+
+func (s *modeenvSuite) TestWriteToNonExistingFull(c *C) {
 	c.Assert(s.mockModeenvPath, testutil.FileAbsent)
 
 	modeenv := &boot.Modeenv{
