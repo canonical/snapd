@@ -9,7 +9,7 @@ SSH_PORT=8022
 MON_PORT=8888
 
 wait_for_ssh(){
-    retry=150
+    retry=$1
     wait=1
     while ! execute_remote true; do
         retry=$(( retry - 1 ))
@@ -22,7 +22,7 @@ wait_for_ssh(){
 }
 
 wait_for_no_ssh(){
-    retry=120
+    retry=$1
     wait=1
     while execute_remote true; do
         retry=$(( retry - 1 ))
@@ -179,8 +179,8 @@ refresh_to_new_core(){
             execute_remote "snap info snapd" | grep -E "^tracking: +latest/${NEW_CHANNEL}"
         else
             execute_remote "snap refresh core --${NEW_CHANNEL}"
-            wait_for_no_ssh
-            wait_for_ssh
+            wait_for_no_ssh 120
+            wait_for_ssh 120
             execute_remote "snap info core" | grep -E "^tracking: +latest/${NEW_CHANNEL}"
         fi
     fi
@@ -196,10 +196,6 @@ create_nested_core_vm(){
     mkdir -p "$WORK_DIR/image"
     if [ ! -f "$WORK_DIR/image/ubuntu-core.img" ]; then
         local UBUNTU_IMAGE
-
-        if ! snap list ubuntu-image; then
-            snap install ubuntu-image --classic
-        fi
         UBUNTU_IMAGE=/snap/bin/ubuntu-image
 
         # create ubuntu-core image
@@ -219,6 +215,15 @@ create_nested_core_vm(){
             ;;
         ubuntu-20.04-64)
             NESTED_MODEL="$TESTSLIB/assertions/nested-20-amd64.model"
+
+            # shellcheck source=tests/lib/prepare.sh
+            . "$TESTSLIB"/prepare.sh
+            snap download --basename=pc-kernel --channel="20/edge" pc-kernel
+            uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$WORK_DIR/image"
+
+            EXTRA_FUNDAMENTAL="--snap $WORK_DIR/image/pc-kernel_*.snap"
+            chmod 0600 "$WORK_DIR"/image/pc-kernel_*.snap
+            rm -f "$PWD/pc-kernel.snap"
             ;;
         *)
             echo "unsupported system"
@@ -231,7 +236,7 @@ create_nested_core_vm(){
                 echo "Build from current branch is not supported yet for uc16"
                 exit 1
             fi
-            # shellcheck source=tests/lib/prepare.sh
+             shellcheck source=tests/lib/prepare.sh
             . "$TESTSLIB"/prepare.sh
             snap download --channel="latest/edge" snapd
             repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$PWD/new-snapd" "true"
@@ -279,7 +284,8 @@ start_nested_core_vm(){
     cp -f "$WORK_DIR/image/ubuntu-core.img" "$IMAGE_FILE"
 
     # Now qemu parameters are defined
-    PARAM_MEM="-m 2048"
+    PARAM_CPU="-smp 2"
+    PARAM_MEM="-m 4096"
     PARAM_DISPLAY="-nographic"
     PARAM_EXTRA="-machine accel=kvm"
     PARAM_NETWORK="-net nic,model=virtio -net user,hostfwd=tcp::$SSH_PORT-:22"
@@ -298,14 +304,12 @@ start_nested_core_vm(){
             snap install swtpm-mvo --beta
         fi
 
-        PARAM_CPU="-smp 2"
         PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE.secboot.fd,if=pflash,format=raw,unit=0,readonly=on -drive file=$WORK_DIR/image/OVMF_VARS.snakeoil.fd,if=pflash,format=raw,unit=1"
         PARAM_ASSERTIONS=""
         PARAM_IMAGE="-drive file=$IMAGE_FILE,cache=none,format=raw,id=disk1,if=none -device virtio-blk-pci,drive=disk1,bootindex=1"
         PARAM_MACHINE="-machine q35 -global ICH9-LPC.disable_s3=1"
         PARAM_TPM="-chardev socket,id=chrtpm,path=/var/snap/swtpm-mvo/current/swtpm-sock -tpmdev emulator,id=tpm0,chardev=chrtpm -device tpm-tis,tpmdev=tpm0"
     else
-        PARAM_CPU=""
         PARAM_BIOS=""
         PARAM_ASSERTIONS="-drive file=$WORK_DIR/assertions.disk,cache=none,format=raw"
         PARAM_IMAGE="-drive file=$IMAGE_FILE,cache=none,format=raw"
@@ -314,7 +318,7 @@ start_nested_core_vm(){
     fi
 
     # Systemd unit is created, it is important to respect the qemu parameters order
-    systemd_create_and_start_unit "$NESTED_VM" "${QEMU} \
+    systemd_create_and_start_unit    "$NESTED_VM" "${QEMU} \
         ${PARAM_CPU} \
         ${PARAM_MEM} \
         ${PARAM_MACHINE} \
@@ -327,8 +331,18 @@ start_nested_core_vm(){
         ${PARAM_MONITOR} \
         ${PARAM_EXTRA} "
 
+    local SSH_RETRIES
+    SSH_RETRIES=120
+    case "$SPREAD_SYSTEM" in
+        ubuntu-18.04-64)
+            SSH_RETRIES=150
+            ;;
+        ubuntu-20.04-64)
+            SSH_RETRIES=250
+            ;;
+        esac
     # Wait until the system has been initialized
-    if ! wait_for_ssh; then
+    if ! wait_for_ssh "$SSH_RETRIES"; then
         # In case it is not possible to connect through ssh restart the vm
         systemctl stop "$NESTED_VM"
         sleep 5
@@ -336,7 +350,7 @@ start_nested_core_vm(){
     fi
 
     # Wait until ssh is ready and configure ssh
-    if wait_for_ssh; then
+    if wait_for_ssh 120; then
         prepare_ssh
     else
         echo "ssh not established, exiting..."
@@ -347,7 +361,7 @@ start_nested_core_vm(){
 create_cloud_init_config(){
     CONFIG_PATH=$1
     cat <<EOF > "$CONFIG_PATH"
-#cloud-config
+    #cloud-config
   ssh_pwauth: True
   users:
    - name: user1
@@ -357,6 +371,12 @@ create_cloud_init_config(){
    list: |
     user1:ubuntu
    expire: False
+  datasource_list: [ "None"]
+  datasource:
+    None:
+     userdata_raw: |
+      #!/bin/bash
+      echo test
 EOF
 }
 
@@ -394,7 +414,7 @@ start_nested_classic_vm(){
         -drive file=$WORK_DIR/seed.img,if=virtio \
         -monitor tcp:127.0.0.1:$MON_PORT,server,nowait -usb \
         -snapshot -machine accel=kvm"
-    wait_for_ssh
+    wait_for_ssh 120
 }
 
 destroy_nested_vm(){

@@ -872,7 +872,8 @@ suites:
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
-            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ubuntu-image ovmf
+            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf || true
+            snap install ubuntu-image --classic
 
         restore: |
             #shellcheck source=tests/lib/nested.sh
@@ -881,7 +882,7 @@ suites:
 
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
-            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils ubuntu-image
+            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils
 
     tests/nested/classic/:
         summary: Tests for nested images
@@ -901,7 +902,8 @@ suites:
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
-            distro_install_package snapd qemu genisoimage sshpass qemu-kvm cloud-image-utils ubuntu-image ovmf
+            distro_install_package snapd qemu genisoimage sshpass qemu-kvm cloud-image-utils ovmf
+            snap install ubuntu-image --classic
 
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
@@ -921,7 +923,7 @@ suites:
 
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
-            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils ubuntu-image
+            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils
 
     tests/nested/core/:
         summary: Tests for nested images
@@ -940,7 +942,8 @@ suites:
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
-            distro_install_package snapd qemu genisoimage sshpass qemu-kvm cloud-image-utils ubuntu-image ovmf
+            distro_install_package snapd qemu genisoimage sshpass qemu-kvm cloud-image-utils ovmf
+            snap install ubuntu-image --classic
 
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
@@ -960,6 +963,6 @@ suites:
 
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
-            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils ubuntu-image
+            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils
 
 # vim:ts=4:sw=4:et
