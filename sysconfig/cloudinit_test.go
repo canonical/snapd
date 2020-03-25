@@ -54,7 +54,7 @@ func (s *sysconfigSuite) SetUpTest(c *C) {
 
 func (s *sysconfigSuite) TestCloudInitDisablesByDefault(c *C) {
 	err := sysconfig.ConfigureRunSystem(&sysconfig.Options{
-		TargetDir: boot.InitramfsWritableDir,
+		TargetRootDir: boot.InitramfsWritableDir,
 	})
 	c.Assert(err, IsNil)
 
@@ -71,7 +71,7 @@ func (s *sysconfigSuite) TestCloudInitInstalls(c *C) {
 
 	err := sysconfig.ConfigureRunSystem(&sysconfig.Options{
 		CloudInitSrcDir: cloudCfgSrcDir,
-		TargetDir:       boot.InitramfsWritableDir,
+		TargetRootDir:   boot.InitramfsWritableDir,
 	})
 	c.Assert(err, IsNil)
 

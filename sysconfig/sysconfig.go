@@ -26,10 +26,10 @@ type Options struct {
 	// filepath.Join(boot.InitramfsUbuntuSeedDir,"data")
 	CloudInitSrcDir string
 
-	// TargetDir is the root directory where to install configure
+	// TargetRootDir is the root directory where to install configure
 	// data, i.e. for cloud-init during the initramfs it will be something like
 	// boot.InitramfsWritableDir
-	TargetDir string
+	TargetRootDir string
 }
 
 // ConfigureRunSystem configures the ubuntu-data partition with any

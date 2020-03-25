@@ -394,7 +394,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeRunSysconfig(c *C) {
 
 	// and sysconfig.ConfigureRunSystem was run exactly once
 	c.Assert(s.configureRunSystemOptsPassed, DeepEquals, []*sysconfig.Options{
-		{TargetDir: boot.InitramfsWritableDir},
+		{TargetRootDir: boot.InitramfsWritableDir},
 	})
 }
 
@@ -411,7 +411,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeRunSysconfigErr(c *C) {
 - Setup system for run mode \(error from sysconfig.ConfigureRunSystem\)`)
 	// and sysconfig.ConfigureRunSystem was run exactly once
 	c.Assert(s.configureRunSystemOptsPassed, DeepEquals, []*sysconfig.Options{
-		{TargetDir: boot.InitramfsWritableDir},
+		{TargetRootDir: boot.InitramfsWritableDir},
 	})
 }
 
@@ -430,8 +430,8 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeSupportsCloudInitInDangerous(
 	// and did tell sysconfig about the cloud-init files
 	c.Assert(s.configureRunSystemOptsPassed, DeepEquals, []*sysconfig.Options{
 		{
-			CloudInitSrcDir:    filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d"),
-			TargetDir: boot.InitramfsWritableDir,
+			CloudInitSrcDir: filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d"),
+			TargetRootDir:   boot.InitramfsWritableDir,
 		},
 	})
 }
@@ -451,6 +451,6 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeNoCloudInitForSigned(c *C) {
 
 	// so no cloud-init src dir is passed
 	c.Assert(s.configureRunSystemOptsPassed, DeepEquals, []*sysconfig.Options{
-		{TargetDir: boot.InitramfsWritableDir},
+		{TargetRootDir: boot.InitramfsWritableDir},
 	})
 }
