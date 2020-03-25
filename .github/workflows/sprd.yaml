@@ -1,4 +1,4 @@
-name: Spread 
+name: Spread
 on:
   push:
     branches: [ master ]
