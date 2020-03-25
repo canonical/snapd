@@ -3575,6 +3575,8 @@ func (s *storeTestSuite) TestFindV2_404NoFallbackIfNewStore(c *C) {
 	c.Check(n, Equals, 1)
 }
 
+// testFind500 checks that a permanent 500 error on every request results in 5
+// retries, after which the caller gets the 500 status.
 func (s *storeTestSuite) testFind500(c *C, apiV1 bool) {
 	var n = 0
 	var v1Fallback, v2Hit bool
@@ -3623,7 +3625,9 @@ func (s *storeTestSuite) TestFindV2_500(c *C) {
 	s.testFind500(c, false)
 }
 
-func (s *storeTestSuite) testFind500Once(c *C, apiV1 bool) {
+// testFind500OnceThenSucceed checks that a single 500 failure, followed by
+// a successful response is handled.
+func (s *storeTestSuite) testFind500OnceThenSucceed(c *C, apiV1 bool) {
 	var n = 0
 	var v1Fallback, v2Hit bool
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -3677,11 +3681,11 @@ func (s *storeTestSuite) testFind500Once(c *C, apiV1 bool) {
 
 func (s *storeTestSuite) TestFindV1_500Once(c *C) {
 	apiV1 := true
-	s.testFind500Once(c, apiV1)
+	s.testFind500OnceThenSucceed(c, apiV1)
 }
 
 func (s *storeTestSuite) TestFindV2_500Once(c *C) {
-	s.testFind500Once(c, false)
+	s.testFind500OnceThenSucceed(c, false)
 }
 
 func (s *storeTestSuite) testFindAuthFailed(c *C, apiV1 bool) {
