@@ -43,6 +43,11 @@ func newBootState20(typ snap.Type) bootState {
 
 type bootState20Modeenv struct {
 	modeenv *Modeenv
+
+	// the base_status to be written to the modeenv, stored separately to
+	// eliminate unnecessary writes to the modeenv when it's already in the
+	// state we want it in
+	commitBaseStatus string
 }
 
 func (bsm *bootState20Modeenv) loadModeenv() error {
@@ -55,6 +60,9 @@ func (bsm *bootState20Modeenv) loadModeenv() error {
 		return fmt.Errorf("cannot get snap revision: unable to read modeenv: %v", err)
 	}
 	bsm.modeenv = modeenv
+
+	// default commit status is the current status
+	bsm.commitBaseStatus = bsm.modeenv.BaseStatus
 
 	return nil
 }
@@ -255,33 +263,11 @@ func (ks20 *bootState20Kernel) commit() error {
 type bootState20Base struct {
 	bootState20Modeenv
 
-	// the base_status to be written to the modeenv, stored separately to
-	// eliminate unnecessary writes to the modeenv when it's already in the
-	// state we want it in
-	commitBaseStatus string
-
 	// the base snap that was tried for markSuccessful()
 	triedBaseSnap snap.PlaceInfo
 
 	// the base snap to try for setNext()
 	tryBaseSnap snap.PlaceInfo
-}
-
-func (bs20 *bootState20Base) loadModeenv() error {
-	// don't read modeenv multiple times
-	if bs20.modeenv != nil {
-		return nil
-	}
-	modeenv, err := ReadModeenv("")
-	if err != nil {
-		return fmt.Errorf("cannot get snap revision: unable to read modeenv: %v", err)
-	}
-	bs20.modeenv = modeenv
-
-	// default commit status is the current status
-	bs20.commitBaseStatus = bs20.modeenv.BaseStatus
-
-	return nil
 }
 
 // revisions returns the current boot snap and optional try boot snap for the
