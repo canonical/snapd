@@ -21,6 +21,9 @@ package daemon
 
 import (
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"gopkg.in/check.v1"
 
@@ -34,15 +37,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-func (s *apiSuite) TestGetSystemsSome(c *check.C) {
-	// model assertion setup
-	d := s.daemonWithOverlordMock(c)
-	hookMgr, err := hookstate.Manager(d.overlord.State(), d.overlord.TaskRunner())
-	c.Assert(err, check.IsNil)
-	mgr, err := devicestate.Manager(d.overlord.State(), hookMgr, d.overlord.TaskRunner(), nil)
-	c.Assert(err, check.IsNil)
-	d.overlord.AddManager(mgr)
-
+func (s *apiSuite) mockSystemSeeds(c *check.C) (restore func()) {
 	// now create a minimal uc20 seed dir with snaps/assertions
 	seed20 := &seedtest.TestingSeed20{
 		SeedSnaps: seedtest.SeedSnaps{
@@ -52,8 +47,7 @@ func (s *apiSuite) TestGetSystemsSome(c *check.C) {
 		SeedDir: dirs.SnapSeedDir,
 	}
 
-	restore := seed.MockTrusted(seed20.StoreSigning.Trusted)
-	defer restore()
+	restore = seed.MockTrusted(seed20.StoreSigning.Trusted)
 
 	assertstest.AddMany(s.storeSigning.Database, s.brands.AccountsAndKeys("my-brand")...)
 	// add essential snaps
@@ -98,6 +92,20 @@ func (s *apiSuite) TestGetSystemsSome(c *check.C) {
 			}},
 	}, nil)
 
+	return restore
+}
+
+func (s *apiSuite) TestGetSystemsSome(c *check.C) {
+	d := s.daemonWithOverlordMock(c)
+	hookMgr, err := hookstate.Manager(d.overlord.State(), d.overlord.TaskRunner())
+	c.Assert(err, check.IsNil)
+	mgr, err := devicestate.Manager(d.overlord.State(), hookMgr, d.overlord.TaskRunner(), nil)
+	c.Assert(err, check.IsNil)
+	d.overlord.AddManager(mgr)
+
+	restore := s.mockSystemSeeds(c)
+	defer restore()
+
 	req, err := http.NewRequest("GET", "/v2/systems", nil)
 	c.Assert(err, check.IsNil)
 	rsp := getSystems(systemsCmd, req, nil).(*resp)
@@ -121,7 +129,9 @@ func (s *apiSuite) TestGetSystemsSome(c *check.C) {
 					DisplayName: "My-brand",
 					Validation:  "unproven",
 				},
-				Actions: []client.SystemAction{},
+				Actions: []client.SystemAction{
+					{Title: "reinstall", Mode: "install"},
+				},
 			}, {
 				Current: false,
 				Label:   "20200318",
@@ -136,7 +146,9 @@ func (s *apiSuite) TestGetSystemsSome(c *check.C) {
 					DisplayName: "My-brand",
 					Validation:  "unproven",
 				},
-				Actions: []client.SystemAction{},
+				Actions: []client.SystemAction{
+					{Title: "reinstall", Mode: "install"},
+				},
 			},
 		}})
 }
@@ -159,4 +171,88 @@ func (s *apiSuite) TestGetSystemsNone(c *check.C) {
 	sys := rsp.Result.(*systemsResponse)
 
 	c.Assert(sys, check.DeepEquals, &systemsResponse{})
+}
+
+func (s *apiSuite) TestSystemActionRequestInvalid(c *check.C) {
+	type table struct{ body, error string }
+	tests := []table{
+		{
+			body:  `"bogus"`,
+			error: "cannot decode request body into system action:.*",
+		}, {
+			body:  `{"mode":"install"}`,
+			error: "system action requires the system label to be provided",
+		}, {
+			body:  `{"label":"1234"}`,
+			error: "system action requires the mode to be provided",
+		},
+	}
+	for _, tc := range tests {
+		c.Logf("tc: %v", tc)
+		// no label
+		req, err := http.NewRequest("POST", "/v2/systems", strings.NewReader(tc.body))
+		c.Assert(err, check.IsNil)
+		rsp := postSystems(systemsCmd, req, nil).(*resp)
+		c.Assert(rsp.Type, check.Equals, ResponseTypeError)
+		c.Check(rsp.Status, check.Equals, 400)
+		c.Check(rsp.ErrorResult().Message, check.Matches, tc.error)
+	}
+}
+
+func (s *apiSuite) TestSystemActionRequestNoSystem(c *check.C) {
+	d := s.daemonWithOverlordMock(c)
+	hookMgr, err := hookstate.Manager(d.overlord.State(), d.overlord.TaskRunner())
+	c.Assert(err, check.IsNil)
+	mgr, err := devicestate.Manager(d.overlord.State(), hookMgr, d.overlord.TaskRunner(), nil)
+	c.Assert(err, check.IsNil)
+	d.overlord.AddManager(mgr)
+
+	body := `{"label":"1234","mode":"install"}`
+	req, err := http.NewRequest("POST", "/v2/systems", strings.NewReader(body))
+	c.Assert(err, check.IsNil)
+	rsp := postSystems(systemsCmd, req, nil).(*resp)
+
+	c.Assert(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, 404)
+	c.Check(rsp.ErrorResult().Message, check.Equals, `requested seed system "1234" does not exist`)
+}
+
+func (s *apiSuite) TestSystemActionRequestHappy(c *check.C) {
+	d := s.daemonWithOverlordMock(c)
+	hookMgr, err := hookstate.Manager(d.overlord.State(), d.overlord.TaskRunner())
+	c.Assert(err, check.IsNil)
+	mgr, err := devicestate.Manager(d.overlord.State(), hookMgr, d.overlord.TaskRunner(), nil)
+	c.Assert(err, check.IsNil)
+	d.overlord.AddManager(mgr)
+
+	restore := s.mockSystemSeeds(c)
+	defer restore()
+
+	body := `{"label":"20191119","mode":"install"}`
+	req, err := http.NewRequest("POST", "/v2/systems", strings.NewReader(body))
+	c.Assert(err, check.IsNil)
+	rsp := postSystems(systemsCmd, req, nil).(*resp)
+	c.Check(rsp.Status, check.Equals, 200)
+}
+
+func (s *apiSuite) TestSystemActionBrokenSeed(c *check.C) {
+	d := s.daemonWithOverlordMock(c)
+	hookMgr, err := hookstate.Manager(d.overlord.State(), d.overlord.TaskRunner())
+	c.Assert(err, check.IsNil)
+	mgr, err := devicestate.Manager(d.overlord.State(), hookMgr, d.overlord.TaskRunner(), nil)
+	c.Assert(err, check.IsNil)
+	d.overlord.AddManager(mgr)
+
+	restore := s.mockSystemSeeds(c)
+	defer restore()
+
+	err = os.Remove(filepath.Join(dirs.SnapSeedDir, "systems", "20191119", "model"))
+	c.Assert(err, check.IsNil)
+
+	body := `{"label":"20191119","mode":"install"}`
+	req, err := http.NewRequest("POST", "/v2/systems", strings.NewReader(body))
+	c.Assert(err, check.IsNil)
+	rsp := postSystems(systemsCmd, req, nil).(*resp)
+	c.Check(rsp.Status, check.Equals, 500)
+	c.Check(rsp.ErrorResult().Message, check.Matches, `cannot load seed system: cannot load assertions: .*`)
 }

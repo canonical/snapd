@@ -20,7 +20,9 @@
 package daemon
 
 import (
+	"encoding/json"
 	"net/http"
+	"os"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -31,6 +33,7 @@ import (
 var systemsCmd = &Command{
 	Path: "/v2/systems",
 	GET:  getSystems,
+	POST: postSystems,
 }
 
 type systemsResponse struct {
@@ -81,4 +84,36 @@ func getSystems(c *Command, r *http.Request, user *auth.UserState) Response {
 		})
 	}
 	return SyncResponse(&rsp, nil)
+}
+
+type systemActionRequest struct {
+	Label string `json:"label"`
+	Mode  string `json:"mode"`
+}
+
+func postSystems(c *Command, r *http.Request, user *auth.UserState) Response {
+	var action systemActionRequest
+
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&action); err != nil {
+		return BadRequest("cannot decode request body into system action: %v", err)
+	}
+	if decoder.More() {
+		return BadRequest("extra content found in request body")
+	}
+	if action.Label == "" {
+		return BadRequest("system action requires the system label to be provided")
+	}
+	if action.Mode == "" {
+		return BadRequest("system action requires the mode to be provided")
+	}
+
+	if err := c.d.overlord.DeviceManager().RequestSystemMode(action.Label, action.Mode); err != nil {
+		if os.IsNotExist(err) {
+			return NotFound("requested seed system %q does not exist", action.Label)
+		}
+		// distinguish bad action?
+		return InternalError(err.Error())
+	}
+	return SyncResponse(nil, nil)
 }
