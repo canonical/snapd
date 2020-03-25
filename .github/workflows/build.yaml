@@ -32,10 +32,31 @@ jobs:
       id: go  # XXX: what is this for?
     - name: Install govendor
       run: go get -u github.com/kardianos/govendor
-    # This dominates the duration of the test. Can we get a smaller set that is
-    # enough to build embedded C parts?
-    - name: Get C dependencies
-      run: sudo apt-get build-dep -y ./src/github.com/snapcore/snapd
+    - name: Cache subset of C dependencies
+      id: cache-deb-downloads
+      uses: actions/cache@v1
+      with:
+        path: /tmp/debian-packages/
+        key: debian-packages-{{ hashFiles('**/debian/control') }}
+    - name: Download a subset of C dependencies
+      if: steps.cache-deb-downloads.outputs.cache-hit != 'true'
+      run: |
+          mkdir /tmp/debian-packages
+          cd /tmp/debian-packages
+          sudo apt update
+          apt download \
+            gcc-multilib libapparmor-dev libcap-dev libseccomp-dev \
+            libselinux1-dev libudev-dev uuid-dev xfslibs-dev gcc-7-multilib \
+            lib32asan4 lib32atomic1 lib32cilkrts5 lib32gcc-7-dev lib32gomp1 \
+            lib32itm1 lib32mpx2 lib32quadmath0 lib32ubsan0 libc6-dev-i386 \
+            libc6-dev-x32 libc6-x32 libsepol1-dev libuuid1 libx32asan4 \
+            libx32atomic1 libx32cilkrts5 libx32gcc-7-dev libx32gcc1 libx32gomp1 \
+            libx32itm1 libx32quadmath0 libx32stdc++6 libx32ubsan0 gnupg2 \
+            gettext
+    - name: Install a subset of C dependencies
+      run: |
+          cd /tmp/debian-packages
+          sudo apt install -y ./*.deb
     - name: Get Go dependencies
       run: |
           cd ${{ github.workspace }}/src/github.com/snapcore/snapd
