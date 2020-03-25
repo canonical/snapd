@@ -336,7 +336,7 @@ func (s *makeBootable20Suite) TestMakeBootable20RunMode(c *C) {
 	c.Assert(err, IsNil)
 
 	// grub on ubuntu-seed
-	mockSeedGrubDir := filepath.Join(boot.EarlyUbuntuSeed, "EFI", "ubuntu")
+	mockSeedGrubDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI", "ubuntu")
 	mockSeedGrubCfg := filepath.Join(mockSeedGrubDir, "grub.cfg")
 	err = os.MkdirAll(filepath.Dir(mockSeedGrubCfg), 0755)
 	c.Assert(err, IsNil)
@@ -344,7 +344,7 @@ func (s *makeBootable20Suite) TestMakeBootable20RunMode(c *C) {
 	c.Assert(err, IsNil)
 
 	// grub on ubuntu-boot
-	mockBootGrubDir := filepath.Join(boot.EarlyUbuntuBoot, "EFI", "ubuntu")
+	mockBootGrubDir := filepath.Join(boot.InitramfsUbuntuBootDir, "EFI", "ubuntu")
 	mockBootGrubCfg := filepath.Join(mockBootGrubDir, "grub.cfg")
 	err = os.MkdirAll(filepath.Dir(mockBootGrubCfg), 0755)
 	c.Assert(err, IsNil)
@@ -383,8 +383,8 @@ version: 5.0
 	c.Assert(err, IsNil)
 
 	// ensure base/kernel got copied to /var/lib/snapd/snaps
-	c.Check(filepath.Join(dirs.SnapBlobDirUnder(boot.EarlyWritable), "core20_3.snap"), testutil.FilePresent)
-	c.Check(filepath.Join(dirs.SnapBlobDirUnder(boot.EarlyWritable), "pc-kernel_5.snap"), testutil.FilePresent)
+	c.Check(filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), "core20_3.snap"), testutil.FilePresent)
+	c.Check(filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), "pc-kernel_5.snap"), testutil.FilePresent)
 
 	// ensure the bootvars got updated the right way
 	mockSeedGrubenv := filepath.Join(mockSeedGrubDir, "grubenv")

@@ -23,12 +23,13 @@ package sysconfig
 type Options struct {
 	// CloudInitSrcDir is where to find the cloud-init data when installing it,
 	// i.e. in early boot install mode it could be something like
-	// filepath.Join(boot.EarlyUbuntuSeed,"data")
+	// filepath.Join(boot.InitramfsUbuntuSeedDir,"data")
 	CloudInitSrcDir string
 
-	// CloudInitTargerRootDir is the root directory where to install cloud-init
-	// data, i.e. in early boot it will be something like boot.EarlyWritable
-	CloudInitTargetDir string
+	// TargetDir is the root directory where to install configure
+	// data, i.e. for cloud-init during the initramfs it will be something like
+	// boot.InitramfsWritableDir
+	TargetDir string
 }
 
 // ConfigureRunSystem configures the ubuntu-data partition with any

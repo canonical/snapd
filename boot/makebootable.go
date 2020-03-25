@@ -228,7 +228,7 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 	// - create grub.cfg instead of using the gadget one
 
 	// copy kernel/base into the ubuntu-data partition
-	snapBlobDir := dirs.SnapBlobDirUnder(EarlyWritable)
+	snapBlobDir := dirs.SnapBlobDirUnder(InitramfsWritableDir)
 	if err := os.MkdirAll(snapBlobDir, 0755); err != nil {
 		return err
 	}
@@ -246,7 +246,7 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 		Base:           filepath.Base(bootWith.BasePath),
 		CurrentKernels: []string{bootWith.Kernel.Filename()},
 	}
-	if err := modeenv.WriteTo(EarlyWritable); err != nil {
+	if err := modeenv.WriteTo(InitramfsWritableDir); err != nil {
 		return fmt.Errorf("cannot write modeenv: %v", err)
 	}
 
@@ -259,7 +259,7 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 		// extract efi kernel assets to the ubuntu-boot partition
 		ExtractedRunKernelImage: true,
 	}
-	bl, err := bootloader.Find(EarlyUbuntuBoot, opts)
+	bl, err := bootloader.Find(InitramfsUbuntuBootDir, opts)
 	if err != nil {
 		return fmt.Errorf("internal error: cannot find run system bootloader: %v", err)
 	}
@@ -299,7 +299,7 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 		// setup the recovery bootloader
 		Recovery: true,
 	}
-	bl, err = bootloader.Find(EarlyUbuntuSeed, opts)
+	bl, err = bootloader.Find(InitramfsUbuntuSeedDir, opts)
 	if err != nil {
 		return fmt.Errorf("internal error: cannot find recovery system bootloader: %v", err)
 	}

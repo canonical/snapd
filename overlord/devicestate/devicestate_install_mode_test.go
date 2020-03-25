@@ -180,7 +180,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	mockModel := s.makeMockInstalledPcGadget(c, grade)
 	s.state.Unlock()
 
-	bypassEncryptionPath := filepath.Join(boot.EarlyUbuntuSeed, ".force-unencrypted")
+	bypassEncryptionPath := filepath.Join(boot.InitramfsUbuntuSeedDir, ".force-unencrypted")
 	if tc.bypass {
 		err := os.MkdirAll(filepath.Dir(bypassEncryptionPath), 0755)
 		c.Assert(err, IsNil)
@@ -227,7 +227,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 		c.Assert(mockSnapBootstrapCmd.Calls(), DeepEquals, [][]string{
 			{
 				"snap-bootstrap", "create-partitions", "--mount", "--encrypt",
-				"--key-file", filepath.Join(boot.EarlyUbuntuBoot, "/ubuntu-data.keyfile.unsealed"),
+				"--key-file", filepath.Join(boot.InitramfsUbuntuBootDir, "/ubuntu-data.keyfile.unsealed"),
 				filepath.Join(dirs.SnapMountDir, "/pc/1"),
 			},
 		})
@@ -394,7 +394,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeRunSysconfig(c *C) {
 
 	// and sysconfig.ConfigureRunSystem was run exactly once
 	c.Assert(s.configureRunSystemOptsPassed, DeepEquals, []*sysconfig.Options{
-		{CloudInitTargetDir: boot.EarlyWritable},
+		{TargetDir: boot.InitramfsWritableDir},
 	})
 }
 
@@ -411,13 +411,13 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeRunSysconfigErr(c *C) {
 - Setup system for run mode \(error from sysconfig.ConfigureRunSystem\)`)
 	// and sysconfig.ConfigureRunSystem was run exactly once
 	c.Assert(s.configureRunSystemOptsPassed, DeepEquals, []*sysconfig.Options{
-		{CloudInitTargetDir: boot.EarlyWritable},
+		{TargetDir: boot.InitramfsWritableDir},
 	})
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallModeSupportsCloudInitInDangerous(c *C) {
 	// pretend we have a cloud-init config on the seed partition
-	cloudCfg := filepath.Join(boot.EarlyUbuntuSeed, "data/etc/cloud/cloud.cfg.d")
+	cloudCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d")
 	err := os.MkdirAll(cloudCfg, 0755)
 	c.Assert(err, IsNil)
 	for _, mockCfg := range []string{"foo.cfg", "bar.cfg"} {
@@ -430,15 +430,15 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeSupportsCloudInitInDangerous(
 	// and did tell sysconfig about the cloud-init files
 	c.Assert(s.configureRunSystemOptsPassed, DeepEquals, []*sysconfig.Options{
 		{
-			CloudInitSrcDir:    filepath.Join(boot.EarlyUbuntuSeed, "data/etc/cloud/cloud.cfg.d"),
-			CloudInitTargetDir: boot.EarlyWritable,
+			CloudInitSrcDir:    filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d"),
+			TargetDir: boot.InitramfsWritableDir,
 		},
 	})
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallModeNoCloudInitForSigned(c *C) {
 	// pretend we have a cloud-init config on the seed partition
-	cloudCfg := filepath.Join(boot.EarlyUbuntuSeed, "data/etc/cloud/cloud.cfg.d")
+	cloudCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d")
 	err := os.MkdirAll(cloudCfg, 0755)
 	c.Assert(err, IsNil)
 	for _, mockCfg := range []string{"foo.cfg", "bar.cfg"} {
@@ -451,6 +451,6 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeNoCloudInitForSigned(c *C) {
 
 	// so no cloud-init src dir is passed
 	c.Assert(s.configureRunSystemOptsPassed, DeepEquals, []*sysconfig.Options{
-		{CloudInitTargetDir: boot.EarlyWritable},
+		{TargetDir: boot.InitramfsWritableDir},
 	})
 }

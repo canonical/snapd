@@ -75,7 +75,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 			// enable data encryption
 			"--encrypt",
 			// location to store the keyfile
-			"--key-file", filepath.Join(boot.EarlyUbuntuBoot, "ubuntu-data.keyfile.unsealed"),
+			"--key-file", filepath.Join(boot.InitramfsUbuntuBootDir, "ubuntu-data.keyfile.unsealed"),
 		)
 	}
 	args = append(args, gadgetDir)
@@ -89,8 +89,8 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// configure the run system
-	opts := &sysconfig.Options{CloudInitTargetDir: boot.EarlyWritable}
-	cloudCfg := filepath.Join(boot.EarlyUbuntuSeed, "data/etc/cloud/cloud.cfg.d")
+	opts := &sysconfig.Options{TargetDir: boot.InitramfsWritableDir}
+	cloudCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d")
 	// Support custom cloud.cfg.d/*.cfg files on the ubuntu-seed partition
 	// during install when in grade "dangerous". We will support configs
 	// from the gadget later too, see sysconfig/cloudinit.go
@@ -145,7 +145,7 @@ func checkEncryption(model *asserts.Model) (res bool, err error) {
 
 	// check if we should disable encryption non-secured devices
 	// TODO:UC20: this is not the final mechanism to bypass encryption
-	if dangerous && osutil.FileExists(filepath.Join(boot.EarlyUbuntuSeed, ".force-unencrypted")) {
+	if dangerous && osutil.FileExists(filepath.Join(boot.InitramfsUbuntuSeedDir, ".force-unencrypted")) {
 		return false, nil
 	}
 

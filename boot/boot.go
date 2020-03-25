@@ -43,37 +43,40 @@ const (
 )
 
 var (
-	// EarlyRunMnt is the rootdir where ubuntu partitions are mounted during the
-	// early boot (i.e. the initramfs)
-	EarlyRunMnt = filepath.Join(dirs.GlobalRootDir, "run/mnt")
+	// InitramfsRunMntDir is the directory where ubuntu partitions are mounted
+	// during the initramfs.
+	InitramfsRunMntDir string
 
-	// EarlyUbuntuData is the location of ubuntu-data during early boot (i.e.
-	// the initramfs)
-	EarlyUbuntuData = filepath.Join(EarlyRunMnt, "ubuntu-data")
+	// InitramfsUbuntuDataDir is the location of ubuntu-data during the
+	// initramfs.
+	InitramfsUbuntuDataDir string
 
-	// EarlyUbuntuBoot is the location of ubuntu-boot during early boot (i.e.
-	// the initramfs)
-	EarlyUbuntuBoot = filepath.Join(EarlyRunMnt, "ubuntu-boot")
+	// InitramfsUbuntuBootDir is the location of ubuntu-boot during the
+	// initramfs.
+	InitramfsUbuntuBootDir string
 
-	// EarlyUbuntuSeed is the location of ubuntu-seed during early boot (i.e.
-	// the initramfs)
-	EarlyUbuntuSeed = filepath.Join(EarlyRunMnt, "ubuntu-seed")
+	// InitramfsUbuntuSeedDir is the location of ubuntu-seed during the
+	// initramfs.
+	InitramfsUbuntuSeedDir string
 
-	// EarlyWritable is the location of the writable partition during the early
-	// boot (i.e. during the initramfs)
-	EarlyWritable = filepath.Join(EarlyUbuntuData, "system-data")
+	// InitramfsWritableDir is the location of the writable partition during the
+	// initramfs.
+	InitramfsWritableDir string
 )
 
+func setInitramfsDirVars(rootdir string) {
+	InitramfsRunMntDir = filepath.Join(rootdir, "run/mnt")
+	InitramfsUbuntuDataDir = filepath.Join(InitramfsRunMntDir, "ubuntu-data")
+	InitramfsUbuntuBootDir = filepath.Join(InitramfsRunMntDir, "ubuntu-boot")
+	InitramfsUbuntuSeedDir = filepath.Join(InitramfsRunMntDir, "ubuntu-seed")
+	InitramfsWritableDir = filepath.Join(InitramfsUbuntuDataDir, "system-data")
+}
+
 func init() {
-	// register to change the values of Early* dir values when the global
+	setInitramfsDirVars(dirs.GlobalRootDir)
+	// register to change the values of Initramfs* dir values when the global
 	// root dir changes
-	dirs.AddRootDirCallback(func(rootdir string) {
-		EarlyRunMnt = filepath.Join(rootdir, "run/mnt")
-		EarlyUbuntuData = filepath.Join(EarlyRunMnt, "ubuntu-data")
-		EarlyUbuntuBoot = filepath.Join(EarlyRunMnt, "ubuntu-boot")
-		EarlyUbuntuSeed = filepath.Join(EarlyRunMnt, "ubuntu-seed")
-		EarlyWritable = filepath.Join(EarlyUbuntuData, "system-data")
-	})
+	dirs.AddRootDirCallback(setInitramfsDirVars)
 }
 
 // A BootParticipant handles the boot process details for a snap involved in it.

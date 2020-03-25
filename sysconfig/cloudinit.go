@@ -67,15 +67,15 @@ func installCloudInitCfg(src, targetdir string) error {
 //            - allow cloud.cfg.d (with whitelisted keys) for non
 //               grade dangerous systems
 func configureCloudInit(opts *Options) (err error) {
-	if opts.CloudInitTargetDir == "" {
+	if opts.TargetDir == "" {
 		return fmt.Errorf("unable to configure cloud-init, missing target dir")
 	}
 
 	switch opts.CloudInitSrcDir {
 	case "":
-		err = DisableCloudInit(opts.CloudInitTargetDir)
+		err = DisableCloudInit(opts.TargetDir)
 	default:
-		err = installCloudInitCfg(opts.CloudInitSrcDir, opts.CloudInitTargetDir)
+		err = installCloudInitCfg(opts.CloudInitSrcDir, opts.TargetDir)
 	}
 	return err
 }

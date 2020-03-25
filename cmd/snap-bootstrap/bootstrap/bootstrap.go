@@ -129,7 +129,7 @@ func Run(gadgetRoot, device string, options Options) error {
 		}
 
 		if options.Mount && part.Label != "" && part.HasFilesystem() {
-			if err := partition.MountFilesystem(part, boot.EarlyRunMnt); err != nil {
+			if err := partition.MountFilesystem(part, boot.InitramfsRunMntDir); err != nil {
 				return err
 			}
 		}

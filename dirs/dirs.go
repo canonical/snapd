@@ -234,8 +234,9 @@ func SnapModeenvFileUnder(rootdir string) string {
 	return filepath.Join(rootdir, snappyDir, "modeenv")
 }
 
-// AddRootDirCallback registers a callback for whenever the rootdir is changed
-// to enable updates to variables in other packages that depend on rootdir.
+// AddRootDirCallback registers a callback for whenever the global root
+// directory (set by SetRootDir) is changed to enable updates to variables in
+// other packages that depend on its location.
 func AddRootDirCallback(c func(string)) {
 	callbacks = append(callbacks, c)
 }
