@@ -307,7 +307,7 @@ func (bs20 *bootState20Base) revisions() (curSnap, trySnap snap.PlaceInfo, tryin
 		return nil, nil, "", fmt.Errorf("cannot get snap revision: modeenv base boot variable is invalid: %v", err)
 	}
 
-	if bs20.modeenv.BaseStatus == TryingStatus && bs20.modeenv.TryBase != "" {
+	if bs20.modeenv.BaseStatus != DefaultStatus && bs20.modeenv.TryBase != "" {
 		tryBootSn, err = snap.ParsePlaceInfoFromSnapFileName(bs20.modeenv.TryBase)
 		if err != nil {
 			return bootSn, nil, "", trySnapError(fmt.Sprintf("cannot get snap revision: modeenv try base boot variable is invalid: %v", err))
