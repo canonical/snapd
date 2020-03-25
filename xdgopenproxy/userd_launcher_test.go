@@ -56,8 +56,10 @@ func (s *userdSuite) SetUpSuite(c *C) {
 }
 
 func (s *userdSuite) TearDownSuite(c *C) {
-	_, err := s.SessionBus.ReleaseName(xdgopenproxy.UserdLauncherBusName)
-	c.Check(err, IsNil)
+	if s.SessionBus != nil {
+		_, err := s.SessionBus.ReleaseName(xdgopenproxy.UserdLauncherBusName)
+		c.Check(err, IsNil)
+	}
 
 	s.DBusTest.TearDownSuite(c)
 }

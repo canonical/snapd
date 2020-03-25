@@ -65,8 +65,10 @@ func (s *portalSuite) SetUpSuite(c *C) {
 }
 
 func (s *portalSuite) TearDownSuite(c *C) {
-	_, err := s.SessionBus.ReleaseName(xdgopenproxy.DesktopPortalBusName)
-	c.Check(err, IsNil)
+	if s.SessionBus != nil {
+		_, err := s.SessionBus.ReleaseName(xdgopenproxy.DesktopPortalBusName)
+		c.Check(err, IsNil)
+	}
 
 	s.DBusTest.TearDownSuite(c)
 }
