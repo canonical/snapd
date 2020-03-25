@@ -274,7 +274,7 @@ func setClassicFallbackModel(st *state.State, device *auth.DeviceState) error {
 	return nil
 }
 
-func (m *DeviceManager) OperatingMode() string {
+func (m *DeviceManager) SystemMode() string {
 	if m.systemMode == "" {
 		return "run"
 	}
@@ -285,7 +285,7 @@ func (m *DeviceManager) ensureOperational() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	if m.OperatingMode() != "run" {
+	if m.SystemMode() != "run" {
 		// avoid doing registration in ephemeral mode
 		// note: this also stop auto-refreshes indirectly
 		return nil
@@ -503,7 +503,7 @@ func (m *DeviceManager) ensureBootOk() error {
 	}
 
 	// boot-ok/update-boot-revision is only relevant in run-mode
-	if m.OperatingMode() != "run" {
+	if m.SystemMode() != "run" {
 		return nil
 	}
 
@@ -542,7 +542,7 @@ func (m *DeviceManager) ensureInstalled() error {
 		return nil
 	}
 
-	if m.OperatingMode() != "install" {
+	if m.SystemMode() != "install" {
 		return nil
 	}
 

@@ -95,7 +95,7 @@ func SetLastBecomeOperationalAttempt(m *DeviceManager, t time.Time) {
 	m.lastBecomeOperationalAttempt = t
 }
 
-func SetOperatingMode(m *DeviceManager, mode string) {
+func SetSystemMode(m *DeviceManager, mode string) {
 	m.systemMode = mode
 }
 
