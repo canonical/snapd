@@ -152,6 +152,8 @@ const (
 var (
 	// not exported because it does not honor the global rootdir
 	snappyDir = filepath.Join("var", "lib", "snapd")
+
+	callbacks = []func(string){}
 )
 
 func init() {
@@ -236,6 +238,12 @@ func SnapStateFileUnder(rootdir string) string {
 // SnapModeenvFileUnder returns the path to the modeenv file under rootdir.
 func SnapModeenvFileUnder(rootdir string) string {
 	return filepath.Join(rootdir, snappyDir, "modeenv")
+}
+
+// AddRootDirCallback registers a callback for whenever the rootdir is changed
+// to enable updates to variables in other packages that depend on rootdir.
+func AddRootDirCallback(c func(string)) {
+	callbacks = append(callbacks, c)
 }
 
 // SetRootDir allows settings a new global root directory, this is useful
@@ -388,6 +396,12 @@ func SetRootDir(rootdir string) {
 	EarlyBootUbuntuData = filepath.Join(RunMnt, "ubuntu-data")
 	EarlyBootUbuntuBoot = filepath.Join(RunMnt, "ubuntu-boot")
 	EarlyBootUbuntuSeed = filepath.Join(RunMnt, "ubuntu-seed")
+
+	// call the callbacks last so that the callbacks can just reference the
+	// global vars if they want, instead of using the new rootdir directly
+	for _, c := range callbacks {
+		c(rootdir)
+	}
 }
 
 // what inside a (non-classic) snap is /usr/lib/snapd, outside can come from different places
