@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,10 +22,8 @@ package boot
 import (
 	"errors"
 	"fmt"
-	"path/filepath"
 
 	"github.com/snapcore/snapd/bootloader"
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -41,43 +39,6 @@ const (
 	// boot sequence (bootloader, initramfs, etc.)
 	TryingStatus = "trying"
 )
-
-var (
-	// InitramfsRunMntDir is the directory where ubuntu partitions are mounted
-	// during the initramfs.
-	InitramfsRunMntDir string
-
-	// InitramfsUbuntuDataDir is the location of ubuntu-data during the
-	// initramfs.
-	InitramfsUbuntuDataDir string
-
-	// InitramfsUbuntuBootDir is the location of ubuntu-boot during the
-	// initramfs.
-	InitramfsUbuntuBootDir string
-
-	// InitramfsUbuntuSeedDir is the location of ubuntu-seed during the
-	// initramfs.
-	InitramfsUbuntuSeedDir string
-
-	// InitramfsWritableDir is the location of the writable partition during the
-	// initramfs.
-	InitramfsWritableDir string
-)
-
-func setInitramfsDirVars(rootdir string) {
-	InitramfsRunMntDir = filepath.Join(rootdir, "run/mnt")
-	InitramfsUbuntuDataDir = filepath.Join(InitramfsRunMntDir, "ubuntu-data")
-	InitramfsUbuntuBootDir = filepath.Join(InitramfsRunMntDir, "ubuntu-boot")
-	InitramfsUbuntuSeedDir = filepath.Join(InitramfsRunMntDir, "ubuntu-seed")
-	InitramfsWritableDir = filepath.Join(InitramfsUbuntuDataDir, "system-data")
-}
-
-func init() {
-	setInitramfsDirVars(dirs.GlobalRootDir)
-	// register to change the values of Initramfs* dir values when the global
-	// root dir changes
-	dirs.AddRootDirCallback(setInitramfsDirVars)
-}
 
 // A BootParticipant handles the boot process details for a snap involved in it.
 type BootParticipant interface {
