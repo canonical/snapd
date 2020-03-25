@@ -29,7 +29,7 @@ type wellKnownSuite struct{}
 
 var _ = Suite(&wellKnownSuite{})
 
-func (s wellKnownSuite) TestWellKwownSnapID(c *C) {
+func (s wellKnownSuite) TestWellKnownSnapID(c *C) {
 	c.Check(naming.WellKnownSnapID("foo"), Equals, "")
 
 	c.Check(naming.WellKnownSnapID("snapd"), Equals, "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4")
@@ -39,7 +39,7 @@ func (s wellKnownSuite) TestWellKwownSnapID(c *C) {
 	c.Check(naming.WellKnownSnapID("core20"), Equals, "DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q")
 }
 
-func (s wellKnownSuite) TestWellKwownSnapIDStaging(c *C) {
+func (s wellKnownSuite) TestWellKnownSnapIDStaging(c *C) {
 	defer naming.UseStagingIDs(true)()
 
 	c.Check(naming.WellKnownSnapID("baz"), Equals, "")
