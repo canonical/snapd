@@ -1286,7 +1286,7 @@ func (s *Store) Find(ctx context.Context, search *Search, user *auth.UserState) 
 			ver, err := strconv.Atoi(verstr)
 			if err != nil {
 				logger.Debugf("Bogus Snap-Store-Version header %q.", verstr)
-			} else if ver < 19 {
+			} else if ver < 20 {
 				return s.findV1(ctx, search, user)
 			}
 		}
