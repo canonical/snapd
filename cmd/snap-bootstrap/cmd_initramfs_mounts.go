@@ -111,7 +111,7 @@ func generateMountsModeInstall(recoverySystem string) error {
 		Mode:           "install",
 		RecoverySystem: recoverySystem,
 	}
-	if err := modeEnv.Write(filepath.Join(dirs.RunMnt, "ubuntu-data", "system-data")); err != nil {
+	if err := modeEnv.WriteTo(filepath.Join(dirs.RunMnt, "ubuntu-data", "system-data")); err != nil {
 		return err
 	}
 	// and disable cloud-init in install mode
@@ -167,7 +167,7 @@ func generateMountsModeRecover(recoverySystem string) error {
 		Mode:           "recover",
 		RecoverySystem: recoverySystem,
 	}
-	if err := modeEnv.Write(filepath.Join(dirs.RunMnt, "ubuntu-data", "system-data")); err != nil {
+	if err := modeEnv.WriteTo(filepath.Join(dirs.RunMnt, "ubuntu-data", "system-data")); err != nil {
 		return err
 	}
 	// and disable cloud-init in install mode
@@ -248,7 +248,21 @@ func generateMountsCommonInstallRecover(recoverySystem string) (allMounted bool,
 		return false, nil
 	}
 
-	// 4. done, no output, no error indicates to initramfs we are done
+	// 4. final step: write $(ubuntu_data)/var/lib/snapd/modeenv - this
+	//    is the tmpfs we just created above
+	modeEnv := &boot.Modeenv{
+		Mode:           "install",
+		RecoverySystem: recoverySystem,
+	}
+	if err := modeEnv.WriteTo(filepath.Join(dirs.RunMnt, "ubuntu-data", "system-data")); err != nil {
+		return false, err
+	}
+	// and disable cloud-init in install mode
+	if err := sysconfig.DisableCloudInit(); err != nil {
+		return false, err
+	}
+
+	// 5. done, no output, no error indicates to initramfs we are done
 	//    with mounting stuff
 	return true, nil
 }
@@ -429,7 +443,7 @@ func generateMountsModeRun() error {
 	}
 
 	// 4.1 Write the modeenv out again
-	return modeEnv.Write(filepath.Join(dataDir, "system-data"))
+	return modeEnv.Write()
 }
 
 func generateInitramfsMounts() error {
