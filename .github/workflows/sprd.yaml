@@ -8,6 +8,7 @@ jobs:
   unstable:
     runs-on: [self-hosted]
     strategy:
+      fail-fast: false
       matrix:
         system:
         - centos-8-64
