@@ -110,6 +110,17 @@ func (s *initramfsMountsSuite) SetUpTest(c *C) {
 	}, nil)
 }
 
+func makeSnapFilesOnEarlyBootUbuntuData(c *C, snapFilenames ...string) {
+	// also make sure the snaps also exist on ubuntu-data
+	snapDir := dirs.SnapBlobDirUnder(filepath.Join(dirs.EarlyBootUbuntuData, "system-data"))
+	err := os.MkdirAll(snapDir, 0755)
+	c.Assert(err, IsNil)
+	for _, sn := range snapFilenames {
+		err = ioutil.WriteFile(filepath.Join(snapDir, sn), nil, 0644)
+		c.Assert(err, IsNil)
+	}
+}
+
 func (s *initramfsMountsSuite) mockProcCmdlineContent(c *C, newContent string) {
 	mockProcCmdline := filepath.Join(c.MkDir(), "proc-cmdline")
 	err := ioutil.WriteFile(mockProcCmdline, []byte(newContent), 0644)
@@ -309,6 +320,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2(c *C) {
 	r := bloader.SetRunKernelImageEnabledKernel(kernel)
 	defer r()
 
+	makeSnapFilesOnEarlyBootUbuntuData(c, kernel.Filename(), "core20_123.snap")
+
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 6)
@@ -355,12 +368,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeBaseSnapUpgradeFailsHap
 	err := modeEnv.WriteTo(filepath.Join(dirs.EarlyBootUbuntuData, "system-data"))
 	c.Assert(err, IsNil)
 
-	tryBaseSnap := filepath.Join(dirs.RunMnt, "ubuntu-data", "system-data", dirs.SnapBlobDir, "core20_124.snap")
-	err = os.MkdirAll(filepath.Dir(tryBaseSnap), 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(tryBaseSnap, []byte{0}, 0644)
-	c.Assert(err, IsNil)
-	defer os.Remove(tryBaseSnap)
+	makeSnapFilesOnEarlyBootUbuntuData(c, "core20_123.snap", "core20_124.snap")
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
@@ -412,6 +420,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeModeenvTryBaseEmptyHapp
 	err := modeEnv.WriteTo(filepath.Join(dirs.EarlyBootUbuntuData, "system-data"))
 	c.Assert(err, IsNil)
 
+	makeSnapFilesOnEarlyBootUbuntuData(c, "core20_123.snap")
+
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 5)
@@ -462,12 +472,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeBaseSnapUpgradeHappy(c 
 	err := modeEnv.WriteTo(filepath.Join(dirs.EarlyBootUbuntuData, "system-data"))
 	c.Assert(err, IsNil)
 
-	tryBaseSnap := filepath.Join(dirs.SnapBlobDirUnder(filepath.Join(dirs.RunMnt, "ubuntu-data", "system-data")), "core20_124.snap")
-	err = os.MkdirAll(filepath.Dir(tryBaseSnap), 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(tryBaseSnap, []byte{0}, 0644)
-	c.Assert(err, IsNil)
-	defer os.Remove(tryBaseSnap)
+	makeSnapFilesOnEarlyBootUbuntuData(c, "core20_123.snap", "core20_124.snap")
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
@@ -516,8 +521,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeModeenvBaseEmptyUnhappy
 	c.Assert(err, IsNil)
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
-	c.Assert(err, ErrorMatches, "modeenv corrupt: missing base setting")
-	c.Assert(n, Equals, 4)
+	c.Assert(err, ErrorMatches, "fallback base snap unusable: cannot get snap revision: modeenv base boot variable is empty")
+	c.Assert(n, Equals, 5)
 	c.Check(s.Stdout.String(), Equals, "")
 }
 
@@ -557,6 +562,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeModeenvTryBaseNotExists
 	}
 	err := modeEnv.WriteTo(filepath.Join(dirs.EarlyBootUbuntuData, "system-data"))
 	c.Assert(err, IsNil)
+
+	makeSnapFilesOnEarlyBootUbuntuData(c, "core20_123.snap")
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
@@ -607,13 +614,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeKernelSnapUpgradeHappy(
 	err := modeEnv.WriteTo(filepath.Join(dirs.EarlyBootUbuntuData, "system-data"))
 	c.Assert(err, IsNil)
 
-	tryBaseSnap := filepath.Join(dirs.SnapBlobDirUnder(filepath.Join(dirs.RunMnt, "ubuntu-data", "system-data")), "core20_124.snap")
-	err = os.MkdirAll(filepath.Dir(tryBaseSnap), 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(tryBaseSnap, []byte{0}, 0644)
-	c.Assert(err, IsNil)
-	defer os.Remove(tryBaseSnap)
-
 	// mock a bootloader
 	bloader := boottest.MockUC20RunBootenv(bootloadertest.Mock("mock", c.MkDir()))
 	bootloader.Force(bloader)
@@ -632,6 +632,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeKernelSnapUpgradeHappy(
 	c.Assert(err, IsNil)
 	r = bloader.SetRunKernelImageEnabledTryKernel(tryKernel)
 	defer r()
+
+	makeSnapFilesOnEarlyBootUbuntuData(c, kernel.Filename(), tryKernel.Filename())
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
@@ -685,6 +687,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUntrustedKernelSnap(c *
 	c.Assert(err, IsNil)
 	r := bloader.SetRunKernelImageEnabledKernel(kernel)
 	defer r()
+
+	makeSnapFilesOnEarlyBootUbuntuData(c, kernel.Filename())
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, ErrorMatches, fmt.Sprintf("fallback kernel snap %q is not trusted in the modeenv", "pc-kernel_2.snap"))
@@ -742,6 +746,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUntrustedTryKernelSnapF
 	c.Assert(err, IsNil)
 	r = bloader.SetRunKernelImageEnabledKernel(kernel1)
 	defer r()
+
+	makeSnapFilesOnEarlyBootUbuntuData(c, kernel1.Filename(), kernel2.Filename())
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 
@@ -803,6 +809,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeKernelStatusTryingNoTry
 	c.Assert(err, IsNil)
 	r := bloader.SetRunKernelImageEnabledKernel(kernel)
 	defer r()
+
+	makeSnapFilesOnEarlyBootUbuntuData(c, kernel.Filename())
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 
