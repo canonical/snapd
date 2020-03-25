@@ -30,7 +30,9 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func Test(t *testing.T) { TestingT(t) }
@@ -116,6 +118,8 @@ func (cfg *mockConf) State() *state.State {
 
 // configcoreSuite is the base for all the configcore tests
 type configcoreSuite struct {
+	testutil.BaseTest
+
 	state *state.State
 
 	systemctlArgs     [][]string
@@ -137,12 +141,16 @@ func (s *configcoreSuite) TearDownSuite(c *C) {
 }
 
 func (s *configcoreSuite) SetUpTest(c *C) {
-	dirs.SetRootDir(c.MkDir())
-	s.state = state.New(nil)
-}
+	s.BaseTest.SetUpTest(c)
 
-func (s *configcoreSuite) TearDownTest(c *C) {
-	dirs.SetRootDir("")
+	dirs.SetRootDir(c.MkDir())
+	s.AddCleanup(func() { dirs.SetRootDir("") })
+
+	s.state = state.New(nil)
+
+	restore := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
+	s.AddCleanup(restore)
+	s.systemctlArgs = nil
 }
 
 // runCfgSuite tests configcore.Run()
