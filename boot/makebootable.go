@@ -150,6 +150,11 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet)
 	if len(recoverySystems) > 1 {
 		return fmt.Errorf("cannot make multiple recovery systems bootable yet")
 	}
+
+	if bootWith.RecoverySystemLabel == "" {
+		return fmt.Errorf("internal error: recovery system label unset")
+	}
+
 	opts := &bootloader.Options{
 		PrepareImageTime: true,
 		// setup the recovery bootloader
@@ -165,6 +170,18 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet)
 	bl, err := bootloader.Find(rootdir, opts)
 	if err != nil {
 		return fmt.Errorf("internal error: cannot find bootloader: %v", err)
+	}
+
+	// record which recovery system is to be used on the bootloader, note that
+	// this goes on the main bootloader, and not on the recovery system
+	// bootloader, for example for grub bootloader, this env var is set on
+	// the ubuntu-seed root grubenv, and not on the recovery system grubenv in
+	// the systems/20200314/ subdir on ubuntu-seed
+	blVars := map[string]string{
+		"snapd_recovery_system": bootWith.RecoverySystemLabel,
+	}
+	if err := bl.SetBootVars(blVars); err != nil {
+		return fmt.Errorf("cannot set recovery environment: %v", err)
 	}
 
 	// on e.g. ARM we need to extract the kernel assets on the recovery
@@ -186,14 +203,6 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet)
 			return fmt.Errorf("cannot extract recovery system kernel assets: %v", err)
 		}
 
-		// record which recovery system is to be used
-		// TODO:UC20: should we do this for all bootloaders?
-		whereRecoveryEnv := map[string]string{
-			"snapd_recovery_system": bootWith.RecoverySystemLabel,
-		}
-		if err := bl.SetBootVars(whereRecoveryEnv); err != nil {
-			return fmt.Errorf("cannot set system environment: %v", err)
-		}
 		return nil
 	}
 
@@ -205,13 +214,12 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet)
 	if err != nil {
 		return fmt.Errorf("cannot construct kernel boot path: %v", err)
 	}
-	blVars := map[string]string{
+	recoveryBlVars := map[string]string{
 		"snapd_recovery_kernel": filepath.Join("/", kernelPath),
 	}
-	if err := rbl.SetRecoverySystemEnv(bootWith.RecoverySystemDir, blVars); err != nil {
+	if err := rbl.SetRecoverySystemEnv(bootWith.RecoverySystemDir, recoveryBlVars); err != nil {
 		return fmt.Errorf("cannot set recovery system environment: %v", err)
 	}
-
 	return nil
 }
 
@@ -242,7 +250,7 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 		Base:           filepath.Base(bootWith.BasePath),
 		CurrentKernels: []string{bootWith.Kernel.Filename()},
 	}
-	if err := modeenv.Write(filepath.Join(runMnt, "ubuntu-data", "system-data")); err != nil {
+	if err := modeenv.WriteTo(filepath.Join(runMnt, "ubuntu-data", "system-data")); err != nil {
 		return fmt.Errorf("cannot write modeenv: %v", err)
 	}
 
@@ -305,7 +313,7 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 		"snapd_recovery_mode": "run",
 	}
 	if err := bl.SetBootVars(blVars); err != nil {
-		return fmt.Errorf("cannot set recovery system environment: %v", err)
+		return fmt.Errorf("cannot set recovery environment: %v", err)
 	}
 	return nil
 }

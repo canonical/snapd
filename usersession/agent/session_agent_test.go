@@ -158,7 +158,7 @@ func (s *sessionAgentSuite) TestConnectFromOtherUser(c *C) {
 
 	_, err = s.client.Get("http://localhost/v1/session-info")
 	// This could be an EOF error or a failed read, depending on timing
-	c.Assert(err, ErrorMatches, "Get http://localhost/v1/session-info: .*")
+	c.Assert(err, ErrorMatches, "Get \"?http://localhost/v1/session-info\"?: .*")
 	logger.WithLoggerLock(func() {
 		c.Check(logbuf.String(), testutil.Contains, "Blocking request from user ID")
 	})
@@ -200,7 +200,7 @@ func (s *sessionAgentSuite) TestConnectWithFailedPeerCredentials(c *C) {
 	defer sa.Stop()
 
 	_, err = s.client.Get("http://localhost/v1/session-info")
-	c.Assert(err, ErrorMatches, "Get http://localhost/v1/session-info: .*")
+	c.Assert(err, ErrorMatches, "Get \"?http://localhost/v1/session-info\"?: .*")
 	logger.WithLoggerLock(func() {
 		c.Check(logbuf.String(), testutil.Contains, "Failed to retrieve peer credentials: SO_PEERCRED failed")
 	})

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -1031,4 +1031,22 @@ func (ss *stateSuite) TestReadStateInitsCache(c *C) {
 
 	st.Cache("key", "value")
 	c.Assert(st.Cached("key"), Equals, "value")
+}
+
+func (ss *stateSuite) TestTimingsSupport(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	var tims []int
+
+	err := st.GetMaybeTimings(&tims)
+	c.Assert(err, IsNil)
+	c.Check(tims, IsNil)
+
+	st.SaveTimings([]int{1, 2, 3})
+
+	err = st.GetMaybeTimings(&tims)
+	c.Assert(err, IsNil)
+	c.Check(tims, DeepEquals, []int{1, 2, 3})
 }

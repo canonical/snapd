@@ -217,6 +217,11 @@ func (s *seed20Suite) TestLoadAssertionsModelTempDBHappy(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(model.Model(), Equals, "my-model")
 	c.Check(model.Base(), Equals, "core20")
+
+	brand, err := seed20.Brand()
+	c.Assert(err, IsNil)
+	c.Check(brand.AccountID(), Equals, "my-brand")
+	c.Check(brand.DisplayName(), Equals, "My-brand")
 }
 
 func (s *seed20Suite) TestLoadAssertionsMultiModels(c *C) {

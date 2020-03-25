@@ -672,9 +672,6 @@ func (ovs *overlordSuite) TestEnsureLoopPruneDoesntAbortShortlyAfterStartOfOpera
 	w, restoreTicker := fakePruneTicker()
 	defer restoreTicker()
 
-	restoreIntv := overlord.MockPruneInterval(1*time.Millisecond, 1000*time.Millisecond, 1*time.Hour)
-	defer restoreIntv()
-
 	// use real overlord, we need device manager to be there
 	o, err := overlord.New(nil)
 	c.Assert(err, IsNil)
@@ -728,9 +725,6 @@ func (ovs *overlordSuite) TestEnsureLoopPruneAbortsOld(c *C) {
 
 	w, restoreTicker := fakePruneTicker()
 	defer restoreTicker()
-
-	restoreIntv := overlord.MockPruneInterval(1*time.Millisecond, 24*time.Hour, 1*time.Hour)
-	defer restoreIntv()
 
 	// use real overlord, we need device manager to be there
 	o, err := overlord.New(nil)
@@ -789,9 +783,6 @@ func (ovs *overlordSuite) TestEnsureLoopPruneAbortsOld(c *C) {
 func (ovs *overlordSuite) TestEnsureLoopNoPruneWhenPreseed(c *C) {
 	w, restoreTicker := fakePruneTicker()
 	defer restoreTicker()
-
-	restoreIntv := overlord.MockPruneInterval(1*time.Millisecond, 1000*time.Millisecond, 1*time.Hour)
-	defer restoreIntv()
 
 	restore := snapdenv.MockPreseeding(true)
 	defer restore()

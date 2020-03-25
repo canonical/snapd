@@ -17,8 +17,11 @@ execute: |
     if [[ ! -e /run/cloud-init/instance-data.json ]]; then
         echo "cloud-init instance data is required to execute the test"
 
-        if [[ "$SPREAD_SYSTEM" == ubuntu-* && "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
-            # we expect the test to run on all Ubuntu images, excluding 14.04
+        if [[ "$SPREAD_SYSTEM" == ubuntu-* &&
+              "$SPREAD_SYSTEM" != ubuntu-14.04-* &&
+              "$SPREAD_SYSTEM" != ubuntu-core-20-* ]]; then
+            # we expect the test to run on all Ubuntu images,
+            # excluding 14.04/core20
             echo "the test expected to run on $SPREAD_SYSTEM"
             exit 1
         fi

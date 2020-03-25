@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/bootstrap"
+	"github.com/snapcore/snapd/dirs"
 )
 
 var (
@@ -55,10 +56,10 @@ func MockOsutilIsMounted(f func(path string) (bool, error)) (restore func()) {
 }
 
 func MockRunMnt(newRunMnt string) (restore func()) {
-	oldRunMnt := runMnt
-	runMnt = newRunMnt
+	oldRunMnt := dirs.RunMnt
+	dirs.RunMnt = newRunMnt
 	return func() {
-		runMnt = oldRunMnt
+		dirs.RunMnt = oldRunMnt
 	}
 }
 
