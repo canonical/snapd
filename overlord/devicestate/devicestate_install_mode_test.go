@@ -203,8 +203,12 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	})
 	defer restore()
 
+	modeenv := boot.Modeenv{
+		Mode:           "install",
+		RecoverySystem: "20191218",
+	}
+	c.Assert(modeenv.WriteTo(""), IsNil)
 	devicestate.SetOperatingMode(s.mgr, "install")
-	devicestate.SetRecoverySystem(s.mgr, "20191218")
 
 	s.settle(c)
 
@@ -372,8 +376,12 @@ func (s *deviceMgrInstallModeSuite) mockInstallModeChange(c *C, modelGrade strin
 	})
 	defer restore()
 
+	modeenv := boot.Modeenv{
+		Mode:           "install",
+		RecoverySystem: "20191218",
+	}
+	c.Assert(modeenv.WriteTo(""), IsNil)
 	devicestate.SetOperatingMode(s.mgr, "install")
-	devicestate.SetRecoverySystem(s.mgr, "20191218")
 
 	s.settle(c)
 }
