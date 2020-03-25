@@ -184,6 +184,10 @@ func (s *seed20) Model() (*asserts.Model, error) {
 	return s.model, nil
 }
 
+func (s *seed20) Brand() (*asserts.Account, error) {
+	return findBrand(s, s.db)
+}
+
 func (s *seed20) UsesSnapdSnap() bool {
 	return true
 }

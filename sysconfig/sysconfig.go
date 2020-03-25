@@ -17,19 +17,20 @@
  *
  */
 
-package daemon
+package sysconfig
 
-import (
-	"net/http"
-
-	"github.com/snapcore/snapd/overlord/auth"
-)
-
-var systemsCmd = &Command{
-	Path: "/v2/systems",
-	GET:  getSystems,
+type Options struct {
+	// TODO: do we really want this kind of specific dir pointers
+	// or more general ones?
+	CloudInitSrcDir string
 }
 
-func getSystems(c *Command, r *http.Request, user *auth.UserState) Response {
-	return InternalError("listing available systems is not implemented yet")
+// ConfigureRunSystem configures the ubuntu-data partition with any
+// configuration needed from e.g. the gadget or for cloud-init.
+func ConfigureRunSystem(opts *Options) error {
+	if err := configureCloudInit(opts); err != nil {
+		return err
+	}
+
+	return nil
 }
