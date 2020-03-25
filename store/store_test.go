@@ -2292,7 +2292,7 @@ func (s *storeTestSuite) TestInfo500(c *C) {
 	c.Assert(n, Equals, 5)
 }
 
-func (s *storeTestSuite) TestInfo500once(c *C) {
+func (s *storeTestSuite) TestInfo500Once(c *C) {
 	var n = 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", infoPathPattern)
@@ -3667,12 +3667,12 @@ func (s *storeTestSuite) testFind500Once(c *C, apiV1 bool) {
 	}
 }
 
-func (s *storeTestSuite) TestFindV1_500once(c *C) {
+func (s *storeTestSuite) TestFindV1_500Once(c *C) {
 	apiV1 := true
 	s.testFind500Once(c, apiV1)
 }
 
-func (s *storeTestSuite) TestFindV2_500once(c *C) {
+func (s *storeTestSuite) TestFindV2_500Once(c *C) {
 	s.testFind500Once(c, false)
 }
 
@@ -4613,7 +4613,6 @@ func (s *storeTestSuite) TestBuy(c *C) {
 				if test.buyErrorCode == "" {
 					io.WriteString(w, test.buyResponse)
 				} else {
-					w.Header().Set("Content-Type", "application/json")
 					w.WriteHeader(test.buyStatus)
 					// TODO(matt): this is fugly!
 					fmt.Fprintf(w, `
