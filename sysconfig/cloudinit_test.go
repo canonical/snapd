@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/testutil"
@@ -52,10 +53,12 @@ func (s *sysconfigSuite) SetUpTest(c *C) {
 }
 
 func (s *sysconfigSuite) TestCloudInitDisablesByDefault(c *C) {
-	err := sysconfig.ConfigureRunSystem(&sysconfig.Options{})
+	err := sysconfig.ConfigureRunSystem(&sysconfig.Options{
+		CloudInitTargetDir: boot.EarlyWritable,
+	})
 	c.Assert(err, IsNil)
 
-	ubuntuDataCloudDisabled := filepath.Join(dirs.RunMnt, "ubuntu-data/system-data/etc/cloud/cloud-init.disabled/")
+	ubuntuDataCloudDisabled := filepath.Join(boot.EarlyWritable, "etc/cloud/cloud-init.disabled/")
 	c.Check(ubuntuDataCloudDisabled, testutil.FilePresent)
 }
 
@@ -67,12 +70,13 @@ func (s *sysconfigSuite) TestCloudInitInstalls(c *C) {
 	}
 
 	err := sysconfig.ConfigureRunSystem(&sysconfig.Options{
-		CloudInitSrcDir: cloudCfgSrcDir,
+		CloudInitSrcDir:    cloudCfgSrcDir,
+		CloudInitTargetDir: boot.EarlyWritable,
 	})
 	c.Assert(err, IsNil)
 
 	// and did copy the cloud-init files
-	ubuntuDataCloudCfg := filepath.Join(dirs.RunMnt, "ubuntu-data/system-data/etc/cloud/cloud.cfg.d/")
+	ubuntuDataCloudCfg := filepath.Join(boot.EarlyWritable, "etc/cloud/cloud.cfg.d/")
 	c.Check(filepath.Join(ubuntuDataCloudCfg, "foo.cfg"), testutil.FileEquals, "foo.cfg config")
 	c.Check(filepath.Join(ubuntuDataCloudCfg, "bar.cfg"), testutil.FileEquals, "bar.cfg config")
 }

@@ -19,10 +19,16 @@
 
 package sysconfig
 
+// Options is the set of options used to configure the run system
 type Options struct {
-	// TODO: do we really want this kind of specific dir pointers
-	// or more general ones?
+	// CloudInitSrcDir is where to find the cloud-init data when installing it,
+	// i.e. in early boot install mode it could be something like
+	// filepath.Join(boot.EarlyUbuntuSeed,"data")
 	CloudInitSrcDir string
+
+	// CloudInitTargerRootDir is the root directory where to install cloud-init
+	// data, i.e. in early boot it will be something like boot.EarlyWritable
+	CloudInitTargetDir string
 }
 
 // ConfigureRunSystem configures the ubuntu-data partition with any
