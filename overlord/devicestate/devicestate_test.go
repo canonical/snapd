@@ -22,7 +22,6 @@ package devicestate_test
 import (
 	"errors"
 	"fmt"
-	"net/http/httptest"
 	"os"
 	"testing"
 	"time"
@@ -220,51 +219,6 @@ func (s *deviceMgrBaseSuite) settle(c *C) {
 func (s *deviceMgrBaseSuite) seeding() {
 	chg := s.state.NewChange("seed", "Seed system")
 	chg.SetStatus(state.DoingStatus)
-}
-
-func (s *deviceMgrBaseSuite) signSerial(c *C, bhv *devicestatetest.DeviceServiceBehavior, headers map[string]interface{}, body []byte) (serial asserts.Assertion, ancillary []asserts.Assertion, err error) {
-	brandID := headers["brand-id"].(string)
-	model := headers["model"].(string)
-	keyID := ""
-
-	var signing assertstest.SignerDB = s.storeSigning
-
-	switch model {
-	case "pc", "pc2":
-	case "classic-alt-store":
-		c.Check(brandID, Equals, "canonical")
-	case "generic-classic":
-		c.Check(brandID, Equals, "generic")
-		headers["authority-id"] = "generic"
-		keyID = s.storeSigning.GenericKey.PublicKeyID()
-	case "rereg-model":
-		headers["authority-id"] = "rereg-brand"
-		signing = s.brands.Signing("rereg-brand")
-	default:
-		c.Fatalf("unknown model: %s", model)
-	}
-	a, err := signing.Sign(asserts.SerialType, headers, body, keyID)
-	return a, s.ancillary, err
-}
-
-func (s *deviceMgrBaseSuite) mockServer(c *C, reqID string, bhv *devicestatetest.DeviceServiceBehavior) *httptest.Server {
-	if bhv == nil {
-		bhv = &devicestatetest.DeviceServiceBehavior{}
-	}
-
-	bhv.ReqID = reqID
-	bhv.SignSerial = s.signSerial
-	bhv.ExpectedCapabilities = "serial-stream"
-
-	return devicestatetest.MockDeviceService(c, bhv)
-}
-
-func (s *deviceMgrSuite) SetUpTest(c *C) {
-	s.deviceMgrBaseSuite.SetUpTest(c)
-}
-
-func (s *deviceMgrSuite) TearDownTest(c *C) {
-	s.deviceMgrBaseSuite.TearDownTest(c)
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededAlreadySeeded(c *C) {
