@@ -225,6 +225,9 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, opts *AddSnapServicesO
 		}
 	}
 
+	// TODO: remove once services get enabled on start and not when created.
+	preseeding := opts.Preseeding
+
 	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
 	var written []string
 	var enabled []string
@@ -242,15 +245,12 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, opts *AddSnapServicesO
 				inter.Notify(fmt.Sprintf("while trying to remove %s due to previous failure: %v", s, e))
 			}
 		}
-		if len(written) > 0 {
+		if len(written) > 0 && !preseeding {
 			if e := sysd.DaemonReload(); e != nil {
 				inter.Notify(fmt.Sprintf("while trying to perform systemd daemon-reload due to previous failure: %v", e))
 			}
 		}
 	}()
-
-	// TODO: remove once services get enabled on start and not when created.
-	preseeding := opts.Preseeding
 
 	for _, app := range s.Apps {
 		if !app.IsService() {
