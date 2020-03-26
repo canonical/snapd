@@ -68,6 +68,29 @@ func (cfg *mockConf) GetMaybe(snapName, key string, result interface{}) error {
 	return nil
 }
 
+func (cfg *mockConf) GetPristine(snapName, key string, result interface{}) error {
+	if snapName != "core" {
+		return fmt.Errorf("mockConf only knows about core")
+	}
+
+	var value interface{}
+	value = cfg.conf[key]
+	if value != nil {
+		v1 := reflect.ValueOf(result)
+		v2 := reflect.Indirect(v1)
+		v2.Set(reflect.ValueOf(value))
+	}
+	return cfg.err
+}
+
+func (cfg *mockConf) GetPristineMaybe(snapName, key string, result interface{}) error {
+	err := cfg.GetPristine(snapName, key, result)
+	if err != nil && !config.IsNoOption(err) {
+		return err
+	}
+	return nil
+}
+
 func (cfg *mockConf) Set(snapName, key string, v interface{}) error {
 	if snapName != "core" {
 		return fmt.Errorf("mockConf only knows about core")
