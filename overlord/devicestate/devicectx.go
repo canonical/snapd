@@ -49,14 +49,14 @@ func DeviceCtx(st *state.State, task *state.Task, providedDeviceCtx snapstate.De
 
 	devMgr := deviceMgr(st)
 	return &modelDeviceContext{groundDeviceContext{
-		model:         modelAs,
-		operatingMode: devMgr.OperatingMode(),
+		model:      modelAs,
+		systemMode: devMgr.SystemMode(),
 	}}, nil
 }
 
 type groundDeviceContext struct {
-	model         *asserts.Model
-	operatingMode string
+	model      *asserts.Model
+	systemMode string
 }
 
 func (dc *groundDeviceContext) Model() *asserts.Model {
@@ -75,8 +75,8 @@ func (dc *groundDeviceContext) ForRemodeling() bool {
 	return false
 }
 
-func (dc *groundDeviceContext) OperatingMode() string {
-	return dc.operatingMode
+func (dc *groundDeviceContext) SystemMode() string {
+	return dc.systemMode
 }
 
 func (dc groundDeviceContext) Classic() bool {
@@ -92,7 +92,7 @@ func (dc groundDeviceContext) Base() string {
 }
 
 func (dc groundDeviceContext) RunMode() bool {
-	return dc.operatingMode == "run"
+	return dc.systemMode == "run"
 }
 
 // HasModeenv is true if the grade is set
