@@ -158,7 +158,8 @@ func generateMountsModeInstall(recoverySystem string) error {
 		return err
 	}
 	if !isMounted {
-		// TODO:UC20: is there a better way?
+		// this relies on the-tool taking our stdout and piping it directly to
+		// systemd-mount
 		fmt.Fprintf(stdout, "--type=tmpfs tmpfs /run/mnt/ubuntu-data\n")
 		return nil
 	}
