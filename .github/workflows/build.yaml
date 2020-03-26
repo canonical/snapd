@@ -35,7 +35,9 @@ jobs:
     # This dominates the duration of the test. Can we get a smaller set that is
     # enough to build embedded C parts?
     - name: Get C dependencies
-      run: sudo apt-get build-dep -y ./src/github.com/snapcore/snapd
+      run: |
+          sudo apt-get update
+          sudo apt-get build-dep -y ./src/github.com/snapcore/snapd
     - name: Get Go dependencies
       run: |
           cd ${{ github.workspace }}/src/github.com/snapcore/snapd
