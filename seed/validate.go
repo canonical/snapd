@@ -80,7 +80,7 @@ func ValidateFromYaml(seedYamlFile string) error {
 	return nil
 }
 
-var validSeedSystemLabel = regexp.MustCompile("^[a-zA-Z0-9][a-zA-Z0-9-]+$")
+var validSeedSystemLabel = regexp.MustCompile("^[a-zA-Z0-9](?:-?[a-zA-Z0-9])+$")
 
 // validateSeedSystemLabel checks whether the string is a valid UC20 seed system
 // label.

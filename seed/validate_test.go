@@ -265,6 +265,7 @@ snaps:
 
 func (s *validateSuite) TestValidateSeedSystemLabel(c *C) {
 	valid := []string{
+		"ab",
 		"20191119",
 		"foobar",
 		"MYSYSTEM",
@@ -280,10 +281,13 @@ func (s *validateSuite) TestValidateSeedSystemLabel(c *C) {
 
 	invalid := []string{
 		"",
+		"a", // too short
 		"/bin",
 		"../../bin/bar",
 		":invalid:",
 		"日本語",
+		"-invalid",
+		"invalid-",
 	}
 	for _, label := range invalid {
 		c.Logf("trying invalid label: %q", label)
