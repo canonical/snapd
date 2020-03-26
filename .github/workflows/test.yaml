@@ -76,10 +76,15 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
+    - name: Install spread
+      run: |
+          cd /tmp
+          curl -s -O https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz
+          tar xzvf spread-amd64.tar.gz
     - name: Run spread tests
       env:
           SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
-      run: spread -v google-unstable:${{ matrix.system }}:tests/...
+      run: /tmp/spread -v google-unstable:${{ matrix.system }}:tests/...
     - name: Discard spread workers
       run: |
         shopt -s nullglob;
