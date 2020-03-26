@@ -20,23 +20,34 @@ jobs:
         # NOTE: checkout the code in a fixed location, even for forks, as this
         # is relevant for go's import system.
         path: ./src/github.com/snapcore/snapd
+    - name: Cache Debian dependencies
+      id: cache-deb-downloads
+      uses: actions/cache@v1
+      with:
+        path: /var/cache/apt
+        key: var-cache-apt-{{ hashFiles('**/debian/control') }}
+    - name: Download Debian dependencies
+      if: steps.cache-deb-downloads.outputs.cache-hit != 'true'
+      run: |
+          sudo apt clean
+          sudo apt update
+          sudo apt build-dep -d -y ${{ github.workspace }}/src/github.com/snapcore/snapd
+    # Work around caching files owned by root https://github.com/actions/cache/issues/133
+    - name: Make /var/cache/apt owned by current user
+      run: sudo chown -R $(id -u) /var/cache/apt
+    - name: Install Debian dependencies
+      run: sudo apt build-dep -y ${{ github.workspace }}/src/github.com/snapcore/snapd
     - name: Set up go 1.9
       uses: actions/setup-go@v1
       with:
         go-version: 1.9
     - name: Install govendor
       run: go get -u github.com/kardianos/govendor
-    # This dominates the duration of the test. Can we get a smaller set that is
-    # enough to build embedded C parts?
-    - name: Get C dependencies
-      run: |
-          sudo apt-get update
-          sudo apt-get build-dep -y ./src/github.com/snapcore/snapd
     - name: Get Go dependencies
       run: |
           cd ${{ github.workspace }}/src/github.com/snapcore/snapd
           ${{ github.workspace }}/bin/govendor sync
-    - name: Cache go's .cache directory (used by govendor)
+    - name: Cache Go dependencies
       id: cache-go-govendor
       uses: actions/cache@v1
       with:
