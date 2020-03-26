@@ -138,13 +138,50 @@ func generateMountsModeInstall(recoverySystem string) error {
 			return fmt.Errorf("cannot load metadata and verify essential bootstrap snaps %v: %v", whichTypes, err)
 		}
 
-		// TODO:UC20: do we need more cross checks here?
 		for _, essentialSnap := range essSnaps {
 			switch essentialSnap.EssentialType {
 			case snap.TypeBase:
 				fmt.Fprintf(stdout, "%s %s\n", essentialSnap.Path, filepath.Join(boot.InitramfsRunMntDir, "base"))
 			case snap.TypeKernel:
-				// TODO:UC20: we need to cross-check the kernel path with snapd_recovery_kernel used by grub
+				essentialSnapInfo := essentialSnap.PlaceInfo()
+				errString := "cannot verify kernel snap %q from seed %q: %v"
+				// cross-check that the kernel snap from the seed matches the
+				// snapd_recovery_kernel path from the bootloader
+				blOpts := &bootloader.Options{
+					Recovery: true,
+				}
+				recoverySystemBlDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", recoverySystem)
+				bl, err := bootloader.Find(recoverySystemBlDir, blOpts)
+				if err != nil {
+					return fmt.Errorf(errString, essentialSnapInfo.Filename(), recoverySystem, err)
+				}
+
+				m, err := bl.GetBootVars("snapd_recovery_kernel")
+				if err != nil {
+					return fmt.Errorf(errString, essentialSnapInfo.Filename(), recoverySystem, err)
+				}
+
+				if m["snapd_recovery_kernel"] == "" {
+					return fmt.Errorf(errString, essentialSnapInfo.Filename(), recoverySystem, "snapd_recovery_kernel unset")
+				}
+
+				// snapd_recovery_kernel will be something like
+				// "/snaps/kernel_1.snap" - a file path relative from the seed
+				// directory
+				snapdRecoveryKernel := filepath.Join(
+					boot.InitramfsUbuntuSeedDir,
+					m["snapd_recovery_kernel"],
+				)
+
+				if snapdRecoveryKernel != essentialSnap.Path {
+					recoveryKernel := filepath.Base(m["snapd_recovery_kernel"])
+					return fmt.Errorf(
+						errString,
+						essentialSnapInfo.Filename(), recoverySystem,
+						fmt.Errorf("does not match expected snapd_recovery_kernel %q", recoveryKernel),
+					)
+				}
+
 				fmt.Fprintf(stdout, "%s %s\n", essentialSnap.Path, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
 			case snap.TypeSnapd:
 				fmt.Fprintf(stdout, "%s %s\n", essentialSnap.Path, filepath.Join(boot.InitramfsRunMntDir, "snapd"))

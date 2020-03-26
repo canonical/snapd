@@ -157,6 +157,53 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep2(c *C) {
 	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install snapd_recovery_system="+s.sysLabel)
 
+	// mock a bootloader for the recovery system
+	bloader := boottest.MockUC20RunBootenv(bootloadertest.Mock("mock", filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", s.sysLabel)))
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	err := bloader.SetBootVars(map[string]string{
+		"snapd_recovery_kernel": "/snaps/pc-kernel_1.snap",
+	})
+	c.Assert(err, IsNil)
+
+	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
+		n++
+		switch n {
+		case 1:
+			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
+			return true, nil
+		case 2:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
+			return false, nil
+		case 3:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
+			return false, nil
+		case 4:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "snapd"))
+			return false, nil
+		case 5:
+			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
+			return false, nil
+		}
+		return false, fmt.Errorf("unexpected number of calls: %v", n)
+	})
+	defer restore()
+
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 5)
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/snaps/snapd_1.snap %[2]s/snapd
+%[1]s/snaps/pc-kernel_1.snap %[2]s/kernel
+%[1]s/snaps/core20_1.snap %[2]s/base
+--type=tmpfs tmpfs /run/mnt/ubuntu-data
+`, s.seedDir, boot.InitramfsRunMntDir))
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep2FailsMissingBootloader(c *C) {
+	n := 0
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install snapd_recovery_system="+s.sysLabel)
+
 	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
 		n++
 		switch n {
@@ -181,12 +228,92 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep2(c *C) {
 	defer restore()
 
 	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
-	c.Assert(err, IsNil)
-	c.Assert(n, Equals, 5)
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot verify kernel snap \"pc-kernel_1.snap\" from seed %q: cannot determine bootloader", s.sysLabel))
+	c.Assert(n, Equals, 4)
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/snaps/snapd_1.snap %[2]s/snapd
-%[1]s/snaps/pc-kernel_1.snap %[2]s/kernel
-%[1]s/snaps/core20_1.snap %[2]s/base
---type=tmpfs tmpfs /run/mnt/ubuntu-data
+`, s.seedDir, boot.InitramfsRunMntDir))
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep2FailsMissingBootenv(c *C) {
+	n := 0
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install snapd_recovery_system="+s.sysLabel)
+
+	// mock a bootloader for the recovery system
+	bloader := boottest.MockUC20RunBootenv(bootloadertest.Mock("mock", filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", s.sysLabel)))
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
+		n++
+		switch n {
+		case 1:
+			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
+			return true, nil
+		case 2:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
+			return false, nil
+		case 3:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
+			return false, nil
+		case 4:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "snapd"))
+			return false, nil
+		case 5:
+			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
+			return false, nil
+		}
+		return false, fmt.Errorf("unexpected number of calls: %v", n)
+	})
+	defer restore()
+
+	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot verify kernel snap \"pc-kernel_1.snap\" from seed %q: snapd_recovery_kernel unset", s.sysLabel))
+	c.Assert(n, Equals, 4)
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/snaps/snapd_1.snap %[2]s/snapd
+`, s.seedDir, boot.InitramfsRunMntDir))
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep2FailsInvalidBootenv(c *C) {
+	n := 0
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install snapd_recovery_system="+s.sysLabel)
+
+	// mock a bootloader for the recovery system
+	bloader := boottest.MockUC20RunBootenv(bootloadertest.Mock("mock", filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", s.sysLabel)))
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	err := bloader.SetBootVars(map[string]string{
+		"snapd_recovery_kernel": "/snaps/pc-kernel_5.snap",
+	})
+	c.Assert(err, IsNil)
+
+	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
+		n++
+		switch n {
+		case 1:
+			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
+			return true, nil
+		case 2:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
+			return false, nil
+		case 3:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
+			return false, nil
+		case 4:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "snapd"))
+			return false, nil
+		case 5:
+			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
+			return false, nil
+		}
+		return false, fmt.Errorf("unexpected number of calls: %v", n)
+	})
+	defer restore()
+
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot verify kernel snap \"pc-kernel_1.snap\" from seed %q: does not match expected snapd_recovery_kernel \"pc-kernel_5.snap\"", s.sysLabel))
+	c.Assert(n, Equals, 4)
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/snaps/snapd_1.snap %[2]s/snapd
 `, s.seedDir, boot.InitramfsRunMntDir))
 }
 
