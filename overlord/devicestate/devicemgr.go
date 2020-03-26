@@ -810,6 +810,8 @@ func (m *DeviceManager) Systems() ([]*System, error) {
 	return systems, nil
 }
 
+var ErrUnsupportedAction = errors.New("unsupported action")
+
 // RequestSystemAction request provided system to be run in a given mode. A
 // system reboot will be requested when the request can be successfully carried
 // out.
@@ -831,11 +833,10 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 		}
 	}
 	if sysAction == nil {
-		return fmt.Errorf("cannot request unsupported mode %q for system %q",
-			action.Mode, systemLabel)
+		return ErrUnsupportedAction
 	}
 
-	// TODO:UC20 request action
+	// TODO:UC20 update boot environment and schedule a reboot
 	return nil
 }
 

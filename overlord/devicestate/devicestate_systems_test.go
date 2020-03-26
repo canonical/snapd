@@ -257,7 +257,7 @@ func (s *deviceMgrSystemsSuite) TestRequestModeNotFound(c *C) {
 
 func (s *deviceMgrSystemsSuite) TestRequestModeBadMode(c *C) {
 	err := s.mgr.RequestSystemAction("20191119", devicestate.SystemAction{Mode: "unknown-mode"})
-	c.Assert(err, ErrorMatches, `cannot request unsupported mode "unknown-mode" for system "20191119"`)
+	c.Assert(err, Equals, devicestate.ErrUnsupportedAction)
 }
 
 func (s *deviceMgrSystemsSuite) TestRequestModeBroken(c *C) {
