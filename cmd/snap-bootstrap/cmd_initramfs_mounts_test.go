@@ -593,7 +593,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeKernelSnapUpgradeHappy(
 			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
 			return true, nil
 		case 3:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsUbuntuDataDir))
+			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
 			return true, nil
 		case 4:
 			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
@@ -656,7 +656,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUntrustedKernelSnap(c *
 			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
 			return true, nil
 		case 3:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsUbuntuDataDir))
+			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
 			return true, nil
 		case 4:
 			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
@@ -709,7 +709,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUntrustedTryKernelSnapF
 			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
 			return true, nil
 		case 3:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsUbuntuDataDir))
+			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
 			return true, nil
 		case 4:
 			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
