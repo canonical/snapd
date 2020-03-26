@@ -203,7 +203,7 @@ func checkModelSnap(snap map[string]interface{}, grade ModelGrade) (*ModelSnap, 
 	_, ok := snap["id"]
 	if ok {
 		var err error
-		snapID, err = checkStringMatchesWhat(snap, "id", what, validSnapID)
+		snapID, err = checkStringMatchesWhat(snap, "id", what, naming.ValidSnapID)
 		if err != nil {
 			return nil, err
 		}
@@ -661,6 +661,11 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 			// the assumption is that base names are very stable
 			// essentially fixed
 			modSnaps.base = baseSnap
+			snapID := naming.WellKnownSnapID(modSnaps.base.Name)
+			if snapID == "" && grade != ModelDangerous {
+				return nil, fmt.Errorf(`cannot specify not well-known base %q without a corresponding "snaps" header entry`, modSnaps.base.Name)
+			}
+			modSnaps.base.SnapID = snapID
 			modSnaps.base.Modes = essentialSnapModes
 			modSnaps.base.DefaultChannel = "latest/stable"
 		}
