@@ -66,10 +66,7 @@ func makeSnapFilesOnEarlyBootUbuntuData(c *C, comment string, snaps ...snap.Plac
 }
 
 func (s *initramfsSuite) TestInitramfsRunModeChooseSnapsToMountHappyKernelMany(c *C) {
-
-	// mock a bootloader
-	blOpts := &bootloader.Options{NoSlashBoot: true}
-
+	// make some snap infos we will use in the tests
 	kernel1, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
 	c.Assert(err, IsNil)
 
@@ -446,12 +443,7 @@ func (s *initramfsSuite) TestInitramfsRunModeChooseSnapsToMountHappyKernelMany(c
 		m, err := boot.ReadModeenv(boot.InitramfsWritableDir)
 		c.Assert(err, IsNil)
 
-		mounts, err := boot.InitramfsRunModeChooseSnapsToMount(
-			t.typs,
-			boot.InitramfsUbuntuBootDir,
-			blOpts,
-			m,
-		)
+		mounts, err := boot.InitramfsRunModeChooseSnapsToMount(t.typs, m)
 		if t.errPattern != "" {
 			c.Assert(err, ErrorMatches, t.errPattern, Commentf(t.comment))
 		} else {

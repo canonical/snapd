@@ -29,7 +29,6 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/boot"
-	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/seed"
@@ -225,8 +224,8 @@ func generateMountsModeRun() error {
 		return err
 	}
 
-	// 2. check if base is mounted
-	// 3. check if kernel is mounted
+	// 2.2 check if base is mounted
+	// 2.3 check if kernel is mounted
 	var whichTypes []snap.Type
 	for _, typ := range []snap.Type{snap.TypeBase, snap.TypeKernel} {
 		dir := snapTypeToMountDir[typ]
@@ -239,12 +238,14 @@ func generateMountsModeRun() error {
 		}
 	}
 
-	blOpts := &bootloader.Options{NoSlashBoot: true}
-	mounts, err := boot.InitramfsRunModeChooseSnapsToMount(whichTypes, boot.InitramfsUbuntuBootDir, blOpts, modeEnv)
+	// 3. choose and mount base and kernel snaps (this includes updating modeenv
+	//    if needed to try the base snap)
+	mounts, err := boot.InitramfsRunModeChooseSnapsToMount(whichTypes, modeEnv)
 	if err != nil {
 		return err
 	}
 
+	// make sure this is a deterministic order
 	for _, typ := range []snap.Type{snap.TypeBase, snap.TypeKernel} {
 		if sn, ok := mounts[typ]; ok {
 			dir := snapTypeToMountDir[typ]

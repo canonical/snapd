@@ -30,8 +30,6 @@ import (
 // for the specified snap types.
 func InitramfsRunModeChooseSnapsToMount(
 	typs []snap.Type,
-	blDir string,
-	blOpts *bootloader.Options,
 	modeenv *Modeenv,
 ) (map[snap.Type]snap.PlaceInfo, error) {
 	var sn snap.PlaceInfo
@@ -49,6 +47,8 @@ func InitramfsRunModeChooseSnapsToMount(
 				return nil, err
 			}
 		case snap.TypeKernel:
+			blOpts := &bootloader.Options{NoSlashBoot: true}
+			blDir := InitramfsUbuntuBootDir
 			bs := &bootState20Kernel{
 				blDir:  blDir,
 				blOpts: blOpts,
