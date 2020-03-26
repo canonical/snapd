@@ -72,7 +72,7 @@ func updateEtcEnvironmentConfig(path string, config map[string]string) error {
 	return nil
 }
 
-func handleProxyConfiguration(tr config.Conf) error {
+func handleProxyConfiguration(tr config.ConfGetter) error {
 	config := map[string]string{}
 	// normal proxy settings
 	for _, key := range []string{"http", "https", "ftp"} {

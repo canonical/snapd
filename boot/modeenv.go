@@ -115,11 +115,6 @@ func readModeenvImpl(rootdir string) (*Modeenv, error) {
 	}, nil
 }
 
-// Unset returns true if no modeenv file was read (yet)
-func (m *Modeenv) Unset() bool {
-	return !m.read
-}
-
 // Write outputs the modeenv to the file where it was read, only valid on
 // modeenv that has been read.
 func (m *Modeenv) Write() error {

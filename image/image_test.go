@@ -594,7 +594,7 @@ func (s *imageSuite) TestSetupSeed(c *C) {
 		})
 		// sanity
 		if name == "core" {
-			c.Check(essSnaps[i].SideInfo.SnapID, Equals, "coreidididididididididididididid")
+			c.Check(essSnaps[i].SideInfo.SnapID, Equals, s.AssertedSnapID("core"))
 		}
 	}
 	c.Check(runSnaps[0], DeepEquals, &seed.Snap{
@@ -893,7 +893,7 @@ func (s *imageSuite) TestSetupSeedWithBase(c *C) {
 			case "core18_18.snap":
 				info = &snap.Info{
 					SideInfo: snap.SideInfo{
-						SnapID:   "core18ididididididididididididid",
+						SnapID:   s.AssertedSnapID("core18"),
 						RealName: "core18",
 						Revision: snap.R("18"),
 					},
@@ -1054,7 +1054,7 @@ func (s *imageSuite) TestSetupSeedWithBaseLegacySnap(c *C) {
 			case "core18_18.snap":
 				info = &snap.Info{
 					SideInfo: snap.SideInfo{
-						SnapID:   "core18ididididididididididididid",
+						SnapID:   s.AssertedSnapID("core18"),
 						RealName: "core18",
 						Revision: snap.R("18"),
 					},

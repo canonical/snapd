@@ -25,12 +25,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 )
 
-func DisableCloudInit() error {
-	ubuntuDataCloud := filepath.Join(dirs.RunMnt, "ubuntu-data/system-data/etc/cloud/")
+func DisableCloudInit(targetdir string) error {
+	ubuntuDataCloud := filepath.Join(targetdir, "etc/cloud/")
 	if err := os.MkdirAll(ubuntuDataCloud, 0755); err != nil {
 		return fmt.Errorf("cannot make cloud config dir: %v", err)
 	}
@@ -41,7 +40,7 @@ func DisableCloudInit() error {
 	return nil
 }
 
-func installCloudInitCfg(src string) error {
+func installCloudInitCfg(src, targetdir string) error {
 	ccl, err := filepath.Glob(filepath.Join(src, "*.cfg"))
 	if err != nil {
 		return err
@@ -50,7 +49,7 @@ func installCloudInitCfg(src string) error {
 		return nil
 	}
 
-	ubuntuDataCloudCfgDir := filepath.Join(dirs.RunMnt, "ubuntu-data/system-data/etc/cloud/cloud.cfg.d/")
+	ubuntuDataCloudCfgDir := filepath.Join(targetdir, "etc/cloud/cloud.cfg.d/")
 	if err := os.MkdirAll(ubuntuDataCloudCfgDir, 0755); err != nil {
 		return fmt.Errorf("cannot make cloud config dir: %v", err)
 	}
@@ -68,11 +67,15 @@ func installCloudInitCfg(src string) error {
 //            - allow cloud.cfg.d (with whitelisted keys) for non
 //               grade dangerous systems
 func configureCloudInit(opts *Options) (err error) {
+	if opts.TargetRootDir == "" {
+		return fmt.Errorf("unable to configure cloud-init, missing target dir")
+	}
+
 	switch opts.CloudInitSrcDir {
 	case "":
-		err = DisableCloudInit()
+		err = DisableCloudInit(opts.TargetRootDir)
 	default:
-		err = installCloudInitCfg(opts.CloudInitSrcDir)
+		err = installCloudInitCfg(opts.CloudInitSrcDir, opts.TargetRootDir)
 	}
 	return err
 }

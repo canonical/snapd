@@ -25,7 +25,6 @@ import (
 
 	"gopkg.in/tomb.v2"
 
-	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -107,9 +106,12 @@ func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	if deviceCtx.HasModeenv() && deviceCtx.RunMode() {
-		modeEnv, err := boot.ReadModeenv("")
+		modeEnv, err := m.readMaybeModeenv()
 		if err != nil {
-			return fmt.Errorf("cannot read modeenv: %v", err)
+			return err
+		}
+		if modeEnv == nil {
+			return fmt.Errorf("missing modeenv, cannot proceed")
 		}
 		// unset recovery_system because that is only needed during install mode
 		modeEnv.RecoverySystem = ""

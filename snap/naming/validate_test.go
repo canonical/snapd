@@ -20,6 +20,7 @@
 package naming_test
 
 import (
+	"fmt"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/snap/naming"
@@ -280,5 +281,20 @@ func (s *ValidateSuite) TestValidateSlotPlugInterfaceName(c *C) {
 		c.Assert(err, ErrorMatches, `invalid plug name: ".*"`)
 		err = naming.ValidateInterface(name)
 		c.Assert(err, ErrorMatches, `invalid interface name: ".*"`)
+	}
+}
+
+func (s *ValidateSuite) TestValidateSnapID(c *C) {
+	c.Check(naming.ValidateSnapID("buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ"), IsNil)
+
+	invalid := []string{
+		"",
+		"buPKUD3TKqC",
+		"buPKUD3TKqCOgLE-jHx5kSiCpIs5cMuQ",
+		"buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQxxx",
+	}
+	for _, id := range invalid {
+		err := naming.ValidateSnapID(id)
+		c.Check(err, ErrorMatches, fmt.Sprintf("invalid snap-id: %q", id))
 	}
 }

@@ -20,6 +20,7 @@
 package devicestate_test
 
 import (
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -57,6 +58,48 @@ type deviceMgrSerialSuite struct {
 }
 
 var _ = Suite(&deviceMgrSerialSuite{})
+
+func (s *deviceMgrSerialSuite) signSerial(c *C, bhv *devicestatetest.DeviceServiceBehavior, headers map[string]interface{}, body []byte) (serial asserts.Assertion, ancillary []asserts.Assertion, err error) {
+	brandID := headers["brand-id"].(string)
+	model := headers["model"].(string)
+	keyID := ""
+
+	var signing assertstest.SignerDB = s.storeSigning
+
+	switch model {
+	case "pc", "pc2":
+		fallthrough
+	case "classic-alt-store":
+		c.Check(brandID, Equals, "canonical")
+	case "my-model-accept-generic":
+		c.Check(brandID, Equals, "my-brand")
+		headers["authority-id"] = "generic"
+		keyID = s.storeSigning.GenericKey.PublicKeyID()
+	case "generic-classic":
+		c.Check(brandID, Equals, "generic")
+		headers["authority-id"] = "generic"
+		keyID = s.storeSigning.GenericKey.PublicKeyID()
+	case "rereg-model":
+		headers["authority-id"] = "rereg-brand"
+		signing = s.brands.Signing("rereg-brand")
+	default:
+		return nil, nil, fmt.Errorf("unknown model: %s", model)
+	}
+	a, err := signing.Sign(asserts.SerialType, headers, body, keyID)
+	return a, s.ancillary, err
+}
+
+func (s *deviceMgrSerialSuite) mockServer(c *C, reqID string, bhv *devicestatetest.DeviceServiceBehavior) *httptest.Server {
+	if bhv == nil {
+		bhv = &devicestatetest.DeviceServiceBehavior{}
+	}
+
+	bhv.ReqID = reqID
+	bhv.SignSerial = s.signSerial
+	bhv.ExpectedCapabilities = "serial-stream"
+
+	return devicestatetest.MockDeviceService(c, bhv)
+}
 
 func (s *deviceMgrSerialSuite) findBecomeOperationalChange(skipIDs ...string) *state.Change {
 	for _, chg := range s.state.Changes() {
@@ -376,8 +419,7 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyClassicFallback(c 
 	c.Check(ok, Equals, true)
 }
 
-func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationAltBrandHappy(c *C) {
-	c.Skip("not yet supported")
+func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationMyBrandAcceptGenericHappy(c *C) {
 	r1 := devicestate.MockKeyLength(testKeyLength)
 	defer r1()
 
@@ -391,16 +433,18 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationAltBrandHappy(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.makeModelAssertionInState(c, "my-brand", "my-model", map[string]interface{}{
+	s.makeModelAssertionInState(c, "my-brand", "my-model-accept-generic", map[string]interface{}{
 		"classic": "true",
 		"store":   "alt-store",
+		// accept generic as well to sign serials for this
+		"serial-authority": []interface{}{"generic"},
 	})
 
 	devicestatetest.MockGadget(c, s.state, "gadget", snap.R(2), nil)
 
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand: "my-brand",
-		Model: "my-model",
+		Model: "my-model-accept-generic",
 	})
 
 	// avoid full seeding
@@ -420,22 +464,65 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationAltBrandHappy(c *C) {
 	device, err := devicestatetest.Device(s.state)
 	c.Assert(err, IsNil)
 	c.Check(device.Brand, Equals, "my-brand")
-	c.Check(device.Model, Equals, "my-model")
+	c.Check(device.Model, Equals, "my-model-accept-generic")
 	c.Check(device.Serial, Equals, "9999")
 
 	a, err := s.db.Find(asserts.SerialType, map[string]string{
 		"brand-id": "my-brand",
-		"model":    "my-model",
+		"model":    "my-model-accept-generic",
 		"serial":   "9999",
 	})
 	c.Assert(err, IsNil)
 	serial := a.(*asserts.Serial)
+	c.Check(serial.AuthorityID(), Equals, "generic")
 
 	privKey, err := devicestate.KeypairManager(s.mgr).Get(serial.DeviceKey().ID())
 	c.Assert(err, IsNil)
 	c.Check(privKey, NotNil)
 
 	c.Check(device.KeyID, Equals, privKey.PublicKey().ID())
+}
+
+func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationMyBrandMismatchedAuthority(c *C) {
+	r1 := devicestate.MockKeyLength(testKeyLength)
+	defer r1()
+
+	mockServer := s.mockServer(c, "REQID-1", nil)
+	defer mockServer.Close()
+
+	r2 := devicestate.MockBaseStoreURL(mockServer.URL)
+	defer r2()
+
+	// setup state as will be done by first-boot
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.makeModelAssertionInState(c, "my-brand", "my-model-accept-generic", map[string]interface{}{
+		"classic": "true",
+		"store":   "alt-store",
+		// no serial-authority set
+	})
+
+	devicestatetest.MockGadget(c, s.state, "gadget", snap.R(2), nil)
+
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "my-brand",
+		Model: "my-model-accept-generic",
+	})
+
+	// avoid full seeding
+	s.seeding()
+
+	// runs the whole device registration process
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	becomeOperational := s.findBecomeOperationalChange()
+	c.Assert(becomeOperational, NotNil)
+
+	c.Check(becomeOperational.Status().Ready(), Equals, true)
+	c.Check(becomeOperational.Err(), ErrorMatches, `(?s).*obtained serial assertion is signed by authority "generic" different from brand "my-brand" without model assertion with serial-authority set to to allow for them.*`)
 }
 
 func (s *deviceMgrSerialSuite) TestDoRequestSerialIdempotentAfterAddSerial(c *C) {
@@ -1504,9 +1591,15 @@ func (s *deviceMgrSerialSuite) TestInitialRegistrationContext(c *C) {
 		Model: "pc",
 	})
 
+	c.Check(regCtx.Model(), DeepEquals, model)
+
 	c.Check(regCtx.GadgetForSerialRequestConfig(), Equals, "pc-gadget")
 	c.Check(regCtx.SerialRequestExtraHeaders(), HasLen, 0)
-	c.Check(regCtx.SerialRequestAncillaryAssertions(), HasLen, 0)
+	ancillary := regCtx.SerialRequestAncillaryAssertions()
+	c.Check(ancillary, HasLen, 1)
+	reqMod, ok := ancillary[0].(*asserts.Model)
+	c.Assert(ok, Equals, true)
+	c.Check(reqMod, DeepEquals, model)
 
 }
 
