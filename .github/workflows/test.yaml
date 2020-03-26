@@ -84,7 +84,7 @@ jobs:
     - name: Run spread tests
       env:
           SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
-      run: /tmp/spread -v google-unstable:${{ matrix.system }}:tests/...
+      run: /tmp/spread -abend -v google-unstable:${{ matrix.system }}:tests/...
     - name: Discard spread workers
       run: |
         shopt -s nullglob;
