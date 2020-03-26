@@ -153,7 +153,7 @@ func ensureLayoutCompatibility(gadgetLayout *gadget.LaidOutVolume, diskLayout *p
 
 		// Don't test system-data size, it could have been expanded
 		if gv.Role == gadget.SystemData {
-			return check
+			return check && dv.Size >= gv.Size
 		} else {
 			return check && dv.Size == gv.Size
 		}
