@@ -20,6 +20,7 @@
 package seed_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -1799,4 +1800,19 @@ func (s *seed20Suite) TestLoadMetaCore20LocalAssertedSnaps(c *C) {
 			Channel:  "latest/stable",
 		},
 	})
+}
+
+func (s *seed20Suite) TestOpenInvalidLabel(c *C) {
+	invalid := []string{
+		// empty string not included, as it's not a UC20 seed
+		"/bin",
+		"../../bin/bar",
+		":invalid:",
+		"日本語",
+	}
+	for _, label := range invalid {
+		seed20, err := seed.Open(s.SeedDir, label)
+		c.Assert(err, ErrorMatches, fmt.Sprintf("invalid seed system label: %q", label))
+		c.Assert(seed20, IsNil)
+	}
 }
