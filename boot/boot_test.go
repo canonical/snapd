@@ -21,7 +21,6 @@ package boot_test
 
 import (
 	"errors"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -422,9 +421,8 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameKernelSnap(c *C) {
 		Base:           "core20_1.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap"},
 	}
-	err := m.Write("")
+	err := m.WriteTo("")
 	c.Assert(err, IsNil)
-	defer os.Remove(dirs.SnapModeenvFileUnder(dirs.GlobalRootDir))
 
 	// set the current kernel
 	kernel, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
@@ -475,9 +473,8 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewKernelSnap(c *C) {
 		Base:           "core20_1.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap"},
 	}
-	err := m.Write("")
+	err := m.WriteTo("")
 	c.Assert(err, IsNil)
-	defer os.Remove(dirs.SnapModeenvFileUnder(dirs.GlobalRootDir))
 
 	// set the current kernel
 	kernel, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
@@ -575,7 +572,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BaseStatusTryingNoBaseSnapClean
 		Base:           "core20_1.snap",
 		BaseStatus:     boot.TryingStatus,
 	}
-	err := m.Write("")
+	err := m.WriteTo("")
 	c.Assert(err, IsNil)
 
 	coreDev := boottest.MockUC20Device("core20")
@@ -615,7 +612,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameBaseSnap(c *C) {
 	m := &boot.Modeenv{
 		Base: "core20_1.snap",
 	}
-	err = m.Write("")
+	err = m.WriteTo("")
 	c.Assert(err, IsNil)
 
 	// get the boot base participant from our base snap
@@ -650,7 +647,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewBaseSnap(c *C) {
 	m := &boot.Modeenv{
 		Base: "core20_1.snap",
 	}
-	err = m.Write("")
+	err = m.WriteTo("")
 	c.Assert(err, IsNil)
 
 	// get the boot base participant from our new base snap
@@ -708,7 +705,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20AllSnap(c *C) {
 		BaseStatus:     boot.TryingStatus,
 		CurrentKernels: []string{"pc-kernel_1.snap", "pc-kernel_2.snap"},
 	}
-	err := m.Write("")
+	err := m.WriteTo("")
 	c.Assert(err, IsNil)
 
 	// set the current kernel
@@ -813,7 +810,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20KernelUpdate(c *C) {
 		Base:           "core20_1.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap", "pc-kernel_2.snap"},
 	}
-	err := m.Write("")
+	err := m.WriteTo("")
 	c.Assert(err, IsNil)
 
 	coreDev := boottest.MockUC20Device("some-snap")
@@ -874,7 +871,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BaseUpdate(c *C) {
 		TryBase:    "core20_2.snap",
 		BaseStatus: boot.TryingStatus,
 	}
-	err := m.Write("")
+	err := m.WriteTo("")
 	c.Assert(err, IsNil)
 
 	coreDev := boottest.MockUC20Device("some-snap")
@@ -1158,9 +1155,8 @@ func (s *bootenv20Suite) TestHappyCoreParticipant20SetNextKernelSnapRebootBefore
 		Base:           "core20_1.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap"},
 	}
-	err := m.Write("")
+	err := m.WriteTo("")
 	c.Assert(err, IsNil)
-	defer os.Remove(dirs.SnapModeenvFileUnder(dirs.GlobalRootDir))
 
 	// set the current kernel
 	kernel, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
@@ -1240,9 +1236,8 @@ func (s *bootenv20Suite) TestHappyCoreParticipant20SetNextKernelSnapRebootBefore
 		Base:           "core20_1.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap"},
 	}
-	err := m.Write("")
+	err := m.WriteTo("")
 	c.Assert(err, IsNil)
-	defer os.Remove(dirs.SnapModeenvFileUnder(dirs.GlobalRootDir))
 
 	// set the current kernel
 	kernel, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
