@@ -52,7 +52,7 @@ func (p *portalLauncher) desktopPortal(bus *dbus.Conn) (dbus.BusObject, error) {
 		// assumption is false.
 		if dbusErr.Name == "org.freedesktop.DBus.Error.ServiceUnknown" || dbusErr.Name == "org.freedesktop.systemd1.Masked" {
 			err = nil
-			startResult = 2
+			startResult = 2 // DBUS_START_REPLY_ALREADY_RUNNING
 		}
 	}
 	if err != nil {
