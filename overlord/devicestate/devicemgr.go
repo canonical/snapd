@@ -759,31 +759,43 @@ type System struct {
 	Actions []SystemAction
 }
 
-func systemSeedModelAndBrand(label string) (model *asserts.Model, brand *asserts.Account, err error) {
+func systemFromSeed(label string) (*System, error) {
 	s, err := seed.Open(dirs.SnapSeedDir, label)
 	if err != nil {
-		return nil, nil, fmt.Errorf("cannot open: %v", err)
+		return nil, fmt.Errorf("cannot open: %v", err)
 	}
 	if err := s.LoadAssertions(nil, nil); err != nil {
-		return nil, nil, fmt.Errorf("cannot load assertions: %v", err)
+		return nil, fmt.Errorf("cannot load assertions: %v", err)
 	}
 	// get the model
-	model, err = s.Model()
+	model, err := s.Model()
 	if err != nil {
-		return nil, nil, fmt.Errorf("cannot obtain model: %v", err)
+		return nil, fmt.Errorf("cannot obtain model: %v", err)
 	}
-	brand, err = s.Brand()
+	brand, err := s.Brand()
 	if err != nil {
-		return nil, nil, fmt.Errorf("cannot obtain brand: %v", err)
+		return nil, fmt.Errorf("cannot obtain brand: %v", err)
 	}
-	return model, brand, nil
+	// TODO:UC20 build the actions list
+	defaultActions := []SystemAction{
+		{Title: "reinstall", Mode: "install"},
+	}
+
+	system := System{
+		Current: false,
+		Label:   label,
+		Model:   model,
+		Brand:   brand,
+		Actions: defaultActions,
+	}
+	return &system, nil
 }
 
 var ErrNoSystems = errors.New("no systems seeds")
 
 // Systems list the available recovery/seeding systems. Returns the list of
 // systems, ErrNoSystems when no systems seeds were found or other error.
-func (m *DeviceManager) Systems() ([]System, error) {
+func (m *DeviceManager) Systems() ([]*System, error) {
 	systemLabels, err := filepath.Glob(filepath.Join(dirs.SnapSeedDir, "systems", "*"))
 	if err != nil && !os.IsNotExist(err) {
 		return nil, fmt.Errorf("cannot list available systems: %v", err)
@@ -793,27 +805,52 @@ func (m *DeviceManager) Systems() ([]System, error) {
 		return nil, ErrNoSystems
 	}
 
-	var systems []System
+	var systems []*System
 	for _, fpLabel := range systemLabels {
 		label := filepath.Base(fpLabel)
-		model, brand, err := systemSeedModelAndBrand(label)
+		system, err := systemFromSeed(label)
 		if err != nil {
 			// TODO:UC20 add a Broken field to the seed system like
 			// we do for snap.Info
 			logger.Noticef("cannot load system %q seed: %v", label, err)
 			continue
 		}
-		systems = append(systems, System{
-			// TODO:UC20 check if current installation was done with that
-			// system
-			Current: false,
-			Label:   label,
-			Model:   model,
-			Brand:   brand,
-			// TODO:UC20: fill actions
-		})
+		// TODO:UC20 check if current installation was done with that
+		// system
+		system.Current = false
+		systems = append(systems, system)
 	}
 	return systems, nil
+}
+
+var ErrUnsupportedAction = errors.New("unsupported action")
+
+// RequestSystemAction request provided system to be run in a given mode. A
+// system reboot will be requested when the request can be successfully carried
+// out.
+func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAction) error {
+	systemSeedDir := filepath.Join(dirs.SnapSeedDir, "systems", systemLabel)
+	if _, err := os.Stat(systemSeedDir); err != nil {
+		return err
+	}
+	system, err := systemFromSeed(systemLabel)
+	if err != nil {
+		return fmt.Errorf("cannot load seed system: %v", err)
+	}
+
+	var sysAction *SystemAction
+	for _, act := range system.Actions {
+		if action.Mode == act.Mode {
+			sysAction = &act
+			break
+		}
+	}
+	if sysAction == nil {
+		return ErrUnsupportedAction
+	}
+
+	// TODO:UC20 update boot environment and schedule a reboot
+	return nil
 }
 
 // implement storecontext.Backend
