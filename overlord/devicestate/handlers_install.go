@@ -113,7 +113,14 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return fmt.Errorf("cannot get boot base info: %v", err)
 	}
-	recoverySystemDir := filepath.Join("/systems", m.modeEnv.RecoverySystem)
+	modeEnv, err := m.readMaybeModeenv()
+	if err != nil {
+		return err
+	}
+	if modeEnv == nil {
+		return fmt.Errorf("missing modeenv, cannot proceed")
+	}
+	recoverySystemDir := filepath.Join("/systems", modeEnv.RecoverySystem)
 	bootWith := &boot.BootableSet{
 		Base:              bootBaseInfo,
 		BasePath:          bootBaseInfo.MountFile(),
