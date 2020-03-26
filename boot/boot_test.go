@@ -1353,3 +1353,52 @@ func runBootloaderLogic(c *C, ebl bootloader.ExtractedRunKernelImageBootloader) 
 	}
 	return kern, nil
 }
+
+type bootenvSystem20Suite struct {
+	baseBootenvSuite
+
+	bootloader *bootloadertest.MockBootloader
+
+	dev boot.Device
+}
+
+var _ = Suite(&bootenvSystem20Suite{})
+
+func (s *bootenvSystem20Suite) SetUpTest(c *C) {
+	s.baseBootenvSuite.SetUpTest(c)
+
+	s.bootloader = bootloadertest.Mock("mock", c.MkDir())
+	s.forceBootloader(s.bootloader)
+
+	s.dev = boottest.MockUC20Device("some-snap")
+}
+
+func (s *bootenvSystem20Suite) TestSystemInModeHappy(c *C) {
+	err := boot.RecoverySystemInMode(s.dev, "1234", "install")
+	c.Assert(err, IsNil)
+	c.Check(s.bootloader.BootVars, DeepEquals, map[string]string{
+		"snapd_recovery_system": "1234",
+		"snapd_recovery_mode":   "install",
+	})
+}
+
+func (s *bootenvSystem20Suite) TestSystemInModeSetErr(c *C) {
+	s.bootloader.SetErr = errors.New("no can do")
+	err := boot.RecoverySystemInMode(s.dev, "1234", "install")
+	c.Assert(err, ErrorMatches, `cannot set up the boot environment: no can do`)
+}
+
+func (s *bootenvSystem20Suite) TestSystemInModeNonUC20(c *C) {
+	non20Dev := boottest.MockDevice("some-snap")
+	err := boot.RecoverySystemInMode(non20Dev, "1234", "install")
+	c.Assert(err, Equals, boot.ErrSystemBootModeUnsupported)
+}
+
+func (s *bootenvSystem20Suite) TestSystemInModeErrClumsy(c *C) {
+	err := boot.RecoverySystemInMode(s.dev, "", "install")
+	c.Assert(err, ErrorMatches, ".* internal error: system or mode is unset")
+	err = boot.RecoverySystemInMode(s.dev, "1234", "")
+	c.Assert(err, ErrorMatches, ".* internal error: system or mode is unset")
+	err = boot.RecoverySystemInMode(nil, "1234", "install")
+	c.Assert(err, ErrorMatches, "internal error: device is unset")
+}
