@@ -106,7 +106,7 @@ func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	if deviceCtx.HasModeenv() && deviceCtx.RunMode() {
-		modeEnv, err := m.readMaybeModeenv()
+		modeEnv, err := m.maybeReadModeenv()
 		if err != nil {
 			return err
 		}
