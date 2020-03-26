@@ -51,7 +51,7 @@ import (
 // DeviceManager is responsible for managing the device identity and device
 // policies.
 type DeviceManager struct {
-	modeEnv boot.Modeenv
+	systemMode string
 
 	state      *state.State
 	keypairMgr asserts.KeypairManager
@@ -91,12 +91,12 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		preseed:    snapdenv.Preseeding(),
 	}
 
-	modeEnv, err := boot.ReadModeenv("")
-	if err != nil && !os.IsNotExist(err) {
+	modeEnv, err := m.readMaybeModeenv()
+	if err != nil {
 		return nil, err
 	}
 	if modeEnv != nil {
-		m.modeEnv = *modeEnv
+		m.systemMode = modeEnv.Mode
 	}
 
 	s.Lock()
@@ -130,6 +130,14 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	runner.AddBlocked(gadgetUpdateBlocked)
 
 	return m, nil
+}
+
+func (m *DeviceManager) readMaybeModeenv() (*boot.Modeenv, error) {
+	modeEnv, err := boot.ReadModeenv("")
+	if err != nil && !os.IsNotExist(err) {
+		return nil, fmt.Errorf("cannot read modeenv: %v", err)
+	}
+	return modeEnv, nil
 }
 
 type deviceMgrKey struct{}
@@ -267,10 +275,10 @@ func setClassicFallbackModel(st *state.State, device *auth.DeviceState) error {
 }
 
 func (m *DeviceManager) OperatingMode() string {
-	if m.modeEnv.Mode == "" {
+	if m.systemMode == "" {
 		return "run"
 	}
-	return m.modeEnv.Mode
+	return m.systemMode
 }
 
 func (m *DeviceManager) ensureOperational() error {
@@ -442,14 +450,19 @@ func (m *DeviceManager) ensureSeeded() error {
 	}
 
 	var opts *populateStateFromSeedOptions
-	if !m.modeEnv.Unset() {
-		opts = &populateStateFromSeedOptions{
-			Label: m.modeEnv.RecoverySystem,
-			Mode:  m.modeEnv.Mode,
-		}
-	}
 	if m.preseed {
 		opts = &populateStateFromSeedOptions{Preseed: true}
+	} else {
+		modeEnv, err := m.readMaybeModeenv()
+		if err != nil {
+			return err
+		}
+		if modeEnv != nil {
+			opts = &populateStateFromSeedOptions{
+				Mode:  m.systemMode,
+				Label: modeEnv.RecoverySystem,
+			}
+		}
 	}
 
 	var tsAll []*state.TaskSet
