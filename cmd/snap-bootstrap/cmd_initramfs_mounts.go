@@ -246,6 +246,10 @@ func generateMountsModeRun() error {
 	}
 
 	// make sure this is a deterministic order
+	// TODO:UC20: with grade > dangerous, verify the kernel snap hash against
+	//            what we booted using the tpm log, this may need to be passed
+	//            to the function above to make decisions there, or perhaps this
+	//            code actually belongs in the bootloader implementation itself
 	for _, typ := range []snap.Type{snap.TypeBase, snap.TypeKernel} {
 		if sn, ok := mounts[typ]; ok {
 			dir := snapTypeToMountDir[typ]
