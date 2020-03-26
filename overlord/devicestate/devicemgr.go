@@ -91,7 +91,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		preseed:    snapdenv.Preseeding(),
 	}
 
-	modeEnv, err := m.readMaybeModeenv()
+	modeEnv, err := m.maybeReadModeenv()
 	if err != nil {
 		return nil, err
 	}
@@ -132,7 +132,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	return m, nil
 }
 
-func (m *DeviceManager) readMaybeModeenv() (*boot.Modeenv, error) {
+func (m *DeviceManager) maybeReadModeenv() (*boot.Modeenv, error) {
 	modeEnv, err := boot.ReadModeenv("")
 	if err != nil && !os.IsNotExist(err) {
 		return nil, fmt.Errorf("cannot read modeenv: %v", err)
@@ -453,7 +453,7 @@ func (m *DeviceManager) ensureSeeded() error {
 	if m.preseed {
 		opts = &populateStateFromSeedOptions{Preseed: true}
 	} else {
-		modeEnv, err := m.readMaybeModeenv()
+		modeEnv, err := m.maybeReadModeenv()
 		if err != nil {
 			return err
 		}
