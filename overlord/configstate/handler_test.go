@@ -285,7 +285,7 @@ func (s *configcoreHandlerSuite) SetUpTest(c *C) {
 	hookMgr, err := hookstate.Manager(s.state, s.o.TaskRunner())
 	c.Assert(err, IsNil)
 	s.o.AddManager(hookMgr)
-	r := configstate.MockConfigcoreExportExperimentalFlags(func(_ config.Conf) error {
+	r := configstate.MockConfigcoreExportExperimentalFlags(func(_ config.ConfGetter) error {
 		return nil
 	})
 	s.AddCleanup(r)

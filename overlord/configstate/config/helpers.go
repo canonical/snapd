@@ -274,16 +274,23 @@ func DeleteSnapConfig(st *state.State, snapName string) error {
 // Conf is an interface describing both state and transaction.
 type Conf interface {
 	Get(snapName, key string, result interface{}) error
+	GetMaybe(snapName, key string, result interface{}) error
 	Set(snapName, key string, value interface{}) error
 	Changes() []string
 	State() *state.State
 }
 
+// ConfGetter is an interface for reading of config values.
+type ConfGetter interface {
+	Get(snapName, key string, result interface{}) error
+	GetMaybe(snapName, key string, result interface{}) error
+}
+
 // GetFeatureFlag returns the value of a given feature flag.
-func GetFeatureFlag(tr Conf, feature features.SnapdFeature) (bool, error) {
+func GetFeatureFlag(tr ConfGetter, feature features.SnapdFeature) (bool, error) {
 	var isEnabled interface{}
 	snapName, confName := feature.ConfigOption()
-	if err := tr.Get(snapName, confName, &isEnabled); err != nil && !IsNoOption(err) {
+	if err := tr.GetMaybe(snapName, confName, &isEnabled); err != nil {
 		return false, err
 	}
 	switch isEnabled {
