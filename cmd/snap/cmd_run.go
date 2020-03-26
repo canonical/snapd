@@ -1117,9 +1117,16 @@ var createTransientScope = func(securityTag string) error {
 				// Starting a scope with a name that already exists is an
 				// error. Normally this should never happen.
 				return fmt.Errorf("cannot create transient scope: scope %q clashed: %s", unitName, err)
+			case "org.freedesktop.DBus.Error.Spawn.ChildExited":
+				// The system does not have a DBus session bus.
+				// Consume the error and continue with extra checks below.
+				logger.Debugf("session bus is not available, consider installing dbus-user-session")
+				err = nil
 			}
 		}
-		return fmt.Errorf("cannot create transient scope: %s", err)
+		if err != nil {
+			return fmt.Errorf("cannot create transient scope: %s", err)
+		}
 	}
 	return nil
 }
