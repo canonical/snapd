@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snapdenv"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -180,6 +181,8 @@ func (cfg *serialRequestConfig) setURLs(proxyURL, svcURL *url.URL) {
 type registrationContext interface {
 	Device() (*auth.DeviceState, error)
 
+	Model() *asserts.Model
+
 	GadgetForSerialRequestConfig() string
 	SerialRequestExtraHeaders() map[string]interface{}
 	SerialRequestAncillaryAssertions() []asserts.Assertion
@@ -194,7 +197,7 @@ type registrationContext interface {
 type initialRegistrationContext struct {
 	deviceMgr *DeviceManager
 
-	gadget string
+	model *asserts.Model
 }
 
 func (rc *initialRegistrationContext) ForRemodeling() bool {
@@ -205,8 +208,12 @@ func (rc *initialRegistrationContext) Device() (*auth.DeviceState, error) {
 	return rc.deviceMgr.device()
 }
 
+func (rc *initialRegistrationContext) Model() *asserts.Model {
+	return rc.model
+}
+
 func (rc *initialRegistrationContext) GadgetForSerialRequestConfig() string {
-	return rc.gadget
+	return rc.model.Gadget()
 }
 
 func (rc *initialRegistrationContext) SerialRequestExtraHeaders() map[string]interface{} {
@@ -214,7 +221,7 @@ func (rc *initialRegistrationContext) SerialRequestExtraHeaders() map[string]int
 }
 
 func (rc *initialRegistrationContext) SerialRequestAncillaryAssertions() []asserts.Assertion {
-	return nil
+	return []asserts.Assertion{rc.model}
 }
 
 func (rc *initialRegistrationContext) FinishRegistration(serial *asserts.Serial) error {
@@ -252,7 +259,7 @@ func (m *DeviceManager) registrationCtx(t *state.Task) (registrationContext, err
 
 	return &initialRegistrationContext{
 		deviceMgr: m,
-		gadget:    model.Gadget(),
+		model:     model,
 	}, nil
 }
 
@@ -536,6 +543,14 @@ func getSerial(t *state.Task, regCtx registrationContext, privKey asserts.Privat
 		return nil, nil, fmt.Errorf("obtained serial assertion does not match provided device identity information (brand, model, key id): %s / %s / %s != %s / %s / %s", serial.BrandID(), serial.Model(), serial.DeviceKey().ID(), device.Brand, device.Model, keyID)
 	}
 
+	// cross check authority if different from brand-id
+	if serial.BrandID() != serial.AuthorityID() {
+		model := regCtx.Model()
+		if !strutil.ListContains(model.SerialAuthority(), serial.AuthorityID()) {
+			return nil, nil, fmt.Errorf("obtained serial assertion is signed by authority %q different from brand %q without model assertion with serial-authority set to to allow for them", serial.AuthorityID(), serial.BrandID())
+		}
+	}
+
 	if ancillaryBatch == nil {
 		serialSup.Serial = string(asserts.Encode(serial))
 		t.Set("serial-setup", serialSup)
@@ -697,6 +712,12 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 
 	}
 
+	// TODO: the accept* helpers put the serial directly in the
+	// system assertion database, that will not work
+	// for 3rd-party signed serials in the case of a remodel
+	// because the model is added only later. If needed, the best way
+	// to fix this requires rethinking how remodel and new assertions
+	// interact
 	if ancillaryBatch == nil {
 		// the device service returned only the serial
 		if err := acceptSerialOnly(t, serial, perfTimings); err != nil {

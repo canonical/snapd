@@ -713,7 +713,7 @@ func genericEarlyBootChooseSnap(bs bootState, expectedTryStatus, typeString stri
 
 	// check that the current snap actually exists
 	file := curSnap.Filename()
-	snapPath := filepath.Join(dirs.SnapBlobDirUnder(filepath.Join(dirs.EarlyBootUbuntuData, "system-data")), file)
+	snapPath := filepath.Join(dirs.SnapBlobDirUnder(InitramfsWritableDir), file)
 	if !osutil.FileExists(snapPath) {
 		// somehow the kernel snap on ubuntu-boot doesn't exist in ubuntu-data
 		// this could happen if we have some bug where ubuntu-boot isn't
@@ -733,7 +733,7 @@ func genericEarlyBootChooseSnap(bs bootState, expectedTryStatus, typeString stri
 			if trySnap != nil {
 				// check that the TryBase exists in ubuntu-data, if it doesn't
 				// we will fall back to using the normal snap
-				trySnapPath := filepath.Join(dirs.SnapBlobDirUnder(filepath.Join(dirs.EarlyBootUbuntuData, "system-data")), trySnap.Filename())
+				trySnapPath := filepath.Join(dirs.SnapBlobDirUnder(InitramfsWritableDir), trySnap.Filename())
 				if osutil.FileExists(trySnapPath) {
 					return trySnap, curSnap, nil
 				}

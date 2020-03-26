@@ -47,7 +47,7 @@ func (s *initramfsSuite) SetUpTest(c *C) {
 
 func makeSnapFilesOnEarlyBootUbuntuData(c *C, comment string, snaps ...snap.PlaceInfo) (restore func()) {
 	// also make sure the snaps also exist on ubuntu-data
-	snapDir := dirs.SnapBlobDirUnder(filepath.Join(dirs.EarlyBootUbuntuData, "system-data"))
+	snapDir := dirs.SnapBlobDirUnder(boot.InitramfsWritableDir)
 	err := os.MkdirAll(snapDir, 0755)
 	c.Assert(err, IsNil)
 	paths := make([]string, 0, len(snaps))
@@ -84,8 +84,6 @@ func (s *initramfsSuite) TestInitramfsRunModeChooseSnapsToMountHappyKernelMany(c
 
 	baseT := snap.TypeBase
 	kernelT := snap.TypeKernel
-
-	systemData := filepath.Join(dirs.EarlyBootUbuntuData, "system-data")
 
 	tt := []struct {
 		m           *boot.Modeenv
@@ -438,19 +436,19 @@ func (s *initramfsSuite) TestInitramfsRunModeChooseSnapsToMountHappyKernelMany(c
 
 		// write the modeenv to somewhere so we can read it and pass that to
 		// InitramfsRunModeChooseSnapsToMount
-		err := t.m.WriteTo(systemData)
+		err := t.m.WriteTo(boot.InitramfsWritableDir)
 		// remove it because we are writing many modeenvs in this single test
 		cleanups = append(cleanups, func() {
-			c.Assert(os.Remove(dirs.SnapModeenvFileUnder(systemData)), IsNil, Commentf(t.comment))
+			c.Assert(os.Remove(dirs.SnapModeenvFileUnder(boot.InitramfsWritableDir)), IsNil, Commentf(t.comment))
 		})
 		c.Assert(err, IsNil)
 
-		m, err := boot.ReadModeenv(systemData)
+		m, err := boot.ReadModeenv(boot.InitramfsWritableDir)
 		c.Assert(err, IsNil)
 
 		mounts, err := boot.InitramfsRunModeChooseSnapsToMount(
 			t.typs,
-			dirs.EarlyBootUbuntuBoot,
+			boot.InitramfsUbuntuBootDir,
 			blOpts,
 			m,
 		)
@@ -463,7 +461,7 @@ func (s *initramfsSuite) TestInitramfsRunModeChooseSnapsToMountHappyKernelMany(c
 
 		// check that the modeenv changed as expected
 		if t.expectedM != nil {
-			newM, err := boot.ReadModeenv(systemData)
+			newM, err := boot.ReadModeenv(boot.InitramfsWritableDir)
 			c.Assert(err, IsNil, Commentf(t.comment))
 			c.Assert(newM.Base, Equals, t.expectedM.Base, Commentf(t.comment))
 			c.Assert(newM.BaseStatus, Equals, t.expectedM.BaseStatus, Commentf(t.comment))

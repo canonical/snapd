@@ -124,6 +124,9 @@ bugs		: very yes
 	s.AddCleanup(errtracker.MockProcSelfExe(mockSelfExe))
 	s.AddCleanup(errtracker.MockProcSelfCwd(mockSelfCwd))
 	s.AddCleanup(testutil.MockCommand(c, "journalctl", "echo "+someJournalEntry).Restore)
+
+	mockCmd := testutil.MockCommand(c, "systemctl", "echo enabled; exit 0")
+	s.AddCleanup(mockCmd.Restore)
 }
 
 func (s *ErrtrackerTestSuite) TestReport(c *C) {

@@ -759,7 +759,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedConfigureHappy(c *C) {
 defaults:
     foodidididididididididididididid:
        foo-cfg: foo.
-    coreidididididididididididididid:
+    99T7MUlRhtI3U0QFgl5mXXESAiSwt776:
        core-cfg: core_cfg_defl
     pckernelidididididididididididid:
        pc-kernel-cfg: pc-kernel_cfg_defl
