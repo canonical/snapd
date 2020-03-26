@@ -125,7 +125,9 @@ func postSystemsAction(c *Command, r *http.Request, user *auth.UserState) Respon
 		if os.IsNotExist(err) {
 			return NotFound("requested seed system %q does not exist", systemLabel)
 		}
-		// distinguish bad action?
+		if err == devicestate.ErrUnsupportedAction {
+			return BadRequest("requested action is not supported by system %q", systemLabel)
+		}
 		return InternalError(err.Error())
 	}
 	return SyncResponse(nil, nil)

@@ -173,25 +173,53 @@ func (s *apiSuite) TestGetSystemsNone(c *check.C) {
 	c.Assert(sys, check.DeepEquals, &systemsResponse{})
 }
 
-func (s *apiSuite) TestSystemActionRequestInvalid(c *check.C) {
-	type table struct{ label, body, error string }
+func (s *apiSuite) TestSystemActionRequestErrors(c *check.C) {
+	d := s.daemonWithOverlordMock(c)
+	hookMgr, err := hookstate.Manager(d.overlord.State(), d.overlord.TaskRunner())
+	c.Assert(err, check.IsNil)
+	mgr, err := devicestate.Manager(d.overlord.State(), hookMgr, d.overlord.TaskRunner(), nil)
+	c.Assert(err, check.IsNil)
+	d.overlord.AddManager(mgr)
+
+	restore := s.mockSystemSeeds(c)
+	defer restore()
+
+	type table struct {
+		label, body, error string
+		status             int
+	}
 	tests := []table{
 		{
-			label: "foobar",
-			body:  `"bogus"`,
-			error: "cannot decode request body into system action:.*",
+			label:  "foobar",
+			body:   `"bogus"`,
+			error:  "cannot decode request body into system action:.*",
+			status: 400,
 		}, {
-			label: "",
-			body:  `{"action":"do","mode":"install"}`,
-			error: "system action requires the system label to be provided",
+			label:  "",
+			body:   `{"action":"do","mode":"install"}`,
+			error:  "system action requires the system label to be provided",
+			status: 400,
 		}, {
-			label: "foobar",
-			body:  `{"action":"do"}`,
-			error: "system action requires the mode to be provided",
+			label:  "foobar",
+			body:   `{"action":"do"}`,
+			error:  "system action requires the mode to be provided",
+			status: 400,
 		}, {
-			label: "foobar",
-			body:  `{"action":"nope","mode":"install"}`,
-			error: `unsupported action "nope"`,
+			label:  "foobar",
+			body:   `{"action":"nope","mode":"install"}`,
+			error:  `unsupported action "nope"`,
+			status: 400,
+		}, {
+			label:  "foobar",
+			body:   `{"action":"do","mode":"install"}`,
+			error:  `requested seed system "foobar" does not exist`,
+			status: 404,
+		}, {
+			// valid system label but incorrect action
+			label:  "20191119",
+			body:   `{"action":"do","mode":"foobar"}`,
+			error:  `requested action is not supported by system "20191119"`,
+			status: 400,
 		},
 	}
 	for _, tc := range tests {
@@ -201,28 +229,9 @@ func (s *apiSuite) TestSystemActionRequestInvalid(c *check.C) {
 		c.Assert(err, check.IsNil)
 		rsp := postSystemsAction(systemsActionCmd, req, nil).(*resp)
 		c.Assert(rsp.Type, check.Equals, ResponseTypeError)
-		c.Check(rsp.Status, check.Equals, 400)
+		c.Check(rsp.Status, check.Equals, tc.status)
 		c.Check(rsp.ErrorResult().Message, check.Matches, tc.error)
 	}
-}
-
-func (s *apiSuite) TestSystemActionRequestNoSystem(c *check.C) {
-	d := s.daemonWithOverlordMock(c)
-	hookMgr, err := hookstate.Manager(d.overlord.State(), d.overlord.TaskRunner())
-	c.Assert(err, check.IsNil)
-	mgr, err := devicestate.Manager(d.overlord.State(), hookMgr, d.overlord.TaskRunner(), nil)
-	c.Assert(err, check.IsNil)
-	d.overlord.AddManager(mgr)
-
-	s.vars = map[string]string{"label": "20191119"}
-	body := `{"action":"do","mode":"install"}`
-	req, err := http.NewRequest("POST", "/v2/systems/20191119", strings.NewReader(body))
-	c.Assert(err, check.IsNil)
-	rsp := postSystemsAction(systemsActionCmd, req, nil).(*resp)
-
-	c.Assert(rsp.Type, check.Equals, ResponseTypeError)
-	c.Check(rsp.Status, check.Equals, 404)
-	c.Check(rsp.ErrorResult().Message, check.Equals, `requested seed system "20191119" does not exist`)
 }
 
 func (s *apiSuite) TestSystemActionRequestHappy(c *check.C) {
