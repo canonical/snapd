@@ -211,7 +211,7 @@ func (t *Transaction) GetPristine(snapName, key string, result interface{}) erro
 	return getFromConfig(snapName, subkeys, 0, t.pristine[snapName], result)
 }
 
-// GetPristine unmarshals the cached pristine (before applying any
+// GetPristineMaybe unmarshals the cached pristine (before applying any
 // changes) value of the provided snap's configuration key into
 // result.
 //
