@@ -9,10 +9,6 @@ systems:
     # fails regularly with "curl: Recv failure: connection reset by peer"
     - -ubuntu-core-16-*
 
-environment:
-    TEST_UID: $(id -u test)
-    USER_RUNTIME_DIR: /run/user/${TEST_UID}
-
 prepare: |
     # Ensure that snapd.session-agent.socket is enabled.  This may not
     # be the case on distributions where presets have been used to
@@ -22,10 +18,13 @@ prepare: |
         systemctl --user --global enable snapd.session-agent.socket
         touch agent-was-enabled
     fi
-    mkdir -p "$USER_RUNTIME_DIR"
-    chmod u=rwX,go= "$USER_RUNTIME_DIR"
-    chown test:test "$USER_RUNTIME_DIR"
-    systemctl start "user@${TEST_UID}.service"
+
+    #shellcheck source=tests/lib/user.sh
+    . "$TESTSLIB/user.sh"
+    start_user_session
+    # Wait for sockets.target to finish starting so the session agent
+    # socket is available.
+    as_user systemctl --user start sockets.target
 
     # ensure curl is available (needed for e.g. core18)
     if ! command -v curl; then
@@ -34,20 +33,25 @@ prepare: |
     fi
 
 restore: |
-    if snap list test-snapd-curl; then
-        snap remove --purge test-snapd-curl
-    fi
-    systemctl stop "user@${TEST_UID}.service"
-    rm -rf "${USER_RUNTIME_DIR:?}"/* "${USER_RUNTIME_DIR:?}"/.[!.]*
+    snap remove test-snapd-curl
+
+    #shellcheck source=tests/lib/user.sh
+    . "$TESTSLIB/user.sh"
+    stop_user_session
+    purge_user_session_data
+
     if [ -f agent-was-enabled ]; then
         systemctl --user --global disable snapd.session-agent.socket
         rm agent-was-enabled
     fi
 
 execute: |
+    #shellcheck source=tests/lib/user.sh
+    . "$TESTSLIB/user.sh"
     systemctl_user() {
-        su -l -c "XDG_RUNTIME_DIR=\"${USER_RUNTIME_DIR}\" systemctl --user $*" test
+        as_user systemctl --user "$@"
     }
+
     echo "Initially snap session-agent is not running"
     if systemctl_user is-active snapd.session-agent.service; then
         exit 1

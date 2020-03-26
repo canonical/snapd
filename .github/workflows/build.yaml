@@ -1,0 +1,50 @@
+name: Quick Go unit tests
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+jobs:
+  # TODO: run static checks before we run unit tests
+  # TODO: run spread tests, in a matrix, after we run unit tests
+  go-unit-tests:
+    runs-on: ubuntu-latest
+    env:
+      GOPATH: ${{ github.workspace }}
+      GO111MODULE: off
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+      with:
+        # NOTE: checkout the code in a fixed location, even for forks, as this
+        # is relevant for go's import system.
+        path: ./src/github.com/snapcore/snapd
+    - name: Cache go's .cache directory (used by govendor)
+      id: cache-go-govendor
+      uses: actions/cache@v1
+      with:
+        path: ${{ github.workspace }}/.cache/govendor
+        key: go-govendor-{{ hashFiles('**/vendor.json') }}
+    - name: Set up go 1.9
+      uses: actions/setup-go@v1
+      with:
+        go-version: 1.9
+      id: go  # XXX: what is this for?
+    - name: Install govendor
+      run: go get -u github.com/kardianos/govendor
+    # This dominates the duration of the test. Can we get a smaller set that is
+    # enough to build embedded C parts?
+    - name: Get C dependencies
+      run: |
+          sudo apt-get update
+          sudo apt-get build-dep -y ./src/github.com/snapcore/snapd
+    - name: Get Go dependencies
+      run: |
+          cd ${{ github.workspace }}/src/github.com/snapcore/snapd
+          ${{ github.workspace }}/bin/govendor sync
+    - name: Build
+      run: go build github.com/snapcore/snapd/...
+    - name: Run Go unit tests
+      run: go test github.com/snapcore/snapd/...
+      # XXX: those are just Go unit tests, there are more tests missing that
+      # need to be ported from run-checks.

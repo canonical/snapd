@@ -36,3 +36,7 @@ func NewCoreKernel(s snap.PlaceInfo, d Device) *coreKernel {
 }
 
 type Trivial = trivial
+
+func (m *Modeenv) WasRead() bool {
+	return m.read
+}

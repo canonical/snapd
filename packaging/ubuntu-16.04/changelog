@@ -1,8 +1,13 @@
-snapd (2.44.1) UNRELEASED; urgency=medium
+snapd (2.44.1) xenial; urgency=medium
 
-  * placeholder changelog
+  * New upstream release, LP: #1864808
+    - randutil: switch back to setting up seed with lower entropy data
+    - interfaces/greengrass-support: fix typo
+    - packaging,tests: ensure debian-sid builds without vendor/
+    - travis.yml: run unit tests with go/master as well
+    - cmd/snap-update-ns: ignore EROFS from rmdir/unlink
 
- -- Michael Vogt <michael.vogt@ubuntu.com>  Sat, 21 Mar 2020 18:45:47 +0100
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Sat, 21 Mar 2020 18:32:12 +0100
 
 snapd (2.44) xenial; urgency=medium
 

@@ -123,8 +123,6 @@ var (
 	SysfsDir        string
 
 	FeaturesDir string
-
-	RunMnt string
 )
 
 const (
@@ -148,6 +146,8 @@ const (
 var (
 	// not exported because it does not honor the global rootdir
 	snappyDir = filepath.Join("var", "lib", "snapd")
+
+	callbacks = []func(string){}
 )
 
 func init() {
@@ -243,6 +243,13 @@ func FeaturesDirUnder(rootdir string) string {
 // rootdir.
 func SnapSystemdConfDirUnder(rootdir string) string {
 	return filepath.Join(rootdir, "/etc/systemd/system.conf.d")
+}
+
+// AddRootDirCallback registers a callback for whenever the global root
+// directory (set by SetRootDir) is changed to enable updates to variables in
+// other packages that depend on its location.
+func AddRootDirCallback(c func(string)) {
+	callbacks = append(callbacks, c)
 }
 
 // SetRootDir allows settings a new global root directory, this is useful
@@ -391,7 +398,11 @@ func SetRootDir(rootdir string) {
 
 	FeaturesDir = FeaturesDirUnder(rootdir)
 
-	RunMnt = filepath.Join(rootdir, "/run/mnt")
+	// call the callbacks last so that the callbacks can just reference the
+	// global vars if they want, instead of using the new rootdir directly
+	for _, c := range callbacks {
+		c(rootdir)
+	}
 }
 
 // what inside a (non-classic) snap is /usr/lib/snapd, outside can come from different places

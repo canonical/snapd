@@ -1,0 +1,27 @@
+name: Spread
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+jobs:
+  unstable:
+    runs-on: [self-hosted]
+    strategy:
+      fail-fast: false
+      matrix:
+        system:
+        - centos-8-64
+        - opensuse-15.1-64
+        - opensuse-tumbleweed-64
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+    - name: Run spread tests
+      run: spread -v google-unstable:${{ matrix.system }}:tests/...
+    - name: Discard spread workers
+      run: |
+        shopt -s nullglob;
+        for r in .spread-reuse.*.yaml; do
+          spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
+        done

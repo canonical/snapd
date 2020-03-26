@@ -20,6 +20,9 @@
 package ui_test
 
 import (
+	"fmt"
+	"os/exec"
+	"path/filepath"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -69,7 +72,15 @@ func (s *kdialogSuite) TestYesNoSimpleFooter(c *C) {
 }
 
 func (s *kdialogSuite) TestYesNoSimpleTimeout(c *C) {
-	mock := testutil.MockCommand(c, "kdialog", "sleep 30")
+	killSleeper := filepath.Join(c.MkDir(), "kill-sleeper")
+	script := fmt.Sprintf(`#!/bin/sh
+# store kill-script for the cleanup
+echo "kill $$" > %s
+exec sleep 30
+`, killSleeper)
+	defer func() { exec.Command("/bin/sh", killSleeper).Run() }()
+
+	mock := testutil.MockCommand(c, "kdialog", script)
 	defer mock.Restore()
 
 	z := &ui.KDialog{}
