@@ -61,6 +61,10 @@ func (s *Snap) ID() string {
 	return s.SideInfo.SnapID
 }
 
+func (s *Snap) Info() snap.PlaceInfo {
+	return &snap.Info{SideInfo: *s.SideInfo}
+}
+
 // Seed supports loading assertions and seed snaps' metadata.
 type Seed interface {
 	// LoadAssertions loads all assertions from the seed with
