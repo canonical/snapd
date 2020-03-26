@@ -65,7 +65,7 @@ jobs:
       run: go test github.com/snapcore/snapd/...
   spread:
     needs: unit-tests
-    runs-on: [self-hosted]
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -77,6 +77,8 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v2
     - name: Run spread tests
+      env:
+          SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
       run: spread -v google-unstable:${{ matrix.system }}:tests/...
     - name: Discard spread workers
       run: |
