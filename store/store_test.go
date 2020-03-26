@@ -3360,7 +3360,7 @@ func (s *storeTestSuite) TestFindV2ErrorList(c *C) {
 		"error-list": [
 			{
 				"code": "api-error",
-				"message": "api error occured"
+				"message": "api error occurred"
 			}
 		]
 	}`
@@ -3380,7 +3380,7 @@ func (s *storeTestSuite) TestFindV2ErrorList(c *C) {
 	}
 	sto := store.New(&cfg, nil)
 	_, err := sto.Find(s.ctx, &store.Search{Query: "x"}, nil)
-	c.Check(err, ErrorMatches, `api error occured`)
+	c.Check(err, ErrorMatches, `api error occurred`)
 }
 
 func (s *storeTestSuite) TestFindFailures(c *C) {
