@@ -43,16 +43,16 @@ jobs:
         go-version: 1.9
     - name: Install govendor
       run: go get -u github.com/kardianos/govendor
-    - name: Get Go dependencies
-      run: |
-          cd ${{ github.workspace }}/src/github.com/snapcore/snapd
-          ${{ github.workspace }}/bin/govendor sync
     - name: Cache Go dependencies
       id: cache-go-govendor
       uses: actions/cache@v1
       with:
         path: ${{ github.workspace }}/.cache/govendor
         key: go-govendor-{{ hashFiles('**/vendor.json') }}
+    - name: Get Go dependencies
+      run: |
+          cd ${{ github.workspace }}/src/github.com/snapcore/snapd
+          ${{ github.workspace }}/bin/govendor sync
     - name: Build C
       run: |
           cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/
