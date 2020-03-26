@@ -849,7 +849,21 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 		return ErrUnsupportedAction
 	}
 
-	// TODO:UC20 update boot environment and schedule a reboot
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	deviceCtx, err := DeviceCtx(m.state, nil, nil)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+
+	if err := boot.RecoverySystemInMode(deviceCtx, systemLabel, action.Mode); err != nil {
+		return fmt.Errorf("cannot boot into system %q in mode %q: %v",
+			systemLabel, action.Mode, err)
+	}
+
+	logger.Noticef("restarting into system %q for action %q", systemLabel, sysAction.Title)
+	m.state.RequestRestart(state.RestartSystem)
 	return nil
 }
 
