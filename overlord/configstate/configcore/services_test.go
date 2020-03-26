@@ -55,12 +55,12 @@ func (s *servicesSuite) TearDownTest(c *C) {
 }
 
 func (s *servicesSuite) TestConfigureServiceInvalidValue(c *C) {
-	err := configcore.SwitchDisableService("ssh.service", "xxx")
+	err := configcore.SwitchDisableService("ssh.service", "xxx", nil)
 	c.Check(err, ErrorMatches, `option "ssh.service" has invalid value "xxx"`)
 }
 
 func (s *servicesSuite) TestConfigureServiceNotDisabled(c *C) {
-	err := configcore.SwitchDisableService("sshd.service", "false")
+	err := configcore.SwitchDisableService("sshd.service", "false", nil)
 	c.Assert(err, IsNil)
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
 		{"--root", dirs.GlobalRootDir, "unmask", "sshd.service"},
@@ -70,7 +70,7 @@ func (s *servicesSuite) TestConfigureServiceNotDisabled(c *C) {
 }
 
 func (s *servicesSuite) TestConfigureServiceDisabled(c *C) {
-	err := configcore.SwitchDisableService("sshd.service", "true")
+	err := configcore.SwitchDisableService("sshd.service", "true", nil)
 	c.Assert(err, IsNil)
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
 		{"--root", dirs.GlobalRootDir, "disable", "sshd.service"},
@@ -183,4 +183,22 @@ func (s *servicesSuite) TestConfigureServiceUnsupportedService(c *C) {
 	// ensure nothing gets enabled/disabled when an unsupported
 	// service is set for disable
 	c.Check(s.systemctlArgs, IsNil)
+}
+
+func (s *servicesSuite) TestFilesystemOnlyApply(c *C) {
+	restorer := release.MockOnClassic(false)
+	defer restorer()
+
+	tmpDir := c.MkDir()
+	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "etc", "ssh"), 0755), IsNil)
+
+	conf := configcore.PlainCoreConfig(map[string]interface{}{
+		"service.ssh.disable":     "true",
+		"service.rsyslog.disable": "true",
+	})
+	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf), IsNil)
+	c.Check(s.systemctlArgs, DeepEquals, [][]string{
+		{"--root", tmpDir, "disable", "rsyslog.service"},
+		{"--root", tmpDir, "mask", "rsyslog.service"},
+	})
 }
