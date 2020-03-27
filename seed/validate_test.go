@@ -262,3 +262,36 @@ snaps:
 	c.Assert(err, ErrorMatches, `cannot validate seed:
 - cannot use snap /.*/snaps/some-snap-invalid-yaml_1.snap: invalid snap version: cannot be empty`)
 }
+
+func (s *validateSuite) TestValidateSeedSystemLabel(c *C) {
+	valid := []string{
+		"ab",
+		"20191119",
+		"foobar",
+		"MYSYSTEM",
+		"mySystem",
+		"my-system",
+		"brand-system-date-1234",
+	}
+	for _, label := range valid {
+		c.Logf("trying valid label: %q", label)
+		err := seed.ValidateUC20SeedSystemLabel(label)
+		c.Check(err, IsNil)
+	}
+
+	invalid := []string{
+		"",
+		"a", // too short
+		"/bin",
+		"../../bin/bar",
+		":invalid:",
+		"日本語",
+		"-invalid",
+		"invalid-",
+	}
+	for _, label := range invalid {
+		c.Logf("trying invalid label: %q", label)
+		err := seed.ValidateUC20SeedSystemLabel(label)
+		c.Check(err, ErrorMatches, fmt.Sprintf("invalid seed system label: %q", label))
+	}
+}

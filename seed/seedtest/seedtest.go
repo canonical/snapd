@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
 
@@ -54,6 +55,10 @@ func (ss *SeedSnaps) SetupAssertSigning(storeBrandID string) {
 }
 
 func (ss *SeedSnaps) AssertedSnapID(snapName string) string {
+	snapID := naming.WellKnownSnapID(snapName)
+	if snapID != "" {
+		return snapID
+	}
 	return snaptest.AssertedSnapID(snapName)
 }
 

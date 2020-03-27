@@ -119,7 +119,7 @@ func (s *deviceCtxSuite) TestDevicePastSeedingReady(c *C) {
 	deviceCtx, err := snapstate.DevicePastSeeding(s.st, nil)
 	c.Assert(err, IsNil)
 	c.Check(deviceCtx.Model().Model(), Equals, "baz-3000")
-	c.Check(deviceCtx.OperatingMode(), Equals, "run")
+	c.Check(deviceCtx.SystemMode(), Equals, "run")
 }
 
 func (s *deviceCtxSuite) TestDevicePastSeedingReadyInstallMode(c *C) {
@@ -135,7 +135,7 @@ func (s *deviceCtxSuite) TestDevicePastSeedingReadyInstallMode(c *C) {
 	deviceCtx, err := snapstate.DevicePastSeeding(s.st, nil)
 	c.Assert(err, IsNil)
 	c.Check(deviceCtx.Model().Model(), Equals, "baz-3000")
-	c.Check(deviceCtx.OperatingMode(), Equals, "install")
+	c.Check(deviceCtx.SystemMode(), Equals, "install")
 }
 
 func (s *deviceCtxSuite) TestDevicePastSeedingButRemodeling(c *C) {

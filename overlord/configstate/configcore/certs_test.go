@@ -49,20 +49,20 @@ func (s *certsSuite) TestConfigureCertsUnhappyName(c *C) {
 	err := configcore.Run(&mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
-			"certs.cert!": "xxx",
+			"certs.cert-illegal-!": "xxx",
 		},
 	})
-	c.Assert(err, ErrorMatches, `cannot set "core.certs.cert!": name must be alphanumerical`)
+	c.Assert(err, ErrorMatches, `cannot set "core.certs.cert-illegal-!": name must only contain word characters or a dash`)
 }
 
 func (s *certsSuite) TestConfigureCertsUnhappyContent(c *C) {
 	err := configcore.Run(&mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
-			"certs.cert1": "xxx",
+			"certs.cert-bad": "xxx",
 		},
 	})
-	c.Assert(err, ErrorMatches, `cannot decode pem certificate "cert1"`)
+	c.Assert(err, ErrorMatches, `cannot decode pem certificate "cert-bad"`)
 }
 
 var mockCert = `-----BEGIN CERTIFICATE-----

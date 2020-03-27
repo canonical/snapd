@@ -119,6 +119,9 @@ type EssentialMetaLoaderSeed interface {
 // label if not empty is used to identify a Core 20 recovery system seed.
 func Open(seedDir, label string) (Seed, error) {
 	if label != "" {
+		if err := validateUC20SeedSystemLabel(label); err != nil {
+			return nil, err
+		}
 		return &seed20{systemDir: filepath.Join(seedDir, "systems", label)}, nil
 	}
 	// TODO: consider if systems is present to open the Core 20
