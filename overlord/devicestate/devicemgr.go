@@ -91,7 +91,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		preseed:    snapdenv.Preseeding(),
 	}
 
-	modeEnv, err := m.readMaybeModeenv()
+	modeEnv, err := m.maybeReadModeenv()
 	if err != nil {
 		return nil, err
 	}
@@ -132,7 +132,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	return m, nil
 }
 
-func (m *DeviceManager) readMaybeModeenv() (*boot.Modeenv, error) {
+func (m *DeviceManager) maybeReadModeenv() (*boot.Modeenv, error) {
 	modeEnv, err := boot.ReadModeenv("")
 	if err != nil && !os.IsNotExist(err) {
 		return nil, fmt.Errorf("cannot read modeenv: %v", err)
@@ -274,7 +274,7 @@ func setClassicFallbackModel(st *state.State, device *auth.DeviceState) error {
 	return nil
 }
 
-func (m *DeviceManager) OperatingMode() string {
+func (m *DeviceManager) SystemMode() string {
 	if m.systemMode == "" {
 		return "run"
 	}
@@ -285,7 +285,7 @@ func (m *DeviceManager) ensureOperational() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	if m.OperatingMode() != "run" {
+	if m.SystemMode() != "run" {
 		// avoid doing registration in ephemeral mode
 		// note: this also stop auto-refreshes indirectly
 		return nil
@@ -453,7 +453,7 @@ func (m *DeviceManager) ensureSeeded() error {
 	if m.preseed {
 		opts = &populateStateFromSeedOptions{Preseed: true}
 	} else {
-		modeEnv, err := m.readMaybeModeenv()
+		modeEnv, err := m.maybeReadModeenv()
 		if err != nil {
 			return err
 		}
@@ -503,7 +503,7 @@ func (m *DeviceManager) ensureBootOk() error {
 	}
 
 	// boot-ok/update-boot-revision is only relevant in run-mode
-	if m.OperatingMode() != "run" {
+	if m.SystemMode() != "run" {
 		return nil
 	}
 
@@ -542,7 +542,7 @@ func (m *DeviceManager) ensureInstalled() error {
 		return nil
 	}
 
-	if m.OperatingMode() != "install" {
+	if m.SystemMode() != "install" {
 		return nil
 	}
 
