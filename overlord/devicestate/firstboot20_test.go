@@ -268,4 +268,11 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20Happy(c *C) {
 	c.Assert(actual, HasLen, 0)
 	actual, _ = bloader.GetRunKernelImageFunctionSnapCalls("EnableTryKernel")
 	c.Assert(actual, HasLen, 0)
+
+	var whatseeded []devicestate.SeededSystem
+	err = state.Get("seeded-systems", &whatseeded)
+	c.Assert(err, IsNil)
+	c.Assert(whatseeded, DeepEquals, []devicestate.SeededSystem{
+		{System: "20191018", Model: "my-model", BrandID: "my-brand"},
+	})
 }

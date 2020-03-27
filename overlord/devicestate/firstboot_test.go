@@ -602,6 +602,13 @@ func (s *firstBoot16Suite) TestPopulateFromSeedHappy(c *C) {
 	err = state.Get("seed-time", &seedTime)
 	c.Assert(err, IsNil)
 	c.Check(seedTime.IsZero(), Equals, false)
+
+	var whatseeded []devicestate.SeededSystem
+	err = state.Get("seeded-systems", &whatseeded)
+	c.Assert(err, IsNil)
+	c.Assert(whatseeded, DeepEquals, []devicestate.SeededSystem{
+		{System: "", Model: "my-model", BrandID: "my-brand"},
+	})
 }
 
 func (s *firstBoot16Suite) TestPopulateFromSeedMissingBootloader(c *C) {

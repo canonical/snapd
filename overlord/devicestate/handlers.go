@@ -91,6 +91,25 @@ func (m *DeviceManager) doMarkPreseeded(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
+type seededSystem struct {
+	// System carries the recovery system label that was used to seed the
+	// current system
+	System string `json:"system"`
+	Model  string `json:"model"`
+	// BrandID is the brand account ID
+	BrandID string `json:"brand-id"`
+}
+
+func (m *DeviceManager) recordSeededSystem(st *state.State, whatSeeded *seededSystem) error {
+	var seeded []seededSystem
+	if err := st.Get("seeded-systems", &seeded); err != nil && err != state.ErrNoState {
+		return err
+	}
+	seeded = append([]seededSystem{*whatSeeded}, seeded...)
+	st.Set("seeded-systems", seeded)
+	return nil
+}
+
 func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -121,6 +140,16 @@ func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
+	var whatSeeded *seededSystem
+	if err := t.Get("seed-system", &whatSeeded); err != nil && err != state.ErrNoState {
+		return err
+	}
+	if whatSeeded != nil {
+		// TODO:UC20 what about remodels?
+		if err := m.recordSeededSystem(st, whatSeeded); err != nil {
+			return fmt.Errorf("cannot record the seeded system: %v", err)
+		}
+	}
 	st.Set("seed-time", time.Now())
 	st.Set("seeded", true)
 	// make sure we setup a fallback model/consider the next phase

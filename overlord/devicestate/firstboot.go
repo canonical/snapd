@@ -117,9 +117,10 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 		return nil, err
 	}
 
+	var model *asserts.Model
 	// ack all initial assertions
 	timings.Run(tm, "import-assertions", "import assertions from seed", func(nested timings.Measurer) {
-		_, err = importAssertionsFromSeed(st, deviceSeed)
+		model, err = importAssertionsFromSeed(st, deviceSeed)
 	})
 	if err != nil && err != errNothingToDo {
 		return nil, err
@@ -280,6 +281,12 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 		endTs.AddTask(preseedDoneTask)
 		markSeeded.WaitFor(preseedDoneTask)
 	}
+	whatSeeds := &seededSystem{
+		System:  sysLabel,
+		Model:   model.Model(),
+		BrandID: model.BrandID(),
+	}
+	markSeeded.Set("seed-system", whatSeeds)
 
 	markSeeded.WaitAll(ts)
 	endTs.AddTask(markSeeded)
