@@ -28,13 +28,18 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func (s *apiSuite) mockSystemSeeds(c *check.C) (restore func()) {
@@ -235,15 +240,48 @@ func (s *apiSuite) TestSystemActionRequestErrors(c *check.C) {
 }
 
 func (s *apiSuite) TestSystemActionRequestHappy(c *check.C) {
-	d := s.daemonWithOverlordMock(c)
-	hookMgr, err := hookstate.Manager(d.overlord.State(), d.overlord.TaskRunner())
-	c.Assert(err, check.IsNil)
-	mgr, err := devicestate.Manager(d.overlord.State(), hookMgr, d.overlord.TaskRunner(), nil)
-	c.Assert(err, check.IsNil)
-	d.overlord.AddManager(mgr)
+	bt := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bt)
+	defer func() { bootloader.Force(nil) }()
+
+	cmd := testutil.MockCommand(c, "shutdown", "")
+	defer cmd.Restore()
+
+	d := s.daemon(c)
 
 	restore := s.mockSystemSeeds(c)
 	defer restore()
+
+	model := s.brands.Model("my-brand", "pc", map[string]interface{}{
+		"architecture": "amd64",
+		// UC20
+		"grade": "dangerous",
+		"base":  "core20",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              snaptest.AssertedSnapID("oc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              snaptest.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+		},
+	})
+
+	st := d.overlord.State()
+	st.Lock()
+	// devicemgr needs boot id to request a reboot
+	st.VerifyReboot("boot-id-0")
+	// device model
+	assertstatetest.AddMany(st, s.storeSigning.StoreAccountKey(""))
+	assertstatetest.AddMany(st, s.brands.AccountsAndKeys("my-brand")...)
+	s.mockModel(c, st, model)
+	st.Unlock()
 
 	s.vars = map[string]string{"label": "20191119"}
 	body := `{"action":"do","title":"reinstall","mode":"install"}`
@@ -251,6 +289,15 @@ func (s *apiSuite) TestSystemActionRequestHappy(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rsp := postSystemsAction(systemsActionCmd, req, nil).(*resp)
 	c.Check(rsp.Status, check.Equals, 200)
+
+	// daemon is not started, only check whether reboot was scheduled as expected
+
+	// reboot flag
+	c.Check(d.restartSystem, check.Equals, true)
+	// slow reboot schedule
+	c.Check(cmd.Calls(), check.DeepEquals, [][]string{
+		{"shutdown", "-r", "+10", "reboot scheduled to update the system"},
+	})
 }
 
 func (s *apiSuite) TestSystemActionBrokenSeed(c *check.C) {
