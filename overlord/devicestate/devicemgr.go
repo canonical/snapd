@@ -793,9 +793,27 @@ func systemFromSeed(label string) (*System, error) {
 
 var ErrNoSystems = errors.New("no systems seeds")
 
+func currentSeedSystem(st *state.State) (*seededSystem, error) {
+	st.Lock()
+	defer st.Unlock()
+
+	var whatseeded []seededSystem
+	if err := st.Get("seeded-systems", &whatseeded); err != nil {
+		return nil, err
+	}
+	if len(whatseeded) == 0 {
+		// unexpected
+		return nil, state.ErrNoState
+	}
+	return &whatseeded[0], nil
+}
+
 // Systems list the available recovery/seeding systems. Returns the list of
 // systems, ErrNoSystems when no systems seeds were found or other error.
 func (m *DeviceManager) Systems() ([]*System, error) {
+	// it's tough luck when we cannot determine the current system seed
+	currentSys, _ := currentSeedSystem(m.state)
+
 	systemLabels, err := filepath.Glob(filepath.Join(dirs.SnapSeedDir, "systems", "*"))
 	if err != nil && !os.IsNotExist(err) {
 		return nil, fmt.Errorf("cannot list available systems: %v", err)
@@ -815,9 +833,11 @@ func (m *DeviceManager) Systems() ([]*System, error) {
 			logger.Noticef("cannot load system %q seed: %v", label, err)
 			continue
 		}
-		// TODO:UC20 check if current installation was done with that
-		// system
-		system.Current = false
+		if currentSys != nil {
+			system.Current = currentSys.System == label &&
+				currentSys.Model == system.Model.Model() &&
+				currentSys.BrandID == system.Brand.AccountID()
+		}
 		systems = append(systems, system)
 	}
 	return systems, nil
