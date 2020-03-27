@@ -61,7 +61,8 @@ func (s *Snap) ID() string {
 	return s.SideInfo.SnapID
 }
 
-func (s *Snap) Info() snap.PlaceInfo {
+// PlaceInfo returns a PlaceInfo for the seed snap.
+func (s *Snap) PlaceInfo() snap.PlaceInfo {
 	return &snap.Info{SideInfo: *s.SideInfo}
 }
 
