@@ -1136,6 +1136,58 @@ func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanupWithSocket
 	}, Commentf("calls: %v", sysdLog))
 }
 
+func (s *servicesTestSuite) TestStartSnapMultiUserServicesFailStartCleanup(c *C) {
+	var sysdLog [][]string
+	svc1Name := "snap.hello-snap.svc1.service"
+	svc2Name := "snap.hello-snap.svc2.service"
+
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		sysdLog = append(sysdLog, cmd)
+		if len(cmd) >= 3 && cmd[0] == "--user" && cmd[1] == "start" {
+			name := cmd[len(cmd)-1]
+			if name == svc2Name {
+				return nil, fmt.Errorf("failed")
+			}
+		}
+		return []byte("ActiveState=inactive\n"), nil
+	})
+	defer r()
+
+	info := snaptest.MockSnap(c, packageHello+`
+ svc1:
+  command: bin/hello
+  daemon: simple
+  daemon-scope: user
+ svc2:
+  command: bin/hello
+  daemon: simple
+  daemon-scope: user
+`, &snap.SideInfo{Revision: snap.R(12)})
+
+	svcs := info.Services()
+	c.Assert(svcs, HasLen, 2)
+	if svcs[0].Name == "svc2" {
+		svcs[0], svcs[1] = svcs[1], svcs[0]
+	}
+	err := wrappers.StartServices(svcs, progress.Null, s.perfTimings)
+	c.Assert(err, ErrorMatches, "some services failed to start")
+	c.Assert(sysdLog, HasLen, 10, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
+	c.Check(sysdLog, DeepEquals, [][]string{
+		{"--user", "--global", "--root", s.tempdir, "is-enabled", svc1Name},
+		{"--user", "--global", "--root", s.tempdir, "is-enabled", svc2Name},
+		{"--user", "start", svc1Name},
+		{"--user", "start", svc2Name}, // one of the services fails
+		// session agent attempts to stop the non-failed services
+		{"--user", "stop", svc1Name},
+		{"--user", "show", "--property=ActiveState", svc1Name},
+		// StartServices ensures everything is stopped
+		{"--user", "stop", svc2Name},
+		{"--user", "show", "--property=ActiveState", svc2Name},
+		{"--user", "stop", svc1Name},
+		{"--user", "show", "--property=ActiveState", svc1Name},
+	}, Commentf("calls: %v", sysdLog))
+}
+
 func (s *servicesTestSuite) TestStartSnapServicesKeepsOrder(c *C) {
 	var sysdLog [][]string
 	svc1Name := "snap.services-snap.svc1.service"
