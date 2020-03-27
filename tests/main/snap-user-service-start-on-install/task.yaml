@@ -23,6 +23,7 @@ prepare: |
     #shellcheck source=tests/lib/user.sh
     . "$TESTSLIB/user.sh"
     stop_user_session
+    purge_user_session_data
 
 restore: |
     #shellcheck source=tests/lib/user.sh
