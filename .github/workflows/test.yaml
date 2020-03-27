@@ -3,10 +3,30 @@ on:
   pull_request:
     branches: [ "master", "release/**" ]
 jobs:
-  # TODO: run static checks before we run unit tests
-  # TODO: port static checks as well
+  # TODO: port CLA check
+  static-checks:
+    runs-on: ubuntu-latest
+    env:
+      GOPATH: ${{ github.workspace }}
+      GO111MODULE: off
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+      with:
+        # NOTE: checkout the code in a fixed location, even for forks, as this
+        # is relevant for go's import system.
+        path: ./src/github.com/snapcore/snapd
+    - name: Set up go 1.9
+      uses: actions/setup-go@v1
+      with:
+        go-version: 1.9
+    - name: Run static checks
+      run: |
+        cd ${{ github.workspace }}/src/github.com/snapcore/snapd
+        ./run-checks --static
   unit-tests:
     runs-on: ubuntu-latest
+    needs: static-checks
     env:
       GOPATH: ${{ github.workspace }}
       GO111MODULE: off
@@ -63,10 +83,11 @@ jobs:
           make check
     - name: Test Go
       run: go test github.com/snapcore/snapd/...
-  spread:
+  spread-unstable:
     needs: unit-tests
     runs-on: ubuntu-latest
     strategy:
+      # Remove this once the TODO for post actions is done
       fail-fast: false
       matrix:
         system:
@@ -85,6 +106,47 @@ jobs:
       env:
           SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
       run: /tmp/spread -abend google-unstable:${{ matrix.system }}:tests/...
+      # TODO: move this to a reliable post() action.
+    - name: Discard spread workers
+      run: |
+        shopt -s nullglob;
+        for r in .spread-reuse.*.yaml; do
+          spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
+        done
+  spread-stable:
+    needs: unit-tests
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        system:
+        - ubuntu-14.04-64
+        - ubuntu-16.04-64
+        - ubuntu-18.04-64
+        - ubuntu-19.10-64
+        - ubuntu-20.04-64
+        - ubuntu-core-16-64
+        - ubuntu-core-18-64
+        - ubuntu-core-20-64
+        - debian-9-64
+        - debian-sid-64
+        - fedora-30-64
+        - fedora-31-64
+        - arch-linux-64
+        - amazon-linux-2-64
+        - centos-7-64
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+    - name: Install spread
+      run: |
+          cd /tmp
+          curl -s -O https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz
+          tar xzvf spread-amd64.tar.gz
+    - name: Run spread tests
+      env:
+          SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
+      run: /tmp/spread google:${{ matrix.system }}:tests/...
       # TODO: move this to a reliable post() action.
     - name: Discard spread workers
       run: |
