@@ -19,12 +19,16 @@ prepare: |
         systemctl --user --global enable snapd.session-agent.socket
         touch agent-was-enabled
     fi
-    systemctl stop user@"$(id -u test)".service
     snap set system experimental.user-daemons=true
+    #shellcheck source=tests/lib/user.sh
+    . "$TESTSLIB/user.sh"
+    stop_user_session
 
 restore: |
-    systemctl stop user@"$(id -u test)".service
-    rm -rf /run/user/"$(id -u test)"/*
+    #shellcheck source=tests/lib/user.sh
+    . "$TESTSLIB/user.sh"
+    stop_user_session
+    purge_user_session_data
     snap unset system experimental.user-daemons
     if [ -f agent-was-enabled ]; then
         systemctl --user --global disable snapd.session-agent.socket
@@ -32,20 +36,19 @@ restore: |
     fi
 
 execute: |
-    echo "Create XDG_RUNTIME_DIR for test user"
-    USER_RUNTIME_DIR=/run/user/"$(id -u test)"
-    mkdir -p "$USER_RUNTIME_DIR" || true
-    rm -rf "${USER_RUNTIME_DIR:?}"/*
-    chmod u=rwX,go= "$USER_RUNTIME_DIR"
-    chown test:test "$USER_RUNTIME_DIR"
+    echo "Start the user session"
+    #shellcheck source=tests/lib/user.sh
+    . "$TESTSLIB/user.sh"
+    start_user_session
 
     # This isn't quote-safe, but is good enough for our tests.
     function systemctl_user() {
-      su -l -c "XDG_RUNTIME_DIR=\"${USER_RUNTIME_DIR}\" systemctl --user $*" test
+      as_user systemctl --user "$@"
     }
 
-    echo "Start the user session"
-    systemctl start user@"$(id -u test)".service
+    echo "Ensure that the user session has fully started"
+    systemctl_user start sockets.target
+    systemctl_user start default.target
 
     echo "Install the a snap with user services while a user session is active"
     #shellcheck source=tests/lib/snaps.sh
