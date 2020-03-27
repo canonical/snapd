@@ -107,15 +107,8 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
-    - name: Install spread
-      run: |
-          cd /tmp
-          curl -s -O https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz
-          tar xzvf spread-amd64.tar.gz
     - name: Run spread tests
-      env:
-          SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
-      run: /tmp/spread google:${{ matrix.system }}:tests/...
+      run: spread google:${{ matrix.system }}:tests/...
       # TODO: move this to a reliable post() action.
     - name: Discard spread workers
       run: |
@@ -146,15 +139,8 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
-    - name: Install spread
-      run: |
-          cd /tmp
-          curl -s -O https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz
-          tar xzvf spread-amd64.tar.gz
     - name: Run spread tests
-      env:
-          SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
-      run: /tmp/spread google:${{ matrix.system }}:tests/...
+      run: spread google:${{ matrix.system }}:tests/...
       # TODO: move this to a reliable post() action.
     - name: Discard spread workers
       run: |
@@ -176,15 +162,8 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
-    - name: Install spread
-      run: |
-          cd /tmp
-          curl -s -O https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz
-          tar xzvf spread-amd64.tar.gz
     - name: Run spread tests
-      env:
-          SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
-      run: /tmp/spread -abend google-unstable:${{ matrix.system }}:tests/...
+      run: spread -abend google-unstable:${{ matrix.system }}:tests/...
       # TODO: move this to a reliable post() action.
     - name: Discard spread workers
       run: |
