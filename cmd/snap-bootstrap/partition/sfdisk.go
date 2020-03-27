@@ -93,8 +93,9 @@ type DeviceLayout struct {
 	// size in bytes
 	Size gadget.Size
 	// sector size in bytes
-	SectorSize     gadget.Size
-	partitionTable *sfdiskPartitionTable
+	SectorSize        gadget.Size
+	CreatedPartitions []string
+	partitionTable    *sfdiskPartitionTable
 }
 
 type DeviceStructure struct {
@@ -121,6 +122,7 @@ func DeviceLayoutFromDisk(device string) (*DeviceLayout, error) {
 		return nil, err
 	}
 	dl.Device = device
+	dl.CreatedPartitions = listCreatedPartitions(&dump.PartitionTable)
 
 	return dl, nil
 }
@@ -163,7 +165,7 @@ func (dl *DeviceLayout) CreateMissing(pv *gadget.LaidOutVolume) ([]DeviceStructu
 // RemoveCreated removes partitions added during a previous failed install
 // attempt.
 func (dl *DeviceLayout) RemoveCreated() error {
-	toRemove := listCreatedPartitions(dl)
+	toRemove := dl.CreatedPartitions
 	if len(toRemove) == 0 {
 		return nil
 	}
@@ -206,7 +208,7 @@ func (dl *DeviceLayout) RemoveCreated() error {
 	dl.partitionTable = layout.partitionTable
 
 	// Ensure all created partitions were removed
-	remaining := listCreatedPartitions(dl)
+	remaining := listCreatedPartitions(dl.partitionTable)
 	if len(remaining) > 0 {
 		return fmt.Errorf("cannot remove partitions: %s", strings.Join(remaining, ", "))
 	}
@@ -362,9 +364,9 @@ func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume) (sfdiskInput
 // listCreatedPartitions returns a list of partitions created during the
 // install process.
 // TODO:UC20: also provide a mechanism for MBR (RPi)
-func listCreatedPartitions(dl *DeviceLayout) []string {
-	created := make([]string, 0, len(dl.partitionTable.Partitions))
-	for _, p := range dl.partitionTable.Partitions {
+func listCreatedPartitions(ptable *sfdiskPartitionTable) []string {
+	created := make([]string, 0, len(ptable.Partitions))
+	for _, p := range ptable.Partitions {
 		if !creationSupported(p.Type) {
 			continue
 		}
