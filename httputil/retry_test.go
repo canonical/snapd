@@ -144,7 +144,7 @@ func (s *retrySuite) TestRetryRequestFailWithEOF(c *C) {
 
 	_, err := httputil.RetryRequest("endp", doRequest, readResponseBody, testRetryStrategy)
 	c.Assert(err, NotNil)
-	c.Check(err, ErrorMatches, `^Get http://127.0.0.1:.*?: EOF$`)
+	c.Check(err, ErrorMatches, `^Get \"?http://127.0.0.1:.*?\"?: EOF$`)
 
 	c.Check(failure, Equals, false)
 	c.Assert(n.Count(), Equals, 5)

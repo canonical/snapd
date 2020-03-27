@@ -103,7 +103,7 @@ func (cs *clientSuite) Do(req *http.Request) (*http.Response, error) {
 func (cs *clientSuite) TestNewPanics(c *C) {
 	c.Assert(func() {
 		client.New(&client.Config{BaseURL: ":"})
-	}, PanicMatches, `cannot parse server base URL: ":" \(parse :: missing protocol scheme\)`)
+	}, PanicMatches, `cannot parse server base URL: ":" \(parse \"?:\"?: missing protocol scheme\)`)
 }
 
 func (cs *clientSuite) TestClientDoReportsErrors(c *C) {
@@ -307,7 +307,7 @@ func (cs *clientSuite) TestSnapdClientIntegration(c *C) {
 
 	cli := client.New(nil)
 	si, err := cli.SysInfo()
-	c.Check(err, IsNil)
+	c.Assert(err, IsNil)
 	c.Check(si.Series, Equals, "42")
 }
 

@@ -304,6 +304,9 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, opts *AddSnapServicesO
 		}
 	}
 
+	// TODO: remove once services get enabled on start and not when created.
+	preseeding := opts.Preseeding
+
 	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
 	userSysd := systemd.New(dirs.GlobalRootDir, systemd.GlobalUserMode, inter)
 	var written []string
@@ -329,20 +332,17 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, opts *AddSnapServicesO
 				inter.Notify(fmt.Sprintf("while trying to remove %s due to previous failure: %v", s, e))
 			}
 		}
-		if writtenSystem {
+		if writtenSystem && !preseeding {
 			if e := sysd.DaemonReload(); e != nil {
 				inter.Notify(fmt.Sprintf("while trying to perform systemd daemon-reload due to previous failure: %v", e))
 			}
 		}
-		if writtenUser {
+		if writtenUser && !preseeding {
 			if e := userDaemonReload(); e != nil {
 				inter.Notify(fmt.Sprintf("while trying to perform user systemd daemon-reload due to previous failure: %v", e))
 			}
 		}
 	}()
-
-	// TODO: remove once services get enabled on start and not when created.
-	preseeding := opts.Preseeding
 
 	for _, app := range s.Apps {
 		if !app.IsService() {
@@ -1111,6 +1111,12 @@ func generateOnCalendarSchedules(schedule []*timeutil.Schedule) []string {
 		}
 
 		for _, day := range days {
+			if len(startTimes) == 0 {
+				// current schedule is days only
+				calendarEvents = append(calendarEvents, day)
+				continue
+			}
+
 			for _, startTime := range startTimes {
 				calendarEvents = append(calendarEvents, fmt.Sprintf("%s %s", day, startTime))
 			}

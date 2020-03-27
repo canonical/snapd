@@ -140,7 +140,7 @@ type: gadget
 `
 	var mockGadgetYaml = []byte(`
 defaults:
-  test-snap-ididididididididididid:
+  testsnapidididididididididididid:
       bar: baz
       num: 1.305
 
@@ -178,7 +178,7 @@ hooks:
 	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
-			{RealName: "test-snap", Revision: snap.R(11), SnapID: "test-snap-ididididididididididid"},
+			{RealName: "test-snap", Revision: snap.R(11), SnapID: "testsnapidididididididididididid"},
 		},
 		Current:  snap.R(11),
 		SnapType: "app",
@@ -190,7 +190,7 @@ hooks:
 	s.context.Set("use-defaults", true)
 	s.context.Unlock()
 
-	c.Check(s.handler.Before(), IsNil)
+	c.Assert(s.handler.Before(), IsNil)
 
 	s.context.Lock()
 	tr := configstate.ContextTransaction(s.context)
@@ -214,7 +214,7 @@ type: gadget
 `
 	var mockGadgetYaml = []byte(`
 defaults:
-  test-snap-ididididididididididid:
+  testsnapidididididididididididid:
       bar: baz
       num: 1.305
 
@@ -245,7 +245,7 @@ volumes:
 	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
-			{RealName: "test-snap", Revision: snap.R(11), SnapID: "test-snap-ididididididididididid"},
+			{RealName: "test-snap", Revision: snap.R(11), SnapID: "testsnapidididididididididididid"},
 		},
 		Current:  snap.R(11),
 		SnapType: "app",
@@ -285,7 +285,7 @@ func (s *configcoreHandlerSuite) SetUpTest(c *C) {
 	hookMgr, err := hookstate.Manager(s.state, s.o.TaskRunner())
 	c.Assert(err, IsNil)
 	s.o.AddManager(hookMgr)
-	r := configstate.MockConfigcoreExportExperimentalFlags(func(_ config.Conf) error {
+	r := configstate.MockConfigcoreExportExperimentalFlags(func(_ config.ConfGetter) error {
 		return nil
 	})
 	s.AddCleanup(r)

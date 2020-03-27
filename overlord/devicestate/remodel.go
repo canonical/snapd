@@ -136,8 +136,8 @@ func remodelCtx(st *state.State, oldModel, newModel *asserts.Model) (remodelCont
 	case UpdateRemodel:
 		// simple context for the simple case
 		groundCtx := groundDeviceContext{
-			model:         newModel,
-			operatingMode: devMgr.OperatingMode(),
+			model:      newModel,
+			systemMode: devMgr.SystemMode(),
 		}
 		remodCtx = &updateRemodelContext{baseRemodelContext{groundCtx, oldModel}}
 	case StoreSwitchRemodel:
@@ -216,8 +216,8 @@ func (rc *baseRemodelContext) ForRemodeling() bool {
 
 func (rc *baseRemodelContext) GroundContext() snapstate.DeviceContext {
 	return &groundDeviceContext{
-		model:         rc.oldModel,
-		operatingMode: rc.operatingMode,
+		model:      rc.oldModel,
+		systemMode: rc.systemMode,
 	}
 }
 
@@ -234,8 +234,8 @@ func (rc *baseRemodelContext) init(chg *state.Change) {
 	chg.Set("new-model", string(asserts.Encode(rc.model)))
 }
 
-func (rc *baseRemodelContext) OperatingMode() string {
-	return rc.operatingMode
+func (rc *baseRemodelContext) SystemMode() string {
+	return rc.systemMode
 }
 
 // updateRemodelContext: model assertion revision-only update remodel
@@ -286,8 +286,8 @@ type newStoreRemodelContext struct {
 func newNewStoreRemodelContext(st *state.State, devMgr *DeviceManager, newModel, oldModel *asserts.Model) *newStoreRemodelContext {
 	rc := &newStoreRemodelContext{}
 	groundCtx := groundDeviceContext{
-		model:         newModel,
-		operatingMode: devMgr.OperatingMode(),
+		model:      newModel,
+		systemMode: devMgr.SystemMode(),
 	}
 	rc.baseRemodelContext = baseRemodelContext{groundCtx, oldModel}
 	rc.st = st

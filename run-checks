@@ -158,8 +158,10 @@ if [ "$STATIC" = 1 ]; then
     if [ -z "${SKIP_GOFMT:-}" ]; then
         echo Checking formatting
         fmt=""
-        for dir in $(go list -f '{{.Dir}}' ./... | grep -v '/vendor/' ); do
-            s="$(${GOFMT:-gofmt} -s -l -d "$dir" | grep -v /vendor/ || true)"
+        for dir in $(go list -f '{{.Dir}}' ./... | grep -v '/vendor/' | grep -E 'snapd/[A-Za-z0-9_]+$' ); do
+            # skip vendor packages
+            # skip subpackages of packages under snapd, gofmt already inspects them
+            s="$(${GOFMT:-gofmt} -s -l -d "$dir" || true)"
             if [ -n "$s" ]; then
                 fmt="$s\\n$fmt"
             fi
@@ -167,6 +169,7 @@ if [ "$STATIC" = 1 ]; then
         if [ -n "$fmt" ]; then
             echo "Formatting wrong in following files:"
             echo "$fmt" | sed -e 's/\\n/\n/g'
+            exit 1
         fi
     fi
 

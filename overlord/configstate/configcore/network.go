@@ -35,12 +35,16 @@ func init() {
 	supportedConfigurations["core.network.disable-ipv6"] = true
 }
 
-func validateNetworkSettings(tr config.Conf) error {
+func validateNetworkSettings(tr config.ConfGetter) error {
 	return validateBoolFlag(tr, "network.disable-ipv6")
 }
 
-func handleNetworkConfiguration(tr config.Conf) error {
-	dir := filepath.Join(dirs.GlobalRootDir, "/etc/sysctl.d")
+func handleNetworkConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error {
+	root := dirs.GlobalRootDir
+	if opts != nil {
+		root = opts.RootDir
+	}
+	dir := filepath.Join(root, "/etc/sysctl.d")
 	name := "10-snapd-network.conf"
 	content := bytes.NewBuffer(nil)
 
@@ -76,11 +80,13 @@ func handleNetworkConfiguration(tr config.Conf) error {
 		return err
 	}
 
-	// load the new config into the kernel
-	if len(changed) > 0 || len(removed) > 0 {
-		output, err := exec.Command("sysctl", "-w", sysctl).CombinedOutput()
-		if err != nil {
-			return osutil.OutputErr(output, err)
+	if opts == nil {
+		// load the new config into the kernel
+		if len(changed) > 0 || len(removed) > 0 {
+			output, err := exec.Command("sysctl", "-w", sysctl).CombinedOutput()
+			if err != nil {
+				return osutil.OutputErr(output, err)
+			}
 		}
 	}
 

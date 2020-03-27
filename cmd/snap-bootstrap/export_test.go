@@ -54,14 +54,6 @@ func MockOsutilIsMounted(f func(path string) (bool, error)) (restore func()) {
 	}
 }
 
-func MockRunMnt(newRunMnt string) (restore func()) {
-	oldRunMnt := runMnt
-	runMnt = newRunMnt
-	return func() {
-		runMnt = oldRunMnt
-	}
-}
-
 func MockTriggerwatchWait(f func(_ time.Duration) error) (restore func()) {
 	oldTriggerwatchWait := triggerwatchWait
 	triggerwatchWait = f
