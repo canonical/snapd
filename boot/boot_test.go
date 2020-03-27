@@ -21,6 +21,8 @@ package boot_test
 
 import (
 	"errors"
+	"io/ioutil"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -1401,4 +1403,27 @@ func (s *bootenvSystem20Suite) TestSystemInModeErrClumsy(c *C) {
 	c.Assert(err, ErrorMatches, ".* internal error: system or mode is unset")
 	err = boot.RecoverySystemInMode(nil, "1234", "install")
 	c.Assert(err, ErrorMatches, "internal error: device is unset")
+}
+
+func (s *bootenvSystem20Suite) TestSystemInModeRealHappy(c *C) {
+	bootloader.Force(nil)
+
+	mockSeedGrubDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI", "ubuntu")
+	err := os.MkdirAll(mockSeedGrubDir, 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(mockSeedGrubDir, "grub.cfg"), nil, 0644)
+	c.Assert(err, IsNil)
+
+	err = boot.RecoverySystemInMode(s.dev, "1234", "install")
+	c.Assert(err, IsNil)
+
+	bl, err := bootloader.Find(boot.InitramfsUbuntuSeedDir, &bootloader.Options{Recovery: true})
+	c.Assert(err, IsNil)
+
+	blvars, err := bl.GetBootVars("snapd_recovery_mode", "snapd_recovery_system")
+	c.Assert(err, IsNil)
+	c.Check(blvars, DeepEquals, map[string]string{
+		"snapd_recovery_system": "1234",
+		"snapd_recovery_mode":   "install",
+	})
 }

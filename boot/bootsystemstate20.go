@@ -39,7 +39,11 @@ func newBootSystemState20() bootSystemState {
 
 func (b *bootSystemState20) setSystemMode(system, mode string) (bootStateUpdate, error) {
 	if b.bl == nil {
-		bl, err := bootloader.Find("", nil)
+		opts := &bootloader.Options{
+			// setup the recovery bootloader
+			Recovery: true,
+		}
+		bl, err := bootloader.Find(InitramfsUbuntuSeedDir, opts)
 		if err != nil {
 			return nil, err
 		}
