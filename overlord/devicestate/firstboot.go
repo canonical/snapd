@@ -282,9 +282,11 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 		markSeeded.WaitFor(preseedDoneTask)
 	}
 	whatSeeds := &seededSystem{
-		System:  sysLabel,
-		Model:   model.Model(),
-		BrandID: model.BrandID(),
+		System:    sysLabel,
+		Model:     model.Model(),
+		BrandID:   model.BrandID(),
+		Revision:  model.Revision(),
+		Timestamp: model.Timestamp(),
 	}
 	markSeeded.Set("seed-system", whatSeeds)
 

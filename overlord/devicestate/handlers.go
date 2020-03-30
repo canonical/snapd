@@ -98,6 +98,12 @@ type seededSystem struct {
 	Model  string `json:"model"`
 	// BrandID is the brand account ID
 	BrandID string `json:"brand-id"`
+	// Revision of the model assertion
+	Revision int `json:"revision"`
+	// Timestamp of model assertion
+	Timestamp time.Time `json:"timestamp"`
+	// SeedTime holds the timestamp when the system was seeded
+	SeedTime time.Time `json:"seed-time"`
 }
 
 func (m *DeviceManager) recordSeededSystem(st *state.State, whatSeeded *seededSystem) error {
@@ -140,17 +146,19 @@ func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
+	now := time.Now()
 	var whatSeeded *seededSystem
 	if err := t.Get("seed-system", &whatSeeded); err != nil && err != state.ErrNoState {
 		return err
 	}
 	if whatSeeded != nil {
+		whatSeeded.SeedTime = now
 		// TODO:UC20 what about remodels?
 		if err := m.recordSeededSystem(st, whatSeeded); err != nil {
 			return fmt.Errorf("cannot record the seeded system: %v", err)
 		}
 	}
-	st.Set("seed-time", time.Now())
+	st.Set("seed-time", now)
 	st.Set("seeded", true)
 	// make sure we setup a fallback model/consider the next phase
 	// (registration) timely
