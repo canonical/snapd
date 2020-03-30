@@ -23,21 +23,43 @@
 package randutil
 
 import (
-	cryptorand "crypto/rand"
-	"fmt"
-	"math"
-	"math/big"
+	"crypto/sha256"
+	"encoding/binary"
 	"math/rand"
+	"net"
+	"os"
+	"sync"
 	"time"
 )
 
 func init() {
 	// golang does not init Seed() itself
-	bigSeed, err := cryptorand.Int(cryptorand.Reader, big.NewInt(math.MaxInt64))
-	if err != nil {
-		panic(fmt.Sprintf("cannot obtain random seed: %v", err))
-	}
-	rand.Seed(bigSeed.Int64())
+	rand.Seed(time.Now().UnixNano() + int64(os.Getpid()))
+}
+
+var moreMixedSeedOnce sync.Once
+
+func moreMixedSeed() {
+	moreMixedSeedOnce.Do(func() {
+		h := sha256.New224()
+		// do this instead of asking for time and pid again
+		var b [8]byte
+		rand.Read(b[:])
+		h.Write(b[:])
+		// mix in the hostname
+		if hostname, err := os.Hostname(); err == nil {
+			h.Write([]byte(hostname))
+		}
+		// mix in net interfaces hw addresses (MACs etc)
+		if ifaces, err := net.Interfaces(); err == nil {
+			for _, iface := range ifaces {
+				h.Write(iface.HardwareAddr)
+			}
+		}
+		hs := h.Sum(nil)
+		s := binary.LittleEndian.Uint64(hs[0:])
+		rand.Seed(int64(s))
+	})
 }
 
 const letters = "BCDFGHJKLMNPQRSTVWXYbcdfghjklmnpqrstvwxy0123456789"
@@ -65,5 +87,9 @@ var (
 
 // RandomDuration returns a random duration up to the given length.
 func RandomDuration(d time.Duration) time.Duration {
+	// try to switch to more mixed seed to avoid subsets of a
+	// fleet of machines with similar initial conditions to behave
+	// the same
+	moreMixedSeed()
 	return time.Duration(Int63n(int64(d)))
 }

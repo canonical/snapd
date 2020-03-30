@@ -36,7 +36,7 @@ func init() {
 	}
 }
 
-func validateExperimentalSettings(tr config.Conf) error {
+func validateExperimentalSettings(tr config.ConfGetter) error {
 	for k := range supportedConfigurations {
 		if !strings.HasPrefix(k, "core.experimental.") {
 			continue
@@ -48,8 +48,13 @@ func validateExperimentalSettings(tr config.Conf) error {
 	return nil
 }
 
-func ExportExperimentalFlags(tr config.Conf) error {
-	dir := dirs.FeaturesDir
+func doExportExperimentalFlags(tr config.ConfGetter, opts *fsOnlyContext) error {
+	var dir string
+	if opts != nil {
+		dir = dirs.FeaturesDirUnder(opts.RootDir)
+	} else {
+		dir = dirs.FeaturesDir
+	}
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
@@ -69,4 +74,8 @@ func ExportExperimentalFlags(tr config.Conf) error {
 	}
 	_, _, err := osutil.EnsureDirState(dir, "*", content)
 	return err
+}
+
+func ExportExperimentalFlags(tr config.ConfGetter) error {
+	return doExportExperimentalFlags(tr, nil)
 }

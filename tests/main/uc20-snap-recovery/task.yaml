@@ -8,7 +8,10 @@ debug: |
 
 restore: |
     if [ -f loop.txt ]; then
-        losetup -d "$(cat loop.txt)"
+        LOOP="$(cat loop.txt)"
+        losetup -d "$LOOP"
+        umount "${LOOP}p3"
+        umount "${LOOP}p4"
     fi
 
 prepare: |
@@ -116,4 +119,3 @@ execute: |
 
     echo "Make sure the filesystem was redeployed"
     ls /run/mnt/ubuntu-boot/EFI/boot/grubx64.efi
-

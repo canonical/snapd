@@ -1,0 +1,14 @@
+{
+    "problemMatcher": [
+        {
+            "owner": "spread-error",
+            "pattern": [
+                {
+                    "regexp": "^\\d+-\\d+-\\d+ \\d+:\\d+:\\d+ ((Error) (preparing|executing|restoring) .+) : .*$",
+                    "message": 1,
+                    "severity": 2
+                }
+            ]
+        }
+    ]
+}

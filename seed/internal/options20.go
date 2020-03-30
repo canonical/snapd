@@ -87,7 +87,11 @@ func ReadOptions20(optionsFn string) (*Options20, error) {
 		if sn.SnapID == "" && sn.Channel == "" && sn.Unasserted == "" {
 			return nil, fmt.Errorf("%s: at least one of id, channel or unasserted must be set for snap %q", errPrefix, sn.Name)
 		}
-		// TODO|XXX: sanity check SnapID if not empty as well
+		if sn.SnapID != "" {
+			if err := naming.ValidateSnapID(sn.SnapID); err != nil {
+				return nil, fmt.Errorf("%s: %v", errPrefix, err)
+			}
+		}
 		if sn.Channel != "" {
 			if _, err := channel.Parse(sn.Channel, ""); err != nil {
 				return nil, fmt.Errorf("%s: %v", errPrefix, err)

@@ -33,7 +33,6 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/sysconfig"
-	"github.com/snapcore/snapd/timings"
 )
 
 var (
@@ -46,7 +45,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	perfTimings := timings.NewForTask(t)
+	perfTimings := state.TimingsForTask(t)
 	defer perfTimings.Save(st)
 
 	// get gadget dir
@@ -72,13 +71,11 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 	if useEncryption {
-		ubuntuBootDir := filepath.Join(dirs.RunMnt, "ubuntu-boot")
-
 		args = append(args,
 			// enable data encryption
 			"--encrypt",
 			// location to store the keyfile
-			"--key-file", filepath.Join(ubuntuBootDir, "ubuntu-data.keyfile.unsealed"),
+			"--key-file", filepath.Join(boot.InitramfsUbuntuBootDir, "ubuntu-data.keyfile.unsealed"),
 		)
 	}
 	args = append(args, gadgetDir)
@@ -92,7 +89,17 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// configure the run system
-	if err := sysconfigConfigureRunSystem(&sysconfig.Options{}); err != nil {
+	opts := &sysconfig.Options{TargetRootDir: boot.InitramfsWritableDir}
+	cloudCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d")
+	// Support custom cloud.cfg.d/*.cfg files on the ubuntu-seed partition
+	// during install when in grade "dangerous". We will support configs
+	// from the gadget later too, see sysconfig/cloudinit.go
+	//
+	// XXX: maybe move policy decision into configureRunSystem later?
+	if osutil.IsDirectory(cloudCfg) && deviceCtx.Model().Grade() == asserts.ModelDangerous {
+		opts.CloudInitSrcDir = cloudCfg
+	}
+	if err := sysconfigConfigureRunSystem(opts); err != nil {
 		return err
 	}
 
@@ -106,7 +113,14 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return fmt.Errorf("cannot get boot base info: %v", err)
 	}
-	recoverySystemDir := filepath.Join("/systems", m.modeEnv.RecoverySystem)
+	modeEnv, err := m.maybeReadModeenv()
+	if err != nil {
+		return err
+	}
+	if modeEnv == nil {
+		return fmt.Errorf("missing modeenv, cannot proceed")
+	}
+	recoverySystemDir := filepath.Join("/systems", modeEnv.RecoverySystem)
 	bootWith := &boot.BootableSet{
 		Base:              bootBaseInfo,
 		BasePath:          bootBaseInfo.MountFile(),
@@ -138,7 +152,7 @@ func checkEncryption(model *asserts.Model) (res bool, err error) {
 
 	// check if we should disable encryption non-secured devices
 	// TODO:UC20: this is not the final mechanism to bypass encryption
-	if dangerous && osutil.FileExists(filepath.Join(dirs.RunMnt, "ubuntu-seed", ".force-unencrypted")) {
+	if dangerous && osutil.FileExists(filepath.Join(boot.InitramfsUbuntuSeedDir, ".force-unencrypted")) {
 		return false, nil
 	}
 
