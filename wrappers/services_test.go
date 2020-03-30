@@ -245,6 +245,45 @@ apps:
 	})
 }
 
+func (s *servicesTestSuite) TestRemoveSnapPackageUserDaemonStopFailure(c *C) {
+	var sysdLog [][]string
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		// filter out the "systemctl --user show" that
+		// StopServices generates
+		if cmd[0] == "--user" && cmd[1] != "show" {
+			sysdLog = append(sysdLog, cmd)
+		}
+		if cmd[0] == "--user" && cmd[1] == "stop" {
+			return nil, fmt.Errorf("user unit stop failed")
+		}
+		return []byte("ActiveState=active\n"), nil
+	})
+	defer r()
+
+	info := snaptest.MockSnap(c, `name: wat
+version: 42
+apps:
+ wat:
+   command: wat
+   stop-timeout: 20ms
+   daemon: forking
+   daemon-scope: user
+`, &snap.SideInfo{Revision: snap.R(11)})
+
+	err := wrappers.AddSnapServices(info, nil, nil, progress.Null)
+	c.Assert(err, IsNil)
+
+	sysdLog = nil
+
+	svcFName := "snap.wat.wat.service"
+
+	err = wrappers.StopServices(info.Services(), "", progress.Null, s.perfTimings)
+	c.Check(err, ErrorMatches, "some services failed to stop")
+	c.Check(sysdLog, DeepEquals, [][]string{
+		{"--user", "stop", svcFName},
+	})
+}
+
 func (s *servicesTestSuite) TestServicesEnableState(c *C) {
 	info := snaptest.MockSnap(c, packageHello+`
  svc2:
