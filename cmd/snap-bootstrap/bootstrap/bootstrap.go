@@ -25,7 +25,6 @@ import (
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/partition"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
-	"github.com/snapcore/snapd/strutil"
 )
 
 const (
@@ -152,9 +151,8 @@ func ensureLayoutCompatibility(gadgetLayout *gadget.LaidOutVolume, diskLayout *p
 		dv := ds.VolumeStructure
 		gv := gs.VolumeStructure
 		// Previous installation may have failed before filesystem creation or partition may be encrypted
-		isCreated := strutil.ListContains(diskLayout.CreatedPartitions, ds.Node)
 		return dv.Name == gv.Name && ds.StartOffset == gs.StartOffset && dv.Size == gv.Size &&
-			(isCreated || dv.Filesystem == gv.Filesystem)
+			(ds.Created || dv.Filesystem == gv.Filesystem)
 	}
 	contains := func(haystack []gadget.LaidOutStructure, needle partition.DeviceStructure) bool {
 		for _, h := range haystack {
