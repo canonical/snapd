@@ -85,8 +85,8 @@ jobs:
       env:
           SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
       run: /tmp/spread -abend google-unstable:${{ matrix.system }}:tests/...
-      # TODO: move this to a reliable post() action.
     - name: Discard spread workers
+      if: always()
       run: |
         shopt -s nullglob;
         for r in .spread-reuse.*.yaml; do
