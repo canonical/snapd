@@ -29,7 +29,6 @@ func init() {
 	// Most of these handlers are no-op on classic.
 	// TODO: consider allowing some of these on classic too?
 	// consider erroring on core-only options on classic?
-	// FIXME: ensure the user cannot set "core seed.loaded"
 
 	// capture cloud information
 	addConfigStateHandler(nil, setCloudInfoWhenSeeding)
@@ -85,6 +84,9 @@ func Run(cfg config.Conf) error {
 		if err := h.validate(cfg); err != nil {
 			return err
 		}
+	}
+
+	for _, h := range handlers {
 		if err := h.handle(cfg, nil); err != nil {
 			return err
 		}
