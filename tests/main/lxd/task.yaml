@@ -16,6 +16,9 @@ kill-timeout: 25m
 # Start before anything else as it can take a really long time.
 priority: 1000
 
+# Skip the test until it is fixed upstream lp:1869661
+manual: true
+
 prepare: |
     # using apt here is ok because this test only runs on ubuntu
     echo "Remove any installed debs (some images carry them) to ensure we test the snap"
@@ -50,7 +53,7 @@ execute: |
     fi
 
     echo "Install lxd"
-    snap install --candidate lxd
+    snap install lxd
 
     echo "Create a trivial container using the lxd snap"
     snap set lxd waitready.timeout=240
