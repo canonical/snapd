@@ -121,7 +121,9 @@ type Config struct {
 
 	DetailFields []string
 	InfoFields   []string
-	DeltaFormat  string
+	// search v2 fields
+	FindFields  []string
+	DeltaFormat string
 
 	// CacheDownloads is the number of downloads that should be cached
 	CacheDownloads int
@@ -162,6 +164,7 @@ type Store struct {
 
 	detailFields []string
 	infoFields   []string
+	findFields   []string
 	deltaFormat  string
 	// reused http client
 	client *http.Client
@@ -314,6 +317,17 @@ func init() {
 	}
 	defaultConfig.DetailFields = jsonutil.StructFields((*snapDetails)(nil), "snap_yaml_raw")
 	defaultConfig.InfoFields = jsonutil.StructFields((*storeSnap)(nil), "snap-yaml")
+	defaultConfig.FindFields = append(jsonutil.StructFields((*storeSnap)(nil),
+		"architectures", "created-at", "epoch", "name", "snap-id", "snap-yaml"),
+		"channel")
+}
+
+type searchV2Results struct {
+	Results   []*storeSearchResult `json:"results"`
+	ErrorList []struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	} `json:"error-list"`
 }
 
 type searchResults struct {
@@ -347,6 +361,11 @@ func New(cfg *Config, dauthCtx DeviceAndAuthContext) *Store {
 		infoFields = defaultConfig.InfoFields
 	}
 
+	findFields := cfg.FindFields
+	if findFields == nil {
+		findFields = defaultConfig.FindFields
+	}
+
 	architecture := cfg.Architecture
 	if cfg.Architecture == "" {
 		architecture = arch.DpkgArchitecture()
@@ -373,6 +392,7 @@ func New(cfg *Config, dauthCtx DeviceAndAuthContext) *Store {
 		fallbackStoreID:    cfg.StoreID,
 		detailFields:       detailFields,
 		infoFields:         infoFields,
+		findFields:         findFields,
 		dauthCtx:           dauthCtx,
 		deltaFormat:        deltaFormat,
 		proxy:              cfg.Proxy,
@@ -406,6 +426,7 @@ const (
 	snapActionEndpPath = "v2/snaps/refresh"
 	snapInfoEndpPath   = "v2/snaps/info"
 	cohortsEndpPath    = "v2/cohorts"
+	findEndpPath       = "v2/snaps/find"
 
 	deviceNonceEndpPath   = "api/v1/snaps/auth/nonces"
 	deviceSessionEndpPath = "api/v1/snaps/auth/sessions"
@@ -1191,6 +1212,116 @@ func (s *Store) Find(ctx context.Context, search *Search, user *auth.UserState) 
 		return nil, ErrBadQuery
 	}
 
+	q := url.Values{}
+	q.Set("fields", strings.Join(s.findFields, ","))
+	q.Set("architecture", s.architecture)
+
+	if search.Private {
+		q.Set("private", "true")
+	}
+
+	if search.Prefix {
+		q.Set("name", searchTerm)
+	} else {
+		if search.CommonID != "" {
+			q.Set("common-id", search.CommonID)
+		}
+		if searchTerm != "" {
+			q.Set("q", searchTerm)
+		}
+	}
+
+	// section is "category" in search v2
+	if search.Section != "" {
+		q.Set("category", search.Section)
+	}
+
+	// with search v2 all risks are searched by default (same as scope=wide
+	// with v1) so we need to restrict channel if scope is not passed.
+	if search.Scope == "" {
+		q.Set("channel", "stable")
+	} else if search.Scope != "wide" {
+		return nil, ErrInvalidScope
+	}
+
+	if release.OnClassic {
+		q.Set("confinement", "strict,classic")
+	} else {
+		q.Set("confinement", "strict")
+	}
+
+	u := s.endpointURL(findEndpPath, q)
+	reqOptions := &requestOptions{
+		Method:   "GET",
+		URL:      u,
+		Accept:   jsonContentType,
+		APILevel: apiV2Endps,
+	}
+
+	var searchData searchV2Results
+
+	// TODO: use retryRequestDecodeJSON (may require content-type check there,
+	// requires checking other handlers, their tests and store).
+	doRequest := func() (*http.Response, error) {
+		return s.doRequest(ctx, s.client, reqOptions, user)
+	}
+	readResponse := func(resp *http.Response) error {
+		ok := (resp.StatusCode == 200 || resp.StatusCode == 201)
+		ct := resp.Header.Get("Content-Type")
+		// always decode on success; decode failures only if body is not empty
+		if !ok && (resp.ContentLength == 0 || ct != jsonContentType) {
+			return nil
+		}
+		return json.NewDecoder(resp.Body).Decode(&searchData)
+	}
+	resp, err := httputil.RetryRequest(u.String(), doRequest, readResponse, defaultRetryStrategy)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != 200 {
+		// fallback to search v1; v2 may not be available on some proxies
+		if resp.StatusCode == 404 {
+			verstr := resp.Header.Get("Snap-Store-Version")
+			ver, err := strconv.Atoi(verstr)
+			if err != nil {
+				logger.Debugf("Bogus Snap-Store-Version header %q.", verstr)
+			} else if ver < 20 {
+				return s.findV1(ctx, search, user)
+			}
+		}
+		if len(searchData.ErrorList) > 0 {
+			return nil, translateSnapActionError("", "", searchData.ErrorList[0].Code, searchData.ErrorList[0].Message, nil)
+		}
+		return nil, respToError(resp, "search")
+	}
+
+	if ct := resp.Header.Get("Content-Type"); ct != jsonContentType {
+		return nil, fmt.Errorf("received an unexpected content type (%q) when trying to search via %q", ct, resp.Request.URL)
+	}
+
+	snaps := make([]*snap.Info, len(searchData.Results))
+	for i, res := range searchData.Results {
+		info, err := infoFromStoreSearchResult(res)
+		if err != nil {
+			return nil, err
+		}
+		snaps[i] = info
+	}
+
+	err = s.decorateOrders(snaps, user)
+	if err != nil {
+		logger.Noticef("cannot get user orders: %v", err)
+	}
+
+	s.extractSuggestedCurrency(resp)
+
+	return snaps, nil
+}
+
+func (s *Store) findV1(ctx context.Context, search *Search, user *auth.UserState) ([]*snap.Info, error) {
+	// search.Query is already verified for illegal characters by Find()
+	searchTerm := strings.TrimSpace(search.Query)
 	q := s.defaultSnapQuery()
 
 	if search.Private {

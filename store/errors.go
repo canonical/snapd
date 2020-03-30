@@ -34,6 +34,9 @@ var (
 	// ErrBadQuery is returned from Find when the query has special characters in strange places.
 	ErrBadQuery = errors.New("bad query")
 
+	// ErrInvalidScope is returned from Find when an invalid scope is requested.
+	ErrInvalidScope = errors.New("invalid scope")
+
 	// ErrSnapNotFound is returned when a snap can not be found
 	ErrSnapNotFound = errors.New("snap not found")
 
