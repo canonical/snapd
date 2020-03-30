@@ -23,6 +23,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/release"
 )
 
 func init() {
@@ -30,19 +31,22 @@ func init() {
 	// TODO: consider allowing some of these on classic too?
 	// consider erroring on core-only options on classic?
 
+	flags := &flags{coreOnlyConfig: true}
+
 	// capture cloud information
-	addConfigStateHandler(nil, setCloudInfoWhenSeeding)
+	addConfigStateHandler(nil, setCloudInfoWhenSeeding, nil)
 
 	// proxy.{http,https,ftp}
-	addConfigStateHandler(validateProxyStore, handleProxyConfiguration)
-	addConfigStateHandler(validateRefreshSchedule, nil)
-	addConfigStateHandler(validateRefreshRateLimit, nil)
-	addConfigStateHandler(validateAutomaticSnapshotsExpiration, nil)
+	addConfigStateHandler(validateProxyStore, handleProxyConfiguration, flags)
+	addConfigStateHandler(validateRefreshSchedule, nil, nil)
+	addConfigStateHandler(validateRefreshRateLimit, nil, nil)
+	addConfigStateHandler(validateAutomaticSnapshotsExpiration, nil, nil)
 }
 
 type cfgStateHandler struct {
 	validateFunc func(config.Conf) error
 	handleFunc   func(config.Conf, *fsOnlyContext) error
+	configFlags  flags
 }
 
 func (h *cfgStateHandler) validate(cfg config.ConfGetter) error {
@@ -65,11 +69,19 @@ func (h *cfgStateHandler) needsState() bool {
 	return true
 }
 
-func addConfigStateHandler(validate func(config.Conf) error, handle func(config.Conf, *fsOnlyContext) error) {
-	handlers = append(handlers, &cfgStateHandler{
+func (h *cfgStateHandler) flags() flags {
+	return h.configFlags
+}
+
+func addConfigStateHandler(validate func(config.Conf) error, handle func(config.Conf, *fsOnlyContext) error, flags *flags) {
+	h := &cfgStateHandler{
 		validateFunc: validate,
 		handleFunc:   handle,
-	})
+	}
+	if flags != nil {
+		h.configFlags = *flags
+	}
+	handlers = append(handlers, h)
 }
 
 func Run(cfg config.Conf) error {
@@ -87,6 +99,9 @@ func Run(cfg config.Conf) error {
 	}
 
 	for _, h := range handlers {
+		if h.flags().coreOnlyConfig && release.OnClassic {
+			continue
+		}
 		if err := h.handle(cfg, nil); err != nil {
 			return err
 		}

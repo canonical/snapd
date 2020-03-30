@@ -23,17 +23,26 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/release"
 )
 
 type configHandler interface {
 	validate(config.ConfGetter) error
 	handle(config.ConfGetter, *fsOnlyContext) error
 	needsState() bool
+	flags() flags
+}
+
+// flags carries extra flags that influence how the handler is called.
+type flags struct {
+	// coreOnlyConfig tells Run/FilesystemOnlyApply to apply the config on core systems only.
+	coreOnlyConfig bool
 }
 
 type cfgHandler struct {
 	validateFunc func(config.ConfGetter) error
 	handleFunc   func(config.ConfGetter, *fsOnlyContext) error
+	configFlags  flags
 }
 
 var handlers []configHandler
@@ -43,36 +52,44 @@ func init() {
 	// TODO: consider allowing some of these on classic too?
 	// consider erroring on core-only options on classic?
 
-	// do not need state
+	flags := &flags{coreOnlyConfig: true}
 
 	// watchdog.{runtime-timeout,shutdown-timeout}
-	addConfigHandler(validateWatchdogOptions, handleWatchdogConfiguration)
+	addConfigHandler(validateWatchdogOptions, handleWatchdogConfiguration, flags)
 
 	// Export experimental.* flags to a place easily accessible from snapd helpers.
-	addConfigHandler(validateExperimentalSettings, doExportExperimentalFlags)
+	addConfigHandler(validateExperimentalSettings, doExportExperimentalFlags, nil)
 
 	// network.disable-ipv6
-	addConfigHandler(validateNetworkSettings, handleNetworkConfiguration)
+	addConfigHandler(validateNetworkSettings, handleNetworkConfiguration, flags)
 
 	// service.*.disable
-	addConfigHandler(nil, handleServiceDisableConfiguration)
+	addConfigHandler(nil, handleServiceDisableConfiguration, flags)
 
 	// system.power-key-action
-	addConfigHandler(nil, handlePowerButtonConfiguration)
+	addConfigHandler(nil, handlePowerButtonConfiguration, flags)
 
 	// pi-config.*
-	addConfigHandler(nil, handlePiConfiguration)
+	addConfigHandler(nil, handlePiConfiguration, flags)
 }
 
-func addConfigHandler(validate func(config.ConfGetter) error, handle func(config.ConfGetter, *fsOnlyContext) error) {
-	handlers = append(handlers, &cfgHandler{
+func addConfigHandler(validate func(config.ConfGetter) error, handle func(config.ConfGetter, *fsOnlyContext) error, flags *flags) {
+	h := &cfgHandler{
 		validateFunc: validate,
 		handleFunc:   handle,
-	})
+	}
+	if flags != nil {
+		h.configFlags = *flags
+	}
+	handlers = append(handlers, h)
 }
 
 func (h *cfgHandler) needsState() bool {
 	return false
+}
+
+func (h *cfgHandler) flags() flags {
+	return h.configFlags
 }
 
 func (h *cfgHandler) validate(cfg config.ConfGetter) error {
@@ -110,6 +127,9 @@ func FilesystemOnlyApply(rootDir string, cfg config.ConfGetter) error {
 
 	for _, h := range handlers {
 		if h.needsState() {
+			continue
+		}
+		if h.flags().coreOnlyConfig && release.OnClassic {
 			continue
 		}
 		if err := h.handle(cfg, opts); err != nil {

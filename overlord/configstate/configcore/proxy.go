@@ -30,7 +30,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
-	"github.com/snapcore/snapd/release"
 )
 
 var proxyConfigKeys = map[string]bool{
@@ -74,10 +73,6 @@ func updateEtcEnvironmentConfig(path string, config map[string]string) error {
 }
 
 func handleProxyConfiguration(tr config.Conf, opts *fsOnlyContext) error {
-	if release.OnClassic {
-		// nothing to do
-		return nil
-	}
 	config := map[string]string{}
 	// normal proxy settings
 	for _, key := range []string{"http", "https", "ftp"} {
