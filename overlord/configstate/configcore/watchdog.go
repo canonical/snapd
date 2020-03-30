@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/release"
 )
 
 func init() {
@@ -66,6 +67,10 @@ func updateWatchdogConfig(config map[string]uint, opts *fsOnlyContext) error {
 }
 
 func handleWatchdogConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error {
+	if release.OnClassic {
+		// nothing to do
+		return nil
+	}
 	config := map[string]uint{}
 
 	for _, key := range []string{"runtime-timeout", "shutdown-timeout"} {

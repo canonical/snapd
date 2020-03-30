@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/release"
 )
 
 func init() {
@@ -40,6 +41,10 @@ func validateNetworkSettings(tr config.ConfGetter) error {
 }
 
 func handleNetworkConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error {
+	if release.OnClassic {
+		// nothing to do
+		return nil
+	}
 	root := dirs.GlobalRootDir
 	if opts != nil {
 		root = opts.RootDir

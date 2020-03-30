@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/release"
 )
 
 func init() {
@@ -72,6 +73,10 @@ HandlePowerKey=%s
 }
 
 func handlePowerButtonConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error {
+	if release.OnClassic {
+		// nothing to do
+		return nil
+	}
 	output, err := coreCfg(tr, "system.power-key-action")
 	if err != nil {
 		return err
