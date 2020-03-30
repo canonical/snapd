@@ -172,6 +172,11 @@ func copyUbuntuDataAuth(src, dst string) error {
 		}
 	}
 
+	// ensure the user state is transfered as well
+	if err := state.CopyState(filepath.Join(src, dirs.SnapStateFile), filepath.Join(dst, dirs.SnapStateFile), []string{"auth.users"}); err != nil && err != state.ErrNoState {
+		return fmt.Errorf("cannot copy user state: %v", err)
+	}
+
 	return nil
 }
 
