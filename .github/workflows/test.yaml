@@ -81,6 +81,8 @@ jobs:
           cd /tmp
           curl -s -O https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz
           tar xzvf spread-amd64.tar.gz
+          # Register a problem matcher to highlight spread failures
+          echo "::add-matcher::.github/spread-problem-matcher.json"
     - name: Run spread tests
       env:
           SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
