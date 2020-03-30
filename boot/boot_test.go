@@ -1375,7 +1375,7 @@ func (s *bootenvSystem20Suite) SetUpTest(c *C) {
 	s.dev = boottest.MockUC20Device("some-snap")
 }
 
-func (s *bootenvSystem20Suite) TestRecoverySystemAndModeHappy(c *C) {
+func (s *bootenvSystem20Suite) TestSetRecoveryBootSystemAndModeHappy(c *C) {
 	err := boot.SetRecoveryBootSystemAndMode(s.dev, "1234", "install")
 	c.Assert(err, IsNil)
 	c.Check(s.bootloader.BootVars, DeepEquals, map[string]string{
@@ -1384,26 +1384,26 @@ func (s *bootenvSystem20Suite) TestRecoverySystemAndModeHappy(c *C) {
 	})
 }
 
-func (s *bootenvSystem20Suite) TestRecoverySystemAndModeSetErr(c *C) {
+func (s *bootenvSystem20Suite) TestSetRecoveryBootSystemAndModeSetErr(c *C) {
 	s.bootloader.SetErr = errors.New("no can do")
 	err := boot.SetRecoveryBootSystemAndMode(s.dev, "1234", "install")
-	c.Assert(err, ErrorMatches, `cannot set up the boot environment: no can do`)
+	c.Assert(err, ErrorMatches, `no can do`)
 }
 
-func (s *bootenvSystem20Suite) TestRecoverySystemAndModeNonUC20(c *C) {
+func (s *bootenvSystem20Suite) TestSetRecoveryBootSystemAndModeNonUC20(c *C) {
 	non20Dev := boottest.MockDevice("some-snap")
 	err := boot.SetRecoveryBootSystemAndMode(non20Dev, "1234", "install")
 	c.Assert(err, Equals, boot.ErrUnsupportedSystemBootMode)
 }
 
-func (s *bootenvSystem20Suite) TestRecoverySystemAndModeErrClumsy(c *C) {
+func (s *bootenvSystem20Suite) TestSetRecoveryBootSystemAndModeErrClumsy(c *C) {
 	err := boot.SetRecoveryBootSystemAndMode(s.dev, "", "install")
-	c.Assert(err, ErrorMatches, ".* internal error: system or mode is unset")
+	c.Assert(err, ErrorMatches, "internal error: system or mode is unset")
 	err = boot.SetRecoveryBootSystemAndMode(s.dev, "1234", "")
-	c.Assert(err, ErrorMatches, ".* internal error: system or mode is unset")
+	c.Assert(err, ErrorMatches, "internal error: system or mode is unset")
 }
 
-func (s *bootenvSystem20Suite) TestRecoverySystemAndModeRealHappy(c *C) {
+func (s *bootenvSystem20Suite) TestSetRecoveryBootSystemAndModeRealHappy(c *C) {
 	bootloader.Force(nil)
 
 	mockSeedGrubDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI", "ubuntu")
