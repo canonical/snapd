@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"fmt"
 	"path/filepath"
+	"regexp"
 
 	"github.com/snapcore/snapd/seed/internal"
 	"github.com/snapcore/snapd/snap"
@@ -76,5 +77,16 @@ func ValidateFromYaml(seedYamlFile string) error {
 		return fmt.Errorf("cannot validate seed:%s", buf.Bytes())
 	}
 
+	return nil
+}
+
+var validSeedSystemLabel = regexp.MustCompile("^[a-zA-Z0-9](?:-?[a-zA-Z0-9])+$")
+
+// validateSeedSystemLabel checks whether the string is a valid UC20 seed system
+// label.
+func validateUC20SeedSystemLabel(label string) error {
+	if !validSeedSystemLabel.MatchString(label) {
+		return fmt.Errorf("invalid seed system label: %q", label)
+	}
 	return nil
 }
