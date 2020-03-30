@@ -20,7 +20,6 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -100,12 +99,11 @@ func recoverySystemEssentialSnaps(seedDir, recoverySystem string, essentialTypes
 // generateMountsMode* is called multiple times from initramfs until it
 // no longer generates more mount points and just returns an empty output.
 func generateMountsModeInstall(recoverySystem string) error {
-	var buf bytes.Buffer
-	if err := generateMountsCommonInstallRecover(recoverySystem, &buf); err != nil {
+	allMounted, err := generateMountsCommonInstallRecover(recoverySystem)
+	if err != nil {
 		return err
 	}
-	if buf.Len() > 0 {
-		io.Copy(stdout, &buf)
+	if !allMounted {
 		return nil
 	}
 
@@ -178,12 +176,11 @@ func copyUbuntuDataAuth(src, dst string) error {
 }
 
 func generateMountsModeRecover(recoverySystem string) error {
-	var buf bytes.Buffer
-	if err := generateMountsCommonInstallRecover(recoverySystem, &buf); err != nil {
+	allMounted, err := generateMountsCommonInstallRecover(recoverySystem)
+	if err != nil {
 		return err
 	}
-	if buf.Len() > 0 {
-		io.Copy(stdout, &buf)
+	if !allMounted {
 		return nil
 	}
 
@@ -223,31 +220,31 @@ func generateMountsModeRecover(recoverySystem string) error {
 	return nil
 }
 
-func generateMountsCommonInstallRecover(recoverySystem string, w io.Writer) error {
+func generateMountsCommonInstallRecover(recoverySystem string) (allMounted bool, err error) {
 	seedDir := filepath.Join(dirs.RunMnt, "ubuntu-seed")
 
 	// 1. always ensure seed partition is mounted
 	isMounted, err := osutilIsMounted(seedDir)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if !isMounted {
-		fmt.Fprintf(w, "/dev/disk/by-label/ubuntu-seed %s\n", seedDir)
-		return nil
+		fmt.Fprintf(stdout, "/dev/disk/by-label/ubuntu-seed %s\n", seedDir)
+		return false, nil
 	}
 
 	// 2. (auto) select recovery system for now
 	isBaseMounted, err := osutilIsMounted(filepath.Join(dirs.RunMnt, "base"))
 	if err != nil {
-		return err
+		return false, err
 	}
 	isKernelMounted, err := osutilIsMounted(filepath.Join(dirs.RunMnt, "kernel"))
 	if err != nil {
-		return err
+		return false, err
 	}
 	isSnapdMounted, err := osutilIsMounted(filepath.Join(dirs.RunMnt, "snapd"))
 	if err != nil {
-		return err
+		return false, err
 	}
 	if !isBaseMounted || !isKernelMounted || !isSnapdMounted {
 		// load the recovery system and generate mounts for kernel/base
@@ -264,19 +261,19 @@ func generateMountsCommonInstallRecover(recoverySystem string, w io.Writer) erro
 		}
 		essSnaps, err := recoverySystemEssentialSnaps(seedDir, recoverySystem, whichTypes)
 		if err != nil {
-			return fmt.Errorf("cannot load metadata and verify essential bootstrap snaps %v: %v", whichTypes, err)
+			return false, fmt.Errorf("cannot load metadata and verify essential bootstrap snaps %v: %v", whichTypes, err)
 		}
 
 		// TODO:UC20: do we need more cross checks here?
 		for _, essentialSnap := range essSnaps {
 			switch essentialSnap.EssentialType {
 			case snap.TypeBase:
-				fmt.Fprintf(w, "%s %s\n", essentialSnap.Path, filepath.Join(dirs.RunMnt, "base"))
+				fmt.Fprintf(stdout, "%s %s\n", essentialSnap.Path, filepath.Join(dirs.RunMnt, "base"))
 			case snap.TypeKernel:
 				// TODO:UC20: we need to cross-check the kernel path with snapd_recovery_kernel used by grub
-				fmt.Fprintf(w, "%s %s\n", essentialSnap.Path, filepath.Join(dirs.RunMnt, "kernel"))
+				fmt.Fprintf(stdout, "%s %s\n", essentialSnap.Path, filepath.Join(dirs.RunMnt, "kernel"))
 			case snap.TypeSnapd:
-				fmt.Fprintf(w, "%s %s\n", essentialSnap.Path, filepath.Join(dirs.RunMnt, "snapd"))
+				fmt.Fprintf(stdout, "%s %s\n", essentialSnap.Path, filepath.Join(dirs.RunMnt, "snapd"))
 			}
 		}
 	}
@@ -284,16 +281,16 @@ func generateMountsCommonInstallRecover(recoverySystem string, w io.Writer) erro
 	// 3. mount "ubuntu-data" on a tmpfs
 	isMounted, err = osutilIsMounted(filepath.Join(dirs.RunMnt, "ubuntu-data"))
 	if err != nil {
-		return err
+		return false, err
 	}
 	if !isMounted {
-		fmt.Fprintf(w, "--type=tmpfs tmpfs /run/mnt/ubuntu-data\n")
-		return nil
+		fmt.Fprintf(stdout, "--type=tmpfs tmpfs /run/mnt/ubuntu-data\n")
+		return false, nil
 	}
 
 	// 4. done, no output, no error indicates to initramfs we are done
 	//    with mounting stuff
-	return nil
+	return true, nil
 }
 
 func generateMountsModeRun() error {
