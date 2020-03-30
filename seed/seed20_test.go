@@ -168,6 +168,16 @@ func (s *seed20Suite) TestLoadMetaCore20Minimal(c *C) {
 		},
 	})
 
+	// check that PlaceInfo method works
+	pi := essSnaps[0].PlaceInfo()
+	c.Check(pi.Filename(), Equals, "snapd_1.snap")
+	pi = essSnaps[1].PlaceInfo()
+	c.Check(pi.Filename(), Equals, "pc-kernel_1.snap")
+	pi = essSnaps[2].PlaceInfo()
+	c.Check(pi.Filename(), Equals, "core20_1.snap")
+	pi = essSnaps[3].PlaceInfo()
+	c.Check(pi.Filename(), Equals, "pc_1.snap")
+
 	runSnaps, err := seed20.ModeSnaps("run")
 	c.Assert(err, IsNil)
 	c.Check(runSnaps, HasLen, 0)
