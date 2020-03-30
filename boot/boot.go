@@ -328,34 +328,23 @@ func MarkBootSuccessful(dev Device) error {
 	return nil
 }
 
-var ErrSystemBootModeUnsupported = errors.New("system boot mode is unsupported")
+var ErrUnsupportedSystemBootMode = errors.New("system boot mode is unsupported")
 
-// bootSystemState is used for choosing the recovery system and mode for the
-// next boot.
-type bootSystemState interface {
-	// setSystemMode configures the bootloader to boot into the provided
-	// system in given mode.
-	setSystemMode(system, mode string) (bootStateUpdate, error)
-}
-
-// RecoverySystemInMode configures the bootloader to boot into the given
+// SetRecoveryBootSystemAndMode configures the bootloader to boot into the given
 // recovery system in a particular mode. When booting into a recovery system is
-// not supproted by the device, an ErrSystemBootModeUnsupported error is
+// not supproted by the device, an ErrUnsupportedSystemBootMode error is
 // returned.
-func RecoverySystemInMode(dev Device, systemLabel, mode string) error {
-	if dev == nil {
-		return fmt.Errorf("internal error: device is unset")
-	}
+func SetRecoveryBootSystemAndMode(dev Device, systemLabel, mode string) error {
 	if !dev.HasModeenv() {
 		// only UC20 devices are supported
-		return ErrSystemBootModeUnsupported
+		return ErrUnsupportedSystemBootMode
 	}
 
 	ferr := func(err error) error {
 		return fmt.Errorf("cannot set up the boot environment: %v", err)
 	}
 
-	s := newBootSystemState20()
+	s := &bootSystemState20{}
 	u, err := s.setSystemMode(systemLabel, mode)
 	if err != nil {
 		return ferr(err)

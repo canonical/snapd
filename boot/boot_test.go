@@ -1375,8 +1375,8 @@ func (s *bootenvSystem20Suite) SetUpTest(c *C) {
 	s.dev = boottest.MockUC20Device("some-snap")
 }
 
-func (s *bootenvSystem20Suite) TestSystemInModeHappy(c *C) {
-	err := boot.RecoverySystemInMode(s.dev, "1234", "install")
+func (s *bootenvSystem20Suite) TestRecoverySystemAndModeHappy(c *C) {
+	err := boot.SetRecoveryBootSystemAndMode(s.dev, "1234", "install")
 	c.Assert(err, IsNil)
 	c.Check(s.bootloader.BootVars, DeepEquals, map[string]string{
 		"snapd_recovery_system": "1234",
@@ -1384,28 +1384,26 @@ func (s *bootenvSystem20Suite) TestSystemInModeHappy(c *C) {
 	})
 }
 
-func (s *bootenvSystem20Suite) TestSystemInModeSetErr(c *C) {
+func (s *bootenvSystem20Suite) TestRecoverySystemAndModeSetErr(c *C) {
 	s.bootloader.SetErr = errors.New("no can do")
-	err := boot.RecoverySystemInMode(s.dev, "1234", "install")
+	err := boot.SetRecoveryBootSystemAndMode(s.dev, "1234", "install")
 	c.Assert(err, ErrorMatches, `cannot set up the boot environment: no can do`)
 }
 
-func (s *bootenvSystem20Suite) TestSystemInModeNonUC20(c *C) {
+func (s *bootenvSystem20Suite) TestRecoverySystemAndModeNonUC20(c *C) {
 	non20Dev := boottest.MockDevice("some-snap")
-	err := boot.RecoverySystemInMode(non20Dev, "1234", "install")
-	c.Assert(err, Equals, boot.ErrSystemBootModeUnsupported)
+	err := boot.SetRecoveryBootSystemAndMode(non20Dev, "1234", "install")
+	c.Assert(err, Equals, boot.ErrUnsupportedSystemBootMode)
 }
 
-func (s *bootenvSystem20Suite) TestSystemInModeErrClumsy(c *C) {
-	err := boot.RecoverySystemInMode(s.dev, "", "install")
+func (s *bootenvSystem20Suite) TestRecoverySystemAndModeErrClumsy(c *C) {
+	err := boot.SetRecoveryBootSystemAndMode(s.dev, "", "install")
 	c.Assert(err, ErrorMatches, ".* internal error: system or mode is unset")
-	err = boot.RecoverySystemInMode(s.dev, "1234", "")
+	err = boot.SetRecoveryBootSystemAndMode(s.dev, "1234", "")
 	c.Assert(err, ErrorMatches, ".* internal error: system or mode is unset")
-	err = boot.RecoverySystemInMode(nil, "1234", "install")
-	c.Assert(err, ErrorMatches, "internal error: device is unset")
 }
 
-func (s *bootenvSystem20Suite) TestSystemInModeRealHappy(c *C) {
+func (s *bootenvSystem20Suite) TestRecoverySystemAndModeRealHappy(c *C) {
 	bootloader.Force(nil)
 
 	mockSeedGrubDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI", "ubuntu")
@@ -1414,7 +1412,7 @@ func (s *bootenvSystem20Suite) TestSystemInModeRealHappy(c *C) {
 	err = ioutil.WriteFile(filepath.Join(mockSeedGrubDir, "grub.cfg"), nil, 0644)
 	c.Assert(err, IsNil)
 
-	err = boot.RecoverySystemInMode(s.dev, "1234", "install")
+	err = boot.SetRecoveryBootSystemAndMode(s.dev, "1234", "install")
 	c.Assert(err, IsNil)
 
 	bl, err := bootloader.Find(boot.InitramfsUbuntuSeedDir, &bootloader.Options{Recovery: true})

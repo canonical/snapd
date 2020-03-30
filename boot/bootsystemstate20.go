@@ -25,18 +25,16 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 )
 
-// bootSystemState20 implements the bootSystemState and bootStateUpdate
-// interfaces. It is used for selecting the recovery system and mode for the
-// subsequent boot.
+// bootSystemState20 is used for selecting the recovery system and mode for the
+// subsequent boot on a UC20 device. It implements the bootStateUpdate
+// interface.
 type bootSystemState20 struct {
 	bl           bootloader.Bootloader
 	system, mode string
 }
 
-func newBootSystemState20() bootSystemState {
-	return &bootSystemState20{}
-}
-
+// setSystemMode configures the bootloader to boot into the provided system in
+// given mode.
 func (b *bootSystemState20) setSystemMode(system, mode string) (bootStateUpdate, error) {
 	if b.bl == nil {
 		opts := &bootloader.Options{

@@ -857,7 +857,7 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 		return err
 	}
 
-	if err := boot.RecoverySystemInMode(deviceCtx, systemLabel, action.Mode); err != nil {
+	if err := boot.SetRecoveryBootSystemAndMode(deviceCtx, systemLabel, action.Mode); err != nil {
 		return fmt.Errorf("cannot boot into system %q in mode %q: %v",
 			systemLabel, action.Mode, err)
 	}
