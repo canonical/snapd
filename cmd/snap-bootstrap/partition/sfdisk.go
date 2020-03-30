@@ -363,7 +363,11 @@ func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume) (sfdiskInput
 			s.Label = ubuntuDataLabel
 		}
 
-		toBeCreated = append(toBeCreated, DeviceStructure{p, node, true})
+		toBeCreated = append(toBeCreated, DeviceStructure{
+			LaidOutStructure: p,
+			Node:             node,
+			Created:          true,
+		})
 	}
 
 	return buf, toBeCreated
