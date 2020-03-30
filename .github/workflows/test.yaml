@@ -1,12 +1,9 @@
-name: Unit Tests
+name: Tests
 on:
-  push:
-    branches: [ master ]
   pull_request:
-    branches: [ master ]
+    branches: [ "master", "release/**" ]
 jobs:
   # TODO: run static checks before we run unit tests
-  # TODO: run spread tests, in a matrix, after we run unit tests
   # TODO: port static checks as well
   unit-tests:
     runs-on: ubuntu-latest
@@ -33,26 +30,26 @@ jobs:
           sudo apt update
           sudo apt build-dep -d -y ${{ github.workspace }}/src/github.com/snapcore/snapd
     # Work around caching files owned by root https://github.com/actions/cache/issues/133
-    - name: Make /var/cache/apt owned by current user
-      run: sudo chown -R $(id -u) /var/cache/apt
     - name: Install Debian dependencies
       run: sudo apt build-dep -y ${{ github.workspace }}/src/github.com/snapcore/snapd
+    - name: Make /var/cache/apt owned by current user
+      run: sudo chown -R $(id -u) /var/cache/apt
     - name: Set up go 1.9
       uses: actions/setup-go@v1
       with:
         go-version: 1.9
     - name: Install govendor
       run: go get -u github.com/kardianos/govendor
-    - name: Get Go dependencies
-      run: |
-          cd ${{ github.workspace }}/src/github.com/snapcore/snapd
-          ${{ github.workspace }}/bin/govendor sync
     - name: Cache Go dependencies
       id: cache-go-govendor
       uses: actions/cache@v1
       with:
         path: ${{ github.workspace }}/.cache/govendor
         key: go-govendor-{{ hashFiles('**/vendor.json') }}
+    - name: Get Go dependencies
+      run: |
+          cd ${{ github.workspace }}/src/github.com/snapcore/snapd
+          ${{ github.workspace }}/bin/govendor sync
     - name: Build C
       run: |
           cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/
@@ -66,3 +63,32 @@ jobs:
           make check
     - name: Test Go
       run: go test github.com/snapcore/snapd/...
+  spread:
+    needs: unit-tests
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        system:
+        - centos-8-64
+        - opensuse-15.1-64
+        - opensuse-tumbleweed-64
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+    - name: Install spread
+      run: |
+          cd /tmp
+          curl -s -O https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz
+          tar xzvf spread-amd64.tar.gz
+    - name: Run spread tests
+      env:
+          SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
+      run: /tmp/spread -abend google-unstable:${{ matrix.system }}:tests/...
+      # TODO: move this to a reliable post() action.
+    - name: Discard spread workers
+      run: |
+        shopt -s nullglob;
+        for r in .spread-reuse.*.yaml; do
+          spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
+        done
