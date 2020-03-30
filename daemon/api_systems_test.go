@@ -105,9 +105,11 @@ func (s *apiSuite) TestGetSystemsSome(c *check.C) {
 
 	st := d.overlord.State()
 	st.Lock()
-	st.Set("seeded-systems", []map[string]string{
-		{"system": "20200318", "model": "my-model-2", "brand-id": "my-brand"},
-	})
+	st.Set("seeded-systems", []map[string]interface{}{{
+		"system": "20200318", "model": "my-model-2", "brand-id": "my-brand",
+		"revision": 2, "timestamp": "2009-11-10T23:00:00Z",
+		"seed-time": "2009-11-10T23:00:00Z",
+	}})
 	st.Unlock()
 
 	restore := s.mockSystemSeeds(c)
