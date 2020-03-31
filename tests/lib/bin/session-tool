@@ -217,9 +217,11 @@ busctl \
 	/org/freedesktop/systemd1 \
 	 org.freedesktop.systemd1.Manager \
 	StartTransientUnit "ssa(sv)a(sa(sv))" \
-	"$unit_name" fail 4 \
+	"$unit_name" fail 6 \
 		Description s "session-tool running $* as $user" \
 		Type s oneshot \
+		RemainAfterExit b false \
+		CollectMode s inactive-or-failed \
 		Environment as 1 TERM=xterm-256color \
 		ExecStart "a(sasb)" 1 \
 			"$(command -v runuser)" 6 "$(command -v runuser)" -l "$user" - -c "exec $tmp_dir/exec <$tmp_dir/stdin.pipe >$tmp_dir/stdout.pipe 2>$tmp_dir/stderr.pipe" false \
