@@ -913,9 +913,14 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	snapst.Active = true
+	vitalityRank, err := vitalityRank(st, snapsup.InstanceName())
+	if err != nil {
+		return err
+	}
 	linkCtx := backend.LinkContext{
 		PrevDisabledServices: svcsToDisable,
 		FirstInstall:         false,
+		VitalityRank:         vitalityRank,
 	}
 	reboot, err := m.backend.LinkSnap(oldInfo, deviceCtx, linkCtx, perfTimings)
 	if err != nil {
@@ -1107,8 +1112,8 @@ func vitalityRank(st *state.State, instanceName string) (rank int, err error) {
 	tr := config.NewTransaction(st)
 
 	var vitalityStr string
-	err = tr.Get("core", "resilience.vitality-hint", &vitalityStr)
-	if err != nil && !config.IsNoOption(err) {
+	err = tr.GetMaybe("core", "resilience.vitality-hint", &vitalityStr)
+	if err != nil {
 		return 0, err
 	}
 	for i, s := range strings.Split(vitalityStr, ",") {

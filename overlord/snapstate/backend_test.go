@@ -829,9 +829,7 @@ func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, dev boot.Device, linkCtx b
 	if len(linkCtx.PrevDisabledServices) != 0 {
 		op.disabledServices = linkCtx.PrevDisabledServices
 	}
-	if linkCtx.VitalityRank != 0 {
-		op.vitalityRank = linkCtx.VitalityRank
-	}
+	op.vitalityRank = linkCtx.VitalityRank
 
 	if info.MountDir() == f.linkSnapFailTrigger {
 		op.op = "link-snap.failed"
