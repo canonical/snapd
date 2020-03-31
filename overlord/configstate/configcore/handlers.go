@@ -39,7 +39,7 @@ type flags struct {
 	coreOnlyConfig bool
 }
 
-type cfgHandler struct {
+type fsOnlyHandler struct {
 	validateFunc func(config.ConfGetter) error
 	handleFunc   func(config.ConfGetter, *fsOnlyContext) error
 	configFlags  flags
@@ -52,29 +52,32 @@ func init() {
 	// TODO: consider allowing some of these on classic too?
 	// consider erroring on core-only options on classic?
 
-	flags := &flags{coreOnlyConfig: true}
+	coreOnly := &flags{coreOnlyConfig: true}
 
 	// watchdog.{runtime-timeout,shutdown-timeout}
-	addConfigHandler(validateWatchdogOptions, handleWatchdogConfiguration, flags)
+	addFSOnlyHandler(validateWatchdogOptions, handleWatchdogConfiguration, coreOnly)
 
 	// Export experimental.* flags to a place easily accessible from snapd helpers.
-	addConfigHandler(validateExperimentalSettings, doExportExperimentalFlags, nil)
+	addFSOnlyHandler(validateExperimentalSettings, doExportExperimentalFlags, nil)
 
 	// network.disable-ipv6
-	addConfigHandler(validateNetworkSettings, handleNetworkConfiguration, flags)
+	addFSOnlyHandler(validateNetworkSettings, handleNetworkConfiguration, coreOnly)
 
 	// service.*.disable
-	addConfigHandler(nil, handleServiceDisableConfiguration, flags)
+	addFSOnlyHandler(nil, handleServiceDisableConfiguration, coreOnly)
 
 	// system.power-key-action
-	addConfigHandler(nil, handlePowerButtonConfiguration, flags)
+	addFSOnlyHandler(nil, handlePowerButtonConfiguration, coreOnly)
 
 	// pi-config.*
-	addConfigHandler(nil, handlePiConfiguration, flags)
+	addFSOnlyHandler(nil, handlePiConfiguration, coreOnly)
 }
 
-func addConfigHandler(validate func(config.ConfGetter) error, handle func(config.ConfGetter, *fsOnlyContext) error, flags *flags) {
-	h := &cfgHandler{
+// addFSOnlyHandler registers functions to validate and handle a subset of
+// system config options that do not require to manipulate state but only
+// the file system.
+func addFSOnlyHandler(validate func(config.ConfGetter) error, handle func(config.ConfGetter, *fsOnlyContext) error, flags *flags) {
+	h := &fsOnlyHandler{
 		validateFunc: validate,
 		handleFunc:   handle,
 	}
@@ -84,22 +87,22 @@ func addConfigHandler(validate func(config.ConfGetter) error, handle func(config
 	handlers = append(handlers, h)
 }
 
-func (h *cfgHandler) needsState() bool {
+func (h *fsOnlyHandler) needsState() bool {
 	return false
 }
 
-func (h *cfgHandler) flags() flags {
+func (h *fsOnlyHandler) flags() flags {
 	return h.configFlags
 }
 
-func (h *cfgHandler) validate(cfg config.ConfGetter) error {
+func (h *fsOnlyHandler) validate(cfg config.ConfGetter) error {
 	if h.validateFunc != nil {
 		return h.validateFunc(cfg)
 	}
 	return nil
 }
 
-func (h *cfgHandler) handle(cfg config.ConfGetter, opts *fsOnlyContext) error {
+func (h *fsOnlyHandler) handle(cfg config.ConfGetter, opts *fsOnlyContext) error {
 	if h.handleFunc != nil {
 		return h.handleFunc(cfg, opts)
 	}

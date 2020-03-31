@@ -31,25 +31,25 @@ func init() {
 	// TODO: consider allowing some of these on classic too?
 	// consider erroring on core-only options on classic?
 
-	flags := &flags{coreOnlyConfig: true}
+	coreOnly := &flags{coreOnlyConfig: true}
 
 	// capture cloud information
-	addConfigStateHandler(nil, setCloudInfoWhenSeeding, nil)
+	addWithStateHandler(nil, setCloudInfoWhenSeeding, nil)
 
 	// proxy.{http,https,ftp}
-	addConfigStateHandler(validateProxyStore, handleProxyConfiguration, flags)
-	addConfigStateHandler(validateRefreshSchedule, nil, nil)
-	addConfigStateHandler(validateRefreshRateLimit, nil, nil)
-	addConfigStateHandler(validateAutomaticSnapshotsExpiration, nil, nil)
+	addWithStateHandler(validateProxyStore, handleProxyConfiguration, coreOnly)
+	addWithStateHandler(validateRefreshSchedule, nil, nil)
+	addWithStateHandler(validateRefreshRateLimit, nil, nil)
+	addWithStateHandler(validateAutomaticSnapshotsExpiration, nil, nil)
 }
 
-type cfgStateHandler struct {
+type withStateHandler struct {
 	validateFunc func(config.Conf) error
 	handleFunc   func(config.Conf, *fsOnlyContext) error
 	configFlags  flags
 }
 
-func (h *cfgStateHandler) validate(cfg config.ConfGetter) error {
+func (h *withStateHandler) validate(cfg config.ConfGetter) error {
 	conf := cfg.(config.Conf)
 	if h.validateFunc != nil {
 		return h.validateFunc(conf)
@@ -57,7 +57,7 @@ func (h *cfgStateHandler) validate(cfg config.ConfGetter) error {
 	return nil
 }
 
-func (h *cfgStateHandler) handle(cfg config.ConfGetter, opts *fsOnlyContext) error {
+func (h *withStateHandler) handle(cfg config.ConfGetter, opts *fsOnlyContext) error {
 	conf := cfg.(config.Conf)
 	if h.handleFunc != nil {
 		return h.handleFunc(conf, opts)
@@ -65,16 +65,18 @@ func (h *cfgStateHandler) handle(cfg config.ConfGetter, opts *fsOnlyContext) err
 	return nil
 }
 
-func (h *cfgStateHandler) needsState() bool {
+func (h *withStateHandler) needsState() bool {
 	return true
 }
 
-func (h *cfgStateHandler) flags() flags {
+func (h *withStateHandler) flags() flags {
 	return h.configFlags
 }
 
-func addConfigStateHandler(validate func(config.Conf) error, handle func(config.Conf, *fsOnlyContext) error, flags *flags) {
-	h := &cfgStateHandler{
+// addWithStateHandler registers functions to validate and handle a subset of
+// system config options requiring to access and manipulate state.
+func addWithStateHandler(validate func(config.Conf) error, handle func(config.Conf, *fsOnlyContext) error, flags *flags) {
+	h := &withStateHandler{
 		validateFunc: validate,
 		handleFunc:   handle,
 	}
