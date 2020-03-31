@@ -73,6 +73,9 @@ var mockSystems = &main.ChooserSystems{
 	Systems: []client.System{
 		{
 			Label: "foo",
+			Actions: []client.SystemAction{
+				{Title: "reinstall", Mode: "install"},
+			},
 		},
 	},
 }
@@ -161,17 +164,46 @@ func (s *mockedClientCmdSuite) RedirectClientToTestServer(handler func(http.Resp
 	s.config.BaseURL = server.URL
 }
 
-func (s *mockedClientCmdSuite) mockSuccessfulResponse(c *C, rspData *main.ChooserSystems) {
+type mockSystemRequestResponse struct {
+	label  string
+	code   int
+	expect map[string]interface{}
+}
+
+func (s *mockedClientCmdSuite) mockSuccessfulResponse(c *C, rspSystems *main.ChooserSystems, reqSystemLabel *mockSystemRequestResponse) {
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch n {
 		case 0:
 			c.Check(r.URL.Path, Equals, "/v2/systems")
-			enc := json.NewEncoder(w)
-			err := enc.Encode(apiResponse{
+			err := json.NewEncoder(w).Encode(apiResponse{
 				Type:       "sync",
-				Result:     rspData,
+				Result:     rspSystems,
 				StatusCode: 200,
+			})
+			c.Assert(err, IsNil)
+		case 1:
+			if reqSystemLabel == nil {
+				c.Fatalf("unexpected request to %q", r.URL.Path)
+			}
+			c.Check(r.URL.Path, Equals, "/v2/systems/"+reqSystemLabel.label)
+			c.Check(r.Method, Equals, "POST")
+
+			var data map[string]interface{}
+			err := json.NewDecoder(r.Body).Decode(&data)
+			c.Assert(err, IsNil)
+			c.Check(data, DeepEquals, reqSystemLabel.expect)
+
+			rspType := "sync"
+			var rspData map[string]string
+			if reqSystemLabel.code >= 400 {
+				rspType = "error"
+				rspData = map[string]string{"message": "failed in mock"}
+			}
+			err = json.NewEncoder(w).Encode(apiResponse{
+				Type:       rspType,
+				Result:     rspData,
+				StatusCode: reqSystemLabel.code,
 			})
 			c.Assert(err, IsNil)
 		default:
@@ -194,7 +226,7 @@ func (s *mockedClientCmdSuite) TestMainChooserWithTool(c *C) {
 	c.Assert(s.markerFile, testutil.FilePresent)
 
 	mockCmd := testutil.MockCommand(c, "tool", `
-echo '{}'
+echo '{"label":"label","action":{"mode":"install","title":"reinstall"}}'
 `)
 	defer mockCmd.Restore()
 	r = main.MockChooserTool(func() (*exec.Cmd, error) {
@@ -202,17 +234,23 @@ echo '{}'
 	})
 	defer r()
 
-	s.mockSuccessfulResponse(c, mockSystems)
+	s.mockSuccessfulResponse(c, mockSystems, &mockSystemRequestResponse{
+		code:  200,
+		label: "label",
+		expect: map[string]interface{}{
+			"action": "do",
+			"mode":   "install",
+			"title":  "reinstall",
+		},
+	})
 
 	err := main.Chooser(client.New(&s.config))
 	c.Assert(err, IsNil)
-
 	c.Assert(mockCmd.Calls(), DeepEquals, [][]string{
 		{"tool"},
 	})
 
 	c.Assert(s.markerFile, testutil.FileAbsent)
-
 }
 
 func (s *mockedClientCmdSuite) TestMainChooserToolNotFound(c *C) {
@@ -221,7 +259,7 @@ func (s *mockedClientCmdSuite) TestMainChooserToolNotFound(c *C) {
 	// sanity
 	c.Assert(s.markerFile, testutil.FilePresent)
 
-	s.mockSuccessfulResponse(c, mockSystems)
+	s.mockSuccessfulResponse(c, mockSystems, nil)
 
 	r = main.MockChooserTool(func() (*exec.Cmd, error) {
 		return nil, fmt.Errorf("tool not found")
@@ -235,8 +273,8 @@ func (s *mockedClientCmdSuite) TestMainChooserToolNotFound(c *C) {
 }
 
 func (s *mockedClientCmdSuite) TestMainChooserStdout(c *C) {
-	os.Setenv("USE_STDOUT", "1")
-	defer os.Unsetenv("USE_STDOUT")
+	os.Setenv("SNAPPY_TESTING", "1")
+	defer os.Unsetenv("SNAPPY_TESTING")
 	mockCmd := testutil.MockCommand(c, "tool", `
 echo '{}'
 `)
@@ -246,7 +284,7 @@ echo '{}'
 	})
 	defer r()
 
-	s.mockSuccessfulResponse(c, mockSystems)
+	s.mockSuccessfulResponse(c, mockSystems, nil)
 
 	err := main.Chooser(client.New(&s.config))
 	c.Assert(err, IsNil)
@@ -301,10 +339,18 @@ func (s *mockedClientCmdSuite) TestMainChooserDefaultsToConsoleConf(c *C) {
 	// sanity
 	c.Assert(s.markerFile, testutil.FilePresent)
 
-	s.mockSuccessfulResponse(c, mockSystems)
+	s.mockSuccessfulResponse(c, mockSystems, &mockSystemRequestResponse{
+		code:  200,
+		label: "label",
+		expect: map[string]interface{}{
+			"action": "do",
+			"mode":   "install",
+			"title":  "reinstall",
+		},
+	})
 
 	mockCmd := testutil.MockCommand(c, filepath.Join(dirs.GlobalRootDir, "/usr/bin/console-conf"), `
-echo '{}'
+echo '{"label":"label","action":{"mode":"install","title":"reinstall"}}'
 `)
 	defer mockCmd.Restore()
 
@@ -328,10 +374,93 @@ func (s *mockedClientCmdSuite) TestMainChooserNoConsoleConf(c *C) {
 	// sanity
 	c.Assert(s.markerFile, testutil.FilePresent)
 
-	s.mockSuccessfulResponse(c, mockSystems)
+	// not expecting a POST request
+	s.mockSuccessfulResponse(c, mockSystems, nil)
 
 	// tries to look up the console-conf binary but fails
 	err := main.Chooser(client.New(&s.config))
 	c.Assert(err, ErrorMatches, `cannot locate the chooser UI tool: chooser UI tool ".*/usr/bin/console-conf" does not exist`)
 	c.Assert(s.markerFile, testutil.FileAbsent)
+}
+
+func (s *mockedClientCmdSuite) TestMainChooserGarbageNoActionRequested(c *C) {
+	d := c.MkDir()
+	dirs.SetRootDir(d)
+	defer dirs.SetRootDir("/")
+
+	r := main.MockDefaultMarkerFile(s.markerFile)
+	defer r()
+	// sanity
+	c.Assert(s.markerFile, testutil.FilePresent)
+
+	// not expecting a POST request
+	s.mockSuccessfulResponse(c, mockSystems, nil)
+
+	mockCmd := testutil.MockCommand(c, filepath.Join(dirs.GlobalRootDir, "/usr/bin/console-conf"), `
+echo 'garbage'
+`)
+	defer mockCmd.Restore()
+
+	err := main.Chooser(client.New(&s.config))
+	c.Assert(err, ErrorMatches, "UI process failed: cannot decode response: .*")
+
+	c.Check(mockCmd.Calls(), DeepEquals, [][]string{
+		{"console-conf", "--recovery-chooser-mode"},
+	})
+
+	c.Assert(s.markerFile, testutil.FileAbsent)
+}
+
+func (s *mockedClientCmdSuite) TestMainChooserNoMarkerNoCalls(c *C) {
+	r := main.MockDefaultMarkerFile(s.markerFile + ".notfound")
+	defer r()
+
+	mockCmd := testutil.MockCommand(c, "tool", `
+exit 123
+`)
+	defer mockCmd.Restore()
+	r = main.MockChooserTool(func() (*exec.Cmd, error) {
+		return exec.Command(mockCmd.Exe()), nil
+	})
+	defer r()
+
+	err := main.Chooser(client.New(&s.config))
+	c.Assert(err, ErrorMatches, "cannot run chooser without the marker file")
+
+	c.Assert(mockCmd.Calls(), HasLen, 0)
+}
+
+func (s *mockedClientCmdSuite) TestMainChooserSnapdAPIBad(c *C) {
+	r := main.MockDefaultMarkerFile(s.markerFile)
+	defer r()
+	// sanity
+	c.Assert(s.markerFile, testutil.FilePresent)
+
+	mockCmd := testutil.MockCommand(c, "tool", `
+echo '{"label":"label","action":{"mode":"install","title":"reinstall"}}'
+`)
+	defer mockCmd.Restore()
+	r = main.MockChooserTool(func() (*exec.Cmd, error) {
+		return exec.Command(mockCmd.Exe()), nil
+	})
+	defer r()
+
+	s.mockSuccessfulResponse(c, mockSystems, &mockSystemRequestResponse{
+		code:  400,
+		label: "label",
+		expect: map[string]interface{}{
+			"action": "do",
+			"mode":   "install",
+			"title":  "reinstall",
+		},
+	})
+
+	err := main.Chooser(client.New(&s.config))
+	c.Assert(err, ErrorMatches, "cannot request system action: .* failed in mock")
+	c.Assert(mockCmd.Calls(), DeepEquals, [][]string{
+		{"tool"},
+	})
+
+	c.Assert(s.markerFile, testutil.FileAbsent)
+
 }

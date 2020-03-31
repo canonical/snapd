@@ -17,6 +17,24 @@
  *
  */
 
+// The `snap-recovery-chooser` acts as a proxy between the chooser UI process
+// and the actual snapd daemon.
+//
+// It obtains the list of seed systems and their actions from the snapd API and
+// passed that directly to the standard input of the UI process. The UI process
+// is expected to present the list of options to the user and print out a JSON
+// object with the choice to its standard output.
+//
+// The JSON object carrying the list of systems is the client.ChooserSystems
+// structure. The response is defined as follows:
+// {
+//     "label": "<system-label",
+//     "action": {} // client.SystemAction object
+// }
+//
+// No action is forwarded to snapd if the chooser UI exits with an error code or
+// the response structure is invalid.
+//
 package main
 
 import (
@@ -74,8 +92,8 @@ func outputForUI(out io.Writer, sys *ChooserSystems) error {
 
 // Response is sent by the UI tool and contains the choice made by the user
 type Response struct {
-	// ID of menu entry selected
-	ID string
+	Label  string              `json:"label"`
+	Action client.SystemAction `json:"action"`
 }
 
 func runUI(cmd *exec.Cmd, sys *ChooserSystems) (rsp *Response, err error) {
@@ -119,6 +137,15 @@ func cleanupTriggerMarker() error {
 }
 
 func chooser(cli *client.Client) error {
+	snappyTesting := os.Getenv("SNAPPY_TESTING") != ""
+
+	if _, err := os.Stat(defaultMarkerFile); err != nil && !snappyTesting {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("cannot run chooser without the marker file")
+		} else {
+			return fmt.Errorf("cannot check the marker file: %v", err)
+		}
+	}
 	// consume the trigger file
 	defer cleanupTriggerMarker()
 
@@ -132,7 +159,7 @@ func chooser(cli *client.Client) error {
 	}
 
 	// for local testing
-	if os.Getenv("USE_STDOUT") != "" {
+	if snappyTesting {
 		if err := outputForUI(Stdout, systemsForUI); err != nil {
 			return fmt.Errorf("cannot serialize UI to stdout: %v", err)
 		}
@@ -151,8 +178,9 @@ func chooser(cli *client.Client) error {
 
 	logger.Noticef("got response: %+v", response)
 
-	// TODO:UC20 trigger corresponding action in snapd
-
+	if err := cli.DoSystemAction(response.Label, &response.Action); err != nil {
+		return fmt.Errorf("cannot request system action: %v", err)
+	}
 	return nil
 }
 
@@ -163,6 +191,7 @@ func main() {
 	}
 
 	if err := chooser(client.New(nil)); err != nil {
+		logger.Noticef("cannot run recovery chooser: %v", err)
 		fmt.Fprintf(Stderr, "%v\n", err)
 		os.Exit(1)
 	}
