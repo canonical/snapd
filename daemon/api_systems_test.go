@@ -20,7 +20,9 @@
 package daemon
 
 import (
+	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -274,4 +276,35 @@ func (s *apiSuite) TestSystemActionBrokenSeed(c *check.C) {
 	rsp := postSystemsAction(systemsActionCmd, req, nil).(*resp)
 	c.Check(rsp.Status, check.Equals, 500)
 	c.Check(rsp.ErrorResult().Message, check.Matches, `cannot load seed system: cannot load assertions: .*`)
+}
+
+func (s *apiSuite) TestSystemActionOnlyRoot(c *check.C) {
+	d := s.daemonWithOverlordMock(c)
+	hookMgr, err := hookstate.Manager(d.overlord.State(), d.overlord.TaskRunner())
+	c.Assert(err, check.IsNil)
+	mgr, err := devicestate.Manager(d.overlord.State(), hookMgr, d.overlord.TaskRunner(), nil)
+	c.Assert(err, check.IsNil)
+	d.overlord.AddManager(mgr)
+
+	restore := s.mockSystemSeeds(c)
+	defer restore()
+
+	s.vars = map[string]string{"label": "20191119"}
+	body := `{"action":"do","title":"reinstall","mode":"install"}`
+
+	for _, tc := range []struct {
+		uid, code int
+	}{
+		{1234, 401},
+		{0, 200},
+	} {
+		// pretend to be a simple user
+		req, err := http.NewRequest("POST", "/v2/systems/20191119", strings.NewReader(body))
+		c.Assert(err, check.IsNil)
+		req.RemoteAddr = fmt.Sprintf("pid=100;uid=%v;socket=;", tc.uid)
+
+		rec := httptest.NewRecorder()
+		systemsActionCmd.ServeHTTP(rec, req)
+		c.Assert(rec.Code, check.Equals, tc.code, check.Commentf("body: %v", rec.Body.String()))
+	}
 }
