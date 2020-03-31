@@ -20,6 +20,7 @@
 package configcore
 
 import (
+	"crypto/x509"
 	"encoding/pem"
 	"fmt"
 	"io/ioutil"
@@ -102,11 +103,29 @@ func validateCertSettings(tr config.Conf) error {
 		}
 		if cert != "" {
 			optionName := strings.SplitN(name, ".", 3)[2]
-			block, rest := pem.Decode([]byte(cert))
-			if block == nil || block.Type != "CERTIFICATE" || len(rest) > 0 {
+			// copied validation code from
+			// go:crypto/x509/cert_pool.go:AppendCertsFromPEM()
+			pemCerts := []byte(cert)
+			ok := false
+			for len(pemCerts) > 0 {
+				var block *pem.Block
+				block, pemCerts = pem.Decode(pemCerts)
+				if block == nil {
+					break
+				}
+				if block.Type != "CERTIFICATE" || len(block.Headers) != 0 {
+					continue
+				}
+				_, err := x509.ParseCertificate(block.Bytes)
+				if err != nil {
+					return fmt.Errorf("cannot parse pem certificate %q", optionName)
+
+				}
+				ok = true
+			}
+			if !ok {
 				return fmt.Errorf("cannot decode pem certificate %q", optionName)
 			}
-			// XXX: add more validations?
 		}
 	}
 
