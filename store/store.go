@@ -1188,9 +1188,10 @@ type Search struct {
 
 	CommonID string
 
-	Section string
-	Private bool
-	Scope   string
+	// category is "section" in search v1
+	Category string
+	Private  bool
+	Scope    string
 }
 
 // Find finds  (installable) snaps from the store, matching the
@@ -1231,9 +1232,8 @@ func (s *Store) Find(ctx context.Context, search *Search, user *auth.UserState) 
 		}
 	}
 
-	// section is "category" in search v2
-	if search.Section != "" {
-		q.Set("category", search.Section)
+	if search.Category != "" {
+		q.Set("category", search.Category)
 	}
 
 	// with search v2 all risks are searched by default (same as scope=wide
@@ -1291,6 +1291,9 @@ func (s *Store) Find(ctx context.Context, search *Search, user *auth.UserState) 
 			}
 		}
 		if len(searchData.ErrorList) > 0 {
+			if len(searchData.ErrorList) > 1 {
+				logger.Noticef("unexpected number of errors (%d) when trying to search via %q", len(searchData.ErrorList), resp.Request.URL)
+			}
 			return nil, translateSnapActionError("", "", searchData.ErrorList[0].Code, searchData.ErrorList[0].Message, nil)
 		}
 		return nil, respToError(resp, "search")
@@ -1338,8 +1341,10 @@ func (s *Store) findV1(ctx context.Context, search *Search, user *auth.UserState
 			q.Set("q", searchTerm)
 		}
 	}
-	if search.Section != "" {
-		q.Set("section", search.Section)
+
+	// category was "section" in search v1
+	if search.Category != "" {
+		q.Set("section", search.Category)
 	}
 	if search.Scope != "" {
 		q.Set("scope", search.Scope)

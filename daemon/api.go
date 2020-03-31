@@ -525,7 +525,7 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 		Query:    q,
 		Prefix:   prefix,
 		CommonID: commonID,
-		Section:  section,
+		Category: section,
 		Private:  private,
 		Scope:    scope,
 	}, user)
