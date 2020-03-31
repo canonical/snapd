@@ -97,13 +97,13 @@ case "$action" in
 		loginctl disable-linger "$user"
 
 		if [ -e /run/session-tool-core16.workaround ]; then
-			rm  /run/session-tool-core16.workaround;
+			rm  /run/session-tool-core16.workaround
 			# Undo changes to make /var/lib/systemd/ writable.
 			umount -l /var/lib/systemd
 		fi
 
 		if [ -e /run/session-tool-systemd-issue-12401.workaround ]; then
-			rm /run/session-tool-systemd-issue-12401.workaround
+			rm  /run/session-tool-systemd-issue-12401.workaround
 
 			# Remove the logind customizations we (may have) done above.
 			rm -rf /etc/systemd/system/systemd-logind.service.d
