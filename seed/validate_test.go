@@ -336,6 +336,50 @@ snaps:
 
 }
 
+func (s *validateSuite) TestValidateFromYamlDuplicatedSnap(c *C) {
+	s.makeSnapInSeed(c, coreYaml)
+	s.makeSnapInSeed(c, `name: gtk-common-themes
+version: 19.04`)
+	seedFn := s.makeSeedYaml(c, `
+snaps:
+ - name: core
+   channel: stable
+   file: core_1.snap
+ - name: gtk-common-themes
+   channel: stable/ubuntu-19.04
+   file: gtk-common-themes_1.snap
+ - name: gtk-common-themes
+   channel: stable/ubuntu-19.04
+   file: gtk-common-themes_1.snap
+`)
+
+	err := seed.ValidateFromYaml(seedFn)
+	c.Assert(err, ErrorMatches, `cannot validate seed:
+ - cannot read seed yaml: snap name "gtk-common-themes" must be unique`)
+}
+
+func (s *validateSuite) TestValidateFromYamlRegressionLP1825437(c *C) {
+	s.makeSnapInSeed(c, coreYaml)
+	s.makeSnapInSeed(c, `name: gtk-common-themes
+version: 19.04`)
+	seedFn := s.makeSeedYaml(c, `
+snaps:
+ -
+   name: core
+   channel: stable
+   file: core_1.snap
+ -
+ -
+   name: gtk-common-themes
+   channel: stable/ubuntu-19.04
+   file: gtk-common-themes_1.snap
+`)
+
+	err := seed.ValidateFromYaml(seedFn)
+	c.Assert(err, ErrorMatches, `cannot validate seed:
+ - cannot read seed yaml: empty element in seed`)
+}
+
 func (s *validateSuite) TestValidateSeedSystemLabel(c *C) {
 	valid := []string{
 		"ab",
