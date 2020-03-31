@@ -28,7 +28,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
-	"github.com/snapcore/snapd/release"
 )
 
 // valid pi config keys
@@ -97,10 +96,6 @@ func piConfigFile(opts *fsOnlyContext) string {
 }
 
 func handlePiConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error {
-	if release.OnClassic {
-		// nothing to do
-		return nil
-	}
 	if osutil.FileExists(piConfigFile(opts)) {
 		// snapctl can actually give us the whole dict in
 		// JSON, in a single call; use that instead of this.
