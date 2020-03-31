@@ -1398,9 +1398,9 @@ func (s *bootenvSystem20Suite) TestSetRecoveryBootSystemAndModeNonUC20(c *C) {
 
 func (s *bootenvSystem20Suite) TestSetRecoveryBootSystemAndModeErrClumsy(c *C) {
 	err := boot.SetRecoveryBootSystemAndMode(s.dev, "", "install")
-	c.Assert(err, ErrorMatches, "internal error: system or mode is unset")
+	c.Assert(err, ErrorMatches, "internal error: system label is unset")
 	err = boot.SetRecoveryBootSystemAndMode(s.dev, "1234", "")
-	c.Assert(err, ErrorMatches, "internal error: system or mode is unset")
+	c.Assert(err, ErrorMatches, "internal error: system mode is unset")
 }
 
 func (s *bootenvSystem20Suite) TestSetRecoveryBootSystemAndModeRealHappy(c *C) {

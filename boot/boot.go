@@ -338,8 +338,11 @@ func SetRecoveryBootSystemAndMode(dev Device, systemLabel, mode string) error {
 		// only UC20 devices are supported
 		return ErrUnsupportedSystemBootMode
 	}
-	if systemLabel == "" || mode == "" {
-		return fmt.Errorf("internal error: system or mode is unset")
+	if systemLabel == "" {
+		return fmt.Errorf("internal error: system label is unset")
+	}
+	if mode == "" {
+		return fmt.Errorf("internal error: system mode is unset")
 	}
 
 	opts := &bootloader.Options{
