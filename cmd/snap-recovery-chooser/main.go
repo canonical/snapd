@@ -137,7 +137,7 @@ func cleanupTriggerMarker() error {
 }
 
 func chooser(cli *client.Client) error {
-	snappyTesting := os.Getenv("SNAPPY_TESTING") != ""
+	snappyTesting := os.Getenv("SNAPPY_TESTING_USE_STDOUT") != ""
 
 	if _, err := os.Stat(defaultMarkerFile); err != nil && !snappyTesting {
 		if os.IsNotExist(err) {

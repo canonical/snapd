@@ -273,8 +273,8 @@ func (s *mockedClientCmdSuite) TestMainChooserToolNotFound(c *C) {
 }
 
 func (s *mockedClientCmdSuite) TestMainChooserStdout(c *C) {
-	os.Setenv("SNAPPY_TESTING", "1")
-	defer os.Unsetenv("SNAPPY_TESTING")
+	os.Setenv("SNAPPY_TESTING_USE_STDOUT", "1")
+	defer os.Unsetenv("SNAPPY_TESTING_USE_STDOUT")
 	mockCmd := testutil.MockCommand(c, "tool", `
 echo '{}'
 `)
