@@ -191,8 +191,12 @@ cat "$tmp_dir/ready.pipe" >/dev/null
 # descriptors https://github.com/systemd/systemd/issues/14954 As a workaround
 # we pass a set of pipes. This is good for non-interactive work.
 cat >"$tmp_dir/stdin.pipe" &
+cat_stdin_pid=$!
 cat <"$tmp_dir/stdout.pipe" >&1 &
+cat_stdout_pid=$!
 cat <"$tmp_dir/stderr.pipe" >&2 &
+cat_stderr_pid=$!
+
 (
 	echo "#!/bin/sh"
 	test -n "$pid_file" && echo "echo \$$ >\"$pid_file\""
@@ -246,6 +250,10 @@ trap - INT TERM QUIT
 kill $dbus_monitor_pid || true
 wait $dbus_monitor_pid 2>/dev/null || true
 wait $awk_pid
+
+wait "$cat_stdin_pid"
+wait "$cat_stdout_pid"
+wait "$cat_stderr_pid"
 
 case "$result" in
 	'"done"') exit 0; ;;
