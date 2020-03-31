@@ -80,6 +80,9 @@ const (
 	RestartUnset RestartType = iota
 	RestartDaemon
 	RestartSystem
+	// RestartSystemImmediate is like RestartSystem but action is immediate,
+	// without unnecessary delay
+	RestartSystemImmediate
 	// RestartSocket will restart the daemon so that it goes into
 	// socket activation mode.
 	RestartSocket
@@ -261,7 +264,7 @@ func (s *State) EnsureBefore(d time.Duration) {
 // The state needs to be locked to request a RestartSystem.
 func (s *State) RequestRestart(t RestartType) {
 	if s.backend != nil {
-		if t == RestartSystem {
+		if t == RestartSystem || t == RestartSystemImmediate {
 			if s.bootID == "" {
 				panic("internal error: cannot request a system restart if current boot ID was not provided via VerifyReboot")
 			}
