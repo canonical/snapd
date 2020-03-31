@@ -227,10 +227,10 @@ busctl \
 # This is done so that we can configure file redirects. Once Ubuntu 16.04 is no
 # longer supported we can use Standard{Input,Output,Error}=file:path property
 # of systemd, or perhaps even StandardInputFileDescriptor and pass a file
-# descriptor to the fifos we open in the script above.
+# descriptor to the FIFOs we open in the script above.
 
 # Wait for the service to terminate. The trigger is a successful read
-# from the result fifo. In case we are signaled in one of the familiar
+# from the result FIFO. In case we are signaled in one of the familiar
 # ways, kill the started service with the same signal. The reading occurs
 # in a loop as the signal will first interrupt the read process, which will
 # fail and return nothing.
