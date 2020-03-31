@@ -11,6 +11,11 @@ execute: |
         exit 1
     fi
 
+    if snap set system store-certs.bad-cert=hello-there-not-a-cert; then
+        echo "should have failed to set cert option to something that's not a PEM encoded cert"
+        exit 1
+    fi
+
     echo "Ensure adding a cert1 to the config works"
     not test -f /var/lib/snapd/ssl/store-certs/cert1.pem
     snap set system store-certs.cert1="$(cat $CERT)"
