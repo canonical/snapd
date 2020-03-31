@@ -49,17 +49,17 @@ func (s *certsSuite) TestConfigureCertsUnhappyName(c *C) {
 	err := configcore.Run(&mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
-			"certs.cert-illegal-!": "xxx",
+			"store-certs.cert-illegal-!": "xxx",
 		},
 	})
-	c.Assert(err, ErrorMatches, `cannot set "core.certs.cert-illegal-!": name must only contain word characters or a dash`)
+	c.Assert(err, ErrorMatches, `cannot set "core.store-certs.cert-illegal-!": name must only contain word characters or a dash`)
 }
 
 func (s *certsSuite) TestConfigureCertsUnhappyContent(c *C) {
 	err := configcore.Run(&mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
-			"certs.cert-bad": "xxx",
+			"store-certs.cert-bad": "xxx",
 		},
 	})
 	c.Assert(err, ErrorMatches, `cannot decode pem certificate "cert-bad"`)
@@ -96,7 +96,7 @@ func (s *certsSuite) TestConfigureCertsHappy(c *C) {
 	err := configcore.Run(&mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
-			"certs.cert1": mockCert,
+			"store-certs.cert1": mockCert,
 		},
 	})
 	c.Assert(err, IsNil)
@@ -108,7 +108,7 @@ func (s *certsSuite) TestConfigureCertsSimulteRevert(c *C) {
 	err := configcore.Run(&mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
-			"certs.cert1": mockCert,
+			"store-certs.cert1": mockCert,
 		},
 	})
 	c.Assert(err, IsNil)
@@ -117,10 +117,10 @@ func (s *certsSuite) TestConfigureCertsSimulteRevert(c *C) {
 	err = configcore.Run(&mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
-			"certs.cert1": mockCert,
+			"store-certs.cert1": mockCert,
 		},
 		changes: map[string]interface{}{
-			"certs.certthatwillbereverted": mockCert,
+			"store-certs.certthatwillbereverted": mockCert,
 		},
 	})
 	c.Assert(err, IsNil)
@@ -133,7 +133,7 @@ func (s *certsSuite) TestConfigureCertsSimulteRevert(c *C) {
 	err = configcore.Run(&mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
-			"certs.cert1": mockCert,
+			"store-certs.cert1": mockCert,
 		},
 	})
 	c.Assert(err, IsNil)

@@ -44,7 +44,7 @@ func handleCertConfiguration(tr config.Conf) error {
 	}
 	for _, storeCertPath := range storeCerts {
 		optionName := strings.TrimSuffix(filepath.Base(storeCertPath), ".pem")
-		v, err := coreCfg(tr, "certs."+optionName)
+		v, err := coreCfg(tr, "store-certs."+optionName)
 		if err != nil {
 			return err
 		}
@@ -57,7 +57,7 @@ func handleCertConfiguration(tr config.Conf) error {
 
 	// add/remove regular (non revert) changes
 	for _, name := range tr.Changes() {
-		if !strings.HasPrefix(name, "core.certs.") {
+		if !strings.HasPrefix(name, "core.store-certs.") {
 			continue
 		}
 
@@ -89,7 +89,7 @@ func handleCertConfiguration(tr config.Conf) error {
 
 func validateCertSettings(tr config.Conf) error {
 	for _, name := range tr.Changes() {
-		if !strings.HasPrefix(name, "core.certs.") {
+		if !strings.HasPrefix(name, "core.store-certs.") {
 			continue
 		}
 

@@ -34,7 +34,7 @@ var (
 	Stdout = os.Stdout
 	Stderr = os.Stderr
 
-	validCertName = regexp.MustCompile(`^core.certs.[\w](?:-?[\w])*$`).MatchString
+	validCertName = regexp.MustCompile(`^core.store-certs.[\w](?:-?[\w])*$`).MatchString
 )
 
 // coreCfg returns the configuration value for the core snap.
@@ -164,7 +164,7 @@ func Run(tr config.Conf) error {
 	// check if the changes
 	for _, k := range tr.Changes() {
 		switch {
-		case strings.HasPrefix(k, "core.certs."):
+		case strings.HasPrefix(k, "core.store-certs."):
 			if !validCertName(k) {
 				return fmt.Errorf("cannot set %q: name must only contain word characters or a dash", k)
 			}
