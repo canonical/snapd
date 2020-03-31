@@ -244,7 +244,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 		})
 	}
 	c.Assert(bootMakeBootableCalled, Equals, 1)
-	c.Assert(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystem})
+	c.Assert(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemImmediate})
 
 	return nil
 }
