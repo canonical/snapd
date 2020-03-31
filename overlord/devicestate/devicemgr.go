@@ -853,12 +853,12 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 	defer m.state.Unlock()
 
 	deviceCtx, err := DeviceCtx(m.state, nil, nil)
-	if err != nil && err != state.ErrNoState {
+	if err != nil {
 		return err
 	}
 
 	if err := boot.SetRecoveryBootSystemAndMode(deviceCtx, systemLabel, action.Mode); err != nil {
-		return fmt.Errorf("cannot boot into system %q in mode %q: %v",
+		return fmt.Errorf("cannot set device to boot into system %q in mode %q: %v",
 			systemLabel, action.Mode, err)
 	}
 

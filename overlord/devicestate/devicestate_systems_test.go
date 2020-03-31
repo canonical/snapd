@@ -281,7 +281,7 @@ func (s *deviceMgrSystemsSuite) TestRequestModeHappy(c *C) {
 func (s *deviceMgrSystemsSuite) TestRequestModeErrInBoot(c *C) {
 	s.bootloader.SetErr = errors.New("no can do")
 	err := s.mgr.RequestSystemAction("20191119", devicestate.SystemAction{Mode: "install"})
-	c.Assert(err, ErrorMatches, `cannot boot into system "20191119" in mode "install": no can do`)
+	c.Assert(err, ErrorMatches, `cannot set device to boot into system "20191119" in mode "install": no can do`)
 	c.Check(s.restartRequests, HasLen, 0)
 }
 
@@ -311,6 +311,6 @@ func (s *deviceMgrSystemsSuite) TestRequestModeBroken(c *C) {
 func (s *deviceMgrSystemsSuite) TestRequestModeNonUC20(c *C) {
 	s.setPCModelInState(c)
 	err := s.mgr.RequestSystemAction("20191119", devicestate.SystemAction{Mode: "install"})
-	c.Assert(err, ErrorMatches, `cannot boot into system "20191119" in mode "install": system boot mode is unsupported`)
+	c.Assert(err, ErrorMatches, `cannot set device to boot into system "20191119" in mode "install": system mode is unsupported`)
 	c.Check(s.restartRequests, HasLen, 0)
 }
