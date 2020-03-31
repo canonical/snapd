@@ -260,7 +260,7 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if rsp, ok := rsp.(*resp); ok {
 		_, rst := st.Restarting()
 		switch rst {
-		case state.RestartSystem, state.RestartSystemImmediate:
+		case state.RestartSystem, state.RestartSystemNow:
 			rsp.transmitMaintenance(errorKindSystemRestart, "system is restarting")
 		case state.RestartDaemon:
 			rsp.transmitMaintenance(errorKindDaemonRestart, "daemon is restarting")
@@ -481,7 +481,7 @@ func (d *Daemon) HandleRestart(t state.RestartType) {
 	// die when asked to restart (systemd should get us back up!) etc
 	switch t {
 	case state.RestartDaemon:
-	case state.RestartSystem, state.RestartSystemImmediate:
+	case state.RestartSystem, state.RestartSystemNow:
 		// try to schedule a fallback slow reboot already here
 		// in case we get stuck shutting down
 		if err := reboot(rebootWaitTimeout); err != nil {
@@ -526,10 +526,10 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	d.tomb.Kill(nil)
 
 	d.mu.Lock()
-	restartSystem := d.restartSystem
+	restartSystem := d.restartSystem != state.RestartUnset
+	immediate := d.restartSystem == state.RestartSystemNow
 	restartSocket := d.restartSocket
 	d.mu.Unlock()
-	immediate := restartSystem == state.RestartSystemImmediate
 
 	d.snapdListener.Close()
 	d.standbyOpinions.Stop()
@@ -547,7 +547,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 		d.snapListener.Close()
 	}
 
-	if restartSystem != state.RestartUnset {
+	if restartSystem {
 		// give time to polling clients to notice restart
 		time.Sleep(rebootNoticeWait)
 	}
@@ -559,7 +559,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	d.tomb.Kill(d.serve.Shutdown(ctx))
 	cancel()
 
-	if restartSystem == state.RestartUnset {
+	if !restartSystem {
 		// tell systemd that we are stopping
 		systemdSdNotify("STOPPING=1")
 
@@ -592,7 +592,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 			// because we already scheduled a slow shutdown and
 			// exiting here will just restart snapd (via systemd)
 			// which will lead to confusing results.
-			if restartSystem != state.RestartUnset {
+			if restartSystem {
 				logger.Noticef("WARNING: cannot stop daemon: %v", err)
 			} else {
 				return err
@@ -600,7 +600,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 		}
 	}
 
-	if restartSystem != state.RestartUnset {
+	if restartSystem {
 		return d.doReboot(sigCh, immediate, rebootWaitTimeout)
 	}
 

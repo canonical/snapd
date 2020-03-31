@@ -905,7 +905,7 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, restartKind state.Rest
 	c.Check(delays, check.HasLen, 2)
 	if restartKind == state.RestartSystem {
 		c.Check(delays[1], check.DeepEquals, 1*time.Minute)
-	} else if restartKind == state.RestartSystemImmediate {
+	} else if restartKind == state.RestartSystemNow {
 		c.Check(delays[1], check.DeepEquals, time.Duration(0))
 	}
 
@@ -920,7 +920,7 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, restartKind state.Rest
 	if restartKind == state.RestartSystem {
 		approxAt := now.Add(time.Minute)
 		c.Check(rebootAt.After(approxAt) || rebootAt.Equal(approxAt), check.Equals, true)
-	} else if restartKind == state.RestartSystemImmediate {
+	} else if restartKind == state.RestartSystemNow {
 		// should be good enough
 		c.Check(rebootAt.Before(now.Add(10*time.Second)), check.Equals, true)
 	}
@@ -931,7 +931,7 @@ func (s *daemonSuite) TestRestartSystemGracefulWiring(c *check.C) {
 }
 
 func (s *daemonSuite) TestRestartSystemImmediateWiring(c *check.C) {
-	s.testRestartSystemWiring(c, state.RestartSystemImmediate)
+	s.testRestartSystemWiring(c, state.RestartSystemNow)
 }
 
 func (s *daemonSuite) TestRebootHelper(c *check.C) {
