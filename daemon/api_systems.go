@@ -1,0 +1,134 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2020 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
+package daemon
+
+import (
+	"encoding/json"
+	"net/http"
+	"os"
+
+	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/snap"
+)
+
+var systemsCmd = &Command{
+	Path: "/v2/systems",
+	GET:  getSystems,
+}
+
+var systemsActionCmd = &Command{
+	Path: "/v2/systems/{label}",
+	POST: postSystemsAction,
+}
+
+type systemsResponse struct {
+	Systems []client.System `json:"systems,omitempty"`
+}
+
+func getSystems(c *Command, r *http.Request, user *auth.UserState) Response {
+	var rsp systemsResponse
+
+	seedSystems, err := c.d.overlord.DeviceManager().Systems()
+	if err != nil {
+		if err == devicestate.ErrNoSystems {
+			// no systems available
+			return SyncResponse(&rsp, nil)
+		}
+
+		return InternalError(err.Error())
+	}
+
+	rsp.Systems = make([]client.System, 0, len(seedSystems))
+
+	for _, ss := range seedSystems {
+		// untangle the model
+
+		actions := make([]client.SystemAction, 0, len(ss.Actions))
+		for _, sa := range ss.Actions {
+			actions = append(actions, client.SystemAction{
+				Title: sa.Title,
+				Mode:  sa.Mode,
+			})
+		}
+
+		rsp.Systems = append(rsp.Systems, client.System{
+			Current: ss.Current,
+			Label:   ss.Label,
+			Model: client.SystemModelData{
+				Model:       ss.Model.Model(),
+				BrandID:     ss.Model.BrandID(),
+				DisplayName: ss.Model.DisplayName(),
+			},
+			Brand: snap.StoreAccount{
+				ID:          ss.Brand.AccountID(),
+				Username:    ss.Brand.Username(),
+				DisplayName: ss.Brand.DisplayName(),
+				Validation:  ss.Brand.Validation(),
+			},
+			Actions: actions,
+		})
+	}
+	return SyncResponse(&rsp, nil)
+}
+
+type systemActionRequest struct {
+	Action string `json:"action"`
+	client.SystemAction
+}
+
+func postSystemsAction(c *Command, r *http.Request, user *auth.UserState) Response {
+	var req systemActionRequest
+
+	systemLabel := muxVars(r)["label"]
+	if systemLabel == "" {
+		return BadRequest("system action requires the system label to be provided")
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&req); err != nil {
+		return BadRequest("cannot decode request body into system action: %v", err)
+	}
+	if decoder.More() {
+		return BadRequest("extra content found in request body")
+	}
+	if req.Action != "do" {
+		return BadRequest("unsupported action %q", req.Action)
+	}
+	if req.Mode == "" {
+		return BadRequest("system action requires the mode to be provided")
+	}
+
+	sa := devicestate.SystemAction{
+		Title: req.Title,
+		Mode:  req.Mode,
+	}
+	if err := c.d.overlord.DeviceManager().RequestSystemAction(systemLabel, sa); err != nil {
+		if os.IsNotExist(err) {
+			return NotFound("requested seed system %q does not exist", systemLabel)
+		}
+		if err == devicestate.ErrUnsupportedAction {
+			return BadRequest("requested action is not supported by system %q", systemLabel)
+		}
+		return InternalError(err.Error())
+	}
+	return SyncResponse(nil, nil)
+}

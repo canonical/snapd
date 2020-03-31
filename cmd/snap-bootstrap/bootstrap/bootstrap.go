@@ -16,13 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+
 package bootstrap
 
 import (
 	"fmt"
 
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/partition"
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 )
 
@@ -128,7 +129,7 @@ func Run(gadgetRoot, device string, options Options) error {
 		}
 
 		if options.Mount && part.Label != "" && part.HasFilesystem() {
-			if err := partition.MountFilesystem(part, dirs.RunMnt); err != nil {
+			if err := partition.MountFilesystem(part, boot.InitramfsRunMntDir); err != nil {
 				return err
 			}
 		}

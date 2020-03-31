@@ -2274,6 +2274,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ChannelOverrides(c *C) {
 	c.Check(options20.Snaps, DeepEquals, []*seedwriter.InternalSnap20{
 		{
 			Name:    "snapd",
+			SnapID:  s.AssertedSnapID("snapd"), // inferred
 			Channel: "latest/candidate",
 		},
 		{
@@ -2283,6 +2284,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ChannelOverrides(c *C) {
 		},
 		{
 			Name:    "core20",
+			SnapID:  s.AssertedSnapID("core20"), // inferred
 			Channel: "latest/candidate",
 		},
 		{

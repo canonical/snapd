@@ -72,7 +72,6 @@ func (s *linkSnapSuite) SetUpTest(c *C) {
 	s.setup(c, s.stateBackend)
 
 	s.AddCleanup(snapstatetest.MockDeviceModel(DefaultModel()))
-	s.AddCleanup(snap.MockSnapdSnapID("snapd-snap-id"))
 }
 
 func checkHasCookieForSnap(c *C, st *state.State, instanceName string) {
@@ -480,6 +479,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessSnapdRestartsOnCoreWithBase(c *C) {
 	t := s.state.NewTask("link-snap", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: si,
+		Type:     snap.TypeSnapd,
 	})
 	s.state.NewChange("dummy", "...").AddTask(t)
 
@@ -556,6 +556,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessSnapdRestartsOnClassic(c *C) {
 	t := s.state.NewTask("link-snap", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: si,
+		Type:     snap.TypeSnapd,
 	})
 	s.state.NewChange("dummy", "...").AddTask(t)
 
@@ -593,6 +594,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessCoreAndSnapdNoCoreRestart(c *C) {
 		Sequence: []*snap.SideInfo{siSnapd},
 		Current:  siSnapd.Revision,
 		Active:   true,
+		SnapType: "snapd",
 	})
 
 	si := &snap.SideInfo{
@@ -1136,6 +1138,7 @@ func (s *linkSnapSuite) TestUndoLinkSnapdNthInstall(c *C) {
 		Sequence: []*snap.SideInfo{&siOld},
 		Current:  siOld.Revision,
 		Active:   true,
+		SnapType: "snapd",
 	})
 	chg := s.state.NewChange("dummy", "...")
 	t := s.state.NewTask("link-snap", "test")

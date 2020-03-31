@@ -1,3 +1,14 @@
+snapd (2.44.1-1) unstable; urgency=medium
+
+  * New upstream release, LP: #1864808
+    - randutil: switch back to setting up seed with lower entropy data
+    - interfaces/greengrass-support: fix typo
+    - packaging,tests: ensure debian-sid builds without vendor/
+    - travis.yml: run unit tests with go/master as well
+    - cmd/snap-update-ns: ignore EROFS from rmdir/unlink
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Sat, 21 Mar 2020 18:32:12 +0100
+
 snapd (2.44-1) unstable; urgency=medium
 
   * New upstream release, LP: #1864808

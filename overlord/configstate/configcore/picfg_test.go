@@ -170,3 +170,24 @@ func (s *piCfgSuite) TestConfigurePiConfigRegression(c *C) {
 	expected := strings.Replace(mockConfigTxt, "#gpu_mem_512=true", "gpu_mem_512=true", -1)
 	s.checkMockConfig(c, expected)
 }
+
+func (s *piCfgSuite) TestFilesystemOnlyApply(c *C) {
+	restorer := release.MockOnClassic(false)
+	defer restorer()
+
+	conf := configcore.PlainCoreConfig(map[string]interface{}{
+		"pi-config.gpu-mem-512": true,
+	})
+
+	tmpDir := c.MkDir()
+	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "/boot/uboot"), 0755), IsNil)
+
+	// write default config
+	piCfg := filepath.Join(tmpDir, "/boot/uboot/config.txt")
+	c.Assert(ioutil.WriteFile(piCfg, []byte(mockConfigTxt), 0644), IsNil)
+
+	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf), IsNil)
+
+	expected := strings.Replace(mockConfigTxt, "#gpu_mem_512=true", "gpu_mem_512=true", -1)
+	c.Check(piCfg, testutil.FileEquals, expected)
+}

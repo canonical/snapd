@@ -32,7 +32,7 @@ func addMountUnit(s *snap.Info, preseed bool, meter progress.Meter) error {
 
 	var sysd systemd.Systemd
 	if preseed {
-		sysd = systemd.NewEmulationMode()
+		sysd = systemd.NewEmulationMode(dirs.GlobalRootDir)
 	} else {
 		sysd = systemd.New(dirs.GlobalRootDir, systemd.SystemMode, meter)
 	}

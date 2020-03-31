@@ -33,7 +33,9 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-type emulation struct{}
+type emulation struct {
+	rootDir string
+}
 
 var errNotImplemented = errors.New("not implemented in emulation mode")
 
@@ -42,11 +44,13 @@ func (s *emulation) DaemonReload() error {
 }
 
 func (s *emulation) Enable(service string) error {
-	return errNotImplemented
+	_, err := systemctlCmd("--root", s.rootDir, "enable", service)
+	return err
 }
 
 func (s *emulation) Disable(service string) error {
-	return errNotImplemented
+	_, err := systemctlCmd("--root", s.rootDir, "disable", service)
+	return err
 }
 
 func (s *emulation) Start(service ...string) error {
@@ -145,9 +149,11 @@ func (s *emulation) RemoveMountUnitFile(mountedDir string) error {
 }
 
 func (s *emulation) Mask(service string) error {
-	return errNotImplemented
+	_, err := systemctlCmd("--root", s.rootDir, "mask", service)
+	return err
 }
 
 func (s *emulation) Unmask(service string) error {
-	return errNotImplemented
+	_, err := systemctlCmd("--root", s.rootDir, "unmask", service)
+	return err
 }

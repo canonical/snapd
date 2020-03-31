@@ -92,7 +92,7 @@ func (ss *serialSuite) TestDecodeInvalid(c *C) {
 	invalidTests := []struct{ original, invalid, expectedErr string }{
 		{"brand-id: brand-id1\n", "", `"brand-id" header is mandatory`},
 		{"brand-id: brand-id1\n", "brand-id: \n", `"brand-id" header should not be empty`},
-		{"authority-id: brand-id1\n", "authority-id: random\n", `authority-id and brand-id must match, serial assertions are expected to be signed by the brand: "random" != "brand-id1"`},
+		{"brand-id: brand-id1\n", "brand-id: ,1\n", `"brand-id" header contains invalid characters: ",1\"`},
 		{"model: baz-3000\n", "", `"model" header is mandatory`},
 		{"model: baz-3000\n", "model: \n", `"model" header should not be empty`},
 		{"model: baz-3000\n", "model: _what\n", `"model" header contains invalid characters: "_what"`},
@@ -135,29 +135,74 @@ func (ss *serialSuite) TestSerialCheck(c *C) {
 	storeDB, db := makeStoreAndCheckDB(c)
 	brandDB := setup3rdPartySigning(c, "brand1", storeDB, db)
 
+	const serialMismatchErr = `serial with authority "generic" different from brand "brand1" without model assertion with serial-authority set to to allow for them`
+	brandID := brandDB.AuthorityID
+	brandKeyID := brandDB.KeyID
+	genericKeyID := storeDB.GenericKey.PublicKeyID()
+	modelNA := []interface{}(nil)
+	brandOnly := []interface{}{}
 	tests := []struct {
-		signDB  assertstest.SignerDB
-		brandID string
-		authID  string
-		keyID   string
+		// serial-authority setting in model
+		// nil == model not available at check (modelNA)
+		// empty ==  just brand (brandOnly)
+		serialAuth  []interface{}
+		signDB      assertstest.SignerDB
+		authID      string
+		keyID       string
+		expectedErr string
 	}{
-		{brandDB, brandDB.AuthorityID, "", brandDB.KeyID},
+		{modelNA, brandDB, "", brandKeyID, ""},
+		{brandOnly, brandDB, "", brandKeyID, ""},
+		{[]interface{}{"generic"}, brandDB, "", brandKeyID, ""},
+		{[]interface{}{"generic", brandID}, brandDB, "", brandKeyID, ""},
+		{[]interface{}{"generic"}, storeDB, "generic", genericKeyID, ""},
+		{brandOnly, storeDB, "generic", genericKeyID, serialMismatchErr},
+		{modelNA, storeDB, "generic", genericKeyID, serialMismatchErr},
+		{[]interface{}{"other"}, storeDB, "generic", genericKeyID, serialMismatchErr},
 	}
 
 	for _, test := range tests {
+		checkDB := db.WithStackedBackstore(asserts.NewMemoryBackstore())
+
+		if test.serialAuth != nil {
+			modHeaders := map[string]interface{}{
+				"series":       "16",
+				"brand-id":     brandID,
+				"architecture": "amd64",
+				"model":        "baz-3000",
+				"gadget":       "gadget",
+				"kernel":       "kernel",
+				"timestamp":    time.Now().Format(time.RFC3339),
+			}
+			if len(test.serialAuth) != 0 {
+				modHeaders["serial-authority"] = test.serialAuth
+			}
+			model, err := brandDB.Sign(asserts.ModelType, modHeaders, nil, "")
+			c.Assert(err, IsNil)
+			err = checkDB.Add(model)
+			c.Assert(err, IsNil)
+		}
+
 		headers := ex.Headers()
-		headers["brand-id"] = test.brandID
+		headers["brand-id"] = brandID
 		if test.authID != "" {
 			headers["authority-id"] = test.authID
 		} else {
-			headers["authority-id"] = test.brandID
+			headers["authority-id"] = brandID
 		}
 		headers["timestamp"] = time.Now().Format(time.RFC3339)
 		serial, err := test.signDB.Sign(asserts.SerialType, headers, nil, test.keyID)
-		c.Assert(err, IsNil)
-
-		err = db.Check(serial)
 		c.Check(err, IsNil)
+		if err != nil {
+			continue
+		}
+
+		err = checkDB.Check(serial)
+		if test.expectedErr == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, test.expectedErr)
+		}
 	}
 }
 
