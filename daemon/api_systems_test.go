@@ -108,6 +108,15 @@ func (s *apiSuite) TestGetSystemsSome(c *check.C) {
 	c.Assert(err, check.IsNil)
 	d.overlord.AddManager(mgr)
 
+	st := d.overlord.State()
+	st.Lock()
+	st.Set("seeded-systems", []map[string]interface{}{{
+		"system": "20200318", "model": "my-model-2", "brand-id": "my-brand",
+		"revision": 2, "timestamp": "2009-11-10T23:00:00Z",
+		"seed-time": "2009-11-10T23:00:00Z",
+	}})
+	st.Unlock()
+
 	restore := s.mockSystemSeeds(c)
 	defer restore()
 
@@ -138,7 +147,7 @@ func (s *apiSuite) TestGetSystemsSome(c *check.C) {
 					{Title: "reinstall", Mode: "install"},
 				},
 			}, {
-				Current: false,
+				Current: true,
 				Label:   "20200318",
 				Model: client.SystemModelData{
 					Model:       "my-model-2",

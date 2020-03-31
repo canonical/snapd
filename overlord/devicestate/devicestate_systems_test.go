@@ -59,7 +59,6 @@ func (s *deviceMgrSystemsSuite) SetUpTest(c *C) {
 	s.brands.Register("other-brand", brandPrivKey3, map[string]interface{}{
 		"display-name": "other publisher",
 	})
-
 	s.state.Lock()
 	defer s.state.Unlock()
 	s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]interface{}{
@@ -217,7 +216,7 @@ var defaultActions []devicestate.SystemAction = []devicestate.SystemAction{
 	{Title: "reinstall", Mode: "install"},
 }
 
-func (s *deviceMgrSystemsSuite) TestListSeedSystems(c *C) {
+func (s *deviceMgrSystemsSuite) TestListSeedSystemsNoCurrent(c *C) {
 	systems, err := s.mgr.Systems()
 	c.Assert(err, IsNil)
 	c.Assert(systems, HasLen, 3)
@@ -229,6 +228,42 @@ func (s *deviceMgrSystemsSuite) TestListSeedSystems(c *C) {
 		Actions: defaultActions,
 	}, {
 		Current: false,
+		Label:   s.mockedSystemSeeds[1].label,
+		Model:   s.mockedSystemSeeds[1].model,
+		Brand:   s.mockedSystemSeeds[1].brand,
+		Actions: defaultActions,
+	}, {
+		Current: false,
+		Label:   s.mockedSystemSeeds[2].label,
+		Model:   s.mockedSystemSeeds[2].model,
+		Brand:   s.mockedSystemSeeds[2].brand,
+		Actions: defaultActions,
+	}})
+}
+
+func (s *deviceMgrSystemsSuite) TestListSeedSystemsCurrent(c *C) {
+	s.state.Lock()
+	s.state.Set("seeded-systems", []devicestate.SeededSystem{
+		{
+			System:  s.mockedSystemSeeds[1].label,
+			Model:   s.mockedSystemSeeds[1].model.Model(),
+			BrandID: s.mockedSystemSeeds[1].brand.AccountID(),
+		},
+	})
+	s.state.Unlock()
+
+	systems, err := s.mgr.Systems()
+	c.Assert(err, IsNil)
+	c.Assert(systems, HasLen, 3)
+	c.Check(systems, DeepEquals, []*devicestate.System{{
+		Current: false,
+		Label:   s.mockedSystemSeeds[0].label,
+		Model:   s.mockedSystemSeeds[0].model,
+		Brand:   s.mockedSystemSeeds[0].brand,
+		Actions: defaultActions,
+	}, {
+		// this seed was used for installing the running system
+		Current: true,
 		Label:   s.mockedSystemSeeds[1].label,
 		Model:   s.mockedSystemSeeds[1].model,
 		Brand:   s.mockedSystemSeeds[1].brand,

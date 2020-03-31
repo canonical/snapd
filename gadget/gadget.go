@@ -1012,3 +1012,29 @@ func PositionedVolumeFromGadget(gadgetRoot string) (*LaidOutVolume, error) {
 	}
 	return nil, fmt.Errorf("internal error in PositionedVolumeFromGadget: this line cannot be reached")
 }
+
+func flatten(path string, cfg interface{}, out map[string]interface{}) {
+	if cfgMap, ok := cfg.(map[string]interface{}); ok {
+		for k, v := range cfgMap {
+			p := k
+			if path != "" {
+				p = path + "." + k
+			}
+			flatten(p, v, out)
+		}
+	} else {
+		out[path] = cfg
+	}
+}
+
+// SystemDefaults returns default system configuration from gadget defaults.
+func SystemDefaults(gadgetDefaults map[string]map[string]interface{}) map[string]interface{} {
+	for _, systemSnap := range []string{"system", naming.WellKnownSnapID("core")} {
+		if defaults, ok := gadgetDefaults[systemSnap]; ok {
+			coreDefaults := map[string]interface{}{}
+			flatten("", defaults, coreDefaults)
+			return coreDefaults
+		}
+	}
+	return nil
+}
