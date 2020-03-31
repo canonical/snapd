@@ -48,9 +48,12 @@ func validateVitalitySettings(tr config.Conf) error {
 	if option == "" {
 		return nil
 	}
-
-	for _, snapName := range strings.Split(option, ",") {
-		if err := naming.ValidateInstance(snapName); err != nil {
+	vitalityHints := strings.Split(option, ",")
+	if len(vitalityHints) > 100 {
+		return fmt.Errorf("cannot set more than 100 %q values: got %v", vitalityOpt, len(vitalityHints))
+	}
+	for _, instanceName := range vitalityHints {
+		if err := naming.ValidateInstance(instanceName); err != nil {
 			return fmt.Errorf("cannot set %q: %v", vitalityOpt, err)
 		}
 	}

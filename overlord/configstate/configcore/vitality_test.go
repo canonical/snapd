@@ -20,6 +20,9 @@
 package configcore_test
 
 import (
+	"strconv"
+	"strings"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
@@ -39,6 +42,21 @@ func (s *vitalitySuite) TestConfigureVitalityUnhappyName(c *C) {
 		},
 	})
 	c.Assert(err, ErrorMatches, `cannot set "resilience.vitality-hint": invalid snap name: ".*"`)
+}
+
+func (s *vitalitySuite) TestConfigureVitalityHintTooMany(c *C) {
+	l := make([]string, 101)
+	for i := range l {
+		l[i] = strconv.Itoa(i)
+	}
+	manyStr := strings.Join(l, ",")
+	err := configcore.Run(&mockConf{
+		state: s.state,
+		changes: map[string]interface{}{
+			"resilience.vitality-hint": manyStr,
+		},
+	})
+	c.Assert(err, ErrorMatches, `cannot set more than 100 "resilience.vitality-hint" values: got 101`)
 }
 
 func (s *vitalitySuite) TestConfigureVitalityhappyName(c *C) {
