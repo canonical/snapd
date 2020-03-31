@@ -813,7 +813,7 @@ func (s *daemonSuite) TestGracefulStopHasLimits(c *check.C) {
 	}
 }
 
-func (s *daemonSuite) TestRestartSystemWiring(c *check.C) {
+func (s *daemonSuite) testRestartSystemWiring(c *check.C, restartKind state.RestartType) {
 	d := newTestDaemon(c)
 	// mark as already seeded
 	s.markSeeded(d)
@@ -872,12 +872,12 @@ func (s *daemonSuite) TestRestartSystemWiring(c *check.C) {
 	}
 
 	st.Lock()
-	st.RequestRestart(state.RestartSystem)
+	st.RequestRestart(restartKind)
 	st.Unlock()
 
 	defer func() {
 		d.mu.Lock()
-		d.restartSystem = false
+		d.restartSystem = state.RestartUnset
 		d.mu.Unlock()
 	}()
 
@@ -891,7 +891,7 @@ func (s *daemonSuite) TestRestartSystemWiring(c *check.C) {
 	rs := d.restartSystem
 	d.mu.Unlock()
 
-	c.Check(rs, check.Equals, true)
+	c.Check(rs, check.Equals, restartKind)
 
 	c.Check(delays, check.HasLen, 1)
 	c.Check(delays[0], check.DeepEquals, rebootWaitTimeout)
@@ -903,7 +903,11 @@ func (s *daemonSuite) TestRestartSystemWiring(c *check.C) {
 	c.Check(err, check.ErrorMatches, "expected reboot did not happen")
 
 	c.Check(delays, check.HasLen, 2)
-	c.Check(delays[1], check.DeepEquals, 1*time.Minute)
+	if restartKind == state.RestartSystem {
+		c.Check(delays[1], check.DeepEquals, 1*time.Minute)
+	} else if restartKind == state.RestartSystemImmediate {
+		c.Check(delays[1], check.DeepEquals, time.Duration(0))
+	}
 
 	// we are not stopping, we wait for the reboot instead
 	c.Check(s.notified, check.DeepEquals, []string{"EXTEND_TIMEOUT_USEC=30000000", "READY=1"})
@@ -913,8 +917,21 @@ func (s *daemonSuite) TestRestartSystemWiring(c *check.C) {
 	var rebootAt time.Time
 	err = st.Get("daemon-system-restart-at", &rebootAt)
 	c.Assert(err, check.IsNil)
-	approxAt := now.Add(time.Minute)
-	c.Check(rebootAt.After(approxAt) || rebootAt.Equal(approxAt), check.Equals, true)
+	if restartKind == state.RestartSystem {
+		approxAt := now.Add(time.Minute)
+		c.Check(rebootAt.After(approxAt) || rebootAt.Equal(approxAt), check.Equals, true)
+	} else if restartKind == state.RestartSystemImmediate {
+		// should be good enough
+		c.Check(rebootAt.Before(now.Add(10*time.Second)), check.Equals, true)
+	}
+}
+
+func (s *daemonSuite) TestRestartSystemGracefulWiring(c *check.C) {
+	s.testRestartSystemWiring(c, state.RestartSystem)
+}
+
+func (s *daemonSuite) TestRestartSystemImmediateWiring(c *check.C) {
+	s.testRestartSystemWiring(c, state.RestartSystemImmediate)
 }
 
 func (s *daemonSuite) TestRebootHelper(c *check.C) {
@@ -1016,7 +1033,7 @@ func (s *daemonSuite) TestRestartShutdown(c *check.C) {
 	st.Unlock()
 
 	sigCh := make(chan os.Signal, 2)
-	// stop (this will timeout but thats not relevant for this test)
+	// stop (this will timeout but that's not relevant for this test)
 	d.Stop(sigCh)
 
 	// ensure that the sigCh got closed as part of the stop
