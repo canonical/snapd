@@ -38,6 +38,8 @@ func handleCertConfiguration(tr config.Conf) error {
 	//
 	// XXX: remove this code once we have a general way to handle
 	//      "snap revert" and config updates
+	//
+	// TODO: add ways to detect cleanly if tr is a patch, skip the sync code if it is
 	storeCerts, err := filepath.Glob(filepath.Join(dirs.SnapdStoreSSLCertsDir, "*.pem"))
 	if err != nil {
 		return fmt.Errorf("cannot get exiting store certs: %v", err)
