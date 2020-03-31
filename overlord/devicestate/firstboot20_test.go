@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
@@ -67,7 +68,7 @@ func (s *firstBoot20Suite) SetUpTest(c *C) {
 	s.AddCleanup(ifacestate.MockSnapMapper(&ifacestate.CoreSnapdSystemMapper{}))
 }
 
-func (s *firstBoot20Suite) setupCore20Seed(c *C, sysLabel string) {
+func (s *firstBoot20Suite) setupCore20Seed(c *C, sysLabel string) *asserts.Model {
 	gadgetYaml := `
 volumes:
     volume-id:
@@ -96,7 +97,7 @@ volumes:
 	makeSnap("core20")
 	makeSnap("pc=20")
 
-	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+	return s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
@@ -137,7 +138,7 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20Happy(c *C) {
 	defer systemctlRestorer()
 
 	sysLabel := "20191018"
-	s.setupCore20Seed(c, sysLabel)
+	model := s.setupCore20Seed(c, sysLabel)
 
 	bloader := bootloadertest.Mock("mock", c.MkDir()).WithExtractedRunKernelImage()
 	bootloader.Force(bloader)
@@ -268,4 +269,16 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20Happy(c *C) {
 	c.Assert(actual, HasLen, 0)
 	actual, _ = bloader.GetRunKernelImageFunctionSnapCalls("EnableTryKernel")
 	c.Assert(actual, HasLen, 0)
+
+	var whatseeded []devicestate.SeededSystem
+	err = state.Get("seeded-systems", &whatseeded)
+	c.Assert(err, IsNil)
+	c.Assert(whatseeded, DeepEquals, []devicestate.SeededSystem{{
+		System:    "20191018",
+		Model:     "my-model",
+		BrandID:   "my-brand",
+		Revision:  model.Revision(),
+		Timestamp: model.Timestamp(),
+		SeedTime:  seedTime,
+	}})
 }
