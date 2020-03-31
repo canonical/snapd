@@ -516,8 +516,8 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	// we need to schedule/wait for a system restart again
 	if d.expectedRebootDidNotHappen {
 		// make the reboot retry immediate
-		immediate := true
-		return d.doReboot(sigCh, immediate, rebootRetryWaitTimeout)
+		immediateReboot := true
+		return d.doReboot(sigCh, immediateReboot, rebootRetryWaitTimeout)
 	}
 	if d.overlord == nil {
 		return fmt.Errorf("internal error: no Overlord")
@@ -527,7 +527,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 
 	d.mu.Lock()
 	restartSystem := d.restartSystem != state.RestartUnset
-	immediate := d.restartSystem == state.RestartSystemNow
+	immediateReboot := d.restartSystem == state.RestartSystemNow
 	restartSocket := d.restartSocket
 	d.mu.Unlock()
 
@@ -601,7 +601,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	}
 
 	if restartSystem {
-		return d.doReboot(sigCh, immediate, rebootWaitTimeout)
+		return d.doReboot(sigCh, immediateReboot, rebootWaitTimeout)
 	}
 
 	if d.restartSocket {
@@ -629,7 +629,7 @@ func (d *Daemon) rebootDelay(immediate bool) (time.Duration, error) {
 		rebootDelay = rebootAt.Sub(now)
 	} else {
 		ovr := os.Getenv("SNAPD_REBOOT_DELAY") // for tests
-		if ovr != "" {
+		if ovr != "" && !immediate {
 			d, err := time.ParseDuration(ovr)
 			if err == nil {
 				rebootDelay = d
