@@ -224,7 +224,6 @@ busctl \
 		ExecStart "a(sasb)" 1 \
 			"$(command -v runuser)" 6 "$(command -v runuser)" -l "$user" - -c "exec $tmp_dir/exec <$tmp_dir/stdin.pipe >$tmp_dir/stdout.pipe 2>$tmp_dir/stderr.pipe" false \
 	0
-# FIXME: ^ the line above invokes runuser via sh has broken quoting.
 # This is done so that we can configure file redirects. Once Ubuntu 16.04 is no
 # longer supported we can use Standard{Input,Output,Error}=file:path property
 # of systemd, or perhaps even StandardInputFileDescriptor and pass a file
