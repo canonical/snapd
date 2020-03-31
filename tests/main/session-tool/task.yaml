@@ -28,6 +28,11 @@ execute: |
 restore: |
     # Restore after using sessions as the given user
     session-tool --restore -u "$USER"
+
+    # NOTE: This part of the test is very flaky if you restart systemd-logind
+    # It *seems* that all new systems (Debian Sid, Arch, Tumbleweed and Ubuntu 20.04)
+    # Forget about the root session that was there to begin with.
+
     # When we are done the sessions are exactly what we started with but this
     # can take a moment as the termination process is asnychronous.
     retry-tool -n 10 --wait 1 sh -c 'loginctl list-sessions > after.txt && diff -u before.txt after.txt'
