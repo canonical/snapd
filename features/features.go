@@ -148,7 +148,7 @@ type confGetter interface {
 	GetMaybe(snapName, key string, result interface{}) error
 }
 
-// Flag returns the value of a given feature flag.
+// Flag returns whether the given feature flag is enabled.
 func Flag(tr confGetter, feature SnapdFeature) (bool, error) {
 	var isEnabled interface{}
 	snapName, confName := feature.ConfigOption()

@@ -1028,8 +1028,8 @@ func flatten(path string, cfg interface{}, out map[string]interface{}) {
 }
 
 // SystemDefaults returns default system configuration from gadget defaults.
-func SystemDefaults(gadgetDefaults map[string]map[string]interface{}, coreSnapID string) map[string]interface{} {
-	for _, systemSnap := range []string{"system", coreSnapID} {
+func SystemDefaults(gadgetDefaults map[string]map[string]interface{}) map[string]interface{} {
+	for _, systemSnap := range []string{"system", naming.WellKnownSnapID("core")} {
 		if defaults, ok := gadgetDefaults[systemSnap]; ok {
 			coreDefaults := map[string]interface{}{}
 			flatten("", defaults, coreDefaults)

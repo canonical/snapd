@@ -126,7 +126,7 @@ defaults:
 
 var mockClassicGadgetCoreDefaultsYaml = []byte(`
 defaults:
-  otheridididididididididididididi:
+  99T7MUlRhtI3U0QFgl5mXXESAiSwt776:
     ssh:
       disable: true
 `)
@@ -395,7 +395,7 @@ func (s *gadgetYamlTestSuite) TestCoreConfigDefaults(c *C) {
 
 	ginfo, err := gadget.ReadInfo(s.dir, &modelConstraints{classic: true})
 	c.Assert(err, IsNil)
-	defaults := gadget.SystemDefaults(ginfo.Defaults, "otheridididididididididididididi")
+	defaults := gadget.SystemDefaults(ginfo.Defaults)
 	c.Check(defaults, DeepEquals, map[string]interface{}{
 		"ssh.disable": true,
 	})
@@ -410,7 +410,7 @@ func (s *gadgetYamlTestSuite) TestCoreConfigDefaults(c *C) {
 	ginfo, err = gadget.ReadInfo(s.dir, &modelConstraints{classic: true})
 	c.Assert(err, IsNil)
 
-	defaults = gadget.SystemDefaults(ginfo.Defaults, "otheridididididididididididididi")
+	defaults = gadget.SystemDefaults(ginfo.Defaults)
 	c.Check(defaults, DeepEquals, map[string]interface{}{
 		"something": true,
 	})
