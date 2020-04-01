@@ -167,7 +167,7 @@ distro_install_local_package() {
             eatmydata apt-get -f install -y
             ;;
         ubuntu-*)
-            flags="-y"
+            flags="-y --no-intsall-recommends"
             if [ "$allow_downgrades" = "true" ]; then
                 flags="$flags --allow-downgrades"
             fi
