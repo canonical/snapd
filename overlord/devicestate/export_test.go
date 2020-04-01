@@ -150,6 +150,7 @@ func SetBootOkRan(m *DeviceManager, b bool) {
 type (
 	RegistrationContext = registrationContext
 	RemodelContext      = remodelContext
+	SeededSystem        = seededSystem
 )
 
 func RegistrationCtx(m *DeviceManager, t *state.Task) (registrationContext, error) {

@@ -168,6 +168,16 @@ func (s *seed20Suite) TestLoadMetaCore20Minimal(c *C) {
 		},
 	})
 
+	// check that PlaceInfo method works
+	pi := essSnaps[0].PlaceInfo()
+	c.Check(pi.Filename(), Equals, "snapd_1.snap")
+	pi = essSnaps[1].PlaceInfo()
+	c.Check(pi.Filename(), Equals, "pc-kernel_1.snap")
+	pi = essSnaps[2].PlaceInfo()
+	c.Check(pi.Filename(), Equals, "core20_1.snap")
+	pi = essSnaps[3].PlaceInfo()
+	c.Check(pi.Filename(), Equals, "pc_1.snap")
+
 	runSnaps, err := seed20.ModeSnaps("run")
 	c.Assert(err, IsNil)
 	c.Check(runSnaps, HasLen, 0)
@@ -316,7 +326,7 @@ func (s *seed20Suite) TestLoadAssertionsMultiSnapRev(c *C) {
 	seed20, err := seed.Open(s.SeedDir, sysLabel)
 	c.Assert(err, IsNil)
 	err = seed20.LoadAssertions(s.db, s.commitTo)
-	c.Check(err, ErrorMatches, `cannot have multiple snap-revisions for the same snap-id: DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q`)
+	c.Check(err, ErrorMatches, fmt.Sprintf(`cannot have multiple snap-revisions for the same snap-id: %s`, s.AssertedSnapID("core20")))
 }
 
 func (s *seed20Suite) TestLoadAssertionsMultiSnapDecl(c *C) {
