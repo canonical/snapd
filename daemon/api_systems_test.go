@@ -20,7 +20,7 @@
 package daemon
 
 import (
-	"fmt"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -299,8 +299,25 @@ func (s *apiSuite) TestSystemActionRequestHappy(c *check.C) {
 	body := `{"action":"do","title":"reinstall","mode":"install"}`
 	req, err := http.NewRequest("POST", "/v2/systems/20191119", strings.NewReader(body))
 	c.Assert(err, check.IsNil)
-	rsp := postSystemsAction(systemsActionCmd, req, nil).(*resp)
-	c.Check(rsp.Status, check.Equals, 200)
+	// as root
+	req.RemoteAddr = "pid=100;uid=0;socket=;"
+	rec := httptest.NewRecorder()
+	systemsActionCmd.ServeHTTP(rec, req)
+	c.Assert(rec.Code, check.Equals, 200)
+
+	var rspBody map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &rspBody)
+	c.Check(err, check.IsNil)
+	c.Check(rspBody, check.DeepEquals, map[string]interface{}{
+		"result":      nil,
+		"status":      "OK",
+		"status-code": 200.0,
+		"type":        "sync",
+		"maintenance": map[string]interface{}{
+			"kind":    "system-restart",
+			"message": "system is restarting",
+		},
+	})
 
 	// daemon is not started, only check whether reboot was scheduled as expected
 
@@ -335,7 +352,7 @@ func (s *apiSuite) TestSystemActionBrokenSeed(c *check.C) {
 	c.Check(rsp.ErrorResult().Message, check.Matches, `cannot load seed system: cannot load assertions: .*`)
 }
 
-func (s *apiSuite) TestSystemActionOnlyRoot(c *check.C) {
+func (s *apiSuite) TestSystemActionNonRoot(c *check.C) {
 	d := s.daemonWithOverlordMock(c)
 	hookMgr, err := hookstate.Manager(d.overlord.State(), d.overlord.TaskRunner())
 	c.Assert(err, check.IsNil)
@@ -343,25 +360,29 @@ func (s *apiSuite) TestSystemActionOnlyRoot(c *check.C) {
 	c.Assert(err, check.IsNil)
 	d.overlord.AddManager(mgr)
 
-	restore := s.mockSystemSeeds(c)
-	defer restore()
-
 	s.vars = map[string]string{"label": "20191119"}
 	body := `{"action":"do","title":"reinstall","mode":"install"}`
 
-	for _, tc := range []struct {
-		uid, code int
-	}{
-		{1234, 401},
-		{0, 200},
-	} {
-		// pretend to be a simple user
-		req, err := http.NewRequest("POST", "/v2/systems/20191119", strings.NewReader(body))
-		c.Assert(err, check.IsNil)
-		req.RemoteAddr = fmt.Sprintf("pid=100;uid=%v;socket=;", tc.uid)
+	// pretend to be a simple user
+	req, err := http.NewRequest("POST", "/v2/systems/20191119", strings.NewReader(body))
+	c.Assert(err, check.IsNil)
+	// non root
+	req.RemoteAddr = "pid=100;uid=1234;socket=;"
 
-		rec := httptest.NewRecorder()
-		systemsActionCmd.ServeHTTP(rec, req)
-		c.Assert(rec.Code, check.Equals, tc.code, check.Commentf("body: %v", rec.Body.String()))
-	}
+	rec := httptest.NewRecorder()
+	systemsActionCmd.ServeHTTP(rec, req)
+	c.Assert(rec.Code, check.Equals, 401)
+
+	var rspBody map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &rspBody)
+	c.Check(err, check.IsNil)
+	c.Check(rspBody, check.DeepEquals, map[string]interface{}{
+		"result": map[string]interface{}{
+			"message": "access denied",
+			"kind":    "login-required",
+		},
+		"status":      "Unauthorized",
+		"status-code": 401.0,
+		"type":        "error",
+	})
 }
