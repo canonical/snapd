@@ -41,6 +41,11 @@ restore: |
             # The user-runtime-dir@.service unit did not exist before
             # Systemd 239, so ignore errors.
             systemctl stop "user-runtime-dir@$uid.service" || true
+
+            # Ensure runtime dir is cleaned up on older systems
+            if [ -d "/run/user/$uid" ]; then
+                rm -rf "/run/user/$uid"/* "/run/user/$uid"/.[!.]*
+            fi
         done
     fi
     rm -f ./has-sessions
