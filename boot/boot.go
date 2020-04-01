@@ -327,3 +327,39 @@ func MarkBootSuccessful(dev Device) error {
 	}
 	return nil
 }
+
+var ErrUnsupportedSystemMode = errors.New("system mode is unsupported")
+
+// SetRecoveryBootSystemAndMode configures the recovery bootloader to boot into
+// the given recovery system in a particular mode. Returns
+// ErrUnsupportedSystemMode when booting into a recovery system is not supported
+// by the device.
+func SetRecoveryBootSystemAndMode(dev Device, systemLabel, mode string) error {
+	if !dev.HasModeenv() {
+		// only UC20 devices are supported
+		return ErrUnsupportedSystemMode
+	}
+	if systemLabel == "" {
+		return fmt.Errorf("internal error: system label is unset")
+	}
+	if mode == "" {
+		return fmt.Errorf("internal error: system mode is unset")
+	}
+
+	opts := &bootloader.Options{
+		// setup the recovery bootloader
+		Recovery: true,
+	}
+	// TODO:UC20: should the recovery partition stay around as RW during run
+	// mode all the time?
+	bl, err := bootloader.Find(InitramfsUbuntuSeedDir, opts)
+	if err != nil {
+		return err
+	}
+
+	m := map[string]string{
+		"snapd_recovery_system": systemLabel,
+		"snapd_recovery_mode":   mode,
+	}
+	return bl.SetBootVars(m)
+}

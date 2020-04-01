@@ -21,6 +21,8 @@ package boot_test
 
 import (
 	"errors"
+	"io/ioutil"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -1352,4 +1354,74 @@ func runBootloaderLogic(c *C, ebl bootloader.ExtractedRunKernelImageBootloader) 
 		c.Assert(err, IsNil)
 	}
 	return kern, nil
+}
+
+type recoveryBootenv20Suite struct {
+	baseBootenvSuite
+
+	bootloader *bootloadertest.MockBootloader
+
+	dev boot.Device
+}
+
+var _ = Suite(&recoveryBootenv20Suite{})
+
+func (s *recoveryBootenv20Suite) SetUpTest(c *C) {
+	s.baseBootenvSuite.SetUpTest(c)
+
+	s.bootloader = bootloadertest.Mock("mock", c.MkDir())
+	s.forceBootloader(s.bootloader)
+
+	s.dev = boottest.MockUC20Device("some-snap")
+}
+
+func (s *recoveryBootenv20Suite) TestSetRecoveryBootSystemAndModeHappy(c *C) {
+	err := boot.SetRecoveryBootSystemAndMode(s.dev, "1234", "install")
+	c.Assert(err, IsNil)
+	c.Check(s.bootloader.BootVars, DeepEquals, map[string]string{
+		"snapd_recovery_system": "1234",
+		"snapd_recovery_mode":   "install",
+	})
+}
+
+func (s *recoveryBootenv20Suite) TestSetRecoveryBootSystemAndModeSetErr(c *C) {
+	s.bootloader.SetErr = errors.New("no can do")
+	err := boot.SetRecoveryBootSystemAndMode(s.dev, "1234", "install")
+	c.Assert(err, ErrorMatches, `no can do`)
+}
+
+func (s *recoveryBootenv20Suite) TestSetRecoveryBootSystemAndModeNonUC20(c *C) {
+	non20Dev := boottest.MockDevice("some-snap")
+	err := boot.SetRecoveryBootSystemAndMode(non20Dev, "1234", "install")
+	c.Assert(err, Equals, boot.ErrUnsupportedSystemMode)
+}
+
+func (s *recoveryBootenv20Suite) TestSetRecoveryBootSystemAndModeErrClumsy(c *C) {
+	err := boot.SetRecoveryBootSystemAndMode(s.dev, "", "install")
+	c.Assert(err, ErrorMatches, "internal error: system label is unset")
+	err = boot.SetRecoveryBootSystemAndMode(s.dev, "1234", "")
+	c.Assert(err, ErrorMatches, "internal error: system mode is unset")
+}
+
+func (s *recoveryBootenv20Suite) TestSetRecoveryBootSystemAndModeRealHappy(c *C) {
+	bootloader.Force(nil)
+
+	mockSeedGrubDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI", "ubuntu")
+	err := os.MkdirAll(mockSeedGrubDir, 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(mockSeedGrubDir, "grub.cfg"), nil, 0644)
+	c.Assert(err, IsNil)
+
+	err = boot.SetRecoveryBootSystemAndMode(s.dev, "1234", "install")
+	c.Assert(err, IsNil)
+
+	bl, err := bootloader.Find(boot.InitramfsUbuntuSeedDir, &bootloader.Options{Recovery: true})
+	c.Assert(err, IsNil)
+
+	blvars, err := bl.GetBootVars("snapd_recovery_mode", "snapd_recovery_system")
+	c.Assert(err, IsNil)
+	c.Check(blvars, DeepEquals, map[string]string{
+		"snapd_recovery_system": "1234",
+		"snapd_recovery_mode":   "install",
+	})
 }
