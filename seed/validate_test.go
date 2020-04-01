@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -27,16 +27,18 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/seed"
+	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/testutil"
 )
 
 type validateSuite struct {
 	testutil.BaseTest
-	root string
+
+	*seedtest.TestingSeed16
 }
 
 var _ = Suite(&validateSuite{})
@@ -61,23 +63,40 @@ func (s *validateSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
-	s.root = c.MkDir()
+	s.TestingSeed16 = &seedtest.TestingSeed16{}
+	s.SetupAssertSigning("canonical")
+	s.Brands.Register("my-brand", brandPrivKey, map[string]interface{}{
+		"verification": "verified",
+	})
 
-	err := os.MkdirAll(filepath.Join(s.root, "snaps"), 0755)
+	s.SeedDir = c.MkDir()
+
+	s.AddCleanup(seed.MockTrusted(s.StoreSigning.Trusted))
+
+	err := os.MkdirAll(s.SnapsDir(), 0755)
 	c.Assert(err, IsNil)
+	err = os.Mkdir(s.AssertsDir(), 0755)
+	c.Assert(err, IsNil)
+
+	modelChain := s.MakeModelAssertionChain("my-brand", "my-model", map[string]interface{}{
+		"classic": "true",
+	})
+	s.WriteAssertions("model.asserts", modelChain...)
 }
 
 func (s *validateSuite) makeSnapInSeed(c *C, snapYaml string) {
-	info, err := snap.InfoFromSnapYaml([]byte(snapYaml))
+	publisher := "canonical"
+	fname, decl, rev := s.MakeAssertedSnap(c, snapYaml, nil, snap.R(1), publisher)
+	err := os.Rename(filepath.Join(s.SnapsDir(), fname), filepath.Join(s.SnapsDir(), fmt.Sprintf("%s_%s.snap", decl.SnapName(), snap.R(1))))
 	c.Assert(err, IsNil)
 
-	src := snaptest.MakeTestSnapWithFiles(c, snapYaml, nil)
-	dst := filepath.Join(s.root, "snaps", fmt.Sprintf("%s_%s.snap", info.SnapName(), snap.R(1)))
-	c.Assert(os.Rename(src, dst), IsNil)
+	acct, err := s.StoreSigning.Find(asserts.AccountType, map[string]string{"account-id": publisher})
+	c.Assert(err, IsNil)
+	s.WriteAssertions(fmt.Sprintf("%s.asserts", decl.SnapName()), rev, decl, acct)
 }
 
 func (s *validateSuite) makeSeedYaml(c *C, seedYaml string) string {
-	tmpf := filepath.Join(s.root, "seed.yaml")
+	tmpf := filepath.Join(s.SeedDir, "seed.yaml")
 	err := ioutil.WriteFile(tmpf, []byte(seedYaml), 0644)
 	c.Assert(err, IsNil)
 	return tmpf
@@ -116,7 +135,7 @@ snaps:
 
 	err := seed.ValidateFromYaml(seedFn)
 	c.Assert(err, ErrorMatches, `cannot validate seed:
-- cannot use snap "need-base": base "some-base" is missing`)
+ - cannot use snap "need-base": base "some-base" is missing`)
 }
 
 func (s *validateSuite) TestValidateFromYamlSnapMissingDefaultProvider(c *C) {
@@ -138,7 +157,7 @@ snaps:
 
 	err := seed.ValidateFromYaml(seedFn)
 	c.Assert(err, ErrorMatches, `cannot validate seed:
-- cannot use snap "need-df": default provider "gtk-common-themes" is missing`)
+ - cannot use snap "need-df": default provider "gtk-common-themes" is missing`)
 }
 
 func (s *validateSuite) TestValidateFromYamlSnapSnapdHappy(c *C) {
@@ -176,7 +195,7 @@ snaps:
 
 	err := seed.ValidateFromYaml(seedFn)
 	c.Assert(err, ErrorMatches, `cannot validate seed:
-- cannot use snap "some-snap": required snap "core" missing`)
+ - cannot use snap "some-snap": required snap "core" missing`)
 }
 
 func (s *validateSuite) TestValidateFromYamlSnapMissingSnapdAndCore(c *C) {
@@ -194,22 +213,86 @@ snaps:
 
 	err := seed.ValidateFromYaml(seedFn)
 	c.Assert(err, ErrorMatches, `cannot validate seed:
-- the core or snapd snap must be part of the seed`)
+ - essential snap "core" required by the model is missing in the seed`)
+}
+
+func (s *validateSuite) makeBrokenSnap(c *C, snapYaml string) (snapPath string) {
+	snapBuildDir := c.MkDir()
+	metaSnapYaml := filepath.Join(snapBuildDir, "meta", "snap.yaml")
+	err := os.MkdirAll(filepath.Dir(metaSnapYaml), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(metaSnapYaml, []byte(snapYaml), 0644)
+	c.Assert(err, IsNil)
+
+	// need to build the snap "manually" pack.Snap() will do validation
+	snapPath = filepath.Join(c.MkDir(), "broken.snap")
+	d := squashfs.New(snapPath)
+	err = d.Build(snapBuildDir, nil)
+	c.Assert(err, IsNil)
+
+	return snapPath
+}
+
+func (s *validateSuite) TestValidateFromYamlSnapSnapInvalid(c *C) {
+	s.makeSnapInSeed(c, coreYaml)
+
+	// "version" is missing in this yaml
+	snapYaml := `name: some-snap-invalid-yaml`
+	snapPath := s.makeBrokenSnap(c, snapYaml)
+
+	// put the broken snap in place
+	dst := filepath.Join(s.SnapsDir(), "some-snap-invalid-yaml_1.snap")
+	err := os.Rename(snapPath, dst)
+	c.Assert(err, IsNil)
+
+	seedFn := s.makeSeedYaml(c, `
+snaps:
+ - name: core
+   file: core_1.snap
+ - name: some-snap-invalid-yaml
+   unasserted: true
+   file: some-snap-invalid-yaml_1.snap
+`)
+
+	err = seed.ValidateFromYaml(seedFn)
+	c.Assert(err, ErrorMatches, `cannot validate seed:
+ - cannot use snap "/.*/snaps/some-snap-invalid-yaml_1.snap": invalid snap version: cannot be empty`)
 }
 
 func (s *validateSuite) TestValidateFromYamlSnapMultipleErrors(c *C) {
-	s.makeSnapInSeed(c, `name: some-snap
-version: 1.0`)
-	seedFn := s.makeSeedYaml(c, `
-snaps:
- - name: some-snap
-   file: some-snap_1.snap
+	s.makeSnapInSeed(c, coreYaml)
+	s.makeSnapInSeed(c, `name: need-df
+version: 1.0
+plugs:
+ gtk-3-themes:
+  interface: content
+  default-provider: gtk-common-themes
 `)
 
-	err := seed.ValidateFromYaml(seedFn)
+	// "version" is missing in this yaml
+	snapYaml := `name: some-snap-invalid-yaml`
+	snapPath := s.makeBrokenSnap(c, snapYaml)
+
+	// put the broken snap in place
+	dst := filepath.Join(s.SnapsDir(), "some-snap-invalid-yaml_1.snap")
+	err := os.Rename(snapPath, dst)
+	c.Assert(err, IsNil)
+
+	seedFn := s.makeSeedYaml(c, `
+snaps:
+ - name: core
+   file: core_1.snap
+ - name: need-df
+   file: need-df_1.snap
+ - name: some-snap-invalid-yaml
+   unasserted: true
+   file: some-snap-invalid-yaml_1.snap
+`)
+
+	err = seed.ValidateFromYaml(seedFn)
 	c.Assert(err, ErrorMatches, `cannot validate seed:
-- the core or snapd snap must be part of the seed
-- cannot use snap "some-snap": required snap "core" missing`)
+ - cannot use snap "/.*/snaps/some-snap-invalid-yaml_1.snap": invalid snap version: cannot be empty
+ - cannot use snap "need-df": default provider "gtk-common-themes" is missing`)
 }
 
 func (s *validateSuite) TestValidateFromYamlSnapSnapMissing(c *C) {
@@ -224,43 +307,77 @@ snaps:
 
 	err := seed.ValidateFromYaml(seedFn)
 	c.Assert(err, ErrorMatches, `cannot validate seed:
-- cannot open snap: open /.*/snaps/some-snap_1.snap: no such file or directory`)
+ - cannot compute snap "/.*/snaps/some-snap_1.snap" digest:.* no such file or directory`)
 }
 
-func (s *validateSuite) TestValidateFromYamlSnapSnapInvalid(c *C) {
-	s.makeSnapInSeed(c, coreYaml)
-
-	// "version" is missing in this yaml
-	snapBuildDir := c.MkDir()
-	snapYaml := `name: some-snap-invalid-yaml`
-	metaSnapYaml := filepath.Join(snapBuildDir, "meta", "snap.yaml")
-	err := os.MkdirAll(filepath.Dir(metaSnapYaml), 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(metaSnapYaml, []byte(snapYaml), 0644)
-	c.Assert(err, IsNil)
-
-	// need to build the snap "manually" pack.Snap() will do validation
-	snapFilePath := filepath.Join(c.MkDir(), "some-snap-invalid-yaml_1.snap")
-	d := squashfs.New(snapFilePath)
-	err = d.Build(snapBuildDir, nil)
-	c.Assert(err, IsNil)
-
-	// put the broken snap in place
-	dst := filepath.Join(s.root, "snaps", "some-snap-invalid-yaml_1.snap")
-	err = os.Rename(snapFilePath, dst)
-	c.Assert(err, IsNil)
-
+func (s *validateSuite) TestValidateFromYamlSnapMissingAssertions(c *C) {
+	s.makeSnapInSeed(c, snapdYaml)
+	s.makeSnapInSeed(c, packageCore18)
+	s.makeSnapInSeed(c, `name: some-snap
+version: 1.0
+base: core18
+`)
 	seedFn := s.makeSeedYaml(c, `
 snaps:
- - name: core
-   file: core_1.snap
- - name: some-snap-invalid-yaml
-   file: some-snap-invalid-yaml_1.snap
+ - name: snapd
+   file: snapd_1.snap
+ - name: some-snap
+   file: some-snap_1.snap
+ - name: core18
+   file: core18_1.snap
 `)
+
+	err := os.Remove(filepath.Join(s.AssertsDir(), "some-snap.asserts"))
+	c.Assert(err, IsNil)
 
 	err = seed.ValidateFromYaml(seedFn)
 	c.Assert(err, ErrorMatches, `cannot validate seed:
-- cannot use snap /.*/snaps/some-snap-invalid-yaml_1.snap: invalid snap version: cannot be empty`)
+ - cannot find signatures with metadata for snap "some-snap" .*`)
+
+}
+
+func (s *validateSuite) TestValidateFromYamlDuplicatedSnap(c *C) {
+	s.makeSnapInSeed(c, coreYaml)
+	s.makeSnapInSeed(c, `name: gtk-common-themes
+version: 19.04`)
+	seedFn := s.makeSeedYaml(c, `
+snaps:
+ - name: core
+   channel: stable
+   file: core_1.snap
+ - name: gtk-common-themes
+   channel: stable/ubuntu-19.04
+   file: gtk-common-themes_1.snap
+ - name: gtk-common-themes
+   channel: stable/ubuntu-19.04
+   file: gtk-common-themes_1.snap
+`)
+
+	err := seed.ValidateFromYaml(seedFn)
+	c.Assert(err, ErrorMatches, `cannot validate seed:
+ - cannot read seed yaml: snap name "gtk-common-themes" must be unique`)
+}
+
+func (s *validateSuite) TestValidateFromYamlRegressionLP1825437(c *C) {
+	s.makeSnapInSeed(c, coreYaml)
+	s.makeSnapInSeed(c, `name: gtk-common-themes
+version: 19.04`)
+	seedFn := s.makeSeedYaml(c, `
+snaps:
+ -
+   name: core
+   channel: stable
+   file: core_1.snap
+ -
+ -
+   name: gtk-common-themes
+   channel: stable/ubuntu-19.04
+   file: gtk-common-themes_1.snap
+`)
+
+	err := seed.ValidateFromYaml(seedFn)
+	c.Assert(err, ErrorMatches, `cannot validate seed:
+ - cannot read seed yaml: empty element in seed`)
 }
 
 func (s *validateSuite) TestValidateSeedSystemLabel(c *C) {
