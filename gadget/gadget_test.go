@@ -403,9 +403,6 @@ func (s *gadgetYamlTestSuite) TestCoreConfigDefaults(c *C) {
 	yaml := string(mockClassicGadgetCoreDefaultsYaml) + `
   system:
     something: true
-    some:
-      nested:
-        option: foo
 `
 
 	err = ioutil.WriteFile(s.gadgetYamlPath, []byte(yaml), 0644)
@@ -415,8 +412,7 @@ func (s *gadgetYamlTestSuite) TestCoreConfigDefaults(c *C) {
 
 	defaults = gadget.SystemDefaults(ginfo.Defaults)
 	c.Check(defaults, DeepEquals, map[string]interface{}{
-		"something":          true,
-		"some.nested.option": "foo",
+		"something": true,
 	})
 }
 
