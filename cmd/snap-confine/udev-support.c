@@ -249,7 +249,7 @@ static sc_cgroup_fds sc_udev_open_cgroup_v1(const char *security_tag)
 	int SC_CLEANUP(sc_cleanup_close) cgroup_fd = -1;
 	cgroup_fd = open(cgroup_path,
 			 O_PATH | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
-	if (cgroup_fd < 0 && errno == ENOENT) {
+	if (cgroup_fd < 0) {
 		if (errno == ENOENT) {
 			/* This system does not support cgroups. */
 			return fds;
