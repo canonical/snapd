@@ -39,7 +39,7 @@ func init() {
 	// proxy.{http,https,ftp}
 	addWithStateHandler(validateProxyStore, handleProxyConfiguration, coreOnly)
 
-	validateOnly := &flags{coreOnlyConfig: true, validatedOnlyStateConfig: true}
+	validateOnly := &flags{validatedOnlyStateConfig: true}
 	addWithStateHandler(validateRefreshSchedule, nil, validateOnly)
 	addWithStateHandler(validateRefreshRateLimit, nil, validateOnly)
 	addWithStateHandler(validateAutomaticSnapshotsExpiration, nil, validateOnly)
