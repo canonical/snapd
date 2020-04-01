@@ -64,28 +64,28 @@ execute: |
     access /var/snap/other-snap/common | MATCH hidden
 
     # The snap has access to $SNAP_USER_DATA and $SNAP_USER_COMMON
-    access $HOME/snap/test-snapd-file-access/common | MATCH read-write
-    access $HOME/snap/test-snapd-file-access/current | MATCH read-write
-    access $HOME/snap/test-snapd-file-access/x1 | MATCH read-write
+    access "$HOME"/snap/test-snapd-file-access/common | MATCH read-write
+    access "$HOME"/snap/test-snapd-file-access/current | MATCH read-write
+    access "$HOME"/snap/test-snapd-file-access/x1 | MATCH read-write
     # It has read-only access to $SNAP_USER_DATA for other revisions
-    access $HOME/snap/test-snapd-file-access/42 | MATCH read-only
+    access "$HOME"/snap/test-snapd-file-access/42 | MATCH read-only
     # Access to other snap's data is blocked
-    access $HOME/snap/other-snap/common | MATCH hidden
+    access "$HOME"/snap/other-snap/common | MATCH hidden
 
     # Access to other user's snap data is blocked
     TEST_HOME=$(getent passwd test | cut -d: -f 6)
-    access $TEST_HOME/snap/test-snapd-file-access/common | MATCH hidden
+    access "$TEST_HOME"/snap/test-snapd-file-access/common | MATCH hidden
 
     # Without interfaces connected, the snap does not have access to
     # rest of the home directory or removable media
-    access $HOME/Documents/foo.txt | MATCH hidden
+    access "$HOME"/Documents/foo.txt | MATCH hidden
     access /media/volume/foo.txt | MATCH hidden
 
     # With the home interface connected, the snap can access the home
     # directory (but not data owned by other snaps)
     snap connect test-snapd-file-access:home
-    access $HOME/Documents/foo.txt | MATCH read-write
-    access $HOME/snap/other-snap/common | MATCH hidden
+    access "$HOME"/Documents/foo.txt | MATCH read-write
+    access "$HOME"/snap/other-snap/common | MATCH hidden
 
     # With the removable-media interface connected, the snap can
     # access removable media
