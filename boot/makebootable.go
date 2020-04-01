@@ -224,15 +224,11 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet)
 }
 
 func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *BootableSet) error {
-	// XXX: move to dirs ?
-	runMnt := filepath.Join(rootdir, "/run/mnt/")
-
 	// TODO:UC20:
 	// - create grub.cfg instead of using the gadget one
 
 	// copy kernel/base into the ubuntu-data partition
-	ubuntuDataMnt := filepath.Join(runMnt, "ubuntu-data")
-	snapBlobDir := dirs.SnapBlobDirUnder(filepath.Join(ubuntuDataMnt, "system-data"))
+	snapBlobDir := dirs.SnapBlobDirUnder(InitramfsWritableDir)
 	if err := os.MkdirAll(snapBlobDir, 0755); err != nil {
 		return err
 	}
@@ -250,11 +246,9 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 		Base:           filepath.Base(bootWith.BasePath),
 		CurrentKernels: []string{bootWith.Kernel.Filename()},
 	}
-	if err := modeenv.WriteTo(filepath.Join(runMnt, "ubuntu-data", "system-data")); err != nil {
+	if err := modeenv.WriteTo(InitramfsWritableDir); err != nil {
 		return fmt.Errorf("cannot write modeenv: %v", err)
 	}
-
-	ubuntuBootPartition := filepath.Join(runMnt, "ubuntu-boot")
 
 	// get the ubuntu-boot grub and extract the kernel there
 	opts := &bootloader.Options{
@@ -265,7 +259,7 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 		// extract efi kernel assets to the ubuntu-boot partition
 		ExtractedRunKernelImage: true,
 	}
-	bl, err := bootloader.Find(ubuntuBootPartition, opts)
+	bl, err := bootloader.Find(InitramfsUbuntuBootDir, opts)
 	if err != nil {
 		return fmt.Errorf("internal error: cannot find run system bootloader: %v", err)
 	}
@@ -305,7 +299,7 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 		// setup the recovery bootloader
 		Recovery: true,
 	}
-	bl, err = bootloader.Find(filepath.Join(runMnt, "ubuntu-seed"), opts)
+	bl, err = bootloader.Find(InitramfsUbuntuSeedDir, opts)
 	if err != nil {
 		return fmt.Errorf("internal error: cannot find recovery system bootloader: %v", err)
 	}
