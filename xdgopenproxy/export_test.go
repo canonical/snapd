@@ -19,4 +19,42 @@
 
 package xdgopenproxy
 
-var Launch = launch
+import (
+	"time"
+)
+
+type (
+	DesktopLauncher = desktopLauncher
+	PortalLauncher  = portalLauncher
+	UserdLauncher   = userdLauncher
+
+	ResponseError = responseError
+)
+
+const (
+	DesktopPortalBusName      = desktopPortalBusName
+	DesktopPortalObjectPath   = desktopPortalObjectPath
+	DesktopPortalOpenURIIface = desktopPortalOpenURIIface
+	DesktopPortalRequestIface = desktopPortalRequestIface
+
+	UserdLauncherBusName    = userdLauncherBusName
+	UserdLauncherObjectPath = userdLauncherObjectPath
+	UserdLauncherIface      = userdLauncherIface
+)
+
+var (
+	Launch        = launch
+	LaunchWithOne = launchWithOne
+)
+
+func MakeResponseError(msg string) error {
+	return &responseError{msg: msg}
+}
+
+func MockPortalTimeout(t time.Duration) (restore func()) {
+	old := defaultPortalRequestTimeout
+	defaultPortalRequestTimeout = t
+	return func() {
+		defaultPortalRequestTimeout = old
+	}
+}
