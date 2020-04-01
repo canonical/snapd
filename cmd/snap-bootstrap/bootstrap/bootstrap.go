@@ -150,7 +150,9 @@ func ensureLayoutCompatibility(gadgetLayout *gadget.LaidOutVolume, diskLayout *p
 	eq := func(ds partition.DeviceStructure, gs gadget.LaidOutStructure) bool {
 		dv := ds.VolumeStructure
 		gv := gs.VolumeStructure
-		return dv.Name == gv.Name && ds.StartOffset == gs.StartOffset && dv.Size == gv.Size && dv.Filesystem == gv.Filesystem
+		// Previous installation may have failed before filesystem creation or partition may be encrypted
+		return dv.Name == gv.Name && ds.StartOffset == gs.StartOffset && dv.Size == gv.Size &&
+			(ds.Created || dv.Filesystem == gv.Filesystem)
 	}
 	contains := func(haystack []gadget.LaidOutStructure, needle partition.DeviceStructure) bool {
 		for _, h := range haystack {
