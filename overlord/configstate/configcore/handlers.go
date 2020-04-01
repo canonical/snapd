@@ -35,8 +35,12 @@ type configHandler interface {
 
 // flags carries extra flags that influence how the handler is called.
 type flags struct {
-	// coreOnlyConfig tells Run/FilesystemOnlyApply to apply the config on core systems only.
+	// coreOnlyConfig tells Run/FilesystemOnlyApply to apply the config on core
+	// systems only.
 	coreOnlyConfig bool
+	// validatedOnylStateConfig tells that the config requires only validation,
+	// its options are applied dynamically elsewhere.
+	validatedOnlyStateConfig bool
 }
 
 type fsOnlyHandler struct {
@@ -77,6 +81,9 @@ func init() {
 // system config options that do not require to manipulate state but only
 // the file system.
 func addFSOnlyHandler(validate func(config.ConfGetter) error, handle func(config.ConfGetter, *fsOnlyContext) error, flags *flags) {
+	if handle == nil {
+		panic("cannot have nil handle with fsOnlyHandler")
+	}
 	h := &fsOnlyHandler{
 		validateFunc: validate,
 		handleFunc:   handle,
@@ -103,10 +110,8 @@ func (h *fsOnlyHandler) validate(cfg config.ConfGetter) error {
 }
 
 func (h *fsOnlyHandler) handle(cfg config.ConfGetter, opts *fsOnlyContext) error {
-	if h.handleFunc != nil {
-		return h.handleFunc(cfg, opts)
-	}
-	return nil
+	// handleFunc is guaranteed to be non-nil by addFSOnlyHandler
+	return h.handleFunc(cfg, opts)
 }
 
 // FilesystemOnlyApply applies filesystem modifications under rootDir, according to the

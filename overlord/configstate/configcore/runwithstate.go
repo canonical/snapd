@@ -38,9 +38,11 @@ func init() {
 
 	// proxy.{http,https,ftp}
 	addWithStateHandler(validateProxyStore, handleProxyConfiguration, coreOnly)
-	addWithStateHandler(validateRefreshSchedule, nil, nil)
-	addWithStateHandler(validateRefreshRateLimit, nil, nil)
-	addWithStateHandler(validateAutomaticSnapshotsExpiration, nil, nil)
+
+	validateOnly := &flags{coreOnlyConfig: true, validatedOnlyStateConfig: true}
+	addWithStateHandler(validateRefreshSchedule, nil, validateOnly)
+	addWithStateHandler(validateRefreshRateLimit, nil, validateOnly)
+	addWithStateHandler(validateAutomaticSnapshotsExpiration, nil, validateOnly)
 }
 
 type withStateHandler struct {
@@ -76,6 +78,9 @@ func (h *withStateHandler) flags() flags {
 // addWithStateHandler registers functions to validate and handle a subset of
 // system config options requiring to access and manipulate state.
 func addWithStateHandler(validate func(config.Conf) error, handle func(config.Conf, *fsOnlyContext) error, flags *flags) {
+	if handle == nil && (flags == nil || !flags.validatedOnlyStateConfig) {
+		panic("cannot have nil handle with addWithStateHandler if validatedOnlyStateConfig flag is not set")
+	}
 	h := &withStateHandler{
 		validateFunc: validate,
 		handleFunc:   handle,
