@@ -2834,8 +2834,8 @@ func (s *storeTestSuite) TestFindV1Queries(c *C) {
 	for _, query := range []store.Search{
 		{Query: "hello", Prefix: true},
 		{Query: "hello", Scope: "wide"},
-		{Section: "db"},
-		{Query: "hello", Section: "db"},
+		{Category: "db"},
+		{Query: "hello", Category: "db"},
 	} {
 		sto.Find(s.ctx, &query, nil)
 	}
