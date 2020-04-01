@@ -266,7 +266,7 @@ apps:
         post-stop-command: bin/stop --post
         stop-timeout: 10s
         daemon: dbus
-        activate-on:
+        activates-on:
         - dbus-slot
 `
 

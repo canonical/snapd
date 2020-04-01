@@ -851,7 +851,7 @@ type AppInfo struct {
 	RefreshMode     string
 	StopMode        StopModeType
 
-	ActivateOn []string
+	ActivatesOn []string
 
 	Plugs   map[string]*PlugInfo
 	Slots   map[string]*SlotInfo

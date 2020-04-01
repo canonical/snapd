@@ -1,5 +1,6 @@
 name: test-snapd-dbus-service
-version: 1.0
+version: '1.0'
+base: core18
 summary: Python based example dbus service
 description: ...
 slots:
@@ -19,13 +20,13 @@ apps:
     slots:
       - dbus-session-slot
     passthrough:
-      activate-on:
+      activates-on:
         - dbus-session-slot
   system:
     command: bin/test-snapd-dbus-service system
     passthrough:
       daemon: dbus
-      activate-on:
+      activates-on:
         - dbus-system-slot
     plugs:
       - network
@@ -34,7 +35,7 @@ apps:
 parts:
   test-snapd-dbus-service:
     source: .
-    plugin: python3
+    plugin: python
     stage-packages:
       - python3-dbus
       - python3-gi

@@ -90,8 +90,8 @@ type appYaml struct {
 	SlotNames    []string         `yaml:"slots,omitempty"`
 	PlugNames    []string         `yaml:"plugs,omitempty"`
 
-	ActivateOn []string `yaml:"activate-on,omitempty"`
-	CommonID   string   `yaml:"common-id,omitempty"`
+	ActivatesOn []string `yaml:"activates-on,omitempty"`
+	CommonID    string   `yaml:"common-id,omitempty"`
 
 	Environment strutil.OrderedMap `yaml:"environment,omitempty"`
 
@@ -357,7 +357,7 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info, strk *scopedTracker) error {
 			PostStopCommand: yApp.PostStopCommand,
 			RestartCond:     yApp.RestartCond,
 			RestartDelay:    yApp.RestartDelay,
-			ActivateOn:      yApp.ActivateOn,
+			ActivatesOn:     yApp.ActivatesOn,
 			CommonID:        yApp.CommonID,
 			Environment:     yApp.Environment,
 			Completer:       yApp.Completer,

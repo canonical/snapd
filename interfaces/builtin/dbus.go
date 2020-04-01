@@ -356,7 +356,7 @@ func (iface *dbusInterface) DBusPermanentSlot(spec *dbus.Specification, slot *sn
 
 	// handle activatable services
 	for _, app := range slot.Apps {
-		for _, slotName := range app.ActivateOn {
+		for _, slotName := range app.ActivatesOn {
 			if slotName == slot.Name {
 				err = spec.AddService(bus, name, app)
 				if err != nil {
@@ -444,7 +444,7 @@ func (iface *dbusInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 
 	var apps []*snap.AppInfo
 	for _, app := range slot.Apps {
-		for _, slotName := range app.ActivateOn {
+		for _, slotName := range app.ActivatesOn {
 			if slotName == slot.Name {
 				apps = append(apps, app)
 				break

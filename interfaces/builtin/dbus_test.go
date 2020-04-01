@@ -137,13 +137,13 @@ apps:
   test-session-activatable-provider:
     slots:
     - test-session-activatable-slot
-    activate-on:
+    activates-on:
     - test-session-activatable-slot
   test-system-activatable-provider:
     daemon: dbus
     slots:
     - test-system-activatable-slot
-    activate-on:
+    activates-on:
     - test-system-activatable-slot
 `, nil)
 }
@@ -309,7 +309,7 @@ apps:
   app-dbus-slot:
     slots:
     - dbus-service-slot
-    activate-on:
+    activates-on:
     - dbus-service-slot
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
@@ -329,12 +329,12 @@ apps:
   app-dbus-slot:
     slots:
     - dbus-service-slot
-    activate-on:
+    activates-on:
     - dbus-service-slot
   app-dbus-slot-duplicated:
     slots:
     - dbus-service-slot
-    activate-on:
+    activates-on:
     - dbus-service-slot
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
@@ -356,7 +356,7 @@ apps:
     daemon: simple
     slots:
     - dbus-service-slot
-    activate-on:
+    activates-on:
     - dbus-service-slot
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
@@ -377,7 +377,7 @@ apps:
   app-dbus-slot:
     slots:
     - dbus-service-slot
-    activate-on:
+    activates-on:
     - dbus-service-slot
 `
 
@@ -408,7 +408,7 @@ apps:
   app-dbus-slot:
     slots:
     - dbus-service-slot
-    activate-on:
+    activates-on:
     - dbus-service-slot
 `
 
@@ -440,7 +440,7 @@ apps:
   app-dbus-slot:
     slots:
     - dbus-service-slot
-    activate-on:
+    activates-on:
     - dbus-service-slot
 `
 

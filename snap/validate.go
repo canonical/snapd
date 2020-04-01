@@ -665,12 +665,12 @@ func ValidateApp(app *AppInfo) error {
 		}
 	}
 
-	// ActivateOn is a list of slot names that use the "dbus" type
-	for _, slotName := range app.ActivateOn {
+	// ActivatesOn is a list of slot names that use the "dbus" type
+	for _, slotName := range app.ActivatesOn {
 		if slot, ok := app.Slots[slotName]; !ok {
-			return fmt.Errorf("invalid activate-on value %q: slot not found", slotName)
+			return fmt.Errorf("invalid activates-on value %q: slot not found", slotName)
 		} else if slot.Interface != "dbus" {
-			return fmt.Errorf("invalid activate-on value %q: slot does not use dbus interface", slotName)
+			return fmt.Errorf("invalid activates-on value %q: slot does not use dbus interface", slotName)
 		}
 	}
 

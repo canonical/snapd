@@ -718,8 +718,8 @@ WantedBy={{.ServicesTarget}}
 	}
 
 	var busName string
-	if appInfo.Daemon == "dbus" && len(appInfo.ActivateOn) > 0 {
-		slot := appInfo.Slots[appInfo.ActivateOn[len(appInfo.ActivateOn)-1]]
+	if appInfo.Daemon == "dbus" && len(appInfo.ActivatesOn) > 0 {
+		slot := appInfo.Slots[appInfo.ActivatesOn[len(appInfo.ActivatesOn)-1]]
 		if err := slot.Attr("name", &busName); err != nil {
 			logger.Noticef("could not get 'name' attribute of dbus slot %q: %v", slot.Name, err)
 		}
