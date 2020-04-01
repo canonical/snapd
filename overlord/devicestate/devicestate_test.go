@@ -117,6 +117,7 @@ func (sto *fakeStore) Assertion(assertType *asserts.AssertionType, key []string,
 var (
 	brandPrivKey, _  = assertstest.GenerateKey(752)
 	brandPrivKey2, _ = assertstest.GenerateKey(752)
+	brandPrivKey3, _ = assertstest.GenerateKey(752)
 )
 
 func (s *deviceMgrBaseSuite) SetUpTest(c *C) {
@@ -147,7 +148,10 @@ func (s *deviceMgrBaseSuite) SetUpTest(c *C) {
 	s.restoreGenericClassicMod = sysdb.MockGenericClassicModel(s.storeSigning.GenericClassicModel)
 
 	s.brands = assertstest.NewSigningAccounts(s.storeSigning)
-	s.brands.Register("my-brand", brandPrivKey, nil)
+	s.brands.Register("my-brand", brandPrivKey, map[string]interface{}{
+		"display-name": "fancy model publisher",
+		"validation":   "certified",
+	})
 	s.brands.Register("rereg-brand", brandPrivKey2, nil)
 
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
@@ -300,7 +304,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkSkippedOnClassic(c *C) {
 
 func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkSkippedOnNonRunModes(c *C) {
 	s.bootloader.GetErr = fmt.Errorf("should not be called")
-	devicestate.SetOperatingMode(s.mgr, "install")
+	devicestate.SetSystemMode(s.mgr, "install")
 
 	err := devicestate.EnsureBootOk(s.mgr)
 	c.Assert(err, IsNil)
@@ -1087,15 +1091,15 @@ func (s *deviceMgrSuite) TestDeviceManagerReadsModeenv(c *C) {
 	mgr, err := devicestate.Manager(s.state, s.hookMgr, runner, s.newStore)
 	c.Assert(err, IsNil)
 	c.Assert(mgr, NotNil)
-	c.Assert(mgr.OperatingMode(), Equals, "install")
+	c.Assert(mgr.SystemMode(), Equals, "install")
 }
 
-func (s *deviceMgrSuite) TestDeviceManagerEmptyOperatingModeRun(c *C) {
-	// set empty operating mode
-	devicestate.SetOperatingMode(s.mgr, "")
+func (s *deviceMgrSuite) TestDeviceManagerEmptySystemModeRun(c *C) {
+	// set empty system mode
+	devicestate.SetSystemMode(s.mgr, "")
 
 	// empty is returned as "run"
-	c.Check(s.mgr.OperatingMode(), Equals, "run")
+	c.Check(s.mgr.SystemMode(), Equals, "run")
 }
 
 type startOfOperationTimeSuite struct {

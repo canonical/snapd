@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2019 Canonical Ltd
+ * Copyright (C) 2014-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -23,58 +23,123 @@ import (
 	"bytes"
 	"fmt"
 	"path/filepath"
+	"regexp"
+	"sort"
 
-	"github.com/snapcore/snapd/seed/internal"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/timings"
 )
+
+type ValidationError struct {
+	// SystemErrors maps system labels ("" for UC16/18) to their validation errors.
+	SystemErrors map[string][]error
+}
+
+func newValidationError(label string, err error) *ValidationError {
+	return &ValidationError{SystemErrors: map[string][]error{
+		label: {err},
+	}}
+}
+
+func (e *ValidationError) addErr(label string, errs ...error) {
+	if e.SystemErrors == nil {
+		e.SystemErrors = make(map[string][]error)
+	}
+	for _, err := range errs {
+		e.SystemErrors[label] = append(e.SystemErrors[label], err)
+	}
+}
+
+func (e ValidationError) hasErrors() bool {
+	return len(e.SystemErrors) != 0
+}
+
+func (e *ValidationError) Error() string {
+	systems := make([]string, 0, len(e.SystemErrors))
+	for s := range e.SystemErrors {
+		systems = append(systems, s)
+	}
+	sort.Strings(systems)
+	var buf bytes.Buffer
+	first := true
+	for _, s := range systems {
+		if first {
+			if s == "" {
+				fmt.Fprintf(&buf, "cannot validate seed:")
+			} else {
+				fmt.Fprintf(&buf, "cannot validate seed system %q:", s)
+			}
+		} else {
+			fmt.Fprintf(&buf, "\nand seed system %q:", s)
+		}
+		for _, err := range e.SystemErrors[s] {
+			fmt.Fprintf(&buf, "\n - %s", err)
+		}
+	}
+	return buf.String()
+}
 
 // ValidateFromYaml validates the given seed.yaml file and surrounding seed.
 func ValidateFromYaml(seedYamlFile string) error {
-	seed, err := internal.ReadSeedYaml(seedYamlFile)
+	// TODO:UC20: support validating also one or multiple UC20 seed systems
+	// introduce ListSystems ?
+	// What about full empty seed dir?
+	seedDir := filepath.Dir(seedYamlFile)
+
+	seed, err := Open(seedDir, "")
 	if err != nil {
-		return err
+		return newValidationError("", err)
 	}
 
-	var errs []error
-	var haveCore, haveSnapd bool
+	if err := seed.LoadAssertions(nil, nil); err != nil {
+		return newValidationError("", err)
+	}
+
+	tm := timings.New(nil)
+	if err := seed.LoadMeta(tm); err != nil {
+		return newValidationError("", err)
+	}
+
+	// TODO:UC20: make the NumSnaps/Iter part of Seed
+	seed16 := seed.(*seed16)
+
+	ve := &ValidationError{}
 	// read the snap infos
-	snapInfos := make([]*snap.Info, 0, len(seed.Snaps))
-	for _, seedSnap := range seed.Snaps {
-		fn := filepath.Join(filepath.Dir(seedYamlFile), "snaps", seedSnap.File)
-		snapf, err := snap.Open(fn)
+	snapInfos := make([]*snap.Info, 0, seed16.NumSnaps())
+	seed16.Iter(func(sn *Snap) error {
+		snapf, err := snap.Open(sn.Path)
 		if err != nil {
-			errs = append(errs, err)
+			ve.addErr("", err)
 		} else {
-			info, err := snap.ReadInfoFromSnapFile(snapf, nil)
+			info, err := snap.ReadInfoFromSnapFile(snapf, sn.SideInfo)
 			if err != nil {
-				errs = append(errs, fmt.Errorf("cannot use snap %s: %v", fn, err))
+				ve.addErr("", fmt.Errorf("cannot use snap %q: %v", sn.Path, err))
 			} else {
-				switch info.InstanceName() {
-				case "core":
-					haveCore = true
-				case "snapd":
-					haveSnapd = true
-				}
 				snapInfos = append(snapInfos, info)
 			}
 		}
-	}
-
-	// ensure we have either "core" or "snapd"
-	if !(haveCore || haveSnapd) {
-		errs = append(errs, fmt.Errorf("the core or snapd snap must be part of the seed"))
-	}
+		return nil
+	})
 
 	if errs2 := snap.ValidateBasesAndProviders(snapInfos); errs2 != nil {
-		errs = append(errs, errs2...)
+		ve.addErr("", errs2...)
 	}
-	if errs != nil {
-		var buf bytes.Buffer
-		for _, err := range errs {
-			fmt.Fprintf(&buf, "\n- %s", err)
-		}
-		return fmt.Errorf("cannot validate seed:%s", buf.Bytes())
+	if ve.hasErrors() {
+		return ve
 	}
 
+	return nil
+}
+
+// TODO:UC20: move these to internal, use also in seedwriter
+
+var validSeedSystemLabel = regexp.MustCompile("^[a-zA-Z0-9](?:-?[a-zA-Z0-9])+$")
+
+// validateSeedSystemLabel checks whether the string is a valid UC20 seed system
+// label.
+func validateUC20SeedSystemLabel(label string) error {
+	if !validSeedSystemLabel.MatchString(label) {
+		return fmt.Errorf("invalid seed system label: %q", label)
+	}
 	return nil
 }

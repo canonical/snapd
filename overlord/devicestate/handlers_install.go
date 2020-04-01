@@ -113,7 +113,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return fmt.Errorf("cannot get boot base info: %v", err)
 	}
-	modeEnv, err := m.readMaybeModeenv()
+	modeEnv, err := m.maybeReadModeenv()
 	if err != nil {
 		return err
 	}
@@ -134,7 +134,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// request a restart as the last action after a successful install
-	st.RequestRestart(state.RestartSystem)
+	st.RequestRestart(state.RestartSystemNow)
 
 	return nil
 }

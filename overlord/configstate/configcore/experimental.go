@@ -58,13 +58,13 @@ func doExportExperimentalFlags(tr config.ConfGetter, opts *fsOnlyContext) error 
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
-	features := features.KnownFeatures()
-	content := make(map[string]osutil.FileState, len(features))
-	for _, feature := range features {
+	feat := features.KnownFeatures()
+	content := make(map[string]osutil.FileState, len(feat))
+	for _, feature := range feat {
 		if !feature.IsExported() {
 			continue
 		}
-		isEnabled, err := config.GetFeatureFlag(tr, feature)
+		isEnabled, err := features.Flag(tr, feature)
 		if err != nil {
 			return err
 		}

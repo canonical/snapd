@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2019 Canonical Ltd
+ * Copyright (C) 2014-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -306,4 +306,17 @@ func (s *seed16) ModeSnaps(mode string) ([]*Snap, error) {
 		return nil, fmt.Errorf("internal error: Core 16/18 have only run mode, got: %s", mode)
 	}
 	return s.snaps[s.essentialSnapsNum:], nil
+}
+
+func (s *seed16) NumSnaps() int {
+	return len(s.snaps)
+}
+
+func (s *seed16) Iter(f func(sn *Snap) error) error {
+	for _, sn := range s.snaps {
+		if err := f(sn); err != nil {
+			return err
+		}
+	}
+	return nil
 }

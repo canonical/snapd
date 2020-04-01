@@ -95,7 +95,7 @@ func SetLastBecomeOperationalAttempt(m *DeviceManager, t time.Time) {
 	m.lastBecomeOperationalAttempt = t
 }
 
-func SetOperatingMode(m *DeviceManager, mode string) {
+func SetSystemMode(m *DeviceManager, mode string) {
 	m.systemMode = mode
 }
 
@@ -150,6 +150,7 @@ func SetBootOkRan(m *DeviceManager, b bool) {
 type (
 	RegistrationContext = registrationContext
 	RemodelContext      = remodelContext
+	SeededSystem        = seededSystem
 )
 
 func RegistrationCtx(m *DeviceManager, t *state.Task) (registrationContext, error) {

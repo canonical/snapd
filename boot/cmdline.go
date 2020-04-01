@@ -31,13 +31,13 @@ import (
 )
 
 const (
-	// ModeRun indicates the regular operating mode of the device
+	// ModeRun indicates the regular operating system mode of the device.
 	ModeRun = "run"
 	// ModeInstall is a mode in which a new system is installed on the
-	// device
+	// device.
 	ModeInstall = "install"
 	// ModeRecover is a mode in which the device boots into the recovery
-	// system
+	// system.
 	ModeRecover = "recover"
 )
 
@@ -89,7 +89,7 @@ func whichModeAndRecoverySystem(cmdline []byte) (mode string, sysLabel string, e
 	return mode, sysLabel, nil
 }
 
-// ModeAndRecoverySystemFromKernelCommandLine returns the current operating mode
+// ModeAndRecoverySystemFromKernelCommandLine returns the current system mode
 // and the recovery system label as passed in the kernel command line by the
 // bootloader.
 func ModeAndRecoverySystemFromKernelCommandLine() (mode, sysLabel string, err error) {
