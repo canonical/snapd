@@ -234,6 +234,17 @@ func SnapModeenvFileUnder(rootdir string) string {
 	return filepath.Join(rootdir, snappyDir, "modeenv")
 }
 
+// FeaturesDirUnder returns the path to the features dir under rootdir.
+func FeaturesDirUnder(rootdir string) string {
+	return filepath.Join(rootdir, snappyDir, "features")
+}
+
+// SnapSystemdConfDirUnder returns the path to the systemd conf dir under
+// rootdir.
+func SnapSystemdConfDirUnder(rootdir string) string {
+	return filepath.Join(rootdir, "/etc/systemd/system.conf.d")
+}
+
 // AddRootDirCallback registers a callback for whenever the global root
 // directory (set by SetRootDir) is changed to enable updates to variables in
 // other packages that depend on its location.
@@ -322,7 +333,7 @@ func SetRootDir(rootdir string) {
 	SnapBinariesDir = filepath.Join(SnapMountDir, "bin")
 	SnapServicesDir = filepath.Join(rootdir, "/etc/systemd/system")
 	SnapUserServicesDir = filepath.Join(rootdir, "/etc/systemd/user")
-	SnapSystemdConfDir = filepath.Join(rootdir, "/etc/systemd/system.conf.d")
+	SnapSystemdConfDir = SnapSystemdConfDirUnder(rootdir)
 	SnapBusPolicyDir = filepath.Join(rootdir, "/etc/dbus-1/system.d")
 
 	SystemApparmorDir = filepath.Join(rootdir, "/etc/apparmor.d")
@@ -385,7 +396,7 @@ func SetRootDir(rootdir string) {
 	ErrtrackerDbDir = filepath.Join(rootdir, snappyDir, "errtracker.db")
 	SysfsDir = filepath.Join(rootdir, "/sys")
 
-	FeaturesDir = filepath.Join(rootdir, snappyDir, "features")
+	FeaturesDir = FeaturesDirUnder(rootdir)
 
 	// call the callbacks last so that the callbacks can just reference the
 	// global vars if they want, instead of using the new rootdir directly

@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
@@ -45,7 +46,8 @@ type mockedSystemSeed struct {
 type deviceMgrSystemsSuite struct {
 	testutil.BaseTest
 
-	mgr *devicestate.DeviceManager
+	mgr   *devicestate.DeviceManager
+	state *state.State
 
 	mockedSystemSeeds []mockedSystemSeed
 }
@@ -59,11 +61,11 @@ func (s *deviceMgrSystemsSuite) SetUpTest(c *C) {
 	s.AddCleanup(func() { dirs.SetRootDir("/") })
 
 	o := overlord.Mock()
-	state := o.State()
+	s.state = o.State()
 
-	hookMgr, err := hookstate.Manager(state, o.TaskRunner())
+	hookMgr, err := hookstate.Manager(s.state, o.TaskRunner())
 	c.Assert(err, IsNil)
-	mgr, err := devicestate.Manager(state, hookMgr, o.TaskRunner(), nil)
+	mgr, err := devicestate.Manager(s.state, hookMgr, o.TaskRunner(), nil)
 	c.Assert(err, IsNil)
 	s.mgr = mgr
 
@@ -190,25 +192,69 @@ func (s *deviceMgrSystemsSuite) TestListSystemsNotPossible(c *C) {
 	c.Assert(systems, HasLen, 0)
 }
 
-func (s *deviceMgrSystemsSuite) TestListSeedSystems(c *C) {
+// TODO:UC20 update once we can list actions
+var defaultActions []devicestate.SystemAction = []devicestate.SystemAction{
+	{Title: "reinstall", Mode: "install"},
+}
+
+func (s *deviceMgrSystemsSuite) TestListSeedSystemsNoCurrent(c *C) {
 	systems, err := s.mgr.Systems()
 	c.Assert(err, IsNil)
 	c.Assert(systems, HasLen, 3)
-	c.Check(systems, DeepEquals, []devicestate.System{{
+	c.Check(systems, DeepEquals, []*devicestate.System{{
 		Current: false,
 		Label:   s.mockedSystemSeeds[0].label,
 		Model:   s.mockedSystemSeeds[0].model,
 		Brand:   s.mockedSystemSeeds[0].brand,
+		Actions: defaultActions,
 	}, {
 		Current: false,
 		Label:   s.mockedSystemSeeds[1].label,
 		Model:   s.mockedSystemSeeds[1].model,
 		Brand:   s.mockedSystemSeeds[1].brand,
+		Actions: defaultActions,
 	}, {
 		Current: false,
 		Label:   s.mockedSystemSeeds[2].label,
 		Model:   s.mockedSystemSeeds[2].model,
 		Brand:   s.mockedSystemSeeds[2].brand,
+		Actions: defaultActions,
+	}})
+}
+
+func (s *deviceMgrSystemsSuite) TestListSeedSystemsCurrent(c *C) {
+	s.state.Lock()
+	s.state.Set("seeded-systems", []devicestate.SeededSystem{
+		{
+			System:  s.mockedSystemSeeds[1].label,
+			Model:   s.mockedSystemSeeds[1].model.Model(),
+			BrandID: s.mockedSystemSeeds[1].brand.AccountID(),
+		},
+	})
+	s.state.Unlock()
+
+	systems, err := s.mgr.Systems()
+	c.Assert(err, IsNil)
+	c.Assert(systems, HasLen, 3)
+	c.Check(systems, DeepEquals, []*devicestate.System{{
+		Current: false,
+		Label:   s.mockedSystemSeeds[0].label,
+		Model:   s.mockedSystemSeeds[0].model,
+		Brand:   s.mockedSystemSeeds[0].brand,
+		Actions: defaultActions,
+	}, {
+		// this seed was used for installing the running system
+		Current: true,
+		Label:   s.mockedSystemSeeds[1].label,
+		Model:   s.mockedSystemSeeds[1].model,
+		Brand:   s.mockedSystemSeeds[1].brand,
+		Actions: defaultActions,
+	}, {
+		Current: false,
+		Label:   s.mockedSystemSeeds[2].label,
+		Model:   s.mockedSystemSeeds[2].model,
+		Brand:   s.mockedSystemSeeds[2].brand,
+		Actions: defaultActions,
 	}})
 }
 
@@ -220,15 +266,43 @@ func (s *deviceMgrSystemsSuite) TestBrokenSeedSystems(c *C) {
 	systems, err := s.mgr.Systems()
 	c.Assert(err, IsNil)
 	c.Assert(systems, HasLen, 2)
-	c.Check(systems, DeepEquals, []devicestate.System{{
+	c.Check(systems, DeepEquals, []*devicestate.System{{
 		Current: false,
 		Label:   s.mockedSystemSeeds[1].label,
 		Model:   s.mockedSystemSeeds[1].model,
 		Brand:   s.mockedSystemSeeds[1].brand,
+		Actions: defaultActions,
 	}, {
 		Current: false,
 		Label:   s.mockedSystemSeeds[2].label,
 		Model:   s.mockedSystemSeeds[2].model,
 		Brand:   s.mockedSystemSeeds[2].brand,
+		Actions: defaultActions,
 	}})
+}
+
+func (s *deviceMgrSystemsSuite) TestRequestModeHappy(c *C) {
+	err := s.mgr.RequestSystemAction("20191119", devicestate.SystemAction{Mode: "install"})
+	c.Assert(err, IsNil)
+	// TODO:UC20 verify bootenv
+}
+
+func (s *deviceMgrSystemsSuite) TestRequestModeNotFound(c *C) {
+	err := s.mgr.RequestSystemAction("not-found", devicestate.SystemAction{Mode: "install"})
+	c.Assert(err, NotNil)
+	c.Assert(os.IsNotExist(err), Equals, true)
+}
+
+func (s *deviceMgrSystemsSuite) TestRequestModeBadMode(c *C) {
+	err := s.mgr.RequestSystemAction("20191119", devicestate.SystemAction{Mode: "unknown-mode"})
+	c.Assert(err, Equals, devicestate.ErrUnsupportedAction)
+}
+
+func (s *deviceMgrSystemsSuite) TestRequestModeBroken(c *C) {
+	// break the first seed
+	err := os.Remove(filepath.Join(dirs.SnapSeedDir, "systems", s.mockedSystemSeeds[0].label, "model"))
+	c.Assert(err, IsNil)
+
+	err = s.mgr.RequestSystemAction("20191119", devicestate.SystemAction{Mode: "install"})
+	c.Assert(err, ErrorMatches, "cannot load seed system: cannot load assertions: .*")
 }
