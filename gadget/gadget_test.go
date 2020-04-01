@@ -124,6 +124,13 @@ defaults:
       bar: baz
 `)
 
+var mockClassicGadgetCoreDefaultsYaml = []byte(`
+defaults:
+  99T7MUlRhtI3U0QFgl5mXXESAiSwt776:
+    ssh:
+      disable: true
+`)
+
 var mockClassicGadgetMultilineDefaultsYaml = []byte(`
 defaults:
   system:
@@ -358,6 +365,54 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicOnylDefaultsIsValid(c *
 			// realign this, thus breaking our gofmt 1.9 checks
 			"otheridididididididididididididi": {"foo": map[string]interface{}{"bar": "baz"}},
 		},
+	})
+}
+
+func (s *gadgetYamlTestSuite) TestFlatten(c *C) {
+	cfg := map[string]interface{}{
+		"foo":         "bar",
+		"some.option": true,
+		"sub": map[string]interface{}{
+			"option1": true,
+			"option2": map[string]interface{}{
+				"deep": "2",
+			},
+		},
+	}
+	out := map[string]interface{}{}
+	gadget.Flatten("", cfg, out)
+	c.Check(out, DeepEquals, map[string]interface{}{
+		"foo":              "bar",
+		"some.option":      true,
+		"sub.option1":      true,
+		"sub.option2.deep": "2",
+	})
+}
+
+func (s *gadgetYamlTestSuite) TestCoreConfigDefaults(c *C) {
+	err := ioutil.WriteFile(s.gadgetYamlPath, mockClassicGadgetCoreDefaultsYaml, 0644)
+	c.Assert(err, IsNil)
+
+	ginfo, err := gadget.ReadInfo(s.dir, &modelConstraints{classic: true})
+	c.Assert(err, IsNil)
+	defaults := gadget.SystemDefaults(ginfo.Defaults)
+	c.Check(defaults, DeepEquals, map[string]interface{}{
+		"ssh.disable": true,
+	})
+
+	yaml := string(mockClassicGadgetCoreDefaultsYaml) + `
+  system:
+    something: true
+`
+
+	err = ioutil.WriteFile(s.gadgetYamlPath, []byte(yaml), 0644)
+	c.Assert(err, IsNil)
+	ginfo, err = gadget.ReadInfo(s.dir, &modelConstraints{classic: true})
+	c.Assert(err, IsNil)
+
+	defaults = gadget.SystemDefaults(ginfo.Defaults)
+	c.Check(defaults, DeepEquals, map[string]interface{}{
+		"something": true,
 	})
 }
 

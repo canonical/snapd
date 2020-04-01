@@ -488,10 +488,7 @@ func (s *partitionTestSuite) TestListCreatedPartitions(c *C) {
 		},
 	}
 
-	dl, err := partition.DeviceLayoutFromPartitionTable(ptable)
-	c.Assert(err, IsNil)
-
-	list := partition.ListCreatedPartitions(dl)
+	list := partition.ListCreatedPartitions(&ptable)
 	c.Assert(list, HasLen, 0)
 
 	// Set attribute bit for all partitions except the last one
@@ -499,7 +496,7 @@ func (s *partitionTestSuite) TestListCreatedPartitions(c *C) {
 		ptable.Partitions[i].Attrs = "RequiredPartition LegacyBIOSBootable GUID:58,59"
 	}
 
-	list = partition.ListCreatedPartitions(dl)
+	list = partition.ListCreatedPartitions(&ptable)
 	c.Assert(list, DeepEquals, []string{"/dev/node1", "/dev/node2"})
 }
 

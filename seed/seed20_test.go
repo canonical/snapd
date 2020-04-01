@@ -326,7 +326,7 @@ func (s *seed20Suite) TestLoadAssertionsMultiSnapRev(c *C) {
 	seed20, err := seed.Open(s.SeedDir, sysLabel)
 	c.Assert(err, IsNil)
 	err = seed20.LoadAssertions(s.db, s.commitTo)
-	c.Check(err, ErrorMatches, `cannot have multiple snap-revisions for the same snap-id: DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q`)
+	c.Check(err, ErrorMatches, fmt.Sprintf(`cannot have multiple snap-revisions for the same snap-id: %s`, s.AssertedSnapID("core20")))
 }
 
 func (s *seed20Suite) TestLoadAssertionsMultiSnapDecl(c *C) {

@@ -150,10 +150,11 @@ func ensureLayoutCompatibility(gadgetLayout *gadget.LaidOutVolume, diskLayout *p
 	eq := func(ds partition.DeviceStructure, gs gadget.LaidOutStructure) bool {
 		dv := ds.VolumeStructure
 		gv := gs.VolumeStructure
-		check := dv.Name == gv.Name && ds.StartOffset == gs.StartOffset && dv.Filesystem == gv.Filesystem
+		// Previous installation may have failed before filesystem creation or partition may be encrypted
+		check := dv.Name == gv.Name && ds.StartOffset == gs.StartOffset && (ds.Created || dv.Filesystem == gv.Filesystem)
 
-		// Don't test system-data size, it could have been expanded
 		if gv.Role == gadget.SystemData {
+			// system-data may have been expanded
 			return check && dv.Size >= gv.Size
 		} else {
 			return check && dv.Size == gv.Size

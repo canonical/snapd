@@ -20,13 +20,7 @@
 package xdgopenproxy_test
 
 import (
-	"context"
 	"fmt"
-	"io/ioutil"
-	"net/url"
-	"os"
-	"path/filepath"
-	"syscall"
 	"testing"
 
 	"github.com/godbus/dbus"
@@ -43,139 +37,68 @@ type xdgOpenSuite struct{}
 var _ = Suite(&xdgOpenSuite{})
 
 func (s *xdgOpenSuite) TestOpenURL(c *C) {
-	launcher := fakeBusObject(func(method string, args ...interface{}) error {
-		c.Check(method, Equals, "io.snapcraft.Launcher.OpenURL")
-		c.Check(args, DeepEquals, []interface{}{"http://example.org"})
-		return nil
+	launcher := &fakeLauncher{}
+	c.Check(xdgopenproxy.LaunchWithOne(nil, launcher, "http://example.org"), IsNil)
+	c.Check(launcher.calls, DeepEquals, []string{
+		"OpenURI http://example.org",
 	})
-	c.Check(xdgopenproxy.Launch(launcher, "http://example.org"), IsNil)
 }
 
 func (s *xdgOpenSuite) TestOpenFile(c *C) {
-	path := filepath.Join(c.MkDir(), "test.txt")
-	c.Assert(ioutil.WriteFile(path, []byte("Hello world"), 0644), IsNil)
-
-	launcher := fakeBusObject(func(method string, args ...interface{}) error {
-		c.Check(method, Equals, "io.snapcraft.Launcher.OpenFile")
-		c.Assert(args, HasLen, 2)
-		c.Check(args[0], Equals, "")
-		c.Check(fdMatchesFile(int(args[1].(dbus.UnixFD)), path), IsNil)
-		return nil
+	launcher := &fakeLauncher{}
+	c.Check(xdgopenproxy.LaunchWithOne(nil, launcher, "/path/test.txt"), IsNil)
+	c.Check(launcher.calls, DeepEquals, []string{
+		"OpenFile /path/test.txt",
 	})
-	c.Check(xdgopenproxy.Launch(launcher, path), IsNil)
 }
 
 func (s *xdgOpenSuite) TestOpenFileURL(c *C) {
-	path := filepath.Join(c.MkDir(), "test.txt")
-	c.Assert(ioutil.WriteFile(path, []byte("Hello world"), 0644), IsNil)
-
-	launcher := fakeBusObject(func(method string, args ...interface{}) error {
-		c.Check(method, Equals, "io.snapcraft.Launcher.OpenFile")
-		c.Assert(args, HasLen, 2)
-		c.Check(args[0], Equals, "")
-		c.Check(fdMatchesFile(int(args[1].(dbus.UnixFD)), path), IsNil)
-		return nil
+	launcher := &fakeLauncher{}
+	c.Check(xdgopenproxy.LaunchWithOne(nil, launcher, "file:///path/test.txt"), IsNil)
+	c.Check(launcher.calls, DeepEquals, []string{
+		"OpenFile /path/test.txt",
 	})
-
-	u := url.URL{Scheme: "file", Path: path}
-	c.Check(xdgopenproxy.Launch(launcher, u.String()), IsNil)
 }
 
-func (s *xdgOpenSuite) TestOpenDir(c *C) {
-	dir := c.MkDir()
+func (s *xdgOpenSuite) TestStopOnFirstSuccess(c *C) {
+	l1 := &fakeLauncher{err: fmt.Errorf("failure one")}
+	l2 := &fakeLauncher{err: nil}
+	l3 := &fakeLauncher{err: nil}
+	launchers := []xdgopenproxy.DesktopLauncher{l1, l2, l3}
 
-	launcher := fakeBusObject(func(method string, args ...interface{}) error {
-		c.Check(method, Equals, "io.snapcraft.Launcher.OpenFile")
-		c.Assert(args, HasLen, 2)
-		c.Check(args[0], Equals, "")
-		c.Check(fdMatchesFile(int(args[1].(dbus.UnixFD)), dir), IsNil)
-		return nil
+	err := xdgopenproxy.Launch(nil, launchers, "http://example.org")
+	c.Check(err, IsNil)
+	c.Check(l1.calls, DeepEquals, []string{
+		"OpenURI http://example.org",
 	})
-	c.Check(xdgopenproxy.Launch(launcher, dir), IsNil)
-}
-
-func (s *xdgOpenSuite) TestOpenMissingFile(c *C) {
-	path := filepath.Join(c.MkDir(), "no-such-file.txt")
-
-	launcher := fakeBusObject(func(method string, args ...interface{}) error {
-		c.Error("unexpected D-Bus call")
-		return nil
+	c.Check(l2.calls, DeepEquals, []string{
+		"OpenURI http://example.org",
 	})
-	c.Check(xdgopenproxy.Launch(launcher, path), ErrorMatches, "no such file or directory")
+	c.Check(l3.calls, HasLen, 0)
 }
 
-func (s *xdgOpenSuite) TestOpenUnreadableFile(c *C) {
-	if os.Getuid() == 0 {
-		c.Skip("test will not work for root")
-	}
+func (s *xdgOpenSuite) TestStopOnResponseError(c *C) {
+	l1 := &fakeLauncher{err: fmt.Errorf("failure one")}
+	l2 := &fakeLauncher{err: xdgopenproxy.MakeResponseError("hello")}
+	l3 := &fakeLauncher{err: nil}
+	launchers := []xdgopenproxy.DesktopLauncher{l1, l2, l3}
 
-	path := filepath.Join(c.MkDir(), "test.txt")
-	c.Assert(ioutil.WriteFile(path, []byte("Hello world"), 0644), IsNil)
-	c.Assert(os.Chmod(path, 0), IsNil)
-
-	launcher := fakeBusObject(func(method string, args ...interface{}) error {
-		c.Error("unexpected D-Bus call")
-		return nil
-	})
-	c.Check(xdgopenproxy.Launch(launcher, path), ErrorMatches, "permission denied")
+	err := xdgopenproxy.Launch(nil, launchers, "http://example.org")
+	c.Check(err, Equals, l2.err)
+	c.Check(l3.calls, HasLen, 0)
 }
 
-func fdMatchesFile(fd int, filename string) error {
-	var fdStat, fileStat syscall.Stat_t
-	if err := syscall.Fstat(fd, &fdStat); err != nil {
-		return err
-	}
-	if err := syscall.Stat(filename, &fileStat); err != nil {
-		return err
-	}
-	if fdStat.Dev != fileStat.Dev || fdStat.Ino != fileStat.Ino {
-		return fmt.Errorf("File descriptor and fd do not match")
-	}
-	return nil
+type fakeLauncher struct {
+	err   error
+	calls []string
 }
 
-// fakeBusObject is a dbus.BusObject implementation that forwards
-// Call invocations
-type fakeBusObject func(method string, args ...interface{}) error
-
-func (f fakeBusObject) Call(method string, flags dbus.Flags, args ...interface{}) *dbus.Call {
-	err := f(method, args...)
-	return &dbus.Call{Err: err}
+func (l *fakeLauncher) OpenFile(bus *dbus.Conn, path string) error {
+	l.calls = append(l.calls, "OpenFile "+path)
+	return l.err
 }
 
-func (f fakeBusObject) CallWithContext(ctx context.Context, method string, flags dbus.Flags, args ...interface{}) *dbus.Call {
-	err := f(method, args...)
-	return &dbus.Call{Err: err}
-}
-
-func (f fakeBusObject) Go(method string, flags dbus.Flags, ch chan *dbus.Call, args ...interface{}) *dbus.Call {
-	return nil
-}
-
-func (f fakeBusObject) GoWithContext(ctx context.Context, method string, flags dbus.Flags, ch chan *dbus.Call, args ...interface{}) *dbus.Call {
-	return nil
-}
-
-func (f fakeBusObject) AddMatchSignal(iface, member string, options ...dbus.MatchOption) *dbus.Call {
-	return nil
-}
-
-func (f fakeBusObject) RemoveMatchSignal(iface, member string, options ...dbus.MatchOption) *dbus.Call {
-	return nil
-}
-
-func (f fakeBusObject) GetProperty(prop string) (dbus.Variant, error) {
-	return dbus.Variant{}, nil
-}
-
-func (f fakeBusObject) SetProperty(p string, v interface{}) error {
-	return nil
-}
-
-func (f fakeBusObject) Destination() string {
-	return ""
-}
-
-func (f fakeBusObject) Path() dbus.ObjectPath {
-	return ""
+func (l *fakeLauncher) OpenURI(bus *dbus.Conn, uri string) error {
+	l.calls = append(l.calls, "OpenURI "+uri)
+	return l.err
 }

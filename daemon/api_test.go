@@ -1945,8 +1945,8 @@ func (s *apiSuite) TestFindSection(c *check.C) {
 	_ = searchStore(findCmd, req, nil).(*resp)
 
 	c.Check(s.storeSearch, check.DeepEquals, store.Search{
-		Query:   "foo",
-		Section: "bar",
+		Query:    "foo",
+		Category: "bar",
 	})
 }
 

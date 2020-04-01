@@ -28,6 +28,8 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
+	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/state"
 )
 
 func Test(t *testing.T) { TestingT(t) }
@@ -117,4 +119,33 @@ func (*featureSuite) TestConfigOptionRefreshAppAwareness(c *C) {
 	snapName, configName := features.RefreshAppAwareness.ConfigOption()
 	c.Check(snapName, Equals, "core")
 	c.Check(configName, Equals, "experimental.refresh-app-awareness")
+}
+
+func (s *featureSuite) TestFlag(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+	tr := config.NewTransaction(st)
+
+	// Feature flags have a value even if unset.
+	flag, err := features.Flag(tr, features.Layouts)
+	c.Assert(err, IsNil)
+	c.Check(flag, Equals, true)
+
+	// Feature flags can be disabled.
+	c.Assert(tr.Set("core", "experimental.layouts", "false"), IsNil)
+	flag, err = features.Flag(tr, features.Layouts)
+	c.Assert(err, IsNil)
+	c.Check(flag, Equals, false)
+
+	// Feature flags can be enabled.
+	c.Assert(tr.Set("core", "experimental.layouts", "true"), IsNil)
+	flag, err = features.Flag(tr, features.Layouts)
+	c.Assert(err, IsNil)
+	c.Check(flag, Equals, true)
+
+	// Feature flags must have a well-known value.
+	c.Assert(tr.Set("core", "experimental.layouts", "banana"), IsNil)
+	_, err = features.Flag(tr, features.Layouts)
+	c.Assert(err, ErrorMatches, `layouts can only be set to 'true' or 'false', got "banana"`)
 }
