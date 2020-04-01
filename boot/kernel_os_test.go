@@ -22,7 +22,6 @@ package boot_test
 import (
 	"errors"
 	"io/ioutil"
-	"os"
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
@@ -155,9 +154,8 @@ func (s *bootenv20Suite) TestSetNextBoot20ForKernel(c *C) {
 		Base:           "core20_1.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap"},
 	}
-	err := m.Write("")
+	err := m.WriteTo("")
 	c.Assert(err, IsNil)
-	defer os.Remove(dirs.SnapModeenvFileUnder(dirs.GlobalRootDir))
 
 	// setup current kernel
 	kernel1, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
@@ -233,9 +231,8 @@ func (s *bootenv20Suite) TestSetNextBoot20ForKernelForTheSameKernel(c *C) {
 		Base:           "core20_1.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap"},
 	}
-	err := m.Write("")
+	err := m.WriteTo("")
 	c.Assert(err, IsNil)
-	defer os.Remove(dirs.SnapModeenvFileUnder(dirs.GlobalRootDir))
 
 	// setup current kernel
 	kernel1, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
@@ -312,9 +309,8 @@ func (s *bootenv20Suite) TestSetNextBoot20ForKernelForTheSameKernelTryMode(c *C)
 		Base:           "core20_1.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap"},
 	}
-	err := m.Write("")
+	err := m.WriteTo("")
 	c.Assert(err, IsNil)
-	defer os.Remove(dirs.SnapModeenvFileUnder(dirs.GlobalRootDir))
 
 	// setup current kernel
 	kernel1, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")

@@ -35,16 +35,19 @@ prepare: |
     done
 
 restore: |
-    userdel -f -r "$TEST_ZSH_USER"
-
-    rm -f test-profile-env test-profile-zsh-env test-session-env test-zsh-session-env
-
     if [ -e has-sessions ]; then
         for uid in $(id -u test) $(id -u "$TEST_ZSH_USER"); do
             systemctl stop "user@$uid.service"
+            # The user-runtime-dir@.service unit did not exist before
+            # Systemd 239, so ignore errors.
+            systemctl stop "user-runtime-dir@$uid.service" || true
         done
     fi
     rm -f ./has-sessions
+
+    userdel -f -r "$TEST_ZSH_USER"
+
+    rm -f test-profile-env test-profile-zsh-env test-session-env test-zsh-session-env
 
 execute: |
     #shellcheck source=tests/lib/dirs.sh

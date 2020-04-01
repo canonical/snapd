@@ -35,7 +35,7 @@ var _ = Suite(&options20Suite{})
 var mockOptions20 = []byte(`
 snaps:
  - name: foo
-   id: snapidsnapidsnapid
+   id: snapidsnapidsnapidsnapidsnapidsn
    channel: edge
  - name: local
    unasserted: local_v1.snap
@@ -51,7 +51,7 @@ func (s *options20Suite) TestSimple(c *C) {
 	c.Assert(options20.Snaps, HasLen, 2)
 	c.Assert(options20.Snaps[0], DeepEquals, &internal.Snap20{
 		Name:    "foo",
-		SnapID:  "snapidsnapidsnapid",
+		SnapID:  "snapidsnapidsnapidsnapidsnapidsn",
 		Channel: "edge",
 	})
 	c.Assert(options20.Snaps[1], DeepEquals, &internal.Snap20{
@@ -111,6 +111,19 @@ snaps:
 
 	_, err = internal.ReadOptions20(fn)
 	c.Assert(err, ErrorMatches, `cannot read grade dangerous options yaml: invalid risk in channel name: invalid/channel/`)
+}
+
+func (s *options20Suite) TestValidateSnapIDUnhappy(c *C) {
+	fn := filepath.Join(c.MkDir(), "options.yaml")
+	err := ioutil.WriteFile(fn, []byte(`
+snaps:
+ - name: foo
+   id: foo
+`), 0644)
+	c.Assert(err, IsNil)
+
+	_, err = internal.ReadOptions20(fn)
+	c.Assert(err, ErrorMatches, `cannot read grade dangerous options yaml: invalid snap-id: "foo"`)
 }
 
 func (s *options20Suite) TestValidateNameUnhappy(c *C) {
