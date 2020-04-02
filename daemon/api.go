@@ -475,6 +475,7 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	query := r.URL.Query()
 	q := query.Get("q")
 	commonID := query.Get("common-id")
+	// TODO: support both "category" (search v2) and "section"
 	section := query.Get("section")
 	name := query.Get("name")
 	scope := query.Get("scope")
@@ -525,7 +526,7 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 		Query:    q,
 		Prefix:   prefix,
 		CommonID: commonID,
-		Section:  section,
+		Category: section,
 		Private:  private,
 		Scope:    scope,
 	}, user)

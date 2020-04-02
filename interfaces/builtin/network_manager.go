@@ -92,12 +92,9 @@ network packet,
 /etc/netplan/{,**} rw,
 
 # Allow access to configuration files generated on the fly
-# from netplan and let NetworkManager store its DHCP leases
-# in the dhcp subdirectory so that console-conf can access
-# it.
-/run/NetworkManager/ w,
-/run/NetworkManager/{,**} r,
-/run/NetworkManager/dhcp/{,**} w,
+# from netplan and let NetworkManager store its configuration
+# in the same place.
+/run/NetworkManager/{,**} rw,
 
 # Needed by the ifupdown plugin to check which interfaces can
 # be managed an which not.
@@ -145,7 +142,7 @@ dbus (send)
      bus=system
      path="/org/freedesktop/resolve1"
      interface="org.freedesktop.resolve1.Manager"
-     member="SetLink{DNS,Domains}"
+     member="SetLink{DNS,MulticastDNS,Domains,LLMNR}"
      peer=(label=unconfined),
 
 dbus (send)

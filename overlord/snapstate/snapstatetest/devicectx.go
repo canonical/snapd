@@ -31,7 +31,7 @@ type TrivialDeviceContext struct {
 	OldDeviceModel *asserts.Model
 	Remodeling     bool
 	CtxStore       snapstate.StoreService
-	OpMode         string
+	SysMode        string
 	Ground         bool
 }
 
@@ -43,13 +43,13 @@ func (dc *TrivialDeviceContext) GroundContext() snapstate.DeviceContext {
 	if dc.ForRemodeling() && dc.OldDeviceModel != nil {
 		return &TrivialDeviceContext{
 			DeviceModel: dc.OldDeviceModel,
-			OpMode:      dc.OpMode,
+			SysMode:     dc.SysMode,
 			Ground:      true,
 		}
 	}
 	return &TrivialDeviceContext{
 		DeviceModel: dc.DeviceModel,
-		OpMode:      dc.OpMode,
+		SysMode:     dc.SysMode,
 		Ground:      true,
 	}
 }
@@ -71,7 +71,7 @@ func (dc *TrivialDeviceContext) HasModeenv() bool {
 }
 
 func (dc *TrivialDeviceContext) RunMode() bool {
-	return dc.OperatingMode() == "run"
+	return dc.SystemMode() == "run"
 }
 
 func (dc *TrivialDeviceContext) Store() snapstate.StoreService {
@@ -85,8 +85,8 @@ func (dc *TrivialDeviceContext) ForRemodeling() bool {
 	return dc.Remodeling
 }
 
-func (dc *TrivialDeviceContext) OperatingMode() string {
-	mode := dc.OpMode
+func (dc *TrivialDeviceContext) SystemMode() string {
+	mode := dc.SysMode
 	if mode == "" {
 		return "run"
 	}
@@ -101,8 +101,8 @@ func MockDeviceModel(model *asserts.Model) (restore func()) {
 	return MockDeviceContext(deviceCtx)
 }
 
-func MockDeviceModelAndMode(model *asserts.Model, operatingMode string) (restore func()) {
-	deviceCtx := &TrivialDeviceContext{DeviceModel: model, OpMode: operatingMode}
+func MockDeviceModelAndMode(model *asserts.Model, systemMode string) (restore func()) {
+	deviceCtx := &TrivialDeviceContext{DeviceModel: model, SysMode: systemMode}
 	return MockDeviceContext(deviceCtx)
 }
 
