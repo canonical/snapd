@@ -2503,22 +2503,26 @@ func (s *policySuite) TestNameConstraintsAutoConnection(c *C) {
 //   plugs:
 //     system-files:
 //       allow-installation:
-//         write: ...
-// or:
-//   plugs:
-//     system-files:
-//       -
-//         allow-installation:
+//         plug-attributes:
 //           write: ...
 // or:
 //   plugs:
 //     system-files:
-//       -
-//         allow-installation:
-//           write: ...
-//       -
-//         allow-installation:
-//           write: ...
+//       allow-installation:
+//         -
+//           plug-attributes:
+//             write: ...
+// or:
+//   plugs:
+//     system-files:
+//       allow-installation:
+//         -
+//           plug-attributes:
+//             write: ...
+//         -
+//           plug-attributes:
+//             write: ...
+//
 func (s *policySuite) TestSnapDeclListAttribWithBaseAllowInstallationFalse(c *C) {
 	baseDeclStr := `type: base-declaration
 authority-id: canonical
