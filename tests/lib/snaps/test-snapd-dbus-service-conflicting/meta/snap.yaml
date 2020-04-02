@@ -6,7 +6,6 @@ slots:
   dbus-session-slot:
     interface: dbus
     bus: session
-    activatable: true
     name: io.snapcraft.SnapDbusService
 apps:
   test-snapd-dbus-service:
@@ -14,4 +13,6 @@ apps:
     plugs:
       - network
     slots:
+      - dbus-session-slot
+    activates-on:
       - dbus-session-slot
