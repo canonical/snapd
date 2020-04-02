@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -32,7 +32,7 @@ func init() {
 	supportedConfigurations["core.system.disable-backlight-service"] = true
 }
 
-func validateBacklightServiceSettings(tr config.Conf) error {
+func validateBacklightServiceSettings(tr config.ConfGetter) error {
 	return validateBoolFlag(tr, "system.disable-backlight-service")
 }
 
@@ -45,9 +45,14 @@ func (l *backlightSysdLogger) Notify(status string) {
 // systemd-backlight service has no installation config. It's started when needed via udev.
 // So, systemctl enable/disable/start/stop are invalid commands. After masking/unmasking
 // the service, rebooting is required for making new setting work
-func handleBacklightServiceConfiguration(tr config.Conf) error {
-	var serviceName string = "systemd-backlight@.service"
-	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, &backlightSysdLogger{})
+func handleBacklightServiceConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error {
+	var sysd systemd.Systemd
+	const serviceName = "systemd-backlight@.service"
+	if opts != nil {
+		sysd = systemd.NewEmulationMode(opts.RootDir)
+	} else {
+		sysd = systemd.New(dirs.GlobalRootDir, systemd.SystemMode, &backlightSysdLogger{})
+	}
 	output, err := coreCfg(tr, "system.disable-backlight-service")
 	if err != nil {
 		return nil

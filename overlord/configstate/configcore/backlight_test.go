@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -38,6 +38,8 @@ var _ = Suite(&backlightSuite{})
 
 func (s *backlightSuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
+
+	s.systemctlArgs = nil
 
 	dirs.SetRootDir(c.MkDir())
 	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0755)
@@ -79,5 +81,20 @@ func (s *backlightSuite) TestConfigureBacklightServiceUnmaskIntegration(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
 		{"--root", dirs.GlobalRootDir, "unmask", "systemd-backlight@.service"},
+	})
+}
+
+func (s *backlightSuite) TestFilesystemOnlyApply(c *C) {
+	restorer := release.MockOnClassic(false)
+	defer restorer()
+
+	conf := configcore.PlainCoreConfig(map[string]interface{}{
+		"system.disable-backlight-service": "true",
+	})
+	tmpDir := c.MkDir()
+	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf), IsNil)
+
+	c.Check(s.systemctlArgs, DeepEquals, [][]string{
+		{"--root", tmpDir, "mask", "systemd-backlight@.service"},
 	})
 }

@@ -75,6 +75,9 @@ func init() {
 
 	// pi-config.*
 	addFSOnlyHandler(nil, handlePiConfiguration, coreOnly)
+
+	// system.disable-backlight-service
+	addFSOnlyHandler(validateBacklightServiceSettings, handleBacklightServiceConfiguration, coreOnly)
 }
 
 // addFSOnlyHandler registers functions to validate and handle a subset of
