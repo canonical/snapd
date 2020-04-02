@@ -1,5 +1,11 @@
 summary: Test handling of D-Bus service name conflicts
 
+prepare: |
+    snap set system experimental.dbus-activation=true
+
+restore: |
+    snap unset system experimental.dbus-activation
+
 execute: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh

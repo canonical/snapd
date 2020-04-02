@@ -2,11 +2,15 @@ summary: D-Bus session services support activation
 
 systems: [-ubuntu-core-*]
 
+prepare: |
+    snap set system experimental.dbus-activation=true
+
 restore: |
     if [ -f dbus-launch.pid ]; then
         kill "$(cat dbus-launch.pid)"
         rm -f dbus-launch.pid
     fi
+    snap unset system experimental.dbus-activation
 
 execute: |
     #shellcheck source=tests/lib/snaps.sh

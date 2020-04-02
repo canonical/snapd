@@ -13,6 +13,7 @@ environment:
     XDG_RUNTIME_DIR: /run/user/$(id -u test)
 
 prepare: |
+    snap set system experimental.dbus-activation=true
     #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB"/pkgdb.sh
     distro_install_package dbus-user-session
@@ -23,6 +24,7 @@ prepare: |
 
 restore: |
     systemctl stop "user@$(id -u test).service"
+    snap unset system experimental.dbus-activation
 
 execute: |
     #shellcheck source=tests/lib/snaps.sh
