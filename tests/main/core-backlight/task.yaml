@@ -19,4 +19,4 @@ execute: |
     snap set core system.disable-backlight-service=false
 
     systemctl status systemd-backlight@foo | MATCH "Loaded: loaded"
-    ! test -L "$MASKFILE"
+    not test -e "$MASKFILE"
