@@ -495,6 +495,14 @@ func (s *seed16Suite) TestLoadMetaCore16(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(runSnaps, HasLen, 1)
 
+	// check that PlaceInfo method works
+	pi := essSnaps[0].PlaceInfo()
+	c.Check(pi.Filename(), Equals, "core_1.snap")
+	pi = essSnaps[1].PlaceInfo()
+	c.Check(pi.Filename(), Equals, "pc-kernel_1.snap")
+	pi = essSnaps[2].PlaceInfo()
+	c.Check(pi.Filename(), Equals, "pc_1.snap")
+
 	c.Check(runSnaps, DeepEquals, []*seed.Snap{
 		{
 			Path:     s.expectedPath("required"),

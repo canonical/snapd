@@ -49,7 +49,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/snapdenv"
+	"github.com/snapcore/snapd/snapdenv/useragent"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -284,7 +284,7 @@ func NewRunner() *Runner {
 	}
 	opts := httputil.ClientOptions{
 		MayLogBody:         false,
-		ProxyConnectHeader: http.Header{"User-Agent": []string{snapdenv.UserAgent()}},
+		ProxyConnectHeader: http.Header{"User-Agent": []string{useragent.UserAgent()}},
 		TLSConfig: &tls.Config{
 			Time: run.now,
 		},
@@ -337,7 +337,7 @@ func (run *Runner) Fetch(brandID string, repairID int, revision int) (*asserts.R
 		if err != nil {
 			return nil, err
 		}
-		req.Header.Set("User-Agent", snapdenv.UserAgent())
+		req.Header.Set("User-Agent", useragent.UserAgent())
 		req.Header.Set("Accept", "application/x.ubuntu.assertion")
 		if revision >= 0 {
 			req.Header.Set("If-None-Match", fmt.Sprintf(`"%d"`, revision))
@@ -442,7 +442,7 @@ func (run *Runner) Peek(brandID string, repairID int) (headers map[string]interf
 		if err != nil {
 			return nil, err
 		}
-		req.Header.Set("User-Agent", snapdenv.UserAgent())
+		req.Header.Set("User-Agent", useragent.UserAgent())
 		req.Header.Set("Accept", "application/json")
 		return run.cli.Do(req)
 	}, func(resp *http.Response) error {

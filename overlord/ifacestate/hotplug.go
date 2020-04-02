@@ -330,7 +330,7 @@ func (m *InterfaceManager) hotplugEnumerationDone() {
 
 func (m *InterfaceManager) hotplugEnabled() (bool, error) {
 	tr := config.NewTransaction(m.state)
-	return config.GetFeatureFlag(tr, features.Hotplug)
+	return features.Flag(tr, features.Hotplug)
 }
 
 // ensureUniqueName modifies proposedName so that it's unique according to isUnique predicate.

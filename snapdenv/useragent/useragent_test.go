@@ -17,15 +17,18 @@
  *
  */
 
-package snapdenv_test
+package useragent_test
 
 import (
 	"strings"
+	"testing"
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/snapdenv"
+	"github.com/snapcore/snapd/snapdenv/useragent"
 )
+
+func Test(t *testing.T) { TestingT(t) }
 
 type UASuite struct {
 	restore func()
@@ -34,7 +37,7 @@ type UASuite struct {
 var _ = Suite(&UASuite{})
 
 func (s *UASuite) SetUpTest(c *C) {
-	s.restore = snapdenv.MockUserAgent("-")
+	s.restore = useragent.MockUserAgent("-")
 }
 
 func (s *UASuite) TearDownTest(c *C) {
@@ -42,12 +45,12 @@ func (s *UASuite) TearDownTest(c *C) {
 }
 
 func (s *UASuite) TestUserAgent(c *C) {
-	snapdenv.SetUserAgentFromVersion("10")
-	ua := snapdenv.UserAgent()
+	useragent.SetUserAgentFromVersion("10")
+	ua := useragent.UserAgent()
 	c.Check(strings.HasPrefix(ua, "snapd/10 "), Equals, true)
 
-	snapdenv.SetUserAgentFromVersion("10", "extraProd")
-	ua = snapdenv.UserAgent()
+	useragent.SetUserAgentFromVersion("10", "extraProd")
+	ua = useragent.UserAgent()
 	c.Check(strings.Contains(ua, "extraProd"), Equals, true)
 }
 
@@ -59,13 +62,13 @@ func (s *UASuite) TestStripUnsafeRunes(c *C) {
 		"4.4.0-62-generic",
 		"4.8.6-x86_64-linode78",
 	} {
-		c.Check(snapdenv.StripUnsafeRunes(unchanged), Equals, unchanged, Commentf("%q", unchanged))
+		c.Check(useragent.StripUnsafeRunes(unchanged), Equals, unchanged, Commentf("%q", unchanged))
 	}
 	for _, t := range []struct{ orig, changed string }{
 		{"space bar", "spacebar"},
 		{"~;+()[]", ""}, // most punctuation goes away
 	} {
-		c.Check(snapdenv.StripUnsafeRunes(t.orig), Equals, t.changed)
+		c.Check(useragent.StripUnsafeRunes(t.orig), Equals, t.changed)
 	}
 
 }
@@ -74,6 +77,6 @@ func (s *UASuite) TestSanitizeKernelVersion(c *C) {
 	// Ensure that it is not too long (at most 25 runes)
 	const in = "this-is-a-very-long-thing-that-pretends-to-be-a-kernel-version-string"
 	const out = "this-is-a-very-long-thing"
-	c.Check(snapdenv.SanitizeKernelVersion(in), Equals, out)
+	c.Check(useragent.SanitizeKernelVersion(in), Equals, out)
 
 }

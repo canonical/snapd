@@ -36,8 +36,11 @@ func init() {
 	supportedConfigurations["core.watchdog.shutdown-timeout"] = true
 }
 
-func updateWatchdogConfig(config map[string]uint) error {
+func updateWatchdogConfig(config map[string]uint, opts *fsOnlyContext) error {
 	dir := dirs.SnapSystemdConfDir
+	if opts != nil {
+		dir = dirs.SnapSystemdConfDirUnder(opts.RootDir)
+	}
 	name := "10-snapd-watchdog.conf"
 	dirContent := make(map[string]osutil.FileState, 1)
 
@@ -62,7 +65,7 @@ func updateWatchdogConfig(config map[string]uint) error {
 	return err
 }
 
-func handleWatchdogConfiguration(tr config.Conf) error {
+func handleWatchdogConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error {
 	config := map[string]uint{}
 
 	for _, key := range []string{"runtime-timeout", "shutdown-timeout"} {
@@ -82,7 +85,7 @@ func handleWatchdogConfiguration(tr config.Conf) error {
 		}
 	}
 
-	if err := updateWatchdogConfig(config); err != nil {
+	if err := updateWatchdogConfig(config, opts); err != nil {
 		return err
 	}
 
@@ -105,7 +108,7 @@ func getSystemdConfSeconds(timeStr string) (uint, error) {
 	return uint(dur.Seconds()), nil
 }
 
-func validateWatchdogOptions(tr config.Conf) error {
+func validateWatchdogOptions(tr config.ConfGetter) error {
 	for _, key := range []string{"runtime-timeout", "shutdown-timeout"} {
 		option, err := coreCfg(tr, "watchdog."+key)
 		if err != nil {
