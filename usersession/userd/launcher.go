@@ -57,7 +57,7 @@ const launcherIntrospectionXML = `
 </interface>`
 
 var (
-	allowedURLSchemes = []string{"http", "https", "mailto", "snap", "help", "apt", "zoommtg"}
+	allowedURLSchemes = []string{"http", "https", "mailto", "snap", "help", "apt", "zoommtg", "slack"}
 )
 
 // Launcher implements the 'io.snapcraft.Launcher' DBus interface.
