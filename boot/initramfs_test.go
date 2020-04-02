@@ -65,7 +65,7 @@ func makeSnapFilesOnEarlyBootUbuntuData(c *C, comment string, snaps ...snap.Plac
 	}
 }
 
-func (s *initramfsSuite) TestInitramfsRunModeChooseSnapsToMountHappyKernelMany(c *C) {
+func (s *initramfsSuite) TestInitramfsRunModeChooseSnapsToMount(c *C) {
 	// make some snap infos we will use in the tests
 	kernel1, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
 	c.Assert(err, IsNil)
@@ -207,6 +207,11 @@ func (s *initramfsSuite) TestInitramfsRunModeChooseSnapsToMountHappyKernelMany(c
 				TryBase:    base2.Filename(),
 				BaseStatus: boot.TryStatus,
 			},
+			expectedM: &boot.Modeenv{
+				Base:       base1.Filename(),
+				TryBase:    base2.Filename(),
+				BaseStatus: boot.TryingStatus,
+			},
 			typs:        []snap.Type{baseT},
 			snapsToMake: []snap.PlaceInfo{base1, base2},
 			expected:    map[snap.Type]snap.PlaceInfo{baseT: base2},
@@ -215,6 +220,11 @@ func (s *initramfsSuite) TestInitramfsRunModeChooseSnapsToMountHappyKernelMany(c
 		// base upgrade path, but uses fallback due to try base file not existing
 		{
 			m: &boot.Modeenv{
+				Base:       base1.Filename(),
+				TryBase:    base2.Filename(),
+				BaseStatus: boot.TryStatus,
+			},
+			expectedM: &boot.Modeenv{
 				Base:       base1.Filename(),
 				TryBase:    base2.Filename(),
 				BaseStatus: boot.TryStatus,
@@ -231,16 +241,27 @@ func (s *initramfsSuite) TestInitramfsRunModeChooseSnapsToMountHappyKernelMany(c
 				TryBase:    base2.Filename(),
 				BaseStatus: boot.TryingStatus,
 			},
+			expectedM: &boot.Modeenv{
+				Base:       base1.Filename(),
+				TryBase:    base2.Filename(),
+				BaseStatus: boot.DefaultStatus,
+			},
 			typs:        []snap.Type{baseT},
 			snapsToMake: []snap.PlaceInfo{base1, base2},
 			expected:    map[snap.Type]snap.PlaceInfo{baseT: base1},
 			comment:     "fallback base upgrade path, due to base_status trying",
 		},
-		// base upgrade path, but uses fallback due to base_status missing
+		// base upgrade path, but uses fallback due to base_status default
 		{
 			m: &boot.Modeenv{
-				Base:    base1.Filename(),
-				TryBase: base2.Filename(),
+				Base:       base1.Filename(),
+				TryBase:    base2.Filename(),
+				BaseStatus: boot.DefaultStatus,
+			},
+			expectedM: &boot.Modeenv{
+				Base:       base1.Filename(),
+				TryBase:    base2.Filename(),
+				BaseStatus: boot.DefaultStatus,
 			},
 			typs:        []snap.Type{baseT},
 			snapsToMake: []snap.PlaceInfo{base1, base2},
