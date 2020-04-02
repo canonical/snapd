@@ -92,7 +92,7 @@
 %endif
 
 Name:           snapd
-Version:        2.44.1
+Version:        2.44.2
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -877,7 +877,24 @@ fi
 
 
 %changelog
+* Thu Apr 2 2020 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.44.2
+ - packaging: detect/disable broken seeds in the postinst
+ - cmd/snap,seed: validate full seeds (UC 16/18)
+ - snap: add `snap debug state --is-seeded` helper
+ - devicestate: generate warning if seeding fails
+ - store: support for search API v2
+ - cmd/snap-seccomp/syscalls: update the list of known syscalls
+ - snap/cmd: the model command needs just a client, no waitMixin
+ - tests: cleanup security-private-tmp properly
+ - wrappers: fix timer schedules that are days only
+ - tests: update proxy-no-core to match latest CDN changes
+ - cmd/snap-failure,tests: make snap-failure more robust
+ - tests, many: don't use StartLimitInterval anymore, unify snapd-
+   failover variants, build snapd snap for UC16 tests
+
 * Sat Mar 21 2020 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.44.1
  - randutil: switch back to setting up seed with lower entropy data
  - interfaces/greengrass-support: fix typo
  - packaging,tests: ensure debian-sid builds without vendor/
@@ -885,6 +902,7 @@ fi
  - cmd/snap-update-ns: ignore EROFS from rmdir/unlink
 
 * Tue Mar 17 2020 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.44
  - daemon: do a forceful serer shutdown if we hit a deadline
  - snap: whitelist lzo as support compression for snap pack
  - data/selinux: update policy to allow more ops
