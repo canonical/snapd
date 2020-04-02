@@ -2015,7 +2015,7 @@ type: kernel`
 		RecoverySystem: "20191127",
 		Base:           "core20_1.snap",
 	}
-	err = m.Write("")
+	err = m.WriteTo("")
 	c.Assert(err, IsNil)
 
 	st := s.o.State()
@@ -2174,7 +2174,7 @@ type: kernel`
 		RecoverySystem: "20191127",
 		Base:           "core20_1.snap",
 	}
-	err = m.Write("")
+	err = m.WriteTo("")
 	c.Assert(err, IsNil)
 
 	st := s.o.State()

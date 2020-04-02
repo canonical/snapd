@@ -95,11 +95,8 @@ func SetLastBecomeOperationalAttempt(m *DeviceManager, t time.Time) {
 	m.lastBecomeOperationalAttempt = t
 }
 
-func SetOperatingMode(m *DeviceManager, mode string) {
-	m.modeEnv.Mode = mode
-}
-func SetRecoverySystem(m *DeviceManager, d string) {
-	m.modeEnv.RecoverySystem = d
+func SetSystemMode(m *DeviceManager, mode string) {
+	m.systemMode = mode
 }
 
 func MockRepeatRequestSerial(label string) (restore func()) {
@@ -153,6 +150,7 @@ func SetBootOkRan(m *DeviceManager, b bool) {
 type (
 	RegistrationContext = registrationContext
 	RemodelContext      = remodelContext
+	SeededSystem        = seededSystem
 )
 
 func RegistrationCtx(m *DeviceManager, t *state.Task) (registrationContext, error) {

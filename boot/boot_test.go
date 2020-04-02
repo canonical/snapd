@@ -21,6 +21,7 @@ package boot_test
 
 import (
 	"errors"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -422,9 +423,8 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameKernelSnap(c *C) {
 		Base:           "core20_1.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap"},
 	}
-	err := m.Write("")
+	err := m.WriteTo("")
 	c.Assert(err, IsNil)
-	defer os.Remove(dirs.SnapModeenvFileUnder(dirs.GlobalRootDir))
 
 	// set the current kernel
 	kernel, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
@@ -475,9 +475,8 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewKernelSnap(c *C) {
 		Base:           "core20_1.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap"},
 	}
-	err := m.Write("")
+	err := m.WriteTo("")
 	c.Assert(err, IsNil)
-	defer os.Remove(dirs.SnapModeenvFileUnder(dirs.GlobalRootDir))
 
 	// set the current kernel
 	kernel, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
@@ -575,7 +574,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BaseStatusTryingNoBaseSnapClean
 		Base:           "core20_1.snap",
 		BaseStatus:     boot.TryingStatus,
 	}
-	err := m.Write("")
+	err := m.WriteTo("")
 	c.Assert(err, IsNil)
 
 	coreDev := boottest.MockUC20Device("core20")
@@ -615,7 +614,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameBaseSnap(c *C) {
 	m := &boot.Modeenv{
 		Base: "core20_1.snap",
 	}
-	err = m.Write("")
+	err = m.WriteTo("")
 	c.Assert(err, IsNil)
 
 	// get the boot base participant from our base snap
@@ -650,7 +649,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewBaseSnap(c *C) {
 	m := &boot.Modeenv{
 		Base: "core20_1.snap",
 	}
-	err = m.Write("")
+	err = m.WriteTo("")
 	c.Assert(err, IsNil)
 
 	// get the boot base participant from our new base snap
@@ -708,7 +707,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20AllSnap(c *C) {
 		BaseStatus:     boot.TryingStatus,
 		CurrentKernels: []string{"pc-kernel_1.snap", "pc-kernel_2.snap"},
 	}
-	err := m.Write("")
+	err := m.WriteTo("")
 	c.Assert(err, IsNil)
 
 	// set the current kernel
@@ -813,7 +812,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20KernelUpdate(c *C) {
 		Base:           "core20_1.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap", "pc-kernel_2.snap"},
 	}
-	err := m.Write("")
+	err := m.WriteTo("")
 	c.Assert(err, IsNil)
 
 	coreDev := boottest.MockUC20Device("some-snap")
@@ -874,7 +873,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BaseUpdate(c *C) {
 		TryBase:    "core20_2.snap",
 		BaseStatus: boot.TryingStatus,
 	}
-	err := m.Write("")
+	err := m.WriteTo("")
 	c.Assert(err, IsNil)
 
 	coreDev := boottest.MockUC20Device("some-snap")
@@ -1158,9 +1157,8 @@ func (s *bootenv20Suite) TestHappyCoreParticipant20SetNextKernelSnapRebootBefore
 		Base:           "core20_1.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap"},
 	}
-	err := m.Write("")
+	err := m.WriteTo("")
 	c.Assert(err, IsNil)
-	defer os.Remove(dirs.SnapModeenvFileUnder(dirs.GlobalRootDir))
 
 	// set the current kernel
 	kernel, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
@@ -1240,9 +1238,8 @@ func (s *bootenv20Suite) TestHappyCoreParticipant20SetNextKernelSnapRebootBefore
 		Base:           "core20_1.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap"},
 	}
-	err := m.Write("")
+	err := m.WriteTo("")
 	c.Assert(err, IsNil)
-	defer os.Remove(dirs.SnapModeenvFileUnder(dirs.GlobalRootDir))
 
 	// set the current kernel
 	kernel, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
@@ -1357,4 +1354,74 @@ func runBootloaderLogic(c *C, ebl bootloader.ExtractedRunKernelImageBootloader) 
 		c.Assert(err, IsNil)
 	}
 	return kern, nil
+}
+
+type recoveryBootenv20Suite struct {
+	baseBootenvSuite
+
+	bootloader *bootloadertest.MockBootloader
+
+	dev boot.Device
+}
+
+var _ = Suite(&recoveryBootenv20Suite{})
+
+func (s *recoveryBootenv20Suite) SetUpTest(c *C) {
+	s.baseBootenvSuite.SetUpTest(c)
+
+	s.bootloader = bootloadertest.Mock("mock", c.MkDir())
+	s.forceBootloader(s.bootloader)
+
+	s.dev = boottest.MockUC20Device("some-snap")
+}
+
+func (s *recoveryBootenv20Suite) TestSetRecoveryBootSystemAndModeHappy(c *C) {
+	err := boot.SetRecoveryBootSystemAndMode(s.dev, "1234", "install")
+	c.Assert(err, IsNil)
+	c.Check(s.bootloader.BootVars, DeepEquals, map[string]string{
+		"snapd_recovery_system": "1234",
+		"snapd_recovery_mode":   "install",
+	})
+}
+
+func (s *recoveryBootenv20Suite) TestSetRecoveryBootSystemAndModeSetErr(c *C) {
+	s.bootloader.SetErr = errors.New("no can do")
+	err := boot.SetRecoveryBootSystemAndMode(s.dev, "1234", "install")
+	c.Assert(err, ErrorMatches, `no can do`)
+}
+
+func (s *recoveryBootenv20Suite) TestSetRecoveryBootSystemAndModeNonUC20(c *C) {
+	non20Dev := boottest.MockDevice("some-snap")
+	err := boot.SetRecoveryBootSystemAndMode(non20Dev, "1234", "install")
+	c.Assert(err, Equals, boot.ErrUnsupportedSystemMode)
+}
+
+func (s *recoveryBootenv20Suite) TestSetRecoveryBootSystemAndModeErrClumsy(c *C) {
+	err := boot.SetRecoveryBootSystemAndMode(s.dev, "", "install")
+	c.Assert(err, ErrorMatches, "internal error: system label is unset")
+	err = boot.SetRecoveryBootSystemAndMode(s.dev, "1234", "")
+	c.Assert(err, ErrorMatches, "internal error: system mode is unset")
+}
+
+func (s *recoveryBootenv20Suite) TestSetRecoveryBootSystemAndModeRealHappy(c *C) {
+	bootloader.Force(nil)
+
+	mockSeedGrubDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI", "ubuntu")
+	err := os.MkdirAll(mockSeedGrubDir, 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(mockSeedGrubDir, "grub.cfg"), nil, 0644)
+	c.Assert(err, IsNil)
+
+	err = boot.SetRecoveryBootSystemAndMode(s.dev, "1234", "install")
+	c.Assert(err, IsNil)
+
+	bl, err := bootloader.Find(boot.InitramfsUbuntuSeedDir, &bootloader.Options{Recovery: true})
+	c.Assert(err, IsNil)
+
+	blvars, err := bl.GetBootVars("snapd_recovery_mode", "snapd_recovery_system")
+	c.Assert(err, IsNil)
+	c.Check(blvars, DeepEquals, map[string]string{
+		"snapd_recovery_system": "1234",
+		"snapd_recovery_mode":   "install",
+	})
 }

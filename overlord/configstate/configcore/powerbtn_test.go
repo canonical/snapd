@@ -53,7 +53,7 @@ func (s *powerbtnSuite) TearDownTest(c *C) {
 }
 
 func (s *powerbtnSuite) TestConfigurePowerButtonInvalid(c *C) {
-	err := configcore.SwitchHandlePowerKey("invalid-action")
+	err := configcore.SwitchHandlePowerKey("invalid-action", nil)
 	c.Check(err, ErrorMatches, `invalid action "invalid-action" supplied for system.power-key-action option`)
 }
 
@@ -76,4 +76,18 @@ func (s *powerbtnSuite) TestConfigurePowerIntegration(c *C) {
 		c.Check(s.mockPowerBtnCfg, testutil.FileEquals, fmt.Sprintf("[Login]\nHandlePowerKey=%s\n", action))
 	}
 
+}
+
+func (s *powerbtnSuite) TestFilesystemOnlyApply(c *C) {
+	restorer := release.MockOnClassic(false)
+	defer restorer()
+
+	conf := configcore.PlainCoreConfig(map[string]interface{}{
+		"system.power-key-action": "reboot",
+	})
+	tmpDir := c.MkDir()
+	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf), IsNil)
+
+	powerBtnCfg := filepath.Join(tmpDir, "/etc/systemd/logind.conf.d/00-snap-core.conf")
+	c.Check(powerBtnCfg, testutil.FileEquals, "[Login]\nHandlePowerKey=reboot\n")
 }

@@ -87,12 +87,16 @@ func updatePiConfig(path string, config map[string]string) error {
 	return nil
 }
 
-func piConfigFile() string {
-	return filepath.Join(dirs.GlobalRootDir, "/boot/uboot/config.txt")
+func piConfigFile(opts *fsOnlyContext) string {
+	rootDir := dirs.GlobalRootDir
+	if opts != nil {
+		rootDir = opts.RootDir
+	}
+	return filepath.Join(rootDir, "/boot/uboot/config.txt")
 }
 
-func handlePiConfiguration(tr config.Conf) error {
-	if osutil.FileExists(piConfigFile()) {
+func handlePiConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error {
+	if osutil.FileExists(piConfigFile(opts)) {
 		// snapctl can actually give us the whole dict in
 		// JSON, in a single call; use that instead of this.
 		config := map[string]string{}
@@ -103,7 +107,7 @@ func handlePiConfiguration(tr config.Conf) error {
 			}
 			config[key] = output
 		}
-		if err := updatePiConfig(piConfigFile(), config); err != nil {
+		if err := updatePiConfig(piConfigFile(opts), config); err != nil {
 			return err
 		}
 	}
