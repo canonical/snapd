@@ -2086,11 +2086,14 @@ type: kernel`
 	c.Assert(enabledTryKernels, HasLen, 1)
 	c.Assert(enabledTryKernels[0].Filename(), Equals, kernelSnapInfo.Filename())
 
-	// we won't disable any try kernels nor will we enable any kernels
-	_, nDisableTryKernelCalls := bloader.GetRunKernelImageFunctionSnapCalls("DisableTryKernel")
-	c.Assert(nDisableTryKernelCalls, Equals, 0)
+	// we won't have enabled any kernels though because we won't have run
+	// Ensure() yet
 	_, nEnableKernelCalls := bloader.GetRunKernelImageFunctionSnapCalls("EnableKernel")
 	c.Assert(nEnableKernelCalls, Equals, 0)
+
+	// we did disable a try kernel because we always do this to cleanup
+	_, nDisableTryKernelCalls := bloader.GetRunKernelImageFunctionSnapCalls("DisableTryKernel")
+	c.Assert(nDisableTryKernelCalls, Equals, 1)
 
 	// pretend we restarted
 	s.mockSuccessfulReboot(c, bloader, []snap.Type{snap.TypeKernel})
@@ -2105,9 +2108,10 @@ type: kernel`
 	c.Assert(enabledKernels, HasLen, 1)
 	c.Assert(enabledKernels[0].Filename(), Equals, kernelSnapInfo.Filename())
 
-	// we should have now disabled a TryKernel
+	// we should have now disabled a try kernel again (this one actually being
+	// necessary)
 	_, nDisableTryKernelCalls = bloader.GetRunKernelImageFunctionSnapCalls("DisableTryKernel")
-	c.Assert(nDisableTryKernelCalls, Equals, 1)
+	c.Assert(nDisableTryKernelCalls, Equals, 2)
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 
@@ -2244,11 +2248,14 @@ type: kernel`
 	c.Assert(enabledTryKernels, HasLen, 1)
 	c.Assert(enabledTryKernels[0].Filename(), Equals, kernelSnapInfo.Filename())
 
-	// we won't disable any try kernels nor will we enable any kernels
-	_, nDisableTryKernelCalls := bloader.GetRunKernelImageFunctionSnapCalls("DisableTryKernel")
-	c.Assert(nDisableTryKernelCalls, Equals, 0)
+	// we won't enable any kernels because we un-did it before marking
+	// successful
 	_, nEnableKernelCalls := bloader.GetRunKernelImageFunctionSnapCalls("EnableKernel")
 	c.Assert(nEnableKernelCalls, Equals, 0)
+
+	// we will disable a try kernel because we always do this to cleanup
+	_, nDisableTryKernelCalls := bloader.GetRunKernelImageFunctionSnapCalls("DisableTryKernel")
+	c.Assert(nDisableTryKernelCalls, Equals, 1)
 
 	// we are in restarting state and the change is not done yet
 	restarting, _ := st.Restarting()
@@ -2287,7 +2294,7 @@ type: kernel`
 	// we should have disabled the try-kernel we just booted and then enabled
 	// a new kernel (which is the original kernel)
 	_, nDisableTryKernelCalls = bloader.GetRunKernelImageFunctionSnapCalls("DisableTryKernel")
-	c.Assert(nDisableTryKernelCalls, Equals, 1)
+	c.Assert(nDisableTryKernelCalls, Equals, 2)
 
 	// we should have enabled the new kernel, as that technically finished
 	enabledKernels, _ := bloader.GetRunKernelImageFunctionSnapCalls("EnableKernel")

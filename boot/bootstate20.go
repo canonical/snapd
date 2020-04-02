@@ -82,8 +82,11 @@ type bootState20Kernel struct {
 	// the kernel_status value to be written in commit()
 	commitKernelStatus string
 
-	// the kernel snap that was tried for markSuccessful()
-	triedKernelSnap snap.PlaceInfo
+	// the kernel snap that was booted for markSuccessful()
+	bootedKernelSnap snap.PlaceInfo
+
+	// the current kernel as indicated by the bootloader
+	currentKernel snap.PlaceInfo
 
 	// the kernel snap to try for setNext()
 	tryKernelSnap snap.PlaceInfo
@@ -128,45 +131,47 @@ func (ks20 *bootState20Kernel) loadBootenv() error {
 	// the default commit status is the same as the kernel status was before
 	ks20.commitKernelStatus = ks20.kernelStatus
 
+	// get the current kernel for this bootloader to compare during commit() for
+	// markSuccessful() if we booted the current kernel or not
+	kernel, err := ks20.ebl.Kernel()
+	if err != nil {
+		return fmt.Errorf("cannot identify kernel snap with bootloader %s: %v", ks20.ebl.Name(), err)
+	}
+
+	ks20.currentKernel = kernel
+
 	return nil
 }
 
 func (ks20 *bootState20Kernel) revisions() (curSnap, trySnap snap.PlaceInfo, tryingStatus string, err error) {
-	var bootSn, tryBootSn snap.PlaceInfo
+	var tryBootSn snap.PlaceInfo
 	err = ks20.loadBootenv()
 	if err != nil {
 		return nil, nil, "", err
 	}
 
-	// get the kernel for this bootloader
-	bootSn, err = ks20.ebl.Kernel()
-	if err != nil {
-		return nil, nil, "", fmt.Errorf("cannot identify kernel snap with bootloader %s: %v", ks20.ebl.Name(), err)
-	}
-
 	tryKernel, err := ks20.ebl.TryKernel()
 	// if err is ErrNoTryKernelRef, then we will just return nil as the trySnap
 	if err != nil && err != bootloader.ErrNoTryKernelRef {
-		return bootSn, nil, "", trySnapError(fmt.Sprintf("cannot identify try kernel snap with bootloader %s: %v", ks20.ebl.Name(), err))
+		return ks20.currentKernel, nil, "", trySnapError(fmt.Sprintf("cannot identify try kernel snap with bootloader %s: %v", ks20.ebl.Name(), err))
 	}
 
 	if err == nil {
 		tryBootSn = tryKernel
 	}
 
-	return bootSn, tryBootSn, ks20.kernelStatus, nil
+	return ks20.currentKernel, tryBootSn, ks20.kernelStatus, nil
 }
 
 func (ks20 *bootState20Kernel) markSuccessful(update bootStateUpdate) (bootStateUpdate, error) {
 	// call the generic method with this object to do most of the legwork
-	u, sn, err := genericMarkSuccessful(ks20, update)
+	u, sn, err := chooseBootSnapToMarkSuccessful(ks20, update)
 	if err != nil {
 		return nil, err
 	}
 
 	// u should always be non-nil if err is nil
-	// save the tried kernel snap here
-	u.triedKernelSnap = sn
+	u.bootedKernelSnap = sn
 	return u, nil
 }
 
@@ -279,6 +284,10 @@ func (ks20 *bootState20Kernel) chooseAndCommitSnapInitramfsMount() (sn snap.Plac
 		validKernels[validKernel] = true
 	}
 
+	// TODO:UC20: actually we really shouldn't be falling back here at
+	//            all - if the kernel we booted isn't mountable in the
+	//            initramfs, we should trigger a reboot so that we boot
+	//            the fallback kernel and then mount that one
 	if !validKernels[first.Filename()] {
 		if second != nil {
 			// try the second snap, which will always be the fallback snap if
@@ -313,8 +322,8 @@ type bootState20Base struct {
 	// state we want it in
 	commitBaseStatus string
 
-	// the base snap that was tried for markSuccessful()
-	triedBaseSnap snap.PlaceInfo
+	// the base snap that was booted for markSuccessful()
+	bootedBaseSnap snap.PlaceInfo
 
 	// the base snap to try for setNext()
 	tryBaseSnap snap.PlaceInfo
@@ -367,13 +376,13 @@ func (bs20 *bootState20Base) revisions() (curSnap, trySnap snap.PlaceInfo, tryin
 
 func (bs20 *bootState20Base) markSuccessful(update bootStateUpdate) (bootStateUpdate, error) {
 	// call the generic method with this object to do most of the legwork
-	u, sn, err := genericMarkSuccessful(bs20, update)
+	u, sn, err := chooseBootSnapToMarkSuccessful(bs20, update)
 	if err != nil {
 		return nil, err
 	}
 
 	// u should always be non-nil if err is nil
-	u.triedBaseSnap = sn
+	u.bootedBaseSnap = sn
 	return u, nil
 }
 
@@ -513,17 +522,25 @@ type bootState20MarkSuccessful struct {
 	bootState20Kernel
 }
 
-// threadBootState20MarkSuccessful is a helper method that will either create a
-// new bootState20MarkSuccessful for the given type, or it will add to the
-// provided bootStateUpdate
-func threadBootState20MarkSuccessful(update bootStateUpdate) (*bootState20MarkSuccessful, error) {
-	var bsmark *bootState20MarkSuccessful
+// chooseBootSnapToMarkSuccessful inspects the specified boot state to pick what
+// boot snap should be marked as successful and use as a valid rollback target.
+// If the
+func chooseBootSnapToMarkSuccessful(b bootState, update bootStateUpdate) (
+	bsmark *bootState20MarkSuccessful,
+	bootedSnap snap.PlaceInfo,
+	err error,
+) {
+	// get the try snap and the current status
+	sn, trySnap, status, err := b.revisions()
+	if err != nil {
+		return nil, nil, err
+	}
 
 	// try to extract bsmark out of update
 	var ok bool
 	if update != nil {
 		if bsmark, ok = update.(*bootState20MarkSuccessful); !ok {
-			return nil, fmt.Errorf("internal error, cannot thread %T with update for UC20", update)
+			return nil, nil, fmt.Errorf("internal error, cannot thread %T with update for UC20", update)
 		}
 	}
 
@@ -531,43 +548,25 @@ func threadBootState20MarkSuccessful(update bootStateUpdate) (*bootState20MarkSu
 		bsmark = &bootState20MarkSuccessful{}
 	}
 
-	// initialize both types in case we need to mark both
-	err := bsmark.loadBootenv()
-	if err != nil {
-		return nil, err
-	}
-	err = bsmark.loadModeenv()
-	if err != nil {
-		return nil, err
-	}
-
-	return bsmark, nil
-}
-
-// genericMarkSuccessful sets the necessary boot variables, etc. to mark the
-// given boot snap as successful and a valid rollback target. If err is nil,
-// then the first return value is guaranteed to always be non-nil.
-func genericMarkSuccessful(b bootState, update bootStateUpdate) (bsmark *bootState20MarkSuccessful, trySnap snap.PlaceInfo, err error) {
-	// create a new object or combine the existing one with this type
-	bsmark, err = threadBootState20MarkSuccessful(update)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// get the try snap and the current status
-	_, trySnap, status, err := b.revisions()
-	if err != nil {
-		return nil, nil, err
+	// incorporate the bootState into the bsmark so we don't need to reload
+	// bootenv / modeenv, as bootState will already have been initialized in
+	// the call to revisions() above
+	switch bsGround := b.(type) {
+	case *bootState20Base:
+		bsmark.bootState20Base = *bsGround
+	case *bootState20Kernel:
+		bsmark.bootState20Kernel = *bsGround
 	}
 
 	// kernel_status and base_status go from "" -> "try" (set by snapd), to
 	// "try" -> "trying" (set by the boot script)
-	// so if we are not in "trying" mode, nothing to do here
-	if status != TryingStatus {
-		return bsmark, nil, nil
+	// so if we are in "trying" mode, then we should choose the try snap
+	if status == TryingStatus {
+		return bsmark, trySnap, nil
 	}
 
-	return bsmark, trySnap, nil
+	// if we are not in trying then choose the normal snap
+	return bsmark, sn, nil
 }
 
 // commit will persistently write out the boot variables, etc. needed to mark
@@ -636,23 +635,30 @@ func (bsmark *bootState20MarkSuccessful) commit() error {
 		}
 	}
 
-	if bsmark.triedKernelSnap != nil {
-		// enable the kernel we tried
-		err := bsmark.ebl.EnableKernel(bsmark.triedKernelSnap)
+	if bsmark.bootedKernelSnap != nil {
+		// if the kernel we booted is not the current one, we must have tried
+		// a new kernel, so enable that one as the current one now
+		if bsmark.currentKernel.Filename() != bsmark.bootedKernelSnap.Filename() {
+			err := bsmark.ebl.EnableKernel(bsmark.bootedKernelSnap)
+			if err != nil {
+				return err
+			}
+		}
+
+		// always disable the try kernel snap to cleanup in case we have upgrade
+		// failures which leave behind try-kernel.efi
+		err := bsmark.ebl.DisableTryKernel()
 		if err != nil {
 			return err
 		}
 
-		// disable the try kernel symlink
-		err = bsmark.ebl.DisableTryKernel()
-		if err != nil {
-			return err
-		}
-
-		// finally set current_kernels to be just this new kernel snap
-		bsmark.modeenv.CurrentKernels = []string{bsmark.triedKernelSnap.Filename()}
+		// also always set current_kernels to be just the kernel we booted, for
+		// same reason we always disable the try-kernel
+		bsmark.modeenv.CurrentKernels = []string{bsmark.bootedKernelSnap.Filename()}
 		modeenvChanged = true
 	}
+
+	// always clean up the try kernel, as it may be leftover from a failed boot
 
 	// base snap next
 	// the ordering here is less important, since the only operation that
@@ -660,17 +666,18 @@ func (bsmark *bootState20MarkSuccessful) commit() error {
 	// atomic file writing operation, so it's not a concern if we get
 	// rebooted during this snippet like it is with the kernel snap above
 
-	// always clear the base_status when marking successful, this has the useful
-	// side-effect of cleaning up if we have base_status=trying but no try_base
-	// set
+	// always clear the base_status and try_base when marking successful, this
+	// has the useful side-effect of cleaning up if we have base_status=trying
+	// but no try_base set, or if we had an issue with try_base being invalid
 	if bsmark.modeenv.BaseStatus != DefaultStatus {
 		modeenvChanged = true
+		bsmark.modeenv.TryBase = ""
 		bsmark.modeenv.BaseStatus = DefaultStatus
 	}
 
-	if bsmark.triedBaseSnap != nil {
+	if bsmark.bootedBaseSnap != nil {
 		// set the new base as the tried base snap
-		tryBase := bsmark.triedBaseSnap.Filename()
+		tryBase := bsmark.bootedBaseSnap.Filename()
 		if bsmark.modeenv.Base != tryBase {
 			bsmark.modeenv.Base = tryBase
 			modeenvChanged = true
