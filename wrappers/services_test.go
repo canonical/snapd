@@ -278,7 +278,7 @@ apps:
 	svcFName := "snap.wat.wat.service"
 
 	err = wrappers.StopServices(info.Services(), "", progress.Null, s.perfTimings)
-	c.Check(err, ErrorMatches, "some services failed to stop")
+	c.Check(err, ErrorMatches, "some user services failed to stop")
 	c.Check(sysdLog, DeepEquals, [][]string{
 		{"--user", "stop", svcFName},
 	})
@@ -1209,7 +1209,7 @@ func (s *servicesTestSuite) TestStartSnapMultiUserServicesFailStartCleanup(c *C)
 		svcs[0], svcs[1] = svcs[1], svcs[0]
 	}
 	err := wrappers.StartServices(svcs, progress.Null, s.perfTimings)
-	c.Assert(err, ErrorMatches, "some services failed to start")
+	c.Assert(err, ErrorMatches, "some user services failed to start")
 	c.Assert(sysdLog, HasLen, 10, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
 	c.Check(sysdLog, DeepEquals, [][]string{
 		{"--user", "--global", "--root", s.tempdir, "is-enabled", svc1Name},

@@ -1,4 +1,4 @@
-summary: Check that snap user services are installed and started.
+summary: Check that snap user services are started on install in existing sessions
 
 systems:
     # Ubuntu 14.04's systemd doesn't have user@.service
