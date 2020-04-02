@@ -572,7 +572,7 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 		}
 	}
 	if hasUserService {
-		flag, err := config.GetFeatureFlag(tr, features.UserDaemons)
+		flag, err := features.Flag(tr, features.UserDaemons)
 		if err != nil {
 			return err
 		}
