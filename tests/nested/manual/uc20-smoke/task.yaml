@@ -9,7 +9,6 @@ kill-timeout: 40m
 
 environment:
    SPREAD_DIR: $PWD/spread-dir
-   BUILD_WITH_CLOUD_INIT: true
 
 prepare: |
     #shellcheck source=tests/lib/nested.sh

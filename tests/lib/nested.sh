@@ -9,7 +9,7 @@ SSH_PORT=8022
 MON_PORT=8888
 
 wait_for_ssh(){
-    retry=$1
+    retry=150
     wait=1
     while ! execute_remote true; do
         retry=$(( retry - 1 ))
@@ -22,7 +22,7 @@ wait_for_ssh(){
 }
 
 wait_for_no_ssh(){
-    retry=$1
+    retry=150
     wait=1
     while execute_remote true; do
         retry=$(( retry - 1 ))
@@ -179,8 +179,8 @@ refresh_to_new_core(){
             execute_remote "snap info snapd" | grep -E "^tracking: +latest/${NEW_CHANNEL}"
         else
             execute_remote "snap refresh core --${NEW_CHANNEL}"
-            wait_for_no_ssh 120
-            wait_for_ssh 120
+            wait_for_no_ssh
+            wait_for_ssh
             execute_remote "snap info core" | grep -E "^tracking: +latest/${NEW_CHANNEL}"
         fi
     fi
@@ -236,7 +236,7 @@ create_nested_core_vm(){
                 echo "Build from current branch is not supported yet for uc16"
                 exit 1
             fi
-             shellcheck source=tests/lib/prepare.sh
+            # shellcheck source=tests/lib/prepare.sh
             . "$TESTSLIB"/prepare.sh
             snap download --channel="latest/edge" snapd
             repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$PWD/new-snapd" "true"
@@ -249,8 +249,12 @@ create_nested_core_vm(){
             "$EXTRA_FUNDAMENTAL" \
             "$EXTRA_SNAPS"
 
-        if [ "$BUILD_WITH_CLOUD_INIT" = "true" ]; then
-            configure_cloud_init_nested_core_vm
+        if [ "$USE_CLOUD_INIT" = "true" ]; then
+            if is_core_20_nested_system; then
+                configure_cloud_init_nested_core_vm_uc20
+            else
+                configure_cloud_init_nested_core_vm
+            fi
         else
             create_assertions_disk
         fi
@@ -258,6 +262,65 @@ create_nested_core_vm(){
 }
 
 configure_cloud_init_nested_core_vm(){
+    create_cloud_init_data "$WORK_DIR/user-data" "$WORK_DIR/meta-data"
+
+    loops=$(kpartx -avs "$WORK_DIR/image/ubuntu-core.img"  | cut -d' ' -f 3)
+    part=$(echo "$loops" | tail -1)
+    tmp=$(mktemp -d)
+    mount "/dev/mapper/$part" "$tmp"
+
+    mkdir -p "$tmp/system-data/var/lib/cloud/seed/nocloud-net/"
+    cp "$WORK_DIR/user-data" "$tmp/system-data/var/lib/cloud/seed/nocloud-net/"
+    cp "$WORK_DIR/meta-data" "$tmp/system-data/var/lib/cloud/seed/nocloud-net/"
+
+    umount "$tmp"
+    kpartx -d "$WORK_DIR/image/ubuntu-core.img"
+}
+
+create_cloud_init_data(){
+    USER_DATA=$1
+    META_DATA=$2
+    cat <<EOF > "$USER_DATA"
+#cloud-config
+  ssh_pwauth: True
+  users:
+   - name: user1
+     sudo: ALL=(ALL) NOPASSWD:ALL
+     shell: /bin/bash
+  chpasswd:
+   list: |
+    user1:ubuntu
+   expire: False
+EOF
+
+    cat <<EOF > "$META_DATA"
+instance_id: cloud-images
+EOF
+}
+
+create_cloud_init_config(){
+    CONFIG_PATH=$1
+    cat <<EOF > "$CONFIG_PATH"
+    #cloud-config
+  ssh_pwauth: True
+  users:
+   - name: user1
+     sudo: ALL=(ALL) NOPASSWD:ALL
+     shell: /bin/bash
+  chpasswd:
+   list: |
+    user1:ubuntu
+   expire: False
+  datasource_list: [ "None"]
+  datasource:
+    None:
+     userdata_raw: |
+      #!/bin/bash
+      echo test
+EOF
+}
+
+configure_cloud_init_nested_core_vm_uc20(){
     create_cloud_init_config "$WORK_DIR/data.cfg"
 
     loops=$(kpartx -avs "$WORK_DIR/image/ubuntu-core.img"  | cut -d' ' -f 3)
@@ -284,12 +347,16 @@ start_nested_core_vm(){
     cp -f "$WORK_DIR/image/ubuntu-core.img" "$IMAGE_FILE"
 
     # Now qemu parameters are defined
-    PARAM_CPU="-smp 2"
+    PARAM_CPU="-smp 1"
     PARAM_MEM="-m 4096"
     PARAM_DISPLAY="-nographic"
     PARAM_EXTRA="-machine accel=kvm"
     PARAM_NETWORK="-net nic,model=virtio -net user,hostfwd=tcp::$SSH_PORT-:22"
     PARAM_MONITOR="-monitor tcp:127.0.0.1:$MON_PORT,server,nowait -usb"
+    PARAM_ASSERTIONS=""
+    if [ "$USE_CLOUD_INIT" != "true" ]; then
+        PARAM_ASSERTIONS="-drive file=$WORK_DIR/assertions.disk,cache=none,format=raw"
+    fi
     if is_core_20_nested_system; then
         if ! is_focal_system; then
             cp /etc/apt/sources.list /etc/apt/sources.list.back
@@ -305,20 +372,18 @@ start_nested_core_vm(){
         fi
 
         PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE.secboot.fd,if=pflash,format=raw,unit=0,readonly=on -drive file=$WORK_DIR/image/OVMF_VARS.snakeoil.fd,if=pflash,format=raw,unit=1"
-        PARAM_ASSERTIONS=""
         PARAM_IMAGE="-drive file=$IMAGE_FILE,cache=none,format=raw,id=disk1,if=none -device virtio-blk-pci,drive=disk1,bootindex=1"
         PARAM_MACHINE="-machine q35 -global ICH9-LPC.disable_s3=1"
         PARAM_TPM="-chardev socket,id=chrtpm,path=/var/snap/swtpm-mvo/current/swtpm-sock -tpmdev emulator,id=tpm0,chardev=chrtpm -device tpm-tis,tpmdev=tpm0"
     else
         PARAM_BIOS=""
-        PARAM_ASSERTIONS="-drive file=$WORK_DIR/assertions.disk,cache=none,format=raw"
         PARAM_IMAGE="-drive file=$IMAGE_FILE,cache=none,format=raw"
         PARAM_MACHINE=""
         PARAM_TPM=""
     fi
 
     # Systemd unit is created, it is important to respect the qemu parameters order
-    systemd_create_and_start_unit    "$NESTED_VM" "${QEMU} \
+    systemd_create_and_start_unit "$NESTED_VM" "${QEMU} \
         ${PARAM_CPU} \
         ${PARAM_MEM} \
         ${PARAM_MACHINE} \
@@ -331,53 +396,13 @@ start_nested_core_vm(){
         ${PARAM_MONITOR} \
         ${PARAM_EXTRA} "
 
-    local SSH_RETRIES
-    SSH_RETRIES=120
-    case "$SPREAD_SYSTEM" in
-        ubuntu-18.04-64)
-            SSH_RETRIES=150
-            ;;
-        ubuntu-20.04-64)
-            SSH_RETRIES=250
-            ;;
-        esac
-    # Wait until the system has been initialized
-    if ! wait_for_ssh "$SSH_RETRIES"; then
-        # In case it is not possible to connect through ssh restart the vm
-        systemctl stop "$NESTED_VM"
-        sleep 5
-        systemctl start "$NESTED_VM"
-    fi
-
     # Wait until ssh is ready and configure ssh
-    if wait_for_ssh 120; then
+    if wait_for_ssh; then
         prepare_ssh
     else
         echo "ssh not established, exiting..."
         exit 1
     fi
-}
-
-create_cloud_init_config(){
-    CONFIG_PATH=$1
-    cat <<EOF > "$CONFIG_PATH"
-    #cloud-config
-  ssh_pwauth: True
-  users:
-   - name: user1
-     sudo: ALL=(ALL) NOPASSWD:ALL
-     shell: /bin/bash
-  chpasswd:
-   list: |
-    user1:ubuntu
-   expire: False
-  datasource_list: [ "None"]
-  datasource:
-    None:
-     userdata_raw: |
-      #!/bin/bash
-      echo test
-EOF
 }
 
 create_nested_classic_vm(){
@@ -414,7 +439,7 @@ start_nested_classic_vm(){
         -drive file=$WORK_DIR/seed.img,if=virtio \
         -monitor tcp:127.0.0.1:$MON_PORT,server,nowait -usb \
         -snapshot -machine accel=kvm"
-    wait_for_ssh 120
+    wait_for_ssh
 }
 
 destroy_nested_vm(){
