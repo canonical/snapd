@@ -400,6 +400,12 @@ func unlockIfEncrypted(name string) (string, error) {
 	return device, nil
 }
 
+var (
+	secbootConnectToDefaultTPM            = secboot.ConnectToDefaultTPM
+	secbootSecureConnectToDefaultTPM      = secboot.SecureConnectToDefaultTPM
+	secbootActivateVolumeWithTPMSealedKey = secboot.ActivateVolumeWithTPMSealedKey
+)
+
 // unlockEncryptedPartition unseals the keyfile and opens an encrypted device.
 func unlockEncryptedPartition(name, device, keyfile, ekcfile, pinfile string) error {
 	// TODO:UC20: use the EK certificate
@@ -414,7 +420,7 @@ func unlockEncryptedPartition(name, device, keyfile, ekcfile, pinfile string) er
 			defer ekCertReader.Close()
 			return secboot.SecureConnectToDefaultTPM(ekCertReader, nil)
 		}
-		return secboot.ConnectToDefaultTPM()
+		return secbootConnectToDefaultTPM()
 	}()
 	if err != nil {
 		return fmt.Errorf("cannot open TPM connection: %v", err)
@@ -428,7 +434,7 @@ func unlockEncryptedPartition(name, device, keyfile, ekcfile, pinfile string) er
 		LockSealedKeyAccess: true,
 	}
 
-	if err := secboot.ActivateVolumeWithTPMSealedKey(tpm, name, device, keyfile, nil, &options); err != nil {
+	if err := secbootActivateVolumeWithTPMSealedKey(tpm, name, device, keyfile, nil, &options); err != nil {
 		return err
 	}
 

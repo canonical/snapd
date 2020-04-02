@@ -22,10 +22,13 @@ package main_test
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 
+	"github.com/chrisccoulson/go-tpm2"
+	"github.com/snapcore/secboot"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts/assertstest"
@@ -813,4 +816,48 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeKernelStatusTryingNoTry
 	c.Assert(n, Equals, 5)
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/pc-kernel_1.snap %[1]s/kernel
 `, s.runMnt))
+}
+
+func (s *initramfsMountsSuite) TestUnlockEncryptedPartition(c *C) {
+	tcti, err := os.Open("/dev/null")
+	c.Assert(err, IsNil)
+	tpm, err := tpm2.NewTPMContext(tcti)
+	c.Assert(err, IsNil)
+	mockTPM := &secboot.TPMConnection{TPMContext: tpm}
+	restoreConnect := main.MockSecbootConnectToDefaultTPM(func() (*secboot.TPMConnection, error) {
+		return mockTPM, nil
+	})
+	defer restoreConnect()
+
+	n := 0
+	restoreActivate := main.MockSecbootActivateVolumeWithTPMSealedKey(func(tpm *secboot.TPMConnection, volumeName, sourceDevicePath,
+		keyPath string, pinReader io.Reader, options *secboot.ActivateWithTPMSealedKeyOptions) error {
+		n++
+		c.Assert(tpm, Equals, mockTPM)
+		c.Assert(volumeName, Equals, "name")
+		c.Assert(sourceDevicePath, Equals, "device")
+		c.Assert(keyPath, Equals, "keyfile")
+		c.Assert(*options, DeepEquals, secboot.ActivateWithTPMSealedKeyOptions{
+			PINTries:            1,
+			RecoveryKeyTries:    3,
+			ActivateOptions:     []string{},
+			LockSealedKeyAccess: true,
+		})
+		return nil
+	})
+	defer restoreActivate()
+
+	err = main.UnlockEncryptedPartition("name", "device", "keyfile", "ekcfile", "pinfile")
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 1)
+}
+
+func (s *initramfsMountsSuite) TestUnlockEncryptedPartitionTPMConnectError(c *C) {
+	restoreConnect := main.MockSecbootConnectToDefaultTPM(func() (*secboot.TPMConnection, error) {
+		return nil, fmt.Errorf("something wrong happened")
+	})
+	defer restoreConnect()
+
+	err := main.UnlockEncryptedPartition("name", "device", "keyfile", "ekcfile", "pinfile")
+	c.Assert(err, ErrorMatches, "cannot open TPM connection: something wrong happened")
 }
