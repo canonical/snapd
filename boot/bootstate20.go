@@ -415,37 +415,6 @@ type bootState20MarkSuccessful struct {
 	bootState20Kernel
 }
 
-// threadBootState20MarkSuccessful is a helper method that will either create a
-// new bootState20MarkSuccessful for the given type, or it will add to the
-// provided bootStateUpdate
-func threadBootState20MarkSuccessful(update bootStateUpdate) (*bootState20MarkSuccessful, error) {
-	var bsmark *bootState20MarkSuccessful
-
-	// try to extract bsmark out of update
-	var ok bool
-	if update != nil {
-		if bsmark, ok = update.(*bootState20MarkSuccessful); !ok {
-			return nil, fmt.Errorf("internal error, cannot thread %T with update for UC20", update)
-		}
-	}
-
-	if bsmark == nil {
-		bsmark = &bootState20MarkSuccessful{}
-	}
-
-	// initialize both types in case we need to mark both
-	err := bsmark.loadBootenv()
-	if err != nil {
-		return nil, err
-	}
-	err = bsmark.loadModeenv()
-	if err != nil {
-		return nil, err
-	}
-
-	return bsmark, nil
-}
-
 // chooseBootSnapToMarkSuccessful inspects the specified boot state to pick what
 // boot snap should be marked as successful and use as a valid rollback target.
 // If the
@@ -454,16 +423,32 @@ func chooseBootSnapToMarkSuccessful(b bootState, update bootStateUpdate) (
 	bootedSnap snap.PlaceInfo,
 	err error,
 ) {
-	// create a new object or combine the existing one with this type
-	bsmark, err = threadBootState20MarkSuccessful(update)
-	if err != nil {
-		return nil, nil, err
-	}
-
 	// get the try snap and the current status
 	sn, trySnap, status, err := b.revisions()
 	if err != nil {
 		return nil, nil, err
+	}
+
+	// try to extract bsmark out of update
+	var ok bool
+	if update != nil {
+		if bsmark, ok = update.(*bootState20MarkSuccessful); !ok {
+			return nil, nil, fmt.Errorf("internal error, cannot thread %T with update for UC20", update)
+		}
+	}
+
+	if bsmark == nil {
+		bsmark = &bootState20MarkSuccessful{}
+	}
+
+	// incorporate the bootState into the bsmark so we don't need to reload
+	// bootenv / modeenv, as bootState will already have been initialized in
+	// the call to revisions() above
+	switch bsGround := b.(type) {
+	case *bootState20Base:
+		bsmark.bootState20Base = *bsGround
+	case *bootState20Kernel:
+		bsmark.bootState20Kernel = *bsGround
 	}
 
 	// kernel_status and base_status go from "" -> "try" (set by snapd), to
