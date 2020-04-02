@@ -271,7 +271,8 @@ func (ks20 *bootState20Kernel) chooseAndCommitSnapInitramfsMount() (sn snap.Plac
 	}
 
 	// first do the generic choice of which snap to use
-	first, second, err := genericEarlyBootChooseSnap(ks20, TryingStatus, "kernel")
+	first, second, expectFallback, err := genericEarlyBootChooseSnap(ks20, TryingStatus, "kernel")
+	// first, second, err := genericEarlyBootChooseSnap(ks20, TryingStatus, "kernel")
 	if err != nil {
 		return nil, err
 	}
@@ -284,26 +285,25 @@ func (ks20 *bootState20Kernel) chooseAndCommitSnapInitramfsMount() (sn snap.Plac
 		validKernels[validKernel] = true
 	}
 
-	// TODO:UC20: actually we really shouldn't be falling back here at
-	//            all - if the kernel we booted isn't mountable in the
-	//            initramfs, we should trigger a reboot so that we boot
-	//            the fallback kernel and then mount that one
-	if !validKernels[first.Filename()] {
-		if second != nil {
-			// try the second snap, which will always be the fallback snap if
-			// set
-			if !validKernels[second.Filename()] {
-				return nil, fmt.Errorf("fallback kernel snap %q is not trusted in the modeenv", second.Filename())
-			}
-			// log message that first (try snap) wasn't trusted
-			logger.Noticef("cannot use try-kernel snap: %q is not trusted in the modeenv", first.Filename())
-			return second, nil
-		}
-		// the fallback kernel snap is not trusted!
-		return nil, fmt.Errorf("fallback kernel snap %q is not trusted in the modeenv", first.Filename())
+	// always try the first and fallback to the second if we fail
+	if validKernels[first.Filename()] {
+		return first, nil
 	}
 
-	return first, nil
+	// first isn't trusted, so if we expected a fallback then use it
+	if expectFallback {
+		if validKernels[second.Filename()] {
+			// TODO:UC20: actually we really shouldn't be falling back here at
+			//            all - if the kernel we booted isn't mountable in the
+			//            initramfs, we should trigger a reboot so that we boot
+			//            the fallback kernel and then mount that one when we
+			//            get back to the initramfs again
+			return second, nil
+		}
+	}
+
+	// no fallback expected, so first snap _is_ the fallback and isn't trusted!
+	return nil, fmt.Errorf("fallback kernel snap %q is not trusted in the modeenv", first.Filename())
 }
 
 //
@@ -448,7 +448,11 @@ func (bs20 *bootState20Base) chooseAndCommitSnapInitramfsMount() (sn snap.PlaceI
 	}
 
 	// first do the generic choice of which snap to use
-	first, second, err := genericEarlyBootChooseSnap(bs20, TryStatus, "base")
+	// the logic in that function is sufficient to pick the base snap entirely,
+	// so we don't ever need to look at the fallback snap, we just need to know
+	// whether the chosen snap is a try snap or not, if it is then we process
+	// the modeenv in the "try" -> "trying" case
+	first, _, currentlyTryingSnap, err := genericEarlyBootChooseSnap(bs20, TryStatus, "base")
 	if err != nil {
 		return nil, err
 	}
@@ -458,14 +462,16 @@ func (bs20 *bootState20Base) chooseAndCommitSnapInitramfsMount() (sn snap.PlaceI
 	// apply the update logic to the choices modeenv
 	switch bs20.modeenv.BaseStatus {
 	case TryStatus:
-		if second != nil {
-			// then we have the first as a try snap and we are indeed trying a
-			// new base snap, so change status to TryingStatus
+		// if we were in try status and we have a fallback, then we are in a
+		// normal try state and we change status to TryingStatus now
+		// all other cleanup of state is left to user space snapd
+		if currentlyTryingSnap {
 			bs20.modeenv.BaseStatus = TryingStatus
 			modeenvChanged = true
 		}
 	case TryingStatus:
-		// we tried to boot a try base snap and failed, so reset
+		// we tried to boot a try base snap and failed, so we need to reset
+		// BaseStatus
 		bs20.modeenv.BaseStatus = DefaultStatus
 		modeenvChanged = true
 	case DefaultStatus:
@@ -709,25 +715,28 @@ func (bsmark *bootState20MarkSuccessful) commit() error {
 // new values for base_status, etc.
 func genericEarlyBootChooseSnap(bs bootState, expectedTryStatus, typeString string) (
 	firstChoice, secondChoice snap.PlaceInfo,
+	fallbackExpected bool,
 	err error,
 ) {
 	curSnap, trySnap, snapTryStatus, err := bs.revisions()
 
 	if err != nil && !IsTrySnapError(err) {
 		// we have no fallback snap!
-		return nil, nil, fmt.Errorf("fallback %s snap unusable: %v", typeString, err)
+		return nil, nil, false, fmt.Errorf("fallback %s snap unusable: %v", typeString, err)
 	}
 
 	// check that the current snap actually exists
 	file := curSnap.Filename()
 	snapPath := filepath.Join(dirs.SnapBlobDirUnder(InitramfsWritableDir), file)
 	if !osutil.FileExists(snapPath) {
-		// somehow the kernel snap on ubuntu-boot doesn't exist in ubuntu-data
-		// this could happen if we have some bug where ubuntu-boot isn't
-		// properly updated and never changes, but snapd thinks it was
+		// somehow the boot snap doesn't exist in ubuntu-data
+		// for a kernel, this could happen if we have some bug where ubuntu-boot
+		// isn't properly updated and never changes, but snapd thinks it was
 		// updated and eventually snapd garbage collects old revisions of
 		// the kernel snap as it is "refreshed"
-		return nil, nil, fmt.Errorf("%s snap %q does not exist on ubuntu-data", typeString, file)
+		// for a base, this could happen if the modeenv is manipulated
+		// out-of-band from snapd
+		return nil, nil, false, fmt.Errorf("%s snap %q does not exist on ubuntu-data", typeString, file)
 	}
 
 	if err != nil && IsTrySnapError(err) {
@@ -742,7 +751,7 @@ func genericEarlyBootChooseSnap(bs bootState, expectedTryStatus, typeString stri
 				// we will fall back to using the normal snap
 				trySnapPath := filepath.Join(dirs.SnapBlobDirUnder(InitramfsWritableDir), trySnap.Filename())
 				if osutil.FileExists(trySnapPath) {
-					return trySnap, curSnap, nil
+					return trySnap, curSnap, true, nil
 				}
 				logger.Noticef("try-%s snap %q does not exist", typeString, trySnap.Filename())
 			} else {
@@ -757,5 +766,5 @@ func genericEarlyBootChooseSnap(bs bootState, expectedTryStatus, typeString stri
 		}
 	}
 
-	return curSnap, nil, nil
+	return curSnap, nil, false, nil
 }
