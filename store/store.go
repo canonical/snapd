@@ -58,6 +58,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snapdenv"
+	"github.com/snapcore/snapd/snapdenv/useragent"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -381,7 +382,7 @@ func New(cfg *Config, dauthCtx DeviceAndAuthContext) *Store {
 		deltaFormat = defaultSupportedDeltaFormat
 	}
 
-	userAgent := snapdenv.UserAgent()
+	userAgent := useragent.UserAgent()
 	proxyConnectHeader := http.Header{"User-Agent": []string{userAgent}}
 
 	store := &Store{

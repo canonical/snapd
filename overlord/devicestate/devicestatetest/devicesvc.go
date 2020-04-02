@@ -31,7 +31,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/snapdenv"
+	"github.com/snapcore/snapd/snapdenv/useragent"
 )
 
 type DeviceServiceBehavior struct {
@@ -61,7 +61,7 @@ const (
 )
 
 func MockDeviceService(c *C, bhv *DeviceServiceBehavior) *httptest.Server {
-	expectedUserAgent := snapdenv.UserAgent()
+	expectedUserAgent := useragent.UserAgent()
 
 	// default URL paths
 	if bhv.RequestIDURLPath == "" {

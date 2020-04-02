@@ -17,7 +17,7 @@
  *
  */
 
-package snapdenv
+package useragent
 
 import (
 	"fmt"
@@ -26,6 +26,8 @@ import (
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/sandbox/misc"
+	"github.com/snapcore/snapd/snapdenv"
 )
 
 // UserAgent to send
@@ -38,10 +40,10 @@ func SetUserAgentFromVersion(version string, extraProds ...string) (restore func
 	if release.OnClassic {
 		extras = append(extras, "classic")
 	}
-	if release.ReleaseInfo.ForceDevMode() {
+	if misc.ForceDevMode() {
 		extras = append(extras, "devmode")
 	}
-	if Testing() {
+	if snapdenv.Testing() {
 		extras = append(extras, "testing")
 	}
 	extraProdStr := ""

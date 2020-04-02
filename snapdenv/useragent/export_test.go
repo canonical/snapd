@@ -17,11 +17,11 @@
  *
  */
 
-package snapdenv
+package useragent
 
 var (
-	StripUnsafeRunes      = stripUnsafeRunes
 	SanitizeKernelVersion = sanitizeKernelVersion
+	StripUnsafeRunes      = stripUnsafeRunes
 )
 
 func MockUserAgent(mock string) (restore func()) {

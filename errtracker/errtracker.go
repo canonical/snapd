@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snapdenv"
+	"github.com/snapcore/snapd/snapdenv/useragent"
 )
 
 var (
@@ -498,7 +499,7 @@ func report(errMsg, dupSig string, extra map[string]string) (string, error) {
 		return "", err
 	}
 	req.Header.Add("Content-Type", "application/octet-stream")
-	req.Header.Add("X-Whoopsie-Version", snapdenv.UserAgent())
+	req.Header.Add("X-Whoopsie-Version", useragent.UserAgent())
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", err

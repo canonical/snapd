@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/asserts/systestkeys"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snapdenv"
+	"github.com/snapcore/snapd/snapdenv/useragent"
 	"github.com/snapcore/snapd/store"
 )
 
@@ -71,7 +72,7 @@ func NewStore(topDir, addr string, assertFallback bool) *Store {
 	mux := http.NewServeMux()
 	var sto *store.Store
 	if assertFallback {
-		snapdenv.SetUserAgentFromVersion("unknown", "fakestore")
+		useragent.SetUserAgentFromVersion("unknown", "fakestore")
 		sto = store.New(nil, nil)
 	}
 	store := &Store{

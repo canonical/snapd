@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sanity"
 	"github.com/snapcore/snapd/snapdenv"
+	"github.com/snapcore/snapd/snapdenv/useragent"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -108,7 +109,7 @@ var checkRunningConditionsRetryDelay = 300 * time.Second
 
 func run(ch chan os.Signal) error {
 	t0 := time.Now().Truncate(time.Millisecond)
-	snapdenv.SetUserAgentFromVersion(cmd.Version)
+	useragent.SetUserAgentFromVersion(cmd.Version)
 
 	d, err := daemon.New()
 	if err != nil {

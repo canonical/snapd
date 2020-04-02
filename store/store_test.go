@@ -59,6 +59,7 @@ import (
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snapdenv"
+	"github.com/snapcore/snapd/snapdenv/useragent"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -1256,7 +1257,7 @@ func (s *storeTestSuite) TestApplyDelta(c *C) {
 }
 
 var (
-	userAgent = snapdenv.UserAgent()
+	userAgent = useragent.UserAgent()
 )
 
 func (s *storeTestSuite) TestDoRequestSetsAuth(c *C) {
