@@ -53,7 +53,6 @@ execute: |
     echo "We can see the service running"
     systemctl_user is-active snap.test-snapd-user-service.test-snapd-user-service
     systemctl_user show -p MainPID snap.test-snapd-user-service.test-snapd-user-service > old-main.pid
-    MATCH "Starting rev x1" < "$TEST_USER_HOME"/snap/test-snapd-user-service/common/log.txt
 
     echo "When it is re-installed"
     install_local test-snapd-user-service
@@ -61,6 +60,4 @@ execute: |
     echo "We can see the service running with a new PID"
     systemctl_user is-active snap.test-snapd-user-service.test-snapd-user-service
     systemctl_user show -p MainPID snap.test-snapd-user-service.test-snapd-user-service > new-main.pid
-    MATCH "Starting rev x2" < "$TEST_USER_HOME"/snap/test-snapd-user-service/common/log.txt
-
     test "$(cat new-main.pid)" != "$(cat old-main.pid)"

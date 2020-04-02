@@ -1,7 +1,5 @@
 #!/bin/sh
 
-echo "Starting rev $SNAP_REVISION" > "$SNAP_USER_COMMON"/log.txt
-
 while true; do
     echo "running"
     sleep 10
