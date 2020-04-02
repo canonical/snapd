@@ -64,7 +64,7 @@ func (s *forceDevModeSuite) TestForceDevMode(c *C) {
 
 func (s *forceDevModeSuite) TestMockForceDevMode(c *C) {
 	for _, devmode := range []bool{true, false} {
-		restore := sandbox.MockForcedDevmode(devmode)
+		restore := sandbox.MockForceDevMode(devmode)
 		defer restore()
 		c.Assert(sandbox.ForceDevMode(), Equals, devmode, Commentf("wrong result for %#v", devmode))
 	}

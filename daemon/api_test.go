@@ -216,7 +216,7 @@ func (s *apiBaseSuite) muxVars(*http.Request) map[string]string {
 
 func (s *apiBaseSuite) SetUpSuite(c *check.C) {
 	muxVars = s.muxVars
-	s.restoreRelease = sandbox.MockForcedDevmode(false)
+	s.restoreRelease = sandbox.MockForceDevMode(false)
 	s.systemctlRestorer = systemd.MockSystemctl(s.systemctl)
 	s.journalctlRestorer = systemd.MockJournalctl(s.journalctl)
 	s.restoreSanitize = snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
@@ -1050,7 +1050,7 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 	defer restore()
 	restore = release.MockOnClassic(true)
 	defer restore()
-	restore = sandbox.MockForcedDevmode(true)
+	restore = sandbox.MockForceDevMode(true)
 	defer restore()
 	// reload dirs for release info to have effect
 	dirs.SetRootDir(dirs.GlobalRootDir)
@@ -1109,7 +1109,7 @@ func (s *apiSuite) TestSysInfoLegacyRefresh(c *check.C) {
 	defer restore()
 	restore = release.MockOnClassic(true)
 	defer restore()
-	restore = sandbox.MockForcedDevmode(true)
+	restore = sandbox.MockForceDevMode(true)
 	defer restore()
 	restore = mockSystemdVirt("kvm")
 	defer restore()
@@ -2762,7 +2762,7 @@ func (s *apiSuite) TestSideloadSnapOnDevModeDistro(c *check.C) {
 	// try a multipart/form-data upload
 	body := sideLoadBodyWithoutDevMode
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
-	restore := sandbox.MockForcedDevmode(true)
+	restore := sandbox.MockForceDevMode(true)
 	defer restore()
 	flags := snapstate.Flags{RemoveSnapPath: true}
 	chgSummary := s.sideloadCheck(c, body, head, "local", flags)
@@ -2934,7 +2934,7 @@ func (s *apiSuite) TestSideloadSnapJailModeInDevModeOS(c *check.C) {
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 
-	restore := sandbox.MockForcedDevmode(true)
+	restore := sandbox.MockForceDevMode(true)
 	defer restore()
 
 	rsp := postSnaps(snapsCmd, req, nil).(*resp)
@@ -3697,7 +3697,7 @@ func (s *apiSuite) TestInstallRevision(c *check.C) {
 func (s *apiSuite) testInstall(c *check.C, forcedDevmode bool, flags snapstate.Flags, revision snap.Revision) {
 	calledFlags := snapstate.Flags{}
 	installQueue := []string{}
-	restore := sandbox.MockForcedDevmode(forcedDevmode)
+	restore := sandbox.MockForceDevMode(forcedDevmode)
 	defer restore()
 
 	snapstateInstall = func(ctx context.Context, s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
@@ -4396,7 +4396,7 @@ func (s *apiSuite) TestInstallJailMode(c *check.C) {
 }
 
 func (s *apiSuite) TestInstallJailModeDevModeOS(c *check.C) {
-	restore := sandbox.MockForcedDevmode(true)
+	restore := sandbox.MockForceDevMode(true)
 	defer restore()
 
 	d := s.daemon(c)

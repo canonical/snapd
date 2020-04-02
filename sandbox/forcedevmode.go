@@ -43,11 +43,11 @@ func ForceDevMode() bool {
 	return !apparmorFull || cgroupv2
 }
 
-// MockForcedDevmode fake the system to believe its in a distro
-// that is in ForcedDevmode
-func MockForcedDevmode(isDevmode bool) (restore func()) {
+// MockForceDevMode fake the system to believe its in a distro
+// that is in forced devmode as returned by ForceDevMode.
+func MockForceDevMode(forcedDevMode bool) (restore func()) {
 	old := mockedForceDevMode
-	mockedForceDevMode = &isDevmode
+	mockedForceDevMode = &forcedDevMode
 	return func() {
 		mockedForceDevMode = old
 	}

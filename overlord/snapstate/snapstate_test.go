@@ -13843,7 +13843,7 @@ func (s *snapmgrTestSuite) TestForceDevModeCleanupSkipsRando(c *C) {
 }
 
 func (s *snapmgrTestSuite) checkForceDevModeCleanupRuns(c *C, name string, shouldBeReset bool) {
-	r := sandbox.MockForcedDevmode(true)
+	r := sandbox.MockForceDevMode(true)
 	defer r()
 	c.Assert(sandbox.ForceDevMode(), Equals, true)
 
@@ -13882,7 +13882,7 @@ func (s *snapmgrTestSuite) checkForceDevModeCleanupRuns(c *C, name string, shoul
 }
 
 func (s *snapmgrTestSuite) TestForceDevModeCleanupRunsNoSnaps(c *C) {
-	r := sandbox.MockForcedDevmode(true)
+	r := sandbox.MockForceDevMode(true)
 	defer r()
 	c.Assert(sandbox.ForceDevMode(), Equals, true)
 
@@ -13897,7 +13897,7 @@ func (s *snapmgrTestSuite) TestForceDevModeCleanupRunsNoSnaps(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestForceDevModeCleanupSkipsNonForcedOS(c *C) {
-	r := sandbox.MockForcedDevmode(false)
+	r := sandbox.MockForceDevMode(false)
 	defer r()
 	c.Assert(sandbox.ForceDevMode(), Equals, false)
 
