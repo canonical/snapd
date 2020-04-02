@@ -43,7 +43,7 @@ func (dumbReader) Read([]byte) (int, error) {
 var _ = check.Suite(&ctxSuite{})
 
 func (ctxSuite) TestWriter(c *check.C) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second/100)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second/10)
 	defer cancel()
 	n, err := io.Copy(osutil.ContextWriter(ctx), dumbReader{})
 	c.Assert(err, check.Equals, context.DeadlineExceeded)
@@ -61,7 +61,7 @@ func (ctxSuite) TestWriterDone(c *check.C) {
 }
 
 func (ctxSuite) TestWriterSuccess(c *check.C) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second/100)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second/10)
 	defer cancel()
 	// check we can copy if we're quick
 	n, err := io.Copy(osutil.ContextWriter(ctx), strings.NewReader("hello"))
