@@ -17,23 +17,22 @@ prepare: |
     #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB"/pkgdb.sh
     distro_install_package dbus-user-session
-    systemctl stop "user@$(id -u test).service"
-    mkdir -p "$XDG_RUNTIME_DIR"
-    chown test.test "$XDG_RUNTIME_DIR"
-    chmod u=rwX,go= "$XDG_RUNTIME_DIR"
+    #shellcheck source=tests/lib/user.sh
+    . "$TESTSLIB/user.sh"
+    start_user_session
 
 restore: |
-    systemctl stop "user@$(id -u test).service"
+    #shellcheck source=tests/lib/user.sh
+    . "$TESTSLIB/user.sh"
+    stop_user_session
+    purge_user_session_data
     snap unset system experimental.dbus-activation
 
 execute: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
-
-    echo "Set up a systemd user session"
-    systemctl start "user@$(id -u test).service"
-    eval "$(su -l -c "XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR} systemctl --user show-environment" test | grep ^DBUS_)"
-    export DBUS_SESSION_BUS_ADDRESS
+    #shellcheck source=tests/lib/user.sh
+    . "$TESTSLIB/user.sh"
 
     echo "Install a snap containing an activatable D-Bus session service"
     snap install --edge test-snapd-dbus-service
@@ -45,7 +44,7 @@ execute: |
     install_local test-snapd-dbus-service-client
     snap connect test-snapd-dbus-service-client:dbus-session-plug \
                  test-snapd-dbus-service:dbus-session-slot
-    su -l -c "XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR} DBUS_SESSION_BUS_ADDRESS=${DBUS_SESSION_BUS_ADDRESS} test-snapd-dbus-service-client.session" test | MATCH hello
+    as_user test-snapd-dbus-service-client.session | MATCH hello
 
     echo "Removing the snap also removes the service activation file"
     snap remove test-snapd-dbus-service
