@@ -34,7 +34,8 @@ var stateJSON = []byte(`
 	"last-change-id": 2,
 
 	"data": {
-		"snaps": {}
+		"snaps": {},
+		"seeded": true
 	},
 	"changes": {
 		"1": {
@@ -181,6 +182,9 @@ func (s *SnapSuite) TestDebugTaskMutuallyExclusiveCommands(c *C) {
 
 	_, err = main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--change=1", "--task=1", stateFile})
 	c.Check(err, ErrorMatches, "cannot use --change= and --task= together")
+
+	_, err = main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--change=1", "--is-seeded", stateFile})
+	c.Check(err, ErrorMatches, "cannot use --change= and --is-seeded together")
 }
 
 func (s *SnapSuite) TestDebugTasks(c *C) {
@@ -201,4 +205,28 @@ func (s *SnapSuite) TestDebugTasks(c *C) {
 func (s *SnapSuite) TestDebugTasksMissingState(c *C) {
 	_, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--change=1", "/missing-state.json"})
 	c.Check(err, ErrorMatches, "cannot read the state file: open /missing-state.json: no such file or directory")
+}
+
+func (s *SnapSuite) TestDebugIsSeededHappy(c *C) {
+	dir := c.MkDir()
+	stateFile := filepath.Join(dir, "test-state.json")
+	c.Assert(ioutil.WriteFile(stateFile, stateJSON, 0644), IsNil)
+
+	rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--is-seeded", stateFile})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	c.Check(s.Stdout(), Matches, "true\n")
+	c.Check(s.Stderr(), Equals, "")
+}
+
+func (s *SnapSuite) TestDebugIsSeededNo(c *C) {
+	dir := c.MkDir()
+	stateFile := filepath.Join(dir, "test-state.json")
+	c.Assert(ioutil.WriteFile(stateFile, []byte("{}"), 0644), IsNil)
+
+	rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--is-seeded", stateFile})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	c.Check(s.Stdout(), Matches, "false\n")
+	c.Check(s.Stderr(), Equals, "")
 }

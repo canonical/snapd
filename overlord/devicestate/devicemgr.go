@@ -665,12 +665,19 @@ func (e *ensureError) Error() string {
 	return strings.Join(parts, "\n - ")
 }
 
+// no \n allowed in warnings
+var seedFailureFmt = `seeding failed with: %v. This indicates an error in your distribution, please see https://forum.snapcraft.io/t/16341 for more information.`
+
 // Ensure implements StateManager.Ensure.
 func (m *DeviceManager) Ensure() error {
 	var errs []error
 
 	if err := m.ensureSeeded(); err != nil {
-		errs = append(errs, err)
+		// XXX: avoid duplicated warnings?
+		m.state.Lock()
+		m.state.Warnf(seedFailureFmt, err)
+		m.state.Unlock()
+		errs = append(errs, fmt.Errorf("cannot seed: %v", err))
 	}
 
 	if !m.preseed {
@@ -869,7 +876,21 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 		return ErrUnsupportedAction
 	}
 
-	// TODO:UC20 update boot environment and schedule a reboot
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	deviceCtx, err := DeviceCtx(m.state, nil, nil)
+	if err != nil {
+		return err
+	}
+
+	if err := boot.SetRecoveryBootSystemAndMode(deviceCtx, systemLabel, action.Mode); err != nil {
+		return fmt.Errorf("cannot set device to boot into system %q in mode %q: %v",
+			systemLabel, action.Mode, err)
+	}
+
+	logger.Noticef("restarting into system %q for action %q", systemLabel, sysAction.Title)
+	m.state.RequestRestart(state.RestartSystemNow)
 	return nil
 }
 

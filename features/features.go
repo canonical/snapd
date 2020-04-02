@@ -147,3 +147,25 @@ func (f SnapdFeature) IsEnabled() bool {
 	}
 	return osutil.FileExists(f.ControlFile())
 }
+
+type confGetter interface {
+	GetMaybe(snapName, key string, result interface{}) error
+}
+
+// Flag returns whether the given feature flag is enabled.
+func Flag(tr confGetter, feature SnapdFeature) (bool, error) {
+	var isEnabled interface{}
+	snapName, confName := feature.ConfigOption()
+	if err := tr.GetMaybe(snapName, confName, &isEnabled); err != nil {
+		return false, err
+	}
+	switch isEnabled {
+	case true, "true":
+		return true, nil
+	case false, "false":
+		return false, nil
+	case nil, "":
+		return feature.IsEnabledWhenUnset(), nil
+	}
+	return false, fmt.Errorf("%s can only be set to 'true' or 'false', got %q", feature, isEnabled)
+}

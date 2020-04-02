@@ -117,6 +117,7 @@ func (sto *fakeStore) Assertion(assertType *asserts.AssertionType, key []string,
 var (
 	brandPrivKey, _  = assertstest.GenerateKey(752)
 	brandPrivKey2, _ = assertstest.GenerateKey(752)
+	brandPrivKey3, _ = assertstest.GenerateKey(752)
 )
 
 func (s *deviceMgrBaseSuite) SetUpTest(c *C) {
@@ -147,7 +148,10 @@ func (s *deviceMgrBaseSuite) SetUpTest(c *C) {
 	s.restoreGenericClassicMod = sysdb.MockGenericClassicModel(s.storeSigning.GenericClassicModel)
 
 	s.brands = assertstest.NewSigningAccounts(s.storeSigning)
-	s.brands.Register("my-brand", brandPrivKey, nil)
+	s.brands.Register("my-brand", brandPrivKey, map[string]interface{}{
+		"display-name": "fancy model publisher",
+		"validation":   "certified",
+	})
 	s.brands.Register("rereg-brand", brandPrivKey2, nil)
 
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
