@@ -151,8 +151,14 @@ func ensureLayoutCompatibility(gadgetLayout *gadget.LaidOutVolume, diskLayout *p
 		dv := ds.VolumeStructure
 		gv := gs.VolumeStructure
 		// Previous installation may have failed before filesystem creation or partition may be encrypted
-		return dv.Name == gv.Name && ds.StartOffset == gs.StartOffset && dv.Size == gv.Size &&
-			(ds.Created || dv.Filesystem == gv.Filesystem)
+		check := dv.Name == gv.Name && ds.StartOffset == gs.StartOffset && (ds.Created || dv.Filesystem == gv.Filesystem)
+
+		if gv.Role == gadget.SystemData {
+			// system-data may have been expanded
+			return check && dv.Size >= gv.Size
+		} else {
+			return check && dv.Size == gv.Size
+		}
 	}
 	contains := func(haystack []gadget.LaidOutStructure, needle partition.DeviceStructure) bool {
 		for _, h := range haystack {
