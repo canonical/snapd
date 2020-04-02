@@ -45,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/strace"
+	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/sandbox/selinux"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapenv"
@@ -1127,6 +1128,21 @@ var createTransientScope = func(securityTag string) error {
 		if err != nil {
 			return fmt.Errorf("cannot create transient scope: %s", err)
 		}
+	}
+	// We may have created a transient scope but due to a kernel design,
+	// in specific situation when we are in a cgroup owned by one user,
+	// and we want to run a process as a different user, *and* systemd is
+	// older than 238, then this can silently fail.
+	//
+	// Verify the effective tracking cgroup and check that our scope name
+	// is contained therein.
+	path, err := cgroup.ProcessPathInTrackingCgroup(os.Getpid())
+	if err != nil {
+		return err
+	}
+	if !strings.Contains(path, unitName) {
+		logger.Debugf("snapd cannot track the started application")
+		logger.Debugf("snap refreshes will not be postponed by this process")
 	}
 	return nil
 }
