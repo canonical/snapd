@@ -17,18 +17,15 @@
  *
  */
 
-package useragent_test
+package snapdenv_test
 
 import (
 	"strings"
-	"testing"
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/snapdenv/useragent"
+	"github.com/snapcore/snapd/snapdenv"
 )
-
-func Test(t *testing.T) { TestingT(t) }
 
 type UASuite struct {
 	restore func()
@@ -37,7 +34,7 @@ type UASuite struct {
 var _ = Suite(&UASuite{})
 
 func (s *UASuite) SetUpTest(c *C) {
-	s.restore = useragent.MockUserAgent("-")
+	s.restore = snapdenv.MockUserAgent("-")
 }
 
 func (s *UASuite) TearDownTest(c *C) {
@@ -45,13 +42,26 @@ func (s *UASuite) TearDownTest(c *C) {
 }
 
 func (s *UASuite) TestUserAgent(c *C) {
-	useragent.SetUserAgentFromVersion("10")
-	ua := useragent.UserAgent()
+	snapdenv.SetUserAgentFromVersion("10", nil)
+	ua := snapdenv.UserAgent()
 	c.Check(strings.HasPrefix(ua, "snapd/10 "), Equals, true)
 
-	useragent.SetUserAgentFromVersion("10", "extraProd")
-	ua = useragent.UserAgent()
+	snapdenv.SetUserAgentFromVersion("10", nil, "extraProd")
+	ua = snapdenv.UserAgent()
 	c.Check(strings.Contains(ua, "extraProd"), Equals, true)
+	c.Check(strings.Contains(ua, "devmode"), Equals, false)
+
+	devmode := false
+	probeForceDevMode := func() bool { return devmode }
+
+	snapdenv.SetUserAgentFromVersion("10", probeForceDevMode, "extraProd")
+	ua = snapdenv.UserAgent()
+	c.Check(strings.Contains(ua, "devmode"), Equals, false)
+
+	devmode = true
+	snapdenv.SetUserAgentFromVersion("10", probeForceDevMode, "extraProd")
+	ua = snapdenv.UserAgent()
+	c.Check(strings.Contains(ua, "devmode"), Equals, true)
 }
 
 func (s *UASuite) TestStripUnsafeRunes(c *C) {
@@ -62,13 +72,13 @@ func (s *UASuite) TestStripUnsafeRunes(c *C) {
 		"4.4.0-62-generic",
 		"4.8.6-x86_64-linode78",
 	} {
-		c.Check(useragent.StripUnsafeRunes(unchanged), Equals, unchanged, Commentf("%q", unchanged))
+		c.Check(snapdenv.StripUnsafeRunes(unchanged), Equals, unchanged, Commentf("%q", unchanged))
 	}
 	for _, t := range []struct{ orig, changed string }{
 		{"space bar", "spacebar"},
 		{"~;+()[]", ""}, // most punctuation goes away
 	} {
-		c.Check(useragent.StripUnsafeRunes(t.orig), Equals, t.changed)
+		c.Check(snapdenv.StripUnsafeRunes(t.orig), Equals, t.changed)
 	}
 
 }
@@ -77,6 +87,6 @@ func (s *UASuite) TestSanitizeKernelVersion(c *C) {
 	// Ensure that it is not too long (at most 25 runes)
 	const in = "this-is-a-very-long-thing-that-pretends-to-be-a-kernel-version-string"
 	const out = "this-is-a-very-long-thing"
-	c.Check(useragent.SanitizeKernelVersion(in), Equals, out)
+	c.Check(snapdenv.SanitizeKernelVersion(in), Equals, out)
 
 }

@@ -43,12 +43,11 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snapdenv"
-	"github.com/snapcore/snapd/snapdenv/useragent"
 )
 
 func init() {
 	// set User-Agent for when 'snap' talks to the store directly (snap download etc...)
-	useragent.SetUserAgentFromVersion(cmd.Version, "snap")
+	snapdenv.SetUserAgentFromVersion(cmd.Version, nil, "snap")
 
 	if osutil.GetenvBool("SNAPD_DEBUG") || snapdenv.Testing() {
 		// in tests or when debugging, enforce the "tidy" lint checks
@@ -388,7 +387,7 @@ func mkClient() *client.Client {
 	cfg := &ClientConfig
 	// Set client user-agent when talking to the snapd daemon to the
 	// same value as when talking to the store.
-	cfg.UserAgent = useragent.UserAgent()
+	cfg.UserAgent = snapdenv.UserAgent()
 
 	cli := client.New(cfg)
 	goos := runtime.GOOS

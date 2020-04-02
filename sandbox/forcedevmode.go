@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2016-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,7 +17,9 @@
  *
  */
 
-package misc
+// Package sandbox offers streamlined interfaces for the sandboxing
+// primitives from the system for snapd use.
+package sandbox
 
 import (
 	"github.com/snapcore/snapd/sandbox/apparmor"

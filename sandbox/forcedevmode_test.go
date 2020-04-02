@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,33 +17,33 @@
  *
  */
 
-package misc_test
+package sandbox_test
 
 import (
 	"testing"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/sandbox/cgroup"
-	"github.com/snapcore/snapd/sandbox/misc"
 )
 
 func Test(t *testing.T) { TestingT(t) }
 
-type miscSuite struct {
+type forceDevModeSuite struct {
 }
 
-var _ = Suite(&miscSuite{})
+var _ = Suite(&forceDevModeSuite{})
 
-func (s *miscSuite) TestForceDevMode(c *C) {
+func (s *forceDevModeSuite) TestForceDevMode(c *C) {
 
 	runTest := func(apparmorLevel apparmor.LevelType, cgroupVersion int, expect bool) {
 		restore := apparmor.MockLevel(apparmorLevel)
 		defer restore()
 		restore = cgroup.MockVersion(cgroupVersion, nil)
 		defer restore()
-		devMode := misc.ForceDevMode()
+		devMode := sandbox.ForceDevMode()
 		c.Check(devMode, Equals, expect, Commentf("unexpected force-dev-mode for AppArmor level %v cgroup v%v", apparmorLevel, cgroupVersion))
 	}
 
@@ -62,10 +62,10 @@ func (s *miscSuite) TestForceDevMode(c *C) {
 	}
 }
 
-func (s *miscSuite) TestMockForceDevMode(c *C) {
+func (s *forceDevModeSuite) TestMockForceDevMode(c *C) {
 	for _, devmode := range []bool{true, false} {
-		restore := misc.MockForcedDevmode(devmode)
+		restore := sandbox.MockForcedDevmode(devmode)
 		defer restore()
-		c.Assert(misc.ForceDevMode(), Equals, devmode, Commentf("wrong result for %#v", devmode))
+		c.Assert(sandbox.ForceDevMode(), Equals, devmode, Commentf("wrong result for %#v", devmode))
 	}
 }
