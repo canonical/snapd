@@ -39,5 +39,5 @@ execute: |
     test -e /var/lib/snapd/device/fde/recovery-key
     echo "... and has the expected size"
     test "$(stat --printf=%s /var/lib/snapd/device/fde/recovery-key)" = "16"
-    echo "... and has the expected permissions"
-    test "$(stat --printf=%a /var/lib/snapd/device/fde/recovery-key)" = "600"
+    echo "... and has the expected owner and permissions"
+    test "$(stat --printf='%u %a' /var/lib/snapd/device/fde/recovery-key)" = "0 600"
