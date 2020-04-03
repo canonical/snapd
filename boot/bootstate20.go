@@ -165,7 +165,7 @@ func (ks20 *bootState20Kernel) revisions() (curSnap, trySnap snap.PlaceInfo, try
 
 func (ks20 *bootState20Kernel) markSuccessful(update bootStateUpdate) (bootStateUpdate, error) {
 	// call the generic method with this object to do most of the legwork
-	u, sn, err := chooseBootSnapToMarkSuccessful(ks20, update)
+	u, sn, err := selectSuccessfulBootSnap(ks20, update)
 	if err != nil {
 		return nil, err
 	}
@@ -381,7 +381,7 @@ func (bs20 *bootState20Base) revisions() (curSnap, trySnap snap.PlaceInfo, tryin
 
 func (bs20 *bootState20Base) markSuccessful(update bootStateUpdate) (bootStateUpdate, error) {
 	// call the generic method with this object to do most of the legwork
-	u, sn, err := chooseBootSnapToMarkSuccessful(bs20, update)
+	u, sn, err := selectSuccessfulBootSnap(bs20, update)
 	if err != nil {
 		return nil, err
 	}
@@ -538,11 +538,11 @@ type bootState20MarkSuccessful struct {
 	bootState20Kernel
 }
 
-// chooseBootSnapToMarkSuccessful inspects the specified boot state to pick what
+// selectSuccessfulBootSnap inspects the specified boot state to pick what
 // boot snap should be marked as successful and use as a valid rollback target.
 // If the first return value is non-nil, the second return value will be the
 // snap that was booted and should be marked as successful.
-func chooseBootSnapToMarkSuccessful(b bootState, update bootStateUpdate) (
+func selectSuccessfulBootSnap(b bootState, update bootStateUpdate) (
 	bsmark *bootState20MarkSuccessful,
 	bootedSnap snap.PlaceInfo,
 	err error,
