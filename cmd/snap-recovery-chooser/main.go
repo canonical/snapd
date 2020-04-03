@@ -131,11 +131,10 @@ func runUI(cmd *exec.Cmd, sys *ChooserSystems) (rsp *Response, err error) {
 }
 
 func cleanupTriggerMarker() error {
-	err := os.Remove(defaultMarkerFile)
-	if os.IsNotExist(err) {
-		return nil
+	if err := os.Remove(defaultMarkerFile); err != nil && !os.IsNotExist(err) {
+		return err
 	}
-	return err
+	return nil
 }
 
 func chooser(cli *client.Client) (reboot bool, err error) {
