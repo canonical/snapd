@@ -193,7 +193,7 @@ func (s *partitionTestSuite) TestDeviceInfo(c *C) {
 	c.Assert(dl.ID, Equals, "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA")
 	c.Assert(dl.Device, Equals, "/dev/node")
 	c.Assert(dl.SectorSize, Equals, gadget.Size(512))
-	c.Assert(dl.Size, Equals, gadget.Size(8388574*512))
+	c.Assert(dl.Size, Equals, gadget.Size(8388575*512))
 	c.Assert(len(dl.Structure), Equals, 2)
 
 	c.Assert(dl.Structure, DeepEquals, []partition.DeviceStructure{
@@ -332,8 +332,10 @@ func (s *partitionTestSuite) TestBuildPartitionList(c *C) {
 	dl, err := partition.DeviceLayoutFromPartitionTable(ptable)
 	c.Assert(err, IsNil)
 
+	// the expected expanded writable partition size is:
+	// start offset = (2M + 1200M), expanded size in sectors = (8388575*512 - start offset)/512
 	sfdiskInput, create := partition.BuildPartitionList(dl, pv)
-	c.Assert(sfdiskInput.String(), Equals, `/dev/node3 : start=     2461696, size=     2457600, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Writable", attrs="GUID:59"
+	c.Assert(sfdiskInput.String(), Equals, `/dev/node3 : start=     2461696, size=     5926879, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Writable", attrs="GUID:59"
 `)
 	c.Assert(create, DeepEquals, []partition.DeviceStructure{mockDeviceStructureWritable})
 }

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2016-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,7 +17,9 @@
  *
  */
 
-package misc
+// Package sandbox offers streamlined interfaces for the sandboxing
+// primitives from the system for snapd use.
+package sandbox
 
 import (
 	"github.com/snapcore/snapd/sandbox/apparmor"
@@ -41,11 +43,11 @@ func ForceDevMode() bool {
 	return !apparmorFull || cgroupv2
 }
 
-// MockForcedDevmode fake the system to believe its in a distro
-// that is in ForcedDevmode
-func MockForcedDevmode(isDevmode bool) (restore func()) {
+// MockForceDevMode fake the system to believe its in a distro
+// that is in forced devmode as returned by ForceDevMode.
+func MockForceDevMode(forcedDevMode bool) (restore func()) {
 	old := mockedForceDevMode
-	mockedForceDevMode = &isDevmode
+	mockedForceDevMode = &forcedDevMode
 	return func() {
 		mockedForceDevMode = old
 	}

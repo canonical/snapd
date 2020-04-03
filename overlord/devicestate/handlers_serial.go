@@ -43,7 +43,6 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snapdenv"
-	"github.com/snapcore/snapd/snapdenv/useragent"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
 )
@@ -133,7 +132,7 @@ func newEnoughProxy(st *state.State, proxyURL *url.URL, client *http.Client) boo
 		logger.Debugf(prefix+": %v", err)
 		return false
 	}
-	req.Header.Set("User-Agent", useragent.UserAgent())
+	req.Header.Set("User-Agent", snapdenv.UserAgent())
 	resp, err := client.Do(req)
 	if err != nil {
 		// some sort of network or protocol error
@@ -329,7 +328,7 @@ func prepareSerialRequest(t *state.Task, regCtx registrationContext, privKey ass
 	if err != nil {
 		return "", fmt.Errorf("internal error: cannot create request-id request %q", cfg.requestIDURL)
 	}
-	req.Header.Set("User-Agent", useragent.UserAgent())
+	req.Header.Set("User-Agent", snapdenv.UserAgent())
 	cfg.applyHeaders(req)
 
 	resp, err := client.Do(req)
@@ -424,7 +423,7 @@ func submitSerialRequest(t *state.Task, serialRequest string, client *http.Clien
 	if err != nil {
 		return nil, nil, fmt.Errorf("internal error: cannot create serial-request request %q", cfg.serialRequestURL)
 	}
-	req.Header.Set("User-Agent", useragent.UserAgent())
+	req.Header.Set("User-Agent", snapdenv.UserAgent())
 	req.Header.Set("Snap-Device-Capabilities", strings.Join(registrationCapabilities, " "))
 	cfg.applyHeaders(req)
 	req.Header.Set("Content-Type", asserts.MediaType)
@@ -502,7 +501,7 @@ func getSerial(t *state.Task, regCtx registrationContext, privKey asserts.Privat
 		Timeout:            30 * time.Second,
 		MayLogBody:         true,
 		Proxy:              proxyConf.Conf,
-		ProxyConnectHeader: http.Header{"User-Agent": []string{useragent.UserAgent()}},
+		ProxyConnectHeader: http.Header{"User-Agent": []string{snapdenv.UserAgent()}},
 	})
 
 	cfg, err := getSerialRequestConfig(t, regCtx, client)

@@ -17,7 +17,7 @@
  *
  */
 
-package useragent
+package snapdenv
 
 import (
 	"fmt"
@@ -26,24 +26,22 @@ import (
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/sandbox/misc"
-	"github.com/snapcore/snapd/snapdenv"
 )
 
 // UserAgent to send
 var userAgent = "unset"
 
 // SetUserAgentFromVersion sets up a user-agent string.
-func SetUserAgentFromVersion(version string, extraProds ...string) (restore func()) {
+func SetUserAgentFromVersion(version string, probeForceDevMode func() bool, extraProds ...string) (restore func()) {
 	extras := make([]string, 1, 3)
 	extras[0] = "series " + release.Series
 	if release.OnClassic {
 		extras = append(extras, "classic")
 	}
-	if misc.ForceDevMode() {
+	if probeForceDevMode != nil && probeForceDevMode() {
 		extras = append(extras, "devmode")
 	}
-	if snapdenv.Testing() {
+	if Testing() {
 		extras = append(extras, "testing")
 	}
 	extraProdStr := ""

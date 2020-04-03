@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2020 Canonical Ltd
+ * Copyright (C) 2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,17 +17,39 @@
  *
  */
 
-package useragent
+package main
 
-var (
-	SanitizeKernelVersion = sanitizeKernelVersion
-	StripUnsafeRunes      = stripUnsafeRunes
+import (
+	"io"
+	"os/exec"
 )
 
-func MockUserAgent(mock string) (restore func()) {
-	old := userAgent
-	userAgent = mock
+var (
+	OutputForUI = outputForUI
+	RunUI       = runUI
+	Chooser     = chooser
+)
+
+func MockStdStreams(stdout, stderr io.Writer) (restore func()) {
+	oldStdout, oldStderr := Stdout, Stderr
+	Stdout, Stderr = stdout, stderr
 	return func() {
-		userAgent = old
+		Stdout, Stderr = oldStdout, oldStderr
+	}
+}
+
+func MockChooserTool(f func() (*exec.Cmd, error)) (restore func()) {
+	oldTool := chooserTool
+	chooserTool = f
+	return func() {
+		chooserTool = oldTool
+	}
+}
+
+func MockDefaultMarkerFile(p string) (restore func()) {
+	old := defaultMarkerFile
+	defaultMarkerFile = p
+	return func() {
+		defaultMarkerFile = old
 	}
 }

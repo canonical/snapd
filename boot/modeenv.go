@@ -50,24 +50,6 @@ type Modeenv struct {
 	originRootdir string
 }
 
-var readModeenv = readModeenvImpl
-
-// ReadModeenv attempts to read the modeenv file at
-// <rootdir>/var/iib/snapd/modeenv.
-func ReadModeenv(rootdir string) (*Modeenv, error) {
-	return readModeenv(rootdir)
-}
-
-// MockReadModeenv replaces the current implementation of ReadModeenv with a
-// mocked one. For use in tests.
-func MockReadModeenv(f func(rootdir string) (*Modeenv, error)) (restore func()) {
-	old := readModeenv
-	readModeenv = f
-	return func() {
-		readModeenv = old
-	}
-}
-
 func modeenvFile(rootdir string) string {
 	if rootdir == "" {
 		rootdir = dirs.GlobalRootDir
@@ -75,7 +57,9 @@ func modeenvFile(rootdir string) string {
 	return dirs.SnapModeenvFileUnder(rootdir)
 }
 
-func readModeenvImpl(rootdir string) (*Modeenv, error) {
+// ReadModeenv attempts to read the modeenv file at
+// <rootdir>/var/iib/snapd/modeenv.
+func ReadModeenv(rootdir string) (*Modeenv, error) {
 	modeenvPath := modeenvFile(rootdir)
 	cfg := goconfigparser.New()
 	cfg.AllowNoSectionHeader = true

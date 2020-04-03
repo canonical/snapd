@@ -47,7 +47,7 @@ import (
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snapdenv/useragent"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -1621,7 +1621,7 @@ func (s *deviceMgrSerialSuite) TestNewEnoughProxy(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	expectedUserAgent := useragent.UserAgent()
+	expectedUserAgent := snapdenv.UserAgent()
 	log, restore := logger.MockLogger()
 	defer restore()
 	os.Setenv("SNAPD_DEBUG", "1")

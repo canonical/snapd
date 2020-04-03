@@ -383,7 +383,7 @@ func (s *retrySuite) TestRetryRequestTimeoutHandling(c *C) {
 	defer close(finished)
 
 	cli := httputil.NewHTTPClient(&httputil.ClientOptions{
-		Timeout: 25 * time.Millisecond,
+		Timeout: 100 * time.Millisecond,
 	})
 
 	url := ""

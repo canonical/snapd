@@ -54,7 +54,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/sandbox/misc"
+	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
@@ -13852,9 +13852,9 @@ func (s *snapmgrTestSuite) TestForceDevModeCleanupSkipsRando(c *C) {
 }
 
 func (s *snapmgrTestSuite) checkForceDevModeCleanupRuns(c *C, name string, shouldBeReset bool) {
-	r := misc.MockForcedDevmode(true)
+	r := sandbox.MockForceDevMode(true)
 	defer r()
-	c.Assert(misc.ForceDevMode(), Equals, true)
+	c.Assert(sandbox.ForceDevMode(), Equals, true)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -13891,9 +13891,9 @@ func (s *snapmgrTestSuite) checkForceDevModeCleanupRuns(c *C, name string, shoul
 }
 
 func (s *snapmgrTestSuite) TestForceDevModeCleanupRunsNoSnaps(c *C) {
-	r := misc.MockForcedDevmode(true)
+	r := sandbox.MockForceDevMode(true)
 	defer r()
-	c.Assert(misc.ForceDevMode(), Equals, true)
+	c.Assert(sandbox.ForceDevMode(), Equals, true)
 
 	defer s.se.Stop()
 	s.settle(c)
@@ -13906,9 +13906,9 @@ func (s *snapmgrTestSuite) TestForceDevModeCleanupRunsNoSnaps(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestForceDevModeCleanupSkipsNonForcedOS(c *C) {
-	r := misc.MockForcedDevmode(false)
+	r := sandbox.MockForceDevMode(false)
 	defer r()
-	c.Assert(misc.ForceDevMode(), Equals, false)
+	c.Assert(sandbox.ForceDevMode(), Equals, false)
 
 	s.state.Lock()
 	defer s.state.Unlock()

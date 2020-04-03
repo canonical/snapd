@@ -45,7 +45,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/snapdenv/useragent"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -170,7 +170,7 @@ type runnerSuite struct {
 
 func (s *runnerSuite) SetUpSuite(c *C) {
 	s.baseRunnerSuite.SetUpSuite(c)
-	s.restore = useragent.SetUserAgentFromVersion("1", "snap-repair")
+	s.restore = snapdenv.SetUserAgentFromVersion("1", nil, "snap-repair")
 }
 
 func (s *runnerSuite) TearDownSuite(c *C) {

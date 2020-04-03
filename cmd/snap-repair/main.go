@@ -30,7 +30,7 @@ import (
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/snapdenv/useragent"
+	"github.com/snapcore/snapd/snapdenv"
 )
 
 var (
@@ -76,7 +76,7 @@ func run() error {
 	if osGetuid() != 0 {
 		return fmt.Errorf("must be run as root")
 	}
-	useragent.SetUserAgentFromVersion(cmd.Version, "snap-repair")
+	snapdenv.SetUserAgentFromVersion(cmd.Version, nil, "snap-repair")
 
 	if err := parseArgs(os.Args[1:]); err != nil {
 		return err
