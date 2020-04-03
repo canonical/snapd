@@ -30,6 +30,7 @@ import (
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/cmd/snap-bootstrap/partition"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -94,17 +95,36 @@ func recoverySystemEssentialSnaps(seedDir, recoverySystem string, essentialTypes
 	return seed20.EssentialSnaps(), nil
 }
 
+// TODO:UC20: move all of this to a helper in boot?
+// selectPartitionToMount will select the partition to mount at dir, preferring
+// to use efi variables to determine which partition matches the disk we booted
+// the kernel from. If it can't figure out which disk the kernel came from, then
+// it will fallback to mounting via the specified label
+func selectPartitionMatchingKernelDisk(dir, fallbacklabel string) error {
+	// TODO:UC20: should this only run on grade > dangerous? where do we
+	//            get the model at this point?
+	partuuid, err := boot.FindPartitionUUIDForBootedKernelDisk()
+	if err != nil {
+		// no luck, try mounting by label instead
+		fmt.Fprintf(stdout, "/dev/disk/by-label/%s %s\n", fallbacklabel, dir)
+		return nil
+	}
+	fmt.Fprintf(stdout, "/dev/disk/by-partuuid/%s %s\n", partuuid, dir)
+	return nil
+}
+
 // generateMountsMode* is called multiple times from initramfs until it
 // no longer generates more mount points and just returns an empty output.
 func generateMountsModeInstall(recoverySystem string) error {
-	// 1. always ensure seed partition is mounted
+	// 1.1 mount ubuntu-boot first, using the LoaderDevicePartUUID to identify
+	//     the partuiid partition that should be mounted
+	//     in install mode, we should be getting our kernel from ubuntu-seed
 	isMounted, err := osutilIsMounted(boot.InitramfsUbuntuSeedDir)
 	if err != nil {
 		return err
 	}
 	if !isMounted {
-		fmt.Fprintf(stdout, "/dev/disk/by-label/ubuntu-seed %s\n", boot.InitramfsUbuntuSeedDir)
-		return nil
+		return selectPartitionMatchingKernelDisk(boot.InitramfsUbuntuSeedDir, "ubuntu-seed")
 	}
 
 	// 2. (auto) select recovery system for now
@@ -187,18 +207,43 @@ func generateMountsModeRecover(recoverySystem string) error {
 }
 
 func generateMountsModeRun() error {
-	// 1.1 always ensure basic partitions are mounted
-	for _, d := range []string{boot.InitramfsUbuntuSeedDir, boot.InitramfsUbuntuBootDir} {
-		isMounted, err := osutilIsMounted(d)
+	// 1.1 mount ubuntu-boot first, using the LoaderDevicePartUUID to identify
+	//     the partuiid partition that should be mounted
+	//     in run mode, we should be getting our kernel from ubuntu-boot
+
+	isMounted, err := osutilIsMounted(boot.InitramfsUbuntuBootDir)
+	if err != nil {
+		return err
+	}
+	if !isMounted {
+		return selectPartitionMatchingKernelDisk(boot.InitramfsUbuntuBootDir, "ubuntu-boot")
+	}
+
+	// 1.2 mount ubuntu-seed, cross-checking that ubuntu-seed comes from the
+	//     same physical disk as the mountpoint for ubuntu-boot
+	isMounted, err = osutilIsMounted(boot.InitramfsUbuntuSeedDir)
+	if err != nil {
+		return err
+	}
+	if !isMounted {
+		// get the disk that the ubuntu-boot mount point comes from, as that
+		// should have been where we booted the kernel from in run mode
+		disk, err := partition.DiskFromMountPoint(boot.InitramfsUbuntuBootDir)
 		if err != nil {
 			return err
 		}
-		if !isMounted {
-			fmt.Fprintf(stdout, "/dev/disk/by-label/%s %s\n", filepath.Base(d), d)
+
+		// find the ubuntu-seed partition on that disk
+		ubuntuSeedPartitionUUID, err := disk.FindMatchingParitionUUID("ubuntu-seed")
+		if err != nil {
+			return err
 		}
+
+		fmt.Fprintf(stdout, "/dev/disk/by-partuuid/%s %s\n", ubuntuSeedPartitionUUID, boot.InitramfsUbuntuSeedDir)
+		return nil
 	}
 
-	// 1.2 mount Data, and exit, as it needs to be mounted for us to do step 2
+	// 1.3 mount Data, and exit, as it needs to be mounted for us to do step 2
 	isDataMounted, err := osutilIsMounted(boot.InitramfsUbuntuDataDir)
 	if err != nil {
 		return err
