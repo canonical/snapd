@@ -38,6 +38,8 @@ var (
 )
 
 const (
+	// The encryption key size is set so it has the same entropy as the derived
+	// key. The recovery key is shorter and goes through KDF iterations.
 	encryptionKeySize = 32
 	recoveryKeySize   = 16
 )
