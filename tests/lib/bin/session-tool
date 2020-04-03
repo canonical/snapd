@@ -255,6 +255,18 @@ wait "$cat_stdin_pid"
 wait "$cat_stdout_pid"
 wait "$cat_stderr_pid"
 
+# Work around a bug in older versions of logind that leak closing session
+# without a process inhabiting it anymore. In the case we've observed there's a
+# session that is being closed with a missing process.
+for session_id in $(loginctl --no-legend | awk '{ print $1 }'); do
+	if [ "$(loginctl show-session "$session_id" --property=State --value)" = closing ]; then
+		leader=$(loginctl show-session "$session_id" --property=Leader --value)
+		if [ ! -e "/proc/$leader" ]; then
+			loginctl kill-session "$session_id"
+		fi
+	fi
+done
+
 case "$result" in
 	'"done"') exit 0; ;;
 	'"failed"') exit 1; ;;
