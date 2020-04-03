@@ -92,7 +92,7 @@
 %endif
 
 Name:           snapd
-Version:        2.44
+Version:        2.44.1
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -877,6 +877,13 @@ fi
 
 
 %changelog
+* Sat Mar 21 2020 Michael Vogt <mvo@ubuntu.com>
+ - randutil: switch back to setting up seed with lower entropy data
+ - interfaces/greengrass-support: fix typo
+ - packaging,tests: ensure debian-sid builds without vendor/
+ - travis.yml: run unit tests with go/master as well
+ - cmd/snap-update-ns: ignore EROFS from rmdir/unlink
+
 * Tue Mar 17 2020 Michael Vogt <mvo@ubuntu.com>
  - daemon: do a forceful serer shutdown if we hit a deadline
  - snap: whitelist lzo as support compression for snap pack

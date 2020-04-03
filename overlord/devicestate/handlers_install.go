@@ -71,16 +71,13 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 	if useEncryption {
-		ubuntuBootDir := filepath.Join(dirs.RunMnt, "ubuntu-boot")
-		ubuntuDataDir := filepath.Join(dirs.RunMnt, "ubuntu-data", "system-data")
-
 		args = append(args,
 			// enable data encryption
 			"--encrypt",
 			// location to store the keyfile
-			"--key-file", filepath.Join(ubuntuBootDir, "ubuntu-data.keyfile.unsealed"),
+			"--key-file", filepath.Join(boot.InitramfsUbuntuBootDir, "ubuntu-data.keyfile.unsealed"),
 			// location to store the recovery keyfile
-			"--recovery-key-file", filepath.Join(ubuntuDataDir, "recovery-key"),
+			"--recovery-key-file", filepath.Join(boot.InitramfsUbuntuDataDir, "/system-data/recovery-key"),
 		)
 	}
 	args = append(args, gadgetDir)
@@ -94,7 +91,17 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// configure the run system
-	if err := sysconfigConfigureRunSystem(&sysconfig.Options{}); err != nil {
+	opts := &sysconfig.Options{TargetRootDir: boot.InitramfsWritableDir}
+	cloudCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d")
+	// Support custom cloud.cfg.d/*.cfg files on the ubuntu-seed partition
+	// during install when in grade "dangerous". We will support configs
+	// from the gadget later too, see sysconfig/cloudinit.go
+	//
+	// XXX: maybe move policy decision into configureRunSystem later?
+	if osutil.IsDirectory(cloudCfg) && deviceCtx.Model().Grade() == asserts.ModelDangerous {
+		opts.CloudInitSrcDir = cloudCfg
+	}
+	if err := sysconfigConfigureRunSystem(opts); err != nil {
 		return err
 	}
 
@@ -108,7 +115,14 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return fmt.Errorf("cannot get boot base info: %v", err)
 	}
-	recoverySystemDir := filepath.Join("/systems", m.modeEnv.RecoverySystem)
+	modeEnv, err := m.maybeReadModeenv()
+	if err != nil {
+		return err
+	}
+	if modeEnv == nil {
+		return fmt.Errorf("missing modeenv, cannot proceed")
+	}
+	recoverySystemDir := filepath.Join("/systems", modeEnv.RecoverySystem)
 	bootWith := &boot.BootableSet{
 		Base:              bootBaseInfo,
 		BasePath:          bootBaseInfo.MountFile(),
@@ -122,7 +136,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// request a restart as the last action after a successful install
-	st.RequestRestart(state.RestartSystem)
+	st.RequestRestart(state.RestartSystemNow)
 
 	return nil
 }
@@ -140,7 +154,7 @@ func checkEncryption(model *asserts.Model) (res bool, err error) {
 
 	// check if we should disable encryption non-secured devices
 	// TODO:UC20: this is not the final mechanism to bypass encryption
-	if dangerous && osutil.FileExists(filepath.Join(dirs.RunMnt, "ubuntu-seed", ".force-unencrypted")) {
+	if dangerous && osutil.FileExists(filepath.Join(boot.InitramfsUbuntuSeedDir, ".force-unencrypted")) {
 		return false, nil
 	}
 

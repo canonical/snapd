@@ -210,8 +210,13 @@ func New(rootDir string, mode InstanceMode, rep reporter) Systemd {
 // NewEmulationMode returns a Systemd that runs in emulation mode where
 // systemd is not really called, but instead its functions are emulated
 // by other means.
-func NewEmulationMode() Systemd {
-	return &emulation{}
+func NewEmulationMode(rootDir string) Systemd {
+	if rootDir == "" {
+		rootDir = dirs.GlobalRootDir
+	}
+	return &emulation{
+		rootDir: rootDir,
+	}
 }
 
 // InstanceMode determines which instance of systemd to control.

@@ -36,7 +36,7 @@ func init() {
 	}
 }
 
-func validateExperimentalSettings(tr config.Conf) error {
+func validateExperimentalSettings(tr config.ConfGetter) error {
 	for k := range supportedConfigurations {
 		if !strings.HasPrefix(k, "core.experimental.") {
 			continue
@@ -48,18 +48,23 @@ func validateExperimentalSettings(tr config.Conf) error {
 	return nil
 }
 
-func ExportExperimentalFlags(tr config.Conf) error {
-	dir := dirs.FeaturesDir
+func doExportExperimentalFlags(tr config.ConfGetter, opts *fsOnlyContext) error {
+	var dir string
+	if opts != nil {
+		dir = dirs.FeaturesDirUnder(opts.RootDir)
+	} else {
+		dir = dirs.FeaturesDir
+	}
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
-	features := features.KnownFeatures()
-	content := make(map[string]osutil.FileState, len(features))
-	for _, feature := range features {
+	feat := features.KnownFeatures()
+	content := make(map[string]osutil.FileState, len(feat))
+	for _, feature := range feat {
 		if !feature.IsExported() {
 			continue
 		}
-		isEnabled, err := config.GetFeatureFlag(tr, feature)
+		isEnabled, err := features.Flag(tr, feature)
 		if err != nil {
 			return err
 		}
@@ -69,4 +74,8 @@ func ExportExperimentalFlags(tr config.Conf) error {
 	}
 	_, _, err := osutil.EnsureDirState(dir, "*", content)
 	return err
+}
+
+func ExportExperimentalFlags(tr config.ConfGetter) error {
+	return doExportExperimentalFlags(tr, nil)
 }

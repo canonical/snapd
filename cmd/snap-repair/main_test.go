@@ -49,7 +49,7 @@ type repairSuite struct {
 
 func (r *repairSuite) SetUpSuite(c *C) {
 	r.baseRunnerSuite.SetUpSuite(c)
-	r.restore = snapdenv.SetUserAgentFromVersion("", "")
+	r.restore = snapdenv.SetUserAgentFromVersion("", nil, "")
 }
 
 func (r *repairSuite) TearDownSuite(c *C) {
