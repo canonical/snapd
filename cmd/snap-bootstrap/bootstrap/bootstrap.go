@@ -58,7 +58,7 @@ func deviceFromRole(lv *gadget.LaidOutVolume, role string) (device string, err e
 }
 
 func Run(gadgetRoot, device string, options Options) error {
-	if options.Encrypt && options.KeyFile == "" && options.RecoveryKeyFile == "" {
+	if options.Encrypt && (options.KeyFile == "" || options.RecoveryKeyFile == "") {
 		return fmt.Errorf("key file and recovery key file must be specified when encrypting")
 	}
 
