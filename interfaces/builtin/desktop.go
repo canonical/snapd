@@ -205,8 +205,8 @@ dbus (send)
 
 ## Allow access to xdg-document-portal file system.  Access control is
 ## handled by bind mounting a snap-specific sub-tree to this location.
-owner /run/user/[0-9]*/doc/ r,
-owner /run/user/[0-9]*/doc/** rw,
+owner /run/user/[0-9]*/doc/{,*} r,
+/run/user/[0-9]*/doc/*/** rw,
 
 # Allow access to xdg-desktop-portal and xdg-document-portal
 dbus (receive, send)
