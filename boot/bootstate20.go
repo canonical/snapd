@@ -161,6 +161,11 @@ func (ks20 *bootState20Kernel) markSuccessful(update bootStateUpdate) (bootState
 		return nil, err
 	}
 
+	// save this object inside the update to share bootenv / modeenv between
+	// multiple calls to markSuccessful for different snap types, but the same
+	// bootStateUpdate object
+	u.bootState20Kernel = *ks20
+
 	// u should always be non-nil if err is nil
 	u.bootedKernelSnap = sn
 	return u, nil
@@ -324,6 +329,11 @@ func (bs20 *bootState20Base) markSuccessful(update bootStateUpdate) (bootStateUp
 		return nil, err
 	}
 
+	// save this object inside the update to share bootenv / modeenv between
+	// multiple calls to markSuccessful for different snap types, but the same
+	// bootStateUpdate object
+	u.bootState20Base = *bs20
+
 	// u should always be non-nil if err is nil
 	u.bootedBaseSnap = sn
 	return u, nil
@@ -417,7 +427,8 @@ type bootState20MarkSuccessful struct {
 
 // chooseBootSnapToMarkSuccessful inspects the specified boot state to pick what
 // boot snap should be marked as successful and use as a valid rollback target.
-// If the
+// If the first return value is non-nil, the second return value will be the
+// snap that was booted and should be marked as successful.
 func chooseBootSnapToMarkSuccessful(b bootState, update bootStateUpdate) (
 	bsmark *bootState20MarkSuccessful,
 	bootedSnap snap.PlaceInfo,
@@ -439,16 +450,6 @@ func chooseBootSnapToMarkSuccessful(b bootState, update bootStateUpdate) (
 
 	if bsmark == nil {
 		bsmark = &bootState20MarkSuccessful{}
-	}
-
-	// incorporate the bootState into the bsmark so we don't need to reload
-	// bootenv / modeenv, as bootState will already have been initialized in
-	// the call to revisions() above
-	switch bsGround := b.(type) {
-	case *bootState20Base:
-		bsmark.bootState20Base = *bsGround
-	case *bootState20Kernel:
-		bsmark.bootState20Kernel = *bsGround
 	}
 
 	// kernel_status and base_status go from "" -> "try" (set by snapd), to
