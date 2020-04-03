@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/secboot"
 
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/bootstrap"
-	"github.com/snapcore/snapd/dirs"
 )
 
 var (
@@ -54,14 +53,6 @@ func MockOsutilIsMounted(f func(path string) (bool, error)) (restore func()) {
 	osutilIsMounted = f
 	return func() {
 		osutilIsMounted = oldOsutilIsMounted
-	}
-}
-
-func MockRunMnt(newRunMnt string) (restore func()) {
-	oldRunMnt := dirs.RunMnt
-	dirs.RunMnt = newRunMnt
-	return func() {
-		dirs.RunMnt = oldRunMnt
 	}
 }
 

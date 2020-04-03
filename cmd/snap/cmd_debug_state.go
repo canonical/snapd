@@ -41,6 +41,8 @@ type cmdDebugState struct {
 	TaskID   string `long:"task"`
 	ChangeID string `long:"change"`
 
+	IsSeeded bool `long:"is-seeded"`
+
 	// flags for --change=N output
 	DotOutput bool `long:"dot"` // XXX: mildly useful (too crowded in many cases), but let's have it just in case
 	// When inspecting errors/undone tasks, those in Hold state are usually irrelevant, make it possible to ignore them
@@ -78,11 +80,12 @@ func init() {
 		return &cmdDebugState{}
 	}, timeDescs.also(map[string]string{
 		// TRANSLATORS: This should not start with a lowercase letter.
-		"change":  i18n.G("ID of the change to inspect"),
-		"task":    i18n.G("ID of the task to inspect"),
-		"dot":     i18n.G("Dot (graphviz) output"),
-		"no-hold": i18n.G("Omit tasks in 'Hold' state in the change output"),
-		"changes": i18n.G("List all changes"),
+		"change":    i18n.G("ID of the change to inspect"),
+		"task":      i18n.G("ID of the task to inspect"),
+		"dot":       i18n.G("Dot (graphviz) output"),
+		"no-hold":   i18n.G("Omit tasks in 'Hold' state in the change output"),
+		"changes":   i18n.G("List all changes"),
+		"is-seeded": i18n.G("Output seeding status (true or false)"),
 	}), nil)
 }
 
@@ -210,6 +213,20 @@ func (c *cmdDebugState) showChanges(st *state.State) error {
 	return nil
 }
 
+func (c *cmdDebugState) showIsSeeded(st *state.State) error {
+	st.Lock()
+	defer st.Unlock()
+
+	var isSeeded bool
+	err := st.Get("seeded", &isSeeded)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	fmt.Fprintf(Stdout, "%v\n", isSeeded)
+
+	return nil
+}
+
 func (c *cmdDebugState) showTask(st *state.State, taskID string) error {
 	st.Lock()
 	defer st.Unlock()
@@ -272,8 +289,15 @@ func (c *cmdDebugState) Execute(args []string) error {
 	if c.TaskID != "" {
 		cmds = append(cmds, "--task=")
 	}
+	if c.IsSeeded != false {
+		cmds = append(cmds, "--is-seeded")
+	}
 	if len(cmds) > 1 {
 		return fmt.Errorf("cannot use %s and %s together", cmds[0], cmds[1])
+	}
+
+	if c.IsSeeded {
+		return c.showIsSeeded(st)
 	}
 
 	if c.DotOutput && c.ChangeID == "" {

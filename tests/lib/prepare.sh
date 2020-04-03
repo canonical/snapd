@@ -456,8 +456,11 @@ uc20_build_initramfs_kernel_snap() {
         # this works on 20.04 but not on 18.04
         unmkinitramfs initrd unpacked-initrd
 
-        # use distro skeleton
-        cp -ar /usr/lib/ubuntu-core-initramfs skeleton
+        # use only the initrd we got from the kernel snap to inject our changes
+        # we don't use the distro package because the distro package may be 
+        # different systemd version, etc. in the initrd from the one in the 
+        # kernel and we don't want to test that, just test our snap-bootstrap
+        cp -ar unpacked-initrd skeleton
         # all the skeleton edits go to a local copy of distro directory
         skeletondir=$PWD/skeleton
         cp -a /usr/lib/snapd/snap-bootstrap "$skeletondir/main/usr/lib/snapd/snap-bootstrap"

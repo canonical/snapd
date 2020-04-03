@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+
 package partition_test
 
 import (
@@ -88,7 +89,8 @@ var mockDeviceStructureSystemSeed = partition.DeviceStructure{
 }
 
 var mockDeviceStructureWritable = partition.DeviceStructure{
-	Node: "/dev/node3",
+	Node:    "/dev/node3",
+	Created: true,
 	LaidOutStructure: gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Name:       "Writable",

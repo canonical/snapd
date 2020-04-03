@@ -22,42 +22,67 @@ package xdgopenproxy
 
 import (
 	"net/url"
-	"syscall"
 
 	"github.com/godbus/dbus"
+	"golang.org/x/xerrors"
 )
 
+type responseError struct {
+	msg string
+}
+
+func (u *responseError) Error() string { return u.msg }
+
+func (u *responseError) Is(err error) bool {
+	_, ok := err.(*responseError)
+	return ok
+}
+
+type desktopLauncher interface {
+	OpenFile(bus *dbus.Conn, path string) error
+	OpenURI(bus *dbus.Conn, url string) error
+}
+
+var availableLaunchers = []desktopLauncher{
+	&portalLauncher{},
+	&userdLauncher{},
+}
+
+// Run attempts to open given file or URL using one of available launchers
 func Run(urlOrFile string) error {
 	bus, err := dbus.SessionBus()
 	if err != nil {
 		return err
 	}
 	defer bus.Close()
-	launcher := bus.Object("io.snapcraft.Launcher", "/io/snapcraft/Launcher")
-	return launch(launcher, urlOrFile)
+
+	return launch(bus, availableLaunchers, urlOrFile)
 }
 
-func launch(launcher dbus.BusObject, urlOrFile string) error {
+func launchWithOne(bus *dbus.Conn, l desktopLauncher, urlOrFile string) error {
 	if u, err := url.Parse(urlOrFile); err == nil {
 		if u.Scheme == "file" {
-			return openFile(launcher, u.Path)
+			return l.OpenFile(bus, u.Path)
 		} else if u.Scheme != "" {
-			return openUrl(launcher, urlOrFile)
+			return l.OpenURI(bus, urlOrFile)
 		}
 	}
-	return openFile(launcher, urlOrFile)
+	return l.OpenFile(bus, urlOrFile)
 }
 
-func openUrl(launcher dbus.BusObject, url string) error {
-	return launcher.Call("io.snapcraft.Launcher.OpenURL", 0, url).Err
-}
-
-func openFile(launcher dbus.BusObject, filename string) error {
-	fd, err := syscall.Open(filename, syscall.O_RDONLY, 0)
-	if err != nil {
-		return err
+func launch(bus *dbus.Conn, launchers []desktopLauncher, urlOrFile string) error {
+	var err error
+	for _, l := range launchers {
+		err = launchWithOne(bus, l, urlOrFile)
+		if err == nil {
+			break
+		}
+		if xerrors.Is(err, &responseError{}) {
+			// got a response which indicates the action was either
+			// explicitly rejected by the user or abandoned due to
+			// other reasons eg. timeout waiting for user to respond
+			break
+		}
 	}
-	defer syscall.Close(fd)
-
-	return launcher.Call("io.snapcraft.Launcher.OpenFile", 0, "", dbus.UnixFD(fd)).Err
+	return err
 }

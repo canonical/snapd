@@ -613,7 +613,7 @@ func (s *remodelLogicSuite) TestRemodelDeviceBackendKeptSerial(c *C) {
 	c.Check(serial0.Serial(), Equals, "serialserialserial1")
 }
 
-func (s *remodelLogicSuite) TestRemodelContextOperatingModeDefaultRun(c *C) {
+func (s *remodelLogicSuite) TestRemodelContextSystemModeDefaultRun(c *C) {
 	oldModel := s.brands.Model("my-brand", "my-model", modelDefaults)
 	newModel := s.brands.Model("my-brand", "my-model", modelDefaults, map[string]interface{}{"revision": "2"})
 
@@ -629,10 +629,10 @@ func (s *remodelLogicSuite) TestRemodelContextOperatingModeDefaultRun(c *C) {
 
 	remodCtx, err := devicestate.RemodelCtx(s.state, oldModel, newModel)
 	c.Assert(err, IsNil)
-	c.Check(remodCtx.OperatingMode(), Equals, "run")
+	c.Check(remodCtx.SystemMode(), Equals, "run")
 }
 
-func (s *remodelLogicSuite) TestRemodelContextOperatingModeWorks(c *C) {
+func (s *remodelLogicSuite) TestRemodelContextSystemModeWorks(c *C) {
 	oldModel := s.brands.Model("my-brand", "my-model", modelDefaults)
 	newModel := s.brands.Model("my-brand", "my-model", modelDefaults, map[string]interface{}{"revision": "2"})
 
@@ -645,11 +645,11 @@ func (s *remodelLogicSuite) TestRemodelContextOperatingModeWorks(c *C) {
 		Model:  "my-model",
 		Serial: "serialserialserial",
 	})
-	devicestate.SetOperatingMode(s.mgr, "install")
+	devicestate.SetSystemMode(s.mgr, "install")
 
 	remodCtx, err := devicestate.RemodelCtx(s.state, oldModel, newModel)
 	c.Assert(err, IsNil)
-	c.Check(remodCtx.OperatingMode(), Equals, "install")
+	c.Check(remodCtx.SystemMode(), Equals, "install")
 }
 
 func (s *remodelLogicSuite) TestRemodelContextForTaskAndCaching(c *C) {

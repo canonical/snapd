@@ -307,7 +307,7 @@ func (cs *clientSuite) TestSnapdClientIntegration(c *C) {
 
 	cli := client.New(nil)
 	si, err := cli.SysInfo()
-	c.Check(err, IsNil)
+	c.Assert(err, IsNil)
 	c.Check(si.Series, Equals, "42")
 }
 

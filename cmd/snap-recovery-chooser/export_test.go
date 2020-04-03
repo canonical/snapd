@@ -17,19 +17,39 @@
  *
  */
 
-package daemon
+package main
 
 import (
-	"net/http"
-
-	"github.com/snapcore/snapd/overlord/auth"
+	"io"
+	"os/exec"
 )
 
-var systemsCmd = &Command{
-	Path: "/v2/systems",
-	GET:  getSystems,
+var (
+	OutputForUI = outputForUI
+	RunUI       = runUI
+	Chooser     = chooser
+)
+
+func MockStdStreams(stdout, stderr io.Writer) (restore func()) {
+	oldStdout, oldStderr := Stdout, Stderr
+	Stdout, Stderr = stdout, stderr
+	return func() {
+		Stdout, Stderr = oldStdout, oldStderr
+	}
 }
 
-func getSystems(c *Command, r *http.Request, user *auth.UserState) Response {
-	return InternalError("listing available systems is not implemented yet")
+func MockChooserTool(f func() (*exec.Cmd, error)) (restore func()) {
+	oldTool := chooserTool
+	chooserTool = f
+	return func() {
+		chooserTool = oldTool
+	}
+}
+
+func MockDefaultMarkerFile(p string) (restore func()) {
+	old := defaultMarkerFile
+	defaultMarkerFile = p
+	return func() {
+		defaultMarkerFile = old
+	}
 }

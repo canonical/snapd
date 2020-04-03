@@ -27,6 +27,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 type modelSuite struct {
@@ -46,6 +47,7 @@ func (mods *modelSuite) SetUpSuite(c *C) {
 const (
 	reqSnaps     = "required-snaps:\n  - foo\n  - bar\n"
 	sysUserAuths = "system-user-authority: *\n"
+	serialAuths  = "serial-authority:\n  - generic\n"
 )
 
 const (
@@ -60,6 +62,7 @@ const (
 		"base: core18\n" +
 		"kernel: baz-linux\n" +
 		"store: brand-store\n" +
+		serialAuths +
 		sysUserAuths +
 		reqSnaps +
 		"TSLINE" +
@@ -201,6 +204,7 @@ func (mods *modelSuite) TestDecodeOK(c *C) {
 	// essential snaps excluded
 	c.Check(model.RequiredNoEssentialSnaps(), DeepEquals, reqSnaps[3:])
 	c.Check(model.SystemUserAuthority(), HasLen, 0)
+	c.Check(model.SerialAuthority(), DeepEquals, []string{"brand-id1", "generic"})
 }
 
 func (mods *modelSuite) TestDecodeStoreIsOptional(c *C) {
@@ -348,6 +352,23 @@ func (mods modelSuite) TestDecodeValidSnapNames(c *C) {
 	}
 }
 
+func (mods *modelSuite) TestDecodeSerialAuthorityIsOptional(c *C) {
+	withTimestamp := strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)
+	encoded := strings.Replace(withTimestamp, serialAuths, "", 1)
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	model := a.(*asserts.Model)
+	// the default is just to accept the brand itself
+	c.Check(model.SerialAuthority(), DeepEquals, []string{"brand-id1"})
+
+	encoded = strings.Replace(withTimestamp, serialAuths, "serial-authority:\n  - foo\n  - bar\n", 1)
+	a, err = asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	model = a.(*asserts.Model)
+	// the brand is always added implicitly
+	c.Check(model.SerialAuthority(), DeepEquals, []string{"brand-id1", "foo", "bar"})
+}
+
 func (mods *modelSuite) TestDecodeSystemUserAuthorityIsOptional(c *C) {
 	withTimestamp := strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)
 	encoded := strings.Replace(withTimestamp, sysUserAuths, "", 1)
@@ -361,7 +382,9 @@ func (mods *modelSuite) TestDecodeSystemUserAuthorityIsOptional(c *C) {
 	a, err = asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
 	model = a.(*asserts.Model)
-	c.Check(model.SystemUserAuthority(), DeepEquals, []string{"foo", "bar"})
+	// the brand is always added implicitly, it can always sign
+	// a new revision of the model anyway
+	c.Check(model.SystemUserAuthority(), DeepEquals, []string{"brand-id1", "foo", "bar"})
 }
 
 func (mods *modelSuite) TestDecodeKernelTrack(c *C) {
@@ -438,6 +461,8 @@ func (mods *modelSuite) TestDecodeInvalid(c *C) {
 		{mods.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
 		{reqSnaps, "required-snaps: foo\n", `"required-snaps" header must be a list of strings`},
 		{reqSnaps, "required-snaps:\n  -\n    - nested\n", `"required-snaps" header must be a list of strings`},
+		{serialAuths, "serial-authority:\n  a: 1\n", `"serial-authority" header must be a list of account ids`},
+		{serialAuths, "serial-authority:\n  - 5_6\n", `"serial-authority" header must be a list of account ids`},
 		{sysUserAuths, "system-user-authority:\n  a: 1\n", `"system-user-authority" header must be '\*' or a list of account ids`},
 		{sysUserAuths, "system-user-authority:\n  - 5_6\n", `"system-user-authority" header must be '\*' or a list of account ids`},
 		{reqSnaps, "grade: dangerous\n", `cannot specify a grade for model without the extended snaps header`},
@@ -607,6 +632,7 @@ func (mods *modelSuite) TestCore20DecodeOK(c *C) {
 	c.Check(model.Base(), Equals, "core20")
 	c.Check(model.BaseSnap(), DeepEquals, &asserts.ModelSnap{
 		Name:           "core20",
+		SnapID:         naming.WellKnownSnapID("core20"),
 		SnapType:       "base",
 		Modes:          []string{"run", "ephemeral"},
 		DefaultChannel: "latest/stable",
@@ -662,6 +688,7 @@ func (mods *modelSuite) TestCore20DecodeOK(c *C) {
 	// essential snaps excluded
 	c.Check(model.RequiredNoEssentialSnaps(), DeepEquals, reqSnaps[3:])
 	c.Check(model.SystemUserAuthority(), HasLen, 0)
+	c.Check(model.SerialAuthority(), DeepEquals, []string{"brand-id1"})
 }
 
 func (mods *modelSuite) TestCore20ExplictBootBase(c *C) {
@@ -764,6 +791,7 @@ func (mods *modelSuite) TestCore20DecodeInvalid(c *C) {
 
 	invalidTests := []struct{ original, invalid, expectedErr string }{
 		{"base: core20\n", "", `"base" header is mandatory`},
+		{"base: core20\n", "base: alt-base\n", `cannot specify not well-known base "alt-base" without a corresponding "snaps" header entry`},
 		{"OTHER", "classic: true\n", `cannot use extended snaps header for a classic model \(yet\)`},
 		{snapsStanza, "snaps: snap\n", `"snaps" header must be a list of maps`},
 		{snapsStanza, "snaps:\n  - snap\n", `"snaps" header must be a list of maps`},
