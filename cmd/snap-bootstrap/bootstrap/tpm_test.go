@@ -72,12 +72,15 @@ func (s *bootstrapTPMSuite) TestSeal(c *C) {
 	// dummy OS component files
 	shimFile := filepath.Join(s.dir, "shim")
 	f, err := os.Create(shimFile)
+	c.Assert(err, IsNil)
 	f.Close()
 	grubFile := filepath.Join(s.dir, "grub")
 	f, err = os.Create(grubFile)
+	c.Assert(err, IsNil)
 	f.Close()
 	kernelFile := filepath.Join(s.dir, "kernel")
 	f, err = os.Create(kernelFile)
+	c.Assert(err, IsNil)
 	f.Close()
 
 	t := bootstrap.TPMSupport{}
@@ -90,15 +93,15 @@ func (s *bootstrapTPMSuite) TestSeal(c *C) {
 		c.Assert(*params, DeepEquals, secboot.EFISecureBootPolicyProfileParams{
 			PCRAlgorithm: tpm2.HashAlgorithmSHA256,
 			LoadSequences: []*secboot.EFIImageLoadEvent{
-				&secboot.EFIImageLoadEvent{
+				{
 					Source: secboot.Firmware,
 					Image:  secboot.FileEFIImage(shimFile),
 					Next: []*secboot.EFIImageLoadEvent{
-						&secboot.EFIImageLoadEvent{
+						{
 							Source: secboot.Shim,
 							Image:  secboot.FileEFIImage(grubFile),
 							Next: []*secboot.EFIImageLoadEvent{
-								&secboot.EFIImageLoadEvent{
+								{
 									Source: secboot.Shim,
 									Image:  secboot.FileEFIImage(kernelFile),
 								},
@@ -144,6 +147,7 @@ func (s *bootstrapTPMSuite) TestSetFiles(c *C) {
 
 	p1 := filepath.Join(s.dir, "f1")
 	f, err := os.Create(p1)
+	c.Assert(err, IsNil)
 	f.Close()
 
 	// set shim files
