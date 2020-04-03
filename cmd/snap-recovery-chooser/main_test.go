@@ -23,7 +23,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
+	"log/syslog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -483,4 +485,80 @@ echo '{"label":"label","action":{"mode":"install","title":"reinstall"}}'
 
 	c.Assert(s.markerFile, testutil.FileAbsent)
 
+}
+
+type mockedSyslogCmdSuite struct {
+	baseCmdSuite
+
+	term string
+}
+
+var _ = Suite(&mockedSyslogCmdSuite{})
+
+func (s *mockedSyslogCmdSuite) SetUpTest(c *C) {
+	s.baseCmdSuite.SetUpTest(c)
+
+	s.term = os.Getenv("TERM")
+	s.AddCleanup(func() { os.Setenv("TERM", s.term) })
+
+	r := main.MockSyslogNew(func(p syslog.Priority, t string) (io.Writer, error) {
+		c.Fatal("not mocked")
+		return nil, fmt.Errorf("not mocked")
+	})
+	s.AddCleanup(r)
+}
+
+func (s *mockedSyslogCmdSuite) TestNoSyslogFallback(c *C) {
+	err := os.Setenv("TERM", "someterm")
+	c.Assert(err, IsNil)
+
+	called := false
+	r := main.MockSyslogNew(func(_ syslog.Priority, _ string) (io.Writer, error) {
+		called = true
+		return nil, fmt.Errorf("no syslog")
+	})
+	defer r()
+	err = main.LoggerWithSyslogMaybe()
+	c.Assert(err, IsNil)
+	c.Check(called, Equals, true)
+	// this likely goes to stder
+	logger.Noticef("ping")
+}
+
+func (s *mockedSyslogCmdSuite) TestWithSyslog(c *C) {
+	err := os.Setenv("TERM", "someterm")
+	c.Assert(err, IsNil)
+
+	called := false
+	tag := ""
+	prio := syslog.Priority(0)
+	buf := bytes.Buffer{}
+	r := main.MockSyslogNew(func(p syslog.Priority, tg string) (io.Writer, error) {
+		tag = tg
+		prio = p
+		called = true
+		return &buf, nil
+	})
+	defer r()
+	err = main.LoggerWithSyslogMaybe()
+	c.Assert(err, IsNil)
+	c.Check(called, Equals, true)
+	c.Check(tag, Equals, "snap-recovery-chooser")
+	c.Check(prio, Equals, syslog.LOG_INFO|syslog.LOG_DAEMON)
+
+	logger.Noticef("ping")
+	c.Check(buf.String(), testutil.Contains, "ping")
+}
+
+func (s *mockedSyslogCmdSuite) TestSimple(c *C) {
+	err := os.Unsetenv("TERM")
+	c.Assert(err, IsNil)
+
+	r := main.MockSyslogNew(func(p syslog.Priority, tg string) (io.Writer, error) {
+		c.Fatalf("unexpected call")
+		return nil, fmt.Errorf("unexpected call")
+	})
+	defer r()
+	err = main.LoggerWithSyslogMaybe()
+	c.Assert(err, IsNil)
 }

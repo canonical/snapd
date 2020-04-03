@@ -42,6 +42,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/syslog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -187,8 +188,36 @@ func chooser(cli *client.Client) (reboot bool, err error) {
 	return reboot, nil
 }
 
+var syslogNew = func(p syslog.Priority, tag string) (io.Writer, error) { return syslog.New(p, tag) }
+
+func loggerWithSyslogMaybe() error {
+	maybeSyslog := func() error {
+		if os.Getenv("TERM") == "" {
+			// set up the syslog logger only when we're running on a
+			// terminal
+			return fmt.Errorf("not on terminal, syslog not needed")
+		}
+		syslogWriter, err := syslogNew(syslog.LOG_INFO|syslog.LOG_DAEMON, "snap-recovery-chooser")
+		if err != nil {
+			return err
+		}
+		l, err := logger.New(syslogWriter, logger.DefaultFlags)
+		if err != nil {
+			return err
+		}
+		logger.SetLogger(l)
+		return nil
+	}
+
+	if err := maybeSyslog(); err != nil {
+		// try simple setup
+		return logger.SimpleSetup()
+	}
+	return nil
+}
+
 func main() {
-	if err := logger.SimpleSetup(); err != nil {
+	if err := loggerWithSyslogMaybe(); err != nil {
 		fmt.Fprintf(Stderr, "cannot initialize logger: %v\n", err)
 		os.Exit(1)
 	}
