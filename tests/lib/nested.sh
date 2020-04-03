@@ -9,7 +9,7 @@ SSH_PORT=8022
 MON_PORT=8888
 
 wait_for_ssh(){
-    retry=150
+    retry=300
     wait=1
     while ! execute_remote true; do
         retry=$(( retry - 1 ))
@@ -170,15 +170,15 @@ refresh_to_new_core(){
     else
         echo "Refreshing the core/snapd snap"
         if is_classic_nested_system; then
-            execute_remote "snap refresh core --${NEW_CHANNEL}"
+            execute_remote "sudo snap refresh core --${NEW_CHANNEL}"
             execute_remote "snap info core" | grep -E "^tracking: +latest/${NEW_CHANNEL}"
         fi
 
         if is_core_18_nested_system || is_core_20_nested_system; then
-            execute_remote "snap refresh snapd --${NEW_CHANNEL}"
+            execute_remote "sudo snap refresh snapd --${NEW_CHANNEL}"
             execute_remote "snap info snapd" | grep -E "^tracking: +latest/${NEW_CHANNEL}"
         else
-            execute_remote "snap refresh core --${NEW_CHANNEL}"
+            execute_remote "sudo snap refresh core --${NEW_CHANNEL}"
             wait_for_no_ssh
             wait_for_ssh
             execute_remote "snap info core" | grep -E "^tracking: +latest/${NEW_CHANNEL}"
@@ -301,7 +301,7 @@ EOF
 create_cloud_init_config(){
     CONFIG_PATH=$1
     cat <<EOF > "$CONFIG_PATH"
-    #cloud-config
+#cloud-config
   ssh_pwauth: True
   users:
    - name: user1
@@ -350,7 +350,6 @@ start_nested_core_vm(){
     PARAM_CPU="-smp 1"
     PARAM_MEM="-m 4096"
     PARAM_DISPLAY="-nographic"
-    PARAM_EXTRA="-machine accel=kvm"
     PARAM_NETWORK="-net nic,model=virtio -net user,hostfwd=tcp::$SSH_PORT-:22"
     PARAM_MONITOR="-monitor tcp:127.0.0.1:$MON_PORT,server,nowait -usb"
     PARAM_ASSERTIONS=""
@@ -373,12 +372,12 @@ start_nested_core_vm(){
 
         PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE.secboot.fd,if=pflash,format=raw,unit=0,readonly=on -drive file=$WORK_DIR/image/OVMF_VARS.snakeoil.fd,if=pflash,format=raw,unit=1"
         PARAM_IMAGE="-drive file=$IMAGE_FILE,cache=none,format=raw,id=disk1,if=none -device virtio-blk-pci,drive=disk1,bootindex=1"
-        PARAM_MACHINE="-machine q35 -global ICH9-LPC.disable_s3=1"
+        PARAM_MACHINE="-machine ubuntu-q35,accel=kvm -global ICH9-LPC.disable_s3=1 -global ICH9-LPC.disable_s4=1"
         PARAM_TPM="-chardev socket,id=chrtpm,path=/var/snap/swtpm-mvo/current/swtpm-sock -tpmdev emulator,id=tpm0,chardev=chrtpm -device tpm-tis,tpmdev=tpm0"
     else
         PARAM_BIOS=""
         PARAM_IMAGE="-drive file=$IMAGE_FILE,cache=none,format=raw"
-        PARAM_MACHINE=""
+        PARAM_MACHINE="-machine accel=kvm"
         PARAM_TPM=""
     fi
 
@@ -393,8 +392,7 @@ start_nested_core_vm(){
         ${PARAM_TPM} \
         ${PARAM_IMAGE} \
         ${PARAM_ASSERTIONS} \
-        ${PARAM_MONITOR} \
-        ${PARAM_EXTRA} "
+        ${PARAM_MONITOR} "
 
     # Wait until ssh is ready and configure ssh
     if wait_for_ssh; then
@@ -433,12 +431,32 @@ start_nested_classic_vm(){
     IMAGE=$(ls $WORK_DIR/image/*.img)
     QEMU=$(get_qemu_for_nested_vm)
 
-    systemd_create_and_start_unit "$NESTED_VM" "${QEMU} -m 2048 -nographic  \
-        -net nic,model=virtio -net user,hostfwd=tcp::$SSH_PORT-:22 \
-        -drive file=$IMAGE,if=virtio \
-        -drive file=$WORK_DIR/seed.img,if=virtio \
-        -monitor tcp:127.0.0.1:$MON_PORT,server,nowait -usb \
-        -snapshot -machine accel=kvm"
+    # Now qemu parameters are defined
+    PARAM_CPU="-smp 1"
+    PARAM_MEM="-m 4096"
+    PARAM_DISPLAY="-nographic"
+    PARAM_NETWORK="-net nic,model=virtio -net user,hostfwd=tcp::$SSH_PORT-:22"
+    PARAM_MONITOR="-monitor tcp:127.0.0.1:$MON_PORT,server,nowait -usb"
+    PARAM_SNAPSHOT="-snapshot"
+    PARAM_MACHINE="-machine accel=kvm"
+    PARAM_IMAGE="-drive file=$IMAGE,if=virtio"
+    PARAM_SEED="-drive file=$WORK_DIR/seed.img,if=virtio"
+    PARAM_TPM=""
+    if [ "$ENABLE_TPM" = "true" ]; then
+        PARAM_TPM="-chardev socket,id=chrtpm,path=/var/snap/swtpm-mvo/current/swtpm-sock -tpmdev emulator,id=tpm0,chardev=chrtpm -device tpm-tis,tpmdev=tpm0"
+    fi
+
+    systemd_create_and_start_unit "$NESTED_VM" "${QEMU}  \
+        ${PARAM_CPU} \
+        ${PARAM_MEM} \
+        ${PARAM_SNAPSHOT} \
+        ${PARAM_MACHINE} \
+        ${PARAM_DISPLAY} \
+        ${PARAM_NETWORK} \
+        ${PARAM_TPM} \
+        ${PARAM_IMAGE} \
+        ${PARAM_SEED} \
+        ${PARAM_MONITOR} "
     wait_for_ssh
 }
 

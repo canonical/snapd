@@ -858,7 +858,7 @@ suites:
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
-            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx libvirt-daemon bridge-utils virtinst libvirt-daemon-system
+            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx
             snap install ubuntu-image --classic
 
         restore: |
@@ -884,13 +884,15 @@ suites:
             NEW_CORE_CHANNEL: '$(HOST: echo "${SPREAD_NEW_CORE_CHANNEL:-edge}")'
             # Use cloud init to make initial system configuration instead of user assertion
             USE_CLOUD_INIT: '$(HOST: echo "${SPREAD_USE_CLOUD_INIT:-true}")'
+            # Use cloud init to make initial system configuration instead of user assertion
+            ENABLE_TPM: '$(HOST: echo "${SPREAD_ENABLE_TPM:-false}")'
         manual: true
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
-            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx libvirt-daemon bridge-utils virtinst libvirt-daemon-system
+            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx
             snap install ubuntu-image --classic
 
             #shellcheck source=tests/lib/nested.sh
@@ -932,7 +934,7 @@ suites:
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
-            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx libvirt-daemon bridge-utils virtinst libvirt-daemon-system
+            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx
             snap install ubuntu-image --classic
 
             #shellcheck source=tests/lib/nested.sh
