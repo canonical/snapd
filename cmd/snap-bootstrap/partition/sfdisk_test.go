@@ -510,7 +510,7 @@ func (s *partitionTestSuite) TestFilesystemInfo(c *C) {
 
 	info, err := partition.FilesystemInfo("/dev/node")
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
-		{"lsblk", "--fs", "--json", "/dev/node"},
+		{"lsblk", "--json", "-o", "NAME,FSTYPE,LABEL,UUID,MOUNTPOINT,PARTUUID", "/dev/node"},
 	})
 	c.Assert(err, IsNil)
 	c.Assert(len(info.BlockDevices), Equals, 1)

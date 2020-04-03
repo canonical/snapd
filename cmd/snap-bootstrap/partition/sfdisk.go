@@ -437,30 +437,3 @@ func partitionType(label, ptype string) string {
 	}
 	return t[0]
 }
-
-// lsblkFilesystemInfo represents the lsblk --fs JSON output format.
-type lsblkFilesystemInfo struct {
-	BlockDevices []lsblkBlockDevice `json:"blockdevices"`
-}
-
-type lsblkBlockDevice struct {
-	Name       string `json:"name"`
-	FSType     string `json:"fstype"`
-	Label      string `json:"label"`
-	UUID       string `json:"uuid"`
-	Mountpoint string `json:"mountpoint"`
-}
-
-func filesystemInfo(node string) (*lsblkFilesystemInfo, error) {
-	output, err := exec.Command("lsblk", "--fs", "--json", node).CombinedOutput()
-	if err != nil {
-		return nil, osutil.OutputErr(output, err)
-	}
-
-	var info lsblkFilesystemInfo
-	if err := json.Unmarshal(output, &info); err != nil {
-		return nil, fmt.Errorf("cannot parse lsblk output: %v", err)
-	}
-
-	return &info, nil
-}
