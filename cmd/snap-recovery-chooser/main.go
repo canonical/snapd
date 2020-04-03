@@ -51,6 +51,7 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 )
 
 var (
@@ -138,7 +139,7 @@ func cleanupTriggerMarker() error {
 }
 
 func chooser(cli *client.Client) (reboot bool, err error) {
-	snappyTesting := os.Getenv("SNAPPY_TESTING_USE_STDOUT") != ""
+	snappyTesting := osutil.GetenvBool("SNAPPY_TESTING_USE_STDOUT", false)
 
 	if _, err := os.Stat(defaultMarkerFile); err != nil && !snappyTesting {
 		if os.IsNotExist(err) {
