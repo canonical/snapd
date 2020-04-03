@@ -259,8 +259,9 @@ wait "$cat_stderr_pid"
 # without a process inhabiting it anymore. In the case we've observed there's a
 # session that is being closed with a missing process.
 for session_id in $(loginctl --no-legend | awk '{ print $1 }'); do
-	if [ "$(loginctl show-session "$session_id" --property=State --value)" = closing ]; then
-		leader=$(loginctl show-session "$session_id" --property=Leader --value)
+	# It would be easier to use "loginctl show-session --value" but we cannot rely on it.
+	if [ "$(loginctl show-session "$session_id" --property=State | cut -d = -f 2-)" = closing ]; then
+		leader=$(loginctl show-session "$session_id" --property=Leader | cut -d = -f 2-)
 		if [ ! -e "/proc/$leader" ]; then
 			loginctl kill-session "$session_id"
 		fi
