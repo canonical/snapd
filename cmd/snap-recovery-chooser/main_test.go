@@ -288,8 +288,8 @@ func (s *mockedClientCmdSuite) TestMainChooserToolNotFound(c *C) {
 }
 
 func (s *mockedClientCmdSuite) TestMainChooserStdout(c *C) {
-	os.Setenv("SNAPPY_TESTING_USE_STDOUT", "1")
-	defer os.Unsetenv("SNAPPY_TESTING_USE_STDOUT")
+	os.Setenv("SNAPD_CHOOSER_TESTING_DIRECT", "1")
+	defer os.Unsetenv("SNAPD_CHOOSER_TESTING_DIRECT")
 	mockCmd := testutil.MockCommand(c, "tool", `
 echo '{}'
 `)
@@ -521,7 +521,7 @@ func (s *mockedSyslogCmdSuite) TestNoSyslogFallback(c *C) {
 	err = main.LoggerWithSyslogMaybe()
 	c.Assert(err, IsNil)
 	c.Check(called, Equals, true)
-	// this likely goes to stder
+	// this likely goes to stderr
 	logger.Noticef("ping")
 }
 

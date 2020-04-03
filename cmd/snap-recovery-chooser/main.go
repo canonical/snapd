@@ -136,9 +136,9 @@ func cleanupTriggerMarker() error {
 }
 
 func chooser(cli *client.Client) (reboot bool, err error) {
-	snappyTesting := osutil.GetenvBool("SNAPPY_TESTING_USE_STDOUT", false)
+	testingMode := osutil.GetenvBool("SNAPD_CHOOSER_TESTING_DIRECT", false)
 
-	if _, err := os.Stat(defaultMarkerFile); err != nil && !snappyTesting {
+	if _, err := os.Stat(defaultMarkerFile); err != nil && !testingMode {
 		if os.IsNotExist(err) {
 			return false, fmt.Errorf("cannot run chooser without the marker file")
 		} else {
@@ -158,7 +158,7 @@ func chooser(cli *client.Client) (reboot bool, err error) {
 	}
 
 	// for local testing
-	if snappyTesting {
+	if testingMode {
 		if err := outputForUI(Stdout, systemsForUI); err != nil {
 			return false, fmt.Errorf("cannot serialize UI to stdout: %v", err)
 		}
