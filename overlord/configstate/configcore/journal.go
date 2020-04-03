@@ -76,7 +76,7 @@ func handleJournalConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error
 
 	if opts == nil {
 		sysd = systemd.New(dirs.GlobalRootDir, systemd.SystemMode, nil)
-		if err := sysd.Restart("systemd-journal", 10*time.Second); err != nil {
+		if err := sysd.Restart("systemd-journald", 10*time.Second); err != nil {
 			return err
 		}
 	}
