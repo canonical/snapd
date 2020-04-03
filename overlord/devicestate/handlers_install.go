@@ -77,7 +77,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 			// location to store the keyfile
 			"--key-file", filepath.Join(boot.InitramfsUbuntuBootDir, "ubuntu-data.keyfile.unsealed"),
 			// location to store the recovery keyfile
-			"--recovery-key-file", filepath.Join(boot.InitramfsUbuntuDataDir, "/system-data/recovery-key"),
+			"--recovery-key-file", filepath.Join(boot.InitramfsUbuntuDataDir, "/system-data/var/lib/snapd/device/fde/recovery-key"),
 		)
 	}
 	args = append(args, gadgetDir)
