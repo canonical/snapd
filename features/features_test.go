@@ -99,7 +99,7 @@ func (*featureSuite) TestIsEnabledWhenUnset(c *C) {
 	c.Check(features.PerUserMountNamespace.IsEnabledWhenUnset(), Equals, false)
 	c.Check(features.RefreshAppAwareness.IsEnabledWhenUnset(), Equals, false)
 	c.Check(features.ClassicPreservesXdgRuntimeDir.IsEnabledWhenUnset(), Equals, false)
-	c.Check(features.RobustMountNamespaceUpdates.IsEnabledWhenUnset(), Equals, false)
+	c.Check(features.RobustMountNamespaceUpdates.IsEnabledWhenUnset(), Equals, true)
 	c.Check(features.UserDaemons.IsEnabledWhenUnset(), Equals, false)
 }
 

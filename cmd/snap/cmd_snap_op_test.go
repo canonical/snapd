@@ -140,8 +140,6 @@ func (s *SnapOpSuite) TestWait(c *check.C) {
 func (s *SnapOpSuite) TestWaitRecovers(c *check.C) {
 	meter := &progresstest.Meter{}
 	defer progress.MockMeter(meter)()
-	restore := snap.MockMaxGoneTime(time.Millisecond)
-	defer restore()
 
 	nah := true
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
@@ -155,7 +153,7 @@ func (s *SnapOpSuite) TestWaitRecovers(c *check.C) {
 	cli := snap.Client()
 	chg, err := snap.Wait(cli, "x")
 	// we got the change
-	c.Assert(chg, check.NotNil)
+	c.Check(chg, check.NotNil)
 	c.Assert(err, check.IsNil)
 
 	// but only after recovering

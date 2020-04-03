@@ -673,7 +673,6 @@ func (m *DeviceManager) Ensure() error {
 	var errs []error
 
 	if err := m.ensureSeeded(); err != nil {
-		// XXX: avoid duplicated warnings?
 		m.state.Lock()
 		m.state.Warnf(seedFailureFmt, err)
 		m.state.Unlock()

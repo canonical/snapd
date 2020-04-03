@@ -293,7 +293,7 @@ func deviceLayoutFromPartitionTable(ptable sfdiskPartitionTable) (*DeviceLayout,
 		ID:             ptable.ID,
 		Device:         ptable.Device,
 		Schema:         ptable.Label,
-		Size:           gadget.Size(ptable.LastLBA) * sectorSize,
+		Size:           gadget.Size(ptable.LastLBA+1) * sectorSize,
 		SectorSize:     sectorSize,
 		partitionTable: &ptable,
 	}
@@ -324,6 +324,15 @@ func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume) (sfdiskInput
 		seen[p.Start] = true
 	}
 
+	// Check if the last partition has a system-data role
+	canExpandData := false
+	if n := len(pv.LaidOutStructure); n > 0 {
+		last := pv.LaidOutStructure[n-1]
+		if last.VolumeStructure.Role == gadget.SystemData {
+			canExpandData = true
+		}
+	}
+
 	// Write new partition data in named-fields format
 	buf := &bytes.Buffer{}
 	for _, p := range pv.LaidOutStructure {
@@ -346,12 +355,18 @@ func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume) (sfdiskInput
 			continue
 		}
 
+		// Check if the data partition should be expanded
+		size := s.Size
+		if s.Role == gadget.SystemData && canExpandData && p.StartOffset+s.Size < dl.Size {
+			size = dl.Size - p.StartOffset
+		}
+
 		// Can we use the index here? Get the largest existing partition number and
 		// build from there could be safer if the disk partitions are not consecutive
 		// (can this actually happen in our images?)
 		node := deviceName(ptable.Device, p.Index)
 		fmt.Fprintf(buf, "%s : start=%12d, size=%12d, type=%s, name=%q, attrs=\"GUID:%s\"\n", node,
-			p.StartOffset/sectorSize, s.Size/sectorSize, ptype, s.Name, createdPartitionAttr)
+			p.StartOffset/sectorSize, size/sectorSize, ptype, s.Name, createdPartitionAttr)
 
 		// Set expected labels based on role
 		switch s.Role {
