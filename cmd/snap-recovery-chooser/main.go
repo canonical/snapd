@@ -51,7 +51,6 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
 )
 
 var (
@@ -136,9 +135,7 @@ func cleanupTriggerMarker() error {
 }
 
 func chooser(cli *client.Client) (reboot bool, err error) {
-	testingMode := osutil.GetenvBool("SNAPD_CHOOSER_TESTING_DIRECT", false)
-
-	if _, err := os.Stat(defaultMarkerFile); err != nil && !testingMode {
+	if _, err := os.Stat(defaultMarkerFile); err != nil {
 		if os.IsNotExist(err) {
 			return false, fmt.Errorf("cannot run chooser without the marker file")
 		} else {
@@ -155,14 +152,6 @@ func chooser(cli *client.Client) (reboot bool, err error) {
 
 	systemsForUI := &ChooserSystems{
 		Systems: systems,
-	}
-
-	// for local testing
-	if testingMode {
-		if err := outputForUI(Stdout, systemsForUI); err != nil {
-			return false, fmt.Errorf("cannot serialize UI to stdout: %v", err)
-		}
-		return false, nil
 	}
 
 	uiTool, err := chooserTool()

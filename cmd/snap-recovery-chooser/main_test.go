@@ -237,9 +237,11 @@ func (s *mockedClientCmdSuite) TestMainChooserWithTool(c *C) {
 	// sanity
 	c.Assert(s.markerFile, testutil.FilePresent)
 
-	mockCmd := testutil.MockCommand(c, "tool", `
+	capturedStdinPath := filepath.Join(c.MkDir(), "stdin")
+	mockCmd := testutil.MockCommand(c, "tool", fmt.Sprintf(`
+cat - > %s
 echo '{"label":"label","action":{"mode":"install","title":"reinstall"}}'
-`)
+`, capturedStdinPath))
 	defer mockCmd.Restore()
 	r = main.MockChooserTool(func() (*exec.Cmd, error) {
 		return exec.Command(mockCmd.Exe()), nil
@@ -264,6 +266,13 @@ echo '{"label":"label","action":{"mode":"install","title":"reinstall"}}'
 		{"tool"},
 	})
 
+	capturedStdin, err := ioutil.ReadFile(capturedStdinPath)
+	c.Assert(err, IsNil)
+	var stdoutSystems main.ChooserSystems
+	err = json.Unmarshal(capturedStdin, &stdoutSystems)
+	c.Assert(err, IsNil)
+	c.Check(&stdoutSystems, DeepEquals, mockSystems)
+
 	c.Assert(s.markerFile, testutil.FileAbsent)
 }
 
@@ -285,32 +294,6 @@ func (s *mockedClientCmdSuite) TestMainChooserToolNotFound(c *C) {
 	c.Assert(rbt, Equals, false)
 
 	c.Assert(s.markerFile, testutil.FileAbsent)
-}
-
-func (s *mockedClientCmdSuite) TestMainChooserStdout(c *C) {
-	os.Setenv("SNAPD_CHOOSER_TESTING_DIRECT", "1")
-	defer os.Unsetenv("SNAPD_CHOOSER_TESTING_DIRECT")
-	mockCmd := testutil.MockCommand(c, "tool", `
-echo '{}'
-`)
-	defer mockCmd.Restore()
-	r := main.MockChooserTool(func() (*exec.Cmd, error) {
-		return exec.Command(mockCmd.Exe()), nil
-	})
-	defer r()
-
-	s.mockSuccessfulResponse(c, mockSystems, nil)
-
-	rbt, err := main.Chooser(client.New(&s.config))
-	c.Assert(err, IsNil)
-	c.Assert(rbt, Equals, false)
-
-	c.Assert(mockCmd.Calls(), HasLen, 0)
-
-	var stdoutSystems main.ChooserSystems
-	err = json.Unmarshal(s.stdout.Bytes(), &stdoutSystems)
-	c.Assert(err, IsNil)
-	c.Check(&stdoutSystems, DeepEquals, mockSystems)
 }
 
 func (s *mockedClientCmdSuite) TestMainChooserBadAPI(c *C) {
