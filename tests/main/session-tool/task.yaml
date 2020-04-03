@@ -5,6 +5,8 @@ environment:
     USER/root: root
     USER/test: test
 prepare: |
+    # Kill sessions that systemd has leaked earlier.
+    session-tool --kill-leaked
     # Check which sessions we have before running the test
     loginctl list-sessions > before.txt
     # Prepare for using sessions as the given user
@@ -28,6 +30,9 @@ execute: |
 restore: |
     # Restore after using sessions as the given user
     session-tool --restore -u "$USER"
+
+    # Kill sessions that systemd has leaked over time.
+    session-tool --kill-leaked
 
     # NOTE: This part of the test is very flaky if you restart systemd-logind
     # It *seems* that all new systems (Debian Sid, Arch, Tumbleweed and Ubuntu 20.04)
