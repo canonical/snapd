@@ -136,14 +136,14 @@ func cleanupTriggerMarker() error {
 	return err
 }
 
-func chooser(cli *client.Client) error {
+func chooser(cli *client.Client) (reboot bool, err error) {
 	snappyTesting := os.Getenv("SNAPPY_TESTING_USE_STDOUT") != ""
 
 	if _, err := os.Stat(defaultMarkerFile); err != nil && !snappyTesting {
 		if os.IsNotExist(err) {
-			return fmt.Errorf("cannot run chooser without the marker file")
+			return false, fmt.Errorf("cannot run chooser without the marker file")
 		} else {
-			return fmt.Errorf("cannot check the marker file: %v", err)
+			return false, fmt.Errorf("cannot check the marker file: %v", err)
 		}
 	}
 	// consume the trigger file
@@ -151,7 +151,7 @@ func chooser(cli *client.Client) error {
 
 	systems, err := cli.ListSystems()
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	systemsForUI := &ChooserSystems{
@@ -161,27 +161,30 @@ func chooser(cli *client.Client) error {
 	// for local testing
 	if snappyTesting {
 		if err := outputForUI(Stdout, systemsForUI); err != nil {
-			return fmt.Errorf("cannot serialize UI to stdout: %v", err)
+			return false, fmt.Errorf("cannot serialize UI to stdout: %v", err)
 		}
-		return nil
+		return false, nil
 	}
 
 	uiTool, err := chooserTool()
 	if err != nil {
-		return fmt.Errorf("cannot locate the chooser UI tool: %v", err)
+		return false, fmt.Errorf("cannot locate the chooser UI tool: %v", err)
 	}
 
 	response, err := runUI(uiTool, systemsForUI)
 	if err != nil {
-		return fmt.Errorf("UI process failed: %v", err)
+		return false, fmt.Errorf("UI process failed: %v", err)
 	}
 
 	logger.Noticef("got response: %+v", response)
 
 	if err := cli.DoSystemAction(response.Label, &response.Action); err != nil {
-		return fmt.Errorf("cannot request system action: %v", err)
+		return false, fmt.Errorf("cannot request system action: %v", err)
 	}
-	return nil
+	if maintErr, ok := cli.Maintenance().(*client.Error); ok && maintErr.Kind == client.ErrorKindSystemRestart {
+		reboot = true
+	}
+	return reboot, nil
 }
 
 func main() {
@@ -190,9 +193,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := chooser(client.New(nil)); err != nil {
+	reboot, err := chooser(client.New(nil))
+	if err != nil {
 		logger.Noticef("cannot run recovery chooser: %v", err)
 		fmt.Fprintf(Stderr, "%v\n", err)
 		os.Exit(1)
+	}
+	if reboot {
+		fmt.Fprintf(Stderr, "The system is rebooting...\n")
 	}
 }
