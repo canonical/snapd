@@ -134,8 +134,11 @@ func cryptsetupFormat(key EncryptionKey, label, node string) error {
 		"--type", "luks2",
 		// read key from stdin
 		"--key-file", "-",
-		// use --iter-time 1 with the default KDF argon2i so to do virtually no derivation, here key is a random key
-		// with good entropy, not a passphrase, so spending time deriving from is not necessary or makes sense
+		// use --iter-time 1 with the default KDF argon2i so
+		// to do virtually no derivation, here key is a random
+		// key with good entropy, not a passphrase, so
+		// spending time deriving from it is not necessary or
+		// makes sense
 		"--pbkdf", "argon2i", "--iter-time", "1",
 		// set LUKS2 label
 		"--label", label,
