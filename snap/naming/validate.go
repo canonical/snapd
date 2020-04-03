@@ -204,10 +204,10 @@ func ValidateSecurityTag(tag string) error {
 		if snapLiteral != "snap" {
 			return errInvalidSecurityTag
 		}
-		if err := ValidateInstance(snapName); err != nil {
+		if hookLiteral != "hook" {
 			return errInvalidSecurityTag
 		}
-		if hookLiteral != "hook" {
+		if err := ValidateInstance(snapName); err != nil {
 			return errInvalidSecurityTag
 		}
 		if err := ValidateHook(hookName); err != nil {
