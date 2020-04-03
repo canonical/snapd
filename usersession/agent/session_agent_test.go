@@ -135,7 +135,7 @@ func (s *sessionAgentSuite) TestExitOnIdle(c *C) {
 		c.Fatal("agent did not exit after idle timeout expired")
 	}
 	elapsed := time.Since(startTime)
-	if elapsed < 175*time.Millisecond || elapsed > 250*time.Millisecond {
+	if elapsed < 175*time.Millisecond || elapsed > 450*time.Millisecond {
 		// The idle timeout should have been extended when we
 		// issued a second request after 25ms.
 		c.Errorf("Expected ellaped time close to 175 ms, but got %v", elapsed)

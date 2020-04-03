@@ -101,14 +101,15 @@ func (s *encryptSuite) TestEncryptOpenError(c *C) {
 }
 
 func (s *encryptSuite) TestEncryptAddKey(c *C) {
-	s.mockCryptsetup = testutil.MockCommand(c, "cryptsetup", fmt.Sprintf(`[ "$1" == "luksAddKey" ] && cat %s/tmp-rkey || exit 0`, dirs.SnapRunDir))
+	capturedFifo := filepath.Join(c.MkDir(), "captured-stdin")
+	s.mockCryptsetup = testutil.MockCommand(c, "cryptsetup", fmt.Sprintf(`[ "$1" == "luksAddKey" ] && cat %s/tmp-rkey > %s || exit 0`, dirs.SnapRunDir, capturedFifo))
 	s.AddCleanup(s.mockCryptsetup.Restore)
 
 	key := partition.EncryptionKey{}
 	dev, err := partition.NewEncryptedDevice(&mockDeviceStructure, key, "some-label")
 	c.Assert(err, IsNil)
 
-	rkey := partition.RecoveryKey{}
+	rkey := partition.RecoveryKey{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
 	err = dev.AddRecoveryKey(key, rkey)
 	c.Assert(err, IsNil)
 
@@ -125,6 +126,7 @@ func (s *encryptSuite) TestEncryptAddKey(c *C) {
 			"--key-slot", "1", filepath.Join(dirs.SnapRunDir, "tmp-rkey"),
 		},
 	})
+	c.Assert(capturedFifo, testutil.FileEquals, rkey[:])
 
 	err = dev.Close()
 	c.Assert(err, IsNil)
@@ -134,6 +136,9 @@ func (s *encryptSuite) TestRecoveryKeyStore(c *C) {
 	rkey := partition.RecoveryKey{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 255}
 	err := rkey.Store("test-key")
 	c.Assert(err, IsNil)
+	fileInfo, err := os.Stat("test-key")
+	c.Assert(err, IsNil)
+	c.Assert(fileInfo.Mode(), Equals, os.FileMode(0600))
 	data, err := ioutil.ReadFile("test-key")
 	c.Assert(err, IsNil)
 	c.Assert(data, DeepEquals, rkey[:])

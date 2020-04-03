@@ -76,7 +76,7 @@ func run() error {
 	if osGetuid() != 0 {
 		return fmt.Errorf("must be run as root")
 	}
-	snapdenv.SetUserAgentFromVersion(cmd.Version, "snap-repair")
+	snapdenv.SetUserAgentFromVersion(cmd.Version, nil, "snap-repair")
 
 	if err := parseArgs(os.Args[1:]); err != nil {
 		return err

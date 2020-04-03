@@ -233,6 +233,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 			{
 				"snap-bootstrap", "create-partitions", "--mount", "--encrypt",
 				"--key-file", filepath.Join(boot.InitramfsUbuntuBootDir, "ubuntu-data.keyfile.sealed"),
+				"--recovery-key-file", filepath.Join(boot.InitramfsUbuntuDataDir, "/system-data/var/lib/snapd/device/fde/recovery-key"),
 				"--recovery-key-file", filepath.Join(systemDataDir, "recovery-key"),
 				"--lockout-auth-file", filepath.Join(systemDataDir, "lockout-auth"),
 				"--auth-update-file", filepath.Join(systemDataDir, "auth-update"),

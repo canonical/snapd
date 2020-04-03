@@ -65,8 +65,8 @@ func deviceFromRole(lv *gadget.LaidOutVolume, role string) (device string, err e
 }
 
 func Run(gadgetRoot, device string, options Options) error {
-	if options.Encrypt && options.KeyFile == "" {
-		return fmt.Errorf("key file must be specified when encrypting")
+	if options.Encrypt && (options.KeyFile == "" || options.RecoveryKeyFile == "") {
+		return fmt.Errorf("key file and recovery key file must be specified when encrypting")
 	}
 
 	if gadgetRoot == "" {
@@ -114,19 +114,15 @@ func Run(gadgetRoot, device string, options Options) error {
 	var key partition.EncryptionKey
 	var rkey partition.RecoveryKey
 
-	useRecoveryKey := options.RecoveryKeyFile != ""
-
 	if options.Encrypt {
 		key, err = partition.NewEncryptionKey()
 		if err != nil {
 			return fmt.Errorf("cannot create encryption key: %v", err)
 		}
 
-		if useRecoveryKey {
-			rkey, err = partition.NewRecoveryKey()
-			if err != nil {
-				return fmt.Errorf("cannot create recovery key: %v", err)
-			}
+		rkey, err = partition.NewRecoveryKey()
+		if err != nil {
+			return fmt.Errorf("cannot create recovery key: %v", err)
 		}
 	}
 
@@ -136,11 +132,11 @@ func Run(gadgetRoot, device string, options Options) error {
 			if err != nil {
 				return err
 			}
-			if useRecoveryKey {
-				if err := dataPart.AddRecoveryKey(key, rkey); err != nil {
-					return err
-				}
+
+			if err := dataPart.AddRecoveryKey(key, rkey); err != nil {
+				return err
 			}
+
 			// update the encrypted device node
 			part.Node = dataPart.Node
 		}
@@ -163,10 +159,8 @@ func Run(gadgetRoot, device string, options Options) error {
 	// store the encryption key as the last part of the process to reduce the
 	// possiblity of exiting with an error after the TPM provisioning
 	if options.Encrypt {
-		if useRecoveryKey {
-			if err := rkey.Store(options.RecoveryKeyFile); err != nil {
-				return fmt.Errorf("cannot store recovery key: %v", err)
-			}
+		if err := rkey.Store(options.RecoveryKeyFile); err != nil {
+			return fmt.Errorf("cannot store recovery key: %v", err)
 		}
 
 		tpm, err := NewTPMSupport()

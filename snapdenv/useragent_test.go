@@ -42,13 +42,26 @@ func (s *UASuite) TearDownTest(c *C) {
 }
 
 func (s *UASuite) TestUserAgent(c *C) {
-	snapdenv.SetUserAgentFromVersion("10")
+	snapdenv.SetUserAgentFromVersion("10", nil)
 	ua := snapdenv.UserAgent()
 	c.Check(strings.HasPrefix(ua, "snapd/10 "), Equals, true)
 
-	snapdenv.SetUserAgentFromVersion("10", "extraProd")
+	snapdenv.SetUserAgentFromVersion("10", nil, "extraProd")
 	ua = snapdenv.UserAgent()
 	c.Check(strings.Contains(ua, "extraProd"), Equals, true)
+	c.Check(strings.Contains(ua, "devmode"), Equals, false)
+
+	devmode := false
+	probeForceDevMode := func() bool { return devmode }
+
+	snapdenv.SetUserAgentFromVersion("10", probeForceDevMode, "extraProd")
+	ua = snapdenv.UserAgent()
+	c.Check(strings.Contains(ua, "devmode"), Equals, false)
+
+	devmode = true
+	snapdenv.SetUserAgentFromVersion("10", probeForceDevMode, "extraProd")
+	ua = snapdenv.UserAgent()
+	c.Check(strings.Contains(ua, "devmode"), Equals, true)
 }
 
 func (s *UASuite) TestStripUnsafeRunes(c *C) {

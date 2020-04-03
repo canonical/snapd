@@ -38,6 +38,8 @@ var (
 )
 
 const (
+	// The encryption key size is set so it has the same entropy as the derived
+	// key. The recovery key is shorter and goes through KDF iterations.
 	encryptionKeySize = 32
 	recoveryKeySize   = 16
 )
@@ -130,7 +132,11 @@ func cryptsetupFormat(key EncryptionKey, label, node string) error {
 		"--type", "luks2",
 		// read key from stdin
 		"--key-file", "-",
-		// use Argon2i for PBKDF
+		// use --iter-time 1 with the default KDF argon2i so
+		// to do virtually no derivation, here key is a random
+		// key with good entropy, not a passphrase, so
+		// spending time deriving from it is not necessary or
+		// makes sense
 		"--pbkdf", "argon2i", "--iter-time", "1",
 		// set LUKS2 label
 		"--label", label,

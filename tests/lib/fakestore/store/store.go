@@ -71,7 +71,7 @@ func NewStore(topDir, addr string, assertFallback bool) *Store {
 	mux := http.NewServeMux()
 	var sto *store.Store
 	if assertFallback {
-		snapdenv.SetUserAgentFromVersion("unknown", "fakestore")
+		snapdenv.SetUserAgentFromVersion("unknown", nil, "fakestore")
 		sto = store.New(nil, nil)
 	}
 	store := &Store{
