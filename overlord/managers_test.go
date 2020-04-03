@@ -2084,6 +2084,7 @@ type: kernel`
 
 	// the current try kernel in the bootloader is our new kernel
 	currentTryKernel, err := bloader.TryKernel()
+	c.Assert(err, IsNil)
 	c.Assert(currentTryKernel.Filename(), Equals, kernelSnapInfo.Filename())
 
 	// check that we extracted the kernel snap assets
@@ -2254,6 +2255,7 @@ type: kernel`
 
 	// the current try kernel in the bootloader is our new kernel
 	currentTryKernel, err := bloader.TryKernel()
+	c.Assert(err, IsNil)
 	c.Assert(currentTryKernel.Filename(), Equals, kernelSnapInfo.Filename())
 
 	// we are in restarting state and the change is not done yet
