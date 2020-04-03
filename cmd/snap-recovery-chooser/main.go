@@ -74,8 +74,6 @@ func consoleConfWrapperUITool() (*exec.Cmd, error) {
 		}
 		return nil, fmt.Errorf("cannot stat UI tool binary: %v", err)
 	}
-	// TODO:UC20 update once upstream console-conf has the right command
-	// line switches
 	return exec.Command(tool, "--recovery-chooser-mode"), nil
 }
 
