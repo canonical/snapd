@@ -274,12 +274,14 @@ static sc_cgroup_fds sc_udev_open_cgroup_v1(const char *security_tag)
 	 * creating the directory if necessary. Note that we always chown the
 	 * resulting directory to root:root. */
 	const char *security_tag_relpath = security_tag;
+	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
 	if (mkdirat(devices_fd, security_tag_relpath, 0755) < 0) {
 		if (errno != EEXIST) {
 			die("cannot create directory %s/%s/%s", cgroup_path,
 			    devices_relpath, security_tag_relpath);
 		}
 	}
+	(void)sc_set_effective_identity(old);
 
 	int SC_CLEANUP(sc_cleanup_close) security_tag_fd = -1;
 	security_tag_fd = openat(devices_fd, security_tag_relpath,
