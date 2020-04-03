@@ -69,7 +69,7 @@ func handleJournalConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error
 		return err
 	}
 	confFile := filepath.Join(confDir, "00-snap-core.conf")
-	content := fmt.Sprintf("Storage=%s\n", storage)
+	content := fmt.Sprintf("[Journal]\nStorage=%s\n", storage)
 	if err := osutil.AtomicWriteFile(confFile, []byte(content), 0644, 0); err != nil {
 		return err
 	}

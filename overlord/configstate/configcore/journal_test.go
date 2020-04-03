@@ -67,7 +67,7 @@ func (s *journalSuite) TestConfigurePersistentJournalOnCore(c *C) {
 	c.Assert(err, IsNil)
 
 	path := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/journald.conf.d/00-snap-core.conf")
-	c.Check(path, testutil.FileEquals, "Storage=persistent\n")
+	c.Check(path, testutil.FileEquals, "[Journal]\nStorage=persistent\n")
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
 		{"stop", "systemd-journald"},
 		{"show", "--property=ActiveState", "systemd-journald"},
@@ -86,7 +86,7 @@ func (s *journalSuite) TestDisablePersistentJournalOnCore(c *C) {
 	c.Assert(err, IsNil)
 
 	path := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/journald.conf.d/00-snap-core.conf")
-	c.Check(path, testutil.FileEquals, "Storage=auto\n")
+	c.Check(path, testutil.FileEquals, "[Journal]\nStorage=auto\n")
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
 		{"stop", "systemd-journald"},
 		{"show", "--property=ActiveState", "systemd-journald"},
@@ -105,5 +105,5 @@ func (s *journalSuite) TestFilesystemOnlyApply(c *C) {
 	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf), IsNil)
 
 	path := filepath.Join(tmpDir, "/etc/systemd/journald.conf.d/00-snap-core.conf")
-	c.Check(path, testutil.FileEquals, "Storage=persistent\n")
+	c.Check(path, testutil.FileEquals, "[Journal]\nStorage=persistent\n")
 }
