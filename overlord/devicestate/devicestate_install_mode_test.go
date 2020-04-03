@@ -228,11 +228,11 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 
 	// in the right way
 	if tc.encrypt {
-		systemDataDir := filepath.Join(dirs.RunMnt, "ubuntu-data", "system-data")
+		systemDataDir := boot.InitramfsWritableDir
 		c.Assert(mockSnapBootstrapCmd.Calls(), DeepEquals, [][]string{
 			{
 				"snap-bootstrap", "create-partitions", "--mount", "--encrypt",
-				"--key-file", filepath.Join(dirs.RunMnt, "ubuntu-boot/ubuntu-data.keyfile.sealed"),
+				"--key-file", filepath.Join(boot.InitramfsUbuntuBootDir, "ubuntu-data.keyfile.sealed"),
 				"--recovery-key-file", filepath.Join(systemDataDir, "recovery-key"),
 				"--lockout-auth-file", filepath.Join(systemDataDir, "lockout-auth"),
 				"--auth-update-file", filepath.Join(systemDataDir, "auth-update"),

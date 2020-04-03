@@ -386,7 +386,7 @@ func unlockIfEncrypted(name string) (string, error) {
 		//            we expect (and not e.g. an external disk), and also that
 		//            <name> is from <name>-enc and not an unencrypted partition
 		//            with the same name (LP #1863886)
-		sealedKeyPath := filepath.Join(dirs.RunMnt, "ubuntu-boot", name+".keyfile.sealed")
+		sealedKeyPath := filepath.Join(boot.InitramfsUbuntuBootDir, name+".keyfile.sealed")
 		if err := unlockEncryptedPartition(name, encdev, sealedKeyPath, "", ""); err != nil {
 			return device, fmt.Errorf("cannot unlock %s: %v", name, err)
 		}

@@ -79,8 +79,9 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 	if useEncryption {
-		ubuntuBootDir := filepath.Join(dirs.RunMnt, "ubuntu-boot")
-		ubuntuDataDir := filepath.Join(dirs.RunMnt, "ubuntu-data", "system-data")
+		// XXX: we're in the target system, not in initramfs
+		ubuntuBootDir := boot.InitramfsUbuntuBootDir
+		systemDataDir := boot.InitramfsWritableDir
 
 		args = append(args,
 			// enable data encryption
@@ -88,11 +89,11 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 			// location to store the keyfile
 			"--key-file", filepath.Join(ubuntuBootDir, "ubuntu-data.keyfile.sealed"),
 			// location to store the recovery keyfile
-			"--recovery-key-file", filepath.Join(ubuntuDataDir, "recovery-key"),
+			"--recovery-key-file", filepath.Join(systemDataDir, "recovery-key"),
 			// location to store the lockout authorization data
-			"--lockout-auth-file", filepath.Join(ubuntuDataDir, "lockout-auth"),
+			"--lockout-auth-file", filepath.Join(systemDataDir, "lockout-auth"),
 			// location to store the authorization policy update data
-			"--auth-update-file", filepath.Join(ubuntuDataDir, "auth-update"),
+			"--auth-update-file", filepath.Join(systemDataDir, "auth-update"),
 			// path to the kernel to install
 			"--kernel", filepath.Join(kernelDir, "kernel.efi"),
 		)

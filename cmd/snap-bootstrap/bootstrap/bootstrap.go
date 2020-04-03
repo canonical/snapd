@@ -180,9 +180,11 @@ func Run(gadgetRoot, device string, options Options) error {
 			}
 		}
 
-		ubuntuBootPath := filepath.Join(dirs.RunMnt, "ubuntu-boot")
-		shim := filepath.Join(ubuntuBootPath, "/EFI/boot/bootx64.efi")
-		grub := filepath.Join(ubuntuBootPath, "/EFI/boot/grubx64.efi")
+		// XXX: we're in the target system, not in initramfs
+		ubuntuBootDir := boot.InitramfsUbuntuBootDir
+
+		shim := filepath.Join(ubuntuBootDir, "/EFI/boot/bootx64.efi")
+		grub := filepath.Join(ubuntuBootDir, "/EFI/boot/grubx64.efi")
 
 		if err := tpm.SetShimFiles(shim); err != nil {
 			return err
