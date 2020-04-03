@@ -1,0 +1,23 @@
+summary: Test journal.persistent core config option
+
+systems: [ubuntu-core-*]
+
+environment:
+    JOURNALCONF: /etc/systemd/journald.conf.d/00-snap-core.conf
+
+execute: |
+    echo "Sanity check, persistent journal is not available by default"
+    not test -e /var/log/journal
+
+    echo "Check that persistent journal can be enabled"
+    snap set core journal.persistent=true
+    MATCH "Storage=persistent" < "$JOURNALCONF"
+
+    MACHINE_ID=$(cat /etc/machine-id)
+    retry-tool -n30 --wait 5 test -e "/var/log/journal/$MACHINE_ID"
+
+    echo "Check that persistent journal can be disabled"
+    snap set core journal.persistent=false
+    MATCH "Storage=auto" < "$JOURNALCONF"
+
+    # XXX: find a nice way to check if /var/log/journal is not updated anymore
