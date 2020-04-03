@@ -106,4 +106,5 @@ func (s *journalSuite) TestFilesystemOnlyApply(c *C) {
 
 	path := filepath.Join(tmpDir, "/etc/systemd/journald.conf.d/00-snap-core.conf")
 	c.Check(path, testutil.FileEquals, "[Journal]\nStorage=persistent\n")
+	c.Check(s.systemctlArgs, HasLen, 0)
 }
