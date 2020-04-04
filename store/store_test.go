@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2018 Canonical Ltd
+ * Copyright (C) 2014-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -410,24 +410,12 @@ func (s *baseStoreSuite) SetUpTest(c *C) {
 
 type storeTestSuite struct {
 	baseStoreSuite
-
-	store *store.Store
-
-	localUser *auth.UserState
 }
 
 var _ = Suite(&storeTestSuite{})
 
 func (s *storeTestSuite) SetUpTest(c *C) {
 	s.baseStoreSuite.SetUpTest(c)
-
-	s.store = store.New(nil, nil)
-
-	s.localUser = &auth.UserState{
-		ID:       11,
-		Username: "test-user",
-		Macaroon: "snapd-macaroon",
-	}
 }
 
 func expectedAuthorization(c *C, user *auth.UserState) string {
@@ -497,13 +485,19 @@ func (s *storeTestSuite) TestDoRequestDoesNotSetAuthForLocalOnlyUser(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	dauthCtx := &testDauthContext{c: c, device: s.device, user: s.localUser}
+	localUser := &auth.UserState{
+		ID:       11,
+		Username: "test-user",
+		Macaroon: "snapd-macaroon",
+	}
+
+	dauthCtx := &testDauthContext{c: c, device: s.device, user: localUser}
 	sto := store.New(&store.Config{}, dauthCtx)
 
 	endpoint, _ := url.Parse(mockServer.URL)
 	reqOptions := store.NewRequestOptions("GET", endpoint)
 
-	response, err := sto.DoRequest(s.ctx, sto.Client(), reqOptions, s.localUser)
+	response, err := sto.DoRequest(s.ctx, sto.Client(), reqOptions, localUser)
 	defer response.Body.Close()
 	c.Assert(err, IsNil)
 
@@ -968,7 +962,8 @@ func (s *storeTestSuite) TestLoginUser(c *C) {
 	defer mockSSOServer.Close()
 	store.UbuntuoneDischargeAPI = mockSSOServer.URL + "/tokens/discharge"
 
-	userMacaroon, userDischarge, err := s.store.LoginUser("username", "password", "otp")
+	sto := store.New(nil, nil)
+	userMacaroon, userDischarge, err := sto.LoginUser("username", "password", "otp")
 
 	c.Assert(err, IsNil)
 	c.Check(userMacaroon, Equals, serializedMacaroon)
@@ -984,7 +979,8 @@ func (s *storeTestSuite) TestLoginUserDeveloperAPIError(c *C) {
 	defer mockServer.Close()
 	store.MacaroonACLAPI = mockServer.URL + "/acl/"
 
-	userMacaroon, userDischarge, err := s.store.LoginUser("username", "password", "otp")
+	sto := store.New(nil, nil)
+	userMacaroon, userDischarge, err := sto.LoginUser("username", "password", "otp")
 
 	c.Assert(err, ErrorMatches, "cannot get snap access permission from store: .*")
 	c.Check(userMacaroon, Equals, "")
@@ -1013,7 +1009,8 @@ func (s *storeTestSuite) TestLoginUserSSOError(c *C) {
 	defer mockSSOServer.Close()
 	store.UbuntuoneDischargeAPI = mockSSOServer.URL + "/tokens/discharge"
 
-	userMacaroon, userDischarge, err := s.store.LoginUser("username", "password", "otp")
+	sto := store.New(nil, nil)
+	userMacaroon, userDischarge, err := sto.LoginUser("username", "password", "otp")
 
 	c.Assert(err, ErrorMatches, "cannot authenticate to snap store: .*")
 	c.Check(userMacaroon, Equals, "")
