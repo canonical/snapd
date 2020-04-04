@@ -1,0 +1,3016 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2014-2020 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
+package store_test
+
+import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"io/ioutil"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"os"
+	"strings"
+	"time"
+
+	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/channel"
+	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/testutil"
+)
+
+type storeActionSuite struct {
+	baseStoreSuite
+}
+
+var _ = Suite(&storeActionSuite{})
+
+var (
+	helloRefreshedDateStr = "2018-02-27T11:00:00Z"
+	helloRefreshedDate    time.Time
+)
+
+func init() {
+	t, err := time.Parse(time.RFC3339, helloRefreshedDateStr)
+	if err != nil {
+		panic(err)
+	}
+	helloRefreshedDate = t
+}
+
+const helloCohortKey = "this is a very short cohort key, as cohort keys go, because those are *long*"
+
+func (s *storeActionSuite) TestSnapAction(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "POST", snapActionPath)
+		// check device authorization is set, implicitly checking doRequest was used
+		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		c.Check(r.Header.Get("Snap-Refresh-Managed"), Equals, "")
+		c.Check(r.Header.Get("Snap-Refresh-Reason"), Equals, "")
+
+		// no store ID by default
+		storeID := r.Header.Get("Snap-Device-Store")
+		c.Check(storeID, Equals, "")
+
+		c.Check(r.Header.Get("Snap-Device-Series"), Equals, release.Series)
+		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, arch.DpkgArchitecture())
+		c.Check(r.Header.Get("Snap-Classic"), Equals, "false")
+
+		jsonReq, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		var req struct {
+			Context []map[string]interface{} `json:"context"`
+			Fields  []string                 `json:"fields"`
+			Actions []map[string]interface{} `json:"actions"`
+		}
+
+		err = json.Unmarshal(jsonReq, &req)
+		c.Assert(err, IsNil)
+
+		c.Check(req.Fields, DeepEquals, store.SnapActionFields)
+
+		c.Assert(req.Context, HasLen, 1)
+		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+			"snap-id":          helloWorldSnapID,
+			"instance-key":     helloWorldSnapID,
+			"revision":         float64(1),
+			"tracking-channel": "beta",
+			"refreshed-date":   helloRefreshedDateStr,
+			"epoch":            iZeroEpoch,
+		})
+		c.Assert(req.Actions, HasLen, 1)
+		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+			"action":       "refresh",
+			"instance-key": helloWorldSnapID,
+			"snap-id":      helloWorldSnapID,
+			"cohort-key":   helloCohortKey,
+		})
+
+		io.WriteString(w, `{
+  "results": [{
+     "result": "refresh",
+     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "name": "hello-world",
+     "snap": {
+       "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+       "name": "hello-world",
+       "revision": 26,
+       "version": "6.1",
+       "epoch": {"read": [0], "write": [0]},
+       "publisher": {
+          "id": "canonical",
+          "username": "canonical",
+          "display-name": "Canonical"
+       }
+     }
+  }]
+}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	results, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+		{
+			InstanceName:    "hello-world",
+			SnapID:          helloWorldSnapID,
+			TrackingChannel: "beta",
+			Revision:        snap.R(1),
+			RefreshedDate:   helloRefreshedDate,
+		},
+	}, []*store.SnapAction{
+		{
+			Action:       "refresh",
+			SnapID:       helloWorldSnapID,
+			InstanceName: "hello-world",
+			CohortKey:    helloCohortKey,
+		},
+	}, nil, nil)
+	c.Assert(err, IsNil)
+	c.Assert(results, HasLen, 1)
+	c.Assert(results[0].InstanceName(), Equals, "hello-world")
+	c.Assert(results[0].Revision, Equals, snap.R(26))
+	c.Assert(results[0].Version, Equals, "6.1")
+	c.Assert(results[0].SnapID, Equals, helloWorldSnapID)
+	c.Assert(results[0].Publisher.ID, Equals, helloWorldDeveloperID)
+	c.Assert(results[0].Deltas, HasLen, 0)
+	c.Assert(results[0].Epoch, DeepEquals, snap.E("0"))
+}
+
+func (s *storeActionSuite) TestSnapActionNonZeroEpochAndEpochBump(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	numReqs := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		numReqs++
+		assertRequest(c, r, "POST", snapActionPath)
+		// check device authorization is set, implicitly checking doRequest was used
+		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		c.Check(r.Header.Get("Snap-Refresh-Managed"), Equals, "")
+
+		// no store ID by default
+		storeID := r.Header.Get("Snap-Device-Store")
+		c.Check(storeID, Equals, "")
+
+		c.Check(r.Header.Get("Snap-Device-Series"), Equals, release.Series)
+		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, arch.DpkgArchitecture())
+		c.Check(r.Header.Get("Snap-Classic"), Equals, "false")
+
+		jsonReq, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		var req struct {
+			Context []map[string]interface{} `json:"context"`
+			Fields  []string                 `json:"fields"`
+			Actions []map[string]interface{} `json:"actions"`
+		}
+
+		err = json.Unmarshal(jsonReq, &req)
+		c.Assert(err, IsNil)
+
+		c.Check(req.Fields, DeepEquals, store.SnapActionFields)
+
+		c.Assert(req.Context, HasLen, 1)
+		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+			"snap-id":          helloWorldSnapID,
+			"instance-key":     helloWorldSnapID,
+			"revision":         float64(1),
+			"tracking-channel": "beta",
+			"refreshed-date":   helloRefreshedDateStr,
+			"epoch":            iFiveStarEpoch,
+		})
+		c.Assert(req.Actions, HasLen, 1)
+		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+			"action":       "refresh",
+			"instance-key": helloWorldSnapID,
+			"snap-id":      helloWorldSnapID,
+		})
+
+		io.WriteString(w, `{
+  "results": [{
+     "result": "refresh",
+     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "name": "hello-world",
+     "snap": {
+       "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+       "name": "hello-world",
+       "revision": 26,
+       "version": "6.1",
+       "epoch": {"read": [5, 6], "write": [6]},
+       "publisher": {
+          "id": "canonical",
+          "username": "canonical",
+          "display-name": "Canonical"
+       }
+     }
+  }]
+}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	results, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+		{
+			InstanceName:    "hello-world",
+			SnapID:          helloWorldSnapID,
+			TrackingChannel: "beta",
+			Revision:        snap.R(1),
+			RefreshedDate:   helloRefreshedDate,
+			Epoch:           snap.E("5*"),
+		},
+	}, []*store.SnapAction{
+		{
+			Action:       "refresh",
+			SnapID:       helloWorldSnapID,
+			InstanceName: "hello-world",
+		},
+	}, nil, nil)
+	c.Assert(err, IsNil)
+	c.Assert(results, HasLen, 1)
+	c.Assert(results[0].InstanceName(), Equals, "hello-world")
+	c.Assert(results[0].Revision, Equals, snap.R(26))
+	c.Assert(results[0].Version, Equals, "6.1")
+	c.Assert(results[0].SnapID, Equals, helloWorldSnapID)
+	c.Assert(results[0].Publisher.ID, Equals, helloWorldDeveloperID)
+	c.Assert(results[0].Deltas, HasLen, 0)
+	c.Assert(results[0].Epoch, DeepEquals, snap.E("6*"))
+
+	c.Assert(numReqs, Equals, 1) // should be >1 soon :-)
+}
+
+func (s *storeActionSuite) TestSnapActionNoResults(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "POST", snapActionPath)
+		// check device authorization is set, implicitly checking doRequest was used
+		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		jsonReq, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		var req struct {
+			Context []map[string]interface{} `json:"context"`
+			Actions []map[string]interface{} `json:"actions"`
+		}
+
+		err = json.Unmarshal(jsonReq, &req)
+		c.Assert(err, IsNil)
+
+		c.Assert(req.Context, HasLen, 1)
+		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+			"snap-id":          helloWorldSnapID,
+			"instance-key":     helloWorldSnapID,
+			"revision":         float64(1),
+			"tracking-channel": "beta",
+			"refreshed-date":   helloRefreshedDateStr,
+			"epoch":            iZeroEpoch,
+		})
+		c.Assert(req.Actions, HasLen, 0)
+		io.WriteString(w, `{
+  "results": []
+}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	results, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+		{
+			InstanceName:    "hello-world",
+			SnapID:          helloWorldSnapID,
+			TrackingChannel: "beta",
+			Revision:        snap.R(1),
+			RefreshedDate:   helloRefreshedDate,
+		},
+	}, nil, nil, nil)
+	c.Check(results, HasLen, 0)
+	c.Check(err, DeepEquals, &store.SnapActionError{NoResults: true})
+
+	// local no-op
+	results, err = sto.SnapAction(s.ctx, nil, nil, nil, nil)
+	c.Check(results, HasLen, 0)
+	c.Check(err, DeepEquals, &store.SnapActionError{NoResults: true})
+
+	c.Check(err.Error(), Equals, "no install/refresh information results from the store")
+}
+
+func (s *storeActionSuite) TestSnapActionRefreshedDateIsOptional(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "POST", snapActionPath)
+		// check device authorization is set, implicitly checking doRequest was used
+		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		jsonReq, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		var req struct {
+			Context []map[string]interface{} `json:"context"`
+			Actions []map[string]interface{} `json:"actions"`
+		}
+
+		err = json.Unmarshal(jsonReq, &req)
+		c.Assert(err, IsNil)
+
+		c.Assert(req.Context, HasLen, 1)
+		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+			"snap-id":      helloWorldSnapID,
+			"instance-key": helloWorldSnapID,
+
+			"revision":         float64(1),
+			"tracking-channel": "beta",
+			"epoch":            iZeroEpoch,
+		})
+		c.Assert(req.Actions, HasLen, 0)
+		io.WriteString(w, `{
+  "results": []
+}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	results, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+		{
+			InstanceName:    "hello-world",
+			SnapID:          helloWorldSnapID,
+			TrackingChannel: "beta",
+			Revision:        snap.R(1),
+		},
+	}, nil, nil, nil)
+	c.Check(results, HasLen, 0)
+	c.Check(err, DeepEquals, &store.SnapActionError{NoResults: true})
+}
+
+func (s *storeActionSuite) TestSnapActionSkipBlocked(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "POST", snapActionPath)
+		// check device authorization is set, implicitly checking doRequest was used
+		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		jsonReq, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		var req struct {
+			Context []map[string]interface{} `json:"context"`
+			Actions []map[string]interface{} `json:"actions"`
+		}
+
+		err = json.Unmarshal(jsonReq, &req)
+		c.Assert(err, IsNil)
+
+		c.Assert(req.Context, HasLen, 1)
+		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+			"snap-id":          helloWorldSnapID,
+			"instance-key":     helloWorldSnapID,
+			"revision":         float64(1),
+			"tracking-channel": "stable",
+			"refreshed-date":   helloRefreshedDateStr,
+			"epoch":            iZeroEpoch,
+		})
+		c.Assert(req.Actions, HasLen, 1)
+		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+			"action":       "refresh",
+			"instance-key": helloWorldSnapID,
+			"snap-id":      helloWorldSnapID,
+			"channel":      "stable",
+		})
+
+		io.WriteString(w, `{
+  "results": [{
+     "result": "refresh",
+     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "name": "hello-world",
+     "snap": {
+       "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+       "name": "hello-world",
+       "revision": 26,
+       "version": "6.1",
+       "publisher": {
+          "id": "canonical",
+          "username": "canonical",
+          "display-name": "Canonical"
+       }
+     }
+  }]
+}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	results, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+		{
+			InstanceName:    "hello-world",
+			SnapID:          helloWorldSnapID,
+			TrackingChannel: "stable",
+			Revision:        snap.R(1),
+			RefreshedDate:   helloRefreshedDate,
+			Block:           []snap.Revision{snap.R(26)},
+		},
+	}, []*store.SnapAction{
+		{
+			Action:       "refresh",
+			SnapID:       helloWorldSnapID,
+			InstanceName: "hello-world",
+			Channel:      "stable",
+		},
+	}, nil, nil)
+	c.Assert(results, HasLen, 0)
+	c.Check(err, DeepEquals, &store.SnapActionError{
+		Refresh: map[string]error{
+			"hello-world": store.ErrNoUpdateAvailable,
+		},
+	})
+}
+
+func (s *storeActionSuite) TestSnapActionSkipCurrent(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "POST", snapActionPath)
+		// check device authorization is set, implicitly checking doRequest was used
+		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		jsonReq, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		var req struct {
+			Context []map[string]interface{} `json:"context"`
+			Actions []map[string]interface{} `json:"actions"`
+		}
+
+		err = json.Unmarshal(jsonReq, &req)
+		c.Assert(err, IsNil)
+
+		c.Assert(req.Context, HasLen, 1)
+		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+			"snap-id":          helloWorldSnapID,
+			"instance-key":     helloWorldSnapID,
+			"revision":         float64(26),
+			"tracking-channel": "stable",
+			"refreshed-date":   helloRefreshedDateStr,
+			"epoch":            iZeroEpoch,
+		})
+		c.Assert(req.Actions, HasLen, 1)
+		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+			"action":       "refresh",
+			"instance-key": helloWorldSnapID,
+			"snap-id":      helloWorldSnapID,
+			"channel":      "stable",
+		})
+
+		io.WriteString(w, `{
+  "results": [{
+     "result": "refresh",
+     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "name": "hello-world",
+     "snap": {
+       "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+       "name": "hello-world",
+       "revision": 26,
+       "version": "6.1",
+       "publisher": {
+          "id": "canonical",
+          "username": "canonical",
+          "display-name": "Canonical"
+       }
+     }
+  }]
+}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	results, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+		{
+			InstanceName:    "hello-world",
+			SnapID:          helloWorldSnapID,
+			TrackingChannel: "stable",
+			Revision:        snap.R(26),
+			RefreshedDate:   helloRefreshedDate,
+		},
+	}, []*store.SnapAction{
+		{
+			Action:       "refresh",
+			SnapID:       helloWorldSnapID,
+			InstanceName: "hello-world",
+			Channel:      "stable",
+		},
+	}, nil, nil)
+	c.Assert(results, HasLen, 0)
+	c.Check(err, DeepEquals, &store.SnapActionError{
+		Refresh: map[string]error{
+			"hello-world": store.ErrNoUpdateAvailable,
+		},
+	})
+}
+
+func (s *storeActionSuite) TestSnapActionRetryOnEOF(c *C) {
+	n := 0
+	var mockServer *httptest.Server
+	mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "POST", snapActionPath)
+		n++
+		if n < 4 {
+			io.WriteString(w, "{")
+			mockServer.CloseClientConnections()
+			return
+		}
+
+		var req struct {
+			Context []map[string]interface{} `json:"context"`
+			Actions []map[string]interface{} `json:"actions"`
+		}
+
+		err := json.NewDecoder(r.Body).Decode(&req)
+		c.Assert(err, IsNil)
+		c.Assert(req.Context, HasLen, 1)
+		c.Assert(req.Actions, HasLen, 1)
+		io.WriteString(w, `{
+  "results": [{
+     "result": "refresh",
+     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "name": "hello-world",
+     "snap": {
+       "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+       "name": "hello-world",
+       "revision": 26,
+       "version": "6.1",
+       "publisher": {
+          "id": "canonical",
+          "username": "canonical",
+          "display-name": "Canonical"
+       }
+     }
+  }]
+}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	results, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+		{
+			InstanceName:    "hello-world",
+			SnapID:          helloWorldSnapID,
+			TrackingChannel: "stable",
+			Revision:        snap.R(1),
+		},
+	}, []*store.SnapAction{
+		{
+			Action:       "refresh",
+			SnapID:       helloWorldSnapID,
+			InstanceName: "hello-world",
+			Channel:      "stable",
+		},
+	}, nil, nil)
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 4)
+	c.Assert(results, HasLen, 1)
+	c.Assert(results[0].InstanceName(), Equals, "hello-world")
+}
+
+func (s *storeActionSuite) TestSnapActionIgnoreValidation(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "POST", snapActionPath)
+		// check device authorization is set, implicitly checking doRequest was used
+		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		jsonReq, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		var req struct {
+			Context []map[string]interface{} `json:"context"`
+			Actions []map[string]interface{} `json:"actions"`
+		}
+
+		err = json.Unmarshal(jsonReq, &req)
+		c.Assert(err, IsNil)
+
+		c.Assert(req.Context, HasLen, 1)
+		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+			"snap-id":           helloWorldSnapID,
+			"instance-key":      helloWorldSnapID,
+			"revision":          float64(1),
+			"tracking-channel":  "stable",
+			"refreshed-date":    helloRefreshedDateStr,
+			"ignore-validation": true,
+			"epoch":             iZeroEpoch,
+		})
+		c.Assert(req.Actions, HasLen, 1)
+		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+			"action":            "refresh",
+			"instance-key":      helloWorldSnapID,
+			"snap-id":           helloWorldSnapID,
+			"channel":           "stable",
+			"ignore-validation": false,
+		})
+
+		io.WriteString(w, `{
+  "results": [{
+     "result": "refresh",
+     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "name": "hello-world",
+     "snap": {
+       "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+       "name": "hello-world",
+       "revision": 26,
+       "version": "6.1",
+       "publisher": {
+          "id": "canonical",
+          "username": "canonical",
+          "display-name": "Canonical"
+       }
+     }
+  }]
+}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	results, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+		{
+			InstanceName:     "hello-world",
+			SnapID:           helloWorldSnapID,
+			TrackingChannel:  "stable",
+			Revision:         snap.R(1),
+			RefreshedDate:    helloRefreshedDate,
+			IgnoreValidation: true,
+		},
+	}, []*store.SnapAction{
+		{
+			Action:       "refresh",
+			SnapID:       helloWorldSnapID,
+			InstanceName: "hello-world",
+			Channel:      "stable",
+			Flags:        store.SnapActionEnforceValidation,
+		},
+	}, nil, nil)
+	c.Assert(err, IsNil)
+	c.Assert(results, HasLen, 1)
+	c.Assert(results[0].InstanceName(), Equals, "hello-world")
+	c.Assert(results[0].Revision, Equals, snap.R(26))
+}
+
+func (s *storeActionSuite) TestSnapActionAutoRefresh(c *C) {
+	// the bare TestSnapAction does more SnapAction checks; look there
+	// this one mostly just checks the refresh-reason header
+
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "POST", snapActionPath)
+		c.Check(r.Header.Get("Snap-Refresh-Reason"), Equals, "scheduled")
+
+		io.WriteString(w, `{
+  "results": [{
+     "result": "refresh",
+     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "name": "hello-world",
+     "snap": {
+       "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+       "name": "hello-world",
+       "revision": 26,
+       "version": "6.1",
+       "epoch": {"read": [0], "write": [0]},
+       "publisher": {
+          "id": "canonical",
+          "username": "canonical",
+          "display-name": "Canonical"
+       }
+     }
+  }]
+}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	results, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+		{
+			InstanceName:    "hello-world",
+			SnapID:          helloWorldSnapID,
+			TrackingChannel: "beta",
+			Revision:        snap.R(1),
+			RefreshedDate:   helloRefreshedDate,
+		},
+	}, []*store.SnapAction{
+		{
+			Action:       "refresh",
+			SnapID:       helloWorldSnapID,
+			InstanceName: "hello-world",
+		},
+	}, nil, &store.RefreshOptions{IsAutoRefresh: true})
+	c.Assert(err, IsNil)
+	c.Assert(results, HasLen, 1)
+}
+
+func (s *storeActionSuite) TestInstallFallbackChannelIsStable(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "POST", snapActionPath)
+		// check device authorization is set, implicitly checking doRequest was used
+		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		jsonReq, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		var req struct {
+			Context []map[string]interface{} `json:"context"`
+			Actions []map[string]interface{} `json:"actions"`
+		}
+
+		err = json.Unmarshal(jsonReq, &req)
+		c.Assert(err, IsNil)
+
+		c.Assert(req.Context, HasLen, 1)
+		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+			"snap-id":          helloWorldSnapID,
+			"instance-key":     helloWorldSnapID,
+			"revision":         float64(1),
+			"tracking-channel": "stable",
+			"refreshed-date":   helloRefreshedDateStr,
+			"epoch":            iZeroEpoch,
+		})
+		c.Assert(req.Actions, HasLen, 1)
+		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+			"action":       "refresh",
+			"instance-key": helloWorldSnapID,
+			"snap-id":      helloWorldSnapID,
+		})
+
+		io.WriteString(w, `{
+  "results": [{
+     "result": "refresh",
+     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "name": "hello-world",
+     "snap": {
+       "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+       "name": "hello-world",
+       "revision": 26,
+       "version": "6.1",
+       "publisher": {
+          "id": "canonical",
+          "username": "canonical",
+          "display-name": "Canonical"
+       }
+     }
+  }]
+}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	results, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+		{
+			InstanceName:  "hello-world",
+			SnapID:        helloWorldSnapID,
+			RefreshedDate: helloRefreshedDate,
+			Revision:      snap.R(1),
+		},
+	}, []*store.SnapAction{
+		{
+			Action:       "refresh",
+			SnapID:       helloWorldSnapID,
+			InstanceName: "hello-world",
+		},
+	}, nil, nil)
+	c.Assert(err, IsNil)
+	c.Assert(results, HasLen, 1)
+	c.Assert(results[0].InstanceName(), Equals, "hello-world")
+	c.Assert(results[0].Revision, Equals, snap.R(26))
+	c.Assert(results[0].SnapID, Equals, helloWorldSnapID)
+}
+
+func (s *storeActionSuite) TestSnapActionNonDefaultsHeaders(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "POST", snapActionPath)
+		// check device authorization is set, implicitly checking doRequest was used
+		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		storeID := r.Header.Get("Snap-Device-Store")
+		c.Check(storeID, Equals, "foo")
+
+		c.Check(r.Header.Get("Snap-Device-Series"), Equals, "21")
+		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, "archXYZ")
+		c.Check(r.Header.Get("Snap-Classic"), Equals, "true")
+
+		jsonReq, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		var req struct {
+			Context []map[string]interface{} `json:"context"`
+			Actions []map[string]interface{} `json:"actions"`
+		}
+
+		err = json.Unmarshal(jsonReq, &req)
+		c.Assert(err, IsNil)
+
+		c.Assert(req.Context, HasLen, 1)
+		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+			"snap-id":          helloWorldSnapID,
+			"instance-key":     helloWorldSnapID,
+			"revision":         float64(1),
+			"tracking-channel": "beta",
+			"refreshed-date":   helloRefreshedDateStr,
+			"epoch":            iZeroEpoch,
+		})
+		c.Assert(req.Actions, HasLen, 1)
+		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+			"action":       "refresh",
+			"instance-key": helloWorldSnapID,
+			"snap-id":      helloWorldSnapID,
+		})
+
+		io.WriteString(w, `{
+  "results": [{
+     "result": "refresh",
+     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "name": "hello-world",
+     "snap": {
+       "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+       "name": "hello-world",
+       "revision": 26,
+       "version": "6.1",
+       "publisher": {
+          "id": "canonical",
+          "username": "canonical",
+          "display-name": "Canonical"
+       }
+     }
+  }]
+}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.DefaultConfig()
+	cfg.StoreBaseURL = mockServerURL
+	cfg.Series = "21"
+	cfg.Architecture = "archXYZ"
+	cfg.StoreID = "foo"
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(cfg, dauthCtx)
+
+	results, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+		{
+			InstanceName:    "hello-world",
+			SnapID:          helloWorldSnapID,
+			TrackingChannel: "beta",
+			RefreshedDate:   helloRefreshedDate,
+			Revision:        snap.R(1),
+		},
+	}, []*store.SnapAction{
+		{
+			Action:       "refresh",
+			SnapID:       helloWorldSnapID,
+			InstanceName: "hello-world",
+		},
+	}, nil, nil)
+	c.Assert(err, IsNil)
+	c.Assert(results, HasLen, 1)
+	c.Assert(results[0].InstanceName(), Equals, "hello-world")
+	c.Assert(results[0].Revision, Equals, snap.R(26))
+	c.Assert(results[0].Version, Equals, "6.1")
+	c.Assert(results[0].SnapID, Equals, helloWorldSnapID)
+	c.Assert(results[0].Publisher.ID, Equals, helloWorldDeveloperID)
+	c.Assert(results[0].Deltas, HasLen, 0)
+}
+
+func (s *storeActionSuite) TestSnapActionWithDeltas(c *C) {
+	origUseDeltas := os.Getenv("SNAPD_USE_DELTAS_EXPERIMENTAL")
+	defer os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", origUseDeltas)
+	c.Assert(os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", "1"), IsNil)
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "POST", snapActionPath)
+		// check device authorization is set, implicitly checking doRequest was used
+		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		c.Check(r.Header.Get("Snap-Accept-Delta-Format"), Equals, "xdelta3")
+		jsonReq, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		var req struct {
+			Context []map[string]interface{} `json:"context"`
+			Actions []map[string]interface{} `json:"actions"`
+		}
+
+		err = json.Unmarshal(jsonReq, &req)
+		c.Assert(err, IsNil)
+
+		c.Assert(req.Context, HasLen, 1)
+		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+			"snap-id":          helloWorldSnapID,
+			"instance-key":     helloWorldSnapID,
+			"revision":         float64(1),
+			"tracking-channel": "beta",
+			"refreshed-date":   helloRefreshedDateStr,
+			"epoch":            iZeroEpoch,
+		})
+		c.Assert(req.Actions, HasLen, 1)
+		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+			"action":       "refresh",
+			"instance-key": helloWorldSnapID,
+			"snap-id":      helloWorldSnapID,
+		})
+
+		io.WriteString(w, `{
+  "results": [{
+     "result": "refresh",
+     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "name": "hello-world",
+     "snap": {
+       "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+       "name": "hello-world",
+       "revision": 26,
+       "version": "6.1",
+       "publisher": {
+          "id": "canonical",
+          "username": "canonical",
+          "display-name": "Canonical"
+       }
+     }
+  }]
+}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	results, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+		{
+			InstanceName:    "hello-world",
+			SnapID:          helloWorldSnapID,
+			TrackingChannel: "beta",
+			Revision:        snap.R(1),
+			RefreshedDate:   helloRefreshedDate,
+		},
+	}, []*store.SnapAction{
+		{
+			Action:       "refresh",
+			SnapID:       helloWorldSnapID,
+			InstanceName: "hello-world",
+		},
+	}, nil, nil)
+	c.Assert(err, IsNil)
+	c.Assert(results, HasLen, 1)
+	c.Assert(results[0].InstanceName(), Equals, "hello-world")
+	c.Assert(results[0].Revision, Equals, snap.R(26))
+}
+
+func (s *storeActionSuite) TestSnapActionOptions(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "POST", snapActionPath)
+		// check device authorization is set, implicitly checking doRequest was used
+		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		c.Check(r.Header.Get("Snap-Refresh-Managed"), Equals, "true")
+
+		jsonReq, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		var req struct {
+			Context []map[string]interface{} `json:"context"`
+			Actions []map[string]interface{} `json:"actions"`
+		}
+
+		err = json.Unmarshal(jsonReq, &req)
+		c.Assert(err, IsNil)
+
+		c.Assert(req.Context, HasLen, 1)
+		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+			"snap-id":          helloWorldSnapID,
+			"instance-key":     helloWorldSnapID,
+			"revision":         float64(1),
+			"tracking-channel": "stable",
+			"refreshed-date":   helloRefreshedDateStr,
+			"epoch":            iZeroEpoch,
+		})
+		c.Assert(req.Actions, HasLen, 1)
+		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+			"action":       "refresh",
+			"instance-key": helloWorldSnapID,
+			"snap-id":      helloWorldSnapID,
+			"channel":      "stable",
+		})
+
+		io.WriteString(w, `{
+  "results": [{
+     "result": "refresh",
+     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "name": "hello-world",
+     "snap": {
+       "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+       "name": "hello-world",
+       "revision": 26,
+       "version": "6.1",
+       "publisher": {
+          "id": "canonical",
+          "username": "canonical",
+          "display-name": "Canonical"
+       }
+     }
+  }]
+}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	results, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+		{
+			InstanceName:    "hello-world",
+			SnapID:          helloWorldSnapID,
+			TrackingChannel: "stable",
+			Revision:        snap.R(1),
+			RefreshedDate:   helloRefreshedDate,
+		},
+	}, []*store.SnapAction{
+		{
+			Action:       "refresh",
+			SnapID:       helloWorldSnapID,
+			InstanceName: "hello-world",
+			Channel:      "stable",
+		},
+	}, nil, &store.RefreshOptions{RefreshManaged: true})
+	c.Assert(err, IsNil)
+	c.Assert(results, HasLen, 1)
+	c.Assert(results[0].InstanceName(), Equals, "hello-world")
+	c.Assert(results[0].Revision, Equals, snap.R(26))
+}
+
+func (s *storeActionSuite) TestSnapActionInstall(c *C) {
+	s.testSnapActionGet("install", "", "", c)
+}
+func (s *storeActionSuite) TestSnapActionInstallWithCohort(c *C) {
+	s.testSnapActionGet("install", "what", "", c)
+}
+func (s *storeActionSuite) TestSnapActionDownload(c *C) {
+	s.testSnapActionGet("download", "", "", c)
+}
+func (s *storeActionSuite) TestSnapActionDownloadWithCohort(c *C) {
+	s.testSnapActionGet("download", "here", "", c)
+}
+func (s *storeActionSuite) TestSnapActionInstallRedirect(c *C) {
+	s.testSnapActionGet("install", "", "2.0/candidate", c)
+}
+func (s *storeActionSuite) TestSnapActionDownloadRedirect(c *C) {
+	s.testSnapActionGet("download", "", "2.0/candidate", c)
+}
+func (s *storeActionSuite) testSnapActionGet(action, cohort, redirectChannel string, c *C) {
+	// action here is one of install or download
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "POST", snapActionPath)
+		// check device authorization is set, implicitly checking doRequest was used
+		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		c.Check(r.Header.Get("Snap-Refresh-Managed"), Equals, "")
+
+		// no store ID by default
+		storeID := r.Header.Get("Snap-Device-Store")
+		c.Check(storeID, Equals, "")
+
+		c.Check(r.Header.Get("Snap-Device-Series"), Equals, release.Series)
+		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, arch.DpkgArchitecture())
+		c.Check(r.Header.Get("Snap-Classic"), Equals, "false")
+
+		jsonReq, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		var req struct {
+			Context []map[string]interface{} `json:"context"`
+			Actions []map[string]interface{} `json:"actions"`
+		}
+
+		err = json.Unmarshal(jsonReq, &req)
+		c.Assert(err, IsNil)
+
+		c.Assert(req.Context, HasLen, 0)
+		c.Assert(req.Actions, HasLen, 1)
+		expectedAction := map[string]interface{}{
+			"action":       action,
+			"instance-key": action + "-1",
+			"name":         "hello-world",
+			"channel":      "beta",
+			"epoch":        nil,
+		}
+		if cohort != "" {
+			expectedAction["cohort-key"] = cohort
+		}
+		c.Assert(req.Actions[0], DeepEquals, expectedAction)
+
+		fmt.Fprintf(w, `{
+  "results": [{
+     "result": "%s",
+     "instance-key": "%[1]s-1",
+     "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "name": "hello-world",
+     "effective-channel": "candidate",
+     "redirect-channel": "%s",
+     "snap": {
+       "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+       "name": "hello-world",
+       "revision": 26,
+       "version": "6.1",
+       "publisher": {
+          "id": "canonical",
+          "username": "canonical",
+          "display-name": "Canonical"
+       }
+     }
+  }]
+}`, action, redirectChannel)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	results, err := sto.SnapAction(s.ctx, nil,
+		[]*store.SnapAction{
+			{
+				Action:       action,
+				InstanceName: "hello-world",
+				Channel:      "beta",
+				CohortKey:    cohort,
+			},
+		}, nil, nil)
+	c.Assert(err, IsNil)
+	c.Assert(results, HasLen, 1)
+	c.Assert(results[0].InstanceName(), Equals, "hello-world")
+	c.Assert(results[0].Revision, Equals, snap.R(26))
+	c.Assert(results[0].Version, Equals, "6.1")
+	c.Assert(results[0].SnapID, Equals, helloWorldSnapID)
+	c.Assert(results[0].Publisher.ID, Equals, helloWorldDeveloperID)
+	c.Assert(results[0].Deltas, HasLen, 0)
+	// effective-channel
+	c.Assert(results[0].Channel, Equals, "candidate")
+	c.Assert(results[0].RedirectChannel, Equals, redirectChannel)
+}
+
+func (s *storeActionSuite) TestSnapActionInstallAmend(c *C) {
+	// this is what amend would look like
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "POST", snapActionPath)
+		// check device authorization is set, implicitly checking doRequest was used
+		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		c.Check(r.Header.Get("Snap-Refresh-Managed"), Equals, "")
+
+		// no store ID by default
+		storeID := r.Header.Get("Snap-Device-Store")
+		c.Check(storeID, Equals, "")
+
+		c.Check(r.Header.Get("Snap-Device-Series"), Equals, release.Series)
+		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, arch.DpkgArchitecture())
+		c.Check(r.Header.Get("Snap-Classic"), Equals, "false")
+
+		jsonReq, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		var req struct {
+			Context []map[string]interface{} `json:"context"`
+			Actions []map[string]interface{} `json:"actions"`
+		}
+
+		err = json.Unmarshal(jsonReq, &req)
+		c.Assert(err, IsNil)
+
+		c.Assert(req.Context, HasLen, 0)
+		c.Assert(req.Actions, HasLen, 1)
+		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+			"action":       "install",
+			"instance-key": "install-1",
+			"name":         "hello-world",
+			"channel":      "beta",
+			"epoch":        map[string]interface{}{"read": []interface{}{0., 1.}, "write": []interface{}{1.}},
+		})
+
+		fmt.Fprint(w, `{
+  "results": [{
+     "result": "install",
+     "instance-key": "install-1",
+     "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "name": "hello-world",
+     "effective-channel": "candidate",
+     "snap": {
+       "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+       "name": "hello-world",
+       "revision": 26,
+       "version": "6.1",
+       "publisher": {
+          "id": "canonical",
+          "username": "canonical",
+          "display-name": "Canonical"
+       }
+     }
+  }]
+}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	results, err := sto.SnapAction(s.ctx, nil,
+		[]*store.SnapAction{
+			{
+				Action:       "install",
+				InstanceName: "hello-world",
+				Channel:      "beta",
+				Epoch:        snap.E("1*"),
+			},
+		}, nil, nil)
+	c.Assert(err, IsNil)
+	c.Assert(results, HasLen, 1)
+	c.Assert(results[0].InstanceName(), Equals, "hello-world")
+	c.Assert(results[0].Revision, Equals, snap.R(26))
+	c.Assert(results[0].Version, Equals, "6.1")
+	c.Assert(results[0].SnapID, Equals, helloWorldSnapID)
+	c.Assert(results[0].Publisher.ID, Equals, helloWorldDeveloperID)
+	c.Assert(results[0].Deltas, HasLen, 0)
+	// effective-channel
+	c.Assert(results[0].Channel, Equals, "candidate")
+}
+
+func (s *storeActionSuite) TestSnapActionWithClientUserAgent(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	serverCalls := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		serverCalls++
+		assertRequest(c, r, "POST", snapActionPath)
+
+		c.Check(r.Header.Get("Snap-Client-User-Agent"), Equals, "some-snap-agent/1.0")
+
+		io.WriteString(w, `{
+  "results": []
+}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	// to construct the client-user-agent context we need to
+	// create a req that simulates what the req that the daemon got
+	r, err := http.NewRequest("POST", "/snapd/api", nil)
+	r.Header.Set("User-Agent", "some-snap-agent/1.0")
+	c.Assert(err, IsNil)
+	ctx := store.WithClientUserAgent(s.ctx, r)
+
+	results, err := sto.SnapAction(ctx, nil, []*store.SnapAction{{Action: "install", InstanceName: "some-snap"}}, nil, nil)
+	c.Check(serverCalls, Equals, 1)
+	c.Check(results, HasLen, 0)
+	c.Check(err, DeepEquals, &store.SnapActionError{NoResults: true})
+}
+
+func (s *storeActionSuite) TestSnapActionDownloadParallelInstanceKey(c *C) {
+	// action here is one of install or download
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Fatal("should not be reached")
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	_, err := sto.SnapAction(s.ctx, nil,
+		[]*store.SnapAction{
+			{
+				Action:       "download",
+				InstanceName: "hello-world_foo",
+				Channel:      "beta",
+			},
+		}, nil, nil)
+	c.Assert(err, ErrorMatches, `internal error: unsupported download with instance name "hello-world_foo"`)
+}
+
+func (s *storeActionSuite) TestSnapActionInstallWithRevision(c *C) {
+	s.testSnapActionGetWithRevision("install", c)
+}
+
+func (s *storeActionSuite) TestSnapActionDownloadWithRevision(c *C) {
+	s.testSnapActionGetWithRevision("download", c)
+}
+
+func (s *storeActionSuite) testSnapActionGetWithRevision(action string, c *C) {
+	// action here is one of install or download
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "POST", snapActionPath)
+		// check device authorization is set, implicitly checking doRequest was used
+		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		c.Check(r.Header.Get("Snap-Refresh-Managed"), Equals, "")
+
+		// no store ID by default
+		storeID := r.Header.Get("Snap-Device-Store")
+		c.Check(storeID, Equals, "")
+
+		c.Check(r.Header.Get("Snap-Device-Series"), Equals, release.Series)
+		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, arch.DpkgArchitecture())
+		c.Check(r.Header.Get("Snap-Classic"), Equals, "false")
+
+		jsonReq, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		var req struct {
+			Context []map[string]interface{} `json:"context"`
+			Actions []map[string]interface{} `json:"actions"`
+		}
+
+		err = json.Unmarshal(jsonReq, &req)
+		c.Assert(err, IsNil)
+
+		c.Assert(req.Context, HasLen, 0)
+		c.Assert(req.Actions, HasLen, 1)
+		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+			"action":       action,
+			"instance-key": action + "-1",
+			"name":         "hello-world",
+			"revision":     float64(28),
+			"epoch":        nil,
+		})
+
+		fmt.Fprintf(w, `{
+  "results": [{
+     "result": "%s",
+     "instance-key": "%[1]s-1",
+     "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "name": "hello-world",
+     "snap": {
+       "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+       "name": "hello-world",
+       "revision": 28,
+       "version": "6.1",
+       "publisher": {
+          "id": "canonical",
+          "username": "canonical",
+          "display-name": "Canonical"
+       }
+     }
+  }]
+}`, action)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	results, err := sto.SnapAction(s.ctx, nil,
+		[]*store.SnapAction{
+			{
+				Action:       action,
+				InstanceName: "hello-world",
+				Revision:     snap.R(28),
+			},
+		}, nil, nil)
+	c.Assert(err, IsNil)
+	c.Assert(results, HasLen, 1)
+	c.Assert(results[0].InstanceName(), Equals, "hello-world")
+	c.Assert(results[0].Revision, Equals, snap.R(28))
+	c.Assert(results[0].Version, Equals, "6.1")
+	c.Assert(results[0].SnapID, Equals, helloWorldSnapID)
+	c.Assert(results[0].Publisher.ID, Equals, helloWorldDeveloperID)
+	c.Assert(results[0].Deltas, HasLen, 0)
+	// effective-channel is not set
+	c.Assert(results[0].Channel, Equals, "")
+}
+
+func (s *storeActionSuite) TestSnapActionRevisionNotAvailable(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "POST", snapActionPath)
+		// check device authorization is set, implicitly checking doRequest was used
+		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		jsonReq, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		var req struct {
+			Context []map[string]interface{} `json:"context"`
+			Actions []map[string]interface{} `json:"actions"`
+		}
+
+		err = json.Unmarshal(jsonReq, &req)
+		c.Assert(err, IsNil)
+
+		c.Assert(req.Context, HasLen, 2)
+		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+			"snap-id":          helloWorldSnapID,
+			"instance-key":     helloWorldSnapID,
+			"revision":         float64(26),
+			"tracking-channel": "stable",
+			"refreshed-date":   helloRefreshedDateStr,
+			"epoch":            iZeroEpoch,
+		})
+		c.Assert(req.Context[1], DeepEquals, map[string]interface{}{
+			"snap-id":          "snap2-id",
+			"instance-key":     "snap2-id",
+			"revision":         float64(2),
+			"tracking-channel": "edge",
+			"refreshed-date":   helloRefreshedDateStr,
+			"epoch":            iZeroEpoch,
+		})
+		c.Assert(req.Actions, HasLen, 4)
+		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+			"action":       "refresh",
+			"instance-key": helloWorldSnapID,
+			"snap-id":      helloWorldSnapID,
+		})
+		c.Assert(req.Actions[1], DeepEquals, map[string]interface{}{
+			"action":       "refresh",
+			"instance-key": "snap2-id",
+			"snap-id":      "snap2-id",
+			"channel":      "candidate",
+		})
+		c.Assert(req.Actions[2], DeepEquals, map[string]interface{}{
+			"action":       "install",
+			"instance-key": "install-1",
+			"name":         "foo",
+			"channel":      "stable",
+			"epoch":        nil,
+		})
+		c.Assert(req.Actions[3], DeepEquals, map[string]interface{}{
+			"action":       "download",
+			"instance-key": "download-1",
+			"name":         "bar",
+			"revision":     42.,
+			"epoch":        nil,
+		})
+
+		io.WriteString(w, `{
+  "results": [{
+     "result": "error",
+     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "name": "hello-world",
+     "error": {
+       "code": "revision-not-found",
+       "message": "msg1"
+     }
+  }, {
+     "result": "error",
+     "instance-key": "snap2-id",
+     "snap-id": "snap2-id",
+     "name": "snap2",
+     "error": {
+       "code": "revision-not-found",
+       "message": "msg1",
+       "extra": {
+         "releases": [{"architecture": "amd64", "channel": "beta"},
+                      {"architecture": "arm64", "channel": "beta"}]
+       }
+     }
+  }, {
+     "result": "error",
+     "instance-key": "install-1",
+     "snap-id": "foo-id",
+     "name": "foo",
+     "error": {
+       "code": "revision-not-found",
+       "message": "msg2"
+     }
+  }, {
+     "result": "error",
+     "instance-key": "download-1",
+     "snap-id": "bar-id",
+     "name": "bar",
+     "error": {
+       "code": "revision-not-found",
+       "message": "msg3"
+     }
+  }]
+}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	results, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+		{
+			InstanceName:    "hello-world",
+			SnapID:          helloWorldSnapID,
+			TrackingChannel: "stable",
+			Revision:        snap.R(26),
+			RefreshedDate:   helloRefreshedDate,
+		},
+		{
+			InstanceName:    "snap2",
+			SnapID:          "snap2-id",
+			TrackingChannel: "edge",
+			Revision:        snap.R(2),
+			RefreshedDate:   helloRefreshedDate,
+		},
+	}, []*store.SnapAction{
+		{
+			Action:       "refresh",
+			InstanceName: "hello-world",
+			SnapID:       helloWorldSnapID,
+		}, {
+			Action:       "refresh",
+			InstanceName: "snap2",
+			SnapID:       "snap2-id",
+			Channel:      "candidate",
+		}, {
+			Action:       "install",
+			InstanceName: "foo",
+			Channel:      "stable",
+		}, {
+			Action:       "download",
+			InstanceName: "bar",
+			Revision:     snap.R(42),
+		},
+	}, nil, nil)
+	c.Assert(results, HasLen, 0)
+	c.Check(err, DeepEquals, &store.SnapActionError{
+		Refresh: map[string]error{
+			"hello-world": &store.RevisionNotAvailableError{
+				Action:  "refresh",
+				Channel: "stable",
+			},
+			"snap2": &store.RevisionNotAvailableError{
+				Action:  "refresh",
+				Channel: "candidate",
+				Releases: []channel.Channel{
+					snaptest.MustParseChannel("beta", "amd64"),
+					snaptest.MustParseChannel("beta", "arm64"),
+				},
+			},
+		},
+		Install: map[string]error{
+			"foo": &store.RevisionNotAvailableError{
+				Action:  "install",
+				Channel: "stable",
+			},
+		},
+		Download: map[string]error{
+			"bar": &store.RevisionNotAvailableError{
+				Action:  "download",
+				Channel: "",
+			},
+		},
+	})
+}
+
+func (s *storeActionSuite) TestSnapActionSnapNotFound(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "POST", snapActionPath)
+		// check device authorization is set, implicitly checking doRequest was used
+		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		jsonReq, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		var req struct {
+			Context []map[string]interface{} `json:"context"`
+			Actions []map[string]interface{} `json:"actions"`
+		}
+
+		err = json.Unmarshal(jsonReq, &req)
+		c.Assert(err, IsNil)
+
+		c.Assert(req.Context, HasLen, 1)
+		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+			"snap-id":          helloWorldSnapID,
+			"instance-key":     helloWorldSnapID,
+			"revision":         float64(26),
+			"tracking-channel": "stable",
+			"refreshed-date":   helloRefreshedDateStr,
+			"epoch":            iZeroEpoch,
+		})
+		c.Assert(req.Actions, HasLen, 3)
+		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+			"action":       "refresh",
+			"instance-key": helloWorldSnapID,
+			"snap-id":      helloWorldSnapID,
+			"channel":      "stable",
+		})
+		c.Assert(req.Actions[1], DeepEquals, map[string]interface{}{
+			"action":       "install",
+			"instance-key": "install-1",
+			"name":         "foo",
+			"channel":      "stable",
+			"epoch":        nil,
+		})
+		c.Assert(req.Actions[2], DeepEquals, map[string]interface{}{
+			"action":       "download",
+			"instance-key": "download-1",
+			"name":         "bar",
+			"revision":     42.,
+			"epoch":        nil,
+		})
+
+		io.WriteString(w, `{
+  "results": [{
+     "result": "error",
+     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "error": {
+       "code": "id-not-found",
+       "message": "msg1"
+     }
+  }, {
+     "result": "error",
+     "instance-key": "install-1",
+     "name": "foo",
+     "error": {
+       "code": "name-not-found",
+       "message": "msg2"
+     }
+  }, {
+     "result": "error",
+     "instance-key": "download-1",
+     "name": "bar",
+     "error": {
+       "code": "name-not-found",
+       "message": "msg3"
+     }
+  }]
+}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	results, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+		{
+			InstanceName:    "hello-world",
+			SnapID:          helloWorldSnapID,
+			TrackingChannel: "stable",
+			Revision:        snap.R(26),
+			RefreshedDate:   helloRefreshedDate,
+		},
+	}, []*store.SnapAction{
+		{
+			Action:       "refresh",
+			SnapID:       helloWorldSnapID,
+			InstanceName: "hello-world",
+			Channel:      "stable",
+		}, {
+			Action:       "install",
+			InstanceName: "foo",
+			Channel:      "stable",
+		}, {
+			Action:       "download",
+			InstanceName: "bar",
+			Revision:     snap.R(42),
+		},
+	}, nil, nil)
+	c.Assert(results, HasLen, 0)
+	c.Check(err, DeepEquals, &store.SnapActionError{
+		Refresh: map[string]error{
+			"hello-world": store.ErrSnapNotFound,
+		},
+		Install: map[string]error{
+			"foo": store.ErrSnapNotFound,
+		},
+		Download: map[string]error{
+			"bar": store.ErrSnapNotFound,
+		},
+	})
+}
+
+func (s *storeActionSuite) TestSnapActionOtherErrors(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "POST", snapActionPath)
+		// check device authorization is set, implicitly checking doRequest was used
+		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		jsonReq, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		var req struct {
+			Context []map[string]interface{} `json:"context"`
+			Actions []map[string]interface{} `json:"actions"`
+		}
+
+		err = json.Unmarshal(jsonReq, &req)
+		c.Assert(err, IsNil)
+
+		c.Assert(req.Context, HasLen, 0)
+		c.Assert(req.Actions, HasLen, 1)
+		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+			"action":       "install",
+			"instance-key": "install-1",
+			"name":         "foo",
+			"channel":      "stable",
+			"epoch":        nil,
+		})
+
+		io.WriteString(w, `{
+  "results": [{
+     "result": "error",
+     "error": {
+       "code": "other1",
+       "message": "other error one"
+     }
+  }],
+  "error-list": [
+     {"code": "global-error", "message": "global error"}
+  ]
+}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	results, err := sto.SnapAction(s.ctx, nil, []*store.SnapAction{
+		{
+			Action:       "install",
+			InstanceName: "foo",
+			Channel:      "stable",
+		},
+	}, nil, nil)
+	c.Assert(results, HasLen, 0)
+	c.Check(err, DeepEquals, &store.SnapActionError{
+		Other: []error{
+			fmt.Errorf("other error one"),
+			fmt.Errorf("global error"),
+		},
+	})
+}
+
+func (s *storeActionSuite) TestSnapActionUnknownAction(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Fatal("should not have made it to the server")
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	results, err := sto.SnapAction(s.ctx, nil,
+		[]*store.SnapAction{
+			{
+				Action:       "something unexpected",
+				InstanceName: "hello-world",
+			},
+		}, nil, nil)
+	c.Assert(err, ErrorMatches, `.* unsupported action .*`)
+	c.Assert(results, IsNil)
+}
+
+func (s *storeActionSuite) TestSnapActionErrorError(c *C) {
+	e := &store.SnapActionError{Refresh: map[string]error{
+		"foo": fmt.Errorf("sad refresh"),
+	}}
+	c.Check(e.Error(), Equals, `cannot refresh snap "foo": sad refresh`)
+
+	op, name, err := e.SingleOpError()
+	c.Check(op, Equals, "refresh")
+	c.Check(name, Equals, "foo")
+	c.Check(err, ErrorMatches, "sad refresh")
+
+	e = &store.SnapActionError{Refresh: map[string]error{
+		"foo": fmt.Errorf("sad refresh 1"),
+		"bar": fmt.Errorf("sad refresh 2"),
+	}}
+	errMsg := e.Error()
+	c.Check(strings.HasPrefix(errMsg, "cannot refresh:"), Equals, true)
+	c.Check(errMsg, testutil.Contains, "\nsad refresh 1: \"foo\"")
+	c.Check(errMsg, testutil.Contains, "\nsad refresh 2: \"bar\"")
+
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "")
+	c.Check(name, Equals, "")
+	c.Check(err, IsNil)
+
+	e = &store.SnapActionError{Install: map[string]error{
+		"foo": fmt.Errorf("sad install"),
+	}}
+	c.Check(e.Error(), Equals, `cannot install snap "foo": sad install`)
+
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "install")
+	c.Check(name, Equals, "foo")
+	c.Check(err, ErrorMatches, "sad install")
+
+	e = &store.SnapActionError{Install: map[string]error{
+		"foo": fmt.Errorf("sad install 1"),
+		"bar": fmt.Errorf("sad install 2"),
+	}}
+	errMsg = e.Error()
+	c.Check(strings.HasPrefix(errMsg, "cannot install:\n"), Equals, true)
+	c.Check(errMsg, testutil.Contains, "\nsad install 1: \"foo\"")
+	c.Check(errMsg, testutil.Contains, "\nsad install 2: \"bar\"")
+
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "")
+	c.Check(name, Equals, "")
+	c.Check(err, IsNil)
+
+	e = &store.SnapActionError{Download: map[string]error{
+		"foo": fmt.Errorf("sad download"),
+	}}
+	c.Check(e.Error(), Equals, `cannot download snap "foo": sad download`)
+
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "download")
+	c.Check(name, Equals, "foo")
+	c.Check(err, ErrorMatches, "sad download")
+
+	e = &store.SnapActionError{Download: map[string]error{
+		"foo": fmt.Errorf("sad download 1"),
+		"bar": fmt.Errorf("sad download 2"),
+	}}
+	errMsg = e.Error()
+	c.Check(strings.HasPrefix(errMsg, "cannot download:\n"), Equals, true)
+	c.Check(errMsg, testutil.Contains, "\nsad download 1: \"foo\"")
+	c.Check(errMsg, testutil.Contains, "\nsad download 2: \"bar\"")
+
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "")
+	c.Check(name, Equals, "")
+	c.Check(err, IsNil)
+
+	e = &store.SnapActionError{Refresh: map[string]error{
+		"foo": fmt.Errorf("sad refresh 1"),
+	},
+		Install: map[string]error{
+			"bar": fmt.Errorf("sad install 2"),
+		}}
+	c.Check(e.Error(), Equals, `cannot refresh or install:
+sad refresh 1: "foo"
+sad install 2: "bar"`)
+
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "")
+	c.Check(name, Equals, "")
+	c.Check(err, IsNil)
+
+	e = &store.SnapActionError{Refresh: map[string]error{
+		"foo": fmt.Errorf("sad refresh 1"),
+	},
+		Download: map[string]error{
+			"bar": fmt.Errorf("sad download 2"),
+		}}
+	c.Check(e.Error(), Equals, `cannot refresh or download:
+sad refresh 1: "foo"
+sad download 2: "bar"`)
+
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "")
+	c.Check(name, Equals, "")
+	c.Check(err, IsNil)
+
+	e = &store.SnapActionError{Install: map[string]error{
+		"foo": fmt.Errorf("sad install 1"),
+	},
+		Download: map[string]error{
+			"bar": fmt.Errorf("sad download 2"),
+		}}
+	c.Check(e.Error(), Equals, `cannot install or download:
+sad install 1: "foo"
+sad download 2: "bar"`)
+
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "")
+	c.Check(name, Equals, "")
+	c.Check(err, IsNil)
+
+	e = &store.SnapActionError{Refresh: map[string]error{
+		"foo": fmt.Errorf("sad refresh 1"),
+	},
+		Install: map[string]error{
+			"bar": fmt.Errorf("sad install 2"),
+		},
+		Download: map[string]error{
+			"baz": fmt.Errorf("sad download 3"),
+		}}
+	c.Check(e.Error(), Equals, `cannot refresh, install, or download:
+sad refresh 1: "foo"
+sad install 2: "bar"
+sad download 3: "baz"`)
+
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "")
+	c.Check(name, Equals, "")
+	c.Check(err, IsNil)
+
+	e = &store.SnapActionError{
+		NoResults: true,
+		Other:     []error{fmt.Errorf("other error")},
+	}
+	c.Check(e.Error(), Equals, `cannot refresh, install, or download: other error`)
+
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "")
+	c.Check(name, Equals, "")
+	c.Check(err, IsNil)
+
+	e = &store.SnapActionError{
+		Other: []error{fmt.Errorf("other error 1"), fmt.Errorf("other error 2")},
+	}
+	c.Check(e.Error(), Equals, `cannot refresh, install, or download:
+other error 1
+other error 2`)
+
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "")
+	c.Check(name, Equals, "")
+	c.Check(err, IsNil)
+
+	e = &store.SnapActionError{
+		Install: map[string]error{
+			"bar": fmt.Errorf("sad install"),
+		},
+		Other: []error{fmt.Errorf("other error 1"), fmt.Errorf("other error 2")},
+	}
+	c.Check(e.Error(), Equals, `cannot refresh, install, or download:
+sad install: "bar"
+other error 1
+other error 2`)
+
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "")
+	c.Check(name, Equals, "")
+	c.Check(err, IsNil)
+
+	e = &store.SnapActionError{
+		NoResults: true,
+	}
+	c.Check(e.Error(), Equals, "no install/refresh information results from the store")
+
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "")
+	c.Check(name, Equals, "")
+	c.Check(err, IsNil)
+}
+
+func (s *storeActionSuite) TestSnapActionRefreshesBothAuths(c *C) {
+	// snap action (install/refresh) has is its own custom way to
+	// signal macaroon refreshes that allows to do a best effort
+	// with the available results
+
+	refresh, err := makeTestRefreshDischargeResponse()
+	c.Assert(err, IsNil)
+	c.Check(s.user.StoreDischarges[0], Not(Equals), refresh)
+
+	// mock refresh response
+	refreshDischargeEndpointHit := false
+	mockSSOServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, fmt.Sprintf(`{"discharge_macaroon": "%s"}`, refresh))
+		refreshDischargeEndpointHit = true
+	}))
+	defer mockSSOServer.Close()
+	store.UbuntuoneRefreshDischargeAPI = mockSSOServer.URL + "/tokens/refresh"
+
+	refreshSessionRequested := false
+	expiredAuth := `Macaroon root="expired-session-macaroon"`
+	n := 0
+	// mock store response
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.UserAgent(), Equals, userAgent)
+
+		switch r.URL.Path {
+		case snapActionPath:
+			n++
+			type errObj struct {
+				Code    string `json:"code"`
+				Message string `json:"message"`
+			}
+			var errors []errObj
+
+			authorization := r.Header.Get("Authorization")
+			c.Check(authorization, Equals, expectedAuthorization(c, s.user))
+			if s.user.StoreDischarges[0] != refresh {
+				errors = append(errors, errObj{Code: "user-authorization-needs-refresh"})
+			}
+
+			devAuthorization := r.Header.Get("Snap-Device-Authorization")
+			if devAuthorization == "" {
+				c.Fatalf("device authentication missing")
+			} else if devAuthorization == expiredAuth {
+				errors = append(errors, errObj{Code: "device-authorization-needs-refresh"})
+			} else {
+				c.Check(devAuthorization, Equals, `Macaroon root="refreshed-session-macaroon"`)
+			}
+
+			errorsJSON, err := json.Marshal(errors)
+			c.Assert(err, IsNil)
+
+			io.WriteString(w, fmt.Sprintf(`{
+  "results": [{
+     "result": "refresh",
+     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "name": "hello-world",
+     "snap": {
+       "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+       "name": "hello-world",
+       "revision": 26,
+       "version": "6.1",
+       "publisher": {
+          "id": "canonical",
+          "name": "canonical",
+          "title": "Canonical"
+       }
+     }
+  }],
+  "error-list": %s
+}`, errorsJSON))
+		case authNoncesPath:
+			io.WriteString(w, `{"nonce": "1234567890:9876543210"}`)
+		case authSessionPath:
+			// sanity of request
+			jsonReq, err := ioutil.ReadAll(r.Body)
+			c.Assert(err, IsNil)
+			var req map[string]string
+			err = json.Unmarshal(jsonReq, &req)
+			c.Assert(err, IsNil)
+			c.Check(strings.HasPrefix(req["device-session-request"], "type: device-session-request\n"), Equals, true)
+			c.Check(strings.HasPrefix(req["serial-assertion"], "type: serial\n"), Equals, true)
+			c.Check(strings.HasPrefix(req["model-assertion"], "type: model\n"), Equals, true)
+
+			authorization := r.Header.Get("X-Device-Authorization")
+			if authorization == "" {
+				c.Fatalf("expecting only refresh")
+			} else {
+				c.Check(authorization, Equals, expiredAuth)
+				io.WriteString(w, `{"macaroon": "refreshed-session-macaroon"}`)
+				refreshSessionRequested = true
+			}
+		default:
+			c.Fatalf("unexpected path %q", r.URL.Path)
+		}
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+
+	// make sure device session is expired
+	s.device.SessionMacaroon = "expired-session-macaroon"
+	dauthCtx := &testDauthContext{c: c, device: s.device, user: s.user}
+	sto := store.New(&store.Config{
+		StoreBaseURL: mockServerURL,
+	}, dauthCtx)
+
+	results, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+		{
+			InstanceName:    "hello-world",
+			SnapID:          helloWorldSnapID,
+			TrackingChannel: "beta",
+			Revision:        snap.R(1),
+			RefreshedDate:   helloRefreshedDate,
+		},
+	}, []*store.SnapAction{
+		{
+			Action:       "refresh",
+			SnapID:       helloWorldSnapID,
+			InstanceName: "hello-world",
+		},
+	}, s.user, nil)
+	c.Assert(err, IsNil)
+	c.Assert(results, HasLen, 1)
+	c.Assert(results[0].InstanceName(), Equals, "hello-world")
+	c.Check(refreshDischargeEndpointHit, Equals, true)
+	c.Check(refreshSessionRequested, Equals, true)
+	c.Check(n, Equals, 2)
+}
+
+func (s *storeActionSuite) TestSnapActionRefreshParallelInstall(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "POST", snapActionPath)
+		// check device authorization is set, implicitly checking doRequest was used
+		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		jsonReq, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		var req struct {
+			Context []map[string]interface{} `json:"context"`
+			Actions []map[string]interface{} `json:"actions"`
+		}
+
+		err = json.Unmarshal(jsonReq, &req)
+		c.Assert(err, IsNil)
+
+		c.Assert(req.Context, HasLen, 2)
+		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+			"snap-id":          helloWorldSnapID,
+			"instance-key":     helloWorldSnapID,
+			"revision":         float64(26),
+			"tracking-channel": "stable",
+			"refreshed-date":   helloRefreshedDateStr,
+			"epoch":            iZeroEpoch,
+		})
+		c.Assert(req.Context[1], DeepEquals, map[string]interface{}{
+			"snap-id":          helloWorldSnapID,
+			"instance-key":     helloWorldFooInstanceKeyWithSalt,
+			"revision":         float64(2),
+			"tracking-channel": "stable",
+			"refreshed-date":   helloRefreshedDateStr,
+			"epoch":            iZeroEpoch,
+		})
+		c.Assert(req.Actions, HasLen, 1)
+		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+			"action":       "refresh",
+			"instance-key": helloWorldFooInstanceKeyWithSalt,
+			"snap-id":      helloWorldSnapID,
+			"channel":      "stable",
+		})
+
+		io.WriteString(w, `{
+  "results": [{
+     "result": "refresh",
+     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ:IDKVhLy-HUyfYGFKcsH4V-7FVG7hLGs4M5zsraZU5tk",
+     "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "name": "hello-world",
+     "snap": {
+       "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+       "name": "hello-world",
+       "revision": 26,
+       "version": "6.1",
+       "publisher": {
+          "id": "canonical",
+          "username": "canonical",
+          "display-name": "Canonical"
+       }
+     }
+  }]
+}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	results, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+		{
+			InstanceName:    "hello-world",
+			SnapID:          helloWorldSnapID,
+			TrackingChannel: "stable",
+			Revision:        snap.R(26),
+			RefreshedDate:   helloRefreshedDate,
+		}, {
+			InstanceName:    "hello-world_foo",
+			SnapID:          helloWorldSnapID,
+			TrackingChannel: "stable",
+			Revision:        snap.R(2),
+			RefreshedDate:   helloRefreshedDate,
+		},
+	}, []*store.SnapAction{
+		{
+			Action:       "refresh",
+			SnapID:       helloWorldSnapID,
+			Channel:      "stable",
+			InstanceName: "hello-world_foo",
+		},
+	}, nil, &store.RefreshOptions{PrivacyKey: "123"})
+	c.Assert(err, IsNil)
+	c.Assert(results, HasLen, 1)
+	c.Assert(results[0].SnapName(), Equals, "hello-world")
+	c.Assert(results[0].InstanceName(), Equals, "hello-world_foo")
+	c.Assert(results[0].Revision, Equals, snap.R(26))
+}
+
+func (s *storeActionSuite) TestSnapActionRefreshStableInstanceKey(c *C) {
+	// salt "foo"
+	helloWorldFooInstanceKeyWithSaltFoo := helloWorldSnapID + ":CY2pHZ7nlQDuiO5DxIsdRttcqqBoD2ZCQiEtCJSdVcI"
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "POST", snapActionPath)
+		// check device authorization is set, implicitly checking doRequest was used
+		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		jsonReq, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		var req struct {
+			Context []map[string]interface{} `json:"context"`
+			Actions []map[string]interface{} `json:"actions"`
+		}
+
+		err = json.Unmarshal(jsonReq, &req)
+		c.Assert(err, IsNil)
+
+		c.Assert(req.Context, HasLen, 2)
+		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+			"snap-id":          helloWorldSnapID,
+			"instance-key":     helloWorldSnapID,
+			"revision":         float64(26),
+			"tracking-channel": "stable",
+			"refreshed-date":   helloRefreshedDateStr,
+			"epoch":            iZeroEpoch,
+			"cohort-key":       "what",
+		})
+		c.Assert(req.Context[1], DeepEquals, map[string]interface{}{
+			"snap-id":          helloWorldSnapID,
+			"instance-key":     helloWorldFooInstanceKeyWithSaltFoo,
+			"revision":         float64(2),
+			"tracking-channel": "stable",
+			"refreshed-date":   helloRefreshedDateStr,
+			"epoch":            iZeroEpoch,
+		})
+		c.Assert(req.Actions, HasLen, 1)
+		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+			"action":       "refresh",
+			"instance-key": helloWorldFooInstanceKeyWithSaltFoo,
+			"snap-id":      helloWorldSnapID,
+			"channel":      "stable",
+		})
+
+		io.WriteString(w, `{
+  "results": [{
+     "result": "refresh",
+     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ:CY2pHZ7nlQDuiO5DxIsdRttcqqBoD2ZCQiEtCJSdVcI",
+     "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "name": "hello-world",
+     "snap": {
+       "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+       "name": "hello-world",
+       "revision": 26,
+       "version": "6.1",
+       "publisher": {
+          "id": "canonical",
+          "username": "canonical",
+          "display-name": "Canonical"
+       }
+     }
+  }]
+}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	opts := &store.RefreshOptions{PrivacyKey: "foo"}
+	currentSnaps := []*store.CurrentSnap{
+		{
+			InstanceName:    "hello-world",
+			SnapID:          helloWorldSnapID,
+			TrackingChannel: "stable",
+			Revision:        snap.R(26),
+			RefreshedDate:   helloRefreshedDate,
+			CohortKey:       "what",
+		}, {
+			InstanceName:    "hello-world_foo",
+			SnapID:          helloWorldSnapID,
+			TrackingChannel: "stable",
+			Revision:        snap.R(2),
+			RefreshedDate:   helloRefreshedDate,
+		},
+	}
+	action := []*store.SnapAction{
+		{
+			Action:       "refresh",
+			SnapID:       helloWorldSnapID,
+			Channel:      "stable",
+			InstanceName: "hello-world_foo",
+		},
+	}
+	results, err := sto.SnapAction(s.ctx, currentSnaps, action, nil, opts)
+	c.Assert(err, IsNil)
+	c.Assert(results, HasLen, 1)
+	c.Assert(results[0].SnapName(), Equals, "hello-world")
+	c.Assert(results[0].InstanceName(), Equals, "hello-world_foo")
+	c.Assert(results[0].Revision, Equals, snap.R(26))
+
+	// another request with the same seed, gives same result
+	resultsAgain, err := sto.SnapAction(s.ctx, currentSnaps, action, nil, opts)
+	c.Assert(err, IsNil)
+	c.Assert(resultsAgain, DeepEquals, results)
+}
+
+func (s *storeActionSuite) TestSnapActionRevisionNotAvailableParallelInstall(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "POST", snapActionPath)
+		// check device authorization is set, implicitly checking doRequest was used
+		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		jsonReq, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		var req struct {
+			Context []map[string]interface{} `json:"context"`
+			Actions []map[string]interface{} `json:"actions"`
+		}
+
+		err = json.Unmarshal(jsonReq, &req)
+		c.Assert(err, IsNil)
+
+		c.Assert(req.Context, HasLen, 2)
+		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+			"snap-id":          helloWorldSnapID,
+			"instance-key":     helloWorldSnapID,
+			"revision":         float64(26),
+			"tracking-channel": "stable",
+			"refreshed-date":   helloRefreshedDateStr,
+			"epoch":            iZeroEpoch,
+		})
+		c.Assert(req.Context[1], DeepEquals, map[string]interface{}{
+			"snap-id":          helloWorldSnapID,
+			"instance-key":     helloWorldFooInstanceKeyWithSalt,
+			"revision":         float64(2),
+			"tracking-channel": "edge",
+			"refreshed-date":   helloRefreshedDateStr,
+			"epoch":            iZeroEpoch,
+		})
+		c.Assert(req.Actions, HasLen, 3)
+		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+			"action":       "refresh",
+			"instance-key": helloWorldSnapID,
+			"snap-id":      helloWorldSnapID,
+		})
+		c.Assert(req.Actions[1], DeepEquals, map[string]interface{}{
+			"action":       "refresh",
+			"instance-key": helloWorldFooInstanceKeyWithSalt,
+			"snap-id":      helloWorldSnapID,
+		})
+		c.Assert(req.Actions[2], DeepEquals, map[string]interface{}{
+			"action":       "install",
+			"instance-key": "install-1",
+			"name":         "other",
+			"channel":      "stable",
+			"epoch":        nil,
+		})
+
+		io.WriteString(w, `{
+  "results": [{
+     "result": "error",
+     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "name": "hello-world",
+     "error": {
+       "code": "revision-not-found",
+       "message": "msg1"
+     }
+  }, {
+     "result": "error",
+     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ:IDKVhLy-HUyfYGFKcsH4V-7FVG7hLGs4M5zsraZU5tk",
+     "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "name": "hello-world",
+     "error": {
+       "code": "revision-not-found",
+       "message": "msg2"
+     }
+  },  {
+     "result": "error",
+     "instance-key": "install-1",
+     "snap-id": "foo-id",
+     "name": "other",
+     "error": {
+       "code": "revision-not-found",
+       "message": "msg3"
+     }
+  }
+  ]
+}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	results, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+		{
+			InstanceName:    "hello-world",
+			SnapID:          helloWorldSnapID,
+			TrackingChannel: "stable",
+			Revision:        snap.R(26),
+			RefreshedDate:   helloRefreshedDate,
+		},
+		{
+			InstanceName:    "hello-world_foo",
+			SnapID:          helloWorldSnapID,
+			TrackingChannel: "edge",
+			Revision:        snap.R(2),
+			RefreshedDate:   helloRefreshedDate,
+		},
+	}, []*store.SnapAction{
+		{
+			Action:       "refresh",
+			InstanceName: "hello-world",
+			SnapID:       helloWorldSnapID,
+		}, {
+			Action:       "refresh",
+			InstanceName: "hello-world_foo",
+			SnapID:       helloWorldSnapID,
+		}, {
+			Action:       "install",
+			InstanceName: "other_foo",
+			Channel:      "stable",
+		},
+	}, nil, &store.RefreshOptions{PrivacyKey: "123"})
+	c.Assert(results, HasLen, 0)
+	c.Check(err, DeepEquals, &store.SnapActionError{
+		Refresh: map[string]error{
+			"hello-world": &store.RevisionNotAvailableError{
+				Action:  "refresh",
+				Channel: "stable",
+			},
+			"hello-world_foo": &store.RevisionNotAvailableError{
+				Action:  "refresh",
+				Channel: "edge",
+			},
+		},
+		Install: map[string]error{
+			"other_foo": &store.RevisionNotAvailableError{
+				Action:  "install",
+				Channel: "stable",
+			},
+		},
+	})
+}
+
+func (s *storeActionSuite) TestSnapActionInstallParallelInstall(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "POST", snapActionPath)
+		// check device authorization is set, implicitly checking doRequest was used
+		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		jsonReq, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		var req struct {
+			Context []map[string]interface{} `json:"context"`
+			Actions []map[string]interface{} `json:"actions"`
+		}
+
+		err = json.Unmarshal(jsonReq, &req)
+		c.Assert(err, IsNil)
+
+		c.Assert(req.Context, HasLen, 1)
+		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+			"snap-id":          helloWorldSnapID,
+			"instance-key":     helloWorldSnapID,
+			"revision":         float64(26),
+			"tracking-channel": "stable",
+			"refreshed-date":   helloRefreshedDateStr,
+			"epoch":            iZeroEpoch,
+		})
+		c.Assert(req.Actions, HasLen, 1)
+		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+			"action":       "install",
+			"instance-key": "install-1",
+			"name":         "hello-world",
+			"channel":      "stable",
+			"epoch":        nil,
+		})
+
+		io.WriteString(w, `{
+  "results": [{
+     "result": "install",
+     "instance-key": "install-1",
+     "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "name": "hello-world",
+     "snap": {
+       "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+       "name": "hello-world",
+       "revision": 28,
+       "version": "6.1",
+       "publisher": {
+          "id": "canonical",
+          "username": "canonical",
+          "display-name": "Canonical"
+       }
+     }
+  }]
+}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	results, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+		{
+			InstanceName:    "hello-world",
+			SnapID:          helloWorldSnapID,
+			TrackingChannel: "stable",
+			Revision:        snap.R(26),
+			RefreshedDate:   helloRefreshedDate,
+		},
+	}, []*store.SnapAction{
+		{
+			Action:       "install",
+			InstanceName: "hello-world_foo",
+			Channel:      "stable",
+		},
+	}, nil, nil)
+	c.Assert(err, IsNil)
+	c.Assert(results, HasLen, 1)
+	c.Assert(results[0].InstanceName(), Equals, "hello-world_foo")
+	c.Assert(results[0].SnapName(), Equals, "hello-world")
+	c.Assert(results[0].Revision, Equals, snap.R(28))
+	c.Assert(results[0].Version, Equals, "6.1")
+	c.Assert(results[0].SnapID, Equals, helloWorldSnapID)
+	c.Assert(results[0].Deltas, HasLen, 0)
+	// effective-channel is not set
+	c.Assert(results[0].Channel, Equals, "")
+}
+
+func (s *storeActionSuite) TestSnapActionErrorsWhenNoInstanceName(c *C) {
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&store.Config{}, dauthCtx)
+
+	results, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+		{
+			InstanceName:    "hello-world",
+			SnapID:          helloWorldSnapID,
+			TrackingChannel: "stable",
+			Revision:        snap.R(26),
+			RefreshedDate:   helloRefreshedDate,
+		},
+	}, []*store.SnapAction{
+		{
+			Action:  "install",
+			Channel: "stable",
+		},
+	}, nil, nil)
+	c.Assert(err, ErrorMatches, "internal error: action without instance name")
+	c.Assert(results, IsNil)
+}
+
+func (s *storeActionSuite) TestSnapActionInstallUnexpectedInstallKey(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "POST", snapActionPath)
+		// check device authorization is set, implicitly checking doRequest was used
+		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		jsonReq, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		var req struct {
+			Context []map[string]interface{} `json:"context"`
+			Actions []map[string]interface{} `json:"actions"`
+		}
+
+		err = json.Unmarshal(jsonReq, &req)
+		c.Assert(err, IsNil)
+
+		c.Assert(req.Context, HasLen, 1)
+		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+			"snap-id":          helloWorldSnapID,
+			"instance-key":     helloWorldSnapID,
+			"revision":         float64(26),
+			"tracking-channel": "stable",
+			"refreshed-date":   helloRefreshedDateStr,
+			"epoch":            iZeroEpoch,
+		})
+		c.Assert(req.Actions, HasLen, 1)
+		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+			"action":       "install",
+			"instance-key": "install-1",
+			"name":         "hello-world",
+			"channel":      "stable",
+			"epoch":        nil,
+		})
+
+		io.WriteString(w, `{
+  "results": [{
+     "result": "install",
+     "instance-key": "foo-2",
+     "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "name": "hello-world",
+     "snap": {
+       "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+       "name": "hello-world",
+       "revision": 28,
+       "version": "6.1",
+       "publisher": {
+          "id": "canonical",
+          "username": "canonical",
+          "display-name": "Canonical"
+       }
+     }
+  }]
+}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	results, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+		{
+			InstanceName:    "hello-world",
+			SnapID:          helloWorldSnapID,
+			TrackingChannel: "stable",
+			Revision:        snap.R(26),
+			RefreshedDate:   helloRefreshedDate,
+		},
+	}, []*store.SnapAction{
+		{
+			Action:       "install",
+			InstanceName: "hello-world_foo",
+			Channel:      "stable",
+		},
+	}, nil, nil)
+	c.Assert(err, ErrorMatches, `unexpected invalid install/refresh API result: unexpected instance-key "foo-2"`)
+	c.Assert(results, IsNil)
+}
+
+func (s *storeActionSuite) TestSnapActionRefreshUnexpectedInstanceKey(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "POST", snapActionPath)
+		// check device authorization is set, implicitly checking doRequest was used
+		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		jsonReq, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		var req struct {
+			Context []map[string]interface{} `json:"context"`
+			Actions []map[string]interface{} `json:"actions"`
+		}
+
+		err = json.Unmarshal(jsonReq, &req)
+		c.Assert(err, IsNil)
+
+		c.Assert(req.Context, HasLen, 1)
+		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+			"snap-id":          helloWorldSnapID,
+			"instance-key":     helloWorldSnapID,
+			"revision":         float64(26),
+			"tracking-channel": "stable",
+			"refreshed-date":   helloRefreshedDateStr,
+			"epoch":            iZeroEpoch,
+		})
+		c.Assert(req.Actions, HasLen, 1)
+		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+			"action":       "refresh",
+			"instance-key": helloWorldSnapID,
+			"snap-id":      helloWorldSnapID,
+			"channel":      "stable",
+		})
+
+		io.WriteString(w, `{
+  "results": [{
+     "result": "refresh",
+     "instance-key": "foo-5",
+     "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "name": "hello-world",
+     "snap": {
+       "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+       "name": "hello-world",
+       "revision": 26,
+       "version": "6.1",
+       "publisher": {
+          "id": "canonical",
+          "username": "canonical",
+          "display-name": "Canonical"
+       }
+     }
+  }]
+}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	results, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+		{
+			InstanceName:    "hello-world",
+			SnapID:          helloWorldSnapID,
+			TrackingChannel: "stable",
+			Revision:        snap.R(26),
+			RefreshedDate:   helloRefreshedDate,
+		},
+	}, []*store.SnapAction{
+		{
+			Action:       "refresh",
+			SnapID:       helloWorldSnapID,
+			Channel:      "stable",
+			InstanceName: "hello-world",
+		},
+	}, nil, nil)
+	c.Assert(err, ErrorMatches, `unexpected invalid install/refresh API result: unexpected refresh`)
+	c.Assert(results, IsNil)
+}
+
+func (s *storeActionSuite) TestSnapActionUnexpectedErrorKey(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "POST", snapActionPath)
+		// check device authorization is set, implicitly checking doRequest was used
+		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		jsonReq, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		var req struct {
+			Context []map[string]interface{} `json:"context"`
+			Actions []map[string]interface{} `json:"actions"`
+		}
+
+		err = json.Unmarshal(jsonReq, &req)
+		c.Assert(err, IsNil)
+
+		c.Assert(req.Context, HasLen, 2)
+		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+			"snap-id":          helloWorldSnapID,
+			"instance-key":     helloWorldSnapID,
+			"revision":         float64(26),
+			"tracking-channel": "stable",
+			"refreshed-date":   helloRefreshedDateStr,
+			"epoch":            iZeroEpoch,
+		})
+		c.Assert(req.Context[1], DeepEquals, map[string]interface{}{
+			"snap-id":          helloWorldSnapID,
+			"instance-key":     helloWorldFooInstanceKeyWithSalt,
+			"revision":         float64(2),
+			"tracking-channel": "stable",
+			"refreshed-date":   helloRefreshedDateStr,
+			"epoch":            iZeroEpoch,
+		})
+		c.Assert(req.Actions, HasLen, 1)
+		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+			"action":       "install",
+			"instance-key": "install-1",
+			"name":         "foo-2",
+			"epoch":        nil,
+		})
+
+		io.WriteString(w, `{
+  "results": [{
+     "result": "install",
+     "instance-key": "install-1",
+     "snap-id": "foo-2-id",
+     "name": "foo-2",
+     "snap": {
+       "snap-id": "foo-2-id",
+       "name": "foo-2",
+       "revision": 28,
+       "version": "6.1",
+       "publisher": {
+          "id": "canonical",
+          "username": "canonical",
+          "display-name": "Canonical"
+       }
+     }
+  },{
+      "error": {
+        "code": "duplicated-snap",
+         "message": "The Snap is present more than once in the request."
+      },
+      "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ:IDKVhLy-HUyfYGFKcsH4V-7FVG7hLGs4M5zsraZU5tk",
+      "name": null,
+      "result": "error",
+      "snap": null,
+      "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ"
+  }]
+}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	results, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+		{
+			InstanceName:    "hello-world",
+			SnapID:          helloWorldSnapID,
+			TrackingChannel: "stable",
+			Revision:        snap.R(26),
+			RefreshedDate:   helloRefreshedDate,
+		}, {
+			InstanceName:    "hello-world_foo",
+			SnapID:          helloWorldSnapID,
+			TrackingChannel: "stable",
+			Revision:        snap.R(2),
+			RefreshedDate:   helloRefreshedDate,
+		},
+	}, []*store.SnapAction{
+		{
+			Action:       "install",
+			InstanceName: "foo-2",
+		},
+	}, nil, &store.RefreshOptions{PrivacyKey: "123"})
+	c.Assert(err, DeepEquals, &store.SnapActionError{
+		Other: []error{fmt.Errorf(`snap "hello-world_foo": The Snap is present more than once in the request.`)},
+	})
+	c.Assert(results, HasLen, 1)
+	c.Assert(results[0].InstanceName(), Equals, "foo-2")
+	c.Assert(results[0].SnapID, Equals, "foo-2-id")
+}
