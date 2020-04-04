@@ -176,21 +176,14 @@ func assertRequest(c *C, r *http.Request, method, pathPattern string) {
 	}
 }
 
-type storeTestSuite struct {
+type baseStoreSuite struct {
 	testutil.BaseTest
-	store     *store.Store
-	logbuf    *bytes.Buffer
-	user      *auth.UserState
-	localUser *auth.UserState
-	device    *auth.DeviceState
-	ctx       context.Context
 
-	mockXDelta *testutil.MockCmd
+	device *auth.DeviceState
+	// user
 
-	restoreLogger func()
+	logbuf *bytes.Buffer
 }
-
-var _ = Suite(&storeTestSuite{})
 
 const (
 	exModel = `type: model
@@ -394,33 +387,17 @@ func forceSearchV1(w http.ResponseWriter) {
 	http.Error(w, http.StatusText(404), 404)
 }
 
-func (s *storeTestSuite) SetUpTest(c *C) {
+func (s *baseStoreSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
-	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
-
-	s.store = store.New(nil, nil)
-	dirs.SetRootDir(c.MkDir())
-	c.Assert(os.MkdirAll(dirs.SnapMountDir, 0755), IsNil)
 
 	os.Setenv("SNAPD_DEBUG", "1")
 	s.AddCleanup(func() { os.Unsetenv("SNAPD_DEBUG") })
 
-	s.logbuf, s.restoreLogger = logger.MockLogger()
+	var restoreLogger func()
+	s.logbuf, restoreLogger = logger.MockLogger()
+	s.AddCleanup(restoreLogger)
 
-	root, err := makeTestMacaroon()
-	c.Assert(err, IsNil)
-	discharge, err := makeTestDischarge()
-	c.Assert(err, IsNil)
-	s.user, err = createTestUser(1, root, discharge)
-	c.Assert(err, IsNil)
-	s.localUser = &auth.UserState{
-		ID:       11,
-		Username: "test-user",
-		Macaroon: "snapd-macaroon",
-	}
 	s.device = createTestDevice()
-	s.mockXDelta = testutil.MockCommand(c, "xdelta3", "")
-	s.ctx = context.TODO()
 
 	store.MockDefaultRetryStrategy(&s.BaseTest, retry.LimitCount(5, retry.LimitTime(1*time.Second,
 		retry.Exponential{
@@ -437,10 +414,43 @@ func (s *storeTestSuite) SetUpTest(c *C) {
 	)))
 }
 
-func (s *storeTestSuite) TearDownTest(c *C) {
-	s.mockXDelta.Restore()
-	s.restoreLogger()
-	s.BaseTest.TearDownTest(c)
+type storeTestSuite struct {
+	baseStoreSuite
+
+	store *store.Store
+
+	user      *auth.UserState
+	localUser *auth.UserState
+	ctx       context.Context
+
+	mockXDelta *testutil.MockCmd
+}
+
+var _ = Suite(&storeTestSuite{})
+
+func (s *storeTestSuite) SetUpTest(c *C) {
+	s.baseStoreSuite.SetUpTest(c)
+	s.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
+
+	s.store = store.New(nil, nil)
+	dirs.SetRootDir(c.MkDir())
+	c.Assert(os.MkdirAll(dirs.SnapMountDir, 0755), IsNil)
+
+	root, err := makeTestMacaroon()
+	c.Assert(err, IsNil)
+	discharge, err := makeTestDischarge()
+	c.Assert(err, IsNil)
+	s.user, err = createTestUser(1, root, discharge)
+	c.Assert(err, IsNil)
+	s.localUser = &auth.UserState{
+		ID:       11,
+		Username: "test-user",
+		Macaroon: "snapd-macaroon",
+	}
+
+	s.mockXDelta = testutil.MockCommand(c, "xdelta3", "")
+	s.AddCleanup(s.mockXDelta.Restore)
+	s.ctx = context.TODO()
 }
 
 func expectedAuthorization(c *C, user *auth.UserState) string {
@@ -4024,141 +4034,6 @@ func (s *storeTestSuite) TestNew(c *C) {
 	c.Assert(aStore, NotNil)
 	// check for fields
 	c.Check(aStore.DetailFields(), DeepEquals, store.DefaultConfig().DetailFields)
-}
-
-var testAssertion = `type: snap-declaration
-authority-id: super
-series: 16
-snap-id: snapidfoo
-publisher-id: devidbaz
-snap-name: mysnap
-timestamp: 2016-03-30T12:22:16Z
-sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
-
-openpgp wsBcBAABCAAQBQJW+8VBCRDWhXkqAWcrfgAAQ9gIABZFgMPByJZeUE835FkX3/y2hORn
-AzE3R1ktDkQEVe/nfVDMACAuaw1fKmUS4zQ7LIrx/AZYw5i0vKVmJszL42LBWVsqR0+p9Cxebzv9
-U2VUSIajEsUUKkBwzD8wxFzagepFlScif1NvCGZx0vcGUOu0Ent0v+gqgAv21of4efKqEW7crlI1
-T/A8LqZYmIzKRHGwCVucCyAUD8xnwt9nyWLgLB+LLPOVFNK8SR6YyNsX05Yz1BUSndBfaTN8j/k8
-8isKGZE6P0O9ozBbNIAE8v8NMWQegJ4uWuil7D3psLkzQIrxSypk9TrQ2GlIG2hJdUovc5zBuroe
-xS4u9rVT6UY=`
-
-func (s *storeTestSuite) TestAssertion(c *C) {
-	restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, 88)
-	defer restore()
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assertRequest(c, r, "GET", "/api/v1/snaps/assertions/.*")
-		// check device authorization is set, implicitly checking doRequest was used
-		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
-
-		c.Check(r.Header.Get("Accept"), Equals, "application/x.ubuntu.assertion")
-		c.Check(r.URL.Path, Matches, ".*/snap-declaration/16/snapidfoo")
-		c.Check(r.URL.Query().Get("max-format"), Equals, "88")
-		io.WriteString(w, testAssertion)
-	}))
-
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-
-	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := store.Config{
-		StoreBaseURL: mockServerURL,
-	}
-	dauthCtx := &testDauthContext{c: c, device: s.device}
-	sto := store.New(&cfg, dauthCtx)
-
-	a, err := sto.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, nil)
-	c.Assert(err, IsNil)
-	c.Check(a, NotNil)
-	c.Check(a.Type(), Equals, asserts.SnapDeclarationType)
-}
-
-func (s *storeTestSuite) TestAssertionProxyStoreFromAuthContext(c *C) {
-	restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, 88)
-	defer restore()
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assertRequest(c, r, "GET", "/api/v1/snaps/assertions/.*")
-		// check device authorization is set, implicitly checking doRequest was used
-		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
-
-		c.Check(r.Header.Get("Accept"), Equals, "application/x.ubuntu.assertion")
-		c.Check(r.URL.Path, Matches, ".*/snap-declaration/16/snapidfoo")
-		c.Check(r.URL.Query().Get("max-format"), Equals, "88")
-		io.WriteString(w, testAssertion)
-	}))
-
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-
-	mockServerURL, _ := url.Parse(mockServer.URL)
-	nowhereURL, err := url.Parse("http://nowhere.invalid")
-	c.Assert(err, IsNil)
-	cfg := store.Config{
-		AssertionsBaseURL: nowhereURL,
-	}
-	dauthCtx := &testDauthContext{
-		c:             c,
-		device:        s.device,
-		proxyStoreID:  "foo",
-		proxyStoreURL: mockServerURL,
-	}
-	sto := store.New(&cfg, dauthCtx)
-
-	a, err := sto.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, nil)
-	c.Assert(err, IsNil)
-	c.Check(a, NotNil)
-	c.Check(a.Type(), Equals, asserts.SnapDeclarationType)
-}
-
-func (s *storeTestSuite) TestAssertionNotFound(c *C) {
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assertRequest(c, r, "GET", "/api/v1/snaps/assertions/.*")
-		c.Check(r.Header.Get("Accept"), Equals, "application/x.ubuntu.assertion")
-		c.Check(r.URL.Path, Matches, ".*/snap-declaration/16/snapidfoo")
-		w.Header().Set("Content-Type", "application/problem+json")
-		w.WriteHeader(404)
-		io.WriteString(w, `{"status": 404,"title": "not found"}`)
-	}))
-
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-
-	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := store.Config{
-		AssertionsBaseURL: mockServerURL,
-	}
-	sto := store.New(&cfg, nil)
-
-	_, err := sto.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, nil)
-	c.Check(asserts.IsNotFound(err), Equals, true)
-	c.Check(err, DeepEquals, &asserts.NotFoundError{
-		Type: asserts.SnapDeclarationType,
-		Headers: map[string]string{
-			"series":  "16",
-			"snap-id": "snapidfoo",
-		},
-	})
-}
-
-func (s *storeTestSuite) TestAssertion500(c *C) {
-	var n = 0
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assertRequest(c, r, "GET", "/api/v1/snaps/assertions/.*")
-		n++
-		w.WriteHeader(500)
-	}))
-
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-
-	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := store.Config{
-		AssertionsBaseURL: mockServerURL,
-	}
-	sto := store.New(&cfg, nil)
-
-	_, err := sto.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, nil)
-	c.Assert(err, ErrorMatches, `cannot fetch assertion: got unexpected HTTP status code 500 via .+`)
-	c.Assert(n, Equals, 5)
 }
 
 func (s *storeTestSuite) TestSuggestedCurrency(c *C) {
