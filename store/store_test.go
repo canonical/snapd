@@ -380,13 +380,6 @@ func createTestDevice() *auth.DeviceState {
 	}
 }
 
-const storeVerWithV1Search = "18"
-
-func forceSearchV1(w http.ResponseWriter) {
-	w.Header().Set("Snap-Store-Version", storeVerWithV1Search)
-	http.Error(w, http.StatusText(404), 404)
-}
-
 func (s *baseStoreSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	s.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
@@ -2777,6 +2770,13 @@ const MockSearchJSONv2 = `
 	]
  }
 `
+
+const storeVerWithV1Search = "18"
+
+func forceSearchV1(w http.ResponseWriter) {
+	w.Header().Set("Snap-Store-Version", storeVerWithV1Search)
+	http.Error(w, http.StatusText(404), 404)
+}
 
 func (s *storeTestSuite) TestFindV1Queries(c *C) {
 	n := 0
