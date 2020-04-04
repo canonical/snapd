@@ -74,7 +74,6 @@ func (s *storeDownloadSuite) SetUpTest(c *C) {
 	s.mockXDelta = testutil.MockCommand(c, "xdelta3", "")
 	s.AddCleanup(s.mockXDelta.Restore)
 
-
 	store.MockDownloadRetryStrategy(&s.BaseTest, retry.LimitCount(5, retry.LimitTime(1*time.Second,
 		retry.Exponential{
 			Initial: 1 * time.Millisecond,
