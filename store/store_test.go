@@ -443,7 +443,7 @@ func (s *storeTestSuite) TearDownTest(c *C) {
 	s.BaseTest.TearDownTest(c)
 }
 
-func (s *storeTestSuite) expectedAuthorization(c *C, user *auth.UserState) string {
+func expectedAuthorization(c *C, user *auth.UserState) string {
 	var buf bytes.Buffer
 
 	root, err := auth.MacaroonDeserialize(user.StoreMacaroon)
@@ -1264,7 +1264,7 @@ func (s *storeTestSuite) TestDoRequestSetsAuth(c *C) {
 		c.Check(r.UserAgent(), Equals, userAgent)
 		// check user authorization is set
 		authorization := r.Header.Get("Authorization")
-		c.Check(authorization, Equals, s.expectedAuthorization(c, s.user))
+		c.Check(authorization, Equals, expectedAuthorization(c, s.user))
 		// check device authorization is set
 		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
@@ -1324,7 +1324,7 @@ func (s *storeTestSuite) TestDoRequestAuthNoSerial(c *C) {
 		c.Check(r.UserAgent(), Equals, userAgent)
 		// check user authorization is set
 		authorization := r.Header.Get("Authorization")
-		c.Check(authorization, Equals, s.expectedAuthorization(c, s.user))
+		c.Check(authorization, Equals, expectedAuthorization(c, s.user))
 		// check device authorization was not set
 		c.Check(r.Header.Get("X-Device-Authorization"), Equals, "")
 
@@ -1371,7 +1371,7 @@ func (s *storeTestSuite) TestDoRequestRefreshesAuth(c *C) {
 		c.Check(r.UserAgent(), Equals, userAgent)
 
 		authorization := r.Header.Get("Authorization")
-		c.Check(authorization, Equals, s.expectedAuthorization(c, s.user))
+		c.Check(authorization, Equals, expectedAuthorization(c, s.user))
 		if s.user.StoreDischarges[0] == refresh {
 			io.WriteString(w, "response-data")
 		} else {
@@ -1414,7 +1414,7 @@ func (s *storeTestSuite) TestDoRequestForwardsRefreshAuthFailure(c *C) {
 		c.Check(r.UserAgent(), Equals, userAgent)
 
 		authorization := r.Header.Get("Authorization")
-		c.Check(authorization, Equals, s.expectedAuthorization(c, s.user))
+		c.Check(authorization, Equals, expectedAuthorization(c, s.user))
 		w.Header().Set("WWW-Authenticate", "Macaroon needs_refresh=1")
 		w.WriteHeader(401)
 	}))
@@ -1649,7 +1649,7 @@ func (s *storeTestSuite) TestDoRequestSetsAndRefreshesBothAuths(c *C) {
 		switch r.URL.Path {
 		case "/":
 			authorization := r.Header.Get("Authorization")
-			c.Check(authorization, Equals, s.expectedAuthorization(c, s.user))
+			c.Check(authorization, Equals, expectedAuthorization(c, s.user))
 			if s.user.StoreDischarges[0] != refresh {
 				w.Header().Set("WWW-Authenticate", "Macaroon needs_refresh=1")
 				w.WriteHeader(401)
@@ -3703,7 +3703,7 @@ func (s *storeTestSuite) testFindAuthFailed(c *C, apiV1 bool) {
 		case findPath:
 			// check authorization is set
 			authorization := r.Header.Get("Authorization")
-			c.Check(authorization, Equals, s.expectedAuthorization(c, s.user))
+			c.Check(authorization, Equals, expectedAuthorization(c, s.user))
 
 			query := r.URL.Query()
 			c.Check(query.Get("q"), Equals, "foo")
@@ -3720,7 +3720,7 @@ func (s *storeTestSuite) testFindAuthFailed(c *C, apiV1 bool) {
 				io.WriteString(w, MockSearchJSONv2)
 			}
 		case ordersPath:
-			c.Check(r.Header.Get("Authorization"), Equals, s.expectedAuthorization(c, s.user))
+			c.Check(r.Header.Get("Authorization"), Equals, expectedAuthorization(c, s.user))
 			c.Check(r.Header.Get("Accept"), Equals, store.JsonContentType)
 			c.Check(r.URL.Path, Equals, ordersPath)
 			w.WriteHeader(401)
@@ -4014,7 +4014,7 @@ func (s *storeTestSuite) TestStoreDeveloperURLDependsOnEnviron(c *C) {
 	c.Check(before, Not(Equals), after)
 }
 
-func (s *storeTestSuite) TeststoreDefaultConfig(c *C) {
+func (s *storeTestSuite) TestStoreDefaultConfig(c *C) {
 	c.Check(store.DefaultConfig().StoreBaseURL.String(), Equals, "https://api.snapcraft.io/")
 	c.Check(store.DefaultConfig().AssertionsBaseURL, IsNil)
 }
@@ -4208,7 +4208,7 @@ func (s *storeTestSuite) TestDecorateOrders(c *C) {
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 		c.Check(r.Header.Get("Accept"), Equals, store.JsonContentType)
-		c.Check(r.Header.Get("Authorization"), Equals, s.expectedAuthorization(c, s.user))
+		c.Check(r.Header.Get("Authorization"), Equals, expectedAuthorization(c, s.user))
 		c.Check(r.URL.Path, Equals, ordersPath)
 		io.WriteString(w, mockOrdersJSON)
 	}))
@@ -4255,7 +4255,7 @@ func (s *storeTestSuite) TestDecorateOrders(c *C) {
 func (s *storeTestSuite) TestDecorateOrdersFailedAccess(c *C) {
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", ordersPath)
-		c.Check(r.Header.Get("Authorization"), Equals, s.expectedAuthorization(c, s.user))
+		c.Check(r.Header.Get("Authorization"), Equals, expectedAuthorization(c, s.user))
 		c.Check(r.Header.Get("Accept"), Equals, store.JsonContentType)
 		c.Check(r.URL.Path, Equals, ordersPath)
 		w.WriteHeader(401)
@@ -4371,7 +4371,7 @@ func (s *storeTestSuite) TestDecorateOrdersAllFree(c *C) {
 
 func (s *storeTestSuite) TestDecorateOrdersSingle(c *C) {
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.Header.Get("Authorization"), Equals, s.expectedAuthorization(c, s.user))
+		c.Check(r.Header.Get("Authorization"), Equals, expectedAuthorization(c, s.user))
 		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 		c.Check(r.Header.Get("Accept"), Equals, store.JsonContentType)
 		c.Check(r.URL.Path, Equals, ordersPath)
@@ -4417,7 +4417,7 @@ func (s *storeTestSuite) TestDecorateOrdersSingleFreeSnap(c *C) {
 func (s *storeTestSuite) TestDecorateOrdersSingleNotFound(c *C) {
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", ordersPath)
-		c.Check(r.Header.Get("Authorization"), Equals, s.expectedAuthorization(c, s.user))
+		c.Check(r.Header.Get("Authorization"), Equals, expectedAuthorization(c, s.user))
 		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 		c.Check(r.Header.Get("Accept"), Equals, store.JsonContentType)
 		c.Check(r.URL.Path, Equals, ordersPath)
@@ -4449,7 +4449,7 @@ func (s *storeTestSuite) TestDecorateOrdersSingleNotFound(c *C) {
 
 func (s *storeTestSuite) TestDecorateOrdersTokenExpired(c *C) {
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.Header.Get("Authorization"), Equals, s.expectedAuthorization(c, s.user))
+		c.Check(r.Header.Get("Authorization"), Equals, expectedAuthorization(c, s.user))
 		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 		c.Check(r.Header.Get("Accept"), Equals, store.JsonContentType)
 		c.Check(r.URL.Path, Equals, ordersPath)
@@ -4613,14 +4613,14 @@ func (s *storeTestSuite) TestBuy(c *C) {
 				c.Assert(r.Method, Equals, "GET")
 				c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 				c.Check(r.Header.Get("Accept"), Equals, store.JsonContentType)
-				c.Check(r.Header.Get("Authorization"), Equals, s.expectedAuthorization(c, s.user))
+				c.Check(r.Header.Get("Authorization"), Equals, expectedAuthorization(c, s.user))
 				io.WriteString(w, `{"orders": []}`)
 				purchaseServerGetCalled = true
 			case buyPath:
 				c.Assert(r.Method, Equals, "POST")
 				// check device authorization is set, implicitly checking doRequest was used
 				c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
-				c.Check(r.Header.Get("Authorization"), Equals, s.expectedAuthorization(c, s.user))
+				c.Check(r.Header.Get("Authorization"), Equals, expectedAuthorization(c, s.user))
 				c.Check(r.Header.Get("Accept"), Equals, store.JsonContentType)
 				c.Check(r.Header.Get("Content-Type"), Equals, store.JsonContentType)
 				c.Check(r.URL.Path, Equals, buyPath)
@@ -4860,7 +4860,7 @@ func (s *storeTestSuite) TestReadyToBuy(c *C) {
 			case "GET":
 				// check device authorization is set, implicitly checking doRequest was used
 				c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
-				c.Check(r.Header.Get("Authorization"), Equals, s.expectedAuthorization(c, s.user))
+				c.Check(r.Header.Get("Authorization"), Equals, expectedAuthorization(c, s.user))
 				c.Check(r.Header.Get("Accept"), Equals, store.JsonContentType)
 				c.Check(r.URL.Path, Equals, customersMePath)
 				test.Input(w)
@@ -7103,7 +7103,7 @@ func (s *storeTestSuite) TestSnapActionRefreshesBothAuths(c *C) {
 			var errors []errObj
 
 			authorization := r.Header.Get("Authorization")
-			c.Check(authorization, Equals, s.expectedAuthorization(c, s.user))
+			c.Check(authorization, Equals, expectedAuthorization(c, s.user))
 			if s.user.StoreDischarges[0] != refresh {
 				errors = append(errors, errObj{Code: "user-authorization-needs-refresh"})
 			}
