@@ -21,8 +21,8 @@ prepare: |
                 ;;
         esac
     fi
-    && ( loginctl kill-user "$USER" || true )
 
+    session-tool --prepare -u "$USER"
 
 restore: |
     snap unset core experimental.refresh-app-awareness
@@ -33,7 +33,7 @@ restore: |
                 ;;
         esac
     fi
-    session-tool --restore
+    session-tool --restore -u "$USER"
 
 execute: |
     # TODO: add a variant that uses a service
@@ -124,20 +124,15 @@ execute: |
     session-tool -p /tmp/3.pid -u "$USER" snap run test-snapd-sh.sh -c 'touch /tmp/3.stamp && sleep 1m' &
     pid3_session=$!
     retry-tool -n 30 test -e /tmp/snap.test-snapd-sh/tmp/3.stamp
-    pid3_sleep=$(cat /tmp/3.pid)
-    pid3_tracking_cg_path="$(grep -E "^$base_cg_id:" < "/proc/$pid3_sleep/cgroup" | cut -d : -f 3)"
-    MATCH "$pid3_sleep" < "${base_cg_path}${pid3_tracking_cg_path}/cgroup.procs"
+    pid3_sh=$(cat /tmp/3.pid)
+    pid3_tracking_cg_path="$(grep -E "^$base_cg_id:" < "/proc/$pid3_sh/cgroup" | cut -d : -f 3)"
+    MATCH "$pid3_sh" < "${base_cg_path}${pid3_tracking_cg_path}/cgroup.procs"
 
     echo "Because the script above used \"sleep 1m\" instead of \"exec sleep 1m\" there"
     echo "are now two processes: the shell and sleep."
     test "$(wc -l < "${base_cg_path}${pid3_tracking_cg_path}/cgroup.procs")" -eq 2
-    kill "$pid3_sleep"
+    kill "$pid3_sh"
     test "$(wc -l < "${base_cg_path}${pid3_tracking_cg_path}/cgroup.procs")" -eq 1
-    wait "$pid3_session"
+    wait "$pid3_session" || true  # same as above
 
-    echo "Kill the remaining cgroup processes."
-    while read -r pid; do
-        kill "$pid"
-    done < "${base_cg_path}${pid3_tracking_cg_path}/cgroup.procs"
-    wait "$pid3_sleep" || true  # same as above
     retry-tool -n 10 test ! -e "${base_cg_path}${pid3_tracking_cg_path}"
