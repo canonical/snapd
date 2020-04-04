@@ -26,7 +26,7 @@ restore: |
 
 execute: |
 
-    ( cd "$PREAD_DIR" && curl -s -O https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz && tar xzvf spread-amd64.tar.gz )
+    ( cd "$SPREAD_DIR" && curl -s -O https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz && tar xzvf spread-amd64.tar.gz )
 
     export SPREAD_EXTERNAL_ADDRESS=localhost:8022
 
@@ -35,4 +35,4 @@ execute: |
     sshpass -p ubuntu ssh -q -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -p 8022 user1@$localhost "echo 'test ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/create-user-test"
 
     cd "$PROJECT_PATH"
-    "$PREAD_DIR/spread" external:ubuntu-core-20-64:tests/smoke/
+    "$SPREAD_DIR/spread" external:ubuntu-core-20-64:tests/smoke/

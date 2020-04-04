@@ -323,18 +323,13 @@ EOF
 configure_cloud_init_nested_core_vm_uc20(){
     create_cloud_init_config "$WORK_DIR/data.cfg"
 
-    loops=$(kpartx -avs "$WORK_DIR/image/ubuntu-core.img"  | cut -d' ' -f 3)
+    loop=$(kpartx -avs "$WORK_DIR/image/ubuntu-core.img" | sed -n 2p | awk '{print $3}')
     tmp=$(mktemp -d)
 
-    for part in $loops; do
-        mount -t tmpfs "/dev/mapper/$part" "$tmp"
-        if [ -d "$tmp/ubuntu-seed" ]; then
-            mkdir -p "$tmp/ubuntu-seed/data/etc/cloud/cloud.cfg.d/"
-            cp "$WORK_DIR/data.cfg" "$tmp/ubuntu-seed/data/etc/cloud/cloud.cfg.d/"
-        fi
-        umount "$tmp"
-    done
-    kpartx -d "$WORK_DIR/image/ubuntu-core.img"
+    mount "/dev/mapper/$loop" "$tmp"
+    mkdir -p "$tmp/data/etc/cloud/cloud.cfg.d/"
+    cp -f "$WORK_DIR/data.cfg" "$tmp/data/etc/cloud/cloud.cfg.d/"
+    umount "$tmp"
 }
 
 start_nested_core_vm(){
