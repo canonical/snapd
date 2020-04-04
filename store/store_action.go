@@ -485,3 +485,12 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 
 	return sars, nil
 }
+
+func findRev(needle snap.Revision, haystack []snap.Revision) bool {
+	for _, r := range haystack {
+		if needle == r {
+			return true
+		}
+	}
+	return false
+}

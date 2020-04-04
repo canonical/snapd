@@ -1384,15 +1384,6 @@ func (s *Store) WriteCatalogs(ctx context.Context, names io.Writer, adder SnapAd
 	return nil
 }
 
-func findRev(needle snap.Revision, haystack []snap.Revision) bool {
-	for _, r := range haystack {
-		if needle == r {
-			return true
-		}
-	}
-	return false
-}
-
 // SuggestedCurrency retrieves the cached value for the store's suggested currency
 func (s *Store) SuggestedCurrency() string {
 	s.mu.Lock()
