@@ -44,7 +44,6 @@ import (
 	"gopkg.in/retry.v1"
 
 	"github.com/snapcore/snapd/arch"
-	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/cmd/cmdutil"
 	"github.com/snapcore/snapd/dirs"
@@ -471,15 +470,6 @@ func (s *Store) baseURL(defaultURL *url.URL) *url.URL {
 
 func (s *Store) endpointURL(p string, query url.Values) *url.URL {
 	return endpointURL(s.baseURL(s.cfg.StoreBaseURL), p, query)
-}
-
-func (s *Store) assertionsEndpointURL(p string, query url.Values) *url.URL {
-	defBaseURL := s.cfg.StoreBaseURL
-	// can be overridden separately!
-	if s.cfg.AssertionsBaseURL != nil {
-		defBaseURL = s.cfg.AssertionsBaseURL
-	}
-	return endpointURL(s.baseURL(defBaseURL), path.Join(assertionsPath, p), query)
 }
 
 // LoginUser logs user in the store and returns the authentication macaroons.
@@ -1935,68 +1925,6 @@ func (s *Store) downloadAndApplyDelta(name, targetPath string, downloadInfo *sna
 
 	logger.Debugf("Successfully applied delta for %q at %s, saving %d bytes.", name, deltaPath, downloadInfo.Size-deltaInfo.Size)
 	return nil
-}
-
-type assertionSvcError struct {
-	Status int    `json:"status"`
-	Type   string `json:"type"`
-	Title  string `json:"title"`
-	Detail string `json:"detail"`
-}
-
-// Assertion retrivies the assertion for the given type and primary key.
-func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error) {
-	v := url.Values{}
-	v.Set("max-format", strconv.Itoa(assertType.MaxSupportedFormat()))
-	u := s.assertionsEndpointURL(path.Join(assertType.Name, path.Join(primaryKey...)), v)
-
-	reqOptions := &requestOptions{
-		Method: "GET",
-		URL:    u,
-		Accept: asserts.MediaType,
-	}
-
-	var asrt asserts.Assertion
-
-	resp, err := httputil.RetryRequest(reqOptions.URL.String(), func() (*http.Response, error) {
-		return s.doRequest(context.TODO(), s.client, reqOptions, user)
-	}, func(resp *http.Response) error {
-		var e error
-		if resp.StatusCode == 200 {
-			// decode assertion
-			dec := asserts.NewDecoder(resp.Body)
-			asrt, e = dec.Decode()
-		} else {
-			contentType := resp.Header.Get("Content-Type")
-			if contentType == jsonContentType || contentType == "application/problem+json" {
-				var svcErr assertionSvcError
-				dec := json.NewDecoder(resp.Body)
-				if e = dec.Decode(&svcErr); e != nil {
-					return fmt.Errorf("cannot decode assertion service error with HTTP status code %d: %v", resp.StatusCode, e)
-				}
-				if svcErr.Status == 404 {
-					// best-effort
-					headers, _ := asserts.HeadersFromPrimaryKey(assertType, primaryKey)
-					return &asserts.NotFoundError{
-						Type:    assertType,
-						Headers: headers,
-					}
-				}
-				return fmt.Errorf("assertion service error: [%s] %q", svcErr.Title, svcErr.Detail)
-			}
-		}
-		return e
-	}, defaultRetryStrategy)
-
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.StatusCode != 200 {
-		return nil, respToError(resp, "fetch assertion")
-	}
-
-	return asrt, err
 }
 
 // SuggestedCurrency retrieves the cached value for the store's suggested currency
