@@ -44,9 +44,18 @@ import (
 
 type storeActionSuite struct {
 	baseStoreSuite
+
+	mockXDelta *testutil.MockCmd
 }
 
 var _ = Suite(&storeActionSuite{})
+
+func (s *storeActionSuite) SetUpTest(c *C) {
+	s.baseStoreSuite.SetUpTest(c)
+
+	s.mockXDelta = testutil.MockCommand(c, "xdelta3", "")
+	s.AddCleanup(s.mockXDelta.Restore)
+}
 
 var (
 	helloRefreshedDateStr = "2018-02-27T11:00:00Z"
