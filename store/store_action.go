@@ -230,11 +230,6 @@ type SnapActionResult struct {
 }
 
 func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, actions []*SnapAction, user *auth.UserState, opts *RefreshOptions) ([]SnapActionResult, error) {
-
-	// TODO: the store already requires instance-key but doesn't
-	// yet support repeating in context or sending actions for the
-	// same snap-id, for now we keep instance-key handling internal
-
 	requestSalt := ""
 	if opts != nil {
 		requestSalt = opts.PrivacyKey
