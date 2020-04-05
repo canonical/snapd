@@ -28,6 +28,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -55,6 +56,10 @@ type CurrentSnap struct {
 	Block            []snap.Revision
 	Epoch            snap.Epoch
 	CohortKey        string
+}
+
+type AssertionQuery interface {
+	ToResolve() (map[asserts.Grouping][]*asserts.AtRevision, error)
 }
 
 type currentSnapV2JSON struct {
@@ -157,14 +162,14 @@ var snapActionFields = jsonutil.StructFields((*storeSnap)(nil))
 // current installed snaps in currentSnaps. If the request was overall
 // successul (200) but there were reported errors it will return both
 // the snap infos and an SnapActionError.
-func (s *Store) SnapAction(ctx context.Context, currentSnaps []*CurrentSnap, actions []*SnapAction, user *auth.UserState, opts *RefreshOptions) ([]SnapActionResult, error) {
+func (s *Store) SnapAction(ctx context.Context, currentSnaps []*CurrentSnap, actions []*SnapAction, assertQuery AssertionQuery, user *auth.UserState, opts *RefreshOptions) ([]SnapActionResult, []AssertionResult, error) {
 	if opts == nil {
 		opts = &RefreshOptions{}
 	}
 
 	if len(currentSnaps) == 0 && len(actions) == 0 {
 		// nothing to do
-		return nil, &SnapActionError{NoResults: true}
+		return nil, nil, &SnapActionError{NoResults: true}
 	}
 
 	authRefreshes := 0
@@ -197,7 +202,7 @@ func (s *Store) SnapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			}
 		}
 
-		return sars, err
+		return sars, nil, err
 	}
 }
 
@@ -227,6 +232,13 @@ func genInstanceKey(curSnap *CurrentSnap, salt string) (string, error) {
 type SnapActionResult struct {
 	*snap.Info
 	RedirectChannel string
+}
+
+// AssertionResult encapsulates the non-error result for one assertion
+// grouping fetch action.
+type AssertionResult struct {
+	Grouping   asserts.Grouping
+	StreamURLs []string
 }
 
 func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, actions []*SnapAction, user *auth.UserState, opts *RefreshOptions) ([]SnapActionResult, error) {
