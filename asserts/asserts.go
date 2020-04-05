@@ -237,6 +237,23 @@ func (ref *Ref) Resolve(find func(assertType *AssertionType, headers map[string]
 	return find(ref.Type, headers)
 }
 
+const RevisionNotKnown = -1
+
+// AtRevision represents an assertion at a given revision, possibly
+// not known (RevisionNotKnown).
+type AtRevision struct {
+	Ref
+	Revision int
+}
+
+func (at *AtRevision) String() string {
+	s := at.Ref.String()
+	if at.Revision == RevisionNotKnown {
+		return s
+	}
+	return fmt.Sprintf("%s at revision %d", s, at.Revision)
+}
+
 // Assertion represents an assertion through its general elements.
 type Assertion interface {
 	// Type returns the type of this assertion
