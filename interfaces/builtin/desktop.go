@@ -56,6 +56,8 @@ dbus (send)
 owner @{HOME}/.local/share/fonts/{,**} r,
 /var/cache/fontconfig/   r,
 /var/cache/fontconfig/** mr,
+# some applications are known to mmap fonts
+/usr/{,local/}share/fonts/** m,
 
 # subset of gnome abstraction
 /etc/gtk-3.0/settings.ini r,
