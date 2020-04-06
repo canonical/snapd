@@ -16,9 +16,11 @@ execute: |
     echo "Ensure snap service watchdog works"
     snap set core watchdog.runtime-timeout=1m
     MATCH RuntimeWatchdogSec=60 < "$WATCHDOG_FILE"
+    systemctl show -p RuntimeWatchdogUSec|MATCH RuntimeWatchdogUSec=1m
 
     snap set core watchdog.shutdown-timeout=1h
     MATCH ShutdownWatchdogSec=3600 <  "$WATCHDOG_FILE"
+    systemctl show -p ShutdownWatchdogUSec|MATCH ShutdownWatchdogUSec=1h
 
     echo "Unsetting removes the file"
     snap set core watchdog.runtime-timeout=
@@ -27,3 +29,8 @@ execute: |
         echo "Empty watchdog config should remove config file but did not"
         exit 1
     fi
+
+    # check we are back to the default values
+    systemctl show -p RuntimeWatchdogUSec|MATCH RuntimeWatchdogUSec=0
+    systemctl show -p ShutdownWatchdogUSec|MATCH ShutdownWatchdogUSec=10m
+
