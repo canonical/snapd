@@ -211,11 +211,11 @@ func MockBootMakeBootable(f func(model *asserts.Model, rootdir string, bootWith 
 	}
 }
 
-func MockCheckEncryptionAvailability(f func() error) (restore func()) {
-	old := checkEncryptionAvailability
-	checkEncryptionAvailability = f
+func MockCheckKeySealingSupported(f func() error) (restore func()) {
+	old := checkKeySealingSupported
+	checkKeySealingSupported = f
 	return func() {
-		checkEncryptionAvailability = old
+		checkKeySealingSupported = old
 	}
 }
 

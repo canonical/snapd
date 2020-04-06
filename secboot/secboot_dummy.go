@@ -24,6 +24,6 @@ import (
 	"fmt"
 )
 
-func CheckEncryptionAvailability() error {
+func CheckKeySealingSupported() error {
 	return fmt.Errorf("build without secboot support")
 }

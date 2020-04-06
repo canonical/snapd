@@ -28,7 +28,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 )
 
-func CheckEncryptionAvailability() error {
+func CheckKeySealingSupported() error {
 	logger.Noticef("checking TPM device availability...")
 	tconn, err := sb.ConnectToDefaultTPM()
 	if err != nil {
