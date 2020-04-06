@@ -125,6 +125,28 @@ func (s *watchdogSuite) TestConfigureWatchdogAll(c *C) {
 		fmt.Sprintf("ShutdownWatchdogSec=%d\n", times[1]))
 }
 
+func (s *watchdogSuite) TestConfigureWatchdogAllMkdir(c *C) {
+	// remove the .conf.d directory, it will be created
+	err := os.Remove(dirs.SnapSystemdConfDir)
+	c.Assert(err, IsNil)
+
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	times := []int{10, 100}
+	err = configcore.Run(&mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			"watchdog.runtime-timeout":  fmt.Sprintf("%ds", times[0]),
+			"watchdog.shutdown-timeout": fmt.Sprintf("%ds", times[1]),
+		},
+	})
+	c.Assert(err, IsNil)
+	c.Check(s.mockEtcEnvironment, testutil.FileEquals, "[Manager]\n"+
+		fmt.Sprintf("RuntimeWatchdogSec=%d\n", times[0])+
+		fmt.Sprintf("ShutdownWatchdogSec=%d\n", times[1]))
+}
+
 func (s *watchdogSuite) TestConfigureWatchdogBadFormat(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
