@@ -77,6 +77,27 @@ dbus (receive)
     member=PropertiesChanged
     peer=(label=unconfined),
 
+dbus (receive)
+    bus=system
+    path=/org/freedesktop/login1
+    interface=org.freedesktop.login1.Manager
+    member={Session,User,Seat}New
+    peer=(label=unconfined),
+
+dbus (receive)
+    bus=system
+    path=/org/freedesktop/login1
+    interface=org.freedesktop.login1.Manager
+    member={Session,User,Seat}Removed
+    peer=(label=unconfined),
+
+dbus (receive)
+    bus=system
+    path=/org/freedesktop/login1
+    interface=org.freedesktop.login1.Manager
+    member=PrepareFor{Shutdow,Sleep}
+    peer=(label=unconfined),
+
 dbus (send)
     bus=system
     path=/org/freedesktop/login1
