@@ -489,10 +489,9 @@ func (d *deviceSuite) TestDeviceFindMountPointErrorsFromDevice(c *C) {
 }
 
 func mockProcSelfFilesystem(c *C, root, content string) {
-	psmi := filepath.Join(root, osutil.ProcSelfMountInfo)
-	err := os.MkdirAll(filepath.Dir(psmi), 0755)
+	err := os.MkdirAll(filepath.Dir(osutil.ProcSelfMountInfo), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(psmi, []byte(content), 0644)
+	err = ioutil.WriteFile(osutil.ProcSelfMountInfo, []byte(content), 0644)
 	c.Assert(err, IsNil)
 }
 
