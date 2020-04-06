@@ -26,13 +26,16 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/testutil"
 )
 
 type journalSuite struct {
 	configcoreSuite
+	findGidRestore   func()
+	chownPathRestore func()
 }
 
 var _ = Suite(&journalSuite{})
@@ -41,11 +44,27 @@ func (s *journalSuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
 	s.systemctlArgs = nil
 	dirs.SetRootDir(c.MkDir())
-	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc"), 0755), IsNil)
+
+	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0755)
+	c.Assert(err, IsNil)
+
+	s.findGidRestore = configcore.MockFindGid(func(group string) (uint64, error) {
+		c.Assert(group, Equals, "systemd-journal")
+		return 1234, nil
+	})
+
+	s.chownPathRestore = configcore.MockChownPath(func(path string, uid sys.UserID, gid sys.GroupID) error {
+		c.Check(uid, Equals, sys.UserID(0))
+		c.Check(gid, Equals, sys.GroupID(1234))
+		return nil
+	})
 }
 
 func (s *journalSuite) TearDownTest(c *C) {
+	s.configcoreSuite.TearDownTest(c)
 	dirs.SetRootDir("/")
+	s.findGidRestore()
+	s.chownPathRestore()
 }
 
 func (s *journalSuite) TestConfigurePersistentJournalInvalid(c *C) {
@@ -66,18 +85,22 @@ func (s *journalSuite) TestConfigurePersistentJournalOnCore(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	path := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/journald.conf.d/00-snap-core.conf")
-	c.Check(path, testutil.FileEquals, "[Journal]\nStorage=persistent\n")
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
 		{"stop", "systemd-journald"},
 		{"show", "--property=ActiveState", "systemd-journald"},
 		{"start", "systemd-journald"},
 	})
+
+	exists, _, err := osutil.DirExists(filepath.Join(dirs.GlobalRootDir, "/var/log/journal"))
+	c.Assert(err, IsNil)
+	c.Check(exists, Equals, true)
 }
 
 func (s *journalSuite) TestDisablePersistentJournalOnCore(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
+
+	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/var/log/journal"), 0755), IsNil)
 
 	err := configcore.Run(&mockConf{
 		state: s.state,
@@ -85,13 +108,15 @@ func (s *journalSuite) TestDisablePersistentJournalOnCore(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	path := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/journald.conf.d/00-snap-core.conf")
-	c.Check(path, testutil.FileEquals, "[Journal]\nStorage=auto\n")
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
 		{"stop", "systemd-journald"},
 		{"show", "--property=ActiveState", "systemd-journald"},
 		{"start", "systemd-journald"},
 	})
+
+	exists, _, err := osutil.DirExists(filepath.Join(dirs.GlobalRootDir, "/var/log/journal"))
+	c.Assert(err, IsNil)
+	c.Check(exists, Equals, false)
 }
 
 func (s *journalSuite) TestFilesystemOnlyApply(c *C) {
@@ -103,8 +128,9 @@ func (s *journalSuite) TestFilesystemOnlyApply(c *C) {
 	})
 	tmpDir := c.MkDir()
 	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf), IsNil)
-
-	path := filepath.Join(tmpDir, "/etc/systemd/journald.conf.d/00-snap-core.conf")
-	c.Check(path, testutil.FileEquals, "[Journal]\nStorage=persistent\n")
 	c.Check(s.systemctlArgs, HasLen, 0)
+
+	exists, _, err := osutil.DirExists(filepath.Join(tmpDir, "/var/log/journal"))
+	c.Assert(err, IsNil)
+	c.Check(exists, Equals, true)
 }

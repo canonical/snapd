@@ -27,9 +27,13 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/systemd"
 )
+
+var osutilFindGid = osutil.FindGid
+var sysChownPath = sys.ChownPath
 
 func init() {
 	supportedConfigurations["core.journal.persistent"] = true
@@ -45,17 +49,8 @@ func handleJournalConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error
 		return nil
 	}
 
-	var storage string
 	if output == "" {
 		return nil
-	}
-	switch output {
-	case "true":
-		storage = "persistent"
-	case "false":
-		storage = "auto"
-	default:
-		return fmt.Errorf("unsupported journal.persistent option: %q", output)
 	}
 
 	var sysd systemd.Systemd
@@ -64,14 +59,26 @@ func handleJournalConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error
 		rootDir = opts.RootDir
 	}
 
-	confDir := filepath.Join(rootDir, "/etc/systemd/journald.conf.d/")
-	if err := os.MkdirAll(confDir, 0775); err != nil {
-		return err
-	}
-	confFile := filepath.Join(confDir, "00-snap-core.conf")
-	content := fmt.Sprintf("[Journal]\nStorage=%s\n", storage)
-	if err := osutil.AtomicWriteFile(confFile, []byte(content), 0644, 0); err != nil {
-		return err
+	logPath := filepath.Join(rootDir, "/var/log/journal")
+
+	switch output {
+	case "true":
+		if err := os.MkdirAll(logPath, 0755); err != nil {
+			return err
+		}
+		gid, err := osutilFindGid("systemd-journal")
+		if err != nil {
+			return fmt.Errorf("cannot find systemd-journal group: %v", err)
+		}
+		if err := sysChownPath(logPath, 0, sys.GroupID(gid)); err != nil {
+			return err
+		}
+	case "false":
+		if err := os.RemoveAll(logPath); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("unsupported journal.persistent option: %q", output)
 	}
 
 	if opts == nil {
