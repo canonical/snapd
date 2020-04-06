@@ -575,6 +575,8 @@ WantedBy=multi-user.target
 func (s *SystemdTestSuite) TestWriteSELinuxMountUnit(c *C) {
 	restore := selinux.MockIsEnabled(func() (bool, error) { return true, nil })
 	defer restore()
+	restore = selinux.MockIsEnforcing(func() (bool, error) { return true, nil })
+	defer restore()
 	restore = squashfs.MockNeedsFuse(false)
 	defer restore()
 
@@ -764,6 +766,8 @@ func makeMockMountUnit(c *C, mountDir string) string {
 // FIXME: also test for the "IsMounted" case
 func (s *SystemdTestSuite) TestRemoveMountUnit(c *C) {
 	rootDir := dirs.GlobalRootDir
+
+	c.Assert(osutil.MockProcSelfMountInfo(""), IsNil)
 
 	mountDir := rootDir + "/snap/foo/42"
 	mountUnit := makeMockMountUnit(c, mountDir)

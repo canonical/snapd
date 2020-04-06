@@ -46,7 +46,7 @@ func (s *selinuxBasicSuite) TestProbeNone(c *C) {
 func (s *selinuxBasicSuite) TestProbeEnforcingHappy(c *C) {
 	restore := selinux.MockIsEnabled(func() (bool, error) { return true, nil })
 	defer restore()
-	restore = selinux.MockSELinuxIsEnforcing(func() (bool, error) { return true, nil })
+	restore = selinux.MockIsEnforcing(func() (bool, error) { return true, nil })
 	defer restore()
 
 	level, status := selinux.ProbeSELinux()
@@ -72,7 +72,7 @@ func (s *selinuxBasicSuite) TestProbeEnabledError(c *C) {
 func (s *selinuxBasicSuite) TestProbeEnforcingError(c *C) {
 	restore := selinux.MockIsEnabled(func() (bool, error) { return true, nil })
 	defer restore()
-	restore = selinux.MockSELinuxIsEnforcing(func() (bool, error) { return true, errors.New("so much fail") })
+	restore = selinux.MockIsEnforcing(func() (bool, error) { return true, errors.New("so much fail") })
 	defer restore()
 
 	level, status := selinux.ProbeSELinux()
@@ -86,7 +86,7 @@ func (s *selinuxBasicSuite) TestProbeEnforcingError(c *C) {
 func (s *selinuxBasicSuite) TestProbePermissive(c *C) {
 	restore := selinux.MockIsEnabled(func() (bool, error) { return true, nil })
 	defer restore()
-	restore = selinux.MockSELinuxIsEnforcing(func() (bool, error) { return false, nil })
+	restore = selinux.MockIsEnforcing(func() (bool, error) { return false, nil })
 	defer restore()
 
 	level, status := selinux.ProbeSELinux()

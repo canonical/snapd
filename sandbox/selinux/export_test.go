@@ -23,11 +23,3 @@ var (
 	GetSELinuxMount = getSELinuxMount
 	ProbeSELinux    = probeSELinux
 )
-
-func MockSELinuxIsEnforcing(isEnforcing func() (bool, error)) (restore func()) {
-	old := selinuxIsEnforcing
-	selinuxIsEnforcing = isEnforcing
-	return func() {
-		selinuxIsEnforcing = old
-	}
-}
