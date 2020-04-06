@@ -93,10 +93,13 @@ func copyData(subkeys []string, pos int, srcData map[string]*json.RawMessage, ds
 }
 
 // CopyState takes a state from the srcStatePath and copies all
-// dataEntries to the dstPath.
+// dataEntries to the dstPath. Note that srcStatePath should never
+// point to a state that is in use.
 func CopyState(srcStatePath, dstStatePath string, dataEntries []string) error {
 	if osutil.FileExists(dstStatePath) {
-		// TOCTOU
+		// XXX: TOCTOU - look into moving this check into
+		// checkpointOnlyBackend. The issue is right now State
+		// will simply panic if Commit() returns an error
 		return fmt.Errorf("cannot copy state: %q already exists", dstStatePath)
 	}
 	if len(dataEntries) == 0 {
@@ -109,12 +112,12 @@ func CopyState(srcStatePath, dstStatePath string, dataEntries []string) error {
 	}
 	defer f.Close()
 
+	// No need to lock/unlock the state here, srcState should not be
+	// in use at all.
 	srcState, err := ReadState(nil, f)
 	if err != nil {
 		return err
 	}
-	srcState.Lock()
-	defer srcState.Unlock()
 
 	// copy relevant data
 	dstData := make(map[string]interface{})
