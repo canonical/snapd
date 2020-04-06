@@ -48,8 +48,6 @@ func (s *watchdogSuite) SetUpTest(c *C) {
 
 	dirs.SetRootDir(c.MkDir())
 	s.mockEtcEnvironment = filepath.Join(dirs.SnapSystemdConfDir, "10-snapd-watchdog.conf")
-	err := os.MkdirAll(dirs.SnapSystemdConfDir, 0755)
-	c.Assert(err, IsNil)
 }
 
 func (s *watchdogSuite) TearDownTest(c *C) {
@@ -125,9 +123,9 @@ func (s *watchdogSuite) TestConfigureWatchdogAll(c *C) {
 		fmt.Sprintf("ShutdownWatchdogSec=%d\n", times[1]))
 }
 
-func (s *watchdogSuite) TestConfigureWatchdogAllMkdir(c *C) {
-	// remove the .conf.d directory, it will be created
-	err := os.Remove(dirs.SnapSystemdConfDir)
+func (s *watchdogSuite) TestConfigureWatchdogAllConfDirExistsAlready(c *C) {
+	// make .conf.d directory already
+	err := os.MkdirAll(dirs.SnapSystemdConfDir, 0755)
 	c.Assert(err, IsNil)
 
 	restore := release.MockOnClassic(false)
@@ -172,11 +170,13 @@ func (s *watchdogSuite) TestConfigureWatchdogNoFileUpdate(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
+	err := os.MkdirAll(dirs.SnapSystemdConfDir, 0755)
+	c.Assert(err, IsNil)
 	times := []int{10, 100}
 	content := "[Manager]\n" +
 		fmt.Sprintf("RuntimeWatchdogSec=%d\n", times[0]) +
 		fmt.Sprintf("ShutdownWatchdogSec=%d\n", times[1])
-	err := ioutil.WriteFile(s.mockEtcEnvironment, []byte(content), 0644)
+	err = ioutil.WriteFile(s.mockEtcEnvironment, []byte(content), 0644)
 	c.Assert(err, IsNil)
 
 	info, err := os.Stat(s.mockEtcEnvironment)
@@ -206,9 +206,11 @@ func (s *watchdogSuite) TestConfigureWatchdogRemovesIfEmpty(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
+	err := os.MkdirAll(dirs.SnapSystemdConfDir, 0755)
+	c.Assert(err, IsNil)
 	// add canary to ensure we don't touch other files
 	canary := filepath.Join(dirs.SnapSystemdConfDir, "05-canary.conf")
-	err := ioutil.WriteFile(canary, nil, 0644)
+	err = ioutil.WriteFile(canary, nil, 0644)
 	c.Assert(err, IsNil)
 
 	content := `[Manager]
@@ -242,7 +244,6 @@ func (s *watchdogSuite) TestFilesystemOnlyApply(c *C) {
 	})
 
 	tmpDir := c.MkDir()
-	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "/etc/systemd/system.conf.d"), 0755), IsNil)
 	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf), IsNil)
 
 	watchdogCfg := filepath.Join(tmpDir, "/etc/systemd/system.conf.d/10-snapd-watchdog.conf")
