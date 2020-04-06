@@ -23,7 +23,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
+	"log/syslog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -167,10 +169,11 @@ func (s *mockedClientCmdSuite) RedirectClientToTestServer(handler func(http.Resp
 type mockSystemRequestResponse struct {
 	label  string
 	code   int
+	reboot bool
 	expect map[string]interface{}
 }
 
-func (s *mockedClientCmdSuite) mockSuccessfulResponse(c *C, rspSystems *main.ChooserSystems, reqSystemLabel *mockSystemRequestResponse) {
+func (s *mockedClientCmdSuite) mockSuccessfulResponse(c *C, rspSystems *main.ChooserSystems, rspPostSystem *mockSystemRequestResponse) {
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch n {
@@ -183,27 +186,35 @@ func (s *mockedClientCmdSuite) mockSuccessfulResponse(c *C, rspSystems *main.Cho
 			})
 			c.Assert(err, IsNil)
 		case 1:
-			if reqSystemLabel == nil {
+			if rspPostSystem == nil {
 				c.Fatalf("unexpected request to %q", r.URL.Path)
 			}
-			c.Check(r.URL.Path, Equals, "/v2/systems/"+reqSystemLabel.label)
+			c.Check(r.URL.Path, Equals, "/v2/systems/"+rspPostSystem.label)
 			c.Check(r.Method, Equals, "POST")
 
 			var data map[string]interface{}
 			err := json.NewDecoder(r.Body).Decode(&data)
 			c.Assert(err, IsNil)
-			c.Check(data, DeepEquals, reqSystemLabel.expect)
+			c.Check(data, DeepEquals, rspPostSystem.expect)
 
 			rspType := "sync"
 			var rspData map[string]string
-			if reqSystemLabel.code >= 400 {
+			if rspPostSystem.code >= 400 {
 				rspType = "error"
 				rspData = map[string]string{"message": "failed in mock"}
 			}
+			var maintenance map[string]interface{}
+			if rspPostSystem.reboot {
+				maintenance = map[string]interface{}{
+					"kind":    client.ErrorKindSystemRestart,
+					"message": "system is restartring",
+				}
+			}
 			err = json.NewEncoder(w).Encode(apiResponse{
-				Type:       rspType,
-				Result:     rspData,
-				StatusCode: reqSystemLabel.code,
+				Type:        rspType,
+				Result:      rspData,
+				StatusCode:  rspPostSystem.code,
+				Maintenance: maintenance,
 			})
 			c.Assert(err, IsNil)
 		default:
@@ -214,9 +225,10 @@ func (s *mockedClientCmdSuite) mockSuccessfulResponse(c *C, rspSystems *main.Cho
 }
 
 type apiResponse struct {
-	Type       string      `json:"type"`
-	Result     interface{} `json:"result"`
-	StatusCode int         `json:"status-code"`
+	Type        string      `json:"type"`
+	Result      interface{} `json:"result"`
+	StatusCode  int         `json:"status-code"`
+	Maintenance interface{} `json:"maintenance"`
 }
 
 func (s *mockedClientCmdSuite) TestMainChooserWithTool(c *C) {
@@ -225,9 +237,11 @@ func (s *mockedClientCmdSuite) TestMainChooserWithTool(c *C) {
 	// sanity
 	c.Assert(s.markerFile, testutil.FilePresent)
 
-	mockCmd := testutil.MockCommand(c, "tool", `
+	capturedStdinPath := filepath.Join(c.MkDir(), "stdin")
+	mockCmd := testutil.MockCommand(c, "tool", fmt.Sprintf(`
+cat - > %s
 echo '{"label":"label","action":{"mode":"install","title":"reinstall"}}'
-`)
+`, capturedStdinPath))
 	defer mockCmd.Restore()
 	r = main.MockChooserTool(func() (*exec.Cmd, error) {
 		return exec.Command(mockCmd.Exe()), nil
@@ -242,13 +256,22 @@ echo '{"label":"label","action":{"mode":"install","title":"reinstall"}}'
 			"mode":   "install",
 			"title":  "reinstall",
 		},
+		reboot: true,
 	})
 
-	err := main.Chooser(client.New(&s.config))
+	rbt, err := main.Chooser(client.New(&s.config))
 	c.Assert(err, IsNil)
+	c.Assert(rbt, Equals, true)
 	c.Assert(mockCmd.Calls(), DeepEquals, [][]string{
 		{"tool"},
 	})
+
+	capturedStdin, err := ioutil.ReadFile(capturedStdinPath)
+	c.Assert(err, IsNil)
+	var stdoutSystems main.ChooserSystems
+	err = json.Unmarshal(capturedStdin, &stdoutSystems)
+	c.Assert(err, IsNil)
+	c.Check(&stdoutSystems, DeepEquals, mockSystems)
 
 	c.Assert(s.markerFile, testutil.FileAbsent)
 }
@@ -266,35 +289,11 @@ func (s *mockedClientCmdSuite) TestMainChooserToolNotFound(c *C) {
 	})
 	defer r()
 
-	err := main.Chooser(client.New(&s.config))
+	rbt, err := main.Chooser(client.New(&s.config))
 	c.Assert(err, ErrorMatches, "cannot locate the chooser UI tool: tool not found")
+	c.Assert(rbt, Equals, false)
 
 	c.Assert(s.markerFile, testutil.FileAbsent)
-}
-
-func (s *mockedClientCmdSuite) TestMainChooserStdout(c *C) {
-	os.Setenv("SNAPPY_TESTING_USE_STDOUT", "1")
-	defer os.Unsetenv("SNAPPY_TESTING_USE_STDOUT")
-	mockCmd := testutil.MockCommand(c, "tool", `
-echo '{}'
-`)
-	defer mockCmd.Restore()
-	r := main.MockChooserTool(func() (*exec.Cmd, error) {
-		return exec.Command(mockCmd.Exe()), nil
-	})
-	defer r()
-
-	s.mockSuccessfulResponse(c, mockSystems, nil)
-
-	err := main.Chooser(client.New(&s.config))
-	c.Assert(err, IsNil)
-
-	c.Assert(mockCmd.Calls(), HasLen, 0)
-
-	var stdoutSystems main.ChooserSystems
-	err = json.Unmarshal(s.stdout.Bytes(), &stdoutSystems)
-	c.Assert(err, IsNil)
-	c.Check(&stdoutSystems, DeepEquals, mockSystems)
 }
 
 func (s *mockedClientCmdSuite) TestMainChooserBadAPI(c *C) {
@@ -323,8 +322,9 @@ func (s *mockedClientCmdSuite) TestMainChooserBadAPI(c *C) {
 		n++
 	})
 
-	err := main.Chooser(client.New(&s.config))
+	rbt, err := main.Chooser(client.New(&s.config))
 	c.Assert(err, ErrorMatches, "cannot list recovery systems: no systems for you")
+	c.Assert(rbt, Equals, false)
 
 	c.Assert(s.markerFile, testutil.FileAbsent)
 }
@@ -354,8 +354,9 @@ echo '{"label":"label","action":{"mode":"install","title":"reinstall"}}'
 `)
 	defer mockCmd.Restore()
 
-	err := main.Chooser(client.New(&s.config))
+	rbt, err := main.Chooser(client.New(&s.config))
 	c.Assert(err, IsNil)
+	c.Assert(rbt, Equals, false)
 
 	c.Check(mockCmd.Calls(), DeepEquals, [][]string{
 		{"console-conf", "--recovery-chooser-mode"},
@@ -378,8 +379,9 @@ func (s *mockedClientCmdSuite) TestMainChooserNoConsoleConf(c *C) {
 	s.mockSuccessfulResponse(c, mockSystems, nil)
 
 	// tries to look up the console-conf binary but fails
-	err := main.Chooser(client.New(&s.config))
+	rbt, err := main.Chooser(client.New(&s.config))
 	c.Assert(err, ErrorMatches, `cannot locate the chooser UI tool: chooser UI tool ".*/usr/bin/console-conf" does not exist`)
+	c.Assert(rbt, Equals, false)
 	c.Assert(s.markerFile, testutil.FileAbsent)
 }
 
@@ -401,8 +403,9 @@ echo 'garbage'
 `)
 	defer mockCmd.Restore()
 
-	err := main.Chooser(client.New(&s.config))
+	rbt, err := main.Chooser(client.New(&s.config))
 	c.Assert(err, ErrorMatches, "UI process failed: cannot decode response: .*")
+	c.Assert(rbt, Equals, false)
 
 	c.Check(mockCmd.Calls(), DeepEquals, [][]string{
 		{"console-conf", "--recovery-chooser-mode"},
@@ -424,8 +427,9 @@ exit 123
 	})
 	defer r()
 
-	err := main.Chooser(client.New(&s.config))
+	rbt, err := main.Chooser(client.New(&s.config))
 	c.Assert(err, ErrorMatches, "cannot run chooser without the marker file")
+	c.Assert(rbt, Equals, false)
 
 	c.Assert(mockCmd.Calls(), HasLen, 0)
 }
@@ -455,12 +459,89 @@ echo '{"label":"label","action":{"mode":"install","title":"reinstall"}}'
 		},
 	})
 
-	err := main.Chooser(client.New(&s.config))
+	rbt, err := main.Chooser(client.New(&s.config))
 	c.Assert(err, ErrorMatches, "cannot request system action: .* failed in mock")
+	c.Assert(rbt, Equals, false)
 	c.Assert(mockCmd.Calls(), DeepEquals, [][]string{
 		{"tool"},
 	})
 
 	c.Assert(s.markerFile, testutil.FileAbsent)
 
+}
+
+type mockedSyslogCmdSuite struct {
+	baseCmdSuite
+
+	term string
+}
+
+var _ = Suite(&mockedSyslogCmdSuite{})
+
+func (s *mockedSyslogCmdSuite) SetUpTest(c *C) {
+	s.baseCmdSuite.SetUpTest(c)
+
+	s.term = os.Getenv("TERM")
+	s.AddCleanup(func() { os.Setenv("TERM", s.term) })
+
+	r := main.MockSyslogNew(func(p syslog.Priority, t string) (io.Writer, error) {
+		c.Fatal("not mocked")
+		return nil, fmt.Errorf("not mocked")
+	})
+	s.AddCleanup(r)
+}
+
+func (s *mockedSyslogCmdSuite) TestNoSyslogFallback(c *C) {
+	err := os.Setenv("TERM", "someterm")
+	c.Assert(err, IsNil)
+
+	called := false
+	r := main.MockSyslogNew(func(_ syslog.Priority, _ string) (io.Writer, error) {
+		called = true
+		return nil, fmt.Errorf("no syslog")
+	})
+	defer r()
+	err = main.LoggerWithSyslogMaybe()
+	c.Assert(err, IsNil)
+	c.Check(called, Equals, true)
+	// this likely goes to stderr
+	logger.Noticef("ping")
+}
+
+func (s *mockedSyslogCmdSuite) TestWithSyslog(c *C) {
+	err := os.Setenv("TERM", "someterm")
+	c.Assert(err, IsNil)
+
+	called := false
+	tag := ""
+	prio := syslog.Priority(0)
+	buf := bytes.Buffer{}
+	r := main.MockSyslogNew(func(p syslog.Priority, tg string) (io.Writer, error) {
+		tag = tg
+		prio = p
+		called = true
+		return &buf, nil
+	})
+	defer r()
+	err = main.LoggerWithSyslogMaybe()
+	c.Assert(err, IsNil)
+	c.Check(called, Equals, true)
+	c.Check(tag, Equals, "snap-recovery-chooser")
+	c.Check(prio, Equals, syslog.LOG_INFO|syslog.LOG_DAEMON)
+
+	logger.Noticef("ping")
+	c.Check(buf.String(), testutil.Contains, "ping")
+}
+
+func (s *mockedSyslogCmdSuite) TestSimple(c *C) {
+	err := os.Unsetenv("TERM")
+	c.Assert(err, IsNil)
+
+	r := main.MockSyslogNew(func(p syslog.Priority, tg string) (io.Writer, error) {
+		c.Fatalf("unexpected call")
+		return nil, fmt.Errorf("unexpected call")
+	})
+	defer r()
+	err = main.LoggerWithSyslogMaybe()
+	c.Assert(err, IsNil)
 }
