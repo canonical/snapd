@@ -28,14 +28,24 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox/selinux"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func Test(t *testing.T) { check.TestingT(t) }
 
-type selinuxSuite struct{}
+type selinuxSuite struct {
+	testutil.BaseTest
+}
 
 var _ = check.Suite(&selinuxSuite{})
+
+func (s *selinuxSuite) SetUpTest(c *check.C) {
+	dirs.SetRootDir(c.MkDir())
+	s.AddCleanup(func() { dirs.SetRootDir("") })
+}
 
 const selinuxMountInfo = `90 0 252:1 / / rw,relatime shared:1 - ext4 /dev/vda1 rw,seclabel
 41 19 0:18 / /sys/fs/selinux rw,relatime shared:20 - selinuxfs selinuxfs rw
@@ -43,8 +53,10 @@ const selinuxMountInfo = `90 0 252:1 / / rw,relatime shared:1 - ext4 /dev/vda1 r
 `
 
 func (s *selinuxSuite) TestGetMount(c *check.C) {
-	_, restore := selinux.MockMountInfo(c, selinuxMountInfo)
-	defer restore()
+	err := os.MkdirAll(filepath.Dir(osutil.ProcSelfMountInfo), 0755)
+	c.Assert(err, check.IsNil)
+	err = ioutil.WriteFile(osutil.ProcSelfMountInfo, []byte(selinuxMountInfo), 0644)
+	c.Assert(err, check.IsNil)
 
 	mnt, err := selinux.GetSELinuxMount()
 	c.Assert(err, check.IsNil)
@@ -52,8 +64,10 @@ func (s *selinuxSuite) TestGetMount(c *check.C) {
 }
 
 func (s *selinuxSuite) TestIsEnabledHappyEnabled(c *check.C) {
-	_, restore := selinux.MockMountInfo(c, selinuxMountInfo)
-	defer restore()
+	err := os.MkdirAll(filepath.Dir(osutil.ProcSelfMountInfo), 0755)
+	c.Assert(err, check.IsNil)
+	err = ioutil.WriteFile(osutil.ProcSelfMountInfo, []byte(selinuxMountInfo), 0644)
+	c.Assert(err, check.IsNil)
 
 	enabled, err := selinux.IsEnabled()
 	c.Assert(err, check.IsNil)
@@ -61,8 +75,10 @@ func (s *selinuxSuite) TestIsEnabledHappyEnabled(c *check.C) {
 }
 
 func (s *selinuxSuite) TestIsEnabledHappyNoSelinux(c *check.C) {
-	_, restore := selinux.MockMountInfo(c, ``)
-	defer restore()
+	err := os.MkdirAll(filepath.Dir(osutil.ProcSelfMountInfo), 0755)
+	c.Assert(err, check.IsNil)
+	err = ioutil.WriteFile(osutil.ProcSelfMountInfo, []byte(nil), 0644)
+	c.Assert(err, check.IsNil)
 
 	enabled, err := selinux.IsEnabled()
 	c.Assert(err, check.IsNil)
@@ -70,9 +86,11 @@ func (s *selinuxSuite) TestIsEnabledHappyNoSelinux(c *check.C) {
 }
 
 func (s *selinuxSuite) TestIsEnabledFailMountInfo(c *check.C) {
-	mi, restore := selinux.MockMountInfo(c, ``)
-	defer restore()
-	err := os.Chmod(mi, 0000)
+	err := os.MkdirAll(filepath.Dir(osutil.ProcSelfMountInfo), 0755)
+	c.Assert(err, check.IsNil)
+	err = ioutil.WriteFile(osutil.ProcSelfMountInfo, []byte(nil), 0644)
+	c.Assert(err, check.IsNil)
+	err = os.Chmod(osutil.ProcSelfMountInfo, 0000)
 	c.Assert(err, check.IsNil)
 
 	enabled, err := selinux.IsEnabled()
@@ -81,8 +99,10 @@ func (s *selinuxSuite) TestIsEnabledFailMountInfo(c *check.C) {
 }
 
 func (s *selinuxSuite) TestIsEnabledFailGarbage(c *check.C) {
-	_, restore := selinux.MockMountInfo(c, `garbage`)
-	defer restore()
+	err := os.MkdirAll(filepath.Dir(osutil.ProcSelfMountInfo), 0755)
+	c.Assert(err, check.IsNil)
+	err = ioutil.WriteFile(osutil.ProcSelfMountInfo, []byte(`garbage`), 0644)
+	c.Assert(err, check.IsNil)
 
 	enabled, err := selinux.IsEnabled()
 	c.Assert(err, check.ErrorMatches, `failed to obtain SELinux mount path: .*`)
@@ -92,12 +112,14 @@ func (s *selinuxSuite) TestIsEnabledFailGarbage(c *check.C) {
 func (s *selinuxSuite) TestIsEnforcingHappy(c *check.C) {
 	dir := c.MkDir()
 	miLine := fmt.Sprintf("41 19 0:18 / %s rw,relatime shared:20 - selinuxfs selinuxfs rw\n", dir)
-	_, restore := selinux.MockMountInfo(c, miLine)
-	defer restore()
+	err := os.MkdirAll(filepath.Dir(osutil.ProcSelfMountInfo), 0755)
+	c.Assert(err, check.IsNil)
+	err = ioutil.WriteFile(osutil.ProcSelfMountInfo, []byte(miLine), 0644)
+	c.Assert(err, check.IsNil)
 
 	enforcePath := filepath.Join(dir, "enforce")
 
-	err := ioutil.WriteFile(enforcePath, []byte("1"), 0644)
+	err = ioutil.WriteFile(enforcePath, []byte("1"), 0644)
 	c.Assert(err, check.IsNil)
 
 	enforcing, err := selinux.IsEnforcing()
@@ -113,8 +135,10 @@ func (s *selinuxSuite) TestIsEnforcingHappy(c *check.C) {
 }
 
 func (s *selinuxSuite) TestIsEnforcingNoSELinux(c *check.C) {
-	_, restore := selinux.MockMountInfo(c, ``)
-	defer restore()
+	err := os.MkdirAll(filepath.Dir(osutil.ProcSelfMountInfo), 0755)
+	c.Assert(err, check.IsNil)
+	err = ioutil.WriteFile(osutil.ProcSelfMountInfo, []byte(nil), 0644)
+	c.Assert(err, check.IsNil)
 
 	enforcing, err := selinux.IsEnforcing()
 	c.Assert(err, check.IsNil)
@@ -124,12 +148,14 @@ func (s *selinuxSuite) TestIsEnforcingNoSELinux(c *check.C) {
 func (s *selinuxSuite) TestIsEnforcingFailGarbage(c *check.C) {
 	dir := c.MkDir()
 	miLine := fmt.Sprintf("41 19 0:18 / %s rw,relatime shared:20 - selinuxfs selinuxfs rw\n", dir)
-	_, restore := selinux.MockMountInfo(c, miLine)
-	defer restore()
+	err := os.MkdirAll(filepath.Dir(osutil.ProcSelfMountInfo), 0755)
+	c.Assert(err, check.IsNil)
+	err = ioutil.WriteFile(osutil.ProcSelfMountInfo, []byte(miLine), 0644)
+	c.Assert(err, check.IsNil)
 
 	enforcePath := filepath.Join(dir, "enforce")
 
-	err := ioutil.WriteFile(enforcePath, []byte("garbage"), 0644)
+	err = ioutil.WriteFile(enforcePath, []byte("garbage"), 0644)
 	c.Assert(err, check.IsNil)
 
 	enforcing, err := selinux.IsEnforcing()
@@ -140,12 +166,14 @@ func (s *selinuxSuite) TestIsEnforcingFailGarbage(c *check.C) {
 func (s *selinuxSuite) TestIsEnforcingFailOther(c *check.C) {
 	dir := c.MkDir()
 	miLine := fmt.Sprintf("41 19 0:18 / %s rw,relatime shared:20 - selinuxfs selinuxfs rw\n", dir)
-	_, restore := selinux.MockMountInfo(c, miLine)
-	defer restore()
+	err := os.MkdirAll(filepath.Dir(osutil.ProcSelfMountInfo), 0755)
+	c.Assert(err, check.IsNil)
+	err = ioutil.WriteFile(osutil.ProcSelfMountInfo, []byte(miLine), 0644)
+	c.Assert(err, check.IsNil)
 
 	enforcePath := filepath.Join(dir, "enforce")
 
-	err := ioutil.WriteFile(enforcePath, []byte("not-readable"), 0000)
+	err = ioutil.WriteFile(enforcePath, []byte("not-readable"), 0000)
 	c.Assert(err, check.IsNil)
 
 	enforcing, err := selinux.IsEnforcing()
