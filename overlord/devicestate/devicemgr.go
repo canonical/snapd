@@ -476,8 +476,7 @@ func (m *DeviceManager) ensureSeeded() error {
 		return nil
 	}
 
-	msg := fmt.Sprintf("Initialize system state")
-	chg := m.state.NewChange("seed", msg)
+	chg := m.state.NewChange("seed", "Initialize system state")
 	for _, ts := range tsAll {
 		chg.AddAll(ts)
 	}
