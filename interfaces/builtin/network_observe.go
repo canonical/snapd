@@ -119,7 +119,7 @@ network inet6 raw,
 /etc/rpc r,
 
 # network devices
-/sys/devices/**/net/** r,
+/sys/devices/**/net/** rk,
 
 # for receiving kobject_uevent() net messages from the kernel
 network netlink raw,
