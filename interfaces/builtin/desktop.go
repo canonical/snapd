@@ -203,9 +203,13 @@ dbus (send)
     member={Check,Get,Set}
     peer=(label=unconfined),
 
-## Allow access to xdg-document-portal file system.  Access control is
-## handled by bind mounting a snap-specific sub-tree to this location.
-owner /run/user/[0-9]*/doc/{,*} r,
+# Allow access to xdg-document-portal file system.  Access control is
+# handled by bind mounting a snap-specific sub-tree to this location
+# (ie, this is /run/user/<uid>/doc/by-app/snap.@{SNAP_INSTANCE_NAME}
+# on the host).
+owner /run/user/[0-9]*/doc/{,*/} r,
+# Allow rw access without owner match to the documents themselves since
+# the user guided the access and can specify anything DAC allows.
 /run/user/[0-9]*/doc/*/** rw,
 
 # Allow access to xdg-desktop-portal and xdg-document-portal
