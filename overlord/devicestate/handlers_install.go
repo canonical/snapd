@@ -29,9 +29,11 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/sysconfig"
 )
 
@@ -141,9 +143,15 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-// TODO:UC20: set to real TPM availability check function
 var checkTPMAvailability = func() error {
-	return nil
+	logger.Noticef("checking TPM device availability...")
+	tconn, err := secboot.ConnectToDefaultTPM()
+	if err != nil {
+		logger.Noticef("connection to TPM device failed: %v", err)
+		return err
+	}
+	logger.Noticef("TPM device detected")
+	return tconn.Close()
 }
 
 // checkEncryption verifies whether encryption should be used based on the
