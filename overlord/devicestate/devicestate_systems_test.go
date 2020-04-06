@@ -212,9 +212,13 @@ func (s *deviceMgrSystemsSuite) TestListSystemsNotPossible(c *C) {
 }
 
 // TODO:UC20 update once we can list actions
-var defaultActions []devicestate.SystemAction = []devicestate.SystemAction{
+var defaultSystemActions []devicestate.SystemAction = []devicestate.SystemAction{
 	{Title: "reinstall", Mode: "install"},
 }
+var currentSystemActions []devicestate.SystemAction = append(defaultSystemActions,
+	devicestate.SystemAction{Title: "recover", Mode: "recover"},
+	devicestate.SystemAction{Title: "run normally", Mode: "run"},
+)
 
 func (s *deviceMgrSystemsSuite) TestListSeedSystemsNoCurrent(c *C) {
 	systems, err := s.mgr.Systems()
@@ -225,19 +229,19 @@ func (s *deviceMgrSystemsSuite) TestListSeedSystemsNoCurrent(c *C) {
 		Label:   s.mockedSystemSeeds[0].label,
 		Model:   s.mockedSystemSeeds[0].model,
 		Brand:   s.mockedSystemSeeds[0].brand,
-		Actions: defaultActions,
+		Actions: defaultSystemActions,
 	}, {
 		Current: false,
 		Label:   s.mockedSystemSeeds[1].label,
 		Model:   s.mockedSystemSeeds[1].model,
 		Brand:   s.mockedSystemSeeds[1].brand,
-		Actions: defaultActions,
+		Actions: defaultSystemActions,
 	}, {
 		Current: false,
 		Label:   s.mockedSystemSeeds[2].label,
 		Model:   s.mockedSystemSeeds[2].model,
 		Brand:   s.mockedSystemSeeds[2].brand,
-		Actions: defaultActions,
+		Actions: defaultSystemActions,
 	}})
 }
 
@@ -260,20 +264,20 @@ func (s *deviceMgrSystemsSuite) TestListSeedSystemsCurrent(c *C) {
 		Label:   s.mockedSystemSeeds[0].label,
 		Model:   s.mockedSystemSeeds[0].model,
 		Brand:   s.mockedSystemSeeds[0].brand,
-		Actions: defaultActions,
+		Actions: defaultSystemActions,
 	}, {
 		// this seed was used for installing the running system
 		Current: true,
 		Label:   s.mockedSystemSeeds[1].label,
 		Model:   s.mockedSystemSeeds[1].model,
 		Brand:   s.mockedSystemSeeds[1].brand,
-		Actions: defaultActions,
+		Actions: currentSystemActions,
 	}, {
 		Current: false,
 		Label:   s.mockedSystemSeeds[2].label,
 		Model:   s.mockedSystemSeeds[2].model,
 		Brand:   s.mockedSystemSeeds[2].brand,
-		Actions: defaultActions,
+		Actions: defaultSystemActions,
 	}})
 }
 
@@ -290,17 +294,18 @@ func (s *deviceMgrSystemsSuite) TestBrokenSeedSystems(c *C) {
 		Label:   s.mockedSystemSeeds[1].label,
 		Model:   s.mockedSystemSeeds[1].model,
 		Brand:   s.mockedSystemSeeds[1].brand,
-		Actions: defaultActions,
+		Actions: defaultSystemActions,
 	}, {
 		Current: false,
 		Label:   s.mockedSystemSeeds[2].label,
 		Model:   s.mockedSystemSeeds[2].model,
 		Brand:   s.mockedSystemSeeds[2].brand,
-		Actions: defaultActions,
+		Actions: defaultSystemActions,
 	}})
 }
 
-func (s *deviceMgrSystemsSuite) TestRequestModeHappy(c *C) {
+func (s *deviceMgrSystemsSuite) TestRequestModeInstallHappyForAny(c *C) {
+	// no current system
 	err := s.mgr.RequestSystemAction("20191119", devicestate.SystemAction{Mode: "install"})
 	c.Assert(err, IsNil)
 
@@ -311,6 +316,54 @@ func (s *deviceMgrSystemsSuite) TestRequestModeHappy(c *C) {
 		"snapd_recovery_mode":   "install",
 	})
 	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
+}
+
+func (s *deviceMgrSystemsSuite) TestRequestModeRunHappyDoesNothing(c *C) {
+	s.state.Lock()
+	s.state.Set("seeded-systems", []devicestate.SeededSystem{
+		{
+			System:  s.mockedSystemSeeds[0].label,
+			Model:   s.mockedSystemSeeds[0].model.Model(),
+			BrandID: s.mockedSystemSeeds[0].brand.AccountID(),
+		},
+	})
+	s.state.Unlock()
+
+	err := s.mgr.RequestSystemAction(s.mockedSystemSeeds[0].label, devicestate.SystemAction{Mode: "run"})
+	c.Assert(err, IsNil)
+	m, err := s.bootloader.GetBootVars("snapd_recovery_mode", "snapd_recovery_system")
+	c.Assert(err, IsNil)
+	c.Check(m, DeepEquals, map[string]string{
+		"snapd_recovery_system": "",
+		"snapd_recovery_mode":   "",
+	})
+	c.Check(s.restartRequests, HasLen, 0)
+}
+
+func (s *deviceMgrSystemsSuite) TestRequestModeInstallRecoverForCurrent(c *C) {
+	s.state.Lock()
+	s.state.Set("seeded-systems", []devicestate.SeededSystem{
+		{
+			System:  s.mockedSystemSeeds[0].label,
+			Model:   s.mockedSystemSeeds[0].model.Model(),
+			BrandID: s.mockedSystemSeeds[0].brand.AccountID(),
+		},
+	})
+	s.state.Unlock()
+
+	for _, mode := range []string{"install", "recover"} {
+		err := s.mgr.RequestSystemAction(s.mockedSystemSeeds[0].label,
+			devicestate.SystemAction{Mode: mode})
+		c.Assert(err, IsNil)
+		m, err := s.bootloader.GetBootVars("snapd_recovery_mode", "snapd_recovery_system")
+		c.Assert(err, IsNil)
+		c.Check(m, DeepEquals, map[string]string{
+			"snapd_recovery_system": s.mockedSystemSeeds[0].label,
+			"snapd_recovery_mode":   mode,
+		})
+		c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
+		s.restartRequests = nil
+	}
 }
 
 func (s *deviceMgrSystemsSuite) TestRequestModeErrInBoot(c *C) {
@@ -347,5 +400,25 @@ func (s *deviceMgrSystemsSuite) TestRequestModeNonUC20(c *C) {
 	s.setPCModelInState(c)
 	err := s.mgr.RequestSystemAction("20191119", devicestate.SystemAction{Mode: "install"})
 	c.Assert(err, ErrorMatches, `cannot set device to boot into system "20191119" in mode "install": system mode is unsupported`)
+	c.Check(s.restartRequests, HasLen, 0)
+}
+
+func (s *deviceMgrSystemsSuite) TestRequestModeForNonCurrent(c *C) {
+	s.state.Lock()
+	s.state.Set("seeded-systems", []devicestate.SeededSystem{
+		{
+			System:  s.mockedSystemSeeds[0].label,
+			Model:   s.mockedSystemSeeds[0].model.Model(),
+			BrandID: s.mockedSystemSeeds[0].brand.AccountID(),
+		},
+	})
+
+	s.state.Unlock()
+	s.setPCModelInState(c)
+	// request mode reserved for current system
+	err := s.mgr.RequestSystemAction(s.mockedSystemSeeds[1].label, devicestate.SystemAction{Mode: "run"})
+	c.Assert(err, Equals, devicestate.ErrUnsupportedAction)
+	err = s.mgr.RequestSystemAction(s.mockedSystemSeeds[1].label, devicestate.SystemAction{Mode: "recover"})
+	c.Assert(err, Equals, devicestate.ErrUnsupportedAction)
 	c.Check(s.restartRequests, HasLen, 0)
 }

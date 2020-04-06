@@ -765,6 +765,11 @@ type System struct {
 	Actions []SystemAction
 }
 
+var currentSystemActions = []SystemAction{
+	{Title: "recover", Mode: "recover"},
+	{Title: "run normally", Mode: "run"},
+}
+
 func systemFromSeed(label string) (*System, error) {
 	s, err := seed.Open(dirs.SnapSeedDir, label)
 	if err != nil {
@@ -814,6 +819,12 @@ func currentSeedSystem(st *state.State) (*seededSystem, error) {
 	return &whatseeded[0], nil
 }
 
+func isCurrentSystem(current *seededSystem, other *System) bool {
+	return current.System == other.Label &&
+		current.Model == other.Model.Model() &&
+		current.BrandID == other.Brand.AccountID()
+}
+
 // Systems list the available recovery/seeding systems. Returns the list of
 // systems, ErrNoSystems when no systems seeds were found or other error.
 func (m *DeviceManager) Systems() ([]*System, error) {
@@ -839,10 +850,9 @@ func (m *DeviceManager) Systems() ([]*System, error) {
 			logger.Noticef("cannot load system %q seed: %v", label, err)
 			continue
 		}
-		if currentSys != nil {
-			system.Current = currentSys.System == label &&
-				currentSys.Model == system.Model.Model() &&
-				currentSys.BrandID == system.Brand.AccountID()
+		if currentSys != nil && isCurrentSystem(currentSys, system) {
+			system.Current = true
+			system.Actions = append(system.Actions, currentSystemActions...)
 		}
 		systems = append(systems, system)
 	}
@@ -864,6 +874,11 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 		return fmt.Errorf("cannot load seed system: %v", err)
 	}
 
+	currentSys, _ := currentSeedSystem(m.state)
+	if currentSys != nil && isCurrentSystem(currentSys, system) {
+		system.Actions = append(system.Actions, currentSystemActions...)
+	}
+
 	var sysAction *SystemAction
 	for _, act := range system.Actions {
 		if action.Mode == act.Mode {
@@ -873,6 +888,11 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 	}
 	if sysAction == nil {
 		return ErrUnsupportedAction
+	}
+
+	if sysAction.Mode == "run" {
+		// do nothing
+		return nil
 	}
 
 	m.state.Lock()
