@@ -9,12 +9,15 @@ kill-timeout: 40m
 
 environment:
    SPREAD_DIR: $PWD/spread-dir
+   SPREAD_EXTERNAL_ADDRESS: 127.0.0.1:8022
 
 prepare: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
     create_nested_core_vm true
     start_nested_core_vm
+
+    mkdir -p "$SPREAD_DIR"
 
 restore: |
     #shellcheck source=tests/lib/nested.sh
@@ -28,11 +31,9 @@ execute: |
 
     ( cd "$SPREAD_DIR" && curl -s -O https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz && tar xzvf spread-amd64.tar.gz )
 
-    export SPREAD_EXTERNAL_ADDRESS=localhost:8022
-
-    sshpass -p ubuntu ssh -q -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -p 8022 user1@$localhost "sudo adduser --extrausers --quiet --disabled-password --gecos '' test"
-    sshpass -p ubuntu ssh -q -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -p 8022 user1@$localhost "echo test:ubuntu | sudo chpasswd"
-    sshpass -p ubuntu ssh -q -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -p 8022 user1@$localhost "echo 'test ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/create-user-test"
+    #sshpass -p ubuntu ssh -q -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -p 8022 user1@127.0.0.1 "sudo adduser --extrausers --quiet --disabled-password --gecos '' test"
+    #sshpass -p ubuntu ssh -q -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -p 8022 user1@127.0.0.1 "echo test:ubuntu | sudo chpasswd"
+    #sshpass -p ubuntu ssh -q -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -p 8022 user1@127.0.0.1 "echo 'test ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/create-user-test"
 
     cd "$PROJECT_PATH"
     "$SPREAD_DIR/spread" external:ubuntu-core-20-64:tests/smoke/
