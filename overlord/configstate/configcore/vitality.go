@@ -34,13 +34,13 @@ func init() {
 	supportedConfigurations["core."+vitalityOpt] = true
 }
 
-func handleVitalityConfiguration(tr config.Conf) error {
+func handleVitalityConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error {
 	// XXX: rewrite/restart changed configs
 
 	return nil
 }
 
-func validateVitalitySettings(tr config.Conf) error {
+func validateVitalitySettings(tr config.ConfGetter) error {
 	option, err := coreCfg(tr, vitalityOpt)
 	if err != nil {
 		return err

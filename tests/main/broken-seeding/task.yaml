@@ -1,6 +1,7 @@
 summary: Check that broken seeding generates an error
 
-systems: [-ubuntu-core-*]
+# not running on 14.04 as we have no real systemd here
+systems: [-ubuntu-core-*, -ubuntu-14.04-*]
 
 environment:
     SEED_DIR: /var/lib/snapd/seed
@@ -58,3 +59,19 @@ execute: |
 
     echo "Ensure we get a warning message"
     retry-tool -n 30 sh -c 'snap warnings | MATCH "seeding failed "'
+
+    # the ubuntu postinst will fix broken seeds, see LP: 1868706
+    if [[ "$SPREAD_SYSTEM" == ubuntu-* ]]; then
+        # XXX: why is this needed?
+        mkdir -p /var/lib/snapd/void
+        # during a pkg upgrade snapd is stopped
+        DPKG_MAINTSCRIPT_NAME=prerm DPKG_MAINTSCRIPT_PACKAGE=snapd /var/lib/dpkg/info/snapd.prerm upgrade 2.44
+        # run the postinst
+        DPKG_MAINTSCRIPT_NAME=postinst DPKG_MAINTSCRIPT_PACKAGE=snapd /var/lib/dpkg/info/snapd.postinst configure | MATCH "Found incorrect seed"
+        echo "Check that the seed dir got renamed"
+        test -d /var/lib/snapd/seed.disabled
+        if test -d /var/lib/snapd/seed/seed; then
+            echo "The seed dir should be renamed, test broken"
+            exit 1
+        fi
+    fi

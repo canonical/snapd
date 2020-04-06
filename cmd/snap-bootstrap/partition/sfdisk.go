@@ -85,6 +85,23 @@ type sfdiskPartition struct {
 	Name  string `json:"name"`
 }
 
+func (p *sfdiskPartition) isCreated() bool {
+	// TODO:UC20: also provide a mechanism for MBR (RPi)
+	if !creationSupported(p.Type) {
+		return false
+	}
+	for _, a := range strings.Fields(p.Attrs) {
+		if !strings.HasPrefix(a, "GUID:") {
+			continue
+		}
+		attrs := strings.Split(a[5:], ",")
+		if strutil.ListContains(attrs, createdPartitionAttr) {
+			return true
+		}
+	}
+	return false
+}
+
 type DeviceLayout struct {
 	Structure []DeviceStructure
 	ID        string
@@ -100,7 +117,8 @@ type DeviceLayout struct {
 type DeviceStructure struct {
 	gadget.LaidOutStructure
 
-	Node string
+	Node    string
+	Created bool
 }
 
 // NewDeviceLayout obtains the partitioning and filesystem information from the
@@ -163,27 +181,18 @@ func (dl *DeviceLayout) CreateMissing(pv *gadget.LaidOutVolume) ([]DeviceStructu
 // RemoveCreated removes partitions added during a previous failed install
 // attempt.
 func (dl *DeviceLayout) RemoveCreated() error {
-	toRemove := listCreatedPartitions(dl)
-	if len(toRemove) == 0 {
-		return nil
-	}
-
 	indexes := make([]string, 0, len(dl.partitionTable.Partitions))
-	for _, node := range toRemove {
-		for i, p := range dl.partitionTable.Partitions {
-			if node == p.Node {
-				indexes = append(indexes, strconv.Itoa(i+1))
-				break
-			}
+	for i, s := range dl.Structure {
+		if s.Created {
+			logger.Noticef("partition %s was created during previous install", s.Node)
+			indexes = append(indexes, strconv.Itoa(i+1))
 		}
 	}
-
 	if len(indexes) == 0 {
 		return nil
 	}
 
 	// Delete disk partitions
-	logger.Noticef("partitions to remove: %v", toRemove)
 	cmd := exec.Command("sfdisk", append([]string{"--no-reread", "--delete", dl.Device}, indexes...)...)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return osutil.OutputErr(output, err)
@@ -206,7 +215,7 @@ func (dl *DeviceLayout) RemoveCreated() error {
 	dl.partitionTable = layout.partitionTable
 
 	// Ensure all created partitions were removed
-	remaining := listCreatedPartitions(dl)
+	remaining := listCreatedPartitions(dl.partitionTable)
 	if len(remaining) > 0 {
 		return fmt.Errorf("cannot remove partitions: %s", strings.Join(remaining, ", "))
 	}
@@ -274,7 +283,8 @@ func deviceLayoutFromPartitionTable(ptable sfdiskPartitionTable) (*DeviceLayout,
 				StartOffset:     gadget.Size(p.Start) * sectorSize,
 				Index:           i + 1,
 			},
-			Node: p.Node,
+			Node:    p.Node,
+			Created: p.isCreated(),
 		}
 	}
 
@@ -283,7 +293,7 @@ func deviceLayoutFromPartitionTable(ptable sfdiskPartitionTable) (*DeviceLayout,
 		ID:             ptable.ID,
 		Device:         ptable.Device,
 		Schema:         ptable.Label,
-		Size:           gadget.Size(ptable.LastLBA) * sectorSize,
+		Size:           gadget.Size(ptable.LastLBA+1) * sectorSize,
 		SectorSize:     sectorSize,
 		partitionTable: &ptable,
 	}
@@ -314,6 +324,15 @@ func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume) (sfdiskInput
 		seen[p.Start] = true
 	}
 
+	// Check if the last partition has a system-data role
+	canExpandData := false
+	if n := len(pv.LaidOutStructure); n > 0 {
+		last := pv.LaidOutStructure[n-1]
+		if last.VolumeStructure.Role == gadget.SystemData {
+			canExpandData = true
+		}
+	}
+
 	// Write new partition data in named-fields format
 	buf := &bytes.Buffer{}
 	for _, p := range pv.LaidOutStructure {
@@ -336,12 +355,18 @@ func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume) (sfdiskInput
 			continue
 		}
 
+		// Check if the data partition should be expanded
+		size := s.Size
+		if s.Role == gadget.SystemData && canExpandData && p.StartOffset+s.Size < dl.Size {
+			size = dl.Size - p.StartOffset
+		}
+
 		// Can we use the index here? Get the largest existing partition number and
 		// build from there could be safer if the disk partitions are not consecutive
 		// (can this actually happen in our images?)
 		node := deviceName(ptable.Device, p.Index)
 		fmt.Fprintf(buf, "%s : start=%12d, size=%12d, type=%s, name=%q, attrs=\"GUID:%s\"\n", node,
-			p.StartOffset/sectorSize, s.Size/sectorSize, ptype, s.Name, createdPartitionAttr)
+			p.StartOffset/sectorSize, size/sectorSize, ptype, s.Name, createdPartitionAttr)
 
 		// Set expected labels based on role
 		switch s.Role {
@@ -353,7 +378,11 @@ func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume) (sfdiskInput
 			s.Label = ubuntuDataLabel
 		}
 
-		toBeCreated = append(toBeCreated, DeviceStructure{p, node})
+		toBeCreated = append(toBeCreated, DeviceStructure{
+			LaidOutStructure: p,
+			Node:             node,
+			Created:          true,
+		})
 	}
 
 	return buf, toBeCreated
@@ -361,21 +390,11 @@ func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume) (sfdiskInput
 
 // listCreatedPartitions returns a list of partitions created during the
 // install process.
-// TODO:UC20: also provide a mechanism for MBR (RPi)
-func listCreatedPartitions(dl *DeviceLayout) []string {
-	created := make([]string, 0, len(dl.partitionTable.Partitions))
-	for _, p := range dl.partitionTable.Partitions {
-		if !creationSupported(p.Type) {
-			continue
-		}
-		for _, a := range strings.Fields(p.Attrs) {
-			if !strings.HasPrefix(a, "GUID:") {
-				continue
-			}
-			attrs := strings.Split(a[5:], ",")
-			if strutil.ListContains(attrs, createdPartitionAttr) {
-				created = append(created, p.Node)
-			}
+func listCreatedPartitions(ptable *sfdiskPartitionTable) []string {
+	created := make([]string, 0, len(ptable.Partitions))
+	for _, p := range ptable.Partitions {
+		if p.isCreated() {
+			created = append(created, p.Node)
 		}
 	}
 	return created

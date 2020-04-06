@@ -75,7 +75,7 @@ func (cs *clientSuite) SetUpTest(c *C) {
 
 	dirs.SetRootDir(c.MkDir())
 
-	cs.restore = client.MockDoTimings(time.Millisecond, 10*time.Millisecond)
+	cs.restore = client.MockDoTimings(time.Millisecond, 100*time.Millisecond)
 }
 
 func (cs *clientSuite) TearDownTest(c *C) {
