@@ -83,10 +83,10 @@ func copyData(subkeys []string, pos int, srcData map[string]*json.RawMessage, ds
 	case *json.RawMessage:
 		dstDatam = make(map[string]interface{})
 		if err := jsonutil.DecodeWithNumber(bytes.NewReader(*dstDataEntry), &dstDatam); err != nil {
-			return fmt.Errorf("internal error: cannot decode subkey %s (%q) at for %v (%T)", subkeys[pos], strings.Join(subkeys, "."), dstData, dstDataEntry)
+			return fmt.Errorf("internal error: cannot decode subkey %s (%q) for %v (%T)", subkeys[pos], strings.Join(subkeys, "."), dstData, dstDataEntry)
 		}
 	default:
-		return fmt.Errorf("internal error: cannot create subkey %s (%q) at for %v (%T)", subkeys[pos], strings.Join(subkeys, "."), dstData, dstData[subkeys[pos]])
+		return fmt.Errorf("internal error: cannot create subkey %s (%q) for %v (%T)", subkeys[pos], strings.Join(subkeys, "."), dstData, dstData[subkeys[pos]])
 	}
 
 	return copyData(subkeys, pos+1, srcDatam, dstDatam)
