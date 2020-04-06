@@ -26,6 +26,7 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -123,18 +124,15 @@ func MockOsReadlink(f func(string) (string, error)) func() {
 
 //MockMountInfo mocks content of /proc/self/mountinfo read by IsHomeUsingNFS
 func MockMountInfo(text string) (restore func()) {
-	old := procSelfMountInfo
-	f, err := ioutil.TempFile("", "mountinfo")
+	err := os.MkdirAll(filepath.Dir(ProcSelfMountInfo), 0755)
 	if err != nil {
-		panic(fmt.Errorf("cannot open temporary file: %s", err))
+		panic(fmt.Sprintf("can't make mocked /proc/self/mountinfo dir at %s", ProcSelfMountInfo))
 	}
-	if err := ioutil.WriteFile(f.Name(), []byte(text), 0644); err != nil {
+	if err := ioutil.WriteFile(ProcSelfMountInfo, []byte(text), 0644); err != nil {
 		panic(fmt.Errorf("cannot write mock mountinfo file: %s", err))
 	}
-	procSelfMountInfo = f.Name()
 	return func() {
-		os.Remove(procSelfMountInfo)
-		procSelfMountInfo = old
+		os.Remove(ProcSelfMountInfo)
 	}
 }
 

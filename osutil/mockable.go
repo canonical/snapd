@@ -20,6 +20,7 @@
 package osutil
 
 import (
+	"io/ioutil"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -37,6 +38,16 @@ func init() {
 	dirs.AddRootDirCallback(assignProcSelfMountInfo)
 }
 
+// MockProcSelfMountInfo is meant for tests, where dirs.GlobalRootDir != ""
+// and just mocks with the content
+func MockProcSelfMountInfo(content string) error {
+	err := os.MkdirAll(filepath.Dir(ProcSelfMountInfo), 0755)
+	if err != nil {
+		return err
+	}
+	return ioutil.WriteFile(ProcSelfMountInfo, []byte(content), 0644)
+}
+
 var (
 	// ProcSelfMountInfo is a path to the mountinfo table of the current process.
 	ProcSelfMountInfo string
@@ -49,7 +60,6 @@ var (
 	syscallKill    = syscall.Kill
 	syscallGetpgid = syscall.Getpgid
 
-	procSelfMountInfo = ProcSelfMountInfo
-	etcFstab          = "/etc/fstab"
-	sudoersDotD       = "/etc/sudoers.d"
+	etcFstab    = "/etc/fstab"
+	sudoersDotD = "/etc/sudoers.d"
 )
