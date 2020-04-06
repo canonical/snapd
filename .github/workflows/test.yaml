@@ -5,6 +5,7 @@ on:
 jobs:
   # TODO: port CLA check
   unit-tests:
+    name: "Static & Unit"
     runs-on: ubuntu-16.04
     env:
       GOPATH: ${{ github.workspace }}
@@ -67,7 +68,8 @@ jobs:
       run: cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/ && make check
     - name: Test Go
       run: cd ${{ github.workspace }}/src/github.com/snapcore/snapd && ./run-checks --unit
-  spread-canary:
+  canary:
+    name: "Canary"
     needs: unit-tests
     runs-on: ubuntu-latest
     strategy:
@@ -97,8 +99,9 @@ jobs:
         for r in .spread-reuse.*.yaml; do
           /tmp/spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
         done
-  spread-stable:
-    needs: [unit-tests, spread-canary]
+  stable:
+    name: "Stable"
+    needs: [unit-tests, canary]
     runs-on: ubuntu-latest
     strategy:
       # FIXME: enable fail-fast mode once spread can cancel an executing job.
@@ -144,8 +147,9 @@ jobs:
         for r in .spread-reuse.*.yaml; do
           /tmp/spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
         done
-  spread-unstable:
-    needs: [unit-tests, spread-stable]
+  unstable:
+    name: "Unstable"
+    needs: [unit-tests, stable]
     runs-on: ubuntu-latest
     strategy:
       # FIXME: enable fail-fast mode once spread can cancel an executing job.
