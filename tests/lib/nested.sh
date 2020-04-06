@@ -239,7 +239,7 @@ create_nested_core_vm(){
             # shellcheck source=tests/lib/prepare.sh
             . "$TESTSLIB"/prepare.sh
             snap download --channel="latest/edge" snapd
-            repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$PWD/new-snapd" "true"
+            repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$PWD/new-snapd" "false"
             EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-snapd/snapd_*.snap"
         fi
 
