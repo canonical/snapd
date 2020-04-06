@@ -47,7 +47,7 @@ import (
 
 func init() {
 	// set User-Agent for when 'snap' talks to the store directly (snap download etc...)
-	snapdenv.SetUserAgentFromVersion(cmd.Version, "snap")
+	snapdenv.SetUserAgentFromVersion(cmd.Version, nil, "snap")
 
 	if osutil.GetenvBool("SNAPD_DEBUG") || snapdenv.Testing() {
 		// in tests or when debugging, enforce the "tidy" lint checks

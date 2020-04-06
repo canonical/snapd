@@ -26,7 +26,6 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -285,22 +284,4 @@ type Conf interface {
 type ConfGetter interface {
 	Get(snapName, key string, result interface{}) error
 	GetMaybe(snapName, key string, result interface{}) error
-}
-
-// GetFeatureFlag returns the value of a given feature flag.
-func GetFeatureFlag(tr ConfGetter, feature features.SnapdFeature) (bool, error) {
-	var isEnabled interface{}
-	snapName, confName := feature.ConfigOption()
-	if err := tr.GetMaybe(snapName, confName, &isEnabled); err != nil {
-		return false, err
-	}
-	switch isEnabled {
-	case true, "true":
-		return true, nil
-	case false, "false":
-		return false, nil
-	case nil, "":
-		return feature.IsEnabledWhenUnset(), nil
-	}
-	return false, fmt.Errorf("%s can only be set to 'true' or 'false', got %q", feature, isEnabled)
 }
