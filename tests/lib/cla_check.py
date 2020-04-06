@@ -31,13 +31,18 @@ def get_commit_range():
         if os.getenv("GITHUB_EVENT_NAME", "") != "pull_request":
             raise RuntimeError("called from a non-pull request Github Actions job")
     else:
-        raise RuntimeError("Unknown CI system.")
+        raise RuntimeError("unknown CI system.")
 
     # The head revision is a synthesised merge commit, merging the
     # proposed branch into the destination branch.  So the first
     # parent is our destination, and the second is our proposal.
-    dest = check_output(["git", "rev-parse", "@^1"]).strip()
-    proposed = check_output(["git", "rev-parse", "@^2"]).strip()
+    lines = check_output(["git", "cat-file", "-p", "@"]).splitlines()
+    parents = [line[len("parent "):].strip() for line in lines
+               if line.startswith("parent ")]
+    if len(parents) != 2:
+        raise RuntimeError("expected two parents, but got {}".format(parents))
+    dest, proposed = parents
+
     return dest, proposed
 
 
@@ -134,7 +139,7 @@ def print_checkout_info(travis_commit_range):
 def main():
     try:
         master, proposed = get_commit_range()
-    except Exception, exc:
+    except Exception as exc:
         sys.exit("Could not determine commit range: {}".format(exc))
     commit_range = "{}..{}".format(master, proposed)
     print_checkout_info(commit_range)
