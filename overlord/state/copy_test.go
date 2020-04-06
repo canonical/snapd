@@ -128,7 +128,7 @@ func (ss *stateSuite) TestCopyStateUnmarshalNotMap(c *C) {
 
 	dstStateFile := filepath.Join(c.MkDir(), "dst-state.json")
 	err = state.CopyState(srcStateFile, dstStateFile, []string{"E.F.subkey-not-in-a-map"})
-	c.Assert(err, ErrorMatches, `cannot unmarshal state entry "E.F" with value "2" for data entry "E.F.subkey-not-in-a-map" as a map`)
+	c.Assert(err, ErrorMatches, `cannot unmarshal state entry "E.F" with value "2" as a map while trying to copy over "E.F.subkey-not-in-a-map"`)
 }
 
 func (ss *stateSuite) TestCopyStateDuplicatesInDataEntriesAreFine(c *C) {

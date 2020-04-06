@@ -68,7 +68,7 @@ func copyData(subkeys []string, pos int, srcData map[string]*json.RawMessage, ds
 
 	var srcDatam map[string]*json.RawMessage
 	if err := jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &srcDatam); err != nil {
-		return fmt.Errorf("cannot unmarshal state entry %q with value %q for data entry %q as a map", strings.Join(subkeys[:pos+1], "."), *raw, strings.Join(subkeys, "."))
+		return fmt.Errorf("cannot unmarshal state entry %q with value %q as a map while trying to copy over %q", strings.Join(subkeys[:pos+1], "."), *raw, strings.Join(subkeys, "."))
 	}
 
 	// no subkey entry -> create one
