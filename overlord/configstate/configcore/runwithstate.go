@@ -102,7 +102,7 @@ func Run(cfg config.Conf) error {
 	for _, k := range cfg.Changes() {
 		switch {
 		case strings.HasPrefix(k, "core.store-certs."):
-			if !validCertName(k) {
+			if !validCertOption(k) {
 				return fmt.Errorf("cannot set %q: name must only contain word characters or a dash", k)
 			}
 		case !supportedConfigurations[k]:

@@ -103,6 +103,9 @@ func validateCertSettings(tr config.Conf) error {
 		}
 		if cert != "" {
 			optionName := strings.SplitN(name, ".", 3)[2]
+			if !validCertName(optionName) {
+				return fmt.Errorf("cannot set %q: name must only contain word characters or a dash", optionName)
+			}
 			// copied validation code from
 			// go:crypto/x509/cert_pool.go:AppendCertsFromPEM()
 			pemCerts := []byte(cert)
