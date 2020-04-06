@@ -68,7 +68,7 @@ func copyData(subkeys []string, pos int, srcData map[string]*json.RawMessage, ds
 
 	var srcDatam map[string]*json.RawMessage
 	if err := jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &srcDatam); err != nil {
-		return fmt.Errorf("cannot unmarshal state entry %q for data entry %q as a map: %s", strings.Join(subkeys[:pos+1], "."), strings.Join(subkeys, "."), *raw)
+		return fmt.Errorf("cannot unmarshal state entry %q with value %q for data entry %q as a map", strings.Join(subkeys[:pos+1], "."), *raw, strings.Join(subkeys, "."))
 	}
 
 	// no subkey entry -> create one
@@ -76,10 +76,17 @@ func copyData(subkeys []string, pos int, srcData map[string]*json.RawMessage, ds
 		dstData[subkeys[pos]] = make(map[string]interface{})
 	}
 	// and use existing data
-	dstDatam, ok := dstData[subkeys[pos]].(map[string]interface{})
-	if !ok {
-		// should never happen
-		return fmt.Errorf("internal error: cannot create subkey %s (%q) at for %v", subkeys[pos], strings.Join(subkeys, "."), dstData)
+	var dstDatam map[string]interface{}
+	switch dstDataEntry := dstData[subkeys[pos]].(type) {
+	case map[string]interface{}:
+		dstDatam = dstDataEntry
+	case *json.RawMessage:
+		dstDatam = make(map[string]interface{})
+		if err := jsonutil.DecodeWithNumber(bytes.NewReader(*dstDataEntry), &dstDatam); err != nil {
+			return fmt.Errorf("internal error: cannot decode subkey %s (%q) at for %v (%T)", subkeys[pos], strings.Join(subkeys, "."), dstData, dstDataEntry)
+		}
+	default:
+		return fmt.Errorf("internal error: cannot create subkey %s (%q) at for %v (%T)", subkeys[pos], strings.Join(subkeys, "."), dstData, dstData[subkeys[pos]])
 	}
 
 	return copyData(subkeys, pos+1, srcDatam, dstDatam)

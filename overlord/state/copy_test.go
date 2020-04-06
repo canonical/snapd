@@ -113,7 +113,7 @@ func (ss *stateSuite) TestCopyState(c *C) {
 	c.Assert(err, IsNil)
 
 	dstStateFile := filepath.Join(c.MkDir(), "dst-state.json")
-	err = state.CopyState(srcStateFile, dstStateFile, []string{"A.B", "no-existing-does-not-error", "E.F", "E", "I"})
+	err = state.CopyState(srcStateFile, dstStateFile, []string{"A.B", "no-existing-does-not-error", "E.F", "E", "I", "E.non-existing"})
 	c.Assert(err, IsNil)
 
 	dstContent, err := ioutil.ReadFile(dstStateFile)
@@ -121,18 +121,26 @@ func (ss *stateSuite) TestCopyState(c *C) {
 	c.Check(string(dstContent), Equals, `{"data":{"A":{"B":[{"C":1},{"D":2}]},"E":{"F":2,"G":3},"I":null}`+stateSuffix)
 }
 
-var srcStateContentNotMap = []byte(`{
-    "data": {
-        "A": ["B"]
-    }
-}`)
-
 func (ss *stateSuite) TestCopyStateUnmarshalNotMap(c *C) {
 	srcStateFile := filepath.Join(c.MkDir(), "src-state.json")
-	err := ioutil.WriteFile(srcStateFile, srcStateContentNotMap, 0644)
+	err := ioutil.WriteFile(srcStateFile, srcStateContent1, 0644)
 	c.Assert(err, IsNil)
 
 	dstStateFile := filepath.Join(c.MkDir(), "dst-state.json")
-	err = state.CopyState(srcStateFile, dstStateFile, []string{"A.B"})
-	c.Assert(err, ErrorMatches, `cannot unmarshal state entry "A" for data entry "A.B" as a map: \["B"\]`)
+	err = state.CopyState(srcStateFile, dstStateFile, []string{"E.F.subkey-not-in-a-map"})
+	c.Assert(err, ErrorMatches, `cannot unmarshal state entry "E.F" with value "2" for data entry "E.F.subkey-not-in-a-map" as a map`)
+}
+
+func (ss *stateSuite) TestCopyStateDuplicatesInDataEntriesAreFine(c *C) {
+	srcStateFile := filepath.Join(c.MkDir(), "src-state.json")
+	err := ioutil.WriteFile(srcStateFile, srcStateContent1, 0644)
+	c.Assert(err, IsNil)
+
+	dstStateFile := filepath.Join(c.MkDir(), "dst-state.json")
+	err = state.CopyState(srcStateFile, dstStateFile, []string{"E", "E"})
+	c.Assert(err, IsNil)
+
+	dstContent, err := ioutil.ReadFile(dstStateFile)
+	c.Assert(err, IsNil)
+	c.Check(string(dstContent), Equals, `{"data":{"E":{"F":2,"G":3}}`+stateSuffix)
 }
