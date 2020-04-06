@@ -73,48 +73,6 @@ type linkSuite struct {
 
 var _ = Suite(&linkSuite{})
 
-<<<<<<< HEAD
-=======
-func (s *linkSuite) TestLinkSnapGivesLastActiveDisabledServicesToWrappers(c *C) {
-	const yaml = `name: hello
-version: 1.0
-environment:
- KEY: value
-
-apps:
- bin:
-   command: bin
-   daemon: simple
- svc:
-   command: svc
-   daemon: simple
-`
-	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
-
-	svcsDisabled := []string{}
-	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
-		// drop --root from the cmd
-		if len(cmd) >= 3 && cmd[0] == "--root" {
-			cmd = cmd[2:]
-		}
-		// if it's an enable, save the service name to check later
-		if len(cmd) >= 2 && cmd[0] == "enable" {
-			svcsDisabled = append(svcsDisabled, cmd[1])
-		}
-		return nil, nil
-	})
-	defer r()
-
-	linkCtx := backend.LinkContext{
-		PrevDisabledServices: []string{"svc"},
-	}
-	_, err := s.be.LinkSnap(info, mockDev, linkCtx, s.perfTimings)
-	c.Assert(err, IsNil)
-
-	c.Assert(svcsDisabled, DeepEquals, []string{"snap.hello.bin.service"})
-}
-
->>>>>>> master
 func (s *linkSuite) TestLinkDoUndoGenerateWrappers(c *C) {
 	const yaml = `name: hello
 version: 1.0
@@ -130,11 +88,7 @@ apps:
 `
 	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
-<<<<<<< HEAD
-	_, err := s.be.LinkSnap(info, mockDev, s.perfTimings)
-=======
 	_, err := s.be.LinkSnap(info, mockDev, backend.LinkContext{}, s.perfTimings)
->>>>>>> master
 	c.Assert(err, IsNil)
 
 	l, err := filepath.Glob(filepath.Join(dirs.SnapBinariesDir, "*"))
@@ -162,11 +116,7 @@ version: 1.0
 `
 	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
-<<<<<<< HEAD
-	reboot, err := s.be.LinkSnap(info, mockDev, s.perfTimings)
-=======
 	reboot, err := s.be.LinkSnap(info, mockDev, backend.LinkContext{}, s.perfTimings)
->>>>>>> master
 	c.Assert(err, IsNil)
 
 	c.Check(reboot, Equals, false)
@@ -206,11 +156,7 @@ type: base
 `
 	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
-<<<<<<< HEAD
-	reboot, err := s.be.LinkSnap(info, coreDev, s.perfTimings)
-=======
 	reboot, err := s.be.LinkSnap(info, coreDev, backend.LinkContext{}, s.perfTimings)
->>>>>>> master
 	c.Assert(err, IsNil)
 	c.Check(reboot, Equals, true)
 }
@@ -231,17 +177,10 @@ apps:
 `
 	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
-<<<<<<< HEAD
-	_, err := s.be.LinkSnap(info, mockDev, s.perfTimings)
-	c.Assert(err, IsNil)
-
-	_, err = s.be.LinkSnap(info, mockDev, s.perfTimings)
-=======
 	_, err := s.be.LinkSnap(info, mockDev, backend.LinkContext{}, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	_, err = s.be.LinkSnap(info, mockDev, backend.LinkContext{}, s.perfTimings)
->>>>>>> master
 	c.Assert(err, IsNil)
 
 	l, err := filepath.Glob(filepath.Join(dirs.SnapBinariesDir, "*"))
@@ -278,11 +217,7 @@ apps:
 `
 	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
-<<<<<<< HEAD
-	_, err := s.be.LinkSnap(info, mockDev, s.perfTimings)
-=======
 	_, err := s.be.LinkSnap(info, mockDev, backend.LinkContext{}, s.perfTimings)
->>>>>>> master
 	c.Assert(err, IsNil)
 
 	err = s.be.UnlinkSnap(info, backend.LinkContext{}, progress.Null)
@@ -310,11 +245,7 @@ func (s *linkSuite) TestLinkFailsForUnsetRevision(c *C) {
 	info := &snap.Info{
 		SuggestedName: "foo",
 	}
-<<<<<<< HEAD
-	_, err := s.be.LinkSnap(info, mockDev, s.perfTimings)
-=======
 	_, err := s.be.LinkSnap(info, mockDev, backend.LinkContext{}, s.perfTimings)
->>>>>>> master
 	c.Assert(err, ErrorMatches, `cannot link snap "foo" with unset revision`)
 }
 
@@ -336,9 +267,6 @@ type: snapd
 	return info, snapdUnits
 }
 
-<<<<<<< HEAD
-	reboot, err := s.be.LinkSnap(info, mockDev, s.perfTimings)
-=======
 func (s *linkSuite) TestLinkSnapdSnapOnCore(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
@@ -351,7 +279,6 @@ func (s *linkSuite) TestLinkSnapdSnapOnCore(c *C) {
 	info, _ := mockSnapdSnapForLink(c)
 
 	reboot, err := s.be.LinkSnap(info, mockDev, backend.LinkContext{}, s.perfTimings)
->>>>>>> master
 	c.Assert(err, IsNil)
 	c.Assert(reboot, Equals, false)
 
@@ -435,11 +362,7 @@ func (s *linkCleanupSuite) testLinkCleanupDirOnFail(c *C, dir string) {
 	c.Assert(os.Chmod(dir, 0555), IsNil)
 	defer os.Chmod(dir, 0755)
 
-<<<<<<< HEAD
-	_, err := s.be.LinkSnap(s.info, mockDev, s.perfTimings)
-=======
 	_, err := s.be.LinkSnap(s.info, mockDev, backend.LinkContext{}, s.perfTimings)
->>>>>>> master
 	c.Assert(err, NotNil)
 	_, isPathError := err.(*os.PathError)
 	_, isLinkError := err.(*os.LinkError)
@@ -476,11 +399,7 @@ func (s *linkCleanupSuite) TestLinkCleanupOnSystemctlFail(c *C) {
 	})
 	defer r()
 
-<<<<<<< HEAD
-	_, err := s.be.LinkSnap(s.info, mockDev, s.perfTimings)
-=======
 	_, err := s.be.LinkSnap(s.info, mockDev, backend.LinkContext{}, s.perfTimings)
->>>>>>> master
 	c.Assert(err, ErrorMatches, "ouchie")
 
 	for _, d := range []string{dirs.SnapBinariesDir, dirs.SnapDesktopFilesDir, dirs.SnapServicesDir} {
@@ -500,11 +419,7 @@ func (s *linkCleanupSuite) TestLinkCleansUpDataDirAndSymlinksOnSymlinkFail(c *C)
 	c.Assert(os.Chmod(d, 0555), IsNil)
 	defer os.Chmod(d, 0755)
 
-<<<<<<< HEAD
-	_, err := s.be.LinkSnap(s.info, mockDev, s.perfTimings)
-=======
 	_, err := s.be.LinkSnap(s.info, mockDev, backend.LinkContext{}, s.perfTimings)
->>>>>>> master
 	c.Assert(err, ErrorMatches, `(?i).*symlink.*permission denied.*`)
 
 	c.Check(s.info.DataDir(), testutil.FileAbsent)
@@ -524,11 +439,7 @@ func (s *linkCleanupSuite) TestLinkRunsUpdateFontconfigCachesClassic(c *C) {
 		})
 		defer restore()
 
-<<<<<<< HEAD
-		_, err := s.be.LinkSnap(s.info, dev, s.perfTimings)
-=======
 		_, err := s.be.LinkSnap(s.info, dev, backend.LinkContext{}, s.perfTimings)
->>>>>>> master
 		c.Assert(err, IsNil)
 		if dev.Classic() {
 			c.Assert(updateFontconfigCaches, Equals, 1)
@@ -567,11 +478,7 @@ type: os
 	})
 	defer restore()
 
-<<<<<<< HEAD
-	_, err = s.be.LinkSnap(infoNew, mockClassicDev, s.perfTimings)
-=======
 	_, err = s.be.LinkSnap(infoNew, mockClassicDev, backend.LinkContext{}, s.perfTimings)
->>>>>>> master
 	c.Assert(err, IsNil)
 
 	c.Check(oldCmdV6.Calls(), HasLen, 0)

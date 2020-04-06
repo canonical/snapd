@@ -95,7 +95,7 @@ func (b Backend) LinkSnap(info *snap.Info, dev boot.Device, linkCtx LinkContext,
 
 	var err error
 	timings.Run(tm, "generate-wrappers", fmt.Sprintf("generate wrappers for snap %s", info.InstanceName()), func(timings.Measurer) {
-		err = generateWrappers(info)
+		err = b.generateWrappers(info)
 	})
 	if err != nil {
 		return false, err
@@ -154,7 +154,7 @@ func (b Backend) StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReaso
 	return wrappers.StopServices(apps, reason, meter, tm)
 }
 
-func generateWrappers(s *snap.Info) error {
+func (b Backend) generateWrappers(s *snap.Info) error {
 	var err error
 	var cleanupFuncs []func(*snap.Info) error
 	defer func() {

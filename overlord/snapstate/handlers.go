@@ -894,8 +894,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	snapst.Active = true
 	linkCtx := backend.LinkContext{
-		PrevDisabledServices: svcsToDisable,
-		FirstInstall:         false,
+		FirstInstall: false,
 	}
 	reboot, err := m.backend.LinkSnap(oldInfo, deviceCtx, linkCtx, perfTimings)
 	if err != nil {
@@ -1169,8 +1168,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	pb := NewTaskProgressAdapterLocked(t)
 
 	linkCtx := backend.LinkContext{
-		FirstInstall:         oldCurrent.Unset(),
-		PrevDisabledServices: svcsToDisable,
+		FirstInstall: oldCurrent.Unset(),
 	}
 	reboot, err := m.backend.LinkSnap(newInfo, deviceCtx, linkCtx, perfTimings)
 	// defer a cleanup helper which will unlink the snap if anything fails after
@@ -1717,7 +1715,7 @@ func (m *SnapManager) undoStartSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	perfTimings := timings.NewForTask(t)
+	perfTimings := state.TimingsForTask(t)
 	defer perfTimings.Save(st)
 
 	snapsup, snapst, err := snapSetupAndState(t)
@@ -1834,7 +1832,7 @@ func (m *SnapManager) undoStopSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	perfTimings := timings.NewForTask(t)
+	perfTimings := state.TimingsForTask(t)
 	defer perfTimings.Save(st)
 
 	snapsup, snapst, err := snapSetupAndState(t)
