@@ -665,12 +665,18 @@ func (e *ensureError) Error() string {
 	return strings.Join(parts, "\n - ")
 }
 
+// no \n allowed in warnings
+var seedFailureFmt = `seeding failed with: %v. This indicates an error in your distribution, please see https://forum.snapcraft.io/t/16341 for more information.`
+
 // Ensure implements StateManager.Ensure.
 func (m *DeviceManager) Ensure() error {
 	var errs []error
 
 	if err := m.ensureSeeded(); err != nil {
-		errs = append(errs, err)
+		m.state.Lock()
+		m.state.Warnf(seedFailureFmt, err)
+		m.state.Unlock()
+		errs = append(errs, fmt.Errorf("cannot seed: %v", err))
 	}
 
 	if !m.preseed {
