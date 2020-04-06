@@ -274,7 +274,7 @@ func setClassicFallbackModel(st *state.State, device *auth.DeviceState) error {
 	return nil
 }
 
-func (m *DeviceManager) OperatingMode() string {
+func (m *DeviceManager) SystemMode() string {
 	if m.systemMode == "" {
 		return "run"
 	}
@@ -285,7 +285,7 @@ func (m *DeviceManager) ensureOperational() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	if m.OperatingMode() != "run" {
+	if m.SystemMode() != "run" {
 		// avoid doing registration in ephemeral mode
 		// note: this also stop auto-refreshes indirectly
 		return nil
@@ -503,7 +503,7 @@ func (m *DeviceManager) ensureBootOk() error {
 	}
 
 	// boot-ok/update-boot-revision is only relevant in run-mode
-	if m.OperatingMode() != "run" {
+	if m.SystemMode() != "run" {
 		return nil
 	}
 
@@ -542,7 +542,7 @@ func (m *DeviceManager) ensureInstalled() error {
 		return nil
 	}
 
-	if m.OperatingMode() != "install" {
+	if m.SystemMode() != "install" {
 		return nil
 	}
 
@@ -665,12 +665,18 @@ func (e *ensureError) Error() string {
 	return strings.Join(parts, "\n - ")
 }
 
+// no \n allowed in warnings
+var seedFailureFmt = `seeding failed with: %v. This indicates an error in your distribution, please see https://forum.snapcraft.io/t/16341 for more information.`
+
 // Ensure implements StateManager.Ensure.
 func (m *DeviceManager) Ensure() error {
 	var errs []error
 
 	if err := m.ensureSeeded(); err != nil {
-		errs = append(errs, err)
+		m.state.Lock()
+		m.state.Warnf(seedFailureFmt, err)
+		m.state.Unlock()
+		errs = append(errs, fmt.Errorf("cannot seed: %v", err))
 	}
 
 	if !m.preseed {
@@ -793,9 +799,27 @@ func systemFromSeed(label string) (*System, error) {
 
 var ErrNoSystems = errors.New("no systems seeds")
 
+func currentSeedSystem(st *state.State) (*seededSystem, error) {
+	st.Lock()
+	defer st.Unlock()
+
+	var whatseeded []seededSystem
+	if err := st.Get("seeded-systems", &whatseeded); err != nil {
+		return nil, err
+	}
+	if len(whatseeded) == 0 {
+		// unexpected
+		return nil, state.ErrNoState
+	}
+	return &whatseeded[0], nil
+}
+
 // Systems list the available recovery/seeding systems. Returns the list of
 // systems, ErrNoSystems when no systems seeds were found or other error.
 func (m *DeviceManager) Systems() ([]*System, error) {
+	// it's tough luck when we cannot determine the current system seed
+	currentSys, _ := currentSeedSystem(m.state)
+
 	systemLabels, err := filepath.Glob(filepath.Join(dirs.SnapSeedDir, "systems", "*"))
 	if err != nil && !os.IsNotExist(err) {
 		return nil, fmt.Errorf("cannot list available systems: %v", err)
@@ -815,9 +839,11 @@ func (m *DeviceManager) Systems() ([]*System, error) {
 			logger.Noticef("cannot load system %q seed: %v", label, err)
 			continue
 		}
-		// TODO:UC20 check if current installation was done with that
-		// system
-		system.Current = false
+		if currentSys != nil {
+			system.Current = currentSys.System == label &&
+				currentSys.Model == system.Model.Model() &&
+				currentSys.BrandID == system.Brand.AccountID()
+		}
 		systems = append(systems, system)
 	}
 	return systems, nil
@@ -849,7 +875,21 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 		return ErrUnsupportedAction
 	}
 
-	// TODO:UC20 update boot environment and schedule a reboot
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	deviceCtx, err := DeviceCtx(m.state, nil, nil)
+	if err != nil {
+		return err
+	}
+
+	if err := boot.SetRecoveryBootSystemAndMode(deviceCtx, systemLabel, action.Mode); err != nil {
+		return fmt.Errorf("cannot set device to boot into system %q in mode %q: %v",
+			systemLabel, action.Mode, err)
+	}
+
+	logger.Noticef("restarting into system %q for action %q", systemLabel, sysAction.Title)
+	m.state.RequestRestart(state.RestartSystemNow)
 	return nil
 }
 

@@ -36,8 +36,9 @@ var systemsCmd = &Command{
 }
 
 var systemsActionCmd = &Command{
-	Path: "/v2/systems/{label}",
-	POST: postSystemsAction,
+	Path:     "/v2/systems/{label}",
+	POST:     postSystemsAction,
+	RootOnly: true,
 }
 
 type systemsResponse struct {

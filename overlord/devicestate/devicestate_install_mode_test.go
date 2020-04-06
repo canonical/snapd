@@ -208,7 +208,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 		RecoverySystem: "20191218",
 	}
 	c.Assert(modeenv.WriteTo(""), IsNil)
-	devicestate.SetOperatingMode(s.mgr, "install")
+	devicestate.SetSystemMode(s.mgr, "install")
 
 	s.settle(c)
 
@@ -232,6 +232,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 			{
 				"snap-bootstrap", "create-partitions", "--mount", "--encrypt",
 				"--key-file", filepath.Join(boot.InitramfsUbuntuBootDir, "/ubuntu-data.keyfile.unsealed"),
+				"--recovery-key-file", filepath.Join(boot.InitramfsUbuntuDataDir, "/system-data/var/lib/snapd/device/fde/recovery-key"),
 				filepath.Join(dirs.SnapMountDir, "/pc/1"),
 			},
 		})
@@ -244,7 +245,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 		})
 	}
 	c.Assert(bootMakeBootableCalled, Equals, 1)
-	c.Assert(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystem})
+	c.Assert(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
 
 	return nil
 }
@@ -258,7 +259,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallTaskErrors(c *C) {
 
 	s.state.Lock()
 	s.makeMockInstalledPcGadget(c, "dangerous")
-	devicestate.SetOperatingMode(s.mgr, "install")
+	devicestate.SetSystemMode(s.mgr, "install")
 	s.state.Unlock()
 
 	s.settle(c)
@@ -278,7 +279,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeNotInstallmodeNoChg(c *C) {
 	defer restore()
 
 	s.state.Lock()
-	devicestate.SetOperatingMode(s.mgr, "")
+	devicestate.SetSystemMode(s.mgr, "")
 	s.state.Unlock()
 
 	s.settle(c)
@@ -296,7 +297,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeNotClassic(c *C) {
 	defer restore()
 
 	s.state.Lock()
-	devicestate.SetOperatingMode(s.mgr, "install")
+	devicestate.SetSystemMode(s.mgr, "install")
 	s.state.Unlock()
 
 	s.settle(c)
@@ -381,7 +382,7 @@ func (s *deviceMgrInstallModeSuite) mockInstallModeChange(c *C, modelGrade strin
 		RecoverySystem: "20191218",
 	}
 	c.Assert(modeenv.WriteTo(""), IsNil)
-	devicestate.SetOperatingMode(s.mgr, "install")
+	devicestate.SetSystemMode(s.mgr, "install")
 
 	s.settle(c)
 }

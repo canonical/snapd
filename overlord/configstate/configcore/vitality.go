@@ -44,7 +44,7 @@ func isNotInstalled(err error) bool {
 	return ok
 }
 
-func handleVitalityConfiguration(tr config.Conf) error {
+func handleVitalityConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 	var pristineVitalityStr, newVitalityStr string
 
 	if err := tr.GetPristine("core", vitalityOpt, &pristineVitalityStr); err != nil && !config.IsNoOption(err) {
@@ -119,9 +119,12 @@ func validateVitalitySettings(tr config.Conf) error {
 	if option == "" {
 		return nil
 	}
-
-	for _, snapName := range strings.Split(option, ",") {
-		if err := naming.ValidateInstance(snapName); err != nil {
+	vitalityHints := strings.Split(option, ",")
+	if len(vitalityHints) > 100 {
+		return fmt.Errorf("cannot set more than 100 %q values: got %v", vitalityOpt, len(vitalityHints))
+	}
+	for _, instanceName := range vitalityHints {
+		if err := naming.ValidateInstance(instanceName); err != nil {
 			return fmt.Errorf("cannot set %q: %v", vitalityOpt, err)
 		}
 	}

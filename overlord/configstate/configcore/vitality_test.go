@@ -21,6 +21,8 @@ package configcore_test
 
 import (
 	"path/filepath"
+	"strconv"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -96,4 +98,19 @@ func (s *vitalitySuite) TestConfigureVitalityWithValidSnap(c *C) {
 	})
 	svcPath := filepath.Join(dirs.SnapServicesDir, svcName)
 	c.Check(svcPath, testutil.FileContains, "\nOOMScoreAdjust=-897\n")
+}
+
+func (s *vitalitySuite) TestConfigureVitalityHintTooMany(c *C) {
+	l := make([]string, 101)
+	for i := range l {
+		l[i] = strconv.Itoa(i)
+	}
+	manyStr := strings.Join(l, ",")
+	err := configcore.Run(&mockConf{
+		state: s.state,
+		changes: map[string]interface{}{
+			"resilience.vitality-hint": manyStr,
+		},
+	})
+	c.Assert(err, ErrorMatches, `cannot set more than 100 "resilience.vitality-hint" values: got 101`)
 }

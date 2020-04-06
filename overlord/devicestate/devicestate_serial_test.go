@@ -1855,7 +1855,7 @@ func (s *deviceMgrSerialSuite) TestDeviceRegistrationNotInInstallMode(c *C) {
 	// mark it as seeded
 	st.Set("seeded", true)
 	// set run mode to "install"
-	devicestate.SetOperatingMode(s.mgr, "install")
+	devicestate.SetSystemMode(s.mgr, "install")
 	st.Unlock()
 
 	// runs the whole device registration process

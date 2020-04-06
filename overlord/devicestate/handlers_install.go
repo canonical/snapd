@@ -76,6 +76,8 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 			"--encrypt",
 			// location to store the keyfile
 			"--key-file", filepath.Join(boot.InitramfsUbuntuBootDir, "ubuntu-data.keyfile.unsealed"),
+			// location to store the recovery keyfile
+			"--recovery-key-file", filepath.Join(boot.InitramfsUbuntuDataDir, "/system-data/var/lib/snapd/device/fde/recovery-key"),
 		)
 	}
 	args = append(args, gadgetDir)
@@ -134,7 +136,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// request a restart as the last action after a successful install
-	st.RequestRestart(state.RestartSystem)
+	st.RequestRestart(state.RestartSystemNow)
 
 	return nil
 }
