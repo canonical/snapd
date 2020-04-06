@@ -225,6 +225,9 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapSystemKeyFile), 0755), IsNil)
 
+	// needed for system key generation
+	c.Assert(osutil.MockProcSelfMountInfo(""), IsNil)
+
 	s.o = overlord.Mock()
 	s.state = s.o.State()
 	s.se = s.o.StateEngine()
