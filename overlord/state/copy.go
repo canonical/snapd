@@ -47,7 +47,15 @@ func (b *checkpointOnlyBackend) RequestRestart(t RestartType) {
 	panic("cannot use RequestRestart in checkpointOnlyBackend")
 }
 
+// copyData will copy the given subkeys specifier from srcData to dstData.
+//
+// The subkeys is constructed from a dotted path like "user.auth". This copy
+// helper is recursive and the pos parameter tells the function the current
+// position of the copy.
 func copyData(subkeys []string, pos int, srcData map[string]*json.RawMessage, dstData map[string]interface{}) error {
+	if pos < 0 || pos > len(subkeys) {
+		return fmt.Errorf("internal error: copyData used with an out-of-bounds position: %v not in [0:%v]", pos, len(subkeys))
+	}
 	raw, ok := srcData[subkeys[pos]]
 	if !ok {
 		return ErrNoState
@@ -60,7 +68,7 @@ func copyData(subkeys []string, pos int, srcData map[string]*json.RawMessage, ds
 
 	var srcDatam map[string]*json.RawMessage
 	if err := jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &srcDatam); err != nil {
-		return fmt.Errorf("option %q is not a map", strings.Join(subkeys[:pos+1], "."))
+		return fmt.Errorf("cannot unmarshal state entry %q for data entry %q as a map: %s", strings.Join(subkeys[:pos+1], "."), strings.Join(subkeys, "."), *raw)
 	}
 
 	// no subkey entry -> create one

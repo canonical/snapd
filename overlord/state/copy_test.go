@@ -120,3 +120,19 @@ func (ss *stateSuite) TestCopyState(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(string(dstContent), Equals, `{"data":{"A":{"B":[{"C":1},{"D":2}]},"E":{"F":2,"G":3},"I":null}`+stateSuffix)
 }
+
+var srcStateContentNotMap = []byte(`{
+    "data": {
+        "A": ["B"]
+    }
+}`)
+
+func (ss *stateSuite) TestCopyStateUnmarshalNotMap(c *C) {
+	srcStateFile := filepath.Join(c.MkDir(), "src-state.json")
+	err := ioutil.WriteFile(srcStateFile, srcStateContentNotMap, 0644)
+	c.Assert(err, IsNil)
+
+	dstStateFile := filepath.Join(c.MkDir(), "dst-state.json")
+	err = state.CopyState(srcStateFile, dstStateFile, []string{"A.B"})
+	c.Assert(err, ErrorMatches, `cannot unmarshal state entry "A" for data entry "A.B" as a map: \["B"\]`)
+}
