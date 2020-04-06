@@ -40,6 +40,12 @@ type Specification struct {
 	// for snap application and hook processes. The security tag encodes the identity
 	// of the application or hook.
 	snippets map[string][]string
+
+	// dedupSnippets are just like snippets but are added only once to the
+	// resulting policy in an effort to avoid certain expensive to de-duplicate
+	// rules by apparmor_parser.
+	dedupSnippets map[string]*strutil.OrderedSet
+
 	// updateNS describe parts of apparmor policy for snap-update-ns executing
 	// on behalf of a given snap.
 	updateNS strutil.OrderedSet
@@ -87,6 +93,32 @@ func (spec *Specification) AddSnippet(snippet string) {
 	for _, tag := range spec.securityTags {
 		spec.snippets[tag] = append(spec.snippets[tag], snippet)
 		sort.Strings(spec.snippets[tag])
+	}
+}
+
+// AddDeduplicatedSnippet adds a new apparmor snippet to all applications and hooks using the interface.
+//
+// Certain combinations of snippets may be computationally expensive for
+// apparmor_parser in its de-duplication step. This function lets snapd
+// perform de-duplication of identical rules at the potential cost of a
+// somewhat more complex auditing process of the text of generated
+// apparmor profile. Identical mount rules should typically use this, but
+// this function can also be used to avoid repeated rules that inhibit
+// auditability.
+func (spec *Specification) AddDeduplicatedSnippet(snippet string) {
+	if len(spec.securityTags) == 0 {
+		return
+	}
+	if spec.dedupSnippets == nil {
+		spec.dedupSnippets = make(map[string]*strutil.OrderedSet)
+	}
+	for _, tag := range spec.securityTags {
+		bag := spec.dedupSnippets[tag]
+		if bag == nil {
+			bag = &strutil.OrderedSet{}
+			spec.dedupSnippets[tag] = bag
+		}
+		bag.Put(snippet)
 	}
 }
 
@@ -334,20 +366,38 @@ func parent(path string) string {
 
 // Snippets returns a deep copy of all the added application snippets.
 func (spec *Specification) Snippets() map[string][]string {
-	return copySnippets(spec.snippets)
+	snippets := copySnippets(spec.snippets)
+	for tag, bag := range spec.dedupSnippets {
+		if bag != nil {
+			snippets[tag] = append(snippets[tag], bag.Items()...)
+		}
+	}
+	return snippets
 }
 
-// SnippetForTag returns a combined snippet for given security tag with individual snippets
-// joined with newline character. Empty string is returned for non-existing security tag.
+// SnippetForTag returns a combined snippet for given security tag with
+// individual snippets joined with the newline character. Empty string is
+// returned for non-existing security tag.
 func (spec *Specification) SnippetForTag(tag string) string {
-	return strings.Join(spec.snippets[tag], "\n")
+	snippets := append([]string(nil), spec.snippets[tag]...)
+	if bag := spec.dedupSnippets[tag]; bag != nil {
+		snippets = append(snippets, bag.Items()...)
+	}
+	return strings.Join(snippets, "\n")
 }
 
 // SecurityTags returns a list of security tags which have a snippet.
 func (spec *Specification) SecurityTags() []string {
 	var tags []string
+	seen := make(map[string]bool, len(spec.snippets))
 	for t := range spec.snippets {
 		tags = append(tags, t)
+		seen[t] = true
+	}
+	for t := range spec.dedupSnippets {
+		if !seen[t] {
+			tags = append(tags, t)
+		}
 	}
 	sort.Strings(tags)
 	return tags
@@ -430,11 +480,13 @@ func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *sn
 	return nil
 }
 
-// SetUsesPtraceTrace records when to omit explicit ptrace deny rules
+// SetUsesPtraceTrace records when to omit explicit ptrace deny rules.
 func (spec *Specification) SetUsesPtraceTrace() {
 	spec.usesPtraceTrace = true
 }
 
+// UsesPtraceTrace returns whether ptrace is being used by any of the interfaces
+// in the spec.
 func (spec *Specification) UsesPtraceTrace() bool {
 	return spec.usesPtraceTrace
 }
@@ -444,15 +496,20 @@ func (spec *Specification) SetSuppressPtraceTrace() {
 	spec.suppressPtraceTrace = true
 }
 
+// SuppressPtraceTrace returns whether ptrace should be suppressed as dictated
+// by any of the interfaces in the spec.
 func (spec *Specification) SuppressPtraceTrace() bool {
 	return spec.suppressPtraceTrace
 }
 
-// SetSuppressHomeIx to request explicit ptrace deny rules
+// SetSuppressHomeIx records suppression of the ix rules for the home
+// interface.
 func (spec *Specification) SetSuppressHomeIx() {
 	spec.suppressHomeIx = true
 }
 
+// SuppressHomeIx returns whether the ix rules of the home interface should be
+// suppressed.
 func (spec *Specification) SuppressHomeIx() bool {
 	return spec.suppressHomeIx
 }

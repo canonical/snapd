@@ -22,7 +22,6 @@ package wrappers
 import (
 	"bytes"
 	"fmt"
-	"math/rand"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -34,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
+	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
@@ -213,11 +213,22 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, enableBeforeStar
 	return nil
 }
 
+type AddSnapServicesOptions struct {
+	Preseeding bool
+}
+
 // AddSnapServices adds service units for the applications from the snap which are services.
-func AddSnapServices(s *snap.Info, inter interacter) (err error) {
+func AddSnapServices(s *snap.Info, opts *AddSnapServicesOptions, inter interacter) (err error) {
 	if s.GetType() == snap.TypeSnapd {
-		return writeSnapdServicesOnCore(s, inter)
+		return fmt.Errorf("internal error: adding explicit services for snapd snap is unexpected")
 	}
+
+	if opts == nil {
+		opts = &AddSnapServicesOptions{}
+	}
+
+	// TODO: remove once services get enabled on start and not when created.
+	preseeding := opts.Preseeding
 
 	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
 	var written []string
@@ -231,7 +242,7 @@ func AddSnapServices(s *snap.Info, inter interacter) (err error) {
 				inter.Notify(fmt.Sprintf("while trying to remove %s due to previous failure: %v", s, e))
 			}
 		}
-		if len(written) > 0 {
+		if len(written) > 0 && !preseeding {
 			if e := sysd.DaemonReload(); e != nil {
 				inter.Notify(fmt.Sprintf("while trying to perform systemd daemon-reload due to previous failure: %v", e))
 			}
@@ -281,12 +292,28 @@ func AddSnapServices(s *snap.Info, inter interacter) (err error) {
 		}
 	}
 
-	if len(written) > 0 {
+	if len(written) > 0 && !preseeding {
 		if err := sysd.DaemonReload(); err != nil {
 			return err
 		}
 	}
 
+	return nil
+}
+
+// EnableSnapServices enables all services of the snap; the main use case for this is
+// the first boot of a pre-seeded image with service files already in place but not enabled.
+// XXX: it should go away once services are fixed and enabled on start.
+func EnableSnapServices(s *snap.Info, inter interacter) (err error) {
+	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
+	for _, app := range s.Apps {
+		if app.IsService() {
+			svcName := app.ServiceName()
+			if err := sysd.Enable(svcName); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
 
@@ -356,8 +383,13 @@ func ServicesEnableState(s *snap.Info, inter interacter) (map[string]bool, error
 	return snapSvcsState, nil
 }
 
-// RemoveSnapServices disables and removes service units for the applications from the snap which are services.
+// RemoveSnapServices disables and removes service units for the applications
+// from the snap which are services. The optional flag indicates whether
+// services are removed as part of undoing of first install of a given snap.
 func RemoveSnapServices(s *snap.Info, inter interacter) error {
+	if s.GetType() == snap.TypeSnapd {
+		return fmt.Errorf("internal error: removing explicit services for snapd snap is unexpected")
+	}
 	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
 	nservices := 0
 
@@ -438,6 +470,7 @@ Before={{ stringsJoin .Before " "}}
 X-Snappy=yes
 
 [Service]
+EnvironmentFile=-/etc/environment
 ExecStart={{.App.LauncherCommand}}
 SyslogIdentifier={{.App.Snap.InstanceName}}.{{.App.Name}}
 Restart={{.Restart}}
@@ -865,7 +898,7 @@ func generateOnCalendarSchedules(schedule []*timeutil.Schedule) []string {
 						// directly one after another
 						length -= 5 * time.Minute
 					}
-					when = when.Add(time.Duration(rand.Int63n(int64(length))))
+					when = when.Add(randutil.RandomDuration(length))
 				}
 				if when.Hour == 24 {
 					// 24:00 for us means the other end of
@@ -879,6 +912,12 @@ func generateOnCalendarSchedules(schedule []*timeutil.Schedule) []string {
 		}
 
 		for _, day := range days {
+			if len(startTimes) == 0 {
+				// current schedule is days only
+				calendarEvents = append(calendarEvents, day)
+				continue
+			}
+
 			for _, startTime := range startTimes {
 				calendarEvents = append(calendarEvents, fmt.Sprintf("%s %s", day, startTime))
 			}

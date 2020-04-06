@@ -37,6 +37,9 @@ const rawusbConnectedPlugAppArmor = `
 # Allow access to all ttyUSB devices too
 /dev/tty{USB,ACM}[0-9]* rwk,
 
+# Allow raw access to USB printers (i.e. for receipt printers in POS systems).
+/dev/usb/lp[0-9]* rwk,
+
 # Allow detection of usb devices. Leaks plugged in USB device info
 /sys/bus/usb/devices/ r,
 /sys/devices/pci**/usb[0-9]** r,

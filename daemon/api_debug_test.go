@@ -190,7 +190,7 @@ func (s *postDebugSuite) getDebugTimings(c *check.C, request string) []interface
 	task3 := st.NewTask("bar", "...")
 	chg3.AddTask(task3)
 
-	tm1 := timings.NewForTask(task3)
+	tm1 := state.TimingsForTask(task3)
 	sp1 := tm1.StartSpan("span", "span...")
 	sp1.Stop()
 	tm1.Save(st)

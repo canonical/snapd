@@ -22,12 +22,14 @@ package lkenv_test
 import (
 	"bytes"
 	"compress/gzip"
-	. "gopkg.in/check.v1"
 	"io"
 	"io/ioutil"
 	"path/filepath"
 	"testing"
 
+	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader/lkenv"
 )
 
@@ -66,8 +68,8 @@ func (l *lkenvTestSuite) TestSet(c *C) {
 	env := lkenv.NewEnv(l.envPath)
 	c.Check(env, NotNil)
 
-	env.Set("snap_mode", "try")
-	c.Check(env.Get("snap_mode"), Equals, "try")
+	env.Set("snap_mode", boot.TryStatus)
+	c.Check(env.Get("snap_mode"), Equals, boot.TryStatus)
 }
 
 func (l *lkenvTestSuite) TestSave(c *C) {

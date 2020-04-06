@@ -3,9 +3,5 @@
 import setuptools
 
 setuptools.setup(
-    name="test-snapd-portal-client",
-    version="1.0",
-    scripts=[
-        "client.py"
-    ],
+    name="test-snapd-portal-client", version="1.0", scripts=["client.py"],
 )

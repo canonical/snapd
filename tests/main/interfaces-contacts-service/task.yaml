@@ -3,11 +3,11 @@ summary: Ensure that the contacts-service interface works
 # Only test on classic systems.  Don't test on Ubuntu 14.04, which
 # does not ship a new enough evolution-data-server.
 # amazon: no need to run this on amazon
-# ubuntu-19.10: test-snapd-eds is incompatible with eds shipped with the distro
+# ubuntu-19.10+: test-snapd-eds is incompatible with eds shipped with the distro
 # arch-linux: test-snapd-eds is incompatible with eds version shipped with the distro
 # opensuse-tumbleweed: test-snapd-eds is incompatible with eds version shipped with the distro
 # fedora-31: test-snapd-eds is incompatible with eds version shipped with the distro
-systems: [-ubuntu-core-*, -ubuntu-14.04-*, -amazon-*, -centos-*, -ubuntu-19.10-*, -arch-linux-*, -debian-sid-*, -opensuse-tumbleweed-*, -fedora-31-*]
+systems: [-ubuntu-core-*, -ubuntu-14.04-*, -amazon-*, -centos-*, -ubuntu-19.10-*, -ubuntu-20.04-*, -arch-linux-*, -debian-sid-*, -opensuse-tumbleweed-*, -fedora-31-*]
 
 # fails in autopkgtest environment with:
 # [Wed Aug 15 16:08:23 2018] audit: type=1400

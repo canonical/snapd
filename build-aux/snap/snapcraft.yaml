@@ -1,0 +1,129 @@
+name: snapd
+type: snapd
+summary: Daemon and tooling that enable snap packages
+description: |
+  Install, configure, refresh and remove snap packages. Snaps are
+  'universal' packages that work across many different Linux systems,
+  enabling secure distribution of the latest apps and utilities for
+  cloud, servers, desktops and the internet of things.
+
+  Start with 'snap list' to see installed snaps.
+adopt-info: snapd-deb
+# build-base is needed here for snapcraft to build this snap as with "modern"
+# snapcraft
+build-base: core
+grade: stable
+license: GPL-3.0
+
+# Note that this snap is unusual in that it has no "apps" section.
+#
+# It is started via re-exec on classic systems and via special
+# handling in the core18 snap on Ubuntu Core Systems.
+#
+# Because snapd itself manages snaps it must currently run totally
+# unconfined (even devmode is not enough).
+#
+# See the comments from jdstrand in
+# https://forum.snapcraft.io/t/5547/10
+parts:
+  snapd-deb:
+    plugin: nil
+    source: .
+    build-snaps: [go/1.10/stable]
+    override-pull: |
+      snapcraftctl pull
+      # install build dependencies
+      export DEBIAN_FRONTEND=noninteractive
+      export DEBCONF_NONINTERACTIVE_SEEN=true
+      sudo -E apt-get build-dep -y ./
+      ./get-deps.sh --skip-unused-check
+      # set version after installing dependencies so we have all the tools here
+      snapcraftctl set-version "$(./mkversion.sh --output-only)"
+    override-build: |
+      # unset the LD_FLAGS and LD_LIBRARY_PATH vars that snapcraft sets for us
+      # as those will point to the $SNAPCRAFT_STAGE which on re-builds will 
+      # contain things like libc and friends that confuse the debian package
+      # build system
+      # TODO: should we unset $PATH to not include $SNAPCRAFT_STAGE too?
+      unset LD_FLAGS
+      unset LD_LIBRARY_PATH
+      # if we are root, disable tests because a number of them fail when run as
+      # root
+      if [ "$(id -u)" = "0" ]; then
+        DEB_BUILD_OPTIONS=nocheck
+        export DEB_BUILD_OPTIONS
+      fi
+      # run the real build (but just build the binary package, and don't
+      # bother compressing it too much)
+      dpkg-buildpackage -b -Zgzip -zfast
+      dpkg-deb -x $(pwd)/../snapd_*.deb $SNAPCRAFT_PART_INSTALL
+
+  # xdelta is used to enable delta downloads (even if the host does not have it)
+  xdelta3:
+    plugin: nil
+    stage-packages:
+      - xdelta3
+    stage:
+      - usr/bin/*
+      - usr/lib/*
+      - lib/*
+  # squashfs-tools are used by `snap pack`
+  squashfs-tools:
+    plugin: nil
+    stage-packages:
+      - squashfs-tools
+    stage:
+      - usr/bin/*
+      - usr/lib/*
+      - lib/*
+  # liblzma5 is part of core but the snapd snap needs to run even without core
+  liblzma5:
+    plugin: nil
+    stage-packages:
+      - liblzma5
+    stage:
+      - lib/*
+  # libc6 is part of core but we need it in the snapd snap for
+  # CommandFromSystemSnap
+  libc6:
+    plugin: nil
+    stage-packages:
+      - libc6
+      - libc-bin
+    stage:
+      - lib/*
+      - usr/lib/*
+      - lib64/*
+      - etc/ld.so.conf
+      - etc/ld.so.conf.d/*
+    override-stage: |
+      snapcraftctl stage
+      # fix symlinks of ld.so to be relative
+      if [ "$(readlink -f lib64/ld-linux-x86-64.so.2)" = "/lib/x86_64-linux-gnu/ld-2.23.so" ]; then
+          ln -f -s ../lib/x86_64-linux-gnu/ld-2.23.so lib64/ld-linux-x86-64.so.2
+      fi
+      if [ "$(readlink -f lib64/ld64.so.2)" = "/lib/powerpc64le-linux-gnu/ld-2.23.so" ]; then
+          ln -f -s ../lib/powerpc64le-linux-gnu/ld-2.23.so lib64/ld64.so.2
+      fi
+  # the version in Ubuntu 16.04 (cache v6)
+  fontconfig-xenial:
+    plugin: nil
+    build-packages: [python3-apt]
+    source: https://github.com/snapcore/fc-cache-static-builder.git
+    override-build: |
+      ./build-from-security.py xenial
+      mkdir -p $SNAPCRAFT_PART_INSTALL/bin
+      cp -a fc-cache-xenial $SNAPCRAFT_PART_INSTALL/bin/fc-cache-v6
+    prime:
+      - bin/fc-cache-v6
+  # the version in Ubuntu 18.04 (cache v7)
+  fontconfig-bionic:
+    plugin: nil
+    build-packages: [python3-apt]
+    source: https://github.com/snapcore/fc-cache-static-builder.git
+    override-build: |
+      ./build-from-security.py bionic
+      mkdir -p $SNAPCRAFT_PART_INSTALL/bin
+      cp -a fc-cache-bionic $SNAPCRAFT_PART_INSTALL/bin/fc-cache-v7
+    prime:
+      - bin/fc-cache-v7

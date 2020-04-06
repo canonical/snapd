@@ -72,5 +72,5 @@ execute: |
         echo "after-middle service was started after middle became active"
         test "$inactive_leave" -ge "$active_enter"
 
-        snap remove "test-snapd-after-before_$INSTANCE"
+        snap remove --purge "test-snapd-after-before_$INSTANCE"
     done

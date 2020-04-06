@@ -10,7 +10,7 @@ prepare: |
     snap install --edge test-snapd-daemon-user
 
 restore: |
-    snap remove test-snapd-daemon-user || true
+    snap remove --purge test-snapd-daemon-user || true
 
     # snapd will create this for us, but we'll remove it for consistency in
     # test runs
@@ -18,7 +18,7 @@ restore: |
 
 execute: |
     echo "When the snap is removed"
-    snap remove test-snapd-daemon-user
+    snap remove --purge test-snapd-daemon-user
 
     echo "Then the snap_daemon user and group remain"
     getent passwd snap_daemon || exit 1

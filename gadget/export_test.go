@@ -41,6 +41,8 @@ var (
 	UpdaterForStructure = updaterForStructure
 
 	EnsureVolumeConsistency = ensureVolumeConsistency
+
+	Flatten = flatten
 )
 
 func MockEvalSymlinks(mock func(path string) (string, error)) (restore func()) {

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -23,7 +23,21 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/snap"
+)
+
+const (
+	// DefaultStatus is the value of a status boot variable when nothing is
+	// being tried
+	DefaultStatus = ""
+	// TryStatus is the value of a status boot variable when something is about
+	// to be tried
+	TryStatus = "try"
+	// TryingStatus is the value of a status boot variable after we have
+	// attempted a boot with a try snap - this status is only set in the early
+	// boot sequence (bootloader, initramfs, etc.)
+	TryingStatus = "trying"
 )
 
 // A BootParticipant handles the boot process details for a snap involved in it.
@@ -64,7 +78,7 @@ var _ BootParticipant = trivial{}
 // ensure trivial is a Kernel
 var _ BootKernel = trivial{}
 
-// Device carries information about the devie model and mode that is
+// Device carries information about the device model and mode that is
 // relevant to boot. Note snapstate.DeviceContext implements this, and that's
 // the expected use case.
 type Device interface {
@@ -73,6 +87,8 @@ type Device interface {
 
 	Kernel() string
 	Base() string
+
+	HasModeenv() bool
 }
 
 // Participant figures out what the BootParticipant is for the given
@@ -94,12 +110,21 @@ func Participant(s snap.PlaceInfo, t snap.Type, dev Device) BootParticipant {
 	return trivial{}
 }
 
+// bootloaderOptionsForDeviceKernel returns a set of bootloader options that
+// enable correct kernel extraction and removal for given device
+func bootloaderOptionsForDeviceKernel(dev Device) *bootloader.Options {
+	return &bootloader.Options{
+		// unified extractable kernel if in uc20 mode
+		ExtractedRunKernelImage: dev.HasModeenv(),
+	}
+}
+
 // Kernel checks that the given arguments refer to a kernel snap
 // that participates in the boot process, and returns the associated
 // BootKernel, or a trivial implementation otherwise.
 func Kernel(s snap.PlaceInfo, t snap.Type, dev Device) BootKernel {
 	if t == snap.TypeKernel && applicable(s, t, dev) {
-		return &coreKernel{s: s}
+		return &coreKernel{s: s, bopts: bootloaderOptionsForDeviceKernel(dev)}
 	}
 	return trivial{}
 }
@@ -142,13 +167,14 @@ func applicable(s snap.PlaceInfo, t snap.Type, dev Device) bool {
 type bootState interface {
 	// revisions retrieves the revisions of the current snap and
 	// the try snap (only the latter might not be set), and
-	// whether the snap is in "trying" state.
-	revisions() (snap, trySnap snap.PlaceInfo, trying bool, err error)
+	// the status of the trying snap.
+	revisions() (curSnap, trySnap snap.PlaceInfo, tryingStatus string, err error)
 
 	// setNext lazily implements setting the next boot target for
 	// the type's boot snap. actually committing the update
 	// is done via the returned bootStateUpdate's commit.
 	setNext(s snap.PlaceInfo) (rebootRequired bool, u bootStateUpdate, err error)
+
 	// markSuccessful lazily implements marking the boot
 	// successful for the type's boot snap. The actual committing
 	// of the update is done via bootStateUpdate's commit, that
@@ -162,11 +188,15 @@ func bootStateFor(typ snap.Type, dev Device) (s bootState, err error) {
 	if !dev.RunMode() {
 		return nil, fmt.Errorf("internal error: no boot state handling for ephemeral modes")
 	}
+	newBootState := newBootState16
+	if dev.HasModeenv() {
+		newBootState = newBootState20
+	}
 	switch typ {
 	case snap.TypeOS, snap.TypeBase:
-		return newBootState16(snap.TypeBase), nil
+		return newBootState(snap.TypeBase), nil
 	case snap.TypeKernel:
-		return newBootState16(snap.TypeKernel), nil
+		return newBootState(snap.TypeKernel), nil
 	default:
 		return nil, fmt.Errorf("internal error: no boot state handling for snap type %q", typ)
 	}
@@ -237,12 +267,12 @@ func GetCurrentBoot(t snap.Type, dev Device) (snap.PlaceInfo, error) {
 		return nil, err
 	}
 
-	snap, _, trying, err := s.revisions()
+	snap, _, status, err := s.revisions()
 	if err != nil {
 		return nil, err
 	}
 
-	if trying {
+	if status == TryingStatus {
 		return nil, ErrBootNameAndRevisionNotReady
 	}
 
@@ -296,4 +326,40 @@ func MarkBootSuccessful(dev Device) error {
 		}
 	}
 	return nil
+}
+
+var ErrUnsupportedSystemMode = errors.New("system mode is unsupported")
+
+// SetRecoveryBootSystemAndMode configures the recovery bootloader to boot into
+// the given recovery system in a particular mode. Returns
+// ErrUnsupportedSystemMode when booting into a recovery system is not supported
+// by the device.
+func SetRecoveryBootSystemAndMode(dev Device, systemLabel, mode string) error {
+	if !dev.HasModeenv() {
+		// only UC20 devices are supported
+		return ErrUnsupportedSystemMode
+	}
+	if systemLabel == "" {
+		return fmt.Errorf("internal error: system label is unset")
+	}
+	if mode == "" {
+		return fmt.Errorf("internal error: system mode is unset")
+	}
+
+	opts := &bootloader.Options{
+		// setup the recovery bootloader
+		Recovery: true,
+	}
+	// TODO:UC20: should the recovery partition stay around as RW during run
+	// mode all the time?
+	bl, err := bootloader.Find(InitramfsUbuntuSeedDir, opts)
+	if err != nil {
+		return err
+	}
+
+	m := map[string]string{
+		"snapd_recovery_system": systemLabel,
+		"snapd_recovery_mode":   mode,
+	}
+	return bl.SetBootVars(m)
 }

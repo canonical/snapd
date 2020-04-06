@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -35,11 +36,9 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/metautil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
 )
-
-// The fixed length of valid snap IDs.
-const validSnapIDLength = 32
 
 const (
 	// MBR identifies a Master Boot Record partitioning schema, or an MBR like role
@@ -122,8 +121,9 @@ type VolumeStructure struct {
 	// For backwards compatibility type 'mbr' is also accepted, and the
 	// structure is treated as if it is of role 'mbr'.
 	Type string `yaml:"type"`
-	// Role describes the role of given structure, can be one of 'mbr',
-	// 'system-data', 'system-boot', 'bootimg', 'bootselect'. Structures of type 'mbr', must have a
+	// Role describes the role of given structure, can be one of
+	// 'mbr', 'system-data', 'system-boot', 'system-boot-image',
+	// 'system-boot-select'. Structures of type 'mbr', must have a
 	// size of 446 bytes and must start at 0 offset.
 	Role string `yaml:"role"`
 	// ID is the GPT partition ID
@@ -282,7 +282,7 @@ func parseSnapIDColonName(s string) (snapID, name string, err error) {
 }
 
 func systemOrSnapID(s string) bool {
-	if s != "system" && len(s) != validSnapIDLength {
+	if s != "system" && naming.ValidateSnapID(s) != nil {
 		return false
 	}
 	return true
@@ -866,6 +866,27 @@ func (s *Size) String() string {
 	return fmt.Sprintf("%d", *s)
 }
 
+// IECString formats the size using multiples from IEC units (i.e. kibibytes,
+// mebibytes), that is as multiples of 1024. Printed values are truncated to 2
+// decimal points.
+func (s *Size) IECString() string {
+	maxFloat := float64(1023.5)
+	r := float64(*s)
+	unit := "B"
+	for _, rangeUnit := range []string{"KiB", "MiB", "GiB", "TiB", "PiB"} {
+		if r < maxFloat {
+			break
+		}
+		r /= 1024
+		unit = rangeUnit
+	}
+	precision := 0
+	if math.Floor(r) != r {
+		precision = 2
+	}
+	return fmt.Sprintf("%.*f %s", precision, r, unit)
+}
+
 // RelativeOffset describes an offset where structure data is written at.
 // The position can be specified as byte-offset relative to the start of another
 // named structure.
@@ -990,4 +1011,30 @@ func PositionedVolumeFromGadget(gadgetRoot string) (*LaidOutVolume, error) {
 		return pvol, nil
 	}
 	return nil, fmt.Errorf("internal error in PositionedVolumeFromGadget: this line cannot be reached")
+}
+
+func flatten(path string, cfg interface{}, out map[string]interface{}) {
+	if cfgMap, ok := cfg.(map[string]interface{}); ok {
+		for k, v := range cfgMap {
+			p := k
+			if path != "" {
+				p = path + "." + k
+			}
+			flatten(p, v, out)
+		}
+	} else {
+		out[path] = cfg
+	}
+}
+
+// SystemDefaults returns default system configuration from gadget defaults.
+func SystemDefaults(gadgetDefaults map[string]map[string]interface{}) map[string]interface{} {
+	for _, systemSnap := range []string{"system", naming.WellKnownSnapID("core")} {
+		if defaults, ok := gadgetDefaults[systemSnap]; ok {
+			coreDefaults := map[string]interface{}{}
+			flatten("", defaults, coreDefaults)
+			return coreDefaults
+		}
+	}
+	return nil
 }

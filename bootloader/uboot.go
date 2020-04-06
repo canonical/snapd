@@ -20,6 +20,7 @@
 package bootloader
 
 import (
+	"fmt"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/bootloader/ubootenv"
@@ -32,7 +33,7 @@ type uboot struct {
 }
 
 // newUboot create a new Uboot bootloader object
-func newUboot(rootdir string) Bootloader {
+func newUboot(rootdir string) ExtractedRecoveryKernelImageBootloader {
 	u := &uboot{rootdir: rootdir}
 	if !osutil.FileExists(u.envFile()) {
 		return nil
@@ -109,7 +110,19 @@ func (u *uboot) GetBootVars(names ...string) (map[string]string, error) {
 }
 
 func (u *uboot) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
-	return extractKernelAssetsToBootDir(u.dir(), s, snapf)
+	dstDir := filepath.Join(u.dir(), s.Filename())
+	assets := []string{"kernel.img", "initrd.img", "dtbs/*"}
+	return extractKernelAssetsToBootDir(dstDir, s, snapf, assets)
+}
+
+func (u *uboot) ExtractRecoveryKernelAssets(recoverySystemDir string, s snap.PlaceInfo, snapf snap.Container) error {
+	if recoverySystemDir == "" {
+		return fmt.Errorf("internal error: recoverySystemDir unset")
+	}
+
+	recoverySystemUbootKernelAssetsDir := filepath.Join(u.rootdir, recoverySystemDir, "kernel")
+	assets := []string{"kernel.img", "initrd.img", "dtbs/*"}
+	return extractKernelAssetsToBootDir(recoverySystemUbootKernelAssetsDir, s, snapf, assets)
 }
 
 func (u *uboot) RemoveKernelAssets(s snap.PlaceInfo) error {

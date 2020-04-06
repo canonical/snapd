@@ -132,6 +132,46 @@ func (s *specSuite) TestAddSnippet(c *C) {
 	c.Assert(s.spec.SecurityTags(), DeepEquals, []string{"snap.demo.command", "snap.demo.service"})
 }
 
+// AddDeduplicatedSnippet adds a snippet for the given security tag.
+func (s *specSuite) TestAddDeduplicatedSnippet(c *C) {
+	restore := apparmor.SetSpecScope(s.spec, []string{"snap.demo.command", "snap.demo.service"})
+	defer restore()
+
+	// Add two snippets in the context we are in.
+	s.spec.AddDeduplicatedSnippet("dedup snippet 1")
+	s.spec.AddDeduplicatedSnippet("dedup snippet 1")
+	s.spec.AddDeduplicatedSnippet("dedup snippet 2")
+	s.spec.AddDeduplicatedSnippet("dedup snippet 2")
+
+	// The snippets were recorded correctly.
+	c.Assert(s.spec.UpdateNS(), HasLen, 0)
+	c.Assert(s.spec.Snippets(), DeepEquals, map[string][]string{
+		"snap.demo.command": {"dedup snippet 1", "dedup snippet 2"},
+		"snap.demo.service": {"dedup snippet 1", "dedup snippet 2"},
+	})
+	c.Assert(s.spec.SnippetForTag("snap.demo.command"), Equals, "dedup snippet 1\ndedup snippet 2")
+	c.Assert(s.spec.SecurityTags(), DeepEquals, []string{"snap.demo.command", "snap.demo.service"})
+}
+
+// Both AddSnippet and AddDeduplicatedSnippet work correctly together.
+func (s *specSuite) TestAddSnippetAndAddDeduplicatedSnippet(c *C) {
+	restore := apparmor.SetSpecScope(s.spec, []string{"snap.demo.command", "snap.demo.service"})
+	defer restore()
+
+	// Add two snippets in the context we are in.
+	s.spec.AddSnippet("normal")
+	s.spec.AddDeduplicatedSnippet("dedup")
+
+	// The snippets were recorded correctly.
+	c.Assert(s.spec.UpdateNS(), HasLen, 0)
+	c.Assert(s.spec.Snippets(), DeepEquals, map[string][]string{
+		"snap.demo.command": {"normal", "dedup"},
+		"snap.demo.service": {"normal", "dedup"},
+	})
+	c.Assert(s.spec.SnippetForTag("snap.demo.command"), Equals, "normal\ndedup")
+	c.Assert(s.spec.SecurityTags(), DeepEquals, []string{"snap.demo.command", "snap.demo.service"})
+}
+
 // AddUpdateNS adds a snippet for the snap-update-ns profile for a given snap.
 func (s *specSuite) TestAddUpdateNS(c *C) {
 	restore := apparmor.SetSpecScope(s.spec, []string{"snap.demo.command", "snap.demo.service"})

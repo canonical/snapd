@@ -176,3 +176,47 @@ func (s *ubootTestSuite) TestExtractKernelAssetsAndRemove(c *C) {
 
 	c.Check(osutil.FileExists(kernelAssetsDir), Equals, false)
 }
+
+func (s *ubootTestSuite) TestExtractRecoveryKernelAssets(c *C) {
+	bootloader.MockUbootFiles(c, s.rootdir)
+	u := bootloader.NewUboot(s.rootdir)
+
+	files := [][]string{
+		{"kernel.img", "I'm a kernel"},
+		{"initrd.img", "...and I'm an initrd"},
+		{"dtbs/foo.dtb", "foo dtb"},
+		{"dtbs/bar.dto", "bar dtbo"},
+		// must be last
+		{"meta/kernel.yaml", "version: 4.2"},
+	}
+	si := &snap.SideInfo{
+		RealName: "ubuntu-kernel",
+		Revision: snap.R(42),
+	}
+	fn := snaptest.MakeTestSnapWithFiles(c, packageKernel, files)
+	snapf, err := snap.Open(fn)
+	c.Assert(err, IsNil)
+
+	info, err := snap.ReadInfoFromSnapFile(snapf, si)
+	c.Assert(err, IsNil)
+
+	// try with empty recovery dir first to check the errors
+	err = u.ExtractRecoveryKernelAssets("", info, snapf)
+	c.Assert(err, ErrorMatches, "internal error: recoverySystemDir unset")
+
+	// now the expected behavior
+	err = u.ExtractRecoveryKernelAssets("recovery-dir", info, snapf)
+	c.Assert(err, IsNil)
+
+	// this is where the kernel/initrd is unpacked
+	kernelAssetsDir := filepath.Join(s.rootdir, "recovery-dir", "kernel")
+
+	for _, def := range files {
+		if def[0] == "meta/kernel.yaml" {
+			break
+		}
+
+		fullFn := filepath.Join(kernelAssetsDir, def[0])
+		c.Check(fullFn, testutil.FileEquals, def[1])
+	}
+}

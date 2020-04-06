@@ -1,0 +1,18 @@
+summary: Ensure that we have the right kernel
+
+# TODO: enable for arm?
+systems: [ubuntu-core-*-64]
+
+execute: |
+    # shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB/systems.sh"
+
+    echo "Check kernel version"
+    if is_core16_system; then
+        VER="^4.4"
+    elif is_core18_system; then
+        VER="^4.15"
+    elif is_core20_system; then
+        VER="^5.4"
+    fi
+    uname -r | MATCH $VER

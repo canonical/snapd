@@ -30,11 +30,13 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/osutil/sys"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var (
 	StreamsEqualChunked  = streamsEqualChunked
 	FilesAreEqualChunked = filesAreEqualChunked
+	SudoersFile          = sudoersFile
 )
 
 func MockUserLookup(mock func(name string) (*user.User, error)) func() {
@@ -105,6 +107,11 @@ func SetUnsafeIO(b bool) func() {
 	return func() {
 		snapdUnsafeIO = oldSnapdUnsafeIO
 	}
+}
+
+func GetUnsafeIO() bool {
+	// a getter so that tests do not attempt to modify that directly
+	return snapdUnsafeIO
 }
 
 func MockOsReadlink(f func(string) (string, error)) func() {
@@ -191,4 +198,24 @@ func MockFindGid(mock func(name string) (uint64, error)) (restore func()) {
 	old := findGid
 	findGid = mock
 	return func() { findGid = old }
+}
+
+const MaxSymlinkTries = maxSymlinkTries
+
+var ParseRawEnvironment = parseRawEnvironment
+
+// ParseRawExpandableEnv returns a new expandable environment parsed from key=value strings.
+func ParseRawExpandableEnv(entries []string) (ExpandableEnv, error) {
+	om := strutil.NewOrderedMap()
+	for _, entry := range entries {
+		key, value, err := parseEnvEntry(entry)
+		if err != nil {
+			return ExpandableEnv{}, err
+		}
+		if om.Get(key) != "" {
+			return ExpandableEnv{}, fmt.Errorf("cannot overwrite earlier value of %q", key)
+		}
+		om.Set(key, value)
+	}
+	return ExpandableEnv{OrderedMap: om}, nil
 }

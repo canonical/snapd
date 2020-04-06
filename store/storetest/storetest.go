@@ -53,7 +53,7 @@ func (Store) Find(context.Context, *store.Search, *auth.UserState) ([]*snap.Info
 	panic("Store.Find not expected")
 }
 
-func (Store) SnapAction(context.Context, []*store.CurrentSnap, []*store.SnapAction, *auth.UserState, *store.RefreshOptions) ([]*snap.Info, error) {
+func (Store) SnapAction(context.Context, []*store.CurrentSnap, []*store.SnapAction, *auth.UserState, *store.RefreshOptions) ([]store.SnapActionResult, error) {
 	panic("Store.SnapAction not expected")
 }
 
@@ -61,7 +61,7 @@ func (Store) Download(context.Context, string, string, *snap.DownloadInfo, progr
 	panic("Store.Download not expected")
 }
 
-func (Store) DownloadStream(ctx context.Context, name string, downloadInfo *snap.DownloadInfo, user *auth.UserState) (io.ReadCloser, error) {
+func (Store) DownloadStream(ctx context.Context, name string, downloadInfo *snap.DownloadInfo, resume int64, user *auth.UserState) (io.ReadCloser, int, error) {
 	panic("Store.DownloadStream not expected")
 }
 

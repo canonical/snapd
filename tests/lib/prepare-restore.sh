@@ -74,6 +74,11 @@ build_deb(){
     # Use fake version to ensure we are always bigger than anything else
     dch --newversion "1337.$(dpkg-parsechangelog --show-field Version)" "testing build"
 
+    if [[ "$SPREAD_SYSTEM" == debian-sid-* ]]; then
+        # ensure we really build without vendored packages
+        rm -rf vendor/*/*
+    fi
+
     su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackage -tc -b -Zgzip" test
     # put our debs to a safe place
     cp ../*.deb "$GOHOME"
@@ -270,9 +275,7 @@ prepare_project() {
 
     create_test_user
 
-    if ! distro_update_package_db; then
-        echo "Error updating the package db, continue with the system preparation"
-    fi
+    distro_update_package_db
 
     if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
         # perform system upgrade on Arch so that we run with most recent kernel
@@ -376,9 +379,7 @@ prepare_project() {
             ;;
     esac
 
-    if ! install_pkg_dependencies; then
-        echo "Error installing test dependencies, continue with the system preparation"
-    fi
+    install_pkg_dependencies
 
     # We take a special case for Debian/Ubuntu where we install additional build deps
     # base on the packaging. In Fedora/Suse this is handled via mock/osc
@@ -450,6 +451,9 @@ prepare_project() {
     # Build additional utilities we need for testing
     go get ./tests/lib/fakedevicesvc
     go get ./tests/lib/systemd-escape
+
+    # Build the tool for signing model assertions
+    go get ./tests/lib/gendeveloper1model
 
     # On core systems, the journal service is configured once the final core system
     # is created and booted what is done during the first test suite preparation
@@ -565,6 +569,10 @@ restore_suite_each() {
         fi
         sleep 1
     done
+
+    # reset the failed status of snapd, snapd.socket, and snapd.failure.socket
+    # to prevent hitting the system restart rate-limit for these services
+    systemctl reset-failed snapd.service snapd.socket snapd.failure.service
 }
 
 restore_suite() {

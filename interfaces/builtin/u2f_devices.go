@@ -44,7 +44,7 @@ var u2fDevices = []u2fDevice{
 	{
 		Name:             "Yubico YubiKey",
 		VendorIDPattern:  "1050",
-		ProductIDPattern: "0113|0114|0115|0116|0120|0200|0402|0403|0406|0407|0410",
+		ProductIDPattern: "0113|0114|0115|0116|0120|0121|0200|0402|0403|0406|0407|0410",
 	},
 	{
 		Name:             "Happlink (formerly Plug-Up) Security KEY",

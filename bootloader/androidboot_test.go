@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
@@ -55,13 +56,13 @@ func (s *androidBootTestSuite) TestNewAndroidboot(c *C) {
 
 func (s *androidBootTestSuite) TestSetGetBootVar(c *C) {
 	a := bootloader.NewAndroidBoot(s.rootdir)
-	bootVars := map[string]string{"snap_mode": "try"}
+	bootVars := map[string]string{"snap_mode": boot.TryStatus}
 	a.SetBootVars(bootVars)
 
 	v, err := a.GetBootVars("snap_mode")
 	c.Assert(err, IsNil)
 	c.Check(v, HasLen, 1)
-	c.Check(v["snap_mode"], Equals, "try")
+	c.Check(v["snap_mode"], Equals, boot.TryStatus)
 }
 
 func (s *androidBootTestSuite) TestExtractKernelAssetsNoUnpacksKernel(c *C) {

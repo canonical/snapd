@@ -26,9 +26,11 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"github.com/snapcore/snapd/cmd/cmdutil"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/seed"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -51,6 +53,10 @@ func checkChroot(preseedChroot string) error {
 	}
 	if !exists || !isDir {
 		return fmt.Errorf("cannot verify %q: is not a directory", preseedChroot)
+	}
+
+	if osutil.FileExists(filepath.Join(preseedChroot, dirs.SnapStateFile)) {
+		return fmt.Errorf("the system at %q appears to be preseeded, pass --reset flag to clean it up", preseedChroot)
 	}
 
 	// sanity checks of the critical mountpoints inside chroot directory
@@ -83,24 +89,56 @@ var systemSnapFromSeed = func(rootDir string) (string, error) {
 		return "", err
 	}
 
-	// TODO: handle core18, snapd snap.
-	if seed.UsesSnapdSnap() {
-		return "", fmt.Errorf("preseeding with snapd snap is not supported yet")
+	model, err := seed.Model()
+	if err != nil {
+		return "", err
 	}
 
-	var coreSnapPath string
+	// TODO: implement preseeding for core.
+	if !model.Classic() {
+		return "", fmt.Errorf("preseeding is only supported on classic systems")
+	}
+
+	var required string
+	if seed.UsesSnapdSnap() {
+		required = "snapd"
+	} else {
+		required = "core"
+	}
+
+	var snapPath string
 	ess := seed.EssentialSnaps()
 	if len(ess) > 0 {
-		if ess[0].SnapName() == "core" {
-			coreSnapPath = ess[0].Path
+		// core / snapd snap is the first essential snap.
+		if ess[0].SnapName() == required {
+			snapPath = ess[0].Path
 		}
 	}
 
-	if coreSnapPath == "" {
-		return "", fmt.Errorf("core snap not found")
+	if snapPath == "" {
+		return "", fmt.Errorf("%s snap not found", required)
 	}
 
-	return coreSnapPath, nil
+	return snapPath, nil
+}
+
+const snapdPreseedSupportVer = `2.43.3+`
+
+func checkTargetSnapdVersion(infoPath string) error {
+	ver, err := cmdutil.SnapdVersionFromInfoFile(infoPath)
+	if err != nil {
+		return err
+	}
+
+	res, err := strutil.VersionCompare(ver, snapdPreseedSupportVer)
+	if err != nil {
+		return err
+	}
+	if res < 0 {
+		return fmt.Errorf("snapd %s from the target system does not support preseeding, the minimum required version is %s",
+			ver, snapdPreseedSupportVer)
+	}
+	return nil
 }
 
 func prepareChroot(preseedChroot string) (func(), error) {
@@ -142,14 +180,20 @@ func prepareChroot(preseedChroot string) (func(), error) {
 		return nil, fmt.Errorf("cannot mount %s at %s in preseed mode: %v ", coreSnapPath, where, err)
 	}
 
-	// TODO: check snapd version
-
 	unmount := func() {
 		fmt.Fprintf(Stdout, "unmounting: %s\n", snapdMountPath)
 		cmd := exec.Command("umount", snapdMountPath)
 		if err := cmd.Run(); err != nil {
 			fmt.Fprintf(Stderr, "%v", err)
 		}
+	}
+
+	// read version from the mounted core snap
+	infoPath := filepath.Join(snapdMountPath, dirs.CoreLibExecDir, "info")
+	if err := checkTargetSnapdVersion(infoPath); err != nil {
+		unmount()
+		removeMountpoint()
+		return nil, err
 	}
 
 	return func() {

@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
+	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
@@ -103,6 +104,16 @@ func (t *firstBootBaseTest) setupBaseTest(c *C, s *seedtest.SeedSnaps) {
 	t.AddCleanup(sysdb.InjectTrusted([]asserts.Assertion{s.StoreSigning.TrustedKey}))
 	t.AddCleanup(ifacestate.MockSecurityBackends(nil))
 
+	t.perfTimings = timings.New(nil)
+}
+
+// startOverlord will setup and create a new overlord, note that it will not
+// stop any pre-existing overlord and it will be overwritten, for more fine
+// control create your own overlord
+// also note that as long as you don't run overlord.Loop() this is safe to call
+// multiple times to clear overlord state, if you call Loop() call Stop() on
+// your own before calling this again
+func (t *firstBootBaseTest) startOverlord(c *C) {
 	ovld, err := overlord.New(nil)
 	c.Assert(err, IsNil)
 	ovld.InterfaceManager().DisableUDevMonitor()
@@ -110,31 +121,44 @@ func (t *firstBootBaseTest) setupBaseTest(c *C, s *seedtest.SeedSnaps) {
 	c.Assert(ovld.StartUp(), IsNil)
 
 	// don't actually try to talk to the store on snapstate.Ensure
-	// needs doing after the call to devicestate.Manager (which happens in overlord.New)
+	// needs doing after the call to devicestate.Manager (which happens in
+	// overlord.New)
 	snapstate.CanAutoRefresh = nil
+}
 
-	t.perfTimings = timings.New(nil)
+type firstBoot16BaseTest struct {
+	*firstBootBaseTest
+	// TestingSeed16 helps populating seeds (it provides
+	// MakeAssertedSnap, WriteAssertions etc.) for tests.
+	*seedtest.TestingSeed16
+}
+
+func (t *firstBoot16BaseTest) setup16BaseTest(c *C, bt *firstBootBaseTest) {
+	t.firstBootBaseTest = bt
+	t.setupBaseTest(c, &t.TestingSeed16.SeedSnaps)
 }
 
 type firstBoot16Suite struct {
 	firstBootBaseTest
-
-	// TestingSeed16 helps populating seeds (it provides
-	// MakeAssertedSnap, WriteAssertions etc.) for tests.
-	*seedtest.TestingSeed16
+	firstBoot16BaseTest
 }
 
 var _ = Suite(&firstBoot16Suite{})
 
 func (s *firstBoot16Suite) SetUpTest(c *C) {
 	s.TestingSeed16 = &seedtest.TestingSeed16{}
+	s.setup16BaseTest(c, &s.firstBootBaseTest)
 
-	s.setupBaseTest(c, &s.TestingSeed16.SeedSnaps)
+	s.startOverlord(c)
 
 	s.SeedDir = dirs.SnapSeedDir
 
 	err := os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "assertions"), 0755)
 	c.Assert(err, IsNil)
+
+	// mock the snap mapper as core here to make sure that other tests don't
+	// set it inadvertently to the snapd mapper and break the 16 tests
+	s.AddCleanup(ifacestate.MockSnapMapper(&ifacestate.CoreCoreSystemMapper{}))
 }
 
 func checkTrivialSeeding(c *C, tsAll []*state.TaskSet) {
@@ -153,7 +177,7 @@ func checkTrivialSeeding(c *C, tsAll []*state.TaskSet) {
 	c.Check(tasks[0].Kind(), Equals, "mark-seeded")
 }
 
-func (s *firstBoot16Suite) modelHeaders(modelStr string, reqSnaps ...string) map[string]interface{} {
+func modelHeaders(modelStr string, reqSnaps ...string) map[string]interface{} {
 	headers := map[string]interface{}{
 		"architecture": "amd64",
 		"store":        "canonical",
@@ -174,8 +198,8 @@ func (s *firstBoot16Suite) modelHeaders(modelStr string, reqSnaps ...string) map
 	return headers
 }
 
-func (s *firstBoot16Suite) makeModelAssertionChain(c *C, modName string, extraHeaders map[string]interface{}, reqSnaps ...string) []asserts.Assertion {
-	return s.MakeModelAssertionChain("my-brand", modName, s.modelHeaders(modName, reqSnaps...), extraHeaders)
+func (s *firstBoot16BaseTest) makeModelAssertionChain(c *C, modName string, extraHeaders map[string]interface{}, reqSnaps ...string) []asserts.Assertion {
+	return s.MakeModelAssertionChain("my-brand", modName, modelHeaders(modName, reqSnaps...), extraHeaders)
 }
 
 func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicNoop(c *C) {
@@ -258,6 +282,10 @@ func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicEmptySeedYaml(c *C) {
 
 	_, err = devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
 	c.Assert(err, ErrorMatches, "cannot proceed, no snaps to seed")
+	st.Unlock()
+	st.Lock()
+	// note, cannot use st.Tasks() here as it filters out tasks with no change
+	c.Check(st.TaskCount(), Equals, 0)
 }
 
 func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicNoSeedYamlWithCloudInstanceData(c *C) {
@@ -339,9 +367,11 @@ func (s *firstBoot16Suite) TestPopulateFromSeedErrorsOnState(c *C) {
 
 	_, err := devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
 	c.Assert(err, ErrorMatches, "cannot populate state: already seeded")
+	// note, cannot use st.Tasks() here as it filters out tasks with no change
+	c.Check(st.TaskCount(), Equals, 0)
 }
 
-func (s *firstBoot16Suite) makeCoreSnaps(c *C, extraGadgetYaml string) (coreFname, kernelFname, gadgetFname string) {
+func (s *firstBoot16BaseTest) makeCoreSnaps(c *C, extraGadgetYaml string) (coreFname, kernelFname, gadgetFname string) {
 	files := [][]string{}
 	if strings.Contains(extraGadgetYaml, "defaults:") {
 		files = [][]string{{"meta/hooks/configure", ""}}
@@ -404,22 +434,20 @@ func checkOrder(c *C, tsAll []*state.TaskSet, snaps ...string) {
 }
 
 func checkSeedTasks(c *C, tsAll []*state.TaskSet) {
-	// the tasks of the last taskset must be gadget-connect, mark-seeded
+	// the last taskset is just mark-seeded
 	lastTasks := tsAll[len(tsAll)-1].Tasks()
-	c.Check(lastTasks, HasLen, 2)
-	gadgetConnectTask := lastTasks[0]
-	markSeededTask := lastTasks[1]
-	c.Check(gadgetConnectTask.Kind(), Equals, "gadget-connect")
+	c.Check(lastTasks, HasLen, 1)
+	markSeededTask := lastTasks[0]
 	c.Check(markSeededTask.Kind(), Equals, "mark-seeded")
-	// and the gadget-connect must wait for the other tasks
+	// and mark-seeded must wait for the other tasks
 	prevTasks := tsAll[len(tsAll)-2].Tasks()
 	otherTask := prevTasks[len(prevTasks)-1]
-	c.Check(gadgetConnectTask.WaitTasks(), testutil.Contains, otherTask)
-	// add the mark-seeded waits for gadget-connects
-	c.Check(markSeededTask.WaitTasks(), DeepEquals, []*state.Task{gadgetConnectTask})
+	c.Check(markSeededTask.WaitTasks(), testutil.Contains, otherTask)
 }
 
-func (s *firstBoot16Suite) makeSeedChange(c *C, st *state.State) *state.Change {
+func (s *firstBoot16BaseTest) makeSeedChange(c *C, st *state.State, opts *devicestate.PopulateStateFromSeedOptions,
+	checkTasks func(c *C, tsAll []*state.TaskSet), checkOrder func(c *C, tsAll []*state.TaskSet, snaps ...string)) (*state.Change, *asserts.Model) {
+
 	coreFname, kernelFname, gadgetFname := s.makeCoreSnaps(c, "")
 
 	s.WriteAssertions("developer.account", s.devAcct)
@@ -440,10 +468,15 @@ version: 1.0`
 	c.Assert(err, IsNil)
 
 	// add a model assertion and its chain
+	var model *asserts.Model = nil
 	assertsChain := s.makeModelAssertionChain(c, "my-model", nil, "foo")
 	for i, as := range assertsChain {
+		if as.Type() == asserts.ModelType {
+			model = as.(*asserts.Model)
+		}
 		s.WriteAssertions(strconv.Itoa(i), as)
 	}
+	c.Assert(model, NotNil)
 
 	// create a seed.yaml
 	content := []byte(fmt.Sprintf(`
@@ -468,11 +501,13 @@ snaps:
 	// run the firstboot stuff
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
+
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, opts, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	checkOrder(c, tsAll, "core", "pc-kernel", "pc", "foo", "local")
-	checkSeedTasks(c, tsAll)
+
+	checkTasks(c, tsAll)
 
 	// now run the change and check the result
 	// use the expected kind otherwise settle with start another one
@@ -486,18 +521,18 @@ snaps:
 	chg1 := st.NewChange("become-operational", "init device")
 	chg1.SetStatus(state.DoingStatus)
 
-	return chg
+	return chg, model
 }
 
 func (s *firstBoot16Suite) TestPopulateFromSeedHappy(c *C) {
-	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bloader := boottest.MockUC16Bootenv(bootloadertest.Mock("mock", c.MkDir()))
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 	bloader.SetBootKernel("pc-kernel_1.snap")
 	bloader.SetBootBase("core_1.snap")
 
 	st := s.overlord.State()
-	chg := s.makeSeedChange(c, st)
+	chg, model := s.makeSeedChange(c, st, nil, checkSeedTasks, checkOrder)
 	err := s.overlord.Settle(settleTimeout)
 	c.Assert(err, IsNil)
 
@@ -572,6 +607,18 @@ func (s *firstBoot16Suite) TestPopulateFromSeedHappy(c *C) {
 	err = state.Get("seed-time", &seedTime)
 	c.Assert(err, IsNil)
 	c.Check(seedTime.IsZero(), Equals, false)
+
+	var whatseeded []devicestate.SeededSystem
+	err = state.Get("seeded-systems", &whatseeded)
+	c.Assert(err, IsNil)
+	c.Assert(whatseeded, DeepEquals, []devicestate.SeededSystem{{
+		System:    "",
+		Model:     "my-model",
+		BrandID:   "my-brand",
+		Revision:  model.Revision(),
+		Timestamp: model.Timestamp(),
+		SeedTime:  seedTime,
+	}})
 }
 
 func (s *firstBoot16Suite) TestPopulateFromSeedMissingBootloader(c *C) {
@@ -604,7 +651,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedMissingBootloader(c *C) {
 
 	o.AddManager(o.TaskRunner())
 
-	chg := s.makeSeedChange(c, st)
+	chg, _ := s.makeSeedChange(c, st, nil, checkSeedTasks, checkOrder)
 
 	se := o.StateEngine()
 	// we cannot use Settle because the Change will not become Clean
@@ -620,7 +667,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedMissingBootloader(c *C) {
 }
 
 func (s *firstBoot16Suite) TestPopulateFromSeedHappyMultiAssertsFiles(c *C) {
-	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bloader := boottest.MockUC16Bootenv(bootloadertest.Mock("mock", c.MkDir()))
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 	bloader.SetBootKernel("pc-kernel_1.snap")
@@ -719,7 +766,7 @@ snaps:
 }
 
 func (s *firstBoot16Suite) TestPopulateFromSeedConfigureHappy(c *C) {
-	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bloader := boottest.MockUC16Bootenv(bootloadertest.Mock("mock", c.MkDir()))
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 	bloader.SetBootKernel("pc-kernel_1.snap")
@@ -729,7 +776,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedConfigureHappy(c *C) {
 defaults:
     foodidididididididididididididid:
        foo-cfg: foo.
-    coreidididididididididididididid:
+    99T7MUlRhtI3U0QFgl5mXXESAiSwt776:  # core
        core-cfg: core_cfg_defl
     pckernelidididididididididididid:
        pc-kernel-cfg: pc-kernel_cfg_defl
@@ -872,7 +919,7 @@ snaps:
 }
 
 func (s *firstBoot16Suite) TestPopulateFromSeedGadgetConnectHappy(c *C) {
-	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bloader := boottest.MockUC16Bootenv(bootloadertest.Mock("mock", c.MkDir()))
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 	bloader.SetBootKernel("pc-kernel_1.snap")
@@ -1097,10 +1144,10 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedTwoModelAsserts(c *C) {
 	defer st.Unlock()
 
 	// write out two model assertions
-	model := s.Brands.Model("my-brand", "my-model", s.modelHeaders("my-model"))
+	model := s.Brands.Model("my-brand", "my-model", modelHeaders("my-model"))
 	s.WriteAssertions("model", model)
 
-	model2 := s.Brands.Model("my-brand", "my-second-model", s.modelHeaders("my-second-model"))
+	model2 := s.Brands.Model("my-brand", "my-second-model", modelHeaders("my-second-model"))
 	s.WriteAssertions("model2", model2)
 
 	deviceSeed, err := seed.Open(dirs.SnapSeedDir, "")
@@ -1138,7 +1185,7 @@ type core18SnapsOpts struct {
 	gadget  bool
 }
 
-func (s *firstBoot16Suite) makeCore18Snaps(c *C, opts *core18SnapsOpts) (core18Fn, snapdFn, kernelFn, gadgetFn string) {
+func (s *firstBoot16BaseTest) makeCore18Snaps(c *C, opts *core18SnapsOpts) (core18Fn, snapdFn, kernelFn, gadgetFn string) {
 	if opts == nil {
 		opts = &core18SnapsOpts{}
 	}
@@ -1199,7 +1246,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedWithBaseHappy(c *C) {
 	})
 	defer systemctlRestorer()
 
-	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bloader := boottest.MockUC16Bootenv(bootloadertest.Mock("mock", c.MkDir()))
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 	bloader.SetBootKernel("pc-kernel_1.snap")
@@ -1393,10 +1440,12 @@ snaps:
 
 	_, err = devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
 	c.Assert(err, ErrorMatches, `cannot use gadget snap because its base "core" is different from model base "core18"`)
+	// note, cannot use st.Tasks() here as it filters out tasks with no change
+	c.Check(st.TaskCount(), Equals, 0)
 }
 
 func (s *firstBoot16Suite) TestPopulateFromSeedWrongContentProviderOrder(c *C) {
-	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bloader := boottest.MockUC16Bootenv(bootloadertest.Mock("mock", c.MkDir()))
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 	bloader.SetBootKernel("pc-kernel_1.snap")
@@ -1637,6 +1686,33 @@ snaps:
 	c.Check(seedTime.IsZero(), Equals, false)
 }
 
+func (s *firstBoot16Suite) TestPopulateFromSeedMissingAssertions(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	core18Fname, snapdFname, _, _ := s.makeCore18Snaps(c, &core18SnapsOpts{})
+
+	// create a seed.yaml
+	content := []byte(fmt.Sprintf(`
+snaps:
+ - name: snapd
+   file: %s
+ - name: core18
+   file: %s
+`, snapdFname, core18Fname))
+	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	c.Assert(err, IsNil)
+
+	// run the firstboot stuff
+	st := s.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	_, err = devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
+	c.Assert(err, NotNil)
+	// note, cannot use st.Tasks() here as it filters out tasks with no change
+	c.Check(st.TaskCount(), Equals, 0)
+}
+
 func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicWithSnapdOnlyAndGadgetHappy(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
@@ -1749,4 +1825,57 @@ snaps:
 	err = state.Get("seed-time", &seedTime)
 	c.Assert(err, IsNil)
 	c.Check(seedTime.IsZero(), Equals, false)
+}
+
+func (s *firstBoot16Suite) TestCriticalTaskEdgesForPreseed(c *C) {
+	st := s.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	t1 := st.NewTask("task1", "")
+	t2 := st.NewTask("task2", "")
+	t3 := st.NewTask("task2", "")
+
+	ts := state.NewTaskSet(t1, t2, t3)
+	ts.MarkEdge(t1, snapstate.BeginEdge)
+	ts.MarkEdge(t2, snapstate.BeforeHooksEdge)
+	ts.MarkEdge(t3, snapstate.HooksEdge)
+
+	beginEdge, beforeHooksEdge, hooksEdge, err := devicestate.CriticalTaskEdges(ts)
+	c.Assert(err, IsNil)
+	c.Assert(beginEdge, NotNil)
+	c.Assert(beforeHooksEdge, NotNil)
+	c.Assert(hooksEdge, NotNil)
+
+	c.Check(beginEdge.Kind(), Equals, "task1")
+	c.Check(beforeHooksEdge.Kind(), Equals, "task2")
+	c.Check(hooksEdge.Kind(), Equals, "task2")
+}
+
+func (s *firstBoot16Suite) TestCriticalTaskEdgesForPreseedMissing(c *C) {
+	st := s.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	t1 := st.NewTask("task1", "")
+	t2 := st.NewTask("task2", "")
+	t3 := st.NewTask("task2", "")
+
+	ts := state.NewTaskSet(t1, t2, t3)
+	ts.MarkEdge(t1, snapstate.BeginEdge)
+
+	_, _, _, err := devicestate.CriticalTaskEdges(ts)
+	c.Assert(err, NotNil)
+
+	ts = state.NewTaskSet(t1, t2, t3)
+	ts.MarkEdge(t1, snapstate.BeginEdge)
+	ts.MarkEdge(t2, snapstate.BeforeHooksEdge)
+	_, _, _, err = devicestate.CriticalTaskEdges(ts)
+	c.Assert(err, NotNil)
+
+	ts = state.NewTaskSet(t1, t2, t3)
+	ts.MarkEdge(t1, snapstate.BeginEdge)
+	ts.MarkEdge(t3, snapstate.HooksEdge)
+	_, _, _, err = devicestate.CriticalTaskEdges(ts)
+	c.Assert(err, NotNil)
 }

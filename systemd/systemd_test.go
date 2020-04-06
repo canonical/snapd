@@ -709,8 +709,23 @@ func (s *SystemdTestSuite) TestJctl(c *C) {
 
 func (s *SystemdTestSuite) TestIsActiveIsInactive(c *C) {
 	sysErr := &Error{}
+	// manpage states that systemctl returns exit code 3 for inactive
+	// services, however we should check any non-0 exit status
 	sysErr.SetExitCode(1)
 	sysErr.SetMsg([]byte("inactive\n"))
+	s.errors = []error{sysErr}
+
+	active, err := New("xyzzy", SystemMode, s.rep).IsActive("foo")
+	c.Assert(active, Equals, false)
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "is-active", "foo"}})
+}
+
+func (s *SystemdTestSuite) TestIsActiveIsFailed(c *C) {
+	sysErr := &Error{}
+	// seen in the wild to be reported for a 'failed' service
+	sysErr.SetExitCode(3)
+	sysErr.SetMsg([]byte("failed\n"))
 	s.errors = []error{sysErr}
 
 	active, err := New("xyzzy", SystemMode, s.rep).IsActive("foo")
@@ -728,7 +743,7 @@ func (s *SystemdTestSuite) TestIsActiveIsActive(c *C) {
 	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "is-active", "foo"}})
 }
 
-func (s *SystemdTestSuite) TestIsActiveErr(c *C) {
+func (s *SystemdTestSuite) TestIsActiveUnexpectedErr(c *C) {
 	sysErr := &Error{}
 	sysErr.SetExitCode(1)
 	sysErr.SetMsg([]byte("random-failure\n"))
@@ -849,7 +864,7 @@ WantedBy=multi-user.target
 `
 
 func (s *SystemdTestSuite) TestPreseedModeAddMountUnit(c *C) {
-	sysd := NewEmulationMode()
+	sysd := NewEmulationMode(dirs.GlobalRootDir)
 
 	restore := squashfs.MockNeedsFuse(false)
 	defer restore()
@@ -874,7 +889,7 @@ func (s *SystemdTestSuite) TestPreseedModeAddMountUnit(c *C) {
 }
 
 func (s *SystemdTestSuite) TestPreseedModeAddMountUnitWithFuse(c *C) {
-	sysd := NewEmulationMode()
+	sysd := NewEmulationMode(dirs.GlobalRootDir)
 
 	restore := MockSquashFsType(func() (string, []string, error) { return "fuse.squashfuse", []string{"a,b,c"}, nil })
 	defer restore()
@@ -894,7 +909,7 @@ func (s *SystemdTestSuite) TestPreseedModeAddMountUnitWithFuse(c *C) {
 }
 
 func (s *SystemdTestSuite) TestPreseedModeMountError(c *C) {
-	sysd := NewEmulationMode()
+	sysd := NewEmulationMode(dirs.GlobalRootDir)
 
 	restore := squashfs.MockNeedsFuse(false)
 	defer restore()
@@ -921,7 +936,7 @@ func (s *SystemdTestSuite) TestPreseedModeRemoveMountUnit(c *C) {
 	mockUmountCmd := testutil.MockCommand(c, "umount", "")
 	defer mockUmountCmd.Restore()
 
-	sysd := NewEmulationMode()
+	sysd := NewEmulationMode(dirs.GlobalRootDir)
 
 	mountUnit := makeMockMountUnit(c, mountDir)
 	symlinkPath := filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", filepath.Base(mountUnit))
@@ -950,7 +965,7 @@ func (s *SystemdTestSuite) TestPreseedModeRemoveMountUnitUnmounted(c *C) {
 	mockUmountCmd := testutil.MockCommand(c, "umount", "")
 	defer mockUmountCmd.Restore()
 
-	sysd := NewEmulationMode()
+	sysd := NewEmulationMode(dirs.GlobalRootDir)
 	mountUnit := makeMockMountUnit(c, mountDir)
 	symlinkPath := filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", filepath.Base(mountUnit))
 	c.Assert(os.Symlink(mountUnit, symlinkPath), IsNil)
@@ -968,7 +983,7 @@ func (s *SystemdTestSuite) TestPreseedModeRemoveMountUnitUnmounted(c *C) {
 }
 
 func (s *SystemdTestSuite) TestPreseedModeBindmountNotSupported(c *C) {
-	sysd := NewEmulationMode()
+	sysd := NewEmulationMode(dirs.GlobalRootDir)
 
 	restore := squashfs.MockNeedsFuse(false)
 	defer restore()
@@ -977,4 +992,39 @@ func (s *SystemdTestSuite) TestPreseedModeBindmountNotSupported(c *C) {
 
 	_, err := sysd.AddMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "")
 	c.Assert(err, ErrorMatches, `bind-mounted directory is not supported in emulation mode`)
+}
+
+func (s *SystemdTestSuite) TestEnableInEmulationMode(c *C) {
+	sysd := NewEmulationMode("/path")
+	c.Assert(sysd.Enable("foo"), IsNil)
+
+	sysd = NewEmulationMode("")
+	c.Assert(sysd.Enable("bar"), IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{
+		{"--root", "/path", "enable", "foo"},
+		{"--root", dirs.GlobalRootDir, "enable", "bar"}})
+}
+
+func (s *SystemdTestSuite) TestDisableInEmulationMode(c *C) {
+	sysd := NewEmulationMode("/path")
+	c.Assert(sysd.Disable("foo"), IsNil)
+
+	c.Check(s.argses, DeepEquals, [][]string{
+		{"--root", "/path", "disable", "foo"}})
+}
+
+func (s *SystemdTestSuite) TestMaskInEmulationMode(c *C) {
+	sysd := NewEmulationMode("/path")
+	c.Assert(sysd.Mask("foo"), IsNil)
+
+	c.Check(s.argses, DeepEquals, [][]string{
+		{"--root", "/path", "mask", "foo"}})
+}
+
+func (s *SystemdTestSuite) TestUnmaskInEmulationMode(c *C) {
+	sysd := NewEmulationMode("/path")
+	c.Assert(sysd.Unmask("foo"), IsNil)
+
+	c.Check(s.argses, DeepEquals, [][]string{
+		{"--root", "/path", "unmask", "foo"}})
 }

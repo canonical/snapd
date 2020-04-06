@@ -12,4 +12,4 @@ execute: |
     if snapd-hacker-toolbelt.busybox touch /var/tmp/evil; then exit 1; fi
     dmesg -c
 restore: |
-    snap remove snapd-hacker-toolbelt
+    snap remove --purge snapd-hacker-toolbelt

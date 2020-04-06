@@ -26,18 +26,59 @@ if MYPY:
     from argparse import Namespace
 
 
-class Device(int):
-    """
-    Device is a device number with major and minor components.
+class sint(int):
+    """sint is an integer that always renders with sign."""
 
-    Note that this class does not attempt to mimic peculiar
-    encoding used by the Linux kernel.
-    """
+    def __str__(self):
+        # type: () -> str
+        result = "{:+}".format(int(self))
+        if PY2:
+            return result.encode()
+        return result
 
-    @classmethod
-    def pack(cls, major, minor):
-        # type: (int, int) -> Device
-        return cls((major << 16) | (minor & (1 << 16) - 1))
+    def __repr__(self):
+        # type: () -> str
+        result = "sint({:+})".format(int(self))
+        if PY2:
+            return result.encode()
+        return result
+
+
+class SintTests(unittest.TestCase):
+    def test_smoke(self):
+        # type: () -> None
+        self.assertEqual(sint(1), 1)
+        self.assertEqual(sint(-1), -1)
+        self.assertEqual(hash(sint(1)), hash(1))
+
+    def test_str(self):
+        # type: () -> None
+        self.assertEqual("{}".format(sint(1)), "+1")
+        self.assertEqual("{}".format(sint(-1)), "-1")
+
+    def test_repor(self):
+        # type: () -> None
+        self.assertEqual("{!r}".format(sint(1)), "sint(+1)")
+        self.assertEqual("{!r}".format(sint(-1)), "sint(-1)")
+
+
+class Device(object):
+    """Device is a device number with major and minor components."""
+
+    def __init__(self, major, minor):
+        # type: (int, int) -> None
+        self.major = major
+        self.minor = minor
+
+    def __hash__(self):
+        # type: () -> int
+        return hash((self.major, self.minor))
+
+    def __eq__(self, other):
+        # type: (object) -> Union[NotImplemented, bool]
+        if not isinstance(other, Device):
+            return NotImplemented
+        return self.major == other.major and self.minor == other.minor
 
     def __str__(self):
         # type: () -> str
@@ -48,22 +89,15 @@ class Device(int):
 
     def __repr__(self):
         # type: () -> str
-        result = "Device.pack({}, {})".format(self.major, self.minor)
+        result = "Device({}, {})".format(self.major, self.minor)
         if PY2:
             return result.encode()
         return result
 
-    @property
-    def major(self):
-        # type: () -> int
-        """major is the higher 16 bits of the device number."""
-        return self >> 16
-
-    @property
-    def minor(self):
-        # type: () -> int
-        """minor is the lower 16 bits of the device number."""
-        return self & ((1 << 16) - 1)
+    @classmethod
+    def differentiate(cls, a, b):
+        # type: (Device, Device) -> Device
+        return cls(sint(a.major - b.major), sint(a.minor - b.minor))
 
 
 def _format_opt_fields(fields):
@@ -78,6 +112,62 @@ def _format_opt_fields(fields):
     return result
 
 
+def _diff_opt_fields(a, b):
+    # type: (List[Text], List[Text]) -> List[Text]
+    if len(a) != len(b):
+        return a
+    diff = []  # type: List[Text]
+    for elem_a, elem_b in zip(a, b):
+        key_a, value_a = elem_a.split(":", 1)
+        key_b, value_b = elem_b.split(":", 1)
+        if key_a != key_b:
+            return a
+        try:
+            value_a_int = int(value_a)
+            value_b_int = int(value_b)
+        except ValueError:
+            return a
+        diff.append("{}:{}".format(key_a, sint(value_a_int - value_b_int)))
+    return diff
+
+
+class DifferntiateOptionalFieldsTest(unittest.TestCase):
+    def test_ok(self):
+        # type: () -> None
+        a = OptionalFields(["master:6"])
+        b = OptionalFields(["master:5"])
+        aDelta = OptionalFields.differentiate(a, b)
+        self.assertEqual(aDelta, OptionalFields(["master:+1"]))
+
+    def test_ok_many(self):
+        # type: () -> None
+        a = OptionalFields(["master:6", "shared:10"])
+        b = OptionalFields(["master:5", "shared:7"])
+        aDelta = OptionalFields.differentiate(a, b)
+        self.assertEqual(aDelta, OptionalFields(["master:+1", "shared:+3"]))
+
+    def test_different_lengths(self):
+        # type: () -> None
+        a = OptionalFields(["master:6", "shared:2"])
+        b = OptionalFields(["shared:7"])
+        aDelta = OptionalFields.differentiate(a, b)
+        self.assertEqual(aDelta, OptionalFields(["master:6", "shared:2"]))
+
+    def test_different_keys(self):
+        # type: () -> None
+        a = OptionalFields(["master:6"])
+        b = OptionalFields(["shared:7"])
+        aDelta = OptionalFields.differentiate(a, b)
+        self.assertEqual(aDelta, OptionalFields(["master:6"]))
+
+    def test_non_numeric_value(self):
+        # type: () -> None
+        a = OptionalFields(["master:9"])
+        b = OptionalFields(["master:nan"])
+        aDelta = OptionalFields.differentiate(a, b)
+        self.assertEqual(aDelta, OptionalFields(["master:9"]))
+
+
 # OptionalFields is a specialization of List[Text] but because of some Python 2
 # distributions lacking the typing module, we must define a variant for mypy
 # and one for without mypy. In both cases the customized formatting logic is
@@ -89,6 +179,11 @@ if MYPY:
             # type: () -> str
             return _format_opt_fields(self)
 
+        @classmethod
+        def differentiate(cls, a, b):
+            # type: (OptionalFields, OptionalFields) -> OptionalFields
+            return cls(_diff_opt_fields(a, b))
+
 
 else:
 
@@ -96,6 +191,11 @@ else:
         def __str__(self):
             # type: () -> str
             return _format_opt_fields(self)
+
+        @classmethod
+        def differentiate(cls, a, b):
+            # type: (OptionalFields, OptionalFields) -> OptionalFields
+            return cls(_diff_opt_fields(a, b))
 
 
 class OptionalFieldsTests(unittest.TestCase):
@@ -127,7 +227,7 @@ class MountInfoEntry(object):
         # type: () -> None
         self.mount_id = 0
         self.parent_id = 0
-        self.dev = Device.pack(0, 0)
+        self.dev = Device(0, 0)
         self.root_dir = ""
         self.mount_point = ""
         self.mount_opts = ""
@@ -135,9 +235,27 @@ class MountInfoEntry(object):
         self.fs_type = ""
         self.mount_source = ""
         self.sb_opts = ""
-        # This field does not represent kernel state.
-        # It is a marker for an entry being matched by a filter.
+        # Attributes beyond this line do not represent kernel state.
+        # Marker for an entry being matched by a filter.
         self.matched = False
+
+    @classmethod
+    def differentiate(cls, a, b):
+        # type: (MountInfoEntry, MountInfoEntry) -> MountInfoEntry
+        diff = MountInfoEntry()
+        diff.matched = a.matched
+        # Diff all the attributes that it makes sense to diff
+        diff.mount_id = sint(a.mount_id - b.mount_id)
+        diff.parent_id = sint(a.parent_id - b.parent_id)
+        diff.dev = Device.differentiate(a.dev, b.dev)
+        diff.root_dir = a.root_dir
+        diff.mount_point = a.mount_point
+        diff.mount_opts = a.mount_opts
+        diff.opt_fields = OptionalFields.differentiate(a.opt_fields, b.opt_fields)
+        diff.fs_type = a.fs_type
+        diff.mount_source = a.mount_source
+        diff.sb_opts = a.sb_opts
+        return diff
 
     def __eq__(self, other):
         # type: (object) -> Union[NotImplemented, bool]
@@ -164,7 +282,7 @@ class MountInfoEntry(object):
         self.mount_id = int(next(it))
         self.parent_id = int(next(it))
         dev_maj, dev_min = map(int, next(it).split(":"))
-        self.dev = Device((dev_maj << 16) | dev_min)
+        self.dev = Device(dev_maj, dev_min)
         self.root_dir = next(it)
         self.mount_point = next(it)
         self.mount_opts = next(it)
@@ -491,7 +609,7 @@ def renumber_devices(entry, seen):
             # Allocate the next minor number based on the cardinality of the
             # set of minor numbers matching the major number.
             minor = len({orig.minor for orig in seen if orig.major == dev.major})
-            n = Device.pack(major, minor)
+            n = Device(major, minor)
             seen[key] = n
             return n
 
@@ -726,6 +844,11 @@ The exit code indicates if any mount point matched the query.
     group.add_argument(
         "--rename", action="store_true", help="Reassign block device names"
     )
+    group.add_argument(
+        "--differential",
+        action="store_true",
+        help="Display numeric values as delta from previous item",
+    )
     opts = parser.parse_args()
     try:
         filters, attrs = parse_exprs(opts.exprs)
@@ -786,13 +909,22 @@ The exit code indicates if any mount point matched the query.
             return tuple(getattr(entry, field) for field in opts.display_order)
 
         entries.sort(key=display_key_fn)
+
+    # Display and differentiate
+    prev = None  # type: Optional[MountInfoEntry]
     for e in entries:
         if not e.matched:
+            prev = e
             continue
-        if attrs:
-            print(*[getattr(e, attr) for attr in attrs])
+        if prev is not None and opts.differential:
+            e_display = MountInfoEntry.differentiate(e, prev)
         else:
-            print(e)
+            e_display = e
+        if attrs:
+            print(*[getattr(e_display, attr) for attr in attrs])
+        else:
+            print(e_display)
+        prev = e
     if opts.one and num_matched != 1:
         raise SystemExit(
             "--one requires exactly one match, found {}".format(num_matched)
@@ -808,7 +940,7 @@ class MountInfoEntryTests(unittest.TestCase):
     non_zero_values = {
         "mount_id": 1,
         "parent_id": 2,
-        "dev": Device.pack(3, 4),
+        "dev": Device(3, 4),
         "root_dir": "/root-dir",
         "mount_point": "/mount-point",
         "mount_opts": "mount-opts",
@@ -823,7 +955,7 @@ class MountInfoEntryTests(unittest.TestCase):
         e = MountInfoEntry()
         self.assertEqual(e.mount_id, 0)
         self.assertEqual(e.parent_id, 0)
-        self.assertEqual(e.dev, Device.pack(0, 0))
+        self.assertEqual(e.dev, Device(0, 0))
         self.assertEqual(e.root_dir, "")
         self.assertEqual(e.mount_point, "")
         self.assertEqual(e.mount_opts, "")
@@ -839,7 +971,7 @@ class MountInfoEntryTests(unittest.TestCase):
         )
         self.assertEqual(e.mount_id, 2079)
         self.assertEqual(e.parent_id, 2266)
-        self.assertEqual(e.dev, Device.pack(0, 3))
+        self.assertEqual(e.dev, Device(0, 3))
         self.assertEqual(e.root_dir, "mnt:[4026532791]")
         self.assertEqual(e.mount_point, "/run/snapd/ns/test-snapd-mountinfo.mnt")
         self.assertEqual(e.mount_opts, "rw")
@@ -884,7 +1016,7 @@ class MountInfoEntryTests(unittest.TestCase):
     def test_dev_maj_min(self):
         # type: () -> None
         e = MountInfoEntry()
-        e.dev = Device.pack(1, 2)
+        e.dev = Device(1, 2)
         self.assertEqual(e.dev_min, 2)
         self.assertEqual(e.dev_maj, 1)
 

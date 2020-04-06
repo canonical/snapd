@@ -7,7 +7,7 @@ details: |
 prepare: |
     snap pack test-snapd-layout
 restore: |
-    snap remove test-snapd-layout
+    snap remove --purge test-snapd-layout
     rm -f test-snapd-layout_1_all.snap
 execute: |
     # Install x1 and run the app to construct the mount namespace

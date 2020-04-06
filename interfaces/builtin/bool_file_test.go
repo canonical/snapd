@@ -45,6 +45,8 @@ type BoolFileInterfaceSuite struct {
 	iface                 interfaces.Interface
 	gpioSlotInfo          *snap.SlotInfo
 	gpioSlot              *interfaces.ConnectedSlot
+	gpioCleanedSlotInfo   *snap.SlotInfo
+	gpioCleanedSlot       *interfaces.ConnectedSlot
 	ledSlotInfo           *snap.SlotInfo
 	ledSlot               *interfaces.ConnectedSlot
 	badPathSlotInfo       *snap.SlotInfo
@@ -82,6 +84,9 @@ slots:
     gpio:
         interface: bool-file
         path: /sys/class/gpio/gpio13/value
+    gpio-unclean:
+        interface: bool-file
+        path: /sys/class/gpio/gpio14/value///
     led:
         interface: bool-file
         path: "/sys/class/leds/input27::capslock/brightness"
@@ -99,6 +104,8 @@ plugs:
 `, &snap.SideInfo{})
 	s.gpioSlotInfo = info.Slots["gpio"]
 	s.gpioSlot = interfaces.NewConnectedSlot(s.gpioSlotInfo, nil, nil)
+	s.gpioCleanedSlotInfo = info.Slots["gpio-unclean"]
+	s.gpioCleanedSlot = interfaces.NewConnectedSlot(s.gpioCleanedSlotInfo, nil, nil)
 	s.ledSlotInfo = info.Slots["led"]
 	s.ledSlot = interfaces.NewConnectedSlot(s.ledSlotInfo, nil, nil)
 	s.missingPathSlotInfo = info.Slots["missing-path"]
@@ -134,6 +141,8 @@ func (s *BoolFileInterfaceSuite) TestSanitizeSlot(c *C) {
 	// Slots with incorrect value of the "path" attribute are rejected.
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.badPathSlotInfo), ErrorMatches,
 		"bool-file can only point at LED brightness or GPIO value")
+	// Verify historically filepath.Clean()d paths are still valid
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.gpioCleanedSlotInfo), IsNil)
 }
 
 func (s *BoolFileInterfaceSuite) TestSanitizePlug(c *C) {

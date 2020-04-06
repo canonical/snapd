@@ -45,6 +45,7 @@ var (
 	AppArmorCacheDir          string
 	SnapAppArmorAdditionalDir string
 	SnapConfineAppArmorDir    string
+	SnapSeccompBase           string
 	SnapSeccompDir            string
 	SnapMountPolicyDir        string
 	SnapUdevRulesDir          string
@@ -56,6 +57,8 @@ var (
 	SnapRunDir                string
 	SnapRunNsDir              string
 	SnapRunLockDir            string
+
+	SnapdStoreSSLCertsDir string
 
 	SnapSeedDir   string
 	SnapDeviceDir string
@@ -120,8 +123,6 @@ var (
 	SysfsDir        string
 
 	FeaturesDir string
-
-	RunMnt string
 )
 
 const (
@@ -145,6 +146,8 @@ const (
 var (
 	// not exported because it does not honor the global rootdir
 	snappyDir = filepath.Join("var", "lib", "snapd")
+
+	callbacks = []func(string){}
 )
 
 func init() {
@@ -226,6 +229,29 @@ func SnapStateFileUnder(rootdir string) string {
 	return filepath.Join(rootdir, snappyDir, "state.json")
 }
 
+// SnapModeenvFileUnder returns the path to the modeenv file under rootdir.
+func SnapModeenvFileUnder(rootdir string) string {
+	return filepath.Join(rootdir, snappyDir, "modeenv")
+}
+
+// FeaturesDirUnder returns the path to the features dir under rootdir.
+func FeaturesDirUnder(rootdir string) string {
+	return filepath.Join(rootdir, snappyDir, "features")
+}
+
+// SnapSystemdConfDirUnder returns the path to the systemd conf dir under
+// rootdir.
+func SnapSystemdConfDirUnder(rootdir string) string {
+	return filepath.Join(rootdir, "/etc/systemd/system.conf.d")
+}
+
+// AddRootDirCallback registers a callback for whenever the global root
+// directory (set by SetRootDir) is changed to enable updates to variables in
+// other packages that depend on its location.
+func AddRootDirCallback(c func(string)) {
+	callbacks = append(callbacks, c)
+}
+
 // SetRootDir allows settings a new global root directory, this is useful
 // for e.g. chroot operations
 func SetRootDir(rootdir string) {
@@ -234,8 +260,17 @@ func SetRootDir(rootdir string) {
 	}
 	GlobalRootDir = rootdir
 
+	altDirDistros := []string{
+		"antergos",
+		"arch",
+		"archlinux",
+		"fedora",
+		"manjaro",
+		"manjaro-arm",
+	}
+
 	isInsideBase, _ := isInsideBaseSnap()
-	if !isInsideBase && release.DistroLike("fedora", "arch", "archlinux", "manjaro", "antergos") {
+	if !isInsideBase && release.DistroLike(altDirDistros...) {
 		SnapMountDir = filepath.Join(rootdir, "/var/lib/snapd/snap")
 	} else {
 		SnapMountDir = filepath.Join(rootdir, defaultSnapMountDir)
@@ -248,7 +283,8 @@ func SetRootDir(rootdir string) {
 	AppArmorCacheDir = filepath.Join(rootdir, "/var/cache/apparmor")
 	SnapAppArmorAdditionalDir = filepath.Join(rootdir, snappyDir, "apparmor", "additional")
 	SnapDownloadCacheDir = filepath.Join(rootdir, snappyDir, "cache")
-	SnapSeccompDir = filepath.Join(rootdir, snappyDir, "seccomp", "bpf")
+	SnapSeccompBase = filepath.Join(rootdir, snappyDir, "seccomp")
+	SnapSeccompDir = filepath.Join(SnapSeccompBase, "bpf")
 	SnapMountPolicyDir = filepath.Join(rootdir, snappyDir, "mount")
 	SnapMetaDir = filepath.Join(rootdir, snappyDir, "meta")
 	SnapBlobDir = SnapBlobDirUnder(rootdir)
@@ -260,6 +296,8 @@ func SetRootDir(rootdir string) {
 	SnapRunDir = filepath.Join(rootdir, "/run/snapd")
 	SnapRunNsDir = filepath.Join(SnapRunDir, "/ns")
 	SnapRunLockDir = filepath.Join(SnapRunDir, "/lock")
+
+	SnapdStoreSSLCertsDir = filepath.Join(rootdir, snappyDir, "ssl/store-certs")
 
 	// keep in sync with the debian/snapd.socket file:
 	SnapdSocket = filepath.Join(rootdir, "/run/snapd.socket")
@@ -282,7 +320,7 @@ func SetRootDir(rootdir string) {
 	SnapSeedDir = SnapSeedDirUnder(rootdir)
 	SnapDeviceDir = filepath.Join(rootdir, snappyDir, "device")
 
-	SnapModeenvFile = filepath.Join(rootdir, snappyDir, "modeenv")
+	SnapModeenvFile = SnapModeenvFileUnder(rootdir)
 
 	SnapRepairDir = filepath.Join(rootdir, snappyDir, "repair")
 	SnapRepairStateFile = filepath.Join(SnapRepairDir, "repair.json")
@@ -295,7 +333,7 @@ func SetRootDir(rootdir string) {
 	SnapBinariesDir = filepath.Join(SnapMountDir, "bin")
 	SnapServicesDir = filepath.Join(rootdir, "/etc/systemd/system")
 	SnapUserServicesDir = filepath.Join(rootdir, "/etc/systemd/user")
-	SnapSystemdConfDir = filepath.Join(rootdir, "/etc/systemd/system.conf.d")
+	SnapSystemdConfDir = SnapSystemdConfDirUnder(rootdir)
 	SnapBusPolicyDir = filepath.Join(rootdir, "/etc/dbus-1/system.d")
 
 	SystemApparmorDir = filepath.Join(rootdir, "/etc/apparmor.d")
@@ -326,7 +364,7 @@ func SetRootDir(rootdir string) {
 	}
 
 	XdgRuntimeDirBase = filepath.Join(rootdir, "/run/user")
-	XdgRuntimeDirGlob = filepath.Join(rootdir, XdgRuntimeDirBase, "*/")
+	XdgRuntimeDirGlob = filepath.Join(XdgRuntimeDirBase, "*/")
 
 	CompletionHelperInCore = filepath.Join(CoreLibExecDir, "etelpmoc.sh")
 	CompletersDir = filepath.Join(rootdir, "/usr/share/bash-completion/completions/")
@@ -358,9 +396,13 @@ func SetRootDir(rootdir string) {
 	ErrtrackerDbDir = filepath.Join(rootdir, snappyDir, "errtracker.db")
 	SysfsDir = filepath.Join(rootdir, "/sys")
 
-	FeaturesDir = filepath.Join(rootdir, snappyDir, "features")
+	FeaturesDir = FeaturesDirUnder(rootdir)
 
-	RunMnt = filepath.Join(rootdir, "/run/mnt")
+	// call the callbacks last so that the callbacks can just reference the
+	// global vars if they want, instead of using the new rootdir directly
+	for _, c := range callbacks {
+		c(rootdir)
+	}
 }
 
 // what inside a (non-classic) snap is /usr/lib/snapd, outside can come from different places
@@ -384,5 +426,6 @@ func CompleteShPath(base string) string {
 
 func IsCompleteShSymlink(compPath string) bool {
 	target, err := os.Readlink(compPath)
-	return err == nil && filepath.Base(target) == "complete.sh"
+	// check if the target paths ends with "/snapd/complete.sh"
+	return err == nil && filepath.Base(filepath.Dir(target)) == "snapd" && filepath.Base(target) == "complete.sh"
 }

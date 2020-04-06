@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/mvo5/goconfigparser"
 
@@ -37,40 +38,79 @@ type Modeenv struct {
 	Mode           string
 	RecoverySystem string
 	Base           string
-	// XXX: we may need to revisit setting the kernel in modeenv
-	Kernel string
+	TryBase        string
+	BaseStatus     string
+	CurrentKernels []string
 
 	// read is set to true when a modenv was read successfully
 	read bool
+
+	// originRootdir is set to the root whence the modeenv was
+	// read from, and where it will be written back to
+	originRootdir string
 }
 
+func modeenvFile(rootdir string) string {
+	if rootdir == "" {
+		rootdir = dirs.GlobalRootDir
+	}
+	return dirs.SnapModeenvFileUnder(rootdir)
+}
+
+// ReadModeenv attempts to read the modeenv file at
+// <rootdir>/var/iib/snapd/modeenv.
 func ReadModeenv(rootdir string) (*Modeenv, error) {
-	modeenvPath := filepath.Join(rootdir, dirs.SnapModeenvFile)
+	modeenvPath := modeenvFile(rootdir)
 	cfg := goconfigparser.New()
 	cfg.AllowNoSectionHeader = true
 	if err := cfg.ReadFile(modeenvPath); err != nil {
 		return nil, err
 	}
+	// TODO:UC20: should we check these errors and try to do something?
 	recoverySystem, _ := cfg.Get("", "recovery_system")
 	mode, _ := cfg.Get("", "mode")
 	base, _ := cfg.Get("", "base")
-	kernel, _ := cfg.Get("", "kernel")
+	baseStatus, _ := cfg.Get("", "base_status")
+	tryBase, _ := cfg.Get("", "try_base")
+
+	// current_kernels is a comma-delimited list in a string
+	kernelsString, _ := cfg.Get("", "current_kernels")
+	var kernels []string
+	if kernelsString != "" {
+		kernels = strings.Split(kernelsString, ",")
+		// drop empty strings
+		nonEmptyKernels := make([]string, 0, len(kernels))
+		for _, kernel := range kernels {
+			if kernel != "" {
+				nonEmptyKernels = append(nonEmptyKernels, kernel)
+			}
+		}
+		kernels = nonEmptyKernels
+	}
 	return &Modeenv{
 		Mode:           mode,
 		RecoverySystem: recoverySystem,
 		Base:           base,
-		Kernel:         kernel,
+		TryBase:        tryBase,
+		BaseStatus:     baseStatus,
+		CurrentKernels: kernels,
 		read:           true,
+		originRootdir:  rootdir,
 	}, nil
 }
 
-// Unset returns true if no modeenv file was read (yet)
-func (m *Modeenv) Unset() bool {
-	return !m.read
+// Write outputs the modeenv to the file where it was read, only valid on
+// modeenv that has been read.
+func (m *Modeenv) Write() error {
+	if m.read {
+		return m.WriteTo(m.originRootdir)
+	}
+	return fmt.Errorf("internal error: must use WriteTo with modeenv not read from disk")
 }
 
-func (m *Modeenv) Write(rootdir string) error {
-	modeenvPath := filepath.Join(rootdir, dirs.SnapModeenvFile)
+// WriteTo outputs the modeenv to the file at <rootdir>/var/lib/snapd/modeenv.
+func (m *Modeenv) WriteTo(rootdir string) error {
+	modeenvPath := modeenvFile(rootdir)
 
 	if err := os.MkdirAll(filepath.Dir(modeenvPath), 0755); err != nil {
 		return err
@@ -85,9 +125,16 @@ func (m *Modeenv) Write(rootdir string) error {
 	if m.Base != "" {
 		fmt.Fprintf(buf, "base=%s\n", m.Base)
 	}
-	if m.Kernel != "" {
-		fmt.Fprintf(buf, "kernel=%s\n", m.Kernel)
+	if m.TryBase != "" {
+		fmt.Fprintf(buf, "try_base=%s\n", m.TryBase)
 	}
+	if m.BaseStatus != "" {
+		fmt.Fprintf(buf, "base_status=%s\n", m.BaseStatus)
+	}
+	if len(m.CurrentKernels) != 0 {
+		fmt.Fprintf(buf, "current_kernels=%s\n", strings.Join(m.CurrentKernels, ","))
+	}
+
 	if err := osutil.AtomicWriteFile(modeenvPath, buf.Bytes(), 0644, 0); err != nil {
 		return err
 	}

@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+
 package gadget
 
 import (
@@ -266,7 +267,9 @@ func resolveUpdate(oldVol *PartiallyLaidOutVolume, newVol *LaidOutVolume, policy
 }
 
 type Updater interface {
-	// Update applies the update or errors out on failures
+	// Update applies the update or errors out on failures. When no actual
+	// update was applied because the new content is identical a special
+	// ErrNoUpdate is returned.
 	Update() error
 	// Backup prepares a backup copy of data that will be modified by
 	// Update()
@@ -294,12 +297,21 @@ func applyUpdates(new GadgetData, updates []updatePair, rollbackDir string) erro
 
 	var updateErr error
 	var updateLastAttempted int
+	var skipped int
 	for i, one := range updaters {
 		updateLastAttempted = i
 		if err := one.Update(); err != nil {
+			if err == ErrNoUpdate {
+				skipped++
+				continue
+			}
 			updateErr = fmt.Errorf("cannot update volume structure %v: %v", updates[i].to, err)
 			break
 		}
+	}
+	if skipped == len(updaters) {
+		// all updates were a noop
+		return ErrNoUpdate
 	}
 
 	if updateErr == nil {

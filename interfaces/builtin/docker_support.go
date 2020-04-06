@@ -82,9 +82,8 @@ const dockerSupportConnectedPlugAppArmor = `
 /run/ipam-state/k8s-** rw,
 /run/ipam-state/k8s-*/lock k,
 
-# Socket for docker-container-shim
-unix (bind,listen) type=stream addr="@/containerd-shim/moby/*/shim.sock\x00",
-unix (bind,listen) type=stream addr="@/containerd-shim/k8s.io/*/shim.sock\x00",
+# Socket for docker-containerd-shim
+unix (bind,listen) type=stream addr="@/containerd-shim/**.sock\x00",
 
 /{,var/}run/mount/utab r,
 

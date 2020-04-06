@@ -49,6 +49,9 @@ _complete_snap() {
     if [ "$command" = "debug" ]; then
         command="${words[2]}"
         COMPREPLY=($(GO_FLAGS_COMPLETION=1 snap debug "$command" "$cur"))
+    elif [ "$command" = "routine" ]; then
+        command="${words[2]}"
+        COMPREPLY=($(GO_FLAGS_COMPLETION=1 snap routine "$command" "$cur"))
     else
         COMPREPLY=($(GO_FLAGS_COMPLETION=1 snap "$command" "$cur"))
     fi

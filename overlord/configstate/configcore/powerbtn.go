@@ -33,12 +33,16 @@ func init() {
 	supportedConfigurations["core.system.power-key-action"] = true
 }
 
-func powerBtnCfg() string {
-	return filepath.Join(dirs.GlobalRootDir, "/etc/systemd/logind.conf.d/00-snap-core.conf")
+func powerBtnCfg(opts *fsOnlyContext) string {
+	rootDir := dirs.GlobalRootDir
+	if opts != nil {
+		rootDir = opts.RootDir
+	}
+	return filepath.Join(rootDir, "/etc/systemd/logind.conf.d/00-snap-core.conf")
 }
 
 // switchHandlePowerKey changes the behavior when the power key is pressed
-func switchHandlePowerKey(action string) error {
+func switchHandlePowerKey(action string, opts *fsOnlyContext) error {
 	validActions := map[string]bool{
 		"ignore":       true,
 		"poweroff":     true,
@@ -51,7 +55,7 @@ func switchHandlePowerKey(action string) error {
 		"lock":         true,
 	}
 
-	cfgDir := filepath.Dir(powerBtnCfg())
+	cfgDir := filepath.Dir(powerBtnCfg(opts))
 	if !osutil.IsDirectory(cfgDir) {
 		if err := os.MkdirAll(cfgDir, 0755); err != nil {
 			return err
@@ -64,21 +68,21 @@ func switchHandlePowerKey(action string) error {
 	content := fmt.Sprintf(`[Login]
 HandlePowerKey=%s
 `, action)
-	return osutil.AtomicWriteFile(powerBtnCfg(), []byte(content), 0644, 0)
+	return osutil.AtomicWriteFile(powerBtnCfg(opts), []byte(content), 0644, 0)
 }
 
-func handlePowerButtonConfiguration(tr config.Conf) error {
+func handlePowerButtonConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error {
 	output, err := coreCfg(tr, "system.power-key-action")
 	if err != nil {
 		return err
 	}
 	if output == "" {
-		if err := os.Remove(powerBtnCfg()); err != nil && !os.IsNotExist(err) {
+		if err := os.Remove(powerBtnCfg(opts)); err != nil && !os.IsNotExist(err) {
 			return err
 		}
 
 	} else {
-		if err := switchHandlePowerKey(output); err != nil {
+		if err := switchHandlePowerKey(output, opts); err != nil {
 			return err
 		}
 	}

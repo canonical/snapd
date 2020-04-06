@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,25 +20,9 @@
 package snap
 
 import (
-	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
-var snapIDsSnapd = []string{
-	// production
-	"PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4",
-	// TODO: when snapd snap is uploaded to staging, replace this with
-	// the real snap-id.
-	"todo-staging-snapd-id",
-}
-
 func IsSnapd(snapID string) bool {
-	return strutil.ListContains(snapIDsSnapd, snapID)
-}
-
-func MockSnapdSnapID(snapID string) (restore func()) {
-	old := snapIDsSnapd
-	snapIDsSnapd = append(snapIDsSnapd, snapID)
-	return func() {
-		snapIDsSnapd = old
-	}
+	return snapID == naming.WellKnownSnapID("snapd")
 }

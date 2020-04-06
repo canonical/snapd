@@ -31,7 +31,7 @@ execute: |
     while [ ! -f $MARKER ]; do sleep 1; done
 
     echo "When we try to remove the snap"
-    snap remove test-snapd-tools &
+    snap remove --purge test-snapd-tools &
 
     echo "Then the remove retry succeeds"
     wait_for_remove_state Done
