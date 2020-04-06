@@ -67,24 +67,6 @@ jobs:
     - name: Test Go
       run: cd ${{ github.workspace }}/src/github.com/snapcore/snapd && ./run-checks --unit
 
-  cla-check:
-    # TODO: as this job only runs for pull requests, we can't make it
-    # a prerequisite for the spread tests.
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-16.04
-    steps:
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install python-launchpadlib
-      - name: Checkout code
-        uses: actions/checkout@v2
-        with:
-          # The cla_check script reads git commit history
-          fetch-depth: 0
-      - name: CLA check
-        run: ./tests/lib/cla_check.py
-
   spread-canary:
     needs: unit-tests
     runs-on: ubuntu-latest
