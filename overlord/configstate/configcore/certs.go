@@ -32,7 +32,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 )
 
-func handleCertConfiguration(tr config.Conf) error {
+func handleCertConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 	// This handles the "snap revert core" case:
 	// We need to go over each pem cert on disk and check if there is
 	// a matching config entry - if not->delete the cert

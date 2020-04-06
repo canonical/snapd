@@ -24,4 +24,6 @@ var (
 	SwitchHandlePowerKey = switchHandlePowerKey
 	SwitchDisableService = switchDisableService
 	UpdateKeyValueStream = updateKeyValueStream
+	AddFSOnlyHandler     = addFSOnlyHandler
+	AddWithStateHandler  = addWithStateHandler
 )
