@@ -1,7 +1,7 @@
-summary: Run a smoke test on UC20 with encription enabled
+summary: Run a smoke test on UC20 with encryption enabled
 
 description: |
-  This test check UC20 pass the smoke test suite with secure boot
+  This test checks if UC20 passes the smoke test suite with secure boot
 
 systems: [ubuntu-20.04-*]
 
