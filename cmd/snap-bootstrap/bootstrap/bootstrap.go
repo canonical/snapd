@@ -38,6 +38,8 @@ type Options struct {
 	Encrypt bool
 	// KeyFile is the location where the encryption key is written to
 	KeyFile string
+	// RecoveryKeyFile is the location where the recovery key is written to
+	RecoveryKeyFile string
 }
 
 func deviceFromRole(lv *gadget.LaidOutVolume, role string) (device string, err error) {
@@ -56,8 +58,8 @@ func deviceFromRole(lv *gadget.LaidOutVolume, role string) (device string, err e
 }
 
 func Run(gadgetRoot, device string, options Options) error {
-	if options.Encrypt && options.KeyFile == "" {
-		return fmt.Errorf("key file must be specified when encrypting")
+	if options.Encrypt && (options.KeyFile == "" || options.RecoveryKeyFile == "") {
+		return fmt.Errorf("key file and recovery key file must be specified when encrypting")
 	}
 
 	if gadgetRoot == "" {
@@ -101,12 +103,19 @@ func Run(gadgetRoot, device string, options Options) error {
 		return fmt.Errorf("cannot create the partitions: %v", err)
 	}
 
-	// generate key externally so multiple encrypted partitions can use the same key
+	// generate keys externally so multiple encrypted partitions can use the same key
 	var key partition.EncryptionKey
+	var rkey partition.RecoveryKey
+
 	if options.Encrypt {
 		key, err = partition.NewEncryptionKey()
 		if err != nil {
 			return fmt.Errorf("cannot create encryption key: %v", err)
+		}
+
+		rkey, err = partition.NewRecoveryKey()
+		if err != nil {
+			return fmt.Errorf("cannot create recovery key: %v", err)
 		}
 	}
 
@@ -116,6 +125,11 @@ func Run(gadgetRoot, device string, options Options) error {
 			if err != nil {
 				return err
 			}
+
+			if err := dataPart.AddRecoveryKey(key, rkey); err != nil {
+				return err
+			}
+
 			// update the encrypted device node
 			part.Node = dataPart.Node
 		}
@@ -138,8 +152,12 @@ func Run(gadgetRoot, device string, options Options) error {
 	// store the encryption key as the last part of the process to reduce the
 	// possiblity of exiting with an error after the TPM provisioning
 	if options.Encrypt {
+		if err := rkey.Store(options.RecoveryKeyFile); err != nil {
+			return fmt.Errorf("cannot store recovery key: %v", err)
+		}
+
 		if err := key.Store(options.KeyFile); err != nil {
-			return err
+			return fmt.Errorf("cannot store encryption key: %v", err)
 		}
 	}
 
@@ -151,8 +169,14 @@ func ensureLayoutCompatibility(gadgetLayout *gadget.LaidOutVolume, diskLayout *p
 		dv := ds.VolumeStructure
 		gv := gs.VolumeStructure
 		// Previous installation may have failed before filesystem creation or partition may be encrypted
-		return dv.Name == gv.Name && ds.StartOffset == gs.StartOffset && dv.Size == gv.Size &&
-			(ds.Created || dv.Filesystem == gv.Filesystem)
+		check := dv.Name == gv.Name && ds.StartOffset == gs.StartOffset && (ds.Created || dv.Filesystem == gv.Filesystem)
+
+		if gv.Role == gadget.SystemData {
+			// system-data may have been expanded
+			return check && dv.Size >= gv.Size
+		} else {
+			return check && dv.Size == gv.Size
+		}
 	}
 	contains := func(haystack []gadget.LaidOutStructure, needle partition.DeviceStructure) bool {
 		for _, h := range haystack {

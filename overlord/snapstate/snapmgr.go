@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snapdenv"
@@ -553,7 +554,7 @@ func (m *SnapManager) RefreshSchedule() (string, bool, error) {
 // ensureForceDevmodeDropsDevmodeFromState undoes the forced devmode
 // in snapstate for forced devmode distros.
 func (m *SnapManager) ensureForceDevmodeDropsDevmodeFromState() error {
-	if !release.ReleaseInfo.ForceDevMode() {
+	if !sandbox.ForceDevMode() {
 		return nil
 	}
 
