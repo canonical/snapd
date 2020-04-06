@@ -165,6 +165,8 @@ func (s *apiSuite) TestGetSystemsSome(c *check.C) {
 				},
 				Actions: []client.SystemAction{
 					{Title: "reinstall", Mode: "install"},
+					{Title: "recover", Mode: "recover"},
+					{Title: "run normally", Mode: "run"},
 				},
 			},
 		}})
