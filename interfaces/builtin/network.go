@@ -54,6 +54,16 @@ dbus send
      member="Resolve{Address,Hostname,Record,Service}"
      peer=(name="org.freedesktop.resolve1"),
 
+# libnss-systemd (D-Bus portion from nameservice abstraction)
+# Also allow lookups for systemd-exec's DynamicUsers via D-Bus
+#   https://www.freedesktop.org/software/systemd/man/systemd.exec.html
+dbus send
+     bus=system
+     path="/org/freedesktop/systemd1"
+     interface="org.freedesktop.systemd1.Manager"
+     member="{GetDynamicUsers,LookupDynamicUserByName,LookupDynamicUserByUID}"
+     peer=(name="org.freedesktop.systemd1"),
+
 #include <abstractions/ssl_certs>
 
 @{PROC}/sys/net/core/somaxconn r,
