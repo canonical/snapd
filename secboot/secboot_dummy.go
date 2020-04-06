@@ -24,6 +24,6 @@ import (
 	"fmt"
 )
 
-func ConnectToDefaultTPM() (tpmCloser, error) {
-	return nil, fmt.Errorf("build without seccboot support")
+func CheckEncryptionAvailability() error {
+	return fmt.Errorf("build without secboot support")
 }

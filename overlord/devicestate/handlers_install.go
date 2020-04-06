@@ -29,7 +29,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -143,16 +142,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-var checkTPMAvailability = func() error {
-	logger.Noticef("checking TPM device availability...")
-	tconn, err := secboot.ConnectToDefaultTPM()
-	if err != nil {
-		logger.Noticef("connection to TPM device failed: %v", err)
-		return err
-	}
-	logger.Noticef("TPM device detected")
-	return tconn.Close()
-}
+var checkEncryptionAvailability = secboot.CheckEncryptionAvailability
 
 // checkEncryption verifies whether encryption should be used based on the
 // model grade and the availability of a TPM device.
@@ -167,7 +157,7 @@ func checkEncryption(model *asserts.Model) (res bool, err error) {
 	}
 
 	// encryption is required in secured devices and optional in other grades
-	if err := checkTPMAvailability(); err != nil {
+	if err := checkEncryptionAvailability(); err != nil {
 		if secured {
 			return false, fmt.Errorf("cannot encrypt secured device: %v", err)
 		}

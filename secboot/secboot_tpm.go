@@ -21,9 +21,19 @@
 package secboot
 
 import (
-	"github.com/snapcore/secboot"
+	"fmt"
+
+	sb "github.com/snapcore/secboot"
+
+	"github.com/snapcore/snapd/logger"
 )
 
-func ConnectToDefaultTPM() (tpmCloser, error) {
-	return secboot.ConnectToDefaultTPM()
+func CheckEncryptionAvailability() error {
+	logger.Noticef("checking TPM device availability...")
+	tconn, err := sb.ConnectToDefaultTPM()
+	if err != nil {
+		return fmt.Errorf("cannot connect to TPM device: %v", err)
+	}
+	logger.Noticef("TPM device detected")
+	return tconn.Close()
 }

@@ -167,14 +167,14 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	mockSnapBootstrapCmd := testutil.MockCommand(c, filepath.Join(dirs.DistroLibExecDir, "snap-bootstrap"), "")
 	defer mockSnapBootstrapCmd.Restore()
 
-	restoreTPM := devicestate.MockCheckTPMAvailability(func() error {
+	restoreEncryption := devicestate.MockCheckEncryptionAvailability(func() error {
 		if tc.tpm {
 			return nil
 		} else {
 			return fmt.Errorf("TPM not available")
 		}
 	})
-	defer restoreTPM()
+	defer restoreEncryption()
 
 	s.state.Lock()
 	mockModel := s.makeMockInstalledPcGadget(c, grade)
