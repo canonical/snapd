@@ -22,15 +22,25 @@ package osutil
 import (
 	"os"
 	"os/user"
+	"path/filepath"
 	"syscall"
+
+	"github.com/snapcore/snapd/dirs"
 )
 
-const (
-	// ProcSelfMountInfo is a path to the mountinfo table of the current process.
-	ProcSelfMountInfo = "/proc/self/mountinfo"
-)
+func assignProcSelfMountInfo(newRootDir string) {
+	ProcSelfMountInfo = filepath.Join(newRootDir, "/proc/self/mountinfo")
+}
+
+func init() {
+	assignProcSelfMountInfo(dirs.GlobalRootDir)
+	dirs.AddRootDirCallback(assignProcSelfMountInfo)
+}
 
 var (
+	// ProcSelfMountInfo is a path to the mountinfo table of the current process.
+	ProcSelfMountInfo string
+
 	userLookup  = user.Lookup
 	userCurrent = user.Current
 
