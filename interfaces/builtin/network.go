@@ -33,6 +33,7 @@ const networkConnectedPlugAppArmor = `
 # Description: Can access the network as a client.
 #include <abstractions/nameservice>
 /run/systemd/resolve/stub-resolv.conf r,
+/etc/mdns.allow r,  # not yet include in mdns abstraction
 
 # systemd-resolved (not yet included in nameservice abstraction)
 #
