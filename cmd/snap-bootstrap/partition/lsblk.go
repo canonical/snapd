@@ -45,6 +45,7 @@ type lsblkBlockDevice struct {
 	Mountpoint    string             `json:"mountpoint"`
 	PartitionUUID string             `json:"partuuid"`
 	Children      []lsblkBlockDevice `json:"children"`
+	MajorMinor    string             `json:"maj:min"`
 }
 
 func lsblckFsInfo(opts ...string) (*lsblkFilesystemInfo, error) {
@@ -52,7 +53,7 @@ func lsblckFsInfo(opts ...string) (*lsblkFilesystemInfo, error) {
 		[]string{
 			"--json",
 			// same options as --fs, but also with partuuid
-			"-o", "NAME,FSTYPE,LABEL,UUID,MOUNTPOINT,PARTUUID",
+			"-o", "MAJ:MIN,NAME,FSTYPE,LABEL,UUID,MOUNTPOINT,PARTUUID",
 		},
 		opts...,
 	)
@@ -82,6 +83,9 @@ type Disk interface {
 	// FindMatchingPartitionUUID finds the partition uuid for a partition matching
 	// the specified label on the disk.
 	FindMatchingPartitionUUID(string) (string, error)
+
+	// Equals compares two disks to see if they are the same physical disk.
+	Equals(Disk) bool
 }
 
 type disk struct {
@@ -137,4 +141,15 @@ func (d *disk) FindMatchingPartitionUUID(label string) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("couldn't find label %q", label)
+}
+
+func (d *disk) Equals(other Disk) bool {
+	switch d2 := other.(type) {
+	case *disk:
+		// check that the device major + minor numbers are the same for the
+		// block device itself - not the children
+		return d.dev.MajorMinor == d2.dev.MajorMinor
+	default:
+		return false
+	}
 }
