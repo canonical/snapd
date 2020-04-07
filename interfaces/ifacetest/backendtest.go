@@ -24,8 +24,10 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -37,12 +39,17 @@ type BackendSuite struct {
 	restoreSanitize func()
 
 	meas *timings.Span
+	testutil.BaseTest
 }
 
 func (s *BackendSuite) SetUpTest(c *C) {
 	// Isolate this test to a temporary directory
 	s.RootDir = c.MkDir()
 	dirs.SetRootDir(s.RootDir)
+
+	restore := osutil.MockMountInfo("")
+	s.AddCleanup(restore)
+
 	// Create a fresh repository for each test
 	s.Repo = interfaces.NewRepository()
 	s.Iface = &TestInterface{InterfaceName: "iface"}
