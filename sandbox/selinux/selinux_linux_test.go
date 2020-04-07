@@ -85,18 +85,6 @@ func (s *selinuxSuite) TestIsEnabledHappyNoSelinux(c *check.C) {
 	c.Assert(enabled, check.Equals, false)
 }
 
-func (s *selinuxSuite) TestIsEnabledFailMountInfo(c *check.C) {
-	err := os.MkdirAll(filepath.Dir(osutil.ProcSelfMountInfo), 0755)
-	c.Assert(err, check.IsNil)
-	err = ioutil.WriteFile(osutil.ProcSelfMountInfo, []byte(nil), 0644)
-	c.Assert(err, check.IsNil)
-	err = os.Chmod(osutil.ProcSelfMountInfo, 0000)
-	c.Assert(err, check.IsNil)
-
-	enabled, err := selinux.IsEnabled()
-	c.Assert(err, check.ErrorMatches, `failed to obtain SELinux mount path: .*`)
-	c.Assert(enabled, check.Equals, false)
-}
 
 func (s *selinuxSuite) TestIsEnabledFailGarbage(c *check.C) {
 	err := os.MkdirAll(filepath.Dir(osutil.ProcSelfMountInfo), 0755)
