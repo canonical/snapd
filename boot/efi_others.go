@@ -22,7 +22,7 @@ package boot
 
 import "fmt"
 
-func findPartitionUUIDForBootedKernelDisk() (string, error) {
-	// TODO:UC20: what should we do on arm here?
+func bootedKernelPartitionUUIDFromEFIVars() (string, error) {
+	// TODO:UC20: do we have efi variables on arm ever?
 	return "", fmt.Errorf("internal error: not implemented yet")
 }

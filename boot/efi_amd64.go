@@ -84,7 +84,7 @@ func readEfiVar(name string) ([]byte, error) {
 	return ioutil.ReadFile(varFilePath)
 }
 
-func findPartitionUUIDForBootedKernelDisk() (string, error) {
+func bootedKernelPartitionUUIDFromEFIVars() (string, error) {
 	// find the partition uuid using LoaderDevicePartUUID
 	b, err := readEfiVar(loaderDevicePartUUID)
 	if err != nil {

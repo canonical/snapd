@@ -19,8 +19,17 @@
 
 package boot
 
+import "fmt"
+
 // FindPartitionUUIDForBootedKernelDisk returns the partition uuid for the
 // partition that the booted kernel is located on.
 func FindPartitionUUIDForBootedKernelDisk() (string, error) {
-	return findPartitionUUIDForBootedKernelDisk()
+	// try efi variables first
+	if partuuid, err := bootedKernelPartitionUUIDFromEFIVars(); err == nil {
+		return partuuid, nil
+	}
+
+	// TODO:UC20: add more fallbacks here, even on amd64, when we don't have efi
+	//            i.e. on bios?
+	return "", fmt.Errorf("could not find partition uuid for booted kernel")
 }
