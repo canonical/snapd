@@ -767,7 +767,8 @@ func makeMockMountUnit(c *C, mountDir string) string {
 func (s *SystemdTestSuite) TestRemoveMountUnit(c *C) {
 	rootDir := dirs.GlobalRootDir
 
-	c.Assert(osutil.MockProcSelfMountInfo(""), IsNil)
+	restore := osutil.MockMountInfo("")
+	defer restore()
 
 	mountDir := rootDir + "/snap/foo/42"
 	mountUnit := makeMockMountUnit(c, mountDir)

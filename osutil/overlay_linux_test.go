@@ -46,7 +46,7 @@ func (s *overlaySuite) TestIsRootWritableOverlay(c *C) {
 	}{{
 		// Errors from parsing mountinfo are propagated.
 		mountinfo:    "bad syntax",
-		errorPattern: "cannot parse .*/mountinfo.*, .*",
+		errorPattern: "cannot parse mountinfo:.*, .*",
 	}, {
 		// overlay mounted on / are recognized
 		// casper mount source /cow
@@ -102,7 +102,8 @@ func (s *overlaySuite) TestIsRootWritableOverlay(c *C) {
 		overlay:   "/upper",
 	}}
 	for _, tc := range cases {
-		c.Assert(osutil.MockProcSelfMountInfo(tc.mountinfo), IsNil)
+		restore := osutil.MockMountInfo(tc.mountinfo)
+		defer restore()
 
 		overlay, err := osutil.IsRootWritableOverlay()
 		if tc.errorPattern != "" {

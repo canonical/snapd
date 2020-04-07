@@ -145,7 +145,7 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	s.AddCleanup(func() { dirs.SetRootDir("") })
 
 	// needed for system key generation
-	c.Assert(osutil.MockProcSelfMountInfo(""), IsNil)
+	s.AddCleanup(osutil.MockMountInfo(""))
 
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
 	c.Assert(err, IsNil)

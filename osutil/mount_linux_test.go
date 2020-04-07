@@ -44,7 +44,8 @@ func (s *mountSuite) TestIsMountedHappyish(c *C) {
 		"44 24 7:1 / /snap/ubuntu-core/855 rw,relatime shared:27 - squashfs /dev/loop1 ro\n" +
 		"44 24 7:1 / /snap/something/123 rw,relatime - squashfs /dev/loop2 ro\n" +
 		"44 24 7:1 / /snap/random/456 rw,relatime opt:1 shared:27 - squashfs /dev/loop1 ro\n"
-	c.Assert(osutil.MockProcSelfMountInfo(content), IsNil)
+	restore := osutil.MockMountInfo(content)
+	defer restore()
 
 	mounted, err := osutil.IsMounted("/snap/ubuntu-core/855")
 	c.Check(err, IsNil)
@@ -64,7 +65,8 @@ func (s *mountSuite) TestIsMountedHappyish(c *C) {
 }
 
 func (s *mountSuite) TestIsMountedBroken(c *C) {
-	c.Assert(osutil.MockProcSelfMountInfo("44 24 7:1 ...truncated-stuff"), IsNil)
+	restore := osutil.MockMountInfo("44 24 7:1 ...truncated-stuff")
+	defer restore()
 
 	mounted, err := osutil.IsMounted("/snap/ubuntu-core/855")
 	c.Check(err, ErrorMatches, "incorrect number of fields, .*")

@@ -46,7 +46,7 @@ func (s *nfsSuite) TestIsHomeUsingNFS(c *C) {
 	}{{
 		// Errors from parsing mountinfo and fstab are propagated.
 		mountinfo:    "bad syntax",
-		errorPattern: "cannot parse .*/mountinfo.*, .*",
+		errorPattern: "cannot parse mountinfo:.*, .*",
 	}, {
 		fstab:        "bad syntax",
 		errorPattern: "cannot parse .*/fstab.*, .*",
@@ -87,9 +87,10 @@ func (s *nfsSuite) TestIsHomeUsingNFS(c *C) {
 		fstab: "localhost:/srv/nfs /mnt/nfs nfs defaults 0 0",
 	}}
 	for _, tc := range cases {
-		c.Assert(osutil.MockProcSelfMountInfo(tc.mountinfo), IsNil)
+		restore := osutil.MockMountInfo(tc.mountinfo)
+		defer restore()
 
-		restore := osutil.MockEtcFstab(tc.fstab)
+		restore = osutil.MockEtcFstab(tc.fstab)
 		defer restore()
 
 		nfs, err := osutil.IsHomeUsingNFS()
