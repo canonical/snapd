@@ -290,7 +290,24 @@ var networkControlConnectedPlugMount = []osutil.MountEntry{{
 	Options: []string{"bind", "rw", osutil.XSnapdIgnoreMissing()},
 }}
 
-// TODO: Add a layer that derives this sort of data from mount entry like the one above.
+// TODO: Add a layer that derives this sort of data from mount entry, like the
+// one above, into a set of apparmor rules for snap-update-ns, like the ones
+// below.
+//
+// When setting up a mount entry, we also need corresponding
+// snap-updates-ns rules. Eg, if have:
+// []osutil.MountEntry{{
+//	Name:    "/foo/bar",
+//	Dir:     "/bar",
+//	Options: []string{"rw", "bind"},
+// }}
+// Then you can expect to need:
+// /foo/ r,
+// /foo/bar/ r,
+// mount options=(rw bind) /foo/bar/ -> /bar/,
+// umount /bar/,
+// ...
+// You'll need 'rw' rules to support cases when ...
 var networkControlConnectedPlugUpdateNSAppArmor = `
 /var/ r,
 /var/lib/ r,
