@@ -1,7 +1,7 @@
-summary: Integration tests for the snap-bootstrap binary
+summary: Integration tests for the snap-bootstrap create-partitions
 
 # one system is enough, its a very specialized test for now
-systems: [ubuntu-19.10-64]
+systems: [ubuntu-20.04-64]
 
 debug: |
     cat /proc/partitions
@@ -81,6 +81,7 @@ execute: |
     df -T "${LOOP}p4" | MATCH ext4
     umount ./mnt
     file -s "${LOOP}p4" | MATCH 'ext4 filesystem data,.* volume name "ubuntu-data"'
+    # TODO: verify that partition was automatically expanded
 
     echo "Check that the filesystem content was deployed"
     mkdir -p ./mnt
@@ -104,7 +105,7 @@ execute: |
     sfdisk -l "$LOOP" | MATCH "${LOOP}p1 .* 1M\s* BIOS boot"
     sfdisk -l "$LOOP" | MATCH "${LOOP}p2 .* 1.2G\s* EFI System"
     sfdisk -l "$LOOP" | MATCH "${LOOP}p3 .* 750M\s* Linux filesystem"
-    sfdisk -l "$LOOP" | MATCH "${LOOP}p4 .* 3G\s* Linux filesystem"
+    sfdisk -l "$LOOP" | MATCH "${LOOP}p4 .* 1G\s* Linux filesystem"
     sfdisk -l "$LOOP" | MATCH "${LOOP}p5 .* 110M\s* Linux filesystem"
 
     echo "check that the filesystems are created and mounted"
