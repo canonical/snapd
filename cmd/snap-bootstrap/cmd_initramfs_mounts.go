@@ -206,6 +206,26 @@ func generateMountsModeRecover(recoverySystem string) error {
 	return fmt.Errorf("recover mode mount generation not implemented yet")
 }
 
+// helper to mount a partition from the same disk as another previously mounted
+// partition
+func mountPartitionLabelFromSameDiskAsMountPoint(diskmountpoint, label, target string) error {
+	// get the disk for the mountpoint
+	disk, err := partition.DiskFromMountPoint(diskmountpoint)
+	if err != nil {
+		return err
+	}
+
+	// find the partition on that disk with the label
+	partuuid, err := disk.FindMatchingPartitionUUID(label)
+	if err != nil {
+		return err
+	}
+
+	// mount that and return
+	fmt.Fprintf(stdout, "/dev/disk/by-partuuid/%s %s\n", partuuid, target)
+	return nil
+}
+
 func generateMountsModeRun() error {
 	// 1.1 mount ubuntu-boot first, using the LoaderDevicePartUUID to identify
 	//     the partuiid partition that should be mounted
@@ -219,8 +239,7 @@ func generateMountsModeRun() error {
 		return selectPartitionMatchingKernelDisk(boot.InitramfsUbuntuBootDir, "ubuntu-boot")
 	}
 
-	// 1.2 mount ubuntu-seed, cross-checking that ubuntu-seed comes from the
-	//     same physical disk as the mountpoint for ubuntu-boot
+	// 1.2 mount ubuntu-seed partition from same disk as ubuntu-boot
 	isMounted, err = osutilIsMounted(boot.InitramfsUbuntuSeedDir)
 	if err != nil {
 		return err
@@ -228,19 +247,14 @@ func generateMountsModeRun() error {
 	if !isMounted {
 		// get the disk that the ubuntu-boot mount point comes from, as that
 		// should have been where we booted the kernel from in run mode
-		disk, err := partition.DiskFromMountPoint(boot.InitramfsUbuntuBootDir)
-		if err != nil {
-			return err
-		}
+		return mountPartitionLabelFromSameDiskAsMountPoint(
+			boot.InitramfsUbuntuBootDir, // existing mountpoint
+			"ubuntu-seed",               // label to mount
+			boot.InitramfsUbuntuSeedDir, // destination mountpoint
+		)
 
-		// find the ubuntu-seed partition on that disk
-		ubuntuSeedPartitionUUID, err := disk.FindMatchingParitionUUID("ubuntu-seed")
-		if err != nil {
-			return err
-		}
 
-		fmt.Fprintf(stdout, "/dev/disk/by-partuuid/%s %s\n", ubuntuSeedPartitionUUID, boot.InitramfsUbuntuSeedDir)
-		return nil
+
 	}
 
 	// 1.3 mount Data, and exit, as it needs to be mounted for us to do step 2
