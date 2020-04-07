@@ -104,7 +104,7 @@ execute: |
     sfdisk -l "$LOOP" | MATCH "${LOOP}p1 .* 1M\s* BIOS boot"
     sfdisk -l "$LOOP" | MATCH "${LOOP}p2 .* 1.2G\s* EFI System"
     sfdisk -l "$LOOP" | MATCH "${LOOP}p3 .* 750M\s* Linux filesystem"
-    sfdisk -l "$LOOP" | MATCH "${LOOP}p4 .* 3G\s* Linux filesystem"
+    sfdisk -l "$LOOP" | MATCH "${LOOP}p4 .* 1G\s* Linux filesystem"
     sfdisk -l "$LOOP" | MATCH "${LOOP}p5 .* 110M\s* Linux filesystem"
 
     echo "check that the filesystems are created and mounted"
