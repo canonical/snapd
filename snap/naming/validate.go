@@ -185,7 +185,9 @@ var errInvalidSecurityTag = errors.New("invalid security tag")
 //
 // TODO: handle the weird udev variant.
 func ValidateSecurityTag(tag string) error {
-	parts := strings.SplitN(tag, ".", 4)
+	// We expect at most four parts. Split with up to five parts so that the
+	// len(parts) test catches invalid format tags very early.
+	parts := strings.SplitN(tag, ".", 5)
 	switch len(parts) {
 	case 3:
 		snapLiteral, snapName, appName := parts[0], parts[1], parts[2]
