@@ -29,7 +29,7 @@ import (
 )
 
 var (
-	procSelfMountInfo = osutil.ProcSelfMountInfo
+	diskFromMountPoint = diskFromMountPointImpl
 )
 
 // lsblkFilesystemInfo represents the lsblk --fs JSON output format.
@@ -78,14 +78,24 @@ func filesystemDeviceNumberInfo(majorNum string) (*lsblkFilesystemInfo, error) {
 }
 
 // Disk is a single physical disk device that contains partitions.
-type Disk struct {
+type Disk interface {
+	// FindMatchingPartitionUUID finds the partition uuid for a partition matching
+	// the specified label on the disk.
+	FindMatchingPartitionUUID(string) (string, error)
+}
+
+type disk struct {
 	dev lsblkBlockDevice
 }
 
 // DiskFromMountPoint finds a matching Disk for the specified mount point.
-func DiskFromMountPoint(mountpoint string) (*Disk, error) {
+func DiskFromMountPoint(mountpoint string) (Disk, error) {
+	return diskFromMountPoint(mountpoint)
+}
+
+func diskFromMountPointImpl(mountpoint string) (Disk, error) {
 	// first get the mount entry for the mountpoint
-	mounts, err := osutil.LoadMountInfo(procSelfMountInfo)
+	mounts, err := osutil.LoadMountInfo()
 	if err != nil {
 		return nil, err
 	}
@@ -116,14 +126,12 @@ func DiskFromMountPoint(mountpoint string) (*Disk, error) {
 		return nil, fmt.Errorf("internal error: multiple block devices for single mountpoint")
 	}
 
-	return &Disk{dev: info.BlockDevices[0]}, nil
+	return &disk{dev: info.BlockDevices[0]}, nil
 }
 
-// FindMatchingParitionUUID finds the partition uuid for a partition matching
-// the specified label on the disk.
-func (disk *Disk) FindMatchingParitionUUID(label string) (string, error) {
-	// iterate over the block device children
-	for _, dev := range disk.dev.Children {
+func (d *disk) FindMatchingPartitionUUID(label string) (string, error) {
+	// iterate over the block device children, looking for the specified label
+	for _, dev := range d.dev.Children {
 		if dev.Label == label {
 			return dev.PartitionUUID, nil
 		}
