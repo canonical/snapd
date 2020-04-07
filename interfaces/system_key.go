@@ -121,7 +121,7 @@ func generateSystemKey() (*systemKey, error) {
 	// Add if home is using NFS, if so we need to have a different
 	// security profile and if this changes we need to change our
 	// profile.
-	sk.NFSHome, err = isHomeUsingNFS(dirs.ProcSelfMountInfo)
+	sk.NFSHome, err = isHomeUsingNFS()
 	if err != nil {
 		// just log the error here
 		logger.Noticef("cannot determine nfs usage in generateSystemKey: %v", err)
@@ -130,7 +130,7 @@ func generateSystemKey() (*systemKey, error) {
 
 	// Add if '/' is on overlayfs so we can add AppArmor rules for
 	// upperdir such that if this changes, we change our profile.
-	sk.OverlayRoot, err = isRootWritableOverlay(dirs.ProcSelfMountInfo)
+	sk.OverlayRoot, err = isRootWritableOverlay()
 	if err != nil {
 		// just log the error here
 		logger.Noticef("cannot determine root filesystem on overlay in generateSystemKey: %v", err)

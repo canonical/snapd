@@ -29,10 +29,10 @@ import (
 // Internally /proc/self/mountinfo and /etc/fstab are interrogated (for current
 // and possible mounted filesystems).  If either of those describes NFS
 // filesystem mounted under or beneath /home/ then the return value is true.
-func IsHomeUsingNFS(mountinfoFile string) (bool, error) {
-	mountinfo, err := LoadMountInfo(mountinfoFile)
+func IsHomeUsingNFS() (bool, error) {
+	mountinfo, err := LoadMountInfo(ProcSelfMountInfo)
 	if err != nil {
-		return false, fmt.Errorf("cannot parse %s: %s", mountinfoFile, err)
+		return false, fmt.Errorf("cannot parse %s: %s", ProcSelfMountInfo, err)
 	}
 	for _, entry := range mountinfo {
 		if (entry.FsType == "nfs4" || entry.FsType == "nfs") && (strings.HasPrefix(entry.MountDir, "/home/") || entry.MountDir == "/home") {

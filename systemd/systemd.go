@@ -761,7 +761,7 @@ func (s *systemd) RemoveMountUnitFile(mountedDir string) error {
 	// can be unmounted.
 	// note that the long option --lazy is not supported on trusty.
 	// the explicit -d is only needed on trusty.
-	isMounted, err := osutilIsMounted(dirs.ProcSelfMountInfo, mountedDir)
+	isMounted, err := osutilIsMounted(mountedDir)
 	if err != nil {
 		return err
 	}

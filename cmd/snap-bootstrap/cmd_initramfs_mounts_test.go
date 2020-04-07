@@ -136,7 +136,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep1(c *C) {
 	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode= snapd_recovery_system="+s.sysLabel)
 
-	restore := main.MockOsutilIsMounted(func(dir, path string) (bool, error) {
+	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
 		n++
 		switch n {
 		case 1:
@@ -157,7 +157,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep2(c *C) {
 	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install snapd_recovery_system="+s.sysLabel)
 
-	restore := main.MockOsutilIsMounted(func(dir, path string) (bool, error) {
+	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
 		n++
 		switch n {
 		case 1:
@@ -194,7 +194,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep4(c *C) {
 	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install snapd_recovery_system="+s.sysLabel)
 
-	restore := main.MockOsutilIsMounted(func(dir, path string) (bool, error) {
+	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
 		n++
 		switch n {
 		case 1:
@@ -233,7 +233,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1(c *C) {
 	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
-	restore := main.MockOsutilIsMounted(func(dir, path string) (bool, error) {
+	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
 		n++
 		switch n {
 		case 1:
@@ -263,7 +263,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2(c *C) {
 	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
-	restore := main.MockOsutilIsMounted(func(dir, path string) (bool, error) {
+	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
 		n++
 		switch n {
 		case 1:
@@ -322,7 +322,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeBaseSnapUpgradeFailsHap
 	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
-	restore := main.MockOsutilIsMounted(func(dir, path string) (bool, error) {
+	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
 		n++
 		switch n {
 		case 1:
@@ -381,7 +381,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeModeenvTryBaseEmptyHapp
 	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
-	restore := main.MockOsutilIsMounted(func(dir, path string) (bool, error) {
+	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
 		n++
 		switch n {
 		case 1:
@@ -430,7 +430,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeBaseSnapUpgradeHappy(c 
 	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
-	restore := main.MockOsutilIsMounted(func(dir, path string) (bool, error) {
+	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
 		n++
 		switch n {
 		case 1:
@@ -487,7 +487,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeModeenvBaseEmptyUnhappy
 	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
-	restore := main.MockOsutilIsMounted(func(dir, path string) (bool, error) {
+	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
 		n++
 		switch n {
 		case 1:
@@ -525,7 +525,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeModeenvTryBaseNotExists
 	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
-	restore := main.MockOsutilIsMounted(func(dir, path string) (bool, error) {
+	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
 		n++
 		switch n {
 		case 1:
@@ -576,7 +576,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeKernelSnapUpgradeHappy(
 	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
-	restore := main.MockOsutilIsMounted(func(dir, path string) (bool, error) {
+	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
 		n++
 		switch n {
 		case 1:
@@ -644,7 +644,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUntrustedKernelSnap(c *
 	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
-	restore := main.MockOsutilIsMounted(func(dir, path string) (bool, error) {
+	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
 		n++
 		switch n {
 		case 1:
@@ -695,7 +695,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUntrustedTryKernelSnapF
 	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
-	restore := main.MockOsutilIsMounted(func(dir, path string) (bool, error) {
+	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
 		n++
 		switch n {
 		case 1:
@@ -757,7 +757,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeKernelStatusTryingNoTry
 	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
-	restore := main.MockOsutilIsMounted(func(dir, path string) (bool, error) {
+	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
 		n++
 		switch n {
 		case 1:

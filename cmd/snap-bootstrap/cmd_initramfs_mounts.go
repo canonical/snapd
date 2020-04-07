@@ -98,7 +98,7 @@ func recoverySystemEssentialSnaps(seedDir, recoverySystem string, essentialTypes
 // no longer generates more mount points and just returns an empty output.
 func generateMountsModeInstall(recoverySystem string) error {
 	// 1. always ensure seed partition is mounted
-	isMounted, err := osutilIsMounted(dirs.ProcSelfMountInfo, boot.InitramfsUbuntuSeedDir)
+	isMounted, err := osutilIsMounted(boot.InitramfsUbuntuSeedDir)
 	if err != nil {
 		return err
 	}
@@ -108,15 +108,15 @@ func generateMountsModeInstall(recoverySystem string) error {
 	}
 
 	// 2. (auto) select recovery system for now
-	isBaseMounted, err := osutilIsMounted(dirs.ProcSelfMountInfo, filepath.Join(boot.InitramfsRunMntDir, "base"))
+	isBaseMounted, err := osutilIsMounted(filepath.Join(boot.InitramfsRunMntDir, "base"))
 	if err != nil {
 		return err
 	}
-	isKernelMounted, err := osutilIsMounted(dirs.ProcSelfMountInfo, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
+	isKernelMounted, err := osutilIsMounted(filepath.Join(boot.InitramfsRunMntDir, "kernel"))
 	if err != nil {
 		return err
 	}
-	isSnapdMounted, err := osutilIsMounted(dirs.ProcSelfMountInfo, filepath.Join(boot.InitramfsRunMntDir, "snapd"))
+	isSnapdMounted, err := osutilIsMounted(filepath.Join(boot.InitramfsRunMntDir, "snapd"))
 	if err != nil {
 		return err
 	}
@@ -153,7 +153,7 @@ func generateMountsModeInstall(recoverySystem string) error {
 	}
 
 	// 3. mount "ubuntu-data" on a tmpfs
-	isMounted, err = osutilIsMounted(dirs.ProcSelfMountInfo, boot.InitramfsUbuntuDataDir)
+	isMounted, err = osutilIsMounted(boot.InitramfsUbuntuDataDir)
 	if err != nil {
 		return err
 	}
@@ -189,7 +189,7 @@ func generateMountsModeRecover(recoverySystem string) error {
 func generateMountsModeRun() error {
 	// 1.1 always ensure basic partitions are mounted
 	for _, d := range []string{boot.InitramfsUbuntuSeedDir, boot.InitramfsUbuntuBootDir} {
-		isMounted, err := osutilIsMounted(dirs.ProcSelfMountInfo, d)
+		isMounted, err := osutilIsMounted(d)
 		if err != nil {
 			return err
 		}
@@ -199,7 +199,7 @@ func generateMountsModeRun() error {
 	}
 
 	// 1.2 mount Data, and exit, as it needs to be mounted for us to do step 2
-	isDataMounted, err := osutilIsMounted(dirs.ProcSelfMountInfo, boot.InitramfsUbuntuDataDir)
+	isDataMounted, err := osutilIsMounted(boot.InitramfsUbuntuDataDir)
 	if err != nil {
 		return err
 	}
@@ -221,7 +221,7 @@ func generateMountsModeRun() error {
 	}
 
 	// 2.2.1 check if base is mounted
-	isBaseMounted, err := osutilIsMounted(dirs.ProcSelfMountInfo, filepath.Join(boot.InitramfsRunMntDir, "base"))
+	isBaseMounted, err := osutilIsMounted(filepath.Join(boot.InitramfsRunMntDir, "base"))
 	if err != nil {
 		return err
 	}
@@ -264,7 +264,7 @@ func generateMountsModeRun() error {
 	}
 
 	// 2.3.1 check if the kernel is mounted
-	isKernelMounted, err := osutilIsMounted(dirs.ProcSelfMountInfo, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
+	isKernelMounted, err := osutilIsMounted(filepath.Join(boot.InitramfsRunMntDir, "kernel"))
 	if err != nil {
 		return err
 	}
@@ -342,7 +342,7 @@ func generateMountsModeRun() error {
 	// TODO:UC20: Make RecoverySystem empty after successful first boot
 	// somewhere in devicestate
 	if modeEnv.RecoverySystem != "" {
-		isSnapdMounted, err := osutilIsMounted(dirs.ProcSelfMountInfo, filepath.Join(boot.InitramfsRunMntDir, "snapd"))
+		isSnapdMounted, err := osutilIsMounted(filepath.Join(boot.InitramfsRunMntDir, "snapd"))
 		if err != nil {
 			return err
 		}

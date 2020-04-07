@@ -44,7 +44,7 @@ func (c ByInterfaceName) Swap(i, j int)      { byInterfaceName(c).Swap(i, j) }
 func (c ByInterfaceName) Less(i, j int) bool { return byInterfaceName(c).Less(i, j) }
 
 // MockIsHomeUsingNFS mocks the real implementation of osutil.IsHomeUsingNFS
-func MockIsHomeUsingNFS(new func(string) (bool, error)) (restore func()) {
+func MockIsHomeUsingNFS(new func() (bool, error)) (restore func()) {
 	old := isHomeUsingNFS
 	isHomeUsingNFS = new
 	return func() {
@@ -54,7 +54,7 @@ func MockIsHomeUsingNFS(new func(string) (bool, error)) (restore func()) {
 
 // MockIsRootWritableOverlay mocks the real implementation of
 // osutil.IsRootWritableOverlay
-func MockIsRootWritableOverlay(new func(string) (string, error)) (restore func()) {
+func MockIsRootWritableOverlay(new func() (string, error)) (restore func()) {
 	old := isRootWritableOverlay
 	isRootWritableOverlay = new
 	return func() {

@@ -46,7 +46,7 @@ func MockStdout(newStdout io.Writer) (restore func()) {
 	}
 }
 
-func MockOsutilIsMounted(f func(mountinfo, path string) (bool, error)) (restore func()) {
+func MockOsutilIsMounted(f func(path string) (bool, error)) (restore func()) {
 	oldOsutilIsMounted := osutilIsMounted
 	osutilIsMounted = f
 	return func() {

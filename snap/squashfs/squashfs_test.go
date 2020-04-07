@@ -165,7 +165,7 @@ func (s *SquashfsTestSuite) TestInstallSimpleOnOverlayfs(c *C) {
 	defer r()
 
 	// pretend we are on overlayfs
-	restore := squashfs.MockIsRootWritableOverlay(func(string) (string, error) {
+	restore := squashfs.MockIsRootWritableOverlay(func() (string, error) {
 		return "/upper", nil
 	})
 	defer restore()

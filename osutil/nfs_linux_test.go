@@ -87,12 +87,12 @@ func (s *nfsSuite) TestIsHomeUsingNFS(c *C) {
 		fstab: "localhost:/srv/nfs /mnt/nfs nfs defaults 0 0",
 	}}
 	for _, tc := range cases {
-		c.Assert(osutil.MockProcSelfMountInfo(dirs.ProcSelfMountInfo, tc.mountinfo), IsNil)
+		c.Assert(osutil.MockProcSelfMountInfo(tc.mountinfo), IsNil)
 
 		restore := osutil.MockEtcFstab(tc.fstab)
 		defer restore()
 
-		nfs, err := osutil.IsHomeUsingNFS(dirs.ProcSelfMountInfo)
+		nfs, err := osutil.IsHomeUsingNFS()
 		if tc.errorPattern != "" {
 			c.Assert(err, ErrorMatches, tc.errorPattern, Commentf("test case %#v", tc))
 		} else {

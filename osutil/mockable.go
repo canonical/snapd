@@ -25,19 +25,33 @@ import (
 	"os/user"
 	"path/filepath"
 	"syscall"
+
+	"github.com/snapcore/snapd/dirs"
 )
+
+func assignProcSelfMountInfo(newRootDir string) {
+	ProcSelfMountInfo = filepath.Join(newRootDir, "/proc/self/mountinfo")
+}
+
+func init() {
+	assignProcSelfMountInfo(dirs.GlobalRootDir)
+	dirs.AddRootDirCallback(assignProcSelfMountInfo)
+}
 
 // MockProcSelfMountInfo is meant for tests, where dirs.GlobalRootDir != ""
 // and just mocks with the content
-func MockProcSelfMountInfo(path, content string) error {
-	err := os.MkdirAll(filepath.Dir(path), 0755)
+func MockProcSelfMountInfo(content string) error {
+	err := os.MkdirAll(filepath.Dir(ProcSelfMountInfo), 0755)
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(path, []byte(content), 0644)
+	return ioutil.WriteFile(ProcSelfMountInfo, []byte(content), 0644)
 }
 
 var (
+	// ProcSelfMountInfo is a path to the mountinfo table of the current process.
+	ProcSelfMountInfo string
+
 	userLookup  = user.Lookup
 	userCurrent = user.Current
 

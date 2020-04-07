@@ -25,7 +25,6 @@ import (
 	"io/ioutil"
 	"path/filepath"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -63,7 +62,7 @@ func IsEnforcing() (bool, error) {
 }
 
 func getSELinuxMount() (string, error) {
-	mountinfo, err := osutil.LoadMountInfo(dirs.ProcSelfMountInfo)
+	mountinfo, err := osutil.LoadMountInfo(osutil.ProcSelfMountInfo)
 	if err != nil {
 		return "", err
 	}

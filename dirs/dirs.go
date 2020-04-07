@@ -109,9 +109,8 @@ var (
 	SystemLocalFontsDir       string
 	SystemFontconfigCacheDirs []string
 
-	ProcSelfMountInfo string
-	FreezerCgroupDir  string
-	PidsCgroupDir     string
+	FreezerCgroupDir string
+	PidsCgroupDir    string
 
 	SnapshotsDir string
 
@@ -377,7 +376,6 @@ func SetRootDir(rootdir string) {
 
 	FreezerCgroupDir = filepath.Join(rootdir, "/sys/fs/cgroup/freezer/")
 	PidsCgroupDir = filepath.Join(rootdir, "/sys/fs/cgroup/pids/")
-	ProcSelfMountInfo = filepath.Join(rootdir, "/proc/self/mountinfo")
 	SnapshotsDir = filepath.Join(rootdir, snappyDir, "snapshots")
 
 	ErrtrackerDbDir = filepath.Join(rootdir, snappyDir, "errtracker.db")
