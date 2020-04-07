@@ -1,6 +1,10 @@
 summary: Each snap app and hook is tracked via cgroups
-# Ubuntu 14.04's special version of systemd doesn't have StartTransientUnit API.
-systems: [-ubuntu-14.04-*]
+systems:
+    # Ubuntu 14.04's special version of systemd doesn't have StartTransientUnit API.
+    - -ubuntu-14.04-*
+    # TODO:UC20: figure out why dbus doesn't work for user sessions.
+    - -ubuntu-core-20-*
+
 details: |
     This test creates a snap process that suspends itself and ensures that it
     placed into the appropriate hierarchy.
