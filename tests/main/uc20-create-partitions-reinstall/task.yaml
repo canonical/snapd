@@ -1,7 +1,7 @@
 summary: Integration tests for the snap-bootstrap binary autodetect
 
-# one system is enough, its a very specialized test for now
-systems: [ubuntu-19.10-64]
+# use the same system and tooling as uc20
+systems: [ubuntu-20.04-64]
 
 debug: |
     cat /proc/partitions
@@ -49,7 +49,7 @@ execute: |
 
     echo "And check that the partitions are created"
     sfdisk -l "$LOOP" | MATCH '750M Linux filesystem'
-    sfdisk -l "$LOOP" | MATCH '3G Linux filesystem'
+    sfdisk -l "$LOOP" | MATCH '16\.7G Linux filesystem'
     file -s "${LOOP}p3" | MATCH 'ext4 filesystem data,.* volume name "ubuntu-boot"'
     file -s "${LOOP}p4" | MATCH 'ext4 filesystem data,.* volume name "ubuntu-data"'
 
@@ -65,7 +65,7 @@ execute: |
 
     echo "And check that the partitions are there"
     sfdisk -l "$LOOP" | MATCH '750M Linux filesystem'
-    sfdisk -l "$LOOP" | MATCH '3G Linux filesystem'
+    sfdisk -l "$LOOP" | MATCH '16\.7G Linux filesystem'
     sfdisk -l "$LOOP" | not MATCH "${LOOP}p[56789]"
     file -s "${LOOP}p3" | MATCH 'ext4 filesystem data,.* volume name "ubuntu-boot"'
     file -s "${LOOP}p4" | MATCH 'ext4 filesystem data,.* volume name "ubuntu-data"'

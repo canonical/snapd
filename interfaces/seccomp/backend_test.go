@@ -765,7 +765,7 @@ apps:
 		"\n# - create_module, init_module, finit_module, delete_module (kernel modules)\n",
 		"\nopen\n",
 		"\ngetuid\n",
-		"\nsetgroups 0 0\n",
+		"\nsetgroups 0 -\n",
 		// and a few randomly picked lines from root syscalls
 		// with extra \n checks to ensure we have the right
 		// "paragraphs" in the generated output

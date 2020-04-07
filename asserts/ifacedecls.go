@@ -27,6 +27,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 // AttrMatchContext has contextual helpers for evaluating attribute constraints.
@@ -594,15 +596,14 @@ func (nc *NameConstraints) Check(whichName, name string, special map[string]stri
 var (
 	validSnapType  = regexp.MustCompile("^(?:core|kernel|gadget|app)$")
 	validDistro    = regexp.MustCompile("^[-0-9a-z._]+$")
-	validSnapID    = regexp.MustCompile("^[a-z0-9A-Z]{32}$")                                        // snap-ids look like this
 	validPublisher = regexp.MustCompile("^(?:[a-z0-9A-Z]{32}|[-a-z0-9]{2,28}|\\$[A-Z][A-Z0-9_]*)$") // account ids look like snap-ids or are nice identifiers, support our own special markers $MARKER
 
 	validIDConstraints = map[string]*regexp.Regexp{
 		"slot-snap-type":    validSnapType,
-		"slot-snap-id":      validSnapID,
+		"slot-snap-id":      naming.ValidSnapID,
 		"slot-publisher-id": validPublisher,
 		"plug-snap-type":    validSnapType,
-		"plug-snap-id":      validSnapID,
+		"plug-snap-id":      naming.ValidSnapID,
 		"plug-publisher-id": validPublisher,
 	}
 )

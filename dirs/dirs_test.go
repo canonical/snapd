@@ -166,3 +166,26 @@ func (s *DirsTestSuite) TestUnder(c *C) {
 	c.Check(dirs.SnapBlobDirUnder(rootdir), Equals, "/other-root/var/lib/snapd/snaps")
 	c.Check(dirs.SnapSeedDirUnder(rootdir), Equals, "/other-root/var/lib/snapd/seed")
 }
+
+func (s *DirsTestSuite) TestAddRootDirCallback(c *C) {
+	dirs.SetRootDir("/")
+
+	someVar := filepath.Join(dirs.GlobalRootDir, "my", "path")
+	// also test that derived vars work to be updated this way as well
+	someDerivedVar := filepath.Join(dirs.SnapDataDir, "other", "mnt")
+
+	// register a callback
+	dirs.AddRootDirCallback(func(rootdir string) {
+		someVar = filepath.Join(rootdir, "my", "path")
+		// the var derived from rootdir was also updated before the callback is
+		// run for simplicity
+		someDerivedVar = filepath.Join(dirs.SnapDataDir, "other", "mnt")
+	})
+
+	// change root dir
+	dirs.SetRootDir("/hello")
+
+	// ensure our local vars were updated
+	c.Assert(someVar, Equals, filepath.Join("/hello", "my", "path"))
+	c.Assert(someDerivedVar, Equals, filepath.Join("/hello", "var", "snap", "other", "mnt"))
+}
