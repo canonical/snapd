@@ -8,8 +8,9 @@ if [ -z "$(command -v busctl)" ]; then
     exit 1
 fi
 if [ $# -eq 0 ]; then
-	echo "usage: session-tool [-u USER] [-p PID_FILE] [ -i SESSION_ID_FILE] [--] <CMD>"
+	echo "usage: session-tool [-u USER] [-p PID_FILE] [--] <CMD>"
 	echo "usage: session-tool --prepare | --restore [-u USER]"
+	echo "usage: session-tool --kill-leaked"
 	exit 1
 fi
 user=root
@@ -28,6 +29,10 @@ while [ $# -gt 0 ]; do
 			fi
 			pid_file="$2"
 			shift 2
+			;;
+		--kill-leaked)
+			action=kill-leaked
+			shift
 			;;
 		--prepare)
 			action=prepare
@@ -56,6 +61,22 @@ while [ $# -gt 0 ]; do
 done
 
 case "$action" in
+	kill-leaked)
+		# Work around a bug in older versions of logind that leak closing session
+		# without a process inhabiting it anymore. In the case we've observed there's a
+		# session that is being closed with a missing process.
+		for session_id in $(loginctl --no-legend | awk '{ print $1 }'); do
+			# It would be easier to use "loginctl show-session --value" but we cannot rely on it.
+			if [ "$(loginctl show-session "$session_id" --property=State | cut -d = -f 2-)" = closing ]; then
+				leader=$(loginctl show-session "$session_id" --property=Leader | cut -d = -f 2-)
+				if [ ! -e "/proc/$leader" ]; then
+					loginctl kill-session "$session_id"
+				fi
+			fi
+		done
+
+		exit 0
+		;;
 	prepare)
 		# Make /var/lib/systemd writable so that we can get linger enabled.
 		# This only applies to Ubuntu Core 16 where individual directories were
