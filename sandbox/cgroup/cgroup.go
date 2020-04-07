@@ -301,6 +301,9 @@ func MockPathOfProcPidCgroup(fn func(int) string) func() {
 // cgroups are not mounted.
 func ProcessPathInTrackingCgroup(pid int) (string, error) {
 	fname := pathOfProcPidCgroup(pid)
+	// Cgroup entries we're looking for look like this:
+	// 1:name=systemd:/user.slice/user-1000.slice/user@1000.service/tmux.slice/tmux@default.service
+	// 0::/user.slice/user-1000.slice/user@1000.service/tmux.slice/tmux@default.service
 	entry, err := scanProcCgroupFile(fname, func(e *procInfoEntry) bool {
 		if e.CgroupID == 0 {
 			return true
