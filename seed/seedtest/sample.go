@@ -99,6 +99,15 @@ version: 1.0
 type: app
 base: core20
 version: 1.0`,
+	"uboot-gadget=20": `name: uboot-gadget
+type: gadget
+base: core20
+version: 1.0
+`,
+	"arm-kernel=20": `name: arm-kernel
+type: kernel
+version: 1.0
+`,
 }
 
 func MergeSampleSnapYaml(snapYaml ...map[string]string) map[string]string {

@@ -27,6 +27,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"time"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
@@ -93,6 +94,24 @@ func prevRevision(snapName string) (string, error) {
 	return prev, nil
 }
 
+func runCmd(prog string, args []string, env []string) *exec.Cmd {
+	cmd := exec.Command(prog, args...)
+	cmd.Env = os.Environ()
+	for _, envVar := range env {
+		cmd.Env = append(cmd.Env, envVar)
+	}
+
+	cmd.Stdout = Stdout
+	cmd.Stderr = Stderr
+
+	return cmd
+}
+
+var (
+	sampleForActiveInterval = 5 * time.Second
+	restartSnapdCoolOffWait = 12500 * time.Millisecond
+)
+
 // FIXME: also do error reporting via errtracker
 func (c *cmdSnapd) Execute(args []string) error {
 	var snapdPath string
@@ -123,27 +142,69 @@ func (c *cmdSnapd) Execute(args []string) error {
 
 	logger.Noticef("restoring invoking snapd from: %v", snapdPath)
 	// start previous snapd
-	cmd := exec.Command(snapdPath)
-	cmd.Env = os.Environ()
-	cmd.Env = append(cmd.Env, "SNAPD_REVERT_TO_REV="+prevRev)
-	cmd.Stdout = Stdout
-	cmd.Stderr = Stderr
+	cmd := runCmd(snapdPath, nil, []string{"SNAPD_REVERT_TO_REV=" + prevRev, "SNAPD_DEBUG=1"})
 	if err = cmd.Run(); err != nil {
 		return fmt.Errorf("snapd failed: %v", err)
 	}
 
+	isFailedCmd := runCmd("systemctl", []string{"is-failed", "snapd.socket", "snapd.service"}, nil)
+	if err := isFailedCmd.Run(); err != nil {
+		// the ephemeral snapd we invoked seems to have fixed
+		// snapd.service and snapd.socket, check whether they get
+		// reported as active for 5 * 5s
+		for i := 0; i < 5; i++ {
+			if i != 0 {
+				time.Sleep(sampleForActiveInterval)
+			}
+			isActiveCmd := runCmd("systemctl", []string{"is-active", "snapd.socket", "snapd.service"}, nil)
+			err := isActiveCmd.Run()
+			if err == nil && osutil.FileExists(dirs.SnapdSocket) && osutil.FileExists(dirs.SnapSocket) {
+				logger.Noticef("snapd is active again, sockets are available, nothing more to do")
+				return nil
+			}
+		}
+	}
+
 	logger.Noticef("restarting snapd socket")
 	// we need to reset the failure state to be able to restart again
-	if output, err := exec.Command("systemctl", "reset-failed", "snapd.socket").CombinedOutput(); err != nil {
-		return osutil.OutputErr(output, err)
+	resetCmd := runCmd("systemctl", []string{"reset-failed", "snapd.socket", "snapd.service"}, nil)
+	if err = resetCmd.Run(); err != nil {
+		// don't die if we fail to reset the failed state of snapd.socket, as
+		// the restart itself could still work
+		logger.Noticef("failed to reset-failed snapd.socket: %v", err)
 	}
 	// at this point our manually started snapd stopped and
-	// removed the /run/snap* sockets (this is a feature of
+	// should have removed the /run/snap* sockets (this is a feature of
 	// golang) - we need to restart snapd.socket to make them
 	// available again.
-	output, err = exec.Command("systemctl", "restart", "snapd.socket").CombinedOutput()
-	if err != nil {
-		return osutil.OutputErr(output, err)
+
+	// be extra robust and if the socket file still somehow exists delete it
+	// before restarting, otherwise the restart command will fail because the
+	// systemd can't create the file
+	// always remove to avoid TOCTOU issues but don't complain about ENOENT
+	for _, fn := range []string{dirs.SnapdSocket, dirs.SnapSocket} {
+		err = os.Remove(fn)
+		if err != nil && !os.IsNotExist(err) {
+			logger.Noticef("snapd socket %s still exists before restarting socket service, but unable to remove: %v", fn, err)
+		}
+	}
+
+	restartCmd := runCmd("systemctl", []string{"restart", "snapd.socket"}, nil)
+	if err := restartCmd.Run(); err != nil {
+		logger.Noticef("failed to restart snapd.socket: %v", err)
+		// fallback to try snapd itself
+		// wait more than DefaultStartLimitIntervalSec
+		//
+		// TODO: consider parsing
+		// systemctl show snapd -p StartLimitIntervalUSec
+		// might need system-analyze timespan which is relatively new
+		// for the general case
+		time.Sleep(restartSnapdCoolOffWait)
+		logger.Noticef("fallback, restarting snapd itself")
+		restartCmd := runCmd("systemctl", []string{"restart", "snapd.service"}, nil)
+		if err := restartCmd.Run(); err != nil {
+			logger.Noticef("failed to restart snapd: %v", err)
+		}
 	}
 
 	return nil

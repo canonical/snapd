@@ -50,7 +50,7 @@ import (
 	_ "github.com/snapcore/snapd/overlord/snapstate/policy"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
-	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/timings"
 )
@@ -67,6 +67,10 @@ var (
 
 	configstateInit = configstate.Init
 )
+
+var pruneTickerC = func(t *time.Ticker) <-chan time.Time {
+	return t.C
+}
 
 // Overlord is the central manager of a snappy system, keeping
 // track of all available state managers and related helpers.
@@ -312,7 +316,7 @@ func (o *Overlord) StartUp() error {
 
 	// account for deviceMgr == nil as it's not always present in
 	// the tests.
-	if o.deviceMgr != nil && !release.PreseedMode() {
+	if o.deviceMgr != nil && !snapdenv.Preseeding() {
 		var err error
 		st := o.State()
 		st.Lock()
@@ -402,23 +406,40 @@ func (o *Overlord) requestRestart(t state.RestartType) {
 	}
 }
 
+var preseedExitWithError = func(err error) {
+	fmt.Fprintf(os.Stderr, "cannot preseed: %v\n", err)
+	os.Exit(1)
+}
+
 // Loop runs a loop in a goroutine to ensure the current state regularly through StateEngine Ensure.
 func (o *Overlord) Loop() {
 	o.ensureTimerSetup()
-	preseed := release.PreseedMode()
+	preseed := snapdenv.Preseeding()
+	if preseed {
+		o.runner.OnTaskError(preseedExitWithError)
+	}
 	o.loopTomb.Go(func() error {
 		for {
 			// TODO: pass a proper context into Ensure
 			o.ensureTimerReset()
 			// in case of errors engine logs them,
 			// continue to the next Ensure() try for now
-			o.stateEng.Ensure()
+			err := o.stateEng.Ensure()
+			if err != nil && preseed {
+				st := o.State()
+				// acquire state lock to ensure nothing attempts to write state
+				// as we are exiting; there is no deferred unlock to avoid
+				// potential race on exit.
+				st.Lock()
+				preseedExitWithError(err)
+			}
 			o.ensureDidRun()
+			pruneC := pruneTickerC(o.pruneTicker)
 			select {
 			case <-o.loopTomb.Dying():
 				return nil
 			case <-o.ensureTimer.C:
-			case <-o.pruneTicker.C:
+			case <-pruneC:
 				if preseed {
 					// in preseed mode avoid setting StartOfOperationTime (it's
 					// an error), and don't Prune.

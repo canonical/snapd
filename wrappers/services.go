@@ -34,7 +34,6 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/randutil"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
@@ -201,10 +200,18 @@ func StartServices(apps []*snap.AppInfo, inter interacter, tm timings.Measurer) 
 	return nil
 }
 
+type AddSnapServicesOptions struct {
+	Preseeding bool
+}
+
 // AddSnapServices adds service units for the applications from the snap which are services.
-func AddSnapServices(s *snap.Info, disabledSvcs []string, inter interacter) (err error) {
+func AddSnapServices(s *snap.Info, disabledSvcs []string, opts *AddSnapServicesOptions, inter interacter) (err error) {
 	if s.GetType() == snap.TypeSnapd {
 		return fmt.Errorf("internal error: adding explicit services for snapd snap is unexpected")
+	}
+
+	if opts == nil {
+		opts = &AddSnapServicesOptions{}
 	}
 
 	// check if any previously disabled services are now no longer services and
@@ -217,6 +224,9 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, inter interacter) (err
 			logger.Noticef("previously disabled service %s is now an app and not a service", svc)
 		}
 	}
+
+	// TODO: remove once services get enabled on start and not when created.
+	preseeding := opts.Preseeding
 
 	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
 	var written []string
@@ -235,15 +245,12 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, inter interacter) (err
 				inter.Notify(fmt.Sprintf("while trying to remove %s due to previous failure: %v", s, e))
 			}
 		}
-		if len(written) > 0 {
+		if len(written) > 0 && !preseeding {
 			if e := sysd.DaemonReload(); e != nil {
 				inter.Notify(fmt.Sprintf("while trying to perform systemd daemon-reload due to previous failure: %v", e))
 			}
 		}
 	}()
-
-	// TODO: remove once services get enabled on start and not when created.
-	preseedMode := release.PreseedMode
 
 	for _, app := range s.Apps {
 		if !app.IsService() {
@@ -300,7 +307,7 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, inter interacter) (err
 			continue
 		}
 
-		if !preseedMode() {
+		if !preseeding {
 			if err := sysd.Enable(svcName); err != nil {
 				return err
 			}
@@ -308,7 +315,7 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, inter interacter) (err
 		enabled = append(enabled, svcName)
 	}
 
-	if len(written) > 0 && !preseedMode() {
+	if len(written) > 0 && !preseeding {
 		if err := sysd.DaemonReload(); err != nil {
 			return err
 		}
@@ -486,6 +493,7 @@ Before={{ stringsJoin .Before " "}}
 X-Snappy=yes
 
 [Service]
+EnvironmentFile=-/etc/environment
 ExecStart={{.App.LauncherCommand}}
 SyslogIdentifier={{.App.Snap.InstanceName}}.{{.App.Name}}
 Restart={{.Restart}}
@@ -927,6 +935,12 @@ func generateOnCalendarSchedules(schedule []*timeutil.Schedule) []string {
 		}
 
 		for _, day := range days {
+			if len(startTimes) == 0 {
+				// current schedule is days only
+				calendarEvents = append(calendarEvents, day)
+				continue
+			}
+
 			for _, startTime := range startTimes {
 				calendarEvents = append(calendarEvents, fmt.Sprintf("%s %s", day, startTime))
 			}

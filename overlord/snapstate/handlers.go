@@ -220,7 +220,7 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	perfTimings := timings.NewForTask(t)
+	perfTimings := state.TimingsForTask(t)
 	defer perfTimings.Save(st)
 
 	// check if we need to inject tasks to install core
@@ -552,7 +552,7 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	var rate int64
 
 	st.Lock()
-	perfTimings := timings.NewForTask(t)
+	perfTimings := state.TimingsForTask(t)
 	snapsup, theStore, user, err := downloadSnapParams(st, t)
 	if snapsup != nil && snapsup.IsAutoRefresh {
 		// NOTE rate is never negative
@@ -629,7 +629,7 @@ func hasOtherInstances(st *state.State, instanceName string) (bool, error) {
 func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
-	perfTimings := timings.NewForTask(t)
+	perfTimings := state.TimingsForTask(t)
 	snapsup, snapst, err := snapSetupAndState(t)
 	st.Unlock()
 	if err != nil {
@@ -846,7 +846,7 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	)
 
 	tr := config.NewTransaction(st)
-	experimentalRefreshAppAwareness, err := config.GetFeatureFlag(tr, features.RefreshAppAwareness)
+	experimentalRefreshAppAwareness, err := features.Flag(tr, features.RefreshAppAwareness)
 	if err != nil && !config.IsNoOption(err) {
 		return err
 	}
@@ -885,7 +885,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	perfTimings := timings.NewForTask(t)
+	perfTimings := state.TimingsForTask(t)
 	defer perfTimings.Save(st)
 
 	snapsup, snapst, err := snapSetupAndState(t)
@@ -1108,7 +1108,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	st.Lock()
 	defer st.Unlock()
 
-	perfTimings := timings.NewForTask(t)
+	perfTimings := state.TimingsForTask(t)
 	defer perfTimings.Save(st)
 
 	snapsup, snapst, err := snapSetupAndState(t)
@@ -1457,7 +1457,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	perfTimings := timings.NewForTask(t)
+	perfTimings := state.TimingsForTask(t)
 	defer perfTimings.Save(st)
 
 	snapsup, snapst, err := snapSetupAndState(t)
@@ -1622,7 +1622,11 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	if newInfo.GetType() == snap.TypeSnapd {
+	// restart only when snapd was installed for the first time and the rest of
+	// the cleanup is performed by snapd from core;
+	// when reverting a subsequent snapd revision, the restart happens in
+	// undoLinkCurrentSnap() instead
+	if linkCtx.FirstInstall && newInfo.GetType() == snap.TypeSnapd {
 		// only way to get
 		deviceCtx, err := DeviceCtx(st, t, nil)
 		if err != nil {
@@ -1719,7 +1723,7 @@ func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	perfTimings := timings.NewForTask(t)
+	perfTimings := state.TimingsForTask(t)
 	defer perfTimings.Save(st)
 
 	_, snapst, err := snapSetupAndState(t)
@@ -1753,7 +1757,7 @@ func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	perfTimings := timings.NewForTask(t)
+	perfTimings := state.TimingsForTask(t)
 	defer perfTimings.Save(st)
 
 	snapsup, snapst, err := snapSetupAndState(t)

@@ -136,12 +136,12 @@ func (ks20 *bootState20Kernel) revisions() (curSnap, trySnap snap.PlaceInfo, try
 		return nil, nil, "", fmt.Errorf("cannot identify kernel snap with bootloader %s: %v", ks20.ebl.Name(), err)
 	}
 
-	tryKernel, tryKernelExists, err := ks20.ebl.TryKernel()
-	if err != nil {
+	tryKernel, err := ks20.ebl.TryKernel()
+	if err != nil && err != bootloader.ErrNoTryKernelRef {
 		return nil, nil, "", fmt.Errorf("cannot identify try kernel snap with bootloader %s: %v", ks20.ebl.Name(), err)
 	}
 
-	if tryKernelExists {
+	if err == nil {
 		tryBootSn = tryKernel
 	}
 
@@ -219,7 +219,7 @@ func (ks20 *bootState20Kernel) commit() error {
 			ks20.kModeenv.modeenv.CurrentKernels,
 			ks20.tryKernelSnap.Filename(),
 		)
-		err := ks20.kModeenv.modeenv.Write("")
+		err := ks20.kModeenv.modeenv.Write()
 		if err != nil {
 			return err
 		}
@@ -368,7 +368,7 @@ func (bs20 *bootState20Base) commit() error {
 
 	// only write the modeenv if we actually changed it
 	if changed {
-		return bs20.modeenv.Write("")
+		return bs20.modeenv.Write()
 	}
 	return nil
 }
@@ -582,7 +582,7 @@ func (bsmark *bootState20MarkSuccessful) commit() error {
 
 	// write the modeenv
 	if modeenvChanged {
-		return bsmark.modeenv.Write("")
+		return bsmark.modeenv.Write()
 	}
 
 	return nil

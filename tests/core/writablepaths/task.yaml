@@ -1,8 +1,5 @@
 summary: Ensure that the writable paths on the image are correct
 
-# TODO:UC20: enable for uc20
-systems: [ubuntu-core-1*]
-
 execute: |
     echo "Ensure everything in writable-paths is actually writable"
     #shellcheck disable=SC2002
@@ -11,8 +8,17 @@ execute: |
         if [ -z "$line" ]; then
             continue;
         fi
+
         # a writable-path may be either a file or a directory
         dir_or_file=$(echo "$line"|cut -f1 -d' ')
+
+        # fun! systemd is playing tricks with /etc/machine-id
+        # and mounts a RO tmpfs on top of the writable one which
+        # means we cannot touch this file
+        if [ "$dir_or_file" = "/etc/machine-id" ]; then
+            continue;
+        fi
+
         if [ ! -e "$dir_or_file" ]; then
             echo "$dir_or_file" >> missing
         elif [ -f "$dir_or_file" ]; then

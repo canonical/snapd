@@ -82,7 +82,7 @@ func isParallelInstallable(snapsup *SnapSetup) error {
 
 func optedIntoSnapdSnap(st *state.State) (bool, error) {
 	tr := config.NewTransaction(st)
-	experimentalAllowSnapd, err := config.GetFeatureFlag(tr, features.SnapdSnap)
+	experimentalAllowSnapd, err := features.Flag(tr, features.SnapdSnap)
 	if err != nil && !config.IsNoOption(err) {
 		return false, err
 	}
@@ -94,7 +94,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	// here, the resulting effects/changes were not pleasant at
 	// one point
 	tr := config.NewTransaction(st)
-	experimentalRefreshAppAwareness, err := config.GetFeatureFlag(tr, features.RefreshAppAwareness)
+	experimentalRefreshAppAwareness, err := features.Flag(tr, features.RefreshAppAwareness)
 	if err != nil && !config.IsNoOption(err) {
 		return nil, err
 	}
@@ -545,7 +545,7 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 	tr := config.NewTransaction(st)
 
 	if len(info.Layout) > 0 {
-		flag, err := config.GetFeatureFlag(tr, features.Layouts)
+		flag, err := features.Flag(tr, features.Layouts)
 		if err != nil {
 			return err
 		}
@@ -555,7 +555,7 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 	}
 
 	if info.InstanceKey != "" {
-		flag, err := config.GetFeatureFlag(tr, features.ParallelInstances)
+		flag, err := features.Flag(tr, features.ParallelInstances)
 		if err != nil {
 			return err
 		}
@@ -2025,6 +2025,7 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 	}
 
 	snapsup := &SnapSetup{
+		Base:        info.Base,
 		SideInfo:    snapst.Sequence[i],
 		Flags:       flags.ForSnapSetup(),
 		Type:        info.GetType(),

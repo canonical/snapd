@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+
 package main
 
 import (
@@ -23,6 +24,8 @@ import (
 	"os"
 
 	"github.com/jessevdk/go-flags"
+
+	"github.com/snapcore/snapd/logger"
 )
 
 var (
@@ -36,6 +39,13 @@ such as initramfs.
 	commandBuilders []func(*flags.Parser)
 )
 
+func init() {
+	err := logger.SimpleSetup()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "WARNING: failed to activate logging: %s\n", err)
+	}
+}
+
 func main() {
 	err := run(os.Args[1:])
 	if err != nil {
@@ -48,7 +58,7 @@ func run(args []string) error {
 	if os.Getuid() != 0 {
 		return fmt.Errorf("please run as root")
 	}
-
+	logger.SimpleSetup()
 	return parseArgs(args)
 }
 

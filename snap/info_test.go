@@ -33,6 +33,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snap/squashfs"
@@ -523,11 +524,9 @@ apps:
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	env := info.Apps["foo"].Env()
-	sort.Strings(env)
-	c.Check(env, DeepEquals, []string{
-		"app-k=app-v",
-		"global-k=global-v",
+	c.Check(info.Apps["foo"].EnvChain(), DeepEquals, []osutil.ExpandableEnv{
+		osutil.NewExpandableEnv("global-k", "global-v"),
+		osutil.NewExpandableEnv("app-k", "app-v"),
 	})
 }
 
@@ -547,12 +546,9 @@ apps:
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	env := info.Apps["foo"].Env()
-	sort.Strings(env)
-	c.Check(env, DeepEquals, []string{
-		"app-k=app-v",
-		"global-and-local=local-v",
-		"global-k=global-v",
+	c.Check(info.Apps["foo"].EnvChain(), DeepEquals, []osutil.ExpandableEnv{
+		osutil.NewExpandableEnv("global-k", "global-v", "global-and-local", "global-v"),
+		osutil.NewExpandableEnv("app-k", "app-v", "global-and-local", "local-v"),
 	})
 }
 
@@ -570,11 +566,9 @@ hooks:
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	env := info.Hooks["foo"].Env()
-	sort.Strings(env)
-	c.Check(env, DeepEquals, []string{
-		"app-k=app-v",
-		"global-k=global-v",
+	c.Check(info.Hooks["foo"].EnvChain(), DeepEquals, []osutil.ExpandableEnv{
+		osutil.NewExpandableEnv("global-k", "global-v"),
+		osutil.NewExpandableEnv("app-k", "app-v"),
 	})
 }
 
@@ -594,12 +588,9 @@ hooks:
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	env := info.Hooks["foo"].Env()
-	sort.Strings(env)
-	c.Check(env, DeepEquals, []string{
-		"app-k=app-v",
-		"global-and-local=local-v",
-		"global-k=global-v",
+	c.Check(info.Hooks["foo"].EnvChain(), DeepEquals, []osutil.ExpandableEnv{
+		osutil.NewExpandableEnv("global-k", "global-v", "global-and-local", "global-v"),
+		osutil.NewExpandableEnv("app-k", "app-v", "global-and-local", "local-v"),
 	})
 }
 
@@ -1564,15 +1555,12 @@ func (s *infoSuite) TestIsActive(c *C) {
 }
 
 func (s *infoSuite) TestGetTypeSnapdBackwardCompatibility(c *C) {
-	restore := snap.MockSnapdSnapID("snapd-id")
-	defer restore()
-
 	const snapdYaml = `
 name: snapd
 type: app
 version: 1
 `
-	snapInfo := snaptest.MockSnap(c, sampleYaml, &snap.SideInfo{Revision: snap.R(1), SnapID: "snapd-id"})
+	snapInfo := snaptest.MockSnap(c, sampleYaml, &snap.SideInfo{Revision: snap.R(1), SnapID: "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4"})
 	c.Check(snapInfo.GetType(), Equals, snap.TypeSnapd)
 }
 

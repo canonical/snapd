@@ -155,22 +155,21 @@ if [ "$STATIC" = 1 ]; then
         ./check-pr-title.py "$TRAVIS_PULL_REQUEST"
     fi
 
-    echo Checking formatting
-    fmt=""
-    for dir in $(go list -f '{{.Dir}}' ./... | grep -v '/vendor/' ); do
-        s="$(${GOFMT:-gofmt} -s -l -d "$dir" | grep -v /vendor/ || true)"
-        if [ -n "$s" ]; then
-            fmt="$s\\n$fmt"
-        fi
-    done
-
-    if [ -n "$fmt" ]; then
-        echo "Formatting wrong in following files:"
-        echo "$fmt" | sed -e 's/\\n/\n/g'
-        if [ -z "${SKIP_GOFMT:-}" ]; then
+    if [ -z "${SKIP_GOFMT:-}" ]; then
+        echo Checking formatting
+        fmt=""
+        for dir in $(go list -f '{{.Dir}}' ./... | grep -v '/vendor/' | grep -E 'snapd/[A-Za-z0-9_]+$' ); do
+            # skip vendor packages
+            # skip subpackages of packages under snapd, gofmt already inspects them
+            s="$(${GOFMT:-gofmt} -s -l -d "$dir" || true)"
+            if [ -n "$s" ]; then
+                fmt="$s\\n$fmt"
+            fi
+        done
+        if [ -n "$fmt" ]; then
+            echo "Formatting wrong in following files:"
+            echo "$fmt" | sed -e 's/\\n/\n/g'
             exit 1
-        else
-            echo "Ignoring gofmt errors as requested"
         fi
     fi
 
@@ -292,7 +291,7 @@ if [ "$UNIT" = 1 ]; then
     echo Running tests from "$PWD"
     if [ "$short" = 1 ]; then
             # shellcheck disable=SC2046
-            GOTRACEBACK=1 $goctest -short -v -timeout 5m $(go list ./... | grep -v '/vendor/' )
+            GOTRACEBACK=1 $goctest -short -timeout 5m $(go list ./... | grep -v '/vendor/' )
     else
         # Prepare the coverage output profile.
         rm -rf .coverage
@@ -301,11 +300,11 @@ if [ "$UNIT" = 1 ]; then
 
         if dpkg --compare-versions "$(go version | awk '$3 ~ /^go[0-9]/ {print substr($3, 3)}')" ge 1.10; then
             # shellcheck disable=SC2046
-            GOTRACEBACK=1 $goctest -v -timeout 5m -coverprofile=.coverage/coverage.out -covermode="$COVERMODE" $(go list ./... | grep -v '/vendor/' )
+            GOTRACEBACK=1 $goctest -timeout 5m -coverprofile=.coverage/coverage.out -covermode="$COVERMODE" $(go list ./... | grep -v '/vendor/' )
         else
             for pkg in $(go list ./... | grep -v '/vendor/' ); do
                 GOTRACEBACK=1 go test -timeout 5m -i "$pkg"
-                GOTRACEBACK=1 $goctest -v -timeout 5m -coverprofile=.coverage/profile.out -covermode="$COVERMODE" "$pkg"
+                GOTRACEBACK=1 $goctest -timeout 5m -coverprofile=.coverage/profile.out -covermode="$COVERMODE" "$pkg"
                 append_coverage .coverage/profile.out
             done
         fi

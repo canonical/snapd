@@ -22,18 +22,31 @@ prepare: |
     setenforce 1
     ausearch --checkpoint stamp -m AVC || true
 
+    #shellcheck source=tests/lib/user.sh
+    . "$TESTSLIB/user.sh"
+
+    start_user_session
+
 restore: |
     setenforce "$(cat enforcing.mode)"
     rm -f stamp enforcing.mode
 
+    #shellcheck source=tests/lib/user.sh
+    . "$TESTSLIB/user.sh"
+
+    stop_user_session
+    purge_user_session_data
+
 execute: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
+    #shellcheck source=tests/lib/user.sh
+    . "$TESTSLIB/user.sh"
 
     install_local test-snapd-desktop
     test-snapd-desktop.cmd sh -c echo 'hello world'
-    su test -c "test-snapd-desktop.cmd sh -c 'echo hello world'"
-    su test -c "test-snapd-desktop.cmd sh -c 'mkdir \$HOME/foo && echo foo > \$HOME/foo/bar'"
+    as_user test-snapd-desktop.cmd "sh -c 'echo hello world'"
+    as_user test-snapd-desktop.cmd "sh -c 'mkdir \$HOME/foo && echo foo > \$HOME/foo/bar'"
     ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
     # another revision triggers copy of snap data
     install_local test-snapd-desktop
@@ -68,4 +81,13 @@ execute: |
     install_local test-snapd-snapctl-core18
     snap restart test-snapd-snapctl-core18
     snap remove test-snapd-snapctl-core18
+    ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
+
+    snap install snap-store
+    ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
+    # we are likely running without a display, so this will likely fail,
+    # hopefully triggering enough of earlier setup to catch any relevant denials
+    as_user snap run snap-store || true
+    # removal triggers cleanups
+    snap remove snap-store
     ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'

@@ -128,11 +128,11 @@ distro_name_package() {
         ubuntu-*|debian-*)
             debian_name_package "$@"
             ;;
-        fedora-*)
-            fedora_name_package "$@"
-            ;;
-        amazon-*|centos-*)
+        amazon-*|centos-7-*)
             amazon_name_package "$@"
+            ;;
+        fedora-*|centos-*)
+            fedora_name_package "$@"
             ;;
         opensuse-*)
             opensuse_name_package "$@"
@@ -167,18 +167,18 @@ distro_install_local_package() {
             eatmydata apt-get -f install -y
             ;;
         ubuntu-*)
-            flags="-y"
+            flags="-y --no-install-recommends"
             if [ "$allow_downgrades" = "true" ]; then
                 flags="$flags --allow-downgrades"
             fi
             # shellcheck disable=SC2086
             apt install $flags "$@"
             ;;
-        fedora-*)
-            quiet dnf -y install --setopt=install_weak_deps=False "$@"
-            ;;
-        amazon-*|centos-*)
+        amazon-*|centos-7-*)
             quiet yum -y localinstall "$@"
+            ;;
+        fedora-*|centos-*)
+            quiet dnf -y install --setopt=install_weak_deps=False "$@"
             ;;
         opensuse-*)
             quiet rpm -i --replacepkgs "$@"
@@ -269,13 +269,13 @@ distro_install_package() {
             # shellcheck disable=SC2086
             quiet eatmydata apt-get install $APT_FLAGS -y "${pkg_names[@]}"
             ;;
-        fedora-*)
-            # shellcheck disable=SC2086
-            quiet dnf -y --refresh install $DNF_FLAGS "${pkg_names[@]}"
-            ;;
-        amazon-*|centos-*)
+        amazon-*|centos-7-*)
             # shellcheck disable=SC2086
             quiet yum -y install $YUM_FLAGS "${pkg_names[@]}"
+            ;;
+        fedora-*|centos-*)
+            # shellcheck disable=SC2086
+            quiet dnf -y --refresh install $DNF_FLAGS "${pkg_names[@]}"
             ;;
         opensuse-*)
             # packages may be downgraded in the repositories, which would be
@@ -319,12 +319,12 @@ distro_purge_package() {
         ubuntu-*|debian-*)
             quiet eatmydata apt-get remove -y --purge -y "$@"
             ;;
-        fedora-*)
+        amazon-*|centos-7-*)
+            quiet yum -y remove "$@"
+            ;;
+        fedora-*|centos-*)
             quiet dnf -y remove "$@"
             quiet dnf clean all
-            ;;
-        amazon-*|centos-*)
-            quiet yum -y remove "$@"
             ;;
         opensuse-*)
             quiet zypper remove -y "$@"
@@ -344,13 +344,13 @@ distro_update_package_db() {
         ubuntu-*|debian-*)
             quiet eatmydata apt-get update
             ;;
-        fedora-*)
-            quiet dnf clean all
-            quiet dnf makecache
-            ;;
-        amazon-*|centos-*)
+        amazon-*|centos-7-*)
             quiet yum clean all
             quiet yum makecache
+            ;;
+        fedora-*|centos-*)
+            quiet dnf clean all
+            quiet dnf makecache
             ;;
         opensuse-*)
             quiet zypper --gpg-auto-import-keys refresh
@@ -370,11 +370,11 @@ distro_clean_package_cache() {
         ubuntu-*|debian-*)
             quiet eatmydata apt-get clean
             ;;
-        fedora-*)
-            dnf clean all
-            ;;
-        amazon-*|centos-*)
+        amazon-*|centos-7-*)
             yum clean all
+            ;;
+        fedora-*|centos-*)
+            dnf clean all
             ;;
         opensuse-*)
             zypper -q clean --all
@@ -394,11 +394,11 @@ distro_auto_remove_packages() {
         ubuntu-*|debian-*)
             quiet eatmydata apt-get -y autoremove
             ;;
-        fedora-*)
-            quiet dnf -y autoremove
-            ;;
-        amazon-*|centos-*)
+        amazon-*|centos-7-*)
             quiet yum -y autoremove
+            ;;
+        fedora-*|centos-*)
+            quiet dnf -y autoremove
             ;;
         opensuse-*)
             ;;
@@ -416,11 +416,11 @@ distro_query_package_info() {
         ubuntu-*|debian-*)
             apt-cache policy "$1"
             ;;
-        fedora-*)
-            dnf info "$1"
-            ;;
-        amazon-*|centos-*)
+        amazon-*|centos-7-*)
             yum info "$1"
+            ;;
+        fedora-*|centos-*)
+            dnf info "$1"
             ;;
         opensuse-*)
             zypper info "$1"
@@ -593,6 +593,7 @@ pkg_dependencies_ubuntu_classic(){
         weston
         xdg-user-dirs
         xdg-utils
+        zsh
         "
 
     case "$SPREAD_SYSTEM" in
@@ -700,8 +701,8 @@ pkg_dependencies_fedora(){
         jq
         iptables-services
         man
-        mock
         net-tools
+        nmap-ncat
         nfs-utils
         PackageKit
         python3-yaml
@@ -714,6 +715,7 @@ pkg_dependencies_fedora(){
         xdg-user-dirs
         xdg-utils
         strace
+        zsh
         "
 }
 
@@ -730,7 +732,6 @@ pkg_dependencies_amazon(){
         jq
         iptables-services
         man
-        mock
         nc
         net-tools
         nfs-utils
@@ -741,6 +742,7 @@ pkg_dependencies_amazon(){
         xdg-utils
         udisks2
         upower
+        zsh
         "
 }
 
@@ -768,6 +770,7 @@ pkg_dependencies_opensuse(){
         uuidd
         xdg-user-dirs
         xdg-utils
+        zsh
         "
 }
 
@@ -788,6 +791,7 @@ pkg_dependencies_arch(){
     libseccomp
     libcap
     libx11
+    man
     net-tools
     nfs-utils
     openbsd-netcat
@@ -806,6 +810,7 @@ pkg_dependencies_arch(){
     xdg-utils
     xfsprogs
     apparmor
+    zsh
     "
 }
 
@@ -819,11 +824,11 @@ pkg_dependencies(){
             pkg_dependencies_ubuntu_generic
             pkg_dependencies_ubuntu_classic
             ;;
-        fedora-*)
-            pkg_dependencies_fedora
-            ;;
-        amazon-*|centos-*)
+        amazon-*|centos-7-*)
             pkg_dependencies_amazon
+            ;;
+        fedora-*|centos-*)
+            pkg_dependencies_fedora
             ;;
         opensuse-*)
             pkg_dependencies_opensuse

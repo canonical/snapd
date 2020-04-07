@@ -22,7 +22,6 @@ package devicestate_test
 import (
 	"errors"
 	"fmt"
-	"net/http/httptest"
 	"os"
 	"testing"
 	"time"
@@ -55,13 +54,17 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store/storetest"
+	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
 
 func TestDeviceManager(t *testing.T) { TestingT(t) }
 
 type deviceMgrBaseSuite struct {
+	testutil.BaseTest
+
 	o       *overlord.Overlord
 	state   *state.State
 	se      *overlord.StateEngine
@@ -114,9 +117,12 @@ func (sto *fakeStore) Assertion(assertType *asserts.AssertionType, key []string,
 var (
 	brandPrivKey, _  = assertstest.GenerateKey(752)
 	brandPrivKey2, _ = assertstest.GenerateKey(752)
+	brandPrivKey3, _ = assertstest.GenerateKey(752)
 )
 
 func (s *deviceMgrBaseSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+
 	dirs.SetRootDir(c.MkDir())
 	os.MkdirAll(dirs.SnapRunDir, 0755)
 
@@ -142,7 +148,10 @@ func (s *deviceMgrBaseSuite) SetUpTest(c *C) {
 	s.restoreGenericClassicMod = sysdb.MockGenericClassicModel(s.storeSigning.GenericClassicModel)
 
 	s.brands = assertstest.NewSigningAccounts(s.storeSigning)
-	s.brands.Register("my-brand", brandPrivKey, nil)
+	s.brands.Register("my-brand", brandPrivKey, map[string]interface{}{
+		"display-name": "fancy model publisher",
+		"validation":   "certified",
+	})
 	s.brands.Register("rereg-brand", brandPrivKey2, nil)
 
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
@@ -214,51 +223,6 @@ func (s *deviceMgrBaseSuite) settle(c *C) {
 func (s *deviceMgrBaseSuite) seeding() {
 	chg := s.state.NewChange("seed", "Seed system")
 	chg.SetStatus(state.DoingStatus)
-}
-
-func (s *deviceMgrBaseSuite) signSerial(c *C, bhv *devicestatetest.DeviceServiceBehavior, headers map[string]interface{}, body []byte) (serial asserts.Assertion, ancillary []asserts.Assertion, err error) {
-	brandID := headers["brand-id"].(string)
-	model := headers["model"].(string)
-	keyID := ""
-
-	var signing assertstest.SignerDB = s.storeSigning
-
-	switch model {
-	case "pc", "pc2":
-	case "classic-alt-store":
-		c.Check(brandID, Equals, "canonical")
-	case "generic-classic":
-		c.Check(brandID, Equals, "generic")
-		headers["authority-id"] = "generic"
-		keyID = s.storeSigning.GenericKey.PublicKeyID()
-	case "rereg-model":
-		headers["authority-id"] = "rereg-brand"
-		signing = s.brands.Signing("rereg-brand")
-	default:
-		c.Fatalf("unknown model: %s", model)
-	}
-	a, err := signing.Sign(asserts.SerialType, headers, body, keyID)
-	return a, s.ancillary, err
-}
-
-func (s *deviceMgrBaseSuite) mockServer(c *C, reqID string, bhv *devicestatetest.DeviceServiceBehavior) *httptest.Server {
-	if bhv == nil {
-		bhv = &devicestatetest.DeviceServiceBehavior{}
-	}
-
-	bhv.ReqID = reqID
-	bhv.SignSerial = s.signSerial
-	bhv.ExpectedCapabilities = "serial-stream"
-
-	return devicestatetest.MockDeviceService(c, bhv)
-}
-
-func (s *deviceMgrSuite) SetUpTest(c *C) {
-	s.deviceMgrBaseSuite.SetUpTest(c)
-}
-
-func (s *deviceMgrSuite) TearDownTest(c *C) {
-	s.deviceMgrBaseSuite.TearDownTest(c)
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededAlreadySeeded(c *C) {
@@ -340,7 +304,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkSkippedOnClassic(c *C) {
 
 func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkSkippedOnNonRunModes(c *C) {
 	s.bootloader.GetErr = fmt.Errorf("should not be called")
-	devicestate.SetOperatingMode(s.mgr, "install")
+	devicestate.SetSystemMode(s.mgr, "install")
 
 	err := devicestate.EnsureBootOk(s.mgr)
 	c.Assert(err, IsNil)
@@ -366,7 +330,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededHappyWithModeenv(c *C) {
 		Mode:           "install",
 		RecoverySystem: "20191127",
 	}
-	err := m.Write("")
+	err := m.WriteTo("")
 	c.Assert(err, IsNil)
 
 	// re-create manager so that modeenv file is-read
@@ -411,7 +375,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkBootloaderHappy(c *C) {
 	s.setPCModelInState(c)
 
 	s.bootloader.SetBootVars(map[string]string{
-		"snap_mode":     "trying",
+		"snap_mode":     boot.TryingStatus,
 		"snap_try_core": "core_1.snap",
 	})
 
@@ -478,7 +442,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkNotRunAgain(c *C) {
 	s.setPCModelInState(c)
 
 	s.bootloader.SetBootVars(map[string]string{
-		"snap_mode":     "trying",
+		"snap_mode":     boot.TryingStatus,
 		"snap_try_core": "core_1.snap",
 	})
 	s.bootloader.SetErr = fmt.Errorf("ensure bootloader is not used")
@@ -1120,22 +1084,22 @@ func (s *deviceMgrSuite) TestDevicemgrCanStandby(c *C) {
 
 func (s *deviceMgrSuite) TestDeviceManagerReadsModeenv(c *C) {
 	modeEnv := &boot.Modeenv{Mode: "install"}
-	err := modeEnv.Write("")
+	err := modeEnv.WriteTo("")
 	c.Assert(err, IsNil)
 
 	runner := s.o.TaskRunner()
 	mgr, err := devicestate.Manager(s.state, s.hookMgr, runner, s.newStore)
 	c.Assert(err, IsNil)
 	c.Assert(mgr, NotNil)
-	c.Assert(mgr.OperatingMode(), Equals, "install")
+	c.Assert(mgr.SystemMode(), Equals, "install")
 }
 
-func (s *deviceMgrSuite) TestDeviceManagerEmptyOperatingModeRun(c *C) {
-	// set empty operating mode
-	devicestate.SetOperatingMode(s.mgr, "")
+func (s *deviceMgrSuite) TestDeviceManagerEmptySystemModeRun(c *C) {
+	// set empty system mode
+	devicestate.SetSystemMode(s.mgr, "")
 
 	// empty is returned as "run"
-	c.Check(s.mgr.OperatingMode(), Equals, "run")
+	c.Check(s.mgr.SystemMode(), Equals, "run")
 }
 
 type startOfOperationTimeSuite struct {
@@ -1229,7 +1193,7 @@ func (s *startOfOperationTimeSuite) TestStartOfOperationTimeNoSeedTime(c *C) {
 }
 
 func (s *startOfOperationTimeSuite) TestStartOfOperationErrorIfPreseed(c *C) {
-	restore := release.MockPreseedMode(func() bool { return true })
+	restore := snapdenv.MockPreseeding(true)
 	defer restore()
 
 	mgr := s.manager(c)

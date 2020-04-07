@@ -85,19 +85,11 @@ disable_refreshes() {
 }
 
 setup_systemd_snapd_overrides() {
-    START_LIMIT_INTERVAL="StartLimitInterval=0"
     mkdir -p /etc/systemd/system/snapd.service.d
     cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
-[Unit]
-$START_LIMIT_INTERVAL
 [Service]
 Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_REBOOT_DELAY=10m SNAPD_CONFIGURE_HOOK_TIMEOUT=30s SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE
 ExecStartPre=/bin/touch /dev/iio:device0
-EOF
-    mkdir -p /etc/systemd/system/snapd.socket.d
-    cat <<EOF > /etc/systemd/system/snapd.socket.d/local.conf
-[Unit]
-$START_LIMIT_INTERVAL
 EOF
 
     # We change the service configuration so reload and restart
@@ -349,6 +341,7 @@ repack_snapd_snap_with_deb_content() {
 
 repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks() {
     local TARGET="$1"
+    local ENABLE_SSH="${2:-true}"
 
     local UNPACK_DIR="/tmp/snapd-unpack"
     unsquashfs -no-progress -d "$UNPACK_DIR" snapd_*.snap
@@ -361,8 +354,9 @@ repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks() {
     dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$UNPACK_DIR"
     cp /usr/lib/snapd/info "$UNPACK_DIR"/usr/lib/
 
-    # now install a unit that setups enough so that we can connect
-    cat > "$UNPACK_DIR"/lib/systemd/system/snapd.spread-tests-run-mode-tweaks.service <<'EOF'
+    if [ "$ENABLE_SSH" = "true" ]; then
+        # now install a unit that sets up enough so that we can connect
+        cat > "$UNPACK_DIR"/lib/systemd/system/snapd.spread-tests-run-mode-tweaks.service <<'EOF'
 [Unit]
 Description=Tweaks to run mode for spread tests
 Before=snapd.service
@@ -376,8 +370,8 @@ RemainAfterExit=true
 [Install]
 WantedBy=multi-user.target
 EOF
-    # XXX: this duplicates a lot of setup_test_user_by_modify_writable()
-    cat > "$UNPACK_DIR"/usr/lib/snapd/snapd.spread-tests-run-mode-tweaks.sh <<'EOF'
+        # XXX: this duplicates a lot of setup_test_user_by_modify_writable()
+        cat > "$UNPACK_DIR"/usr/lib/snapd/snapd.spread-tests-run-mode-tweaks.sh <<'EOF'
 #!/bin/sh
 set -e
 # ensure we don't enable ssh in install mode or spread will get confused
@@ -427,7 +421,9 @@ systemctl reload ssh
 
 touch /root/spread-setup-done
 EOF
-    chmod 0755 "$UNPACK_DIR"/usr/lib/snapd/snapd.spread-tests-run-mode-tweaks.sh
+        chmod 0755 "$UNPACK_DIR"/usr/lib/snapd/snapd.spread-tests-run-mode-tweaks.sh
+    fi
+
     snap pack "$UNPACK_DIR" "$TARGET"
     rm -rf "$UNPACK_DIR"
 }
@@ -460,8 +456,11 @@ uc20_build_initramfs_kernel_snap() {
         # this works on 20.04 but not on 18.04
         unmkinitramfs initrd unpacked-initrd
 
-        # use distro skeleton
-        cp -ar /usr/lib/ubuntu-core-initramfs skeleton
+        # use only the initrd we got from the kernel snap to inject our changes
+        # we don't use the distro package because the distro package may be 
+        # different systemd version, etc. in the initrd from the one in the 
+        # kernel and we don't want to test that, just test our snap-bootstrap
+        cp -ar unpacked-initrd skeleton
         # all the skeleton edits go to a local copy of distro directory
         skeletondir=$PWD/skeleton
         cp -a /usr/lib/snapd/snap-bootstrap "$skeletondir/main/usr/lib/snapd/snap-bootstrap"
@@ -641,10 +640,6 @@ EOF
 setup_reflash_magic() {
     # install the stuff we need
     distro_install_package kpartx busybox-static
-    # for core20 we need debootstrap to build the initramfs in the kernel snap
-    if is_core20_system; then
-        distro_install_package debootstrap
-    fi
 
     distro_install_local_package "$GOHOME"/snapd_*.deb
     distro_clean_package_cache
@@ -652,16 +647,23 @@ setup_reflash_magic() {
     # need to be seeded to proceed with snap install
     snap wait system seed.loaded
 
+    # download the snapd snap for all uc systems except uc16
+    if ! is_core16_system; then
+        snap download "--channel=${SNAPD_CHANNEL}" snapd
+    fi
+
     # we cannot use "names.sh" here because no snaps are installed yet
     core_name="core"
     if is_core18_system; then
-        snap download "--channel=${SNAPD_CHANNEL}" snapd
         core_name="core18"
-    elif is_core20_system; then
-        snap download "--channel=${SNAPD_CHANNEL}" snapd
+    elif is_core20_system; then        
         core_name="core20"
     fi
     snap install "--channel=${CORE_CHANNEL}" "$core_name"
+    if is_core16_system || is_core18_system; then
+        UNPACK_DIR="/tmp/$core_name-snap"
+        unsquashfs -no-progress -d "$UNPACK_DIR" /var/lib/snapd/snaps/${core_name}_*.snap
+    fi
 
     # install ubuntu-image
     snap install --classic --edge ubuntu-image
@@ -685,15 +687,9 @@ setup_reflash_magic() {
         IMAGE=core18-amd64.img
     elif is_core20_system; then
         repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$IMAGE_HOME"
-        # TODO:UC20: use canonical model instead of "mvo" one
         cp "$TESTSLIB/assertions/ubuntu-core-20-amd64.model" "$IMAGE_HOME/pc.model"
         IMAGE=core20-amd64.img
     else
-        # modify the core snap so that the current root-pw works there
-        # for spread to do the first login
-        UNPACK_DIR="/tmp/core-snap"
-        unsquashfs -no-progress -d "$UNPACK_DIR" /var/lib/snapd/snaps/core_*.snap
-
         # FIXME: install would be better but we don't have dpkg on
         #        the image
         # unpack our freshly build snapd into the new snapd snap
@@ -783,9 +779,7 @@ EOF
     # /dev/loop19  0 0  1  1 /var/lib/snapd/snaps/test-snapd-netplan-apply_75.snap  0     512
     devloop=$(losetup --list --noheadings | grep "$IMAGE_HOME/$IMAGE" | awk '{print $1}')
     dev=$(basename "$devloop")
-    if is_core18_system; then
-        mount "/dev/mapper/${dev}p3" /mnt
-    elif is_core20_system; then
+    if is_core20_system; then
         # (ab)use ubuntu-seed
         mount "/dev/mapper/${dev}p2" /mnt
     else
@@ -838,12 +832,7 @@ EOF
           /home/gopath /root/test-etc /var/lib/extrausers
     fi
 
-    # now modify the image writable partition
-    if is_core18_system; then
-        UNPACK_DIR="/tmp/core18-snap"
-        unsquashfs -no-progress -d "$UNPACK_DIR" /var/lib/snapd/snaps/core18_*.snap
-    fi
-    # modifying "writable" is only possible on uc16/uc18
+    # now modify the image writable partition - only possible on uc16 / uc18
     if is_core16_system || is_core18_system; then
         # modify the writable partition of "core" so that we have the
         # test user
