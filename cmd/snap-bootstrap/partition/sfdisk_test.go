@@ -121,22 +121,22 @@ const mockLsblkScript = `echo '{
 }'`
 
 const mockLsblkScriptBiosAndRecovery = `
-[ "$3" == "/dev/node1" ] && echo '{
+[ "$4" == "/dev/node1" ] && echo '{
     "blockdevices": [ {"name": "node1", "fstype": null, "label": null, "uuid": null, "mountpoint": null} ]
 }'
-[ "$3" == "/dev/node2" ] && echo '{
+[ "$4" == "/dev/node2" ] && echo '{
     "blockdevices": [ {"name": "node2", "fstype": "vfat", "label": "ubuntu-seed", "uuid": "A644-B807", "mountpoint": null} ]
 }'
 exit 0`
 
 const mockLsblkScriptBiosRecoveryWritable = `
-[ "$3" == "/dev/node1" ] && echo '{
+[ "$4" == "/dev/node1" ] && echo '{
     "blockdevices": [ {"name": "node1", "fstype": null, "label": null, "uuid": null, "mountpoint": null} ]
 }'
-[ "$3" == "/dev/node2" ] && echo '{
+[ "$4" == "/dev/node2" ] && echo '{
     "blockdevices": [ {"name": "node2", "fstype": "vfat", "label": "ubuntu-seed", "uuid": "A644-B807", "mountpoint": null} ]
 }'
-[ "$3" == "/dev/node3" ] && echo '{
+[ "$4" == "/dev/node3" ] && echo '{
     "blockdevices": [ {"name": "node3", "fstype": "ext4", "label": "ubuntu-data", "uuid": "8781-433a", "mountpoint": null} ]
 }'
 exit 0`
@@ -186,8 +186,8 @@ func (s *partitionTestSuite) TestDeviceInfo(c *C) {
 		{"sfdisk", "--json", "-d", "/dev/node"},
 	})
 	c.Assert(cmdLsblk.Calls(), DeepEquals, [][]string{
-		{"lsblk", "--fs", "--json", "/dev/node1"},
-		{"lsblk", "--fs", "--json", "/dev/node2"},
+		{"lsblk", "--json", "-o", "MAJ:MIN,NAME,FSTYPE,LABEL,UUID,MOUNTPOINT,PARTUUID", "/dev/node1"},
+		{"lsblk", "--json", "-o", "MAJ:MIN,NAME,FSTYPE,LABEL,UUID,MOUNTPOINT,PARTUUID", "/dev/node2"},
 	})
 	c.Assert(err, IsNil)
 	c.Assert(dl.ID, Equals, "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA")
@@ -510,7 +510,7 @@ func (s *partitionTestSuite) TestFilesystemInfo(c *C) {
 
 	info, err := partition.FilesystemInfo("/dev/node")
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
-		{"lsblk", "--json", "-o", "NAME,FSTYPE,LABEL,UUID,MOUNTPOINT,PARTUUID", "/dev/node"},
+		{"lsblk", "--json", "-o", "MAJ:MIN,NAME,FSTYPE,LABEL,UUID,MOUNTPOINT,PARTUUID", "/dev/node"},
 	})
 	c.Assert(err, IsNil)
 	c.Assert(len(info.BlockDevices), Equals, 1)
