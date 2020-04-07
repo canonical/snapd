@@ -8,7 +8,7 @@ prepare: |
     truncate --size=0 defer.sh
     chmod +x defer.sh
     # Prevent anacron/cron from interfering with their background sessions, grr!
-    for unit in cron.service crond.service anacron.timer; do
+    for unit in cron.service crond.service anacron.timer anacron.service; do
         if [ "$(systemctl is-active "$unit")" = active ]; then
             systemctl stop "$unit"
             echo "systemctl start \"$unit\"" >> defer.sh
