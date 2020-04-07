@@ -43,11 +43,3 @@ func MockMountInfo(c *check.C, text string) (where string, restore func()) {
 	}
 	return procSelfMountInfo, restore
 }
-
-func MockSELinuxIsEnforcing(isEnforcing func() (bool, error)) (restore func()) {
-	old := selinuxIsEnforcing
-	selinuxIsEnforcing = isEnforcing
-	return func() {
-		selinuxIsEnforcing = old
-	}
-}

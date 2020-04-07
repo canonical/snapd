@@ -575,6 +575,8 @@ WantedBy=multi-user.target
 func (s *SystemdTestSuite) TestWriteSELinuxMountUnit(c *C) {
 	restore := selinux.MockIsEnabled(func() (bool, error) { return true, nil })
 	defer restore()
+	restore = selinux.MockIsEnforcing(func() (bool, error) { return true, nil })
+	defer restore()
 	restore = squashfs.MockNeedsFuse(false)
 	defer restore()
 
