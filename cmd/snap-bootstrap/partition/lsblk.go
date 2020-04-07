@@ -22,14 +22,18 @@ package partition
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 
 	"github.com/snapcore/snapd/osutil"
 )
 
 var (
 	diskFromMountPoint = diskFromMountPointImpl
+	mockedMountPoints  = make(map[string]*mockDisk)
+	isSnapdTest        = len(os.Args) > 0 && strings.HasSuffix(os.Args[0], ".test")
 )
 
 // lsblkFilesystemInfo represents the lsblk --fs JSON output format.
@@ -151,5 +155,60 @@ func (d *disk) Equals(other Disk) bool {
 		return d.dev.MajorMinor == d2.dev.MajorMinor
 	default:
 		return false
+	}
+}
+
+type mockDisk struct {
+	mountpoint       string
+	labelsToPartUUID map[string]string
+}
+
+func (d *mockDisk) FindMatchingPartitionUUID(label string) (string, error) {
+	return d.labelsToPartUUID[label], nil
+}
+
+func (d *mockDisk) Equals(other Disk) bool {
+	switch d2 := other.(type) {
+	case *mockDisk:
+		// compare that the map of partitions between the two Disk's matches
+		// as that's the only unique info that would be included in mocked tests
+		for k, v := range d.labelsToPartUUID {
+			if v2, ok := d2.labelsToPartUUID[k]; !ok || v2 != v {
+				return false
+			}
+		}
+		for k, v := range d2.labelsToPartUUID {
+			if v1, ok := d.labelsToPartUUID[k]; !ok || v1 != v {
+				return false
+			}
+		}
+		return true
+	default:
+		return false
+	}
+
+}
+
+// MockMountPointDisksToPartionMapping will mock DiskFromMountPoint such that
+// the specified mapping is returned/used. Specifically, keys in the provided
+// map are mountpoints, and the values for those keys are the partitions that
+// are used to identify the disk.
+func MockMountPointDisksToPartionMapping(mockedMountPoints map[string]map[string]string) (restore func()) {
+	// only to be used in tests!!!!
+	if !isSnapdTest {
+		panic("mocking functions only to be used in tests!")
+	}
+
+	diskFromMountPoint = func(mountpoint string) (Disk, error) {
+		if partitions, ok := mockedMountPoints[mountpoint]; ok {
+			return &mockDisk{
+				mountpoint:       mountpoint,
+				labelsToPartUUID: partitions,
+			}, nil
+		}
+		return nil, fmt.Errorf("mountpoint %s not mocked", mountpoint)
+	}
+	return func() {
+		diskFromMountPoint = diskFromMountPointImpl
 	}
 }
