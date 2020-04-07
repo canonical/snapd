@@ -21,10 +21,12 @@ package configcore_test
 
 import (
 	"fmt"
+	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/features"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -76,4 +78,21 @@ func (s *experimentalSuite) TestExportedFeatures(c *C) {
 	err = configcore.Run(conf)
 	c.Assert(err, IsNil)
 	c.Check(features.PerUserMountNamespace.ControlFile(), testutil.FilePresent)
+}
+
+func (s *experimentalSuite) TestFilesystemOnlyApply(c *C) {
+	conf := configcore.PlainCoreConfig(map[string]interface{}{
+		"experimental.refresh-app-awareness": "true",
+	})
+	tmpDir := c.MkDir()
+	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf), IsNil)
+	c.Check(osutil.FileExists(filepath.Join(tmpDir, "/var/lib/snapd/features/refresh-app-awareness")), Equals, true)
+}
+
+func (s *experimentalSuite) TestFilesystemOnlyApplyValidationFails(c *C) {
+	conf := configcore.PlainCoreConfig(map[string]interface{}{
+		"experimental.refresh-app-awareness": 1,
+	})
+	tmpDir := c.MkDir()
+	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf), ErrorMatches, `experimental.refresh-app-awareness can only be set to 'true' or 'false'`)
 }

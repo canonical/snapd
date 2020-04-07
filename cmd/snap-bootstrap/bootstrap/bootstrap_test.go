@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+
 package bootstrap_test
 
 import (
@@ -114,7 +115,7 @@ var mockDeviceLayout = partition.DeviceLayout{
 }
 
 func (s *bootstrapSuite) TestLayoutCompatibility(c *C) {
-	// same contents
+	// same contents (the locally created structure should be ignored)
 	gadgetLayout := layoutFromYaml(c, mockGadgetYaml)
 	err := bootstrap.EnsureLayoutCompatibility(gadgetLayout, &mockDeviceLayout)
 	c.Assert(err, IsNil)
@@ -149,6 +150,35 @@ func (s *bootstrapSuite) TestLayoutCompatibility(c *C) {
 	c.Check(gadgetLayoutWithExtras.Size > smallDeviceLayout.Size, Equals, true)
 	err = bootstrap.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &smallDeviceLayout)
 	c.Assert(err, ErrorMatches, `device /dev/node \(100 MiB\) is too small to fit the requested layout \(1\.17 GiB\)`)
+}
+
+func (s *bootstrapSuite) TestLayoutCompatibilityWithCreatedPartitions(c *C) {
+	gadgetLayoutWithExtras := layoutFromYaml(c, mockGadgetYaml+mockExtraStructure)
+	deviceLayout := mockDeviceLayout
+	// device matches gadget except for the filesystem type
+	deviceLayout.Structure = append(deviceLayout.Structure,
+		partition.DeviceStructure{
+			LaidOutStructure: gadget.LaidOutStructure{
+				VolumeStructure: &gadget.VolumeStructure{
+					Name:       "Writable",
+					Size:       1200 * gadget.SizeMiB,
+					Label:      "writable",
+					Filesystem: "something_else",
+				},
+				StartOffset: 2 * gadget.SizeMiB,
+			},
+			Node:    "/dev/node3",
+			Created: true,
+		},
+	)
+	err := bootstrap.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &deviceLayout)
+	c.Assert(err, IsNil)
+
+	// compare layouts without partitions created at install time (should fail)
+	deviceLayout.Structure[len(deviceLayout.Structure)-1].Created = false
+	err = bootstrap.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &deviceLayout)
+	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node3.* in gadget`)
+
 }
 
 func (s *bootstrapSuite) TestSchemaCompatibility(c *C) {

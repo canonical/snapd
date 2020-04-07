@@ -47,6 +47,10 @@ func (s *randutilSuite) TestRandomString(c *C) {
 }
 
 func (s *randutilSuite) TestRandomDuration(c *C) {
+	// ensure moreMixedSeed is done
+	d := randutil.RandomDuration(time.Hour)
+	c.Check(d < time.Hour, Equals, true)
+
 	// for our tests
 	rand.Seed(1)
 

@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+
 package partition_test
 
 import (
@@ -28,13 +29,24 @@ import (
 
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/partition"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func TestPartition(t *testing.T) { TestingT(t) }
 
-type partitionTestSuite struct{}
+type partitionTestSuite struct {
+	testutil.BaseTest
+
+	dir string
+}
 
 var _ = Suite(&partitionTestSuite{})
+
+func (s *partitionTestSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+
+	s.dir = c.MkDir()
+}
 
 var mockDeviceStructureBiosBoot = partition.DeviceStructure{
 	Node: "/dev/node1",
@@ -77,7 +89,8 @@ var mockDeviceStructureSystemSeed = partition.DeviceStructure{
 }
 
 var mockDeviceStructureWritable = partition.DeviceStructure{
-	Node: "/dev/node3",
+	Node:    "/dev/node3",
+	Created: true,
 	LaidOutStructure: gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Name:       "Writable",

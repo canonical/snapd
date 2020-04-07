@@ -44,24 +44,10 @@ type Modeenv struct {
 
 	// read is set to true when a modenv was read successfully
 	read bool
-}
 
-var readModeenv = readModeenvImpl
-
-// ReadModeenv attempts to read the modeenv file at
-// <rootdir>/var/iib/snapd/modeenv.
-func ReadModeenv(rootdir string) (*Modeenv, error) {
-	return readModeenv(rootdir)
-}
-
-// MockReadModeenv replaces the current implementation of ReadModeenv with a
-// mocked one. For use in tests.
-func MockReadModeenv(f func(rootdir string) (*Modeenv, error)) (restore func()) {
-	old := readModeenv
-	readModeenv = f
-	return func() {
-		readModeenv = old
-	}
+	// originRootdir is set to the root whence the modeenv was
+	// read from, and where it will be written back to
+	originRootdir string
 }
 
 func modeenvFile(rootdir string) string {
@@ -71,7 +57,9 @@ func modeenvFile(rootdir string) string {
 	return dirs.SnapModeenvFileUnder(rootdir)
 }
 
-func readModeenvImpl(rootdir string) (*Modeenv, error) {
+// ReadModeenv attempts to read the modeenv file at
+// <rootdir>/var/iib/snapd/modeenv.
+func ReadModeenv(rootdir string) (*Modeenv, error) {
 	modeenvPath := modeenvFile(rootdir)
 	cfg := goconfigparser.New()
 	cfg.AllowNoSectionHeader = true
@@ -107,16 +95,21 @@ func readModeenvImpl(rootdir string) (*Modeenv, error) {
 		BaseStatus:     baseStatus,
 		CurrentKernels: kernels,
 		read:           true,
+		originRootdir:  rootdir,
 	}, nil
 }
 
-// Unset returns true if no modeenv file was read (yet)
-func (m *Modeenv) Unset() bool {
-	return !m.read
+// Write outputs the modeenv to the file where it was read, only valid on
+// modeenv that has been read.
+func (m *Modeenv) Write() error {
+	if m.read {
+		return m.WriteTo(m.originRootdir)
+	}
+	return fmt.Errorf("internal error: must use WriteTo with modeenv not read from disk")
 }
 
-// Write outputs the modeenv to the file at <rootdir>/var/lib/snapd/modeenv.
-func (m *Modeenv) Write(rootdir string) error {
+// WriteTo outputs the modeenv to the file at <rootdir>/var/lib/snapd/modeenv.
+func (m *Modeenv) WriteTo(rootdir string) error {
 	modeenvPath := modeenvFile(rootdir)
 
 	if err := os.MkdirAll(filepath.Dir(modeenvPath), 0755); err != nil {

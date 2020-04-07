@@ -21,6 +21,7 @@ package osutil_test
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -127,9 +128,11 @@ func (s *flockSuite) TestLockUnlockNonblockingWorks(c *C) {
 
 	// Use the "flock" command to grab a lock for 9999 seconds in another process.
 	lockPath := filepath.Join(c.MkDir(), "lock")
-	cmd := exec.Command("flock", "--exclusive", lockPath, "sleep", "9999")
+	sleeperKillerPath := filepath.Join(c.MkDir(), "pid")
+	// we can't use --no-fork because we still support 14.04
+	cmd := exec.Command("flock", "--exclusive", lockPath, "-c", fmt.Sprintf(`echo "kill $$" > %s && exec sleep 30`, sleeperKillerPath))
 	c.Assert(cmd.Start(), IsNil)
-	defer cmd.Process.Kill()
+	defer func() { exec.Command("/bin/sh", sleeperKillerPath).Run() }()
 
 	// Give flock some chance to create the lock file.
 	for i := 0; i < 10; i++ {

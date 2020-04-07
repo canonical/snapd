@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -80,6 +80,8 @@ const (
 	RestartUnset RestartType = iota
 	RestartDaemon
 	RestartSystem
+	// RestartSystemNow is like RestartSystem but action is immediate
+	RestartSystemNow
 	// RestartSocket will restart the daemon so that it goes into
 	// socket activation mode.
 	RestartSocket
@@ -261,7 +263,7 @@ func (s *State) EnsureBefore(d time.Duration) {
 // The state needs to be locked to request a RestartSystem.
 func (s *State) RequestRestart(t RestartType) {
 	if s.backend != nil {
-		if t == RestartSystem {
+		if t == RestartSystem || t == RestartSystemNow {
 			if s.bootID == "" {
 				panic("internal error: cannot request a system restart if current boot ID was not provided via VerifyReboot")
 			}
@@ -509,6 +511,20 @@ func (s *State) Prune(startOfOperation time.Time, pruneWait, abortWait time.Dura
 			delete(s.tasks, tid)
 		}
 	}
+}
+
+// GetMaybeTimings implements timings.GetSaver
+func (s *State) GetMaybeTimings(timings interface{}) error {
+	err := s.Get("timings", timings)
+	if err != nil && err != ErrNoState {
+		return err
+	}
+	return nil
+}
+
+// SaveTimings implements timings.GetSaver
+func (s *State) SaveTimings(timings interface{}) {
+	s.Set("timings", timings)
 }
 
 // ReadState returns the state deserialized from r.
