@@ -1,9 +1,7 @@
 summary: Integration tests for the snap-bootstrap binary
 
-# testing on 19.10/20.04 is enough, its a very specialized test
-# TODO:UC20: remove 19.10-64 system once ubuntu-20.04-64 becomes available
-#            inside spread
-systems: [ubuntu-19.10-64, ubuntu-20.04-64]
+# use the same system and tooling as uc20
+systems: [ubuntu-20.04-64]
 
 debug: |
     cat /proc/partitions
