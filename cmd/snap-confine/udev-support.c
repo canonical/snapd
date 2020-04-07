@@ -313,10 +313,6 @@ static sc_cgroup_fds sc_udev_open_cgroup_v1(const char *security_tag)
 		die("cannot open %s/%s/%s", cgroup_path, devices_relpath,
 		    security_tag_relpath);
 	}
-	if (fchown(security_tag_fd, 0, 0) < 0) {
-		die("cannot chown %s/%s/%s to root:root", cgroup_path,
-		    devices_relpath, security_tag_relpath);
-	}
 
 	/* Open devices.allow relative to /sys/fs/cgroup/devices/snap.$SNAP_NAME.$APP_NAME */
 	const char *devices_allow_relpath = "devices.allow";
