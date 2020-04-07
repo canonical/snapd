@@ -48,7 +48,7 @@ type lsblkBlockDevice struct {
 	MajorMinor    string             `json:"maj:min"`
 }
 
-func lsblckFsInfo(opts ...string) (*lsblkFilesystemInfo, error) {
+func lsblkFsInfo(opts ...string) (*lsblkFilesystemInfo, error) {
 	args := append(
 		[]string{
 			"--json",
@@ -71,11 +71,11 @@ func lsblckFsInfo(opts ...string) (*lsblkFilesystemInfo, error) {
 }
 
 func filesystemInfo(node string) (*lsblkFilesystemInfo, error) {
-	return lsblckFsInfo(node)
+	return lsblkFsInfo(node)
 }
 
 func filesystemDeviceNumberInfo(majorNum string) (*lsblkFilesystemInfo, error) {
-	return lsblckFsInfo("--include", majorNum)
+	return lsblkFsInfo("--include", majorNum)
 }
 
 // Disk is a single physical disk device that contains partitions.
