@@ -201,8 +201,10 @@ create_nested_core_vm(){
         # create ubuntu-core image
         local EXTRA_FUNDAMENTAL=""
         local EXTRA_SNAPS=""
-        if [ -d "${PWD}/extra-snaps" ] && [ "$(find "${PWD}/extra-snaps/" -type f -name "*.snap" | wc -l)" -gt 0 ]; then
-            EXTRA_SNAPS="--snap ${PWD}/extra-snaps/*.snap"
+        if [ -d "${PWD}/extra-snaps" ]; then
+            for mysnap in $(find "${PWD}/extra-snaps/" -type f -name "*.snap"); do
+                EXTRA_SNAPS="$EXTRA_SNAPS --snap $mysnap"
+            done
         fi
 
         local NESTED_MODEL=""
