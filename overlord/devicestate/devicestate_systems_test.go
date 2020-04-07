@@ -363,6 +363,7 @@ func (s *deviceMgrSystemsSuite) TestRequestModeInstallRecoverForCurrent(c *C) {
 		})
 		c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
 		s.restartRequests = nil
+		s.bootloader.BootVars = map[string]string{}
 	}
 }
 
