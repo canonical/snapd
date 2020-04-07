@@ -39,7 +39,7 @@ var _ = Suite(&hotplugSuite{})
 
 func (s *hotplugSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
-	dirs.SetRootDir("")
+	dirs.SetRootDir("/")
 
 	restore := osutil.MockMountInfo("")
 	s.AddCleanup(restore)
