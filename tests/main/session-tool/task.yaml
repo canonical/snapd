@@ -5,6 +5,17 @@ environment:
     USER/root: root
     USER/test: test
 prepare: |
+    truncate --size=0 defer.sh
+    chmod +x defer.sh
+    # Prevent anacron/cron from interfering with their background sessions, grr!
+    for unit in cron.service crond.service anacron.timer anacron.service; do
+        if [ "$(systemctl is-active "$unit")" = active ]; then
+            systemctl stop "$unit"
+            echo "systemctl start \"$unit\"" >> defer.sh
+        fi
+    done
+    # Kill sessions that systemd has leaked earlier.
+    session-tool --kill-leaked
     # Check which sessions we have before running the test
     loginctl list-sessions > before.txt
     # Prepare for using sessions as the given user
@@ -29,6 +40,9 @@ restore: |
     # Restore after using sessions as the given user
     session-tool --restore -u "$USER"
 
+    # Kill sessions that systemd has leaked over time.
+    session-tool --kill-leaked
+
     # NOTE: This part of the test is very flaky if you restart systemd-logind
     # It *seems* that all new systems (Debian Sid, Arch, Tumbleweed and Ubuntu 20.04)
     # Forget about the root session that was there to begin with.
@@ -39,3 +53,14 @@ restore: |
     # Remove files we've created
     rm -f /tmp/{inner,outer}.pid
     rm -f {before,after}.txt
+
+    # Restart background stuff we stopped.
+    sh defer.sh && rm -f defer.sh
+debug: |
+    echo "Active sessions:"
+    for session_id in $(loginctl list-sessions --no-legend | awk '{ print($1) }'); do
+        echo "Details of session $session_id"
+        loginctl show-session "$session_id"
+    done
+    echo "Active timers"
+    systemctl list-timers
