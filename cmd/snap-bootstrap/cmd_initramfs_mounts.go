@@ -68,6 +68,10 @@ var (
 
 var (
 	osutilIsMounted = osutil.IsMounted
+
+	bootFindPartitionUUIDForBootedKernelDisk = boot.FindPartitionUUIDForBootedKernelDisk
+
+	systemdCryptSetup = "/usr/lib/systemd/systemd-cryptsetup"
 )
 
 func recoverySystemEssentialSnaps(seedDir, recoverySystem string, essentialTypes []snap.Type) ([]*seed.Snap, error) {
@@ -103,7 +107,7 @@ func recoverySystemEssentialSnaps(seedDir, recoverySystem string, essentialTypes
 func selectPartitionMatchingKernelDisk(dir, fallbacklabel string) error {
 	// TODO:UC20: should this only run on grade > dangerous? where do we
 	//            get the model at this point?
-	if partuuid, err := boot.FindPartitionUUIDForBootedKernelDisk(); err == nil {
+	if partuuid, err := bootFindPartitionUUIDForBootedKernelDisk(); err == nil {
 		fmt.Fprintf(stdout, "/dev/disk/by-partuuid/%s %s\n", partuuid, dir)
 		return nil
 	}
@@ -481,7 +485,7 @@ func maybeUnlockAndMount(name string) error {
 			return err
 		}
 
-		cmd := exec.Command("/usr/lib/systemd/systemd-cryptsetup", "attach", name, partuuid, keyfile)
+		cmd := exec.Command(systemdCryptSetup, "attach", name, partuuid, keyfile)
 		cmd.Env = os.Environ()
 		cmd.Env = append(cmd.Env, "SYSTEMD_LOG_TARGET=console")
 		if output, err := cmd.CombinedOutput(); err != nil {

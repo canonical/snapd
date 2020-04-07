@@ -20,6 +20,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"time"
 
@@ -69,5 +70,28 @@ func MockDefaultMarkerFile(p string) (restore func()) {
 	defaultMarkerFile = p
 	return func() {
 		defaultMarkerFile = old
+	}
+}
+
+func MockPartitionUUIDForBootedKernelDisk(uuid string) (restore func()) {
+	old := bootFindPartitionUUIDForBootedKernelDisk
+	bootFindPartitionUUIDForBootedKernelDisk = func() (string, error) {
+		if uuid == "" {
+			// mock error
+			return "", fmt.Errorf("mocked error")
+		}
+		return uuid, nil
+	}
+
+	return func() {
+		bootFindPartitionUUIDForBootedKernelDisk = old
+	}
+}
+
+func MockSystemdCryptSetup(path string) (restore func()) {
+	old := systemdCryptSetup
+	systemdCryptSetup = path
+	return func() {
+		systemdCryptSetup = old
 	}
 }
