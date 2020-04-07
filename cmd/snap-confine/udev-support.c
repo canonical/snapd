@@ -272,10 +272,6 @@ static sc_cgroup_fds sc_udev_open_cgroup_v1(const char *security_tag)
 	cgroup_fd = open(cgroup_path,
 			 O_PATH | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
 	if (cgroup_fd < 0) {
-		if (errno == ENOENT) {
-			/* This system does not support cgroups. */
-			return fds;
-		}
 		die("cannot open %s", cgroup_path);
 	}
 
@@ -285,10 +281,6 @@ static sc_cgroup_fds sc_udev_open_cgroup_v1(const char *security_tag)
 	devices_fd = openat(cgroup_fd, devices_relpath,
 			    O_PATH | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
 	if (devices_fd < 0) {
-		if (errno == ENOENT) {
-			/* This system does not support the device cgroup. */
-			return fds;
-		}
 		die("cannot open %s/%s", cgroup_path, devices_relpath);
 	}
 
@@ -367,6 +359,8 @@ static void sc_cleanup_cgroup_fds(sc_cgroup_fds * fds)
 void sc_setup_device_cgroup(const char *security_tag)
 {
 	if (sc_cgroup_is_v2()) {
+		/* TODO: add support for v2 mode. This is coming but needs several more
+		 * rounds of iteration. */
 		return;
 	}
 
@@ -411,7 +405,7 @@ void sc_setup_device_cgroup(const char *security_tag)
 	sc_cgroup_fds SC_CLEANUP(sc_cleanup_cgroup_fds) fds = { -1, -1, -1 };
 	fds = sc_udev_open_cgroup_v1(security_tag);
 	if (fds.cgroup_procs_fd < 0) {
-		debug("cgroup v1 unavailable, skipping device cgroup setup");
+		die("cannot prepare cgroup v1 device hierarchy");
 		return;
 	}
 	/* Setup the device group access control list */
