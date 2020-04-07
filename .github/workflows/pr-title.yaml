@@ -1,0 +1,21 @@
+name: 'Check PR Title'
+on:
+  pull_request:
+    types:
+      # Check title when opened.
+      - opened
+      # Check title when new commits are pushed.
+      # Required to use as a status check.
+      - synchronize
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: dylanvann/check-pull-request-title@v0.1.14
+        with:
+          # package: foo
+          # package, otherpackage/subpackage: this is a title
+          # tests/regression/lp-12341234: foo
+          # [RFC] foo: bar
+          pattern: '[a-zA-Z0-9_\-/,. \[\]{}]+: .*'
