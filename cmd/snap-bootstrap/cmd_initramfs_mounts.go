@@ -264,13 +264,11 @@ func generateMountsModeRun() error {
 	}
 	if !isDataMounted {
 		name := filepath.Base(boot.InitramfsUbuntuDataDir)
-		device, err := unlockIfEncrypted(name)
-		if err != nil {
-			return err
-		}
+		return maybeUnlockAndMount(name)
+	
 
-		fmt.Fprintf(stdout, "%s %s\n", device, boot.InitramfsUbuntuDataDir)
-		return nil
+		
+
 	}
 
 	// 2.1 read modeenv
@@ -437,21 +435,45 @@ func generateInitramfsMounts() error {
 	return fmt.Errorf("internal error: mode in generateInitramfsMounts not handled")
 }
 
-func unlockIfEncrypted(name string) (string, error) {
+func maybeUnlockAndMount(name string) error {
 	// TODO:UC20: will need to unseal key to unlock LUKS here
-	device := filepath.Join("/dev/disk/by-label", name)
 	keyfile := filepath.Join(boot.InitramfsUbuntuBootDir, name+".keyfile.unsealed")
 	if osutil.FileExists(keyfile) {
-		// TODO:UC20: snap-bootstrap should validate that <name>-enc is what
-		//            we expect (and not e.g. an external disk), and also that
-		//            <name> is from <name>-enc and not an unencrypted partition
-		//            with the same name (LP #1863886)
-		cmd := exec.Command("/usr/lib/systemd/systemd-cryptsetup", "attach", name, device+"-enc", keyfile)
+		// encrypted case, so we need to mount the name-enc
+		// we only unlock in run mode, and in run mode the kernel should have
+		// come from the ubuntu-boot mount point, so first use the ubuntu-boot
+		// mountpoint to find the partition uuid for ubuntu-boot
+
+		// get the disk for the mountpoint
+		disk, err := partition.DiskFromMountPoint(boot.InitramfsUbuntuBootDir)
+		if err != nil {
+			return err
+		}
+
+		// find the partition on that disk with the encrypted device label
+		// (which is just the name + -enc at the end, i.e. ubuntu-data-enc)
+		partuuid, err := disk.FindMatchingPartitionUUID(name + "-enc")
+		if err != nil {
+			return err
+		}
+
+		cmd := exec.Command("/usr/lib/systemd/systemd-cryptsetup", "attach", name, partuuid, keyfile)
 		cmd.Env = os.Environ()
 		cmd.Env = append(cmd.Env, "SYSTEMD_LOG_TARGET=console")
 		if output, err := cmd.CombinedOutput(); err != nil {
-			return "", osutil.OutputErr(output, err)
+			return osutil.OutputErr(output, err)
 		}
+
+		// now request it to be mounted
+		fmt.Fprintf(stdout, "/dev/disk/by-partuuid/%s %s\n", partuuid, boot.InitramfsUbuntuDataDir)
+		return nil
 	}
-	return device, nil
+
+	// unencrypted case, just cross-check that the partitions match and mount
+	// ubuntu-data directly
+	return mountPartitionLabelFromSameDiskAsMountPoint(
+		boot.InitramfsUbuntuBootDir, // existing mountpoint
+		name,                        // label to mount
+		boot.InitramfsUbuntuDataDir, // destination mountpoint
+	)
 }
