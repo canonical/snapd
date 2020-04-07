@@ -78,7 +78,7 @@ func Alike(a, b os.FileInfo, c *check.C, comment check.CommentInterface) {
 	c.Check(am.Equal(bm), check.Equals, true, check.Commentf("%s != %s (%s)", am, bm, comment))
 }
 
-func MockIsRootWritableOverlay(new func() (string, error)) (restore func()) {
+func MockIsRootWritableOverlay(new func(string) (string, error)) (restore func()) {
 	old := isRootWritableOverlay
 	isRootWritableOverlay = new
 	return func() {

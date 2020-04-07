@@ -655,7 +655,7 @@ func activateXdgDocumentPortal(info *snap.Info, snapApp, hook string) error {
 	// If $XDG_RUNTIME_DIR/doc appears to be a mount point, assume
 	// that the document portal is up and running.
 	expectedMountPoint := filepath.Join(xdgRuntimeDir, "doc")
-	if mounted, err := osutil.IsMounted(expectedMountPoint); err != nil {
+	if mounted, err := osutil.IsMounted(dirs.ProcSelfMountInfo, expectedMountPoint); err != nil {
 		logger.Noticef("Could not check document portal mount state: %s", err)
 	} else if mounted {
 		return nil

@@ -93,7 +93,7 @@ func (s *Snap) Install(targetPath, mountDir string) (bool, error) {
 		return didNothing, nil
 	}
 
-	overlayRoot, err := isRootWritableOverlay()
+	overlayRoot, err := isRootWritableOverlay(dirs.ProcSelfMountInfo)
 	if err != nil {
 		logger.Noticef("cannot detect root filesystem on overlay: %v", err)
 	}

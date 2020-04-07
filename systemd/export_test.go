@@ -47,7 +47,7 @@ func MockJournalStdoutPath(path string) func() {
 	}
 }
 
-func MockOsutilIsMounted(f func(path string) (bool, error)) func() {
+func MockOsutilIsMounted(f func(dir, path string) (bool, error)) func() {
 	old := osutilIsMounted
 	osutilIsMounted = f
 	return func() {

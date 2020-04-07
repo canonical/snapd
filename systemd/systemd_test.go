@@ -767,7 +767,7 @@ func makeMockMountUnit(c *C, mountDir string) string {
 func (s *SystemdTestSuite) TestRemoveMountUnit(c *C) {
 	rootDir := dirs.GlobalRootDir
 
-	c.Assert(osutil.MockProcSelfMountInfo(""), IsNil)
+	c.Assert(osutil.MockProcSelfMountInfo(dirs.ProcSelfMountInfo, ""), IsNil)
 
 	mountDir := rootDir + "/snap/foo/42"
 	mountUnit := makeMockMountUnit(c, mountDir)
@@ -931,7 +931,7 @@ func (s *SystemdTestSuite) TestPreseedModeMountError(c *C) {
 func (s *SystemdTestSuite) TestPreseedModeRemoveMountUnit(c *C) {
 	mountDir := dirs.GlobalRootDir + "/snap/foo/42"
 
-	restore := MockOsutilIsMounted(func(path string) (bool, error) {
+	restore := MockOsutilIsMounted(func(dir, path string) (bool, error) {
 		c.Check(path, Equals, mountDir)
 		return true, nil
 	})
@@ -960,7 +960,7 @@ func (s *SystemdTestSuite) TestPreseedModeRemoveMountUnit(c *C) {
 func (s *SystemdTestSuite) TestPreseedModeRemoveMountUnitUnmounted(c *C) {
 	mountDir := dirs.GlobalRootDir + "/snap/foo/42"
 
-	restore := MockOsutilIsMounted(func(path string) (bool, error) {
+	restore := MockOsutilIsMounted(func(dir, path string) (bool, error) {
 		c.Check(path, Equals, mountDir)
 		return false, nil
 	})

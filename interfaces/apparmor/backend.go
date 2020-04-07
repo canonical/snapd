@@ -111,7 +111,7 @@ func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
 	// Check if NFS is mounted at or under $HOME. Because NFS is not
 	// transparent to apparmor we must alter our profile to counter that and
 	// allow snap-confine to work.
-	if nfs, err := isHomeUsingNFS(); err != nil {
+	if nfs, err := isHomeUsingNFS(dirs.ProcSelfMountInfo); err != nil {
 		logger.Noticef("cannot determine if NFS is in use: %v", err)
 	} else if nfs {
 		policy["nfs-support"] = &osutil.MemoryFileState{
@@ -123,7 +123,7 @@ func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
 
 	// Check if '/' is on overlayfs. If so, add the necessary rules for
 	// upperdir and allow snap-confine to work.
-	if overlayRoot, err := isRootWritableOverlay(); err != nil {
+	if overlayRoot, err := isRootWritableOverlay(dirs.ProcSelfMountInfo); err != nil {
 		logger.Noticef("cannot determine if root filesystem on overlay: %v", err)
 	} else if overlayRoot != "" {
 		snippet := strings.Replace(overlayRootSnippet, "###UPPERDIR###", overlayRoot, -1)
@@ -594,7 +594,7 @@ func addUpdateNSProfile(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 		case "###SNAP_INSTANCE_NAME###":
 			return snapInfo.InstanceName()
 		case "###SNIPPETS###":
-			if overlayRoot, _ := isRootWritableOverlay(); overlayRoot != "" {
+			if overlayRoot, _ := isRootWritableOverlay(dirs.ProcSelfMountInfo); overlayRoot != "" {
 				snippets += strings.Replace(overlayRootSnippet, "###UPPERDIR###", overlayRoot, -1)
 			}
 			return snippets
@@ -690,11 +690,11 @@ func addContent(securityTag string, snapInfo *snap.Info, cmdName string, opts in
 				// transparent to apparmor we must alter the profile to counter that and
 				// allow access to SNAP_USER_* files.
 				tagSnippets = snippetForTag
-				if nfs, _ := isHomeUsingNFS(); nfs {
+				if nfs, _ := isHomeUsingNFS(dirs.ProcSelfMountInfo); nfs {
 					tagSnippets += nfsSnippet
 				}
 
-				if overlayRoot, _ := isRootWritableOverlay(); overlayRoot != "" {
+				if overlayRoot, _ := isRootWritableOverlay(dirs.ProcSelfMountInfo); overlayRoot != "" {
 					snippet := strings.Replace(overlayRootSnippet, "###UPPERDIR###", overlayRoot, -1)
 					tagSnippets += snippet
 				}
@@ -778,7 +778,7 @@ func (b *Backend) SandboxFeatures() []string {
 // MockIsHomeUsingNFS mocks the real implementation of osutil.IsHomeUsingNFS.
 // This is exported so that other packages that indirectly interact with AppArmor backend
 // can mock isHomeUsingNFS.
-func MockIsHomeUsingNFS(new func() (bool, error)) (restore func()) {
+func MockIsHomeUsingNFS(new func(string) (bool, error)) (restore func()) {
 	old := isHomeUsingNFS
 	isHomeUsingNFS = new
 	return func() {

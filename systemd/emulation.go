@@ -124,7 +124,7 @@ func (s *emulation) RemoveMountUnitFile(mountedDir string) error {
 		return nil
 	}
 
-	isMounted, err := osutilIsMounted(mountedDir)
+	isMounted, err := osutilIsMounted(dirs.ProcSelfMountInfo, mountedDir)
 	if err != nil {
 		return err
 	}

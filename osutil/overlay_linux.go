@@ -41,10 +41,10 @@ import (
 // man 5 proc
 //
 // Currently uses variables and Mock functions from nfs.go
-func IsRootWritableOverlay() (string, error) {
-	mountinfo, err := LoadMountInfo(ProcSelfMountInfo)
+func IsRootWritableOverlay(mountinfoFile string) (string, error) {
+	mountinfo, err := LoadMountInfo(mountinfoFile)
 	if err != nil {
-		return "", fmt.Errorf("cannot parse %s: %s", ProcSelfMountInfo, err)
+		return "", fmt.Errorf("cannot parse %s: %s", mountinfoFile, err)
 	}
 	for _, entry := range mountinfo {
 		if entry.FsType == "overlay" && entry.MountDir == "/" {

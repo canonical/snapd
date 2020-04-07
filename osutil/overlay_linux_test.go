@@ -102,9 +102,9 @@ func (s *overlaySuite) TestIsRootWritableOverlay(c *C) {
 		overlay:   "/upper",
 	}}
 	for _, tc := range cases {
-		c.Assert(osutil.MockProcSelfMountInfo(tc.mountinfo), IsNil)
+		c.Assert(osutil.MockProcSelfMountInfo(dirs.ProcSelfMountInfo, tc.mountinfo), IsNil)
 
-		overlay, err := osutil.IsRootWritableOverlay()
+		overlay, err := osutil.IsRootWritableOverlay(dirs.ProcSelfMountInfo)
 		if tc.errorPattern != "" {
 			c.Assert(err, ErrorMatches, tc.errorPattern, Commentf("test case %#v", tc))
 		} else {

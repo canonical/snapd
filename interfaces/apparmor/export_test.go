@@ -45,7 +45,7 @@ func MockRuntimeNumCPU(new func() int) (restore func()) {
 }
 
 // MockIsRootWritableOverlay mocks the real implementation of osutil.IsRootWritableOverlay
-func MockIsRootWritableOverlay(new func() (string, error)) (restore func()) {
+func MockIsRootWritableOverlay(new func(string) (string, error)) (restore func()) {
 	old := isRootWritableOverlay
 	isRootWritableOverlay = new
 	return func() {

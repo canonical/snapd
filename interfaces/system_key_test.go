@@ -85,7 +85,7 @@ func (s *systemKeySuite) testInterfaceWriteSystemKey(c *C, nfsHome, overlayRoot 
 	if overlayRoot {
 		overlay = "overlay"
 	}
-	restore := interfaces.MockIsHomeUsingNFS(func() (bool, error) { return nfsHome, nil })
+	restore := interfaces.MockIsHomeUsingNFS(func(string) (bool, error) { return nfsHome, nil })
 	defer restore()
 
 	restore = interfaces.MockReadBuildID(func(p string) (string, error) {
@@ -94,7 +94,7 @@ func (s *systemKeySuite) testInterfaceWriteSystemKey(c *C, nfsHome, overlayRoot 
 	})
 	defer restore()
 
-	restore = interfaces.MockIsRootWritableOverlay(func() (string, error) { return overlay, nil })
+	restore = interfaces.MockIsRootWritableOverlay(func(string) (string, error) { return overlay, nil })
 	defer restore()
 
 	restore = cgroup.MockVersion(1, nil)
@@ -160,7 +160,7 @@ func (s *systemKeySuite) TestInterfaceWriteSystemKeyWithNFSWithOverlayRoot(c *C)
 }
 
 func (s *systemKeySuite) TestInterfaceWriteSystemKeyErrorOnBuildID(c *C) {
-	restore := interfaces.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
+	restore := interfaces.MockIsHomeUsingNFS(func(string) (bool, error) { return false, nil })
 	defer restore()
 
 	restore = interfaces.MockReadBuildID(func(p string) (string, error) {

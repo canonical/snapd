@@ -44,29 +44,29 @@ func (s *mountSuite) TestIsMountedHappyish(c *C) {
 		"44 24 7:1 / /snap/ubuntu-core/855 rw,relatime shared:27 - squashfs /dev/loop1 ro\n" +
 		"44 24 7:1 / /snap/something/123 rw,relatime - squashfs /dev/loop2 ro\n" +
 		"44 24 7:1 / /snap/random/456 rw,relatime opt:1 shared:27 - squashfs /dev/loop1 ro\n"
-	c.Assert(osutil.MockProcSelfMountInfo(content), IsNil)
+	c.Assert(osutil.MockProcSelfMountInfo(dirs.ProcSelfMountInfo, content), IsNil)
 
-	mounted, err := osutil.IsMounted("/snap/ubuntu-core/855")
+	mounted, err := osutil.IsMounted(dirs.ProcSelfMountInfo, "/snap/ubuntu-core/855")
 	c.Check(err, IsNil)
 	c.Check(mounted, Equals, true)
 
-	mounted, err = osutil.IsMounted("/snap/something/123")
+	mounted, err = osutil.IsMounted(dirs.ProcSelfMountInfo, "/snap/something/123")
 	c.Check(err, IsNil)
 	c.Check(mounted, Equals, true)
 
-	mounted, err = osutil.IsMounted("/snap/random/456")
+	mounted, err = osutil.IsMounted(dirs.ProcSelfMountInfo, "/snap/random/456")
 	c.Check(err, IsNil)
 	c.Check(mounted, Equals, true)
 
-	mounted, err = osutil.IsMounted("/random/made/up/name")
+	mounted, err = osutil.IsMounted(dirs.ProcSelfMountInfo, "/random/made/up/name")
 	c.Check(err, IsNil)
 	c.Check(mounted, Equals, false)
 }
 
 func (s *mountSuite) TestIsMountedBroken(c *C) {
-	c.Assert(osutil.MockProcSelfMountInfo("44 24 7:1 ...truncated-stuff"), IsNil)
+	c.Assert(osutil.MockProcSelfMountInfo(dirs.ProcSelfMountInfo, "44 24 7:1 ...truncated-stuff"), IsNil)
 
-	mounted, err := osutil.IsMounted("/snap/ubuntu-core/855")
+	mounted, err := osutil.IsMounted(dirs.ProcSelfMountInfo, "/snap/ubuntu-core/855")
 	c.Check(err, ErrorMatches, "incorrect number of fields, .*")
 	c.Check(mounted, Equals, false)
 }
