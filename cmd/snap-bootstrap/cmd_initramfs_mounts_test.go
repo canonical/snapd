@@ -34,7 +34,9 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	main "github.com/snapcore/snapd/cmd/snap-bootstrap"
+	"github.com/snapcore/snapd/cmd/snap-bootstrap/partition"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
@@ -53,6 +55,8 @@ type initramfsMountsSuite struct {
 
 	seedDir  string
 	sysLabel string
+
+	partitionLabelToUUIDMapping map[string]string
 }
 
 var _ = Suite(&initramfsMountsSuite{})
@@ -69,8 +73,30 @@ func (s *initramfsMountsSuite) SetUpTest(c *C) {
 	restore = func() { dirs.SetRootDir("") }
 	s.AddCleanup(restore)
 
+	// boot helpers will try to read /proc/self/mountinfo
+	restore = osutil.MockMountInfo("")
+	s.AddCleanup(restore)
+
 	// pretend /run/mnt/ubuntu-seed has a valid seed
 	s.seedDir = boot.InitramfsUbuntuSeedDir
+
+	// default, commonly used partition mapping
+	s.partitionLabelToUUIDMapping = map[string]string{
+		"ubuntu-boot": "the-boot-uuid",
+		"ubuntu-seed": "the-seed-uuid",
+		"ubuntu-data": "the-data-uuid",
+	}
+
+	// mock ubuntu-boot, ubuntu-seed, and ubuntu-data as all being from the same
+	// disk by giving all the partitions the same uuids
+	restore = partition.MockMountPointDisksToPartionMapping(
+		map[string]map[string]string{
+			boot.InitramfsUbuntuBootDir: s.partitionLabelToUUIDMapping,
+			boot.InitramfsUbuntuSeedDir: s.partitionLabelToUUIDMapping,
+			boot.InitramfsUbuntuDataDir: s.partitionLabelToUUIDMapping,
+		},
+	)
+	s.AddCleanup(restore)
 
 	// now create a minimal uc20 seed dir with snaps/assertions
 	seed20 := &seedtest.TestingSeed20{SeedDir: s.seedDir}
@@ -150,6 +176,56 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep1(c *C) {
 	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 1)
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf("/dev/disk/by-label/ubuntu-seed %s/ubuntu-seed\n", boot.InitramfsRunMntDir))
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep1BootedKernelUUIDHappy(c *C) {
+	n := 0
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode= snapd_recovery_system="+s.sysLabel)
+
+	restore := main.MockPartitionUUIDForBootedKernelDisk("some-uuid")
+	defer restore()
+
+	restore = main.MockOsutilIsMounted(func(path string) (bool, error) {
+		n++
+		switch n {
+		case 1:
+			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
+			return false, nil
+		}
+		return false, fmt.Errorf("unexpected number of calls: %v", n)
+	})
+	defer restore()
+
+	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 1)
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf("/dev/disk/by-partuuid/some-uuid %s/ubuntu-seed\n", boot.InitramfsRunMntDir))
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep1BootedKernelUUIDUnhappyFallsBack(c *C) {
+	n := 0
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode= snapd_recovery_system="+s.sysLabel)
+
+	// make it explicitly fail
+	restore := main.MockPartitionUUIDForBootedKernelDisk("")
+	defer restore()
+
+	restore = main.MockOsutilIsMounted(func(path string) (bool, error) {
+		n++
+		switch n {
+		case 1:
+			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
+			return false, nil
+		}
+		return false, fmt.Errorf("unexpected number of calls: %v", n)
+	})
+	defer restore()
+
+	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 1)
+	// we should mount by label now because we couldn't get the partuuid
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf("/dev/disk/by-label/ubuntu-seed %s/ubuntu-seed\n", boot.InitramfsRunMntDir))
 }
 
@@ -233,15 +309,50 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1(c *C) {
 	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
+	// mock the disk ubuntu-boot is on as having ubuntu-seed too
+	restore := partition.MockMountPointDisksToPartionMapping(
+		map[string]map[string]string{
+			boot.InitramfsUbuntuBootDir: map[string]string{
+				"ubuntu-seed": "the-seed-uuid",
+			},
+		},
+	)
+	defer restore()
+
+	restore = main.MockOsutilIsMounted(func(path string) (bool, error) {
+		n++
+		switch n {
+		case 1:
+			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
+			return true, nil
+		case 2:
+			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
+			return false, nil
+		}
+		return false, fmt.Errorf("unexpected number of calls: %v", n)
+	})
+	defer restore()
+
+	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 2)
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`/dev/disk/by-partuuid/the-seed-uuid %[1]s/ubuntu-seed
+`, boot.InitramfsRunMntDir))
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1Data(c *C) {
+	n := 0
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
 	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
 		n++
 		switch n {
 		case 1:
-			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
-			return false, nil
-		case 2:
 			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
-			return false, nil
+			return true, nil
+		case 2:
+			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
+			return true, nil
 		case 3:
 			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
 			return false, nil
@@ -253,9 +364,77 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1(c *C) {
 	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 3)
-	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`/dev/disk/by-label/ubuntu-seed %[1]s/ubuntu-seed
-/dev/disk/by-label/ubuntu-boot %[1]s/ubuntu-boot
-/dev/disk/by-label/ubuntu-data %[1]s/ubuntu-data
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`/dev/disk/by-partuuid/the-data-uuid %[1]s/ubuntu-data
+`, boot.InitramfsRunMntDir))
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1EncryptedData(c *C) {
+	n := 0
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	// make the systemd-cryptsetup command just check that we were provided the
+	// right partition uuid
+	cryptCmd := testutil.MockCommand(c, "systemd-cryptsetup", `
+if [ "$3" != the-data-enc-uuid ]; then
+	exit 1
+fi
+`)
+	restore := main.MockSystemdCryptSetup(cryptCmd.Exe())
+	defer restore()
+
+	// TODO:UC20: replace this with the real way to use unencrypted partitions
+	//            when that's available
+
+	// create the unsealed keyfile
+	keyfile := filepath.Join(boot.InitramfsUbuntuBootDir, "ubuntu-data.keyfile.unsealed")
+	err := os.MkdirAll(filepath.Dir(keyfile), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(keyfile, []byte(nil), 0644)
+	c.Assert(err, IsNil)
+
+	// mock ubuntu-boot, ubuntu-seed, ubuntu-data and ubuntu-data-enc as all
+	// being from the same disk by giving all the partitions the same uuids
+	// this is a bit hacky because we have both ubuntu-data-enc and ubuntu-data
+	// showing up for all of the requested disks, but this is needed because the
+	// mockDisk Equals() impl compares the partition mappings, so if we only
+	// had ubuntu-data in one and ubuntu-data-enc and ubuntu-data in another,
+	// they would like different disks
+	encryptedDiskMapping := map[string]string{
+		"ubuntu-boot":     "the-boot-uuid",
+		"ubuntu-seed":     "the-seed-uuid",
+		"ubuntu-data-enc": "the-data-enc-uuid",
+		"ubuntu-data":     "the-data-uuid",
+	}
+	restore = partition.MockMountPointDisksToPartionMapping(
+		map[string]map[string]string{
+			boot.InitramfsUbuntuBootDir:          encryptedDiskMapping,
+			boot.InitramfsUbuntuSeedDir:          encryptedDiskMapping,
+			boot.InitramfsUbuntuDataDir + "-enc": encryptedDiskMapping,
+		},
+	)
+	s.AddCleanup(restore)
+
+	restore = main.MockOsutilIsMounted(func(path string) (bool, error) {
+		n++
+		switch n {
+		case 1:
+			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
+			return true, nil
+		case 2:
+			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
+			return true, nil
+		case 3:
+			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
+			return false, nil
+		}
+		return false, fmt.Errorf("unexpected number of calls: %v", n)
+	})
+	defer restore()
+
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 3)
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`/dev/disk/by-partuuid/the-data-enc-uuid %[1]s/ubuntu-data
 `, boot.InitramfsRunMntDir))
 }
 
@@ -267,10 +446,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2(c *C) {
 		n++
 		switch n {
 		case 1:
-			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
+			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
 			return true, nil
 		case 2:
-			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
+			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
 			return true, nil
 		case 3:
 			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
@@ -318,6 +497,82 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2(c *C) {
 `, boot.InitramfsRunMntDir))
 }
 
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2DataDiffDiskBoot(c *C) {
+	n := 0
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	// mock ubuntu-data as not matching ubuntu-boot
+	restore := partition.MockMountPointDisksToPartionMapping(
+		map[string]map[string]string{
+			boot.InitramfsUbuntuBootDir: s.partitionLabelToUUIDMapping,
+			boot.InitramfsUbuntuSeedDir: s.partitionLabelToUUIDMapping,
+			// different disk
+			boot.InitramfsUbuntuDataDir: map[string]string{
+				"ubuntu-boot": "different-uuid-thing",
+				"ubuntu-seed": "different-uuid",
+			},
+		},
+	)
+	defer restore()
+
+	restore = main.MockOsutilIsMounted(func(path string) (bool, error) {
+		n++
+		switch n {
+		case 1:
+			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
+			return true, nil
+		case 2:
+			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
+			return true, nil
+		case 3:
+			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
+			return true, nil
+		}
+		return false, fmt.Errorf("unexpected number of calls: %v", n)
+	})
+	defer restore()
+
+	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, ErrorMatches, "ubuntu-data partition and ubuntu-boot partition are not from the same disk")
+	c.Assert(n, Equals, 3)
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2SeedDiffDiskBoot(c *C) {
+	n := 0
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	// mock ubuntu-seed as not matching ubuntu-boot
+	restore := partition.MockMountPointDisksToPartionMapping(
+		map[string]map[string]string{
+			boot.InitramfsUbuntuBootDir: s.partitionLabelToUUIDMapping,
+			// different disk
+			boot.InitramfsUbuntuSeedDir: map[string]string{
+				"ubuntu-boot": "different-uuid-thing",
+				"ubuntu-seed": "different-uuid",
+			},
+		},
+	)
+	defer restore()
+
+	restore = main.MockOsutilIsMounted(func(path string) (bool, error) {
+		n++
+		switch n {
+		case 1:
+			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
+			return true, nil
+		case 2:
+			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
+			return true, nil
+		}
+		return false, fmt.Errorf("unexpected number of calls: %v", n)
+	})
+	defer restore()
+
+	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, ErrorMatches, "ubuntu-seed partition and ubuntu-boot partition are not from the same disk")
+	c.Assert(n, Equals, 2)
+}
+
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeBaseSnapUpgradeFailsHappy(c *C) {
 	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
@@ -326,10 +581,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeBaseSnapUpgradeFailsHap
 		n++
 		switch n {
 		case 1:
-			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
+			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
 			return true, nil
 		case 2:
-			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
+			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
 			return true, nil
 		case 3:
 			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
@@ -385,10 +640,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeModeenvTryBaseEmptyHapp
 		n++
 		switch n {
 		case 1:
-			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
+			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
 			return true, nil
 		case 2:
-			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
+			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
 			return true, nil
 		case 3:
 			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
@@ -430,14 +685,25 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeBaseSnapUpgradeHappy(c 
 	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
-	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
+	// mock ubuntu-boot, ubuntu-seed, and ubuntu-data as all being from the same
+	// disk by giving all the partitions the same uuids
+	restore := partition.MockMountPointDisksToPartionMapping(
+		map[string]map[string]string{
+			boot.InitramfsUbuntuBootDir: s.partitionLabelToUUIDMapping,
+			boot.InitramfsUbuntuSeedDir: s.partitionLabelToUUIDMapping,
+			boot.InitramfsUbuntuDataDir: s.partitionLabelToUUIDMapping,
+		},
+	)
+	defer restore()
+
+	restore = main.MockOsutilIsMounted(func(path string) (bool, error) {
 		n++
 		switch n {
 		case 1:
-			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
+			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
 			return true, nil
 		case 2:
-			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
+			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
 			return true, nil
 		case 3:
 			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
@@ -491,10 +757,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeModeenvBaseEmptyUnhappy
 		n++
 		switch n {
 		case 1:
-			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
+			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
 			return true, nil
 		case 2:
-			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
+			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
 			return true, nil
 		case 3:
 			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
@@ -529,10 +795,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeModeenvTryBaseNotExists
 		n++
 		switch n {
 		case 1:
-			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
+			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
 			return true, nil
 		case 2:
-			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
+			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
 			return true, nil
 		case 3:
 			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
@@ -580,10 +846,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeKernelSnapUpgradeHappy(
 		n++
 		switch n {
 		case 1:
-			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
+			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
 			return true, nil
 		case 2:
-			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
+			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
 			return true, nil
 		case 3:
 			c.Check(path, Equals, filepath.Join(boot.InitramfsUbuntuDataDir))
@@ -648,10 +914,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUntrustedKernelSnap(c *
 		n++
 		switch n {
 		case 1:
-			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
+			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
 			return true, nil
 		case 2:
-			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
+			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
 			return true, nil
 		case 3:
 			c.Check(path, Equals, filepath.Join(boot.InitramfsUbuntuDataDir))
@@ -699,10 +965,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUntrustedTryKernelSnapF
 		n++
 		switch n {
 		case 1:
-			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
+			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
 			return true, nil
 		case 2:
-			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
+			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
 			return true, nil
 		case 3:
 			c.Check(path, Equals, filepath.Join(boot.InitramfsUbuntuDataDir))
@@ -761,10 +1027,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeKernelStatusTryingNoTry
 		n++
 		switch n {
 		case 1:
-			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
+			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
 			return true, nil
 		case 2:
-			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
+			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
 			return true, nil
 		case 3:
 			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
