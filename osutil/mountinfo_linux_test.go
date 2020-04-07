@@ -20,8 +20,6 @@
 package osutil_test
 
 import (
-	"io/ioutil"
-	"path/filepath"
 	"strings"
 
 	. "gopkg.in/check.v1"
@@ -158,21 +156,4 @@ func (s *mountinfoSuite) TestReadMountInfo2(c *C) {
 	entries, err := osutil.ReadMountInfo(strings.NewReader(mountInfoSample))
 	c.Assert(err, IsNil)
 	c.Assert(entries, HasLen, 3)
-}
-
-// Test that loading mountinfo from a file works as expected.
-func (s *mountinfoSuite) TestLoadMountInfo1(c *C) {
-	fname := filepath.Join(c.MkDir(), "mountinfo")
-	err := ioutil.WriteFile(fname, []byte(mountInfoSample), 0644)
-	c.Assert(err, IsNil)
-	entries, err := osutil.LoadMountInfo(fname)
-	c.Assert(err, IsNil)
-	c.Assert(entries, HasLen, 3)
-}
-
-// Test that loading mountinfo from a missing file reports an error.
-func (s *mountinfoSuite) TestLoadMountInfo2(c *C) {
-	fname := filepath.Join(c.MkDir(), "mountinfo")
-	_, err := osutil.LoadMountInfo(fname)
-	c.Assert(err, ErrorMatches, "*. no such file or directory")
 }

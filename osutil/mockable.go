@@ -25,12 +25,24 @@ import (
 	"syscall"
 )
 
-const (
-	// ProcSelfMountInfo is a path to the mountinfo table of the current process.
-	ProcSelfMountInfo = "/proc/self/mountinfo"
-)
+// MockMountInfo is meant for tests to mock the content of /proc/self/mountinfo.
+func MockMountInfo(content string) (restore func()) {
+	old := mockedMountInfoContent
+	// the boolean is necessary because many tests will want to mock mountinfo
+	// as "", so we couldn't do the trivial thing and let "" mean turn off
+	// mocking
+	mockedMountInfo = true
+	mockedMountInfoContent = content
+	return func() {
+		mockedMountInfo = false
+		mockedMountInfoContent = old
+	}
+}
 
 var (
+	mockedMountInfo        bool
+	mockedMountInfoContent string
+
 	userLookup  = user.Lookup
 	userCurrent = user.Current
 
@@ -39,7 +51,6 @@ var (
 	syscallKill    = syscall.Kill
 	syscallGetpgid = syscall.Getpgid
 
-	procSelfMountInfo = ProcSelfMountInfo
-	etcFstab          = "/etc/fstab"
-	sudoersDotD       = "/etc/sudoers.d"
+	etcFstab    = "/etc/fstab"
+	sudoersDotD = "/etc/sudoers.d"
 )
