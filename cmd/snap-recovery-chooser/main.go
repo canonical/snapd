@@ -42,6 +42,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/syslog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -72,8 +73,6 @@ func consoleConfWrapperUITool() (*exec.Cmd, error) {
 		}
 		return nil, fmt.Errorf("cannot stat UI tool binary: %v", err)
 	}
-	// TODO:UC20 update once upstream console-conf has the right command
-	// line switches
 	return exec.Command(tool, "--recovery-chooser-mode"), nil
 }
 
@@ -129,21 +128,18 @@ func runUI(cmd *exec.Cmd, sys *ChooserSystems) (rsp *Response, err error) {
 }
 
 func cleanupTriggerMarker() error {
-	err := os.Remove(defaultMarkerFile)
-	if os.IsNotExist(err) {
-		return nil
+	if err := os.Remove(defaultMarkerFile); err != nil && !os.IsNotExist(err) {
+		return err
 	}
-	return err
+	return nil
 }
 
-func chooser(cli *client.Client) error {
-	snappyTesting := os.Getenv("SNAPPY_TESTING_USE_STDOUT") != ""
-
-	if _, err := os.Stat(defaultMarkerFile); err != nil && !snappyTesting {
+func chooser(cli *client.Client) (reboot bool, err error) {
+	if _, err := os.Stat(defaultMarkerFile); err != nil {
 		if os.IsNotExist(err) {
-			return fmt.Errorf("cannot run chooser without the marker file")
+			return false, fmt.Errorf("cannot run chooser without the marker file")
 		} else {
-			return fmt.Errorf("cannot check the marker file: %v", err)
+			return false, fmt.Errorf("cannot check the marker file: %v", err)
 		}
 	}
 	// consume the trigger file
@@ -151,48 +147,75 @@ func chooser(cli *client.Client) error {
 
 	systems, err := cli.ListSystems()
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	systemsForUI := &ChooserSystems{
 		Systems: systems,
 	}
 
-	// for local testing
-	if snappyTesting {
-		if err := outputForUI(Stdout, systemsForUI); err != nil {
-			return fmt.Errorf("cannot serialize UI to stdout: %v", err)
-		}
-		return nil
-	}
-
 	uiTool, err := chooserTool()
 	if err != nil {
-		return fmt.Errorf("cannot locate the chooser UI tool: %v", err)
+		return false, fmt.Errorf("cannot locate the chooser UI tool: %v", err)
 	}
 
 	response, err := runUI(uiTool, systemsForUI)
 	if err != nil {
-		return fmt.Errorf("UI process failed: %v", err)
+		return false, fmt.Errorf("UI process failed: %v", err)
 	}
 
 	logger.Noticef("got response: %+v", response)
 
 	if err := cli.DoSystemAction(response.Label, &response.Action); err != nil {
-		return fmt.Errorf("cannot request system action: %v", err)
+		return false, fmt.Errorf("cannot request system action: %v", err)
+	}
+	if maintErr, ok := cli.Maintenance().(*client.Error); ok && maintErr.Kind == client.ErrorKindSystemRestart {
+		reboot = true
+	}
+	return reboot, nil
+}
+
+var syslogNew = func(p syslog.Priority, tag string) (io.Writer, error) { return syslog.New(p, tag) }
+
+func loggerWithSyslogMaybe() error {
+	maybeSyslog := func() error {
+		if os.Getenv("TERM") == "" {
+			// set up the syslog logger only when we're running on a
+			// terminal
+			return fmt.Errorf("not on terminal, syslog not needed")
+		}
+		syslogWriter, err := syslogNew(syslog.LOG_INFO|syslog.LOG_DAEMON, "snap-recovery-chooser")
+		if err != nil {
+			return err
+		}
+		l, err := logger.New(syslogWriter, logger.DefaultFlags)
+		if err != nil {
+			return err
+		}
+		logger.SetLogger(l)
+		return nil
+	}
+
+	if err := maybeSyslog(); err != nil {
+		// try simple setup
+		return logger.SimpleSetup()
 	}
 	return nil
 }
 
 func main() {
-	if err := logger.SimpleSetup(); err != nil {
+	if err := loggerWithSyslogMaybe(); err != nil {
 		fmt.Fprintf(Stderr, "cannot initialize logger: %v\n", err)
 		os.Exit(1)
 	}
 
-	if err := chooser(client.New(nil)); err != nil {
+	reboot, err := chooser(client.New(nil))
+	if err != nil {
 		logger.Noticef("cannot run recovery chooser: %v", err)
 		fmt.Fprintf(Stderr, "%v\n", err)
 		os.Exit(1)
+	}
+	if reboot {
+		fmt.Fprintf(Stderr, "The system is rebooting...\n")
 	}
 }
