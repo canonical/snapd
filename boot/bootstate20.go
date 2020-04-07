@@ -429,6 +429,7 @@ type bootState20MarkSuccessful struct {
 // boot snap should be marked as successful and use as a valid rollback target.
 // If the first return value is non-nil, the second return value will be the
 // snap that was booted and should be marked as successful.
+// It also loads boot environment state into b.
 func selectSuccessfulBootSnap(b bootState, update bootStateUpdate) (
 	bsmark *bootState20MarkSuccessful,
 	bootedSnap snap.PlaceInfo,
