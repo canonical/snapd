@@ -173,7 +173,7 @@ func copyUbuntuDataAuth(src, dst string) error {
 		}
 	}
 
-	// ensure the user state is transfered as well
+	// ensure the user state is transferred as well
 	if err := state.CopyState(filepath.Join(src, "system-data/var/lib/snapd/state.json"), filepath.Join(dst, "system-data/var/lib/snapd/state.json"), []string{"auth.users"}); err != nil && err != state.ErrNoState {
 		return fmt.Errorf("cannot copy user state: %v", err)
 	}
