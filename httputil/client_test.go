@@ -252,7 +252,9 @@ func (s *tlsSuite) TestClientMaxTLS11Error(c *check.C) {
 
 	_, err = cli.Get(srv.URL)
 	// The protocol check is done prior to the certificate check
-	c.Assert(err, check.ErrorMatches, ".* tls: server selected unsupported protocol version 302")
+	// - golang 1.6: tls: protocol version not supported
+	// - golang later: tls: server selected unsupported protocol version 302
+	c.Assert(err, check.ErrorMatches, ".* tls: (server selected unsupported protocol version 302|protocol version not supported)")
 }
 
 func (s *tlsSuite) TestClientMaxTLS12Ok(c *check.C) {
