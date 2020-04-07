@@ -764,12 +764,16 @@ type System struct {
 	Actions []SystemAction
 }
 
+var defaultSystemActions = []SystemAction{
+	{Title: "Install", Mode: "install"},
+}
 var currentSystemActions = []SystemAction{
-	{Title: "recover", Mode: "recover"},
-	{Title: "run normally", Mode: "run"},
+	{Title: "Reinstall", Mode: "install"},
+	{Title: "Recover", Mode: "recover"},
+	{Title: "Run normally", Mode: "run"},
 }
 
-func systemFromSeed(label string) (*System, error) {
+func systemFromSeed(label string, current *seededSystem) (*System, error) {
 	s, err := seed.Open(dirs.SnapSeedDir, label)
 	if err != nil {
 		return nil, fmt.Errorf("cannot open: %v", err)
@@ -786,17 +790,16 @@ func systemFromSeed(label string) (*System, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot obtain brand: %v", err)
 	}
-	// TODO:UC20 build the actions list
-	defaultActions := []SystemAction{
-		{Title: "reinstall", Mode: "install"},
-	}
-
 	system := System{
 		Current: false,
 		Label:   label,
 		Model:   model,
 		Brand:   brand,
-		Actions: defaultActions,
+		Actions: defaultSystemActions,
+	}
+	if current != nil && isCurrentSystem(current, &system) {
+		system.Current = true
+		system.Actions = currentSystemActions
 	}
 	return &system, nil
 }
@@ -842,16 +845,12 @@ func (m *DeviceManager) Systems() ([]*System, error) {
 	var systems []*System
 	for _, fpLabel := range systemLabels {
 		label := filepath.Base(fpLabel)
-		system, err := systemFromSeed(label)
+		system, err := systemFromSeed(label, currentSys)
 		if err != nil {
 			// TODO:UC20 add a Broken field to the seed system like
 			// we do for snap.Info
 			logger.Noticef("cannot load system %q seed: %v", label, err)
 			continue
-		}
-		if currentSys != nil && isCurrentSystem(currentSys, system) {
-			system.Current = true
-			system.Actions = append(system.Actions, currentSystemActions...)
 		}
 		systems = append(systems, system)
 	}
@@ -864,18 +863,15 @@ var ErrUnsupportedAction = errors.New("unsupported action")
 // system reboot will be requested when the request can be successfully carried
 // out.
 func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAction) error {
+	currentSys, _ := currentSeedSystem(m.state)
+
 	systemSeedDir := filepath.Join(dirs.SnapSeedDir, "systems", systemLabel)
 	if _, err := os.Stat(systemSeedDir); err != nil {
 		return err
 	}
-	system, err := systemFromSeed(systemLabel)
+	system, err := systemFromSeed(systemLabel, currentSys)
 	if err != nil {
 		return fmt.Errorf("cannot load seed system: %v", err)
-	}
-
-	currentSys, _ := currentSeedSystem(m.state)
-	if currentSys != nil && isCurrentSystem(currentSys, system) {
-		system.Actions = append(system.Actions, currentSystemActions...)
 	}
 
 	var sysAction *SystemAction
@@ -889,6 +885,7 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 		return ErrUnsupportedAction
 	}
 
+	// TODO:UC20 assume we are in the run mode
 	if sysAction.Mode == "run" {
 		// do nothing
 		return nil

@@ -213,12 +213,13 @@ func (s *deviceMgrSystemsSuite) TestListSystemsNotPossible(c *C) {
 
 // TODO:UC20 update once we can list actions
 var defaultSystemActions []devicestate.SystemAction = []devicestate.SystemAction{
-	{Title: "reinstall", Mode: "install"},
+	{Title: "Install", Mode: "install"},
 }
-var currentSystemActions []devicestate.SystemAction = append(defaultSystemActions,
-	devicestate.SystemAction{Title: "recover", Mode: "recover"},
-	devicestate.SystemAction{Title: "run normally", Mode: "run"},
-)
+var currentSystemActions []devicestate.SystemAction = []devicestate.SystemAction{
+	{Title: "Reinstall", Mode: "install"},
+	{Title: "Recover", Mode: "recover"},
+	{Title: "Run normally", Mode: "run"},
+}
 
 func (s *deviceMgrSystemsSuite) TestListSeedSystemsNoCurrent(c *C) {
 	systems, err := s.mgr.Systems()
