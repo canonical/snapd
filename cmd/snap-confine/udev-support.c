@@ -183,8 +183,28 @@ static void sc_udev_allow_assigned(int devices_allow_fd, struct udev *udev,
 		unsigned int major = major(devnum);
 		unsigned int minor = minor(devnum);
 		if (major != 0 || minor != 0) {
-			char type_c = strstr(path, "/block/") != NULL ? 'b' : 'c';
-			sc_dprintf(devices_allow_fd, "%c %u:%u rwm", type_c, major, minor);
+			/* devnode is bound to the lifetime of the device and we cannot
+			 * release it separately. */
+			const char *devnode = udev_device_get_devnode(device);
+			if (devnode == NULL) {
+				die("cannot find /dev node from udev device");
+			}
+			debug("inspecting type of device: %s", devnode);
+			struct stat file_info;
+			if (stat(devnode, &file_info) < 0) {
+				die("cannot stat %s", devnode);
+			}
+			switch (file_info.st_mode & S_IFMT) {
+				case S_IFBLK:
+					dprintf(devices_allow_fd, "b %u:%u rwm", major, minor);
+					break;
+				case S_IFCHR:
+					dprintf(devices_allow_fd, "c %u:%u rwm", major, minor);
+					break;
+				default:
+					/* Not a device, ignore it. */
+					break;
+			}
 		}
 		udev_device_unref(device);
 	}
