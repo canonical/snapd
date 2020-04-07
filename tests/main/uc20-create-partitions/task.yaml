@@ -1,6 +1,6 @@
 summary: Integration tests for the snap-bootstrap create-partitions
 
-# one system is enough, its a very specialized test for now
+# use the same system and tooling as uc20
 systems: [ubuntu-20.04-64]
 
 debug: |
@@ -81,7 +81,14 @@ execute: |
     df -T "${LOOP}p4" | MATCH ext4
     umount ./mnt
     file -s "${LOOP}p4" | MATCH 'ext4 filesystem data,.* volume name "ubuntu-data"'
-    # TODO: verify that partition was automatically expanded
+    # size is reported in 512 blocks
+    sz="$(udevadm info -q property "${LOOP}p4" |grep "^ID_PART_ENTRY_SIZE=" | cut -f2 -d=)"
+    # the disk size is 20GB, 1GB in 512 blocks is 2097152, with auto grow, the
+    # partition can be safely assumed to be > 10GB
+    if [ "$sz" -lt "$((10 * 2097152))" ]; then
+        echo "unexpected system-data partition size $((sz * 512))"
+        exit 1
+    fi
 
     echo "Check that the filesystem content was deployed"
     mkdir -p ./mnt
