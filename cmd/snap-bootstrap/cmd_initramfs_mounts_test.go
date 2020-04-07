@@ -909,6 +909,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep3(c *C) {
 `, boot.InitramfsRunMntDir))
 }
 
+var mockStateContent = `{"data":{"auth":{"users":[{"name":"mvo"}]}},"some":{"other":"stuff"}}`
+
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep4(c *C) {
 	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover snapd_recovery_system="+s.sysLabel)
@@ -977,7 +979,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep4(c *C) {
 	mockedState := filepath.Join(recoverUbuntuData, "system-data/var/lib/snapd/state.json")
 	err = os.MkdirAll(filepath.Dir(mockedState), 0750)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(mockedState, []byte("{}"), 0640)
+	err = ioutil.WriteFile(mockedState, []byte(mockStateContent), 0640)
 	c.Assert(err, IsNil)
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
@@ -1003,4 +1005,6 @@ recovery_system=20191118
 		c.Assert(err, IsNil)
 		c.Check(fiParent.Mode(), Equals, os.FileMode(os.ModeDir|0750))
 	}
+
+	c.Check(filepath.Join(ephemeralUbuntuData, "system-data/var/lib/snapd/state.json"), testutil.FileEquals, `{"data":{"auth":{"users":[{"name":"mvo"}]}},"changes":{},"tasks":{},"last-change-id":0,"last-task-id":0,"last-lane-id":0}`)
 }
