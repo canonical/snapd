@@ -27,24 +27,15 @@ import (
 
 	"gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox/selinux"
-	"github.com/snapcore/snapd/testutil"
 )
 
 func Test(t *testing.T) { check.TestingT(t) }
 
-type selinuxSuite struct {
-	testutil.BaseTest
-}
+type selinuxSuite struct{}
 
 var _ = check.Suite(&selinuxSuite{})
-
-func (s *selinuxSuite) SetUpTest(c *check.C) {
-	dirs.SetRootDir(c.MkDir())
-	s.AddCleanup(func() { dirs.SetRootDir("") })
-}
 
 const selinuxMountInfo = `90 0 252:1 / / rw,relatime shared:1 - ext4 /dev/vda1 rw,seclabel
 41 19 0:18 / /sys/fs/selinux rw,relatime shared:20 - selinuxfs selinuxfs rw

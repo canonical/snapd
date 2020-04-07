@@ -22,21 +22,12 @@ package osutil_test
 import (
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/testutil"
 )
 
-type overlaySuite struct {
-	testutil.BaseTest
-}
+type overlaySuite struct{}
 
 var _ = Suite(&overlaySuite{})
-
-func (s *overlaySuite) SetUpTest(c *C) {
-	dirs.SetRootDir(c.MkDir())
-	s.AddCleanup(func() { dirs.SetRootDir("") })
-}
 
 func (s *overlaySuite) TestIsRootWritableOverlay(c *C) {
 	cases := []struct {

@@ -22,21 +22,12 @@ package osutil_test
 import (
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/testutil"
 )
 
-type mountSuite struct {
-	testutil.BaseTest
-}
+type mountSuite struct{}
 
 var _ = Suite(&mountSuite{})
-
-func (s *mountSuite) SetUpTest(c *C) {
-	dirs.SetRootDir(c.MkDir())
-	s.AddCleanup(func() { dirs.SetRootDir("") })
-}
 
 func (s *mountSuite) TestIsMountedHappyish(c *C) {
 	// note the different optional fields

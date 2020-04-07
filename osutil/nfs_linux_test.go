@@ -22,21 +22,12 @@ package osutil_test
 import (
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/testutil"
 )
 
-type nfsSuite struct {
-	testutil.BaseTest
-}
+type nfsSuite struct{}
 
 var _ = Suite(&nfsSuite{})
-
-func (s *nfsSuite) SetUpTest(c *C) {
-	dirs.SetRootDir(c.MkDir())
-	s.AddCleanup(func() { dirs.SetRootDir("") })
-}
 
 func (s *nfsSuite) TestIsHomeUsingNFS(c *C) {
 	cases := []struct {
