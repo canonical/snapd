@@ -10,9 +10,6 @@ systems: [ubuntu-16.04*64, ubuntu-18.04*, ubuntu-2*, ubuntu-core-1*]
 # with the distro
 backends: [-autopkgtest]
 
-environment:
-    LXD_CHANNEL: candidate
-
 # lxd downloads can be quite slow
 kill-timeout: 25m
 
@@ -28,6 +25,8 @@ environment:
     REFRESH_APP_AWARENESS_INNER/snapd_cgroup_both: true
     REFRESH_APP_AWARENESS_OUTER/snapd_cgroup_neither: false
     REFRESH_APP_AWARENESS_INNER/snapd_cgroup_neither: false
+    LXD_CHANNEL: candidate
+
 
 prepare: |
     # using apt here is ok because this test only runs on ubuntu
