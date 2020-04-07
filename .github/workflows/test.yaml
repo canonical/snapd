@@ -3,7 +3,6 @@ on:
   pull_request:
     branches: [ "master", "release/**" ]
 jobs:
-  # TODO: port CLA check
   unit-tests:
     runs-on: ubuntu-16.04
     env:
@@ -67,6 +66,7 @@ jobs:
       run: cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/ && make check
     - name: Test Go
       run: cd ${{ github.workspace }}/src/github.com/snapcore/snapd && ./run-checks --unit
+
   spread-canary:
     needs: unit-tests
     runs-on: ubuntu-latest

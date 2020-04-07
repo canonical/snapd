@@ -1,0 +1,22 @@
+name: cla-check
+on:
+  # Only run on pull requests: not pushes
+  pull_request:
+    branches: [ "master", "release/**" ]
+
+jobs:
+  cla-check:
+    runs-on: ubuntu-16.04
+    steps:
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install python-launchpadlib
+      - name: Checkout code
+        uses: actions/checkout@v2
+        with:
+          # The cla_check script reads git commit history, so can't
+          # use a shallow checkout.
+          fetch-depth: 0
+      - name: CLA check
+        run: ./tests/lib/cla_check.py
