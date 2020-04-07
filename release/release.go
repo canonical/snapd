@@ -27,36 +27,17 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/snapcore/snapd/sandbox/apparmor"
-	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/strutil"
 )
 
 // Series holds the Ubuntu Core series for snapd to use.
 var Series = "16"
 
-// For testing only
-var mockedForceDevMode *bool
-
 // OS contains information about the system extracted from /etc/os-release.
 type OS struct {
 	ID        string   `json:"id"`
 	IDLike    []string `json:"-"`
 	VersionID string   `json:"version-id,omitempty"`
-}
-
-// ForceDevMode returns true if the distribution doesn't implement required
-// security features for confinement and devmode is forced.
-func (o *OS) ForceDevMode() bool {
-	if mockedForceDevMode != nil {
-		return *mockedForceDevMode
-	}
-
-	apparmorFull := apparmor.ProbedLevel() == apparmor.Full
-	// TODO: update once security backends affected by cgroupv2 are fully
-	// supported
-	cgroupv2 := cgroup.IsUnified()
-	return !apparmorFull || cgroupv2
 }
 
 // DistroLike checks if the distribution ID or ID_LIKE matches one of the given names.
@@ -168,14 +149,4 @@ func MockReleaseInfo(osRelease *OS) (restore func()) {
 	old := ReleaseInfo
 	ReleaseInfo = *osRelease
 	return func() { ReleaseInfo = old }
-}
-
-// MockForcedDevmode fake the system to believe its in a distro
-// that is in ForcedDevmode
-func MockForcedDevmode(isDevmode bool) (restore func()) {
-	old := mockedForceDevMode
-	mockedForceDevMode = &isDevmode
-	return func() {
-		mockedForceDevMode = old
-	}
 }

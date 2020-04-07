@@ -27,4 +27,6 @@ type InternalSnap16 = internal.Snap16
 
 var (
 	LoadAssertions = loadAssertions
+
+	ValidateUC20SeedSystemLabel = validateUC20SeedSystemLabel
 )

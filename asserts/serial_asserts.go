@@ -22,6 +22,9 @@ package asserts
 import (
 	"fmt"
 	"time"
+
+	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // Serial holds a serial assertion, which is a statement binding a
@@ -58,10 +61,28 @@ func (ser *Serial) Timestamp() time.Time {
 	return ser.timestamp
 }
 
-// TODO: implement further consistency checks for Serial but first review approach
+func (ser *Serial) checkConsistency(db RODatabase, acck *AccountKey) error {
+	if ser.AuthorityID() != ser.BrandID() {
+		// serial authority and brand do not match, check the model
+		a, err := db.Find(ModelType, map[string]string{
+			"series":   release.Series,
+			"brand-id": ser.BrandID(),
+			"model":    ser.Model(),
+		})
+		if err != nil && !IsNotFound(err) {
+			return err
+		}
+		if IsNotFound(err) || !strutil.ListContains(a.(*Model).SerialAuthority(), ser.AuthorityID()) {
+			return fmt.Errorf("serial with authority %q different from brand %q without model assertion with serial-authority set to to allow for them", ser.AuthorityID(), ser.BrandID())
+		}
+	}
+	return nil
+}
 
 func assembleSerial(assert assertionBase) (Assertion, error) {
-	err := checkAuthorityMatchesBrand(&assert)
+	// brand-id and authority-id can diverge if the model allows
+	// for it via serial-authority, check for brand-id well-formedness
+	_, err := checkStringMatches(assert.headers, "brand-id", validAccountID)
 	if err != nil {
 		return nil, err
 	}

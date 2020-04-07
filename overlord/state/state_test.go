@@ -23,8 +23,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -1051,41 +1049,4 @@ func (ss *stateSuite) TestTimingsSupport(c *C) {
 	err = st.GetMaybeTimings(&tims)
 	c.Assert(err, IsNil)
 	c.Check(tims, DeepEquals, []int{1, 2, 3})
-}
-
-func (ss *stateSuite) TestCopyState(c *C) {
-	srcStateFile := filepath.Join(c.MkDir(), "src-state.json")
-	be := state.NewCheckpointOnlyBackend(srcStateFile)
-
-	// create a mock srcState
-	stSrc := state.New(be)
-	stSrc.Lock()
-	mSt1 := &mgrState1{A: "foo"}
-	stSrc.Set("mgr1", mSt1)
-	mSt2 := &mgrState2{C: &Count2{B: 42}}
-	stSrc.Set("mgr2", mSt2)
-	stSrc.Unlock()
-
-	// copy
-	dstStateFile := filepath.Join(c.MkDir(), "dst-state.json")
-	err := state.CopyState(srcStateFile, dstStateFile, []string{"mgr1", "no-existing-does-not-error"})
-	c.Assert(err, IsNil)
-
-	// and check that the right bits got copied
-	f, err := os.Open(dstStateFile)
-	c.Assert(err, IsNil)
-	defer f.Close()
-	st, err := state.ReadState(nil, f)
-	c.Assert(err, IsNil)
-	st.Lock()
-	defer st.Unlock()
-
-	var mSt1B mgrState1
-	err = st.Get("mgr1", &mSt1B)
-	c.Assert(err, IsNil)
-	c.Check(&mSt1B, DeepEquals, mSt1)
-
-	var v interface{}
-	err = st.Get("mgr2", &v)
-	c.Assert(err, Equals, state.ErrNoState)
 }

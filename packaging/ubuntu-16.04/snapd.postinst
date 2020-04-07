@@ -51,6 +51,20 @@ case "$1" in
 
         # Ensure that the void directory has correct permissions.
         chmod 111 /var/lib/snapd/void
+
+        # Ubuntu 20.04 had a incorrect seed directory during development.
+        #
+        # This was causing hangs in the postinst when systemctl tries to
+        # start snapd.seeded.service which will wait for snapd to finish
+        # seeding (which will never happen because seeding is broken).
+        # See LP: 1868706
+        # This snippet detect this incorrect seed and disables it.
+        if [ -e /var/lib/snapd/seed/seed.yaml ] && [ "$(snap debug state --is-seeded /var/lib/snapd/state.json)" = "false" ]; then
+            if ! snap debug validate-seed /var/lib/snapd/seed/seed.yaml; then
+                echo "Found incorrect seed, disabling it"
+                mv /var/lib/snapd/seed /var/lib/snapd/seed.disabled
+            fi
+        fi
 esac
 
 #DEBHELPER#

@@ -149,8 +149,9 @@ func (c *cmdSnapd) Execute(args []string) error {
 
 	isFailedCmd := runCmd("systemctl", []string{"is-failed", "snapd.socket", "snapd.service"}, nil)
 	if err := isFailedCmd.Run(); err != nil {
-		// seems not to be failed anymore, sample for sanely
-		// active for 5 * 5s
+		// the ephemeral snapd we invoked seems to have fixed
+		// snapd.service and snapd.socket, check whether they get
+		// reported as active for 5 * 5s
 		for i := 0; i < 5; i++ {
 			if i != 0 {
 				time.Sleep(sampleForActiveInterval)
@@ -192,7 +193,12 @@ func (c *cmdSnapd) Execute(args []string) error {
 	if err := restartCmd.Run(); err != nil {
 		logger.Noticef("failed to restart snapd.socket: %v", err)
 		// fallback to try snapd itself
-		// wait  more than DefaultStartLimitIntervalSec
+		// wait more than DefaultStartLimitIntervalSec
+		//
+		// TODO: consider parsing
+		// systemctl show snapd -p StartLimitIntervalUSec
+		// might need system-analyze timespan which is relatively new
+		// for the general case
 		time.Sleep(restartSnapdCoolOffWait)
 		logger.Noticef("fallback, restarting snapd itself")
 		restartCmd := runCmd("systemctl", []string{"restart", "snapd.service"}, nil)
