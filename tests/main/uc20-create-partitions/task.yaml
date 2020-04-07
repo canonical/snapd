@@ -1,4 +1,4 @@
-summary: Integration tests for the snap-bootstrap binary
+summary: Integration tests for the snap-bootstrap create-partitions
 
 # one system is enough, its a very specialized test for now
 systems: [ubuntu-20.04-64]
@@ -81,6 +81,7 @@ execute: |
     df -T "${LOOP}p4" | MATCH ext4
     umount ./mnt
     file -s "${LOOP}p4" | MATCH 'ext4 filesystem data,.* volume name "ubuntu-data"'
+    # TODO: verify that partition was automatically expanded
 
     echo "Check that the filesystem content was deployed"
     mkdir -p ./mnt
