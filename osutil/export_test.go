@@ -121,23 +121,6 @@ func MockOsReadlink(f func(string) (string, error)) func() {
 	return func() { osReadlink = realOsReadlink }
 }
 
-//MockMountInfo mocks content of /proc/self/mountinfo read by IsHomeUsingNFS
-func MockMountInfo(text string) (restore func()) {
-	old := procSelfMountInfo
-	f, err := ioutil.TempFile("", "mountinfo")
-	if err != nil {
-		panic(fmt.Errorf("cannot open temporary file: %s", err))
-	}
-	if err := ioutil.WriteFile(f.Name(), []byte(text), 0644); err != nil {
-		panic(fmt.Errorf("cannot write mock mountinfo file: %s", err))
-	}
-	procSelfMountInfo = f.Name()
-	return func() {
-		os.Remove(procSelfMountInfo)
-		procSelfMountInfo = old
-	}
-}
-
 // MockEtcFstab mocks content of /etc/fstab read by IsHomeUsingNFS
 func MockEtcFstab(text string) (restore func()) {
 	old := etcFstab
