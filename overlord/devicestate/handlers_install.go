@@ -142,7 +142,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-var checkKeySealingSupported = secboot.CheckKeySealingSupported
+var secbootCheckKeySealingSupported = secboot.CheckKeySealingSupported
 
 // checkEncryption verifies whether encryption should be used based on the
 // model grade and the availability of a TPM device.
@@ -157,7 +157,7 @@ func checkEncryption(model *asserts.Model) (res bool, err error) {
 	}
 
 	// encryption is required in secured devices and optional in other grades
-	if err := checkKeySealingSupported(); err != nil {
+	if err := secbootCheckKeySealingSupported(); err != nil {
 		if secured {
 			return false, fmt.Errorf("cannot encrypt secured device: %v", err)
 		}
