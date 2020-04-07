@@ -103,13 +103,12 @@ func recoverySystemEssentialSnaps(seedDir, recoverySystem string, essentialTypes
 func selectPartitionMatchingKernelDisk(dir, fallbacklabel string) error {
 	// TODO:UC20: should this only run on grade > dangerous? where do we
 	//            get the model at this point?
-	partuuid, err := boot.FindPartitionUUIDForBootedKernelDisk()
-	if err != nil {
-		// no luck, try mounting by label instead
-		fmt.Fprintf(stdout, "/dev/disk/by-label/%s %s\n", fallbacklabel, dir)
+	if partuuid, err := boot.FindPartitionUUIDForBootedKernelDisk(); err == nil {
+		fmt.Fprintf(stdout, "/dev/disk/by-partuuid/%s %s\n", partuuid, dir)
 		return nil
 	}
-	fmt.Fprintf(stdout, "/dev/disk/by-partuuid/%s %s\n", partuuid, dir)
+	// no luck, try mounting by label instead
+	fmt.Fprintf(stdout, "/dev/disk/by-label/%s %s\n", fallbacklabel, dir)
 	return nil
 }
 
