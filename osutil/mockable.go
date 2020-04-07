@@ -20,37 +20,28 @@
 package osutil
 
 import (
-	"io/ioutil"
 	"os"
 	"os/user"
-	"path/filepath"
 	"syscall"
-
-	"github.com/snapcore/snapd/dirs"
 )
 
-func assignProcSelfMountInfo(newRootDir string) {
-	ProcSelfMountInfo = filepath.Join(newRootDir, "/proc/self/mountinfo")
-}
-
-func init() {
-	assignProcSelfMountInfo(dirs.GlobalRootDir)
-	dirs.AddRootDirCallback(assignProcSelfMountInfo)
-}
-
-// MockProcSelfMountInfo is meant for tests, where dirs.GlobalRootDir != ""
-// and just mocks with the content
-func MockProcSelfMountInfo(content string) error {
-	err := os.MkdirAll(filepath.Dir(ProcSelfMountInfo), 0755)
-	if err != nil {
-		return err
+// MockMountInfo is meant for tests to mock the content of /proc/self/mountinfo.
+func MockMountInfo(content string) (restore func()) {
+	old := mockedMountInfoContent
+	// the boolean is necessary because many tests will want to mock mountinfo
+	// as "", so we couldn't do the trivial thing and let "" mean turn off
+	// mocking
+	mockedMountInfo = true
+	mockedMountInfoContent = content
+	return func() {
+		mockedMountInfo = false
+		mockedMountInfoContent = old
 	}
-	return ioutil.WriteFile(ProcSelfMountInfo, []byte(content), 0644)
 }
 
 var (
-	// ProcSelfMountInfo is a path to the mountinfo table of the current process.
-	ProcSelfMountInfo string
+	mockedMountInfo        bool
+	mockedMountInfoContent string
 
 	userLookup  = user.Lookup
 	userCurrent = user.Current

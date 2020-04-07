@@ -42,9 +42,9 @@ import (
 //
 // Currently uses variables and Mock functions from nfs.go
 func IsRootWritableOverlay() (string, error) {
-	mountinfo, err := LoadMountInfo(ProcSelfMountInfo)
+	mountinfo, err := LoadMountInfo()
 	if err != nil {
-		return "", fmt.Errorf("cannot parse %s: %s", ProcSelfMountInfo, err)
+		return "", fmt.Errorf("cannot parse mountinfo: %s", err)
 	}
 	for _, entry := range mountinfo {
 		if entry.FsType == "overlay" && entry.MountDir == "/" {

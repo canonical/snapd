@@ -62,7 +62,7 @@ func IsEnforcing() (bool, error) {
 }
 
 func getSELinuxMount() (string, error) {
-	mountinfo, err := osutil.LoadMountInfo(osutil.ProcSelfMountInfo)
+	mountinfo, err := osutil.LoadMountInfo()
 	if err != nil {
 		return "", err
 	}

@@ -30,9 +30,9 @@ import (
 // and possible mounted filesystems).  If either of those describes NFS
 // filesystem mounted under or beneath /home/ then the return value is true.
 func IsHomeUsingNFS() (bool, error) {
-	mountinfo, err := LoadMountInfo(ProcSelfMountInfo)
+	mountinfo, err := LoadMountInfo()
 	if err != nil {
-		return false, fmt.Errorf("cannot parse %s: %s", ProcSelfMountInfo, err)
+		return false, fmt.Errorf("cannot parse mountinfo: %s", err)
 	}
 	for _, entry := range mountinfo {
 		if (entry.FsType == "nfs4" || entry.FsType == "nfs") && (strings.HasPrefix(entry.MountDir, "/home/") || entry.MountDir == "/home") {
