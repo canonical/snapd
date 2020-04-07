@@ -180,10 +180,12 @@ static void sc_udev_allow_assigned(int devices_allow_fd, struct udev *udev,
 			die("cannot find device from syspath %s", path);
 		}
 		dev_t devnum = udev_device_get_devnum(device);
-		char type_c = strstr(path, "/block/") != NULL ? 'b' : 'c';
-		sc_dprintf(devices_allow_fd, "%c %u:%u rwm", type_c,
-			   major(devnum), minor(devnum));
-
+		unsigned int major = major(devnum);
+		unsigned int minor = minor(devnum);
+		if (major != 0 || minor != 0) {
+			char type_c = strstr(path, "/block/") != NULL ? 'b' : 'c';
+			sc_dprintf(devices_allow_fd, "%c %u:%u rwm", type_c, major, minor);
+		}
 		udev_device_unref(device);
 	}
 }
