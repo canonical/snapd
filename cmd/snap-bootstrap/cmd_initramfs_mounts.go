@@ -252,9 +252,22 @@ func generateMountsModeRun() error {
 			"ubuntu-seed",               // label to mount
 			boot.InitramfsUbuntuSeedDir, // destination mountpoint
 		)
+	}
 
-
-
+	// 1.2.1 cross check that ubuntu-boot and ubuntu-seed mounts come from the
+	//       same physical disk, if they don't something went wrong and we need
+	//       to stop booting
+	bootDisk, err := partition.DiskFromMountPoint(boot.InitramfsUbuntuBootDir)
+	if err != nil {
+		return err
+	}
+	seedDisk, err := partition.DiskFromMountPoint(boot.InitramfsUbuntuSeedDir)
+	if err != nil {
+		return err
+	}
+	if !bootDisk.Equals(seedDisk) {
+		// whoops ...
+		return fmt.Errorf("ubuntu-seed partition and ubuntu-boot partition are not from the same disk")
 	}
 
 	// 1.3 mount Data, and exit, as it needs to be mounted for us to do step 2
@@ -265,11 +278,23 @@ func generateMountsModeRun() error {
 	if !isDataMounted {
 		name := filepath.Base(boot.InitramfsUbuntuDataDir)
 		return maybeUnlockAndMount(name)
-	
-
-		
-
 	}
+
+	// 1.3.1 cross check that ubuntu-data and ubuntu-boot mounts come from the
+	//       same physical disk, if they don't something went wrong and we need
+	//       to stop booting
+	dataDisk, err := partition.DiskFromMountPoint(boot.InitramfsUbuntuDataDir)
+	if err != nil {
+		return err
+	}
+	if !bootDisk.Equals(dataDisk) {
+		// whoops ...
+		return fmt.Errorf("ubuntu-data partition and ubuntu-boot partition are not from the same disk")
+	}
+
+	// TODO:UC20: also in the encrypted case, we need to verify that the
+	//            unencrypted device on ubuntu-data actually comes from
+	//            ubuntu-data-enc
 
 	// 2.1 read modeenv
 	modeEnv, err := boot.ReadModeenv(boot.InitramfsWritableDir)
