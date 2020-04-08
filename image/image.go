@@ -33,7 +33,9 @@ import (
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
@@ -431,6 +433,13 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 		if err := installCloudConfig(rootDir, gadgetUnpackDir); err != nil {
 			return err
 		}
+
+		gadgetInfo, err := gadget.ReadInfo(gadgetUnpackDir, model)
+		if err != nil {
+			return err
+		}
+		defaults := gadget.SystemDefaults(gadgetInfo.Defaults)
+		return configcore.FilesystemOnlyApply(rootDir, configcore.PlainCoreConfig(defaults))
 	}
 
 	return nil
