@@ -19,4 +19,4 @@ jobs:
           # use a shallow checkout.
           fetch-depth: 0
       - name: CLA check
-        run: ./tests/lib/cla_check.py
+        run: ./tests/lib/cla_check.py "${{ github.base_ref }}..${{ github.head_ref }}"
