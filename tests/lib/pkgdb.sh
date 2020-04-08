@@ -583,7 +583,6 @@ pkg_dependencies_ubuntu_classic(){
         fontconfig
         gnome-keyring
         jq
-        libc6-dev-i386
         man
         nfs-kernel-server
         printer-driver-cups-pdf
@@ -660,6 +659,7 @@ pkg_dependencies_ubuntu_classic(){
                 eatmydata
                 evolution-data-server
                 fwupd
+                libc6-dev-i386
                 net-tools
                 packagekit
                 sbuild
