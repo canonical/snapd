@@ -63,10 +63,11 @@ func handleJournalConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error
 	logPath := filepath.Join(rootDir, "/var/log/journal")
 	marker := ".snapd-created"
 
+	logDirExists, _, _ := osutil.DirExists(logPath)
+
 	switch output {
 	case "true":
-		exists, _, _ := osutil.DirExists(logPath)
-		if exists {
+		if logDirExists {
 			// don't check marker; if the directory exists then logging is
 			// already enabled (although possibly not controlled by us), but
 			// don't error out. In such case we will error out if setting
@@ -83,6 +84,9 @@ func handleJournalConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error
 			return err
 		}
 	case "false":
+		if !logDirExists {
+			return nil
+		}
 		// only remove journal log dir if our marker file is there
 		if !osutil.FileExists(filepath.Join(logPath, marker)) {
 			return fmt.Errorf("the %s directory was not created by snapd, journal logs will not be removed nor disabled", logPath)
