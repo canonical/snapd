@@ -59,21 +59,34 @@ func handleJournalConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error
 		rootDir = opts.RootDir
 	}
 
+	tempLogPath := filepath.Join(rootDir, "/var/log/journal-snapd")
 	logPath := filepath.Join(rootDir, "/var/log/journal")
+	marker := ".snapd-created"
 
 	switch output {
 	case "true":
-		if err := os.MkdirAll(logPath, 0755); err != nil {
+		exists, _, _ := osutil.DirExists(logPath)
+		if exists {
+			// don't check marker; if the directory exists then logging is
+			// already enabled (although possibly not controlled by us), but
+			// don't error out. In such case we will error out if setting
+			// to false is attempted.
+			return nil
+		}
+		if err := os.MkdirAll(tempLogPath, 0755); err != nil {
 			return err
 		}
-		gid, err := osutilFindGid("systemd-journal")
-		if err != nil {
-			return fmt.Errorf("cannot find systemd-journal group: %v", err)
+		if err := osutil.AtomicWriteFile(filepath.Join(tempLogPath, marker), nil, 0700, 0); err != nil {
+			return nil
 		}
-		if err := sysChownPath(logPath, 0, sys.GroupID(gid)); err != nil {
+		if err := os.Rename(tempLogPath, logPath); err != nil {
 			return err
 		}
 	case "false":
+		// only remove journal log dir if our marker file is there
+		if !osutil.FileExists(filepath.Join(logPath, marker)) {
+			return fmt.Errorf("the %s directory was not created by snapd, journal logs will not be removed nor disabled", logPath)
+		}
 		if err := os.RemoveAll(logPath); err != nil {
 			return err
 		}

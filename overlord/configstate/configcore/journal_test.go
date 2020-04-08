@@ -20,6 +20,7 @@
 package configcore_test
 
 import (
+	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -94,6 +95,47 @@ func (s *journalSuite) TestConfigurePersistentJournalOnCore(c *C) {
 	exists, _, err := osutil.DirExists(filepath.Join(dirs.GlobalRootDir, "/var/log/journal"))
 	c.Assert(err, IsNil)
 	c.Check(exists, Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/var/log/journal/.snapd-created")), Equals, true)
+}
+
+func (s *journalSuite) TestConfigurePersistentJournalOnCoreNoopIfExists(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	// existing journal directory, not created by snapd (no marker file)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/var/log/journal"), 0755), IsNil)
+
+	err := configcore.Run(&mockConf{
+		state: s.state,
+		conf:  map[string]interface{}{"journal.persistent": "true"},
+	})
+	c.Assert(err, IsNil)
+
+	// systemctl was not called
+	c.Check(s.systemctlArgs, HasLen, 0)
+
+	exists, _, err := osutil.DirExists(filepath.Join(dirs.GlobalRootDir, "/var/log/journal"))
+	c.Assert(err, IsNil)
+	c.Check(exists, Equals, true)
+
+	// marker was not created
+	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/var/log/journal/.snapd-created")), Equals, false)
+}
+
+func (s *journalSuite) TestDisablePersistentJournalNotManagedBySnapdError(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	// journal directory exists, but no marker file
+	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/var/log/journal"), 0755), IsNil)
+
+	err := configcore.Run(&mockConf{
+		state: s.state,
+		conf:  map[string]interface{}{"journal.persistent": "false"},
+	})
+	c.Assert(err, ErrorMatches, `.*/var/log/journal directory was not created by snapd.*`)
+	exists, _, _ := osutil.DirExists(filepath.Join(dirs.GlobalRootDir, "/var/log/journal"))
+	c.Check(exists, Equals, true)
 }
 
 func (s *journalSuite) TestDisablePersistentJournalOnCore(c *C) {
@@ -101,6 +143,7 @@ func (s *journalSuite) TestDisablePersistentJournalOnCore(c *C) {
 	defer restore()
 
 	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/var/log/journal"), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/log/journal/.snapd-created"), nil, 0755), IsNil)
 
 	err := configcore.Run(&mockConf{
 		state: s.state,
