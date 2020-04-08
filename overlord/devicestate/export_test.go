@@ -211,11 +211,11 @@ func MockBootMakeBootable(f func(model *asserts.Model, rootdir string, bootWith 
 	}
 }
 
-func MockCheckTPMAvailability(f func() error) (restore func()) {
-	old := checkTPMAvailability
-	checkTPMAvailability = f
+func MockSecbootCheckKeySealingSupported(f func() error) (restore func()) {
+	old := secbootCheckKeySealingSupported
+	secbootCheckKeySealingSupported = f
 	return func() {
-		checkTPMAvailability = old
+		secbootCheckKeySealingSupported = old
 	}
 }
 
