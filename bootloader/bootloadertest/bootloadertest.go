@@ -332,5 +332,6 @@ func (b *MockExtractedRunKernelImageBootloader) TryKernel() (snap.PlaceInfo, err
 func (b *MockExtractedRunKernelImageBootloader) DisableTryKernel() error {
 	b.maybePanic("DisableTryKernel")
 	b.runKernelImageMockedNumCalls["DisableTryKernel"]++
+	b.runKernelImageEnabledTryKernel = nil
 	return b.runKernelImageMockedErrs["DisableTryKernel"]
 }
