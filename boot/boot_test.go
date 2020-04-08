@@ -521,13 +521,14 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20KernelStatusTryingNoKernelSnapC
 		Mode:           "run",
 		RecoverySystem: "20191018",
 		Base:           "core20_1.snap",
+		CurrentKernels: []string{"pc-kernel_1.snap", "pc-kernel_2.snap"},
 	}
 	c.Assert(m.WriteTo(""), IsNil)
 
 	coreDev := boottest.MockUC20Device("some-snap")
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
-	// set kernel_status as trying, but don't set a kernel snap
+	// set kernel_status as trying, but don't set a try kernel snap
 	s.bootloader.BootVars["kernel_status"] = boot.TryingStatus
 
 	// set the current Kernel
@@ -558,14 +559,23 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20KernelStatusTryingNoKernelSnapC
 	c.Assert(err, IsNil)
 	c.Assert(s.bootloader.BootVars, DeepEquals, expected)
 
-	// no new bootloader calls
+	// no new enabled kernels
 	_, nEnableCalls = s.bootloader.GetRunKernelImageFunctionSnapCalls("EnableKernel")
 	c.Assert(nEnableCalls, Equals, 0)
+
+	// we did disable a try kernel here though because we always do that as a
+	// cleanup operation
 	_, nDisableTryCalls = s.bootloader.GetRunKernelImageFunctionSnapCalls("DisableTryKernel")
-	c.Assert(nDisableTryCalls, Equals, 0)
+	c.Assert(nDisableTryCalls, Equals, 1)
+
+	// check that the modeenv re-wrote the CurrentKernels
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Assert(m2.CurrentKernels, DeepEquals, []string{kernel1.Filename()})
 }
 
-func (s *bootenv20Suite) TestMarkBootSuccessful20BaseStatusTryingNoBaseSnapCleansUp(c *C) {
+func (s *bootenv20Suite) TestMarkBootSuccessful20BaseStatusTryingNoTryBaseSnapCleansUp(c *C) {
+	// try_base is missing from modeenv
 	m := &boot.Modeenv{
 		Mode:           "run",
 		RecoverySystem: "20191018",
@@ -751,11 +761,13 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20AllSnap(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(s.bootloader.BootVars, DeepEquals, expected)
 
-	// no new bootloader calls
+	// no new enabled kernels
 	actual, _ = s.bootloader.GetRunKernelImageFunctionSnapCalls("EnableKernel")
 	c.Assert(actual, DeepEquals, []snap.PlaceInfo{kernel2})
+	// we always disable the try kernel as a cleanup operation, so there's one
+	// more call here
 	_, nDisableTryCalls = s.bootloader.GetRunKernelImageFunctionSnapCalls("DisableTryKernel")
-	c.Assert(nDisableTryCalls, Equals, 1)
+	c.Assert(nDisableTryCalls, Equals, 2)
 }
 
 func (s *bootenvSuite) TestMarkBootSuccessfulKernelUpdate(c *C) {
@@ -857,8 +869,11 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20KernelUpdate(c *C) {
 	// no new bootloader calls
 	actual, _ = s.bootloader.GetRunKernelImageFunctionSnapCalls("EnableKernel")
 	c.Assert(actual, DeepEquals, []snap.PlaceInfo{kernel2})
+
+	// we did disable the kernel again because we always do this to cleanup in
+	// case there were leftovers
 	_, nDisableTryCalls = s.bootloader.GetRunKernelImageFunctionSnapCalls("DisableTryKernel")
-	c.Assert(nDisableTryCalls, Equals, 1)
+	c.Assert(nDisableTryCalls, Equals, 2)
 }
 
 func (s *bootenv20Suite) TestMarkBootSuccessful20BaseUpdate(c *C) {
@@ -967,13 +982,10 @@ func (s *bootenv20Suite) TestHappyMarkBootSuccessfulKernelUpgradeRebootBeforeSet
 	c.Assert(err, IsNil)
 	c.Assert(vars, DeepEquals, map[string]string{"kernel_status": boot.DefaultStatus})
 
-	// we should also still have TryKernel() == pc-kernel_2.snap, as well as
-	// trying == true, because the symlink is still there, the snapstate mgr
-	// is responsible for cleaning it up when it notices the boot with the try
-	// kernel failed - that is done a level above this test
-	afterTryKernel, err := s.bootloader.TryKernel()
-	c.Assert(err, IsNil)
-	c.Assert(afterTryKernel, Equals, kernel2)
+	// we no longer have a TryKernel() because we cleaned it up in the
+	// successful MarkBootSuccessful
+	_, err = s.bootloader.TryKernel()
+	c.Assert(err, Equals, bootloader.ErrNoTryKernelRef)
 }
 
 // TestHappyMarkBootSuccessfulKernelUpgradeRebootBeforeEnableKernel
@@ -1048,13 +1060,10 @@ func (s *bootenv20Suite) TestHappyMarkBootSuccessfulKernelUpgradeRebootBeforeEna
 	c.Assert(err, IsNil)
 	c.Assert(vars, DeepEquals, map[string]string{"kernel_status": boot.DefaultStatus})
 
-	// we should also still have TryKernel() == pc-kernel_2.snap, as well as
-	// trying == true, because the symlink is still there, the snapstate mgr
-	// is responsible for cleaning it up when it notices the boot with the try
-	// kernel failed - that is done a level above this test
-	afterTryKernel, err := s.bootloader.TryKernel()
-	c.Assert(err, IsNil)
-	c.Assert(afterTryKernel, Equals, kernel2)
+	// we no longer have a TryKernel() because we cleaned it up in the
+	// successful MarkBootSuccessful
+	_, err = s.bootloader.TryKernel()
+	c.Assert(err, Equals, bootloader.ErrNoTryKernelRef)
 }
 
 // TestHappyMarkBootSuccessfulKernelUpgradeRebootBeforeDisableTryKernel
@@ -1129,13 +1138,10 @@ func (s *bootenv20Suite) TestHappyMarkBootSuccessfulKernelUpgradeRebootBeforeDis
 	c.Assert(err, IsNil)
 	c.Assert(vars, DeepEquals, map[string]string{"kernel_status": boot.DefaultStatus})
 
-	// we should also still have TryKernel() == pc-kernel_2.snap, as well as
-	// trying == true, because the symlink is still there, the snapstate mgr
-	// is responsible for cleaning it up when it notices the boot with the try
-	// kernel failed - that is done a level above this test
-	afterTryKernel, err := s.bootloader.TryKernel()
-	c.Assert(err, IsNil)
-	c.Assert(afterTryKernel, Equals, kernel2)
+	// we no longer have a TryKernel() because we cleaned it up in the
+	// successful MarkBootSuccessful
+	_, err = s.bootloader.TryKernel()
+	c.Assert(err, Equals, bootloader.ErrNoTryKernelRef)
 }
 
 // TestHappyCoreParticipant20SetNextKernelSnapRebootBeforeEnableTryKernel
@@ -1298,13 +1304,10 @@ func (s *bootenv20Suite) TestHappyCoreParticipant20SetNextKernelSnapRebootBefore
 	c.Assert(err, IsNil)
 	c.Assert(vars, DeepEquals, map[string]string{"kernel_status": boot.DefaultStatus})
 
-	// we should also still have TryKernel() == pc-kernel_2.snap, as well as
-	// trying == true, because the symlink is still there, the snapstate mgr
-	// is responsible for cleaning it up when it notices the boot with the try
-	// kernel failed - that is done a level above this test
-	afterTryKernel, err := s.bootloader.TryKernel()
-	c.Assert(err, IsNil)
-	c.Assert(afterTryKernel, Equals, kernel2)
+	// we no longer have a TryKernel() because we cleaned it up in the
+	// successful MarkBootSuccessful
+	_, err = s.bootloader.TryKernel()
+	c.Assert(err, Equals, bootloader.ErrNoTryKernelRef)
 }
 
 // runBootloaderLogic implements the logic from the gadget snap bootloader,

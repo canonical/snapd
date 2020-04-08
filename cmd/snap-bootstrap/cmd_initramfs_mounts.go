@@ -332,6 +332,11 @@ func generateMountsModeRun() error {
 			// trying we just fallback to using the normal kernel
 			// same goes for try kernel being untrusted - we will fallback to
 			// the normal kernel snap
+
+			// TODO:UC20: actually we really shouldn't be falling back here at
+			//            all - if the kernel we booted isn't mountable in the
+			//            initramfs, we should trigger a reboot so that we boot
+			//            the fallback kernel and then mount that one
 		}
 
 		kernelPath := filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), kernelFile)
