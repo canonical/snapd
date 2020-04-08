@@ -3,7 +3,6 @@ on:
   pull_request:
     branches: [ "master", "release/**" ]
 jobs:
-  # TODO: port CLA check
   unit-tests:
     runs-on: ubuntu-16.04
     env:
@@ -23,6 +22,8 @@ jobs:
         # NOTE: checkout the code in a fixed location, even for forks, as this
         # is relevant for go's import system.
         path: ./src/github.com/snapcore/snapd
+    - name: Make /var/cache/apt owned by current user
+      run: sudo chown -R $(id -u) /var/cache/apt
     - name: Cache Debian dependencies
       id: cache-deb-downloads
       uses: actions/cache@v1
@@ -67,9 +68,10 @@ jobs:
       run: cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/ && make check
     - name: Test Go
       run: cd ${{ github.workspace }}/src/github.com/snapcore/snapd && ./run-checks --unit
+
   spread-canary:
     needs: unit-tests
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     strategy:
       fail-fast: false
       matrix:
@@ -79,27 +81,24 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
-    - name: Install spread
-      run: |
-          cd /tmp
-          curl -s -O https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz
-          tar xzvf spread-amd64.tar.gz
-          # Register a problem matcher to highlight spread failures
-          echo "::add-matcher::.github/spread-problem-matcher.json"
     - name: Run spread tests
       env:
           SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
-      run: /tmp/spread -abend google:${{ matrix.system }}:tests/...
+      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
+      run: |
+          # Register a problem matcher to highlight spread failures
+          echo "::add-matcher::.github/spread-problem-matcher.json"
+          spread -abend google:${{ matrix.system }}:tests/...
     - name: Discard spread workers
       if: always()
       run: |
         shopt -s nullglob;
         for r in .spread-reuse.*.yaml; do
-          /tmp/spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
+          spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
         done
   spread-stable:
     needs: [unit-tests, spread-canary]
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     strategy:
       # FIXME: enable fail-fast mode once spread can cancel an executing job.
       #
@@ -126,27 +125,24 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
-    - name: Install spread
-      run: |
-          cd /tmp
-          curl -s -O https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz
-          tar xzvf spread-amd64.tar.gz
-          # Register a problem matcher to highlight spread failures
-          echo "::add-matcher::.github/spread-problem-matcher.json"
     - name: Run spread tests
       env:
           SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
-      run: /tmp/spread google:${{ matrix.system }}:tests/...
+      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
+      run: |
+          # Register a problem matcher to highlight spread failures
+          echo "::add-matcher::.github/spread-problem-matcher.json"
+          spread google:${{ matrix.system }}:tests/...
     - name: Discard spread workers
       if: always()
       run: |
         shopt -s nullglob;
         for r in .spread-reuse.*.yaml; do
-          /tmp/spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
+          spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
         done
   spread-unstable:
     needs: [unit-tests, spread-stable]
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     strategy:
       # FIXME: enable fail-fast mode once spread can cancel an executing job.
       fail-fast: false
@@ -158,21 +154,18 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
-    - name: Install spread
-      run: |
-          cd /tmp
-          curl -s -O https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz
-          tar xzvf spread-amd64.tar.gz
-          # Register a problem matcher to highlight spread failures
-          echo "::add-matcher::.github/spread-problem-matcher.json"
     - name: Run spread tests
       env:
           SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
-      run: /tmp/spread -abend google-unstable:${{ matrix.system }}:tests/...
+      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
+      run: |
+          # Register a problem matcher to highlight spread failures
+          echo "::add-matcher::.github/spread-problem-matcher.json"
+          spread -abend google-unstable:${{ matrix.system }}:tests/...
     - name: Discard spread workers
       if: always()
       run: |
         shopt -s nullglob;
         for r in .spread-reuse.*.yaml; do
-          /tmp/spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
+          spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
         done

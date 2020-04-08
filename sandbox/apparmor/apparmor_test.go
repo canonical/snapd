@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -47,6 +48,31 @@ func (*apparmorSuite) TestAppArmorLevelTypeStringer(c *C) {
 	c.Check(apparmor.Partial.String(), Equals, "partial")
 	c.Check(apparmor.Full.String(), Equals, "full")
 	c.Check(apparmor.LevelType(42).String(), Equals, "AppArmorLevelType:42")
+}
+
+func (*apparmorSuite) TestAppArmorSystemCacheFallsback(c *C) {
+	// if we create the system cache dir under a new rootdir, then the
+	// SystemCacheDir should take that value
+	dir1 := c.MkDir()
+	systemCacheDir := filepath.Join(dir1, "/etc/apparmor.d/cache")
+	err := os.MkdirAll(systemCacheDir, 0755)
+	c.Assert(err, IsNil)
+	dirs.SetRootDir(dir1)
+	c.Assert(apparmor.SystemCacheDir, Equals, systemCacheDir)
+
+	// but if we set a new root dir without the system cache dir, now the var is
+	// set to the CacheDir
+	dir2 := c.MkDir()
+	dirs.SetRootDir(dir2)
+	c.Assert(apparmor.SystemCacheDir, Equals, apparmor.CacheDir)
+
+	// finally test that it's insufficient to just have the conf dir, we need
+	// specifically the cache dir
+	dir3 := c.MkDir()
+	err = os.MkdirAll(filepath.Join(dir3, "/etc/apparmor.d"), 0755)
+	c.Assert(err, IsNil)
+	dirs.SetRootDir(dir3)
+	c.Assert(apparmor.SystemCacheDir, Equals, apparmor.CacheDir)
 }
 
 func (*apparmorSuite) TestMockAppArmorLevel(c *C) {
