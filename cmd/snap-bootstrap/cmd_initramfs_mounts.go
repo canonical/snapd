@@ -428,8 +428,12 @@ func unlockEncryptedPartition(name, device, keyfile, ekcfile, pinfile string) er
 		LockSealedKeyAccess: true,
 	}
 
-	if _, err := secbootActivateVolumeWithTPMSealedKey(tpm, name, device, keyfile, nil, &options); err != nil {
+	activated, err := secbootActivateVolumeWithTPMSealedKey(tpm, name, device, keyfile, nil, &options)
+	if err != nil {
 		return err
+	}
+	if !activated {
+		return fmt.Errorf("internal error: cannot activate %q but got no error code", device)
 	}
 
 	logger.Noticef("successfully activated device %s with TPM", device)
