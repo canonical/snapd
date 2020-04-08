@@ -3,6 +3,9 @@ summary: Test journal.persistent core config option
 systems: [ubuntu-core-*]
 
 execute: |
+    echo "Wait for first boot to be done"
+    while ! snap changes | grep -q "Done.*Initialize system state"; do sleep 1; done
+
     echo "Sanity check, persistent journal is not available by default"
     not test -e /var/log/journal
 
@@ -11,6 +14,8 @@ execute: |
     test -e /var/log/journal/
     test -e /var/log/journal/.snapd-created
 
+    # this check relies on *anything* getting logged; enabling persistent
+    # journal writes an entry about journal size, which should be sufficient.
     MACHINE_ID=$(cat /etc/machine-id)
     retry-tool -n30 --wait 1 test -e "/var/log/journal/$MACHINE_ID"
 

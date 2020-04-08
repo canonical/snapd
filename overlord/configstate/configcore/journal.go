@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -100,7 +99,7 @@ func handleJournalConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error
 
 	if opts == nil {
 		sysd = systemd.New(dirs.GlobalRootDir, systemd.SystemMode, nil)
-		if err := sysd.Restart("systemd-journald", 10*time.Second); err != nil {
+		if err := sysd.Kill("systemd-journald", "USR1", ""); err != nil {
 			return err
 		}
 	}
