@@ -21,19 +21,50 @@
 package secboot
 
 import (
+	"errors"
 	"fmt"
+	"os"
 
 	sb "github.com/snapcore/secboot"
 
 	"github.com/snapcore/snapd/logger"
 )
 
+var secbootConnectToDefaultTPM = sb.ConnectToDefaultTPM
+
 func CheckKeySealingSupported() error {
-	logger.Noticef("checking TPM device availability...")
-	tconn, err := sb.ConnectToDefaultTPM()
+	logger.Noticef("checking if secure boot is enabled...")
+	if err := checkSecureBootEnabled(); err != nil {
+		return err
+	}
+	logger.Noticef("secure boot is enabled")
+
+	logger.Noticef("checking if TPM device is available...")
+	tconn, err := secbootConnectToDefaultTPM()
 	if err != nil {
 		return fmt.Errorf("cannot connect to TPM device: %v", err)
 	}
 	logger.Noticef("TPM device detected")
 	return tconn.Close()
+}
+
+var efivarsSecureBootFile = "/sys/firmware/efi/efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c"
+
+func checkSecureBootEnabled() error {
+	f, err := os.Open(efivarsSecureBootFile)
+	if err != nil {
+		return fmt.Errorf("cannot open secure boot file: %v", err)
+	}
+	defer f.Close()
+
+	buf := make([]uint8, 5)
+	_, err = f.Read(buf)
+	if err != nil {
+		return fmt.Errorf("cannot read secure boot file: %v", err)
+	}
+	if buf[4] != 1 {
+		return errors.New("secure boot is disabled")
+	}
+
+	return nil
 }
