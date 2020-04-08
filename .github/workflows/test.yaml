@@ -22,6 +22,8 @@ jobs:
         # NOTE: checkout the code in a fixed location, even for forks, as this
         # is relevant for go's import system.
         path: ./src/github.com/snapcore/snapd
+    - name: Make /var/cache/apt owned by current user
+      run: sudo chown -R $(id -u) /var/cache/apt
     - name: Cache Debian dependencies
       id: cache-deb-downloads
       uses: actions/cache@v1
