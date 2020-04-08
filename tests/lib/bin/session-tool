@@ -1,4 +1,11 @@
 #!/bin/bash -e
+if [ $# -eq 0 ]; then
+	echo "usage: session-tool [-u USER] [-p PID_FILE] [--] <CMD>"
+	echo "usage: session-tool --prepare | --restore [-u USER]"
+	echo "usage: session-tool --kill-leaked"
+	echo "usage: session-tool --dump"
+	exit 1
+fi
 if [ "$(id -u)" -ne 0 ]; then
     echo "session-tool needs to be invoked as root" >&2
     exit 1
@@ -6,12 +13,6 @@ fi
 if [ -z "$(command -v busctl)" ]; then
     echo "session-tool requires busctl" >&2
     exit 1
-fi
-if [ $# -eq 0 ]; then
-	echo "usage: session-tool [-u USER] [-p PID_FILE] [--] <CMD>"
-	echo "usage: session-tool --prepare | --restore [-u USER]"
-	echo "usage: session-tool --kill-leaked"
-	exit 1
 fi
 user=root
 pid_file=
@@ -40,6 +41,10 @@ while [ $# -gt 0 ]; do
 			;;
 		--restore)
 			action=restore
+			shift
+			;;
+		--dump)
+			action=dump
 			shift
 			;;
 		-u)
@@ -112,7 +117,7 @@ case "$action" in
 		loginctl enable-linger "$user"
 
 		exit 0
-	;;
+		;;
 	restore)
 		# Disable linger for the selected user.
 		loginctl disable-linger "$user"
@@ -135,7 +140,15 @@ case "$action" in
 		fi
 
 		exit 0
-	;;
+		;;
+	dump)
+		echo "Active sessions:"
+		for session_id in $(loginctl list-sessions --no-legend | awk '{ print($1) }'); do
+			echo "Details of session $session_id"
+			loginctl show-session "$session_id"
+		done
+		exit 0
+		;;
 esac
 
 # This fixes a bug in some older Debian systems where /root/.profile contains
