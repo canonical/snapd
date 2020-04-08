@@ -202,6 +202,7 @@ create_nested_core_vm(){
         local EXTRA_FUNDAMENTAL=""
         local EXTRA_SNAPS=""
         if [ -d "${PWD}/extra-snaps" ]; then
+            #shellcheck disable=SC2044
             for mysnap in $(find "${PWD}/extra-snaps/" -type f -name "*.snap"); do
                 EXTRA_SNAPS="$EXTRA_SNAPS --snap $mysnap"
             done
@@ -344,7 +345,7 @@ start_nested_core_vm(){
     cp -f "$WORK_DIR/image/ubuntu-core.img" "$IMAGE_FILE"
 
     # Now qemu parameters are defined
-    PARAM_CPU="-smp 1"
+    PARAM_CPU="-smp 2"
     PARAM_MEM="-m 4096"
     PARAM_DISPLAY="-nographic"
     PARAM_NETWORK="-net nic,model=virtio -net user,hostfwd=tcp::$SSH_PORT-:22"
