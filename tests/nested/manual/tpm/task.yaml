@@ -5,7 +5,9 @@ description: |
 
 systems: [ubuntu-18.04-*, ubuntu-20.04-*]
 
-kill-timeout: 40m
+environment:
+    ENABLE_TPM: true
+    ENABLE_SECURE_BOOT: true
 
 prepare: |
     #shellcheck source=tests/lib/nested.sh
@@ -23,14 +25,13 @@ execute: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
 
-    execute_remote "sudo snap install --beta test-snapd-mokutil"
+    execute_remote "sudo snap install --beta --devmode test-snapd-mokutil"
 
     # Check tpm status on the nested vm
     if is_core_20_nested_system; then
         execute_remote "dmesg | grep -i tpm" | MATCH "efi: +SMBIOS=.* +TPMFinalLog=.*"
         execute_remote "test -e /sys/kernel/security/tpm0/binary_bios_measurements"
-        # TODO: enable this line once tpm is fully integrated on uc20
-        # execute_remote "test-snapd-mokutil --sb-state" | MATCH "SecureBoot enabled"
+        execute_remote "test-snapd-mokutil --sb-state" | MATCH "SecureBoot enabled"
     else
         execute_remote "dmesg | grep -i tpm" | MATCH "No TPM chip found"
         execute_remote "! test -e /sys/kernel/security/tpm0/binary_bios_measurements"

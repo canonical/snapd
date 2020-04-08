@@ -855,7 +855,7 @@ suites:
             # Enable tpm in the nested vm in case it is supported
             ENABLE_TPM: '$(HOST: echo "${SPREAD_ENABLE_TPM:-true}")'
             # Enable secure boot in the nested vm in case it is supported
-            ENABLE_SECURE_BOOT: '$(HOST: echo "${SPREAD_ENABLE_SECURE_BOOT:-false}")'
+            ENABLE_SECURE_BOOT: '$(HOST: echo "${SPREAD_ENABLE_SECURE_BOOT:-true}")'
         manual: true
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
