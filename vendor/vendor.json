@@ -13,6 +13,12 @@
 			"revisionTime": "2020-04-06T19:53:07Z"
 		},
 		{
+			"checksumSHA1": "gG7bzHZcHChchuLFW6XY/ojB/k8=",
+			"path": "github.com/chrisccoulson/go-tpm2/internal/crypto",
+			"revision": "c9680171bd57ce6028ecd5c895a54abe6bccc1d6",
+			"revisionTime": "2020-04-06T19:53:07Z"
+		},
+		{
 			"checksumSHA1": "eDjzake0GpHm9kfTH7FMUWX8zVA=",
 			"path": "github.com/chrisccoulson/tcglog-parser",
 			"revision": "7b0f085a85398d368e10382a21a44ec2226c35b3",
@@ -111,10 +117,10 @@
 			"revisionTime": "2017-09-28T14:21:59Z"
 		},
 		{
-			"checksumSHA1": "en6b+r95Wx/bQnFwQe6NVS4OkWk=",
+			"checksumSHA1": "rg++Of1pqZF7emKLOV0LoDL1WvU=",
 			"path": "github.com/snapcore/secboot",
-			"revision": "8d250c90206c730e142a3c9ecd9d15e39bb05a5a",
-			"revisionTime": "2020-04-08T09:13:35Z"
+			"revision": "1bdd70d66dc41c1b6b138ee0204ea1e7d188d307",
+			"revisionTime": "2020-04-08T11:02:26Z"
 		},
 		{
 			"checksumSHA1": "3AmEm18mKj8XxBuru/ix4OOpRkE=",
