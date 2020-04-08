@@ -345,12 +345,15 @@ start_nested_core_vm(){
     cp -f "$WORK_DIR/image/ubuntu-core.img" "$IMAGE_FILE"
 
     # Now qemu parameters are defined
-    PARAM_CPU="-smp 2"
+    PARAM_CPU="-smp 1"
     PARAM_MEM="-m 4096"
     PARAM_DISPLAY="-nographic"
     PARAM_NETWORK="-net nic,model=virtio -net user,hostfwd=tcp::$SSH_PORT-:22"
     PARAM_MONITOR="-monitor tcp:127.0.0.1:$MON_PORT,server,nowait -usb"
+    PARAM_MACHINE="-machine ubuntu,accel=kvm"
     PARAM_ASSERTIONS=""
+    PARAM_BIOS=""
+    PARAM_TPM=""
     if [ "$USE_CLOUD_INIT" != "true" ]; then
         PARAM_ASSERTIONS="-drive file=$WORK_DIR/assertions.disk,cache=none,format=raw"
     fi
@@ -363,20 +366,22 @@ start_nested_core_vm(){
             mv /etc/apt/sources.list.back /etc/apt/sources.list
             apt update
         fi
-        cp -f /usr/share/OVMF/OVMF_VARS.snakeoil.fd "$WORK_DIR/image/OVMF_VARS.snakeoil.fd"
-        if ! snap list swtpm-mvo; then
-            snap install swtpm-mvo --beta
+
+        if [ "$ENABLE_SECURE_BOOT" = "true" ]; then
+            cp -f /usr/share/OVMF/OVMF_VARS.snakeoil.fd "$WORK_DIR/image/OVMF_VARS.snakeoil.fd"
+            PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE.secboot.fd,if=pflash,format=raw,unit=0,readonly=on -drive file=$WORK_DIR/image/OVMF_VARS.snakeoil.fd,if=pflash,format=raw,unit=1"
+            PARAM_MACHINE="-machine ubuntu-q35,accel=kvm -global ICH9-LPC.disable_s3=1 -global ICH9-LPC.disable_s4=1"
         fi
 
-        PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE.secboot.fd,if=pflash,format=raw,unit=0,readonly=on -drive file=$WORK_DIR/image/OVMF_VARS.snakeoil.fd,if=pflash,format=raw,unit=1"
+        if [ "$ENABLE_TPM" = "true" ]; then
+            if ! snap list swtpm-mvo; then
+                snap install swtpm-mvo --beta
+            fi
+            PARAM_TPM="-chardev socket,id=chrtpm,path=/var/snap/swtpm-mvo/current/swtpm-sock -tpmdev emulator,id=tpm0,chardev=chrtpm -device tpm-tis,tpmdev=tpm0"
+        fi
         PARAM_IMAGE="-drive file=$IMAGE_FILE,cache=none,format=raw,id=disk1,if=none -device virtio-blk-pci,drive=disk1,bootindex=1"
-        PARAM_MACHINE="-machine ubuntu-q35,accel=kvm -global ICH9-LPC.disable_s3=1 -global ICH9-LPC.disable_s4=1"
-        PARAM_TPM="-chardev socket,id=chrtpm,path=/var/snap/swtpm-mvo/current/swtpm-sock -tpmdev emulator,id=tpm0,chardev=chrtpm -device tpm-tis,tpmdev=tpm0"
     else
-        PARAM_BIOS=""
         PARAM_IMAGE="-drive file=$IMAGE_FILE,cache=none,format=raw"
-        PARAM_MACHINE="-machine accel=kvm"
-        PARAM_TPM=""
     fi
 
     # Systemd unit is created, it is important to respect the qemu parameters order
@@ -436,12 +441,22 @@ start_nested_classic_vm(){
     PARAM_NETWORK="-net nic,model=virtio -net user,hostfwd=tcp::$SSH_PORT-:22"
     PARAM_MONITOR="-monitor tcp:127.0.0.1:$MON_PORT,server,nowait -usb"
     PARAM_SNAPSHOT="-snapshot"
-    PARAM_MACHINE="-machine accel=kvm"
+    PARAM_MACHINE="-machine ubuntu,accel=kvm"
     PARAM_IMAGE="-drive file=$IMAGE,if=virtio"
     PARAM_SEED="-drive file=$WORK_DIR/seed.img,if=virtio"
+    PARAM_BIOS=""
     PARAM_TPM=""
-    if [ "$ENABLE_TPM" = "true" ]; then
+
+    if [ "$ENABLE_TPM" = "true" ] && is_focal_system; then
+        if ! snap list swtpm-mvo; then
+            snap install swtpm-mvo --beta
+        fi
         PARAM_TPM="-chardev socket,id=chrtpm,path=/var/snap/swtpm-mvo/current/swtpm-sock -tpmdev emulator,id=tpm0,chardev=chrtpm -device tpm-tis,tpmdev=tpm0"
+    fi
+    if [ "$ENABLE_SECURE_BOOT" = "true" ] && is_focal_system; then
+        cp -f /usr/share/OVMF/OVMF_VARS.snakeoil.fd "$WORK_DIR/image/OVMF_VARS.snakeoil.fd"
+        PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE.secboot.fd,if=pflash,format=raw,unit=0,readonly=on -drive file=$WORK_DIR/image/OVMF_VARS.snakeoil.fd,if=pflash,format=raw,unit=1"
+        PARAM_MACHINE="-machine ubuntu-q35,accel=kvm -global ICH9-LPC.disable_s3=1 -global ICH9-LPC.disable_s4=1"
     fi
 
     systemd_create_and_start_unit "$NESTED_VM" "${QEMU}  \
@@ -451,6 +466,7 @@ start_nested_classic_vm(){
         ${PARAM_MACHINE} \
         ${PARAM_DISPLAY} \
         ${PARAM_NETWORK} \
+        ${PARAM_BIOS} \
         ${PARAM_TPM} \
         ${PARAM_IMAGE} \
         ${PARAM_SEED} \
