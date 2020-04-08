@@ -7,10 +7,10 @@
 			"revision": ""
 		},
 		{
-			"checksumSHA1": "9knAF4MuJlL6JI1jM3i/AS4ACbY=",
+			"checksumSHA1": "vdoEbcZanhiMfNOmqdCoizz3CRI=",
 			"path": "github.com/chrisccoulson/go-tpm2",
-			"revision": "e6887e32e4a513099aedbc8fc313d369a889131e",
-			"revisionTime": "2020-03-06T09:45:16Z"
+			"revision": "c9680171bd57ce6028ecd5c895a54abe6bccc1d6",
+			"revisionTime": "2020-04-06T19:53:07Z"
 		},
 		{
 			"checksumSHA1": "eDjzake0GpHm9kfTH7FMUWX8zVA=",
@@ -111,10 +111,10 @@
 			"revisionTime": "2017-09-28T14:21:59Z"
 		},
 		{
-			"checksumSHA1": "dJIqi7bVE6Lwzib0oGkCEQeEcxY=",
+			"checksumSHA1": "en6b+r95Wx/bQnFwQe6NVS4OkWk=",
 			"path": "github.com/snapcore/secboot",
-			"revision": "49613a072d9413ec09a5e98f6791a6f93e2571b9",
-			"revisionTime": "2020-03-30T08:14:49Z"
+			"revision": "8d250c90206c730e142a3c9ecd9d15e39bb05a5a",
+			"revisionTime": "2020-04-08T09:13:35Z"
 		},
 		{
 			"checksumSHA1": "3AmEm18mKj8XxBuru/ix4OOpRkE=",
