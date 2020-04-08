@@ -1182,3 +1182,63 @@ func (s *RunSuite) TestSnapRunRestoreSecurityContextFail(c *check.C) {
 	c.Check(verifyCalls, check.Equals, 2)
 	c.Check(restoreCalls, check.Equals, 1)
 }
+
+// systemctl is-system-running returns "running" in normal situations.
+func (s *RunSuite) TestIsStoppingRunning(c *check.C) {
+	systemctl := testutil.MockCommand(c, "systemctl", `
+case "$1" in
+	is-system-running)
+		echo "running"
+		exit 0
+		;;
+esac
+`)
+	defer systemctl.Restore()
+	stop, err := snaprun.IsStopping()
+	c.Check(err, check.IsNil)
+	c.Check(stop, check.Equals, false)
+	c.Check(systemctl.Calls(), check.DeepEquals, [][]string{
+		{"systemctl", "is-system-running"},
+	})
+}
+
+// systemctl is-system-running returns "stopping" when the system is
+// shutting down or rebooting. At the same time it returns a non-zero
+// exit status.
+func (s *RunSuite) TestIsStoppingStopping(c *check.C) {
+	systemctl := testutil.MockCommand(c, "systemctl", `
+case "$1" in
+	is-system-running)
+		echo "stopping"
+		exit 1
+		;;
+esac
+`)
+	defer systemctl.Restore()
+	stop, err := snaprun.IsStopping()
+	c.Check(err, check.IsNil)
+	c.Check(stop, check.Equals, true)
+	c.Check(systemctl.Calls(), check.DeepEquals, [][]string{
+		{"systemctl", "is-system-running"},
+	})
+}
+
+// systemctl is-system-running can often return "degraded"
+// Let's make sure that is not confusing us.
+func (s *RunSuite) TestIsStoppingDegraded(c *check.C) {
+	systemctl := testutil.MockCommand(c, "systemctl", `
+case "$1" in
+	is-system-running)
+		echo "degraded"
+		exit 1
+		;;
+esac
+`)
+	defer systemctl.Restore()
+	stop, err := snaprun.IsStopping()
+	c.Check(err, check.IsNil)
+	c.Check(stop, check.Equals, false)
+	c.Check(systemctl.Calls(), check.DeepEquals, [][]string{
+		{"systemctl", "is-system-running"},
+	})
+}
