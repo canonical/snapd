@@ -21,6 +21,7 @@ package main_test
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -828,27 +829,34 @@ func (s *initramfsMountsSuite) TestUnlockEncryptedPartition(c *C) {
 	})
 	defer restoreConnect()
 
-	n := 0
-	restoreActivate := main.MockSecbootActivateVolumeWithTPMSealedKey(func(tpm *secboot.TPMConnection, volumeName, sourceDevicePath,
-		keyPath string, pinReader io.Reader, options *secboot.ActivateWithTPMSealedKeyOptions) (bool, error) {
-		n++
-		c.Assert(tpm, Equals, mockTPM)
-		c.Assert(volumeName, Equals, "name")
-		c.Assert(sourceDevicePath, Equals, "device")
-		c.Assert(keyPath, Equals, "keyfile")
-		c.Assert(*options, DeepEquals, secboot.ActivateWithTPMSealedKeyOptions{
-			PINTries:            1,
-			RecoveryKeyTries:    3,
-			ActivateOptions:     []string{},
-			LockSealedKeyAccess: true,
+	tc := func(activationSuccessful bool, activationError error) error {
+		n := 0
+		restoreActivate := main.MockSecbootActivateVolumeWithTPMSealedKey(func(tpm *secboot.TPMConnection, volumeName, sourceDevicePath,
+			keyPath string, pinReader io.Reader, options *secboot.ActivateWithTPMSealedKeyOptions) (bool, error) {
+			n++
+			c.Assert(tpm, Equals, mockTPM)
+			c.Assert(volumeName, Equals, "name")
+			c.Assert(sourceDevicePath, Equals, "device")
+			c.Assert(keyPath, Equals, "keyfile")
+			c.Assert(*options, DeepEquals, secboot.ActivateWithTPMSealedKeyOptions{
+				PINTries:            1,
+				RecoveryKeyTries:    3,
+				ActivateOptions:     []string{},
+				LockSealedKeyAccess: true,
+			})
+			return activationSuccessful, activationError
 		})
-		return true, nil
-	})
-	defer restoreActivate()
+		defer restoreActivate()
 
-	err = main.UnlockEncryptedPartition("name", "device", "keyfile", "ekcfile", "pinfile")
-	c.Assert(err, IsNil)
-	c.Assert(n, Equals, 1)
+		err = main.UnlockEncryptedPartition("name", "device", "keyfile", "ekcfile", "pinfile")
+		c.Assert(n, Equals, 1)
+		return err
+	}
+
+	c.Assert(tc(true, nil), IsNil)
+	c.Assert(tc(true, errors.New("some error")), IsNil)
+	c.Assert(tc(false, nil), ErrorMatches, `internal error: cannot activate "device" but got no error code`)
+	c.Assert(tc(false, errors.New("some error")), ErrorMatches, `cannot activate "device": some error`)
 }
 
 func (s *initramfsMountsSuite) TestUnlockEncryptedPartitionTPMConnectError(c *C) {
