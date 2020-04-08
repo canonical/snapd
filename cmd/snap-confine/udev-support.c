@@ -181,8 +181,8 @@ static void sc_udev_allow_assigned(int devices_allow_fd, struct udev *udev,
 		}
 		dev_t devnum = udev_device_get_devnum(device);
 		unsigned int major = major(devnum);
-		unsigned int minor = minor(devnum);
-		if (major != 0 || minor != 0) {
+		if (major != 0) {
+			unsigned int minor = minor(devnum);
 			/* devnode is bound to the lifetime of the device and we cannot
 			 * release it separately. */
 			const char *devnode = udev_device_get_devnode(device);
