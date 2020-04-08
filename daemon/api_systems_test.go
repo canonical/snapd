@@ -147,7 +147,7 @@ func (s *apiSuite) TestGetSystemsSome(c *check.C) {
 					Validation:  "unproven",
 				},
 				Actions: []client.SystemAction{
-					{Title: "reinstall", Mode: "install"},
+					{Title: "Install", Mode: "install"},
 				},
 			}, {
 				Current: true,
@@ -164,7 +164,9 @@ func (s *apiSuite) TestGetSystemsSome(c *check.C) {
 					Validation:  "unproven",
 				},
 				Actions: []client.SystemAction{
-					{Title: "reinstall", Mode: "install"},
+					{Title: "Reinstall", Mode: "install"},
+					{Title: "Recover", Mode: "recover"},
+					{Title: "Run normally", Mode: "run"},
 				},
 			},
 		}})
