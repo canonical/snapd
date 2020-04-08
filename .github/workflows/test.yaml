@@ -70,6 +70,7 @@ jobs:
   spread-canary:
     needs: unit-tests
     runs-on: self-hosted
+    if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
     strategy:
       fail-fast: false
       matrix:
@@ -96,6 +97,7 @@ jobs:
   spread-stable:
     needs: [unit-tests, spread-canary]
     runs-on: self-hosted
+    if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
     strategy:
       # FIXME: enable fail-fast mode once spread can cancel an executing job.
       #
@@ -139,6 +141,7 @@ jobs:
   spread-unstable:
     needs: [unit-tests, spread-stable]
     runs-on: self-hosted
+    if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
     strategy:
       # FIXME: enable fail-fast mode once spread can cancel an executing job.
       fail-fast: false
