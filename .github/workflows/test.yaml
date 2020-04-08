@@ -97,6 +97,7 @@ jobs:
           spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
         done
   spread-stable:
+    if: "contains(github.event.pull_request.labels.*.name, 'Run spread')"
     needs: [unit-tests, spread-canary]
     runs-on: self-hosted
     strategy:
@@ -141,6 +142,7 @@ jobs:
           spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
         done
   spread-unstable:
+    if: "contains(github.event.pull_request.labels.*.name, 'Run spread')"
     needs: [unit-tests, spread-stable]
     runs-on: self-hosted
     strategy:
