@@ -210,10 +210,10 @@ func checkModelSnap(snap map[string]interface{}, grade ModelGrade) (*ModelSnap, 
 			return nil, err
 		}
 	} else {
-		// snap ids are optional with grade unstable to allow working
+		// snap ids are optional with grade dangerous to allow working
 		// with local/not pushed yet to the store snaps
 		if grade != ModelDangerous {
-			return nil, fmt.Errorf(`"id" %s is mandatory for stable model`, what)
+			return nil, fmt.Errorf(`"id" %s is mandatory for %s grade model`, what, grade)
 		}
 	}
 
