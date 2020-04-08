@@ -769,6 +769,7 @@ func (mods *modelSuite) TestCore20GradeDangerous(c *C) {
 	// snap ids are optional with grade dangerous to allow working
 	// with local/not pushed yet to the store snaps
 	encoded = strings.Replace(encoded, "    id: myappdididididididididididididid\n", "", 1)
+	encoded = strings.Replace(encoded, "    id: brandgadgetdidididididididididid\n", "", 1)
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.ModelType)
