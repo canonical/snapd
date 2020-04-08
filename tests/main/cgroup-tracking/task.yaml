@@ -38,6 +38,7 @@ restore: |
         esac
     fi
     session-tool --restore -u "$USER"
+    rm -f /tmp/*.pid /tmp/*.stamp
 
 execute: |
     # TODO: add a variant that uses a service
