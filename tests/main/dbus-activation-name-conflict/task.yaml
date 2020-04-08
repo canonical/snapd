@@ -15,7 +15,7 @@ execute: |
     [ -f /var/lib/snapd/dbus/services/io.snapcraft.SnapDbusService.service ]
 
     echo "Installing a second snap that tries to provide the name fails"
-    ! install_local test-snapd-dbus-service-conflicting
+    not install_local test-snapd-dbus-service-conflicting
 
     echo "But refreshing a snap providing a name should work"
     snap install --dangerous /var/lib/snapd/snaps/test-snapd-dbus-service_*.snap

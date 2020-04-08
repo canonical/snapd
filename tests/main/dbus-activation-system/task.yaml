@@ -20,7 +20,7 @@ execute: |
     [ -f /var/lib/snapd/dbus/system-services/io.snapcraft.SnapDbusService.service ]
 
     echo "The service is not initially running"
-    ! systemctl is-active snap.test-snapd-dbus-service.system.service
+    not systemctl is-active snap.test-snapd-dbus-service.system.service
 
     echo "Making a method call wakes the service"
     install_local test-snapd-dbus-service-client
