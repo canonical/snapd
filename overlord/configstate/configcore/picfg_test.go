@@ -172,9 +172,6 @@ func (s *piCfgSuite) TestConfigurePiConfigRegression(c *C) {
 }
 
 func (s *piCfgSuite) TestFilesystemOnlyApply(c *C) {
-	restorer := release.MockOnClassic(false)
-	defer restorer()
-
 	conf := configcore.PlainCoreConfig(map[string]interface{}{
 		"pi-config.gpu-mem-512": true,
 	})
@@ -186,7 +183,7 @@ func (s *piCfgSuite) TestFilesystemOnlyApply(c *C) {
 	piCfg := filepath.Join(tmpDir, "/boot/uboot/config.txt")
 	c.Assert(ioutil.WriteFile(piCfg, []byte(mockConfigTxt), 0644), IsNil)
 
-	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf), IsNil)
+	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf, nil), IsNil)
 
 	expected := strings.Replace(mockConfigTxt, "#gpu_mem_512=true", "gpu_mem_512=true", -1)
 	c.Check(piCfg, testutil.FileEquals, expected)

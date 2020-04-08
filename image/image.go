@@ -439,7 +439,8 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 			return err
 		}
 		defaults := gadget.SystemDefaults(gadgetInfo.Defaults)
-		return configcore.FilesystemOnlyApply(rootDir, configcore.PlainCoreConfig(defaults))
+		applyOpts := &configcore.FilesystemOnlyApplyOpts{Classic: opts.Classic}
+		return configcore.FilesystemOnlyApply(rootDir, configcore.PlainCoreConfig(defaults), applyOpts)
 	}
 
 	return nil
