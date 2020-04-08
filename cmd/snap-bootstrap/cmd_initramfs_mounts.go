@@ -428,7 +428,7 @@ func unlockEncryptedPartition(name, device, keyfile, ekcfile, pinfile string) er
 		LockSealedKeyAccess: true,
 	}
 
-	if err := secbootActivateVolumeWithTPMSealedKey(tpm, name, device, keyfile, nil, &options); err != nil {
+	if _, err := secbootActivateVolumeWithTPMSealedKey(tpm, name, device, keyfile, nil, &options); err != nil {
 		return err
 	}
 

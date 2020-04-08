@@ -830,7 +830,7 @@ func (s *initramfsMountsSuite) TestUnlockEncryptedPartition(c *C) {
 
 	n := 0
 	restoreActivate := main.MockSecbootActivateVolumeWithTPMSealedKey(func(tpm *secboot.TPMConnection, volumeName, sourceDevicePath,
-		keyPath string, pinReader io.Reader, options *secboot.ActivateWithTPMSealedKeyOptions) error {
+		keyPath string, pinReader io.Reader, options *secboot.ActivateWithTPMSealedKeyOptions) (bool, error) {
 		n++
 		c.Assert(tpm, Equals, mockTPM)
 		c.Assert(volumeName, Equals, "name")
@@ -842,7 +842,7 @@ func (s *initramfsMountsSuite) TestUnlockEncryptedPartition(c *C) {
 			ActivateOptions:     []string{},
 			LockSealedKeyAccess: true,
 		})
-		return nil
+		return true, nil
 	})
 	defer restoreActivate()
 

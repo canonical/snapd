@@ -94,7 +94,7 @@ func MockSecbootSecureConnectToDefaultTPM(f func(ekCertDataReader io.Reader,
 }
 
 func MockSecbootActivateVolumeWithTPMSealedKey(f func(tpm *secboot.TPMConnection, volumeName, sourceDevicePath,
-	keyPath string, pinReader io.Reader, options *secboot.ActivateWithTPMSealedKeyOptions) error) (restore func()) {
+	keyPath string, pinReader io.Reader, options *secboot.ActivateWithTPMSealedKeyOptions) (bool, error)) (restore func()) {
 	oldSecbootActivateVolumeWithTPMSealedKey := secbootActivateVolumeWithTPMSealedKey
 	secbootActivateVolumeWithTPMSealedKey = f
 	return func() {

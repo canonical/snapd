@@ -24,7 +24,6 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/snapcore/secboot"
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"

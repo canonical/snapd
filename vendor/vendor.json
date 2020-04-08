@@ -7,10 +7,11 @@
 			"revision": ""
 		},
 		{
-			"checksumSHA1": "9knAF4MuJlL6JI1jM3i/AS4ACbY=",
+			"checksumSHA1": "XbZpb2UIPLBLgzoGPGlatKLa1vw=",
 			"path": "github.com/chrisccoulson/go-tpm2",
-			"revision": "e6887e32e4a513099aedbc8fc313d369a889131e",
-			"revisionTime": "2020-03-06T09:45:16Z"
+			"revision": "c9680171bd57ce6028ecd5c895a54abe6bccc1d6",
+			"revisionTime": "2020-04-06T19:53:07Z",
+			"tree": true
 		},
 		{
 			"checksumSHA1": "eDjzake0GpHm9kfTH7FMUWX8zVA=",
@@ -111,13 +112,10 @@
 			"revisionTime": "2017-09-28T14:21:59Z"
 		},
 		{
-			"checksumSHA1": "DR763FnfgLT38aQGZTdArrLzUVQ=",
-			"origin": "github.com/chrisccoulson/secboot",
+			"checksumSHA1": "J/c0JfchOjeEubDuT6m3GNqRHAg=",
 			"path": "github.com/snapcore/secboot",
-			"revision": "9d19b1a451b69e8819b322292f42bf518bf329f7",
-			"revisionTime": "2020-03-20T11:45:35Z",
-			"version": "add-crypt-helpers",
-			"versionExact": "add-crypt-helpers"
+			"revision": "1bdd70d66dc41c1b6b138ee0204ea1e7d188d307",
+			"revisionTime": "2020-04-08T11:02:26Z"
 		},
 		{
 			"checksumSHA1": "3AmEm18mKj8XxBuru/ix4OOpRkE=",
@@ -199,7 +197,7 @@
 			"revisionTime": "2017-06-28T23:42:41Z"
 		},
 		{
-			"checksumSHA1": "kohbRG3D0CRhcgwH6z7YQ6uq1xo=",
+			"checksumSHA1": "U4ZQCRcFfuKZvLIUmB1kXgWSd9U=",
 			"path": "golang.org/x/sys/unix",
 			"revision": "e3b113bbe6a423737ae98f42118ce9366e112e12",
 			"revisionTime": "2020-04-06T14:27:27Z"
