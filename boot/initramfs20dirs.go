@@ -45,6 +45,10 @@ var (
 	// InitramfsWritableDir is the location of the writable partition during the
 	// initramfs.
 	InitramfsWritableDir string
+
+	// InitramfsWritableDir is the location of the encrypted partition keys
+	// during the initramfs.
+	InitramfsEncryptionKeyDir string
 )
 
 func setInitramfsDirVars(rootdir string) {
@@ -53,6 +57,7 @@ func setInitramfsDirVars(rootdir string) {
 	InitramfsUbuntuBootDir = filepath.Join(InitramfsRunMntDir, "ubuntu-boot")
 	InitramfsUbuntuSeedDir = filepath.Join(InitramfsRunMntDir, "ubuntu-seed")
 	InitramfsWritableDir = filepath.Join(InitramfsUbuntuDataDir, "system-data")
+	InitramfsEncryptionKeyDir = InitramfsUbuntuSeedDir
 }
 
 func init() {

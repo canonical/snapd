@@ -228,15 +228,14 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 
 	// in the right way
 	if tc.encrypt {
-		systemDataDir := boot.InitramfsWritableDir
 		c.Assert(mockSnapBootstrapCmd.Calls(), DeepEquals, [][]string{
 			{
 				"snap-bootstrap", "create-partitions", "--mount", "--encrypt",
-				"--key-file", filepath.Join(boot.InitramfsUbuntuBootDir, "ubuntu-data.keyfile.sealed"),
-				"--recovery-key-file", filepath.Join(boot.InitramfsUbuntuDataDir, "/system-data/var/lib/snapd/device/fde/recovery-key"),
-				"--recovery-key-file", filepath.Join(systemDataDir, "recovery-key"),
-				"--lockout-auth-file", filepath.Join(systemDataDir, "lockout-auth"),
-				"--auth-update-file", filepath.Join(systemDataDir, "auth-update"),
+				"--key-file", filepath.Join(boot.InitramfsEncryptionKeyDir, "ubuntu-data.keyfile.sealed"),
+				"--recovery-key-file", filepath.Join(boot.InitramfsWritableDir, "var/lib/snapd/device/fde/recovery-key"),
+				"--recovery-key-file", filepath.Join(boot.InitramfsWritableDir, "recovery-key"),
+				"--lockout-auth-file", filepath.Join(boot.InitramfsWritableDir, "lockout-auth"),
+				"--auth-update-file", filepath.Join(boot.InitramfsWritableDir, "auth-update"),
 				"--kernel", filepath.Join(dirs.SnapMountDir, "pc-kernel/1/kernel.efi"),
 				filepath.Join(dirs.SnapMountDir, "/pc/1"),
 			},

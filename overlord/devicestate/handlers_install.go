@@ -79,23 +79,19 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 	if useEncryption {
-		// XXX: we're in the target system, not in initramfs
-		ubuntuBootDir := boot.InitramfsUbuntuBootDir
-		systemDataDir := boot.InitramfsWritableDir
-
 		args = append(args,
 			// enable data encryption
 			"--encrypt",
 			// location to store the keyfile
-			"--key-file", filepath.Join(ubuntuBootDir, "ubuntu-data.keyfile.sealed"),
+			"--key-file", filepath.Join(boot.InitramfsEncryptionKeyDir, "ubuntu-data.keyfile.sealed"),
 			// location to store the recovery keyfile
-			"--recovery-key-file", filepath.Join(boot.InitramfsUbuntuDataDir, "/system-data/var/lib/snapd/device/fde/recovery-key"),
+			"--recovery-key-file", filepath.Join(boot.InitramfsWritableDir, "var/lib/snapd/device/fde/recovery-key"),
 			// location to store the recovery keyfile
-			"--recovery-key-file", filepath.Join(systemDataDir, "recovery-key"),
+			"--recovery-key-file", filepath.Join(boot.InitramfsWritableDir, "recovery-key"),
 			// location to store the lockout authorization data
-			"--lockout-auth-file", filepath.Join(systemDataDir, "lockout-auth"),
+			"--lockout-auth-file", filepath.Join(boot.InitramfsWritableDir, "lockout-auth"),
 			// location to store the authorization policy update data
-			"--auth-update-file", filepath.Join(systemDataDir, "auth-update"),
+			"--auth-update-file", filepath.Join(boot.InitramfsWritableDir, "auth-update"),
 			// path to the kernel to install
 			"--kernel", filepath.Join(kernelDir, "kernel.efi"),
 		)
