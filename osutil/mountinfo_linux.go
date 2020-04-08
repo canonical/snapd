@@ -97,15 +97,15 @@ func (mi *MountInfoEntry) String() string {
 // can be mocked by using osutil.MockMountInfo to hard-code a specific mountinfo
 // file content to be loaded by this function
 func LoadMountInfo() ([]*MountInfoEntry, error) {
-	if mockedMountInfo {
-		return ReadMountInfo(bytes.NewBufferString(mockedMountInfoContent))
+	if mockedMountInfo != nil {
+		return ReadMountInfo(bytes.NewBufferString(*mockedMountInfo))
 	}
 	// if we are in testing and we didn't mock a mountinfo panic, since the
 	// mountinfo is used in many places and really should be mocked for tests
 	if isSnapdTest {
 		panic("/proc/self/mountinfo must be mocked in tests")
 	}
-	f, err := os.Open("/proc/self/mountinfo")
+	f, err := os.Open(procSelfMountInfo)
 	if err != nil {
 		return nil, err
 	}

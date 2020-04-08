@@ -27,21 +27,15 @@ import (
 
 // MockMountInfo is meant for tests to mock the content of /proc/self/mountinfo.
 func MockMountInfo(content string) (restore func()) {
-	old := mockedMountInfoContent
-	// the boolean is necessary because many tests will want to mock mountinfo
-	// as "", so we couldn't do the trivial thing and let "" mean turn off
-	// mocking
-	mockedMountInfo = true
-	mockedMountInfoContent = content
+	old := mockedMountInfo
+	mockedMountInfo = &content
 	return func() {
-		mockedMountInfo = false
-		mockedMountInfoContent = old
+		mockedMountInfo = old
 	}
 }
 
 var (
-	mockedMountInfo        bool
-	mockedMountInfoContent string
+	mockedMountInfo *string
 
 	userLookup  = user.Lookup
 	userCurrent = user.Current
@@ -53,4 +47,6 @@ var (
 
 	etcFstab    = "/etc/fstab"
 	sudoersDotD = "/etc/sudoers.d"
+
+	procSelfMountInfo = "/proc/self/mountinfo"
 )
