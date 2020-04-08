@@ -21,13 +21,15 @@ package main
 
 import (
 	"io"
+	"log/syslog"
 	"os/exec"
 )
 
 var (
-	OutputForUI = outputForUI
-	RunUI       = runUI
-	Chooser     = chooser
+	OutputForUI           = outputForUI
+	RunUI                 = runUI
+	Chooser               = chooser
+	LoggerWithSyslogMaybe = loggerWithSyslogMaybe
 )
 
 func MockStdStreams(stdout, stderr io.Writer) (restore func()) {
@@ -51,5 +53,13 @@ func MockDefaultMarkerFile(p string) (restore func()) {
 	defaultMarkerFile = p
 	return func() {
 		defaultMarkerFile = old
+	}
+}
+
+func MockSyslogNew(f func(syslog.Priority, string) (io.Writer, error)) (restore func()) {
+	oldSyslogNew := syslogNew
+	syslogNew = f
+	return func() {
+		syslogNew = oldSyslogNew
 	}
 }
