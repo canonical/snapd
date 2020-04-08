@@ -167,14 +167,14 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	mockSnapBootstrapCmd := testutil.MockCommand(c, filepath.Join(dirs.DistroLibExecDir, "snap-bootstrap"), "")
 	defer mockSnapBootstrapCmd.Restore()
 
-	restoreTPM := devicestate.MockCheckTPMAvailability(func() error {
+	restore = devicestate.MockSecbootCheckKeySealingSupported(func() error {
 		if tc.tpm {
 			return nil
 		} else {
 			return fmt.Errorf("TPM not available")
 		}
 	})
-	defer restoreTPM()
+	defer restore()
 
 	s.state.Lock()
 	mockModel := s.makeMockInstalledPcGadget(c, grade)
@@ -232,6 +232,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 			{
 				"snap-bootstrap", "create-partitions", "--mount", "--encrypt",
 				"--key-file", filepath.Join(boot.InitramfsUbuntuBootDir, "/ubuntu-data.keyfile.unsealed"),
+				"--recovery-key-file", filepath.Join(boot.InitramfsUbuntuDataDir, "/system-data/var/lib/snapd/device/fde/recovery-key"),
 				filepath.Join(dirs.SnapMountDir, "/pc/1"),
 			},
 		})

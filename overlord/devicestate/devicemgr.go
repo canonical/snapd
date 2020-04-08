@@ -476,8 +476,7 @@ func (m *DeviceManager) ensureSeeded() error {
 		return nil
 	}
 
-	msg := fmt.Sprintf("Initialize system state")
-	chg := m.state.NewChange("seed", msg)
+	chg := m.state.NewChange("seed", "Initialize system state")
 	for _, ts := range tsAll {
 		chg.AddAll(ts)
 	}
@@ -673,7 +672,6 @@ func (m *DeviceManager) Ensure() error {
 	var errs []error
 
 	if err := m.ensureSeeded(); err != nil {
-		// XXX: avoid duplicated warnings?
 		m.state.Lock()
 		m.state.Warnf(seedFailureFmt, err)
 		m.state.Unlock()
@@ -766,7 +764,16 @@ type System struct {
 	Actions []SystemAction
 }
 
-func systemFromSeed(label string) (*System, error) {
+var defaultSystemActions = []SystemAction{
+	{Title: "Install", Mode: "install"},
+}
+var currentSystemActions = []SystemAction{
+	{Title: "Reinstall", Mode: "install"},
+	{Title: "Recover", Mode: "recover"},
+	{Title: "Run normally", Mode: "run"},
+}
+
+func systemFromSeed(label string, current *seededSystem) (*System, error) {
 	s, err := seed.Open(dirs.SnapSeedDir, label)
 	if err != nil {
 		return nil, fmt.Errorf("cannot open: %v", err)
@@ -783,17 +790,16 @@ func systemFromSeed(label string) (*System, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot obtain brand: %v", err)
 	}
-	// TODO:UC20 build the actions list
-	defaultActions := []SystemAction{
-		{Title: "reinstall", Mode: "install"},
-	}
-
 	system := System{
 		Current: false,
 		Label:   label,
 		Model:   model,
 		Brand:   brand,
-		Actions: defaultActions,
+		Actions: defaultSystemActions,
+	}
+	if current != nil && isCurrentSystem(current, &system) {
+		system.Current = true
+		system.Actions = currentSystemActions
 	}
 	return &system, nil
 }
@@ -815,6 +821,12 @@ func currentSeedSystem(st *state.State) (*seededSystem, error) {
 	return &whatseeded[0], nil
 }
 
+func isCurrentSystem(current *seededSystem, other *System) bool {
+	return current.System == other.Label &&
+		current.Model == other.Model.Model() &&
+		current.BrandID == other.Brand.AccountID()
+}
+
 // Systems list the available recovery/seeding systems. Returns the list of
 // systems, ErrNoSystems when no systems seeds were found or other error.
 func (m *DeviceManager) Systems() ([]*System, error) {
@@ -833,17 +845,12 @@ func (m *DeviceManager) Systems() ([]*System, error) {
 	var systems []*System
 	for _, fpLabel := range systemLabels {
 		label := filepath.Base(fpLabel)
-		system, err := systemFromSeed(label)
+		system, err := systemFromSeed(label, currentSys)
 		if err != nil {
 			// TODO:UC20 add a Broken field to the seed system like
 			// we do for snap.Info
 			logger.Noticef("cannot load system %q seed: %v", label, err)
 			continue
-		}
-		if currentSys != nil {
-			system.Current = currentSys.System == label &&
-				currentSys.Model == system.Model.Model() &&
-				currentSys.BrandID == system.Brand.AccountID()
 		}
 		systems = append(systems, system)
 	}
@@ -856,11 +863,13 @@ var ErrUnsupportedAction = errors.New("unsupported action")
 // system reboot will be requested when the request can be successfully carried
 // out.
 func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAction) error {
+	currentSys, _ := currentSeedSystem(m.state)
+
 	systemSeedDir := filepath.Join(dirs.SnapSeedDir, "systems", systemLabel)
 	if _, err := os.Stat(systemSeedDir); err != nil {
 		return err
 	}
-	system, err := systemFromSeed(systemLabel)
+	system, err := systemFromSeed(systemLabel, currentSys)
 	if err != nil {
 		return fmt.Errorf("cannot load seed system: %v", err)
 	}
@@ -874,6 +883,12 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 	}
 	if sysAction == nil {
 		return ErrUnsupportedAction
+	}
+
+	// TODO:UC20 assume we are in the run mode
+	if sysAction.Mode == "run" {
+		// do nothing
+		return nil
 	}
 
 	m.state.Lock()

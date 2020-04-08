@@ -46,7 +46,7 @@ func (s *retrySuite) SetUpTest(c *C) {
 func (s *retrySuite) TearDownTest(c *C) {
 }
 
-var testRetryStrategy = retry.LimitCount(5, retry.LimitTime(1*time.Second,
+var testRetryStrategy = retry.LimitCount(5, retry.LimitTime(5*time.Second,
 	retry.Exponential{
 		Initial: 1 * time.Millisecond,
 		Factor:  1,
@@ -383,7 +383,7 @@ func (s *retrySuite) TestRetryRequestTimeoutHandling(c *C) {
 	defer close(finished)
 
 	cli := httputil.NewHTTPClient(&httputil.ClientOptions{
-		Timeout: 25 * time.Millisecond,
+		Timeout: 100 * time.Millisecond,
 	})
 
 	url := ""

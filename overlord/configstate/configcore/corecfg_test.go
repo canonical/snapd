@@ -212,3 +212,11 @@ func (s *applyCfgSuite) TestPlainCoreConfigGetMaybe(c *C) {
 	c.Assert(conf.Get("core", "foo", &val), IsNil)
 	c.Check(val, DeepEquals, "bar")
 }
+
+func (s *applyCfgSuite) TestNilHandlePanics(c *C) {
+	c.Assert(func() { configcore.AddFSOnlyHandler(nil, nil, nil) },
+		Panics, "cannot have nil handle with fsOnlyHandler")
+
+	c.Assert(func() { configcore.AddWithStateHandler(nil, nil, nil) },
+		Panics, "cannot have nil handle with addWithStateHandler if validatedOnlyStateConfig flag is not set")
+}

@@ -1,7 +1,7 @@
-summary: Integration tests for the snap-bootstrap binary
+summary: Integration tests for the snap-bootstrap create-partitions
 
-# one system is enough, its a very specialized test for now
-systems: [ubuntu-19.10-64]
+# use the same system and tooling as uc20
+systems: [ubuntu-20.04-64]
 
 debug: |
     cat /proc/partitions
@@ -49,7 +49,7 @@ execute: |
 
     echo "And check that the partitions are created"
     sfdisk -l "$LOOP" | MATCH '750M Linux filesystem'
-    sfdisk -l "$LOOP" | MATCH '3G Linux filesystem'
+    sfdisk -l "$LOOP" | MATCH '16.7G Linux filesystem'
     file -s "${LOOP}p3" | MATCH 'ext4 filesystem data,.* volume name "ubuntu-boot"'
     file -s "${LOOP}p4" | MATCH 'ext4 filesystem data,.* volume name "ubuntu-data"'
 
@@ -81,6 +81,14 @@ execute: |
     df -T "${LOOP}p4" | MATCH ext4
     umount ./mnt
     file -s "${LOOP}p4" | MATCH 'ext4 filesystem data,.* volume name "ubuntu-data"'
+    # size is reported in 512 blocks
+    sz="$(udevadm info -q property "${LOOP}p4" |grep "^ID_PART_ENTRY_SIZE=" | cut -f2 -d=)"
+    # the disk size is 20GB, 1GB in 512 blocks is 2097152, with auto grow, the
+    # partition can be safely assumed to be > 10GB
+    if [ "$sz" -lt "$((10 * 2097152))" ]; then
+        echo "unexpected system-data partition size $((sz * 512))"
+        exit 1
+    fi
 
     echo "Check that the filesystem content was deployed"
     mkdir -p ./mnt
@@ -101,7 +109,11 @@ execute: |
             size: 110M
     EOF
     /usr/lib/snapd/snap-bootstrap create-partitions --mount ./gadget-dir "$LOOP"
-    sfdisk -l "$LOOP" | MATCH '110M\s* Linux filesystem'
+    sfdisk -l "$LOOP" | MATCH "${LOOP}p1 .* 1M\s* BIOS boot"
+    sfdisk -l "$LOOP" | MATCH "${LOOP}p2 .* 1.2G\s* EFI System"
+    sfdisk -l "$LOOP" | MATCH "${LOOP}p3 .* 750M\s* Linux filesystem"
+    sfdisk -l "$LOOP" | MATCH "${LOOP}p4 .* 1G\s* Linux filesystem"
+    sfdisk -l "$LOOP" | MATCH "${LOOP}p5 .* 110M\s* Linux filesystem"
 
     echo "check that the filesystems are created and mounted"
     mount
