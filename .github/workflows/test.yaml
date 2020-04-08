@@ -84,6 +84,7 @@ jobs:
     - name: Run spread tests
       env:
           SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
+      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
       run: |
           # Register a problem matcher to highlight spread failures
           echo "::add-matcher::.github/spread-problem-matcher.json"
@@ -127,6 +128,7 @@ jobs:
     - name: Run spread tests
       env:
           SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
+      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
       run: |
           # Register a problem matcher to highlight spread failures
           echo "::add-matcher::.github/spread-problem-matcher.json"
@@ -155,6 +157,7 @@ jobs:
     - name: Run spread tests
       env:
           SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
+      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
       run: |
           # Register a problem matcher to highlight spread failures
           echo "::add-matcher::.github/spread-problem-matcher.json"
