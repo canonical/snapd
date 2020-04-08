@@ -48,4 +48,4 @@ matrix:
             python-launchpadlib
       script:
         - git fetch --unshallow
-        - ./tests/lib/cla_check.py
+        - ./tests/lib/cla_check.py "$TRAVIS_COMMIT_RANGE"
