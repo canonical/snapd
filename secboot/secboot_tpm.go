@@ -24,9 +24,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	sb "github.com/snapcore/secboot"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 )
 
@@ -51,7 +53,7 @@ func CheckKeySealingSupported() error {
 var efivarsSecureBootFile = "/sys/firmware/efi/efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c"
 
 func checkSecureBootEnabled() error {
-	f, err := os.Open(efivarsSecureBootFile)
+	f, err := os.Open(filepath.Join(dirs.GlobalRootDir, efivarsSecureBootFile))
 	if err != nil {
 		return fmt.Errorf("cannot open secure boot file: %v", err)
 	}

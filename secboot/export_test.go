@@ -21,14 +21,23 @@
 package secboot
 
 import (
+	"io/ioutil"
+	"os"
+	"path/filepath"
+
 	"github.com/snapcore/secboot"
+	"github.com/snapcore/snapd/dirs"
 )
 
-func MockEfivarsSecureBootFile(s string) func() {
-	old := efivarsSecureBootFile
-	efivarsSecureBootFile = s
-	return func() {
-		efivarsSecureBootFile = old
+func CreateEfivarsSecureBoot(sbData []uint8) {
+	sbFile := filepath.Join(dirs.GlobalRootDir, efivarsSecureBootFile)
+	err := os.MkdirAll(filepath.Dir(sbFile), 0755)
+	if err != nil {
+		panic(err)
+	}
+	err = ioutil.WriteFile(sbFile, sbData, 0644)
+	if err != nil {
+		panic(err)
 	}
 }
 

@@ -22,31 +22,52 @@ package secboot_test
 
 import (
 	"errors"
-	"io/ioutil"
 	"os"
 	"testing"
 
 	"github.com/chrisccoulson/go-tpm2"
 	sb "github.com/snapcore/secboot"
+
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func TestSecboot(t *testing.T) { TestingT(t) }
 
-type secbootSuite struct{}
+type secbootSuite struct {
+	testutil.BaseTest
+}
 
 var _ = Suite(&secbootSuite{})
+
+func (s *secbootSuite) SetUpTest(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	s.AddCleanup(func() { dirs.SetRootDir("/") })
+}
 
 func (s *secbootSuite) TestCheckKeySealingSupported(c *C) {
 	sbEmpty := []uint8{}
 	sbEnabled := []uint8{6, 0, 0, 0, 1}
 	sbDisabled := []uint8{6, 0, 0, 0, 0}
 
-	tc := func(hasTPM bool, sbData []uint8) error {
-		restoreConnectToDefaultTPM := secboot.MockSecbootConnectToDefaultTPM(func() (*sb.TPMConnection, error) {
-			if !hasTPM {
+	type testCase struct {
+		hasTPM bool
+		sbData []uint8
+		errStr string
+	}
+	for _, t := range []testCase{
+		{true, sbEnabled, ""},
+		{true, sbEmpty, "cannot read secure boot file: EOF"},
+		{false, sbEmpty, "cannot read secure boot file: EOF"},
+		{true, sbDisabled, "secure boot is disabled"},
+		{false, sbEnabled, "cannot connect to TPM device: TPM not available"},
+		{false, sbDisabled, "secure boot is disabled"},
+	} {
+		restore := secboot.MockSecbootConnectToDefaultTPM(func() (*sb.TPMConnection, error) {
+			if !t.hasTPM {
 				return nil, errors.New("TPM not available")
 			}
 			tcti, err := os.Open("/dev/null")
@@ -56,22 +77,14 @@ func (s *secbootSuite) TestCheckKeySealingSupported(c *C) {
 			mockTPM := &sb.TPMConnection{TPMContext: tpm}
 			return mockTPM, nil
 		})
-		defer restoreConnectToDefaultTPM()
+		defer restore()
 
-		sbFile := "sbfile"
-		err := ioutil.WriteFile(sbFile, sbData, 0644)
-		c.Assert(err, IsNil)
-		defer os.Remove(sbFile)
-
-		restoreSecureBootFile := secboot.MockEfivarsSecureBootFile(sbFile)
-		defer restoreSecureBootFile()
-
-		return secboot.CheckKeySealingSupported()
+		secboot.CreateEfivarsSecureBoot(t.sbData)
+		err := secboot.CheckKeySealingSupported()
+		if t.errStr == "" {
+			c.Assert(err, IsNil)
+		} else {
+			c.Assert(err, ErrorMatches, t.errStr)
+		}
 	}
-
-	c.Assert(tc(true, sbEnabled), IsNil)
-	c.Assert(tc(true, sbEmpty), ErrorMatches, "cannot read secure boot file: EOF")
-	c.Assert(tc(true, sbDisabled), ErrorMatches, "secure boot is disabled")
-	c.Assert(tc(false, sbEnabled), ErrorMatches, "cannot connect to TPM device: TPM not available")
-	c.Assert(tc(false, sbDisabled), ErrorMatches, "secure boot is disabled")
 }
