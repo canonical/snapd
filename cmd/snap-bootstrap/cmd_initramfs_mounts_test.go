@@ -187,6 +187,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep2(c *C) {
 %[1]s/snaps/pc-kernel_1.snap %[2]s/kernel
 %[1]s/snaps/core20_1.snap %[2]s/base
 --type=tmpfs tmpfs %[2]s/data
+--options=rbind %[2]s/data %[2]s/ubuntu-data
 `, s.seedDir, boot.InitramfsRunMntDir))
 }
 
@@ -256,6 +257,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1(c *C) {
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`/dev/disk/by-label/ubuntu-seed %[1]s/ubuntu-seed
 /dev/disk/by-label/ubuntu-boot %[1]s/ubuntu-boot
 /dev/disk/by-label/ubuntu-data %[1]s/data
+--options=rbind %[1]s/data %[1]s/ubuntu-data
 `, boot.InitramfsRunMntDir))
 }
 

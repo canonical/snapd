@@ -34,6 +34,10 @@ var (
 	// (typically a partition labeled "ubuntu-data") during the initramfs.
 	InitramfsDataDir string
 
+	// InitramfsCompatUbuntuDataDir is the transitional mount point for the
+	// system-data role partition at "ubuntu-data".
+	InitramfsCompatUbuntuDataDir string
+
 	// InitramfsUbuntuBootDir is the location of ubuntu-boot during the
 	// initramfs.
 	InitramfsUbuntuBootDir string
@@ -50,6 +54,8 @@ var (
 func setInitramfsDirVars(rootdir string) {
 	InitramfsRunMntDir = filepath.Join(rootdir, "run/mnt")
 	InitramfsDataDir = filepath.Join(InitramfsRunMntDir, "data")
+	// TODO:UC20 remove the compatibility mount once the transition period is over
+	InitramfsCompatUbuntuDataDir = filepath.Join(InitramfsRunMntDir, "ubuntu-data")
 	InitramfsUbuntuBootDir = filepath.Join(InitramfsRunMntDir, "ubuntu-boot")
 	InitramfsUbuntuSeedDir = filepath.Join(InitramfsRunMntDir, "ubuntu-seed")
 	InitramfsWritableDir = filepath.Join(InitramfsDataDir, "system-data")

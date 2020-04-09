@@ -160,6 +160,8 @@ func generateMountsModeInstall(recoverySystem string) error {
 	if !isMounted {
 		// TODO:UC20: is there a better way?
 		fmt.Fprintf(stdout, "--type=tmpfs tmpfs %s\n", boot.InitramfsDataDir)
+		// TODO:UC20 remove once the transition period is over
+		fmt.Fprintf(stdout, "--options=rbind %s %s\n", boot.InitramfsDataDir, boot.InitramfsCompatUbuntuDataDir)
 		return nil
 	}
 
@@ -212,6 +214,8 @@ func generateMountsModeRun() error {
 		}
 
 		fmt.Fprintf(stdout, "%s %s\n", device, boot.InitramfsDataDir)
+		// TODO:UC20 remove once the transition period is over
+		fmt.Fprintf(stdout, "--options=rbind %s %s\n", boot.InitramfsDataDir, boot.InitramfsCompatUbuntuDataDir)
 		return nil
 	}
 
