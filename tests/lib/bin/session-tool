@@ -1,4 +1,11 @@
 #!/bin/bash -e
+if [ $# -eq 0 ]; then
+	echo "usage: session-tool [-u USER] [-p PID_FILE] [--] <CMD>"
+	echo "usage: session-tool --prepare | --restore [-u USER]"
+	echo "usage: session-tool --kill-leaked"
+	echo "usage: session-tool --dump"
+	exit 1
+fi
 if [ "$(id -u)" -ne 0 ]; then
     echo "session-tool needs to be invoked as root" >&2
     exit 1
@@ -6,11 +13,6 @@ fi
 if [ -z "$(command -v busctl)" ]; then
     echo "session-tool requires busctl" >&2
     exit 1
-fi
-if [ $# -eq 0 ]; then
-	echo "usage: session-tool [-u USER] [-p PID_FILE] [ -i SESSION_ID_FILE] [--] <CMD>"
-	echo "usage: session-tool --prepare | --restore [-u USER]"
-	exit 1
 fi
 user=root
 pid_file=
@@ -29,12 +31,20 @@ while [ $# -gt 0 ]; do
 			pid_file="$2"
 			shift 2
 			;;
+		--kill-leaked)
+			action=kill-leaked
+			shift
+			;;
 		--prepare)
 			action=prepare
 			shift
 			;;
 		--restore)
 			action=restore
+			shift
+			;;
+		--dump)
+			action=dump
 			shift
 			;;
 		-u)
@@ -56,6 +66,22 @@ while [ $# -gt 0 ]; do
 done
 
 case "$action" in
+	kill-leaked)
+		# Work around a bug in older versions of logind that leak closing session
+		# without a process inhabiting it anymore. In the case we've observed there's a
+		# session that is being closed with a missing process.
+		for session_id in $(loginctl --no-legend | awk '{ print $1 }'); do
+			# It would be easier to use "loginctl show-session --value" but we cannot rely on it.
+			if [ "$(loginctl show-session "$session_id" --property=State | cut -d = -f 2-)" = closing ]; then
+				leader=$(loginctl show-session "$session_id" --property=Leader | cut -d = -f 2-)
+				if [ ! -e "/proc/$leader" ]; then
+					loginctl kill-session "$session_id"
+				fi
+			fi
+		done
+
+		exit 0
+		;;
 	prepare)
 		# Make /var/lib/systemd writable so that we can get linger enabled.
 		# This only applies to Ubuntu Core 16 where individual directories were
@@ -91,7 +117,7 @@ case "$action" in
 		loginctl enable-linger "$user"
 
 		exit 0
-	;;
+		;;
 	restore)
 		# Disable linger for the selected user.
 		loginctl disable-linger "$user"
@@ -114,7 +140,15 @@ case "$action" in
 		fi
 
 		exit 0
-	;;
+		;;
+	dump)
+		echo "Active sessions:"
+		for session_id in $(loginctl list-sessions --no-legend | awk '{ print($1) }'); do
+			echo "Details of session $session_id"
+			loginctl show-session "$session_id"
+		done
+		exit 0
+		;;
 esac
 
 # This fixes a bug in some older Debian systems where /root/.profile contains
@@ -217,10 +251,9 @@ busctl \
 	/org/freedesktop/systemd1 \
 	 org.freedesktop.systemd1.Manager \
 	StartTransientUnit "ssa(sv)a(sa(sv))" \
-	"$unit_name" fail 5 \
+	"$unit_name" fail 4 \
 		Description s "session-tool running $* as $user" \
 		Type s oneshot \
-		RemainAfterExit b false \
 		Environment as 1 TERM=xterm-256color \
 		ExecStart "a(sasb)" 1 \
 			"$(command -v runuser)" 6 "$(command -v runuser)" -l "$user" - -c "exec $tmp_dir/exec <$tmp_dir/stdin.pipe >$tmp_dir/stdout.pipe 2>$tmp_dir/stderr.pipe" false \
@@ -254,6 +287,12 @@ wait $awk_pid
 wait "$cat_stdin_pid"
 wait "$cat_stdout_pid"
 wait "$cat_stderr_pid"
+
+# Prevent accumulation of failed sessions.
+
+if [ "$result" != '"done"' ]; then
+	systemctl reset-failed "$unit_name"
+fi
 
 case "$result" in
 	'"done"') exit 0; ;;

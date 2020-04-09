@@ -5,8 +5,32 @@ environment:
     USER/root: root
     USER/test: test
 prepare: |
-    # Check which sessions we have before running the test
-    loginctl list-sessions > before.txt
+    truncate --size=0 defer.sh
+    chmod +x defer.sh
+
+    # Prevent anacron/cron from interfering with their background sessions, grr!
+    for unit in cron.service crond.service anacron.timer anacron.service; do
+        if [ "$(systemctl is-active "$unit")" = active ]; then
+            systemctl stop "$unit"
+            echo "systemctl start \"$unit\"" >> defer.sh
+        fi
+    done
+
+    # For whatever reason (what spawns it!?!) cron may be running in session 2.
+    # To remove any background activity, get rid of it.
+    if loginctl show-session 2 >/dev/null 2>&1 && loginctl show-session 2 | grep -q Service=crond; then
+        loginctl kill-session 2
+    fi
+
+    # Kill sessions that systemd has leaked earlier.
+    session-tool --kill-leaked
+
+    # Remember details of sessions before we start.
+    session-tool --dump > before.debug.txt
+
+    # Brief version of existing sessions to measure during "restore".
+    loginctl --no-legend list-sessions | sort > before.txt
+
     # Prepare for using sessions as the given user
     session-tool --prepare -u "$USER"
 execute: |
@@ -29,13 +53,30 @@ restore: |
     # Restore after using sessions as the given user
     session-tool --restore -u "$USER"
 
+    # Kill cron if it is running (check prepare for details).
+    if loginctl show-session 2 >/dev/null 2>&1 && loginctl show-session 2 | grep -q Service=crond; then
+        loginctl kill-session 2
+    fi
+
+    # Kill sessions that systemd has leaked over time.
+    session-tool --kill-leaked
+
     # NOTE: This part of the test is very flaky if you restart systemd-logind
     # It *seems* that all new systems (Debian Sid, Arch, Tumbleweed and Ubuntu 20.04)
     # Forget about the root session that was there to begin with.
 
     # When we are done the sessions are exactly what we started with but this
     # can take a moment as the termination process is asnychronous.
-    retry-tool -n 10 --wait 1 sh -c 'loginctl list-sessions > after.txt && diff -u before.txt after.txt'
+    retry-tool -n 10 --wait 1 sh -c 'loginctl --no-legend list-sessions | sort > after.txt && diff -u before.txt after.txt'
     # Remove files we've created
     rm -f /tmp/{inner,outer}.pid
     rm -f {before,after}.txt
+
+    # Restart background stuff we stopped.
+    sh -xe defer.sh && rm -f defer.sh
+
+debug: |
+    session-tool --dump > after.debug.txt
+    diff -u before.debug.txt after.debug.txt
+    echo "Active timers"
+    systemctl list-timers

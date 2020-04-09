@@ -3,13 +3,18 @@ on:
   pull_request:
     branches: [ "master", "release/**" ]
 jobs:
-  # TODO: run static checks before we run unit tests
-  # TODO: port static checks as well
   unit-tests:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-16.04
     env:
       GOPATH: ${{ github.workspace }}
       GO111MODULE: off
+      # Set PATH to ignore the load of magic binaries from /usr/local/bin And
+      # to use the go-1.10 automatically. Note that we install go 1.10 from the
+      # archive in a step below. Without this we get the GitHub-controlled latest
+      # version of go.
+      PATH: /usr/lib/go-1.10/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/snap/bin
+      GOROOT: ""
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
@@ -17,6 +22,8 @@ jobs:
         # NOTE: checkout the code in a fixed location, even for forks, as this
         # is relevant for go's import system.
         path: ./src/github.com/snapcore/snapd
+    - name: Make /var/cache/apt owned by current user
+      run: sudo chown -R $(id -u) /var/cache/apt
     - name: Cache Debian dependencies
       id: cache-deb-downloads
       uses: actions/cache@v1
@@ -32,12 +39,12 @@ jobs:
     # Work around caching files owned by root https://github.com/actions/cache/issues/133
     - name: Install Debian dependencies
       run: sudo apt build-dep -y ${{ github.workspace }}/src/github.com/snapcore/snapd
+    - name: Install ShellCheck as a snap
+      run: |
+          sudo apt-get remove --purge shellcheck
+          sudo snap install shellcheck
     - name: Make /var/cache/apt owned by current user
       run: sudo chown -R $(id -u) /var/cache/apt
-    - name: Set up go 1.9
-      uses: actions/setup-go@v1
-      with:
-        go-version: 1.9
     - name: Install govendor
       run: go get -u github.com/kardianos/govendor
     - name: Cache Go dependencies
@@ -47,9 +54,9 @@ jobs:
         path: ${{ github.workspace }}/.cache/govendor
         key: go-govendor-{{ hashFiles('**/vendor.json') }}
     - name: Get Go dependencies
-      run: |
-          cd ${{ github.workspace }}/src/github.com/snapcore/snapd
-          ${{ github.workspace }}/bin/govendor sync
+      run: cd ${{ github.workspace }}/src/github.com/snapcore/snapd && ${{ github.workspace }}/bin/govendor sync
+    - name: Run static checks
+      run: cd ${{ github.workspace }}/src/github.com/snapcore/snapd && ./run-checks --static
     - name: Build C
       run: |
           cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/
@@ -58,15 +65,87 @@ jobs:
     - name: Build Go
       run: go build github.com/snapcore/snapd/...
     - name: Test C
-      run: |
-          cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/
-          make check
+      run: cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/ && make check
     - name: Test Go
-      run: go test github.com/snapcore/snapd/...
-  spread:
+      run: cd ${{ github.workspace }}/src/github.com/snapcore/snapd && ./run-checks --unit
+
+  spread-canary:
     needs: unit-tests
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     strategy:
+      fail-fast: false
+      matrix:
+        system:
+        - ubuntu-16.04-64
+        - ubuntu-16.04-32
+        - ubuntu-core-16-64
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+    - name: Run spread tests
+      env:
+          SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
+      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
+      run: |
+          # Register a problem matcher to highlight spread failures
+          echo "::add-matcher::.github/spread-problem-matcher.json"
+          spread -abend google:${{ matrix.system }}:tests/...
+    - name: Discard spread workers
+      if: always()
+      run: |
+        shopt -s nullglob;
+        for r in .spread-reuse.*.yaml; do
+          spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
+        done
+  spread-stable:
+    needs: [unit-tests, spread-canary]
+    runs-on: self-hosted
+    strategy:
+      # FIXME: enable fail-fast mode once spread can cancel an executing job.
+      #
+      # Disable fail-fast mode as it doesn't function with spread. It seems
+      # that cancelling tasks requires short, interruptible actions and
+      # interrupting spread, notably, does not work today. As such disable
+      # fail-fast while we tackle that problem upstream.
+      fail-fast: false
+      matrix:
+        system:
+        - ubuntu-14.04-64
+        - ubuntu-18.04-64
+        - ubuntu-19.10-64
+        - ubuntu-20.04-64
+        - ubuntu-core-18-64
+        - ubuntu-core-20-64
+        - debian-9-64
+        - debian-sid-64
+        - fedora-30-64
+        - fedora-31-64
+        - arch-linux-64
+        - amazon-linux-2-64
+        - centos-7-64
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+    - name: Run spread tests
+      env:
+          SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
+      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
+      run: |
+          # Register a problem matcher to highlight spread failures
+          echo "::add-matcher::.github/spread-problem-matcher.json"
+          spread google:${{ matrix.system }}:tests/...
+    - name: Discard spread workers
+      if: always()
+      run: |
+        shopt -s nullglob;
+        for r in .spread-reuse.*.yaml; do
+          spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
+        done
+  spread-unstable:
+    needs: [unit-tests, spread-stable]
+    runs-on: self-hosted
+    strategy:
+      # FIXME: enable fail-fast mode once spread can cancel an executing job.
       fail-fast: false
       matrix:
         system:
@@ -76,17 +155,14 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
-    - name: Install spread
-      run: |
-          cd /tmp
-          curl -s -O https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz
-          tar xzvf spread-amd64.tar.gz
-          # Register a problem matcher to highlight spread failures
-          echo "::add-matcher::.github/spread-problem-matcher.json"
     - name: Run spread tests
       env:
           SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
-      run: /tmp/spread -abend google-unstable:${{ matrix.system }}:tests/...
+      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
+      run: |
+          # Register a problem matcher to highlight spread failures
+          echo "::add-matcher::.github/spread-problem-matcher.json"
+          spread -abend google-unstable:${{ matrix.system }}:tests/...
     - name: Discard spread workers
       if: always()
       run: |
