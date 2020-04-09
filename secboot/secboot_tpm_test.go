@@ -35,12 +35,12 @@ import (
 
 func TestSecboot(t *testing.T) { TestingT(t) }
 
-type secbootSuite struct {
-}
+type secbootSuite struct{}
 
 var _ = Suite(&secbootSuite{})
 
 func (s *secbootSuite) TestCheckKeySealingSupported(c *C) {
+	sbEmpty := []uint8{}
 	sbEnabled := []uint8{6, 0, 0, 0, 1}
 	sbDisabled := []uint8{6, 0, 0, 0, 0}
 
@@ -70,6 +70,7 @@ func (s *secbootSuite) TestCheckKeySealingSupported(c *C) {
 	}
 
 	c.Assert(tc(true, sbEnabled), IsNil)
+	c.Assert(tc(true, sbEmpty), ErrorMatches, "cannot read secure boot file: EOF")
 	c.Assert(tc(true, sbDisabled), ErrorMatches, "secure boot is disabled")
 	c.Assert(tc(false, sbEnabled), ErrorMatches, "cannot connect to TPM device: TPM not available")
 	c.Assert(tc(false, sbDisabled), ErrorMatches, "secure boot is disabled")
