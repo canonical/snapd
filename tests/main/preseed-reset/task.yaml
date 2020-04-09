@@ -26,7 +26,13 @@ restore: |
 
 execute: |
   find_files() {
-    find "$IMAGE_MOUNTPOINT/etc/" "$IMAGE_MOUNTPOINT/usr/" "$IMAGE_MOUNTPOINT/var/"
+    # ubuntu-19.10 doesn't have new snapd deb yet, so exclude applications dir for now
+    # TODO: remove after 2.44 is there.
+    if [[ "$SPREAD_SYSTEM" = ubuntu-19.10-64 ]]; then
+      find "$IMAGE_MOUNTPOINT/etc/" "$IMAGE_MOUNTPOINT/usr/" "$IMAGE_MOUNTPOINT/var/" | grep -v "/var/lib/snapd/desktop/applications"
+    else
+      find "$IMAGE_MOUNTPOINT/etc/" "$IMAGE_MOUNTPOINT/usr/" "$IMAGE_MOUNTPOINT/var/"
+    fi
   }
 
   #shellcheck source=tests/lib/preseed.sh
