@@ -1,4 +1,7 @@
 summary: the snap-{run,confine,exec} chain does not create files with undesired properties.
+
+manual: true
+
 prepare: |
     # Install a snap with opengl and joystick plugs.
     # This gives us all of the usual snap-confine configuration, along with all
