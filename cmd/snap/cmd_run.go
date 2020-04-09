@@ -115,14 +115,11 @@ and environment.
 // isStopping returns true if the system is shutting down.
 func isStopping() (bool, error) {
 	// Make sure, just in case, that systemd doesn't localize the output string.
-	env, err := osutil.OSEnvironment()
-	if err != nil {
-		return false, err
-	}
-	env["LC_MESSAGES"] = "C"
+	env := os.Environ()
+	env = append(env, "LC_MESSAGES=C")
 	// Check if systemd is stopping (shutting down or rebooting).
 	cmd := exec.Command("systemctl", "is-system-running")
-	cmd.Env = env.ForExec()
+	cmd.Env = env
 	stdout, err := cmd.Output()
 	// systemctl is-system-running returns non-zero for outcomes other than "running"
 	// As such, ignore any ExitError and just process the stdout buffer.
