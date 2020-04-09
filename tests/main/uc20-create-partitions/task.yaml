@@ -62,7 +62,7 @@ execute: |
     echo "Check that the filesystems were not auto-mounted"
     mount | not MATCH /run/mnt/ubuntu-seed
     mount | not MATCH /run/mnt/ubuntu-boot
-    mount | not MATCH /run/mnt/ubuntu-data
+    mount | not MATCH /run/mnt/data
 
     # we used "lsblk --fs" here but it was unreliable
     mkdir -p ./mnt
@@ -119,7 +119,7 @@ execute: |
     mount
 
     mount | MATCH /run/mnt/ubuntu-boot
-    mount | MATCH /run/mnt/ubuntu-data
+    mount | MATCH /run/mnt/data
     mount | MATCH /run/mnt/other-ext4
     df -T "${LOOP}p5" | MATCH ext4
     file -s "${LOOP}p5" | MATCH 'volume name "other-ext4"'
