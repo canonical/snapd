@@ -152,14 +152,14 @@ func generateMountsModeInstall(recoverySystem string) error {
 		}
 	}
 
-	// 3. mount "ubuntu-data" on a tmpfs
-	isMounted, err = osutilIsMounted(boot.InitramfsUbuntuDataDir)
+	// 3. the ephemeral data partition
+	isMounted, err = osutilIsMounted(boot.InitramfsDataDir)
 	if err != nil {
 		return err
 	}
 	if !isMounted {
 		// TODO:UC20: is there a better way?
-		fmt.Fprintf(stdout, "--type=tmpfs tmpfs /run/mnt/ubuntu-data\n")
+		fmt.Fprintf(stdout, "--type=tmpfs tmpfs %s\n", boot.InitramfsDataDir)
 		return nil
 	}
 
@@ -183,6 +183,8 @@ func generateMountsModeInstall(recoverySystem string) error {
 }
 
 func generateMountsModeRecover(recoverySystem string) error {
+	// TODO:UC20 mount host's data under /run/mnt/host/data
+	// generate rbind mount of /run/mnt/host to /host
 	return fmt.Errorf("recover mode mount generation not implemented yet")
 }
 
@@ -199,18 +201,17 @@ func generateMountsModeRun() error {
 	}
 
 	// 1.2 mount Data, and exit, as it needs to be mounted for us to do step 2
-	isDataMounted, err := osutilIsMounted(boot.InitramfsUbuntuDataDir)
+	isDataMounted, err := osutilIsMounted(boot.InitramfsDataDir)
 	if err != nil {
 		return err
 	}
 	if !isDataMounted {
-		name := filepath.Base(boot.InitramfsUbuntuDataDir)
-		device, err := unlockIfEncrypted(name)
+		device, err := unlockIfEncrypted("ubuntu-data")
 		if err != nil {
 			return err
 		}
 
-		fmt.Fprintf(stdout, "%s %s\n", device, boot.InitramfsUbuntuDataDir)
+		fmt.Fprintf(stdout, "%s %s\n", device, boot.InitramfsDataDir)
 		return nil
 	}
 
