@@ -400,22 +400,25 @@ var (
 	secbootActivateVolumeWithTPMSealedKey = secboot.ActivateVolumeWithTPMSealedKey
 )
 
+func secureConnectToTPM(ekcfile string) (*secboot.TPMConnection, error) {
+	ekCertReader, err := os.Open(ekcfile)
+	if err != nil {
+		return nil, fmt.Errorf("cannot open endorsement key certificate file: %v", err)
+	}
+	defer ekCertReader.Close()
+
+	return secbootSecureConnectToDefaultTPM(ekCertReader, nil)
+}
+
+func insecureConnectToTPM(ekcfile string) (*secboot.TPMConnection, error) {
+	return secbootConnectToDefaultTPM()
+}
+
 // unlockEncryptedPartition unseals the keyfile and opens an encrypted device.
 func unlockEncryptedPartition(name, device, keyfile, ekcfile, pinfile string) error {
-	// TODO:UC20: use the EK certificate
-	insecure := true
 
-	tpm, err := func() (*secboot.TPMConnection, error) {
-		if !insecure {
-			ekCertReader, err := os.Open(ekcfile)
-			if err != nil {
-				return nil, fmt.Errorf("cannot open endorsement key certificate file: %v", err)
-			}
-			defer ekCertReader.Close()
-			return secboot.SecureConnectToDefaultTPM(ekCertReader, nil)
-		}
-		return secbootConnectToDefaultTPM()
-	}()
+	// TODO:UC20: use secureConnectToTPM
+	tpm, err := insecureConnectToTPM(ekcfile)
 	if err != nil {
 		return fmt.Errorf("cannot open TPM connection: %v", err)
 	}
