@@ -59,6 +59,8 @@ func checkSecureBootEnabled() error {
 	}
 	defer f.Close()
 
+	// the format of data read from efivars is: <u32 attribute>:<n bytes of data>
+	// for details see: https://elixir.bootlin.com/linux/v5.6.3/source/fs/efivarfs/file.c
 	buf := make([]uint8, 5)
 	_, err = f.Read(buf)
 	if err != nil {
