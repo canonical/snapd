@@ -52,7 +52,6 @@ func handleJournalConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error
 		return nil
 	}
 
-	var sysd systemd.Systemd
 	rootDir := dirs.GlobalRootDir
 	if opts != nil {
 		rootDir = opts.RootDir
@@ -98,7 +97,7 @@ func handleJournalConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error
 	}
 
 	if opts == nil {
-		sysd = systemd.New(dirs.GlobalRootDir, systemd.SystemMode, nil)
+		sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, nil)
 		if err := sysd.Kill("systemd-journald", "USR1", ""); err != nil {
 			return err
 		}
