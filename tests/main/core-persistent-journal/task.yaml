@@ -2,9 +2,14 @@ summary: Test journal.persistent core config option
 
 systems: [ubuntu-core-*]
 
+restore: |
+    # disable persistent journal
+    rm -rf /var/log/journal
+    systemctl kill --signal=SIGUSR1 systemd-journald
+
 execute: |
     echo "Wait for first boot to be done"
-    while ! snap changes | grep -q "Done.*Initialize system state"; do sleep 1; done
+    snap wait system seed.loaded
 
     echo "Sanity check, persistent journal is not available by default"
     not test -e /var/log/journal
