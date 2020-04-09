@@ -240,7 +240,7 @@ func generateMountsModeRun() error {
 
 	// 3. choose and mount base and kernel snaps (this includes updating modeenv
 	//    if needed to try the base snap)
-	mounts, err := boot.InitramfsRunModeChooseSnapsToMount(whichTypes, modeEnv)
+	mounts, err := boot.InitramfsRunModeSelectSnapsToMount(whichTypes, modeEnv)
 	if err != nil {
 		return err
 	}
