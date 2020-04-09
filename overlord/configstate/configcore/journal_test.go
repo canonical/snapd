@@ -87,9 +87,7 @@ func (s *journalSuite) TestConfigurePersistentJournalOnCore(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
-		{"stop", "systemd-journald"},
-		{"show", "--property=ActiveState", "systemd-journald"},
-		{"start", "systemd-journald"},
+		{"kill", "systemd-journald", "-s", "USR1", "--kill-who=all"},
 	})
 
 	exists, _, err := osutil.DirExists(filepath.Join(dirs.GlobalRootDir, "/var/log/journal"))
@@ -152,9 +150,7 @@ func (s *journalSuite) TestDisablePersistentJournalOnCore(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
-		{"stop", "systemd-journald"},
-		{"show", "--property=ActiveState", "systemd-journald"},
-		{"start", "systemd-journald"},
+		{"kill", "systemd-journald", "-s", "USR1", "--kill-who=all"},
 	})
 
 	exists, _, err := osutil.DirExists(filepath.Join(dirs.GlobalRootDir, "/var/log/journal"))
