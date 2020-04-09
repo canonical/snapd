@@ -20,6 +20,9 @@
 package osutil_test
 
 import (
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"strings"
 
 	. "gopkg.in/check.v1"
@@ -156,4 +159,44 @@ func (s *mountinfoSuite) TestReadMountInfo2(c *C) {
 	entries, err := osutil.ReadMountInfo(strings.NewReader(mountInfoSample))
 	c.Assert(err, IsNil)
 	c.Assert(entries, HasLen, 3)
+}
+
+// Test that loading mountinfo from a file works as expected.
+func (s *mountinfoSuite) TestLoadMountInfo1(c *C) {
+	fname := filepath.Join(c.MkDir(), "mountinfo")
+	err := ioutil.WriteFile(fname, []byte(mountInfoSample), 0644)
+	c.Assert(err, IsNil)
+	restore := osutil.MockIsSnapdTest(false)
+	defer restore()
+	restore = osutil.MockProcSelfMountInfoLocation(fname)
+	defer restore()
+	entries, err := osutil.LoadMountInfo()
+	c.Assert(err, IsNil)
+	c.Assert(entries, HasLen, 3)
+}
+
+// Test that loading mountinfo from a missing file reports an error.
+func (s *mountinfoSuite) TestLoadMountInfo2(c *C) {
+	fname := filepath.Join(c.MkDir(), "mountinfo")
+	restore := osutil.MockIsSnapdTest(false)
+	defer restore()
+	restore = osutil.MockProcSelfMountInfoLocation(fname)
+	defer restore()
+	_, err := osutil.LoadMountInfo()
+	c.Assert(err, ErrorMatches, "*. no such file or directory")
+}
+
+// Test that trying to load mountinfo without permissions reports an error.
+func (s *mountinfoSuite) TestLoadMountInfo3(c *C) {
+	fname := filepath.Join(c.MkDir(), "mountinfo")
+	err := ioutil.WriteFile(fname, []byte(mountInfoSample), 0644)
+	c.Assert(err, IsNil)
+	err = os.Chmod(fname, 0000)
+	c.Assert(err, IsNil)
+	restore := osutil.MockIsSnapdTest(false)
+	defer restore()
+	restore = osutil.MockProcSelfMountInfoLocation(fname)
+	defer restore()
+	_, err = osutil.LoadMountInfo()
+	c.Assert(err, ErrorMatches, "*. permission denied")
 }

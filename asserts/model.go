@@ -123,13 +123,15 @@ func checkExtendedSnaps(extendedSnaps interface{}, base string, grade ModelGrade
 		if seen[modelSnap.Name] {
 			return nil, fmt.Errorf("cannot list the same snap %q multiple times", modelSnap.Name)
 		}
+		seen[modelSnap.Name] = true
 		// at this time we do not support parallel installing
 		// from model/seed
-		if underName := seenIDs[modelSnap.SnapID]; underName != "" {
-			return nil, fmt.Errorf("cannot specify the same snap id %q multiple times, specified for snaps %q and %q", modelSnap.SnapID, underName, modelSnap.Name)
+		if snapID := modelSnap.SnapID; snapID != "" {
+			if underName := seenIDs[snapID]; underName != "" {
+				return nil, fmt.Errorf("cannot specify the same snap id %q multiple times, specified for snaps %q and %q", snapID, underName, modelSnap.Name)
+			}
+			seenIDs[snapID] = modelSnap.Name
 		}
-		seen[modelSnap.Name] = true
-		seenIDs[modelSnap.SnapID] = modelSnap.Name
 
 		essential := false
 		switch {
@@ -208,10 +210,10 @@ func checkModelSnap(snap map[string]interface{}, grade ModelGrade) (*ModelSnap, 
 			return nil, err
 		}
 	} else {
-		// snap ids are optional with grade unstable to allow working
+		// snap ids are optional with grade dangerous to allow working
 		// with local/not pushed yet to the store snaps
 		if grade != ModelDangerous {
-			return nil, fmt.Errorf(`"id" %s is mandatory for stable model`, what)
+			return nil, fmt.Errorf(`"id" %s is mandatory for %s grade model`, what, grade)
 		}
 	}
 

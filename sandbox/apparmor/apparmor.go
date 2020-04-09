@@ -62,6 +62,7 @@ func setupConfCacheDirs(newrootdir string) {
 	if !exists || !isDir {
 		// some systems use a single cache dir instead of splitting
 		// out the system cache
+		// TODO: it seems Solus has a different setup too, investigate this
 		SystemCacheDir = CacheDir
 	}
 }

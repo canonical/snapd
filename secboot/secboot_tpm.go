@@ -1,7 +1,8 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build withsecboot
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,36 +18,22 @@
  *
  */
 
-package osutil
+package secboot
 
 import (
-	"os"
-	"os/user"
-	"syscall"
+	"fmt"
+
+	sb "github.com/snapcore/secboot"
+
+	"github.com/snapcore/snapd/logger"
 )
 
-// MockMountInfo is meant for tests to mock the content of /proc/self/mountinfo.
-func MockMountInfo(content string) (restore func()) {
-	old := mockedMountInfo
-	mockedMountInfo = &content
-	return func() {
-		mockedMountInfo = old
+func CheckKeySealingSupported() error {
+	logger.Noticef("checking TPM device availability...")
+	tconn, err := sb.ConnectToDefaultTPM()
+	if err != nil {
+		return fmt.Errorf("cannot connect to TPM device: %v", err)
 	}
+	logger.Noticef("TPM device detected")
+	return tconn.Close()
 }
-
-var (
-	mockedMountInfo *string
-
-	userLookup  = user.Lookup
-	userCurrent = user.Current
-
-	osReadlink = os.Readlink
-
-	syscallKill    = syscall.Kill
-	syscallGetpgid = syscall.Getpgid
-
-	etcFstab    = "/etc/fstab"
-	sudoersDotD = "/etc/sudoers.d"
-
-	procSelfMountInfo = "/proc/self/mountinfo"
-)
