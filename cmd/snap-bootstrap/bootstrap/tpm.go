@@ -40,12 +40,12 @@ type tpmSupport struct {
 	tconn *secboot.TPMConnection
 	// Lockout authorization
 	lockoutAuth []byte
-	// List of paths to shim files
-	shimFiles []string
-	// List of paths to bootloader files
-	bootloaderFiles []string
-	// List of paths to kernel files
-	kernelFiles []string
+	// Paths to shim file
+	shimFile string
+	// Paths to bootloader file
+	bootloaderFile string
+	// Paths to kernel files
+	kernelFile string
 }
 
 func newTPMSupport() (*tpmSupport, error) {
@@ -75,30 +75,34 @@ func (t *tpmSupport) StoreLockoutAuth(filename string) error {
 	return nil
 }
 
+// TODO:UC20: we're restricting the number of shim, grub and kernel files for now.
+//            Re-enable multiple files when we have the usage scenario, also need
+//            to update tests accordingly.
+
 // SetShimFiles verifies and sets the list of shim binaries.
-func (t *tpmSupport) SetShimFiles(pathList ...string) error {
-	if err := ensureFilesExist(pathList); err != nil {
-		return err
+func (t *tpmSupport) SetShimFile(filePath string) error {
+	if !osutil.FileExists(filePath) {
+		return fmt.Errorf("file %s does not exist", filePath)
 	}
-	t.shimFiles = pathList
+	t.shimFile = filePath
 	return nil
 }
 
 // SetBootloaderFiles verifies and sets the list of bootloader binaries.
-func (t *tpmSupport) SetBootloaderFiles(pathList ...string) error {
-	if err := ensureFilesExist(pathList); err != nil {
-		return err
+func (t *tpmSupport) SetBootloaderFile(filePath string) error {
+	if !osutil.FileExists(filePath) {
+		return fmt.Errorf("file %s does not exist", filePath)
 	}
-	t.bootloaderFiles = pathList
+	t.bootloaderFile = filePath
 	return nil
 }
 
 // SetKernelFiles verifies and sets the list of kernel binaries.
-func (t *tpmSupport) SetKernelFiles(pathList ...string) error {
-	if err := ensureFilesExist(pathList); err != nil {
-		return err
+func (t *tpmSupport) SetKernelFile(filePath string) error {
+	if !osutil.FileExists(filePath) {
+		return fmt.Errorf("file %s does not exist", filePath)
 	}
-	t.kernelFiles = pathList
+	t.kernelFile = filePath
 	return nil
 }
 
@@ -157,27 +161,25 @@ func (t *tpmSupport) Seal(key []byte, keyPath, policyUpdatePath string) error {
 		PCRAlgorithm: tpm2.HashAlgorithmSHA256,
 		// TODO:UC20: set SignatureDbUpdateKeystore to support key rotation
 	}
-	for _, shim := range t.shimFiles {
-		s := &secboot.EFIImageLoadEvent{
-			Source: secboot.Firmware,
-			Image:  secboot.FileEFIImage(shim),
-		}
-		for _, bl := range t.bootloaderFiles {
-			g := &secboot.EFIImageLoadEvent{
-				Source: secboot.Shim,
-				Image:  secboot.FileEFIImage(bl),
-			}
-			for _, kernel := range t.kernelFiles {
-				k := &secboot.EFIImageLoadEvent{
-					Source: secboot.Shim,
-					Image:  secboot.FileEFIImage(kernel),
-				}
-				g.Next = append(g.Next, k)
-			}
-			s.Next = append(s.Next, g)
-		}
-		policyParams.LoadSequences = append(policyParams.LoadSequences, s)
+
+	// TODO:UC20: re-introduce nested loops to iterate over multiple shim, grub,
+	//            and kernel files.
+	s := &secboot.EFIImageLoadEvent{
+		Source: secboot.Firmware,
+		Image:  secboot.FileEFIImage(t.shimFile),
 	}
+	g := &secboot.EFIImageLoadEvent{
+		Source: secboot.Shim,
+		Image:  secboot.FileEFIImage(t.bootloaderFile),
+	}
+	k := &secboot.EFIImageLoadEvent{
+		Source: secboot.Shim,
+		Image:  secboot.FileEFIImage(t.kernelFile),
+	}
+	g.Next = append(g.Next, k)
+	s.Next = append(s.Next, g)
+	policyParams.LoadSequences = append(policyParams.LoadSequences, s)
+
 	if err := secbootAddEFISecureBootPolicyProfile(pcrProfile, &policyParams); err != nil {
 		return fmt.Errorf("cannot add EFI secure boot policy profile: %v", err)
 	}

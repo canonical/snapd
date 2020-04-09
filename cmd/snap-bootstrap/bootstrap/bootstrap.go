@@ -186,14 +186,14 @@ func tpmSealKey(key partition.EncryptionKey, rkey partition.RecoveryKey, options
 	shim := filepath.Join(boot.InitramfsUbuntuBootDir, "EFI/boot/bootx64.efi")
 	grub := filepath.Join(boot.InitramfsUbuntuBootDir, "EFI/boot/grubx64.efi")
 
-	if err := tpm.SetShimFiles(shim); err != nil {
+	if err := tpm.SetShimFile(shim); err != nil {
 		return err
 	}
-	if err := tpm.SetBootloaderFiles(grub); err != nil {
+	if err := tpm.SetBootloaderFile(grub); err != nil {
 		return err
 	}
 	if options.KernelPath != "" {
-		if err := tpm.SetKernelFiles(options.KernelPath); err != nil {
+		if err := tpm.SetKernelFile(options.KernelPath); err != nil {
 			return err
 		}
 	}
