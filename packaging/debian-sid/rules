@@ -60,9 +60,9 @@ export GOMAXPROCS=2
 endif
 
 # check if we need to include the testkeys in the binary
-TAGS=
+TAGS=nosecboot
 ifneq (,$(filter testkeys,$(DEB_BUILD_OPTIONS)))
-	TAGS=-tags withtestkeys
+	TAGS+= withtestkeys
 endif
 
 DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
@@ -142,7 +142,7 @@ override_dh_auto_build:
 	# exclude certain parts that won't be used by debian
 	rm -rf _build/src/$(DH_GOPKG)/cmd/snap-bootstrap
 	# and build
-	dh_auto_build -- $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS)
+	dh_auto_build -- $(BUILDFLAGS) -tags "$(TAGS)" $(GCCGOFLAGS)
 
 	# (static linking on powerpc with cgo is broken)
 ifneq ($(shell dpkg-architecture -qDEB_HOST_ARCH),powerpc)

@@ -461,7 +461,9 @@ export GOPATH=$(pwd):$(pwd)/Godeps/_workspace:%{gopath}
 
 GOFLAGS=
 %if 0%{?with_test_keys}
-GOFLAGS="$GOFLAGS -tags withtestkeys"
+GOFLAGS="$GOFLAGS -tags \"withtestkeys nosecboot\"  "
+%else
+GOFLAGS="$GOFLAGS -tags nosecboot"
 %endif
 
 %if ! 0%{?with_bundled}
