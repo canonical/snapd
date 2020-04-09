@@ -30,9 +30,9 @@ var (
 	// during the initramfs.
 	InitramfsRunMntDir string
 
-	// InitramfsUbuntuDataDir is the location of ubuntu-data during the
-	// initramfs.
-	InitramfsUbuntuDataDir string
+	// InitramfsDataDir is the location of system-data role partition
+	// (typically a partition labeled "ubuntu-data") during the initramfs.
+	InitramfsDataDir string
 
 	// InitramfsUbuntuBootDir is the location of ubuntu-boot during the
 	// initramfs.
@@ -49,10 +49,10 @@ var (
 
 func setInitramfsDirVars(rootdir string) {
 	InitramfsRunMntDir = filepath.Join(rootdir, "run/mnt")
-	InitramfsUbuntuDataDir = filepath.Join(InitramfsRunMntDir, "ubuntu-data")
+	InitramfsDataDir = filepath.Join(InitramfsRunMntDir, "data")
 	InitramfsUbuntuBootDir = filepath.Join(InitramfsRunMntDir, "ubuntu-boot")
 	InitramfsUbuntuSeedDir = filepath.Join(InitramfsRunMntDir, "ubuntu-seed")
-	InitramfsWritableDir = filepath.Join(InitramfsUbuntuDataDir, "system-data")
+	InitramfsWritableDir = filepath.Join(InitramfsDataDir, "system-data")
 }
 
 func init() {
