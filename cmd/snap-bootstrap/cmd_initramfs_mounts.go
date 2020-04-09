@@ -427,7 +427,6 @@ func unlockEncryptedPartition(name, device, keyfile, ekcfile, pinfile string) er
 	options := secboot.ActivateWithTPMSealedKeyOptions{
 		PINTries:            1,
 		RecoveryKeyTries:    3,
-		ActivateOptions:     []string{},
 		LockSealedKeyAccess: true,
 	}
 
