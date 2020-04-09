@@ -10,6 +10,8 @@ kill-timeout: 40m
 environment:
    SPREAD_DIR: $PWD/spread-dir
    SPREAD_EXTERNAL_ADDRESS: 127.0.0.1:8022
+   TARGET_SUITE/smoke: smoke
+   TARGET_SUITE/core: core
 
 prepare: |
     #shellcheck source=tests/lib/nested.sh
@@ -32,4 +34,4 @@ execute: |
     ( cd "$SPREAD_DIR" && curl -s -O https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz && tar xzvf spread-amd64.tar.gz )
 
     cd "$PROJECT_PATH"
-    "$SPREAD_DIR/spread" external:ubuntu-core-20-64:tests/smoke/
+    "$SPREAD_DIR/spread" "external:ubuntu-core-20-64:tests/$TARGET_SUITE/"
