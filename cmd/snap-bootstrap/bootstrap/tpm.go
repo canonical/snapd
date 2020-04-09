@@ -112,12 +112,12 @@ func ensureFilesExist(pathList []string) error {
 }
 
 var (
-	provisionTPM = secboot.ProvisionTPM
+	secbootProvisionTPM = secboot.ProvisionTPM
 )
 
 // Provision tries to clear and provision the TPM.
 func (t *tpmSupport) Provision() error {
-	if err := provisionTPM(t.tconn, secboot.ProvisionModeFull, t.lockoutAuth); err != nil {
+	if err := secbootProvisionTPM(t.tconn, secboot.ProvisionModeFull, t.lockoutAuth); err != nil {
 		return fmt.Errorf("cannot provision TPM: %v", err)
 	}
 
@@ -140,9 +140,9 @@ var kernelCmdlines = []string{
 }
 
 var (
-	sealKeyToTPM                  = secboot.SealKeyToTPM
-	addEFISecureBootPolicyProfile = secboot.AddEFISecureBootPolicyProfile
-	addSystemdEFIStubProfile      = secboot.AddSystemdEFIStubProfile
+	secbootSealKeyToTPM                  = secboot.SealKeyToTPM
+	secbootAddEFISecureBootPolicyProfile = secboot.AddEFISecureBootPolicyProfile
+	secbootAddSystemdEFIStubProfile      = secboot.AddSystemdEFIStubProfile
 )
 
 // Seal seals the given key to the TPM and writes the sealed object to a file
@@ -178,7 +178,7 @@ func (t *tpmSupport) Seal(key []byte, keyPath, policyUpdatePath string) error {
 		}
 		policyParams.LoadSequences = append(policyParams.LoadSequences, s)
 	}
-	if err := addEFISecureBootPolicyProfile(pcrProfile, &policyParams); err != nil {
+	if err := secbootAddEFISecureBootPolicyProfile(pcrProfile, &policyParams); err != nil {
 		return fmt.Errorf("cannot add EFI secure boot policy profile: %v", err)
 	}
 
@@ -188,7 +188,7 @@ func (t *tpmSupport) Seal(key []byte, keyPath, policyUpdatePath string) error {
 		PCRIndex:       12,
 		KernelCmdlines: kernelCmdlines,
 	}
-	if err := addSystemdEFIStubProfile(pcrProfile, &systemdStubParams); err != nil {
+	if err := secbootAddSystemdEFIStubProfile(pcrProfile, &systemdStubParams); err != nil {
 		return fmt.Errorf("cannot add systemd EFI stub profile: %v", err)
 	}
 
@@ -197,7 +197,7 @@ func (t *tpmSupport) Seal(key []byte, keyPath, policyUpdatePath string) error {
 		PCRProfile: pcrProfile,
 		PINHandle:  pinHandle,
 	}
-	if err := sealKeyToTPM(t.tconn, key, keyPath, policyUpdatePath, &creationParams); err != nil {
+	if err := secbootSealKeyToTPM(t.tconn, key, keyPath, policyUpdatePath, &creationParams); err != nil {
 		return fmt.Errorf("cannot seal data: %v", err)
 	}
 

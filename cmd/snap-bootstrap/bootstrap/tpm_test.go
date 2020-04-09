@@ -50,7 +50,7 @@ func (s *bootstrapTPMSuite) SetUpTest(c *C) {
 
 func (s *bootstrapTPMSuite) TestProvision(c *C) {
 	n := 0
-	restore := bootstrap.MockProvisionTPM(func(tpm *secboot.TPMConnection, mode secboot.ProvisionMode, newLockoutAuth []byte) error {
+	restore := bootstrap.MockSecbootProvisionTPM(func(tpm *secboot.TPMConnection, mode secboot.ProvisionMode, newLockoutAuth []byte) error {
 		c.Assert(mode, Equals, secboot.ProvisionModeFull)
 		n++
 		return nil
@@ -88,7 +88,7 @@ func (s *bootstrapTPMSuite) TestSeal(c *C) {
 	t.SetBootloaderFiles(grubFile)
 	t.SetKernelFiles(kernelFile)
 
-	sbRestore := bootstrap.MockAddEFISecureBootPolicyProfile(func(profile *secboot.PCRProtectionProfile,
+	sbRestore := bootstrap.MockSecbootAddEFISecureBootPolicyProfile(func(profile *secboot.PCRProtectionProfile,
 		params *secboot.EFISecureBootPolicyProfileParams) error {
 		c.Assert(*params, DeepEquals, secboot.EFISecureBootPolicyProfileParams{
 			PCRAlgorithm: tpm2.HashAlgorithmSHA256,
@@ -115,7 +115,7 @@ func (s *bootstrapTPMSuite) TestSeal(c *C) {
 	})
 	defer sbRestore()
 
-	stubRestore := bootstrap.MockAddSystemdEFIStubProfile(func(profile *secboot.PCRProtectionProfile,
+	stubRestore := bootstrap.MockSecbootAddSystemdEFIStubProfile(func(profile *secboot.PCRProtectionProfile,
 		params *secboot.SystemdEFIStubProfileParams) error {
 		c.Assert(*params, DeepEquals, secboot.SystemdEFIStubProfileParams{
 			PCRAlgorithm:   tpm2.HashAlgorithmSHA256,
@@ -126,7 +126,7 @@ func (s *bootstrapTPMSuite) TestSeal(c *C) {
 	})
 	defer stubRestore()
 
-	sealRestore := bootstrap.MockSealKeyToTPM(func(tpm *secboot.TPMConnection, key []byte,
+	sealRestore := bootstrap.MockSecbootSealKeyToTPM(func(tpm *secboot.TPMConnection, key []byte,
 		keyPath, policyUpdatePath string, params *secboot.KeyCreationParams) error {
 		c.Assert(key, DeepEquals, myKey)
 		c.Assert(keyPath, Equals, myKeyPath)

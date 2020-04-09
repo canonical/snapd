@@ -31,38 +31,38 @@ var (
 
 type TPMSupport = tpmSupport
 
-func MockProvisionTPM(f func(tpm *secboot.TPMConnection, mode secboot.ProvisionMode,
+func MockSecbootProvisionTPM(f func(tpm *secboot.TPMConnection, mode secboot.ProvisionMode,
 	newLockoutAuth []byte) error) (restore func()) {
-	old := provisionTPM
-	provisionTPM = f
+	old := secbootProvisionTPM
+	secbootProvisionTPM = f
 	return func() {
-		provisionTPM = old
+		secbootProvisionTPM = old
 	}
 }
 
-func MockAddEFISecureBootPolicyProfile(f func(profile *secboot.PCRProtectionProfile,
+func MockSecbootAddEFISecureBootPolicyProfile(f func(profile *secboot.PCRProtectionProfile,
 	params *secboot.EFISecureBootPolicyProfileParams) error) (restore func()) {
-	old := addEFISecureBootPolicyProfile
-	addEFISecureBootPolicyProfile = f
+	old := secbootAddEFISecureBootPolicyProfile
+	secbootAddEFISecureBootPolicyProfile = f
 	return func() {
-		addEFISecureBootPolicyProfile = old
+		secbootAddEFISecureBootPolicyProfile = old
 	}
 }
 
-func MockAddSystemdEFIStubProfile(f func(profile *secboot.PCRProtectionProfile,
+func MockSecbootAddSystemdEFIStubProfile(f func(profile *secboot.PCRProtectionProfile,
 	params *secboot.SystemdEFIStubProfileParams) error) (restore func()) {
-	old := addSystemdEFIStubProfile
-	addSystemdEFIStubProfile = f
+	old := secbootAddSystemdEFIStubProfile
+	secbootAddSystemdEFIStubProfile = f
 	return func() {
-		addSystemdEFIStubProfile = old
+		secbootAddSystemdEFIStubProfile = old
 	}
 }
 
-func MockSealKeyToTPM(f func(tpm *secboot.TPMConnection, key []byte, keyPath, policyUpdatePath string,
+func MockSecbootSealKeyToTPM(f func(tpm *secboot.TPMConnection, key []byte, keyPath, policyUpdatePath string,
 	params *secboot.KeyCreationParams) error) (restore func()) {
-	old := sealKeyToTPM
-	sealKeyToTPM = f
+	old := secbootSealKeyToTPM
+	secbootSealKeyToTPM = f
 	return func() {
-		sealKeyToTPM = old
+		secbootSealKeyToTPM = old
 	}
 }
