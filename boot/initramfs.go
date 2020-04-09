@@ -26,9 +26,9 @@ import (
 
 // TODO:UC20: add install/recover mode mounts code here too?
 
-// InitramfsRunModeChooseSnapsToMount returns a map of the snap paths to mount
+// InitramfsRunModeSelectSnapsToMount returns a map of the snap paths to mount
 // for the specified snap types.
-func InitramfsRunModeChooseSnapsToMount(
+func InitramfsRunModeSelectSnapsToMount(
 	typs []snap.Type,
 	modeenv *Modeenv,
 ) (map[snap.Type]snap.PlaceInfo, error) {
@@ -42,7 +42,7 @@ func InitramfsRunModeChooseSnapsToMount(
 		case snap.TypeBase:
 			bs := &bootState20Base{}
 			bs.modeenv = modeenv
-			sn, err = bs.chooseAndCommitSnapInitramfsMount()
+			sn, err = bs.selectAndCommitSnapInitramfsMount()
 			if err != nil {
 				return nil, err
 			}
@@ -56,7 +56,7 @@ func InitramfsRunModeChooseSnapsToMount(
 					modeenv: modeenv,
 				},
 			}
-			sn, err = bs.chooseAndCommitSnapInitramfsMount()
+			sn, err = bs.selectAndCommitSnapInitramfsMount()
 			if err != nil {
 				return nil, err
 			}

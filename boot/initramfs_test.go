@@ -45,7 +45,7 @@ func (s *initramfsSuite) SetUpTest(c *C) {
 	s.baseBootenvSuite.SetUpTest(c)
 }
 
-func makeSnapFilesOnEarlyBootUbuntuData(c *C, comment string, snaps ...snap.PlaceInfo) (restore func()) {
+func makeSnapFilesOnInitramfsUbuntuData(c *C, comment string, snaps ...snap.PlaceInfo) (restore func()) {
 	// also make sure the snaps also exist on ubuntu-data
 	snapDir := dirs.SnapBlobDirUnder(boot.InitramfsWritableDir)
 	err := os.MkdirAll(snapDir, 0755)
@@ -448,7 +448,7 @@ func (s *initramfsSuite) TestInitramfsRunModeChooseSnapsToMount(c *C) {
 		}
 
 		if len(t.snapsToMake) != 0 {
-			r := makeSnapFilesOnEarlyBootUbuntuData(c, t.comment, t.snapsToMake...)
+			r := makeSnapFilesOnInitramfsUbuntuData(c, t.comment, t.snapsToMake...)
 			cleanups = append(cleanups, r)
 		}
 
@@ -464,7 +464,7 @@ func (s *initramfsSuite) TestInitramfsRunModeChooseSnapsToMount(c *C) {
 		m, err := boot.ReadModeenv(boot.InitramfsWritableDir)
 		c.Assert(err, IsNil)
 
-		mounts, err := boot.InitramfsRunModeChooseSnapsToMount(t.typs, m)
+		mounts, err := boot.InitramfsRunModeSelectSnapsToMount(t.typs, m)
 		if t.errPattern != "" {
 			c.Assert(err, ErrorMatches, t.errPattern, Commentf(t.comment))
 		} else {

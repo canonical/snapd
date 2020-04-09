@@ -263,21 +263,19 @@ func (ks20 *bootState20Kernel) commit() error {
 	return nil
 }
 
-// chooseAndCommitSnapInitramfsMount chooses which snap should be mounted
-// during the early boot sequence, i.e. the initramfs, and commits that
-// choice if it needs state updated.
+// selectAndCommitSnapInitramfsMount chooses which snap should be mounted
+// during the initramfs, and commits that choice if it needs state updated.
 // Choosing to boot/mount the base snap needs to be committed to the
 // modeenv, but no state needs to be committed when choosing to mount a
 // kernel snap.
-func (ks20 *bootState20Kernel) chooseAndCommitSnapInitramfsMount() (sn snap.PlaceInfo, err error) {
+func (ks20 *bootState20Kernel) selectAndCommitSnapInitramfsMount() (sn snap.PlaceInfo, err error) {
 	err = ks20.kModeenv.loadModeenv()
 	if err != nil {
 		return nil, err
 	}
 
 	// first do the generic choice of which snap to use
-	first, second, expectFallback, err := genericEarlyBootChooseSnap(ks20, TryingStatus, "kernel")
-	// first, second, err := genericEarlyBootChooseSnap(ks20, TryingStatus, "kernel")
+	first, second, expectFallback, err := genericInitramfsSelectSnap(ks20, TryingStatus, "kernel")
 	if err != nil {
 		return nil, err
 	}
@@ -445,13 +443,13 @@ func (bs20 *bootState20Base) commit() error {
 	return nil
 }
 
-// chooseAndCommitSnapInitramfsMount chooses which snap should be mounted
+// selectAndCommitSnapInitramfsMount chooses which snap should be mounted
 // during the early boot sequence, i.e. the initramfs, and commits that
 // choice if it needs state updated.
 // Choosing to boot/mount the base snap needs to be committed to the
 // modeenv, but no state needs to be committed when choosing to mount a
 // kernel snap.
-func (bs20 *bootState20Base) chooseAndCommitSnapInitramfsMount() (sn snap.PlaceInfo, err error) {
+func (bs20 *bootState20Base) selectAndCommitSnapInitramfsMount() (sn snap.PlaceInfo, err error) {
 	err = bs20.loadModeenv()
 	if err != nil {
 		return nil, err
@@ -462,7 +460,7 @@ func (bs20 *bootState20Base) chooseAndCommitSnapInitramfsMount() (sn snap.PlaceI
 	// so we don't ever need to look at the fallback snap, we just need to know
 	// whether the chosen snap is a try snap or not, if it is then we process
 	// the modeenv in the "try" -> "trying" case
-	first, _, currentlyTryingSnap, err := genericEarlyBootChooseSnap(bs20, TryStatus, "base")
+	first, _, currentlyTryingSnap, err := genericInitramfsSelectSnap(bs20, TryStatus, "base")
 	if err != nil {
 		return nil, err
 	}
@@ -705,16 +703,15 @@ func (bsmark *bootState20MarkSuccessful) commit() error {
 	return nil
 }
 
-// genericEarlyBootChooseSnap will run the logic to choose which snap should be
-// mounted during the early boot, i.e. initramfs. Specifically, it only works
-// with kernel and base snaps. It returns the first and second choice for what
-// snaps to mount, if second is set, then it is the primary fallback snap, and
-// the first snap is the try snap, if second is unset, then first is the primary
-// fallback snap. It returns both so that a higher level function can do
-// additional verification of the try snap if it wants, such as the kernel snaps
-// being verified in the modeenv, or the base snaps updating the modeenv with
-// new values for base_status, etc.
-func genericEarlyBootChooseSnap(bs bootState, expectedTryStatus, typeString string) (
+// genericInitramfsSelectSnap will run the logic to choose which snap should be
+// mounted during the initramfs using the given bootState and the expected try
+// status. The try status is needed because during the initramfs we will have
+// different statuses for kernel vs base snaps, where base snap is expected to
+// be in "try" mode, but kernel is expected to be in "trying" mode. It returns
+// the first and second choice for what snaps to mount, and the bool indicates
+// if there is a second snap set or not. If there is a second snap, then that
+// snap is the fallback or non-trying snap and the first snap is the try snap.
+func genericInitramfsSelectSnap(bs bootState, expectedTryStatus, typeString string) (
 	firstChoice, secondChoice snap.PlaceInfo,
 	fallbackExpected bool,
 	err error,
