@@ -172,7 +172,7 @@ func tpmSealKey(key partition.EncryptionKey, rkey partition.RecoveryKey, options
 		return fmt.Errorf("cannot store recovery key: %v", err)
 	}
 
-	tpm, err := NewTPMSupport()
+	tpm, err := newTPMSupport()
 	if err != nil {
 		return fmt.Errorf("cannot initialize TPM: %v", err)
 	}

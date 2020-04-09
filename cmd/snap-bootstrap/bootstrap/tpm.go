@@ -48,7 +48,7 @@ type tpmSupport struct {
 	kernelFiles []string
 }
 
-func NewTPMSupport() (*tpmSupport, error) {
+func newTPMSupport() (*tpmSupport, error) {
 	tconn, err := secboot.ConnectToDefaultTPM()
 	if err != nil {
 		return nil, fmt.Errorf("cannot connect to default TPM: %v", err)
