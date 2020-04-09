@@ -159,47 +159,52 @@ func Run(gadgetRoot, device string, options Options) error {
 	// store the encryption key as the last part of the process to reduce the
 	// possiblity of exiting with an error after the TPM provisioning
 	if options.Encrypt {
-		if err := rkey.Store(options.RecoveryKeyFile); err != nil {
-			return fmt.Errorf("cannot store recovery key: %v", err)
+		if err := tpmSealKey(key, rkey, options); err != nil {
+			return fmt.Errorf("cannot seal the encryption key: %v", err)
 		}
+	}
 
-		tpm, err := NewTPMSupport()
-		if err != nil {
-			return fmt.Errorf("cannot initialize TPM: %v", err)
+	return nil
+}
+
+func tpmSealKey(key partition.EncryptionKey, rkey partition.RecoveryKey, options Options) error {
+	if err := rkey.Store(options.RecoveryKeyFile); err != nil {
+		return fmt.Errorf("cannot store recovery key: %v", err)
+	}
+
+	tpm, err := NewTPMSupport()
+	if err != nil {
+		return fmt.Errorf("cannot initialize TPM: %v", err)
+	}
+
+	if options.LockoutAuthFile != "" {
+		if err := tpm.StoreLockoutAuth(options.LockoutAuthFile); err != nil {
+			return fmt.Errorf("cannot store lockout authorization: %v", err)
 		}
+	}
 
-		if options.LockoutAuthFile != "" {
-			if err := tpm.StoreLockoutAuth(options.LockoutAuthFile); err != nil {
-				return fmt.Errorf("cannot store lockout authorization: %v", err)
-			}
-		}
+	shim := filepath.Join(boot.InitramfsUbuntuBootDir, "EFI/boot/bootx64.efi")
+	grub := filepath.Join(boot.InitramfsUbuntuBootDir, "EFI/boot/grubx64.efi")
 
-		// XXX: we're in the target system, not in initramfs
-		ubuntuBootDir := boot.InitramfsUbuntuBootDir
-
-		shim := filepath.Join(ubuntuBootDir, "/EFI/boot/bootx64.efi")
-		grub := filepath.Join(ubuntuBootDir, "/EFI/boot/grubx64.efi")
-
-		if err := tpm.SetShimFiles(shim); err != nil {
+	if err := tpm.SetShimFiles(shim); err != nil {
+		return err
+	}
+	if err := tpm.SetBootloaderFiles(grub); err != nil {
+		return err
+	}
+	if options.KernelPath != "" {
+		if err := tpm.SetKernelFiles(options.KernelPath); err != nil {
 			return err
 		}
-		if err := tpm.SetBootloaderFiles(grub); err != nil {
-			return err
-		}
-		if options.KernelPath != "" {
-			if err := tpm.SetKernelFiles(options.KernelPath); err != nil {
-				return err
-			}
-		}
+	}
 
-		// Provision the TPM as late as possible
-		if err := tpm.Provision(); err != nil {
-			return fmt.Errorf("cannot provision the TPM: %v", err)
-		}
+	// Provision the TPM as late as possible
+	if err := tpm.Provision(); err != nil {
+		return fmt.Errorf("cannot provision the TPM: %v", err)
+	}
 
-		if err := tpm.Seal(key[:], options.KeyFile, options.AuthUpdateFile); err != nil {
-			return fmt.Errorf("cannot store encryption key: %v", err)
-		}
+	if err := tpm.Seal(key[:], options.KeyFile, options.AuthUpdateFile); err != nil {
+		return fmt.Errorf("cannot store encryption key: %v", err)
 	}
 
 	return nil
