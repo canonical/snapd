@@ -20,10 +20,15 @@
 package partition
 
 import (
+	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -85,14 +90,30 @@ func filesystemDeviceNumberInfo(majorNum string) (*lsblkFilesystemInfo, error) {
 // Disk is a single physical disk device that contains partitions.
 type Disk interface {
 	// FindMatchingPartitionUUID finds the partition uuid for a partition matching
-	// the specified label on the disk.
+	// the specified label on the disk. Note that for non-ascii labels like
+	// "Some label", the label should be encoded using \x<hex> for potentially
+	// non-safe characters like in "Some\x20Label".
 	FindMatchingPartitionUUID(string) (string, error)
 
 	// Equals compares two disks to see if they are the same physical disk.
 	Equals(Disk) bool
 }
 
+type partition struct {
+	major    int
+	minor    int
+	label    string
+	partuuid string
+	path     string
+}
+
 type disk struct {
+	major      int
+	minor      int
+	partitions []*partition
+}
+
+type lsblkDisk struct {
 	dev lsblkBlockDevice
 }
 
@@ -101,7 +122,7 @@ func DiskFromMountPoint(mountpoint string) (Disk, error) {
 	return diskFromMountPoint(mountpoint)
 }
 
-func diskFromMountPointImpl(mountpoint string) (Disk, error) {
+func diskFromMountPointImplLsblk(mountpoint string) (Disk, error) {
 	// first get the mount entry for the mountpoint
 	mounts, err := osutil.LoadMountInfo()
 	if err != nil {
@@ -134,12 +155,12 @@ func diskFromMountPointImpl(mountpoint string) (Disk, error) {
 		return nil, fmt.Errorf("internal error: multiple block devices for single mountpoint")
 	}
 
-	return &disk{dev: info.BlockDevices[0]}, nil
+	return &lsblkDisk{dev: info.BlockDevices[0]}, nil
 }
 
-func (d *disk) FindMatchingPartitionUUID(label string) (string, error) {
+func (l *lsblkDisk) FindMatchingPartitionUUID(label string) (string, error) {
 	// iterate over the block device children, looking for the specified label
-	for _, dev := range d.dev.Children {
+	for _, dev := range l.dev.Children {
 		if dev.Label == label {
 			return dev.PartitionUUID, nil
 		}
@@ -147,17 +168,230 @@ func (d *disk) FindMatchingPartitionUUID(label string) (string, error) {
 	return "", fmt.Errorf("couldn't find label %q", label)
 }
 
-func (d *disk) Equals(other Disk) bool {
+func (l *lsblkDisk) Equals(other Disk) bool {
 	switch d2 := other.(type) {
-	case *disk:
+	case *lsblkDisk:
 		// check that the device major + minor numbers are the same for the
 		// block device itself - not the children
-		return d.dev.MajorMinor == d2.dev.MajorMinor
+		return l.dev.MajorMinor == d2.dev.MajorMinor
 	default:
 		return false
 	}
 }
 
+func parseDeviceMajorMinor(s string) (int, int, error) {
+	errMsg := fmt.Errorf("invalid device number format: (expected <int>:<int>)")
+	devNums := strings.SplitN(s, ":", 2)
+	if len(devNums) != 2 {
+		return 0, 0, errMsg
+	}
+	maj, err := strconv.Atoi(devNums[0])
+	if err != nil {
+		return 0, 0, errMsg
+	}
+	min, err := strconv.Atoi(devNums[1])
+	if err != nil {
+		return 0, 0, errMsg
+	}
+	return maj, min, nil
+}
+
+func udevProperties(device string) (map[string]string, error) {
+	// now we have the partition for this mountpoint, we need to tie that back
+	// to a disk with a major minor, so query udev with the mount source path
+	// of the mountpoint for properties
+	cmd := exec.Command("udevadm", "info", "--name", device, "--query", "property")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, osutil.OutputErr(out, err)
+	}
+	r := bytes.NewBuffer(out)
+
+	return parseUdevProperties(r)
+}
+
+func parseUdevProperties(r io.Reader) (map[string]string, error) {
+	m := make(map[string]string)
+	scanner := bufio.NewScanner(r)
+	for scanner.Scan() {
+		strs := strings.SplitN(scanner.Text(), "=", 2)
+		if len(strs) != 2 {
+			// bad udev output?
+			continue
+		}
+		m[strs[0]] = strs[1]
+	}
+
+	return m, scanner.Err()
+}
+
+func diskFromMountPointImpl(mountpoint string) (Disk, error) {
+	// first get the mount entry for the mountpoint
+	mounts, err := osutil.LoadMountInfo()
+	if err != nil {
+		return nil, err
+	}
+	found := false
+	d := &disk{}
+	mountpointPart := partition{}
+	for _, mount := range mounts {
+		if mount.MountDir == mountpoint {
+			mountpointPart.major = mount.DevMajor
+			mountpointPart.minor = mount.DevMinor
+			mountpointPart.path = mount.MountSource
+			found = true
+			break
+		}
+	}
+	if !found {
+		return nil, fmt.Errorf("couldn't find mountpoint %q", mountpoint)
+	}
+
+	// now we have the partition for this mountpoint, we need to tie that back
+	// to a disk with a major minor, so query udev with the mount source path
+	// of the mountpoint for properties
+	props, err := udevProperties(mountpointPart.path)
+	if err != nil && props == nil {
+		// only fail here if props is nil, if it's available we validate it
+		// below
+		return nil, fmt.Errorf("cannot find disk for partition %s: %v", mountpointPart.path, err)
+	}
+
+	// ID_PART_ENTRY_DISK will give us the major and minor of the disk that this
+	// partition originated from
+	if majorMinor, ok := props["ID_PART_ENTRY_DISK"]; ok {
+		maj, min, err := parseDeviceMajorMinor(majorMinor)
+		if err != nil {
+			// bad udev output?
+			return nil, fmt.Errorf("cannot find disk for partition %s, bad udev output: %v", mountpointPart.path, err)
+		}
+		d.major = maj
+		d.minor = min
+	} else {
+		// didn't find the property we need
+		return nil, fmt.Errorf("cannot find disk for partition %s, incomplete udev output", mountpointPart.path)
+	}
+
+	// now we have the major and minor of the disk, so we have the arduous task
+	// to identify all partitions that come from this disk using sysfs
+	// step 1. find all devices with a matching major number
+	// step 2. start at the major + minor device for the disk, and iterate over
+	//         all devices that have a partition attribute, starting with the
+	//         device with major same as disk and minor equal to disk minor + 1
+	// step 3. if we hit a device that does not have a partition attribute, then
+	//         we hit another disk, and shall stop searching
+
+	pattern := fmt.Sprintf("/sys/dev/block/%d:*", d.major)
+	allDevices, err := filepath.Glob(pattern)
+	if err != nil {
+		return nil, fmt.Errorf("internal error: %v", err)
+	}
+
+	// glob does not sort, but we need the list of devices to be sorted
+	sort.Strings(allDevices)
+
+	// populate all the partitions from our candidate devices
+	for _, dev := range allDevices {
+		base := filepath.Base(dev)
+		maj, min, err := parseDeviceMajorMinor(base)
+		if err != nil {
+			continue
+		}
+
+		// ignore any devices that have minor numbers less than the disk itself
+		// the disk will have the same minor so ignore that too
+		if min <= d.minor {
+			continue
+		}
+
+		// now if there is a partition file, this is a partition for our disk
+		if osutil.FileExists(filepath.Join(dev, "partition")) {
+			// read the uevent file for this partition to get the devname
+			p := &partition{
+				major: maj,
+				minor: min,
+			}
+			f, err := os.Open(filepath.Join(dev, "uevent"))
+			if err != nil {
+				continue
+			}
+
+			// now get the full set of udev properties for this partition
+			eventProps, err := parseUdevProperties(f)
+			if err != nil {
+				continue
+			}
+
+			// get the name of the device path to call udevadm
+			if name, ok := eventProps["DEVNAME"]; ok {
+				p.path = filepath.Join("/dev", name)
+			} else {
+				continue
+			}
+
+			props, err := udevProperties(p.path)
+			if err != nil && props == nil {
+				// only error here if we didn't get a map, we validate the map
+				// in the next steps
+				continue
+			}
+
+			// get the label
+			if labelEncoded, ok := props["ID_FS_LABEL_ENC"]; ok {
+				p.label = labelEncoded
+			} else {
+				continue
+			}
+
+			// finally get the partition uuid
+			if partuuid, ok := props["ID_PART_ENTRY_UUID"]; ok {
+				p.partuuid = partuuid
+			} else {
+				continue
+			}
+
+			d.partitions = append(d.partitions, p)
+		} else {
+			// if there was not a partition file, we hit another disk and must
+			// stop searching (the disk we are looking at will be ignored with
+			// the minor number <= check above)
+			break
+		}
+	}
+
+	// if we didn't find any partitions from above then return an error
+	if len(d.partitions) == 0 {
+		return nil, fmt.Errorf("no partitions found for disk %d:%d", d.major, d.minor)
+	}
+
+	return d, nil
+}
+
+func (d *disk) FindMatchingPartitionUUID(label string) (string, error) {
+	// iterate over the partitions looking for the specified label
+	for _, part := range d.partitions {
+		if part.label == label {
+			return part.partuuid, nil
+		}
+	}
+
+	return "", fmt.Errorf("couldn't find label %q", label)
+}
+
+func (d *disk) Equals(other Disk) bool {
+	switch d2 := other.(type) {
+	case *disk:
+		// check that the device major + minor numbers are the same
+		return d.major == d2.major && d.minor == d2.minor
+	default:
+		return false
+	}
+}
+
+// mockDisk is an implementation of Disk for mocking purposes, it is exported
+// so that other packages can easily mock a specific disk layout without
+// needing to mock the mount setup, sysfs, and udevadm commands just to test
+// high level logic.
 type mockDisk struct {
 	mountpoint       string
 	labelsToPartUUID map[string]string
