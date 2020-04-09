@@ -19,6 +19,8 @@
 
 package boot
 
+import "fmt"
+
 // trySnapError is an error that only applies to the try snaps where multiple
 // snaps are returned, this is mainly and primarily used in revisions().
 type trySnapError string
@@ -27,9 +29,13 @@ func (sre trySnapError) Error() string {
 	return string(sre)
 }
 
-// IsTrySnapError returns true if the given error is an error resulting from
+func newTrySnapErrorf(format string, args ...interface{}) error {
+	return trySnapError(fmt.Sprintf(format, args...))
+}
+
+// isTrySnapError returns true if the given error is an error resulting from
 // accessing information about the try snap or the trying status.
-func IsTrySnapError(err error) bool {
+func isTrySnapError(err error) bool {
 	switch err.(type) {
 	case *trySnapError:
 		return true

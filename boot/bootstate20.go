@@ -153,7 +153,7 @@ func (ks20 *bootState20Kernel) revisions() (curSnap, trySnap snap.PlaceInfo, try
 	tryKernel, err := ks20.ebl.TryKernel()
 	// if err is ErrNoTryKernelRef, then we will just return nil as the trySnap
 	if err != nil && err != bootloader.ErrNoTryKernelRef {
-		return ks20.currentKernel, nil, "", trySnapError(fmt.Sprintf("cannot identify try kernel snap with bootloader %s: %v", ks20.ebl.Name(), err))
+		return ks20.currentKernel, nil, "", newTrySnapErrorf("cannot identify try kernel snap with bootloader %s: %v", ks20.ebl.Name(), err)
 	}
 
 	if err == nil {
@@ -372,7 +372,7 @@ func (bs20 *bootState20Base) revisions() (curSnap, trySnap snap.PlaceInfo, tryin
 	if bs20.modeenv.BaseStatus != DefaultStatus && bs20.modeenv.TryBase != "" {
 		tryBootSn, err = snap.ParsePlaceInfoFromSnapFileName(bs20.modeenv.TryBase)
 		if err != nil {
-			return bootSn, nil, "", trySnapError(fmt.Sprintf("cannot get snap revision: modeenv try base boot variable is invalid: %v", err))
+			return bootSn, nil, "", newTrySnapErrorf("cannot get snap revision: modeenv try base boot variable is invalid: %v", err)
 		}
 	}
 
@@ -721,7 +721,7 @@ func genericEarlyBootChooseSnap(bs bootState, expectedTryStatus, typeString stri
 ) {
 	curSnap, trySnap, snapTryStatus, err := bs.revisions()
 
-	if err != nil && !IsTrySnapError(err) {
+	if err != nil && !isTrySnapError(err) {
 		// we have no fallback snap!
 		return nil, nil, false, fmt.Errorf("fallback %s snap unusable: %v", typeString, err)
 	}
@@ -740,7 +740,7 @@ func genericEarlyBootChooseSnap(bs bootState, expectedTryStatus, typeString stri
 		return nil, nil, false, fmt.Errorf("%s snap %q does not exist on ubuntu-data", typeString, file)
 	}
 
-	if err != nil && IsTrySnapError(err) {
+	if err != nil && isTrySnapError(err) {
 		// just log that we had issues with the try snap and continue with
 		// using the normal snap
 		logger.Noticef("unable to process try %s snap: %v", typeString, err)
