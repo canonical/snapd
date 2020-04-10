@@ -288,12 +288,31 @@ func deviceLayoutFromPartitionTable(ptable sfdiskPartitionTable) (*DeviceLayout,
 		}
 	}
 
+	// if we don't have an LBA, we are probably on an MBR disk and need to
+	// calculate the size ourselves
+	// TODO:UC20: how/where/why/who/when to best do this ???
+	var numSectors gadget.Size
+	if ptable.LastLBA != 0 {
+		numSectors = gadget.Size(ptable.LastLBA + 1)
+	} else {
+		out, err := exec.Command("blockdev", "--getsz", ptable.Device).CombinedOutput()
+		if err != nil {
+			return nil, fmt.Errorf("couldn't get size of non-gpt disk: %v", osutil.OutputErr(out, err))
+		}
+		num, err := strconv.Atoi(strings.TrimSpace(string(out)))
+		if err != nil {
+			return nil, fmt.Errorf("couldn't get size of non-gpt disk: %v", err)
+		}
+
+		numSectors = gadget.Size(num)
+	}
+
 	dl := &DeviceLayout{
 		Structure:      ds,
 		ID:             ptable.ID,
 		Device:         ptable.Device,
 		Schema:         ptable.Label,
-		Size:           gadget.Size(ptable.LastLBA+1) * sectorSize,
+		Size:           numSectors * sectorSize,
 		SectorSize:     sectorSize,
 		partitionTable: &ptable,
 	}
