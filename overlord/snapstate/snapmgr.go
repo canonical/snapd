@@ -39,8 +39,10 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 )
 
@@ -391,7 +393,7 @@ func Store(st *state.State, deviceCtx DeviceContext) StoreService {
 
 // Manager returns a new snap manager.
 func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
-	preseed := release.PreseedMode()
+	preseed := snapdenv.Preseeding()
 	m := &SnapManager{
 		state:          st,
 		autoRefresh:    newAutoRefresh(st),
@@ -552,7 +554,7 @@ func (m *SnapManager) RefreshSchedule() (string, bool, error) {
 // ensureForceDevmodeDropsDevmodeFromState undoes the forced devmode
 // in snapstate for forced devmode distros.
 func (m *SnapManager) ensureForceDevmodeDropsDevmodeFromState() error {
-	if !release.ReleaseInfo.ForceDevMode() {
+	if !sandbox.ForceDevMode() {
 		return nil
 	}
 

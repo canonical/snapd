@@ -112,6 +112,10 @@ func (s *seed16) Model() (*asserts.Model, error) {
 	return s.model, nil
 }
 
+func (s *seed16) Brand() (*asserts.Account, error) {
+	return findBrand(s, s.db)
+}
+
 func (s *seed16) addSnap(sn *internal.Snap16, pinnedTrack string, tm timings.Measurer) (*Snap, error) {
 	path := filepath.Join(s.seedDir, "snaps", sn.File)
 	snapChannel := sn.Channel

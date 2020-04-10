@@ -177,31 +177,46 @@ func (s *ubootTestSuite) TestExtractKernelAssetsAndRemove(c *C) {
 	c.Check(osutil.FileExists(kernelAssetsDir), Equals, false)
 }
 
-func (s *ubootTestSuite) TestUbootSetRecoverySystemEnv(c *C) {
+func (s *ubootTestSuite) TestExtractRecoveryKernelAssets(c *C) {
 	bootloader.MockUbootFiles(c, s.rootdir)
 	u := bootloader.NewUboot(s.rootdir)
 
-	// check that we can set a recovery system specific bootenv
-	bvars := map[string]string{
-		"snapd_recovery_kernel": "/snaps/pi-kernel_1.snap",
-		"other_options":         "are-supported",
+	files := [][]string{
+		{"kernel.img", "I'm a kernel"},
+		{"initrd.img", "...and I'm an initrd"},
+		{"dtbs/foo.dtb", "foo dtb"},
+		{"dtbs/bar.dto", "bar dtbo"},
+		// must be last
+		{"meta/kernel.yaml", "version: 4.2"},
 	}
-	err := u.SetRecoverySystemEnv("/systems/20191209", bvars)
+	si := &snap.SideInfo{
+		RealName: "ubuntu-kernel",
+		Revision: snap.R(42),
+	}
+	fn := snaptest.MakeTestSnapWithFiles(c, packageKernel, files)
+	snapf, err := snap.Open(fn)
 	c.Assert(err, IsNil)
-	recoverySystemUbootenv := filepath.Join(s.rootdir, "/systems/20191209/uboot.env")
-	c.Assert(recoverySystemUbootenv, testutil.FilePresent)
 
-	// and it goes into the right file
-	uenv, err := ubootenv.Open(recoverySystemUbootenv)
+	info, err := snap.ReadInfoFromSnapFile(snapf, si)
 	c.Assert(err, IsNil)
-	c.Check(uenv.Get("snapd_recovery_kernel"), Equals, "/snaps/pi-kernel_1.snap")
-	c.Check(uenv.Get("other_options"), Equals, "are-supported")
 
-	// and not the main uboot file
-	m, err := u.GetBootVars("snapd_recovery_kernel", "other_options")
+	// try with empty recovery dir first to check the errors
+	err = u.ExtractRecoveryKernelAssets("", info, snapf)
+	c.Assert(err, ErrorMatches, "internal error: recoverySystemDir unset")
+
+	// now the expected behavior
+	err = u.ExtractRecoveryKernelAssets("recovery-dir", info, snapf)
 	c.Assert(err, IsNil)
-	c.Check(m, DeepEquals, map[string]string{
-		"snapd_recovery_kernel": "",
-		"other_options":         "",
-	})
+
+	// this is where the kernel/initrd is unpacked
+	kernelAssetsDir := filepath.Join(s.rootdir, "recovery-dir", "kernel")
+
+	for _, def := range files {
+		if def[0] == "meta/kernel.yaml" {
+			break
+		}
+
+		fullFn := filepath.Join(kernelAssetsDir, def[0])
+		c.Check(fullFn, testutil.FileEquals, def[1])
+	}
 }

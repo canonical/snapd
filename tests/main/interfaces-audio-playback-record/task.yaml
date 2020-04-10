@@ -9,14 +9,6 @@ environment:
     EXFAIL: "ubuntu-1[468]"
 
 prepare: |
-    # FIXME: This test is broken and should be ported to session-tool, systemd
-    # --user starts pulseaudio for us so we are always racing with it (whoever
-    # acquires the socket file wins).
-    #
-    # To prevent this from breaking this test mask pulseaudio.{socket,service}
-    # in all user sessions.
-    systemctl --user --global mask pulseaudio.{socket,service}
-
     #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB"/pkgdb.sh
     snap install --edge test-snapd-audio-record
@@ -44,7 +36,6 @@ restore: |
         rm -rf /home/test/.config
         mv /home/test/.config.spread /home/test/.config
     fi
-    systemctl --user --global unmask pulseaudio.{socket,service}
 
 execute: |
     # we need -p so that XDG_RUNTIME_DIR is honored, but that preserves HOME,

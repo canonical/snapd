@@ -89,24 +89,37 @@ var systemSnapFromSeed = func(rootDir string) (string, error) {
 		return "", err
 	}
 
-	// TODO: handle core18, snapd snap.
-	if seed.UsesSnapdSnap() {
-		return "", fmt.Errorf("preseeding with snapd snap is not supported yet")
+	model, err := seed.Model()
+	if err != nil {
+		return "", err
 	}
 
-	var coreSnapPath string
+	// TODO: implement preseeding for core.
+	if !model.Classic() {
+		return "", fmt.Errorf("preseeding is only supported on classic systems")
+	}
+
+	var required string
+	if seed.UsesSnapdSnap() {
+		required = "snapd"
+	} else {
+		required = "core"
+	}
+
+	var snapPath string
 	ess := seed.EssentialSnaps()
 	if len(ess) > 0 {
-		if ess[0].SnapName() == "core" {
-			coreSnapPath = ess[0].Path
+		// core / snapd snap is the first essential snap.
+		if ess[0].SnapName() == required {
+			snapPath = ess[0].Path
 		}
 	}
 
-	if coreSnapPath == "" {
-		return "", fmt.Errorf("core snap not found")
+	if snapPath == "" {
+		return "", fmt.Errorf("%s snap not found", required)
 	}
 
-	return coreSnapPath, nil
+	return snapPath, nil
 }
 
 const snapdPreseedSupportVer = `2.43.3+`

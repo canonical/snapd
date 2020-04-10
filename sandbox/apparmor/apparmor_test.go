@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -47,6 +48,31 @@ func (*apparmorSuite) TestAppArmorLevelTypeStringer(c *C) {
 	c.Check(apparmor.Partial.String(), Equals, "partial")
 	c.Check(apparmor.Full.String(), Equals, "full")
 	c.Check(apparmor.LevelType(42).String(), Equals, "AppArmorLevelType:42")
+}
+
+func (*apparmorSuite) TestAppArmorSystemCacheFallsback(c *C) {
+	// if we create the system cache dir under a new rootdir, then the
+	// SystemCacheDir should take that value
+	dir1 := c.MkDir()
+	systemCacheDir := filepath.Join(dir1, "/etc/apparmor.d/cache")
+	err := os.MkdirAll(systemCacheDir, 0755)
+	c.Assert(err, IsNil)
+	dirs.SetRootDir(dir1)
+	c.Assert(apparmor.SystemCacheDir, Equals, systemCacheDir)
+
+	// but if we set a new root dir without the system cache dir, now the var is
+	// set to the CacheDir
+	dir2 := c.MkDir()
+	dirs.SetRootDir(dir2)
+	c.Assert(apparmor.SystemCacheDir, Equals, apparmor.CacheDir)
+
+	// finally test that it's insufficient to just have the conf dir, we need
+	// specifically the cache dir
+	dir3 := c.MkDir()
+	err = os.MkdirAll(filepath.Join(dir3, "/etc/apparmor.d"), 0755)
+	c.Assert(err, IsNil)
+	dirs.SetRootDir(dir3)
+	c.Assert(apparmor.SystemCacheDir, Equals, apparmor.CacheDir)
 }
 
 func (*apparmorSuite) TestMockAppArmorLevel(c *C) {
@@ -140,26 +166,27 @@ func (*apparmorSuite) TestMockAppArmorFeatures(c *C) {
 	restore()
 }
 
+const featuresSysPath = "sys/kernel/security/apparmor/features"
+
 func (s *apparmorSuite) TestProbeAppArmorKernelFeatures(c *C) {
 	d := c.MkDir()
 
 	// Pretend that apparmor kernel features directory doesn't exist.
-	restore := apparmor.MockFeaturesSysPath(filepath.Join(d, "non-existent"))
+	restore := apparmor.MockFsRootPath(d)
 	defer restore()
 	features, err := apparmor.ProbeKernelFeatures()
 	c.Assert(os.IsNotExist(err), Equals, true)
 	c.Check(features, DeepEquals, []string{})
 
 	// Pretend that apparmor kernel features directory exists but is empty.
-	restore = apparmor.MockFeaturesSysPath(d)
-	defer restore()
+	c.Assert(os.MkdirAll(filepath.Join(d, featuresSysPath), 0755), IsNil)
 	features, err = apparmor.ProbeKernelFeatures()
 	c.Assert(err, IsNil)
 	c.Check(features, DeepEquals, []string{})
 
 	// Pretend that apparmor kernel features directory contains some entries.
-	c.Assert(os.Mkdir(filepath.Join(d, "foo"), 0755), IsNil)
-	c.Assert(os.Mkdir(filepath.Join(d, "bar"), 0755), IsNil)
+	c.Assert(os.Mkdir(filepath.Join(d, featuresSysPath, "foo"), 0755), IsNil)
+	c.Assert(os.Mkdir(filepath.Join(d, featuresSysPath, "bar"), 0755), IsNil)
 	features, err = apparmor.ProbeKernelFeatures()
 	c.Assert(err, IsNil)
 	c.Check(features, DeepEquals, []string{"bar", "foo"})
@@ -203,10 +230,10 @@ func (s *apparmorSuite) TestInterfaceSystemKey(c *C) {
 	apparmor.FreshAppArmorAssessment()
 
 	d := c.MkDir()
-	restore := apparmor.MockFeaturesSysPath(d)
+	restore := apparmor.MockFsRootPath(d)
 	defer restore()
-	c.Assert(os.MkdirAll(filepath.Join(d, "policy"), 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(d, "network"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(d, featuresSysPath, "policy"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(d, featuresSysPath, "network"), 0755), IsNil)
 
 	mockParserCmd := testutil.MockCommand(c, "apparmor_parser", "")
 	defer mockParserCmd.Restore()
@@ -245,10 +272,10 @@ func (s *apparmorSuite) TestFeaturesProbedOnce(c *C) {
 	apparmor.FreshAppArmorAssessment()
 
 	d := c.MkDir()
-	restore := apparmor.MockFeaturesSysPath(d)
+	restore := apparmor.MockFsRootPath(d)
 	defer restore()
-	c.Assert(os.MkdirAll(filepath.Join(d, "policy"), 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(d, "network"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(d, featuresSysPath, "policy"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(d, featuresSysPath, "network"), 0755), IsNil)
 
 	mockParserCmd := testutil.MockCommand(c, "apparmor_parser", "")
 	defer mockParserCmd.Restore()

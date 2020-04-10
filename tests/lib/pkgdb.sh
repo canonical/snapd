@@ -167,7 +167,7 @@ distro_install_local_package() {
             eatmydata apt-get -f install -y
             ;;
         ubuntu-*)
-            flags="-y"
+            flags="-y --no-install-recommends"
             if [ "$allow_downgrades" = "true" ]; then
                 flags="$flags --allow-downgrades"
             fi
@@ -659,6 +659,7 @@ pkg_dependencies_ubuntu_classic(){
                 eatmydata
                 evolution-data-server
                 fwupd
+                libc6-dev-i386
                 net-tools
                 packagekit
                 sbuild
@@ -791,6 +792,7 @@ pkg_dependencies_arch(){
     libseccomp
     libcap
     libx11
+    man
     net-tools
     nfs-utils
     openbsd-netcat

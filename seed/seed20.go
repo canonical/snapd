@@ -31,6 +31,7 @@ package seed
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -183,6 +184,10 @@ func (s *seed20) Model() (*asserts.Model, error) {
 	return s.model, nil
 }
 
+func (s *seed20) Brand() (*asserts.Account, error) {
+	return findBrand(s, s.db)
+}
+
 func (s *seed20) UsesSnapdSnap() bool {
 	return true
 }
@@ -259,7 +264,7 @@ func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef, snapsDir string)
 			return "", nil, nil, &NoSnapDeclarationError{snapRef}
 		}
 	} else {
-		if s.model.Grade() != asserts.ModelDangerous && snapRef.SnapName() != "snapd" && snapRef.SnapName() != s.model.Base() /* TODO: use snap-id for snapd*/ {
+		if s.model.Grade() != asserts.ModelDangerous {
 			return "", nil, nil, fmt.Errorf("all system snaps must be identified by snap-id, missing for %q", snapRef.SnapName())
 		}
 		snapName := snapRef.SnapName()
@@ -352,8 +357,13 @@ func (s *seed20) addSnap(snapRef naming.SnapRef, optSnap *internal.Snap20, modes
 	return seedSnap, nil
 }
 
-func (s *seed20) addModelSnap(modelSnap *asserts.ModelSnap, essential bool, tm timings.Measurer) (*Snap, error) {
+var errFiltered = errors.New("filtered out")
+
+func (s *seed20) addModelSnap(modelSnap *asserts.ModelSnap, essential bool, filter func(*asserts.ModelSnap) bool, tm timings.Measurer) (*Snap, error) {
 	optSnap, _ := s.nextOptSnap(modelSnap)
+	if !filter(modelSnap) {
+		return nil, errFiltered
+	}
 	seedSnap, err := s.addSnap(modelSnap, optSnap, modelSnap.Modes, modelSnap.DefaultChannel, "../../snaps", tm)
 	if err != nil {
 		return nil, err
@@ -370,6 +380,43 @@ func (s *seed20) addModelSnap(modelSnap *asserts.ModelSnap, essential bool, tm t
 }
 
 func (s *seed20) LoadMeta(tm timings.Measurer) error {
+	if err := s.loadModelMeta(nil, tm); err != nil {
+		return err
+	}
+
+	// extra snaps
+	runMode := []string{"run"}
+	for {
+		optSnap, done := s.nextOptSnap(nil)
+		if done {
+			break
+		}
+
+		_, err := s.addSnap(optSnap, optSnap, runMode, "latest/stable", "snaps", tm)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *seed20) LoadEssentialMeta(essentialTypes []snap.Type, tm timings.Measurer) error {
+	filterEssential := essentialSnapTypesToModelFilter(essentialTypes)
+
+	if err := s.loadModelMeta(filterEssential, tm); err != nil {
+		return err
+	}
+
+	if s.essentialSnapsNum != len(essentialTypes) {
+		// did not find all the explicitly asked essential types
+		return fmt.Errorf("model does not specify all the requested essential snaps: %v", essentialTypes)
+	}
+
+	return nil
+}
+
+func (s *seed20) loadModelMeta(filterEssential func(*asserts.ModelSnap) bool, tm timings.Measurer) error {
 	model, err := s.Model()
 	if err != nil {
 		return err
@@ -383,19 +430,31 @@ func (s *seed20) LoadMeta(tm timings.Measurer) error {
 		return err
 	}
 
+	essentialOnly := filterEssential != nil
+	filter := filterEssential
+	if !essentialOnly {
+		// no filtering
+		filter = func(*asserts.ModelSnap) bool {
+			return true
+		}
+	}
+
 	allSnaps := model.AllSnaps()
 	// an explicit snapd is the first of all of snaps
 	if allSnaps[0].SnapType != "snapd" {
 		snapdSnap := internal.MakeSystemSnap("snapd", "latest/stable", []string{"run", "ephemeral"})
-		if _, err := s.addModelSnap(snapdSnap, true, tm); err != nil {
+		if _, err := s.addModelSnap(snapdSnap, true, filter, tm); err != nil && err != errFiltered {
 			return err
 		}
 	}
 
 	essential := true
 	for _, modelSnap := range allSnaps {
-		seedSnap, err := s.addModelSnap(modelSnap, essential, tm)
+		seedSnap, err := s.addModelSnap(modelSnap, essential, filter, tm)
 		if err != nil {
+			if err == errFiltered {
+				continue
+			}
 			if _, ok := err.(*NoSnapDeclarationError); ok && modelSnap.Presence == "optional" {
 				// skipped optional snap is ok
 				continue
@@ -414,22 +473,12 @@ func (s *seed20) LoadMeta(tm timings.Measurer) error {
 			// TODO: when we allow extend models for classic
 			// we need to add the gadget base here
 
-			// done with essential snaps
+			// done with essential snaps, gadget is the last one
 			essential = false
-		}
-	}
-
-	// extra snaps
-	runMode := []string{"run"}
-	for {
-		optSnap, done := s.nextOptSnap(nil)
-		if done {
-			break
-		}
-
-		_, err := s.addSnap(optSnap, optSnap, runMode, "latest/stable", "snaps", tm)
-		if err != nil {
-			return err
+			if essentialOnly {
+				// will not find more
+				break
+			}
 		}
 	}
 

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2016 Canonical Ltd
+ * Copyright (C) 2015-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -37,7 +37,6 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/netutil"
@@ -47,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/overlord/standby"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/polkit"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/systemd"
 )
@@ -69,7 +69,7 @@ type Daemon struct {
 	standbyOpinions *standby.StandbyOpinions
 
 	// set to remember we need to restart the system
-	restartSystem bool
+	restartSystem state.RestartType
 	// set to remember that we need to exit the daemon in a way that
 	// prevents systemd from restarting it
 	restartSocket bool
@@ -260,7 +260,7 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if rsp, ok := rsp.(*resp); ok {
 		_, rst := st.Restarting()
 		switch rst {
-		case state.RestartSystem:
+		case state.RestartSystem, state.RestartSystemNow:
 			rsp.transmitMaintenance(errorKindSystemRestart, "system is restarting")
 		case state.RestartDaemon:
 			rsp.transmitMaintenance(errorKindDaemonRestart, "daemon is restarting")
@@ -340,7 +340,7 @@ func (d *Daemon) Init() error {
 
 	d.addRoutes()
 
-	logger.Noticef("started %v.", httputil.UserAgent())
+	logger.Noticef("started %v.", snapdenv.UserAgent())
 
 	return nil
 }
@@ -481,7 +481,7 @@ func (d *Daemon) HandleRestart(t state.RestartType) {
 	// die when asked to restart (systemd should get us back up!) etc
 	switch t {
 	case state.RestartDaemon:
-	case state.RestartSystem:
+	case state.RestartSystem, state.RestartSystemNow:
 		// try to schedule a fallback slow reboot already here
 		// in case we get stuck shutting down
 		if err := reboot(rebootWaitTimeout); err != nil {
@@ -491,7 +491,7 @@ func (d *Daemon) HandleRestart(t state.RestartType) {
 		d.mu.Lock()
 		defer d.mu.Unlock()
 		// remember we need to restart the system
-		d.restartSystem = true
+		d.restartSystem = t
 	case state.RestartSocket:
 		d.mu.Lock()
 		defer d.mu.Unlock()
@@ -515,7 +515,9 @@ var (
 func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	// we need to schedule/wait for a system restart again
 	if d.expectedRebootDidNotHappen {
-		return d.doReboot(sigCh, rebootRetryWaitTimeout)
+		// make the reboot retry immediate
+		immediateReboot := true
+		return d.doReboot(sigCh, immediateReboot, rebootRetryWaitTimeout)
 	}
 	if d.overlord == nil {
 		return fmt.Errorf("internal error: no Overlord")
@@ -524,7 +526,8 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	d.tomb.Kill(nil)
 
 	d.mu.Lock()
-	restartSystem := d.restartSystem
+	restartSystem := d.restartSystem != state.RestartUnset
+	immediateReboot := d.restartSystem == state.RestartSystemNow
 	restartSocket := d.restartSocket
 	d.mu.Unlock()
 
@@ -598,7 +601,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	}
 
 	if restartSystem {
-		return d.doReboot(sigCh, rebootWaitTimeout)
+		return d.doReboot(sigCh, immediateReboot, rebootWaitTimeout)
 	}
 
 	if d.restartSocket {
@@ -608,7 +611,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	return nil
 }
 
-func (d *Daemon) rebootDelay() (time.Duration, error) {
+func (d *Daemon) rebootDelay(immediate bool) (time.Duration, error) {
 	d.state.Lock()
 	defer d.state.Unlock()
 	now := time.Now()
@@ -619,11 +622,14 @@ func (d *Daemon) rebootDelay() (time.Duration, error) {
 		return 0, err
 	}
 	rebootDelay := 1 * time.Minute
+	if immediate {
+		rebootDelay = 0
+	}
 	if err == nil {
 		rebootDelay = rebootAt.Sub(now)
 	} else {
 		ovr := os.Getenv("SNAPD_REBOOT_DELAY") // for tests
-		if ovr != "" {
+		if ovr != "" && !immediate {
 			d, err := time.ParseDuration(ovr)
 			if err == nil {
 				rebootDelay = d
@@ -635,8 +641,8 @@ func (d *Daemon) rebootDelay() (time.Duration, error) {
 	return rebootDelay, nil
 }
 
-func (d *Daemon) doReboot(sigCh chan<- os.Signal, waitTimeout time.Duration) error {
-	rebootDelay, err := d.rebootDelay()
+func (d *Daemon) doReboot(sigCh chan<- os.Signal, immediate bool, waitTimeout time.Duration) error {
+	rebootDelay, err := d.rebootDelay(immediate)
 	if err != nil {
 		return err
 	}

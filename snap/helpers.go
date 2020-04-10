@@ -20,24 +20,9 @@
 package snap
 
 import (
-	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
-var snapIDsSnapd = []string{
-	// production
-	"PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4",
-	// staging
-	"Z44rtQD1v4r1LXGPCDZAJO3AOw1EDGqy",
-}
-
 func IsSnapd(snapID string) bool {
-	return strutil.ListContains(snapIDsSnapd, snapID)
-}
-
-func MockSnapdSnapID(snapID string) (restore func()) {
-	old := snapIDsSnapd
-	snapIDsSnapd = append(snapIDsSnapd, snapID)
-	return func() {
-		snapIDsSnapd = old
-	}
+	return snapID == naming.WellKnownSnapID("snapd")
 }

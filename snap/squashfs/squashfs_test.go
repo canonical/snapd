@@ -47,6 +47,7 @@ func Test(t *testing.T) { TestingT(t) }
 
 type SquashfsTestSuite struct {
 	oldStdout, oldStderr, outf *os.File
+	testutil.BaseTest
 }
 
 var _ = Suite(&SquashfsTestSuite{})
@@ -109,6 +110,9 @@ func (s *SquashfsTestSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(d)
 	err := os.Chdir(d)
 	c.Assert(err, IsNil)
+
+	restore := osutil.MockMountInfo("")
+	s.AddCleanup(restore)
 
 	s.outf, err = ioutil.TempFile(c.MkDir(), "")
 	c.Assert(err, IsNil)
@@ -261,6 +265,20 @@ func (s *SquashfsTestSuite) TestReadFileFail(c *C) {
 	snap := makeSnap(c, "name: foo", "")
 	_, err := snap.ReadFile("meta/snap.yaml")
 	c.Assert(err, ErrorMatches, "cannot run unsquashfs: boom")
+}
+
+func (s *SquashfsTestSuite) TestRandomAccessFile(c *C) {
+	snap := makeSnap(c, "name: foo", "")
+
+	r, err := snap.RandomAccessFile("meta/snap.yaml")
+	c.Assert(err, IsNil)
+	defer r.Close()
+
+	b := make([]byte, 4)
+	n, err := r.ReadAt(b, 4)
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 4)
+	c.Check(string(b), Equals, ": fo")
 }
 
 func (s *SquashfsTestSuite) TestListDir(c *C) {

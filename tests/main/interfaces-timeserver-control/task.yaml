@@ -7,8 +7,7 @@ details: |
 # Debian sid is skipped because "timedatectl set-ntp" fails with the error:
 # "Failed to set ntp: Message recipient disconnected from message bus without replying"
 # A workaround is to make "systemctl enable --now systemd-timesyncd.service" instead
-# XXX: 20.04: fails with `Failed to restart systemd-timesyncd.service: Unit systemd-timesyncd.service is masked.` - needs further investigation, looks like a packaging issue in 20.04
-systems: [-debian-sid-*, -ubuntu-20.04-*]
+systems: [-debian-sid-*]
 
 prepare: |
     # shellcheck source=tests/lib/snaps.sh

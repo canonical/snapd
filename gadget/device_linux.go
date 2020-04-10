@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+
 package gadget
 
 import (
@@ -168,7 +169,7 @@ func FindMountPointForStructure(ps *LaidOutStructure) (string, error) {
 	}
 
 	var mountPoint string
-	mountInfo, err := osutil.LoadMountInfo(filepath.Join(dirs.GlobalRootDir, osutil.ProcSelfMountInfo))
+	mountInfo, err := osutil.LoadMountInfo()
 	if err != nil {
 		return "", fmt.Errorf("cannot read mount info: %v", err)
 	}
@@ -198,7 +199,7 @@ func isWritableMount(entry *osutil.MountInfoEntry) bool {
 }
 
 func findDeviceForWritable() (device string, err error) {
-	mountInfo, err := osutil.LoadMountInfo(filepath.Join(dirs.GlobalRootDir, osutil.ProcSelfMountInfo))
+	mountInfo, err := osutil.LoadMountInfo()
 	if err != nil {
 		return "", fmt.Errorf("cannot read mount info: %v", err)
 	}

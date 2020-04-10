@@ -10,14 +10,6 @@ environment:
     PA_TEST_LOG: /home/test/pulseaudio.log
 
 prepare: |
-    # FIXME: This test is broken and should be ported to session-tool, systemd
-    # --user starts pulseaudio for us so we are always racing with it (whoever
-    # acquires the socket file wins).
-    #
-    # To prevent this from breaking this test mask pulseaudio.{socket,service}
-    # in all user sessions.
-    systemctl --user --global mask pulseaudio.{socket,service}
-
     #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB"/pkgdb.sh
     snap install --edge test-snapd-pulseaudio
@@ -64,8 +56,6 @@ restore: |
     rm -f /home/test/pulse-test.pa
     rm -f /run/user/12345/pulse/native
     rm -f $PA_TEST_LOG
-
-    systemctl --user --global unmask pulseaudio.{socket,service}
 
 debug: |
     if [ -f $PA_TEST_LOG ]; then

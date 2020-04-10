@@ -54,6 +54,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
@@ -114,8 +115,6 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	s.bl = bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(s.bl)
 	s.AddCleanup(func() { bootloader.Force(nil) })
-	s.bl.SetBootBase("base_6789.snap")
-	s.bl.SetBootKernel("kernel_6789.snap")
 
 	oldSetupInstallHook := snapstate.SetupInstallHook
 	oldSetupPreRefreshHook := snapstate.SetupPreRefreshHook
@@ -681,9 +680,6 @@ version: 1.0
 }
 
 func (s *snapmgrTestSuite) TestInstallSnapdSnapType(c *C) {
-	restore := snap.MockSnapdSnapID("snapd-id") // id provided by fakeStore
-	defer restore()
-
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -1370,9 +1366,6 @@ func (s *snapmgrTestSuite) TestUpdateManyWaitForBasesUC18(c *C) {
 	r := snapstatetest.MockDeviceModel(ModelWithBase("core18"))
 	defer r()
 
-	restore := snap.MockSnapdSnapID("snapd-id")
-	defer restore()
-
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -1397,7 +1390,7 @@ func (s *snapmgrTestSuite) TestUpdateManyWaitForBasesUC18(c *C) {
 	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
-			{RealName: "snapd", SnapID: "snapd-id", Revision: snap.R(1)},
+			{RealName: "snapd", SnapID: "snapd-snap-id", Revision: snap.R(1)},
 		},
 		Current:  snap.R(1),
 		SnapType: "app",
@@ -9231,7 +9224,7 @@ func (s *snapmgrTestSuite) TestRevertWithBaseRunThrough(c *C) {
 	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
-			{RealName: "snapd", SnapID: "snapd-id", Revision: snap.R(1)},
+			{RealName: "snapd", SnapID: "snapd-snap-id", Revision: snap.R(1)},
 		},
 		Current:  snap.R(1),
 		SnapType: "app",
@@ -12646,7 +12639,7 @@ func tasksWithKind(ts *state.TaskSet, kind string) []*state.Task {
 
 var gadgetYaml = `
 defaults:
-    some-snap-ididididididididididid:
+    somesnapidididididididididididid:
         key: value
 
 volumes:
@@ -12711,7 +12704,7 @@ func (s *snapmgrTestSuite) TestConfigDefaults(c *C) {
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
-			{RealName: "some-snap", Revision: snap.R(11), SnapID: "some-snap-ididididididididididid"},
+			{RealName: "some-snap", Revision: snap.R(11), SnapID: "somesnapidididididididididididid"},
 		},
 		Current:  snap.R(11),
 		SnapType: "app",
@@ -12771,7 +12764,7 @@ func (s *snapmgrTestSuite) TestConfigDefaultsSmokeUC20(c *C) {
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
-			{RealName: "some-snap", Revision: snap.R(11), SnapID: "some-snap-ididididididididididid"},
+			{RealName: "some-snap", Revision: snap.R(11), SnapID: "somesnapidididididididididididid"},
 		},
 		Current:  snap.R(11),
 		SnapType: "app",
@@ -12798,7 +12791,7 @@ func (s *snapmgrTestSuite) TestConfigDefaultsNoGadget(c *C) {
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
-			{RealName: "some-snap", Revision: snap.R(11), SnapID: "some-snap-ididididididididididid"},
+			{RealName: "some-snap", Revision: snap.R(11), SnapID: "somesnapidididididididididididid"},
 		},
 		Current:  snap.R(11),
 		SnapType: "app",
@@ -12905,7 +12898,7 @@ func (s *snapmgrTestSuite) TestConfigDefaultsSystemConflictsCoreSnapId(c *C) {
 defaults:
     system:
         foo: bar
-    the-core-snapidididididididididi:
+    thecoresnapididididididididididi:
         foo: other-bar
         other-key: other-key-default
 `)
@@ -12915,7 +12908,7 @@ defaults:
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
-			{RealName: "core", SnapID: "the-core-snapidididididididididi", Revision: snap.R(1)},
+			{RealName: "core", SnapID: "thecoresnapididididididididididi", Revision: snap.R(1)},
 		},
 		Current:  snap.R(1),
 		SnapType: "os",
@@ -13850,9 +13843,9 @@ func (s *snapmgrTestSuite) TestForceDevModeCleanupSkipsRando(c *C) {
 }
 
 func (s *snapmgrTestSuite) checkForceDevModeCleanupRuns(c *C, name string, shouldBeReset bool) {
-	r := release.MockForcedDevmode(true)
+	r := sandbox.MockForceDevMode(true)
 	defer r()
-	c.Assert(release.ReleaseInfo.ForceDevMode(), Equals, true)
+	c.Assert(sandbox.ForceDevMode(), Equals, true)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -13889,9 +13882,9 @@ func (s *snapmgrTestSuite) checkForceDevModeCleanupRuns(c *C, name string, shoul
 }
 
 func (s *snapmgrTestSuite) TestForceDevModeCleanupRunsNoSnaps(c *C) {
-	r := release.MockForcedDevmode(true)
+	r := sandbox.MockForceDevMode(true)
 	defer r()
-	c.Assert(release.ReleaseInfo.ForceDevMode(), Equals, true)
+	c.Assert(sandbox.ForceDevMode(), Equals, true)
 
 	defer s.se.Stop()
 	s.settle(c)
@@ -13904,9 +13897,9 @@ func (s *snapmgrTestSuite) TestForceDevModeCleanupRunsNoSnaps(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestForceDevModeCleanupSkipsNonForcedOS(c *C) {
-	r := release.MockForcedDevmode(false)
+	r := sandbox.MockForceDevMode(false)
 	defer r()
-	c.Assert(release.ReleaseInfo.ForceDevMode(), Equals, false)
+	c.Assert(sandbox.ForceDevMode(), Equals, false)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -15575,9 +15568,6 @@ func (s *snapmgrTestSuite) TestNoConfigureForSnapdSnap(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	restore := snap.MockSnapdSnapID("snapd-id")
-	defer restore()
-
 	// snapd cannot be installed unless the model uses a base snap
 	r := snapstatetest.MockDeviceModel(ModelWithBase("core18"))
 	defer r()
@@ -15591,7 +15581,7 @@ func (s *snapmgrTestSuite) TestNoConfigureForSnapdSnap(c *C) {
 	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
 		Active:          true,
 		TrackingChannel: "latest/edge",
-		Sequence:        []*snap.SideInfo{{RealName: "snapd", SnapID: "snapd-id", Revision: snap.R(1)}},
+		Sequence:        []*snap.SideInfo{{RealName: "snapd", SnapID: "snapd-snap-id", Revision: snap.R(1)}},
 		Current:         snap.R(1),
 		SnapType:        "app",
 	})

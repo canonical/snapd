@@ -132,6 +132,29 @@ dbus (send)
   member="Get{,All}"
   peer=(label=unconfined),
 
+# Allow accessing the GNOME crypto services prompt APIs as used by
+# applications using libgcr (such as pinentry-gnome3) for secure pin
+# entry to unlock GPG keys etc. See:
+# https://developer.gnome.org/gcr/unstable/GcrPrompt.html
+# https://developer.gnome.org/gcr/unstable/GcrSecretExchange.html
+dbus (send)
+    bus=session
+    path=/org/gnome/keyring/Prompter
+    interface=org.gnome.keyring.internal.Prompter
+    member="{BeginPrompting,PerformPrompt,StopPrompting}"
+    peer=(label=unconfined),
+
+# While the DBus path is not snap-specific, by the time an application
+# registers the prompt path via DBus, Gcr will check that it isn't
+# already in use and send the client an error if it is. See:
+# https://github.com/snapcore/snapd/pull/7673#issuecomment-592229711
+dbus (receive)
+    bus=session
+    path=/org/gnome/keyring/Prompt/p[0-9]*
+    interface=org.gnome.keyring.internal.Prompter.Callback
+    member="{PromptReady,PromptDone}"
+    peer=(label=unconfined),
+
 # Allow use of snapd's internal 'xdg-open'
 /usr/bin/xdg-open ixr,
 /usr/share/applications/{,*} r,
@@ -182,10 +205,14 @@ dbus (send)
     member={Check,Get,Set}
     peer=(label=unconfined),
 
-## Allow access to xdg-document-portal file system.  Access control is
-## handled by bind mounting a snap-specific sub-tree to this location.
-owner /run/user/[0-9]*/doc/ r,
-owner /run/user/[0-9]*/doc/** rw,
+# Allow access to xdg-document-portal file system.  Access control is
+# handled by bind mounting a snap-specific sub-tree to this location
+# (ie, this is /run/user/<uid>/doc/by-app/snap.@{SNAP_INSTANCE_NAME}
+# on the host).
+owner /run/user/[0-9]*/doc/{,*/} r,
+# Allow rw access without owner match to the documents themselves since
+# the user guided the access and can specify anything DAC allows.
+/run/user/[0-9]*/doc/*/** rw,
 
 # Allow access to xdg-desktop-portal and xdg-document-portal
 dbus (receive, send)
