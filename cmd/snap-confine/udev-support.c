@@ -181,6 +181,13 @@ static void sc_udev_allow_assigned(int devices_allow_fd, struct udev *udev,
 		}
 		dev_t devnum = udev_device_get_devnum(device);
 		unsigned int major = major(devnum);
+		/* The manual page of udev_device_get_devnum says:
+		 * > On success, udev_device_get_devnum() returns the device type of
+		 * > the passed device. On failure, a device type with minor and major
+		 * > number set to 0 is returned.
+		 * Since there is no valid device with major == 0, but there are valid
+		 * devices with minor == 0, we perform only the test for non-zero major
+		 * below. */
 		if (major != 0) {
 			unsigned int minor = minor(devnum);
 			/* devnode is bound to the lifetime of the device and we cannot
