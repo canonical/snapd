@@ -86,6 +86,8 @@ var (
 	SortTimingsTasks = sortTimingsTasks
 
 	PrintInstallHint = printInstallHint
+
+	IsStopping = isStopping
 )
 
 func HiddenCmd(descr string, completeHidden bool) *cmdInfo {
