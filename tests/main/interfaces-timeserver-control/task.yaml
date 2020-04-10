@@ -25,15 +25,15 @@ prepare: |
     fi
 
 restore: |
-    if [[ "$SPREAD_SYSTEM" == ubuntu-19.10-* ]] || [[ "$SPREAD_SYSTEM" == ubuntu-20.04-* ]]; then
-        # bring it back
-        apt install -y chrony
-        systemctl restart systemd-timesyncd.service
-    fi
-
     # Restore the initial timeserver
     if [ -s timeserver.txt ]; then
-        timedatectl set-ntp "$(cat timeserver.txt)"
+        retry-tool -n 10 --wait 5 timedatectl set-ntp "$(cat timeserver.txt)"
+    fi
+
+    if [[ "$SPREAD_SYSTEM" == ubuntu-19.10-* ]] || [[ "$SPREAD_SYSTEM" == ubuntu-20.04-* ]]; then
+        # bring it back; this removes systemd-timesyncd
+        apt install -y chrony
+        systemctl restart chronyd.service
     fi
 
 execute: |
@@ -55,7 +55,7 @@ execute: |
     # it to become visible
 
     # Set the ntp value and check the status
-    test-snapd-timedate-control-consumer.timedatectl-timeserver set-ntp yes
+    retry-tool -n 10 --wait 5 test-snapd-timedate-control-consumer.timedatectl-timeserver set-ntp yes
     for _ in $(seq 10); do
         if [ "$(get_ntp_status)" = "yes" ] ; then
             break
