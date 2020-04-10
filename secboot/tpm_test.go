@@ -23,6 +23,7 @@ package secboot_test
 import (
 	"io/ioutil"
 	"path/filepath"
+	"testing"
 
 	"github.com/chrisccoulson/go-tpm2"
 	sb "github.com/snapcore/secboot"
@@ -32,6 +33,8 @@ import (
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/testutil"
 )
+
+func TestSecboot(t *testing.T) { TestingT(t) }
 
 type secbootTPMSuite struct {
 	testutil.BaseTest
@@ -71,46 +74,62 @@ func (s *secbootTPMSuite) TestSeal(c *C) {
 	myPolicyUpdatePath := "policyUpdateFilename"
 
 	// dummy OS component files
-	shimFile := filepath.Join(s.dir, "shim")
-	c.Assert(ioutil.WriteFile(shimFile, nil, 0644), IsNil)
+	shim1 := filepath.Join(s.dir, "shim1")
+	shim2 := filepath.Join(s.dir, "shim2")
+	grub1 := filepath.Join(s.dir, "grub1")
+	grub2 := filepath.Join(s.dir, "grub2")
+	kernel1 := filepath.Join(s.dir, "kernel1")
+	kernel2 := filepath.Join(s.dir, "kernel2")
 
-	grubFile := filepath.Join(s.dir, "grub")
-	c.Assert(ioutil.WriteFile(grubFile, nil, 0644), IsNil)
+	shimFiles := []string{shim1, shim2}
+	grubFiles := []string{grub1, grub2}
+	kernelFiles := []string{kernel1, kernel2}
 
-	kernelFile := filepath.Join(s.dir, "kernel")
-	c.Assert(ioutil.WriteFile(kernelFile, nil, 0644), IsNil)
+	files := append(shimFiles, grubFiles...)
+	files = append(files, kernelFiles...)
+
+	for _, p := range files {
+		c.Assert(ioutil.WriteFile(p, nil, 0644), IsNil)
+	}
 
 	t := secboot.TPMSupport{}
-	c.Assert(t.SetShimFile(shimFile), IsNil)
-	c.Assert(t.SetBootloaderFile(grubFile), IsNil)
-	c.Assert(t.SetKernelFile(kernelFile), IsNil)
+	c.Assert(t.SetShimFiles(shim1, shim2), IsNil)
+	c.Assert(t.SetBootloaderFiles(grub1, grub2), IsNil)
+	c.Assert(t.SetKernelFiles(kernel1, kernel2), IsNil)
 
-	cmdlines := []string{"this", "that"}
+	cmdlines := []string{"cmdline1", "cmdline2"}
 
 	t.SetKernelCmdlines(cmdlines)
+
+	loadSequences := []*sb.EFIImageLoadEvent{}
+
+	for _, shim := range shimFiles {
+		s := &sb.EFIImageLoadEvent{
+			Source: sb.Firmware,
+			Image:  sb.FileEFIImage(shim),
+		}
+		for _, grub := range grubFiles {
+			g := &sb.EFIImageLoadEvent{
+				Source: sb.Shim,
+				Image:  sb.FileEFIImage(grub),
+			}
+			for _, kernel := range kernelFiles {
+				k := &sb.EFIImageLoadEvent{
+					Source: sb.Shim,
+					Image:  sb.FileEFIImage(kernel),
+				}
+				g.Next = append(g.Next, k)
+			}
+			s.Next = append(s.Next, g)
+		}
+		loadSequences = append(loadSequences, s)
+	}
 
 	sbRestore := secboot.MockSbAddEFISecureBootPolicyProfile(func(profile *sb.PCRProtectionProfile,
 		params *sb.EFISecureBootPolicyProfileParams) error {
 		c.Assert(*params, DeepEquals, sb.EFISecureBootPolicyProfileParams{
-			PCRAlgorithm: tpm2.HashAlgorithmSHA256,
-			LoadSequences: []*sb.EFIImageLoadEvent{
-				{
-					Source: sb.Firmware,
-					Image:  sb.FileEFIImage(shimFile),
-					Next: []*sb.EFIImageLoadEvent{
-						{
-							Source: sb.Shim,
-							Image:  sb.FileEFIImage(grubFile),
-							Next: []*sb.EFIImageLoadEvent{
-								{
-									Source: sb.Shim,
-									Image:  sb.FileEFIImage(kernelFile),
-								},
-							},
-						},
-					},
-				},
-			},
+			PCRAlgorithm:  tpm2.HashAlgorithmSHA256,
+			LoadSequences: loadSequences,
 		})
 		return nil
 	})
@@ -148,20 +167,26 @@ func (s *secbootTPMSuite) TestSetFiles(c *C) {
 	c.Assert(ioutil.WriteFile(p1, nil, 0644), IsNil)
 
 	// set shim files
-	err := t.SetShimFile("foo")
+	err := t.SetShimFiles("foo")
 	c.Assert(err, ErrorMatches, "file foo does not exist")
-	err = t.SetShimFile(p1)
+	err = t.SetShimFiles(p1, "bar")
+	c.Assert(err, ErrorMatches, "file bar does not exist")
+	err = t.SetShimFiles(p1)
 	c.Assert(err, IsNil)
 
 	// set bootloader
-	err = t.SetBootloaderFile("foo")
+	err = t.SetBootloaderFiles("foo")
 	c.Assert(err, ErrorMatches, "file foo does not exist")
-	err = t.SetBootloaderFile(p1)
+	err = t.SetBootloaderFiles(p1, "bar")
+	c.Assert(err, ErrorMatches, "file bar does not exist")
+	err = t.SetBootloaderFiles(p1)
 	c.Assert(err, IsNil)
 
 	// set kernel files
-	err = t.SetKernelFile("foo")
+	err = t.SetKernelFiles("foo")
 	c.Assert(err, ErrorMatches, "file foo does not exist")
-	err = t.SetKernelFile(p1)
+	err = t.SetKernelFiles(p1, "bar")
+	c.Assert(err, ErrorMatches, "file bar does not exist")
+	err = t.SetKernelFiles(p1)
 	c.Assert(err, IsNil)
 }
