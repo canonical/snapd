@@ -92,7 +92,7 @@
 %endif
 
 Name:           snapd
-Version:        2.44.2
+Version:        2.44.3
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -877,6 +877,18 @@ fi
 
 
 %changelog
+* Thu Apr 10 2020 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.44.3
+ - tests: fix racy pulseaudio tests
+ - many: fix loading apparmor profiles on Ubuntu 20.04 with ZFS
+ - tests: update snap-preseed --reset logic
+ - tests: backport partition fixes
+ - cmd/snap: don't wait for system key when stopping
+ - interfaces/many: miscellaneous policy updates xliv
+ - tests/main/uc20-snap-recovery: use 20.04 system
+ - tests: skip "/etc/machine-id" in "writablepaths
+ - interfaces/docker-support: add overlays file access
+
 * Thu Apr 2 2020 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.44.2
  - packaging: detect/disable broken seeds in the postinst
