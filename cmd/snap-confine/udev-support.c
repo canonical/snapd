@@ -52,14 +52,14 @@ static void sc_udev_allow_common(int devices_allow_fd)
 {
 	/* The devices we add here have static number allocation.
 	 * https://www.kernel.org/doc/html/v4.11/admin-guide/devices.html */
-	sc_dprintf(devices_allow_fd, "c 1:3 rwm");	// /dev/null
-	sc_dprintf(devices_allow_fd, "c 1:5 rwm");	// /dev/zero
-	sc_dprintf(devices_allow_fd, "c 1:7 rwm");	// /dev/full
-	sc_dprintf(devices_allow_fd, "c 1:8 rwm");	// /dev/random
-	sc_dprintf(devices_allow_fd, "c 1:9 rwm");	// /dev/urandom
-	sc_dprintf(devices_allow_fd, "c 5:0 rwm");	// /dev/tty
-	sc_dprintf(devices_allow_fd, "c 5:1 rwm");	// /dev/console
-	sc_dprintf(devices_allow_fd, "c 5:2 rwm");	// /dev/ptmx
+	sc_dprintf(devices_allow_fd, "c 1:3 rwm\n");	// /dev/null
+	sc_dprintf(devices_allow_fd, "c 1:5 rwm\n");	// /dev/zero
+	sc_dprintf(devices_allow_fd, "c 1:7 rwm\n");	// /dev/full
+	sc_dprintf(devices_allow_fd, "c 1:8 rwm\n");	// /dev/random
+	sc_dprintf(devices_allow_fd, "c 1:9 rwm\n");	// /dev/urandom
+	sc_dprintf(devices_allow_fd, "c 5:0 rwm\n");	// /dev/tty
+	sc_dprintf(devices_allow_fd, "c 5:1 rwm\n");	// /dev/console
+	sc_dprintf(devices_allow_fd, "c 5:2 rwm\n");	// /dev/ptmx
 }
 
 /** Allow access to current and future PTY slaves.
@@ -73,7 +73,7 @@ static void sc_udev_allow_common(int devices_allow_fd)
 static void sc_udev_allow_pty_slaves(int devices_allow_fd)
 {
 	for (unsigned pty_major = 136; pty_major <= 143; pty_major++) {
-		sc_dprintf(devices_allow_fd, "c %u:* rwm", pty_major);
+		sc_dprintf(devices_allow_fd, "c %u:* rwm\n", pty_major);
 	}
 }
 
@@ -105,20 +105,20 @@ static void sc_udev_allow_nvidia(int devices_allow_fd)
 		if (stat(nv_path, &sbuf) < 0) {
 			break;
 		}
-		sc_dprintf(devices_allow_fd, "c %u:%u rwm", major(sbuf.st_rdev),
+		sc_dprintf(devices_allow_fd, "c %u:%u rwm\n", major(sbuf.st_rdev),
 			   minor(sbuf.st_rdev));
 	}
 
 	if (stat("/dev/nvidiactl", &sbuf) == 0) {
-		sc_dprintf(devices_allow_fd, "c %u:%u rwm", major(sbuf.st_rdev),
+		sc_dprintf(devices_allow_fd, "c %u:%u rwm\n", major(sbuf.st_rdev),
 			   minor(sbuf.st_rdev));
 	}
 	if (stat("/dev/nvidia-uvm", &sbuf) == 0) {
-		sc_dprintf(devices_allow_fd, "c %u:%u rwm", major(sbuf.st_rdev),
+		sc_dprintf(devices_allow_fd, "c %u:%u rwm\n", major(sbuf.st_rdev),
 			   minor(sbuf.st_rdev));
 	}
 	if (stat("/dev/nvidia-modeset", &sbuf) == 0) {
-		sc_dprintf(devices_allow_fd, "c %u:%u rwm", major(sbuf.st_rdev),
+		sc_dprintf(devices_allow_fd, "c %u:%u rwm\n", major(sbuf.st_rdev),
 			   minor(sbuf.st_rdev));
 	}
 }
@@ -134,7 +134,7 @@ static void sc_udev_allow_uhid(int devices_allow_fd)
 	struct stat sbuf;
 
 	if (stat("/dev/uhid", &sbuf) == 0) {
-		sc_dprintf(devices_allow_fd, "c %u:%u rwm", major(sbuf.st_rdev),
+		sc_dprintf(devices_allow_fd, "c %u:%u rwm\n", major(sbuf.st_rdev),
 			   minor(sbuf.st_rdev));
 	}
 }
@@ -153,7 +153,7 @@ static void sc_udev_allow_dev_net_tun(int devices_allow_fd)
 	struct stat sbuf;
 
 	if (stat("/dev/net/tun", &sbuf) == 0) {
-		sc_dprintf(devices_allow_fd, "c %u:%u rwm", major(sbuf.st_rdev),
+		sc_dprintf(devices_allow_fd, "c %u:%u rwm\n", major(sbuf.st_rdev),
 			   minor(sbuf.st_rdev));
 	}
 }
@@ -203,10 +203,10 @@ static void sc_udev_allow_assigned(int devices_allow_fd, struct udev *udev,
 			}
 			switch (file_info.st_mode & S_IFMT) {
 				case S_IFBLK:
-					dprintf(devices_allow_fd, "b %u:%u rwm", major, minor);
+					dprintf(devices_allow_fd, "b %u:%u rwm\n", major, minor);
 					break;
 				case S_IFCHR:
-					dprintf(devices_allow_fd, "c %u:%u rwm", major, minor);
+					dprintf(devices_allow_fd, "c %u:%u rwm\n", major, minor);
 					break;
 				default:
 					/* Not a device, ignore it. */
