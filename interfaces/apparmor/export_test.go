@@ -34,6 +34,8 @@ var (
 	LoadProfiles               = loadProfiles
 	UnloadProfiles             = unloadProfiles
 	MaybeSetNumberOfJobs       = maybeSetNumberOfJobs
+	DefaultTemplateRules       = defaultTemplateRules
+	DefaultBaseTemplateRules   = defaultBaseTemplateRules
 )
 
 func MockRuntimeNumCPU(new func() int) (restore func()) {
