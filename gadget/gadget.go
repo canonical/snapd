@@ -101,6 +101,7 @@ func (v *Volume) EffectiveSchema() string {
 // represent a partition, Master Boot Record, or any other contiguous range
 // within the volume.
 type VolumeStructure struct {
+	schema string // used internally by EffectiveSchema
 	// Name, when non empty, provides the name of the structure
 	Name string `yaml:"name"`
 	// Label provides the filesystem label
@@ -134,6 +135,13 @@ type VolumeStructure struct {
 	// Content of the structure
 	Content []VolumeContent `yaml:"content"`
 	Update  VolumeUpdate    `yaml:"update"`
+}
+
+func (v *VolumeStructure) EffectiveSchema() string {
+	if v.schema == "" {
+		return GPT
+	}
+	return v.schema
 }
 
 // HasFilesystem returns true if the structure is using a filesystem.

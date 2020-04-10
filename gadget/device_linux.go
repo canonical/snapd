@@ -45,7 +45,15 @@ func FindDeviceForStructure(ps *LaidOutStructure) (string, error) {
 	var candidates []string
 
 	if ps.Name != "" {
-		byPartlabel := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/", encodeLabel(ps.Name))
+		// if the device is MBR, we have to use by-label, as MBR does not have
+		// by-partlabel
+		var byPartlabel string
+		if ps.EffectiveSchema() == GPT {
+			byPartlabel = filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/", encodeLabel(ps.Name))
+		} else {
+			byPartlabel = filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label/", encodeLabel(ps.Name))
+		}
+
 		candidates = append(candidates, byPartlabel)
 	}
 
