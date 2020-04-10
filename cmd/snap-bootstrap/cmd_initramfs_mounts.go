@@ -490,7 +490,9 @@ func maybeUnlockAndMount(name string) error {
 			return err
 		}
 
-		cmd := exec.Command(systemdCryptSetup, "attach", name, partuuid, keyfile)
+		diskDevice := filepath.Join("/dev/disk/by-partuuid", partuuid)
+
+		cmd := exec.Command(systemdCryptSetup, "attach", name, diskDevice, keyfile)
 		cmd.Env = os.Environ()
 		cmd.Env = append(cmd.Env, "SYSTEMD_LOG_TARGET=console")
 		if output, err := cmd.CombinedOutput(); err != nil {
@@ -498,7 +500,7 @@ func maybeUnlockAndMount(name string) error {
 		}
 
 		// now request it to be mounted
-		fmt.Fprintf(stdout, "/dev/disk/by-partuuid/%s %s\n", partuuid, boot.InitramfsUbuntuDataDir)
+		fmt.Fprintf(stdout, "%s %s\n", diskDevice, boot.InitramfsUbuntuDataDir)
 		return nil
 	}
 
