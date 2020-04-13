@@ -29,16 +29,17 @@ import (
 	"github.com/snapcore/snapd/dirs"
 )
 
-func CreateEfivarsSecureBoot(sbData []uint8) {
+func CreateEfivarsSecureBoot(sbData []uint8) error {
 	sbFile := filepath.Join(dirs.GlobalRootDir, efivarsSecureBootFile)
 	err := os.MkdirAll(filepath.Dir(sbFile), 0755)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	err = ioutil.WriteFile(sbFile, sbData, 0644)
 	if err != nil {
-		panic(err)
+		return err
 	}
+	return nil
 }
 
 func MockSecbootConnectToDefaultTPM(f func() (*secboot.TPMConnection, error)) (restore func()) {

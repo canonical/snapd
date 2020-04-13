@@ -79,8 +79,10 @@ func (s *secbootSuite) TestCheckKeySealingSupported(c *C) {
 		})
 		defer restore()
 
-		secboot.CreateEfivarsSecureBoot(t.sbData)
-		err := secboot.CheckKeySealingSupported()
+		err := secboot.CreateEfivarsSecureBoot(t.sbData)
+		c.Assert(err, IsNil)
+
+		err = secboot.CheckKeySealingSupported()
 		if t.errStr == "" {
 			c.Assert(err, IsNil)
 		} else {
