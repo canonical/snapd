@@ -305,18 +305,12 @@ recovery_system=20191118
 	c.Check(cloudInitDisable, testutil.FilePresent)
 }
 
-func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1(c *C) {
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1BootedKernelUUIDHappy(c *C) {
 	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
-	// mock the disk ubuntu-boot is on as having ubuntu-seed too
-	restore := partition.MockMountPointDisksToPartionMapping(
-		map[string]map[string]string{
-			boot.InitramfsUbuntuBootDir: map[string]string{
-				"ubuntu-seed": "the-seed-uuid",
-			},
-		},
-	)
+	// make it explicitly fail
+	restore := main.MockPartitionUUIDForBootedKernelDisk("")
 	defer restore()
 
 	restore = main.MockOsutilIsMounted(func(path string) (bool, error) {
@@ -324,9 +318,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1(c *C) {
 		switch n {
 		case 1:
 			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
-			return true, nil
-		case 2:
-			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
 			return false, nil
 		}
 		return false, fmt.Errorf("unexpected number of calls: %v", n)
@@ -335,8 +326,34 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1(c *C) {
 
 	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
-	c.Assert(n, Equals, 2)
-	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`/dev/disk/by-partuuid/the-seed-uuid %[1]s/ubuntu-seed
+	c.Assert(n, Equals, 1)
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`/dev/disk/by-label/ubuntu-boot %[1]s/ubuntu-boot
+`, boot.InitramfsRunMntDir))
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1BootedKernelUUIDUnhappyFallsback(c *C) {
+	n := 0
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	// mock a specific partition uuid for ubuntu-boot
+	restore := main.MockPartitionUUIDForBootedKernelDisk("some-boot-uuid")
+	defer restore()
+
+	restore = main.MockOsutilIsMounted(func(path string) (bool, error) {
+		n++
+		switch n {
+		case 1:
+			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
+			return false, nil
+		}
+		return false, fmt.Errorf("unexpected number of calls: %v", n)
+	})
+	defer restore()
+
+	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 1)
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`/dev/disk/by-partuuid/some-boot-uuid %[1]s/ubuntu-boot
 `, boot.InitramfsRunMntDir))
 }
 
@@ -521,7 +538,6 @@ fi
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`/dev/disk/by-label/ubuntu-data %[1]s/ubuntu-data
 `, boot.InitramfsRunMntDir))
 }
-
 
 // TODO:UC20: write encrypted variant of step 3 as well to test the cross-check
 //            for encrypted partitions as well
