@@ -213,7 +213,7 @@ func generateMountsModeRecover(recoverySystem string) error {
 // partition
 func mountPartitionLabelFromSameDiskAsMountPoint(diskmountpoint, label, target string) error {
 	// get the disk for the mountpoint
-	disk, err := partition.DiskFromMountPoint(diskmountpoint)
+	disk, err := partition.DiskFromMountPoint(diskmountpoint, nil)
 	if err != nil {
 		return err
 	}
@@ -230,9 +230,9 @@ func mountPartitionLabelFromSameDiskAsMountPoint(diskmountpoint, label, target s
 }
 
 func generateMountsModeRun() error {
-	// 1.1 mount ubuntu-boot first, using the LoaderDevicePartUUID to identify
-	//     the partuiid partition that should be mounted
-	//     in run mode, we should be getting our kernel from ubuntu-boot
+	// 1. mount ubuntu-boot first, using the LoaderDevicePartUUID to identify
+	//    the partuiid partition that should be mounted
+	//    in run mode, we should be getting our kernel from ubuntu-boot
 
 	isMounted, err := osutilIsMounted(boot.InitramfsUbuntuBootDir)
 	if err != nil {
@@ -242,7 +242,7 @@ func generateMountsModeRun() error {
 		return selectPartitionMatchingKernelDisk(boot.InitramfsUbuntuBootDir, "ubuntu-boot")
 	}
 
-	// 1.2 mount ubuntu-seed partition from same disk as ubuntu-boot
+	// 2.1 mount ubuntu-seed partition from same disk as ubuntu-boot
 	isMounted, err = osutilIsMounted(boot.InitramfsUbuntuSeedDir)
 	if err != nil {
 		return err
@@ -257,61 +257,52 @@ func generateMountsModeRun() error {
 		)
 	}
 
-	// 1.2.1 cross check that ubuntu-boot and ubuntu-seed mounts come from the
+	// 2.2 cross check that ubuntu-boot and ubuntu-seed mounts come from the
 	//       same physical disk, if they don't something went wrong and we need
 	//       to stop booting
-	bootDisk, err := partition.DiskFromMountPoint(boot.InitramfsUbuntuBootDir)
+	bootDisk, err := partition.DiskFromMountPoint(boot.InitramfsUbuntuBootDir, nil)
 	if err != nil {
 		return err
 	}
-	seedDisk, err := partition.DiskFromMountPoint(boot.InitramfsUbuntuSeedDir)
+	same, err := bootDisk.MountPointIsFromDisk(boot.InitramfsUbuntuSeedDir, nil)
 	if err != nil {
 		return err
 	}
-	if !bootDisk.Equals(seedDisk) {
+	if !same {
 		// whoops ...
 		return fmt.Errorf("ubuntu-seed partition and ubuntu-boot partition are not from the same disk")
 	}
 
-	// 1.3 mount Data, and exit, as it needs to be mounted for us to do step 2
+	// 3.1 mount Data, and exit, as it needs to be mounted for us to do step 2
 	isDataMounted, err := osutilIsMounted(boot.InitramfsUbuntuDataDir)
 	if err != nil {
 		return err
 	}
+	dataName := filepath.Base(boot.InitramfsUbuntuDataDir)
 	if !isDataMounted {
-		name := filepath.Base(boot.InitramfsUbuntuDataDir)
-		return maybeUnlockAndMount(name)
+		return maybeUnlockAndMount(dataName)
 	}
 
-	// 1.3.1 cross check that ubuntu-data and ubuntu-boot mounts come from the
-	//       same physical disk, if they don't something went wrong and we need
-	//       to stop booting
-	dataDisk, err := partition.DiskFromMountPoint(boot.InitramfsUbuntuDataDir)
-	if err != nil {
+	// 3.2 cross check that ubuntu-data and ubuntu-boot mounts come from the
+	//     same physical disk, if they don't something went wrong and we need
+	//     to stop booting
+	if err := crossCheckDataPartition(dataName, bootDisk); err != nil {
 		return err
 	}
-	if !bootDisk.Equals(dataDisk) {
-		// whoops ...
-		return fmt.Errorf("ubuntu-data partition and ubuntu-boot partition are not from the same disk")
-	}
 
-	// TODO:UC20: also in the encrypted case, we need to verify that the
-	//            unencrypted device on ubuntu-data actually comes from
-	//            ubuntu-data-enc
-
-	// 2.1 read modeenv
+	// 4.1 read modeenv
 	modeEnv, err := boot.ReadModeenv(boot.InitramfsWritableDir)
 	if err != nil {
 		return err
 	}
 
-	// 2.2.1 check if base is mounted
+	// 4.2 check if base is mounted
 	isBaseMounted, err := osutilIsMounted(filepath.Join(boot.InitramfsRunMntDir, "base"))
 	if err != nil {
 		return err
 	}
 	if !isBaseMounted {
-		// 2.2.2 use modeenv base_status and try_base to see  if we are trying
+		// 4.2.1 use modeenv base_status and try_base to see if we are trying
 		// an update to the base snap
 		base := modeEnv.Base
 		if base == "" {
@@ -348,12 +339,14 @@ func generateMountsModeRun() error {
 		fmt.Fprintf(stdout, "%s %s\n", baseSnapPath, filepath.Join(boot.InitramfsRunMntDir, "base"))
 	}
 
-	// 2.3.1 check if the kernel is mounted
+	// 4.3 check if the kernel is mounted
 	isKernelMounted, err := osutilIsMounted(filepath.Join(boot.InitramfsRunMntDir, "kernel"))
 	if err != nil {
 		return err
 	}
 	if !isKernelMounted {
+		// 4.3.1 choose which kernel snap to mount
+
 		// make a map to easily check if a kernel snap is valid or not
 		validKernels := make(map[string]bool, len(modeEnv.CurrentKernels))
 		for _, validKernel := range modeEnv.CurrentKernels {
@@ -428,7 +421,7 @@ func generateMountsModeRun() error {
 		fmt.Fprintf(stdout, "%s %s\n", kernelPath, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
 	}
 
-	// 3.1 Maybe mount the snapd snap on first boot of run-mode
+	// 5. Maybe mount the snapd snap on first boot of run-mode
 	// TODO:UC20: Make RecoverySystem empty after successful first boot
 	// somewhere in devicestate
 	if modeEnv.RecoverySystem != "" {
@@ -447,7 +440,7 @@ func generateMountsModeRun() error {
 		}
 	}
 
-	// 4.1 Write the modeenv out again
+	// 6. Write the modeenv out again
 	return modeEnv.Write()
 }
 
@@ -468,6 +461,30 @@ func generateInitramfsMounts() error {
 	return fmt.Errorf("internal error: mode in generateInitramfsMounts not handled")
 }
 
+func crossCheckDataPartition(name string, d partition.Disk) error {
+	// if ubuntu-data is encrypted (as indicated by the keyfile here), then we
+	// need to verify that the physical backing partition for ubuntu-data (i.e.
+	// the actual encrypted partition ubuntu-data-enc) is on the same disk
+	// TODO:UC20: update this with the real way to check if the disk is
+	//            encrypted when that's available
+	keyfile := filepath.Join(boot.InitramfsUbuntuBootDir, name+".keyfile.unsealed")
+	opts := &partition.Options{}
+	if osutil.FileExists(keyfile) {
+		opts.IsDecryptedDevice = true
+	}
+
+	same, err := d.MountPointIsFromDisk(boot.InitramfsUbuntuDataDir, opts)
+	if err != nil {
+		return fmt.Errorf("cannot verify ubuntu-data partition and ubuntu-boot partition are from the same disk: %v", err)
+	}
+	if !same {
+		// whoops ...
+		return fmt.Errorf("ubuntu-data partition and ubuntu-boot partition are not from the same disk")
+	}
+
+	return nil
+}
+
 func maybeUnlockAndMount(name string) error {
 	// TODO:UC20: will need to unseal key to unlock LUKS here
 	keyfile := filepath.Join(boot.InitramfsUbuntuBootDir, name+".keyfile.unsealed")
@@ -478,7 +495,7 @@ func maybeUnlockAndMount(name string) error {
 		// mountpoint to find the partition uuid for ubuntu-boot
 
 		// get the disk for the mountpoint
-		disk, err := partition.DiskFromMountPoint(boot.InitramfsUbuntuBootDir)
+		disk, err := partition.DiskFromMountPoint(boot.InitramfsUbuntuBootDir, nil)
 		if err != nil {
 			return err
 		}
@@ -491,7 +508,6 @@ func maybeUnlockAndMount(name string) error {
 		}
 
 		diskDevice := filepath.Join("/dev/disk/by-partuuid", partuuid)
-
 		cmd := exec.Command(systemdCryptSetup, "attach", name, diskDevice, keyfile)
 		cmd.Env = os.Environ()
 		cmd.Env = append(cmd.Env, "SYSTEMD_LOG_TARGET=console")
@@ -499,8 +515,10 @@ func maybeUnlockAndMount(name string) error {
 			return osutil.OutputErr(output, err)
 		}
 
-		// now request it to be mounted
-		fmt.Fprintf(stdout, "%s %s\n", diskDevice, boot.InitramfsUbuntuDataDir)
+		// now request it to be mounted - note we need to use the label name
+		// here as when systemd seeds it needs to mount that label, it will
+		// internally go to unlock the partition uuid we specified above
+		fmt.Fprintf(stdout, "%s %s\n", filepath.Join("/dev/disk/by-label", name), boot.InitramfsUbuntuDataDir)
 		return nil
 	}
 
