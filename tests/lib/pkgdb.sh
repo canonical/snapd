@@ -660,6 +660,7 @@ pkg_dependencies_ubuntu_classic(){
                 evolution-data-server
                 fwupd
                 libc6-dev-i386
+                linux-libc-dev
                 net-tools
                 packagekit
                 sbuild
