@@ -23,9 +23,13 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/i18n"
 )
 
-type cmdBootvars struct{}
+type cmdBootvars struct {
+	UC20 bool   `long:"uc20"`
+	Dir  string `long:"dir"`
+}
 
 func init() {
 	cmd := addDebugCommand("boot-vars",
@@ -33,10 +37,13 @@ func init() {
 		"(internal) obtain the snapd boot variables",
 		func() flags.Commander {
 			return &cmdBootvars{}
-		}, nil, nil)
+		}, map[string]string{
+			"uc20": i18n.G("Whether to use uc20 boot vars or not"),
+			"dir":  i18n.G("What directory to look for boot variables in"),
+		}, nil)
 	cmd.hidden = true
 }
 
 func (x *cmdBootvars) Execute(args []string) error {
-	return boot.DumpBootVars(Stdout)
+	return boot.DumpBootVars(Stdout, x.Dir, x.UC20)
 }
