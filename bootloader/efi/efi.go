@@ -1,5 +1,4 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build amd64
 
 /*
  * Copyright (C) 2020 Canonical Ltd
@@ -18,12 +17,11 @@
  *
  */
 
-package boot
+package efi
 
 import (
 	"io/ioutil"
 	"path/filepath"
-	"strings"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -32,18 +30,15 @@ import (
 const (
 	defaultEfiVarfsDir    = "/sys/firmware/efivars"
 	defaultEfiVarSysfsDir = "/sys/firmware/efi/vars"
-	// note the vendor ID 4a67b082-0a4c-41cf-b6c7-440b29bb8c4f is systemd, this
-	// variable is populated by shim
-	loaderDevicePartUUID = "LoaderDevicePartUUID-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f"
 )
 
-// readEfiVar will attempt to read the binary value of the specified efi
+// ReadEfiVar will attempt to read the binary value of the specified efi
 // variable, specified by it's full name of the variable and vendor ID.
 // It first tries to read from efivarfs wherever that is mounted, and falls back
 // to sysfs if that is unavailable. See
 // https://www.kernel.org/doc/Documentation/filesystems/efivarfs.txt for more
 // details.
-func readEfiVar(name string) ([]byte, error) {
+func ReadEfiVar(name string) ([]byte, error) {
 	// check if we have the efivars fs mounted first, if so then use that
 	// for reading the efi var
 	efiVarDir := filepath.Join(dirs.GlobalRootDir, defaultEfiVarfsDir)
@@ -82,15 +77,4 @@ func readEfiVar(name string) ([]byte, error) {
 		varFilePath = filepath.Join(dirs.GlobalRootDir, defaultEfiVarSysfsDir, name, "data")
 	}
 	return ioutil.ReadFile(varFilePath)
-}
-
-func bootedKernelPartitionUUIDFromEFIVars() (string, error) {
-	// find the partition uuid using LoaderDevicePartUUID
-	b, err := readEfiVar(loaderDevicePartUUID)
-	if err != nil {
-		return "", err
-	}
-	// the LoaderDevicePartUUID is in all caps, but lsblk, etc. use lower case
-	// so for consistency just make it lower case here too
-	return strings.ToLower(string(b)), nil
 }

@@ -19,17 +19,40 @@
 
 package boot
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+
+	"github.com/snapcore/snapd/bootloader/efi"
+)
+
+const (
+	// note the vendor ID 4a67b082-0a4c-41cf-b6c7-440b29bb8c4f is systemd, this
+	// variable is populated by shim
+	loaderDevicePartUUID = "LoaderDevicePartUUID-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f"
+)
 
 // FindPartitionUUIDForBootedKernelDisk returns the partition uuid for the
 // partition that the booted kernel is located on.
 func FindPartitionUUIDForBootedKernelDisk() (string, error) {
 	// try efi variables first
-	if partuuid, err := bootedKernelPartitionUUIDFromEFIVars(); err == nil {
+	partuuid, err := bootedKernelPartitionUUIDFromEFIVars()
+	if err == nil {
 		return partuuid, nil
 	}
 
 	// TODO:UC20: add more fallbacks here, even on amd64, when we don't have efi
 	//            i.e. on bios?
-	return "", fmt.Errorf("could not find partition uuid for booted kernel")
+	return "", fmt.Errorf("could not find partition uuid for booted kernel: %v", err)
+}
+
+func bootedKernelPartitionUUIDFromEFIVars() (string, error) {
+	// try efi variables first
+	b, err := efi.ReadEfiVar(loaderDevicePartUUID)
+	if err != nil {
+		return "", err
+	}
+	// the LoaderDevicePartUUID is in all caps, but lsblk, etc. use lower case
+	// so for consistency just make it lower case here too
+	return strings.ToLower(string(b)), nil
 }

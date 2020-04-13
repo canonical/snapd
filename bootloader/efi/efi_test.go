@@ -1,5 +1,4 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build amd64
 
 /*
  * Copyright (C) 2020 Canonical Ltd
@@ -18,17 +17,18 @@
  *
  */
 
-package boot_test
+package efi_test
 
 import (
 	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"testing"
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/bootloader/efi"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
@@ -40,6 +40,8 @@ type efiVarsSuite struct {
 }
 
 var _ = Suite(&efiVarsSuite{})
+
+func TestBoot(t *testing.T) { TestingT(t) }
 
 func (s *efiVarsSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
@@ -67,7 +69,7 @@ func (s *efiVarsSuite) TestReadEfiVarsUsesEfivarfs(c *C) {
 	restore := osutil.MockMountInfo(fmt.Sprintf(efivarfsMount[1:], dir))
 	defer restore()
 
-	data, err := boot.ReadEfiVar("my-cool-efi-var")
+	data, err := efi.ReadEfiVar("my-cool-efi-var")
 	c.Assert(err, IsNil)
 	c.Assert(string(data), Equals, "blah-blah")
 }
@@ -84,7 +86,7 @@ func (s *efiVarsSuite) TestReadEfiVarsFallsBackToSysfs(c *C) {
 	restore := osutil.MockMountInfo("")
 	defer restore()
 
-	data, err := boot.ReadEfiVar("my-cool-efi-var")
+	data, err := efi.ReadEfiVar("my-cool-efi-var")
 	c.Assert(err, IsNil)
 	c.Assert(string(data), Equals, "blah-blah")
 }
@@ -102,7 +104,7 @@ func (s *efiVarsSuite) TestReadEfiVarsNoProcfsTriesDefaultMountPoint(c *C) {
 	restore := osutil.MockMountInfo("garbage")
 	defer restore()
 
-	data, err := boot.ReadEfiVar("my-cool-efi-var")
+	data, err := efi.ReadEfiVar("my-cool-efi-var")
 	c.Assert(err, IsNil)
 	c.Assert(string(data), Equals, "blah-blah")
 }
@@ -120,30 +122,7 @@ func (s *efiVarsSuite) TestReadEfiVarsNoProcfsNoEfivarfsFallsBackToSysfs(c *C) {
 	restore := osutil.MockMountInfo("garbage")
 	defer restore()
 
-	data, err := boot.ReadEfiVar("my-cool-efi-var")
+	data, err := efi.ReadEfiVar("my-cool-efi-var")
 	c.Assert(err, IsNil)
 	c.Assert(string(data), Equals, "blah-blah")
-}
-
-func (s *efiVarsSuite) TestFindPartitionUUIDForBootedKernelDisk(c *C) {
-	// mock the efi var under efivarfs
-	dir := c.MkDir()
-	efivarfsMount := `
-38 24 0:32 / %s/efivars rw,nosuid,nodev,noexec,relatime shared:13 - efivarfs efivarfs rw
-`
-
-	// mock the efi var file
-	varPath := filepath.Join(dir, "efivars", "LoaderDevicePartUUID-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f")
-	err := os.MkdirAll(filepath.Dir(varPath), 0755)
-	c.Assert(err, IsNil)
-	// we will also test that it is turned to all lower case
-	err = ioutil.WriteFile(varPath, []byte("WHY-ARE-YOU-YELLING"), 0644)
-	c.Assert(err, IsNil)
-
-	restore := osutil.MockMountInfo(fmt.Sprintf(efivarfsMount[1:], dir))
-	defer restore()
-
-	partuuid, err := boot.FindPartitionUUIDForBootedKernelDisk()
-	c.Assert(err, IsNil)
-	c.Assert(partuuid, Equals, "why-are-you-yelling")
 }
