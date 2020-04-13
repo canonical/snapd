@@ -20,8 +20,11 @@
 package efi
 
 import (
+	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -32,6 +35,11 @@ const (
 	defaultEfiVarSysfsDir = "/sys/firmware/efi/vars"
 )
 
+var (
+	readEfiVar  = readEfiVarImpl
+	isSnapdTest = len(os.Args) > 0 && strings.HasSuffix(os.Args[0], ".test")
+)
+
 // ReadEfiVar will attempt to read the binary value of the specified efi
 // variable, specified by it's full name of the variable and vendor ID.
 // It first tries to read from efivarfs wherever that is mounted, and falls back
@@ -39,6 +47,10 @@ const (
 // https://www.kernel.org/doc/Documentation/filesystems/efivarfs.txt for more
 // details.
 func ReadEfiVar(name string) ([]byte, error) {
+	return readEfiVar(name)
+}
+
+func readEfiVarImpl(name string) ([]byte, error) {
 	// check if we have the efivars fs mounted first, if so then use that
 	// for reading the efi var
 	efiVarDir := filepath.Join(dirs.GlobalRootDir, defaultEfiVarfsDir)
@@ -77,4 +89,24 @@ func ReadEfiVar(name string) ([]byte, error) {
 		varFilePath = filepath.Join(dirs.GlobalRootDir, defaultEfiVarSysfsDir, name, "data")
 	}
 	return ioutil.ReadFile(varFilePath)
+
+}
+
+// MockEfiVariables mocks efi variables as read by ReadEfiVar, only to be used
+// from tests.
+func MockEfiVariables(vars map[string][]byte) (restore func()) {
+	if !isSnapdTest {
+		panic("MockEfiVariables only to be used from tests")
+	}
+	old := readEfiVar
+	readEfiVar = func(name string) ([]byte, error) {
+		if val, ok := vars[name]; ok {
+			return val, nil
+		}
+		return nil, fmt.Errorf("efi variable %s not mocked", name)
+	}
+
+	return func() {
+		readEfiVar = old
+	}
 }
