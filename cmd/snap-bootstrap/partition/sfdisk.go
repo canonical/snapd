@@ -277,6 +277,21 @@ func deviceLayoutFromPartitionTable(ptable sfdiskPartitionTable) (*DeviceLayout,
 			Type:       p.Type,
 			Filesystem: bd.FSType,
 		}
+
+		// sometimes sfdisk reports what is "0C" in gadget.yaml as "c", so fix
+		// that up now
+		// TODO:UC20: what's a better way?
+		if structure[i].Type == "c" {
+			structure[i].Type = "0C"
+		}
+
+		// sometimes sfdisk reports no "Name" for partitions, so in this case
+		// if we also have a label for the partition from lsblk, we should
+		// fallback to that instead
+		if structure[i].Name == "" && structure[i].Label != "" {
+			structure[i].Name = structure[i].Label
+		}
+
 		ds[i] = DeviceStructure{
 			LaidOutStructure: gadget.LaidOutStructure{
 				VolumeStructure: &structure[i],
