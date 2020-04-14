@@ -30,8 +30,8 @@ import (
 )
 
 type cmdBootvars struct {
-	UC20 bool   `long:"uc20"`
-	Dir  string `long:"dir"`
+	UC20    bool   `long:"uc20"`
+	RootDir string `long:"root-dir"`
 }
 
 func init() {
@@ -41,8 +41,8 @@ func init() {
 		func() flags.Commander {
 			return &cmdBootvars{}
 		}, map[string]string{
-			"uc20": i18n.G("Whether to use uc20 boot vars or not"),
-			"dir":  i18n.G("What directory to look for boot variables in"),
+			"uc20":     i18n.G("Whether to use uc20 boot vars or not"),
+			"root-dir": i18n.G("Root directory to look for boot variables in"),
 		}, nil)
 	if release.OnClassic {
 		cmd.hidden = true
@@ -53,5 +53,5 @@ func (x *cmdBootvars) Execute(args []string) error {
 	if release.OnClassic {
 		return errors.New(`the "boot-vars" command is not available on classic systems`)
 	}
-	return boot.DumpBootVars(Stdout, x.Dir, x.UC20)
+	return boot.DumpBootVars(Stdout, x.RootDir, x.UC20)
 }
