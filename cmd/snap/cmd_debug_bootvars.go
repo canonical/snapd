@@ -20,9 +20,12 @@
 package main
 
 import (
+	"errors"
+
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/release"
 )
 
 type cmdBootvars struct{}
@@ -34,9 +37,14 @@ func init() {
 		func() flags.Commander {
 			return &cmdBootvars{}
 		}, nil, nil)
-	cmd.hidden = true
+	if release.OnClassic {
+		cmd.hidden = true
+	}
 }
 
 func (x *cmdBootvars) Execute(args []string) error {
+	if release.OnClassic {
+		return errors.New(`the "boot-vars" command is not available on classic systems`)
+	}
 	return boot.DumpBootVars(Stdout)
 }

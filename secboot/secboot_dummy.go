@@ -1,7 +1,8 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build !withsecboot
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,36 +18,12 @@
  *
  */
 
-package osutil
+package secboot
 
 import (
-	"os"
-	"os/user"
-	"syscall"
+	"fmt"
 )
 
-// MockMountInfo is meant for tests to mock the content of /proc/self/mountinfo.
-func MockMountInfo(content string) (restore func()) {
-	old := mockedMountInfo
-	mockedMountInfo = &content
-	return func() {
-		mockedMountInfo = old
-	}
+func CheckKeySealingSupported() error {
+	return fmt.Errorf("build without secboot support")
 }
-
-var (
-	mockedMountInfo *string
-
-	userLookup  = user.Lookup
-	userCurrent = user.Current
-
-	osReadlink = os.Readlink
-
-	syscallKill    = syscall.Kill
-	syscallGetpgid = syscall.Getpgid
-
-	etcFstab    = "/etc/fstab"
-	sudoersDotD = "/etc/sudoers.d"
-
-	procSelfMountInfo = "/proc/self/mountinfo"
-)
