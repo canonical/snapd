@@ -141,6 +141,7 @@ override_dh_auto_build:
 	cp -a cmd/snap/test-data/*.gpg _build/src/$(DH_GOPKG)/cmd/snap/test-data/
 	# exclude certain parts that won't be used by debian
 	rm -rf _build/src/$(DH_GOPKG)/cmd/snap-bootstrap
+	find _build/src/$(DH_GOPKG)/secboot/ -name "*.go"|grep -v secboot_dummy.go |xargs rm -f
 	# and build
 	dh_auto_build -- $(BUILDFLAGS) -tags "$(TAGS)" $(GCCGOFLAGS)
 
