@@ -23,12 +23,10 @@ package secboot
 import (
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 
 	sb "github.com/snapcore/secboot"
 
-	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/bootloader/efi"
 	"github.com/snapcore/snapd/logger"
 )
 
@@ -50,23 +48,15 @@ func CheckKeySealingSupported() error {
 	return tconn.Close()
 }
 
-var efivarsSecureBootFile = "/sys/firmware/efi/efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c"
-
 func checkSecureBootEnabled() error {
-	f, err := os.Open(filepath.Join(dirs.GlobalRootDir, efivarsSecureBootFile))
+	b, _, err := efi.ReadVarBytes("SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c")
 	if err != nil {
-		return fmt.Errorf("cannot open secure boot file: %v", err)
+		return fmt.Errorf("cannot read secure boot variable: %v", err)
 	}
-	defer f.Close()
-
-	// the format of data read from efivars is: <u32 attribute>:<n bytes of data>
-	// for details see: https://elixir.bootlin.com/linux/v5.6.3/source/fs/efivarfs/file.c
-	buf := make([]uint8, 5)
-	_, err = f.Read(buf)
-	if err != nil {
-		return fmt.Errorf("cannot read secure boot file: %v", err)
+	if len(b) < 1 {
+		return errors.New("secure boot variable does not exist")
 	}
-	if buf[4] != 1 {
+	if b[0] != 1 {
 		return errors.New("secure boot is disabled")
 	}
 

@@ -30,6 +30,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/bootloader/efi"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/testutil"
@@ -50,8 +51,9 @@ func (s *secbootSuite) SetUpTest(c *C) {
 
 func (s *secbootSuite) TestCheckKeySealingSupported(c *C) {
 	sbEmpty := []uint8{}
-	sbEnabled := []uint8{6, 0, 0, 0, 1}
-	sbDisabled := []uint8{6, 0, 0, 0, 0}
+	sbEnabled := []uint8{1}
+	sbDisabled := []uint8{0}
+	efiNotSupported := []uint8(nil)
 
 	type testCase struct {
 		hasTPM bool
@@ -60,12 +62,15 @@ func (s *secbootSuite) TestCheckKeySealingSupported(c *C) {
 	}
 	for _, t := range []testCase{
 		{true, sbEnabled, ""},
-		{true, sbEmpty, "cannot read secure boot file: EOF"},
-		{false, sbEmpty, "cannot read secure boot file: EOF"},
+		{true, sbEmpty, "secure boot variable does not exist"},
+		{false, sbEmpty, "secure boot variable does not exist"},
 		{true, sbDisabled, "secure boot is disabled"},
 		{false, sbEnabled, "cannot connect to TPM device: TPM not available"},
 		{false, sbDisabled, "secure boot is disabled"},
+		{true, efiNotSupported, "cannot read secure boot variable: not a supported EFI system"},
 	} {
+		c.Logf("t: %v %v %q", t.hasTPM, t.sbData, t.errStr)
+
 		restore := secboot.MockSecbootConnectToDefaultTPM(func() (*sb.TPMConnection, error) {
 			if !t.hasTPM {
 				return nil, errors.New("TPM not available")
@@ -79,10 +84,16 @@ func (s *secbootSuite) TestCheckKeySealingSupported(c *C) {
 		})
 		defer restore()
 
-		err := secboot.CreateEfivarsSecureBoot(t.sbData)
-		c.Assert(err, IsNil)
+		var vars map[string][]byte
+		if t.sbData == nil {
+			vars = nil
+		} else {
+			vars = map[string][]byte{"SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c": t.sbData}
+		}
+		restoreEfiVars := efi.MockVars(vars, nil)
+		defer restoreEfiVars()
 
-		err = secboot.CheckKeySealingSupported()
+		err := secboot.CheckKeySealingSupported()
 		if t.errStr == "" {
 			c.Assert(err, IsNil)
 		} else {
