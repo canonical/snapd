@@ -9,7 +9,7 @@ SSH_PORT=8022
 MON_PORT=8888
 
 wait_for_ssh(){
-    retry=150
+    retry=300
     wait=1
     while ! execute_remote true; do
         retry=$(( retry - 1 ))
@@ -22,7 +22,7 @@ wait_for_ssh(){
 }
 
 wait_for_no_ssh(){
-    retry=120
+    retry=150
     wait=1
     while execute_remote true; do
         retry=$(( retry - 1 ))
@@ -170,15 +170,15 @@ refresh_to_new_core(){
     else
         echo "Refreshing the core/snapd snap"
         if is_classic_nested_system; then
-            execute_remote "snap refresh core --${NEW_CHANNEL}"
+            execute_remote "sudo snap refresh core --${NEW_CHANNEL}"
             execute_remote "snap info core" | grep -E "^tracking: +latest/${NEW_CHANNEL}"
         fi
 
         if is_core_18_nested_system || is_core_20_nested_system; then
-            execute_remote "snap refresh snapd --${NEW_CHANNEL}"
+            execute_remote "sudo snap refresh snapd --${NEW_CHANNEL}"
             execute_remote "snap info snapd" | grep -E "^tracking: +latest/${NEW_CHANNEL}"
         else
-            execute_remote "snap refresh core --${NEW_CHANNEL}"
+            execute_remote "sudo snap refresh core --${NEW_CHANNEL}"
             wait_for_no_ssh
             wait_for_ssh
             execute_remote "snap info core" | grep -E "^tracking: +latest/${NEW_CHANNEL}"
@@ -196,17 +196,16 @@ create_nested_core_vm(){
     mkdir -p "$WORK_DIR/image"
     if [ ! -f "$WORK_DIR/image/ubuntu-core.img" ]; then
         local UBUNTU_IMAGE
-
-        if ! snap list ubuntu-image; then
-            snap install ubuntu-image --classic
-        fi
         UBUNTU_IMAGE=/snap/bin/ubuntu-image
 
         # create ubuntu-core image
         local EXTRA_FUNDAMENTAL=""
         local EXTRA_SNAPS=""
-        if [ -d "${PWD}/extra-snaps" ] && [ "$(find "${PWD}/extra-snaps/" -type f -name "*.snap" | wc -l)" -gt 0 ]; then
-            EXTRA_SNAPS="--snap ${PWD}/extra-snaps/*.snap"
+        if [ -d "${PWD}/extra-snaps" ]; then
+            #shellcheck disable=SC2044
+            for mysnap in $(find "${PWD}/extra-snaps/" -type f -name "*.snap"); do
+                EXTRA_SNAPS="$EXTRA_SNAPS --snap $mysnap"
+            done
         fi
 
         local NESTED_MODEL=""
@@ -253,8 +252,87 @@ create_nested_core_vm(){
             "$EXTRA_FUNDAMENTAL" \
             "$EXTRA_SNAPS"
 
-        create_assertions_disk
+        if [ "$USE_CLOUD_INIT" = "true" ]; then
+            if is_core_20_nested_system; then
+                configure_cloud_init_nested_core_vm_uc20
+            else
+                configure_cloud_init_nested_core_vm
+            fi
+        else
+            create_assertions_disk
+        fi
     fi
+}
+
+configure_cloud_init_nested_core_vm(){
+    create_cloud_init_data "$WORK_DIR/user-data" "$WORK_DIR/meta-data"
+
+    loops=$(kpartx -avs "$WORK_DIR/image/ubuntu-core.img"  | cut -d' ' -f 3)
+    part=$(echo "$loops" | tail -1)
+    tmp=$(mktemp -d)
+    mount "/dev/mapper/$part" "$tmp"
+
+    mkdir -p "$tmp/system-data/var/lib/cloud/seed/nocloud-net/"
+    cp "$WORK_DIR/user-data" "$tmp/system-data/var/lib/cloud/seed/nocloud-net/"
+    cp "$WORK_DIR/meta-data" "$tmp/system-data/var/lib/cloud/seed/nocloud-net/"
+
+    umount "$tmp"
+    kpartx -d "$WORK_DIR/image/ubuntu-core.img"
+}
+
+create_cloud_init_data(){
+    USER_DATA=$1
+    META_DATA=$2
+    cat <<EOF > "$USER_DATA"
+#cloud-config
+  ssh_pwauth: True
+  users:
+   - name: user1
+     sudo: ALL=(ALL) NOPASSWD:ALL
+     shell: /bin/bash
+  chpasswd:
+   list: |
+    user1:ubuntu
+   expire: False
+EOF
+
+    cat <<EOF > "$META_DATA"
+instance_id: cloud-images
+EOF
+}
+
+create_cloud_init_config(){
+    CONFIG_PATH=$1
+    cat <<EOF > "$CONFIG_PATH"
+#cloud-config
+  ssh_pwauth: True
+  users:
+   - name: user1
+     sudo: ALL=(ALL) NOPASSWD:ALL
+     shell: /bin/bash
+  chpasswd:
+   list: |
+    user1:ubuntu
+   expire: False
+  datasource_list: [ "None"]
+  datasource:
+    None:
+     userdata_raw: |
+      #!/bin/bash
+      echo test
+EOF
+}
+
+configure_cloud_init_nested_core_vm_uc20(){
+    create_cloud_init_config "$WORK_DIR/data.cfg"
+
+    loop=$(kpartx -avs "$WORK_DIR/image/ubuntu-core.img" | sed -n 2p | awk '{print $3}')
+    tmp=$(mktemp -d)
+
+    mount "/dev/mapper/$loop" "$tmp"
+    mkdir -p "$tmp/data/etc/cloud/cloud.cfg.d/"
+    cp -f "$WORK_DIR/data.cfg" "$tmp/data/etc/cloud/cloud.cfg.d/"
+    umount "$tmp"
 }
 
 start_nested_core_vm(){
@@ -267,12 +345,18 @@ start_nested_core_vm(){
     cp -f "$WORK_DIR/image/ubuntu-core.img" "$IMAGE_FILE"
 
     # Now qemu parameters are defined
-    PARAM_MEM="-m 2048"
+    PARAM_CPU="-smp 1"
+    PARAM_MEM="-m 4096"
     PARAM_DISPLAY="-nographic"
-    PARAM_EXTRA="-machine accel=kvm"
     PARAM_NETWORK="-net nic,model=virtio -net user,hostfwd=tcp::$SSH_PORT-:22"
-    PARAM_ASSERTIONS="-drive file=$WORK_DIR/assertions.disk,cache=none,format=raw"
     PARAM_MONITOR="-monitor tcp:127.0.0.1:$MON_PORT,server,nowait -usb"
+    PARAM_MACHINE="-machine ubuntu,accel=kvm"
+    PARAM_ASSERTIONS=""
+    PARAM_BIOS=""
+    PARAM_TPM=""
+    if [ "$USE_CLOUD_INIT" != "true" ]; then
+        PARAM_ASSERTIONS="-drive file=$WORK_DIR/assertions.disk,cache=none,format=raw"
+    fi
     if is_core_20_nested_system; then
         if ! is_focal_system; then
             cp /etc/apt/sources.list /etc/apt/sources.list.back
@@ -282,22 +366,22 @@ start_nested_core_vm(){
             mv /etc/apt/sources.list.back /etc/apt/sources.list
             apt update
         fi
-        cp -f /usr/share/OVMF/OVMF_VARS.snakeoil.fd "$WORK_DIR/image/OVMF_VARS.snakeoil.fd"
-        if ! snap list swtpm-mvo; then
-            snap install swtpm-mvo --beta
+
+        if [ "$ENABLE_SECURE_BOOT" = "true" ]; then
+            cp -f /usr/share/OVMF/OVMF_VARS.snakeoil.fd "$WORK_DIR/image/OVMF_VARS.snakeoil.fd"
+            PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE.secboot.fd,if=pflash,format=raw,unit=0,readonly=on -drive file=$WORK_DIR/image/OVMF_VARS.snakeoil.fd,if=pflash,format=raw,unit=1"
+            PARAM_MACHINE="-machine ubuntu-q35,accel=kvm -global ICH9-LPC.disable_s3=1 -global ICH9-LPC.disable_s4=1"
         fi
 
-        PARAM_CPU="-smp 2"
-        PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE.secboot.fd,if=pflash,format=raw,unit=0,readonly=on -drive file=$WORK_DIR/image/OVMF_VARS.snakeoil.fd,if=pflash,format=raw,unit=1"
+        if [ "$ENABLE_TPM" = "true" ]; then
+            if ! snap list swtpm-mvo; then
+                snap install swtpm-mvo --beta
+            fi
+            PARAM_TPM="-chardev socket,id=chrtpm,path=/var/snap/swtpm-mvo/current/swtpm-sock -tpmdev emulator,id=tpm0,chardev=chrtpm -device tpm-tis,tpmdev=tpm0"
+        fi
         PARAM_IMAGE="-drive file=$IMAGE_FILE,cache=none,format=raw,id=disk1,if=none -device virtio-blk-pci,drive=disk1,bootindex=1"
-        PARAM_MACHINE="-machine q35 -global ICH9-LPC.disable_s3=1"
-        PARAM_TPM="-chardev socket,id=chrtpm,path=/var/snap/swtpm-mvo/current/swtpm-sock -tpmdev emulator,id=tpm0,chardev=chrtpm -device tpm-tis,tpmdev=tpm0"
     else
-        PARAM_CPU=""
-        PARAM_BIOS=""
         PARAM_IMAGE="-drive file=$IMAGE_FILE,cache=none,format=raw"
-        PARAM_MACHINE=""
-        PARAM_TPM=""
     fi
 
     # Systemd unit is created, it is important to respect the qemu parameters order
@@ -311,16 +395,7 @@ start_nested_core_vm(){
         ${PARAM_TPM} \
         ${PARAM_IMAGE} \
         ${PARAM_ASSERTIONS} \
-        ${PARAM_MONITOR} \
-        ${PARAM_EXTRA} "
-
-    # Wait until the system has been initialized
-    if ! wait_for_ssh; then
-        # In case it is not possible to connect through ssh restart the vm
-        systemctl stop "$NESTED_VM"
-        sleep 5
-        systemctl start "$NESTED_VM"
-    fi
+        ${PARAM_MONITOR} "
 
     # Wait until ssh is ready and configure ssh
     if wait_for_ssh; then
@@ -329,21 +404,6 @@ start_nested_core_vm(){
         echo "ssh not established, exiting..."
         exit 1
     fi
-}
-
-create_seed_image(){
-    cat <<EOF > "$WORK_DIR/seed"
-#cloud-config
-  ssh_pwauth: True
-  users:
-   - name: user1
-     sudo: ALL=(ALL) NOPASSWD:ALL
-     shell: /bin/bash
-  chpasswd:
-   list: |
-    user1:ubuntu
-   expire: False
-EOF
 }
 
 create_nested_classic_vm(){
@@ -360,7 +420,7 @@ create_nested_classic_vm(){
         test "$(echo "$IMAGE" | wc -l)" = "1"
 
         # Prepare the cloud-init configuration and configure image
-        create_seed_image
+        create_cloud_init_config "$WORK_DIR/seed"
         cloud-localds -H "$(hostname)" "$WORK_DIR/seed.img" "$WORK_DIR/seed"
     fi
 }
@@ -374,12 +434,43 @@ start_nested_classic_vm(){
     IMAGE=$(ls $WORK_DIR/image/*.img)
     QEMU=$(get_qemu_for_nested_vm)
 
-    systemd_create_and_start_unit "$NESTED_VM" "${QEMU} -m 2048 -nographic  \
-        -net nic,model=virtio -net user,hostfwd=tcp::$SSH_PORT-:22 \
-        -drive file=$IMAGE,if=virtio \
-        -drive file=$WORK_DIR/seed.img,if=virtio \
-        -monitor tcp:127.0.0.1:$MON_PORT,server,nowait -usb \
-        -snapshot -machine accel=kvm"
+    # Now qemu parameters are defined
+    PARAM_CPU="-smp 1"
+    PARAM_MEM="-m 4096"
+    PARAM_DISPLAY="-nographic"
+    PARAM_NETWORK="-net nic,model=virtio -net user,hostfwd=tcp::$SSH_PORT-:22"
+    PARAM_MONITOR="-monitor tcp:127.0.0.1:$MON_PORT,server,nowait -usb"
+    PARAM_SNAPSHOT="-snapshot"
+    PARAM_MACHINE="-machine ubuntu,accel=kvm"
+    PARAM_IMAGE="-drive file=$IMAGE,if=virtio"
+    PARAM_SEED="-drive file=$WORK_DIR/seed.img,if=virtio"
+    PARAM_BIOS=""
+    PARAM_TPM=""
+
+    if [ "$ENABLE_TPM" = "true" ] && is_focal_system; then
+        if ! snap list swtpm-mvo; then
+            snap install swtpm-mvo --beta
+        fi
+        PARAM_TPM="-chardev socket,id=chrtpm,path=/var/snap/swtpm-mvo/current/swtpm-sock -tpmdev emulator,id=tpm0,chardev=chrtpm -device tpm-tis,tpmdev=tpm0"
+    fi
+    if [ "$ENABLE_SECURE_BOOT" = "true" ] && is_focal_system; then
+        cp -f /usr/share/OVMF/OVMF_VARS.snakeoil.fd "$WORK_DIR/image/OVMF_VARS.snakeoil.fd"
+        PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE.secboot.fd,if=pflash,format=raw,unit=0,readonly=on -drive file=$WORK_DIR/image/OVMF_VARS.snakeoil.fd,if=pflash,format=raw,unit=1"
+        PARAM_MACHINE="-machine ubuntu-q35,accel=kvm -global ICH9-LPC.disable_s3=1 -global ICH9-LPC.disable_s4=1"
+    fi
+
+    systemd_create_and_start_unit "$NESTED_VM" "${QEMU}  \
+        ${PARAM_CPU} \
+        ${PARAM_MEM} \
+        ${PARAM_SNAPSHOT} \
+        ${PARAM_MACHINE} \
+        ${PARAM_DISPLAY} \
+        ${PARAM_NETWORK} \
+        ${PARAM_BIOS} \
+        ${PARAM_TPM} \
+        ${PARAM_IMAGE} \
+        ${PARAM_SEED} \
+        ${PARAM_MONITOR} "
     wait_for_ssh
 }
 

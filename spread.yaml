@@ -430,6 +430,18 @@ backends:
             - ubuntu-core-18-arm-32:
                 username: test
                 password: ubuntu
+            - ubuntu-core-20-64:
+                username: test
+                password: ubuntu
+            - ubuntu-core-20-32:
+                username: test
+                password: ubuntu
+            - ubuntu-core-20-arm-64:
+                username: test
+                password: ubuntu
+            - ubuntu-core-20-arm-32:
+                username: test
+                password: ubuntu
 
 path: /home/gopath/src/github.com/snapcore/snapd
 
@@ -838,13 +850,20 @@ suites:
             CORE_REFRESH_CHANNEL: '$(HOST: echo "${SPREAD_CORE_REFRESH_CHANNEL:-edge}")'
             # Channel used to update the core/snapd snaps on some tests
             NEW_CORE_CHANNEL: '$(HOST: echo "${SPREAD_NEW_CORE_CHANNEL:-edge}")'
+            # Use cloud init to make initial system configuration instead of user assertion
+            USE_CLOUD_INIT: '$(HOST: echo "${SPREAD_USE_CLOUD_INIT:-true}")'
+            # Enable tpm in the nested vm in case it is supported
+            ENABLE_TPM: '$(HOST: echo "${SPREAD_ENABLE_TPM:-true}")'
+            # Enable secure boot in the nested vm in case it is supported
+            ENABLE_SECURE_BOOT: '$(HOST: echo "${SPREAD_ENABLE_SECURE_BOOT:-true}")'
         manual: true
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
-            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ubuntu-image ovmf
+            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx || true
+            snap install ubuntu-image --classic
 
         restore: |
             #shellcheck source=tests/lib/nested.sh
@@ -853,7 +872,7 @@ suites:
 
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
-            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils ubuntu-image
+            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils
 
     tests/nested/classic/:
         summary: Tests for nested images
@@ -867,13 +886,20 @@ suites:
             CORE_REFRESH_CHANNEL: '$(HOST: echo "${SPREAD_CORE_REFRESH_CHANNEL:-edge}")'
             # Channel used to update the core/snapd snaps on some tests
             NEW_CORE_CHANNEL: '$(HOST: echo "${SPREAD_NEW_CORE_CHANNEL:-edge}")'
+            # Use cloud init to make initial system configuration instead of user assertion
+            USE_CLOUD_INIT: '$(HOST: echo "${SPREAD_USE_CLOUD_INIT:-true}")'
+            # Enable tpm in the nested vm in case it is supported
+            ENABLE_TPM: '$(HOST: echo "${SPREAD_ENABLE_TPM:-false}")'
+            # Enable secure boot in the nested vm in case it is supported
+            ENABLE_SECURE_BOOT: '$(HOST: echo "${SPREAD_ENABLE_SECURE_BOOT:-false}")'
         manual: true
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
-            distro_install_package snapd qemu genisoimage sshpass qemu-kvm cloud-image-utils ubuntu-image ovmf
+            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx || true
+            snap install ubuntu-image --classic
 
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
@@ -893,7 +919,7 @@ suites:
 
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
-            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils ubuntu-image
+            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils
 
     tests/nested/core/:
         summary: Tests for nested images
@@ -907,12 +933,19 @@ suites:
             CORE_REFRESH_CHANNEL: '$(HOST: echo "${SPREAD_CORE_REFRESH_CHANNEL:-edge}")'
             # Channel used to update the core/snapd snaps on some tests
             NEW_CORE_CHANNEL: '$(HOST: echo "${SPREAD_NEW_CORE_CHANNEL:-edge}")'
+            # Use cloud init to make initial system configuration instead of user assertion
+            USE_CLOUD_INIT: '$(HOST: echo "${SPREAD_USE_CLOUD_INIT:-true}")'
+            # Enable tpm in the nested vm in case it is supported
+            ENABLE_TPM: '$(HOST: echo "${SPREAD_ENABLE_TPM:-false}")'
+            # Enable secure boot in the nested vm in case it is supported
+            ENABLE_SECURE_BOOT: '$(HOST: echo "${SPREAD_ENABLE_SECURE_BOOT:-false}")'
         manual: true
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
-            distro_install_package snapd qemu genisoimage sshpass qemu-kvm cloud-image-utils ubuntu-image ovmf
+            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx || true
+            snap install ubuntu-image --classic
 
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
@@ -932,6 +965,6 @@ suites:
 
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
-            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils ubuntu-image
+            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils
 
 # vim:ts=4:sw=4:et
