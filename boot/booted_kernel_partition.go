@@ -36,23 +36,18 @@ const (
 // partition that the booted kernel is located on.
 func FindPartitionUUIDForBootedKernelDisk() (string, error) {
 	// try efi variables first
-	partuuid, err := bootedKernelPartitionUUIDFromEFIVars()
+	partuuid, _, err := efi.ReadVarString(loaderDevicePartUUID)
 	if err == nil {
-		return partuuid, nil
+		// the LoaderDevicePartUUID is in all caps, but lsblk,
+		// etc. use lower case so for consistency just make it
+		// lower case here too
+		return strings.ToLower(partuuid), nil
+	}
+	if err == efi.ErrNoEFISystem {
+		return "", err
 	}
 
 	// TODO:UC20: add more fallbacks here, even on amd64, when we don't have efi
 	//            i.e. on bios?
 	return "", fmt.Errorf("could not find partition uuid for booted kernel: %v", err)
-}
-
-func bootedKernelPartitionUUIDFromEFIVars() (string, error) {
-	// try efi variables first
-	b, err := efi.ReadEfiVar(loaderDevicePartUUID)
-	if err != nil {
-		return "", err
-	}
-	// the LoaderDevicePartUUID is in all caps, but lsblk, etc. use lower case
-	// so for consistency just make it lower case here too
-	return strings.ToLower(string(b)), nil
 }

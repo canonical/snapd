@@ -23,6 +23,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/bootloader/efi"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/testutil"
@@ -40,12 +41,20 @@ func (s *bootedKernelPartitionSuite) SetUpTest(c *C) {
 }
 
 func (s *bootedKernelPartitionSuite) TestFindPartitionUUIDForBootedKernelDisk(c *C) {
-	restore := efi.MockEfiVariables(map[string][]byte{
-		"LoaderDevicePartUUID-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f": []byte("WHY-ARE-YOU-YELLING"),
-	})
+	restore := efi.MockVars(map[string][]byte{
+		"LoaderDevicePartUUID-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f": bootloadertest.UTF16Bytes("A9F5C949-AB89-5B47-A7BF-56DD28F96E65"),
+	}, nil)
 	defer restore()
 
 	partuuid, err := boot.FindPartitionUUIDForBootedKernelDisk()
 	c.Assert(err, IsNil)
-	c.Assert(partuuid, Equals, "why-are-you-yelling")
+	c.Assert(partuuid, Equals, "a9f5c949-ab89-5b47-a7bf-56dd28f96e65")
+}
+
+func (s *bootedKernelPartitionSuite) TestFindPartitionUUIDForBootedKernelDiskNoEFISystem(c *C) {
+	restore := efi.MockVars(nil, nil)
+	defer restore()
+
+	_, err := boot.FindPartitionUUIDForBootedKernelDisk()
+	c.Check(err, Equals, efi.ErrNoEFISystem)
 }

@@ -17,96 +17,174 @@
  *
  */
 
+// Package efi supports reading EFI variables.
 package efi
 
 import (
+	"bytes"
+	"encoding/binary"
+	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
+	"unicode/utf16"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 )
 
+var ErrNoEFISystem = errors.New("not a supported EFI system")
+
+type VariableAttr uint32
+
 const (
-	defaultEfiVarfsDir    = "/sys/firmware/efivars"
-	defaultEfiVarSysfsDir = "/sys/firmware/efi/vars"
+	VariableNonVolatile       VariableAttr = 0x00000001
+	VariableBootServiceAccess VariableAttr = 0x00000002
+	VariableRuntimeAccess     VariableAttr = 0x00000004
 )
 
 var (
-	readEfiVar  = readEfiVarImpl
 	isSnapdTest = len(os.Args) > 0 && strings.HasSuffix(os.Args[0], ".test")
+	openEFIVar  = openEFIVarImpl
 )
 
-// ReadEfiVar will attempt to read the binary value of the specified efi
-// variable, specified by it's full name of the variable and vendor ID.
-// It first tries to read from efivarfs wherever that is mounted, and falls back
-// to sysfs if that is unavailable. See
-// https://www.kernel.org/doc/Documentation/filesystems/efivarfs.txt for more
-// details.
-func ReadEfiVar(name string) ([]byte, error) {
-	return readEfiVar(name)
-}
+const expectedEFIvarfsDir = "/sys/firmware/efi/efivars"
 
-func readEfiVarImpl(name string) ([]byte, error) {
-	// check if we have the efivars fs mounted first, if so then use that
-	// for reading the efi var
-	efiVarDir := filepath.Join(dirs.GlobalRootDir, defaultEfiVarfsDir)
-	fallbackToSysfs := false
+func openEFIVarImpl(name string) (r io.ReadCloser, attr VariableAttr, size int64, err error) {
 	mounts, err := osutil.LoadMountInfo()
-	if err == nil {
-		found := false
-		for _, mnt := range mounts {
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	found := false
+	for _, mnt := range mounts {
+		if mnt.MountDir == expectedEFIvarfsDir {
 			if mnt.FsType == "efivarfs" {
-				// use this mount point as an absolute point - i.e. don't prefix
-				// with GlobalRootDir
-				efiVarDir = mnt.MountDir
 				found = true
 				break
 			}
 		}
-		if !found {
-			// we have procfs mounted, but no efivarfs, so fallback to trying
-			// sysfs instead
-			fallbackToSysfs = true
+	}
+	if !found {
+		return nil, 0, 0, ErrNoEFISystem
+	}
+	varf, err := os.Open(filepath.Join(dirs.GlobalRootDir, expectedEFIvarfsDir, name))
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	defer func() {
+		if err != nil {
+			varf.Close()
 		}
-	} else {
-		// could be we have efivarfs mounted, but procfs is missing for some
-		// reason so we couldn't read /proc
-
-		// if the efiVarDir exists, then efivarfs is mounted, we just don't know
-		// that because we couldn't read procfs
-		if !osutil.FileExists(efiVarDir) {
-			fallbackToSysfs = true
-		}
+	}()
+	fi, err := varf.Stat()
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	sz := fi.Size()
+	if sz < 4 {
+		return nil, 0, 0, fmt.Errorf("unexpected size: %d", sz)
 	}
 
-	varFilePath := filepath.Join(efiVarDir, name)
-	if fallbackToSysfs {
-		// the data file is only used when reading from the sysfs endpoint
-		varFilePath = filepath.Join(dirs.GlobalRootDir, defaultEfiVarSysfsDir, name, "data")
+	var abuf [4]byte
+	if _, err = varf.Read(abuf[:]); err != nil {
+		return nil, 0, 0, err
 	}
-	return ioutil.ReadFile(varFilePath)
-
+	return varf, VariableAttr(binary.LittleEndian.Uint32(abuf[:])), sz - 4, nil
 }
 
-// MockEfiVariables mocks efi variables as read by ReadEfiVar, only to be used
-// from tests.
-func MockEfiVariables(vars map[string][]byte) (restore func()) {
-	if !isSnapdTest {
-		panic("MockEfiVariables only to be used from tests")
-	}
-	old := readEfiVar
-	readEfiVar = func(name string) ([]byte, error) {
-		if val, ok := vars[name]; ok {
-			return val, nil
+func cannotReadError(name string, err error) error {
+	return fmt.Errorf("cannot read EFI var %q: %v", name, err)
+}
+
+// ReadVarBytes will attempt to read the bytes of the value of the
+// specified EFI variable, specified by it's full name of the variable
+// and vendor ID. It also returns the attribute value attached to it.
+// It expects to use the efivars filesystem at /sys/firmware/efivars.
+// https://www.kernel.org/doc/Documentation/filesystems/efivarfs.txt
+// for more details.
+func ReadVarBytes(name string) ([]byte, VariableAttr, error) {
+	varf, attr, _, err := openEFIVar(name)
+	if err != nil {
+		if err == ErrNoEFISystem {
+			return nil, 0, err
 		}
-		return nil, fmt.Errorf("efi variable %s not mocked", name)
+		return nil, 0, cannotReadError(name, err)
+	}
+	defer varf.Close()
+	b, err := ioutil.ReadAll(varf)
+	if err != nil {
+		return nil, 0, cannotReadError(name, err)
+	}
+	return b, attr, nil
+}
+
+// ReadVarStringwill attempt to read the string value of the specified
+// EFI variable, specified by it's full name of the variable and
+// vendor ID. The string value is expected to be encoded as UTF16. It
+// also returns the attribute value attached to it. It expects to use
+// the efivars filesystem at /sys/firmware/efivars.
+// https://www.kernel.org/doc/Documentation/filesystems/efivarfs.txt
+// for more details.
+func ReadVarString(name string) (string, VariableAttr, error) {
+	varf, attr, sz, err := openEFIVar(name)
+	if err != nil {
+		if err == ErrNoEFISystem {
+			return "", 0, err
+		}
+		return "", 0, cannotReadError(name, err)
+	}
+	defer varf.Close()
+	if sz%2 != 0 {
+		return "", 0, fmt.Errorf("EFI var %q has an extra byte to be an UTF16 string", name)
+	}
+	n := int(sz / 2)
+	if n == 0 {
+		return "", attr, nil
+	}
+	r16 := make([]uint16, n)
+	for i := range r16 {
+		var b [2]byte
+		_, err := io.ReadFull(varf, b[:])
+		if err != nil {
+			return "", 0, cannotReadError(name, err)
+		}
+		r16[i] = binary.LittleEndian.Uint16(b[:])
+	}
+	if r16[n-1] == 0 {
+		n--
+	}
+	b := &bytes.Buffer{}
+	for _, r := range utf16.Decode(r16[:n]) {
+		b.WriteRune(r)
+	}
+	return b.String(), attr, nil
+}
+
+// MockVars mocks EFI variables as read by ReadVar*, only to be used
+// from tests. Set vars to nil to mock a non-EFI system.
+func MockVars(vars map[string][]byte, attrs map[string]VariableAttr) (restore func()) {
+	if !isSnapdTest {
+		panic("MockVars only to be used from tests")
+	}
+	old := openEFIVar
+	openEFIVar = func(name string) (io.ReadCloser, VariableAttr, int64, error) {
+		if vars == nil {
+			return nil, 0, 0, ErrNoEFISystem
+		}
+		if val, ok := vars[name]; ok {
+			attr, ok := attrs[name]
+			if !ok {
+				attr = VariableRuntimeAccess | VariableBootServiceAccess
+			}
+			return ioutil.NopCloser(bytes.NewBuffer(val)), attr, int64(len(val)), nil
+		}
+		return nil, 0, 0, fmt.Errorf("EFI variable %s not mocked", name)
 	}
 
 	return func() {
-		readEfiVar = old
+		openEFIVar = old
 	}
 }
