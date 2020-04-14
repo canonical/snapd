@@ -224,7 +224,7 @@ func ForceError(err error) {
 	forcedError = err
 }
 
-func extractKernelAssetsToBootDir(dstDir string, s snap.PlaceInfo, snapf snap.Container, assets []string) error {
+func extractKernelAssetsToBootDir(dstDir string, snapf snap.Container, assets []string) error {
 	// now do the kernel specific bits
 	if err := os.MkdirAll(dstDir, 0755); err != nil {
 		return err

@@ -81,6 +81,9 @@ func (t *firstBootBaseTest) setupBaseTest(c *C, s *seedtest.SeedSnaps) {
 
 	t.AddCleanup(release.MockOnClassic(false))
 
+	restore := osutil.MockMountInfo("")
+	t.AddCleanup(restore)
+
 	// mock the world!
 	err := os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "snaps"), 0755)
 	c.Assert(err, IsNil)

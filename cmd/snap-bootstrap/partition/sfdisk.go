@@ -121,8 +121,8 @@ type DeviceStructure struct {
 	Created bool
 }
 
-// NewDeviceLayout obtains the partitioning and filesystem information from the
-// block device.
+// DeviceLayoutFromDisk obtains the partitioning and filesystem information from
+// the block device.
 func DeviceLayoutFromDisk(device string) (*DeviceLayout, error) {
 	output, err := exec.Command("sfdisk", "--json", "-d", device).Output()
 	if err != nil {
