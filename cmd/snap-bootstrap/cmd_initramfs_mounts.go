@@ -191,18 +191,18 @@ func generateMountsModeRecover(recoverySystem string) error {
 	}
 
 	// n+1: mount ubuntu-data for recovery
-	isRecoverDataMounted, err := osutilIsMounted(boot.InitramfsRecoverUbuntuDataDir)
+	isRecoverDataMounted, err := osutilIsMounted(boot.InitramfsHostDataDir)
 	if err != nil {
 		return err
 	}
 	if !isRecoverDataMounted {
-		fmt.Fprintf(stdout, "/dev/disk/by-label/ubuntu-data %s\n", boot.InitramfsRecoverUbuntuDataDir)
+		fmt.Fprintf(stdout, "/dev/disk/by-label/ubuntu-data %s\n", boot.InitramfsHostDataDir)
 		return nil
 	}
 
-	// now copy the auth data from the real recover-ubuntu-data dir to
-	// the ephemeral ubuntu-data dir
-	if err := copyUbuntuDataAuth(boot.InitramfsRecoverUbuntuDataDir, boot.InitramfsUbuntuDataDir); err != nil {
+	// now copy the auth data from the real ubuntu-data dir to the ephemeral
+	// ubuntu-data dir
+	if err := copyUbuntuDataAuth(boot.InitramfsHostDataDir, boot.InitramfsUbuntuDataDir); err != nil {
 		return err
 	}
 
@@ -215,7 +215,7 @@ func generateMountsModeRecover(recoverySystem string) error {
 	if err := modeEnv.WriteTo(boot.InitramfsWritableDir); err != nil {
 		return err
 	}
-	// and disable cloud-init in install mode
+	// and disable cloud-init in recover mode
 	if err := sysconfig.DisableCloudInit(boot.InitramfsWritableDir); err != nil {
 		return err
 	}
