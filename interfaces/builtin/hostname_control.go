@@ -63,8 +63,7 @@ dbus(receive, send)
     bus=system
     path=/org/freedesktop/hostname1
     interface=org.freedesktop.hostname1
-    member=Set{,Pretty,Static}Hostname
-    peer=(label=unconfined),
+    member=Set{,Pretty,Static}Hostname,
 
 # Needed to use 'sethostname' and 'hostnamectl set-hostname'. See man 7
 # capabilities
