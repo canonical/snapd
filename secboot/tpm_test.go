@@ -101,28 +101,75 @@ func (s *secbootTPMSuite) TestSeal(c *C) {
 
 	t.SetKernelCmdlines(cmdlines)
 
-	loadSequences := []*sb.EFIImageLoadEvent{}
-
-	for _, shim := range shimFiles {
-		s := &sb.EFIImageLoadEvent{
+	loadSequences := []*sb.EFIImageLoadEvent{
+		{
 			Source: sb.Firmware,
-			Image:  sb.FileEFIImage(shim),
-		}
-		for _, grub := range grubFiles {
-			g := &sb.EFIImageLoadEvent{
-				Source: sb.Shim,
-				Image:  sb.FileEFIImage(grub),
-			}
-			for _, kernel := range kernelFiles {
-				k := &sb.EFIImageLoadEvent{
+			Image:  sb.FileEFIImage(shim1),
+			Next: []*sb.EFIImageLoadEvent{
+				{
 					Source: sb.Shim,
-					Image:  sb.FileEFIImage(kernel),
-				}
-				g.Next = append(g.Next, k)
-			}
-			s.Next = append(s.Next, g)
-		}
-		loadSequences = append(loadSequences, s)
+					Image:  sb.FileEFIImage(grub1),
+					Next: []*sb.EFIImageLoadEvent{
+						{
+							Source: sb.Shim,
+							Image:  sb.FileEFIImage(kernel1),
+						},
+						{
+							Source: sb.Shim,
+							Image:  sb.FileEFIImage(kernel2),
+						},
+					},
+				},
+				{
+					Source: sb.Shim,
+					Image:  sb.FileEFIImage(grub2),
+					Next: []*sb.EFIImageLoadEvent{
+						{
+							Source: sb.Shim,
+							Image:  sb.FileEFIImage(kernel1),
+						},
+						{
+							Source: sb.Shim,
+							Image:  sb.FileEFIImage(kernel2),
+						},
+					},
+				},
+			},
+		},
+		{
+			Source: sb.Firmware,
+			Image:  sb.FileEFIImage(shim2),
+			Next: []*sb.EFIImageLoadEvent{
+				{
+					Source: sb.Shim,
+					Image:  sb.FileEFIImage(grub1),
+					Next: []*sb.EFIImageLoadEvent{
+						{
+							Source: sb.Shim,
+							Image:  sb.FileEFIImage(kernel1),
+						},
+						{
+							Source: sb.Shim,
+							Image:  sb.FileEFIImage(kernel2),
+						},
+					},
+				},
+				{
+					Source: sb.Shim,
+					Image:  sb.FileEFIImage(grub2),
+					Next: []*sb.EFIImageLoadEvent{
+						{
+							Source: sb.Shim,
+							Image:  sb.FileEFIImage(kernel1),
+						},
+						{
+							Source: sb.Shim,
+							Image:  sb.FileEFIImage(kernel2),
+						},
+					},
+				},
+			},
+		},
 	}
 
 	sbRestore := secboot.MockSbAddEFISecureBootPolicyProfile(func(profile *sb.PCRProtectionProfile,
