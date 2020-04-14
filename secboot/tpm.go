@@ -117,7 +117,8 @@ var (
 	sbProvisionTPM = sb.ProvisionTPM
 )
 
-// Provision tries to clear and provision the TPM.
+// Provision provisions the TPM. This will fail on a device that has
+// previously been provisioned.
 func (t *tpmSupport) Provision() error {
 	if err := sbProvisionTPM(t.tconn, sb.ProvisionModeFull, t.lockoutAuth); err != nil {
 		return fmt.Errorf("cannot provision TPM: %v", err)
