@@ -73,7 +73,3 @@ var (
 	ErrNoWarningExpireAfter = errNoWarningExpireAfter
 	ErrNoWarningRepeatAfter = errNoWarningRepeatAfter
 )
-
-func NewCheckpointOnlyBackend(path string) *checkpointOnlyBackend {
-	return &checkpointOnlyBackend{path: path}
-}
