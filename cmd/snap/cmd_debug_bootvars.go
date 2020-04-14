@@ -20,10 +20,13 @@
 package main
 
 import (
+	"errors"
+
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/release"
 )
 
 type cmdBootvars struct {
@@ -41,9 +44,14 @@ func init() {
 			"uc20": i18n.G("Whether to use uc20 boot vars or not"),
 			"dir":  i18n.G("What directory to look for boot variables in"),
 		}, nil)
-	cmd.hidden = true
+	if release.OnClassic {
+		cmd.hidden = true
+	}
 }
 
 func (x *cmdBootvars) Execute(args []string) error {
+	if release.OnClassic {
+		return errors.New(`the "boot-vars" command is not available on classic systems`)
+	}
 	return boot.DumpBootVars(Stdout, x.Dir, x.UC20)
 }
