@@ -459,11 +459,12 @@ export GOPATH=$(pwd):%{gopath}
 export GOPATH=$(pwd):$(pwd)/Godeps/_workspace:%{gopath}
 %endif
 
-GOFLAGS=
+# see https://github.com/gofed/go-macros/blob/master/rpm/macros.d/macros.go-compilers-golang
+BUILDTAGS=
 %if 0%{?with_test_keys}
-GOFLAGS="$GOFLAGS -tags \"withtestkeys nosecboot\"  "
+BUILDTAGS="withtestkeys nosecboot"
 %else
-GOFLAGS="$GOFLAGS -tags nosecboot"
+BUILDTAGS="nosecboot"
 %endif
 
 %if ! 0%{?with_bundled}
