@@ -682,7 +682,7 @@ func activateXdgDocumentPortal(info *snap.Info, snapApp, hook string) error {
 		return nil
 	}
 
-	conn, err := dbus.SessionBus()
+	conn, err := dbusSessionBus()
 	if err != nil {
 		return err
 	}
@@ -1018,35 +1018,7 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	}
 }
 
-func randomUUID() (string, error) {
-	// The source of the bytes generated here is the same as that of
-	// /dev/urandom which doesn't block and is sufficient for our purposes
-	// of avoiding clashing UUIDs that are needed for all of the non-service
-	// commands that are started with the help of this UUID.
-	uuidBytes, err := ioutil.ReadFile("/proc/sys/kernel/random/uuid")
-	return strings.TrimSpace(string(uuidBytes)), err
-}
-
-var createTransientScope = func(securityTag string) error {
-	if !features.RefreshAppAwareness.IsEnabled() {
-		return nil
-	}
-
-	logger.Debugf("creating transient scope %s", securityTag)
-	// The scope is created with a DBus call to systemd running either on
-	// system or session bus, depending on if we are starting a program as root
-	// or as a regular user.
-	var conn *dbus.Conn
-	var err error
-	if os.Getuid() == 0 {
-		conn, err = dbus.SystemBus()
-	} else {
-		conn, err = dbus.SessionBus()
-	}
-	if err != nil {
-		return err
-	}
-
+func doCreateTransientScope(conn *dbus.Conn, unitName string, pid int) error {
 	// The property and auxUnit types are not well documented but can be traced
 	// from systemd source code. Systemd defines the signature of
 	// StartTransientUnit as "ssa(sv)a(sa(sv))". The signature can be
@@ -1069,7 +1041,8 @@ var createTransientScope = func(securityTag string) error {
 	//	 }
 	// } // auxUnits describe any additional units to define.
 	type property struct {
-		Name  string
+		Name string
+		// XXX: This is getting marshaled as an invalid variant.
 		Value interface{}
 	}
 	type auxUnit struct {
@@ -1077,24 +1050,11 @@ var createTransientScope = func(securityTag string) error {
 		Props []property
 	}
 
-	// We ask the kernel for a random UUID. We need one because each transient
-	// scope needs a unique name. The unique name is comprosed of said UUID and
-	// the snap security tag.
-	uuid, err := randomUUID()
-	if err != nil {
-		return err
-	}
 	// Instead of enforcing uniqueness we could join an existing scope but this has some limitations:
 	// - the originally started scope must be marked as a delegate, with all consequences.
 	// - the method AttachProcessesToUnit is unavailable on Ubuntu 16.04
-	//
-	// TODO: invert the arguments so that security tag comes first, UUID
-	// second. This will result in nicer scope names but needs to be
-	// coordinated with code in sandbox/cgroup and with the spread tests
-	// exercising that.
-	unitName := fmt.Sprintf("snap.%s.%s.scope", uuid, strings.TrimPrefix(securityTag, "snap."))
 	mode := "fail"
-	properties := []property{{"PIDs", []uint{uint(os.Getpid())}}}
+	properties := []property{{"PIDs", []uint{uint(pid)}}}
 	aux := []auxUnit(nil)
 	systemd := conn.Object("org.freedesktop.systemd1", "/org/freedesktop/systemd1")
 	call := systemd.Call(
@@ -1129,6 +1089,70 @@ var createTransientScope = func(securityTag string) error {
 			return fmt.Errorf("cannot create transient scope: %s", err)
 		}
 	}
+	return nil
+}
+
+var dbusSystemBus = func() (*dbus.Conn, error) {
+	return dbus.SystemBus()
+}
+
+var dbusSessionBus = func() (*dbus.Conn, error) {
+	return dbus.SessionBus()
+}
+
+var randomUUID = func() (string, error) {
+	// The source of the bytes generated here is the same as that of
+	// /dev/urandom which doesn't block and is sufficient for our purposes
+	// of avoiding clashing UUIDs that are needed for all of the non-service
+	// commands that are started with the help of this UUID.
+	uuidBytes, err := ioutil.ReadFile("/proc/sys/kernel/random/uuid")
+	return strings.TrimSpace(string(uuidBytes)), err
+}
+
+var osGetuid = os.Getuid
+var osGetpid = os.Getpid
+
+var cgroupProcessPathInTrackingCgroup = cgroup.ProcessPathInTrackingCgroup
+
+var createTransientScope = func(securityTag string) error {
+	if !features.RefreshAppAwareness.IsEnabled() {
+		return nil
+	}
+	logger.Debugf("creating transient scope %s", securityTag)
+	// The scope is created with a DBus call to systemd running either on
+	// system or session bus, depending on if we are starting a program as root
+	// or as a regular user.
+	var conn *dbus.Conn
+	var err error
+	if osGetuid() == 0 {
+		conn, err = dbusSystemBus()
+	} else {
+		conn, err = dbusSessionBus()
+	}
+	if err != nil {
+		return err
+	}
+	// We ask the kernel for a random UUID. We need one because each transient
+	// scope needs a unique name. The unique name is comprosed of said UUID and
+	// the snap security tag.
+	uuid, err := randomUUID()
+	if err != nil {
+		return err
+	}
+	// Instead of enforcing uniqueness we could join an existing scope but this has some limitations:
+	// - the originally started scope must be marked as a delegate, with all consequences.
+	// - the method AttachProcessesToUnit is unavailable on Ubuntu 16.04
+	//
+	// TODO: invert the arguments so that security tag comes first, UUID
+	// second. This will result in nicer scope names but needs to be
+	// coordinated with code in sandbox/cgroup and with the spread tests
+	// exercising that.
+	unitName := fmt.Sprintf("snap.%s.%s.scope", uuid, strings.TrimPrefix(securityTag, "snap."))
+	pid := osGetpid()
+	// Create a transient scope by talking to systemd over DBus.
+	if err := doCreateTransientScope(conn, unitName, pid); err != nil {
+		return err
+	}
 	// We may have created a transient scope but due to a kernel design,
 	// in specific situation when we are in a cgroup owned by one user,
 	// and we want to run a process as a different user, *and* systemd is
@@ -1136,7 +1160,7 @@ var createTransientScope = func(securityTag string) error {
 	//
 	// Verify the effective tracking cgroup and check that our scope name
 	// is contained therein.
-	path, err := cgroup.ProcessPathInTrackingCgroup(os.Getpid())
+	path, err := cgroupProcessPathInTrackingCgroup(pid)
 	if err != nil {
 		return err
 	}
