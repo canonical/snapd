@@ -79,7 +79,7 @@ func (t *tpmSupport) StoreLockoutAuth(filename string) error {
 
 // SetShimFiles verifies and sets the list of shim binaries.
 func (t *tpmSupport) SetShimFiles(pathList ...string) error {
-	if err := ensureFilesExist(pathList); err != nil {
+	if err := checkFilesPresence(pathList); err != nil {
 		return err
 	}
 	t.shimFiles = pathList
@@ -88,7 +88,7 @@ func (t *tpmSupport) SetShimFiles(pathList ...string) error {
 
 // SetBootloaderFiles verifies and sets the list of bootloader binaries.
 func (t *tpmSupport) SetBootloaderFiles(pathList ...string) error {
-	if err := ensureFilesExist(pathList); err != nil {
+	if err := checkFilesPresence(pathList); err != nil {
 		return err
 	}
 	t.bootloaderFiles = pathList
@@ -97,14 +97,14 @@ func (t *tpmSupport) SetBootloaderFiles(pathList ...string) error {
 
 // SetKernelFiles verifies and sets the list of kernel binaries.
 func (t *tpmSupport) SetKernelFiles(pathList ...string) error {
-	if err := ensureFilesExist(pathList); err != nil {
+	if err := checkFilesPresence(pathList); err != nil {
 		return err
 	}
 	t.kernelFiles = pathList
 	return nil
 }
 
-func ensureFilesExist(pathList []string) error {
+func checkFilesPresence(pathList []string) error {
 	for _, p := range pathList {
 		if !osutil.FileExists(p) {
 			return fmt.Errorf("file %s does not exist", p)
