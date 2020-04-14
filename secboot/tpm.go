@@ -23,7 +23,6 @@ package secboot
 import (
 	"crypto/rand"
 	"fmt"
-	"io/ioutil"
 
 	"github.com/chrisccoulson/go-tpm2"
 	sb "github.com/snapcore/secboot"
@@ -72,7 +71,7 @@ func NewTPMSupport() (*tpmSupport, error) {
 // StoreLockoutAuth saves the lockout authorization data in a file at the
 // path specified by filename.
 func (t *tpmSupport) StoreLockoutAuth(filename string) error {
-	if err := ioutil.WriteFile(filename, t.lockoutAuth, 0600); err != nil {
+	if err := osutil.AtomicWriteFile(filename, t.lockoutAuth, 0600, 0); err != nil {
 		return err
 	}
 	return nil
