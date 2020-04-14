@@ -40,6 +40,7 @@ var ErrNoEFISystem = errors.New("not a supported EFI system")
 
 type VariableAttr uint32
 
+// see https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/tree/include/linux/efi.h?h=v5.4.32
 const (
 	VariableNonVolatile       VariableAttr = 0x00000001
 	VariableBootServiceAccess VariableAttr = 0x00000002
@@ -100,9 +101,10 @@ func cannotReadError(name string, err error) error {
 }
 
 // ReadVarBytes will attempt to read the bytes of the value of the
-// specified EFI variable, specified by it's full name of the variable
-// and vendor ID. It also returns the attribute value attached to it.
-// It expects to use the efivars filesystem at /sys/firmware/efivars.
+// specified EFI variable, specified by its full name composed of the
+// variable name and vendor ID. It also returns the attribute value
+// attached to it. It expects to use the efivars filesystem at
+// /sys/firmware/efi/efivars.
 // https://www.kernel.org/doc/Documentation/filesystems/efivarfs.txt
 // for more details.
 func ReadVarBytes(name string) ([]byte, VariableAttr, error) {
@@ -121,11 +123,12 @@ func ReadVarBytes(name string) ([]byte, VariableAttr, error) {
 	return b, attr, nil
 }
 
-// ReadVarStringwill attempt to read the string value of the specified
-// EFI variable, specified by it's full name of the variable and
-// vendor ID. The string value is expected to be encoded as UTF16. It
-// also returns the attribute value attached to it. It expects to use
-// the efivars filesystem at /sys/firmware/efivars.
+// ReadVarString will attempt to read the string value of the
+// specified EFI variable, specified by its full name composed of the
+// variable name and vendor ID. The string value is expected to be
+// encoded as UTF16. It also returns the attribute value attached to
+// it. It expects to use the efivars filesystem at
+// /sys/firmware/efi/efivars.
 // https://www.kernel.org/doc/Documentation/filesystems/efivarfs.txt
 // for more details.
 func ReadVarString(name string) (string, VariableAttr, error) {
