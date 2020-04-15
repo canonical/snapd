@@ -85,9 +85,7 @@ func (s *secbootSuite) TestCheckKeySealingSupported(c *C) {
 		defer restore()
 
 		var vars map[string][]byte
-		if t.sbData == nil {
-			vars = nil
-		} else {
+		if t.sbData != nil {
 			vars = map[string][]byte{"SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c": t.sbData}
 		}
 		restoreEfiVars := efi.MockVars(vars, nil)

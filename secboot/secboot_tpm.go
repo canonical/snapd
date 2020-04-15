@@ -52,6 +52,7 @@ func CheckKeySealingSupported() error {
 }
 
 func checkSecureBootEnabled() error {
+	// 8be4df61-93ca-11d2-aa0d-00e098032b8c is the EFI Global Variable vendor GUID
 	b, _, err := efi.ReadVarBytes("SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c")
 	if err != nil {
 		if err == efi.ErrNoEFISystem {
