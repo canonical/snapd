@@ -9,7 +9,8 @@ prepare: |
     install_local test-snapd-sh-other18
 
 execute: |
-    if [ "$(snap debug confinement)" = none ] ; then
+    # only apparmor file mediation is needed for these tests
+    if ! snap debug sandbox-features --required apparmor:kernel:file ; then
         exit 0
     fi
 
