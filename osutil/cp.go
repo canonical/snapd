@@ -142,6 +142,12 @@ func runSync(args ...string) error {
 }
 
 func runCpPreserveAll(path, dest, errdesc string) error {
+	// TODO: This occassionally runs as root in user's computers, copying
+	// large non-package files in the process. This is a problem because disk usage might lower user's performance
+	// And more importantly, since this process runs as root and the copy requires twice as space as the files being copied,
+	// the user might run out of root space. If snappy is about to copy 4GB worth of files, the user has 6GB of root space,
+	// and 1GB of userland disk space, then during the time the copy is taking place, the user will be unable to save to disk,
+	// possibly crashing their computer, or forcing programs like firefox to delete history and cache (signing them out of websites).
 	return runCmd(exec.Command("cp", "-av", path, dest), errdesc)
 }
 
