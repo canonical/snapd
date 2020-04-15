@@ -60,10 +60,10 @@ func (bsm *bootState20Modeenv) loadModeenv() error {
 }
 
 //
-// kernelStateMutator20 methods
+// bootloaderKernelState20 methods
 //
 
-type kernelStateMutator20 interface {
+type bootloaderKernelState20 interface {
 	// load will setup any state / actors needed to use other methods
 	load() error
 	// kernelStatus returns the current status of the kernel, i.e. the
@@ -85,9 +85,9 @@ type kernelStateMutator20 interface {
 	markSuccessful(kernelSnap snap.PlaceInfo) error
 }
 
-// kernelStateMutatorExtractedRunKernelImage implements kernelStateMutator20 for
+// extractedRunKernelImageBootloaderKernelState implements bootloaderKernelState20 for
 // bootloaders that implement ExtractedRunKernelImageBootloader
-type kernelStateMutatorExtractedRunKernelImage struct {
+type extractedRunKernelImageBootloaderKernelState struct {
 	// the bootloader
 	ebl bootloader.ExtractedRunKernelImageBootloader
 	// the current kernel status as read by the bootloader's bootenv
@@ -99,64 +99,46 @@ type kernelStateMutatorExtractedRunKernelImage struct {
 	currentKernel snap.PlaceInfo
 }
 
-func (kmerki *kernelStateMutatorExtractedRunKernelImage) load() error {
-	// don't setup multiple times
-	if kmerki.ebl != nil {
-		return nil
-	}
-
-	// find the bootloader and ensure it's an extracted run kernel image
-	// bootloader
-	bl, err := bootloader.Find("", nil)
-	if err != nil {
-		return err
-	}
-	ebl, ok := bl.(bootloader.ExtractedRunKernelImageBootloader)
-	if !ok {
-		return fmt.Errorf("cannot use %s bootloader: does not support extracted run kernel images", bl.Name())
-	}
-
-	kmerki.ebl = ebl
-
-	// also get the kernel_status
-	m, err := ebl.GetBootVars("kernel_status")
+func (erkibks *extractedRunKernelImageBootloaderKernelState) load() error {
+	// get the kernel_status
+	m, err := erkibks.ebl.GetBootVars("kernel_status")
 	if err != nil {
 		return err
 	}
 
-	kmerki.currentKernelStatus = m["kernel_status"]
+	erkibks.currentKernelStatus = m["kernel_status"]
 	// the default kernel status to commit is the current state
-	kmerki.commitKernelStatus = kmerki.currentKernelStatus
+	erkibks.commitKernelStatus = erkibks.currentKernelStatus
 
 	// get the current kernel for this bootloader to compare during commit() for
 	// markSuccessful() if we booted the current kernel or not
-	kernel, err := kmerki.ebl.Kernel()
+	kernel, err := erkibks.ebl.Kernel()
 	if err != nil {
-		return fmt.Errorf("cannot identify kernel snap with bootloader %s: %v", kmerki.ebl.Name(), err)
+		return fmt.Errorf("cannot identify kernel snap with bootloader %s: %v", erkibks.ebl.Name(), err)
 	}
 
-	kmerki.currentKernel = kernel
+	erkibks.currentKernel = kernel
 
 	return nil
 }
 
-func (kmerki *kernelStateMutatorExtractedRunKernelImage) kernel() snap.PlaceInfo {
-	return kmerki.currentKernel
+func (erkibks *extractedRunKernelImageBootloaderKernelState) kernel() snap.PlaceInfo {
+	return erkibks.currentKernel
 }
 
-func (kmerki *kernelStateMutatorExtractedRunKernelImage) tryKernel() (snap.PlaceInfo, error) {
-	return kmerki.ebl.TryKernel()
+func (erkibks *extractedRunKernelImageBootloaderKernelState) tryKernel() (snap.PlaceInfo, error) {
+	return erkibks.ebl.TryKernel()
 }
 
-func (kmerki *kernelStateMutatorExtractedRunKernelImage) kernelStatus() string {
-	return kmerki.currentKernelStatus
+func (erkibks *extractedRunKernelImageBootloaderKernelState) kernelStatus() string {
+	return erkibks.currentKernelStatus
 }
 
-func (kmerki *kernelStateMutatorExtractedRunKernelImage) setCommitStatus(status string) {
-	kmerki.commitKernelStatus = status
+func (erkibks *extractedRunKernelImageBootloaderKernelState) setCommitStatus(status string) {
+	erkibks.commitKernelStatus = status
 }
 
-func (kmerki *kernelStateMutatorExtractedRunKernelImage) markSuccessful(sn snap.PlaceInfo) error {
+func (erkibks *extractedRunKernelImageBootloaderKernelState) markSuccessful(sn snap.PlaceInfo) error {
 	// set the boot vars first, then enable the successful kernel, then disable
 	// the old try-kernel, see the comment in bootState20MarkSuccessful.commit()
 	// for details
@@ -165,13 +147,13 @@ func (kmerki *kernelStateMutatorExtractedRunKernelImage) markSuccessful(sn snap.
 	// only call SetBootVars if needed
 	// this has the useful side-effect of cleaning up if we happen to have
 	// kernel_status = "trying" but don't have a try-kernel set
-	if kmerki.commitKernelStatus != DefaultStatus {
+	if erkibks.commitKernelStatus != DefaultStatus {
 		m := map[string]string{
 			"kernel_status": DefaultStatus,
 		}
 
 		// set the boot variables
-		err := kmerki.ebl.SetBootVars(m)
+		err := erkibks.ebl.SetBootVars(m)
 		if err != nil {
 			return err
 		}
@@ -179,8 +161,8 @@ func (kmerki *kernelStateMutatorExtractedRunKernelImage) markSuccessful(sn snap.
 
 	// if the kernel we booted is not the current one, we must have tried
 	// a new kernel, so enable that one as the current one now
-	if kmerki.currentKernel.Filename() != sn.Filename() {
-		err := kmerki.ebl.EnableKernel(sn)
+	if erkibks.currentKernel.Filename() != sn.Filename() {
+		err := erkibks.ebl.EnableKernel(sn)
 		if err != nil {
 			return err
 		}
@@ -188,7 +170,7 @@ func (kmerki *kernelStateMutatorExtractedRunKernelImage) markSuccessful(sn snap.
 
 	// always disable the try kernel snap to cleanup in case we have upgrade
 	// failures which leave behind try-kernel.efi
-	err := kmerki.ebl.DisableTryKernel()
+	err := erkibks.ebl.DisableTryKernel()
 	if err != nil {
 		return err
 	}
@@ -196,14 +178,14 @@ func (kmerki *kernelStateMutatorExtractedRunKernelImage) markSuccessful(sn snap.
 	return nil
 }
 
-func (kmerki *kernelStateMutatorExtractedRunKernelImage) setNextKernel(sn snap.PlaceInfo) error {
+func (erkibks *extractedRunKernelImageBootloaderKernelState) setNextKernel(sn snap.PlaceInfo) error {
 	// always enable the try-kernel first, if we did the reverse and got
 	// rebooted after setting the boot vars but before enabling the try-kernel
 	// we could get stuck where the bootloader can't find the try-kernel and
 	// gets stuck waiting for a user to reboot, at which point we would fallback
 	// see i.e. https://github.com/snapcore/pc-amd64-gadget/issues/36
-	if sn.Filename() != kmerki.currentKernel.Filename() {
-		err := kmerki.ebl.EnableTryKernel(sn)
+	if sn.Filename() != erkibks.currentKernel.Filename() {
+		err := erkibks.ebl.EnableTryKernel(sn)
 		if err != nil {
 			return err
 		}
@@ -211,13 +193,13 @@ func (kmerki *kernelStateMutatorExtractedRunKernelImage) setNextKernel(sn snap.P
 
 	// only if the new kernel status is different from what we read should we
 	// run SetBootVars() to minimize wear/corruption possibility on the bootenv
-	if kmerki.commitKernelStatus != kmerki.currentKernelStatus {
+	if erkibks.commitKernelStatus != erkibks.currentKernelStatus {
 		m := map[string]string{
-			"kernel_status": kmerki.commitKernelStatus,
+			"kernel_status": erkibks.commitKernelStatus,
 		}
 
 		// set the boot variables
-		return kmerki.ebl.SetBootVars(m)
+		return erkibks.ebl.SetBootVars(m)
 	}
 
 	return nil
@@ -232,7 +214,7 @@ func (kmerki *kernelStateMutatorExtractedRunKernelImage) setNextKernel(sn snap.P
 // note that for markSuccessful() a different bootStateUpdate implementation is
 // returned, see bootState20MarkSuccessful
 type bootState20Kernel struct {
-	kmut kernelStateMutator20
+	bks bootloaderKernelState20
 
 	// the kernel snap that was booted for markSuccessful()
 	bootedKernelSnap snap.PlaceInfo
@@ -248,9 +230,26 @@ type bootState20Kernel struct {
 }
 
 func (ks20 *bootState20Kernel) loadBootenv() error {
-	// TODO:UC20: make the decision on what kmut implementation to use here
-	ks20.kmut = &kernelStateMutatorExtractedRunKernelImage{}
-	if err := ks20.kmut.load(); err != nil {
+	// don't setup multiple times
+	if ks20.bks != nil {
+		return nil
+	}
+
+	// find the bootloader and ensure it's an extracted run kernel image
+	// bootloader
+	bl, err := bootloader.Find("", nil)
+	if err != nil {
+		return err
+	}
+	ebl, ok := bl.(bootloader.ExtractedRunKernelImageBootloader)
+	if !ok {
+		// TODO:UC20: fallback to different implementation here
+		return fmt.Errorf("cannot use %s bootloader: does not support extracted run kernel images", bl.Name())
+	}
+
+	// setup the bootloaderKernelState20
+	ks20.bks = &extractedRunKernelImageBootloaderKernelState{ebl: ebl}
+	if err := ks20.bks.load(); err != nil {
 		return err
 	}
 
@@ -264,10 +263,10 @@ func (ks20 *bootState20Kernel) revisions() (curSnap, trySnap snap.PlaceInfo, try
 		return nil, nil, "", err
 	}
 
-	status := ks20.kmut.kernelStatus()
-	kern := ks20.kmut.kernel()
+	status := ks20.bks.kernelStatus()
+	kern := ks20.bks.kernel()
 
-	tryKernel, err := ks20.kmut.tryKernel()
+	tryKernel, err := ks20.bks.tryKernel()
 	if err != nil && err != bootloader.ErrNoTryKernelRef {
 		return nil, nil, "", err
 	}
@@ -314,7 +313,7 @@ func (ks20 *bootState20Kernel) setNext(next snap.PlaceInfo) (rebootRequired bool
 	if nextStatus == TryStatus {
 		rebootRequired = true
 	}
-	ks20.kmut.setCommitStatus(nextStatus)
+	ks20.bks.setCommitStatus(nextStatus)
 
 	// any state changes done so far are consumed in commit()
 
@@ -347,7 +346,7 @@ func (ks20 *bootState20Kernel) commit() error {
 
 	// add the kernel to the modeenv if it is not the current kernel (if it is
 	// the current kernel then it must already be in the modeenv)
-	currentKernel := ks20.kmut.kernel()
+	currentKernel := ks20.bks.kernel()
 	if ks20.nextKernelSnap.Filename() != currentKernel.Filename() {
 		// add the kernel to the modeenv
 		ks20.kModeenv.modeenv.CurrentKernels = append(
@@ -360,7 +359,7 @@ func (ks20 *bootState20Kernel) commit() error {
 		}
 	}
 
-	err := ks20.kmut.setNextKernel(ks20.nextKernelSnap)
+	err := ks20.bks.setNextKernel(ks20.nextKernelSnap)
 	if err != nil {
 		return err
 	}
@@ -633,7 +632,7 @@ func (bsmark *bootState20MarkSuccessful) commit() error {
 	// this shouldn't happen except in tests, but let's be robust against it
 	// just in case
 	if bsmark.bootedKernelSnap != nil {
-		err := bsmark.kmut.markSuccessful(bsmark.bootedKernelSnap)
+		err := bsmark.bks.markSuccessful(bsmark.bootedKernelSnap)
 		if err != nil {
 			return err
 		}
