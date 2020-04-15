@@ -99,46 +99,46 @@ type extractedRunKernelImageBootloaderKernelState struct {
 	currentKernel snap.PlaceInfo
 }
 
-func (erkibks *extractedRunKernelImageBootloaderKernelState) load() error {
+func (bks *extractedRunKernelImageBootloaderKernelState) load() error {
 	// get the kernel_status
-	m, err := erkibks.ebl.GetBootVars("kernel_status")
+	m, err := bks.ebl.GetBootVars("kernel_status")
 	if err != nil {
 		return err
 	}
 
-	erkibks.currentKernelStatus = m["kernel_status"]
+	bks.currentKernelStatus = m["kernel_status"]
 	// the default kernel status to commit is the current state
-	erkibks.commitKernelStatus = erkibks.currentKernelStatus
+	bks.commitKernelStatus = bks.currentKernelStatus
 
 	// get the current kernel for this bootloader to compare during commit() for
 	// markSuccessful() if we booted the current kernel or not
-	kernel, err := erkibks.ebl.Kernel()
+	kernel, err := bks.ebl.Kernel()
 	if err != nil {
-		return fmt.Errorf("cannot identify kernel snap with bootloader %s: %v", erkibks.ebl.Name(), err)
+		return fmt.Errorf("cannot identify kernel snap with bootloader %s: %v", bks.ebl.Name(), err)
 	}
 
-	erkibks.currentKernel = kernel
+	bks.currentKernel = kernel
 
 	return nil
 }
 
-func (erkibks *extractedRunKernelImageBootloaderKernelState) kernel() snap.PlaceInfo {
-	return erkibks.currentKernel
+func (bks *extractedRunKernelImageBootloaderKernelState) kernel() snap.PlaceInfo {
+	return bks.currentKernel
 }
 
-func (erkibks *extractedRunKernelImageBootloaderKernelState) tryKernel() (snap.PlaceInfo, error) {
-	return erkibks.ebl.TryKernel()
+func (bks *extractedRunKernelImageBootloaderKernelState) tryKernel() (snap.PlaceInfo, error) {
+	return bks.ebl.TryKernel()
 }
 
-func (erkibks *extractedRunKernelImageBootloaderKernelState) kernelStatus() string {
-	return erkibks.currentKernelStatus
+func (bks *extractedRunKernelImageBootloaderKernelState) kernelStatus() string {
+	return bks.currentKernelStatus
 }
 
-func (erkibks *extractedRunKernelImageBootloaderKernelState) setCommitStatus(status string) {
-	erkibks.commitKernelStatus = status
+func (bks *extractedRunKernelImageBootloaderKernelState) setCommitStatus(status string) {
+	bks.commitKernelStatus = status
 }
 
-func (erkibks *extractedRunKernelImageBootloaderKernelState) markSuccessful(sn snap.PlaceInfo) error {
+func (bks *extractedRunKernelImageBootloaderKernelState) markSuccessful(sn snap.PlaceInfo) error {
 	// set the boot vars first, then enable the successful kernel, then disable
 	// the old try-kernel, see the comment in bootState20MarkSuccessful.commit()
 	// for details
@@ -147,13 +147,13 @@ func (erkibks *extractedRunKernelImageBootloaderKernelState) markSuccessful(sn s
 	// only call SetBootVars if needed
 	// this has the useful side-effect of cleaning up if we happen to have
 	// kernel_status = "trying" but don't have a try-kernel set
-	if erkibks.commitKernelStatus != DefaultStatus {
+	if bks.commitKernelStatus != DefaultStatus {
 		m := map[string]string{
 			"kernel_status": DefaultStatus,
 		}
 
 		// set the boot variables
-		err := erkibks.ebl.SetBootVars(m)
+		err := bks.ebl.SetBootVars(m)
 		if err != nil {
 			return err
 		}
@@ -161,8 +161,8 @@ func (erkibks *extractedRunKernelImageBootloaderKernelState) markSuccessful(sn s
 
 	// if the kernel we booted is not the current one, we must have tried
 	// a new kernel, so enable that one as the current one now
-	if erkibks.currentKernel.Filename() != sn.Filename() {
-		err := erkibks.ebl.EnableKernel(sn)
+	if bks.currentKernel.Filename() != sn.Filename() {
+		err := bks.ebl.EnableKernel(sn)
 		if err != nil {
 			return err
 		}
@@ -170,7 +170,7 @@ func (erkibks *extractedRunKernelImageBootloaderKernelState) markSuccessful(sn s
 
 	// always disable the try kernel snap to cleanup in case we have upgrade
 	// failures which leave behind try-kernel.efi
-	err := erkibks.ebl.DisableTryKernel()
+	err := bks.ebl.DisableTryKernel()
 	if err != nil {
 		return err
 	}
@@ -178,14 +178,14 @@ func (erkibks *extractedRunKernelImageBootloaderKernelState) markSuccessful(sn s
 	return nil
 }
 
-func (erkibks *extractedRunKernelImageBootloaderKernelState) setNextKernel(sn snap.PlaceInfo) error {
+func (bks *extractedRunKernelImageBootloaderKernelState) setNextKernel(sn snap.PlaceInfo) error {
 	// always enable the try-kernel first, if we did the reverse and got
 	// rebooted after setting the boot vars but before enabling the try-kernel
 	// we could get stuck where the bootloader can't find the try-kernel and
 	// gets stuck waiting for a user to reboot, at which point we would fallback
 	// see i.e. https://github.com/snapcore/pc-amd64-gadget/issues/36
-	if sn.Filename() != erkibks.currentKernel.Filename() {
-		err := erkibks.ebl.EnableTryKernel(sn)
+	if sn.Filename() != bks.currentKernel.Filename() {
+		err := bks.ebl.EnableTryKernel(sn)
 		if err != nil {
 			return err
 		}
@@ -193,13 +193,13 @@ func (erkibks *extractedRunKernelImageBootloaderKernelState) setNextKernel(sn sn
 
 	// only if the new kernel status is different from what we read should we
 	// run SetBootVars() to minimize wear/corruption possibility on the bootenv
-	if erkibks.commitKernelStatus != erkibks.currentKernelStatus {
+	if bks.commitKernelStatus != bks.currentKernelStatus {
 		m := map[string]string{
-			"kernel_status": erkibks.commitKernelStatus,
+			"kernel_status": bks.commitKernelStatus,
 		}
 
 		// set the boot variables
-		return erkibks.ebl.SetBootVars(m)
+		return bks.ebl.SetBootVars(m)
 	}
 
 	return nil
