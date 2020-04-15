@@ -1,7 +1,7 @@
 summary: certain refresh sequence on the maas snap breaks the layout system
 systems: [ubuntu-18.04-64] # tight coupling with container guest
 prepare: |
-    snap install --candidate lxd
+    snap install lxd --channel="$LXD_SNAP_CHANNEL"
     snap set lxd waitready.timeout=240
     lxd waitready
     lxd init --auto
