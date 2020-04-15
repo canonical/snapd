@@ -879,7 +879,7 @@ fi
 
 
 %changelog
-* Thu Apr 10 2020 Michael Vogt <mvo@ubuntu.com>
+* Fri Apr 10 2020 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.44.3
  - tests: fix racy pulseaudio tests
  - many: fix loading apparmor profiles on Ubuntu 20.04 with ZFS
