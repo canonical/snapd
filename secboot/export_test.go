@@ -21,13 +21,47 @@
 package secboot
 
 import (
-	"github.com/snapcore/secboot"
+	sb "github.com/snapcore/secboot"
 )
 
-func MockSecbootConnectToDefaultTPM(f func() (*secboot.TPMConnection, error)) (restore func()) {
+type TPMSupport = tpmSupport
+
+func MockSbConnectToDefaultTPM(f func() (*secboot.TPMConnection, error)) (restore func()) {
 	old := secbootConnectToDefaultTPM
 	secbootConnectToDefaultTPM = f
 	return func() {
 		secbootConnectToDefaultTPM = old
+	}
+}
+
+func MockSbProvisionTPM(f func(tpm *sb.TPMConnection, mode sb.ProvisionMode, newLockoutAuth []byte) error) (restore func()) {
+	old := sbProvisionTPM
+	sbProvisionTPM = f
+	return func() {
+		sbProvisionTPM = old
+	}
+}
+
+func MockSbAddEFISecureBootPolicyProfile(f func(profile *sb.PCRProtectionProfile, params *sb.EFISecureBootPolicyProfileParams) error) (restore func()) {
+	old := sbAddEFISecureBootPolicyProfile
+	sbAddEFISecureBootPolicyProfile = f
+	return func() {
+		sbAddEFISecureBootPolicyProfile = old
+	}
+}
+
+func MockSbAddSystemdEFIStubProfile(f func(profile *sb.PCRProtectionProfile, params *sb.SystemdEFIStubProfileParams) error) (restore func()) {
+	old := sbAddSystemdEFIStubProfile
+	sbAddSystemdEFIStubProfile = f
+	return func() {
+		sbAddSystemdEFIStubProfile = old
+	}
+}
+
+func MockSbSealKeyToTPM(f func(tpm *sb.TPMConnection, key []byte, keyPath, policyUpdatePath string, params *sb.KeyCreationParams) error) (restore func()) {
+	old := sbSealKeyToTPM
+	sbSealKeyToTPM = f
+	return func() {
+		sbSealKeyToTPM = old
 	}
 }

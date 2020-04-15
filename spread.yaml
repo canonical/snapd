@@ -107,6 +107,7 @@ backends:
                 storage: preserve-size
             - centos-7-64:
                 workers: 6
+                storage: preserve-size
                 image: centos-7-64
 
     # TODO: spread is really unhappy when it sees a backend without any systems,
@@ -125,6 +126,7 @@ backends:
                 workers: 6
             - centos-8-64:
                 workers: 4
+                storage: preserve-size
                 image: centos-8-64
 
     google-sru:
