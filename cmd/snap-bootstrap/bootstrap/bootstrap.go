@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/partition"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/secboot"
 )
 
 const (
@@ -172,7 +173,7 @@ func tpmSealKey(key partition.EncryptionKey, rkey partition.RecoveryKey, options
 		return fmt.Errorf("cannot store recovery key: %v", err)
 	}
 
-	tpm, err := newTPMSupport()
+	tpm, err := secboot.NewTPMSupport()
 	if err != nil {
 		return fmt.Errorf("cannot initialize TPM: %v", err)
 	}
@@ -186,14 +187,14 @@ func tpmSealKey(key partition.EncryptionKey, rkey partition.RecoveryKey, options
 	shim := filepath.Join(boot.InitramfsUbuntuBootDir, "EFI/boot/bootx64.efi")
 	grub := filepath.Join(boot.InitramfsUbuntuBootDir, "EFI/boot/grubx64.efi")
 
-	if err := tpm.SetShimFile(shim); err != nil {
+	if err := tpm.SetShimFiles(shim); err != nil {
 		return err
 	}
-	if err := tpm.SetBootloaderFile(grub); err != nil {
+	if err := tpm.SetBootloaderFiles(grub); err != nil {
 		return err
 	}
 	if options.KernelPath != "" {
-		if err := tpm.SetKernelFile(options.KernelPath); err != nil {
+		if err := tpm.SetKernelFiles(options.KernelPath); err != nil {
 			return err
 		}
 	}

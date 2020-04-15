@@ -19,50 +19,7 @@
 
 package bootstrap
 
-import (
-	"github.com/snapcore/secboot"
-)
-
 var (
 	EnsureLayoutCompatibility = ensureLayoutCompatibility
 	DeviceFromRole            = deviceFromRole
-	KernelCmdlines            = kernelCmdlines
 )
-
-type TPMSupport = tpmSupport
-
-func MockSecbootProvisionTPM(f func(tpm *secboot.TPMConnection, mode secboot.ProvisionMode,
-	newLockoutAuth []byte) error) (restore func()) {
-	old := secbootProvisionTPM
-	secbootProvisionTPM = f
-	return func() {
-		secbootProvisionTPM = old
-	}
-}
-
-func MockSecbootAddEFISecureBootPolicyProfile(f func(profile *secboot.PCRProtectionProfile,
-	params *secboot.EFISecureBootPolicyProfileParams) error) (restore func()) {
-	old := secbootAddEFISecureBootPolicyProfile
-	secbootAddEFISecureBootPolicyProfile = f
-	return func() {
-		secbootAddEFISecureBootPolicyProfile = old
-	}
-}
-
-func MockSecbootAddSystemdEFIStubProfile(f func(profile *secboot.PCRProtectionProfile,
-	params *secboot.SystemdEFIStubProfileParams) error) (restore func()) {
-	old := secbootAddSystemdEFIStubProfile
-	secbootAddSystemdEFIStubProfile = f
-	return func() {
-		secbootAddSystemdEFIStubProfile = old
-	}
-}
-
-func MockSecbootSealKeyToTPM(f func(tpm *secboot.TPMConnection, key []byte, keyPath, policyUpdatePath string,
-	params *secboot.KeyCreationParams) error) (restore func()) {
-	old := secbootSealKeyToTPM
-	secbootSealKeyToTPM = f
-	return func() {
-		secbootSealKeyToTPM = old
-	}
-}
