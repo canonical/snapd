@@ -67,7 +67,7 @@ func (s *secbootSuite) TestCheckKeySealingSupported(c *C) {
 		{true, sbDisabled, "secure boot is disabled"},
 		{false, sbEnabled, "cannot connect to TPM device: TPM not available"},
 		{false, sbDisabled, "secure boot is disabled"},
-		{true, efiNotSupported, "cannot read secure boot variable: not a supported EFI system"},
+		{true, efiNotSupported, "not a supported EFI system"},
 	} {
 		c.Logf("t: %v %v %q", t.hasTPM, t.sbData, t.errStr)
 

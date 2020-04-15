@@ -35,6 +35,7 @@ var secbootConnectToDefaultTPM = sb.ConnectToDefaultTPM
 func CheckKeySealingSupported() error {
 	logger.Noticef("checking if secure boot is enabled...")
 	if err := checkSecureBootEnabled(); err != nil {
+		logger.Noticef("secure boot not enabled: %v", err)
 		return err
 	}
 	logger.Noticef("secure boot is enabled")
@@ -42,7 +43,9 @@ func CheckKeySealingSupported() error {
 	logger.Noticef("checking if TPM device is available...")
 	tconn, err := secbootConnectToDefaultTPM()
 	if err != nil {
-		return fmt.Errorf("cannot connect to TPM device: %v", err)
+		err = fmt.Errorf("cannot connect to TPM device: %v", err)
+		logger.Noticef("%v", err)
+		return err
 	}
 	logger.Noticef("TPM device detected")
 	return tconn.Close()
@@ -51,6 +54,9 @@ func CheckKeySealingSupported() error {
 func checkSecureBootEnabled() error {
 	b, _, err := efi.ReadVarBytes("SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c")
 	if err != nil {
+		if err == efi.ErrNoEFISystem {
+			return err
+		}
 		return fmt.Errorf("cannot read secure boot variable: %v", err)
 	}
 	if len(b) < 1 {
