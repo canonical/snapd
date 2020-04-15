@@ -456,7 +456,7 @@ func selectSuccessfulBootSnap(b bootState, update bootStateUpdate) (
 	// kernel_status and base_status go from "" -> "try" (set by snapd), to
 	// "try" -> "trying" (set by the boot script)
 	// so if we are in "trying" mode, then we should choose the try snap
-	if status == TryingStatus {
+	if status == TryingStatus && trySnap != nil {
 		return bsmark, trySnap, nil
 	}
 
