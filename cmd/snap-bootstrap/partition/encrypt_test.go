@@ -71,7 +71,8 @@ func (s *encryptSuite) TestEncryptHappy(c *C) {
 	c.Assert(s.mockCryptsetup.Calls(), DeepEquals, [][]string{
 		{
 			"cryptsetup", "-q", "luksFormat", "--type", "luks2", "--key-file", "-",
-			"--pbkdf", "argon2i", "--iter-time", "1", "--label", "some-label-enc", "/dev/node1",
+			"--cipher", "aes-xts-plain64", "--key-size", "512", "--pbkdf", "argon2i",
+			"--iter-time", "1", "--label", "some-label-enc", "/dev/node1",
 		},
 		{
 			"cryptsetup", "open", "--key-file", "-", "/dev/node1", "some-label",
@@ -116,7 +117,8 @@ func (s *encryptSuite) TestEncryptAddKey(c *C) {
 	c.Assert(s.mockCryptsetup.Calls(), DeepEquals, [][]string{
 		{
 			"cryptsetup", "-q", "luksFormat", "--type", "luks2", "--key-file", "-",
-			"--pbkdf", "argon2i", "--iter-time", "1", "--label", "some-label-enc", "/dev/node1",
+			"--cipher", "aes-xts-plain64", "--key-size", "512", "--pbkdf", "argon2i",
+			"--iter-time", "1", "--label", "some-label-enc", "/dev/node1",
 		},
 		{
 			"cryptsetup", "open", "--key-file", "-", "/dev/node1", "some-label",

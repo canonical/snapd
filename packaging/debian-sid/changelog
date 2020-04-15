@@ -1,3 +1,37 @@
+snapd (2.44.3-1) unstable; urgency=medium
+
+  * New upstream release, LP: #1864808
+    - tests: fix racy pulseaudio tests
+    - many: fix loading apparmor profiles on Ubuntu 20.04 with ZFS
+    - tests: update snap-preseed --reset logic
+    - tests: backport partition fixes
+    - cmd/snap: don't wait for system key when stopping
+    - interfaces/many: miscellaneous policy updates xliv
+    - tests/main/uc20-snap-recovery: use 20.04 system
+    - tests: skip "/etc/machine-id" in "writablepaths
+    - interfaces/docker-support: add overlays file access
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 10 Apr 2020 16:57:25 +0200
+
+snapd (2.44.2-1) unstable; urgency=medium
+
+  * New upstream release, LP: #1864808
+    - packaging: detect/disable broken seeds in the postinst
+    - cmd/snap,seed: validate full seeds (UC 16/18)
+    - snap: add `snap debug state --is-seeded` helper
+    - devicestate: generate warning if seeding fails
+    - store: support for search API v2
+    - cmd/snap-seccomp/syscalls: update the list of known syscalls
+    - snap/cmd: the model command needs just a client, no waitMixin
+    - tests: cleanup security-private-tmp properly
+    - wrappers: fix timer schedules that are days only
+    - tests: update proxy-no-core to match latest CDN changes
+    - cmd/snap-failure,tests: make snap-failure more robust
+    - tests, many: don't use StartLimitInterval anymore, unify snapd-
+      failover variants, build snapd snap for UC16 tests
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 02 Apr 2020 09:51:34 +0200
+
 snapd (2.44.1-1) unstable; urgency=medium
 
   * New upstream release, LP: #1864808

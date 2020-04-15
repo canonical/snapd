@@ -220,9 +220,8 @@ func ensureLayoutCompatibility(gadgetLayout *gadget.LaidOutVolume, diskLayout *p
 		if gv.Role == gadget.SystemData {
 			// system-data may have been expanded
 			return check && dv.Size >= gv.Size
-		} else {
-			return check && dv.Size == gv.Size
 		}
+		return check && dv.Size == gv.Size
 	}
 	contains := func(haystack []gadget.LaidOutStructure, needle partition.DeviceStructure) bool {
 		for _, h := range haystack {

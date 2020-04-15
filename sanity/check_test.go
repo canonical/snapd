@@ -32,13 +32,22 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sanity"
+	"github.com/snapcore/snapd/testutil"
 )
 
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
-type sanitySuite struct{}
+type sanitySuite struct {
+	testutil.BaseTest
+}
+
+func (s *sanitySuite) SetUpTest(c *C) {
+	restore := osutil.MockMountInfo("")
+	s.AddCleanup(restore)
+}
 
 var _ = Suite(&sanitySuite{})
 

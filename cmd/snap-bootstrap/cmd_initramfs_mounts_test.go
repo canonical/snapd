@@ -644,6 +644,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeKernelSnapUpgradeHappy(
 `, boot.InitramfsRunMntDir))
 }
 
+// TODO:UC20: in this case snap-bootstrap should request a reboot, since we
+//            already booted the try snap, so mounting the fallback kernel will
+//            not match in some cases
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUntrustedKernelSnap(c *C) {
 	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
@@ -695,6 +698,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUntrustedKernelSnap(c *
 	c.Assert(n, Equals, 5)
 }
 
+// TODO:UC20: in this case snap-bootstrap should request a reboot, since we
+//            already booted the try snap, so mounting the fallback kernel will
+//            not match in some cases
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUntrustedTryKernelSnapFallsBack(c *C) {
 	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
