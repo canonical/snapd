@@ -171,7 +171,7 @@ func Run(gadgetRoot, device string, options Options) error {
 // TODO:UC20: get cmdline definition from bootloaders
 var kernelCmdlines = []string{
 	// run mode
-	"console=ttyS0 console=tty1 panic=-1 systemd.gpt_auto=0 init=/sbin/init snapd_recovery_mode=run",
+	"console=ttyS0 console=tty1 panic=-1 systemd.gpt_auto=0 rd.systemd.unit=basic.target snapd_recovery_mode=run",
 }
 
 func tpmSealKey(key partition.EncryptionKey, rkey partition.RecoveryKey, options Options) error {
