@@ -24,6 +24,14 @@ jobs:
         # NOTE: checkout the code in a fixed location, even for forks, as this
         # is relevant for go's import system.
         path: ./src/github.com/snapcore/snapd
+
+    - name: Cache snapd test results
+      id: cache-snapd-test-results
+      uses: actions/cache@v1
+      with:
+        path: "${{ github.workspace }}/.test-results"
+        key: "${{ github.run_id }}-${{ github.job }}-results"
+
     - name: Make /var/cache/apt owned by current user
       run: sudo chown -R $(id -u) /var/cache/apt
     - name: Cache Debian dependencies
@@ -63,19 +71,40 @@ jobs:
         key: go-govendor-{{ hashFiles('**/vendor.json') }}
     - name: Get Go dependencies
       run: cd ${{ github.workspace }}/src/github.com/snapcore/snapd && ${{ github.workspace }}/bin/govendor sync
+    - name: Prepare results store
+      run: mkdir "${{ github.workspace }}/.test-results"
     - name: Run static checks
-      run: cd ${{ github.workspace }}/src/github.com/snapcore/snapd && ./run-checks --static
+      run: |
+        stamp="${{ github.workspace }}/${{ github.run_id }}-${{ github.job }}-${{ github.action }}-success"
+        if [ -e "$stamp" ]; then
+            echo "cached success result"
+        fi
+        cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
+        ./run-checks --static
+        touch "$stamp"
     - name: Build C
       run: |
-          cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/
-          ./autogen.sh
-          make -j2
+        stamp="${{ github.workspace }}/${{ github.run_id }}-${{ github.job }}-${{ github.action }}-success"
+        if [ -e "$stamp" ]; then
+            echo "cached success result"
+        fi
+        cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/
+        ./autogen.sh
+        make -j2
+        touch "$stamp"
     - name: Build Go
       run: go build github.com/snapcore/snapd/...
     - name: Test C
       run: cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/ && make check
     - name: Test Go
-      run: cd ${{ github.workspace }}/src/github.com/snapcore/snapd && ./run-checks --unit
+      run: |
+        stamp="${{ github.workspace }}/${{ github.run_id }}-${{ github.job }}-${{ github.action }}-success"
+        if [ -e "$stamp" ]; then
+            echo "cached success result"
+        fi
+        cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
+        ./run-checks --unit
+        touch "$stamp"
 
   spread-unstable:
     needs: [unit-tests-go-latest]
