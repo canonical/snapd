@@ -16,8 +16,8 @@ else
 fi
 COVERMODE=${COVERMODE:-atomic}
 
-if [ -z "${TRAVIS_BUILD_ID:-}" ]; then
-    # when *not* running inside travis, ensure we use go-1.10 by default
+if [ -z "${TRAVIS_BUILD_ID:-}" ] && [ -z "${GITHUB_WORKFLOW:-}" ]; then
+    # when *not* running inside travis/gh, ensure we use go-1.10 by default
     export PATH=/usr/lib/go-1.10/bin:${PATH}
 fi
 
@@ -283,6 +283,10 @@ fi
 
 if [ "$UNIT" = 1 ]; then
     ./get-deps.sh
+
+    echo "Show go version"
+    command -v go
+    go version
 
     echo Building
     go build -v github.com/snapcore/snapd/...
