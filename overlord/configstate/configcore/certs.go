@@ -75,14 +75,14 @@ func handleCertConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 		case "":
 			// remove
 			if err := os.Remove(certPath); err != nil && !os.IsNotExist(err) {
-				return fmt.Errorf("cannot remove cert: %v", err)
+				return fmt.Errorf("cannot remove store certificate: %v", err)
 			}
 		default:
 			if err := os.MkdirAll(dirs.SnapdStoreSSLCertsDir, 0755); err != nil {
 				return fmt.Errorf("cannot create store ssl certs dir: %v", err)
 			}
 			if err := ioutil.WriteFile(certPath, []byte(cert), 0644); err != nil {
-				return fmt.Errorf("cannot write extra cert: %v", err)
+				return fmt.Errorf("cannot write store certificate: %v", err)
 			}
 		}
 	}
@@ -104,7 +104,7 @@ func validateCertSettings(tr config.Conf) error {
 		if cert != "" {
 			optionName := strings.SplitN(name, ".", 3)[2]
 			if !validCertName(optionName) {
-				return fmt.Errorf("cannot set %q: name must only contain word characters or a dash", optionName)
+				return fmt.Errorf("cannot set store ssl certificate under name %q: name must only contain word characters or a dash", optionName)
 			}
 			// copied validation code from
 			// go:crypto/x509/cert_pool.go:AppendCertsFromPEM()

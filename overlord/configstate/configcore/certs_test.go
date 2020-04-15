@@ -52,7 +52,7 @@ func (s *certsSuite) TestConfigureCertsUnhappyName(c *C) {
 			"store-certs.cert-illegal-!": "xxx",
 		},
 	})
-	c.Assert(err, ErrorMatches, `cannot set "core.store-certs.cert-illegal-!": name must only contain word characters or a dash`)
+	c.Assert(err, ErrorMatches, `cannot set store ssl certificate under name "core.store-certs.cert-illegal-!": name must only contain word characters or a dash`)
 }
 
 func (s *certsSuite) TestConfigureCertsUnhappyContent(c *C) {

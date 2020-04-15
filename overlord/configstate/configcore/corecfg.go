@@ -34,7 +34,7 @@ var (
 
 	validCertRegexp = `[\w](?:-?[\w])*`
 	validCertName   = regexp.MustCompile(validCertRegexp).MatchString
-	validCertOption = regexp.MustCompile("^core.store-certs." + validCertRegexp + "$").MatchString
+	validCertOption = regexp.MustCompile(`^core\.store-certs\.` + validCertRegexp + "$").MatchString
 )
 
 // coreCfg returns the configuration value for the core snap.

@@ -40,7 +40,7 @@ func init() {
 	// proxy.{http,https,ftp}
 	addWithStateHandler(validateProxyStore, handleProxyConfiguration, coreOnly)
 
-	// XXX: should this become a FSOnlyHandler? If so we need to
+	// XXX: this should become a FSOnlyHandler. We need to
 	// add/implement Changes() to the ConfGetter interface
 	// store-certs.*
 	addWithStateHandler(validateCertSettings, handleCertConfiguration, nil)
@@ -103,7 +103,7 @@ func Run(cfg config.Conf) error {
 		switch {
 		case strings.HasPrefix(k, "core.store-certs."):
 			if !validCertOption(k) {
-				return fmt.Errorf("cannot set %q: name must only contain word characters or a dash", k)
+				return fmt.Errorf("cannot set store ssl certificate under name %q: name must only contain word characters or a dash", k)
 			}
 		case !supportedConfigurations[k]:
 			return fmt.Errorf("cannot set %q: unsupported system option", k)
