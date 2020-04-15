@@ -1,5 +1,4 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build !nosecboot
 
 /*
  * Copyright (C) 2020 Canonical Ltd
@@ -20,20 +19,7 @@
 
 package secboot
 
-import (
-	"fmt"
-
-	sb "github.com/snapcore/secboot"
-
-	"github.com/snapcore/snapd/logger"
-)
-
-func CheckKeySealingSupported() error {
-	logger.Noticef("checking TPM device availability...")
-	tconn, err := sb.ConnectToDefaultTPM()
-	if err != nil {
-		return fmt.Errorf("cannot connect to TPM device: %v", err)
-	}
-	logger.Noticef("TPM device detected")
-	return tconn.Close()
-}
+// This file must not have a build-constraint and must not import
+// the github.com/snapcore/secboot repository. That will ensure
+// it can be build as part of the debian build without secboot.
+// Debian does run "go list" without any support for passing -tags.
