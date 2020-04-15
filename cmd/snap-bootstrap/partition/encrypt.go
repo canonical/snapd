@@ -40,7 +40,7 @@ var (
 const (
 	// The encryption key size is set so it has the same entropy as the derived
 	// key. The recovery key is shorter and goes through KDF iterations.
-	encryptionKeySize = 32
+	encryptionKeySize = 64
 	recoveryKeySize   = 16
 )
 
@@ -134,6 +134,8 @@ func cryptsetupFormat(key EncryptionKey, label, node string) error {
 		"--type", "luks2",
 		// read key from stdin
 		"--key-file", "-",
+		// use AES-256 with XTS block cipher mode (XTS requires 2 keys)
+		"--cipher", "aes-xts-plain64", "--key-size", "512",
 		// use --iter-time 1 with the default KDF argon2i so
 		// to do virtually no derivation, here key is a random
 		// key with good entropy, not a passphrase, so
