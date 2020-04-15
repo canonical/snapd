@@ -30,7 +30,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 )
 
-var secbootConnectToDefaultTPM = sb.ConnectToDefaultTPM
+var sbConnectToDefaultTPM = sb.ConnectToDefaultTPM
 
 func CheckKeySealingSupported() error {
 	logger.Noticef("checking if secure boot is enabled...")
@@ -41,7 +41,7 @@ func CheckKeySealingSupported() error {
 	logger.Noticef("secure boot is enabled")
 
 	logger.Noticef("checking if TPM device is available...")
-	tconn, err := secbootConnectToDefaultTPM()
+	tconn, err := sbConnectToDefaultTPM()
 	if err != nil {
 		err = fmt.Errorf("cannot connect to TPM device: %v", err)
 		logger.Noticef("%v", err)

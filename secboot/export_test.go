@@ -26,11 +26,11 @@ import (
 
 type TPMSupport = tpmSupport
 
-func MockSbConnectToDefaultTPM(f func() (*secboot.TPMConnection, error)) (restore func()) {
-	old := secbootConnectToDefaultTPM
-	secbootConnectToDefaultTPM = f
+func MockSbConnectToDefaultTPM(f func() (*sb.TPMConnection, error)) (restore func()) {
+	old := sbConnectToDefaultTPM
+	sbConnectToDefaultTPM = f
 	return func() {
-		secbootConnectToDefaultTPM = old
+		sbConnectToDefaultTPM = old
 	}
 }
 

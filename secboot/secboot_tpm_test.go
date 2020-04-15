@@ -71,7 +71,7 @@ func (s *secbootSuite) TestCheckKeySealingSupported(c *C) {
 	} {
 		c.Logf("t: %v %v %q", t.hasTPM, t.sbData, t.errStr)
 
-		restore := secboot.MockSecbootConnectToDefaultTPM(func() (*sb.TPMConnection, error) {
+		restore := secboot.MockSbConnectToDefaultTPM(func() (*sb.TPMConnection, error) {
 			if !t.hasTPM {
 				return nil, errors.New("TPM not available")
 			}
