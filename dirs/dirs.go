@@ -91,8 +91,9 @@ var (
 	SnapSystemdConfDir  string
 	SnapDesktopFilesDir string
 	SnapDesktopIconsDir string
-	SnapBusPolicyDir    string
 
+	SnapBusPolicyDir           string
+	SnapBusSessionPolicyDir    string
 	SnapDBusSessionServicesDir string
 	SnapDBusSystemServicesDir  string
 
@@ -339,6 +340,7 @@ func SetRootDir(rootdir string) {
 	SnapUserServicesDir = filepath.Join(rootdir, "/etc/systemd/user")
 	SnapSystemdConfDir = SnapSystemdConfDirUnder(rootdir)
 	SnapBusPolicyDir = filepath.Join(rootdir, "/etc/dbus-1/system.d")
+	SnapBusSessionPolicyDir = filepath.Join(rootdir, "/etc/dbus-1/session.d")
 
 	CloudMetaDataFile = filepath.Join(rootdir, "/var/lib/cloud/seed/nocloud-net/meta-data")
 	CloudInstanceDataFile = filepath.Join(rootdir, "/run/cloud-init/instance-data.json")
