@@ -1,10 +1,10 @@
-name: Tests go1.13
+name: Tests
 on:
   pull_request:
     branches: [ "master", "release/**" ]
 jobs:
-  unit-tests-1_13:
-    runs-on: ubuntu-18.04
+  unit-tests:
+    runs-on: ubuntu-16.04
     env:
       GOPATH: ${{ github.workspace }}
       GO111MODULE: off
@@ -14,9 +14,15 @@ jobs:
       # version of go.
       PATH: /snap/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games
       GOROOT: ""
-      # skip format checks on 1.13+
+      # XXX: only skip format checks on 1.13+
       SKIP_GOFMT: 1
-
+    strategy:
+      # we cache successful runs so it's fine to keep going
+      fail-fast: false      
+      matrix:
+        gochannel:
+          - 1.9
+          - latest/edge
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
@@ -24,6 +30,15 @@ jobs:
         # NOTE: checkout the code in a fixed location, even for forks, as this
         # is relevant for go's import system.
         path: ./src/github.com/snapcore/snapd
+
+    - name: Prepare results store
+      run: mkdir "${{ github.workspace }}/.test-results"
+    - name: Cache snapd test results
+      id: cache-snapd-test-results
+      uses: actions/cache@v1
+      with:
+        path: "${{ github.workspace }}/.test-results"
+        key: "${{ github.run_id }}-${{ github.job }}-results"
     - name: Make /var/cache/apt owned by current user
       run: sudo chown -R $(id -u) /var/cache/apt
     - name: Cache Debian dependencies
@@ -32,23 +47,25 @@ jobs:
       with:
         path: /var/cache/apt
         key: var-cache-apt-{{ hashFiles('**/debian/control') }}
-    - name: Run "apt update"
-      run: |
-          sudo apt update
     - name: Download Debian dependencies
       if: steps.cache-deb-downloads.outputs.cache-hit != 'true'
       run: |
           sudo apt clean
+          sudo apt update
           sudo apt build-dep -d -y ${{ github.workspace }}/src/github.com/snapcore/snapd
     # Work around caching files owned by root https://github.com/actions/cache/issues/133
     - name: Install Debian dependencies
-      run: sudo apt build-dep -y ${{ github.workspace }}/src/github.com/snapcore/snapd
-    # golang 1.13 is used on 20.04
+      run: |
+          [ -e "${{ github.workspace }}/.test-results/${{ matrix.gochannel }}-success" ] && exit 0
+          sudo apt build-dep -y ${{ github.workspace }}/src/github.com/snapcore/snapd
+    # golang latest ensures things work on the edge
     - name: Install the go snap
       run: |
-          sudo snap install --classic --channel=1.13 go
+          [ -e "${{ github.workspace }}/.test-results/${{ matrix.gochannel }}-success" ] && exit 0
+          sudo snap install --classic --channel=${{ matrix.gochannel }} go
     - name: Install ShellCheck as a snap
       run: |
+          [ -e "${{ github.workspace }}/.test-results/${{ matrix.gochannel }}-success" ] && exit 0
           sudo apt-get remove --purge shellcheck
           sudo snap install shellcheck
     - name: Make /var/cache/apt owned by current user
@@ -64,49 +81,86 @@ jobs:
     - name: Get Go dependencies
       run: cd ${{ github.workspace }}/src/github.com/snapcore/snapd && ${{ github.workspace }}/bin/govendor sync
     - name: Run static checks
-      run: cd ${{ github.workspace }}/src/github.com/snapcore/snapd && ./run-checks --static
+      run: |
+          [ -e "${{ github.workspace }}/.test-results/${{ matrix.gochannel }}-success" ] && exit 0
+          cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
+          ./run-checks --static
     - name: Build C
       run: |
+          [ -e "${{ github.workspace }}/.test-results/${{ matrix.gochannel }}-success" ] && exit 0
           cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/
           ./autogen.sh
           make -j2
     - name: Build Go
       run: go build github.com/snapcore/snapd/...
     - name: Test C
-      run: cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/ && make check
+      run: |
+          [ -e "${{ github.workspace }}/.test-results/${{ matrix.gochannel }}-success" ] && exit 0
+          cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/ && make check
     - name: Test Go
-      run: cd ${{ github.workspace }}/src/github.com/snapcore/snapd && ./run-checks --unit
+      run: |
+        [ -e "${{ github.workspace }}/.test-results/${{ matrix.gochannel }}-success" ] && exit 0
+        cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
+        ./run-checks --unit
+    - name: Cache successful run
+      run: |
+        stamp="${{ github.workspace }}/.test-results/${{ matrix.gochannel }}-success"
+        mkdir -p $(dirname "$stamp")
+        touch "$stamp"        
 
-  spread:
-    needs: [unit-tests-1_13]
+
+  spread-unstable:
+    needs: [unit-tests]
     runs-on: self-hosted
     strategy:
       # FIXME: enable fail-fast mode once spread can cancel an executing job.
-      #
-      # Disable fail-fast mode as it doesn't function with spread. It seems
-      # that cancelling tasks requires short, interruptible actions and
-      # interrupting spread, notably, does not work today. As such disable
-      # fail-fast while we tackle that problem upstream.
       fail-fast: false
       matrix:
         system:
+        - centos-8-64
+        - opensuse-15.1-64
+        - opensuse-tumbleweed-64
+        - ubuntu-14.04-64
+        - ubuntu-18.04-64
+        - ubuntu-core-18-64
+        - debian-9-64
+        - arch-linux-64
+        - amazon-linux-2-64
+        - centos-7-64
         - ubuntu-19.10-64
         - ubuntu-20.04-64
         - ubuntu-core-20-64
         - debian-sid-64
         - fedora-30-64
         - fedora-31-64
+        - ubuntu-16.04-64
+        - ubuntu-16.04-32
+        - ubuntu-core-16-64
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
+    - name: Cache snapd test results
+      id: cache-snapd-test-results
+      uses: actions/cache@v1
+      with:
+        path: "${{ github.workspace }}/.test-results"
+        key: "${{ github.run_id }}-${{ github.job }}-results"
+    - name: Prepare results store
+      run: mkdir -p "${{ github.workspace }}/.test-results"
     - name: Run spread tests
       env:
           SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
       if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
       run: |
+          stamp="${{ github.workspace }}/.test-results/${{ matrix.gochannel }}-success"
+          if [ -e "$stamp" ]; then
+              echo "cached success result"
+              exit 0
+          fi
           # Register a problem matcher to highlight spread failures
           echo "::add-matcher::.github/spread-problem-matcher.json"
-          spread google:${{ matrix.system }}:tests/...
+          spread -abend google-unstable:${{ matrix.system }}:tests/...
+          touch "$stamp"
     - name: Discard spread workers
       if: always()
       run: |
