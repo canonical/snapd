@@ -55,16 +55,6 @@ func (s *certsSuite) TestConfigureCertsUnhappyName(c *C) {
 	c.Assert(err, ErrorMatches, `cannot set store ssl certificate under name "core.store-certs.cert-illegal-!": name must only contain word characters or a dash`)
 }
 
-func (s *certsSuite) TestConfigureCertsUnhappyContent(c *C) {
-	err := configcore.Run(&mockConf{
-		state: s.state,
-		changes: map[string]interface{}{
-			"store-certs.cert-bad": "xxx",
-		},
-	})
-	c.Assert(err, ErrorMatches, `cannot decode pem certificate "cert-bad"`)
-}
-
 var mockCert = `-----BEGIN CERTIFICATE-----
 MIIEIDCCAwigAwIBAgIQNE7VVyDV7exJ9C/ON9srbTANBgkqhkiG9w0BAQUFADCB
 qTELMAkGA1UEBhMCVVMxFTATBgNVBAoTDHRoYXd0ZSwgSW5jLjEoMCYGA1UECxMf
@@ -88,11 +78,6 @@ YJ3rG9XRbkREqaYB7FViHXe4XI5ISXycO1cRrK1zN44veFyQaEfZYGDm/Ac9IiAX
 xPcW6cTYcvnIc3zfFi8VqT79aie2oetaupgf1eNNZAqdE8hhuvU5HIe6uL17In/2
 /qxAeeWsEG89jxt5dovEN7MhGITlNgDrYyCZuen+MwS7QcjBAvlEYyCegc5C09Y/
 LHbTY5xZ3Y+m4Q6gLkH3LpVHz7z9M/P2C2F+fpErgUfCJzDupxBdN49cOSvkBPB7
-jVaMaA==
------END CERTIFICATE-----
-`
-
-var certThatFailsToParse = `-----BEGIN CERTIFICATE-----
 jVaMaA==
 -----END CERTIFICATE-----
 `
@@ -146,6 +131,11 @@ func (s *certsSuite) TestConfigureCertsSimulteRevert(c *C) {
 	c.Assert(filepath.Join(dirs.SnapdStoreSSLCertsDir, "certthatwillbereverted.pem"), testutil.FileAbsent)
 }
 
+var certThatFailsToParse = `-----BEGIN CERTIFICATE-----
+jVaMaA==
+-----END CERTIFICATE-----
+`
+
 func (s *certsSuite) TestConfigureCertsFailsToParse(c *C) {
 	err := configcore.Run(&mockConf{
 		state: s.state,
@@ -153,5 +143,15 @@ func (s *certsSuite) TestConfigureCertsFailsToParse(c *C) {
 			"store-certs.cert1": certThatFailsToParse,
 		},
 	})
-	c.Assert(err, ErrorMatches, `cannot parse pem certificate "cert1"`)
+	c.Assert(err, ErrorMatches, `cannot decode pem certificate "cert1"`)
+}
+
+func (s *certsSuite) TestConfigureCertsUnhappyContent(c *C) {
+	err := configcore.Run(&mockConf{
+		state: s.state,
+		changes: map[string]interface{}{
+			"store-certs.cert-bad": "xxx",
+		},
+	})
+	c.Assert(err, ErrorMatches, `cannot decode pem certificate "cert-bad"`)
 }

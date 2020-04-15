@@ -21,7 +21,6 @@ package configcore
 
 import (
 	"crypto/x509"
-	"encoding/pem"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -106,27 +105,8 @@ func validateCertSettings(tr config.Conf) error {
 			if !validCertName(optionName) {
 				return fmt.Errorf("cannot set store ssl certificate under name %q: name must only contain word characters or a dash", optionName)
 			}
-			// copied validation code from
-			// go:crypto/x509/cert_pool.go:AppendCertsFromPEM()
-			pemCerts := []byte(cert)
-			ok := false
-			for len(pemCerts) > 0 {
-				var block *pem.Block
-				block, pemCerts = pem.Decode(pemCerts)
-				if block == nil {
-					break
-				}
-				if block.Type != "CERTIFICATE" || len(block.Headers) != 0 {
-					continue
-				}
-				_, err := x509.ParseCertificate(block.Bytes)
-				if err != nil {
-					return fmt.Errorf("cannot parse pem certificate %q", optionName)
-
-				}
-				ok = true
-			}
-			if !ok {
+			cp := x509.NewCertPool()
+			if !cp.AppendCertsFromPEM([]byte(cert)) {
 				return fmt.Errorf("cannot decode pem certificate %q", optionName)
 			}
 		}
