@@ -71,6 +71,11 @@ func (s *deviceMgrInstallModeSuite) SetUpTest(c *C) {
 	})
 	s.AddCleanup(restore)
 
+	restore = devicestate.MockSecbootCheckKeySealingSupported(func() error {
+		return fmt.Errorf("TPM not available")
+	})
+	s.AddCleanup(restore)
+
 	s.state.Lock()
 	defer s.state.Unlock()
 	s.state.Set("seeded", true)

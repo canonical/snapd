@@ -23,7 +23,6 @@ package secboot_test
 import (
 	"io/ioutil"
 	"path/filepath"
-	"testing"
 
 	"github.com/chrisccoulson/go-tpm2"
 	sb "github.com/snapcore/secboot"
@@ -33,8 +32,6 @@ import (
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/testutil"
 )
-
-func TestSecboot(t *testing.T) { TestingT(t) }
 
 type secbootTPMSuite struct {
 	testutil.BaseTest

@@ -21,19 +21,51 @@
 package secboot
 
 import (
+	"errors"
 	"fmt"
 
 	sb "github.com/snapcore/secboot"
 
+	"github.com/snapcore/snapd/bootloader/efi"
 	"github.com/snapcore/snapd/logger"
 )
 
+var sbConnectToDefaultTPM = sb.ConnectToDefaultTPM
+
 func CheckKeySealingSupported() error {
-	logger.Noticef("checking TPM device availability...")
-	tconn, err := sb.ConnectToDefaultTPM()
+	logger.Noticef("checking if secure boot is enabled...")
+	if err := checkSecureBootEnabled(); err != nil {
+		logger.Noticef("secure boot not enabled: %v", err)
+		return err
+	}
+	logger.Noticef("secure boot is enabled")
+
+	logger.Noticef("checking if TPM device is available...")
+	tconn, err := sbConnectToDefaultTPM()
 	if err != nil {
-		return fmt.Errorf("cannot connect to TPM device: %v", err)
+		err = fmt.Errorf("cannot connect to TPM device: %v", err)
+		logger.Noticef("%v", err)
+		return err
 	}
 	logger.Noticef("TPM device detected")
 	return tconn.Close()
+}
+
+func checkSecureBootEnabled() error {
+	// 8be4df61-93ca-11d2-aa0d-00e098032b8c is the EFI Global Variable vendor GUID
+	b, _, err := efi.ReadVarBytes("SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c")
+	if err != nil {
+		if err == efi.ErrNoEFISystem {
+			return err
+		}
+		return fmt.Errorf("cannot read secure boot variable: %v", err)
+	}
+	if len(b) < 1 {
+		return errors.New("secure boot variable does not exist")
+	}
+	if b[0] != 1 {
+		return errors.New("secure boot is disabled")
+	}
+
+	return nil
 }
