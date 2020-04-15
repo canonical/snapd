@@ -1,9 +1,7 @@
 summary: Integration tests for the snap-bootstrap binary
 
-# testing on 19.10/20.04 is enough, its a very specialized test
-# TODO:UC20: remove 19.10-64 system once ubuntu-20.04-64 becomes available
-#            inside spread
-systems: [ubuntu-19.10-64, ubuntu-20.04-64]
+# use the same system and tooling as uc20
+systems: [ubuntu-20.04-64]
 
 debug: |
     cat /proc/partitions
@@ -61,7 +59,7 @@ execute: |
         ./gadget-dir "$LOOP"
 
     echo "Check that the key file was created"
-    test "$(stat --printf="%s" ./keyfile)" = 32
+    test "$(stat --printf="%s" ./keyfile)" = 64
 
     echo "Check that the partitions are created"
     sfdisk -d "$LOOP" | MATCH "^${LOOP}p1 .*size=\s*2048, type=21686148-6449-6E6F-744E-656564454649,.*BIOS Boot"
