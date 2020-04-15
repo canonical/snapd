@@ -26,6 +26,14 @@ import (
 
 type TPMSupport = tpmSupport
 
+func MockSbConnectToDefaultTPM(f func() (*sb.TPMConnection, error)) (restore func()) {
+	old := sbConnectToDefaultTPM
+	sbConnectToDefaultTPM = f
+	return func() {
+		sbConnectToDefaultTPM = old
+	}
+}
+
 func MockSbProvisionTPM(f func(tpm *sb.TPMConnection, mode sb.ProvisionMode, newLockoutAuth []byte) error) (restore func()) {
 	old := sbProvisionTPM
 	sbProvisionTPM = f
