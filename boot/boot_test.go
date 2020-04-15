@@ -550,9 +550,9 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20KernelStatusTryingNoKernelSnapC
 	_, nEnableCalls := s.bootloader.GetRunKernelImageFunctionSnapCalls("EnableKernel")
 	c.Assert(nEnableCalls, Equals, 0)
 
-	// we also didn't disable a try kernel (because it didn't exist)
+	// we will always end up disabling a try-kernel though as cleanup
 	_, nDisableTryCalls := s.bootloader.GetRunKernelImageFunctionSnapCalls("DisableTryKernel")
-	c.Assert(nDisableTryCalls, Equals, 0)
+	c.Assert(nDisableTryCalls, Equals, 1)
 
 	// do it again, verify it's still okay
 	err = boot.MarkBootSuccessful(coreDev)
@@ -563,10 +563,9 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20KernelStatusTryingNoKernelSnapC
 	_, nEnableCalls = s.bootloader.GetRunKernelImageFunctionSnapCalls("EnableKernel")
 	c.Assert(nEnableCalls, Equals, 0)
 
-	// we did disable a try kernel here though because we always do that as a
-	// cleanup operation
+	// again we will always disable try-kernels as cleanup
 	_, nDisableTryCalls = s.bootloader.GetRunKernelImageFunctionSnapCalls("DisableTryKernel")
-	c.Assert(nDisableTryCalls, Equals, 1)
+	c.Assert(nDisableTryCalls, Equals, 2)
 
 	// check that the modeenv re-wrote the CurrentKernels
 	m2, err := boot.ReadModeenv("")
