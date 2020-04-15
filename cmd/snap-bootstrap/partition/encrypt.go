@@ -54,15 +54,6 @@ func NewEncryptionKey() (EncryptionKey, error) {
 	return key, err
 }
 
-// Store writes the LUKS key in the location specified by filename.
-func (key EncryptionKey) Store(filename string) error {
-	if err := ioutil.WriteFile(filename, key[:], 0600); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 type RecoveryKey [recoveryKeySize]byte
 
 func NewRecoveryKey() (RecoveryKey, error) {
@@ -78,7 +69,7 @@ func (key RecoveryKey) Store(filename string) error {
 	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
 		return err
 	}
-	return ioutil.WriteFile(filename, key[:], 0600)
+	return osutil.AtomicWriteFile(filename, key[:], 0600, 0)
 }
 
 // EncryptedDevice represents a LUKS-backed encrypted block device.
