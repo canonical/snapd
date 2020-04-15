@@ -21,6 +21,7 @@ package devicestate
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 
@@ -101,7 +102,9 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	// run the create partition code
 	logger.Noticef("create and deploy partitions")
 	st.Unlock()
-	output, err := exec.Command(filepath.Join(dirs.DistroLibExecDir, "snap-bootstrap"), args...).CombinedOutput()
+	cmd := exec.Command(filepath.Join(dirs.DistroLibExecDir, "snap-bootstrap"), args...)
+	cmd.Stderr = os.Stderr
+	output, err := cmd.Output()
 	st.Lock()
 	if err != nil {
 		return fmt.Errorf("cannot create partitions: %v", osutil.OutputErr(output, err))
