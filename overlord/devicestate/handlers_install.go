@@ -80,19 +80,18 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 	if useEncryption {
+		fdeDir := "var/lib/snapd/device/fde"
 		args = append(args,
 			// enable data encryption
 			"--encrypt",
 			// location to store the keyfile
 			"--key-file", filepath.Join(boot.InitramfsEncryptionKeyDir, "ubuntu-data.keyfile.sealed"),
 			// location to store the recovery keyfile
-			"--recovery-key-file", filepath.Join(boot.InitramfsWritableDir, "var/lib/snapd/device/fde/recovery-key"),
+			"--recovery-key-file", filepath.Join(boot.InitramfsWritableDir, fdeDir, "recovery-key"),
 			// location to store the recovery keyfile
-			"--recovery-key-file", filepath.Join(boot.InitramfsWritableDir, "recovery-key"),
-			// location to store the lockout authorization data
-			"--lockout-auth-file", filepath.Join(boot.InitramfsWritableDir, "lockout-auth"),
+			"--lockout-auth-file", filepath.Join(boot.InitramfsWritableDir, fdeDir, "lockout-auth"),
 			// location to store the authorization policy update data
-			"--auth-update-file", filepath.Join(boot.InitramfsWritableDir, "auth-update"),
+			"--auth-update-file", filepath.Join(boot.InitramfsWritableDir, fdeDir, "auth-update"),
 			// path to the kernel to install
 			"--kernel", filepath.Join(kernelDir, "kernel.efi"),
 		)
