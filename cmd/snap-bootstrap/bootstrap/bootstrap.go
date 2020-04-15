@@ -168,6 +168,12 @@ func Run(gadgetRoot, device string, options Options) error {
 	return nil
 }
 
+// TODO:UC20: get cmdline definition from bootloaders
+var kernelCmdlines = []string{
+	// run mode
+	"console=ttyS0 console=tty1 panic=-1 systemd.gpt_auto=0 init=/sbin/init snapd_recovery_mode=run",
+}
+
 func tpmSealKey(key partition.EncryptionKey, rkey partition.RecoveryKey, options Options) error {
 	if err := rkey.Store(options.RecoveryKeyFile); err != nil {
 		return fmt.Errorf("cannot store recovery key: %v", err)
@@ -198,6 +204,7 @@ func tpmSealKey(key partition.EncryptionKey, rkey partition.RecoveryKey, options
 			return err
 		}
 	}
+	tpm.SetKernelCmdlines(kernelCmdlines)
 
 	// Provision the TPM as late as possible
 	if err := tpm.Provision(); err != nil {
