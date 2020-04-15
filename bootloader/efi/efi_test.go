@@ -153,7 +153,6 @@ func (s *efiVarsSuite) TestMockStringVars(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(attr, Equals, efi.VariableBootServiceAccess|efi.VariableRuntimeAccess)
 	c.Assert(v, Equals, "foo-bar-baz")
-
 }
 
 func (s *efiVarsSuite) TestMockVarsNoEFISystem(c *C) {
@@ -171,5 +170,5 @@ func (s *efiVarsSuite) TestStringOddSize(c *C) {
 	defer restore()
 
 	_, _, err := efi.ReadVarString("a")
-	c.Check(err, ErrorMatches, `EFI var "a" has an extra byte to be an UTF16 string`)
+	c.Check(err, ErrorMatches, `EFI var "a" is not a valid UTF16 string, it has an extra byte`)
 }

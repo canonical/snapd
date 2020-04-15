@@ -140,8 +140,9 @@ func ReadVarString(name string) (string, VariableAttr, error) {
 		return "", 0, cannotReadError(name, err)
 	}
 	defer varf.Close()
+	// TODO: consider using golang.org/x/text/encoding/unicode here
 	if sz%2 != 0 {
-		return "", 0, fmt.Errorf("EFI var %q has an extra byte to be an UTF16 string", name)
+		return "", 0, fmt.Errorf("EFI var %q is not a valid UTF16 string, it has an extra byte", name)
 	}
 	n := int(sz / 2)
 	if n == 0 {
