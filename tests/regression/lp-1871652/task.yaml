@@ -2,7 +2,7 @@ summary: system key mismatch is ignored on reboot/shutdown
 # Run on a system matching the guest container.
 systems: [ubuntu-18.04-64]
 prepare: |
-    snap install lxd
+    snap install lxd --channel="$LXD_SNAP_CHANNEL"
     lxd init --auto
     lxc launch ubuntu:18.04 bionic
     # Install snapd inside the container and then install the core snap so that
@@ -20,7 +20,7 @@ prepare: |
     # by running a lxc command. When lxd service shuts down systemd runs a
     # "snap run ... " command related to it, which will is where the problem
     # originates (we will observe a system key mismatch).
-    lxc exec bionic -- snap install lxd
+    lxc exec bionic -- snap install lxd --channel="$LXD_SNAP_CHANNEL"
     lxc exec bionic -- lxc info >/dev/null
 
     # Overwrite the snap binary inside the container with the one from this

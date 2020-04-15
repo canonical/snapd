@@ -1,5 +1,4 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build nosecboot
 
 /*
  * Copyright (C) 2020 Canonical Ltd
@@ -18,12 +17,25 @@
  *
  */
 
-package secboot
+package bootloadertest
 
 import (
-	"fmt"
+	"bytes"
+	"encoding/binary"
+	"unicode/utf16"
 )
 
-func CheckKeySealingSupported() error {
-	return fmt.Errorf("build without secboot support")
+// UTF16Bytes converts the given string into its UTF16
+// encoding. Convenient for use together with efi.MockVars.
+func UTF16Bytes(s string) []byte {
+	r16 := utf16.Encode(bytes.Runes([]byte(s)))
+	b := make([]byte, (len(r16)+1)*2)
+	i := 0
+	for _, r := range r16 {
+		binary.LittleEndian.PutUint16(b[i:], r)
+		i += 2
+	}
+	// zero termination
+	binary.LittleEndian.PutUint16(b[i:], 0)
+	return b
 }

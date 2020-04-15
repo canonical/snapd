@@ -563,7 +563,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20KernelStatusTryingNoKernelSnapC
 	_, nEnableCalls = s.bootloader.GetRunKernelImageFunctionSnapCalls("EnableKernel")
 	c.Assert(nEnableCalls, Equals, 0)
 
-	// again the try-kernel would have gotten disabled
+	// again we will try to cleanup any leftover try-kernels
 	_, nDisableTryCalls = s.bootloader.GetRunKernelImageFunctionSnapCalls("DisableTryKernel")
 	c.Assert(nDisableTryCalls, Equals, 2)
 
