@@ -92,6 +92,11 @@ jVaMaA==
 -----END CERTIFICATE-----
 `
 
+var certThatFailsToParse = `-----BEGIN CERTIFICATE-----
+jVaMaA==
+-----END CERTIFICATE-----
+`
+
 func (s *certsSuite) TestConfigureCertsHappy(c *C) {
 	err := configcore.Run(&mockConf{
 		state: s.state,
@@ -139,4 +144,14 @@ func (s *certsSuite) TestConfigureCertsSimulteRevert(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(filepath.Join(dirs.SnapdStoreSSLCertsDir, "cert1.pem"), testutil.FilePresent)
 	c.Assert(filepath.Join(dirs.SnapdStoreSSLCertsDir, "certthatwillbereverted.pem"), testutil.FileAbsent)
+}
+
+func (s *certsSuite) TestConfigureCertsFailsToParse(c *C) {
+	err := configcore.Run(&mockConf{
+		state: s.state,
+		changes: map[string]interface{}{
+			"store-certs.cert1": certThatFailsToParse,
+		},
+	})
+	c.Assert(err, ErrorMatches, `cannot parse pem certificate "cert1"`)
 }
