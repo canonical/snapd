@@ -63,8 +63,8 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 func setupHostDBusConf(snapInfo *snap.Info) error {
 	coreRoot := snapInfo.MountDir()
 	for _, conf := range []string{
-		"session.d/snapd-session.conf",
-		"system.d/snapd-system.conf",
+		"session.d/snapd.session-services.conf",
+		"system.d/snapd.system-services.conf",
 	} {
 		dst := filepath.Join("/usr/share/dbus-1/", conf)
 		src := filepath.Join(coreRoot, dst)

@@ -30,11 +30,11 @@ install:: ${SERVICES}
 	install -d -m 0755 ${DESTDIR}/${DBUSSERVICESDIR}
 	install -m 0644 -t ${DESTDIR}/${DBUSSERVICESDIR} $^
 
-install:: snapd-session.conf
+install:: snapd.session-services.conf
 	install -d -m 0755 ${DESTDIR}/${DBUSDIR}/session.d
 	install -m 0644 -t ${DESTDIR}/${DBUSDIR}/session.d $^
 
-install:: snapd-system.conf
+install:: snapd.system-services.conf
 	install -d -m 0755 ${DESTDIR}/${DBUSDIR}/system.d
 	install -m 0644 -t ${DESTDIR}/${DBUSDIR}/system.d $^
 
