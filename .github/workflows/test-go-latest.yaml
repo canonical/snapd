@@ -105,6 +105,11 @@ jobs:
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
         ./run-checks --unit
         touch "$stamp"
+    # remove the step later
+    - name: failing step
+      run: |
+        false
+
 
   spread-unstable:
     needs: [unit-tests-go-latest]
