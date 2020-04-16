@@ -841,7 +841,7 @@ suites:
     tests/nested/manual/:
         summary: Tests for nested images controlled manually from the tests
         backends: [google-nested]
-        systems: [ubuntu-19.10-64, ubuntu-20.04-64]
+        systems: [ubuntu-19.10-64, ubuntu-18.04-64, ubuntu-20.04-64]
         environment:
             NESTED_TYPE: "classic"
             # Channel used to create the nested vm
