@@ -193,6 +193,38 @@ func tpmSealKey(key partition.EncryptionKey, rkey partition.RecoveryKey, options
 	shim := filepath.Join(boot.InitramfsUbuntuBootDir, "EFI/boot/bootx64.efi")
 	grub := filepath.Join(boot.InitramfsUbuntuBootDir, "EFI/boot/grubx64.efi")
 
+	// TODO:UC20: Fix EFI image loading events
+	//
+	// The idea of EFIImageLoadEvent is to build a set of load paths for the current
+	// device configuration. So you could have something like this:
+	//
+	// shim -> recovery grub -> recovery kernel 1
+	//                      |-> recovery kernel 2
+	//                      |-> recovery kernel ...
+	//                      |-> normal grub -> run kernel good
+	//                                     |-> run kernel try
+	//
+	// Or it could look like this, which is the same thing:
+	//
+	// shim -> recovery grub -> recovery kernel 1
+	// shim -> recovery grub -> recovery kernel 2
+	// shim -> recovery grub -> recovery kernel ...
+	// shim -> recovery grub -> normal grub -> run kernel good
+	// shim -> recovery grub -> normal grub -> run kernel try
+	//
+	// This implementation in #8476, seems to just build a tree of shim -> grub -> kernel
+	// sequences for every combination of supplied input file, although the code here just
+	// specifies a single shim, grub and kernel binary, so you get one load path that looks
+	// like this:
+	//
+	// shim -> grub -> kernel
+	//
+	// This is ok for now because every boot path uses the same chain of trust, regardless
+	// of which kernel you're booting or whether you're booting through both the recovery
+	// and normal grubs. But when we add the ability to seal against specific binaries in
+	// order to secure the system with the Microsoft chain of trust, then the actual trees
+	// of EFIImageLoadEvents will need to match the exact supported boot sequences.
+
 	if err := tpm.SetShimFiles(shim); err != nil {
 		return err
 	}
@@ -207,6 +239,9 @@ func tpmSealKey(key partition.EncryptionKey, rkey partition.RecoveryKey, options
 	tpm.SetKernelCmdlines(kernelCmdlines)
 
 	// Provision the TPM as late as possible
+	// TODO:UC20: ideally we should ask the firmware to clear the TPM and then reboot
+	//            if the device has previously been provisioned, see
+	//            https://godoc.org/github.com/snapcore/secboot#RequestTPMClearUsingPPI
 	if err := tpm.Provision(); err != nil {
 		return fmt.Errorf("cannot provision the TPM: %v", err)
 	}

@@ -391,6 +391,16 @@ func unlockIfEncrypted(name string) (string, error) {
 		//            we expect (and not e.g. an external disk), and also that
 		//            <name> is from <name>-enc and not an unencrypted partition
 		//            with the same name (LP #1863886)
+
+		// TODO:UC20: lock access to keys
+		//            This code only interacts with the TPM if there is an encrypted
+		//            device to unlock, but this misses an important step for when
+		//            there is a TPM but no encrypted device - we must call
+		//            secboot.LockAccessToSealedKeys, and this failing should be
+		//            considered a fatal error. All of the interactions with the TPM
+		//            during boot with the exception of unsealing should happen
+		//            whenever there is a TPM device detected, regardless of whether
+		//            secure boot is enabled or there is an encrypted volume to unlock.
 		sealedKeyPath := filepath.Join(boot.InitramfsEncryptionKeyDir, name+".key.sealed")
 		if err := unlockEncryptedPartition(name, encdev, sealedKeyPath, "", ""); err != nil {
 			return device, fmt.Errorf("cannot unlock %s: %v", name, err)
@@ -421,8 +431,10 @@ func insecureConnectToTPM(ekcfile string) (*secboot.TPMConnection, error) {
 
 // unlockEncryptedPartition unseals the keyfile and opens an encrypted device.
 func unlockEncryptedPartition(name, device, keyfile, ekcfile, pinfile string) error {
-
-	// TODO:UC20: use secureConnectToTPM
+	// TODO:UC20: use secureConnectToTPM if we decide there's benefit in doing that or we
+	//            have a hard requirement for a valid EK cert chain for every boot (ie, panic
+	//            if there isn't one). But we can't do that as long as we need to download
+	//            intermediate certs from the manufacturer.
 	tpm, err := insecureConnectToTPM(ekcfile)
 	if err != nil {
 		return fmt.Errorf("cannot open TPM connection: %v", err)
