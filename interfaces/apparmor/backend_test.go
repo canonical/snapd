@@ -749,78 +749,78 @@ func (s *backendSuite) TestTemplateRulesInCommon(c *C) {
 	commonFilesVar := regexp.MustCompile(`^(audit +)?(deny +)?(owner +)?@{(HOME|HOMEDIRS|INSTALL_DIR|PROC)}/`)
 	commonOther := regexp.MustCompile(`^([^/@#]|#include +<)`)
 
-	// first, verify the regex itself
-	for idx, tc := range []struct {
-		rule string
-		exp  bool
-	}{
-		//
-		// Expected match
-		//
+	// first, verify the regexes themselves
+
+	// Expected matches
+	for idx, tc := range []string{
 		// abstraction
-		{"#include <abstractions/base>", true},
+		"#include <abstractions/base>",
 		// file
-		{"/dev/{,u}random w,", true},
-		{"/dev/{,u}random w, # test comment", true},
-		{"/{dev,run}/shm/snap.@{SNAP_INSTANCE_NAME}.** mrwlkix,", true},
-		{"/etc/ld.so.preload r,", true},
-		{"@{INSTALL_DIR}/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/ r,", true},
-		{"deny @{INSTALL_DIR}/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/**/__pycache__/*.pyc.[0-9]* w,", true},
-		{"audit /dev/something r,", true},
-		{"audit deny /dev/something r,", true},
-		{"audit deny owner /dev/something r,", true},
-		{"@{PROC}/ r,", true},
-		{"owner @{PROC}/@{pid}/{,task/@{tid}}fd/[0-9]* rw,", true},
-		{"/run/uuidd/request rw,", true},
-		{"owner /run/user/[0-9]*/snap.@{SNAP_INSTANCE_NAME}/   rw,", true},
-		{"/sys/devices/virtual/tty/{console,tty*}/active r,", true},
-		{"/tmp/   r,", true},
-		{"/{,var/}run/udev/tags/snappy-assign/ r,", true},
-		{"/usr/lib/snapd/foo r,", true},
-		{"/var/lib/extrausers/foo r,", true},
-		{"/var/lib/snapd/foo r,", true},
-		{"/var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/ r", true},
-		{"/var/snap/@{SNAP_NAME}/ r", true},
+		"/dev/{,u}random w,",
+		"/dev/{,u}random w, # test comment",
+		"/{dev,run}/shm/snap.@{SNAP_INSTANCE_NAME}.** mrwlkix,",
+		"/etc/ld.so.preload r,",
+		"@{INSTALL_DIR}/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/ r,",
+		"deny @{INSTALL_DIR}/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/**/__pycache__/*.pyc.[0-9]* w,",
+		"audit /dev/something r,",
+		"audit deny /dev/something r,",
+		"audit deny owner /dev/something r,",
+		"@{PROC}/ r,",
+		"owner @{PROC}/@{pid}/{,task/@{tid}}fd/[0-9]* rw,",
+		"/run/uuidd/request rw,",
+		"owner /run/user/[0-9]*/snap.@{SNAP_INSTANCE_NAME}/   rw,",
+		"/sys/devices/virtual/tty/{console,tty*}/active r,",
+		"/tmp/   r,",
+		"/{,var/}run/udev/tags/snappy-assign/ r,",
+		"/usr/lib/snapd/foo r,",
+		"/var/lib/extrausers/foo r,",
+		"/var/lib/snapd/foo r,",
+		"/var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/ r",
+		"/var/snap/@{SNAP_NAME}/ r",
 		// capability
-		{"capability ipc_lock,", true},
+		"capability ipc_lock,",
 		// dbus - single line
-		{"dbus (receive, send) peer=(label=snap.@{SNAP_INSTANCE_NAME}.*),", true},
+		"dbus (receive, send) peer=(label=snap.@{SNAP_INSTANCE_NAME}.*),",
 		// dbus - multiline
-		{"dbus (send)", true},
-		{"bus={session,system}", true},
-		{"path=/org/freedesktop/DBus", true},
-		{"interface=org.freedesktop.DBus.Introspectable", true},
-		{"member=Introspect", true},
-		{"peer=(label=unconfined),", true},
+		"dbus (send)",
+		"bus={session,system}",
+		"path=/org/freedesktop/DBus",
+		"interface=org.freedesktop.DBus.Introspectable",
+		"member=Introspect",
+		"peer=(label=unconfined),",
 		// mount
-		{"mount,", true},
-		{"remount,", true},
-		{"umount,", true},
+		"mount,",
+		"remount,",
+		"umount,",
 		// network
-		{"network,", true},
+		"network,",
 		// pivot_root
-		{"pivot_root,", true},
+		"pivot_root,",
 		// ptrace
-		{"ptrace,", true},
+		"ptrace,",
 		// signal
-		{"signal peer=snap.@{SNAP_INSTANCE_NAME}.*,", true},
+		"signal peer=snap.@{SNAP_INSTANCE_NAME}.*,",
 		// unix
-		{"unix peer=(label=snap.@{SNAP_INSTANCE_NAME}.*),", true},
-		//
-		// Expected no match
-		{"/bin/ls", false},
-		{"# some comment", false},
-		{"deny /usr/lib/python3*/{,**/}__pycache__/ w,", false},
+		"unix peer=(label=snap.@{SNAP_INSTANCE_NAME}.*),",
 	} {
-		c.Logf("trying %d: %v", idx, tc)
-		cf := commonFiles.MatchString(tc.rule)
-		cfv := commonFilesVar.MatchString(tc.rule)
-		co := commonOther.MatchString(tc.rule)
-		if tc.exp {
-			c.Check(cf || cfv || co, Equals, tc.exp)
-		} else {
-			c.Check(cf && cfv && co, Equals, tc.exp)
-		}
+		c.Logf("trying %d: %s", idx, tc)
+		cf := commonFiles.MatchString(tc)
+		cfv := commonFilesVar.MatchString(tc)
+		co := commonOther.MatchString(tc)
+		c.Check(cf || cfv || co, Equals, true)
+	}
+
+	// Expected no matches
+	for idx, tc := range []string{
+		"/bin/ls",
+		"# some comment",
+		"deny /usr/lib/python3*/{,**/}__pycache__/ w,",
+	} {
+		c.Logf("trying %d: %s", idx, tc)
+		cf := commonFiles.MatchString(tc)
+		cfv := commonFilesVar.MatchString(tc)
+		co := commonOther.MatchString(tc)
+		c.Check(cf && cfv && co, Equals, false)
 	}
 
 	for _, raw := range strings.Split(apparmor.DefaultCoreTemplateRules, "\n") {
