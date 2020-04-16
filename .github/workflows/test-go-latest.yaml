@@ -24,14 +24,6 @@ jobs:
         # NOTE: checkout the code in a fixed location, even for forks, as this
         # is relevant for go's import system.
         path: ./src/github.com/snapcore/snapd
-
-    - name: Cache snapd test results
-      id: cache-snapd-test-results
-      uses: actions/cache@v1
-      with:
-        path: "${{ github.workspace }}/.test-results"
-        key: "${{ github.run_id }}-${{ github.job }}-results"
-
     - name: Make /var/cache/apt owned by current user
       run: sudo chown -R $(id -u) /var/cache/apt
     - name: Cache Debian dependencies
@@ -71,22 +63,34 @@ jobs:
         key: go-govendor-{{ hashFiles('**/vendor.json') }}
     - name: Get Go dependencies
       run: cd ${{ github.workspace }}/src/github.com/snapcore/snapd && ${{ github.workspace }}/bin/govendor sync
+
     - name: Prepare results store
       run: mkdir "${{ github.workspace }}/.test-results"
+    - name: Cache snapd test results
+      id: cache-snapd-test-results
+      uses: actions/cache@v1
+      with:
+        path: "${{ github.workspace }}/.test-results"
+        key: "${{ github.run_id }}-${{ github.job }}-results"
+
     - name: Run static checks
       run: |
-        stamp="${{ github.workspace }}/${{ github.run_id }}-${{ github.job }}-${{ github.action }}-success"
+        ls ${{ github.workspace }}/.test-results
+        stamp="${{ github.workspace }}/.test-results/${{ github.action }}-success"
         if [ -e "$stamp" ]; then
             echo "cached success result"
+            exit 0
         fi
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
         ./run-checks --static
         touch "$stamp"
     - name: Build C
       run: |
-        stamp="${{ github.workspace }}/${{ github.run_id }}-${{ github.job }}-${{ github.action }}-success"
+        ls ${{ github.workspace }}/.test-results        
+        stamp="${{ github.workspace }}/.test-results/${{ github.action }}-success"
         if [ -e "$stamp" ]; then
             echo "cached success result"
+            exit 0
         fi
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/
         ./autogen.sh
@@ -98,9 +102,11 @@ jobs:
       run: cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/ && make check
     - name: Test Go
       run: |
-        stamp="${{ github.workspace }}/${{ github.run_id }}-${{ github.job }}-${{ github.action }}-success"
+        ls ${{ github.workspace }}/.test-results        
+        stamp="${{ github.workspace }}/.test-results/${{ github.action }}-success"
         if [ -e "$stamp" ]; then
             echo "cached success result"
+            exit 0
         fi
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
         ./run-checks --unit
@@ -125,14 +131,28 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
+    - name: Cache snapd test results
+      id: cache-snapd-test-results
+      uses: actions/cache@v1
+      with:
+        path: "${{ github.workspace }}/.test-results"
+        key: "${{ github.run_id }}-${{ github.job }}-results"
+    - name: Prepare results store
+      run: mkdir -p "${{ github.workspace }}/.test-results"
     - name: Run spread tests
       env:
           SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
       if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
       run: |
+          stamp="${{ github.workspace }}/.test-results/${{ github.action }}-success"
+          if [ -e "$stamp" ]; then
+              echo "cached success result"
+              exit 0
+          fi
           # Register a problem matcher to highlight spread failures
           echo "::add-matcher::.github/spread-problem-matcher.json"
           spread -abend google-unstable:${{ matrix.system }}:tests/...
+          touch "$stamp"
     - name: Discard spread workers
       if: always()
       run: |
