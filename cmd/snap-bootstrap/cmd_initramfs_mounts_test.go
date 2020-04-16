@@ -947,12 +947,12 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep4(c *C) {
 	})
 	defer restore()
 
-	// mock a auth data in real ubuntu-recover
 	ephemeralUbuntuData := filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data/")
 	err := os.MkdirAll(ephemeralUbuntuData, 0755)
 	c.Assert(err, IsNil)
-	recoverUbuntuData := filepath.Join(boot.InitramfsRunMntDir, "host/data/")
-	err = os.MkdirAll(recoverUbuntuData, 0755)
+	// mock a auth data in the host's ubuntu-data
+	hostUbuntuData := filepath.Join(boot.InitramfsRunMntDir, "host/data/")
+	err = os.MkdirAll(hostUbuntuData, 0755)
 	c.Assert(err, IsNil)
 	mockAuthFiles := []string{
 		// extrausers
@@ -974,7 +974,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep4(c *C) {
 		"user-data/user2/other-random-data",
 	}
 	for _, mockAuthFile := range append(mockAuthFiles, mockUnrelatedFiles...) {
-		p := filepath.Join(recoverUbuntuData, mockAuthFile)
+		p := filepath.Join(hostUbuntuData, mockAuthFile)
 		err = os.MkdirAll(filepath.Dir(p), 0750)
 		c.Assert(err, IsNil)
 		mockContent := fmt.Sprintf("content of %s", filepath.Base(mockAuthFile))
@@ -982,7 +982,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep4(c *C) {
 		c.Assert(err, IsNil)
 	}
 	// create a mock state
-	mockedState := filepath.Join(recoverUbuntuData, "system-data/var/lib/snapd/state.json")
+	mockedState := filepath.Join(hostUbuntuData, "system-data/var/lib/snapd/state.json")
 	err = os.MkdirAll(filepath.Dir(mockedState), 0750)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(mockedState, []byte(mockStateContent), 0640)

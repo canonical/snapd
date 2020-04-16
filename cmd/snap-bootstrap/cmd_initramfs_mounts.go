@@ -174,7 +174,10 @@ func copyUbuntuDataAuth(src, dst string) error {
 	}
 
 	// ensure the user state is transferred as well
-	if err := state.CopyState(filepath.Join(src, "system-data/var/lib/snapd/state.json"), filepath.Join(dst, "system-data/var/lib/snapd/state.json"), []string{"auth.users"}); err != nil && err != state.ErrNoState {
+	srcState := filepath.Join(src, "system-data/var/lib/snapd/state.json")
+	dstState := filepath.Join(dst, "system-data/var/lib/snapd/state.json")
+	err := state.CopyState(srcState, dstState, []string{"auth.users"})
+	if err != nil && err != state.ErrNoState {
 		return fmt.Errorf("cannot copy user state: %v", err)
 	}
 
@@ -196,6 +199,7 @@ func generateMountsModeRecover(recoverySystem string) error {
 		return err
 	}
 	if !isRecoverDataMounted {
+		// TODO:UC20: data may need to be unlocked
 		fmt.Fprintf(stdout, "/dev/disk/by-label/ubuntu-data %s\n", boot.InitramfsHostDataDir)
 		return nil
 	}
