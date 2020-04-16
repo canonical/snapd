@@ -191,8 +191,6 @@ cleanup_nested_env(){
 }
 
 create_nested_core_vm(){
-    local BUILD_FROM_CURRENT="${1:-}"
-
     mkdir -p "$WORK_DIR/image"
     if [ ! -f "$WORK_DIR/image/ubuntu-core.img" ]; then
         local UBUNTU_IMAGE

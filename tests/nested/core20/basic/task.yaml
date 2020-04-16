@@ -5,20 +5,6 @@ description: |
 
 systems: [ubuntu-20.04-*]
 
-kill-timeout: 30m
-
-prepare: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-    create_nested_core_vm true
-    start_nested_core_vm
-
-restore: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-    destroy_nested_vm
-    cleanup_nested_env
-
 execute: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
