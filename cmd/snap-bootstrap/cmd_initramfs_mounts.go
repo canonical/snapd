@@ -401,7 +401,7 @@ func unlockIfEncrypted(name string) (string, error) {
 		//            during boot with the exception of unsealing should happen
 		//            whenever there is a TPM device detected, regardless of whether
 		//            secure boot is enabled or there is an encrypted volume to unlock.
-		sealedKeyPath := filepath.Join(boot.InitramfsEncryptionKeyDir, name+".key.sealed")
+		sealedKeyPath := filepath.Join(boot.InitramfsEncryptionKeyDir, name+".sealed-key")
 		if err := unlockEncryptedPartition(name, encdev, sealedKeyPath, "", ""); err != nil {
 			return device, fmt.Errorf("cannot unlock %s: %v", name, err)
 		}

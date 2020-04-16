@@ -67,8 +67,8 @@ func (s *cmdSuite) TestCreatePartitionsWithEncryption(c *C) {
 		c.Check(opts.Encrypt, Equals, true)
 		c.Check(opts.KeyFile, Equals, "keyfile")
 		c.Check(opts.RecoveryKeyFile, Equals, "recovery")
-		c.Check(opts.LockoutAuthFile, Equals, "lockout")
-		c.Check(opts.PolicyUpdateFile, Equals, "update")
+		c.Check(opts.TPMLockoutAuthFile, Equals, "lockout")
+		c.Check(opts.PolicyUpdateDataFile, Equals, "update")
 		c.Check(opts.KernelPath, Equals, "kernel")
 		n++
 		return nil
@@ -81,7 +81,7 @@ func (s *cmdSuite) TestCreatePartitionsWithEncryption(c *C) {
 		"--key-file", "keyfile",
 		"--recovery-key-file", "recovery",
 		"--tpm-lockout-auth", "lockout",
-		"--policy-update-file", "update",
+		"--policy-update-data-file", "update",
 		"--kernel", "kernel",
 		"gadget-dir",
 		"device",

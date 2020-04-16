@@ -85,13 +85,13 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 			// enable data encryption
 			"--encrypt",
 			// location to store the keyfile
-			"--key-file", filepath.Join(boot.InitramfsEncryptionKeyDir, "ubuntu-data.key.sealed"),
+			"--key-file", filepath.Join(boot.InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key"),
 			// location to store the recovery keyfile
 			"--recovery-key-file", filepath.Join(boot.InitramfsWritableDir, fdeDir, "recovery.key"),
 			// location to store the recovery keyfile
-			"--tpm-lockout-auth", filepath.Join(boot.InitramfsWritableDir, fdeDir, "lockout-auth"),
+			"--tpm-lockout-auth", filepath.Join(boot.InitramfsWritableDir, fdeDir, "tpm-lockout-auth"),
 			// location to store the authorization policy update data
-			"--policy-update-file", filepath.Join(boot.InitramfsWritableDir, fdeDir, "policy-update-data"),
+			"--policy-update-data-file", filepath.Join(boot.InitramfsWritableDir, fdeDir, "policy-update-data"),
 			// path to the kernel to install
 			"--kernel", filepath.Join(kernelDir, "kernel.efi"),
 		)
