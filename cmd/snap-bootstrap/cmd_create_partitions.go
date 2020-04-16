@@ -41,13 +41,13 @@ func init() {
 }
 
 type cmdCreatePartitions struct {
-	Mount           bool   `short:"m" long:"mount" description:"Also mount filesystems after creation"`
-	Encrypt         bool   `long:"encrypt" description:"Encrypt the data partition"`
-	KeyFile         string `long:"key-file" value-name:"filename" description:"Where the key file will be stored"`
-	RecoveryKeyFile string `long:"recovery-key-file" value-name:"filename" description:"Where the recovery key file will be stored"`
-	LockoutAuthFile string `long:"lockout-auth-file" value-name:"filename" descrition:"Where the lockout authorization file will be stored"`
-	AuthUpdateFile  string `long:"auth-update-file" value-name:"filename" description:"Where the authorization update file is stored"`
-	KernelPath      string `long:"kernel" value-name:"path" description:"Path to the kernel to be installed"`
+	Mount            bool   `short:"m" long:"mount" description:"Also mount filesystems after creation"`
+	Encrypt          bool   `long:"encrypt" description:"Encrypt the data partition"`
+	KeyFile          string `long:"key-file" value-name:"filename" description:"Where the key file will be stored"`
+	RecoveryKeyFile  string `long:"recovery-key-file" value-name:"filename" description:"Where the recovery key file will be stored"`
+	LockoutAuthFile  string `long:"lockout-auth-file" value-name:"filename" descrition:"Where the lockout authorization data file will be stored"`
+	PolicyUpdateFile string `long:"policy-update-file" value-name:"filename" description:"Where the authorization policy update data file will be stored"`
+	KernelPath       string `long:"kernel" value-name:"path" description:"Path to the kernel to be installed"`
 
 	Positional struct {
 		GadgetRoot string `positional-arg-name:"<gadget-root>"`
@@ -57,13 +57,13 @@ type cmdCreatePartitions struct {
 
 func (c *cmdCreatePartitions) Execute(args []string) error {
 	options := bootstrap.Options{
-		Mount:           c.Mount,
-		Encrypt:         c.Encrypt,
-		KeyFile:         c.KeyFile,
-		RecoveryKeyFile: c.RecoveryKeyFile,
-		LockoutAuthFile: c.LockoutAuthFile,
-		AuthUpdateFile:  c.AuthUpdateFile,
-		KernelPath:      c.KernelPath,
+		Mount:            c.Mount,
+		Encrypt:          c.Encrypt,
+		KeyFile:          c.KeyFile,
+		RecoveryKeyFile:  c.RecoveryKeyFile,
+		LockoutAuthFile:  c.LockoutAuthFile,
+		PolicyUpdateFile: c.PolicyUpdateFile,
+		KernelPath:       c.KernelPath,
 	}
 
 	return bootstrapRun(c.Positional.GadgetRoot, c.Positional.Device, options)

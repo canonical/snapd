@@ -91,7 +91,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 			// location to store the recovery keyfile
 			"--lockout-auth-file", filepath.Join(boot.InitramfsWritableDir, fdeDir, "lockout-auth"),
 			// location to store the authorization policy update data
-			"--auth-update-file", filepath.Join(boot.InitramfsWritableDir, fdeDir, "auth-update"),
+			"--policy-update-file", filepath.Join(boot.InitramfsWritableDir, fdeDir, "policy-update-data"),
 			// path to the kernel to install
 			"--kernel", filepath.Join(kernelDir, "kernel.efi"),
 		)

@@ -44,8 +44,8 @@ type Options struct {
 	RecoveryKeyFile string
 	// LockoutAuthFile is the location where the lockout authorization is written to
 	LockoutAuthFile string
-	// AuthUpdateFile is the location where the authorization policy update data is written to
-	AuthUpdateFile string
+	// PolicyUpdateFile is the location where the authorization policy update data is written to
+	PolicyUpdateFile string
 	// KernelPath is the path to the kernel to seal the keyfile to
 	KernelPath string
 }
@@ -211,7 +211,7 @@ func tpmSealKey(key partition.EncryptionKey, rkey partition.RecoveryKey, options
 		return fmt.Errorf("cannot provision the TPM: %v", err)
 	}
 
-	if err := tpm.Seal(key[:], options.KeyFile, options.AuthUpdateFile); err != nil {
+	if err := tpm.Seal(key[:], options.KeyFile, options.PolicyUpdateFile); err != nil {
 		return fmt.Errorf("cannot store encryption key: %v", err)
 	}
 
