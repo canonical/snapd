@@ -194,19 +194,19 @@ func generateMountsModeRecover(recoverySystem string) error {
 	}
 
 	// n+1: mount ubuntu-data for recovery
-	isRecoverDataMounted, err := osutilIsMounted(boot.InitramfsHostDataDir)
+	isRecoverDataMounted, err := osutilIsMounted(boot.InitramfsHostUbuntuDataDir)
 	if err != nil {
 		return err
 	}
 	if !isRecoverDataMounted {
 		// TODO:UC20: data may need to be unlocked
-		fmt.Fprintf(stdout, "/dev/disk/by-label/ubuntu-data %s\n", boot.InitramfsHostDataDir)
+		fmt.Fprintf(stdout, "/dev/disk/by-label/ubuntu-data %s\n", boot.InitramfsHostUbuntuDataDir)
 		return nil
 	}
 
 	// now copy the auth data from the real ubuntu-data dir to the ephemeral
 	// ubuntu-data dir
-	if err := copyUbuntuDataAuth(boot.InitramfsHostDataDir, boot.InitramfsUbuntuDataDir); err != nil {
+	if err := copyUbuntuDataAuth(boot.InitramfsHostUbuntuDataDir, boot.InitramfsUbuntuDataDir); err != nil {
 		return err
 	}
 

@@ -901,7 +901,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep3(c *C) {
 			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data"))
 			return true, nil
 		case 6:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "host/data"))
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "host/ubuntu-data"))
 			return false, nil
 		}
 		return false, fmt.Errorf("unexpected number of calls: %v", n)
@@ -911,7 +911,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep3(c *C) {
 	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 6)
-	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`/dev/disk/by-label/ubuntu-data %s/host/data
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`/dev/disk/by-label/ubuntu-data %s/host/ubuntu-data
 `, boot.InitramfsRunMntDir))
 }
 
@@ -940,7 +940,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep4(c *C) {
 			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data"))
 			return true, nil
 		case 6:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "host/data"))
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "host/ubuntu-data"))
 			return true, nil
 		}
 		return false, fmt.Errorf("unexpected number of calls: %v", n)
@@ -951,7 +951,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep4(c *C) {
 	err := os.MkdirAll(ephemeralUbuntuData, 0755)
 	c.Assert(err, IsNil)
 	// mock a auth data in the host's ubuntu-data
-	hostUbuntuData := filepath.Join(boot.InitramfsRunMntDir, "host/data/")
+	hostUbuntuData := filepath.Join(boot.InitramfsRunMntDir, "host/ubuntu-data/")
 	err = os.MkdirAll(hostUbuntuData, 0755)
 	c.Assert(err, IsNil)
 	mockAuthFiles := []string{
