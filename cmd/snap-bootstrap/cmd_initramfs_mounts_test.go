@@ -842,7 +842,7 @@ func (s *initramfsMountsSuite) TestUnlockEncryptedPartition(c *C) {
 	}{
 		{true, nil, ""},
 		{true, errors.New("some error"), ""},
-		{false, errors.New("some error"), `cannot activate "device": some error`},
+		{false, errors.New("some error"), `cannot activate encrypted device "device": some error`},
 		// ActivateVolumeWithTPMSealedKey always return an error when activation is false
 	} {
 		n := 0

@@ -186,7 +186,7 @@ func tpmSealKey(key partition.EncryptionKey, rkey partition.RecoveryKey, options
 
 	if options.TPMLockoutAuthFile != "" {
 		if err := tpm.StoreLockoutAuth(options.TPMLockoutAuthFile); err != nil {
-			return fmt.Errorf("cannot store lockout authorization: %v", err)
+			return fmt.Errorf("cannot store TPM lockout authorization: %v", err)
 		}
 	}
 
@@ -247,7 +247,7 @@ func tpmSealKey(key partition.EncryptionKey, rkey partition.RecoveryKey, options
 	}
 
 	if err := tpm.Seal(key[:], options.KeyFile, options.PolicyUpdateDataFile); err != nil {
-		return fmt.Errorf("cannot store encryption key: %v", err)
+		return fmt.Errorf("cannot seal and store encryption key: %v", err)
 	}
 
 	return nil
