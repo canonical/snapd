@@ -74,15 +74,12 @@ type bootloaderKernelState20 interface {
 	// kernel returns the current try kernel if it exists on the bootloader
 	tryKernel() (snap.PlaceInfo, error)
 
-	// setCommitStatus will save the kernel status to be committed during either
-	// setNextKernel or markSuccessful
-	setCommitStatus(status string)
 	// setNextKernel marks the kernel as the next, if it's not the currently
 	// booted kernel, then the specified kernel is setup as a try-kernel
-	setNextKernel(kernelSnap snap.PlaceInfo) error
-	// markSuccessful marks the specified kernel as having booted successfully,
-	// whether that kernel is the current kernel or the try-kernel
-	markSuccessful(kernelSnap snap.PlaceInfo) error
+	setNextKernel(sn snap.PlaceInfo, status string) error
+	// markSuccessfulKernel marks the specified kernel as having booted
+	// successfully, whether that kernel is the current kernel or the try-kernel
+	markSuccessfulKernel(sn snap.PlaceInfo) error
 }
 
 // extractedRunKernelImageBootloaderKernelState implements bootloaderKernelState20 for
@@ -92,9 +89,6 @@ type extractedRunKernelImageBootloaderKernelState struct {
 	ebl bootloader.ExtractedRunKernelImageBootloader
 	// the current kernel status as read by the bootloader's bootenv
 	currentKernelStatus string
-	// what the kernel status should be committed as during one of the
-	// committing methods, setNextKernel or markSuccessful
-	commitKernelStatus string
 	// the current kernel on the bootloader (not the try-kernel)
 	currentKernel snap.PlaceInfo
 }
@@ -107,8 +101,6 @@ func (bks *extractedRunKernelImageBootloaderKernelState) load() error {
 	}
 
 	bks.currentKernelStatus = m["kernel_status"]
-	// the default kernel status to commit is the current state
-	bks.commitKernelStatus = bks.currentKernelStatus
 
 	// get the current kernel for this bootloader to compare during commit() for
 	// markSuccessful() if we booted the current kernel or not
@@ -134,20 +126,18 @@ func (bks *extractedRunKernelImageBootloaderKernelState) kernelStatus() string {
 	return bks.currentKernelStatus
 }
 
-func (bks *extractedRunKernelImageBootloaderKernelState) setCommitStatus(status string) {
-	bks.commitKernelStatus = status
-}
-
-func (bks *extractedRunKernelImageBootloaderKernelState) markSuccessful(sn snap.PlaceInfo) error {
+func (bks *extractedRunKernelImageBootloaderKernelState) markSuccessfulKernel(sn snap.PlaceInfo) error {
 	// set the boot vars first, then enable the successful kernel, then disable
 	// the old try-kernel, see the comment in bootState20MarkSuccessful.commit()
 	// for details
 
-	// always set the kernel_status to default "" when marking successful, but
-	// only call SetBootVars if needed
-	// this has the useful side-effect of cleaning up if we happen to have
-	// kernel_status = "trying" but don't have a try-kernel set
-	if bks.commitKernelStatus != DefaultStatus {
+	// always set the boot vars first before mutating any of the kernel symlinks
+	// etc.
+	// for markSuccessful, we will always set the status to Default, even if
+	// technically this boot wasn't "successful" - it was successful in the
+	// sense that we booted some combination of boot snaps and made it all the
+	// way to snapd in user space
+	if bks.currentKernelStatus != DefaultStatus {
 		m := map[string]string{
 			"kernel_status": DefaultStatus,
 		}
@@ -178,7 +168,7 @@ func (bks *extractedRunKernelImageBootloaderKernelState) markSuccessful(sn snap.
 	return nil
 }
 
-func (bks *extractedRunKernelImageBootloaderKernelState) setNextKernel(sn snap.PlaceInfo) error {
+func (bks *extractedRunKernelImageBootloaderKernelState) setNextKernel(sn snap.PlaceInfo, status string) error {
 	// always enable the try-kernel first, if we did the reverse and got
 	// rebooted after setting the boot vars but before enabling the try-kernel
 	// we could get stuck where the bootloader can't find the try-kernel and
@@ -193,9 +183,9 @@ func (bks *extractedRunKernelImageBootloaderKernelState) setNextKernel(sn snap.P
 
 	// only if the new kernel status is different from what we read should we
 	// run SetBootVars() to minimize wear/corruption possibility on the bootenv
-	if bks.commitKernelStatus != bks.currentKernelStatus {
+	if status != bks.currentKernelStatus {
 		m := map[string]string{
-			"kernel_status": bks.commitKernelStatus,
+			"kernel_status": status,
 		}
 
 		// set the boot variables
@@ -221,6 +211,9 @@ type bootState20Kernel struct {
 
 	// the kernel snap to try for setNext()
 	nextKernelSnap snap.PlaceInfo
+
+	// the kernel_status to commit during commit()
+	commitKernelStatus string
 
 	// don't embed this struct - it will conflict with embedding
 	// bootState20Modeenv in bootState20Base when both bootState20Base and
@@ -313,7 +306,7 @@ func (ks20 *bootState20Kernel) setNext(next snap.PlaceInfo) (rebootRequired bool
 	if nextStatus == TryStatus {
 		rebootRequired = true
 	}
-	ks20.bks.setCommitStatus(nextStatus)
+	ks20.commitKernelStatus = nextStatus
 
 	// any state changes done so far are consumed in commit()
 
@@ -359,7 +352,7 @@ func (ks20 *bootState20Kernel) commit() error {
 		}
 	}
 
-	err := ks20.bks.setNextKernel(ks20.nextKernelSnap)
+	err := ks20.bks.setNextKernel(ks20.nextKernelSnap, ks20.commitKernelStatus)
 	if err != nil {
 		return err
 	}
@@ -632,7 +625,13 @@ func (bsmark *bootState20MarkSuccessful) commit() error {
 	// this shouldn't happen except in tests, but let's be robust against it
 	// just in case
 	if bsmark.bootedKernelSnap != nil {
-		err := bsmark.bks.markSuccessful(bsmark.bootedKernelSnap)
+		// always mark the kernel snap successful _before_ any other state
+		// mutating that may happen in bks.markSuccessful, because what we don't
+		// want to happen is to remove the old kernel and only trust the new
+		// try kernel before we actually set it up to boot from the new try
+		// kernel - that would brick us because we wouldn't trust the new kernel
+		// but the bootloader still thinks it should boot from the old kernel
+		err := bsmark.bks.markSuccessfulKernel(bsmark.bootedKernelSnap)
 		if err != nil {
 			return err
 		}
