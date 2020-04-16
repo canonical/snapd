@@ -79,10 +79,10 @@ type bootloaderKernelState20 interface {
 	setCommitStatus(status string)
 	// setNextKernel marks the kernel as the next, if it's not the currently
 	// booted kernel, then the specified kernel is setup as a try-kernel
-	setNextKernel(kernelSnap snap.PlaceInfo) error
-	// markSuccessful marks the specified kernel as having booted successfully,
-	// whether that kernel is the current kernel or the try-kernel
-	markSuccessful(kernelSnap snap.PlaceInfo) error
+	setNextKernel(sn snap.PlaceInfo) error
+	// markSuccessfulKernel marks the specified kernel as having booted
+	// successfully, whether that kernel is the current kernel or the try-kernel
+	markSuccessfulKernel(sn snap.PlaceInfo) error
 }
 
 // extractedRunKernelImageBootloaderKernelState implements bootloaderKernelState20 for
@@ -138,7 +138,7 @@ func (bks *extractedRunKernelImageBootloaderKernelState) setCommitStatus(status 
 	bks.commitKernelStatus = status
 }
 
-func (bks *extractedRunKernelImageBootloaderKernelState) markSuccessful(sn snap.PlaceInfo) error {
+func (bks *extractedRunKernelImageBootloaderKernelState) markSuccessfulKernel(sn snap.PlaceInfo) error {
 	// set the boot vars first, then enable the successful kernel, then disable
 	// the old try-kernel, see the comment in bootState20MarkSuccessful.commit()
 	// for details
@@ -645,7 +645,7 @@ func (bsmark *bootState20MarkSuccessful) commit() error {
 		// try kernel before we actually set it up to boot from the new try
 		// kernel - that would brick us because we wouldn't trust the new kernel
 		// but the bootloader still thinks it should boot from the old kernel
-		err := bsmark.bks.markSuccessful(bsmark.bootedKernelSnap)
+		err := bsmark.bks.markSuccessfulKernel(bsmark.bootedKernelSnap)
 		if err != nil {
 			return err
 		}
