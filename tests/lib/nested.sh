@@ -202,10 +202,9 @@ create_nested_core_vm(){
         local EXTRA_FUNDAMENTAL=""
         local EXTRA_SNAPS=""
         if [ -d "${PWD}/extra-snaps" ]; then
-            #shellcheck disable=SC2044
-            for mysnap in $(find "${PWD}/extra-snaps/" -type f -name "*.snap"); do
+            while IFS= read -r mysnap; do
                 EXTRA_SNAPS="$EXTRA_SNAPS --snap $mysnap"
-            done
+            done <   <(find extra-snaps -name '*.snaps')
         fi
 
         local NESTED_MODEL=""

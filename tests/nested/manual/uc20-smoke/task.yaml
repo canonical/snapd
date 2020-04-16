@@ -1,15 +1,11 @@
 summary: Run a smoke test on UC20 with encryption enabled
 
 description: |
-    This test checks if UC20 passes the smoke test suite with secure boot
+    This test checks basic snapd commands on UC20 with secure boot and encryption enabled
 
 systems: [ubuntu-20.04-*]
 
 kill-timeout: 30m
-
-environment:
-   SPREAD_DIR: $PWD/spread-dir
-   SPREAD_EXTERNAL_ADDRESS: 127.0.0.1:8022
 
 prepare: |
     #shellcheck source=tests/lib/nested.sh
@@ -17,18 +13,13 @@ prepare: |
     create_nested_core_vm true
     start_nested_core_vm
 
-    mkdir -p "$SPREAD_DIR"
-
 restore: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
     destroy_nested_vm
     cleanup_nested_env
 
-    rm -rf "$SPREAD_DIR"
-
 execute: |
-
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
 
@@ -37,7 +28,7 @@ execute: |
     # and then we check the installation was completed successfully
     execute_remote "sudo snap install test-snapd-sh" || true
 
-    echo "Ensure 'snap list' works"
+    echo "Ensure 'snap list' works and test-snapd-sh snap is installed"
     execute_remote "snap list" | MATCH test-snapd-sh
 
     echo "Ensure 'snap find' works"
@@ -51,5 +42,5 @@ execute: |
     # and then we check the removal was completed successfully
     execute_remote "sudo snap remove test-snapd-sh" || true
 
-    echo "Ensure 'snap list' works"
+    echo "Ensure 'snap list' works and test-snapd-sh snap is removed"
     execute_remote "snap list" | NOMATCH test-snapd-sh
