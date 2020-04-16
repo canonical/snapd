@@ -449,10 +449,8 @@ func unlockEncryptedPartition(name, device, keyfile, ekcfile, pinfile string) er
 
 	activated, err := secbootActivateVolumeWithTPMSealedKey(tpm, name, device, keyfile, nil, &options)
 	if !activated {
-		if err != nil {
-			return fmt.Errorf("cannot activate %q: %v", device, err)
-		}
-		return fmt.Errorf("internal error: cannot activate %q but got no error code", device)
+		// ActivateVolumeWithTPMSealedKey should always return an error if activated == false
+		return fmt.Errorf("cannot activate %q: %v", device, err)
 	}
 	if err != nil {
 		logger.Noticef("successfully activated device %s using a fallback activation method", device)

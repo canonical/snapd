@@ -842,8 +842,8 @@ func (s *initramfsMountsSuite) TestUnlockEncryptedPartition(c *C) {
 	}{
 		{true, nil, ""},
 		{true, errors.New("some error"), ""},
-		{false, nil, `internal error: cannot activate "device" but got no error code`},
 		{false, errors.New("some error"), `cannot activate "device": some error`},
+		// ActivateVolumeWithTPMSealedKey always return an error when activation is false
 	} {
 		n := 0
 		restore := main.MockSecbootActivateVolumeWithTPMSealedKey(func(tpm *secboot.TPMConnection, volumeName, sourceDevicePath,
