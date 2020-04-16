@@ -80,7 +80,7 @@ func (s *cmdSuite) TestCreatePartitionsWithEncryption(c *C) {
 		"--encrypt",
 		"--key-file", "keyfile",
 		"--recovery-key-file", "recovery",
-		"--lockout-auth-file", "lockout",
+		"--tpm-lockout-auth", "lockout",
 		"--policy-update-file", "update",
 		"--kernel", "kernel",
 		"gadget-dir",
