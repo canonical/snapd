@@ -34,7 +34,7 @@ var (
 	LoadProfiles               = loadProfiles
 	UnloadProfiles             = unloadProfiles
 	MaybeSetNumberOfJobs       = maybeSetNumberOfJobs
-	DefaultTemplateRules       = defaultTemplateRules
+	DefaultCoreTemplateRules   = defaultCoreTemplateRules
 	DefaultBaseTemplateRules   = defaultBaseTemplateRules
 )
 

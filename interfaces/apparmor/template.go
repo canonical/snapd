@@ -444,10 +444,10 @@ var templateFooter = `
 }
 `
 
-// defaultTemplateRules contains core* runtime-specific rules. In general,
+// defaultCoreTemplateRules contains core* runtime-specific rules. In general,
 // binaries exposed here declare what the core runtime has historically been
 // expected to support.
-var defaultTemplateRules = `
+var defaultCoreTemplateRules = `
   # Default rules for core base runtimes
 
   # The base abstraction doesn't yet have this
@@ -612,7 +612,7 @@ var defaultTemplateRules = `
 
 // defaultTemplate contains the default apparmor template for core* bases. It
 // can be overridden for testing using MockTemplate().
-var defaultTemplate = templateCommon + defaultTemplateRules + templateFooter
+var defaultTemplate = templateCommon + defaultCoreTemplateRules + templateFooter
 
 // defaultBaseTemplateRules for non-core* bases. When a snap specifies an
 // alternative base to core*, it is allowed read-only access to all files

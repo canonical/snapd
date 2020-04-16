@@ -823,7 +823,7 @@ func (s *backendSuite) TestTemplateRulesInCommon(c *C) {
 		}
 	}
 
-	for _, raw := range strings.Split(apparmor.DefaultTemplateRules, "\n") {
+	for _, raw := range strings.Split(apparmor.DefaultCoreTemplateRules, "\n") {
 		line := strings.TrimLeft(raw, " \t")
 		cf := commonFiles.MatchString(line)
 		cfv := commonFilesVar.MatchString(line)
