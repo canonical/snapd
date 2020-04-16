@@ -205,7 +205,7 @@ func generateMountsModeRun() error {
 	}
 	if !isDataMounted {
 		name := filepath.Base(boot.InitramfsUbuntuDataDir)
-		device, err := unlockIfEncrypted(name)
+		device, err := unlockIfEncrypted(name, true)
 		if err != nil {
 			return err
 		}
@@ -383,29 +383,65 @@ func generateInitramfsMounts() error {
 	return fmt.Errorf("internal error: mode in generateInitramfsMounts not handled")
 }
 
-func unlockIfEncrypted(name string) (string, error) {
+var (
+	secbootLockAccessToSealedKeys = secboot.LockAccessToSealedKeys
+	osutilFileExists              = osutil.FileExists
+)
+
+// unlockIfEncrypted verifies if an encrypted volume with the specified name exists and unlocks
+// it if this is the case. If this is the last device to be unlocked the access to the sealed keys
+// will be locked. The path to the unencrypted device node is returned.
+func unlockIfEncrypted(name string, last bool) (string, error) {
 	device := filepath.Join("/dev/disk/by-label", name)
 	encdev := device + "-enc"
-	if osutil.FileExists(encdev) {
-		// TODO:UC20: snap-bootstrap should validate that <name>-enc is what
-		//            we expect (and not e.g. an external disk), and also that
-		//            <name> is from <name>-enc and not an unencrypted partition
-		//            with the same name (LP #1863886)
 
-		// TODO:UC20: lock access to keys
-		//            This code only interacts with the TPM if there is an encrypted
-		//            device to unlock, but this misses an important step for when
-		//            there is a TPM but no encrypted device - we must call
-		//            secboot.LockAccessToSealedKeys, and this failing should be
-		//            considered a fatal error. All of the interactions with the TPM
-		//            during boot with the exception of unsealing should happen
-		//            whenever there is a TPM device detected, regardless of whether
-		//            secure boot is enabled or there is an encrypted volume to unlock.
-		sealedKeyPath := filepath.Join(boot.InitramfsEncryptionKeyDir, name+".sealed-key")
-		if err := unlockEncryptedPartition(name, encdev, sealedKeyPath, "", ""); err != nil {
-			return device, fmt.Errorf("cannot unlock %s: %v", name, err)
-		}
+	// TODO:UC20: use secureConnectToTPM if we decide there's benefit in doing that or we
+	//            have a hard requirement for a valid EK cert chain for every boot (ie, panic
+	//            if there isn't one). But we can't do that as long as we need to download
+	//            intermediate certs from the manufacturer.
+	tpm, tpmErr := insecureConnectToTPM()
+	if tpmErr != nil {
+		logger.Noticef("cannot open TPM connection: %v", tpmErr)
+	} else {
+		defer tpm.Close()
 	}
+
+	var lockErr error
+	err := func() error {
+		defer func() {
+			if last && tpmErr == nil {
+				// Lock access to the sealed keys. This should be called whenever there
+				// is a TPM device detected, regardless of whether secure boot is enabled
+				// or there is an encrypted volume to unlock. Note that snap-bootstrap can
+				// be called several times during initialization, and if there are multiple
+				// volumes to unlock we should lock access to the sealed keys only after
+				// the last encrypted volume is unlocked.
+				lockErr = secbootLockAccessToSealedKeys(tpm)
+			}
+		}()
+
+		if osutilFileExists(encdev) {
+			if tpmErr != nil {
+				return fmt.Errorf("cannot unlock encrypted device %q: %v", name, tpmErr)
+			}
+			// TODO:UC20: snap-bootstrap should validate that <name>-enc is what
+			//            we expect (and not e.g. an external disk), and also that
+			//            <name> is from <name>-enc and not an unencrypted partition
+			//            with the same name (LP #1863886)
+			sealedKeyPath := filepath.Join(boot.InitramfsEncryptionKeyDir, name+".sealed-key")
+			if err := unlockEncryptedPartition(tpm, name, encdev, sealedKeyPath, "", last); err != nil {
+				return err
+			}
+		}
+		return nil
+	}()
+	if err != nil {
+		return "", err
+	}
+	if lockErr != nil {
+		return "", lockErr
+	}
+
 	return device, nil
 }
 
@@ -425,26 +461,18 @@ func secureConnectToTPM(ekcfile string) (*secboot.TPMConnection, error) {
 	return secbootSecureConnectToDefaultTPM(ekCertReader, nil)
 }
 
-func insecureConnectToTPM(ekcfile string) (*secboot.TPMConnection, error) {
+func insecureConnectToTPM() (*secboot.TPMConnection, error) {
 	return secbootConnectToDefaultTPM()
 }
 
-// unlockEncryptedPartition unseals the keyfile and opens an encrypted device.
-func unlockEncryptedPartition(name, device, keyfile, ekcfile, pinfile string) error {
-	// TODO:UC20: use secureConnectToTPM if we decide there's benefit in doing that or we
-	//            have a hard requirement for a valid EK cert chain for every boot (ie, panic
-	//            if there isn't one). But we can't do that as long as we need to download
-	//            intermediate certs from the manufacturer.
-	tpm, err := insecureConnectToTPM(ekcfile)
-	if err != nil {
-		return fmt.Errorf("cannot open TPM connection: %v", err)
-	}
-	defer tpm.Close()
+var unlockEncryptedPartition = unlockEncryptedPartitionImpl
 
+// unlockEncryptedPartition unseals the keyfile and opens an encrypted device.
+func unlockEncryptedPartitionImpl(tpm *secboot.TPMConnection, name, device, keyfile, pinfile string, lock bool) error {
 	options := secboot.ActivateWithTPMSealedKeyOptions{
 		PINTries:            1,
 		RecoveryKeyTries:    3,
-		LockSealedKeyAccess: true,
+		LockSealedKeyAccess: lock,
 	}
 
 	activated, err := secbootActivateVolumeWithTPMSealedKey(tpm, name, device, keyfile, nil, &options)
