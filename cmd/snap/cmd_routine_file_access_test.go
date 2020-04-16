@@ -57,6 +57,7 @@ func (s *SnapRoutineFileAccessSuite) setUpClient(c *C, isClassic, hasHome, hasRe
 		switch r.URL.Path {
 		case "/v2/snaps/hello":
 			c.Check(r.Method, Equals, "GET")
+			// snap hello at revision 100
 			response := mockInfoJSONNoLicense
 			if isClassic {
 				response = strings.Replace(response, `"confinement": "strict"`, `"confinement": "classic"`, 1)

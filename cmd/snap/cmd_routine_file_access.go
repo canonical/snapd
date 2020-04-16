@@ -121,13 +121,13 @@ const (
 	FileAccessReadWrite FileAccess = "read-write"
 )
 
-func splitPath(path string) ([]string, error) {
+func splitPathAbs(path string) ([]string, error) {
 	// Abs also cleans the path, removing any ".." components
 	path, err := filepath.Abs(path)
 	if err != nil {
 		return nil, err
 	}
-	// Ignore the component before the first slash
+	// Ignore the empty component before the first slash
 	return strings.Split(path, string(os.PathSeparator))[1:], nil
 }
 
@@ -150,7 +150,7 @@ func (x *cmdRoutineFileAccess) checkAccess(snap *client.Snap, hasHome, hasRemova
 		return FileAccessReadWrite, nil
 	}
 
-	pathParts, err := splitPath(path)
+	pathParts, err := splitPathAbs(path)
 	if err != nil {
 		return "", err
 	}
@@ -181,7 +181,7 @@ func (x *cmdRoutineFileAccess) checkAccess(snap *client.Snap, hasHome, hasRemova
 		return "", fmt.Errorf("cannot get the current user: %v", err)
 	}
 
-	home, err := splitPath(usr.HomeDir)
+	home, err := splitPathAbs(usr.HomeDir)
 	if err != nil {
 		return "", err
 	}
@@ -203,7 +203,8 @@ func (x *cmdRoutineFileAccess) checkAccess(snap *client.Snap, hasHome, hasRemova
 			}
 		}
 		// If the home interface is connected, the snap has
-		// access to non-dot files.
+		// access to other files in home, except top-level dot
+		// files.
 		if hasHome {
 			if len(pathInHome) == 0 || !strings.HasPrefix(pathInHome[0], ".") {
 				return FileAccessReadWrite, nil
