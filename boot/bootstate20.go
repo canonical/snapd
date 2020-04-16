@@ -233,6 +233,123 @@ func (bks *extractedRunKernelImageBootloaderKernelState) setNextKernel(sn snap.P
 	return nil
 }
 
+// pureEnvironmentBootloaderKernelState implements bootloaderKernelState20 for
+// bootloaders that only support using bootenv and i.e. don't support
+// ExtractedRunKernelImageBootloader
+type pureEnvironmentBootloaderKernelState struct {
+	// the bootloader
+	bl bootloader.Bootloader
+
+	// the current state of env
+	env map[string]string
+
+	// the state of env to commit
+	toCommit map[string]string
+
+	// the current kernel
+	kern snap.PlaceInfo
+}
+
+func (envbks *pureEnvironmentBootloaderKernelState) load() error {
+	// for uc20, we only care about kernel_status, snap_kernel, and
+	// snap_try_kernel
+	m, err := envbks.bl.GetBootVars("kernel_status", "snap_kernel", "snap_try_kernel")
+	if err != nil {
+		return err
+	}
+
+	// the default commit env is the same state as the current env
+	envbks.env = m
+	envbks.toCommit = make(map[string]string, len(m))
+	for k, v := range m {
+		envbks.toCommit[k] = v
+	}
+
+	// snap_kernel is the current kernel snap
+	// parse the filename here because the kernel() method doesn't return an err
+	sn, err := snap.ParsePlaceInfoFromSnapFileName(envbks.env["snap_kernel"])
+	if err != nil {
+		return err
+	}
+
+	envbks.kern = sn
+
+	return nil
+}
+
+func (envbks *pureEnvironmentBootloaderKernelState) kernel() snap.PlaceInfo {
+	return envbks.kern
+}
+
+func (envbks *pureEnvironmentBootloaderKernelState) tryKernel() (snap.PlaceInfo, error) {
+	// empty snap_try_kernel is special case
+	if envbks.env["snap_try_kernel"] == "" {
+		return nil, bootloader.ErrNoTryKernelRef
+	}
+	sn, err := snap.ParsePlaceInfoFromSnapFileName(envbks.env["snap_try_kernel"])
+	if err != nil {
+		return nil, err
+	}
+
+	return sn, nil
+}
+
+func (envbks *pureEnvironmentBootloaderKernelState) kernelStatus() string {
+	return envbks.env["kernel_status"]
+}
+
+func (envbks *pureEnvironmentBootloaderKernelState) commonStateCommitUpdate(sn snap.PlaceInfo, bootvar string) bool {
+	bootenvChanged := false
+
+	// check kernel_status
+	if envbks.env["kernel_status"] != envbks.toCommit["kernel_status"] {
+		bootenvChanged = true
+	}
+
+	// if the specified snap is not the current snap, update the bootvar
+	if sn.Filename() != envbks.kern.Filename() {
+		envbks.toCommit[bootvar] = sn.Filename()
+		bootenvChanged = true
+	}
+
+	return bootenvChanged
+}
+
+func (envbks *pureEnvironmentBootloaderKernelState) markSuccessfulKernel(sn snap.PlaceInfo) error {
+	// the ordering here doesn't matter, as the only actual state we mutate is
+	// writing the boot vars/bootenv, so just do that once at the end after
+	// processing all the changes
+
+	// always set kernel_status to DefaultStatus
+	envbks.toCommit["kernel_status"] = DefaultStatus
+	bootenvChanged := envbks.commonStateCommitUpdate(sn, "snap_kernel")
+
+	// if the snap_try_kernel is set, we should unset that to both cleanup after
+	// a successful trying -> "" transition, but also to cleanup if we got
+	// rebooted during the process and have it leftover
+	if envbks.env["snap_try_kernel"] != "" {
+		bootenvChanged = true
+		envbks.toCommit["snap_try_kernel"] = ""
+	}
+
+	if bootenvChanged {
+		return envbks.bl.SetBootVars(envbks.toCommit)
+	}
+
+	return nil
+}
+
+func (envbks *pureEnvironmentBootloaderKernelState) setNextKernel(sn snap.PlaceInfo, status string) error {
+	envbks.toCommit["kernel_status"] = status
+	bootenvChanged := envbks.commonStateCommitUpdate(sn, "snap_try_kernel")
+
+	if bootenvChanged {
+		return envbks.bl.SetBootVars(envbks.toCommit)
+	}
+
+	return nil
+}
+
 //
 // kernel snap methods
 //
@@ -273,13 +390,15 @@ func (ks20 *bootState20Kernel) loadBootenv() error {
 		return err
 	}
 	ebl, ok := bl.(bootloader.ExtractedRunKernelImageBootloader)
-	if !ok {
-		// TODO:UC20: fallback to different implementation here
-		return fmt.Errorf("cannot use %s bootloader: does not support extracted run kernel images", bl.Name())
+	if ok {
+		// use the new 20-style ExtractedRunKernelImage implementation
+		ks20.bks = &extractedRunKernelImageBootloaderKernelState{ebl: ebl}
+	} else {
+		// use fallback pure bootenv implementation
+		ks20.bks = &pureEnvironmentBootloaderKernelState{bl: bl}
 	}
 
 	// setup the bootloaderKernelState20
-	ks20.bks = &extractedRunKernelImageBootloaderKernelState{ebl: ebl}
 	if err := ks20.bks.load(); err != nil {
 		return err
 	}
