@@ -1,9 +1,10 @@
 summary: Ensure the default policy is correct for base and core bases
 
 prepare: |
-    echo "Given a basic snap is installed"
+    echo "Given basic snaps are installed"
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
+    snap install test-snapd-core18
     install_local test-snapd-sh-default-base
     install_local test-snapd-sh-core18
     install_local test-snapd-sh-other18
