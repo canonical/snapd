@@ -143,13 +143,49 @@ func (bks *extractedRunKernelImageBootloaderKernelState) markSuccessful(sn snap.
 	// the old try-kernel, see the comment in bootState20MarkSuccessful.commit()
 	// for details
 
-	// always set the kernel_status to default "" when marking successful, but
-	// only call SetBootVars if needed
-	// this has the useful side-effect of cleaning up if we happen to have
-	// kernel_status = "trying" but don't have a try-kernel set
-	if bks.commitKernelStatus != DefaultStatus {
+	// the ordering here is very important for boot reliability!
+
+	// If we have successfully just booted from a try-kernel and are
+	// marking it successful (this implies that snap_kernel=="trying" as set
+	// by the boot script), we need to do the following in order (since we
+	// have the added complexity of moving the kernel symlink):
+	// 1. Update kernel_status to ""
+	// 2. Move kernel symlink to point to the new try kernel
+	// 3. Remove try-kernel symlink
+	// 4. Remove old kernel from modeenv (this happens one level up from this
+	//    function)
+	//
+	// If we got rebooted after step 1, then the bootloader is booting the wrong
+	// kernel, but is at least booting a known good kernel and snapd in
+	// user-space would be able to figure out the inconsistency.
+	// If we got rebooted after step 2, the bootloader would boot from the new
+	// try-kernel which is okay because we were in the middle of committing
+	// that new kernel as good and all that's left is for snapd to cleanup
+	// the left-over try-kernel symlink.
+	//
+	// If instead we had moved the kernel symlink first to point to the new try
+	// kernel, and got rebooted before the kernel_status was updated, we would
+	// have kernel_status="trying" which would cause the bootloader to think
+	// the boot failed, and revert to booting using the kernel symlink, but that
+	// now points to the new kernel we were trying and we did not successfully
+	// boot from that kernel to know we should trust it.
+	//
+	// Removing the old kernel from the modeenv needs to happen after it is
+	// impossible for the bootloader to boot from that kernel, otherwise we
+	// could end up in a state where the bootloader doesn't want to boot the
+	// new kernel, but the initramfs doesn't trust the old kernel and we are
+	// stuck. As such, do this last, after the symlink no longer exists.
+	//
+	// The try-kernel symlink removal should happen last because it will not
+	// affect anything, except that if it was removed before updating
+	// kernel_status to "", the bootloader will think that the try kernel failed
+	// to boot and fall back to booting the old kernel which is safe.
+
+	// always set the boot vars first before mutating any of the kernel symlinks
+	// etc.
+	if bks.commitKernelStatus != bks.currentKernelStatus {
 		m := map[string]string{
-			"kernel_status": DefaultStatus,
+			"kernel_status": bks.commitKernelStatus,
 		}
 
 		// set the boot variables
@@ -292,6 +328,11 @@ func (ks20 *bootState20Kernel) markSuccessful(update bootStateUpdate) (bootState
 
 	// u should always be non-nil if err is nil
 	u.bootedKernelSnap = sn
+
+	// always set the commit status on the bks on the bootStateUpdate we return
+	// to be empty
+	u.bks.setCommitStatus(DefaultStatus)
+
 	return u, nil
 }
 
@@ -588,50 +629,22 @@ func (bsmark *bootState20MarkSuccessful) commit() error {
 	// issue a single write at the end if something changed
 	modeenvChanged := false
 
+	// for full explanation of the robustness and ordering, see the comments
+	// on the implementations of bks.markSuccessful
+
 	// kernel snap first, slightly higher priority
-
-	// the ordering here is very important for boot reliability!
-
-	// If we have successfully just booted from a try-kernel and are
-	// marking it successful (this implies that snap_kernel=="trying" as set
-	// by the boot script), we need to do the following in order (since we
-	// have the added complexity of moving the kernel symlink):
-	// 1. Update kernel_status to ""
-	// 2. Move kernel symlink to point to the new try kernel
-	// 3. Remove try-kernel symlink
-	// 4. Remove old kernel from modeenv
-	//
-	// If we got rebooted after step 1, then the bootloader is booting the wrong
-	// kernel, but is at least booting a known good kernel and snapd in
-	// user-space would be able to figure out the inconsistency.
-	// If we got rebooted after step 2, the bootloader would boot from the new
-	// try-kernel which is okay because we were in the middle of committing
-	// that new kernel as good and all that's left is for snapd to cleanup
-	// the left-over try-kernel symlink.
-	//
-	// If instead we had moved the kernel symlink first to point to the new try
-	// kernel, and got rebooted before the kernel_status was updated, we would
-	// have kernel_status="trying" which would cause the bootloader to think
-	// the boot failed, and revert to booting using the kernel symlink, but that
-	// now points to the new kernel we were trying and we did not successfully
-	// boot from that kernel to know we should trust it.
-	//
-	// Removing the old kernel from the modeenv needs to happen after it is
-	// impossible for the bootloader to boot from that kernel, otherwise we
-	// could end up in a state where the bootloader doesn't want to boot the
-	// new kernel, but the initramfs doesn't trust the old kernel and we are
-	// stuck. As such, do this last, after the symlink no longer exists.
-	//
-	// The try-kernel symlink removal should happen last because it will not
-	// affect anything, except that if it was removed before updating
-	// kernel_status to "", the bootloader will think that the try kernel failed
-	// to boot and fall back to booting the old kernel which is safe.
 
 	// bootedKernelSnap will only ever be non-nil if we aren't marking a kernel
 	// snap successful, i.e. we are only marking a base snap successful
 	// this shouldn't happen except in tests, but let's be robust against it
 	// just in case
 	if bsmark.bootedKernelSnap != nil {
+		// always mark the kernel snap successful _before_ any other state
+		// mutating that may happen in bks.markSuccessful, because what we don't
+		// want to happen is to remove the old kernel and only trust the new
+		// try kernel before we actually set it up to boot from the new try
+		// kernel - that would brick us because we wouldn't trust the new kernel
+		// but the bootloader still thinks it should boot from the old kernel
 		err := bsmark.bks.markSuccessful(bsmark.bootedKernelSnap)
 		if err != nil {
 			return err
