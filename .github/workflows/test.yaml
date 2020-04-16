@@ -16,6 +16,8 @@ jobs:
       GOROOT: ""
       # XXX: only skip format checks on 1.13+
       SKIP_GOFMT: 1
+      # XXX: remove once actions/cache#208 is fixed
+      BITCACHER_URL: http://bit-cacher.api.zygoon.pl:8080
     strategy:
       # we cache successful runs so it's fine to keep going
       fail-fast: false      
@@ -39,6 +41,15 @@ jobs:
       with:
         path: "${{ github.workspace }}/.test-results"
         key: "${{ github.run_id }}-${{ github.job }}-results"
+    - name: workaround issue actions/cache#208 (remove once issue is fixed)
+      run: |
+          CH=$( echo ${{ matrix.gochannel }} | tr / - )
+          if curl -f "$BITCACHER_URL/api/1/get/${{ github.run_id }}-${{ github.job }}-$CH"; then
+              stamp="${{ github.workspace }}/.test-results/${{ matrix.gochannel }}-success"
+              mkdir -p $(dirname "$stamp")
+              touch "$stamp"
+          fi
+
     - name: Make /var/cache/apt owned by current user
       run: sudo chown -R $(id -u) /var/cache/apt
     - name: Cache Debian dependencies
@@ -92,7 +103,9 @@ jobs:
           ./autogen.sh
           make -j2
     - name: Build Go
-      run: go build github.com/snapcore/snapd/...
+      run: |
+          [ -e "${{ github.workspace }}/.test-results/${{ matrix.gochannel }}-success" ] && exit 0
+          go build github.com/snapcore/snapd/...
     - name: Test C
       run: |
           [ -e "${{ github.workspace }}/.test-results/${{ matrix.gochannel }}-success" ] && exit 0
@@ -107,11 +120,20 @@ jobs:
         stamp="${{ github.workspace }}/.test-results/${{ matrix.gochannel }}-success"
         mkdir -p $(dirname "$stamp")
         touch "$stamp"        
+    - name: Cache success - workaround issue actions/cache#208 (remove once issue is fixed)
+      run: |
+          CH=$( echo ${{ matrix.gochannel }} | tr / - )
+          cat > payload <<EOF
+          {"action": "create", "name": "${{ github.run_id }}-${{ github.job }}-${CH}"}
+          EOF
+          curl -i -H "Content-Type: application/json" -X POST -d "$(cat payload)" $BITCACHER_URL/api/1/change
 
-
-  spread-unstable:
+  spread:
     needs: [unit-tests]
     runs-on: self-hosted
+    env:
+      # XXX: remove once actions/cache#208 is fixed
+      BITCACHER_URL: http://bit-cacher.api.zygoon.pl:8080
     strategy:
       # FIXME: enable fail-fast mode once spread can cancel an executing job.
       fail-fast: false
@@ -139,14 +161,20 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
+    - name: Prepare results store
+      run: mkdir -p "${{ github.workspace }}/.test-results"
     - name: Cache snapd test results
       id: cache-snapd-test-results
       uses: actions/cache@v1
       with:
         path: "${{ github.workspace }}/.test-results"
         key: "${{ github.run_id }}-${{ github.job }}-results"
-    - name: Prepare results store
-      run: mkdir -p "${{ github.workspace }}/.test-results"
+    - name: workaround issue actions/cache#208 (remove once issue is fixed)
+      run: |
+          if curl -f "$BITCACHER_URL/api/1/get/${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}"; then
+              touch "${{ github.workspace }}/.test-results/${{ matrix.gochannel }}-success"
+          fi
+
     - name: Run spread tests
       env:
           SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
@@ -159,8 +187,12 @@ jobs:
           fi
           # Register a problem matcher to highlight spread failures
           echo "::add-matcher::.github/spread-problem-matcher.json"
-          spread -abend google-unstable:${{ matrix.system }}:tests/...
+          spread -abend google:${{ matrix.system }}:tests/...
           touch "$stamp"
+
+    - name: Cache success - workaround issue actions/cache#208 (remove once issue is fixed)
+      run: |
+          curl -i -H "Content-Type: application/json" -X POST -d '{"action": "create", "name": "${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}"}' "$BITCACHER_URL"/api/1/change
     - name: Discard spread workers
       if: always()
       run: |
