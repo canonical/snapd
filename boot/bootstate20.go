@@ -60,6 +60,152 @@ func (bsm *bootState20Modeenv) loadModeenv() error {
 }
 
 //
+// bootloaderKernelState20 methods
+//
+
+type bootloaderKernelState20 interface {
+	// load will setup any state / actors needed to use other methods
+	load() error
+	// kernelStatus returns the current status of the kernel, i.e. the
+	// kernel_status bootenv
+	kernelStatus() string
+	// kernel returns the current non-try kernel
+	kernel() snap.PlaceInfo
+	// kernel returns the current try kernel if it exists on the bootloader
+	tryKernel() (snap.PlaceInfo, error)
+
+	// setCommitStatus will save the kernel status to be committed during either
+	// setNextKernel or markSuccessful
+	setCommitStatus(status string)
+	// setNextKernel marks the kernel as the next, if it's not the currently
+	// booted kernel, then the specified kernel is setup as a try-kernel
+	setNextKernel(kernelSnap snap.PlaceInfo) error
+	// markSuccessful marks the specified kernel as having booted successfully,
+	// whether that kernel is the current kernel or the try-kernel
+	markSuccessful(kernelSnap snap.PlaceInfo) error
+}
+
+// extractedRunKernelImageBootloaderKernelState implements bootloaderKernelState20 for
+// bootloaders that implement ExtractedRunKernelImageBootloader
+type extractedRunKernelImageBootloaderKernelState struct {
+	// the bootloader
+	ebl bootloader.ExtractedRunKernelImageBootloader
+	// the current kernel status as read by the bootloader's bootenv
+	currentKernelStatus string
+	// what the kernel status should be committed as during one of the
+	// committing methods, setNextKernel or markSuccessful
+	commitKernelStatus string
+	// the current kernel on the bootloader (not the try-kernel)
+	currentKernel snap.PlaceInfo
+}
+
+func (bks *extractedRunKernelImageBootloaderKernelState) load() error {
+	// get the kernel_status
+	m, err := bks.ebl.GetBootVars("kernel_status")
+	if err != nil {
+		return err
+	}
+
+	bks.currentKernelStatus = m["kernel_status"]
+	// the default kernel status to commit is the current state
+	bks.commitKernelStatus = bks.currentKernelStatus
+
+	// get the current kernel for this bootloader to compare during commit() for
+	// markSuccessful() if we booted the current kernel or not
+	kernel, err := bks.ebl.Kernel()
+	if err != nil {
+		return fmt.Errorf("cannot identify kernel snap with bootloader %s: %v", bks.ebl.Name(), err)
+	}
+
+	bks.currentKernel = kernel
+
+	return nil
+}
+
+func (bks *extractedRunKernelImageBootloaderKernelState) kernel() snap.PlaceInfo {
+	return bks.currentKernel
+}
+
+func (bks *extractedRunKernelImageBootloaderKernelState) tryKernel() (snap.PlaceInfo, error) {
+	return bks.ebl.TryKernel()
+}
+
+func (bks *extractedRunKernelImageBootloaderKernelState) kernelStatus() string {
+	return bks.currentKernelStatus
+}
+
+func (bks *extractedRunKernelImageBootloaderKernelState) setCommitStatus(status string) {
+	bks.commitKernelStatus = status
+}
+
+func (bks *extractedRunKernelImageBootloaderKernelState) markSuccessful(sn snap.PlaceInfo) error {
+	// set the boot vars first, then enable the successful kernel, then disable
+	// the old try-kernel, see the comment in bootState20MarkSuccessful.commit()
+	// for details
+
+	// always set the kernel_status to default "" when marking successful, but
+	// only call SetBootVars if needed
+	// this has the useful side-effect of cleaning up if we happen to have
+	// kernel_status = "trying" but don't have a try-kernel set
+	if bks.commitKernelStatus != DefaultStatus {
+		m := map[string]string{
+			"kernel_status": DefaultStatus,
+		}
+
+		// set the boot variables
+		err := bks.ebl.SetBootVars(m)
+		if err != nil {
+			return err
+		}
+	}
+
+	// if the kernel we booted is not the current one, we must have tried
+	// a new kernel, so enable that one as the current one now
+	if bks.currentKernel.Filename() != sn.Filename() {
+		err := bks.ebl.EnableKernel(sn)
+		if err != nil {
+			return err
+		}
+	}
+
+	// always disable the try kernel snap to cleanup in case we have upgrade
+	// failures which leave behind try-kernel.efi
+	err := bks.ebl.DisableTryKernel()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (bks *extractedRunKernelImageBootloaderKernelState) setNextKernel(sn snap.PlaceInfo) error {
+	// always enable the try-kernel first, if we did the reverse and got
+	// rebooted after setting the boot vars but before enabling the try-kernel
+	// we could get stuck where the bootloader can't find the try-kernel and
+	// gets stuck waiting for a user to reboot, at which point we would fallback
+	// see i.e. https://github.com/snapcore/pc-amd64-gadget/issues/36
+	if sn.Filename() != bks.currentKernel.Filename() {
+		err := bks.ebl.EnableTryKernel(sn)
+		if err != nil {
+			return err
+		}
+	}
+
+	// only if the new kernel status is different from what we read should we
+	// run SetBootVars() to minimize wear/corruption possibility on the bootenv
+	if bks.commitKernelStatus != bks.currentKernelStatus {
+		m := map[string]string{
+			"kernel_status": bks.commitKernelStatus,
+		}
+
+		// set the boot variables
+		return bks.ebl.SetBootVars(m)
+	}
+
+	return nil
+}
+
+//
 // kernel snap methods
 //
 
@@ -68,24 +214,13 @@ func (bsm *bootState20Modeenv) loadModeenv() error {
 // note that for markSuccessful() a different bootStateUpdate implementation is
 // returned, see bootState20MarkSuccessful
 type bootState20Kernel struct {
-	// the bootloader to manipulate kernel assets
-	ebl bootloader.ExtractedRunKernelImageBootloader
-
-	// the kernel_status variable currently in the bootloader, initialized by
-	// setupBootloader()
-	kernelStatus string
-
-	// the kernel_status value to be written in commit()
-	commitKernelStatus string
+	bks bootloaderKernelState20
 
 	// the kernel snap that was booted for markSuccessful()
 	bootedKernelSnap snap.PlaceInfo
 
-	// the current kernel as indicated by the bootloader
-	currentKernel snap.PlaceInfo
-
 	// the kernel snap to try for setNext()
-	tryKernelSnap snap.PlaceInfo
+	nextKernelSnap snap.PlaceInfo
 
 	// don't embed this struct - it will conflict with embedding
 	// bootState20Modeenv in bootState20Base when both bootState20Base and
@@ -96,9 +231,10 @@ type bootState20Kernel struct {
 
 func (ks20 *bootState20Kernel) loadBootenv() error {
 	// don't setup multiple times
-	if ks20.ebl != nil {
+	if ks20.bks != nil {
 		return nil
 	}
+
 	// find the bootloader and ensure it's an extracted run kernel image
 	// bootloader
 	bl, err := bootloader.Find("", nil)
@@ -107,30 +243,15 @@ func (ks20 *bootState20Kernel) loadBootenv() error {
 	}
 	ebl, ok := bl.(bootloader.ExtractedRunKernelImageBootloader)
 	if !ok {
+		// TODO:UC20: fallback to different implementation here
 		return fmt.Errorf("cannot use %s bootloader: does not support extracted run kernel images", bl.Name())
 	}
 
-	ks20.ebl = ebl
-
-	// also get the kernel_status
-	m, err := ebl.GetBootVars("kernel_status")
-	if err != nil {
+	// setup the bootloaderKernelState20
+	ks20.bks = &extractedRunKernelImageBootloaderKernelState{ebl: ebl}
+	if err := ks20.bks.load(); err != nil {
 		return err
 	}
-
-	ks20.kernelStatus = m["kernel_status"]
-
-	// the default commit status is the same as the kernel status was before
-	ks20.commitKernelStatus = ks20.kernelStatus
-
-	// get the current kernel for this bootloader to compare during commit() for
-	// markSuccessful() if we booted the current kernel or not
-	kernel, err := ks20.ebl.Kernel()
-	if err != nil {
-		return fmt.Errorf("cannot identify kernel snap with bootloader %s: %v", ks20.ebl.Name(), err)
-	}
-
-	ks20.currentKernel = kernel
 
 	return nil
 }
@@ -142,16 +263,19 @@ func (ks20 *bootState20Kernel) revisions() (curSnap, trySnap snap.PlaceInfo, try
 		return nil, nil, "", err
 	}
 
-	tryKernel, err := ks20.ebl.TryKernel()
+	status := ks20.bks.kernelStatus()
+	kern := ks20.bks.kernel()
+
+	tryKernel, err := ks20.bks.tryKernel()
 	if err != nil && err != bootloader.ErrNoTryKernelRef {
-		return nil, nil, "", fmt.Errorf("cannot identify try kernel snap with bootloader %s: %v", ks20.ebl.Name(), err)
+		return nil, nil, "", err
 	}
 
 	if err == nil {
 		tryBootSn = tryKernel
 	}
 
-	return ks20.currentKernel, tryBootSn, ks20.kernelStatus, nil
+	return kern, tryBootSn, status, nil
 }
 
 func (ks20 *bootState20Kernel) markSuccessful(update bootStateUpdate) (bootStateUpdate, error) {
@@ -185,19 +309,19 @@ func (ks20 *bootState20Kernel) setNext(next snap.PlaceInfo) (rebootRequired bool
 
 	// if we are setting a snap as a try snap, then we need to reboot
 	rebootRequired = false
+	ks20.nextKernelSnap = next
 	if nextStatus == TryStatus {
-		ks20.tryKernelSnap = next
 		rebootRequired = true
 	}
-	ks20.commitKernelStatus = nextStatus
+	ks20.bks.setCommitStatus(nextStatus)
 
-	// any state changes done so far are consumed in to commit()
+	// any state changes done so far are consumed in commit()
 
 	return rebootRequired, ks20, nil
 }
 
-// commit for bootState20Kernel is meant only to be used with setNext(), for
-// markSuccessful(), use bootState20MarkSuccessful.
+// commit for bootState20Kernel is meant only to be used with setNext().
+// For markSuccessful(), use bootState20MarkSuccessful.
 func (ks20 *bootState20Kernel) commit() error {
 	// The ordering of this is very important for boot safety/reliability!!!
 
@@ -220,35 +344,24 @@ func (ks20 *bootState20Kernel) commit() error {
 	// for the same reasoning as for creating the try-kernel symlink. Putting it
 	// first is currently a purely aesthetic choice.
 
-	// add the kernel to the modeenv and add the try-kernel symlink
-	// tryKernelSnap could be nil here if we called setNext on the current
-	// kernel snap
-	if ks20.tryKernelSnap != nil {
+	// add the kernel to the modeenv if it is not the current kernel (if it is
+	// the current kernel then it must already be in the modeenv)
+	currentKernel := ks20.bks.kernel()
+	if ks20.nextKernelSnap.Filename() != currentKernel.Filename() {
 		// add the kernel to the modeenv
 		ks20.kModeenv.modeenv.CurrentKernels = append(
 			ks20.kModeenv.modeenv.CurrentKernels,
-			ks20.tryKernelSnap.Filename(),
+			ks20.nextKernelSnap.Filename(),
 		)
 		err := ks20.kModeenv.modeenv.Write()
 		if err != nil {
 			return err
 		}
-
-		err = ks20.ebl.EnableTryKernel(ks20.tryKernelSnap)
-		if err != nil {
-			return err
-		}
 	}
 
-	// only if the new kernel status is different from what we read should we
-	// run SetBootVars()
-	if ks20.commitKernelStatus != ks20.kernelStatus {
-		m := map[string]string{
-			"kernel_status": ks20.commitKernelStatus,
-		}
-
-		// set the boot variables
-		return ks20.ebl.SetBootVars(m)
+	err := ks20.bks.setNextKernel(ks20.nextKernelSnap)
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -514,35 +627,12 @@ func (bsmark *bootState20MarkSuccessful) commit() error {
 	// kernel_status to "", the bootloader will think that the try kernel failed
 	// to boot and fall back to booting the old kernel which is safe.
 
-	// always set the kernel_status to default "" when marking successful, but
-	// only call SetBootVars if needed
-	// this has the useful side-effect of cleaning up if we happen to have
-	// kernel_status = "trying" but don't have a try-kernel set
-	if bsmark.commitKernelStatus != DefaultStatus {
-		m := map[string]string{
-			"kernel_status": DefaultStatus,
-		}
-
-		// set the boot variables
-		err := bsmark.ebl.SetBootVars(m)
-		if err != nil {
-			return err
-		}
-	}
-
+	// bootedKernelSnap will only ever be non-nil if we aren't marking a kernel
+	// snap successful, i.e. we are only marking a base snap successful
+	// this shouldn't happen except in tests, but let's be robust against it
+	// just in case
 	if bsmark.bootedKernelSnap != nil {
-		// if the kernel we booted is not the current one, we must have tried
-		// a new kernel, so enable that one as the current one now
-		if bsmark.currentKernel.Filename() != bsmark.bootedKernelSnap.Filename() {
-			err := bsmark.ebl.EnableKernel(bsmark.bootedKernelSnap)
-			if err != nil {
-				return err
-			}
-		}
-
-		// always disable the try kernel snap to cleanup in case we have upgrade
-		// failures which leave behind try-kernel.efi
-		err := bsmark.ebl.DisableTryKernel()
+		err := bsmark.bks.markSuccessful(bsmark.bootedKernelSnap)
 		if err != nil {
 			return err
 		}
@@ -552,8 +642,6 @@ func (bsmark *bootState20MarkSuccessful) commit() error {
 		bsmark.modeenv.CurrentKernels = []string{bsmark.bootedKernelSnap.Filename()}
 		modeenvChanged = true
 	}
-
-	// always clean up the try kernel, as it may be leftover from a failed boot
 
 	// base snap next
 	// the ordering here is less important, since the only operation that
