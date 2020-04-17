@@ -293,7 +293,7 @@ func (s *bootenv20Suite) TestHappySetNextBoot20KernelUpgradeUnexpectedReboots(c 
 			coreDev,
 			setNextFunc,
 			t.rebootBeforeFunc,
-			t.expBlKernel,
+			t.expBootKernel,
 			t.expModeenvKernels,
 			t.expBlKernel,
 			t.comment,
