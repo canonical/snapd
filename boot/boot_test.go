@@ -154,7 +154,6 @@ type bootenv20Suite struct {
 	bootloader *bootloadertest.MockExtractedRunKernelImageBootloader
 }
 
-
 var defaultUC20BootEnv = map[string]string{"kernel_status": boot.DefaultStatus}
 
 var _ = Suite(&bootenv20Suite{})
@@ -165,7 +164,6 @@ func (s *bootenv20Suite) SetUpTest(c *C) {
 	s.bootloader = bootloadertest.Mock("mock", c.MkDir()).WithExtractedRunKernelImage()
 	s.forceBootloader(s.bootloader)
 }
-
 
 type uc20bootStateSetupOpts struct {
 	modeenv    *boot.Modeenv
@@ -195,6 +193,17 @@ func setupUC20Bloader(
 		cleanups = append(cleanups, r)
 	}
 
+	// set the status
+	origEnv, err := bl.GetBootVars("kernel_status")
+	c.Assert(err, IsNil)
+
+	err = bl.SetBootVars(map[string]string{"kernel_status": opts.kernStatus})
+	c.Assert(err, IsNil)
+	cleanups = append(cleanups, func() {
+		err := bl.SetBootVars(origEnv)
+		c.Assert(err, IsNil)
+	})
+
 	// check what kind of real mock bootloader we have to use different methods
 	// to set the kernel snaps are if they're non-nil
 	switch vbl := bl.(type) {
@@ -209,6 +218,9 @@ func setupUC20Bloader(
 			r := vbl.SetRunKernelImageEnabledTryKernel(opts.tryKern)
 			cleanups = append(cleanups, r)
 		}
+
+		// don't count any calls to SetBootVars made thus far
+		vbl.SetBootVarsCalls = 0
 
 	case *bootloadertest.MockBootloader:
 		// then we need to use the bootenv to set the current kernels
@@ -234,18 +246,13 @@ func setupUC20Bloader(
 			err := bl.SetBootVars(origEnv)
 			c.Assert(err, IsNil)
 		})
-	}
 
-	// set the status
-	origEnv, err := bl.GetBootVars("kernel_status")
-	c.Assert(err, IsNil)
-
-	err = bl.SetBootVars(map[string]string{"kernel_status": opts.kernStatus})
-	c.Assert(err, IsNil)
-	cleanups = append(cleanups, func() {
-		err := bl.SetBootVars(origEnv)
+		err = vbl.SetBootVars(m)
 		c.Assert(err, IsNil)
-	})
+
+		// don't count any calls to SetBootVars made thus far
+		vbl.SetBootVarsCalls = 0
+	}
 
 	return func() {
 		for _, r := range cleanups {
