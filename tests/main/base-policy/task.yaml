@@ -10,8 +10,14 @@ prepare: |
     install_local test-snapd-sh-other18
 
 execute: |
-    # only apparmor file mediation is needed for these tests
-    if ! snap debug sandbox-features --required apparmor:kernel:file ; then
+    # test-snapd-core18 is only available on amd64
+    if [ "$(uname -p)" != "x86_64" ]; then
+        exit 0
+    fi
+
+    # technically only apparmor file mediation is needed but strict is what
+    # guarantees it is in use
+    if [ "$(snap debug confinement)" != strict ]; then
         exit 0
     fi
 
