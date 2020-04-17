@@ -20,12 +20,19 @@
 package main
 
 import (
+	"errors"
+
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/release"
 )
 
-type cmdBootvars struct{}
+type cmdBootvars struct {
+	UC20    bool   `long:"uc20"`
+	RootDir string `long:"root-dir"`
+}
 
 func init() {
 	cmd := addDebugCommand("boot-vars",
@@ -33,10 +40,18 @@ func init() {
 		"(internal) obtain the snapd boot variables",
 		func() flags.Commander {
 			return &cmdBootvars{}
-		}, nil, nil)
-	cmd.hidden = true
+		}, map[string]string{
+			"uc20":     i18n.G("Whether to use uc20 boot vars or not"),
+			"root-dir": i18n.G("Root directory to look for boot variables in"),
+		}, nil)
+	if release.OnClassic {
+		cmd.hidden = true
+	}
 }
 
 func (x *cmdBootvars) Execute(args []string) error {
-	return boot.DumpBootVars(Stdout)
+	if release.OnClassic {
+		return errors.New(`the "boot-vars" command is not available on classic systems`)
+	}
+	return boot.DumpBootVars(Stdout, x.RootDir, x.UC20)
 }
