@@ -280,21 +280,42 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 	blVars := map[string]string{
 		"kernel_status": "",
 	}
-	if err := bl.SetBootVars(blVars); err != nil {
-		return fmt.Errorf("cannot set run system environment: %v", err)
-	}
 
 	ebl, ok := bl.(bootloader.ExtractedRunKernelImageBootloader)
-	if !ok {
-		return fmt.Errorf("cannot use %s bootloader: does not support extracted run kernel images", bl.Name())
-	}
+	if ok {
+		// we can use ebl, so just set the EnableKernel after setting
+		// kernel_status
+		if err := bl.SetBootVars(blVars); err != nil {
+			return fmt.Errorf("cannot set run system environment: %v", err)
+		}
 
-	if err := ebl.EnableKernel(bootWith.Kernel); err != nil {
-		return err
+		if err := ebl.EnableKernel(bootWith.Kernel); err != nil {
+			return err
+		}
+	} else {
+		// TODO:UC20: should we make this more explicit with a new
+		//            bootloader interface that is checked for first before
+		//            ExtractedRunKernelImageBootloader the same way we do with
+		//            ExtractedRecoveryKernelImageBootloader?
+
+		// we don't have an ExtractedRunKernelImageBootloader, so just set the
+		// legacy variables for snap_kernel and move on
+		blVars["snap_kernel"] = bootWith.Kernel.Filename()
+
+		if err := bl.SetBootVars(blVars); err != nil {
+			return fmt.Errorf("cannot set run system environment: %v", err)
+		}
 	}
 
 	// LAST step: update recovery grub's grubenv to indicate that
 	// we transition to run mode now
+
+	// TODO:UC20: this "just works" on accident with bootloaders like uboot and
+	//            lk, but should we make this more explicit? currently they
+	//            don't see or care about the Recovery option, so we in effect
+	//            end up writing the bootenv to the normal bootenv on
+	//            ubuntu-seed, which is what we wanted for these bootloaders
+	//            anyways?
 	opts = &bootloader.Options{
 		// setup the recovery bootloader
 		Recovery: true,
