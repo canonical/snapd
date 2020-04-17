@@ -21,11 +21,15 @@ package main_test
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 
+	"github.com/canonical/go-tpm2"
+	"github.com/snapcore/secboot"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts/assertstest"
@@ -35,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	main "github.com/snapcore/snapd/cmd/snap-bootstrap"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
@@ -62,6 +67,9 @@ func (s *initramfsMountsSuite) SetUpTest(c *C) {
 
 	s.Stdout = bytes.NewBuffer(nil)
 	restore := main.MockStdout(s.Stdout)
+	s.AddCleanup(restore)
+
+	_, restore = logger.MockLogger()
 	s.AddCleanup(restore)
 
 	// mock /run/mnt
@@ -818,4 +826,257 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeKernelStatusTryingNoTry
 	c.Assert(n, Equals, 5)
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/pc-kernel_1.snap %[1]s/kernel
 `, boot.InitramfsRunMntDir))
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep1(c *C) {
+	n := 0
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover snapd_recovery_system="+s.sysLabel)
+
+	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
+		n++
+		switch n {
+		case 1:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "ubuntu-seed"))
+			return false, nil
+		}
+		return false, fmt.Errorf("unexpected number of calls: %v", n)
+	})
+	defer restore()
+
+	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 1)
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf("/dev/disk/by-label/ubuntu-seed %s/ubuntu-seed\n", boot.InitramfsRunMntDir))
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep2(c *C) {
+	n := 0
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover snapd_recovery_system="+s.sysLabel)
+
+	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
+		n++
+		switch n {
+		case 1:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "ubuntu-seed"))
+			return true, nil
+		case 2:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
+			return false, nil
+		case 3:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
+			return false, nil
+		case 4:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "snapd"))
+			return false, nil
+		case 5:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data"))
+			return false, nil
+		}
+		return false, fmt.Errorf("unexpected number of calls: %v %s", n, path)
+	})
+	defer restore()
+
+	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 5)
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/snaps/snapd_1.snap %[2]s/snapd
+%[1]s/snaps/pc-kernel_1.snap %[2]s/kernel
+%[1]s/snaps/core20_1.snap %[2]s/base
+--type=tmpfs tmpfs /run/mnt/ubuntu-data
+`, s.seedDir, boot.InitramfsRunMntDir))
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep3(c *C) {
+	n := 0
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover snapd_recovery_system="+s.sysLabel)
+
+	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
+		n++
+		switch n {
+		case 1:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "ubuntu-seed"))
+			return true, nil
+		case 2:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
+			return true, nil
+		case 3:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
+			return true, nil
+		case 4:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "snapd"))
+			return true, nil
+		case 5:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data"))
+			return true, nil
+		case 6:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "host/ubuntu-data"))
+			return false, nil
+		}
+		return false, fmt.Errorf("unexpected number of calls: %v", n)
+	})
+	defer restore()
+
+	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 6)
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`/dev/disk/by-label/ubuntu-data %s/host/ubuntu-data
+`, boot.InitramfsRunMntDir))
+}
+
+var mockStateContent = `{"data":{"auth":{"users":[{"name":"mvo"}]}},"some":{"other":"stuff"}}`
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep4(c *C) {
+	n := 0
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover snapd_recovery_system="+s.sysLabel)
+
+	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
+		n++
+		switch n {
+		case 1:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "ubuntu-seed"))
+			return true, nil
+		case 2:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
+			return true, nil
+		case 3:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
+			return true, nil
+		case 4:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "snapd"))
+			return true, nil
+		case 5:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data"))
+			return true, nil
+		case 6:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "host/ubuntu-data"))
+			return true, nil
+		}
+		return false, fmt.Errorf("unexpected number of calls: %v", n)
+	})
+	defer restore()
+
+	ephemeralUbuntuData := filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data/")
+	err := os.MkdirAll(ephemeralUbuntuData, 0755)
+	c.Assert(err, IsNil)
+	// mock a auth data in the host's ubuntu-data
+	hostUbuntuData := filepath.Join(boot.InitramfsRunMntDir, "host/ubuntu-data/")
+	err = os.MkdirAll(hostUbuntuData, 0755)
+	c.Assert(err, IsNil)
+	mockAuthFiles := []string{
+		// extrausers
+		"system-data/var/lib/extrausers/passwd",
+		"system-data/var/lib/extrausers/shadow",
+		"system-data/var/lib/extrausers/group",
+		"system-data/var/lib/extrausers/gshadow",
+		// sshd
+		"system-data/etc/ssh/ssh_host_rsa.key",
+		"system-data/etc/ssh/ssh_host_rsa.key.pub",
+		// user ssh
+		"user-data/user1/.ssh/authorized_keys",
+		"user-data/user2/.ssh/authorized_keys",
+	}
+	mockUnrelatedFiles := []string{
+		"system-data/var/lib/foo",
+		"system-data/etc/passwd",
+		"user-data/user1/some-random-data",
+		"user-data/user2/other-random-data",
+	}
+	for _, mockAuthFile := range append(mockAuthFiles, mockUnrelatedFiles...) {
+		p := filepath.Join(hostUbuntuData, mockAuthFile)
+		err = os.MkdirAll(filepath.Dir(p), 0750)
+		c.Assert(err, IsNil)
+		mockContent := fmt.Sprintf("content of %s", filepath.Base(mockAuthFile))
+		err = ioutil.WriteFile(p, []byte(mockContent), 0640)
+		c.Assert(err, IsNil)
+	}
+	// create a mock state
+	mockedState := filepath.Join(hostUbuntuData, "system-data/var/lib/snapd/state.json")
+	err = os.MkdirAll(filepath.Dir(mockedState), 0750)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(mockedState, []byte(mockStateContent), 0640)
+	c.Assert(err, IsNil)
+
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 6)
+	c.Check(s.Stdout.String(), Equals, "")
+
+	modeEnv := filepath.Join(ephemeralUbuntuData, "/system-data/var/lib/snapd/modeenv")
+	c.Check(modeEnv, testutil.FileEquals, `mode=recover
+recovery_system=20191118
+`)
+	for _, p := range mockUnrelatedFiles {
+		c.Check(filepath.Join(ephemeralUbuntuData, p), testutil.FileAbsent)
+	}
+	for _, p := range mockAuthFiles {
+		c.Check(filepath.Join(ephemeralUbuntuData, p), testutil.FilePresent)
+		fi, err := os.Stat(filepath.Join(ephemeralUbuntuData, p))
+		// check file mode is set
+		c.Assert(err, IsNil)
+		c.Check(fi.Mode(), Equals, os.FileMode(0640))
+		// check dir mode is set in parent dir
+		fiParent, err := os.Stat(filepath.Dir(filepath.Join(ephemeralUbuntuData, p)))
+		c.Assert(err, IsNil)
+		c.Check(fiParent.Mode(), Equals, os.FileMode(os.ModeDir|0750))
+	}
+
+	c.Check(filepath.Join(ephemeralUbuntuData, "system-data/var/lib/snapd/state.json"), testutil.FileEquals, `{"data":{"auth":{"users":[{"name":"mvo"}]}},"changes":{},"tasks":{},"last-change-id":0,"last-task-id":0,"last-lane-id":0}`)
+}
+
+func (s *initramfsMountsSuite) TestUnlockEncryptedPartition(c *C) {
+	tcti, err := os.Open("/dev/null")
+	c.Assert(err, IsNil)
+	tpm, err := tpm2.NewTPMContext(tcti)
+	c.Assert(err, IsNil)
+	mockTPM := &secboot.TPMConnection{TPMContext: tpm}
+	restoreConnect := main.MockSecbootConnectToDefaultTPM(func() (*secboot.TPMConnection, error) {
+		return mockTPM, nil
+	})
+	defer restoreConnect()
+
+	for _, tc := range []struct {
+		activationSuccessful bool
+		activationError      error
+		errStr               string
+	}{
+		{true, nil, ""},
+		{true, errors.New("some error"), ""},
+		{false, errors.New("some error"), `cannot activate encrypted device "device": some error`},
+		// ActivateVolumeWithTPMSealedKey always return an error when activation is false
+	} {
+		n := 0
+		restore := main.MockSecbootActivateVolumeWithTPMSealedKey(func(tpm *secboot.TPMConnection, volumeName, sourceDevicePath,
+			keyPath string, pinReader io.Reader, options *secboot.ActivateWithTPMSealedKeyOptions) (bool, error) {
+			n++
+			c.Assert(tpm, Equals, mockTPM)
+			c.Assert(volumeName, Equals, "name")
+			c.Assert(sourceDevicePath, Equals, "device")
+			c.Assert(keyPath, Equals, "keyfile")
+			c.Assert(*options, DeepEquals, secboot.ActivateWithTPMSealedKeyOptions{
+				PINTries:            1,
+				RecoveryKeyTries:    3,
+				LockSealedKeyAccess: true,
+			})
+			return tc.activationSuccessful, tc.activationError
+		})
+		defer restore()
+
+		err = main.UnlockEncryptedPartition("name", "device", "keyfile", "ekcfile", "pinfile")
+		c.Assert(n, Equals, 1)
+		if tc.errStr == "" {
+			c.Assert(err, IsNil)
+		} else {
+			c.Assert(err, ErrorMatches, tc.errStr)
+		}
+	}
+}
+
+func (s *initramfsMountsSuite) TestUnlockEncryptedPartitionTPMConnectError(c *C) {
+	restoreConnect := main.MockSecbootConnectToDefaultTPM(func() (*secboot.TPMConnection, error) {
+		return nil, fmt.Errorf("something wrong happened")
+	})
+	defer restoreConnect()
+
+	err := main.UnlockEncryptedPartition("name", "device", "keyfile", "ekcfile", "pinfile")
+	c.Assert(err, ErrorMatches, "cannot open TPM connection: something wrong happened")
 }
