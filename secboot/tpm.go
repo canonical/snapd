@@ -24,7 +24,7 @@ import (
 	"crypto/rand"
 	"fmt"
 
-	"github.com/chrisccoulson/go-tpm2"
+	"github.com/canonical/go-tpm2"
 	sb "github.com/snapcore/secboot"
 
 	"github.com/snapcore/snapd/osutil"
