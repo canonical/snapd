@@ -117,7 +117,7 @@ execute: |
     snap get snapctl-hooks root.key2 2>&1 | MATCH 'snap "snapctl-hooks" has no "root.key2" configuration option'
 
     echo "Test that config values are not available once snap is removed"
-    snap remove snapctl-hooks
+    snap remove --purge snapctl-hooks
     if output=$(snap get snapctl-hooks foo); then
         echo "Expected snap get to fail, but got '$output'"
         exit 1

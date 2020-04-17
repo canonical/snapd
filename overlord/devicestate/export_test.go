@@ -21,13 +21,17 @@ package devicestate
 
 import (
 	"context"
+	"net/http"
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
+	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -67,6 +71,14 @@ func MockMaxTentatives(max int) (restore func()) {
 	}
 }
 
+func MockTimeNow(f func() time.Time) (restore func()) {
+	old := timeNow
+	timeNow = f
+	return func() {
+		timeNow = old
+	}
+}
+
 func KeypairManager(m *DeviceManager) asserts.KeypairManager {
 	return m.keypairMgr
 }
@@ -83,14 +95,8 @@ func SetLastBecomeOperationalAttempt(m *DeviceManager, t time.Time) {
 	m.lastBecomeOperationalAttempt = t
 }
 
-func SetOperatingMode(m *DeviceManager, mode string) {
-	m.modeEnv.Mode = mode
-}
-
-// XXX: will become properly exported but we probably want to make
-//      mode a type and not a string before we do that
-func OperatingMode(m *DeviceManager) string {
-	return m.operatingMode()
+func SetSystemMode(m *DeviceManager, mode string) {
+	m.systemMode = mode
 }
 
 func MockRepeatRequestSerial(label string) (restore func()) {
@@ -144,6 +150,7 @@ func SetBootOkRan(m *DeviceManager, b bool) {
 type (
 	RegistrationContext = registrationContext
 	RemodelContext      = remodelContext
+	SeededSystem        = seededSystem
 )
 
 func RegistrationCtx(m *DeviceManager, t *state.Task) (registrationContext, error) {
@@ -159,6 +166,7 @@ func RemodelDeviceBackend(remodCtx remodelContext) storecontext.DeviceBackend {
 var (
 	ImportAssertionsFromSeed     = importAssertionsFromSeed
 	CheckGadgetOrKernel          = checkGadgetOrKernel
+	CheckGadgetValid             = checkGadgetValid
 	CheckGadgetRemodelCompatible = checkGadgetRemodelCompatible
 	CanAutoRefresh               = canAutoRefresh
 	NewEnoughProxy               = newEnoughProxy
@@ -175,6 +183,8 @@ var (
 	GadgetUpdateBlocked = gadgetUpdateBlocked
 	CurrentGadgetInfo   = currentGadgetInfo
 	PendingGadgetInfo   = pendingGadgetInfo
+
+	CriticalTaskEdges = criticalTaskEdges
 )
 
 func MockGadgetUpdate(mock func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc) error) (restore func()) {
@@ -190,5 +200,37 @@ func MockGadgetIsCompatible(mock func(current, update *gadget.Info) error) (rest
 	gadgetIsCompatible = mock
 	return func() {
 		gadgetIsCompatible = old
+	}
+}
+
+func MockBootMakeBootable(f func(model *asserts.Model, rootdir string, bootWith *boot.BootableSet) error) (restore func()) {
+	old := bootMakeBootable
+	bootMakeBootable = f
+	return func() {
+		bootMakeBootable = old
+	}
+}
+
+func MockSecbootCheckKeySealingSupported(f func() error) (restore func()) {
+	old := secbootCheckKeySealingSupported
+	secbootCheckKeySealingSupported = f
+	return func() {
+		secbootCheckKeySealingSupported = old
+	}
+}
+
+func MockHttputilNewHTTPClient(f func(opts *httputil.ClientOptions) *http.Client) (restore func()) {
+	old := httputilNewHTTPClient
+	httputilNewHTTPClient = f
+	return func() {
+		httputilNewHTTPClient = old
+	}
+}
+
+func MockSysconfigConfigureRunSystem(f func(opts *sysconfig.Options) error) (restore func()) {
+	old := sysconfigConfigureRunSystem
+	sysconfigConfigureRunSystem = f
+	return func() {
+		sysconfigConfigureRunSystem = old
 	}
 }

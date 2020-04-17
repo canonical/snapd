@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -32,12 +33,12 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/metautil"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
 )
-
-// The fixed length of valid snap IDs.
-const validSnapIDLength = 32
 
 const (
 	// MBR identifies a Master Boot Record partitioning schema, or an MBR like role
@@ -74,14 +75,6 @@ type Info struct {
 	Defaults map[string]map[string]interface{} `yaml:"defaults,omitempty"`
 
 	Connections []Connection `yaml:"connections"`
-}
-
-// ModelConstraints defines rules to be followed when reading the gadget metadata.
-type ModelConstraints struct {
-	// Classic rules (i.e. content/presence of gadget.yaml is fully optional)
-	Classic bool
-	// A system-seed partition (aka recovery partion) is expected (Core 20)
-	SystemSeed bool
 }
 
 // Volume defines the structure and content for the image to be written into a
@@ -128,8 +121,9 @@ type VolumeStructure struct {
 	// For backwards compatibility type 'mbr' is also accepted, and the
 	// structure is treated as if it is of role 'mbr'.
 	Type string `yaml:"type"`
-	// Role describes the role of given structure, can be one of 'mbr',
-	// 'system-data', 'system-boot', 'bootimg', 'bootselect'. Structures of type 'mbr', must have a
+	// Role describes the role of given structure, can be one of
+	// 'mbr', 'system-data', 'system-boot', 'system-boot-image',
+	// 'system-boot-select'. Structures of type 'mbr', must have a
 	// size of 446 bytes and must start at 0 offset.
 	Role string `yaml:"role"`
 	// ID is the GPT partition ID
@@ -288,16 +282,31 @@ func parseSnapIDColonName(s string) (snapID, name string, err error) {
 }
 
 func systemOrSnapID(s string) bool {
-	if s != "system" && len(s) != validSnapIDLength {
+	if s != "system" && naming.ValidateSnapID(s) != nil {
 		return false
 	}
 	return true
 }
 
+// Model carries information about the model that is relevant to gadget.
+// Note *asserts.Model implements this, and that's the expected use case.
+type Model interface {
+	Classic() bool
+	Grade() asserts.ModelGrade
+}
+
+func classicOrUnconstrained(m Model) bool {
+	return m == nil || m.Classic()
+}
+
+func wantsSystemSeed(m Model) bool {
+	return m != nil && m.Grade() != asserts.ModelGradeUnset
+}
+
 // InfoFromGadgetYaml reads the provided gadget metadata. If constraints is nil, only the
 // self-consistency checks are performed, otherwise rules for the classic or
 // system seed cases are enforced.
-func InfoFromGadgetYaml(gadgetYaml []byte, constraints *ModelConstraints) (*Info, error) {
+func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 	var gi Info
 
 	if err := yaml.Unmarshal(gadgetYaml, &gi); err != nil {
@@ -325,7 +334,7 @@ func InfoFromGadgetYaml(gadgetYaml []byte, constraints *ModelConstraints) (*Info
 		}
 	}
 
-	if len(gi.Volumes) == 0 && (constraints == nil || constraints.Classic) {
+	if len(gi.Volumes) == 0 && classicOrUnconstrained(model) {
 		// volumes can be left out on classic
 		// can still specify defaults though
 		return &gi, nil
@@ -334,7 +343,7 @@ func InfoFromGadgetYaml(gadgetYaml []byte, constraints *ModelConstraints) (*Info
 	// basic validation
 	var bootloadersFound int
 	for name, v := range gi.Volumes {
-		if err := validateVolume(name, &v, constraints); err != nil {
+		if err := validateVolume(name, &v, model); err != nil {
 			return nil, fmt.Errorf("invalid volume %q: %v", name, err)
 		}
 
@@ -357,14 +366,9 @@ func InfoFromGadgetYaml(gadgetYaml []byte, constraints *ModelConstraints) (*Info
 	return &gi, nil
 }
 
-// ReadInfo reads the gadget specific metadata from meta/gadget.yaml in the snap
-// root directory. If constraints is nil, ReadInfo will just check for
-// self-consistency, otherwise rules for the classic or system seed cases are
-// enforced.
-func ReadInfo(gadgetSnapRootDir string, constraints *ModelConstraints) (*Info, error) {
-	gadgetYamlFn := filepath.Join(gadgetSnapRootDir, "meta", "gadget.yaml")
-	gmeta, err := ioutil.ReadFile(gadgetYamlFn)
-	if (constraints == nil || constraints.Classic) && os.IsNotExist(err) {
+func readInfo(f func(string) ([]byte, error), gadgetYamlFn string, model Model) (*Info, error) {
+	gmeta, err := f(gadgetYamlFn)
+	if classicOrUnconstrained(model) && os.IsNotExist(err) {
 		// gadget.yaml is optional for classic gadgets
 		return &Info{}, nil
 	}
@@ -372,7 +376,25 @@ func ReadInfo(gadgetSnapRootDir string, constraints *ModelConstraints) (*Info, e
 		return nil, err
 	}
 
-	return InfoFromGadgetYaml(gmeta, constraints)
+	return InfoFromGadgetYaml(gmeta, model)
+}
+
+// ReadInfo reads the gadget specific metadata from meta/gadget.yaml in the snap
+// root directory. If constraints is nil, ReadInfo will just check for
+// self-consistency, otherwise rules for the classic or system seed cases are
+// enforced.
+func ReadInfo(gadgetSnapRootDir string, model Model) (*Info, error) {
+	gadgetYamlFn := filepath.Join(gadgetSnapRootDir, "meta", "gadget.yaml")
+	return readInfo(ioutil.ReadFile, gadgetYamlFn, model)
+}
+
+// ReadInfoFromSnapFile reads the gadget specific metadata from
+// meta/gadget.yaml in the given snap container. If constraints is
+// nil, ReadInfo will just check for self-consistency, otherwise rules
+// for the classic or system seed cases are enforced.
+func ReadInfoFromSnapFile(snapf snap.Container, model Model) (*Info, error) {
+	gadgetYamlFn := "meta/gadget.yaml"
+	return readInfo(snapf.ReadFile, gadgetYamlFn, model)
 }
 
 func fmtIndexAndName(idx int, name string) string {
@@ -385,9 +407,10 @@ func fmtIndexAndName(idx int, name string) string {
 type validationState struct {
 	SystemSeed *VolumeStructure
 	SystemData *VolumeStructure
+	SystemBoot *VolumeStructure
 }
 
-func validateVolume(name string, vol *Volume, constraints *ModelConstraints) error {
+func validateVolume(name string, vol *Volume, model Model) error {
 	if !validVolumeName.MatchString(name) {
 		return errors.New("invalid name")
 	}
@@ -438,20 +461,25 @@ func validateVolume(name string, vol *Volume, constraints *ModelConstraints) err
 		switch s.Role {
 		case SystemSeed:
 			if state.SystemSeed != nil {
-				return fmt.Errorf("cannot have more than one system-data role")
+				return fmt.Errorf("cannot have more than one partition with system-seed role")
 			}
 			state.SystemSeed = &vol.Structure[idx]
 		case SystemData:
 			if state.SystemData != nil {
-				return fmt.Errorf("cannot have more than one system-seed role")
+				return fmt.Errorf("cannot have more than one partition with system-data role")
 			}
 			state.SystemData = &vol.Structure[idx]
+		case SystemBoot:
+			if state.SystemBoot != nil {
+				return fmt.Errorf("cannot have more than one partition with system-boot role")
+			}
+			state.SystemBoot = &vol.Structure[idx]
 		}
 
 		previousEnd = end
 	}
 
-	if err := ensureVolumeConsistency(state, constraints); err != nil {
+	if err := ensureVolumeConsistency(state, model); err != nil {
 		return err
 	}
 
@@ -479,10 +507,10 @@ func ensureVolumeConsistencyNoConstraints(state *validationState) error {
 	return nil
 }
 
-func ensureVolumeConsistencyWithConstraints(state *validationState, constraints *ModelConstraints) error {
+func ensureVolumeConsistencyWithConstraints(state *validationState, model Model) error {
 	switch {
 	case state.SystemSeed == nil && state.SystemData == nil:
-		if constraints.SystemSeed {
+		if wantsSystemSeed(model) {
 			return fmt.Errorf("model requires system-seed partition, but no system-seed or system-data partition found")
 		}
 		return nil
@@ -490,7 +518,7 @@ func ensureVolumeConsistencyWithConstraints(state *validationState, constraints 
 		return fmt.Errorf("the system-seed role requires system-data to be defined")
 	case state.SystemSeed == nil && state.SystemData != nil:
 		// error if we have the SystemSeed constraint but no actual system-seed structure
-		if constraints.SystemSeed {
+		if wantsSystemSeed(model) {
 			return fmt.Errorf("model requires system-seed structure, but none was found")
 		}
 		// without SystemSeed, system-data label must be implicit or writable
@@ -500,7 +528,7 @@ func ensureVolumeConsistencyWithConstraints(state *validationState, constraints 
 		}
 	case state.SystemSeed != nil && state.SystemData != nil:
 		// error if we don't have the SystemSeed constraint but we have a system-seed structure
-		if !constraints.SystemSeed {
+		if !wantsSystemSeed(model) {
 			return fmt.Errorf("model does not support the system-seed role")
 		}
 		if err := ensureSeedDataLabelsUnset(state); err != nil {
@@ -510,11 +538,11 @@ func ensureVolumeConsistencyWithConstraints(state *validationState, constraints 
 	return nil
 }
 
-func ensureVolumeConsistency(state *validationState, constraints *ModelConstraints) error {
-	if constraints == nil {
+func ensureVolumeConsistency(state *validationState, model Model) error {
+	if model == nil {
 		return ensureVolumeConsistencyNoConstraints(state)
 	}
-	return ensureVolumeConsistencyWithConstraints(state, constraints)
+	return ensureVolumeConsistencyWithConstraints(state, model)
 }
 
 func ensureSeedDataLabelsUnset(state *validationState) error {
@@ -838,6 +866,27 @@ func (s *Size) String() string {
 	return fmt.Sprintf("%d", *s)
 }
 
+// IECString formats the size using multiples from IEC units (i.e. kibibytes,
+// mebibytes), that is as multiples of 1024. Printed values are truncated to 2
+// decimal points.
+func (s *Size) IECString() string {
+	maxFloat := float64(1023.5)
+	r := float64(*s)
+	unit := "B"
+	for _, rangeUnit := range []string{"KiB", "MiB", "GiB", "TiB", "PiB"} {
+		if r < maxFloat {
+			break
+		}
+		r /= 1024
+		unit = rangeUnit
+	}
+	precision := 0
+	if math.Floor(r) != r {
+		precision = 2
+	}
+	return fmt.Sprintf("%.*f %s", precision, r, unit)
+}
+
 // RelativeOffset describes an offset where structure data is written at.
 // The position can be specified as byte-offset relative to the start of another
 // named structure.
@@ -939,6 +988,12 @@ func IsCompatible(current, new *Info) error {
 // PositionedVolumeFromGadget takes a gadget rootdir and positions the
 // partitions as specified.
 func PositionedVolumeFromGadget(gadgetRoot string) (*LaidOutVolume, error) {
+	// TODO:UC20: since this is unconstrained via the model, it returns an
+	//            err == nil and an empty info when the gadgetRoot does not
+	//            actually contain the required gadget.yaml file (for example
+	//            when you have a typo in the args to snap-bootstrap
+	//            create-partitions). anyways just verify this more because
+	//            otherwise it's unhelpful :-/
 	info, err := ReadInfo(gadgetRoot, nil)
 	if err != nil {
 		return nil, err
@@ -962,4 +1017,30 @@ func PositionedVolumeFromGadget(gadgetRoot string) (*LaidOutVolume, error) {
 		return pvol, nil
 	}
 	return nil, fmt.Errorf("internal error in PositionedVolumeFromGadget: this line cannot be reached")
+}
+
+func flatten(path string, cfg interface{}, out map[string]interface{}) {
+	if cfgMap, ok := cfg.(map[string]interface{}); ok {
+		for k, v := range cfgMap {
+			p := k
+			if path != "" {
+				p = path + "." + k
+			}
+			flatten(p, v, out)
+		}
+	} else {
+		out[path] = cfg
+	}
+}
+
+// SystemDefaults returns default system configuration from gadget defaults.
+func SystemDefaults(gadgetDefaults map[string]map[string]interface{}) map[string]interface{} {
+	for _, systemSnap := range []string{"system", naming.WellKnownSnapID("core")} {
+		if defaults, ok := gadgetDefaults[systemSnap]; ok {
+			coreDefaults := map[string]interface{}{}
+			flatten("", defaults, coreDefaults)
+			return coreDefaults
+		}
+	}
+	return nil
 }

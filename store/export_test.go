@@ -113,7 +113,7 @@ func MockDownload(f func(ctx context.Context, name, sha3_384, downloadURL string
 	}
 }
 
-func MockDoDownloadReq(f func(ctx context.Context, storeURL *url.URL, cdnHeader string, s *Store, user *auth.UserState) (*http.Response, error)) (restore func()) {
+func MockDoDownloadReq(f func(ctx context.Context, storeURL *url.URL, cdnHeader string, resume int64, s *Store, user *auth.UserState) (*http.Response, error)) (restore func()) {
 	orig := doDownloadReq
 	doDownloadReq = f
 	return func() {
@@ -167,6 +167,10 @@ func (sto *Store) SessionLock() {
 
 func (sto *Store) SessionUnlock() {
 	sto.sessionMu.Unlock()
+}
+
+func (sto *Store) FindFields() []string {
+	return sto.findFields
 }
 
 func (cfg *Config) SetBaseURL(u *url.URL) error {

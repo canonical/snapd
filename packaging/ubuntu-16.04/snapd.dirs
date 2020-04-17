@@ -2,6 +2,7 @@ snap
 var/cache/snapd
 usr/lib/snapd
 var/lib/snapd/apparmor/snap-confine
+var/lib/snapd/desktop/applications
 var/lib/snapd/auto-import
 var/lib/snapd/desktop
 var/lib/snapd/environment
@@ -10,6 +11,7 @@ var/lib/snapd/lib/gl
 var/lib/snapd/lib/gl32
 var/lib/snapd/lib/glvnd
 var/lib/snapd/lib/vulkan
+var/lib/snapd/ssl/store-certs
 var/lib/snapd/snaps/partial
 var/lib/snapd/void
 var/snap

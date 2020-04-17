@@ -40,7 +40,7 @@ func MockConfigcoreRun(f func(config.Conf) error) (restore func()) {
 	}
 }
 
-func MockConfigcoreExportExperimentalFlags(mock func(tr config.Conf) error) (restore func()) {
+func MockConfigcoreExportExperimentalFlags(mock func(tr config.ConfGetter) error) (restore func()) {
 	old := configcoreExportExperimentalFlags
 	configcoreExportExperimentalFlags = mock
 	return func() {

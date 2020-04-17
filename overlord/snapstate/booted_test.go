@@ -22,12 +22,15 @@ package snapstate_test
 // test the boot related code
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"time"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
@@ -43,7 +46,8 @@ import (
 
 type bootedSuite struct {
 	testutil.BaseTest
-	bootloader *bootloadertest.MockBootloader
+
+	bootloader *boottest.Bootenv16
 
 	o           *overlord.Overlord
 	state       *state.State
@@ -66,7 +70,7 @@ func (bs *bootedSuite) SetUpTest(c *C) {
 	// booted is not running on classic
 	release.MockOnClassic(false)
 
-	bs.bootloader = bootloadertest.Mock("mock", c.MkDir())
+	bs.bootloader = boottest.MockUC16Bootenv(bootloadertest.Mock("mock", c.MkDir()))
 	bs.bootloader.SetBootKernel("canonical-pc-linux_2.snap")
 	bs.bootloader.SetBootBase("core_2.snap")
 	bootloader.Force(bs.bootloader)
@@ -198,6 +202,24 @@ func (bs *bootedSuite) TestUpdateBootRevisionsKernelSimple(c *C) {
 	c.Assert(snapst.Active, Equals, true)
 }
 
+func (bs *bootedSuite) TestUpdateBootRevisionsDeviceCtxErrors(c *C) {
+	st := bs.state
+	st.Lock()
+	defer st.Unlock()
+
+	bs.makeInstalledKernelOS(c, st)
+
+	errBoom := errors.New("boom")
+
+	r := snapstatetest.ReplaceDeviceCtxHook(func(*state.State, *state.Task, snapstate.DeviceContext) (snapstate.DeviceContext, error) {
+		return nil, errBoom
+	})
+	defer r()
+
+	err := snapstate.UpdateBootRevisions(st)
+	c.Assert(err, Equals, errBoom)
+}
+
 func (bs *bootedSuite) TestUpdateBootRevisionsKernelErrorsEarly(c *C) {
 	st := bs.state
 	st.Lock()
@@ -285,7 +307,7 @@ func (bs *bootedSuite) TestWaitRestartCore(c *C) {
 
 	// core snap, restarted, waiting for current core revision
 	state.MockRestarting(st, state.RestartUnset)
-	bs.bootloader.BootVars["snap_mode"] = "trying"
+	bs.bootloader.BootVars["snap_mode"] = boot.TryingStatus
 	err = snapstate.WaitRestart(task, snapsup)
 	c.Check(err, DeepEquals, &state.Retry{After: 5 * time.Second})
 
@@ -336,7 +358,7 @@ func (bs *bootedSuite) TestWaitRestartBootableBase(c *C) {
 
 	// core snap, restarted, waiting for current core revision
 	state.MockRestarting(st, state.RestartUnset)
-	bs.bootloader.BootVars["snap_mode"] = "trying"
+	bs.bootloader.BootVars["snap_mode"] = boot.TryingStatus
 	err = snapstate.WaitRestart(task, snapsup)
 	c.Check(err, DeepEquals, &state.Retry{After: 5 * time.Second})
 
@@ -388,7 +410,7 @@ func (bs *bootedSuite) TestWaitRestartKernel(c *C) {
 
 	// kernel snap, restarted, waiting for current core revision
 	state.MockRestarting(st, state.RestartUnset)
-	bs.bootloader.BootVars["snap_mode"] = "trying"
+	bs.bootloader.BootVars["snap_mode"] = boot.TryingStatus
 	err = snapstate.WaitRestart(task, snapsup)
 	c.Check(err, DeepEquals, &state.Retry{After: 5 * time.Second})
 
@@ -406,5 +428,30 @@ func (bs *bootedSuite) TestWaitRestartKernel(c *C) {
 	bs.bootloader.SetBootKernel("kernel_1.snap")
 	err = snapstate.WaitRestart(task, snapsup)
 	c.Check(err, ErrorMatches, `cannot finish kernel installation, there was a rollback across reboot`)
+}
 
+func (bs *bootedSuite) TestWaitRestartEphemeralModeSkipsRollbackDetection(c *C) {
+	r := snapstatetest.MockDeviceModel(DefaultModel())
+	defer r()
+
+	st := bs.state
+	st.Lock()
+	defer st.Unlock()
+
+	task := st.NewTask("auto-connect", "...")
+
+	si := &snap.SideInfo{RealName: "kernel"}
+	snapsup := &snapstate.SnapSetup{SideInfo: si, Type: snap.TypeKernel}
+	snaptest.MockSnap(c, "name: kernel\ntype: kernel\nversion: 1", si)
+	// kernel snap, restarted, wrong core revision, rollback detected!
+	bs.bootloader.SetBootKernel("kernel_1.snap")
+	err := snapstate.WaitRestart(task, snapsup)
+	c.Check(err, ErrorMatches, `cannot finish kernel installation, there was a rollback across reboot`)
+
+	// but *not* in an ephemeral mode like "recover" - we skip the rollback
+	// detection here
+	r = snapstatetest.MockDeviceModelAndMode(DefaultModel(), "install")
+	defer r()
+	err = snapstate.WaitRestart(task, snapsup)
+	c.Check(err, IsNil)
 }

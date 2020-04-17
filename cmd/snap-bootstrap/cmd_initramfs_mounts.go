@@ -20,20 +20,22 @@
 package main
 
 import (
-	"bufio"
-	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
-	"strings"
+
+	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -43,9 +45,13 @@ func init() {
 		long  = "Generate mount tuples for the initramfs until nothing more can be done"
 	)
 
-	if _, err := parser.AddCommand("initramfs-mounts", short, long, &cmdInitramfsMounts{}); err != nil {
-		panic(err)
-	}
+	addCommandBuilder(func(parser *flags.Parser) {
+		if _, err := parser.AddCommand("initramfs-mounts", short, long, &cmdInitramfsMounts{}); err != nil {
+			panic(err)
+		}
+	})
+
+	snap.SanitizePlugsSlots = func(*snap.Info) {}
 }
 
 type cmdInitramfsMounts struct{}
@@ -55,122 +61,119 @@ func (c *cmdInitramfsMounts) Execute(args []string) error {
 }
 
 var (
-	// the kernel commandline - can be overridden in tests
-	procCmdline = "/proc/cmdline"
-
 	// Stdout - can be overridden in tests
 	stdout io.Writer = os.Stdout
 )
 
 var (
-	runMnt = "/run/mnt"
-
 	osutilIsMounted = osutil.IsMounted
 )
 
-// XXX: make this more flexible if there are multiple seeds on disk, i.e.
-// read kernel commandline in this case (bootenv is off limits because
-// it's not measured).
-func findRecoverySystem(seedDir string) (systemLabel string, err error) {
-	l, err := filepath.Glob(filepath.Join(seedDir, "systems/*"))
+func recoverySystemEssentialSnaps(seedDir, recoverySystem string, essentialTypes []snap.Type) ([]*seed.Snap, error) {
+	systemSeed, err := seed.Open(seedDir, recoverySystem)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	if len(l) == 0 {
-		return "", fmt.Errorf("cannot find a recovery system")
+
+	seed20, ok := systemSeed.(seed.EssentialMetaLoaderSeed)
+	if !ok {
+		return nil, fmt.Errorf("internal error: UC20 seed must implement EssentialMetaLoaderSeed")
 	}
-	if len(l) > 1 {
-		return "", fmt.Errorf("cannot use multiple recovery systems yet")
+
+	// load assertions into a temporary database
+	if err := systemSeed.LoadAssertions(nil, nil); err != nil {
+		return nil, err
 	}
-	systemLabel = filepath.Base(l[0])
-	return systemLabel, nil
+
+	// load and verify metadata only for the relevant essential snaps
+	perf := timings.New(nil)
+	if err := seed20.LoadEssentialMeta(essentialTypes, perf); err != nil {
+		return nil, err
+	}
+
+	return seed20.EssentialSnaps(), nil
 }
 
 // generateMountsMode* is called multiple times from initramfs until it
 // no longer generates more mount points and just returns an empty output.
-func generateMountsModeInstall() error {
-	seedDir := filepath.Join(runMnt, "ubuntu-seed")
-
+func generateMountsModeInstall(recoverySystem string) error {
 	// 1. always ensure seed partition is mounted
-	isMounted, err := osutilIsMounted(seedDir)
+	isMounted, err := osutilIsMounted(boot.InitramfsUbuntuSeedDir)
 	if err != nil {
 		return err
 	}
 	if !isMounted {
-		fmt.Fprintf(stdout, "/dev/disk/by-label/ubuntu-seed %s\n", seedDir)
+		fmt.Fprintf(stdout, "/dev/disk/by-label/ubuntu-seed %s\n", boot.InitramfsUbuntuSeedDir)
 		return nil
 	}
-	// XXX: how do we select a different recover system from the cmdline?
 
 	// 2. (auto) select recovery system for now
-	isMounted, err = osutilIsMounted(filepath.Join(runMnt, "base"))
+	isBaseMounted, err := osutilIsMounted(filepath.Join(boot.InitramfsRunMntDir, "base"))
 	if err != nil {
 		return err
 	}
-	if !isMounted {
-		// load the recovery system  and generate mounts for kernel/base
-		systemLabel, err := findRecoverySystem(seedDir)
+	isKernelMounted, err := osutilIsMounted(filepath.Join(boot.InitramfsRunMntDir, "kernel"))
+	if err != nil {
+		return err
+	}
+	isSnapdMounted, err := osutilIsMounted(filepath.Join(boot.InitramfsRunMntDir, "snapd"))
+	if err != nil {
+		return err
+	}
+	if !isBaseMounted || !isKernelMounted || !isSnapdMounted {
+		// load the recovery system and generate mounts for kernel/base
+		// and snapd
+		var whichTypes []snap.Type
+		if !isBaseMounted {
+			whichTypes = append(whichTypes, snap.TypeBase)
+		}
+		if !isKernelMounted {
+			whichTypes = append(whichTypes, snap.TypeKernel)
+		}
+		if !isSnapdMounted {
+			whichTypes = append(whichTypes, snap.TypeSnapd)
+		}
+		essSnaps, err := recoverySystemEssentialSnaps(boot.InitramfsUbuntuSeedDir, recoverySystem, whichTypes)
 		if err != nil {
-			return err
-		}
-		systemSeed, err := seed.Open(seedDir, systemLabel)
-		if err != nil {
-			return err
-		}
-		// load assertions into a temporary database
-		if err := systemSeed.LoadAssertions(nil, nil); err != nil {
-			return err
-		}
-		perf := timings.New(nil)
-		// XXX: LoadMeta will verify all the snaps in the
-		// seed, that is probably too much. We can expose more
-		// dedicated helpers for this later.
-		if err := systemSeed.LoadMeta(perf); err != nil {
-			return err
-		}
-		// XXX: do we need more cross checks here?
-		for _, essentialSnap := range systemSeed.EssentialSnaps() {
-			snapf, err := snap.Open(essentialSnap.Path)
-			if err != nil {
-				return err
-			}
-			info, err := snap.ReadInfoFromSnapFile(snapf, essentialSnap.SideInfo)
-			if err != nil {
-				return err
-			}
-			switch info.GetType() {
-			case snap.TypeBase:
-				fmt.Fprintf(stdout, "%s %s\n", essentialSnap.Path, filepath.Join(runMnt, "base"))
-			case snap.TypeKernel:
-				fmt.Fprintf(stdout, "%s %s\n", essentialSnap.Path, filepath.Join(runMnt, "kernel"))
-			}
+			return fmt.Errorf("cannot load metadata and verify essential bootstrap snaps %v: %v", whichTypes, err)
 		}
 
-		return nil
+		// TODO:UC20: do we need more cross checks here?
+		for _, essentialSnap := range essSnaps {
+			switch essentialSnap.EssentialType {
+			case snap.TypeBase:
+				fmt.Fprintf(stdout, "%s %s\n", essentialSnap.Path, filepath.Join(boot.InitramfsRunMntDir, "base"))
+			case snap.TypeKernel:
+				// TODO:UC20: we need to cross-check the kernel path with snapd_recovery_kernel used by grub
+				fmt.Fprintf(stdout, "%s %s\n", essentialSnap.Path, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
+			case snap.TypeSnapd:
+				fmt.Fprintf(stdout, "%s %s\n", essentialSnap.Path, filepath.Join(boot.InitramfsRunMntDir, "snapd"))
+			}
+		}
 	}
 
 	// 3. mount "ubuntu-data" on a tmpfs
-	isMounted, err = osutilIsMounted(filepath.Join(runMnt, "ubuntu-data"))
+	isMounted, err = osutilIsMounted(boot.InitramfsUbuntuDataDir)
 	if err != nil {
 		return err
 	}
 	if !isMounted {
-		// XXX: is there a better way?
+		// TODO:UC20: is there a better way?
 		fmt.Fprintf(stdout, "--type=tmpfs tmpfs /run/mnt/ubuntu-data\n")
 		return nil
 	}
 
 	// 4. final step: write $(ubuntu_data)/var/lib/snapd/modeenv - this
 	//    is the tmpfs we just created above
-	systemLabel, err := findRecoverySystem(seedDir)
-	if err != nil {
-		return err
-	}
 	modeEnv := &boot.Modeenv{
 		Mode:           "install",
-		RecoverySystem: systemLabel,
+		RecoverySystem: recoverySystem,
 	}
-	if err := modeEnv.Write(filepath.Join(runMnt, "ubuntu-data", "system-data")); err != nil {
+	if err := modeEnv.WriteTo(boot.InitramfsWritableDir); err != nil {
+		return err
+	}
+	// and disable cloud-init in install mode
+	if err := sysconfig.DisableCloudInit(boot.InitramfsWritableDir); err != nil {
 		return err
 	}
 
@@ -179,54 +182,222 @@ func generateMountsModeInstall() error {
 	return nil
 }
 
-func generateMountsModeRecover() error {
+func generateMountsModeRecover(recoverySystem string) error {
 	return fmt.Errorf("recover mode mount generation not implemented yet")
 }
 
 func generateMountsModeRun() error {
-	return fmt.Errorf("run mode mount generation not implemented yet")
-}
-
-var validModes = []string{"install", "recover", "run"}
-
-func whichMode(content []byte) (string, error) {
-	scanner := bufio.NewScanner(bytes.NewBuffer(content))
-	scanner.Split(bufio.ScanWords)
-	for scanner.Scan() {
-		if strings.HasPrefix(scanner.Text(), "snapd_recovery_mode=") {
-			mode := strings.SplitN(scanner.Text(), "=", 2)[1]
-			if mode == "" {
-				mode = "install"
-			}
-			if !strutil.ListContains(validModes, mode) {
-				return "", fmt.Errorf("cannot use unknown mode %q", mode)
-			}
-			return mode, nil
+	// 1.1 always ensure basic partitions are mounted
+	for _, d := range []string{boot.InitramfsUbuntuSeedDir, boot.InitramfsUbuntuBootDir} {
+		isMounted, err := osutilIsMounted(d)
+		if err != nil {
+			return err
+		}
+		if !isMounted {
+			fmt.Fprintf(stdout, "/dev/disk/by-label/%s %s\n", filepath.Base(d), d)
 		}
 	}
-	if err := scanner.Err(); err != nil {
-		return "", err
-	}
-	return "", fmt.Errorf("cannot detect if in run,install,recover mode")
-}
 
-func generateInitramfsMounts() error {
-	content, err := ioutil.ReadFile(procCmdline)
+	// 1.2 mount Data, and exit, as it needs to be mounted for us to do step 2
+	isDataMounted, err := osutilIsMounted(boot.InitramfsUbuntuDataDir)
 	if err != nil {
 		return err
 	}
-	mode, err := whichMode(content)
+	if !isDataMounted {
+		name := filepath.Base(boot.InitramfsUbuntuDataDir)
+		device, err := unlockIfEncrypted(name)
+		if err != nil {
+			return err
+		}
+
+		fmt.Fprintf(stdout, "%s %s\n", device, boot.InitramfsUbuntuDataDir)
+		return nil
+	}
+
+	// 2.1 read modeenv
+	modeEnv, err := boot.ReadModeenv(boot.InitramfsWritableDir)
+	if err != nil {
+		return err
+	}
+
+	// 2.2.1 check if base is mounted
+	isBaseMounted, err := osutilIsMounted(filepath.Join(boot.InitramfsRunMntDir, "base"))
+	if err != nil {
+		return err
+	}
+	if !isBaseMounted {
+		// 2.2.2 use modeenv base_status and try_base to see  if we are trying
+		// an update to the base snap
+		base := modeEnv.Base
+		if base == "" {
+			// we have no fallback base!
+			return fmt.Errorf("modeenv corrupt: missing base setting")
+		}
+		if modeEnv.BaseStatus == boot.TryStatus {
+			// then we are trying a base snap update and there should be a
+			// try_base set in the modeenv too
+			if modeEnv.TryBase != "" {
+				// check that the TryBase exists in ubuntu-data
+				tryBaseSnapPath := filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), modeEnv.TryBase)
+				if osutil.FileExists(tryBaseSnapPath) {
+					// set the TryBase and have the initramfs mount this base
+					// snap
+					modeEnv.BaseStatus = boot.TryingStatus
+					base = modeEnv.TryBase
+				} else {
+					logger.Noticef("try-base snap %q does not exist", modeEnv.TryBase)
+				}
+			} else {
+				logger.Noticef("try-base snap is empty, but \"base_status\" is \"trying\"")
+			}
+			// TODO:UC20: log a message if try_base is unset here?
+		} else if modeEnv.BaseStatus == boot.TryingStatus {
+			// snapd failed to start with the base snap update, so we need to
+			// fallback to the old base snap and clear base_status
+			modeEnv.BaseStatus = boot.DefaultStatus
+		} else if modeEnv.BaseStatus != boot.DefaultStatus {
+			logger.Noticef("\"base_status\" has an invalid setting: %q", modeEnv.BaseStatus)
+		}
+
+		baseSnapPath := filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), base)
+		fmt.Fprintf(stdout, "%s %s\n", baseSnapPath, filepath.Join(boot.InitramfsRunMntDir, "base"))
+	}
+
+	// 2.3.1 check if the kernel is mounted
+	isKernelMounted, err := osutilIsMounted(filepath.Join(boot.InitramfsRunMntDir, "kernel"))
+	if err != nil {
+		return err
+	}
+	if !isKernelMounted {
+		// make a map to easily check if a kernel snap is valid or not
+		validKernels := make(map[string]bool, len(modeEnv.CurrentKernels))
+		for _, validKernel := range modeEnv.CurrentKernels {
+			validKernels[validKernel] = true
+		}
+
+		// find ubuntu-boot bootloader to get the kernel_status and kernel.efi
+		// status so we can determine the right kernel snap to have mounted
+
+		// TODO:UC20: should all this logic move to boot package? feels awfully
+		// similar to the logic in revisions() for bootState20
+
+		// At this point the run mode bootloader is under the native
+		// layout, no /boot mount.
+		opts := &bootloader.Options{NoSlashBoot: true}
+		bl, err := bootloader.Find(boot.InitramfsUbuntuBootDir, opts)
+		if err != nil {
+			return fmt.Errorf("internal error: cannot find run system bootloader: %v", err)
+		}
+
+		// make sure it supports extracted run kernel images, as we have to find the
+		// extracted run kernel image
+		ebl, ok := bl.(bootloader.ExtractedRunKernelImageBootloader)
+		if !ok {
+			return fmt.Errorf("cannot use %s bootloader: does not support extracted run kernel images", bl.Name())
+		}
+
+		// get the primary extracted run kernel
+		kernel, err := ebl.Kernel()
+		if err != nil {
+			// we don't have a fallback kernel!
+			return fmt.Errorf("no fallback kernel snap: %v", err)
+		}
+
+		kernelFile := kernel.Filename()
+		if !validKernels[kernelFile] {
+			// we don't trust the fallback kernel!
+			return fmt.Errorf("fallback kernel snap %q is not trusted in the modeenv", kernelFile)
+		}
+
+		// get kernel_status
+		m, err := ebl.GetBootVars("kernel_status")
+		if err != nil {
+			return fmt.Errorf("cannot get kernel_status from bootloader %s", ebl.Name())
+		}
+
+		if m["kernel_status"] == boot.TryingStatus {
+			// check for the try kernel
+			tryKernel, err := ebl.TryKernel()
+			if err == nil {
+				tryKernelFile := tryKernel.Filename()
+				if validKernels[tryKernelFile] {
+					kernelFile = tryKernelFile
+				} else {
+					logger.Noticef("try-kernel %q is not trusted in the modeenv", tryKernelFile)
+				}
+			} else if err != bootloader.ErrNoTryKernelRef {
+				logger.Noticef("missing try-kernel, even though \"kernel_status\" is \"trying\"")
+			}
+			// if we didn't have a try kernel, but we do have kernel_status ==
+			// trying we just fallback to using the normal kernel
+			// same goes for try kernel being untrusted - we will fallback to
+			// the normal kernel snap
+
+			// TODO:UC20: actually we really shouldn't be falling back here at
+			//            all - if the kernel we booted isn't mountable in the
+			//            initramfs, we should trigger a reboot so that we boot
+			//            the fallback kernel and then mount that one
+		}
+
+		kernelPath := filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), kernelFile)
+		fmt.Fprintf(stdout, "%s %s\n", kernelPath, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
+	}
+
+	// 3.1 Maybe mount the snapd snap on first boot of run-mode
+	// TODO:UC20: Make RecoverySystem empty after successful first boot
+	// somewhere in devicestate
+	if modeEnv.RecoverySystem != "" {
+		isSnapdMounted, err := osutilIsMounted(filepath.Join(boot.InitramfsRunMntDir, "snapd"))
+		if err != nil {
+			return err
+		}
+
+		if !isSnapdMounted {
+			// load the recovery system and generate mount for snapd
+			essSnaps, err := recoverySystemEssentialSnaps(boot.InitramfsUbuntuSeedDir, modeEnv.RecoverySystem, []snap.Type{snap.TypeSnapd})
+			if err != nil {
+				return fmt.Errorf("cannot load metadata and verify snapd snap: %v", err)
+			}
+			fmt.Fprintf(stdout, "%s %s\n", essSnaps[0].Path, filepath.Join(boot.InitramfsRunMntDir, "snapd"))
+		}
+	}
+
+	// 4.1 Write the modeenv out again
+	return modeEnv.Write()
+}
+
+func generateInitramfsMounts() error {
+	mode, recoverySystem, err := boot.ModeAndRecoverySystemFromKernelCommandLine()
 	if err != nil {
 		return err
 	}
 	switch mode {
 	case "recover":
-		return generateMountsModeRecover()
+		return generateMountsModeRecover(recoverySystem)
 	case "install":
-		return generateMountsModeInstall()
+		return generateMountsModeInstall(recoverySystem)
 	case "run":
 		return generateMountsModeRun()
 	}
 	// this should never be reached
 	return fmt.Errorf("internal error: mode in generateInitramfsMounts not handled")
+}
+
+func unlockIfEncrypted(name string) (string, error) {
+	// TODO:UC20: will need to unseal key to unlock LUKS here
+	device := filepath.Join("/dev/disk/by-label", name)
+	keyfile := filepath.Join(boot.InitramfsUbuntuBootDir, name+".keyfile.unsealed")
+	if osutil.FileExists(keyfile) {
+		// TODO:UC20: snap-bootstrap should validate that <name>-enc is what
+		//            we expect (and not e.g. an external disk), and also that
+		//            <name> is from <name>-enc and not an unencrypted partition
+		//            with the same name (LP #1863886)
+		cmd := exec.Command("/usr/lib/systemd/systemd-cryptsetup", "attach", name, device+"-enc", keyfile)
+		cmd.Env = os.Environ()
+		cmd.Env = append(cmd.Env, "SYSTEMD_LOG_TARGET=console")
+		if output, err := cmd.CombinedOutput(); err != nil {
+			return "", osutil.OutputErr(output, err)
+		}
+	}
+	return device, nil
 }

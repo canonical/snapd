@@ -64,6 +64,7 @@ capability sys_resource,
 capability dac_override,
 
 /usr/bin/systemd-run Cxr -> systemd_run,
+/run/systemd/private r,
 profile systemd_run (attach_disconnected,mediate_deleted) {
   # Common rules for kubernetes use of systemd_run
   #include <abstractions/base>
@@ -120,7 +121,9 @@ deny ptrace (trace) peer=unconfined,
 @{PROC}/[0-9]*/attr/ r,
 @{PROC}/[0-9]*/fdinfo/ r,
 @{PROC}/[0-9]*/map_files/ r,
-@{PROC}/[0-9]*/ns/ r,
+@{PROC}/[0-9]*/ns/{,*} r,
+# dac_read_search needed for lstat'ing non-root owned ns/* files
+capability dac_read_search,
 
 # kubernetes will verify and set panic and panic_on_oops to values it considers
 # sane
@@ -153,6 +156,12 @@ const kubernetesSupportConnectedPlugAppArmorKubeletSystemdRun = `
   # For mounting volume subPaths
   mount /var/snap/@{SNAP_INSTANCE_NAME}/common/{,**} -> /var/snap/@{SNAP_INSTANCE_NAME}/common/{,**},
   mount options=(rw, remount, bind) -> /var/snap/@{SNAP_INSTANCE_NAME}/common/{,**},
+  # nvme0-99, 1-63 partitions with 1-63 optional namespaces
+  mount /dev/nvme{[0-9],[1-9][0-9]}n{[1-9],[1-5][0-9],6[0-3]}{,p{[1-9],[1-5][0-9],6[0-3]}} -> /var/snap/@{SNAP_INSTANCE_NAME}/common/**,
+  # SCSI sda-sdiv, 1-15 partitions
+  mount /dev/sd{[a-z],[a-h][a-z],i[a-v]}{[1-9],1[0-5]} -> /var/snap/@{SNAP_INSTANCE_NAME}/common/**,
+  # virtio vda-vdz, 1-63 partitions
+  mount /dev/vd[a-z]{[1-9],[1-5][0-9],6[0-3]} -> /var/snap/@{SNAP_INSTANCE_NAME}/common/**,
   umount /var/snap/@{SNAP_INSTANCE_NAME}/common/**,
   # When mounting a volume subPath, kubelet binds mounts on an open fd (eg,
   # /proc/.../fd/N) which triggers a ptrace 'trace' denial on the parent
@@ -160,6 +169,24 @@ const kubernetesSupportConnectedPlugAppArmorKubeletSystemdRun = `
   # doesn't have 'capability sys_ptrace', so systemd-run is still not able to
   # ptrace this snap's processes.
   ptrace (trace) peer=snap.@{SNAP_INSTANCE_NAME}.@{SNAP_COMMAND_NAME},
+`
+
+// k8s.io/apiserver/pkg/storage/etcd3/logger.go pulls in go-systemd via
+// go.etcd.io/etcd/clientv3. See:
+// https://github.com/coreos/go-systemd/blob/master/journal/journal.go#L211
+const kubernetesSupportConnectedPlugAppArmorAutobindUnix = `
+# Allow using the 'autobind' feature of bind() (eg, for journald).
+#unix (bind) type=dgram addr=none,
+# Due to LP: 1867216, we cannot use the above rule and must instead use this
+# less specific rule that allows bind() to arbitrary SOCK_DGRAM abstract socket
+# names (separate send and receive rules are still required for communicating
+# over the socket).
+unix (bind) type=dgram,
+`
+
+const kubernetesSupportConnectedPlugSeccompAutobindUnix = `
+# Allow using the 'autobind' feature of bind() (eg, for journald).
+bind
 `
 
 const kubernetesSupportConnectedPlugSeccompKubelet = `
@@ -215,17 +242,25 @@ func (iface *kubernetesSupportInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 	snippet := kubernetesSupportConnectedPlugAppArmorCommon
 	systemd_run_extra := ""
 
+	// All flavors should include the autobind-unix rules, but we break it
+	// out so other k8s daemons can use this flavor without getting the
+	// privileged rules.
 	switch k8sFlavor(plug) {
 	case "kubelet":
 		systemd_run_extra = kubernetesSupportConnectedPlugAppArmorKubeletSystemdRun
 		snippet += kubernetesSupportConnectedPlugAppArmorKubelet
+		snippet += kubernetesSupportConnectedPlugAppArmorAutobindUnix
 		spec.SetUsesPtraceTrace()
 	case "kubeproxy":
 		snippet += kubernetesSupportConnectedPlugAppArmorKubeproxy
+		snippet += kubernetesSupportConnectedPlugAppArmorAutobindUnix
+	case "autobind-unix":
+		snippet = kubernetesSupportConnectedPlugAppArmorAutobindUnix
 	default:
 		systemd_run_extra = kubernetesSupportConnectedPlugAppArmorKubeletSystemdRun
 		snippet += kubernetesSupportConnectedPlugAppArmorKubelet
 		snippet += kubernetesSupportConnectedPlugAppArmorKubeproxy
+		snippet += kubernetesSupportConnectedPlugAppArmorAutobindUnix
 		spec.SetUsesPtraceTrace()
 	}
 
@@ -235,11 +270,14 @@ func (iface *kubernetesSupportInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 }
 
 func (iface *kubernetesSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	// All flavors should include the autobind-unix rules, but we add the
+	// privileged kubelet rules conditionally.
+	snippet := kubernetesSupportConnectedPlugSeccompAutobindUnix
 	flavor := k8sFlavor(plug)
 	if flavor == "kubelet" || flavor == "" {
-		snippet := kubernetesSupportConnectedPlugSeccompKubelet
-		spec.AddSnippet(snippet)
+		snippet += kubernetesSupportConnectedPlugSeccompKubelet
 	}
+	spec.AddSnippet(snippet)
 	return nil
 }
 
@@ -267,9 +305,9 @@ func (iface *kubernetesSupportInterface) KModConnectedPlug(spec *kmod.Specificat
 
 func (iface *kubernetesSupportInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 	// It's fine if flavor isn't specified, but if it is, it needs to be
-	// either "kubelet" or "kubeproxy"
-	if t, ok := plug.Attrs["flavor"]; ok && t != "kubelet" && t != "kubeproxy" {
-		return fmt.Errorf(`kubernetes-support plug requires "flavor" to be either "kubelet" or "kubeproxy"`)
+	// either "kubelet", "kubeproxy" or "autobind-unix"
+	if t, ok := plug.Attrs["flavor"]; ok && t != "kubelet" && t != "kubeproxy" && t != "autobind-unix" {
+		return fmt.Errorf(`kubernetes-support plug requires "flavor" to be either "kubelet", "kubeproxy" or "autobind-unix"`)
 	}
 
 	return nil

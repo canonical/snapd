@@ -18,12 +18,40 @@ except ImportError:
 shortlog_email_rx = re.compile("^\s*\d+\s+.*<(\S+)>$", re.M)
 
 
+is_travis = os.getenv("TRAVIS", "") == "true"
+is_github_actions = os.getenv("GITHUB_ACTIONS", "") == "true"
+
+
+def get_commit_range():
+    # Sanity check to ensure we are running from a pull request check job
+    if is_travis:
+        if os.getenv("TRAVIS_PULL_REQUEST", "false") == "false":
+            raise RuntimeError("called from a non-pull request Travis job")
+    elif is_github_actions:
+        if os.getenv("GITHUB_EVENT_NAME", "") != "pull_request":
+            raise RuntimeError("called from a non-pull request Github Actions job")
+    else:
+        raise RuntimeError("unknown CI system.")
+
+    # The head revision is a synthesised merge commit, merging the
+    # proposed branch into the destination branch.  So the first
+    # parent is our destination, and the second is our proposal.
+    lines = check_output(["git", "cat-file", "-p", "@"]).splitlines()
+    parents = [line[len("parent "):].strip() for line in lines
+               if line.startswith("parent ")]
+    if len(parents) != 2:
+        raise RuntimeError("expected two parents, but got {}".format(parents))
+    dest, proposed = parents
+
+    return dest, proposed
+
+
 def get_emails_for_range(r):
     output = check_output(["git", "shortlog", "-se", r])
     return set(m.group(1) for m in shortlog_email_rx.finditer(output))
 
 
-if sys.stdout.isatty():
+if sys.stdout.isatty() or is_travis or is_github_actions:
     green = "\033[32;1m"
     red = "\033[31;1m"
     yellow = "\033[33;1m"
@@ -35,6 +63,17 @@ else:
     yellow = ""
     reset = ""
     clear = ""
+
+if is_travis:
+    fold_start = 'travis_fold:start:{{tag}}\r{}{}{{message}}{}'.format(
+        clear, yellow, reset)
+    fold_end = 'travis_fold:end:{{tag}}\r{}'.format(clear)
+elif is_github_actions:
+    fold_start = '::group::{message}'
+    fold_end = '::endgroup::'
+else:
+    fold_start = '{}{{message}}{}'.format(yellow, reset)
+    fold_end = ''
 
 
 def static_email_check(email, master_emails, width):
@@ -85,9 +124,7 @@ def lp_email_check(email, lp, cla_folks, width):
 
 def print_checkout_info(travis_commit_range):
     # This is just to have information in case things go wrong
-    if clear:
-        print("travis_fold:start:checkout_info\r" + clear, end="")
-    print("{}Debug information{}".format(yellow, reset))
+    print(fold_start.format(tag="checkout_info", message="Debug information"))
     print("Commit range:", travis_commit_range)
     print("Remotes:")
     sys.stdout.flush()
@@ -96,22 +133,22 @@ def print_checkout_info(travis_commit_range):
     sys.stdout.flush()
     check_call(["git", "branch", "-v"])
     sys.stdout.flush()
-    if clear:
-        print("travis_fold:end:checkout_info\r" + clear)
+    print(fold_end.format(tag="checkout_info"))
 
 
 def main():
-    travis_commit_range = os.getenv("TRAVIS_COMMIT_RANGE", "")
-    print_checkout_info(travis_commit_range)
+    try:
+        master, proposed = get_commit_range()
+    except Exception as exc:
+        sys.exit("Could not determine commit range: {}".format(exc))
+    commit_range = "{}..{}".format(master, proposed)
+    print_checkout_info(commit_range)
 
-    if travis_commit_range == "":
-        sys.exit("No TRAVIS_COMMIT_RANGE set.")
-
-    emails = get_emails_for_range(travis_commit_range)
+    emails = get_emails_for_range(commit_range)
     if len(emails) == 0:
         sys.exit("No emails found in in the given commit range.")
 
-    master_emails = get_emails_for_range("master")
+    master_emails = get_emails_for_range(master)
 
     width = max(map(len, emails))
     lp = None

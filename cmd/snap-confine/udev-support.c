@@ -201,9 +201,10 @@ void setup_devices_cgroup(const char *security_tag, struct snappy_udev *udev_s)
 
 	sc_must_snprintf(cgroup_dir, sizeof(cgroup_dir),
 			 "/sys/fs/cgroup/devices/%s/", security_tag);
-
+	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
 	if (mkdir(cgroup_dir, 0755) < 0 && errno != EEXIST)
 		die("cannot create cgroup hierarchy %s", cgroup_dir);
+	(void)sc_set_effective_identity(old);
 
 	// move ourselves into it
 	char cgroup_file[PATH_MAX] = { 0 };
@@ -293,6 +294,16 @@ void setup_devices_cgroup(const char *security_tag, struct snappy_udev *udev_s)
 	// if it exists and let AppArmor handle the mediation
 	if (stat("/dev/uhid", &sbuf) == 0) {
 		_run_snappy_app_dev_add_majmin(udev_s, "/dev/uhid",
+					       major(sbuf.st_rdev),
+					       minor(sbuf.st_rdev));
+	}
+	// When CONFIG_TUN=m, /dev/net/tun will exist but using it doesn't
+	// autoload the tun module but also /dev/net/tun isn't udev tagged
+	// until it is loaded. To work around this, if /dev/net/tun exists, add
+	// it unconditionally to the cgroup and rely on AppArmor to mediate the
+	// access. LP: #1859084
+	if (stat("/dev/net/tun", &sbuf) == 0) {
+		_run_snappy_app_dev_add_majmin(udev_s, "/dev/net/tun",
 					       major(sbuf.st_rdev),
 					       minor(sbuf.st_rdev));
 	}

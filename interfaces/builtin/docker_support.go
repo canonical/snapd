@@ -52,8 +52,8 @@ const dockerSupportConnectedPlugAppArmorCore = `
 # version of apparmor or the kernel which doesn't resolve the upper layer of an
 # overlayfs mount correctly the accesses show up as runc trying to read from
 # /system-data/var/snap/docker/common/var-lib-docker/overlay2/$SHA/diff/
-/system-data/var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/common/{,**/} rwl,
-/system-data/var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/@{SNAP_REVISION}/{,**/} rwl,
+/system-data/var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/common/{,**} rwl,
+/system-data/var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/@{SNAP_REVISION}/{,**} rwl,
 `
 
 const dockerSupportConnectedPlugAppArmor = `
@@ -82,9 +82,8 @@ const dockerSupportConnectedPlugAppArmor = `
 /run/ipam-state/k8s-** rw,
 /run/ipam-state/k8s-*/lock k,
 
-# Socket for docker-container-shim
-unix (bind,listen) type=stream addr="@/containerd-shim/moby/*/shim.sock\x00",
-unix (bind,listen) type=stream addr="@/containerd-shim/k8s.io/*/shim.sock\x00",
+# Socket for docker-containerd-shim
+unix (bind,listen) type=stream addr="@/containerd-shim/**.sock\x00",
 
 /{,var/}run/mount/utab r,
 

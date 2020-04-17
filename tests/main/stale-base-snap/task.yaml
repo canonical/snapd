@@ -51,7 +51,7 @@ execute: |
 
     # Start a "sleep" process in the background
     #shellcheck disable=SC2016
-    test-snapd-sh -c 'touch $SNAP_DATA/stamp && exec sleep 1h' &
+    test-snapd-sh.sh -c 'touch $SNAP_DATA/stamp && exec sleep 1h' &
     pid=$!
 
     # Ensure that snap-confine has finished its task and that the snap process
@@ -68,7 +68,7 @@ execute: |
     if is_cgroupv2 ; then
         # stale mount namespace is always discarded with cgroupv2, because we
         # cannot currently determine whether there are processes using it
-        test-snapd-sh -c "test -e /customized"
+        test-snapd-sh.sh -c "test -e /customized"
 
         # Kill our helper process.
         kill -9 "$pid"
@@ -79,7 +79,7 @@ execute: |
 
     # Now we are in a situation where the core snap is stale but our sleeper
     # application is still alive so we cannot use it.
-    test-snapd-sh -c "test ! -e /customized"
+    test-snapd-sh.sh -c "test ! -e /customized"
 
     # Kill our helper process.
     kill -9 "$pid"
@@ -87,4 +87,4 @@ execute: |
 
     # Now when the process terminates, we no longer need to hold back.
     # The next process will use a fresh mount namespace.
-    test-snapd-sh -c "test -e /customized"
+    test-snapd-sh.sh -c "test -e /customized"

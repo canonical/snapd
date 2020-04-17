@@ -1,5 +1,9 @@
 summary: Check that the system is not in "degraded" state
 
+# TODO:UC20: e2scrub_reap.service is failing on uc20 as of 20200109, enable
+#            once foundations fixes it
+systems: [-ubuntu-core-20-*]
+
 # run this early to ensure no test created failed units yet
 priority: 500
 

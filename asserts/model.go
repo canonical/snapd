@@ -123,13 +123,15 @@ func checkExtendedSnaps(extendedSnaps interface{}, base string, grade ModelGrade
 		if seen[modelSnap.Name] {
 			return nil, fmt.Errorf("cannot list the same snap %q multiple times", modelSnap.Name)
 		}
+		seen[modelSnap.Name] = true
 		// at this time we do not support parallel installing
 		// from model/seed
-		if underName := seenIDs[modelSnap.SnapID]; underName != "" {
-			return nil, fmt.Errorf("cannot specify the same snap id %q multiple times, specified for snaps %q and %q", modelSnap.SnapID, underName, modelSnap.Name)
+		if snapID := modelSnap.SnapID; snapID != "" {
+			if underName := seenIDs[snapID]; underName != "" {
+				return nil, fmt.Errorf("cannot specify the same snap id %q multiple times, specified for snaps %q and %q", snapID, underName, modelSnap.Name)
+			}
+			seenIDs[snapID] = modelSnap.Name
 		}
-		seen[modelSnap.Name] = true
-		seenIDs[modelSnap.SnapID] = modelSnap.Name
 
 		essential := false
 		switch {
@@ -203,15 +205,15 @@ func checkModelSnap(snap map[string]interface{}, grade ModelGrade) (*ModelSnap, 
 	_, ok := snap["id"]
 	if ok {
 		var err error
-		snapID, err = checkStringMatchesWhat(snap, "id", what, validSnapID)
+		snapID, err = checkStringMatchesWhat(snap, "id", what, naming.ValidSnapID)
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		// snap ids are optional with grade unstable to allow working
+		// snap ids are optional with grade dangerous to allow working
 		// with local/not pushed yet to the store snaps
 		if grade != ModelDangerous {
-			return nil, fmt.Errorf(`"id" %s is mandatory for stable model`, what)
+			return nil, fmt.Errorf(`"id" %s is mandatory for %s grade model`, what, grade)
 		}
 	}
 
@@ -357,6 +359,7 @@ type Model struct {
 	requiredWithEssentialSnaps []naming.SnapRef
 	numEssentialSnaps          int
 
+	serialAuthority  []string
 	sysUserAuthority []string
 	timestamp        time.Time
 }
@@ -477,7 +480,16 @@ func (mod *Model) AllSnaps() []*ModelSnap {
 	return mod.allSnaps
 }
 
-// SystemUserAuthority returns the authority ids that are accepted as signers of system-user assertions for this model. Empty list means any.
+// SerialAuthority returns the authority ids that are accepted as
+// signers for serial assertions for this model. It always includes the
+// brand of the model.
+func (mod *Model) SerialAuthority() []string {
+	return mod.serialAuthority
+}
+
+// SystemUserAuthority returns the authority ids that are accepted as
+// signers of system-user assertions for this model. Empty list means
+// any, otherwise it always includes the brand of the model.
 func (mod *Model) SystemUserAuthority() []string {
 	return mod.sysUserAuthority
 }
@@ -522,11 +534,27 @@ func checkAuthorityMatchesBrand(a Assertion) error {
 	return nil
 }
 
+func checkOptionalSerialAuthority(headers map[string]interface{}, brandID string) ([]string, error) {
+	ids := []string{brandID}
+	const name = "serial-authority"
+	if _, ok := headers[name]; !ok {
+		return ids, nil
+	}
+	if lst, err := checkStringListMatches(headers, name, validAccountID); err == nil {
+		if !strutil.ListContains(lst, brandID) {
+			lst = append(ids, lst...)
+		}
+		return lst, nil
+	}
+	return nil, fmt.Errorf("%q header must be a list of account ids", name)
+}
+
 func checkOptionalSystemUserAuthority(headers map[string]interface{}, brandID string) ([]string, error) {
+	ids := []string{brandID}
 	const name = "system-user-authority"
 	v, ok := headers[name]
 	if !ok {
-		return []string{brandID}, nil
+		return ids, nil
 	}
 	switch x := v.(type) {
 	case string:
@@ -536,6 +564,9 @@ func checkOptionalSystemUserAuthority(headers map[string]interface{}, brandID st
 	case []interface{}:
 		lst, err := checkStringListMatches(headers, name, validAccountID)
 		if err == nil {
+			if !strutil.ListContains(lst, brandID) {
+				lst = append(ids, lst...)
+			}
 			return lst, nil
 		}
 	}
@@ -661,6 +692,11 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 			// the assumption is that base names are very stable
 			// essentially fixed
 			modSnaps.base = baseSnap
+			snapID := naming.WellKnownSnapID(modSnaps.base.Name)
+			if snapID == "" && grade != ModelDangerous {
+				return nil, fmt.Errorf(`cannot specify not well-known base %q without a corresponding "snaps" header entry`, modSnaps.base.Name)
+			}
+			modSnaps.base.SnapID = snapID
 			modSnaps.base.Modes = essentialSnapModes
 			modSnaps.base.DefaultChannel = "latest/stable"
 		}
@@ -693,7 +729,14 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		}
 	}
 
-	sysUserAuthority, err := checkOptionalSystemUserAuthority(assert.headers, assert.HeaderString("brand-id"))
+	brandID := assert.HeaderString("brand-id")
+
+	serialAuthority, err := checkOptionalSerialAuthority(assert.headers, brandID)
+	if err != nil {
+		return nil, err
+	}
+
+	sysUserAuthority, err := checkOptionalSystemUserAuthority(assert.headers, brandID)
 	if err != nil {
 		return nil, err
 	}
@@ -723,6 +766,7 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		allSnaps:                   allSnaps,
 		requiredWithEssentialSnaps: requiredWithEssentialSnaps,
 		numEssentialSnaps:          numEssentialSnaps,
+		serialAuthority:            serialAuthority,
 		sysUserAuthority:           sysUserAuthority,
 		timestamp:                  timestamp,
 	}, nil

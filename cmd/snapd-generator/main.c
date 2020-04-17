@@ -72,7 +72,7 @@ int main(int argc, char **argv)
 	// Construct the file name for a new systemd mount unit.
 	char fname[PATH_MAX + 1] = { 0 };
 	sc_must_snprintf(fname, sizeof fname,
-			 "%s/" SNAP_MOUNT_DIR ".mount", normal_dir);
+			 "%s/" SNAP_MOUNT_DIR_SYSTEMD_UNIT ".mount", normal_dir);
 
 	// Open the mount unit and write the contents.
 	FILE *f SC_CLEANUP(sc_cleanup_file) = NULL;

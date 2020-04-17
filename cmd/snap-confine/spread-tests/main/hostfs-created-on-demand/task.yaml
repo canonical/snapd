@@ -18,7 +18,7 @@ execute: |
     echo "We can now check that the directory was created on the system"
     test -d /var/lib/snapd/hostfs
 restore: |
-    snap remove snapd-hacker-toolbelt
+    snap remove --purge snapd-hacker-toolbelt
     if [ -d /var/lib/snapd/hostfs.orig ]; then
         mv /var/lib/snapd/hostfs.orig /var/lib/snapd/hostfs
     fi

@@ -18,6 +18,6 @@ restore: |
     systemctl start snapd.{socket,service}
 
 execute: |
-    # test-snapd-tools is about 8k, tmpfs is 4k :-)
-    snap install test-snapd-tools
-    snap remove test-snapd-tools
+    # test-snapd-sh is about 8k, tmpfs is 4k :-)
+    snap install test-snapd-sh
+    snap remove test-snapd-sh

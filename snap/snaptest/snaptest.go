@@ -25,6 +25,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/check.v1"
 
@@ -32,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/pack"
+	"github.com/snapcore/snapd/snap/snapdir"
 )
 
 func mockSnap(c *check.C, instanceName, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
@@ -184,37 +186,49 @@ func PopulateDir(dir string, files [][]string) {
 	}
 }
 
+func AssertedSnapID(snapName string) string {
+	cleanedName := strings.Replace(snapName, "-", "", -1)
+	return (cleanedName + strings.Repeat("id", 16)[len(cleanedName):])
+}
+
 // MakeTestSnapWithFiles makes a squashfs snap file with the given
 // snap.yaml content and optional extras files specified as pairs of
 // relative file path and its content.
 func MakeTestSnapWithFiles(c *check.C, snapYamlContent string, files [][]string) (snapFilePath string) {
+	path, _ := MakeTestSnapInfoWithFiles(c, snapYamlContent, files, nil)
+	return path
+}
+
+// MakeTestSnapInfoWithFiles makes a squashfs snap file with the given snap.yaml
+// content and optional extra files specified as pairs of relative file path and
+// it's contents, and returns the path to the snap file and a suitable snap.Info
+// for the snap
+func MakeTestSnapInfoWithFiles(c *check.C, snapYamlContent string, files [][]string, si *snap.SideInfo) (snapFilePath string, info *snap.Info) {
 	tmpdir := c.MkDir()
 	snapSource := filepath.Join(tmpdir, "snapsrc")
-
 	err := os.MkdirAll(filepath.Join(snapSource, "meta"), 0755)
-	if err != nil {
-		panic(err)
-	}
+	c.Assert(err, check.IsNil)
 	snapYamlFn := filepath.Join(snapSource, "meta", "snap.yaml")
 	err = ioutil.WriteFile(snapYamlFn, []byte(snapYamlContent), 0644)
-	if err != nil {
-		panic(err)
-	}
-
+	c.Assert(err, check.IsNil)
 	PopulateDir(snapSource, files)
-
 	restoreSanitize := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 	defer restoreSanitize()
 
+	// Parse the yaml (we need the Name).
+	snapInfo, err := snap.InfoFromSnapYaml([]byte(snapYamlContent))
+	c.Assert(err, check.IsNil)
+	if si != nil {
+		snapInfo.SideInfo = *si
+	}
 	err = osutil.ChDir(snapSource, func() error {
 		var err error
-		snapFilePath, err = pack.Snap(snapSource, "", "")
+		snapFilePath, err = pack.Snap(snapSource, nil)
 		return err
 	})
-	if err != nil {
-		panic(err)
-	}
-	return filepath.Join(snapSource, snapFilePath)
+	c.Assert(err, check.IsNil)
+	return filepath.Join(snapSource, snapFilePath), snapInfo
+
 }
 
 // MustParseChannel parses a string representing a store channel and
@@ -270,4 +284,16 @@ func RenameSlot(snapInfo *snap.Info, oldName, newName string) error {
 	}
 
 	return nil
+}
+
+// MockContainer returns a mock snap.Container with the given content.
+// If files is empty it still produces a minimal container that passes
+// ValidateContainer: / and /meta exist and are 0755, and
+// /meta/snap.yaml is a regular world-readable file.
+func MockContainer(c *check.C, files [][]string) snap.Container {
+	d := c.MkDir()
+	c.Assert(os.Chmod(d, 0755), check.IsNil)
+	files = append([][]string{{"meta/snap.yaml", ""}}, files...)
+	PopulateDir(d, files)
+	return snapdir.New(d)
 }

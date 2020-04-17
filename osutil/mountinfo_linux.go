@@ -48,6 +48,8 @@ type MountInfoEntry struct {
 	SuperOptions   map[string]string
 }
 
+var isSnapdTest = len(os.Args) > 0 && strings.HasSuffix(os.Args[0], ".test")
+
 func flattenMap(m map[string]string) string {
 	keys := make([]string, 0, len(m))
 	for key := range m {
@@ -91,12 +93,19 @@ func (mi *MountInfoEntry) String() string {
 		flattenMap(mi.SuperOptions))
 }
 
-// LoadMountInfo loads list of mounted entries from a given file.
-//
-// The file is typically ProcSelfMountInfo but any other process mount table
-// can be read the same way.
-func LoadMountInfo(fname string) ([]*MountInfoEntry, error) {
-	f, err := os.Open(fname)
+// LoadMountInfo loads list of mounted entries from /proc/self/mountinfo. This
+// can be mocked by using osutil.MockMountInfo to hard-code a specific mountinfo
+// file content to be loaded by this function
+func LoadMountInfo() ([]*MountInfoEntry, error) {
+	if mockedMountInfo != nil {
+		return ReadMountInfo(bytes.NewBufferString(*mockedMountInfo))
+	}
+	// if we are in testing and we didn't mock a mountinfo panic, since the
+	// mountinfo is used in many places and really should be mocked for tests
+	if isSnapdTest {
+		panic("/proc/self/mountinfo must be mocked in tests")
+	}
+	f, err := os.Open(procSelfMountInfo)
 	if err != nil {
 		return nil, err
 	}

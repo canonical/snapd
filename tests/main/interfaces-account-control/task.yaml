@@ -24,7 +24,7 @@ restore: |
     for f in /var/lib/extrausers/*; do
         sed -i '/^alice:/d' "$f"
     done
-    snap remove "$TSNAP"
+    snap remove --purge "$TSNAP"
 
 execute: |
     snap run "$TSNAP".useradd --extrausers alice

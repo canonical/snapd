@@ -32,7 +32,6 @@ import (
 
 	"gopkg.in/tomb.v2"
 
-	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
@@ -221,7 +220,7 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	perfTimings := timings.NewForTask(t)
+	perfTimings := state.TimingsForTask(t)
 	defer perfTimings.Save(st)
 
 	// check if we need to inject tasks to install core
@@ -502,7 +501,7 @@ func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func installInfoUnlocked(st *state.State, snapsup *SnapSetup, deviceCtx DeviceContext) (*snap.Info, error) {
+func installInfoUnlocked(st *state.State, snapsup *SnapSetup, deviceCtx DeviceContext) (store.SnapActionResult, error) {
 	st.Lock()
 	defer st.Unlock()
 	opts := &RevisionOptions{Channel: snapsup.Channel, CohortKey: snapsup.CohortKey, Revision: snapsup.Revision()}
@@ -553,7 +552,7 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	var rate int64
 
 	st.Lock()
-	perfTimings := timings.NewForTask(t)
+	perfTimings := state.TimingsForTask(t)
 	snapsup, theStore, user, err := downloadSnapParams(st, t)
 	if snapsup != nil && snapsup.IsAutoRefresh {
 		// NOTE rate is never negative
@@ -572,7 +571,7 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 		RateLimit:     rate,
 	}
 	if snapsup.DownloadInfo == nil {
-		var storeInfo *snap.Info
+		var storeInfo store.SnapActionResult
 		// COMPATIBILITY - this task was created from an older version
 		// of snapd that did not store the DownloadInfo in the state
 		// yet. Therefore do not worry about DeviceContext.
@@ -630,7 +629,7 @@ func hasOtherInstances(st *state.State, instanceName string) (bool, error) {
 func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
-	perfTimings := timings.NewForTask(t)
+	perfTimings := state.TimingsForTask(t)
 	snapsup, snapst, err := snapSetupAndState(t)
 	st.Unlock()
 	if err != nil {
@@ -681,7 +680,7 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	var snapType snap.Type
 	var installRecord *backend.InstallRecord
 	timings.Run(perfTimings, "setup-snap", fmt.Sprintf("setup snap %q", snapsup.InstanceName()), func(timings.Measurer) {
-		snapType, installRecord, err = m.backend.SetupSnap(snapsup.SnapPath, snapsup.InstanceName(), snapsup.SideInfo, pb)
+		snapType, installRecord, err = m.backend.SetupSnap(snapsup.SnapPath, snapsup.InstanceName(), snapsup.SideInfo, deviceCtx, pb)
 	})
 	if err != nil {
 		cleanup()
@@ -708,7 +707,7 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 	if readInfoErr != nil {
 		timings.Run(perfTimings, "undo-setup-snap", fmt.Sprintf("Undo setup of snap %q", snapsup.InstanceName()), func(timings.Measurer) {
-			err = m.backend.UndoSetupSnap(snapsup.placeInfo(), snapType, installRecord, pb)
+			err = m.backend.UndoSetupSnap(snapsup.placeInfo(), snapType, installRecord, deviceCtx, pb)
 		})
 		if err != nil {
 			st.Lock()
@@ -751,6 +750,13 @@ func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	st.Lock()
+	deviceCtx, err := DeviceCtx(t.State(), t, nil)
+	st.Unlock()
+	if err != nil {
+		return err
+	}
+
+	st.Lock()
 	var typ snap.Type
 	err = t.Get("snap-type", &typ)
 	st.Unlock()
@@ -771,7 +777,7 @@ func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	pb := NewTaskProgressAdapterUnlocked(t)
-	if err := m.backend.UndoSetupSnap(snapsup.placeInfo(), typ, &installRecord, pb); err != nil {
+	if err := m.backend.UndoSetupSnap(snapsup.placeInfo(), typ, &installRecord, deviceCtx, pb); err != nil {
 		return err
 	}
 
@@ -840,7 +846,7 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	)
 
 	tr := config.NewTransaction(st)
-	experimentalRefreshAppAwareness, err := config.GetFeatureFlag(tr, features.RefreshAppAwareness)
+	experimentalRefreshAppAwareness, err := features.Flag(tr, features.RefreshAppAwareness)
 	if err != nil && !config.IsNoOption(err) {
 		return err
 	}
@@ -861,7 +867,10 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.Active = false
 
 	// do the final unlink
-	err = m.backend.UnlinkSnap(oldInfo, NewTaskProgressAdapterLocked(t))
+	linkCtx := backend.LinkContext{
+		FirstInstall: false,
+	}
+	err = m.backend.UnlinkSnap(oldInfo, linkCtx, NewTaskProgressAdapterLocked(t))
 	if err != nil {
 		return err
 	}
@@ -876,7 +885,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	perfTimings := timings.NewForTask(t)
+	perfTimings := state.TimingsForTask(t)
 	defer perfTimings.Save(st)
 
 	snapsup, snapst, err := snapSetupAndState(t)
@@ -889,8 +898,8 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	model, err := ModelFromTask(t)
-	if err != nil && err != state.ErrNoState {
+	deviceCtx, err := DeviceCtx(st, t, nil)
+	if err != nil {
 		return err
 	}
 
@@ -904,7 +913,11 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	snapst.Active = true
-	err = m.backend.LinkSnap(oldInfo, model, svcsToDisable, perfTimings)
+	linkCtx := backend.LinkContext{
+		PrevDisabledServices: svcsToDisable,
+		FirstInstall:         false,
+	}
+	reboot, err := m.backend.LinkSnap(oldInfo, deviceCtx, linkCtx, perfTimings)
 	if err != nil {
 		return err
 	}
@@ -919,7 +932,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	// if we just put back a previous a core snap, request a restart
 	// so that we switch executing its snapd
-	maybeRestart(t, oldInfo, model)
+	m.maybeRestart(t, oldInfo, reboot, deviceCtx)
 
 	return nil
 }
@@ -1095,10 +1108,15 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	st.Lock()
 	defer st.Unlock()
 
-	perfTimings := timings.NewForTask(t)
+	perfTimings := state.TimingsForTask(t)
 	defer perfTimings.Save(st)
 
 	snapsup, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+
+	deviceCtx, err := DeviceCtx(st, t, nil)
 	if err != nil {
 		return err
 	}
@@ -1184,9 +1202,11 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		return err
 	}
 
-	// XXX: this block is slightly ugly, find a pattern when we have more examples
-	model, _ := ModelFromTask(t)
-	err = m.backend.LinkSnap(newInfo, model, svcsToDisable, perfTimings)
+	linkCtx := backend.LinkContext{
+		FirstInstall:         oldCurrent.Unset(),
+		PrevDisabledServices: svcsToDisable,
+	}
+	reboot, err := m.backend.LinkSnap(newInfo, deviceCtx, linkCtx, perfTimings)
 	// defer a cleanup helper which will unlink the snap if anything fails after
 	// this point
 	defer func() {
@@ -1195,7 +1215,8 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		}
 		// err is not nil, we need to try and unlink the snap to cleanup after
 		// ourselves
-		unlinkErr := m.backend.UnlinkSnap(newInfo, pb)
+		var unlinkErr error
+		unlinkErr = m.backend.UnlinkSnap(newInfo, linkCtx, pb)
 		if unlinkErr != nil {
 			t.Errorf("cannot cleanup failed attempt at making snap %q available to the system: %v", snapsup.InstanceName(), unlinkErr)
 		}
@@ -1303,24 +1324,30 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	t.SetStatus(state.DoneStatus)
 
 	// if we just installed a core snap, request a restart
-	// so that we switch executing its snapd
-	maybeRestart(t, newInfo, model)
+	// so that we switch executing its snapd.
+	m.maybeRestart(t, newInfo, reboot, deviceCtx)
 
 	return nil
 }
 
 // maybeRestart will schedule a reboot or restart as needed for the
 // just linked snap with info if it's a core or snapd or kernel snap.
-func maybeRestart(t *state.Task, info *snap.Info, model *asserts.Model) {
+func (m *SnapManager) maybeRestart(t *state.Task, info *snap.Info, rebootRequired bool, deviceCtx DeviceContext) {
+	// Don't restart when preseeding - we will switch to new snapd on
+	// first boot.
+	if m.preseed {
+		return
+	}
+
 	st := t.State()
 
-	typ := info.GetType()
-	bp := boot.Participant(info, typ, model, release.OnClassic)
-	if bp.ChangeRequiresReboot() {
+	if rebootRequired {
 		t.Logf("Requested system restart.")
 		st.RequestRestart(state.RestartSystem)
 		return
 	}
+
+	typ := info.GetType()
 
 	// if bp is non-trivial then either we're not on classic, or the snap is
 	// snapd. So daemonRestartReason will always return "" which is what we
@@ -1361,17 +1388,18 @@ func daemonRestartReason(st *state.State, typ snap.Type) string {
 // bootloader. This can happen if e.g. a new kernel gets installed. This
 // will switch the bootloader to the new kernel but if the change is later
 // undone we need to switch back to the kernel of the old model.
-func maybeUndoRemodelBootChanges(t *state.Task) error {
+func (m *SnapManager) maybeUndoRemodelBootChanges(t *state.Task) error {
 	// get the new and the old model
 	deviceCtx, err := DeviceCtx(t.State(), t, nil)
 	if err != nil {
 		return err
 	}
 	// we only have an old model if we are in a remodel situation
-	oldModel := deviceCtx.OldModel()
-	if oldModel == nil {
+	if !deviceCtx.ForRemodeling() {
 		return nil
 	}
+	groundDeviceCtx := deviceCtx.GroundContext()
+	oldModel := groundDeviceCtx.Model()
 	newModel := deviceCtx.Model()
 
 	// check type of the snap we are undoing, only kernel/base/core are
@@ -1411,13 +1439,15 @@ func maybeUndoRemodelBootChanges(t *state.Task) error {
 	if err != nil && err != ErrNoCurrent {
 		return err
 	}
-	bp := boot.Participant(info, info.GetType(), oldModel, release.OnClassic)
-	if err := bp.SetNextBoot(); err != nil {
+	bp := boot.Participant(info, info.GetType(), groundDeviceCtx)
+	reboot, err := bp.SetNextBoot()
+	if err != nil {
 		return err
 	}
+
 	// we may just have switch back to the old kernel/base/core so
 	// we may need to restart
-	maybeRestart(t, info, oldModel)
+	m.maybeRestart(t, info, reboot, groundDeviceCtx)
 
 	return nil
 }
@@ -1427,7 +1457,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	perfTimings := timings.NewForTask(t)
+	perfTimings := state.TimingsForTask(t)
 	defer perfTimings.Save(st)
 
 	snapsup, snapst, err := snapSetupAndState(t)
@@ -1571,15 +1601,39 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 			snapst.LastActiveDisabledServices,
 			disabledServices...,
 		)
+	} else {
+		// in the case of an install we need to clear any config
+		err = config.DeleteSnapConfig(st, snapsup.InstanceName())
+		if err != nil {
+			return err
+		}
 	}
 
-	err = m.backend.UnlinkSnap(newInfo, NewTaskProgressAdapterLocked(t))
+	pb := NewTaskProgressAdapterLocked(t)
+	linkCtx := backend.LinkContext{
+		FirstInstall: oldCurrent.Unset(),
+	}
+	err = m.backend.UnlinkSnap(newInfo, linkCtx, pb)
 	if err != nil {
 		return err
 	}
 
-	if err := maybeUndoRemodelBootChanges(t); err != nil {
+	if err := m.maybeUndoRemodelBootChanges(t); err != nil {
 		return err
+	}
+
+	// restart only when snapd was installed for the first time and the rest of
+	// the cleanup is performed by snapd from core;
+	// when reverting a subsequent snapd revision, the restart happens in
+	// undoLinkCurrentSnap() instead
+	if linkCtx.FirstInstall && newInfo.GetType() == snap.TypeSnapd {
+		// only way to get
+		deviceCtx, err := DeviceCtx(st, t, nil)
+		if err != nil {
+			return err
+		}
+		const rebootRequired = false
+		m.maybeRestart(t, newInfo, rebootRequired, deviceCtx)
 	}
 
 	// mark as inactive
@@ -1669,7 +1723,7 @@ func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	perfTimings := timings.NewForTask(t)
+	perfTimings := state.TimingsForTask(t)
 	defer perfTimings.Save(st)
 
 	_, snapst, err := snapSetupAndState(t)
@@ -1703,7 +1757,7 @@ func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	perfTimings := timings.NewForTask(t)
+	perfTimings := state.TimingsForTask(t)
 	defer perfTimings.Save(st)
 
 	snapsup, snapst, err := snapSetupAndState(t)
@@ -1781,7 +1835,10 @@ func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// do the final unlink
-	err = m.backend.UnlinkSnap(info, NewTaskProgressAdapterLocked(t))
+	linkCtx := backend.LinkContext{
+		FirstInstall: false,
+	}
+	err = m.backend.UnlinkSnap(info, linkCtx, NewTaskProgressAdapterLocked(t))
 	if err != nil {
 		return err
 	}
@@ -1856,6 +1913,11 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	deviceCtx, err := DeviceCtx(st, t, nil)
+	if err != nil {
+		return err
+	}
+
 	if snapst.Current == snapsup.Revision() && snapst.Active {
 		return fmt.Errorf("internal error: cannot discard snap %q: still active", snapsup.InstanceName())
 	}
@@ -1883,7 +1945,7 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	err = m.backend.RemoveSnapFiles(snapsup.placeInfo(), typ, nil, pb)
+	err = m.backend.RemoveSnapFiles(snapsup.placeInfo(), typ, nil, deviceCtx, pb)
 	if err != nil {
 		t.Errorf("cannot remove snap file %q, will retry in 3 mins: %s", snapsup.InstanceName(), err)
 		return &state.Retry{After: 3 * time.Minute}

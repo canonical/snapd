@@ -76,8 +76,8 @@ restore: |
     systemctl start snapd.service
     echo "snapd has been started" | systemd-cat
 
-    snap remove test-snapd-sh
-    snap remove test-snapd-simple-service
+    snap remove --purge test-snapd-sh
+    snap remove --purge test-snapd-simple-service
     echo "snaps have been removed" | systemd-cat
 
 execute: |
@@ -86,7 +86,7 @@ execute: |
     # snap-confine process is the regular "failed" rather than "failed due to
     # signal SIGPIPE".
     set +e
-    test-snapd-sh -c /bin/true
+    test-snapd-sh.sh -c /bin/true
     retcode=$?
     set -e
     test "$retcode" -eq 1

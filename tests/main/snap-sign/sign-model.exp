@@ -1,7 +1,13 @@
 spawn bash
 
-expect {
-    "# " { send "cat pi3-model.json | snap sign -k default &> pi3.model ; cat pi3.model\n" }
+if {$env(VARIANT) == "stdin"} {
+    expect {
+        "# " { send "cat pi3-model.json | snap sign -k default &> pi3.model ; cat pi3.model\n" }
+    }
+} else {
+    expect {
+        "# " { send "snap sign -k default pi3-model.json &> pi3.model ; cat pi3.model\n" }
+    }
 }
 
 # fun!

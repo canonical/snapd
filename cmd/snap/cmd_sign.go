@@ -38,6 +38,10 @@ of the assertion can be specified through a "body" pseudo-header.
 `)
 
 type cmdSign struct {
+	Positional struct {
+		Filename flags.Filename
+	} `positional-args:"yes"`
+
 	KeyName keyName `short:"k" default:"default"`
 }
 
@@ -47,7 +51,12 @@ func init() {
 	}, map[string]string{
 		// TRANSLATORS: This should not start with a lowercase letter.
 		"k": i18n.G("Name of the key to use, otherwise use the default key"),
-	}, nil)
+	}, []argDesc{{
+		// TRANSLATORS: This needs to begin with < and end with >
+		name: i18n.G("<filename>"),
+		// TRANSLATORS: This should not start with a lowercase letter.
+		desc: i18n.G("File to sign (defaults to stdin)"),
+	}})
 	cmd.hidden = true
 	cmd.completeHidden = true
 }
@@ -57,7 +66,17 @@ func (x *cmdSign) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	statement, err := ioutil.ReadAll(Stdin)
+	useStdin := x.Positional.Filename == "" || x.Positional.Filename == "-"
+
+	var (
+		statement []byte
+		err       error
+	)
+	if !useStdin {
+		statement, err = ioutil.ReadFile(string(x.Positional.Filename))
+	} else {
+		statement, err = ioutil.ReadAll(Stdin)
+	}
 	if err != nil {
 		return fmt.Errorf(i18n.G("cannot read assertion input: %v"), err)
 	}
@@ -65,7 +84,8 @@ func (x *cmdSign) Execute(args []string) error {
 	keypairMgr := asserts.NewGPGKeypairManager()
 	privKey, err := keypairMgr.GetByName(string(x.KeyName))
 	if err != nil {
-		return err
+		// TRANSLATORS: %q is the key name, %v the error message
+		return fmt.Errorf(i18n.G("cannot use %q key: %v"), x.KeyName, err)
 	}
 
 	signOpts := signtool.Options{

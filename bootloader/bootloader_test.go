@@ -29,7 +29,6 @@ import (
 
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
-	//"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
@@ -96,16 +95,20 @@ func (s *bootenvTestSuite) TestInstallBootloaderConfigNoConfig(c *C) {
 }
 
 func (s *bootenvTestSuite) TestInstallBootloaderConfig(c *C) {
-	for _, t := range []struct{ gadgetFile, systemFile string }{
-		{"grub.conf", "/boot/grub/grub.cfg"},
-		{"uboot.conf", "/boot/uboot/uboot.env"},
-		{"androidboot.conf", "/boot/androidboot/androidboot.env"},
-		{"lk.conf", "/boot/lk/snapbootsel.bin"},
+	for _, t := range []struct {
+		gadgetFile, systemFile string
+		opts                   *bootloader.Options
+	}{
+		{"grub.conf", "/boot/grub/grub.cfg", nil},
+		{"uboot.conf", "/boot/uboot/uboot.env", nil},
+		{"androidboot.conf", "/boot/androidboot/androidboot.env", nil},
+		{"lk.conf", "/boot/lk/snapbootsel.bin", nil},
+		{"grub-recovery.conf", "/EFI/ubuntu/grub.cfg", &bootloader.Options{Recovery: true}},
 	} {
 		mockGadgetDir := c.MkDir()
 		err := ioutil.WriteFile(filepath.Join(mockGadgetDir, t.gadgetFile), nil, 0644)
 		c.Assert(err, IsNil)
-		err = bootloader.InstallBootConfig(mockGadgetDir, s.rootdir, nil)
+		err = bootloader.InstallBootConfig(mockGadgetDir, s.rootdir, t.opts)
 		c.Assert(err, IsNil)
 		fn := filepath.Join(s.rootdir, t.systemFile)
 		c.Check(osutil.FileExists(fn), Equals, true, Commentf("boot config missing for %s", t.gadgetFile))

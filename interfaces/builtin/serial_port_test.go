@@ -53,6 +53,8 @@ type SerialPortInterfaceSuite struct {
 	testSlot7Info        *snap.SlotInfo
 	testSlot8            *interfaces.ConnectedSlot
 	testSlot8Info        *snap.SlotInfo
+	testSlotCleaned      *interfaces.ConnectedSlot
+	testSlotCleanedInfo  *snap.SlotInfo
 	missingPathSlot      *interfaces.ConnectedSlot
 	missingPathSlotInfo  *snap.SlotInfo
 	badPathSlot1         *interfaces.ConnectedSlot
@@ -139,6 +141,9 @@ slots:
     test-port-8:
         interface: serial-port
         path: /dev/ttymxc2
+    test-port-unclean:
+        interface: serial-port
+        path: /dev/./././ttyS1////
     missing-path: serial-port
     bad-path-1:
         interface: serial-port
@@ -188,6 +193,8 @@ slots:
 	s.testSlot7 = interfaces.NewConnectedSlot(s.testSlot7Info, nil, nil)
 	s.testSlot8Info = osSnapInfo.Slots["test-port-8"]
 	s.testSlot8 = interfaces.NewConnectedSlot(s.testSlot8Info, nil, nil)
+	s.testSlotCleanedInfo = osSnapInfo.Slots["test-port-unclean"]
+	s.testSlotCleaned = interfaces.NewConnectedSlot(s.testSlotCleanedInfo, nil, nil)
 	s.missingPathSlotInfo = osSnapInfo.Slots["missing-path"]
 	s.missingPathSlot = interfaces.NewConnectedSlot(s.missingPathSlotInfo, nil, nil)
 	s.badPathSlot1Info = osSnapInfo.Slots["bad-path-1"]

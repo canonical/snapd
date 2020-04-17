@@ -29,8 +29,8 @@ execute: |
     fi
 
     echo "Try to install a snap with broken DNS"
-    if snap install test-snapd-tools; then
-        echo "Installing test-snapd-tools with broken DNS should not work"
+    if snap install test-snapd-sh; then
+        echo "Installing test-snapd-sh with broken DNS should not work"
         echo "Test broken"
         exit 1
     fi

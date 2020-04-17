@@ -27,11 +27,13 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"testing"
 
 	. "gopkg.in/check.v1"
 	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snap/squashfs"
@@ -371,7 +373,7 @@ func makeTestSnap(c *C, snapYaml string) string {
 
 	dest := filepath.Join(tmp, "foo.snap")
 	snap := squashfs.New(dest)
-	err = snap.Build(snapSource, m.Type)
+	err = snap.Build(snapSource, &squashfs.BuildOpts{SnapType: m.Type})
 	c.Assert(err, IsNil)
 
 	return dest
@@ -522,11 +524,9 @@ apps:
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	env := info.Apps["foo"].Env()
-	sort.Strings(env)
-	c.Check(env, DeepEquals, []string{
-		"app-k=app-v",
-		"global-k=global-v",
+	c.Check(info.Apps["foo"].EnvChain(), DeepEquals, []osutil.ExpandableEnv{
+		osutil.NewExpandableEnv("global-k", "global-v"),
+		osutil.NewExpandableEnv("app-k", "app-v"),
 	})
 }
 
@@ -546,12 +546,9 @@ apps:
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	env := info.Apps["foo"].Env()
-	sort.Strings(env)
-	c.Check(env, DeepEquals, []string{
-		"app-k=app-v",
-		"global-and-local=local-v",
-		"global-k=global-v",
+	c.Check(info.Apps["foo"].EnvChain(), DeepEquals, []osutil.ExpandableEnv{
+		osutil.NewExpandableEnv("global-k", "global-v", "global-and-local", "global-v"),
+		osutil.NewExpandableEnv("app-k", "app-v", "global-and-local", "local-v"),
 	})
 }
 
@@ -569,11 +566,9 @@ hooks:
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	env := info.Hooks["foo"].Env()
-	sort.Strings(env)
-	c.Check(env, DeepEquals, []string{
-		"app-k=app-v",
-		"global-k=global-v",
+	c.Check(info.Hooks["foo"].EnvChain(), DeepEquals, []osutil.ExpandableEnv{
+		osutil.NewExpandableEnv("global-k", "global-v"),
+		osutil.NewExpandableEnv("app-k", "app-v"),
 	})
 }
 
@@ -593,12 +588,9 @@ hooks:
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	env := info.Hooks["foo"].Env()
-	sort.Strings(env)
-	c.Check(env, DeepEquals, []string{
-		"app-k=app-v",
-		"global-and-local=local-v",
-		"global-k=global-v",
+	c.Check(info.Hooks["foo"].EnvChain(), DeepEquals, []osutil.ExpandableEnv{
+		osutil.NewExpandableEnv("global-k", "global-v", "global-and-local", "global-v"),
+		osutil.NewExpandableEnv("app-k", "app-v", "global-and-local", "local-v"),
 	})
 }
 
@@ -993,6 +985,11 @@ func verifyExplicitHook(c *C, info *snap.Info, hookName string, plugNames []stri
 
 }
 
+func (s *infoSuite) TestPlaceInfoRevision(c *C) {
+	info := snap.MinimalPlaceInfo("name", snap.R("1"))
+	c.Check(info.SnapRevision(), Equals, snap.R("1"))
+}
+
 func (s *infoSuite) TestMinimalInfoDirAndFileMethods(c *C) {
 	dirs.SetRootDir("")
 	info := snap.MinimalPlaceInfo("name", snap.R("1"))
@@ -1049,6 +1046,47 @@ func (s *infoSuite) testInstanceDirAndFileMethods(c *C, info snap.PlaceInfo) {
 	c.Check(info.XdgRuntimeDirs(), Equals, "/run/user/*/snap.name_instance")
 }
 
+func BenchmarkTestParsePlaceInfoFromSnapFileName(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		for _, sn := range []string{
+			"core_21.snap",
+			"kernel_41.snap",
+			"some-long-kernel-name-kernel_82.snap",
+			"what-is-this-core_111.snap",
+		} {
+			snap.ParsePlaceInfoFromSnapFileName(sn)
+		}
+	}
+}
+
+func (s *infoSuite) TestParsePlaceInfoFromSnapFileName(c *C) {
+	tt := []struct {
+		sn        string
+		name      string
+		rev       string
+		expectErr string
+	}{
+		{sn: "", expectErr: "empty snap file name"},
+		{sn: "name", expectErr: `snap file name "name" has invalid format \(missing '_'\)`},
+		{sn: "name_", expectErr: `cannot parse revision in snap file name "name_": invalid snap revision: ""`},
+		{sn: "name__", expectErr: "too many '_' in snap file name"},
+		{sn: "_name.snap", expectErr: `snap file name \"_name.snap\" has invalid format \(no snap name before '_'\)`},
+		{sn: "name_key.snap", expectErr: `cannot parse revision in snap file name "name_key.snap": invalid snap revision: "key"`},
+		{sn: "name.snap", expectErr: `snap file name "name.snap" has invalid format \(missing '_'\)`},
+		{sn: "name_12.snap", name: "name", rev: "12"},
+		{sn: "name_key_12.snap", expectErr: "too many '_' in snap file name"},
+	}
+	for _, t := range tt {
+		p, err := snap.ParsePlaceInfoFromSnapFileName(t.sn)
+		if t.expectErr != "" {
+			c.Check(err, ErrorMatches, t.expectErr)
+		} else {
+			c.Check(p.SnapName(), Equals, t.name)
+			c.Check(p.SnapRevision(), Equals, snap.R(t.rev))
+		}
+	}
+}
+
 func makeFakeDesktopFile(c *C, name, content string) string {
 	df := filepath.Join(dirs.SnapDesktopFilesDir, name)
 	err := os.MkdirAll(filepath.Dir(df), 0755)
@@ -1072,7 +1110,6 @@ func (s *infoSuite) TestAppDesktopFile(c *C) {
 	c.Check(snapInfo.InstanceName(), Equals, "sample_instance")
 	c.Check(snapInfo.Apps["app"].DesktopFile(), Matches, `.*/var/lib/snapd/desktop/applications/sample_instance_app.desktop`)
 	c.Check(snapInfo.Apps["sample"].DesktopFile(), Matches, `.*/var/lib/snapd/desktop/applications/sample_instance_sample.desktop`)
-
 }
 
 const coreSnapYaml = `name: core
@@ -1518,15 +1555,12 @@ func (s *infoSuite) TestIsActive(c *C) {
 }
 
 func (s *infoSuite) TestGetTypeSnapdBackwardCompatibility(c *C) {
-	restore := snap.MockSnapdSnapID("snapd-id")
-	defer restore()
-
 	const snapdYaml = `
 name: snapd
 type: app
 version: 1
 `
-	snapInfo := snaptest.MockSnap(c, sampleYaml, &snap.SideInfo{Revision: snap.R(1), SnapID: "snapd-id"})
+	snapInfo := snaptest.MockSnap(c, sampleYaml, &snap.SideInfo{Revision: snap.R(1), SnapID: "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4"})
 	c.Check(snapInfo.GetType(), Equals, snap.TypeSnapd)
 }
 
@@ -1608,8 +1642,6 @@ func (s *infoSuite) TestSortByTypeAgain(c *C) {
 }
 
 func (s *infoSuite) TestMedia(c *C) {
-	c.Check(snap.MediaInfos{}.Screenshots(), DeepEquals,
-		[]snap.ScreenshotInfo{{Note: snap.ScreenshotsDeprecationNotice}})
 	c.Check(snap.MediaInfos{}.IconURL(), Equals, "")
 
 	media := snap.MediaInfos{
@@ -1628,8 +1660,6 @@ func (s *infoSuite) TestMedia(c *C) {
 	}
 
 	c.Check(media.IconURL(), Equals, "https://example.com/icon.png")
-	c.Check(media.Screenshots(), DeepEquals,
-		[]snap.ScreenshotInfo{{Note: snap.ScreenshotsDeprecationNotice}})
 }
 
 func (s *infoSuite) TestSortApps(c *C) {

@@ -61,12 +61,12 @@ execute: |
     # expansions done. Note that we are using "snap run test-snapd-sh" in order
     # to ensure that we can start the progam even if su/sudo's secure PATH does
     # not contain the snap bin directory.
-    su -l -c "snap run test-snapd-sh -c '\$SNAP_COMMON/uids-and-gids'"        test | MATCH 'ruid=12345 euid=12345 suid=12345 rgid=12345 egid=12345 sgid=12345'
-    su -l -c "snap run test-snapd-sh -c '\$SNAP_COMMON/uids-and-gids-setuid'" test | MATCH 'ruid=12345 euid=0     suid=0     rgid=12345 egid=12345 sgid=12345'
-    su -l -c "snap run test-snapd-sh -c '\$SNAP_COMMON/uids-and-gids-setgid'" test | MATCH 'ruid=12345 euid=12345 suid=12345 rgid=12345 egid=0     sgid=0    '
+    su -l -c "snap run test-snapd-sh.sh -c '\$SNAP_COMMON/uids-and-gids'"        test | MATCH 'ruid=12345 euid=12345 suid=12345 rgid=12345 egid=12345 sgid=12345'
+    su -l -c "snap run test-snapd-sh.sh -c '\$SNAP_COMMON/uids-and-gids-setuid'" test | MATCH 'ruid=12345 euid=0     suid=0     rgid=12345 egid=12345 sgid=12345'
+    su -l -c "snap run test-snapd-sh.sh -c '\$SNAP_COMMON/uids-and-gids-setgid'" test | MATCH 'ruid=12345 euid=12345 suid=12345 rgid=12345 egid=0     sgid=0    '
 
     echo "Running as regular user, uder snap-conifne under sudo"
     # This is the same one as the previous one but also using sudo.
-    su -l -c "sudo snap run test-snapd-sh -c '\$SNAP_COMMON/uids-and-gids'"        test | MATCH 'ruid=0     euid=0     suid=0     rgid=0     egid=0     sgid=0    '
-    su -l -c "sudo snap run test-snapd-sh -c '\$SNAP_COMMON/uids-and-gids-setuid'" test | MATCH 'ruid=0     euid=0     suid=0     rgid=0     egid=0     sgid=0    '
-    su -l -c "sudo snap run test-snapd-sh -c '\$SNAP_COMMON/uids-and-gids-setgid'" test | MATCH 'ruid=0     euid=0     suid=0     rgid=0     egid=0     sgid=0    '
+    su -l -c "sudo snap run test-snapd-sh.sh -c '\$SNAP_COMMON/uids-and-gids'"        test | MATCH 'ruid=0     euid=0     suid=0     rgid=0     egid=0     sgid=0    '
+    su -l -c "sudo snap run test-snapd-sh.sh -c '\$SNAP_COMMON/uids-and-gids-setuid'" test | MATCH 'ruid=0     euid=0     suid=0     rgid=0     egid=0     sgid=0    '
+    su -l -c "sudo snap run test-snapd-sh.sh -c '\$SNAP_COMMON/uids-and-gids-setgid'" test | MATCH 'ruid=0     euid=0     suid=0     rgid=0     egid=0     sgid=0    '

@@ -5,7 +5,7 @@ description: |
 
 systems: [fedora-*, centos-*]
 prepare: |
-    snap install test-snapd-tools
+    snap install test-snapd-sh
     if [ -d /home/test/snap ]; then
         mv /home/test/snap /home/test/snap.old
     fi
@@ -21,35 +21,35 @@ execute: |
     # TODO: use snap debug sandbox-features once selinux backend is added
 
     test ! -d /home/test/snap
-    su -c "test-snapd-tools.cmd sh -c 'touch \$SNAP_USER_DATA/foo'" test
+    su -c "test-snapd-sh.sh -c 'touch \$SNAP_USER_DATA/foo'" test
     test -d /home/test/snap
 
     echo "The snap user directory and data inside has the right context"
 
-    ls -dZ /home/test/snap /home/test/snap/test-snapd-tools /home/test/snap/test-snapd-tools/current/foo > test-labels
-    MATCH '^.*:snappy_home_t:.*/home/test/snap$'                              < test-labels
-    MATCH '^.*:snappy_home_t:.*/home/test/snap/test-snapd-tools$'             < test-labels
-    MATCH '^.*:snappy_home_t:.*/home/test/snap/test-snapd-tools/current/foo$' < test-labels
+    ls -dZ /home/test/snap /home/test/snap/test-snapd-sh /home/test/snap/test-snapd-sh/current/foo > test-labels
+    MATCH '^.*:snappy_home_t:.*/home/test/snap$'                           < test-labels
+    MATCH '^.*:snappy_home_t:.*/home/test/snap/test-snapd-sh$'             < test-labels
+    MATCH '^.*:snappy_home_t:.*/home/test/snap/test-snapd-sh/current/foo$' < test-labels
 
     echo "When the context of \$HOME/snap is changed"
     chcon -t unlabeled_t -R /home/test/snap
-    chcon -t unlabeled_t -R /home/test/snap/test-snapd-tools/current/foo
+    chcon -t unlabeled_t -R /home/test/snap/test-snapd-sh/current/foo
     #shellcheck disable=SC2012
     ls -dZ /home/test/snap | MATCH ':unlabeled_t:'
 
     echo "It gets restored recursively"
-    su -c 'test-snapd-tools.cmd id -Z' test
+    su -c "test-snapd-sh.sh -c 'id -Z'" test
 
-    ls -dZ /home/test/snap /home/test/snap/test-snapd-tools /home/test/snap/test-snapd-tools/current/foo > test-labels
-    MATCH '^.*:snappy_home_t:.*/home/test/snap$'                              < test-labels
-    MATCH '^.*:snappy_home_t:.*/home/test/snap/test-snapd-tools$'             < test-labels
-    MATCH '^.*:snappy_home_t:.*/home/test/snap/test-snapd-tools/current/foo$' < test-labels
+    ls -dZ /home/test/snap /home/test/snap/test-snapd-sh /home/test/snap/test-snapd-sh/current/foo > test-labels
+    MATCH '^.*:snappy_home_t:.*/home/test/snap$'                           < test-labels
+    MATCH '^.*:snappy_home_t:.*/home/test/snap/test-snapd-sh$'             < test-labels
+    MATCH '^.*:snappy_home_t:.*/home/test/snap/test-snapd-sh/current/foo$' < test-labels
 
     echo "Restoring happens only when the context of \$HOME/snap is incorrect"
-    chcon -t unlabeled_t -R /home/test/snap/test-snapd-tools/current/foo
-    su -c 'test-snapd-tools.cmd id -Z' test
+    chcon -t unlabeled_t -R /home/test/snap/test-snapd-sh/current/foo
+    su -c "test-snapd-sh.sh -c 'id -Z'" test
 
-    ls -dZ /home/test/snap /home/test/snap/test-snapd-tools /home/test/snap/test-snapd-tools/current/foo > test-labels
-    MATCH '^.*:snappy_home_t:.*/home/test/snap$'                            < test-labels
-    MATCH '^.*:snappy_home_t:.*/home/test/snap/test-snapd-tools$'           < test-labels
-    MATCH '^.*:unlabeled_t:.*/home/test/snap/test-snapd-tools/current/foo$' < test-labels
+    ls -dZ /home/test/snap /home/test/snap/test-snapd-sh /home/test/snap/test-snapd-sh/current/foo > test-labels
+    MATCH '^.*:snappy_home_t:.*/home/test/snap$'                         < test-labels
+    MATCH '^.*:snappy_home_t:.*/home/test/snap/test-snapd-sh$'           < test-labels
+    MATCH '^.*:unlabeled_t:.*/home/test/snap/test-snapd-sh/current/foo$' < test-labels

@@ -4,12 +4,12 @@ apps:
   direct-watchdog-ok:
     command: bin/direct
     daemon: simple
-    watchdog-timeout: 1s
+    watchdog-timeout: 2s
     restart-condition: never
     plugs: [daemon-notify]
   direct-watchdog-bad:
     command: bin/direct --bad
     daemon: simple
-    watchdog-timeout: 1s
+    watchdog-timeout: 2s
     restart-condition: never
     plugs: [daemon-notify]

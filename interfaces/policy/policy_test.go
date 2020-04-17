@@ -168,6 +168,10 @@ plugs:
         - debian
   install-plug-device-scope:
     allow-installation: false
+  install-plug-name-bound:
+    allow-installation:
+      plug-names:
+        - $INTERFACE
 slots:
   base-slot-allow: true
   base-slot-not-allow:
@@ -298,6 +302,10 @@ slots:
         - debian
   install-slot-device-scope:
     allow-installation: false
+  install-slot-name-bound:
+    allow-installation:
+      slot-names:
+        - $INTERFACE
   slots-arity-default:
     allow-auto-connection: true
   slots-arity-slot-any:
@@ -311,6 +319,10 @@ slots:
   slots-arity-slot-any-plug-default:
     deny-auto-connection: true
   slots-arity-slot-one-plug-any:
+    deny-auto-connection: true
+  slots-name-bound:
+    deny-auto-connection: true
+  plugs-name-bound:
     deny-auto-connection: true
 timestamp: 2016-09-30T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
@@ -499,6 +511,15 @@ plugs:
    slots-arity-slot-any-plug-two:
    slots-arity-slot-any-plug-default:
    slots-arity-slot-one-plug-any:
+
+   slots-name-bound-p1:
+     interface: slots-name-bound
+   slots-name-bound-p2:
+     interface: slots-name-bound
+   plugs-name-bound-p1:
+     interface: plugs-name-bound
+   plugs-name-bound-p2:
+     interface: plugs-name-bound
 `, nil)
 
 	s.slotSnap = snaptest.MockInfo(c, `
@@ -672,6 +693,16 @@ slots:
    slots-arity-slot-any-plug-two:
    slots-arity-slot-any-plug-default:
    slots-arity-slot-one-plug-any:
+
+   slots-name-bound-s1:
+     interface: slots-name-bound
+   slots-name-bound-s2:
+     interface: slots-name-bound
+   plugs-name-bound-s1:
+     interface: plugs-name-bound
+   plugs-name-bound-s2:
+     interface: plugs-name-bound
+
 `, nil)
 
 	a, err = asserts.Decode([]byte(`type: snap-declaration
@@ -747,6 +778,13 @@ plugs:
   slots-arity-slot-one-plug-any:
     allow-auto-connection:
       slots-per-plug: *
+  plugs-name-bound:
+    allow-auto-connection:
+      -
+        plug-names:
+          - plugs-name-bound-p1
+        slot-names:
+          - plugs-name-bound-s2
 timestamp: 2016-09-30T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
@@ -826,6 +864,13 @@ slots:
   slots-arity-slot-one-plug-any:
     allow-auto-connection:
       slots-per-plug: 1
+  slots-name-bound:
+    allow-auto-connection:
+      -
+        plug-names:
+          - slots-name-bound-p2
+        slot-names:
+          - slots-name-bound-s2
 timestamp: 2016-09-30T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
@@ -2314,5 +2359,490 @@ func (s *policySuite) TestSlotsArityAutoConnection(c *C) {
 		arity, err := cand.CheckAutoConnect()
 		c.Assert(err, IsNil)
 		c.Check(arity.SlotsPerPlugAny(), Equals, t.any)
+	}
+}
+
+func (s *policySuite) TestNameConstraintsInstallation(c *C) {
+	const plugSnap = `name: install-snap
+version: 0
+plugs:
+  install-plug-name-bound:`
+
+	const plugOtherNameSnap = `name: install-snap
+version: 0
+plugs:
+  install-plug-name-bound-other:
+    interface: install-plug-name-bound
+`
+
+	const slotSnap = `name: install-snap
+version: 0
+slots:
+  install-slot-name-bound:`
+
+	const slotOtherNameSnap = `name: install-snap
+version: 0
+slots:
+  install-slot-name-bound-other:
+    interface: install-slot-name-bound
+`
+
+	const plugOtherName = `plugs:
+  install-plug-name-bound:
+    allow-installation:
+      plug-names:
+        - install-plug-name-bound-other`
+
+	tests := []struct {
+		installYaml string
+		plugsSlots  string
+		err         string // "" => no error
+	}{
+		{plugSnap, "", ""},
+		{plugOtherNameSnap, "", `installation not allowed by "install-plug-name-bound-other" plug rule of interface "install-plug-name-bound"`},
+		{plugOtherNameSnap, plugOtherName, ""},
+		{slotSnap, "", ""},
+		{slotOtherNameSnap, "", `installation not allowed by "install-slot-name-bound-other" slot rule of interface "install-slot-name-bound"`},
+	}
+
+	for _, t := range tests {
+		installSnap := snaptest.MockInfo(c, t.installYaml, nil)
+
+		plugsSlots := strings.TrimSpace(t.plugsSlots)
+		if plugsSlots != "" {
+			plugsSlots = "\n" + plugsSlots
+		}
+
+		a, err := asserts.Decode([]byte(strings.Replace(`type: snap-declaration
+authority-id: canonical
+series: 16
+snap-name: install-snap
+snap-id: installsnap6idididididididididid
+publisher-id: publisher
+@plugsSlots@
+timestamp: 2016-09-30T12:00:00Z
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw==`, "\n@plugsSlots@", plugsSlots, 1)))
+		c.Assert(err, IsNil)
+		snapDecl := a.(*asserts.SnapDeclaration)
+
+		cand := policy.InstallCandidate{
+			Snap:            installSnap,
+			SnapDeclaration: snapDecl,
+			BaseDeclaration: s.baseDecl,
+		}
+		err = cand.Check()
+		if t.err == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, t.err)
+		}
+	}
+}
+
+func (s *policySuite) TestNameConstraintsAutoConnection(c *C) {
+	tests := []struct {
+		plug, slot string
+		ok         bool
+	}{
+		{"plugs-name-bound-p1", "plugs-name-bound-s1", false},
+		{"plugs-name-bound-p2", "plugs-name-bound-s1", false},
+		{"plugs-name-bound-p1", "plugs-name-bound-s2", true},
+		{"plugs-name-bound-p2", "plugs-name-bound-s2", false},
+		{"slots-name-bound-p1", "slots-name-bound-s1", false},
+		{"slots-name-bound-p2", "slots-name-bound-s1", false},
+		{"slots-name-bound-p1", "slots-name-bound-s2", false},
+		{"slots-name-bound-p2", "slots-name-bound-s2", true},
+	}
+
+	for _, t := range tests {
+		cand := policy.ConnectCandidate{
+			Plug:                interfaces.NewConnectedPlug(s.plugSnap.Plugs[t.plug], nil, nil),
+			Slot:                interfaces.NewConnectedSlot(s.slotSnap.Slots[t.slot], nil, nil),
+			PlugSnapDeclaration: s.plugDecl,
+			SlotSnapDeclaration: s.slotDecl,
+
+			BaseDeclaration: s.baseDecl,
+		}
+		_, err := cand.CheckAutoConnect()
+		if t.ok {
+			c.Check(err, IsNil, Commentf("%s:%s", t.plug, t.slot))
+		} else {
+			var expected string
+			if cand.Plug.Interface() == "plugs-name-bound" {
+				expected = `auto-connection not allowed by plug rule of interface "plugs-name-bound".*`
+			} else {
+				// slots-name-bound
+				expected = `auto-connection not allowed by slot rule of interface "slots-name-bound".*`
+			}
+			c.Check(err, ErrorMatches, expected)
+		}
+	}
+
+}
+
+// Test miscellaneous store patterns when base declaration has
+// 'allow-installation: false' and we grant based on interface attributes
+// such as with personal-files, system-files, etc.
+//
+// While this is also tested elsewhere, combining this into a single test
+// makes it easy to verify correctness of a related set of patterns
+//
+// Eg, if base decl has:
+//   slots:
+//     system-files:
+//       allow-installation:
+//         slot-snap-type:
+//           - core
+//   plugs:
+//     system-files:
+//       allow-installation: false
+//
+// then test snap decls of the form:
+//   plugs:
+//     system-files:
+//       allow-installation:
+//         plug-attributes:
+//           write: ...
+// or:
+//   plugs:
+//     system-files:
+//       allow-installation:
+//         -
+//           plug-attributes:
+//             write: ...
+// or:
+//   plugs:
+//     system-files:
+//       allow-installation:
+//         -
+//           plug-attributes:
+//             write: ...
+//         -
+//           plug-attributes:
+//             write: ...
+//
+func (s *policySuite) TestSnapDeclListAttribWithBaseAllowInstallationFalse(c *C) {
+	baseDeclStr := `type: base-declaration
+authority-id: canonical
+series: 16
+slots:
+  base-allow-install-false:
+    allow-installation:
+      slot-snap-type:
+        - core
+plugs:
+  base-allow-install-false:
+    allow-installation: false
+timestamp: 2016-09-30T12:00:00Z
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw==`
+	a, err := asserts.Decode([]byte(baseDeclStr))
+	c.Assert(err, IsNil)
+	baseDecl := a.(*asserts.BaseDeclaration)
+
+	tests := []struct {
+		installYaml        string
+		snapDeclPlugsSlots string
+		expected           string // "" => no error
+	}{
+		// expected match
+		{`name: install-snap
+version: 0
+plugs:
+  p1:
+    interface: base-allow-install-false
+    write:
+    - /path1
+`, `plugs:
+  base-allow-install-false:
+    allow-installation:
+      plug-attributes:
+        write: /path1
+`, ``},
+		{`name: install-snap
+version: 0
+plugs:
+  p1:
+    interface: base-allow-install-false
+    write:
+    - /path1
+`, `plugs:
+  base-allow-install-false:
+    allow-installation:
+      plug-attributes:
+        write: /path1a?
+`, ``},
+		{`name: install-snap
+version: 0
+plugs:
+  p1:
+    interface: base-allow-install-false
+    write:
+    - /path1a
+`, `plugs:
+  base-allow-install-false:
+    allow-installation:
+      plug-attributes:
+        write: /path1a?
+`, ``},
+		{`name: install-snap
+version: 0
+plugs:
+  p1:
+    interface: base-allow-install-false
+    write:
+    - /path1
+    - /path1a
+`, `plugs:
+  base-allow-install-false:
+    allow-installation:
+      plug-attributes:
+        write: /path1a?
+`, ``},
+
+		// expected match single alternation
+		{`name: install-snap
+version: 0
+plugs:
+  p1:
+    interface: base-allow-install-false
+    write:
+    - /path1
+`, `plugs:
+  base-allow-install-false:
+    allow-installation:
+      -
+        plug-attributes:
+          write: /path1
+`, ``},
+		{`name: install-snap
+version: 0
+plugs:
+  p1:
+    interface: base-allow-install-false
+    write:
+    - /path1
+`, `plugs:
+  base-allow-install-false:
+    allow-installation:
+      -
+        plug-attributes:
+          write: /path1a?
+`, ``},
+		{`name: install-snap
+version: 0
+plugs:
+  p1:
+    interface: base-allow-install-false
+    write:
+    - /path1a
+`, `plugs:
+  base-allow-install-false:
+    allow-installation:
+      -
+        plug-attributes:
+          write: /path1a?
+`, ``},
+
+		{`name: install-snap
+version: 0
+plugs:
+  p1:
+    interface: base-allow-install-false
+    write:
+    - /path1
+    - /path1a
+`, `plugs:
+  base-allow-install-false:
+    allow-installation:
+      -
+        plug-attributes:
+          write: /path1a?
+`, ``},
+		// expected match two
+		{`name: install-snap
+version: 0
+plugs:
+  p1:
+    interface: base-allow-install-false
+    write:
+    - /path1
+  p2:
+    interface: base-allow-install-false
+    write:
+    - /path1a
+`, `plugs:
+  base-allow-install-false:
+    allow-installation:
+      plug-attributes:
+        write: /path1a?
+`, ``},
+		{`name: install-snap
+version: 0
+plugs:
+  p1:
+    interface: base-allow-install-false
+    write:
+    - /path1
+  p2:
+    interface: base-allow-install-false
+    write:
+    - /path1a
+`, `plugs:
+  base-allow-install-false:
+    allow-installation:
+      -
+        plug-attributes:
+          write: /path1a?
+`, ``},
+		{`name: install-snap
+version: 0
+plugs:
+  p1:
+    interface: base-allow-install-false
+    write:
+    - /path1
+  p2:
+    interface: base-allow-install-false
+    write:
+    - /path1a
+`, `plugs:
+  base-allow-install-false:
+    allow-installation:
+      -
+        plug-attributes:
+          write: /path1
+      -
+        plug-attributes:
+          write: /path1a
+`, ``},
+		// expected no match
+		{`name: install-snap
+version: 0
+plugs:
+  p1:
+    interface: base-allow-install-false
+    write:
+    - /path1
+    - /path1a
+`, `plugs:
+  base-allow-install-false:
+    allow-installation:
+      plug-attributes:
+        write: /path1
+`, `installation not allowed by "p1" plug rule of interface "base-allow-install-false" for "install-snap" snap`},
+		{`name: install-snap
+version: 0
+plugs:
+  p1:
+    interface: base-allow-install-false
+    write:
+    - /path1
+    - /path1a
+`, `plugs:
+  base-allow-install-false:
+    allow-installation:
+      -
+        plug-attributes:
+          write: /path1
+`, `installation not allowed by "p1" plug rule of interface "base-allow-install-false" for "install-snap" snap`},
+		{`name: install-snap
+version: 0
+plugs:
+  p1:
+    interface: base-allow-install-false
+    write:
+    - /path1
+  p2:
+    interface: base-allow-install-false
+    write:
+    - /path1nomatch
+`, `plugs:
+  base-allow-install-false:
+    allow-installation:
+      -
+        plug-attributes:
+          write: /path1a?
+`, `installation not allowed by "p2" plug rule of interface "base-allow-install-false" for "install-snap" snap`},
+		{`name: install-snap
+version: 0
+plugs:
+  p1:
+    interface: base-allow-install-false
+    write:
+    - /path1
+  p2:
+    interface: base-allow-install-false
+    write:
+    - /path1nomatch
+`, `plugs:
+  base-allow-install-false:
+    allow-installation:
+      -
+        plug-attributes:
+          write: /path1
+      -
+        plug-attributes:
+          write: /path1a
+`, `installation not allowed by "p2" plug rule of interface "base-allow-install-false" for "install-snap" snap`},
+		{`name: install-snap
+version: 0
+plugs:
+  p1:
+    interface: base-allow-install-false
+`, `plugs:
+  base-allow-install-false:
+    allow-installation:
+      plug-attributes:
+        write: /path1
+`, `installation not allowed by "p1" plug rule of interface "base-allow-install-false" for "install-snap" snap`},
+		{`name: install-snap
+version: 0
+plugs:
+  p1:
+    interface: base-allow-install-false
+    write: /path2
+`, `plugs:
+  base-allow-install-false:
+    allow-installation:
+      plug-attributes:
+        read: /path1
+        write: /path2
+`, `installation not allowed by "p1" plug rule of interface "base-allow-install-false" for "install-snap" snap`},
+	}
+
+	for _, t := range tests {
+		installSnap := snaptest.MockInfo(c, t.installYaml, nil)
+
+		snapDeclStr := strings.Replace(`type: snap-declaration
+authority-id: canonical
+series: 16
+snap-name: install-snap
+snap-id: installsnap6idididididididididid
+publisher-id: publisher
+@plugsSlots@
+timestamp: 2016-09-30T12:00:00Z
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw==`, "@plugsSlots@", strings.TrimSpace(t.snapDeclPlugsSlots), 1)
+		b, err := asserts.Decode([]byte(snapDeclStr))
+		c.Assert(err, IsNil)
+		snapDecl := b.(*asserts.SnapDeclaration)
+
+		cand := policy.InstallCandidate{
+			Snap:            installSnap,
+			SnapDeclaration: snapDecl,
+			BaseDeclaration: baseDecl,
+		}
+
+		err = cand.Check()
+		if t.expected == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, t.expected)
+		}
 	}
 }

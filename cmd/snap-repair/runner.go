@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2017-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -49,6 +49,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -282,9 +283,13 @@ func NewRunner() *Runner {
 		sequenceNext: make(map[string]int),
 	}
 	opts := httputil.ClientOptions{
-		MayLogBody: false,
+		MayLogBody:         false,
+		ProxyConnectHeader: http.Header{"User-Agent": []string{snapdenv.UserAgent()}},
 		TLSConfig: &tls.Config{
 			Time: run.now,
+		},
+		ExtraSSLCerts: &httputil.ExtraSSLCertsFromDir{
+			Dir: dirs.SnapdStoreSSLCertsDir,
 		},
 	}
 	run.cli = httputil.NewHTTPClient(&opts)
@@ -332,7 +337,7 @@ func (run *Runner) Fetch(brandID string, repairID int, revision int) (*asserts.R
 		if err != nil {
 			return nil, err
 		}
-		req.Header.Set("User-Agent", httputil.UserAgent())
+		req.Header.Set("User-Agent", snapdenv.UserAgent())
 		req.Header.Set("Accept", "application/x.ubuntu.assertion")
 		if revision >= 0 {
 			req.Header.Set("If-None-Match", fmt.Sprintf(`"%d"`, revision))
@@ -437,7 +442,7 @@ func (run *Runner) Peek(brandID string, repairID int) (headers map[string]interf
 		if err != nil {
 			return nil, err
 		}
-		req.Header.Set("User-Agent", httputil.UserAgent())
+		req.Header.Set("User-Agent", snapdenv.UserAgent())
 		req.Header.Set("Accept", "application/json")
 		return run.cli.Do(req)
 	}, func(resp *http.Response) error {

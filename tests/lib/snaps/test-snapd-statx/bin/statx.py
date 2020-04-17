@@ -9,11 +9,12 @@ from errno import ENOSYS, EPERM
 from os import uname
 
 
-__all__ = ('SyscallStatus', 'evaluate_statx_support')
+__all__ = ("SyscallStatus", "evaluate_statx_support")
 
 
 class SyscallStatus(Enum):
     """Syscall status encodes the status of a system call."""
+
     SUPPORTED = "supported"
     MISSING = "missing"
     BLOCKED = "blocked"
@@ -35,13 +36,10 @@ def evaluate_statx_support() -> SyscallStatus:
         "i686": 383,
         "i386": 383,
         "x86_64": 332,
-
         "arm": 397,
         "aarch64": 291,
-
         "ppc": 383,
         "ppcel64": 383,
-
         "s390x": 379,
     }
     try:
@@ -71,8 +69,14 @@ def evaluate_statx_support() -> SyscallStatus:
     #
     #   char dummy_buf[4096];
     #   syscall(SYS_STATX, AT_FDCWD, "", AT_EMPTY_PATH, 0, dummy_buf);
-    retval = syscall(c_long(SYS_STATX), c_long(AT_FDCWD), empty_string,
-                     c_long(AT_EMPTY_PATH), c_long(0), dummy_buf)
+    retval = syscall(
+        c_long(SYS_STATX),
+        c_long(AT_FDCWD),
+        empty_string,
+        c_long(AT_EMPTY_PATH),
+        c_long(0),
+        dummy_buf,
+    )
     errno = get_errno()
     if retval == 0:
         return SyscallStatus.SUPPORTED
@@ -80,8 +84,9 @@ def evaluate_statx_support() -> SyscallStatus:
         return SyscallStatus.MISSING
     elif retval == -1 and errno == EPERM:
         return SyscallStatus.BLOCKED
-    raise Exception("unexpected result of statx, retval: {}, errno: {}".format(
-        retval, errno))
+    raise Exception(
+        "unexpected result of statx, retval: {}, errno: {}".format(retval, errno)
+    )
 
 
 def main() -> None:

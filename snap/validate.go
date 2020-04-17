@@ -38,9 +38,6 @@ import (
 	"github.com/snapcore/snapd/timeutil"
 )
 
-// The fixed length of valid snap IDs.
-const validSnapIDLength = 32
-
 // ValidateInstanceName checks if a string can be used as a snap instance name.
 func ValidateInstanceName(instanceName string) error {
 	return naming.ValidateInstance(instanceName)

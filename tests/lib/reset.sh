@@ -21,6 +21,7 @@ reset_classic() {
 
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
+            sh -x "${SPREAD_PATH}/debian/snapd.prerm" remove
             sh -x "${SPREAD_PATH}/debian/snapd.postrm" purge
             ;;
         fedora-*|opensuse-*|arch-*|amazon-*|centos-*)
@@ -38,6 +39,9 @@ reset_classic() {
             exit 1
             ;;
     esac
+    # purge has removed units, reload the state now
+    systemctl daemon-reload
+
     # extra purge
     rm -rvf /var/snap "${SNAP_MOUNT_DIR:?}/bin"
     mkdir -p "$SNAP_MOUNT_DIR" /var/snap /var/lib/snapd
@@ -46,6 +50,7 @@ reset_classic() {
         ls -lR "$SNAP_MOUNT_DIR"/ /var/snap/
         exit 1
     fi
+    rm -rf /tmp/snap.*
 
     case "$SPREAD_SYSTEM" in
         fedora-*|centos-*)
@@ -55,6 +60,12 @@ reset_classic() {
             restorecon -F -v -R "$SNAP_MOUNT_DIR" /var/snap /var/lib/snapd
             ;;
     esac
+
+    # systemd retains the failed state of service units, even after they are
+    # removed, we need to reset their 'failed state'
+    systemctl --plain --failed --no-legend --full | awk '/^ *snap\..*\.service +(error|not-found) +failed/ {print $1}' | while read -r unit; do
+        systemctl reset-failed "$unit" || true
+    done
 
     if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
         systemctl start snap.mount.service
@@ -94,6 +105,12 @@ reset_classic() {
 
 reset_all_snap() {
     # remove all leftover snaps
+
+    # make sure snapd is running before we attempt to remove snaps, in case a test stopped it
+    if ! systemctl status snapd.service snapd.socket >/dev/null; then
+        systemctl start snapd.service snapd.socket
+    fi
+
     # shellcheck source=tests/lib/names.sh
     . "$TESTSLIB/names.sh"
 
@@ -105,10 +122,6 @@ reset_all_snap() {
             "bin" | "$gadget_name" | "$kernel_name" | "$core_name" | "snapd" |README)
                 ;;
             *)
-                # make sure snapd is running before we attempt to remove snaps, in case a test stopped it
-                if ! systemctl status snapd.service snapd.socket >/dev/null; then
-                    systemctl start snapd.service snapd.socket
-                fi
                 # Check if a snap should be kept, there's a list of those in spread.yaml.
                 keep=0
                 for precious_snap in $SKIP_REMOVE_SNAPS; do
@@ -125,7 +138,7 @@ reset_all_snap() {
                             remove_bases="$remove_bases $snap"
                         fi
                     else
-                        snap remove "$snap"
+                        snap remove --purge "$snap"
                     fi
                 fi
                 ;;
@@ -134,7 +147,7 @@ reset_all_snap() {
     # remove all base/os snaps at the end
     if [ -n "$remove_bases" ]; then
         for base in $remove_bases; do
-            snap remove "$base"
+            snap remove --purge "$base"
             if [ -d "$SNAP_MOUNT_DIR/$base" ]; then
                 echo "Error: removing base $base has unexpected leftover dir $SNAP_MOUNT_DIR/$base"
                 ls -al "$SNAP_MOUNT_DIR"
@@ -148,6 +161,7 @@ reset_all_snap() {
     systemctl stop snapd.service snapd.socket
     restore_snapd_state
     rm -rf /root/.snap
+    rm -rf /tmp/snap.*
     if [ "$1" != "--keep-stopped" ]; then
         systemctl start snapd.service snapd.socket
     fi

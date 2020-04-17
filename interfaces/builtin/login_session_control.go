@@ -52,7 +52,14 @@ dbus (send,receive)
     bus=system
     path=/org/freedesktop/login1/session/**
     interface=org.freedesktop.login1.Session
-    member={TakeControl,TakeDevice,PauseDevice,PauseDeviceComplete,ResumeDevice,ReleaseDevice,Active,State,Lock,Unlock}
+    member={TakeControl,TakeDevice,PauseDevice,PauseDeviceComplete,ResumeDevice,ReleaseDevice,Active,State,Lock,Unlock,Activate,ReleaseControl}
+    peer=(label=unconfined),
+
+dbus (send,receive)
+    bus=system
+    path=/org/freedesktop/login1
+    interface=org.freedesktop.login1.Manager
+    member={GetSession,GetSeat}
     peer=(label=unconfined),
 `
 

@@ -65,16 +65,21 @@
 # Until we have a way to add more extldflags to gobuild macro...
 %if 0%{?fedora} || 0%{?rhel} >= 8
 # buildmode PIE triggers external linker consumes -extldflags
-%define gobuild_static(o:) go build -buildmode pie -compiler gc -tags=rpm_crashtraceback -ldflags "${LDFLAGS:-} -B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -extldflags '%__global_ldflags -static'" -a -v -x %{?**};
+%define gobuild_static(o:) go build -buildmode pie -compiler gc -tags="rpm_crashtraceback ${BUILDTAGS:-}" -ldflags "${LDFLAGS:-} -B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -extldflags '%__global_ldflags -static'" -a -v -x %{?**};
 %endif
 %if 0%{?rhel} == 7
 # trigger external linker manually, otherwise -extldflags have no meaning
-%define gobuild_static(o:) go build -compiler gc -tags=rpm_crashtraceback -ldflags "${LDFLAGS:-} -B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -linkmode external -extldflags '%__global_ldflags -static'" -a -v -x %{?**};
+%define gobuild_static(o:) go build -compiler gc -tags="rpm_crashtraceback ${BUILDTAGS:-}" -ldflags "${LDFLAGS:-} -B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -linkmode external -extldflags '%__global_ldflags -static'" -a -v -x %{?**};
+%endif
+
+# These macros are missing BUILDTAGS in RHEL 8
+%if 0%{?rhel} == 8
+%define gobuild(o:) go build -buildmode pie -compiler gc -tags="rpm_crashtraceback ${BUILDTAGS:-}" -ldflags "${LDFLAGS:-} -B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -extldflags '%__global_ldflags'" -a -v -x %{?**};
 %endif
 
 # These macros are not defined in RHEL 7
 %if 0%{?rhel} == 7
-%define gobuild(o:) go build -compiler gc -tags=rpm_crashtraceback -ldflags "${LDFLAGS:-} -B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -linkmode external -extldflags '%__global_ldflags'" -a -v -x %{?**};
+%define gobuild(o:) go build -compiler gc -tags="rpm_crashtraceback ${BUILDTAGS:-}" -ldflags "${LDFLAGS:-} -B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -linkmode external -extldflags '%__global_ldflags'" -a -v -x %{?**};
 %define gotest() go test -compiler gc -ldflags "${LDFLAGS:-}" %{?**};
 %endif
 
@@ -92,7 +97,7 @@
 %endif
 
 Name:           snapd
-Version:        2.42.4
+Version:        2.44.3
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -459,9 +464,12 @@ export GOPATH=$(pwd):%{gopath}
 export GOPATH=$(pwd):$(pwd)/Godeps/_workspace:%{gopath}
 %endif
 
-GOFLAGS=
+# see https://github.com/gofed/go-macros/blob/master/rpm/macros.d/macros.go-compilers-golang
+BUILDTAGS=
 %if 0%{?with_test_keys}
-GOFLAGS="$GOFLAGS -tags withtestkeys"
+BUILDTAGS="withtestkeys nosecboot"
+%else
+BUILDTAGS="nosecboot"
 %endif
 
 %if ! 0%{?with_bundled}
@@ -540,6 +548,7 @@ install -d -p %{buildroot}%{_systemd_system_env_generator_dir}
 install -d -p %{buildroot}%{_unitdir}
 install -d -p %{buildroot}%{_sysconfdir}/profile.d
 install -d -p %{buildroot}%{_sysconfdir}/sysconfig
+install -d -p %{buildroot}%{_sysconfdir}/sudoers.d
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/assertions
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/cookie
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/desktop/applications
@@ -619,6 +628,7 @@ install -m 644 -D data/sysctl/rhel7-snap.conf %{buildroot}%{_sysctldir}/99-snap.
 rm -fv %{buildroot}%{_unitdir}/snapd.system-shutdown.service
 rm -fv %{buildroot}%{_unitdir}/snapd.snap-repair.*
 rm -fv %{buildroot}%{_unitdir}/snapd.core-fixup.*
+rm -fv %{buildroot}%{_unitdir}/snapd.recovery-chooser-trigger.service
 
 # Remove snappy core specific scripts
 rm %{buildroot}%{_libexecdir}/snapd/snapd.core-fixup.sh
@@ -724,6 +734,7 @@ popd
 %{_libexecdir}/snapd/etelpmoc.sh
 %{_libexecdir}/snapd/snapd.run-from-snap
 %{_sysconfdir}/profile.d/snapd.sh
+%{_sysconfdir}/sudoers.d/99-snapd.conf
 %{_mandir}/man8/snapd-env-generator.8*
 %{_systemd_system_env_generator_dir}/snapd-env-generator
 %{_unitdir}/snapd.socket
@@ -770,7 +781,7 @@ popd
 %dir %{_libexecdir}/snapd
 # For now, we can't use caps
 # FIXME: Switch to "%%attr(0755,root,root) %%caps(cap_sys_admin=pe)" asap!
-%attr(6755,root,root) %{_libexecdir}/snapd/snap-confine
+%attr(4755,root,root) %{_libexecdir}/snapd/snap-confine
 %{_libexecdir}/snapd/snap-device-helper
 %{_libexecdir}/snapd/snap-discard-ns
 %{_libexecdir}/snapd/snap-gdb-shim
@@ -874,6 +885,798 @@ fi
 
 
 %changelog
+* Fri Apr 10 2020 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.44.3
+ - tests: fix racy pulseaudio tests
+ - many: fix loading apparmor profiles on Ubuntu 20.04 with ZFS
+ - tests: update snap-preseed --reset logic
+ - tests: backport partition fixes
+ - cmd/snap: don't wait for system key when stopping
+ - interfaces/many: miscellaneous policy updates xliv
+ - tests/main/uc20-snap-recovery: use 20.04 system
+ - tests: skip "/etc/machine-id" in "writablepaths
+ - interfaces/docker-support: add overlays file access
+
+* Thu Apr 2 2020 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.44.2
+ - packaging: detect/disable broken seeds in the postinst
+ - cmd/snap,seed: validate full seeds (UC 16/18)
+ - snap: add `snap debug state --is-seeded` helper
+ - devicestate: generate warning if seeding fails
+ - store: support for search API v2
+ - cmd/snap-seccomp/syscalls: update the list of known syscalls
+ - snap/cmd: the model command needs just a client, no waitMixin
+ - tests: cleanup security-private-tmp properly
+ - wrappers: fix timer schedules that are days only
+ - tests: update proxy-no-core to match latest CDN changes
+ - cmd/snap-failure,tests: make snap-failure more robust
+ - tests, many: don't use StartLimitInterval anymore, unify snapd-
+   failover variants, build snapd snap for UC16 tests
+
+* Sat Mar 21 2020 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.44.1
+ - randutil: switch back to setting up seed with lower entropy data
+ - interfaces/greengrass-support: fix typo
+ - packaging,tests: ensure debian-sid builds without vendor/
+ - travis.yml: run unit tests with go/master as well
+ - cmd/snap-update-ns: ignore EROFS from rmdir/unlink
+
+* Tue Mar 17 2020 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.44
+ - daemon: do a forceful serer shutdown if we hit a deadline
+ - snap: whitelist lzo as support compression for snap pack
+ - data/selinux: update policy to allow more ops
+ - interfaces/greengrass-support: add new 1.9 access
+ - snap: do not hardlink on overlayfs
+ - cmd/snap-preseed: handle --reset flag
+ - interfaces/kubernetes-support: allow autobind to journald socket
+ - snap-seccomp: allow mprotect() to unblock the tests
+ - tests/lib/reset: workaround unicode dot in systemctl output
+ - interfaces: work around apparmor_parser slowness affecting uio
+ - interfaces/udisks2: also allow Introspection on
+   /org/freedesktop/UDisks2/**
+ - tests: mock prune ticker in overlord tests to reduce wait times
+ - interfaces/{docker,kubernetes}-support: updates for lastest k8s
+ - interfaces: miscellaneous policy updates
+ - interfaces/audio_playback: Fix pulseaudio config access
+ - overlord: disable Test..AbortShortlyAfterStartOfOperation for 2.44
+ - ovelord/snapstate: update only system wide fonts cache
+ - wrappers: import /etc/environment in all services
+ - interfaces/u2f: Add Titan USB-C key
+ - overlord, taskrunner: exit on task/ensure error when preseeding
+ - overlord/snapstate/backend: update snapd services contents in unit
+   tests
+ - wrappers: add mount unit dependency for snapd services on core
+   devices
+ - Revert "tests: remove /tmp/snap.* left over by other tests"
+ - Revert "packaging: work around review-tools and snap-confine"
+ - netlink: fix panic on arm64 with the new rawsockstop code
+ - spread, data/selinux: add CentOS 8, update policy
+ - spread.yaml: mv opensuse tumbleweed to unstable too
+ - spread.yaml: mv opensuse 15.1 to unstable
+ - tests: use ipv4 in retry-network to unblock failing master
+ - data/systemd: improve the description
+ - tests/lib/prepare.sh: simplify, combine code paths
+ - tests/main/user-session-env: add test verifying environment
+   variables inside the user session
+ - spread.yaml: make qemu ubuntu-core-20-64 use ubuntu-20.04-64
+ - run-checks: SKIP_GMFMT really skips formatting checks
+ - tests: enable more tests for UC20/UC18
+ - tests: remove tmp dir for snap not-test-snapd-sh on security-
+   private-tmp test
+ - seed,cmd/snap-bootstrap: introduce seed.Snap.EssentialType,
+   simplify bootstrap code
+ - snapstate: do not restart in undoLinkSnap unless on first install
+ - cmd/snap-bootstrap: subcommand to detect UC chooser trigger
+ - cmd/snap-bootstrap/initramfs-mounts: mount the snapd snap in run-
+   mode too
+ - cmd/libsnap, tests: fix C unit tests failing as non-root
+ - cmd/snap-bootstrap: verify kernel snap is in modeenv before
+   mounting it
+ - tests: adding amazon linux to google backend
+ - cmd/snap-failure/snapd: rm snapd.socket, reset snapd.socket failed
+   status
+ - client: add support for "ResumeToken", "HeaderPeek" to download
+ - build: enable type: snapd
+ - tests: rm -rf /tmp/snap.* in restore
+ - cmd/snap-confine: deny snap-confine to load nss libs
+ - snapcraft.yaml: add comments, rename snapd part to snapd-deb
+ - boot: write current_kernels in bootstate20, makebootable
+ - packaging: work around review-tools and snap-confine
+ - tests: skipping interfaces-openvswitch on centos due to package is
+   not available
+ - packaging,snap-confine: stop being setgid root
+ - cmd/snap-confine: bring /var/lib/dhcp from host, if present
+ - store: rely on CommandFromSystemSnap to find xdelta3
+ - tests: bump sleep time of the new overlord tests
+ - cmd/snap-preseed: snapd version check for the target
+ - netlink: fix/support stopping goroutines reading netlink raw
+   sockets
+ - tests: reset PS1 before possibly interactive dash
+ - overlord, state: don't abort changes if spawn time before
+   StartOfOperationTime (2/2)
+ - snapcraft.yaml: add python3-apt, tzdata as build-deps for the
+   snapd snap
+ - tests: ask tar to speak English
+ - tests: using google storage when downloading ubuntu cloud images
+   from gce
+ - Coverity produces false positives for code like this:
+ - many: maybe restart & security backend options
+ - o/standby: add SNAPD_STANDBY_WAIT to control standby in
+   development
+ - snap: use the actual staging snap-id for snapd
+ - cmd/snap-bootstrap: create a new parser instance
+ - snapcraft.yaml: use build-base and adopt-info, rm builddeb
+   plugin
+ - tests: set StartLimitInterval in snapd failover test
+ - tests: disable archlinux system
+ - tests: add preseed test for classic
+ - many, tests: integrate all preseed bits and add spread tests
+ - daemon: support resuming downloads
+ - tests: use Filename() instead of filepath.Base(sn.MountFile())
+ - tests/core: add swapfiles test
+ - interfaces/cpu-control: allow to control cpufreq tunables
+ - interfaces: use commonInteface for desktopInterface
+ - interfaces/{desktop-legacy,unity7}: adjust for new ibus socket
+   location
+ - snap/info: add Filename
+ - bootloader: make uboot a RecoveryAwareBootloader
+ - gadget: skip update when mounted filesystem content is identical
+ - systemd: improve is-active check for 'failed' services
+ - boot: add current_kernels to modeenv
+ - o/devicestate: StartOfOperationTime helper for Prune (1/2)
+ - tests: detect LXD launching i386 containers
+ - tests: move main/ubuntu-core-* tests to core/ suite
+ - tests: remove snapd in ubuntu-core-snapd
+ - boot: enable base snap updates in bootstate20
+ - tests: Fix core revert channel after 2.43 has been released to
+   stable
+ - data/selinux: unify tabs/spaces
+ - o/ifacestate: move ResolveDisconnect to ifacestate
+ - spread: move centos to stable systems
+ - interfaces/opengl: allow datagrams to nvidia-driver
+ - httputil: add NoNetwork(err) helper, spread test and use in serial
+   acquire
+ - store: detect if server does not support http range headers
+ - test/lib/user: add helper lib for doing things for and as a user
+ - overlord/snapstate, wrappers: undo of snapd on core
+ - tests/main/interfaces-pulseaudio: use custom pulseaudio script,
+   set kill timeout
+ - store: add support for resume in DownloadStream
+ - cmd/snap: implement 'snap remove-user'
+ - overlord/devicestate: fix preseed unit tests on systems not using
+   /snap
+ - tests/main/static: ldd in glibc 2.31 logs to stderr now
+ - run-checks, travis: allow skipping spread jobs by adding a label
+ - tests: add new backend which includes images with tpm support
+ - boot: use constants for boot status values
+ - tests: add "core" suite for UC specific tests
+ - tests/lib/prepare: use a local copy of uc20 initramfs skeleton
+ - tests: retry mounting the udisk2 device due to timing issue
+ - usersession/client: add a client library for the user session
+   agent
+ - o/devicestate: Handle preseed mode in the firstboot mode (core16
+   only for now).
+ - boot: add TryBase and BaseStatus to modeenv; use in snap-bootstrap
+ - cmd/snap-confine: detect base transitions on core16
+ - boot: don't use "kernel" from the modeenv anymore
+ - interfaces: add uio interface
+ - tests: repack the initramfs + kernel snap for UC20 spread tests
+ - interfaces/greengrass-support: add /dev/null ->
+   /proc/latency_stats mount
+ - httputil: remove workaround for redirect handling in go1.7
+ - httputil: remove go1.6 transport workaround
+ - snap: add `snap pack --compression=<comp>` options
+ - tests/lib/prepare: fix hardcoded loopback device names for UC
+   images
+ - timeutil: add a unit test case for trivial schedule
+ - randutil,o/snapstate,-mkauthors.sh: follow ups to randutil
+   introduction
+ - dirs: variable with distros using alternate snap mount
+ - many,randutil: centralize and streamline our random value
+   generation
+ - tests/lib/prepare-restore: Revert "Continue on errors updating or
+   installing dependencies"
+ - daemon: Allow clients to call /v2/logout via Polkit
+ - dirs: manjaro-arm is like manjaro
+ - data, packaging: Add sudoers snippet to allow snaps to be run with
+   sudo
+ - daemon, store: better expose single action errors
+ - tests: switch mount-ns test to differential data set
+ - snapstate: refactor things to add the re-refresh task last
+ - daemon: drop support for the DELETE method
+ - client: move to /v2/users; implement RemoveUser
+ - boot: enable UC20 kernel extraction and bootState20 handling
+ - interfaces/policy: enforce plug-names/slot-names constraints
+ - asserts: parse plug-names/slot-names constraints
+ - daemon: make users result more consistent
+ - cmd/snap-confine,tests: support x.y.z nvidia version
+ - dirs: fixlet for XdgRuntimeDirGlob
+ - boot: add bootloader options to coreKernel
+ - o/auth,daemon: do not remove unknown user
+ - tests: tweak and enable tests on ubuntu 20.04
+ - daemon: implement user removal
+ - cmd/snap-confine: allow snap-confine to link to libpcre2
+ - interfaces/builtin: Allow NotificationReplied signal on
+   org.freedesktop.Notifications
+ - overlord/auth: add RemoveUserByName
+ - client: move user-related things to their own files
+ - boot: tweak kernel cmdline helper docstring
+ - osutil: implement deluser
+ - gadget: skip update when raw structure content is unchanged
+ - boot, cmd/snap, cmd/snap-bootstrap: move run mode and system label
+   detection to boot
+ - tests: fix revisions leaking from snapd-refresh test
+ - daemon: refactor create-user to a user action & hide behind a flag
+ - osutil/tests: check there are no leftover symlinks with
+   AtomicSymlink
+ - grub: support atomically renaming kernel symlinks
+ - osutil: add helpers for creating symlinks and renaming in an
+   atomic manner
+ - tests: add marker tag for core 20 test failure
+ - tests: fix gadget-update-pc test leaking snaps
+ - tests: remove revision leaking from ubuntu-core-refresh
+ - tests: remove revision leaking from remodel-kernel
+ - tests: disable system-usernames test on core20
+ - travis, tests, run-checks: skip nakedret
+ - tests: run `uc20-snap-recovery-encrypt` test on 20.04-64 as well
+ - tests: update mount-ns test tables
+ - snap: disable auto-import in uc20 install-mode
+ - tests: add a command-chain service test
+ - tests: use test-snapd-upower instead of upower
+ - data/selinux: workaround incorrect fonts cache labeling on RHEL7
+ - spread.yaml: fix ubuntu 19.10 and 20.04 names
+ - debian: check embedded keys for snap-{bootstrap,preseed} too
+ - interfaces/apparmor: fix doc-comments, unnecessary code
+ - o/ifacestate,o/devicestatate: merge gadget-connect logic into
+   auto-connect
+ - bootloader: add ExtractedRunKernelImageBootloader interface,
+   implement in grub
+ - tests: add spread test for hook permissions
+ - cmd/snap-bootstrap: check device size before boostrapping and
+   produce a meaningful error
+ - cmd/snap: add ability to register "snap routine" commands
+ - tests: add a test demonstrating that snaps can't access the
+   session agent socket
+ - api: don't return connections referring to non-existing
+   plugs/slots
+ - interfaces: refactor path() from raw-volume into utils with
+   comments for old
+ - gitignore: ignore snap files
+ - tests: skip interfaces-network-manager on arm devices
+ - o/devicestate: do not create perfTimings if not needed inside
+   ensureSeed/Operational
+ - tests: add ubuntu 20.04 to the tests execution and remove
+   tumbleweed from unstable
+ - usersession: add systemd user instance service control to user
+   session agent
+ - cmd/snap: print full channel in 'snap list', 'snap info'
+ - tests: remove execution of ubuntu 19.04 from google backend
+ - cmd/snap-boostrap: add mocking for fakeroot
+ - tests/core18/snapd-failover: collect more debug info
+ - many: run black formatter on all python files
+ - overlord: increase settle timeout for slow machines
+ - httputil: use shorter timeout in TestRetryRequestTimeoutHandling
+ - store, o/snapstate: send default-tracks header, use
+   RedirectChannel
+ - overlord/standby: fix possible deadlock in standby test
+ - cmd/snap-discard-ns: fix pattern for .info files
+ - boot: add HasModeenv to Device
+ - devicestate: do not allow remodel between core20 models
+ - bootloader,snap: misc tweaks
+ - store, overlord/snapstate, etc: SnapAction now returns a []…Result
+ - snap-bootstrap: create encrypted partition
+ - snap: remove "host" output from `snap version`
+ - tests: use snap remove --purge flag in most of the spread tests
+ - data/selinux, test/main/selinux-clean: update the test to cover
+   more scenarios
+ - many: drop NameAndRevision, use snap.PlaceInfo instead
+ - boot: split MakeBootable tests into their own file
+ - travis-ci: add go import path
+ - boot: split MakeBootable implementations into their own file
+ - tests: enable a lot of the tests of main on uc20
+ - packaging, tests: stop services in prerm
+ - tests: enable regression suite on core20
+ - overlord/snapstate: improve snapd snap backend link unit tests
+ - boot: implement SetNextBoot in terms of bootState.setNext
+ - wrappers: write and undo snapd services on core
+ - boot,o/devicestate: refactor MarkBootSuccessful over bootState
+ - snap-bootstrap: mount the correct snapd snap to /run/mnt/snapd
+ - snap-bootstrap: refactor partition creation
+ - tests: use new snapd.spread-tests-run-mode-tweaks.service unit
+ - tests: add core20 tests
+ - boot,o/snapstate: SetNextBoot/LinkSnap return whether to reboot,
+   use the information
+ - tests/main/snap-sign: add test for non-stdin signing
+ - snap-bootstrap: trigger udev after filesystem creation
+ - boot,overlord: introduce internal abstraction bootState and use it
+   for InUse/GetCurrentBoot
+ - overlord/snapstate: tracks are now sticky
+ - cmd: sign: add filename param
+ - tests: remove "test-snapd-tools" in smoke/sandbox on restore
+ - cmd/snap, daemon: stop over-normalising channels
+ - tests: fix classic-ubuntu-core-transition-two-cores after refactor
+   of MATCH -v
+ - packaging: ship var/lib/snapd/desktop/applications in the pkg
+ - spread: drop copr repo with F30 build dependencies
+ - tests: use test-snapd-sh snap instead of test-snapd-tools - Part 3
+ - tests: fix partition creation test
+ - tests: unify/rename services-related spread tests to start with
+   services- prefix
+ - test: extract code that modifies "writable" for test prep
+ - systemd: handle preseed mode
+ - snap-bootstrap: read only stdout when parsing the sfdisk json
+ - interfaces/browser-support: add more product/vendor paths
+ - boot: write compat UC16 bootvars in makeBootable20RunMode
+ - devicestate: avoid adding mockModel to deviceMgrInstallModeSuite
+ - devicestate: request reboot after successful doSetupRunSystem()
+ - snapd.core-fixup.sh: do not run on UC20 at all
+ - tests: unmount automounted snap-bootstrap devices
+ - devicestate: run boot.MakeBootable in doSetupRunSystem
+ - boot: copy kernel/base to data partition in makeBootable20RunMode
+ - tests: also check nested lxd container
+ - run-checks: complain about MATCH -v
+ - boot: always return the trivial boot participant in ephemeral mode
+ - o/devicestate,o/snapstate: move the gadget.yaml checkdrive-by: use
+   gadget.ReadInfoFromSnapFile in checkGadgetRemodelCompatible
+ - snap-bootstrap: append new partitions
+ - snap-bootstrap: mount filesystems after creation
+ - snapstate: do not try to detect rollback in ephemeral modes
+ - snap-bootstrap: trigger udev for new partitions
+ - cmd/snap-bootstrap: xxx todos about kernel cross-checks
+ - tests: avoid mask rsyslog service in case is not enabled on the
+   system
+ - tests: fix use of MATCH -v
+ - cmd/snap-preseed: update help strings
+ - cmd/snap-bootstrap: actually parse snapd_recovery_system label
+ - bootstrap: reduce runmode mounts from 5 to 2 steps.
+ - lkenv.go: adjust for new location of include file
+ - snap: improve squashfs.ReadFile() error
+ - systemd: fix uc20 shutdown
+ - boot: write modeenv when creating the run mode
+ - boot,image: add skeleton boot.makeBootable20RunMode
+ - cmd/snap-preseed: add snap-preseed executable
+ - overlord,boot: follow ups to #7889 and #7899
+ - interfaces/wayland: Add access to Xwayland's shm files
+ - o/hookstate/ctlcmd: fix command name in snapctl -h
+ - daemon,snap: remove screenshot deprecation notice
+ - overlord,o/snapstate: make sure we never leave config behind
+ - many: pass consistently boot.Device state to boot methods
+ - run-checks: check multiline string blocks in
+   restore/prepare/execute sections of spread tests
+ - intrefaces: login-session-control - added missing dbus commands
+ - tests/main/parallel-install-remove-after: parallel installs should
+   not break removal
+ - overlord/snapstate: tweak assumes error hint
+ - overlord: replace DeviceContext.OldModel with GroundContext
+ - devicestate: use httputil.ShouldRetryError() in
+   prepareSerialRequest
+ - tests: replace "test-snapd-base-bare" with real "bare" base snap
+ - many: pass a Model to the gadget info reading functions
+ - snapstate: relax gadget constraints in ConfigDefaults Et al.
+ - devicestate: only run ensureBootOk() in "run" mode
+ - tests/many: quiet lxc launching, file pushing
+ - tests: disable apt-hooks test until it can be properly fixed
+ - tests: 16.04 and 18.04 now have mediating pulseaudio
+
+* Wed Feb 12 2020 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.43.3
+ - interfaces/opengl: allow datagrams to nvidia-driver
+ - httputil: add NoNetwork(err) helper, spread test and use
+   in serial acquire
+ - interfaces: add uio interface
+ - interfaces/greengrass-support: 'aws-iot-greengrass' snap fails to
+   start due to apparmor deny on mounting of "/proc/latency_stats".
+ - data, packaging: Add sudoers snippet to allow snaps to be run with
+   sudo
+
+* Tue Jan 28 2020 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.43.2
+ - cmd/snap-confine: Revert #7421 (unmount /writable from snap view)
+ - overlord/snapstate: fix for re-refresh bug
+ - tests, run-checks, many: fix nakedret issues
+ - data/selinux: workaround incorrect fonts cache labeling on RHEL7
+ - tests: use test-snapd-upower instead of upower
+ - overlord: increase overall settle timeout for slow arm boards
+
+* Tue Jan 14 2020 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.43.1
+ - devicestate: use httputil.ShouldRetryError() in prepareSerialRequest
+ - overlord/standby: fix possible deadlock in standby test
+ - cmd/snap-discard-ns: fix pattern for .info files
+ - overlord,o/snapstate: make sure we never leave config behind
+ - data/selinux: update policy to cover more cases
+ - snap: remove "host" output from `snap version`
+
+* Thu Jan 09 2020 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.43
+ - snap: default to "--direct" in `snap known`
+ - packaging: ship var/lib/snapd/desktop/applications in the
+   pkg
+ - tests: cherry-pick fixes for  snap-set-core-config/ubuntu-core-
+   config-defaults-once
+ - tests: use test-snapd-sh snap instead of test-snapd-tools
+ - tests: rename "test-snapd-sh" in smoke test to test-snapd-sandbox
+ - tests: fix partition creation test
+ - packaging: fix incorrect changelog entry
+ - Revert "tests: 16.04 and 18.04 now have mediating pulseaudio"
+ - tests: 16.04 and 18.04 now have mediating pulseaudio
+ - interfaces: include hooks in plug/slot apparmor label
+ - interfaces: add raw-volume interface for access to partitions
+ - image: set recovery system label when creating the image
+ - cmd/snapd-generator: fix unit name for non /snap mount locations
+ - boot,bootloader: setup the snap recovery system bootenv
+ - seed: support ModeSnaps(mode) for mode != "run"
+ - seed: fix seed location of local but asserted snaps
+ - doc: HACKING.md change autopkgtest-trusty-amd64.img name
+ - interfaces/seccomp: parallelize seccomp backend setup
+ - cmd/snap-bootstrap: mount ubuntu-data tmpfs, in one go with kernel
+   & base
+ - interfaces: add audio-playback/record and pulseaudio spread tests
+ - apparmor: allow 'r'
+   /sys/kernel/mm/transparent_hugepage/hpage_pmd_size
+ - cmd/snap-mgmt, packaging/postrm: stop and remove socket units when
+   purging
+ - tests: use test-snapd-sh snap instead of test-snapd-tools
+ - snap-confine: raise egid before calling setup_private_mount()
+ - tests: fix fwupd version regular expression
+ - snap-bootstrap: parse seed if either kernel or base are not
+   mounted
+ - tests: check for SELinux denials in interfaces-kvm spread test
+ - tests: run snap-set-core-config on all core devices
+ - selinux: update policy to allow modifications related to kmod
+   backend
+ - o/hookstate/ctlcmd: snapctl is-connected command
+ - devicestate: add missing test for failing task setup-run-system
+ - gadget: add missing test for duplicate detection of roles
+ - tests/cmd/snapctl: unset SNAP_CONTEXT for the suite
+ - snap/pack, cmd_pack: 'snap pack --check-skeleton' checks
+   interfaces
+ - gitignore: ignore visual studio code directory
+ - snap-bootstrap: implement "run" mode in snap-bootstrap initramfs-
+   mounts
+ - interfaces/apparmor: handle pre-seeding mode
+ - devicestate: implement creating partitions in "install" mode
+ - seed: support extra snaps on top of Core 20 dangerous models
+ - tests: cache snaps also for ubuntu core and add new snaps to cache
+ - snap-bootstrap: support auto-detect device in create-partitions
+ - tests: fix partitioning test debug message
+ - tests: prevent partitioning test errors
+ - cmd/snap-bootstrap: stub out snap.SanitizePlugsSlots for real
+ - gadget: extract and export new DiskFromPartition() helper
+ - snap-bootstrap: force partition table operations
+ - HACKING.md: add nvidia options to configure example
+ - tests: move the watchdog timeout to 2s to make the tests work in
+   rpi
+ - tests: demand silence from check_journalctl_log
+ - tests: fix the channels checks done on nested tests
+ - tests: reduce the complexity of the test-snapd-sh snap
+ - snap/squashfs, osutil: verify files/dirs can be accessed by
+   mksquashfs when building a snap
+ - boot: add boot.Modeenv.Kernel support
+ - devicestate: ensure system installation
+ - tests: apply change on permissions to serial port on hotplug test
+ - cmd/snap-update-ns: adjust debugging output for usability
+ - devicestate: add reading of modeenv to uc20 firstboot code
+ - tests/lib/prepare: drop workarounds for rpmbuild rewriting /bin/sh
+ - cmd/snap-bootstrap: write /var/lib/snapd/modeenv to the right
+   place
+ - boot: add boot.Modeenv.Base support
+ - overlord/snapstate: install task edges
+ - cmd/snap-bootstrap: some small naming and code org tweaks
+ - snap-bootstrap: remove SNAPPY_TESTING check, we use it for real
+   now
+ - interfaces: remove leftover reservedForOS
+ - snap-bootstrap: write /run/mnt/ubuntu-data/var/lib/snapd/modeenv
+ - osutil/mount: optimize flagOptSearch some more
+ - devicestate: read modeenv early and store in devicestate
+ - interfaces: add login-session-observe for who, {fail,last}log and
+   loginctl
+ - tests: add Ubuntu Eoan to google-sru backend
+ - osutil/mount: de-duplicate code to use a list
+ - interfaces: remove reservedForOS from commonInterface
+ - interfaces/browser-support: allow reading status of huge pages
+ - interfaces: update system-backup tests to not check for sanitize
+   errors related to os
+ - interfaces: add system-backup interface
+ - osutil/mount: add {Unm,M}outFlagsToOpts helpers
+ - snap-bootstrap: make cmdline parsing robust
+ - overlord/patch: normalize tracking channel in state
+ - boot: add boot.Modeenv that can read/write the UC20 modeenv files
+ - bootloader: add new bootloader.InstallBootConfig()
+ - many: share single implementation to list needed default-providers
+ - snap-bootstrap: implement "snap-bootstrap initramfs-mounts"
+ - seccomp: allow chown 'snap_daemon:root' and 'root:snap_daemon'
+ - osutil: handle "rw" mount flag in ParseMountEntry
+ - overlord/ifacestate: report bad plug/slots with warnings on snap
+   install
+ - po: sync translations from launchpad
+ - tests: cleanup most test snaps icons, they were anyway in the
+   wrong place
+ - seed: fix confusing pre snapd dates in tests
+ - many: make ValidateBasesAndProviders signature simpler/canonical
+ - snap-bootstrap: set expected filesystem labels
+ - testutil, many: make MockCommand() create prefix of absolute paths
+ - tests: improve TestDoPrereqRetryWhenBaseInFlight to fix occasional
+   flakiness.
+ - seed: proper support for optional snaps for Core 20 models
+ - many: test various kinds of overriding for the snapd snap in Core
+   20
+ - cmd/snap-failure: passthrough snapd logs, add informational
+   logging
+ - cmd/snap-failure: fallback to snapd from core, extend tests
+ - configcore: fix missing error propagation
+ - devicestate: rename ensureSeedYaml -> ensureSeeded
+ - tests: adding fedora 31
+ - tests: restart the snapd service in the snapd-failover test
+ - seed: Core 20 seeds channel overrides support for grade dangerous
+ - cmd: fix the get command help message
+ - tests: enable degraded test on arch linux after latest image
+   updates
+ - overlord/snapstate: don't re-enable and start disabled services on
+   refresh, etc.
+ - seed: support in Core 20 seeds local unasserted snaps for model
+   snaps
+ - snap-bootstrap: add go-flags cmdline parsing and tests
+ - gadget: skip fakeroot if not needed
+ - overlord/state: panic in MarkEdge() if task is nil
+ - spread: fix typo in spread suite
+ - overlord: mock device serial in gadget remodel unit tests
+ - tests: fix spread shellcheck and degraded tests to unbreak master
+ - spread, tests: openSUSE Tumbleweed to unstable systems, update
+   system-usernames on Amazon Linux 2
+ - snap: extract printInstallHint in cmd_download.go
+ - cmd: fix a pair of typos
+ - release: preseed mode flag
+ - cmd/snap-confine: tracking processes with classic confinement
+ - overlord/ifacestate: remove automatic connections if plug/slot
+   missing
+ - o/ifacestate,interfaces,interfaces/policy: slots-per-plug: *
+ - tests/lib/state: snapshot and restore /var/snap during the tests
+ - overlord: add base->base remodel undo tests and fixes
+ - seed: test and improve Core 20 seed handling errors
+ - asserts: add "snapd" type to valid types in the model assertion
+ - snap-bootstrap: check gadget versus disk partitions
+ - devicestate: add support for gadget->gadget remodel
+ - snap/snapenv: preserve XDG_RUNTIME_DIR for classic confinement
+ - daemon: parse and reject invalid channels in snap ops
+ - overlord: add kernel remodel undo tests and fix undo
+ - cmd/snap: support (but warn) using deprecated multi-slash channel
+ - overlord: refactor mgrsSuite and extract kernelSuite
+ - tests/docker-smoke: add minimal docker smoke test
+ - interfaces: extend the fwupd slot to be implicit on classic
+ - cmd/snap: make 'snap list' shorten latest/$RISK to $RISK
+ - tests: fix for journalctl which is failing to restart
+ - cmd/snap,image: initial support for Core 20 in prepare-image with
+   test
+ - cmd/snap-confine: add support for parallel instances of classic
+   snaps, global mount ns initialization
+ - overlord: add kernel rollback across reboots manager test and
+   fixes
+ - o/devicestate: the basics of Core 20 firstboot support with test
+ - asserts: support and parsing for slots-per-plug/plugs-per-slotSee
+   https://forum.snapcraft.io/t/plug-slot-declaration-rules-greedy-
+   plugs/12438
+ - parts/plugins: don't xz-compress a deb we're going to discard
+ - cmd/snap: make completion skip hidden commands (unless overridden)
+ - many: load/consume Core 20 seeds (aka recovery systems)
+ - tests: add netplan test on ubuntu core
+ - seed/internal: doc comment fix and drop handled TODOs
+ - o/ifacestate: unify code into
+   autoConnectChecker.addAutoConnectionsneed to change to support
+   slots-per-plugs: *
+ - many: changes to testing in preparation of Core 20 seed consuming
+   code
+ - snapstate,devicestate: make OldModel() available in DeviceContext
+ - tests: opensuse tumbleweed has similar issue than arch linux with
+   snap --strace
+ - client,daemon: pass sha3-384 in /v2/download to the client
+ - builtin/browser_support.go: allow monitoring process memory
+   utilization (used by chromium)
+ - overlord/ifacestate: use SetupMany in setupSecurityByBackend
+ - tests: add 14.04 canonical-livepatch test
+ - snap: make `snap known --remote` use snapd if available
+ - seed: share auxInfo20 and makeSystemSnap via internal
+ - spread: disable secondary compression for deltas
+ - interfaces/content: workaround for renamed target
+ - tests/lib/gendevmodel: helper tool for generating developer model
+   assertions
+ - tests: tweak wording in mount-ns test
+ - tests: don't depend on GNU time
+ - o/snapstate, etc: SnapState.Channel -> TrackingChannel, and a
+   setter
+ - seed/seedwriter: support writing Core 20 seeds (aka recovery
+   systems)
+ - snap-recovery: rename to "snap-bootstrap"
+ - managers: add remodel undo test for new required snaps case
+ - client: add xerrors and wrap errors coming from "client"
+ - tests: verify host is not affected by mount-ns tests
+ - tests: configure the journald service for core systems
+ - cmd/snap, store: include snapcraft.io page URL in snap info output
+ - cmd/cmdutil: version helper
+ - spread: enable bboozzoo/snapd-devel-deps COPR repo for getting
+   golang-x-xerrors
+ - interfaces: simplify AddUpdateNS and emit
+ - interfaces/policy: expand cstrs/cstrs1 to
+   altConstraints/constraints
+ - overlord/devicestate: check snap handler for gadget remodel
+   compatibility
+ - snap-recovery: deploy gadget content when creating partitions
+ - gadget: skip structures with MBR role during remodel
+ - tests: do not use lsblk in uc20-snap-recovery test
+ - overlord/snapstate: add LastActiveDisabledServices,
+   missingDisabledServices
+ - overlord/devicestate: refactor and split into per-functionality
+   files, drop dead code
+ - tests: update mount-ns after addition of /etc/systemd/user
+ - interfaces/pulseaudio: adjust to manually connect by default
+ - interfaces/u2f-devices: add OnlyKey to devices list
+ - interfaces: emit update-ns snippets to function
+ - interfaces/net-setup-{observe,control}: add Info D-Bus method
+   accesses
+ - tests: moving ubuntu-19.10-64 from google-unstable to google
+   backend
+ - gadget: rename existing and add new helpers for checking
+   filesystem/partition presence
+ - gadget, overlord/devicestate: add support for customized update
+   policy, add remodel policy
+ - snap-recovery: create filesystems as defined in the gadget
+ - tests: ignore directories for go modules
+ - policy: implement CanRemove policy for the snapd type
+ - overlord/snapstate: skip catalog refresh if unseeded
+ - strutil: add OrderedSet
+ - snap-recovery: add minimal binary so that we can use spread on it
+ - gadget, snap/pack: perform extended validation of gadget metadata
+   and contents
+ - timeutil: fix schedules with ambiguous nth weekday spans
+ - interfaces/many: allow k8s/systemd-run to mount volume subPaths
+   plus cleanups
+ - client: add KnownOptions to Know() and support remote assertions
+ - tests: check the apparmor_parser when the file exists on snap-
+   confine test
+ - gadget: helper for volume compatibility checks
+ - tests: update snap logs to match for multiple lines for "running"
+ - overlord: add checks for bootvars in
+   TestRemodelSwitchToDifferentKernel
+ - snap-install: add ext4,vfat creation support
+ - snap-recovery: remove "usedPartitions" from sfdisk.Create()
+ - image,seed: hide Seed16/Snap16, use seed.Open in image_test.go
+ - cmd/snap: Sort tasks in snap debug timings output by lanes and
+   ready-time.
+ - snap-confine.apparmor.in: harden pivot_root until we have full
+   mediation
+ - gadget: refactor ensureVolumeConsistency
+ - gadget: add a public helper for parsing gadget metadata
+ - many: address issues related to explicit/implicit channels for
+   image building
+ - overlord/many: switch order of check snap parameters
+ - cmd/snap-confine: remove leftover condition from capability world
+ - overlord: set fake serial in TestRemodelSwitchToDifferentKernel
+ - overlord/many: extend check snap callback to take snap container
+ - recovery-tool: add sfdisk wrapper
+ - tests: launch the lxd images following the pattern
+   ubuntu:${VERSION_ID}
+ - sandbox/cgroup: move freeze/thaw code
+ - gadget: accept system-seed role and ubuntu-data label
+ - test/lib/names.sh: make backslash escaping explicit
+ - spread: generate delta when using google backend
+ - cmd/snap-confine: remove loads of dead code
+ - boot,dirs,image: various refinements in the prepare-image code
+   switched to seedwriter
+ - spread: include mounts list in task debug output
+ - .gitignore: pair of trivial changes
+ - image,seed/seedwriter: switch image to use seedwriter.Writer
+ - asserts: introduce explicit support for grade for Core 20 models
+ - usersession: drive by fixes for things flagged by unused or
+   gosimple
+ - spread.yaml: exclude vendor dir
+ - sandbox/cgroup, overlord/snapstate: move helper for listing pids
+   in group to the cgroup package
+ - sandbox/cgroup: refactor process cgroup helper to support v2 and
+   named hierarchies
+ - snap-repair: error if run as non-root
+ - snap: when running `snap repair` without arguments, show hint
+ - interfaces: add cgroup-version to system-key
+ - snap-repair: add missing check in TestRepairBasicRun
+ - tests: use `snap model` instead of `snap known model` in tests
+ - daemon: make /v2/download take snapRevisionOptions
+ - snap-repair: add additional comment about trust in runner.Verify()
+ - client: add support to use the new "download" API
+ - interfaces: bump system-key version (and keep on bumping)
+ - interfaces/mount: account for cgroup version when reporting
+   supported features
+ - tests: change regex to validate access to cdn during snap
+   download
+ - daemon: change /v2/download API to take "snap-name" as input
+ - release: make forced dev mode look at cgroupv2 support
+ - seed/seedwriter: support for extra snaps
+ - wrappers/services.go: add disabled svc list arg to AddSnapServices
+ - overlord/snapstate: add SetTaskSnapSetup helper + unit tests
+ - cmd/libsnap: use cgroup.procs instead of tasks
+ - tests: fix snapd-failover test for core18 tests on boards
+ - overlord/snapstate/policy, etc: introduce policy, move canRemove
+   to it
+ - seed/seedwriter: cleanups and small left over todos* drive-by: use
+   testutil.FilePresent consistently
+ - cmd/snap: update 'snap find' help because it's no longer narrow
+ - seed/seedwriter,snap/naming: support classic models
+ - cmd/snap-confine: unmount /writable from snap view
+ - spread.yaml: exclude automake cacheThe error message is looks like
+   this:dpkg-source: info: local changes detected, the modified files
+   are:
+ - interfaces/openvswitch: allow access to other openvswitch sockets
+ - cmd/model: don't show model with display-name inline w/ opts
+ - daemon: add a 'prune' debug action
+ - client: add doTimeout to http.Client{Timeout}
+ - interfaces/seccomp: query apparmor sandbox helper rather than
+   aggregate info
+ - sandbox/cgroup: avoid dependency on dirs
+ - seed/seedwriter,snap: support local snaps
+ - overlord/snapstate: fix undo on firstboot seeding.
+ - usersession: track connections to session agent for exit on idle
+   and peer credential checks
+ - tests: fix ubuntu-core-device-reg test for arm devices on core18
+ - sandbox/seccomp: move the remaining sandbox bits to a
+   corresponding sandbox package
+ - osutil: generalize SyncDir with FileState interface
+ - daemon, client, cmd/snap: include architecture in 'snap version'
+ - daemon: allow /v2/assertions/{assertType} to query store
+ - gadget: do not fail the update when old gadget snap is missing
+   bare content
+ - sandbox/selinux: move SELinux related bits from 'release' to
+   'sandbox/selinux'
+ - tests: add unit test for gadget defaults with a multiline string
+ - overlord/snapstate: have more context in the errors about
+   prerequisites
+ - httputil: set user agent for CONNECT
+ - seed/seedwriter: resolve channels using channel.Resolve* for snaps
+ - run-checks: allow overriding gofmt binary, show gofmt diff
+ - asserts,seed/seedwriter: follow snap type sorting in the model
+   assertion snap listings
+ - daemon: return "snapname_rev.snap" style when using /v2/download
+ - tests: when the backend is external skip the loop waiting for snap
+   version
+ - many: move AppArmor probing code under sandbox/apparmor
+ - cmd: add `snap debug boot-vars` that dumps the current bootvars
+ - tests: skip the ubuntu-core-upgrade on arm devices on core18
+ - seed/seedwriter: implement WriteMeta and tree16 corresponding code
+ - interfaces/docker-support,kubernetes-support: misc updates for
+   strict k8s
+ - tests: restart the journald service while preparing the test
+ - tests/cmd/debug_state: make the test output TZ independent
+ - interfaces/kubernetes-support: allow use of /run/flannel
+ - seed/seedwriter: start of Writer and internal policy16/tree16
+ - sandbox/cgroup, usersession/userd: move cgroup related helper to a
+   dedicated package
+ - tests: move "centos-7" to unstable systems
+ - snapstate: add missing tests for checkGadgetOrKernel
+ - docs: Update README.md
+ - snapcraft: set license to GPL-3.0
+ - interfaces/wayland: allow a confined server running in a user
+   session to work with Qt, GTK3 & SDL2 clients
+ - selinux: move the package under sandbox/selinux
+ - interfaces/udev: account for cgroup version when reporting
+   supported features
+ - store, ..., client: add a "website" field
+ - sanity: sanity check cgroup probing
+ - snapstate: increase settleTimeout in
+   TestRemodelSwitchToDifferentKernel
+ - packaging: remove obsolete usr.lib.snapd.snap-confine in postinst
+ - data/selinux: allow snapd/snap to do statfs() on the cgroup
+   mountpoint
+ - usersession/userd: make sure to export DBus interfaces before
+   requesting a name
+ - data/selinux: allow snapd to issue sigkill to journalctl
+ - docs: Add Code of Conduct
+ - store: download propagates options to delta download
+ - tests/main/listing: account for dots in ~pre suffix
+
+* Fri Dec 06 2019 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.42.5
+ - snap-confine: revert, with comment, explicit unix deny for nested
+   lxd
+ - Disable mount-ns test on 16.04. It is too flaky currently.
+
 * Thu Nov 28 2019 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.42.4
  - overlord/snapstate: make sure configuration defaults are applied

@@ -14,17 +14,17 @@ details: |
     inside `snap run`.
 
 execute: |
-    snap install test-snapd-tools
+    snap install test-snapd-sh
 
     ensure_xauth_path() {
         export XAUTHORITY="$1"
         # Get rid of things to ensure a clean test bed
-        rm -f /var/snap/test-snapd-tools/common/xauth-content /run/user/0/.Xauthority
-        snap run --shell test-snapd-tools.sh <<'EOF'
-    echo $XAUTHORITY > /var/snap/test-snapd-tools/common/xauth-content
+        rm -f /var/snap/test-snapd-sh/common/xauth-content /run/user/0/.Xauthority
+        snap run --shell test-snapd-sh.sh <<'EOF'
+    echo $XAUTHORITY > /var/snap/test-snapd-sh/common/xauth-content
     exit
     EOF
-        env_path="$(cat /var/snap/test-snapd-tools/common/xauth-content)"
+        env_path="$(cat /var/snap/test-snapd-sh/common/xauth-content)"
         test "$env_path" = "$2" || exit 1
         test "$(sh256sum "$env_path")" = "$(sh256sum "$1")"
         unset XAUTHORITY

@@ -4,19 +4,19 @@ prepare: |
     echo "Given a basic snap is installed"
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-tools
+    install_local test-snapd-sh
 
 execute: |
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
     fi
     echo "Then an unconfined action should succeed"
-    test-snapd-tools.cmd touch /dev/shm/snap.test-snapd-tools.foo
-    test -f /dev/shm/snap.test-snapd-tools.foo
+    test-snapd-sh.sh -c 'touch /dev/shm/snap.test-snapd-sh.foo'
+    test -f /dev/shm/snap.test-snapd-sh.foo
 
     echo "Then a confined action should fail"
-    if test-snapd-tools.cmd touch /dev/shm/snap.not-test-snapd-tools.foo 2>touch.error; then
+    if test-snapd-sh.sh -c 'touch /dev/shm/snap.not-test-snapd-sh.foo' 2>touch.error; then
         echo "Expected error"
         exit 1
     fi
-    [ "$(cat touch.error)" = "touch: cannot touch '/dev/shm/snap.not-test-snapd-tools.foo': Permission denied" ]
+    [ "$(cat touch.error)" = "touch: cannot touch '/dev/shm/snap.not-test-snapd-sh.foo': Permission denied" ]

@@ -16,7 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+
 package partition
+
+import (
+	"time"
+)
 
 type LsblkFilesystemInfo = lsblkFilesystemInfo
 type LsblkBlockDevice = lsblkBlockDevice
@@ -24,9 +29,12 @@ type SFDiskPartitionTable = sfdiskPartitionTable
 type SFDiskPartition = sfdiskPartition
 
 var (
-	FilesystemInfo     = filesystemInfo
-	BuildPartitionList = buildPartitionList
-	Mkfs               = mkfs
+	FilesystemInfo                 = filesystemInfo
+	BuildPartitionList             = buildPartitionList
+	Mkfs                           = mkfs
+	EnsureNodesExist               = ensureNodesExist
+	DeviceLayoutFromPartitionTable = deviceLayoutFromPartitionTable
+	ListCreatedPartitions          = listCreatedPartitions
 )
 
 func MockDeployMountpoint(new string) (restore func()) {
@@ -50,5 +58,13 @@ func MockSysUnmount(f func(target string, flags int) error) (restore func()) {
 	sysUnmount = f
 	return func() {
 		sysUnmount = old
+	}
+}
+
+func MockEnsureNodesExist(f func(ds []DeviceStructure, timeout time.Duration) error) (restore func()) {
+	old := ensureNodesExist
+	ensureNodesExist = f
+	return func() {
+		ensureNodesExist = old
 	}
 }

@@ -20,6 +20,7 @@
 
 #include "../libsnap-confine-private/apparmor-support.h"
 #include "snap-confine-invocation.h"
+#include <sys/types.h>
 
 /**
  * Assuming a new mountspace, populate it accordingly.
@@ -31,7 +32,8 @@
  * - processes mount profiles
  **/
 void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
-			  const sc_invocation * inv);
+			  const sc_invocation * inv, const gid_t real_gid,
+			  const gid_t saved_gid);
 
 /**
  * Ensure that / or /snap is mounted with the SHARED option.

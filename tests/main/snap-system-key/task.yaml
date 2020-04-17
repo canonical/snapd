@@ -50,11 +50,11 @@ execute: |
     fi
 
     echo "Ensure snap run waits for system key updates"
-    snap install test-snapd-tools
+    snap install test-snapd-sh
     echo "Change system-key, this ensure that snap run will wait"
     printf '{"version":1}' > /var/lib/snapd/system-key
     stop_snapd
-    if SNAPD_DEBUG_SYSTEM_KEY_RETRY=1 test-snapd-tools.echo bad; then
+    if SNAPD_DEBUG_SYSTEM_KEY_RETRY=1 test-snapd-sh.sh -c 'echo bad'; then
         echo "snap run should have errored because of changed system-key"
         exit 1
     fi
@@ -63,11 +63,11 @@ execute: |
     echo "Ensure snap run does not wait when it can talk to snapd"
     echo "Change system-key, with running snapd"
     printf '{"version":1}' > /var/lib/snapd/system-key
-    test-snapd-tools.echo good
+    test-snapd-sh.sh -c 'echo good'
     
     echo "Things work again after a restart of snapd"
     restart_snapd
-    test-snapd-tools.echo good-again
+    test-snapd-sh.sh -c 'echo good-again'
     if grep '{"version":1}' /var/lib/snapd/system-key; then
         echo "system-key *not* rewriten test broken"
         exit 1

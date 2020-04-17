@@ -17,7 +17,7 @@ prepare: |
     echo "Having installed the test snap"
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-tools
+    install_local test-snapd-sh
 
 execute: |
     #shellcheck source=tests/lib/dirs.sh
@@ -29,7 +29,7 @@ execute: |
     else
         core_inode=$(stat -c '%i' "$SNAP_MOUNT_DIR/ubuntu-core/current/$DIRECTORY")
     fi
-    effective_inode=$(test-snapd-tools.cmd stat -c '%i' "$DIRECTORY")
+    effective_inode=$(test-snapd-sh.sh -c "stat -c '%i' $DIRECTORY")
     echo "The inode number as seen from a confined snap should be that of the $DIRECTORY from the core snap"
     [ "$host_inode" != "$core_inode" ]
     [ "$effective_inode" = "$core_inode" ]

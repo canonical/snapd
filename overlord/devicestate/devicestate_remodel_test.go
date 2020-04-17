@@ -68,51 +68,115 @@ func (s *deviceMgrRemodelSuite) TestRemodelUnhappyNotSeeded(c *C) {
 	c.Assert(err, ErrorMatches, "cannot remodel until fully seeded")
 }
 
+var mockCore20ModelHeaders = map[string]interface{}{
+	"brand":        "canonical",
+	"model":        "pc-model-20",
+	"architecture": "amd64",
+	"grade":        "dangerous",
+	"base":         "core20",
+	"snaps":        mockCore20ModelSnaps,
+}
+
+var mockCore20ModelSnaps = []interface{}{
+	map[string]interface{}{
+		"name":            "pc-kernel",
+		"id":              "pckernelidididididididididididid",
+		"type":            "kernel",
+		"default-channel": "20",
+	},
+	map[string]interface{}{
+		"name":            "pc",
+		"id":              "pcididididididididididididididid",
+		"type":            "gadget",
+		"default-channel": "20",
+	},
+}
+
+// copy current model unless new model test data is different
+// and delete nil keys in new model
+func mergeMockModelHeaders(cur, new map[string]interface{}) {
+	for k, v := range cur {
+		if v, ok := new[k]; ok {
+			if v == nil {
+				delete(new, k)
+			}
+			continue
+		}
+		new[k] = v
+	}
+}
+
 func (s *deviceMgrRemodelSuite) TestRemodelUnhappy(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	s.state.Set("seeded", true)
 
 	// set a model assertion
-	cur := map[string]string{
+	cur := map[string]interface{}{
 		"brand":        "canonical",
 		"model":        "pc-model",
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
 	}
-	s.makeModelAssertionInState(c, cur["brand"], cur["model"], map[string]interface{}{
+	s.makeModelAssertionInState(c, cur["brand"].(string), cur["model"].(string), map[string]interface{}{
 		"architecture": cur["architecture"],
 		"kernel":       cur["kernel"],
 		"gadget":       cur["gadget"],
-		"base":         cur["base"],
 	})
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
-		Brand: cur["brand"],
-		Model: cur["model"],
+		Brand: cur["brand"].(string),
+		Model: cur["model"].(string),
 	})
 
 	// ensure all error cases are checked
 	for _, t := range []struct {
-		new    map[string]string
+		new    map[string]interface{}
 		errStr string
 	}{
-		{map[string]string{"architecture": "pdp-7"}, "cannot remodel to different architectures yet"},
-		{map[string]string{"base": "core20"}, "cannot remodel from core to bases yet"},
+		{map[string]interface{}{"architecture": "pdp-7"}, "cannot remodel to different architectures yet"},
+		{map[string]interface{}{"base": "core18"}, "cannot remodel from core to bases yet"},
+		{map[string]interface{}{"base": "core20", "kernel": nil, "gadget": nil, "snaps": mockCore20ModelSnaps}, "cannot remodel to Ubuntu Core 20 models yet"},
 	} {
-		// copy current model unless new model test data is different
-		for k, v := range cur {
-			if t.new[k] != "" {
-				continue
-			}
-			t.new[k] = v
-		}
-		new := s.brands.Model(t.new["brand"], t.new["model"], map[string]interface{}{
-			"architecture": t.new["architecture"],
-			"kernel":       t.new["kernel"],
-			"gadget":       t.new["gadget"],
-			"base":         t.new["base"],
-		})
+		mergeMockModelHeaders(cur, t.new)
+		new := s.brands.Model(t.new["brand"].(string), t.new["model"].(string), t.new)
+		chg, err := devicestate.Remodel(s.state, new)
+		c.Check(chg, IsNil)
+		c.Check(err, ErrorMatches, t.errStr)
+	}
+}
+
+func (s *deviceMgrRemodelSuite) TestRemodelNoUC20RemodelYet(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", true)
+
+	// set a model assertion
+	cur := mockCore20ModelHeaders
+	s.makeModelAssertionInState(c, cur["brand"].(string), cur["model"].(string), map[string]interface{}{
+		"architecture": cur["architecture"],
+		"base":         cur["base"],
+		"grade":        cur["grade"],
+		"snaps":        cur["snaps"],
+	})
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: cur["brand"].(string),
+		Model: cur["model"].(string),
+	})
+
+	// ensure all error cases are checked
+	for _, t := range []struct {
+		new    map[string]interface{}
+		errStr string
+	}{
+		// uc20 model
+		{map[string]interface{}{"grade": "signed"}, "cannot remodel Ubuntu Core 20 models yet"},
+		{map[string]interface{}{"base": "core22"}, "cannot remodel Ubuntu Core 20 models yet"},
+		// non-uc20 model
+		{map[string]interface{}{"snaps": nil, "grade": nil, "base": "core", "gadget": "pc", "kernel": "pc-kernel"}, "cannot remodel Ubuntu Core 20 models yet"},
+	} {
+		mergeMockModelHeaders(cur, t.new)
+		new := s.brands.Model(t.new["brand"].(string), t.new["model"].(string), t.new)
 		chg, err := devicestate.Remodel(s.state, new)
 		c.Check(chg, IsNil)
 		c.Check(err, ErrorMatches, t.errStr)
@@ -896,6 +960,38 @@ func (s *deviceMgrRemodelSuite) TestDeviceCtxNoTask(c *C) {
 	deviceCtx, err := devicestate.DeviceCtx(s.state, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(deviceCtx.Model().BrandID(), Equals, "canonical")
+
+	c.Check(deviceCtx.Classic(), Equals, false)
+	c.Check(deviceCtx.Kernel(), Equals, "kernel")
+	c.Check(deviceCtx.Base(), Equals, "")
+	c.Check(deviceCtx.RunMode(), Equals, true)
+	// not a uc20 model, so no modeenv
+	c.Check(deviceCtx.HasModeenv(), Equals, false)
+}
+
+func (s *deviceMgrRemodelSuite) TestDeviceCtxGroundContext(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// have a model assertion
+	model := s.brands.Model("canonical", "pc", map[string]interface{}{
+		"gadget":       "pc",
+		"kernel":       "kernel",
+		"architecture": "amd64",
+	})
+	assertstatetest.AddMany(s.state, model)
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc",
+	})
+
+	deviceCtx, err := devicestate.DeviceCtx(s.state, nil, nil)
+	c.Assert(err, IsNil)
+	c.Assert(deviceCtx.Model().BrandID(), Equals, "canonical")
+	groundCtx := deviceCtx.GroundContext()
+	c.Check(groundCtx.ForRemodeling(), Equals, false)
+	c.Check(groundCtx.Model().Model(), Equals, "pc")
+	c.Check(groundCtx.Store, PanicMatches, `retrieved ground context is not intended to drive store operations`)
 }
 
 func (s *deviceMgrRemodelSuite) TestDeviceCtxProvided(c *C) {
@@ -964,7 +1060,7 @@ volumes:
 		"gadget":       "new-gadget",
 		"kernel":       "kernel",
 	})
-	remodelCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: newModel, Remodeling: true}
+	remodelCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: newModel, Remodeling: true, OldDeviceModel: oldModel}
 
 	restore := devicestate.MockGadgetIsCompatible(func(current, update *gadget.Info) error {
 		c.Assert(current.Volumes, HasLen, 1)
@@ -1013,7 +1109,7 @@ volumes:
 	// when remodeling to completely new gadget snap, there is no current
 	// snap passed to the check callback
 	err = devicestate.CheckGadgetRemodelCompatible(s.state, info, nil, snapf, snapstate.Flags{}, remodelCtx)
-	c.Check(err, ErrorMatches, "cannot identify the current model")
+	c.Check(err, ErrorMatches, "cannot identify the current gadget snap")
 
 	// mock data to obtain current gadget info
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
@@ -1082,12 +1178,17 @@ version: 123
 
 	s.setupBrands(c)
 	// model assertion in device context
-	model := fakeMyModel(map[string]interface{}{
+	oldModel := fakeMyModel(map[string]interface{}{
 		"architecture": "amd64",
-		"gadget":       "gadget",
+		"gadget":       "new-gadget",
 		"kernel":       "krnl",
 	})
-	remodelCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model, Remodeling: true}
+	model := fakeMyModel(map[string]interface{}{
+		"architecture": "amd64",
+		"gadget":       "new-gadget",
+		"kernel":       "krnl",
+	})
+	remodelCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model, Remodeling: true, OldDeviceModel: oldModel}
 
 	err = devicestate.CheckGadgetRemodelCompatible(s.state, info, currInfo, snapf, snapstate.Flags{}, remodelCtx)
 	if expErr == "" {

@@ -19,8 +19,10 @@
 package standby
 
 import (
+	"os"
 	"time"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -35,9 +37,10 @@ type Opinionator interface {
 
 // StandbyOpinions tracks if snapd can go into socket activation mode
 type StandbyOpinions struct {
-	state     *state.State
-	startTime time.Time
-	opinions  []Opinionator
+	state       *state.State
+	standbyWait time.Duration
+	startTime   time.Time
+	opinions    []Opinionator
 
 	stoppingCh chan struct{}
 	stoppedCh  chan struct{}
@@ -53,7 +56,7 @@ func (m *StandbyOpinions) CanStandby() bool {
 	defer st.Unlock()
 
 	// check if enough time has passed
-	if m.startTime.Add(standbyWait).After(time.Now()) {
+	if m.startTime.Add(m.standbyWait).After(time.Now()) {
 		return false
 	}
 	// check if there are any changes in flight
@@ -72,17 +75,27 @@ func (m *StandbyOpinions) CanStandby() bool {
 }
 
 func New(st *state.State) *StandbyOpinions {
+	w := standbyWait
+	ovr := os.Getenv("SNAPD_STANDBY_WAIT")
+	if ovr != "" {
+		d, err := time.ParseDuration(ovr)
+		if err == nil {
+			w = d
+		}
+	}
 	return &StandbyOpinions{
-		state:      st,
-		startTime:  time.Now(),
-		stoppingCh: make(chan struct{}),
-		stoppedCh:  make(chan struct{}),
+		state:       st,
+		standbyWait: w,
+		startTime:   time.Now(),
+		stoppingCh:  make(chan struct{}),
+		stoppedCh:   make(chan struct{}),
 	}
 }
 
 func (m *StandbyOpinions) Start() {
+	logger.Debugf("will consider standby after: %v", m.standbyWait)
 	go func() {
-		wait := standbyWait
+		wait := m.standbyWait
 		timer := time.NewTimer(wait)
 		for {
 			if m.CanStandby() {

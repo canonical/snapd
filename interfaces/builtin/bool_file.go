@@ -76,6 +76,10 @@ func (iface *boolFileInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	if !ok || path == "" {
 		return fmt.Errorf("bool-file must contain the path attribute")
 	}
+	// XXX: this interface feeds the cleaned path into the regex and is
+	// left unchanged here for historical reasons. New interfaces (eg,
+	// like raw-volume) should instead use verifySlotPathAttribute() which
+	// performs additional verification.
 	path = filepath.Clean(path)
 	for _, pattern := range boolFileAllowedPathPatterns {
 		if pattern.MatchString(path) {
