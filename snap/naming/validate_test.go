@@ -298,3 +298,28 @@ func (s *ValidateSuite) TestValidateSnapID(c *C) {
 		c.Check(err, ErrorMatches, fmt.Sprintf("invalid snap-id: %q", id))
 	}
 }
+
+func (s *ValidateSuite) TestValidateSecurityTag(c *C) {
+	// valid snap names, snap instances, app names and hook names are accepted.
+	c.Check(naming.ValidateSecurityTag("snap.pkg.app"), IsNil)
+	c.Check(naming.ValidateSecurityTag("snap.pkg.hook.configure"), IsNil)
+	c.Check(naming.ValidateSecurityTag("snap.pkg_key.app"), IsNil)
+	c.Check(naming.ValidateSecurityTag("snap.pkg_key.hook.configure"), IsNil)
+
+	c.Check(naming.ValidateSecurityTag("snap.pkg_key.app.surprise"), ErrorMatches, "invalid security tag")
+	c.Check(naming.ValidateSecurityTag("snap.pkg_key.hook.configure.surprise"), ErrorMatches, "invalid security tag")
+
+	// invalid snap and app names are rejected.
+	c.Check(naming.ValidateSecurityTag("snap._.app"), ErrorMatches, "invalid security tag")
+	c.Check(naming.ValidateSecurityTag("snap.pkg._"), ErrorMatches, "invalid security tag")
+
+	// invalid number of components are rejected.
+	c.Check(naming.ValidateSecurityTag("snap.pkg.hook.surprise."), ErrorMatches, "invalid security tag")
+	c.Check(naming.ValidateSecurityTag("snap.pkg.hook."), ErrorMatches, "invalid security tag")
+	c.Check(naming.ValidateSecurityTag("snap.pkg.hook"), IsNil) // Perhaps somewhat unexpectedly, this tag is valid.
+	c.Check(naming.ValidateSecurityTag("snap.pkg.app.surprise"), ErrorMatches, "invalid security tag")
+	c.Check(naming.ValidateSecurityTag("snap.pkg."), ErrorMatches, "invalid security tag")
+	c.Check(naming.ValidateSecurityTag("snap.pkg"), ErrorMatches, "invalid security tag")
+	c.Check(naming.ValidateSecurityTag("snap."), ErrorMatches, "invalid security tag")
+	c.Check(naming.ValidateSecurityTag("snap"), ErrorMatches, "invalid security tag")
+}

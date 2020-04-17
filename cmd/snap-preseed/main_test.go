@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/cmd/snap-preseed"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
@@ -417,7 +418,7 @@ func (s *startPreseedSuite) TestReset(c *C) {
 		{filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", "snap-foo.mount"), ""},
 		{filepath.Join(dirs.SnapDataDir, "foo", "bar"), ""},
 		{filepath.Join(dirs.SnapCacheDir, "foocache", "bar"), ""},
-		{filepath.Join(dirs.AppArmorCacheDir, "foo", "bar"), ""},
+		{filepath.Join(apparmor_sandbox.CacheDir, "foo", "bar"), ""},
 		{filepath.Join(dirs.SnapAppArmorDir, "foo"), ""},
 		{filepath.Join(dirs.SnapAssertsDBDir, "foo"), ""},
 		{filepath.Join(dirs.FeaturesDir, "foo"), ""},

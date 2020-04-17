@@ -82,12 +82,6 @@ func (d *deviceSuite) setupMockSysfsForDevMapper(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (d *deviceSuite) setUpWritableFallback(c *C, mountInfo string) {
-	d.setupMockSysfs(c)
-
-	mockProcSelfFilesystem(c, d.dir, mountInfo)
-}
-
 func (d *deviceSuite) TestDeviceFindByStructureName(c *C) {
 	names := []struct {
 		escaped   string
@@ -268,8 +262,8 @@ var writableMountInfo = `26 27 8:3 / /writable rw,relatime shared:7 - ext4 /dev/
 
 func (d *deviceSuite) TestDeviceFindFallbackNotFoundNoWritable(c *C) {
 	badMountInfo := `26 27 8:3 / /not-writable rw,relatime shared:7 - ext4 /dev/fakedevice0p1 rw,data=ordered`
-
-	mockProcSelfFilesystem(c, d.dir, badMountInfo)
+	restore := osutil.MockMountInfo(badMountInfo)
+	defer restore()
 
 	found, offs, err := gadget.FindDeviceForStructureWithFallback(&gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
@@ -283,7 +277,8 @@ func (d *deviceSuite) TestDeviceFindFallbackNotFoundNoWritable(c *C) {
 }
 
 func (d *deviceSuite) TestDeviceFindFallbackBadWritable(c *C) {
-	mockProcSelfFilesystem(c, d.dir, writableMountInfo)
+	restore := osutil.MockMountInfo(writableMountInfo)
+	defer restore()
 
 	ps := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
@@ -307,7 +302,9 @@ func (d *deviceSuite) TestDeviceFindFallbackBadWritable(c *C) {
 }
 
 func (d *deviceSuite) TestDeviceFindFallbackHappyWritable(c *C) {
-	d.setUpWritableFallback(c, writableMountInfo)
+	d.setupMockSysfs(c)
+	restore := osutil.MockMountInfo(writableMountInfo)
+	defer restore()
 
 	psJustBare := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
@@ -336,7 +333,9 @@ func (d *deviceSuite) TestDeviceFindFallbackHappyWritable(c *C) {
 }
 
 func (d *deviceSuite) TestDeviceFindFallbackNotForNamedWritable(c *C) {
-	d.setUpWritableFallback(c, writableMountInfo)
+	d.setupMockSysfs(c)
+	restore := osutil.MockMountInfo(writableMountInfo)
+	defer restore()
 
 	// should not hit the fallback path
 	psNamed := &gadget.LaidOutStructure{
@@ -352,7 +351,9 @@ func (d *deviceSuite) TestDeviceFindFallbackNotForNamedWritable(c *C) {
 }
 
 func (d *deviceSuite) TestDeviceFindFallbackNotForFilesystem(c *C) {
-	d.setUpWritableFallback(c, writableMountInfo)
+	d.setupMockSysfs(c)
+	restore := osutil.MockMountInfo(writableMountInfo)
+	defer restore()
 
 	psFs := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
@@ -368,7 +369,9 @@ func (d *deviceSuite) TestDeviceFindFallbackNotForFilesystem(c *C) {
 }
 
 func (d *deviceSuite) TestDeviceFindFallbackBadMountInfo(c *C) {
-	d.setUpWritableFallback(c, "garbage")
+	d.setupMockSysfs(c)
+	restore := osutil.MockMountInfo("garbage")
+	defer restore()
 	psFs := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Name: "foo",
@@ -488,14 +491,6 @@ func (d *deviceSuite) TestDeviceFindMountPointErrorsFromDevice(c *C) {
 	c.Check(p, Equals, "")
 }
 
-func mockProcSelfFilesystem(c *C, root, content string) {
-	psmi := filepath.Join(root, osutil.ProcSelfMountInfo)
-	err := os.MkdirAll(filepath.Dir(psmi), 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(psmi, []byte(content), 0644)
-	c.Assert(err, IsNil)
-}
-
 func (d *deviceSuite) TestDeviceFindMountPointErrorBadMountinfo(c *C) {
 	// taken from core18 system
 
@@ -504,8 +499,8 @@ func (d *deviceSuite) TestDeviceFindMountPointErrorBadMountinfo(c *C) {
 	c.Assert(err, IsNil)
 	err = os.Symlink(fakedevice, filepath.Join(d.dir, "/dev/disk/by-label/system-boot"))
 	c.Assert(err, IsNil)
-
-	mockProcSelfFilesystem(c, d.dir, "garbage")
+	restore := osutil.MockMountInfo("garbage")
+	defer restore()
 
 	found, err := gadget.FindMountPointForStructure(&gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
@@ -533,7 +528,8 @@ func (d *deviceSuite) TestDeviceFindMountPointByLabeHappySimple(c *C) {
 170 27 8:2 / /boot/efi rw,relatime shared:58 - vfat ${rootDir}/dev/sda2 rw,fmask=0022,dmask=0022,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro
 172 27 8:2 /EFI/ubuntu /boot/grub rw,relatime shared:58 - vfat ${rootDir}/dev/sda2 rw,fmask=0022,dmask=0022,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro
 `
-	mockProcSelfFilesystem(c, d.dir, strings.Replace(mountInfo[1:], "${rootDir}", d.dir, -1))
+	restore := osutil.MockMountInfo(strings.Replace(mountInfo[1:], "${rootDir}", d.dir, -1))
+	defer restore()
 
 	found, err := gadget.FindMountPointForStructure(&gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
@@ -562,7 +558,8 @@ func (d *deviceSuite) TestDeviceFindMountPointByLabeHappyReversed(c *C) {
 170 27 8:2 / /boot/efi rw,relatime shared:58 - vfat ${rootDir}/dev/sda2 rw,fmask=0022,dmask=0022,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro
 `
 
-	mockProcSelfFilesystem(c, d.dir, strings.Replace(mountInfoReversed[1:], "${rootDir}", d.dir, -1))
+	restore := osutil.MockMountInfo(strings.Replace(mountInfoReversed[1:], "${rootDir}", d.dir, -1))
+	defer restore()
 
 	found, err := gadget.FindMountPointForStructure(&gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
@@ -591,7 +588,8 @@ func (d *deviceSuite) TestDeviceFindMountPointPicksFirstMatch(c *C) {
 170 27 8:2 / /boot/efi rw,relatime shared:58 - vfat ${rootDir}/dev/sda2 rw,fmask=0022,dmask=0022,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro
 `
 
-	mockProcSelfFilesystem(c, d.dir, strings.Replace(mountInfo[1:], "${rootDir}", d.dir, -1))
+	restore := osutil.MockMountInfo(strings.Replace(mountInfo[1:], "${rootDir}", d.dir, -1))
+	defer restore()
 
 	found, err := gadget.FindMountPointForStructure(&gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
@@ -615,7 +613,8 @@ func (d *deviceSuite) TestDeviceFindMountPointByPartlabel(c *C) {
 170 27 8:2 / /mount-point rw,relatime shared:58 - ext4 ${rootDir}/dev/fakedevice rw
 `
 
-	mockProcSelfFilesystem(c, d.dir, strings.Replace(mountInfo[1:], "${rootDir}", d.dir, -1))
+	restore := osutil.MockMountInfo(strings.Replace(mountInfo[1:], "${rootDir}", d.dir, -1))
+	defer restore()
 
 	found, err := gadget.FindMountPointForStructure(&gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
@@ -638,7 +637,8 @@ func (d *deviceSuite) TestDeviceFindMountPointChecksFilesystem(c *C) {
 170 27 8:2 / /mount-point rw,relatime shared:58 - vfat ${rootDir}/dev/fakedevice rw
 `
 
-	mockProcSelfFilesystem(c, d.dir, strings.Replace(mountInfo[1:], "${rootDir}", d.dir, -1))
+	restore := osutil.MockMountInfo(strings.Replace(mountInfo[1:], "${rootDir}", d.dir, -1))
+	defer restore()
 
 	found, err := gadget.FindMountPointForStructure(&gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{

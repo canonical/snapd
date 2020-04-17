@@ -8,7 +8,7 @@ prepare: |
     test "$(find "$GOHOME" -name 'snapd_*.deb' | wc -l)" -ne 0
 
     # Install LXD snap and set it up.
-    snap install lxd
+    snap install lxd --channel="$LXD_SNAP_CHANNEL"
     snap set lxd waitready.timeout=240
     lxd waitready
     lxd init --auto
