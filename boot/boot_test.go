@@ -186,11 +186,7 @@ type bootenv20Setup struct {
 	kernStatus string
 }
 
-func setupUC20Bootenv(
-	c *C,
-	bl bootloader.Bootloader,
-	opts *bootenv20Setup,
-) (restore func()) {
+func setupUC20Bootenv(c *C, bl bootloader.Bootloader, opts *bootenv20Setup) (restore func()) {
 	var cleanups []func()
 
 	// write the modeenv
