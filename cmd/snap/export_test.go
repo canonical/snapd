@@ -92,6 +92,8 @@ var (
 
 	PrintInstallHint = printInstallHint
 
+	IsStopping = isStopping
+
 	CreateTransientScope   = createTransientScope
 	DoCreateTransientScope = doCreateTransientScope
 )

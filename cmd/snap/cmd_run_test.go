@@ -765,11 +765,11 @@ func (s *RunSuite) TestAntialiasHappy(c *check.C) {
 	app, outArgs = snaprun.Antialias("alias", inArgs)
 	c.Check(app, check.Equals, "an-app")
 	c.Check(outArgs, check.DeepEquals, []string{
-		"99", // COMP_TYPE (no change)
-		"99", // COMP_KEY (no change)
-		"11", // COMP_POINT (+1 because "an-app" is one longer than "alias")
-		"2",  // COMP_CWORD (no change)
-		" ",  // COMP_WORDBREAKS (no change)
+		"99",                    // COMP_TYPE (no change)
+		"99",                    // COMP_KEY (no change)
+		"11",                    // COMP_POINT (+1 because "an-app" is one longer than "alias")
+		"2",                     // COMP_CWORD (no change)
+		" ",                     // COMP_WORDBREAKS (no change)
 		"an-app alias bo-alias", // COMP_LINE (argv[0] changed)
 		"an-app",                // argv (arv[0] changed)
 		"alias",
@@ -790,12 +790,12 @@ func (s *RunSuite) TestAntialiasBailsIfUnhappy(c *check.C) {
 	weird2[5] = "alias "
 
 	for desc, inArgs := range map[string][]string{
-		"nil args":                                               nil,
-		"too-short args":                                         {"alias"},
-		"COMP_POINT not a number":                                mkCompArgs("hello", "alias"),
-		"COMP_POINT is inside argv[0]":                           mkCompArgs("2", "alias", ""),
-		"COMP_POINT is outside argv":                             mkCompArgs("99", "alias", ""),
-		"COMP_WORDS[0] is not argv[0]":                           mkCompArgs("10", "not-alias", ""),
+		"nil args":                     nil,
+		"too-short args":               {"alias"},
+		"COMP_POINT not a number":      mkCompArgs("hello", "alias"),
+		"COMP_POINT is inside argv[0]": mkCompArgs("2", "alias", ""),
+		"COMP_POINT is outside argv":   mkCompArgs("99", "alias", ""),
+		"COMP_WORDS[0] is not argv[0]": mkCompArgs("10", "not-alias", ""),
 		"mismatch between argv[0], COMP_LINE and COMP_WORDS, #1": weird1,
 		"mismatch between argv[0], COMP_LINE and COMP_WORDS, #2": weird2,
 	} {
@@ -1201,6 +1201,66 @@ func (s *RunSuite) TestSnapRunRestoreSecurityContextFail(c *check.C) {
 	c.Check(isEnabledCalls, check.Equals, 3)
 	c.Check(verifyCalls, check.Equals, 2)
 	c.Check(restoreCalls, check.Equals, 1)
+}
+
+// systemctl is-system-running returns "running" in normal situations.
+func (s *RunSuite) TestIsStoppingRunning(c *check.C) {
+	systemctl := testutil.MockCommand(c, "systemctl", `
+case "$1" in
+	is-system-running)
+		echo "running"
+		exit 0
+		;;
+esac
+`)
+	defer systemctl.Restore()
+	stop, err := snaprun.IsStopping()
+	c.Check(err, check.IsNil)
+	c.Check(stop, check.Equals, false)
+	c.Check(systemctl.Calls(), check.DeepEquals, [][]string{
+		{"systemctl", "is-system-running"},
+	})
+}
+
+// systemctl is-system-running returns "stopping" when the system is
+// shutting down or rebooting. At the same time it returns a non-zero
+// exit status.
+func (s *RunSuite) TestIsStoppingStopping(c *check.C) {
+	systemctl := testutil.MockCommand(c, "systemctl", `
+case "$1" in
+	is-system-running)
+		echo "stopping"
+		exit 1
+		;;
+esac
+`)
+	defer systemctl.Restore()
+	stop, err := snaprun.IsStopping()
+	c.Check(err, check.IsNil)
+	c.Check(stop, check.Equals, true)
+	c.Check(systemctl.Calls(), check.DeepEquals, [][]string{
+		{"systemctl", "is-system-running"},
+	})
+}
+
+// systemctl is-system-running can often return "degraded"
+// Let's make sure that is not confusing us.
+func (s *RunSuite) TestIsStoppingDegraded(c *check.C) {
+	systemctl := testutil.MockCommand(c, "systemctl", `
+case "$1" in
+	is-system-running)
+		echo "degraded"
+		exit 1
+		;;
+esac
+`)
+	defer systemctl.Restore()
+	stop, err := snaprun.IsStopping()
+	c.Check(err, check.IsNil)
+	c.Check(stop, check.Equals, false)
+	c.Check(systemctl.Calls(), check.DeepEquals, [][]string{
+		{"systemctl", "is-system-running"},
+	})
 }
 
 // CreateTransientScope is a no-op when refresh app awareness is off
