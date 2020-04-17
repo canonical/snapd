@@ -85,3 +85,13 @@ func MockIsEnabled(isEnabled func() (bool, error)) (restore func()) {
 		selinuxIsEnabled = old
 	}
 }
+
+// MockIsEnforcing makes the system believe the current SELinux is currently
+// enforcing
+func MockIsEnforcing(isEnforcing func() (bool, error)) (restore func()) {
+	old := selinuxIsEnforcing
+	selinuxIsEnforcing = isEnforcing
+	return func() {
+		selinuxIsEnforcing = old
+	}
+}

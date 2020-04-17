@@ -11,6 +11,7 @@ Before=sysinit.target
 # This dependency is meant to ensure that apparmor initialization (whatever that might entail) is complete.
 After=apparmor.service
 ConditionSecurity=apparmor
+RequiresMountsFor=/var/cache/apparmor /var/lib/snapd/apparmor/profiles
 
 [Service]
 Type=oneshot
