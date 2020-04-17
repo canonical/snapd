@@ -46,8 +46,8 @@ const appstreamMetadataConnectedPlugAppArmor = `
 # Description: Allow access to AppStream metadata from the host system
 
 # Allow access to AppStream upstream metadata files
-/usr/share/metainfo/** r,
-/usr/share/appdata/** r,
+/usr/share/metainfo/{,**} r,
+/usr/share/appdata/{,**} r,
 
 # Allow access to AppStream collection metadata
 /usr/share/app-info/** r,

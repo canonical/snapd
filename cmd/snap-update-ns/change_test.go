@@ -49,6 +49,8 @@ var _ = Suite(&changeSuite{})
 
 func (s *changeSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
+	// This isolates us from host's experimental settings.
+	dirs.SetRootDir(c.MkDir())
 	// Mock and record system interactions.
 	s.sys = &testutil.SyscallRecorder{}
 	s.BaseTest.AddCleanup(update.MockSystemCalls(s.sys))
@@ -58,6 +60,7 @@ func (s *changeSuite) SetUpTest(c *C) {
 func (s *changeSuite) TearDownTest(c *C) {
 	s.BaseTest.TearDownTest(c)
 	s.sys.CheckForStrayDescriptors(c)
+	dirs.SetRootDir("")
 }
 
 func (s *changeSuite) disableRobustMountNamespaceUpdates(c *C) {

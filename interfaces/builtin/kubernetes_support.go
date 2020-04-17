@@ -121,7 +121,9 @@ deny ptrace (trace) peer=unconfined,
 @{PROC}/[0-9]*/attr/ r,
 @{PROC}/[0-9]*/fdinfo/ r,
 @{PROC}/[0-9]*/map_files/ r,
-@{PROC}/[0-9]*/ns/ r,
+@{PROC}/[0-9]*/ns/{,*} r,
+# dac_read_search needed for lstat'ing non-root owned ns/* files
+capability dac_read_search,
 
 # kubernetes will verify and set panic and panic_on_oops to values it considers
 # sane

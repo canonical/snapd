@@ -112,7 +112,7 @@ func (u *uboot) GetBootVars(names ...string) (map[string]string, error) {
 func (u *uboot) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 	dstDir := filepath.Join(u.dir(), s.Filename())
 	assets := []string{"kernel.img", "initrd.img", "dtbs/*"}
-	return extractKernelAssetsToBootDir(dstDir, s, snapf, assets)
+	return extractKernelAssetsToBootDir(dstDir, snapf, assets)
 }
 
 func (u *uboot) ExtractRecoveryKernelAssets(recoverySystemDir string, s snap.PlaceInfo, snapf snap.Container) error {
@@ -122,7 +122,7 @@ func (u *uboot) ExtractRecoveryKernelAssets(recoverySystemDir string, s snap.Pla
 
 	recoverySystemUbootKernelAssetsDir := filepath.Join(u.rootdir, recoverySystemDir, "kernel")
 	assets := []string{"kernel.img", "initrd.img", "dtbs/*"}
-	return extractKernelAssetsToBootDir(recoverySystemUbootKernelAssetsDir, s, snapf, assets)
+	return extractKernelAssetsToBootDir(recoverySystemUbootKernelAssetsDir, snapf, assets)
 }
 
 func (u *uboot) RemoveKernelAssets(s snap.PlaceInfo) error {

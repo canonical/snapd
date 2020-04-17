@@ -82,8 +82,9 @@ type systemKey struct {
 const systemKeyVersion = 10
 
 var (
-	isHomeUsingNFS  = osutil.IsHomeUsingNFS
-	mockedSystemKey *systemKey
+	isHomeUsingNFS        = osutil.IsHomeUsingNFS
+	isRootWritableOverlay = osutil.IsRootWritableOverlay
+	mockedSystemKey       *systemKey
 
 	readBuildID = osutil.ReadBuildID
 )
@@ -129,7 +130,7 @@ func generateSystemKey() (*systemKey, error) {
 
 	// Add if '/' is on overlayfs so we can add AppArmor rules for
 	// upperdir such that if this changes, we change our profile.
-	sk.OverlayRoot, err = osutil.IsRootWritableOverlay()
+	sk.OverlayRoot, err = isRootWritableOverlay()
 	if err != nil {
 		// just log the error here
 		logger.Noticef("cannot determine root filesystem on overlay in generateSystemKey: %v", err)
