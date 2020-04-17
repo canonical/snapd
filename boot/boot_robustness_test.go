@@ -125,7 +125,7 @@ func (s *bootenv20Suite) checkBootStateAfterUnexpectedRebootAndCleanup(
 	panicFunc string,
 	expectedBootedKernel snap.PlaceInfo,
 	expectedModeenvCurrentKernels []snap.PlaceInfo,
-	finalBlKernel snap.PlaceInfo,
+	blKernelAfterReboot snap.PlaceInfo,
 	comment string,
 ) {
 	// setup a panic during the given bootloader function
@@ -149,6 +149,11 @@ func (s *bootenv20Suite) checkBootStateAfterUnexpectedRebootAndCleanup(
 	// check that the kernel we booted now is expected
 	c.Assert(nextBootingKernel, Equals, expectedBootedKernel)
 
+	// also check that the normal kernel on the bootloader is what we expect
+	kern, err := s.bootloader.Kernel()
+	c.Assert(err, IsNil)
+	c.Assert(kern, Equals, blKernelAfterReboot)
+
 	// mark the boot successful like we were rebooted
 	err = boot.MarkBootSuccessful(dev)
 	c.Assert(err, IsNil, Commentf(comment))
@@ -169,18 +174,15 @@ func (s *bootenv20Suite) checkBootStateAfterUnexpectedRebootAndCleanup(
 	}
 	c.Assert(m.CurrentKernels, DeepEquals, currentKernels, Commentf(comment))
 
-	// if we have a final bootloader kernel set, the bootloader should be a
-	// ExtractedRunKernelImageBootloader that we can check the kernel and try
-	// kernel on directly
-	if finalBlKernel != nil {
-		afterKernel, err := s.bootloader.Kernel()
-		c.Assert(err, IsNil, Commentf(comment))
-		c.Assert(afterKernel, DeepEquals, finalBlKernel, Commentf(comment))
+	// the final kernel on the bootloader should always match what we booted -
+	// after MarkSuccessful runs that is
+	afterKernel, err := s.bootloader.Kernel()
+	c.Assert(err, IsNil, Commentf(comment))
+	c.Assert(afterKernel, DeepEquals, expectedBootedKernel, Commentf(comment))
 
-		// we should never have a leftover try kernel
-		_, err = s.bootloader.TryKernel()
-		c.Assert(err, Equals, bootloader.ErrNoTryKernelRef, Commentf(comment))
-	}
+	// we should never have a leftover try kernel
+	_, err = s.bootloader.TryKernel()
+	c.Assert(err, Equals, bootloader.ErrNoTryKernelRef, Commentf(comment))
 }
 
 func (s *bootenv20Suite) TestHappyMarkBootSuccessful20KernelUpgradeUnexpectedReboots(c *C) {
