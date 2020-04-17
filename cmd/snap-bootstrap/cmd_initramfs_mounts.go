@@ -439,7 +439,7 @@ func unlockIfEncrypted(name string, last bool) (string, error) {
 		return "", err
 	}
 	if lockErr != nil {
-		return "", lockErr
+		return "", fmt.Errorf("cannot lock access to sealed keys: %v", lockErr)
 	}
 
 	return device, nil

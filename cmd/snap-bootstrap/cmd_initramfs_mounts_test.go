@@ -839,11 +839,11 @@ func (s *initramfsMountsSuite) TestUnlockIfEncrypted(c *C) {
 		err       string
 	}{
 		{true, nil, true, true, true, "/dev/disk/by-label/name", ""},
-		{true, nil, true, true, false, "", "lock failed"},
+		{true, nil, true, true, false, "", "cannot lock access to sealed keys: lock failed"},
 		{true, nil, true, false, true, "/dev/disk/by-label/name", ""},
 		{true, nil, true, false, false, "/dev/disk/by-label/name", ""},
 		{true, nil, false, true, true, "/dev/disk/by-label/name", ""},
-		{true, nil, false, true, false, "", "lock failed"},
+		{true, nil, false, true, false, "", "cannot lock access to sealed keys: lock failed"},
 		{true, nil, false, false, true, "/dev/disk/by-label/name", ""},
 		{true, nil, false, false, false, "/dev/disk/by-label/name", ""},
 		{true, errors.New("tpm error"), true, true, false, "", `cannot unlock encrypted device "name": tpm error`},
