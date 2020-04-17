@@ -168,9 +168,13 @@ func ensureLayoutCompatibility(gadgetLayout *gadget.LaidOutVolume, diskLayout *p
 	eq := func(ds partition.DeviceStructure, gs gadget.LaidOutStructure) bool {
 		dv := ds.VolumeStructure
 		gv := gs.VolumeStructure
+		nameMatch := gv.Name == dv.Name
+		if gadgetLayout.Schema == "mbr" {
+			// partitions have no names in MBR
+			nameMatch = true
+		}
 		// Previous installation may have failed before filesystem creation or partition may be encrypted
-		check := dv.Name == gv.Name && ds.StartOffset == gs.StartOffset && (ds.Created || dv.Filesystem == gv.Filesystem)
-
+		check := nameMatch && ds.StartOffset == gs.StartOffset && (ds.Created || dv.Filesystem == gv.Filesystem)
 		if gv.Role == gadget.SystemData {
 			// system-data may have been expanded
 			return check && dv.Size >= gv.Size
