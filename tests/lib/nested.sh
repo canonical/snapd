@@ -52,7 +52,18 @@ create_assertions_disk(){
 }
 
 get_qemu_for_nested_vm(){
-    command -v qemu-system-x86_64
+    case "${NESTED_ARCHITECTURE:-amd64}" in
+    amd64)
+        command -v qemu-system-x86_64
+        ;;
+    i386)
+        command -v qemu-system-i386
+        ;;
+    *)
+        echo "unsupported architecture"
+        exit 1
+        ;;
+    esac
 }
 
 get_google_image_url_for_nested_vm(){
