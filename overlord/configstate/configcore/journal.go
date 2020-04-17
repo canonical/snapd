@@ -89,6 +89,9 @@ func handleJournalConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error
 		if !osutil.FileExists(filepath.Join(logPath, marker)) {
 			return fmt.Errorf("the %s directory was not created by snapd, journal logs will not be removed nor disabled", logPath)
 		}
+		// This removes all logs from /var/log/journal when journal.persistent
+		// is set to false.
+		// It's assumed that core device is fully controlled by snapd.
 		if err := os.RemoveAll(logPath); err != nil {
 			return err
 		}
