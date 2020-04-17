@@ -38,6 +38,10 @@ var (
 	// system-data role partition at "ubuntu-data".
 	InitramfsCompatUbuntuDataDir string
 
+	// InitramfsHostUbuntuDataDir is the location of the host ubuntu-data
+	// during the initramfs, typically used in recover mode.
+	InitramfsHostUbuntuDataDir string
+
 	// InitramfsUbuntuBootDir is the location of ubuntu-boot during the
 	// initramfs.
 	InitramfsUbuntuBootDir string
@@ -49,6 +53,10 @@ var (
 	// InitramfsWritableDir is the location of the writable partition during the
 	// initramfs.
 	InitramfsWritableDir string
+
+	// InitramfsWritableDir is the location of the encrypted partition keys
+	// during the initramfs.
+	InitramfsEncryptionKeyDir string
 )
 
 func setInitramfsDirVars(rootdir string) {
@@ -56,9 +64,11 @@ func setInitramfsDirVars(rootdir string) {
 	InitramfsDataDir = filepath.Join(InitramfsRunMntDir, "data")
 	// TODO:UC20 remove the compatibility mount once the transition period is over
 	InitramfsCompatUbuntuDataDir = filepath.Join(InitramfsRunMntDir, "ubuntu-data")
+	InitramfsHostUbuntuDataDir = filepath.Join(InitramfsRunMntDir, "host", "ubuntu-data")
 	InitramfsUbuntuBootDir = filepath.Join(InitramfsRunMntDir, "ubuntu-boot")
 	InitramfsUbuntuSeedDir = filepath.Join(InitramfsRunMntDir, "ubuntu-seed")
 	InitramfsWritableDir = filepath.Join(InitramfsDataDir, "system-data")
+	InitramfsEncryptionKeyDir = InitramfsUbuntuSeedDir
 }
 
 func init() {

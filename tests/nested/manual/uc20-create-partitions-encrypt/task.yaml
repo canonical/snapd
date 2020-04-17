@@ -59,7 +59,7 @@ execute: |
         ./gadget-dir "$LOOP"
 
     echo "Check that the key file was created"
-    test "$(stat --printf="%s" ./keyfile)" = 32
+    test "$(stat --printf="%s" ./keyfile)" = 64
 
     echo "Check that the partitions are created"
     sfdisk -d "$LOOP" | MATCH "^${LOOP}p1 .*size=\s*2048, type=21686148-6449-6E6F-744E-656564454649,.*BIOS Boot"

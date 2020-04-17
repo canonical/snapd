@@ -333,15 +333,20 @@ func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume) (sfdiskInput
 		}
 	}
 
+	// The partition index
+	pIndex := 0
+
 	// Write new partition data in named-fields format
 	buf := &bytes.Buffer{}
 	for _, p := range pv.LaidOutStructure {
-		s := p.VolumeStructure
-		// Skip partitions that are already in the volume
-		// Skip MBR structure
-		if s.Type == "mbr" || s.Type == "bare" {
+		if !p.IsPartition() {
 			continue
 		}
+
+		pIndex++
+		s := p.VolumeStructure
+
+		// Skip partitions that are already in the volume
 		start := p.StartOffset / sectorSize
 		if seen[uint64(start)] {
 			continue
@@ -364,7 +369,7 @@ func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume) (sfdiskInput
 		// Can we use the index here? Get the largest existing partition number and
 		// build from there could be safer if the disk partitions are not consecutive
 		// (can this actually happen in our images?)
-		node := deviceName(ptable.Device, p.Index)
+		node := deviceName(ptable.Device, pIndex)
 		fmt.Fprintf(buf, "%s : start=%12d, size=%12d, type=%s, name=%q, attrs=\"GUID:%s\"\n", node,
 			p.StartOffset/sectorSize, size/sectorSize, ptype, s.Name, createdPartitionAttr)
 

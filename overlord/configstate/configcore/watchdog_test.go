@@ -259,5 +259,5 @@ func (s *watchdogSuite) TestFilesystemOnlyApplyValidationFails(c *C) {
 	})
 
 	tmpDir := c.MkDir()
-	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf), ErrorMatches, `cannot parse "foo": time: invalid duration foo`)
+	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf), ErrorMatches, `cannot parse "foo": time: invalid duration \"?foo\"?`)
 }
