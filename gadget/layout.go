@@ -138,7 +138,6 @@ func layoutVolumeStructures(volume *Volume, constraints LayoutConstraints) (stru
 			StartOffset:     start,
 			Index:           idx,
 		}
-		ps.VolumeStructure.schema = volume.EffectiveSchema()
 
 		if ps.EffectiveRole() != MBR {
 			if s.Size%constraints.SectorSize != 0 {
