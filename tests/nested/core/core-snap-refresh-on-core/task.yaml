@@ -19,15 +19,15 @@ execute: |
     NEW_REV="$(get_nested_core_revision_for_channel "${NEW_CORE_CHANNEL}")"
 
     # Install test snap
-    execute_remote "snap install test-snapd-sh"
+    execute_remote "sudo snap install test-snapd-sh"
 
     # Ensure we have a good starting place
     execute_remote "test-snapd-sh.sh -c 'echo hello'" | MATCH hello
 
     # go to known good starting place
     execute_remote "snap download core --${CORE_CHANNEL}"
-    execute_remote "snap ack core_*.assert"
-    execute_remote "snap install core_*.snap"
+    execute_remote "sudo snap ack core_*.assert"
+    execute_remote "sudo snap install core_*.snap"
 
     # Check the initial core is installed and snaps can be executed
     test "$(get_nested_core_revision_installed)" = "${INITIAL_REV}"
@@ -45,7 +45,7 @@ execute: |
     execute_remote "test-snapd-sh.sh -c 'echo hello'" | MATCH hello
 
     # Revert core
-    execute_remote "snap revert core" || true
+    execute_remote "sudo snap revert core" || true
     wait_for_no_ssh
     wait_for_ssh
 

@@ -4,10 +4,13 @@ kill-timeout: 30m
 
 systems: [ubuntu-16.04-64]
 
+environment:
+    IMAGE_FILE: /tmp/work-dir/image/ubuntu-core-new.img
+
 debug: |
     systemctl stop nested-vm || true
-    if [ -f /tmp/work-dir/ubuntu-core.img ]; then
-        loops=$(kpartx -avs /tmp/work-dir/ubuntu-core.img | cut -d' ' -f 3)
+    if [ -f "$IMAGE_FILE" ]; then
+        loops=$(kpartx -avs "$IMAGE_FILE" | cut -d' ' -f 3)
 
         part=$(echo "$loops" | tail -1)
 
@@ -18,21 +21,12 @@ debug: |
 
         umount "$tmp"
         rm -rf "$tmp"
-        kpartx -ds /tmp/work-dir/ubuntu-core.img
+        kpartx -ds "$IMAGE_FILE"
     fi
 
 execute: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
-
-    #shellcheck disable=SC2164
-    cd "$SPREAD_PATH"
-    execute_remote "sudo snap install network-manager"
-    execute_remote "snap aliases" | MATCH "nmcli"
-
-    # configure network-manager to take over the connection control on next reboot
-    execute_remote "sudo mv /etc/netplan/00-snapd-config.yaml /etc/netplan/00-snapd-config.yaml.back"
-    execute_remote "sudo sed -i 's/unmanaged-devices+=interface-name:eth*/#unmanaged-devices+=interface-name:eth*/' /var/snap/network-manager/current/conf.d/disable-ethernet.conf"
 
     execute_remote "snap info core" | MATCH "tracking: +latest/${CORE_CHANNEL}"
     execute_remote "sudo snap refresh --${CORE_REFRESH_CHANNEL} core" || true
@@ -46,15 +40,9 @@ execute: |
         sleep 1
     done
     execute_remote "snap info core" | MATCH "tracking: +latest/${CORE_REFRESH_CHANNEL}"
-    # make sure network-manager is on charge of eth0
-    execute_remote "nmcli c" | MATCH eth0
-    execute_remote "nmcli d" | MATCH "eth0 +ethernet +connected"
 
     # sanity check, no refresh should be done here but the command shouldn't fail
     execute_remote "sudo snap refresh"
-
-    execute_remote "snap aliases" | MATCH "nmcli"
-
     execute_remote "sudo snap revert core" || true
 
     if ! wait_for_ssh; then
@@ -63,7 +51,6 @@ execute: |
     fi
 
     while ! execute_remote "snap changes" | MATCH "Done.*Revert \"core\" snap"; do sleep 1 ; done
-    execute_remote "snap aliases" | MATCH "nmcli"
     execute_remote "snap info core" | MATCH "tracking: +latest/${CORE_REFRESH_CHANNEL}"
     execute_remote "ifconfig" | MATCH eth0
 
