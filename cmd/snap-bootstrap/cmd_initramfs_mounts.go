@@ -23,12 +23,12 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"syscall"
 
 	"github.com/jessevdk/go-flags"
+	"github.com/snapcore/secboot"
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
@@ -497,20 +497,79 @@ func generateInitramfsMounts() error {
 }
 
 func unlockIfEncrypted(name string) (string, error) {
-	// TODO:UC20: will need to unseal key to unlock LUKS here
 	device := filepath.Join("/dev/disk/by-label", name)
-	keyfile := filepath.Join(boot.InitramfsUbuntuBootDir, name+".keyfile.unsealed")
-	if osutil.FileExists(keyfile) {
+	encdev := device + "-enc"
+	if osutil.FileExists(encdev) {
 		// TODO:UC20: snap-bootstrap should validate that <name>-enc is what
 		//            we expect (and not e.g. an external disk), and also that
 		//            <name> is from <name>-enc and not an unencrypted partition
 		//            with the same name (LP #1863886)
-		cmd := exec.Command("/usr/lib/systemd/systemd-cryptsetup", "attach", name, device+"-enc", keyfile)
-		cmd.Env = os.Environ()
-		cmd.Env = append(cmd.Env, "SYSTEMD_LOG_TARGET=console")
-		if output, err := cmd.CombinedOutput(); err != nil {
-			return "", osutil.OutputErr(output, err)
+
+		// TODO:UC20: lock access to keys
+		//            This code only interacts with the TPM if there is an encrypted
+		//            device to unlock, but this misses an important step for when
+		//            there is a TPM but no encrypted device - we must call
+		//            secboot.LockAccessToSealedKeys, and this failing should be
+		//            considered a fatal error. All of the interactions with the TPM
+		//            during boot with the exception of unsealing should happen
+		//            whenever there is a TPM device detected, regardless of whether
+		//            secure boot is enabled or there is an encrypted volume to unlock.
+		sealedKeyPath := filepath.Join(boot.InitramfsEncryptionKeyDir, name+".sealed-key")
+		if err := unlockEncryptedPartition(name, encdev, sealedKeyPath, "", ""); err != nil {
+			return device, fmt.Errorf("cannot unlock %s: %v", name, err)
 		}
 	}
 	return device, nil
+}
+
+var (
+	secbootConnectToDefaultTPM            = secboot.ConnectToDefaultTPM
+	secbootSecureConnectToDefaultTPM      = secboot.SecureConnectToDefaultTPM
+	secbootActivateVolumeWithTPMSealedKey = secboot.ActivateVolumeWithTPMSealedKey
+)
+
+func secureConnectToTPM(ekcfile string) (*secboot.TPMConnection, error) {
+	ekCertReader, err := os.Open(ekcfile)
+	if err != nil {
+		return nil, fmt.Errorf("cannot open endorsement key certificate file: %v", err)
+	}
+	defer ekCertReader.Close()
+
+	return secbootSecureConnectToDefaultTPM(ekCertReader, nil)
+}
+
+func insecureConnectToTPM(ekcfile string) (*secboot.TPMConnection, error) {
+	return secbootConnectToDefaultTPM()
+}
+
+// unlockEncryptedPartition unseals the keyfile and opens an encrypted device.
+func unlockEncryptedPartition(name, device, keyfile, ekcfile, pinfile string) error {
+	// TODO:UC20: use secureConnectToTPM if we decide there's benefit in doing that or we
+	//            have a hard requirement for a valid EK cert chain for every boot (ie, panic
+	//            if there isn't one). But we can't do that as long as we need to download
+	//            intermediate certs from the manufacturer.
+	tpm, err := insecureConnectToTPM(ekcfile)
+	if err != nil {
+		return fmt.Errorf("cannot open TPM connection: %v", err)
+	}
+	defer tpm.Close()
+
+	options := secboot.ActivateWithTPMSealedKeyOptions{
+		PINTries:            1,
+		RecoveryKeyTries:    3,
+		LockSealedKeyAccess: true,
+	}
+
+	activated, err := secbootActivateVolumeWithTPMSealedKey(tpm, name, device, keyfile, nil, &options)
+	if !activated {
+		// ActivateVolumeWithTPMSealedKey should always return an error if activated == false
+		return fmt.Errorf("cannot activate encrypted device %q: %v", device, err)
+	}
+	if err != nil {
+		logger.Noticef("successfully activated encrypted device %q using a fallback activation method", device)
+	} else {
+		logger.Noticef("successfully activated encrypted device %q with TPM", device)
+	}
+
+	return nil
 }

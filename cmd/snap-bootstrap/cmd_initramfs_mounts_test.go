@@ -21,11 +21,15 @@ package main_test
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 
+	"github.com/canonical/go-tpm2"
+	"github.com/snapcore/secboot"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts/assertstest"
@@ -35,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	main "github.com/snapcore/snapd/cmd/snap-bootstrap"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
@@ -62,6 +67,9 @@ func (s *initramfsMountsSuite) SetUpTest(c *C) {
 
 	s.Stdout = bytes.NewBuffer(nil)
 	restore := main.MockStdout(s.Stdout)
+	s.AddCleanup(restore)
+
+	_, restore = logger.MockLogger()
 	s.AddCleanup(restore)
 
 	// mock /run/mnt
@@ -1013,4 +1021,62 @@ recovery_system=20191118
 	}
 
 	c.Check(filepath.Join(ephemeralUbuntuData, "system-data/var/lib/snapd/state.json"), testutil.FileEquals, `{"data":{"auth":{"users":[{"name":"mvo"}]}},"changes":{},"tasks":{},"last-change-id":0,"last-task-id":0,"last-lane-id":0}`)
+}
+
+func (s *initramfsMountsSuite) TestUnlockEncryptedPartition(c *C) {
+	tcti, err := os.Open("/dev/null")
+	c.Assert(err, IsNil)
+	tpm, err := tpm2.NewTPMContext(tcti)
+	c.Assert(err, IsNil)
+	mockTPM := &secboot.TPMConnection{TPMContext: tpm}
+	restoreConnect := main.MockSecbootConnectToDefaultTPM(func() (*secboot.TPMConnection, error) {
+		return mockTPM, nil
+	})
+	defer restoreConnect()
+
+	for _, tc := range []struct {
+		activationSuccessful bool
+		activationError      error
+		errStr               string
+	}{
+		{true, nil, ""},
+		{true, errors.New("some error"), ""},
+		{false, errors.New("some error"), `cannot activate encrypted device "device": some error`},
+		// ActivateVolumeWithTPMSealedKey always return an error when activation is false
+	} {
+		n := 0
+		restore := main.MockSecbootActivateVolumeWithTPMSealedKey(func(tpm *secboot.TPMConnection, volumeName, sourceDevicePath,
+			keyPath string, pinReader io.Reader, options *secboot.ActivateWithTPMSealedKeyOptions) (bool, error) {
+			n++
+			c.Assert(tpm, Equals, mockTPM)
+			c.Assert(volumeName, Equals, "name")
+			c.Assert(sourceDevicePath, Equals, "device")
+			c.Assert(keyPath, Equals, "keyfile")
+			c.Assert(*options, DeepEquals, secboot.ActivateWithTPMSealedKeyOptions{
+				PINTries:            1,
+				RecoveryKeyTries:    3,
+				LockSealedKeyAccess: true,
+			})
+			return tc.activationSuccessful, tc.activationError
+		})
+		defer restore()
+
+		err = main.UnlockEncryptedPartition("name", "device", "keyfile", "ekcfile", "pinfile")
+		c.Assert(n, Equals, 1)
+		if tc.errStr == "" {
+			c.Assert(err, IsNil)
+		} else {
+			c.Assert(err, ErrorMatches, tc.errStr)
+		}
+	}
+}
+
+func (s *initramfsMountsSuite) TestUnlockEncryptedPartitionTPMConnectError(c *C) {
+	restoreConnect := main.MockSecbootConnectToDefaultTPM(func() (*secboot.TPMConnection, error) {
+		return nil, fmt.Errorf("something wrong happened")
+	})
+	defer restoreConnect()
+
+	err := main.UnlockEncryptedPartition("name", "device", "keyfile", "ekcfile", "pinfile")
+	c.Assert(err, ErrorMatches, "cannot open TPM connection: something wrong happened")
 }
