@@ -18,8 +18,8 @@ prepare: |
             wget -q -O - https://pkg.jenkins.io/debian/jenkins.io.key | apt-key add -
             echo 'deb http://pkg.jenkins.io/debian-stable binary/' > /etc/apt/sources.list.d/jenkins.list
             apt-get update
-            apt-get install -y jenkins
-            apt install jenkins
+            # XXX: remove --allow-unauthenticated once jenkins repo is updated.
+            apt-get install -y --allow-unauthenticated jenkins
             ;;
         postgres)
             apt install -y postgresql
