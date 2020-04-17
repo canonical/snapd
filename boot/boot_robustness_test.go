@@ -128,31 +128,37 @@ func (s *bootenv20Suite) checkBootStateAfterUnexpectedRebootAndCleanup(
 	blKernelAfterReboot snap.PlaceInfo,
 	comment string,
 ) {
-	// setup a panic during the given bootloader function
-	restoreBootloaderPanic := s.bootloader.SetRunKernelImagePanic(panicFunc)
+	if panicFunc != "" {
+		// setup a panic during the given bootloader function
+		restoreBootloaderPanic := s.bootloader.SetRunKernelImagePanic(panicFunc)
 
-	// run the boot function that will now panic
-	c.Assert(
-		func() { bootFunc(dev) },
-		PanicMatches,
-		fmt.Sprintf("mocked reboot panic in %s", panicFunc),
-		Commentf(comment),
-	)
+		// run the boot function that will now panic
+		c.Assert(
+			func() { bootFunc(dev) },
+			PanicMatches,
+			fmt.Sprintf("mocked reboot panic in %s", panicFunc),
+			Commentf(comment),
+		)
 
-	// don't panic anymore
-	restoreBootloaderPanic()
+		// don't panic anymore
+		restoreBootloaderPanic()
+	} else {
+		// just run the function directly
+		err := bootFunc(dev)
+		c.Assert(err, IsNil, Commentf(comment))
+	}
 
 	// do the bootloader kernel failover logic handling
 	nextBootingKernel, err := runBootloaderLogic(c, s.bootloader)
 	c.Assert(err, IsNil, Commentf(comment))
 
 	// check that the kernel we booted now is expected
-	c.Assert(nextBootingKernel, Equals, expectedBootedKernel)
+	c.Assert(nextBootingKernel, Equals, expectedBootedKernel, Commentf(comment))
 
 	// also check that the normal kernel on the bootloader is what we expect
 	kern, err := s.bootloader.Kernel()
-	c.Assert(err, IsNil)
-	c.Assert(kern, Equals, blKernelAfterReboot)
+	c.Assert(err, IsNil, Commentf(comment))
+	c.Assert(kern, Equals, blKernelAfterReboot, Commentf(comment))
 
 	// mark the boot successful like we were rebooted
 	err = boot.MarkBootSuccessful(dev)
@@ -197,17 +203,24 @@ func (s *bootenv20Suite) TestHappyMarkBootSuccessful20KernelUpgradeUnexpectedReb
 		comment           string
 	}{
 		{
+			"",                        // don't do any reboots for the happy path
+			s.kern2,                   // we should boot the new kernel
+			[]snap.PlaceInfo{s.kern2}, // expected kernel is new one
+			s.kern2,                   // the expected kernel is the new one
+			"happy path",
+		},
+		{
 			"SetBootVars",             // reboot right before SetBootVars
 			s.kern1,                   // we should boot the old kernel
 			[]snap.PlaceInfo{s.kern1}, // expected kernel is old one
-			s.kern1,                   // the expected kernel is just the old one
+			s.kern1,                   // the expected kernel is the old one
 			"reboot before SetBootVars results in old kernel",
 		},
 		{
 			"EnableKernel",            // reboot right before EnableKernel
 			s.kern1,                   // we should boot the old kernel
 			[]snap.PlaceInfo{s.kern1}, // expected kernel is old one
-			s.kern1,                   // the expected kernel is just the old one
+			s.kern1,                   // the expected kernel is the old one
 			"reboot before EnableKernel results in old kernel",
 		},
 		{
@@ -253,6 +266,13 @@ func (s *bootenv20Suite) TestHappySetNextBoot20KernelUpgradeUnexpectedReboots(c 
 		expBlKernel       snap.PlaceInfo
 		comment           string
 	}{
+		{
+			"",                        // don't do any reboots for the happy path
+			s.kern2,                   // we should boot the new kernel
+			[]snap.PlaceInfo{s.kern2}, // expected kernel is new one
+			s.kern1,                   // the expected kernel is the old one
+			"happy path",
+		},
 		{
 			"EnableTryKernel",         // reboot right before EnableTryKernel
 			s.kern1,                   // we should boot the old kernel
