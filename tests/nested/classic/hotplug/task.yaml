@@ -9,6 +9,7 @@ prepare: |
     execute_remote "sudo apt install -y ./snapd_*.deb"
     #shellcheck disable=SC2016
     execute_remote 'DEBIAN_FRONTEND=noninteractive sudo -E apt install -y "linux-image-extra-$(uname -r)"' || true
+    #shellcheck disable=SC2016
     execute_remote 'DEBIAN_FRONTEND=noninteractive sudo -E apt install -y "linux-modules-extra-$(uname -r)"' || true
 
     snap pack "$TESTSLIB"/snaps/serial-port-hotplug
