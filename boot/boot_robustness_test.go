@@ -219,7 +219,7 @@ func (s *bootenv20Suite) TestHappyMarkBootSuccessful20KernelUpgradeUnexpectedReb
 
 	for _, t := range tt {
 		// setup the bootloader per test
-		restore := setupUC20Bloader(
+		restore := setupUC20Bootenv(
 			c,
 			s.bootloader,
 			s.normalTryingKernelState,
@@ -269,7 +269,7 @@ func (s *bootenv20Suite) TestHappySetNextBoot20KernelUpgradeUnexpectedReboots(c 
 
 	for _, t := range tt {
 		// setup the bootloader per test
-		restore := setupUC20Bloader(
+		restore := setupUC20Bootenv(
 			c,
 			s.bootloader,
 			s.normalDefaultState,

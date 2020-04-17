@@ -149,7 +149,7 @@ func (s *bootenv20Suite) TestSetNextBoot20ForKernel(c *C) {
 	coreDev := boottest.MockUC20Device("pc-kernel")
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
-	r := setupUC20Bloader(
+	r := setupUC20Bootenv(
 		c,
 		s.bootloader,
 		s.normalDefaultState,
@@ -215,7 +215,7 @@ func (s *bootenv20Suite) TestSetNextBoot20ForKernelForTheSameKernel(c *C) {
 	coreDev := boottest.MockUC20Device("pc-kernel")
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
-	r := setupUC20Bloader(
+	r := setupUC20Bootenv(
 		c,
 		s.bootloader,
 		s.normalDefaultState,
@@ -288,10 +288,10 @@ func (s *bootenv20Suite) TestSetNextBoot20ForKernelForTheSameKernelTryMode(c *C)
 
 	// set all the same vars as if we were doing trying, except don't set a try
 	// kernel
-	r := setupUC20Bloader(
+	r := setupUC20Bootenv(
 		c,
 		s.bootloader,
-		&uc20bootStateSetupOpts{
+		&bootenv20Setup{
 			modeenv: &boot.Modeenv{
 				Mode:           "run",
 				Base:           s.base1.Filename(),

@@ -85,8 +85,8 @@ type baseBootenv20Suite struct {
 	base1 snap.PlaceInfo
 	base2 snap.PlaceInfo
 
-	normalDefaultState      *uc20bootStateSetupOpts
-	normalTryingKernelState *uc20bootStateSetupOpts
+	normalDefaultState      *bootenv20Setup
+	normalTryingKernelState *bootenv20Setup
 }
 
 func (s *baseBootenv20Suite) SetUpTest(c *C) {
@@ -104,7 +104,7 @@ func (s *baseBootenv20Suite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	// default boot state for robustness tests, etc.
-	s.normalDefaultState = &uc20bootStateSetupOpts{
+	s.normalDefaultState = &bootenv20Setup{
 		modeenv: &boot.Modeenv{
 			// base is base1
 			Base: s.base1.Filename(),
@@ -128,7 +128,7 @@ func (s *baseBootenv20Suite) SetUpTest(c *C) {
 	}
 
 	// state for after trying a new kernel for robustness tests, etc.
-	s.normalTryingKernelState = &uc20bootStateSetupOpts{
+	s.normalTryingKernelState = &bootenv20Setup{
 		modeenv: &boot.Modeenv{
 			// base is base1
 			Base: s.base1.Filename(),
@@ -165,17 +165,17 @@ func (s *bootenv20Suite) SetUpTest(c *C) {
 	s.forceBootloader(s.bootloader)
 }
 
-type uc20bootStateSetupOpts struct {
+type bootenv20Setup struct {
 	modeenv    *boot.Modeenv
 	kern       snap.PlaceInfo
 	tryKern    snap.PlaceInfo
 	kernStatus string
 }
 
-func setupUC20Bloader(
+func setupUC20Bootenv(
 	c *C,
 	bl bootloader.Bootloader,
-	opts *uc20bootStateSetupOpts,
+	opts *bootenv20Setup,
 ) (restore func()) {
 	var cleanups []func()
 
@@ -367,7 +367,7 @@ func (s *bootenv20Suite) TestCurrentBoot20NameAndRevision(c *C) {
 	coreDev := boottest.MockUC20Device("some-snap")
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
-	r := setupUC20Bloader(
+	r := setupUC20Bootenv(
 		c,
 		s.bootloader,
 		s.normalDefaultState,
@@ -551,7 +551,7 @@ func (s *bootenv20Suite) TestCoreKernel20(c *C) {
 	coreDev := boottest.MockUC20Device("pc-kernel")
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
-	r := setupUC20Bloader(
+	r := setupUC20Bootenv(
 		c,
 		s.bootloader,
 		s.normalDefaultState,
@@ -586,7 +586,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameKernelSnap(c *C) {
 	coreDev := boottest.MockUC20Device("pc-kernel")
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
-	r := setupUC20Bloader(
+	r := setupUC20Bootenv(
 		c,
 		s.bootloader,
 		s.normalDefaultState,
@@ -629,7 +629,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewKernelSnap(c *C) {
 	coreDev := boottest.MockUC20Device("pc-kernel")
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
-	r := setupUC20Bloader(
+	r := setupUC20Bootenv(
 		c,
 		s.bootloader,
 		s.normalDefaultState,
@@ -669,10 +669,10 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20KernelStatusTryingNoKernelSnapC
 
 	// set all the same vars as if we were doing trying, except don't set a try
 	// kernel
-	r := setupUC20Bloader(
+	r := setupUC20Bootenv(
 		c,
 		s.bootloader,
-		&uc20bootStateSetupOpts{
+		&bootenv20Setup{
 			modeenv: &boot.Modeenv{
 				Mode:           "run",
 				Base:           s.base1.Filename(),
@@ -728,10 +728,10 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BaseStatusTryingNoTryBaseSnapCl
 		// no TryBase set
 		BaseStatus: boot.TryingStatus,
 	}
-	r := setupUC20Bloader(
+	r := setupUC20Bootenv(
 		c,
 		s.bootloader,
-		&uc20bootStateSetupOpts{
+		&bootenv20Setup{
 			modeenv: m,
 			// no kernel setup necessary
 		},
@@ -771,10 +771,10 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameBaseSnap(c *C) {
 		Mode: "run",
 		Base: s.base1.Filename(),
 	}
-	r := setupUC20Bloader(
+	r := setupUC20Bootenv(
 		c,
 		s.bootloader,
-		&uc20bootStateSetupOpts{
+		&bootenv20Setup{
 			modeenv: m,
 			// no kernel setup necessary
 		},
@@ -810,10 +810,10 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewBaseSnap(c *C) {
 		Mode: "run",
 		Base: s.base1.Filename(),
 	}
-	r := setupUC20Bloader(
+	r := setupUC20Bootenv(
 		c,
 		s.bootloader,
-		&uc20bootStateSetupOpts{
+		&bootenv20Setup{
 			modeenv: m,
 			// no kernel setup necessary
 		},
@@ -876,10 +876,10 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20AllSnap(c *C) {
 		BaseStatus:     boot.TryingStatus,
 		CurrentKernels: []string{s.kern1.Filename(), s.kern2.Filename()},
 	}
-	r := setupUC20Bloader(
+	r := setupUC20Bootenv(
 		c,
 		s.bootloader,
-		&uc20bootStateSetupOpts{
+		&bootenv20Setup{
 			modeenv:    m,
 			kern:       s.kern1,
 			tryKern:    s.kern2,
@@ -979,10 +979,10 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20KernelUpdate(c *C) {
 		Base:           s.base1.Filename(),
 		CurrentKernels: []string{s.kern1.Filename(), s.kern2.Filename()},
 	}
-	r := setupUC20Bloader(
+	r := setupUC20Bootenv(
 		c,
 		s.bootloader,
-		&uc20bootStateSetupOpts{
+		&bootenv20Setup{
 			modeenv:    m,
 			kern:       s.kern1,
 			tryKern:    s.kern2,
@@ -1039,10 +1039,10 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BaseUpdate(c *C) {
 		BaseStatus:     boot.TryingStatus,
 		CurrentKernels: []string{s.kern1.Filename()},
 	}
-	r := setupUC20Bloader(
+	r := setupUC20Bootenv(
 		c,
 		s.bootloader,
-		&uc20bootStateSetupOpts{
+		&bootenv20Setup{
 			modeenv:    m,
 			kern:       s.kern1,
 			kernStatus: boot.DefaultStatus,
