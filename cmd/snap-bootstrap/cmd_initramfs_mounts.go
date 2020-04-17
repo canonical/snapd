@@ -24,6 +24,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
+	"syscall"
 
 	"github.com/jessevdk/go-flags"
 	"github.com/snapcore/secboot"
@@ -33,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/sysconfig"
@@ -97,28 +100,158 @@ func recoverySystemEssentialSnaps(seedDir, recoverySystem string, essentialTypes
 // generateMountsMode* is called multiple times from initramfs until it
 // no longer generates more mount points and just returns an empty output.
 func generateMountsModeInstall(recoverySystem string) error {
-	// 1. always ensure seed partition is mounted
-	isMounted, err := osutilIsMounted(boot.InitramfsUbuntuSeedDir)
+	allMounted, err := generateMountsCommonInstallRecover(recoverySystem)
 	if err != nil {
 		return err
 	}
+	if !allMounted {
+		return nil
+	}
+
+	// n+1: final step: write $(ubuntu_data)/var/lib/snapd/modeenv - this
+	//      is the tmpfs we just created above
+	modeEnv := &boot.Modeenv{
+		Mode:           "install",
+		RecoverySystem: recoverySystem,
+	}
+	if err := modeEnv.WriteTo(boot.InitramfsWritableDir); err != nil {
+		return err
+	}
+	// and disable cloud-init in install mode
+	if err := sysconfig.DisableCloudInit(boot.InitramfsWritableDir); err != nil {
+		return err
+	}
+
+	// n+3: done, no output, no error indicates to initramfs we are done
+	//      with mounting stuff
+	return nil
+}
+
+// copyUbuntuDataAuth copies the authenication files like
+//  - extrausers passwd,shadow etc
+//  - sshd host configuration
+//  - user .ssh dir
+// to the target directory. This is used to copy the authentication
+// data from a real uc20 ubuntu-data partition into a ephemeral one.
+func copyUbuntuDataAuth(src, dst string) error {
+	for _, globEx := range []string{
+		"system-data/var/lib/extrausers/*",
+		"system-data/etc/ssh/*",
+		"user-data/*/.ssh/*",
+		// this ensures we also get non-ssh enabled accounts copied
+		"user-data/*/.profile",
+	} {
+		matches, err := filepath.Glob(filepath.Join(src, globEx))
+		if err != nil {
+			return err
+		}
+		for _, p := range matches {
+			comps := strings.Split(strings.TrimPrefix(p, src), "/")
+			for i := range comps {
+				part := filepath.Join(comps[0 : i+1]...)
+				fi, err := os.Stat(filepath.Join(src, part))
+				if err != nil {
+					return err
+				}
+				if fi.IsDir() {
+					if err := os.Mkdir(filepath.Join(dst, part), fi.Mode()); err != nil && !os.IsExist(err) {
+						return err
+					}
+					st, ok := fi.Sys().(*syscall.Stat_t)
+					if !ok {
+						return fmt.Errorf("cannot get stat data: %v", err)
+					}
+					if err := os.Chown(filepath.Join(dst, part), int(st.Uid), int(st.Gid)); err != nil {
+						return err
+					}
+				} else {
+					if err := osutil.CopyFile(p, filepath.Join(dst, part), osutil.CopyFlagPreserveAll); err != nil {
+						return err
+					}
+				}
+			}
+		}
+	}
+
+	// ensure the user state is transferred as well
+	srcState := filepath.Join(src, "system-data/var/lib/snapd/state.json")
+	dstState := filepath.Join(dst, "system-data/var/lib/snapd/state.json")
+	err := state.CopyState(srcState, dstState, []string{"auth.users"})
+	if err != nil && err != state.ErrNoState {
+		return fmt.Errorf("cannot copy user state: %v", err)
+	}
+
+	return nil
+}
+
+func generateMountsModeRecover(recoverySystem string) error {
+	allMounted, err := generateMountsCommonInstallRecover(recoverySystem)
+	if err != nil {
+		return err
+	}
+	if !allMounted {
+		return nil
+	}
+
+	// n+1: mount ubuntu-data for recovery
+	isRecoverDataMounted, err := osutilIsMounted(boot.InitramfsHostUbuntuDataDir)
+	if err != nil {
+		return err
+	}
+	if !isRecoverDataMounted {
+		// TODO:UC20: data may need to be unlocked
+		fmt.Fprintf(stdout, "/dev/disk/by-label/ubuntu-data %s\n", boot.InitramfsHostUbuntuDataDir)
+		return nil
+	}
+
+	// now copy the auth data from the real ubuntu-data dir to the ephemeral
+	// ubuntu-data dir
+	if err := copyUbuntuDataAuth(boot.InitramfsHostUbuntuDataDir, boot.InitramfsUbuntuDataDir); err != nil {
+		return err
+	}
+
+	// n+2: final step: write $(ubuntu_data)/var/lib/snapd/modeenv - this
+	//      is the tmpfs we just created above
+	modeEnv := &boot.Modeenv{
+		Mode:           "recover",
+		RecoverySystem: recoverySystem,
+	}
+	if err := modeEnv.WriteTo(boot.InitramfsWritableDir); err != nil {
+		return err
+	}
+	// and disable cloud-init in recover mode
+	if err := sysconfig.DisableCloudInit(boot.InitramfsWritableDir); err != nil {
+		return err
+	}
+
+	// n+3: done, no output, no error indicates to initramfs we are done
+	//      with mounting stuff
+	return nil
+}
+
+func generateMountsCommonInstallRecover(recoverySystem string) (allMounted bool, err error) {
+	// 1. always ensure seed partition is mounted
+	isMounted, err := osutilIsMounted(boot.InitramfsUbuntuSeedDir)
+	if err != nil {
+		return false, err
+	}
 	if !isMounted {
 		fmt.Fprintf(stdout, "/dev/disk/by-label/ubuntu-seed %s\n", boot.InitramfsUbuntuSeedDir)
-		return nil
+		return false, nil
 	}
 
 	// 2. (auto) select recovery system for now
 	isBaseMounted, err := osutilIsMounted(filepath.Join(boot.InitramfsRunMntDir, "base"))
 	if err != nil {
-		return err
+		return false, err
 	}
 	isKernelMounted, err := osutilIsMounted(filepath.Join(boot.InitramfsRunMntDir, "kernel"))
 	if err != nil {
-		return err
+		return false, err
 	}
 	isSnapdMounted, err := osutilIsMounted(filepath.Join(boot.InitramfsRunMntDir, "snapd"))
 	if err != nil {
-		return err
+		return false, err
 	}
 	if !isBaseMounted || !isKernelMounted || !isSnapdMounted {
 		// load the recovery system and generate mounts for kernel/base
@@ -135,7 +268,7 @@ func generateMountsModeInstall(recoverySystem string) error {
 		}
 		essSnaps, err := recoverySystemEssentialSnaps(boot.InitramfsUbuntuSeedDir, recoverySystem, whichTypes)
 		if err != nil {
-			return fmt.Errorf("cannot load metadata and verify essential bootstrap snaps %v: %v", whichTypes, err)
+			return false, fmt.Errorf("cannot load metadata and verify essential bootstrap snaps %v: %v", whichTypes, err)
 		}
 
 		// TODO:UC20: do we need more cross checks here?
@@ -155,35 +288,15 @@ func generateMountsModeInstall(recoverySystem string) error {
 	// 3. mount "ubuntu-data" on a tmpfs
 	isMounted, err = osutilIsMounted(boot.InitramfsUbuntuDataDir)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if !isMounted {
-		// TODO:UC20: is there a better way?
 		fmt.Fprintf(stdout, "--type=tmpfs tmpfs /run/mnt/ubuntu-data\n")
-		return nil
+		return false, nil
 	}
 
-	// 4. final step: write $(ubuntu_data)/var/lib/snapd/modeenv - this
-	//    is the tmpfs we just created above
-	modeEnv := &boot.Modeenv{
-		Mode:           "install",
-		RecoverySystem: recoverySystem,
-	}
-	if err := modeEnv.WriteTo(boot.InitramfsWritableDir); err != nil {
-		return err
-	}
-	// and disable cloud-init in install mode
-	if err := sysconfig.DisableCloudInit(boot.InitramfsWritableDir); err != nil {
-		return err
-	}
-
-	// 5. done, no output, no error indicates to initramfs we are done
 	//    with mounting stuff
-	return nil
-}
-
-func generateMountsModeRecover(recoverySystem string) error {
-	return fmt.Errorf("recover mode mount generation not implemented yet")
+	return true, nil
 }
 
 func generateMountsModeRun() error {
