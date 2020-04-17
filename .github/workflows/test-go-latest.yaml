@@ -14,8 +14,6 @@ jobs:
       # version of go.
       PATH: /snap/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games
       GOROOT: ""
-      # skip format checks on 1.13+
-      SKIP_GOFMT: 1
 
     steps:
     - name: Checkout code

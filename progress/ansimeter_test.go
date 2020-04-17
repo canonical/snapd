@@ -90,7 +90,7 @@ func (ansiSuite) TestFinish(c *check.C) {
 	p := &progress.ANSIMeter{}
 	p.Finished()
 	c.Check(buf.String(), check.Equals, fmt.Sprint(
-		"\r", // move cursor to start of line
+		"\r",                       // move cursor to start of line
 		progress.ExitAttributeMode, // turn off color, reverse, bold, anything
 		progress.CursorVisible,     // turn the cursor back on
 		progress.ClrEOL,            // and clear the rest of the line
@@ -108,7 +108,7 @@ func (ansiSuite) TestSetLayout(c *check.C) {
 	msg := "0123456789"
 	ticker := time.NewTicker(time.Millisecond)
 	defer ticker.Stop()
-	p.Start(msg, 1E300)
+	p.Start(msg, 1e300)
 	for i := 1; i <= 80; i++ {
 		desc := check.Commentf("width %d", i)
 		width = i
@@ -198,7 +198,7 @@ func (ansiSuite) TestNotify(c *check.C) {
 	defer progress.MockTermWidth(func() int { return width })()
 
 	p := &progress.ANSIMeter{}
-	p.Start("working", 1E300)
+	p.Start("working", 1e300)
 
 	width = 10
 	p.Set(0)
