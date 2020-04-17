@@ -1,5 +1,4 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build nosecboot
 
 /*
  * Copyright (C) 2020 Canonical Ltd
@@ -20,10 +19,7 @@
 
 package secboot
 
-import (
-	"fmt"
-)
-
-func CheckKeySealingSupported() error {
-	return fmt.Errorf("build without secboot support")
-}
+// This file must not have a build-constraint and must not import
+// the github.com/snapcore/secboot repository. That will ensure
+// it can be build as part of the debian build without secboot.
+// Debian does run "go list" without any support for passing -tags.

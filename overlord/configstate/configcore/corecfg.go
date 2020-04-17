@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"regexp"
 
 	"github.com/snapcore/snapd/overlord/configstate/config"
 )
@@ -30,6 +31,10 @@ import (
 var (
 	Stdout = os.Stdout
 	Stderr = os.Stderr
+
+	validCertRegexp = `[\w](?:-?[\w])*`
+	validCertName   = regexp.MustCompile(validCertRegexp).MatchString
+	validCertOption = regexp.MustCompile(`^core\.store-certs\.` + validCertRegexp + "$").MatchString
 )
 
 // coreCfg returns the configuration value for the core snap.
