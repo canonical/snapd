@@ -629,8 +629,10 @@ func downgradeConfinement() bool {
 }
 
 func addContent(securityTag string, snapInfo *snap.Info, cmdName string, opts interfaces.ConfinementOptions, snippetForTag string, content map[string]osutil.FileState, spec *Specification) {
-	// If base is specified and it doesn't match the core snaps, use the
-	// base apparmor template, otherwise use the default template.
+	// If base is specified and it doesn't match the core snaps (not
+	// specifying a base should use the default core policy since in this
+	// case, the 'core' snap is used for the runtime), use the base
+	// apparmor template, otherwise use the default template.
 	var policy string
 	if snapInfo.Base != "" && !coreRuntimePattern.MatchString(snapInfo.Base) {
 		policy = defaultBaseTemplate
