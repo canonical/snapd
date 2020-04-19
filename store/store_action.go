@@ -177,6 +177,9 @@ var snapActionFields = jsonutil.StructFields((*storeSnap)(nil))
 // current installed snaps in currentSnaps. If the request was overall
 // successul (200) but there were reported errors it will return both
 // the snap infos and an SnapActionError.
+// Orthogonally and at the same time it can be used to fetch or update
+// assertions by passing an AssertionQuery whose ToResolve specifies
+// the assertions and revisions to consider.
 func (s *Store) SnapAction(ctx context.Context, currentSnaps []*CurrentSnap, actions []*SnapAction, assertQuery AssertionQuery, user *auth.UserState, opts *RefreshOptions) ([]SnapActionResult, []AssertionResult, error) {
 	if opts == nil {
 		opts = &RefreshOptions{}
