@@ -71,6 +71,23 @@ func (as *assertsSuite) TestTypeNames(c *C) {
 	})
 }
 
+func (as *assertsSuite) TestMaxSupportedFormats(c *C) {
+	snapDeclMaxFormat := asserts.SnapDeclarationType.MaxSupportedFormat()
+	// sanity
+	c.Check(snapDeclMaxFormat >= 4, Equals, true)
+	c.Check(asserts.MaxSupportedFormats(1), DeepEquals, map[string]int{
+		"snap-declaration": snapDeclMaxFormat,
+		"test-only":        1,
+	})
+
+	// all
+	maxFormats := asserts.MaxSupportedFormats(0)
+	c.Assert(maxFormats, HasLen, len(asserts.TypeNames()))
+	c.Check(maxFormats["test-only"], Equals, 1)
+	c.Check(maxFormats["test-only-2"], Equals, 0)
+	c.Check(maxFormats["snap-declaration"], Equals, snapDeclMaxFormat)
+}
+
 func (as *assertsSuite) TestSuggestFormat(c *C) {
 	fmtnum, err := asserts.SuggestFormat(asserts.Type("test-only-2"), nil, nil)
 	c.Assert(err, IsNil)

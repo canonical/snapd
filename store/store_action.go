@@ -156,9 +156,10 @@ type snapActionResult struct {
 }
 
 type snapActionRequest struct {
-	Context []*currentSnapV2JSON `json:"context"`
-	Actions []*snapActionJSON    `json:"actions"`
-	Fields  []string             `json:"fields"`
+	Context             []*currentSnapV2JSON `json:"context"`
+	Actions             []*snapActionJSON    `json:"actions"`
+	Fields              []string             `json:"fields"`
+	AssertionMaxFormats map[string]int       `json:"assertion-max-formats,omitempty"`
 }
 
 type snapActionResultList struct {
@@ -376,30 +377,34 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 
 	// assertions
 	i := len(actions)
-	for grp, ats := range toResolve {
-		aJSON := &snapActionJSON{
-			Action: "fetch-assertions",
-			Key:    string(grp),
-		}
-		aJSON.Assertions = make([]assertAtJSON, len(ats))
-		for j, at := range ats {
-			aJSON.Assertions[j].Type = at.Type.Name
-			aJSON.Assertions[j].PrimaryKey = at.PrimaryKey
-			rev := at.Revision
-			if rev != asserts.RevisionNotKnown {
-				aJSON.Assertions[j].IfNewerThan = &rev
+	var assertMaxFormats map[string]int
+	if len(toResolve) > 0 {
+		for grp, ats := range toResolve {
+			aJSON := &snapActionJSON{
+				Action: "fetch-assertions",
+				Key:    string(grp),
 			}
+			aJSON.Assertions = make([]assertAtJSON, len(ats))
+			for j, at := range ats {
+				aJSON.Assertions[j].Type = at.Type.Name
+				aJSON.Assertions[j].PrimaryKey = at.PrimaryKey
+				rev := at.Revision
+				if rev != asserts.RevisionNotKnown {
+					aJSON.Assertions[j].IfNewerThan = &rev
+				}
+			}
+			actionJSONs[i] = aJSON
+			i++
 		}
-		actionJSONs[i] = aJSON
-		i++
+		assertMaxFormats = asserts.MaxSupportedFormats(1)
 	}
 
 	// build input for the install/refresh endpoint
 	jsonData, err := json.Marshal(snapActionRequest{
-		Context: curSnapJSONs,
-		Actions: actionJSONs,
-		Fields:  snapActionFields,
-		// XXX assertion-max-formats
+		Context:             curSnapJSONs,
+		Actions:             actionJSONs,
+		Fields:              snapActionFields,
+		AssertionMaxFormats: assertMaxFormats,
 	})
 	if err != nil {
 		return nil, nil, err

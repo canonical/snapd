@@ -62,6 +62,8 @@ func (s *storeActionFetchAssertionsSuite) TestFetch(c *C) {
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
 			Actions []map[string]interface{} `json:"actions"`
+
+			AssertionMaxFormats map[string]int `json:"assertion-max-formats"`
 		}
 
 		err = json.Unmarshal(jsonReq, &req)
@@ -83,6 +85,8 @@ func (s *storeActionFetchAssertionsSuite) TestFetch(c *C) {
 			},
 		}
 		c.Assert(req.Actions[0], DeepEquals, expectedAction)
+
+		c.Assert(req.AssertionMaxFormats, DeepEquals, asserts.MaxSupportedFormats(1))
 
 		fmt.Fprintf(w, `{
   "results": [{
@@ -146,6 +150,8 @@ func (s *storeActionFetchAssertionsSuite) TestUpdateIfNewerThan(c *C) {
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
 			Actions []map[string]interface{} `json:"actions"`
+
+			AssertionMaxFormats map[string]int `json:"assertion-max-formats"`
 		}
 
 		err = json.Unmarshal(jsonReq, &req)
@@ -186,6 +192,8 @@ func (s *storeActionFetchAssertionsSuite) TestUpdateIfNewerThan(c *C) {
 			expectedActions = []map[string]interface{}{expectedAction2, expectedAction1}
 		}
 		c.Assert(req.Actions, DeepEquals, expectedActions)
+
+		c.Assert(req.AssertionMaxFormats, DeepEquals, asserts.MaxSupportedFormats(1))
 
 		fmt.Fprintf(w, `{
   "results": [{

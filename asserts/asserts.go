@@ -152,6 +152,24 @@ var formatAnalyzer = map[*AssertionType]func(headers map[string]interface{}, bod
 	SnapDeclarationType: snapDeclarationFormatAnalyze,
 }
 
+// MaxSupportedFormats returns a mapping between assertion type names
+// and corresponding max supported format if it is >= min. Typical
+// usage passes 1 or 0 for min.
+func MaxSupportedFormats(min int) (maxFormats map[string]int) {
+	if min == 0 {
+		maxFormats = make(map[string]int, len(typeRegistry))
+	} else {
+		maxFormats = make(map[string]int)
+	}
+	for name := range typeRegistry {
+		m := maxSupportedFormat[name]
+		if m >= min {
+			maxFormats[name] = m
+		}
+	}
+	return maxFormats
+}
+
 // SuggestFormat returns a minimum format that supports the features that would be used by an assertion with the given components.
 func SuggestFormat(assertType *AssertionType, headers map[string]interface{}, body []byte) (formatnum int, err error) {
 	analyzer := formatAnalyzer[assertType]
