@@ -21,11 +21,14 @@ package bootstrap
 
 import (
 	"fmt"
+	"os/exec"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/partition"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/secboot"
 )
 
@@ -238,18 +241,34 @@ func tpmSealKey(key partition.EncryptionKey, rkey partition.RecoveryKey, options
 	}
 	tpm.SetKernelCmdlines(kernelCmdlines)
 
-	// Provision the TPM as late as possible
-	// TODO:UC20: ideally we should ask the firmware to clear the TPM and then reboot
-	//            if the device has previously been provisioned, see
-	//            https://godoc.org/github.com/snapcore/secboot#RequestTPMClearUsingPPI
+	// Provision the TPM as late as possible. If the system is already provisioned we
+	// ask the firmware to clear the TPM in the next boot, and reboot the system.
 	if err := tpm.Provision(); err != nil {
-		return fmt.Errorf("cannot provision the TPM: %v", err)
+		logger.Noticef("cannot provision the TPM: %v", err)
+		logger.Noticef("submit a request to the firmware to clear the TPM on the next boot")
+		if err := secboot.RequestTPMClearInNextBoot(); err != nil {
+			return fmt.Errorf("cannot request to clear the TPM on the next boot: %v", err)
+		}
+		if err := systemReboot(); err != nil {
+			return fmt.Errorf("cannot reboot the system: %v", err)
+		}
+		// Return an error to stop installation after a reboot was requested
+		return fmt.Errorf("system reboot requested")
 	}
 
 	if err := tpm.Seal(key[:], options.KeyFile, options.PolicyUpdateDataFile); err != nil {
 		return fmt.Errorf("cannot seal and store encryption key: %v", err)
 	}
 
+	return nil
+}
+
+func systemReboot() error {
+	logger.Noticef("rebooting the system")
+	output, err := exec.Command("/sbin/reboot").CombinedOutput()
+	if err != nil {
+		osutil.OutputErr(output, err)
+	}
 	return nil
 }
 

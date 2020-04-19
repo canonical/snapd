@@ -35,6 +35,10 @@ const (
 	pinHandle = 0x01800000
 )
 
+func RequestTPMClearInNextBoot() error {
+	return sb.RequestTPMClearUsingPPI()
+}
+
 type tpmSupport struct {
 	// Connection to the TPM device
 	tconn *sb.TPMConnection
