@@ -60,6 +60,9 @@ type CurrentSnap struct {
 
 type AssertionQuery interface {
 	ToResolve() (map[asserts.Grouping][]*asserts.AtRevision, error)
+
+	AddError(e error, ref *asserts.Ref) error
+	AddGroupingError(e error, grouping asserts.Grouping) error
 }
 
 type currentSnapV2JSON struct {
@@ -134,6 +137,14 @@ type snapRelease struct {
 	Channel      string `json:"channel"`
 }
 
+type errorListEntry struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+	// for assertions
+	Type       string   `json:"type"`
+	PrimaryKey []string `json:"primary-key"`
+}
+
 type snapActionResult struct {
 	Result string `json:"result"`
 	// For snap
@@ -151,8 +162,9 @@ type snapActionResult struct {
 		} `json:"extra"`
 	} `json:"error"`
 	// For assertions
-	Key                 string   `json:"key"`
-	AssertionStreamURLs []string `json:"assertion-stream-urls"`
+	Key                 string           `json:"key"`
+	AssertionStreamURLs []string         `json:"assertion-stream-urls"`
+	ErrorList           []errorListEntry `json:"error-list"`
 }
 
 type snapActionRequest struct {
@@ -164,10 +176,7 @@ type snapActionRequest struct {
 
 type snapActionResultList struct {
 	Results   []*snapActionResult `json:"results"`
-	ErrorList []struct {
-		Code    string `json:"code"`
-		Message string `json:"message"`
-	} `json:"error-list"`
+	ErrorList []errorListEntry    `json:"error-list"`
 }
 
 var snapActionFields = jsonutil.StructFields((*storeSnap)(nil))
@@ -179,7 +188,8 @@ var snapActionFields = jsonutil.StructFields((*storeSnap)(nil))
 // the snap infos and an SnapActionError.
 // Orthogonally and at the same time it can be used to fetch or update
 // assertions by passing an AssertionQuery whose ToResolve specifies
-// the assertions and revisions to consider.
+// the assertions and revisions to consider. Assertion related errors
+// are reported via the AssertionQuery Add*Error methods.
 func (s *Store) SnapAction(ctx context.Context, currentSnaps []*CurrentSnap, actions []*SnapAction, assertQuery AssertionQuery, user *auth.UserState, opts *RefreshOptions) ([]SnapActionResult, []AssertionResult, error) {
 	if opts == nil {
 		opts = &RefreshOptions{}
@@ -456,11 +466,16 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 	var ars []AssertionResult
 	for _, res := range results.Results {
 		if res.Result == "fetch-assertions" {
+			if len(res.ErrorList) != 0 {
+				if err := reportFetchAssertionsError(res, assertQuery); err != nil {
+					return nil, nil, fmt.Errorf("internal error: %v", err)
+				}
+				continue
+			}
 			ars = append(ars, AssertionResult{
 				Grouping:   asserts.Grouping(res.Key),
 				StreamURLs: res.AssertionStreamURLs,
 			})
-			// XXX handle error-list
 			continue
 		}
 		if res.Result == "error" {
@@ -563,4 +578,48 @@ func findRev(needle snap.Revision, haystack []snap.Revision) bool {
 		}
 	}
 	return false
+}
+
+func reportFetchAssertionsError(res *snapActionResult, assertq AssertionQuery) error {
+	// prefer to report the most unexpected error
+	e := -1
+	errl := res.ErrorList
+	carryingRef := func(i int) bool {
+		aType := asserts.Type(errl[i].Type)
+		return aType != nil && len(errl[i].PrimaryKey) == len(aType.PrimaryKey)
+	}
+	for i, ent := range errl {
+		withRef := carryingRef(i)
+		if withRef && ent.Code == "not-found" {
+			if e == -1 {
+				e = i
+			}
+		} else if withRef {
+			if e == -1 || errl[e].Code == "not-found" {
+				e = i
+			}
+		} else {
+			if e == -1 || carryingRef(e) {
+				e = i
+			}
+		}
+	}
+	rep := errl[e]
+	if carryingRef(e) {
+		ref := &asserts.Ref{Type: asserts.Type(rep.Type), PrimaryKey: rep.PrimaryKey}
+		var err error
+		if rep.Code == "not-found" {
+			headers, _ := asserts.HeadersFromPrimaryKey(ref.Type, ref.PrimaryKey)
+			err = &asserts.NotFoundError{
+				Type:    ref.Type,
+				Headers: headers,
+			}
+
+		} else {
+			err = fmt.Errorf("%s", rep.Message)
+		}
+		return assertq.AddError(err, ref)
+	}
+
+	return assertq.AddGroupingError(fmt.Errorf("%s", rep.Message), asserts.Grouping(res.Key))
 }
