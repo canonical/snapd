@@ -444,10 +444,10 @@ var templateFooter = `
 }
 `
 
-// defaultCoreTemplateRules contains core* runtime-specific rules. In general,
+// defaultCoreRuntimeTemplateRules contains core* runtime-specific rules. In general,
 // binaries exposed here declare what the core runtime has historically been
 // expected to support.
-var defaultCoreTemplateRules = `
+var defaultCoreRuntimeTemplateRules = `
   # Default rules for core base runtimes
 
   # The base abstraction doesn't yet have this
@@ -610,11 +610,11 @@ var defaultCoreTemplateRules = `
   /{,usr/}sbin/chroot ixr,
 `
 
-// defaultTemplate contains the default apparmor template for core* bases. It
+// defaultCoreRuntimeTemplate contains the default apparmor template for core* bases. It
 // can be overridden for testing using MockTemplate().
-var defaultTemplate = templateCommon + defaultCoreTemplateRules + templateFooter
+var defaultCoreRuntimeTemplate = templateCommon + defaultCoreRuntimeTemplateRules + templateFooter
 
-// defaultBaseTemplateRules for non-core* bases. When a snap specifies an
+// defaultOtherBaseTemplateRules for non-core* bases. When a snap specifies an
 // alternative base to core*, it is allowed read-only access to all files
 // within the base, but all other accesses (eg, host file rules, signal, dbus,
 // unix, etc rules) should be the same as the default template.
@@ -622,7 +622,7 @@ var defaultTemplate = templateCommon + defaultCoreTemplateRules + templateFooter
 // For clarity and ease of maintenance, we will whitelist top-level directories
 // here instead of using glob rules (we can add more if specific bases
 // dictate).
-var defaultBaseTemplateRules = `
+var defaultOtherBaseTemplateRules = `
   # Default rules for non-core base runtimes
 
   # /bin and /sbin (/usr/{,local/}{s,bin} handled in /usr)
@@ -720,9 +720,9 @@ var defaultBaseTemplateRules = `
   /var/lib/extrausers[^/]** mrklix,
 `
 
-// defaultBaseTemplate contains the default apparmor template for non-core
+// defaultOtherBaseTemplate contains the default apparmor template for non-core
 // bases
-var defaultBaseTemplate = templateCommon + defaultBaseTemplateRules + templateFooter
+var defaultOtherBaseTemplate = templateCommon + defaultOtherBaseTemplateRules + templateFooter
 
 // Template for privilege drop and chown operations. The specific setuid,
 // setgid and chown operations are controlled via seccomp.

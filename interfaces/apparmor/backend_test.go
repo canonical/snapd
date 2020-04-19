@@ -657,7 +657,7 @@ func (s *backendSuite) TestRemovingSnapDoesntBreakSnapsWIthPrefixName(c *C) {
 	c.Check(err, IsNil)
 }
 
-func (s *backendSuite) TestDefaultTemplateOnlyUsed(c *C) {
+func (s *backendSuite) TestDefaultCoreRuntimesTemplateOnlyUsed(c *C) {
 	for _, base := range []string{
 		"",
 		"base: core16",
@@ -688,14 +688,14 @@ func (s *backendSuite) TestDefaultTemplateOnlyUsed(c *C) {
 			"owner @{PROC}/@{pid}/maps k,\n",
 			"/tmp/   r,\n",
 			"/sys/class/ r,\n",
-			// defaultTemplateRules
+			// defaultCoreRuntimeTemplateRules
 			"# Default rules for core base runtimes\n",
 			"/usr/share/terminfo/** k,\n",
 		} {
 			c.Assert(string(data), testutil.Contains, line)
 		}
 		for _, line := range []string{
-			// defaultBaseTemplateRules should not be present
+			// defaultOtherBaseTemplateRules should not be present
 			"# Default rules for non-core base runtimes\n",
 			"/{,s}bin/** mrklix,\n",
 		} {
@@ -727,14 +727,14 @@ func (s *backendSuite) TestBaseDefaultTemplateOnlyUsed(c *C) {
 		"owner @{PROC}/@{pid}/maps k,\n",
 		"/tmp/   r,\n",
 		"/sys/class/ r,\n",
-		// defaultBaseTemplateRules
+		// defaultOtherBaseTemplateRules
 		"# Default rules for non-core base runtimes\n",
 		"/{,s}bin/** mrklix,\n",
 	} {
 		c.Assert(string(data), testutil.Contains, line)
 	}
 	for _, line := range []string{
-		// defaultTemplateRules should not be present
+		// defaultCoreRuntimeTemplateRules should not be present
 		"# Default rules for core base runtimes\n",
 		"/usr/share/terminfo/** k,\n",
 		"/{,usr/}bin/arch ixr,\n",
@@ -823,7 +823,7 @@ func (s *backendSuite) TestTemplateRulesInCommon(c *C) {
 		c.Check(cf && cfv && co, Equals, false)
 	}
 
-	for _, raw := range strings.Split(apparmor.DefaultCoreTemplateRules, "\n") {
+	for _, raw := range strings.Split(apparmor.DefaultCoreRuntimeTemplateRules, "\n") {
 		line := strings.TrimLeft(raw, " \t")
 		cf := commonFiles.MatchString(line)
 		cfv := commonFilesVar.MatchString(line)
@@ -835,7 +835,7 @@ func (s *backendSuite) TestTemplateRulesInCommon(c *C) {
 		c.Check(res, Equals, false)
 	}
 
-	for _, raw := range strings.Split(apparmor.DefaultBaseTemplateRules, "\n") {
+	for _, raw := range strings.Split(apparmor.DefaultOtherBaseTemplateRules, "\n") {
 		line := strings.TrimLeft(raw, " \t")
 		cf := commonFiles.MatchString(line)
 		cfv := commonFilesVar.MatchString(line)

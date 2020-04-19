@@ -635,9 +635,9 @@ func addContent(securityTag string, snapInfo *snap.Info, cmdName string, opts in
 	// apparmor template, otherwise use the default template.
 	var policy string
 	if snapInfo.Base != "" && !coreRuntimePattern.MatchString(snapInfo.Base) {
-		policy = defaultBaseTemplate
+		policy = defaultOtherBaseTemplate
 	} else {
-		policy = defaultTemplate
+		policy = defaultCoreRuntimeTemplate
 	}
 
 	ignoreSnippets := false
