@@ -105,12 +105,11 @@ func isCreatedDuringInstall(p *sfdiskPartition, fs *lsblkBlockDevice, sfdiskLabe
 	case "dos":
 		// we have no similar type/bit attribute setting for MBR, on top
 		// of that MBR does not support partition names, fall back to
-		// reasonable assumption that partitions carrying a filesystem
-		// labeled "ubuntu-seed" are part of the factory image while
-		// everything else was created at install time
-		if fs.Label != ubuntuSeedLabel {
-			return true
-		}
+		// reasonable assumption that only partitions carrying
+		// ubuntu-boot and ubuntu-data labels are created during
+		// install, everything else was part of factory image
+		createdDuringInstall := []string{ubuntuBootLabel, ubuntuDataLabel}
+		return strutil.ListContains(createdDuringInstall, fs.Label)
 	}
 	return false
 }

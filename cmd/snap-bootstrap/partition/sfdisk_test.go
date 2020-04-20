@@ -678,7 +678,7 @@ EOF`)
 	dl, err := partition.DeviceLayoutFromPartitionTable(ptable)
 	c.Assert(err, IsNil)
 	list := partition.ListCreatedPartitions(dl)
-	c.Assert(list, DeepEquals, []string{"/dev/node2", "/dev/node3", "/dev/node4"})
+	c.Assert(list, DeepEquals, []string{"/dev/node2", "/dev/node4"})
 }
 
 func (s *partitionTestSuite) TestFilesystemInfo(c *C) {
