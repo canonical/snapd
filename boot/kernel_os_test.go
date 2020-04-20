@@ -188,7 +188,7 @@ func (s *bootenv20Suite) TestSetNextBoot20ForKernel(c *C) {
 	c.Assert(m2.CurrentKernels, DeepEquals, []string{s.kern1.Filename(), s.kern2.Filename()})
 }
 
-func (s *bootenv20LegacyKernelSuite) TestSetNextBoot20ForKernel(c *C) {
+func (s *bootenv20EnvRefKernelSuite) TestSetNextBoot20ForKernel(c *C) {
 	coreDev := boottest.MockUC20Device("pc-kernel")
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
@@ -285,7 +285,7 @@ func (s *bootenv20Suite) TestSetNextBoot20ForKernelForTheSameKernel(c *C) {
 	c.Assert(m2.CurrentKernels, DeepEquals, []string{s.kern1.Filename()})
 }
 
-func (s *bootenv20LegacyKernelSuite) TestSetNextBoot20ForKernelForTheSameKernel(c *C) {
+func (s *bootenv20EnvRefKernelSuite) TestSetNextBoot20ForKernelForTheSameKernel(c *C) {
 	coreDev := boottest.MockUC20Device("pc-kernel")
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
@@ -399,7 +399,7 @@ func (s *bootenv20Suite) TestSetNextBoot20ForKernelForTheSameKernelTryMode(c *C)
 	c.Assert(m2.CurrentKernels, DeepEquals, []string{s.kern1.Filename()})
 }
 
-func (s *bootenv20LegacyKernelSuite) TestSetNextBoot20ForKernelForTheSameKernelTryMode(c *C) {
+func (s *bootenv20EnvRefKernelSuite) TestSetNextBoot20ForKernelForTheSameKernelTryMode(c *C) {
 	coreDev := boottest.MockUC20Device("pc-kernel")
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 

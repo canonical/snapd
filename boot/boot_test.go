@@ -154,7 +154,7 @@ type bootenv20Suite struct {
 	bootloader *bootloadertest.MockExtractedRunKernelImageBootloader
 }
 
-type bootenv20LegacyKernelSuite struct {
+type bootenv20EnvRefKernelSuite struct {
 	baseBootenv20Suite
 
 	bootloader *bootloadertest.MockBootloader
@@ -163,7 +163,7 @@ type bootenv20LegacyKernelSuite struct {
 var defaultUC20BootEnv = map[string]string{"kernel_status": boot.DefaultStatus}
 
 var _ = Suite(&bootenv20Suite{})
-var _ = Suite(&bootenv20LegacyKernelSuite{})
+var _ = Suite(&bootenv20EnvRefKernelSuite{})
 
 func (s *bootenv20Suite) SetUpTest(c *C) {
 	s.baseBootenv20Suite.SetUpTest(c)
@@ -172,7 +172,7 @@ func (s *bootenv20Suite) SetUpTest(c *C) {
 	s.forceBootloader(s.bootloader)
 }
 
-func (s *bootenv20LegacyKernelSuite) SetUpTest(c *C) {
+func (s *bootenv20EnvRefKernelSuite) SetUpTest(c *C) {
 	s.baseBootenv20Suite.SetUpTest(c)
 
 	s.bootloader = bootloadertest.Mock("mock", c.MkDir())
@@ -398,7 +398,7 @@ func (s *bootenv20Suite) TestCurrentBoot20NameAndRevision(c *C) {
 
 // only difference between this test and TestCurrentBoot20NameAndRevision is the
 // base bootloader which doesn't support ExtractedRunKernelImageBootloader.
-func (s *bootenv20LegacyKernelSuite) TestCurrentBoot20NameAndRevision(c *C) {
+func (s *bootenv20EnvRefKernelSuite) TestCurrentBoot20NameAndRevision(c *C) {
 	coreDev := boottest.MockUC20Device("some-snap")
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
@@ -651,7 +651,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameKernelSnap(c *C) {
 	c.Assert(s.bootloader.SetBootVarsCalls, Equals, 0)
 }
 
-func (s *bootenv20LegacyKernelSuite) TestCoreParticipant20SetNextSameKernelSnap(c *C) {
+func (s *bootenv20EnvRefKernelSuite) TestCoreParticipant20SetNextSameKernelSnap(c *C) {
 	coreDev := boottest.MockUC20Device("pc-kernel")
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
@@ -730,7 +730,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewKernelSnap(c *C) {
 	c.Assert(m2.CurrentKernels, DeepEquals, []string{s.kern1.Filename(), s.kern2.Filename()})
 }
 
-func (s *bootenv20LegacyKernelSuite) TestCoreParticipant20SetNextNewKernelSnap(c *C) {
+func (s *bootenv20EnvRefKernelSuite) TestCoreParticipant20SetNextNewKernelSnap(c *C) {
 	coreDev := boottest.MockUC20Device("pc-kernel")
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
@@ -823,7 +823,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20KernelStatusTryingNoKernelSnapC
 	c.Assert(m2.CurrentKernels, DeepEquals, []string{s.kern1.Filename()})
 }
 
-func (s *bootenv20LegacyKernelSuite) TestMarkBootSuccessful20KernelStatusTryingNoKernelSnapCleansUp(c *C) {
+func (s *bootenv20EnvRefKernelSuite) TestMarkBootSuccessful20KernelStatusTryingNoKernelSnapCleansUp(c *C) {
 	coreDev := boottest.MockUC20Device("some-snap")
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
@@ -1076,7 +1076,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20AllSnap(c *C) {
 	c.Assert(nDisableTryCalls, Equals, 2)
 }
 
-func (s *bootenv20LegacyKernelSuite) TestMarkBootSuccessful20AllSnap(c *C) {
+func (s *bootenv20EnvRefKernelSuite) TestMarkBootSuccessful20AllSnap(c *C) {
 	coreDev := boottest.MockUC20Device("some-snap")
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
@@ -1229,7 +1229,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20KernelUpdate(c *C) {
 	c.Assert(nDisableTryCalls, Equals, 2)
 }
 
-func (s *bootenv20LegacyKernelSuite) TestMarkBootSuccessful20KernelUpdate(c *C) {
+func (s *bootenv20EnvRefKernelSuite) TestMarkBootSuccessful20KernelUpdate(c *C) {
 	// trying a kernel snap
 	m := &boot.Modeenv{
 		Mode:           "run",
