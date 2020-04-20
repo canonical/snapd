@@ -129,8 +129,8 @@ type DeviceLayout struct {
 type DeviceStructure struct {
 	gadget.LaidOutStructure
 
-	Node    string
-	Created bool
+	Node                 string
+	CreatedDuringInstall bool
 }
 
 // DeviceLayoutFromDisk obtains the partitioning and filesystem information from
@@ -195,7 +195,7 @@ func (dl *DeviceLayout) CreateMissing(pv *gadget.LaidOutVolume) ([]DeviceStructu
 func (dl *DeviceLayout) RemoveCreated() error {
 	indexes := make([]string, 0, len(dl.partitionTable.Partitions))
 	for i, s := range dl.Structure {
-		if s.Created {
+		if s.CreatedDuringInstall {
 			logger.Noticef("partition %s was created during previous install", s.Node)
 			indexes = append(indexes, strconv.Itoa(i+1))
 		}
@@ -332,20 +332,19 @@ func deviceLayoutFromPartitionTable(ptable sfdiskPartitionTable) (*DeviceLayout,
 				StartOffset:     gadget.Size(p.Start) * sectorSize,
 				Index:           i + 1,
 			},
-			Node:    p.Node,
-			Created: isCreatedDuringInstall(&p, &bd, ptable.Label),
+			Node:                 p.Node,
+			CreatedDuringInstall: isCreatedDuringInstall(&p, &bd, ptable.Label),
 		}
 	}
 
-	// if we don't have an LBA, we are probably on an MBR disk and need to
-	// calculate the size ourselves
-	// TODO:UC20: how/where/why/who/when to best do this ???
 	var numSectors gadget.Size
 	if ptable.LastLBA != 0 {
+		// sfdisk reports the last usable LBA for GPT disks only
 		numSectors = gadget.Size(ptable.LastLBA + 1)
 	} else {
-		// sfdisk reports last-lba for GPT partition tables, but not for
-		// MBR, find out the size the hard way
+		// sfdisk does not report any information about the side of a
+		// MBR partitioned disk, find out the size of the device by
+		// other means
 		sz, err := blockDeviceSizeInSectors(ptable.Device)
 		if err != nil {
 			return nil, fmt.Errorf("cannot obtain the size of device %q: %v", ptable.Device, err)
@@ -449,9 +448,9 @@ func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume) (sfdiskInput
 		}
 
 		toBeCreated = append(toBeCreated, DeviceStructure{
-			LaidOutStructure: p,
-			Node:             node,
-			Created:          true,
+			LaidOutStructure:     p,
+			Node:                 node,
+			CreatedDuringInstall: true,
 		})
 	}
 
@@ -463,7 +462,7 @@ func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume) (sfdiskInput
 func listCreatedPartitions(layout *DeviceLayout) []string {
 	created := make([]string, 0, len(layout.Structure))
 	for _, s := range layout.Structure {
-		if s.Created {
+		if s.CreatedDuringInstall {
 			created = append(created, s.Node)
 		}
 	}

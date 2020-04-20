@@ -298,8 +298,8 @@ exit 0`
 				StartOffset: 0x200000,
 				Index:       1,
 			},
-			Node:    "/dev/node1",
-			Created: false,
+			Node:                 "/dev/node1",
+			CreatedDuringInstall: false,
 		},
 		{
 			LaidOutStructure: gadget.LaidOutStructure{
@@ -312,8 +312,8 @@ exit 0`
 				StartOffset: 0x4b200000,
 				Index:       2,
 			},
-			Node:    "/dev/node2",
-			Created: true,
+			Node:                 "/dev/node2",
+			CreatedDuringInstall: true,
 		},
 		{
 			LaidOutStructure: gadget.LaidOutStructure{
@@ -326,8 +326,8 @@ exit 0`
 				StartOffset: 0x6b200000,
 				Index:       3,
 			},
-			Node:    "/dev/node3",
-			Created: true,
+			Node:                 "/dev/node3",
+			CreatedDuringInstall: true,
 		},
 	})
 }

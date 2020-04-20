@@ -167,15 +167,15 @@ func (s *bootstrapSuite) TestLayoutCompatibilityWithCreatedPartitions(c *C) {
 				},
 				StartOffset: 2 * gadget.SizeMiB,
 			},
-			Node:    "/dev/node3",
-			Created: true,
+			Node:                 "/dev/node3",
+			CreatedDuringInstall: true,
 		},
 	)
 	err := bootstrap.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &deviceLayout)
 	c.Assert(err, IsNil)
 
 	// compare layouts without partitions created at install time (should fail)
-	deviceLayout.Structure[len(deviceLayout.Structure)-1].Created = false
+	deviceLayout.Structure[len(deviceLayout.Structure)-1].CreatedDuringInstall = false
 	err = bootstrap.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &deviceLayout)
 	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node3.* in gadget`)
 

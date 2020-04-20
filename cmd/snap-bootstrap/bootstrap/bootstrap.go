@@ -263,7 +263,7 @@ func ensureLayoutCompatibility(gadgetLayout *gadget.LaidOutVolume, diskLayout *p
 			nameMatch = true
 		}
 		// Previous installation may have failed before filesystem creation or partition may be encrypted
-		check := nameMatch && ds.StartOffset == gs.StartOffset && (ds.Created || dv.Filesystem == gv.Filesystem)
+		check := nameMatch && ds.StartOffset == gs.StartOffset && (ds.CreatedDuringInstall || dv.Filesystem == gv.Filesystem)
 		if gv.Role == gadget.SystemData {
 			// system-data may have been expanded
 			return check && dv.Size >= gv.Size
