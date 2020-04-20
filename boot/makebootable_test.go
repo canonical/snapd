@@ -391,8 +391,6 @@ version: 5.0
 	mockSeedGrubenv := filepath.Join(mockSeedGrubDir, "grubenv")
 	c.Check(mockSeedGrubenv, testutil.FilePresent)
 	c.Check(mockSeedGrubenv, testutil.FileContains, "snapd_recovery_mode=run")
-	// TODO:UC20: update once we write the static UC20 kernels and stop
-	// using the UC16 bootmode
 	mockBootGrubenv := filepath.Join(mockBootGrubDir, "grubenv")
 	c.Check(mockBootGrubenv, testutil.FilePresent)
 
