@@ -108,6 +108,9 @@ func isCreatedDuringInstall(p *sfdiskPartition, fs *lsblkBlockDevice, sfdiskLabe
 		// reasonable assumption that only partitions carrying
 		// ubuntu-boot and ubuntu-data labels are created during
 		// install, everything else was part of factory image
+
+		// TODO:UC20 consider using gadget layout information to build a
+		// mapping of partition start offset to label/name
 		createdDuringInstall := []string{ubuntuBootLabel, ubuntuDataLabel}
 		return strutil.ListContains(createdDuringInstall, fs.Label)
 	}
@@ -342,7 +345,7 @@ func deviceLayoutFromPartitionTable(ptable sfdiskPartitionTable) (*DeviceLayout,
 		// sfdisk reports the last usable LBA for GPT disks only
 		numSectors = gadget.Size(ptable.LastLBA + 1)
 	} else {
-		// sfdisk does not report any information about the side of a
+		// sfdisk does not report any information about the size of a
 		// MBR partitioned disk, find out the size of the device by
 		// other means
 		sz, err := blockDeviceSizeInSectors(ptable.Device)
