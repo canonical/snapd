@@ -129,6 +129,8 @@ type RunBootenv20 struct {
 // MockUC20EnvRefExtractedKernelRunBootenv wraps a mock bootloader for UC20 run-mode boot
 // env manipulation.
 func MockUC20EnvRefExtractedKernelRunBootenv(b *bootloadertest.MockBootloader) *Bootenv16 {
+	// TODO:UC20: implement this w/o returning Bootenv16 because that doesn't
+	//            make a lot of sense to the caller
 	return &Bootenv16{
 		MockBootloader: b,
 		statusVar:      "kernel_status",
