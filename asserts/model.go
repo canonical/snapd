@@ -342,7 +342,7 @@ const (
 var validModelGrades = []string{string(ModelSecured), string(ModelSigned), string(ModelDangerous)}
 
 // gradeToCode encodes grades into 32 bits, trying to be slightly future-proof:
-// * lower 16 bits are reversed
+// * lower 16 bits are reserved
 // * in the higher bits use the sequence 1, 8, 16 to have some space
 //   to possibly add new grades in between
 var gradeToCode = map[ModelGrade]uint32{
@@ -352,7 +352,8 @@ var gradeToCode = map[ModelGrade]uint32{
 	ModelSecured:    0x100000,
 }
 
-// Code returns a bit representation of the grade.
+// Code returns a bit representation of the grade, for example for
+// measuring it in a full disk encryption implementation.
 func (mg ModelGrade) Code() uint32 {
 	code, ok := gradeToCode[mg]
 	if !ok {
