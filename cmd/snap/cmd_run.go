@@ -1166,10 +1166,21 @@ var createTransientScope = func(securityTag string) error {
 	// or as a regular user.
 	var conn *dbus.Conn
 	var err error
-	if osGetuid() == 0 {
+	if uid := osGetuid(); uid == 0 {
 		conn, err = dbusSystemBus()
 	} else {
 		conn, err = dbusSessionBus()
+		// XXX: Ideally we would check for a distinct error type but this is
+		// just an errors.New() in go-dbus code. To avoid being fragile ignore
+		// all errors when establishing session bus connection to avoid
+		// breaking user interactions. This is consistent with similar failure
+		// modes below, where other parts of the stack fail.
+		if err != nil {
+			logger.Debugf("user %d does not have a working DBus session bus", uid)
+			logger.Debugf("snapd cannot track the started application")
+			logger.Debugf("snap refreshes will not be postponed by this process")
+			return nil
+		}
 	}
 	if err != nil {
 		return err
