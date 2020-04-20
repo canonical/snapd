@@ -261,9 +261,10 @@ func (opts *DownloadOptions) String() string {
 	return strings.Join(spec, " ")
 }
 
-// DownloadSnap downloads the snap with the given name and optionally revision
-// using the provided store and options. It returns the final full path of the
-// snap inside the opts.TargetDir and a snap.Info for the snap.
+// DownloadSnap downloads the snap with the given name and optionally
+// revision using the provided store and options. It returns the final
+// full path of the snap and a snap.Info for it and optionally a
+// channel the snap got redirected to.
 func (tsto *ToolingStore) DownloadSnap(name string, opts DownloadOptions) (targetFn string, info *snap.Info, redirectChannel string, err error) {
 	if err := opts.validate(); err != nil {
 		return "", nil, "", err
