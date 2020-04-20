@@ -23,10 +23,13 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/partition"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/seed"
 )
 
 const (
@@ -238,6 +241,13 @@ func tpmSealKey(key partition.EncryptionKey, rkey partition.RecoveryKey, options
 	}
 	tpm.SetKernelCmdlines(kernelCmdlines)
 
+	model, err := getModel()
+	if err != nil {
+		return err
+	}
+
+	tpm.SetModels([]*asserts.Model{model})
+
 	// Provision the TPM as late as possible
 	// TODO:UC20: ideally we should ask the firmware to clear the TPM and then reboot
 	//            if the device has previously been provisioned, see
@@ -308,4 +318,28 @@ func isCompatibleSchema(gadgetSchema, diskSchema string) bool {
 	default:
 		return false
 	}
+}
+
+func getModel() (*asserts.Model, error) {
+	modeenv, err := boot.ReadModeenv("")
+	if err != nil {
+		return nil, fmt.Errorf("cannot read modeenv: %v", err)
+	}
+	sysLabel := modeenv.RecoverySystem
+
+	s, err := seed.Open(dirs.SnapSeedDir, sysLabel)
+	if err != nil {
+		return nil, fmt.Errorf("cannot open seed with label %q: %v", sysLabel, err)
+	}
+
+	if err := s.LoadAssertions(nil, nil); err != nil {
+		return nil, fmt.Errorf("cannot load assertions: %v", err)
+	}
+
+	model, err := s.Model()
+	if err != nil {
+		return nil, fmt.Errorf("cannot obtain model from seed: %v", err)
+	}
+
+	return model, nil
 }

@@ -28,6 +28,7 @@ import (
 	sb "github.com/snapcore/secboot"
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/testutil"
@@ -95,8 +96,10 @@ func (s *secbootTPMSuite) TestSeal(c *C) {
 	c.Assert(t.SetKernelFiles(kernel1, kernel2), IsNil)
 
 	cmdlines := []string{"cmdline1", "cmdline2"}
-
 	t.SetKernelCmdlines(cmdlines)
+
+	models := []*asserts.Model{&asserts.Model{}, &asserts.Model{}}
+	t.SetModels(models)
 
 	loadSequences := []*sb.EFIImageLoadEvent{
 		{
@@ -188,6 +191,16 @@ func (s *secbootTPMSuite) TestSeal(c *C) {
 		return nil
 	})
 	defer stubRestore()
+
+	modelRestore := secboot.MockSbAddSnapModelProfile(func(profile *sb.PCRProtectionProfile, params *sb.SnapModelProfileParams) error {
+		c.Assert(*params, DeepEquals, sb.SnapModelProfileParams{
+			PCRAlgorithm: tpm2.HashAlgorithmSHA256,
+			PCRIndex:     12,
+			Models:       models,
+		})
+		return nil
+	})
+	defer modelRestore()
 
 	sealRestore := secboot.MockSbSealKeyToTPM(func(tpm *sb.TPMConnection, key []byte, keyPath, policyUpdatePath string, params *sb.KeyCreationParams) error {
 		c.Assert(key, DeepEquals, myKey)
