@@ -56,8 +56,10 @@ func FindDeviceForStructure(ps *LaidOutStructure) (string, error) {
 			// default as the label
 			fsLabel = ps.Name
 		}
-		byFsLabel := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label/", encodeLabel(fsLabel))
-		candidates = append(candidates, byFsLabel)
+		if fsLabel != "" {
+			byFsLabel := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label/", encodeLabel(fsLabel))
+			candidates = append(candidates, byFsLabel)
+		}
 	}
 
 	var found string

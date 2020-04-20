@@ -222,8 +222,21 @@ func (d *deviceSuite) TestDeviceFindNotFoundEmpty(c *C) {
 	// neither name nor filesystem label set
 	found, err := gadget.FindDeviceForStructure(&gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
-			Name:  "",
+			Name: "",
+			// structure has no filesystem, fs label check is
+			// ineffective
 			Label: "",
+		},
+	})
+	c.Check(err, ErrorMatches, `device not found`)
+	c.Check(found, Equals, "")
+
+	// try with proper filesystem now
+	found, err = gadget.FindDeviceForStructure(&gadget.LaidOutStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Name:       "",
+			Label:      "",
+			Filesystem: "ext4",
 		},
 	})
 	c.Check(err, ErrorMatches, `device not found`)
