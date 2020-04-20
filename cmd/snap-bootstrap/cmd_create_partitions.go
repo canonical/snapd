@@ -41,10 +41,13 @@ func init() {
 }
 
 type cmdCreatePartitions struct {
-	Mount           bool   `short:"m" long:"mount" description:"Also mount filesystems after creation"`
-	Encrypt         bool   `long:"encrypt" description:"Encrypt the data partition"`
-	KeyFile         string `long:"key-file" value-name:"filename" description:"Where the key file will be stored"`
-	RecoveryKeyFile string `long:"recovery-key-file" value-name:"filename" description:"Where the recovery key file will be stored"`
+	Mount                bool   `short:"m" long:"mount" description:"Also mount filesystems after creation"`
+	Encrypt              bool   `long:"encrypt" description:"Encrypt the data partition"`
+	KeyFile              string `long:"key-file" value-name:"filename" description:"Where the key file will be stored"`
+	RecoveryKeyFile      string `long:"recovery-key-file" value-name:"filename" description:"Where the recovery key file will be stored"`
+	TPMLockoutAuthFile   string `long:"tpm-lockout-auth" value-name:"filename" descrition:"Where the TPM lockout authorization data file will be stored"`
+	PolicyUpdateDataFile string `long:"policy-update-data-file" value-name:"filename" description:"Where the authorization policy update data file will be stored"`
+	KernelPath           string `long:"kernel" value-name:"path" description:"Path to the kernel to be installed"`
 
 	Positional struct {
 		GadgetRoot string `positional-arg-name:"<gadget-root>"`
@@ -54,10 +57,13 @@ type cmdCreatePartitions struct {
 
 func (c *cmdCreatePartitions) Execute(args []string) error {
 	options := bootstrap.Options{
-		Mount:           c.Mount,
-		Encrypt:         c.Encrypt,
-		KeyFile:         c.KeyFile,
-		RecoveryKeyFile: c.RecoveryKeyFile,
+		Mount:                c.Mount,
+		Encrypt:              c.Encrypt,
+		KeyFile:              c.KeyFile,
+		RecoveryKeyFile:      c.RecoveryKeyFile,
+		TPMLockoutAuthFile:   c.TPMLockoutAuthFile,
+		PolicyUpdateDataFile: c.PolicyUpdateDataFile,
+		KernelPath:           c.KernelPath,
 	}
 
 	return bootstrapRun(c.Positional.GadgetRoot, c.Positional.Device, options)
