@@ -1019,7 +1019,13 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	// 2) Non-services are started inside systemd transient scopes. Scopes are
 	// a systemd unit type that are defined programmatically and are meant for
 	// groups of processes started and stopped by an _arbitrary process_ (ie,
-	// not systemd). Transient scopes allow launched snaps to integrate into
+	// not systemd). Systemd requires that each scope is given a unique
+	// name. We employ a scheme where random UUID is combined with the name
+	// of the security tag derived from snap application or hook name.
+	// Multiple concurrent invocations of "snap run" will use distinct
+	// UUIDs.
+	//
+	// Transient scopes allow launched snaps to integrate into
 	// the systemd design. See:
 	// https://www.freedesktop.org/wiki/Software/systemd/ControlGroupInterface/
 	//
