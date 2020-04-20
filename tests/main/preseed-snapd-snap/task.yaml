@@ -19,14 +19,14 @@ prepare: |
   . "$TESTSLIB/nested.sh"
   wget "$(get_image_url_for_nested_vm)" -O cloudimg.img
   mkdir -p "$IMAGE_MOUNTPOINT"
+  #shellcheck source=tests/lib/preseed.sh
+  . "$TESTSLIB/preseed.sh"
+  mount_ubuntu_image cloudimg.img "$IMAGE_MOUNTPOINT"
 
 restore: |
   #shellcheck source=tests/lib/preseed.sh
   . "$TESTSLIB/preseed.sh"
-
-  # any of the restore commands can fail depending on where execute part stopped,
-  # account for that with ||true.
-  umount_ubuntu_image "$IMAGE_MOUNTPOINT" || true
+  umount_ubuntu_image "$IMAGE_MOUNTPOINT"
 
 execute: |
   setup_preseeding_core18() {
@@ -46,9 +46,6 @@ execute: |
     cp "$CORE" "$SNAPD" "$SEEDS_DIR"/snaps/
   }
 
-  #shellcheck source=tests/lib/preseed.sh
-  . "$TESTSLIB/preseed.sh"
-  mount_ubuntu_image cloudimg.img "$IMAGE_MOUNTPOINT"
   setup_preseeding_core18 "$IMAGE_MOUNTPOINT"
 
   echo "Running pre-seeeding"
@@ -104,7 +101,3 @@ execute: |
   echo "Checking enabled systemd mount units"
   test -L "$SYSTEMD_UNITS"/system/multi-user.target.wants/snap-snapd-*.mount
   test -L "$SYSTEMD_UNITS"/system/multi-user.target.wants/snap-core18-*.mount
-
-  #shellcheck source=tests/lib/preseed.sh
-  . "$TESTSLIB/preseed.sh"
-  umount_ubuntu_image "$IMAGE_MOUNTPOINT"
