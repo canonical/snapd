@@ -366,13 +366,15 @@ func (s *cgroupSuite) TestPidsOfInstances(c *C) {
 func (s *cgroupSuite) TestPidsOfAggregation(c *C) {
 	// A single snap may be invoked by multiple users in different sessions.
 	// All of their PIDs are collected though.
-	s.writePids(c, "user.slice/user-1000.slice/user@1000.service/gnome-shell-wayland.service/snap.$RANDOM1.pkg.app.scope", []int{1})
-	s.writePids(c, "user.slice/user-1001.slice/user@1001.service/gnome-shell-wayland.service/snap.$RANDOM2.pkg.app.scope", []int{2})
+	s.writePids(c, "user.slice/user-1000.slice/user@1000.service/gnome-shell-wayland.service/snap.$RANDOM1.pkg.app.scope", []int{1})  // mock 1st invocation
+	s.writePids(c, "user.slice/user-1000.slice/user@1000.service/gnome-shell-wayland.service/snap.$RANDOM2.pkg.app.scope", []int{2})  // mock fork() by pid 1
+	s.writePids(c, "user.slice/user-1001.slice/user@1001.service/gnome-shell-wayland.service/snap.$RANDOM3.pkg.app.scope", []int{3})  // mock 2nd invocation
+	s.writePids(c, "user.slice/user-1001.slice/user@1001.service/gnome-shell-wayland.service/snap.$RANDOM4.pkg.app.scope", []int{4})  // mock fork() by pid 3
 
 	pids, err := cgroup.PidsOfSnap("pkg")
 	c.Assert(err, IsNil)
 	c.Check(pids, DeepEquals, map[string][]int{
-		"snap.pkg.app": {1, 2},
+		"snap.pkg.app": {1, 2, 3, 4},
 	})
 }
 
