@@ -379,7 +379,46 @@ func (s *ValidateSuite) TestValidateAppUserSocketsInvalidListenStreamPath(c *C) 
 	for _, invalidAddress := range invalidListenAddresses {
 		socket.ListenStream = invalidAddress
 		err := ValidateApp(app)
-		c.Assert(err, ErrorMatches, `invalid definition of socket "sock": invalid "listen-stream": user daemon sockets must have a prefix of .*`)
+		c.Check(err, ErrorMatches, `invalid definition of socket "sock": invalid "listen-stream": user daemon sockets must have a prefix of .*`)
+	}
+}
+
+func (s *ValidateSuite) TestValidateAppUserSocketsInvalidListenStreamAbstractSocket(c *C) {
+	app := createSampleApp()
+	app.DaemonScope = UserDaemon
+	invalidListenAddresses := []string{
+		"@snap.mysnap",
+		"@snap.mysnap\000.foo",
+		"@snap.notmysnap.my.socket",
+		"@some.other.name",
+		"@snap.myappiswrong.foo",
+	}
+	socket := app.Sockets["sock"]
+	for _, invalidAddress := range invalidListenAddresses {
+		socket.ListenStream = invalidAddress
+		err := ValidateApp(app)
+		c.Assert(err, ErrorMatches, `invalid definition of socket "sock": path for "listen-stream" must be prefixed with.*`)
+	}
+}
+
+func (s *ValidateSuite) TestValidateAppUserSocketsInvalidListenStreamPort(c *C) {
+	app := createSampleApp()
+	app.DaemonScope = UserDaemon
+	invalidListenAddresses := []string{
+		"0",
+		"66536",
+		"-8080",
+		"12312345345",
+		"[::]:-123",
+		"[::1]:3452345234",
+		"invalid",
+		"[::]:invalid",
+	}
+	socket := app.Sockets["sock"]
+	for _, invalidAddress := range invalidListenAddresses {
+		socket.ListenStream = invalidAddress
+		err := ValidateApp(app)
+		c.Check(err, ErrorMatches, `invalid definition of socket "sock": invalid "listen-stream" port number .*`)
 	}
 }
 
