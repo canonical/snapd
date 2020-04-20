@@ -1058,6 +1058,11 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	}
 }
 
+// doCreateTransientScope creates a systemd transient scope with specified properties.
+//
+// The scope is created by asking systemd via the specified DBus connection.
+// The unit name and the PID to attach are provided as well. The DBus method
+// call is performed outside confinement established by snap-confine.
 func doCreateTransientScope(conn *dbus.Conn, unitName string, pid int) error {
 	// The property and auxUnit types are not well documented but can be traced
 	// from systemd source code. Systemd defines the signature of
