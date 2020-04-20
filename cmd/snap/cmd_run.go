@@ -1095,11 +1095,6 @@ func doCreateTransientScope(conn *dbus.Conn, unitName string, pid int) error {
 		Props []property
 	}
 
-	// Enforcing uniqueness is preferred to reusing an existing scope
-	// simplicity since doing otherwise and joining an existing scope has
-	// limitations:
-	// - the originally started scope must be marked as a delegate, with all consequences.
-	// - the method AttachProcessesToUnit is unavailable on Ubuntu 16.04
 	mode := "fail"
 	properties := []property{{"PIDs", []uint{uint(pid)}}}
 	aux := []auxUnit(nil)
@@ -1186,10 +1181,11 @@ var createTransientScope = func(securityTag string) error {
 	if err != nil {
 		return err
 	}
-	// Instead of enforcing uniqueness we could join an existing scope but this has some limitations:
+	// Enforcing uniqueness is preferred to reusing an existing scope for
+	// simplicity since doing otherwise and joining an existing scope has
+	// limitations:
 	// - the originally started scope must be marked as a delegate, with all consequences.
 	// - the method AttachProcessesToUnit is unavailable on Ubuntu 16.04
-	//
 	// TODO: invert the arguments so that security tag comes first, UUID
 	// second. This will result in nicer scope names but needs to be
 	// coordinated with code in sandbox/cgroup and with the spread tests
