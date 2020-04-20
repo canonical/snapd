@@ -82,7 +82,7 @@ execute: |
     # invoking session-tool in the background will not be that of the invoked program
     # but rather of the monitoring helper process.
     session-tool -p /tmp/1.pid -u "$USER" snap run test-snapd-sh.sh -c 'touch /tmp/1.stamp && exec sleep 3m' &
-    pid1_session=$!
+    session1_pid=$!
     trap 'killall sleep || true' EXIT
     echo "Ensure that snap-confine has finished its task and that the snap process"
     echo "is active. Note that we don't want to wait forever either."
@@ -104,7 +104,7 @@ execute: |
     echo "Start a second process so that we can check each scope is independent."
     #shellcheck disable=SC2016
     session-tool -p /tmp/2.pid -u "$USER" snap run test-snapd-sh.sh -c 'touch /tmp/2.stamp && exec sleep 2m' &
-    pid2_session=$!
+    session2_pid=$!
     retry-tool -n 30 test -e /tmp/snap.test-snapd-sh/tmp/2.stamp
     pid2_sleep=$(cat /tmp/2.pid)
     pid2_tracking_cg_path="$(grep -E "^$base_cg_id:" < "/proc/$pid2_sleep/cgroup" | cut -d : -f 3)"
@@ -117,17 +117,17 @@ execute: |
     echo "When the process terminates, the control group it used to exist in is"
     echo "automatically removed by systemd, though perhaps not instantly"
     kill "$pid1_sleep"
-    wait "$pid1_session" || true  # wait returns the exit code and we kill the process
+    wait "$session1_pid" || true  # wait returns the exit code and we kill the process
     retry-tool -n 10 test ! -e "${base_cg_path}${pid1_tracking_cg_path}"
 
     kill "$pid2_sleep"
-    wait "$pid2_session" || true  # same as above
+    wait "$session2_pid" || true  # same as above
     retry-tool -n 10 test ! -e "${base_cg_path}${pid2_tracking_cg_path}"
 
     echo "If a snap command forks a child process it is also tracked."
     #shellcheck disable=SC2016
     session-tool -p /tmp/3.pid -u "$USER" snap run test-snapd-sh.sh -c 'touch /tmp/3.stamp && sleep 1m' &
-    pid3_session=$!
+    session3_pid=$!
     retry-tool -n 30 test -e /tmp/snap.test-snapd-sh/tmp/3.stamp
     pid3_sh=$(cat /tmp/3.pid)
     pid3_tracking_cg_path="$(grep -E "^$base_cg_id:" < "/proc/$pid3_sh/cgroup" | cut -d : -f 3)"
@@ -138,6 +138,6 @@ execute: |
     test "$(wc -l < "${base_cg_path}${pid3_tracking_cg_path}/cgroup.procs")" -eq 2
     kill "$pid3_sh"
     test "$(wc -l < "${base_cg_path}${pid3_tracking_cg_path}/cgroup.procs")" -eq 1
-    wait "$pid3_session" || true  # same as above
+    wait "$session3_pid" || true  # same as above
 
     retry-tool -n 10 test ! -e "${base_cg_path}${pid3_tracking_cg_path}"
