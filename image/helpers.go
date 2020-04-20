@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2017 Canonical Ltd
+ * Copyright (C) 2014-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -264,16 +264,16 @@ func (opts *DownloadOptions) String() string {
 // DownloadSnap downloads the snap with the given name and optionally revision
 // using the provided store and options. It returns the final full path of the
 // snap inside the opts.TargetDir and a snap.Info for the snap.
-func (tsto *ToolingStore) DownloadSnap(name string, opts DownloadOptions) (targetFn string, info *snap.Info, err error) {
+func (tsto *ToolingStore) DownloadSnap(name string, opts DownloadOptions) (targetFn string, info *snap.Info, redirectChannel string, err error) {
 	if err := opts.validate(); err != nil {
-		return "", nil, err
+		return "", nil, "", err
 	}
 	sto := tsto.sto
 
 	if opts.TargetPathFunc == nil && opts.TargetDir == "" {
 		pwd, err := os.Getwd()
 		if err != nil {
-			return "", nil, err
+			return "", nil, "", err
 		}
 		opts.TargetDir = pwd
 	}
@@ -296,9 +296,10 @@ func (tsto *ToolingStore) DownloadSnap(name string, opts DownloadOptions) (targe
 	sars, err := sto.SnapAction(context.TODO(), nil, actions, tsto.user, nil)
 	if err != nil {
 		// err will be 'cannot download snap "foo": <reasons>'
-		return "", nil, err
+		return "", nil, "", err
 	}
 	snap := sars[0].Info
+	redirectChannel = sars[0].RedirectChannel
 
 	if opts.TargetPathFunc == nil {
 		baseName := opts.Basename
@@ -312,7 +313,7 @@ func (tsto *ToolingStore) DownloadSnap(name string, opts DownloadOptions) (targe
 		var err error
 		targetFn, err = opts.TargetPathFunc(snap)
 		if err != nil {
-			return "", nil, err
+			return "", nil, "", err
 		}
 	}
 
@@ -321,7 +322,7 @@ func (tsto *ToolingStore) DownloadSnap(name string, opts DownloadOptions) (targe
 		sha3_384Dgst, size, err := osutil.FileDigest(targetFn, crypto.SHA3_384)
 		if err == nil && size == uint64(snap.DownloadInfo.Size) && fmt.Sprintf("%x", sha3_384Dgst) == snap.DownloadInfo.Sha3_384 {
 			logger.Debugf("not downloading, using existing file %s", targetFn)
-			return targetFn, snap, nil
+			return targetFn, snap, redirectChannel, nil
 		}
 		logger.Debugf("File exists but has wrong hash, ignoring (here).")
 	}
@@ -340,12 +341,12 @@ func (tsto *ToolingStore) DownloadSnap(name string, opts DownloadOptions) (targe
 
 	dlOpts := &store.DownloadOptions{LeavePartialOnError: opts.LeavePartialOnError}
 	if err = sto.Download(context.TODO(), name, targetFn, &snap.DownloadInfo, pb, tsto.user, dlOpts); err != nil {
-		return "", nil, err
+		return "", nil, "", err
 	}
 
 	signal.Reset(syscall.SIGINT)
 
-	return targetFn, snap, nil
+	return targetFn, snap, redirectChannel, nil
 }
 
 // AssertionFetcher creates an asserts.Fetcher for assertions against the given store using dlOpts for authorization, the fetcher will add assertions in the given database and after that also call save for each of them.
