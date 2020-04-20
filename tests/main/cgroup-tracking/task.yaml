@@ -89,7 +89,7 @@ execute: |
     retry-tool -n 30 test -e /tmp/snap.test-snapd-sh/tmp/1.stamp
     pid1_sleep=$(cat /tmp/1.pid)
 
-    echo "During startup snap-confine has asked systemd to move the process to a"
+    echo "During startup snap-run has asked systemd to move the process to a"
     echo "new transient scope. The scope name is \"snap.\$random.test-snapd-sh.sh\"."
     echo "Let's verify that."
     pid1_tracking_cg_path="$(grep -E "^$base_cg_id:" < "/proc/$pid1_sleep/cgroup" | cut -d : -f 3)"
