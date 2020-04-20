@@ -35,9 +35,12 @@ execute: |
     echo "Check that we booted with the rebuilt initramfs in the kernel snap"
     test -e /writable/system-data/the-tool-ran
 
-    echo "The recovery key is available"
-    test -e /var/lib/snapd/device/fde/recovery-key
-    echo "... and has the expected size"
-    test "$(stat --printf=%s /var/lib/snapd/device/fde/recovery-key)" = "16"
-    echo "... and has the expected owner and permissions"
-    test "$(stat --printf='%u:%g %a' /var/lib/snapd/device/fde/recovery-key)" = "0:0 600"
+    # TODO:UC20: move to the nested test
+    #if [ -e /dev/tpm0 ]; then
+    #    echo "The recovery key is available"
+    #    test -e /var/lib/snapd/device/fde/recovery-key
+    #    echo "... and has the expected size"
+    #    test "$(stat --printf=%s /var/lib/snapd/device/fde/recovery-key)" = "16"
+    #    echo "... and has the expected owner and permissions"
+    #    test "$(stat --printf='%u:%g %a' /var/lib/snapd/device/fde/recovery-key)" = "0:0 600"
+    #fi

@@ -729,7 +729,7 @@ WantedBy={{.ServicesTarget}}
 		KillSignal:   appInfo.StopMode.KillSignal(),
 
 		Before: genServiceNames(appInfo.Snap, appInfo.Before),
-		After:  genServiceNames(appInfo.Snap, appInfo.After),
+		After:  append(genServiceNames(appInfo.Snap, appInfo.After), "snapd.apparmor.service"),
 
 		// systemd runs as PID 1 so %h will not work.
 		Home: "/root",

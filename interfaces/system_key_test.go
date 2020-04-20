@@ -80,7 +80,11 @@ func (s *systemKeySuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
 }
 
-func (s *systemKeySuite) testInterfaceWriteSystemKey(c *C, nfsHome bool) {
+func (s *systemKeySuite) testInterfaceWriteSystemKey(c *C, nfsHome, overlayRoot bool) {
+	var overlay string
+	if overlayRoot {
+		overlay = "overlay"
+	}
 	restore := interfaces.MockIsHomeUsingNFS(func() (bool, error) { return nfsHome, nil })
 	defer restore()
 
@@ -88,6 +92,9 @@ func (s *systemKeySuite) testInterfaceWriteSystemKey(c *C, nfsHome bool) {
 		c.Assert(p, Equals, filepath.Join(dirs.DistroLibExecDir, "snapd"))
 		return s.buildID, nil
 	})
+	defer restore()
+
+	restore = interfaces.MockIsRootWritableOverlay(func() (string, error) { return overlay, nil })
 	defer restore()
 
 	restore = cgroup.MockVersion(1, nil)
@@ -122,8 +129,6 @@ func (s *systemKeySuite) testInterfaceWriteSystemKey(c *C, nfsHome bool) {
 	c.Assert(err, IsNil)
 	c.Assert(seccompCompilerVersion, Equals, s.seccompCompilerVersion)
 
-	overlayRoot, err := osutil.IsRootWritableOverlay()
-	c.Assert(err, IsNil)
 	c.Check(string(systemKey), testutil.EqualsWrapped, fmt.Sprintf(`{"version":%d,"build-id":"%s","apparmor-features":%s,"apparmor-parser-mtime":%s,"apparmor-parser-features":%s,"nfs-home":%v,"overlay-root":%q,"seccomp-features":%s,"seccomp-compiler-version":"%s","cgroup-version":"1"}`,
 		interfaces.SystemKeyVersion,
 		s.buildID,
@@ -131,18 +136,27 @@ func (s *systemKeySuite) testInterfaceWriteSystemKey(c *C, nfsHome bool) {
 		apparmorParserMtime,
 		apparmorParserFeaturesStr,
 		nfsHome,
-		overlayRoot,
+		overlay,
 		seccompActionsStr,
 		seccompCompilerVersion,
 	))
 }
 
 func (s *systemKeySuite) TestInterfaceWriteSystemKeyNoNFS(c *C) {
-	s.testInterfaceWriteSystemKey(c, false)
+	s.testInterfaceWriteSystemKey(c, false, false)
 }
 
 func (s *systemKeySuite) TestInterfaceWriteSystemKeyWithNFS(c *C) {
-	s.testInterfaceWriteSystemKey(c, true)
+	s.testInterfaceWriteSystemKey(c, true, false)
+}
+
+func (s *systemKeySuite) TestInterfaceWriteSystemKeyWithOverlayRoot(c *C) {
+	s.testInterfaceWriteSystemKey(c, false, true)
+}
+
+// bonus points to someone who actually runs this
+func (s *systemKeySuite) TestInterfaceWriteSystemKeyWithNFSWithOverlayRoot(c *C) {
+	s.testInterfaceWriteSystemKey(c, true, true)
 }
 
 func (s *systemKeySuite) TestInterfaceWriteSystemKeyErrorOnBuildID(c *C) {
