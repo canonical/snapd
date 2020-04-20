@@ -1090,7 +1090,9 @@ func doCreateTransientScope(conn *dbus.Conn, unitName string, pid int) error {
 		Props []property
 	}
 
-	// Instead of enforcing uniqueness we could join an existing scope but this has some limitations:
+	// Enforcing uniqueness is preferred to reusing an existing scope
+	// simplicity since doing otherwise and joining an existing scope has
+	// limitations:
 	// - the originally started scope must be marked as a delegate, with all consequences.
 	// - the method AttachProcessesToUnit is unavailable on Ubuntu 16.04
 	mode := "fail"
