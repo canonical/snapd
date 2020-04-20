@@ -326,6 +326,62 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2(c *C) {
 `, boot.InitramfsRunMntDir))
 }
 
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2LegacyKernelBootstate(c *C) {
+	n := 0
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
+		n++
+		switch n {
+		case 1:
+			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
+			return true, nil
+		case 2:
+			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
+			return true, nil
+		case 3:
+			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
+			return true, nil
+		case 4:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
+			return false, nil
+		case 5:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
+			return false, nil
+		case 6:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "snapd"))
+			return false, nil
+		}
+		return false, fmt.Errorf("unexpected number of calls: %v", n)
+	})
+	defer restore()
+
+	// write modeenv
+	modeEnv := boot.Modeenv{
+		RecoverySystem: "20191118",
+		Base:           "core20_123.snap",
+		CurrentKernels: []string{"pc-kernel_1.snap"},
+	}
+	err := modeEnv.WriteTo(boot.InitramfsWritableDir)
+	c.Assert(err, IsNil)
+
+	// mock a bootloader
+	bloader := boottest.MockUC20EnvRefExtractedKernelRunBootenv(bootloadertest.Mock("mock", c.MkDir()))
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	// set the current kernel
+	bloader.SetBootKernel("pc-kernel_1.snap")
+
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 6)
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/core20_123.snap %[1]s/base
+%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/pc-kernel_1.snap %[1]s/kernel
+%[1]s/ubuntu-seed/snaps/snapd_1.snap %[1]s/snapd
+`, boot.InitramfsRunMntDir))
+}
+
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2BaseSnapUpgradeFailsHappy(c *C) {
 	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
@@ -817,6 +873,236 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2KernelStatusTrying
 	c.Assert(err, IsNil)
 	r := bloader.SetRunKernelImageEnabledKernel(kernel)
 	defer r()
+
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+
+	// TODO:UC20: if we have somewhere to log errors from snap-bootstrap during
+	// the initramfs, check that log here
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 5)
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/pc-kernel_1.snap %[1]s/kernel
+`, boot.InitramfsRunMntDir))
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2LegacyKernelBootstateKernelSnapUpgradeHappy(c *C) {
+	n := 0
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
+		n++
+		switch n {
+		case 1:
+			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
+			return true, nil
+		case 2:
+			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
+			return true, nil
+		case 3:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsUbuntuDataDir))
+			return true, nil
+		case 4:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
+			return true, nil
+		case 5:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
+			return false, nil
+		}
+		return false, fmt.Errorf("unexpected number of calls: %v", n)
+	})
+	defer restore()
+
+	// write modeenv
+	modeEnv := &boot.Modeenv{
+		Base:           "core20_123.snap",
+		CurrentKernels: []string{"pc-kernel_1.snap", "pc-kernel_2.snap"},
+	}
+	err := modeEnv.WriteTo(boot.InitramfsWritableDir)
+	c.Assert(err, IsNil)
+
+	tryBaseSnap := filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), "core20_124.snap")
+	err = os.MkdirAll(filepath.Dir(tryBaseSnap), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(tryBaseSnap, []byte{0}, 0644)
+	c.Assert(err, IsNil)
+	defer os.Remove(tryBaseSnap)
+
+	// mock a bootloader
+	bloader := boottest.MockUC20EnvRefExtractedKernelRunBootenv(bootloadertest.Mock("mock", c.MkDir()))
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	bloader.BootVars["kernel_status"] = boot.TryingStatus
+
+	// set the current kernel and try kernel
+	bloader.SetBootKernel("pc-kernel_1.snap")
+	bloader.SetBootTryKernel("pc-kernel_2.snap")
+
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 5)
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/pc-kernel_2.snap %[1]s/kernel
+`, boot.InitramfsRunMntDir))
+}
+
+// TODO:UC20: in this case snap-bootstrap should request a reboot, since we
+//            already booted the try snap, so mounting the fallback kernel will
+//            not match in some cases
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2LegacyKernelBootstateUntrustedKernelSnap(c *C) {
+	n := 0
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
+		n++
+		switch n {
+		case 1:
+			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
+			return true, nil
+		case 2:
+			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
+			return true, nil
+		case 3:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsUbuntuDataDir))
+			return true, nil
+		case 4:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
+			return true, nil
+		case 5:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
+			return false, nil
+		}
+		return false, fmt.Errorf("unexpected number of calls: %v", n)
+	})
+	defer restore()
+
+	// write modeenv
+	modeEnv := boot.Modeenv{
+		Base:           "core20_123.snap",
+		CurrentKernels: []string{"pc-kernel_1.snap"},
+	}
+	err := modeEnv.WriteTo(boot.InitramfsWritableDir)
+	c.Assert(err, IsNil)
+
+	// mock a bootloader
+	bloader := boottest.MockUC20EnvRefExtractedKernelRunBootenv(bootloadertest.Mock("mock", c.MkDir()))
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	// set the current kernel as a kernel not in CurrentKernels
+	bloader.SetBootKernel("pc-kernel_2.snap")
+
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, ErrorMatches, fmt.Sprintf("fallback kernel snap %q is not trusted in the modeenv", "pc-kernel_2.snap"))
+	c.Assert(n, Equals, 5)
+}
+
+// TODO:UC20: in this case snap-bootstrap should request a reboot, since we
+//            already booted the try snap, so mounting the fallback kernel will
+//            not match in some cases
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2LegacyKernelBootstateUntrustedTryKernelSnapFallsBack(c *C) {
+	n := 0
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
+		n++
+		switch n {
+		case 1:
+			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
+			return true, nil
+		case 2:
+			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
+			return true, nil
+		case 3:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsUbuntuDataDir))
+			return true, nil
+		case 4:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
+			return true, nil
+		case 5:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
+			return false, nil
+		}
+		return false, fmt.Errorf("unexpected number of calls: %v", n)
+	})
+	defer restore()
+
+	// write modeenv
+	modeEnv := boot.Modeenv{
+		Base:           "core20_123.snap",
+		CurrentKernels: []string{"pc-kernel_1.snap"},
+	}
+	err := modeEnv.WriteTo(boot.InitramfsWritableDir)
+	c.Assert(err, IsNil)
+
+	// mock a bootloader
+	bloader := boottest.MockUC20EnvRefExtractedKernelRunBootenv(bootloadertest.Mock("mock", c.MkDir()))
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	// set the try kernel as a kernel not in CurrentKernels
+	bloader.SetBootTryKernel("pc-kernel_2.snap")
+
+	// set the normal kernel as a valid kernel
+	bloader.SetBootKernel("pc-kernel_1.snap")
+
+	bloader.BootVars["kernel_status"] = boot.TryingStatus
+
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+
+	// TODO:UC20: if we have somewhere to log errors from snap-bootstrap during
+	// the initramfs, check that log here
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 5)
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/pc-kernel_1.snap %[1]s/kernel
+`, boot.InitramfsRunMntDir))
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2LegacyKernelBootstateKernelStatusTryingNoTryKernel(c *C) {
+	n := 0
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
+		n++
+		switch n {
+		case 1:
+			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
+			return true, nil
+		case 2:
+			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
+			return true, nil
+		case 3:
+			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
+			return true, nil
+		case 4:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
+			return true, nil
+		case 5:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
+			return false, nil
+		}
+		return false, fmt.Errorf("unexpected number of calls: %v", n)
+	})
+	defer restore()
+
+	// write modeenv
+	modeEnv := boot.Modeenv{
+		Base:           "core20_123.snap",
+		CurrentKernels: []string{"pc-kernel_1.snap"},
+	}
+	err := modeEnv.WriteTo(boot.InitramfsWritableDir)
+	c.Assert(err, IsNil)
+
+	// mock a bootloader
+	bloader := boottest.MockUC20EnvRefExtractedKernelRunBootenv(bootloadertest.Mock("mock", c.MkDir()))
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	// we are in trying mode, but don't set a try-kernel so we fallback to the
+	// fallback kernel
+	err = bloader.SetBootVars(map[string]string{"kernel_status": boot.TryingStatus})
+	c.Assert(err, IsNil)
+
+	// set the normal kernel as a valid kernel
+	bloader.SetBootKernel("pc-kernel_1.snap")
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 
