@@ -210,7 +210,7 @@ func validateSocketAddrPath(socket *SocketInfo, fieldName string, path string) e
 				"invalid %q: user daemon sockets must have a prefix of $SNAP_USER_DATA, $SNAP_USER_COMMON, or $XDG_RUNTIME_DIR", fieldName)
 		}
 	default:
-		panic("unknown snap.DaemonScope")
+		return fmt.Errorf("invalid %q: cannot validate sockets for daemon-scope %q", fieldName, socket.App.DaemonScope)
 	}
 
 	return nil

@@ -192,7 +192,6 @@ func StartServices(apps []*snap.AppInfo, inter interacter, tm timings.Measurer) 
 			if isEnabled {
 				switch app.DaemonScope {
 				case snap.SystemDaemon:
-
 					systemServices = append(systemServices, app.ServiceName())
 				case snap.UserDaemon:
 					userServices = append(userServices, app.ServiceName())
@@ -621,7 +620,9 @@ Requires={{.MountUnit}}
 {{- if .PrerequisiteTarget}}
 Wants={{.PrerequisiteTarget}}
 {{- end}}
-After={{with .MountUnit}}{{.}} {{end}}{{with .PrerequisiteTarget}}{{.}}{{end}}{{if .After}} {{ stringsJoin .After " " }}{{end}}
+{{- if .After}}
+After={{ stringsJoin .After " " }}
+{{- end}}
 {{- if .Before}}
 Before={{ stringsJoin .Before " "}}
 {{- end}}
@@ -729,7 +730,7 @@ WantedBy={{.ServicesTarget}}
 		KillSignal:   appInfo.StopMode.KillSignal(),
 
 		Before: genServiceNames(appInfo.Snap, appInfo.Before),
-		After:  append(genServiceNames(appInfo.Snap, appInfo.After), "snapd.apparmor.service"),
+		After:  genServiceNames(appInfo.Snap, appInfo.After),
 
 		// systemd runs as PID 1 so %h will not work.
 		Home: "/root",
@@ -740,6 +741,7 @@ WantedBy={{.ServicesTarget}}
 		wrapperData.PrerequisiteTarget = systemd.PrerequisiteTarget
 		wrapperData.MountUnit = filepath.Base(systemd.MountUnitPath(appInfo.Snap.MountDir()))
 		wrapperData.WorkingDir = appInfo.Snap.DataDir()
+		wrapperData.After = append(wrapperData.After, "snapd.apparmor.service")
 	case snap.UserDaemon:
 		wrapperData.ServicesTarget = systemd.UserServicesTarget
 		// FIXME: ideally use UserDataDir("%h"), but then the
@@ -747,6 +749,14 @@ WantedBy={{.ServicesTarget}}
 		wrapperData.WorkingDir = appInfo.Snap.DataDir()
 	default:
 		panic("unknown snap.DaemonScope")
+	}
+
+	// Add extra "After" targets
+	if wrapperData.PrerequisiteTarget != "" {
+		wrapperData.After = append([]string{wrapperData.PrerequisiteTarget}, wrapperData.After...)
+	}
+	if wrapperData.MountUnit != "" {
+		wrapperData.After = append([]string{wrapperData.MountUnit}, wrapperData.After...)
 	}
 
 	if err := t.Execute(&templateOut, wrapperData); err != nil {

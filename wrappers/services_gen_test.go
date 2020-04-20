@@ -71,7 +71,6 @@ WantedBy=multi-user.target
 const expectedUserServiceFmt = `[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application snap.app
-After=
 X-Snappy=yes
 
 [Service]
