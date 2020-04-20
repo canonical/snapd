@@ -21,7 +21,7 @@ prepare: |
     if [ "$USER" = test ]; then
         case "$SPREAD_SYSTEM" in
             ubuntu-14.04-*|ubuntu-16.04-*|ubuntu-18.04)
-                apt-get install dbus-user-session
+                apt-get install -y dbus-user-session
                 ;;
         esac
     fi
@@ -33,7 +33,7 @@ restore: |
     if [ "$USER" = test ]; then
         case "$SPREAD_SYSTEM" in
             ubuntu-14.04-*|ubuntu-16.04-*|ubuntu-18.04)
-                apt-get remove dbus-user-session
+                apt-get remove -y dbus-user-session
                 ;;
         esac
     fi
