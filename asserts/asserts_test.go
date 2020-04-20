@@ -65,8 +65,10 @@ func (as *assertsSuite) TestTypeNames(c *C) {
 		"system-user",
 		"test-only",
 		"test-only-2",
+		"test-only-decl",
 		"test-only-no-authority",
 		"test-only-no-authority-pk",
+		"test-only-rev",
 		"validation",
 	})
 }
