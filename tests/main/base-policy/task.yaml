@@ -4,15 +4,14 @@ prepare: |
     echo "Given basic snaps are installed"
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
+    install_local test-snapd-sh-no-base
+    install_local test-snapd-sh-core18
 
     # test-snapd-core18 is only available on amd64
     if [ "$(uname -p)" = "x86_64" ]; then
         snap install test-snapd-core18
+        install_local test-snapd-sh-other18
     fi
-
-    install_local test-snapd-sh-no-base
-    install_local test-snapd-sh-core18
-    install_local test-snapd-sh-other18
 
 execute: |
     # technically only apparmor file mediation is needed but strict is what
