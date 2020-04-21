@@ -244,11 +244,11 @@ func (s *seed20) loadAuxInfos() error {
 	return nil
 }
 
-type NoSnapDeclarationError struct {
+type noSnapDeclarationError struct {
 	snapRef naming.SnapRef
 }
 
-func (e *NoSnapDeclarationError) Error() string {
+func (e *noSnapDeclarationError) Error() string {
 	snapID := e.snapRef.ID()
 	if snapID != "" {
 		return fmt.Sprintf("cannot find snap-declaration for snap-id: %s", snapID)
@@ -261,7 +261,7 @@ func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef, snapsDir string)
 	if snapID != "" {
 		snapDecl = s.snapDeclsByID[snapID]
 		if snapDecl == nil {
-			return "", nil, nil, &NoSnapDeclarationError{snapRef}
+			return "", nil, nil, &noSnapDeclarationError{snapRef}
 		}
 	} else {
 		if s.model.Grade() != asserts.ModelDangerous {
@@ -270,7 +270,7 @@ func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef, snapsDir string)
 		snapName := snapRef.SnapName()
 		snapDecl = s.snapDeclsByName[snapName]
 		if snapDecl == nil {
-			return "", nil, nil, &NoSnapDeclarationError{snapRef}
+			return "", nil, nil, &noSnapDeclarationError{snapRef}
 		}
 		snapID = snapDecl.SnapID()
 	}
@@ -455,7 +455,7 @@ func (s *seed20) loadModelMeta(filterEssential func(*asserts.ModelSnap) bool, tm
 			if err == errFiltered {
 				continue
 			}
-			if _, ok := err.(*NoSnapDeclarationError); ok && modelSnap.Presence == "optional" {
+			if _, ok := err.(*noSnapDeclarationError); ok && modelSnap.Presence == "optional" {
 				// skipped optional snap is ok
 				continue
 			}
