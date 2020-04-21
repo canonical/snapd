@@ -205,29 +205,29 @@ func (s *bootenv20Suite) TestHappyMarkBootSuccessful20KernelUpgradeUnexpectedReb
 		{
 			"",                        // don't do any reboots for the happy path
 			s.kern2,                   // we should boot the new kernel
-			[]snap.PlaceInfo{s.kern2}, // expected kernel is new one
-			s.kern2,                   // the expected kernel is the new one
+			[]snap.PlaceInfo{s.kern2}, // expected modeenv kernel is new one
+			s.kern2,                   // after reboot, current kernel on bl is new one
 			"happy path",
 		},
 		{
 			"SetBootVars",             // reboot right before SetBootVars
 			s.kern1,                   // we should boot the old kernel
-			[]snap.PlaceInfo{s.kern1}, // expected kernel is old one
-			s.kern1,                   // the expected kernel is the old one
+			[]snap.PlaceInfo{s.kern1}, // expected modeenv kernel is old one
+			s.kern1,                   // after reboot, current kernel on bl is old one
 			"reboot before SetBootVars results in old kernel",
 		},
 		{
 			"EnableKernel",            // reboot right before EnableKernel
 			s.kern1,                   // we should boot the old kernel
-			[]snap.PlaceInfo{s.kern1}, // expected kernel is old one
-			s.kern1,                   // the expected kernel is the old one
+			[]snap.PlaceInfo{s.kern1}, // expected modeenv kernel is old one
+			s.kern1,                   // after reboot, current kernel on bl is old one
 			"reboot before EnableKernel results in old kernel",
 		},
 		{
 			"DisableTryKernel",        // reboot right before DisableTryKernel
 			s.kern2,                   // we should boot the new kernel
-			[]snap.PlaceInfo{s.kern2}, // expected kernel is new one
-			s.kern2,                   // the expected kernel is the new one
+			[]snap.PlaceInfo{s.kern2}, // expected modeenv kernel is new one
+			s.kern2,                   // after reboot, current kernel on bl is new one
 			"reboot before DisableTryKernel results in new kernel",
 		},
 	}
@@ -269,22 +269,22 @@ func (s *bootenv20Suite) TestHappySetNextBoot20KernelUpgradeUnexpectedReboots(c 
 		{
 			"",                        // don't do any reboots for the happy path
 			s.kern2,                   // we should boot the new kernel
-			[]snap.PlaceInfo{s.kern2}, // expected kernel is new one
-			s.kern1,                   // the expected kernel is the old one
+			[]snap.PlaceInfo{s.kern2}, // final expected modeenv kernel is new one
+			s.kern1,                   // after reboot, current kernel on bl is old one
 			"happy path",
 		},
 		{
 			"EnableTryKernel",         // reboot right before EnableTryKernel
 			s.kern1,                   // we should boot the old kernel
-			[]snap.PlaceInfo{s.kern1}, // expected kernel is old one
-			s.kern1,                   // the expected kernel is the old one
+			[]snap.PlaceInfo{s.kern1}, // final expected modeenv kernel is old one
+			s.kern1,                   // after reboot, current kernel on bl is old one
 			"reboot before EnableTryKernel results in old kernel",
 		},
 		{
 			"SetBootVars",             // reboot right before SetBootVars
 			s.kern1,                   // we should boot the old kernel
-			[]snap.PlaceInfo{s.kern1}, // expected kernel is old one
-			s.kern1,                   // the expected kernel is the old one
+			[]snap.PlaceInfo{s.kern1}, // final expected modeenv kernel is old one
+			s.kern1,                   // after reboot, current kernel on bl is old one
 			"reboot before SetBootVars results in old kernel",
 		},
 	}
