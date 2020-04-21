@@ -12,7 +12,6 @@ prepare: |
     rm -f "$GADGET_SNAP"
 
     cat defaults.yaml >> squashfs-root/meta/gadget.yaml
-    cat plugs.yaml >> squashfs-root/meta/snap.yaml
 
     mkdir -p squashfs-root/meta/hooks
     cp install squashfs-root/meta/hooks/
@@ -20,7 +19,38 @@ prepare: |
     rm -rf squashfs-root
     mv "$GADGET_SNAP" extra-snaps/
 
+    # XXX: pc-kernel initrd fix
+    snap download --channel=18/stable pc-kernel
+    KERNEL_SNAP=$(ls pc-kernel_*.snap)
+    unsquashfs -no-progress "$KERNEL_SNAP"
+    unmkinitramfs squashfs-root/initrd.img initrd-tmp
+    cp ubuntu-core-rootfs initrd-tmp/main/scripts/
+    cd initrd-tmp/early
+    find . | cpio -H newc -o > ../../initrd-new.img
+    cd ../main
+    find . | cpio -H newc -o |gzip -c >> ../../initrd-new.img
+    cd ../..
+    mv initrd-new.img squashfs-root/initrd.img
+    rm -f "$KERNEL_SNAP"
+    mksquashfs squashfs-root "$KERNEL_SNAP" -comp xz -no-fragments -no-progress
+    rm -rf squashfs-root
+    mv "$KERNEL_SNAP" extra-snaps/
+
     create_nested_core_vm false
+
+    # Modify seed to use devmode for pc gadget snap. This is needed for the
+    # install hook to have access to /etc/systemd. Ideally we would use
+    # system-files plug, but it wouldn't get autoconnected due to assertions. 
+    IMAGE_PATH="$(get_nested_core_image_path)"
+    loops=$(kpartx -avs "$(get_nested_core_image_path)"  | cut -d' ' -f 3)
+    part=$(echo "$loops" | tail -1)
+    tmp=$(mktemp -d)
+    mount "/dev/mapper/$part" "$tmp"
+    sed -i "$tmp/system-data/var/lib/snapd/seed/seed.yaml" -E -e 's/^(\s+)file: pc_x1.snap/\1file: pc_x1.snap\n\1devmode: true\n/'
+    umount "$tmp"
+    kpartx -d "$(get_nested_core_image_path)"
+    rmdir "$tmp"
+
     start_nested_core_vm
 
 kill-timeout: 40m
@@ -44,4 +74,4 @@ execute: |
 
     echo "Test that rsyslog was disabled early"
     execute_remote "cat /var/snap/pc/common/debug.txt" | MATCH "/dev/null"
-    
+    execute_remote "test -L /etc/systemd/system/rsyslog.service"

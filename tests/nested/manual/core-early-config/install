@@ -1,3 +1,2 @@
 #!/bin/sh
-
-readlink /etc/systemd/system/rsyslog.service 2>&1 > $SNAP_COMMON/debug.txt
+readlink /etc/systemd/system/rsyslog.service 2>&1 >> $SNAP_COMMON/debug.txt || true
