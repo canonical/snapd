@@ -29,13 +29,9 @@ import (
 // encoding. Convenient for use together with efi.MockVars.
 func UTF16Bytes(s string) []byte {
 	r16 := utf16.Encode(bytes.Runes([]byte(s)))
-	b := make([]byte, (len(r16)+1)*2)
-	i := 0
-	for _, r := range r16 {
-		binary.LittleEndian.PutUint16(b[i:], r)
-		i += 2
-	}
+	b := bytes.NewBuffer(make([]byte, 0, (len(r16)+1)*2))
+	binary.Write(b, binary.LittleEndian, r16)
 	// zero termination
-	binary.LittleEndian.PutUint16(b[i:], 0)
-	return b
+	binary.Write(b, binary.LittleEndian, uint16(0))
+	return b.Bytes()
 }
