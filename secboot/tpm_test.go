@@ -98,7 +98,7 @@ func (s *secbootTPMSuite) TestSeal(c *C) {
 	cmdlines := []string{"cmdline1", "cmdline2"}
 	t.SetKernelCmdlines(cmdlines)
 
-	models := []*asserts.Model{&asserts.Model{}, &asserts.Model{}}
+	models := []*asserts.Model{{}, {}}
 	t.SetModels(models)
 
 	loadSequences := []*sb.EFIImageLoadEvent{

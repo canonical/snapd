@@ -70,6 +70,7 @@ func (s *cmdSuite) TestCreatePartitionsWithEncryption(c *C) {
 		c.Check(opts.TPMLockoutAuthFile, Equals, "lockout")
 		c.Check(opts.PolicyUpdateDataFile, Equals, "update")
 		c.Check(opts.KernelPath, Equals, "kernel")
+		c.Check(opts.SystemLabel, Equals, "20041020")
 		n++
 		return nil
 	})
@@ -83,6 +84,7 @@ func (s *cmdSuite) TestCreatePartitionsWithEncryption(c *C) {
 		"--tpm-lockout-auth", "lockout",
 		"--policy-update-data-file", "update",
 		"--kernel", "kernel",
+		"--system-label", "20041020",
 		"gadget-dir",
 		"device",
 	})

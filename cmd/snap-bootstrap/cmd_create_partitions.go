@@ -48,6 +48,7 @@ type cmdCreatePartitions struct {
 	TPMLockoutAuthFile   string `long:"tpm-lockout-auth" value-name:"filename" descrition:"Where the TPM lockout authorization data file will be stored"`
 	PolicyUpdateDataFile string `long:"policy-update-data-file" value-name:"filename" description:"Where the authorization policy update data file will be stored"`
 	KernelPath           string `long:"kernel" value-name:"path" description:"Path to the kernel to be installed"`
+	SystemLabel          string `long:"system-label" value-name:"label" description:"The label of the system to be installed"`
 
 	Positional struct {
 		GadgetRoot string `positional-arg-name:"<gadget-root>"`
@@ -64,6 +65,7 @@ func (c *cmdCreatePartitions) Execute(args []string) error {
 		TPMLockoutAuthFile:   c.TPMLockoutAuthFile,
 		PolicyUpdateDataFile: c.PolicyUpdateDataFile,
 		KernelPath:           c.KernelPath,
+		SystemLabel:          c.SystemLabel,
 	}
 
 	return bootstrapRun(c.Positional.GadgetRoot, c.Positional.Device, options)

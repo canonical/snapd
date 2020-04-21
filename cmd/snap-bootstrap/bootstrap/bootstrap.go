@@ -51,6 +51,8 @@ type Options struct {
 	PolicyUpdateDataFile string
 	// KernelPath is the path to the kernel to seal the keyfile to
 	KernelPath string
+	// SystemLabel is the label of the system to be installed
+	SystemLabel string
 }
 
 func deviceFromRole(lv *gadget.LaidOutVolume, role string) (device string, err error) {
@@ -241,7 +243,7 @@ func tpmSealKey(key partition.EncryptionKey, rkey partition.RecoveryKey, options
 	}
 	tpm.SetKernelCmdlines(kernelCmdlines)
 
-	model, err := getModel()
+	model, err := getModel(options.SystemLabel)
 	if err != nil {
 		return err
 	}
@@ -320,13 +322,7 @@ func isCompatibleSchema(gadgetSchema, diskSchema string) bool {
 	}
 }
 
-func getModel() (*asserts.Model, error) {
-	modeenv, err := boot.ReadModeenv("")
-	if err != nil {
-		return nil, fmt.Errorf("cannot read modeenv: %v", err)
-	}
-	sysLabel := modeenv.RecoverySystem
-
+func getModel(sysLabel string) (*asserts.Model, error) {
 	s, err := seed.Open(dirs.SnapSeedDir, sysLabel)
 	if err != nil {
 		return nil, fmt.Errorf("cannot open seed with label %q: %v", sysLabel, err)
