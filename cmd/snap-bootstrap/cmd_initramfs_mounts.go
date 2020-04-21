@@ -402,49 +402,68 @@ func generateMountsModeRun() error {
 			return fmt.Errorf("internal error: cannot find run system bootloader: %v", err)
 		}
 
-		// make sure it supports extracted run kernel images, as we have to find the
-		// extracted run kernel image
+		var kern, tryKern snap.PlaceInfo
+		var kernStatus string
+
 		ebl, ok := bl.(bootloader.ExtractedRunKernelImageBootloader)
-		if !ok {
-			return fmt.Errorf("cannot use %s bootloader: does not support extracted run kernel images", bl.Name())
+		if ok {
+			// use ebl methods
+			kern, err = ebl.Kernel()
+			if err != nil {
+				return fmt.Errorf("no fallback kernel snap: %v", err)
+			}
+
+			tryKern, err = ebl.TryKernel()
+			if err != nil && err != bootloader.ErrNoTryKernelRef {
+				return err
+			}
+
+			m, err := ebl.GetBootVars("kernel_status")
+			if err != nil {
+				return fmt.Errorf("cannot get kernel_status from bootloader %s", ebl.Name())
+			}
+
+			kernStatus = m["kernel_status"]
+		} else {
+			// use the bootenv
+			m, err := bl.GetBootVars("snap_kernel", "snap_try_kernel", "kernel_status")
+			if err != nil {
+				return err
+			}
+			kern, err = snap.ParsePlaceInfoFromSnapFileName(m["snap_kernel"])
+			if err != nil {
+				return fmt.Errorf("no fallback kernel snap: %v", err)
+			}
+
+			// only try to parse snap_try_kernel if it is set
+			if m["snap_try_kernel"] != "" {
+				tryKern, err = snap.ParsePlaceInfoFromSnapFileName(m["snap_try_kernel"])
+				if err != nil {
+					logger.Noticef("try-kernel setting is invalid: %v", err)
+				}
+			}
+
+			kernStatus = m["kernel_status"]
 		}
 
-		// get the primary extracted run kernel
-		kernel, err := ebl.Kernel()
-		if err != nil {
-			// we don't have a fallback kernel!
-			return fmt.Errorf("no fallback kernel snap: %v", err)
-		}
-
-		kernelFile := kernel.Filename()
+		kernelFile := kern.Filename()
 		if !validKernels[kernelFile] {
 			// we don't trust the fallback kernel!
 			return fmt.Errorf("fallback kernel snap %q is not trusted in the modeenv", kernelFile)
 		}
 
-		// get kernel_status
-		m, err := ebl.GetBootVars("kernel_status")
-		if err != nil {
-			return fmt.Errorf("cannot get kernel_status from bootloader %s", ebl.Name())
-		}
-
-		if m["kernel_status"] == boot.TryingStatus {
+		if kernStatus == boot.TryingStatus {
 			// check for the try kernel
-			tryKernel, err := ebl.TryKernel()
-			if err == nil {
-				tryKernelFile := tryKernel.Filename()
+			if tryKern != nil {
+				tryKernelFile := tryKern.Filename()
 				if validKernels[tryKernelFile] {
 					kernelFile = tryKernelFile
 				} else {
 					logger.Noticef("try-kernel %q is not trusted in the modeenv", tryKernelFile)
 				}
-			} else if err != bootloader.ErrNoTryKernelRef {
+			} else {
 				logger.Noticef("missing try-kernel, even though \"kernel_status\" is \"trying\"")
 			}
-			// if we didn't have a try kernel, but we do have kernel_status ==
-			// trying we just fallback to using the normal kernel
-			// same goes for try kernel being untrusted - we will fallback to
-			// the normal kernel snap
 
 			// TODO:UC20: actually we really shouldn't be falling back here at
 			//            all - if the kernel we booted isn't mountable in the

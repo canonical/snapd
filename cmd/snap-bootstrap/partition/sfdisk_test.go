@@ -173,7 +173,7 @@ const gadgetContent = `volumes:
         size: 1200M
 `
 
-func (s *partitionTestSuite) TestDeviceInfo(c *C) {
+func (s *partitionTestSuite) TestDeviceInfoGPT(c *C) {
 	cmdSfdisk := testutil.MockCommand(c, "sfdisk", mockSfdiskScriptBiosAndRecovery)
 	defer cmdSfdisk.Restore()
 
@@ -190,6 +190,7 @@ func (s *partitionTestSuite) TestDeviceInfo(c *C) {
 		{"lsblk", "--fs", "--json", "/dev/node2"},
 	})
 	c.Assert(err, IsNil)
+	c.Assert(dl.Schema, Equals, "gpt")
 	c.Assert(dl.ID, Equals, "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA")
 	c.Assert(dl.Device, Equals, "/dev/node")
 	c.Assert(dl.SectorSize, Equals, gadget.Size(512))
@@ -224,6 +225,109 @@ func (s *partitionTestSuite) TestDeviceInfo(c *C) {
 				Index:       2,
 			},
 			Node: "/dev/node2",
+		},
+	})
+}
+
+func (s *partitionTestSuite) TestDeviceInfoMBR(c *C) {
+	const mockSfdiskWithMBR = `
+>&2 echo "Some warning from sfdisk"
+echo '{
+   "partitiontable": {
+      "label": "dos",
+      "device": "/dev/node",
+      "unit": "sectors",
+      "partitions": [
+         {"node": "/dev/node1", "start": 4096, "size": 2457600, "type": "c"},
+         {"node": "/dev/node2", "start": 2461696, "size": 1048576, "type": "d"},
+         {"node": "/dev/node3", "start": 3510272, "size": 1048576, "type": "d"}
+      ]
+   }
+}'`
+	const mockLsblkForMBR = `
+[ "$3" == "/dev/node1" ] && echo '{
+    "blockdevices": [ {"name": "node1", "fstype": "vfat", "label": "ubuntu-seed", "uuid": "A644-B807", "mountpoint": null} ]
+}'
+[ "$3" == "/dev/node2" ] && echo '{
+    "blockdevices": [ {"name": "node2", "fstype": "vfat", "label": "ubuntu-boot", "uuid": "A644-B808", "mountpoint": null} ]
+}'
+[ "$3" == "/dev/node3" ] && echo '{
+    "blockdevices": [ {"name": "node3", "fstype": "ext4", "label": "ubuntu-data", "mountpoint": null} ]
+}'
+exit 0`
+
+	cmdSfdisk := testutil.MockCommand(c, "sfdisk", mockSfdiskWithMBR)
+	defer cmdSfdisk.Restore()
+
+	cmdLsblk := testutil.MockCommand(c, "lsblk", mockLsblkForMBR)
+	defer cmdLsblk.Restore()
+
+	cmdBlockdev := testutil.MockCommand(c, "blockdev", "echo 12345670")
+	defer cmdBlockdev.Restore()
+
+	dl, err := partition.DeviceLayoutFromDisk("/dev/node")
+	c.Assert(err, IsNil)
+	c.Assert(cmdSfdisk.Calls(), DeepEquals, [][]string{
+		{"sfdisk", "--json", "-d", "/dev/node"},
+	})
+	c.Assert(cmdLsblk.Calls(), DeepEquals, [][]string{
+		{"lsblk", "--fs", "--json", "/dev/node1"},
+		{"lsblk", "--fs", "--json", "/dev/node2"},
+		{"lsblk", "--fs", "--json", "/dev/node3"},
+	})
+	c.Assert(cmdBlockdev.Calls(), DeepEquals, [][]string{
+		{"blockdev", "--getsz", "/dev/node"},
+	})
+	c.Assert(err, IsNil)
+	c.Assert(dl.ID, Equals, "")
+	c.Assert(dl.Schema, Equals, "dos")
+	c.Assert(dl.Device, Equals, "/dev/node")
+	c.Assert(dl.SectorSize, Equals, gadget.Size(512))
+	c.Assert(dl.Size, Equals, gadget.Size(12345670*512))
+	c.Assert(len(dl.Structure), Equals, 3)
+
+	c.Assert(dl.Structure, DeepEquals, []partition.DeviceStructure{
+		{
+			LaidOutStructure: gadget.LaidOutStructure{
+				VolumeStructure: &gadget.VolumeStructure{
+					Size:       0x4b000000,
+					Label:      "ubuntu-seed",
+					Type:       "0C",
+					Filesystem: "vfat",
+				},
+				StartOffset: 0x200000,
+				Index:       1,
+			},
+			Node:                 "/dev/node1",
+			CreatedDuringInstall: false,
+		},
+		{
+			LaidOutStructure: gadget.LaidOutStructure{
+				VolumeStructure: &gadget.VolumeStructure{
+					Size:       0x20000000,
+					Label:      "ubuntu-boot",
+					Type:       "0D",
+					Filesystem: "vfat",
+				},
+				StartOffset: 0x4b200000,
+				Index:       2,
+			},
+			Node:                 "/dev/node2",
+			CreatedDuringInstall: true,
+		},
+		{
+			LaidOutStructure: gadget.LaidOutStructure{
+				VolumeStructure: &gadget.VolumeStructure{
+					Size:       0x20000000,
+					Label:      "ubuntu-data",
+					Type:       "0D",
+					Filesystem: "ext4",
+				},
+				StartOffset: 0x6b200000,
+				Index:       3,
+			},
+			Node:                 "/dev/node3",
+			CreatedDuringInstall: true,
 		},
 	})
 }
@@ -441,7 +545,7 @@ func (s *partitionTestSuite) TestRemovePartitionsError(c *C) {
 	c.Assert(err, ErrorMatches, "cannot remove partitions: /dev/node3")
 }
 
-func (s *partitionTestSuite) TestListCreatedPartitions(c *C) {
+func (s *partitionTestSuite) TestListCreatedPartitionsGPT(c *C) {
 	cmdLsblk := testutil.MockCommand(c, "lsblk", `echo '{ "blockdevices": [ {"fstype":"ext4", "label":null} ] }'`)
 	defer cmdLsblk.Restore()
 
@@ -487,8 +591,9 @@ func (s *partitionTestSuite) TestListCreatedPartitions(c *C) {
 			},
 		},
 	}
-
-	list := partition.ListCreatedPartitions(&ptable)
+	dl, err := partition.DeviceLayoutFromPartitionTable(ptable)
+	c.Assert(err, IsNil)
+	list := partition.ListCreatedPartitions(dl)
 	c.Assert(list, HasLen, 0)
 
 	// Set attribute bit for all partitions except the last one
@@ -496,8 +601,84 @@ func (s *partitionTestSuite) TestListCreatedPartitions(c *C) {
 		ptable.Partitions[i].Attrs = "RequiredPartition LegacyBIOSBootable GUID:58,59"
 	}
 
-	list = partition.ListCreatedPartitions(&ptable)
+	dl, err = partition.DeviceLayoutFromPartitionTable(ptable)
+	c.Assert(err, IsNil)
+	list = partition.ListCreatedPartitions(dl)
 	c.Assert(list, DeepEquals, []string{"/dev/node1", "/dev/node2"})
+}
+
+func (s *partitionTestSuite) TestListCreatedPartitionsMBR(c *C) {
+	cmdLsblk := testutil.MockCommand(c, "lsblk", `
+what=
+shift 2
+case "$1" in
+   /dev/node1)
+      what='{"name": "node1", "fstype":"ext4", "label":"ubuntu-seed"}'
+      ;;
+   /dev/node2)
+      what='{"name": "node2", "fstype":"vfat", "label":"ubuntu-boot"}'
+      ;;
+   /dev/node3)
+      what='{"name": "node3", "fstype":null, "label":null}'
+      ;;
+   /dev/node4)
+      what='{"name": "node4", "fstype":"ext4", "label":"ubuntu-data"}'
+      ;;
+  *)
+    echo "unexpected call"
+    exit 1
+esac
+
+cat <<EOF
+{
+"blockdevices": [
+   $what
+  ]
+}
+EOF`)
+	defer cmdLsblk.Restore()
+	cmdBlockdev := testutil.MockCommand(c, "blockdev", `echo '1234567'`)
+	defer cmdBlockdev.Restore()
+
+	ptable := partition.SFDiskPartitionTable{
+		Label:  "dos",
+		Device: "/dev/node",
+		Unit:   "sectors",
+		Partitions: []partition.SFDiskPartition{
+			{
+				// ubuntu-seed
+				Node:  "/dev/node1",
+				Start: 1024,
+				Size:  1024,
+				Type:  "0a",
+			},
+			{
+				// ubuntu-boot
+				Node:  "/dev/node2",
+				Start: 2048,
+				Size:  2048,
+				Type:  "b",
+			},
+			{
+				// unlabeled
+				Node:  "/dev/node3",
+				Start: 8192,
+				Size:  8192,
+				Type:  "c",
+			},
+			{
+				// ubuntu-data
+				Node:  "/dev/node4",
+				Start: 16384,
+				Size:  16384,
+				Type:  "0d",
+			},
+		},
+	}
+	dl, err := partition.DeviceLayoutFromPartitionTable(ptable)
+	c.Assert(err, IsNil)
+	list := partition.ListCreatedPartitions(dl)
+	c.Assert(list, DeepEquals, []string{"/dev/node2", "/dev/node4"})
 }
 
 func (s *partitionTestSuite) TestFilesystemInfo(c *C) {

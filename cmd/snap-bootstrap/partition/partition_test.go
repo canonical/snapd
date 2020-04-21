@@ -89,8 +89,8 @@ var mockDeviceStructureSystemSeed = partition.DeviceStructure{
 }
 
 var mockDeviceStructureWritable = partition.DeviceStructure{
-	Node:    "/dev/node3",
-	Created: true,
+	Node:                 "/dev/node3",
+	CreatedDuringInstall: true,
 	LaidOutStructure: gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Name:       "Writable",
