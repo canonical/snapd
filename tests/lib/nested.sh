@@ -66,6 +66,32 @@ get_qemu_for_nested_vm(){
     esac
 }
 
+get_target_classic_system(){
+    if [ -n "$SPREAD_SYSTEM" ]; then
+        echo "$SPREAD_SYSTEM"
+    else
+        local system
+        case "$(lsb_release -cs)" in 
+            xenial)
+                echo "ubuntu-16.04-64"
+                ;;
+            bionic)
+                echo "ubuntu-18.04-64"
+                ;;
+            eoan)
+                echo "ubuntu-19.10-64"
+                ;;
+            focal)
+                echo "ubuntu-20.04-64"
+                ;;
+            *)
+                echo "unsupported system"
+                exit 1
+                ;;
+            esac
+    fi
+}
+
 get_google_image_url_for_nested_vm(){
     case "$SPREAD_SYSTEM" in
         ubuntu-16.04-64)
