@@ -1,5 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build !withsecboot
+// +build nosecboot
 
 /*
  * Copyright (C) 2020 Canonical Ltd
