@@ -1,4 +1,4 @@
-name: test-snapd-sh-no-base
+name: test-snapd-sh-core
 version: 1.0
 architectures: ["all"]
 # 'base' intentionally omitted
