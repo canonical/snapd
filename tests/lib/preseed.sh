@@ -44,6 +44,11 @@ setup_preseeding() {
     local IMAGE_MOUNTPOINT=$1
     local CORE_IMAGE
 
+    # Update the snapd deb to the version under test.
+    cp "${GOHOME}"/snapd_*.deb "$IMAGE_MOUNTPOINT/tmp/snapd.deb"
+    chroot "$IMAGE_MOUNTPOINT" dpkg -i /tmp/snapd.deb
+    rm "$IMAGE_MOUNTPOINT/tmp/snapd.deb"
+
     # TODO: on 20.04 there is no core_*.snap anymore, just snapd
     CORE_IMAGE=$(find "$IMAGE_MOUNTPOINT/var/lib/snapd/seed/snaps/" -name "core_*.snap")
     unsquashfs "$CORE_IMAGE"
