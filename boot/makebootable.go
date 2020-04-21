@@ -283,14 +283,12 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 	if ok {
 		// the bootloader supports additional extracted kernel handling
 
-		// make the symlink and finally transition to run-mode in case
-		// we get rebooted in between anywhere here
+		// enable the kernel on the bootloader and finally transition to
+		// run-mode last in case we get rebooted in between anywhere here
 
-		// just set the EnableKernel after setting kernel_status
-		if err := bl.SetBootVars(blVars); err != nil {
-			return fmt.Errorf("cannot set run system environment: %v", err)
-		}
-
+		// it's okay to enable the kernel before writing the boot vars, because
+		// we haven't written snapd_recovery_mode=run, which is the critical
+		// thing that will inform the bootloader to try booting from ubuntu-boot
 		if err := ebl.EnableKernel(bootWith.Kernel); err != nil {
 			return err
 		}
@@ -304,10 +302,13 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 		// extracted kernel images, we must name the kernel to be used
 		// explicitly in bootloader variables
 		blVars["snap_kernel"] = bootWith.Kernel.Filename()
+	}
 
-		if err := bl.SetBootVars(blVars); err != nil {
-			return fmt.Errorf("cannot set run system environment: %v", err)
-		}
+	// set the ubuntu-boot bootloader variables before triggering transition to
+	// try and boot from ubuntu-boot (that transition happens when we write
+	// snapd_recovery_mode below)
+	if err := bl.SetBootVars(blVars); err != nil {
+		return fmt.Errorf("cannot set run system environment: %v", err)
 	}
 
 	// LAST step: update recovery bootloader environment to indicate that we
