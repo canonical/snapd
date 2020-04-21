@@ -29,12 +29,18 @@ import (
 )
 
 type uboot struct {
-	rootdir string
+	rootdir     string
+	noslashboot bool
 }
 
 // newUboot create a new Uboot bootloader object
-func newUboot(rootdir string) ExtractedRecoveryKernelImageBootloader {
-	u := &uboot{rootdir: rootdir}
+func newUboot(rootdir string, blOpts *Options) ExtractedRecoveryKernelImageBootloader {
+	u := &uboot{
+		rootdir: rootdir,
+	}
+	if blOpts != nil && (blOpts.NoSlashBoot || blOpts.Recovery) {
+		u.noslashboot = true
+	}
 	if !osutil.FileExists(u.envFile()) {
 		return nil
 	}
@@ -53,6 +59,9 @@ func (u *uboot) setRootDir(rootdir string) {
 func (u *uboot) dir() string {
 	if u.rootdir == "" {
 		panic("internal error: unset rootdir")
+	}
+	if u.noslashboot {
+		return u.rootdir
 	}
 	return filepath.Join(u.rootdir, "/boot/uboot")
 }

@@ -505,8 +505,7 @@ func (s *makeBootable20UbootSuite) TestUbootMakeBootable20RunMode(c *C) {
 	c.Assert(err, IsNil)
 
 	// uboot on ubuntu-seed
-	mockSeedUbootDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "boot", "uboot")
-	mockSeedUbootEnv := filepath.Join(mockSeedUbootDir, "uboot.env")
+	mockSeedUbootEnv := filepath.Join(boot.InitramfsUbuntuSeedDir, "uboot.env")
 	err = os.MkdirAll(filepath.Dir(mockSeedUbootEnv), 0755)
 	c.Assert(err, IsNil)
 	// this is taken from the pi gadget uboot.conf
@@ -515,8 +514,7 @@ func (s *makeBootable20UbootSuite) TestUbootMakeBootable20RunMode(c *C) {
 	c.Assert(env.Save(), IsNil)
 
 	// uboot on ubuntu-boot
-	mockBootUbootDir := filepath.Join(boot.InitramfsUbuntuBootDir, "boot", "uboot")
-	mockBootUbootEnv := filepath.Join(mockBootUbootDir, "uboot.env")
+	mockBootUbootEnv := filepath.Join(boot.InitramfsUbuntuBootDir, "uboot.env")
 	err = os.MkdirAll(filepath.Dir(mockBootUbootEnv), 0755)
 	c.Assert(err, IsNil)
 	// this is taken from the pi gadget uboot.conf
@@ -562,13 +560,13 @@ version: 5.0
 	c.Check(filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), "arm-kernel_5.snap"), testutil.FilePresent)
 
 	// ensure the bootvars on ubuntu-seed got updated the right way
-	mockSeedUbootenv := filepath.Join(mockSeedUbootDir, "uboot.env")
+	mockSeedUbootenv := filepath.Join(boot.InitramfsUbuntuSeedDir, "uboot.env")
 	uenvSeed, err := ubootenv.Open(mockSeedUbootenv)
 	c.Assert(err, IsNil)
 	c.Assert(uenvSeed.Get("snapd_recovery_mode"), Equals, "run")
 
 	// now check ubuntu-boot uboot.env
-	mockBootUbootenv := filepath.Join(mockBootUbootDir, "uboot.env")
+	mockBootUbootenv := filepath.Join(boot.InitramfsUbuntuBootDir, "uboot.env")
 	uenvBoot, err := ubootenv.Open(mockBootUbootenv)
 	c.Assert(err, IsNil)
 	c.Assert(uenvBoot.Get("snap_try_kernel"), Equals, "")
@@ -579,7 +577,7 @@ version: 5.0
 	// old uc16/uc18 location
 	for _, file := range kernelSnapFiles {
 		fName := file[0]
-		c.Check(filepath.Join(mockBootUbootDir, "arm-kernel_5.snap", fName), testutil.FilePresent)
+		c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "arm-kernel_5.snap", fName), testutil.FilePresent)
 	}
 
 	// ensure modeenv looks correct
