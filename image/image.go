@@ -438,9 +438,16 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 		if err != nil {
 			return err
 		}
+
+		defaultsDir := filepath.Join(rootDir, "_writable_defaults")
 		defaults := gadget.SystemDefaults(gadgetInfo.Defaults)
+		if len(defaults) > 0 {
+			if err := os.MkdirAll(filepath.Join(defaultsDir, "/etc"), 0755); err != nil {
+				return err
+			}
+		}
 		applyOpts := &configcore.FilesystemOnlyApplyOpts{Classic: opts.Classic}
-		return configcore.FilesystemOnlyApply(rootDir, configcore.PlainCoreConfig(defaults), applyOpts)
+		return configcore.FilesystemOnlyApply(defaultsDir, configcore.PlainCoreConfig(defaults), applyOpts)
 	}
 
 	return nil

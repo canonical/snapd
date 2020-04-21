@@ -195,7 +195,6 @@ func (s *servicesSuite) TestFilesystemOnlyApply(c *C) {
 	})
 	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf, nil), IsNil)
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
-		{"--root", tmpDir, "disable", "rsyslog.service"},
 		{"--root", tmpDir, "mask", "rsyslog.service"},
 	})
 }

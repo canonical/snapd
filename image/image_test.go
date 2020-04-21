@@ -1876,7 +1876,7 @@ func (s *imageSuite) TestSetupSeedCore18GadgetDefaults(c *C) {
 
 	err := image.SetupSeed(s.tsto, model, opts)
 	c.Assert(err, IsNil)
-	c.Check(osutil.FileExists(filepath.Join(rootdir, "/etc/ssh/sshd_not_to_be_run")), Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(rootdir, "_writable_defaults/etc/ssh/sshd_not_to_be_run")), Equals, true)
 }
 
 func (s *imageSuite) TestSetupSeedSnapCoreSatisfiesCore16(c *C) {
