@@ -234,7 +234,7 @@ func (bks *extractedRunKernelImageBootloaderKernelState) setNextKernel(sn snap.P
 }
 
 // envRefExtractedKernelBootloaderKernelState implements bootloaderKernelState20 for
-// bootloaders that only support using bootenv and i.e. don't support
+// bootloaders that only support using bootloader env and i.e. don't support
 // ExtractedRunKernelImageBootloader
 type envRefExtractedKernelBootloaderKernelState struct {
 	// the bootloader
@@ -299,40 +299,40 @@ func (envbks *envRefExtractedKernelBootloaderKernelState) kernelStatus() string 
 }
 
 func (envbks *envRefExtractedKernelBootloaderKernelState) commonStateCommitUpdate(sn snap.PlaceInfo, bootvar string) bool {
-	bootenvChanged := false
+	envChanged := false
 
 	// check kernel_status
 	if envbks.env["kernel_status"] != envbks.toCommit["kernel_status"] {
-		bootenvChanged = true
+		envChanged = true
 	}
 
 	// if the specified snap is not the current snap, update the bootvar
 	if sn.Filename() != envbks.kern.Filename() {
 		envbks.toCommit[bootvar] = sn.Filename()
-		bootenvChanged = true
+		envChanged = true
 	}
 
-	return bootenvChanged
+	return envChanged
 }
 
 func (envbks *envRefExtractedKernelBootloaderKernelState) markSuccessfulKernel(sn snap.PlaceInfo) error {
 	// the ordering here doesn't matter, as the only actual state we mutate is
-	// writing the boot vars/bootenv, so just do that once at the end after
+	// writing the bootloader env vars, so just do that once at the end after
 	// processing all the changes
 
 	// always set kernel_status to DefaultStatus
 	envbks.toCommit["kernel_status"] = DefaultStatus
-	bootenvChanged := envbks.commonStateCommitUpdate(sn, "snap_kernel")
+	envChanged := envbks.commonStateCommitUpdate(sn, "snap_kernel")
 
 	// if the snap_try_kernel is set, we should unset that to both cleanup after
 	// a successful trying -> "" transition, but also to cleanup if we got
 	// rebooted during the process and have it leftover
 	if envbks.env["snap_try_kernel"] != "" {
-		bootenvChanged = true
+		envChanged = true
 		envbks.toCommit["snap_try_kernel"] = ""
 	}
 
-	if bootenvChanged {
+	if envChanged {
 		return envbks.bl.SetBootVars(envbks.toCommit)
 	}
 
@@ -394,7 +394,7 @@ func (ks20 *bootState20Kernel) loadBootenv() error {
 		// use the new 20-style ExtractedRunKernelImage implementation
 		ks20.bks = &extractedRunKernelImageBootloaderKernelState{ebl: ebl}
 	} else {
-		// use fallback pure bootenv implementation
+		// use fallback pure bootloader env implementation
 		ks20.bks = &envRefExtractedKernelBootloaderKernelState{bl: bl}
 	}
 
