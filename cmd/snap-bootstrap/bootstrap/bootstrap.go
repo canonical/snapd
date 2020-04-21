@@ -21,10 +21,12 @@ package bootstrap
 
 import (
 	"fmt"
+	"path/filepath"
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/partition"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/secboot"
 )
 
 const (
@@ -40,6 +42,12 @@ type Options struct {
 	KeyFile string
 	// RecoveryKeyFile is the location where the recovery key is written to
 	RecoveryKeyFile string
+	// TPMLockoutAuthFile is the location where the TPM lockout authorization is written to
+	TPMLockoutAuthFile string
+	// PolicyUpdateDataFile is the location where the authorization policy update data is written to
+	PolicyUpdateDataFile string
+	// KernelPath is the path to the kernel to seal the keyfile to
+	KernelPath string
 }
 
 func deviceFromRole(lv *gadget.LaidOutVolume, role string) (device string, err error) {
@@ -152,13 +160,94 @@ func Run(gadgetRoot, device string, options Options) error {
 	// store the encryption key as the last part of the process to reduce the
 	// possiblity of exiting with an error after the TPM provisioning
 	if options.Encrypt {
-		if err := rkey.Store(options.RecoveryKeyFile); err != nil {
-			return fmt.Errorf("cannot store recovery key: %v", err)
+		if err := tpmSealKey(key, rkey, options); err != nil {
+			return fmt.Errorf("cannot seal the encryption key: %v", err)
 		}
+	}
 
-		if err := key.Store(options.KeyFile); err != nil {
-			return fmt.Errorf("cannot store encryption key: %v", err)
+	return nil
+}
+
+// TODO:UC20: get cmdline definition from bootloaders
+var kernelCmdlines = []string{
+	// run mode
+	"console=ttyS0 console=tty1 panic=-1 systemd.gpt_auto=0 rd.systemd.unit=basic.target snapd_recovery_mode=run",
+}
+
+func tpmSealKey(key partition.EncryptionKey, rkey partition.RecoveryKey, options Options) error {
+	if err := rkey.Store(options.RecoveryKeyFile); err != nil {
+		return fmt.Errorf("cannot store recovery key: %v", err)
+	}
+
+	tpm, err := secboot.NewTPMSupport()
+	if err != nil {
+		return fmt.Errorf("cannot initialize TPM: %v", err)
+	}
+
+	if options.TPMLockoutAuthFile != "" {
+		if err := tpm.StoreLockoutAuth(options.TPMLockoutAuthFile); err != nil {
+			return fmt.Errorf("cannot store TPM lockout authorization: %v", err)
 		}
+	}
+
+	shim := filepath.Join(boot.InitramfsUbuntuBootDir, "EFI/boot/bootx64.efi")
+	grub := filepath.Join(boot.InitramfsUbuntuBootDir, "EFI/boot/grubx64.efi")
+
+	// TODO:UC20: Fix EFI image loading events
+	//
+	// The idea of EFIImageLoadEvent is to build a set of load paths for the current
+	// device configuration. So you could have something like this:
+	//
+	// shim -> recovery grub -> recovery kernel 1
+	//                      |-> recovery kernel 2
+	//                      |-> recovery kernel ...
+	//                      |-> normal grub -> run kernel good
+	//                                     |-> run kernel try
+	//
+	// Or it could look like this, which is the same thing:
+	//
+	// shim -> recovery grub -> recovery kernel 1
+	// shim -> recovery grub -> recovery kernel 2
+	// shim -> recovery grub -> recovery kernel ...
+	// shim -> recovery grub -> normal grub -> run kernel good
+	// shim -> recovery grub -> normal grub -> run kernel try
+	//
+	// This implementation in #8476, seems to just build a tree of shim -> grub -> kernel
+	// sequences for every combination of supplied input file, although the code here just
+	// specifies a single shim, grub and kernel binary, so you get one load path that looks
+	// like this:
+	//
+	// shim -> grub -> kernel
+	//
+	// This is ok for now because every boot path uses the same chain of trust, regardless
+	// of which kernel you're booting or whether you're booting through both the recovery
+	// and normal grubs. But when we add the ability to seal against specific binaries in
+	// order to secure the system with the Microsoft chain of trust, then the actual trees
+	// of EFIImageLoadEvents will need to match the exact supported boot sequences.
+
+	if err := tpm.SetShimFiles(shim); err != nil {
+		return err
+	}
+	if err := tpm.SetBootloaderFiles(grub); err != nil {
+		return err
+	}
+	if options.KernelPath != "" {
+		if err := tpm.SetKernelFiles(options.KernelPath); err != nil {
+			return err
+		}
+	}
+	tpm.SetKernelCmdlines(kernelCmdlines)
+
+	// Provision the TPM as late as possible
+	// TODO:UC20: ideally we should ask the firmware to clear the TPM and then reboot
+	//            if the device has previously been provisioned, see
+	//            https://godoc.org/github.com/snapcore/secboot#RequestTPMClearUsingPPI
+	if err := tpm.Provision(); err != nil {
+		return fmt.Errorf("cannot provision the TPM: %v", err)
+	}
+
+	if err := tpm.Seal(key[:], options.KeyFile, options.PolicyUpdateDataFile); err != nil {
+		return fmt.Errorf("cannot seal and store encryption key: %v", err)
 	}
 
 	return nil
@@ -168,9 +257,13 @@ func ensureLayoutCompatibility(gadgetLayout *gadget.LaidOutVolume, diskLayout *p
 	eq := func(ds partition.DeviceStructure, gs gadget.LaidOutStructure) bool {
 		dv := ds.VolumeStructure
 		gv := gs.VolumeStructure
+		nameMatch := gv.Name == dv.Name
+		if gadgetLayout.Schema == "mbr" {
+			// partitions have no names in MBR
+			nameMatch = true
+		}
 		// Previous installation may have failed before filesystem creation or partition may be encrypted
-		check := dv.Name == gv.Name && ds.StartOffset == gs.StartOffset && (ds.Created || dv.Filesystem == gv.Filesystem)
-
+		check := nameMatch && ds.StartOffset == gs.StartOffset && (ds.CreatedDuringInstall || dv.Filesystem == gv.Filesystem)
 		if gv.Role == gadget.SystemData {
 			// system-data may have been expanded
 			return check && dv.Size >= gv.Size

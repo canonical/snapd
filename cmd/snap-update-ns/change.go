@@ -447,7 +447,7 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 				//
 				// In an ideal world we would model this better and could do
 				// without this edge case.
-				if kind == "" && err == syscall.EBUSY {
+				if (kind == "" || kind == "file") && err == syscall.EBUSY {
 					logger.Debugf("cannot remove busy mount point %q", path)
 					return nil
 				}

@@ -79,6 +79,9 @@ func (s *OpenvSwitchInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "run/openvswitch/db.sock rw")
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "/run/openvswitch/*.mgmt rw")
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "/run/openvswitch/ovs-vswitchd.*.ctl rw")
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "/run/openvswitch/ovs-vswitchd.pid rw")
 }
 
 func (s *OpenvSwitchInterfaceSuite) TestInterfaces(c *C) {

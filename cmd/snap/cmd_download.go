@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -159,7 +159,7 @@ func (x *cmdDownload) Execute(args []string) error {
 		// if something goes wrong, don't force it to start over again
 		LeavePartialOnError: true,
 	}
-	snapPath, snapInfo, err := tsto.DownloadSnap(snapName, dlOpts)
+	snapPath, snapInfo, _, err := tsto.DownloadSnap(snapName, dlOpts)
 	if err != nil {
 		return err
 	}

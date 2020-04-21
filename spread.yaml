@@ -28,6 +28,7 @@ environment:
     SUDO_UID: ""
     TRUST_TEST_KEYS: '$(HOST: echo "${SPREAD_TRUST_TEST_KEYS:-true}")'
     MANAGED_DEVICE: "false"
+    LXD_SNAP_CHANNEL: "latest/candidate"
     CORE_CHANNEL: '$(HOST: echo "${SPREAD_CORE_CHANNEL:-edge}")'
     BASE_CHANNEL: '$(HOST: echo "${SPREAD_BASE_CHANNEL:-edge}")'
     KERNEL_CHANNEL: '$(HOST: echo "${SPREAD_KERNEL_CHANNEL:-edge}")'
@@ -107,6 +108,7 @@ backends:
                 storage: preserve-size
             - centos-7-64:
                 workers: 6
+                storage: preserve-size
                 image: centos-7-64
 
     # TODO: spread is really unhappy when it sees a backend without any systems,
@@ -125,6 +127,7 @@ backends:
                 workers: 6
             - centos-8-64:
                 workers: 4
+                storage: preserve-size
                 image: centos-8-64
 
     google-sru:
@@ -853,16 +856,17 @@ suites:
             # Use cloud init to make initial system configuration instead of user assertion
             USE_CLOUD_INIT: '$(HOST: echo "${SPREAD_USE_CLOUD_INIT:-true}")'
             # Enable tpm in the nested vm in case it is supported
-            ENABLE_TPM: '$(HOST: echo "${SPREAD_ENABLE_TPM:-true}")'
+            ENABLE_TPM: '$(HOST: echo "${SPREAD_ENABLE_TPM:-false}")'
             # Enable secure boot in the nested vm in case it is supported
-            ENABLE_SECURE_BOOT: '$(HOST: echo "${SPREAD_ENABLE_SECURE_BOOT:-true}")'
+            ENABLE_SECURE_BOOT: '$(HOST: echo "${SPREAD_ENABLE_SECURE_BOOT:-false}")'
+            # Build and use snapd from current branch
+            BUILD_FROM_CURRENT: '$(HOST: echo "${SPREAD_BUILD_FROM_CURRENT:-false}")'
         manual: true
         prepare: |
-            "$TESTSLIB"/prepare-restore.sh --prepare-suite
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
-            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx || true
+            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx
             snap install ubuntu-image --classic
 
         restore: |
@@ -892,13 +896,15 @@ suites:
             ENABLE_TPM: '$(HOST: echo "${SPREAD_ENABLE_TPM:-false}")'
             # Enable secure boot in the nested vm in case it is supported
             ENABLE_SECURE_BOOT: '$(HOST: echo "${SPREAD_ENABLE_SECURE_BOOT:-false}")'
+            # Build and use snapd from current branch
+            BUILD_FROM_CURRENT: '$(HOST: echo "${SPREAD_BUILD_FROM_CURRENT:-false}")'
         manual: true
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
-            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx || true
+            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx
             snap install ubuntu-image --classic
 
             #shellcheck source=tests/lib/nested.sh
@@ -924,7 +930,7 @@ suites:
     tests/nested/core/:
         summary: Tests for nested images
         backends: [google-nested]
-        systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64]
+        systems: [ubuntu-16.04-64, ubuntu-18.04-64]
         environment:
             NESTED_TYPE: "core"
             # Channel used to create the nested vm
@@ -939,12 +945,14 @@ suites:
             ENABLE_TPM: '$(HOST: echo "${SPREAD_ENABLE_TPM:-false}")'
             # Enable secure boot in the nested vm in case it is supported
             ENABLE_SECURE_BOOT: '$(HOST: echo "${SPREAD_ENABLE_SECURE_BOOT:-false}")'
+            # Build and use snapd from current branch
+            BUILD_FROM_CURRENT: '$(HOST: echo "${SPREAD_BUILD_FROM_CURRENT:-false}")'
         manual: true
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
-            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx || true
+            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx
             snap install ubuntu-image --classic
 
             #shellcheck source=tests/lib/nested.sh
@@ -961,6 +969,46 @@ suites:
         restore: |
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
+            cleanup_nested_env
+
+            #shellcheck source=tests/lib/pkgdb.sh
+            . "$TESTSLIB"/pkgdb.sh
+            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils
+
+    tests/nested/core20/:
+        summary: Tests for nested uc20 images
+        backends: [google-nested]
+        systems: [ubuntu-20.04-64]
+        environment:
+            NESTED_TYPE: "core"
+            # Channel used to create the nested vm
+            CORE_CHANNEL: '$(HOST: echo "${SPREAD_CORE_CHANNEL:-edge}")'
+            # Use cloud init to make initial system configuration instead of user assertion
+            USE_CLOUD_INIT: '$(HOST: echo "${SPREAD_USE_CLOUD_INIT:-true}")'
+            # Enable tpm in the nested vm in case it is supported
+            ENABLE_TPM: '$(HOST: echo "${SPREAD_ENABLE_TPM:-true}")'
+            # Enable secure boot in the nested vm in case it is supported
+            ENABLE_SECURE_BOOT: '$(HOST: echo "${SPREAD_ENABLE_SECURE_BOOT:-true}")'
+            # Build and use snapd from current branch
+            BUILD_FROM_CURRENT: '$(HOST: echo "${SPREAD_BUILD_FROM_CURRENT:-true}")'
+        manual: true
+        prepare: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite
+
+            #shellcheck source=tests/lib/pkgdb.sh
+            . "$TESTSLIB"/pkgdb.sh
+            distro_update_package_db
+            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx
+            snap install ubuntu-image --classic
+
+            #shellcheck source=tests/lib/nested.sh
+            . "$TESTSLIB/nested.sh"
+            create_nested_core_vm
+            start_nested_core_vm
+        restore: |
+            #shellcheck source=tests/lib/nested.sh
+            . "$TESTSLIB/nested.sh"
+            destroy_nested_vm
             cleanup_nested_env
 
             #shellcheck source=tests/lib/pkgdb.sh

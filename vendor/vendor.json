@@ -7,16 +7,16 @@
 			"revision": ""
 		},
 		{
-			"checksumSHA1": "vdoEbcZanhiMfNOmqdCoizz3CRI=",
-			"path": "github.com/chrisccoulson/go-tpm2",
-			"revision": "c9680171bd57ce6028ecd5c895a54abe6bccc1d6",
-			"revisionTime": "2020-04-06T19:53:07Z"
+			"checksumSHA1": "FM+dp3Hv1n+R9b/gqhtjSq6W4T8=",
+			"path": "github.com/canonical/go-tpm2",
+			"revision": "16307201a54dc51583440f9416cfa836bcf0b3fc",
+			"revisionTime": "2020-04-16T00:17:14Z"
 		},
 		{
-			"checksumSHA1": "gG7bzHZcHChchuLFW6XY/ojB/k8=",
-			"path": "github.com/chrisccoulson/go-tpm2/internal/crypto",
-			"revision": "c9680171bd57ce6028ecd5c895a54abe6bccc1d6",
-			"revisionTime": "2020-04-06T19:53:07Z"
+			"checksumSHA1": "bT/rC7K8St3lNRXf/XJGpB4wNJU=",
+			"path": "github.com/canonical/go-tpm2/internal",
+			"revision": "16307201a54dc51583440f9416cfa836bcf0b3fc",
+			"revisionTime": "2020-04-16T00:17:14Z"
 		},
 		{
 			"checksumSHA1": "eDjzake0GpHm9kfTH7FMUWX8zVA=",
@@ -31,11 +31,11 @@
 			"revisionTime": "2018-05-11T13:34:05Z"
 		},
 		{
-			"checksumSHA1": "geYdDku3kun0ydzoz9mO4S14kYg=",
+			"checksumSHA1": "wHGa5uteRxMMSHJLQZtcBpIIUcw=",
 			"origin": "github.com/chrisccoulson/pkcs7",
 			"path": "github.com/fullsailor/pkcs7",
-			"revision": "d7302db945fa6ea264fb79d8e13e931ea514a602",
-			"revisionTime": "2019-01-30T07:39:14Z"
+			"revision": "9d98ea9f9bc8b4feee8f0d7c5ef8179f85f0e237",
+			"revisionTime": "2019-09-06T18:49:57Z"
 		},
 		{
 			"checksumSHA1": "qwK75TRXmR/k8CiegYaeqaCDek4=",
@@ -117,10 +117,10 @@
 			"revisionTime": "2017-09-28T14:21:59Z"
 		},
 		{
-			"checksumSHA1": "rg++Of1pqZF7emKLOV0LoDL1WvU=",
+			"checksumSHA1": "2LxuUG/q81rVOpSJAHUsCZh+doo=",
 			"path": "github.com/snapcore/secboot",
-			"revision": "1bdd70d66dc41c1b6b138ee0204ea1e7d188d307",
-			"revisionTime": "2020-04-08T11:02:26Z"
+			"revision": "dd1d2c4169dcd173a0397a63d569d6e15e5f7644",
+			"revisionTime": "2020-04-16T07:09:07Z"
 		},
 		{
 			"checksumSHA1": "3AmEm18mKj8XxBuru/ix4OOpRkE=",

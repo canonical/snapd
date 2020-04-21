@@ -52,7 +52,18 @@ create_assertions_disk(){
 }
 
 get_qemu_for_nested_vm(){
-    command -v qemu-system-x86_64
+    case "${NESTED_ARCHITECTURE:-amd64}" in
+    amd64)
+        command -v qemu-system-x86_64
+        ;;
+    i386)
+        command -v qemu-system-i386
+        ;;
+    *)
+        echo "unsupported architecture"
+        exit 1
+        ;;
+    esac
 }
 
 get_google_image_url_for_nested_vm(){
@@ -111,10 +122,7 @@ is_core_nested_system(){
         exit 1
     fi
 
-    if [ "$NESTED_TYPE" = core ]; then
-        return 0
-    fi
-    return 1
+    test "$NESTED_TYPE" = "core"
 }
 
 is_classic_nested_system(){
@@ -123,10 +131,7 @@ is_classic_nested_system(){
         exit 1
     fi
 
-    if [ "$NESTED_TYPE" = classic ]; then
-        return 0
-    fi
-    return 1
+    test "$NESTED_TYPE" = "classic"
 }
 
 is_focal_system(){
@@ -134,10 +139,7 @@ is_focal_system(){
 }
 
 is_core_20_nested_system(){
-    if [ "$SPREAD_SYSTEM" = ubuntu-20.04-64 ]; then
-        return 0
-    fi
-    return 1
+    is_focal_system
 }
 
 is_bionic_system(){
@@ -145,10 +147,7 @@ is_bionic_system(){
 }
 
 is_core_18_nested_system(){
-    if [ "$SPREAD_SYSTEM" = ubuntu-18.04-64 ]; then
-        return 0
-    fi
-    return 1
+    is_bionic_system
 }
 
 is_xenial_system(){
@@ -156,10 +155,7 @@ is_xenial_system(){
 }
 
 is_core_16_nested_system(){
-    if [ "$SPREAD_SYSTEM" = ubuntu-16.04-64 ]; then
-        return 0
-    fi
-    return 1
+    is_xenial_system
 }
 
 refresh_to_new_core(){
@@ -191,8 +187,6 @@ cleanup_nested_env(){
 }
 
 create_nested_core_vm(){
-    local BUILD_FROM_CURRENT="${1:-}"
-
     mkdir -p "$WORK_DIR/image"
     if [ ! -f "$WORK_DIR/image/ubuntu-core.img" ]; then
         local UBUNTU_IMAGE
@@ -202,10 +196,9 @@ create_nested_core_vm(){
         local EXTRA_FUNDAMENTAL=""
         local EXTRA_SNAPS=""
         if [ -d "${PWD}/extra-snaps" ]; then
-            #shellcheck disable=SC2044
-            for mysnap in $(find "${PWD}/extra-snaps/" -type f -name "*.snap"); do
+            while IFS= read -r mysnap; do
                 EXTRA_SNAPS="$EXTRA_SNAPS --snap $mysnap"
-            done
+            done <   <(find extra-snaps -name '*.snaps')
         fi
 
         local NESTED_MODEL=""
@@ -349,6 +342,8 @@ start_nested_core_vm(){
     cp -f "$WORK_DIR/image/ubuntu-core.img" "$IMAGE_FILE"
 
     # Now qemu parameters are defined
+    # Increase the number of cpus used once the issue related to kvm and ovmf is fixed
+    # https://bugs.launchpad.net/ubuntu/+source/kvm/+bug/1872803
     PARAM_CPU="-smp 1"
     PARAM_MEM="-m 4096"
     PARAM_DISPLAY="-nographic"
