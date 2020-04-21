@@ -43,59 +43,99 @@ execute: |
 
   echo "Check that the tasks of preseeded snapd have expected statuses"
   # Note, these checks match statuses, but not the order
-  MATCH "Done .+ prerequisites +Ensure prerequisites for \"snapd\" are available" < tasks.log
-  MATCH "Done .+ prepare-snap +Prepare snap \"/var/lib/snapd/seed/snaps/snapd_[0-9]+.snap" < tasks.log
-  MATCH "Done .+ mount-snap +Mount snap \"snapd\" \([0-9]+\)" < tasks.log
-  MATCH "Done .+ copy-snap-data +Copy snap \"snapd\" data" < tasks.log
-  MATCH "Done .+ setup-profiles +Setup snap \"snapd\" \([0-9]+\) security profiles" < tasks.log
-  MATCH "Done .+ link-snap +Make snap \"snapd\" \([0-9]+\) available to the system" < tasks.log
-  MATCH "Done .+ auto-connect +Automatically connect eligible plugs and slots of snap \"snapd\"" < tasks.log
-  MATCH "Done .+ set-auto-aliases +Set automatic aliases for snap \"snapd\"" < tasks.log
-  MATCH "Done .+ setup-aliases +Setup snap \"snapd\" aliases" < tasks.log
-
-  MATCH "Done .+ prerequisites +Ensure prerequisites for \"core18\" are available" < tasks.log
-  MATCH "Done .+ prepare-snap +Prepare snap \"/var/lib/snapd/seed/snaps/core18_[0-9]+.snap" < tasks.log
-  MATCH "Done .+ mount-snap +Mount snap \"core18\" \([0-9]+\)" < tasks.log
-  MATCH "Done .+ copy-snap-data +Copy snap \"core18\" data" < tasks.log
-  MATCH "Done .+ setup-profiles +Setup snap \"core18\" \([0-9]+\) security profiles" < tasks.log
-  MATCH "Done .+ link-snap +Make snap \"core18\" \([0-9]+\) available to the system" < tasks.log
-  MATCH "Done .+ auto-connect +Automatically connect eligible plugs and slots of snap \"core18\"" < tasks.log
-  MATCH "Done .+ set-auto-aliases +Set automatic aliases for snap \"core18\"" < tasks.log
-  MATCH "Done .+ setup-aliases +Setup snap \"core18\" aliases" < tasks.log
-
-  MATCH "Done .+ prerequisites +Ensure prerequisites for \"lxd\" are available" < tasks.log
-  MATCH "Done .+ prepare-snap +Prepare snap \"/var/lib/snapd/seed/snaps/lxd_[0-9]+.snap\" \([0-9]+\)" < tasks.log
-  MATCH "Done .+ mount-snap +Mount snap \"lxd\" \([0-9]+\)" < tasks.log
-  MATCH "Done .+ copy-snap-data +Copy snap \"lxd\" data" < tasks.log
-  MATCH "Done .+ setup-profiles +Setup snap \"lxd\" \([0-9]+\) security profiles" < tasks.log
-  MATCH "Done .+ link-snap +Make snap \"lxd\" \([0-9]+\) available to the system" < tasks.log
-  MATCH "Done .+ auto-connect +Automatically connect eligible plugs and slots of snap \"lxd\"" < tasks.log
-  MATCH "Done .+ connect +Connect lxd:network to snapd:network" < tasks.log
-  MATCH "Done .+ connect +Connect lxd:lxd-support to snapd:lxd-support" < tasks.log
-  MATCH "Done .+ connect +Connect lxd:system-observe to snapd:system-observe" < tasks.log
-  MATCH "Done .+ connect +Connect lxd:network-bind to snapd:network-bind" < tasks.log
-  MATCH "Done .+ setup-profiles +Setup snap \"lxd\" \([0-9]+\) security profiles for auto-connections" < tasks.log
-  MATCH "Done .+ set-auto-aliases +Set automatic aliases for snap \"lxd\"" < tasks.log
-  MATCH "Done .+ setup-aliases +Setup snap \"lxd\" aliases" < tasks.log
-
-  echo "Checking that there were no other 'Done' tasks when preseeding"
-  [ "$(grep -c ' Done ' tasks.log)" = "32" ]
-
   # mark-preseeded task is where snap-preseed stopped, therefore it's in Doing.
   MATCH "Doing .+ mark-preseeded +Mark system pre-seeded" < tasks.log
+  if [[ "$SPREAD_SYSTEM" == ubuntu-20.04-* ]]; then
+    MATCH "Done .+ prerequisites +Ensure prerequisites for \"snapd\" are available" < tasks.log
+    MATCH "Done .+ prepare-snap +Prepare snap \"/var/lib/snapd/seed/snaps/snapd_[0-9]+.snap" < tasks.log
+    MATCH "Done .+ mount-snap +Mount snap \"snapd\" \([0-9]+\)" < tasks.log
+    MATCH "Done .+ copy-snap-data +Copy snap \"snapd\" data" < tasks.log
+    MATCH "Done .+ setup-profiles +Setup snap \"snapd\" \([0-9]+\) security profiles" < tasks.log
+    MATCH "Done .+ link-snap +Make snap \"snapd\" \([0-9]+\) available to the system" < tasks.log
+    MATCH "Done .+ auto-connect +Automatically connect eligible plugs and slots of snap \"snapd\"" < tasks.log
+    MATCH "Done .+ set-auto-aliases +Set automatic aliases for snap \"snapd\"" < tasks.log
+    MATCH "Done .+ setup-aliases +Setup snap \"snapd\" aliases" < tasks.log
 
-  # everything below is pending execution on first boot
-  MATCH "Do .+ run-hook +Run install hook of \"core18\" snap if present" < tasks.log
-  MATCH "Do .+ start-snap-services +Start snap \"lxd\" \([0-9]+\) services" < tasks.log
-  MATCH "Do .+ run-hook +Run configure hook of \"lxd\" snap if present" < tasks.log
-  MATCH "Do .+ run-hook +Run health check of \"lxd\" snap" < tasks.log
-  MATCH "Do .+ mark-seeded +Mark system seeded" < tasks.log
-  MATCH "Do .+ run-hook +Run install hook of \"snapd\" snap if present" < tasks.log
-  MATCH "Do .+ start-snap-services +Start snap \"snapd\" \([0-9]+\) services" < tasks.log
-  MATCH "Do .+ run-hook +Run configure hook of \"core\" snap if present" < tasks.log
-  MATCH "Do .+ start-snap-services  +Start snap \"core18\" \([0-9]+\) services" < tasks.log
-  MATCH "Do .+ run-hook +Run health check of \"core18\" snap" < tasks.log
-  MATCH "Do .+ run-hook +Run install hook of \"lxd\" snap if present" < tasks.log
+    MATCH "Done .+ prerequisites +Ensure prerequisites for \"core18\" are available" < tasks.log
+    MATCH "Done .+ prepare-snap +Prepare snap \"/var/lib/snapd/seed/snaps/core18_[0-9]+.snap" < tasks.log
+    MATCH "Done .+ mount-snap +Mount snap \"core18\" \([0-9]+\)" < tasks.log
+    MATCH "Done .+ copy-snap-data +Copy snap \"core18\" data" < tasks.log
+    MATCH "Done .+ setup-profiles +Setup snap \"core18\" \([0-9]+\) security profiles" < tasks.log
+    MATCH "Done .+ link-snap +Make snap \"core18\" \([0-9]+\) available to the system" < tasks.log
+    MATCH "Done .+ auto-connect +Automatically connect eligible plugs and slots of snap \"core18\"" < tasks.log
+    MATCH "Done .+ set-auto-aliases +Set automatic aliases for snap \"core18\"" < tasks.log
+    MATCH "Done .+ setup-aliases +Setup snap \"core18\" aliases" < tasks.log
+
+    MATCH "Done .+ prerequisites +Ensure prerequisites for \"lxd\" are available" < tasks.log
+    MATCH "Done .+ prepare-snap +Prepare snap \"/var/lib/snapd/seed/snaps/lxd_[0-9]+.snap\" \([0-9]+\)" < tasks.log
+    MATCH "Done .+ mount-snap +Mount snap \"lxd\" \([0-9]+\)" < tasks.log
+    MATCH "Done .+ copy-snap-data +Copy snap \"lxd\" data" < tasks.log
+    MATCH "Done .+ setup-profiles +Setup snap \"lxd\" \([0-9]+\) security profiles" < tasks.log
+    MATCH "Done .+ link-snap +Make snap \"lxd\" \([0-9]+\) available to the system" < tasks.log
+    MATCH "Done .+ auto-connect +Automatically connect eligible plugs and slots of snap \"lxd\"" < tasks.log
+    MATCH "Done .+ connect +Connect lxd:network to snapd:network" < tasks.log
+    MATCH "Done .+ connect +Connect lxd:lxd-support to snapd:lxd-support" < tasks.log
+    MATCH "Done .+ connect +Connect lxd:system-observe to snapd:system-observe" < tasks.log
+    MATCH "Done .+ connect +Connect lxd:network-bind to snapd:network-bind" < tasks.log
+    MATCH "Done .+ setup-profiles +Setup snap \"lxd\" \([0-9]+\) security profiles for auto-connections" < tasks.log
+    MATCH "Done .+ set-auto-aliases +Set automatic aliases for snap \"lxd\"" < tasks.log
+    MATCH "Done .+ setup-aliases +Setup snap \"lxd\" aliases" < tasks.log
+
+    echo "Checking that there were no other 'Done' tasks when preseeding"
+    [ "$(grep -c ' Done ' tasks.log)" = "32" ]
+
+    # everything below is pending execution on first boot
+    MATCH "Do .+ run-hook +Run install hook of \"core18\" snap if present" < tasks.log
+    MATCH "Do .+ start-snap-services +Start snap \"lxd\" \([0-9]+\) services" < tasks.log
+    MATCH "Do .+ run-hook +Run configure hook of \"lxd\" snap if present" < tasks.log
+    MATCH "Do .+ run-hook +Run health check of \"lxd\" snap" < tasks.log
+    MATCH "Do .+ mark-seeded +Mark system seeded" < tasks.log
+    MATCH "Do .+ run-hook +Run install hook of \"snapd\" snap if present" < tasks.log
+    MATCH "Do .+ start-snap-services +Start snap \"snapd\" \([0-9]+\) services" < tasks.log
+    MATCH "Do .+ run-hook +Run configure hook of \"core\" snap if present" < tasks.log
+    MATCH "Do .+ start-snap-services  +Start snap \"core18\" \([0-9]+\) services" < tasks.log
+    MATCH "Do .+ run-hook +Run health check of \"core18\" snap" < tasks.log
+    MATCH "Do .+ run-hook +Run install hook of \"lxd\" snap if present" < tasks.log
+  else
+    MATCH "Done .+ prerequisites +Ensure prerequisites for \"core\" are available" < tasks.log
+    MATCH "Done .+ prepare-snap +Prepare snap \"/var/lib/snapd/seed/snaps/core_[0-9]+.snap" < tasks.log
+    MATCH "Done .+ mount-snap +Mount snap \"core\"" < tasks.log
+    MATCH "Done .+ copy-snap-data +Copy snap \"core\" data" < tasks.log
+    MATCH "Done .+ setup-profiles +Setup snap \"core\" \([0-9]+\) security profiles" < tasks.log
+    MATCH "Done .+ link-snap +Make snap \"core\" \([0-9]+\) available to the system" < tasks.log
+    MATCH "Done .+ auto-connect +Automatically connect eligible plugs and slots of snap \"core\"" < tasks.log
+    MATCH "Done .+ set-auto-aliases +Set automatic aliases for snap \"core\"" < tasks.log
+    MATCH "Done .+ setup-aliases +Setup snap \"core\" aliases" < tasks.log
+
+    MATCH "Done .+ prerequisites +Ensure prerequisites for \"lxd\" are available" < tasks.log
+    MATCH "Done .+ prepare-snap +Prepare snap \"/var/lib/snapd/seed/snaps/lxd_[0-9]+.snap\" \([0-9]+\)" < tasks.log
+    MATCH "Done .+ mount-snap +Mount snap \"lxd\" \([0-9]+\)" < tasks.log
+    MATCH "Done .+ copy-snap-data +Copy snap \"lxd\" data" < tasks.log
+    MATCH "Done .+ setup-profiles +Setup snap \"lxd\" \([0-9]+\) security profiles" < tasks.log
+    MATCH "Done .+ link-snap +Make snap \"lxd\" \([0-9]+\) available to the system" < tasks.log
+    MATCH "Done .+ auto-connect +Automatically connect eligible plugs and slots of snap \"lxd\"" < tasks.log
+
+    MATCH "Done .+ connect +Connect lxd:network to core:network" < tasks.log
+    MATCH "Done .+ connect +Connect lxd:lxd-support to core:lxd-support" < tasks.log
+    MATCH "Done .+ connect +Connect lxd:system-observe to core:system-observe" < tasks.log
+    MATCH "Done .+ connect +Connect lxd:network-bind to core:network-bind" < tasks.log
+    MATCH "Done .+ setup-profiles +Setup snap \"lxd\" \([0-9]+\) security profiles for auto-connections" < tasks.log
+    MATCH "Done .+ set-auto-aliases +Set automatic aliases for snap \"lxd\"" < tasks.log
+    MATCH "Done .+ setup-aliases +Setup snap \"lxd\" aliases" < tasks.log
+
+    echo "Checking that there were no other 'Done' tasks when preseeding"
+    [ "$(grep -c ' Done ' tasks.log)" = "23" ]
+
+    # everything below is pending execution on first boot
+    MATCH "Do .+ run-hook +Run install hook of \"lxd\" snap if present" < tasks.log
+    MATCH "Do .+ start-snap-services  +Start snap \"lxd\" \([0-9]+\) services" < tasks.log
+    MATCH "Do .+ run-hook +Run configure hook of \"lxd\" snap if present" < tasks.log
+    MATCH "Do .+ run-hook +Run install hook of \"core\" snap if present" < tasks.log
+    MATCH "Do .+ start-snap-services +Start snap \"core\" \([0-9]+\) services" < tasks.log
+    MATCH "Do .+ run-hook +Run health check of \"lxd\" snap" < tasks.log
+    MATCH "Do .+ mark-seeded +Mark system seeded" < tasks.log
+    MATCH "Do .+ run-hook +Run configure hook of \"core\" snap if present" < tasks.log
+  fi
 
   echo "Checking that apparmor and seccomp profiles have been created on the target image"
   AA_PROFILES="$IMAGE_MOUNTPOINT"/var/lib/snapd/apparmor/profiles
