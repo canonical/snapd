@@ -21,6 +21,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -1016,14 +1017,14 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	// name. Snapd controls the name of the service units thus indirectly
 	// controls the cgroup name.
 	//
-	// 2) Non-services are started inside systemd transient scopes. Scopes are
-	// a systemd unit type that are defined programmatically and are meant for
-	// groups of processes started and stopped by an _arbitrary process_ (ie,
-	// not systemd). Systemd requires that each scope is given a unique
-	// name. We employ a scheme where random UUID is combined with the name
-	// of the security tag derived from snap application or hook name.
-	// Multiple concurrent invocations of "snap run" will use distinct
-	// UUIDs.
+	// 2) Non-services, including hooks, are started inside systemd
+	// transient scopes. Scopes are a systemd unit type that are defined
+	// programmatically and are meant for groups of processes started and
+	// stopped by an _arbitrary process_ (ie, not systemd). Systemd
+	// requires that each scope is given a unique name. We employ a scheme
+	// where random UUID is combined with the name of the security tag
+	// derived from snap application or hook name. Multiple concurrent
+	// invocations of "snap run" will use distinct UUIDs.
 	//
 	// Transient scopes allow launched snaps to integrate into
 	// the systemd design. See:
@@ -1041,7 +1042,11 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	// https://www.freedesktop.org/wiki/Software/systemd/ControlGroupInterface/
 	if app := info.Apps[snapApp]; app == nil || !app.IsService() {
 		if err := createTransientScope(securityTag); err != nil {
-			return err
+			if err != errCannotTrackProcess {
+				return err
+			}
+			logger.Debugf("snapd cannot track the started application")
+			logger.Debugf("snap refreshes will not be postponed by this process")
 		}
 	} else {
 		// TODO verify that the service is placed in a .service path in one of
@@ -1057,6 +1062,9 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 		return syscallExec(cmd[0], cmd, envForExec(nil))
 	}
 }
+
+var errDBusUnknownMethod = errors.New("org.freedesktop.DBus.Error.UnknownMethod")
+var errDBusSpawnChildExited = errors.New("org.freedesktop.DBus.Error.Spawn.ChildExited")
 
 // doCreateTransientScope creates a systemd transient scope with specified properties.
 //
@@ -1110,27 +1118,27 @@ func doCreateTransientScope(conn *dbus.Conn, unitName string, pid int) error {
 	var job dbus.ObjectPath
 	if err := call.Store(&job); err != nil {
 		if dbusErr, ok := err.(dbus.Error); ok {
+			// Some specific DBus errors have distinct handling.
 			switch dbusErr.Name {
 			case "org.freedesktop.DBus.Error.UnknownMethod":
 				// The DBus API is not supported on this system. This can happen on
 				// very old versions of Systemd, for instance on Ubuntu 14.04.
-				logger.Debugf("cannot create transient scope on this system: %s", err)
-				return nil
+				return errDBusUnknownMethod
+			case "org.freedesktop.DBus.Error.Spawn.ChildExited":
+				// We tried to socket-activate dbus-daemon or bus-activate
+				// systemd --user but it failed.
+				return errDBusSpawnChildExited
 			case "org.freedesktop.systemd1.UnitExists":
 				// Starting a scope with a name that already exists is an
 				// error. Normally this should never happen.
 				return fmt.Errorf("cannot create transient scope: scope %q clashed: %s", unitName, err)
-			case "org.freedesktop.DBus.Error.Spawn.ChildExited":
-				// The system does not have a DBus session bus.
-				// Consume the error and continue with extra checks below.
-				logger.Debugf("session bus is not available, consider installing dbus-user-session")
-				err = nil
 			}
 		}
 		if err != nil {
 			return fmt.Errorf("cannot create transient scope: %s", err)
 		}
 	}
+	logger.Debugf("created transient scope as object: %s", job)
 	return nil
 }
 
@@ -1156,35 +1164,14 @@ var osGetpid = os.Getpid
 
 var cgroupProcessPathInTrackingCgroup = cgroup.ProcessPathInTrackingCgroup
 
+var errCannotTrackProcess = errors.New("cannot track application process")
+
 var createTransientScope = func(securityTag string) error {
 	if !features.RefreshAppAwareness.IsEnabled() {
 		return nil
 	}
 	logger.Debugf("creating transient scope %s", securityTag)
-	// The scope is created with a DBus call to systemd running either on
-	// system or session bus, depending on if we are starting a program as root
-	// or as a regular user.
-	var conn *dbus.Conn
-	var err error
-	if uid := osGetuid(); uid == 0 {
-		conn, err = dbusSystemBus()
-	} else {
-		conn, err = dbusSessionBus()
-		// XXX: Ideally we would check for a distinct error type but this is
-		// just an errors.New() in go-dbus code. To avoid being fragile ignore
-		// all errors when establishing session bus connection to avoid
-		// breaking user interactions. This is consistent with similar failure
-		// modes below, where other parts of the stack fail.
-		if err != nil {
-			logger.Debugf("user %d does not have a working DBus session bus", uid)
-			logger.Debugf("snapd cannot track the started application")
-			logger.Debugf("snap refreshes will not be postponed by this process")
-			return nil
-		}
-	}
-	if err != nil {
-		return err
-	}
+
 	// We ask the kernel for a random UUID. We need one because each transient
 	// scope needs a unique name. The unique name is comprosed of said UUID and
 	// the snap security tag.
@@ -1192,19 +1179,73 @@ var createTransientScope = func(securityTag string) error {
 	if err != nil {
 		return err
 	}
+
 	// Enforcing uniqueness is preferred to reusing an existing scope for
 	// simplicity since doing otherwise and joining an existing scope has
 	// limitations:
 	// - the originally started scope must be marked as a delegate, with all consequences.
 	// - the method AttachProcessesToUnit is unavailable on Ubuntu 16.04
+	//
 	// TODO: invert the arguments so that security tag comes first, UUID
 	// second. This will result in nicer scope names but needs to be
 	// coordinated with code in sandbox/cgroup and with the spread tests
 	// exercising that.
 	unitName := fmt.Sprintf("snap.%s.%s.scope", uuid, strings.TrimPrefix(securityTag, "snap."))
 	pid := osGetpid()
+
+	// The scope is created with a DBus call to systemd running either on
+	// system or session bus. We have a preference for session bus, as this is
+	// where applications normally go to. When a session bus is not available
+	// and the invoking user is root, we use the system bus instead.
+	//
+	// It is worth noting that hooks will not normally have a session bus to
+	// connect to, as they are invoked as descendants of snapd, and snapd is a
+	// service running outside of any session.
+	isSessionBus := true
+	conn, err := dbusSessionBus()
+	if err != nil {
+		logger.Debugf("Session bus is not available: %s", err)
+		if osGetuid() == 0 {
+			logger.Debugf("Falling back to system bus")
+			isSessionBus = false
+			conn, err = dbusSystemBus()
+			if err != nil {
+				logger.Debugf("System bus is not available: %s", err)
+			}
+		}
+	}
+
+	// Session or system bus might be unavailable. To avoid being fragile
+	// ignore all errors when establishing session bus connection to avoid
+	// breaking user interactions. This is consistent with similar failure
+	// modes below, where other parts of the stack fail.
+	//
+	// Ideally we would check for a distinct error type but this is just an
+	// errors.New() in go-dbus code.
+	if err != nil {
+		return errCannotTrackProcess
+	}
+
+tryAgain:
 	// Create a transient scope by talking to systemd over DBus.
 	if err := doCreateTransientScope(conn, unitName, pid); err != nil {
+		switch err {
+		case errDBusUnknownMethod:
+			return errCannotTrackProcess
+		case errDBusSpawnChildExited:
+			// We cannot activate systemd --user for root, try the system
+			// bus as a fallback.
+			if isSessionBus && osGetuid() == 0 {
+				logger.Debugf("Cannot activate systemd --user on session bus, falling back to system bus")
+				isSessionBus = false
+				conn, err = dbusSystemBus()
+				if err != nil {
+					return errCannotTrackProcess
+				}
+				goto tryAgain
+			}
+			return errCannotTrackProcess
+		}
 		return err
 	}
 	// We may have created a transient scope but due to a kernel design,
@@ -1219,8 +1260,7 @@ var createTransientScope = func(securityTag string) error {
 		return err
 	}
 	if !strings.Contains(path, unitName) {
-		logger.Debugf("snapd cannot track the started application")
-		logger.Debugf("snap refreshes will not be postponed by this process")
+		return errCannotTrackProcess
 	}
 	return nil
 }
