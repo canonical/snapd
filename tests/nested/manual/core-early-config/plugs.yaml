@@ -1,4 +1,0 @@
-plugs:
-    system-files:
-        read: [/etc/systemd]
-
