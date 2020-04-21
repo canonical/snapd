@@ -1,6 +1,10 @@
 summary: Check that users with homes in /var/lib can run *classic* snaps
 
 systems: [ubuntu-16.04-64]
+
+# XXX: disabled for now due to an issue with jenkins repo auth key
+manual: true
+
 environment:
     SPECIAL_USER_NAME/jenkins: jenkins
     SPECIAL_USER_NAME/postgres: postgres
