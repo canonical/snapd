@@ -198,7 +198,7 @@ create_nested_core_vm(){
         if [ -d "${PWD}/extra-snaps" ]; then
             while IFS= read -r mysnap; do
                 EXTRA_SNAPS="$EXTRA_SNAPS --snap $mysnap"
-            done <   <(find extra-snaps -name '*.snaps')
+            done <   <(find extra-snaps -name '*.snap')
         fi
 
         local NESTED_MODEL=""
