@@ -45,34 +45,22 @@ umount_ubuntu_image() {
 # pre-seeding.
 setup_preseeding() {
     local IMAGE_MOUNTPOINT=$1
-    local CORE_IMAGE
-    local SNAPD_IMAGE
+    local SNAP_IMAGE
 
-    CORE_IMAGE=$(find "$IMAGE_MOUNTPOINT/var/lib/snapd/seed/snaps/" -name "core_*.snap")
-    if [ -e "$CORE_IMAGE" ]; then
-        unsquashfs "$CORE_IMAGE"
-        cp /usr/lib/snapd/snapd squashfs-root/usr/lib/snapd/snapd
-        # XXX to satisfy version check; this will go away once preseeding
-        # is available in 2.44
-        echo "VERSION=2.44.0" > squashfs-root/usr/lib/snapd/info
-        rm "$CORE_IMAGE"
-        #shellcheck source=tests/lib/snaps.sh
-        . "$TESTSLIB"/snaps.sh
-        mksnap_fast squashfs-root "$CORE_IMAGE"
-        sed -i "$IMAGE_MOUNTPOINT/var/lib/snapd/seed/seed.yaml" -E -e 's/^(\s+)name: core/\1name: core\n\1unasserted: true/'
-    fi
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
 
-    SNAPD_IMAGE=$(find "$IMAGE_MOUNTPOINT/var/lib/snapd/seed/snaps/" -name "snapd_*.snap")
-    if [ -e "$SNAPD_IMAGE" ]; then
-        unsquashfs "$SNAPD_IMAGE"
-        cp /usr/lib/snapd/snapd squashfs-root/usr/lib/snapd/snapd
-        # XXX to satisfy version check; this will go away once preseeding
-        # is available in 2.44
-        echo "VERSION=2.44.0" > squashfs-root/usr/lib/snapd/info
-        rm "$SNAPD_IMAGE"
-        #shellcheck source=tests/lib/snaps.sh
-        . "$TESTSLIB"/snaps.sh
-        mksnap_fast squashfs-root "$SNAPD_IMAGE"
-        sed -i "$IMAGE_MOUNTPOINT/var/lib/snapd/seed/seed.yaml" -E -e 's/^(\s+)name: snapd/\1name: snapd\n\1unasserted: true/'
-    fi
+    for name in core snapd; do
+        SNAP_IMAGE=$(find "$IMAGE_MOUNTPOINT/var/lib/snapd/seed/snaps/" -name "${name}_*.snap")
+        if [ -e "$SNAP_IMAGE" ]; then
+            unsquashfs "$SNAP_IMAGE"
+            cp /usr/lib/snapd/snapd squashfs-root/usr/lib/snapd/snapd
+            # XXX to satisfy version check; this will go away once pre-seeding
+            # is available in 2.44
+            echo "VERSION=2.44.0" > squashfs-root/usr/lib/snapd/info
+            rm "$SNAP_IMAGE"
+            mksnap_fast squashfs-root "$SNAP_IMAGE"
+            sed -i "$IMAGE_MOUNTPOINT/var/lib/snapd/seed/seed.yaml" -E -e "s/^(\\s+)name: $name/\\1name: $name\\n\\1unasserted: true/"
+        fi
+    done
 }
