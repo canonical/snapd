@@ -322,7 +322,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1EncryptedData(c *C
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(ubuntuDataEnc, nil, 0644)
 	c.Assert(err, IsNil)
-	restore := main.MockDevDiskByLabel(mockDevDiskByLabel)
+	restore := main.MockDevDiskByLabelDir(mockDevDiskByLabel)
 	defer restore()
 
 	// setup a fake tpm

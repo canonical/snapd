@@ -73,7 +73,7 @@ var (
 )
 
 var (
-	diskByLabel = "/dev/disk/by-label"
+	devDiskByLabelDir = "/dev/disk/by-label"
 )
 
 func recoverySystemEssentialSnaps(seedDir, recoverySystem string, essentialTypes []snap.Type) ([]*seed.Snap, error) {
@@ -523,8 +523,8 @@ func generateInitramfsMounts() error {
 }
 
 func unlockIfEncrypted(name string) (string, error) {
-	device := filepath.Join(diskByLabel, name)
-	encdev := device + "-enc"
+	device := filepath.Join(devDiskByLabelDir, name)
+	encdev := filepath.Join(devDiskByLabelDir, name+"-enc")
 	if osutil.FileExists(encdev) {
 		// TODO:UC20: snap-bootstrap should validate that <name>-enc is what
 		//            we expect (and not e.g. an external disk), and also that
