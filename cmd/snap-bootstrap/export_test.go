@@ -118,3 +118,11 @@ func MockDevDiskByLabelDir(new string) (restore func()) {
 		diskByLabelDir = old
 	}
 }
+
+func MockDevDiskByLabelDir(new string) (restore func()) {
+	old := devDiskByLabelDir
+	devDiskByLabelDir = new
+	return func() {
+		devDiskByLabelDir = old
+	}
+}
