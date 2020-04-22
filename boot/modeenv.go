@@ -42,7 +42,7 @@ type Modeenv struct {
 	BaseStatus     string
 	CurrentKernels []string
 	Model          string
-	Brand          string
+	BrandID        string
 	Grade          string
 
 	// read is set to true when a modenv was read successfully
@@ -109,7 +109,7 @@ func ReadModeenv(rootdir string) (*Modeenv, error) {
 		TryBase:        tryBase,
 		BaseStatus:     baseStatus,
 		CurrentKernels: kernels,
-		Brand:          brand,
+		BrandID:        brand,
 		Grade:          grade,
 		Model:          model,
 		read:           true,
@@ -156,10 +156,10 @@ func (m *Modeenv) WriteTo(rootdir string) error {
 		if m.Model == "" {
 			return fmt.Errorf("internal error: model is unset")
 		}
-		if m.Brand == "" {
+		if m.BrandID == "" {
 			return fmt.Errorf("internal error: brand is unset")
 		}
-		fmt.Fprintf(buf, "model=%s/%s\n", m.Brand, m.Model)
+		fmt.Fprintf(buf, "model=%s/%s\n", m.BrandID, m.Model)
 	}
 	if m.Grade != "" {
 		fmt.Fprintf(buf, "grade=%s\n", m.Grade)

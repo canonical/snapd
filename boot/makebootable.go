@@ -246,7 +246,7 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 		RecoverySystem: filepath.Base(bootWith.RecoverySystemDir),
 		Base:           filepath.Base(bootWith.BasePath),
 		CurrentKernels: []string{bootWith.Kernel.Filename()},
-		Brand:          model.BrandID(),
+		BrandID:        model.BrandID(),
 		Model:          model.Model(),
 		Grade:          string(model.Grade()),
 	}

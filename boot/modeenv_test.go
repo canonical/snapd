@@ -162,7 +162,7 @@ model=`+t.entry+"\n")
 		c.Assert(err, IsNil)
 		c.Check(modeenv.Mode, Equals, "run")
 		c.Check(modeenv.Model, Equals, t.model)
-		c.Check(modeenv.Brand, Equals, t.brand)
+		c.Check(modeenv.BrandID, Equals, t.brand)
 	}
 }
 
