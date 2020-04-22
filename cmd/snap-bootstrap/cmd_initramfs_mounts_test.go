@@ -966,7 +966,7 @@ func (s *initramfsMountsSuite) TestUnlockIfEncrypted(c *C) {
 		{false, errors.New("no tpm"), false, true, false, false, "name", ""},
 		{false, errors.New("no tpm"), false, false, false, false, "name", ""},
 	} {
-		c.Logf("hasTPM:%v tpmErr:%v hasEncdev:%v last:%v lockOk:%v", "activated:%v", tc.hasTPM, tc.tpmErr, tc.hasEncdev, tc.last, tc.lockOk, tc.activated)
+		c.Logf("hasTPM:%v tpmErr:%v hasEncdev:%v last:%v lockOk:%v activated:%v", tc.hasTPM, tc.tpmErr, tc.hasEncdev, tc.last, tc.lockOk, tc.activated)
 		mockTPM, restoreTPM := mockSecbootTPM(c)
 		defer restoreTPM()
 

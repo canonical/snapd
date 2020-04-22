@@ -112,14 +112,6 @@ func MockSecbootActivateVolumeWithTPMSealedKey(f func(tpm *secboot.TPMConnection
 }
 
 func MockDevDiskByLabelDir(new string) (restore func()) {
-	old := diskByLabelDir
-	diskByLabelDir = new
-	return func() {
-		diskByLabelDir = old
-	}
-}
-
-func MockDevDiskByLabelDir(new string) (restore func()) {
 	old := devDiskByLabelDir
 	devDiskByLabelDir = new
 	return func() {
