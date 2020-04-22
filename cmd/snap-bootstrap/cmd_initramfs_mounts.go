@@ -72,6 +72,10 @@ var (
 	osutilIsMounted = osutil.IsMounted
 )
 
+var (
+	diskByLabel = "/dev/disk/by-label"
+)
+
 func recoverySystemEssentialSnaps(seedDir, recoverySystem string, essentialTypes []snap.Type) ([]*seed.Snap, error) {
 	systemSeed, err := seed.Open(seedDir, recoverySystem)
 	if err != nil {
@@ -516,7 +520,7 @@ func generateInitramfsMounts() error {
 }
 
 func unlockIfEncrypted(name string) (string, error) {
-	device := filepath.Join("/dev/disk/by-label", name)
+	device := filepath.Join(diskByLabel, name)
 	encdev := device + "-enc"
 	if osutil.FileExists(encdev) {
 		// TODO:UC20: snap-bootstrap should validate that <name>-enc is what
