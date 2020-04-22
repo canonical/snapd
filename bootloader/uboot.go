@@ -69,6 +69,9 @@ func (u *uboot) dir() string {
 func (u *uboot) InstallBootConfig(gadgetDir string, opts *Options) (bool, error) {
 	gadgetFile := filepath.Join(gadgetDir, u.Name()+".conf")
 	systemFile := u.ConfigFile()
+	if opts != nil && opts.Recovery {
+		systemFile = filepath.Join(u.rootdir, "uboot.env")
+	}
 	return genericInstallBootConfig(gadgetFile, systemFile)
 }
 

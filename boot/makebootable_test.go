@@ -470,13 +470,9 @@ version: 5.0
 	err = boot.MakeBootable(model, rootdir, bootWith)
 	c.Assert(err, IsNil)
 
-	// ensure only a single file got copied (the uboot.env)
-	files, err := filepath.Glob(filepath.Join(rootdir, "boot/uboot/*"))
-	c.Assert(err, IsNil)
-	c.Check(files, HasLen, 1)
 	// check that the recovery bootloader configuration was copied with
 	// the correct content
-	c.Check(filepath.Join(rootdir, "boot/uboot/uboot.env"), testutil.FileEquals, ubootEnv)
+	c.Check(filepath.Join(rootdir, "uboot.env"), testutil.FileEquals, ubootEnv)
 
 	c.Check(s.bootloader.BootVars, DeepEquals, map[string]string{
 		"snapd_recovery_system": label,
