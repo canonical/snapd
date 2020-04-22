@@ -43,6 +43,28 @@ var (
 	sysconfigConfigureRunSystem = sysconfig.ConfigureRunSystem
 )
 
+func setSysconfigCloudOptions(opts *sysconfig.Options, gadgetDir string, model *asserts.Model) {
+	// 1. check cloud.cfg.d in the gadget snap, this is always ok regardless
+	//    of grade
+	cloudCfg := filepath.Join(gadgetDir, "cloud.cfg.d")
+	if osutil.IsDirectory(cloudCfg) {
+		opts.CloudInitSrcDir = cloudCfg
+		return
+	}
+
+	// 2. check cloud.cfg.d on the ubuntu-seed partition
+	//
+	// Support custom cloud.cfg.d/*.cfg files on the ubuntu-seed partition
+	// during install when in grade "dangerous".
+	//
+	// XXX: maybe move policy decision into configureRunSystem later?
+	cloudCfg = filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d")
+	if osutil.IsDirectory(cloudCfg) && model.Grade() == asserts.ModelDangerous {
+		opts.CloudInitSrcDir = cloudCfg
+		return
+	}
+}
+
 func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -109,17 +131,9 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("cannot create partitions: %v", osutil.OutputErr(output, err))
 	}
 
-	// configure the run system
+	// configure cloud init
 	opts := &sysconfig.Options{TargetRootDir: boot.InitramfsWritableDir}
-	cloudCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d")
-	// Support custom cloud.cfg.d/*.cfg files on the ubuntu-seed partition
-	// during install when in grade "dangerous". We will support configs
-	// from the gadget later too, see sysconfig/cloudinit.go
-	//
-	// XXX: maybe move policy decision into configureRunSystem later?
-	if osutil.IsDirectory(cloudCfg) && deviceCtx.Model().Grade() == asserts.ModelDangerous {
-		opts.CloudInitSrcDir = cloudCfg
-	}
+	setSysconfigCloudOptions(opts, gadgetDir, deviceCtx.Model())
 	if err := sysconfigConfigureRunSystem(opts); err != nil {
 		return err
 	}
