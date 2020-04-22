@@ -43,6 +43,15 @@ var (
 	sysconfigConfigureRunSystem = sysconfig.ConfigureRunSystem
 )
 
+func storeModel(model *asserts.Model, where string) error {
+	f, err := os.OpenFile(where, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return asserts.NewEncoder(f).Encode(model)
+}
+
 func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -107,6 +116,12 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	if err != nil {
 		return fmt.Errorf("cannot create partitions: %v", osutil.OutputErr(output, err))
+	}
+
+	// keep track of the model we installed
+	err = storeModel(deviceCtx.Model(), filepath.Join(boot.InitramfsUbuntuBootDir, "model"))
+	if err != nil {
+		return fmt.Errorf("cannot store the model: %v", err)
 	}
 
 	// configure the run system
