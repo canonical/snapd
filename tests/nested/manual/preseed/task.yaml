@@ -19,7 +19,6 @@ prepare: |
   . "$TESTSLIB/preseed.sh"
   CLOUD_IMAGE=$(get_nested_classic_image_path)
   mount_ubuntu_image "$CLOUD_IMAGE" "$IMAGE_MOUNTPOINT"
-  setup_preseeding "$IMAGE_MOUNTPOINT"
 
 restore: |
   #shellcheck source=tests/lib/nested.sh
