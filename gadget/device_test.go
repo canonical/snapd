@@ -140,7 +140,10 @@ func (d *deviceSuite) TestDeviceFindByFilesystemLabel(c *C) {
 	for _, tc := range names {
 		c.Logf("trying: %q", tc)
 		found, err := gadget.FindDeviceForStructure(&gadget.LaidOutStructure{
-			VolumeStructure: &gadget.VolumeStructure{Label: tc.structure},
+			VolumeStructure: &gadget.VolumeStructure{
+				Filesystem: "ext4",
+				Label:      tc.structure,
+			},
 		})
 		c.Check(err, IsNil)
 		c.Check(found, Equals, filepath.Join(d.dir, "/dev/fakedevice"))
@@ -165,6 +168,22 @@ func (d *deviceSuite) TestDeviceFindChecksPartlabelAndFilesystemLabelHappy(c *C)
 	c.Check(found, Equals, filepath.Join(d.dir, "/dev/fakedevice"))
 }
 
+func (d *deviceSuite) TestDeviceFindFilesystemLabelToNameFallback(c *C) {
+	fakedevice := filepath.Join(d.dir, "/dev/fakedevice")
+	// only the by-filesystem-label symlink
+	err := os.Symlink(fakedevice, filepath.Join(d.dir, "/dev/disk/by-label/foo"))
+	c.Assert(err, IsNil)
+
+	found, err := gadget.FindDeviceForStructure(&gadget.LaidOutStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Name:       "foo",
+			Filesystem: "ext4",
+		},
+	})
+	c.Check(err, IsNil)
+	c.Check(found, Equals, filepath.Join(d.dir, "/dev/fakedevice"))
+}
+
 func (d *deviceSuite) TestDeviceFindChecksPartlabelAndFilesystemLabelMismatch(c *C) {
 	fakedevice := filepath.Join(d.dir, "/dev/fakedevice")
 	err := os.Symlink(fakedevice, filepath.Join(d.dir, "/dev/disk/by-label/foo"))
@@ -179,8 +198,9 @@ func (d *deviceSuite) TestDeviceFindChecksPartlabelAndFilesystemLabelMismatch(c 
 
 	found, err := gadget.FindDeviceForStructure(&gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
-			Name:  "bar",
-			Label: "foo",
+			Name:       "bar",
+			Label:      "foo",
+			Filesystem: "ext4",
 		},
 	})
 	c.Check(err, ErrorMatches, `conflicting device match, ".*/by-label/foo" points to ".*/fakedevice", previous match ".*/by-partlabel/bar" points to ".*/fakedevice-other"`)
@@ -202,8 +222,21 @@ func (d *deviceSuite) TestDeviceFindNotFoundEmpty(c *C) {
 	// neither name nor filesystem label set
 	found, err := gadget.FindDeviceForStructure(&gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
-			Name:  "",
+			Name: "",
+			// structure has no filesystem, fs label check is
+			// ineffective
 			Label: "",
+		},
+	})
+	c.Check(err, ErrorMatches, `device not found`)
+	c.Check(found, Equals, "")
+
+	// try with proper filesystem now
+	found, err = gadget.FindDeviceForStructure(&gadget.LaidOutStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Name:       "",
+			Label:      "",
+			Filesystem: "ext4",
 		},
 	})
 	c.Check(err, ErrorMatches, `device not found`)
@@ -230,7 +263,8 @@ func (d *deviceSuite) TestDeviceFindNotFoundNotASymlink(c *C) {
 
 	found, err := gadget.FindDeviceForStructure(&gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
-			Label: "foo",
+			Filesystem: "ext4",
+			Label:      "foo",
 		},
 	})
 	c.Check(err, ErrorMatches, `candidate .*/dev/disk/by-label/foo is not a symlink`)
@@ -251,7 +285,8 @@ func (d *deviceSuite) TestDeviceFindBadEvalSymlinks(c *C) {
 
 	found, err := gadget.FindDeviceForStructure(&gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
-			Label: "foo",
+			Filesystem: "vfat",
+			Label:      "foo",
 		},
 	})
 	c.Check(err, ErrorMatches, `cannot read device link: failed`)

@@ -187,7 +187,7 @@ func Find(rootdir string, opts *Options) (Bootloader, error) {
 	}
 
 	// try uboot
-	if uboot := newUboot(rootdir); uboot != nil {
+	if uboot := newUboot(rootdir, opts); uboot != nil {
 		return uboot, nil
 	}
 
