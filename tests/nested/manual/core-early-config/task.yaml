@@ -6,6 +6,7 @@ prepare: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
 
+    cleanup_nested_env
     mkdir extra-snaps
 
     snap download --channel=18/stable pc
@@ -38,7 +39,7 @@ prepare: |
     rm -rf squashfs-root
     mv "$KERNEL_SNAP" extra-snaps/
 
-    create_nested_core_vm false
+    create_nested_core_vm
 
     # Modify seed to use devmode for pc gadget snap. This is needed for the
     # install hook to have access to /etc/systemd. Ideally we would use
