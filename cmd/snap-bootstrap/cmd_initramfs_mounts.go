@@ -73,6 +73,7 @@ var (
 )
 
 var (
+	// for mocking by tests
 	devDiskByLabelDir = "/dev/disk/by-label"
 )
 
