@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2018 Canonical Ltd
+ * Copyright (C) 2014-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -143,8 +143,14 @@ func (s *imageSuite) SnapAction(_ context.Context, _ []*store.CurrentSnap, actio
 
 	if info := s.AssertedSnapInfo(actions[0].InstanceName); info != nil {
 		info1 := *info
-		info1.Channel = actions[0].Channel
-		return []store.SnapActionResult{{Info: &info1}}, nil
+		channel := actions[0].Channel
+		redirectChannel := ""
+		if strings.HasPrefix(actions[0].InstanceName, "default-track-") {
+			channel = "default-track/stable"
+			redirectChannel = channel
+		}
+		info1.Channel = channel
+		return []store.SnapActionResult{{Info: &info1, RedirectChannel: redirectChannel}}, nil
 	}
 	return nil, fmt.Errorf("no %q in the fake store", actions[0].InstanceName)
 }
@@ -235,6 +241,12 @@ version: 1.0
 
 const requiredSnap18 = `
 name: required-snap18
+version: 1.0
+base: core18
+`
+
+const defaultTrackSnap18 = `
+name: default-track-snap18
 version: 1.0
 base: core18
 `
@@ -506,6 +518,8 @@ func (s *imageSuite) setupSnaps(c *C, publishers map[string]string) {
 
 	s.MakeAssertedSnap(c, requiredSnap18, nil, snap.R(6), "other")
 	s.AssertedSnapInfo("required-snap18").Contact = "foo@example.com"
+
+	s.MakeAssertedSnap(c, defaultTrackSnap18, nil, snap.R(5), "other")
 
 	s.MakeAssertedSnap(c, snapReqOtherBase, nil, snap.R(5), "other")
 
@@ -1102,6 +1116,87 @@ func (s *imageSuite) TestSetupSeedWithBaseLegacySnap(c *C) {
 	c.Check(m["snap_core"], Equals, "core18_18.snap")
 
 	c.Check(s.stderr.String(), Equals, "WARNING: model has base \"core18\" but some snaps (\"required-snap1\") require \"core\" as base as well, for compatibility it was added implicitly, adding \"core\" explicitly is recommended\n")
+}
+
+func (s *imageSuite) TestSetupSeedWithBaseDefaultTrackSnap(c *C) {
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	// replace model with a model that uses core18
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"architecture":   "amd64",
+		"gadget":         "pc18",
+		"kernel":         "pc-kernel",
+		"base":           "core18",
+		"required-snaps": []interface{}{"default-track-snap18"},
+	})
+
+	// default-track-snap18 has a default-track
+
+	rootdir := filepath.Join(c.MkDir(), "image")
+	s.setupSnaps(c, map[string]string{
+		"core18":    "canonical",
+		"pc18":      "canonical",
+		"pc-kernel": "canonical",
+		"snapd":     "canonical",
+	})
+
+	opts := &image.Options{
+		PrepareDir: filepath.Dir(rootdir),
+	}
+
+	err := image.SetupSeed(s.tsto, model, opts)
+	c.Assert(err, IsNil)
+
+	// check seed
+	seeddir := filepath.Join(rootdir, "var/lib/snapd/seed")
+	seedsnapsdir := filepath.Join(seeddir, "snaps")
+	essSnaps, runSnaps, _ := s.loadSeed(c, seeddir)
+	c.Check(essSnaps, HasLen, 4)
+	c.Check(runSnaps, HasLen, 1)
+
+	// check the files are in place
+	for i, name := range []string{"snapd", "core18_18.snap", "pc-kernel", "pc18"} {
+		info := s.AssertedSnapInfo(name)
+		if info == nil {
+			switch name {
+			case "core18_18.snap":
+				info = &snap.Info{
+					SideInfo: snap.SideInfo{
+						SnapID:   s.AssertedSnapID("core18"),
+						RealName: "core18",
+						Revision: snap.R("18"),
+					},
+					SnapType: snap.TypeBase,
+				}
+			}
+		}
+
+		fn := info.Filename()
+		p := filepath.Join(seedsnapsdir, fn)
+		c.Check(p, testutil.FilePresent)
+		c.Check(essSnaps[i], DeepEquals, &seed.Snap{
+			Path:          p,
+			SideInfo:      &info.SideInfo,
+			EssentialType: info.GetType(),
+			Essential:     true,
+			Required:      true,
+			Channel:       stableChannel,
+		})
+	}
+	c.Check(runSnaps[0], DeepEquals, &seed.Snap{
+		Path:     filepath.Join(seedsnapsdir, s.AssertedSnapInfo("default-track-snap18").Filename()),
+		SideInfo: &s.AssertedSnapInfo("default-track-snap18").SideInfo,
+		Required: true,
+		Channel:  "default-track/stable",
+	})
+	c.Check(runSnaps[0].Path, testutil.FilePresent)
+
+	l, err := ioutil.ReadDir(seedsnapsdir)
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 5)
+
+	c.Check(s.stderr.String(), Equals, "")
 }
 
 func (s *imageSuite) TestSetupSeedKernelPublisherMismatch(c *C) {
@@ -2548,7 +2643,7 @@ func (s *imageSuite) TestSetupSeedCore20UBoot(c *C) {
 	c.Check(l, HasLen, 4)
 
 	// check boot config
-	ubootCfg := filepath.Join(prepareDir, "system-seed", "boot/uboot/uboot.env")
+	ubootCfg := filepath.Join(prepareDir, "system-seed", "uboot.env")
 	c.Check(ubootCfg, testutil.FileEquals, "uboot env content")
 
 	expectedLabel := image.MakeLabel(time.Now())

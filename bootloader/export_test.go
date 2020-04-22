@@ -44,7 +44,7 @@ func MockAndroidBootFile(c *C, rootdir string, mode os.FileMode) {
 }
 
 func NewUboot(rootdir string) ExtractedRecoveryKernelImageBootloader {
-	return newUboot(rootdir)
+	return newUboot(rootdir, nil)
 }
 
 func MockUbootFiles(c *C, rootdir string) {
