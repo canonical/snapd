@@ -1064,6 +1064,7 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 }
 
 var errDBusUnknownMethod = errors.New("org.freedesktop.DBus.Error.UnknownMethod")
+var errDBusNameHasNoOwner = errors.New("org.freedesktop.DBus.Error.NameHasNoOwner")
 var errDBusSpawnChildExited = errors.New("org.freedesktop.DBus.Error.Spawn.ChildExited")
 
 // doCreateTransientScope creates a systemd transient scope with specified properties.
@@ -1118,8 +1119,13 @@ func doCreateTransientScope(conn *dbus.Conn, unitName string, pid int) error {
 	var job dbus.ObjectPath
 	if err := call.Store(&job); err != nil {
 		if dbusErr, ok := err.(dbus.Error); ok {
+			logger.Debugf("DBus error %q: %v", dbusErr.Name, dbusErr.Body)
 			// Some specific DBus errors have distinct handling.
 			switch dbusErr.Name {
+			case "org.freedesktop.DBus.Error.NameHasNoOwner":
+				// Nothing is providing systemd bus name. This is, most likely,
+				// an Ubuntu 14.04 system with the special deputy systemd.
+				return errDBusNameHasNoOwner
 			case "org.freedesktop.DBus.Error.UnknownMethod":
 				// The DBus API is not supported on this system. This can happen on
 				// very old versions of Systemd, for instance on Ubuntu 14.04.
@@ -1132,6 +1138,8 @@ func doCreateTransientScope(conn *dbus.Conn, unitName string, pid int) error {
 				// Starting a scope with a name that already exists is an
 				// error. Normally this should never happen.
 				return fmt.Errorf("cannot create transient scope: scope %q clashed: %s", unitName, err)
+			default:
+				return fmt.Errorf("cannot create transient scope: DBus error %q: %v", dbusErr.Name, dbusErr.Body)
 			}
 		}
 		if err != nil {
