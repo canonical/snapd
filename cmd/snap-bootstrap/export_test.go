@@ -75,8 +75,7 @@ func MockDefaultMarkerFile(p string) (restore func()) {
 }
 
 var (
-	UnlockIfEncrypted        = unlockIfEncrypted
-	UnlockEncryptedPartition = unlockEncryptedPartition
+	UnlockIfEncrypted = unlockIfEncrypted
 )
 
 func MockSecbootConnectToDefaultTPM(f func() (*secboot.TPMConnection, error)) (restore func()) {
@@ -112,18 +111,10 @@ func MockSecbootActivateVolumeWithTPMSealedKey(f func(tpm *secboot.TPMConnection
 	}
 }
 
-func MockOsutilFileExists(f func(name string) bool) (restore func()) {
-	old := osutilFileExists
-	osutilFileExists = f
+func MockDevDiskByLabelDir(new string) (restore func()) {
+	old := diskByLabelDir
+	diskByLabelDir = new
 	return func() {
-		osutilFileExists = old
-	}
-}
-
-func MockUnlockEncryptedPartition(f func(tpm *secboot.TPMConnection, name, device, keyfile, pinfile string, lock bool) error) (restore func()) {
-	old := unlockEncryptedPartition
-	unlockEncryptedPartition = f
-	return func() {
-		unlockEncryptedPartition = old
+		diskByLabelDir = old
 	}
 }

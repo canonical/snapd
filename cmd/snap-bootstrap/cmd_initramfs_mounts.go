@@ -72,6 +72,11 @@ var (
 	osutilIsMounted = osutil.IsMounted
 )
 
+var (
+	// for mocking by tests
+	diskByLabelDir = "/dev/disk/by-label"
+)
+
 func recoverySystemEssentialSnaps(seedDir, recoverySystem string, essentialTypes []snap.Type) ([]*seed.Snap, error) {
 	systemSeed, err := seed.Open(seedDir, recoverySystem)
 	if err != nil {
@@ -517,14 +522,13 @@ func generateInitramfsMounts() error {
 
 var (
 	secbootLockAccessToSealedKeys = secboot.LockAccessToSealedKeys
-	osutilFileExists              = osutil.FileExists
 )
 
 // unlockIfEncrypted verifies if an encrypted volume with the specified name exists and unlocks
 // it if this is the case. If this is the last device to be unlocked the access to the sealed keys
 // will be locked. The path to the unencrypted device node is returned.
 func unlockIfEncrypted(name string, last bool) (string, error) {
-	device := filepath.Join("/dev/disk/by-label", name)
+	device := filepath.Join(diskByLabelDir, name)
 	encdev := device + "-enc"
 
 	// TODO:UC20: use secureConnectToTPM if we decide there's benefit in doing that or we
@@ -555,7 +559,7 @@ func unlockIfEncrypted(name string, last bool) (string, error) {
 			}
 		}()
 
-		if osutilFileExists(encdev) {
+		if osutil.FileExists(encdev) {
 			if tpmErr != nil {
 				return fmt.Errorf("cannot unlock encrypted device %q: %v", name, tpmErr)
 			}
@@ -600,10 +604,8 @@ func insecureConnectToTPM() (*secboot.TPMConnection, error) {
 	return secbootConnectToDefaultTPM()
 }
 
-var unlockEncryptedPartition = unlockEncryptedPartitionImpl
-
 // unlockEncryptedPartition unseals the keyfile and opens an encrypted device.
-func unlockEncryptedPartitionImpl(tpm *secboot.TPMConnection, name, device, keyfile, pinfile string, lock bool) error {
+func unlockEncryptedPartition(tpm *secboot.TPMConnection, name, device, keyfile, pinfile string, lock bool) error {
 	options := secboot.ActivateWithTPMSealedKeyOptions{
 		PINTries:            1,
 		RecoveryKeyTries:    3,

@@ -828,6 +828,14 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2KernelStatusTrying
 `, boot.InitramfsRunMntDir))
 }
 
+func mockDevDiskByLabel(c *C) (string, func()) {
+	devDir := filepath.Join(c.MkDir(), "dev/disk/by-label")
+	err := os.MkdirAll(devDir, 0755)
+	c.Assert(err, IsNil)
+	restore := main.MockDevDiskByLabelDir(devDir)
+	return devDir, restore
+}
+
 func (s *initramfsMountsSuite) TestUnlockIfEncrypted(c *C) {
 	for _, tc := range []struct {
 		hasTPM    bool
@@ -835,27 +843,31 @@ func (s *initramfsMountsSuite) TestUnlockIfEncrypted(c *C) {
 		hasEncdev bool
 		last      bool
 		lockOk    bool
+		activated bool
 		device    string
 		err       string
 	}{
-		{true, nil, true, true, true, "/dev/disk/by-label/name", ""},
-		{true, nil, true, true, false, "", "cannot lock access to sealed keys: lock failed"},
-		{true, nil, true, false, true, "/dev/disk/by-label/name", ""},
-		{true, nil, true, false, false, "/dev/disk/by-label/name", ""},
-		{true, nil, false, true, true, "/dev/disk/by-label/name", ""},
-		{true, nil, false, true, false, "", "cannot lock access to sealed keys: lock failed"},
-		{true, nil, false, false, true, "/dev/disk/by-label/name", ""},
-		{true, nil, false, false, false, "/dev/disk/by-label/name", ""},
-		{true, errors.New("tpm error"), true, true, false, "", `cannot unlock encrypted device "name": tpm error`},
-		{true, errors.New("tpm error"), true, false, false, "", `cannot unlock encrypted device "name": tpm error`},
-		{true, errors.New("tpm error"), false, true, false, "/dev/disk/by-label/name", ""},
-		{true, errors.New("tpm error"), false, false, false, "/dev/disk/by-label/name", ""},
-		{false, errors.New("no tpm"), true, true, false, "", `cannot unlock encrypted device "name": no tpm`},
-		{false, errors.New("no tpm"), true, false, false, "", `cannot unlock encrypted device "name": no tpm`},
-		{false, errors.New("no tpm"), false, true, false, "/dev/disk/by-label/name", ""},
-		{false, errors.New("no tpm"), false, false, false, "/dev/disk/by-label/name", ""},
+		{true, nil, true, true, true, true, "name", ""},
+		{true, nil, true, true, true, false, "", "cannot activate encrypted device .*: activation error"},
+		{true, nil, true, true, false, true, "", "cannot lock access to sealed keys: lock failed"},
+		{true, nil, true, false, true, true, "name", ""},
+		{true, nil, true, false, true, false, "", "cannot activate encrypted device .*: activation error"},
+		{true, nil, true, false, false, true, "name", ""},
+		{true, nil, true, false, false, false, "", "cannot activate encrypted device .*: activation error"},
+		{true, nil, false, true, true, true, "name", ""},
+		{true, nil, false, true, false, true, "", "cannot lock access to sealed keys: lock failed"},
+		{true, nil, false, false, true, true, "name", ""},
+		{true, nil, false, false, false, true, "name", ""},
+		{true, errors.New("tpm error"), true, true, false, false, "", `cannot unlock encrypted device "name": tpm error`},
+		{true, errors.New("tpm error"), true, false, false, false, "", `cannot unlock encrypted device "name": tpm error`},
+		{true, errors.New("tpm error"), false, true, false, false, "name", ""},
+		{true, errors.New("tpm error"), false, false, false, false, "name", ""},
+		{false, errors.New("no tpm"), true, true, false, false, "", `cannot unlock encrypted device "name": no tpm`},
+		{false, errors.New("no tpm"), true, false, false, false, "", `cannot unlock encrypted device "name": no tpm`},
+		{false, errors.New("no tpm"), false, true, false, false, "name", ""},
+		{false, errors.New("no tpm"), false, false, false, false, "name", ""},
 	} {
-		c.Logf("hasTPM:%v tpmErr:%v hasEncdev:%v last:%v lockOk:%v", tc.hasTPM, tc.tpmErr, tc.hasEncdev, tc.last, tc.lockOk)
+		c.Logf("hasTPM:%v tpmErr:%v hasEncdev:%v last:%v lockOk:%v", "activated:%v", tc.hasTPM, tc.tpmErr, tc.hasEncdev, tc.last, tc.lockOk, tc.activated)
 		var mockTPM *secboot.TPMConnection
 		if tc.hasTPM {
 			tcti, err := os.Open("/dev/null")
@@ -882,26 +894,37 @@ func (s *initramfsMountsSuite) TestUnlockIfEncrypted(c *C) {
 		})
 		defer restoreLock()
 
-		restoreFileExists := main.MockOsutilFileExists(func(name string) bool {
-			return tc.hasEncdev
-		})
-		defer restoreFileExists()
+		devDiskByLabel, restoreDev := mockDevDiskByLabel(c)
+		defer restoreDev()
+		if tc.hasEncdev {
+			err := ioutil.WriteFile(filepath.Join(devDiskByLabel, "name-enc"), nil, 0644)
+			c.Assert(err, IsNil)
+		}
 
-		restoreUnlock := main.MockUnlockEncryptedPartition(func(tpm *secboot.TPMConnection, name, device, keyfile, pinfile string, lock bool) error {
+		restoreActivate := main.MockSecbootActivateVolumeWithTPMSealedKey(func(tpm *secboot.TPMConnection, volumeName, sourceDevicePath,
+			keyPath string, pinReader io.Reader, options *secboot.ActivateWithTPMSealedKeyOptions) (bool, error) {
 			c.Assert(tpm, Equals, mockTPM)
-			c.Assert(name, Equals, "name")
-			c.Assert(device, Equals, "/dev/disk/by-label/name-enc")
-			c.Assert(keyfile, Equals, filepath.Join(boot.InitramfsUbuntuSeedDir, "name.sealed-key"))
-			c.Assert(lock, Equals, tc.last)
-			if !tc.hasTPM || tc.tpmErr != nil {
-				return errors.New("cannot unlock: tpm error")
+			c.Assert(volumeName, Equals, "name")
+			c.Assert(sourceDevicePath, Equals, filepath.Join(devDiskByLabel, "name-enc"))
+			c.Assert(keyPath, Equals, filepath.Join(boot.InitramfsEncryptionKeyDir, "name.sealed-key"))
+			c.Assert(*options, DeepEquals, secboot.ActivateWithTPMSealedKeyOptions{
+				PINTries:            1,
+				RecoveryKeyTries:    3,
+				LockSealedKeyAccess: tc.last,
+			})
+			if !tc.activated {
+				return false, errors.New("activation error")
 			}
-			return nil
+			return true, nil
 		})
-		defer restoreUnlock()
+		defer restoreActivate()
 
 		device, err := main.UnlockIfEncrypted("name", tc.last)
-		c.Assert(device, Equals, tc.device)
+		if tc.device == "" {
+			c.Assert(device, Equals, tc.device)
+		} else {
+			c.Assert(device, Equals, filepath.Join(devDiskByLabel, tc.device))
+		}
 		if tc.err == "" {
 			c.Assert(err, IsNil)
 		} else {
@@ -1396,59 +1419,4 @@ recovery_system=20191118
 	}
 
 	c.Check(filepath.Join(ephemeralUbuntuData, "system-data/var/lib/snapd/state.json"), testutil.FileEquals, `{"data":{"auth":{"users":[{"name":"mvo"}]}},"changes":{},"tasks":{},"last-change-id":0,"last-task-id":0,"last-lane-id":0}`)
-}
-
-func (s *initramfsMountsSuite) TestUnlockEncryptedPartition(c *C) {
-	tcti, err := os.Open("/dev/null")
-	c.Assert(err, IsNil)
-	tpm, err := tpm2.NewTPMContext(tcti)
-	c.Assert(err, IsNil)
-	mockTPM := &secboot.TPMConnection{TPMContext: tpm}
-
-	for _, tc := range []struct {
-		tpm                  *secboot.TPMConnection
-		lockSealedKeyAccess  bool
-		activationSuccessful bool
-		activationError      error
-		errStr               string
-	}{
-		{mockTPM, true, true, nil, ""},
-		{mockTPM, true, true, errors.New("some error"), ""},
-		{mockTPM, true, false, errors.New("some error"), `cannot activate encrypted device "device": some error`},
-		{mockTPM, false, true, nil, ""},
-		{mockTPM, false, true, errors.New("some error"), ""},
-		{mockTPM, false, false, errors.New("some error"), `cannot activate encrypted device "device": some error`},
-		{nil, true, true, nil, ""},
-		{nil, true, true, errors.New("some error"), ""},
-		{nil, true, false, errors.New("some error"), `cannot activate encrypted device "device": some error`},
-		{nil, false, true, nil, ""},
-		{nil, false, true, errors.New("some error"), ""},
-		{nil, false, false, errors.New("some error"), `cannot activate encrypted device "device": some error`},
-		// ActivateVolumeWithTPMSealedKey always return an error when activation is false
-	} {
-		n := 0
-		restore := main.MockSecbootActivateVolumeWithTPMSealedKey(func(tpm *secboot.TPMConnection, volumeName, sourceDevicePath,
-			keyPath string, pinReader io.Reader, options *secboot.ActivateWithTPMSealedKeyOptions) (bool, error) {
-			n++
-			c.Assert(tpm, Equals, tc.tpm)
-			c.Assert(volumeName, Equals, "name")
-			c.Assert(sourceDevicePath, Equals, "device")
-			c.Assert(keyPath, Equals, "keyfile")
-			c.Assert(*options, DeepEquals, secboot.ActivateWithTPMSealedKeyOptions{
-				PINTries:            1,
-				RecoveryKeyTries:    3,
-				LockSealedKeyAccess: tc.lockSealedKeyAccess,
-			})
-			return tc.activationSuccessful, tc.activationError
-		})
-		defer restore()
-
-		err = main.UnlockEncryptedPartition(tc.tpm, "name", "device", "keyfile", "pinfile", tc.lockSealedKeyAccess)
-		c.Assert(n, Equals, n)
-		if tc.errStr == "" {
-			c.Assert(err, IsNil)
-		} else {
-			c.Assert(err, ErrorMatches, tc.errStr)
-		}
-	}
 }
