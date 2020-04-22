@@ -21,8 +21,6 @@ prepare: |
   . "$TESTSLIB/preseed.sh"
   mount_ubuntu_image "$(pwd)/cloudimg.img" "$IMAGE_MOUNTPOINT"
 
-  # setup_preseeding "$IMAGE_MOUNTPOINT"
-
 restore: |
   rm -f before-preseeding.txt
   rm -f after-reset.txt
