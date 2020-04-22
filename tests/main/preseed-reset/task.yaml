@@ -19,7 +19,7 @@ prepare: |
 
   #shellcheck source=tests/lib/preseed.sh
   . "$TESTSLIB/preseed.sh"
-  mount_ubuntu_image cloudimg.img "$IMAGE_MOUNTPOINT"
+  mount_ubuntu_image "$(pwd)/cloudimg.img" "$IMAGE_MOUNTPOINT"
 
   # setup_preseeding "$IMAGE_MOUNTPOINT"
 

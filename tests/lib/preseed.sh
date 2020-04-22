@@ -3,8 +3,8 @@
 # mount ubuntu cloud image through qemu-nbd and mount
 # critical virtual filesystems (such as proc) under
 # the root of mounted image.
-# XXX: cannot be used in prepare: section of the tests
-# as the test gets stuck around qemu-nbd on 20.04.
+# The path of the image needs to be absolute as a systemd service
+# gets created for qemu-nbd.
 mount_ubuntu_image() {
     local CLOUD_IMAGE=$1
     local IMAGE_MOUNTPOINT=$2
@@ -15,7 +15,7 @@ mount_ubuntu_image() {
 
     # Run qemu-ndb as a service, so that it does not interact with ssh
     # stdin/stdout it would otherwise inherit from the spread session.
-    systemd-run --system --service-type=forking --unit=qemu-ndb-preseed.service "$(command -v qemu-nbd)" --fork -c /dev/nbd0 "$(pwd)/$CLOUD_IMAGE"
+    systemd-run --system --service-type=forking --unit=qemu-ndb-preseed.service "$(command -v qemu-nbd)" --fork -c /dev/nbd0 "$CLOUD_IMAGE"
     # nbd0p1 may take a short while to become available
     retry-tool -n 5 --wait 1 test -e /dev/nbd0p1
     mount /dev/nbd0p1 "$IMAGE_MOUNTPOINT"
