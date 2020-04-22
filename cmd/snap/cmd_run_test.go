@@ -1326,7 +1326,7 @@ func happyResponseToStartTransientUnit(c *check.C, msg *dbus.Message, scopeName 
 	requestSig := dbus.SignatureOf("", "", []Property{}, []Unit{})
 
 	c.Assert(msg.Type, check.Equals, dbus.TypeMethodCall)
-	c.Check(msg.Flags, check.Equals, dbus.Flags(0))
+	c.Check(msg.Flags, check.Equals, dbus.FlagNoAutoStart)
 	c.Check(msg.Headers, check.DeepEquals, map[dbus.HeaderField]dbus.Variant{
 		dbus.FieldDestination: dbus.MakeVariant("org.freedesktop.systemd1"),
 		dbus.FieldPath:        dbus.MakeVariant(dbus.ObjectPath("/org/freedesktop/systemd1")),

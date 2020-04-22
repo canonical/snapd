@@ -1109,7 +1109,7 @@ func doCreateTransientScope(conn *dbus.Conn, unitName string, pid int) error {
 	systemd := conn.Object("org.freedesktop.systemd1", "/org/freedesktop/systemd1")
 	call := systemd.Call(
 		"org.freedesktop.systemd1.Manager.StartTransientUnit",
-		0, /* call flags */
+		dbus.FlagNoAutoStart, /* call flags */
 		unitName,
 		mode,
 		properties,
