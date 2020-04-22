@@ -216,6 +216,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	c.Assert(modeenv.WriteTo(""), IsNil)
 	devicestate.SetSystemMode(s.mgr, "install")
 
+	// normally done by snap-bootstrap
 	err := os.MkdirAll(boot.InitramfsUbuntuBootDir, 0755)
 	c.Assert(err, IsNil)
 
@@ -396,6 +397,7 @@ func (s *deviceMgrInstallModeSuite) mockInstallModeChange(c *C, modelGrade strin
 	c.Assert(modeenv.WriteTo(""), IsNil)
 	devicestate.SetSystemMode(s.mgr, "install")
 
+	// normally done by snap-bootstrap
 	err := os.MkdirAll(boot.InitramfsUbuntuBootDir, 0755)
 	c.Assert(err, IsNil)
 
