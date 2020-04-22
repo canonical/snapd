@@ -145,6 +145,16 @@ backends:
             - ubuntu-19.10-64:
                 workers: 6
 
+    google-tpm:
+        type: google
+        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
+        location: computeengine/us-east1-b
+        halt-timeout: 2h
+        systems:
+            - ubuntu-20.04-64:
+                workers: 6
+                secureboot: true
+
     google-nested:
         type: google
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
