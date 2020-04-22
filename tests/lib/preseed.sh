@@ -38,29 +38,3 @@ umount_ubuntu_image() {
     # reporting it's still in use.
     retry-tool -n 5 --wait 1 qemu-nbd -d /dev/nbd0
 }
-
-# XXX inject new snapd into the core image in seed/snaps of the cloud image
-# and make core unasserted.
-# this will go away once snapd on the core is new enough to support
-# pre-seeding.
-setup_preseeding() {
-    local IMAGE_MOUNTPOINT=$1
-    local SNAP_IMAGE
-
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-
-    for name in core snapd; do
-        SNAP_IMAGE=$(find "$IMAGE_MOUNTPOINT/var/lib/snapd/seed/snaps/" -name "${name}_*.snap")
-        if [ -e "$SNAP_IMAGE" ]; then
-            unsquashfs "$SNAP_IMAGE"
-            cp /usr/lib/snapd/snapd squashfs-root/usr/lib/snapd/snapd
-            # XXX to satisfy version check; this will go away once pre-seeding
-            # is available in 2.44
-            echo "VERSION=2.44.0" > squashfs-root/usr/lib/snapd/info
-            rm "$SNAP_IMAGE"
-            mksnap_fast squashfs-root "$SNAP_IMAGE"
-            sed -i "$IMAGE_MOUNTPOINT/var/lib/snapd/seed/seed.yaml" -E -e "s/^(\\s+)name: $name/\\1name: $name\\n\\1unasserted: true/"
-        fi
-    done
-}

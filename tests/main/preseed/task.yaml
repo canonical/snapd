@@ -21,9 +21,6 @@ prepare: |
   . "$TESTSLIB/preseed.sh"
   mount_ubuntu_image "$(pwd)/cloudimg.img" "$IMAGE_MOUNTPOINT"
 
-  # XXX: if you uncomment this, replace revisions of snapd below with "unset"
-  # setup_preseeding "$IMAGE_MOUNTPOINT"
-
 restore: |
   #shellcheck source=tests/lib/preseed.sh
   . "$TESTSLIB/preseed.sh"
