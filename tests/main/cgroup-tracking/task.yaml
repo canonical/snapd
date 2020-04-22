@@ -83,7 +83,7 @@ execute: |
     # but rather of the monitoring helper process.
     session-tool -p /tmp/1.pid -u "$USER" snap run test-snapd-sh.sh -c 'touch /tmp/1.stamp && exec sleep 3m' &
     session1_pid=$!
-    trap 'killall sleep || true' EXIT
+    trap "pkill sleep || true" EXIT
     echo "Ensure that snap-confine has finished its task and that the snap process"
     echo "is active. Note that we don't want to wait forever either."
     retry-tool -n 30 test -e /tmp/snap.test-snapd-sh/tmp/1.stamp
