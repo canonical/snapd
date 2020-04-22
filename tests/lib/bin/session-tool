@@ -116,6 +116,8 @@ case "$action" in
 		# Enable linger for the selected user.
 		loginctl enable-linger "$user"
 
+		sleep 3
+
 		exit 0
 		;;
 	restore)
@@ -138,6 +140,8 @@ case "$action" in
 			systemctl daemon-reload
 			systemctl restart systemd-logind.service
 		fi
+
+		sleep 3
 
 		exit 0
 		;;

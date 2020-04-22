@@ -1110,7 +1110,7 @@ func doCreateTransientScope(conn *dbus.Conn, unitName string, pid int) error {
 	systemd := conn.Object("org.freedesktop.systemd1", "/org/freedesktop/systemd1")
 	call := systemd.Call(
 		"org.freedesktop.systemd1.Manager.StartTransientUnit",
-		dbus.FlagNoAutoStart, /* call flags */
+		0,
 		unitName,
 		mode,
 		properties,
@@ -1119,7 +1119,7 @@ func doCreateTransientScope(conn *dbus.Conn, unitName string, pid int) error {
 	var job dbus.ObjectPath
 	if err := call.Store(&job); err != nil {
 		if dbusErr, ok := err.(dbus.Error); ok {
-			logger.Debugf("DBus error %q: %v", dbusErr.Name, dbusErr.Body)
+			logger.Debugf("StartTransientUnit failed with %q: %v", dbusErr.Name, dbusErr.Body)
 			// Some specific DBus errors have distinct handling.
 			switch dbusErr.Name {
 			case "org.freedesktop.DBus.Error.NameHasNoOwner":
@@ -1154,8 +1154,43 @@ var dbusSystemBus = func() (*dbus.Conn, error) {
 	return dbus.SystemBus()
 }
 
+var osGetuid = os.Getuid
+
+// isSessionBusLikelyPresent checks for the apparent availablity of DBus session bus.
+//
+// The code matches what go-dbus does when it tries to detect the session bus:
+// - the presence of the environment variable DBUS_SESSION_BUS_ADDRESS
+// - the presence of the bus socket address in the file /run/user/UID/dbus-session
+// - the presence of the bus socket in /run/user/UID/bus
+func isSessionBusLikelyPresent() bool {
+	if address := os.Getenv("DBUS_SESSION_BUS_ADDRESS"); address != "" {
+		return true
+	}
+	if fi, err := os.Stat(fmt.Sprintf("/run/user/%d/dbus-session", osGetuid())); err == nil {
+		if stat, ok := fi.Sys().(*syscall.Stat_t); ok {
+			if stat.Mode&syscall.S_IFREG == syscall.S_IFREG {
+				return true
+			}
+		}
+	}
+	if fi, err := os.Stat(fmt.Sprintf("/run/user/%d/bus", osGetuid())); err == nil {
+		if stat, ok := fi.Sys().(*syscall.Stat_t); ok {
+			if stat.Mode&syscall.S_IFSOCK == syscall.S_IFSOCK {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 var dbusSessionBus = func() (*dbus.Conn, error) {
-	return dbus.SessionBus()
+	// This started as a helper for mocking and testing but we ended up needing
+	// a custom implementation to prevent go-dbus from spawning and *leaving
+	// behind* a dbus-launch process that will never be used by anything again.
+	if isSessionBusLikelyPresent() {
+		return dbus.SessionBus()
+	}
+	return nil, fmt.Errorf("cannot find session bus")
 }
 
 var randomUUID = func() (string, error) {
@@ -1167,7 +1202,6 @@ var randomUUID = func() (string, error) {
 	return strings.TrimSpace(string(uuidBytes)), err
 }
 
-var osGetuid = os.Getuid
 var osGetpid = os.Getpid
 
 var cgroupProcessPathInTrackingCgroup = cgroup.ProcessPathInTrackingCgroup
@@ -1212,15 +1246,19 @@ var createTransientScope = func(securityTag string) error {
 	isSessionBus := true
 	conn, err := dbusSessionBus()
 	if err != nil {
-		logger.Debugf("Session bus is not available: %s", err)
+		logger.Debugf("session bus is not available: %s", err)
 		if osGetuid() == 0 {
-			logger.Debugf("Falling back to system bus")
+			logger.Debugf("falling back to system bus")
 			isSessionBus = false
 			conn, err = dbusSystemBus()
 			if err != nil {
-				logger.Debugf("System bus is not available: %s", err)
+				logger.Debugf("system bus is not available: %s", err)
+			} else {
+				logger.Debugf("using system bus now, session bus was not available")
 			}
 		}
+	} else {
+		logger.Debugf("using session bus")
 	}
 
 	// Session or system bus might be unavailable. To avoid being fragile
@@ -1241,15 +1279,19 @@ tryAgain:
 		case errDBusUnknownMethod:
 			return errCannotTrackProcess
 		case errDBusSpawnChildExited:
-			// We cannot activate systemd --user for root, try the system
-			// bus as a fallback.
+			fallthrough
+		case errDBusNameHasNoOwner:
+			// We cannot activate systemd --user for root, try the system bus
+			// as a fallback.
 			if isSessionBus && osGetuid() == 0 {
-				logger.Debugf("Cannot activate systemd --user on session bus, falling back to system bus")
+				logger.Debugf("cannot activate systemd --user on session bus, falling back to system bus: %s", err)
 				isSessionBus = false
 				conn, err = dbusSystemBus()
 				if err != nil {
+					logger.Debugf("system bus is not available: %s", err)
 					return errCannotTrackProcess
 				}
+				logger.Debugf("using system bus now, session bus could not activate systemd --user")
 				goto tryAgain
 			}
 			return errCannotTrackProcess
@@ -1268,6 +1310,7 @@ tryAgain:
 		return err
 	}
 	if !strings.Contains(path, unitName) {
+		logger.Debugf("systemd could not associate process %d with transient scope %s", pid, unitName)
 		return errCannotTrackProcess
 	}
 	return nil
