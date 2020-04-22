@@ -305,13 +305,16 @@ func generateMountsCommonInstallRecover(recoverySystem string) (allMounted bool,
 
 func generateMountsModeRun() error {
 	// 1.1 always ensure basic partitions are mounted
-	for _, d := range []string{boot.InitramfsUbuntuSeedDir, boot.InitramfsUbuntuBootDir} {
+	for _, d := range []string{boot.InitramfsUbuntuBootDir, boot.InitramfsUbuntuSeedDir} {
 		isMounted, err := osutilIsMounted(d)
 		if err != nil {
 			return err
 		}
 		if !isMounted {
+			// we need ubuntu-seed to be mounted before we can continue to
+			// check ubuntu-data, so return if we need something mounted
 			fmt.Fprintf(stdout, "/dev/disk/by-label/%s %s\n", filepath.Base(d), d)
+			return nil
 		}
 	}
 
