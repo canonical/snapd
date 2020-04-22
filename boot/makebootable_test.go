@@ -416,6 +416,8 @@ version: 5.0
 recovery_system=20191216
 base=core20_3.snap
 current_kernels=pc-kernel_5.snap
+model=my-brand/my-model-uc20
+grade=dangerous
 `)
 }
 
