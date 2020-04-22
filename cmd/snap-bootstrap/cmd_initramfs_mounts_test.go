@@ -1309,16 +1309,22 @@ recovery_system=20191118
 	c.Check(filepath.Join(ephemeralUbuntuData, "system-data/var/lib/snapd/state.json"), testutil.FileEquals, `{"data":{"auth":{"users":[{"name":"mvo"}]}},"changes":{},"tasks":{},"last-change-id":0,"last-task-id":0,"last-lane-id":0}`)
 }
 
-func (s *initramfsMountsSuite) TestUnlockEncryptedPartition(c *C) {
+func mockSecbootTPM(c *C) (tpm *secboot.TPMConnection, restore func()) {
 	tcti, err := os.Open("/dev/null")
 	c.Assert(err, IsNil)
-	tpm, err := tpm2.NewTPMContext(tcti)
+	tpmctx, err := tpm2.NewTPMContext(tcti)
 	c.Assert(err, IsNil)
-	mockTPM := &secboot.TPMConnection{TPMContext: tpm}
+	mockTPM := &secboot.TPMConnection{TPMContext: tpmctx}
+
 	restoreConnect := main.MockSecbootConnectToDefaultTPM(func() (*secboot.TPMConnection, error) {
 		return mockTPM, nil
 	})
-	defer restoreConnect()
+	return mockTPM, restoreConnect
+}
+
+func (s *initramfsMountsSuite) TestUnlockEncryptedPartition(c *C) {
+	mockTPM, restore := mockSecbootTPM(c)
+	defer restore()
 
 	for _, tc := range []struct {
 		activationSuccessful bool
@@ -1347,7 +1353,7 @@ func (s *initramfsMountsSuite) TestUnlockEncryptedPartition(c *C) {
 		})
 		defer restore()
 
-		err = main.UnlockEncryptedPartition("name", "device", "keyfile", "ekcfile", "pinfile")
+		err := main.UnlockEncryptedPartition("name", "device", "keyfile", "ekcfile", "pinfile")
 		c.Assert(n, Equals, 1)
 		if tc.errStr == "" {
 			c.Assert(err, IsNil)
