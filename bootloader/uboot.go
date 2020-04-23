@@ -21,6 +21,7 @@ package bootloader
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/bootloader/ubootenv"
@@ -29,8 +30,36 @@ import (
 )
 
 type uboot struct {
-	rootdir     string
-	noslashboot bool
+	rootdir string
+	basedir string
+
+	ubootEnvFmt      ubootenv.Format
+	ubootEnvFileName string
+}
+
+func (u *uboot) setDefaults() {
+	u.basedir = "/boot/uboot/"
+	// default native format, change if opts is set
+	u.ubootEnvFmt = ubootenv.NativeFormat
+	u.ubootEnvFileName = "uboot.env"
+}
+
+func (u *uboot) processBlOpts(blOpts *Options) {
+	if blOpts != nil {
+		switch {
+		case blOpts.NoSlashBoot, blOpts.Recovery:
+			// Recovery or NoSlashBoot imply we use the "boot.sel" simple text
+			// format file in /uboot/ubuntu as it exists on the partition
+			// directly
+			u.basedir = "/uboot/ubuntu/"
+			fallthrough
+		case blOpts.ExtractedRunKernelImage:
+			// if just ExtractedRunKernelImage is defined, we expect to find
+			// /boot/uboot/boot.sel
+			u.ubootEnvFmt = ubootenv.TextFormat
+			u.ubootEnvFileName = "boot.sel"
+		}
+	}
 }
 
 // newUboot create a new Uboot bootloader object
@@ -38,9 +67,9 @@ func newUboot(rootdir string, blOpts *Options) ExtractedRecoveryKernelImageBootl
 	u := &uboot{
 		rootdir: rootdir,
 	}
-	if blOpts != nil && (blOpts.NoSlashBoot || blOpts.Recovery) {
-		u.noslashboot = true
-	}
+	u.setDefaults()
+	u.processBlOpts(blOpts)
+
 	if !osutil.FileExists(u.envFile()) {
 		return nil
 	}
@@ -60,18 +89,49 @@ func (u *uboot) dir() string {
 	if u.rootdir == "" {
 		panic("internal error: unset rootdir")
 	}
-	if u.noslashboot {
-		return u.rootdir
-	}
-	return filepath.Join(u.rootdir, "/boot/uboot")
+	return filepath.Join(u.rootdir, u.basedir)
 }
 
-func (u *uboot) InstallBootConfig(gadgetDir string, opts *Options) (bool, error) {
+func (u *uboot) InstallBootConfig(gadgetDir string, blOpts *Options) (bool, error) {
 	gadgetFile := filepath.Join(gadgetDir, u.Name()+".conf")
-	systemFile := u.ConfigFile()
-	if opts != nil && opts.Recovery {
-		systemFile = filepath.Join(u.rootdir, "uboot.env")
+	// if the gadget file is empty, then we don't install anything
+	// this is because there are some gadgets, namely the 20 pi gadget right
+	// now, that don't use a uboot.env to boot and instead use a boot.scr, and
+	// installing a uboot.env file of any form in the root directory will break
+	// the boot.scr, so for these setups we just don't install anything
+	// TODO:UC20: how can we do this better? maybe parse the file to get the
+	//            actual format?
+	st, err := os.Stat(gadgetFile)
+	if err != nil {
+		return false, err
 	}
+	if st.Size() == 0 {
+		// we have a uboot.conf, and hence a uboot bootloader in the gadget, so
+		// we don't copy anything from the gadget and instead just install our
+		// own boot.sel file
+		u.processBlOpts(blOpts)
+
+		err := os.MkdirAll(filepath.Dir(u.envFile()), 0755)
+		if err != nil {
+			return false, err
+		}
+		_, err = ubootenv.Create(u.envFile(), u.ubootEnvFmt, 0)
+		if err != nil {
+			return false, err
+		}
+
+		return true, nil
+	}
+
+	// InstallBootConfig gets called on a uboot that does not come from newUboot
+	// so we need to apply the defaults here
+	u.setDefaults()
+
+	if blOpts != nil && blOpts.Recovery {
+		u.basedir = ""
+	}
+
+	systemFile := u.ConfigFile()
 	return genericInstallBootConfig(gadgetFile, systemFile)
 }
 
@@ -80,11 +140,11 @@ func (u *uboot) ConfigFile() string {
 }
 
 func (u *uboot) envFile() string {
-	return filepath.Join(u.dir(), "uboot.env")
+	return filepath.Join(u.dir(), u.ubootEnvFileName)
 }
 
 func (u *uboot) SetBootVars(values map[string]string) error {
-	env, err := ubootenv.OpenWithFlags(u.envFile(), ubootenv.NativeFormat, ubootenv.OpenBestEffort)
+	env, err := ubootenv.OpenWithFlags(u.envFile(), u.ubootEnvFmt, ubootenv.OpenBestEffort)
 	if err != nil {
 		return err
 	}
@@ -109,7 +169,7 @@ func (u *uboot) SetBootVars(values map[string]string) error {
 func (u *uboot) GetBootVars(names ...string) (map[string]string, error) {
 	out := map[string]string{}
 
-	env, err := ubootenv.OpenWithFlags(u.envFile(), ubootenv.NativeFormat, ubootenv.OpenBestEffort)
+	env, err := ubootenv.OpenWithFlags(u.envFile(), u.ubootEnvFmt, ubootenv.OpenBestEffort)
 	if err != nil {
 		return nil, err
 	}
