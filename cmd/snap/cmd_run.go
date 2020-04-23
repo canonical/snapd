@@ -1156,7 +1156,7 @@ var dbusSystemBus = func() (*dbus.Conn, error) {
 
 var osGetuid = os.Getuid
 
-// isSessionBusLikelyPresent checks for the apparent availablity of DBus session bus.
+// isSessionBusLikelyPresent checks for the apparent availability of DBus session bus.
 //
 // The code matches what go-dbus does when it tries to detect the session bus:
 // - the presence of the environment variable DBUS_SESSION_BUS_ADDRESS
