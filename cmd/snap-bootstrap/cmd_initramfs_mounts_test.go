@@ -942,7 +942,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2KernelStatusTrying
 }
 
 func (s *initramfsMountsSuite) TestUnlockIfEncrypted(c *C) {
-	for _, tc := range []struct {
+	for idx, tc := range []struct {
 		hasTPM    bool
 		tpmErr    error
 		hasEncdev bool
@@ -952,27 +952,66 @@ func (s *initramfsMountsSuite) TestUnlockIfEncrypted(c *C) {
 		device    string
 		err       string
 	}{
-		{true, nil, true, true, true, true, "name", ""},
-		{true, nil, true, true, true, false, "", "cannot activate encrypted device .*: activation error"},
-		{true, nil, true, true, false, true, "", "cannot lock access to sealed keys: lock failed"},
-		{true, nil, true, false, true, true, "name", ""},
-		{true, nil, true, false, true, false, "", "cannot activate encrypted device .*: activation error"},
-		{true, nil, true, false, false, true, "name", ""},
-		{true, nil, true, false, false, false, "", "cannot activate encrypted device .*: activation error"},
-		{true, nil, false, true, true, true, "name", ""},
-		{true, nil, false, true, false, true, "", "cannot lock access to sealed keys: lock failed"},
-		{true, nil, false, false, true, true, "name", ""},
-		{true, nil, false, false, false, true, "name", ""},
-		{true, errors.New("tpm error"), true, true, false, false, "", `cannot unlock encrypted device "name": tpm error`},
-		{true, errors.New("tpm error"), true, false, false, false, "", `cannot unlock encrypted device "name": tpm error`},
-		{true, errors.New("tpm error"), false, true, false, false, "name", ""},
-		{true, errors.New("tpm error"), false, false, false, false, "name", ""},
-		{false, errors.New("no tpm"), true, true, false, false, "", `cannot unlock encrypted device "name": no tpm`},
-		{false, errors.New("no tpm"), true, false, false, false, "", `cannot unlock encrypted device "name": no tpm`},
-		{false, errors.New("no tpm"), false, true, false, false, "name", ""},
-		{false, errors.New("no tpm"), false, false, false, false, "name", ""},
+		// TODO: verify which cases are possible
+		{
+			hasTPM: true, hasEncdev: true, last: true, lockOk: true,
+			activated: true, device: "name",
+		}, {
+			hasTPM: true, hasEncdev: true, last: true, lockOk: true,
+			err: "cannot activate encrypted device .*: activation error",
+		}, {
+			hasTPM: true, hasEncdev: true, last: true, activated: true,
+			err: "cannot lock access to sealed keys: lock failed",
+		}, {
+			hasTPM: true, hasEncdev: true, lockOk: true, activated: true,
+			device: "name",
+		}, {
+			hasTPM: true, hasEncdev: true, lockOk: true,
+			err: "cannot activate encrypted device .*: activation error",
+		}, {
+			hasTPM: true, hasEncdev: true, activated: true, device: "name",
+		}, {
+			hasTPM: true, hasEncdev: true,
+			err: "cannot activate encrypted device .*: activation error",
+		}, {
+			hasTPM: true, last: true, lockOk: true, activated: true,
+			device: "name",
+		}, {
+			hasTPM: true, last: true, activated: true,
+			err: "cannot lock access to sealed keys: lock failed",
+		}, {
+			hasTPM: true, lockOk: true, activated: true, device: "name",
+		}, {
+			hasTPM: true, activated: true, device: "name",
+		}, {
+			hasTPM: true, hasEncdev: true, last: true,
+			tpmErr: errors.New("tpm error"),
+			err:    `cannot unlock encrypted device "name": tpm error`,
+		}, {
+			hasTPM: true, hasEncdev: true,
+			tpmErr: errors.New("tpm error"),
+			err:    `cannot unlock encrypted device "name": tpm error`,
+		}, {
+			hasTPM: true, last: true, device: "name",
+			tpmErr: errors.New("tpm error"),
+		}, {
+			hasTPM: true, device: "name",
+			tpmErr: errors.New("tpm error"),
+		}, {
+			hasEncdev: true, last: true,
+			tpmErr: errors.New("no tpm"),
+			err:    `cannot unlock encrypted device "name": no tpm`,
+		}, {
+			hasEncdev: true,
+			tpmErr:    errors.New("no tpm"),
+			err:       `cannot unlock encrypted device "name": no tpm`,
+		}, {
+			last: true, device: "name", tpmErr: errors.New("no tpm"),
+		}, {
+			tpmErr: errors.New("no tpm"), device: "name",
+		},
 	} {
-		c.Logf("hasTPM:%v tpmErr:%v hasEncdev:%v last:%v lockOk:%v activated:%v", tc.hasTPM, tc.tpmErr, tc.hasEncdev, tc.last, tc.lockOk, tc.activated)
+		c.Logf("tc %v: %#v", idx, tc)
 		mockTPM, restoreTPM := mockSecbootTPM(c)
 		defer restoreTPM()
 

@@ -501,6 +501,33 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeNoCloudInitForSigned(c *C) {
 	})
 }
 
+func (s *deviceMgrInstallModeSuite) TestInstallModeSupportsCloudInitFromGadget(c *C) {
+	// XXX: this is slightly magic - in mockInstallModeChange() we create
+	//      a mock pc gadget snap with revno 1. This is why we can set
+	//      set gadget dir here
+	gadgetDir := filepath.Join(dirs.SnapMountDir, "pc/1/")
+
+	// pretend we have a cloud-init config in our gadget
+	cloudCfg := filepath.Join(gadgetDir, "cloud.cfg.d")
+	err := os.MkdirAll(cloudCfg, 0755)
+	c.Assert(err, IsNil)
+	for _, mockCfg := range []string{"foo.cfg", "bar.cfg"} {
+		err = ioutil.WriteFile(filepath.Join(cloudCfg, mockCfg), []byte(fmt.Sprintf("%s config", mockCfg)), 0644)
+		c.Assert(err, IsNil)
+	}
+
+	// cloud init config from gadget works for signed models too
+	s.mockInstallModeChange(c, "signed")
+
+	// and did tell sysconfig about the cloud-init files
+	c.Assert(s.configureRunSystemOptsPassed, DeepEquals, []*sysconfig.Options{
+		{
+			CloudInitSrcDir: filepath.Join(gadgetDir, "cloud.cfg.d"),
+			TargetRootDir:   boot.InitramfsWritableDir,
+		},
+	})
+}
+
 func (s *deviceMgrInstallModeSuite) TestInstallModeWritesModel(c *C) {
 	// pretend we have a cloud-init config on the seed partition
 	model := s.mockInstallModeChange(c, "dangerous")
