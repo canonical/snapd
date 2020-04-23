@@ -62,7 +62,8 @@ func openText(fname string, flags OpenFlags) (*textEnv, error) {
 		return nil, err
 	}
 
-	data, err := parseData(payload, byte('\n'), flags)
+	// always ignore comments in text format
+	data, err := parseData(payload, byte('\n'), flags|openIgnoreComments)
 	if err != nil {
 		return nil, err
 	}

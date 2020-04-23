@@ -364,14 +364,13 @@ func (u *uenvTextTestSuite) TestTextLineHasError(c *C) {
 	c.Assert(err, ErrorMatches, "cannot parse line \"foxy\" as key=value pair")
 }
 
-func (u *uenvTextTestSuite) TestTextIgnoreComment(c *C) {
+func (u *uenvTextTestSuite) TestTextAlwaysIgnoresComments(c *C) {
 	fileContents := "foo=bar\n#comment\n\nbaz=baz"
 	err := ioutil.WriteFile(u.envFile, []byte(fileContents), 0644)
 	c.Assert(err, IsNil)
 
-	env, err := ubootenv.OpenWithFlags(u.envFile, ubootenv.TextFormat, ubootenv.OpenIgnoreComments)
+	env, err := ubootenv.Open(u.envFile, ubootenv.TextFormat)
 	c.Assert(err, IsNil)
-	// order is alphabetic
 	c.Assert(env.String(), Equals, "baz=baz\nfoo=bar\n")
 }
 

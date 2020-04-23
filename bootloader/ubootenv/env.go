@@ -56,9 +56,10 @@ const (
 	// returning an error.
 	OpenBestEffort OpenFlags = 1 << iota
 
-	// OpenIgnoreComments instructs OpenWithFlags to read lines/entries that
+	// openIgnoreComments instructs OpenWithFlags to read lines/entries that
 	// start with a "#" character, the same way mkenvimage does with input files
-	OpenIgnoreComments
+	// this is always the behavior for the text format case
+	openIgnoreComments
 
 	// NativeFormat is the "uboot native" format which has a CRC, delimits vars
 	// with '\0' and has padding on it
@@ -187,7 +188,7 @@ func parseData(data []byte, lineDelimiter byte, flags OpenFlags) (map[string]str
 			continue
 		}
 		entry := string(envStr)
-		if flags&OpenIgnoreComments == OpenIgnoreComments && entry[0] == '#' {
+		if flags&openIgnoreComments == openIgnoreComments && entry[0] == '#' {
 			continue
 		}
 		l := strings.SplitN(entry, "=", 2)
