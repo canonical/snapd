@@ -327,6 +327,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1EncryptedData(c *C
 	mockTPM, restore := mockSecbootTPM(c)
 	defer restore()
 
+	activated := false
 	// setup activating the fake tpm
 	restore = main.MockSecbootActivateVolumeWithTPMSealedKey(func(tpm *secboot.TPMConnection, volumeName, sourceDevicePath,
 		keyPath string, pinReader io.Reader, options *secboot.ActivateWithTPMSealedKeyOptions) (bool, error) {
@@ -340,6 +341,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1EncryptedData(c *C
 			RecoveryKeyTries:    3,
 			LockSealedKeyAccess: true,
 		})
+		activated = true
 		return true, nil
 	})
 	defer restore()
@@ -362,7 +364,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1EncryptedData(c *C
 	})
 	defer restore()
 
+	sealedKeysLocked := false
 	restore = main.MockSecbootLockAccessToSealedKeys(func(tpm *secboot.TPMConnection) error {
+		sealedKeysLocked = true
 		return nil
 	})
 	defer restore()
@@ -372,6 +376,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1EncryptedData(c *C
 	c.Check(n, Equals, 3)
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data %[2]s/ubuntu-data
 `, devDiskByLabel, boot.InitramfsRunMntDir))
+	c.Check(activated, Equals, true)
+	c.Check(sealedKeysLocked, Equals, true)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2(c *C) {
