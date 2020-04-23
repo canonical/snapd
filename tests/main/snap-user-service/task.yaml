@@ -40,3 +40,9 @@ execute: |
 
     echo "We can see the service running"
     as_user systemctl --user status snap.test-snapd-user-service.test-snapd-user-service|MATCH "Active: active"
+
+debug: |
+    #shellcheck source=tests/lib/user.sh
+    . "$TESTSLIB/user.sh"
+    as_user systemctl --user status snapd.session-agent.service || true
+    systemctl --user status snapd.session-agent.service || true
