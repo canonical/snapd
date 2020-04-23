@@ -21,6 +21,7 @@ package devicestate
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 
@@ -29,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -40,6 +42,15 @@ var (
 	bootMakeBootable            = boot.MakeBootable
 	sysconfigConfigureRunSystem = sysconfig.ConfigureRunSystem
 )
+
+func writeModel(model *asserts.Model, where string) error {
+	f, err := os.OpenFile(where, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return asserts.NewEncoder(f).Encode(model)
+}
 
 func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
@@ -60,6 +71,12 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 	gadgetDir := gadgetInfo.MountDir()
 
+	kernelInfo, err := snapstate.KernelInfo(st, deviceCtx)
+	if err != nil {
+		return fmt.Errorf("cannot get kernel info: %v", err)
+	}
+	kernelDir := kernelInfo.MountDir()
+
 	args := []string{
 		// create partitions missing from the device
 		"create-partitions",
@@ -72,23 +89,39 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 	if useEncryption {
+		fdeDir := "var/lib/snapd/device/fde"
 		args = append(args,
 			// enable data encryption
 			"--encrypt",
 			// location to store the keyfile
-			"--key-file", filepath.Join(boot.InitramfsUbuntuBootDir, "ubuntu-data.keyfile.unsealed"),
+			"--key-file", filepath.Join(boot.InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key"),
 			// location to store the recovery keyfile
-			"--recovery-key-file", filepath.Join(boot.InitramfsUbuntuDataDir, "/system-data/var/lib/snapd/device/fde/recovery-key"),
+			"--recovery-key-file", filepath.Join(boot.InitramfsWritableDir, fdeDir, "recovery.key"),
+			// location to store the recovery keyfile
+			"--tpm-lockout-auth", filepath.Join(boot.InitramfsWritableDir, fdeDir, "tpm-lockout-auth"),
+			// location to store the authorization policy update data
+			"--policy-update-data-file", filepath.Join(boot.InitramfsWritableDir, fdeDir, "policy-update-data"),
+			// path to the kernel to install
+			"--kernel", filepath.Join(kernelDir, "kernel.efi"),
 		)
 	}
 	args = append(args, gadgetDir)
 
 	// run the create partition code
+	logger.Noticef("create and deploy partitions")
 	st.Unlock()
-	output, err := exec.Command(filepath.Join(dirs.DistroLibExecDir, "snap-bootstrap"), args...).CombinedOutput()
+	cmd := exec.Command(filepath.Join(dirs.DistroLibExecDir, "snap-bootstrap"), args...)
+	cmd.Stderr = os.Stderr
+	output, err := cmd.Output()
 	st.Lock()
 	if err != nil {
 		return fmt.Errorf("cannot create partitions: %v", osutil.OutputErr(output, err))
+	}
+
+	// keep track of the model we installed
+	err = writeModel(deviceCtx.Model(), filepath.Join(boot.InitramfsUbuntuBootDir, "model"))
+	if err != nil {
+		return fmt.Errorf("cannot store the model: %v", err)
 	}
 
 	// configure the run system
@@ -107,11 +140,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// make it bootable
-	kernelInfo, err := snapstate.KernelInfo(st, deviceCtx)
-	if err != nil {
-		return fmt.Errorf("cannot get gadget info: %v", err)
-	}
-
+	logger.Noticef("make system bootable")
 	bootBaseInfo, err := snapstate.BootBaseInfo(st, deviceCtx)
 	if err != nil {
 		return fmt.Errorf("cannot get boot base info: %v", err)
@@ -137,6 +166,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// request a restart as the last action after a successful install
+	logger.Noticef("request system restart")
 	st.RequestRestart(state.RestartSystemNow)
 
 	return nil

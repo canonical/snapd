@@ -23,6 +23,8 @@ import (
 	"io"
 	"time"
 
+	"github.com/snapcore/secboot"
+
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/bootstrap"
 )
 
@@ -69,5 +71,50 @@ func MockDefaultMarkerFile(p string) (restore func()) {
 	defaultMarkerFile = p
 	return func() {
 		defaultMarkerFile = old
+	}
+}
+
+var (
+	UnlockIfEncrypted = unlockIfEncrypted
+)
+
+func MockSecbootConnectToDefaultTPM(f func() (*secboot.TPMConnection, error)) (restore func()) {
+	old := secbootConnectToDefaultTPM
+	secbootConnectToDefaultTPM = f
+	return func() {
+		secbootConnectToDefaultTPM = old
+	}
+}
+
+func MockSecbootLockAccessToSealedKeys(f func(tpm *secboot.TPMConnection) error) (restore func()) {
+	old := secbootLockAccessToSealedKeys
+	secbootLockAccessToSealedKeys = f
+	return func() {
+		secbootLockAccessToSealedKeys = old
+	}
+}
+
+func MockSecbootSecureConnectToDefaultTPM(f func(ekCertDataReader io.Reader,
+	endorsementAuth []byte) (*secboot.TPMConnection, error)) (restore func()) {
+	old := secbootSecureConnectToDefaultTPM
+	secbootSecureConnectToDefaultTPM = f
+	return func() {
+		secbootSecureConnectToDefaultTPM = old
+	}
+}
+
+func MockSecbootActivateVolumeWithTPMSealedKey(f func(tpm *secboot.TPMConnection, volumeName, sourceDevicePath, keyPath string, pinReader io.Reader, options *secboot.ActivateWithTPMSealedKeyOptions) (bool, error)) (restore func()) {
+	old := secbootActivateVolumeWithTPMSealedKey
+	secbootActivateVolumeWithTPMSealedKey = f
+	return func() {
+		secbootActivateVolumeWithTPMSealedKey = old
+	}
+}
+
+func MockDevDiskByLabelDir(new string) (restore func()) {
+	old := devDiskByLabelDir
+	devDiskByLabelDir = new
+	return func() {
+		devDiskByLabelDir = old
 	}
 }
