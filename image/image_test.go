@@ -2691,7 +2691,7 @@ func (s *imageSuite) TestSetupSeedCore20UBoot(c *C) {
 	c.Check(l, HasLen, 4)
 
 	// check boot config
-	ubootCfg := filepath.Join(prepareDir, "system-seed", "boot/uboot/uboot.env")
+	ubootCfg := filepath.Join(prepareDir, "system-seed", "uboot.env")
 	c.Check(ubootCfg, testutil.FileEquals, "uboot env content")
 
 	expectedLabel := image.MakeLabel(time.Now())

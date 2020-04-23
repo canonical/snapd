@@ -429,7 +429,7 @@ var CheckHealthHook = func(st *state.State, snapName string, rev snap.Revision) 
 func WaitRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 	if ok, _ := task.State().Restarting(); ok {
 		// don't continue until we are in the restarted snapd
-		task.Logf("Waiting for restart...")
+		task.Logf("Waiting for automatic snapd restart...")
 		return &state.Retry{}
 	}
 
