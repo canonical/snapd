@@ -206,13 +206,15 @@ func (t *tpmSupport) Seal(key []byte, keyPath, policyUpdatePath string) error {
 	}
 
 	// Add snap model profile
-	snapModelParams := sb.SnapModelProfileParams{
-		PCRAlgorithm: tpm2.HashAlgorithmSHA256,
-		PCRIndex:     12,
-		Models:       t.models,
-	}
-	if err := sbAddSnapModelProfile(pcrProfile, &snapModelParams); err != nil {
-		return fmt.Errorf("cannot add snap model profile: %v", err)
+	if len(t.models) != 0 {
+		snapModelParams := sb.SnapModelProfileParams{
+			PCRAlgorithm: tpm2.HashAlgorithmSHA256,
+			PCRIndex:     12,
+			Models:       t.models,
+		}
+		if err := sbAddSnapModelProfile(pcrProfile, &snapModelParams); err != nil {
+			return fmt.Errorf("cannot add snap model profile: %v", err)
+		}
 	}
 
 	// Seal key to the TPM
