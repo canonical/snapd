@@ -152,6 +152,7 @@ func (s *testDBusStream) sendMsg(msg *dbus.Message) {
 	if err := msg.EncodeTo(&s.outputBuf, binary.LittleEndian); err != nil {
 		panic(fmt.Errorf("cannot encode outgoing message: %v", err))
 	}
+	// s.m is locked
 	s.readable.Signal()
 }
 
