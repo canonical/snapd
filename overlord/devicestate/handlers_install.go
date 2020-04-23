@@ -28,7 +28,7 @@ import (
 
 	// TODO:UC20 look into merging
 	// snap-bootstrap/bootstrap|partition into gadget or
-	// supackages there cleanly
+	// subpackages there cleanly
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/bootstrap"
 
 	"github.com/snapcore/snapd/asserts"

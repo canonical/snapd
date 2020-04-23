@@ -26,7 +26,6 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
-	// XXX: move bootstrap pkg elsewhere
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/bootstrap"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/httputil"
