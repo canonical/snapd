@@ -47,6 +47,9 @@ setup_preseeding() {
     # Update the snapd deb to the version under test.
     cp "${GOHOME}"/snapd_*.deb "$IMAGE_MOUNTPOINT/tmp/snapd.deb"
     chroot "$IMAGE_MOUNTPOINT" dpkg -i /tmp/snapd.deb
+    # Installing the snapd package creates AppArmor cache files that
+    # didn't exist before.
+    rm -rf "$IMAGE_MOUNTPOINT"/var/cache/apparmor/*
     rm "$IMAGE_MOUNTPOINT/tmp/snapd.deb"
 
     # TODO: on 20.04 there is no core_*.snap anymore, just snapd
