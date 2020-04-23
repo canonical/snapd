@@ -1140,7 +1140,7 @@ func (s *imageSuite) TestSetupSeedWithBaseDefaultTrackSnap(c *C) {
 		"pc18":      "canonical",
 		"pc-kernel": "canonical",
 		"snapd":     "canonical",
-	})
+	}, "")
 
 	opts := &image.Options{
 		PrepareDir: filepath.Dir(rootdir),
