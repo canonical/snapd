@@ -51,6 +51,16 @@ execute: |
         echo "SKIP: systemd is too old to perform this test as user"
         exit 0
     fi
+    if [ "$USER" = test ]; then
+        case "$SPREAD_SYSTEM" in
+            ubuntu-core-*)
+                echo "On core systems there is no session bus so the test variant does not make much sense"
+                echo "Please see the cgroup-tracking-failure test for more extensive analysis"
+                echo "SKIP: core systems don't have session services / session bus"
+                exit 0
+                ;;
+        esac
+    fi
 
     # This test varies between Ubuntu 16.04, Ubuntu 18.04 and Fedora 31.
     # This combination exercises each of the three cases below, namely:
