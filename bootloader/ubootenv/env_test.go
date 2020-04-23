@@ -76,6 +76,7 @@ func (u *uenvNativeTestSuite) TestSanityNativeIsNotText(c *C) {
 
 	text := filepath.Join(c.MkDir(), "boot.sel")
 	tenv, err := ubootenv.Create(text, ubootenv.TextFormat, 4096)
+	c.Assert(err, IsNil)
 	tenv.Set("foo", "bar")
 
 	c.Assert(tenv.Get("foo"), Equals, nenv.Get("foo"))
@@ -89,6 +90,7 @@ func (u *uenvNativeTestSuite) TestSanityNativeIsNotText(c *C) {
 	nbytes, err := ioutil.ReadFile(native)
 	c.Assert(err, IsNil)
 	tbytes, err := ioutil.ReadFile(text)
+	c.Assert(err, IsNil)
 	c.Assert(tbytes, Not(Equals), nbytes)
 }
 
