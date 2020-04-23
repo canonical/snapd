@@ -376,7 +376,7 @@ func (u *uenvTextTestSuite) TestTextIgnoreComment(c *C) {
 }
 
 func (u *uenvTextTestSuite) TestTextSetGet(c *C) {
-	fileContents := "foo=bar\n\nbaz=baz"
+	fileContents := "foo=bar\nbaz=baz\n"
 	err := ioutil.WriteFile(u.envFile, []byte(fileContents), 0644)
 	c.Assert(err, IsNil)
 
