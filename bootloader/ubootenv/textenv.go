@@ -49,8 +49,8 @@ func createText(fname string) (*textEnv, error) {
 	return env, nil
 }
 
-// openTextFormat opens a existing text uboot env file, passing additional flags.
-func openTextFormat(fname string, flags OpenFlags) (*textEnv, error) {
+// openText opens a existing text uboot env file, passing additional flags.
+func openText(fname string, flags OpenFlags) (*textEnv, error) {
 	f, err := os.Open(fname)
 	if err != nil {
 		return nil, err

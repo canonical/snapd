@@ -89,9 +89,9 @@ func Open(fname string, fmt Format) (Env, error) {
 func OpenWithFlags(fname string, format Format, flags OpenFlags) (Env, error) {
 	switch format {
 	case NativeFormat:
-		return openNativeFormat(fname, flags)
+		return openNative(fname, flags)
 	case TextFormat:
-		return openTextFormat(fname, flags)
+		return openText(fname, flags)
 	}
 
 	return nil, fmt.Errorf("unsupported format %v", format)
@@ -140,7 +140,7 @@ func createNative(fname string, size int) (*nativeEnv, error) {
 	return env, nil
 }
 
-func openNativeFormat(fname string, flags OpenFlags) (*nativeEnv, error) {
+func openNative(fname string, flags OpenFlags) (*nativeEnv, error) {
 	f, err := os.Open(fname)
 	if err != nil {
 		return nil, err
