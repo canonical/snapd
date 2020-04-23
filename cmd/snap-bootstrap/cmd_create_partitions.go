@@ -64,7 +64,7 @@ func (c *cmdCreatePartitions) Execute(args []string) error {
 	var model *asserts.Model
 	if c.ModelPath != "" {
 		var err error
-		model, err = loadModel(c.ModelPath)
+		model, err = readModel(c.ModelPath)
 		if err != nil {
 			return fmt.Errorf("cannot load model: %v", err)
 		}
@@ -84,7 +84,7 @@ func (c *cmdCreatePartitions) Execute(args []string) error {
 	return bootstrapRun(c.Positional.GadgetRoot, c.Positional.Device, options)
 }
 
-func loadModel(modelPath string) (*asserts.Model, error) {
+func readModel(modelPath string) (*asserts.Model, error) {
 	f, err := os.Open(modelPath)
 	if err != nil {
 		return nil, err

@@ -192,7 +192,7 @@ func (s *secbootTPMSuite) TestSeal(c *C) {
 	defer stubRestore()
 
 	var sbAddSnapModelProfileCalled int
-	modelRestore := secboot.MockSbAddSnapModelProfile(func(profile *sb.PCRProtectionProfile, params *sb.SnapModelProfileParams) error {
+	modelProfileRestore := secboot.MockSbAddSnapModelProfile(func(profile *sb.PCRProtectionProfile, params *sb.SnapModelProfileParams) error {
 		c.Assert(*params, DeepEquals, sb.SnapModelProfileParams{
 			PCRAlgorithm: tpm2.HashAlgorithmSHA256,
 			PCRIndex:     12,
@@ -201,7 +201,7 @@ func (s *secbootTPMSuite) TestSeal(c *C) {
 		sbAddSnapModelProfileCalled++
 		return nil
 	})
-	defer modelRestore()
+	defer modelProfileRestore()
 
 	var sbSealKeyToTPMCalled int
 	sealRestore := secboot.MockSbSealKeyToTPM(func(tpm *sb.TPMConnection, key []byte, keyPath, policyUpdatePath string, params *sb.KeyCreationParams) error {
