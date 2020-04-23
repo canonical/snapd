@@ -106,8 +106,8 @@ func (u *uboot) InstallBootConfig(gadgetDir string, blOpts *Options) (bool, erro
 		return false, err
 	}
 	if st.Size() == 0 {
-		// we have a uboot.conf, and hence a uboot bootloader in the gadget, so
-		// we don't copy anything from the gadget and instead just install our
+		// we have an empty uboot.conf, and hence a uboot bootloader in the
+		// gadget, but nothing to copy in this case and instead just install our
 		// own boot.sel file
 		u.processBlOpts(blOpts)
 
@@ -130,7 +130,7 @@ func (u *uboot) InstallBootConfig(gadgetDir string, blOpts *Options) (bool, erro
 	if blOpts != nil && blOpts.Recovery {
 		// not supported yet, this is traditional uboot.env from gadget
 		// TODO:UC20: support this use-case
-		return false, fmt.Errorf("internal error: non-empty uboot.env not supported on uc20 yet")
+		return false, fmt.Errorf("non-empty uboot.env not supported on UC20 yet")
 	}
 
 	systemFile := u.ConfigFile()
