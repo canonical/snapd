@@ -385,7 +385,11 @@ func (ks20 *bootState20Kernel) loadBootenv() error {
 
 	// find the bootloader and ensure it's an extracted run kernel image
 	// bootloader
-	bl, err := bootloader.Find("", nil)
+	opts := &bootloader.Options{
+		// we want extracted run kernel images for uc20
+		ExtractedRunKernelImage: true,
+	}
+	bl, err := bootloader.Find("", opts)
 	if err != nil {
 		return err
 	}
