@@ -3,6 +3,12 @@ summary: Integration tests for the snap-bootstrap binary
 # use the same system and tooling as uc20
 systems: [ubuntu-20.04-64]
 
+environment:
+    # an empty $topsrcdir/tests/go.mod seems to break importing or building go
+    # packages referenced by their import paths while under the tests directory,
+    # need to disable go modules support for this test
+    GO111MODULE: off
+
 debug: |
     cat /proc/partitions
 
@@ -53,7 +59,8 @@ prepare: |
 execute: |
     LOOP="$(cat loop.txt)"
     echo "Run the snap-bootstrap tool"
-    /usr/lib/snapd/snap-bootstrap create-partitions --mount \
+    go get ../../lib/create-partitions
+    create-partitions --mount \
         --encrypt --key-file keyfile \
         --recovery-key-file /run/mnt/ubuntu-data/system-data/recovery-key \
         ./gadget-dir "$LOOP"

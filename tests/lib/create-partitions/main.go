@@ -20,25 +20,14 @@
 package main
 
 import (
+	"os"
+
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/bootstrap"
 )
 
 var bootstrapRun = bootstrap.Run
-
-func init() {
-	const (
-		short = "Create missing partitions for the device"
-		long  = ""
-	)
-
-	addCommandBuilder(func(parser *flags.Parser) {
-		if _, err := parser.AddCommand("create-partitions", short, long, &cmdCreatePartitions{}); err != nil {
-			panic(err)
-		}
-	})
-}
 
 type cmdCreatePartitions struct {
 	Mount                bool   `short:"m" long:"mount" description:"Also mount filesystems after creation"`
@@ -55,16 +44,28 @@ type cmdCreatePartitions struct {
 	} `positional-args:"yes"`
 }
 
-func (c *cmdCreatePartitions) Execute(args []string) error {
-	options := bootstrap.Options{
-		Mount:                c.Mount,
-		Encrypt:              c.Encrypt,
-		KeyFile:              c.KeyFile,
-		RecoveryKeyFile:      c.RecoveryKeyFile,
-		TPMLockoutAuthFile:   c.TPMLockoutAuthFile,
-		PolicyUpdateDataFile: c.PolicyUpdateDataFile,
-		KernelPath:           c.KernelPath,
-	}
+const (
+	short = "Create missing partitions for the device"
+	long  = ""
+)
 
-	return bootstrapRun(c.Positional.GadgetRoot, c.Positional.Device, options)
+func main() {
+	args := &cmdCreatePartitions{}
+	_, err := flags.ParseArgs(args, os.Args[1:])
+	if err != nil {
+		panic(err)
+	}
+	options := bootstrap.Options{
+		Mount:                args.Mount,
+		Encrypt:              args.Encrypt,
+		KeyFile:              args.KeyFile,
+		RecoveryKeyFile:      args.RecoveryKeyFile,
+		TPMLockoutAuthFile:   args.TPMLockoutAuthFile,
+		PolicyUpdateDataFile: args.PolicyUpdateDataFile,
+		KernelPath:           args.KernelPath,
+	}
+	err = bootstrapRun(args.Positional.GadgetRoot, args.Positional.Device, options)
+	if err != nil {
+		panic(err)
+	}
 }
