@@ -66,7 +66,6 @@ func (s *secbootTPMSuite) TestProvision(c *C) {
 }
 
 func (s *secbootTPMSuite) TestSeal(c *C) {
-	n := 0
 	myKey := []byte("528491")
 	myKeyPath := "keyFilename"
 	myPolicyUpdatePath := "policyUpdateFilename"
@@ -192,29 +191,33 @@ func (s *secbootTPMSuite) TestSeal(c *C) {
 	})
 	defer stubRestore()
 
+	var sbAddSnapModelProfileCalled int
 	modelRestore := secboot.MockSbAddSnapModelProfile(func(profile *sb.PCRProtectionProfile, params *sb.SnapModelProfileParams) error {
 		c.Assert(*params, DeepEquals, sb.SnapModelProfileParams{
 			PCRAlgorithm: tpm2.HashAlgorithmSHA256,
 			PCRIndex:     12,
 			Models:       models,
 		})
+		sbAddSnapModelProfileCalled++
 		return nil
 	})
 	defer modelRestore()
 
+	var sbSealKeyToTPMCalled int
 	sealRestore := secboot.MockSbSealKeyToTPM(func(tpm *sb.TPMConnection, key []byte, keyPath, policyUpdatePath string, params *sb.KeyCreationParams) error {
 		c.Assert(key, DeepEquals, myKey)
 		c.Assert(keyPath, Equals, myKeyPath)
 		c.Assert(policyUpdatePath, Equals, policyUpdatePath)
 		c.Assert(params.PINHandle, Equals, tpm2.Handle(0x01800000))
-		n++
+		sbSealKeyToTPMCalled++
 		return nil
 	})
 	defer sealRestore()
 
 	err := t.Seal(myKey, myKeyPath, myPolicyUpdatePath)
 	c.Assert(err, IsNil)
-	c.Assert(n, Equals, 1)
+	c.Assert(sbSealKeyToTPMCalled, Equals, 1)
+	c.Assert(sbAddSnapModelProfileCalled, Equals, 1)
 }
 
 func (s *secbootTPMSuite) TestSetFiles(c *C) {
