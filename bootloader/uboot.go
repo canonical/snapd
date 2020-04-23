@@ -128,7 +128,9 @@ func (u *uboot) InstallBootConfig(gadgetDir string, blOpts *Options) (bool, erro
 	u.setDefaults()
 
 	if blOpts != nil && blOpts.Recovery {
-		u.basedir = ""
+		// not supported yet, this is traditional uboot.env from gadget
+		// TODO:UC20: support this use-case
+		return false, fmt.Errorf("internal error: non-empty uboot.env not supported on uc20 yet")
 	}
 
 	systemFile := u.ConfigFile()

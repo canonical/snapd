@@ -20,6 +20,7 @@
 package boot_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -420,7 +421,7 @@ grade=dangerous
 `)
 }
 
-func (s *makeBootable20UbootSuite) TestUbootMakeBootable20TraditionalUbootenv(c *C) {
+func (s *makeBootable20UbootSuite) TestUbootMakeBootable20TraditionalUbootenvFails(c *C) {
 	dirs.SetRootDir("")
 
 	model := makeMockUC20Model()
@@ -469,26 +470,9 @@ version: 5.0
 		Recovery:            true,
 	}
 
+	// TODO:UC20: enable this use case
 	err = boot.MakeBootable(model, rootdir, bootWith)
-	c.Assert(err, IsNil)
-
-	// check that the recovery bootloader configuration was copied with
-	// the correct content
-	c.Check(filepath.Join(rootdir, "uboot.env"), testutil.FileEquals, ubootEnv)
-
-	c.Check(s.bootloader.BootVars, DeepEquals, map[string]string{
-		"snapd_recovery_system": label,
-	})
-
-	// ensure the correct recovery system configuration was set
-	c.Check(
-		s.bootloader.ExtractRecoveryKernelAssetsCalls,
-		DeepEquals,
-		[]bootloadertest.ExtractedRecoveryKernelCall{{
-			RecoverySystemDir: recoverySystemDir,
-			S:                 kernelInfo,
-		}},
-	)
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find boot config in %q", unpackedGadgetDir))
 }
 
 func (s *makeBootable20UbootSuite) TestUbootMakeBootable20BootScr(c *C) {
