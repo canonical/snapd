@@ -26,6 +26,8 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
+	// XXX: move bootstrap pkg elsewhere
+	"github.com/snapcore/snapd/cmd/snap-bootstrap/bootstrap"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -232,5 +234,13 @@ func MockSysconfigConfigureRunSystem(f func(opts *sysconfig.Options) error) (res
 	sysconfigConfigureRunSystem = f
 	return func() {
 		sysconfigConfigureRunSystem = old
+	}
+}
+
+func MockBootstrapRun(f func(gadgetRoot, device string, options bootstrap.Options) error) (restore func()) {
+	old := bootstrapRun
+	bootstrapRun = f
+	return func() {
+		bootstrapRun = old
 	}
 }

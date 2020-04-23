@@ -29,6 +29,8 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
+	// XXX: move bootstrap pkg elsewhere
+	"github.com/snapcore/snapd/cmd/snap-bootstrap/bootstrap"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
@@ -39,7 +41,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/sysconfig"
-	"github.com/snapcore/snapd/testutil"
 )
 
 type deviceMgrInstallModeSuite struct {
@@ -169,8 +170,17 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	mockSnapBootstrapCmd := testutil.MockCommand(c, filepath.Join(dirs.DistroLibExecDir, "snap-bootstrap"), "")
-	defer mockSnapBootstrapCmd.Restore()
+	var brGadgetRoot, brDevice string
+	var brOpts bootstrap.Options
+	var bootstrapRunCalled int
+	restore = devicestate.MockBootstrapRun(func(gadgetRoot, device string, options bootstrap.Options) error {
+		brGadgetRoot = gadgetRoot
+		brDevice = device
+		brOpts = options
+		bootstrapRunCalled++
+		return nil
+	})
+	defer restore()
 
 	restore = devicestate.MockSecbootCheckKeySealingSupported(func() error {
 		if tc.tpm {
@@ -233,25 +243,25 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 
 	// in the right way
 	if tc.encrypt {
-		c.Assert(mockSnapBootstrapCmd.Calls(), DeepEquals, [][]string{
-			{
-				"snap-bootstrap", "create-partitions", "--mount", "--encrypt",
-				"--key-file", filepath.Join(boot.InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key"),
-				"--recovery-key-file", filepath.Join(boot.InitramfsWritableDir, "var/lib/snapd/device/fde/recovery.key"),
-				"--tpm-lockout-auth", filepath.Join(boot.InitramfsWritableDir, "var/lib/snapd/device/fde/tpm-lockout-auth"),
-				"--policy-update-data-file", filepath.Join(boot.InitramfsWritableDir, "var/lib/snapd/device/fde/policy-update-data"),
-				"--kernel", filepath.Join(dirs.SnapMountDir, "pc-kernel/1/kernel.efi"),
-				filepath.Join(dirs.SnapMountDir, "/pc/1"),
-			},
+		c.Assert(brGadgetRoot, Equals, filepath.Join(dirs.SnapMountDir, "/pc/1"))
+		c.Assert(brDevice, Equals, "")
+		c.Assert(brOpts, DeepEquals, bootstrap.Options{
+			Mount:                true,
+			Encrypt:              true,
+			KeyFile:              filepath.Join(boot.InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key"),
+			RecoveryKeyFile:      filepath.Join(boot.InitramfsWritableDir, "var/lib/snapd/device/fde/recovery.key"),
+			TPMLockoutAuthFile:   filepath.Join(boot.InitramfsWritableDir, "var/lib/snapd/device/fde/tpm-lockout-auth"),
+			PolicyUpdateDataFile: filepath.Join(boot.InitramfsWritableDir, "var/lib/snapd/device/fde/policy-update-data"),
+			KernelPath:           filepath.Join(dirs.SnapMountDir, "pc-kernel/1/kernel.efi"),
 		})
 	} else {
-		c.Assert(mockSnapBootstrapCmd.Calls(), DeepEquals, [][]string{
-			{
-				"snap-bootstrap", "create-partitions", "--mount",
-				filepath.Join(dirs.SnapMountDir, "/pc/1"),
-			},
+		c.Assert(brGadgetRoot, Equals, filepath.Join(dirs.SnapMountDir, "/pc/1"))
+		c.Assert(brDevice, Equals, "")
+		c.Assert(brOpts, DeepEquals, bootstrap.Options{
+			Mount: true,
 		})
 	}
+	c.Assert(bootstrapRunCalled, Equals, 1)
 	c.Assert(bootMakeBootableCalled, Equals, 1)
 	c.Assert(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
 
@@ -262,8 +272,10 @@ func (s *deviceMgrInstallModeSuite) TestInstallTaskErrors(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	mockSnapBootstrapCmd := testutil.MockCommand(c, filepath.Join(dirs.DistroLibExecDir, "snap-bootstrap"), `echo "The horror, The horror"; exit 1`)
-	defer mockSnapBootstrapCmd.Restore()
+	restore = devicestate.MockBootstrapRun(func(gadgetRoot, device string, options bootstrap.Options) error {
+		return fmt.Errorf("The horror, The horror")
+	})
+	defer restore()
 
 	s.state.Lock()
 	s.makeMockInstalledPcGadget(c, "dangerous")
@@ -372,8 +384,10 @@ func (s *deviceMgrInstallModeSuite) mockInstallModeChange(c *C, modelGrade strin
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	mockSnapBootstrapCmd := testutil.MockCommand(c, filepath.Join(dirs.DistroLibExecDir, "snap-bootstrap"), "")
-	defer mockSnapBootstrapCmd.Restore()
+	restore = devicestate.MockBootstrapRun(func(gadgetRoot, device string, options bootstrap.Options) error {
+		return nil
+	})
+	defer restore()
 
 	s.state.Lock()
 	mockModel := s.makeMockInstalledPcGadget(c, modelGrade)
