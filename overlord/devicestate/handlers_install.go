@@ -26,7 +26,9 @@ import (
 
 	"gopkg.in/tomb.v2"
 
-	// XXX: move bootstrap pkg elsewhere
+	// TODO:UC20 look into merging
+	// snap-bootstrap/bootstrap|partition into gadget or
+	// supackages there cleanly
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/bootstrap"
 
 	"github.com/snapcore/snapd/asserts"

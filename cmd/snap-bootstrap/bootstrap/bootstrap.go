@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build !nosecboot
 
 /*
  * Copyright (C) 2019-2020 Canonical Ltd
@@ -33,23 +34,6 @@ const (
 	ubuntuDataLabel = "ubuntu-data"
 )
 
-type Options struct {
-	// Also mount the filesystems after creation
-	Mount bool
-	// Encrypt the data partition
-	Encrypt bool
-	// KeyFile is the location where the encryption key is written to
-	KeyFile string
-	// RecoveryKeyFile is the location where the recovery key is written to
-	RecoveryKeyFile string
-	// TPMLockoutAuthFile is the location where the TPM lockout authorization is written to
-	TPMLockoutAuthFile string
-	// PolicyUpdateDataFile is the location where the authorization policy update data is written to
-	PolicyUpdateDataFile string
-	// KernelPath is the path to the kernel to seal the keyfile to
-	KernelPath string
-}
-
 func deviceFromRole(lv *gadget.LaidOutVolume, role string) (device string, err error) {
 	for _, vs := range lv.LaidOutStructure {
 		// XXX: this part of the finding maybe should be a
@@ -65,6 +49,8 @@ func deviceFromRole(lv *gadget.LaidOutVolume, role string) (device string, err e
 	return "", fmt.Errorf("cannot find role %s in gadget", role)
 }
 
+// Run bootstraps the partitions of a device, by either creating
+// missing ones or recreating installed ones.
 func Run(gadgetRoot, device string, options Options) error {
 	if options.Encrypt && (options.KeyFile == "" || options.RecoveryKeyFile == "") {
 		return fmt.Errorf("key file and recovery key file must be specified when encrypting")

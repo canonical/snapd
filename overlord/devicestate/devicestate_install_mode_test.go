@@ -30,7 +30,6 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
-	// XXX: move bootstrap pkg elsewhere
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/bootstrap"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -176,6 +175,10 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	var brOpts bootstrap.Options
 	var bootstrapRunCalled int
 	restore = devicestate.MockBootstrapRun(func(gadgetRoot, device string, options bootstrap.Options) error {
+		// ensure we can grab the lock here, i.e. that it's not taken
+		s.state.Lock()
+		defer s.state.Unlock()
+
 		brGadgetRoot = gadgetRoot
 		brDevice = device
 		brOpts = options
