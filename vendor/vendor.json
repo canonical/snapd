@@ -117,7 +117,7 @@
 			"revisionTime": "2017-09-28T14:21:59Z"
 		},
 		{
-			"checksumSHA1": "2LxuUG/q81rVOpSJAHUsCZh+doo=",
+			"checksumSHA1": "WAeGpLSmxzsvaPLq7CTVjm+qvqE=",
 			"path": "github.com/snapcore/secboot",
 			"revision": "dd1d2c4169dcd173a0397a63d569d6e15e5f7644",
 			"revisionTime": "2020-04-16T07:09:07Z"
@@ -202,7 +202,7 @@
 			"revisionTime": "2017-06-28T23:42:41Z"
 		},
 		{
-			"checksumSHA1": "kohbRG3D0CRhcgwH6z7YQ6uq1xo=",
+			"checksumSHA1": "U4ZQCRcFfuKZvLIUmB1kXgWSd9U=",
 			"path": "golang.org/x/sys/unix",
 			"revision": "e3b113bbe6a423737ae98f42118ce9366e112e12",
 			"revisionTime": "2020-04-06T14:27:27Z"
