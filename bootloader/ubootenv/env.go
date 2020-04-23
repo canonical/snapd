@@ -175,7 +175,34 @@ func openNativeFormat(fname string, flags OpenFlags) (*nativeEnv, error) {
 	}
 
 	return env, nil
+}
 
+// parseData parses env binary data, with each env var delimited by the specified
+// delimited, and then in the form "<key>=<value>"
+func parseData(data []byte, lineDelimiter byte, flags OpenFlags) (map[string]string, error) {
+	out := make(map[string]string)
+
+	for _, envStr := range bytes.Split(data, []byte{lineDelimiter}) {
+		if len(envStr) == 0 || envStr[0] == 0 || envStr[0] == 255 {
+			continue
+		}
+		entry := string(envStr)
+		if flags&OpenIgnoreComments == OpenIgnoreComments && entry[0] == '#' {
+			continue
+		}
+		l := strings.SplitN(entry, "=", 2)
+		if len(l) != 2 || l[0] == "" {
+			if flags&OpenBestEffort == OpenBestEffort {
+				continue
+			}
+			return nil, fmt.Errorf("cannot parse line %q as key=value pair", envStr)
+		}
+		key := l[0]
+		value := l[1]
+		out[key] = value
+	}
+
+	return out, nil
 }
 
 // String returns a human-readable string representation. Notably, it delimits
@@ -206,6 +233,24 @@ func (env *nativeEnv) Set(name, value string) {
 		return
 	}
 	env.data[name] = value
+}
+
+// iterEnv calls the passed function f with key, value for environment
+// vars. The order is guaranteed (unlike just iterating over the map)
+func iterEnv(data map[string]string, f func(key, value string)) {
+	keys := make([]string, 0, len(data))
+	for k := range data {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		if k == "" {
+			panic("iterEnv iterating over a empty key")
+		}
+
+		f(k, data[k])
+	}
 }
 
 // Save will write out the environment data
@@ -280,52 +325,6 @@ func (env *nativeEnv) Save() error {
 }
 
 // common helper methods shared between the implementations
-
-// parseData parses env binary data, with each env var delimited by the specified
-// delimited, and then in the form "<key>=<value>"
-func parseData(data []byte, lineDelimiter byte, flags OpenFlags) (map[string]string, error) {
-	out := make(map[string]string)
-
-	for _, envStr := range bytes.Split(data, []byte{lineDelimiter}) {
-		if len(envStr) == 0 || envStr[0] == 0 || envStr[0] == 255 {
-			continue
-		}
-		entry := string(envStr)
-		if flags&OpenIgnoreComments == OpenIgnoreComments && entry[0] == '#' {
-			continue
-		}
-		l := strings.SplitN(entry, "=", 2)
-		if len(l) != 2 || l[0] == "" {
-			if flags&OpenBestEffort == OpenBestEffort {
-				continue
-			}
-			return nil, fmt.Errorf("cannot parse line %q as key=value pair", envStr)
-		}
-		key := l[0]
-		value := l[1]
-		out[key] = value
-	}
-
-	return out, nil
-}
-
-// iterEnv calls the passed function f with key, value for environment
-// vars. The order is guaranteed (unlike just iterating over the map)
-func iterEnv(data map[string]string, f func(key, value string)) {
-	keys := make([]string, 0, len(data))
-	for k := range data {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
-	for _, k := range keys {
-		if k == "" {
-			panic("iterEnv iterating over a empty key")
-		}
-
-		f(k, data[k])
-	}
-}
 
 func writeData(w io.Writer, data map[string]string, delimiter byte) {
 	iterEnv(data, func(key, value string) {

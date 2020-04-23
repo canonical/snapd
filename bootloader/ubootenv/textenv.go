@@ -22,7 +22,6 @@ package ubootenv
 import (
 	"bytes"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -58,12 +57,20 @@ func openTextFormat(fname string, flags OpenFlags) (*textEnv, error) {
 	}
 	defer f.Close()
 
-	env, err := importTextReader(f, flags)
+	payload, err := ioutil.ReadAll(f)
 	if err != nil {
 		return nil, err
 	}
-	env.fname = fname
-	return env, nil
+
+	data, err := parseData(payload, byte('\n'), flags)
+	if err != nil {
+		return nil, err
+	}
+
+	return &textEnv{
+		data:  data,
+		fname: fname,
+	}, nil
 }
 
 // Get the value of the environment variable
@@ -149,23 +156,4 @@ func (env *textEnv) Save() error {
 	}
 
 	return dir.Sync()
-}
-
-// importTextReader is a helper that imports from a io.Reader rather than a file
-// "key=value" pairs into the uboot env. Lines starting with ^# are
-// ignored (like the input file on mkenvimage)
-func importTextReader(r io.Reader, flags OpenFlags) (*textEnv, error) {
-	payload, err := ioutil.ReadAll(r)
-	if err != nil {
-		return nil, err
-	}
-
-	data, err := parseData(payload, byte('\n'), flags)
-	if err != nil {
-		return nil, err
-	}
-
-	return &textEnv{
-		data: data,
-	}, nil
 }

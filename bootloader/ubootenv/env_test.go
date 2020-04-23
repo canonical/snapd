@@ -25,7 +25,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -340,15 +339,21 @@ baz=baz`
 	c.Assert(st.Size(), Equals, int64(16))
 }
 
-func (u *uenvTextTestSuite) TestImportTextHasError(c *C) {
-	r := strings.NewReader("foxy")
-	_, err := ubootenv.ImportTextReader(r, ubootenv.OpenFlags(0))
+func (u *uenvTextTestSuite) TestTextLineHasError(c *C) {
+	fileContents := "foxy"
+	err := ioutil.WriteFile(u.envFile, []byte(fileContents), 0644)
+	c.Assert(err, IsNil)
+
+	_, err = ubootenv.Open(u.envFile, ubootenv.TextFormat)
 	c.Assert(err, ErrorMatches, "cannot parse line \"foxy\" as key=value pair")
 }
 
-func (u *uenvTextTestSuite) TestImportTextIgnoreComment(c *C) {
-	r := strings.NewReader("foo=bar\n#comment\n\nbaz=baz")
-	env, err := ubootenv.ImportTextReader(r, ubootenv.OpenIgnoreComments)
+func (u *uenvTextTestSuite) TestTextIgnoreComment(c *C) {
+	fileContents := "foo=bar\n#comment\n\nbaz=baz"
+	err := ioutil.WriteFile(u.envFile, []byte(fileContents), 0644)
+	c.Assert(err, IsNil)
+
+	env, err := ubootenv.OpenWithFlags(u.envFile, ubootenv.TextFormat, ubootenv.OpenIgnoreComments)
 	c.Assert(err, IsNil)
 	// order is alphabetic
 	c.Assert(env.String(), Equals, "baz=baz\nfoo=bar\n")
