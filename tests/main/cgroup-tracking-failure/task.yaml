@@ -88,7 +88,7 @@ execute: |
             MATCH 'DEBUG: session bus is not available: cannot find session bus' <debug.txt
             MATCH 'DEBUG: falling back to system bus' <debug.txt
             MATCH 'DEBUG: created transient scope as object: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt
-            MATCH '1:name=systemd:/user.slice/user-0.slice/user@0.service/snap.[0-9a-f-]+.test-snapd-sh.sh.scope' <cgroup.txt
+            MATCH '1:name=systemd:/system.slice/snap.[0-9a-f-]+.test-snapd-sh.sh.scope' <cgroup.txt
     esac
 
     # Notably we still use the freezer control group. It can be used on all
