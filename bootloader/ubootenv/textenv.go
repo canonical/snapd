@@ -132,16 +132,14 @@ func (env *textEnv) Save() error {
 	// Note that we overwrite the existing file and do not do
 	// the usual write-rename. The rationale is that we want to
 	// minimize the amount of writes happening on a potential
-	// FAT partition where the env is loaded from. The file will
-	// always be of a fixed size so we know the writes will not
-	// fail because of ENOSPC.
+	// FAT partition where the env is loaded from.
 	//
-	// The size of the env file never changes so we do not
-	// truncate it.
-	//
-	// We also do not O_TRUNC to avoid reallocations on the FS
-	// to minimize risk of fs corruption.
-	f, err := os.OpenFile(env.fname, os.O_WRONLY, 0666)
+	// Note that unlike the native format, we have to use O_TRUNC here
+	// because the file size may be smaller now than when it was originally
+	// written
+	// TODO:UC20: maybe we should pad this with white space or otherwise just
+	//            always use native format?
+	f, err := os.OpenFile(env.fname, os.O_WRONLY|os.O_TRUNC, 0666)
 	if err != nil {
 		return err
 	}

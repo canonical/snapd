@@ -400,3 +400,21 @@ func (u *uenvTextTestSuite) TestTextSetGet(c *C) {
 	c.Assert(env.Save(), IsNil)
 	c.Assert(u.envFile, testutil.FileEquals, "baz=baz\nhello=there\n")
 }
+
+func (u *uenvTextTestSuite) TestTextWriteSmaller(c *C) {
+	fileContents := "foo=bar\nbaz=baz\n"
+	err := ioutil.WriteFile(u.envFile, []byte(fileContents), 0644)
+	c.Assert(err, IsNil)
+
+	env, err := ubootenv.Open(u.envFile, ubootenv.TextFormat)
+	c.Assert(err, IsNil)
+
+	// unset "baz" and re-save
+	env.Set("baz", "")
+	c.Assert(env.Get("baz"), Equals, "")
+	c.Assert(env.String(), Equals, "foo=bar\n")
+
+	// when we save we have the smaller string
+	c.Assert(env.Save(), IsNil)
+	c.Assert(u.envFile, testutil.FileEquals, "foo=bar\n")
+}
