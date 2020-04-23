@@ -22,10 +22,14 @@ package devicestate
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 
 	"gopkg.in/tomb.v2"
+
+	// TODO:UC20 look into merging
+	// snap-bootstrap/bootstrap|partition into gadget or
+	// subpackages there cleanly
+	"github.com/snapcore/snapd/cmd/snap-bootstrap/bootstrap"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
@@ -41,7 +45,17 @@ import (
 var (
 	bootMakeBootable            = boot.MakeBootable
 	sysconfigConfigureRunSystem = sysconfig.ConfigureRunSystem
+	bootstrapRun                = bootstrap.Run
 )
+
+func writeModel(model *asserts.Model, where string) error {
+	f, err := os.OpenFile(where, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return asserts.NewEncoder(f).Encode(model)
+}
 
 func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
@@ -68,55 +82,39 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 	kernelDir := kernelInfo.MountDir()
 
-	modeEnv, err := m.maybeReadModeenv()
-	if err != nil {
-		return err
+	// bootstrap
+	bopts := bootstrap.Options{
+		Mount: true,
 	}
-	if modeEnv == nil {
-		return fmt.Errorf("missing modeenv, cannot proceed")
-	}
-
-	args := []string{
-		// create partitions missing from the device
-		"create-partitions",
-		// mount filesystems after they're created
-		"--mount",
-	}
-
 	useEncryption, err := checkEncryption(deviceCtx.Model())
 	if err != nil {
 		return err
 	}
 	if useEncryption {
 		fdeDir := "var/lib/snapd/device/fde"
-		args = append(args,
-			// enable data encryption
-			"--encrypt",
-			// location to store the keyfile
-			"--key-file", filepath.Join(boot.InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key"),
-			// location to store the recovery keyfile
-			"--recovery-key-file", filepath.Join(boot.InitramfsWritableDir, fdeDir, "recovery.key"),
-			// location to store the recovery keyfile
-			"--tpm-lockout-auth", filepath.Join(boot.InitramfsWritableDir, fdeDir, "tpm-lockout-auth"),
-			// location to store the authorization policy update data
-			"--policy-update-data-file", filepath.Join(boot.InitramfsWritableDir, fdeDir, "policy-update-data"),
-			// path to the kernel to install
-			"--kernel", filepath.Join(kernelDir, "kernel.efi"),
-			// the label of the system to be installed
-			"--system-label", modeEnv.RecoverySystem,
-		)
+		bopts.Encrypt = true
+		bopts.KeyFile = filepath.Join(boot.InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key")
+		bopts.RecoveryKeyFile = filepath.Join(boot.InitramfsWritableDir, fdeDir, "recovery.key")
+		bopts.TPMLockoutAuthFile = filepath.Join(boot.InitramfsWritableDir, fdeDir, "tpm-lockout-auth")
+		bopts.PolicyUpdateDataFile = filepath.Join(boot.InitramfsWritableDir, fdeDir, "policy-update-data")
+		bopts.KernelPath = filepath.Join(kernelDir, "kernel.efi")
 	}
-	args = append(args, gadgetDir)
 
 	// run the create partition code
 	logger.Noticef("create and deploy partitions")
-	st.Unlock()
-	cmd := exec.Command(filepath.Join(dirs.DistroLibExecDir, "snap-bootstrap"), args...)
-	cmd.Stderr = os.Stderr
-	output, err := cmd.Output()
-	st.Lock()
+	func() {
+		st.Unlock()
+		defer st.Lock()
+		err = bootstrapRun(gadgetDir, "", bopts)
+	}()
 	if err != nil {
-		return fmt.Errorf("cannot create partitions: %v", osutil.OutputErr(output, err))
+		return fmt.Errorf("cannot create partitions: %v", err)
+	}
+
+	// keep track of the model we installed
+	err = writeModel(deviceCtx.Model(), filepath.Join(boot.InitramfsUbuntuBootDir, "model"))
+	if err != nil {
+		return fmt.Errorf("cannot store the model: %v", err)
 	}
 
 	// configure the run system

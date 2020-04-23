@@ -762,6 +762,23 @@ func (mods *modelSuite) TestCore20ValidGrades(c *C) {
 	}
 }
 
+func (mods *modelSuite) TestModelGradeCode(c *C) {
+	for i, grade := range []asserts.ModelGrade{asserts.ModelGradeUnset, asserts.ModelDangerous, asserts.ModelSigned, asserts.ModelSecured} {
+		// unset is represented as zero
+		code := 0
+		if i > 0 {
+			// have some space between grades to add new ones
+			n := (i - 1) * 8
+			if n == 0 {
+				n = 1 // dangerous
+			}
+			// lower 16 bits are reserved
+			code = n << 16
+		}
+		c.Check(grade.Code(), Equals, uint32(code))
+	}
+}
+
 func (mods *modelSuite) TestCore20GradeDangerous(c *C) {
 	encoded := strings.Replace(core20ModelExample, "TSLINE", mods.tsLine, 1)
 	encoded = strings.Replace(encoded, "OTHER", "", 1)
