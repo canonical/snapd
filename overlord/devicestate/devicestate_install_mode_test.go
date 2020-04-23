@@ -177,7 +177,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	restore = devicestate.MockBootstrapRun(func(gadgetRoot, device string, options bootstrap.Options) error {
 		// ensure we can grab the lock here, i.e. that it's not taken
 		s.state.Lock()
-		defer s.state.Unlock()
+		s.state.Unlock()
 
 		brGadgetRoot = gadgetRoot
 		brDevice = device

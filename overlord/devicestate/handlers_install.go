@@ -102,9 +102,11 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 
 	// run the create partition code
 	logger.Noticef("create and deploy partitions")
-	st.Unlock()
-	err = bootstrapRun(gadgetDir, "", bopts)
-	st.Lock()
+	func() {
+		st.Unlock()
+		defer st.Lock()
+		err = bootstrapRun(gadgetDir, "", bopts)
+	}()
 	if err != nil {
 		return fmt.Errorf("cannot create partitions: %v", err)
 	}
