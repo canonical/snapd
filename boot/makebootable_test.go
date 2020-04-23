@@ -507,7 +507,7 @@ func (s *makeBootable20UbootSuite) TestUbootMakeBootable20RunMode(c *C) {
 	err = os.MkdirAll(filepath.Dir(mockSeedUbootEnv), 0755)
 	c.Assert(err, IsNil)
 	// this is taken from the pi gadget uboot.conf
-	env, err := ubootenv.Create(mockSeedUbootEnv, 131072)
+	env, err := ubootenv.Create(mockSeedUbootEnv, ubootenv.NativeFormat, 131072)
 	c.Assert(err, IsNil)
 	c.Assert(env.Save(), IsNil)
 
@@ -516,7 +516,7 @@ func (s *makeBootable20UbootSuite) TestUbootMakeBootable20RunMode(c *C) {
 	err = os.MkdirAll(filepath.Dir(mockBootUbootEnv), 0755)
 	c.Assert(err, IsNil)
 	// this is taken from the pi gadget uboot.conf
-	env, err = ubootenv.Create(mockBootUbootEnv, 131072)
+	env, err = ubootenv.Create(mockBootUbootEnv, ubootenv.NativeFormat, 131072)
 	c.Assert(err, IsNil)
 	c.Assert(env.Save(), IsNil)
 
@@ -559,13 +559,13 @@ version: 5.0
 
 	// ensure the bootvars on ubuntu-seed got updated the right way
 	mockSeedUbootenv := filepath.Join(boot.InitramfsUbuntuSeedDir, "uboot.env")
-	uenvSeed, err := ubootenv.Open(mockSeedUbootenv)
+	uenvSeed, err := ubootenv.Open(mockSeedUbootenv, ubootenv.NativeFormat)
 	c.Assert(err, IsNil)
 	c.Assert(uenvSeed.Get("snapd_recovery_mode"), Equals, "run")
 
 	// now check ubuntu-boot uboot.env
 	mockBootUbootenv := filepath.Join(boot.InitramfsUbuntuBootDir, "uboot.env")
-	uenvBoot, err := ubootenv.Open(mockBootUbootenv)
+	uenvBoot, err := ubootenv.Open(mockBootUbootenv, ubootenv.NativeFormat)
 	c.Assert(err, IsNil)
 	c.Assert(uenvBoot.Get("snap_try_kernel"), Equals, "")
 	c.Assert(uenvBoot.Get("snap_kernel"), Equals, "arm-kernel_5.snap")

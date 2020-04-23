@@ -84,7 +84,7 @@ func (s *ubootTestSuite) TestUbootSetEnvNoUselessWrites(c *C) {
 	c.Assert(u, NotNil)
 
 	envFile := u.ConfigFile()
-	env, err := ubootenv.Create(envFile, 4096)
+	env, err := ubootenv.Create(envFile, ubootenv.NativeFormat, 4096)
 	c.Assert(err, IsNil)
 	env.Set("snap_ab", "b")
 	env.Set("snap_mode", "")
@@ -99,7 +99,7 @@ func (s *ubootTestSuite) TestUbootSetEnvNoUselessWrites(c *C) {
 	err = u.SetBootVars(map[string]string{"snap_ab": "b"})
 	c.Assert(err, IsNil)
 
-	env, err = ubootenv.Open(envFile)
+	env, err = ubootenv.Open(envFile, ubootenv.NativeFormat)
 	c.Assert(err, IsNil)
 	c.Assert(env.String(), Equals, "snap_ab=b\n")
 

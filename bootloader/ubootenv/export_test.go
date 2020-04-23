@@ -21,4 +21,6 @@ package ubootenv
 
 var (
 	WriteUint32 = writeUint32
+
+	ImportTextReader = importTextReader
 )

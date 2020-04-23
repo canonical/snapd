@@ -31,88 +31,106 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/bootloader/ubootenv"
+	"github.com/snapcore/snapd/testutil"
 )
 
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
-type uenvTestSuite struct {
+type uenvBaseSuite struct {
 	envFile string
 }
 
-var _ = Suite(&uenvTestSuite{})
-
-func (u *uenvTestSuite) SetUpTest(c *C) {
-	u.envFile = filepath.Join(c.MkDir(), "uboot.env")
+func (s *uenvBaseSuite) SetUpTest(c *C) {
+	s.envFile = filepath.Join(c.MkDir(), "uboot.env")
 }
 
-func (u *uenvTestSuite) TestSetNoDuplicate(c *C) {
-	env, err := ubootenv.Create(u.envFile, 4096)
+type uenvNativeTestSuite struct {
+	uenvBaseSuite
+}
+
+type uenvTextTestSuite struct {
+	uenvBaseSuite
+}
+
+var _ = Suite(&uenvNativeTestSuite{})
+var _ = Suite(&uenvTextTestSuite{})
+
+func (u *uenvNativeTestSuite) SetUpTest(c *C) {
+	u.uenvBaseSuite.SetUpTest(c)
+}
+
+func (u *uenvNativeTestSuite) TestSetNoDuplicate(c *C) {
+	env, err := ubootenv.Create(u.envFile, ubootenv.NativeFormat, 4096)
 	c.Assert(err, IsNil)
 	env.Set("foo", "bar")
 	env.Set("foo", "bar")
 	c.Assert(env.String(), Equals, "foo=bar\n")
 }
 
-func (u *uenvTestSuite) TestOpenEnv(c *C) {
-	env, err := ubootenv.Create(u.envFile, 4096)
+func (u *uenvNativeTestSuite) TestSanityNativeIsNotText(c *C) {
+	native := filepath.Join(c.MkDir(), "uboot.env")
+	nenv, err := ubootenv.Create(native, ubootenv.NativeFormat, 4096)
+	c.Assert(err, IsNil)
+	nenv.Set("foo", "bar")
+
+	text := filepath.Join(c.MkDir(), "boot.sel")
+	tenv, err := ubootenv.Create(text, ubootenv.TextFormat, 4096)
+	tenv.Set("foo", "bar")
+
+	c.Assert(tenv.Get("foo"), Equals, nenv.Get("foo"))
+
+	// the string's are the same
+	c.Assert(tenv.String(), Equals, nenv.String())
+
+	// but the file contents aren't
+	c.Assert(tenv.Save(), IsNil)
+	c.Assert(nenv.Save(), IsNil)
+	nbytes, err := ioutil.ReadFile(native)
+	c.Assert(err, IsNil)
+	tbytes, err := ioutil.ReadFile(text)
+	c.Assert(tbytes, Not(Equals), nbytes)
+}
+
+func (u *uenvNativeTestSuite) TestOpenEnv(c *C) {
+	env, err := ubootenv.Create(u.envFile, ubootenv.NativeFormat, 4096)
 	c.Assert(err, IsNil)
 	env.Set("foo", "bar")
 	c.Assert(env.String(), Equals, "foo=bar\n")
 	err = env.Save()
 	c.Assert(err, IsNil)
 
-	env2, err := ubootenv.Open(u.envFile)
+	env2, err := ubootenv.Open(u.envFile, ubootenv.NativeFormat)
 	c.Assert(err, IsNil)
 	c.Assert(env2.String(), Equals, "foo=bar\n")
 }
 
-func (u *uenvTestSuite) TestOpenEnvBadCRC(c *C) {
+func (u *uenvNativeTestSuite) TestOpenEnvBadCRC(c *C) {
 	corrupted := filepath.Join(c.MkDir(), "corrupted.env")
 
 	buf := make([]byte, 4096)
 	err := ioutil.WriteFile(corrupted, buf, 0644)
 	c.Assert(err, IsNil)
 
-	_, err = ubootenv.Open(corrupted)
+	_, err = ubootenv.Open(corrupted, ubootenv.NativeFormat)
 	c.Assert(err, ErrorMatches, `cannot open ".*": bad CRC 0 != .*`)
 }
 
-func (u *uenvTestSuite) TestGetSimple(c *C) {
-	env, err := ubootenv.Create(u.envFile, 4096)
+func (u *uenvNativeTestSuite) TestGetSimple(c *C) {
+	env, err := ubootenv.Create(u.envFile, ubootenv.NativeFormat, 4096)
 	c.Assert(err, IsNil)
 	env.Set("foo", "bar")
 	c.Assert(env.Get("foo"), Equals, "bar")
 }
 
-func (u *uenvTestSuite) TestGetNoSuchEntry(c *C) {
-	env, err := ubootenv.Create(u.envFile, 4096)
+func (u *uenvNativeTestSuite) TestGetNoSuchEntry(c *C) {
+	env, err := ubootenv.Create(u.envFile, ubootenv.NativeFormat, 4096)
 	c.Assert(err, IsNil)
 	c.Assert(env.Get("no-such-entry"), Equals, "")
 }
 
-func (u *uenvTestSuite) TestImport(c *C) {
-	env, err := ubootenv.Create(u.envFile, 4096)
-	c.Assert(err, IsNil)
-
-	r := strings.NewReader("foo=bar\n#comment\n\nbaz=baz")
-	err = env.Import(r)
-	c.Assert(err, IsNil)
-	// order is alphabetic
-	c.Assert(env.String(), Equals, "baz=baz\nfoo=bar\n")
-}
-
-func (u *uenvTestSuite) TestImportHasError(c *C) {
-	env, err := ubootenv.Create(u.envFile, 4096)
-	c.Assert(err, IsNil)
-
-	r := strings.NewReader("foxy")
-	err = env.Import(r)
-	c.Assert(err, ErrorMatches, "Invalid line: \"foxy\"")
-}
-
-func (u *uenvTestSuite) TestSetEmptyUnsets(c *C) {
-	env, err := ubootenv.Create(u.envFile, 4096)
+func (u *uenvNativeTestSuite) TestSetEmptyUnsets(c *C) {
+	env, err := ubootenv.Create(u.envFile, ubootenv.NativeFormat, 4096)
 	c.Assert(err, IsNil)
 
 	env.Set("foo", "bar")
@@ -121,7 +139,7 @@ func (u *uenvTestSuite) TestSetEmptyUnsets(c *C) {
 	c.Assert(env.String(), Equals, "")
 }
 
-func (u *uenvTestSuite) makeUbootEnvFromData(c *C, mockData []byte) {
+func (u *uenvNativeTestSuite) makeUbootEnvFromData(c *C, mockData []byte) {
 	w := bytes.NewBuffer(nil)
 	crc := crc32.ChecksumIEEE(mockData)
 	w.Write(ubootenv.WriteUint32(crc))
@@ -136,7 +154,7 @@ func (u *uenvTestSuite) makeUbootEnvFromData(c *C, mockData []byte) {
 }
 
 // ensure that the data after \0\0 is discarded (except for crc)
-func (u *uenvTestSuite) TestReadStopsAfterDoubleNull(c *C) {
+func (u *uenvNativeTestSuite) TestReadStopsAfterDoubleNull(c *C) {
 	mockData := []byte{
 		// foo=bar
 		0x66, 0x6f, 0x6f, 0x3d, 0x62, 0x61, 0x72,
@@ -150,13 +168,13 @@ func (u *uenvTestSuite) TestReadStopsAfterDoubleNull(c *C) {
 	}
 	u.makeUbootEnvFromData(c, mockData)
 
-	env, err := ubootenv.Open(u.envFile)
+	env, err := ubootenv.Open(u.envFile, ubootenv.NativeFormat)
 	c.Assert(err, IsNil)
 	c.Assert(env.String(), Equals, "foo=bar\n")
 }
 
 // ensure that the malformed data is not causing us to panic.
-func (u *uenvTestSuite) TestErrorOnMalformedData(c *C) {
+func (u *uenvNativeTestSuite) TestErrorOnMalformedData(c *C) {
 	mockData := []byte{
 		// foo
 		0x66, 0x6f, 0x6f,
@@ -165,13 +183,13 @@ func (u *uenvTestSuite) TestErrorOnMalformedData(c *C) {
 	}
 	u.makeUbootEnvFromData(c, mockData)
 
-	env, err := ubootenv.Open(u.envFile)
+	env, err := ubootenv.Open(u.envFile, ubootenv.NativeFormat)
 	c.Assert(err, ErrorMatches, `cannot parse line "foo" as key=value pair`)
 	c.Assert(env, IsNil)
 }
 
 // ensure that the malformed data is not causing us to panic.
-func (u *uenvTestSuite) TestOpenBestEffort(c *C) {
+func (u *uenvNativeTestSuite) TestOpenBestEffort(c *C) {
 	testCases := map[string][]byte{"noise": {
 		// key1=value1
 		0x6b, 0x65, 0x79, 0x31, 0x3d, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x31, 0x00,
@@ -198,13 +216,13 @@ func (u *uenvTestSuite) TestOpenBestEffort(c *C) {
 	for testName, mockData := range testCases {
 		u.makeUbootEnvFromData(c, mockData)
 
-		env, err := ubootenv.OpenWithFlags(u.envFile, ubootenv.OpenBestEffort)
+		env, err := ubootenv.OpenWithFlags(u.envFile, ubootenv.NativeFormat, ubootenv.OpenBestEffort)
 		c.Assert(err, IsNil, Commentf(testName))
 		c.Check(env.String(), Equals, "key1=value1\nkey2=value2\n", Commentf(testName))
 	}
 }
 
-func (u *uenvTestSuite) TestErrorOnMissingKeyInKeyValuePair(c *C) {
+func (u *uenvNativeTestSuite) TestErrorOnMissingKeyInKeyValuePair(c *C) {
 	mockData := []byte{
 		// =foo
 		0x3d, 0x66, 0x6f, 0x6f,
@@ -213,12 +231,12 @@ func (u *uenvTestSuite) TestErrorOnMissingKeyInKeyValuePair(c *C) {
 	}
 	u.makeUbootEnvFromData(c, mockData)
 
-	env, err := ubootenv.Open(u.envFile)
+	env, err := ubootenv.Open(u.envFile, ubootenv.NativeFormat)
 	c.Assert(err, ErrorMatches, `cannot parse line "=foo" as key=value pair`)
 	c.Assert(env, IsNil)
 }
 
-func (u *uenvTestSuite) TestReadEmptyFile(c *C) {
+func (u *uenvNativeTestSuite) TestReadEmptyFile(c *C) {
 	mockData := []byte{
 		// eof
 		0x00, 0x00,
@@ -227,13 +245,13 @@ func (u *uenvTestSuite) TestReadEmptyFile(c *C) {
 	}
 	u.makeUbootEnvFromData(c, mockData)
 
-	env, err := ubootenv.Open(u.envFile)
+	env, err := ubootenv.Open(u.envFile, ubootenv.NativeFormat)
 	c.Assert(err, IsNil)
 	c.Assert(env.String(), Equals, "")
 }
 
-func (u *uenvTestSuite) TestWritesEmptyFileWithDoubleNewline(c *C) {
-	env, err := ubootenv.Create(u.envFile, 12)
+func (u *uenvNativeTestSuite) TestWritesEmptyFileWithDoubleNewline(c *C) {
+	env, err := ubootenv.Create(u.envFile, ubootenv.NativeFormat, 12)
 	c.Assert(err, IsNil)
 	err = env.Save()
 	c.Assert(err, IsNil)
@@ -254,15 +272,15 @@ func (u *uenvTestSuite) TestWritesEmptyFileWithDoubleNewline(c *C) {
 		0xff, 0xff, 0xff, 0xff, 0xff,
 	})
 
-	env, err = ubootenv.Open(u.envFile)
+	env2, err := ubootenv.Open(u.envFile, ubootenv.NativeFormat)
 	c.Assert(err, IsNil)
-	c.Assert(env.String(), Equals, "")
+	c.Assert(env2.String(), Equals, "")
 }
 
-func (u *uenvTestSuite) TestWritesContentCorrectly(c *C) {
+func (u *uenvNativeTestSuite) TestWritesContentCorrectly(c *C) {
 	totalSize := 16
 
-	env, err := ubootenv.Create(u.envFile, totalSize)
+	env, err := ubootenv.Create(u.envFile, ubootenv.NativeFormat, totalSize)
 	c.Assert(err, IsNil)
 	env.Set("a", "b")
 	env.Set("c", "d")
@@ -291,8 +309,71 @@ func (u *uenvTestSuite) TestWritesContentCorrectly(c *C) {
 		0xff, 0xff,
 	})
 
-	env, err = ubootenv.Open(u.envFile)
+	env2, err := ubootenv.Open(u.envFile, ubootenv.NativeFormat)
 	c.Assert(err, IsNil)
-	c.Assert(env.String(), Equals, "a=b\nc=d\n")
-	c.Assert(env.Size(), Equals, totalSize)
+	c.Assert(env2.String(), Equals, "a=b\nc=d\n")
+	c.Assert(env2.Size(), Equals, totalSize)
+}
+
+func (u *uenvTextTestSuite) TestOpenText(c *C) {
+	fileContents := `foo=bar
+baz=baz`
+	err := ioutil.WriteFile(u.envFile, []byte(fileContents), 0644)
+	c.Assert(err, IsNil)
+
+	env, err := ubootenv.Open(u.envFile, ubootenv.TextFormat)
+	c.Assert(err, IsNil)
+
+	// order is alphabetic
+	c.Assert(env.String(), Equals, "baz=baz\nfoo=bar\n")
+
+	// size works
+	c.Assert(env.String(), HasLen, 16)
+	c.Assert(env.Size(), Equals, 16)
+
+	// when we re-write the file it will have the same size
+	c.Assert(env.Save(), IsNil)
+	st, err := os.Stat(u.envFile)
+	c.Assert(err, IsNil)
+	c.Assert(st.Size(), Equals, int64(16))
+}
+
+func (u *uenvTextTestSuite) TestImportTextHasError(c *C) {
+	r := strings.NewReader("foxy")
+	_, err := ubootenv.ImportTextReader(r, ubootenv.OpenFlags(0))
+	c.Assert(err, ErrorMatches, "cannot parse line \"foxy\" as key=value pair")
+}
+
+func (u *uenvTextTestSuite) TestImportTextIgnoreComment(c *C) {
+	r := strings.NewReader("foo=bar\n#comment\n\nbaz=baz")
+	env, err := ubootenv.ImportTextReader(r, ubootenv.OpenIgnoreComments)
+	c.Assert(err, IsNil)
+	// order is alphabetic
+	c.Assert(env.String(), Equals, "baz=baz\nfoo=bar\n")
+}
+
+func (u *uenvTextTestSuite) TestTextSetGet(c *C) {
+	fileContents := "foo=bar\n\nbaz=baz"
+	err := ioutil.WriteFile(u.envFile, []byte(fileContents), 0644)
+	c.Assert(err, IsNil)
+
+	env, err := ubootenv.Open(u.envFile, ubootenv.TextFormat)
+	c.Assert(err, IsNil)
+
+	env.Set("hello", "there")
+	c.Assert(env.Get("hello"), Equals, "there")
+
+	c.Assert(env.Get("baz"), Equals, "baz")
+	// order is alphabetic
+	c.Assert(env.String(), Equals, "baz=baz\nfoo=bar\nhello=there\n")
+
+	// unset foo
+	env.Set("foo", "")
+	// now foo is the empty string
+	c.Assert(env.Get("foo"), Equals, "")
+	// and it's absent from the output
+	c.Assert(env.String(), Equals, "baz=baz\nhello=there\n")
+	// and absent when we Save() too
+	c.Assert(env.Save(), IsNil)
+	c.Assert(u.envFile, testutil.FileEquals, "baz=baz\nhello=there\n")
 }

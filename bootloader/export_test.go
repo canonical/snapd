@@ -53,7 +53,7 @@ func MockUbootFiles(c *C, rootdir string) {
 	c.Assert(err, IsNil)
 
 	// ensure that we have a valid uboot.env too
-	env, err := ubootenv.Create(u.envFile(), 4096)
+	env, err := ubootenv.Create(u.envFile(), ubootenv.NativeFormat, 4096)
 	c.Assert(err, IsNil)
 	err = env.Save()
 	c.Assert(err, IsNil)
