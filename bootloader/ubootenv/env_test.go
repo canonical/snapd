@@ -26,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"unicode"
 
 	. "gopkg.in/check.v1"
 
@@ -70,10 +71,11 @@ func (u *uenvNativeTestSuite) TestSanityNativeIsNotText(c *C) {
 	nenv.Set("foo", "bar")
 
 	text := filepath.Join(c.MkDir(), "boot.sel")
-	tenv, err := ubootenv.Create(text, ubootenv.TextFormat, 4096)
+	tenv, err := ubootenv.Create(text, ubootenv.TextFormat, 0)
 	c.Assert(err, IsNil)
 	tenv.Set("foo", "bar")
 
+	// the env var values are the same
 	c.Assert(tenv.Get("foo"), Equals, nenv.Get("foo"))
 
 	// the string's are the same
@@ -87,6 +89,11 @@ func (u *uenvNativeTestSuite) TestSanityNativeIsNotText(c *C) {
 	tbytes, err := ioutil.ReadFile(text)
 	c.Assert(err, IsNil)
 	c.Assert(tbytes, Not(Equals), nbytes)
+
+	// the size also is different
+	c.Assert(len(tbytes), Not(Equals), len(nbytes))
+	c.Assert(tbytes, HasLen, 8)
+	c.Assert(nbytes, HasLen, 4096)
 }
 
 func (u *uenvNativeTestSuite) TestOpenEnv(c *C) {
@@ -333,6 +340,19 @@ baz=baz`
 	st, err := os.Stat(u.envFile)
 	c.Assert(err, IsNil)
 	c.Assert(st.Size(), Equals, int64(16))
+
+	b, err := ioutil.ReadFile(u.envFile)
+	c.Assert(err, IsNil)
+
+	// ensure that the text encoding contains only printable unicode characters
+	// i.e. no NUL's or other non-printable characters
+	for _, char := range b {
+		// "\n" is not in the Printable character range, so ignore that one
+		if char == '\n' {
+			continue
+		}
+		c.Assert(unicode.IsPrint(rune(char)), Equals, true)
+	}
 }
 
 func (u *uenvTextTestSuite) TestTextLineHasError(c *C) {
