@@ -448,9 +448,9 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 			if err := os.MkdirAll(filepath.Join(defaultsDir, "/etc"), 0755); err != nil {
 				return err
 			}
+			applyOpts := &configcore.FilesystemOnlyApplyOpts{Classic: opts.Classic}
+			return configcore.FilesystemOnlyApply(defaultsDir, configcore.PlainCoreConfig(defaults), applyOpts)
 		}
-		applyOpts := &configcore.FilesystemOnlyApplyOpts{Classic: opts.Classic}
-		return configcore.FilesystemOnlyApply(defaultsDir, configcore.PlainCoreConfig(defaults), applyOpts)
 	}
 
 	return nil
