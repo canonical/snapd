@@ -41,7 +41,7 @@ type uenvBaseSuite struct {
 }
 
 func (s *uenvBaseSuite) SetUpTest(c *C) {
-	s.envFile = filepath.Join(c.MkDir(), "uboot.env")
+	s.envFile = filepath.Join(c.MkDir(), "ubootenv")
 }
 
 type uenvNativeTestSuite struct {
@@ -54,10 +54,6 @@ type uenvTextTestSuite struct {
 
 var _ = Suite(&uenvNativeTestSuite{})
 var _ = Suite(&uenvTextTestSuite{})
-
-func (u *uenvNativeTestSuite) SetUpTest(c *C) {
-	u.uenvBaseSuite.SetUpTest(c)
-}
 
 func (u *uenvNativeTestSuite) TestSetNoDuplicate(c *C) {
 	env, err := ubootenv.Create(u.envFile, ubootenv.NativeFormat, 4096)
