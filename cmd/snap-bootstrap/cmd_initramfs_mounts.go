@@ -326,7 +326,8 @@ func generateMountsModeRun() error {
 	}
 	if !isDataMounted {
 		name := filepath.Base(boot.InitramfsUbuntuDataDir)
-		device, err := unlockIfEncrypted(name, true)
+		const lockKey = true
+		device, err := unlockIfEncrypted(name, lockKey)
 		if err != nil {
 			return err
 		}
@@ -527,10 +528,11 @@ var (
 	secbootLockAccessToSealedKeys = secboot.LockAccessToSealedKeys
 )
 
-// unlockIfEncrypted verifies if an encrypted volume with the specified name exists and unlocks
-// it if this is the case. If this is the last device to be unlocked the access to the sealed keys
-// will be locked. The path to the unencrypted device node is returned.
-func unlockIfEncrypted(name string, last bool) (string, error) {
+// unlockIfEncrypted verifies whether an encrypted volume with the specified
+// name exists and unlocks it. With lockKeyOnFinish set, access to the sealed
+// keys will be locked when this function completes. The path to the unencrypted
+// device node is returned.
+func unlockIfEncrypted(name string, lockKeyOnFinish bool) (string, error) {
 	device := filepath.Join(devDiskByLabelDir, name)
 	encdev := filepath.Join(devDiskByLabelDir, name+"-enc")
 
@@ -551,13 +553,13 @@ func unlockIfEncrypted(name string, last bool) (string, error) {
 			// TODO:UC20: we might want some better error handling here - eg, if tpmErr is a
 			//            *os.PathError returned from go-tpm2 then this is an indicator that there
 			//            is no TPM device. But other errors probably shouldn't be ignored.
-			if last && tpmErr == nil {
+			if lockKeyOnFinish && tpmErr == nil {
 				// Lock access to the sealed keys. This should be called whenever there
 				// is a TPM device detected, regardless of whether secure boot is enabled
 				// or there is an encrypted volume to unlock. Note that snap-bootstrap can
 				// be called several times during initialization, and if there are multiple
 				// volumes to unlock we should lock access to the sealed keys only after
-				// the last encrypted volume is unlocked.
+				// the lockKeyOnFinish encrypted volume is unlocked.
 				lockErr = secbootLockAccessToSealedKeys(tpm)
 			}
 		}()
@@ -571,7 +573,7 @@ func unlockIfEncrypted(name string, last bool) (string, error) {
 			//            <name> is from <name>-enc and not an unencrypted partition
 			//            with the same name (LP #1863886)
 			sealedKeyPath := filepath.Join(boot.InitramfsEncryptionKeyDir, name+".sealed-key")
-			if err := unlockEncryptedPartition(tpm, name, encdev, sealedKeyPath, "", last); err != nil {
+			if err := unlockEncryptedPartition(tpm, name, encdev, sealedKeyPath, "", lockKeyOnFinish); err != nil {
 				return err
 			}
 		}
