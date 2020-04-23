@@ -184,6 +184,11 @@ execute: |
             # XXX: Why does it pass here but fails in Ubuntu 18.04? Could this
             # be related to the version of the kernel? Perhaps the security
             # check in the kernel only exists since a particular version?
+            #
+            # XXX: could it be also relatd to activation of systemd --user and,
+            # perhaps, correct ownership of of the source and destination
+            # cgroup? In 18.04 systemd --user runs automatically on session
+            # startup, in 16.04 it does not.
             MATCH 'DEBUG: using session bus' <debug.txt
             MATCH 'DEBUG: created transient scope as object: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt
             MATCH '1:name=systemd:/user.slice/user-12345.slice/user@12345.service/snap.[0-9a-f-]+.test-snapd-sh.sh.scope' <cgroup.txt
