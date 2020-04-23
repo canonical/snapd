@@ -21,6 +21,7 @@ package devicestate
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"gopkg.in/tomb.v2"

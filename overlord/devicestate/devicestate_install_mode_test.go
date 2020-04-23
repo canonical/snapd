@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/sysconfig"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type deviceMgrInstallModeSuite struct {
