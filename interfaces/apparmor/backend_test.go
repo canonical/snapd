@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2018 Canonical Ltd
+ * Copyright (C) 2016-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -25,6 +25,8 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"regexp"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -655,11 +657,60 @@ func (s *backendSuite) TestRemovingSnapDoesntBreakSnapsWIthPrefixName(c *C) {
 	c.Check(err, IsNil)
 }
 
-func (s *backendSuite) TestRealDefaultTemplateIsNormallyUsed(c *C) {
+func (s *backendSuite) TestDefaultCoreRuntimesTemplateOnlyUsed(c *C) {
+	for _, base := range []string{
+		"",
+		"base: core16",
+		"base: core18",
+		"base: core20",
+		"base: core22",
+		"base: core98",
+	} {
+		restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
+		defer restore()
+
+		testYaml := ifacetest.SambaYamlV1 + base + "\n"
+
+		snapInfo := snaptest.MockInfo(c, testYaml, nil)
+		// NOTE: we don't call apparmor.MockTemplate()
+		err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo, s.meas)
+		c.Assert(err, IsNil)
+		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
+		data, err := ioutil.ReadFile(profile)
+		c.Assert(err, IsNil)
+		for _, line := range []string{
+			// preamble
+			"#include <tunables/global>\n",
+			// footer
+			"}\n",
+			// templateCommon
+			"/etc/ld.so.preload r,\n",
+			"owner @{PROC}/@{pid}/maps k,\n",
+			"/tmp/   r,\n",
+			"/sys/class/ r,\n",
+			// defaultCoreRuntimeTemplateRules
+			"# Default rules for core base runtimes\n",
+			"/usr/share/terminfo/** k,\n",
+		} {
+			c.Assert(string(data), testutil.Contains, line)
+		}
+		for _, line := range []string{
+			// defaultOtherBaseTemplateRules should not be present
+			"# Default rules for non-core base runtimes\n",
+			"/{,s}bin/** mrklix,\n",
+		} {
+			c.Assert(string(data), Not(testutil.Contains), line)
+		}
+	}
+}
+
+func (s *backendSuite) TestBaseDefaultTemplateOnlyUsed(c *C) {
 	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
 	defer restore()
 
-	snapInfo := snaptest.MockInfo(c, ifacetest.SambaYamlV1, nil)
+	testYaml := ifacetest.SambaYamlV1 + "base: other\n"
+
+	snapInfo := snaptest.MockInfo(c, testYaml, nil)
 	// NOTE: we don't call apparmor.MockTemplate()
 	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo, s.meas)
 	c.Assert(err, IsNil)
@@ -667,13 +718,133 @@ func (s *backendSuite) TestRealDefaultTemplateIsNormallyUsed(c *C) {
 	data, err := ioutil.ReadFile(profile)
 	c.Assert(err, IsNil)
 	for _, line := range []string{
-		// NOTE: a few randomly picked lines from the real profile.  Comments
-		// and empty lines are avoided as those can be discarded in the future.
+		// preamble
 		"#include <tunables/global>\n",
+		// footer
+		"}\n",
+		// templateCommon
+		"/etc/ld.so.preload r,\n",
+		"owner @{PROC}/@{pid}/maps k,\n",
 		"/tmp/   r,\n",
 		"/sys/class/ r,\n",
+		// defaultOtherBaseTemplateRules
+		"# Default rules for non-core base runtimes\n",
+		"/{,s}bin/** mrklix,\n",
 	} {
 		c.Assert(string(data), testutil.Contains, line)
+	}
+	for _, line := range []string{
+		// defaultCoreRuntimeTemplateRules should not be present
+		"# Default rules for core base runtimes\n",
+		"/usr/share/terminfo/** k,\n",
+		"/{,usr/}bin/arch ixr,\n",
+	} {
+		c.Assert(string(data), Not(testutil.Contains), line)
+	}
+}
+
+func (s *backendSuite) TestTemplateRulesInCommon(c *C) {
+	// assume that we lstrip() the line
+	commonFiles := regexp.MustCompile(`^(audit +)?(deny +)?(owner +)?/((dev|etc|run|sys|tmp|{dev,run}|{,var/}run|usr/lib/snapd|var/lib/extrausers|var/lib/snapd)/|var/snap/{?@{SNAP_)`)
+	commonFilesVar := regexp.MustCompile(`^(audit +)?(deny +)?(owner +)?@{(HOME|HOMEDIRS|INSTALL_DIR|PROC)}/`)
+	commonOther := regexp.MustCompile(`^([^/@#]|#include +<)`)
+
+	// first, verify the regexes themselves
+
+	// Expected matches
+	for idx, tc := range []string{
+		// abstraction
+		"#include <abstractions/base>",
+		// file
+		"/dev/{,u}random w,",
+		"/dev/{,u}random w, # test comment",
+		"/{dev,run}/shm/snap.@{SNAP_INSTANCE_NAME}.** mrwlkix,",
+		"/etc/ld.so.preload r,",
+		"@{INSTALL_DIR}/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/ r,",
+		"deny @{INSTALL_DIR}/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/**/__pycache__/*.pyc.[0-9]* w,",
+		"audit /dev/something r,",
+		"audit deny /dev/something r,",
+		"audit deny owner /dev/something r,",
+		"@{PROC}/ r,",
+		"owner @{PROC}/@{pid}/{,task/@{tid}}fd/[0-9]* rw,",
+		"/run/uuidd/request rw,",
+		"owner /run/user/[0-9]*/snap.@{SNAP_INSTANCE_NAME}/   rw,",
+		"/sys/devices/virtual/tty/{console,tty*}/active r,",
+		"/tmp/   r,",
+		"/{,var/}run/udev/tags/snappy-assign/ r,",
+		"/usr/lib/snapd/foo r,",
+		"/var/lib/extrausers/foo r,",
+		"/var/lib/snapd/foo r,",
+		"/var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/ r",
+		"/var/snap/@{SNAP_NAME}/ r",
+		// capability
+		"capability ipc_lock,",
+		// dbus - single line
+		"dbus (receive, send) peer=(label=snap.@{SNAP_INSTANCE_NAME}.*),",
+		// dbus - multiline
+		"dbus (send)",
+		"bus={session,system}",
+		"path=/org/freedesktop/DBus",
+		"interface=org.freedesktop.DBus.Introspectable",
+		"member=Introspect",
+		"peer=(label=unconfined),",
+		// mount
+		"mount,",
+		"remount,",
+		"umount,",
+		// network
+		"network,",
+		// pivot_root
+		"pivot_root,",
+		// ptrace
+		"ptrace,",
+		// signal
+		"signal peer=snap.@{SNAP_INSTANCE_NAME}.*,",
+		// unix
+		"unix peer=(label=snap.@{SNAP_INSTANCE_NAME}.*),",
+	} {
+		c.Logf("trying %d: %s", idx, tc)
+		cf := commonFiles.MatchString(tc)
+		cfv := commonFilesVar.MatchString(tc)
+		co := commonOther.MatchString(tc)
+		c.Check(cf || cfv || co, Equals, true)
+	}
+
+	// Expected no matches
+	for idx, tc := range []string{
+		"/bin/ls",
+		"# some comment",
+		"deny /usr/lib/python3*/{,**/}__pycache__/ w,",
+	} {
+		c.Logf("trying %d: %s", idx, tc)
+		cf := commonFiles.MatchString(tc)
+		cfv := commonFilesVar.MatchString(tc)
+		co := commonOther.MatchString(tc)
+		c.Check(cf && cfv && co, Equals, false)
+	}
+
+	for _, raw := range strings.Split(apparmor.DefaultCoreRuntimeTemplateRules, "\n") {
+		line := strings.TrimLeft(raw, " \t")
+		cf := commonFiles.MatchString(line)
+		cfv := commonFilesVar.MatchString(line)
+		co := commonOther.MatchString(line)
+		res := cf || cfv || co
+		if res {
+			c.Logf("ERROR: found rule that should be in templateCommon (default template rules): %s", line)
+		}
+		c.Check(res, Equals, false)
+	}
+
+	for _, raw := range strings.Split(apparmor.DefaultOtherBaseTemplateRules, "\n") {
+		line := strings.TrimLeft(raw, " \t")
+		cf := commonFiles.MatchString(line)
+		cfv := commonFilesVar.MatchString(line)
+		co := commonOther.MatchString(line)
+		res := cf || cfv || co
+		if res {
+			c.Logf("ERROR: found rule that should be in templateCommon (default base template rules): %s", line)
+		}
+		c.Check(res, Equals, false)
 	}
 }
 
