@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2018 Canonical Ltd
+ * Copyright (C) 2016-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -61,7 +61,7 @@ capability net_admin,
 /{,usr/}{,s}bin/iptables{,-save,-restore} ixr,
 /{,usr/}{,s}bin/ip6tables{,-save,-restore} ixr,
 /{,usr/}{,s}bin/iptables-apply ixr,
-/{,usr/}{,s}bin/xtables-multi ixr, # ip[6]tables*
+/{,usr/}{,s}bin/xtables{,-legacy,-nft}-multi ixr, # ip[6]tables*
 
 # ping - child profile would be nice but seccomp causes problems with that
 /{,usr/}{,s}bin/ping ixr,

@@ -72,6 +72,11 @@ var (
 	osutilIsMounted = osutil.IsMounted
 )
 
+var (
+	// for mocking by tests
+	devDiskByLabelDir = "/dev/disk/by-label"
+)
+
 func recoverySystemEssentialSnaps(seedDir, recoverySystem string, essentialTypes []snap.Type) ([]*seed.Snap, error) {
 	systemSeed, err := seed.Open(seedDir, recoverySystem)
 	if err != nil {
@@ -303,13 +308,16 @@ func generateMountsCommonInstallRecover(recoverySystem string) (allMounted bool,
 
 func generateMountsModeRun() error {
 	// 1.1 always ensure basic partitions are mounted
-	for _, d := range []string{boot.InitramfsUbuntuSeedDir, boot.InitramfsUbuntuBootDir} {
+	for _, d := range []string{boot.InitramfsUbuntuBootDir, boot.InitramfsUbuntuSeedDir} {
 		isMounted, err := osutilIsMounted(d)
 		if err != nil {
 			return err
 		}
 		if !isMounted {
+			// we need ubuntu-seed to be mounted before we can continue to
+			// check ubuntu-data, so return if we need something mounted
 			fmt.Fprintf(stdout, "/dev/disk/by-label/%s %s\n", filepath.Base(d), d)
+			return nil
 		}
 	}
 
@@ -519,8 +527,8 @@ func generateInitramfsMounts() error {
 }
 
 func unlockIfEncrypted(name string) (string, error) {
-	device := filepath.Join("/dev/disk/by-label", name)
-	encdev := device + "-enc"
+	device := filepath.Join(devDiskByLabelDir, name)
+	encdev := filepath.Join(devDiskByLabelDir, name+"-enc")
 	if osutil.FileExists(encdev) {
 		// TODO:UC20: snap-bootstrap should validate that <name>-enc is what
 		//            we expect (and not e.g. an external disk), and also that
