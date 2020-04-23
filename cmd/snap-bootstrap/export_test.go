@@ -74,29 +74,47 @@ func MockDefaultMarkerFile(p string) (restore func()) {
 	}
 }
 
-var UnlockEncryptedPartition = unlockEncryptedPartition
+var (
+	UnlockIfEncrypted = unlockIfEncrypted
+)
 
 func MockSecbootConnectToDefaultTPM(f func() (*secboot.TPMConnection, error)) (restore func()) {
-	oldSecbootConnectToDefaultTPM := secbootConnectToDefaultTPM
+	old := secbootConnectToDefaultTPM
 	secbootConnectToDefaultTPM = f
 	return func() {
-		secbootConnectToDefaultTPM = oldSecbootConnectToDefaultTPM
+		secbootConnectToDefaultTPM = old
+	}
+}
+
+func MockSecbootLockAccessToSealedKeys(f func(tpm *secboot.TPMConnection) error) (restore func()) {
+	old := secbootLockAccessToSealedKeys
+	secbootLockAccessToSealedKeys = f
+	return func() {
+		secbootLockAccessToSealedKeys = old
 	}
 }
 
 func MockSecbootSecureConnectToDefaultTPM(f func(ekCertDataReader io.Reader,
 	endorsementAuth []byte) (*secboot.TPMConnection, error)) (restore func()) {
-	oldSecbootSecureConnectToDefaultTPM := secbootSecureConnectToDefaultTPM
+	old := secbootSecureConnectToDefaultTPM
 	secbootSecureConnectToDefaultTPM = f
 	return func() {
-		secbootSecureConnectToDefaultTPM = oldSecbootSecureConnectToDefaultTPM
+		secbootSecureConnectToDefaultTPM = old
 	}
 }
 
 func MockSecbootActivateVolumeWithTPMSealedKey(f func(tpm *secboot.TPMConnection, volumeName, sourceDevicePath, keyPath string, pinReader io.Reader, options *secboot.ActivateWithTPMSealedKeyOptions) (bool, error)) (restore func()) {
-	oldSecbootActivateVolumeWithTPMSealedKey := secbootActivateVolumeWithTPMSealedKey
+	old := secbootActivateVolumeWithTPMSealedKey
 	secbootActivateVolumeWithTPMSealedKey = f
 	return func() {
-		secbootActivateVolumeWithTPMSealedKey = oldSecbootActivateVolumeWithTPMSealedKey
+		secbootActivateVolumeWithTPMSealedKey = old
+	}
+}
+
+func MockDevDiskByLabelDir(new string) (restore func()) {
+	old := devDiskByLabelDir
+	devDiskByLabelDir = new
+	return func() {
+		devDiskByLabelDir = old
 	}
 }

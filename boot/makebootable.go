@@ -246,6 +246,9 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 		RecoverySystem: filepath.Base(bootWith.RecoverySystemDir),
 		Base:           filepath.Base(bootWith.BasePath),
 		CurrentKernels: []string{bootWith.Kernel.Filename()},
+		BrandID:        model.BrandID(),
+		Model:          model.Model(),
+		Grade:          string(model.Grade()),
 	}
 	if err := modeenv.WriteTo(InitramfsWritableDir); err != nil {
 		return fmt.Errorf("cannot write modeenv: %v", err)

@@ -44,6 +44,9 @@ var (
 )
 
 func setSysconfigCloudOptions(opts *sysconfig.Options, gadgetDir string, model *asserts.Model) {
+	// TODO: Decide what to do when both gadget and ubuntu-seed have
+	//       cloud.cfg.d/ directories.
+
 	// 1. check cloud.cfg.d in the gadget snap, this is always ok regardless
 	//    of grade
 	cloudCfg := filepath.Join(gadgetDir, "cloud.cfg.d")
@@ -63,6 +66,15 @@ func setSysconfigCloudOptions(opts *sysconfig.Options, gadgetDir string, model *
 		opts.CloudInitSrcDir = cloudCfg
 		return
 	}
+}
+
+func writeModel(model *asserts.Model, where string) error {
+	f, err := os.OpenFile(where, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return asserts.NewEncoder(f).Encode(model)
 }
 
 func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
@@ -131,8 +143,15 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("cannot create partitions: %v", osutil.OutputErr(output, err))
 	}
 
-	// configure cloud init
+	// keep track of the model we installed
+	err = writeModel(deviceCtx.Model(), filepath.Join(boot.InitramfsUbuntuBootDir, "model"))
+	if err != nil {
+		return fmt.Errorf("cannot store the model: %v", err)
+	}
+
+	// configure the run system
 	opts := &sysconfig.Options{TargetRootDir: boot.InitramfsWritableDir}
+	// configure cloud init
 	setSysconfigCloudOptions(opts, gadgetDir, deviceCtx.Model())
 	if err := sysconfigConfigureRunSystem(opts); err != nil {
 		return err
