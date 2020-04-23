@@ -1,5 +1,6 @@
 summary: Test that config defaults are applied early when image is created.
 
+# core18 specific test (and nested vm is derived from host system)
 systems: [ubuntu-18.04-64]
 
 prepare: |
@@ -7,22 +8,26 @@ prepare: |
     . "$TESTSLIB/nested.sh"
 
     cleanup_nested_env
+
+    # nested suite installs latest snapd only in the nested system; we need
+    # new snapd on the host as well for prepare-image changes.
+    dpkg -i $SPREAD_PATH/../snapd_*.deb
+
     mkdir extra-snaps
 
+    # modify and repack gadget snap (add defaults section)
     snap download --channel=18/stable pc
     GADGET_SNAP=$(ls pc_*.snap)
     unsquashfs -no-progress "$GADGET_SNAP"
     rm -f "$GADGET_SNAP"
-
     cat defaults.yaml >> squashfs-root/meta/gadget.yaml
-
     mkdir -p squashfs-root/meta/hooks
     cp install squashfs-root/meta/hooks/
     mksquashfs squashfs-root "$GADGET_SNAP" -comp xz -no-fragments -no-progress
     rm -rf squashfs-root
     mv "$GADGET_SNAP" extra-snaps/
 
-    # XXX: pc-kernel initrd fix
+    # XXX: pc-kernel initrd fix; this will be removed once initrd changes land
     snap download --channel=18/stable pc-kernel
     KERNEL_SNAP=$(ls pc-kernel_*.snap)
     unsquashfs -no-progress "$KERNEL_SNAP"
@@ -75,6 +80,7 @@ execute: |
 
     execute_remote "sudo snap wait system seed.loaded"
 
-    echo "Test that rsyslog was disabled early"
+    echo "Test that rsyslog was disabled early."
+    # early config is witnessed by install hook of the pc gadget
     execute_remote "cat /var/snap/pc/common/debug.txt" | MATCH "/dev/null"
     execute_remote "test -L /etc/systemd/system/rsyslog.service"
