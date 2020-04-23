@@ -20,8 +20,12 @@
 package main
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/bootstrap"
 )
 
@@ -48,7 +52,7 @@ type cmdCreatePartitions struct {
 	TPMLockoutAuthFile   string `long:"tpm-lockout-auth" value-name:"filename" descrition:"Where the TPM lockout authorization data file will be stored"`
 	PolicyUpdateDataFile string `long:"policy-update-data-file" value-name:"filename" description:"Where the authorization policy update data file will be stored"`
 	KernelPath           string `long:"kernel" value-name:"path" description:"Path to the kernel to be installed"`
-	SystemLabel          string `long:"system-label" value-name:"label" description:"The label of the system to be installed"`
+	ModelPath            string `long:"model" value-name:"filename" description:"The model to seal the key file to"`
 
 	Positional struct {
 		GadgetRoot string `positional-arg-name:"<gadget-root>"`
@@ -57,6 +61,15 @@ type cmdCreatePartitions struct {
 }
 
 func (c *cmdCreatePartitions) Execute(args []string) error {
+	var model *asserts.Model
+	if c.ModelPath != "" {
+		var err error
+		model, err = loadModel(c.ModelPath)
+		if err != nil {
+			return fmt.Errorf("cannot load model: %v", err)
+		}
+	}
+
 	options := bootstrap.Options{
 		Mount:                c.Mount,
 		Encrypt:              c.Encrypt,
@@ -65,8 +78,25 @@ func (c *cmdCreatePartitions) Execute(args []string) error {
 		TPMLockoutAuthFile:   c.TPMLockoutAuthFile,
 		PolicyUpdateDataFile: c.PolicyUpdateDataFile,
 		KernelPath:           c.KernelPath,
-		SystemLabel:          c.SystemLabel,
+		Model:                model,
 	}
 
 	return bootstrapRun(c.Positional.GadgetRoot, c.Positional.Device, options)
+}
+
+func loadModel(modelPath string) (*asserts.Model, error) {
+	f, err := os.Open(modelPath)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	a, err := asserts.NewDecoder(f).Decode()
+	if err != nil {
+		return nil, fmt.Errorf("cannot decode assertion: %v", err)
+	}
+	if a.Type() != asserts.ModelType {
+		return nil, fmt.Errorf("not a model assertion")
+	}
+	return a.(*asserts.Model), nil
 }

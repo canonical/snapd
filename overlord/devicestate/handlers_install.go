@@ -98,6 +98,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		bopts.TPMLockoutAuthFile = filepath.Join(boot.InitramfsWritableDir, fdeDir, "tpm-lockout-auth")
 		bopts.PolicyUpdateDataFile = filepath.Join(boot.InitramfsWritableDir, fdeDir, "policy-update-data")
 		bopts.KernelPath = filepath.Join(kernelDir, "kernel.efi")
+		bopts.Model = deviceCtx.Model()
 	}
 
 	// run the create partition code
@@ -137,6 +138,13 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	bootBaseInfo, err := snapstate.BootBaseInfo(st, deviceCtx)
 	if err != nil {
 		return fmt.Errorf("cannot get boot base info: %v", err)
+	}
+	modeEnv, err := m.maybeReadModeenv()
+	if err != nil {
+		return err
+	}
+	if modeEnv == nil {
+		return fmt.Errorf("missing modeenv, cannot proceed")
 	}
 	recoverySystemDir := filepath.Join("/systems", modeEnv.RecoverySystem)
 	bootWith := &boot.BootableSet{

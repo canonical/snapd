@@ -262,6 +262,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 			TPMLockoutAuthFile:   filepath.Join(boot.InitramfsWritableDir, "var/lib/snapd/device/fde/tpm-lockout-auth"),
 			PolicyUpdateDataFile: filepath.Join(boot.InitramfsWritableDir, "var/lib/snapd/device/fde/policy-update-data"),
 			KernelPath:           filepath.Join(dirs.SnapMountDir, "pc-kernel/1/kernel.efi"),
+			Model:                mockModel,
 		})
 	} else {
 		c.Assert(brGadgetRoot, Equals, filepath.Join(dirs.SnapMountDir, "/pc/1"))
@@ -286,9 +287,6 @@ func (s *deviceMgrInstallModeSuite) TestInstallTaskErrors(c *C) {
 	})
 	defer restore()
 
-	err := ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"), nil, 0644)
-	c.Assert(err, IsNil)
-
 	s.state.Lock()
 	s.makeMockInstalledPcGadget(c, "dangerous")
 	devicestate.SetSystemMode(s.mgr, "install")
@@ -302,30 +300,6 @@ func (s *deviceMgrInstallModeSuite) TestInstallTaskErrors(c *C) {
 	installSystem := s.findInstallSystem()
 	c.Check(installSystem.Err(), ErrorMatches, `(?ms)cannot perform the following tasks:
 - Setup system for run mode \(cannot create partitions: The horror, The horror\)`)
-	// no restart request on failure
-	c.Check(s.restartRequests, HasLen, 0)
-}
-
-func (s *deviceMgrInstallModeSuite) TestInstallTaskErrorsNoModeenv(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
-	mockSnapBootstrapCmd := testutil.MockCommand(c, filepath.Join(dirs.DistroLibExecDir, "snap-bootstrap"), `echo "The horror, The horror"; exit 1`)
-	defer mockSnapBootstrapCmd.Restore()
-
-	s.state.Lock()
-	s.makeMockInstalledPcGadget(c, "dangerous")
-	devicestate.SetSystemMode(s.mgr, "install")
-	s.state.Unlock()
-
-	s.settle(c)
-
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	installSystem := s.findInstallSystem()
-	c.Check(installSystem.Err(), ErrorMatches, `(?ms)cannot perform the following tasks:
-- Setup system for run mode \(missing modeenv, cannot proceed\)`)
 	// no restart request on failure
 	c.Check(s.restartRequests, HasLen, 0)
 }
