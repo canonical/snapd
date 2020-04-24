@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -171,57 +171,70 @@ func (s *initramfsMountsSuite) TestInitramfsMountsUnknownMode(c *C) {
 	c.Assert(err, ErrorMatches, `cannot use unknown mode "install-foo"`)
 }
 
-func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep1(c *C) {
-	n := 0
-	s.mockProcCmdlineContent(c, "snapd_recovery_mode= snapd_recovery_system="+s.sysLabel)
+// mocking for mounts' state
+type (
+	mountState interface {
+		size() int
+		isMounted(i int) (dir string, state bool)
+	}
+	mounted       []string
+	notYetMounted []string
+)
 
-	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
+func (m mounted) size() int                                { return len(m) }
+func (m mounted) isMounted(i int) (dir string, state bool) { return m[i], true }
+
+func (n notYetMounted) size() int                                { return len(n) }
+func (n notYetMounted) isMounted(i int) (dir string, state bool) { return n[i], false }
+
+func (s *initramfsMountsSuite) mockMountsState(c *C, mountStates ...mountState) *int {
+	var n int
+	r := main.MockOsutilIsMounted(func(path string) (bool, error) {
+		i := n
 		n++
-		switch n {
-		case 1:
-			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
-			return false, nil
+		for _, s := range mountStates {
+			if i < s.size() {
+				dir, state := s.isMounted(i)
+				c.Check(path, Equals, dir)
+				return state, nil
+			}
+			i -= s.size()
 		}
 		return false, fmt.Errorf("unexpected number of calls: %v", n)
 	})
-	defer restore()
+	s.AddCleanup(r)
+	return &n
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep1(c *C) {
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode= snapd_recovery_system="+s.sysLabel)
+
+	n := s.mockMountsState(c,
+		notYetMounted{boot.InitramfsUbuntuSeedDir},
+	)
 
 	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
-	c.Assert(n, Equals, 1)
+	c.Assert(*n, Equals, 1)
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf("/dev/disk/by-label/ubuntu-seed %s/ubuntu-seed\n", boot.InitramfsRunMntDir))
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep2(c *C) {
-	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install snapd_recovery_system="+s.sysLabel)
 
-	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
-		n++
-		switch n {
-		case 1:
-			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
-			return true, nil
-		case 2:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
-			return false, nil
-		case 3:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
-			return false, nil
-		case 4:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "snapd"))
-			return false, nil
-		case 5:
-			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
-			return false, nil
-		}
-		return false, fmt.Errorf("unexpected number of calls: %v", n)
-	})
-	defer restore()
+	n := s.mockMountsState(c,
+		mounted{boot.InitramfsUbuntuSeedDir},
+		notYetMounted{
+			filepath.Join(boot.InitramfsRunMntDir, "base"),
+			filepath.Join(boot.InitramfsRunMntDir, "kernel"),
+			filepath.Join(boot.InitramfsRunMntDir, "snapd"),
+			boot.InitramfsUbuntuDataDir,
+		},
+	)
 
 	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
-	c.Assert(n, Equals, 5)
+	c.Assert(*n, Equals, 5)
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/snaps/snapd_1.snap %[2]s/snapd
 %[1]s/snaps/pc-kernel_1.snap %[2]s/kernel
 %[1]s/snaps/core20_1.snap %[2]s/base
@@ -230,35 +243,20 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep2(c *C) {
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep4(c *C) {
-	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install snapd_recovery_system="+s.sysLabel)
 
-	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
-		n++
-		switch n {
-		case 1:
-			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
-			return true, nil
-		case 2:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
-			return true, nil
-		case 3:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
-			return true, nil
-		case 4:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "snapd"))
-			return true, nil
-		case 5:
-			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
-			return true, nil
-		}
-		return false, fmt.Errorf("unexpected number of calls: %v", n)
-	})
-	defer restore()
+	n := s.mockMountsState(c,
+		mounted{boot.InitramfsUbuntuSeedDir,
+			filepath.Join(boot.InitramfsRunMntDir, "base"),
+			filepath.Join(boot.InitramfsRunMntDir, "kernel"),
+			filepath.Join(boot.InitramfsRunMntDir, "snapd"),
+			boot.InitramfsUbuntuDataDir,
+		},
+	)
 
 	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
-	c.Assert(n, Equals, 5)
+	c.Assert(*n, Equals, 5)
 	c.Check(s.Stdout.String(), Equals, "")
 	modeEnv := dirs.SnapModeenvFileUnder(boot.InitramfsWritableDir)
 	c.Check(modeEnv, testutil.FileEquals, `mode=install
@@ -269,76 +267,48 @@ recovery_system=20191118
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1Boot(c *C) {
-	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
-	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
-		n++
-		switch n {
-		case 1:
-			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
-			return false, nil
-		}
-		return false, fmt.Errorf("unexpected number of calls: %v", n)
-	})
-	defer restore()
+	n := s.mockMountsState(c,
+		notYetMounted{boot.InitramfsUbuntuBootDir},
+	)
 
 	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
-	c.Assert(n, Equals, 1)
+	c.Assert(*n, Equals, 1)
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`/dev/disk/by-label/ubuntu-boot %[1]s/ubuntu-boot
 `, boot.InitramfsRunMntDir))
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1Seed(c *C) {
-	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
-	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
-		n++
-		switch n {
-		case 1:
-			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
-			return true, nil
-		case 2:
-			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
-			return false, nil
-		}
-		return false, fmt.Errorf("unexpected number of calls: %v", n)
-	})
-	defer restore()
+	n := s.mockMountsState(c,
+		mounted{boot.InitramfsUbuntuBootDir},
+		notYetMounted{boot.InitramfsUbuntuSeedDir},
+	)
 
 	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
-	c.Assert(n, Equals, 2)
+	c.Assert(*n, Equals, 2)
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`/dev/disk/by-label/ubuntu-seed %[1]s/ubuntu-seed
 `, boot.InitramfsRunMntDir))
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1Data(c *C) {
-	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
-	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
-		n++
-		switch n {
-		case 1:
-			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
-			return true, nil
-		case 2:
-			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
-			return true, nil
-		case 3:
-			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
-			return false, nil
-		}
-		return false, fmt.Errorf("unexpected number of calls: %v", n)
-	})
-	defer restore()
+	n := s.mockMountsState(c,
+		mounted{
+			boot.InitramfsUbuntuBootDir,
+			boot.InitramfsUbuntuSeedDir,
+		},
+		notYetMounted{boot.InitramfsUbuntuDataDir},
+	)
 
 	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
-	c.Assert(n, Equals, 3)
+	c.Assert(*n, Equals, 3)
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`/dev/disk/by-label/ubuntu-data %[1]s/ubuntu-data
 `, boot.InitramfsRunMntDir))
 }
@@ -386,23 +356,13 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1EncryptedData(c *C
 	})
 	defer restore()
 
-	n := 0
-	restore = main.MockOsutilIsMounted(func(path string) (bool, error) {
-		n++
-		switch n {
-		case 1:
-			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
-			return true, nil
-		case 2:
-			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
-			return true, nil
-		case 3:
-			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
-			return false, nil
-		}
-		return false, fmt.Errorf("unexpected number of calls: %v", n)
-	})
-	defer restore()
+	n := s.mockMountsState(c,
+		mounted{
+			boot.InitramfsUbuntuBootDir,
+			boot.InitramfsUbuntuSeedDir,
+		},
+		notYetMounted{boot.InitramfsUbuntuDataDir},
+	)
 
 	sealedKeysLocked := false
 	restore = main.MockSecbootLockAccessToSealedKeys(func(tpm *secboot.TPMConnection) error {
@@ -429,7 +389,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1EncryptedData(c *C
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
-	c.Check(n, Equals, 3)
+	c.Check(*n, Equals, 3)
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data %[2]s/ubuntu-data
 `, devDiskByLabel, boot.InitramfsRunMntDir))
 	c.Check(activated, Equals, true)
@@ -515,34 +475,20 @@ func (s *initramfsMountsSuite) testInitramfsMountsStep1EncryptedNoModel(c *C, mo
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2(c *C) {
-	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
-	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
-		n++
-		switch n {
-		case 1:
-			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
-			return true, nil
-		case 2:
-			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
-			return true, nil
-		case 3:
-			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
-			return true, nil
-		case 4:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
-			return false, nil
-		case 5:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
-			return false, nil
-		case 6:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "snapd"))
-			return false, nil
-		}
-		return false, fmt.Errorf("unexpected number of calls: %v", n)
-	})
-	defer restore()
+	n := s.mockMountsState(c,
+		mounted{
+			boot.InitramfsUbuntuBootDir,
+			boot.InitramfsUbuntuSeedDir,
+			boot.InitramfsUbuntuDataDir,
+		},
+		notYetMounted{
+			filepath.Join(boot.InitramfsRunMntDir, "base"),
+			filepath.Join(boot.InitramfsRunMntDir, "kernel"),
+			filepath.Join(boot.InitramfsRunMntDir, "snapd"),
+		},
+	)
 
 	// write modeenv
 	modeEnv := boot.Modeenv{
@@ -566,7 +512,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2(c *C) {
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
-	c.Assert(n, Equals, 6)
+	c.Assert(*n, Equals, 6)
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/core20_123.snap %[1]s/base
 %[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/pc-kernel_1.snap %[1]s/kernel
 %[1]s/ubuntu-seed/snaps/snapd_1.snap %[1]s/snapd
@@ -574,31 +520,17 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2(c *C) {
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2BaseSnapUpgradeFailsHappy(c *C) {
-	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
-	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
-		n++
-		switch n {
-		case 1:
-			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
-			return true, nil
-		case 2:
-			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
-			return true, nil
-		case 3:
-			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
-			return true, nil
-		case 4:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
-			return false, nil
-		case 5:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
-			return true, nil
-		}
-		return false, fmt.Errorf("unexpected number of calls: %v", n)
-	})
-	defer restore()
+	n := s.mockMountsState(c,
+		mounted{
+			boot.InitramfsUbuntuBootDir,
+			boot.InitramfsUbuntuSeedDir,
+			boot.InitramfsUbuntuDataDir,
+		},
+		notYetMounted{filepath.Join(boot.InitramfsRunMntDir, "base")},
+		mounted{filepath.Join(boot.InitramfsRunMntDir, "kernel")},
+	)
 
 	// write modeenv as if we failed to boot and were rebooted because the
 	// base snap was broken
@@ -619,7 +551,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2BaseSnapUpgradeFai
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
-	c.Assert(n, Equals, 5)
+	c.Assert(*n, Equals, 5)
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/core20_123.snap %[1]s/base
 `, boot.InitramfsRunMntDir))
 
@@ -633,31 +565,17 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2BaseSnapUpgradeFai
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2ModeenvTryBaseEmptyHappy(c *C) {
-	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
-	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
-		n++
-		switch n {
-		case 1:
-			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
-			return true, nil
-		case 2:
-			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
-			return true, nil
-		case 3:
-			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
-			return true, nil
-		case 4:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
-			return false, nil
-		case 5:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
-			return true, nil
-		}
-		return false, fmt.Errorf("unexpected number of calls: %v", n)
-	})
-	defer restore()
+	n := s.mockMountsState(c,
+		mounted{
+			boot.InitramfsUbuntuBootDir,
+			boot.InitramfsUbuntuSeedDir,
+			boot.InitramfsUbuntuDataDir,
+		},
+		notYetMounted{filepath.Join(boot.InitramfsRunMntDir, "base")},
+		mounted{filepath.Join(boot.InitramfsRunMntDir, "kernel")},
+	)
 
 	// write a modeenv with no try_base so we fall back to using base
 	modeEnv := &boot.Modeenv{
@@ -669,7 +587,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2ModeenvTryBaseEmpt
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
-	c.Assert(n, Equals, 5)
+	c.Assert(*n, Equals, 5)
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/core20_123.snap %[1]s/base
 `, boot.InitramfsRunMntDir))
 
@@ -682,31 +600,17 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2ModeenvTryBaseEmpt
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2BaseSnapUpgradeHappy(c *C) {
-	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
-	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
-		n++
-		switch n {
-		case 1:
-			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
-			return true, nil
-		case 2:
-			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
-			return true, nil
-		case 3:
-			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
-			return true, nil
-		case 4:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
-			return false, nil
-		case 5:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
-			return true, nil
-		}
-		return false, fmt.Errorf("unexpected number of calls: %v", n)
-	})
-	defer restore()
+	n := s.mockMountsState(c,
+		mounted{
+			boot.InitramfsUbuntuBootDir,
+			boot.InitramfsUbuntuSeedDir,
+			boot.InitramfsUbuntuDataDir,
+		},
+		notYetMounted{filepath.Join(boot.InitramfsRunMntDir, "base")},
+		mounted{filepath.Join(boot.InitramfsRunMntDir, "kernel")},
+	)
 
 	// write modeenv
 	modeEnv := &boot.Modeenv{
@@ -726,7 +630,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2BaseSnapUpgradeHap
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
-	c.Assert(n, Equals, 5)
+	c.Assert(*n, Equals, 5)
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/core20_124.snap %[1]s/base
 `, boot.InitramfsRunMntDir))
 
@@ -739,31 +643,17 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2BaseSnapUpgradeHap
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2ModeenvBaseEmptyUnhappy(c *C) {
-	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
-	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
-		n++
-		switch n {
-		case 1:
-			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
-			return true, nil
-		case 2:
-			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
-			return true, nil
-		case 3:
-			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
-			return true, nil
-		case 4:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
-			return false, nil
-		case 5:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
-			return true, nil
-		}
-		return false, fmt.Errorf("unexpected number of calls: %v", n)
-	})
-	defer restore()
+	n := s.mockMountsState(c,
+		mounted{
+			boot.InitramfsUbuntuBootDir,
+			boot.InitramfsUbuntuSeedDir,
+			boot.InitramfsUbuntuDataDir,
+		},
+		notYetMounted{filepath.Join(boot.InitramfsRunMntDir, "base")},
+		mounted{filepath.Join(boot.InitramfsRunMntDir, "kernel")},
+	)
 
 	// write an empty modeenv
 	modeEnv := &boot.Modeenv{}
@@ -772,36 +662,22 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2ModeenvBaseEmptyUn
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, ErrorMatches, "modeenv corrupt: missing base setting")
-	c.Assert(n, Equals, 4)
+	c.Assert(*n, Equals, 4)
 	c.Check(s.Stdout.String(), Equals, "")
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2ModeenvTryBaseNotExistsHappy(c *C) {
-	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
-	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
-		n++
-		switch n {
-		case 1:
-			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
-			return true, nil
-		case 2:
-			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
-			return true, nil
-		case 3:
-			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
-			return true, nil
-		case 4:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
-			return false, nil
-		case 5:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
-			return true, nil
-		}
-		return false, fmt.Errorf("unexpected number of calls: %v", n)
-	})
-	defer restore()
+	n := s.mockMountsState(c,
+		mounted{
+			boot.InitramfsUbuntuBootDir,
+			boot.InitramfsUbuntuSeedDir,
+			boot.InitramfsUbuntuDataDir,
+		},
+		notYetMounted{filepath.Join(boot.InitramfsRunMntDir, "base")},
+		mounted{filepath.Join(boot.InitramfsRunMntDir, "kernel")},
+	)
 
 	// write a modeenv with try_base not existing on disk so we fall back to
 	// using the normal base
@@ -815,7 +691,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2ModeenvTryBaseNotE
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
-	c.Assert(n, Equals, 5)
+	c.Assert(*n, Equals, 5)
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/core20_123.snap %[1]s/base
 `, boot.InitramfsRunMntDir))
 
@@ -828,31 +704,17 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2ModeenvTryBaseNotE
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2KernelSnapUpgradeHappy(c *C) {
-	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
-	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
-		n++
-		switch n {
-		case 1:
-			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
-			return true, nil
-		case 2:
-			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
-			return true, nil
-		case 3:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsUbuntuDataDir))
-			return true, nil
-		case 4:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
-			return true, nil
-		case 5:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
-			return false, nil
-		}
-		return false, fmt.Errorf("unexpected number of calls: %v", n)
-	})
-	defer restore()
+	n := s.mockMountsState(c,
+		mounted{
+			boot.InitramfsUbuntuBootDir,
+			boot.InitramfsUbuntuSeedDir,
+			boot.InitramfsUbuntuDataDir,
+		},
+		mounted{filepath.Join(boot.InitramfsRunMntDir, "base")},
+		notYetMounted{filepath.Join(boot.InitramfsRunMntDir, "kernel")},
+	)
 
 	// write modeenv
 	modeEnv := &boot.Modeenv{
@@ -890,7 +752,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2KernelSnapUpgradeH
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
-	c.Assert(n, Equals, 5)
+	c.Assert(*n, Equals, 5)
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/pc-kernel_2.snap %[1]s/kernel
 `, boot.InitramfsRunMntDir))
 }
@@ -899,31 +761,17 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2KernelSnapUpgradeH
 //            already booted the try snap, so mounting the fallback kernel will
 //            not match in some cases
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2UntrustedKernelSnap(c *C) {
-	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
-	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
-		n++
-		switch n {
-		case 1:
-			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
-			return true, nil
-		case 2:
-			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
-			return true, nil
-		case 3:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsUbuntuDataDir))
-			return true, nil
-		case 4:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
-			return true, nil
-		case 5:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
-			return false, nil
-		}
-		return false, fmt.Errorf("unexpected number of calls: %v", n)
-	})
-	defer restore()
+	n := s.mockMountsState(c,
+		mounted{
+			boot.InitramfsUbuntuBootDir,
+			boot.InitramfsUbuntuSeedDir,
+			boot.InitramfsUbuntuDataDir,
+		},
+		mounted{filepath.Join(boot.InitramfsRunMntDir, "base")},
+		notYetMounted{filepath.Join(boot.InitramfsRunMntDir, "kernel")},
+	)
 
 	// write modeenv
 	modeEnv := boot.Modeenv{
@@ -946,38 +794,24 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2UntrustedKernelSna
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, ErrorMatches, fmt.Sprintf("fallback kernel snap %q is not trusted in the modeenv", "pc-kernel_2.snap"))
-	c.Assert(n, Equals, 5)
+	c.Assert(*n, Equals, 5)
 }
 
 // TODO:UC20: in this case snap-bootstrap should request a reboot, since we
 //            already booted the try snap, so mounting the fallback kernel will
 //            not match in some cases
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2UntrustedTryKernelSnapFallsBack(c *C) {
-	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
-	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
-		n++
-		switch n {
-		case 1:
-			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
-			return true, nil
-		case 2:
-			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
-			return true, nil
-		case 3:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsUbuntuDataDir))
-			return true, nil
-		case 4:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
-			return true, nil
-		case 5:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
-			return false, nil
-		}
-		return false, fmt.Errorf("unexpected number of calls: %v", n)
-	})
-	defer restore()
+	n := s.mockMountsState(c,
+		mounted{
+			boot.InitramfsUbuntuBootDir,
+			boot.InitramfsUbuntuSeedDir,
+			boot.InitramfsUbuntuDataDir,
+		},
+		mounted{filepath.Join(boot.InitramfsRunMntDir, "base")},
+		notYetMounted{filepath.Join(boot.InitramfsRunMntDir, "kernel")},
+	)
 
 	// write modeenv
 	modeEnv := boot.Modeenv{
@@ -1009,37 +843,23 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2UntrustedTryKernel
 	// TODO:UC20: if we have somewhere to log errors from snap-bootstrap during
 	// the initramfs, check that log here
 	c.Assert(err, IsNil)
-	c.Assert(n, Equals, 5)
+	c.Assert(*n, Equals, 5)
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/pc-kernel_1.snap %[1]s/kernel
 `, boot.InitramfsRunMntDir))
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2KernelStatusTryingNoTryKernel(c *C) {
-	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
-	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
-		n++
-		switch n {
-		case 1:
-			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
-			return true, nil
-		case 2:
-			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
-			return true, nil
-		case 3:
-			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
-			return true, nil
-		case 4:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
-			return true, nil
-		case 5:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
-			return false, nil
-		}
-		return false, fmt.Errorf("unexpected number of calls: %v", n)
-	})
-	defer restore()
+	n := s.mockMountsState(c,
+		mounted{
+			boot.InitramfsUbuntuBootDir,
+			boot.InitramfsUbuntuSeedDir,
+			boot.InitramfsUbuntuDataDir,
+		},
+		mounted{filepath.Join(boot.InitramfsRunMntDir, "base")},
+		notYetMounted{filepath.Join(boot.InitramfsRunMntDir, "kernel")},
+	)
 
 	// write modeenv
 	modeEnv := boot.Modeenv{
@@ -1070,7 +890,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2KernelStatusTrying
 	// TODO:UC20: if we have somewhere to log errors from snap-bootstrap during
 	// the initramfs, check that log here
 	c.Assert(err, IsNil)
-	c.Assert(n, Equals, 5)
+	c.Assert(*n, Equals, 5)
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/pc-kernel_1.snap %[1]s/kernel
 `, boot.InitramfsRunMntDir))
 }
@@ -1212,34 +1032,20 @@ func (s *initramfsMountsSuite) TestUnlockIfEncrypted(c *C) {
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2EnvRefKernelBootstate(c *C) {
-	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
-	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
-		n++
-		switch n {
-		case 1:
-			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
-			return true, nil
-		case 2:
-			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
-			return true, nil
-		case 3:
-			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
-			return true, nil
-		case 4:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
-			return false, nil
-		case 5:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
-			return false, nil
-		case 6:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "snapd"))
-			return false, nil
-		}
-		return false, fmt.Errorf("unexpected number of calls: %v", n)
-	})
-	defer restore()
+	n := s.mockMountsState(c,
+		mounted{
+			boot.InitramfsUbuntuBootDir,
+			boot.InitramfsUbuntuSeedDir,
+			boot.InitramfsUbuntuDataDir,
+		},
+		notYetMounted{
+			filepath.Join(boot.InitramfsRunMntDir, "base"),
+			filepath.Join(boot.InitramfsRunMntDir, "kernel"),
+			filepath.Join(boot.InitramfsRunMntDir, "snapd"),
+		},
+	)
 
 	// write modeenv
 	modeEnv := boot.Modeenv{
@@ -1260,7 +1066,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2EnvRefKernelBootst
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
-	c.Assert(n, Equals, 6)
+	c.Assert(*n, Equals, 6)
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/core20_123.snap %[1]s/base
 %[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/pc-kernel_1.snap %[1]s/kernel
 %[1]s/ubuntu-seed/snaps/snapd_1.snap %[1]s/snapd
@@ -1268,31 +1074,17 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2EnvRefKernelBootst
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2EnvRefKernelBootstateKernelSnapUpgradeHappy(c *C) {
-	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
-	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
-		n++
-		switch n {
-		case 1:
-			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
-			return true, nil
-		case 2:
-			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
-			return true, nil
-		case 3:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsUbuntuDataDir))
-			return true, nil
-		case 4:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
-			return true, nil
-		case 5:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
-			return false, nil
-		}
-		return false, fmt.Errorf("unexpected number of calls: %v", n)
-	})
-	defer restore()
+	n := s.mockMountsState(c,
+		mounted{
+			boot.InitramfsUbuntuBootDir,
+			boot.InitramfsUbuntuSeedDir,
+			boot.InitramfsUbuntuDataDir,
+		},
+		mounted{filepath.Join(boot.InitramfsRunMntDir, "base")},
+		notYetMounted{filepath.Join(boot.InitramfsRunMntDir, "kernel")},
+	)
 
 	// write modeenv
 	modeEnv := &boot.Modeenv{
@@ -1322,7 +1114,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2EnvRefKernelBootst
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
-	c.Assert(n, Equals, 5)
+	c.Assert(*n, Equals, 5)
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/pc-kernel_2.snap %[1]s/kernel
 `, boot.InitramfsRunMntDir))
 }
@@ -1331,31 +1123,17 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2EnvRefKernelBootst
 //            already booted the try snap, so mounting the fallback kernel will
 //            not match in some cases
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2EnvRefKernelBootstateUntrustedKernelSnap(c *C) {
-	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
-	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
-		n++
-		switch n {
-		case 1:
-			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
-			return true, nil
-		case 2:
-			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
-			return true, nil
-		case 3:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsUbuntuDataDir))
-			return true, nil
-		case 4:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
-			return true, nil
-		case 5:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
-			return false, nil
-		}
-		return false, fmt.Errorf("unexpected number of calls: %v", n)
-	})
-	defer restore()
+	n := s.mockMountsState(c,
+		mounted{
+			boot.InitramfsUbuntuBootDir,
+			boot.InitramfsUbuntuSeedDir,
+			boot.InitramfsUbuntuDataDir,
+		},
+		mounted{filepath.Join(boot.InitramfsRunMntDir, "base")},
+		notYetMounted{filepath.Join(boot.InitramfsRunMntDir, "kernel")},
+	)
 
 	// write modeenv
 	modeEnv := boot.Modeenv{
@@ -1375,38 +1153,24 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2EnvRefKernelBootst
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, ErrorMatches, fmt.Sprintf("fallback kernel snap %q is not trusted in the modeenv", "pc-kernel_2.snap"))
-	c.Assert(n, Equals, 5)
+	c.Assert(*n, Equals, 5)
 }
 
 // TODO:UC20: in this case snap-bootstrap should request a reboot, since we
 //            already booted the try snap, so mounting the fallback kernel will
 //            not match in some cases
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2EnvRefKernelBootstateUntrustedTryKernelSnapFallsBack(c *C) {
-	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
-	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
-		n++
-		switch n {
-		case 1:
-			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
-			return true, nil
-		case 2:
-			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
-			return true, nil
-		case 3:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsUbuntuDataDir))
-			return true, nil
-		case 4:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
-			return true, nil
-		case 5:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
-			return false, nil
-		}
-		return false, fmt.Errorf("unexpected number of calls: %v", n)
-	})
-	defer restore()
+	n := s.mockMountsState(c,
+		mounted{
+			boot.InitramfsUbuntuBootDir,
+			boot.InitramfsUbuntuSeedDir,
+			boot.InitramfsUbuntuDataDir,
+		},
+		mounted{filepath.Join(boot.InitramfsRunMntDir, "base")},
+		notYetMounted{filepath.Join(boot.InitramfsRunMntDir, "kernel")},
+	)
 
 	// write modeenv
 	modeEnv := boot.Modeenv{
@@ -1434,37 +1198,23 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2EnvRefKernelBootst
 	// TODO:UC20: if we have somewhere to log errors from snap-bootstrap during
 	// the initramfs, check that log here
 	c.Assert(err, IsNil)
-	c.Assert(n, Equals, 5)
+	c.Assert(*n, Equals, 5)
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/pc-kernel_1.snap %[1]s/kernel
 `, boot.InitramfsRunMntDir))
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2EnvRefKernelBootstateKernelStatusTryingNoTryKernel(c *C) {
-	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
-	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
-		n++
-		switch n {
-		case 1:
-			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
-			return true, nil
-		case 2:
-			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
-			return true, nil
-		case 3:
-			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
-			return true, nil
-		case 4:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
-			return true, nil
-		case 5:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
-			return false, nil
-		}
-		return false, fmt.Errorf("unexpected number of calls: %v", n)
-	})
-	defer restore()
+	n := s.mockMountsState(c,
+		mounted{
+			boot.InitramfsUbuntuBootDir,
+			boot.InitramfsUbuntuSeedDir,
+			boot.InitramfsUbuntuDataDir,
+		},
+		mounted{filepath.Join(boot.InitramfsRunMntDir, "base")},
+		notYetMounted{filepath.Join(boot.InitramfsRunMntDir, "kernel")},
+	)
 
 	// write modeenv
 	modeEnv := boot.Modeenv{
@@ -1492,62 +1242,40 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2EnvRefKernelBootst
 	// TODO:UC20: if we have somewhere to log errors from snap-bootstrap during
 	// the initramfs, check that log here
 	c.Assert(err, IsNil)
-	c.Assert(n, Equals, 5)
+	c.Assert(*n, Equals, 5)
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/pc-kernel_1.snap %[1]s/kernel
 `, boot.InitramfsRunMntDir))
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep1(c *C) {
-	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover snapd_recovery_system="+s.sysLabel)
 
-	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
-		n++
-		switch n {
-		case 1:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "ubuntu-seed"))
-			return false, nil
-		}
-		return false, fmt.Errorf("unexpected number of calls: %v", n)
-	})
-	defer restore()
+	n := s.mockMountsState(c,
+		notYetMounted{boot.InitramfsUbuntuSeedDir},
+	)
 
 	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
-	c.Assert(n, Equals, 1)
+	c.Assert(*n, Equals, 1)
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf("/dev/disk/by-label/ubuntu-seed %s/ubuntu-seed\n", boot.InitramfsRunMntDir))
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep2(c *C) {
-	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover snapd_recovery_system="+s.sysLabel)
 
-	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
-		n++
-		switch n {
-		case 1:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "ubuntu-seed"))
-			return true, nil
-		case 2:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
-			return false, nil
-		case 3:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
-			return false, nil
-		case 4:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "snapd"))
-			return false, nil
-		case 5:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data"))
-			return false, nil
-		}
-		return false, fmt.Errorf("unexpected number of calls: %v %s", n, path)
-	})
-	defer restore()
+	n := s.mockMountsState(c,
+		mounted{boot.InitramfsUbuntuSeedDir},
+		notYetMounted{
+			filepath.Join(boot.InitramfsRunMntDir, "base"),
+			filepath.Join(boot.InitramfsRunMntDir, "kernel"),
+			filepath.Join(boot.InitramfsRunMntDir, "snapd"),
+		},
+		notYetMounted{filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data")},
+	)
 
 	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
-	c.Assert(n, Equals, 5)
+	c.Assert(*n, Equals, 5)
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/snaps/snapd_1.snap %[2]s/snapd
 %[1]s/snaps/pc-kernel_1.snap %[2]s/kernel
 %[1]s/snaps/core20_1.snap %[2]s/base
@@ -1556,38 +1284,22 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep2(c *C) {
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep3(c *C) {
-	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover snapd_recovery_system="+s.sysLabel)
 
-	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
-		n++
-		switch n {
-		case 1:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "ubuntu-seed"))
-			return true, nil
-		case 2:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
-			return true, nil
-		case 3:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
-			return true, nil
-		case 4:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "snapd"))
-			return true, nil
-		case 5:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data"))
-			return true, nil
-		case 6:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "host/ubuntu-data"))
-			return false, nil
-		}
-		return false, fmt.Errorf("unexpected number of calls: %v", n)
-	})
-	defer restore()
+	n := s.mockMountsState(c,
+		mounted{boot.InitramfsUbuntuSeedDir},
+		mounted{
+			filepath.Join(boot.InitramfsRunMntDir, "base"),
+			filepath.Join(boot.InitramfsRunMntDir, "kernel"),
+			filepath.Join(boot.InitramfsRunMntDir, "snapd"),
+		},
+		mounted{filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data")},
+		notYetMounted{filepath.Join(boot.InitramfsRunMntDir, "host/ubuntu-data")},
+	)
 
 	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
-	c.Assert(n, Equals, 6)
+	c.Assert(*n, Equals, 6)
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`/dev/disk/by-label/ubuntu-data %s/host/ubuntu-data
 `, boot.InitramfsRunMntDir))
 }
@@ -1595,34 +1307,18 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep3(c *C) {
 var mockStateContent = `{"data":{"auth":{"users":[{"name":"mvo"}]}},"some":{"other":"stuff"}}`
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep4(c *C) {
-	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover snapd_recovery_system="+s.sysLabel)
 
-	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
-		n++
-		switch n {
-		case 1:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "ubuntu-seed"))
-			return true, nil
-		case 2:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
-			return true, nil
-		case 3:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
-			return true, nil
-		case 4:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "snapd"))
-			return true, nil
-		case 5:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data"))
-			return true, nil
-		case 6:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "host/ubuntu-data"))
-			return true, nil
-		}
-		return false, fmt.Errorf("unexpected number of calls: %v", n)
-	})
-	defer restore()
+	n := s.mockMountsState(c,
+		mounted{boot.InitramfsUbuntuSeedDir},
+		mounted{
+			filepath.Join(boot.InitramfsRunMntDir, "base"),
+			filepath.Join(boot.InitramfsRunMntDir, "kernel"),
+			filepath.Join(boot.InitramfsRunMntDir, "snapd"),
+		},
+		mounted{filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data")},
+		mounted{filepath.Join(boot.InitramfsRunMntDir, "host/ubuntu-data")},
+	)
 
 	ephemeralUbuntuData := filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data/")
 	err := os.MkdirAll(ephemeralUbuntuData, 0755)
@@ -1667,7 +1363,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep4(c *C) {
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
-	c.Assert(n, Equals, 6)
+	c.Assert(*n, Equals, 6)
 	c.Check(s.Stdout.String(), Equals, "")
 
 	modeEnv := filepath.Join(ephemeralUbuntuData, "/system-data/var/lib/snapd/modeenv")
@@ -1714,24 +1410,20 @@ func mockDevDiskByLabel(c *C) (string, func()) {
 }
 
 func (s *initramfsMountsSuite) testInitramfsMountsInstallRecoverModeStep1Measure(c *C, mode string) {
-	n := 0
 	s.mockProcCmdlineContent(c, fmt.Sprintf("snapd_recovery_mode=%s snapd_recovery_system=%s", mode, s.sysLabel))
 
-	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
-		n++
-		switch n {
-		case 1:
-			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
-			return true, nil
-		case 2, 3, 4, 5:
-			return false, nil
-		}
-		return false, fmt.Errorf("unexpected number of calls: %v", n)
-	})
-	defer restore()
+	n := s.mockMountsState(c,
+		mounted{boot.InitramfsUbuntuSeedDir},
+		notYetMounted{
+			filepath.Join(boot.InitramfsRunMntDir, "base"),
+			filepath.Join(boot.InitramfsRunMntDir, "kernel"),
+			filepath.Join(boot.InitramfsRunMntDir, "snapd"),
+		},
+		notYetMounted{filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data")},
+	)
 
 	// setup a fake tpm
-	_, restore = mockSecbootTPM(c)
+	_, restore := mockSecbootTPM(c)
 	defer restore()
 
 	epochPCR := -1
@@ -1763,6 +1455,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallRecoverModeStep1Measure
 	c.Check(measuredModel, DeepEquals, s.model)
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "secboot-epoch-measured"), testutil.FilePresent)
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, s.sysLabel+"-model-measured"), testutil.FilePresent)
+	c.Check(*n, Equals, 5)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep1Measure(c *C) {
