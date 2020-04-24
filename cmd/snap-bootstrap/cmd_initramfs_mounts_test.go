@@ -1712,3 +1712,63 @@ func mockDevDiskByLabel(c *C) (string, func()) {
 	restore := main.MockDevDiskByLabelDir(devDir)
 	return devDir, restore
 }
+
+func (s *initramfsMountsSuite) testInitramfsMountsInstallRecoverModeStep1Measure(c *C, mode string) {
+	n := 0
+	s.mockProcCmdlineContent(c, fmt.Sprintf("snapd_recovery_mode=%s snapd_recovery_system=%s", mode, s.sysLabel))
+
+	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
+		n++
+		switch n {
+		case 1:
+			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
+			return true, nil
+		case 2, 3, 4, 5:
+			return false, nil
+		}
+		return false, fmt.Errorf("unexpected number of calls: %v", n)
+	})
+	defer restore()
+
+	// setup a fake tpm
+	_, restore = mockSecbootTPM(c)
+	defer restore()
+
+	epochPCR := -1
+	modelPCR := -1
+	restore = main.MockSecbootMeasureSnapSystemEpochToTPM(func(tpm *secboot.TPMConnection, pcrIndex int) error {
+		epochPCR = pcrIndex
+		return nil
+	})
+	defer restore()
+
+	var measuredModel *asserts.Model
+	restore = main.MockSecbootMeasureSnapModelToTPM(func(tpm *secboot.TPMConnection, pcrIndex int, model *asserts.Model) error {
+		modelPCR = pcrIndex
+		measuredModel = model
+		return nil
+	})
+	defer restore()
+
+	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/snaps/snapd_1.snap %[2]s/snapd
+%[1]s/snaps/pc-kernel_1.snap %[2]s/kernel
+%[1]s/snaps/core20_1.snap %[2]s/base
+--type=tmpfs tmpfs /run/mnt/ubuntu-data
+`, s.seedDir, boot.InitramfsRunMntDir))
+	c.Check(epochPCR, Equals, 12)
+	c.Check(modelPCR, Equals, 12)
+	c.Check(measuredModel, NotNil)
+	c.Check(measuredModel, DeepEquals, s.model)
+	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "secboot-epoch-measured"), testutil.FilePresent)
+	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, s.sysLabel+"-model-measured"), testutil.FilePresent)
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep1Measure(c *C) {
+	s.testInitramfsMountsInstallRecoverModeStep1Measure(c, "")
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep1Measure(c *C) {
+	s.testInitramfsMountsInstallRecoverModeStep1Measure(c, "recover")
+}
