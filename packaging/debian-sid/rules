@@ -184,7 +184,7 @@ endif
 	$(MAKE) -C data all
 
 override_dh_auto_test:
-	dh_auto_test -- $(GCCGOFLAGS)
+	dh_auto_test -- $(BUILDFLAGS) -tags "$(TAGS)" $(GCCGOFLAGS)
 # a tested default (production) build should have no test keys
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	# check that only the main trusted account-keys are included
