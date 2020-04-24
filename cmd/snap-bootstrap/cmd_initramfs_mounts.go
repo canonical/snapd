@@ -255,9 +255,10 @@ func generateMountsCommonInstallRecover(recoverySystem string) (allMounted bool,
 	// 1a. measure model
 	err = stampedAction("recovery-model-measure", func() error {
 		return measureWhenPossible(func(tpm *secboot.TPMConnection) error {
+			// TODO:UC20: consider doing the measurement later and
+			// getting the model from opened system seed
 			model, err := loadModelFrom(filepath.Join(boot.InitramfsUbuntuSeedDir,
-				recoverySystem,
-				"model"))
+				"systems", recoverySystem, "model"))
 			if err != nil {
 				return fmt.Errorf("cannot load recovery system model: %v", err)
 			}

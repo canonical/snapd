@@ -475,6 +475,9 @@ func (s *initramfsMountsSuite) testInitramfsMountsStep1EncryptedNoModel(c *C, mo
 	if label != "" {
 		s.mockProcCmdlineContent(c,
 			fmt.Sprintf("snapd_recovery_mode=%s snapd_recovery_system=%s", mode, label))
+		// break the seed
+		err := os.Remove(filepath.Join(s.seedDir, "systems", label, "model"))
+		c.Assert(err, IsNil)
 	}
 	restore := main.MockSsbCheckKeySealingSupported(func() error {
 		return nil
@@ -518,7 +521,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsStep1EncryptedNoModel(c *C, mo
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	where := "/run/mnt/ubuntu-boot/model"
 	if mode != "run" {
-		where = fmt.Sprintf("/run/mnt/ubuntu-seed/%s/model", label)
+		where = fmt.Sprintf("/run/mnt/ubuntu-seed/systems/%s/model", label)
 	}
 	c.Assert(err, ErrorMatches,
 		fmt.Sprintf("cannot load (run mode|recovery system) model: open .*%s: no such file or directory", where))
