@@ -27,9 +27,11 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"syscall"
 
 	"github.com/canonical/go-tpm2"
 	"github.com/snapcore/secboot"
+	"golang.org/x/xerrors"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
@@ -60,6 +62,8 @@ type initramfsMountsSuite struct {
 	seedDir  string
 	sysLabel string
 	model    *asserts.Model
+
+	mockTPM *secboot.TPMConnection
 }
 
 var _ = Suite(&initramfsMountsSuite{})
@@ -124,6 +128,17 @@ func (s *initramfsMountsSuite) SetUpTest(c *C) {
 		return fmt.Errorf("no key sealing support in this test")
 	})
 	s.AddCleanup(restore)
+
+	mockTPM, restoreTPM := mockSecbootTPM(c)
+	s.AddCleanup(restoreTPM)
+	s.mockTPM = mockTPM
+
+	restoreConnect := main.MockSecbootConnectToDefaultTPM(func() (*secboot.TPMConnection, error) {
+		return nil, xerrors.Errorf("no tpm: %w", &os.PathError{
+			Op: "open", Path: "/dev/mock/tpm0", Err: syscall.ENOENT,
+		})
+	})
+	s.AddCleanup(restoreConnect)
 }
 
 func (s *initramfsMountsSuite) mockProcCmdlineContent(c *C, newContent string) {
@@ -424,22 +439,29 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1EncryptedData(c *C
 	c.Check(modelPCR, Equals, 12)
 	c.Check(measuredModel, NotNil)
 	c.Check(measuredModel, DeepEquals, s.model)
+
+	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "initial-measure"), testutil.FilePresent)
+	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "boot-model-measure"), testutil.FilePresent)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsStep1EncryptedNoModelRun(c *C) {
-	s.testInitramfsMountsStep1EncryptedNoModel(c, "run")
+	s.testInitramfsMountsStep1EncryptedNoModel(c, "run", "")
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsStep1EncryptedNoModelInstall(c *C) {
-	s.testInitramfsMountsStep1EncryptedNoModel(c, "install")
+	s.testInitramfsMountsStep1EncryptedNoModel(c, "install", s.sysLabel)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsStep1EncryptedNoModelRecovery(c *C) {
-	s.testInitramfsMountsStep1EncryptedNoModel(c, "recover")
+	s.testInitramfsMountsStep1EncryptedNoModel(c, "recover", s.sysLabel)
 }
 
-func (s *initramfsMountsSuite) testInitramfsMountsStep1EncryptedNoModel(c *C, mode string) {
+func (s *initramfsMountsSuite) testInitramfsMountsStep1EncryptedNoModel(c *C, mode, label string) {
 	s.mockProcCmdlineContent(c, fmt.Sprintf("snapd_recovery_mode=%s", mode))
+	if label != "" {
+		s.mockProcCmdlineContent(c,
+			fmt.Sprintf("snapd_recovery_mode=%s snapd_recovery_system=%s", mode, label))
+	}
 	restore := main.MockSsbCheckKeySealingSupported(func() error {
 		return nil
 	})
@@ -453,14 +475,12 @@ func (s *initramfsMountsSuite) testInitramfsMountsStep1EncryptedNoModel(c *C, mo
 	err := ioutil.WriteFile(ubuntuDataEnc, nil, 0644)
 	c.Assert(err, IsNil)
 
-	n := 0
 	restore = main.MockOsutilIsMounted(func(path string) (bool, error) {
-		return false, fmt.Errorf("unexpected number of calls: %v", n)
+		return true, nil
 	})
 	defer restore()
-
 	restore = main.MockSecbootConnectToDefaultTPM(func() (*secboot.TPMConnection, error) {
-		return nil, fmt.Errorf("unexpected call")
+		return s.mockTPM, nil
 	})
 	defer restore()
 
@@ -468,19 +488,34 @@ func (s *initramfsMountsSuite) testInitramfsMountsStep1EncryptedNoModel(c *C, mo
 		return fmt.Errorf("unexpected call")
 	})
 	defer restore()
+	measureEpochCalls := 0
 	restore = main.MockSecbootMeasureSnapSystemEpochToTPM(func(tpm *secboot.TPMConnection, pcrIndex int) error {
-		return fmt.Errorf("unexpected call")
+		measureEpochCalls++
+		return nil
 	})
 	defer restore()
+	measureModelCalls := 0
 	restore = main.MockSecbootMeasureSnapModelToTPM(func(tpm *secboot.TPMConnection, pcrIndex int, model *asserts.Model) error {
+		measureModelCalls++
 		return fmt.Errorf("unexpected call")
 	})
 	defer restore()
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
-	c.Assert(err, ErrorMatches, "cannot load model: open .*/run/mnt/ubuntu-boot/model: no such file or directory")
-	// the epoch/model gets measured very early
-	c.Check(n, Equals, 0)
+	where := "/run/mnt/ubuntu-boot/model"
+	if mode != "run" {
+		where = fmt.Sprintf("/run/mnt/ubuntu-seed/%s/model", label)
+	}
+	c.Assert(err, ErrorMatches,
+		fmt.Sprintf("cannot load (run mode|recovery system) model: open .*%s: no such file or directory", where))
+	c.Assert(measureEpochCalls, Equals, 1)
+	c.Assert(measureModelCalls, Equals, 0)
+	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "initial-measure"), testutil.FilePresent)
+	whichStamp := "boot-model-measure"
+	if mode != "run" {
+		whichStamp = "seed-model-measure"
+	}
+	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, whichStamp), testutil.FileAbsent)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2(c *C) {

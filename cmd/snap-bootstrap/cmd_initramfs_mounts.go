@@ -31,6 +31,7 @@ import (
 	"github.com/jessevdk/go-flags"
 	// XXX: import as "to" sb to be consistent with snapcore/snapd/secboot
 	"github.com/snapcore/secboot"
+	"golang.org/x/xerrors"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
@@ -251,6 +252,22 @@ func generateMountsCommonInstallRecover(recoverySystem string) (allMounted bool,
 		return false, nil
 	}
 
+	// 1a. measure model
+	err = stampedAction("recovery-model-measure", func() error {
+		return measureWhenPossible(func(tpm *secboot.TPMConnection) error {
+			model, err := loadModelFrom(filepath.Join(boot.InitramfsUbuntuSeedDir,
+				recoverySystem,
+				"model"))
+			if err != nil {
+				return fmt.Errorf("cannot load recovery system model: %v", err)
+			}
+			return secMeasureModel(tpm, model)
+		})
+	})
+	if err != nil {
+		return false, err
+	}
+
 	// 2. (auto) select recovery system for now
 	isBaseMounted, err := osutilIsMounted(filepath.Join(boot.InitramfsRunMntDir, "base"))
 	if err != nil {
@@ -310,8 +327,8 @@ func generateMountsCommonInstallRecover(recoverySystem string) (allMounted bool,
 	return true, nil
 }
 
-func loadModelFromBoot() (*asserts.Model, error) {
-	mf, err := os.Open(filepath.Join(boot.InitramfsUbuntuBootDir, "model"))
+func loadModelFrom(where string) (*asserts.Model, error) {
+	mf, err := os.Open(where)
 	if err != nil {
 		return nil, err
 	}
@@ -326,27 +343,37 @@ func loadModelFromBoot() (*asserts.Model, error) {
 	return ma.(*asserts.Model), nil
 }
 
-func doInitialMeasure() error {
-	model, err := loadModelFromBoot()
-	if err != nil {
-		return fmt.Errorf("cannot load model: %v", err)
-	}
+const tpmPCR = 12
 
-	// the model is ready, we're good to try measuring it now
-	tpm, err := insecureConnectToTPM()
-	if err != nil {
-		return fmt.Errorf("cannot open TPM connection: %v", err)
-	}
-	defer tpm.Close()
-
-	const tpmPCR = 12
+func secMeasureEpoch(tpm *secboot.TPMConnection) error {
 	if err := secbootMeasureSnapSystemEpochToTPM(tpm, tpmPCR); err != nil {
 		return fmt.Errorf("cannot measure snap system epoch: %v", err)
 	}
+	return nil
+}
+
+func secMeasureModel(tpm *secboot.TPMConnection, model *asserts.Model) error {
 	if err := secbootMeasureSnapModelToTPM(tpm, tpmPCR, model); err != nil {
 		return fmt.Errorf("cannot measure snap system model: %v", err)
 	}
 	return nil
+}
+
+func measureWhenPossible(whatHow func(tpm *secboot.TPMConnection) error) error {
+	// the model is ready, we're good to try measuring it now
+	tpm, err := insecureConnectToTPM()
+	if err != nil {
+		var perr *os.PathError
+		// XXX: xerrors.Is() does not work with PathErrors?
+		if xerrors.As(err, &perr) {
+			// no TPM
+			return nil
+		}
+		return fmt.Errorf("cannot open TPM connection: %v", err)
+	}
+	defer tpm.Close()
+
+	return whatHow(tpm)
 }
 
 func generateMountsModeRun() error {
@@ -362,6 +389,21 @@ func generateMountsModeRun() error {
 			fmt.Fprintf(stdout, "/dev/disk/by-label/%s %s\n", filepath.Base(d), d)
 			return nil
 		}
+	}
+
+	// 1.1a measure model
+	err := stampedAction("boot-model-measure", func() error {
+		return measureWhenPossible(func(tpm *secboot.TPMConnection) error {
+			model, err := loadModelFrom(filepath.Join(boot.InitramfsUbuntuBootDir,
+				"model"))
+			if err != nil {
+				return fmt.Errorf("cannot load run mode model: %v", err)
+			}
+			return secMeasureModel(tpm, model)
+		})
+	})
+	if err != nil {
+		return err
 	}
 
 	// 1.2 mount Data, and exit, as it needs to be mounted for us to do step 2
@@ -553,26 +595,27 @@ func generateMountsModeRun() error {
 
 var ssbCheckKeySealingSupported = ssb.CheckKeySealingSupported
 
-func createStampFile(stamp string) error {
-	if err := os.MkdirAll(filepath.Dir(stamp), 0755); err != nil {
+func stampedAction(stamp string, action func() error) error {
+	stampFile := filepath.Join(dirs.SnapBootstrapRunDir, stamp)
+	if osutil.FileExists(stampFile) {
+		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(stampFile), 0755); err != nil {
 		return err
 	}
-	return ioutil.WriteFile(stamp, nil, 0644)
+	if err := action(); err != nil {
+		return err
+	}
+	return ioutil.WriteFile(stampFile, nil, 0644)
 }
 
 func generateInitramfsMounts() error {
 	// Ensure there is a very early initial measurement
-	// XXX: is checking for ssbCheckKeySealingSupported good enough?
-	if err := ssbCheckKeySealingSupported(); err == nil {
-		stamp := filepath.Join(dirs.SnapBootstrapRunDir, "initial-measure")
-		if !osutil.FileExists(stamp) {
-			if err := doInitialMeasure(); err != nil {
-				return err
-			}
-			if err := createStampFile(stamp); err != nil {
-				return err
-			}
-		}
+	err := stampedAction("initial-measure", func() error {
+		return measureWhenPossible(secMeasureEpoch)
+	})
+	if err != nil {
+		return err
 	}
 
 	mode, recoverySystem, err := boot.ModeAndRecoverySystemFromKernelCommandLine()
