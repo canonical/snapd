@@ -188,14 +188,14 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet)
 	// on e.g. ARM we need to extract the kernel assets on the recovery
 	// system as well, but the bootloader does not load any environment from
 	// the recovery system
-	ekrbl, ok := bl.(bootloader.ExtractedRecoveryKernelImageBootloader)
+	erkbl, ok := bl.(bootloader.ExtractedRecoveryKernelImageBootloader)
 	if ok {
 		kernelf, err := snap.Open(bootWith.KernelPath)
 		if err != nil {
 			return err
 		}
 
-		err = ekrbl.ExtractRecoveryKernelAssets(
+		err = erkbl.ExtractRecoveryKernelAssets(
 			bootWith.RecoverySystemDir,
 			bootWith.Kernel,
 			kernelf,
