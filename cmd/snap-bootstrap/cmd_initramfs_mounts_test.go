@@ -454,8 +454,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1EncryptedData(c *C
 	c.Check(measuredModel, NotNil)
 	c.Check(measuredModel, DeepEquals, s.model)
 
-	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "initial-measure"), testutil.FilePresent)
-	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "boot-model-measure"), testutil.FilePresent)
+	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "secboot-epoch-measured"), testutil.FilePresent)
+	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "run-model-measured"), testutil.FilePresent)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsStep1EncryptedNoModelRun(c *C) {
@@ -527,12 +527,10 @@ func (s *initramfsMountsSuite) testInitramfsMountsStep1EncryptedNoModel(c *C, mo
 		fmt.Sprintf("cannot load (run mode|recovery system) model: open .*%s: no such file or directory", where))
 	c.Assert(measureEpochCalls, Equals, 1)
 	c.Assert(measureModelCalls, Equals, 0)
-	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "initial-measure"), testutil.FilePresent)
-	whichStamp := "boot-model-measure"
-	if mode != "run" {
-		whichStamp = "seed-model-measure"
-	}
-	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, whichStamp), testutil.FileAbsent)
+	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "secboot-epoch-measured"), testutil.FilePresent)
+	gl, err := filepath.Glob(filepath.Join(dirs.SnapBootstrapRunDir, "*-model-measured"))
+	c.Assert(err, IsNil)
+	c.Assert(gl, HasLen, 0)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2(c *C) {

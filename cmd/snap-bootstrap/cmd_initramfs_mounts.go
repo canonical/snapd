@@ -253,11 +253,11 @@ func generateMountsCommonInstallRecover(recoverySystem string) (allMounted bool,
 	}
 
 	// 1a. measure model
-	err = stampedAction("recovery-model-measure", func() error {
+	err = stampedAction(fmt.Sprintf("%s-model-measure", recoverySystem), func() error {
 		return measureWhenPossible(func(tpm *secboot.TPMConnection) error {
 			// TODO:UC20: consider doing the measurement later and
 			// getting the model from opened system seed
-			model, err := loadModelFrom(filepath.Join(boot.InitramfsUbuntuSeedDir,
+			model, err := readModelFrom(filepath.Join(boot.InitramfsUbuntuSeedDir,
 				"systems", recoverySystem, "model"))
 			if err != nil {
 				return fmt.Errorf("cannot load recovery system model: %v", err)
@@ -328,7 +328,7 @@ func generateMountsCommonInstallRecover(recoverySystem string) (allMounted bool,
 	return true, nil
 }
 
-func loadModelFrom(where string) (*asserts.Model, error) {
+func readModelFrom(where string) (*asserts.Model, error) {
 	mf, err := os.Open(where)
 	if err != nil {
 		return nil, err
@@ -393,9 +393,9 @@ func generateMountsModeRun() error {
 	}
 
 	// 1.1a measure model
-	err := stampedAction("boot-model-measure", func() error {
+	err := stampedAction("run-model-measured", func() error {
 		return measureWhenPossible(func(tpm *secboot.TPMConnection) error {
-			model, err := loadModelFrom(filepath.Join(boot.InitramfsUbuntuBootDir,
+			model, err := readModelFrom(filepath.Join(boot.InitramfsUbuntuBootDir,
 				"model"))
 			if err != nil {
 				return fmt.Errorf("cannot load run mode model: %v", err)
@@ -406,6 +406,8 @@ func generateMountsModeRun() error {
 	if err != nil {
 		return err
 	}
+	// TODO:UC20: cross check the model we read from ubuntu-boot/model with
+	// one recorded in ubuntu-data modeenv during install
 
 	// 1.2 mount Data, and exit, as it needs to be mounted for us to do step 2
 	isDataMounted, err := osutilIsMounted(boot.InitramfsUbuntuDataDir)
@@ -612,7 +614,7 @@ func stampedAction(stamp string, action func() error) error {
 
 func generateInitramfsMounts() error {
 	// Ensure there is a very early initial measurement
-	err := stampedAction("initial-measure", func() error {
+	err := stampedAction("secboot-epoch-measured", func() error {
 		return measureWhenPossible(secMeasureEpoch)
 	})
 	if err != nil {
