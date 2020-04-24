@@ -136,7 +136,7 @@ func (s *deviceMgrBaseSuite) SetUpTest(c *C) {
 	s.restoreOnClassic = release.MockOnClassic(false)
 
 	s.storeSigning = assertstest.NewStoreStack("canonical", nil)
-	s.o = overlord.MockWithRestartHandler(func(req state.RestartType) {
+	s.o = overlord.MockWithStateAndRestartHandler(nil, func(req state.RestartType) {
 		s.restartRequests = append(s.restartRequests, req)
 	})
 	s.state = s.o.State()

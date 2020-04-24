@@ -44,6 +44,7 @@ setup_preseeding() {
     local IMAGE_MOUNTPOINT=$1
     local CORE_IMAGE
 
+    # TODO: on 20.04 there is no core_*.snap anymore, just snapd
     CORE_IMAGE=$(find "$IMAGE_MOUNTPOINT/var/lib/snapd/seed/snaps/" -name "core_*.snap")
     unsquashfs "$CORE_IMAGE"
     cp /usr/lib/snapd/snapd squashfs-root/usr/lib/snapd/snapd
