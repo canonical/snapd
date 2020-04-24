@@ -40,8 +40,6 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/state"
-	// XXX: remove "ssb"
-	ssb "github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/sysconfig"
@@ -595,8 +593,6 @@ func generateMountsModeRun() error {
 	// 4.1 Write the modeenv out again
 	return modeEnv.Write()
 }
-
-var ssbCheckKeySealingSupported = ssb.CheckKeySealingSupported
 
 func stampedAction(stamp string, action func() error) error {
 	stampFile := filepath.Join(dirs.SnapBootstrapRunDir, stamp)

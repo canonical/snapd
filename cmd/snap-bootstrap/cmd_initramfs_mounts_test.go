@@ -132,12 +132,6 @@ func (s *initramfsMountsSuite) SetUpTest(c *C) {
 			}},
 	}, nil)
 
-	// No KeySealing by default for most tests
-	restore = main.MockSsbCheckKeySealingSupported(func() error {
-		return fmt.Errorf("no key sealing support in this test")
-	})
-	s.AddCleanup(restore)
-
 	mockTPM, restoreTPM := mockSecbootTPM(c)
 	s.AddCleanup(restoreTPM)
 	s.mockTPM = mockTPM
@@ -351,10 +345,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1Data(c *C) {
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1EncryptedData(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
-	restore := main.MockSsbCheckKeySealingSupported(func() error {
-		return nil
-	})
-	defer restore()
 
 	// write the installed model like makebootable does it
 	err := os.MkdirAll(boot.InitramfsUbuntuBootDir, 0755)
@@ -437,11 +427,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1EncryptedData(c *C
 	})
 	defer restore()
 
-	restore = main.MockSsbCheckKeySealingSupported(func() error {
-		return nil
-	})
-	defer restore()
-
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Check(n, Equals, 3)
@@ -479,10 +464,6 @@ func (s *initramfsMountsSuite) testInitramfsMountsStep1EncryptedNoModel(c *C, mo
 		err := os.Remove(filepath.Join(s.seedDir, "systems", label, "model"))
 		c.Assert(err, IsNil)
 	}
-	restore := main.MockSsbCheckKeySealingSupported(func() error {
-		return nil
-	})
-	defer restore()
 
 	// setup ubuntu-data-enc
 	devDiskByLabel, restore := mockDevDiskByLabel(c)
