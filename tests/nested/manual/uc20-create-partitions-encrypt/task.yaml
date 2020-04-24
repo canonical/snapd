@@ -58,11 +58,13 @@ prepare: |
 
 execute: |
     LOOP="$(cat loop.txt)"
+
     echo "Run the snap-bootstrap tool"
-    go get ../../lib/create-partitions
+    go get ../../../lib/create-partitions
     create-partitions --mount \
         --encrypt --key-file keyfile \
         --recovery-key-file /run/mnt/ubuntu-data/system-data/recovery-key \
+        --model <(snap model --assertion) \
         ./gadget-dir "$LOOP"
 
     echo "Check that the key file was created"
