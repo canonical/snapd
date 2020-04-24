@@ -597,9 +597,12 @@ var (
 	secbootLockAccessToSealedKeys = secboot.LockAccessToSealedKeys
 )
 
-func isDeviceEncrypted(name string) bool {
-	encdev := filepath.Join(devDiskByLabelDir, name+"-enc")
-	return osutil.FileExists(encdev)
+func isDeviceEncrypted(name string) (ok bool, encdev string) {
+	encdev = filepath.Join(devDiskByLabelDir, name+"-enc")
+	if osutil.FileExists(encdev) {
+		return true, encdev
+	}
+	return false, ""
 }
 
 // unlockIfEncrypted verifies whether an encrypted volume with the specified
@@ -638,10 +641,11 @@ func unlockIfEncrypted(name string, lockKeysOnFinish bool) (string, error) {
 			}
 		}()
 
-		if !isDeviceEncrypted(name) {
+		ok, encdev := isDeviceEncrypted(name)
+		if !ok {
 			return nil
 		}
-		encdev := filepath.Join(devDiskByLabelDir, name+"-enc")
+
 		if tpmErr != nil {
 			return fmt.Errorf("cannot unlock encrypted device %q: %v", name, tpmErr)
 		}
