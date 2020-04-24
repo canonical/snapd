@@ -448,7 +448,7 @@ start_nested_core_vm(){
 
 create_nested_classic_vm(){
     mkdir -p "$WORK_DIR/image"
-    IMAGE=$(ls $WORK_DIR/image/*.img || true)
+    IMAGE=$(ls "$WORK_DIR"/image/*.img || true)
     if [ -z "$IMAGE" ]; then
         # Get the cloud image
         local IMAGE_URL
@@ -456,7 +456,7 @@ create_nested_classic_vm(){
         wget -P "$WORK_DIR/image" "$IMAGE_URL"
         # Check the image
         local IMAGE
-        IMAGE=$(ls $WORK_DIR/image/*.img)
+        IMAGE=$(ls "$WORK_DIR"/image/*.img)
         test "$(echo "$IMAGE" | wc -l)" = "1"
 
         # Prepare the cloud-init configuration and configure image
@@ -466,12 +466,12 @@ create_nested_classic_vm(){
 }
 
 get_nested_classic_image_path() {
-    ls $WORK_DIR/image/*.img
+    ls "$WORK_DIR"/image/*.img
 }
 
 start_nested_classic_vm(){
     local IMAGE QEMU
-    IMAGE=$(ls $WORK_DIR/image/*.img)
+    IMAGE=$(ls "$WORK_DIR"/image/*.img)
     QEMU=$(get_qemu_for_nested_vm)
 
     # Now qemu parameters are defined
