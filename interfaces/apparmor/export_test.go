@@ -27,13 +27,15 @@ import (
 )
 
 var (
-	NsProfile                  = nsProfile
-	ProfileGlobs               = profileGlobs
-	SnapConfineFromSnapProfile = snapConfineFromSnapProfile
-	DowngradeConfinement       = downgradeConfinement
-	LoadProfiles               = loadProfiles
-	UnloadProfiles             = unloadProfiles
-	MaybeSetNumberOfJobs       = maybeSetNumberOfJobs
+	NsProfile                       = nsProfile
+	ProfileGlobs                    = profileGlobs
+	SnapConfineFromSnapProfile      = snapConfineFromSnapProfile
+	DowngradeConfinement            = downgradeConfinement
+	LoadProfiles                    = loadProfiles
+	UnloadProfiles                  = unloadProfiles
+	MaybeSetNumberOfJobs            = maybeSetNumberOfJobs
+	DefaultCoreRuntimeTemplateRules = defaultCoreRuntimeTemplateRules
+	DefaultOtherBaseTemplateRules   = defaultOtherBaseTemplateRules
 )
 
 func MockRuntimeNumCPU(new func() int) (restore func()) {
@@ -76,9 +78,9 @@ func MockProfilesPath(t *testutil.BaseTest, profiles string) {
 // NOTE: The real apparmor template is long. For testing it is convenient for
 // replace it with a shorter snippet.
 func MockTemplate(fakeTemplate string) (restore func()) {
-	orig := defaultTemplate
-	defaultTemplate = fakeTemplate
-	return func() { defaultTemplate = orig }
+	orig := defaultCoreRuntimeTemplate
+	defaultCoreRuntimeTemplate = fakeTemplate
+	return func() { defaultCoreRuntimeTemplate = orig }
 }
 
 // MockClassicTemplate replaces the classic apprmor template.

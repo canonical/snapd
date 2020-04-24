@@ -21,11 +21,15 @@ package main_test
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 
+	"github.com/canonical/go-tpm2"
+	"github.com/snapcore/secboot"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts/assertstest"
@@ -35,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	main "github.com/snapcore/snapd/cmd/snap-bootstrap"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
@@ -62,6 +67,9 @@ func (s *initramfsMountsSuite) SetUpTest(c *C) {
 
 	s.Stdout = bytes.NewBuffer(nil)
 	restore := main.MockStdout(s.Stdout)
+	s.AddCleanup(restore)
+
+	_, restore = logger.MockLogger()
 	s.AddCleanup(restore)
 
 	// mock /run/mnt
@@ -229,7 +237,7 @@ recovery_system=20191118
 	c.Check(cloudInitDisable, testutil.FilePresent)
 }
 
-func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1(c *C) {
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1Boot(c *C) {
 	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
@@ -237,11 +245,58 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1(c *C) {
 		n++
 		switch n {
 		case 1:
-			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
-			return false, nil
-		case 2:
 			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
 			return false, nil
+		}
+		return false, fmt.Errorf("unexpected number of calls: %v", n)
+	})
+	defer restore()
+
+	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 1)
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`/dev/disk/by-label/ubuntu-boot %[1]s/ubuntu-boot
+`, boot.InitramfsRunMntDir))
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1Seed(c *C) {
+	n := 0
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
+		n++
+		switch n {
+		case 1:
+			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
+			return true, nil
+		case 2:
+			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
+			return false, nil
+		}
+		return false, fmt.Errorf("unexpected number of calls: %v", n)
+	})
+	defer restore()
+
+	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 2)
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`/dev/disk/by-label/ubuntu-seed %[1]s/ubuntu-seed
+`, boot.InitramfsRunMntDir))
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1Data(c *C) {
+	n := 0
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
+		n++
+		switch n {
+		case 1:
+			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
+			return true, nil
+		case 2:
+			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
+			return true, nil
 		case 3:
 			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
 			return false, nil
@@ -253,10 +308,76 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1(c *C) {
 	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 3)
-	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`/dev/disk/by-label/ubuntu-seed %[1]s/ubuntu-seed
-/dev/disk/by-label/ubuntu-boot %[1]s/ubuntu-boot
-/dev/disk/by-label/ubuntu-data %[1]s/ubuntu-data
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`/dev/disk/by-label/ubuntu-data %[1]s/ubuntu-data
 `, boot.InitramfsRunMntDir))
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1EncryptedData(c *C) {
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	// setup ubuntu-data-enc
+	devDiskByLabel, restore := mockDevDiskByLabel(c)
+	defer restore()
+
+	ubuntuDataEnc := filepath.Join(devDiskByLabel, "ubuntu-data-enc")
+	err := ioutil.WriteFile(ubuntuDataEnc, nil, 0644)
+	c.Assert(err, IsNil)
+
+	// setup a fake tpm
+	mockTPM, restore := mockSecbootTPM(c)
+	defer restore()
+
+	activated := false
+	// setup activating the fake tpm
+	restore = main.MockSecbootActivateVolumeWithTPMSealedKey(func(tpm *secboot.TPMConnection, volumeName, sourceDevicePath,
+		keyPath string, pinReader io.Reader, options *secboot.ActivateWithTPMSealedKeyOptions) (bool, error) {
+		c.Assert(tpm, Equals, mockTPM)
+		c.Assert(volumeName, Equals, "ubuntu-data")
+		c.Assert(sourceDevicePath, Equals, ubuntuDataEnc)
+		// the keyfile will be on ubuntu-seed as ubuntu-data.sealed-key
+		c.Assert(keyPath, Equals, filepath.Join(boot.InitramfsUbuntuSeedDir, "ubuntu-data.sealed-key"))
+		c.Assert(*options, DeepEquals, secboot.ActivateWithTPMSealedKeyOptions{
+			PINTries:            1,
+			RecoveryKeyTries:    3,
+			LockSealedKeyAccess: true,
+		})
+		activated = true
+		return true, nil
+	})
+	defer restore()
+
+	n := 0
+	restore = main.MockOsutilIsMounted(func(path string) (bool, error) {
+		n++
+		switch n {
+		case 1:
+			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
+			return true, nil
+		case 2:
+			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
+			return true, nil
+		case 3:
+			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
+			return false, nil
+		}
+		return false, fmt.Errorf("unexpected number of calls: %v", n)
+	})
+	defer restore()
+
+	sealedKeysLocked := false
+	restore = main.MockSecbootLockAccessToSealedKeys(func(tpm *secboot.TPMConnection) error {
+		sealedKeysLocked = true
+		return nil
+	})
+	defer restore()
+
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+	c.Check(n, Equals, 3)
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data %[2]s/ubuntu-data
+`, devDiskByLabel, boot.InitramfsRunMntDir))
+	c.Check(activated, Equals, true)
+	c.Check(sealedKeysLocked, Equals, true)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2(c *C) {
@@ -267,10 +388,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2(c *C) {
 		n++
 		switch n {
 		case 1:
-			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
+			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
 			return true, nil
 		case 2:
-			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
+			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
 			return true, nil
 		case 3:
 			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
@@ -318,7 +439,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2(c *C) {
 `, boot.InitramfsRunMntDir))
 }
 
-func (s *initramfsMountsSuite) TestInitramfsMountsRunModeBaseSnapUpgradeFailsHappy(c *C) {
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2BaseSnapUpgradeFailsHappy(c *C) {
 	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
@@ -326,10 +447,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeBaseSnapUpgradeFailsHap
 		n++
 		switch n {
 		case 1:
-			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
+			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
 			return true, nil
 		case 2:
-			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
+			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
 			return true, nil
 		case 3:
 			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
@@ -377,7 +498,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeBaseSnapUpgradeFailsHap
 	c.Assert(newModeenv.Base, DeepEquals, modeEnv.Base)
 }
 
-func (s *initramfsMountsSuite) TestInitramfsMountsRunModeModeenvTryBaseEmptyHappy(c *C) {
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2ModeenvTryBaseEmptyHappy(c *C) {
 	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
@@ -385,10 +506,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeModeenvTryBaseEmptyHapp
 		n++
 		switch n {
 		case 1:
-			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
+			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
 			return true, nil
 		case 2:
-			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
+			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
 			return true, nil
 		case 3:
 			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
@@ -426,7 +547,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeModeenvTryBaseEmptyHapp
 	c.Assert(newModeenv.Base, DeepEquals, modeEnv.Base)
 }
 
-func (s *initramfsMountsSuite) TestInitramfsMountsRunModeBaseSnapUpgradeHappy(c *C) {
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2BaseSnapUpgradeHappy(c *C) {
 	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
@@ -434,10 +555,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeBaseSnapUpgradeHappy(c 
 		n++
 		switch n {
 		case 1:
-			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
+			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
 			return true, nil
 		case 2:
-			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
+			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
 			return true, nil
 		case 3:
 			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
@@ -483,7 +604,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeBaseSnapUpgradeHappy(c 
 	c.Assert(newModeenv.Base, DeepEquals, modeEnv.Base)
 }
 
-func (s *initramfsMountsSuite) TestInitramfsMountsRunModeModeenvBaseEmptyUnhappy(c *C) {
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2ModeenvBaseEmptyUnhappy(c *C) {
 	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
@@ -491,10 +612,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeModeenvBaseEmptyUnhappy
 		n++
 		switch n {
 		case 1:
-			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
+			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
 			return true, nil
 		case 2:
-			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
+			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
 			return true, nil
 		case 3:
 			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
@@ -521,7 +642,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeModeenvBaseEmptyUnhappy
 	c.Check(s.Stdout.String(), Equals, "")
 }
 
-func (s *initramfsMountsSuite) TestInitramfsMountsRunModeModeenvTryBaseNotExistsHappy(c *C) {
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2ModeenvTryBaseNotExistsHappy(c *C) {
 	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
@@ -529,10 +650,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeModeenvTryBaseNotExists
 		n++
 		switch n {
 		case 1:
-			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
+			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
 			return true, nil
 		case 2:
-			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
+			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
 			return true, nil
 		case 3:
 			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
@@ -572,7 +693,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeModeenvTryBaseNotExists
 	c.Assert(newModeenv.Base, DeepEquals, modeEnv.Base)
 }
 
-func (s *initramfsMountsSuite) TestInitramfsMountsRunModeKernelSnapUpgradeHappy(c *C) {
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2KernelSnapUpgradeHappy(c *C) {
 	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
@@ -580,10 +701,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeKernelSnapUpgradeHappy(
 		n++
 		switch n {
 		case 1:
-			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
+			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
 			return true, nil
 		case 2:
-			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
+			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
 			return true, nil
 		case 3:
 			c.Check(path, Equals, filepath.Join(boot.InitramfsUbuntuDataDir))
@@ -643,7 +764,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeKernelSnapUpgradeHappy(
 // TODO:UC20: in this case snap-bootstrap should request a reboot, since we
 //            already booted the try snap, so mounting the fallback kernel will
 //            not match in some cases
-func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUntrustedKernelSnap(c *C) {
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2UntrustedKernelSnap(c *C) {
 	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
@@ -651,10 +772,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUntrustedKernelSnap(c *
 		n++
 		switch n {
 		case 1:
-			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
+			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
 			return true, nil
 		case 2:
-			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
+			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
 			return true, nil
 		case 3:
 			c.Check(path, Equals, filepath.Join(boot.InitramfsUbuntuDataDir))
@@ -697,7 +818,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUntrustedKernelSnap(c *
 // TODO:UC20: in this case snap-bootstrap should request a reboot, since we
 //            already booted the try snap, so mounting the fallback kernel will
 //            not match in some cases
-func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUntrustedTryKernelSnapFallsBack(c *C) {
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2UntrustedTryKernelSnapFallsBack(c *C) {
 	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
@@ -705,10 +826,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUntrustedTryKernelSnapF
 		n++
 		switch n {
 		case 1:
-			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
+			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
 			return true, nil
 		case 2:
-			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
+			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
 			return true, nil
 		case 3:
 			c.Check(path, Equals, filepath.Join(boot.InitramfsUbuntuDataDir))
@@ -759,7 +880,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUntrustedTryKernelSnapF
 `, boot.InitramfsRunMntDir))
 }
 
-func (s *initramfsMountsSuite) TestInitramfsMountsRunModeKernelStatusTryingNoTryKernel(c *C) {
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2KernelStatusTryingNoTryKernel(c *C) {
 	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
@@ -767,10 +888,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeKernelStatusTryingNoTry
 		n++
 		switch n {
 		case 1:
-			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
+			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
 			return true, nil
 		case 2:
-			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
+			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
 			return true, nil
 		case 3:
 			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
@@ -818,4 +939,642 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeKernelStatusTryingNoTry
 	c.Assert(n, Equals, 5)
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/pc-kernel_1.snap %[1]s/kernel
 `, boot.InitramfsRunMntDir))
+}
+
+func (s *initramfsMountsSuite) TestUnlockIfEncrypted(c *C) {
+	for idx, tc := range []struct {
+		hasTPM    bool
+		tpmErr    error
+		hasEncdev bool
+		last      bool
+		lockOk    bool
+		activated bool
+		device    string
+		err       string
+	}{
+		// TODO: verify which cases are possible
+		{
+			hasTPM: true, hasEncdev: true, last: true, lockOk: true,
+			activated: true, device: "name",
+		}, {
+			hasTPM: true, hasEncdev: true, last: true, lockOk: true,
+			err: "cannot activate encrypted device .*: activation error",
+		}, {
+			hasTPM: true, hasEncdev: true, last: true, activated: true,
+			err: "cannot lock access to sealed keys: lock failed",
+		}, {
+			hasTPM: true, hasEncdev: true, lockOk: true, activated: true,
+			device: "name",
+		}, {
+			hasTPM: true, hasEncdev: true, lockOk: true,
+			err: "cannot activate encrypted device .*: activation error",
+		}, {
+			hasTPM: true, hasEncdev: true, activated: true, device: "name",
+		}, {
+			hasTPM: true, hasEncdev: true,
+			err: "cannot activate encrypted device .*: activation error",
+		}, {
+			hasTPM: true, last: true, lockOk: true, activated: true,
+			device: "name",
+		}, {
+			hasTPM: true, last: true, activated: true,
+			err: "cannot lock access to sealed keys: lock failed",
+		}, {
+			hasTPM: true, lockOk: true, activated: true, device: "name",
+		}, {
+			hasTPM: true, activated: true, device: "name",
+		}, {
+			hasTPM: true, hasEncdev: true, last: true,
+			tpmErr: errors.New("tpm error"),
+			err:    `cannot unlock encrypted device "name": tpm error`,
+		}, {
+			hasTPM: true, hasEncdev: true,
+			tpmErr: errors.New("tpm error"),
+			err:    `cannot unlock encrypted device "name": tpm error`,
+		}, {
+			hasTPM: true, last: true, device: "name",
+			tpmErr: errors.New("tpm error"),
+		}, {
+			hasTPM: true, device: "name",
+			tpmErr: errors.New("tpm error"),
+		}, {
+			hasEncdev: true, last: true,
+			tpmErr: errors.New("no tpm"),
+			err:    `cannot unlock encrypted device "name": no tpm`,
+		}, {
+			hasEncdev: true,
+			tpmErr:    errors.New("no tpm"),
+			err:       `cannot unlock encrypted device "name": no tpm`,
+		}, {
+			last: true, device: "name", tpmErr: errors.New("no tpm"),
+		}, {
+			tpmErr: errors.New("no tpm"), device: "name",
+		},
+	} {
+		c.Logf("tc %v: %#v", idx, tc)
+		mockTPM, restoreTPM := mockSecbootTPM(c)
+		defer restoreTPM()
+
+		restoreConnect := main.MockSecbootConnectToDefaultTPM(func() (*secboot.TPMConnection, error) {
+			return mockTPM, tc.tpmErr
+		})
+		defer restoreConnect()
+
+		n := 0
+		restoreLock := main.MockSecbootLockAccessToSealedKeys(func(tpm *secboot.TPMConnection) error {
+			n++
+			c.Assert(tpm, Equals, mockTPM)
+			if tc.lockOk {
+				return nil
+			}
+			return errors.New("lock failed")
+		})
+		defer restoreLock()
+
+		devDiskByLabel, restoreDev := mockDevDiskByLabel(c)
+		defer restoreDev()
+		if tc.hasEncdev {
+			err := ioutil.WriteFile(filepath.Join(devDiskByLabel, "name-enc"), nil, 0644)
+			c.Assert(err, IsNil)
+		}
+
+		restoreActivate := main.MockSecbootActivateVolumeWithTPMSealedKey(func(tpm *secboot.TPMConnection, volumeName, sourceDevicePath,
+			keyPath string, pinReader io.Reader, options *secboot.ActivateWithTPMSealedKeyOptions) (bool, error) {
+			c.Assert(tpm, Equals, mockTPM)
+			c.Assert(volumeName, Equals, "name")
+			c.Assert(sourceDevicePath, Equals, filepath.Join(devDiskByLabel, "name-enc"))
+			c.Assert(keyPath, Equals, filepath.Join(boot.InitramfsEncryptionKeyDir, "name.sealed-key"))
+			c.Assert(*options, DeepEquals, secboot.ActivateWithTPMSealedKeyOptions{
+				PINTries:            1,
+				RecoveryKeyTries:    3,
+				LockSealedKeyAccess: tc.last,
+			})
+			if !tc.activated {
+				return false, errors.New("activation error")
+			}
+			return true, nil
+		})
+		defer restoreActivate()
+
+		device, err := main.UnlockIfEncrypted("name", tc.last)
+		if tc.device == "" {
+			c.Assert(device, Equals, tc.device)
+		} else {
+			c.Assert(device, Equals, filepath.Join(devDiskByLabel, tc.device))
+		}
+		if tc.err == "" {
+			c.Assert(err, IsNil)
+		} else {
+			c.Assert(err, ErrorMatches, tc.err)
+		}
+		// LockAccessToSealedKeys should be called whenever there is a TPM device
+		// detected, regardless of whether secure boot is enabled or there is an
+		// encrypted volume to unlock. If we have multiple encrypted volumes, we
+		// should call it after the last one is unlocked.
+		if tc.hasTPM && tc.tpmErr == nil && tc.last {
+			c.Assert(n, Equals, 1)
+		}
+	}
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2EnvRefKernelBootstate(c *C) {
+	n := 0
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
+		n++
+		switch n {
+		case 1:
+			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
+			return true, nil
+		case 2:
+			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
+			return true, nil
+		case 3:
+			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
+			return true, nil
+		case 4:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
+			return false, nil
+		case 5:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
+			return false, nil
+		case 6:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "snapd"))
+			return false, nil
+		}
+		return false, fmt.Errorf("unexpected number of calls: %v", n)
+	})
+	defer restore()
+
+	// write modeenv
+	modeEnv := boot.Modeenv{
+		RecoverySystem: "20191118",
+		Base:           "core20_123.snap",
+		CurrentKernels: []string{"pc-kernel_1.snap"},
+	}
+	err := modeEnv.WriteTo(boot.InitramfsWritableDir)
+	c.Assert(err, IsNil)
+
+	// mock a bootloader
+	bloader := boottest.MockUC20EnvRefExtractedKernelRunBootenv(bootloadertest.Mock("mock", c.MkDir()))
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	// set the current kernel
+	bloader.SetBootKernel("pc-kernel_1.snap")
+
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 6)
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/core20_123.snap %[1]s/base
+%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/pc-kernel_1.snap %[1]s/kernel
+%[1]s/ubuntu-seed/snaps/snapd_1.snap %[1]s/snapd
+`, boot.InitramfsRunMntDir))
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2EnvRefKernelBootstateKernelSnapUpgradeHappy(c *C) {
+	n := 0
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
+		n++
+		switch n {
+		case 1:
+			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
+			return true, nil
+		case 2:
+			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
+			return true, nil
+		case 3:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsUbuntuDataDir))
+			return true, nil
+		case 4:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
+			return true, nil
+		case 5:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
+			return false, nil
+		}
+		return false, fmt.Errorf("unexpected number of calls: %v", n)
+	})
+	defer restore()
+
+	// write modeenv
+	modeEnv := &boot.Modeenv{
+		Base:           "core20_123.snap",
+		CurrentKernels: []string{"pc-kernel_1.snap", "pc-kernel_2.snap"},
+	}
+	err := modeEnv.WriteTo(boot.InitramfsWritableDir)
+	c.Assert(err, IsNil)
+
+	tryBaseSnap := filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), "core20_124.snap")
+	err = os.MkdirAll(filepath.Dir(tryBaseSnap), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(tryBaseSnap, []byte{0}, 0644)
+	c.Assert(err, IsNil)
+	defer os.Remove(tryBaseSnap)
+
+	// mock a bootloader
+	bloader := boottest.MockUC20EnvRefExtractedKernelRunBootenv(bootloadertest.Mock("mock", c.MkDir()))
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	bloader.BootVars["kernel_status"] = boot.TryingStatus
+
+	// set the current kernel and try kernel
+	bloader.SetBootKernel("pc-kernel_1.snap")
+	bloader.SetBootTryKernel("pc-kernel_2.snap")
+
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 5)
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/pc-kernel_2.snap %[1]s/kernel
+`, boot.InitramfsRunMntDir))
+}
+
+// TODO:UC20: in this case snap-bootstrap should request a reboot, since we
+//            already booted the try snap, so mounting the fallback kernel will
+//            not match in some cases
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2EnvRefKernelBootstateUntrustedKernelSnap(c *C) {
+	n := 0
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
+		n++
+		switch n {
+		case 1:
+			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
+			return true, nil
+		case 2:
+			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
+			return true, nil
+		case 3:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsUbuntuDataDir))
+			return true, nil
+		case 4:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
+			return true, nil
+		case 5:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
+			return false, nil
+		}
+		return false, fmt.Errorf("unexpected number of calls: %v", n)
+	})
+	defer restore()
+
+	// write modeenv
+	modeEnv := boot.Modeenv{
+		Base:           "core20_123.snap",
+		CurrentKernels: []string{"pc-kernel_1.snap"},
+	}
+	err := modeEnv.WriteTo(boot.InitramfsWritableDir)
+	c.Assert(err, IsNil)
+
+	// mock a bootloader
+	bloader := boottest.MockUC20EnvRefExtractedKernelRunBootenv(bootloadertest.Mock("mock", c.MkDir()))
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	// set the current kernel as a kernel not in CurrentKernels
+	bloader.SetBootKernel("pc-kernel_2.snap")
+
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, ErrorMatches, fmt.Sprintf("fallback kernel snap %q is not trusted in the modeenv", "pc-kernel_2.snap"))
+	c.Assert(n, Equals, 5)
+}
+
+// TODO:UC20: in this case snap-bootstrap should request a reboot, since we
+//            already booted the try snap, so mounting the fallback kernel will
+//            not match in some cases
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2EnvRefKernelBootstateUntrustedTryKernelSnapFallsBack(c *C) {
+	n := 0
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
+		n++
+		switch n {
+		case 1:
+			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
+			return true, nil
+		case 2:
+			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
+			return true, nil
+		case 3:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsUbuntuDataDir))
+			return true, nil
+		case 4:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
+			return true, nil
+		case 5:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
+			return false, nil
+		}
+		return false, fmt.Errorf("unexpected number of calls: %v", n)
+	})
+	defer restore()
+
+	// write modeenv
+	modeEnv := boot.Modeenv{
+		Base:           "core20_123.snap",
+		CurrentKernels: []string{"pc-kernel_1.snap"},
+	}
+	err := modeEnv.WriteTo(boot.InitramfsWritableDir)
+	c.Assert(err, IsNil)
+
+	// mock a bootloader
+	bloader := boottest.MockUC20EnvRefExtractedKernelRunBootenv(bootloadertest.Mock("mock", c.MkDir()))
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	// set the try kernel as a kernel not in CurrentKernels
+	bloader.SetBootTryKernel("pc-kernel_2.snap")
+
+	// set the normal kernel as a valid kernel
+	bloader.SetBootKernel("pc-kernel_1.snap")
+
+	bloader.BootVars["kernel_status"] = boot.TryingStatus
+
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+
+	// TODO:UC20: if we have somewhere to log errors from snap-bootstrap during
+	// the initramfs, check that log here
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 5)
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/pc-kernel_1.snap %[1]s/kernel
+`, boot.InitramfsRunMntDir))
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2EnvRefKernelBootstateKernelStatusTryingNoTryKernel(c *C) {
+	n := 0
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
+		n++
+		switch n {
+		case 1:
+			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
+			return true, nil
+		case 2:
+			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
+			return true, nil
+		case 3:
+			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
+			return true, nil
+		case 4:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
+			return true, nil
+		case 5:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
+			return false, nil
+		}
+		return false, fmt.Errorf("unexpected number of calls: %v", n)
+	})
+	defer restore()
+
+	// write modeenv
+	modeEnv := boot.Modeenv{
+		Base:           "core20_123.snap",
+		CurrentKernels: []string{"pc-kernel_1.snap"},
+	}
+	err := modeEnv.WriteTo(boot.InitramfsWritableDir)
+	c.Assert(err, IsNil)
+
+	// mock a bootloader
+	bloader := boottest.MockUC20EnvRefExtractedKernelRunBootenv(bootloadertest.Mock("mock", c.MkDir()))
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	// we are in trying mode, but don't set a try-kernel so we fallback to the
+	// fallback kernel
+	err = bloader.SetBootVars(map[string]string{"kernel_status": boot.TryingStatus})
+	c.Assert(err, IsNil)
+
+	// set the normal kernel as a valid kernel
+	bloader.SetBootKernel("pc-kernel_1.snap")
+
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+
+	// TODO:UC20: if we have somewhere to log errors from snap-bootstrap during
+	// the initramfs, check that log here
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 5)
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/pc-kernel_1.snap %[1]s/kernel
+`, boot.InitramfsRunMntDir))
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep1(c *C) {
+	n := 0
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover snapd_recovery_system="+s.sysLabel)
+
+	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
+		n++
+		switch n {
+		case 1:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "ubuntu-seed"))
+			return false, nil
+		}
+		return false, fmt.Errorf("unexpected number of calls: %v", n)
+	})
+	defer restore()
+
+	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 1)
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf("/dev/disk/by-label/ubuntu-seed %s/ubuntu-seed\n", boot.InitramfsRunMntDir))
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep2(c *C) {
+	n := 0
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover snapd_recovery_system="+s.sysLabel)
+
+	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
+		n++
+		switch n {
+		case 1:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "ubuntu-seed"))
+			return true, nil
+		case 2:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
+			return false, nil
+		case 3:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
+			return false, nil
+		case 4:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "snapd"))
+			return false, nil
+		case 5:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data"))
+			return false, nil
+		}
+		return false, fmt.Errorf("unexpected number of calls: %v %s", n, path)
+	})
+	defer restore()
+
+	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 5)
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/snaps/snapd_1.snap %[2]s/snapd
+%[1]s/snaps/pc-kernel_1.snap %[2]s/kernel
+%[1]s/snaps/core20_1.snap %[2]s/base
+--type=tmpfs tmpfs /run/mnt/ubuntu-data
+`, s.seedDir, boot.InitramfsRunMntDir))
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep3(c *C) {
+	n := 0
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover snapd_recovery_system="+s.sysLabel)
+
+	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
+		n++
+		switch n {
+		case 1:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "ubuntu-seed"))
+			return true, nil
+		case 2:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
+			return true, nil
+		case 3:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
+			return true, nil
+		case 4:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "snapd"))
+			return true, nil
+		case 5:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data"))
+			return true, nil
+		case 6:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "host/ubuntu-data"))
+			return false, nil
+		}
+		return false, fmt.Errorf("unexpected number of calls: %v", n)
+	})
+	defer restore()
+
+	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 6)
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`/dev/disk/by-label/ubuntu-data %s/host/ubuntu-data
+`, boot.InitramfsRunMntDir))
+}
+
+var mockStateContent = `{"data":{"auth":{"users":[{"name":"mvo"}]}},"some":{"other":"stuff"}}`
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep4(c *C) {
+	n := 0
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover snapd_recovery_system="+s.sysLabel)
+
+	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
+		n++
+		switch n {
+		case 1:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "ubuntu-seed"))
+			return true, nil
+		case 2:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
+			return true, nil
+		case 3:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
+			return true, nil
+		case 4:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "snapd"))
+			return true, nil
+		case 5:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data"))
+			return true, nil
+		case 6:
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "host/ubuntu-data"))
+			return true, nil
+		}
+		return false, fmt.Errorf("unexpected number of calls: %v", n)
+	})
+	defer restore()
+
+	ephemeralUbuntuData := filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data/")
+	err := os.MkdirAll(ephemeralUbuntuData, 0755)
+	c.Assert(err, IsNil)
+	// mock a auth data in the host's ubuntu-data
+	hostUbuntuData := filepath.Join(boot.InitramfsRunMntDir, "host/ubuntu-data/")
+	err = os.MkdirAll(hostUbuntuData, 0755)
+	c.Assert(err, IsNil)
+	mockAuthFiles := []string{
+		// extrausers
+		"system-data/var/lib/extrausers/passwd",
+		"system-data/var/lib/extrausers/shadow",
+		"system-data/var/lib/extrausers/group",
+		"system-data/var/lib/extrausers/gshadow",
+		// sshd
+		"system-data/etc/ssh/ssh_host_rsa.key",
+		"system-data/etc/ssh/ssh_host_rsa.key.pub",
+		// user ssh
+		"user-data/user1/.ssh/authorized_keys",
+		"user-data/user2/.ssh/authorized_keys",
+	}
+	mockUnrelatedFiles := []string{
+		"system-data/var/lib/foo",
+		"system-data/etc/passwd",
+		"user-data/user1/some-random-data",
+		"user-data/user2/other-random-data",
+	}
+	for _, mockAuthFile := range append(mockAuthFiles, mockUnrelatedFiles...) {
+		p := filepath.Join(hostUbuntuData, mockAuthFile)
+		err = os.MkdirAll(filepath.Dir(p), 0750)
+		c.Assert(err, IsNil)
+		mockContent := fmt.Sprintf("content of %s", filepath.Base(mockAuthFile))
+		err = ioutil.WriteFile(p, []byte(mockContent), 0640)
+		c.Assert(err, IsNil)
+	}
+	// create a mock state
+	mockedState := filepath.Join(hostUbuntuData, "system-data/var/lib/snapd/state.json")
+	err = os.MkdirAll(filepath.Dir(mockedState), 0750)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(mockedState, []byte(mockStateContent), 0640)
+	c.Assert(err, IsNil)
+
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 6)
+	c.Check(s.Stdout.String(), Equals, "")
+
+	modeEnv := filepath.Join(ephemeralUbuntuData, "/system-data/var/lib/snapd/modeenv")
+	c.Check(modeEnv, testutil.FileEquals, `mode=recover
+recovery_system=20191118
+`)
+	for _, p := range mockUnrelatedFiles {
+		c.Check(filepath.Join(ephemeralUbuntuData, p), testutil.FileAbsent)
+	}
+	for _, p := range mockAuthFiles {
+		c.Check(filepath.Join(ephemeralUbuntuData, p), testutil.FilePresent)
+		fi, err := os.Stat(filepath.Join(ephemeralUbuntuData, p))
+		// check file mode is set
+		c.Assert(err, IsNil)
+		c.Check(fi.Mode(), Equals, os.FileMode(0640))
+		// check dir mode is set in parent dir
+		fiParent, err := os.Stat(filepath.Dir(filepath.Join(ephemeralUbuntuData, p)))
+		c.Assert(err, IsNil)
+		c.Check(fiParent.Mode(), Equals, os.FileMode(os.ModeDir|0750))
+	}
+
+	c.Check(filepath.Join(ephemeralUbuntuData, "system-data/var/lib/snapd/state.json"), testutil.FileEquals, `{"data":{"auth":{"users":[{"name":"mvo"}]}},"changes":{},"tasks":{},"last-change-id":0,"last-task-id":0,"last-lane-id":0}`)
+}
+
+func mockSecbootTPM(c *C) (tpm *secboot.TPMConnection, restore func()) {
+	tcti, err := os.Open("/dev/null")
+	c.Assert(err, IsNil)
+	tpmctx, err := tpm2.NewTPMContext(tcti)
+	c.Assert(err, IsNil)
+	mockTPM := &secboot.TPMConnection{TPMContext: tpmctx}
+
+	restoreConnect := main.MockSecbootConnectToDefaultTPM(func() (*secboot.TPMConnection, error) {
+		return mockTPM, nil
+	})
+	return mockTPM, restoreConnect
+}
+
+func mockDevDiskByLabel(c *C) (string, func()) {
+	devDir := filepath.Join(c.MkDir(), "dev/disk/by-label")
+	err := os.MkdirAll(devDir, 0755)
+	c.Assert(err, IsNil)
+	restore := main.MockDevDiskByLabelDir(devDir)
+	return devDir, restore
 }
