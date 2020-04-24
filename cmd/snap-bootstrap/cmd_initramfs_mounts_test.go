@@ -31,7 +31,6 @@ import (
 
 	"github.com/canonical/go-tpm2"
 	"github.com/snapcore/secboot"
-	"golang.org/x/xerrors"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
@@ -67,6 +66,16 @@ type initramfsMountsSuite struct {
 }
 
 var _ = Suite(&initramfsMountsSuite{})
+
+// because 1.9 vet does not like xerrors.Errorf(".. %w")
+type mockedWrappedError struct {
+	err error
+	fmt string
+}
+
+func (m *mockedWrappedError) Unwrap() error { return m.err }
+
+func (m *mockedWrappedError) Error() string { return fmt.Sprintf(m.fmt, m.err) }
 
 func (s *initramfsMountsSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
@@ -134,9 +143,14 @@ func (s *initramfsMountsSuite) SetUpTest(c *C) {
 	s.mockTPM = mockTPM
 
 	restoreConnect := main.MockSecbootConnectToDefaultTPM(func() (*secboot.TPMConnection, error) {
-		return nil, xerrors.Errorf("no tpm: %w", &os.PathError{
-			Op: "open", Path: "/dev/mock/tpm0", Err: syscall.ENOENT,
-		})
+		// XXX: we should use xerrors.Errorf("no tpm: %w", &os.PathError{})
+		// but 1.9 vet complains about unknown verb %w
+		return nil, &mockedWrappedError{
+			fmt: "no tpm: %v",
+			err: &os.PathError{
+				Op: "open", Path: "/dev/mock/tpm0", Err: syscall.ENOENT,
+			},
+		}
 	})
 	s.AddCleanup(restoreConnect)
 }
