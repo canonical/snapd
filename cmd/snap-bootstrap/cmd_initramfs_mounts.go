@@ -251,7 +251,7 @@ func generateMountsCommonInstallRecover(recoverySystem string) (allMounted bool,
 	}
 
 	// 1a. measure model
-	err = stampedAction(fmt.Sprintf("%s-model-measure", recoverySystem), func() error {
+	err = stampedAction(fmt.Sprintf("%s-model-measured", recoverySystem), func() error {
 		return measureWhenPossible(func(tpm *secboot.TPMConnection) error {
 			// TODO:UC20: consider doing the measurement later and
 			// getting the model from opened system seed
