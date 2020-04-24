@@ -19,6 +19,10 @@
 
 package bootstrap
 
+import (
+	"github.com/snapcore/snapd/asserts"
+)
+
 type Options struct {
 	// Also mount the filesystems after creation
 	Mount bool
@@ -34,4 +38,6 @@ type Options struct {
 	PolicyUpdateDataFile string
 	// KernelPath is the path to the kernel to seal the keyfile to
 	KernelPath string
+	// Model is the device model to seal the keyfile to
+	Model *asserts.Model
 }

@@ -262,6 +262,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 			TPMLockoutAuthFile:   filepath.Join(boot.InitramfsWritableDir, "var/lib/snapd/device/fde/tpm-lockout-auth"),
 			PolicyUpdateDataFile: filepath.Join(boot.InitramfsWritableDir, "var/lib/snapd/device/fde/policy-update-data"),
 			KernelPath:           filepath.Join(dirs.SnapMountDir, "pc-kernel/1/kernel.efi"),
+			Model:                mockModel,
 		})
 	} else {
 		c.Assert(brGadgetRoot, Equals, filepath.Join(dirs.SnapMountDir, "/pc/1"))

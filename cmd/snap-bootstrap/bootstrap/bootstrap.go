@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/partition"
 	"github.com/snapcore/snapd/gadget"
@@ -223,6 +224,10 @@ func tpmSealKey(key partition.EncryptionKey, rkey partition.RecoveryKey, options
 		}
 	}
 	tpm.SetKernelCmdlines(kernelCmdlines)
+
+	if options.Model != nil {
+		tpm.SetModels([]*asserts.Model{options.Model})
+	}
 
 	// Provision the TPM as late as possible
 	// TODO:UC20: ideally we should ask the firmware to clear the TPM and then reboot
