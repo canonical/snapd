@@ -484,7 +484,7 @@ func (s *ubootSuite) forceUC20UbootBootloader(c *C) {
 
 	mockGadgetDir := c.MkDir()
 	// this must be empty for uc20 behavior
-	// TOOD:UC20: update this test for the new behavior when that is implemented
+	// TODO:UC20: update this test for the new behavior when that is implemented
 	err := ioutil.WriteFile(filepath.Join(mockGadgetDir, "uboot.conf"), nil, 0644)
 	c.Assert(err, IsNil)
 	err = bootloader.InstallBootConfig(mockGadgetDir, dirs.GlobalRootDir, installOpts)
