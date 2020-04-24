@@ -135,3 +135,11 @@ func MockSecbootMeasureSnapModelToTPM(f func(tpm *secboot.TPMConnection, pcrInde
 		secbootMeasureSnapModelToTPM = old
 	}
 }
+
+func MockSsbCheckKeySealingSupported(f func() error) (restore func()) {
+	old := ssbCheckKeySealingSupported
+	ssbCheckKeySealingSupported = f
+	return func() {
+		ssbCheckKeySealingSupported = old
+	}
+}

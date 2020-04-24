@@ -118,6 +118,12 @@ func (s *initramfsMountsSuite) SetUpTest(c *C) {
 				"default-channel": "20",
 			}},
 	}, nil)
+
+	// No KeySealing by default for most tests
+	restore = main.MockSsbCheckKeySealingSupported(func() error {
+		return fmt.Errorf("no key sealing support in this test")
+	})
+	s.AddCleanup(restore)
 }
 
 func (s *initramfsMountsSuite) mockProcCmdlineContent(c *C, newContent string) {
@@ -316,6 +322,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1Data(c *C) {
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1EncryptedData(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+	restore := main.MockSsbCheckKeySealingSupported(func() error {
+		return nil
+	})
+	defer restore()
 
 	// write the installed model like makebootable does it
 	err := os.MkdirAll(boot.InitramfsUbuntuBootDir, 0755)
@@ -398,6 +408,11 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1EncryptedData(c *C
 	})
 	defer restore()
 
+	restore = main.MockSsbCheckKeySealingSupported(func() error {
+		return nil
+	})
+	defer restore()
+
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Check(n, Equals, 3)
@@ -411,8 +426,24 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1EncryptedData(c *C
 	c.Check(measuredModel, DeepEquals, s.model)
 }
 
-func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1EncryptedNoModel(c *C) {
-	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+func (s *initramfsMountsSuite) TestInitramfsMountsStep1EncryptedNoModelRun(c *C) {
+	s.testInitramfsMountsStep1EncryptedNoModel(c, "run")
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsStep1EncryptedNoModelInstall(c *C) {
+	s.testInitramfsMountsStep1EncryptedNoModel(c, "install")
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsStep1EncryptedNoModelRecovery(c *C) {
+	s.testInitramfsMountsStep1EncryptedNoModel(c, "recover")
+}
+
+func (s *initramfsMountsSuite) testInitramfsMountsStep1EncryptedNoModel(c *C, mode string) {
+	s.mockProcCmdlineContent(c, fmt.Sprintf("snapd_recovery_mode=%s", mode))
+	restore := main.MockSsbCheckKeySealingSupported(func() error {
+		return nil
+	})
+	defer restore()
 
 	// setup ubuntu-data-enc
 	devDiskByLabel, restore := mockDevDiskByLabel(c)
@@ -424,18 +455,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1EncryptedNoModel(c
 
 	n := 0
 	restore = main.MockOsutilIsMounted(func(path string) (bool, error) {
-		n++
-		switch n {
-		case 1:
-			c.Check(path, Equals, boot.InitramfsUbuntuBootDir)
-			return true, nil
-		case 2:
-			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
-			return true, nil
-		case 3:
-			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
-			return false, nil
-		}
 		return false, fmt.Errorf("unexpected number of calls: %v", n)
 	})
 	defer restore()
@@ -460,7 +479,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1EncryptedNoModel(c
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, ErrorMatches, "cannot load model: open .*/run/mnt/ubuntu-boot/model: no such file or directory")
-	c.Check(n, Equals, 3)
+	// the epoch/model gets measured very early
+	c.Check(n, Equals, 0)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2(c *C) {

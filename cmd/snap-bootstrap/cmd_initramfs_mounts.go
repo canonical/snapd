@@ -22,12 +22,14 @@ package main
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
 	"syscall"
 
 	"github.com/jessevdk/go-flags"
+	// XXX: import as "to" sb to be consistent with snapcore/snapd/secboot
 	"github.com/snapcore/secboot"
 
 	"github.com/snapcore/snapd/asserts"
@@ -37,6 +39,8 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/state"
+	// XXX: remove "ssb"
+	ssb "github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/sysconfig"
@@ -64,6 +68,7 @@ func (c *cmdInitramfsMounts) Execute(args []string) error {
 	return generateInitramfsMounts()
 }
 
+// XXX: move all var () to the top, it's very spread out right now
 var (
 	// Stdout - can be overridden in tests
 	stdout io.Writer = os.Stdout
@@ -321,7 +326,7 @@ func loadModelFromBoot() (*asserts.Model, error) {
 	return ma.(*asserts.Model), nil
 }
 
-func measureRunModeSystem() error {
+func doInitialMeasure() error {
 	model, err := loadModelFromBoot()
 	if err != nil {
 		return fmt.Errorf("cannot load model: %v", err)
@@ -365,11 +370,6 @@ func generateMountsModeRun() error {
 		return err
 	}
 	if !isDataMounted {
-		if isDeviceEncrypted("ubuntu-data") {
-			if err := measureRunModeSystem(); err != nil {
-				return err
-			}
-		}
 		const lockKeysForLast = true
 		device, err := unlockIfEncrypted("ubuntu-data", lockKeysForLast)
 		if err != nil {
@@ -551,11 +551,35 @@ func generateMountsModeRun() error {
 	return modeEnv.Write()
 }
 
+var ssbCheckKeySealingSupported = ssb.CheckKeySealingSupported
+
+func createStampFile(stamp string) error {
+	if err := os.MkdirAll(filepath.Dir(stamp), 0755); err != nil {
+		return err
+	}
+	return ioutil.WriteFile(stamp, nil, 0644)
+}
+
 func generateInitramfsMounts() error {
+	// Ensure there is a very early initial measurement
+	// XXX: is checking for ssbCheckKeySealingSupported good enough?
+	if err := ssbCheckKeySealingSupported(); err == nil {
+		stamp := filepath.Join(dirs.SnapBootstrapRunDir, "initial-measure")
+		if !osutil.FileExists(stamp) {
+			if err := doInitialMeasure(); err != nil {
+				return err
+			}
+			if err := createStampFile(stamp); err != nil {
+				return err
+			}
+		}
+	}
+
 	mode, recoverySystem, err := boot.ModeAndRecoverySystemFromKernelCommandLine()
 	if err != nil {
 		return err
 	}
+
 	switch mode {
 	case "recover":
 		return generateMountsModeRecover(recoverySystem)
