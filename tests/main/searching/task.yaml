@@ -2,6 +2,8 @@ summary: Check snap search
 
 # s390x,ppc64el have nothing featured
 systems: [-ubuntu-*-ppc64el, -ubuntu-*-s390x]
+# The store is under load from 20.04 release.
+manual: true
 
 # autopkgtest run only a subset of tests that deals with the integration
 # with the distro
