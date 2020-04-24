@@ -20,10 +20,12 @@
 package main
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/bootstrap"
 )
 
@@ -37,6 +39,7 @@ type cmdCreatePartitions struct {
 	TPMLockoutAuthFile   string `long:"tpm-lockout-auth" value-name:"filename" descrition:"Where the TPM lockout authorization data file will be stored"`
 	PolicyUpdateDataFile string `long:"policy-update-data-file" value-name:"filename" description:"Where the authorization policy update data file will be stored"`
 	KernelPath           string `long:"kernel" value-name:"path" description:"Path to the kernel to be installed"`
+	ModelPath            string `long:"model" value-name:"filename" description:"The model to seal the key file to"`
 
 	Positional struct {
 		GadgetRoot string `positional-arg-name:"<gadget-root>"`
@@ -49,11 +52,37 @@ const (
 	long  = ""
 )
 
+func readModel(modelPath string) (*asserts.Model, error) {
+	f, err := os.Open(modelPath)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	a, err := asserts.NewDecoder(f).Decode()
+	if err != nil {
+		return nil, fmt.Errorf("cannot decode assertion: %v", err)
+	}
+	if a.Type() != asserts.ModelType {
+		return nil, fmt.Errorf("not a model assertion")
+	}
+	return a.(*asserts.Model), nil
+}
+
 func main() {
 	args := &cmdCreatePartitions{}
 	_, err := flags.ParseArgs(args, os.Args[1:])
 	if err != nil {
 		panic(err)
+	}
+
+	var model *asserts.Model
+	if args.ModelPath != "" {
+		var err error
+		model, err = readModel(args.ModelPath)
+		if err != nil {
+			panic(fmt.Sprintf("cannot load model: %v", err))
+		}
 	}
 	options := bootstrap.Options{
 		Mount:                args.Mount,
@@ -63,6 +92,7 @@ func main() {
 		TPMLockoutAuthFile:   args.TPMLockoutAuthFile,
 		PolicyUpdateDataFile: args.PolicyUpdateDataFile,
 		KernelPath:           args.KernelPath,
+		Model:                model,
 	}
 	err = bootstrapRun(args.Positional.GadgetRoot, args.Positional.Device, options)
 	if err != nil {
