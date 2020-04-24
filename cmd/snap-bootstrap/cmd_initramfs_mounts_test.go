@@ -505,7 +505,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsStep1EncryptedNoModel(c *C, mo
 		where = fmt.Sprintf("/run/mnt/ubuntu-seed/systems/%s/model", label)
 	}
 	c.Assert(err, ErrorMatches,
-		fmt.Sprintf("cannot load (run mode|recovery system) model: open .*%s: no such file or directory", where))
+		fmt.Sprintf("cannot read model assertion: open .*%s: no such file or directory", where))
 	c.Assert(measureEpochCalls, Equals, 1)
 	c.Assert(measureModelCalls, Equals, 0)
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "secboot-epoch-measured"), testutil.FilePresent)

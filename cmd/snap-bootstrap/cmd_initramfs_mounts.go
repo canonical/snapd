@@ -40,10 +40,8 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/sysconfig"
-	"github.com/snapcore/snapd/timings"
 )
 
 func init() {
@@ -82,35 +80,10 @@ var (
 	devDiskByLabelDir = "/dev/disk/by-label"
 )
 
-func recoverySystemEssentialSnaps(seedDir, recoverySystem string, essentialTypes []snap.Type) ([]*seed.Snap, error) {
-	systemSeed, err := seed.Open(seedDir, recoverySystem)
-	if err != nil {
-		return nil, err
-	}
-
-	seed20, ok := systemSeed.(seed.EssentialMetaLoaderSeed)
-	if !ok {
-		return nil, fmt.Errorf("internal error: UC20 seed must implement EssentialMetaLoaderSeed")
-	}
-
-	// load assertions into a temporary database
-	if err := systemSeed.LoadAssertions(nil, nil); err != nil {
-		return nil, err
-	}
-
-	// load and verify metadata only for the relevant essential snaps
-	perf := timings.New(nil)
-	if err := seed20.LoadEssentialMeta(essentialTypes, perf); err != nil {
-		return nil, err
-	}
-
-	return seed20.EssentialSnaps(), nil
-}
-
 // generateMountsMode* is called multiple times from initramfs until it
 // no longer generates more mount points and just returns an empty output.
-func generateMountsModeInstall(recoverySystem string) error {
-	allMounted, err := generateMountsCommonInstallRecover(recoverySystem)
+func generateMountsModeInstall(mst initramfsMountsState, recoverySystem string) error {
+	allMounted, err := generateMountsCommonInstallRecover(mst, recoverySystem)
 	if err != nil {
 		return err
 	}
@@ -194,8 +167,8 @@ func copyUbuntuDataAuth(src, dst string) error {
 	return nil
 }
 
-func generateMountsModeRecover(recoverySystem string) error {
-	allMounted, err := generateMountsCommonInstallRecover(recoverySystem)
+func generateMountsModeRecover(mst initramfsMountsState, recoverySystem string) error {
+	allMounted, err := generateMountsCommonInstallRecover(mst, recoverySystem)
 	if err != nil {
 		return err
 	}
@@ -239,7 +212,7 @@ func generateMountsModeRecover(recoverySystem string) error {
 	return nil
 }
 
-func generateMountsCommonInstallRecover(recoverySystem string) (allMounted bool, err error) {
+func generateMountsCommonInstallRecover(mst initramfsMountsState, recoverySystem string) (allMounted bool, err error) {
 	// 1. always ensure seed partition is mounted
 	isMounted, err := osutilIsMounted(boot.InitramfsUbuntuSeedDir)
 	if err != nil {
@@ -253,12 +226,9 @@ func generateMountsCommonInstallRecover(recoverySystem string) (allMounted bool,
 	// 1a. measure model
 	err = stampedAction(fmt.Sprintf("%s-model-measured", recoverySystem), func() error {
 		return measureWhenPossible(func(tpm *secboot.TPMConnection) error {
-			// TODO:UC20: consider doing the measurement later and
-			// getting the model from opened system seed
-			model, err := readModelFrom(filepath.Join(boot.InitramfsUbuntuSeedDir,
-				"systems", recoverySystem, "model"))
+			model, err := mst.Model()
 			if err != nil {
-				return fmt.Errorf("cannot load recovery system model: %v", err)
+				return err
 			}
 			return secMeasureModel(tpm, model)
 		})
@@ -293,7 +263,7 @@ func generateMountsCommonInstallRecover(recoverySystem string) (allMounted bool,
 		if !isSnapdMounted {
 			whichTypes = append(whichTypes, snap.TypeSnapd)
 		}
-		essSnaps, err := recoverySystemEssentialSnaps(boot.InitramfsUbuntuSeedDir, recoverySystem, whichTypes)
+		essSnaps, err := mst.RecoverySystemEssentialSnaps("", whichTypes)
 		if err != nil {
 			return false, fmt.Errorf("cannot load metadata and verify essential bootstrap snaps %v: %v", whichTypes, err)
 		}
@@ -326,21 +296,7 @@ func generateMountsCommonInstallRecover(recoverySystem string) (allMounted bool,
 	return true, nil
 }
 
-func readModelFrom(where string) (*asserts.Model, error) {
-	mf, err := os.Open(where)
-	if err != nil {
-		return nil, err
-	}
-	defer mf.Close()
-	ma, err := asserts.NewDecoder(mf).Decode()
-	if err != nil {
-		return nil, fmt.Errorf("cannot decode assertion: %v", err)
-	}
-	if ma.Type() != asserts.ModelType {
-		return nil, fmt.Errorf("unexpected assertion: %q", ma.Type().Name)
-	}
-	return ma.(*asserts.Model), nil
-}
+// TODO:UC20 move some of these helpers somehow to our secboot
 
 const tpmPCR = 12
 
@@ -375,7 +331,7 @@ func measureWhenPossible(whatHow func(tpm *secboot.TPMConnection) error) error {
 	return whatHow(tpm)
 }
 
-func generateMountsModeRun() error {
+func generateMountsModeRun(mst initramfsMountsState) error {
 	// 1.1 always ensure basic partitions are mounted
 	for _, d := range []string{boot.InitramfsUbuntuBootDir, boot.InitramfsUbuntuSeedDir} {
 		isMounted, err := osutilIsMounted(d)
@@ -393,10 +349,9 @@ func generateMountsModeRun() error {
 	// 1.1a measure model
 	err := stampedAction("run-model-measured", func() error {
 		return measureWhenPossible(func(tpm *secboot.TPMConnection) error {
-			model, err := readModelFrom(filepath.Join(boot.InitramfsUbuntuBootDir,
-				"model"))
+			model, err := mst.UnverifiedBootModel()
 			if err != nil {
-				return fmt.Errorf("cannot load run mode model: %v", err)
+				return err
 			}
 			return secMeasureModel(tpm, model)
 		})
@@ -582,7 +537,7 @@ func generateMountsModeRun() error {
 
 		if !isSnapdMounted {
 			// load the recovery system and generate mount for snapd
-			essSnaps, err := recoverySystemEssentialSnaps(boot.InitramfsUbuntuSeedDir, modeEnv.RecoverySystem, []snap.Type{snap.TypeSnapd})
+			essSnaps, err := mst.RecoverySystemEssentialSnaps(modeEnv.RecoverySystem, []snap.Type{snap.TypeSnapd})
 			if err != nil {
 				return fmt.Errorf("cannot load metadata and verify snapd snap: %v", err)
 			}
@@ -622,13 +577,17 @@ func generateInitramfsMounts() error {
 		return err
 	}
 
+	mst := newInitramfsMountsState(mode, recoverySystem)
+
 	switch mode {
 	case "recover":
-		return generateMountsModeRecover(recoverySystem)
+		// XXX: don't pass both args
+		return generateMountsModeRecover(mst, recoverySystem)
 	case "install":
-		return generateMountsModeInstall(recoverySystem)
+		// XXX: don't pass both args
+		return generateMountsModeInstall(mst, recoverySystem)
 	case "run":
-		return generateMountsModeRun()
+		return generateMountsModeRun(mst)
 	}
 	// this should never be reached
 	return fmt.Errorf("internal error: mode in generateInitramfsMounts not handled")
@@ -710,6 +669,8 @@ var (
 	secbootMeasureSnapModelToTPM          = secboot.MeasureSnapModelToTPM
 	secbootMeasureSnapSystemEpochToTPM    = secboot.MeasureSnapSystemEpochToTPM
 )
+
+// TODO:UC20 move the connect methods somehow to our secboot
 
 func secureConnectToTPM(ekcfile string) (*secboot.TPMConnection, error) {
 	ekCertReader, err := os.Open(ekcfile)
