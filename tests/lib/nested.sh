@@ -1,12 +1,55 @@
 #!/bin/bash
 
+# Define where helpers are stored to support scenario when the this script is used
+# to manage vms from other projects
+SCRIPTPATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TESTSLIB=${TESTSLIB:-$SCRIPTPATH}
+
+USE_CLOUD_INIT=${USE_CLOUD_INIT:-"true"}
+ENABLE_SECURE_BOOT=${ENABLE_SECURE_BOOT:-"true"}
+ENABLE_TPM=${ENABLE_TPM:-"true"}
+BUILD_SNAPD_FROM_CURRENT=${BUILD_SNAPD_FROM_CURRENT:-"true"}
+UPDATE_PC_KERNEL=${UPDATE_PC_KERNEL:-"true"}
+CORE_CHANNEL=${CORE_CHANNEL:-edge}
+PWD=${PWD:-$(pwd)}
+
+WORK_DIR=${WORK_DIR:-"/tmp/work-dir"}
+NESTED_VM=${NESTED_VM:-"nested-vm"}
+NESTED_SSH_PORT=${NESTED_SSH_PORT:-"8022"}
+NESTED_MON_PORT=${NESTED_MON_PORT:-"8888"}
+NESTED_ARCHITECTURE=${NESTED_ARCHITECTURE:-"amd64"}
+NESTED_TYPE=${NESTED_TYPE:-"core"}
+NESTED_SMP=${NESTED_SMP:-"1"}
+NESTED_MEM=${NESTED_MEM:-"4096"}
+
+get_spread_system(){
+    case "$(lsb_release -cs)" in
+        xenial)
+            echo "ubuntu-16.04-64"
+            ;;
+        bionic)
+            echo "ubuntu-18.04-64"
+            ;;
+        eoan)
+            echo "ubuntu-19.10-64"
+            ;;
+        focal)
+            echo "ubuntu-20.04-64"
+            ;;
+        *)
+            echo "unsupported system"
+            exit 1
+            ;;
+        esac
+}
+
+# Define defaults for environment variables
+SPREAD_SYSTEM=${SPREAD_SYSTEM:-$(get_spread_system)}
+SPREAD_BACKEND=${SPREAD_BACKEND:-"google"}
+
 # shellcheck source=tests/lib/systemd.sh
 . "$TESTSLIB"/systemd.sh
 
-WORK_DIR=/tmp/work-dir
-NESTED_VM=nested-vm
-SSH_PORT=8022
-MON_PORT=8888
 
 wait_for_ssh(){
     retry=300
@@ -52,7 +95,7 @@ create_assertions_disk(){
 }
 
 get_qemu_for_nested_vm(){
-    case "${NESTED_ARCHITECTURE:-amd64}" in
+    case "$NESTED_ARCHITECTURE" in
     amd64)
         command -v qemu-system-x86_64
         ;;
@@ -64,32 +107,6 @@ get_qemu_for_nested_vm(){
         exit 1
         ;;
     esac
-}
-
-get_target_classic_system(){
-    if [ -n "$SPREAD_SYSTEM" ]; then
-        echo "$SPREAD_SYSTEM"
-    else
-        local system
-        case "$(lsb_release -cs)" in 
-            xenial)
-                echo "ubuntu-16.04-64"
-                ;;
-            bionic)
-                echo "ubuntu-18.04-64"
-                ;;
-            eoan)
-                echo "ubuntu-19.10-64"
-                ;;
-            focal)
-                echo "ubuntu-20.04-64"
-                ;;
-            *)
-                echo "unsupported system"
-                exit 1
-                ;;
-            esac
-    fi
 }
 
 get_google_image_url_for_nested_vm(){
@@ -224,7 +241,7 @@ create_nested_core_vm(){
         if [ -d "${PWD}/extra-snaps" ]; then
             while IFS= read -r mysnap; do
                 EXTRA_SNAPS="$EXTRA_SNAPS --snap $mysnap"
-            done <   <(find extra-snaps -name '*.snaps')
+            done <   <(find extra-snaps -name '*.snap')
         fi
 
         local NESTED_MODEL=""
@@ -238,14 +255,16 @@ create_nested_core_vm(){
         ubuntu-20.04-64)
             NESTED_MODEL="$TESTSLIB/assertions/nested-20-amd64.model"
 
-            # shellcheck source=tests/lib/prepare.sh
-            . "$TESTSLIB"/prepare.sh
-            snap download --basename=pc-kernel --channel="20/edge" pc-kernel
-            uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$WORK_DIR/image"
+            if [ "$UPDATE_PC_KERNEL" = "true" ]; then
+                # shellcheck source=tests/lib/prepare.sh
+                . "$TESTSLIB"/prepare.sh
+                snap download --basename=pc-kernel --channel="20/edge" pc-kernel
+                uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$WORK_DIR/image"
 
-            EXTRA_FUNDAMENTAL="--snap $WORK_DIR/image/pc-kernel_*.snap"
-            chmod 0600 "$WORK_DIR"/image/pc-kernel_*.snap
-            rm -f "$PWD/pc-kernel.snap"
+                EXTRA_FUNDAMENTAL="--snap $WORK_DIR/image/pc-kernel_*.snap"
+                chmod 0600 "$WORK_DIR"/image/pc-kernel_*.snap
+                rm -f "$PWD/pc-kernel.snap"
+            fi
             ;;
         *)
             echo "unsupported system"
@@ -253,7 +272,7 @@ create_nested_core_vm(){
             ;;
         esac
 
-        if [ "$BUILD_FROM_CURRENT" = "true" ]; then
+        if [ "$BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
             if is_core_16_nested_system; then
                 echo "Build from current branch is not supported yet for uc16"
                 exit 1
@@ -366,11 +385,11 @@ start_nested_core_vm(){
     # Now qemu parameters are defined
     # Increase the number of cpus used once the issue related to kvm and ovmf is fixed
     # https://bugs.launchpad.net/ubuntu/+source/kvm/+bug/1872803
-    PARAM_CPU="-smp 1"
-    PARAM_MEM="-m 4096"
+    PARAM_CPU="-smp $NESTED_SMP"
+    PARAM_MEM="-m $NESTED_MEM"
     PARAM_DISPLAY="-nographic"
-    PARAM_NETWORK="-net nic,model=virtio -net user,hostfwd=tcp::$SSH_PORT-:22"
-    PARAM_MONITOR="-monitor tcp:127.0.0.1:$MON_PORT,server,nowait -usb"
+    PARAM_NETWORK="-net nic,model=virtio -net user,hostfwd=tcp::$NESTED_SSH_PORT-:22"
+    PARAM_MONITOR="-monitor tcp:127.0.0.1:$NESTED_MON_PORT,server,nowait -usb"
     PARAM_MACHINE="-machine ubuntu,accel=kvm"
     PARAM_ASSERTIONS=""
     PARAM_BIOS=""
@@ -456,29 +475,17 @@ start_nested_classic_vm(){
     QEMU=$(get_qemu_for_nested_vm)
 
     # Now qemu parameters are defined
-    PARAM_CPU="-smp 1"
-    PARAM_MEM="-m 4096"
+    PARAM_CPU="-smp $NESTED_SMP"
+    PARAM_MEM="-m $NESTED_MEM"
     PARAM_DISPLAY="-nographic"
-    PARAM_NETWORK="-net nic,model=virtio -net user,hostfwd=tcp::$SSH_PORT-:22"
-    PARAM_MONITOR="-monitor tcp:127.0.0.1:$MON_PORT,server,nowait -usb"
+    PARAM_NETWORK="-net nic,model=virtio -net user,hostfwd=tcp::$NESTED_SSH_PORT-:22"
+    PARAM_MONITOR="-monitor tcp:127.0.0.1:$NESTED_MON_PORT,server,nowait -usb"
     PARAM_SNAPSHOT="-snapshot"
     PARAM_MACHINE="-machine ubuntu,accel=kvm"
     PARAM_IMAGE="-drive file=$IMAGE,if=virtio"
     PARAM_SEED="-drive file=$WORK_DIR/seed.img,if=virtio"
     PARAM_BIOS=""
     PARAM_TPM=""
-
-    if [ "$ENABLE_TPM" = "true" ] && is_focal_system; then
-        if ! snap list swtpm-mvo; then
-            snap install swtpm-mvo --beta
-        fi
-        PARAM_TPM="-chardev socket,id=chrtpm,path=/var/snap/swtpm-mvo/current/swtpm-sock -tpmdev emulator,id=tpm0,chardev=chrtpm -device tpm-tis,tpmdev=tpm0"
-    fi
-    if [ "$ENABLE_SECURE_BOOT" = "true" ] && is_focal_system; then
-        cp -f /usr/share/OVMF/OVMF_VARS.snakeoil.fd "$WORK_DIR/image/OVMF_VARS.snakeoil.fd"
-        PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE.secboot.fd,if=pflash,format=raw,unit=0,readonly=on -drive file=$WORK_DIR/image/OVMF_VARS.snakeoil.fd,if=pflash,format=raw,unit=1"
-        PARAM_MACHINE="-machine ubuntu-q35,accel=kvm -global ICH9-LPC.disable_s3=1 -global ICH9-LPC.disable_s4=1"
-    fi
 
     systemd_create_and_start_unit "$NESTED_VM" "${QEMU}  \
         ${PARAM_CPU} \
@@ -500,23 +507,23 @@ destroy_nested_vm(){
 }
 
 execute_remote(){
-    sshpass -p ubuntu ssh -p "$SSH_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no user1@localhost "$*"
+    sshpass -p ubuntu ssh -p "$NESTED_SSH_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no user1@localhost "$*"
 }
 
 copy_remote(){
-    sshpass -p ubuntu scp -P "$SSH_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$@" user1@localhost:~
+    sshpass -p ubuntu scp -P "$NESTED_SSH_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$@" user1@localhost:~
 }
 
 add_tty_chardev(){
     local CHARDEV_ID=$1
     local CHARDEV_PATH=$2
-    echo "chardev-add file,path=$CHARDEV_PATH,id=$CHARDEV_ID" | nc -q 0 127.0.0.1 "$MON_PORT"
+    echo "chardev-add file,path=$CHARDEV_PATH,id=$CHARDEV_ID" | nc -q 0 127.0.0.1 "$NESTED_MON_PORT"
     echo "chardev added"
 }
 
 remove_chardev(){
     local CHARDEV_ID=$1
-    echo "chardev-remove $CHARDEV_ID" | nc -q 0 127.0.0.1 "$MON_PORT"
+    echo "chardev-remove $CHARDEV_ID" | nc -q 0 127.0.0.1 "$NESTED_MON_PORT"
     echo "chardev added"
 }
 
@@ -524,13 +531,13 @@ add_usb_serial_device(){
     local DEVICE_ID=$1
     local CHARDEV_ID=$2
     local SERIAL_NUM=$3
-    echo "device_add usb-serial,chardev=$CHARDEV_ID,id=$DEVICE_ID,serial=$SERIAL_NUM" | nc -q 0 127.0.0.1 "$MON_PORT"
+    echo "device_add usb-serial,chardev=$CHARDEV_ID,id=$DEVICE_ID,serial=$SERIAL_NUM" | nc -q 0 127.0.0.1 "$NESTED_MON_PORT"
     echo "device added"
 }
 
 del_device(){
     local DEVICE_ID=$1
-    echo "device_del $DEVICE_ID" | nc -q 0 127.0.0.1 "$MON_PORT"
+    echo "device_del $DEVICE_ID" | nc -q 0 127.0.0.1 "$NESTED_MON_PORT"
     echo "device deleted"
 }
 
