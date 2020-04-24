@@ -274,13 +274,14 @@ func (s *cgroupSuite) TestParsePid(c *C) {
 func (s *cgroupSuite) TestSecurityTagFromCgroupPath(c *C) {
 	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snap.foo.foo.service"), Equals, "snap.foo.foo")
 	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snap.foo.bar.service"), Equals, "snap.foo.bar")
-	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snap.$RANDOM.foo.bar.scope"), Equals, "snap.foo.bar")
-	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snap.$RANDOM.foo.hook.bar.scope"), Equals, "snap.foo.hook.bar")
+	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snap.foo.bar.$RANDOM.scope"), Equals, "snap.foo.bar")
+	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snap.foo.hook.bar.$RANDOM.scope"), Equals, "snap.foo.hook.bar")
 	// We are not confused by snapd things.
 	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snap.service"), Equals, "")
 	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snapd.service"), Equals, "")
 	// Real data looks like this.
-	c.Check(cgroup.SecurityTagFromCgroupPath("snap.d854bd35-2457-4ac8-b494-06061d74df33.test-snapd-refresh.sh.scope"), Equals, "snap.test-snapd-refresh.sh")
+	c.Check(cgroup.SecurityTagFromCgroupPath("snap.test-snapd-refresh.sh.d854bd35-2457-4ac8-b494-06061d74df33.scope"), Equals, "snap.test-snapd-refresh.sh")
+	c.Check(cgroup.SecurityTagFromCgroupPath("snap.test-snapd-refresh.hook.configure.d854bd35-2457-4ac8-b494-06061d74df33.scope"), Equals, "snap.test-snapd-refresh.hook.configure")
 	// Trailing slashes are automatically handled.
 	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snap.foo.foo.service/"), Equals, "snap.foo.foo")
 }
@@ -324,7 +325,7 @@ func (s *cgroupSuite) TestPidsOfSnapUnrelatedStuff(c *C) {
 
 func (s *cgroupSuite) TestPidsOfSnapSecurityTags(c *C) {
 	// Pids are collected and assigned to bins by security tag
-	s.writePids(c, "system.slice/snap.$RANDOM.pkg.hook.configure.scope", []int{1})
+	s.writePids(c, "system.slice/snap.pkg.hook.configure.$RANDOM.scope", []int{1})
 	s.writePids(c, "system.slice/snap.pkg.daemon.service", []int{2})
 
 	pids, err := cgroup.PidsOfSnap("pkg")
@@ -366,10 +367,10 @@ func (s *cgroupSuite) TestPidsOfInstances(c *C) {
 func (s *cgroupSuite) TestPidsOfAggregation(c *C) {
 	// A single snap may be invoked by multiple users in different sessions.
 	// All of their PIDs are collected though.
-	s.writePids(c, "user.slice/user-1000.slice/user@1000.service/gnome-shell-wayland.service/snap.$RANDOM1.pkg.app.scope", []int{1}) // mock 1st invocation
-	s.writePids(c, "user.slice/user-1000.slice/user@1000.service/gnome-shell-wayland.service/snap.$RANDOM2.pkg.app.scope", []int{2}) // mock fork() by pid 1
-	s.writePids(c, "user.slice/user-1001.slice/user@1001.service/gnome-shell-wayland.service/snap.$RANDOM3.pkg.app.scope", []int{3}) // mock 2nd invocation
-	s.writePids(c, "user.slice/user-1001.slice/user@1001.service/gnome-shell-wayland.service/snap.$RANDOM4.pkg.app.scope", []int{4}) // mock fork() by pid 3
+	s.writePids(c, "user.slice/user-1000.slice/user@1000.service/gnome-shell-wayland.service/snap.pkg.app.$RANDOM1.scope", []int{1}) // mock 1st invocation
+	s.writePids(c, "user.slice/user-1000.slice/user@1000.service/gnome-shell-wayland.service/snap.pkg.app.$RANDOM2.scope", []int{2}) // mock fork() by pid 1
+	s.writePids(c, "user.slice/user-1001.slice/user@1001.service/gnome-shell-wayland.service/snap.pkg.app.$RANDOM3.scope", []int{3}) // mock 2nd invocation
+	s.writePids(c, "user.slice/user-1001.slice/user@1001.service/gnome-shell-wayland.service/snap.pkg.app.$RANDOM4.scope", []int{4}) // mock fork() by pid 3
 
 	pids, err := cgroup.PidsOfSnap("pkg")
 	c.Assert(err, IsNil)
@@ -381,10 +382,10 @@ func (s *cgroupSuite) TestPidsOfAggregation(c *C) {
 func (s *cgroupSuite) TestPidsOfSnapUnrelated(c *C) {
 	// We are not confusing snaps with other snaps, instances of our snap, and
 	// with non-snap hierarchies.
-	s.writePids(c, "user.slice/.../snap.$RANDOM1.pkg.app.scope", []int{1})
-	s.writePids(c, "user.slice/.../snap.$RANDOM2.other.snap.scope", []int{2})
+	s.writePids(c, "user.slice/.../snap.pkg.app.$RANDOM1.scope", []int{1})
+	s.writePids(c, "user.slice/.../snap.other.snap.$RANDOM2.scope", []int{2})
 	s.writePids(c, "user.slice/.../pkg.service", []int{3})
-	s.writePids(c, "user.slice/.../snap.$RANDOM3.pkg_instance.app.scope", []int{4})
+	s.writePids(c, "user.slice/.../snap.pkg_instance.app.$RANDOM3.scope", []int{4})
 
 	pids, err := cgroup.PidsOfSnap("pkg")
 	c.Assert(err, IsNil)

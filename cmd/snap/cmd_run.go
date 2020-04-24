@@ -1232,7 +1232,7 @@ var createTransientScope = func(securityTag string) error {
 	// second. This will result in nicer scope names but needs to be
 	// coordinated with code in sandbox/cgroup and with the spread tests
 	// exercising that.
-	unitName := fmt.Sprintf("snap.%s.%s.scope", uuid, strings.TrimPrefix(securityTag, "snap."))
+	unitName := fmt.Sprintf("%s.%s.scope", securityTag, uuid)
 	pid := osGetpid()
 
 	// The scope is created with a DBus call to systemd running either on

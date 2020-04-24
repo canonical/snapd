@@ -1295,7 +1295,7 @@ func (s *RunSuite) TestCreateTransientScopeFeatureEnabled(c *check.C) {
 	conn, err := testutil.NewDBusTestConn(func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
 		switch n {
 		case 0:
-			return []*dbus.Message{happyResponseToStartTransientUnit(c, msg, "snap."+uuid+".pkg.app.scope", 312123)}, nil
+			return []*dbus.Message{happyResponseToStartTransientUnit(c, msg, "snap.pkg.app."+uuid+".scope", 312123)}, nil
 		}
 		return nil, fmt.Errorf("unexpected message #%d: %s", n, msg)
 	})
@@ -1304,7 +1304,7 @@ func (s *RunSuite) TestCreateTransientScopeFeatureEnabled(c *check.C) {
 	defer restore()
 	// Replace the cgroup analyzer function
 	restore = snaprun.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
-		return "/user.slice/user-12345.slice/user@12345.service/snap." + uuid + ".pkg.app.scope", nil
+		return "/user.slice/user-12345.slice/user@12345.service/snap.pkg.app." + uuid + ".scope", nil
 	})
 	defer restore()
 

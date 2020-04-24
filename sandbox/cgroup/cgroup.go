@@ -25,6 +25,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
@@ -258,22 +259,33 @@ func MockVersion(mockVersion int, mockErr error) (restore func()) {
 	}
 }
 
+var (
+	// string that looks like an hook security tag
+	taggish1 = regexp.MustCompile(`snap\.[^.]+\.hook\.[^.]+`)
+	// string that looks like an app security tag
+	taggish2 = regexp.MustCompile(`snap\.[^.]+\.[^.]+`)
+)
+
 // securityTagFromCgroupPath returns a security tag from cgroup path.
 func securityTagFromCgroupPath(path string) (securityTag string) {
 	leaf := filepath.Base(filepath.Clean(path))
-	// NOTE: The things we are returning need to minimally look like security
-	// tags. They are further refined and looked at below, in PidsOfSnap.
-	if matched, _ := filepath.Match("snap.*.service", leaf); matched {
-		return strings.TrimSuffix(leaf, ".service")
+
+	// We are only interested cgroup directory names that correspond to
+	// services and scopes, as they contain processes that have been invoked
+	// from a snap.
+	if ext := filepath.Ext(leaf); ext != ".service" && ext != ".scope" {
+		return ""
 	}
-	if matched, _ := filepath.Match("snap.*.scope", leaf); matched {
-		// Neither dot1 nor dot2 can be -1 because the match guarantees that at
-		// least two dots exist.
-		dot1 := strings.IndexRune(leaf, '.')
-		dot2 := strings.IndexRune(leaf[dot1+1:], '.')
-		maybeTag := strings.TrimSuffix(leaf[:dot1]+leaf[dot1+dot2+1:], ".scope")
-		if naming.ValidateSecurityTag(maybeTag) == nil {
-			return maybeTag
+
+	// There are two broad forms expressed by taggish1 and taggish2 regular expressions.
+	for _, re := range []*regexp.Regexp{taggish1, taggish2} {
+		if maybeTag := re.FindString(leaf); maybeTag != "" {
+			// NOTE: The things we are returning need to minimally look like
+			// security tags. They are further refined and looked at below, in
+			// PidsOfSnap.
+			if naming.ValidateSecurityTag(maybeTag) == nil {
+				return maybeTag
+			}
 		}
 	}
 	return ""
