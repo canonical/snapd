@@ -67,19 +67,16 @@ func RefreshSnapDeclarations(s *state.State, userID int) error {
 		return nil
 	}
 	fetching := func(f asserts.Fetcher) error {
-		for _, snapst := range snapStates {
-			info, err := snapst.CurrentInfo()
-			if err != nil {
-				return err
-			}
-			if info.SnapID == "" {
+		for instanceName, snapst := range snapStates {
+			sideInfo := snapst.CurrentSideInfo()
+			if sideInfo.SnapID == "" {
 				continue
 			}
-			if err := snapasserts.FetchSnapDeclaration(f, info.SnapID); err != nil {
+			if err := snapasserts.FetchSnapDeclaration(f, sideInfo.SnapID); err != nil {
 				if notRetried, ok := err.(*httputil.PerstistentNetworkError); ok {
 					return notRetried
 				}
-				return fmt.Errorf("cannot refresh snap-declaration for %q: %v", info.InstanceName(), err)
+				return fmt.Errorf("cannot refresh snap-declaration for %q: %v", instanceName, err)
 			}
 		}
 
