@@ -21,10 +21,12 @@ package assertstate_test
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -45,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -91,6 +94,74 @@ func (sto *fakeStore) Assertion(assertType *asserts.AssertionType, key []string,
 
 	ref := &asserts.Ref{Type: assertType, PrimaryKey: key}
 	return ref.Resolve(sto.db.Find)
+}
+
+func (sto *fakeStore) SnapAction(_ context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
+	sto.pokeStateLock()
+
+	if len(currentSnaps) != 0 || len(actions) != 0 {
+		panic("only assertion query supported")
+	}
+
+	toResolve, err := assertQuery.ToResolve()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, sto.maxDeclSupportedFormat)
+	defer restore()
+
+	ares := make([]store.AssertionResult, 0, len(toResolve))
+	for g, ats := range toResolve {
+		urls := make([]string, 0, len(ats))
+		for _, at := range ats {
+			a, err := at.Ref.Resolve(sto.db.Find)
+			if err != nil {
+				assertQuery.AddError(err, &at.Ref)
+				continue
+			}
+			if a.Revision() > at.Revision {
+				urls = append(urls, fmt.Sprintf("/assertions/%s", at.Unique()))
+			}
+		}
+		ares = append(ares, store.AssertionResult{
+			Grouping:   asserts.Grouping(g),
+			StreamURLs: urls,
+		})
+	}
+
+	return nil, ares, nil
+}
+
+func (sto *fakeStore) DownloadAssertions(urls []string, b *asserts.Batch, user *auth.UserState) error {
+	sto.pokeStateLock()
+
+	resolve := func(ref *asserts.Ref) (asserts.Assertion, error) {
+		restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, sto.maxDeclSupportedFormat)
+		defer restore()
+		return ref.Resolve(sto.db.Find)
+	}
+
+	for _, u := range urls {
+		comps := strings.Split(u, "/")
+
+		if len(comps) < 4 {
+			return fmt.Errorf("cannot use URL: %s", u)
+		}
+
+		assertType := asserts.Type(comps[2])
+		key := comps[3:]
+		ref := &asserts.Ref{Type: assertType, PrimaryKey: key}
+		a, err := resolve(ref)
+		if err != nil {
+			return err
+		}
+		if err := b.Add(a); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 var (
@@ -894,6 +965,8 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsNoStore(c *C) {
 	c.Check(a.(*asserts.SnapDeclaration).SnapName(), Equals, "fo-o")
 	c.Check(a.(*asserts.SnapDeclaration).Revision(), Equals, 1)
 }
+
+// XXX test a snap declaration changing signing key
 
 func (s *assertMgrSuite) TestRefreshSnapDeclarationsWithStore(c *C) {
 	s.state.Lock()

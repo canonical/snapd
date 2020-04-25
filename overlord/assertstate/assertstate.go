@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/httputil"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -60,12 +61,22 @@ func RefreshSnapDeclarations(s *state.State, userID int) error {
 	if err != nil {
 		return err
 	}
-	modelAs := deviceCtx.Model()
 
 	snapStates, err := snapstate.All(s)
 	if err != nil {
 		return nil
 	}
+
+	err = bulkRefreshSnapDeclarations(s, snapStates, userID, deviceCtx)
+	if err == nil {
+		// done
+		return nil
+	}
+	logger.Noticef("bulk refresh of snap-declarations failed, falling back to extensive fetching: %v", err)
+	// XXX test fallback
+
+	modelAs := deviceCtx.Model()
+
 	fetching := func(f asserts.Fetcher) error {
 		for instanceName, snapst := range snapStates {
 			sideInfo := snapst.CurrentSideInfo()

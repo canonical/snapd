@@ -35,14 +35,10 @@ func userFromUserID(st *state.State, userID int) (*auth.UserState, error) {
 	return auth.User(st, userID)
 }
 
-func doFetch(s *state.State, userID int, deviceCtx snapstate.DeviceContext, fetching func(asserts.Fetcher) error) error {
-	// TODO: once we have a bulk assertion retrieval endpoint this approach will change
-
-	db := cachedDB(s)
-
-	// this is a fallback in case of bugs, we ask the store
-	// to filter unsupported formats!
-	unsupported := func(ref *asserts.Ref, unsupportedErr error) error {
+// handleUnsupported behaves as a fallback in case of bugs, we do ask
+// the store to filter unsupported formats!
+func handleUnsupported(db asserts.RODatabase) func(ref *asserts.Ref, unsupportedErr error) error {
+	return func(ref *asserts.Ref, unsupportedErr error) error {
 		if _, err := ref.Resolve(db.Find); err != nil {
 			// nothing there yet or any other error
 			return unsupportedErr
@@ -51,8 +47,14 @@ func doFetch(s *state.State, userID int, deviceCtx snapstate.DeviceContext, fetc
 		logger.Noticef("Cannot update assertion %v: %v", ref, unsupportedErr)
 		return nil
 	}
+}
 
-	b := asserts.NewBatch(unsupported)
+func doFetch(s *state.State, userID int, deviceCtx snapstate.DeviceContext, fetching func(asserts.Fetcher) error) error {
+	// TODO: once we have a bulk assertion retrieval endpoint this approach will change
+
+	db := cachedDB(s)
+
+	b := asserts.NewBatch(handleUnsupported(db))
 
 	user, err := userFromUserID(s, userID)
 	if err != nil {
