@@ -375,7 +375,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1EncryptedData(c *C
 		c.Assert(volumeName, Equals, "ubuntu-data")
 		c.Assert(sourceDevicePath, Equals, ubuntuDataEnc)
 		// the keyfile will be on ubuntu-seed as ubuntu-data.sealed-key
-		c.Assert(keyPath, Equals, filepath.Join(boot.InitramfsUbuntuSeedDir, "ubuntu-data.sealed-key"))
+		c.Assert(keyPath, Equals, filepath.Join(boot.InitramfsUbuntuSeedDir, "device/fde", "ubuntu-data.sealed-key"))
 		c.Assert(*options, DeepEquals, secboot.ActivateWithTPMSealedKeyOptions{
 			PINTries:            1,
 			RecoveryKeyTries:    3,
