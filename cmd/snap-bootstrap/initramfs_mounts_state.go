@@ -40,12 +40,15 @@ type initramfsMountsState interface {
 	Model() (*asserts.Model, error)
 
 	// RecoverySystemEssentialSnaps returns the verified essential
-	// snaps from the recoverySystem, if that is "" the implied one
-	// will be used (only for modes other than run).
+	// snaps from the recoverySystem. If recoverySystem is "" the
+	// implied one will be used (only for modes other than run).
 	RecoverySystemEssentialSnaps(recoverySystem string, essentialTypes []snap.Type) ([]*seed.Snap, error)
 
-	// UnverifiedBootModel returns the unverified model from the boot
-	// partition for run mode.
+	// UnverifiedBootModel returns the unverified model from the
+	// boot partition for run mode. The current and only use case
+	// is measuring the model for run mode. Otherwise no decisions
+	// should be based on an unverified model. Note that the model
+	// is verified at the time the key auth policy is computed.
 	UnverifiedBootModel() (*asserts.Model, error)
 }
 
@@ -65,7 +68,9 @@ type initramfsMountsStateImpl struct {
 
 var errRunModeNoImpliedRecoverySystem = errors.New("internal error: no implied recovery system in run mode")
 
-// loadSeed open the seed and reads assertions once, setting mst.seed
+// loadSeed opens the seed and reads its assertions; it does not
+// re-open or re-read the seed when called multiple times.
+// The opened seed is available is mst.seed
 func (mst *initramfsMountsStateImpl) loadSeed(recoverySystem string) error {
 	if mst.seed != nil {
 		return nil
@@ -95,7 +100,6 @@ func (mst *initramfsMountsStateImpl) loadSeed(recoverySystem string) error {
 
 	mst.seed = seed20
 	return nil
-
 }
 
 func (mst *initramfsMountsStateImpl) Model() (*asserts.Model, error) {
