@@ -415,3 +415,46 @@ func (s *poolSuite) TestUnknownGroup(c *C) {
 
 	c.Check(pool.Err("foo"), ErrorMatches, "unknown group: foo")
 }
+
+func (s *poolSuite) TestAddCurrentRevision(c *C) {
+	assertstest.AddMany(s.db, s.hub.StoreAccountKey(""), s.dev1Acct, s.decl1)
+
+	pool := asserts.NewPool(s.db, 64)
+
+	atDev1Acct := s.dev1Acct.At()
+	atDev1Acct.Revision = asserts.RevisionNotKnown
+	err := pool.AddUnresolved(atDev1Acct, "one")
+	c.Assert(err, IsNil)
+
+	atDecl1 := s.decl1.At()
+	atDecl1.Revision = asserts.RevisionNotKnown
+	err = pool.AddUnresolved(atDecl1, "one")
+	c.Assert(err, IsNil)
+
+	toResolve, err := pool.ToResolve()
+	c.Assert(err, IsNil)
+	sortToResolve(toResolve)
+
+	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
+		asserts.MakePoolGrouping(0): {s.dev1Acct.At(), s.decl1.At()},
+	})
+
+	// re-adding of current revisions, is not what we expect
+	// but needs not to produce unneeded roundtrips
+
+	err = pool.Add(s.hub.StoreAccountKey(""), asserts.MakePoolGrouping(0))
+	c.Assert(err, IsNil)
+
+	// this will be kept marked as unresolved until the ToResolve
+	err = pool.Add(s.dev1Acct, asserts.MakePoolGrouping(0))
+	c.Assert(err, IsNil)
+
+	err = pool.Add(s.decl1_1, asserts.MakePoolGrouping(0))
+	c.Assert(err, IsNil)
+
+	toResolve, err = pool.ToResolve()
+	c.Assert(err, IsNil)
+	c.Assert(toResolve, HasLen, 0)
+
+	c.Check(pool.Err("one"), IsNil)
+}

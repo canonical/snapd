@@ -403,7 +403,7 @@ func (p *Pool) add(a Assertion, g *internal.Grouping) error {
 	return nil
 }
 
-func (p *Pool) resolveWith(u *unresolvedRec, a Assertion, extrag *internal.Grouping) error {
+func (p *Pool) resolveWith(unresolved map[string]*unresolvedRec, uniq string, u *unresolvedRec, a Assertion, extrag *internal.Grouping) error {
 	if a.Revision() > u.at.Revision {
 		if extrag == nil {
 			extrag = &u.grouping
@@ -415,6 +415,13 @@ func (p *Pool) resolveWith(u *unresolvedRec, a Assertion, extrag *internal.Group
 		}
 		ref := a.Ref()
 		if p.markResolved(extrag, ref) {
+			// remove from tracking -
+			// remove u from unresolved only if the assertion
+			// is added to the resolved backstore;
+			// otherwise it might resurface as unresolved;
+			// it will be ultimately handled in
+			// unresolvedBookkeeping if it stays around
+			delete(unresolved, uniq)
 			if err := p.add(a, extrag); err != nil {
 				p.setErr(extrag, err)
 				return err
@@ -479,10 +486,7 @@ func (p *Pool) Add(a Assertion, grouping Grouping) error {
 		}
 	}
 
-	// remove from tracking
-	delete(unresolved, uniq)
-
-	return p.resolveWith(u, a, extrag)
+	return p.resolveWith(unresolved, uniq, u, a, extrag)
 }
 
 // TODO: AddBatch
