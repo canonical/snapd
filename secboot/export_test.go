@@ -21,7 +21,11 @@
 package secboot
 
 import (
+	"io"
+
 	sb "github.com/snapcore/secboot"
+
+	"github.com/snapcore/snapd/asserts"
 )
 
 type TPMSupport = tpmSupport
@@ -71,5 +75,30 @@ func MockSbSealKeyToTPM(f func(tpm *sb.TPMConnection, key []byte, keyPath, polic
 	sbSealKeyToTPM = f
 	return func() {
 		sbSealKeyToTPM = old
+	}
+}
+
+func MockSbActivateVolumeWithTPMSealedKey(f func(tpm *sb.TPMConnection, volumeName, sourceDevicePath, keyPath string,
+	pinReader io.Reader, options *sb.ActivateWithTPMSealedKeyOptions) (bool, error)) (restore func()) {
+	old := sbActivateVolumeWithTPMSealedKey
+	sbActivateVolumeWithTPMSealedKey = f
+	return func() {
+		sbActivateVolumeWithTPMSealedKey = old
+	}
+}
+
+func MockSbMeasureSnapSystemEpochToTPM(f func(tpm *sb.TPMConnection, pcrIndex int) error) (restore func()) {
+	old := sbMeasureSnapSystemEpochToTPM
+	sbMeasureSnapSystemEpochToTPM = f
+	return func() {
+		sbMeasureSnapSystemEpochToTPM = old
+	}
+}
+
+func MockSbMeasureSnapModelToTPM(f func(tpm *sb.TPMConnection, pcrIndex int, model *asserts.Model) error) (restore func()) {
+	old := sbMeasureSnapModelToTPM
+	sbMeasureSnapModelToTPM = f
+	return func() {
+		sbMeasureSnapModelToTPM = old
 	}
 }

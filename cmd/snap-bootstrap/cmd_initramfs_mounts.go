@@ -29,17 +29,15 @@ import (
 	"syscall"
 
 	"github.com/jessevdk/go-flags"
-	// XXX: import as "to" sb to be consistent with snapcore/snapd/secboot
-	"github.com/snapcore/secboot"
 	"golang.org/x/xerrors"
 
-	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/sysconfig"
 )
@@ -212,6 +210,11 @@ func generateMountsModeRecover(mst initramfsMountsState, recoverySystem string) 
 	return nil
 }
 
+var (
+	secbootMeasureEpoch = secboot.MeasureEpoch
+	secbootMeasureModel = secboot.MeasureModel
+)
+
 func generateMountsCommonInstallRecover(mst initramfsMountsState, recoverySystem string) (allMounted bool, err error) {
 	// 1. always ensure seed partition is mounted
 	isMounted, err := osutilIsMounted(boot.InitramfsUbuntuSeedDir)
@@ -225,12 +228,12 @@ func generateMountsCommonInstallRecover(mst initramfsMountsState, recoverySystem
 
 	// 1a. measure model
 	err = stampedAction(fmt.Sprintf("%s-model-measured", recoverySystem), func() error {
-		return measureWhenPossible(func(tpm *secboot.TPMConnection) error {
+		return measureWhenPossible(func(tpm *secboot.TPM) error {
 			model, err := mst.Model()
 			if err != nil {
 				return err
 			}
-			return secMeasureModel(tpm, model)
+			return secbootMeasureModel(tpm, model)
 		})
 	})
 	if err != nil {
@@ -296,27 +299,9 @@ func generateMountsCommonInstallRecover(mst initramfsMountsState, recoverySystem
 	return true, nil
 }
 
-// TODO:UC20 move some of these helpers somehow to our secboot
-
-const tpmPCR = 12
-
-func secMeasureEpoch(tpm *secboot.TPMConnection) error {
-	if err := secbootMeasureSnapSystemEpochToTPM(tpm, tpmPCR); err != nil {
-		return fmt.Errorf("cannot measure snap system epoch: %v", err)
-	}
-	return nil
-}
-
-func secMeasureModel(tpm *secboot.TPMConnection, model *asserts.Model) error {
-	if err := secbootMeasureSnapModelToTPM(tpm, tpmPCR, model); err != nil {
-		return fmt.Errorf("cannot measure snap system model: %v", err)
-	}
-	return nil
-}
-
-func measureWhenPossible(whatHow func(tpm *secboot.TPMConnection) error) error {
+func measureWhenPossible(whatHow func(t *secboot.TPM) error) error {
 	// the model is ready, we're good to try measuring it now
-	tpm, err := insecureConnectToTPM()
+	t, err := secbootInsecureConnect()
 	if err != nil {
 		var perr *os.PathError
 		// XXX: xerrors.Is() does not work with PathErrors?
@@ -326,9 +311,9 @@ func measureWhenPossible(whatHow func(tpm *secboot.TPMConnection) error) error {
 		}
 		return fmt.Errorf("cannot open TPM connection: %v", err)
 	}
-	defer tpm.Close()
+	defer t.Disconnect()
 
-	return whatHow(tpm)
+	return whatHow(t)
 }
 
 func generateMountsModeRun(mst initramfsMountsState) error {
@@ -348,12 +333,12 @@ func generateMountsModeRun(mst initramfsMountsState) error {
 
 	// 1.1a measure model
 	err := stampedAction("run-model-measured", func() error {
-		return measureWhenPossible(func(tpm *secboot.TPMConnection) error {
+		return measureWhenPossible(func(tpm *secboot.TPM) error {
 			model, err := mst.UnverifiedBootModel()
 			if err != nil {
 				return err
 			}
-			return secMeasureModel(tpm, model)
+			return secbootMeasureModel(tpm, model)
 		})
 	})
 	if err != nil {
@@ -566,7 +551,7 @@ func stampedAction(stamp string, action func() error) error {
 func generateInitramfsMounts() error {
 	// Ensure there is a very early initial measurement
 	err := stampedAction("secboot-epoch-measured", func() error {
-		return measureWhenPossible(secMeasureEpoch)
+		return measureWhenPossible(secbootMeasureEpoch)
 	})
 	if err != nil {
 		return err
@@ -594,7 +579,9 @@ func generateInitramfsMounts() error {
 }
 
 var (
-	secbootLockAccessToSealedKeys = secboot.LockAccessToSealedKeys
+	secbootInsecureConnect          = secboot.InsecureConnect
+	secbootLockAccessToSealedKeys   = secboot.LockAccessToSealedKeys
+	secbootUnlockEncryptedPartition = secboot.UnlockEncryptedPartition
 )
 
 func isDeviceEncrypted(name string) (ok bool, encdev string) {
@@ -612,15 +599,15 @@ func isDeviceEncrypted(name string) (ok bool, encdev string) {
 func unlockIfEncrypted(name string, lockKeysOnFinish bool) (string, error) {
 	device := filepath.Join(devDiskByLabelDir, name)
 
-	// TODO:UC20: use secureConnectToTPM if we decide there's benefit in doing that or we
+	// TODO:UC20: use SecureConnect if we decide there's benefit in doing that or we
 	//            have a hard requirement for a valid EK cert chain for every boot (ie, panic
 	//            if there isn't one). But we can't do that as long as we need to download
 	//            intermediate certs from the manufacturer.
-	tpm, tpmErr := insecureConnectToTPM()
+	tpm, tpmErr := secbootInsecureConnect()
 	if tpmErr != nil {
 		logger.Noticef("cannot open TPM connection: %v", tpmErr)
 	} else {
-		defer tpm.Close()
+		defer tpm.Disconnect()
 	}
 
 	var lockErr error
@@ -654,7 +641,7 @@ func unlockIfEncrypted(name string, lockKeysOnFinish bool) (string, error) {
 		//            <name> is from <name>-enc and not an unencrypted partition
 		//            with the same name (LP #1863886)
 		sealedKeyPath := filepath.Join(boot.InitramfsEncryptionKeyDir, name+".sealed-key")
-		return unlockEncryptedPartition(tpm, name, encdev, sealedKeyPath, "", lockKeysOnFinish)
+		return secbootUnlockEncryptedPartition(tpm, name, encdev, sealedKeyPath, "", lockKeysOnFinish)
 	}()
 	if err != nil {
 		return "", err
@@ -664,50 +651,4 @@ func unlockIfEncrypted(name string, lockKeysOnFinish bool) (string, error) {
 	}
 
 	return device, nil
-}
-
-var (
-	secbootConnectToDefaultTPM            = secboot.ConnectToDefaultTPM
-	secbootSecureConnectToDefaultTPM      = secboot.SecureConnectToDefaultTPM
-	secbootActivateVolumeWithTPMSealedKey = secboot.ActivateVolumeWithTPMSealedKey
-	secbootMeasureSnapModelToTPM          = secboot.MeasureSnapModelToTPM
-	secbootMeasureSnapSystemEpochToTPM    = secboot.MeasureSnapSystemEpochToTPM
-)
-
-// TODO:UC20 move the connect methods somehow to our secboot
-
-func secureConnectToTPM(ekcfile string) (*secboot.TPMConnection, error) {
-	ekCertReader, err := os.Open(ekcfile)
-	if err != nil {
-		return nil, fmt.Errorf("cannot open endorsement key certificate file: %v", err)
-	}
-	defer ekCertReader.Close()
-
-	return secbootSecureConnectToDefaultTPM(ekCertReader, nil)
-}
-
-func insecureConnectToTPM() (*secboot.TPMConnection, error) {
-	return secbootConnectToDefaultTPM()
-}
-
-// unlockEncryptedPartition unseals the keyfile and opens an encrypted device.
-func unlockEncryptedPartition(tpm *secboot.TPMConnection, name, device, keyfile, pinfile string, lock bool) error {
-	options := secboot.ActivateWithTPMSealedKeyOptions{
-		PINTries:            1,
-		RecoveryKeyTries:    3,
-		LockSealedKeyAccess: lock,
-	}
-
-	activated, err := secbootActivateVolumeWithTPMSealedKey(tpm, name, device, keyfile, nil, &options)
-	if !activated {
-		// ActivateVolumeWithTPMSealedKey should always return an error if activated == false
-		return fmt.Errorf("cannot activate encrypted device %q: %v", device, err)
-	}
-	if err != nil {
-		logger.Noticef("successfully activated encrypted device %q using a fallback activation method", device)
-	} else {
-		logger.Noticef("successfully activated encrypted device %q with TPM", device)
-	}
-
-	return nil
 }

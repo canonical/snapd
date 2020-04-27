@@ -22,6 +22,7 @@ package secboot_test
 
 import (
 	"errors"
+	"io"
 	"os"
 	"testing"
 
@@ -30,6 +31,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader/efi"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/secboot"
@@ -98,4 +100,79 @@ func (s *secbootSuite) TestCheckKeySealingSupported(c *C) {
 			c.Assert(err, ErrorMatches, t.errStr)
 		}
 	}
+}
+
+func (s *secbootSuite) TestUnlockEncryptedPartition(c *C) {
+	for _, tc := range []struct {
+		lock     bool
+		activate bool
+		actErr   error
+		err      string
+	}{
+		{lock: true, activate: true, actErr: nil, err: ""},
+		{lock: true, activate: true, actErr: errors.New("didn't activate"), err: ""},
+		{lock: true, activate: false, actErr: errors.New("didn't activate"), err: `cannot activate encrypted device "device": didn't activate`},
+		{lock: false, activate: true, actErr: nil, err: ""},
+	} {
+		calls := 0
+		restore := secboot.MockSbActivateVolumeWithTPMSealedKey(func(tpm *sb.TPMConnection, volumeName, sourceDevicePath,
+			keyPath string, pinReader io.Reader, options *sb.ActivateWithTPMSealedKeyOptions) (bool, error) {
+			calls++
+			c.Assert(volumeName, Equals, "name")
+			c.Assert(sourceDevicePath, Equals, "device")
+			c.Assert(keyPath, Equals, "keyfile")
+			c.Assert(pinReader, Equals, nil)
+			c.Assert(options.LockSealedKeyAccess, Equals, tc.lock)
+			return tc.activate, tc.actErr
+
+		})
+		defer restore()
+
+		t := secboot.NewTPMFromConnection(nil)
+		err := secboot.UnlockEncryptedPartition(t, "name", "device", "keyfile", "pinfile", tc.lock)
+		if tc.err == "" {
+			c.Assert(err, IsNil)
+		} else {
+			c.Assert(err, ErrorMatches, tc.err)
+		}
+		c.Assert(calls, Equals, 1)
+	}
+}
+
+func (s *secbootSuite) TestMeasureEpoch(c *C) {
+	pcr := 0
+	calls := 0
+	restore := secboot.MockSbMeasureSnapSystemEpochToTPM(func(tpm *sb.TPMConnection, pcrIndex int) error {
+		calls++
+		pcr = pcrIndex
+		return nil
+	})
+	defer restore()
+
+	t := secboot.NewTPMFromConnection(nil)
+	err := secboot.MeasureEpoch(t)
+	c.Assert(err, IsNil)
+	c.Assert(calls, Equals, 1)
+	c.Assert(pcr, Equals, 12)
+}
+
+func (s *secbootSuite) TestMeasureModel(c *C) {
+	pcr := 0
+	calls := 0
+	var model *asserts.Model
+	restore := secboot.MockSbMeasureSnapModelToTPM(func(tpm *sb.TPMConnection, pcrIndex int, m *asserts.Model) error {
+		calls++
+		pcr = pcrIndex
+		model = m
+		return nil
+	})
+	defer restore()
+
+	t := secboot.NewTPMFromConnection(nil)
+	myModel := &asserts.Model{}
+	err := secboot.MeasureModel(t, myModel)
+	c.Assert(err, IsNil)
+	c.Assert(calls, Equals, 1)
+	c.Assert(pcr, Equals, 12)
+	c.Assert(model, Equals, myModel)
 }
