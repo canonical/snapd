@@ -318,13 +318,13 @@ var templateCommon = `
 
   # Read-only home area for other versions
   # bind mount *not* used here (see 'parallel installs', above)
-  owner @{HOME}/snap/@{SNAP_INSTANCE_NAME}/                  r,
-  owner @{HOME}/snap/@{SNAP_INSTANCE_NAME}/**                mrkix,
+  owner @{HOME}/{snap,.snapdata}/@{SNAP_INSTANCE_NAME}/                  r,
+  owner @{HOME}/{snap,.snapdata}/@{SNAP_INSTANCE_NAME}/**                mrkix,
 
   # Writable home area for this version.
   # bind mount *not* used here (see 'parallel installs', above)
-  owner @{HOME}/snap/@{SNAP_INSTANCE_NAME}/@{SNAP_REVISION}/** wl,
-  owner @{HOME}/snap/@{SNAP_INSTANCE_NAME}/common/** wl,
+  owner @{HOME}/{snap,.snapdata}/@{SNAP_INSTANCE_NAME}/@{SNAP_REVISION}/** wl,
+  owner @{HOME}/{snap,.snapdata}/@{SNAP_INSTANCE_NAME}/common/** wl,
 
   # Read-only system area for other versions
   # bind mount used here (see 'parallel installs', above)
