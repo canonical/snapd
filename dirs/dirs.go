@@ -39,6 +39,7 @@ var (
 	SnapBlobDir               string
 	SnapDataDir               string
 	SnapDataHomeGlob          string
+	SnapAltDataHomeGlob       string
 	SnapDownloadCacheDir      string
 	SnapAppArmorDir           string
 	SnapAppArmorAdditionalDir string
@@ -131,7 +132,8 @@ const (
 	CoreSnapMountDir = "/snap"
 
 	// Directory with snap data inside user's home
-	UserHomeSnapDir = "snap"
+	UserHomeSnapDir    = "snap"
+	UserHomeAltSnapDir = ".snapdata"
 
 	// LocalInstallBlobTempPrefix is used by local install code:
 	// * in daemon to spool the snap file to <SnapBlobDir>/<LocalInstallBlobTempPrefix>*
@@ -274,6 +276,7 @@ func SetRootDir(rootdir string) {
 
 	SnapDataDir = filepath.Join(rootdir, "/var/snap")
 	SnapDataHomeGlob = filepath.Join(rootdir, "/home/*/", UserHomeSnapDir)
+	SnapAltDataHomeGlob = filepath.Join(rootdir, "/home/*/", UserHomeAltSnapDir)
 	SnapAppArmorDir = filepath.Join(rootdir, snappyDir, "apparmor", "profiles")
 	SnapConfineAppArmorDir = filepath.Join(rootdir, snappyDir, "apparmor", "snap-confine")
 	SnapAppArmorAdditionalDir = filepath.Join(rootdir, snappyDir, "apparmor", "additional")
