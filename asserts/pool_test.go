@@ -872,3 +872,36 @@ func (s *poolSuite) TestParallelPartialResolutionFailure(c *C) {
 	c.Check(pool.Err("one"), Equals, errBoom)
 	c.Check(pool.Err("other"), ErrorMatches, "cannot resolve prerequisite assertion.*")
 }
+
+func (s *poolSuite) TestAddErrors(c *C) {
+	assertstest.AddMany(s.db, s.hub.StoreAccountKey(""))
+
+	pool := asserts.NewPool(s.db, 64)
+
+	storeKey := s.hub.StoreAccountKey("")
+	err := pool.AddToUpdate(storeKey.Ref(), "store_key")
+	c.Assert(err, IsNil)
+
+	at1111 := &asserts.AtRevision{
+		Ref:      asserts.Ref{Type: asserts.TestOnlyRevType, PrimaryKey: []string{"1111"}},
+		Revision: asserts.RevisionNotKnown,
+	}
+	err = pool.AddUnresolved(at1111, "for_one")
+	c.Assert(err, IsNil)
+
+	toResolve, err := pool.ToResolve()
+	c.Assert(err, IsNil)
+	c.Check(toResolve, HasLen, 2)
+
+	err = pool.AddError(errBoom, storeKey.Ref())
+	c.Assert(err, IsNil)
+
+	toResolve, err = pool.ToResolve()
+	c.Assert(err, IsNil)
+	c.Check(toResolve, HasLen, 0)
+
+	c.Check(pool.Errors(), DeepEquals, map[string]error{
+		"store_key": errBoom,
+		"for_one":   asserts.ErrUnresolved,
+	})
+}

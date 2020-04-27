@@ -118,8 +118,9 @@ func (p *Pool) ensureGroup(group string) (gnum uint16, err error) {
 		return 0, err
 	}
 	if gRec := p.groups[gnum]; gRec == nil {
-		gRec = new(groupRec)
-		p.groups[gnum] = gRec
+		p.groups[gnum] = &groupRec{
+			name: group,
+		}
 	}
 	return gnum, nil
 }
@@ -169,6 +170,7 @@ func (u *unresolvedRec) merge(at *AtRevision, gnum uint16, gr *internal.Grouping
 // A groupRec keeps track of all the resolved assertions in a group
 // or whether the group should be considered in error (err != nil).
 type groupRec struct {
+	name     string
 	err      error
 	resolved []Ref
 }
@@ -594,6 +596,20 @@ func (p *Pool) Err(group string) error {
 		return ErrUnknownPoolGroup
 	}
 	return gRec.err
+}
+
+// Errors returns a mapping of groups in error to their errors.
+func (p *Pool) Errors() map[string]error {
+	res := make(map[string]error)
+	for _, gRec := range p.groups {
+		if err := gRec.err; err != nil {
+			res[gRec.name] = err
+		}
+	}
+	if len(res) == 0 {
+		return nil
+	}
+	return res
 }
 
 // AddError associates error e with the unresolved assertion.
