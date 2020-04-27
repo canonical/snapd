@@ -23,34 +23,12 @@ NESTED_TYPE=${NESTED_TYPE:-"core"}
 NESTED_SMP=${NESTED_SMP:-"1"}
 NESTED_MEM=${NESTED_MEM:-"4096"}
 
-get_spread_system(){
-    case "$(lsb_release -cs)" in
-        xenial)
-            echo "ubuntu-16.04-64"
-            ;;
-        bionic)
-            echo "ubuntu-18.04-64"
-            ;;
-        eoan)
-            echo "ubuntu-19.10-64"
-            ;;
-        focal)
-            echo "ubuntu-20.04-64"
-            ;;
-        *)
-            echo "unsupported system"
-            exit 1
-            ;;
-        esac
-}
-
 # Define defaults for environment variables
-SPREAD_SYSTEM=${SPREAD_SYSTEM:-$(get_spread_system)}
+SPREAD_SYSTEM=${SPREAD_SYSTEM:-"$(lsb_release -is | tr '[:upper:]' '[:lower:]')-$(lsb_release -rs)-64" }
 SPREAD_BACKEND=${SPREAD_BACKEND:-"google"}
 
 # shellcheck source=tests/lib/systemd.sh
 . "$TESTSLIB"/systemd.sh
-
 
 wait_for_ssh(){
     retry=300
@@ -152,6 +130,20 @@ get_ubuntu_image_url_for_nested_vm(){
         esac
 }
 
+get_nested_custom_image(){
+    local IMAGE_URL=$1
+    local IMAGE_NAME=$2
+    if [[ "$IMAGE_URL" == *.img.xz ]]; then
+        curl -L -o "${WORK_DIR}/image/${IMAGE_NAME}.img.xz" "$IMAGE_URL"
+        unxz "${WORK_DIR}/image/${IMAGE_NAME}.img.xz"
+    elif [[ "$IMAGE_URL" == *.img ]]; then
+        curl -L -o "${WORK_DIR}/image/${IMAGE_NAME}.img" "$IMAGE_URL"
+    else
+        echo "Image extension not supported, exiting..."
+        exit 1
+    fi
+}
+
 get_image_url_for_nested_vm(){
     if [[ "$SPREAD_BACKEND" == google* ]]; then
         get_google_image_url_for_nested_vm
@@ -162,7 +154,7 @@ get_image_url_for_nested_vm(){
 
 is_core_nested_system(){
     if [ -z "$NESTED_TYPE" ]; then
-        echo "Variable NESTED_TYPE not defined. Exiting..."
+        echo "Variable NESTED_TYPE not defined, exiting..."
         exit 1
     fi
 
@@ -171,7 +163,7 @@ is_core_nested_system(){
 
 is_classic_nested_system(){
     if [ -z "$NESTED_TYPE" ]; then
-        echo "Variable NESTED_TYPE not defined. Exiting..."
+        echo "Variable NESTED_TYPE not defined, exiting..."
         exit 1
     fi
 
@@ -233,63 +225,69 @@ cleanup_nested_env(){
 create_nested_core_vm(){
     mkdir -p "$WORK_DIR/image"
     if [ ! -f "$WORK_DIR/image/ubuntu-core.img" ]; then
-        local UBUNTU_IMAGE
-        UBUNTU_IMAGE=/snap/bin/ubuntu-image
 
-        # create ubuntu-core image
-        local EXTRA_FUNDAMENTAL=""
-        local EXTRA_SNAPS=""
-        if [ -d "${PWD}/extra-snaps" ]; then
-            while IFS= read -r mysnap; do
-                EXTRA_SNAPS="$EXTRA_SNAPS --snap $mysnap"
-            done <   <(find extra-snaps -name '*.snap')
-        fi
+        if [ -z "$CUSTOM_IMAGE_URL" ]; then
+            # create the ubuntu-core image
+            local UBUNTU_IMAGE
+            UBUNTU_IMAGE=/snap/bin/ubuntu-image
 
-        local NESTED_MODEL=""
-        case "$SPREAD_SYSTEM" in
-        ubuntu-16.04-64)
-            NESTED_MODEL="$TESTSLIB/assertions/nested-amd64.model"
-            ;;
-        ubuntu-18.04-64)
-            NESTED_MODEL="$TESTSLIB/assertions/nested-18-amd64.model"
-            ;;
-        ubuntu-20.04-64)
-            NESTED_MODEL="$TESTSLIB/assertions/nested-20-amd64.model"
+            local EXTRA_FUNDAMENTAL=""
+            local EXTRA_SNAPS=""
+            if [ -d "${PWD}/extra-snaps" ]; then
+                while IFS= read -r mysnap; do
+                    EXTRA_SNAPS="$EXTRA_SNAPS --snap $mysnap"
+                done <   <(find extra-snaps -name '*.snap')
+            fi
 
-            if [ "$UPDATE_PC_KERNEL" = "true" ]; then
+            local NESTED_MODEL=""
+            case "$SPREAD_SYSTEM" in
+            ubuntu-16.04-64)
+                NESTED_MODEL="$TESTSLIB/assertions/nested-amd64.model"
+                ;;
+            ubuntu-18.04-64)
+                NESTED_MODEL="$TESTSLIB/assertions/nested-18-amd64.model"
+                ;;
+            ubuntu-20.04-64)
+                NESTED_MODEL="$TESTSLIB/assertions/nested-20-amd64.model"
+
+                if [ "$UPDATE_PC_KERNEL" = "true" ]; then
+                    # shellcheck source=tests/lib/prepare.sh
+                    . "$TESTSLIB"/prepare.sh
+                    snap download --basename=pc-kernel --channel="20/edge" pc-kernel
+                    uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$WORK_DIR/image"
+
+                    EXTRA_FUNDAMENTAL="--snap $WORK_DIR/image/pc-kernel_*.snap"
+                    chmod 0600 "$WORK_DIR"/image/pc-kernel_*.snap
+                    rm -f "$PWD/pc-kernel.snap"
+                fi
+                ;;
+            *)
+                echo "unsupported system"
+                exit 1
+                ;;
+            esac
+
+            if [ "$BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
+                if is_core_16_nested_system; then
+                    echo "Build from current branch is not supported yet for uc16"
+                    exit 1
+                fi
                 # shellcheck source=tests/lib/prepare.sh
                 . "$TESTSLIB"/prepare.sh
-                snap download --basename=pc-kernel --channel="20/edge" pc-kernel
-                uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$WORK_DIR/image"
-
-                EXTRA_FUNDAMENTAL="--snap $WORK_DIR/image/pc-kernel_*.snap"
-                chmod 0600 "$WORK_DIR"/image/pc-kernel_*.snap
-                rm -f "$PWD/pc-kernel.snap"
+                snap download --channel="latest/edge" snapd
+                repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$PWD/new-snapd" "false"
+                EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-snapd/snapd_*.snap"
             fi
-            ;;
-        *)
-            echo "unsupported system"
-            exit 1
-            ;;
-        esac
 
-        if [ "$BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
-            if is_core_16_nested_system; then
-                echo "Build from current branch is not supported yet for uc16"
-                exit 1
-            fi
-            # shellcheck source=tests/lib/prepare.sh
-            . "$TESTSLIB"/prepare.sh
-            snap download --channel="latest/edge" snapd
-            repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$PWD/new-snapd" "false"
-            EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-snapd/snapd_*.snap"
+            "$UBUNTU_IMAGE" --image-size 10G "$NESTED_MODEL" \
+                --channel "$CORE_CHANNEL" \
+                --output "$WORK_DIR/image/ubuntu-core.img" \
+                "$EXTRA_FUNDAMENTAL" \
+                "$EXTRA_SNAPS"
+        else
+            # download the ubuntu-core image
+            get_nested_custom_image "$CUSTOM_IMAGE_URL" "ubuntu-core"
         fi
-
-        "$UBUNTU_IMAGE" --image-size 10G "$NESTED_MODEL" \
-            --channel "$CORE_CHANNEL" \
-            --output "$WORK_DIR/image/ubuntu-core.img" \
-            "$EXTRA_FUNDAMENTAL" \
-            "$EXTRA_SNAPS"
 
         if [ "$USE_CLOUD_INIT" = "true" ]; then
             if is_core_20_nested_system; then
@@ -451,14 +449,19 @@ create_nested_classic_vm(){
     mkdir -p "$WORK_DIR/image"
     IMAGE=$(ls "$WORK_DIR"/image/*.img || true)
     if [ -z "$IMAGE" ]; then
-        # Get the cloud image
-        local IMAGE_URL
-        IMAGE_URL=$(get_image_url_for_nested_vm)
-        wget -P "$WORK_DIR/image" "$IMAGE_URL"
-        # Check the image
-        local IMAGE
-        IMAGE=$(ls "$WORK_DIR"/image/*.img)
-        test "$(echo "$IMAGE" | wc -l)" = "1"
+        if [ -z "$CUSTOM_IMAGE_URL" ]; then
+            # create the ubuntu cloud image
+            local IMAGE_URL
+            IMAGE_URL=$(get_image_url_for_nested_vm)
+            wget -P "$WORK_DIR/image" "$IMAGE_URL"
+            # Check the image
+            local IMAGE
+            IMAGE=$(ls "$WORK_DIR"/image/*.img)
+            test "$(echo "$IMAGE" | wc -l)" = "1"
+        else
+            # download the ubuntu cloud image
+            get_nested_custom_image "$CUSTOM_IMAGE_URL" "ubuntu-custom"
+        fi
 
         # Prepare the cloud-init configuration and configure image
         create_cloud_init_config "$WORK_DIR/seed"
