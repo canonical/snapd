@@ -103,6 +103,7 @@ func (ts *HTestSuite) TestUser(c *C) {
 		"SNAP_USER_DATA":   "/root/snap/foo/17",
 		"HOME":             "/root/snap/foo/17",
 		"XDG_RUNTIME_DIR":  fmt.Sprintf("/run/user/%d/snap.foo", sys.Geteuid()),
+		"SNAP_REAL_HOME":   "/root",
 	})
 }
 
@@ -119,6 +120,7 @@ func (ts *HTestSuite) TestUserForClassicConfinement(c *C) {
 		"SNAP_USER_COMMON": "/root/snap/foo/common",
 		"SNAP_USER_DATA":   "/root/snap/foo/17",
 		"XDG_RUNTIME_DIR":  fmt.Sprintf(dirs.GlobalRootDir+"/run/user/%d/snap.foo", sys.Geteuid()),
+		"SNAP_REAL_HOME":   "/root",
 	})
 
 	// With the classic-preserves-xdg-runtime-dir feature enabled the snap
@@ -130,6 +132,7 @@ func (ts *HTestSuite) TestUserForClassicConfinement(c *C) {
 		// NOTE: Both HOME and XDG_RUNTIME_DIR are not defined here.
 		"SNAP_USER_COMMON": "/root/snap/foo/common",
 		"SNAP_USER_DATA":   "/root/snap/foo/17",
+		"SNAP_REAL_HOME":   "/root",
 	})
 }
 
@@ -166,6 +169,7 @@ func (s *HTestSuite) TestSnapRunSnapExecEnv(c *C) {
 			"SNAP_USER_DATA":     fmt.Sprintf("%s/snap/snapname/42", usr.HomeDir),
 			"HOME":               fmt.Sprintf("%s/snap/snapname/42", usr.HomeDir),
 			"XDG_RUNTIME_DIR":    fmt.Sprintf("/run/user/%d/snap.snapname", sys.Geteuid()),
+			"SNAP_REAL_HOME":     usr.HomeDir,
 		})
 	}
 }
@@ -210,6 +214,7 @@ func (s *HTestSuite) TestParallelInstallSnapRunSnapExecEnv(c *C) {
 			"SNAP_USER_DATA":   fmt.Sprintf("%s/snap/snapname_foo/42", usr.HomeDir),
 			"HOME":             fmt.Sprintf("%s/snap/snapname_foo/42", usr.HomeDir),
 			"XDG_RUNTIME_DIR":  fmt.Sprintf("/run/user/%d/snap.snapname_foo", sys.Geteuid()),
+			"SNAP_REAL_HOME":   usr.HomeDir,
 		})
 	}
 }
@@ -224,6 +229,7 @@ func (ts *HTestSuite) TestParallelInstallUser(c *C) {
 		"SNAP_USER_DATA":   "/root/snap/foo_bar/17",
 		"HOME":             "/root/snap/foo_bar/17",
 		"XDG_RUNTIME_DIR":  fmt.Sprintf("/run/user/%d/snap.foo_bar", sys.Geteuid()),
+		"SNAP_REAL_HOME":   "/root",
 	})
 }
 
@@ -242,6 +248,7 @@ func (ts *HTestSuite) TestParallelInstallUserForClassicConfinement(c *C) {
 		"SNAP_USER_COMMON": "/root/snap/foo_bar/common",
 		"SNAP_USER_DATA":   "/root/snap/foo_bar/17",
 		"XDG_RUNTIME_DIR":  fmt.Sprintf(dirs.GlobalRootDir+"/run/user/%d/snap.foo_bar", sys.Geteuid()),
+		"SNAP_REAL_HOME":   "/root",
 	})
 
 	// With the classic-preserves-xdg-runtime-dir feature enabled the snap
@@ -253,6 +260,7 @@ func (ts *HTestSuite) TestParallelInstallUserForClassicConfinement(c *C) {
 		// NOTE, Both HOME and XDG_RUNTIME_DIR are not defined here.
 		"SNAP_USER_COMMON": "/root/snap/foo_bar/common",
 		"SNAP_USER_DATA":   "/root/snap/foo_bar/17",
+		"SNAP_REAL_HOME":   "/root",
 	})
 }
 
