@@ -1,3 +1,9 @@
+snapd (2.45~snapdata1) UNRELEASED; urgency=medium
+
+  * Add experimental support for using ~/.snapdata instead of ~/snap
+
+ -- Zygmunt Bazyli Krynicki <me@zygoon.pl>  Mon, 27 Apr 2020 14:19:41 +0200
+
 snapd (2.45~pre1) xenial; urgency=medium
 
   * New upstream release, LP: #1875071
