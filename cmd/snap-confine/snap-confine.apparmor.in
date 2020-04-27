@@ -347,7 +347,7 @@
     # These should both have 'owner' match but due to LP: #1466234, we can't
     # yet
     @{HOME}/ r,
-    @{HOME}/snap/{,*/,*/*/} rw,
+    @{HOME}/{snap,.snapdata}/{,*/,*/*/} rw,
 
     # Special case for *classic* snaps that are used by users with existing dirs
     # in /var/lib/. Like jenkins, postgresql, mysql, puppet, ...
