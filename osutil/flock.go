@@ -59,8 +59,19 @@ func (l *FileLock) Close() error {
 }
 
 // Lock acquires an exclusive lock and blocks until the lock is free.
+//
+// Only one process can acquire an exclusive lock at a given time, preventing
+// shared or exclusive locks from being acquired.
 func (l *FileLock) Lock() error {
 	return syscall.Flock(int(l.file.Fd()), syscall.LOCK_EX)
+}
+
+// Lock acquires an shared lock and blocks until the lock is free.
+//
+// Multiple processes can acquire a shared lock at the same time, unless an
+// exclusive lock is held.
+func (l *FileLock) ReadLock() error {
+	return syscall.Flock(int(l.file.Fd()), syscall.LOCK_SH)
 }
 
 // TryLock acquires an exclusive lock and errors if the lock cannot be acquired.
