@@ -47,6 +47,8 @@ const (
 	ClassicPreservesXdgRuntimeDir
 	// RobustMountNamespaceUpdates controls how snap-update-ns updates existing mount namespaces.
 	RobustMountNamespaceUpdates
+	// HiddenSnapFolder moves ~/snap to ~/.snapdata.
+	HiddenSnapFolder
 	// lastFeature is the final known feature, it is only used for testing.
 	lastFeature
 )
@@ -72,6 +74,7 @@ var featureNames = map[SnapdFeature]string{
 
 	ClassicPreservesXdgRuntimeDir: "classic-preserves-xdg-runtime-dir",
 	RobustMountNamespaceUpdates:   "robust-mount-namespace-updates",
+	HiddenSnapFolder:              "hidden-snap-folder",
 }
 
 // featuresEnabledWhenUnset contains a set of features that are enabled when not explicitly configured.
@@ -88,6 +91,7 @@ var featuresExported = map[SnapdFeature]bool{
 
 	ClassicPreservesXdgRuntimeDir: true,
 	RobustMountNamespaceUpdates:   true,
+	HiddenSnapFolder:              true,
 }
 
 // String returns the name of a snapd feature.
