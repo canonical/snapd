@@ -58,6 +58,18 @@ func (s *flockSuite) TestNewFileLock(c *C) {
 	c.Assert(fi.Mode().Perm(), Equals, os.FileMode(0600))
 }
 
+// Test that we can access the underlying open file.
+func (s *flockSuite) TestFile(c *C) {
+	fname := filepath.Join(c.MkDir(), "name")
+	lock, err := osutil.NewFileLock(fname)
+	c.Assert(err, IsNil)
+	defer lock.Close()
+
+	f := lock.File()
+	c.Assert(f, NotNil)
+	c.Check(f.Name(), Equals, fname)
+}
+
 func flockSupportsConflictExitCodeSwitch(c *C) bool {
 	output, err := exec.Command("flock", "--help").CombinedOutput()
 	c.Assert(err, IsNil)

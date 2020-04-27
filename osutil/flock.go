@@ -53,6 +53,11 @@ func (l *FileLock) Path() string {
 	return l.file.Name()
 }
 
+// File returns the underlying file.
+func (l *FileLock) File() *os.File {
+	return l.file
+}
+
 // Close closes the lock, unlocking it automatically if needed.
 func (l *FileLock) Close() error {
 	return l.file.Close()
