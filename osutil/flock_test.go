@@ -36,14 +36,26 @@ type flockSuite struct{}
 
 var _ = Suite(&flockSuite{})
 
+// Test that opening and closing a lock works as expected, and that the mode is right.
+func (s *flockSuite) TestNewFileModeLock(c *C) {
+	lock, err := osutil.NewFileModeLock(filepath.Join(c.MkDir(), "name"), 0644)
+	c.Assert(err, IsNil)
+	defer lock.Close()
+
+	fi, err := os.Stat(lock.Path())
+	c.Assert(err, IsNil)
+	c.Assert(fi.Mode().Perm(), Equals, os.FileMode(0644))
+}
+
 // Test that opening and closing a lock works as expected.
 func (s *flockSuite) TestNewFileLock(c *C) {
 	lock, err := osutil.NewFileLock(filepath.Join(c.MkDir(), "name"))
 	c.Assert(err, IsNil)
 	defer lock.Close()
 
-	_, err = os.Stat(lock.Path())
+	fi, err := os.Stat(lock.Path())
 	c.Assert(err, IsNil)
+	c.Assert(fi.Mode().Perm(), Equals, os.FileMode(0600))
 }
 
 func flockSupportsConflictExitCodeSwitch(c *C) bool {

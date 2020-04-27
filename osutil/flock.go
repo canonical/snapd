@@ -32,15 +32,20 @@ type FileLock struct {
 
 var ErrAlreadyLocked = errors.New("cannot acquire lock, already locked")
 
-// NewFileLock creates and opens the lock file given by "path"
-func NewFileLock(path string) (*FileLock, error) {
-	mode := syscall.O_RDWR | syscall.O_CREAT | syscall.O_NOFOLLOW | syscall.O_CLOEXEC
-	file, err := os.OpenFile(path, mode, os.FileMode(0600))
+// NewFileModeLock creates and opens the lock file given by "path" with the given mode.
+func NewFileModeLock(path string, mode os.FileMode) (*FileLock, error) {
+	flag := syscall.O_RDWR | syscall.O_CREAT | syscall.O_NOFOLLOW | syscall.O_CLOEXEC
+	file, err := os.OpenFile(path, flag, mode)
 	if err != nil {
 		return nil, err
 	}
 	l := &FileLock{file: file}
 	return l, nil
+}
+
+// NewFileLock creates and opens the lock file given by "path" with mode 0600.
+func NewFileLock(path string) (*FileLock, error) {
+	return NewFileModeLock(path, 0600)
 }
 
 // Path returns the path of the lock file.
