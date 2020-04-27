@@ -39,6 +39,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
@@ -304,7 +305,12 @@ func getSnapInfo(snapName string, revision snap.Revision) (info *snap.Info, err 
 
 func createOrUpdateUserDataSymlink(info *snap.Info, usr *user.User) error {
 	// 'current' symlink for user data (SNAP_USER_DATA)
-	userData := info.UserDataDir(usr.HomeDir)
+	var userData string
+	if features.HiddenSnapFolder.IsEnabled() {
+		userData = info.UserAltDataDir(usr.HomeDir)
+	} else {
+		userData = info.UserDataDir(usr.HomeDir)
+	}
 	wantedSymlinkValue := filepath.Base(userData)
 	currentActiveSymlink := filepath.Join(userData, "..", "current")
 
@@ -361,15 +367,27 @@ func createUserDataDirs(info *snap.Info) error {
 	}
 
 	// see snapenv.User
-	instanceUserData := info.UserDataDir(usr.HomeDir)
-	instanceCommonUserData := info.UserCommonDataDir(usr.HomeDir)
+	var instanceUserData string
+	var instanceCommonUserData string
+	if features.HiddenSnapFolder.IsEnabled() {
+		instanceUserData = info.UserAltDataDir(usr.HomeDir)
+		instanceCommonUserData = info.UserCommonAltDataDir(usr.HomeDir)
+	} else {
+		instanceUserData = info.UserDataDir(usr.HomeDir)
+		instanceCommonUserData = info.UserCommonDataDir(usr.HomeDir)
+	}
 	createDirs := []string{instanceUserData, instanceCommonUserData}
 	if info.InstanceKey != "" {
 		// parallel instance snaps get additional mapping in their mount
 		// namespace, namely /home/joe/snap/foo_bar ->
 		// /home/joe/snap/foo, make sure that the mount point exists and
 		// is owned by the user
-		snapUserDir := snap.UserSnapDir(usr.HomeDir, info.SnapName())
+		var snapUserDir string
+		if features.HiddenSnapFolder.IsEnabled() {
+			snapUserDir = snap.UserSnapAltDir(usr.HomeDir, info.SnapName())
+		} else {
+			snapUserDir = snap.UserSnapDir(usr.HomeDir, info.SnapName())
+		}
 		createDirs = append(createDirs, snapUserDir)
 	}
 	for _, d := range createDirs {
@@ -389,7 +407,12 @@ func createUserDataDirs(info *snap.Info) error {
 // maybeRestoreSecurityContext attempts to restore security context of ~/snap on
 // systems where it's applicable
 func maybeRestoreSecurityContext(usr *user.User) error {
-	snapUserHome := filepath.Join(usr.HomeDir, dirs.UserHomeSnapDir)
+	var snapUserHome string
+	if features.HiddenSnapFolder.IsEnabled() {
+		snapUserHome = filepath.Join(usr.HomeDir, dirs.UserHomeAltSnapDir)
+	} else {
+		snapUserHome = filepath.Join(usr.HomeDir, dirs.UserHomeSnapDir)
+	}
 	enabled, err := selinuxIsEnabled()
 	if err != nil {
 		return fmt.Errorf("cannot determine SELinux status: %v", err)
