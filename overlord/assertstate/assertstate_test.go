@@ -861,7 +861,7 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsNoStore(c *C) {
 	c.Check(a.(*asserts.Account).DisplayName(), Equals, "Dev 1 edited display-name")
 
 	// change snap decl to something that has a too new format
-
+	s.fakeStore.(*fakeStore).maxDeclSupportedFormat = 999
 	(func() {
 		restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, 999)
 		defer restore()
