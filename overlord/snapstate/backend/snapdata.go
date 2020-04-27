@@ -100,12 +100,20 @@ func removeDirs(dirs []string) error {
 // snapDataDirs returns the list of data directories for the given snap version
 func snapDataDirs(snap *snap.Info) ([]string, error) {
 	// collect the directories, homes first
-	found, err := filepath.Glob(snap.DataHomeDir())
+	foundPri, err := filepath.Glob(snap.DataHomeDir())
 	if err != nil {
 		return nil, err
 	}
+	foundAlt, err := filepath.Glob(snap.AltDataHomeDir())
+	if err != nil {
+		return nil, err
+	}
+	var found []string
+	found = append(found, foundPri...)
+	found = append(found, foundAlt...)
 	// then the /root user (including GlobalRootDir for tests)
 	found = append(found, snap.UserDataDir(filepath.Join(dirs.GlobalRootDir, "/root/")))
+	found = append(found, snap.UserAltDataDir(filepath.Join(dirs.GlobalRootDir, "/root/")))
 	// then system data
 	found = append(found, snap.DataDir())
 
@@ -115,10 +123,17 @@ func snapDataDirs(snap *snap.Info) ([]string, error) {
 // snapCommonDataDirs returns the list of data directories common between versions of the given snap
 func snapCommonDataDirs(snap *snap.Info) ([]string, error) {
 	// collect the directories, homes first
-	found, err := filepath.Glob(snap.CommonDataHomeDir())
+	foundPri, err := filepath.Glob(snap.CommonDataHomeDir())
 	if err != nil {
 		return nil, err
 	}
+	foundAlt, err := filepath.Glob(snap.CommonAltDataHomeDir())
+	if err != nil {
+		return nil, err
+	}
+	var found []string
+	found = append(found, foundPri...)
+	found = append(found, foundAlt...)
 
 	// then XDG_RUNTIME_DIRs for the users
 	foundXdg, err := filepath.Glob(snap.XdgRuntimeDirs())
