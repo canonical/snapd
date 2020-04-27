@@ -796,3 +796,55 @@ func (s *poolSuite) TestNopUpdatePlusFetch(c *C) {
 	c.Check(pool.Err("store_key"), IsNil)
 	c.Check(pool.Err("for_one"), IsNil)
 }
+
+func (s *poolSuite) TestParallelPartialResolutionFailure(c *C) {
+	pool := asserts.NewPool(s.db, 64)
+
+	atOne := &asserts.AtRevision{
+		Ref:      asserts.Ref{Type: asserts.TestOnlyDeclType, PrimaryKey: []string{"one"}},
+		Revision: asserts.RevisionNotKnown,
+	}
+	err := pool.AddUnresolved(atOne, "one")
+	c.Assert(err, IsNil)
+
+	toResolve, err := pool.ToResolve()
+	c.Assert(err, IsNil)
+	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
+		asserts.MakePoolGrouping(0): {atOne},
+	})
+
+	err = pool.Add(s.decl1, asserts.MakePoolGrouping(0))
+	c.Assert(err, IsNil)
+
+	toResolve, err = pool.ToResolve()
+	c.Assert(err, IsNil)
+	sortToResolve(toResolve)
+	dev1AcctAt := s.dev1Acct.At()
+	dev1AcctAt.Revision = asserts.RevisionNotKnown
+	decl1At := s.decl1.At()
+	decl1At.Revision = asserts.RevisionNotKnown
+	storeKeyAt := s.hub.StoreAccountKey("").At()
+	storeKeyAt.Revision = asserts.RevisionNotKnown
+	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
+		asserts.MakePoolGrouping(0): {storeKeyAt, dev1AcctAt},
+	})
+
+	// failed to get prereqs
+	c.Check(pool.AddGroupingError(errBoom, asserts.MakePoolGrouping(0)), IsNil)
+
+	err = pool.AddUnresolved(atOne, "other")
+	c.Assert(err, IsNil)
+
+	toResolve, err = pool.ToResolve()
+	c.Assert(err, IsNil)
+	c.Check(toResolve, HasLen, 0)
+
+	c.Check(pool.Err("one"), Equals, errBoom)
+	c.Check(pool.Err("other"), IsNil)
+
+	// we fail at commit though
+	err = pool.CommitTo(s.db)
+	c.Check(err, IsNil)
+	c.Check(pool.Err("one"), Equals, errBoom)
+	c.Check(pool.Err("other"), ErrorMatches, "cannot resolve prerequisite assertion.*")
+}

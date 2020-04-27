@@ -300,6 +300,7 @@ func (p *Pool) addUnresolved(unresolved *AtRevision, gnum uint16) error {
 		// case we will fail at CommitTo time. we could
 		// instead recurse into its prerequisites again but the
 		// complexity isn't clearly worth it.
+		// see TestParallelPartialResolutionFailure
 		// mark this as resolved in the group
 		p.groups[gnum].markResolved(&unresolved.Ref)
 		return nil
