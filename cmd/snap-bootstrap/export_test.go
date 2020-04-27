@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/snapcore/secboot"
+	"github.com/snapcore/snapd/asserts"
 
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/bootstrap"
 )
@@ -116,5 +117,21 @@ func MockDevDiskByLabelDir(new string) (restore func()) {
 	devDiskByLabelDir = new
 	return func() {
 		devDiskByLabelDir = old
+	}
+}
+
+func MockSecbootMeasureSnapSystemEpochToTPM(f func(tpm *secboot.TPMConnection, pcrIndex int) error) (restore func()) {
+	old := secbootMeasureSnapSystemEpochToTPM
+	secbootMeasureSnapSystemEpochToTPM = f
+	return func() {
+		secbootMeasureSnapSystemEpochToTPM = old
+	}
+}
+
+func MockSecbootMeasureSnapModelToTPM(f func(tpm *secboot.TPMConnection, pcrIndex int, model *asserts.Model) error) (restore func()) {
+	old := secbootMeasureSnapModelToTPM
+	secbootMeasureSnapModelToTPM = f
+	return func() {
+		secbootMeasureSnapModelToTPM = old
 	}
 }

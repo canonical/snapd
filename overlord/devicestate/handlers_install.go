@@ -117,6 +117,13 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 	if useEncryption {
 		fdeDir := "var/lib/snapd/device/fde"
+		// ensure directories
+		for _, p := range []string{boot.InitramfsEncryptionKeyDir, filepath.Join(boot.InitramfsWritableDir, fdeDir)} {
+			if err := os.MkdirAll(p, 0755); err != nil {
+				return err
+			}
+		}
+
 		bopts.Encrypt = true
 		bopts.KeyFile = filepath.Join(boot.InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key")
 		bopts.RecoveryKeyFile = filepath.Join(boot.InitramfsWritableDir, fdeDir, "recovery.key")

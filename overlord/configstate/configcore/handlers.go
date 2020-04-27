@@ -77,6 +77,9 @@ func init() {
 
 	// system.disable-backlight-service
 	addFSOnlyHandler(validateBacklightServiceSettings, handleBacklightServiceConfiguration, coreOnly)
+
+	// journal.persistent
+	addFSOnlyHandler(validateJournalSettings, handleJournalConfiguration, coreOnly)
 }
 
 // addFSOnlyHandler registers functions to validate and handle a subset of
