@@ -27,6 +27,7 @@ execute: |
             cache_dir=/usr/lib/fontconfig/cache
             ;;
     esac
+    mkdir -p "$cache_dir"
     echo "Cache file" > "$cache_dir"/cache.txt
 
     mkdir -p "$HOME"/.fonts

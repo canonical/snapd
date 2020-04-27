@@ -60,10 +60,10 @@ export GOMAXPROCS=2
 endif
 
 # build with "tpm" support on ubuntu by default
-TAGS=withsecboot
+TAGS=
 # check if we need to include the testkeys in the binary
 ifneq (,$(filter testkeys,$(DEB_BUILD_OPTIONS)))
-	TAGS+= withtestkeys
+	TAGS=-tags withtestkeys
 endif
 
 DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
@@ -164,7 +164,7 @@ override_dh_auto_build:
 	cp -a cmd/snap/test-data/*.gpg _build/src/$(DH_GOPKG)/cmd/snap/test-data/
 
 	# this is the main go build
-	SNAPD_VANILLA_GO=$$(which go) PATH="$$(pwd)/packaging/build-tools/:$$PATH" dh_auto_build -- $(BUILDFLAGS) -tags "$(TAGS)" $(GCCGOFLAGS)
+	SNAPD_VANILLA_GO=$$(which go) PATH="$$(pwd)/packaging/build-tools/:$$PATH" dh_auto_build -- $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS)
 
 	# Generate static snap-exec, snapctl and snap-update-ns - it somehow includes CGO so
 	# we must force a static build here. We need a static snap-{exec,update-ns}/snapctl
@@ -201,7 +201,7 @@ endif
 	(cd vendor/github.com/snapcore/squashfuse/src && mkdir -p autom4te.cache && ./autogen.sh --disable-demo && ./configure --disable-demo && make && mv squashfuse_ll snapfuse)
 
 override_dh_auto_test:
-	dh_auto_test -- $(GCCGOFLAGS)
+	dh_auto_test -- $(BUILDFLAGS) -tags "$(TAGS)" $(GCCGOFLAGS)
 # a tested default (production) build should have no test keys
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	# check that only the main trusted account-keys are included
@@ -251,10 +251,6 @@ override_dh_install:
 
 	# Rename the apparmor profile, see dh_apparmor call above for an explanation.
 	mv $(CURDIR)/debian/tmp/etc/apparmor.d/usr.lib.snapd.snap-confine $(CURDIR)/debian/tmp/etc/apparmor.d/usr.lib.snapd.snap-confine.real
-
-	# On Ubuntu and Debian we don't need to install the apparmor helper service.
-	rm $(CURDIR)/debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/snapd.apparmor.service
-	rm $(CURDIR)/debian/tmp/usr/lib/snapd/snapd-apparmor
 
 	dh_install
 

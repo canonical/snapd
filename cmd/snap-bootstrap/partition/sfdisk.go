@@ -85,19 +85,34 @@ type sfdiskPartition struct {
 	Name  string `json:"name"`
 }
 
-func (p *sfdiskPartition) isCreated() bool {
-	// TODO:UC20: also provide a mechanism for MBR (RPi)
-	if !creationSupported(p.Type) {
-		return false
-	}
-	for _, a := range strings.Fields(p.Attrs) {
-		if !strings.HasPrefix(a, "GUID:") {
-			continue
+func isCreatedDuringInstall(p *sfdiskPartition, fs *lsblkBlockDevice, sfdiskLabel string) bool {
+	switch sfdiskLabel {
+	case "gpt":
+		// the created partitions use specific GPT GUID types and set a
+		// specific bit in partition attributes
+		if !creationSupported(p.Type) {
+			return false
 		}
-		attrs := strings.Split(a[5:], ",")
-		if strutil.ListContains(attrs, createdPartitionAttr) {
-			return true
+		for _, a := range strings.Fields(p.Attrs) {
+			if !strings.HasPrefix(a, "GUID:") {
+				continue
+			}
+			attrs := strings.Split(a[5:], ",")
+			if strutil.ListContains(attrs, createdPartitionAttr) {
+				return true
+			}
 		}
+	case "dos":
+		// we have no similar type/bit attribute setting for MBR, on top
+		// of that MBR does not support partition names, fall back to
+		// reasonable assumption that only partitions carrying
+		// ubuntu-boot and ubuntu-data labels are created during
+		// install, everything else was part of factory image
+
+		// TODO:UC20 consider using gadget layout information to build a
+		// mapping of partition start offset to label/name
+		createdDuringInstall := []string{ubuntuBootLabel, ubuntuDataLabel}
+		return strutil.ListContains(createdDuringInstall, fs.Label)
 	}
 	return false
 }
@@ -117,12 +132,12 @@ type DeviceLayout struct {
 type DeviceStructure struct {
 	gadget.LaidOutStructure
 
-	Node    string
-	Created bool
+	Node                 string
+	CreatedDuringInstall bool
 }
 
-// NewDeviceLayout obtains the partitioning and filesystem information from the
-// block device.
+// DeviceLayoutFromDisk obtains the partitioning and filesystem information from
+// the block device.
 func DeviceLayoutFromDisk(device string) (*DeviceLayout, error) {
 	output, err := exec.Command("sfdisk", "--json", "-d", device).Output()
 	if err != nil {
@@ -183,7 +198,7 @@ func (dl *DeviceLayout) CreateMissing(pv *gadget.LaidOutVolume) ([]DeviceStructu
 func (dl *DeviceLayout) RemoveCreated() error {
 	indexes := make([]string, 0, len(dl.partitionTable.Partitions))
 	for i, s := range dl.Structure {
-		if s.Created {
+		if s.CreatedDuringInstall {
 			logger.Noticef("partition %s was created during previous install", s.Node)
 			indexes = append(indexes, strconv.Itoa(i+1))
 		}
@@ -215,8 +230,7 @@ func (dl *DeviceLayout) RemoveCreated() error {
 	dl.partitionTable = layout.partitionTable
 
 	// Ensure all created partitions were removed
-	remaining := listCreatedPartitions(dl.partitionTable)
-	if len(remaining) > 0 {
+	if remaining := listCreatedPartitions(layout); len(remaining) > 0 {
 		return fmt.Errorf("cannot remove partitions: %s", strings.Join(remaining, ", "))
 	}
 
@@ -247,6 +261,38 @@ func ensureNodesExistImpl(ds []DeviceStructure, timeout time.Duration) error {
 	return nil
 }
 
+func fromSfdiskPartitionType(st string, sfdiskLabel string) (string, error) {
+	switch sfdiskLabel {
+	case "dos":
+		// sometimes sfdisk reports what is "0C" in gadget.yaml as "c",
+		// normalize the values
+		v, err := strconv.ParseUint(st, 16, 8)
+		if err != nil {
+			return "", fmt.Errorf("cannot convert MBR partition type %q", st)
+		}
+		return fmt.Sprintf("%02X", v), nil
+	case "gpt":
+		return st, nil
+	default:
+		return "", fmt.Errorf("unsupported partitioning schema %q", sfdiskLabel)
+	}
+}
+
+func blockDeviceSizeInSectors(devpath string) (gadget.Size, error) {
+	// the size is reported in 512-byte sectors
+	// XXX: consider using /sys/block/<dev>/size directly
+	out, err := exec.Command("blockdev", "--getsz", devpath).CombinedOutput()
+	if err != nil {
+		return 0, osutil.OutputErr(out, err)
+	}
+	nospace := strings.TrimSpace(string(out))
+	sz, err := strconv.Atoi(nospace)
+	if err != nil {
+		return 0, fmt.Errorf("cannot parse device size %q: %v", nospace, err)
+	}
+	return gadget.Size(sz), nil
+}
+
 // deviceLayoutFromPartitionTable takes an sfdisk dump partition table and returns
 // the partitioning information as a device layout.
 func deviceLayoutFromPartitionTable(ptable sfdiskPartitionTable) (*DeviceLayout, error) {
@@ -270,22 +316,43 @@ func deviceLayoutFromPartitionTable(ptable sfdiskPartitionTable) (*DeviceLayout,
 		}
 		bd := info.BlockDevices[0]
 
+		vsType, err := fromSfdiskPartitionType(p.Type, ptable.Label)
+		if err != nil {
+			return nil, fmt.Errorf("cannot convert sfdisk partition type %q: %v", p.Type, err)
+		}
+
 		structure[i] = gadget.VolumeStructure{
 			Name:       p.Name,
 			Size:       gadget.Size(p.Size) * sectorSize,
 			Label:      bd.Label,
-			Type:       p.Type,
+			Type:       vsType,
 			Filesystem: bd.FSType,
 		}
+
 		ds[i] = DeviceStructure{
 			LaidOutStructure: gadget.LaidOutStructure{
 				VolumeStructure: &structure[i],
 				StartOffset:     gadget.Size(p.Start) * sectorSize,
 				Index:           i + 1,
 			},
-			Node:    p.Node,
-			Created: p.isCreated(),
+			Node:                 p.Node,
+			CreatedDuringInstall: isCreatedDuringInstall(&p, &bd, ptable.Label),
 		}
+	}
+
+	var numSectors gadget.Size
+	if ptable.LastLBA != 0 {
+		// sfdisk reports the last usable LBA for GPT disks only
+		numSectors = gadget.Size(ptable.LastLBA + 1)
+	} else {
+		// sfdisk does not report any information about the size of a
+		// MBR partitioned disk, find out the size of the device by
+		// other means
+		sz, err := blockDeviceSizeInSectors(ptable.Device)
+		if err != nil {
+			return nil, fmt.Errorf("cannot obtain the size of device %q: %v", ptable.Device, err)
+		}
+		numSectors = sz
 	}
 
 	dl := &DeviceLayout{
@@ -293,7 +360,7 @@ func deviceLayoutFromPartitionTable(ptable sfdiskPartitionTable) (*DeviceLayout,
 		ID:             ptable.ID,
 		Device:         ptable.Device,
 		Schema:         ptable.Label,
-		Size:           gadget.Size(ptable.LastLBA+1) * sectorSize,
+		Size:           numSectors * sectorSize,
 		SectorSize:     sectorSize,
 		partitionTable: &ptable,
 	}
@@ -333,15 +400,20 @@ func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume) (sfdiskInput
 		}
 	}
 
+	// The partition index
+	pIndex := 0
+
 	// Write new partition data in named-fields format
 	buf := &bytes.Buffer{}
 	for _, p := range pv.LaidOutStructure {
-		s := p.VolumeStructure
-		// Skip partitions that are already in the volume
-		// Skip MBR structure
-		if s.Type == "mbr" || s.Type == "bare" {
+		if !p.IsPartition() {
 			continue
 		}
+
+		pIndex++
+		s := p.VolumeStructure
+
+		// Skip partitions that are already in the volume
 		start := p.StartOffset / sectorSize
 		if seen[uint64(start)] {
 			continue
@@ -364,7 +436,7 @@ func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume) (sfdiskInput
 		// Can we use the index here? Get the largest existing partition number and
 		// build from there could be safer if the disk partitions are not consecutive
 		// (can this actually happen in our images?)
-		node := deviceName(ptable.Device, p.Index)
+		node := deviceName(ptable.Device, pIndex)
 		fmt.Fprintf(buf, "%s : start=%12d, size=%12d, type=%s, name=%q, attrs=\"GUID:%s\"\n", node,
 			p.StartOffset/sectorSize, size/sectorSize, ptype, s.Name, createdPartitionAttr)
 
@@ -379,9 +451,9 @@ func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume) (sfdiskInput
 		}
 
 		toBeCreated = append(toBeCreated, DeviceStructure{
-			LaidOutStructure: p,
-			Node:             node,
-			Created:          true,
+			LaidOutStructure:     p,
+			Node:                 node,
+			CreatedDuringInstall: true,
 		})
 	}
 
@@ -390,11 +462,11 @@ func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume) (sfdiskInput
 
 // listCreatedPartitions returns a list of partitions created during the
 // install process.
-func listCreatedPartitions(ptable *sfdiskPartitionTable) []string {
-	created := make([]string, 0, len(ptable.Partitions))
-	for _, p := range ptable.Partitions {
-		if p.isCreated() {
-			created = append(created, p.Node)
+func listCreatedPartitions(layout *DeviceLayout) []string {
+	created := make([]string, 0, len(layout.Structure))
+	for _, s := range layout.Structure {
+		if s.CreatedDuringInstall {
+			created = append(created, s.Node)
 		}
 	}
 	return created
