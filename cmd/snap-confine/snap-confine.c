@@ -445,7 +445,7 @@ int main(int argc, char **argv)
 	// of the calling user (by using real user and group identifiers). This
 	// allows the creation of directories inside ~/ on NFS with root_squash
 	// attribute.
-	setup_user_data();
+	setup_user_data(invocation.snap_instance);
 #if 0
 	setup_user_xdg_runtime_dir();
 #endif

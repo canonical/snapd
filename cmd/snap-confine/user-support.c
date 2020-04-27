@@ -20,17 +20,39 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <sys/stat.h>
+#include <limits.h>
 
 #include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/utils.h"
+#include "../libsnap-confine-private/feature.h"
 
-void setup_user_data(void)
+void setup_user_data(const char *snap_instance)
 {
 	const char *user_data = getenv("SNAP_USER_DATA");
 
 	if (user_data == NULL)
 		return;
 
+	if (sc_feature_enabled(SC_FEATURE_HIDDEN_SNAP_FOLDER)) {
+		char buf[PATH_MAX + 1];
+		const char *real_home = getenv("SNAP_REAL_HOME");
+		const char *revision = getenv("SNAP_REVISION");
+		if (real_home == NULL) {
+			die("cannot remap snap folder, SNAP_REAL_HOME is not set");
+		}
+		if (revision == NULL) {
+			die("cannot remap snap folder, SNAP_REVISION is not set");
+		}
+		sc_must_snprintf(buf, sizeof buf, "%s/.snapdata/%s/%s",
+				 real_home, snap_instance, revision);
+		setenv("SNAP_USER_DATA", buf, 1);
+		setenv("HOME", buf, 1);
+		sc_must_snprintf(buf, sizeof buf, "%s/.snapdata/%s/common",
+				 real_home, snap_instance);
+		setenv("SNAP_USER_COMMON", buf, 1);
+
+		user_data = getenv("SNAP_USER_DATA");
+	}
 	// Only support absolute paths.
 	if (user_data[0] != '/') {
 		die("user data directory must be an absolute path");
