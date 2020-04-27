@@ -64,11 +64,11 @@ owner @{HOME}/snap[^/]**          rwkl###HOME_IX###,
 # Allow creating a few files not caught above
 owner @{HOME}/{s,sn,sna}{,/} rwkl###HOME_IX###,
 
-# Allow access to @{HOME}/snap/ to allow directory traversals from
-# @{HOME}/snap/@{SNAP_INSTANCE_NAME} through @{HOME}/snap to @{HOME}.
-# While this leaks snap names, it fixes usability issues for snaps
+# Allow access to @{HOME}/{snap,.snapdata}/ to allow directory traversals from
+# @{HOME}/{snap,.snapdata}/@{SNAP_INSTANCE_NAME} through @{HOME}/snap to
+# @{HOME}. While this leaks snap names, it fixes usability issues for snaps
 # that require this transitional interface.
-owner @{HOME}/snap/ r,
+owner @{HOME}/{snap,.snapdata}/ r,
 
 # Allow access to gvfs mounts for files owned by the user (including hidden
 # files; only allow writes to files, not the mount point).
