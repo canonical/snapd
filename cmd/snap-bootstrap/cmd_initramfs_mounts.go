@@ -22,24 +22,26 @@ package main
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
 	"syscall"
 
 	"github.com/jessevdk/go-flags"
+	// XXX: import as "to" sb to be consistent with snapcore/snapd/secboot
 	"github.com/snapcore/secboot"
+	"golang.org/x/xerrors"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/sysconfig"
-	"github.com/snapcore/snapd/timings"
 )
 
 func init() {
@@ -63,6 +65,7 @@ func (c *cmdInitramfsMounts) Execute(args []string) error {
 	return generateInitramfsMounts()
 }
 
+// XXX: move all var () to the top, it's very spread out right now
 var (
 	// Stdout - can be overridden in tests
 	stdout io.Writer = os.Stdout
@@ -77,35 +80,10 @@ var (
 	devDiskByLabelDir = "/dev/disk/by-label"
 )
 
-func recoverySystemEssentialSnaps(seedDir, recoverySystem string, essentialTypes []snap.Type) ([]*seed.Snap, error) {
-	systemSeed, err := seed.Open(seedDir, recoverySystem)
-	if err != nil {
-		return nil, err
-	}
-
-	seed20, ok := systemSeed.(seed.EssentialMetaLoaderSeed)
-	if !ok {
-		return nil, fmt.Errorf("internal error: UC20 seed must implement EssentialMetaLoaderSeed")
-	}
-
-	// load assertions into a temporary database
-	if err := systemSeed.LoadAssertions(nil, nil); err != nil {
-		return nil, err
-	}
-
-	// load and verify metadata only for the relevant essential snaps
-	perf := timings.New(nil)
-	if err := seed20.LoadEssentialMeta(essentialTypes, perf); err != nil {
-		return nil, err
-	}
-
-	return seed20.EssentialSnaps(), nil
-}
-
 // generateMountsMode* is called multiple times from initramfs until it
 // no longer generates more mount points and just returns an empty output.
-func generateMountsModeInstall(recoverySystem string) error {
-	allMounted, err := generateMountsCommonInstallRecover(recoverySystem)
+func generateMountsModeInstall(mst initramfsMountsState, recoverySystem string) error {
+	allMounted, err := generateMountsCommonInstallRecover(mst, recoverySystem)
 	if err != nil {
 		return err
 	}
@@ -189,8 +167,8 @@ func copyUbuntuDataAuth(src, dst string) error {
 	return nil
 }
 
-func generateMountsModeRecover(recoverySystem string) error {
-	allMounted, err := generateMountsCommonInstallRecover(recoverySystem)
+func generateMountsModeRecover(mst initramfsMountsState, recoverySystem string) error {
+	allMounted, err := generateMountsCommonInstallRecover(mst, recoverySystem)
 	if err != nil {
 		return err
 	}
@@ -234,7 +212,7 @@ func generateMountsModeRecover(recoverySystem string) error {
 	return nil
 }
 
-func generateMountsCommonInstallRecover(recoverySystem string) (allMounted bool, err error) {
+func generateMountsCommonInstallRecover(mst initramfsMountsState, recoverySystem string) (allMounted bool, err error) {
 	// 1. always ensure seed partition is mounted
 	isMounted, err := osutilIsMounted(boot.InitramfsUbuntuSeedDir)
 	if err != nil {
@@ -243,6 +221,20 @@ func generateMountsCommonInstallRecover(recoverySystem string) (allMounted bool,
 	if !isMounted {
 		fmt.Fprintf(stdout, "/dev/disk/by-label/ubuntu-seed %s\n", boot.InitramfsUbuntuSeedDir)
 		return false, nil
+	}
+
+	// 1a. measure model
+	err = stampedAction(fmt.Sprintf("%s-model-measured", recoverySystem), func() error {
+		return measureWhenPossible(func(tpm *secboot.TPMConnection) error {
+			model, err := mst.Model()
+			if err != nil {
+				return err
+			}
+			return secMeasureModel(tpm, model)
+		})
+	})
+	if err != nil {
+		return false, err
 	}
 
 	// 2. (auto) select recovery system for now
@@ -271,7 +263,7 @@ func generateMountsCommonInstallRecover(recoverySystem string) (allMounted bool,
 		if !isSnapdMounted {
 			whichTypes = append(whichTypes, snap.TypeSnapd)
 		}
-		essSnaps, err := recoverySystemEssentialSnaps(boot.InitramfsUbuntuSeedDir, recoverySystem, whichTypes)
+		essSnaps, err := mst.RecoverySystemEssentialSnaps("", whichTypes)
 		if err != nil {
 			return false, fmt.Errorf("cannot load metadata and verify essential bootstrap snaps %v: %v", whichTypes, err)
 		}
@@ -304,7 +296,42 @@ func generateMountsCommonInstallRecover(recoverySystem string) (allMounted bool,
 	return true, nil
 }
 
-func generateMountsModeRun() error {
+// TODO:UC20 move some of these helpers somehow to our secboot
+
+const tpmPCR = 12
+
+func secMeasureEpoch(tpm *secboot.TPMConnection) error {
+	if err := secbootMeasureSnapSystemEpochToTPM(tpm, tpmPCR); err != nil {
+		return fmt.Errorf("cannot measure snap system epoch: %v", err)
+	}
+	return nil
+}
+
+func secMeasureModel(tpm *secboot.TPMConnection, model *asserts.Model) error {
+	if err := secbootMeasureSnapModelToTPM(tpm, tpmPCR, model); err != nil {
+		return fmt.Errorf("cannot measure snap system model: %v", err)
+	}
+	return nil
+}
+
+func measureWhenPossible(whatHow func(tpm *secboot.TPMConnection) error) error {
+	// the model is ready, we're good to try measuring it now
+	tpm, err := insecureConnectToTPM()
+	if err != nil {
+		var perr *os.PathError
+		// XXX: xerrors.Is() does not work with PathErrors?
+		if xerrors.As(err, &perr) {
+			// no TPM
+			return nil
+		}
+		return fmt.Errorf("cannot open TPM connection: %v", err)
+	}
+	defer tpm.Close()
+
+	return whatHow(tpm)
+}
+
+func generateMountsModeRun(mst initramfsMountsState) error {
 	// 1.1 always ensure basic partitions are mounted
 	for _, d := range []string{boot.InitramfsUbuntuBootDir, boot.InitramfsUbuntuSeedDir} {
 		isMounted, err := osutilIsMounted(d)
@@ -319,15 +346,30 @@ func generateMountsModeRun() error {
 		}
 	}
 
+	// 1.1a measure model
+	err := stampedAction("run-model-measured", func() error {
+		return measureWhenPossible(func(tpm *secboot.TPMConnection) error {
+			model, err := mst.UnverifiedBootModel()
+			if err != nil {
+				return err
+			}
+			return secMeasureModel(tpm, model)
+		})
+	})
+	if err != nil {
+		return err
+	}
+	// TODO:UC20: cross check the model we read from ubuntu-boot/model with
+	// one recorded in ubuntu-data modeenv during install
+
 	// 1.2 mount Data, and exit, as it needs to be mounted for us to do step 2
 	isDataMounted, err := osutilIsMounted(boot.InitramfsUbuntuDataDir)
 	if err != nil {
 		return err
 	}
 	if !isDataMounted {
-		name := filepath.Base(boot.InitramfsUbuntuDataDir)
 		const lockKeysForLast = true
-		device, err := unlockIfEncrypted(name, lockKeysForLast)
+		device, err := unlockIfEncrypted("ubuntu-data", lockKeysForLast)
 		if err != nil {
 			return err
 		}
@@ -495,7 +537,7 @@ func generateMountsModeRun() error {
 
 		if !isSnapdMounted {
 			// load the recovery system and generate mount for snapd
-			essSnaps, err := recoverySystemEssentialSnaps(boot.InitramfsUbuntuSeedDir, modeEnv.RecoverySystem, []snap.Type{snap.TypeSnapd})
+			essSnaps, err := mst.RecoverySystemEssentialSnaps(modeEnv.RecoverySystem, []snap.Type{snap.TypeSnapd})
 			if err != nil {
 				return fmt.Errorf("cannot load metadata and verify snapd snap: %v", err)
 			}
@@ -507,18 +549,45 @@ func generateMountsModeRun() error {
 	return modeEnv.Write()
 }
 
+func stampedAction(stamp string, action func() error) error {
+	stampFile := filepath.Join(dirs.SnapBootstrapRunDir, stamp)
+	if osutil.FileExists(stampFile) {
+		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(stampFile), 0755); err != nil {
+		return err
+	}
+	if err := action(); err != nil {
+		return err
+	}
+	return ioutil.WriteFile(stampFile, nil, 0644)
+}
+
 func generateInitramfsMounts() error {
+	// Ensure there is a very early initial measurement
+	err := stampedAction("secboot-epoch-measured", func() error {
+		return measureWhenPossible(secMeasureEpoch)
+	})
+	if err != nil {
+		return err
+	}
+
 	mode, recoverySystem, err := boot.ModeAndRecoverySystemFromKernelCommandLine()
 	if err != nil {
 		return err
 	}
+
+	mst := newInitramfsMountsState(mode, recoverySystem)
+
 	switch mode {
 	case "recover":
-		return generateMountsModeRecover(recoverySystem)
+		// XXX: don't pass both args
+		return generateMountsModeRecover(mst, recoverySystem)
 	case "install":
-		return generateMountsModeInstall(recoverySystem)
+		// XXX: don't pass both args
+		return generateMountsModeInstall(mst, recoverySystem)
 	case "run":
-		return generateMountsModeRun()
+		return generateMountsModeRun(mst)
 	}
 	// this should never be reached
 	return fmt.Errorf("internal error: mode in generateInitramfsMounts not handled")
@@ -528,13 +597,20 @@ var (
 	secbootLockAccessToSealedKeys = secboot.LockAccessToSealedKeys
 )
 
+func isDeviceEncrypted(name string) (ok bool, encdev string) {
+	encdev = filepath.Join(devDiskByLabelDir, name+"-enc")
+	if osutil.FileExists(encdev) {
+		return true, encdev
+	}
+	return false, ""
+}
+
 // unlockIfEncrypted verifies whether an encrypted volume with the specified
-// name exists and unlocks it. With lockKeyOnFinish set, access to the sealed
+// name exists and unlocks it. With lockKeysOnFinish set, access to the sealed
 // keys will be locked when this function completes. The path to the unencrypted
 // device node is returned.
 func unlockIfEncrypted(name string, lockKeysOnFinish bool) (string, error) {
 	device := filepath.Join(devDiskByLabelDir, name)
-	encdev := filepath.Join(devDiskByLabelDir, name+"-enc")
 
 	// TODO:UC20: use secureConnectToTPM if we decide there's benefit in doing that or we
 	//            have a hard requirement for a valid EK cert chain for every boot (ie, panic
@@ -565,20 +641,20 @@ func unlockIfEncrypted(name string, lockKeysOnFinish bool) (string, error) {
 			}
 		}()
 
-		if osutil.FileExists(encdev) {
-			if tpmErr != nil {
-				return fmt.Errorf("cannot unlock encrypted device %q: %v", name, tpmErr)
-			}
-			// TODO:UC20: snap-bootstrap should validate that <name>-enc is what
-			//            we expect (and not e.g. an external disk), and also that
-			//            <name> is from <name>-enc and not an unencrypted partition
-			//            with the same name (LP #1863886)
-			sealedKeyPath := filepath.Join(boot.InitramfsEncryptionKeyDir, name+".sealed-key")
-			if err := unlockEncryptedPartition(tpm, name, encdev, sealedKeyPath, "", lockKeysOnFinish); err != nil {
-				return err
-			}
+		ok, encdev := isDeviceEncrypted(name)
+		if !ok {
+			return nil
 		}
-		return nil
+
+		if tpmErr != nil {
+			return fmt.Errorf("cannot unlock encrypted device %q: %v", name, tpmErr)
+		}
+		// TODO:UC20: snap-bootstrap should validate that <name>-enc is what
+		//            we expect (and not e.g. an external disk), and also that
+		//            <name> is from <name>-enc and not an unencrypted partition
+		//            with the same name (LP #1863886)
+		sealedKeyPath := filepath.Join(boot.InitramfsEncryptionKeyDir, name+".sealed-key")
+		return unlockEncryptedPartition(tpm, name, encdev, sealedKeyPath, "", lockKeysOnFinish)
 	}()
 	if err != nil {
 		return "", err
@@ -594,7 +670,11 @@ var (
 	secbootConnectToDefaultTPM            = secboot.ConnectToDefaultTPM
 	secbootSecureConnectToDefaultTPM      = secboot.SecureConnectToDefaultTPM
 	secbootActivateVolumeWithTPMSealedKey = secboot.ActivateVolumeWithTPMSealedKey
+	secbootMeasureSnapModelToTPM          = secboot.MeasureSnapModelToTPM
+	secbootMeasureSnapSystemEpochToTPM    = secboot.MeasureSnapSystemEpochToTPM
 )
+
+// TODO:UC20 move the connect methods somehow to our secboot
 
 func secureConnectToTPM(ekcfile string) (*secboot.TPMConnection, error) {
 	ekCertReader, err := os.Open(ekcfile)

@@ -55,6 +55,7 @@ var (
 	SnapRunDir                string
 	SnapRunNsDir              string
 	SnapRunLockDir            string
+	SnapBootstrapRunDir       string
 
 	SnapdStoreSSLCertsDir string
 
@@ -290,6 +291,8 @@ func SetRootDir(rootdir string) {
 	SnapRunDir = filepath.Join(rootdir, "/run/snapd")
 	SnapRunNsDir = filepath.Join(SnapRunDir, "/ns")
 	SnapRunLockDir = filepath.Join(SnapRunDir, "/lock")
+
+	SnapBootstrapRunDir = filepath.Join(SnapRunDir, "snap-bootstrap")
 
 	SnapdStoreSSLCertsDir = filepath.Join(rootdir, snappyDir, "ssl/store-certs")
 
