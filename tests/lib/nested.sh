@@ -10,6 +10,7 @@ ENABLE_SECURE_BOOT=${ENABLE_SECURE_BOOT:-"true"}
 ENABLE_TPM=${ENABLE_TPM:-"true"}
 BUILD_SNAPD_FROM_CURRENT=${BUILD_SNAPD_FROM_CURRENT:-"true"}
 UPDATE_PC_KERNEL=${UPDATE_PC_KERNEL:-"true"}
+CUSTOM_IMAGE_URL=${CUSTOM_IMAGE_URL:-}
 CORE_CHANNEL=${CORE_CHANNEL:-edge}
 PWD=${PWD:-$(pwd)}
 
@@ -410,7 +411,7 @@ start_nested_core_vm(){
         if [ "$ENABLE_SECURE_BOOT" = "true" ]; then
             cp -f /usr/share/OVMF/OVMF_VARS.snakeoil.fd "$WORK_DIR/image/OVMF_VARS.snakeoil.fd"
             PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE.secboot.fd,if=pflash,format=raw,unit=0,readonly=on -drive file=$WORK_DIR/image/OVMF_VARS.snakeoil.fd,if=pflash,format=raw,unit=1"
-            PARAM_MACHINE="-machine ubuntu-q35,accel=kvm -global ICH9-LPC.disable_s3=1 -global ICH9-LPC.disable_s4=1"
+            PARAM_MACHINE="-machine ubuntu-q35,accel=kvm -global ICH9-LPC.disable_s3=1"
         fi
 
         if [ "$ENABLE_TPM" = "true" ]; then
