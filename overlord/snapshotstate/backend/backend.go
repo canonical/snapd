@@ -201,6 +201,7 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 	}
 
 	for _, usr := range users {
+		// TODO: Add support for si.UserAltDataDir
 		if err := addDirToZip(ctx, snapshot, w, usr.Username, userArchiveName(usr), si.UserDataDir(usr.HomeDir)); err != nil {
 			return nil, err
 		}

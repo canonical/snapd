@@ -227,6 +227,7 @@ func (r *Reader) Restore(ctx context.Context, current snap.Revision, usernames [
 				continue
 			}
 
+			// TODO: Add support for si.UserAltDataDir
 			dest = si.UserDataDir(usr.HomeDir)
 			fi, err := os.Stat(usr.HomeDir)
 			if err != nil {

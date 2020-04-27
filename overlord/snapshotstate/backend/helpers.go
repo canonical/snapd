@@ -128,6 +128,7 @@ func usersForUsernames(usernames []string) ([]*user.User, error) {
 }
 
 func allUsers() ([]*user.User, error) {
+	// TODO: support dirs.SnapAltDataHomeGlob
 	ds, err := filepath.Glob(dirs.SnapDataHomeGlob)
 	if err != nil {
 		// can't happen?
