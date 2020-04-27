@@ -84,7 +84,7 @@ func (s *deviceMgrInstallModeSuite) SetUpTest(c *C) {
 	s.state.Set("seeded", true)
 }
 
-func (s *deviceMgrInstallModeSuite) makeMockInstalledPcGadget(c *C, grade string) *asserts.Model {
+func (s *deviceMgrInstallModeSuite) makeMockInstalledPcGadget(c *C, grade, gadgetDefaultsYaml string) *asserts.Model {
 	const (
 		pcSnapID       = "pcididididididididididididididid"
 		pcKernelSnapID = "pckernelidididididididididididid"
@@ -118,7 +118,7 @@ func (s *deviceMgrInstallModeSuite) makeMockInstalledPcGadget(c *C, grade string
 		Active:   true,
 	})
 	snaptest.MockSnapWithFiles(c, "name: pc\ntype: gadget", si, [][]string{
-		{"meta/gadget.yaml", gadgetYaml},
+		{"meta/gadget.yaml", gadgetYaml + gadgetDefaultsYaml},
 	})
 
 	si = &snap.SideInfo{
@@ -198,7 +198,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	defer restore()
 
 	s.state.Lock()
-	mockModel := s.makeMockInstalledPcGadget(c, grade)
+	mockModel := s.makeMockInstalledPcGadget(c, grade, "")
 	s.state.Unlock()
 
 	bypassEncryptionPath := filepath.Join(boot.InitramfsUbuntuSeedDir, ".force-unencrypted")
@@ -293,7 +293,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallTaskErrors(c *C) {
 	defer restore()
 
 	s.state.Lock()
-	s.makeMockInstalledPcGadget(c, "dangerous")
+	s.makeMockInstalledPcGadget(c, "dangerous", "")
 	devicestate.SetSystemMode(s.mgr, "install")
 	s.state.Unlock()
 
@@ -395,7 +395,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallSecuredBypassEncryption(c *C) {
 	c.Assert(err, ErrorMatches, "(?s).*cannot encrypt secured device: TPM not available.*")
 }
 
-func (s *deviceMgrInstallModeSuite) mockInstallModeChange(c *C, modelGrade string) *asserts.Model {
+func (s *deviceMgrInstallModeSuite) mockInstallModeChange(c *C, modelGrade, gadgetDefaultsYaml string) *asserts.Model {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
@@ -405,7 +405,7 @@ func (s *deviceMgrInstallModeSuite) mockInstallModeChange(c *C, modelGrade strin
 	defer restore()
 
 	s.state.Lock()
-	mockModel := s.makeMockInstalledPcGadget(c, modelGrade)
+	mockModel := s.makeMockInstalledPcGadget(c, modelGrade, gadgetDefaultsYaml)
 	s.state.Unlock()
 	c.Check(mockModel.Grade(), Equals, asserts.ModelGrade(modelGrade))
 
@@ -431,7 +431,7 @@ func (s *deviceMgrInstallModeSuite) mockInstallModeChange(c *C, modelGrade strin
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallModeRunSysconfig(c *C) {
-	s.mockInstallModeChange(c, "dangerous")
+	s.mockInstallModeChange(c, "dangerous", "")
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -452,7 +452,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeRunSysconfig(c *C) {
 
 func (s *deviceMgrInstallModeSuite) TestInstallModeRunSysconfigErr(c *C) {
 	s.configureRunSystemErr = fmt.Errorf("error from sysconfig.ConfigureRunSystem")
-	s.mockInstallModeChange(c, "dangerous")
+	s.mockInstallModeChange(c, "dangerous", "")
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -477,7 +477,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeSupportsCloudInitInDangerous(
 		c.Assert(err, IsNil)
 	}
 
-	s.mockInstallModeChange(c, "dangerous")
+	s.mockInstallModeChange(c, "dangerous", "")
 
 	// and did tell sysconfig about the cloud-init files
 	c.Assert(s.configureRunSystemOptsPassed, DeepEquals, []*sysconfig.Options{
@@ -499,7 +499,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeNoCloudInitForSigned(c *C) {
 	}
 
 	// but it is signed
-	s.mockInstallModeChange(c, "signed")
+	s.mockInstallModeChange(c, "signed", "")
 
 	// so no cloud-init src dir is passed
 	c.Assert(s.configureRunSystemOptsPassed, DeepEquals, []*sysconfig.Options{
@@ -523,7 +523,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeSupportsCloudInitFromGadget(c
 	}
 
 	// cloud init config from gadget works for signed models too
-	s.mockInstallModeChange(c, "signed")
+	s.mockInstallModeChange(c, "signed", "")
 
 	// and did tell sysconfig about the cloud-init files
 	c.Assert(s.configureRunSystemOptsPassed, DeepEquals, []*sysconfig.Options{
@@ -534,9 +534,61 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeSupportsCloudInitFromGadget(c
 	})
 }
 
+func (s *deviceMgrInstallModeSuite) TestInstallModeAppliesEarlyDefaultsFromGadget(c *C) {
+	const gadgetDefaults = `
+defaults:
+  system:
+    service:
+      rsyslog.disable: true
+      ssh.disable: true
+    journal.persistent: true
+`
+
+	rsyslogServiceFile := filepath.Join(boot.InitramfsWritableDir, "_writable_defaults/etc/systemd/system/rsyslog.service")
+	journalPath := filepath.Join(boot.InitramfsWritableDir, "_writable_defaults/var/log/journal")
+	sshDontRunFile := filepath.Join(boot.InitramfsWritableDir, "_writable_defaults/etc/ssh/sshd_not_to_be_run")
+
+	// sanity
+	c.Check(osutil.FileExists(rsyslogServiceFile), Equals, false)
+	c.Check(osutil.FileExists(sshDontRunFile), Equals, false)
+	exists, _, _ := osutil.DirExists(journalPath)
+	c.Check(exists, Equals, false)
+
+	s.mockInstallModeChange(c, "signed", gadgetDefaults)
+
+	c.Check(osutil.FileExists(rsyslogServiceFile), Equals, true)
+	c.Check(osutil.IsSymlink(rsyslogServiceFile), Equals, true)
+	c.Check(osutil.FileExists(sshDontRunFile), Equals, true)
+	exists, _, _ = osutil.DirExists(journalPath)
+	c.Check(exists, Equals, true)
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallModeEarlyDefaultsFromGadgetInvalid(c *C) {
+	const gadgetDefaults = `
+defaults:
+  system:
+    service:
+      rsyslog:
+        disable: foo
+`
+
+	s.mockInstallModeChange(c, "signed", gadgetDefaults)
+
+	path := filepath.Join(boot.InitramfsWritableDir, "_writable_defaults/etc/systemd/system/rsyslog.service")
+	c.Check(osutil.FileExists(path), Equals, false)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// install failed due to invalid defaults
+	installSystem := s.findInstallSystem()
+	c.Assert(installSystem, NotNil)
+	c.Check(installSystem.Err(), ErrorMatches, `.*\n.*Setup system for run mode \(option "rsyslog.service" has invalid value "foo".*`)
+}
+
 func (s *deviceMgrInstallModeSuite) TestInstallModeWritesModel(c *C) {
 	// pretend we have a cloud-init config on the seed partition
-	model := s.mockInstallModeChange(c, "dangerous")
+	model := s.mockInstallModeChange(c, "dangerous", "")
 
 	var buf bytes.Buffer
 	err := asserts.NewEncoder(&buf).Encode(model)

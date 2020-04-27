@@ -30,6 +30,7 @@ import (
 	// snap-bootstrap/bootstrap|partition into gadget or
 	// subpackages there cleanly
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/bootstrap"
+	"github.com/snapcore/snapd/gadget"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
@@ -47,6 +48,10 @@ var (
 	sysconfigConfigureRunSystem = sysconfig.ConfigureRunSystem
 	bootstrapRun                = bootstrap.Run
 )
+
+var ConfigcoreFilesystemOnlyApply = func(rootDir string, defaults map[string]interface{}) error {
+	panic("configcoreFilesystemOnlyApply not set")
+}
 
 func setSysconfigCloudOptions(opts *sysconfig.Options, gadgetDir string, model *asserts.Model) {
 	// TODO: Decide what to do when both gadget and ubuntu-seed have
@@ -156,6 +161,19 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	setSysconfigCloudOptions(opts, gadgetDir, deviceCtx.Model())
 	if err := sysconfigConfigureRunSystem(opts); err != nil {
 		return err
+	}
+
+	// early config
+	ginf, err := gadget.ReadInfo(gadgetDir, nil)
+	if err != nil {
+		return err
+	}
+	defaults := gadget.SystemDefaults(ginf.Defaults)
+	if len(defaults) > 0 {
+		defaultsDir := filepath.Join(boot.InitramfsWritableDir, "_writable_defaults")
+		if err := ConfigcoreFilesystemOnlyApply(defaultsDir, defaults); err != nil {
+			return err
+		}
 	}
 
 	// make it bootable

@@ -23,6 +23,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/devicestate"
 )
 
 type configHandler interface {
@@ -80,6 +81,10 @@ func init() {
 
 	// journal.persistent
 	addFSOnlyHandler(validateJournalSettings, handleJournalConfiguration, coreOnly)
+
+	devicestate.ConfigcoreFilesystemOnlyApply = func(rootDir string, defaults map[string]interface{}) error {
+		return FilesystemOnlyApply(rootDir, PlainCoreConfig(defaults), nil)
+	}
 }
 
 // addFSOnlyHandler registers functions to validate and handle a subset of
