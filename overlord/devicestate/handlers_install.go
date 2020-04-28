@@ -22,10 +22,14 @@ package devicestate
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 
 	"gopkg.in/tomb.v2"
+
+	// TODO:UC20 look into merging
+	// snap-bootstrap/bootstrap|partition into gadget or
+	// subpackages there cleanly
+	"github.com/snapcore/snapd/cmd/snap-bootstrap/bootstrap"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
@@ -41,7 +45,33 @@ import (
 var (
 	bootMakeBootable            = boot.MakeBootable
 	sysconfigConfigureRunSystem = sysconfig.ConfigureRunSystem
+	bootstrapRun                = bootstrap.Run
 )
+
+func setSysconfigCloudOptions(opts *sysconfig.Options, gadgetDir string, model *asserts.Model) {
+	// TODO: Decide what to do when both gadget and ubuntu-seed have
+	//       cloud.cfg.d/ directories.
+
+	// 1. check cloud.cfg.d in the gadget snap, this is always ok regardless
+	//    of grade
+	cloudCfg := filepath.Join(gadgetDir, "cloud.cfg.d")
+	if osutil.IsDirectory(cloudCfg) {
+		opts.CloudInitSrcDir = cloudCfg
+		return
+	}
+
+	// 2. check cloud.cfg.d on the ubuntu-seed partition
+	//
+	// Support custom cloud.cfg.d/*.cfg files on the ubuntu-seed partition
+	// during install when in grade "dangerous".
+	//
+	// XXX: maybe move policy decision into configureRunSystem later?
+	cloudCfg = filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d")
+	if osutil.IsDirectory(cloudCfg) && model.Grade() == asserts.ModelDangerous {
+		opts.CloudInitSrcDir = cloudCfg
+		return
+	}
+}
 
 func writeModel(model *asserts.Model, where string) error {
 	f, err := os.OpenFile(where, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
@@ -77,45 +107,41 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 	kernelDir := kernelInfo.MountDir()
 
-	args := []string{
-		// create partitions missing from the device
-		"create-partitions",
-		// mount filesystems after they're created
-		"--mount",
+	// bootstrap
+	bopts := bootstrap.Options{
+		Mount: true,
 	}
-
 	useEncryption, err := checkEncryption(deviceCtx.Model())
 	if err != nil {
 		return err
 	}
 	if useEncryption {
 		fdeDir := "var/lib/snapd/device/fde"
-		args = append(args,
-			// enable data encryption
-			"--encrypt",
-			// location to store the keyfile
-			"--key-file", filepath.Join(boot.InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key"),
-			// location to store the recovery keyfile
-			"--recovery-key-file", filepath.Join(boot.InitramfsWritableDir, fdeDir, "recovery.key"),
-			// location to store the recovery keyfile
-			"--tpm-lockout-auth", filepath.Join(boot.InitramfsWritableDir, fdeDir, "tpm-lockout-auth"),
-			// location to store the authorization policy update data
-			"--policy-update-data-file", filepath.Join(boot.InitramfsWritableDir, fdeDir, "policy-update-data"),
-			// path to the kernel to install
-			"--kernel", filepath.Join(kernelDir, "kernel.efi"),
-		)
+		// ensure directories
+		for _, p := range []string{boot.InitramfsEncryptionKeyDir, filepath.Join(boot.InitramfsWritableDir, fdeDir)} {
+			if err := os.MkdirAll(p, 0755); err != nil {
+				return err
+			}
+		}
+
+		bopts.Encrypt = true
+		bopts.KeyFile = filepath.Join(boot.InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key")
+		bopts.RecoveryKeyFile = filepath.Join(boot.InitramfsWritableDir, fdeDir, "recovery.key")
+		bopts.TPMLockoutAuthFile = filepath.Join(boot.InitramfsWritableDir, fdeDir, "tpm-lockout-auth")
+		bopts.PolicyUpdateDataFile = filepath.Join(boot.InitramfsWritableDir, fdeDir, "policy-update-data")
+		bopts.KernelPath = filepath.Join(kernelDir, "kernel.efi")
+		bopts.Model = deviceCtx.Model()
 	}
-	args = append(args, gadgetDir)
 
 	// run the create partition code
 	logger.Noticef("create and deploy partitions")
-	st.Unlock()
-	cmd := exec.Command(filepath.Join(dirs.DistroLibExecDir, "snap-bootstrap"), args...)
-	cmd.Stderr = os.Stderr
-	output, err := cmd.Output()
-	st.Lock()
+	func() {
+		st.Unlock()
+		defer st.Lock()
+		err = bootstrapRun(gadgetDir, "", bopts)
+	}()
 	if err != nil {
-		return fmt.Errorf("cannot create partitions: %v", osutil.OutputErr(output, err))
+		return fmt.Errorf("cannot create partitions: %v", err)
 	}
 
 	// keep track of the model we installed
@@ -126,15 +152,8 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 
 	// configure the run system
 	opts := &sysconfig.Options{TargetRootDir: boot.InitramfsWritableDir}
-	cloudCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d")
-	// Support custom cloud.cfg.d/*.cfg files on the ubuntu-seed partition
-	// during install when in grade "dangerous". We will support configs
-	// from the gadget later too, see sysconfig/cloudinit.go
-	//
-	// XXX: maybe move policy decision into configureRunSystem later?
-	if osutil.IsDirectory(cloudCfg) && deviceCtx.Model().Grade() == asserts.ModelDangerous {
-		opts.CloudInitSrcDir = cloudCfg
-	}
+	// configure cloud init
+	setSysconfigCloudOptions(opts, gadgetDir, deviceCtx.Model())
 	if err := sysconfigConfigureRunSystem(opts); err != nil {
 		return err
 	}
