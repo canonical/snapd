@@ -659,6 +659,7 @@ pkg_dependencies_ubuntu_classic(){
                 eatmydata
                 evolution-data-server
                 fwupd
+                libc6-dev-i386
                 net-tools
                 packagekit
                 sbuild

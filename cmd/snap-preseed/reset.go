@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"
+	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 )
 
 func resetPreseededChroot(preseedChroot string) error {
@@ -61,7 +62,8 @@ func resetPreseededChroot(preseedChroot string) error {
 	globs = []string{
 		filepath.Join(dirs.SnapDataDir, "*"),
 		filepath.Join(dirs.SnapCacheDir, "*"),
-		filepath.Join(dirs.AppArmorCacheDir, "*"),
+		filepath.Join(apparmor_sandbox.CacheDir, "*"),
+		filepath.Join(dirs.SnapDesktopFilesDir, "*"),
 	}
 
 	for _, gl := range globs {
@@ -81,7 +83,6 @@ func resetPreseededChroot(preseedChroot string) error {
 	paths := []string{
 		dirs.SnapAssertsDBDir,
 		dirs.FeaturesDir,
-		dirs.SnapDesktopFilesDir,
 		dirs.SnapDesktopIconsDir,
 		dirs.SnapDeviceDir,
 		dirs.SnapCookieDir,

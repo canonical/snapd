@@ -21,6 +21,7 @@ package configcore
 
 import (
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -51,6 +52,10 @@ func updateWatchdogConfig(config map[string]uint, opts *fsOnlyContext) error {
 		}
 	}
 	if len(configStr) > 0 {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return err
+		}
+
 		// We order the variables to have predictable output
 		sort.Strings(configStr)
 		content := "[Manager]\n" + strings.Join(configStr, "")

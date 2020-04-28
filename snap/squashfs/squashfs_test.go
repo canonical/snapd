@@ -47,6 +47,7 @@ func Test(t *testing.T) { TestingT(t) }
 
 type SquashfsTestSuite struct {
 	oldStdout, oldStderr, outf *os.File
+	testutil.BaseTest
 }
 
 var _ = Suite(&SquashfsTestSuite{})
@@ -109,6 +110,9 @@ func (s *SquashfsTestSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(d)
 	err := os.Chdir(d)
 	c.Assert(err, IsNil)
+
+	restore := osutil.MockMountInfo("")
+	s.AddCleanup(restore)
 
 	s.outf, err = ioutil.TempFile(c.MkDir(), "")
 	c.Assert(err, IsNil)

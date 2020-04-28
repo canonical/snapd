@@ -123,13 +123,15 @@ func checkExtendedSnaps(extendedSnaps interface{}, base string, grade ModelGrade
 		if seen[modelSnap.Name] {
 			return nil, fmt.Errorf("cannot list the same snap %q multiple times", modelSnap.Name)
 		}
+		seen[modelSnap.Name] = true
 		// at this time we do not support parallel installing
 		// from model/seed
-		if underName := seenIDs[modelSnap.SnapID]; underName != "" {
-			return nil, fmt.Errorf("cannot specify the same snap id %q multiple times, specified for snaps %q and %q", modelSnap.SnapID, underName, modelSnap.Name)
+		if snapID := modelSnap.SnapID; snapID != "" {
+			if underName := seenIDs[snapID]; underName != "" {
+				return nil, fmt.Errorf("cannot specify the same snap id %q multiple times, specified for snaps %q and %q", snapID, underName, modelSnap.Name)
+			}
+			seenIDs[snapID] = modelSnap.Name
 		}
-		seen[modelSnap.Name] = true
-		seenIDs[modelSnap.SnapID] = modelSnap.Name
 
 		essential := false
 		switch {
@@ -208,10 +210,10 @@ func checkModelSnap(snap map[string]interface{}, grade ModelGrade) (*ModelSnap, 
 			return nil, err
 		}
 	} else {
-		// snap ids are optional with grade unstable to allow working
+		// snap ids are optional with grade dangerous to allow working
 		// with local/not pushed yet to the store snaps
 		if grade != ModelDangerous {
-			return nil, fmt.Errorf(`"id" %s is mandatory for stable model`, what)
+			return nil, fmt.Errorf(`"id" %s is mandatory for %s grade model`, what, grade)
 		}
 	}
 
@@ -338,6 +340,27 @@ const (
 )
 
 var validModelGrades = []string{string(ModelSecured), string(ModelSigned), string(ModelDangerous)}
+
+// gradeToCode encodes grades into 32 bits, trying to be slightly future-proof:
+// * lower 16 bits are reserved
+// * in the higher bits use the sequence 1, 8, 16 to have some space
+//   to possibly add new grades in between
+var gradeToCode = map[ModelGrade]uint32{
+	ModelGradeUnset: 0,
+	ModelDangerous:  0x10000,
+	ModelSigned:     0x80000,
+	ModelSecured:    0x100000,
+}
+
+// Code returns a bit representation of the grade, for example for
+// measuring it in a full disk encryption implementation.
+func (mg ModelGrade) Code() uint32 {
+	code, ok := gradeToCode[mg]
+	if !ok {
+		panic(fmt.Sprintf("unknown model grade: %s", mg))
+	}
+	return code
+}
 
 // Model holds a model assertion, which is a statement by a brand
 // about the properties of a device model.

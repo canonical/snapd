@@ -101,13 +101,13 @@ type SnapBootSelect_v1 struct {
 	 * Second column represents name currently installed kernel snap
 	 *   e.g. pi2-kernel_123.snap
 	 * initial value representing initial kernel snap revision
-	 *   is pupulated at image build time by snapd
+	 *   is populated at image build time by snapd
 	 *
 	 * There are two rows in the matrix, representing current and previous kernel revision
 	 * following describes how this matrix should be modified at different stages:
 	 *  - at image build time:
 	 *    - extracted kernel snap revision name should be filled
-	 *      into free slow (first row, second row)
+	 *      into free slot (first row, second column)
 	 *  - snapd:
 	 *    - when new kernel snap revision is being installed, snapd cycles through
 	 *      matrix to find unused 'boot slot' to be used for new kernel snap revision
@@ -116,7 +116,7 @@ type SnapBootSelect_v1 struct {
 	 *      kernel snap revision name.
 	 *    - snap_mode, snap_try_kernel, snap_try_core behaves same way as with u-boot
 	 *  - bootloader:
-	 *    - bootloader reads snap_mode to determine if snap_kernel or snap_kernel is used
+	 *    - bootloader reads snap_mode to determine if snap_kernel or snap_try_kernel is used
 	 *      to get kernel snap revision name
 	 *      kernel snap revision is then used to search matrix to determine
 	 *      partition label to be used for current boot
@@ -210,7 +210,6 @@ func copyString(b []byte, s string) {
 }
 
 func NewEnv(path string) *Env {
-	// osutil.FileExists(path + "bak")
 	return &Env{
 		path:    path,
 		pathbak: path + "bak",
