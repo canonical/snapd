@@ -512,6 +512,9 @@ mmap_read_files_pattern(snappy_mount_t, tmpfs_t, tmpfs_t)
 # were mounted from the host when updating the ns
 fs_remount_xattr_fs(snappy_mount_t)
 
+# for centos 8: statically linked snap-update-ns loads libcrypto.so.
+allow snappy_mount_t snappy_snap_t:file { execute map };
+
 ########################################
 #
 # snap-confine local policy
