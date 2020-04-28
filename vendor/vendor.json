@@ -31,13 +31,6 @@
 			"revisionTime": "2018-05-11T13:34:05Z"
 		},
 		{
-			"checksumSHA1": "wHGa5uteRxMMSHJLQZtcBpIIUcw=",
-			"origin": "github.com/chrisccoulson/pkcs7",
-			"path": "github.com/fullsailor/pkcs7",
-			"revision": "9d98ea9f9bc8b4feee8f0d7c5ef8179f85f0e237",
-			"revisionTime": "2019-09-06T18:49:57Z"
-		},
-		{
 			"checksumSHA1": "qwK75TRXmR/k8CiegYaeqaCDek4=",
 			"path": "github.com/godbus/dbus",
 			"revision": "4481cbc300e2df0c0b3cecc18b6c16c6c0bb885d",
@@ -117,10 +110,10 @@
 			"revisionTime": "2017-09-28T14:21:59Z"
 		},
 		{
-			"checksumSHA1": "WAeGpLSmxzsvaPLq7CTVjm+qvqE=",
+			"checksumSHA1": "c2bOBuITu1Zxobb14iqfp7+UwtQ=",
 			"path": "github.com/snapcore/secboot",
-			"revision": "dd1d2c4169dcd173a0397a63d569d6e15e5f7644",
-			"revisionTime": "2020-04-16T07:09:07Z"
+			"revision": "599a99325f1f87aed32be5f7d1e47508c77734a1",
+			"revisionTime": "2020-04-22T19:11:46Z"
 		},
 		{
 			"checksumSHA1": "3AmEm18mKj8XxBuru/ix4OOpRkE=",
@@ -128,6 +121,12 @@
 			"revision": "319f6d41a0419465a55d9dcb848d2408b97764f9",
 			"revisionTime": "2017-12-20T16:53:23Z",
 			"tree": true
+		},
+		{
+			"checksumSHA1": "/mphxOFx5uIoQCnt6YtFmmPDBao=",
+			"path": "go.mozilla.org/pkcs7",
+			"revision": "432b2356ecb18209c1cec25680b8a23632794f21",
+			"revisionTime": "2020-01-28T12:03:23Z"
 		},
 		{
 			"checksumSHA1": "TT1rac6kpQp2vz24m5yDGUNQ/QQ=",
@@ -202,7 +201,7 @@
 			"revisionTime": "2017-06-28T23:42:41Z"
 		},
 		{
-			"checksumSHA1": "U4ZQCRcFfuKZvLIUmB1kXgWSd9U=",
+			"checksumSHA1": "kohbRG3D0CRhcgwH6z7YQ6uq1xo=",
 			"path": "golang.org/x/sys/unix",
 			"revision": "e3b113bbe6a423737ae98f42118ce9366e112e12",
 			"revisionTime": "2020-04-06T14:27:27Z"
