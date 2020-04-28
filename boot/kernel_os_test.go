@@ -491,9 +491,9 @@ func (s *ubootSuite) forceUC20UbootBootloader(c *C) {
 	c.Assert(err, IsNil)
 
 	// in reality for uc20, we will bind mount <ubuntu-boot>/uboot/ubuntu/ onto
-	// /boot/uboot, so to emulate this at runtime for the tests, just set
-	// put files into "/uboot" under bootdir for the test to see things that
-	// on disk are at "/uboot/ubuntu" as /boot/uboot/
+	// /boot/uboot, so to emulate this at runtime for the tests, just put files
+	// into "/uboot" under bootdir for the test to see things that on disk are
+	// at "/uboot/ubuntu" as "/boot/uboot/"
 
 	fn := filepath.Join(dirs.GlobalRootDir, "/uboot/ubuntu/boot.sel")
 	c.Assert(osutil.FileExists(fn), Equals, true)
