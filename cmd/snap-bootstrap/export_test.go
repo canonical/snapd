@@ -75,65 +75,15 @@ func MockDefaultMarkerFile(p string) (restore func()) {
 	}
 }
 
-var (
-	UnlockIfEncrypted = unlockIfEncrypted
-)
-
-/*
-func MockSecbootConnectToDefaultTPM(f func() (*secboot.TPMConnection, error)) (restore func()) {
-	old := secbootConnectToDefaultTPM
-	secbootConnectToDefaultTPM = f
+func MockSecbootUnlockIfEncrypted(f func(name string, lockKeysOnFinish bool) (string, error)) (restore func()) {
+	old := secbootUnlockIfEncrypted
+	secbootUnlockIfEncrypted = f
 	return func() {
-		secbootConnectToDefaultTPM = old
-	}
-}
-*/
-
-func MockSecbootInsecureConnect(f func() (*secboot.TPM, error)) (restore func()) {
-	old := secbootInsecureConnect
-	secbootInsecureConnect = f
-	return func() {
-		secbootInsecureConnect = old
-	}
-}
-
-func MockSecbootLockAccessToSealedKeys(f func(tpm *secboot.TPM) error) (restore func()) {
-	old := secbootLockAccessToSealedKeys
-	secbootLockAccessToSealedKeys = f
-	return func() {
-		secbootLockAccessToSealedKeys = old
-	}
-}
-
-func MockSecbootUnlockEncryptedPartition(f func(t *secboot.TPM, name, device, keyfile, pinfile string, lock bool) error) (restore func()) {
-	old := secbootUnlockEncryptedPartition
-	secbootUnlockEncryptedPartition = f
-	return func() {
-		secbootUnlockEncryptedPartition = old
+		secbootUnlockIfEncrypted = old
 	}
 }
 
 /*
-func MockSecbootSecureConnectToDefaultTPM(f func(ekCertDataReader io.Reader,
-	endorsementAuth []byte) (*secboot.TPMConnection, error)) (restore func()) {
-	old := secbootSecureConnectToDefaultTPM
-	secbootSecureConnectToDefaultTPM = f
-	return func() {
-		secbootSecureConnectToDefaultTPM = old
-	}
-}
-*/
-
-/*
-func MockSecbootActivateVolumeWithTPMSealedKey(f func(tpm *secboot.TPMConnection, volumeName, sourceDevicePath, keyPath string, pinReader io.Reader, options *secboot.ActivateWithTPMSealedKeyOptions) (bool, error)) (restore func()) {
-	old := secbootActivateVolumeWithTPMSealedKey
-	secbootActivateVolumeWithTPMSealedKey = f
-	return func() {
-		secbootActivateVolumeWithTPMSealedKey = old
-	}
-}
-*/
-
 func MockDevDiskByLabelDir(new string) (restore func()) {
 	old := devDiskByLabelDir
 	devDiskByLabelDir = new
@@ -141,6 +91,7 @@ func MockDevDiskByLabelDir(new string) (restore func()) {
 		devDiskByLabelDir = old
 	}
 }
+*/
 
 func MockSecbootMeasureEpoch(f func(tpm *secboot.TPM) error) (restore func()) {
 	old := secbootMeasureEpoch

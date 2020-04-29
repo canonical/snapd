@@ -29,7 +29,6 @@ import (
 	"syscall"
 
 	"github.com/jessevdk/go-flags"
-	"golang.org/x/xerrors"
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
@@ -71,11 +70,6 @@ var (
 
 var (
 	osutilIsMounted = osutil.IsMounted
-)
-
-var (
-	// for mocking by tests
-	devDiskByLabelDir = "/dev/disk/by-label"
 )
 
 // generateMountsMode* is called multiple times from initramfs until it
@@ -211,8 +205,10 @@ func generateMountsModeRecover(mst initramfsMountsState, recoverySystem string) 
 }
 
 var (
-	secbootMeasureEpoch = secboot.MeasureEpoch
-	secbootMeasureModel = secboot.MeasureModel
+	secbootMeasureEpoch        = secboot.MeasureEpoch
+	secbootMeasureModel        = secboot.MeasureModel
+	secbootMeasureWhenPossible = secboot.MeasureWhenPossible
+	secbootUnlockIfEncrypted   = secboot.UnlockIfEncrypted
 )
 
 func generateMountsCommonInstallRecover(mst initramfsMountsState, recoverySystem string) (allMounted bool, err error) {
@@ -228,7 +224,7 @@ func generateMountsCommonInstallRecover(mst initramfsMountsState, recoverySystem
 
 	// 1a. measure model
 	err = stampedAction(fmt.Sprintf("%s-model-measured", recoverySystem), func() error {
-		return measureWhenPossible(func(tpm *secboot.TPM) error {
+		return secbootMeasureWhenPossible(func(tpm *secboot.TPM) error {
 			model, err := mst.Model()
 			if err != nil {
 				return err
@@ -299,23 +295,6 @@ func generateMountsCommonInstallRecover(mst initramfsMountsState, recoverySystem
 	return true, nil
 }
 
-func measureWhenPossible(whatHow func(t *secboot.TPM) error) error {
-	// the model is ready, we're good to try measuring it now
-	t, err := secbootInsecureConnect()
-	if err != nil {
-		var perr *os.PathError
-		// XXX: xerrors.Is() does not work with PathErrors?
-		if xerrors.As(err, &perr) {
-			// no TPM
-			return nil
-		}
-		return fmt.Errorf("cannot open TPM connection: %v", err)
-	}
-	defer t.Disconnect()
-
-	return whatHow(t)
-}
-
 func generateMountsModeRun(mst initramfsMountsState) error {
 	// 1.1 always ensure basic partitions are mounted
 	for _, d := range []string{boot.InitramfsUbuntuBootDir, boot.InitramfsUbuntuSeedDir} {
@@ -333,7 +312,7 @@ func generateMountsModeRun(mst initramfsMountsState) error {
 
 	// 1.1a measure model
 	err := stampedAction("run-model-measured", func() error {
-		return measureWhenPossible(func(tpm *secboot.TPM) error {
+		return secbootMeasureWhenPossible(func(tpm *secboot.TPM) error {
 			model, err := mst.UnverifiedBootModel()
 			if err != nil {
 				return err
@@ -354,7 +333,7 @@ func generateMountsModeRun(mst initramfsMountsState) error {
 	}
 	if !isDataMounted {
 		const lockKeysForLast = true
-		device, err := unlockIfEncrypted("ubuntu-data", lockKeysForLast)
+		device, err := secbootUnlockIfEncrypted("ubuntu-data", lockKeysForLast)
 		if err != nil {
 			return err
 		}
@@ -551,7 +530,7 @@ func stampedAction(stamp string, action func() error) error {
 func generateInitramfsMounts() error {
 	// Ensure there is a very early initial measurement
 	err := stampedAction("secboot-epoch-measured", func() error {
-		return measureWhenPossible(secbootMeasureEpoch)
+		return secbootMeasureWhenPossible(secbootMeasureEpoch)
 	})
 	if err != nil {
 		return err
@@ -576,79 +555,4 @@ func generateInitramfsMounts() error {
 	}
 	// this should never be reached
 	return fmt.Errorf("internal error: mode in generateInitramfsMounts not handled")
-}
-
-var (
-	secbootInsecureConnect          = secboot.InsecureConnect
-	secbootLockAccessToSealedKeys   = secboot.LockAccessToSealedKeys
-	secbootUnlockEncryptedPartition = secboot.UnlockEncryptedPartition
-)
-
-func isDeviceEncrypted(name string) (ok bool, encdev string) {
-	encdev = filepath.Join(devDiskByLabelDir, name+"-enc")
-	if osutil.FileExists(encdev) {
-		return true, encdev
-	}
-	return false, ""
-}
-
-// unlockIfEncrypted verifies whether an encrypted volume with the specified
-// name exists and unlocks it. With lockKeysOnFinish set, access to the sealed
-// keys will be locked when this function completes. The path to the unencrypted
-// device node is returned.
-func unlockIfEncrypted(name string, lockKeysOnFinish bool) (string, error) {
-	device := filepath.Join(devDiskByLabelDir, name)
-
-	// TODO:UC20: use SecureConnect if we decide there's benefit in doing that or we
-	//            have a hard requirement for a valid EK cert chain for every boot (ie, panic
-	//            if there isn't one). But we can't do that as long as we need to download
-	//            intermediate certs from the manufacturer.
-	tpm, tpmErr := secbootInsecureConnect()
-	if tpmErr != nil {
-		logger.Noticef("cannot open TPM connection: %v", tpmErr)
-	} else {
-		defer tpm.Disconnect()
-	}
-
-	var lockErr error
-	err := func() error {
-		defer func() {
-			// TODO:UC20: we might want some better error handling here - eg, if tpmErr is a
-			//            *os.PathError returned from go-tpm2 then this is an indicator that there
-			//            is no TPM device. But other errors probably shouldn't be ignored.
-			if lockKeysOnFinish && tpmErr == nil {
-				// Lock access to the sealed keys. This should be called whenever there
-				// is a TPM device detected, regardless of whether secure boot is enabled
-				// or there is an encrypted volume to unlock. Note that snap-bootstrap can
-				// be called several times during initialization, and if there are multiple
-				// volumes to unlock we should lock access to the sealed keys only after
-				// the last encrypted volume is unlocked, in which case lockKeysOnFinish
-				// should be set to true.
-				lockErr = secbootLockAccessToSealedKeys(tpm)
-			}
-		}()
-
-		ok, encdev := isDeviceEncrypted(name)
-		if !ok {
-			return nil
-		}
-
-		if tpmErr != nil {
-			return fmt.Errorf("cannot unlock encrypted device %q: %v", name, tpmErr)
-		}
-		// TODO:UC20: snap-bootstrap should validate that <name>-enc is what
-		//            we expect (and not e.g. an external disk), and also that
-		//            <name> is from <name>-enc and not an unencrypted partition
-		//            with the same name (LP #1863886)
-		sealedKeyPath := filepath.Join(boot.InitramfsEncryptionKeyDir, name+".sealed-key")
-		return secbootUnlockEncryptedPartition(tpm, name, encdev, sealedKeyPath, "", lockKeysOnFinish)
-	}()
-	if err != nil {
-		return "", err
-	}
-	if lockErr != nil {
-		return "", fmt.Errorf("cannot lock access to sealed keys: %v", lockErr)
-	}
-
-	return device, nil
 }

@@ -78,6 +78,14 @@ func MockSbSealKeyToTPM(f func(tpm *sb.TPMConnection, key []byte, keyPath, polic
 	}
 }
 
+func MockSbLockAccessToSealedKeys(f func(tpm *sb.TPMConnection) error) (restore func()) {
+	old := sbLockAccessToSealedKeys
+	sbLockAccessToSealedKeys = f
+	return func() {
+		sbLockAccessToSealedKeys = old
+	}
+}
+
 func MockSbActivateVolumeWithTPMSealedKey(f func(tpm *sb.TPMConnection, volumeName, sourceDevicePath, keyPath string,
 	pinReader io.Reader, options *sb.ActivateWithTPMSealedKeyOptions) (bool, error)) (restore func()) {
 	old := sbActivateVolumeWithTPMSealedKey
@@ -100,5 +108,13 @@ func MockSbMeasureSnapModelToTPM(f func(tpm *sb.TPMConnection, pcrIndex int, mod
 	sbMeasureSnapModelToTPM = f
 	return func() {
 		sbMeasureSnapModelToTPM = old
+	}
+}
+
+func MockDevDiskByLabelDir(new string) (restore func()) {
+	old := devDiskByLabelDir
+	devDiskByLabelDir = new
+	return func() {
+		devDiskByLabelDir = old
 	}
 }
