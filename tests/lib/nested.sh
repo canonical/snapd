@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -x
+
 # Define where helpers are stored to support scenario when the this script is used
 # to manage vms from other projects
 SCRIPTPATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -11,7 +13,8 @@ ENABLE_TPM=${ENABLE_TPM:-"true"}
 BUILD_SNAPD_FROM_CURRENT=${BUILD_SNAPD_FROM_CURRENT:-"true"}
 UPDATE_PC_KERNEL=${UPDATE_PC_KERNEL:-"true"}
 CUSTOM_IMAGE_URL=${CUSTOM_IMAGE_URL:-}
-CORE_CHANNEL=${CORE_CHANNEL:-edge}
+BUILD_NEW_IMAGE=${BUILD_NEW_IMAGE:-"false"}
+CORE_CHANNEL=${CORE_CHANNEL:-"edge"}
 PWD=${PWD:-$(pwd)}
 
 WORK_DIR=${WORK_DIR:-"/tmp/work-dir"}
@@ -24,7 +27,7 @@ NESTED_SMP=${NESTED_SMP:-"1"}
 NESTED_MEM=${NESTED_MEM:-"4096"}
 
 # Define defaults for environment variables
-SPREAD_SYSTEM=${SPREAD_SYSTEM:-"$(lsb_release -is | tr '[:upper:]' '[:lower:]')-$(lsb_release -rs)-64" }
+SPREAD_SYSTEM=${SPREAD_SYSTEM:-"$(lsb_release -is | tr '[:upper:]' '[:lower:]')-$(lsb_release -rs)-64"}
 SPREAD_BACKEND=${SPREAD_BACKEND:-"google"}
 
 # shellcheck source=tests/lib/systemd.sh
@@ -223,6 +226,10 @@ cleanup_nested_env(){
 }
 
 create_nested_core_vm(){
+    if [ "$BUILD_NEW_IMAGE" = "true" ]; then
+        rm -rf "$WORK_DIR/image"
+    fi
+
     mkdir -p "$WORK_DIR/image"
     if [ ! -f "$WORK_DIR/image/ubuntu-core.img" ]; then
 
@@ -241,30 +248,30 @@ create_nested_core_vm(){
 
             local NESTED_MODEL=""
             case "$SPREAD_SYSTEM" in
-            ubuntu-16.04-64)
-                NESTED_MODEL="$TESTSLIB/assertions/nested-amd64.model"
-                ;;
-            ubuntu-18.04-64)
-                NESTED_MODEL="$TESTSLIB/assertions/nested-18-amd64.model"
-                ;;
-            ubuntu-20.04-64)
-                NESTED_MODEL="$TESTSLIB/assertions/nested-20-amd64.model"
+                ubuntu-16.04-64)
+                    NESTED_MODEL="$TESTSLIB/assertions/nested-amd64.model"
+                    ;;
+                ubuntu-18.04-64)
+                    NESTED_MODEL="$TESTSLIB/assertions/nested-18-amd64.model"
+                    ;;
+                ubuntu-20.04-64)
+                    NESTED_MODEL="$TESTSLIB/assertions/nested-20-amd64.model"
 
-                if [ "$UPDATE_PC_KERNEL" = "true" ]; then
-                    # shellcheck source=tests/lib/prepare.sh
-                    . "$TESTSLIB"/prepare.sh
-                    snap download --basename=pc-kernel --channel="20/edge" pc-kernel
-                    uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$WORK_DIR/image"
+                    if [ "$UPDATE_PC_KERNEL" = "true" ]; then
+                        # shellcheck source=tests/lib/prepare.sh
+                        . "$TESTSLIB"/prepare.sh
+                        snap download --basename=pc-kernel --channel="20/edge" pc-kernel
+                        uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$WORK_DIR/image"
 
-                    EXTRA_FUNDAMENTAL="--snap $WORK_DIR/image/pc-kernel_*.snap"
-                    chmod 0600 "$WORK_DIR"/image/pc-kernel_*.snap
-                    rm -f "$PWD/pc-kernel.snap"
-                fi
-                ;;
-            *)
-                echo "unsupported system"
-                exit 1
-                ;;
+                        EXTRA_FUNDAMENTAL="--snap $WORK_DIR/image/pc-kernel_*.snap"
+                        chmod 0600 "$WORK_DIR"/image/pc-kernel_*.snap
+                        rm -f "$PWD/pc-kernel.snap"
+                    fi
+                    ;;
+                *)
+                    echo "unsupported system: \"$SPREAD_SYSTEM\"" 
+                    exit 1
+                    ;;
             esac
 
             if [ "$BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
@@ -279,7 +286,7 @@ create_nested_core_vm(){
                 EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-snapd/snapd_*.snap"
             fi
 
-            "$UBUNTU_IMAGE" --image-size 10G "$NESTED_MODEL" \
+            sudo "$UBUNTU_IMAGE" --image-size 10G "$NESTED_MODEL" \
                 --channel "$CORE_CHANNEL" \
                 --output "$WORK_DIR/image/ubuntu-core.img" \
                 "$EXTRA_FUNDAMENTAL" \
@@ -304,17 +311,17 @@ create_nested_core_vm(){
 configure_cloud_init_nested_core_vm(){
     create_cloud_init_data "$WORK_DIR/user-data" "$WORK_DIR/meta-data"
 
-    loops=$(kpartx -avs "$WORK_DIR/image/ubuntu-core.img"  | cut -d' ' -f 3)
+    loops=$(sudo kpartx -avs "$WORK_DIR/image/ubuntu-core.img"  | cut -d' ' -f 3)
     part=$(echo "$loops" | tail -1)
     tmp=$(mktemp -d)
-    mount "/dev/mapper/$part" "$tmp"
+    sudo mount "/dev/mapper/$part" "$tmp"
 
-    mkdir -p "$tmp/system-data/var/lib/cloud/seed/nocloud-net/"
-    cp "$WORK_DIR/user-data" "$tmp/system-data/var/lib/cloud/seed/nocloud-net/"
-    cp "$WORK_DIR/meta-data" "$tmp/system-data/var/lib/cloud/seed/nocloud-net/"
+    sudo mkdir -p "$tmp/system-data/var/lib/cloud/seed/nocloud-net/"
+    sudo cp "$WORK_DIR/user-data" "$tmp/system-data/var/lib/cloud/seed/nocloud-net/"
+    sudo cp "$WORK_DIR/meta-data" "$tmp/system-data/var/lib/cloud/seed/nocloud-net/"
 
-    umount "$tmp"
-    kpartx -d "$WORK_DIR/image/ubuntu-core.img"
+    sudo umount "$tmp"
+    sudo kpartx -d "$WORK_DIR/image/ubuntu-core.img"
 }
 
 create_cloud_init_data(){
@@ -363,13 +370,13 @@ EOF
 configure_cloud_init_nested_core_vm_uc20(){
     create_cloud_init_config "$WORK_DIR/data.cfg"
 
-    loop=$(kpartx -avs "$WORK_DIR/image/ubuntu-core.img" | sed -n 2p | awk '{print $3}')
+    loop=$(sudo kpartx -avs "$WORK_DIR/image/ubuntu-core.img" | sed -n 2p | awk '{print $3}')
     tmp=$(mktemp -d)
 
-    mount "/dev/mapper/$loop" "$tmp"
-    mkdir -p "$tmp/data/etc/cloud/cloud.cfg.d/"
-    cp -f "$WORK_DIR/data.cfg" "$tmp/data/etc/cloud/cloud.cfg.d/"
-    umount "$tmp"
+    sudo mount "/dev/mapper/$loop" "$tmp"
+    sudo mkdir -p "$tmp/data/etc/cloud/cloud.cfg.d/"
+    sudo cp -f "$WORK_DIR/data.cfg" "$tmp/data/etc/cloud/cloud.cfg.d/"
+    sudo umount "$tmp"
 }
 
 start_nested_core_vm(){
@@ -385,6 +392,7 @@ start_nested_core_vm(){
     # Increase the number of cpus used once the issue related to kvm and ovmf is fixed
     # https://bugs.launchpad.net/ubuntu/+source/kvm/+bug/1872803
     PARAM_CPU="-smp $NESTED_SMP"
+    PARAM_LOG="-d out_asm,in_asm,op,op_opt,op_ind,int,exec,cpu,fpu,mmu,pcall,cpu_reset,unimp,guest_errors,page,nochain"
     PARAM_MEM="-m $NESTED_MEM"
     PARAM_DISPLAY="-nographic"
     PARAM_NETWORK="-net nic,model=virtio -net user,hostfwd=tcp::$NESTED_SSH_PORT-:22"
@@ -409,7 +417,7 @@ start_nested_core_vm(){
         if [ "$ENABLE_SECURE_BOOT" = "true" ]; then
             cp -f /usr/share/OVMF/OVMF_VARS.snakeoil.fd "$WORK_DIR/image/OVMF_VARS.snakeoil.fd"
             PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE.secboot.fd,if=pflash,format=raw,unit=0,readonly=on -drive file=$WORK_DIR/image/OVMF_VARS.snakeoil.fd,if=pflash,format=raw,unit=1"
-            PARAM_MACHINE="-machine ubuntu-q35,accel=kvm -global ICH9-LPC.disable_s3=1"
+            PARAM_MACHINE="-machine q35,accel=kvm -global ICH9-LPC.disable_s3=1"
         fi
 
         if [ "$ENABLE_TPM" = "true" ]; then
@@ -427,6 +435,7 @@ start_nested_core_vm(){
     systemd_create_and_start_unit "$NESTED_VM" "${QEMU} \
         ${PARAM_CPU} \
         ${PARAM_MEM} \
+        ${PARAM_LOG} \
         ${PARAM_MACHINE} \
         ${PARAM_DISPLAY} \
         ${PARAM_NETWORK} \
@@ -446,6 +455,10 @@ start_nested_core_vm(){
 }
 
 create_nested_classic_vm(){
+    if [ "$BUILD_NEW_IMAGE" = "true" ]; then
+        rm -rf "$WORK_DIR/image"
+    fi
+
     mkdir -p "$WORK_DIR/image"
     IMAGE=$(ls "$WORK_DIR"/image/*.img || true)
     if [ -z "$IMAGE" ]; then
@@ -481,6 +494,7 @@ start_nested_classic_vm(){
     # Now qemu parameters are defined
     PARAM_CPU="-smp $NESTED_SMP"
     PARAM_MEM="-m $NESTED_MEM"
+    PARAM_LOG="-d out_asm,in_asm,op,op_opt,op_ind,int,exec,cpu,fpu,mmu,pcall,cpu_reset,unimp,guest_errors,page,nochain"
     PARAM_DISPLAY="-nographic"
     PARAM_NETWORK="-net nic,model=virtio -net user,hostfwd=tcp::$NESTED_SSH_PORT-:22"
     PARAM_MONITOR="-monitor tcp:127.0.0.1:$NESTED_MON_PORT,server,nowait -usb"
@@ -494,6 +508,7 @@ start_nested_classic_vm(){
     systemd_create_and_start_unit "$NESTED_VM" "${QEMU}  \
         ${PARAM_CPU} \
         ${PARAM_MEM} \
+        ${PARAM_LOG} \
         ${PARAM_SNAPSHOT} \
         ${PARAM_MACHINE} \
         ${PARAM_DISPLAY} \
