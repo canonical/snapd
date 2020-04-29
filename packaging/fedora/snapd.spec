@@ -605,6 +605,9 @@ install -m 644 -D data/info %{buildroot}%{_libexecdir}/snapd/info
 install -m 644 -D data/completion/snap %{buildroot}%{_datadir}/bash-completion/completions/snap
 install -m 644 -D data/completion/complete.sh %{buildroot}%{_libexecdir}/snapd
 install -m 644 -D data/completion/etelpmoc.sh %{buildroot}%{_libexecdir}/snapd
+# Install zsh completion for "snap"
+install -d -p %{buildroot}%{_datadir}/zsh/site-functions
+install -m 644 -D data/completion/_snap %{buildroot}%{_datadir}/zsh/site-functions/_snap
 
 # Install snap-confine
 pushd ./cmd
@@ -740,6 +743,7 @@ popd
 %{_datadir}/bash-completion/completions/snap
 %{_libexecdir}/snapd/complete.sh
 %{_libexecdir}/snapd/etelpmoc.sh
+%{_datadir}/zsh/site-functions/_snap
 %{_libexecdir}/snapd/snapd.run-from-snap
 %{_sysconfdir}/profile.d/snapd.sh
 %{_sysconfdir}/sudoers.d/99-snapd.conf
@@ -782,6 +786,9 @@ popd
 %if %{with snap_symlink}
 /snap
 %endif
+# this is typically owned by zsh, but we do not want to explicitly require zsh
+%dir %{_datadir}/zsh
+%dir %{_datadir}/zsh/site-functions
 
 %files -n snap-confine
 %doc cmd/snap-confine/PORTING

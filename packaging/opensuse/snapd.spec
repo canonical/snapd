@@ -297,6 +297,9 @@ install -m 644 -D %{indigo_srcdir}/data/info %{buildroot}%{_libexecdir}/snapd/in
 install -m 644 -D %{indigo_srcdir}/data/completion/snap %{buildroot}%{_datadir}/bash-completion/completions/snap
 install -m 644 -D %{indigo_srcdir}/data/completion/complete.sh %{buildroot}%{_libexecdir}/snapd
 install -m 644 -D %{indigo_srcdir}/data/completion/etelpmoc.sh %{buildroot}%{_libexecdir}/snapd
+# Install zsh completion for "snap"
+install -d -p %{buildroot}%{_datadir}/zsh/site-functions
+install -m 644 -D %{indigo_srcdir}/data/completion/_snap %{buildroot}%{_datadir}/zsh/site-functions/_snap
 
 %verifyscript
 %verify_permissions -e %{_libexecdir}/snapd/snap-confine
@@ -374,6 +377,9 @@ fi
 %dir %{_userunitdir}
 %dir %{snap_mount_dir}
 %dir %{snap_mount_dir}/bin
+# this is typically owned by zsh, but we do not want to explicitly require zsh
+%dir %{_datadir}/zsh
+%dir %{_datadir}/zsh/site-functions
 
 # Ghost entries for things created at runtime
 %ghost %dir %{_localstatedir}/snap
@@ -389,6 +395,7 @@ fi
 %{_bindir}/snapctl
 %{_datadir}/applications/snap-handle-link.desktop
 %{_datadir}/bash-completion/completions/snap
+%{_datadir}/zsh/site-functions/_snap
 %{_datadir}/dbus-1/services/io.snapcraft.Launcher.service
 %{_datadir}/dbus-1/services/io.snapcraft.Settings.service
 %{_datadir}/polkit-1/actions/io.snapcraft.snapd.policy
