@@ -103,7 +103,6 @@ BuildRequires:  libuuid-devel
 BuildRequires:  make
 BuildRequires:  openssh
 BuildRequires:  pkg-config
-BuildRequires:  python-docutils
 BuildRequires:  python3-docutils
 BuildRequires:  squashfs
 # Due to: rpm -q --whatprovides /usr/share/pkgconfig/systemd.pc
