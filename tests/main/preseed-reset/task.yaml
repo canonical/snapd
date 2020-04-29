@@ -5,6 +5,10 @@ description: |
 
 systems: [ubuntu-19.10-*,ubuntu-20.04-*]
 
+# XXX: disabled in 2.44, works in master but test fix requires too much
+#      cherry-picking
+manual: true
+
 environment:
   IMAGE_MOUNTPOINT: /mnt/cloudimg
 
