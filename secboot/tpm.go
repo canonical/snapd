@@ -27,6 +27,7 @@ import (
 	"github.com/canonical/go-tpm2"
 	sb "github.com/snapcore/secboot"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -48,6 +49,8 @@ type tpmSupport struct {
 	kernelFiles []string
 	// Kernel command lines
 	kernelCmdlines []string
+	// Snap models
+	models []*asserts.Model
 }
 
 func NewTPMSupport() (*tpmSupport, error) {
@@ -139,10 +142,15 @@ func (t *tpmSupport) SetKernelCmdlines(cmdlines []string) {
 	t.kernelCmdlines = cmdlines
 }
 
+func (t *tpmSupport) SetModels(models []*asserts.Model) {
+	t.models = models
+}
+
 var (
 	sbSealKeyToTPM                  = sb.SealKeyToTPM
 	sbAddEFISecureBootPolicyProfile = sb.AddEFISecureBootPolicyProfile
 	sbAddSystemdEFIStubProfile      = sb.AddSystemdEFIStubProfile
+	sbAddSnapModelProfile           = sb.AddSnapModelProfile
 )
 
 // Seal seals the given key to the TPM and writes the sealed object to a file at the
@@ -195,6 +203,18 @@ func (t *tpmSupport) Seal(key []byte, keyPath, policyUpdatePath string) error {
 	}
 	if err := sbAddSystemdEFIStubProfile(pcrProfile, &systemdStubParams); err != nil {
 		return fmt.Errorf("cannot add systemd EFI stub profile: %v", err)
+	}
+
+	// Add snap model profile
+	if len(t.models) != 0 {
+		snapModelParams := sb.SnapModelProfileParams{
+			PCRAlgorithm: tpm2.HashAlgorithmSHA256,
+			PCRIndex:     12,
+			Models:       t.models,
+		}
+		if err := sbAddSnapModelProfile(pcrProfile, &snapModelParams); err != nil {
+			return fmt.Errorf("cannot add snap model profile: %v", err)
+		}
 	}
 
 	// Seal key to the TPM

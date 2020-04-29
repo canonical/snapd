@@ -58,6 +58,14 @@ func MockSbAddSystemdEFIStubProfile(f func(profile *sb.PCRProtectionProfile, par
 	}
 }
 
+func MockSbAddSnapModelProfile(f func(profile *sb.PCRProtectionProfile, params *sb.SnapModelProfileParams) error) (restore func()) {
+	old := sbAddSnapModelProfile
+	sbAddSnapModelProfile = f
+	return func() {
+		sbAddSnapModelProfile = old
+	}
+}
+
 func MockSbSealKeyToTPM(f func(tpm *sb.TPMConnection, key []byte, keyPath, policyUpdatePath string, params *sb.KeyCreationParams) error) (restore func()) {
 	old := sbSealKeyToTPM
 	sbSealKeyToTPM = f

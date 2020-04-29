@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build !nosecboot
 
 /*
  * Copyright (C) 2019-2020 Canonical Ltd
@@ -23,6 +24,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/partition"
 	"github.com/snapcore/snapd/gadget"
@@ -32,23 +34,6 @@ import (
 const (
 	ubuntuDataLabel = "ubuntu-data"
 )
-
-type Options struct {
-	// Also mount the filesystems after creation
-	Mount bool
-	// Encrypt the data partition
-	Encrypt bool
-	// KeyFile is the location where the encryption key is written to
-	KeyFile string
-	// RecoveryKeyFile is the location where the recovery key is written to
-	RecoveryKeyFile string
-	// TPMLockoutAuthFile is the location where the TPM lockout authorization is written to
-	TPMLockoutAuthFile string
-	// PolicyUpdateDataFile is the location where the authorization policy update data is written to
-	PolicyUpdateDataFile string
-	// KernelPath is the path to the kernel to seal the keyfile to
-	KernelPath string
-}
 
 func deviceFromRole(lv *gadget.LaidOutVolume, role string) (device string, err error) {
 	for _, vs := range lv.LaidOutStructure {
@@ -65,6 +50,8 @@ func deviceFromRole(lv *gadget.LaidOutVolume, role string) (device string, err e
 	return "", fmt.Errorf("cannot find role %s in gadget", role)
 }
 
+// Run bootstraps the partitions of a device, by either creating
+// missing ones or recreating installed ones.
 func Run(gadgetRoot, device string, options Options) error {
 	if options.Encrypt && (options.KeyFile == "" || options.RecoveryKeyFile == "") {
 		return fmt.Errorf("key file and recovery key file must be specified when encrypting")
@@ -171,7 +158,7 @@ func Run(gadgetRoot, device string, options Options) error {
 // TODO:UC20: get cmdline definition from bootloaders
 var kernelCmdlines = []string{
 	// run mode
-	"console=ttyS0 console=tty1 panic=-1 systemd.gpt_auto=0 rd.systemd.unit=basic.target snapd_recovery_mode=run",
+	"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
 }
 
 func tpmSealKey(key partition.EncryptionKey, rkey partition.RecoveryKey, options Options) error {
@@ -238,6 +225,10 @@ func tpmSealKey(key partition.EncryptionKey, rkey partition.RecoveryKey, options
 	}
 	tpm.SetKernelCmdlines(kernelCmdlines)
 
+	if options.Model != nil {
+		tpm.SetModels([]*asserts.Model{options.Model})
+	}
+
 	// Provision the TPM as late as possible
 	// TODO:UC20: ideally we should ask the firmware to clear the TPM and then reboot
 	//            if the device has previously been provisioned, see
@@ -257,9 +248,13 @@ func ensureLayoutCompatibility(gadgetLayout *gadget.LaidOutVolume, diskLayout *p
 	eq := func(ds partition.DeviceStructure, gs gadget.LaidOutStructure) bool {
 		dv := ds.VolumeStructure
 		gv := gs.VolumeStructure
+		nameMatch := gv.Name == dv.Name
+		if gadgetLayout.Schema == "mbr" {
+			// partitions have no names in MBR
+			nameMatch = true
+		}
 		// Previous installation may have failed before filesystem creation or partition may be encrypted
-		check := dv.Name == gv.Name && ds.StartOffset == gs.StartOffset && (ds.Created || dv.Filesystem == gv.Filesystem)
-
+		check := nameMatch && ds.StartOffset == gs.StartOffset && (ds.CreatedDuringInstall || dv.Filesystem == gv.Filesystem)
 		if gv.Role == gadget.SystemData {
 			// system-data may have been expanded
 			return check && dv.Size >= gv.Size

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2019 Canonical Ltd
+ * Copyright (C) 2014-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -317,8 +317,11 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 				TargetPathFunc: targetPathFunc,
 				Channel:        sn.Channel,
 			}
-			fn, info, err := tsto.DownloadSnap(sn.SnapName(), dlOpts) // TODO|XXX make this take the SnapRef really
+			fn, info, redirectChannel, err := tsto.DownloadSnap(sn.SnapName(), dlOpts) // TODO|XXX make this take the SnapRef really
 			if err != nil {
+				return err
+			}
+			if err := w.SetRedirectChannel(sn, redirectChannel); err != nil {
 				return err
 			}
 

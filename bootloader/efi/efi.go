@@ -89,11 +89,10 @@ func openEFIVarImpl(name string) (r io.ReadCloser, attr VariableAttr, size int64
 		return nil, 0, 0, fmt.Errorf("unexpected size: %d", sz)
 	}
 
-	var abuf [4]byte
-	if _, err = varf.Read(abuf[:]); err != nil {
+	if err = binary.Read(varf, binary.LittleEndian, &attr); err != nil {
 		return nil, 0, 0, err
 	}
-	return varf, VariableAttr(binary.LittleEndian.Uint32(abuf[:])), sz - 4, nil
+	return varf, attr, sz - 4, nil
 }
 
 func cannotReadError(name string, err error) error {
@@ -149,13 +148,8 @@ func ReadVarString(name string) (string, VariableAttr, error) {
 		return "", attr, nil
 	}
 	r16 := make([]uint16, n)
-	for i := range r16 {
-		var b [2]byte
-		_, err := io.ReadFull(varf, b[:])
-		if err != nil {
-			return "", 0, cannotReadError(name, err)
-		}
-		r16[i] = binary.LittleEndian.Uint16(b[:])
+	if err := binary.Read(varf, binary.LittleEndian, r16); err != nil {
+		return "", 0, cannotReadError(name, err)
 	}
 	if r16[n-1] == 0 {
 		n--

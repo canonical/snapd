@@ -925,7 +925,7 @@ prepare_ubuntu_core() {
     done
 
     echo "Ensure the snapd snap is available"
-    if is_core18_system; then
+    if is_core18_system || is_core20_system; then
         if ! snap list snapd; then
             echo "snapd snap on core18 is missing"
             snap list
@@ -951,13 +951,16 @@ prepare_ubuntu_core() {
 
     echo "Ensure the core snap is cached"
     # Cache snaps
-    if is_core18_system; then
+    if is_core18_system || is_core20_system; then
         if snap list core >& /dev/null; then
             echo "core snap on core18 should not be installed yet"
             snap list
             exit 1
         fi
-        cache_snaps core test-snapd-sh-core18
+        cache_snaps core
+        if is_core18_system; then
+            cache_snaps test-snapd-sh-core18
+        fi
     fi
 
     echo "Cache the snaps profiler snap"

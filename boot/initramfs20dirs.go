@@ -62,7 +62,7 @@ func setInitramfsDirVars(rootdir string) {
 	InitramfsUbuntuBootDir = filepath.Join(InitramfsRunMntDir, "ubuntu-boot")
 	InitramfsUbuntuSeedDir = filepath.Join(InitramfsRunMntDir, "ubuntu-seed")
 	InitramfsWritableDir = filepath.Join(InitramfsUbuntuDataDir, "system-data")
-	InitramfsEncryptionKeyDir = InitramfsUbuntuSeedDir
+	InitramfsEncryptionKeyDir = filepath.Join(InitramfsUbuntuSeedDir, "device/fde")
 }
 
 func init() {
