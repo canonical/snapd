@@ -579,7 +579,6 @@ pkg_dependencies_ubuntu_classic(){
     echo "
         avahi-daemon
         cups
-        dbus-user-session
         dbus-x11
         fontconfig
         gnome-keyring
