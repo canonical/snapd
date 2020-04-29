@@ -335,14 +335,14 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1EncryptedData(c *C
 	err = asserts.NewEncoder(mf).Encode(s.model)
 	c.Assert(err, IsNil)
 
-	activated := false
 	// setup activating the fake tpm
-	restore := secboot.MockInsecureConnect(func() (*secboot.TPM, error) {
-		mockTPM := mockSecbootTPM(c)
-		return mockTPM, nil
+	mockHandle := mockSecbootHandle(c)
+	restore := secboot.MockInsecureConnect(func() (*secboot.SecbootHandle, error) {
+		return mockHandle, nil
 	})
 	defer restore()
 
+	activated := false
 	restore = main.MockSecbootUnlockIfEncrypted(func(name string, lockKeysOnFinish bool) (string, error) {
 		c.Assert(name, Equals, "ubuntu-data")
 		c.Assert(lockKeysOnFinish, Equals, true)
@@ -371,15 +371,17 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1EncryptedData(c *C
 
 	measureEpochCalls := 0
 	measureModelCalls := 0
-	restore = main.MockSecbootMeasureEpoch(func(tpm *secboot.TPM) error {
+	restore = main.MockSecbootMeasureEpoch(func(h *secboot.SecbootHandle) error {
 		measureEpochCalls++
+		c.Assert(h, Equals, mockHandle)
 		return nil
 	})
 	defer restore()
 
 	var measuredModel *asserts.Model
-	restore = main.MockSecbootMeasureModel(func(tpm *secboot.TPM, model *asserts.Model) error {
+	restore = main.MockSecbootMeasureModel(func(h *secboot.SecbootHandle, model *asserts.Model) error {
 		measureModelCalls++
+		c.Assert(h, Equals, mockHandle)
 		measuredModel = model
 		return nil
 	})
@@ -428,20 +430,21 @@ func (s *initramfsMountsSuite) testInitramfsMountsStep1EncryptedNoModel(c *C, mo
 	defer restore()
 
 	// setup a fake tpm
-	restore = secboot.MockInsecureConnect(func() (*secboot.TPM, error) {
-		mockTPM := mockSecbootTPM(c)
-		return mockTPM, nil
+	restore = secboot.MockInsecureConnect(func() (*secboot.SecbootHandle, error) {
+		mockHandle := mockSecbootHandle(c)
+		return mockHandle, nil
 	})
 	defer restore()
 
 	measureEpochCalls := 0
-	restore = main.MockSecbootMeasureEpoch(func(tpm *secboot.TPM) error {
+	restore = main.MockSecbootMeasureEpoch(func(h *secboot.SecbootHandle) error {
 		measureEpochCalls++
 		return nil
 	})
 	defer restore()
+
 	measureModelCalls := 0
-	restore = main.MockSecbootMeasureModel(func(tpm *secboot.TPM, model *asserts.Model) error {
+	restore = main.MockSecbootMeasureModel(func(h *secboot.SecbootHandle, model *asserts.Model) error {
 		measureModelCalls++
 		return fmt.Errorf("unexpected call")
 	})
@@ -1503,14 +1506,14 @@ recovery_system=20191118
 	c.Check(filepath.Join(ephemeralUbuntuData, "system-data/var/lib/snapd/state.json"), testutil.FileEquals, `{"data":{"auth":{"users":[{"name":"mvo"}]}},"changes":{},"tasks":{},"last-change-id":0,"last-task-id":0,"last-lane-id":0}`)
 }
 
-func mockSecbootTPM(c *C) (tpm *secboot.TPM) {
+func mockSecbootHandle(c *C) *secboot.SecbootHandle {
 	tcti, err := os.Open("/dev/null")
 	c.Assert(err, IsNil)
 	tpmctx, err := tpm2.NewTPMContext(tcti)
 	c.Assert(err, IsNil)
 	mockSbTPM := &sb.TPMConnection{TPMContext: tpmctx}
-	mockTPM := secboot.NewTPMFromConnection(mockSbTPM)
-	return mockTPM
+	mockHandle := secboot.SecbootHandleFromTPMConnection(mockSbTPM)
+	return mockHandle
 }
 
 func (s *initramfsMountsSuite) testInitramfsMountsInstallRecoverModeStep1Measure(c *C, mode string) {
@@ -1531,19 +1534,25 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallRecoverModeStep1Measure
 	defer restore()
 
 	// setup a fake tpm
-	restore = secboot.MockInsecureConnect(func() (*secboot.TPM, error) {
-		mockTPM := mockSecbootTPM(c)
-		return mockTPM, nil
+	mockHandle := mockSecbootHandle(c)
+	restore = secboot.MockInsecureConnect(func() (*secboot.SecbootHandle, error) {
+		return mockHandle, nil
 	})
 	defer restore()
 
-	restore = main.MockSecbootMeasureEpoch(func(tpm *secboot.TPM) error {
+	measureEpochCalls := 0
+	measureModelCalls := 0
+	restore = main.MockSecbootMeasureEpoch(func(h *secboot.SecbootHandle) error {
+		c.Assert(h, Equals, mockHandle)
+		measureEpochCalls++
 		return nil
 	})
 	defer restore()
 
 	var measuredModel *asserts.Model
-	restore = main.MockSecbootMeasureModel(func(tpm *secboot.TPM, model *asserts.Model) error {
+	restore = main.MockSecbootMeasureModel(func(h *secboot.SecbootHandle, model *asserts.Model) error {
+		c.Assert(h, Equals, mockHandle)
+		measureModelCalls++
 		measuredModel = model
 		return nil
 	})
@@ -1558,6 +1567,8 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallRecoverModeStep1Measure
 `, s.seedDir, boot.InitramfsRunMntDir))
 	c.Check(measuredModel, NotNil)
 	c.Check(measuredModel, DeepEquals, s.model)
+	c.Check(measureEpochCalls, Equals, 1)
+	c.Check(measureModelCalls, Equals, 1)
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "secboot-epoch-measured"), testutil.FilePresent)
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, s.sysLabel+"-model-measured"), testutil.FilePresent)
 }

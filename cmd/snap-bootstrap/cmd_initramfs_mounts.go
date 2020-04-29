@@ -224,12 +224,12 @@ func generateMountsCommonInstallRecover(mst initramfsMountsState, recoverySystem
 
 	// 1a. measure model
 	err = stampedAction(fmt.Sprintf("%s-model-measured", recoverySystem), func() error {
-		return secbootMeasureWhenPossible(func(tpm *secboot.TPM) error {
+		return secbootMeasureWhenPossible(func(h *secboot.SecbootHandle) error {
 			model, err := mst.Model()
 			if err != nil {
 				return err
 			}
-			return secbootMeasureModel(tpm, model)
+			return secbootMeasureModel(h, model)
 		})
 	})
 	if err != nil {
@@ -312,12 +312,12 @@ func generateMountsModeRun(mst initramfsMountsState) error {
 
 	// 1.1a measure model
 	err := stampedAction("run-model-measured", func() error {
-		return secbootMeasureWhenPossible(func(tpm *secboot.TPM) error {
+		return secbootMeasureWhenPossible(func(h *secboot.SecbootHandle) error {
 			model, err := mst.UnverifiedBootModel()
 			if err != nil {
 				return err
 			}
-			return secbootMeasureModel(tpm, model)
+			return secbootMeasureModel(h, model)
 		})
 	})
 	if err != nil {

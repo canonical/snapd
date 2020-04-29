@@ -83,17 +83,7 @@ func MockSecbootUnlockIfEncrypted(f func(name string, lockKeysOnFinish bool) (st
 	}
 }
 
-/*
-func MockDevDiskByLabelDir(new string) (restore func()) {
-	old := devDiskByLabelDir
-	devDiskByLabelDir = new
-	return func() {
-		devDiskByLabelDir = old
-	}
-}
-*/
-
-func MockSecbootMeasureEpoch(f func(tpm *secboot.TPM) error) (restore func()) {
+func MockSecbootMeasureEpoch(f func(h *secboot.SecbootHandle) error) (restore func()) {
 	old := secbootMeasureEpoch
 	secbootMeasureEpoch = f
 	return func() {
@@ -101,7 +91,7 @@ func MockSecbootMeasureEpoch(f func(tpm *secboot.TPM) error) (restore func()) {
 	}
 }
 
-func MockSecbootMeasureModel(f func(tpm *secboot.TPM, model *asserts.Model) error) (restore func()) {
+func MockSecbootMeasureModel(f func(h *secboot.SecbootHandle, model *asserts.Model) error) (restore func()) {
 	old := secbootMeasureModel
 	secbootMeasureModel = f
 	return func() {

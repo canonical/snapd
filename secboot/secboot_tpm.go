@@ -83,16 +83,17 @@ func checkSecureBootEnabled() error {
 
 const tpmPCR = 12
 
-type TPM struct {
+type SecbootHandle struct {
 	tpm *sb.TPMConnection
 }
 
-func NewTPMFromConnection(tpm *sb.TPMConnection) *TPM {
-	return &TPM{tpm: tpm}
+// SecbootHandleFromTPMConnection should only be used in tests
+func SecbootHandleFromTPMConnection(tpm *sb.TPMConnection) *SecbootHandle {
+	return &SecbootHandle{tpm: tpm}
 }
 
 /*
-func SecureConnect(ekcfile string) (*TPM, error) {
+func SecureConnect(ekcfile string) (*SecbootHandle, error) {
 	ekCertReader, err := os.Open(ekcfile)
 	if err != nil {
 		return nil, fmt.Errorf("cannot open endorsement key certificate file: %v", err)
@@ -103,21 +104,21 @@ func SecureConnect(ekcfile string) (*TPM, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &TPM{tpm: tpm}, nil
+	return &SecbootHandle{tpm: tpm}, nil
 }
 */
 
 var insecureConnect = insecureConnectImpl
 
-func insecureConnectImpl() (*TPM, error) {
-	tpm, err := sb.ConnectToDefaultTPM()
+func insecureConnectImpl() (*SecbootHandle, error) {
+	tpm, err := sbConnectToDefaultTPM()
 	if err != nil {
 		return nil, err
 	}
-	return &TPM{tpm: tpm}, nil
+	return &SecbootHandle{tpm: tpm}, nil
 }
 
-func MockInsecureConnect(f func() (*TPM, error)) (restore func()) {
+func MockInsecureConnect(f func() (*SecbootHandle, error)) (restore func()) {
 	old := insecureConnect
 	insecureConnect = f
 	return func() {
@@ -125,25 +126,30 @@ func MockInsecureConnect(f func() (*TPM, error)) (restore func()) {
 	}
 }
 
-func (t *TPM) Disconnect() error {
-	return t.tpm.Close()
+func (h *SecbootHandle) disconnect() error {
+	return h.tpm.Close()
 }
 
-func MeasureEpoch(t *TPM) error {
-	if err := sbMeasureSnapSystemEpochToTPM(t.tpm, tpmPCR); err != nil {
+// MeasureEpoch measures the snap system epoch.
+func MeasureEpoch(h *SecbootHandle) error {
+	if err := sbMeasureSnapSystemEpochToTPM(h.tpm, tpmPCR); err != nil {
 		return fmt.Errorf("cannot measure snap system epoch: %v", err)
 	}
 	return nil
 }
 
-func MeasureModel(t *TPM, model *asserts.Model) error {
-	if err := sbMeasureSnapModelToTPM(t.tpm, tpmPCR, model); err != nil {
-		return fmt.Errorf("cannot measure snap system model: %v", err)
+// MeasureEpoch measures the snap model.
+func MeasureModel(h *SecbootHandle, model *asserts.Model) error {
+	if err := sbMeasureSnapModelToTPM(h.tpm, tpmPCR, model); err != nil {
+		return fmt.Errorf("cannot measure snap model: %v", err)
 	}
 	return nil
 }
 
-func MeasureWhenPossible(whatHow func(t *TPM) error) error {
+// MeasureWhenPossible verifies if secure boot measuring is possible and in
+// this case the whatHow function is executed. If measuring is not possible
+// success is returned.
+func MeasureWhenPossible(whatHow func(h *SecbootHandle) error) error {
 	// the model is ready, we're good to try measuring it now
 	t, err := insecureConnect()
 	if err != nil {
@@ -155,7 +161,7 @@ func MeasureWhenPossible(whatHow func(t *TPM) error) error {
 		}
 		return fmt.Errorf("cannot open TPM connection: %v", err)
 	}
-	defer t.Disconnect()
+	defer t.disconnect()
 
 	return whatHow(t)
 }

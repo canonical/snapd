@@ -115,8 +115,8 @@ func (s *secbootSuite) TestMeasureEpoch(c *C) {
 	})
 	defer restore()
 
-	t := secboot.NewTPMFromConnection(nil)
-	err := secboot.MeasureEpoch(t)
+	h := secboot.SecbootHandleFromTPMConnection(nil)
+	err := secboot.MeasureEpoch(h)
 	c.Assert(err, IsNil)
 	c.Assert(calls, Equals, 1)
 	c.Assert(pcr, Equals, 12)
@@ -134,13 +134,44 @@ func (s *secbootSuite) TestMeasureModel(c *C) {
 	})
 	defer restore()
 
-	t := secboot.NewTPMFromConnection(nil)
+	h := secboot.SecbootHandleFromTPMConnection(nil)
 	myModel := &asserts.Model{}
-	err := secboot.MeasureModel(t, myModel)
+	err := secboot.MeasureModel(h, myModel)
 	c.Assert(err, IsNil)
 	c.Assert(calls, Equals, 1)
 	c.Assert(pcr, Equals, 12)
 	c.Assert(model, Equals, myModel)
+}
+
+func (s *secbootSuite) TestMeasureWhenPossible(c *C) {
+	for _, tc := range []struct {
+		tpmErr error
+		cbErr  error
+		calls  int
+		err    string
+	}{
+		{tpmErr: nil, cbErr: nil, calls: 1, err: ""},
+		{tpmErr: nil, cbErr: errors.New("some error"), calls: 1, err: "some error"},
+		{tpmErr: errors.New("tpm error"), cbErr: nil, calls: 0, err: "cannot open TPM connection: tpm error"},
+		{tpmErr: &os.PathError{"open", "path", errors.New("enoent")}, cbErr: nil, calls: 0, err: ""},
+	} {
+		// set up tpm mock
+		_, restore := mockSbTPMConnection(c, tc.tpmErr)
+		defer restore()
+
+		calls := 0
+		testCallback := func(h *secboot.SecbootHandle) error {
+			calls++
+			return tc.cbErr
+		}
+		err := secboot.MeasureWhenPossible(testCallback)
+		if tc.err == "" {
+			c.Assert(err, IsNil)
+		} else {
+			c.Assert(err, ErrorMatches, tc.err)
+		}
+		c.Assert(calls, Equals, tc.calls)
+	}
 }
 
 func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
