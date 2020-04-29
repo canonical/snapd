@@ -158,6 +158,9 @@ apps:
   home:
     command: bin/run
     plugs: [ home ]
+  host-docs:
+    command: bin/run
+    plugs: [ host-docs ]
   hostname-control:
     command: bin/run
     plugs: [ hostname-control ]
