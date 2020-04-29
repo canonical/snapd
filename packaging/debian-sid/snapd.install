@@ -10,6 +10,8 @@ usr/bin/snap-seccomp /usr/lib/snapd/
 data/completion/snap /usr/share/bash-completion/completions
 data/completion/complete.sh /usr/lib/snapd/
 data/completion/etelpmoc.sh /usr/lib/snapd/
+# zsh completion
+data/completion/_snap /usr/share/zsh/vendor-completions
 # snap/snapd version information
 data/info /usr/lib/snapd/
 # polkit actions

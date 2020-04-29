@@ -9,7 +9,8 @@
 pkgname=snapd
 pkgdesc="Service and tools for management of snap packages."
 depends=('squashfs-tools' 'libseccomp' 'libsystemd')
-optdepends=('bash-completion: bash completion support')
+optdepends=('bash-completion: bash completion support'
+            'zsh: zsh completion support')
 pkgver=2.44.3
 pkgrel=1
 arch=('x86_64')
@@ -125,6 +126,9 @@ package() {
     "$pkgdir/usr/lib/snapd/complete.sh"
   install -Dm644 data/completion/etelpmoc.sh \
     "$pkgdir/usr/lib/snapd/etelpmoc.sh"
+  # Install zsh completion
+  install -Dm644 data/completion/_snap \
+    "$pkgdir/usr/share/zsh/site-functions/_snap"
 
   # Install systemd units, dbus services and a script for environment variables
   make -C data/ install \
