@@ -41,7 +41,7 @@ type StoreService interface {
 	SnapInfo(ctx context.Context, spec store.SnapSpec, user *auth.UserState) (*snap.Info, error)
 	Find(ctx context.Context, search *store.Search, user *auth.UserState) ([]*snap.Info, error)
 
-	SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, error)
+	SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error)
 
 	Sections(ctx context.Context, user *auth.UserState) ([]string, error)
 	WriteCatalogs(ctx context.Context, names io.Writer, adder store.SnapAdder) error
