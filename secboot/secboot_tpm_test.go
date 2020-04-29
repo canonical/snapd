@@ -153,7 +153,7 @@ func (s *secbootSuite) TestMeasureWhenPossible(c *C) {
 		{tpmErr: nil, cbErr: nil, calls: 1, err: ""},
 		{tpmErr: nil, cbErr: errors.New("some error"), calls: 1, err: "some error"},
 		{tpmErr: errors.New("tpm error"), cbErr: nil, calls: 0, err: "cannot open TPM connection: tpm error"},
-		{tpmErr: &os.PathError{"open", "path", errors.New("enoent")}, cbErr: nil, calls: 0, err: ""},
+		{tpmErr: &os.PathError{Op: "open", Path: "path", Err: errors.New("enoent")}, cbErr: nil, calls: 0, err: ""},
 	} {
 		// set up tpm mock
 		_, restore := mockSbTPMConnection(c, tc.tpmErr)

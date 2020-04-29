@@ -26,8 +26,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/canonical/go-tpm2"
-	sb "github.com/snapcore/secboot"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
@@ -335,11 +333,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1EncryptedData(c *C
 	err = asserts.NewEncoder(mf).Encode(s.model)
 	c.Assert(err, IsNil)
 
-	// setup activating the fake tpm
-	mockHandle := mockSecbootHandle(c)
-	restore := secboot.MockInsecureConnect(func() (*secboot.SecbootHandle, error) {
-		return mockHandle, nil
-	})
+	// setup a fake tpm
+	restore, err := secboot.MockSecbootConnect()
+	c.Assert(err, IsNil)
 	defer restore()
 
 	activated := false
@@ -373,7 +369,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1EncryptedData(c *C
 	measureModelCalls := 0
 	restore = main.MockSecbootMeasureEpoch(func(h *secboot.SecbootHandle) error {
 		measureEpochCalls++
-		c.Assert(h, Equals, mockHandle)
 		return nil
 	})
 	defer restore()
@@ -381,7 +376,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1EncryptedData(c *C
 	var measuredModel *asserts.Model
 	restore = main.MockSecbootMeasureModel(func(h *secboot.SecbootHandle, model *asserts.Model) error {
 		measureModelCalls++
-		c.Assert(h, Equals, mockHandle)
 		measuredModel = model
 		return nil
 	})
@@ -430,10 +424,9 @@ func (s *initramfsMountsSuite) testInitramfsMountsStep1EncryptedNoModel(c *C, mo
 	defer restore()
 
 	// setup a fake tpm
-	restore = secboot.MockInsecureConnect(func() (*secboot.SecbootHandle, error) {
-		mockHandle := mockSecbootHandle(c)
-		return mockHandle, nil
-	})
+	var err error
+	restore, err = secboot.MockSecbootConnect()
+	c.Assert(err, IsNil)
 	defer restore()
 
 	measureEpochCalls := 0
@@ -450,7 +443,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsStep1EncryptedNoModel(c *C, mo
 	})
 	defer restore()
 
-	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	where := "/run/mnt/ubuntu-boot/model"
 	if mode != "run" {
 		where = fmt.Sprintf("/run/mnt/ubuntu-seed/systems/%s/model", label)
@@ -1506,16 +1499,6 @@ recovery_system=20191118
 	c.Check(filepath.Join(ephemeralUbuntuData, "system-data/var/lib/snapd/state.json"), testutil.FileEquals, `{"data":{"auth":{"users":[{"name":"mvo"}]}},"changes":{},"tasks":{},"last-change-id":0,"last-task-id":0,"last-lane-id":0}`)
 }
 
-func mockSecbootHandle(c *C) *secboot.SecbootHandle {
-	tcti, err := os.Open("/dev/null")
-	c.Assert(err, IsNil)
-	tpmctx, err := tpm2.NewTPMContext(tcti)
-	c.Assert(err, IsNil)
-	mockSbTPM := &sb.TPMConnection{TPMContext: tpmctx}
-	mockHandle := secboot.SecbootHandleFromTPMConnection(mockSbTPM)
-	return mockHandle
-}
-
 func (s *initramfsMountsSuite) testInitramfsMountsInstallRecoverModeStep1Measure(c *C, mode string) {
 	n := 0
 	s.mockProcCmdlineContent(c, fmt.Sprintf("snapd_recovery_mode=%s snapd_recovery_system=%s", mode, s.sysLabel))
@@ -1534,16 +1517,14 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallRecoverModeStep1Measure
 	defer restore()
 
 	// setup a fake tpm
-	mockHandle := mockSecbootHandle(c)
-	restore = secboot.MockInsecureConnect(func() (*secboot.SecbootHandle, error) {
-		return mockHandle, nil
-	})
+	var err error
+	restore, err = secboot.MockSecbootConnect()
+	c.Assert(err, IsNil)
 	defer restore()
 
 	measureEpochCalls := 0
 	measureModelCalls := 0
 	restore = main.MockSecbootMeasureEpoch(func(h *secboot.SecbootHandle) error {
-		c.Assert(h, Equals, mockHandle)
 		measureEpochCalls++
 		return nil
 	})
@@ -1551,14 +1532,13 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallRecoverModeStep1Measure
 
 	var measuredModel *asserts.Model
 	restore = main.MockSecbootMeasureModel(func(h *secboot.SecbootHandle, model *asserts.Model) error {
-		c.Assert(h, Equals, mockHandle)
 		measureModelCalls++
 		measuredModel = model
 		return nil
 	})
 	defer restore()
 
-	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/snaps/snapd_1.snap %[2]s/snapd
 %[1]s/snaps/pc-kernel_1.snap %[2]s/kernel

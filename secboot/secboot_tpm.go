@@ -26,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/canonical/go-tpm2"
 	sb "github.com/snapcore/secboot"
 	"golang.org/x/xerrors"
 
@@ -87,13 +88,38 @@ type SecbootHandle struct {
 	tpm *sb.TPMConnection
 }
 
-// SecbootHandleFromTPMConnection should only be used in tests
+var (
+	insecureConnect = insecureConnectImpl
+)
+
+// SecbootHandleFromTPMConnection should only be used in tests.
 func SecbootHandleFromTPMConnection(tpm *sb.TPMConnection) *SecbootHandle {
 	return &SecbootHandle{tpm: tpm}
 }
 
-/*
-func SecureConnect(ekcfile string) (*SecbootHandle, error) {
+// MockSecbootConnect should only be used in tests. TPM should not
+// be exposed to external tests.
+func MockSecbootConnect() (func(), error) {
+	tcti, err := os.Open("/dev/null")
+	if err != nil {
+		return nil, err
+	}
+	tpmctx, err := tpm2.NewTPMContext(tcti)
+	if err != nil {
+		return nil, err
+	}
+	tpm := &sb.TPMConnection{TPMContext: tpmctx}
+	old := sbConnectToDefaultTPM
+	sbConnectToDefaultTPM = func() (*sb.TPMConnection, error) {
+		return tpm, nil
+	}
+	restore := func() {
+		sbConnectToDefaultTPM = old
+	}
+	return restore, nil
+}
+
+func secureConnect(ekcfile string) (*SecbootHandle, error) {
 	ekCertReader, err := os.Open(ekcfile)
 	if err != nil {
 		return nil, fmt.Errorf("cannot open endorsement key certificate file: %v", err)
@@ -106,9 +132,6 @@ func SecureConnect(ekcfile string) (*SecbootHandle, error) {
 	}
 	return &SecbootHandle{tpm: tpm}, nil
 }
-*/
-
-var insecureConnect = insecureConnectImpl
 
 func insecureConnectImpl() (*SecbootHandle, error) {
 	tpm, err := sbConnectToDefaultTPM()
@@ -116,14 +139,6 @@ func insecureConnectImpl() (*SecbootHandle, error) {
 		return nil, err
 	}
 	return &SecbootHandle{tpm: tpm}, nil
-}
-
-func MockInsecureConnect(f func() (*SecbootHandle, error)) (restore func()) {
-	old := insecureConnect
-	insecureConnect = f
-	return func() {
-		insecureConnect = old
-	}
 }
 
 func (h *SecbootHandle) disconnect() error {
