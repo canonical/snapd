@@ -92,7 +92,7 @@
 %endif
 
 Name:           snapd
-Version:        2.44.3
+Version:        2.44.4
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -885,6 +885,18 @@ fi
 
 
 %changelog
+* Wed Apr 29 2020 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.44.4
+ - packaging/fedora: disable FIPS compliant crypto for static
+   binaries
+ - interfaces/firewall-control: allow -legacy and -nft for core20
+ - seccomp: add get_tls, io_pg* and *time64/*64 variants for existing
+   syscalls
+ - tests: 16.04 and 18.04 now have mediating pulseaudio
+   (again)References:-
+   https://bugs.launchpad.net/ubuntu/+source/pulseaudio/+bug/1781428
+ - tests: ignore user@12345.service hierarchy
+
 * Thu Apr 10 2020 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.44.3
  - tests: fix racy pulseaudio tests
