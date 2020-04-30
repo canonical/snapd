@@ -12,13 +12,6 @@ execute: |
             session-tool -u "$USER" --has-systemd-and-dbus | MATCH 'no user dbus.socket'
             not session-tool -u "$USER" --has-systemd-and-dbus
             ;;
-        debian-sid-*/test)
-            # Debian packages support session DBus into a separate, optional
-            # package dbus-user-session. It is not installed by default
-            # on sid (XXX: why is it in debian-10 though?).
-            session-tool -u "$USER" --has-systemd-and-dbus | MATCH 'no user dbus.socket'
-            not session-tool -u "$USER" --has-systemd-and-dbus
-            ;;
         ubuntu-14.04-*)
             # Ubuntu 14.04 does not use systemd. 
             session-tool -u "$USER" --has-systemd-and-dbus | MATCH 'no busctl'
