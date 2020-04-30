@@ -115,7 +115,7 @@ func (s *secbootSuite) TestMeasureEpoch(c *C) {
 	})
 	defer restore()
 
-	h := secboot.SecbootHandleFromTPMConnection(nil)
+	h := &secboot.SecbootHandle{}
 	err := secboot.MeasureEpoch(h)
 	c.Assert(err, IsNil)
 	c.Assert(calls, Equals, 1)
@@ -134,7 +134,7 @@ func (s *secbootSuite) TestMeasureModel(c *C) {
 	})
 	defer restore()
 
-	h := secboot.SecbootHandleFromTPMConnection(nil)
+	h := &secboot.SecbootHandle{}
 	myModel := &asserts.Model{}
 	err := secboot.MeasureModel(h, myModel)
 	c.Assert(err, IsNil)

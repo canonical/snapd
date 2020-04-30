@@ -92,11 +92,6 @@ var (
 	insecureConnect = insecureConnectImpl
 )
 
-// SecbootHandleFromTPMConnection should only be used in tests.
-func SecbootHandleFromTPMConnection(tpm *sb.TPMConnection) *SecbootHandle {
-	return &SecbootHandle{tpm: tpm}
-}
-
 // MockSecbootConnect should only be used in tests. TPM should not
 // be exposed to external tests.
 func MockSecbootConnect() (func(), error) {
