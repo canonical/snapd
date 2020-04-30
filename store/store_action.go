@@ -589,28 +589,32 @@ func reportFetchAssertionsError(res *snapActionResult, assertq AssertionQuery) e
 	// * not-found errors
 	errIdx := -1
 	errl := res.ErrorList
-	carryingRef := func(i int) bool {
-		aType := asserts.Type(errl[i].Type)
-		return aType != nil && len(errl[i].PrimaryKey) == len(aType.PrimaryKey)
+	carryingRef := func(ent *errorListEntry) bool {
+		aType := asserts.Type(ent.Type)
+		return aType != nil && len(ent.PrimaryKey) == len(aType.PrimaryKey)
+	}
+	prio := func(ent *errorListEntry) int {
+		if !carryingRef(ent) {
+			return 2
+		}
+		if ent.Code != "not-found" {
+			return 1
+		}
+		return 0
 	}
 	for i, ent := range errl {
-		withRef := carryingRef(i)
-		if withRef && ent.Code == "not-found" {
-			if errIdx == -1 {
-				errIdx = i
-			}
-		} else if withRef {
-			if errIdx == -1 || errl[errIdx].Code == "not-found" {
-				errIdx = i
-			}
-		} else {
-			if errIdx == -1 || carryingRef(errIdx) {
-				errIdx = i
-			}
+		if errIdx == -1 {
+			errIdx = i
+			continue
+		}
+		prioOther := prio(&errl[errIdx])
+		prioThis := prio(&ent)
+		if prioThis > prioOther {
+			errIdx = i
 		}
 	}
 	rep := errl[errIdx]
-	if carryingRef(errIdx) {
+	if carryingRef(&rep) {
 		ref := &asserts.Ref{Type: asserts.Type(rep.Type), PrimaryKey: rep.PrimaryKey}
 		var err error
 		if rep.Code == "not-found" {
