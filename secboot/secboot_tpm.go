@@ -21,6 +21,7 @@
 package secboot
 
 import (
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"os"
@@ -33,7 +34,15 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader/efi"
+	// TODO: UC20: move to and merge partition with gadget
+	"github.com/snapcore/snapd/cmd/snap-bootstrap/partition"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
+)
+
+const (
+	// Handles are in the block reserved for owner objects (0x01800000 - 0x01bfffff)
+	pinHandle = 0x01880000
 )
 
 var (
@@ -42,6 +51,11 @@ var (
 	sbMeasureSnapModelToTPM          = sb.MeasureSnapModelToTPM
 	sbLockAccessToSealedKeys         = sb.LockAccessToSealedKeys
 	sbActivateVolumeWithTPMSealedKey = sb.ActivateVolumeWithTPMSealedKey
+	sbAddEFISecureBootPolicyProfile  = sb.AddEFISecureBootPolicyProfile
+	sbAddSystemdEFIStubProfile       = sb.AddSystemdEFIStubProfile
+	sbAddSnapModelProfile            = sb.AddSnapModelProfile
+	sbProvisionTPM                   = sb.ProvisionTPM
+	sbSealKeyToTPM                   = sb.SealKeyToTPM
 )
 
 func CheckKeySealingSupported() error {
@@ -253,5 +267,139 @@ func unlockEncryptedPartition(tpm *sb.TPMConnection, name, device, keyfile, pinf
 		logger.Noticef("successfully activated encrypted device %q with TPM", device)
 	}
 
+	return nil
+}
+
+func SealKey(key partition.EncryptionKey, params *SealKeyParams) error {
+	tpm, err := sbConnectToDefaultTPM()
+	if err != nil {
+		return fmt.Errorf("cannot connect to TPM: %v", err)
+	}
+
+	// Verify if all EFI image files exist
+	for _, chain := range params.EFILoadChains {
+		if err := checkFilesPresence(chain); err != nil {
+			return err
+		}
+	}
+
+	pcrProfile := sb.NewPCRProtectionProfile()
+
+	// Add EFI secure boot policy profile
+	policyParams := sb.EFISecureBootPolicyProfileParams{
+		PCRAlgorithm:  tpm2.HashAlgorithmSHA256,
+		LoadSequences: make([]*sb.EFIImageLoadEvent, 0, len(params.EFILoadChains)),
+		// TODO:UC20: set SignatureDbUpdateKeystore to support key rotation
+	}
+	for _, chain := range params.EFILoadChains {
+		policyParams.LoadSequences = append(policyParams.LoadSequences, buildLoadSequence(chain))
+	}
+	if err := sbAddEFISecureBootPolicyProfile(pcrProfile, &policyParams); err != nil {
+		return fmt.Errorf("cannot add EFI secure boot policy profile: %v", err)
+	}
+
+	// Add systemd EFI stub profile
+	if len(params.KernelCmdlines) != 0 {
+		systemdStubParams := sb.SystemdEFIStubProfileParams{
+			PCRAlgorithm:   tpm2.HashAlgorithmSHA256,
+			PCRIndex:       tpmPCR,
+			KernelCmdlines: params.KernelCmdlines,
+		}
+		if err := sbAddSystemdEFIStubProfile(pcrProfile, &systemdStubParams); err != nil {
+			return fmt.Errorf("cannot add systemd EFI stub profile: %v", err)
+		}
+	}
+
+	// Add snap model profile
+	if len(params.Models) != 0 {
+		snapModelParams := sb.SnapModelProfileParams{
+			PCRAlgorithm: tpm2.HashAlgorithmSHA256,
+			PCRIndex:     tpmPCR,
+			Models:       params.Models,
+		}
+		if err := sbAddSnapModelProfile(pcrProfile, &snapModelParams); err != nil {
+			return fmt.Errorf("cannot add snap model profile: %v", err)
+		}
+	}
+
+	// Provision the TPM as late as possible
+	if err := tpmProvision(tpm, params.TPMLockoutAuthFile); err != nil {
+		return err
+	}
+	// Seal key to the TPM
+	creationParams := sb.KeyCreationParams{
+		PCRProfile: pcrProfile,
+		PINHandle:  pinHandle,
+	}
+	if err := sbSealKeyToTPM(tpm, key[:], params.KeyFile, params.PolicyUpdateDataFile, &creationParams); err != nil {
+		return fmt.Errorf("cannot seal data: %v", err)
+	}
+
+	return nil
+
+}
+
+func tpmProvision(tpm *sb.TPMConnection, lockoutAuthFile string) error {
+	// Create and save the lockout authorization file
+	lockoutAuth := make([]byte, 16)
+	// crypto rand is protected against short reads
+	_, err := rand.Read(lockoutAuth)
+	if err != nil {
+		return fmt.Errorf("cannot create lockout authorization: %v", err)
+	}
+	if err := osutil.AtomicWriteFile(lockoutAuthFile, lockoutAuth, 0600, 0); err != nil {
+		return fmt.Errorf("cannot write the lockout authorization file: %v", err)
+	}
+
+	// TODO:UC20: ideally we should ask the firmware to clear the TPM and then reboot
+	//            if the device has previously been provisioned, see
+	//            https://godoc.org/github.com/snapcore/secboot#RequestTPMClearUsingPPI
+	if err := sbProvisionTPM(tpm, sb.ProvisionModeFull, lockoutAuth); err != nil {
+		return fmt.Errorf("cannot provision TPM: %v", err)
+	}
+	return nil
+}
+
+func buildLoadSequence(filePaths []string) *sb.EFIImageLoadEvent {
+	// The idea of EFIImageLoadEvent is to build a set of load paths for the current
+	// device configuration. So you could have something like this:
+	//
+	// shim -> recovery grub -> recovery kernel 1
+	//                      |-> recovery kernel 2
+	//                      |-> recovery kernel ...
+	//                      |-> normal grub -> run kernel good
+	//                                     |-> run kernel try
+	//
+	// Or it could look like this, which is the same thing:
+	//
+	// shim -> recovery grub -> recovery kernel 1
+	// shim -> recovery grub -> recovery kernel 2
+	// shim -> recovery grub -> recovery kernel ...
+	// shim -> recovery grub -> normal grub -> run kernel good
+	// shim -> recovery grub -> normal grub -> run kernel try
+
+	var event *sb.EFIImageLoadEvent
+	var next []*sb.EFIImageLoadEvent
+
+	for i := len(filePaths) - 1; i >= 0; i-- {
+		event = &sb.EFIImageLoadEvent{
+			Source: sb.Shim,
+			Image:  sb.FileEFIImage(filePaths[i]),
+			Next:   next,
+		}
+		next = []*sb.EFIImageLoadEvent{event}
+	}
+	// fix event source for the first binary in chain (shim)
+	event.Source = sb.Firmware
+
+	return event
+}
+
+func checkFilesPresence(pathList []string) error {
+	for _, p := range pathList {
+		if !osutil.FileExists(p) {
+			return fmt.Errorf("file %s does not exist", p)
+		}
+	}
 	return nil
 }

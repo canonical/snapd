@@ -27,6 +27,7 @@ package secboot
 import (
 	"path/filepath"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -34,6 +35,21 @@ var (
 	// for mocking by tests
 	devDiskByLabelDir = "/dev/disk/by-label"
 )
+
+type SealKeyParams struct {
+	// The set of EFI binary load paths for the current device configuration
+	EFILoadChains [][]string
+	// The kernel command line
+	KernelCmdlines []string
+	// The snap model
+	Models []*asserts.Model
+	// The path to store the sealed key file
+	KeyFile string
+	// The path to authorization policy update data file (only relevant for TPM)
+	PolicyUpdateDataFile string
+	// The path to the lockout authorization file (only relevant for TPM)
+	TPMLockoutAuthFile string
+}
 
 func isDeviceEncrypted(name string) (ok bool, encdev string) {
 	encdev = filepath.Join(devDiskByLabelDir, name+"-enc")

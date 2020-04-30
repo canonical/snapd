@@ -64,8 +64,8 @@ func NewRecoveryKey() (RecoveryKey, error) {
 	return key, err
 }
 
-// Store writes the recovery key in the location specified by filename.
-func (key RecoveryKey) Store(filename string) error {
+// Save writes the recovery key in the location specified by filename.
+func (key RecoveryKey) Save(filename string) error {
 	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
 		return err
 	}
