@@ -663,6 +663,7 @@ pkg_dependencies_ubuntu_classic(){
                 net-tools
                 packagekit
                 sbuild
+                dbus-user-session
                 "
             ;;
     esac
