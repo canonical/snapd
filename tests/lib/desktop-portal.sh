@@ -3,9 +3,6 @@
 #shellcheck source=tests/lib/pkgdb.sh
 . "$TESTSLIB"/pkgdb.sh
 
-#shellcheck source=tests/lib/user.sh
-. "$TESTSLIB"/user.sh
-
 setup_portals() {
     # Install xdg-desktop-portal and configure service activation for
     # fake portal UI.
