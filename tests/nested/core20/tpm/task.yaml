@@ -1,0 +1,27 @@
+summary: Check that tpm works properly on UC20
+
+description: |
+    This test check UC20 can boot with secure boot successfully
+
+systems: [ubuntu-20.04-*]
+
+prepare: |
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+
+    execute_remote "sudo snap install --beta --devmode test-snapd-mokutil" || true
+
+restore: |
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+
+    execute_remote "sudo snap remove test-snapd-mokutil" || true
+
+execute: |
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+
+    # Check tpm status on the nested vm
+    execute_remote "dmesg | grep -i tpm" | MATCH "efi: +SMBIOS=.* +TPMFinalLog=.*"
+    execute_remote "test -e /sys/kernel/security/tpm0/binary_bios_measurements"
+    execute_remote "test-snapd-mokutil --sb-state" | MATCH "SecureBoot enabled"

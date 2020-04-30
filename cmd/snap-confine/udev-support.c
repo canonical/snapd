@@ -297,6 +297,16 @@ void setup_devices_cgroup(const char *security_tag, struct snappy_udev *udev_s)
 					       major(sbuf.st_rdev),
 					       minor(sbuf.st_rdev));
 	}
+	// When CONFIG_TUN=m, /dev/net/tun will exist but using it doesn't
+	// autoload the tun module but also /dev/net/tun isn't udev tagged
+	// until it is loaded. To work around this, if /dev/net/tun exists, add
+	// it unconditionally to the cgroup and rely on AppArmor to mediate the
+	// access. LP: #1859084
+	if (stat("/dev/net/tun", &sbuf) == 0) {
+		_run_snappy_app_dev_add_majmin(udev_s, "/dev/net/tun",
+					       major(sbuf.st_rdev),
+					       minor(sbuf.st_rdev));
+	}
 	// add the assigned devices
 	while (udev_s->assigned != NULL) {
 		const char *path = udev_list_entry_get_name(udev_s->assigned);

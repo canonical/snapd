@@ -198,7 +198,7 @@ snaps:
  - cannot use snap "some-snap": required snap "core" missing`)
 }
 
-func (s *validateSuite) TestValidateFromYamlSnapMissingSnapdAndCore(c *C) {
+func (s *validateSuite) TestValidateFromYamlSnapMissingSnapdOrCore(c *C) {
 	s.makeSnapInSeed(c, packageCore18)
 	s.makeSnapInSeed(c, `name: some-snap
 version: 1.0
@@ -213,7 +213,31 @@ snaps:
 
 	err := seed.ValidateFromYaml(seedFn)
 	c.Assert(err, ErrorMatches, `cannot validate seed:
- - essential snap "core" required by the model is missing in the seed`)
+ - essential snap core or snapd must be part of the seed`)
+}
+
+func (s *validateSuite) TestValidateFromYamlSnapMissingSnapd(c *C) {
+	modelChain := s.MakeModelAssertionChain("my-brand", "my-model", map[string]interface{}{
+		"classic":        "true",
+		"required-snaps": []interface{}{"snapd"},
+	})
+	s.WriteAssertions("model.asserts", modelChain...)
+
+	s.makeSnapInSeed(c, packageCore18)
+	s.makeSnapInSeed(c, `name: some-snap
+version: 1.0
+base: core18`)
+	seedFn := s.makeSeedYaml(c, `
+snaps:
+ - name: some-snap
+   file: some-snap_1.snap
+ - name: core18
+   file: core18_1.snap
+`)
+
+	err := seed.ValidateFromYaml(seedFn)
+	c.Assert(err, ErrorMatches, `cannot validate seed:
+ - essential snap "snapd" required by the model is missing in the seed`)
 }
 
 func (s *validateSuite) makeBrokenSnap(c *C, snapYaml string) (snapPath string) {
@@ -378,4 +402,37 @@ snaps:
 	err := seed.ValidateFromYaml(seedFn)
 	c.Assert(err, ErrorMatches, `cannot validate seed:
  - cannot read seed yaml: empty element in seed`)
+}
+
+func (s *validateSuite) TestValidateSeedSystemLabel(c *C) {
+	valid := []string{
+		"ab",
+		"20191119",
+		"foobar",
+		"MYSYSTEM",
+		"mySystem",
+		"my-system",
+		"brand-system-date-1234",
+	}
+	for _, label := range valid {
+		c.Logf("trying valid label: %q", label)
+		err := seed.ValidateUC20SeedSystemLabel(label)
+		c.Check(err, IsNil)
+	}
+
+	invalid := []string{
+		"",
+		"a", // too short
+		"/bin",
+		"../../bin/bar",
+		":invalid:",
+		"日本語",
+		"-invalid",
+		"invalid-",
+	}
+	for _, label := range invalid {
+		c.Logf("trying invalid label: %q", label)
+		err := seed.ValidateUC20SeedSystemLabel(label)
+		c.Check(err, ErrorMatches, fmt.Sprintf("invalid seed system label: %q", label))
+	}
 }

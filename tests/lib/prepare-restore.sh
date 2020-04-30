@@ -452,6 +452,9 @@ prepare_project() {
     go get ./tests/lib/fakedevicesvc
     go get ./tests/lib/systemd-escape
 
+    # Build the tool for signing model assertions
+    go get ./tests/lib/gendeveloper1model
+
     # On core systems, the journal service is configured once the final core system
     # is created and booted what is done during the first test suite preparation
     if is_classic_system; then

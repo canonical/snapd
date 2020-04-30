@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2019 Canonical Ltd
+ * Copyright (C) 2014-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -224,8 +224,6 @@ func (tr *tree16) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) 
 	seedYaml.Snaps = make([]*internal.Snap16, len(seedSnaps))
 	for i, sn := range seedSnaps {
 		info := sn.Info
-		// TODO: with default tracks this might be
-		// redirected by the store during the download
 		channel := sn.Channel
 		unasserted := info.SnapID == ""
 		if unasserted {

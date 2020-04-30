@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build !nosecboot
 
 /*
  * Copyright (C) 2019 Canonical Ltd
@@ -16,6 +17,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+
 package bootstrap_test
 
 import (
@@ -114,7 +116,7 @@ var mockDeviceLayout = partition.DeviceLayout{
 }
 
 func (s *bootstrapSuite) TestLayoutCompatibility(c *C) {
-	// same contents
+	// same contents (the locally created structure should be ignored)
 	gadgetLayout := layoutFromYaml(c, mockGadgetYaml)
 	err := bootstrap.EnsureLayoutCompatibility(gadgetLayout, &mockDeviceLayout)
 	c.Assert(err, IsNil)
@@ -149,6 +151,128 @@ func (s *bootstrapSuite) TestLayoutCompatibility(c *C) {
 	c.Check(gadgetLayoutWithExtras.Size > smallDeviceLayout.Size, Equals, true)
 	err = bootstrap.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &smallDeviceLayout)
 	c.Assert(err, ErrorMatches, `device /dev/node \(100 MiB\) is too small to fit the requested layout \(1\.17 GiB\)`)
+}
+
+func (s *bootstrapSuite) TestMBRLayoutCompatibility(c *C) {
+	const mockMBRGadgetYaml = `volumes:
+  pc:
+    schema: mbr
+    bootloader: grub
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+      - name: BIOS Boot
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 1M
+        offset-write: mbr+92
+`
+	var mockMBRDeviceLayout = partition.DeviceLayout{
+		Structure: []partition.DeviceStructure{
+			{
+				LaidOutStructure: gadget.LaidOutStructure{
+					VolumeStructure: &gadget.VolumeStructure{
+						// partition names have no
+						// meaning in MBR schema
+						Name: "other",
+						Size: 440,
+					},
+					StartOffset: 0,
+				},
+				Node: "/dev/node1",
+			},
+			{
+				LaidOutStructure: gadget.LaidOutStructure{
+					VolumeStructure: &gadget.VolumeStructure{
+						// partition names have no
+						// meaning in MBR schema
+						Name: "different BIOS Boot",
+						Size: 1 * gadget.SizeMiB,
+					},
+					StartOffset: 1 * gadget.SizeMiB,
+				},
+				Node: "/dev/node2",
+			},
+		},
+		ID:         "anything",
+		Device:     "/dev/node",
+		Schema:     "dos",
+		Size:       2 * gadget.SizeGiB,
+		SectorSize: 512,
+	}
+	gadgetLayout := layoutFromYaml(c, mockMBRGadgetYaml)
+	err := bootstrap.EnsureLayoutCompatibility(gadgetLayout, &mockMBRDeviceLayout)
+	c.Assert(err, IsNil)
+	// structure is missing from disk
+	gadgetLayoutWithExtras := layoutFromYaml(c, mockMBRGadgetYaml+mockExtraStructure)
+	err = bootstrap.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &mockMBRDeviceLayout)
+	c.Assert(err, IsNil)
+	// add it now
+	deviceLayoutWithExtras := mockMBRDeviceLayout
+	deviceLayoutWithExtras.Structure = append(deviceLayoutWithExtras.Structure,
+		partition.DeviceStructure{
+			LaidOutStructure: gadget.LaidOutStructure{
+				VolumeStructure: &gadget.VolumeStructure{
+					// name is ignored with MBR schema
+					Name:       "Extra partition",
+					Size:       1200 * gadget.SizeMiB,
+					Label:      "extra",
+					Filesystem: "ext4",
+					Type:       "83",
+				},
+				StartOffset: 2 * gadget.SizeMiB,
+			},
+			Node: "/dev/node3",
+		},
+	)
+	err = bootstrap.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &deviceLayoutWithExtras)
+	c.Assert(err, IsNil)
+	// add another structure that's not part of the gadget
+	deviceLayoutWithExtras.Structure = append(deviceLayoutWithExtras.Structure,
+		partition.DeviceStructure{
+			LaidOutStructure: gadget.LaidOutStructure{
+				VolumeStructure: &gadget.VolumeStructure{
+					// name is ignored with MBR schema
+					Name: "Extra extra partition",
+					Size: 1 * gadget.SizeMiB,
+				},
+				StartOffset: 1202 * gadget.SizeMiB,
+			},
+			Node: "/dev/node4",
+		},
+	)
+	err = bootstrap.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &deviceLayoutWithExtras)
+	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node4 .* in gadget`)
+}
+
+func (s *bootstrapSuite) TestLayoutCompatibilityWithCreatedPartitions(c *C) {
+	gadgetLayoutWithExtras := layoutFromYaml(c, mockGadgetYaml+mockExtraStructure)
+	deviceLayout := mockDeviceLayout
+	// device matches gadget except for the filesystem type
+	deviceLayout.Structure = append(deviceLayout.Structure,
+		partition.DeviceStructure{
+			LaidOutStructure: gadget.LaidOutStructure{
+				VolumeStructure: &gadget.VolumeStructure{
+					Name:       "Writable",
+					Size:       1200 * gadget.SizeMiB,
+					Label:      "writable",
+					Filesystem: "something_else",
+				},
+				StartOffset: 2 * gadget.SizeMiB,
+			},
+			Node:                 "/dev/node3",
+			CreatedDuringInstall: true,
+		},
+	)
+	err := bootstrap.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &deviceLayout)
+	c.Assert(err, IsNil)
+
+	// compare layouts without partitions created at install time (should fail)
+	deviceLayout.Structure[len(deviceLayout.Structure)-1].CreatedDuringInstall = false
+	err = bootstrap.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &deviceLayout)
+	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node3.* in gadget`)
+
 }
 
 func (s *bootstrapSuite) TestSchemaCompatibility(c *C) {

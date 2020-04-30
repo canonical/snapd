@@ -7,10 +7,6 @@ systems:
     - -amazon-linux-2-*
     - -centos-7-*
 
-environment:
-    TEST_UID: $(id -u test)
-    USER_RUNTIME_DIR: /run/user/${TEST_UID}
-
 prepare: |
     # Ensure that snapd.session-agent.socket is enabled.  This may not
     # be the case on distributions where presets have been used to
@@ -20,16 +16,18 @@ prepare: |
         systemctl --user --global enable snapd.session-agent.socket
         touch agent-was-enabled
     fi
-    mkdir -p "$USER_RUNTIME_DIR"
-    chmod u=rwX,go= "$USER_RUNTIME_DIR"
-    chown test:test "$USER_RUNTIME_DIR"
-    systemctl start "user@${TEST_UID}.service"
+
+    echo "Install the curl snap as a confined example client"
+    snap install --edge test-snapd-curl
+
+    session-tool -u test --prepare
+    # Wait for sockets.target to finish starting so the session agent
+    # socket is available.
+    session-tool -u test systemctl --user start sockets.target
 
 restore: |
-    systemctl stop "user@${TEST_UID}.service"
-    # this guards against removing .. but also ..foo OTOH those are highly
-    # unlikely to occur
-    rm -rf "${USER_RUNTIME_DIR:?}"/* "${USER_RUNTIME_DIR:?}"/.[!.]*
+    session-tool -u test --restore
+    snap remove test-snapd-curl
     if [ -f agent-was-enabled ]; then
         systemctl --user --global disable snapd.session-agent.socket
         rm agent-was-enabled
@@ -40,18 +38,15 @@ execute: |
         exit 0
     fi
 
-    echo "Install the curl snap as a confined example client"
-    snap install --edge test-snapd-curl
-
     echo "The snap session agent REST API socket exists"
-    test -S "${USER_RUNTIME_DIR}/snapd-session-agent.socket"
+    test -S "/run/user/12345/snapd-session-agent.socket"
 
     echo "But confined applications can not access it"
-    not su -l -c "test-snapd-curl.curl \
-        --unix-socket \"${USER_RUNTIME_DIR}/snapd-session-agent.socket\" \
-        -D- http://localhost/v1/session-info" test
+    not session-tool -u test test-snapd-curl.curl \
+        --unix-socket /run/user/12345/snapd-session-agent.socket \
+        -D- http://localhost/v1/session-info
 
     echo "Confined apps running as root also can not access it"
     not test-snapd-curl.curl \
-        --unix-socket "${USER_RUNTIME_DIR}/snapd-session-agent.socket" \
+        --unix-socket /run/user/12345/snapd-session-agent.socket \
         -D- http://localhost/v1/session-info

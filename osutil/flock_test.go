@@ -21,6 +21,7 @@ package osutil_test
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -35,14 +36,38 @@ type flockSuite struct{}
 
 var _ = Suite(&flockSuite{})
 
+// Test that opening and closing a lock works as expected, and that the mode is right.
+func (s *flockSuite) TestNewFileModeLock(c *C) {
+	lock, err := osutil.NewFileModeLock(filepath.Join(c.MkDir(), "name"), 0644)
+	c.Assert(err, IsNil)
+	defer lock.Close()
+
+	fi, err := os.Stat(lock.Path())
+	c.Assert(err, IsNil)
+	c.Assert(fi.Mode().Perm(), Equals, os.FileMode(0644))
+}
+
 // Test that opening and closing a lock works as expected.
 func (s *flockSuite) TestNewFileLock(c *C) {
 	lock, err := osutil.NewFileLock(filepath.Join(c.MkDir(), "name"))
 	c.Assert(err, IsNil)
 	defer lock.Close()
 
-	_, err = os.Stat(lock.Path())
+	fi, err := os.Stat(lock.Path())
 	c.Assert(err, IsNil)
+	c.Assert(fi.Mode().Perm(), Equals, os.FileMode(0600))
+}
+
+// Test that we can access the underlying open file.
+func (s *flockSuite) TestFile(c *C) {
+	fname := filepath.Join(c.MkDir(), "name")
+	lock, err := osutil.NewFileLock(fname)
+	c.Assert(err, IsNil)
+	defer lock.Close()
+
+	f := lock.File()
+	c.Assert(f, NotNil)
+	c.Check(f.Name(), Equals, fname)
 }
 
 func flockSupportsConflictExitCodeSwitch(c *C) bool {
@@ -78,6 +103,50 @@ func (s *flockSuite) TestLockUnlockWorks(c *C) {
 	cmd = exec.Command("flock", "--exclusive", "--nonblock",
 		"--conflict-exit-code", "2", lock.Path(), "true")
 	c.Assert(cmd.Run(), ErrorMatches, "exit status 2")
+
+	// Unlock the lock.
+	c.Assert(lock.Unlock(), IsNil)
+
+	// Run a flock command in another process, it should succeed because it can
+	// grab the lock again now.
+	cmd = exec.Command("flock", "--exclusive", "--nonblock", lock.Path(), "true")
+	c.Assert(cmd.Run(), IsNil)
+}
+
+// Test that ReadLock and Unlock work as expected.
+func (s *flockSuite) TestReadLockUnlockWorks(c *C) {
+	if os.Getenv("TRAVIS_BUILD_NUMBER") != "" {
+		c.Skip("Cannot use this under travis")
+		return
+	}
+	if !flockSupportsConflictExitCodeSwitch(c) {
+		c.Skip("flock too old for this test")
+	}
+
+	lock, err := osutil.NewFileLock(filepath.Join(c.MkDir(), "name"))
+	c.Assert(err, IsNil)
+	defer lock.Close()
+
+	// Run a flock command in another process, it should succeed because it can
+	// lock the lock as we didn't do it yet.
+	cmd := exec.Command("flock", "--exclusive", "--nonblock", lock.Path(), "true")
+	c.Assert(cmd.Run(), IsNil)
+
+	// Grab a shared lock.
+	c.Assert(lock.ReadLock(), IsNil)
+
+	// Run a flock command in another process, it should fail with the distinct
+	// error code because we hold a shared lock already and we asked it not to block.
+	cmd = exec.Command("flock", "--exclusive", "--nonblock",
+		"--conflict-exit-code", "2", lock.Path(), "true")
+	c.Assert(cmd.Run(), ErrorMatches, "exit status 2")
+
+	// Run a flock command in another process, it should succeed because we
+	// hold a shared lock and those do not prevent others from acquiring a
+	// shared lock.
+	cmd = exec.Command("flock", "--shared", "--nonblock",
+		"--conflict-exit-code", "2", lock.Path(), "true")
+	c.Assert(cmd.Run(), IsNil)
 
 	// Unlock the lock.
 	c.Assert(lock.Unlock(), IsNil)
@@ -127,9 +196,11 @@ func (s *flockSuite) TestLockUnlockNonblockingWorks(c *C) {
 
 	// Use the "flock" command to grab a lock for 9999 seconds in another process.
 	lockPath := filepath.Join(c.MkDir(), "lock")
-	cmd := exec.Command("flock", "--exclusive", lockPath, "sleep", "9999")
+	sleeperKillerPath := filepath.Join(c.MkDir(), "pid")
+	// we can't use --no-fork because we still support 14.04
+	cmd := exec.Command("flock", "--exclusive", lockPath, "-c", fmt.Sprintf(`echo "kill $$" > %s && exec sleep 30`, sleeperKillerPath))
 	c.Assert(cmd.Start(), IsNil)
-	defer cmd.Process.Kill()
+	defer func() { exec.Command("/bin/sh", sleeperKillerPath).Run() }()
 
 	// Give flock some chance to create the lock file.
 	for i := 0; i < 10; i++ {

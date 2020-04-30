@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2018 Canonical Ltd
+ * Copyright (C) 2016-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -161,7 +161,7 @@ func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
 	// that is the more recent name we use.
 	var profilePath string
 	for _, profileFname := range []string{"usr.lib.snapd.snap-confine.real", "usr.lib.snapd.snap-confine"} {
-		profilePath = filepath.Join(dirs.SystemApparmorDir, profileFname)
+		profilePath = filepath.Join(apparmor_sandbox.ConfDir, profileFname)
 		if _, err := os.Stat(profilePath); err != nil {
 			if os.IsNotExist(err) {
 				continue
@@ -180,7 +180,7 @@ func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
 	}
 
 	// We are not using apparmor.LoadProfiles() because it uses other cache.
-	if err := loadProfiles([]string{profilePath}, dirs.SystemApparmorCacheDir, aaFlags); err != nil {
+	if err := loadProfiles([]string{profilePath}, apparmor_sandbox.SystemCacheDir, aaFlags); err != nil {
 		// When we cannot reload the profile then let's remove the generated
 		// policy. Maybe we have caused the problem so it's better to let other
 		// things work.
@@ -244,7 +244,7 @@ func (b *Backend) setupSnapConfineReexec(info *snap.Info) error {
 		return fmt.Errorf("cannot create snap-confine policy directory: %s", err)
 	}
 	dir, glob, content, err := snapConfineFromSnapProfile(info)
-	cache := dirs.AppArmorCacheDir
+	cache := apparmor_sandbox.CacheDir
 	if err != nil {
 		return fmt.Errorf("cannot compute snap-confine profile: %s", err)
 	}
@@ -369,7 +369,7 @@ func (b *Backend) prepareProfiles(snapInfo *snap.Info, opts interfaces.Confineme
 	// https://forum.snapcraft.io/t/core-snap-revert-issues-on-core-devices/
 	//
 	if (snapInfo.GetType() == snap.TypeOS || snapInfo.GetType() == snap.TypeSnapd) && !release.OnClassic {
-		if li, err := filepath.Glob(filepath.Join(dirs.SystemApparmorCacheDir, "*")); err == nil {
+		if li, err := filepath.Glob(filepath.Join(apparmor_sandbox.SystemCacheDir, "*")); err == nil {
 			for _, p := range li {
 				if st, err := os.Stat(p); err == nil && st.Mode().IsRegular() && profileIsRemovableOnCoreSetup(p) {
 					if err := os.Remove(p); err != nil {
@@ -443,7 +443,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 		aaFlags |= skipKernelLoad
 	}
 	timings.Run(tm, "load-profiles[changed]", fmt.Sprintf("load changed security profiles of snap %q", snapInfo.InstanceName()), func(nesttm timings.Measurer) {
-		errReloadChanged = loadProfiles(prof.changed, dirs.AppArmorCacheDir, aaFlags)
+		errReloadChanged = loadProfiles(prof.changed, apparmor_sandbox.CacheDir, aaFlags)
 	})
 
 	// Load all unchanged profiles anyway. This ensures those are correct in
@@ -455,9 +455,9 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 		aaFlags |= skipKernelLoad
 	}
 	timings.Run(tm, "load-profiles[unchanged]", fmt.Sprintf("load unchanged security profiles of snap %q", snapInfo.InstanceName()), func(nesttm timings.Measurer) {
-		errReloadOther = loadProfiles(prof.unchanged, dirs.AppArmorCacheDir, aaFlags)
+		errReloadOther = loadProfiles(prof.unchanged, apparmor_sandbox.CacheDir, aaFlags)
 	})
-	errUnload := unloadProfiles(prof.removed, dirs.AppArmorCacheDir)
+	errUnload := unloadProfiles(prof.removed, apparmor_sandbox.CacheDir)
 	if errReloadChanged != nil {
 		return errReloadChanged
 	}
@@ -496,7 +496,7 @@ func (b *Backend) SetupMany(snaps []*snap.Info, confinement func(snapName string
 		}
 		var errReloadChanged error
 		timings.Run(tm, "load-profiles[changed-many]", fmt.Sprintf("load changed security profiles of %d snaps", len(snaps)), func(nesttm timings.Measurer) {
-			errReloadChanged = loadProfiles(allChangedPaths, dirs.AppArmorCacheDir, aaFlags)
+			errReloadChanged = loadProfiles(allChangedPaths, apparmor_sandbox.CacheDir, aaFlags)
 		})
 
 		aaFlags = conserveCPU
@@ -505,10 +505,10 @@ func (b *Backend) SetupMany(snaps []*snap.Info, confinement func(snapName string
 		}
 		var errReloadOther error
 		timings.Run(tm, "load-profiles[unchanged-many]", fmt.Sprintf("load unchanged security profiles %d snaps", len(snaps)), func(nesttm timings.Measurer) {
-			errReloadOther = loadProfiles(allUnchangedPaths, dirs.AppArmorCacheDir, aaFlags)
+			errReloadOther = loadProfiles(allUnchangedPaths, apparmor_sandbox.CacheDir, aaFlags)
 		})
 
-		errUnload := unloadProfiles(allRemovedPaths, dirs.AppArmorCacheDir)
+		errUnload := unloadProfiles(allRemovedPaths, apparmor_sandbox.CacheDir)
 		if errReloadChanged != nil {
 			logger.Noticef("failed to batch-reload changed profiles: %s", errReloadChanged)
 			fallback = true
@@ -540,7 +540,7 @@ func (b *Backend) SetupMany(snaps []*snap.Info, confinement func(snapName string
 func (b *Backend) Remove(snapName string) error {
 	dir := dirs.SnapAppArmorDir
 	globs := profileGlobs(snapName)
-	cache := dirs.AppArmorCacheDir
+	cache := apparmor_sandbox.CacheDir
 	_, removed, errEnsure := osutil.EnsureDirStateGlobs(dir, globs, nil)
 	errUnload := unloadProfiles(removed, cache)
 	if errEnsure != nil {
@@ -550,7 +550,8 @@ func (b *Backend) Remove(snapName string) error {
 }
 
 var (
-	templatePattern = regexp.MustCompile("(###[A-Z_]+###)")
+	templatePattern    = regexp.MustCompile("(###[A-Z_]+###)")
+	coreRuntimePattern = regexp.MustCompile("^core([0-9][0-9])?$")
 )
 
 const (
@@ -628,8 +629,17 @@ func downgradeConfinement() bool {
 }
 
 func addContent(securityTag string, snapInfo *snap.Info, cmdName string, opts interfaces.ConfinementOptions, snippetForTag string, content map[string]osutil.FileState, spec *Specification) {
-	// Normally we use a specific apparmor template for all snap programs.
-	policy := defaultTemplate
+	// If base is specified and it doesn't match the core snaps (not
+	// specifying a base should use the default core policy since in this
+	// case, the 'core' snap is used for the runtime), use the base
+	// apparmor template, otherwise use the default template.
+	var policy string
+	if snapInfo.Base != "" && !coreRuntimePattern.MatchString(snapInfo.Base) {
+		policy = defaultOtherBaseTemplate
+	} else {
+		policy = defaultCoreRuntimeTemplate
+	}
+
 	ignoreSnippets := false
 	// Classic confinement (unless overridden by JailMode) has a dedicated
 	// permissive template that applies a strict, but very open, policy.

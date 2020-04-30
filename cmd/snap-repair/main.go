@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2017-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -28,9 +28,9 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/cmd"
-	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snapdenv"
 )
 
 var (
@@ -76,7 +76,7 @@ func run() error {
 	if osGetuid() != 0 {
 		return fmt.Errorf("must be run as root")
 	}
-	httputil.SetUserAgentFromVersion(cmd.Version, "snap-repair")
+	snapdenv.SetUserAgentFromVersion(cmd.Version, nil, "snap-repair")
 
 	if err := parseArgs(os.Args[1:]); err != nil {
 		return err

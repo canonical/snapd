@@ -41,27 +41,16 @@ type Modeenv struct {
 	TryBase        string
 	BaseStatus     string
 	CurrentKernels []string
+	Model          string
+	BrandID        string
+	Grade          string
 
 	// read is set to true when a modenv was read successfully
 	read bool
-}
 
-var readModeenv = readModeenvImpl
-
-// ReadModeenv attempts to read the modeenv file at
-// <rootdir>/var/iib/snapd/modeenv.
-func ReadModeenv(rootdir string) (*Modeenv, error) {
-	return readModeenv(rootdir)
-}
-
-// MockReadModeenv replaces the current implementation of ReadModeenv with a
-// mocked one. For use in tests.
-func MockReadModeenv(f func(rootdir string) (*Modeenv, error)) (restore func()) {
-	old := readModeenv
-	readModeenv = f
-	return func() {
-		readModeenv = old
-	}
+	// originRootdir is set to the root whence the modeenv was
+	// read from, and where it will be written back to
+	originRootdir string
 }
 
 func modeenvFile(rootdir string) string {
@@ -71,7 +60,9 @@ func modeenvFile(rootdir string) string {
 	return dirs.SnapModeenvFileUnder(rootdir)
 }
 
-func readModeenvImpl(rootdir string) (*Modeenv, error) {
+// ReadModeenv attempts to read the modeenv file at
+// <rootdir>/var/iib/snapd/modeenv.
+func ReadModeenv(rootdir string) (*Modeenv, error) {
 	modeenvPath := modeenvFile(rootdir)
 	cfg := goconfigparser.New()
 	cfg.AllowNoSectionHeader = true
@@ -99,6 +90,18 @@ func readModeenvImpl(rootdir string) (*Modeenv, error) {
 		}
 		kernels = nonEmptyKernels
 	}
+	brand := ""
+	model := ""
+	brandSlashModel, _ := cfg.Get("", "model")
+	if bsmSplit := strings.SplitN(brandSlashModel, "/", 2); len(bsmSplit) == 2 {
+		if bsmSplit[0] != "" && bsmSplit[1] != "" {
+			brand = bsmSplit[0]
+			model = bsmSplit[1]
+		}
+	}
+	// expect the caller to validate the grade
+	grade, _ := cfg.Get("", "grade")
+
 	return &Modeenv{
 		Mode:           mode,
 		RecoverySystem: recoverySystem,
@@ -106,17 +109,25 @@ func readModeenvImpl(rootdir string) (*Modeenv, error) {
 		TryBase:        tryBase,
 		BaseStatus:     baseStatus,
 		CurrentKernels: kernels,
+		BrandID:        brand,
+		Grade:          grade,
+		Model:          model,
 		read:           true,
+		originRootdir:  rootdir,
 	}, nil
 }
 
-// Unset returns true if no modeenv file was read (yet)
-func (m *Modeenv) Unset() bool {
-	return !m.read
+// Write outputs the modeenv to the file where it was read, only valid on
+// modeenv that has been read.
+func (m *Modeenv) Write() error {
+	if m.read {
+		return m.WriteTo(m.originRootdir)
+	}
+	return fmt.Errorf("internal error: must use WriteTo with modeenv not read from disk")
 }
 
-// Write outputs the modeenv to the file at <rootdir>/var/lib/snapd/modeenv.
-func (m *Modeenv) Write(rootdir string) error {
+// WriteTo outputs the modeenv to the file at <rootdir>/var/lib/snapd/modeenv.
+func (m *Modeenv) WriteTo(rootdir string) error {
 	modeenvPath := modeenvFile(rootdir)
 
 	if err := os.MkdirAll(filepath.Dir(modeenvPath), 0755); err != nil {
@@ -140,6 +151,18 @@ func (m *Modeenv) Write(rootdir string) error {
 	}
 	if len(m.CurrentKernels) != 0 {
 		fmt.Fprintf(buf, "current_kernels=%s\n", strings.Join(m.CurrentKernels, ","))
+	}
+	if m.Model != "" || m.Grade != "" {
+		if m.Model == "" {
+			return fmt.Errorf("internal error: model is unset")
+		}
+		if m.BrandID == "" {
+			return fmt.Errorf("internal error: brand is unset")
+		}
+		fmt.Fprintf(buf, "model=%s/%s\n", m.BrandID, m.Model)
+	}
+	if m.Grade != "" {
+		fmt.Fprintf(buf, "grade=%s\n", m.Grade)
 	}
 
 	if err := osutil.AtomicWriteFile(modeenvPath, buf.Bytes(), 0644, 0); err != nil {

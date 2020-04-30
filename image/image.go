@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2019 Canonical Ltd
+ * Copyright (C) 2014-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -317,8 +317,11 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 				TargetPathFunc: targetPathFunc,
 				Channel:        sn.Channel,
 			}
-			fn, info, err := tsto.DownloadSnap(sn.SnapName(), dlOpts) // TODO|XXX make this take the SnapRef really
+			fn, info, redirectChannel, err := tsto.DownloadSnap(sn.SnapName(), dlOpts) // TODO|XXX make this take the SnapRef really
 			if err != nil {
+				return err
+			}
+			if err := w.SetRedirectChannel(sn, redirectChannel); err != nil {
 				return err
 			}
 
@@ -369,7 +372,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 	}
 
 	if opts.Classic {
-		// TODO: consider Core 20 extended models vs classic
+		// TODO:UC20: consider Core 20 extended models vs classic
 		seedFn := filepath.Join(seedDir, "seed.yaml")
 		// warn about ownership if not root:root
 		fi, err := os.Stat(seedFn)
@@ -396,6 +399,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 	}
 	if label != "" {
 		bootWith.RecoverySystemDir = filepath.Join("/systems/", label)
+		bootWith.RecoverySystemLabel = label
 	}
 
 	// find the gadget file

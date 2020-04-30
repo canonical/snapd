@@ -194,6 +194,36 @@ func (t *Transaction) GetMaybe(instanceName, key string, result interface{}) err
 	return nil
 }
 
+// GetPristine unmarshals the cached pristine (before applying any
+// changes) value of the provided snap's configuration key into
+// result.
+//
+// If the key does not exist, an error of type *NoOptionError is returned.
+func (t *Transaction) GetPristine(snapName, key string, result interface{}) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	subkeys, err := ParseKey(key)
+	if err != nil {
+		return err
+	}
+
+	return getFromConfig(snapName, subkeys, 0, t.pristine[snapName], result)
+}
+
+// GetPristineMaybe unmarshals the cached pristine (before applying any
+// changes) value of the provided snap's configuration key into
+// result.
+//
+// If the key does not exist, no error is returned.
+func (t *Transaction) GetPristineMaybe(instanceName, key string, result interface{}) error {
+	err := t.GetPristine(instanceName, key, result)
+	if err != nil && !IsNoOption(err) {
+		return err
+	}
+	return nil
+}
+
 func getFromConfig(instanceName string, subkeys []string, pos int, config map[string]*json.RawMessage, result interface{}) error {
 	// special case - get root document
 	if len(subkeys) == 0 {

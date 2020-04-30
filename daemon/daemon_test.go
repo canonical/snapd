@@ -637,7 +637,6 @@ func (s *daemonSuite) TestGracefulStop(c *check.C) {
 		} else {
 			w.Write([]byte("Gone"))
 		}
-		return
 	})
 
 	// mark as already seeded
@@ -722,7 +721,99 @@ func (s *daemonSuite) TestGracefulStop(c *check.C) {
 	}
 }
 
-func (s *daemonSuite) TestRestartSystemWiring(c *check.C) {
+func (s *daemonSuite) TestGracefulStopHasLimits(c *check.C) {
+	d := newTestDaemon(c)
+
+	// mark as already seeded
+	s.markSeeded(d)
+
+	restore := MockShutdownTimeout(time.Second)
+	defer restore()
+
+	responding := make(chan struct{})
+	doRespond := make(chan bool, 1)
+
+	d.router.HandleFunc("/endp", func(w http.ResponseWriter, r *http.Request) {
+		close(responding)
+		if <-doRespond {
+			for {
+				// write in a loop to keep the handler running
+				if _, err := w.Write([]byte("OKOK")); err != nil {
+					break
+				}
+				time.Sleep(50 * time.Millisecond)
+			}
+		} else {
+			w.Write([]byte("Gone"))
+		}
+	})
+
+	snapdL, err := net.Listen("tcp", "127.0.0.1:0")
+	c.Assert(err, check.IsNil)
+
+	snapL, err := net.Listen("tcp", "127.0.0.1:0")
+	c.Assert(err, check.IsNil)
+
+	snapdAccept := make(chan struct{})
+	snapdClosed := make(chan struct{})
+	d.snapdListener = &witnessAcceptListener{Listener: snapdL, accept: snapdAccept, closed: snapdClosed}
+
+	snapAccept := make(chan struct{})
+	d.snapListener = &witnessAcceptListener{Listener: snapL, accept: snapAccept}
+
+	c.Assert(d.Start(), check.IsNil)
+
+	snapdAccepting := make(chan struct{})
+	go func() {
+		select {
+		case <-snapdAccept:
+		case <-time.After(2 * time.Second):
+			c.Fatal("snapd accept was not called")
+		}
+		close(snapdAccepting)
+	}()
+
+	snapAccepting := make(chan struct{})
+	go func() {
+		select {
+		case <-snapAccept:
+		case <-time.After(2 * time.Second):
+			c.Fatal("snapd accept was not called")
+		}
+		close(snapAccepting)
+	}()
+
+	<-snapdAccepting
+	<-snapAccepting
+
+	clientErr := make(chan error)
+
+	go func() {
+		_, err := http.Get(fmt.Sprintf("http://%s/endp", snapdL.Addr()))
+		c.Assert(err, check.NotNil)
+		clientErr <- err
+		close(clientErr)
+	}()
+	go func() {
+		<-snapdClosed
+		time.Sleep(200 * time.Millisecond)
+		doRespond <- true
+	}()
+
+	<-responding
+	err = d.Stop(nil)
+	doRespond <- false
+	c.Check(err, check.IsNil)
+
+	select {
+	case cErr := <-clientErr:
+		c.Check(cErr, check.ErrorMatches, ".*: EOF")
+	case <-time.After(5 * time.Second):
+		c.Fatal("never got proper response")
+	}
+}
+
+func (s *daemonSuite) testRestartSystemWiring(c *check.C, restartKind state.RestartType) {
 	d := newTestDaemon(c)
 	// mark as already seeded
 	s.markSeeded(d)
@@ -781,12 +872,12 @@ func (s *daemonSuite) TestRestartSystemWiring(c *check.C) {
 	}
 
 	st.Lock()
-	st.RequestRestart(state.RestartSystem)
+	st.RequestRestart(restartKind)
 	st.Unlock()
 
 	defer func() {
 		d.mu.Lock()
-		d.restartSystem = false
+		d.restartSystem = state.RestartUnset
 		d.mu.Unlock()
 	}()
 
@@ -800,7 +891,7 @@ func (s *daemonSuite) TestRestartSystemWiring(c *check.C) {
 	rs := d.restartSystem
 	d.mu.Unlock()
 
-	c.Check(rs, check.Equals, true)
+	c.Check(rs, check.Equals, restartKind)
 
 	c.Check(delays, check.HasLen, 1)
 	c.Check(delays[0], check.DeepEquals, rebootWaitTimeout)
@@ -812,7 +903,11 @@ func (s *daemonSuite) TestRestartSystemWiring(c *check.C) {
 	c.Check(err, check.ErrorMatches, "expected reboot did not happen")
 
 	c.Check(delays, check.HasLen, 2)
-	c.Check(delays[1], check.DeepEquals, 1*time.Minute)
+	if restartKind == state.RestartSystem {
+		c.Check(delays[1], check.DeepEquals, 1*time.Minute)
+	} else if restartKind == state.RestartSystemNow {
+		c.Check(delays[1], check.DeepEquals, time.Duration(0))
+	}
 
 	// we are not stopping, we wait for the reboot instead
 	c.Check(s.notified, check.DeepEquals, []string{"EXTEND_TIMEOUT_USEC=30000000", "READY=1"})
@@ -822,8 +917,21 @@ func (s *daemonSuite) TestRestartSystemWiring(c *check.C) {
 	var rebootAt time.Time
 	err = st.Get("daemon-system-restart-at", &rebootAt)
 	c.Assert(err, check.IsNil)
-	approxAt := now.Add(time.Minute)
-	c.Check(rebootAt.After(approxAt) || rebootAt.Equal(approxAt), check.Equals, true)
+	if restartKind == state.RestartSystem {
+		approxAt := now.Add(time.Minute)
+		c.Check(rebootAt.After(approxAt) || rebootAt.Equal(approxAt), check.Equals, true)
+	} else if restartKind == state.RestartSystemNow {
+		// should be good enough
+		c.Check(rebootAt.Before(now.Add(10*time.Second)), check.Equals, true)
+	}
+}
+
+func (s *daemonSuite) TestRestartSystemGracefulWiring(c *check.C) {
+	s.testRestartSystemWiring(c, state.RestartSystem)
+}
+
+func (s *daemonSuite) TestRestartSystemImmediateWiring(c *check.C) {
+	s.testRestartSystemWiring(c, state.RestartSystemNow)
 }
 
 func (s *daemonSuite) TestRebootHelper(c *check.C) {
@@ -925,7 +1033,7 @@ func (s *daemonSuite) TestRestartShutdown(c *check.C) {
 	st.Unlock()
 
 	sigCh := make(chan os.Signal, 2)
-	// stop (this will timeout but thats not relevant for this test)
+	// stop (this will timeout but that's not relevant for this test)
 	d.Stop(sigCh)
 
 	// ensure that the sigCh got closed as part of the stop

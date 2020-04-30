@@ -341,6 +341,7 @@ repack_snapd_snap_with_deb_content() {
 
 repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks() {
     local TARGET="$1"
+    local ENABLE_SSH="${2:-true}"
 
     local UNPACK_DIR="/tmp/snapd-unpack"
     unsquashfs -no-progress -d "$UNPACK_DIR" snapd_*.snap
@@ -353,8 +354,9 @@ repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks() {
     dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$UNPACK_DIR"
     cp /usr/lib/snapd/info "$UNPACK_DIR"/usr/lib/
 
-    # now install a unit that setups enough so that we can connect
-    cat > "$UNPACK_DIR"/lib/systemd/system/snapd.spread-tests-run-mode-tweaks.service <<'EOF'
+    if [ "$ENABLE_SSH" = "true" ]; then
+        # now install a unit that sets up enough so that we can connect
+        cat > "$UNPACK_DIR"/lib/systemd/system/snapd.spread-tests-run-mode-tweaks.service <<'EOF'
 [Unit]
 Description=Tweaks to run mode for spread tests
 Before=snapd.service
@@ -368,8 +370,8 @@ RemainAfterExit=true
 [Install]
 WantedBy=multi-user.target
 EOF
-    # XXX: this duplicates a lot of setup_test_user_by_modify_writable()
-    cat > "$UNPACK_DIR"/usr/lib/snapd/snapd.spread-tests-run-mode-tweaks.sh <<'EOF'
+        # XXX: this duplicates a lot of setup_test_user_by_modify_writable()
+        cat > "$UNPACK_DIR"/usr/lib/snapd/snapd.spread-tests-run-mode-tweaks.sh <<'EOF'
 #!/bin/sh
 set -e
 # ensure we don't enable ssh in install mode or spread will get confused
@@ -419,7 +421,9 @@ systemctl reload ssh
 
 touch /root/spread-setup-done
 EOF
-    chmod 0755 "$UNPACK_DIR"/usr/lib/snapd/snapd.spread-tests-run-mode-tweaks.sh
+        chmod 0755 "$UNPACK_DIR"/usr/lib/snapd/snapd.spread-tests-run-mode-tweaks.sh
+    fi
+
     snap pack "$UNPACK_DIR" "$TARGET"
     rm -rf "$UNPACK_DIR"
 }
@@ -452,8 +456,11 @@ uc20_build_initramfs_kernel_snap() {
         # this works on 20.04 but not on 18.04
         unmkinitramfs initrd unpacked-initrd
 
-        # use distro skeleton
-        cp -ar /usr/lib/ubuntu-core-initramfs skeleton
+        # use only the initrd we got from the kernel snap to inject our changes
+        # we don't use the distro package because the distro package may be 
+        # different systemd version, etc. in the initrd from the one in the 
+        # kernel and we don't want to test that, just test our snap-bootstrap
+        cp -ar unpacked-initrd skeleton
         # all the skeleton edits go to a local copy of distro directory
         skeletondir=$PWD/skeleton
         cp -a /usr/lib/snapd/snap-bootstrap "$skeletondir/main/usr/lib/snapd/snap-bootstrap"
@@ -918,7 +925,7 @@ prepare_ubuntu_core() {
     done
 
     echo "Ensure the snapd snap is available"
-    if is_core18_system; then
+    if is_core18_system || is_core20_system; then
         if ! snap list snapd; then
             echo "snapd snap on core18 is missing"
             snap list
@@ -944,13 +951,16 @@ prepare_ubuntu_core() {
 
     echo "Ensure the core snap is cached"
     # Cache snaps
-    if is_core18_system; then
+    if is_core18_system || is_core20_system; then
         if snap list core >& /dev/null; then
             echo "core snap on core18 should not be installed yet"
             snap list
             exit 1
         fi
-        cache_snaps core test-snapd-sh-core18
+        cache_snaps core
+        if is_core18_system; then
+            cache_snaps test-snapd-sh-core18
+        fi
     fi
 
     echo "Cache the snaps profiler snap"
