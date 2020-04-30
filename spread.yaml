@@ -1010,6 +1010,10 @@ suites:
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
             snap install core --beta
 
+            # Installs this specific pc gadget snap until new version is published
+            mkdir -p extra-snaps
+            curl -L -o extra-snaps/pc_96.snap https://storage.googleapis.com/spread-snapd-tests/snaps/pc_96.snap
+
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
             create_nested_core_vm
