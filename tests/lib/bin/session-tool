@@ -1,7 +1,7 @@
 #!/bin/bash -e
 if [ $# -eq 0 ]; then
 	echo "usage: session-tool [-u USER] [-p PID_FILE] [--] <CMD>"
-	echo "usage: session-tool --prepare | --restore [-u USER]"
+	echo "usage: session-tool --prepare | --restore [-u USER | -u USER1,USER2,...]"
 	echo "usage: session-tool --kill-leaked"
 	echo "usage: session-tool --dump"
 	echo "usage: session-tool --has-systemd-and-dbus [-u USER]"
@@ -116,14 +116,18 @@ case "$action" in
 			touch /run/session-tool-systemd-issue-12401.workaround
 		fi
 
-		# Enable linger for the selected user.
-		loginctl enable-linger "$user"
+		# Enable linger for the selected user(s).
+		for u in $(echo "$user" | tr ',' ' '); do
+			loginctl enable-linger "$u"
+		done
 
 		exit 0
 		;;
 	restore)
-		# Disable linger for the selected user.
-		loginctl disable-linger "$user"
+		# Disable linger for the selected user(s).
+		for u in $(echo "$user" | tr ',' ' '); do
+			loginctl disable-linger "$u"
+		done
 
 		if [ -e /run/session-tool-core16.workaround ]; then
 			rm  /run/session-tool-core16.workaround
