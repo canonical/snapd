@@ -88,10 +88,6 @@ type SecbootHandle struct {
 	tpm *sb.TPMConnection
 }
 
-var (
-	insecureConnect = insecureConnectImpl
-)
-
 // MockSecbootConnect should only be used in tests. TPM should not
 // be exposed to external tests.
 func MockSecbootConnect() (func(), error) {
@@ -114,7 +110,7 @@ func MockSecbootConnect() (func(), error) {
 	return restore, nil
 }
 
-func secureConnect(ekcfile string) (*SecbootHandle, error) {
+func secureConnectToTPM(ekcfile string) (*SecbootHandle, error) {
 	ekCertReader, err := os.Open(ekcfile)
 	if err != nil {
 		return nil, fmt.Errorf("cannot open endorsement key certificate file: %v", err)
@@ -128,7 +124,7 @@ func secureConnect(ekcfile string) (*SecbootHandle, error) {
 	return &SecbootHandle{tpm: tpm}, nil
 }
 
-func insecureConnectImpl() (*SecbootHandle, error) {
+func insecureConnectToTPM() (*SecbootHandle, error) {
 	tpm, err := sbConnectToDefaultTPM()
 	if err != nil {
 		return nil, err
@@ -161,7 +157,7 @@ func MeasureModel(h *SecbootHandle, model *asserts.Model) error {
 // success is returned.
 func MeasureWhenPossible(whatHow func(h *SecbootHandle) error) error {
 	// the model is ready, we're good to try measuring it now
-	t, err := insecureConnect()
+	t, err := insecureConnectToTPM()
 	if err != nil {
 		var perr *os.PathError
 		// XXX: xerrors.Is() does not work with PathErrors?
