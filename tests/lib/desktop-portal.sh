@@ -39,13 +39,10 @@ Interfaces=org.freedesktop.impl.portal.FileChooser;org.freedesktop.impl.portal.S
 UseIn=spread
 EOF
 
-    start_user_session
-    as_user systemctl --user set-environment XDG_CURRENT_DESKTOP=spread
+    session-tool -u test systemctl --user set-environment XDG_CURRENT_DESKTOP=spread
 }
 
 teardown_portals() {
-    stop_user_session
-
     rm -f /usr/share/dbus-1/services/org.freedesktop.impl.portal.spread.service
     rm -f /usr/lib/systemd/user/spread-portal-ui.service
     rm -f /usr/share/xdg-desktop-portal/portals/spread.portal
@@ -59,6 +56,4 @@ teardown_portals() {
 
     distro_purge_package xdg-desktop-portal
     distro_auto_remove_packages
-
-    purge_user_session_data
 }
