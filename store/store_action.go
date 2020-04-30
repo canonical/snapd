@@ -581,8 +581,13 @@ func findRev(needle snap.Revision, haystack []snap.Revision) bool {
 }
 
 func reportFetchAssertionsError(res *snapActionResult, assertq AssertionQuery) error {
-	// prefer to report the most unexpected error
-	e := -1
+	// prefer to report the most unexpected error:
+	// * errors not referring to an assertion (no valid type/primary-key)
+	// are more unexpected than
+	// * errors referring to a precise assertion that are not not-found
+	// themselves more unexpected than
+	// * not-found errors
+	errIdx := -1
 	errl := res.ErrorList
 	carryingRef := func(i int) bool {
 		aType := asserts.Type(errl[i].Type)
@@ -591,21 +596,21 @@ func reportFetchAssertionsError(res *snapActionResult, assertq AssertionQuery) e
 	for i, ent := range errl {
 		withRef := carryingRef(i)
 		if withRef && ent.Code == "not-found" {
-			if e == -1 {
-				e = i
+			if errIdx == -1 {
+				errIdx = i
 			}
 		} else if withRef {
-			if e == -1 || errl[e].Code == "not-found" {
-				e = i
+			if errIdx == -1 || errl[errIdx].Code == "not-found" {
+				errIdx = i
 			}
 		} else {
-			if e == -1 || carryingRef(e) {
-				e = i
+			if errIdx == -1 || carryingRef(errIdx) {
+				errIdx = i
 			}
 		}
 	}
-	rep := errl[e]
-	if carryingRef(e) {
+	rep := errl[errIdx]
+	if carryingRef(errIdx) {
 		ref := &asserts.Ref{Type: asserts.Type(rep.Type), PrimaryKey: rep.PrimaryKey}
 		var err error
 		if rep.Code == "not-found" {
