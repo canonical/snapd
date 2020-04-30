@@ -127,17 +127,21 @@ func (s *imageSuite) TearDownTest(c *C) {
 }
 
 // interface for the store
-func (s *imageSuite) SnapAction(_ context.Context, _ []*store.CurrentSnap, actions []*store.SnapAction, _ *auth.UserState, _ *store.RefreshOptions) ([]store.SnapActionResult, error) {
+func (s *imageSuite) SnapAction(_ context.Context, _ []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, _ *auth.UserState, _ *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
+	if assertQuery != nil {
+		return nil, nil, fmt.Errorf("unexpected assertion query")
+	}
+
 	if len(actions) != 1 {
-		return nil, fmt.Errorf("expected 1 action, got %d", len(actions))
+		return nil, nil, fmt.Errorf("expected 1 action, got %d", len(actions))
 	}
 
 	if actions[0].Action != "download" {
-		return nil, fmt.Errorf("unexpected action %q", actions[0].Action)
+		return nil, nil, fmt.Errorf("unexpected action %q", actions[0].Action)
 	}
 
 	if _, instanceKey := snap.SplitInstanceName(actions[0].InstanceName); instanceKey != "" {
-		return nil, fmt.Errorf("unexpected instance key in %q", actions[0].InstanceName)
+		return nil, nil, fmt.Errorf("unexpected instance key in %q", actions[0].InstanceName)
 	}
 	// record
 	s.storeActions = append(s.storeActions, actions[0])
@@ -151,9 +155,9 @@ func (s *imageSuite) SnapAction(_ context.Context, _ []*store.CurrentSnap, actio
 			redirectChannel = channel
 		}
 		info1.Channel = channel
-		return []store.SnapActionResult{{Info: &info1, RedirectChannel: redirectChannel}}, nil
+		return []store.SnapActionResult{{Info: &info1, RedirectChannel: redirectChannel}}, nil, nil
 	}
-	return nil, fmt.Errorf("no %q in the fake store", actions[0].InstanceName)
+	return nil, nil, fmt.Errorf("no %q in the fake store", actions[0].InstanceName)
 }
 
 func (s *imageSuite) Download(ctx context.Context, name, targetFn string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState, dlOpts *store.DownloadOptions) error {
