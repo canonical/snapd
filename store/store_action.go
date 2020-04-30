@@ -389,9 +389,9 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 	}
 
 	// assertions
-	i := len(actions)
 	var assertMaxFormats map[string]int
 	if len(toResolve) > 0 {
+		i := len(actionJSONs) - len(toResolve)
 		for grp, ats := range toResolve {
 			aJSON := &snapActionJSON{
 				Action: "fetch-assertions",
