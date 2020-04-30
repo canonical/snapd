@@ -659,7 +659,9 @@ pkg_dependencies_ubuntu_classic(){
                 eatmydata
                 evolution-data-server
                 fwupd
+                gcc-multilib
                 libc6-dev-i386
+                linux-libc-dev
                 net-tools
                 packagekit
                 sbuild
@@ -845,7 +847,7 @@ pkg_dependencies(){
 install_pkg_dependencies(){
     pkgs=$(pkg_dependencies)
     # shellcheck disable=SC2086
-    distro_install_package $pkgs
+    distro_install_package --no-install-recommends $pkgs
 }
 
 # upgrade distribution and indicate if reboot is needed by outputting 'reboot'
