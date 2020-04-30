@@ -1006,6 +1006,10 @@ suites:
             distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx
             snap install ubuntu-image --classic
 
+            # Installs latest snapd until 2.45 is stable
+            dpkg -i "$SPREAD_PATH"/../snapd_*.deb
+            snap install core --beta
+
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
             create_nested_core_vm
