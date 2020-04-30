@@ -92,7 +92,7 @@
 %endif
 
 Name:           snapd
-Version:        2.44.4
+Version:        2.44.5
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -885,6 +885,19 @@ fi
 
 
 %changelog
+* Thu Apr 30 2020 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.44.5
+ - spread.yaml: adding more workers for ubuntu 20.04
+ - packaging: stop depending on python-docutils on opensuse
+ - spread.yaml: do not run ubuntu-core-20-64 with snapd 2.44, snapd
+   is not recent enough to drive ubuntu-core-20
+ - spread.yaml: Preserve size for centos images on spread.yaml
+ - spread.yaml: use non-uefi enabled image for uc20
+ - tests: ensure $cache_dir is actually available
+ - tests: disable preseed tests, they work in master but require too
+   much cherry-picking here
+ - travis.yml: remove go/master unit tests from 2.44
+
 * Wed Apr 29 2020 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.44.4
  - packaging/fedora: disable FIPS compliant crypto for static

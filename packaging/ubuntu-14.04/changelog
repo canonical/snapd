@@ -1,3 +1,19 @@
+snapd (2.44.5~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1864808
+    - spread.yaml: adding more workers for ubuntu 20.04
+    - packaging: stop depending on python-docutils on opensuse
+    - spread.yaml: do not run ubuntu-core-20-64 with snapd 2.44, snapd
+      is not recent enough to drive ubuntu-core-20
+    - spread.yaml: Preserve size for centos images on spread.yaml
+    - spread.yaml: use non-uefi enabled image for uc20
+    - tests: ensure $cache_dir is actually available
+    - tests: disable preseed tests, they work in master but require too
+      much cherry-picking here
+    - travis.yml: remove go/master unit tests from 2.44
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 30 Apr 2020 09:09:22 +0200
+
 snapd (2.44.4~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #1864808
