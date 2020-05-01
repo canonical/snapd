@@ -6,7 +6,8 @@ systems:
   - arch-linux-*
   # Debian 9 ships xdg-desktop-portal 0.5, which seems to have trouble
   # with the test harness.  Debian 10 should be fine when we add it.
-  - debian-sid-*
+  # TODO:session-tool: port and re-enable
+  # - debian-sid-*
   - fedora-*
   # OpenSUSE 15.1 ships xdg-desktop-portal 0.10, which also seems to
   # be problematic.  OpenSUSE 15.2 will hopefully be fine.
