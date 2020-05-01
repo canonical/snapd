@@ -4,14 +4,11 @@ if [ $# -eq 0 ]; then
 	echo "usage: session-tool --prepare | --restore [-u USER]"
 	echo "usage: session-tool --kill-leaked"
 	echo "usage: session-tool --dump"
+	echo "usage: session-tool --has-systemd-and-dbus [-u USER]"
 	exit 1
 fi
 if [ "$(id -u)" -ne 0 ]; then
     echo "session-tool needs to be invoked as root" >&2
-    exit 1
-fi
-if [ -z "$(command -v busctl)" ]; then
-    echo "session-tool requires busctl" >&2
     exit 1
 fi
 user=root
@@ -45,6 +42,10 @@ while [ $# -gt 0 ]; do
 			;;
 		--dump)
 			action=dump
+			shift
+			;;
+		--has-systemd-and-dbus)
+			action=has-systemd-and-dbus
 			shift
 			;;
 		-u)
@@ -149,7 +150,33 @@ case "$action" in
 		done
 		exit 0
 		;;
+	has-systemd-and-dbus)
+		# Older systems don't have support for modern sessions
+		# There are two known issues:
+		#  - CentOS 7 and derivatives disabled systemd --user
+		#    https://bugs.centos.org/view.php?id=8767
+		#  - Ubuntu 14.04 with deputy systemd does not connect to DBus
+		#    and systemd-shim is really responding to "systemd" requests.
+		test -n "$(command -v busctl)"         			|| ( echo "no busctl"; exit 1 )
+		if [ "$user" = "root" ]; then
+			# 		/lib										   /usr/lib									   (if present) dbus-broker.service variant
+			test -f /lib/systemd/system/default.target	|| test -f /usr/lib/systemd/system/default.target	|| ( echo "no system default.target"; exit 1 )
+			test -f /lib/systemd/system/dbus.socket  	|| test -f /usr/lib/systemd/system/dbus.socket		|| ( echo "no system dbus.socket"; exit 1 )
+			test -f /lib/systemd/system/dbus.service	|| test -f /usr/lib/systemd/system/dbus.service		|| test -f /lib/systemd/system/dbus-broker.service || ( echo "no system dbus{,-broker}.service"; exit 1 )
+		else
+			test -f /lib/systemd/user/default.target 	|| test -f /usr/lib/systemd/user/default.target		|| ( echo "no user default.target"; exit 1)
+			test -f /lib/systemd/user/dbus.socket 		|| test -f /usr/lib/systemd/user/dbus.socket 		|| ( echo "no user dbus.socket"; exit 1 )
+			test -f /lib/systemd/user/dbus.service		|| test -f /usr/lib/systemd/user/dbus.service		|| test -f /lib/systemd/user/dbus-broker.service || ( echo "no system dbus{,-broker}.service"; exit 1 )
+		fi
+		echo "ok"
+		exit 0
+		;;
 esac
+
+if [ -z "$(command -v busctl)" ]; then
+    echo "session-tool requires busctl" >&2
+    exit 1
+fi
 
 # This fixes a bug in some older Debian systems where /root/.profile contains
 # unconditional invocation of mesg, which on non-tty shells prints "mesg
