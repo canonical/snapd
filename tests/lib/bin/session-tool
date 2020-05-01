@@ -274,10 +274,14 @@ chmod +x "$tmp_dir/exec"
 # We want to provide a SELinuxContext but systemd in older SELinux-using distributions
 # does not recognize this attribute. See https://github.com/systemd/systemd/blob/master/NEWS#L6402
 # The typical user context as reported by id -Z is: unconfined_u:unconfined_r:unconfined_t:s0
-selinux_context_arg="SELinuxContext s unconfined_u:unconfined_r:unconfined_t:s0"
-if [ "$(systemctl --version | head -n 1 | awk '{ print $2 }')" -le 219 ]; then
-	selinux_context_arg=
-fi
+selinux_context_arg=
+case $SPREAD_SYSTEM in
+	fedora-*|centos-*)
+		if [ "$(systemctl --version | head -n 1 | awk '{ print $2 }')" -gt 219 ]; then
+			selinux_context_arg="SELinuxContext s unconfined_u:unconfined_r:unconfined_t:s0"
+		fi
+		;;
+esac
 
 # NOTE: This shellcheck directive is for the $selinux_context_arg expansion below.
 # shellcheck disable=SC2086
