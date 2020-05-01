@@ -21,6 +21,8 @@ environment:
     EDITOR_HISTORY: /tmp/editor-history.txt
 
 prepare: |
+    session-tool -u test --prepare
+
     #shellcheck source=tests/lib/desktop-portal.sh
     . "$TESTSLIB"/desktop-portal.sh
     setup_portals
@@ -65,6 +67,8 @@ prepare: |
     chown -R test:test ~test/snap
 
 restore: |
+    session-tool -u test --restore
+
     #shellcheck source=tests/lib/desktop-portal.sh
     . "$TESTSLIB"/desktop-portal.sh
     teardown_portals
@@ -82,20 +86,20 @@ execute: |
     . "$TESTSLIB"/files.sh
 
     echo "Request is forwarded to the default browser"
-    as_user test-snapd-desktop.cmd xdg-open http://www.example.org
+    session-tool -u test test-snapd-desktop.cmd xdg-open http://www.example.org
 
     echo "The test-browser process was invoked with the URL"
     wait_for_file "$BROWSER_HISTORY" 4 .5
     MATCH http://www.example.org < "$BROWSER_HISTORY"
 
     echo "Access the file via URI handler"
-    as_user test-snapd-desktop.cmd xdg-open file:///home/test/snap/test-snapd-desktop/common/test.txt
+    session-tool -u test test-snapd-desktop.cmd xdg-open file:///home/test/snap/test-snapd-desktop/common/test.txt
     wait_for_file "$EDITOR_HISTORY" 4 .5
     MATCH /home/test/snap/test-snapd-desktop/common/test.txt < "$EDITOR_HISTORY"
     rm -f "$EDITOR_HISTORY"
 
     echo "Access the file directly"
-    as_user test-snapd-desktop.cmd xdg-open /home/test/snap/test-snapd-desktop/common/test.txt
+    session-tool -u test test-snapd-desktop.cmd xdg-open /home/test/snap/test-snapd-desktop/common/test.txt
     wait_for_file "$EDITOR_HISTORY" 4 .5
     MATCH /home/test/snap/test-snapd-desktop/common/test.txt < "$EDITOR_HISTORY"
 
