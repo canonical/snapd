@@ -13,3 +13,6 @@ apps:
     cmd:
         command: bin/cmd
         plugs: [desktop]
+    sh:
+        command: bin/sh
+        plugs: [desktop]
