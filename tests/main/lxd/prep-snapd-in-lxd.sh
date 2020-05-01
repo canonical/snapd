@@ -1,4 +1,4 @@
-#!/bin/bash -ex
+#!/bin/sh -ex
 
 apt autoremove --purge -y snapd ubuntu-core-launcher
 apt update
