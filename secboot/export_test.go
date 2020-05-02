@@ -28,8 +28,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 )
 
-type TPMSupport = tpmSupport
-
 func MockSbConnectToDefaultTPM(f func() (*sb.TPMConnection, error)) (restore func()) {
 	old := sbConnectToDefaultTPM
 	sbConnectToDefaultTPM = f

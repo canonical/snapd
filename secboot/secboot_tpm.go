@@ -34,7 +34,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader/efi"
-	// TODO: UC20: move to and merge partition with gadget
+	// TODO: UC20: move/merge partition with gadget
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/partition"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
