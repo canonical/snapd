@@ -81,6 +81,9 @@ backends:
                 image: ubuntu-2004-64-virt-enabled
                 workers: 6
                 storage: 20G
+            - ubuntu-20.04-64-secboot:
+                workers: 1
+                secureboot: true
 
             - debian-9-64:
                 workers: 6
@@ -144,16 +147,6 @@ backends:
                 workers: 6
             - ubuntu-19.10-64:
                 workers: 6
-
-    google-tpm:
-        type: google
-        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-        location: computeengine/us-east1-b
-        halt-timeout: 2h
-        systems:
-            - ubuntu-20.04-64:
-                workers: 6
-                secureboot: true
 
     google-nested:
         type: google

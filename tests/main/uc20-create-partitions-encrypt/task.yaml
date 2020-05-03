@@ -1,10 +1,7 @@
 summary: Integration tests for the snap-bootstrap binary
 
 # use the same system and tooling as uc20
-systems: [ubuntu-20.04-64]
-
-# we need secure boot and TPM enabled for this test
-backends: [google-tpm]
+systems: [ubuntu-20.04-64-secboot]
 
 debug: |
     cat /proc/partitions
