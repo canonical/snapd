@@ -199,6 +199,12 @@ func UnlockIfEncrypted(name string, lockKeysOnFinish bool) (string, error) {
 	//            intermediate certs from the manufacturer.
 	tpm, tpmErr := sbConnectToDefaultTPM()
 	if tpmErr != nil {
+		// if tpmErr is a *os.PathError returned from go-tpm2 then this is an indicator that
+		// there is no TPM device, but other errors shouldn't be ignored.
+		var perr *os.PathError
+		if !xerrors.As(tpmErr, &perr) {
+			return "", tpmErr
+		}
 		logger.Noticef("cannot open TPM connection: %v", tpmErr)
 	} else {
 		defer tpm.Close()
@@ -207,9 +213,6 @@ func UnlockIfEncrypted(name string, lockKeysOnFinish bool) (string, error) {
 	var lockErr error
 	err := func() error {
 		defer func() {
-			// TODO:UC20: we might want some better error handling here - eg, if tpmErr is a
-			//            *os.PathError returned from go-tpm2 then this is an indicator that there
-			//            is no TPM device. But other errors probably shouldn't be ignored.
 			if lockKeysOnFinish && tpmErr == nil {
 				// Lock access to the sealed keys. This should be called whenever there
 				// is a TPM device detected, regardless of whether secure boot is enabled
