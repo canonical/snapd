@@ -1,0 +1,5 @@
+#!/bin/sh
+
+set -e
+
+echo 65536 > /sys/class/net/lo/mtu 

@@ -1,0 +1,76 @@
+name: hwmon-control-consumer
+version: 1.0
+summary: Basic hwmon-control consumer snap
+description: A basic snap declaring a plug on hwmon-control
+
+plugs:
+    hwmon-all:
+        interface: hwmon-control
+    hwmon-voltage:
+        interface: hwmon-voltage
+        channel:
+            - voltage
+    hwmon-fan:
+        interface: hwmon-fan
+        channel:
+            - fan
+    hwmon-pwm:
+        interface: hwmon-pwm
+        channel:
+            - pwm
+    hwmon-temperature:
+        interface: hwmon-temperature
+        channel:
+            - temperature
+    hwmon-current:
+        interface: hwmon-current
+        channel:
+            - current
+    hwmon-power:
+        interface: hwmon-power
+        channel:
+            - power
+    hwmon-energy:
+        interface: hwmon-energy
+        channel:
+            - energy
+    hwmon-humidity:
+        interface: hwmon-humidity
+        channel:
+            - humidity
+    hwmon-intrustion:
+        interface: hwmon-intrustion
+        channel:
+            - intrustion
+
+apps:
+    all-consumer:
+        command: bin/consumer
+        plugs: [hwmon-all]
+    voltage-consumer:
+        command: bin/consumer voltage
+        plugs: [hwmon-voltage]
+    fan-consumer:
+        command: bin/consumer fan
+        plugs: [hwmon-fan]
+    pwm-consumer:
+        command: bin/consumer pwm
+        plugs: [hwmon-pwm]
+    temperature-consumer:
+        command: bin/consumer temperature
+        plugs: [hwmon-temperature]
+    current-consumer:
+        command: bin/consumer current
+        plugs: [hwmon-current]
+    power-consumer:
+        command: bin/consumer power
+        plugs: [hwmon-power]
+    energy-consumer:
+        command: bin/consumer energy
+        plugs: [hwmon-energy]
+    humidity-consumer:
+        command: bin/consumer
+        plugs: [hwmon-humidity]
+    intrusion-consumer:
+        command: bin/consumer
+        plugs: [hwmon-intrusion]

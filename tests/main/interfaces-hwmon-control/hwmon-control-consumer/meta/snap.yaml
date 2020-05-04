@@ -1,0 +1,15 @@
+name: hwmon-control-consumer
+version: 1.0
+apps:
+  cmd:
+    command: bin/cmd
+    plugs: [hwmon-fan,hwmon-power,hwmon-all]
+plugs:
+  hwmon-fan:
+    interface: hwmon-control
+    channels: [fan]
+  hwmon-power:
+    interface: hwmon-control
+    channels: [power,pwm,temperature]
+  hwmon-all:
+    interface: hwmon-control

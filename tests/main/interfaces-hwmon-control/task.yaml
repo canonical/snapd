@@ -1,0 +1,81 @@
+summary: |
+    The hwmon-control interface allows a snap to control hardware and platform devices.
+
+    Ensure that the hwmon-control interface and usage of the channel key to narrow the scope
+    of the interfae works.
+
+    A snap which defines the hwmon-control plug must be shown in the interfaces list.
+    The plug must not be connected on install and, as usual, must be able to be
+    reconnected.
+
+    A snap specifying no channel will be granted all possible channels supported by snapd.
+
+    A snap specifying one or more channels on a plug will have narrowed scope for access
+    and only be able to control hwmon devices of the requested classes.
+
+prepare: |
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+
+    echo "Given a snap declaring a plug on the hwmon-control interface is installed"
+    "$TESTSTOOLS"/snaps-state install_local hwmon-control-consumer
+
+execute: |
+    echo "The interface is not connected by default"
+    snap interfaces -i hwmon-control | MATCH '^- +hwmon-control-consumer:hwmon-all'
+
+    echo "When the plug is connected"
+    snap connect hwmon-control-consumer:hwmon-fan :hwmon-control
+
+    # We do not have any hwmon devices in the spread machines (at least not in
+    # QEMU and GCE), so the only thing we can check is the AppArmor profile.
+    if [ "$(snap debug confinement)" = partial ] ; then
+        echo "AppArmor is not supported in this distribution -- quitting test"
+        exit 0
+    fi
+
+    PROFILE="/var/lib/snapd/apparmor/profiles/snap.hwmon-control-consumer.cmd"
+
+    echo "Check common access rules"
+    MATCH "/sys/class/hwmon/ r," < "$PROFILE"
+    MATCH "/sys/devices/\*\*/hwmon\[0-9\]\*/name r," < "$PROFILE"
+
+    echo "Check a few accesses from various channels"
+    NOMATCH "/sys/devices/\*\*/hwmon\[0-9\]\*/curr\[1-9\]\*_average r," < "$PROFILE"
+    NOMATCH "/sys/devices/\*\*/hwmon\[0-9\]\*/energy\[1-9\]\*_enable rw," < "$PROFILE"
+    MATCH "/sys/devices/\*\*/hwmon\[0-9\]\*/fan\[1-9\]\*_pulses rw," < "$PROFILE"
+    NOMATCH "/sys/devices/\*\*/hwmon\[0-9\]\*/humidity\[1-9\]\*_input r," < "$PROFILE"
+    NOMATCH "/sys/devices/\*\*/hwmon\[0-9\]\*/intrusion\[0-9\]\*_alarm rw," < "$PROFILE"
+    NOMATCH "/sys/devices/\*\*/hwmon\[0-9\]\*/power\[1-9\]\*_accuracy r," < "$PROFILE"
+    NOMATCH "/sys/devices/\*\*/hwmon\[0-9\]\*/pwm\[1-9\]\*_freq rw," < "$PROFILE"
+    NOMATCH "/sys/devices/\*\*/hwmon\[0-9\]\*/temp\[1-9\]\*_emergency rw," < "$PROFILE"
+    NOMATCH "/sys/devices/\*\*/hwmon\[0-9\]\*/in\[0-9\]\*_lowest r," < "$PROFILE"
+    NOMATCH "/sys/devices/\*\*/hwmon\[0-9\]\*/cpu\[0-9\]\*_vid r," < "$PROFILE"
+
+    echo "Reconnect specifying the power, pwm, and temperature channels"
+    snap disconnect hwmon-control-consumer:hwmon-fan :hwmon-control
+    snap connect hwmon-control-consumer:hwmon-power :hwmon-control
+    NOMATCH "/sys/devices/\*\*/hwmon\[0-9\]\*/curr\[1-9\]\*_average r," < "$PROFILE"
+    NOMATCH "/sys/devices/\*\*/hwmon\[0-9\]\*/energy\[1-9\]\*_enable rw," < "$PROFILE"
+    NOMATCH "/sys/devices/\*\*/hwmon\[0-9\]\*/fan\[1-9\]\*_pulses rw," < "$PROFILE"
+    NOMATCH "/sys/devices/\*\*/hwmon\[0-9\]\*/humidity\[1-9\]\*_input r," < "$PROFILE"
+    NOMATCH "/sys/devices/\*\*/hwmon\[0-9\]\*/intrusion\[0-9\]\*_alarm rw," < "$PROFILE"
+    MATCH "/sys/devices/\*\*/hwmon\[0-9\]\*/power\[1-9\]\*_accuracy r," < "$PROFILE"
+    MATCH "/sys/devices/\*\*/hwmon\[0-9\]\*/pwm\[1-9\]\*_freq rw," < "$PROFILE"
+    MATCH "/sys/devices/\*\*/hwmon\[0-9\]\*/temp\[1-9\]\*_emergency rw," < "$PROFILE"
+    NOMATCH "/sys/devices/\*\*/hwmon\[0-9\]\*/in\[0-9\]\*_lowest r," < "$PROFILE"
+    NOMATCH "/sys/devices/\*\*/hwmon\[0-9\]\*/cpu\[0-9\]\*_vid r," < "$PROFILE"
+
+    echo "Reconnect without specifying any channel (all should be granted)"
+    snap disconnect hwmon-control-consumer:hwmon-power :hwmon-control
+    snap connect hwmon-control-consumer:hwmon-all :hwmon-control
+    MATCH "/sys/devices/\*\*/hwmon\[0-9\]\*/curr\[1-9\]\*_average r," < "$PROFILE"
+    MATCH "/sys/devices/\*\*/hwmon\[0-9\]\*/energy\[1-9\]\*_enable rw," < "$PROFILE"
+    MATCH "/sys/devices/\*\*/hwmon\[0-9\]\*/fan\[1-9\]\*_pulses rw," < "$PROFILE"
+    MATCH "/sys/devices/\*\*/hwmon\[0-9\]\*/humidity\[1-9\]\*_input r," < "$PROFILE"
+    MATCH "/sys/devices/\*\*/hwmon\[0-9\]\*/intrusion\[0-9\]\*_alarm rw," < "$PROFILE"
+    MATCH "/sys/devices/\*\*/hwmon\[0-9\]\*/power\[1-9\]\*_accuracy r," < "$PROFILE"
+    MATCH "/sys/devices/\*\*/hwmon\[0-9\]\*/pwm\[1-9\]\*_freq rw," < "$PROFILE"
+    MATCH "/sys/devices/\*\*/hwmon\[0-9\]\*/temp\[1-9\]\*_emergency rw," < "$PROFILE"
+    MATCH "/sys/devices/\*\*/hwmon\[0-9\]\*/in\[0-9\]\*_lowest r," < "$PROFILE"
+    MATCH "/sys/devices/\*\*/hwmon\[0-9\]\*/cpu\[0-9\]\*_vid r," < "$PROFILE"
