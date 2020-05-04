@@ -50,7 +50,10 @@ type autoRefreshStore struct {
 	err error
 }
 
-func (r *autoRefreshStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, error) {
+func (r *autoRefreshStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
+	if assertQuery != nil {
+		panic("no assertion query support")
+	}
 	if !opts.IsAutoRefresh {
 		panic("AutoRefresh snap action did not set IsAutoRefresh flag")
 	}
@@ -67,7 +70,7 @@ func (r *autoRefreshStore) SnapAction(ctx context.Context, currentSnaps []*store
 		}
 	}
 	r.ops = append(r.ops, "list-refresh")
-	return nil, r.err
+	return nil, nil, r.err
 }
 
 type autoRefreshTestSuite struct {

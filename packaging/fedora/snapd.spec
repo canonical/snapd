@@ -65,16 +65,21 @@
 # Until we have a way to add more extldflags to gobuild macro...
 %if 0%{?fedora} || 0%{?rhel} >= 8
 # buildmode PIE triggers external linker consumes -extldflags
-%define gobuild_static(o:) go build -buildmode pie -compiler gc -tags=rpm_crashtraceback -ldflags "${LDFLAGS:-} -B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -extldflags '%__global_ldflags -static'" -a -v -x %{?**};
+%define gobuild_static(o:) go build -buildmode pie -compiler gc -tags="rpm_crashtraceback ${BUILDTAGS:-}" -ldflags "${LDFLAGS:-} -B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -extldflags '%__global_ldflags -static'" -a -v -x %{?**};
 %endif
 %if 0%{?rhel} == 7
 # trigger external linker manually, otherwise -extldflags have no meaning
-%define gobuild_static(o:) go build -compiler gc -tags=rpm_crashtraceback -ldflags "${LDFLAGS:-} -B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -linkmode external -extldflags '%__global_ldflags -static'" -a -v -x %{?**};
+%define gobuild_static(o:) go build -compiler gc -tags="rpm_crashtraceback ${BUILDTAGS:-}" -ldflags "${LDFLAGS:-} -B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -linkmode external -extldflags '%__global_ldflags -static'" -a -v -x %{?**};
+%endif
+
+# These macros are missing BUILDTAGS in RHEL 8
+%if 0%{?rhel} == 8
+%define gobuild(o:) go build -buildmode pie -compiler gc -tags="rpm_crashtraceback ${BUILDTAGS:-}" -ldflags "${LDFLAGS:-} -B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -extldflags '%__global_ldflags'" -a -v -x %{?**};
 %endif
 
 # These macros are not defined in RHEL 7
 %if 0%{?rhel} == 7
-%define gobuild(o:) go build -compiler gc -tags=rpm_crashtraceback -ldflags "${LDFLAGS:-} -B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -linkmode external -extldflags '%__global_ldflags'" -a -v -x %{?**};
+%define gobuild(o:) go build -compiler gc -tags="rpm_crashtraceback ${BUILDTAGS:-}" -ldflags "${LDFLAGS:-} -B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -linkmode external -extldflags '%__global_ldflags'" -a -v -x %{?**};
 %define gotest() go test -compiler gc -ldflags "${LDFLAGS:-}" %{?**};
 %endif
 
@@ -92,7 +97,7 @@
 %endif
 
 Name:           snapd
-Version:        2.44.1
+Version:        2.44.5
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -459,9 +464,12 @@ export GOPATH=$(pwd):%{gopath}
 export GOPATH=$(pwd):$(pwd)/Godeps/_workspace:%{gopath}
 %endif
 
-GOFLAGS=
+# see https://github.com/gofed/go-macros/blob/master/rpm/macros.d/macros.go-compilers-golang
+BUILDTAGS=
 %if 0%{?with_test_keys}
-GOFLAGS="$GOFLAGS -tags withtestkeys"
+BUILDTAGS="withtestkeys nosecboot"
+%else
+BUILDTAGS="nosecboot"
 %endif
 
 %if ! 0%{?with_bundled}
@@ -480,9 +488,17 @@ sed -e "s:github.com/snapcore/bolt:github.com/boltdb/bolt:g" -i advisor/*.go err
 
 # To ensure things work correctly with base snaps,
 # snap-exec, snap-update-ns, and snapctl need to be built statically
-%gobuild_static -o bin/snap-exec $GOFLAGS %{import_path}/cmd/snap-exec
-%gobuild_static -o bin/snap-update-ns $GOFLAGS %{import_path}/cmd/snap-update-ns
-%gobuild_static -o bin/snapctl $GOFLAGS %{import_path}/cmd/snapctl
+(
+%if 0%{?rhel} >= 8
+    # since 1.12.1, the go-toolset module is built with FIPS compliance that
+    # defaults to using libcrypto.so which gets loaded at runtime via dlopen(),
+    # disable that functionality for statically built binaries
+    BUILDTAGS="${BUILDTAGS} no_openssl"
+%endif
+    %gobuild_static -o bin/snap-exec $GOFLAGS %{import_path}/cmd/snap-exec
+    %gobuild_static -o bin/snap-update-ns $GOFLAGS %{import_path}/cmd/snap-update-ns
+    %gobuild_static -o bin/snapctl $GOFLAGS %{import_path}/cmd/snapctl
+)
 
 %if 0%{?rhel}
 # There's no static link library for libseccomp in RHEL/CentOS...
@@ -877,7 +893,36 @@ fi
 
 
 %changelog
+* Fri Apr 10 2020 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.44.3
+ - tests: fix racy pulseaudio tests
+ - many: fix loading apparmor profiles on Ubuntu 20.04 with ZFS
+ - tests: update snap-preseed --reset logic
+ - tests: backport partition fixes
+ - cmd/snap: don't wait for system key when stopping
+ - interfaces/many: miscellaneous policy updates xliv
+ - tests/main/uc20-snap-recovery: use 20.04 system
+ - tests: skip "/etc/machine-id" in "writablepaths
+ - interfaces/docker-support: add overlays file access
+
+* Thu Apr 2 2020 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.44.2
+ - packaging: detect/disable broken seeds in the postinst
+ - cmd/snap,seed: validate full seeds (UC 16/18)
+ - snap: add `snap debug state --is-seeded` helper
+ - devicestate: generate warning if seeding fails
+ - store: support for search API v2
+ - cmd/snap-seccomp/syscalls: update the list of known syscalls
+ - snap/cmd: the model command needs just a client, no waitMixin
+ - tests: cleanup security-private-tmp properly
+ - wrappers: fix timer schedules that are days only
+ - tests: update proxy-no-core to match latest CDN changes
+ - cmd/snap-failure,tests: make snap-failure more robust
+ - tests, many: don't use StartLimitInterval anymore, unify snapd-
+   failover variants, build snapd snap for UC16 tests
+
 * Sat Mar 21 2020 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.44.1
  - randutil: switch back to setting up seed with lower entropy data
  - interfaces/greengrass-support: fix typo
  - packaging,tests: ensure debian-sid builds without vendor/
@@ -885,6 +930,7 @@ fi
  - cmd/snap-update-ns: ignore EROFS from rmdir/unlink
 
 * Tue Mar 17 2020 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.44
  - daemon: do a forceful serer shutdown if we hit a deadline
  - snap: whitelist lzo as support compression for snap pack
  - data/selinux: update policy to allow more ops

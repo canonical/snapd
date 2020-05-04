@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2018 Canonical Ltd
+ * Copyright (C) 2014-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -71,6 +71,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -120,6 +121,8 @@ type apiBaseSuite struct {
 	userInfoExpectedEmail  string
 
 	restoreSanitize func()
+
+	testutil.BaseTest
 }
 
 func (s *apiBaseSuite) pokeStateLock() {
@@ -150,8 +153,11 @@ func (s *apiBaseSuite) Find(ctx context.Context, search *store.Search, user *aut
 	return s.rsnaps, s.err
 }
 
-func (s *apiBaseSuite) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, error) {
+func (s *apiBaseSuite) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
 	s.pokeStateLock()
+	if assertQuery != nil {
+		panic("no assertion query support")
+	}
 
 	if ctx == nil {
 		panic("context required")
@@ -164,7 +170,7 @@ func (s *apiBaseSuite) SnapAction(ctx context.Context, currentSnaps []*store.Cur
 	for i, rsnap := range s.rsnaps {
 		sars[i] = store.SnapActionResult{Info: rsnap}
 	}
-	return sars, s.err
+	return sars, nil, s.err
 }
 
 func (s *apiBaseSuite) SuggestedCurrency() string {
@@ -215,7 +221,7 @@ func (s *apiBaseSuite) muxVars(*http.Request) map[string]string {
 
 func (s *apiBaseSuite) SetUpSuite(c *check.C) {
 	muxVars = s.muxVars
-	s.restoreRelease = release.MockForcedDevmode(false)
+	s.restoreRelease = sandbox.MockForceDevMode(false)
 	s.systemctlRestorer = systemd.MockSystemctl(s.systemctl)
 	s.journalctlRestorer = systemd.MockJournalctl(s.journalctl)
 	s.restoreSanitize = snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
@@ -280,6 +286,9 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 
 	dirs.SetRootDir(c.MkDir())
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
+	restore := osutil.MockMountInfo("")
+	s.AddCleanup(restore)
+
 	c.Assert(err, check.IsNil)
 	c.Assert(os.MkdirAll(dirs.SnapMountDir, 0755), check.IsNil)
 	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0755), check.IsNil)
@@ -1049,7 +1058,7 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 	defer restore()
 	restore = release.MockOnClassic(true)
 	defer restore()
-	restore = release.MockForcedDevmode(true)
+	restore = sandbox.MockForceDevMode(true)
 	defer restore()
 	// reload dirs for release info to have effect
 	dirs.SetRootDir(dirs.GlobalRootDir)
@@ -1108,7 +1117,7 @@ func (s *apiSuite) TestSysInfoLegacyRefresh(c *check.C) {
 	defer restore()
 	restore = release.MockOnClassic(true)
 	defer restore()
-	restore = release.MockForcedDevmode(true)
+	restore = sandbox.MockForceDevMode(true)
 	defer restore()
 	restore = mockSystemdVirt("kvm")
 	defer restore()
@@ -2761,7 +2770,7 @@ func (s *apiSuite) TestSideloadSnapOnDevModeDistro(c *check.C) {
 	// try a multipart/form-data upload
 	body := sideLoadBodyWithoutDevMode
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
-	restore := release.MockForcedDevmode(true)
+	restore := sandbox.MockForceDevMode(true)
 	defer restore()
 	flags := snapstate.Flags{RemoveSnapPath: true}
 	chgSummary := s.sideloadCheck(c, body, head, "local", flags)
@@ -2933,7 +2942,7 @@ func (s *apiSuite) TestSideloadSnapJailModeInDevModeOS(c *check.C) {
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 
-	restore := release.MockForcedDevmode(true)
+	restore := sandbox.MockForceDevMode(true)
 	defer restore()
 
 	rsp := postSnaps(snapsCmd, req, nil).(*resp)
@@ -3696,7 +3705,7 @@ func (s *apiSuite) TestInstallRevision(c *check.C) {
 func (s *apiSuite) testInstall(c *check.C, forcedDevmode bool, flags snapstate.Flags, revision snap.Revision) {
 	calledFlags := snapstate.Flags{}
 	installQueue := []string{}
-	restore := release.MockForcedDevmode(forcedDevmode)
+	restore := sandbox.MockForceDevMode(forcedDevmode)
 	defer restore()
 
 	snapstateInstall = func(ctx context.Context, s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
@@ -4395,7 +4404,7 @@ func (s *apiSuite) TestInstallJailMode(c *check.C) {
 }
 
 func (s *apiSuite) TestInstallJailModeDevModeOS(c *check.C) {
-	restore := release.MockForcedDevmode(true)
+	restore := sandbox.MockForceDevMode(true)
 	defer restore()
 
 	d := s.daemon(c)
