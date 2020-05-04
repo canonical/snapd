@@ -176,8 +176,9 @@ func (s *secbootSuite) TestMeasureWhenPossible(c *C) {
 }
 
 func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
+	noTPMDeviceErr := &os.PathError{Op: "open", Path: "path", Err: errors.New("no tpm")}
+
 	for idx, tc := range []struct {
-		hasTPM    bool
 		tpmErr    error
 		hasEncdev bool
 		last      bool
@@ -188,61 +189,59 @@ func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
 	}{
 		// TODO: verify which cases are possible
 		{
-			hasTPM: true, hasEncdev: true, last: true, lockOk: true,
+			hasEncdev: true, last: true, lockOk: true,
 			activated: true, device: "name",
 		}, {
-			hasTPM: true, hasEncdev: true, last: true, lockOk: true,
+			hasEncdev: true, last: true, lockOk: true,
 			err: "cannot activate encrypted device .*: activation error",
 		}, {
-			hasTPM: true, hasEncdev: true, last: true, activated: true,
+			hasEncdev: true, last: true, activated: true,
 			err: "cannot lock access to sealed keys: lock failed",
 		}, {
-			hasTPM: true, hasEncdev: true, lockOk: true, activated: true,
+			hasEncdev: true, lockOk: true, activated: true,
 			device: "name",
 		}, {
-			hasTPM: true, hasEncdev: true, lockOk: true,
+			hasEncdev: true, lockOk: true,
 			err: "cannot activate encrypted device .*: activation error",
 		}, {
-			hasTPM: true, hasEncdev: true, activated: true, device: "name",
-		}, {
-			hasTPM: true, hasEncdev: true,
-			err: "cannot activate encrypted device .*: activation error",
-		}, {
-			hasTPM: true, last: true, lockOk: true, activated: true,
-			device: "name",
-		}, {
-			hasTPM: true, last: true, activated: true,
-			err: "cannot lock access to sealed keys: lock failed",
-		}, {
-			hasTPM: true, lockOk: true, activated: true, device: "name",
-		}, {
-			hasTPM: true, activated: true, device: "name",
-		}, {
-			hasTPM: true, hasEncdev: true, last: true,
-			tpmErr: errors.New("tpm error"),
-			err:    `cannot unlock encrypted device "name": tpm error`,
-		}, {
-			hasTPM: true, hasEncdev: true,
-			tpmErr: errors.New("tpm error"),
-			err:    `cannot unlock encrypted device "name": tpm error`,
-		}, {
-			hasTPM: true, last: true, device: "name",
-			tpmErr: errors.New("tpm error"),
-		}, {
-			hasTPM: true, device: "name",
-			tpmErr: errors.New("tpm error"),
-		}, {
-			hasEncdev: true, last: true,
-			tpmErr: errors.New("no tpm"),
-			err:    `cannot unlock encrypted device "name": no tpm`,
+			hasEncdev: true, activated: true, device: "name",
 		}, {
 			hasEncdev: true,
-			tpmErr:    errors.New("no tpm"),
-			err:       `cannot unlock encrypted device "name": no tpm`,
+			err:       "cannot activate encrypted device .*: activation error",
 		}, {
-			last: true, device: "name", tpmErr: errors.New("no tpm"),
+			last: true, lockOk: true, activated: true,
+			device: "name",
 		}, {
-			tpmErr: errors.New("no tpm"), device: "name",
+			last: true, activated: true,
+			err: "cannot lock access to sealed keys: lock failed",
+		}, {
+			lockOk: true, activated: true, device: "name",
+		}, {
+			activated: true, device: "name",
+		}, {
+			tpmErr: errors.New("tpm error"),
+			err:    `cannot unlock encrypted device "name": tpm error`,
+		}, {
+			tpmErr: errors.New("tpm error"), hasEncdev: true, last: true,
+			err: `cannot unlock encrypted device "name": tpm error`,
+		}, {
+			tpmErr: errors.New("tpm error"), hasEncdev: true,
+			err: `cannot unlock encrypted device "name": tpm error`,
+		}, {
+			tpmErr: errors.New("tpm error"), last: true,
+			err: `cannot unlock encrypted device "name": tpm error`,
+		}, {
+			tpmErr: noTPMDeviceErr,
+			device: "name",
+		}, {
+			tpmErr: noTPMDeviceErr, hasEncdev: true, last: true,
+			err: `cannot unlock encrypted device "name": open path: no tpm`,
+		}, {
+			tpmErr: noTPMDeviceErr, hasEncdev: true,
+			err: `cannot unlock encrypted device "name": open path: no tpm`,
+		}, {
+			tpmErr: noTPMDeviceErr, last: true,
+			device: "name",
 		},
 	} {
 		c.Logf("tc %v: %#v", idx, tc)
@@ -299,8 +298,10 @@ func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
 		// detected, regardless of whether secure boot is enabled or there is an
 		// encrypted volume to unlock. If we have multiple encrypted volumes, we
 		// should call it after the last one is unlocked.
-		if tc.hasTPM && tc.tpmErr == nil && tc.last {
+		if tc.tpmErr == nil && tc.last {
 			c.Assert(n, Equals, 1)
+		} else {
+			c.Assert(n, Equals, 0)
 		}
 	}
 }

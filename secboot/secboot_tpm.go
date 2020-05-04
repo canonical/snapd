@@ -203,17 +203,19 @@ func UnlockIfEncrypted(name string, lockKeysOnFinish bool) (string, error) {
 		// there is no TPM device, but other errors shouldn't be ignored.
 		var perr *os.PathError
 		if !xerrors.As(tpmErr, &perr) {
-			return "", tpmErr
+			return "", fmt.Errorf("cannot unlock encrypted device %q: %v", name, tpmErr)
 		}
 		logger.Noticef("cannot open TPM connection: %v", tpmErr)
 	} else {
 		defer tpm.Close()
 	}
 
+	tpmDeviceAvailable := tpmErr == nil
+
 	var lockErr error
 	err := func() error {
 		defer func() {
-			if lockKeysOnFinish && tpmErr == nil {
+			if lockKeysOnFinish && tpmDeviceAvailable {
 				// Lock access to the sealed keys. This should be called whenever there
 				// is a TPM device detected, regardless of whether secure boot is enabled
 				// or there is an encrypted volume to unlock. Note that snap-bootstrap can
@@ -230,7 +232,7 @@ func UnlockIfEncrypted(name string, lockKeysOnFinish bool) (string, error) {
 			return nil
 		}
 
-		if tpmErr != nil {
+		if !tpmDeviceAvailable {
 			return fmt.Errorf("cannot unlock encrypted device %q: %v", name, tpmErr)
 		}
 		// TODO:UC20: snap-bootstrap should validate that <name>-enc is what
