@@ -86,7 +86,7 @@ case "$action" in
 	prepare)
 		# Make /var/lib/systemd writable so that we can get linger enabled.
 		# This only applies to Ubuntu Core 16 where individual directories were
-		# writable. In Core 18 and beyod all of /var/lib/systemd is writable.
+		# writable. In Core 18 and beyond all of /var/lib/systemd is writable.
 		case "$SPREAD_SYSTEM" in
 			ubuntu-core-16-*)
 				mount tmpfs -t tmpfs /var/lib/systemd/
