@@ -82,6 +82,7 @@ backends:
                 workers: 6
                 storage: 20G
             - ubuntu-20.04-64-secboot:
+                image: ubuntu-20.04-64
                 workers: 1
                 secureboot: true
 
