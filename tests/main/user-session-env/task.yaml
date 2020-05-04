@@ -9,6 +9,8 @@ description: |
 systems:
    # cannot install zsh
    - -ubuntu-core-*
+   # TODO:session-tool: port and re-enable
+   - -ubuntu-19.10-64
 
 environment:
     TEST_ZSH_USER: test-zsh

@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
+	"github.com/snapcore/snapd/bootloader/ubootenv"
 	"github.com/snapcore/snapd/image"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -126,17 +127,21 @@ func (s *imageSuite) TearDownTest(c *C) {
 }
 
 // interface for the store
-func (s *imageSuite) SnapAction(_ context.Context, _ []*store.CurrentSnap, actions []*store.SnapAction, _ *auth.UserState, _ *store.RefreshOptions) ([]store.SnapActionResult, error) {
+func (s *imageSuite) SnapAction(_ context.Context, _ []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, _ *auth.UserState, _ *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
+	if assertQuery != nil {
+		return nil, nil, fmt.Errorf("unexpected assertion query")
+	}
+
 	if len(actions) != 1 {
-		return nil, fmt.Errorf("expected 1 action, got %d", len(actions))
+		return nil, nil, fmt.Errorf("expected 1 action, got %d", len(actions))
 	}
 
 	if actions[0].Action != "download" {
-		return nil, fmt.Errorf("unexpected action %q", actions[0].Action)
+		return nil, nil, fmt.Errorf("unexpected action %q", actions[0].Action)
 	}
 
 	if _, instanceKey := snap.SplitInstanceName(actions[0].InstanceName); instanceKey != "" {
-		return nil, fmt.Errorf("unexpected instance key in %q", actions[0].InstanceName)
+		return nil, nil, fmt.Errorf("unexpected instance key in %q", actions[0].InstanceName)
 	}
 	// record
 	s.storeActions = append(s.storeActions, actions[0])
@@ -150,9 +155,9 @@ func (s *imageSuite) SnapAction(_ context.Context, _ []*store.CurrentSnap, actio
 			redirectChannel = channel
 		}
 		info1.Channel = channel
-		return []store.SnapActionResult{{Info: &info1, RedirectChannel: redirectChannel}}, nil
+		return []store.SnapActionResult{{Info: &info1, RedirectChannel: redirectChannel}}, nil, nil
 	}
-	return nil, fmt.Errorf("no %q in the fake store", actions[0].InstanceName)
+	return nil, nil, fmt.Errorf("no %q in the fake store", actions[0].InstanceName)
 }
 
 func (s *imageSuite) Download(ctx context.Context, name, targetFn string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState, dlOpts *store.DownloadOptions) error {
@@ -2587,9 +2592,7 @@ func (s *imageSuite) TestSetupSeedCore20(c *C) {
 }
 
 func (s *imageSuite) TestSetupSeedCore20UBoot(c *C) {
-	ub := bootloadertest.Mock("mock", c.MkDir()).ExtractedRecoveryKernelImage()
-	bootloader.Force(ub)
-	defer bootloader.Force(s.bootloader)
+	bootloader.Force(nil)
 	restore := image.MockTrusted(s.StoreSigning.Trusted)
 	defer restore()
 
@@ -2619,9 +2622,17 @@ func (s *imageSuite) TestSetupSeedCore20UBoot(c *C) {
 
 	s.makeSnap(c, "snapd", nil, snap.R(1), "")
 	s.makeSnap(c, "core20", nil, snap.R(20), "")
-	s.makeSnap(c, "arm-kernel=20", nil, snap.R(1), "")
+	kernelContent := [][]string{
+		{"kernel.img", "some kernel"},
+		{"initrd.img", "some initrd"},
+		{"dtbs/foo.dtb", "some dtb"},
+	}
+	s.makeSnap(c, "arm-kernel=20", kernelContent, snap.R(1), "")
 	gadgetContent := [][]string{
-		{"uboot.conf", "uboot env content"},
+		// this file must be empty
+		// TODO:UC20: write this test with non-empty uboot.env when we support
+		//            that
+		{"uboot.conf", ""},
 	}
 	s.makeSnap(c, "uboot-gadget=20", gadgetContent, snap.R(22), "")
 
@@ -2643,10 +2654,18 @@ func (s *imageSuite) TestSetupSeedCore20UBoot(c *C) {
 	c.Check(l, HasLen, 4)
 
 	// check boot config
-	ubootCfg := filepath.Join(prepareDir, "system-seed", "boot/uboot/uboot.env")
-	c.Check(ubootCfg, testutil.FileEquals, "uboot env content")
 
+	// uboot.env will be missing
+	ubootEnv := filepath.Join(prepareDir, "system-seed", "uboot.env")
+	c.Check(ubootEnv, testutil.FileAbsent)
+
+	// boot.sel will be present and have snapd_recovery_system set
 	expectedLabel := image.MakeLabel(time.Now())
+	bootSel := filepath.Join(prepareDir, "system-seed", "uboot", "ubuntu", "boot.sel")
+
+	env, err := ubootenv.Open(bootSel)
+	c.Assert(err, IsNil)
+	c.Assert(env.Get("snapd_recovery_system"), Equals, expectedLabel)
 
 	// check recovery system specific config
 	systems, err := filepath.Glob(filepath.Join(seeddir, "systems", "*"))
@@ -2654,13 +2673,12 @@ func (s *imageSuite) TestSetupSeedCore20UBoot(c *C) {
 	c.Assert(systems, HasLen, 1)
 	c.Check(filepath.Base(systems[0]), Equals, expectedLabel)
 
-	c.Check(ub.BootVars, DeepEquals, map[string]string{
-		"snapd_recovery_system": expectedLabel,
-	})
-
-	c.Check(ub.ExtractRecoveryKernelAssetsCalls, HasLen, 1)
-	c.Check(ub.ExtractRecoveryKernelAssetsCalls[0].RecoverySystemDir, Equals, "/systems/"+expectedLabel)
-	c.Check(ub.ExtractRecoveryKernelAssetsCalls[0].S.InstanceName(), Equals, "arm-kernel")
+	// check we extracted the kernel assets
+	for _, fileAndContent := range kernelContent {
+		file := fileAndContent[0]
+		content := fileAndContent[1]
+		c.Assert(filepath.Join(systems[0], "kernel", file), testutil.FileEquals, content)
+	}
 }
 
 type toolingStoreContextSuite struct {

@@ -63,9 +63,8 @@ func installCloudInitCfg(src, targetdir string) error {
 }
 
 // disable cloud-init by default (as it's not confined)
-// TODO:UC20: - allow gadget cloud.cfg.d/* (with whitelisted keys?)
-//            - allow cloud.cfg.d (with whitelisted keys) for non
-//               grade dangerous systems
+// TODO:UC20: - allow cloud.cfg.d (with whitelisted keys) for non
+//              grade dangerous systems
 func configureCloudInit(opts *Options) (err error) {
 	if opts.TargetRootDir == "" {
 		return fmt.Errorf("unable to configure cloud-init, missing target dir")

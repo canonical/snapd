@@ -54,28 +54,30 @@ execute: |
     # have snap use the fakestore for assertions (but nothing else)
     export SNAPPY_FORCE_SAS_URL=http://$STORE_ADDR
 
-    # TODO:UC20 remove when pi gadget is published to 20-pi/edge
-    curl -L -O https://launchpad.net/~canonical-foundations/+snap/pi-arm64-20/+build/862694/+files/pi_20-1_arm64.snap
-    mv pi_20-1_arm64.snap "$ROOT"
+    # for now we need to fix the pi-gadget's uboot.conf manually until 
+    # https://github.com/snapcore/pi-gadget/pull/41 is merged
+    # TODO:UC20: when the PR is merged let prepare-image download the snap
+    UBUNTU_STORE_ARCH=arm64 snap download pi --channel=20/edge --basename=pi-gadget-upstream
+    unsquashfs -d pi-gadget pi-gadget-upstream.snap
+    truncate -s 0 pi-gadget/uboot.conf
+    snap pack pi-gadget --filename=pi-gadget.snap
 
     echo Running prepare-image as a user
-    # TODO:UC20: remove --snap pi_20 once the gadget has been published
-    su -c "SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE snap prepare-image --channel edge --snap $ROOT/pi_20-1_arm64.snap $ROOT/model.assertion $ROOT" test
+    su -c "SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE snap prepare-image --channel edge --snap pi-gadget.snap $ROOT/model.assertion $ROOT" test
 
     systemid="$(date +%Y%m%d)"
 
     echo Verifying the result
     find "$ROOT/system-seed/" -ls
 
-    # TODO:UC20: refine the checks
-    test -e "$ROOT/system-seed/boot/uboot/uboot.env"
+    test -e "$ROOT/system-seed/uboot/ubuntu/boot.sel"
 
     test -e "$ROOT/system-seed/systems/$systemid/model"
     test -e "$ROOT/system-seed/systems/$systemid/kernel/initrd.img"
     test -e "$ROOT/system-seed/systems/$systemid/kernel/kernel.img"
     test "$(find "$ROOT/system-seed/systems/$systemid/kernel/dtbs/" | wc -l)" -gt 0
 
-    strings "$ROOT/system-seed/boot/uboot/uboot.env" | MATCH "snapd_recovery_system=$systemid"
+    strings "$ROOT/system-seed/uboot/ubuntu/boot.sel" | MATCH "snapd_recovery_system=$systemid"
 
     test -e "$ROOT"/system-seed/snaps/core20_*.snap
     test -e "$ROOT"/system-seed/snaps/pi-kernel_*.snap
