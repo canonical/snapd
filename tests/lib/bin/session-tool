@@ -138,7 +138,7 @@ case "$action" in
 				uid="$(id -u "$u")"
 				# See user@.service(5) for discussion about user-UID.slice and
 				# user@UID.service and why both are used. Here we stop the
-				# slice as that encompasses both user@UID.scope and any
+				# slice as that encompasses both user@UID.service and any
 				# existing sessions of that user.
 				systemctl stop "user-$uid.slice"
 
