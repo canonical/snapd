@@ -20,16 +20,12 @@ prepare: |
         touch agent-was-enabled
     fi
     snap set system experimental.user-daemons=true
-    #shellcheck source=tests/lib/user.sh
-    . "$TESTSLIB/user.sh"
-    start_user_session
-    as_user systemctl --user start sockets.target
+    session-tool --kill-leaked
+    session-tool -u test --prepare
+    session-tool -u test systemctl --user start sockets.target
 
 restore: |
-    #shellcheck source=tests/lib/user.sh
-    . "$TESTSLIB/user.sh"
-    stop_user_session
-    purge_user_session_data
+    session-tool -u test --restore
     snap unset system experimental.user-daemons
     if [ -f agent-was-enabled ]; then
         systemctl --user --global disable snapd.session-agent.socket
@@ -37,12 +33,8 @@ restore: |
     fi
 
 execute: |
-    #shellcheck source=tests/lib/user.sh
-    . "$TESTSLIB/user.sh"
-
-    # This isn't quote-safe, but is good enough for our tests.
     function systemctl_user() {
-      as_user systemctl --user "$@"
+      session-tool -u test systemctl --user "$@"
     }
 
     echo "Install the a snap with user services while a user session is active"

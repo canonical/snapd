@@ -12,16 +12,10 @@ kill-timeout: 5m
 
 prepare: |
     snap set system experimental.user-daemons=true
-    #shellcheck source=tests/lib/user.sh
-    . "$TESTSLIB/user.sh"
-    stop_user_session
-    purge_user_session_data
+    session-tool --kill-leaked
 
 restore: |
-    #shellcheck source=tests/lib/user.sh
-    . "$TESTSLIB/user.sh"
-    stop_user_session
-    purge_user_session_data
+    session-tool -u test --restore
     snap unset system experimental.user-daemons
 
 execute: |
@@ -31,18 +25,10 @@ execute: |
     install_local test-snapd-user-service
 
     echo "And the user mode systemd instance is started"
-    #shellcheck source=tests/lib/user.sh
-    . "$TESTSLIB/user.sh"
-    start_user_session
+    session-tool -u test --prepare
 
     echo "And the default.target unit has finished starting"
-    as_user systemctl --user start default.target
+    session-tool -u test systemctl --user start default.target
 
     echo "We can see the service running"
-    as_user systemctl --user status snap.test-snapd-user-service.test-snapd-user-service|MATCH "Active: active"
-
-debug: |
-    #shellcheck source=tests/lib/user.sh
-    . "$TESTSLIB/user.sh"
-    as_user systemctl --user status snapd.session-agent.service || true
-    systemctl --user status snapd.session-agent.service || true
+    session-tool -u test systemctl --user is-active snap.test-snapd-user-service.test-snapd-user-service

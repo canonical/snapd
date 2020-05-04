@@ -12,16 +12,10 @@ kill-timeout: 5m
 
 prepare: |
     snap set system experimental.user-daemons=true
-    #shellcheck source=tests/lib/user.sh
-    . "$TESTSLIB/user.sh"
-    stop_user_session
-    purge_user_session_data
+    session-tool --kill-leaked
 
 restore: |
-    #shellcheck source=tests/lib/user.sh
-    . "$TESTSLIB/user.sh"
-    stop_user_session
-    purge_user_session_data
+    session-tool -u test --restore
     snap unset system experimental.user-daemons
 
 execute: |
@@ -31,13 +25,11 @@ execute: |
     install_local test-snapd-user-service-sockets
 
     echo "And the user mode systemd instance is started"
-    #shellcheck source=tests/lib/user.sh
-    . "$TESTSLIB/user.sh"
-    start_user_session
+    session-tool -u test --prepare
 
     echo "And the user session has finished starting"
-    as_user systemctl --user start sockets.target
-    as_user systemctl --user start default.target
+    session-tool -u test systemctl --user start sockets.target
+    session-tool -u test systemctl --user start default.target
 
     echo "It's sockets are created in the test user's directories and activate the service"
     [ -S ~test/snap/test-snapd-user-service-sockets/common/common.sock ]
@@ -46,5 +38,6 @@ execute: |
     [ -S ~test/snap/test-snapd-user-service-sockets/x1/data.sock ]
     nc -w 30 -U ~test/snap/test-snapd-user-service-sockets/x1/data.sock | MATCH "Connected to data"
 
+    USER_RUNTIME_DIR="/run/user/$(id -u test)"
     [ -S "$USER_RUNTIME_DIR"/snap.test-snapd-user-service-sockets/run.sock ]
     nc -w 30 -U "$USER_RUNTIME_DIR"/snap.test-snapd-user-service-sockets/run.sock | MATCH "Connected to runtime"
