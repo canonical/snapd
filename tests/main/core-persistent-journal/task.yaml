@@ -46,7 +46,14 @@ execute: |
     # 2) Ignore SIGPIPE and not log anything from snapd following the restart.
     #
     # Note that this also affects *all* services on the system, not just snapd.
-    retry-tool -n 10 --wait 3 snap set core journal.persistent=true
+    case "$SPREAD_SYSTEM" in
+        ubuntu-core-16-*)
+            retry-tool -n 10 --wait 3 snap set core journal.persistent=true
+            ;;
+        *)
+            snap set core journal.persistent=true
+            ;;
+    esac
     test -e /var/log/journal/
     test -e /var/log/journal/.snapd-created
 
@@ -57,14 +64,29 @@ execute: |
 
     echo "Check that persistent journal can be disabled"
     # FIXME: see the longer comment above.
-    retry-tool -n 10 --wait 3 snap set core journal.persistent=false
+    case "$SPREAD_SYSTEM" in
+        ubuntu-core-16-*)
+            retry-tool -n 10 --wait 3 snap set core journal.persistent=false
+            ;;
+        *)
+            snap set core journal.persistent=false
+            ;;
+    esac
     not test -e /var/log/journal
 
     echo "Check that journal log is not removed if managed manually"
     mkdir /var/log/journal
     # FIXME: see the longer comment above.
-    retry-tool -n 10 --wait 3 snap set core journal.persistent=true
+    case "$SPREAD_SYSTEM" in
+        ubuntu-core-16-*)
+            retry-tool -n 10 --wait 3 snap set core journal.persistent=true
+            ;;
+        *)
+            snap set core journal.persistent=true
+            ;;
+    esac
     not test -e /var/log/journal/.snapd-created
+    # NOTE: Since this is failing early, before we do anything to the journal, there is no need to use retry-tool.
     snap set core journal.persistent=false 2>&1 | MATCH "the /var/log/journal directory was not created by snapd"
     # the journal dir was not removed
     test -e /var/log/journal/
