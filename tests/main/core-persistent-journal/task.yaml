@@ -2,10 +2,21 @@ summary: Test journal.persistent core config option
 
 systems: [ubuntu-core-*]
 
+prepare: |
+    systemctl status snapd > before.txt
+
 restore: |
+    rm before.txt
     # disable persistent journal
     rm -rf /var/log/journal
     systemctl kill --signal=SIGUSR1 systemd-journald
+
+debug: |
+    journalctl -u snapd
+    echo "snapd status before the test:"
+    cat before.txt
+    echo "snapd status after the test:"
+    systemctl status snapd
 
 execute: |
     echo "Wait for first boot to be done"
