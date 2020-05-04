@@ -144,7 +144,7 @@ func MeasureEpoch(h *SecbootHandle) error {
 	return nil
 }
 
-// MeasureEpoch measures the snap model.
+// MeasureModel measures the snap model.
 func MeasureModel(h *SecbootHandle, model *asserts.Model) error {
 	if err := sbMeasureSnapModelToTPM(h.tpm, tpmPCR, model); err != nil {
 		return fmt.Errorf("cannot measure snap model: %v", err)
