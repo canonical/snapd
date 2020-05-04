@@ -127,6 +127,25 @@ case "$action" in
 		# Disable linger for the selected user(s).
 		for u in $(echo "$user" | tr ',' ' '); do
 			loginctl disable-linger "$u"
+			# If the user is not root, also stop their user slice and ensure
+			# their XDG_RUNTIME_DIR goes away. Currently doing this for root is
+			# impossible, because spread logs into a test system over ssh and
+			# gets a root user slice, at minimum.
+			#
+			# If spread ever changes, so that the tests are executed as system
+			# services, then there this condition could be removed.
+			if [ "$u" != root ]; then
+				uid="$(id -u "$u")"
+				# See user@.service(5) for discussion about user-UID.slice and
+				# user@UID.service and why both are used. Here we stop the
+				# slice as that encompasses both user@UID.scope and any
+				# existing sessions of that user.
+				systemctl stop "user-$uid.slice"
+				if [ -e "/run/user/$uid" ]; then
+					echo "session-tool: /run/user/$uid still exists" >&2
+					exit 1
+				fi
+			fi
 		done
 
 		if [ -e /run/session-tool-core16.workaround ]; then
