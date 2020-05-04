@@ -33,7 +33,7 @@ execute: |
     # configuration specified in snapd.service. Other services may not be so
     # lucky and just decide to die and stay dead.
     #
-    # This is bug upstream bug https://bugs.freedesktop.org/show_bug.cgi?id=84923
+    # This is upstream bug https://bugs.freedesktop.org/show_bug.cgi?id=84923
     #
     # It has been fixed in the version of systemd on core18+ but core16 makes
     # configuring the journal entirely unreliable as it leaves us with the
