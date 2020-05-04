@@ -141,6 +141,16 @@ case "$action" in
 				# slice as that encompasses both user@UID.scope and any
 				# existing sessions of that user.
 				systemctl stop "user-$uid.slice"
+
+				# On Ubuntu 16.04 and Debian 9 stopping the slice above is
+				# insufficient to stop the service responsible for
+				# /run/user/UID *immediately*. This seems to be related to
+				# *absence* of user-session-dir@.service (template service)
+				# which is responsible for this operation later on (and where
+				# it works more reliably).
+				#
+				# Give the system some time to clean things up.
+				retry-tool -n 3 --wait 3 test ! -e "/run/user/$uid"
 				if [ -e "/run/user/$uid" ]; then
 					echo "session-tool: /run/user/$uid still exists" >&2
 					exit 1
