@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2018-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -79,10 +79,8 @@ func (s *clientSuite) TestClientOptionsWithProxy(c *check.C) {
 	c.Check(url.String(), check.Equals, "http://some-proxy:3128")
 }
 
-func (s *clientSuite) TestClientProxySetsUserAgent(c *check.C) {
+func (s *clientSuite) TestClientProxyTakesUserAgent(c *check.C) {
 	myUserAgent := "snapd yadda yadda"
-
-	defer httputil.MockUserAgent(myUserAgent)()
 
 	called := false
 	proxyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -94,6 +92,7 @@ func (s *clientSuite) TestClientProxySetsUserAgent(c *check.C) {
 		Proxy: func(*http.Request) (*url.URL, error) {
 			return mustParse(c, proxyServer.URL), nil
 		},
+		ProxyConnectHeader: http.Header{"User-Agent": []string{myUserAgent}},
 	})
 	_, err := cli.Get("https://localhost:9999")
 	c.Check(err, check.NotNil) // because we didn't do anything in the handler
@@ -230,4 +229,57 @@ func (s *tlsSuite) TestClientExtraSSLCertIntegration(c *check.C) {
 	res, err := cli.Get(s.srv.URL)
 	c.Assert(err, check.IsNil)
 	c.Assert(res.StatusCode, check.Equals, 200)
+}
+
+func (s *tlsSuite) TestClientMaxTLS11Error(c *check.C) {
+	// create a server that uses our certs
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `all good`)
+	}))
+	cert, err := tls.LoadX509KeyPair(s.certpath, s.keypath)
+	c.Assert(err, check.IsNil)
+	srv.TLS = &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		MaxVersion:   tls.VersionTLS11,
+	}
+	srv.StartTLS()
+	s.AddCleanup(srv.Close)
+
+	// Server running only TLS1.1 doesn't work
+	cli := httputil.NewHTTPClient(nil)
+	c.Assert(cli, check.NotNil)
+	c.Assert(s.logbuf.String(), check.Equals, "")
+
+	_, err = cli.Get(srv.URL)
+	// The protocol check is done prior to the certificate check
+	// - golang < 1.12: tls: server selected unsupported protocol version 302
+	// - golang >= 1.12: tls: protocol version not supported
+	c.Assert(err, check.ErrorMatches, ".* tls: (server selected unsupported protocol version 302|protocol version not supported)")
+}
+
+func (s *tlsSuite) TestClientMaxTLS12Ok(c *check.C) {
+	// create a server that uses our certs
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `all good`)
+	}))
+	cert, err := tls.LoadX509KeyPair(s.certpath, s.keypath)
+	c.Assert(err, check.IsNil)
+	srv.TLS = &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		MaxVersion:   tls.VersionTLS12,
+	}
+	srv.StartTLS()
+	s.AddCleanup(srv.Close)
+
+	// Server running our current minimum of TLS1.2. This test will notice
+	// if our expected minimum default (TLS1.2) changes.
+	cli := httputil.NewHTTPClient(nil)
+	c.Assert(cli, check.NotNil)
+	c.Assert(s.logbuf.String(), check.Equals, "")
+
+	_, err = cli.Get(srv.URL)
+	// The protocol check is done prior to the certificate check and since
+	// this is testing the protocol, the self-signed certificate error is
+	// fine and expected.
+	c.Assert(err, check.ErrorMatches, ".* certificate signed by unknown authority")
 }

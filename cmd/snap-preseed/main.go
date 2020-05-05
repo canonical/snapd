@@ -38,15 +38,20 @@ security profiles. The image is updated and consequently optimised to reduce
 first-boot startup time`
 )
 
+type options struct {
+	Reset bool `long:"reset"`
+}
+
 var (
 	osGetuid           = os.Getuid
 	Stdout   io.Writer = os.Stdout
 	Stderr   io.Writer = os.Stderr
 
-	opts struct{}
+	opts options
 )
 
 func Parser() *flags.Parser {
+	opts = options{}
 	parser := flags.NewParser(&opts, flags.HelpFlag|flags.PassDoubleDash|flags.PassAfterNonOption)
 	parser.ShortDescription = shortHelp
 	parser.LongDescription = longHelp
@@ -76,6 +81,15 @@ func run(parser *flags.Parser, args []string) error {
 	}
 
 	chrootDir := rest[0]
+	// safety check
+	if chrootDir == "/" {
+		return fmt.Errorf("cannot run snap-preseed against /")
+	}
+
+	if opts.Reset {
+		return resetPreseededChroot(chrootDir)
+	}
+
 	if err := checkChroot(chrootDir); err != nil {
 		return err
 	}

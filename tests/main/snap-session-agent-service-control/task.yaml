@@ -9,10 +9,6 @@ systems:
     - -amazon-linux-2-*
     - -centos-7-*
 
-environment:
-    TEST_UID: $(id -u test)
-    USER_RUNTIME_DIR: /run/user/${TEST_UID}
-
 prepare: |
     # Ensure that snapd.session-agent.socket is enabled.  This may not
     # be the case on distributions where presets have been used to
@@ -22,10 +18,6 @@ prepare: |
         systemctl --user --global enable snapd.session-agent.socket
         touch agent-was-enabled
     fi
-    mkdir -p "$USER_RUNTIME_DIR"
-    chmod u=rwX,go= "$USER_RUNTIME_DIR"
-    chown test:test "$USER_RUNTIME_DIR"
-    systemctl start "user@${TEST_UID}.service"
 
     # ensure curl is available (needed for e.g. core18)
     if ! command -v curl; then
@@ -33,20 +25,22 @@ prepare: |
         snap alias test-snapd-curl.curl curl
     fi
 
+    session-tool -u test --prepare
+    # Wait for sockets.target to finish starting so the session agent
+    # socket is available.
+    # XXX: I strongly believe this is not required anymore.
+    session-tool -u test systemctl --user start sockets.target
+
 restore: |
-    snap remove test-snapd-curl
-    systemctl stop "user@${TEST_UID}.service"
-    rm -rf "${USER_RUNTIME_DIR:?}"/* "${USER_RUNTIME_DIR:?}"/.[!.]*
+    session-tool -u test --restore
+    snap remove --purge test-snapd-curl
+
     if [ -f agent-was-enabled ]; then
         systemctl --user --global disable snapd.session-agent.socket
     fi
     rm -f /etc/systemd/user/snap.test-service.service
 
 execute: |
-    systemctl_user() {
-        su -l -c "XDG_RUNTIME_DIR=\"${USER_RUNTIME_DIR}\" systemctl --user $*" test
-    }
-
     echo "Create a user mode service"
     cat << \EOF > /etc/systemd/user/snap.test-service.service
     [Unit]
@@ -57,29 +51,25 @@ execute: |
     EOF
 
     echo "The session agent can reload the user mode systemd instance"
-    curl --unix-socket "${USER_RUNTIME_DIR}/snapd-session-agent.socket" \
+    curl --unix-socket /run/user/12345/snapd-session-agent.socket \
         -D- -X POST -H "Content-Type: application/json" \
         -d '{"action": "daemon-reload"}' \
         http://localhost/v1/service-control | MATCH "HTTP/1.1 200 OK"
 
     echo "The service is now visible but not active"
-    systemctl_user show --property=LoadState snap.test-service.service |
-        MATCH LoadState=loaded
-    systemctl_user show --property=ActiveState snap.test-service.service |
-        MATCH ActiveState=inactive
+    session-tool -u test systemctl --user show --property=LoadState snap.test-service.service | MATCH LoadState=loaded
+    session-tool -u test systemctl --user show --property=ActiveState snap.test-service.service | MATCH ActiveState=inactive
 
     echo "The session agent can start user mode services"
-    curl --unix-socket "${USER_RUNTIME_DIR}/snapd-session-agent.socket" \
+    curl --unix-socket /run/user/12345/snapd-session-agent.socket \
         -D- -X POST -H "Content-Type: application/json" \
         -d '{"action": "start", "services": ["snap.test-service.service"]}' \
         http://localhost/v1/service-control | MATCH "HTTP/1.1 200 OK"
-    systemctl_user show --property=ActiveState snap.test-service.service |
-        MATCH ActiveState=active
+    session-tool -u test systemctl --user show --property=ActiveState snap.test-service.service | MATCH ActiveState=active
 
     echo "The session agent can stop user mode services"
-    curl --unix-socket "${USER_RUNTIME_DIR}/snapd-session-agent.socket" \
+    curl --unix-socket /run/user/12345/snapd-session-agent.socket \
         -D- -X POST -H "Content-Type: application/json" \
         -d '{"action": "stop", "services": ["snap.test-service.service"]}' \
         http://localhost/v1/service-control | MATCH "HTTP/1.1 200 OK"
-    systemctl_user show --property=ActiveState snap.test-service.service |
-        MATCH ActiveState=inactive
+    session-tool -u test systemctl --user show --property=ActiveState snap.test-service.service | MATCH ActiveState=inactive

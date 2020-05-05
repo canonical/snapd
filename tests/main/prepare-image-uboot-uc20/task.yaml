@@ -1,0 +1,84 @@
+summary: Check that prepare-image works for uc20 uboot systems
+
+# running this on one machine is enough
+systems: [ubuntu-18.04-64]
+
+environment:
+    ROOT: /home/test/tmp/
+    IMAGE: /home/test/tmp/image
+    GADGET: /home/test/tmp/gadget
+    STORE_ADDR: localhost:11028
+    STORE_DIR: $(pwd)/fake-store-blobdir
+
+prepare: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
+    #shellcheck source=tests/lib/store.sh
+    . "$TESTSLIB"/store.sh
+    setup_fake_store "$STORE_DIR"
+
+    mkdir "$ROOT"
+    chown -R test:test "$ROOT"
+
+    # sign the model assertion
+    gendeveloper1model < "$TESTSLIB"/assertions/developer1-pi-uc20.model.json > "$ROOT/model.assertion"
+
+restore: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
+    #shellcheck source=tests/lib/store.sh
+    . "$TESTSLIB"/store.sh
+    teardown_fake_store "$STORE_DIR"
+    rm -rf "$ROOT"
+
+execute: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+    if [ "$REMOTE_STORE" = "staging" ]; then
+        echo "SKIP: cannot run with staging store yet"
+        exit 0
+    fi
+
+    echo Expose the needed assertions through the fakestore
+    cp "$TESTSLIB"/assertions/developer1.account "$STORE_DIR/asserts"
+    cp "$TESTSLIB"/assertions/developer1.account-key "$STORE_DIR/asserts"
+    cp "$TESTSLIB"/assertions/testrootorg-store.account-key "$STORE_DIR/asserts"
+    # have snap use the fakestore for assertions (but nothing else)
+    export SNAPPY_FORCE_SAS_URL=http://$STORE_ADDR
+
+    # for now we need to fix the pi-gadget's uboot.conf manually until 
+    # https://github.com/snapcore/pi-gadget/pull/41 is merged
+    # TODO:UC20: when the PR is merged let prepare-image download the snap
+    UBUNTU_STORE_ARCH=arm64 snap download pi --channel=20/edge --basename=pi-gadget-upstream
+    unsquashfs -d pi-gadget pi-gadget-upstream.snap
+    truncate -s 0 pi-gadget/uboot.conf
+    snap pack pi-gadget --filename=pi-gadget.snap
+
+    echo Running prepare-image as a user
+    su -c "SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE snap prepare-image --channel edge --snap pi-gadget.snap $ROOT/model.assertion $ROOT" test
+
+    systemid="$(date +%Y%m%d)"
+
+    echo Verifying the result
+    find "$ROOT/system-seed/" -ls
+
+    test -e "$ROOT/system-seed/uboot/ubuntu/boot.sel"
+
+    test -e "$ROOT/system-seed/systems/$systemid/model"
+    test -e "$ROOT/system-seed/systems/$systemid/kernel/initrd.img"
+    test -e "$ROOT/system-seed/systems/$systemid/kernel/kernel.img"
+    test "$(find "$ROOT/system-seed/systems/$systemid/kernel/dtbs/" | wc -l)" -gt 0
+
+    strings "$ROOT/system-seed/uboot/ubuntu/boot.sel" | MATCH "snapd_recovery_system=$systemid"
+
+    test -e "$ROOT"/system-seed/snaps/core20_*.snap
+    test -e "$ROOT"/system-seed/snaps/pi-kernel_*.snap
+    test -e "$ROOT"/system-seed/snaps/snapd_*.snap

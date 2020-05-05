@@ -11,7 +11,7 @@ if ! grep -q "ID=ubuntu-core" /etc/os-release; then
     exit 0
 fi
 
-# No fixe-ups yet on UC20
+# No fix-ups yet on UC20
 if grep -q snapd_recovery_mode= /proc/cmdline; then
     exit 0
 fi

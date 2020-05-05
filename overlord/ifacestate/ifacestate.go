@@ -310,7 +310,7 @@ func initialConnectAttributes(st *state.State, plugSnapInfo *snap.Info, plugSnap
 	return plug.Attrs, slot.Attrs, nil
 }
 
-// Disconnect returns a set of tasks for  disconnecting an interface.
+// Disconnect returns a set of tasks for disconnecting an interface.
 func Disconnect(st *state.State, conn *interfaces.Connection) (*state.TaskSet, error) {
 	plugSnap := conn.Plug.Snap().InstanceName()
 	slotSnap := conn.Slot.Snap().InstanceName()
@@ -321,9 +321,45 @@ func Disconnect(st *state.State, conn *interfaces.Connection) (*state.TaskSet, e
 	return disconnectTasks(st, conn, disconnectOpts{})
 }
 
+// Forget returs a set of tasks for disconnecting and forgetting an interface.
+// If the interface is already disconnected, it will be removed from the state
+// (forgotten).
+func Forget(st *state.State, repo *interfaces.Repository, connRef *interfaces.ConnRef) (*state.TaskSet, error) {
+	if err := snapstate.CheckChangeConflictMany(st, []string{connRef.PlugRef.Snap, connRef.SlotRef.Snap}, ""); err != nil {
+		return nil, err
+	}
+
+	if conn, err := repo.Connection(connRef); err == nil {
+		// connection exists - run regular set of disconnect tasks with forget
+		// flag.
+		opts := disconnectOpts{Forget: true}
+		ts, err := disconnectTasks(st, conn, opts)
+		return ts, err
+	}
+
+	// connection is not active (and possibly either the plug or slot
+	// doesn't exist); disconnect tasks don't need hooks as we simply
+	// want to remove connection from state.
+	ts := forgetTasks(st, connRef)
+	return ts, nil
+}
+
 type disconnectOpts struct {
 	AutoDisconnect bool
 	ByHotplug      bool
+	Forget         bool
+}
+
+// forgetTasks creates a set of tasks for forgetting an inactive connection
+func forgetTasks(st *state.State, connRef *interfaces.ConnRef) *state.TaskSet {
+	summary := fmt.Sprintf(i18n.G("Forget connection %s:%s from %s:%s"),
+		connRef.PlugRef.Snap, connRef.PlugRef.Name,
+		connRef.SlotRef.Snap, connRef.SlotRef.Name)
+	disconnectTask := st.NewTask("disconnect", summary)
+	disconnectTask.Set("slot", connRef.SlotRef)
+	disconnectTask.Set("plug", connRef.PlugRef)
+	disconnectTask.Set("forget", true)
+	return state.NewTaskSet(disconnectTask)
 }
 
 // disconnectTasks creates a set of tasks for disconnect, including hooks, but does not do any conflict checking.
@@ -346,6 +382,9 @@ func disconnectTasks(st *state.State, conn *interfaces.Connection, flags disconn
 	disconnectTask := st.NewTask("disconnect", summary)
 	disconnectTask.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
 	disconnectTask.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
+	if flags.Forget {
+		disconnectTask.Set("forget", true)
+	}
 
 	disconnectTask.Set("slot-static", conn.Slot.StaticAttrs())
 	disconnectTask.Set("slot-dynamic", conn.Slot.DynamicAttrs())

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -37,19 +37,19 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snapdenv"
 )
 
 func init() {
 	// set User-Agent for when 'snap' talks to the store directly (snap download etc...)
-	httputil.SetUserAgentFromVersion(cmd.Version, "snap")
+	snapdenv.SetUserAgentFromVersion(cmd.Version, nil, "snap")
 
-	if osutil.GetenvBool("SNAPD_DEBUG") || osutil.GetenvBool("SNAPPY_TESTING") {
+	if osutil.GetenvBool("SNAPD_DEBUG") || snapdenv.Testing() {
 		// in tests or when debugging, enforce the "tidy" lint checks
 		noticef = logger.Panicf
 	}
@@ -387,7 +387,7 @@ func mkClient() *client.Client {
 	cfg := &ClientConfig
 	// Set client user-agent when talking to the snapd daemon to the
 	// same value as when talking to the store.
-	cfg.UserAgent = httputil.UserAgent()
+	cfg.UserAgent = snapdenv.UserAgent()
 
 	cli := client.New(cfg)
 	goos := runtime.GOOS

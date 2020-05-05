@@ -46,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/client"
@@ -142,6 +143,9 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	s.tempdir = c.MkDir()
 	dirs.SetRootDir(s.tempdir)
 	s.AddCleanup(func() { dirs.SetRootDir("") })
+
+	// needed for system key generation
+	s.AddCleanup(osutil.MockMountInfo(""))
 
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
 	c.Assert(err, IsNil)
@@ -1657,7 +1661,7 @@ func findKind(chg *state.Change, kind string) *state.Task {
 }
 
 func (s *mgrsSuite) TestInstallCoreSnapUpdatesBootloaderEnvAndSplitsAcrossRestart(c *C) {
-	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bloader := boottest.MockUC16Bootenv(bootloadertest.Mock("mock", c.MkDir()))
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 	bloader.SetBootBase("core_99.snap")
@@ -1727,13 +1731,18 @@ type: os
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 }
 
-func (s *baseMgrsSuite) mockSuccessfulReboot(c *C, bloader *bootloadertest.MockBootloader) {
+type rebootEnv interface {
+	SetTryingDuringReboot(which []snap.Type) error
+	SetRollbackAcrossReboot(which []snap.Type) error
+}
+
+func (s *baseMgrsSuite) mockSuccessfulReboot(c *C, be rebootEnv, which []snap.Type) {
 	st := s.o.State()
 	restarting, restartType := st.Restarting()
 	c.Assert(restarting, Equals, true, Commentf("mockSuccessfulReboot called when there was no pending restart"))
 	c.Assert(restartType, Equals, state.RestartSystem, Commentf("mockSuccessfulReboot called but restartType is not SystemRestart but %v", restartType))
 	state.MockRestarting(st, state.RestartUnset)
-	err := bloader.SetTryingDuringReboot()
+	err := be.SetTryingDuringReboot(which)
 	c.Assert(err, IsNil)
 	s.o.DeviceManager().ResetBootOk()
 	st.Unlock()
@@ -1742,13 +1751,13 @@ func (s *baseMgrsSuite) mockSuccessfulReboot(c *C, bloader *bootloadertest.MockB
 	c.Assert(err, IsNil)
 }
 
-func (s *baseMgrsSuite) mockRollbackAcrossReboot(c *C, bloader *bootloadertest.MockBootloader) {
+func (s *baseMgrsSuite) mockRollbackAcrossReboot(c *C, be rebootEnv, which []snap.Type) {
 	st := s.o.State()
 	restarting, restartType := st.Restarting()
 	c.Assert(restarting, Equals, true, Commentf("mockRollbackAcrossReboot called when there was no pending restart"))
 	c.Assert(restartType, Equals, state.RestartSystem, Commentf("mockRollbackAcrossReboot called but restartType is not SystemRestart but %v", restartType))
 	state.MockRestarting(st, state.RestartUnset)
-	err := bloader.SetRollbackAcrossReboot()
+	err := be.SetRollbackAcrossReboot(which)
 	c.Assert(err, IsNil)
 	s.o.DeviceManager().ResetBootOk()
 	st.Unlock()
@@ -1757,7 +1766,7 @@ func (s *baseMgrsSuite) mockRollbackAcrossReboot(c *C, bloader *bootloadertest.M
 }
 
 func (s *mgrsSuite) TestInstallKernelSnapUpdatesBootloaderEnv(c *C) {
-	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bloader := boottest.MockUC16Bootenv(bootloadertest.Mock("mock", c.MkDir()))
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 
@@ -1838,7 +1847,7 @@ type: kernel`
 		"snap_mode":       boot.TryStatus,
 	})
 	// pretend we restarted
-	s.mockSuccessfulReboot(c, bloader)
+	s.mockSuccessfulReboot(c, bloader, []snap.Type{snap.TypeKernel})
 
 	st.Unlock()
 	err = s.o.Settle(settleTimeout)
@@ -1849,7 +1858,7 @@ type: kernel`
 }
 
 func (s *mgrsSuite) TestInstallKernelSnapUndoUpdatesBootloaderEnv(c *C) {
-	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bloader := boottest.MockUC16Bootenv(bootloadertest.Mock("mock", c.MkDir()))
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 
@@ -1935,7 +1944,7 @@ type: kernel`
 	c.Check(restarting, Equals, true)
 	c.Check(chg.Status(), Equals, state.DoingStatus)
 	// pretend we restarted
-	s.mockSuccessfulReboot(c, bloader)
+	s.mockSuccessfulReboot(c, bloader, []snap.Type{snap.TypeKernel})
 
 	st.Unlock()
 	err = s.o.Settle(settleTimeout)
@@ -1957,7 +1966,7 @@ type: kernel`
 }
 
 func (s *mgrsSuite) TestInstallKernelSnap20UpdatesBootloaderEnv(c *C) {
-	bloader := bootloadertest.Mock("mock", c.MkDir()).UC20RunModeRebootReady()
+	bloader := boottest.MockUC20RunBootenv(bootloadertest.Mock("mock", c.MkDir()))
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 
@@ -2009,7 +2018,7 @@ type: kernel`
 		RecoverySystem: "20191127",
 		Base:           "core20_1.snap",
 	}
-	err = m.Write("")
+	err = m.WriteTo("")
 	c.Assert(err, IsNil)
 
 	st := s.o.State()
@@ -2070,38 +2079,29 @@ type: kernel`
 	// here to make comparison easier
 	kernelSnapInfo.SideInfo.Revision = snap.R(-1)
 
+	// the current kernel in the bootloader is still the same
+	currentKernel, err := bloader.Kernel()
+	c.Assert(err, IsNil)
+	firstKernel := snap.Info{SideInfo: *si1}
+	c.Assert(currentKernel.Filename(), Equals, firstKernel.Filename())
+
+	// the current try kernel in the bootloader is our new kernel
+	currentTryKernel, err := bloader.TryKernel()
+	c.Assert(err, IsNil)
+	c.Assert(currentTryKernel.Filename(), Equals, kernelSnapInfo.Filename())
+
 	// check that we extracted the kernel snap assets
 	extractedKernels := bloader.ExtractKernelAssetsCalls
 	c.Assert(extractedKernels, HasLen, 1)
 	c.Assert(extractedKernels[0].Filename(), Equals, kernelSnapInfo.Filename())
 
-	// and that we enabled the try kernel
-	enabledTryKernels, _ := bloader.GetRunKernelImageFunctionSnapCalls("EnableTryKernel")
-	c.Assert(enabledTryKernels, HasLen, 1)
-	c.Assert(enabledTryKernels[0].Filename(), Equals, kernelSnapInfo.Filename())
-
-	// we won't disable any try kernels nor will we enable any kernels
-	_, nDisableTryKernelCalls := bloader.GetRunKernelImageFunctionSnapCalls("DisableTryKernel")
-	c.Assert(nDisableTryKernelCalls, Equals, 0)
-	_, nEnableKernelCalls := bloader.GetRunKernelImageFunctionSnapCalls("EnableKernel")
-	c.Assert(nEnableKernelCalls, Equals, 0)
-
 	// pretend we restarted
-	s.mockSuccessfulReboot(c, bloader)
+	s.mockSuccessfulReboot(c, bloader, []snap.Type{snap.TypeKernel})
 
 	st.Unlock()
 	err = s.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
-
-	// we should now have enabled a kernel
-	enabledKernels, _ := bloader.GetRunKernelImageFunctionSnapCalls("EnableKernel")
-	c.Assert(enabledKernels, HasLen, 1)
-	c.Assert(enabledKernels[0].Filename(), Equals, kernelSnapInfo.Filename())
-
-	// we should have now disabled a TryKernel
-	_, nDisableTryKernelCalls = bloader.GetRunKernelImageFunctionSnapCalls("DisableTryKernel")
-	c.Assert(nDisableTryKernelCalls, Equals, 1)
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 
@@ -2113,10 +2113,27 @@ type: kernel`
 	c.Check(snapst.Sequence, DeepEquals, []*snap.SideInfo{si1, &kernelSnapInfo.SideInfo})
 	c.Check(snapst.Active, Equals, true)
 	c.Check(snapst.Current, DeepEquals, snap.R(-1))
+
+	// since we need to do a reboot to go back to the old kernel, we should now
+	// have kernel on the bootloader as the new one, and no try kernel on the
+	// bootloader
+	finalCurrentKernel, err := bloader.Kernel()
+	c.Assert(err, IsNil)
+	c.Assert(finalCurrentKernel.Filename(), Equals, kernelSnapInfo.Filename())
+
+	_, err = bloader.TryKernel()
+	c.Assert(err, Equals, bootloader.ErrNoTryKernelRef)
+
+	// finally check that GetCurrentBoot gives us the new kernel
+	dev, err := devicestate.DeviceCtx(st, nil, nil)
+	c.Assert(err, IsNil)
+	sn, err := boot.GetCurrentBoot(snap.TypeKernel, dev)
+	c.Assert(err, IsNil)
+	c.Assert(sn.Filename(), Equals, kernelSnapInfo.Filename())
 }
 
 func (s *mgrsSuite) TestInstallKernelSnap20UndoUpdatesBootloaderEnv(c *C) {
-	bloader := bootloadertest.Mock("mock", c.MkDir()).UC20RunModeRebootReady()
+	bloader := boottest.MockUC20RunBootenv(bootloadertest.Mock("mock", c.MkDir()))
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 
@@ -2168,7 +2185,7 @@ type: kernel`
 		RecoverySystem: "20191127",
 		Base:           "core20_1.snap",
 	}
-	err = m.Write("")
+	err = m.WriteTo("")
 	c.Assert(err, IsNil)
 
 	st := s.o.State()
@@ -2233,23 +2250,23 @@ type: kernel`
 	c.Assert(extractedKernels, HasLen, 1)
 	c.Assert(extractedKernels[0].Filename(), Equals, kernelSnapInfo.Filename())
 
-	// and that we enabled the try kernel
-	enabledTryKernels, _ := bloader.GetRunKernelImageFunctionSnapCalls("EnableTryKernel")
-	c.Assert(enabledTryKernels, HasLen, 1)
-	c.Assert(enabledTryKernels[0].Filename(), Equals, kernelSnapInfo.Filename())
+	// the current kernel in the bootloader is still the same
+	currentKernel, err := bloader.Kernel()
+	c.Assert(err, IsNil)
+	firstKernel := snap.Info{SideInfo: *si1}
+	c.Assert(currentKernel.Filename(), Equals, firstKernel.Filename())
 
-	// we won't disable any try kernels nor will we enable any kernels
-	_, nDisableTryKernelCalls := bloader.GetRunKernelImageFunctionSnapCalls("DisableTryKernel")
-	c.Assert(nDisableTryKernelCalls, Equals, 0)
-	_, nEnableKernelCalls := bloader.GetRunKernelImageFunctionSnapCalls("EnableKernel")
-	c.Assert(nEnableKernelCalls, Equals, 0)
+	// the current try kernel in the bootloader is our new kernel
+	currentTryKernel, err := bloader.TryKernel()
+	c.Assert(err, IsNil)
+	c.Assert(currentTryKernel.Filename(), Equals, kernelSnapInfo.Filename())
 
 	// we are in restarting state and the change is not done yet
 	restarting, _ := st.Restarting()
 	c.Check(restarting, Equals, true)
 	c.Check(chg.Status(), Equals, state.DoingStatus)
 	// pretend we restarted
-	s.mockSuccessfulReboot(c, bloader)
+	s.mockSuccessfulReboot(c, bloader, []snap.Type{snap.TypeKernel})
 
 	st.Unlock()
 	err = s.o.Settle(settleTimeout)
@@ -2272,22 +2289,6 @@ type: kernel`
 	extractedKernels = bloader.ExtractKernelAssetsCalls
 	c.Assert(extractedKernels, HasLen, 1) // same as above check
 
-	// we should have enabled a try kernel, which is now the original kernel
-	// snap
-	enabledTryKernels, _ = bloader.GetRunKernelImageFunctionSnapCalls("EnableTryKernel")
-	c.Assert(enabledTryKernels, HasLen, 2) // same as above, but 1 more
-	c.Assert(enabledTryKernels[1].Filename(), Equals, "pc-kernel_1.snap")
-
-	// we should have disabled the try-kernel we just booted and then enabled
-	// a new kernel (which is the original kernel)
-	_, nDisableTryKernelCalls = bloader.GetRunKernelImageFunctionSnapCalls("DisableTryKernel")
-	c.Assert(nDisableTryKernelCalls, Equals, 1)
-
-	// we should have enabled the new kernel, as that technically finished
-	enabledKernels, _ := bloader.GetRunKernelImageFunctionSnapCalls("EnableKernel")
-	c.Assert(enabledKernels, HasLen, 1)
-	c.Assert(enabledKernels[0].Filename(), Equals, kernelSnapInfo.Filename())
-
 	// also check that we are active on the first revision again
 	var snapst snapstate.SnapState
 	err = snapstate.Get(st, "pc-kernel", &snapst)
@@ -2296,6 +2297,21 @@ type: kernel`
 	c.Check(snapst.Sequence, DeepEquals, []*snap.SideInfo{si1})
 	c.Check(snapst.Active, Equals, true)
 	c.Check(snapst.Current, DeepEquals, snap.R(1))
+
+	// since we need to do a reboot to go back to the old kernel, we should now
+	// have kernel on the bootloader as the new one, and the try kernel on the
+	// booloader as the old one
+	finalCurrentKernel, err := bloader.Kernel()
+	c.Assert(err, IsNil)
+	c.Assert(finalCurrentKernel.Filename(), Equals, kernelSnapInfo.Filename())
+
+	finalTryKernel, err := bloader.TryKernel()
+	c.Assert(err, IsNil)
+	c.Assert(finalTryKernel.Filename(), Equals, firstKernel.Filename())
+
+	// TODO:UC20: this test should probably simulate another reboot and confirm
+	// that at the end of everything we have GetCurrentBoot() return the old
+	// kernel we reverted back to again
 }
 
 func (s *mgrsSuite) installLocalTestSnap(c *C, snapYamlContent string) *snap.Info {
@@ -4276,7 +4292,7 @@ version: 20.04`
 }
 
 func (ms *mgrsSuite) TestRemodelSwitchToDifferentBaseUndo(c *C) {
-	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bloader := boottest.MockUC16Bootenv(bootloadertest.Mock("mock", c.MkDir()))
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 	bloader.SetBootVars(map[string]string{
@@ -4385,7 +4401,7 @@ version: 20.04`
 		"snap_kernel":   "pc-kernel_1.snap",
 	})
 	// simulate successful restart happened
-	ms.mockSuccessfulReboot(c, bloader)
+	ms.mockSuccessfulReboot(c, bloader, []snap.Type{snap.TypeBase})
 	c.Assert(bloader.BootVars, DeepEquals, map[string]string{
 		"snap_mode":       boot.DefaultStatus,
 		"snap_core":       "core20_2.snap",
@@ -4418,7 +4434,7 @@ version: 20.04`
 }
 
 func (ms *mgrsSuite) TestRemodelSwitchToDifferentBaseUndoOnRollback(c *C) {
-	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bloader := boottest.MockUC16Bootenv(bootloadertest.Mock("mock", c.MkDir()))
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 	bloader.SetBootVars(map[string]string{
@@ -4524,7 +4540,7 @@ version: 20.04`
 		"snap_kernel":   "pc-kernel_1.snap",
 	})
 	// simulate successful restart happened
-	ms.mockRollbackAcrossReboot(c, bloader)
+	ms.mockRollbackAcrossReboot(c, bloader, []snap.Type{snap.TypeBase})
 	c.Assert(bloader.BootVars, DeepEquals, map[string]string{
 		"snap_mode":       boot.DefaultStatus,
 		"snap_core":       "core18_1.snap",
@@ -4557,7 +4573,7 @@ version: 20.04`
 type kernelSuite struct {
 	baseMgrsSuite
 
-	bloader *bootloadertest.MockBootloader
+	bloader *boottest.Bootenv16
 }
 
 var _ = Suite(&kernelSuite{})
@@ -4565,7 +4581,7 @@ var _ = Suite(&kernelSuite{})
 func (s *kernelSuite) SetUpTest(c *C) {
 	s.baseMgrsSuite.SetUpTest(c)
 
-	s.bloader = bootloadertest.Mock("mock", c.MkDir())
+	s.bloader = boottest.MockUC16Bootenv(bootloadertest.Mock("mock", c.MkDir()))
 	s.bloader.SetBootKernel("pc-kernel_1.snap")
 	s.bloader.SetBootBase("core_1.snap")
 	bootloader.Force(s.bloader)
@@ -4668,7 +4684,7 @@ func (s *kernelSuite) TestRemodelSwitchKernelTrack(c *C) {
 	c.Assert(t.Status(), Equals, state.DoingStatus)
 
 	// simulate successful restart happened
-	s.mockSuccessfulReboot(c, s.bloader)
+	s.mockSuccessfulReboot(c, s.bloader, []snap.Type{snap.TypeKernel})
 
 	// continue
 	st.Unlock()
@@ -4731,7 +4747,7 @@ func (ms *kernelSuite) TestRemodelSwitchToDifferentKernel(c *C) {
 	})
 	// simulate successful system-restart bootenv updates (those
 	// vars will be cleared by snapd on a restart)
-	ms.mockSuccessfulReboot(c, ms.bloader)
+	ms.mockSuccessfulReboot(c, ms.bloader, []snap.Type{snap.TypeKernel})
 	// bootvars are as expected
 	c.Assert(ms.bloader.BootVars, DeepEquals, map[string]string{
 		"snap_core":       "core_1.snap",
@@ -4814,7 +4830,7 @@ func (ms *kernelSuite) TestRemodelSwitchToDifferentKernelUndo(c *C) {
 	c.Assert(t.Status(), Equals, state.DoingStatus)
 
 	// simulate successful restart happened
-	ms.mockSuccessfulReboot(c, ms.bloader)
+	ms.mockSuccessfulReboot(c, ms.bloader, []snap.Type{snap.TypeKernel})
 
 	// continue
 	st.Unlock()
@@ -4870,7 +4886,7 @@ func (ms *kernelSuite) TestRemodelSwitchToDifferentKernelUndoOnRollback(c *C) {
 	c.Assert(t.Status(), Equals, state.DoingStatus)
 
 	// simulate rollback of the kernel during reboot
-	ms.mockRollbackAcrossReboot(c, ms.bloader)
+	ms.mockRollbackAcrossReboot(c, ms.bloader, []snap.Type{snap.TypeKernel})
 
 	// continue
 	st.Unlock()
@@ -5668,7 +5684,7 @@ func (s *mgrsSuite) TestCheckRefreshFailureWithConcurrentRemoveOfConnectedSnap(c
 }
 
 func (s *mgrsSuite) TestInstallKernelSnapRollbackUpdatesBootloaderEnv(c *C) {
-	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bloader := boottest.MockUC16Bootenv(bootloadertest.Mock("mock", c.MkDir()))
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 
@@ -5750,7 +5766,7 @@ type: kernel`
 	restarting, _ := st.Restarting()
 	c.Check(restarting, Equals, true)
 	c.Check(chg.Status(), Equals, state.DoingStatus)
-	s.mockRollbackAcrossReboot(c, bloader)
+	s.mockRollbackAcrossReboot(c, bloader, []snap.Type{snap.TypeKernel})
 
 	// the kernel revision got rolled back
 	var snapst snapstate.SnapState

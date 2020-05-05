@@ -16,8 +16,12 @@ priority: 100
 restore: |
     rm -rf libseccomp
     rm -f syscalls.*
+    apt remove -y gperf
 
 execute: |
+    # XXX: this should be part of our images
+    apt install gperf -y
+
     # build a list of syscalls known to libseccomp by using the internal test
     # tool arch-syscall-dump
     git clone https://github.com/seccomp/libseccomp

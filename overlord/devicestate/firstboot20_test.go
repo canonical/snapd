@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
@@ -67,7 +68,7 @@ func (s *firstBoot20Suite) SetUpTest(c *C) {
 	s.AddCleanup(ifacestate.MockSnapMapper(&ifacestate.CoreSnapdSystemMapper{}))
 }
 
-func (s *firstBoot20Suite) setupCore20Seed(c *C, sysLabel string) {
+func (s *firstBoot20Suite) setupCore20Seed(c *C, sysLabel string) *asserts.Model {
 	gadgetYaml := `
 volumes:
     volume-id:
@@ -96,7 +97,7 @@ volumes:
 	makeSnap("core20")
 	makeSnap("pc=20")
 
-	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+	return s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
@@ -122,9 +123,8 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20Happy(c *C) {
 		RecoverySystem: "20191018",
 		Base:           "core20_1.snap",
 	}
-	err := m.Write("")
+	err := m.WriteTo("")
 	c.Assert(err, IsNil)
-	defer os.Remove(dirs.SnapModeenvFileUnder(dirs.GlobalRootDir))
 
 	// restart overlord to pick up the modeenv
 	s.startOverlord(c)
@@ -138,10 +138,9 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20Happy(c *C) {
 	defer systemctlRestorer()
 
 	sysLabel := "20191018"
-	s.setupCore20Seed(c, sysLabel)
+	model := s.setupCore20Seed(c, sysLabel)
 
-	// XXX Core 20 has multiple bootenvs
-	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bloader := bootloadertest.Mock("mock", c.MkDir()).WithExtractedRunKernelImage()
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 
@@ -258,9 +257,11 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20Happy(c *C) {
 	// already booted from, we should only have checked what the current kernel
 	// is
 
-	// the 3 calls here are 1 from GetCurrentBoot() (and thus markSuccessful())
-	// and 1 from SetNext(), and 1 from InUse() (from installPath() in
-	// o/snapstate)
+	// the 3 calls here are :
+	// * 1 from MarkBootSuccessful() from ensureBootOk() before we restart
+	// * 1 from boot.SetNextBoot() from LinkSnap() from doInstall() from InstallPath() from
+	//     installSeedSnap() after restart
+	// * 1 from boot.GetCurrentBoot() from WaitRestart after restart
 	_, numKernelCalls := bloader.GetRunKernelImageFunctionSnapCalls("Kernel")
 	c.Assert(numKernelCalls, Equals, 3)
 
@@ -270,4 +271,16 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20Happy(c *C) {
 	c.Assert(actual, HasLen, 0)
 	actual, _ = bloader.GetRunKernelImageFunctionSnapCalls("EnableTryKernel")
 	c.Assert(actual, HasLen, 0)
+
+	var whatseeded []devicestate.SeededSystem
+	err = state.Get("seeded-systems", &whatseeded)
+	c.Assert(err, IsNil)
+	c.Assert(whatseeded, DeepEquals, []devicestate.SeededSystem{{
+		System:    "20191018",
+		Model:     "my-model",
+		BrandID:   "my-brand",
+		Revision:  model.Revision(),
+		Timestamp: model.Timestamp(),
+		SeedTime:  seedTime,
+	}})
 }

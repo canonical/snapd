@@ -126,7 +126,7 @@ func (s *clientSuite) TestAgentTimeout(c *C) {
 
 	// An error is reported, and we receive information about the
 	// agent that replied on time.
-	c.Assert(err, ErrorMatches, `Get http://1000/v1/session-info: context deadline exceeded`)
+	c.Assert(err, ErrorMatches, `Get \"?http://1000/v1/session-info\"?: context deadline exceeded`)
 	c.Check(si, DeepEquals, map[int]client.SessionInfo{
 		42: {Version: "42"},
 	})

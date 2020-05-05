@@ -3,9 +3,6 @@ summary: Check that the core.watchdog settings work
 environment:
     WATCHDOG_FILE: /etc/systemd/system.conf.d/10-snapd-watchdog.conf
 
-# TODO:UC20: enable for uc20/uc18
-systems: [ubuntu-core-16-*]
-
 prepare: |
     if [ -f "$WATCHDOG_FILE" ]; then
         echo "Watchdog file already present, testbed not clean"

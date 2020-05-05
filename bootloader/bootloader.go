@@ -95,6 +95,11 @@ type RecoveryAwareBootloader interface {
 	SetRecoverySystemEnv(recoverySystemDir string, values map[string]string) error
 }
 
+type ExtractedRecoveryKernelImageBootloader interface {
+	Bootloader
+	ExtractRecoveryKernelAssets(recoverySystemDir string, s snap.PlaceInfo, snapf snap.Container) error
+}
+
 // ExtractedRunKernelImageBootloader is a Bootloader that also supports specific
 // methods needed to setup booting from an extracted kernel, which is needed to
 // implement encryption and/or secure boot. Prototypical implementation is UC20
@@ -182,7 +187,7 @@ func Find(rootdir string, opts *Options) (Bootloader, error) {
 	}
 
 	// try uboot
-	if uboot := newUboot(rootdir); uboot != nil {
+	if uboot := newUboot(rootdir, opts); uboot != nil {
 		return uboot, nil
 	}
 
@@ -219,7 +224,7 @@ func ForceError(err error) {
 	forcedError = err
 }
 
-func extractKernelAssetsToBootDir(dstDir string, s snap.PlaceInfo, snapf snap.Container, assets []string) error {
+func extractKernelAssetsToBootDir(dstDir string, snapf snap.Container, assets []string) error {
 	// now do the kernel specific bits
 	if err := os.MkdirAll(dstDir, 0755); err != nil {
 		return err

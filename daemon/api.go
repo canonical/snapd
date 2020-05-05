@@ -67,6 +67,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/store"
@@ -108,6 +109,8 @@ var api = []*Command{
 	modelCmd,
 	cohortsCmd,
 	serialModelCmd,
+	systemsCmd,
+	systemsActionCmd,
 }
 
 var (
@@ -310,7 +313,7 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	// enabled) or no confinement at all. Once we have a better system
 	// in place how we can dynamically retrieve these information from
 	// snapd we will use this here.
-	if release.ReleaseInfo.ForceDevMode() {
+	if sandbox.ForceDevMode() {
 		m["confinement"] = "partial"
 	} else {
 		m["confinement"] = "strict"
@@ -337,7 +340,7 @@ func sandboxFeatures(backends []interfaces.SecurityBackend) map[string][]string 
 	// Add information about supported confinement types as a fake backend
 	features := make([]string, 1, 3)
 	features[0] = "devmode"
-	if !release.ReleaseInfo.ForceDevMode() {
+	if !sandbox.ForceDevMode() {
 		features = append(features, "strict")
 	}
 	if dirs.SupportsClassicConfinement() {
@@ -473,6 +476,7 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	query := r.URL.Query()
 	q := query.Get("q")
 	commonID := query.Get("common-id")
+	// TODO: support both "category" (search v2) and "section"
 	section := query.Get("section")
 	name := query.Get("name")
 	scope := query.Get("scope")
@@ -523,7 +527,7 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 		Query:    q,
 		Prefix:   prefix,
 		CommonID: commonID,
-		Section:  section,
+		Category: section,
 		Private:  private,
 		Scope:    scope,
 	}, user)
@@ -886,7 +890,7 @@ var errNoJailMode = errors.New("this system cannot honour the jailmode flag")
 
 func modeFlags(devMode, jailMode, classic bool) (snapstate.Flags, error) {
 	flags := snapstate.Flags{}
-	devModeOS := release.ReleaseInfo.ForceDevMode()
+	devModeOS := sandbox.ForceDevMode()
 	switch {
 	case jailMode && devModeOS:
 		return flags, errNoJailMode
@@ -1810,21 +1814,28 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 		}
 	case "disconnect":
 		var conns []*interfaces.ConnRef
-		repo := c.d.overlord.InterfaceManager().Repository()
 		summary = fmt.Sprintf("Disconnect %s:%s from %s:%s", a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
-		conns, err = c.d.overlord.InterfaceManager().ResolveDisconnect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
+		conns, err = c.d.overlord.InterfaceManager().ResolveDisconnect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name, a.Forget)
 		if err == nil {
 			if len(conns) == 0 {
 				return InterfacesUnchanged("nothing to do")
 			}
+			repo := c.d.overlord.InterfaceManager().Repository()
 			for _, connRef := range conns {
 				var ts *state.TaskSet
 				var conn *interfaces.Connection
-				conn, err = repo.Connection(connRef)
-				if err != nil {
-					break
+				if a.Forget {
+					ts, err = ifacestate.Forget(st, repo, connRef)
+				} else {
+					conn, err = repo.Connection(connRef)
+					if err != nil {
+						break
+					}
+					ts, err = ifacestate.Disconnect(st, conn)
+					if err != nil {
+						break
+					}
 				}
-				ts, err = ifacestate.Disconnect(st, conn)
 				if err != nil {
 					break
 				}

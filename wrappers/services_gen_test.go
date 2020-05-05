@@ -49,7 +49,7 @@ const expectedServiceFmt = `[Unit]
 Description=Service for snap application snap.app
 Requires=%s-snap-44.mount
 Wants=network.target
-After=%s-snap-44.mount network.target
+After=%s-snap-44.mount network.target snapd.apparmor.service
 X-Snappy=yes
 
 [Service]
@@ -84,7 +84,7 @@ var (
 Description=Service for snap application xkcd-webserver.xkcd-webserver
 Requires=%s-xkcd\x2dwebserver-44.mount
 Wants=network.target
-After=%s-xkcd\x2dwebserver-44.mount network.target
+After=%s-xkcd\x2dwebserver-44.mount network.target snapd.apparmor.service
 X-Snappy=yes
 
 [Service]
@@ -359,7 +359,7 @@ func (s *servicesWrapperGenSuite) TestServiceAfterBefore(c *C) {
 Description=Service for snap application snap.app
 Requires=%s-snap-44.mount
 Wants=network.target
-After=%s-snap-44.mount network.target %s
+After=%s-snap-44.mount network.target %s snapd.apparmor.service
 Before=%s
 X-Snappy=yes
 
@@ -508,7 +508,7 @@ func (s *servicesWrapperGenSuite) TestServiceTimerServiceUnit(c *C) {
 Description=Service for snap application snap.app
 Requires=%s-snap-44.mount
 Wants=network.target
-After=%s-snap-44.mount network.target
+After=%s-snap-44.mount network.target snapd.apparmor.service
 X-Snappy=yes
 
 [Service]
@@ -653,6 +653,15 @@ func (s *servicesWrapperGenSuite) TestTimerGenerateSchedules(c *C) {
 		// filtering of when to run the timer
 		in:       "mon1-mon,10:00",
 		expected: []string{"*-*-8,9,10,11,12,13,14 10:00", "*-*-1,2,3,4,5,6,7 10:00"},
+	}, {
+		in:       "mon",
+		expected: []string{"Mon *-*-*"},
+	}, {
+		in:       "mon,fri",
+		expected: []string{"Mon *-*-*", "Fri *-*-*"},
+	}, {
+		in:       "mon2,mon1",
+		expected: []string{"Mon *-*-8,9,10,11,12,13,14", "Mon *-*-1,2,3,4,5,6,7"},
 	}} {
 		c.Logf("trying %+v", t)
 
@@ -700,7 +709,7 @@ func (s *servicesWrapperGenSuite) TestKillModeSig(c *C) {
 Description=Service for snap application snap.app
 Requires=%s-snap-44.mount
 Wants=network.target
-After=%s-snap-44.mount network.target
+After=%s-snap-44.mount network.target snapd.apparmor.service
 X-Snappy=yes
 
 [Service]
@@ -741,7 +750,7 @@ func (s *servicesWrapperGenSuite) TestRestartDelay(c *C) {
 Description=Service for snap application snap.app
 Requires=%s-snap-44.mount
 Wants=network.target
-After=%s-snap-44.mount network.target
+After=%s-snap-44.mount network.target snapd.apparmor.service
 X-Snappy=yes
 
 [Service]

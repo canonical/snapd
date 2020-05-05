@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build !nosecboot
 
 /*
  * Copyright (C) 2019 Canonical Ltd
@@ -16,6 +17,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+
 package bootstrap
 
 var (

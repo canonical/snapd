@@ -23,6 +23,9 @@ import (
 	"io"
 	"time"
 
+	"github.com/snapcore/secboot"
+	"github.com/snapcore/snapd/asserts"
+
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/bootstrap"
 )
 
@@ -54,14 +57,6 @@ func MockOsutilIsMounted(f func(path string) (bool, error)) (restore func()) {
 	}
 }
 
-func MockRunMnt(newRunMnt string) (restore func()) {
-	oldRunMnt := runMnt
-	runMnt = newRunMnt
-	return func() {
-		runMnt = oldRunMnt
-	}
-}
-
 func MockTriggerwatchWait(f func(_ time.Duration) error) (restore func()) {
 	oldTriggerwatchWait := triggerwatchWait
 	triggerwatchWait = f
@@ -77,5 +72,66 @@ func MockDefaultMarkerFile(p string) (restore func()) {
 	defaultMarkerFile = p
 	return func() {
 		defaultMarkerFile = old
+	}
+}
+
+var (
+	UnlockIfEncrypted = unlockIfEncrypted
+)
+
+func MockSecbootConnectToDefaultTPM(f func() (*secboot.TPMConnection, error)) (restore func()) {
+	old := secbootConnectToDefaultTPM
+	secbootConnectToDefaultTPM = f
+	return func() {
+		secbootConnectToDefaultTPM = old
+	}
+}
+
+func MockSecbootLockAccessToSealedKeys(f func(tpm *secboot.TPMConnection) error) (restore func()) {
+	old := secbootLockAccessToSealedKeys
+	secbootLockAccessToSealedKeys = f
+	return func() {
+		secbootLockAccessToSealedKeys = old
+	}
+}
+
+func MockSecbootSecureConnectToDefaultTPM(f func(ekCertDataReader io.Reader,
+	endorsementAuth []byte) (*secboot.TPMConnection, error)) (restore func()) {
+	old := secbootSecureConnectToDefaultTPM
+	secbootSecureConnectToDefaultTPM = f
+	return func() {
+		secbootSecureConnectToDefaultTPM = old
+	}
+}
+
+func MockSecbootActivateVolumeWithTPMSealedKey(f func(tpm *secboot.TPMConnection, volumeName, sourceDevicePath, keyPath string, pinReader io.Reader, options *secboot.ActivateWithTPMSealedKeyOptions) (bool, error)) (restore func()) {
+	old := secbootActivateVolumeWithTPMSealedKey
+	secbootActivateVolumeWithTPMSealedKey = f
+	return func() {
+		secbootActivateVolumeWithTPMSealedKey = old
+	}
+}
+
+func MockDevDiskByLabelDir(new string) (restore func()) {
+	old := devDiskByLabelDir
+	devDiskByLabelDir = new
+	return func() {
+		devDiskByLabelDir = old
+	}
+}
+
+func MockSecbootMeasureSnapSystemEpochToTPM(f func(tpm *secboot.TPMConnection, pcrIndex int) error) (restore func()) {
+	old := secbootMeasureSnapSystemEpochToTPM
+	secbootMeasureSnapSystemEpochToTPM = f
+	return func() {
+		secbootMeasureSnapSystemEpochToTPM = old
+	}
+}
+
+func MockSecbootMeasureSnapModelToTPM(f func(tpm *secboot.TPMConnection, pcrIndex int, model *asserts.Model) error) (restore func()) {
+	old := secbootMeasureSnapModelToTPM
+	secbootMeasureSnapModelToTPM = f
+	return func() {
+		secbootMeasureSnapModelToTPM = old
 	}
 }

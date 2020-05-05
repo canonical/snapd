@@ -163,7 +163,6 @@ func (g *grub) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error
 	if g.uefiRunKernelExtraction || err == nil {
 		return extractKernelAssetsToBootDir(
 			g.extractedKernelDir(g.dir(), s),
-			s,
 			snapf,
 			assets,
 		)

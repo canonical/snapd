@@ -76,7 +76,8 @@ var featureNames = map[SnapdFeature]string{
 
 // featuresEnabledWhenUnset contains a set of features that are enabled when not explicitly configured.
 var featuresEnabledWhenUnset = map[SnapdFeature]bool{
-	Layouts: true,
+	Layouts:                     true,
+	RobustMountNamespaceUpdates: true,
 }
 
 // featuresExported contains a set of features that are exported outside of snapd.
@@ -142,4 +143,26 @@ func (f SnapdFeature) IsEnabled() bool {
 		panic(fmt.Sprintf("cannot check if feature %q is enabled because that feature is not exported", f))
 	}
 	return osutil.FileExists(f.ControlFile())
+}
+
+type confGetter interface {
+	GetMaybe(snapName, key string, result interface{}) error
+}
+
+// Flag returns whether the given feature flag is enabled.
+func Flag(tr confGetter, feature SnapdFeature) (bool, error) {
+	var isEnabled interface{}
+	snapName, confName := feature.ConfigOption()
+	if err := tr.GetMaybe(snapName, confName, &isEnabled); err != nil {
+		return false, err
+	}
+	switch isEnabled {
+	case true, "true":
+		return true, nil
+	case false, "false":
+		return false, nil
+	case nil, "":
+		return feature.IsEnabledWhenUnset(), nil
+	}
+	return false, fmt.Errorf("%s can only be set to 'true' or 'false', got %q", feature, isEnabled)
 }
