@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
@@ -37,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -102,6 +104,7 @@ func checkPreseedTaskStates(c *C, st *state.State) {
 			c.Fatalf("unhandled task kind %s", t.Kind())
 		}
 	}
+
 	// sanity: check that doneTasks is not declaring more tasks than
 	// actually expected.
 	c.Check(doneTasks, DeepEquals, seenDone)
@@ -183,6 +186,7 @@ func checkPreseedOrder(c *C, tsAll []*state.TaskSet, snaps ...string) {
 			c.Check(waitTasks, HasLen, 0)
 		} else {
 			c.Assert(waitTasks, HasLen, 1)
+			c.Assert(waitTasks[0].Kind(), Equals, prevTask.Kind())
 			c.Check(waitTasks[0], Equals, prevTask)
 		}
 
@@ -213,7 +217,7 @@ func (s *firstbootPreseed16Suite) SetUpTest(c *C) {
 }
 
 func (s *firstbootPreseed16Suite) TestPreseedHappy(c *C) {
-	restore := release.MockPreseedMode(func() bool { return true })
+	restore := snapdenv.MockPreseeding(true)
 	defer restore()
 
 	mockMountCmd := testutil.MockCommand(c, "mount", "")
@@ -222,7 +226,7 @@ func (s *firstbootPreseed16Suite) TestPreseedHappy(c *C) {
 	mockUmountCmd := testutil.MockCommand(c, "umount", "")
 	defer mockUmountCmd.Restore()
 
-	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bloader := boottest.MockUC16Bootenv(bootloadertest.Mock("mock", c.MkDir()))
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 	bloader.SetBootKernel("pc-kernel_1.snap")
@@ -231,7 +235,7 @@ func (s *firstbootPreseed16Suite) TestPreseedHappy(c *C) {
 	s.startOverlord(c)
 	st := s.overlord.State()
 	opts := &devicestate.PopulateStateFromSeedOptions{Preseed: true}
-	chg := s.makeSeedChange(c, st, opts, checkPreseedTasks, checkPreseedOrder)
+	chg, _ := s.makeSeedChange(c, st, opts, checkPreseedTasks, checkPreseedOrder)
 	err := s.overlord.Settle(settleTimeout)
 
 	st.Lock()
@@ -244,7 +248,7 @@ func (s *firstbootPreseed16Suite) TestPreseedHappy(c *C) {
 }
 
 func (s *firstbootPreseed16Suite) TestPreseedOnClassicHappy(c *C) {
-	restore := release.MockPreseedMode(func() bool { return true })
+	restore := snapdenv.MockPreseeding(true)
 	defer restore()
 
 	restoreRelease := release.MockOnClassic(true)
@@ -306,4 +310,118 @@ snaps:
 	c.Assert(chg.Err(), IsNil)
 
 	checkPreseedTaskStates(c, st)
+	c.Check(chg.Status(), Equals, state.DoingStatus)
+
+	// verify
+	r, err := os.Open(dirs.SnapStateFile)
+	c.Assert(err, IsNil)
+	diskState, err := state.ReadState(nil, r)
+	c.Assert(err, IsNil)
+
+	diskState.Lock()
+	defer diskState.Unlock()
+
+	// seeded snaps are installed
+	_, err = snapstate.CurrentInfo(diskState, "core")
+	c.Check(err, IsNil)
+	_, err = snapstate.CurrentInfo(diskState, "foo")
+	c.Check(err, IsNil)
+
+	// but we're not considered seeded
+	var seeded bool
+	err = diskState.Get("seeded", &seeded)
+	c.Assert(err, Equals, state.ErrNoState)
+}
+
+func (s *firstbootPreseed16Suite) TestPreseedClassicWithSnapdOnlyHappy(c *C) {
+	restorePreseedMode := snapdenv.MockPreseeding(true)
+	defer restorePreseedMode()
+
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	mockMountCmd := testutil.MockCommand(c, "mount", "")
+	defer mockMountCmd.Restore()
+
+	mockUmountCmd := testutil.MockCommand(c, "umount", "")
+	defer mockUmountCmd.Restore()
+
+	core18Fname, snapdFname, _, _ := s.makeCore18Snaps(c, &core18SnapsOpts{
+		classic: true,
+	})
+
+	// put a firstboot snap into the SnapBlobDir
+	snapYaml := `name: foo
+version: 1.0
+base: core18
+`
+	fooFname, fooDecl, fooRev := s.MakeAssertedSnap(c, snapYaml, nil, snap.R(128), "developerid")
+	s.WriteAssertions("foo.asserts", s.devAcct, fooRev, fooDecl)
+
+	// add a model assertion and its chain
+	assertsChain := s.makeModelAssertionChain(c, "my-model-classic", nil)
+	s.WriteAssertions("model.asserts", assertsChain...)
+
+	// create a seed.yaml
+	content := []byte(fmt.Sprintf(`
+snaps:
+ - name: snapd
+   file: %s
+ - name: foo
+   file: %s
+ - name: core18
+   file: %s
+`, snapdFname, fooFname, core18Fname))
+	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	c.Assert(err, IsNil)
+
+	// run the firstboot stuff
+	s.startOverlord(c)
+	st := s.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	opts := &devicestate.PopulateStateFromSeedOptions{Preseed: true}
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, opts, s.perfTimings)
+	c.Assert(err, IsNil)
+
+	checkPreseedOrder(c, tsAll, "snapd", "core18", "foo")
+
+	// now run the change and check the result
+	chg := st.NewChange("seed", "run the populate from seed changes")
+	for _, ts := range tsAll {
+		chg.AddAll(ts)
+	}
+	c.Assert(st.Changes(), HasLen, 1)
+	c.Assert(chg.Err(), IsNil)
+
+	st.Unlock()
+	err = s.overlord.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	checkPreseedTaskStates(c, st)
+	c.Check(chg.Status(), Equals, state.DoingStatus)
+
+	// verify
+	r, err := os.Open(dirs.SnapStateFile)
+	c.Assert(err, IsNil)
+	diskState, err := state.ReadState(nil, r)
+	c.Assert(err, IsNil)
+
+	diskState.Lock()
+	defer diskState.Unlock()
+
+	// seeded snaps are installed
+	_, err = snapstate.CurrentInfo(diskState, "snapd")
+	c.Check(err, IsNil)
+	_, err = snapstate.CurrentInfo(diskState, "core18")
+	c.Check(err, IsNil)
+	_, err = snapstate.CurrentInfo(diskState, "foo")
+	c.Check(err, IsNil)
+
+	// but we're not considered seeded
+	var seeded bool
+	err = diskState.Get("seeded", &seeded)
+	c.Assert(err, Equals, state.ErrNoState)
 }

@@ -184,7 +184,7 @@ version: 1.0
 func (s *linkSuite) TestLinkSetNextBoot(c *C) {
 	coreDev := boottest.MockDevice("base")
 
-	bl := bootloadertest.Mock("mock", c.MkDir())
+	bl := boottest.MockUC16Bootenv(bootloadertest.Mock("mock", c.MkDir()))
 	bootloader.Force(bl)
 	defer bootloader.Force(nil)
 	bl.SetBootBase("base_1.snap")
@@ -295,11 +295,11 @@ type: snapd
 `
 	snapdUnits := [][]string{
 		// system services
-		{"lib/systemd/system/snapd.service", "[Unit]\nExecStart=/usr/lib/snapd/snapd\n# X-Snapd-Snap: do-not-start"},
+		{"lib/systemd/system/snapd.service", "[Unit]\n[Service]\nExecStart=/usr/lib/snapd/snapd\n# X-Snapd-Snap: do-not-start"},
 		{"lib/systemd/system/snapd.socket", "[Unit]\n[Socket]\nListenStream=/run/snapd.socket"},
 		{"lib/systemd/system/snapd.snap-repair.timer", "[Unit]\n[Timer]\nOnCalendar=*-*-* 5,11,17,23:00"},
 		// user services
-		{"usr/lib/systemd/user/snapd.session-agent.service", "[Unit]\nExecStart=/usr/bin/snap session-agent"},
+		{"usr/lib/systemd/user/snapd.session-agent.service", "[Unit]\n[Service]\nExecStart=/usr/bin/snap session-agent"},
 		{"usr/lib/systemd/user/snapd.session-agent.socket", "[Unit]\n[Socket]\nListenStream=%t/snap-session.socket"},
 	}
 	info := snaptest.MockSnapWithFiles(c, yaml, &snap.SideInfo{Revision: snap.R(11)}, snapdUnits)
@@ -322,15 +322,15 @@ func (s *linkSuite) TestLinkSnapdSnapOnCore(c *C) {
 	c.Assert(reboot, Equals, false)
 
 	// system services
-	c.Check(filepath.Join(dirs.SnapServicesDir, "snapd.service"), testutil.FileEquals,
-		fmt.Sprintf("[Unit]\nExecStart=%s/usr/lib/snapd/snapd\n# X-Snapd-Snap: do-not-start", info.MountDir()))
+	c.Check(filepath.Join(dirs.SnapServicesDir, "snapd.service"), testutil.FileContains,
+		fmt.Sprintf("[Service]\nExecStart=%s/usr/lib/snapd/snapd\n", info.MountDir()))
 	c.Check(filepath.Join(dirs.SnapServicesDir, "snapd.socket"), testutil.FileEquals,
 		"[Unit]\n[Socket]\nListenStream=/run/snapd.socket")
 	c.Check(filepath.Join(dirs.SnapServicesDir, "snapd.snap-repair.timer"), testutil.FileEquals,
 		"[Unit]\n[Timer]\nOnCalendar=*-*-* 5,11,17,23:00")
 	// user services
-	c.Check(filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.service"), testutil.FileEquals,
-		fmt.Sprintf("[Unit]\nExecStart=%s/usr/bin/snap session-agent", info.MountDir()))
+	c.Check(filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.service"), testutil.FileContains,
+		fmt.Sprintf("[Service]\nExecStart=%s/usr/bin/snap session-agent", info.MountDir()))
 	c.Check(filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.socket"), testutil.FileEquals,
 		"[Unit]\n[Socket]\nListenStream=%t/snap-session.socket")
 	// auxiliary mount unit
@@ -523,8 +523,12 @@ type: os
 	c.Check(oldCmdV6.Calls(), HasLen, 0)
 	c.Check(oldCmdV7.Calls(), HasLen, 0)
 
-	c.Check(newCmdV6.Calls(), HasLen, 1)
-	c.Check(newCmdV7.Calls(), HasLen, 1)
+	c.Check(newCmdV6.Calls(), DeepEquals, [][]string{
+		{"fc-cache-v6", "--system-only"},
+	})
+	c.Check(newCmdV7.Calls(), DeepEquals, [][]string{
+		{"fc-cache-v7", "--system-only"},
+	})
 }
 
 func (s *linkCleanupSuite) testLinkCleanupFailedSnapdSnapOnCorePastWrappers(c *C, firstInstall bool) {
@@ -628,8 +632,8 @@ func (s *snapdOnCoreUnlinkSuite) TestUndoGeneratedWrappers(c *C) {
 	c.Assert(reboot, Equals, false)
 
 	// sanity checks
-	c.Check(filepath.Join(dirs.SnapServicesDir, "snapd.service"), testutil.FileEquals,
-		fmt.Sprintf("[Unit]\nExecStart=%s/usr/lib/snapd/snapd\n# X-Snapd-Snap: do-not-start", info.MountDir()))
+	c.Check(filepath.Join(dirs.SnapServicesDir, "snapd.service"), testutil.FileContains,
+		fmt.Sprintf("[Service]\nExecStart=%s/usr/lib/snapd/snapd\n", info.MountDir()))
 	// expecting all generated untis to be present
 	for _, entry := range generatedSnapdUnits {
 		c.Check(toEtcUnitPath(entry[0]), testutil.FilePresent)

@@ -28,6 +28,9 @@ stop_user_session() {
     fi
 
     systemctl stop "user@${TEST_UID}.service"
+    # The user-runtime-dir@.service unit did not exist before systemd
+    # 239, so ignore errors.
+    systemctl stop "user-runtime-dir@${TEST_UID}.service" || true
 }
 
 purge_user_session_data() {
@@ -58,5 +61,11 @@ as_user() {
 }
 
 as_user_simple() {
-    su -l -c "$*" "$TEST_USER"
+    su -l -c "$@" "$TEST_USER"
+}
+
+as_given_user() {
+    local user="$1"
+    shift
+    su -l -c "$@" "$user"
 }

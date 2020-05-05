@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2018 Canonical Ltd
+ * Copyright (C) 2016-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -36,9 +36,8 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/asserts/systestkeys"
-	"github.com/snapcore/snapd/httputil"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 )
 
@@ -72,7 +71,7 @@ func NewStore(topDir, addr string, assertFallback bool) *Store {
 	mux := http.NewServeMux()
 	var sto *store.Store
 	if assertFallback {
-		httputil.SetUserAgentFromVersion("unknown", "fakestore")
+		snapdenv.SetUserAgentFromVersion("unknown", nil, "fakestore")
 		sto = store.New(nil, nil)
 	}
 	store := &Store{
@@ -391,7 +390,7 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 	}
 
 	var remoteStore string
-	if osutil.GetenvBool("SNAPPY_USE_STAGING_STORE") {
+	if snapdenv.UseStagingStore() {
 		remoteStore = "staging"
 	} else {
 		remoteStore = "production"
@@ -556,7 +555,7 @@ func (s *Store) snapActionEndpoint(w http.ResponseWriter, req *http.Request) {
 	}
 
 	var remoteStore string
-	if osutil.GetenvBool("SNAPPY_USE_STAGING_STORE") {
+	if snapdenv.UseStagingStore() {
 		remoteStore = "staging"
 	} else {
 		remoteStore = "production"

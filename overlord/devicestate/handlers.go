@@ -91,6 +91,31 @@ func (m *DeviceManager) doMarkPreseeded(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
+type seededSystem struct {
+	// System carries the recovery system label that was used to seed the
+	// current system
+	System string `json:"system"`
+	Model  string `json:"model"`
+	// BrandID is the brand account ID
+	BrandID string `json:"brand-id"`
+	// Revision of the model assertion
+	Revision int `json:"revision"`
+	// Timestamp of model assertion
+	Timestamp time.Time `json:"timestamp"`
+	// SeedTime holds the timestamp when the system was seeded
+	SeedTime time.Time `json:"seed-time"`
+}
+
+func (m *DeviceManager) recordSeededSystem(st *state.State, whatSeeded *seededSystem) error {
+	var seeded []seededSystem
+	if err := st.Get("seeded-systems", &seeded); err != nil && err != state.ErrNoState {
+		return err
+	}
+	seeded = append([]seededSystem{*whatSeeded}, seeded...)
+	st.Set("seeded-systems", seeded)
+	return nil
+}
+
 func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -99,11 +124,41 @@ func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
 	if m.preseed {
 		return fmt.Errorf("internal error: mark-seeded task not expected in pre-seeding mode")
 	}
-	// TODO:UC20: update "modeenv" and remove "recovery_system" from
-	// it because this information is only needed for the initial
-	// seeding.
 
-	st.Set("seed-time", time.Now())
+	deviceCtx, err := DeviceCtx(st, t, nil)
+	if err != nil {
+		return fmt.Errorf("cannot get device context: %v", err)
+	}
+
+	if deviceCtx.HasModeenv() && deviceCtx.RunMode() {
+		modeEnv, err := m.maybeReadModeenv()
+		if err != nil {
+			return err
+		}
+		if modeEnv == nil {
+			return fmt.Errorf("missing modeenv, cannot proceed")
+		}
+		// unset recovery_system because that is only needed during install mode
+		modeEnv.RecoverySystem = ""
+		err = modeEnv.Write()
+		if err != nil {
+			return err
+		}
+	}
+
+	now := time.Now()
+	var whatSeeded *seededSystem
+	if err := t.Get("seed-system", &whatSeeded); err != nil && err != state.ErrNoState {
+		return err
+	}
+	if whatSeeded != nil {
+		whatSeeded.SeedTime = now
+		// TODO:UC20 what about remodels?
+		if err := m.recordSeededSystem(st, whatSeeded); err != nil {
+			return fmt.Errorf("cannot record the seeded system: %v", err)
+		}
+	}
+	st.Set("seed-time", now)
 	st.Set("seeded", true)
 	// make sure we setup a fallback model/consider the next phase
 	// (registration) timely

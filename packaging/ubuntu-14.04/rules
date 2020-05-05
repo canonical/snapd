@@ -143,7 +143,7 @@ override_dh_auto_build:
 	$(MAKE) -C data all
 
 override_dh_auto_test:
-	dh_auto_test -- $(GCCGOFLAGS)
+	dh_auto_test -- $(BUILDFLAGS) -tags "$(TAGS)" $(GCCGOFLAGS)
 # a tested default (production) build should have no test keys
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	# check that only the main trusted account-keys are included
@@ -172,6 +172,8 @@ override_dh_install:
 	rm -f ${CURDIR}/debian/tmp/usr/bin/snappy
 	# snap-bootstrap is only useful on core (and we don't have a 14.04 core)
 	rm -f ${CURDIR}/debian/tmp/usr/bin/snap-bootstrap
+	# same goes for snap-recovery-chooser
+	rm -f ${CURDIR}/debian/tmp/usr/bin/snap-recovery-chooser
 	# i18n stuff
 	mkdir -p debian/snapd/usr/share
 	if [ -d share/locale ]; then \

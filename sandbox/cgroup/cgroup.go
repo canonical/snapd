@@ -259,3 +259,127 @@ func MockVersion(mockVersion int, mockErr error) (restore func()) {
 		probeVersion, probeErr = oldVersion, oldErr
 	}
 }
+
+// procInfoEntry describes a single line of /proc/PID/cgroup.
+//
+// CgroupID is the internal kernel identifier of a mounted cgroup.
+// Controllers is a list of controllers in a specific cgroup
+// Path is relative to the cgroup mount point.
+//
+// Cgroup mount point is not provided here. It must be derived by
+// cross-checking with /proc/self/mountinfo. The identifier is not
+// useful for this.
+//
+// Cgroup v1 have non-empty Controllers and CgroupId > 0.
+// Cgroup v2 have empty Controllers and CgroupId == 0
+type procInfoEntry struct {
+	CgroupID    int
+	Controllers []string
+	Path        string
+}
+
+var pathOfProcPidCgroup = func(pid int) string {
+	return fmt.Sprintf("/proc/%d/cgroup", pid)
+}
+
+// MockPathOfProcPidCgroup mocks the function used to compute /proc/PID/cgroup
+func MockPathOfProcPidCgroup(fn func(int) string) func() {
+	old := pathOfProcPidCgroup
+	pathOfProcPidCgroup = fn
+	return func() {
+		pathOfProcPidCgroup = old
+	}
+}
+
+// ProcessPathInTrackingCgroup returns the path in the hierarchy of the tracking cgroup.
+//
+// Tracking cgroup is whichever cgroup systemd uses for tracking processes.
+// On modern systems this is the v2 cgroup. On older systems it is the
+// controller-less name=systemd cgroup.
+//
+// This function fails on systems where systemd is not used and subsequently
+// cgroups are not mounted.
+func ProcessPathInTrackingCgroup(pid int) (string, error) {
+	fname := pathOfProcPidCgroup(pid)
+	// Cgroup entries we're looking for look like this:
+	// 1:name=systemd:/user.slice/user-1000.slice/user@1000.service/tmux.slice/tmux@default.service
+	// 0::/user.slice/user-1000.slice/user@1000.service/tmux.slice/tmux@default.service
+	entry, err := scanProcCgroupFile(fname, func(e *procInfoEntry) bool {
+		if e.CgroupID == 0 {
+			return true
+		}
+		if len(e.Controllers) == 1 && e.Controllers[0] == "name=systemd" {
+			return true
+		}
+		return false
+	})
+	if err != nil {
+		return "", err
+	}
+	if entry == nil {
+		return "", fmt.Errorf("cannot find tracking cgroup")
+	}
+	return entry.Path, nil
+}
+
+// scanProcCgroupFile scans a file for /proc/PID/cgroup entries and returns the
+// first one matching the given predicate.
+//
+// If no entry matches the predicate nil is returned without errors.
+func scanProcCgroupFile(fname string, pred func(entry *procInfoEntry) bool) (*procInfoEntry, error) {
+	f, err := os.Open(fname)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	return scanProcCgroup(f, pred)
+}
+
+// scanProcCgroup scans a reader for /proc/PID/cgroup entries and returns the
+// first one matching the given predicate.
+//
+// If no entry matches the predicate nil is returned without errors.
+func scanProcCgroup(reader io.Reader, pred func(entry *procInfoEntry) bool) (*procInfoEntry, error) {
+	scanner := bufio.NewScanner(reader)
+	for scanner.Scan() {
+		line := scanner.Text()
+		entry, err := parseProcCgroupEntry(line)
+		if err != nil {
+			return nil, fmt.Errorf("cannot parse proc cgroup entry %q: %s", line, err)
+		}
+		if pred(entry) {
+			return entry, nil
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+	return nil, nil
+}
+
+// parseProcCgroupEntry parses a line in format described by cgroups(7)
+// Such files represent cgroup membership of a particular process.
+func parseProcCgroupEntry(line string) (*procInfoEntry, error) {
+	var e procInfoEntry
+	var err error
+	fields := strings.SplitN(line, ":", 3)
+	// The format is described in cgroups(7). Field delimiter is ":" but
+	// there is no escaping. The First two fields cannot have colons, including
+	// cgroups with custom names. The last field can have colons but those are not
+	// escaped in any way.
+	if len(fields) != 3 {
+		return nil, fmt.Errorf("expected three fields")
+	}
+	// Parse cgroup ID (decimal number).
+	e.CgroupID, err = strconv.Atoi(fields[0])
+	if err != nil {
+		return nil, fmt.Errorf("cannot parse cgroup id %q", fields[0])
+	}
+	// Parse the comma-separated list of controllers.
+	if fields[1] != "" {
+		e.Controllers = strings.Split(fields[1], ",")
+	}
+	// The rest is the path in the hierarchy.
+	e.Path = fields[2]
+	return &e, nil
+}

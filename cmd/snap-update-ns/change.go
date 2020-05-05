@@ -379,6 +379,7 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 			defer sysClose(fd)
 
 			// Don't attempt to remove anything from squashfs.
+			// Note that this is not a perfect check and we also handle EROFS below.
 			var statfsBuf syscall.Statfs_t
 			err = sysFstatfs(fd, &statfsBuf)
 			if err != nil {
@@ -410,6 +411,23 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 			if packed, ok := err.(*os.PathError); ok {
 				err = packed.Err
 			}
+			if err == syscall.EROFS {
+				// If the underlying medium is read-only then ignore the error.
+				// Instead of checking up front we just try to remove because
+				// of https://bugs.launchpad.net/snapd/+bug/1867752 which showed us
+				// two important properties:
+				// 1) inside containers we cannot detect squashfs reliably and
+				//    will always see FUSE instead. The problem is that there's no
+				//    indication as to what is really mounted via statfs(2) and
+				//    we would have to deduce that from mountinfo, trusting
+				//    that fuse.<name> is not spoofed (as in, the name is not
+				//    spoofed).
+				// 2) rmdir of a bind mount (from a normal writable filesystem like ext4)
+				//    over a read-only filesystem also yields EROFS without any indication
+				//    that this is to be expected.
+				logger.Debugf("cannot remove a mount point on read-only filesystem %q", path)
+				return nil
+			}
 			// If we were removing a directory but it was not empty then just
 			// ignore the error. This is the equivalent of the non-empty file
 			// check we do above. See rmdir(2) for explanation why we accept
@@ -429,7 +447,7 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 				//
 				// In an ideal world we would model this better and could do
 				// without this edge case.
-				if kind == "" && err == syscall.EBUSY {
+				if (kind == "" || kind == "file") && err == syscall.EBUSY {
 					logger.Debugf("cannot remove busy mount point %q", path)
 					return nil
 				}

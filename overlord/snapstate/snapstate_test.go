@@ -54,6 +54,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
@@ -114,8 +115,6 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	s.bl = bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(s.bl)
 	s.AddCleanup(func() { bootloader.Force(nil) })
-	s.bl.SetBootBase("base_6789.snap")
-	s.bl.SetBootKernel("kernel_6789.snap")
 
 	oldSetupInstallHook := snapstate.SetupInstallHook
 	oldSetupPreRefreshHook := snapstate.SetupPreRefreshHook
@@ -681,9 +680,6 @@ version: 1.0
 }
 
 func (s *snapmgrTestSuite) TestInstallSnapdSnapType(c *C) {
-	restore := snap.MockSnapdSnapID("snapd-id") // id provided by fakeStore
-	defer restore()
-
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -1370,9 +1366,6 @@ func (s *snapmgrTestSuite) TestUpdateManyWaitForBasesUC18(c *C) {
 	r := snapstatetest.MockDeviceModel(ModelWithBase("core18"))
 	defer r()
 
-	restore := snap.MockSnapdSnapID("snapd-id")
-	defer restore()
-
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -1397,7 +1390,7 @@ func (s *snapmgrTestSuite) TestUpdateManyWaitForBasesUC18(c *C) {
 	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
-			{RealName: "snapd", SnapID: "snapd-id", Revision: snap.R(1)},
+			{RealName: "snapd", SnapID: "snapd-snap-id", Revision: snap.R(1)},
 		},
 		Current:  snap.R(1),
 		SnapType: "app",
@@ -2131,7 +2124,7 @@ type sneakyStore struct {
 	state *state.State
 }
 
-func (s sneakyStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, error) {
+func (s sneakyStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
 	s.state.Lock()
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:          true,
@@ -2141,7 +2134,7 @@ func (s sneakyStore) SnapAction(ctx context.Context, currentSnaps []*store.Curre
 		SnapType:        "app",
 	})
 	s.state.Unlock()
-	return s.fakeStore.SnapAction(ctx, currentSnaps, actions, user, opts)
+	return s.fakeStore.SnapAction(ctx, currentSnaps, actions, assertQuery, user, opts)
 }
 
 func (s *snapmgrTestSuite) TestInstallStateConflict(c *C) {
@@ -6093,8 +6086,11 @@ type noResultsStore struct {
 	*fakeStore
 }
 
-func (n noResultsStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, error) {
-	return nil, &store.SnapActionError{NoResults: true}
+func (n noResultsStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
+	if assertQuery != nil {
+		panic("no assertion query support")
+	}
+	return nil, nil, &store.SnapActionError{NoResults: true}
 }
 
 func (s *snapmgrTestSuite) TestUpdateNoStoreResults(c *C) {
@@ -9203,6 +9199,103 @@ func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 		Revision: snap.R(7),
 	})
 	c.Assert(snapst.Block(), DeepEquals, []snap.Revision{snap.R(7)})
+}
+
+func (s *snapmgrTestSuite) TestRevertWithBaseRunThrough(c *C) {
+	si := snap.SideInfo{
+		RealName: "some-snap-with-base",
+		Revision: snap.R(7),
+	}
+	siOld := snap.SideInfo{
+		RealName: "some-snap-with-base",
+		Revision: snap.R(2),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// core18 with snapd, no core snap
+	snapstate.Set(s.state, "core", nil)
+	snapstate.Set(s.state, "core18", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "core18", SnapID: "core18-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "base",
+	})
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "snapd", SnapID: "snapd-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	// test snap to revert
+	snapstate.Set(s.state, "some-snap-with-base", &snapstate.SnapState{
+		Active:   true,
+		SnapType: "app",
+		Sequence: []*snap.SideInfo{&siOld, &si},
+		Current:  si.Revision,
+	})
+
+	chg := s.state.NewChange("revert", "revert a snap backwards")
+	ts, err := snapstate.Revert(s.state, "some-snap-with-base", snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	expected := fakeOps{
+		{
+			op:   "remove-snap-aliases",
+			name: "some-snap-with-base",
+		},
+		{
+			op:   "unlink-snap",
+			path: filepath.Join(dirs.SnapMountDir, "some-snap-with-base/7"),
+		},
+		{
+			op:    "setup-profiles:Doing",
+			name:  "some-snap-with-base",
+			revno: snap.R(2),
+		},
+		{
+			op: "candidate",
+			sinfo: snap.SideInfo{
+				RealName: "some-snap-with-base",
+				Revision: snap.R(2),
+			},
+		},
+		{
+			op:   "link-snap",
+			path: filepath.Join(dirs.SnapMountDir, "some-snap-with-base/2"),
+		},
+		{
+			op:    "auto-connect:Doing",
+			name:  "some-snap-with-base",
+			revno: snap.R(2),
+		},
+		{
+			op: "update-aliases",
+		},
+	}
+	// start with an easier-to-read error if this fails:
+	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
+	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
+
+	// verify that the R(2) version is active now and R(7) is still there
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap-with-base", &snapst)
+	c.Assert(err, IsNil)
+
+	c.Assert(snapst.Active, Equals, true)
+	c.Assert(snapst.Current, Equals, snap.R(2))
 }
 
 func (s *snapmgrTestSuite) TestParallelInstanceRevertRunThrough(c *C) {
@@ -12549,7 +12642,7 @@ func tasksWithKind(ts *state.TaskSet, kind string) []*state.Task {
 
 var gadgetYaml = `
 defaults:
-    some-snap-ididididididididididid:
+    somesnapidididididididididididid:
         key: value
 
 volumes:
@@ -12614,7 +12707,7 @@ func (s *snapmgrTestSuite) TestConfigDefaults(c *C) {
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
-			{RealName: "some-snap", Revision: snap.R(11), SnapID: "some-snap-ididididididididididid"},
+			{RealName: "some-snap", Revision: snap.R(11), SnapID: "somesnapidididididididididididid"},
 		},
 		Current:  snap.R(11),
 		SnapType: "app",
@@ -12674,7 +12767,7 @@ func (s *snapmgrTestSuite) TestConfigDefaultsSmokeUC20(c *C) {
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
-			{RealName: "some-snap", Revision: snap.R(11), SnapID: "some-snap-ididididididididididid"},
+			{RealName: "some-snap", Revision: snap.R(11), SnapID: "somesnapidididididididididididid"},
 		},
 		Current:  snap.R(11),
 		SnapType: "app",
@@ -12701,7 +12794,7 @@ func (s *snapmgrTestSuite) TestConfigDefaultsNoGadget(c *C) {
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
-			{RealName: "some-snap", Revision: snap.R(11), SnapID: "some-snap-ididididididididididid"},
+			{RealName: "some-snap", Revision: snap.R(11), SnapID: "somesnapidididididididididididid"},
 		},
 		Current:  snap.R(11),
 		SnapType: "app",
@@ -12808,7 +12901,7 @@ func (s *snapmgrTestSuite) TestConfigDefaultsSystemConflictsCoreSnapId(c *C) {
 defaults:
     system:
         foo: bar
-    the-core-snapidididididididididi:
+    thecoresnapididididididididididi:
         foo: other-bar
         other-key: other-key-default
 `)
@@ -12818,7 +12911,7 @@ defaults:
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
-			{RealName: "core", SnapID: "the-core-snapidididididididididi", Revision: snap.R(1)},
+			{RealName: "core", SnapID: "thecoresnapididididididididididi", Revision: snap.R(1)},
 		},
 		Current:  snap.R(1),
 		SnapType: "os",
@@ -13678,9 +13771,12 @@ type unhappyStore struct {
 	*fakeStore
 }
 
-func (s unhappyStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, error) {
+func (s unhappyStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
+	if assertQuery != nil {
+		panic("no assertion query support")
+	}
 
-	return nil, fmt.Errorf("a grumpy store")
+	return nil, nil, fmt.Errorf("a grumpy store")
 }
 
 func (s *snapmgrTestSuite) TestTransitionSnapdSnapError(c *C) {
@@ -13753,9 +13849,9 @@ func (s *snapmgrTestSuite) TestForceDevModeCleanupSkipsRando(c *C) {
 }
 
 func (s *snapmgrTestSuite) checkForceDevModeCleanupRuns(c *C, name string, shouldBeReset bool) {
-	r := release.MockForcedDevmode(true)
+	r := sandbox.MockForceDevMode(true)
 	defer r()
-	c.Assert(release.ReleaseInfo.ForceDevMode(), Equals, true)
+	c.Assert(sandbox.ForceDevMode(), Equals, true)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -13792,9 +13888,9 @@ func (s *snapmgrTestSuite) checkForceDevModeCleanupRuns(c *C, name string, shoul
 }
 
 func (s *snapmgrTestSuite) TestForceDevModeCleanupRunsNoSnaps(c *C) {
-	r := release.MockForcedDevmode(true)
+	r := sandbox.MockForceDevMode(true)
 	defer r()
-	c.Assert(release.ReleaseInfo.ForceDevMode(), Equals, true)
+	c.Assert(sandbox.ForceDevMode(), Equals, true)
 
 	defer s.se.Stop()
 	s.settle(c)
@@ -13807,9 +13903,9 @@ func (s *snapmgrTestSuite) TestForceDevModeCleanupRunsNoSnaps(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestForceDevModeCleanupSkipsNonForcedOS(c *C) {
-	r := release.MockForcedDevmode(false)
+	r := sandbox.MockForceDevMode(false)
 	defer r()
-	c.Assert(release.ReleaseInfo.ForceDevMode(), Equals, false)
+	c.Assert(sandbox.ForceDevMode(), Equals, false)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -14466,7 +14562,11 @@ type behindYourBackStore struct {
 	chg                  *state.Change
 }
 
-func (s behindYourBackStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, error) {
+func (s behindYourBackStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
+	if assertQuery != nil {
+		panic("no assertion query support")
+	}
+
 	if len(actions) == 1 && actions[0].Action == "install" && actions[0].InstanceName == "core" {
 		s.state.Lock()
 		if !s.coreInstallRequested {
@@ -14501,7 +14601,7 @@ func (s behindYourBackStore) SnapAction(ctx context.Context, currentSnaps []*sto
 		s.state.Unlock()
 	}
 
-	return s.fakeStore.SnapAction(ctx, currentSnaps, actions, user, opts)
+	return s.fakeStore.SnapAction(ctx, currentSnaps, actions, nil, user, opts)
 }
 
 // this test the scenario that some-snap gets installed and during the
@@ -14592,10 +14692,10 @@ type contentStore struct {
 	state *state.State
 }
 
-func (s contentStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, error) {
-	sars, err := s.fakeStore.SnapAction(ctx, currentSnaps, actions, user, opts)
+func (s contentStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
+	sars, _, err := s.fakeStore.SnapAction(ctx, currentSnaps, actions, assertQuery, user, opts)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if len(sars) != 1 {
 		panic("expected to be queried for install of only one snap at a time")
@@ -14683,7 +14783,7 @@ func (s contentStore) SnapAction(ctx context.Context, currentSnaps []*store.Curr
 		}
 	}
 
-	return []store.SnapActionResult{{Info: info}}, err
+	return []store.SnapActionResult{{Info: info}}, nil, err
 }
 
 func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
@@ -15478,9 +15578,6 @@ func (s *snapmgrTestSuite) TestNoConfigureForSnapdSnap(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	restore := snap.MockSnapdSnapID("snapd-id")
-	defer restore()
-
 	// snapd cannot be installed unless the model uses a base snap
 	r := snapstatetest.MockDeviceModel(ModelWithBase("core18"))
 	defer r()
@@ -15494,7 +15591,7 @@ func (s *snapmgrTestSuite) TestNoConfigureForSnapdSnap(c *C) {
 	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
 		Active:          true,
 		TrackingChannel: "latest/edge",
-		Sequence:        []*snap.SideInfo{{RealName: "snapd", SnapID: "snapd-id", Revision: snap.R(1)}},
+		Sequence:        []*snap.SideInfo{{RealName: "snapd", SnapID: "snapd-snap-id", Revision: snap.R(1)}},
 		Current:         snap.R(1),
 		SnapType:        "app",
 	})

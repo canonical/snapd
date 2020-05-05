@@ -221,7 +221,7 @@ const noUserAdmin = "system user administration via snapd is not allowed on this
 
 func postUsers(c *Command, r *http.Request, user *auth.UserState) Response {
 	if !hasUserAdmin {
-		return MethodNotAllowed(noUserAdmin, r.Method)
+		return MethodNotAllowed(noUserAdmin)
 	}
 
 	var postData postUserData

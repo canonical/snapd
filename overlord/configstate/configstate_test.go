@@ -229,7 +229,7 @@ func (s *configcoreHijackSuite) SetUpTest(c *C) {
 	hookMgr, err := hookstate.Manager(s.state, s.o.TaskRunner())
 	c.Assert(err, IsNil)
 	s.o.AddManager(hookMgr)
-	r := configstate.MockConfigcoreExportExperimentalFlags(func(_ config.Conf) error {
+	r := configstate.MockConfigcoreExportExperimentalFlags(func(_ config.ConfGetter) error {
 		return nil
 	})
 	s.AddCleanup(r)
@@ -344,7 +344,7 @@ func (s *configcoreExportSuite) TestExportHappy(c *C) {
 	tr.Set("core", "experimental.key", "foobar")
 	tr.Commit()
 
-	r := configstate.MockConfigcoreExportExperimentalFlags(func(conf config.Conf) error {
+	r := configstate.MockConfigcoreExportExperimentalFlags(func(conf config.ConfGetter) error {
 		calls++
 		err := conf.Get("core", "experimental.keys", &val)
 		c.Assert(err, IsNil)
@@ -360,7 +360,7 @@ func (s *configcoreExportSuite) TestExportHappy(c *C) {
 func (s *configcoreExportSuite) TestExportErr(c *C) {
 	var calls int
 
-	r := configstate.MockConfigcoreExportExperimentalFlags(func(conf config.Conf) error {
+	r := configstate.MockConfigcoreExportExperimentalFlags(func(conf config.ConfGetter) error {
 		calls++
 		return fmt.Errorf("bad bad")
 	})

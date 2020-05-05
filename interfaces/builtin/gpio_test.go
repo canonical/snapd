@@ -23,8 +23,10 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/systemd"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -136,6 +138,17 @@ func (s *GpioInterfaceSuite) TestSystemdConnectedSlot(c *C) {
 			ExecStop:        `/bin/sh -c 'test ! -e /sys/class/gpio/gpio100 || echo 100 > /sys/class/gpio/unexport'`,
 		},
 	})
+}
+
+func (s *GpioInterfaceSuite) TestApparmorConnectedPlugIgnoresMissingSymlink(c *C) {
+	log, restore := logger.MockLogger()
+	defer restore()
+
+	spec := &apparmor.Specification{}
+	err := spec.AddConnectedPlug(s.iface, s.gadgetPlug, s.gadgetGpioSlot)
+	c.Assert(err, IsNil)
+	c.Assert(spec.Snippets(), HasLen, 0)
+	c.Assert(log.String(), testutil.Contains, "cannot export not existing gpio /sys/class/gpio/gpio100")
 }
 
 func (s *GpioInterfaceSuite) TestInterfaces(c *C) {

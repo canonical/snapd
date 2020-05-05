@@ -41,20 +41,20 @@ type ubootTestSuite struct {
 var _ = Suite(&ubootTestSuite{})
 
 func (s *ubootTestSuite) TestNewUbootNoUbootReturnsNil(c *C) {
-	u := bootloader.NewUboot(s.rootdir)
+	u := bootloader.NewUboot(s.rootdir, nil)
 	c.Assert(u, IsNil)
 }
 
 func (s *ubootTestSuite) TestNewUboot(c *C) {
-	bootloader.MockUbootFiles(c, s.rootdir)
-	u := bootloader.NewUboot(s.rootdir)
+	bootloader.MockUbootFiles(c, s.rootdir, nil)
+	u := bootloader.NewUboot(s.rootdir, nil)
 	c.Assert(u, NotNil)
 	c.Assert(u.Name(), Equals, "uboot")
 }
 
 func (s *ubootTestSuite) TestUbootGetEnvVar(c *C) {
-	bootloader.MockUbootFiles(c, s.rootdir)
-	u := bootloader.NewUboot(s.rootdir)
+	bootloader.MockUbootFiles(c, s.rootdir, nil)
+	u := bootloader.NewUboot(s.rootdir, nil)
 	c.Assert(u, NotNil)
 	err := u.SetBootVars(map[string]string{
 		"snap_mode": "",
@@ -71,7 +71,7 @@ func (s *ubootTestSuite) TestUbootGetEnvVar(c *C) {
 }
 
 func (s *ubootTestSuite) TestGetBootloaderWithUboot(c *C) {
-	bootloader.MockUbootFiles(c, s.rootdir)
+	bootloader.MockUbootFiles(c, s.rootdir, nil)
 
 	bootloader, err := bootloader.Find(s.rootdir, nil)
 	c.Assert(err, IsNil)
@@ -79,8 +79,8 @@ func (s *ubootTestSuite) TestGetBootloaderWithUboot(c *C) {
 }
 
 func (s *ubootTestSuite) TestUbootSetEnvNoUselessWrites(c *C) {
-	bootloader.MockUbootFiles(c, s.rootdir)
-	u := bootloader.NewUboot(s.rootdir)
+	bootloader.MockUbootFiles(c, s.rootdir, nil)
+	u := bootloader.NewUboot(s.rootdir, nil)
 	c.Assert(u, NotNil)
 
 	envFile := u.ConfigFile()
@@ -109,8 +109,8 @@ func (s *ubootTestSuite) TestUbootSetEnvNoUselessWrites(c *C) {
 }
 
 func (s *ubootTestSuite) TestUbootSetBootVarFwEnv(c *C) {
-	bootloader.MockUbootFiles(c, s.rootdir)
-	u := bootloader.NewUboot(s.rootdir)
+	bootloader.MockUbootFiles(c, s.rootdir, nil)
+	u := bootloader.NewUboot(s.rootdir, nil)
 
 	err := u.SetBootVars(map[string]string{"key": "value"})
 	c.Assert(err, IsNil)
@@ -121,8 +121,8 @@ func (s *ubootTestSuite) TestUbootSetBootVarFwEnv(c *C) {
 }
 
 func (s *ubootTestSuite) TestUbootGetBootVarFwEnv(c *C) {
-	bootloader.MockUbootFiles(c, s.rootdir)
-	u := bootloader.NewUboot(s.rootdir)
+	bootloader.MockUbootFiles(c, s.rootdir, nil)
+	u := bootloader.NewUboot(s.rootdir, nil)
 
 	err := u.SetBootVars(map[string]string{"key2": "value2"})
 	c.Assert(err, IsNil)
@@ -133,8 +133,8 @@ func (s *ubootTestSuite) TestUbootGetBootVarFwEnv(c *C) {
 }
 
 func (s *ubootTestSuite) TestExtractKernelAssetsAndRemove(c *C) {
-	bootloader.MockUbootFiles(c, s.rootdir)
-	u := bootloader.NewUboot(s.rootdir)
+	bootloader.MockUbootFiles(c, s.rootdir, nil)
+	u := bootloader.NewUboot(s.rootdir, nil)
 
 	files := [][]string{
 		{"kernel.img", "I'm a kernel"},
@@ -177,31 +177,90 @@ func (s *ubootTestSuite) TestExtractKernelAssetsAndRemove(c *C) {
 	c.Check(osutil.FileExists(kernelAssetsDir), Equals, false)
 }
 
-func (s *ubootTestSuite) TestUbootSetRecoverySystemEnv(c *C) {
-	bootloader.MockUbootFiles(c, s.rootdir)
-	u := bootloader.NewUboot(s.rootdir)
+func (s *ubootTestSuite) TestExtractRecoveryKernelAssets(c *C) {
+	bootloader.MockUbootFiles(c, s.rootdir, nil)
+	u := bootloader.NewUboot(s.rootdir, nil)
 
-	// check that we can set a recovery system specific bootenv
-	bvars := map[string]string{
-		"snapd_recovery_kernel": "/snaps/pi-kernel_1.snap",
-		"other_options":         "are-supported",
+	files := [][]string{
+		{"kernel.img", "I'm a kernel"},
+		{"initrd.img", "...and I'm an initrd"},
+		{"dtbs/foo.dtb", "foo dtb"},
+		{"dtbs/bar.dto", "bar dtbo"},
+		// must be last
+		{"meta/kernel.yaml", "version: 4.2"},
 	}
-	err := u.SetRecoverySystemEnv("/systems/20191209", bvars)
+	si := &snap.SideInfo{
+		RealName: "ubuntu-kernel",
+		Revision: snap.R(42),
+	}
+	fn := snaptest.MakeTestSnapWithFiles(c, packageKernel, files)
+	snapf, err := snap.Open(fn)
 	c.Assert(err, IsNil)
-	recoverySystemUbootenv := filepath.Join(s.rootdir, "/systems/20191209/uboot.env")
-	c.Assert(recoverySystemUbootenv, testutil.FilePresent)
 
-	// and it goes into the right file
-	uenv, err := ubootenv.Open(recoverySystemUbootenv)
+	info, err := snap.ReadInfoFromSnapFile(snapf, si)
 	c.Assert(err, IsNil)
-	c.Check(uenv.Get("snapd_recovery_kernel"), Equals, "/snaps/pi-kernel_1.snap")
-	c.Check(uenv.Get("other_options"), Equals, "are-supported")
 
-	// and not the main uboot file
-	m, err := u.GetBootVars("snapd_recovery_kernel", "other_options")
+	// try with empty recovery dir first to check the errors
+	err = u.ExtractRecoveryKernelAssets("", info, snapf)
+	c.Assert(err, ErrorMatches, "internal error: recoverySystemDir unset")
+
+	// now the expected behavior
+	err = u.ExtractRecoveryKernelAssets("recovery-dir", info, snapf)
 	c.Assert(err, IsNil)
-	c.Check(m, DeepEquals, map[string]string{
-		"snapd_recovery_kernel": "",
-		"other_options":         "",
-	})
+
+	// this is where the kernel/initrd is unpacked
+	kernelAssetsDir := filepath.Join(s.rootdir, "recovery-dir", "kernel")
+
+	for _, def := range files {
+		if def[0] == "meta/kernel.yaml" {
+			break
+		}
+
+		fullFn := filepath.Join(kernelAssetsDir, def[0])
+		c.Check(fullFn, testutil.FileEquals, def[1])
+	}
+}
+
+func (s *ubootTestSuite) TestUbootUC20OptsFormat(c *C) {
+	tt := []struct {
+		blOpts  *bootloader.Options
+		expEnv  string
+		comment string
+	}{
+		{
+			nil,
+			"/boot/uboot/uboot.env",
+			"traditional uboot.env",
+		},
+		{
+			&bootloader.Options{NoSlashBoot: true},
+			"/uboot/ubuntu/boot.sel",
+			"uc20 install mode boot.sel",
+		},
+		{
+			&bootloader.Options{ExtractedRunKernelImage: true},
+			"/boot/uboot/boot.sel",
+			"uc20 run mode boot.sel",
+		},
+		{
+			&bootloader.Options{Recovery: true},
+			"/uboot/ubuntu/boot.sel",
+			"uc20 recovery boot.sel",
+		},
+	}
+
+	for _, t := range tt {
+		dir := c.MkDir()
+		bootloader.MockUbootFiles(c, dir, t.blOpts)
+		u := bootloader.NewUboot(dir, t.blOpts)
+		c.Assert(u, NotNil, Commentf(t.comment))
+		c.Assert(u.ConfigFile(), Equals, filepath.Join(dir, t.expEnv), Commentf(t.comment))
+
+		// if we set boot vars on the uboot, we can open the config file and
+		// get the same variables
+		c.Assert(u.SetBootVars(map[string]string{"hello": "there"}), IsNil)
+		env, err := ubootenv.Open(filepath.Join(dir, t.expEnv))
+		c.Assert(err, IsNil)
+		c.Assert(env.Get("hello"), Equals, "there")
+	}
 }

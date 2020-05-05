@@ -12,6 +12,8 @@ environment:
     BROWSER_HISTORY: /tmp/browser-history.txt
 
 prepare: |
+    session-tool -u test --prepare
+
     #shellcheck source=tests/lib/desktop-portal.sh
     . "$TESTSLIB"/desktop-portal.sh
     setup_portals
@@ -32,6 +34,8 @@ prepare: |
     EOF
 
 restore: |
+    session-tool -u test --restore
+
     #shellcheck source=tests/lib/desktop-portal.sh
     . "$TESTSLIB"/desktop-portal.sh
     teardown_portals
@@ -41,8 +45,6 @@ restore: |
     rm -f "$BROWSER_HISTORY"
 
 execute: |
-    #shellcheck source=tests/lib/desktop-portal.sh
-    . "$TESTSLIB"/desktop-portal.sh
     #shellcheck source=tests/lib/files.sh
     . "$TESTSLIB"/files.sh
 
@@ -50,7 +52,7 @@ execute: |
     snap install --edge test-snapd-portal-client
 
     echo "The confined application can open URLs in the default browser"
-    as_user test-snapd-portal-client open-uri http://www.example.org
+    session-tool -u test test-snapd-portal-client open-uri http://www.example.org
 
     echo "The test-browser process was invoked with the URL"
     wait_for_file "$BROWSER_HISTORY" 4 .5

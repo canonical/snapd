@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+
 package selinux
 
 import (
@@ -25,10 +26,6 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/osutil"
-)
-
-var (
-	procSelfMountInfo = osutil.ProcSelfMountInfo
 )
 
 // IsEnabled checks whether SELinux is enabled
@@ -65,7 +62,7 @@ func IsEnforcing() (bool, error) {
 }
 
 func getSELinuxMount() (string, error) {
-	mountinfo, err := osutil.LoadMountInfo(procSelfMountInfo)
+	mountinfo, err := osutil.LoadMountInfo()
 	if err != nil {
 		return "", err
 	}

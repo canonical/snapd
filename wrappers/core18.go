@@ -168,7 +168,13 @@ func AddSnapdSnapServices(s *snap.Info, inter interacter) error {
 		if err != nil {
 			return err
 		}
-		content = execStartRe.ReplaceAll(content, []byte(fmt.Sprintf(`ExecStart=%s$1`, s.MountDir())))
+		if execStartRe.Match(content) {
+			content = execStartRe.ReplaceAll(content, []byte(fmt.Sprintf("ExecStart=%s$1", s.MountDir())))
+			// when the service executes a command from the snapd snap, make
+			// sure the exec path points to the mount dir, and that the
+			// mount happens before the unit is started
+			content = append(content, []byte(fmt.Sprintf("\n[Unit]\nRequiresMountsFor=%s\n", s.MountDir()))...)
+		}
 
 		snapdUnits[filepath.Base(unit)] = &osutil.MemoryFileState{
 			Content: content,
@@ -394,7 +400,13 @@ func writeSnapdUserServicesOnCore(s *snap.Info, inter interacter) error {
 		if err != nil {
 			return err
 		}
-		content = execStartRe.ReplaceAll(content, []byte(fmt.Sprintf(`ExecStart=%s$1`, s.MountDir())))
+		if execStartRe.Match(content) {
+			content = execStartRe.ReplaceAll(content, []byte(fmt.Sprintf("ExecStart=%s$1", s.MountDir())))
+			// when the service executes a command from the snapd snap, make
+			// sure the exec path points to the mount dir, and that the
+			// mount happens before the unit is started
+			content = append(content, []byte(fmt.Sprintf("\n[Unit]\nRequiresMountsFor=%s\n", s.MountDir()))...)
+		}
 
 		snapdUnits[filepath.Base(unit)] = &osutil.MemoryFileState{
 			Content: content,

@@ -112,6 +112,26 @@ and environment.
 		}, nil)
 }
 
+// isStopping returns true if the system is shutting down.
+func isStopping() (bool, error) {
+	// Make sure, just in case, that systemd doesn't localize the output string.
+	env, err := osutil.OSEnvironment()
+	if err != nil {
+		return false, err
+	}
+	env["LC_MESSAGES"] = "C"
+	// Check if systemd is stopping (shutting down or rebooting).
+	cmd := exec.Command("systemctl", "is-system-running")
+	cmd.Env = env.ForExec()
+	stdout, err := cmd.Output()
+	// systemctl is-system-running returns non-zero for outcomes other than "running"
+	// As such, ignore any ExitError and just process the stdout buffer.
+	if _, ok := err.(*exec.ExitError); ok {
+		return string(stdout) == "stopping\n", nil
+	}
+	return false, err
+}
+
 func maybeWaitForSecurityProfileRegeneration(cli *client.Client) error {
 	// check if the security profiles key has changed, if so, we need
 	// to wait for snapd to re-generate all profiles
@@ -123,6 +143,18 @@ func maybeWaitForSecurityProfileRegeneration(cli *client.Client) error {
 	// reach snapd before continuing
 	if err != nil {
 		logger.Debugf("SystemKeyMismatch returned an error: %v", err)
+	}
+
+	// We have a mismatch but maybe it is only because systemd is shutting down
+	// and core or snapd were already unmounted and we failed to re-execute.
+	// For context see: https://bugs.launchpad.net/snapd/+bug/1871652
+	stopping, err := isStopping()
+	if err != nil {
+		logger.Debugf("cannot check if system is stopping: %s", err)
+	}
+	if stopping {
+		logger.Debugf("ignoring system key mismatch during system shutdown/reboot")
+		return nil
 	}
 
 	// We have a mismatch, try to connect to snapd, once we can
@@ -144,6 +176,8 @@ func maybeWaitForSecurityProfileRegeneration(cli *client.Client) error {
 			timeout = i
 		}
 	}
+
+	logger.Debugf("system key mismatch detected, waiting for snapd to start responding...")
 
 	for i := 0; i < timeout; i++ {
 		if _, err := cli.SysInfo(); err == nil {
@@ -712,9 +746,9 @@ func activateXdgDocumentPortal(info *snap.Info, snapApp, hook string) error {
 	return nil
 }
 
-func (x *cmdRun) runCmdUnderGdb(origCmd, env []string) error {
-	env = append(env, "SNAP_CONFINE_RUN_UNDER_GDB=1")
+type envForExecFunc func(extra map[string]string) []string
 
+func (x *cmdRun) runCmdUnderGdb(origCmd []string, envForExec envForExecFunc) error {
 	cmd := []string{"sudo", "-E", "gdb", "-ex=run", "-ex=catch exec", "-ex=continue", "--args"}
 	cmd = append(cmd, origCmd...)
 
@@ -722,11 +756,11 @@ func (x *cmdRun) runCmdUnderGdb(origCmd, env []string) error {
 	gcmd.Stdin = os.Stdin
 	gcmd.Stdout = os.Stdout
 	gcmd.Stderr = os.Stderr
-	gcmd.Env = env
+	gcmd.Env = envForExec(map[string]string{"SNAP_CONFINE_RUN_UNDER_GDB": "1"})
 	return gcmd.Run()
 }
 
-func (x *cmdRun) runCmdWithTraceExec(origCmd, env []string) error {
+func (x *cmdRun) runCmdWithTraceExec(origCmd []string, envForExec envForExecFunc) error {
 	// setup private tmp dir with strace fifo
 	straceTmp, err := ioutil.TempDir("", "exec-trace")
 	if err != nil {
@@ -761,7 +795,7 @@ func (x *cmdRun) runCmdWithTraceExec(origCmd, env []string) error {
 		return err
 	}
 	// run
-	cmd.Env = env
+	cmd.Env = envForExec(nil)
 	cmd.Stdin = Stdin
 	cmd.Stdout = Stdout
 	cmd.Stderr = Stderr
@@ -781,7 +815,7 @@ func (x *cmdRun) runCmdWithTraceExec(origCmd, env []string) error {
 	return err
 }
 
-func (x *cmdRun) runCmdUnderStrace(origCmd, env []string) error {
+func (x *cmdRun) runCmdUnderStrace(origCmd []string, envForExec envForExecFunc) error {
 	extraStraceOpts, raw, err := x.straceOpts()
 	if err != nil {
 		return err
@@ -792,7 +826,7 @@ func (x *cmdRun) runCmdUnderStrace(origCmd, env []string) error {
 	}
 
 	// run with filter
-	cmd.Env = env
+	cmd.Env = envForExec(nil)
 	cmd.Stdin = Stdin
 	cmd.Stdout = Stdout
 	stderr, err := cmd.StderrPipe()
@@ -938,19 +972,44 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	cmd = append(cmd, snapApp)
 	cmd = append(cmd, args...)
 
-	extraEnv := make(map[string]string)
-	if len(xauthPath) > 0 {
-		extraEnv["XAUTHORITY"] = xauthPath
+	env, err := osutil.OSEnvironment()
+	if err != nil {
+		return err
 	}
-	env := snapenv.ExecEnv(info, extraEnv)
+	snapenv.ExtendEnvForRun(env, info)
+
+	if len(xauthPath) > 0 {
+		// Environment is not nil here because it comes from
+		// osutil.OSEnvironment and that guarantees this
+		// property.
+		env["XAUTHORITY"] = xauthPath
+	}
+
+	// on each run variant path this will be used once to get
+	// the environment plus additions in the right form
+	envForExec := func(extra map[string]string) []string {
+		for varName, value := range extra {
+			env[varName] = value
+		}
+		if !info.NeedsClassic() {
+			return env.ForExec()
+		}
+		// For a classic snap, environment variables that are
+		// usually stripped out by ld.so when starting a
+		// setuid process are presevered by being renamed by
+		// prepending PreservedUnsafePrefix -- which snap-exec
+		// will remove, restoring the variables to their
+		// original names.
+		return env.ForExecEscapeUnsafe(snapenv.PreservedUnsafePrefix)
+	}
 
 	if x.TraceExec {
-		return x.runCmdWithTraceExec(cmd, env)
+		return x.runCmdWithTraceExec(cmd, envForExec)
 	} else if x.Gdb {
-		return x.runCmdUnderGdb(cmd, env)
+		return x.runCmdUnderGdb(cmd, envForExec)
 	} else if x.useStrace() {
-		return x.runCmdUnderStrace(cmd, env)
+		return x.runCmdUnderStrace(cmd, envForExec)
 	} else {
-		return syscallExec(cmd[0], cmd, env)
+		return syscallExec(cmd[0], cmd, envForExec(nil))
 	}
 }
