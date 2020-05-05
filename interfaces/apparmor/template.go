@@ -279,6 +279,8 @@ var templateCommon = `
   /sys/kernel/mm/transparent_hugepage/hpage_pmd_size r,
   /sys/module/apparmor/parameters/enabled r,
   /{,usr/}lib/ r,
+  /var/lib/snapd/hostfs/usr/share/mime/* r,
+  /etc/gnome/defaults.list r,
 
   # Reads of oom_adj and oom_score_adj are safe
   owner @{PROC}/@{pid}/oom_{,score_}adj r,
