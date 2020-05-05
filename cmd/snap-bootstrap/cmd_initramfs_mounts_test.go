@@ -214,7 +214,7 @@ func (s *initramfsMountsSuite) mockExpectedMountChecks(c *C, expectedDirs ...exp
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep1(c *C) {
-	s.mockProcCmdlineContent(c, "snapd_recovery_mode= snapd_recovery_system="+s.sysLabel)
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install snapd_recovery_system="+s.sysLabel)
 
 	n := s.mockExpectedMountChecks(c,
 		notYetMounted{boot.InitramfsUbuntuSeedDir},
