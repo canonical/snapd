@@ -52,3 +52,11 @@ execute: |
 
     echo "Ensure a change was generated for the install"
     snap changes | MATCH 'Install "test-snapd-sh" snap'
+
+    echo "Ensure different bases work"
+    for base in core18 core20; do
+        snap install test-snapd-sh-${base}
+        test-snapd-sh-${base}.sh -c "echo hello $base" | MATCH "hello $base"
+        test-snapd-sh-${base}.sh -c 'touch $SNAP_COMMON/test'
+        test -f /var/snap/test-snapd-sh-${base}/common/test
+    done
