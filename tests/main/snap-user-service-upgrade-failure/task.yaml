@@ -60,3 +60,8 @@ execute: |
     systemctl_user is-active snap.test-snapd-user-service.test-snapd-user-service
     systemctl_user show -p MainPID snap.test-snapd-user-service.test-snapd-user-service > new-main.pid
     test "$(cat new-main.pid)" != "$(cat old-main.pid)"
+
+debug: |
+    session-tool --dump
+    session-tool -u test systemctl --user status snapd.session-agent.service || true
+
