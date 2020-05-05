@@ -131,11 +131,11 @@ func Available() error {
 	return err
 }
 
-// Version returns systemd version string
-func Version() (string, error) {
+// Version returns systemd version
+func Version() (int, error) {
 	out, err := systemctlCmd("--version")
 	if err != nil {
-		return "", err
+		return 0, err
 	}
 
 	// systemd version outpus is two lines - actual version and a list
@@ -145,15 +145,20 @@ func Version() (string, error) {
 	r := bufio.NewReader(bytes.NewReader(out))
 	s, err := r.ReadString('\n')
 	if err != nil {
-		return "", err
+		return 0, fmt.Errorf("cannot read systemd version: %v", err)
 	}
 
 	parts := strings.Split(s, " ")
 	if len(parts) != 2 || (len(parts) == 2 && parts[0] != "systemd") {
-		return "", fmt.Errorf("cannot parse systemd version: %s", s)
+		return 0, fmt.Errorf("cannot parse systemd version: %s", s)
 	}
 
-	return strings.TrimSuffix(parts[1], "\n"), nil
+	verstr := strings.TrimSuffix(parts[1], "\n")
+	ver, err := strconv.Atoi(verstr)
+	if err != nil {
+		return 0, fmt.Errorf("cannot convert systemd version to number: %s", verstr)
+	}
+	return ver, nil
 }
 
 var osutilStreamCommand = osutil.StreamCommand

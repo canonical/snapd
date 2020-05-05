@@ -402,7 +402,7 @@ func (s *SystemdTestSuite) TestVersion(c *C) {
 	v, err := Version()
 	c.Assert(err, IsNil)
 	c.Check(s.argses, DeepEquals, [][]string{{"--version"}})
-	c.Check(v, Equals, "223")
+	c.Check(v, Equals, 223)
 
 	_, err = Version()
 	c.Assert(err, ErrorMatches, `cannot parse systemd version: foo 223\n`)
