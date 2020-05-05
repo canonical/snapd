@@ -294,12 +294,12 @@ install -m 644 -D %{indigo_srcdir}/data/info %{buildroot}%{_libexecdir}/snapd/in
 
 # Install bash completion for "snap"
 # TODO: This should be handled by data makefile.
-install -m 644 -D %{indigo_srcdir}/data/completion/snap %{buildroot}%{_datadir}/bash-completion/completions/snap
-install -m 644 -D %{indigo_srcdir}/data/completion/complete.sh %{buildroot}%{_libexecdir}/snapd
-install -m 644 -D %{indigo_srcdir}/data/completion/etelpmoc.sh %{buildroot}%{_libexecdir}/snapd
+install -m 644 -D %{indigo_srcdir}/data/completion/bash/snap %{buildroot}%{_datadir}/bash-completion/completions/snap
+install -m 644 -D %{indigo_srcdir}/data/completion/bash/complete.sh %{buildroot}%{_libexecdir}/snapd
+install -m 644 -D %{indigo_srcdir}/data/completion/bash/etelpmoc.sh %{buildroot}%{_libexecdir}/snapd
 # Install zsh completion for "snap"
 install -d -p %{buildroot}%{_datadir}/zsh/site-functions
-install -m 644 -D %{indigo_srcdir}/data/completion/_snap %{buildroot}%{_datadir}/zsh/site-functions/_snap
+install -m 644 -D %{indigo_srcdir}/data/completion/zsh/_snap %{buildroot}%{_datadir}/zsh/site-functions/_snap
 
 %verifyscript
 %verify_permissions -e %{_libexecdir}/snapd/snap-confine
