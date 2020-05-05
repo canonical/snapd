@@ -97,7 +97,7 @@
 %endif
 
 Name:           snapd
-Version:        2.44.3
+Version:        2.44.5
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -488,9 +488,17 @@ sed -e "s:github.com/snapcore/bolt:github.com/boltdb/bolt:g" -i advisor/*.go err
 
 # To ensure things work correctly with base snaps,
 # snap-exec, snap-update-ns, and snapctl need to be built statically
-%gobuild_static -o bin/snap-exec $GOFLAGS %{import_path}/cmd/snap-exec
-%gobuild_static -o bin/snap-update-ns $GOFLAGS %{import_path}/cmd/snap-update-ns
-%gobuild_static -o bin/snapctl $GOFLAGS %{import_path}/cmd/snapctl
+(
+%if 0%{?rhel} >= 8
+    # since 1.12.1, the go-toolset module is built with FIPS compliance that
+    # defaults to using libcrypto.so which gets loaded at runtime via dlopen(),
+    # disable that functionality for statically built binaries
+    BUILDTAGS="${BUILDTAGS} no_openssl"
+%endif
+    %gobuild_static -o bin/snap-exec $GOFLAGS %{import_path}/cmd/snap-exec
+    %gobuild_static -o bin/snap-update-ns $GOFLAGS %{import_path}/cmd/snap-update-ns
+    %gobuild_static -o bin/snapctl $GOFLAGS %{import_path}/cmd/snapctl
+)
 
 %if 0%{?rhel}
 # There's no static link library for libseccomp in RHEL/CentOS...

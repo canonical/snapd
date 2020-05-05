@@ -71,6 +71,23 @@ func (as *assertsSuite) TestTypeNames(c *C) {
 	})
 }
 
+func (as *assertsSuite) TestMaxSupportedFormats(c *C) {
+	snapDeclMaxFormat := asserts.SnapDeclarationType.MaxSupportedFormat()
+	// sanity
+	c.Check(snapDeclMaxFormat >= 4, Equals, true)
+	c.Check(asserts.MaxSupportedFormats(1), DeepEquals, map[string]int{
+		"snap-declaration": snapDeclMaxFormat,
+		"test-only":        1,
+	})
+
+	// all
+	maxFormats := asserts.MaxSupportedFormats(0)
+	c.Assert(maxFormats, HasLen, len(asserts.TypeNames()))
+	c.Check(maxFormats["test-only"], Equals, 1)
+	c.Check(maxFormats["test-only-2"], Equals, 0)
+	c.Check(maxFormats["snap-declaration"], Equals, snapDeclMaxFormat)
+}
+
 func (as *assertsSuite) TestSuggestFormat(c *C) {
 	fmtnum, err := asserts.SuggestFormat(asserts.Type("test-only-2"), nil, nil)
 	c.Assert(err, IsNil)
@@ -161,6 +178,24 @@ func (as *assertsSuite) TestRefResolveError(c *C) {
 	}
 	_, err := ref.Resolve(nil)
 	c.Check(err, ErrorMatches, `"test-only-2" assertion reference primary key has the wrong length \(expected \[pk1 pk2\]\): \[abc\]`)
+}
+
+func (as *assertsSuite) TestAtRevisionString(c *C) {
+	ref := asserts.Ref{
+		Type:       asserts.AccountType,
+		PrimaryKey: []string{"canonical"},
+	}
+
+	at := &asserts.AtRevision{
+		Ref: ref,
+	}
+	c.Check(at.String(), Equals, "account (canonical) at revision 0")
+
+	at = &asserts.AtRevision{
+		Ref:      ref,
+		Revision: asserts.RevisionNotKnown,
+	}
+	c.Check(at.String(), Equals, "account (canonical)")
 }
 
 const exKeyID = "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij"
