@@ -77,7 +77,7 @@
 
 
 Name:           snapd
-Version:        2.44.1
+Version:        2.44.5
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -103,7 +103,6 @@ BuildRequires:  libuuid-devel
 BuildRequires:  make
 BuildRequires:  openssh
 BuildRequires:  pkg-config
-BuildRequires:  python-docutils
 BuildRequires:  python3-docutils
 BuildRequires:  squashfs
 # Due to: rpm -q --whatprovides /usr/share/pkgconfig/systemd.pc

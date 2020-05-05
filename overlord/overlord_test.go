@@ -53,7 +53,7 @@ import (
 func TestOverlord(t *testing.T) { TestingT(t) }
 
 type overlordSuite struct {
-	restoreBackends func()
+	testutil.BaseTest
 }
 
 var _ = Suite(&overlordSuite{})
@@ -81,14 +81,12 @@ func fakePruneTicker() (w *ticker, restore func()) {
 func (ovs *overlordSuite) SetUpTest(c *C) {
 	tmpdir := c.MkDir()
 	dirs.SetRootDir(tmpdir)
+	ovs.AddCleanup(func() { dirs.SetRootDir("") })
+	ovs.AddCleanup(osutil.MockMountInfo(""))
+
 	dirs.SnapStateFile = filepath.Join(tmpdir, "test.json")
 	snapstate.CanAutoRefresh = nil
-	ovs.restoreBackends = ifacestate.MockSecurityBackends(nil)
-}
-
-func (ovs *overlordSuite) TearDownTest(c *C) {
-	dirs.SetRootDir("/")
-	ovs.restoreBackends()
+	ovs.AddCleanup(func() { ifacestate.MockSecurityBackends(nil) })
 }
 
 func (ovs *overlordSuite) TestNew(c *C) {

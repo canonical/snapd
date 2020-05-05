@@ -20,6 +20,7 @@
 package devicestate_test
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -29,7 +30,9 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/cmd/snap-bootstrap/bootstrap"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
@@ -68,6 +71,11 @@ func (s *deviceMgrInstallModeSuite) SetUpTest(c *C) {
 	restore := devicestate.MockSysconfigConfigureRunSystem(func(opts *sysconfig.Options) error {
 		s.configureRunSystemOptsPassed = append(s.configureRunSystemOptsPassed, opts)
 		return s.configureRunSystemErr
+	})
+	s.AddCleanup(restore)
+
+	restore = devicestate.MockSecbootCheckKeySealingSupported(func() error {
+		return fmt.Errorf("TPM not available")
 	})
 	s.AddCleanup(restore)
 
@@ -164,17 +172,30 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	mockSnapBootstrapCmd := testutil.MockCommand(c, filepath.Join(dirs.DistroLibExecDir, "snap-bootstrap"), "")
-	defer mockSnapBootstrapCmd.Restore()
+	var brGadgetRoot, brDevice string
+	var brOpts bootstrap.Options
+	var bootstrapRunCalled int
+	restore = devicestate.MockBootstrapRun(func(gadgetRoot, device string, options bootstrap.Options) error {
+		// ensure we can grab the lock here, i.e. that it's not taken
+		s.state.Lock()
+		s.state.Unlock()
 
-	restoreTPM := devicestate.MockCheckTPMAvailability(func() error {
+		brGadgetRoot = gadgetRoot
+		brDevice = device
+		brOpts = options
+		bootstrapRunCalled++
+		return nil
+	})
+	defer restore()
+
+	restore = devicestate.MockSecbootCheckKeySealingSupported(func() error {
 		if tc.tpm {
 			return nil
 		} else {
 			return fmt.Errorf("TPM not available")
 		}
 	})
-	defer restoreTPM()
+	defer restore()
 
 	s.state.Lock()
 	mockModel := s.makeMockInstalledPcGadget(c, grade)
@@ -210,6 +231,10 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	c.Assert(modeenv.WriteTo(""), IsNil)
 	devicestate.SetSystemMode(s.mgr, "install")
 
+	// normally done by snap-bootstrap
+	err := os.MkdirAll(boot.InitramfsUbuntuBootDir, 0755)
+	c.Assert(err, IsNil)
+
 	s.settle(c)
 
 	// the install-system change is created
@@ -228,22 +253,30 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 
 	// in the right way
 	if tc.encrypt {
-		c.Assert(mockSnapBootstrapCmd.Calls(), DeepEquals, [][]string{
-			{
-				"snap-bootstrap", "create-partitions", "--mount", "--encrypt",
-				"--key-file", filepath.Join(boot.InitramfsUbuntuBootDir, "/ubuntu-data.keyfile.unsealed"),
-				"--recovery-key-file", filepath.Join(boot.InitramfsUbuntuDataDir, "/system-data/var/lib/snapd/device/fde/recovery-key"),
-				filepath.Join(dirs.SnapMountDir, "/pc/1"),
-			},
+		c.Assert(brGadgetRoot, Equals, filepath.Join(dirs.SnapMountDir, "/pc/1"))
+		c.Assert(brDevice, Equals, "")
+		c.Assert(brOpts, DeepEquals, bootstrap.Options{
+			Mount:                true,
+			Encrypt:              true,
+			KeyFile:              filepath.Join(boot.InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key"),
+			RecoveryKeyFile:      filepath.Join(boot.InitramfsWritableDir, "var/lib/snapd/device/fde/recovery.key"),
+			TPMLockoutAuthFile:   filepath.Join(boot.InitramfsWritableDir, "var/lib/snapd/device/fde/tpm-lockout-auth"),
+			PolicyUpdateDataFile: filepath.Join(boot.InitramfsWritableDir, "var/lib/snapd/device/fde/policy-update-data"),
+			KernelPath:           filepath.Join(dirs.SnapMountDir, "pc-kernel/1/kernel.efi"),
+			Model:                mockModel,
 		})
+
+		// directories were ensured
+		c.Assert(osutil.IsDirectory(boot.InitramfsEncryptionKeyDir), Equals, true)
+		c.Assert(osutil.IsDirectory(filepath.Join(boot.InitramfsWritableDir, "var/lib/snapd/device/fde")), Equals, true)
 	} else {
-		c.Assert(mockSnapBootstrapCmd.Calls(), DeepEquals, [][]string{
-			{
-				"snap-bootstrap", "create-partitions", "--mount",
-				filepath.Join(dirs.SnapMountDir, "/pc/1"),
-			},
+		c.Assert(brGadgetRoot, Equals, filepath.Join(dirs.SnapMountDir, "/pc/1"))
+		c.Assert(brDevice, Equals, "")
+		c.Assert(brOpts, DeepEquals, bootstrap.Options{
+			Mount: true,
 		})
 	}
+	c.Assert(bootstrapRunCalled, Equals, 1)
 	c.Assert(bootMakeBootableCalled, Equals, 1)
 	c.Assert(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
 
@@ -254,8 +287,10 @@ func (s *deviceMgrInstallModeSuite) TestInstallTaskErrors(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	mockSnapBootstrapCmd := testutil.MockCommand(c, filepath.Join(dirs.DistroLibExecDir, "snap-bootstrap"), `echo "The horror, The horror"; exit 1`)
-	defer mockSnapBootstrapCmd.Restore()
+	restore = devicestate.MockBootstrapRun(func(gadgetRoot, device string, options bootstrap.Options) error {
+		return fmt.Errorf("The horror, The horror")
+	})
+	defer restore()
 
 	s.state.Lock()
 	s.makeMockInstalledPcGadget(c, "dangerous")
@@ -360,12 +395,14 @@ func (s *deviceMgrInstallModeSuite) TestInstallSecuredBypassEncryption(c *C) {
 	c.Assert(err, ErrorMatches, "(?s).*cannot encrypt secured device: TPM not available.*")
 }
 
-func (s *deviceMgrInstallModeSuite) mockInstallModeChange(c *C, modelGrade string) {
+func (s *deviceMgrInstallModeSuite) mockInstallModeChange(c *C, modelGrade string) *asserts.Model {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	mockSnapBootstrapCmd := testutil.MockCommand(c, filepath.Join(dirs.DistroLibExecDir, "snap-bootstrap"), "")
-	defer mockSnapBootstrapCmd.Restore()
+	restore = devicestate.MockBootstrapRun(func(gadgetRoot, device string, options bootstrap.Options) error {
+		return nil
+	})
+	defer restore()
 
 	s.state.Lock()
 	mockModel := s.makeMockInstalledPcGadget(c, modelGrade)
@@ -384,7 +421,13 @@ func (s *deviceMgrInstallModeSuite) mockInstallModeChange(c *C, modelGrade strin
 	c.Assert(modeenv.WriteTo(""), IsNil)
 	devicestate.SetSystemMode(s.mgr, "install")
 
+	// normally done by snap-bootstrap
+	err := os.MkdirAll(boot.InitramfsUbuntuBootDir, 0755)
+	c.Assert(err, IsNil)
+
 	s.settle(c)
+
+	return mockModel
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallModeRunSysconfig(c *C) {
@@ -462,4 +505,52 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeNoCloudInitForSigned(c *C) {
 	c.Assert(s.configureRunSystemOptsPassed, DeepEquals, []*sysconfig.Options{
 		{TargetRootDir: boot.InitramfsWritableDir},
 	})
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallModeSupportsCloudInitFromGadget(c *C) {
+	// XXX: this is slightly magic - in mockInstallModeChange() we create
+	//      a mock pc gadget snap with revno 1. This is why we can set
+	//      set gadget dir here
+	gadgetDir := filepath.Join(dirs.SnapMountDir, "pc/1/")
+
+	// pretend we have a cloud-init config in our gadget
+	cloudCfg := filepath.Join(gadgetDir, "cloud.cfg.d")
+	err := os.MkdirAll(cloudCfg, 0755)
+	c.Assert(err, IsNil)
+	for _, mockCfg := range []string{"foo.cfg", "bar.cfg"} {
+		err = ioutil.WriteFile(filepath.Join(cloudCfg, mockCfg), []byte(fmt.Sprintf("%s config", mockCfg)), 0644)
+		c.Assert(err, IsNil)
+	}
+
+	// cloud init config from gadget works for signed models too
+	s.mockInstallModeChange(c, "signed")
+
+	// and did tell sysconfig about the cloud-init files
+	c.Assert(s.configureRunSystemOptsPassed, DeepEquals, []*sysconfig.Options{
+		{
+			CloudInitSrcDir: filepath.Join(gadgetDir, "cloud.cfg.d"),
+			TargetRootDir:   boot.InitramfsWritableDir,
+		},
+	})
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallModeWritesModel(c *C) {
+	// pretend we have a cloud-init config on the seed partition
+	model := s.mockInstallModeChange(c, "dangerous")
+
+	var buf bytes.Buffer
+	err := asserts.NewEncoder(&buf).Encode(model)
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	installSystem := s.findInstallSystem()
+	c.Assert(installSystem, NotNil)
+
+	// and was run successfully
+	c.Check(installSystem.Err(), IsNil)
+	c.Check(installSystem.Status(), Equals, state.DoneStatus)
+
+	c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "model"), testutil.FileEquals, buf.String())
 }

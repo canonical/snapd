@@ -257,9 +257,11 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20Happy(c *C) {
 	// already booted from, we should only have checked what the current kernel
 	// is
 
-	// the 3 calls here are 1 from GetCurrentBoot() (and thus markSuccessful())
-	// and 1 from SetNext(), and 1 from InUse() (from installPath() in
-	// o/snapstate)
+	// the 3 calls here are :
+	// * 1 from MarkBootSuccessful() from ensureBootOk() before we restart
+	// * 1 from boot.SetNextBoot() from LinkSnap() from doInstall() from InstallPath() from
+	//     installSeedSnap() after restart
+	// * 1 from boot.GetCurrentBoot() from WaitRestart after restart
 	_, numKernelCalls := bloader.GetRunKernelImageFunctionSnapCalls("Kernel")
 	c.Assert(numKernelCalls, Equals, 3)
 

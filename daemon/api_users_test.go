@@ -191,7 +191,7 @@ func (s *userSuite) testNoUserAdmin(c *check.C, endpoint string) {
 	switch endpoint {
 	case "/v2/users":
 		rsp := postUsers(usersCmd, req, nil).(*resp)
-		c.Check(rsp, check.DeepEquals, MethodNotAllowed(noUserAdmin, "POST"))
+		c.Check(rsp, check.DeepEquals, MethodNotAllowed(noUserAdmin))
 	case "/v2/create-user":
 		rsp := postCreateUser(createUserCmd, req, nil).(*resp)
 		c.Check(rsp, check.DeepEquals, Forbidden(noUserAdmin))

@@ -316,7 +316,7 @@ func (s *ValidateSuite) TestValidateSecurityTag(c *C) {
 	// invalid number of components are rejected.
 	c.Check(naming.ValidateSecurityTag("snap.pkg.hook.surprise."), ErrorMatches, "invalid security tag")
 	c.Check(naming.ValidateSecurityTag("snap.pkg.hook."), ErrorMatches, "invalid security tag")
-	c.Check(naming.ValidateSecurityTag("snap.pkg.hook"), IsNil) // surprise, it is a valid app name!
+	c.Check(naming.ValidateSecurityTag("snap.pkg.hook"), IsNil) // Perhaps somewhat unexpectedly, this tag is valid.
 	c.Check(naming.ValidateSecurityTag("snap.pkg.app.surprise"), ErrorMatches, "invalid security tag")
 	c.Check(naming.ValidateSecurityTag("snap.pkg."), ErrorMatches, "invalid security tag")
 	c.Check(naming.ValidateSecurityTag("snap.pkg"), ErrorMatches, "invalid security tag")
