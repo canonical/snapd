@@ -718,8 +718,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2KernelSnapUpgradeH
 			boot.InitramfsUbuntuBootDir,
 			boot.InitramfsUbuntuSeedDir,
 			boot.InitramfsUbuntuDataDir,
+			filepath.Join(boot.InitramfsRunMntDir, "base"),
 		},
-		mounted{filepath.Join(boot.InitramfsRunMntDir, "base")},
 		notYetMounted{filepath.Join(boot.InitramfsRunMntDir, "kernel")},
 	)
 
@@ -775,8 +775,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2UntrustedKernelSna
 			boot.InitramfsUbuntuBootDir,
 			boot.InitramfsUbuntuSeedDir,
 			boot.InitramfsUbuntuDataDir,
+			filepath.Join(boot.InitramfsRunMntDir, "base"),
 		},
-		mounted{filepath.Join(boot.InitramfsRunMntDir, "base")},
 		notYetMounted{filepath.Join(boot.InitramfsRunMntDir, "kernel")},
 	)
 
@@ -815,8 +815,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2UntrustedTryKernel
 			boot.InitramfsUbuntuBootDir,
 			boot.InitramfsUbuntuSeedDir,
 			boot.InitramfsUbuntuDataDir,
+			filepath.Join(boot.InitramfsRunMntDir, "base"),
 		},
-		mounted{filepath.Join(boot.InitramfsRunMntDir, "base")},
 		notYetMounted{filepath.Join(boot.InitramfsRunMntDir, "kernel")},
 	)
 
@@ -863,8 +863,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2KernelStatusTrying
 			boot.InitramfsUbuntuBootDir,
 			boot.InitramfsUbuntuSeedDir,
 			boot.InitramfsUbuntuDataDir,
+			filepath.Join(boot.InitramfsRunMntDir, "base"),
 		},
-		mounted{filepath.Join(boot.InitramfsRunMntDir, "base")},
 		notYetMounted{filepath.Join(boot.InitramfsRunMntDir, "kernel")},
 	)
 
@@ -1088,8 +1088,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2EnvRefKernelBootst
 			boot.InitramfsUbuntuBootDir,
 			boot.InitramfsUbuntuSeedDir,
 			boot.InitramfsUbuntuDataDir,
+			filepath.Join(boot.InitramfsRunMntDir, "base"),
 		},
-		mounted{filepath.Join(boot.InitramfsRunMntDir, "base")},
 		notYetMounted{filepath.Join(boot.InitramfsRunMntDir, "kernel")},
 	)
 
@@ -1137,8 +1137,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2EnvRefKernelBootst
 			boot.InitramfsUbuntuBootDir,
 			boot.InitramfsUbuntuSeedDir,
 			boot.InitramfsUbuntuDataDir,
+			filepath.Join(boot.InitramfsRunMntDir, "base"),
 		},
-		mounted{filepath.Join(boot.InitramfsRunMntDir, "base")},
 		notYetMounted{filepath.Join(boot.InitramfsRunMntDir, "kernel")},
 	)
 
@@ -1174,8 +1174,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2EnvRefKernelBootst
 			boot.InitramfsUbuntuBootDir,
 			boot.InitramfsUbuntuSeedDir,
 			boot.InitramfsUbuntuDataDir,
+			filepath.Join(boot.InitramfsRunMntDir, "base"),
 		},
-		mounted{filepath.Join(boot.InitramfsRunMntDir, "base")},
 		notYetMounted{filepath.Join(boot.InitramfsRunMntDir, "kernel")},
 	)
 
@@ -1218,8 +1218,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2EnvRefKernelBootst
 			boot.InitramfsUbuntuBootDir,
 			boot.InitramfsUbuntuSeedDir,
 			boot.InitramfsUbuntuDataDir,
+			filepath.Join(boot.InitramfsRunMntDir, "base"),
 		},
-		mounted{filepath.Join(boot.InitramfsRunMntDir, "base")},
 		notYetMounted{filepath.Join(boot.InitramfsRunMntDir, "kernel")},
 	)
 
@@ -1276,8 +1276,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep2(c *C) {
 			filepath.Join(boot.InitramfsRunMntDir, "base"),
 			filepath.Join(boot.InitramfsRunMntDir, "kernel"),
 			filepath.Join(boot.InitramfsRunMntDir, "snapd"),
+			filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data"),
 		},
-		notYetMounted{filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data")},
 	)
 
 	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
@@ -1294,13 +1294,13 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep3(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover snapd_recovery_system="+s.sysLabel)
 
 	n := s.mockExpectedMountChecks(c,
-		mounted{boot.InitramfsUbuntuSeedDir},
 		mounted{
+			boot.InitramfsUbuntuSeedDir,
 			filepath.Join(boot.InitramfsRunMntDir, "base"),
 			filepath.Join(boot.InitramfsRunMntDir, "kernel"),
 			filepath.Join(boot.InitramfsRunMntDir, "snapd"),
+			filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data"),
 		},
-		mounted{filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data")},
 		notYetMounted{filepath.Join(boot.InitramfsRunMntDir, "host/ubuntu-data")},
 	)
 
@@ -1317,14 +1317,14 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep4(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover snapd_recovery_system="+s.sysLabel)
 
 	n := s.mockExpectedMountChecks(c,
-		mounted{boot.InitramfsUbuntuSeedDir},
 		mounted{
+			boot.InitramfsUbuntuSeedDir,
 			filepath.Join(boot.InitramfsRunMntDir, "base"),
 			filepath.Join(boot.InitramfsRunMntDir, "kernel"),
 			filepath.Join(boot.InitramfsRunMntDir, "snapd"),
+			filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data"),
+			filepath.Join(boot.InitramfsRunMntDir, "host/ubuntu-data"),
 		},
-		mounted{filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data")},
-		mounted{filepath.Join(boot.InitramfsRunMntDir, "host/ubuntu-data")},
 	)
 
 	ephemeralUbuntuData := filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data/")
@@ -1425,8 +1425,8 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallRecoverModeStep1Measure
 			filepath.Join(boot.InitramfsRunMntDir, "base"),
 			filepath.Join(boot.InitramfsRunMntDir, "kernel"),
 			filepath.Join(boot.InitramfsRunMntDir, "snapd"),
+			filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data"),
 		},
-		notYetMounted{filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data")},
 	)
 
 	// setup a fake tpm
