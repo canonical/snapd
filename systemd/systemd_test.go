@@ -391,6 +391,26 @@ func (s *SystemdTestSuite) TestAvailable(c *C) {
 	c.Check(s.argses, DeepEquals, [][]string{{"--version"}})
 }
 
+func (s *SystemdTestSuite) TestVersion(c *C) {
+	s.outs = [][]byte{
+		[]byte("systemd 223\n+PAM\n"),
+		// for two error cases
+		[]byte("foo 223\n+PAM\n"),
+		[]byte("systemd\n+PAM\n"),
+	}
+
+	v, err := Version()
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"--version"}})
+	c.Check(v, Equals, "223")
+
+	_, err = Version()
+	c.Assert(err, ErrorMatches, `cannot parse systemd version: foo 223\n`)
+
+	_, err = Version()
+	c.Assert(err, ErrorMatches, `cannot parse systemd version: systemd\n`)
+}
+
 func (s *SystemdTestSuite) TestEnable(c *C) {
 	err := New("xyzzy", SystemMode, s.rep).Enable("foo")
 	c.Assert(err, IsNil)
