@@ -23,6 +23,8 @@ matrix:
         - set -e
         - ./run-checks --static
         - ./run-checks --short-unit
+        # run smoke tests in lxd container too
+        - sh -ex ./debian/tests/integrationtests
 
     - stage: quick
       go: "1.10.x"

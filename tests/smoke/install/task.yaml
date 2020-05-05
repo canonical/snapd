@@ -52,3 +52,9 @@ execute: |
 
     echo "Ensure a change was generated for the install"
     snap changes | MATCH 'Install "test-snapd-sh" snap'
+
+    echo "Ensure different bases wor
+    for base in core18 core20; do
+        snap install test-snapd-tools-${base}
+        test-snapd-tools-${base}.echo "hello $base" | MATCH "hello $base"
+    done
