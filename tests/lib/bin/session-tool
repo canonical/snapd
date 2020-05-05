@@ -1,7 +1,7 @@
 #!/bin/bash -e
 if [ $# -eq 0 ]; then
 	echo "usage: session-tool [-u USER] [-p PID_FILE] [--] <CMD>"
-	echo "usage: session-tool --prepare | --restore [-u USER]"
+	echo "usage: session-tool --prepare | --restore [-u USER | -u USER1,USER2,...]"
 	echo "usage: session-tool --kill-leaked"
 	echo "usage: session-tool --dump"
 	echo "usage: session-tool --has-systemd-and-dbus [-u USER]"
@@ -116,14 +116,47 @@ case "$action" in
 			touch /run/session-tool-systemd-issue-12401.workaround
 		fi
 
-		# Enable linger for the selected user.
-		loginctl enable-linger "$user"
+		# Enable linger for the selected user(s).
+		for u in $(echo "$user" | tr ',' ' '); do
+			loginctl enable-linger "$u"
+		done
 
 		exit 0
 		;;
 	restore)
-		# Disable linger for the selected user.
-		loginctl disable-linger "$user"
+		# Disable linger for the selected user(s).
+		for u in $(echo "$user" | tr ',' ' '); do
+			loginctl disable-linger "$u"
+			# If the user is not root, also stop their user slice and ensure
+			# their XDG_RUNTIME_DIR goes away. Currently doing this for root is
+			# impossible, because spread logs into a test system over ssh and
+			# gets a root user slice, at minimum.
+			#
+			# If spread ever changes, so that the tests are executed as system
+			# services, then there this condition could be removed.
+			if [ "$u" != root ]; then
+				uid="$(id -u "$u")"
+				# See user@.service(5) for discussion about user-UID.slice and
+				# user@UID.service and why both are used. Here we stop the
+				# slice as that encompasses both user@UID.service and any
+				# existing sessions of that user.
+				systemctl stop "user-$uid.slice"
+
+				# On Ubuntu 16.04 and Debian 9 stopping the slice above is
+				# insufficient to stop the service responsible for
+				# /run/user/UID *immediately*. This seems to be related to
+				# *absence* of user-session-dir@.service (template service)
+				# which is responsible for this operation later on (and where
+				# it works more reliably).
+				#
+				# Give the system some time to clean things up.
+				retry-tool -n 3 --wait 3 test ! -e "/run/user/$uid"
+				if [ -e "/run/user/$uid" ]; then
+					echo "session-tool: /run/user/$uid still exists" >&2
+					exit 1
+				fi
+			fi
+		done
 
 		if [ -e /run/session-tool-core16.workaround ]; then
 			rm  /run/session-tool-core16.workaround
