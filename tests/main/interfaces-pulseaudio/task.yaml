@@ -1,10 +1,7 @@
 summary: Ensure that the pulseaudio interface works
 
-# Classic Ubuntu is sufficient to test the feature,
-# except Ubuntu 14.04 where systemd is not supported.
-systems: [ubuntu-16.04-*, ubuntu-18.04-*, ubuntu-19.10-*, ubuntu-20-*]
-
-kill-timeout: 3m
+# Only classic Ubuntu has the pulseaudio mediation patches. Ubuntu 14.04 is unsupported on the desktop.
+systems: [ubuntu-16.04-*, ubuntu-18.04-*, ubuntu-19.10-*, ubuntu-20.04-*]
 
 environment:
     PLAY_FILE: "/snap/test-snapd-pulseaudio/current/usr/share/sounds/alsa/Noise.wav"
@@ -65,10 +62,7 @@ execute: |
     session-tool -u test test-snapd-pulseaudio.play "$PLAY_FILE"
 
     echo "Then the snap can record audio"
-    if ! session-tool -u test test-snapd-pulseaudio.recsimple; then
-        echo "Could not record audio"
-        exit 1
-    fi
+    session-tool -u test test-snapd-pulseaudio.recsimple
 
     if [ "$(snap debug confinement)" = "partial" ] ; then
         exit 0
