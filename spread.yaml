@@ -81,6 +81,10 @@ backends:
                 image: ubuntu-2004-64-virt-enabled
                 workers: 6
                 storage: 20G
+            - ubuntu-20.04-64-secboot:
+                image: ubuntu-20.04-64
+                workers: 1
+                secureboot: true
 
             - debian-9-64:
                 workers: 6
