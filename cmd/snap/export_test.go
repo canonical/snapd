@@ -20,13 +20,18 @@
 package main
 
 import (
+	"io/ioutil"
 	"os"
 	"os/user"
 	"time"
 
+	"github.com/godbus/dbus"
 	"github.com/jessevdk/go-flags"
+	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/image"
 	"github.com/snapcore/snapd/sandbox/selinux"
 	"github.com/snapcore/snapd/store"
@@ -88,6 +93,9 @@ var (
 	PrintInstallHint = printInstallHint
 
 	IsStopping = isStopping
+
+	CreateTransientScope   = createTransientScope
+	DoCreateTransientScope = doCreateTransientScope
 )
 
 func HiddenCmd(descr string, completeHidden bool) *cmdInfo {
@@ -326,6 +334,53 @@ func MockSignalNotify(newSignalNotify func(sig ...os.Signal) (chan os.Signal, fu
 
 type ServiceName = serviceName
 
+func MockDBusConnections(system, session func() (*dbus.Conn, error)) func() {
+	oldSystem := dbusSystemBus
+	oldSession := dbusSessionBus
+	dbusSystemBus = system
+	dbusSessionBus = session
+	return func() {
+		dbusSystemBus = oldSystem
+		dbusSessionBus = oldSession
+	}
+}
+
+func MockDBusSystemBus(conn *dbus.Conn) func() {
+	systemBus := func() (*dbus.Conn, error) { return conn, nil }
+	sessionBus := func() (*dbus.Conn, error) {
+		panic("DBus session bus should not have been used")
+	}
+	return MockDBusConnections(systemBus, sessionBus)
+}
+
+func MockDBusSessionBus(conn *dbus.Conn) func() {
+	systemBus := func() (*dbus.Conn, error) {
+		panic("DBus system bus should not have been used")
+	}
+	sessionBus := func() (*dbus.Conn, error) { return conn, nil }
+	return MockDBusConnections(systemBus, sessionBus)
+}
+
+func MockOsGetuid(uid int) func() {
+	old := osGetuid
+	osGetuid = func() int {
+		return uid
+	}
+	return func() {
+		osGetuid = old
+	}
+}
+
+func MockOsGetpid(pid int) func() {
+	old := osGetpid
+	osGetpid = func() int {
+		return pid
+	}
+	return func() {
+		osGetpid = old
+	}
+}
+
 func MockCreateTransientScope(fn func(securitTag string) error) func() {
 	old := createTransientScope
 	createTransientScope = fn
@@ -347,5 +402,30 @@ func MockCgroupSnapNameFromPid(f func(pid int) (string, error)) (restore func())
 	cgroupSnapNameFromPid = f
 	return func() {
 		cgroupSnapNameFromPid = old
+	}
+}
+
+func MockRandomUUID(uuid string) func() {
+	old := randomUUID
+	randomUUID = func() (string, error) {
+		return uuid, nil
+	}
+	return func() {
+		randomUUID = old
+	}
+}
+
+func MockCgroupProcessPathInTrackingCgroup(fn func(pid int) (string, error)) func() {
+	old := cgroupProcessPathInTrackingCgroup
+	cgroupProcessPathInTrackingCgroup = fn
+	return func() {
+		cgroupProcessPathInTrackingCgroup = old
+	}
+}
+
+func EnableFeatures(c *C, ff ...features.SnapdFeature) {
+	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), IsNil)
+	for _, f := range ff {
+		c.Assert(ioutil.WriteFile(f.ControlFile(), nil, 0755), IsNil)
 	}
 }

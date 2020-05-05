@@ -21,6 +21,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -716,7 +717,7 @@ func activateXdgDocumentPortal(info *snap.Info, snapApp, hook string) error {
 		return nil
 	}
 
-	conn, err := dbus.SessionBus()
+	conn, err := dbusSessionBus()
 	if err != nil {
 		return err
 	}
@@ -1016,10 +1017,16 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	// name. Snapd controls the name of the service units thus indirectly
 	// controls the cgroup name.
 	//
-	// 2) Non-services are started inside systemd transient scopes. Scopes are
-	// a systemd unit type that are defined programmatically and are meant for
-	// groups of processes started and stopped by an _arbitrary process_ (ie,
-	// not systemd). Transient scopes allow launched snaps to integrate into
+	// 2) Non-services, including hooks, are started inside systemd
+	// transient scopes. Scopes are a systemd unit type that are defined
+	// programmatically and are meant for groups of processes started and
+	// stopped by an _arbitrary process_ (ie, not systemd). Systemd
+	// requires that each scope is given a unique name. We employ a scheme
+	// where random UUID is combined with the name of the security tag
+	// derived from snap application or hook name. Multiple concurrent
+	// invocations of "snap run" will use distinct UUIDs.
+	//
+	// Transient scopes allow launched snaps to integrate into
 	// the systemd design. See:
 	// https://www.freedesktop.org/wiki/Software/systemd/ControlGroupInterface/
 	//
@@ -1035,7 +1042,11 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	// https://www.freedesktop.org/wiki/Software/systemd/ControlGroupInterface/
 	if app := info.Apps[snapApp]; app == nil || !app.IsService() {
 		if err := createTransientScope(securityTag); err != nil {
-			return err
+			if err != errCannotTrackProcess {
+				return err
+			}
+			logger.Debugf("snapd cannot track the started application")
+			logger.Debugf("snap refreshes will not be postponed by this process")
 		}
 	} else {
 		// TODO verify that the service is placed in a .service path in one of
@@ -1052,35 +1063,16 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	}
 }
 
-func randomUUID() (string, error) {
-	// The source of the bytes generated here is the same as that of
-	// /dev/urandom which doesn't block and is sufficient for our purposes
-	// of avoiding clashing UUIDs that are needed for all of the non-service
-	// commands that are started with the help of this UUID.
-	uuidBytes, err := ioutil.ReadFile("/proc/sys/kernel/random/uuid")
-	return strings.TrimSpace(string(uuidBytes)), err
-}
+var errDBusUnknownMethod = errors.New("org.freedesktop.DBus.Error.UnknownMethod")
+var errDBusNameHasNoOwner = errors.New("org.freedesktop.DBus.Error.NameHasNoOwner")
+var errDBusSpawnChildExited = errors.New("org.freedesktop.DBus.Error.Spawn.ChildExited")
 
-var createTransientScope = func(securityTag string) error {
-	if !features.RefreshAppAwareness.IsEnabled() {
-		return nil
-	}
-
-	logger.Debugf("creating transient scope %s", securityTag)
-	// The scope is created with a DBus call to systemd running either on
-	// system or session bus, depending on if we are starting a program as root
-	// or as a regular user.
-	var conn *dbus.Conn
-	var err error
-	if os.Getuid() == 0 {
-		conn, err = dbus.SystemBus()
-	} else {
-		conn, err = dbus.SessionBus()
-	}
-	if err != nil {
-		return err
-	}
-
+// doCreateTransientScope creates a systemd transient scope with specified properties.
+//
+// The scope is created by asking systemd via the specified DBus connection.
+// The unit name and the PID to attach are provided as well. The DBus method
+// call is performed outside confinement established by snap-confine.
+func doCreateTransientScope(conn *dbus.Conn, unitName string, pid int) error {
 	// The property and auxUnit types are not well documented but can be traced
 	// from systemd source code. Systemd defines the signature of
 	// StartTransientUnit as "ssa(sv)a(sa(sv))". The signature can be
@@ -1103,7 +1095,8 @@ var createTransientScope = func(securityTag string) error {
 	//	 }
 	// } // auxUnits describe any additional units to define.
 	type property struct {
-		Name  string
+		Name string
+		// XXX: This is getting marshaled as an invalid variant.
 		Value interface{}
 	}
 	type auxUnit struct {
@@ -1111,29 +1104,13 @@ var createTransientScope = func(securityTag string) error {
 		Props []property
 	}
 
-	// We ask the kernel for a random UUID. We need one because each transient
-	// scope needs a unique name. The unique name is comprosed of said UUID and
-	// the snap security tag.
-	uuid, err := randomUUID()
-	if err != nil {
-		return err
-	}
-	// Instead of enforcing uniqueness we could join an existing scope but this has some limitations:
-	// - the originally started scope must be marked as a delegate, with all consequences.
-	// - the method AttachProcessesToUnit is unavailable on Ubuntu 16.04
-	//
-	// TODO: invert the arguments so that security tag comes first, UUID
-	// second. This will result in nicer scope names but needs to be
-	// coordinated with code in sandbox/cgroup and with the spread tests
-	// exercising that.
-	unitName := fmt.Sprintf("snap.%s.%s.scope", uuid, strings.TrimPrefix(securityTag, "snap."))
 	mode := "fail"
-	properties := []property{{"PIDs", []uint{uint(os.Getpid())}}}
+	properties := []property{{"PIDs", []uint{uint(pid)}}}
 	aux := []auxUnit(nil)
 	systemd := conn.Object("org.freedesktop.systemd1", "/org/freedesktop/systemd1")
 	call := systemd.Call(
 		"org.freedesktop.systemd1.Manager.StartTransientUnit",
-		0, /* call flags */
+		0,
 		unitName,
 		mode,
 		properties,
@@ -1142,26 +1119,184 @@ var createTransientScope = func(securityTag string) error {
 	var job dbus.ObjectPath
 	if err := call.Store(&job); err != nil {
 		if dbusErr, ok := err.(dbus.Error); ok {
+			logger.Debugf("StartTransientUnit failed with %q: %v", dbusErr.Name, dbusErr.Body)
+			// Some specific DBus errors have distinct handling.
 			switch dbusErr.Name {
+			case "org.freedesktop.DBus.Error.NameHasNoOwner":
+				// Nothing is providing systemd bus name. This is, most likely,
+				// an Ubuntu 14.04 system with the special deputy systemd.
+				return errDBusNameHasNoOwner
 			case "org.freedesktop.DBus.Error.UnknownMethod":
 				// The DBus API is not supported on this system. This can happen on
 				// very old versions of Systemd, for instance on Ubuntu 14.04.
-				logger.Debugf("cannot create transient scope on this system: %s", err)
-				return nil
+				return errDBusUnknownMethod
+			case "org.freedesktop.DBus.Error.Spawn.ChildExited":
+				// We tried to socket-activate dbus-daemon or bus-activate
+				// systemd --user but it failed.
+				return errDBusSpawnChildExited
 			case "org.freedesktop.systemd1.UnitExists":
 				// Starting a scope with a name that already exists is an
 				// error. Normally this should never happen.
 				return fmt.Errorf("cannot create transient scope: scope %q clashed: %s", unitName, err)
-			case "org.freedesktop.DBus.Error.Spawn.ChildExited":
-				// The system does not have a DBus session bus.
-				// Consume the error and continue with extra checks below.
-				logger.Debugf("session bus is not available, consider installing dbus-user-session")
-				err = nil
+			default:
+				return fmt.Errorf("cannot create transient scope: DBus error %q: %v", dbusErr.Name, dbusErr.Body)
 			}
 		}
 		if err != nil {
 			return fmt.Errorf("cannot create transient scope: %s", err)
 		}
+	}
+	logger.Debugf("created transient scope as object: %s", job)
+	return nil
+}
+
+var dbusSystemBus = func() (*dbus.Conn, error) {
+	return dbus.SystemBus()
+}
+
+var osGetuid = os.Getuid
+
+// isSessionBusLikelyPresent checks for the apparent availability of DBus session bus.
+//
+// The code matches what go-dbus does when it tries to detect the session bus:
+// - the presence of the environment variable DBUS_SESSION_BUS_ADDRESS
+// - the presence of the bus socket address in the file /run/user/UID/dbus-session
+// - the presence of the bus socket in /run/user/UID/bus
+func isSessionBusLikelyPresent() bool {
+	if address := os.Getenv("DBUS_SESSION_BUS_ADDRESS"); address != "" {
+		return true
+	}
+	if fi, err := os.Stat(fmt.Sprintf("/run/user/%d/dbus-session", osGetuid())); err == nil {
+		if stat, ok := fi.Sys().(*syscall.Stat_t); ok {
+			if stat.Mode&syscall.S_IFREG == syscall.S_IFREG {
+				return true
+			}
+		}
+	}
+	if fi, err := os.Stat(fmt.Sprintf("/run/user/%d/bus", osGetuid())); err == nil {
+		if stat, ok := fi.Sys().(*syscall.Stat_t); ok {
+			if stat.Mode&syscall.S_IFSOCK == syscall.S_IFSOCK {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+var dbusSessionBus = func() (*dbus.Conn, error) {
+	// This started as a helper for mocking and testing but we ended up needing
+	// a custom implementation to prevent go-dbus from spawning and *leaving
+	// behind* a dbus-launch process that will never be used by anything again.
+	if isSessionBusLikelyPresent() {
+		return dbus.SessionBus()
+	}
+	return nil, fmt.Errorf("cannot find session bus")
+}
+
+var randomUUID = func() (string, error) {
+	// The source of the bytes generated here is the same as that of
+	// /dev/urandom which doesn't block and is sufficient for our purposes
+	// of avoiding clashing UUIDs that are needed for all of the non-service
+	// commands that are started with the help of this UUID.
+	uuidBytes, err := ioutil.ReadFile("/proc/sys/kernel/random/uuid")
+	return strings.TrimSpace(string(uuidBytes)), err
+}
+
+var osGetpid = os.Getpid
+
+var cgroupProcessPathInTrackingCgroup = cgroup.ProcessPathInTrackingCgroup
+
+var errCannotTrackProcess = errors.New("cannot track application process")
+
+var createTransientScope = func(securityTag string) error {
+	if !features.RefreshAppAwareness.IsEnabled() {
+		return nil
+	}
+	logger.Debugf("creating transient scope %s", securityTag)
+
+	// We ask the kernel for a random UUID. We need one because each transient
+	// scope needs a unique name. The unique name is comprosed of said UUID and
+	// the snap security tag.
+	uuid, err := randomUUID()
+	if err != nil {
+		return err
+	}
+
+	// Enforcing uniqueness is preferred to reusing an existing scope for
+	// simplicity since doing otherwise and joining an existing scope has
+	// limitations:
+	// - the originally started scope must be marked as a delegate, with all consequences.
+	// - the method AttachProcessesToUnit is unavailable on Ubuntu 16.04
+	//
+	// TODO: invert the arguments so that security tag comes first, UUID
+	// second. This will result in nicer scope names but needs to be
+	// coordinated with code in sandbox/cgroup and with the spread tests
+	// exercising that.
+	unitName := fmt.Sprintf("snap.%s.%s.scope", uuid, strings.TrimPrefix(securityTag, "snap."))
+	pid := osGetpid()
+
+	// The scope is created with a DBus call to systemd running either on
+	// system or session bus. We have a preference for session bus, as this is
+	// where applications normally go to. When a session bus is not available
+	// and the invoking user is root, we use the system bus instead.
+	//
+	// It is worth noting that hooks will not normally have a session bus to
+	// connect to, as they are invoked as descendants of snapd, and snapd is a
+	// service running outside of any session.
+	isSessionBus := true
+	conn, err := dbusSessionBus()
+	if err != nil {
+		logger.Debugf("session bus is not available: %s", err)
+		if osGetuid() == 0 {
+			logger.Debugf("falling back to system bus")
+			isSessionBus = false
+			conn, err = dbusSystemBus()
+			if err != nil {
+				logger.Debugf("system bus is not available: %s", err)
+			} else {
+				logger.Debugf("using system bus now, session bus was not available")
+			}
+		}
+	} else {
+		logger.Debugf("using session bus")
+	}
+
+	// Session or system bus might be unavailable. To avoid being fragile
+	// ignore all errors when establishing session bus connection to avoid
+	// breaking user interactions. This is consistent with similar failure
+	// modes below, where other parts of the stack fail.
+	//
+	// Ideally we would check for a distinct error type but this is just an
+	// errors.New() in go-dbus code.
+	if err != nil {
+		return errCannotTrackProcess
+	}
+
+tryAgain:
+	// Create a transient scope by talking to systemd over DBus.
+	if err := doCreateTransientScope(conn, unitName, pid); err != nil {
+		switch err {
+		case errDBusUnknownMethod:
+			return errCannotTrackProcess
+		case errDBusSpawnChildExited:
+			fallthrough
+		case errDBusNameHasNoOwner:
+			// We cannot activate systemd --user for root, try the system bus
+			// as a fallback.
+			if isSessionBus && osGetuid() == 0 {
+				logger.Debugf("cannot activate systemd --user on session bus, falling back to system bus: %s", err)
+				isSessionBus = false
+				conn, err = dbusSystemBus()
+				if err != nil {
+					logger.Debugf("system bus is not available: %s", err)
+					return errCannotTrackProcess
+				}
+				logger.Debugf("using system bus now, session bus could not activate systemd --user")
+				goto tryAgain
+			}
+			return errCannotTrackProcess
+		}
+		return err
 	}
 	// We may have created a transient scope but due to a kernel design,
 	// in specific situation when we are in a cgroup owned by one user,
@@ -1170,13 +1305,13 @@ var createTransientScope = func(securityTag string) error {
 	//
 	// Verify the effective tracking cgroup and check that our scope name
 	// is contained therein.
-	path, err := cgroup.ProcessPathInTrackingCgroup(os.Getpid())
+	path, err := cgroupProcessPathInTrackingCgroup(pid)
 	if err != nil {
 		return err
 	}
 	if !strings.Contains(path, unitName) {
-		logger.Debugf("snapd cannot track the started application")
-		logger.Debugf("snap refreshes will not be postponed by this process")
+		logger.Debugf("systemd could not associate process %d with transient scope %s", pid, unitName)
+		return errCannotTrackProcess
 	}
 	return nil
 }
