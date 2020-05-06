@@ -1,6 +1,7 @@
 summary: Ensure that the audio-playback/record interface works
 
 # Only classic Ubuntu has the pulseaudio mediation patches. Ubuntu 14.04 is unsupported on the desktop.
+# TODO: extend session-tool and run this test on 14.04 as well.
 systems: [ubuntu-16.04-*, ubuntu-18.04-*, ubuntu-19.10-*, ubuntu-20.04-*]
 
 environment:
@@ -27,7 +28,7 @@ prepare: |
         echo "systemctl --user --global disable pulseaudio.service" >>defer.sh
     fi
 
-    # Install a snap that uses the pulseaudio interface.
+    # Install a snap that uses the audio-playback/audio-record interfaces.
     snap install --edge test-snapd-audio-record
     echo "snap remove --purge test-snapd-audio-record" >>defer.sh
 
