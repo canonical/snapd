@@ -150,6 +150,12 @@ func (s *SystemdTestSuite) TestDaemonReload(c *C) {
 	c.Assert(s.argses, DeepEquals, [][]string{{"daemon-reload"}})
 }
 
+func (s *SystemdTestSuite) TestDaemonReexec(c *C) {
+	err := New("", SystemMode, s.rep).DaemonReexec()
+	c.Assert(err, IsNil)
+	c.Assert(s.argses, DeepEquals, [][]string{{"daemon-reexec"}})
+}
+
 func (s *SystemdTestSuite) TestStart(c *C) {
 	err := New("", SystemMode, s.rep).Start("foo")
 	c.Assert(err, IsNil)
@@ -785,6 +791,10 @@ func (s *SystemdTestSuite) TestRemoveMountUnit(c *C) {
 }
 
 func (s *SystemdTestSuite) TestDaemonReloadMutex(c *C) {
+	s.testDaemonReloadMutex(c, Systemd.DaemonReload)
+}
+
+func (s *SystemdTestSuite) testDaemonReloadMutex(c *C, reload func(Systemd) error) {
 	rootDir := dirs.GlobalRootDir
 	sysd := New(rootDir, SystemMode, nil)
 
@@ -817,6 +827,10 @@ func (s *SystemdTestSuite) TestDaemonReloadMutex(c *C) {
 	<-stoppedCh
 }
 
+func (s *SystemdTestSuite) TestDaemonReexecMutex(c *C) {
+	s.testDaemonReloadMutex(c, Systemd.DaemonReexec)
+}
+
 func (s *SystemdTestSuite) TestUserMode(c *C) {
 	rootDir := dirs.GlobalRootDir
 	sysd := New(rootDir, UserMode, nil)
@@ -845,6 +859,7 @@ func (s *SystemdTestSuite) TestGlobalUserMode(c *C) {
 
 	// Commands that don't make sense for GlobalUserMode panic
 	c.Check(sysd.DaemonReload, Panics, "cannot call daemon-reload with GlobalUserMode")
+	c.Check(sysd.DaemonReexec, Panics, "cannot call daemon-reexec with GlobalUserMode")
 	c.Check(func() { sysd.Start("foo") }, Panics, "cannot call start with GlobalUserMode")
 	c.Check(func() { sysd.StartNoBlock("foo") }, Panics, "cannot call start with GlobalUserMode")
 	c.Check(func() { sysd.Stop("foo", 0) }, Panics, "cannot call stop with GlobalUserMode")

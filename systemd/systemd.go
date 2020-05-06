@@ -165,6 +165,10 @@ func MockJournalctl(f func(svcs []string, n int, follow bool) (io.ReadCloser, er
 type Systemd interface {
 	// DaemonReload reloads systemd's configuration.
 	DaemonReload() error
+	// DaemonRexec reexecutes systemd's system manager, should be
+	// only necessary to apply manager's configuration like
+	// watchdog.
+	DaemonReexec() error
 	// Enable the given service.
 	Enable(service string) error
 	// Disable the given service.
@@ -291,6 +295,17 @@ func (s *systemd) daemonReloadNoLock() error {
 	daemonReloadLock.Taken("cannot use daemon-reload without lock")
 
 	_, err := s.systemctl("daemon-reload")
+	return err
+}
+
+func (s *systemd) DaemonReexec() error {
+	if s.mode == GlobalUserMode {
+		panic("cannot call daemon-reexec with GlobalUserMode")
+	}
+	daemonReloadLock.Lock()
+	defer daemonReloadLock.Unlock()
+
+	_, err := s.systemctl("daemon-reexec")
 	return err
 }
 

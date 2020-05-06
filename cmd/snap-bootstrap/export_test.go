@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2019 Canonical Ltd
+ * Copyright (C) 2016-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -56,6 +56,10 @@ func MockOsutilIsMounted(f func(path string) (bool, error)) (restore func()) {
 		osutilIsMounted = oldOsutilIsMounted
 	}
 }
+
+type InitramfsMountsState = initramfsMountsState
+
+var NewInitramfsMountsState = newInitramfsMountsState
 
 func MockTriggerwatchWait(f func(_ time.Duration) error) (restore func()) {
 	oldTriggerwatchWait := triggerwatchWait
