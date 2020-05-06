@@ -142,6 +142,9 @@ func Version() (int, error) {
 	// of features, e.g:
 	// systemd 229
 	// +PAM +AUDIT +SELINUX +IMA +APPARMOR +SMACK +SYSVINIT +UTMP ...
+	//
+	// The version string may have extra data (a case on newer ubuntu), e.g:
+	// systemd 245 (245.4-4ubuntu3)
 	r := bufio.NewScanner(bytes.NewReader(out))
 	r.Split(bufio.ScanWords)
 	var verstr string
