@@ -116,10 +116,11 @@ func (s *journalSuite) TestConfigurePersistentJournalOldSystemd(c *C) {
 
 	s.systemdVersion = "235"
 
-	err := configcore.Run(&mockConf{
+	cfg := &mockConf{
 		state: s.state,
 		conf:  map[string]interface{}{"journal.persistent": "true"},
-	})
+	}
+	err := configcore.Run(cfg)
 	c.Assert(err, IsNil)
 
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
@@ -130,6 +131,13 @@ func (s *journalSuite) TestConfigurePersistentJournalOldSystemd(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(exists, Equals, true)
 	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/var/log/journal/.snapd-created")), Equals, true)
+
+	st := cfg.State()
+	st.Lock()
+	defer st.Unlock()
+	warnings := cfg.State().AllWarnings()
+	c.Assert(warnings, HasLen, 1)
+	c.Check(warnings[0].String(), Equals, "manual restart required for journal.persistent change to take effect")
 }
 
 func (s *journalSuite) TestConfigurePersistentJournalOnCoreNoopIfExists(c *C) {

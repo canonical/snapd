@@ -114,6 +114,14 @@ func handleJournalConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error
 			if err := sysd.Kill("systemd-journald", "USR1", ""); err != nil {
 				return err
 			}
+		} else {
+			cfg, ok := tr.(config.Conf)
+			if ok {
+				st := cfg.State()
+				st.Lock()
+				defer st.Unlock()
+				st.Warnf("manual restart required for journal.persistent change to take effect")
+			}
 		}
 	}
 
