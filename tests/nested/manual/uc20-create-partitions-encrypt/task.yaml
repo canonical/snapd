@@ -87,7 +87,7 @@ execute: |
     ls /run/mnt/ubuntu-boot/EFI/ubuntu/grub.cfg
 
     umount /run/mnt/ubuntu-boot
-    umount /run/mnt/data
+    umount /run/mnt/ubuntu-data
     cryptsetup close /dev/mapper/ubuntu-data
 
     echo "Ensure that we can open the encrypted device using the key"
