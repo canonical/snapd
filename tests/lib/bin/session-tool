@@ -120,9 +120,9 @@ case "$action" in
 		for u in $(echo "$user" | tr ',' ' '); do
 			loginctl enable-linger "$u"
 			# We've enabled linger, now let's explicitly start the
-			# default.target and sockets.target. This ensures that test code
-			# does not need to pay extra attention to synchronization.
-			session-tool -u "$u" systemctl --user start default.target sockets.target
+			# default.target. This ensures that test code does not need to pay
+			# extra attention to synchronization.
+			session-tool -u "$u" systemctl --user start default.target
 		done
 
 		exit 0
