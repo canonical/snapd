@@ -450,6 +450,7 @@ start_nested_core_vm(){
         prepare_ssh
     else
         echo "ssh not established, exiting..."
+        journalctl -u "$NESTED_VM" -n 150
         exit 1
     fi
 }
