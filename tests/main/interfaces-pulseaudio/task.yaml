@@ -34,6 +34,10 @@ prepare: |
     # verbose.
     rm -rf ~test/.cache/go-build
 
+    # TODO: fix the test causing this. Some test is making ~test/.config root-owned,
+    # making it impossible for pulseaudio to start and write the secure cookie file.
+    chown -R test ~test
+
     # Prepare a session for the user.
     session-tool -u test --prepare
     echo "session-tool -u test --restore" >>defer.sh
