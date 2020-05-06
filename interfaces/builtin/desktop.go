@@ -296,7 +296,8 @@ func (iface *desktopInterface) MountConnectedPlug(spec *mount.Specification, plu
 			// cache format level is same for both, the host
 			// generated cache files cause instability, segfaults or
 			// incorrect rendering of fonts, for this reason do not
-			// mount the cache directories on those distributions
+			// mount the cache directories on those distributions,
+			// see https://bugs.launchpad.net/snapd/+bug/1877109
 			if strutil.ListContains(dirs.SystemFontconfigCacheDirs, dir) {
 				continue
 			}
