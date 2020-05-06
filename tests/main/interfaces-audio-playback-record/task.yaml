@@ -44,6 +44,15 @@ prepare: |
     # we execute paplay through session-tool.
     session-tool -u test systemctl --user is-active pulseaudio.socket | MATCH active
 
+    # Start pulseaudio to give it a chance to write the pulseaudio cookie file.
+    # Otherwise paplay invocation will race with pulse startup, and will race
+    # with cookie file being available.
+    session-tool -u test systemctl --user start pulseaudio.service
+
+    # Ensure, that the cookie file is present.
+    test -e ~test/.config/pulse/cookie || test -e ~test/.config/pulse/.pulse-cookie
+    echo "rm -rf ~test/.config/pulse" >>defer.sh
+
 restore: |
     # Restore system to the previous state by running deferred commands in
     # reverse order.
