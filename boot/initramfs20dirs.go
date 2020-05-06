@@ -48,11 +48,11 @@ var (
 
 	// InitramfsWritableDir is the location of the writable partition during the
 	// initramfs. Note that this may refer to a temporary filesystem or a
-	// physical partition depending on what operating mode the system is in.
+	// physical partition depending on what system mode the system is in.
 	InitramfsWritableDir string
 
-	// InstallHostWritableDir is the location of the writable partition when the
-	// system is in install operating mode. This should always be on a physical
+	// InstallHostWritableDir is the location of the writable partition of the
+	// installed host during install mode. This should always be on a physical
 	// partition.
 	InstallHostWritableDir string
 
