@@ -142,18 +142,22 @@ func Version() (int, error) {
 	// of features, e.g:
 	// systemd 229
 	// +PAM +AUDIT +SELINUX +IMA +APPARMOR +SMACK +SYSVINIT +UTMP ...
-	r := bufio.NewReader(bytes.NewReader(out))
-	s, err := r.ReadString('\n')
-	if err != nil {
-		return 0, fmt.Errorf("cannot read systemd version: %v", err)
+	r := bufio.NewScanner(bytes.NewReader(out))
+	r.Split(bufio.ScanWords)
+	var verstr string
+	for i := 0; i < 2; i++ {
+		if !r.Scan() {
+			return 0, fmt.Errorf("cannot read systemd version: %v", r.Err())
+		}
+		s := r.Text()
+		if i == 0 && s != "systemd" {
+			return 0, fmt.Errorf("cannot parse systemd version: expected \"systemd\", got %q", s)
+		}
+		if i == 1 {
+			verstr = strings.TrimSpace(s)
+		}
 	}
 
-	parts := strings.Split(s, " ")
-	if len(parts) != 2 || (len(parts) == 2 && parts[0] != "systemd") {
-		return 0, fmt.Errorf("cannot parse systemd version: %s", s)
-	}
-
-	verstr := strings.TrimSuffix(parts[1], "\n")
 	ver, err := strconv.Atoi(verstr)
 	if err != nil {
 		return 0, fmt.Errorf("cannot convert systemd version to number: %s", verstr)

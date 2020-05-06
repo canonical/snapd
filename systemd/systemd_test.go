@@ -400,21 +400,37 @@ func (s *SystemdTestSuite) TestAvailable(c *C) {
 func (s *SystemdTestSuite) TestVersion(c *C) {
 	s.outs = [][]byte{
 		[]byte("systemd 223\n+PAM\n"),
-		// for two error cases
+		[]byte("systemd 245 (245.4-4ubuntu3)\n+PAM +AUDIT +SELINUX +IMA\n"),
+		// error cases
 		[]byte("foo 223\n+PAM\n"),
-		[]byte("systemd\n+PAM\n"),
+		[]byte(""),
+		[]byte("systemd abc\n+PAM\n"),
 	}
 
 	v, err := Version()
 	c.Assert(err, IsNil)
-	c.Check(s.argses, DeepEquals, [][]string{{"--version"}})
 	c.Check(v, Equals, 223)
 
-	_, err = Version()
-	c.Assert(err, ErrorMatches, `cannot parse systemd version: foo 223\n`)
+	v, err = Version()
+	c.Assert(err, IsNil)
+	c.Check(v, Equals, 245)
 
 	_, err = Version()
-	c.Assert(err, ErrorMatches, `cannot parse systemd version: systemd\n`)
+	c.Assert(err, ErrorMatches, `cannot parse systemd version: expected "systemd", got "foo"`)
+
+	_, err = Version()
+	c.Assert(err, ErrorMatches, `cannot read systemd version: <nil>`)
+
+	_, err = Version()
+	c.Assert(err, ErrorMatches, `cannot convert systemd version to number: abc`)
+
+	c.Check(s.argses, DeepEquals, [][]string{
+		{"--version"},
+		{"--version"},
+		{"--version"},
+		{"--version"},
+		{"--version"},
+	})
 }
 
 func (s *SystemdTestSuite) TestEnable(c *C) {
