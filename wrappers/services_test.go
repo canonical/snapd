@@ -20,6 +20,7 @@
 package wrappers_test
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -42,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 	"github.com/snapcore/snapd/usersession/agent"
+	"github.com/snapcore/snapd/usersession/client"
 	"github.com/snapcore/snapd/wrappers"
 )
 
@@ -84,7 +86,14 @@ func (s *servicesTestSuite) TearDownTest(c *C) {
 	s.systemctlRestorer()
 	s.delaysRestorer()
 	if s.agent != nil {
-		err := s.agent.Stop()
+		// Try sending a message to the session agent before
+		// shutting it down to see if that helps with the hang
+		// in gracefully shutting down the agent.
+		cli := client.New()
+		_, err := cli.SessionInfo(context.Background())
+		c.Check(err, IsNil)
+
+		err = s.agent.Stop()
 		c.Check(err, IsNil)
 	}
 }
@@ -852,7 +861,6 @@ func (s *servicesTestSuite) TestAddSnapMultiUserServicesFailEnableCleanup(c *C) 
 	c.Check(svcFiles, HasLen, 0)
 
 	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
-		fmt.Println(cmd)
 		sysdLog = append(sysdLog, cmd)
 		if len(cmd) >= 1 && cmd[0] == "--user" {
 			cmd = cmd[1:]
