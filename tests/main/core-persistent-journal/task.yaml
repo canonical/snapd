@@ -33,7 +33,7 @@ execute: |
     # on core16 journald is not reloaded, so changes are not visible until
     # rebooted.
     if [[ "$SPREAD_SYSTEM" = ubuntu-core-16-* ]]; then
-        snap warnings --all | MATCH "manual restart required for journal.persistent change to take effect"
+        snap warnings --all | MATCH "system restart required for journal.persistent change to take effect"
         snap okay
     else
         # this check relies on *anything* getting logged; enabling persistent
@@ -47,7 +47,7 @@ execute: |
     not test -e /var/log/journal
 
     if [[ "$SPREAD_SYSTEM" = ubuntu-core-16-* ]]; then
-        snap warnings --all | MATCH "manual restart required for journal.persistent change to take effect"
+        snap warnings --all | MATCH "system restart required for journal.persistent change to take effect"
         snap okay
     fi
 

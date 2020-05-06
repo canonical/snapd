@@ -137,7 +137,7 @@ func (s *journalSuite) TestConfigurePersistentJournalOldSystemd(c *C) {
 	defer st.Unlock()
 	warnings := cfg.State().AllWarnings()
 	c.Assert(warnings, HasLen, 1)
-	c.Check(warnings[0].String(), Equals, "manual restart required for journal.persistent change to take effect")
+	c.Check(warnings[0].String(), Equals, "system restart required for journal.persistent change to take effect")
 }
 
 func (s *journalSuite) TestConfigurePersistentJournalOnCoreNoopIfExists(c *C) {

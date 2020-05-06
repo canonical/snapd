@@ -120,7 +120,7 @@ func handleJournalConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error
 				st := cfg.State()
 				st.Lock()
 				defer st.Unlock()
-				st.Warnf("manual restart required for journal.persistent change to take effect")
+				st.Warnf("system restart required for journal.persistent change to take effect")
 			}
 		}
 	}
