@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -72,17 +72,13 @@ var (
 )
 
 var (
-	osutilIsMounted = osutil.IsMounted
-)
-
-var (
 	// for mocking by tests
 	devDiskByLabelDir = "/dev/disk/by-label"
 )
 
 // generateMountsMode* is called multiple times from initramfs until it
 // no longer generates more mount points and just returns an empty output.
-func generateMountsModeInstall(mst initramfsMountsState, recoverySystem string) error {
+func generateMountsModeInstall(mst *initramfsMountsState, recoverySystem string) error {
 	allMounted, err := generateMountsCommonInstallRecover(mst, recoverySystem)
 	if err != nil {
 		return err
@@ -167,7 +163,7 @@ func copyUbuntuDataAuth(src, dst string) error {
 	return nil
 }
 
-func generateMountsModeRecover(mst initramfsMountsState, recoverySystem string) error {
+func generateMountsModeRecover(mst *initramfsMountsState, recoverySystem string) error {
 	allMounted, err := generateMountsCommonInstallRecover(mst, recoverySystem)
 	if err != nil {
 		return err
@@ -177,7 +173,7 @@ func generateMountsModeRecover(mst initramfsMountsState, recoverySystem string) 
 	}
 
 	// n+1: mount ubuntu-data for recovery
-	isRecoverDataMounted, err := osutilIsMounted(boot.InitramfsHostUbuntuDataDir)
+	isRecoverDataMounted, err := mst.IsMounted(boot.InitramfsHostUbuntuDataDir)
 	if err != nil {
 		return err
 	}
@@ -212,9 +208,9 @@ func generateMountsModeRecover(mst initramfsMountsState, recoverySystem string) 
 	return nil
 }
 
-func generateMountsCommonInstallRecover(mst initramfsMountsState, recoverySystem string) (allMounted bool, err error) {
+func generateMountsCommonInstallRecover(mst *initramfsMountsState, recoverySystem string) (allMounted bool, err error) {
 	// 1. always ensure seed partition is mounted
-	isMounted, err := osutilIsMounted(boot.InitramfsUbuntuSeedDir)
+	isMounted, err := mst.IsMounted(boot.InitramfsUbuntuSeedDir)
 	if err != nil {
 		return false, err
 	}
@@ -238,15 +234,15 @@ func generateMountsCommonInstallRecover(mst initramfsMountsState, recoverySystem
 	}
 
 	// 2. (auto) select recovery system for now
-	isBaseMounted, err := osutilIsMounted(filepath.Join(boot.InitramfsRunMntDir, "base"))
+	isBaseMounted, err := mst.IsMounted(filepath.Join(boot.InitramfsRunMntDir, "base"))
 	if err != nil {
 		return false, err
 	}
-	isKernelMounted, err := osutilIsMounted(filepath.Join(boot.InitramfsRunMntDir, "kernel"))
+	isKernelMounted, err := mst.IsMounted(filepath.Join(boot.InitramfsRunMntDir, "kernel"))
 	if err != nil {
 		return false, err
 	}
-	isSnapdMounted, err := osutilIsMounted(filepath.Join(boot.InitramfsRunMntDir, "snapd"))
+	isSnapdMounted, err := mst.IsMounted(filepath.Join(boot.InitramfsRunMntDir, "snapd"))
 	if err != nil {
 		return false, err
 	}
@@ -282,8 +278,8 @@ func generateMountsCommonInstallRecover(mst initramfsMountsState, recoverySystem
 		}
 	}
 
-	// 3. the ephemeral data partition
-	isMounted, err = osutilIsMounted(boot.InitramfsDataDir)
+	// 3. mount "ubuntu-data" on a tmpfs
+	isMounted, err = mst.IsMounted(boot.InitramfsDataDir)
 	if err != nil {
 		return false, err
 	}
@@ -331,10 +327,10 @@ func measureWhenPossible(whatHow func(tpm *secboot.TPMConnection) error) error {
 	return whatHow(tpm)
 }
 
-func generateMountsModeRun(mst initramfsMountsState) error {
+func generateMountsModeRun(mst *initramfsMountsState) error {
 	// 1.1 always ensure basic partitions are mounted
 	for _, d := range []string{boot.InitramfsUbuntuBootDir, boot.InitramfsUbuntuSeedDir} {
-		isMounted, err := osutilIsMounted(d)
+		isMounted, err := mst.IsMounted(d)
 		if err != nil {
 			return err
 		}
@@ -363,7 +359,7 @@ func generateMountsModeRun(mst initramfsMountsState) error {
 	// one recorded in ubuntu-data modeenv during install
 
 	// 1.2 mount Data, and exit, as it needs to be mounted for us to do step 2
-	isDataMounted, err := osutilIsMounted(boot.InitramfsDataDir)
+	isDataMounted, err := mst.IsMounted(boot.InitramfsDataDir)
 	if err != nil {
 		return err
 	}
@@ -385,7 +381,7 @@ func generateMountsModeRun(mst initramfsMountsState) error {
 	}
 
 	// 2.2.1 check if base is mounted
-	isBaseMounted, err := osutilIsMounted(filepath.Join(boot.InitramfsRunMntDir, "base"))
+	isBaseMounted, err := mst.IsMounted(filepath.Join(boot.InitramfsRunMntDir, "base"))
 	if err != nil {
 		return err
 	}
@@ -428,7 +424,7 @@ func generateMountsModeRun(mst initramfsMountsState) error {
 	}
 
 	// 2.3.1 check if the kernel is mounted
-	isKernelMounted, err := osutilIsMounted(filepath.Join(boot.InitramfsRunMntDir, "kernel"))
+	isKernelMounted, err := mst.IsMounted(filepath.Join(boot.InitramfsRunMntDir, "kernel"))
 	if err != nil {
 		return err
 	}
@@ -530,7 +526,7 @@ func generateMountsModeRun(mst initramfsMountsState) error {
 	// TODO:UC20: Make RecoverySystem empty after successful first boot
 	// somewhere in devicestate
 	if modeEnv.RecoverySystem != "" {
-		isSnapdMounted, err := osutilIsMounted(filepath.Join(boot.InitramfsRunMntDir, "snapd"))
+		isSnapdMounted, err := mst.IsMounted(filepath.Join(boot.InitramfsRunMntDir, "snapd"))
 		if err != nil {
 			return err
 		}

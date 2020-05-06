@@ -1,17 +1,14 @@
 #!/bin/bash -e
 if [ $# -eq 0 ]; then
 	echo "usage: session-tool [-u USER] [-p PID_FILE] [--] <CMD>"
-	echo "usage: session-tool --prepare | --restore [-u USER]"
+	echo "usage: session-tool --prepare | --restore [-u USER | -u USER1,USER2,...]"
 	echo "usage: session-tool --kill-leaked"
 	echo "usage: session-tool --dump"
+	echo "usage: session-tool --has-systemd-and-dbus [-u USER]"
 	exit 1
 fi
 if [ "$(id -u)" -ne 0 ]; then
     echo "session-tool needs to be invoked as root" >&2
-    exit 1
-fi
-if [ -z "$(command -v busctl)" ]; then
-    echo "session-tool requires busctl" >&2
     exit 1
 fi
 user=root
@@ -45,6 +42,10 @@ while [ $# -gt 0 ]; do
 			;;
 		--dump)
 			action=dump
+			shift
+			;;
+		--has-systemd-and-dbus)
+			action=has-systemd-and-dbus
 			shift
 			;;
 		-u)
@@ -85,7 +86,7 @@ case "$action" in
 	prepare)
 		# Make /var/lib/systemd writable so that we can get linger enabled.
 		# This only applies to Ubuntu Core 16 where individual directories were
-		# writable. In Core 18 and beyod all of /var/lib/systemd is writable.
+		# writable. In Core 18 and beyond all of /var/lib/systemd is writable.
 		case "$SPREAD_SYSTEM" in
 			ubuntu-core-16-*)
 				mount tmpfs -t tmpfs /var/lib/systemd/
@@ -107,20 +108,55 @@ case "$action" in
 				echo "StateDirectory=systemd/linger"
 			) > /etc/systemd/system/systemd-logind.service.d/linger.conf
 			mkdir -p /var/lib/systemd/linger
+			test "$(command -v restorecon)" != "" && restorecon /var/lib/systemd/linger
+
 			systemctl daemon-reload
 			systemctl restart systemd-logind.service
 
 			touch /run/session-tool-systemd-issue-12401.workaround
 		fi
 
-		# Enable linger for the selected user.
-		loginctl enable-linger "$user"
+		# Enable linger for the selected user(s).
+		for u in $(echo "$user" | tr ',' ' '); do
+			loginctl enable-linger "$u"
+		done
 
 		exit 0
 		;;
 	restore)
-		# Disable linger for the selected user.
-		loginctl disable-linger "$user"
+		# Disable linger for the selected user(s).
+		for u in $(echo "$user" | tr ',' ' '); do
+			loginctl disable-linger "$u"
+			# If the user is not root, also stop their user slice and ensure
+			# their XDG_RUNTIME_DIR goes away. Currently doing this for root is
+			# impossible, because spread logs into a test system over ssh and
+			# gets a root user slice, at minimum.
+			#
+			# If spread ever changes, so that the tests are executed as system
+			# services, then there this condition could be removed.
+			if [ "$u" != root ]; then
+				uid="$(id -u "$u")"
+				# See user@.service(5) for discussion about user-UID.slice and
+				# user@UID.service and why both are used. Here we stop the
+				# slice as that encompasses both user@UID.service and any
+				# existing sessions of that user.
+				systemctl stop "user-$uid.slice"
+
+				# On Ubuntu 16.04 and Debian 9 stopping the slice above is
+				# insufficient to stop the service responsible for
+				# /run/user/UID *immediately*. This seems to be related to
+				# *absence* of user-session-dir@.service (template service)
+				# which is responsible for this operation later on (and where
+				# it works more reliably).
+				#
+				# Give the system some time to clean things up.
+				retry-tool -n 3 --wait 3 test ! -e "/run/user/$uid"
+				if [ -e "/run/user/$uid" ]; then
+					echo "session-tool: /run/user/$uid still exists" >&2
+					exit 1
+				fi
+			fi
+		done
 
 		if [ -e /run/session-tool-core16.workaround ]; then
 			rm  /run/session-tool-core16.workaround
@@ -149,7 +185,33 @@ case "$action" in
 		done
 		exit 0
 		;;
+	has-systemd-and-dbus)
+		# Older systems don't have support for modern sessions
+		# There are two known issues:
+		#  - CentOS 7 and derivatives disabled systemd --user
+		#    https://bugs.centos.org/view.php?id=8767
+		#  - Ubuntu 14.04 with deputy systemd does not connect to DBus
+		#    and systemd-shim is really responding to "systemd" requests.
+		test -n "$(command -v busctl)"         			|| ( echo "no busctl"; exit 1 )
+		if [ "$user" = "root" ]; then
+			# 		/lib										   /usr/lib									   (if present) dbus-broker.service variant
+			test -f /lib/systemd/system/default.target	|| test -f /usr/lib/systemd/system/default.target	|| ( echo "no system default.target"; exit 1 )
+			test -f /lib/systemd/system/dbus.socket  	|| test -f /usr/lib/systemd/system/dbus.socket		|| ( echo "no system dbus.socket"; exit 1 )
+			test -f /lib/systemd/system/dbus.service	|| test -f /usr/lib/systemd/system/dbus.service		|| test -f /lib/systemd/system/dbus-broker.service || ( echo "no system dbus{,-broker}.service"; exit 1 )
+		else
+			test -f /lib/systemd/user/default.target 	|| test -f /usr/lib/systemd/user/default.target		|| ( echo "no user default.target"; exit 1)
+			test -f /lib/systemd/user/dbus.socket 		|| test -f /usr/lib/systemd/user/dbus.socket 		|| ( echo "no user dbus.socket"; exit 1 )
+			test -f /lib/systemd/user/dbus.service		|| test -f /usr/lib/systemd/user/dbus.service		|| test -f /lib/systemd/user/dbus-broker.service || ( echo "no system dbus{,-broker}.service"; exit 1 )
+		fi
+		echo "ok"
+		exit 0
+		;;
 esac
+
+if [ -z "$(command -v busctl)" ]; then
+    echo "session-tool requires busctl" >&2
+    exit 1
+fi
 
 # This fixes a bug in some older Debian systems where /root/.profile contains
 # unconditional invocation of mesg, which on non-tty shells prints "mesg
@@ -242,6 +304,20 @@ cat_stderr_pid=$!
 )>"$tmp_dir/exec"
 chmod +x "$tmp_dir/exec"
 
+# We want to provide a SELinuxContext but systemd in older SELinux-using distributions
+# does not recognize this attribute. See https://github.com/systemd/systemd/blob/master/NEWS#L6402
+# The typical user context as reported by id -Z is: unconfined_u:unconfined_r:unconfined_t:s0
+selinux_context_arg=
+case $SPREAD_SYSTEM in
+	fedora-*|centos-*)
+		if [ "$(systemctl --version | head -n 1 | awk '{ print $2 }')" -gt 219 ]; then
+			selinux_context_arg="SELinuxContext s unconfined_u:unconfined_r:unconfined_t:s0"
+		fi
+		;;
+esac
+
+# NOTE: This shellcheck directive is for the $selinux_context_arg expansion below.
+# shellcheck disable=SC2086
 busctl \
 	--allow-interactive-authorization=no --quiet \
 	--system \
@@ -251,10 +327,11 @@ busctl \
 	/org/freedesktop/systemd1 \
 	 org.freedesktop.systemd1.Manager \
 	StartTransientUnit "ssa(sv)a(sa(sv))" \
-	"$unit_name" fail 4 \
+	"$unit_name" fail $(( 4 + $(test -n "$selinux_context_arg" && echo 1 || echo 0))) \
 		Description s "session-tool running $* as $user" \
 		Type s oneshot \
 		Environment as 1 TERM=xterm-256color \
+		$selinux_context_arg \
 		ExecStart "a(sasb)" 1 \
 			"$(command -v runuser)" 6 "$(command -v runuser)" -l "$user" - -c "exec $tmp_dir/exec <$tmp_dir/stdin.pipe >$tmp_dir/stdout.pipe 2>$tmp_dir/stderr.pipe" false \
 	0
