@@ -47,8 +47,14 @@ var (
 	InitramfsUbuntuSeedDir string
 
 	// InitramfsWritableDir is the location of the writable partition during the
-	// initramfs.
+	// initramfs. Note that this may refer to a temporary filesystem or a
+	// physical partition depending on what operating mode the system is in.
 	InitramfsWritableDir string
+
+	// InstallHostWritableDir is the location of the writable partition when the
+	// system is in install operating mode. This should always be on a physical
+	// partition.
+	InstallHostWritableDir string
 
 	// InitramfsEncryptionKeyDir is the location of the encrypted partition keys
 	// during the initramfs.
@@ -58,10 +64,10 @@ var (
 func setInitramfsDirVars(rootdir string) {
 	InitramfsRunMntDir = filepath.Join(rootdir, "run/mnt")
 	InitramfsDataDir = filepath.Join(InitramfsRunMntDir, "data")
-	// TODO:UC20 remove the compatibility mount once the transition period is over
 	InitramfsHostUbuntuDataDir = filepath.Join(InitramfsRunMntDir, "host", "ubuntu-data")
 	InitramfsUbuntuBootDir = filepath.Join(InitramfsRunMntDir, "ubuntu-boot")
 	InitramfsUbuntuSeedDir = filepath.Join(InitramfsRunMntDir, "ubuntu-seed")
+	InstallHostWritableDir = filepath.Join(InitramfsRunMntDir, "ubuntu-data", "system-data")
 	InitramfsWritableDir = filepath.Join(InitramfsDataDir, "system-data")
 	InitramfsEncryptionKeyDir = filepath.Join(InitramfsUbuntuSeedDir, "device/fde")
 }

@@ -385,8 +385,8 @@ version: 5.0
 	c.Assert(err, IsNil)
 
 	// ensure base/kernel got copied to /var/lib/snapd/snaps
-	c.Check(filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), "core20_3.snap"), testutil.FilePresent)
-	c.Check(filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), "pc-kernel_5.snap"), testutil.FilePresent)
+	c.Check(filepath.Join(dirs.SnapBlobDirUnder(boot.InstallHostWritableDir), "core20_3.snap"), testutil.FilePresent)
+	c.Check(filepath.Join(dirs.SnapBlobDirUnder(boot.InstallHostWritableDir), "pc-kernel_5.snap"), testutil.FilePresent)
 
 	// ensure the bootvars got updated the right way
 	mockSeedGrubenv := filepath.Join(mockSeedGrubDir, "grubenv")
@@ -411,7 +411,7 @@ version: 5.0
 	c.Check(extractedKernelSymlink, testutil.FilePresent)
 
 	// ensure modeenv looks correct
-	ubuntuDataModeEnvPath := filepath.Join(rootdir, "/run/mnt/data/system-data/var/lib/snapd/modeenv")
+	ubuntuDataModeEnvPath := filepath.Join(rootdir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/modeenv")
 	c.Check(ubuntuDataModeEnvPath, testutil.FileEquals, `mode=run
 recovery_system=20191216
 base=core20_3.snap
@@ -608,8 +608,8 @@ version: 5.0
 	c.Assert(err, IsNil)
 
 	// ensure base/kernel got copied to /var/lib/snapd/snaps
-	c.Check(filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), "core20_3.snap"), testutil.FilePresent)
-	c.Check(filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), "arm-kernel_5.snap"), testutil.FilePresent)
+	c.Check(filepath.Join(dirs.SnapBlobDirUnder(boot.InstallHostWritableDir), "core20_3.snap"), testutil.FilePresent)
+	c.Check(filepath.Join(dirs.SnapBlobDirUnder(boot.InstallHostWritableDir), "arm-kernel_5.snap"), testutil.FilePresent)
 
 	// ensure the bootvars on ubuntu-seed got updated the right way
 	mockSeedUbootenv := filepath.Join(boot.InitramfsUbuntuSeedDir, "uboot/ubuntu/boot.sel")
@@ -633,7 +633,7 @@ version: 5.0
 	}
 
 	// ensure modeenv looks correct
-	ubuntuDataModeEnvPath := filepath.Join(rootdir, "/run/mnt/data/system-data/var/lib/snapd/modeenv")
+	ubuntuDataModeEnvPath := filepath.Join(rootdir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/modeenv")
 	c.Check(ubuntuDataModeEnvPath, testutil.FileEquals, `mode=run
 recovery_system=20191216
 base=core20_3.snap
