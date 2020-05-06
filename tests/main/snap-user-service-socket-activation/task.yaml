@@ -41,3 +41,7 @@ execute: |
     USER_RUNTIME_DIR="/run/user/$(id -u test)"
     [ -S "$USER_RUNTIME_DIR"/snap.test-snapd-user-service-sockets/run.sock ]
     nc -w 30 -U "$USER_RUNTIME_DIR"/snap.test-snapd-user-service-sockets/run.sock | MATCH "Connected to runtime"
+
+debug: |
+    session-tool --dump
+    session-tool -u test systemctl --user status snapd.session-agent.service || true
