@@ -224,3 +224,9 @@ func MockPidsOfSnap(f func(instanceName string) (map[string][]int, error)) func(
 		pidsOfSnap = old
 	}
 }
+
+// autorefresh
+var (
+	InhibitRefresh = inhibitRefresh
+	MaxInhibition  = maxInhibition
+)
