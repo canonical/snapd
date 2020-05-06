@@ -4,7 +4,8 @@ if [ $# -eq 0 ]; then
 	echo "usage: session-tool --prepare | --restore [-u USER | -u USER1,USER2,...]"
 	echo "usage: session-tool --kill-leaked"
 	echo "usage: session-tool --dump"
-	echo "usage: session-tool --has-systemd-and-dbus [-u USER]"
+	echo "usage: session-tool --has-system-systemd-and-dbus"
+	echo "usage: session-tool --has-session-systemd-and-dbus"
 	exit 1
 fi
 if [ "$(id -u)" -ne 0 ]; then
@@ -44,8 +45,12 @@ while [ $# -gt 0 ]; do
 			action=dump
 			shift
 			;;
-		--has-systemd-and-dbus)
-			action=has-systemd-and-dbus
+		--has-system-systemd-and-dbus)
+			action=has-system-systemd-and-dbus
+			shift
+			;;
+		--has-session-systemd-and-dbus)
+			action=has-session-systemd-and-dbus
 			shift
 			;;
 		-u)
@@ -122,7 +127,13 @@ case "$action" in
 			# We've enabled linger, now let's explicitly start the
 			# default.target. This ensures that test code does not need to pay
 			# extra attention to synchronization.
-			session-tool -u "$u" systemctl --user start default.target
+			#
+			# Because some systems do not support systemd --user (see
+			# tests/main/session-tool-support for details), check if this is
+			# expected to work ahead of trying.
+			if session-tool --has-session-systemd-and-dbus >/dev/null; then
+				session-tool -u "$u" systemctl --user start default.target
+			fi
 		done
 
 		exit 0
@@ -189,24 +200,25 @@ case "$action" in
 		done
 		exit 0
 		;;
-	has-systemd-and-dbus)
-		# Older systems don't have support for modern sessions
-		# There are two known issues:
-		#  - CentOS 7 and derivatives disabled systemd --user
-		#    https://bugs.centos.org/view.php?id=8767
-		#  - Ubuntu 14.04 with deputy systemd does not connect to DBus
-		#    and systemd-shim is really responding to "systemd" requests.
+	has-system-systemd-and-dbus)
+		#  Ubuntu 14.04 with deputy systemd does not connect to DBus
+		#  and systemd-shim is really responding to "systemd" requests.
 		test -n "$(command -v busctl)"         			|| ( echo "no busctl"; exit 1 )
-		if [ "$user" = "root" ]; then
-			# 		/lib										   /usr/lib									   (if present) dbus-broker.service variant
-			test -f /lib/systemd/system/default.target	|| test -f /usr/lib/systemd/system/default.target	|| ( echo "no system default.target"; exit 1 )
-			test -f /lib/systemd/system/dbus.socket  	|| test -f /usr/lib/systemd/system/dbus.socket		|| ( echo "no system dbus.socket"; exit 1 )
-			test -f /lib/systemd/system/dbus.service	|| test -f /usr/lib/systemd/system/dbus.service		|| test -f /lib/systemd/system/dbus-broker.service || ( echo "no system dbus{,-broker}.service"; exit 1 )
-		else
-			test -f /lib/systemd/user/default.target 	|| test -f /usr/lib/systemd/user/default.target		|| ( echo "no user default.target"; exit 1)
-			test -f /lib/systemd/user/dbus.socket 		|| test -f /usr/lib/systemd/user/dbus.socket 		|| ( echo "no user dbus.socket"; exit 1 )
-			test -f /lib/systemd/user/dbus.service		|| test -f /usr/lib/systemd/user/dbus.service		|| test -f /lib/systemd/user/dbus-broker.service || ( echo "no system dbus{,-broker}.service"; exit 1 )
-		fi
+		# 		/lib										   /usr/lib									   (if present) dbus-broker.service variant
+		test -f /lib/systemd/system/default.target	|| test -f /usr/lib/systemd/system/default.target	|| ( echo "no system default.target"; exit 1 )
+		test -f /lib/systemd/system/dbus.socket  	|| test -f /usr/lib/systemd/system/dbus.socket		|| ( echo "no system dbus.socket"; exit 1 )
+		test -f /lib/systemd/system/dbus.service	|| test -f /usr/lib/systemd/system/dbus.service		|| test -f /lib/systemd/system/dbus-broker.service || ( echo "no system dbus{,-broker}.service"; exit 1 )
+		echo "ok"
+		exit 0
+		;;
+	has-session-systemd-and-dbus)
+		#  CentOS 7 and derivatives disabled systemd --user
+		#  https://bugs.centos.org/view.php?id=8767
+		test -n "$(command -v busctl)"         			|| ( echo "no busctl"; exit 1 )
+		# 		/lib										   /usr/lib									   (if present) dbus-broker.service variant
+		test -f /lib/systemd/user/default.target 	|| test -f /usr/lib/systemd/user/default.target		|| ( echo "no user default.target"; exit 1)
+		test -f /lib/systemd/user/dbus.socket 		|| test -f /usr/lib/systemd/user/dbus.socket 		|| ( echo "no user dbus.socket"; exit 1 )
+		test -f /lib/systemd/user/dbus.service		|| test -f /usr/lib/systemd/user/dbus.service		|| test -f /lib/systemd/user/dbus-broker.service || ( echo "no system dbus{,-broker}.service"; exit 1 )
 		echo "ok"
 		exit 0
 		;;
