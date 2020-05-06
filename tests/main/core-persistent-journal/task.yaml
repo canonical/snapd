@@ -32,7 +32,10 @@ execute: |
 
     # on core16 journald is not reloaded, so changes are not visible until
     # rebooted.
-    if [[ ! "$SPREAD_SYSTEM" = ubuntu-core-16-* ]]; then
+    if [[ "$SPREAD_SYSTEM" = ubuntu-core-16-* ]]; then
+        snap warnings --all | MATCH "manual restart required for journal.persistent change to take effect"
+        snap okay
+    else
         # this check relies on *anything* getting logged; enabling persistent
         # journal writes an entry about journal size, which should be sufficient.
         MACHINE_ID=$(cat /etc/machine-id)
@@ -42,6 +45,11 @@ execute: |
     echo "Check that persistent journal can be disabled"
     snap set core journal.persistent=false
     not test -e /var/log/journal
+
+    if [[ "$SPREAD_SYSTEM" = ubuntu-core-16-* ]]; then
+        snap warnings --all | MATCH "manual restart required for journal.persistent change to take effect"
+        snap okay
+    fi
 
     echo "Check that journal log is not removed if managed manually"
     mkdir /var/log/journal
