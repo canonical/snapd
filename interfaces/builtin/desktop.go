@@ -74,6 +74,18 @@ owner @{HOME}/.config/gtk-3.0/bookmarks r,
 /usr/share/thumbnailer/icons/**            r,
 /usr/share/themes/**                       r,
 
+# Allows read from hostfs.
+/var/lib/snapd/hostfs/usr/share/pixmaps/   r,
+/var/lib/snapd/hostfs/usr/share/pixmaps/** r,
+/var/lib/snapd/hostfs/usr/share/icons/**   r,
+/var/lib/snapd/hostfs/usr/share/fonts/     r,
+/var/lib/snapd/hostfs/usr/share/fonts/**   r,
+/var/lib/snapd/hostfs/usr/share/mime/      r,
+/var/lib/snapd/hostfs/usr/share/mime/**    r,
+/var/lib/snapd/hostfs/usr/share/gdm/       r,
+/var/lib/snapd/hostfs/usr/share/gdm/**     r,
+/var/lib/snapd/hostfs/usr/share/icons/*/index.theme rk,
+
 # The snapcraft desktop part may look for schema files in various locations, so
 # allow reading system installed schemas.
 /usr/share/glib*/schemas/{,*}              r,
@@ -86,6 +98,9 @@ owner @{HOME}/.config/user-dirs.* r,
 
 /etc/xdg/user-dirs.conf r,
 /etc/xdg/user-dirs.defaults r,
+
+# Desktop applications
+/etc/gnome/defaults.list r,
 
 # gmenu
 dbus (send)
