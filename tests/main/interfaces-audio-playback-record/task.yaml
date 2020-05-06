@@ -31,6 +31,11 @@ prepare: |
     snap install --edge test-snapd-audio-record
     echo "snap remove --purge test-snapd-audio-record" >>defer.sh
 
+    # TODO: move this to the test that is responsible for creating this data.
+    # Remove potentially large go build cache that makes the debug section more
+    # verbose.
+    rm -rf ~test/.cache/go-build
+
     # Prepare a session for the user.
     session-tool -u test --prepare
     echo "session-tool -u test --restore" >>defer.sh
@@ -49,7 +54,8 @@ prepare: |
     # with cookie file being available.
     if not session-tool -u test systemctl --user start pulseaudio.service; then
         echo "cannot start pulseaudio server"
-        session-tool -u test systemctl --user status pulseaudio.service
+        session-tool -u test systemctl --user status pulseaudio.service || true
+        session-tool -u test journalctl --user -u pulseaudio.service || true
         exit 1
     fi
 
@@ -60,6 +66,8 @@ prepare: |
 debug: |
     echo "Files present in the test user's home directory"
     test -d /home/test && find /home/test
+    echo "Files present in the test user's home directory, that are owned by root"
+    test -d /home/test && find /home/test -user root
     echo "Files present in the test user's runtime directory"
     test -d /home/user/12345 && find /run/user/12345
     echo "Processes running as the test user"
