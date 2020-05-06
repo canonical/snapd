@@ -50,7 +50,10 @@ type autoRefreshStore struct {
 	err error
 }
 
-func (r *autoRefreshStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, error) {
+func (r *autoRefreshStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
+	if assertQuery != nil {
+		panic("no assertion query support")
+	}
 	if !opts.IsAutoRefresh {
 		panic("AutoRefresh snap action did not set IsAutoRefresh flag")
 	}
@@ -67,7 +70,7 @@ func (r *autoRefreshStore) SnapAction(ctx context.Context, currentSnaps []*store
 		}
 	}
 	r.ops = append(r.ops, "list-refresh")
-	return nil, r.err
+	return nil, nil, r.err
 }
 
 type autoRefreshTestSuite struct {
@@ -648,4 +651,48 @@ func (s *autoRefreshTestSuite) TestRefreshOnMeteredConnNotMetered(c *C) {
 	s.state.Lock()
 	c.Check(err, IsNil)
 	c.Check(s.store.ops, DeepEquals, []string{"list-refresh"})
+}
+
+func (s *autoRefreshTestSuite) TestInhibitRefreshWithinInhibitWindow(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si := &snap.SideInfo{RealName: "pkg", Revision: snap.R(1)}
+	info := &snap.Info{SideInfo: *si}
+	snapst := &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+	}
+	err := snapstate.InhibitRefresh(s.state, snapst, info, func(si *snap.Info) error {
+		return &snapstate.BusySnapError{SnapName: "pkg"}
+	})
+	c.Assert(err, ErrorMatches, `snap "pkg" has running apps or hooks`)
+
+	pending, _ := s.state.PendingWarnings()
+	c.Assert(pending, HasLen, 1)
+	c.Check(pending[0].String(), Equals, `snap "pkg" is currently in use. Its refresh will be postponed for up to 7 days to wait for the snap to no longer be in use.`)
+}
+
+func (s *autoRefreshTestSuite) TestInhibitRefreshWarnsAndRefreshesWhenOverdue(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	instant := time.Now()
+	pastInstant := instant.Add(-snapstate.MaxInhibition * 2)
+
+	si := &snap.SideInfo{RealName: "pkg", Revision: snap.R(1)}
+	info := &snap.Info{SideInfo: *si}
+	snapst := &snapstate.SnapState{
+		Sequence:             []*snap.SideInfo{si},
+		Current:              si.Revision,
+		RefreshInhibitedTime: &pastInstant,
+	}
+	err := snapstate.InhibitRefresh(s.state, snapst, info, func(si *snap.Info) error {
+		return &snapstate.BusySnapError{SnapName: "pkg"}
+	})
+	c.Assert(err, IsNil)
+
+	pending, _ := s.state.PendingWarnings()
+	c.Assert(pending, HasLen, 1)
+	c.Check(pending[0].String(), Equals, `snap "pkg" has been running for the maximum allowable 7 days since its refresh was postponed. It will now be refreshed.`)
 }

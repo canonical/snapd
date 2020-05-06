@@ -24,6 +24,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"path"
@@ -50,28 +51,51 @@ type assertionSvcError struct {
 	Detail string `json:"detail"`
 }
 
-// Assertion retrivies the assertion for the given type and primary key.
+// Assertion retrieves the assertion for the given type and primary key.
 func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error) {
 	v := url.Values{}
 	v.Set("max-format", strconv.Itoa(assertType.MaxSupportedFormat()))
 	u := s.assertionsEndpointURL(path.Join(assertType.Name, path.Join(primaryKey...)), v)
 
+	var asrt asserts.Assertion
+
+	err := s.downloadAssertions(u, func(r io.Reader) error {
+		// decode assertion
+		dec := asserts.NewDecoder(r)
+		var e error
+		asrt, e = dec.Decode()
+		return e
+	}, func(svcErr *assertionSvcError) error {
+		if svcErr.Status == 404 {
+			// best-effort
+			headers, _ := asserts.HeadersFromPrimaryKey(assertType, primaryKey)
+			return &asserts.NotFoundError{
+				Type:    assertType,
+				Headers: headers,
+			}
+		}
+		// default error
+		return nil
+	}, "fetch assertion", user)
+	if err != nil {
+		return nil, err
+	}
+	return asrt, nil
+}
+
+func (s *Store) downloadAssertions(u *url.URL, decodeBody func(io.Reader) error, handleSvcErr func(*assertionSvcError) error, what string, user *auth.UserState) error {
 	reqOptions := &requestOptions{
 		Method: "GET",
 		URL:    u,
 		Accept: asserts.MediaType,
 	}
 
-	var asrt asserts.Assertion
-
 	resp, err := httputil.RetryRequest(reqOptions.URL.String(), func() (*http.Response, error) {
 		return s.doRequest(context.TODO(), s.client, reqOptions, user)
 	}, func(resp *http.Response) error {
 		var e error
 		if resp.StatusCode == 200 {
-			// decode assertion
-			dec := asserts.NewDecoder(resp.Body)
-			asrt, e = dec.Decode()
+			e = decodeBody(resp.Body)
 		} else {
 			contentType := resp.Header.Get("Content-Type")
 			if contentType == jsonContentType || contentType == "application/problem+json" {
@@ -80,12 +104,9 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 				if e = dec.Decode(&svcErr); e != nil {
 					return fmt.Errorf("cannot decode assertion service error with HTTP status code %d: %v", resp.StatusCode, e)
 				}
-				if svcErr.Status == 404 {
-					// best-effort
-					headers, _ := asserts.HeadersFromPrimaryKey(assertType, primaryKey)
-					return &asserts.NotFoundError{
-						Type:    assertType,
-						Headers: headers,
+				if handleSvcErr != nil {
+					if e := handleSvcErr(&svcErr); e != nil {
+						return e
 					}
 				}
 				return fmt.Errorf("assertion service error: [%s] %q", svcErr.Title, svcErr.Detail)
@@ -95,12 +116,34 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 	}, defaultRetryStrategy)
 
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	if resp.StatusCode != 200 {
-		return nil, respToError(resp, "fetch assertion")
+		return respToError(resp, what)
 	}
 
-	return asrt, err
+	return nil
+}
+
+// DownloadAssertions download the assertion streams at the given URLs
+// and adds their assertions to the given asserts.Batch.
+func (s *Store) DownloadAssertions(streamURLs []string, b *asserts.Batch, user *auth.UserState) error {
+	for _, ustr := range streamURLs {
+		u, err := url.Parse(ustr)
+		if err != nil {
+			return fmt.Errorf("invalid assertions stream URL: %v", err)
+		}
+
+		err = s.downloadAssertions(u, func(r io.Reader) error {
+			// decode stream
+			_, e := b.AddStream(r)
+			return e
+		}, nil, "download assertion stream", user)
+		if err != nil {
+			return err
+		}
+
+	}
+	return nil
 }
