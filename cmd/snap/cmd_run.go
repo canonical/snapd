@@ -112,6 +112,26 @@ and environment.
 		}, nil)
 }
 
+// isStopping returns true if the system is shutting down.
+func isStopping() (bool, error) {
+	// Make sure, just in case, that systemd doesn't localize the output string.
+	env, err := osutil.OSEnvironment()
+	if err != nil {
+		return false, err
+	}
+	env["LC_MESSAGES"] = "C"
+	// Check if systemd is stopping (shutting down or rebooting).
+	cmd := exec.Command("systemctl", "is-system-running")
+	cmd.Env = env.ForExec()
+	stdout, err := cmd.Output()
+	// systemctl is-system-running returns non-zero for outcomes other than "running"
+	// As such, ignore any ExitError and just process the stdout buffer.
+	if _, ok := err.(*exec.ExitError); ok {
+		return string(stdout) == "stopping\n", nil
+	}
+	return false, err
+}
+
 func maybeWaitForSecurityProfileRegeneration(cli *client.Client) error {
 	// check if the security profiles key has changed, if so, we need
 	// to wait for snapd to re-generate all profiles
@@ -123,6 +143,18 @@ func maybeWaitForSecurityProfileRegeneration(cli *client.Client) error {
 	// reach snapd before continuing
 	if err != nil {
 		logger.Debugf("SystemKeyMismatch returned an error: %v", err)
+	}
+
+	// We have a mismatch but maybe it is only because systemd is shutting down
+	// and core or snapd were already unmounted and we failed to re-execute.
+	// For context see: https://bugs.launchpad.net/snapd/+bug/1871652
+	stopping, err := isStopping()
+	if err != nil {
+		logger.Debugf("cannot check if system is stopping: %s", err)
+	}
+	if stopping {
+		logger.Debugf("ignoring system key mismatch during system shutdown/reboot")
+		return nil
 	}
 
 	// We have a mismatch, try to connect to snapd, once we can
@@ -144,6 +176,8 @@ func maybeWaitForSecurityProfileRegeneration(cli *client.Client) error {
 			timeout = i
 		}
 	}
+
+	logger.Debugf("system key mismatch detected, waiting for snapd to start responding...")
 
 	for i := 0; i < timeout; i++ {
 		if _, err := cli.SysInfo(); err == nil {

@@ -40,7 +40,10 @@ type recordingStore struct {
 	ops []string
 }
 
-func (r *recordingStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, error) {
+func (r *recordingStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
+	if assertQuery != nil {
+		panic("no assertion query support")
+	}
 	if ctx == nil || !auth.IsEnsureContext(ctx) {
 		panic("Ensure marked context required")
 	}
@@ -53,7 +56,7 @@ func (r *recordingStore) SnapAction(ctx context.Context, currentSnaps []*store.C
 		}
 	}
 	r.ops = append(r.ops, "list-refresh")
-	return nil, nil
+	return nil, nil, nil
 }
 
 type refreshHintsTestSuite struct {

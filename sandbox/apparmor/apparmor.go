@@ -30,6 +30,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -49,6 +51,31 @@ const (
 	Partial
 	// Full indicates that all features are supported.
 	Full
+)
+
+func setupConfCacheDirs(newrootdir string) {
+	ConfDir = filepath.Join(newrootdir, "/etc/apparmor.d")
+	CacheDir = filepath.Join(newrootdir, "/var/cache/apparmor")
+
+	SystemCacheDir = filepath.Join(ConfDir, "cache")
+	exists, isDir, _ := osutil.DirExists(SystemCacheDir)
+	if !exists || !isDir {
+		// some systems use a single cache dir instead of splitting
+		// out the system cache
+		// TODO: it seems Solus has a different setup too, investigate this
+		SystemCacheDir = CacheDir
+	}
+}
+
+func init() {
+	dirs.AddRootDirCallback(setupConfCacheDirs)
+	setupConfCacheDirs(dirs.GlobalRootDir)
+}
+
+var (
+	ConfDir        string
+	CacheDir       string
+	SystemCacheDir string
 )
 
 func (level LevelType) String() string {

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2018 Canonical Ltd
+ * Copyright (C) 2014-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -121,6 +121,8 @@ type apiBaseSuite struct {
 	userInfoExpectedEmail  string
 
 	restoreSanitize func()
+
+	testutil.BaseTest
 }
 
 func (s *apiBaseSuite) pokeStateLock() {
@@ -151,8 +153,11 @@ func (s *apiBaseSuite) Find(ctx context.Context, search *store.Search, user *aut
 	return s.rsnaps, s.err
 }
 
-func (s *apiBaseSuite) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, error) {
+func (s *apiBaseSuite) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
 	s.pokeStateLock()
+	if assertQuery != nil {
+		panic("no assertion query support")
+	}
 
 	if ctx == nil {
 		panic("context required")
@@ -165,7 +170,7 @@ func (s *apiBaseSuite) SnapAction(ctx context.Context, currentSnaps []*store.Cur
 	for i, rsnap := range s.rsnaps {
 		sars[i] = store.SnapActionResult{Info: rsnap}
 	}
-	return sars, s.err
+	return sars, nil, s.err
 }
 
 func (s *apiBaseSuite) SuggestedCurrency() string {
@@ -281,6 +286,9 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 
 	dirs.SetRootDir(c.MkDir())
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
+	restore := osutil.MockMountInfo("")
+	s.AddCleanup(restore)
+
 	c.Assert(err, check.IsNil)
 	c.Assert(os.MkdirAll(dirs.SnapMountDir, 0755), check.IsNil)
 	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0755), check.IsNil)

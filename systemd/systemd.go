@@ -163,21 +163,43 @@ func MockJournalctl(f func(svcs []string, n int, follow bool) (io.ReadCloser, er
 
 // Systemd exposes a minimal interface to manage systemd via the systemctl command.
 type Systemd interface {
+	// DaemonReload reloads systemd's configuration.
 	DaemonReload() error
+	// DaemonRexec reexecutes systemd's system manager, should be
+	// only necessary to apply manager's configuration like
+	// watchdog.
+	DaemonReexec() error
+	// Enable the given service.
 	Enable(service string) error
+	// Disable the given service.
 	Disable(service string) error
+	// Start the given service or services.
 	Start(service ...string) error
+	// StartNoBlock starts the given service or services non-blocking.
 	StartNoBlock(service ...string) error
+	// Stop the given service, and wait until it has stopped.
 	Stop(service string, timeout time.Duration) error
+	// Kill all processes of the unit with the given signal.
 	Kill(service, signal, who string) error
+	// Restart the service, waiting for it to stop before starting it again.
 	Restart(service string, timeout time.Duration) error
+	// Status fetches the status of given units. Statuses are
+	// returned in the same order as unit names passed in
+	// argument.
 	Status(units ...string) ([]*UnitStatus, error)
+	// IsEnabled checks whether the given service is enabled.
 	IsEnabled(service string) (bool, error)
+	// IsActive checks whether the given service is Active
 	IsActive(service string) (bool, error)
+	// LogReader returns a reader for the given services' log.
 	LogReader(services []string, n int, follow bool) (io.ReadCloser, error)
+	// AddMountUnitFile adds/enables/starts a mount unit.
 	AddMountUnitFile(name, revision, what, where, fstype string) (string, error)
+	// RemoveMountUnitFile unmounts/stops/disables/removes a mount unit.
 	RemoveMountUnitFile(baseDir string) error
+	// Mask the given service.
 	Mask(service string) error
+	// Unmask the given service.
 	Unmask(service string) error
 }
 
@@ -256,7 +278,6 @@ func (s *systemd) systemctl(args ...string) ([]byte, error) {
 	return systemctlCmd(args...)
 }
 
-// DaemonReload reloads systemd's configuration.
 func (s *systemd) DaemonReload() error {
 	if s.mode == GlobalUserMode {
 		panic("cannot call daemon-reload with GlobalUserMode")
@@ -274,31 +295,37 @@ func (s *systemd) daemonReloadNoLock() error {
 	return err
 }
 
-// Enable the given service
+func (s *systemd) DaemonReexec() error {
+	if s.mode == GlobalUserMode {
+		panic("cannot call daemon-reexec with GlobalUserMode")
+	}
+	daemonReloadLock.Lock()
+	defer daemonReloadLock.Unlock()
+
+	_, err := s.systemctl("daemon-reexec")
+	return err
+}
+
 func (s *systemd) Enable(serviceName string) error {
 	_, err := s.systemctl("--root", s.rootDir, "enable", serviceName)
 	return err
 }
 
-// Unmask the given service
 func (s *systemd) Unmask(serviceName string) error {
 	_, err := s.systemctl("--root", s.rootDir, "unmask", serviceName)
 	return err
 }
 
-// Disable the given service
 func (s *systemd) Disable(serviceName string) error {
 	_, err := s.systemctl("--root", s.rootDir, "disable", serviceName)
 	return err
 }
 
-// Mask the given service
 func (s *systemd) Mask(serviceName string) error {
 	_, err := s.systemctl("--root", s.rootDir, "mask", serviceName)
 	return err
 }
 
-// Start the given service or services
 func (s *systemd) Start(serviceNames ...string) error {
 	if s.mode == GlobalUserMode {
 		panic("cannot call start with GlobalUserMode")
@@ -307,7 +334,6 @@ func (s *systemd) Start(serviceNames ...string) error {
 	return err
 }
 
-// StartNoBlock starts the given service or services non-blocking
 func (s *systemd) StartNoBlock(serviceNames ...string) error {
 	if s.mode == GlobalUserMode {
 		panic("cannot call start with GlobalUserMode")
@@ -316,7 +342,6 @@ func (s *systemd) StartNoBlock(serviceNames ...string) error {
 	return err
 }
 
-// LogReader for the given services
 func (*systemd) LogReader(serviceNames []string, n int, follow bool) (io.ReadCloser, error) {
 	return jctl(serviceNames, n, follow)
 }
@@ -423,8 +448,6 @@ func (s *systemd) getUnitStatus(properties []string, unitNames []string) ([]*Uni
 	return sts, nil
 }
 
-// Status fetches the status of given units. Statuses are returned in the same
-// order as unit names passed in argument.
 func (s *systemd) Status(unitNames ...string) ([]*UnitStatus, error) {
 	if s.mode == GlobalUserMode {
 		panic("cannot call status with GlobalUserMode")
@@ -474,7 +497,6 @@ func (s *systemd) Status(unitNames ...string) ([]*UnitStatus, error) {
 	return sts, nil
 }
 
-// IsEnabled checkes whether the given service is enabled
 func (s *systemd) IsEnabled(serviceName string) (bool, error) {
 	if s.mode == GlobalUserMode {
 		panic("cannot call is-enabled with GlobalUserMode")
@@ -492,7 +514,6 @@ func (s *systemd) IsEnabled(serviceName string) (bool, error) {
 	return false, err
 }
 
-// IsActive checkes whether the given service is Active
 func (s *systemd) IsActive(serviceName string) (bool, error) {
 	if s.mode == GlobalUserMode {
 		panic("cannot call is-active with GlobalUserMode")
@@ -515,7 +536,6 @@ func (s *systemd) IsActive(serviceName string) (bool, error) {
 	return false, err
 }
 
-// Stop the given service, and wait until it has stopped.
 func (s *systemd) Stop(serviceName string, timeout time.Duration) error {
 	if s.mode == GlobalUserMode {
 		panic("cannot call stop with GlobalUserMode")
@@ -558,7 +578,6 @@ loop:
 	return &Timeout{action: "stop", service: serviceName}
 }
 
-// Kill all processes of the unit with the given signal
 func (s *systemd) Kill(serviceName, signal, who string) error {
 	if s.mode == GlobalUserMode {
 		panic("cannot call kill with GlobalUserMode")
@@ -570,7 +589,6 @@ func (s *systemd) Kill(serviceName, signal, who string) error {
 	return err
 }
 
-// Restart the service, waiting for it to stop before starting it again.
 func (s *systemd) Restart(serviceName string, timeout time.Duration) error {
 	if s.mode == GlobalUserMode {
 		panic("cannot call restart with GlobalUserMode")
@@ -721,7 +739,6 @@ WantedBy=multi-user.target
 	return mountUnitName, actualFsType, options, err
 }
 
-// AddMountUnitFile adds/enables/starts a mount unit.
 func (s *systemd) AddMountUnitFile(snapName, revision, what, where, fstype string) (string, error) {
 	daemonReloadLock.Lock()
 	defer daemonReloadLock.Unlock()

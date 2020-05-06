@@ -34,6 +34,10 @@ var (
 	// initramfs.
 	InitramfsUbuntuDataDir string
 
+	// InitramfsHostUbuntuDataDir is the location of the host ubuntu-data
+	// during the initramfs, typically used in recover mode.
+	InitramfsHostUbuntuDataDir string
+
 	// InitramfsUbuntuBootDir is the location of ubuntu-boot during the
 	// initramfs.
 	InitramfsUbuntuBootDir string
@@ -45,14 +49,20 @@ var (
 	// InitramfsWritableDir is the location of the writable partition during the
 	// initramfs.
 	InitramfsWritableDir string
+
+	// InitramfsWritableDir is the location of the encrypted partition keys
+	// during the initramfs.
+	InitramfsEncryptionKeyDir string
 )
 
 func setInitramfsDirVars(rootdir string) {
 	InitramfsRunMntDir = filepath.Join(rootdir, "run/mnt")
 	InitramfsUbuntuDataDir = filepath.Join(InitramfsRunMntDir, "ubuntu-data")
+	InitramfsHostUbuntuDataDir = filepath.Join(InitramfsRunMntDir, "host", "ubuntu-data")
 	InitramfsUbuntuBootDir = filepath.Join(InitramfsRunMntDir, "ubuntu-boot")
 	InitramfsUbuntuSeedDir = filepath.Join(InitramfsRunMntDir, "ubuntu-seed")
 	InitramfsWritableDir = filepath.Join(InitramfsUbuntuDataDir, "system-data")
+	InitramfsEncryptionKeyDir = filepath.Join(InitramfsUbuntuSeedDir, "device/fde")
 }
 
 func init() {

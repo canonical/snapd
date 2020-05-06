@@ -389,14 +389,17 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 	return nil, store.ErrNoUpdateAvailable
 }
 
-func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, error) {
+func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
 	if ctx == nil {
 		panic("context required")
 	}
 	f.pokeStateLock()
+	if assertQuery != nil {
+		panic("no assertion query support")
+	}
 
 	if len(currentSnaps) == 0 && len(actions) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 	if len(actions) > 4 {
 		panic("fake SnapAction unexpectedly called with more than 3 actions")
@@ -406,7 +409,7 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 	curSnaps := make(byName, len(currentSnaps))
 	for i, cur := range currentSnaps {
 		if cur.InstanceName == "" || cur.SnapID == "" || cur.Revision.Unset() {
-			return nil, fmt.Errorf("internal error: incomplete current snap info")
+			return nil, nil, fmt.Errorf("internal error: incomplete current snap info")
 		}
 		curByInstanceName[cur.InstanceName] = cur
 		curSnaps[i] = *cur
@@ -446,7 +449,7 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 			panic("not supported")
 		}
 		if a.InstanceName == "" {
-			return nil, fmt.Errorf("internal error: action without instance name")
+			return nil, nil, fmt.Errorf("internal error: action without instance name")
 		}
 
 		snapName, instanceKey := snap.SplitInstanceName(a.InstanceName)
@@ -485,7 +488,7 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 
 		cur := curByInstanceName[a.InstanceName]
 		if cur == nil {
-			return nil, fmt.Errorf("internal error: no matching current snap for %q", a.InstanceName)
+			return nil, nil, fmt.Errorf("internal error: no matching current snap for %q", a.InstanceName)
 		}
 		channel := a.Channel
 		if channel == "" {
@@ -523,7 +526,7 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 			continue
 		}
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if !a.Revision.Unset() {
 			info.Channel = ""
@@ -539,14 +542,14 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 		if len(installErrors) == 0 {
 			installErrors = nil
 		}
-		return res, &store.SnapActionError{
+		return res, nil, &store.SnapActionError{
 			NoResults: len(refreshErrors)+len(installErrors)+len(res) == 0,
 			Refresh:   refreshErrors,
 			Install:   installErrors,
 		}
 	}
 
-	return res, nil
+	return res, nil, nil
 }
 
 func (f *fakeStore) SuggestedCurrency() string {
