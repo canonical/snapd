@@ -55,7 +55,7 @@ execute: |
     echo "Run the snap-bootstrap tool"
     /usr/lib/snapd/snap-bootstrap create-partitions --mount \
         --encrypt --key-file keyfile \
-        --recovery-key-file /run/mnt/ubuntu-data/system-data/recovery-key \
+        --recovery-key-file /run/mnt/data/system-data/recovery-key \
         ./gadget-dir "$LOOP"
 
     echo "Check that the key file was created"
@@ -87,7 +87,7 @@ execute: |
     ls /run/mnt/ubuntu-boot/EFI/ubuntu/grub.cfg
 
     umount /run/mnt/ubuntu-boot
-    umount /run/mnt/ubuntu-data
+    umount /run/mnt/data
     cryptsetup close /dev/mapper/ubuntu-data
 
     echo "Ensure that we can open the encrypted device using the key"
