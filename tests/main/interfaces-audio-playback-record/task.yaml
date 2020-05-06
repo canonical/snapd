@@ -28,7 +28,7 @@ prepare: |
         echo "systemctl --user --global disable pulseaudio.service" >>defer.sh
     fi
 
-    # Install a snap that uses the pulseaudio interface.
+    # Install a snap that uses the audio-playback/audio-record interfaces.
     snap install --edge test-snapd-audio-record
     echo "snap remove --purge test-snapd-audio-record" >>defer.sh
 
