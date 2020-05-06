@@ -50,7 +50,7 @@ var (
 	// initramfs.
 	InitramfsWritableDir string
 
-	// InitramfsWritableDir is the location of the encrypted partition keys
+	// InitramfsEncryptionKeyDir is the location of the encrypted partition keys
 	// during the initramfs.
 	InitramfsEncryptionKeyDir string
 )
