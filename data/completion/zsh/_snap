@@ -1,0 +1,59 @@
+#compdef snap
+#
+#  Copyright (C) 2020 Canonical Ltd
+#
+#  This program is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License version 3 as
+#  published by the Free Software Foundation.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+# group --style options and arguments separately, so that users can customize
+# the presentation of available completion matches
+_description options optexpl option
+_description arguments argexpl argument
+
+if [[ ${#words[@]} -ge 2 ]]; then
+    # keep track of the command for later reference
+    local command="${words[2]}"
+fi
+
+# get completion options with what we have so far
+local matches=($(GO_FLAGS_COMPLETION=1 "${words[@]}"))
+
+local match
+# we don't have a command yet, try to complete one first
+if [[ "$command" == "" ]]; then
+    for match in $matches; do compadd $optexpl[@] "$match"; done
+    return 0
+fi
+
+for match in $matches; do
+    case "$match" in
+        -*) compadd $optexpl[@] -- $match ;;
+        *) compadd $argexpl[@] $match ;;
+    esac
+done
+
+# some commands take files/directories too
+case "$command" in
+    install)
+        # include *.snap files
+        _path_files -g "*.snap"
+        ;;
+    try)
+        # limit matches to directories
+        # TODO: only match directories with meta/snap.yaml inside
+        _path_files -/
+        ;;
+    ack)
+        # there are no rules about assertion file names
+        _files
+        ;;
+esac

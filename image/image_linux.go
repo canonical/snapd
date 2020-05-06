@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2019 Canonical Ltd
+ * Copyright (C) 2014-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -45,23 +45,6 @@ var (
 	Stdout io.Writer = os.Stdout
 	Stderr io.Writer = os.Stderr
 )
-
-type Options struct {
-	ModelFile string
-	Classic   bool
-
-	Channel string
-
-	// TODO: use OptionsSnap directly here?
-	Snaps        []string
-	SnapChannels map[string]string
-
-	PrepareDir string
-
-	// Architecture to use if none is specified by the model,
-	// useful only for classic mode. If set must match the model otherwise.
-	Architecture string
-}
 
 // classicHasSnaps returns whether the model or options specify any snaps for the classic case
 func classicHasSnaps(model *asserts.Model, opts *Options) bool {
@@ -317,8 +300,11 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 				TargetPathFunc: targetPathFunc,
 				Channel:        sn.Channel,
 			}
-			fn, info, err := tsto.DownloadSnap(sn.SnapName(), dlOpts) // TODO|XXX make this take the SnapRef really
+			fn, info, redirectChannel, err := tsto.DownloadSnap(sn.SnapName(), dlOpts) // TODO|XXX make this take the SnapRef really
 			if err != nil {
+				return err
+			}
+			if err := w.SetRedirectChannel(sn, redirectChannel); err != nil {
 				return err
 			}
 
