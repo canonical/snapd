@@ -87,7 +87,7 @@ func generateMountsModeInstall(mst *initramfsMountsState, recoverySystem string)
 		return nil
 	}
 
-	// n+1: final step: write $(ubuntu_data)/var/lib/snapd/modeenv - this
+	// n+1: final step: write $(tmpfs-data)/var/lib/snapd/modeenv - this
 	//      is the tmpfs we just created above
 	modeEnv := &boot.Modeenv{
 		Mode:           "install",
@@ -189,7 +189,7 @@ func generateMountsModeRecover(mst *initramfsMountsState, recoverySystem string)
 		return err
 	}
 
-	// n+2: final step: write $(ubuntu_data)/var/lib/snapd/modeenv - this
+	// n+2: final step: write $(tmpfs-data)/var/lib/snapd/modeenv - this
 	//      is the tmpfs we just created above
 	modeEnv := &boot.Modeenv{
 		Mode:           "recover",
