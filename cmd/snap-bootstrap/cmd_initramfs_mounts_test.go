@@ -226,7 +226,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep2(c *C) {
 %[1]s/snaps/pc-kernel_1.snap %[2]s/kernel
 %[1]s/snaps/core20_1.snap %[2]s/base
 --type=tmpfs tmpfs %[2]s/data
---options=rbind %[2]s/data %[2]s/ubuntu-data
 `, s.seedDir, boot.InitramfsRunMntDir))
 }
 
@@ -341,7 +340,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1Data(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 3)
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`/dev/disk/by-label/ubuntu-data %[1]s/data
---options=rbind %[1]s/data %[1]s/ubuntu-data
 `, boot.InitramfsRunMntDir))
 }
 
@@ -433,7 +431,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1EncryptedData(c *C
 	c.Assert(err, IsNil)
 	c.Check(n, Equals, 3)
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data %[2]s/data
---options=rbind %[2]s/data %[2]s/ubuntu-data
 `, devDiskByLabel, boot.InitramfsRunMntDir))
 	c.Check(activated, Equals, true)
 	c.Check(sealedKeysLocked, Equals, true)
@@ -1555,7 +1552,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep2(c *C) {
 %[1]s/snaps/pc-kernel_1.snap %[2]s/kernel
 %[1]s/snaps/core20_1.snap %[2]s/base
 --type=tmpfs tmpfs %[2]s/data
---options=rbind %[2]s/data %[2]s/ubuntu-data
 `, s.seedDir, boot.InitramfsRunMntDir))
 }
 
@@ -1760,7 +1756,6 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallRecoverModeStep1Measure
 %[1]s/snaps/pc-kernel_1.snap %[2]s/kernel
 %[1]s/snaps/core20_1.snap %[2]s/base
 --type=tmpfs tmpfs %[2]s/data
---options=rbind %[2]s/data %[2]s/ubuntu-data
 `, s.seedDir, boot.InitramfsRunMntDir))
 	c.Check(epochPCR, Equals, 12)
 	c.Check(modelPCR, Equals, 12)
