@@ -1,7 +1,7 @@
 name: test-snapd-desktop
 version: 1.0
 summary: Basic desktop interface test snap
-description: A basic snap to access dektop interface
+description: A basic snap to access desktop interface
 
 apps:
     check-files:
