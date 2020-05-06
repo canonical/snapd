@@ -27,43 +27,30 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/timings"
 )
 
+var (
+	osutilIsMounted = osutil.IsMounted
+)
+
 // initramfsMountsState helps tracking the state and progress
 // of the mounting driving process.
-type initramfsMountsState interface {
-	// Model returns the verified model from the seed (only for
-	// modes other than run).
-	Model() (*asserts.Model, error)
-
-	// RecoverySystemEssentialSnaps returns the verified essential
-	// snaps from the recoverySystem. If recoverySystem is "" the
-	// implied one will be used (only for modes other than run).
-	RecoverySystemEssentialSnaps(recoverySystem string, essentialTypes []snap.Type) ([]*seed.Snap, error)
-
-	// UnverifiedBootModel returns the unverified model from the
-	// boot partition for run mode. The current and only use case
-	// is measuring the model for run mode. Otherwise no decisions
-	// should be based on an unverified model. Note that the model
-	// is verified at the time the key auth policy is computed.
-	UnverifiedBootModel() (*asserts.Model, error)
-}
-
-var newInitramfsMountsState = func(mode, recoverySystem string) initramfsMountsState {
-	return &initramfsMountsStateImpl{
-		mode:           mode,
-		recoverySystem: recoverySystem,
-	}
-}
-
-type initramfsMountsStateImpl struct {
+type initramfsMountsState struct {
 	mode           string
 	recoverySystem string
 
 	seed seed.EssentialMetaLoaderSeed
+}
+
+func newInitramfsMountsState(mode, recoverySystem string) *initramfsMountsState {
+	return &initramfsMountsState{
+		mode:           mode,
+		recoverySystem: recoverySystem,
+	}
 }
 
 var errRunModeNoImpliedRecoverySystem = errors.New("internal error: no implied recovery system in run mode")
@@ -71,7 +58,7 @@ var errRunModeNoImpliedRecoverySystem = errors.New("internal error: no implied r
 // loadSeed opens the seed and reads its assertions; it does not
 // re-open or re-read the seed when called multiple times.
 // The opened seed is available is mst.seed
-func (mst *initramfsMountsStateImpl) loadSeed(recoverySystem string) error {
+func (mst *initramfsMountsState) loadSeed(recoverySystem string) error {
 	if mst.seed != nil {
 		return nil
 	}
@@ -102,7 +89,9 @@ func (mst *initramfsMountsStateImpl) loadSeed(recoverySystem string) error {
 	return nil
 }
 
-func (mst *initramfsMountsStateImpl) Model() (*asserts.Model, error) {
+// Model returns the verified model from the seed (only for
+// modes other than run).
+func (mst *initramfsMountsState) Model() (*asserts.Model, error) {
 	if mst.mode == "run" {
 		return nil, errRunModeNoImpliedRecoverySystem
 	}
@@ -113,7 +102,10 @@ func (mst *initramfsMountsStateImpl) Model() (*asserts.Model, error) {
 	return mod, nil
 }
 
-func (mst *initramfsMountsStateImpl) RecoverySystemEssentialSnaps(recoverySystem string, essentialTypes []snap.Type) ([]*seed.Snap, error) {
+// RecoverySystemEssentialSnaps returns the verified essential
+// snaps from the recoverySystem. If recoverySystem is "" the
+// implied one will be used (only for modes other than run).
+func (mst *initramfsMountsState) RecoverySystemEssentialSnaps(recoverySystem string, essentialTypes []snap.Type) ([]*seed.Snap, error) {
 	if err := mst.loadSeed(recoverySystem); err != nil {
 		return nil, err
 	}
@@ -127,7 +119,12 @@ func (mst *initramfsMountsStateImpl) RecoverySystemEssentialSnaps(recoverySystem
 	return mst.seed.EssentialSnaps(), nil
 }
 
-func (mst *initramfsMountsStateImpl) UnverifiedBootModel() (*asserts.Model, error) {
+// UnverifiedBootModel returns the unverified model from the
+// boot partition for run mode. The current and only use case
+// is measuring the model for run mode. Otherwise no decisions
+// should be based on an unverified model. Note that the model
+// is verified at the time the key auth policy is computed.
+func (mst *initramfsMountsState) UnverifiedBootModel() (*asserts.Model, error) {
 	if mst.mode != "run" {
 		return nil, fmt.Errorf("internal error: unverified boot model access is for limited run mode use")
 	}
@@ -145,4 +142,8 @@ func (mst *initramfsMountsStateImpl) UnverifiedBootModel() (*asserts.Model, erro
 		return nil, fmt.Errorf("unexpected assertion: %q", ma.Type().Name)
 	}
 	return ma.(*asserts.Model), nil
+}
+
+func (mst *initramfsMountsState) IsMounted(dir string) (bool, error) {
+	return osutilIsMounted(dir)
 }
