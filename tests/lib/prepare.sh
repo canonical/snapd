@@ -471,6 +471,18 @@ uc20_build_initramfs_kernel_snap() {
         echo "if test -d /run/mnt/data/system-data; then touch /run/mnt/data/system-data/the-tool-ran; fi" >> \
             "$skeletondir/main/usr/lib/the-tool"
 
+        # TODO:UC20: remove this patch when we have the ubuntu-core-initramfs
+        # changes landed via https://code.launchpad.net/~anonymouse67/ubuntu-core-initramfs/+git/ubuntu-core-initramfs/+merge/383515
+
+        (
+            cd "$skeletondir/main"
+            patch --verbose -p1 < "$TESTSLIB/patches/kernel-initrd-run-mnt-data.patch"
+            # patch doesn't understand git renames of symlinks so we have to add the
+            # new symlink name manually, the patch above just contains the deletion
+            mkdir -p usr/lib/systemd/system/run-mnt-data.mount.wants
+            ln -s ../sysroot-writable.mount usr/lib/systemd/system/run-mnt-data.mount.wants/sysroot-writable.mount
+        )
+
         # XXX: need to be careful to build an initrd using the right kernel
         # modules from the unpacked initrd, rather than the host which may be
         # running a different kernel
