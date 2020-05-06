@@ -48,23 +48,6 @@ var (
 	Stderr io.Writer = os.Stderr
 )
 
-type Options struct {
-	ModelFile string
-	Classic   bool
-
-	Channel string
-
-	// TODO: use OptionsSnap directly here?
-	Snaps        []string
-	SnapChannels map[string]string
-
-	PrepareDir string
-
-	// Architecture to use if none is specified by the model,
-	// useful only for classic mode. If set must match the model otherwise.
-	Architecture string
-}
-
 // classicHasSnaps returns whether the model or options specify any snaps for the classic case
 func classicHasSnaps(model *asserts.Model, opts *Options) bool {
 	return model.Gadget() != "" || len(model.RequiredNoEssentialSnaps()) != 0 || len(opts.Snaps) != 0

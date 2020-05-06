@@ -1133,6 +1133,12 @@ func (s *checkSnapSuite) TestCheckSnapSystemUsernames(c *C) {
 }
 
 func (s *checkSnapSuite) TestCheckSnapSystemUsernamesCalls(c *C) {
+	// FIXME: this test fails on machines where the user was already
+	// created by the system snapd
+	_, err := osutil.FindUid("snapd-range-524288-root")
+	if err == nil {
+		c.Skip("FIXME")
+	}
 	falsePath := osutil.LookPathDefault("false", "/bin/false")
 	for _, classic := range []bool{false, true} {
 		restore := release.MockOnClassic(classic)
