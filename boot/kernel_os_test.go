@@ -457,7 +457,7 @@ func (s *ubootSuite) forceUbootBootloader(c *C) {
 	bootloader.Force(nil)
 
 	mockGadgetDir := c.MkDir()
-	err := ioutil.WriteFile(filepath.Join(mockGadgetDir, "uboot.conf"), nil, 0644)
+	err := ioutil.WriteFile(filepath.Join(mockGadgetDir, "uboot.conf"), []byte{1}, 0644)
 	c.Assert(err, IsNil)
 	err = bootloader.InstallBootConfig(mockGadgetDir, dirs.GlobalRootDir, nil)
 	c.Assert(err, IsNil)
