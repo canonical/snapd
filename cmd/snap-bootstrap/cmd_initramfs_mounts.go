@@ -288,7 +288,6 @@ func generateMountsCommonInstallRecover(mst initramfsMountsState, recoverySystem
 		return false, err
 	}
 	if !isMounted {
-		// TODO:UC20: is there a better way?
 		fmt.Fprintf(stdout, "--type=tmpfs tmpfs %s\n", boot.InitramfsDataDir)
 		return false, nil
 	}
