@@ -333,11 +333,18 @@ func createUser(c *Command, createData postUserCreateData) Response {
 			return InternalError("cannot create user: cannot get model assertion: %v", err)
 		}
 	}
+	var serial *asserts.Serial
+	st.Lock()
+	serial, err = c.d.overlord.DeviceManager().Serial()
+	st.Unlock()
+	if err != nil && err != state.ErrNoState {
+		return InternalError("cannot create user: cannot get serial: %v", err)
+	}
 
 	// special case: the user requested the creation of all known
 	// system-users
 	if createData.Email == "" && createKnown {
-		return createAllKnownSystemUsers(st, model, &createData)
+		return createAllKnownSystemUsers(st, model, serial, &createData)
 	}
 	if createData.Email == "" {
 		return BadRequest("cannot create user: 'email' field is empty")
@@ -346,7 +353,7 @@ func createUser(c *Command, createData postUserCreateData) Response {
 	var username string
 	var opts *osutil.AddUserOptions
 	if createKnown {
-		username, opts, err = getUserDetailsFromAssertion(st, model, createData.Email)
+		username, opts, err = getUserDetailsFromAssertion(st, model, serial, createData.Email)
 	} else {
 		username, opts, err = getUserDetailsFromStore(getStore(c), createData.Email)
 	}
@@ -396,7 +403,7 @@ func getUserDetailsFromStore(theStore snapstate.StoreService, email string) (str
 	return v.Username, opts, nil
 }
 
-func createAllKnownSystemUsers(st *state.State, modelAs *asserts.Model, createData *postUserCreateData) Response {
+func createAllKnownSystemUsers(st *state.State, modelAs *asserts.Model, serialAs *asserts.Serial, createData *postUserCreateData) Response {
 	var createdUsers []userResponseData
 	headers := map[string]string{
 		"brand-id": modelAs.BrandID(),
@@ -414,7 +421,7 @@ func createAllKnownSystemUsers(st *state.State, modelAs *asserts.Model, createDa
 		email := as.(*asserts.SystemUser).Email()
 		// we need to use getUserDetailsFromAssertion as this verifies
 		// the assertion against the current brand/model/time
-		username, opts, err := getUserDetailsFromAssertion(st, modelAs, email)
+		username, opts, err := getUserDetailsFromAssertion(st, modelAs, serialAs, email)
 		if err != nil {
 			logger.Noticef("ignoring system-user assertion for %q: %s", email, err)
 			continue
@@ -443,7 +450,7 @@ func createAllKnownSystemUsers(st *state.State, modelAs *asserts.Model, createDa
 	return SyncResponse(createdUsers, nil)
 }
 
-func getUserDetailsFromAssertion(st *state.State, modelAs *asserts.Model, email string) (string, *osutil.AddUserOptions, error) {
+func getUserDetailsFromAssertion(st *state.State, modelAs *asserts.Model, serialAs *asserts.Serial, email string) (string, *osutil.AddUserOptions, error) {
 	errorPrefix := fmt.Sprintf("cannot add system-user %q: ", email)
 
 	st.Lock()
@@ -477,6 +484,18 @@ func getUserDetailsFromAssertion(st *state.State, modelAs *asserts.Model, email 
 	if len(su.Models()) > 0 && !strutil.ListContains(su.Models(), model) {
 		return "", nil, fmt.Errorf(errorPrefix+"%q not in models %q", model, su.Models())
 	}
+	// XXX: should we really be this paranoid here, format check
+	// is already done on the assertion level
+	if len(su.Serials()) > 0 && su.Format() > 0 {
+		if serialAs == nil {
+			return "", nil, fmt.Errorf(errorPrefix + "bound to serial assertion but no serial assertion found for device")
+		}
+		serial := serialAs.Serial()
+		if !strutil.ListContains(su.Serials(), serial) {
+			return "", nil, fmt.Errorf(errorPrefix+"%q not in serials %q", serial, su.Serials())
+		}
+	}
+
 	if !su.ValidAt(time.Now()) {
 		return "", nil, fmt.Errorf(errorPrefix + "assertion not valid anymore")
 	}

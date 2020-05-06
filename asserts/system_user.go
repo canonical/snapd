@@ -36,6 +36,7 @@ type SystemUser struct {
 	assertionBase
 	series  []string
 	models  []string
+	serials []string
 	sshKeys []string
 	since   time.Time
 	until   time.Time
@@ -61,6 +62,11 @@ func (su *SystemUser) Series() []string {
 // Models returns the models that this assertion is valid for.
 func (su *SystemUser) Models() []string {
 	return su.models
+}
+
+// Serials returns the serials that this assertion is valid for.
+func (su *SystemUser) Serials() []string {
+	return su.serials
 }
 
 // Name returns the full name of the user (e.g. Random Guy).
@@ -230,6 +236,17 @@ func assembleSystemUser(assert assertionBase) (Assertion, error) {
 	if err != nil {
 		return nil, err
 	}
+	serials, err := checkStringList(assert.headers, "serials")
+	if err != nil {
+		return nil, err
+	}
+	if len(serials) > 0 && assert.Format() < 1 {
+		return nil, fmt.Errorf(`the "serials" header is only available for format 1 or greater`)
+	}
+	if len(serials) > 0 && len(models) != 1 {
+		return nil, fmt.Errorf(`the "serials" header must specify exactly one model`)
+	}
+
 	if _, err := checkOptionalString(assert.headers, "name"); err != nil {
 		return nil, err
 	}
@@ -273,6 +290,7 @@ func assembleSystemUser(assert assertionBase) (Assertion, error) {
 		assertionBase:       assert,
 		series:              series,
 		models:              models,
+		serials:             serials,
 		sshKeys:             sshKeys,
 		since:               since,
 		until:               until,
