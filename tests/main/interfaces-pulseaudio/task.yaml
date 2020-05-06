@@ -33,12 +33,13 @@ prepare: |
     session-tool -u test --prepare
     echo "session-tool -u test --restore" >>defer.sh
 
-    # Ensure that the socket is active but do not check the service.  For some
-    # reason, pulseaudio quits as soon as it is not needed and this means that
-    # it works when we use paplay but shuts down relatively quickly after
-    # playback. We use to run "pulseaudio --check" but this only worked when
-    # pulse was still running, just before quitting, after the session was
-    # prepared a split second before.
+    # Ensure that the socket is active but do not check the service. In user
+    # mode pulseaudio is documented to quit when there are no active logind
+    # sessions.
+    #
+    # User session services do not posses a logind session session so
+    # pulseaudio immediately quits, and remains inactive outside of the moments
+    # we execute paplay through session-tool.
     session-tool -u test systemctl --user is-active pulseaudio.socket | MATCH active
 
 restore: |
