@@ -260,28 +260,22 @@ ShutdownWatchdogSec=20
 }
 
 func (s *watchdogSuite) TestFilesystemOnlyApply(c *C) {
-	restorer := release.MockOnClassic(false)
-	defer restorer()
-
 	conf := configcore.PlainCoreConfig(map[string]interface{}{
 		"watchdog.runtime-timeout": "4s",
 	})
 
 	tmpDir := c.MkDir()
-	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf), IsNil)
+	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf, nil), IsNil)
 
 	watchdogCfg := filepath.Join(tmpDir, "/etc/systemd/system.conf.d/10-snapd-watchdog.conf")
 	c.Check(watchdogCfg, testutil.FileEquals, "[Manager]\nRuntimeWatchdogSec=4\n")
 }
 
 func (s *watchdogSuite) TestFilesystemOnlyApplyValidationFails(c *C) {
-	restorer := release.MockOnClassic(false)
-	defer restorer()
-
 	conf := configcore.PlainCoreConfig(map[string]interface{}{
 		"watchdog.runtime-timeout": "foo",
 	})
 
 	tmpDir := c.MkDir()
-	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf), ErrorMatches, `cannot parse "foo": time: invalid duration \"?foo\"?`)
+	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf, nil), ErrorMatches, `cannot parse "foo": time: invalid duration \"?foo\"?`)
 }
