@@ -58,18 +58,22 @@ func (s *runInhibitSuite) TestLockAndSetHint(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(fi.IsDir(), Equals, true)
 
-	c.Check(filepath.Join(runinhibit.InhibitDir, "pkg.lock"), testutil.FileContains, "refresh")
+	c.Check(filepath.Join(runinhibit.InhibitDir, "pkg.lock"), testutil.FileEquals, "refresh")
 }
 
 // The lock can be re-acquired to present a different hint.
 func (s *runInhibitSuite) TestLockLocked(c *C) {
 	err := runinhibit.LockAndSetHint("pkg", runinhibit.HintInhibitedForRefresh)
 	c.Assert(err, IsNil)
-	c.Check(filepath.Join(runinhibit.InhibitDir, "pkg.lock"), testutil.FileContains, "refresh")
+	c.Check(filepath.Join(runinhibit.InhibitDir, "pkg.lock"), testutil.FileEquals, "refresh")
 
 	err = runinhibit.LockAndSetHint("pkg", runinhibit.Hint("just-testing"))
 	c.Assert(err, IsNil)
-	c.Check(filepath.Join(runinhibit.InhibitDir, "pkg.lock"), testutil.FileContains, "just-testing")
+	c.Check(filepath.Join(runinhibit.InhibitDir, "pkg.lock"), testutil.FileEquals, "just-testing")
+
+	err = runinhibit.LockAndSetHint("pkg", runinhibit.Hint("short"))
+	c.Assert(err, IsNil)
+	c.Check(filepath.Join(runinhibit.InhibitDir, "pkg.lock"), testutil.FileEquals, "short")
 }
 
 // Unlocking an unlocked lock doesn't break anything.
@@ -87,7 +91,7 @@ func (s *runInhibitSuite) TestUnlockLocked(c *C) {
 	err = runinhibit.Unlock("pkg")
 	c.Assert(err, IsNil)
 
-	c.Check(filepath.Join(runinhibit.InhibitDir, "pkg.lock"), testutil.FileContains, "")
+	c.Check(filepath.Join(runinhibit.InhibitDir, "pkg.lock"), testutil.FileEquals, "")
 }
 
 // IsLocked doesn't fail when the lock directory or lock file is missing.

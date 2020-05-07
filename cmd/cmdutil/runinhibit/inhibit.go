@@ -80,6 +80,9 @@ func LockAndSetHint(snapName string, hint Hint) error {
 		return err
 	}
 	f := flock.File()
+	if err := f.Truncate(0); err != nil {
+		return err
+	}
 	_, err = f.WriteString(string(hint))
 	return err
 }
