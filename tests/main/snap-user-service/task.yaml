@@ -27,9 +27,6 @@ execute: |
     echo "And the user mode systemd instance is started"
     session-tool -u test --prepare
 
-    echo "And the default.target unit has finished starting"
-    session-tool -u test systemctl --user start default.target
-
     echo "We can see the service running"
     session-tool -u test systemctl --user is-active snap.test-snapd-user-service.test-snapd-user-service
 

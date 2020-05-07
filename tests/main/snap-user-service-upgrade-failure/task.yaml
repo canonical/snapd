@@ -22,7 +22,6 @@ prepare: |
     snap set system experimental.user-daemons=true
     session-tool --kill-leaked
     session-tool -u test --prepare
-    session-tool -u test systemctl --user start sockets.target
 
 restore: |
     session-tool -u test --restore

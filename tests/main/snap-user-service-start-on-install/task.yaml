@@ -21,6 +21,7 @@ prepare: |
     fi
     snap set system experimental.user-daemons=true
     session-tool --kill-leaked
+    session-tool -u test --prepare
 
 restore: |
     session-tool -u test --restore
@@ -31,17 +32,9 @@ restore: |
     fi
 
 execute: |
-    echo "Start the user session"
-    session-tool -u test --prepare
-
-    # This isn't quote-safe, but is good enough for our tests.
     function systemctl_user() {
       session-tool -u test systemctl --user "$@"
     }
-
-    echo "Ensure that the user session has fully started"
-    systemctl_user start sockets.target
-    systemctl_user start default.target
 
     echo "Install the a snap with user services while a user session is active"
     #shellcheck source=tests/lib/snaps.sh
