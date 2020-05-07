@@ -62,6 +62,7 @@ var osi = []string{
 	"AGPL-3.0",
 	"GPL-2.0",
 	"GPL-3.0",
+	"GPL-3.0-or-later",
 	"LGPL-2.1",
 	"LGPL-3.0",
 	"LGPL-2.0",
