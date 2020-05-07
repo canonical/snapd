@@ -178,8 +178,14 @@ func generateMountsModeRecover(mst *initramfsMountsState, recoverySystem string)
 		return err
 	}
 	if !isRecoverDataMounted {
-		// TODO:UC20: data may need to be unlocked
-		fmt.Fprintf(stdout, "/dev/disk/by-label/ubuntu-data %s\n", boot.InitramfsHostUbuntuDataDir)
+		// TODO: do we do this in recover mode too ?
+		const lockKeysForLast = true
+		device, err := unlockIfEncrypted("ubuntu-data", lockKeysForLast)
+		if err != nil {
+			return err
+		}
+
+		fmt.Fprintf(stdout, "%s %s\n", device, boot.InitramfsHostUbuntuDataDir)
 		return nil
 	}
 
