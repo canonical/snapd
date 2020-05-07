@@ -146,11 +146,11 @@ func MeasureSnapModelWhenPossible(findModel func() (*asserts.Model, error)) erro
 	return nil
 }
 
-// UnlockIfEncrypted verifies whether an encrypted volume with the specified
+// UnlockVolumeIfEncrypted verifies whether an encrypted volume with the specified
 // name exists and unlocks it. With lockKeysOnFinish set, access to the sealed
 // keys will be locked when this function completes. The path to the unencrypted
 // device node is returned.
-func UnlockIfEncrypted(name string, lockKeysOnFinish bool) (string, error) {
+func UnlockVolumeIfEncrypted(name string, lockKeysOnFinish bool) (string, error) {
 	device := filepath.Join(devDiskByLabelDir, name)
 
 	// TODO:UC20: use sb.SecureConnectToDefaultTPM() if we decide there's benefit in doing that or

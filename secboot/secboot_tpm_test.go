@@ -314,7 +314,7 @@ func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
 		})
 		defer restoreActivate()
 
-		device, err := secboot.UnlockIfEncrypted("name", tc.last)
+		device, err := secboot.UnlockVolumeIfEncrypted("name", tc.last)
 		if tc.err == "" {
 			c.Assert(err, IsNil)
 		} else {

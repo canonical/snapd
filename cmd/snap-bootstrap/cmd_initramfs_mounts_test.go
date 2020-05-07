@@ -310,7 +310,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1EncryptedData(c *C
 	c.Assert(err, IsNil)
 
 	activated := false
-	restore := main.MockSecbootUnlockIfEncrypted(func(name string, lockKeysOnFinish bool) (string, error) {
+	restore := main.MockSecbootUnlockVolumeIfEncrypted(func(name string, lockKeysOnFinish bool) (string, error) {
 		c.Assert(name, Equals, "ubuntu-data")
 		c.Assert(lockKeysOnFinish, Equals, true)
 		activated = true

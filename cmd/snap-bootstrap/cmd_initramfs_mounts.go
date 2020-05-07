@@ -203,7 +203,7 @@ func generateMountsModeRecover(mst *initramfsMountsState, recoverySystem string)
 var (
 	secbootMeasureSnapSystemEpochWhenPossible = secboot.MeasureSnapSystemEpochWhenPossible
 	secbootMeasureSnapModelWhenPossible       = secboot.MeasureSnapModelWhenPossible
-	secbootUnlockIfEncrypted                  = secboot.UnlockIfEncrypted
+	secbootUnlockVolumeIfEncrypted            = secboot.UnlockVolumeIfEncrypted
 )
 
 func generateMountsCommonInstallRecover(mst *initramfsMountsState, recoverySystem string) (allMounted bool, err error) {
@@ -315,7 +315,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	}
 	if !isDataMounted {
 		const lockKeysForLast = true
-		device, err := secbootUnlockIfEncrypted("ubuntu-data", lockKeysForLast)
+		device, err := secbootUnlockVolumeIfEncrypted("ubuntu-data", lockKeysForLast)
 		if err != nil {
 			return err
 		}
