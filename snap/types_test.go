@@ -226,3 +226,67 @@ func (s *typeSuite) TestJsonUnmarshalInvalidConfinementTypes(c *C) {
 		c.Assert(err, NotNil, Commentf("Expected '%s' to be an invalid confinement type", thisConfinementType))
 	}
 }
+
+func (s *typeSuite) TestYamlMarshalDaemonScopes(c *C) {
+	out, err := yaml.Marshal(SystemDaemon)
+	c.Assert(err, IsNil)
+	c.Check(string(out), Equals, "system\n")
+
+	out, err = yaml.Marshal(UserDaemon)
+	c.Assert(err, IsNil)
+	c.Check(string(out), Equals, "user\n")
+}
+
+func (s *typeSuite) TestYamlUnmarshalDaemonScopes(c *C) {
+	var daemonScope DaemonScope
+	err := yaml.Unmarshal([]byte("system"), &daemonScope)
+	c.Assert(err, IsNil)
+	c.Check(daemonScope, Equals, SystemDaemon)
+
+	err = yaml.Unmarshal([]byte("user"), &daemonScope)
+	c.Assert(err, IsNil)
+	c.Check(daemonScope, Equals, UserDaemon)
+}
+
+func (s *typeSuite) TestYamlUnmarshalInvalidDaemonScopes(c *C) {
+	var invalidDaemonScopes = []string{
+		"foo", "system-", "_user",
+	}
+	var daemonScope DaemonScope
+	for _, thisDaemonScope := range invalidDaemonScopes {
+		err := yaml.Unmarshal([]byte(thisDaemonScope), &daemonScope)
+		c.Assert(err, NotNil, Commentf("Expected '%s' to be an invalid daemon scope", thisDaemonScope))
+	}
+}
+
+func (s *typeSuite) TestJsonMarshalDaemonScopes(c *C) {
+	out, err := json.Marshal(SystemDaemon)
+	c.Assert(err, IsNil)
+	c.Check(string(out), Equals, "\"system\"")
+
+	out, err = json.Marshal(UserDaemon)
+	c.Assert(err, IsNil)
+	c.Check(string(out), Equals, "\"user\"")
+}
+
+func (s *typeSuite) TestJsonUnmarshalDaemonScopes(c *C) {
+	var daemonScope DaemonScope
+	err := json.Unmarshal([]byte("\"system\""), &daemonScope)
+	c.Assert(err, IsNil)
+	c.Check(daemonScope, Equals, SystemDaemon)
+
+	err = json.Unmarshal([]byte("\"user\""), &daemonScope)
+	c.Assert(err, IsNil)
+	c.Check(daemonScope, Equals, UserDaemon)
+}
+
+func (s *typeSuite) TestJsonUnmarshalInvalidDaemonScopes(c *C) {
+	var invalidDaemonScopes = []string{
+		"foo", "system-", "_user",
+	}
+	var daemonScope DaemonScope
+	for _, thisDaemonScope := range invalidDaemonScopes {
+		err := json.Unmarshal([]byte(fmt.Sprintf("%q", thisDaemonScope)), &daemonScope)
+		c.Assert(err, NotNil, Commentf("Expected '%s' to be an invalid daemon scope", thisDaemonScope))
+	}
+}
