@@ -42,12 +42,16 @@ bootenv_unset() {
 }
 
 get_boot_path() {
-    if [ -f /boot/uboot/uboot.env ]; then
+    if [ -f /boot/uboot/uboot.env -o -f /boot/uboot/uboot.sel ]; then
+        # uc16/uc18 have /boot/uboot/uboot.env
+        # uc20 has /boot/uboot/uboot.sel
         echo "/boot/uboot/"
     elif [ -f /boot/grub/grubenv ]; then
         echo "/boot/grub/"
     else
-        echo "/boot/"
+        echo "Cannot determine boot path"
+        ls -alR /boot
+        exit 1
     fi
 }
 
