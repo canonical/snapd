@@ -392,7 +392,6 @@ start_nested_core_vm(){
     # Increase the number of cpus used once the issue related to kvm and ovmf is fixed
     # https://bugs.launchpad.net/ubuntu/+source/kvm/+bug/1872803
     PARAM_CPU="-smp $NESTED_SMP"
-    PARAM_LOG="-d out_asm,in_asm,op,op_opt,op_ind,int,exec,cpu,fpu,mmu,pcall,cpu_reset,unimp,guest_errors,page,nochain"
     PARAM_MEM="-m $NESTED_MEM"
     PARAM_DISPLAY="-nographic"
     PARAM_NETWORK="-net nic,model=virtio -net user,hostfwd=tcp::$NESTED_SSH_PORT-:22"
@@ -435,7 +434,6 @@ start_nested_core_vm(){
     systemd_create_and_start_unit "$NESTED_VM" "${QEMU} \
         ${PARAM_CPU} \
         ${PARAM_MEM} \
-        ${PARAM_LOG} \
         ${PARAM_MACHINE} \
         ${PARAM_DISPLAY} \
         ${PARAM_NETWORK} \
@@ -495,7 +493,6 @@ start_nested_classic_vm(){
     # Now qemu parameters are defined
     PARAM_CPU="-smp $NESTED_SMP"
     PARAM_MEM="-m $NESTED_MEM"
-    PARAM_LOG="-d out_asm,in_asm,op,op_opt,op_ind,int,exec,cpu,fpu,mmu,pcall,cpu_reset,unimp,guest_errors,page,nochain"
     PARAM_DISPLAY="-nographic"
     PARAM_NETWORK="-net nic,model=virtio -net user,hostfwd=tcp::$NESTED_SSH_PORT-:22"
     PARAM_MONITOR="-monitor tcp:127.0.0.1:$NESTED_MON_PORT,server,nowait -usb"
@@ -509,7 +506,6 @@ start_nested_classic_vm(){
     systemd_create_and_start_unit "$NESTED_VM" "${QEMU}  \
         ${PARAM_CPU} \
         ${PARAM_MEM} \
-        ${PARAM_LOG} \
         ${PARAM_SNAPSHOT} \
         ${PARAM_MACHINE} \
         ${PARAM_DISPLAY} \
