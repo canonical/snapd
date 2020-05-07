@@ -55,7 +55,7 @@ const (
 
 func openHintFile(snapName string) (*osutil.FileLock, error) {
 	fname := filepath.Join(InhibitDir, snapName+".lock")
-	return osutil.NewFileModeLock(fname, 0644)
+	return osutil.NewFileLockWithMode(fname, 0644)
 }
 
 // LockWithHint sets a persistent "snap run" inhibition lock with a given hint.
