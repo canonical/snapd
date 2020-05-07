@@ -790,7 +790,7 @@ func (s *servicesWrapperGenSuite) TestVitalityScore(c *C) {
 Description=Service for snap application snap.app
 Requires=%s-snap-44.mount
 Wants=network.target
-After=%s-snap-44.mount network.target
+After=%s-snap-44.mount network.target snapd.apparmor.service
 X-Snappy=yes
 
 [Service]
@@ -802,7 +802,7 @@ RestartSec=20
 WorkingDirectory=/var/snap/snap/44
 TimeoutStopSec=30
 Type=simple
-OOMScoreAdjust=-898
+OOMScoreAdjust=-899
 
 [Install]
 WantedBy=multi-user.target

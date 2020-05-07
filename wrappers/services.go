@@ -537,8 +537,8 @@ KillMode={{.KillMode}}
 {{- if .KillSignal}}
 KillSignal={{.KillSignal}}
 {{- end}}
-{{- if .VitalityScore }}
-OOMScoreAdjust=-{{.VitalityScore}}
+{{- if .OOMAdjustScore }}
+OOMScoreAdjust={{.OOMAdjustScore}}
 {{- end}}
 {{- if not .App.Sockets}}
 
@@ -558,11 +558,11 @@ WantedBy={{.ServicesTarget}}
 		restartCond = snap.RestartOnFailure.String()
 	}
 
-	// start with score -899 because snapd itself has OOMScoreAdjust=-900
-	const baseScore = 899
-	var vitalityScore int
+	// start with score -900-1 because snapd itself has OOMScoreAdjust=-900
+	const baseOOMAdjustScore = -900
+	var oomAdjustScore int
 	if opts.VitalityRank > 0 {
-		vitalityScore = baseScore - opts.VitalityRank
+		oomAdjustScore = baseOOMAdjustScore + opts.VitalityRank
 	}
 
 	var remain string
@@ -592,7 +592,7 @@ WantedBy={{.ServicesTarget}}
 		Remain             string
 		KillMode           string
 		KillSignal         string
-		VitalityScore      int
+		OOMAdjustScore     int
 		Before             []string
 		After              []string
 
@@ -610,7 +610,7 @@ WantedBy={{.ServicesTarget}}
 		Remain:             remain,
 		KillMode:           killMode,
 		KillSignal:         appInfo.StopMode.KillSignal(),
-		VitalityScore:      vitalityScore,
+		OOMAdjustScore:     oomAdjustScore,
 
 		Before: genServiceNames(appInfo.Snap, appInfo.Before),
 		After:  append(genServiceNames(appInfo.Snap, appInfo.After), "snapd.apparmor.service"),
