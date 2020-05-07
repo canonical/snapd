@@ -9,30 +9,20 @@ systems:
     - -amazon-linux-2-*
     - -centos-7-*
 
-environment:
-    XDG_RUNTIME_DIR: /run/user/$(id -u test)
-
 prepare: |
     snap set system experimental.dbus-activation=true
     #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB"/pkgdb.sh
     distro_install_package dbus-user-session
-    #shellcheck source=tests/lib/user.sh
-    . "$TESTSLIB/user.sh"
-    start_user_session
+    session-tool -u test --prepare
 
 restore: |
-    #shellcheck source=tests/lib/user.sh
-    . "$TESTSLIB/user.sh"
-    stop_user_session
-    purge_user_session_data
+    session-tool -u test --restore
     snap unset system experimental.dbus-activation
 
 execute: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
-    #shellcheck source=tests/lib/user.sh
-    . "$TESTSLIB/user.sh"
 
     echo "Install a snap containing an activatable D-Bus session service"
     snap install --edge test-snapd-dbus-service
@@ -44,7 +34,7 @@ execute: |
     install_local test-snapd-dbus-service-client
     snap connect test-snapd-dbus-service-client:dbus-session-plug \
                  test-snapd-dbus-service:dbus-session-slot
-    as_user test-snapd-dbus-service-client.session | MATCH hello
+    session-tool -u test test-snapd-dbus-service-client.session | MATCH hello
 
     echo "Removing the snap also removes the service activation file"
     snap remove test-snapd-dbus-service
