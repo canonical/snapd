@@ -47,9 +47,7 @@ get_boot_path() {
     elif [ -f /boot/grub/grubenv ]; then
         echo "/boot/grub/"
     else
-        echo "Cannot determine boot path"
-        ls -alR /boot
-        exit 1
+        echo "/boot/"
     fi
 }
 
