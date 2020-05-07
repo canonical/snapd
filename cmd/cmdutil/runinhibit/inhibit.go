@@ -54,7 +54,7 @@ const (
 )
 
 func openHintFile(snapName string) (*osutil.FileLock, error) {
-	fname := filepath.Join(dirs.GlobalRootDir, "var/lib/snapd/inhibit", snapName+".lock")
+	fname := filepath.Join(InhibitDir, snapName+".lock")
 	return osutil.NewFileModeLock(fname, 0644)
 }
 
