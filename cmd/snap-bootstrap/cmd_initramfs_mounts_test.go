@@ -1744,6 +1744,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep4(c *C) {
 		// user ssh
 		"user-data/user1/.ssh/authorized_keys",
 		"user-data/user2/.ssh/authorized_keys",
+		// sudoers
+		"system-data/etc/sudoers.d/create-user-test",
 	}
 	mockUnrelatedFiles := []string{
 		"system-data/var/lib/foo",

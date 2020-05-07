@@ -123,6 +123,9 @@ func copyUbuntuDataAuth(src, dst string) error {
 		"user-data/*/.ssh/*",
 		// this ensures we also get non-ssh enabled accounts copied
 		"user-data/*/.profile",
+		// so that users have proper perms, i.e. console-conf added users are
+		// sudoers
+		"system-data/etc/sudoers.d/*",
 	} {
 		matches, err := filepath.Glob(filepath.Join(src, globEx))
 		if err != nil {
