@@ -259,16 +259,16 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 			Mount:                true,
 			Encrypt:              true,
 			KeyFile:              filepath.Join(boot.InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key"),
-			RecoveryKeyFile:      filepath.Join(boot.InitramfsWritableDir, "var/lib/snapd/device/fde/recovery.key"),
-			TPMLockoutAuthFile:   filepath.Join(boot.InitramfsWritableDir, "var/lib/snapd/device/fde/tpm-lockout-auth"),
-			PolicyUpdateDataFile: filepath.Join(boot.InitramfsWritableDir, "var/lib/snapd/device/fde/policy-update-data"),
+			RecoveryKeyFile:      filepath.Join(boot.InstallHostWritableDir, "var/lib/snapd/device/fde/recovery.key"),
+			TPMLockoutAuthFile:   filepath.Join(boot.InstallHostWritableDir, "var/lib/snapd/device/fde/tpm-lockout-auth"),
+			PolicyUpdateDataFile: filepath.Join(boot.InstallHostWritableDir, "var/lib/snapd/device/fde/policy-update-data"),
 			KernelPath:           filepath.Join(dirs.SnapMountDir, "pc-kernel/1/kernel.efi"),
 			Model:                mockModel,
 		})
 
 		// directories were ensured
 		c.Assert(osutil.IsDirectory(boot.InitramfsEncryptionKeyDir), Equals, true)
-		c.Assert(osutil.IsDirectory(filepath.Join(boot.InitramfsWritableDir, "var/lib/snapd/device/fde")), Equals, true)
+		c.Assert(osutil.IsDirectory(filepath.Join(boot.InstallHostWritableDir, "var/lib/snapd/device/fde")), Equals, true)
 	} else {
 		c.Assert(brGadgetRoot, Equals, filepath.Join(dirs.SnapMountDir, "/pc/1"))
 		c.Assert(brDevice, Equals, "")
@@ -446,7 +446,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeRunSysconfig(c *C) {
 
 	// and sysconfig.ConfigureRunSystem was run exactly once
 	c.Assert(s.configureRunSystemOptsPassed, DeepEquals, []*sysconfig.Options{
-		{TargetRootDir: boot.InitramfsWritableDir},
+		{TargetRootDir: boot.InstallHostWritableDir},
 	})
 }
 
@@ -463,7 +463,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeRunSysconfigErr(c *C) {
 - Setup system for run mode \(error from sysconfig.ConfigureRunSystem\)`)
 	// and sysconfig.ConfigureRunSystem was run exactly once
 	c.Assert(s.configureRunSystemOptsPassed, DeepEquals, []*sysconfig.Options{
-		{TargetRootDir: boot.InitramfsWritableDir},
+		{TargetRootDir: boot.InstallHostWritableDir},
 	})
 }
 
@@ -483,7 +483,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeSupportsCloudInitInDangerous(
 	c.Assert(s.configureRunSystemOptsPassed, DeepEquals, []*sysconfig.Options{
 		{
 			CloudInitSrcDir: filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d"),
-			TargetRootDir:   boot.InitramfsWritableDir,
+			TargetRootDir:   boot.InstallHostWritableDir,
 		},
 	})
 }
@@ -503,7 +503,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeNoCloudInitForSigned(c *C) {
 
 	// so no cloud-init src dir is passed
 	c.Assert(s.configureRunSystemOptsPassed, DeepEquals, []*sysconfig.Options{
-		{TargetRootDir: boot.InitramfsWritableDir},
+		{TargetRootDir: boot.InstallHostWritableDir},
 	})
 }
 
@@ -529,7 +529,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeSupportsCloudInitFromGadget(c
 	c.Assert(s.configureRunSystemOptsPassed, DeepEquals, []*sysconfig.Options{
 		{
 			CloudInitSrcDir: filepath.Join(gadgetDir, "cloud.cfg.d"),
-			TargetRootDir:   boot.InitramfsWritableDir,
+			TargetRootDir:   boot.InstallHostWritableDir,
 		},
 	})
 }

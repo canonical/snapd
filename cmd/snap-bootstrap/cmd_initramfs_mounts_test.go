@@ -212,7 +212,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep2(c *C) {
 			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "snapd"))
 			return false, nil
 		case 5:
-			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
+			c.Check(path, Equals, boot.InitramfsDataDir)
 			return false, nil
 		}
 		return false, fmt.Errorf("unexpected number of calls: %v", n)
@@ -225,7 +225,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep2(c *C) {
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/snaps/snapd_1.snap %[2]s/snapd
 %[1]s/snaps/pc-kernel_1.snap %[2]s/kernel
 %[1]s/snaps/core20_1.snap %[2]s/base
---type=tmpfs tmpfs /run/mnt/ubuntu-data
+--type=tmpfs tmpfs %[2]s/data
 `, s.seedDir, boot.InitramfsRunMntDir))
 }
 
@@ -249,7 +249,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep4(c *C) {
 			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "snapd"))
 			return true, nil
 		case 5:
-			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
+			c.Check(path, Equals, boot.InitramfsDataDir)
 			return true, nil
 		}
 		return false, fmt.Errorf("unexpected number of calls: %v", n)
@@ -329,7 +329,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1Data(c *C) {
 			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
 			return true, nil
 		case 3:
-			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
+			c.Check(path, Equals, boot.InitramfsDataDir)
 			return false, nil
 		}
 		return false, fmt.Errorf("unexpected number of calls: %v", n)
@@ -339,7 +339,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1Data(c *C) {
 	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 3)
-	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`/dev/disk/by-label/ubuntu-data %[1]s/ubuntu-data
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`/dev/disk/by-label/ubuntu-data %[1]s/data
 `, boot.InitramfsRunMntDir))
 }
 
@@ -397,7 +397,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1EncryptedData(c *C
 			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
 			return true, nil
 		case 3:
-			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
+			c.Check(path, Equals, boot.InitramfsDataDir)
 			return false, nil
 		}
 		return false, fmt.Errorf("unexpected number of calls: %v", n)
@@ -430,7 +430,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1EncryptedData(c *C
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Check(n, Equals, 3)
-	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data %[2]s/ubuntu-data
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data %[2]s/data
 `, devDiskByLabel, boot.InitramfsRunMntDir))
 	c.Check(activated, Equals, true)
 	c.Check(sealedKeysLocked, Equals, true)
@@ -528,7 +528,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2(c *C) {
 			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
 			return true, nil
 		case 3:
-			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
+			c.Check(path, Equals, boot.InitramfsDataDir)
 			return true, nil
 		case 4:
 			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
@@ -567,8 +567,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2(c *C) {
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 6)
-	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/core20_123.snap %[1]s/base
-%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/pc-kernel_1.snap %[1]s/kernel
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/data/system-data/var/lib/snapd/snaps/core20_123.snap %[1]s/base
+%[1]s/data/system-data/var/lib/snapd/snaps/pc-kernel_1.snap %[1]s/kernel
 %[1]s/ubuntu-seed/snaps/snapd_1.snap %[1]s/snapd
 `, boot.InitramfsRunMntDir))
 }
@@ -587,7 +587,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2BaseSnapUpgradeFai
 			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
 			return true, nil
 		case 3:
-			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
+			c.Check(path, Equals, boot.InitramfsDataDir)
 			return true, nil
 		case 4:
 			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
@@ -620,7 +620,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2BaseSnapUpgradeFai
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 5)
-	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/core20_123.snap %[1]s/base
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/data/system-data/var/lib/snapd/snaps/core20_123.snap %[1]s/base
 `, boot.InitramfsRunMntDir))
 
 	// check that the modeenv was re-written
@@ -646,7 +646,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2ModeenvTryBaseEmpt
 			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
 			return true, nil
 		case 3:
-			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
+			c.Check(path, Equals, boot.InitramfsDataDir)
 			return true, nil
 		case 4:
 			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
@@ -670,7 +670,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2ModeenvTryBaseEmpt
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 5)
-	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/core20_123.snap %[1]s/base
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/data/system-data/var/lib/snapd/snaps/core20_123.snap %[1]s/base
 `, boot.InitramfsRunMntDir))
 
 	// check that the modeenv is the same
@@ -695,7 +695,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2BaseSnapUpgradeHap
 			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
 			return true, nil
 		case 3:
-			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
+			c.Check(path, Equals, boot.InitramfsDataDir)
 			return true, nil
 		case 4:
 			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
@@ -727,7 +727,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2BaseSnapUpgradeHap
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 5)
-	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/core20_124.snap %[1]s/base
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/data/system-data/var/lib/snapd/snaps/core20_124.snap %[1]s/base
 `, boot.InitramfsRunMntDir))
 
 	// check that the modeenv was re-written
@@ -752,7 +752,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2ModeenvBaseEmptyUn
 			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
 			return true, nil
 		case 3:
-			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
+			c.Check(path, Equals, boot.InitramfsDataDir)
 			return true, nil
 		case 4:
 			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
@@ -790,7 +790,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2ModeenvTryBaseNotE
 			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
 			return true, nil
 		case 3:
-			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
+			c.Check(path, Equals, boot.InitramfsDataDir)
 			return true, nil
 		case 4:
 			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
@@ -816,7 +816,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2ModeenvTryBaseNotE
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 5)
-	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/core20_123.snap %[1]s/base
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/data/system-data/var/lib/snapd/snaps/core20_123.snap %[1]s/base
 `, boot.InitramfsRunMntDir))
 
 	// check that the modeenv is the same
@@ -841,7 +841,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2KernelSnapUpgradeH
 			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
 			return true, nil
 		case 3:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsUbuntuDataDir))
+			c.Check(path, Equals, filepath.Join(boot.InitramfsDataDir))
 			return true, nil
 		case 4:
 			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
@@ -891,7 +891,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2KernelSnapUpgradeH
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 5)
-	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/pc-kernel_2.snap %[1]s/kernel
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/data/system-data/var/lib/snapd/snaps/pc-kernel_2.snap %[1]s/kernel
 `, boot.InitramfsRunMntDir))
 }
 
@@ -912,7 +912,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2UntrustedKernelSna
 			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
 			return true, nil
 		case 3:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsUbuntuDataDir))
+			c.Check(path, Equals, filepath.Join(boot.InitramfsDataDir))
 			return true, nil
 		case 4:
 			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
@@ -966,7 +966,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2UntrustedTryKernel
 			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
 			return true, nil
 		case 3:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsUbuntuDataDir))
+			c.Check(path, Equals, filepath.Join(boot.InitramfsDataDir))
 			return true, nil
 		case 4:
 			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
@@ -1010,7 +1010,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2UntrustedTryKernel
 	// the initramfs, check that log here
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 5)
-	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/pc-kernel_1.snap %[1]s/kernel
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/data/system-data/var/lib/snapd/snaps/pc-kernel_1.snap %[1]s/kernel
 `, boot.InitramfsRunMntDir))
 }
 
@@ -1028,7 +1028,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2KernelStatusTrying
 			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
 			return true, nil
 		case 3:
-			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
+			c.Check(path, Equals, boot.InitramfsDataDir)
 			return true, nil
 		case 4:
 			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
@@ -1071,7 +1071,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2KernelStatusTrying
 	// the initramfs, check that log here
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 5)
-	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/pc-kernel_1.snap %[1]s/kernel
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/data/system-data/var/lib/snapd/snaps/pc-kernel_1.snap %[1]s/kernel
 `, boot.InitramfsRunMntDir))
 }
 
@@ -1225,7 +1225,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2EnvRefKernelBootst
 			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
 			return true, nil
 		case 3:
-			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
+			c.Check(path, Equals, boot.InitramfsDataDir)
 			return true, nil
 		case 4:
 			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
@@ -1261,8 +1261,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2EnvRefKernelBootst
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 6)
-	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/core20_123.snap %[1]s/base
-%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/pc-kernel_1.snap %[1]s/kernel
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/data/system-data/var/lib/snapd/snaps/core20_123.snap %[1]s/base
+%[1]s/data/system-data/var/lib/snapd/snaps/pc-kernel_1.snap %[1]s/kernel
 %[1]s/ubuntu-seed/snaps/snapd_1.snap %[1]s/snapd
 `, boot.InitramfsRunMntDir))
 }
@@ -1281,7 +1281,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2EnvRefKernelBootst
 			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
 			return true, nil
 		case 3:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsUbuntuDataDir))
+			c.Check(path, Equals, filepath.Join(boot.InitramfsDataDir))
 			return true, nil
 		case 4:
 			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
@@ -1323,7 +1323,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2EnvRefKernelBootst
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 5)
-	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/pc-kernel_2.snap %[1]s/kernel
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/data/system-data/var/lib/snapd/snaps/pc-kernel_2.snap %[1]s/kernel
 `, boot.InitramfsRunMntDir))
 }
 
@@ -1344,7 +1344,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2EnvRefKernelBootst
 			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
 			return true, nil
 		case 3:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsUbuntuDataDir))
+			c.Check(path, Equals, filepath.Join(boot.InitramfsDataDir))
 			return true, nil
 		case 4:
 			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
@@ -1395,7 +1395,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2EnvRefKernelBootst
 			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
 			return true, nil
 		case 3:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsUbuntuDataDir))
+			c.Check(path, Equals, filepath.Join(boot.InitramfsDataDir))
 			return true, nil
 		case 4:
 			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
@@ -1435,7 +1435,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2EnvRefKernelBootst
 	// the initramfs, check that log here
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 5)
-	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/pc-kernel_1.snap %[1]s/kernel
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/data/system-data/var/lib/snapd/snaps/pc-kernel_1.snap %[1]s/kernel
 `, boot.InitramfsRunMntDir))
 }
 
@@ -1453,7 +1453,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2EnvRefKernelBootst
 			c.Check(path, Equals, boot.InitramfsUbuntuSeedDir)
 			return true, nil
 		case 3:
-			c.Check(path, Equals, boot.InitramfsUbuntuDataDir)
+			c.Check(path, Equals, boot.InitramfsDataDir)
 			return true, nil
 		case 4:
 			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "base"))
@@ -1493,7 +1493,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2EnvRefKernelBootst
 	// the initramfs, check that log here
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 5)
-	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/pc-kernel_1.snap %[1]s/kernel
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/data/system-data/var/lib/snapd/snaps/pc-kernel_1.snap %[1]s/kernel
 `, boot.InitramfsRunMntDir))
 }
 
@@ -1538,7 +1538,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep2(c *C) {
 			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "snapd"))
 			return false, nil
 		case 5:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data"))
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "data"))
 			return false, nil
 		}
 		return false, fmt.Errorf("unexpected number of calls: %v %s", n, path)
@@ -1551,7 +1551,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep2(c *C) {
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/snaps/snapd_1.snap %[2]s/snapd
 %[1]s/snaps/pc-kernel_1.snap %[2]s/kernel
 %[1]s/snaps/core20_1.snap %[2]s/base
---type=tmpfs tmpfs /run/mnt/ubuntu-data
+--type=tmpfs tmpfs %[2]s/data
 `, s.seedDir, boot.InitramfsRunMntDir))
 }
 
@@ -1575,7 +1575,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep3(c *C) {
 			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "snapd"))
 			return true, nil
 		case 5:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data"))
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "data"))
 			return true, nil
 		case 6:
 			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "host/ubuntu-data"))
@@ -1614,7 +1614,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep4(c *C) {
 			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "snapd"))
 			return true, nil
 		case 5:
-			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data"))
+			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "data"))
 			return true, nil
 		case 6:
 			c.Check(path, Equals, filepath.Join(boot.InitramfsRunMntDir, "host/ubuntu-data"))
@@ -1624,7 +1624,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep4(c *C) {
 	})
 	defer restore()
 
-	ephemeralUbuntuData := filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data/")
+	ephemeralUbuntuData := filepath.Join(boot.InitramfsRunMntDir, "data/")
 	err := os.MkdirAll(ephemeralUbuntuData, 0755)
 	c.Assert(err, IsNil)
 	// mock a auth data in the host's ubuntu-data
@@ -1755,7 +1755,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallRecoverModeStep1Measure
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/snaps/snapd_1.snap %[2]s/snapd
 %[1]s/snaps/pc-kernel_1.snap %[2]s/kernel
 %[1]s/snaps/core20_1.snap %[2]s/base
---type=tmpfs tmpfs /run/mnt/ubuntu-data
+--type=tmpfs tmpfs %[2]s/data
 `, s.seedDir, boot.InitramfsRunMntDir))
 	c.Check(epochPCR, Equals, 12)
 	c.Check(modelPCR, Equals, 12)
