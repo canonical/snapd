@@ -9,6 +9,7 @@ details: |
 # This test makes use of the user mount provided by the desktop
 # interface.  When we have an interface providing user mounts that is
 # available on core, we can switch to that.
+# TODO: expand coverage to 14.04 with improved session-tool.
 systems:
     - -ubuntu-core-*   # see above
     - -ubuntu-14.04-*  # no session-tool
