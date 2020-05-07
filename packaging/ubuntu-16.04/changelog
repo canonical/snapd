@@ -1,3 +1,14 @@
+snapd (2.45~pre3) xenial; urgency=medium
+
+  * New upstream release, LP: #1875071
+    - o/devicestate,cmd/snap-bootstrap: seal to recover mode cmdline,
+      unlock in recover mode initramfs
+    - progress: tweak multibyte label unit test data
+    - gadget: fix fallback device lookup for 'mbr' type structures
+    - progress: fix progress bar with multibyte duration units
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 07 May 2020 22:40:10 +0200
+
 snapd (2.45~pre2) xenial; urgency=medium
 
   * New upstream release, LP: #1875071
