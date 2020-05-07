@@ -317,7 +317,7 @@ apps:
 	info.Revision = snap.R(44)
 	app := info.Apps["app"]
 
-	generatedWrapper, err := wrappers.GenerateSnapServiceFile(app)
+	generatedWrapper, err := wrappers.GenerateSnapServiceFile(app, nil)
 	c.Assert(err, IsNil)
 	c.Check(string(generatedWrapper), Equals, expectedUserAppService)
 }
@@ -837,6 +837,7 @@ func (s *servicesWrapperGenSuite) TestVitalityScore(c *C) {
 		Name:         "app",
 		Command:      "bin/foo start",
 		Daemon:       "simple",
+		DaemonScope:  snap.SystemDaemon,
 		RestartDelay: timeout.Timeout(20 * time.Second),
 	}
 
