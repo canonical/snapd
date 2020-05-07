@@ -201,10 +201,9 @@ func generateMountsModeRecover(mst *initramfsMountsState, recoverySystem string)
 }
 
 var (
-	secbootMeasureEpoch        = secboot.MeasureEpoch
-	secbootMeasureModel        = secboot.MeasureModel
-	secbootMeasureWhenPossible = secboot.MeasureWhenPossible
-	secbootUnlockIfEncrypted   = secboot.UnlockIfEncrypted
+	secbootMeasureSnapSystemEpochWhenPossible = secboot.MeasureSnapSystemEpochWhenPossible
+	secbootMeasureSnapModelWhenPossible       = secboot.MeasureSnapModelWhenPossible
+	secbootUnlockIfEncrypted                  = secboot.UnlockIfEncrypted
 )
 
 func generateMountsCommonInstallRecover(mst *initramfsMountsState, recoverySystem string) (allMounted bool, err error) {
@@ -220,13 +219,7 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState, recoverySyste
 
 	// 1a. measure model
 	err = stampedAction(fmt.Sprintf("%s-model-measured", recoverySystem), func() error {
-		return secbootMeasureWhenPossible(func(h *secboot.SecbootHandle) error {
-			model, err := mst.Model()
-			if err != nil {
-				return err
-			}
-			return secbootMeasureModel(h, model)
-		})
+		return secbootMeasureSnapModelWhenPossible(mst.Model)
 	})
 	if err != nil {
 		return false, err
@@ -307,13 +300,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 
 	// 1.1a measure model
 	err := stampedAction("run-model-measured", func() error {
-		return secbootMeasureWhenPossible(func(h *secboot.SecbootHandle) error {
-			model, err := mst.UnverifiedBootModel()
-			if err != nil {
-				return err
-			}
-			return secbootMeasureModel(h, model)
-		})
+		return secbootMeasureSnapModelWhenPossible(mst.UnverifiedBootModel)
 	})
 	if err != nil {
 		return err
@@ -525,7 +512,7 @@ func stampedAction(stamp string, action func() error) error {
 func generateInitramfsMounts() error {
 	// Ensure there is a very early initial measurement
 	err := stampedAction("secboot-epoch-measured", func() error {
-		return secbootMeasureWhenPossible(secbootMeasureEpoch)
+		return secbootMeasureSnapSystemEpochWhenPossible()
 	})
 	if err != nil {
 		return err

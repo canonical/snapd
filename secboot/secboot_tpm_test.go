@@ -105,72 +105,103 @@ func (s *secbootSuite) TestCheckKeySealingSupported(c *C) {
 	}
 }
 
-func (s *secbootSuite) TestMeasureEpoch(c *C) {
-	pcr := 0
-	calls := 0
-	restore := secboot.MockSbMeasureSnapSystemEpochToTPM(func(tpm *sb.TPMConnection, pcrIndex int) error {
-		calls++
-		pcr = pcrIndex
-		return nil
-	})
-	defer restore()
-
-	h := &secboot.SecbootHandle{}
-	err := secboot.MeasureEpoch(h)
-	c.Assert(err, IsNil)
-	c.Assert(calls, Equals, 1)
-	c.Assert(pcr, Equals, 12)
-}
-
-func (s *secbootSuite) TestMeasureModel(c *C) {
-	pcr := 0
-	calls := 0
-	var model *asserts.Model
-	restore := secboot.MockSbMeasureSnapModelToTPM(func(tpm *sb.TPMConnection, pcrIndex int, m *asserts.Model) error {
-		calls++
-		pcr = pcrIndex
-		model = m
-		return nil
-	})
-	defer restore()
-
-	h := &secboot.SecbootHandle{}
-	myModel := &asserts.Model{}
-	err := secboot.MeasureModel(h, myModel)
-	c.Assert(err, IsNil)
-	c.Assert(calls, Equals, 1)
-	c.Assert(pcr, Equals, 12)
-	c.Assert(model, Equals, myModel)
-}
-
-func (s *secbootSuite) TestMeasureWhenPossible(c *C) {
+func (s *secbootSuite) TestMeasureSnapSystemEpochWhenPossible(c *C) {
 	for _, tc := range []struct {
-		tpmErr error
-		cbErr  error
-		calls  int
-		err    string
+		tpmErr  error
+		callNum int
+		err     string
 	}{
-		{tpmErr: nil, cbErr: nil, calls: 1, err: ""},
-		{tpmErr: nil, cbErr: errors.New("some error"), calls: 1, err: "some error"},
-		{tpmErr: errors.New("tpm error"), cbErr: nil, calls: 0, err: "cannot open TPM connection: tpm error"},
-		{tpmErr: &os.PathError{Op: "open", Path: "path", Err: errors.New("enoent")}, cbErr: nil, calls: 0, err: ""},
+		{
+			// normal connection to the TPM device
+			tpmErr: nil, callNum: 1, err: "",
+		},
+		{
+			// TPM device exists but returns error
+			tpmErr: errors.New("tpm error"), callNum: 0,
+			err: "cannot measure snap system epoch: cannot open TPM connection: tpm error",
+		},
+		{
+			// TPM device does not exist
+			tpmErr: &os.PathError{Op: "open", Path: "path", Err: errors.New("enoent")}, callNum: 0, err: "",
+		},
 	} {
-		// set up tpm mock
-		_, restore := mockSbTPMConnection(c, tc.tpmErr)
+		mockTpm, restore := mockSbTPMConnection(c, tc.tpmErr)
 		defer restore()
 
 		calls := 0
-		testCallback := func(h *secboot.SecbootHandle) error {
+		restore = secboot.MockSbMeasureSnapSystemEpochToTPM(func(tpm *sb.TPMConnection, pcrIndex int) error {
 			calls++
-			return tc.cbErr
-		}
-		err := secboot.MeasureWhenPossible(testCallback)
+			c.Assert(tpm, Equals, mockTpm)
+			c.Assert(pcrIndex, Equals, 12)
+			return nil
+		})
+		defer restore()
+
+		err := secboot.MeasureSnapSystemEpochWhenPossible()
 		if tc.err == "" {
 			c.Assert(err, IsNil)
 		} else {
 			c.Assert(err, ErrorMatches, tc.err)
 		}
-		c.Assert(calls, Equals, tc.calls)
+		c.Assert(calls, Equals, tc.callNum)
+	}
+}
+
+func (s *secbootSuite) TestMeasureSnapModelWhenPossible(c *C) {
+	for _, tc := range []struct {
+		tpmErr   error
+		modelErr error
+		callNum  int
+		err      string
+	}{
+		{
+			// normal connection to the TPM device
+			tpmErr: nil, modelErr: nil, callNum: 1, err: "",
+		},
+		{
+			// normal connection to the TPM device with model error
+			tpmErr: nil, modelErr: errors.New("model error"), callNum: 0,
+			err: "cannot measure snap model: model error",
+		},
+		{
+			// TPM device exists but returns error
+			tpmErr: errors.New("tpm error"), callNum: 0,
+			err: "cannot measure snap model: cannot open TPM connection: tpm error",
+		},
+		{
+			// TPM device does not exist
+			tpmErr: &os.PathError{Op: "open", Path: "path", Err: errors.New("enoent")}, callNum: 0, err: "",
+		},
+	} {
+		mockModel := &asserts.Model{}
+
+		mockTpm, restore := mockSbTPMConnection(c, tc.tpmErr)
+		defer restore()
+
+		calls := 0
+		restore = secboot.MockSbMeasureSnapModelToTPM(func(tpm *sb.TPMConnection, pcrIndex int, model *asserts.Model) error {
+			calls++
+			c.Assert(tpm, Equals, mockTpm)
+			c.Assert(model, Equals, mockModel)
+			c.Assert(pcrIndex, Equals, 12)
+			return nil
+		})
+		defer restore()
+
+		findModel := func() (*asserts.Model, error) {
+			if tc.modelErr != nil {
+				return nil, tc.modelErr
+			}
+			return mockModel, nil
+		}
+
+		err := secboot.MeasureSnapModelWhenPossible(findModel)
+		if tc.err == "" {
+			c.Assert(err, IsNil)
+		} else {
+			c.Assert(err, ErrorMatches, tc.err)
+		}
+		c.Assert(calls, Equals, tc.callNum)
 	}
 }
 
