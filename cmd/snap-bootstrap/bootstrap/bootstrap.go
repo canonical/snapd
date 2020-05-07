@@ -160,6 +160,7 @@ func Run(gadgetRoot, device string, options Options) error {
 		return fmt.Errorf("cannot store recovery key: %v", err)
 	}
 
+	// TODO:UC20: binaries are EFI/bootloader-specific, hardcoded for now
 	loadChain := []string{
 		// the path to the shim EFI binary
 		filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot/bootx64.efi"),
