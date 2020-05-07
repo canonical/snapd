@@ -19,6 +19,9 @@
 
 package sysconfig
 
+// See https://github.com/snapcore/core20/pull/46
+const writableDefaultsDir = "_writable_defaults"
+
 // Options is the set of options used to configure the run system
 type Options struct {
 	// CloudInitSrcDir is where to find the cloud-init data when installing it,

@@ -58,7 +58,7 @@ func (s *sysconfigSuite) TestCloudInitDisablesByDefault(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	ubuntuDataCloudDisabled := filepath.Join(boot.InitramfsWritableDir, "etc/cloud/cloud-init.disabled/")
+	ubuntuDataCloudDisabled := filepath.Join(boot.InitramfsWritableDir, "_writable_defaults/etc/cloud/cloud-init.disabled")
 	c.Check(ubuntuDataCloudDisabled, testutil.FilePresent)
 }
 
@@ -76,7 +76,7 @@ func (s *sysconfigSuite) TestCloudInitInstalls(c *C) {
 	c.Assert(err, IsNil)
 
 	// and did copy the cloud-init files
-	ubuntuDataCloudCfg := filepath.Join(boot.InitramfsWritableDir, "etc/cloud/cloud.cfg.d/")
+	ubuntuDataCloudCfg := filepath.Join(boot.InitramfsWritableDir, "_writable_defaults/etc/cloud/cloud.cfg.d/")
 	c.Check(filepath.Join(ubuntuDataCloudCfg, "foo.cfg"), testutil.FileEquals, "foo.cfg config")
 	c.Check(filepath.Join(ubuntuDataCloudCfg, "bar.cfg"), testutil.FileEquals, "bar.cfg config")
 }
