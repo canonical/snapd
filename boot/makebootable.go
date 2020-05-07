@@ -229,7 +229,7 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 	// - create grub.cfg instead of using the gadget one
 
 	// copy kernel/base into the ubuntu-data partition
-	snapBlobDir := dirs.SnapBlobDirUnder(InitramfsWritableDir)
+	snapBlobDir := dirs.SnapBlobDirUnder(InstallHostWritableDir)
 	if err := os.MkdirAll(snapBlobDir, 0755); err != nil {
 		return err
 	}
@@ -250,7 +250,7 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 		Model:          model.Model(),
 		Grade:          string(model.Grade()),
 	}
-	if err := modeenv.WriteTo(InitramfsWritableDir); err != nil {
+	if err := modeenv.WriteTo(InstallHostWritableDir); err != nil {
 		return fmt.Errorf("cannot write modeenv: %v", err)
 	}
 
