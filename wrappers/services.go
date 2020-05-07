@@ -558,7 +558,8 @@ WantedBy={{.ServicesTarget}}
 		restartCond = snap.RestartOnFailure.String()
 	}
 
-	// start with score -900-1 because snapd itself has OOMScoreAdjust=-900
+	// use score -900+vitalityRank, where vitalityRank starts at 1
+	// and considering snapd itself has OOMScoreAdjust=-900
 	const baseOOMAdjustScore = -900
 	var oomAdjustScore int
 	if opts.VitalityRank > 0 {
