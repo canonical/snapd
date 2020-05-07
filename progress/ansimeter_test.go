@@ -150,7 +150,7 @@ func (ansiSuite) TestSetLayoutMultibyte(c *check.C) {
 		out := buf.String()
 		c.Check([]rune(out), check.HasLen, 80+1, check.Commentf("unexpected length: %v", len(out)))
 		c.Check(out, check.Matches,
-			fmt.Sprintf("\r0123456789 \\s+  99%% [0-9]+(\\.[0-9]+)?[kMGTPEZY]?B/s %s", dstr))
+			fmt.Sprintf("\r0123456789 \\s+  99%% +[0-9]+(\\.[0-9]+)?[kMGTPEZY]?B/s %s", dstr))
 	}
 }
 
