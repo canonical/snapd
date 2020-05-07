@@ -48,6 +48,8 @@ func (s *watchdogSuite) SetUpTest(c *C) {
 
 	dirs.SetRootDir(c.MkDir())
 	s.mockEtcEnvironment = filepath.Join(dirs.SnapSystemdConfDir, "10-snapd-watchdog.conf")
+
+	s.systemctlArgs = nil
 }
 
 func (s *watchdogSuite) TearDownTest(c *C) {
@@ -78,6 +80,11 @@ func (s *watchdogSuite) TestConfigureWatchdog(c *C) {
 		c.Check(s.mockEtcEnvironment, testutil.FileEquals,
 			fmt.Sprintf("[Manager]\n%s=%s\n", systemdOption, val))
 	}
+
+	c.Check(s.systemctlArgs, DeepEquals, [][]string{
+		{"daemon-reexec"},
+		{"daemon-reexec"},
+	})
 }
 
 func (s *watchdogSuite) TestConfigureWatchdogUnits(c *C) {
@@ -121,6 +128,10 @@ func (s *watchdogSuite) TestConfigureWatchdogAll(c *C) {
 	c.Check(s.mockEtcEnvironment, testutil.FileEquals, "[Manager]\n"+
 		fmt.Sprintf("RuntimeWatchdogSec=%d\n", times[0])+
 		fmt.Sprintf("ShutdownWatchdogSec=%d\n", times[1]))
+
+	c.Check(s.systemctlArgs, DeepEquals, [][]string{
+		{"daemon-reexec"},
+	})
 }
 
 func (s *watchdogSuite) TestConfigureWatchdogAllConfDirExistsAlready(c *C) {
@@ -143,6 +154,10 @@ func (s *watchdogSuite) TestConfigureWatchdogAllConfDirExistsAlready(c *C) {
 	c.Check(s.mockEtcEnvironment, testutil.FileEquals, "[Manager]\n"+
 		fmt.Sprintf("RuntimeWatchdogSec=%d\n", times[0])+
 		fmt.Sprintf("ShutdownWatchdogSec=%d\n", times[1]))
+
+	c.Check(s.systemctlArgs, DeepEquals, [][]string{
+		{"daemon-reexec"},
+	})
 }
 
 func (s *watchdogSuite) TestConfigureWatchdogBadFormat(c *C) {
@@ -164,6 +179,8 @@ func (s *watchdogSuite) TestConfigureWatchdogBadFormat(c *C) {
 		})
 		c.Assert(err, ErrorMatches, badVal.err)
 	}
+
+	c.Check(s.systemctlArgs, HasLen, 0)
 }
 
 func (s *watchdogSuite) TestConfigureWatchdogNoFileUpdate(c *C) {
@@ -200,6 +217,8 @@ func (s *watchdogSuite) TestConfigureWatchdogNoFileUpdate(c *C) {
 	info, err = os.Stat(s.mockEtcEnvironment)
 	c.Assert(err, IsNil)
 	c.Assert(info.ModTime(), Equals, fileModTime)
+
+	c.Check(s.systemctlArgs, HasLen, 0)
 }
 
 func (s *watchdogSuite) TestConfigureWatchdogRemovesIfEmpty(c *C) {
@@ -233,6 +252,11 @@ ShutdownWatchdogSec=20
 	c.Check(osutil.FileExists(s.mockEtcEnvironment), Equals, false)
 	// but the canary is still here
 	c.Check(osutil.FileExists(canary), Equals, true)
+
+	// apply defaults
+	c.Check(s.systemctlArgs, DeepEquals, [][]string{
+		{"daemon-reexec"},
+	})
 }
 
 func (s *watchdogSuite) TestFilesystemOnlyApply(c *C) {
