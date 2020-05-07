@@ -223,7 +223,7 @@ func tpmSealKey(key partition.EncryptionKey, rkey partition.RecoveryKey, options
 		// run mode
 		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
 		// recover mode
-		fmt.Sprintf("snapd_recovery_mode=run snapd_recovery_system=%s console=ttyS0 console=tty1 panic=-1", options.SystemLabel),
+		fmt.Sprintf("snapd_recovery_mode=recover snapd_recovery_system=%s console=ttyS0 console=tty1 panic=-1", options.SystemLabel),
 	}
 
 	tpm.SetKernelCmdlines(kernelCmdlines)
