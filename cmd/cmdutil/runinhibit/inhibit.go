@@ -58,12 +58,12 @@ func openHintFile(snapName string) (*osutil.FileLock, error) {
 	return osutil.NewFileModeLock(fname, 0644)
 }
 
-// LockAndSetHint grabs a persistent "snap run" inhibition lock with a given hint.
+// LockWithHint sets a persistent "snap run" inhibition lock with a given hint.
 //
 // The hint cannot be empty. It should be one of the Hint constants defined in
 // this package. While the hint in place "snap run" will not allow the snap to
 // start and will block, presenting a user interface if possible.
-func LockAndSetHint(snapName string, hint Hint) error {
+func LockWithHint(snapName string, hint Hint) error {
 	if len(hint) == 0 {
 		return fmt.Errorf("hint cannot be empty")
 	}
