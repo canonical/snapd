@@ -1,4 +1,4 @@
-snapd (2.45~pre1) xenial; urgency=medium
+snapd (2.45~pre2) xenial; urgency=medium
 
   * New upstream release, LP: #1875071
     - placeholder for the full changelog
