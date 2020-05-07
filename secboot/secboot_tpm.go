@@ -26,7 +26,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/canonical/go-tpm2"
 	sb "github.com/snapcore/secboot"
 	"golang.org/x/xerrors"
 
@@ -83,28 +82,6 @@ func checkSecureBootEnabled() error {
 }
 
 const tpmPCR = 12
-
-// MockSecbootConnect should only be used in tests. TPM should not
-// be exposed to external tests.
-func MockSecbootConnect() (func(), error) {
-	tcti, err := os.Open("/dev/null")
-	if err != nil {
-		return nil, err
-	}
-	tpmctx, err := tpm2.NewTPMContext(tcti)
-	if err != nil {
-		return nil, err
-	}
-	tpm := &sb.TPMConnection{TPMContext: tpmctx}
-	old := sbConnectToDefaultTPM
-	sbConnectToDefaultTPM = func() (*sb.TPMConnection, error) {
-		return tpm, nil
-	}
-	restore := func() {
-		sbConnectToDefaultTPM = old
-	}
-	return restore, nil
-}
 
 func secureConnectToTPM(ekcfile string) (*sb.TPMConnection, error) {
 	ekCertReader, err := os.Open(ekcfile)
