@@ -1395,6 +1395,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep3Encrypted(c *C
 	c.Check(measuredModel, DeepEquals, s.model)
 
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "secboot-epoch-measured"), testutil.FilePresent)
+	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, fmt.Sprintf("%s-model-measured", s.sysLabel)), testutil.FilePresent)
 }
 
 var mockStateContent = `{"data":{"auth":{"users":[{"name":"mvo"}]}},"some":{"other":"stuff"}}`
