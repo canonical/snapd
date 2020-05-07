@@ -87,7 +87,7 @@ func generateMountsModeInstall(mst *initramfsMountsState, recoverySystem string)
 		return nil
 	}
 
-	// n+1: final step: write $(ubuntu_data)/var/lib/snapd/modeenv - this
+	// n+1: final step: write $(tmpfs-data)/var/lib/snapd/modeenv - this
 	//      is the tmpfs we just created above
 	modeEnv := &boot.Modeenv{
 		Mode:           "install",
@@ -185,11 +185,11 @@ func generateMountsModeRecover(mst *initramfsMountsState, recoverySystem string)
 
 	// now copy the auth data from the real ubuntu-data dir to the ephemeral
 	// ubuntu-data dir
-	if err := copyUbuntuDataAuth(boot.InitramfsHostUbuntuDataDir, boot.InitramfsUbuntuDataDir); err != nil {
+	if err := copyUbuntuDataAuth(boot.InitramfsHostUbuntuDataDir, boot.InitramfsDataDir); err != nil {
 		return err
 	}
 
-	// n+2: final step: write $(ubuntu_data)/var/lib/snapd/modeenv - this
+	// n+2: final step: write $(tmpfs-data)/var/lib/snapd/modeenv - this
 	//      is the tmpfs we just created above
 	modeEnv := &boot.Modeenv{
 		Mode:           "recover",
@@ -279,16 +279,15 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState, recoverySyste
 	}
 
 	// 3. mount "ubuntu-data" on a tmpfs
-	isMounted, err = mst.IsMounted(boot.InitramfsUbuntuDataDir)
+	isMounted, err = mst.IsMounted(boot.InitramfsDataDir)
 	if err != nil {
 		return false, err
 	}
 	if !isMounted {
-		fmt.Fprintf(stdout, "--type=tmpfs tmpfs /run/mnt/ubuntu-data\n")
+		fmt.Fprintf(stdout, "--type=tmpfs tmpfs %s\n", boot.InitramfsDataDir)
 		return false, nil
 	}
 
-	//    with mounting stuff
 	return true, nil
 }
 
@@ -359,7 +358,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	// one recorded in ubuntu-data modeenv during install
 
 	// 1.2 mount Data, and exit, as it needs to be mounted for us to do step 2
-	isDataMounted, err := mst.IsMounted(boot.InitramfsUbuntuDataDir)
+	isDataMounted, err := mst.IsMounted(boot.InitramfsDataDir)
 	if err != nil {
 		return err
 	}
@@ -370,7 +369,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 			return err
 		}
 
-		fmt.Fprintf(stdout, "%s %s\n", device, boot.InitramfsUbuntuDataDir)
+		fmt.Fprintf(stdout, "%s %s\n", device, boot.InitramfsDataDir)
 		return nil
 	}
 

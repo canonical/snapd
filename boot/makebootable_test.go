@@ -385,8 +385,8 @@ version: 5.0
 	c.Assert(err, IsNil)
 
 	// ensure base/kernel got copied to /var/lib/snapd/snaps
-	c.Check(filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), "core20_3.snap"), testutil.FilePresent)
-	c.Check(filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), "pc-kernel_5.snap"), testutil.FilePresent)
+	c.Check(filepath.Join(dirs.SnapBlobDirUnder(boot.InstallHostWritableDir), "core20_3.snap"), testutil.FilePresent)
+	c.Check(filepath.Join(dirs.SnapBlobDirUnder(boot.InstallHostWritableDir), "pc-kernel_5.snap"), testutil.FilePresent)
 
 	// ensure the bootvars got updated the right way
 	mockSeedGrubenv := filepath.Join(mockSeedGrubDir, "grubenv")
@@ -608,8 +608,8 @@ version: 5.0
 	c.Assert(err, IsNil)
 
 	// ensure base/kernel got copied to /var/lib/snapd/snaps
-	c.Check(filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), "core20_3.snap"), testutil.FilePresent)
-	c.Check(filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), "arm-kernel_5.snap"), testutil.FilePresent)
+	c.Check(filepath.Join(dirs.SnapBlobDirUnder(boot.InstallHostWritableDir), "core20_3.snap"), testutil.FilePresent)
+	c.Check(filepath.Join(dirs.SnapBlobDirUnder(boot.InstallHostWritableDir), "arm-kernel_5.snap"), testutil.FilePresent)
 
 	// ensure the bootvars on ubuntu-seed got updated the right way
 	mockSeedUbootenv := filepath.Join(boot.InitramfsUbuntuSeedDir, "uboot/ubuntu/boot.sel")
