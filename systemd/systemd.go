@@ -131,7 +131,7 @@ func Available() error {
 	return err
 }
 
-// Version returns systemd version
+// Version returns systemd version.
 func Version() (int, error) {
 	out, err := systemctlCmd("--version")
 	if err != nil {
