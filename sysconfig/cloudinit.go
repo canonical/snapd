@@ -32,8 +32,12 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
+func ubuntuDataCloudDir(rootdir string) string {
+	return filepath.Join(rootdir, writableDefaultsDir, "etc/cloud/")
+}
+
 func DisableCloudInit(targetdir string) error {
-	ubuntuDataCloud := filepath.Join(targetdir, "etc/cloud/")
+	ubuntuDataCloud := ubuntuDataCloudDir(targetdir)
 	if err := os.MkdirAll(ubuntuDataCloud, 0755); err != nil {
 		return fmt.Errorf("cannot make cloud config dir: %v", err)
 	}
@@ -53,7 +57,7 @@ func installCloudInitCfg(src, targetdir string) error {
 		return nil
 	}
 
-	ubuntuDataCloudCfgDir := filepath.Join(targetdir, "etc/cloud/cloud.cfg.d/")
+	ubuntuDataCloudCfgDir := filepath.Join(ubuntuDataCloudDir(targetdir), "cloud.cfg.d/")
 	if err := os.MkdirAll(ubuntuDataCloudCfgDir, 0755); err != nil {
 		return fmt.Errorf("cannot make cloud config dir: %v", err)
 	}
