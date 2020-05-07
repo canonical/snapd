@@ -145,7 +145,7 @@ func Run(gadgetRoot, device string, options Options) error {
 	}
 
 	// store the encryption key as the last part of the process to reduce the
-	// possiblity of exiting with an error after the TPM provisioning
+	// possibility of exiting with an error after the TPM provisioning
 	if options.Encrypt {
 		if err := tpmSealKey(key, rkey, options); err != nil {
 			return fmt.Errorf("cannot seal the encryption key: %v", err)
