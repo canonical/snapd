@@ -218,6 +218,9 @@ const (
 
 	// the default target for systemd timer units that we generate
 	TimersTarget = "timers.target"
+
+	// the target for systemd user session units that we generate
+	UserServicesTarget = "default.target"
 )
 
 type reporter interface {
@@ -498,9 +501,6 @@ func (s *systemd) Status(unitNames ...string) ([]*UnitStatus, error) {
 }
 
 func (s *systemd) IsEnabled(serviceName string) (bool, error) {
-	if s.mode == GlobalUserMode {
-		panic("cannot call is-enabled with GlobalUserMode")
-	}
 	_, err := s.systemctl("--root", s.rootDir, "is-enabled", serviceName)
 	if err == nil {
 		return true, nil

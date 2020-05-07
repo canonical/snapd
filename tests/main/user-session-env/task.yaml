@@ -29,7 +29,7 @@ execute: |
 
     for user in test "$TEST_ZSH_USER"; do
         # Dump the environment set up by the user session manager
-        if session-tool -u "$user" --has-systemd-and-dbus; then
+        if session-tool --has-session-systemd-and-dbus; then
             session-tool -u "$user" systemctl --user show-environment > "${user}-session-env"
         fi
         session-tool -u "$user" env > "${user}-profile-env"
