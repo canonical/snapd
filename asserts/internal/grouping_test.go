@@ -64,7 +64,7 @@ func (s *groupingsSuite) TestNewGroupings(c *C) {
 	}
 }
 
-func (s *groupingsSuite) TestSimple(c *C) {
+func (s *groupingsSuite) TestAddToAndContains(c *C) {
 	var g internal.Grouping
 
 	gr, err := internal.NewGroupings(16)
