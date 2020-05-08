@@ -182,7 +182,7 @@ func (s *deviceMgrSystemsSuite) SetUpTest(c *C) {
 
 	// all tests should be in run mode by default, if they need to be in
 	// different modes they should set that individually
-	s.AddCleanup(s.mgr.SetManagerSystemMode("run"))
+	devicestate.SetSystemMode(s.mgr, "run")
 }
 
 func (s *deviceMgrSystemsSuite) TestListNoSystems(c *C) {
@@ -336,7 +336,7 @@ func (s *deviceMgrSystemsSuite) TestRequestSameModeSameSystemDoesNothing(c *C) {
 	label := s.mockedSystemSeeds[0].label
 
 	for _, mode := range []string{"run", "install", "recover"} {
-		s.mgr.SetManagerSystemMode(mode)
+		devicestate.SetSystemMode(s.mgr, mode)
 		err := s.bootloader.SetBootVars(map[string]string{
 			"snapd_recovery_mode":   mode,
 			"snapd_recovery_system": label,
@@ -358,7 +358,7 @@ func (s *deviceMgrSystemsSuite) TestRequestSameModeSameSystemDoesNothing(c *C) {
 
 func (s *deviceMgrSystemsSuite) TestRequestModeRunInstallForRun(c *C) {
 	// we are in recover mode here
-	s.mgr.SetManagerSystemMode("recover")
+	devicestate.SetSystemMode(s.mgr, "recover")
 	s.state.Lock()
 	s.state.Set("seeded-systems", []devicestate.SeededSystem{
 		{
