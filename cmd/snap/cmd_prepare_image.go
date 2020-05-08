@@ -20,6 +20,7 @@
 package main
 
 import (
+	"os"
 	"strings"
 
 	"github.com/jessevdk/go-flags"
@@ -110,6 +111,7 @@ func (x *cmdPrepareImage) Execute(args []string) error {
 		opts.SnapChannels = snapChannels
 	}
 
+	opts.CohortKey = os.Getenv("UBUNTU_STORE_COHORT_KEY")
 	opts.PrepareDir = x.Positional.TargetDir
 	opts.Classic = x.Classic
 

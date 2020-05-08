@@ -28,6 +28,7 @@ type Options struct {
 	// TODO: use OptionsSnap directly here?
 	Snaps        []string
 	SnapChannels map[string]string
+	CohortKey    string
 
 	PrepareDir string
 
