@@ -80,13 +80,13 @@ func (s *servicesTestSuite) SetUpTest(c *C) {
 }
 
 func (s *servicesTestSuite) TearDownTest(c *C) {
-	dirs.SetRootDir("")
-	s.systemctlRestorer()
-	s.delaysRestorer()
 	if s.agent != nil {
 		err := s.agent.Stop()
 		c.Check(err, IsNil)
 	}
+	s.systemctlRestorer()
+	s.delaysRestorer()
+	dirs.SetRootDir("")
 }
 
 func (s *servicesTestSuite) TestAddSnapServicesAndRemove(c *C) {
