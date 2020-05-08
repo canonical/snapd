@@ -721,9 +721,7 @@ func (s *servicesTestSuite) TestAddSnapMultiServicesFailEnableCleanup(c *C) {
 			default:
 				panic("expected no more than 2 enables")
 			}
-		case "stop":
-			return nil, nil
-		case "disable", "daemon-reload":
+		case "disable", "daemon-reload", "stop":
 			return nil, nil
 		default:
 			panic("unexpected systemctl command " + sdcmd)
@@ -796,9 +794,6 @@ func (s *servicesTestSuite) TestAddSnapMultiServicesStartFailOnSystemdReloadClea
 
 func (s *servicesTestSuite) TestAddSnapMultiUserServicesFailEnableCleanup(c *C) {
 	var sysdLog [][]string
-	svc1Name := "snap.hello-snap.svc1.service"
-	svc2Name := "snap.hello-snap.svc2.service"
-	numEnables := 0
 
 	// sanity check: there are no service files
 	svcFiles, _ := filepath.Glob(filepath.Join(dirs.SnapUserServicesDir, "snap.hello-snap.*.service"))
@@ -817,22 +812,8 @@ func (s *servicesTestSuite) TestAddSnapMultiUserServicesFailEnableCleanup(c *C) 
 			sdcmd = cmd[len(cmd)-2]
 		}
 		switch sdcmd {
-		case "enable":
-			numEnables++
-			switch numEnables {
-			case 1:
-				if cmd[len(cmd)-1] == svc2Name {
-					// the services are being iterated in the "wrong" order
-					svc1Name, svc2Name = svc2Name, svc1Name
-				}
-				return nil, nil
-			case 2:
-				return nil, fmt.Errorf("failed")
-			default:
-				panic("expected no more than 2 enables")
-			}
-		case "disable", "daemon-reload":
-			return nil, nil
+		case "daemon-reload":
+			return nil, fmt.Errorf("failed")
 		default:
 			panic("unexpected systemctl command " + sdcmd)
 		}
@@ -851,17 +832,13 @@ func (s *servicesTestSuite) TestAddSnapMultiUserServicesFailEnableCleanup(c *C) 
 `, &snap.SideInfo{Revision: snap.R(12)})
 
 	err := wrappers.AddSnapServices(info, nil, progress.Null)
-	c.Assert(err, IsNil)
-	err = wrappers.StartServices(info.Services(), nil, true, progress.Null, s.perfTimings)
-	c.Assert(err, ErrorMatches, "failed")
+	c.Assert(err, ErrorMatches, "cannot reload daemon: failed")
 
 	// the services are cleaned up
 	svcFiles, _ = filepath.Glob(filepath.Join(dirs.SnapUserServicesDir, "snap.hello-snap.*.service"))
 	c.Check(svcFiles, HasLen, 0)
 	c.Check(sysdLog, DeepEquals, [][]string{
-		{"--user", "--global", "--root", dirs.GlobalRootDir, "enable", svc1Name},
-		{"--user", "--global", "--root", dirs.GlobalRootDir, "enable", svc2Name}, // this one fails
-		{"--user", "--global", "--root", dirs.GlobalRootDir, "disable", svc1Name},
+		{"--user", "daemon-reload"},
 		{"--user", "daemon-reload"},
 	})
 }
@@ -912,11 +889,7 @@ func (s *servicesTestSuite) TestAddSnapMultiUserServicesStartFailOnSystemdReload
 	svcFiles, _ = filepath.Glob(filepath.Join(dirs.SnapUserServicesDir, "snap.hello-snap.*.service"))
 	c.Check(svcFiles, HasLen, 0)
 	c.Check(sysdLog, DeepEquals, [][]string{
-		{"--user", "--global", "--root", dirs.GlobalRootDir, "enable", svc1Name},
-		{"--user", "--global", "--root", dirs.GlobalRootDir, "enable", svc2Name},
 		{"--user", "daemon-reload"}, // this one fails
-		{"--user", "--global", "--root", dirs.GlobalRootDir, "disable", svc1Name},
-		{"--user", "--global", "--root", dirs.GlobalRootDir, "disable", svc2Name},
 		{"--user", "daemon-reload"}, // so does this one :-)
 	})
 }
@@ -1169,10 +1142,10 @@ func (s *servicesTestSuite) TestStartSnapMultiUserServicesFailStartCleanup(c *C)
 	}
 	err := wrappers.StartServices(svcs, nil, true, progress.Null, s.perfTimings)
 	c.Assert(err, ErrorMatches, "some user services failed to start")
-	c.Assert(sysdLog, HasLen, 10, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
+	//c.Assert(sysdLog, HasLen, 10, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
 	c.Check(sysdLog, DeepEquals, [][]string{
-		{"--user", "--global", "--root", s.tempdir, "is-enabled", svc1Name},
-		{"--user", "--global", "--root", s.tempdir, "is-enabled", svc2Name},
+		{"--user", "--global", "--root", s.tempdir, "enable", svc1Name},
+		{"--user", "--global", "--root", s.tempdir, "enable", svc2Name},
 		{"--user", "start", svc1Name},
 		{"--user", "start", svc2Name}, // one of the services fails
 		// session agent attempts to stop the non-failed services
@@ -1181,8 +1154,10 @@ func (s *servicesTestSuite) TestStartSnapMultiUserServicesFailStartCleanup(c *C)
 		// StartServices ensures everything is stopped
 		{"--user", "stop", svc2Name},
 		{"--user", "show", "--property=ActiveState", svc2Name},
-		{"--user", "stop", svc1Name},
+		{"--user", "stop", svc1Name}, // XXX: why second stop of svc1?
 		{"--user", "show", "--property=ActiveState", svc1Name},
+		{"--user", "--global", "--root", s.tempdir, "disable", svc1Name},
+		{"--user", "--global", "--root", s.tempdir, "disable", svc2Name},
 	}, Commentf("calls: %v", sysdLog))
 }
 

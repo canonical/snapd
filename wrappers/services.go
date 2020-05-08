@@ -335,6 +335,11 @@ func AddSnapServices(s *snap.Info, opts *AddSnapServicesOptions, inter interacte
 		if err == nil {
 			return
 		}
+		for _, s := range written {
+			if e := os.Remove(s); e != nil {
+				inter.Notify(fmt.Sprintf("while trying to remove %s due to previous failure: %v", s, e))
+			}
+		}
 		if writtenSystem && !preseeding {
 			if e := sysd.DaemonReload(); e != nil {
 				inter.Notify(fmt.Sprintf("while trying to perform systemd daemon-reload due to previous failure: %v", e))
@@ -370,26 +375,28 @@ func AddSnapServices(s *snap.Info, opts *AddSnapServicesOptions, inter interacte
 		}
 
 		// Generate systemd .socket files if needed
-		socketFiles, err := generateSnapSocketFiles(app)
+		var socketFiles *map[string][]byte
+		socketFiles, err = generateSnapSocketFiles(app)
 		if err != nil {
 			return err
 		}
 		for path, content := range *socketFiles {
 			os.MkdirAll(filepath.Dir(path), 0755)
-			if err := osutil.AtomicWriteFile(path, content, 0644, 0); err != nil {
+			if err = osutil.AtomicWriteFile(path, content, 0644, 0); err != nil {
 				return err
 			}
 			written = append(written, path)
 		}
 
 		if app.Timer != nil {
-			content, err := generateSnapTimerFile(app)
+			var content []byte
+			content, err = generateSnapTimerFile(app)
 			if err != nil {
 				return err
 			}
 			path := app.Timer.File()
 			os.MkdirAll(filepath.Dir(path), 0755)
-			if err := osutil.AtomicWriteFile(path, content, 0644, 0); err != nil {
+			if err = osutil.AtomicWriteFile(path, content, 0644, 0); err != nil {
 				return err
 			}
 			written = append(written, path)
@@ -398,12 +405,12 @@ func AddSnapServices(s *snap.Info, opts *AddSnapServicesOptions, inter interacte
 
 	if !preseeding {
 		if writtenSystem {
-			if err := sysd.DaemonReload(); err != nil {
+			if err = sysd.DaemonReload(); err != nil {
 				return err
 			}
 		}
 		if writtenUser {
-			if err := userDaemonReload(); err != nil {
+			if err = userDaemonReload(); err != nil {
 				return err
 			}
 		}
