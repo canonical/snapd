@@ -180,6 +180,9 @@ func (s *deviceMgrSystemsSuite) SetUpTest(c *C) {
 		brand: otherBrandAcc,
 	}}
 
+	// all tests should be in run mode by default, if they need to be in
+	// different modes they should set that individually
+	s.AddCleanup(s.mgr.SetManagerSystemMode("run"))
 }
 
 func (s *deviceMgrSystemsSuite) TestListNoSystems(c *C) {

@@ -164,6 +164,14 @@ func RemodelDeviceBackend(remodCtx remodelContext) storecontext.DeviceBackend {
 	}).deviceBackend()
 }
 
+func (mgr *DeviceManager) SetManagerSystemMode(mode string) (restore func()) {
+	old := mgr.systemMode
+	mgr.systemMode = mode
+	return func() {
+		mgr.systemMode = old
+	}
+}
+
 var (
 	ImportAssertionsFromSeed     = importAssertionsFromSeed
 	CheckGadgetOrKernel          = checkGadgetOrKernel
