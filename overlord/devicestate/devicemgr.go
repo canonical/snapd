@@ -904,10 +904,10 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 		// installed
 		// TODO:UC20: maybe factory hooks will be able to something like this?
 		return ErrUnsupportedAction
-	case "":
+	default:
 		// probably test device manager mocking problem, or also potentially
 		// missing modeenv
-		return fmt.Errorf("internal error: no manager system mode set")
+		return fmt.Errorf("internal error: unexpected manager system mode %q", m.systemMode)
 	}
 
 	m.state.Lock()
