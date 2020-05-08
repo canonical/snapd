@@ -188,8 +188,10 @@ type (
 func (m mounted) size() int                                            { return len(m) }
 func (m mounted) dirAndIsMounted(callNum int) (dir string, state bool) { return m[callNum], true }
 
-func (n notYetMounted) size() int                                            { return len(n) }
-func (n notYetMounted) dirAndIsMounted(callNum int) (dir string, state bool) { return n[callNum], false }
+func (n notYetMounted) size() int { return len(n) }
+func (n notYetMounted) dirAndIsMounted(callNum int) (dir string, state bool) {
+	return n[callNum], false
+}
 
 func (s *initramfsMountsSuite) mockExpectedMountChecks(c *C, expectedDirs ...expectedMountDirs) *int {
 	var n int // call counter
@@ -1311,6 +1313,91 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep3(c *C) {
 `, boot.InitramfsRunMntDir))
 }
 
+func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep3Encrypted(c *C) {
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover snapd_recovery_system="+s.sysLabel)
+
+	// setup ubuntu-data-enc
+	devDiskByLabel, restore := mockDevDiskByLabel(c)
+	defer restore()
+
+	ubuntuDataEnc := filepath.Join(devDiskByLabel, "ubuntu-data-enc")
+	err := ioutil.WriteFile(ubuntuDataEnc, nil, 0644)
+	c.Assert(err, IsNil)
+
+	// setup a fake tpm
+	mockTPM, restore := mockSecbootTPM(c)
+	defer restore()
+
+	activated := false
+	// setup activating the fake tpm
+	restore = main.MockSecbootActivateVolumeWithTPMSealedKey(func(tpm *secboot.TPMConnection, volumeName, sourceDevicePath,
+		keyPath string, pinReader io.Reader, options *secboot.ActivateWithTPMSealedKeyOptions) (bool, error) {
+		c.Assert(tpm, Equals, mockTPM)
+		c.Assert(volumeName, Equals, "ubuntu-data")
+		c.Assert(sourceDevicePath, Equals, ubuntuDataEnc)
+		// the keyfile will be on ubuntu-seed as ubuntu-data.sealed-key
+		c.Assert(keyPath, Equals, filepath.Join(boot.InitramfsUbuntuSeedDir, "device/fde", "ubuntu-data.sealed-key"))
+		c.Assert(*options, DeepEquals, secboot.ActivateWithTPMSealedKeyOptions{
+			PINTries:            1,
+			RecoveryKeyTries:    3,
+			LockSealedKeyAccess: true,
+		})
+		activated = true
+		return true, nil
+	})
+	defer restore()
+
+	n := s.mockExpectedMountChecks(c,
+		mounted{
+			boot.InitramfsUbuntuSeedDir,
+			filepath.Join(boot.InitramfsRunMntDir, "base"),
+			filepath.Join(boot.InitramfsRunMntDir, "kernel"),
+			filepath.Join(boot.InitramfsRunMntDir, "snapd"),
+			filepath.Join(boot.InitramfsRunMntDir, "data"),
+		},
+		notYetMounted{filepath.Join(boot.InitramfsRunMntDir, "host/ubuntu-data")},
+	)
+
+	sealedKeysLocked := false
+	restore = main.MockSecbootLockAccessToSealedKeys(func(tpm *secboot.TPMConnection) error {
+		sealedKeysLocked = true
+		return nil
+	})
+	defer restore()
+
+	epochPCR := -1
+	modelPCR := -1
+	restore = main.MockSecbootMeasureSnapSystemEpochToTPM(func(tpm *secboot.TPMConnection, pcrIndex int) error {
+		epochPCR = pcrIndex
+		return nil
+	})
+	defer restore()
+
+	var measuredModel *asserts.Model
+	restore = main.MockSecbootMeasureSnapModelToTPM(func(tpm *secboot.TPMConnection, pcrIndex int, model *asserts.Model) error {
+		modelPCR = pcrIndex
+		measuredModel = model
+		return nil
+	})
+	defer restore()
+
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+	c.Assert(*n, Equals, 6)
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data %[2]s/host/ubuntu-data
+`, devDiskByLabel, boot.InitramfsRunMntDir))
+
+	c.Check(activated, Equals, true)
+	c.Check(sealedKeysLocked, Equals, true)
+	c.Check(epochPCR, Equals, 12)
+	c.Check(modelPCR, Equals, 12)
+	c.Check(measuredModel, NotNil)
+	c.Check(measuredModel, DeepEquals, s.model)
+
+	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "secboot-epoch-measured"), testutil.FilePresent)
+	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, fmt.Sprintf("%s-model-measured", s.sysLabel)), testutil.FilePresent)
+}
+
 var mockStateContent = `{"data":{"auth":{"users":[{"name":"mvo"}]}},"some":{"other":"stuff"}}`
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep4(c *C) {
@@ -1346,6 +1433,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep4(c *C) {
 		// user ssh
 		"user-data/user1/.ssh/authorized_keys",
 		"user-data/user2/.ssh/authorized_keys",
+		// sudoers
+		"system-data/etc/sudoers.d/create-user-test",
 	}
 	mockUnrelatedFiles := []string{
 		"system-data/var/lib/foo",
