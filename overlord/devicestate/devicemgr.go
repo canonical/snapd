@@ -887,8 +887,9 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 
 	switch m.systemMode {
 	case "recover", "run":
-		// if going from recover to recover or from run to run, do nothing
-		if m.systemMode == sysAction.Mode {
+		// if going from recover to recover or from run to run and the systems
+		// are the same do nothing
+		if m.systemMode == sysAction.Mode && systemLabel == currentSys.System {
 			return nil
 		}
 	case "install":
