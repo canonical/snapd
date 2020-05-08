@@ -82,20 +82,22 @@ func (s *servicesTestSuite) SetUpTest(c *C) {
 }
 
 func (s *servicesTestSuite) TearDownTest(c *C) {
-	dirs.SetRootDir("")
-	s.systemctlRestorer()
-	s.delaysRestorer()
 	if s.agent != nil {
 		// Try sending a message to the session agent before
 		// shutting it down to see if that helps with the hang
 		// in gracefully shutting down the agent.
 		cli := client.New()
-		_, err := cli.SessionInfo(context.Background())
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_, err := cli.SessionInfo(ctx)
 		c.Check(err, IsNil)
 
 		err = s.agent.Stop()
 		c.Check(err, IsNil)
 	}
+	s.delaysRestorer()
+	s.systemctlRestorer()
+	dirs.SetRootDir("")
 }
 
 func (s *servicesTestSuite) TestAddSnapServicesAndRemove(c *C) {
