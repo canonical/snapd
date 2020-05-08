@@ -407,7 +407,7 @@ func (s *apiSuite) TestSystemActionRequestHappy(c *check.C) {
 		err = json.Unmarshal(rec.Body.Bytes(), &rspBody)
 		c.Assert(err, check.IsNil, check.Commentf(t.comment))
 
-		expResp := make(map[string]interface{})
+		var expResp map[string]interface{}
 		if t.expUnsupported {
 			expResp = map[string]interface{}{
 				"result": map[string]interface{}{
