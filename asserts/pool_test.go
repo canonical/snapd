@@ -413,7 +413,7 @@ func (s *poolSuite) TestUnknownGroup(c *C) {
 	// sanity
 	c.Check(pool.Err("suggestion"), IsNil)
 
-	c.Check(pool.Err("foo"), ErrorMatches, "unknown group: foo")
+	c.Check(pool.Err("foo"), Equals, asserts.ErrUnknownPoolGroup)
 }
 
 func (s *poolSuite) TestAddCurrentRevision(c *C) {

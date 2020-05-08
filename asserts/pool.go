@@ -112,8 +112,7 @@ func (p *Pool) ensureGroup(group string) (gnum uint16, err error) {
 	if err != nil {
 		return 0, err
 	}
-	var gRec *groupRec
-	if gRec = p.groups[gnum]; gRec == nil {
+	if gRec := p.groups[gnum]; gRec == nil {
 		gRec = new(groupRec)
 		p.groups[gnum] = gRec
 	}
@@ -134,9 +133,10 @@ func (p *Pool) Singleton(group string) (Grouping, error) {
 	return Grouping(p.groupings.Label(&grouping)), nil
 }
 
-// An unresolvedRec tracks a single unresolved assertion until is is resolved
-// or there is an error doing so. grouping grows as members all the groups
-// requiring this assertion.
+// An unresolvedRec tracks a single unresolved assertion until it is
+// resolved or there is an error doing so. The field 'grouping' will
+// grow to contain all the groups requiring this assertion while it
+// is unresolved.
 type unresolvedRec struct {
 	at       *AtRevision
 	grouping internal.Grouping
@@ -491,7 +491,10 @@ func (p *Pool) Add(a Assertion, grouping Grouping) error {
 
 // TODO: AddBatch
 
-var ErrUnresolved = errors.New("unresolved assertion")
+var (
+	ErrUnresolved       = errors.New("unresolved assertion")
+	ErrUnknownPoolGroup = errors.New("unknown pool group")
+)
 
 // unresolvedBookkeeping processes any left over unresolved assertions
 // since the last ToResolve invocation and intervening calls to Add/AddBatch,
@@ -550,7 +553,7 @@ func (p *Pool) Err(group string) error {
 	}
 	gRec := p.groups[gnum]
 	if gRec == nil {
-		return fmt.Errorf("unknown group: %s", group)
+		return ErrUnknownPoolGroup
 	}
 	return gRec.err
 }
