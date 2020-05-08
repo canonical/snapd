@@ -107,6 +107,14 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 	kernelDir := kernelInfo.MountDir()
 
+	modeEnv, err := m.maybeReadModeenv()
+	if err != nil {
+		return err
+	}
+	if modeEnv == nil {
+		return fmt.Errorf("missing modeenv, cannot proceed")
+	}
+
 	// bootstrap
 	bopts := bootstrap.Options{
 		Mount: true,
@@ -118,7 +126,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	if useEncryption {
 		fdeDir := "var/lib/snapd/device/fde"
 		// ensure directories
-		for _, p := range []string{boot.InitramfsEncryptionKeyDir, filepath.Join(boot.InitramfsWritableDir, fdeDir)} {
+		for _, p := range []string{boot.InitramfsEncryptionKeyDir, filepath.Join(boot.InstallHostWritableDir, fdeDir)} {
 			if err := os.MkdirAll(p, 0755); err != nil {
 				return err
 			}
@@ -126,11 +134,12 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 
 		bopts.Encrypt = true
 		bopts.KeyFile = filepath.Join(boot.InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key")
-		bopts.RecoveryKeyFile = filepath.Join(boot.InitramfsWritableDir, fdeDir, "recovery.key")
-		bopts.TPMLockoutAuthFile = filepath.Join(boot.InitramfsWritableDir, fdeDir, "tpm-lockout-auth")
-		bopts.PolicyUpdateDataFile = filepath.Join(boot.InitramfsWritableDir, fdeDir, "policy-update-data")
+		bopts.RecoveryKeyFile = filepath.Join(boot.InstallHostWritableDir, fdeDir, "recovery.key")
+		bopts.TPMLockoutAuthFile = filepath.Join(boot.InstallHostWritableDir, fdeDir, "tpm-lockout-auth")
+		bopts.PolicyUpdateDataFile = filepath.Join(boot.InstallHostWritableDir, fdeDir, "policy-update-data")
 		bopts.KernelPath = filepath.Join(kernelDir, "kernel.efi")
 		bopts.Model = deviceCtx.Model()
+		bopts.SystemLabel = modeEnv.RecoverySystem
 	}
 
 	// run the create partition code
@@ -151,7 +160,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// configure the run system
-	opts := &sysconfig.Options{TargetRootDir: boot.InitramfsWritableDir}
+	opts := &sysconfig.Options{TargetRootDir: boot.InstallHostWritableDir}
 	// configure cloud init
 	setSysconfigCloudOptions(opts, gadgetDir, deviceCtx.Model())
 	if err := sysconfigConfigureRunSystem(opts); err != nil {
@@ -163,13 +172,6 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	bootBaseInfo, err := snapstate.BootBaseInfo(st, deviceCtx)
 	if err != nil {
 		return fmt.Errorf("cannot get boot base info: %v", err)
-	}
-	modeEnv, err := m.maybeReadModeenv()
-	if err != nil {
-		return err
-	}
-	if modeEnv == nil {
-		return fmt.Errorf("missing modeenv, cannot proceed")
 	}
 	recoverySystemDir := filepath.Join("/systems", modeEnv.RecoverySystem)
 	bootWith := &boot.BootableSet{

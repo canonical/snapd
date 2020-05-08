@@ -182,18 +182,29 @@ func (s *SessionAgent) addRoutes() {
 }
 
 func (s *SessionAgent) Start() {
-	s.tomb.Go(func() error {
-		err := s.serve.Serve(s.listener)
-		if err == http.ErrServerClosed {
-			return nil
-		}
-		if err != nil && s.tomb.Err() == tomb.ErrStillAlive {
-			return err
-		}
-		return nil
-	})
+	s.tomb.Go(s.runServer)
+	s.tomb.Go(s.shutdownServerOnKill)
 	s.tomb.Go(s.exitOnIdle)
 	systemd.SdNotify("READY=1")
+}
+
+func (s *SessionAgent) runServer() error {
+	err := s.serve.Serve(s.listener)
+	if err == http.ErrServerClosed {
+		err = nil
+	}
+	if s.tomb.Err() == tomb.ErrStillAlive {
+		return err
+	}
+	return nil
+}
+
+func (s *SessionAgent) shutdownServerOnKill() error {
+	<-s.tomb.Dying()
+	systemd.SdNotify("STOPPING=1")
+	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+	return s.serve.Shutdown(ctx)
 }
 
 func (s *SessionAgent) exitOnIdle() error {
@@ -220,10 +231,7 @@ Loop:
 // Stop performs a graceful shutdown of the session agent and waits up to 5
 // seconds for it to complete.
 func (s *SessionAgent) Stop() error {
-	systemd.SdNotify("STOPPING=1")
-	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
-	defer cancel()
-	s.tomb.Kill(s.serve.Shutdown(ctx))
+	s.tomb.Kill(nil)
 	return s.tomb.Wait()
 }
 
