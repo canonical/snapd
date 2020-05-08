@@ -356,7 +356,7 @@ func (s *deviceMgrSystemsSuite) TestRequestSameModeSameSystemDoesNothing(c *C) {
 	}
 }
 
-func (s *deviceMgrSystemsSuite) TestRequestModeRunInstallForRun(c *C) {
+func (s *deviceMgrSystemsSuite) TestRequestModeRunInstallForRecover(c *C) {
 	// we are in recover mode here
 	devicestate.SetSystemMode(s.mgr, "recover")
 	s.state.Lock()
