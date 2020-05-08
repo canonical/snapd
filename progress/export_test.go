@@ -96,6 +96,14 @@ func MockStdout(w io.Writer) func() {
 	}
 }
 
+func MockFormatDuration(m func(f float64) string) (restore func()) {
+	old := formatDuration
+	formatDuration = m
+	return func() {
+		formatDuration = old
+	}
+}
+
 var (
 	Norm    = norm
 	Spinner = spinner

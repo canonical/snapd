@@ -30,9 +30,51 @@ prepare: |
     snap install --edge test-snapd-pulseaudio
     echo "snap remove --purge test-snapd-pulseaudio" >>defer.sh
 
+    # TODO: move this to the test that is responsible for creating this data.
+    # Remove potentially large go build cache that makes the debug section more
+    # verbose.
+    rm -rf ~test/.cache/go-build
+
+    # TODO: fix the test causing this. Some test is making ~test/.config root-owned,
+    # making it impossible for pulseaudio to start and write the secure cookie file.
+    chown -R test ~test
+
     # Prepare a session for the user.
     session-tool -u test --prepare
     echo "session-tool -u test --restore" >>defer.sh
+
+    # Ensure that the socket is active but do not check the service. In user
+    # mode pulseaudio is documented to quit when there are no active logind
+    # sessions.
+    #
+    # User session services do not posses a logind session session so
+    # pulseaudio immediately quits, and remains inactive outside of the moments
+    # we execute paplay through session-tool.
+    session-tool -u test systemctl --user is-active pulseaudio.socket | MATCH active
+
+    # Start pulseaudio to give it a chance to write the pulseaudio cookie file.
+    # Otherwise paplay invocation will race with pulse startup, and will race
+    # with cookie file being available.
+    if not session-tool -u test systemctl --user start pulseaudio.service; then
+        echo "cannot start pulseaudio server"
+        session-tool -u test systemctl --user status pulseaudio.service || true
+        session-tool -u test journalctl --user -u pulseaudio.service || true
+        exit 1
+    fi
+
+    # Ensure, that the cookie file is present.
+    test -e ~test/.config/pulse/cookie || test -e ~test/.config/pulse/.pulse-cookie
+    echo "rm -rf ~test/.config/pulse" >>defer.sh
+
+debug: |
+    echo "Files present in the test user's home directory"
+    test -d /home/test && find /home/test
+    echo "Files present in the test user's home directory, that are owned by root"
+    test -d /home/test && find /home/test -user root
+    echo "Files present in the test user's runtime directory"
+    test -d /home/user/12345 && find /run/user/12345
+    echo "Processes running as the test user"
+    ps -u test
 
 restore: |
     # Restore system to the previous state by running deferred commands in
@@ -41,12 +83,6 @@ restore: |
     sh -xe refed.sh && rm -f {defer,refed}.sh
 
 execute: |
-    echo "ensure that we have a pulse socket"
-    retry-tool test -S /run/user/12345/pulse/native
-
-    echo "Check that the daemon is running"
-    retry-tool session-tool -u test pulseaudio --check
-
     echo "The unconfined user can play audio"
     session-tool -u test /usr/bin/paplay "$PLAY_FILE"
 
