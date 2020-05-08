@@ -885,10 +885,29 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 		return ErrUnsupportedAction
 	}
 
-	// TODO:UC20 assume we are in the run mode
-	if sysAction.Mode == "run" {
-		// do nothing
-		return nil
+	switch m.systemMode {
+	case "recover", "run":
+		// if going from recover to recover or from run to run, do nothing
+		if m.systemMode == sysAction.Mode {
+			return nil
+		}
+	case "install":
+		// unclear why we should support requesting the system to go into
+		// install mode when it's already in install mode, but sure why not?
+		if sysAction.Mode == "install" && systemLabel == currentSys.System {
+			return nil
+		}
+		// anything else doesn't make sense, we should let install mode finish
+		// before we can realistically "run" or "recover" anything
+		// it's also unclear that we want something to be able to request
+		// installing a different system while the current one is being
+		// installed
+		// TODO:UC20: maybe factory hooks will be able to something like this?
+		return ErrUnsupportedAction
+	case "":
+		// probably test device manager mocking problem, or also potentially
+		// missing modeenv
+		return fmt.Errorf("internal error: no manager system mode set")
 	}
 
 	m.state.Lock()
