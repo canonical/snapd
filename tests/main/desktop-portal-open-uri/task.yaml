@@ -19,16 +19,17 @@ prepare: |
     setup_portals
 
     # Configure fake web browser
-    mkdir -p ~test/.local/share/applications
-    cat << EOF > ~test/.local/share/applications/test-browser.desktop
+    session-tool -u test mkdir -p ~test/.local/share/applications
+    session-tool -u test sh -c 'cat > ~test/.local/share/applications/test-browser.desktop' << EOF
     [Desktop Entry]
     Type=Application
     Name=Test Web Browser
     Exec=$(pwd)/web-browser.sh %u $BROWSER_HISTORY
     MimeType=x-scheme-handler/http;
     EOF
-    mkdir -p ~test/.config
-    cat << EOF > ~test/.config/mimeapps.list
+
+    session-tool -u test mkdir -p ~test/.config
+    session-tool -u test sh -c 'cat  > ~test/.config/mimeapps.list' << EOF
     [Default Applications]
     x-scheme-handler/http=test-browser.desktop
     EOF

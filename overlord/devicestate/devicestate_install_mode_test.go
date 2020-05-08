@@ -264,6 +264,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 			PolicyUpdateDataFile: filepath.Join(boot.InstallHostWritableDir, "var/lib/snapd/device/fde/policy-update-data"),
 			KernelPath:           filepath.Join(dirs.SnapMountDir, "pc-kernel/1/kernel.efi"),
 			Model:                mockModel,
+			SystemLabel:          "20191218",
 		})
 
 		// directories were ensured
@@ -291,6 +292,9 @@ func (s *deviceMgrInstallModeSuite) TestInstallTaskErrors(c *C) {
 		return fmt.Errorf("The horror, The horror")
 	})
 	defer restore()
+
+	err := ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"), nil, 0644)
+	c.Assert(err, IsNil)
 
 	s.state.Lock()
 	s.makeMockInstalledPcGadget(c, "dangerous")
