@@ -224,3 +224,9 @@ var (
 func (m *SnapManager) MaybeUndoRemodelBootChanges(t *state.Task) error {
 	return m.maybeUndoRemodelBootChanges(t)
 }
+
+// autorefresh
+var (
+	InhibitRefresh = inhibitRefresh
+	MaxInhibition  = maxInhibition
+)

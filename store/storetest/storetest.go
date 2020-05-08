@@ -85,6 +85,10 @@ func (Store) Assertion(*asserts.AssertionType, []string, *auth.UserState) (asser
 	panic("Store.Assertion not expected")
 }
 
+func (Store) DownloadAssertions([]string, *asserts.Batch, *auth.UserState) error {
+	panic("Store.DownloadAssertions not expected")
+}
+
 func (Store) WriteCatalogs(context.Context, io.Writer, store.SnapAdder) error {
 	panic("fakeStore.WriteCatalogs not expected")
 }

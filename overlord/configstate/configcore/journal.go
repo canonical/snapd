@@ -100,9 +100,20 @@ func handleJournalConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error
 	}
 
 	if opts == nil {
-		sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, nil)
-		if err := sysd.Kill("systemd-journald", "USR1", ""); err != nil {
+		ver, err := systemd.Version()
+		if err != nil {
 			return err
+		}
+
+		// old systemd-journal (e.g. on core16) closes the pipes on SIGUSR1,
+		// causing SIGPIPE and restart of snapd and other services.
+		// upstream bug: https://bugs.freedesktop.org/show_bug.cgi?id=84923,
+		// therefore only tell journald to reload if it's new enough.
+		if ver >= 236 {
+			sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, nil)
+			if err := sysd.Kill("systemd-journald", "USR1", ""); err != nil {
+				return err
+			}
 		}
 	}
 

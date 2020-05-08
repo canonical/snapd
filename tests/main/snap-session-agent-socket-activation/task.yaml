@@ -26,9 +26,6 @@ prepare: |
     fi
 
     session-tool -u test --prepare
-    # Wait for sockets.target to finish starting so the session agent
-    # socket is available.
-    session-tool -u test systemctl --user start sockets.target
 
 restore: |
     session-tool -u test --restore
