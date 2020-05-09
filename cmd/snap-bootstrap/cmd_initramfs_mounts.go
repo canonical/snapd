@@ -174,7 +174,7 @@ func generateMountsModeRecover(mst *initramfsMountsState, recoverySystem string)
 	}
 	if !isRecoverDataMounted {
 		const lockKeysForLast = true
-		device, err := unlockIfEncrypted("ubuntu-data", lockKeysForLast)
+		device, err := secbootUnlockVolumeIfEncrypted("ubuntu-data", lockKeysForLast)
 		if err != nil {
 			return err
 		}
