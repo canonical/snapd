@@ -354,16 +354,27 @@ func (d *deviceSuite) TestDeviceFindFallbackHappyWritable(c *C) {
 		},
 		StartOffset: 123,
 	}
+	psMBR := &gadget.LaidOutStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Type: "mbr",
+			Name: "mbr",
+		},
+		StartOffset: 0,
+	}
 	psNoName := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{},
 		StartOffset:     123,
 	}
 
-	for _, ps := range []*gadget.LaidOutStructure{psJustBare, psBareWithName, psNoName} {
+	for _, ps := range []*gadget.LaidOutStructure{psJustBare, psBareWithName, psNoName, psMBR} {
 		found, offs, err := gadget.FindDeviceForStructureWithFallback(ps)
 		c.Check(err, IsNil)
 		c.Check(found, Equals, filepath.Join(d.dir, "/dev/fakedevice0"))
-		c.Check(offs, Equals, gadget.Size(123))
+		if ps.Type != "mbr" {
+			c.Check(offs, Equals, gadget.Size(123))
+		} else {
+			c.Check(offs, Equals, gadget.Size(0))
+		}
 	}
 }
 

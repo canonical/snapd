@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/bootstrap"
-	"github.com/snapcore/snapd/secboot"
 )
 
 var (
@@ -79,26 +78,26 @@ func MockDefaultMarkerFile(p string) (restore func()) {
 	}
 }
 
-func MockSecbootUnlockIfEncrypted(f func(name string, lockKeysOnFinish bool) (string, error)) (restore func()) {
-	old := secbootUnlockIfEncrypted
-	secbootUnlockIfEncrypted = f
+func MockSecbootUnlockVolumeIfEncrypted(f func(name string, lockKeysOnFinish bool) (string, error)) (restore func()) {
+	old := secbootUnlockVolumeIfEncrypted
+	secbootUnlockVolumeIfEncrypted = f
 	return func() {
-		secbootUnlockIfEncrypted = old
+		secbootUnlockVolumeIfEncrypted = old
 	}
 }
 
-func MockSecbootMeasureEpoch(f func(h *secboot.SecbootHandle) error) (restore func()) {
-	old := secbootMeasureEpoch
-	secbootMeasureEpoch = f
+func MockSecbootMeasureSnapSystemEpochWhenPossible(f func() error) (restore func()) {
+	old := secbootMeasureSnapSystemEpochWhenPossible
+	secbootMeasureSnapSystemEpochWhenPossible = f
 	return func() {
-		secbootMeasureEpoch = old
+		secbootMeasureSnapSystemEpochWhenPossible = old
 	}
 }
 
-func MockSecbootMeasureModel(f func(h *secboot.SecbootHandle, model *asserts.Model) error) (restore func()) {
-	old := secbootMeasureModel
-	secbootMeasureModel = f
+func MockSecbootMeasureSnapModelWhenPossible(f func(findModel func() (*asserts.Model, error)) error) (restore func()) {
+	old := secbootMeasureSnapModelWhenPossible
+	secbootMeasureSnapModelWhenPossible = f
 	return func() {
-		secbootMeasureModel = old
+		secbootMeasureSnapModelWhenPossible = old
 	}
 }

@@ -302,7 +302,9 @@ cat "$tmp_dir/ready.pipe" >/dev/null
 # and redirects to capture output. Sadly busctl doesn't support passing file
 # descriptors https://github.com/systemd/systemd/issues/14954 As a workaround
 # we pass a set of pipes. This is good for non-interactive work.
-cat >"$tmp_dir/stdin.pipe" &
+# NOTE: /dev/stdin is provided explicitly to trigger special behavior in bash,
+# as otherwise background tasks are started with /dev/null for stdin.
+cat </dev/stdin >"$tmp_dir/stdin.pipe" &
 cat_stdin_pid=$!
 cat <"$tmp_dir/stdout.pipe" >&1 &
 cat_stdout_pid=$!

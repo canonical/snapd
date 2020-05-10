@@ -174,6 +174,14 @@ func Run(gadgetRoot, device string, options Options) error {
 		loadChain = append(loadChain, options.KernelPath)
 	}
 
+	// TODO:UC20: get cmdline definition from bootloaders
+	kernelCmdlines := []string{
+		// run mode
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
+		// recover mode
+		fmt.Sprintf("snapd_recovery_mode=recover snapd_recovery_system=%s console=ttyS0 console=tty1 panic=-1", options.SystemLabel),
+	}
+
 	sealKeyParams := secboot.SealKeyParams{
 		KernelCmdlines:       kernelCmdlines,
 		EFILoadChains:        [][]string{loadChain},

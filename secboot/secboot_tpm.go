@@ -98,80 +98,23 @@ func checkSecureBootEnabled() error {
 
 const tpmPCR = 12
 
-type SecbootHandle struct {
-	tpm *sb.TPMConnection
-}
-
-// MockSecbootConnect should only be used in tests. TPM should not
-// be exposed to external tests.
-func MockSecbootConnect() (func(), error) {
-	tcti, err := os.Open("/dev/null")
-	if err != nil {
-		return nil, err
-	}
-	tpmctx, err := tpm2.NewTPMContext(tcti)
-	if err != nil {
-		return nil, err
-	}
-	tpm := &sb.TPMConnection{TPMContext: tpmctx}
-	old := sbConnectToDefaultTPM
-	sbConnectToDefaultTPM = func() (*sb.TPMConnection, error) {
-		return tpm, nil
-	}
-	restore := func() {
-		sbConnectToDefaultTPM = old
-	}
-	return restore, nil
-}
-
-func secureConnectToTPM(ekcfile string) (*SecbootHandle, error) {
+func secureConnectToTPM(ekcfile string) (*sb.TPMConnection, error) {
 	ekCertReader, err := os.Open(ekcfile)
 	if err != nil {
 		return nil, fmt.Errorf("cannot open endorsement key certificate file: %v", err)
 	}
 	defer ekCertReader.Close()
 
-	tpm, err := sb.SecureConnectToDefaultTPM(ekCertReader, nil)
-	if err != nil {
-		return nil, err
-	}
-	return &SecbootHandle{tpm: tpm}, nil
+	return sb.SecureConnectToDefaultTPM(ekCertReader, nil)
 }
 
-func insecureConnectToTPM() (*SecbootHandle, error) {
-	tpm, err := sbConnectToDefaultTPM()
-	if err != nil {
-		return nil, err
-	}
-	return &SecbootHandle{tpm: tpm}, nil
+func insecureConnectToTPM() (*sb.TPMConnection, error) {
+	return sbConnectToDefaultTPM()
 }
 
-func (h *SecbootHandle) disconnect() error {
-	return h.tpm.Close()
-}
-
-// MeasureEpoch measures the snap system epoch.
-func MeasureEpoch(h *SecbootHandle) error {
-	if err := sbMeasureSnapSystemEpochToTPM(h.tpm, tpmPCR); err != nil {
-		return fmt.Errorf("cannot measure snap system epoch: %v", err)
-	}
-	return nil
-}
-
-// MeasureModel measures the snap model.
-func MeasureModel(h *SecbootHandle, model *asserts.Model) error {
-	if err := sbMeasureSnapModelToTPM(h.tpm, tpmPCR, model); err != nil {
-		return fmt.Errorf("cannot measure snap model: %v", err)
-	}
-	return nil
-}
-
-// MeasureWhenPossible verifies if secure boot measuring is possible and in
-// this case the whatHow function is executed. If measuring is not possible
-// success is returned.
-func MeasureWhenPossible(whatHow func(h *SecbootHandle) error) error {
+func measureWhenPossible(whatHow func(tpm *sb.TPMConnection) error) error {
 	// the model is ready, we're good to try measuring it now
-	t, err := insecureConnectToTPM()
+	tpm, err := insecureConnectToTPM()
 	if err != nil {
 		var perr *os.PathError
 		// XXX: xerrors.Is() does not work with PathErrors?
@@ -181,16 +124,48 @@ func MeasureWhenPossible(whatHow func(h *SecbootHandle) error) error {
 		}
 		return fmt.Errorf("cannot open TPM connection: %v", err)
 	}
-	defer t.disconnect()
+	defer tpm.Close()
 
-	return whatHow(t)
+	return whatHow(tpm)
 }
 
-// UnlockIfEncrypted verifies whether an encrypted volume with the specified
+// MeasureSnapSystemEpochWhenPossible measures the snap system epoch only if the
+// TPM device is available. If there's no TPM device success is returned.
+func MeasureSnapSystemEpochWhenPossible() error {
+	measure := func(tpm *sb.TPMConnection) error {
+		return sbMeasureSnapSystemEpochToTPM(tpm, tpmPCR)
+	}
+
+	if err := measureWhenPossible(measure); err != nil {
+		return fmt.Errorf("cannot measure snap system epoch: %v", err)
+	}
+
+	return nil
+}
+
+// MeasureSnapModelWhenPossible measures the snap model only if the TPM device is
+// available. If there's no TPM device success is returned.
+func MeasureSnapModelWhenPossible(findModel func() (*asserts.Model, error)) error {
+	measure := func(tpm *sb.TPMConnection) error {
+		model, err := findModel()
+		if err != nil {
+			return err
+		}
+		return sbMeasureSnapModelToTPM(tpm, tpmPCR, model)
+	}
+
+	if err := measureWhenPossible(measure); err != nil {
+		return fmt.Errorf("cannot measure snap model: %v", err)
+	}
+
+	return nil
+}
+
+// UnlockVolumeIfEncrypted verifies whether an encrypted volume with the specified
 // name exists and unlocks it. With lockKeysOnFinish set, access to the sealed
 // keys will be locked when this function completes. The path to the unencrypted
 // device node is returned.
-func UnlockIfEncrypted(name string, lockKeysOnFinish bool) (string, error) {
+func UnlockVolumeIfEncrypted(name string, lockKeysOnFinish bool) (string, error) {
 	device := filepath.Join(devDiskByLabelDir, name)
 
 	// TODO:UC20: use sb.SecureConnectToDefaultTPM() if we decide there's benefit in doing that or

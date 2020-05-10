@@ -111,6 +111,9 @@ func copyUbuntuDataAuth(src, dst string) error {
 		"user-data/*/.ssh/*",
 		// this ensures we also get non-ssh enabled accounts copied
 		"user-data/*/.profile",
+		// so that users have proper perms, i.e. console-conf added users are
+		// sudoers
+		"system-data/etc/sudoers.d/*",
 	} {
 		matches, err := filepath.Glob(filepath.Join(src, globEx))
 		if err != nil {
@@ -170,8 +173,13 @@ func generateMountsModeRecover(mst *initramfsMountsState, recoverySystem string)
 		return err
 	}
 	if !isRecoverDataMounted {
-		// TODO:UC20: data may need to be unlocked
-		fmt.Fprintf(stdout, "/dev/disk/by-label/ubuntu-data %s\n", boot.InitramfsHostUbuntuDataDir)
+		const lockKeysForLast = true
+		device, err := secbootUnlockVolumeIfEncrypted("ubuntu-data", lockKeysForLast)
+		if err != nil {
+			return err
+		}
+
+		fmt.Fprintf(stdout, "%s %s\n", device, boot.InitramfsHostUbuntuDataDir)
 		return nil
 	}
 
@@ -201,10 +209,9 @@ func generateMountsModeRecover(mst *initramfsMountsState, recoverySystem string)
 }
 
 var (
-	secbootMeasureEpoch        = secboot.MeasureEpoch
-	secbootMeasureModel        = secboot.MeasureModel
-	secbootMeasureWhenPossible = secboot.MeasureWhenPossible
-	secbootUnlockIfEncrypted   = secboot.UnlockIfEncrypted
+	secbootMeasureSnapSystemEpochWhenPossible = secboot.MeasureSnapSystemEpochWhenPossible
+	secbootMeasureSnapModelWhenPossible       = secboot.MeasureSnapModelWhenPossible
+	secbootUnlockVolumeIfEncrypted            = secboot.UnlockVolumeIfEncrypted
 )
 
 func generateMountsCommonInstallRecover(mst *initramfsMountsState, recoverySystem string) (allMounted bool, err error) {
@@ -220,13 +227,7 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState, recoverySyste
 
 	// 1a. measure model
 	err = stampedAction(fmt.Sprintf("%s-model-measured", recoverySystem), func() error {
-		return secbootMeasureWhenPossible(func(h *secboot.SecbootHandle) error {
-			model, err := mst.Model()
-			if err != nil {
-				return err
-			}
-			return secbootMeasureModel(h, model)
-		})
+		return secbootMeasureSnapModelWhenPossible(mst.Model)
 	})
 	if err != nil {
 		return false, err
@@ -307,13 +308,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 
 	// 1.1a measure model
 	err := stampedAction("run-model-measured", func() error {
-		return secbootMeasureWhenPossible(func(h *secboot.SecbootHandle) error {
-			model, err := mst.UnverifiedBootModel()
-			if err != nil {
-				return err
-			}
-			return secbootMeasureModel(h, model)
-		})
+		return secbootMeasureSnapModelWhenPossible(mst.UnverifiedBootModel)
 	})
 	if err != nil {
 		return err
@@ -328,7 +323,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	}
 	if !isDataMounted {
 		const lockKeysForLast = true
-		device, err := secbootUnlockIfEncrypted("ubuntu-data", lockKeysForLast)
+		device, err := secbootUnlockVolumeIfEncrypted("ubuntu-data", lockKeysForLast)
 		if err != nil {
 			return err
 		}
@@ -525,7 +520,7 @@ func stampedAction(stamp string, action func() error) error {
 func generateInitramfsMounts() error {
 	// Ensure there is a very early initial measurement
 	err := stampedAction("secboot-epoch-measured", func() error {
-		return secbootMeasureWhenPossible(secbootMeasureEpoch)
+		return secbootMeasureSnapSystemEpochWhenPossible()
 	})
 	if err != nil {
 		return err
