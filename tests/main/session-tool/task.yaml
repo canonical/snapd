@@ -34,6 +34,9 @@ prepare: |
     # Prepare for using sessions as the given user
     session-tool --prepare -u "$USER"
 execute: |
+    # Check that stdin is forwarded correctly.
+    echo "it-works" | session-tool -u "$USER" cat | MATCH "it-works"
+
     for n in $(seq 300); do
         echo "ITERATION $(date) $n"
         session-tool -u "$USER" id -u  2>/tmp/session-tool.log | MATCH "$(id -u "$USER")"
