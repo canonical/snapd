@@ -21,16 +21,11 @@ package main_test
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"syscall"
 
-	"github.com/canonical/go-tpm2"
-	"github.com/snapcore/secboot"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
@@ -61,8 +56,6 @@ type initramfsMountsSuite struct {
 	seedDir  string
 	sysLabel string
 	model    *asserts.Model
-
-	mockTPM *secboot.TPMConnection
 }
 
 var _ = Suite(&initramfsMountsSuite{})
@@ -131,22 +124,6 @@ func (s *initramfsMountsSuite) SetUpTest(c *C) {
 				"default-channel": "20",
 			}},
 	}, nil)
-
-	mockTPM, restoreTPM := mockSecbootTPM(c)
-	s.AddCleanup(restoreTPM)
-	s.mockTPM = mockTPM
-
-	restoreConnect := main.MockSecbootConnectToDefaultTPM(func() (*secboot.TPMConnection, error) {
-		// XXX: we should use xerrors.Errorf("no tpm: %w", &os.PathError{})
-		// but 1.9 vet complains about unknown verb %w
-		return nil, &mockedWrappedError{
-			fmt: "no tpm: %v",
-			err: &os.PathError{
-				Op: "open", Path: "/dev/mock/tpm0", Err: syscall.ENOENT,
-			},
-		}
-	})
-	s.AddCleanup(restoreConnect)
 }
 
 func (s *initramfsMountsSuite) mockProcCmdlineContent(c *C, newContent string) {
@@ -188,8 +165,10 @@ type (
 func (m mounted) size() int                                            { return len(m) }
 func (m mounted) dirAndIsMounted(callNum int) (dir string, state bool) { return m[callNum], true }
 
-func (n notYetMounted) size() int                                            { return len(n) }
-func (n notYetMounted) dirAndIsMounted(callNum int) (dir string, state bool) { return n[callNum], false }
+func (n notYetMounted) size() int { return len(n) }
+func (n notYetMounted) dirAndIsMounted(callNum int) (dir string, state bool) {
+	return n[callNum], false
+}
 
 func (s *initramfsMountsSuite) mockExpectedMountChecks(c *C, expectedDirs ...expectedMountDirs) *int {
 	var n int // call counter
@@ -235,7 +214,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep2(c *C) {
 			filepath.Join(boot.InitramfsRunMntDir, "base"),
 			filepath.Join(boot.InitramfsRunMntDir, "kernel"),
 			filepath.Join(boot.InitramfsRunMntDir, "snapd"),
-			boot.InitramfsUbuntuDataDir,
+			boot.InitramfsDataDir,
 		},
 	)
 
@@ -245,7 +224,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep2(c *C) {
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/snaps/snapd_1.snap %[2]s/snapd
 %[1]s/snaps/pc-kernel_1.snap %[2]s/kernel
 %[1]s/snaps/core20_1.snap %[2]s/base
---type=tmpfs tmpfs /run/mnt/ubuntu-data
+--type=tmpfs tmpfs %[2]s/data
 `, s.seedDir, boot.InitramfsRunMntDir))
 }
 
@@ -257,7 +236,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep4(c *C) {
 			filepath.Join(boot.InitramfsRunMntDir, "base"),
 			filepath.Join(boot.InitramfsRunMntDir, "kernel"),
 			filepath.Join(boot.InitramfsRunMntDir, "snapd"),
-			boot.InitramfsUbuntuDataDir,
+			boot.InitramfsDataDir,
 		},
 	)
 
@@ -310,13 +289,13 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1Data(c *C) {
 			boot.InitramfsUbuntuBootDir,
 			boot.InitramfsUbuntuSeedDir,
 		},
-		notYetMounted{boot.InitramfsUbuntuDataDir},
+		notYetMounted{boot.InitramfsDataDir},
 	)
 
 	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Assert(*n, Equals, 3)
-	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`/dev/disk/by-label/ubuntu-data %[1]s/ubuntu-data
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`/dev/disk/by-label/ubuntu-data %[1]s/data
 `, boot.InitramfsRunMntDir))
 }
 
@@ -332,34 +311,12 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1EncryptedData(c *C
 	err = asserts.NewEncoder(mf).Encode(s.model)
 	c.Assert(err, IsNil)
 
-	// setup ubuntu-data-enc
-	devDiskByLabel, restore := mockDevDiskByLabel(c)
-	defer restore()
-
-	ubuntuDataEnc := filepath.Join(devDiskByLabel, "ubuntu-data-enc")
-	err = ioutil.WriteFile(ubuntuDataEnc, nil, 0644)
-	c.Assert(err, IsNil)
-
-	// setup a fake tpm
-	mockTPM, restore := mockSecbootTPM(c)
-	defer restore()
-
 	activated := false
-	// setup activating the fake tpm
-	restore = main.MockSecbootActivateVolumeWithTPMSealedKey(func(tpm *secboot.TPMConnection, volumeName, sourceDevicePath,
-		keyPath string, pinReader io.Reader, options *secboot.ActivateWithTPMSealedKeyOptions) (bool, error) {
-		c.Assert(tpm, Equals, mockTPM)
-		c.Assert(volumeName, Equals, "ubuntu-data")
-		c.Assert(sourceDevicePath, Equals, ubuntuDataEnc)
-		// the keyfile will be on ubuntu-seed as ubuntu-data.sealed-key
-		c.Assert(keyPath, Equals, filepath.Join(boot.InitramfsUbuntuSeedDir, "device/fde", "ubuntu-data.sealed-key"))
-		c.Assert(*options, DeepEquals, secboot.ActivateWithTPMSealedKeyOptions{
-			PINTries:            1,
-			RecoveryKeyTries:    3,
-			LockSealedKeyAccess: true,
-		})
+	restore := main.MockSecbootUnlockVolumeIfEncrypted(func(name string, lockKeysOnFinish bool) (string, error) {
+		c.Assert(name, Equals, "ubuntu-data")
+		c.Assert(lockKeysOnFinish, Equals, true)
 		activated = true
-		return true, nil
+		return "path-to-device", nil
 	})
 	defer restore()
 
@@ -368,28 +325,25 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1EncryptedData(c *C
 			boot.InitramfsUbuntuBootDir,
 			boot.InitramfsUbuntuSeedDir,
 		},
-		notYetMounted{boot.InitramfsUbuntuDataDir},
+		notYetMounted{boot.InitramfsDataDir},
 	)
 
-	sealedKeysLocked := false
-	restore = main.MockSecbootLockAccessToSealedKeys(func(tpm *secboot.TPMConnection) error {
-		sealedKeysLocked = true
-		return nil
-	})
-	defer restore()
-
-	epochPCR := -1
-	modelPCR := -1
-	restore = main.MockSecbootMeasureSnapSystemEpochToTPM(func(tpm *secboot.TPMConnection, pcrIndex int) error {
-		epochPCR = pcrIndex
+	measureEpochCalls := 0
+	measureModelCalls := 0
+	restore = main.MockSecbootMeasureSnapSystemEpochWhenPossible(func() error {
+		measureEpochCalls++
 		return nil
 	})
 	defer restore()
 
 	var measuredModel *asserts.Model
-	restore = main.MockSecbootMeasureSnapModelToTPM(func(tpm *secboot.TPMConnection, pcrIndex int, model *asserts.Model) error {
-		modelPCR = pcrIndex
-		measuredModel = model
+	restore = main.MockSecbootMeasureSnapModelWhenPossible(func(findModel func() (*asserts.Model, error)) error {
+		measureModelCalls++
+		var err error
+		measuredModel, err = findModel()
+		if err != nil {
+			return err
+		}
 		return nil
 	})
 	defer restore()
@@ -397,13 +351,11 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1EncryptedData(c *C
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Check(*n, Equals, 3)
-	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data %[2]s/ubuntu-data
-`, devDiskByLabel, boot.InitramfsRunMntDir))
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`path-to-device %s/data
+`, boot.InitramfsRunMntDir))
 	c.Check(activated, Equals, true)
-	c.Check(sealedKeysLocked, Equals, true)
-	c.Check(epochPCR, Equals, 12)
-	c.Check(modelPCR, Equals, 12)
-	c.Check(measuredModel, NotNil)
+	c.Check(measureEpochCalls, Equals, 1)
+	c.Check(measureModelCalls, Equals, 1)
 	c.Check(measuredModel, DeepEquals, s.model)
 
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "secboot-epoch-measured"), testutil.FilePresent)
@@ -432,49 +384,37 @@ func (s *initramfsMountsSuite) testInitramfsMountsStep1EncryptedNoModel(c *C, mo
 		c.Assert(err, IsNil)
 	}
 
-	// setup ubuntu-data-enc
-	devDiskByLabel, restore := mockDevDiskByLabel(c)
-	defer restore()
-
-	ubuntuDataEnc := filepath.Join(devDiskByLabel, "ubuntu-data-enc")
-	err := ioutil.WriteFile(ubuntuDataEnc, nil, 0644)
-	c.Assert(err, IsNil)
-
-	restore = main.MockOsutilIsMounted(func(path string) (bool, error) {
+	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
 		return true, nil
 	})
 	defer restore()
-	restore = main.MockSecbootConnectToDefaultTPM(func() (*secboot.TPMConnection, error) {
-		return s.mockTPM, nil
-	})
-	defer restore()
 
-	restore = main.MockSecbootLockAccessToSealedKeys(func(tpm *secboot.TPMConnection) error {
-		return fmt.Errorf("unexpected call")
-	})
-	defer restore()
 	measureEpochCalls := 0
-	restore = main.MockSecbootMeasureSnapSystemEpochToTPM(func(tpm *secboot.TPMConnection, pcrIndex int) error {
+	restore = main.MockSecbootMeasureSnapSystemEpochWhenPossible(func() error {
 		measureEpochCalls++
 		return nil
 	})
 	defer restore()
+
 	measureModelCalls := 0
-	restore = main.MockSecbootMeasureSnapModelToTPM(func(tpm *secboot.TPMConnection, pcrIndex int, model *asserts.Model) error {
+	restore = main.MockSecbootMeasureSnapModelWhenPossible(func(findModel func() (*asserts.Model, error)) error {
 		measureModelCalls++
+		_, err := findModel()
+		if err != nil {
+			return err
+		}
 		return fmt.Errorf("unexpected call")
 	})
 	defer restore()
 
-	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	where := "/run/mnt/ubuntu-boot/model"
 	if mode != "run" {
 		where = fmt.Sprintf("/run/mnt/ubuntu-seed/systems/%s/model", label)
 	}
-	c.Assert(err, ErrorMatches,
-		fmt.Sprintf("cannot read model assertion: open .*%s: no such file or directory", where))
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot read model assertion: open .*%s: no such file or directory", where))
 	c.Assert(measureEpochCalls, Equals, 1)
-	c.Assert(measureModelCalls, Equals, 0)
+	c.Assert(measureModelCalls, Equals, 1)
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "secboot-epoch-measured"), testutil.FilePresent)
 	gl, err := filepath.Glob(filepath.Join(dirs.SnapBootstrapRunDir, "*-model-measured"))
 	c.Assert(err, IsNil)
@@ -488,7 +428,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2(c *C) {
 		mounted{
 			boot.InitramfsUbuntuBootDir,
 			boot.InitramfsUbuntuSeedDir,
-			boot.InitramfsUbuntuDataDir,
+			boot.InitramfsDataDir,
 		},
 		notYetMounted{
 			filepath.Join(boot.InitramfsRunMntDir, "base"),
@@ -520,8 +460,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2(c *C) {
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Assert(*n, Equals, 6)
-	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/core20_123.snap %[1]s/base
-%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/pc-kernel_1.snap %[1]s/kernel
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/data/system-data/var/lib/snapd/snaps/core20_123.snap %[1]s/base
+%[1]s/data/system-data/var/lib/snapd/snaps/pc-kernel_1.snap %[1]s/kernel
 %[1]s/ubuntu-seed/snaps/snapd_1.snap %[1]s/snapd
 `, boot.InitramfsRunMntDir))
 }
@@ -533,7 +473,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2BaseSnapUpgradeFai
 		mounted{
 			boot.InitramfsUbuntuBootDir,
 			boot.InitramfsUbuntuSeedDir,
-			boot.InitramfsUbuntuDataDir,
+			boot.InitramfsDataDir,
 		},
 		notYetMounted{filepath.Join(boot.InitramfsRunMntDir, "base")},
 		mounted{filepath.Join(boot.InitramfsRunMntDir, "kernel")},
@@ -559,7 +499,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2BaseSnapUpgradeFai
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Assert(*n, Equals, 5)
-	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/core20_123.snap %[1]s/base
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/data/system-data/var/lib/snapd/snaps/core20_123.snap %[1]s/base
 `, boot.InitramfsRunMntDir))
 
 	// check that the modeenv was re-written
@@ -578,7 +518,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2ModeenvTryBaseEmpt
 		mounted{
 			boot.InitramfsUbuntuBootDir,
 			boot.InitramfsUbuntuSeedDir,
-			boot.InitramfsUbuntuDataDir,
+			boot.InitramfsDataDir,
 		},
 		notYetMounted{filepath.Join(boot.InitramfsRunMntDir, "base")},
 		mounted{filepath.Join(boot.InitramfsRunMntDir, "kernel")},
@@ -595,7 +535,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2ModeenvTryBaseEmpt
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Assert(*n, Equals, 5)
-	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/core20_123.snap %[1]s/base
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/data/system-data/var/lib/snapd/snaps/core20_123.snap %[1]s/base
 `, boot.InitramfsRunMntDir))
 
 	// check that the modeenv is the same
@@ -613,7 +553,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2BaseSnapUpgradeHap
 		mounted{
 			boot.InitramfsUbuntuBootDir,
 			boot.InitramfsUbuntuSeedDir,
-			boot.InitramfsUbuntuDataDir,
+			boot.InitramfsDataDir,
 		},
 		notYetMounted{filepath.Join(boot.InitramfsRunMntDir, "base")},
 		mounted{filepath.Join(boot.InitramfsRunMntDir, "kernel")},
@@ -638,7 +578,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2BaseSnapUpgradeHap
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Assert(*n, Equals, 5)
-	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/core20_124.snap %[1]s/base
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/data/system-data/var/lib/snapd/snaps/core20_124.snap %[1]s/base
 `, boot.InitramfsRunMntDir))
 
 	// check that the modeenv was re-written
@@ -656,7 +596,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2ModeenvBaseEmptyUn
 		mounted{
 			boot.InitramfsUbuntuBootDir,
 			boot.InitramfsUbuntuSeedDir,
-			boot.InitramfsUbuntuDataDir,
+			boot.InitramfsDataDir,
 		},
 		notYetMounted{filepath.Join(boot.InitramfsRunMntDir, "base")},
 		mounted{filepath.Join(boot.InitramfsRunMntDir, "kernel")},
@@ -680,7 +620,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2ModeenvTryBaseNotE
 		mounted{
 			boot.InitramfsUbuntuBootDir,
 			boot.InitramfsUbuntuSeedDir,
-			boot.InitramfsUbuntuDataDir,
+			boot.InitramfsDataDir,
 		},
 		notYetMounted{filepath.Join(boot.InitramfsRunMntDir, "base")},
 		mounted{filepath.Join(boot.InitramfsRunMntDir, "kernel")},
@@ -699,7 +639,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2ModeenvTryBaseNotE
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Assert(*n, Equals, 5)
-	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/core20_123.snap %[1]s/base
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/data/system-data/var/lib/snapd/snaps/core20_123.snap %[1]s/base
 `, boot.InitramfsRunMntDir))
 
 	// check that the modeenv is the same
@@ -717,7 +657,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2KernelSnapUpgradeH
 		mounted{
 			boot.InitramfsUbuntuBootDir,
 			boot.InitramfsUbuntuSeedDir,
-			boot.InitramfsUbuntuDataDir,
+			boot.InitramfsDataDir,
 			filepath.Join(boot.InitramfsRunMntDir, "base"),
 		},
 		notYetMounted{filepath.Join(boot.InitramfsRunMntDir, "kernel")},
@@ -760,7 +700,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2KernelSnapUpgradeH
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Assert(*n, Equals, 5)
-	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/pc-kernel_2.snap %[1]s/kernel
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/data/system-data/var/lib/snapd/snaps/pc-kernel_2.snap %[1]s/kernel
 `, boot.InitramfsRunMntDir))
 }
 
@@ -774,7 +714,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2UntrustedKernelSna
 		mounted{
 			boot.InitramfsUbuntuBootDir,
 			boot.InitramfsUbuntuSeedDir,
-			boot.InitramfsUbuntuDataDir,
+			boot.InitramfsDataDir,
 			filepath.Join(boot.InitramfsRunMntDir, "base"),
 		},
 		notYetMounted{filepath.Join(boot.InitramfsRunMntDir, "kernel")},
@@ -814,7 +754,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2UntrustedTryKernel
 		mounted{
 			boot.InitramfsUbuntuBootDir,
 			boot.InitramfsUbuntuSeedDir,
-			boot.InitramfsUbuntuDataDir,
+			boot.InitramfsDataDir,
 			filepath.Join(boot.InitramfsRunMntDir, "base"),
 		},
 		notYetMounted{filepath.Join(boot.InitramfsRunMntDir, "kernel")},
@@ -851,7 +791,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2UntrustedTryKernel
 	// the initramfs, check that log here
 	c.Assert(err, IsNil)
 	c.Assert(*n, Equals, 5)
-	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/pc-kernel_1.snap %[1]s/kernel
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/data/system-data/var/lib/snapd/snaps/pc-kernel_1.snap %[1]s/kernel
 `, boot.InitramfsRunMntDir))
 }
 
@@ -862,7 +802,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2KernelStatusTrying
 		mounted{
 			boot.InitramfsUbuntuBootDir,
 			boot.InitramfsUbuntuSeedDir,
-			boot.InitramfsUbuntuDataDir,
+			boot.InitramfsDataDir,
 			filepath.Join(boot.InitramfsRunMntDir, "base"),
 		},
 		notYetMounted{filepath.Join(boot.InitramfsRunMntDir, "kernel")},
@@ -898,144 +838,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2KernelStatusTrying
 	// the initramfs, check that log here
 	c.Assert(err, IsNil)
 	c.Assert(*n, Equals, 5)
-	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/pc-kernel_1.snap %[1]s/kernel
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/data/system-data/var/lib/snapd/snaps/pc-kernel_1.snap %[1]s/kernel
 `, boot.InitramfsRunMntDir))
-}
-
-func (s *initramfsMountsSuite) TestUnlockIfEncrypted(c *C) {
-	for idx, tc := range []struct {
-		hasTPM    bool
-		tpmErr    error
-		hasEncdev bool
-		last      bool
-		lockOk    bool
-		activated bool
-		device    string
-		err       string
-	}{
-		// TODO: verify which cases are possible
-		{
-			hasTPM: true, hasEncdev: true, last: true, lockOk: true,
-			activated: true, device: "name",
-		}, {
-			hasTPM: true, hasEncdev: true, last: true, lockOk: true,
-			err: "cannot activate encrypted device .*: activation error",
-		}, {
-			hasTPM: true, hasEncdev: true, last: true, activated: true,
-			err: "cannot lock access to sealed keys: lock failed",
-		}, {
-			hasTPM: true, hasEncdev: true, lockOk: true, activated: true,
-			device: "name",
-		}, {
-			hasTPM: true, hasEncdev: true, lockOk: true,
-			err: "cannot activate encrypted device .*: activation error",
-		}, {
-			hasTPM: true, hasEncdev: true, activated: true, device: "name",
-		}, {
-			hasTPM: true, hasEncdev: true,
-			err: "cannot activate encrypted device .*: activation error",
-		}, {
-			hasTPM: true, last: true, lockOk: true, activated: true,
-			device: "name",
-		}, {
-			hasTPM: true, last: true, activated: true,
-			err: "cannot lock access to sealed keys: lock failed",
-		}, {
-			hasTPM: true, lockOk: true, activated: true, device: "name",
-		}, {
-			hasTPM: true, activated: true, device: "name",
-		}, {
-			hasTPM: true, hasEncdev: true, last: true,
-			tpmErr: errors.New("tpm error"),
-			err:    `cannot unlock encrypted device "name": tpm error`,
-		}, {
-			hasTPM: true, hasEncdev: true,
-			tpmErr: errors.New("tpm error"),
-			err:    `cannot unlock encrypted device "name": tpm error`,
-		}, {
-			hasTPM: true, last: true, device: "name",
-			tpmErr: errors.New("tpm error"),
-		}, {
-			hasTPM: true, device: "name",
-			tpmErr: errors.New("tpm error"),
-		}, {
-			hasEncdev: true, last: true,
-			tpmErr: errors.New("no tpm"),
-			err:    `cannot unlock encrypted device "name": no tpm`,
-		}, {
-			hasEncdev: true,
-			tpmErr:    errors.New("no tpm"),
-			err:       `cannot unlock encrypted device "name": no tpm`,
-		}, {
-			last: true, device: "name", tpmErr: errors.New("no tpm"),
-		}, {
-			tpmErr: errors.New("no tpm"), device: "name",
-		},
-	} {
-		c.Logf("tc %v: %#v", idx, tc)
-		mockTPM, restoreTPM := mockSecbootTPM(c)
-		defer restoreTPM()
-
-		restoreConnect := main.MockSecbootConnectToDefaultTPM(func() (*secboot.TPMConnection, error) {
-			return mockTPM, tc.tpmErr
-		})
-		defer restoreConnect()
-
-		n := 0
-		restoreLock := main.MockSecbootLockAccessToSealedKeys(func(tpm *secboot.TPMConnection) error {
-			n++
-			c.Assert(tpm, Equals, mockTPM)
-			if tc.lockOk {
-				return nil
-			}
-			return errors.New("lock failed")
-		})
-		defer restoreLock()
-
-		devDiskByLabel, restoreDev := mockDevDiskByLabel(c)
-		defer restoreDev()
-		if tc.hasEncdev {
-			err := ioutil.WriteFile(filepath.Join(devDiskByLabel, "name-enc"), nil, 0644)
-			c.Assert(err, IsNil)
-		}
-
-		restoreActivate := main.MockSecbootActivateVolumeWithTPMSealedKey(func(tpm *secboot.TPMConnection, volumeName, sourceDevicePath,
-			keyPath string, pinReader io.Reader, options *secboot.ActivateWithTPMSealedKeyOptions) (bool, error) {
-			c.Assert(tpm, Equals, mockTPM)
-			c.Assert(volumeName, Equals, "name")
-			c.Assert(sourceDevicePath, Equals, filepath.Join(devDiskByLabel, "name-enc"))
-			c.Assert(keyPath, Equals, filepath.Join(boot.InitramfsEncryptionKeyDir, "name.sealed-key"))
-			c.Assert(*options, DeepEquals, secboot.ActivateWithTPMSealedKeyOptions{
-				PINTries:            1,
-				RecoveryKeyTries:    3,
-				LockSealedKeyAccess: tc.last,
-			})
-			if !tc.activated {
-				return false, errors.New("activation error")
-			}
-			return true, nil
-		})
-		defer restoreActivate()
-
-		device, err := main.UnlockIfEncrypted("name", tc.last)
-		if tc.device == "" {
-			c.Assert(device, Equals, tc.device)
-		} else {
-			c.Assert(device, Equals, filepath.Join(devDiskByLabel, tc.device))
-		}
-		if tc.err == "" {
-			c.Assert(err, IsNil)
-		} else {
-			c.Assert(err, ErrorMatches, tc.err)
-		}
-		// LockAccessToSealedKeys should be called whenever there is a TPM device
-		// detected, regardless of whether secure boot is enabled or there is an
-		// encrypted volume to unlock. If we have multiple encrypted volumes, we
-		// should call it after the last one is unlocked.
-		if tc.hasTPM && tc.tpmErr == nil && tc.last {
-			c.Assert(n, Equals, 1)
-		}
-	}
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2EnvRefKernelBootstate(c *C) {
@@ -1045,7 +849,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2EnvRefKernelBootst
 		mounted{
 			boot.InitramfsUbuntuBootDir,
 			boot.InitramfsUbuntuSeedDir,
-			boot.InitramfsUbuntuDataDir,
+			boot.InitramfsDataDir,
 		},
 		notYetMounted{
 			filepath.Join(boot.InitramfsRunMntDir, "base"),
@@ -1074,8 +878,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2EnvRefKernelBootst
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Assert(*n, Equals, 6)
-	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/core20_123.snap %[1]s/base
-%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/pc-kernel_1.snap %[1]s/kernel
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/data/system-data/var/lib/snapd/snaps/core20_123.snap %[1]s/base
+%[1]s/data/system-data/var/lib/snapd/snaps/pc-kernel_1.snap %[1]s/kernel
 %[1]s/ubuntu-seed/snaps/snapd_1.snap %[1]s/snapd
 `, boot.InitramfsRunMntDir))
 }
@@ -1087,7 +891,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2EnvRefKernelBootst
 		mounted{
 			boot.InitramfsUbuntuBootDir,
 			boot.InitramfsUbuntuSeedDir,
-			boot.InitramfsUbuntuDataDir,
+			boot.InitramfsDataDir,
 			filepath.Join(boot.InitramfsRunMntDir, "base"),
 		},
 		notYetMounted{filepath.Join(boot.InitramfsRunMntDir, "kernel")},
@@ -1122,7 +926,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2EnvRefKernelBootst
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Assert(*n, Equals, 5)
-	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/pc-kernel_2.snap %[1]s/kernel
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/data/system-data/var/lib/snapd/snaps/pc-kernel_2.snap %[1]s/kernel
 `, boot.InitramfsRunMntDir))
 }
 
@@ -1136,7 +940,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2EnvRefKernelBootst
 		mounted{
 			boot.InitramfsUbuntuBootDir,
 			boot.InitramfsUbuntuSeedDir,
-			boot.InitramfsUbuntuDataDir,
+			boot.InitramfsDataDir,
 			filepath.Join(boot.InitramfsRunMntDir, "base"),
 		},
 		notYetMounted{filepath.Join(boot.InitramfsRunMntDir, "kernel")},
@@ -1173,7 +977,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2EnvRefKernelBootst
 		mounted{
 			boot.InitramfsUbuntuBootDir,
 			boot.InitramfsUbuntuSeedDir,
-			boot.InitramfsUbuntuDataDir,
+			boot.InitramfsDataDir,
 			filepath.Join(boot.InitramfsRunMntDir, "base"),
 		},
 		notYetMounted{filepath.Join(boot.InitramfsRunMntDir, "kernel")},
@@ -1206,7 +1010,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2EnvRefKernelBootst
 	// the initramfs, check that log here
 	c.Assert(err, IsNil)
 	c.Assert(*n, Equals, 5)
-	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/pc-kernel_1.snap %[1]s/kernel
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/data/system-data/var/lib/snapd/snaps/pc-kernel_1.snap %[1]s/kernel
 `, boot.InitramfsRunMntDir))
 }
 
@@ -1217,7 +1021,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2EnvRefKernelBootst
 		mounted{
 			boot.InitramfsUbuntuBootDir,
 			boot.InitramfsUbuntuSeedDir,
-			boot.InitramfsUbuntuDataDir,
+			boot.InitramfsDataDir,
 			filepath.Join(boot.InitramfsRunMntDir, "base"),
 		},
 		notYetMounted{filepath.Join(boot.InitramfsRunMntDir, "kernel")},
@@ -1250,7 +1054,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2EnvRefKernelBootst
 	// the initramfs, check that log here
 	c.Assert(err, IsNil)
 	c.Assert(*n, Equals, 5)
-	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/pc-kernel_1.snap %[1]s/kernel
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/data/system-data/var/lib/snapd/snaps/pc-kernel_1.snap %[1]s/kernel
 `, boot.InitramfsRunMntDir))
 }
 
@@ -1276,7 +1080,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep2(c *C) {
 			filepath.Join(boot.InitramfsRunMntDir, "base"),
 			filepath.Join(boot.InitramfsRunMntDir, "kernel"),
 			filepath.Join(boot.InitramfsRunMntDir, "snapd"),
-			filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data"),
+			filepath.Join(boot.InitramfsRunMntDir, "data"),
 		},
 	)
 
@@ -1286,7 +1090,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep2(c *C) {
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/snaps/snapd_1.snap %[2]s/snapd
 %[1]s/snaps/pc-kernel_1.snap %[2]s/kernel
 %[1]s/snaps/core20_1.snap %[2]s/base
---type=tmpfs tmpfs /run/mnt/ubuntu-data
+--type=tmpfs tmpfs %[2]s/data
 `, s.seedDir, boot.InitramfsRunMntDir))
 }
 
@@ -1299,7 +1103,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep3(c *C) {
 			filepath.Join(boot.InitramfsRunMntDir, "base"),
 			filepath.Join(boot.InitramfsRunMntDir, "kernel"),
 			filepath.Join(boot.InitramfsRunMntDir, "snapd"),
-			filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data"),
+			filepath.Join(boot.InitramfsRunMntDir, "data"),
 		},
 		notYetMounted{filepath.Join(boot.InitramfsRunMntDir, "host/ubuntu-data")},
 	)
@@ -1309,6 +1113,64 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep3(c *C) {
 	c.Assert(*n, Equals, 6)
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`/dev/disk/by-label/ubuntu-data %s/host/ubuntu-data
 `, boot.InitramfsRunMntDir))
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep3Encrypted(c *C) {
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover snapd_recovery_system="+s.sysLabel)
+
+	activated := false
+	restore := main.MockSecbootUnlockVolumeIfEncrypted(func(name string, lockKeysOnFinish bool) (string, error) {
+		c.Assert(name, Equals, "ubuntu-data")
+		c.Assert(lockKeysOnFinish, Equals, true)
+		activated = true
+		return "path-to-device", nil
+	})
+	defer restore()
+
+	n := s.mockExpectedMountChecks(c,
+		mounted{
+			boot.InitramfsUbuntuSeedDir,
+			filepath.Join(boot.InitramfsRunMntDir, "base"),
+			filepath.Join(boot.InitramfsRunMntDir, "kernel"),
+			filepath.Join(boot.InitramfsRunMntDir, "snapd"),
+			filepath.Join(boot.InitramfsRunMntDir, "data"),
+		},
+		notYetMounted{filepath.Join(boot.InitramfsRunMntDir, "host/ubuntu-data")},
+	)
+
+	measureEpochCalls := 0
+	measureModelCalls := 0
+	restore = main.MockSecbootMeasureSnapSystemEpochWhenPossible(func() error {
+		measureEpochCalls++
+		return nil
+	})
+	defer restore()
+
+	var measuredModel *asserts.Model
+	restore = main.MockSecbootMeasureSnapModelWhenPossible(func(findModel func() (*asserts.Model, error)) error {
+		measureModelCalls++
+		var err error
+		measuredModel, err = findModel()
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+	defer restore()
+
+	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+	c.Assert(*n, Equals, 6)
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`path-to-device %s/host/ubuntu-data
+`, boot.InitramfsRunMntDir))
+
+	c.Check(activated, Equals, true)
+	c.Check(measureEpochCalls, Equals, 1)
+	c.Check(measureModelCalls, Equals, 1)
+	c.Check(measuredModel, DeepEquals, s.model)
+
+	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "secboot-epoch-measured"), testutil.FilePresent)
+	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, fmt.Sprintf("%s-model-measured", s.sysLabel)), testutil.FilePresent)
 }
 
 var mockStateContent = `{"data":{"auth":{"users":[{"name":"mvo"}]}},"some":{"other":"stuff"}}`
@@ -1322,12 +1184,12 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep4(c *C) {
 			filepath.Join(boot.InitramfsRunMntDir, "base"),
 			filepath.Join(boot.InitramfsRunMntDir, "kernel"),
 			filepath.Join(boot.InitramfsRunMntDir, "snapd"),
-			filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data"),
+			filepath.Join(boot.InitramfsRunMntDir, "data"),
 			filepath.Join(boot.InitramfsRunMntDir, "host/ubuntu-data"),
 		},
 	)
 
-	ephemeralUbuntuData := filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data/")
+	ephemeralUbuntuData := filepath.Join(boot.InitramfsRunMntDir, "data/")
 	err := os.MkdirAll(ephemeralUbuntuData, 0755)
 	c.Assert(err, IsNil)
 	// mock a auth data in the host's ubuntu-data
@@ -1346,6 +1208,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep4(c *C) {
 		// user ssh
 		"user-data/user1/.ssh/authorized_keys",
 		"user-data/user2/.ssh/authorized_keys",
+		// sudoers
+		"system-data/etc/sudoers.d/create-user-test",
 	}
 	mockUnrelatedFiles := []string{
 		"system-data/var/lib/foo",
@@ -1395,27 +1259,6 @@ recovery_system=20191118
 	c.Check(filepath.Join(ephemeralUbuntuData, "system-data/var/lib/snapd/state.json"), testutil.FileEquals, `{"data":{"auth":{"users":[{"name":"mvo"}]}},"changes":{},"tasks":{},"last-change-id":0,"last-task-id":0,"last-lane-id":0}`)
 }
 
-func mockSecbootTPM(c *C) (tpm *secboot.TPMConnection, restore func()) {
-	tcti, err := os.Open("/dev/null")
-	c.Assert(err, IsNil)
-	tpmctx, err := tpm2.NewTPMContext(tcti)
-	c.Assert(err, IsNil)
-	mockTPM := &secboot.TPMConnection{TPMContext: tpmctx}
-
-	restoreConnect := main.MockSecbootConnectToDefaultTPM(func() (*secboot.TPMConnection, error) {
-		return mockTPM, nil
-	})
-	return mockTPM, restoreConnect
-}
-
-func mockDevDiskByLabel(c *C) (string, func()) {
-	devDir := filepath.Join(c.MkDir(), "dev/disk/by-label")
-	err := os.MkdirAll(devDir, 0755)
-	c.Assert(err, IsNil)
-	restore := main.MockDevDiskByLabelDir(devDir)
-	return devDir, restore
-}
-
 func (s *initramfsMountsSuite) testInitramfsMountsInstallRecoverModeStep1Measure(c *C, mode string) {
 	s.mockProcCmdlineContent(c, fmt.Sprintf("snapd_recovery_mode=%s snapd_recovery_system=%s", mode, s.sysLabel))
 
@@ -1425,26 +1268,26 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallRecoverModeStep1Measure
 			filepath.Join(boot.InitramfsRunMntDir, "base"),
 			filepath.Join(boot.InitramfsRunMntDir, "kernel"),
 			filepath.Join(boot.InitramfsRunMntDir, "snapd"),
-			filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data"),
+			filepath.Join(boot.InitramfsRunMntDir, "data"),
 		},
 	)
 
-	// setup a fake tpm
-	_, restore := mockSecbootTPM(c)
-	defer restore()
-
-	epochPCR := -1
-	modelPCR := -1
-	restore = main.MockSecbootMeasureSnapSystemEpochToTPM(func(tpm *secboot.TPMConnection, pcrIndex int) error {
-		epochPCR = pcrIndex
+	measureEpochCalls := 0
+	measureModelCalls := 0
+	restore := main.MockSecbootMeasureSnapSystemEpochWhenPossible(func() error {
+		measureEpochCalls++
 		return nil
 	})
 	defer restore()
 
 	var measuredModel *asserts.Model
-	restore = main.MockSecbootMeasureSnapModelToTPM(func(tpm *secboot.TPMConnection, pcrIndex int, model *asserts.Model) error {
-		modelPCR = pcrIndex
-		measuredModel = model
+	restore = main.MockSecbootMeasureSnapModelWhenPossible(func(findModel func() (*asserts.Model, error)) error {
+		measureModelCalls++
+		var err error
+		measuredModel, err = findModel()
+		if err != nil {
+			return err
+		}
 		return nil
 	})
 	defer restore()
@@ -1454,12 +1297,12 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallRecoverModeStep1Measure
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/snaps/snapd_1.snap %[2]s/snapd
 %[1]s/snaps/pc-kernel_1.snap %[2]s/kernel
 %[1]s/snaps/core20_1.snap %[2]s/base
---type=tmpfs tmpfs /run/mnt/ubuntu-data
+--type=tmpfs tmpfs %[2]s/data
 `, s.seedDir, boot.InitramfsRunMntDir))
-	c.Check(epochPCR, Equals, 12)
-	c.Check(modelPCR, Equals, 12)
 	c.Check(measuredModel, NotNil)
 	c.Check(measuredModel, DeepEquals, s.model)
+	c.Check(measureEpochCalls, Equals, 1)
+	c.Check(measureModelCalls, Equals, 1)
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "secboot-epoch-measured"), testutil.FilePresent)
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, s.sysLabel+"-model-measured"), testutil.FilePresent)
 	c.Check(*n, Equals, 5)

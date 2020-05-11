@@ -562,6 +562,7 @@ install -d -p %{buildroot}%{_sharedstatedir}/snapd/cookie
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/desktop/applications
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/device
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/hostfs
+install -d -p %{buildroot}%{_sharedstatedir}/snapd/inhibit
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/lib/gl
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/lib/gl32
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/lib/glvnd
@@ -768,6 +769,7 @@ popd
 %dir %{_sharedstatedir}/snapd/desktop/applications
 %dir %{_sharedstatedir}/snapd/device
 %dir %{_sharedstatedir}/snapd/hostfs
+%dir %{_sharedstatedir}/snapd/inhibit
 %dir %{_sharedstatedir}/snapd/lib
 %dir %{_sharedstatedir}/snapd/lib/gl
 %dir %{_sharedstatedir}/snapd/lib/gl32

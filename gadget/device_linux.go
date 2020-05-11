@@ -126,7 +126,7 @@ func FindDeviceForStructureWithFallback(ps *LaidOutStructure) (dev string, offs 
 		// error out on other errors
 		return "", 0, err
 	}
-	if err == ErrDeviceNotFound && ps.Type != "bare" && ps.Name != "" {
+	if err == ErrDeviceNotFound && ps.IsPartition() && ps.Name != "" {
 		// structures with partition table entry and a name must have
 		// been located already
 		return "", 0, err
