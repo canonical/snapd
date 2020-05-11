@@ -579,7 +579,6 @@ pkg_dependencies_ubuntu_classic(){
     echo "
         avahi-daemon
         cups
-        dbus-user-session
         dbus-x11
         fontconfig
         gnome-keyring
@@ -670,6 +669,11 @@ pkg_dependencies_ubuntu_classic(){
                 "
             ;;
     esac
+
+    # dbus-user-session is not available on 14.04 but everywhere else
+    if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
+            dbus-user-session
+    fi
 }
 
 pkg_linux_image_extra (){
