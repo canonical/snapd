@@ -209,7 +209,7 @@ func UnlockVolumeIfEncrypted(name string, lockKeysOnFinish bool) (string, error)
 		return "", fmt.Errorf("cannot lock access to sealed keys: %v", lockErr)
 	}
 
-	// return the encrypted device if the device we are maybe unlocked is an
+	// return the encrypted device if the device we are maybe unlocking is an
 	// encrypted device
 	if mapperName != "" {
 		return filepath.Join("/dev/mapper", mapperName), nil
