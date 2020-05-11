@@ -885,6 +885,9 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 		return ErrUnsupportedAction
 	}
 
+	// XXX: requested mode is valid; only current system has 'run' and
+	// recover 'actions'
+
 	switch m.systemMode {
 	case "recover", "run":
 		// if going from recover to recover or from run to run and the systems
@@ -893,17 +896,10 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 			return nil
 		}
 	case "install":
-		// unclear why we should support requesting the system to go into
-		// install mode when it's already in install mode, but sure why not?
-		if sysAction.Mode == "install" && systemLabel == currentSys.System {
-			return nil
-		}
-		// anything else doesn't make sense, we should let install mode finish
-		// before we can realistically "run" or "recover" anything
-		// it's also unclear that we want something to be able to request
-		// installing a different system while the current one is being
-		// installed
-		// TODO:UC20: maybe factory hooks will be able to something like this?
+		// requesting system actions in install mode does not make sense atm
+		//
+		// TODO:UC20: maybe factory hooks will be able to something like
+		// this?
 		return ErrUnsupportedAction
 	default:
 		// probably test device manager mocking problem, or also potentially

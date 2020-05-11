@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/strutil"
 )
 
 type mockedSystemSeed struct {
@@ -322,7 +323,7 @@ func (s *deviceMgrSystemsSuite) TestRequestModeInstallHappyForAny(c *C) {
 	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
 }
 
-func (s *deviceMgrSystemsSuite) TestRequestSameModeSameSystemDoesNothing(c *C) {
+func (s *deviceMgrSystemsSuite) TestRequestSameModeSameSystem(c *C) {
 	s.state.Lock()
 	s.state.Set("seeded-systems", []devicestate.SeededSystem{
 		{
@@ -335,7 +336,10 @@ func (s *deviceMgrSystemsSuite) TestRequestSameModeSameSystemDoesNothing(c *C) {
 
 	label := s.mockedSystemSeeds[0].label
 
-	for _, mode := range []string{"run", "install", "recover"} {
+	happyModes := []string{"run", "recover"}
+	sadModes := []string{"install"}
+
+	for _, mode := range append(happyModes, sadModes...) {
 		devicestate.SetSystemMode(s.mgr, mode)
 		err := s.bootloader.SetBootVars(map[string]string{
 			"snapd_recovery_mode":   mode,
@@ -343,7 +347,11 @@ func (s *deviceMgrSystemsSuite) TestRequestSameModeSameSystemDoesNothing(c *C) {
 		})
 		c.Assert(err, IsNil)
 		err = s.mgr.RequestSystemAction(label, devicestate.SystemAction{Mode: mode})
-		c.Assert(err, IsNil)
+		if strutil.ListContains(sadModes, mode) {
+			c.Assert(err, Equals, devicestate.ErrUnsupportedAction)
+		} else {
+			c.Assert(err, IsNil)
+		}
 		// bootloader vars shouldn't change
 		m, err := s.bootloader.GetBootVars("snapd_recovery_mode", "snapd_recovery_system")
 		c.Assert(err, IsNil)
@@ -353,6 +361,22 @@ func (s *deviceMgrSystemsSuite) TestRequestSameModeSameSystemDoesNothing(c *C) {
 		})
 		// should never restart
 		c.Check(s.restartRequests, HasLen, 0)
+	}
+}
+
+func (s *deviceMgrSystemsSuite) TestRequestNotYetSeeded(c *C) {
+	// seeded-systems is unset
+	label := s.mockedSystemSeeds[0].label
+
+	for _, mode := range []string{"run", "install", "recover"} {
+		devicestate.SetSystemMode(s.mgr, mode)
+		err := s.bootloader.SetBootVars(map[string]string{
+			"snapd_recovery_mode":   mode,
+			"snapd_recovery_system": label,
+		})
+		c.Assert(err, IsNil)
+		err = s.mgr.RequestSystemAction(label, devicestate.SystemAction{Mode: mode})
+		c.Assert(err, Equals, devicestate.ErrUnsupportedAction)
 	}
 }
 
