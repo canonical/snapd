@@ -1,0 +1,16 @@
+summary: Test that the snap vitality score works
+
+execute: |
+    echo "On install of a service the oom score is 0"
+    snap install test-snapd-go-webserver
+    systemctl show snap.test-snapd-go-webserver.webserver.service |MATCH "OOMScoreAdjust=0"
+    snap remove test-snapd-go-webserver
+
+    # XXX: the setting must be applied *before* a snap is installed
+    echo "When setting the vitality score"
+    snap set core resilience.vitality-hint=test-snapd-go-webserver,unrelated-snap
+    snap install test-snapd-go-webserver
+    echo "then the oom score is set to 899"
+    systemctl show snap.test-snapd-go-webserver.webserver.service |MATCH "OOMScoreAdjust=-899"
+
+    
