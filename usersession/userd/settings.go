@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2017-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -115,7 +115,7 @@ func settingWhitelisted(setting string) *dbus.Error {
 			return nil
 		}
 	}
-	return dbus.MakeFailedError(fmt.Errorf("cannot use setting %q: not allowed", setting))
+	return dbus.MakeFailedError(fmt.Errorf("cannot use setting %q: not allowed", settingTrimmed))
 }
 
 func safeSnapFromSender(s *Settings, sender dbus.Sender) (string, *dbus.Error) {
@@ -137,7 +137,7 @@ func desktopFile(s *Settings, command string, setting string, desktopValue strin
 	}
 
 	if !allowedSetting(desktopValue) {
-		return "", dbus.MakeFailedError(fmt.Errorf("cannot %q setting %s to value %q: value not allowed", command, settingForLog(setting), desktopValue))
+		return "", dbus.MakeFailedError(fmt.Errorf("cannot %s setting %s to value %q: value not allowed", command, settingForLog(setting), desktopValue))
 	}
 
 	// FIXME: this works only for desktop files
@@ -199,7 +199,7 @@ func setDialog(s *Settings, setting string, desktopFile string, sender dbus.Send
 func checkOutput(cmd *exec.Cmd, command string, setting string) (string, *dbus.Error) {
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return "", dbus.MakeFailedError(fmt.Errorf("cannot %q setting %s: %q", command, settingForLog(setting), osutil.OutputErr(output, err)))
+		return "", dbus.MakeFailedError(fmt.Errorf("cannot %s setting %s: %s", command, settingForLog(setting), osutil.OutputErr(output, err)))
 	}
 	return string(output), nil
 }

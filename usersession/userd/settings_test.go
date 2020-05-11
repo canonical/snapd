@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2017-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -71,6 +71,10 @@ case "$1" in
                 # nothing to do
                 ;;
             default-url-scheme-handler)
+                if [ "$3" = "irc2" ]; then
+                    echo "fail"
+                    exit 1
+                fi
                 # nothing to do
                 ;;
             *)
@@ -225,6 +229,24 @@ func (s *settingsSuite) TestSetInvalidSetting(c *C) {
 	c.Assert(s.mockXdgSettings.Calls(), IsNil)
 }
 
+func (s *settingsSuite) TestSetInvalidValue(c *C) {
+	err := s.settings.Set("default-web-browser", "foo", ":some-dbus-sender")
+	c.Assert(err, ErrorMatches, `cannot set setting "default-web-browser" to value "foo": value not allowed`)
+	c.Assert(s.mockXdgSettings.Calls(), IsNil)
+}
+
+func (s *settingsSuite) TestSetSubInvalidSetting(c *C) {
+	err := s.settings.SetSub("random-setting", "subprop", "foo.desktop", ":some-dbus-sender")
+	c.Assert(err, ErrorMatches, `cannot use setting "random-setting": not allowed`)
+	c.Assert(s.mockXdgSettings.Calls(), IsNil)
+}
+
+func (s *settingsSuite) TestSetSubInvalidValue(c *C) {
+	err := s.settings.SetSub("default-url-scheme-handler", "irc", "foo", ":some-dbus-sender")
+	c.Assert(err, ErrorMatches, `cannot set setting "default-url-scheme-handler" subproperty "irc" to value "foo": value not allowed`)
+	c.Assert(s.mockXdgSettings.Calls(), IsNil)
+}
+
 func (s *settingsSuite) testSetUserDeclined(c *C) {
 	df := filepath.Join(dirs.SnapDesktopFilesDir, "some-snap_bar.desktop")
 	err := os.MkdirAll(filepath.Dir(df), 0755)
@@ -347,4 +369,26 @@ func (s *settingsSuite) TestSetUserAcceptsKDialogUrlScheme(c *C) {
 	}()
 
 	s.testSetUserAcceptsURLScheme(c)
+}
+
+func (s *settingsSuite) TestSetUserAcceptsZenityUrlSchemeXdgSettingsError(c *C) {
+	// force kdialog exec missing
+	restoreKDialog := ui.MockHasKDialogExecutable(func() bool { return false })
+	restoreCmds := mockUIcommands(c, "true")
+	defer func() {
+		restoreKDialog()
+		restoreCmds()
+	}()
+
+	df := filepath.Join(dirs.SnapDesktopFilesDir, "some-snap_ircclient.desktop")
+	err := os.MkdirAll(filepath.Dir(df), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(df, nil, 0644)
+	c.Assert(err, IsNil)
+
+	err = s.settings.SetSub("default-url-scheme-handler", "irc2", "ircclient.desktop", ":some-dbus-sender")
+	c.Assert(err, ErrorMatches, `cannot set setting "default-url-scheme-handler" subproperty "irc2": fail`)
+	c.Check(s.mockXdgSettings.Calls(), DeepEquals, [][]string{
+		{"xdg-settings", "set", "default-url-scheme-handler", "irc2", "some-snap_ircclient.desktop"},
+	})
 }
