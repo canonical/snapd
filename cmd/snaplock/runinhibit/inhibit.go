@@ -23,6 +23,7 @@ package runinhibit
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -122,19 +123,9 @@ func IsLocked(snapName string) (Hint, error) {
 		return "", err
 	}
 
-	f := flock.File()
-	fi, err := f.Stat()
+	buf, err := ioutil.ReadAll(flock.File())
 	if err != nil {
 		return "", err
 	}
-	if fi.Size() == 0 {
-		return "", nil
-	}
-
-	buf := make([]byte, fi.Size())
-	n, err := f.Read(buf)
-	if n == len(buf) {
-		return Hint(string(buf)), nil
-	}
-	return "", err
+	return Hint(string(buf)), nil
 }
