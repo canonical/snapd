@@ -89,7 +89,7 @@ func LockWithHint(snapName string, hint Hint) error {
 
 // Unlock truncates the run inhibition lock.
 //
-// Truncated inhibition lock is equivalent to uninhibited "snap run".
+// An empty inhibition lock means uninhibited "snap run".
 func Unlock(snapName string) error {
 	flock, err := openHintFileLock(snapName)
 	if os.IsNotExist(err) {
