@@ -55,7 +55,7 @@ func CryptoToken(nbytes int) (string, error) {
 func RandomKernelUUID() string {
 	b, err := ioutil.ReadFile("/proc/sys/kernel/random/uuid")
 	if err != nil {
-		panic("cannot read kernel uuid")
+		panic("cannot read kernel generated uuid")
 	}
 	return strings.TrimSpace(string(b))
 }
