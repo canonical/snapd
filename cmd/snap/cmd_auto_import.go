@@ -28,6 +28,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"syscall"
 
@@ -303,6 +304,7 @@ func removableBlockDevices() (removableDevices []string) {
 			// hasPartitions = true
 		}
 	}
+	sort.Strings(removableDevices)
 	return removableDevices
 }
 
