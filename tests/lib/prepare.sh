@@ -29,7 +29,7 @@ disable_journald_rate_limiting() {
     # Disable journald rate limiting
     mkdir -p /etc/systemd/journald.conf.d
     # The RateLimitIntervalSec key is not supported on some systemd versions causing
-    # the journal rate limit could be considered as not valid and discarded in concecuence.
+    # the journal rate limit could be considered as not valid and discarded in consequence.
     # RateLimitInterval key is supported in old systemd versions and in new ones as well,
     # maintaining backward compatibility.
     cat <<-EOF > /etc/systemd/journald.conf.d/no-rate-limit.conf
