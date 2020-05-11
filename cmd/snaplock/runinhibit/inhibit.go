@@ -53,7 +53,7 @@ const (
 	HintInhibitedForRefresh Hint = "refresh"
 )
 
-func openHintFile(snapName string) (*osutil.FileLock, error) {
+func openHintFileLock(snapName string) (*osutil.FileLock, error) {
 	fname := filepath.Join(InhibitDir, snapName+".lock")
 	return osutil.NewFileLockWithMode(fname, 0644)
 }
@@ -70,7 +70,7 @@ func LockWithHint(snapName string, hint Hint) error {
 	if err := os.MkdirAll(InhibitDir, 0755); err != nil {
 		return err
 	}
-	flock, err := openHintFile(snapName)
+	flock, err := openHintFileLock(snapName)
 	if err != nil {
 		return err
 	}
@@ -91,7 +91,7 @@ func LockWithHint(snapName string, hint Hint) error {
 //
 // Truncated inhibition lock is equivalent to uninhibited "snap run".
 func Unlock(snapName string) error {
-	flock, err := openHintFile(snapName)
+	flock, err := openHintFileLock(snapName)
 	if os.IsNotExist(err) {
 		return nil
 	}
@@ -109,7 +109,7 @@ func Unlock(snapName string) error {
 
 // IsLocked returns information about the run inhibition hint, if any.
 func IsLocked(snapName string) (Hint, error) {
-	flock, err := openHintFile(snapName)
+	flock, err := openHintFileLock(snapName)
 	if os.IsNotExist(err) {
 		return "", nil
 	}
