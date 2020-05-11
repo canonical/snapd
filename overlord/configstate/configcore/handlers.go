@@ -120,6 +120,7 @@ func (h *fsOnlyHandler) handle(cfg config.ConfGetter, opts *fsOnlyContext) error
 }
 
 type FilesystemOnlyApplyOptions struct {
+	// Classic is true when the system in rootdir is a classic system
 	Classic bool
 }
 
