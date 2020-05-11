@@ -260,7 +260,7 @@ create_nested_core_vm(){
                     if [ "$UPDATE_PC_KERNEL" = "true" ]; then
                         # shellcheck source=tests/lib/prepare.sh
                         . "$TESTSLIB"/prepare.sh
-                        snap download --basename=pc-kernel --channel="20/edge" pc-kernel
+                        snap download --basename=pc-kernel --channel="20/$CORE_CHANNEL" pc-kernel
                         uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$WORK_DIR/image"
 
                         EXTRA_FUNDAMENTAL="--snap $WORK_DIR/image/pc-kernel_*.snap"
