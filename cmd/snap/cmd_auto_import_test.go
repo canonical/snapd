@@ -388,6 +388,38 @@ func (s *SnapSuite) TestAutoImportFromRemovable(c *C) {
 	})
 }
 
+func (s *SnapSuite) TestAutoImportNoRemovable(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	rootdir := c.MkDir()
+	dirs.SetRootDir(rootdir)
+
+	var umounts []string
+	restore = snap.MockSyscallUmount(func(p string, _ int) error {
+		return fmt.Errorf("unexpected call")
+	})
+	defer restore()
+
+	mountCmd := testutil.MockCommand(c, "mount", "exit 1")
+	defer mountCmd.Restore()
+
+	snaptest.PopulateDir(rootdir, [][]string{
+		// fixed disk
+		{"sys/block/sdfixed/removable", "0\n"},
+		// removable but subdevices are not partitions?
+		{"sys/block/sdother/removable", "1\n"},
+		{"sys/block/sdother/sdother1/partition", "0\n"},
+	})
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"auto-import"})
+	c.Assert(err, IsNil)
+	c.Check(s.Stdout(), Equals, "")
+	c.Check(s.Stderr(), Equals, "")
+	c.Check(mountCmd.Calls(), HasLen, 0)
+	c.Check(umounts, HasLen, 0)
+}
+
 func (s *SnapSuite) TestAutoImportFromMount(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
