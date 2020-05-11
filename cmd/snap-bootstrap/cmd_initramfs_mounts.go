@@ -612,13 +612,20 @@ func isDeviceEncrypted(name string) (ok bool, encdev string) {
 	return false, ""
 }
 
+// TODO:UC20: move this somewhere appropriate
+var readKernelUUID = func() string {
+	b, err := ioutil.ReadFile("/proc/sys/kernel/random/uuid")
+	if err != nil {
+		panic("can't read kernel uuid")
+	}
+	return strings.TrimSpace(string(b))
+}
+
 // unlockIfEncrypted verifies whether an encrypted volume with the specified
 // name exists and unlocks it. With lockKeysOnFinish set, access to the sealed
 // keys will be locked when this function completes. The path to the unencrypted
 // device node is returned.
 func unlockIfEncrypted(name string, lockKeysOnFinish bool) (string, error) {
-	device := filepath.Join(devDiskByLabelDir, name)
-
 	// TODO:UC20: use secureConnectToTPM if we decide there's benefit in doing that or we
 	//            have a hard requirement for a valid EK cert chain for every boot (ie, panic
 	//            if there isn't one). But we can't do that as long as we need to download
@@ -631,6 +638,7 @@ func unlockIfEncrypted(name string, lockKeysOnFinish bool) (string, error) {
 	}
 
 	var lockErr error
+	var mapperName string
 	err := func() error {
 		defer func() {
 			// TODO:UC20: we might want some better error handling here - eg, if tpmErr is a
@@ -661,7 +669,8 @@ func unlockIfEncrypted(name string, lockKeysOnFinish bool) (string, error) {
 		//            <name> is from <name>-enc and not an unencrypted partition
 		//            with the same name (LP #1863886)
 		sealedKeyPath := filepath.Join(boot.InitramfsEncryptionKeyDir, name+".sealed-key")
-		return unlockEncryptedPartition(tpm, name, encdev, sealedKeyPath, "", lockKeysOnFinish)
+		mapperName = name + "-" + readKernelUUID()
+		return unlockEncryptedPartition(tpm, mapperName, encdev, sealedKeyPath, "", lockKeysOnFinish)
 	}()
 	if err != nil {
 		return "", err
@@ -670,7 +679,17 @@ func unlockIfEncrypted(name string, lockKeysOnFinish bool) (string, error) {
 		return "", fmt.Errorf("cannot lock access to sealed keys: %v", lockErr)
 	}
 
-	return device, nil
+	// return the encrypted device if the device we are maybe unlocked is an
+	// encrypted device
+	if mapperName != "" {
+		return filepath.Join("/dev/mapper", mapperName), nil
+	}
+
+	// otherwise use the device from /dev/disk/by-label
+	// TODO:UC20: we want to always determine the ubuntu-data partition by
+	//            referencing the ubuntu-boot or ubuntu-seed partitions and not
+	//            by using labels
+	return filepath.Join(devDiskByLabelDir, name), nil
 }
 
 var (
