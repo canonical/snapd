@@ -61,7 +61,7 @@ func openHintFile(snapName string) (*osutil.FileLock, error) {
 // LockWithHint sets a persistent "snap run" inhibition lock with a given hint.
 //
 // The hint cannot be empty. It should be one of the Hint constants defined in
-// this package. While the hint in place "snap run" will not allow the snap to
+// this package. With the hint in place "snap run" will not allow the snap to
 // start and will block, presenting a user interface if possible.
 func LockWithHint(snapName string, hint Hint) error {
 	if len(hint) == 0 {
