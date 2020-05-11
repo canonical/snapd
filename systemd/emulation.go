@@ -43,6 +43,10 @@ func (s *emulation) DaemonReload() error {
 	return errNotImplemented
 }
 
+func (s *emulation) DaemonReexec() error {
+	return errNotImplemented
+}
+
 func (s *emulation) Enable(service string) error {
 	_, err := systemctlCmd("--root", s.rootDir, "enable", service)
 	return err

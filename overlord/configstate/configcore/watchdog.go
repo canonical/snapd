@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/systemd"
 )
 
 func init() {
@@ -38,10 +39,15 @@ func init() {
 }
 
 func updateWatchdogConfig(config map[string]uint, opts *fsOnlyContext) error {
+	var sysd systemd.Systemd
+
 	dir := dirs.SnapSystemdConfDir
 	if opts != nil {
 		dir = dirs.SnapSystemdConfDirUnder(opts.RootDir)
+	} else {
+		sysd = systemd.New(dirs.GlobalRootDir, systemd.SystemMode, &sysdLogger{})
 	}
+
 	name := "10-snapd-watchdog.conf"
 	dirContent := make(map[string]osutil.FileState, 1)
 
@@ -66,8 +72,17 @@ func updateWatchdogConfig(config map[string]uint, opts *fsOnlyContext) error {
 	}
 
 	glob := name
-	_, _, err := osutil.EnsureDirState(dir, glob, dirContent)
-	return err
+	changed, removed, err := osutil.EnsureDirState(dir, glob, dirContent)
+	if err != nil {
+		return err
+	}
+
+	// something was changed, reexec systemd manager
+	if sysd != nil && (len(changed) > 0 || len(removed) > 0) {
+		return sysd.DaemonReexec()
+	}
+
+	return nil
 }
 
 func handleWatchdogConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error {

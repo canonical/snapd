@@ -1005,7 +1005,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// The previous task (link-snap) may have triggered a restart,
-	// if this is the case we can only procceed once the restart
+	// if this is the case we can only proceed once the restart
 	// has happened or we may not have all the interfaces of the
 	// new core/base snap.
 	if err := snapstate.WaitRestart(task, snapsup); err != nil {
