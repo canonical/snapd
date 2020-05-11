@@ -1,3 +1,66 @@
+snapd (2.44.5~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1864808
+    - spread.yaml: adding more workers for ubuntu 20.04
+    - packaging: stop depending on python-docutils on opensuse
+    - spread.yaml: do not run ubuntu-core-20-64 with snapd 2.44, snapd
+      is not recent enough to drive ubuntu-core-20
+    - spread.yaml: Preserve size for centos images on spread.yaml
+    - spread.yaml: use non-uefi enabled image for uc20
+    - tests: ensure $cache_dir is actually available
+    - tests: disable preseed tests, they work in master but require too
+      much cherry-picking here
+    - travis.yml: remove go/master unit tests from 2.44
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 30 Apr 2020 09:09:22 +0200
+
+snapd (2.44.4~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1864808
+    - packaging/fedora: disable FIPS compliant crypto for static
+      binaries
+    - interfaces/firewall-control: allow -legacy and -nft for core20
+    - seccomp: add get_tls, io_pg* and *time64/*64 variants for existing
+      syscalls
+    - tests: 16.04 and 18.04 now have mediating pulseaudio
+    - tests: ignore user@12345.service hierarchy
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 29 Apr 2020 08:32:56 +0200
+
+snapd (2.44.3~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1864808
+    - tests: fix racy pulseaudio tests
+    - many: fix loading apparmor profiles on Ubuntu 20.04 with ZFS
+    - tests: update snap-preseed --reset logic
+    - tests: backport partition fixes
+    - cmd/snap: don't wait for system key when stopping
+    - interfaces/many: miscellaneous policy updates xliv
+    - tests/main/uc20-snap-recovery: use 20.04 system
+    - tests: skip "/etc/machine-id" in "writablepaths
+    - interfaces/docker-support: add overlays file access
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 10 Apr 2020 16:57:25 +0200
+
+snapd (2.44.2~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1864808
+    - packaging: detect/disable broken seeds in the postinst
+    - cmd/snap,seed: validate full seeds (UC 16/18)
+    - snap: add `snap debug state --is-seeded` helper
+    - devicestate: generate warning if seeding fails
+    - store: support for search API v2
+    - cmd/snap-seccomp/syscalls: update the list of known syscalls
+    - snap/cmd: the model command needs just a client, no waitMixin
+    - tests: cleanup security-private-tmp properly
+    - wrappers: fix timer schedules that are days only
+    - tests: update proxy-no-core to match latest CDN changes
+    - cmd/snap-failure,tests: make snap-failure more robust
+    - tests, many: don't use StartLimitInterval anymore, unify snapd-
+      failover variants, build snapd snap for UC16 tests
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 02 Apr 2020 09:51:34 +0200
+
 snapd (2.44.1~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #1864808

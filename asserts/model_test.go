@@ -762,6 +762,23 @@ func (mods *modelSuite) TestCore20ValidGrades(c *C) {
 	}
 }
 
+func (mods *modelSuite) TestModelGradeCode(c *C) {
+	for i, grade := range []asserts.ModelGrade{asserts.ModelGradeUnset, asserts.ModelDangerous, asserts.ModelSigned, asserts.ModelSecured} {
+		// unset is represented as zero
+		code := 0
+		if i > 0 {
+			// have some space between grades to add new ones
+			n := (i - 1) * 8
+			if n == 0 {
+				n = 1 // dangerous
+			}
+			// lower 16 bits are reserved
+			code = n << 16
+		}
+		c.Check(grade.Code(), Equals, uint32(code))
+	}
+}
+
 func (mods *modelSuite) TestCore20GradeDangerous(c *C) {
 	encoded := strings.Replace(core20ModelExample, "TSLINE", mods.tsLine, 1)
 	encoded = strings.Replace(encoded, "OTHER", "", 1)
@@ -769,6 +786,7 @@ func (mods *modelSuite) TestCore20GradeDangerous(c *C) {
 	// snap ids are optional with grade dangerous to allow working
 	// with local/not pushed yet to the store snaps
 	encoded = strings.Replace(encoded, "    id: myappdididididididididididididid\n", "", 1)
+	encoded = strings.Replace(encoded, "    id: brandgadgetdidididididididididid\n", "", 1)
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.ModelType)
@@ -798,7 +816,7 @@ func (mods *modelSuite) TestCore20DecodeInvalid(c *C) {
 		{"name: myapp\n", "other: 1\n", `"name" of snap is mandatory`},
 		{"name: myapp\n", "name: myapp_2\n", `invalid snap name "myapp_2"`},
 		{"id: myappdididididididididididididid\n", "id: 2\n", `"id" of snap "myapp" contains invalid characters: "2"`},
-		{"    id: myappdididididididididididididid\n", "", `"id" of snap "myapp" is mandatory for stable model`},
+		{"    id: myappdididididididididididididid\n", "", `"id" of snap "myapp" is mandatory for secured grade model`},
 		{"type: gadget\n", "type:\n      - g\n", `"type" of snap "brand-gadget" must be a string`},
 		{"type: app\n", "type: thing\n", `"type" of snap "myappopt" must be one of must be one of app|base|gadget|kernel|core|snapd`},
 		{"modes:\n      - run\n", "modes: run\n", `"modes" of snap "other-base" must be a list of strings`},

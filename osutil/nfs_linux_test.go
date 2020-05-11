@@ -37,7 +37,7 @@ func (s *nfsSuite) TestIsHomeUsingNFS(c *C) {
 	}{{
 		// Errors from parsing mountinfo and fstab are propagated.
 		mountinfo:    "bad syntax",
-		errorPattern: "cannot parse .*/mountinfo.*, .*",
+		errorPattern: "cannot parse mountinfo:.*, .*",
 	}, {
 		fstab:        "bad syntax",
 		errorPattern: "cannot parse .*/fstab.*, .*",

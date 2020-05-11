@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -549,6 +549,28 @@ func (w *Writer) SetInfo(sn *SeedSnap, info *snap.Info) error {
 
 	sn.Path = p
 	return nil
+}
+
+// SetRedirectChannel sets the redirect channel for the SeedSnap
+// for the in case there is a default track for it.
+func (w *Writer) SetRedirectChannel(sn *SeedSnap, redirectChannel string) error {
+	if sn.local {
+		return fmt.Errorf("internal error: cannot set redirect channel for local snap %q", sn.Path)
+	}
+	if sn.Info == nil {
+		return fmt.Errorf("internal error: before using seedwriter.Writer.SetRedirectChannel snap %q Info should have been set", sn.SnapName())
+	}
+	if redirectChannel == "" {
+		// nothing to do
+		return nil
+	}
+	_, err := channel.ParseVerbatim(redirectChannel, "-")
+	if err != nil {
+		return fmt.Errorf("invalid redirect channel for snap %q: %v", sn.SnapName(), err)
+	}
+	sn.Channel = redirectChannel
+	return nil
+
 }
 
 // snapsToDownloadSet indicates which set of snaps SnapsToDownload should compute

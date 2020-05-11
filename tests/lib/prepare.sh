@@ -468,7 +468,7 @@ uc20_build_initramfs_kernel_snap() {
         # is verified in the tests/core/basic20 spread test
         sed -i -e 's/set -e/set -ex/' "$skeletondir/main/usr/lib/the-tool"
         echo "" >> "$skeletondir/main/usr/lib/the-tool"
-        echo "if test -d /run/mnt/ubuntu-data/system-data; then touch /run/mnt/ubuntu-data/system-data/the-tool-ran; fi" >> \
+        echo "if test -d /run/mnt/data/system-data; then touch /run/mnt/data/system-data/the-tool-ran; fi" >> \
             "$skeletondir/main/usr/lib/the-tool"
 
         # XXX: need to be careful to build an initrd using the right kernel
@@ -925,7 +925,7 @@ prepare_ubuntu_core() {
     done
 
     echo "Ensure the snapd snap is available"
-    if is_core18_system; then
+    if is_core18_system || is_core20_system; then
         if ! snap list snapd; then
             echo "snapd snap on core18 is missing"
             snap list
@@ -951,13 +951,16 @@ prepare_ubuntu_core() {
 
     echo "Ensure the core snap is cached"
     # Cache snaps
-    if is_core18_system; then
+    if is_core18_system || is_core20_system; then
         if snap list core >& /dev/null; then
             echo "core snap on core18 should not be installed yet"
             snap list
             exit 1
         fi
-        cache_snaps core test-snapd-sh-core18
+        cache_snaps core
+        if is_core18_system; then
+            cache_snaps test-snapd-sh-core18
+        fi
     fi
 
     echo "Cache the snaps profiler snap"

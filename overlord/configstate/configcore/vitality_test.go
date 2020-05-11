@@ -112,5 +112,5 @@ func (s *vitalitySuite) TestConfigureVitalityHintTooMany(c *C) {
 			"resilience.vitality-hint": manyStr,
 		},
 	})
-	c.Assert(err, ErrorMatches, `cannot set more than 100 "resilience.vitality-hint" values: got 101`)
+	c.Assert(err, ErrorMatches, `cannot set more than 100 snaps in "resilience.vitality-hint": got 101`)
 }
