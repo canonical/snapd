@@ -29,7 +29,7 @@ disable_journald_rate_limiting() {
     # Disable journald rate limiting
     mkdir -p /etc/systemd/journald.conf.d
     # The RateLimitIntervalSec key is not supported on some systemd versions causing
-    # the journal rate limit could be considered as not valid and discarded in concecuence.
+    # the journal rate limit could be considered as not valid and discarded in consequence.
     # RateLimitInterval key is supported in old systemd versions and in new ones as well,
     # maintaining backward compatibility.
     cat <<-EOF > /etc/systemd/journald.conf.d/no-rate-limit.conf
@@ -613,6 +613,10 @@ EOF
         MATCH "^test:" </mnt/system-data/var/lib/extrausers/"$f"
         MATCH "^ubuntu:" </mnt/system-data/var/lib/extrausers/"$f"
     done
+
+    # Make sure systemd-journal group has the "test" user as a member. Due to the way we copy that from the host
+    # and merge it from the core snap this is done explicitly as a second step.
+    sed -r -i -e 's/^systemd-journal:x:([0-9]+):$/systemd-journal:x:\1:test/' /mnt/system-data/root/test-etc/group
 
     # ensure spread -reuse works in the core image as well
     if [ -e /.spread.yaml ]; then

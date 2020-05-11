@@ -55,6 +55,12 @@ create_test_user(){
                 echo "ERROR: system $SPREAD_SYSTEM not yet supported!"
                 exit 1
         esac
+
+        # Allow the test user to access systemd journal.
+        if getent group systemd-journal >/dev/null; then
+            usermod -G systemd-journal -a test
+            id test | MATCH systemd-journal
+        fi
     fi
 
     owner=$( stat -c "%U:%G" /home/test )
