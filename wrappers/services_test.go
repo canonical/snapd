@@ -1154,7 +1154,7 @@ func (s *servicesTestSuite) TestStartSnapMultiUserServicesFailStartCleanup(c *C)
 		// StartServices ensures everything is stopped
 		{"--user", "stop", svc2Name},
 		{"--user", "show", "--property=ActiveState", svc2Name},
-		{"--user", "stop", svc1Name}, // XXX: why second stop of svc1?
+		{"--user", "stop", svc1Name},
 		{"--user", "show", "--property=ActiveState", svc1Name},
 		{"--user", "--global", "--root", s.tempdir, "disable", svc1Name},
 		{"--user", "--global", "--root", s.tempdir, "disable", svc2Name},
