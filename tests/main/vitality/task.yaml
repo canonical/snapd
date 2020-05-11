@@ -10,7 +10,7 @@ execute: |
     echo "When setting the vitality score"
     snap set core resilience.vitality-hint=test-snapd-go-webserver,unrelated-snap
     snap install test-snapd-go-webserver
-    echo "then the oom score is set to 898"
-    systemctl show snap.test-snapd-go-webserver.webserver.service |MATCH "OOMScoreAdjust=-898"
+    echo "then the oom score is set to 899"
+    systemctl show snap.test-snapd-go-webserver.webserver.service |MATCH "OOMScoreAdjust=-899"
 
     
