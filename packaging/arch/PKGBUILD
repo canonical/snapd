@@ -165,6 +165,7 @@ package() {
   install -dm755 "$pkgdir/var/lib/snapd/seccomp/bpf"
   install -dm755 "$pkgdir/var/lib/snapd/snap/bin"
   install -dm755 "$pkgdir/var/lib/snapd/snaps"
+  install -dm755 "$pkgdir/var/lib/snapd/inhibit"
   install -dm755 "$pkgdir/var/lib/snapd/lib/gl"
   install -dm755 "$pkgdir/var/lib/snapd/lib/gl32"
   install -dm755 "$pkgdir/var/lib/snapd/lib/vulkan"

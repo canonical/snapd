@@ -607,6 +607,7 @@ pkg_dependencies_ubuntu_classic(){
                 fwupd
                 gnome-online-accounts
                 packagekit
+                dbus-user-session
                 "
                 pkg_linux_image_extra
             ;;
@@ -622,6 +623,7 @@ pkg_dependencies_ubuntu_classic(){
                 qemu
                 x11-utils
                 xvfb
+                dbus-user-session
                 "
                 pkg_linux_image_extra
             ;;
