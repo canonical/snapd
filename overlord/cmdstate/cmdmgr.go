@@ -48,12 +48,23 @@ var defaultExecTimeout = 5 * time.Second
 func doExec(t *state.Task, tomb *tomb.Tomb) error {
 	var argv []string
 	var tout time.Duration
+	var ignore bool
 
 	st := t.State()
 	st.Lock()
+	err := t.Get("ignore", &ignore)
 	err1 := t.Get("argv", &argv)
 	err2 := t.Get("timeout", &tout)
 	st.Unlock()
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	if ignore {
+		st.Lock()
+		defer st.Unlock()
+		t.Logf("task ignored")
+		return nil
+	}
 	if err1 != nil {
 		return err1
 	}
