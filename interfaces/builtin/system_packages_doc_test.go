@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/mount"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -77,6 +78,9 @@ func (s *sytemPackagesDocSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *sytemPackagesDocSuite) TestAppArmorSpec(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
@@ -91,6 +95,9 @@ func (s *sytemPackagesDocSuite) TestAppArmorSpec(c *C) {
 }
 
 func (s *sytemPackagesDocSuite) TestMountSpec(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
 	spec := &mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 
