@@ -31,7 +31,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type hostDocsSuite struct {
+type sytemPackagesDocSuite struct {
 	iface        interfaces.Interface
 	coreSlotInfo *snap.SlotInfo
 	coreSlot     *interfaces.ConnectedSlot
@@ -39,44 +39,44 @@ type hostDocsSuite struct {
 	plug         *interfaces.ConnectedPlug
 }
 
-var _ = Suite(&hostDocsSuite{iface: builtin.MustInterface("host-docs")})
+var _ = Suite(&sytemPackagesDocSuite{iface: builtin.MustInterface("system-packages-doc")})
 
-const hostDocsConsumerYaml = `name: consumer
+const sytemPackagesDocConsumerYaml = `name: consumer
 version: 0
 apps:
  app:
-  plugs: [host-docs]
+  plugs: [system-packages-doc]
 `
 
-const hostDocsCoreYaml = `name: core
+const sytemPackagesDocCoreYaml = `name: core
 version: 0
 type: os
 slots:
-  host-docs:
+  system-packages-doc:
 `
 
-func (s *hostDocsSuite) SetUpTest(c *C) {
-	s.plug, s.plugInfo = MockConnectedPlug(c, hostDocsConsumerYaml, nil, "host-docs")
-	s.coreSlot, s.coreSlotInfo = MockConnectedSlot(c, hostDocsCoreYaml, nil, "host-docs")
+func (s *sytemPackagesDocSuite) SetUpTest(c *C) {
+	s.plug, s.plugInfo = MockConnectedPlug(c, sytemPackagesDocConsumerYaml, nil, "system-packages-doc")
+	s.coreSlot, s.coreSlotInfo = MockConnectedSlot(c, sytemPackagesDocCoreYaml, nil, "system-packages-doc")
 }
 
-func (s *hostDocsSuite) TearDownTest(c *C) {
+func (s *sytemPackagesDocSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
 }
 
-func (s *hostDocsSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "host-docs")
+func (s *sytemPackagesDocSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "system-packages-doc")
 }
 
-func (s *hostDocsSuite) TestSanitizeSlot(c *C) {
+func (s *sytemPackagesDocSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.coreSlotInfo), IsNil)
 }
 
-func (s *hostDocsSuite) TestSanitizePlug(c *C) {
+func (s *sytemPackagesDocSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
-func (s *hostDocsSuite) TestAppArmorSpec(c *C) {
+func (s *sytemPackagesDocSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
@@ -90,7 +90,7 @@ func (s *hostDocsSuite) TestAppArmorSpec(c *C) {
 	c.Check(updateNS, testutil.Contains, "  umount /usr/share/doc/,\n")
 }
 
-func (s *hostDocsSuite) TestMountSpec(c *C) {
+func (s *sytemPackagesDocSuite) TestMountSpec(c *C) {
 	spec := &mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 
@@ -104,15 +104,15 @@ func (s *hostDocsSuite) TestMountSpec(c *C) {
 	c.Assert(entries, HasLen, 0)
 }
 
-func (s *hostDocsSuite) TestStaticInfo(c *C) {
+func (s *sytemPackagesDocSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, false)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
 	c.Assert(si.Summary, Equals, `allows access to documentation stored on the host`)
-	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "host-docs")
+	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "system-packages-doc")
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "deny-auto-connection: true")
 }
 
-func (s *hostDocsSuite) TestInterfaces(c *C) {
+func (s *sytemPackagesDocSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

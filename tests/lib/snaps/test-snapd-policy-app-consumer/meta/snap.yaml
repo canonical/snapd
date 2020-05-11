@@ -158,9 +158,9 @@ apps:
   home:
     command: bin/run
     plugs: [ home ]
-  host-docs:
+  system-packages-doc:
     command: bin/run
-    plugs: [ host-docs ]
+    plugs: [ system-packages-doc ]
   hostname-control:
     command: bin/run
     plugs: [ hostname-control ]

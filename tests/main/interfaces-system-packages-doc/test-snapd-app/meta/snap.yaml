@@ -4,4 +4,4 @@ architectures: [all]
 apps:
     sh:
         command: bin/sh
-        plugs: [host-docs]
+        plugs: [system-packages-doc]

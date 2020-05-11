@@ -26,28 +26,28 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-const hostDocsSummary = `allows access to documentation stored on the host`
+const sytemPackagesDocSummary = `allows access to documentation stored on the host`
 
-const hostDocsBaseDeclarationSlots = `
-  host-docs:
+const sytemPackagesDocBaseDeclarationSlots = `
+  system-packages-doc:
     allow-installation:
       slot-snap-type:
         - core
     deny-auto-connection: true
 `
 
-const hostDocsConnectedPlugAppArmor = `
+const sytemPackagesDocConnectedPlugAppArmor = `
 # Description: Can access documentation stored on the host in /usr/share/doc
 
 /usr/share/doc/{,**} r,
 `
 
-type hostDocsInterface struct {
+type sytemPackagesDocInterface struct {
 	commonInterface
 }
 
-func (iface *hostDocsInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	spec.AddSnippet(hostDocsConnectedPlugAppArmor)
+func (iface *sytemPackagesDocInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	spec.AddSnippet(sytemPackagesDocConnectedPlugAppArmor)
 	emit := spec.AddUpdateNSf
 	emit("  # Mount host documentation\n")
 	emit("  mount options=(bind) /var/lib/snapd/hostfs/usr/share/doc/ -> /usr/share/doc/,\n")
@@ -56,7 +56,7 @@ func (iface *hostDocsInterface) AppArmorConnectedPlug(spec *apparmor.Specificati
 	return nil
 }
 
-func (iface *hostDocsInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+func (iface *sytemPackagesDocInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	return spec.AddMountEntry(osutil.MountEntry{
 		Name:    "/var/lib/snapd/hostfs/usr/share/doc",
 		Dir:     "/usr/share/doc",
@@ -65,12 +65,12 @@ func (iface *hostDocsInterface) MountConnectedPlug(spec *mount.Specification, pl
 }
 
 func init() {
-	registerIface(&hostDocsInterface{
+	registerIface(&sytemPackagesDocInterface{
 		commonInterface: commonInterface{
-			name:                 "host-docs",
-			summary:              hostDocsSummary,
+			name:                 "system-packages-doc",
+			summary:              sytemPackagesDocSummary,
 			implicitOnClassic:    true,
-			baseDeclarationSlots: hostDocsBaseDeclarationSlots,
+			baseDeclarationSlots: sytemPackagesDocBaseDeclarationSlots,
 		},
 	})
 }
