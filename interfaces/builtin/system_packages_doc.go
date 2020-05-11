@@ -26,7 +26,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-const sytemPackagesDocSummary = `allows access to documentation stored on the host`
+const sytemPackagesDocSummary = `allows access to /usr/share/doc stored on the system`
 
 const sytemPackagesDocBaseDeclarationSlots = `
   system-packages-doc:

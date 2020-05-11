@@ -108,7 +108,7 @@ func (s *sytemPackagesDocSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, false)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
-	c.Assert(si.Summary, Equals, `allows access to documentation stored on the host`)
+	c.Assert(si.Summary, Equals, `allows access to /usr/share/doc stored on the system`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "system-packages-doc")
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "deny-auto-connection: true")
 }
