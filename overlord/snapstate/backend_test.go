@@ -68,6 +68,8 @@ type fakeOp struct {
 
 	services         []string
 	disabledServices []string
+
+	vitalityRank int
 }
 
 type fakeOps []fakeOp
@@ -842,6 +844,7 @@ func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, dev boot.Device, linkCtx b
 	if len(linkCtx.PrevDisabledServices) != 0 {
 		op.disabledServices = linkCtx.PrevDisabledServices
 	}
+	op.vitalityRank = linkCtx.VitalityRank
 
 	if info.MountDir() == f.linkSnapFailTrigger {
 		op.op = "link-snap.failed"
