@@ -108,7 +108,10 @@ func Unlock(snapName string) error {
 	return f.Truncate(0)
 }
 
-// IsLocked returns information about the run inhibition hint, for the given snap, if any.
+// IsLocked returns the state of the run inhibition lock for the given snap.
+//
+// It returns the current, non-empty hit if inhibition is in place. Otherwise
+// it returns an empty hint.
 func IsLocked(snapName string) (Hint, error) {
 	flock, err := openHintFileLock(snapName)
 	if os.IsNotExist(err) {
