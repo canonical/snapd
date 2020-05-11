@@ -131,7 +131,7 @@ case "$action" in
 			# Because some systems do not support systemd --user (see
 			# tests/main/session-tool-support for details), check if this is
 			# expected to work ahead of trying.
-			if session-tool --has-session-systemd-and-dbus >/dev/null; then
+                        if session-tool -u "$u" systemctl --user is-enabled default.target >/dev/null; then
 				session-tool -u "$u" systemctl --user start default.target
 			fi
 		done
@@ -302,7 +302,9 @@ cat "$tmp_dir/ready.pipe" >/dev/null
 # and redirects to capture output. Sadly busctl doesn't support passing file
 # descriptors https://github.com/systemd/systemd/issues/14954 As a workaround
 # we pass a set of pipes. This is good for non-interactive work.
-cat >"$tmp_dir/stdin.pipe" &
+# NOTE: /dev/stdin is provided explicitly to trigger special behavior in bash,
+# as otherwise background tasks are started with /dev/null for stdin.
+cat </dev/stdin >"$tmp_dir/stdin.pipe" &
 cat_stdin_pid=$!
 cat <"$tmp_dir/stdout.pipe" >&1 &
 cat_stdout_pid=$!
