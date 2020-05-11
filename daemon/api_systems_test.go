@@ -256,7 +256,7 @@ func (s *apiSuite) TestSystemActionRequestErrors(c *check.C) {
 	}
 }
 
-func (s *apiSuite) TestSystemActionRequestHappy(c *check.C) {
+func (s *apiSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 	bt := bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(bt)
 	defer func() { bootloader.Force(nil) }()
@@ -342,10 +342,11 @@ func (s *apiSuite) TestSystemActionRequestHappy(c *check.C) {
 			comment:     "recover mode to recover mode",
 		},
 		{
-			// from install mode -> install mode is no-op
-			currentMode: "install",
-			actionMode:  "install",
-			comment:     "install mode to install mode",
+			// from install mode -> install mode is no-no
+			currentMode:    "install",
+			actionMode:     "install",
+			expUnsupported: true,
+			comment:        "install mode to install mode not supported",
 		},
 		{
 			// from install mode -> run mode is no-no
