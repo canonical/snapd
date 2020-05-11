@@ -453,8 +453,9 @@ func EnableSnapServices(s *snap.Info, inter interacter) (err error) {
 	return nil
 }
 
-// StopServices stops service units for the applications from the snap which are services.
-func StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, inter interacter, tm timings.Measurer) error {
+// StopServices stops and optionally disables service units for the applications
+// from the snap which are services.
+func StopServices(apps []*snap.AppInfo, alsoDisable bool, reason snap.ServiceStopReason, inter interacter, tm timings.Measurer) error {
 	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
 
 	logger.Debugf("StopServices called for %q, reason: %v", apps, reason)
@@ -478,6 +479,9 @@ func StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, inter int
 		var err error
 		timings.Run(tm, "stop-service", fmt.Sprintf("stop service %q", app.ServiceName()), func(nested timings.Measurer) {
 			err = stopService(sysd, app, inter)
+			if err == nil && alsoDisable {
+				err = sysd.Disable(app.ServiceName())
+			}
 		})
 		if err != nil {
 			return err
