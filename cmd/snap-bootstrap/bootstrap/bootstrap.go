@@ -35,12 +35,6 @@ const (
 	ubuntuDataLabel = "ubuntu-data"
 )
 
-// TODO:UC20: get cmdline definition from bootloaders
-var kernelCmdlines = []string{
-	// run mode
-	"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
-}
-
 func deviceFromRole(lv *gadget.LaidOutVolume, role string) (device string, err error) {
 	for _, vs := range lv.LaidOutStructure {
 		// XXX: this part of the finding maybe should be a
