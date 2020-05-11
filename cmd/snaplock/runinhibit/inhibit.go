@@ -59,7 +59,7 @@ func openHintFileLock(snapName string) (*osutil.FileLock, error) {
 	return osutil.NewFileLockWithMode(fname, 0644)
 }
 
-// LockWithHint sets a persistent "snap run" inhibition lock with a given hint.
+// LockWithHint sets a persistent "snap run" inhibition lock, for the given snap, with a given hint.
 //
 // The hint cannot be empty. It should be one of the Hint constants defined in
 // this package. With the hint in place "snap run" will not allow the snap to
@@ -88,7 +88,7 @@ func LockWithHint(snapName string, hint Hint) error {
 	return err
 }
 
-// Unlock truncates the run inhibition lock.
+// Unlock truncates the run inhibition lock, for the given snap.
 //
 // An empty inhibition lock means uninhibited "snap run".
 func Unlock(snapName string) error {
@@ -108,7 +108,7 @@ func Unlock(snapName string) error {
 	return f.Truncate(0)
 }
 
-// IsLocked returns information about the run inhibition hint, if any.
+// IsLocked returns information about the run inhibition hint, for the given snap, if any.
 func IsLocked(snapName string) (Hint, error) {
 	flock, err := openHintFileLock(snapName)
 	if os.IsNotExist(err) {
