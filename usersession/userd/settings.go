@@ -115,7 +115,7 @@ func settingWhitelisted(setting string) *dbus.Error {
 			return nil
 		}
 	}
-	return dbus.MakeFailedError(fmt.Errorf("cannot use setting %q: not allowed", settingTrimmed))
+	return dbus.MakeFailedError(fmt.Errorf("invalid setting %q", settingTrimmed))
 }
 
 func safeSnapFromSender(s *Settings, sender dbus.Sender) (string, *dbus.Error) {
@@ -137,7 +137,7 @@ func desktopFileFromValue(s *Settings, command string, setting string, dotDeskto
 	}
 
 	if !allowedSetting(dotDesktopValue) {
-		return "", dbus.MakeFailedError(fmt.Errorf("cannot %s setting %s to value %q: value not allowed", command, settingForLog(setting), dotDesktopValue))
+		return "", dbus.MakeFailedError(fmt.Errorf("cannot %s %s setting to invalid value %q", command, settingForLog(setting), dotDesktopValue))
 	}
 
 	// FIXME: this works only for desktop files
@@ -199,7 +199,7 @@ func setDialog(s *Settings, setting string, desktopFile string, sender dbus.Send
 func checkOutput(cmd *exec.Cmd, command string, setting string) (string, *dbus.Error) {
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return "", dbus.MakeFailedError(fmt.Errorf("cannot %s setting %s: %s", command, settingForLog(setting), osutil.OutputErr(output, err)))
+		return "", dbus.MakeFailedError(fmt.Errorf("cannot %s %s setting: %s", command, settingForLog(setting), osutil.OutputErr(output, err)))
 	}
 	return string(output), nil
 }
