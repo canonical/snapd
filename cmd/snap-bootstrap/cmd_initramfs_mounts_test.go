@@ -1418,7 +1418,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep3Encrypted(c *C
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, fmt.Sprintf("%s-model-measured", s.sysLabel)), testutil.FilePresent)
 }
 
-var mockStateContent = `{"data":{"auth":{"users":[{"name":"mvo"}]}},"some":{"other":"stuff"}}`
+var mockStateContent = `{"data":{"auth":{"users":[{"id":1,"name":"mvo"}],"macaroon-key":"not-a-cookie","last-id":1}},"some":{"other":"stuff"}}`
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep4(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover snapd_recovery_system="+s.sysLabel)
@@ -1453,6 +1453,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep4(c *C) {
 		// user ssh
 		"user-data/user1/.ssh/authorized_keys",
 		"user-data/user2/.ssh/authorized_keys",
+		// user snap authentication
+		"user-data/user1/.snap/auth.json",
 		// sudoers
 		"system-data/etc/sudoers.d/create-user-test",
 	}
@@ -1461,6 +1463,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep4(c *C) {
 		"system-data/etc/passwd",
 		"user-data/user1/some-random-data",
 		"user-data/user2/other-random-data",
+		"user-data/user2/.snap/sneaky-not-auth.json",
 	}
 	for _, mockAuthFile := range append(mockAuthFiles, mockUnrelatedFiles...) {
 		p := filepath.Join(hostUbuntuData, mockAuthFile)
@@ -1501,7 +1504,7 @@ recovery_system=20191118
 		c.Check(fiParent.Mode(), Equals, os.FileMode(os.ModeDir|0750))
 	}
 
-	c.Check(filepath.Join(ephemeralUbuntuData, "system-data/var/lib/snapd/state.json"), testutil.FileEquals, `{"data":{"auth":{"users":[{"name":"mvo"}]}},"changes":{},"tasks":{},"last-change-id":0,"last-task-id":0,"last-lane-id":0}`)
+	c.Check(filepath.Join(ephemeralUbuntuData, "system-data/var/lib/snapd/state.json"), testutil.FileEquals, `{"data":{"auth":{"last-id":1,"macaroon-key":"not-a-cookie","users":[{"id":1,"name":"mvo"}]}},"changes":{},"tasks":{},"last-change-id":0,"last-task-id":0,"last-lane-id":0}`)
 }
 
 func mockSecbootTPM(c *C) (tpm *secboot.TPMConnection, restore func()) {

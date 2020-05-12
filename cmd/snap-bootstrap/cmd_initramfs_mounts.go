@@ -121,6 +121,9 @@ func copyUbuntuDataAuth(src, dst string) error {
 		"system-data/var/lib/extrausers/*",
 		"system-data/etc/ssh/*",
 		"user-data/*/.ssh/*",
+		// this ensures we get proper authentication to snapd from "snap"
+		// commands in recover mode
+		"user-data/*/.snap/auth.json",
 		// this ensures we also get non-ssh enabled accounts copied
 		"user-data/*/.profile",
 		// so that users have proper perms, i.e. console-conf added users are
@@ -162,7 +165,7 @@ func copyUbuntuDataAuth(src, dst string) error {
 	// ensure the user state is transferred as well
 	srcState := filepath.Join(src, "system-data/var/lib/snapd/state.json")
 	dstState := filepath.Join(dst, "system-data/var/lib/snapd/state.json")
-	err := state.CopyState(srcState, dstState, []string{"auth.users"})
+	err := state.CopyState(srcState, dstState, []string{"auth.users", "auth.macaroon-key", "auth.last-id"})
 	if err != nil && err != state.ErrNoState {
 		return fmt.Errorf("cannot copy user state: %v", err)
 	}
