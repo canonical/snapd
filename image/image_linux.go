@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/sysconfig"
 )
 
 var (
@@ -413,7 +414,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 		return err
 	}
 
-	// cloud-init config (done at install for Core 20)
+	// early config & cloud-init config (done at install for Core 20)
 	if !core20 {
 		// and the cloud-init things
 		if err := installCloudConfig(rootDir, gadgetUnpackDir); err != nil {
@@ -425,10 +426,10 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 			return err
 		}
 
-		defaultsDir := filepath.Join(rootDir, "_writable_defaults")
+		defaultsDir := sysconfig.WritableDefaultsDir(rootDir, "")
 		defaults := gadget.SystemDefaults(gadgetInfo.Defaults)
 		if len(defaults) > 0 {
-			if err := os.MkdirAll(filepath.Join(defaultsDir, "/etc"), 0755); err != nil {
+			if err := os.MkdirAll(sysconfig.WritableDefaultsDir(rootDir, "/etc"), 0755); err != nil {
 				return err
 			}
 			applyOpts := &configcore.FilesystemOnlyApplyOptions{Classic: opts.Classic}

@@ -19,6 +19,8 @@
 
 package sysconfig
 
+import "path/filepath"
+
 // Options is the set of options used to configure the run system
 type Options struct {
 	// CloudInitSrcDir is where to find the cloud-init data when installing it,
@@ -40,4 +42,10 @@ func ConfigureRunSystem(opts *Options) error {
 	}
 
 	return nil
+}
+
+// WritableDefaultsDir returns full path of subdir under
+// rootdir/_writable_defaults.
+func WritableDefaultsDir(rootdir, subdir string) string {
+	return filepath.Join(rootdir, "_writable_defaults", subdir)
 }
