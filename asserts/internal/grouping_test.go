@@ -105,7 +105,7 @@ func (s *groupingsSuite) TestOutsideRange(c *C) {
 	c.Check(err, ErrorMatches, "group exceeds admissible maximum: 99 >= 16")
 }
 
-func (s *groupingsSuite) TestLabel(c *C) {
+func (s *groupingsSuite) TestSerializeLabel(c *C) {
 	var g internal.Grouping
 
 	gr, err := internal.NewGroupings(16)
@@ -122,15 +122,15 @@ func (s *groupingsSuite) TestLabel(c *C) {
 	err = gr.AddTo(&g, 2)
 	c.Assert(err, IsNil)
 
-	l := gr.Label(&g)
+	l := gr.Serialize(&g)
 
-	g1, err := gr.Parse(l)
+	g1, err := gr.Deserialize(l)
 	c.Check(err, IsNil)
 
 	c.Check(g1, DeepEquals, &g)
 }
 
-func (s *groupingsSuite) TestLabelParseErrors(c *C) {
+func (s *groupingsSuite) TestDeserializeLabelErrors(c *C) {
 	var g internal.Grouping
 
 	gr, err := internal.NewGroupings(16)
@@ -149,14 +149,14 @@ func (s *groupingsSuite) TestLabelParseErrors(c *C) {
 		// wrong length
 		base64.RawURLEncoding.EncodeToString([]byte{1}),
 		// not a known group
-		internal.MakeLabel([]uint16{3}),
+		internal.Serialize([]uint16{3}),
 		// not in order
-		internal.MakeLabel([]uint16{0, 2, 1}),
+		internal.Serialize([]uint16{0, 2, 1}),
 	}
 
 	for _, il := range invalidLabels {
-		_, err := gr.Parse(il)
-		c.Check(err, ErrorMatches, "invalid grouping label")
+		_, err := gr.Deserialize(il)
+		c.Check(err, ErrorMatches, "invalid serialized grouping label")
 	}
 }
 

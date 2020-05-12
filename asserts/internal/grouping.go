@@ -127,28 +127,28 @@ func (gr *Groupings) Contains(g *Grouping, group uint16) bool {
 	return found
 }
 
-// MakeLabel produces a string label encoding the given integers.
-func MakeLabel(elems []uint16) string {
+// Serialize produces a string encoding the given integers.
+func Serialize(elems []uint16) string {
 	b := bytes.NewBuffer(make([]byte, 0, len(elems)*2))
 	binary.Write(b, binary.LittleEndian, elems)
 	return base64.RawURLEncoding.EncodeToString(b.Bytes())
 }
 
-// Label produces a string label representing the grouping.
-func (gr *Groupings) Label(g *Grouping) string {
-	return MakeLabel(g.elems)
+// Serialize produces a string representing the grouping label.
+func (gr *Groupings) Serialize(g *Grouping) string {
+	return Serialize(g.elems)
 }
 
-var errLabel = errors.New("invalid grouping label")
+var errSerializedLabel = errors.New("invalid serialized grouping label")
 
-// Parse reconstructs a grouping out of the label.
-func (gr *Groupings) Parse(label string) (*Grouping, error) {
+// Deserialize reconstructs a grouping out of the serialized label.
+func (gr *Groupings) Deserialize(label string) (*Grouping, error) {
 	b, err := base64.RawURLEncoding.DecodeString(label)
 	if err != nil {
-		return nil, errLabel
+		return nil, errSerializedLabel
 	}
 	if len(b)%2 != 0 {
-		return nil, errLabel
+		return nil, errSerializedLabel
 	}
 	var g Grouping
 	g.size = uint16(len(b) / 2)
@@ -160,10 +160,10 @@ func (gr *Groupings) Parse(label string) (*Grouping, error) {
 	binary.Read(bytes.NewBuffer(b), binary.LittleEndian, g.elems)
 	for i, e := range g.elems {
 		if e > gr.maxGroup {
-			return nil, errLabel
+			return nil, errSerializedLabel
 		}
 		if i > 0 && g.elems[i-1] >= e {
-			return nil, errLabel
+			return nil, errSerializedLabel
 		}
 	}
 	return &g, nil
