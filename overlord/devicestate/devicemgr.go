@@ -885,10 +885,26 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 		return ErrUnsupportedAction
 	}
 
-	// TODO:UC20 assume we are in the run mode
-	if sysAction.Mode == "run" {
-		// do nothing
-		return nil
+	// XXX: requested mode is valid; only current system has 'run' and
+	// recover 'actions'
+
+	switch m.systemMode {
+	case "recover", "run":
+		// if going from recover to recover or from run to run and the systems
+		// are the same do nothing
+		if m.systemMode == sysAction.Mode && systemLabel == currentSys.System {
+			return nil
+		}
+	case "install":
+		// requesting system actions in install mode does not make sense atm
+		//
+		// TODO:UC20: maybe factory hooks will be able to something like
+		// this?
+		return ErrUnsupportedAction
+	default:
+		// probably test device manager mocking problem, or also potentially
+		// missing modeenv
+		return fmt.Errorf("internal error: unexpected manager system mode %q", m.systemMode)
 	}
 
 	m.state.Lock()
