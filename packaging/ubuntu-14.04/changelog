@@ -107,7 +107,7 @@ snapd (2.45~14.04) trusty; urgency=medium
     - tests: rewrite timeserver-control test
     - tests: fix racy pulseaudio tests
     - many: fix loading apparmor profiles on Ubuntu 20.04 with ZFS
-    - tests: update snap-preseed --reset logic to acommodate for 2.44
+    - tests: update snap-preseed --reset logic to accommodate for 2.44
       change
     - cmd/snap: don't wait for system key when stopping
     - sandbox/cgroup: avoid making arrays we don't use
