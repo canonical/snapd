@@ -93,7 +93,7 @@ func genericRefreshCheck(info *snap.Info, canAppRunDuringRefresh func(app *snap.
 	sort.Strings(busyHookNames)
 	sort.Ints(busyPIDs)
 	return &BusySnapError{
-		snapName:      info.SnapName(),
+		SnapName:      info.SnapName(),
 		busyAppNames:  busyAppNames,
 		busyHookNames: busyHookNames,
 		pids:          busyPIDs,
@@ -137,7 +137,7 @@ func HardNothingRunningRefreshCheck(info *snap.Info) error {
 
 // BusySnapError indicates that snap has apps or hooks running and cannot refresh.
 type BusySnapError struct {
-	snapName      string
+	SnapName      string
 	pids          []int
 	busyAppNames  []string
 	busyHookNames []string
@@ -148,15 +148,15 @@ func (err *BusySnapError) Error() string {
 	switch {
 	case len(err.busyAppNames) > 0 && len(err.busyHookNames) > 0:
 		return fmt.Sprintf("snap %q has running apps (%s) and hooks (%s)",
-			err.snapName, strings.Join(err.busyAppNames, ", "), strings.Join(err.busyHookNames, ", "))
+			err.SnapName, strings.Join(err.busyAppNames, ", "), strings.Join(err.busyHookNames, ", "))
 	case len(err.busyAppNames) > 0:
 		return fmt.Sprintf("snap %q has running apps (%s)",
-			err.snapName, strings.Join(err.busyAppNames, ", "))
+			err.SnapName, strings.Join(err.busyAppNames, ", "))
 	case len(err.busyHookNames) > 0:
 		return fmt.Sprintf("snap %q has running hooks (%s)",
-			err.snapName, strings.Join(err.busyHookNames, ", "))
+			err.SnapName, strings.Join(err.busyHookNames, ", "))
 	default:
-		return fmt.Sprintf("snap %q has running apps or hooks", err.snapName)
+		return fmt.Sprintf("snap %q has running apps or hooks", err.SnapName)
 	}
 }
 

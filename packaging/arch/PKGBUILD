@@ -9,7 +9,8 @@
 pkgname=snapd
 pkgdesc="Service and tools for management of snap packages."
 depends=('squashfs-tools' 'libseccomp' 'libsystemd')
-optdepends=('bash-completion: bash completion support')
+optdepends=('bash-completion: bash completion support'
+            'zsh: zsh completion support')
 pkgver=2.45
 pkgrel=1
 arch=('x86_64')
@@ -119,12 +120,15 @@ package() {
   export GOPATH="$srcdir/go"
 
   # Install bash completion
-  install -Dm644 data/completion/snap \
+  install -Dm644 data/completion/bash/snap \
     "$pkgdir/usr/share/bash-completion/completions/snap"
-  install -Dm644 data/completion/complete.sh \
+  install -Dm644 data/completion/bash/complete.sh \
     "$pkgdir/usr/lib/snapd/complete.sh"
-  install -Dm644 data/completion/etelpmoc.sh \
+  install -Dm644 data/completion/bash/etelpmoc.sh \
     "$pkgdir/usr/lib/snapd/etelpmoc.sh"
+  # Install zsh completion
+  install -Dm644 data/completion/zsh/_snap \
+    "$pkgdir/usr/share/zsh/site-functions/_snap"
 
   # Install systemd units, dbus services and a script for environment variables
   make -C data/ install \
@@ -161,6 +165,7 @@ package() {
   install -dm755 "$pkgdir/var/lib/snapd/seccomp/bpf"
   install -dm755 "$pkgdir/var/lib/snapd/snap/bin"
   install -dm755 "$pkgdir/var/lib/snapd/snaps"
+  install -dm755 "$pkgdir/var/lib/snapd/inhibit"
   install -dm755 "$pkgdir/var/lib/snapd/lib/gl"
   install -dm755 "$pkgdir/var/lib/snapd/lib/gl32"
   install -dm755 "$pkgdir/var/lib/snapd/lib/vulkan"

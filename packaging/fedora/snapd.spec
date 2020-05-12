@@ -488,9 +488,17 @@ sed -e "s:github.com/snapcore/bolt:github.com/boltdb/bolt:g" -i advisor/*.go err
 
 # To ensure things work correctly with base snaps,
 # snap-exec, snap-update-ns, and snapctl need to be built statically
-%gobuild_static -o bin/snap-exec $GOFLAGS %{import_path}/cmd/snap-exec
-%gobuild_static -o bin/snap-update-ns $GOFLAGS %{import_path}/cmd/snap-update-ns
-%gobuild_static -o bin/snapctl $GOFLAGS %{import_path}/cmd/snapctl
+(
+%if 0%{?rhel} >= 8
+    # since 1.12.1, the go-toolset module is built with FIPS compliance that
+    # defaults to using libcrypto.so which gets loaded at runtime via dlopen(),
+    # disable that functionality for statically built binaries
+    BUILDTAGS="${BUILDTAGS} no_openssl"
+%endif
+    %gobuild_static -o bin/snap-exec $GOFLAGS %{import_path}/cmd/snap-exec
+    %gobuild_static -o bin/snap-update-ns $GOFLAGS %{import_path}/cmd/snap-update-ns
+    %gobuild_static -o bin/snapctl $GOFLAGS %{import_path}/cmd/snapctl
+)
 
 %if 0%{?rhel}
 # There's no static link library for libseccomp in RHEL/CentOS...
@@ -554,6 +562,7 @@ install -d -p %{buildroot}%{_sharedstatedir}/snapd/cookie
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/desktop/applications
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/device
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/hostfs
+install -d -p %{buildroot}%{_sharedstatedir}/snapd/inhibit
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/lib/gl
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/lib/gl32
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/lib/glvnd
@@ -594,9 +603,12 @@ bin/snap help --man > %{buildroot}%{_mandir}/man8/snap.8
 install -m 644 -D data/info %{buildroot}%{_libexecdir}/snapd/info
 
 # Install bash completion for "snap"
-install -m 644 -D data/completion/snap %{buildroot}%{_datadir}/bash-completion/completions/snap
-install -m 644 -D data/completion/complete.sh %{buildroot}%{_libexecdir}/snapd
-install -m 644 -D data/completion/etelpmoc.sh %{buildroot}%{_libexecdir}/snapd
+install -m 644 -D data/completion/bash/snap %{buildroot}%{_datadir}/bash-completion/completions/snap
+install -m 644 -D data/completion/bash/complete.sh %{buildroot}%{_libexecdir}/snapd
+install -m 644 -D data/completion/bash/etelpmoc.sh %{buildroot}%{_libexecdir}/snapd
+# Install zsh completion for "snap"
+install -d -p %{buildroot}%{_datadir}/zsh/site-functions
+install -m 644 -D data/completion/zsh/_snap %{buildroot}%{_datadir}/zsh/site-functions/_snap
 
 # Install snap-confine
 pushd ./cmd
@@ -732,6 +744,7 @@ popd
 %{_datadir}/bash-completion/completions/snap
 %{_libexecdir}/snapd/complete.sh
 %{_libexecdir}/snapd/etelpmoc.sh
+%{_datadir}/zsh/site-functions/_snap
 %{_libexecdir}/snapd/snapd.run-from-snap
 %{_sysconfdir}/profile.d/snapd.sh
 %{_sysconfdir}/sudoers.d/99-snapd.conf
@@ -756,6 +769,7 @@ popd
 %dir %{_sharedstatedir}/snapd/desktop/applications
 %dir %{_sharedstatedir}/snapd/device
 %dir %{_sharedstatedir}/snapd/hostfs
+%dir %{_sharedstatedir}/snapd/inhibit
 %dir %{_sharedstatedir}/snapd/lib
 %dir %{_sharedstatedir}/snapd/lib/gl
 %dir %{_sharedstatedir}/snapd/lib/gl32
@@ -774,6 +788,9 @@ popd
 %if %{with snap_symlink}
 /snap
 %endif
+# this is typically owned by zsh, but we do not want to explicitly require zsh
+%dir %{_datadir}/zsh
+%dir %{_datadir}/zsh/site-functions
 
 %files -n snap-confine
 %doc cmd/snap-confine/PORTING
