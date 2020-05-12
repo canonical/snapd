@@ -94,6 +94,29 @@ if [ "$1" = "purge" ]; then
         rm -f "/etc/systemd/system/multi-user.target.wants/$unit"
     done
 
+    # TODO: ask snapd to ask each snapd.session-agent.service to stop snaps
+    # user-session services and stop itself.
+
+    user_units=$(systemctl --user --global list-unit-files --no-legend --full)
+    # user services from snaps
+    user_services=$(echo "$user_units" | grep '^snap\..*\.service' | cut -f1 -d ' ')
+    for unit in $user_services; do
+        # ensure its really a systemd user service
+        if ! grep -q 'X-Snappy=yes' "/etc/systemd/user/$unit"; then
+            echo "Skipping non-snapd systemd user unit $unit"
+            continue
+        fi
+
+        echo "Removing $unit"
+        rm -f "/etc/systemd/user/$unit"
+        rm -f "/etc/systemd/user/default.target.wants/$unit"
+    done
+
+    rm -f /etc/systemd/user/snapd.session-agent.socket
+    rm -f /etc/systemd/user/snapd.session-agent.service
+    rm -f /etc/systemd/user/sockets.target.wants/snapd.session-agent.socket
+
+
     # generated readme files
     rm -f "/snap/README"
 
