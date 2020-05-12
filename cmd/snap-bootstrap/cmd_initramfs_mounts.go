@@ -62,10 +62,13 @@ func (c *cmdInitramfsMounts) Execute(args []string) error {
 	return generateInitramfsMounts()
 }
 
-// XXX: move all var () to the top, it's very spread out right now
 var (
 	// Stdout - can be overridden in tests
 	stdout io.Writer = os.Stdout
+
+	secbootMeasureSnapSystemEpochWhenPossible = secboot.MeasureSnapSystemEpochWhenPossible
+	secbootMeasureSnapModelWhenPossible       = secboot.MeasureSnapModelWhenPossible
+	secbootUnlockVolumeIfEncrypted            = secboot.UnlockVolumeIfEncrypted
 )
 
 // generateMountsMode* is called multiple times from initramfs until it
@@ -207,12 +210,6 @@ func generateMountsModeRecover(mst *initramfsMountsState, recoverySystem string)
 	//      with mounting stuff
 	return nil
 }
-
-var (
-	secbootMeasureSnapSystemEpochWhenPossible = secboot.MeasureSnapSystemEpochWhenPossible
-	secbootMeasureSnapModelWhenPossible       = secboot.MeasureSnapModelWhenPossible
-	secbootUnlockVolumeIfEncrypted            = secboot.UnlockVolumeIfEncrypted
-)
 
 func generateMountsCommonInstallRecover(mst *initramfsMountsState, recoverySystem string) (allMounted bool, err error) {
 	// 1. always ensure seed partition is mounted
