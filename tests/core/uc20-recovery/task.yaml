@@ -1,5 +1,7 @@
 summary: verify booting into recovery mode on UC20 systems
 
+systems: [ ubuntu-core-20-* ]
+
 restore: |
   rm -f /writable/systems.json.run
   rm -f /writable/systems.label
