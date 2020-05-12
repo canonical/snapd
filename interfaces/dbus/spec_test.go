@@ -108,59 +108,63 @@ func (s *specSuite) TestAddService(c *C) {
 	snapInfo := &snap.Info{
 		SuggestedName: "snap1",
 	}
-	app := &snap.AppInfo{
-		Name: "app",
-		Snap: snapInfo,
+	systemSvc := &snap.AppInfo{
+		Name:        "system-svc",
+		Snap:        snapInfo,
+		Daemon:      "simple",
+		DaemonScope: snap.SystemDaemon,
 	}
-	svc := &snap.AppInfo{
-		Name:   "svc",
-		Daemon: "simple",
-		Snap:   snapInfo,
+	sessionSvc := &snap.AppInfo{
+		Name:        "session-svc",
+		Snap:        snapInfo,
+		Daemon:      "simple",
+		DaemonScope: snap.UserDaemon,
 	}
-	err := s.spec.AddService("system", "org.foo", svc)
+	err := s.spec.AddService("system", "org.foo", systemSvc)
 	c.Assert(err, IsNil)
-	err = s.spec.AddService("system", "org.bar", svc)
+	err = s.spec.AddService("system", "org.bar", systemSvc)
 	c.Assert(err, IsNil)
 	c.Check(s.spec.SystemServices(), DeepEquals, map[string]*dbus.Service{
 		"org.foo": {
 			BusName:     "org.foo",
-			SecurityTag: "snap.snap1.svc",
+			SecurityTag: "snap.snap1.system-svc",
 			Content: []byte(`[D-BUS Service]
 Name=org.foo
-Comment=Bus name for snap application snap1.svc
-Exec=/usr/bin/snap run snap1.svc
-AssumedAppArmorLabel=snap.snap1.svc
+Comment=Bus name for snap application snap1.system-svc
+Exec=/usr/bin/snap run snap1.system-svc
+AssumedAppArmorLabel=snap.snap1.system-svc
 User=root
-SystemdService=snap.snap1.svc.service
+SystemdService=snap.snap1.system-svc.service
 X-Snap=snap1
 `),
 		},
 		"org.bar": {
 			BusName:     "org.bar",
-			SecurityTag: "snap.snap1.svc",
+			SecurityTag: "snap.snap1.system-svc",
 			Content: []byte(`[D-BUS Service]
 Name=org.bar
-Comment=Bus name for snap application snap1.svc
-Exec=/usr/bin/snap run snap1.svc
-AssumedAppArmorLabel=snap.snap1.svc
+Comment=Bus name for snap application snap1.system-svc
+Exec=/usr/bin/snap run snap1.system-svc
+AssumedAppArmorLabel=snap.snap1.system-svc
 User=root
-SystemdService=snap.snap1.svc.service
+SystemdService=snap.snap1.system-svc.service
 X-Snap=snap1
 `),
 		},
 	})
 
-	err = s.spec.AddService("session", "org.baz", app)
+	err = s.spec.AddService("session", "org.baz", sessionSvc)
 	c.Check(err, IsNil)
 	c.Check(s.spec.SessionServices(), DeepEquals, map[string]*dbus.Service{
 		"org.baz": {
 			BusName:     "org.baz",
-			SecurityTag: "snap.snap1.app",
+			SecurityTag: "snap.snap1.session-svc",
 			Content: []byte(`[D-BUS Service]
 Name=org.baz
-Comment=Bus name for snap application snap1.app
-Exec=/usr/bin/snap run snap1.app
-AssumedAppArmorLabel=snap.snap1.app
+Comment=Bus name for snap application snap1.session-svc
+Exec=/usr/bin/snap run snap1.session-svc
+AssumedAppArmorLabel=snap.snap1.session-svc
+SystemdService=snap.snap1.session-svc.service
 X-Snap=snap1
 `),
 		},

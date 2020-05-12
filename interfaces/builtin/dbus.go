@@ -456,9 +456,18 @@ func (iface *dbusInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	}
 	if len(apps) == 1 {
 		app := apps[0]
-		// TODO: support user daemons
-		if app.IsService() && bus != "system" {
-			return fmt.Errorf("system daemons can only attach to the system bus")
+		if !app.IsService() {
+			return fmt.Errorf("only daemons can be activatable D-Bus services")
+		}
+		switch app.DaemonScope {
+		case snap.SystemDaemon:
+			if bus != "system" {
+				return fmt.Errorf("system daemons can only activate from the D-Bus system bus")
+			}
+		case snap.UserDaemon:
+			if bus != "session" {
+				return fmt.Errorf("user daemons can only activate from the D-Bus session bus")
+			}
 		}
 		if owner, err := dbus.BusNameOwner(bus, name); err != nil {
 			if !os.IsNotExist(err) {

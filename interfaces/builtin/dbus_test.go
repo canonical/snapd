@@ -135,6 +135,8 @@ apps:
     plugs:
     - test-system-plug
   test-session-activatable-provider:
+    daemon: dbus
+    daemon-scope: user
     slots:
     - test-session-activatable-slot
     activates-on:
@@ -307,14 +309,33 @@ slots:
     name: org.dbus-snap.session
 apps:
   app-dbus-slot:
-    slots:
-    - dbus-service-slot
+    daemon: simple
+    daemon-scope: user
     activates-on:
     - dbus-service-slot
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	slot := info.Slots["dbus-service-slot"]
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), IsNil)
+}
+
+func (s *DbusInterfaceSuite) TestSanitizeSlotActivatableNotDaemon(c *C) {
+	var mockSnapYaml = `name: dbus-snap
+version: 1.0
+slots:
+  dbus-service-slot:
+    interface: dbus
+    bus: session
+    name: org.dbus-snap.session
+apps:
+  app-dbus-slot:
+    activates-on:
+    - dbus-service-slot
+`
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
+	slot := info.Slots["dbus-service-slot"]
+	err := interfaces.BeforePrepareSlot(s.iface, slot)
+	c.Check(err, ErrorMatches, "only daemons can be activatable D-Bus services")
 }
 
 func (s *DbusInterfaceSuite) TestSanitizeSlotActivatableDuplicate(c *C) {
@@ -327,13 +348,13 @@ slots:
     name: org.dbus-snap.session
 apps:
   app-dbus-slot:
-    slots:
-    - dbus-service-slot
+    daemon: simple
+    daemon-scope: user
     activates-on:
     - dbus-service-slot
   app-dbus-slot-duplicated:
-    slots:
-    - dbus-service-slot
+    daemon: simple
+    daemon-scope: user
     activates-on:
     - dbus-service-slot
 `
@@ -347,22 +368,37 @@ func (s *DbusInterfaceSuite) TestSanitizeSlotActivatableWrongBus(c *C) {
 	var mockSnapYaml = `name: dbus-snap
 version: 1.0
 slots:
-  dbus-service-slot:
+  dbus-session-service-slot:
     interface: dbus
     bus: session
+    name: org.dbus-snap.session
+  dbus-system-service-slot:
+    interface: dbus
+    bus: system
     name: org.dbus-snap.session
 apps:
   system-service:
     daemon: simple
     slots:
-    - dbus-service-slot
+    - dbus-session-service-slot
     activates-on:
-    - dbus-service-slot
+    - dbus-session-service-slot
+  session-service:
+    daemon: simple
+    daemon-scope: user
+    slots:
+    - dbus-system-service-slot
+    activates-on:
+    - dbus-system-service-slot
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
-	slot := info.Slots["dbus-service-slot"]
+	slot := info.Slots["dbus-session-service-slot"]
 	err := interfaces.BeforePrepareSlot(s.iface, slot)
-	c.Assert(err, ErrorMatches, `system daemons can only attach to the system bus`)
+	c.Check(err, ErrorMatches, `system daemons can only activate from the D-Bus system bus`)
+
+	slot = info.Slots["dbus-system-service-slot"]
+	err = interfaces.BeforePrepareSlot(s.iface, slot)
+	c.Check(err, ErrorMatches, `user daemons can only activate from the D-Bus session bus`)
 }
 
 func (s *DbusInterfaceSuite) TestSanitizeSlotActivatableSessionConflict(c *C) {
@@ -375,8 +411,8 @@ slots:
     name: org.dbus-snap.session
 apps:
   app-dbus-slot:
-    slots:
-    - dbus-service-slot
+    daemon: simple
+    daemon-scope: user
     activates-on:
     - dbus-service-slot
 `
@@ -406,8 +442,7 @@ slots:
     name: org.dbus-snap.system
 apps:
   app-dbus-slot:
-    slots:
-    - dbus-service-slot
+    daemon: simple
     activates-on:
     - dbus-service-slot
 `
@@ -438,8 +473,7 @@ slots:
     name: org.dbus-snap.system
 apps:
   app-dbus-slot:
-    slots:
-    - dbus-service-slot
+    daemon: simple
     activates-on:
     - dbus-service-slot
 `
@@ -595,6 +629,7 @@ Name=org.test-session-activatable
 Comment=Bus name for snap application test-dbus.test-session-activatable-provider
 Exec=/usr/bin/snap run test-dbus.test-session-activatable-provider
 AssumedAppArmorLabel=snap.test-dbus.test-session-activatable-provider
+SystemdService=snap.test-dbus.test-session-activatable-provider.service
 X-Snap=test-dbus
 `),
 		},

@@ -48,6 +48,10 @@ type Service struct {
 
 // AddService adds a new D-Bus service
 func (spec *Specification) AddService(bus, name string, appInfo *snap.AppInfo) error {
+	if !appInfo.IsService() {
+		return fmt.Errorf("activatable D-Bus services must be daemons")
+	}
+
 	serviceTemplate := `[D-BUS Service]
 Name={{.BusName}}
 Comment=Bus name for snap application {{.App.Snap.InstanceName}}.{{.App.Name}}
@@ -56,17 +60,14 @@ AssumedAppArmorLabel={{.App.SecurityTag}}
 {{- if .IsSystem }}
 User=root
 {{- end}}
-{{- if .SystemdService }}
-SystemdService={{.SystemdService}}
-{{- end}}
+SystemdService={{.App.ServiceName}}
 X-Snap={{.App.Snap.InstanceName}}
 `
 	t := template.Must(template.New("dbus-service").Parse(serviceTemplate))
 	serviceData := struct {
-		App            *snap.AppInfo
-		BusName        string
-		SystemdService string
-		IsSystem       bool
+		App      *snap.AppInfo
+		BusName  string
+		IsSystem bool
 	}{
 		App:      appInfo,
 		BusName:  name,
@@ -81,11 +82,6 @@ X-Snap={{.App.Snap.InstanceName}}
 		services = spec.sessionServices
 		// TODO: extract systemd service name for user service, once integrated
 	case "system":
-		// TODO: return an error if this is not a system serice
-		if !appInfo.IsService() {
-			return fmt.Errorf("system D-Bus services must be daemons")
-		}
-		serviceData.SystemdService = appInfo.ServiceName()
 		if spec.systemServices == nil {
 			spec.systemServices = make(map[string]*Service)
 		}

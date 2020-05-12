@@ -361,6 +361,8 @@ func (s *backendSuite) TestInstallingSnapInstallsSessionServiceActivation(c *C) 
 			Snap: &snap.Info{
 				SuggestedName: "samba",
 			},
+			Daemon:      "simple",
+			DaemonScope: snap.UserDaemon,
 		}
 		spec.AddService("session", "org.foo", app)
 		spec.AddService("session", "org.bar", app)
@@ -384,6 +386,8 @@ func (s *backendSuite) TestRemovingSnapRemovesSessionServiceActivation(c *C) {
 			Snap: &snap.Info{
 				SuggestedName: "samba",
 			},
+			Daemon:      "simple",
+			DaemonScope: snap.UserDaemon,
 		}
 		spec.AddService("session", "org.foo", app)
 		spec.AddService("session", "org.bar", app)
@@ -407,7 +411,8 @@ func (s *backendSuite) TestInstallingSnapInstallsSystemServiceActivation(c *C) {
 			Snap: &snap.Info{
 				SuggestedName: "samba",
 			},
-			Daemon: "dbus",
+			Daemon:      "dbus",
+			DaemonScope: snap.SystemDaemon,
 		}
 		spec.AddService("system", "org.foo", app)
 		spec.AddService("system", "org.bar", app)
@@ -431,6 +436,8 @@ func (s *backendSuite) TestRemovingSnapRemovesSystemServiceActivation(c *C) {
 			Snap: &snap.Info{
 				SuggestedName: "samba",
 			},
+			Daemon:      "simple",
+			DaemonScope: snap.SystemDaemon,
 		}
 		spec.AddService("system", "org.foo", app)
 		spec.AddService("system", "org.bar", app)
@@ -455,7 +462,8 @@ func (s *backendSuite) _TestUpdatingSnapToOneWithMoreServices(c *C) {
 			Snap: &snap.Info{
 				SuggestedName: "samba",
 			},
-			Daemon: "dbus",
+			Daemon:      "dbus",
+			DaemonScope: snap.SystemDaemon,
 		}
 		for _, busName := range busNames {
 			if err := spec.AddService("system", busName, app); err != nil {
@@ -491,7 +499,8 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerServices(c *C) {
 			Snap: &snap.Info{
 				SuggestedName: "samba",
 			},
-			Daemon: "dbus",
+			Daemon:      "dbus",
+			DaemonScope: snap.SystemDaemon,
 		}
 		for _, busName := range busNames {
 			if err := spec.AddService("system", busName, app); err != nil {
