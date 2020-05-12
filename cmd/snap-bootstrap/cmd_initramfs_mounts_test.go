@@ -199,10 +199,30 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep1(c *C) {
 		notYetMounted{boot.InitramfsUbuntuSeedDir},
 	)
 
+	// mock that we don't know which partition uuid the kernel was booted from
+	restore := main.MockPartitionUUIDForBootedKernelDisk("")
+	defer restore()
+
 	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Assert(*n, Equals, 1)
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf("/dev/disk/by-label/ubuntu-seed %s/ubuntu-seed\n", boot.InitramfsRunMntDir))
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep1BootedKernelPartitionUUID(c *C) {
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install snapd_recovery_system="+s.sysLabel)
+
+	n := s.mockExpectedMountChecks(c,
+		notYetMounted{boot.InitramfsUbuntuSeedDir},
+	)
+
+	restore := main.MockPartitionUUIDForBootedKernelDisk("specific-ubuntu-seed-partuuid")
+	defer restore()
+
+	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+	c.Assert(*n, Equals, 1)
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf("/dev/disk/by-partuuid/specific-ubuntu-seed-partuuid %s/ubuntu-seed\n", boot.InitramfsRunMntDir))
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep2(c *C) {
@@ -259,10 +279,31 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1(c *C) {
 		notYetMounted{boot.InitramfsUbuntuBootDir},
 	)
 
+	// mock that we don't know which partition uuid the kernel was booted from
+	restore := main.MockPartitionUUIDForBootedKernelDisk("")
+	defer restore()
+
 	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Assert(*n, Equals, 1)
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`/dev/disk/by-label/ubuntu-boot %[1]s/ubuntu-boot
+`, boot.InitramfsRunMntDir))
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1WithBootedKernelPartUUID(c *C) {
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	n := s.mockExpectedMountChecks(c,
+		notYetMounted{boot.InitramfsUbuntuBootDir},
+	)
+
+	restore := main.MockPartitionUUIDForBootedKernelDisk("specific-ubuntu-boot-partuuid")
+	defer restore()
+
+	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+	c.Assert(*n, Equals, 1)
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`/dev/disk/by-partuuid/specific-ubuntu-boot-partuuid %[1]s/ubuntu-boot
 `, boot.InitramfsRunMntDir))
 }
 
@@ -1065,10 +1106,30 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep1(c *C) {
 		notYetMounted{boot.InitramfsUbuntuSeedDir},
 	)
 
+	// mock that we don't know which partition uuid the kernel was booted from
+	restore := main.MockPartitionUUIDForBootedKernelDisk("")
+	defer restore()
+
 	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Assert(*n, Equals, 1)
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf("/dev/disk/by-label/ubuntu-seed %s/ubuntu-seed\n", boot.InitramfsRunMntDir))
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep1BootedKernelPartitionUUID(c *C) {
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover snapd_recovery_system="+s.sysLabel)
+
+	n := s.mockExpectedMountChecks(c,
+		notYetMounted{boot.InitramfsUbuntuSeedDir},
+	)
+
+	restore := main.MockPartitionUUIDForBootedKernelDisk("specific-ubuntu-seed-partuuid")
+	defer restore()
+
+	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+	c.Assert(*n, Equals, 1)
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf("/dev/disk/by-partuuid/specific-ubuntu-seed-partuuid %s/ubuntu-seed\n", boot.InitramfsRunMntDir))
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep2(c *C) {
