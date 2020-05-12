@@ -885,7 +885,7 @@ func (f *fakeSnappyBackend) StartServices(svcs []*snap.AppInfo, meter progress.M
 	return nil
 }
 
-func (f *fakeSnappyBackend) StopServices(svcs []*snap.AppInfo, alsoDisable bool, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error {
+func (f *fakeSnappyBackend) StopServices(svcs []*snap.AppInfo, flags *backend.StopFlags, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error {
 	f.appendOp(&fakeOp{
 		op:   fmt.Sprintf("stop-snap-services:%s", reason),
 		path: svcSnapMountDir(svcs),
