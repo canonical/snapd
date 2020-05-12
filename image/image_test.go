@@ -1972,8 +1972,6 @@ func (s *imageSuite) TestSetupSeedCore18GadgetDefaults(c *C) {
 		PrepareDir: filepath.Dir(rootdir),
 	}
 
-	c.Assert(os.MkdirAll(filepath.Join(rootdir, "/etc/ssh"), 0755), IsNil)
-
 	err := image.SetupSeed(s.tsto, model, opts)
 	c.Assert(err, IsNil)
 	c.Check(osutil.FileExists(filepath.Join(rootdir, "_writable_defaults/etc/ssh/sshd_not_to_be_run")), Equals, true)
