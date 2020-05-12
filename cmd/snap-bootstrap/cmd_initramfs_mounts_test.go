@@ -342,6 +342,11 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1EncryptedData(c *C
 	err = ioutil.WriteFile(ubuntuDataEnc, nil, 0644)
 	c.Assert(err, IsNil)
 
+	restore = main.MockRandomKernelUUID(func() string {
+		return "some-kernel-uuid"
+	})
+	defer restore()
+
 	// setup a fake tpm
 	mockTPM, restore := mockSecbootTPM(c)
 	defer restore()
@@ -351,7 +356,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1EncryptedData(c *C
 	restore = main.MockSecbootActivateVolumeWithTPMSealedKey(func(tpm *secboot.TPMConnection, volumeName, sourceDevicePath,
 		keyPath string, pinReader io.Reader, options *secboot.ActivateWithTPMSealedKeyOptions) (bool, error) {
 		c.Assert(tpm, Equals, mockTPM)
-		c.Assert(volumeName, Equals, "ubuntu-data")
+		c.Assert(volumeName, Equals, "ubuntu-data-some-kernel-uuid")
 		c.Assert(sourceDevicePath, Equals, ubuntuDataEnc)
 		// the keyfile will be on ubuntu-seed as ubuntu-data.sealed-key
 		c.Assert(keyPath, Equals, filepath.Join(boot.InitramfsUbuntuSeedDir, "device/fde", "ubuntu-data.sealed-key"))
@@ -399,8 +404,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1EncryptedData(c *C
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Check(*n, Equals, 3)
-	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data %[2]s/data
-`, devDiskByLabel, boot.InitramfsRunMntDir))
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`/dev/mapper/ubuntu-data-some-kernel-uuid %[1]s/data
+`, boot.InitramfsRunMntDir))
 	c.Check(activated, Equals, true)
 	c.Check(sealedKeysLocked, Equals, true)
 	c.Check(epochPCR, Equals, 12)
@@ -974,7 +979,13 @@ func (s *initramfsMountsSuite) TestUnlockIfEncrypted(c *C) {
 			tpmErr: errors.New("no tpm"), device: "name",
 		},
 	} {
-		c.Logf("tc %v: %#v", idx, tc)
+		randomUUID := fmt.Sprintf("random-uuid-for-test-%d", idx)
+		restore := main.MockRandomKernelUUID(func() string {
+			return randomUUID
+		})
+		defer restore()
+
+		c.Logf("tc %v: %+v", idx, tc)
 		mockTPM, restoreTPM := mockSecbootTPM(c)
 		defer restoreTPM()
 
@@ -1004,7 +1015,7 @@ func (s *initramfsMountsSuite) TestUnlockIfEncrypted(c *C) {
 		restoreActivate := main.MockSecbootActivateVolumeWithTPMSealedKey(func(tpm *secboot.TPMConnection, volumeName, sourceDevicePath,
 			keyPath string, pinReader io.Reader, options *secboot.ActivateWithTPMSealedKeyOptions) (bool, error) {
 			c.Assert(tpm, Equals, mockTPM)
-			c.Assert(volumeName, Equals, "name")
+			c.Assert(volumeName, Equals, "name-"+randomUUID)
 			c.Assert(sourceDevicePath, Equals, filepath.Join(devDiskByLabel, "name-enc"))
 			c.Assert(keyPath, Equals, filepath.Join(boot.InitramfsEncryptionKeyDir, "name.sealed-key"))
 			c.Assert(*options, DeepEquals, secboot.ActivateWithTPMSealedKeyOptions{
@@ -1021,9 +1032,13 @@ func (s *initramfsMountsSuite) TestUnlockIfEncrypted(c *C) {
 
 		device, err := main.UnlockIfEncrypted("name", tc.last)
 		if tc.device == "" {
-			c.Assert(device, Equals, tc.device)
+			c.Check(device, Equals, tc.device)
 		} else {
-			c.Assert(device, Equals, filepath.Join(devDiskByLabel, tc.device))
+			if tc.hasEncdev {
+				c.Assert(device, Equals, filepath.Join("/dev/mapper", tc.device+"-"+randomUUID))
+			} else {
+				c.Assert(device, Equals, filepath.Join(devDiskByLabel, tc.device))
+			}
 		}
 		if tc.err == "" {
 			c.Assert(err, IsNil)
@@ -1328,12 +1343,17 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep3Encrypted(c *C
 	mockTPM, restore := mockSecbootTPM(c)
 	defer restore()
 
+	restore = main.MockRandomKernelUUID(func() string {
+		return "some-kernel-uuid"
+	})
+	defer restore()
+
 	activated := false
 	// setup activating the fake tpm
 	restore = main.MockSecbootActivateVolumeWithTPMSealedKey(func(tpm *secboot.TPMConnection, volumeName, sourceDevicePath,
 		keyPath string, pinReader io.Reader, options *secboot.ActivateWithTPMSealedKeyOptions) (bool, error) {
 		c.Assert(tpm, Equals, mockTPM)
-		c.Assert(volumeName, Equals, "ubuntu-data")
+		c.Assert(volumeName, Equals, "ubuntu-data-some-kernel-uuid")
 		c.Assert(sourceDevicePath, Equals, ubuntuDataEnc)
 		// the keyfile will be on ubuntu-seed as ubuntu-data.sealed-key
 		c.Assert(keyPath, Equals, filepath.Join(boot.InitramfsUbuntuSeedDir, "device/fde", "ubuntu-data.sealed-key"))
@@ -1384,8 +1404,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep3Encrypted(c *C
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Assert(*n, Equals, 6)
-	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data %[2]s/host/ubuntu-data
-`, devDiskByLabel, boot.InitramfsRunMntDir))
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`/dev/mapper/ubuntu-data-some-kernel-uuid %[1]s/host/ubuntu-data
+`, boot.InitramfsRunMntDir))
 
 	c.Check(activated, Equals, true)
 	c.Check(sealedKeysLocked, Equals, true)

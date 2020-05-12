@@ -120,6 +120,14 @@ func MockDevDiskByLabelDir(new string) (restore func()) {
 	}
 }
 
+func MockRandomKernelUUID(new func() string) (restore func()) {
+	old := readKernelUUID
+	readKernelUUID = new
+	return func() {
+		readKernelUUID = old
+	}
+}
+
 func MockSecbootMeasureSnapSystemEpochToTPM(f func(tpm *secboot.TPMConnection, pcrIndex int) error) (restore func()) {
 	old := secbootMeasureSnapSystemEpochToTPM
 	secbootMeasureSnapSystemEpochToTPM = f
