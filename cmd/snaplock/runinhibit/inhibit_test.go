@@ -46,6 +46,18 @@ func (s *runInhibitSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
 }
 
+// Locking cannot be done with an empty hint as that is equivalent to unlocking.
+func (s *runInhibitSuite) TestLockWithEmptyHint(c *C) {
+	_, err := os.Stat(runinhibit.InhibitDir)
+	c.Assert(os.IsNotExist(err), Equals, true)
+
+	err = runinhibit.LockWithHint("pkg", runinhibit.HintNotInhibited)
+	c.Assert(err, ErrorMatches, "hint cannot be empty")
+
+	_, err = os.Stat(runinhibit.InhibitDir)
+	c.Assert(os.IsNotExist(err), Equals, true)
+}
+
 // Locking a file creates required directories and writes the hint file.
 func (s *runInhibitSuite) TestLockWithHint(c *C) {
 	_, err := os.Stat(runinhibit.InhibitDir)
