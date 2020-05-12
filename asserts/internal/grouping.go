@@ -73,6 +73,10 @@ func (g Grouping) Copy() Grouping {
 	return g
 }
 
+// search locates group among the sorted Grouping elements, it returns:
+//  * true and the index of group among them if group is found
+//  * false and the index at which group should be inserted to keep the
+//    elements sorted if not found
 func (g *Grouping) search(group uint16) (found bool, j uint16) {
 	j = uint16(sort.Search(int(g.size), func(i int) bool { return g.elems[i] >= group }))
 	if j < g.size && g.elems[j] == group {
@@ -110,6 +114,7 @@ func (gr *Groupings) AddTo(g *Grouping, group uint16) error {
 	if j < g.size {
 		copy(newelems[j+1:], g.elems[j:])
 	}
+	// inserting new group at j index keeping the elements sorted
 	newelems[j] = group
 	g.size++
 	g.elems = newelems
