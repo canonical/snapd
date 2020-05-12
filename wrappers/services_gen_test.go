@@ -151,7 +151,7 @@ apps:
 	info.Revision = snap.R(44)
 	app := info.Apps["app"]
 
-	generatedWrapper, err := wrappers.GenerateSnapServiceFile(app)
+	generatedWrapper, err := wrappers.GenerateSnapServiceFile(app, nil)
 	c.Assert(err, IsNil)
 	c.Check(string(generatedWrapper), Equals, expectedAppService)
 }
@@ -171,7 +171,7 @@ apps:
 	info.Revision = snap.R(44)
 	app := info.Apps["app"]
 
-	generatedWrapper, err := wrappers.GenerateSnapServiceFile(app)
+	generatedWrapper, err := wrappers.GenerateSnapServiceFile(app, nil)
 	c.Assert(err, IsNil)
 	c.Check(string(generatedWrapper), testutil.Contains, "\nTimeoutStartSec=600\n")
 }
@@ -192,7 +192,7 @@ apps:
 		info.Revision = snap.R(44)
 		app := info.Apps["app"]
 
-		generatedWrapper, err := wrappers.GenerateSnapServiceFile(app)
+		generatedWrapper, err := wrappers.GenerateSnapServiceFile(app, nil)
 		c.Assert(err, IsNil)
 		wrapperText := string(generatedWrapper)
 		if cond == snap.RestartNever {
@@ -222,7 +222,7 @@ func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileTypeForking(c *C) {
 		DaemonScope:     snap.SystemDaemon,
 	}
 
-	generatedWrapper, err := wrappers.GenerateSnapServiceFile(service)
+	generatedWrapper, err := wrappers.GenerateSnapServiceFile(service, nil)
 	c.Assert(err, IsNil)
 	c.Assert(string(generatedWrapper), Equals, expectedTypeForkingWrapper)
 }
@@ -244,7 +244,7 @@ func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileIllegalChars(c *C) 
 		DaemonScope:     snap.SystemDaemon,
 	}
 
-	_, err := wrappers.GenerateSnapServiceFile(service)
+	_, err := wrappers.GenerateSnapServiceFile(service, nil)
 	c.Assert(err, NotNil)
 }
 
@@ -269,7 +269,7 @@ apps:
 	info.Revision = snap.R(44)
 	app := info.Apps["app"]
 
-	generatedWrapper, err := wrappers.GenerateSnapServiceFile(app)
+	generatedWrapper, err := wrappers.GenerateSnapServiceFile(app, nil)
 	c.Assert(err, IsNil)
 
 	c.Assert(string(generatedWrapper), Equals, expectedDbusService)
@@ -292,7 +292,7 @@ apps:
 
 	app := info.Apps["app"]
 
-	generatedWrapper, err := wrappers.GenerateSnapServiceFile(app)
+	generatedWrapper, err := wrappers.GenerateSnapServiceFile(app, nil)
 	c.Assert(err, IsNil)
 
 	c.Assert(string(generatedWrapper), Equals, expectedOneshotService)
@@ -317,7 +317,7 @@ apps:
 	info.Revision = snap.R(44)
 	app := info.Apps["app"]
 
-	generatedWrapper, err := wrappers.GenerateSnapServiceFile(app)
+	generatedWrapper, err := wrappers.GenerateSnapServiceFile(app, nil)
 	c.Assert(err, IsNil)
 	c.Check(string(generatedWrapper), Equals, expectedUserAppService)
 }
@@ -387,7 +387,7 @@ WantedBy=sockets.target
 	sock1Expected := fmt.Sprintf(sock1ExpectedFmt, mountUnitPrefix, mountUnitPrefix, si.DataDir())
 	sock2Expected := fmt.Sprintf(sock2ExpectedFmt, mountUnitPrefix, mountUnitPrefix, si.DataDir())
 
-	generatedWrapper, err := wrappers.GenerateSnapServiceFile(service)
+	generatedWrapper, err := wrappers.GenerateSnapServiceFile(service, nil)
 	c.Assert(err, IsNil)
 	c.Assert(strings.Contains(string(generatedWrapper), "[Install]"), Equals, false)
 	c.Assert(strings.Contains(string(generatedWrapper), "WantedBy=multi-user.target"), Equals, false)
@@ -484,7 +484,7 @@ WantedBy=multi-user.target
 		c.Logf("tc: %v", tc)
 		service.After = tc.after
 		service.Before = tc.before
-		generatedWrapper, err := wrappers.GenerateSnapServiceFile(service)
+		generatedWrapper, err := wrappers.GenerateSnapServiceFile(service, nil)
 		c.Assert(err, IsNil)
 
 		expectedService := fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix,
@@ -597,7 +597,7 @@ WantedBy=multi-user.target
 		},
 	}
 
-	generatedWrapper, err := wrappers.GenerateSnapServiceFile(service)
+	generatedWrapper, err := wrappers.GenerateSnapServiceFile(service, nil)
 	c.Assert(err, IsNil)
 
 	c.Logf("service: \n%v\n", string(generatedWrapper))
@@ -759,7 +759,7 @@ func (s *servicesWrapperGenSuite) TestKillModeSig(c *C) {
 			StopMode:    snap.StopModeType(rm),
 		}
 
-		generatedWrapper, err := wrappers.GenerateSnapServiceFile(service)
+		generatedWrapper, err := wrappers.GenerateSnapServiceFile(service, nil)
 		c.Assert(err, IsNil)
 
 		c.Check(string(generatedWrapper), Equals, fmt.Sprintf(`[Unit]
@@ -801,7 +801,7 @@ func (s *servicesWrapperGenSuite) TestRestartDelay(c *C) {
 		RestartDelay: timeout.Timeout(20 * time.Second),
 	}
 
-	generatedWrapper, err := wrappers.GenerateSnapServiceFile(service)
+	generatedWrapper, err := wrappers.GenerateSnapServiceFile(service, nil)
 	c.Assert(err, IsNil)
 
 	c.Check(string(generatedWrapper), Equals, fmt.Sprintf(`[Unit]
@@ -821,6 +821,48 @@ RestartSec=20
 WorkingDirectory=/var/snap/snap/44
 TimeoutStopSec=30
 Type=simple
+
+[Install]
+WantedBy=multi-user.target
+`, mountUnitPrefix, mountUnitPrefix))
+}
+
+func (s *servicesWrapperGenSuite) TestVitalityScore(c *C) {
+	service := &snap.AppInfo{
+		Snap: &snap.Info{
+			SuggestedName: "snap",
+			Version:       "0.3.4",
+			SideInfo:      snap.SideInfo{Revision: snap.R(44)},
+		},
+		Name:         "app",
+		Command:      "bin/foo start",
+		Daemon:       "simple",
+		DaemonScope:  snap.SystemDaemon,
+		RestartDelay: timeout.Timeout(20 * time.Second),
+	}
+
+	opts := &wrappers.AddSnapServicesOptions{VitalityRank: 1}
+	generatedWrapper, err := wrappers.GenerateSnapServiceFile(service, opts)
+	c.Assert(err, IsNil)
+
+	c.Check(string(generatedWrapper), Equals, fmt.Sprintf(`[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application snap.app
+Requires=%s-snap-44.mount
+Wants=network.target
+After=%s-snap-44.mount network.target snapd.apparmor.service
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run snap.app
+SyslogIdentifier=snap.app
+Restart=on-failure
+RestartSec=20
+WorkingDirectory=/var/snap/snap/44
+TimeoutStopSec=30
+Type=simple
+OOMScoreAdjust=-899
 
 [Install]
 WantedBy=multi-user.target
