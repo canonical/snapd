@@ -116,3 +116,11 @@ func MockDevDiskByLabelDir(new string) (restore func()) {
 		devDiskByLabelDir = old
 	}
 }
+
+func MockRandomKernelUUID(new func() string) (restore func()) {
+	old := randutilRandomKernelUUID
+	randutilRandomKernelUUID = new
+	return func() {
+		randutilRandomKernelUUID = old
+	}
+}

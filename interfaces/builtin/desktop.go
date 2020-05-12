@@ -202,7 +202,7 @@ dbus (send)
     bus=session
     path=/io/snapcraft/Settings
     interface=io.snapcraft.Settings
-    member={Check,Get,Set}
+    member={Check,CheckSub,Get,GetSub,Set,SetSub}
     peer=(label=unconfined),
 
 # Allow access to xdg-document-portal file system.  Access control is

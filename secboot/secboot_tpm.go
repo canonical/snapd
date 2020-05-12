@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/partition"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/randutil"
 )
 
 const (
@@ -161,13 +162,15 @@ func MeasureSnapModelWhenPossible(findModel func() (*asserts.Model, error)) erro
 	return nil
 }
 
+var (
+	randutilRandomKernelUUID = randutil.RandomKernelUUID
+)
+
 // UnlockVolumeIfEncrypted verifies whether an encrypted volume with the specified
 // name exists and unlocks it. With lockKeysOnFinish set, access to the sealed
 // keys will be locked when this function completes. The path to the unencrypted
 // device node is returned.
 func UnlockVolumeIfEncrypted(name string, lockKeysOnFinish bool) (string, error) {
-	device := filepath.Join(devDiskByLabelDir, name)
-
 	// TODO:UC20: use sb.SecureConnectToDefaultTPM() if we decide there's benefit in doing that or
 	//            we have a hard requirement for a valid EK cert chain for every boot (ie, panic
 	//            if there isn't one). But we can't do that as long as we need to download
@@ -188,6 +191,7 @@ func UnlockVolumeIfEncrypted(name string, lockKeysOnFinish bool) (string, error)
 	tpmDeviceAvailable := tpmErr == nil
 
 	var lockErr error
+	var mapperName string
 	err := func() error {
 		defer func() {
 			if lockKeysOnFinish && tpmDeviceAvailable {
@@ -215,7 +219,8 @@ func UnlockVolumeIfEncrypted(name string, lockKeysOnFinish bool) (string, error)
 		//            <name> is from <name>-enc and not an unencrypted partition
 		//            with the same name (LP #1863886)
 		sealedKeyPath := filepath.Join(boot.InitramfsEncryptionKeyDir, name+".sealed-key")
-		return unlockEncryptedPartition(tpm, name, encdev, sealedKeyPath, "", lockKeysOnFinish)
+		mapperName = name + "-" + randutilRandomKernelUUID()
+		return unlockEncryptedPartition(tpm, mapperName, encdev, sealedKeyPath, "", lockKeysOnFinish)
 	}()
 	if err != nil {
 		return "", err
@@ -224,7 +229,17 @@ func UnlockVolumeIfEncrypted(name string, lockKeysOnFinish bool) (string, error)
 		return "", fmt.Errorf("cannot lock access to sealed keys: %v", lockErr)
 	}
 
-	return device, nil
+	// return the encrypted device if the device we are maybe unlocking is an
+	// encrypted device
+	if mapperName != "" {
+		return filepath.Join("/dev/mapper", mapperName), nil
+	}
+
+	// otherwise use the device from /dev/disk/by-label
+	// TODO:UC20: we want to always determine the ubuntu-data partition by
+	//            referencing the ubuntu-boot or ubuntu-seed partitions and not
+	//            by using labels
+	return filepath.Join(devDiskByLabelDir, name), nil
 }
 
 // UnlockEncryptedPartition unseals the keyfile and opens an encrypted device.

@@ -85,14 +85,11 @@ func (s *backlightSuite) TestConfigureBacklightServiceUnmaskIntegration(c *C) {
 }
 
 func (s *backlightSuite) TestFilesystemOnlyApply(c *C) {
-	restorer := release.MockOnClassic(false)
-	defer restorer()
-
 	conf := configcore.PlainCoreConfig(map[string]interface{}{
 		"system.disable-backlight-service": "true",
 	})
 	tmpDir := c.MkDir()
-	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf), IsNil)
+	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf, nil), IsNil)
 
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
 		{"--root", tmpDir, "mask", "systemd-backlight@.service"},

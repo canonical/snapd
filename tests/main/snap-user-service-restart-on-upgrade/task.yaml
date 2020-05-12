@@ -56,3 +56,4 @@ execute: |
 debug: |
     session-tool --dump
     session-tool -u test systemctl --user status snapd.session-agent.service || true
+    session-tool -u test journalctl --user || true
