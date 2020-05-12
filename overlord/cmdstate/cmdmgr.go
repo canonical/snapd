@@ -46,39 +46,38 @@ func (m *CommandManager) Ensure() error {
 var defaultExecTimeout = 5 * time.Second
 
 func doExec(t *state.Task, tomb *tomb.Tomb) error {
-	var argv []string
-	var tout time.Duration
-	var ignore bool
-
 	st := t.State()
 	st.Lock()
-	err := t.Get("ignore", &ignore)
-	err1 := t.Get("argv", &argv)
-	err2 := t.Get("timeout", &tout)
-	st.Unlock()
-	if err != nil && err != state.ErrNoState {
+	defer st.Unlock()
+
+	var ignore bool
+	if err := t.Get("ignore", &ignore); err != nil && err != state.ErrNoState {
 		return err
 	}
 	if ignore {
-		st.Lock()
-		defer st.Unlock()
 		t.Logf("task ignored")
 		return nil
 	}
-	if err1 != nil {
-		return err1
+
+	var argv []string
+	var tout time.Duration
+	if err := t.Get("argv", &argv); err != nil {
+		return err
 	}
-	if err2 != nil && err2 != state.ErrNoState {
-		return err2
+
+	err := t.Get("timeout", &tout)
+	if err != nil && err != state.ErrNoState {
+		return err
 	}
-	if err2 == state.ErrNoState {
+	if err == state.ErrNoState {
 		tout = defaultExecTimeout
 	}
 
-	if buf, err := osutil.RunAndWait(argv, nil, tout, tomb); err != nil {
-		st.Lock()
+	st.Unlock()
+	buf, err := osutil.RunAndWait(argv, nil, tout, tomb)
+	st.Lock()
+	if err != nil {
 		t.Errorf("# %s\n%s", strings.Join(argv, " "), buf)
-		st.Unlock()
 		return err
 	}
 
