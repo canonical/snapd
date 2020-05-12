@@ -1,0 +1,73 @@
+summary: verify booting into recovery mode on UC20 systems
+
+restore: |
+  rm -f /writable/systems.json
+  rm -f /writable/systems.label
+
+  snap remove http jq
+
+debug: |
+  if [ -e systems.json ]; then
+      cat systems.json
+  fi
+
+execute: |
+  if [[ "$SPREAD_REBOOT" == "0" ]]; then
+      echo "In run mode"
+      MATCH 'snapd_recovery_mode=run' < /proc/cmdline
+      # TODO:UC20: verify we are in run mode via the API
+
+      snap install http jq
+
+      echo "Obtain available systems"
+
+      snap run http snapd:///v2/systems > systems.json
+      # TODO:UC20: there is only one system for now
+      jq .result.systems[0].current < systems.json | MATCH 'true'
+      label="$(jq -r .result.systems[0].label < systems.json)"
+      test -n "$label"
+      test "$label" = "$(date +%Y%m%d)"
+      jq -r .result.systems[0].actions[].mode < systems.json | MATCH 'recover'
+
+      # keep a copy of the systems dump for later reference
+      cp systems.json /writable/systems.json.run
+      echo "$label" > /writable/systems.label
+
+      # request a recovery mode
+      echo "Request rebooting into recovery mode"
+      http POST "snapd:///v2/systems/$label" action=do mode=recover
+
+      # XXX: is this a race between spread seeing REBOOT and machine rebooting?
+      REBOOT
+
+  elif [[ "$SPREAD_REBOOT" == "1" ]]; then
+      echo "In recovery mode"
+
+      MATCH 'snapd_recovery_mode=recover' < /proc/cmdline
+      # TODO:UC20: verify we are in recovery mode via the API
+
+
+      # host data should be accessible
+      test -e /run/mnt/host/ubuntu-data/systems.json.run
+
+      # we're running in an ephemeral system
+      snap install http jq
+
+      snap run http snapd:///v2/systems > systems.json
+      # systems list should be identical
+      diff -up /run/mnt/host/ubuntu-data/systems.json.run systems.json
+      label="$(cat /run/mnt/host/ubuntu-data/systems.label)"
+
+      MATCH "snapd_recovery_system=$label" < /proc/cmdline
+
+      # TODO:UC20: switch back to run mode via the API
+      # we don't have grub-editenv but it is included in the core snap
+      /snap/core/current/usr/bin/grub-editenv \
+          /run/mnt/ubuntu-seed/EFI/ubuntu/grubenv unset \
+          snapd_recovery_mode snapd_recovery_system
+
+      REBOOT
+  elif [[ "$SPREAD_REBOOT" == "2" ]]; then
+      # TODO:UC20: verify we are in run mode via the API
+      echo "In run mode again"
+  fi
