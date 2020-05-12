@@ -360,9 +360,18 @@ func (s *secbootSuite) TestSealKey(c *C) {
 	}
 
 	myParams := secboot.SealKeyParams{
-		EFILoadChains:        [][]string{{mockEFI[0], mockEFI[1], mockEFI[2]}, {mockEFI[3], mockEFI[4]}},
-		KernelCmdlines:       []string{"cmdline1", "cmdline2"},
-		Models:               []*asserts.Model{{}, {}},
+		ModelParams: []*secboot.SealKeyModelParams{
+			{
+				EFILoadChains:  [][]string{{mockEFI[0], mockEFI[1], mockEFI[2], mockEFI[3]}},
+				KernelCmdlines: []string{"cmdline1"},
+				Model:          &asserts.Model{},
+			},
+			{
+				EFILoadChains:  [][]string{{mockEFI[0], mockEFI[1], mockEFI[2]}, {mockEFI[3], mockEFI[4]}},
+				KernelCmdlines: []string{"cmdline2", "cmdline3"},
+				Model:          &asserts.Model{},
+			},
+		},
 		KeyFile:              "keyfile",
 		PolicyUpdateDataFile: "policy-update-data-file",
 		TPMLockoutAuthFile:   filepath.Join(tmpDir, "lockout-auth-file"),
@@ -373,7 +382,32 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		myKey[i] = byte(i)
 	}
 
-	sequences := []*sb.EFIImageLoadEvent{
+	sequences1 := []*sb.EFIImageLoadEvent{
+		{
+			Source: sb.Firmware,
+			Image:  sb.FileEFIImage(mockEFI[0]),
+			Next: []*sb.EFIImageLoadEvent{
+				{
+					Source: sb.Shim,
+					Image:  sb.FileEFIImage(mockEFI[1]),
+					Next: []*sb.EFIImageLoadEvent{
+						{
+							Source: sb.Shim,
+							Image:  sb.FileEFIImage(mockEFI[2]),
+							Next: []*sb.EFIImageLoadEvent{
+								{
+									Source: sb.Shim,
+									Image:  sb.FileEFIImage(mockEFI[3]),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	sequences2 := []*sb.EFIImageLoadEvent{
 		{
 			Source: sb.Firmware,
 			Image:  sb.FileEFIImage(mockEFI[0]),
@@ -403,12 +437,13 @@ func (s *secbootSuite) TestSealKey(c *C) {
 	}
 
 	for _, tc := range []struct {
-		tpmErr  error
-		callNum int
-		err     string
+		tpmErr               error
+		addProfileCallNum    int
+		provisionSealCallNum int
+		err                  string
 	}{
-		{tpmErr: errors.New("tpm error"), callNum: 0, err: "cannot connect to TPM: tpm error"},
-		{tpmErr: nil, callNum: 1, err: ""},
+		{tpmErr: errors.New("tpm error"), addProfileCallNum: 0, provisionSealCallNum: 0, err: "cannot connect to TPM: tpm error"},
+		{tpmErr: nil, addProfileCallNum: 2, provisionSealCallNum: 1, err: ""},
 	} {
 		tpm, restore := mockSbTPMConnection(c, tc.tpmErr)
 		defer restore()
@@ -420,7 +455,14 @@ func (s *secbootSuite) TestSealKey(c *C) {
 			addEFISbPolicyCalls++
 			pcrProfile = profile
 			c.Assert(params.PCRAlgorithm, Equals, tpm2.HashAlgorithmSHA256)
-			c.Assert(params.LoadSequences, DeepEquals, sequences)
+			switch addEFISbPolicyCalls {
+			case 1:
+				c.Assert(params.LoadSequences, DeepEquals, sequences1)
+			case 2:
+				c.Assert(params.LoadSequences, DeepEquals, sequences2)
+			default:
+				c.Error("AddEFISecureBootPolicyProfile shouldn't be called a third time")
+			}
 			return nil
 		})
 		defer restore()
@@ -432,7 +474,14 @@ func (s *secbootSuite) TestSealKey(c *C) {
 			c.Assert(profile, Equals, pcrProfile)
 			c.Assert(params.PCRAlgorithm, Equals, tpm2.HashAlgorithmSHA256)
 			c.Assert(params.PCRIndex, Equals, 12)
-			c.Assert(params.KernelCmdlines, DeepEquals, myParams.KernelCmdlines)
+			switch addSystemdEfiStubCalls {
+			case 1:
+				c.Assert(params.KernelCmdlines, DeepEquals, myParams.ModelParams[0].KernelCmdlines)
+			case 2:
+				c.Assert(params.KernelCmdlines, DeepEquals, myParams.ModelParams[1].KernelCmdlines)
+			default:
+				c.Error("AddSystemdEFIStubProfile shouldn't be called a third time")
+			}
 			return nil
 		})
 		defer restore()
@@ -444,7 +493,14 @@ func (s *secbootSuite) TestSealKey(c *C) {
 			c.Assert(profile, Equals, pcrProfile)
 			c.Assert(params.PCRAlgorithm, Equals, tpm2.HashAlgorithmSHA256)
 			c.Assert(params.PCRIndex, Equals, 12)
-			c.Assert(params.Models, DeepEquals, myParams.Models)
+			switch addSnapModelCalls {
+			case 1:
+				c.Assert(params.Models[0], DeepEquals, myParams.ModelParams[0].Model)
+			case 2:
+				c.Assert(params.Models[0], DeepEquals, myParams.ModelParams[1].Model)
+			default:
+				c.Error("AddSnapModelProfile shouldn't be called a third time")
+			}
 			return nil
 		})
 		defer restore()
@@ -468,7 +524,6 @@ func (s *secbootSuite) TestSealKey(c *C) {
 			c.Assert(key, DeepEquals, myKey[:])
 			c.Assert(keyPath, Equals, myParams.KeyFile)
 			c.Assert(policyUpdatePath, Equals, myParams.PolicyUpdateDataFile)
-			c.Assert(params.PCRProfile, Equals, pcrProfile)
 			c.Assert(params.PINHandle, Equals, tpm2.Handle(0x01880000))
 
 			return nil
@@ -481,11 +536,11 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		} else {
 			c.Assert(err, ErrorMatches, tc.err)
 		}
-		c.Assert(addEFISbPolicyCalls, Equals, tc.callNum)
-		c.Assert(addSystemdEfiStubCalls, Equals, tc.callNum)
-		c.Assert(addSnapModelCalls, Equals, tc.callNum)
-		c.Assert(provisioningCalls, Equals, tc.callNum)
-		c.Assert(sealCalls, Equals, tc.callNum)
+		c.Assert(addEFISbPolicyCalls, Equals, tc.addProfileCallNum)
+		c.Assert(addSystemdEfiStubCalls, Equals, tc.addProfileCallNum)
+		c.Assert(addSnapModelCalls, Equals, tc.addProfileCallNum)
+		c.Assert(provisioningCalls, Equals, tc.provisionSealCallNum)
+		c.Assert(sealCalls, Equals, tc.provisionSealCallNum)
 
 	}
 }

@@ -36,13 +36,18 @@ var (
 	devDiskByLabelDir = "/dev/disk/by-label"
 )
 
-type SealKeyParams struct {
+type SealKeyModelParams struct {
+	// The snap model
+	Model *asserts.Model
 	// The set of EFI binary load paths for the current device configuration
 	EFILoadChains [][]string
 	// The kernel command line
 	KernelCmdlines []string
+}
+
+type SealKeyParams struct {
 	// The snap model
-	Models []*asserts.Model
+	ModelParams []*SealKeyModelParams
 	// The path to store the sealed key file
 	KeyFile string
 	// The path to authorization policy update data file (only relevant for TPM)

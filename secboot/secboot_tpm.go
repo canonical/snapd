@@ -271,51 +271,59 @@ func SealKey(key partition.EncryptionKey, params *SealKeyParams) error {
 		return fmt.Errorf("cannot connect to TPM: %v", err)
 	}
 
-	// Verify if all EFI image files exist
-	for _, chain := range params.EFILoadChains {
-		if err := checkFilesPresence(chain); err != nil {
-			return err
+	modelPCRProfiles := make([]*sb.PCRProtectionProfile, 0, len(params.ModelParams))
+
+	for _, modelParams := range params.ModelParams {
+		modelProfile := sb.NewPCRProtectionProfile()
+
+		// Verify if all EFI image files exist
+		for _, chain := range modelParams.EFILoadChains {
+			if err := checkFilesPresence(chain); err != nil {
+				return err
+			}
 		}
+
+		// Add EFI secure boot policy profile
+		policyParams := sb.EFISecureBootPolicyProfileParams{
+			PCRAlgorithm:  tpm2.HashAlgorithmSHA256,
+			LoadSequences: make([]*sb.EFIImageLoadEvent, 0, len(modelParams.EFILoadChains)),
+			// TODO:UC20: set SignatureDbUpdateKeystore to support key rotation
+		}
+		for _, chain := range modelParams.EFILoadChains {
+			policyParams.LoadSequences = append(policyParams.LoadSequences, buildLoadSequence(chain))
+		}
+		if err := sbAddEFISecureBootPolicyProfile(modelProfile, &policyParams); err != nil {
+			return fmt.Errorf("cannot add EFI secure boot policy profile: %v", err)
+		}
+
+		// Add systemd EFI stub profile
+		if len(modelParams.KernelCmdlines) != 0 {
+			systemdStubParams := sb.SystemdEFIStubProfileParams{
+				PCRAlgorithm:   tpm2.HashAlgorithmSHA256,
+				PCRIndex:       tpmPCR,
+				KernelCmdlines: modelParams.KernelCmdlines,
+			}
+			if err := sbAddSystemdEFIStubProfile(modelProfile, &systemdStubParams); err != nil {
+				return fmt.Errorf("cannot add systemd EFI stub profile: %v", err)
+			}
+		}
+
+		// Add snap model profile
+		if modelParams.Model != nil {
+			snapModelParams := sb.SnapModelProfileParams{
+				PCRAlgorithm: tpm2.HashAlgorithmSHA256,
+				PCRIndex:     tpmPCR,
+				Models:       []*asserts.Model{modelParams.Model},
+			}
+			if err := sbAddSnapModelProfile(modelProfile, &snapModelParams); err != nil {
+				return fmt.Errorf("cannot add snap model profile: %v", err)
+			}
+		}
+
+		modelPCRProfiles = append(modelPCRProfiles, modelProfile)
 	}
 
-	pcrProfile := sb.NewPCRProtectionProfile()
-
-	// Add EFI secure boot policy profile
-	policyParams := sb.EFISecureBootPolicyProfileParams{
-		PCRAlgorithm:  tpm2.HashAlgorithmSHA256,
-		LoadSequences: make([]*sb.EFIImageLoadEvent, 0, len(params.EFILoadChains)),
-		// TODO:UC20: set SignatureDbUpdateKeystore to support key rotation
-	}
-	for _, chain := range params.EFILoadChains {
-		policyParams.LoadSequences = append(policyParams.LoadSequences, buildLoadSequence(chain))
-	}
-	if err := sbAddEFISecureBootPolicyProfile(pcrProfile, &policyParams); err != nil {
-		return fmt.Errorf("cannot add EFI secure boot policy profile: %v", err)
-	}
-
-	// Add systemd EFI stub profile
-	if len(params.KernelCmdlines) != 0 {
-		systemdStubParams := sb.SystemdEFIStubProfileParams{
-			PCRAlgorithm:   tpm2.HashAlgorithmSHA256,
-			PCRIndex:       tpmPCR,
-			KernelCmdlines: params.KernelCmdlines,
-		}
-		if err := sbAddSystemdEFIStubProfile(pcrProfile, &systemdStubParams); err != nil {
-			return fmt.Errorf("cannot add systemd EFI stub profile: %v", err)
-		}
-	}
-
-	// Add snap model profile
-	if len(params.Models) != 0 {
-		snapModelParams := sb.SnapModelProfileParams{
-			PCRAlgorithm: tpm2.HashAlgorithmSHA256,
-			PCRIndex:     tpmPCR,
-			Models:       params.Models,
-		}
-		if err := sbAddSnapModelProfile(pcrProfile, &snapModelParams); err != nil {
-			return fmt.Errorf("cannot add snap model profile: %v", err)
-		}
-	}
+	pcrProfile := sb.NewPCRProtectionProfile().AddProfileOR(modelPCRProfiles...)
 
 	// Provision the TPM as late as possible
 	if err := tpmProvision(tpm, params.TPMLockoutAuthFile); err != nil {

@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/partition"
 	"github.com/snapcore/snapd/gadget"
@@ -177,15 +176,16 @@ func Run(gadgetRoot, device string, options Options) error {
 	}
 
 	sealKeyParams := secboot.SealKeyParams{
-		KernelCmdlines:       kernelCmdlines,
-		EFILoadChains:        [][]string{loadChain},
+		ModelParams: []*secboot.SealKeyModelParams{
+			{
+				Model:          options.Model,
+				KernelCmdlines: kernelCmdlines,
+				EFILoadChains:  [][]string{loadChain},
+			},
+		},
 		KeyFile:              options.KeyFile,
 		PolicyUpdateDataFile: options.PolicyUpdateDataFile,
 		TPMLockoutAuthFile:   options.TPMLockoutAuthFile,
-	}
-
-	if options.Model != nil {
-		sealKeyParams.Models = []*asserts.Model{options.Model}
 	}
 
 	if err := secboot.SealKey(key, &sealKeyParams); err != nil {
