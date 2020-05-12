@@ -80,6 +80,9 @@ func init() {
 
 	// journal.persistent
 	addFSOnlyHandler(validateJournalSettings, handleJournalConfiguration, coreOnly)
+
+	// resilience.vitality-hint
+	addFSOnlyHandler(validateVitalitySettings, handleVitalityConfiguration, nil)
 }
 
 // addFSOnlyHandler registers functions to validate and handle a subset of
@@ -119,7 +122,8 @@ func (h *fsOnlyHandler) handle(cfg config.ConfGetter, opts *fsOnlyContext) error
 	return h.handleFunc(cfg, opts)
 }
 
-type FilesystemOnlyApplyOpts struct {
+type FilesystemOnlyApplyOptions struct {
+	// Classic is true when the system in rootdir is a classic system
 	Classic bool
 }
 
@@ -127,7 +131,7 @@ type FilesystemOnlyApplyOpts struct {
 // cfg configuration. This is a subset of core config options that is important
 // early during boot, before all the configuration is applied as part of
 // normal execution of configure hook.
-func FilesystemOnlyApply(rootDir string, cfg config.ConfGetter, opts *FilesystemOnlyApplyOpts) error {
+func FilesystemOnlyApply(rootDir string, cfg config.ConfGetter, opts *FilesystemOnlyApplyOptions) error {
 	if rootDir == "" {
 		return fmt.Errorf("internal error: root directory for configcore.FilesystemOnlyApply() not set")
 	}

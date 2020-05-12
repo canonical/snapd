@@ -69,16 +69,16 @@ get_qemu_for_nested_vm(){
 get_google_image_url_for_nested_vm(){
     case "$SPREAD_SYSTEM" in
         ubuntu-16.04-64)
-            echo "https://storage.googleapis.com/spread-snapd-tests/images/xenial-server-cloudimg-amd64-disk1.img"
+            echo "https://storage.googleapis.com/spread-snapd-tests/images/cloudimg/xenial-server-cloudimg-amd64-disk1.img"
             ;;
         ubuntu-18.04-64)
-            echo "https://storage.googleapis.com/spread-snapd-tests/images/bionic-server-cloudimg-amd64.img"
+            echo "https://storage.googleapis.com/spread-snapd-tests/images/cloudimg/bionic-server-cloudimg-amd64.img"
             ;;
         ubuntu-19.10-64)
-            echo "https://storage.googleapis.com/spread-snapd-tests/images/eoan-server-cloudimg-amd64.img"
+            echo "https://storage.googleapis.com/spread-snapd-tests/images/cloudimg/eoan-server-cloudimg-amd64.img"
             ;;
         ubuntu-20.04-64)
-            echo "https://storage.googleapis.com/spread-snapd-tests/images/focal-server-cloudimg-amd64.img"
+            echo "https://storage.googleapis.com/spread-snapd-tests/images/cloudimg/focal-server-cloudimg-amd64.img"
             ;;
         *)
             echo "unsupported system"

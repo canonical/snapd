@@ -30,9 +30,9 @@ var (
 	// during the initramfs.
 	InitramfsRunMntDir string
 
-	// InitramfsUbuntuDataDir is the location of ubuntu-data during the
-	// initramfs.
-	InitramfsUbuntuDataDir string
+	// InitramfsDataDir is the location of system-data role partition
+	// (typically a partition labeled "ubuntu-data") during the initramfs.
+	InitramfsDataDir string
 
 	// InitramfsHostUbuntuDataDir is the location of the host ubuntu-data
 	// during the initramfs, typically used in recover mode.
@@ -47,21 +47,28 @@ var (
 	InitramfsUbuntuSeedDir string
 
 	// InitramfsWritableDir is the location of the writable partition during the
-	// initramfs.
+	// initramfs. Note that this may refer to a temporary filesystem or a
+	// physical partition depending on what system mode the system is in.
 	InitramfsWritableDir string
 
-	// InitramfsWritableDir is the location of the encrypted partition keys
+	// InstallHostWritableDir is the location of the writable partition of the
+	// installed host during install mode. This should always be on a physical
+	// partition.
+	InstallHostWritableDir string
+
+	// InitramfsEncryptionKeyDir is the location of the encrypted partition keys
 	// during the initramfs.
 	InitramfsEncryptionKeyDir string
 )
 
 func setInitramfsDirVars(rootdir string) {
 	InitramfsRunMntDir = filepath.Join(rootdir, "run/mnt")
-	InitramfsUbuntuDataDir = filepath.Join(InitramfsRunMntDir, "ubuntu-data")
+	InitramfsDataDir = filepath.Join(InitramfsRunMntDir, "data")
 	InitramfsHostUbuntuDataDir = filepath.Join(InitramfsRunMntDir, "host", "ubuntu-data")
 	InitramfsUbuntuBootDir = filepath.Join(InitramfsRunMntDir, "ubuntu-boot")
 	InitramfsUbuntuSeedDir = filepath.Join(InitramfsRunMntDir, "ubuntu-seed")
-	InitramfsWritableDir = filepath.Join(InitramfsUbuntuDataDir, "system-data")
+	InstallHostWritableDir = filepath.Join(InitramfsRunMntDir, "ubuntu-data", "system-data")
+	InitramfsWritableDir = filepath.Join(InitramfsDataDir, "system-data")
 	InitramfsEncryptionKeyDir = filepath.Join(InitramfsUbuntuSeedDir, "device/fde")
 }
 

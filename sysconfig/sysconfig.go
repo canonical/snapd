@@ -28,7 +28,7 @@ type Options struct {
 
 	// TargetRootDir is the root directory where to install configure
 	// data, i.e. for cloud-init during the initramfs it will be something like
-	// boot.InitramfsWritableDir
+	// boot.InstallHostWritableDir
 	TargetRootDir string
 }
 
