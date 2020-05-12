@@ -221,7 +221,7 @@ func (s *ubootTestSuite) TestExtractRecoveryKernelAssets(c *C) {
 	}
 }
 
-func (s *ubootTestSuite) TestUbootUC20OptsFormat(c *C) {
+func (s *ubootTestSuite) TestUbootUC20OptsPlacement(c *C) {
 	tt := []struct {
 		blOpts  *bootloader.Options
 		expEnv  string

@@ -387,6 +387,10 @@ func (ks20 *bootState20Kernel) loadBootenv() error {
 	// bootloader
 	opts := &bootloader.Options{
 		// we want extracted run kernel images for uc20
+		// TODO:UC20: the name of this flag is now confusing, as it is being
+		//            slightly abused to tell the uboot bootloader to just look
+		//            in a different directory, even when we don't have an
+		//            actual extracted kernel image for that impl
 		ExtractedRunKernelImage: true,
 	}
 	bl, err := bootloader.Find("", opts)
