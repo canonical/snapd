@@ -9,7 +9,8 @@ TESTSLIB=${TESTSLIB:-$SCRIPTPATH}
 
 USE_CLOUD_INIT=${USE_CLOUD_INIT:-"true"}
 ENABLE_SECURE_BOOT=${ENABLE_SECURE_BOOT:-"true"}
-SECURE_BOOT_CERTS=${SECURE_BOOT_CERTS:-"ms"}
+OVMF_CODE=${OVMF_CODE:-"ms"}
+OVMF_VARS=${OVMF_VARS:-"ms"}
 ENABLE_TPM=${ENABLE_TPM:-"true"}
 BUILD_SNAPD_FROM_CURRENT=${BUILD_SNAPD_FROM_CURRENT:-"true"}
 UPDATE_PC_KERNEL=${UPDATE_PC_KERNEL:-"true"}
@@ -415,8 +416,8 @@ start_nested_core_vm(){
         fi
 
         if [ "$ENABLE_SECURE_BOOT" = "true" ]; then
-            cp -f "/usr/share/OVMF/OVMF_VARS.$SECURE_BOOT_CERTS.fd" "$WORK_DIR/image/OVMF_VARS.fd"
-            PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE.secboot.fd,if=pflash,format=raw,unit=0,readonly=on -drive file=$WORK_DIR/image/OVMF_VARS.fd,if=pflash,format=raw,unit=1"
+            cp -f "/usr/share/OVMF/OVMF_VARS.$OVMF_VARS.fd" "$WORK_DIR/image/OVMF_VARS.$OVMF_VARS.fd"
+            PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE.$OVMF_CODE.fd,if=pflash,format=raw,unit=0,readonly=on -drive file=$WORK_DIR/image/OVMF_VARS.$OVMF_VARS.fd,if=pflash,format=raw,unit=1"
             PARAM_MACHINE="-machine q35,accel=kvm -global ICH9-LPC.disable_s3=1"
         fi
 
