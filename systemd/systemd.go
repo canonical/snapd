@@ -20,6 +20,8 @@
 package systemd
 
 import (
+	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -127,6 +129,43 @@ func MockStopDelays(checkDelay, notifyDelay time.Duration) func() {
 func Available() error {
 	_, err := systemctlCmd("--version")
 	return err
+}
+
+// Version returns systemd version.
+func Version() (int, error) {
+	out, err := systemctlCmd("--version")
+	if err != nil {
+		return 0, err
+	}
+
+	// systemd version outpus is two lines - actual version and a list
+	// of features, e.g:
+	// systemd 229
+	// +PAM +AUDIT +SELINUX +IMA +APPARMOR +SMACK +SYSVINIT +UTMP ...
+	//
+	// The version string may have extra data (a case on newer ubuntu), e.g:
+	// systemd 245 (245.4-4ubuntu3)
+	r := bufio.NewScanner(bytes.NewReader(out))
+	r.Split(bufio.ScanWords)
+	var verstr string
+	for i := 0; i < 2; i++ {
+		if !r.Scan() {
+			return 0, fmt.Errorf("cannot read systemd version: %v", r.Err())
+		}
+		s := r.Text()
+		if i == 0 && s != "systemd" {
+			return 0, fmt.Errorf("cannot parse systemd version: expected \"systemd\", got %q", s)
+		}
+		if i == 1 {
+			verstr = strings.TrimSpace(s)
+		}
+	}
+
+	ver, err := strconv.Atoi(verstr)
+	if err != nil {
+		return 0, fmt.Errorf("cannot convert systemd version to number: %s", verstr)
+	}
+	return ver, nil
 }
 
 var osutilStreamCommand = osutil.StreamCommand
