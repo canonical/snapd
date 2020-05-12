@@ -118,6 +118,7 @@ func generateInitramfsMounts() error {
 // generateMountsMode* is called multiple times from initramfs until it
 // no longer generates more mount points and just returns an empty output.
 func generateMountsModeInstall(mst *initramfsMountsState, recoverySystem string) error {
+	// steps 1 and 2 are shared with recover mode
 	allMounted, err := generateMountsCommonInstallRecover(mst, recoverySystem)
 	if err != nil {
 		return err
@@ -126,8 +127,8 @@ func generateMountsModeInstall(mst *initramfsMountsState, recoverySystem string)
 		return nil
 	}
 
-	// n+1: final step: write $(tmpfs-data)/var/lib/snapd/modeenv - this
-	//      is the tmpfs we just created above
+	// 3. final step: write modeend to tmpfs data dir and disable cloud-init in
+	//   install mode
 	modeEnv := &boot.Modeenv{
 		Mode:           "install",
 		RecoverySystem: recoverySystem,
@@ -135,13 +136,12 @@ func generateMountsModeInstall(mst *initramfsMountsState, recoverySystem string)
 	if err := modeEnv.WriteTo(boot.InitramfsWritableDir); err != nil {
 		return err
 	}
-	// and disable cloud-init in install mode
 	if err := sysconfig.DisableCloudInit(boot.InitramfsWritableDir); err != nil {
 		return err
 	}
 
-	// n+3: done, no output, no error indicates to initramfs we are done
-	//      with mounting stuff
+	// done, no output, no error indicates to initramfs we are done with
+	// mounting stuff
 	return nil
 }
 
@@ -206,6 +206,7 @@ func copyUbuntuDataAuth(src, dst string) error {
 }
 
 func generateMountsModeRecover(mst *initramfsMountsState, recoverySystem string) error {
+	// steps 1 and 2 are shared with install mode
 	allMounted, err := generateMountsCommonInstallRecover(mst, recoverySystem)
 	if err != nil {
 		return err
@@ -214,7 +215,7 @@ func generateMountsModeRecover(mst *initramfsMountsState, recoverySystem string)
 		return nil
 	}
 
-	// n+1: mount ubuntu-data for recovery
+	// 3. mount ubuntu-data for recovery
 	isRecoverDataMounted, err := mst.IsMounted(boot.InitramfsHostUbuntuDataDir)
 	if err != nil {
 		return err
@@ -230,14 +231,12 @@ func generateMountsModeRecover(mst *initramfsMountsState, recoverySystem string)
 		return nil
 	}
 
-	// now copy the auth data from the real ubuntu-data dir to the ephemeral
-	// ubuntu-data dir
+	// 4. final step: copy the auth data from the real ubuntu-data dir to the
+	//    ephemeral ubuntu-data dir, write the modeenv to the tmpfs data, and
+	//    disable cloud-init in recover mode
 	if err := copyUbuntuDataAuth(boot.InitramfsHostUbuntuDataDir, boot.InitramfsDataDir); err != nil {
 		return err
 	}
-
-	// n+2: final step: write $(tmpfs-data)/var/lib/snapd/modeenv - this
-	//      is the tmpfs we just created above
 	modeEnv := &boot.Modeenv{
 		Mode:           "recover",
 		RecoverySystem: recoverySystem,
@@ -245,18 +244,18 @@ func generateMountsModeRecover(mst *initramfsMountsState, recoverySystem string)
 	if err := modeEnv.WriteTo(boot.InitramfsWritableDir); err != nil {
 		return err
 	}
-	// and disable cloud-init in recover mode
 	if err := sysconfig.DisableCloudInit(boot.InitramfsWritableDir); err != nil {
 		return err
 	}
 
-	// n+3: done, no output, no error indicates to initramfs we are done
-	//      with mounting stuff
+	// done, no output, no error indicates to initramfs we are done with
+	// mounting stuff
 	return nil
 }
 
 func generateMountsCommonInstallRecover(mst *initramfsMountsState, recoverySystem string) (allMounted bool, err error) {
-	// 1. always ensure seed partition is mounted
+	// 1.1. always ensure seed partition is mounted first before the others,
+	//      since the seed partition is needed to mount the snap files there
 	isMounted, err := mst.IsMounted(boot.InitramfsUbuntuSeedDir)
 	if err != nil {
 		return false, err
@@ -266,7 +265,7 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState, recoverySyste
 		return false, nil
 	}
 
-	// 1a. measure model
+	// 2.1. measure model
 	err = stampedAction(fmt.Sprintf("%s-model-measured", recoverySystem), func() error {
 		return secbootMeasureSnapModelWhenPossible(mst.Model)
 	})
@@ -274,7 +273,7 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState, recoverySyste
 		return false, err
 	}
 
-	// 2. (auto) select recovery system for now
+	// 2.2. (auto) select recovery system and mount seed snaps
 	isBaseMounted, err := mst.IsMounted(filepath.Join(boot.InitramfsRunMntDir, "base"))
 	if err != nil {
 		return false, err
@@ -319,7 +318,7 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState, recoverySyste
 		}
 	}
 
-	// 3. mount "ubuntu-data" on a tmpfs
+	// 2.3. mount "ubuntu-data" on a tmpfs
 	isMounted, err = mst.IsMounted(boot.InitramfsDataDir)
 	if err != nil {
 		return false, err
@@ -333,7 +332,8 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState, recoverySyste
 }
 
 func generateMountsModeRun(mst *initramfsMountsState) error {
-	// 1.1 always ensure basic partitions are mounted
+	// 1. mount ubuntu-boot
+	// 2. mount ubuntu-seed
 	for _, d := range []string{boot.InitramfsUbuntuBootDir, boot.InitramfsUbuntuSeedDir} {
 		isMounted, err := mst.IsMounted(d)
 		if err != nil {
@@ -347,7 +347,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		}
 	}
 
-	// 1.1a measure model
+	// 3.1. measure model
 	err := stampedAction("run-model-measured", func() error {
 		return secbootMeasureSnapModelWhenPossible(mst.UnverifiedBootModel)
 	})
@@ -357,7 +357,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	// TODO:UC20: cross check the model we read from ubuntu-boot/model with
 	// one recorded in ubuntu-data modeenv during install
 
-	// 1.2 mount Data, and exit, as it needs to be mounted for us to do step 2
+	// 3.2. mount Data, and exit, as it needs to be mounted for us to do step 2
 	isDataMounted, err := mst.IsMounted(boot.InitramfsDataDir)
 	if err != nil {
 		return err
@@ -373,20 +373,20 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		return nil
 	}
 
-	// 2.1 read modeenv
+	// 4.1. read modeenv
 	modeEnv, err := boot.ReadModeenv(boot.InitramfsWritableDir)
 	if err != nil {
 		return err
 	}
 
-	// 2.2.1 check if base is mounted
+	// 4.2. check if base is mounted
 	isBaseMounted, err := mst.IsMounted(filepath.Join(boot.InitramfsRunMntDir, "base"))
 	if err != nil {
 		return err
 	}
 	if !isBaseMounted {
-		// 2.2.2 use modeenv base_status and try_base to see  if we are trying
-		// an update to the base snap
+		// 4.3. use modeenv base_status and try_base to see if we are trying
+		//      an update to the base snap
 		base := modeEnv.Base
 		if base == "" {
 			// we have no fallback base!
@@ -422,12 +422,14 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		fmt.Fprintf(stdout, "%s %s\n", baseSnapPath, filepath.Join(boot.InitramfsRunMntDir, "base"))
 	}
 
-	// 2.3.1 check if the kernel is mounted
+	// 4.5 check if the kernel is mounted
 	isKernelMounted, err := mst.IsMounted(filepath.Join(boot.InitramfsRunMntDir, "kernel"))
 	if err != nil {
 		return err
 	}
 	if !isKernelMounted {
+		// 4.6. use bootloader boot env to see if we are trying an update to the
+		//      kernel snap
 		// make a map to easily check if a kernel snap is valid or not
 		validKernels := make(map[string]bool, len(modeEnv.CurrentKernels))
 		for _, validKernel := range modeEnv.CurrentKernels {
@@ -521,9 +523,9 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		fmt.Fprintf(stdout, "%s %s\n", kernelPath, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
 	}
 
-	// 3.1 Maybe mount the snapd snap on first boot of run-mode
 	// TODO:UC20: Make RecoverySystem empty after successful first boot
 	// somewhere in devicestate
+	// 4.7. Maybe mount the snapd snap on first boot of run-mode
 	if modeEnv.RecoverySystem != "" {
 		isSnapdMounted, err := mst.IsMounted(filepath.Join(boot.InitramfsRunMntDir, "snapd"))
 		if err != nil {
@@ -540,6 +542,6 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		}
 	}
 
-	// 4.1 Write the modeenv out again
+	// 4.8. Write the modeenv out again
 	return modeEnv.Write()
 }
