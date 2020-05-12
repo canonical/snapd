@@ -80,7 +80,7 @@ const settingsIntrospectionXML = `
 	</method>
 </interface>`
 
-var settingsWhitelist = []string{
+var validSettings = []string{
 	"default-web-browser",
 	"default-url-scheme-handler",
 }
@@ -109,8 +109,8 @@ func (s *settingSpec) String() string {
 }
 
 func (s *settingSpec) validate() *dbus.Error {
-	for _, whitelisted := range settingsWhitelist {
-		if s.setting == whitelisted {
+	for _, valid := range validSettings {
+		if s.setting == valid {
 			return nil
 		}
 	}
