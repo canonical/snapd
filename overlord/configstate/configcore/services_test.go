@@ -186,9 +186,6 @@ func (s *servicesSuite) TestConfigureServiceUnsupportedService(c *C) {
 }
 
 func (s *servicesSuite) TestFilesystemOnlyApply(c *C) {
-	restorer := release.MockOnClassic(false)
-	defer restorer()
-
 	tmpDir := c.MkDir()
 	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "etc", "ssh"), 0755), IsNil)
 
@@ -196,9 +193,8 @@ func (s *servicesSuite) TestFilesystemOnlyApply(c *C) {
 		"service.ssh.disable":     "true",
 		"service.rsyslog.disable": "true",
 	})
-	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf), IsNil)
+	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf, nil), IsNil)
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
-		{"--root", tmpDir, "disable", "rsyslog.service"},
 		{"--root", tmpDir, "mask", "rsyslog.service"},
 	})
 }

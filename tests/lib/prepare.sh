@@ -29,7 +29,7 @@ disable_journald_rate_limiting() {
     # Disable journald rate limiting
     mkdir -p /etc/systemd/journald.conf.d
     # The RateLimitIntervalSec key is not supported on some systemd versions causing
-    # the journal rate limit could be considered as not valid and discarded in concecuence.
+    # the journal rate limit could be considered as not valid and discarded in consequence.
     # RateLimitInterval key is supported in old systemd versions and in new ones as well,
     # maintaining backward compatibility.
     cat <<-EOF > /etc/systemd/journald.conf.d/no-rate-limit.conf
@@ -471,18 +471,6 @@ uc20_build_initramfs_kernel_snap() {
         echo "if test -d /run/mnt/data/system-data; then touch /run/mnt/data/system-data/the-tool-ran; fi" >> \
             "$skeletondir/main/usr/lib/the-tool"
 
-        # TODO:UC20: remove this patch when we have the ubuntu-core-initramfs
-        # changes landed via https://code.launchpad.net/~anonymouse67/ubuntu-core-initramfs/+git/ubuntu-core-initramfs/+merge/383515
-
-        (
-            cd "$skeletondir/main"
-            patch --verbose -p1 < "$TESTSLIB/patches/kernel-initrd-run-mnt-data.patch"
-            # patch doesn't understand git renames of symlinks so we have to add the
-            # new symlink name manually, the patch above just contains the deletion
-            mkdir -p usr/lib/systemd/system/run-mnt-data.mount.wants
-            ln -s ../sysroot-writable.mount usr/lib/systemd/system/run-mnt-data.mount.wants/sysroot-writable.mount
-        )
-
         # XXX: need to be careful to build an initrd using the right kernel
         # modules from the unpacked initrd, rather than the host which may be
         # running a different kernel
@@ -625,6 +613,10 @@ EOF
         MATCH "^test:" </mnt/system-data/var/lib/extrausers/"$f"
         MATCH "^ubuntu:" </mnt/system-data/var/lib/extrausers/"$f"
     done
+
+    # Make sure systemd-journal group has the "test" user as a member. Due to the way we copy that from the host
+    # and merge it from the core snap this is done explicitly as a second step.
+    sed -r -i -e 's/^systemd-journal:x:([0-9]+):$/systemd-journal:x:\1:test/' /mnt/system-data/root/test-etc/group
 
     # ensure spread -reuse works in the core image as well
     if [ -e /.spread.yaml ]; then

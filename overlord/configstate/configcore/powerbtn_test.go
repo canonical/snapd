@@ -79,14 +79,11 @@ func (s *powerbtnSuite) TestConfigurePowerIntegration(c *C) {
 }
 
 func (s *powerbtnSuite) TestFilesystemOnlyApply(c *C) {
-	restorer := release.MockOnClassic(false)
-	defer restorer()
-
 	conf := configcore.PlainCoreConfig(map[string]interface{}{
 		"system.power-key-action": "reboot",
 	})
 	tmpDir := c.MkDir()
-	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf), IsNil)
+	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf, nil), IsNil)
 
 	powerBtnCfg := filepath.Join(tmpDir, "/etc/systemd/logind.conf.d/00-snap-core.conf")
 	c.Check(powerBtnCfg, testutil.FileEquals, "[Login]\nHandlePowerKey=reboot\n")

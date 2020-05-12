@@ -107,6 +107,14 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 	kernelDir := kernelInfo.MountDir()
 
+	modeEnv, err := m.maybeReadModeenv()
+	if err != nil {
+		return err
+	}
+	if modeEnv == nil {
+		return fmt.Errorf("missing modeenv, cannot proceed")
+	}
+
 	// bootstrap
 	bopts := bootstrap.Options{
 		Mount: true,
@@ -131,6 +139,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		bopts.PolicyUpdateDataFile = filepath.Join(boot.InstallHostWritableDir, fdeDir, "policy-update-data")
 		bopts.KernelPath = filepath.Join(kernelDir, "kernel.efi")
 		bopts.Model = deviceCtx.Model()
+		bopts.SystemLabel = modeEnv.RecoverySystem
 	}
 
 	// run the create partition code
@@ -163,13 +172,6 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	bootBaseInfo, err := snapstate.BootBaseInfo(st, deviceCtx)
 	if err != nil {
 		return fmt.Errorf("cannot get boot base info: %v", err)
-	}
-	modeEnv, err := m.maybeReadModeenv()
-	if err != nil {
-		return err
-	}
-	if modeEnv == nil {
-		return fmt.Errorf("missing modeenv, cannot proceed")
 	}
 	recoverySystemDir := filepath.Join("/systems", modeEnv.RecoverySystem)
 	bootWith := &boot.BootableSet{
