@@ -71,6 +71,50 @@ var (
 	secbootUnlockVolumeIfEncrypted            = secboot.UnlockVolumeIfEncrypted
 )
 
+func stampedAction(stamp string, action func() error) error {
+	stampFile := filepath.Join(dirs.SnapBootstrapRunDir, stamp)
+	if osutil.FileExists(stampFile) {
+		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(stampFile), 0755); err != nil {
+		return err
+	}
+	if err := action(); err != nil {
+		return err
+	}
+	return ioutil.WriteFile(stampFile, nil, 0644)
+}
+
+func generateInitramfsMounts() error {
+	// Ensure there is a very early initial measurement
+	err := stampedAction("secboot-epoch-measured", func() error {
+		return secbootMeasureSnapSystemEpochWhenPossible()
+	})
+	if err != nil {
+		return err
+	}
+
+	mode, recoverySystem, err := boot.ModeAndRecoverySystemFromKernelCommandLine()
+	if err != nil {
+		return err
+	}
+
+	mst := newInitramfsMountsState(mode, recoverySystem)
+
+	switch mode {
+	case "recover":
+		// XXX: don't pass both args
+		return generateMountsModeRecover(mst, recoverySystem)
+	case "install":
+		// XXX: don't pass both args
+		return generateMountsModeInstall(mst, recoverySystem)
+	case "run":
+		return generateMountsModeRun(mst)
+	}
+	// this should never be reached
+	return fmt.Errorf("internal error: mode in generateInitramfsMounts not handled")
+}
+
 // generateMountsMode* is called multiple times from initramfs until it
 // no longer generates more mount points and just returns an empty output.
 func generateMountsModeInstall(mst *initramfsMountsState, recoverySystem string) error {
@@ -498,48 +542,4 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 
 	// 4.1 Write the modeenv out again
 	return modeEnv.Write()
-}
-
-func stampedAction(stamp string, action func() error) error {
-	stampFile := filepath.Join(dirs.SnapBootstrapRunDir, stamp)
-	if osutil.FileExists(stampFile) {
-		return nil
-	}
-	if err := os.MkdirAll(filepath.Dir(stampFile), 0755); err != nil {
-		return err
-	}
-	if err := action(); err != nil {
-		return err
-	}
-	return ioutil.WriteFile(stampFile, nil, 0644)
-}
-
-func generateInitramfsMounts() error {
-	// Ensure there is a very early initial measurement
-	err := stampedAction("secboot-epoch-measured", func() error {
-		return secbootMeasureSnapSystemEpochWhenPossible()
-	})
-	if err != nil {
-		return err
-	}
-
-	mode, recoverySystem, err := boot.ModeAndRecoverySystemFromKernelCommandLine()
-	if err != nil {
-		return err
-	}
-
-	mst := newInitramfsMountsState(mode, recoverySystem)
-
-	switch mode {
-	case "recover":
-		// XXX: don't pass both args
-		return generateMountsModeRecover(mst, recoverySystem)
-	case "install":
-		// XXX: don't pass both args
-		return generateMountsModeInstall(mst, recoverySystem)
-	case "run":
-		return generateMountsModeRun(mst)
-	}
-	// this should never be reached
-	return fmt.Errorf("internal error: mode in generateInitramfsMounts not handled")
 }
