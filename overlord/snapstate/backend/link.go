@@ -155,7 +155,8 @@ func (b Backend) StartServices(apps []*snap.AppInfo, meter progress.Meter, tm ti
 }
 
 func (b Backend) StopServices(apps []*snap.AppInfo, alsoDisable bool, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error {
-	return wrappers.StopServices(apps, alsoDisable, reason, meter, tm)
+	flags := &wrappers.StopFlags{Disable: alsoDisable}
+	return wrappers.StopServices(apps, flags, reason, meter, tm)
 }
 
 func (b Backend) generateWrappers(s *snap.Info, linkCtx LinkContext) error {
