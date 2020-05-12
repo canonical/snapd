@@ -41,6 +41,10 @@ type LinkContext struct {
 	// PrevDisabledServices is a list snap services that were manually
 	// disable in the previous revisions of this snap
 	PrevDisabledServices []string
+
+	// VitalityRank is used to hint how much the services should be
+	// protected from the OOM killer
+	VitalityRank int
 }
 
 func updateCurrentSymlinks(info *snap.Info) (e error) {
@@ -95,7 +99,7 @@ func (b Backend) LinkSnap(info *snap.Info, dev boot.Device, linkCtx LinkContext,
 
 	var err error
 	timings.Run(tm, "generate-wrappers", fmt.Sprintf("generate wrappers for snap %s", info.InstanceName()), func(timings.Measurer) {
-		err = b.generateWrappers(info, linkCtx.PrevDisabledServices)
+		err = b.generateWrappers(info, linkCtx)
 	})
 	if err != nil {
 		return false, err
@@ -154,7 +158,7 @@ func (b Backend) StopServices(apps []*snap.AppInfo, alsoDisable bool, reason sna
 	return wrappers.StopServices(apps, alsoDisable, reason, meter, tm)
 }
 
-func (b Backend) generateWrappers(s *snap.Info, disabledSvcs []string) error {
+func (b Backend) generateWrappers(s *snap.Info, linkCtx LinkContext) error {
 	var err error
 	var cleanupFuncs []func(*snap.Info) error
 	defer func() {
@@ -165,6 +169,7 @@ func (b Backend) generateWrappers(s *snap.Info, disabledSvcs []string) error {
 		}
 	}()
 
+	disabledSvcs := linkCtx.PrevDisabledServices
 	if s.GetType() == snap.TypeSnapd {
 		// snapd services are handled separately
 		return generateSnapdWrappers(s)
@@ -177,7 +182,10 @@ func (b Backend) generateWrappers(s *snap.Info, disabledSvcs []string) error {
 	cleanupFuncs = append(cleanupFuncs, wrappers.RemoveSnapBinaries)
 
 	// add the daemons from the snap.yaml
-	opts := &wrappers.AddSnapServicesOptions{Preseeding: b.preseed}
+	opts := &wrappers.AddSnapServicesOptions{
+		Preseeding:   b.preseed,
+		VitalityRank: linkCtx.VitalityRank,
+	}
 	if err = wrappers.AddSnapServices(s, disabledSvcs, opts, progress.Null); err != nil {
 		return err
 	}
