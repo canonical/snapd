@@ -409,7 +409,6 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 			} else {
 				logger.Noticef("try-base snap is empty, but \"base_status\" is \"trying\"")
 			}
-			// TODO:UC20: log a message if try_base is unset here?
 		} else if modeEnv.BaseStatus == boot.TryingStatus {
 			// snapd failed to start with the base snap update, so we need to
 			// fallback to the old base snap and clear base_status
@@ -523,8 +522,6 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		fmt.Fprintf(stdout, "%s %s\n", kernelPath, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
 	}
 
-	// TODO:UC20: Make RecoverySystem empty after successful first boot
-	// somewhere in devicestate
 	// 4.7. Maybe mount the snapd snap on first boot of run-mode
 	if modeEnv.RecoverySystem != "" {
 		isSnapdMounted, err := mst.IsMounted(filepath.Join(boot.InitramfsRunMntDir, "snapd"))
