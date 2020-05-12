@@ -117,6 +117,32 @@ func (s *settingSpec) validate() *dbus.Error {
 	return dbus.MakeFailedError(fmt.Errorf("invalid setting %q", s.setting))
 }
 
+// Settings implements the 'io.snapcraft.Settings' DBus interface.
+type Settings struct {
+	conn *dbus.Conn
+}
+
+// Name returns the name of the interface this object implements
+func (s *Settings) Name() string {
+	return "io.snapcraft.Settings"
+}
+
+// BasePath returns the base path of the object
+func (s *Settings) BasePath() dbus.ObjectPath {
+	return "/io/snapcraft/Settings"
+}
+
+// IntrospectionData gives the XML formatted introspection description
+// of the DBus service.
+func (s *Settings) IntrospectionData() string {
+	return settingsIntrospectionXML
+}
+
+// some notes:
+// - we only set/get desktop files
+// - all desktop files of snaps are prefixed with: ${snap}_
+// - on get/check/set we need to add/strip this prefix
+
 func safeSnapFromSender(s *Settings, sender dbus.Sender) (string, *dbus.Error) {
 	// avoid information leak: see https://github.com/snapcore/snapd/pull/4073#discussion_r146682758
 	snap, err := snapFromSender(s.conn, sender)
@@ -202,32 +228,6 @@ func checkOutput(cmd *exec.Cmd, command string, setspec *settingSpec) (string, *
 	}
 	return string(output), nil
 }
-
-// Settings implements the 'io.snapcraft.Settings' DBus interface.
-type Settings struct {
-	conn *dbus.Conn
-}
-
-// Name returns the name of the interface this object implements
-func (s *Settings) Name() string {
-	return "io.snapcraft.Settings"
-}
-
-// BasePath returns the base path of the object
-func (s *Settings) BasePath() dbus.ObjectPath {
-	return "/io/snapcraft/Settings"
-}
-
-// IntrospectionData gives the XML formatted introspection description
-// of the DBus service.
-func (s *Settings) IntrospectionData() string {
-	return settingsIntrospectionXML
-}
-
-// some notes:
-// - we only set/get desktop files
-// - all desktop files of snaps are prefixed with: ${snap}_
-// - on get/check/set we need to add/strip this prefix
 
 // Check implements the 'Check' method of the 'io.snapcraft.Settings'
 // DBus interface.
