@@ -23,12 +23,9 @@ execute: |
             session-tool --has-system-systemd-and-dbus
             # Ubuntu 16.04 does not use systemd for user sessions, and does not
             # ship the package providing dbus.socket in systemd --user by
-            # default.
-            #
-            # NOTE: For some tests we manually install/remove the missing
-            # package to expand test coverage.
-            session-tool --has-session-systemd-and-dbus | MATCH 'no user dbus.socket'
-            not session-tool --has-session-systemd-and-dbus
+            # default, but we install it in the project preparation phase.
+            session-tool --has-session-systemd-and-dbus | MATCH 'ok'
+            session-tool --has-session-systemd-and-dbus
             ;;
         ubuntu-core-1[68]-*)
             session-tool --has-system-systemd-and-dbus | MATCH 'ok'
