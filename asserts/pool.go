@@ -35,7 +35,7 @@ type Grouping string
 // assertions can be organized in groups. Failure can be tracked
 // isolated to groups, conversely any error related to a single group
 // alone will stop any work to resolve it. Independent assertions
-// should not be grouped.  Assertions and prerequisites that are part
+// should not be grouped. Assertions and prerequisites that are part
 // of more than one group are tracked properly only once.
 //
 // Typical usage involves specifying the initial assertions needing to
@@ -308,8 +308,8 @@ func (p *Pool) addUnresolved(unresolved *AtRevision, gnum uint16) error {
 	return nil
 }
 
-// ToResolve returns all the assertions currently unresolved in the
-// Pool organized in opaque groupings based on which set of groups
+// ToResolve returns all the currently unresolved assertions in the
+// Pool, organized in opaque groupings based on which set of groups
 // requires each of them.
 // At the next ToResolve any unresolved assertion that was not added
 // via Add or AddBatch will result in all groups requiring it being in
@@ -435,7 +435,7 @@ func (p *Pool) resolveWith(unresolved map[string]*unresolvedRec, uniq string, u 
 // Pool as resolved in all the groups requiring it.
 // Any not already resolved prerequisites of the assertion will
 // be implicitly added as unresolved and required by all of those groups.
-// grouping will usually have been associated with the assertion
+// The grouping will usually have been associated with the assertion
 // in a ToResolve's result. Otherwise the union of all groups
 // requiring the assertion plus the groups in grouping will be considered.
 // The latter is mostly relevant in scenarios where the server is pushing
