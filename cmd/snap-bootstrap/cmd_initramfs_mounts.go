@@ -129,7 +129,7 @@ func generateMountsModeInstall(mst *initramfsMountsState, recoverySystem string)
 		return nil
 	}
 
-	// 3. final step: write modeend to tmpfs data dir and disable cloud-init in
+	// 3. final step: write modeenv to tmpfs data dir and disable cloud-init in
 	//   install mode
 	modeEnv := &boot.Modeenv{
 		Mode:           "install",
