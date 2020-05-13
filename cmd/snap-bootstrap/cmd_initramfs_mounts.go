@@ -276,7 +276,7 @@ func selectPartitionMatchingKernelDisk(dir, fallbacklabel string) error {
 }
 
 func generateMountsCommonInstallRecover(mst *initramfsMountsState, recoverySystem string) (allMounted bool, err error) {
-	// 1.1. always ensure seed partition is mounted first before the others,
+	// 1. always ensure seed partition is mounted first before the others,
 	//      since the seed partition is needed to mount the snap files there
 	isMounted, err := mst.IsMounted(boot.InitramfsUbuntuSeedDir)
 	if err != nil {
