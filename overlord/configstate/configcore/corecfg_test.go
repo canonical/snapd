@@ -189,13 +189,13 @@ func (s *applyCfgSuite) TearDownTest(c *C) {
 }
 
 func (s *applyCfgSuite) TestEmptyRootDir(c *C) {
-	err := configcore.FilesystemOnlyApply("", nil)
+	err := configcore.FilesystemOnlyApply("", nil, nil)
 	c.Check(err, ErrorMatches, `internal error: root directory for configcore.FilesystemOnlyApply\(\) not set`)
 }
 
 func (s *applyCfgSuite) TestSmoke(c *C) {
 	conf := &mockConf{}
-	c.Assert(configcore.FilesystemOnlyApply(s.tmpDir, conf), IsNil)
+	c.Assert(configcore.FilesystemOnlyApply(s.tmpDir, conf, nil), IsNil)
 }
 
 func (s *applyCfgSuite) TestPlainCoreConfigGetErrorIfNotCore(c *C) {

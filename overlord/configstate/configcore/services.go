@@ -55,7 +55,11 @@ func switchDisableSSHService(sysd systemd.Systemd, serviceName, value string, op
 	rootDir := dirs.GlobalRootDir
 	if opts != nil {
 		rootDir = opts.RootDir
+		if err := os.MkdirAll(filepath.Join(rootDir, "/etc/ssh"), 0755); err != nil {
+			return err
+		}
 	}
+
 	sshCanary := filepath.Join(rootDir, "/etc/ssh/sshd_not_to_be_run")
 
 	switch value {
@@ -102,8 +106,10 @@ func switchDisableService(serviceName, value string, opts *fsOnlyContext) error 
 
 	switch value {
 	case "true":
-		if err := sysd.Disable(serviceName); err != nil {
-			return err
+		if opts == nil {
+			if err := sysd.Disable(serviceName); err != nil {
+				return err
+			}
 		}
 		if err := sysd.Mask(serviceName); err != nil {
 			return err
@@ -116,8 +122,10 @@ func switchDisableService(serviceName, value string, opts *fsOnlyContext) error 
 		if err := sysd.Unmask(serviceName); err != nil {
 			return err
 		}
-		if err := sysd.Enable(serviceName); err != nil {
-			return err
+		if opts == nil {
+			if err := sysd.Enable(serviceName); err != nil {
+				return err
+			}
 		}
 		if opts == nil {
 			return sysd.Start(serviceName)
