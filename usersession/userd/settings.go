@@ -152,7 +152,7 @@ func safeSnapFromSender(s *Settings, sender dbus.Sender) (string, *dbus.Error) {
 	return snap, nil
 }
 
-func desktopFileFromValue(s *Settings, command string, setspec *settingSpec, dotDesktopValue string, sender dbus.Sender) (string, *dbus.Error) {
+func desktopFileFromValueForSetting(s *Settings, command string, setspec *settingSpec, dotDesktopValue string, sender dbus.Sender) (string, *dbus.Error) {
 	snap, err := safeSnapFromSender(s, sender)
 	if err != nil {
 		return "", err
@@ -235,7 +235,7 @@ func checkOutput(cmd *exec.Cmd, command string, setspec *settingSpec) (string, *
 // Example usage: dbus-send --session --dest=io.snapcraft.Settings --type=method_call --print-reply /io/snapcraft/Settings io.snapcraft.Settings.Check string:'default-web-browser' string:'firefox.desktop'
 func (s *Settings) Check(setting string, check string, sender dbus.Sender) (string, *dbus.Error) {
 	settingMain := &settingSpec{setting: setting}
-	desktopFile, err := desktopFileFromValue(s, "check", settingMain, check, sender)
+	desktopFile, err := desktopFileFromValueForSetting(s, "check", settingMain, check, sender)
 	if err != nil {
 		return "", err
 	}
@@ -255,7 +255,7 @@ func (s *Settings) Check(setting string, check string, sender dbus.Sender) (stri
 // Example usage: dbus-send --session --dest=io.snapcraft.Settings --type=method_call --print-reply /io/snapcraft/Settings io.snapcraft.Settings.CheckSub string:'default-url-scheme-handler' string:'irc' string:'ircclient.desktop'
 func (s *Settings) CheckSub(setting string, subproperty string, check string, sender dbus.Sender) (string, *dbus.Error) {
 	settingSub := &settingSpec{setting: setting, subproperty: subproperty}
-	desktopFile, err := desktopFileFromValue(s, "check", settingSub, check, sender)
+	desktopFile, err := desktopFileFromValueForSetting(s, "check", settingSub, check, sender)
 	if err != nil {
 		return "", err
 	}
@@ -313,7 +313,7 @@ func (s *Settings) GetSub(setting string, subproperty string, sender dbus.Sender
 // Example usage: dbus-send --session --dest=io.snapcraft.Settings --type=method_call --print-reply /io/snapcraft/Settings io.snapcraft.Settings.Set string:'default-web-browser' string:'chromium-browser.desktop'
 func (s *Settings) Set(setting string, new string, sender dbus.Sender) *dbus.Error {
 	settingMain := &settingSpec{setting: setting}
-	desktopFile, err := desktopFileFromValue(s, "set", settingMain, new, sender)
+	desktopFile, err := desktopFileFromValueForSetting(s, "set", settingMain, new, sender)
 	if err != nil {
 		return err
 	}
@@ -336,7 +336,7 @@ func (s *Settings) Set(setting string, new string, sender dbus.Sender) *dbus.Err
 // Example usage: dbus-send --session --dest=io.snapcraft.Settings --type=method_call --print-reply /io/snapcraft/Settings io.snapcraft.Settings.SetSub string:'default-url-scheme-handler' string:'irc' string:'ircclient.desktop'
 func (s *Settings) SetSub(setting string, subproperty string, new string, sender dbus.Sender) *dbus.Error {
 	settingSub := &settingSpec{setting: setting, subproperty: subproperty}
-	desktopFile, err := desktopFileFromValue(s, "set", settingSub, new, sender)
+	desktopFile, err := desktopFileFromValueForSetting(s, "set", settingSub, new, sender)
 	if err != nil {
 		return err
 	}
