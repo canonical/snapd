@@ -89,3 +89,13 @@ execute: |
         cat /etc/environment
         exit 1
     fi
+
+    echo "Check that 'service.console-conf.disable' handling works"
+    snap set system service.console-conf.disable=true
+    test -e /var/lib/console-conf/complete
+    # no output for anything console-conf
+    test -z "$(systemctl status 'console-conf@*')"
+    # enable it again
+    snap set system service.console-conf.disable=false
+    not test -e /var/lib/console-conf/complete
+    systemctl status 'console-conf@*' | MATCH "Active: active"

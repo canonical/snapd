@@ -93,6 +93,7 @@ func (s *servicesSuite) TestConfigureServiceDisabledIntegration(c *C) {
 	}{
 		{"ssh", "ssh.service"},
 		{"rsyslog", "rsyslog.service"},
+		{"console-conf", "getty@*"},
 	} {
 		s.systemctlArgs = nil
 
@@ -104,8 +105,8 @@ func (s *servicesSuite) TestConfigureServiceDisabledIntegration(c *C) {
 		})
 		c.Assert(err, IsNil)
 		srv := service.systemdName
-		if service.cfgName == "ssh" {
-			// SSH is special cased
+		switch service.cfgName {
+		case "ssh":
 			sshCanary := filepath.Join(dirs.GlobalRootDir, "/etc/ssh/sshd_not_to_be_run")
 			_, err := os.Stat(sshCanary)
 			c.Assert(err, IsNil)
@@ -113,7 +114,14 @@ func (s *servicesSuite) TestConfigureServiceDisabledIntegration(c *C) {
 				{"stop", srv},
 				{"show", "--property=ActiveState", srv},
 			})
-		} else {
+		case "console-conf":
+			consoleConfCanary := filepath.Join(dirs.GlobalRootDir, "/var/lib/console-conf/complete")
+			_, err := os.Stat(consoleConfCanary)
+			c.Assert(err, IsNil)
+			c.Check(s.systemctlArgs, DeepEquals, [][]string{
+				{"restart", srv, "--all"},
+			})
+		default:
 			c.Check(s.systemctlArgs, DeepEquals, [][]string{
 				{"--root", dirs.GlobalRootDir, "disable", srv},
 				{"--root", dirs.GlobalRootDir, "mask", srv},
@@ -137,6 +145,7 @@ func (s *servicesSuite) TestConfigureServiceEnableIntegration(c *C) {
 	}{
 		{"ssh", "ssh.service"},
 		{"rsyslog", "rsyslog.service"},
+		{"console-conf", "getty@*"},
 	} {
 		s.systemctlArgs = nil
 		err := configcore.Run(&mockConf{
@@ -148,8 +157,8 @@ func (s *servicesSuite) TestConfigureServiceEnableIntegration(c *C) {
 
 		c.Assert(err, IsNil)
 		srv := service.systemdName
-		if service.cfgName == "ssh" {
-			// SSH is special cased
+		switch service.cfgName {
+		case "ssh":
 			c.Check(s.systemctlArgs, DeepEquals, [][]string{
 				{"--root", dirs.GlobalRootDir, "unmask", "sshd.service"},
 				{"--root", dirs.GlobalRootDir, "unmask", "ssh.service"},
@@ -158,7 +167,14 @@ func (s *servicesSuite) TestConfigureServiceEnableIntegration(c *C) {
 			sshCanary := filepath.Join(dirs.GlobalRootDir, "/etc/ssh/sshd_not_to_be_run")
 			_, err := os.Stat(sshCanary)
 			c.Assert(err, ErrorMatches, ".* no such file or directory")
-		} else {
+		case "console-conf":
+			c.Check(s.systemctlArgs, DeepEquals, [][]string{
+				{"restart", srv, "--all"},
+			})
+			canary := filepath.Join(dirs.GlobalRootDir, "/var/lib/console-conf/complete")
+			_, err := os.Stat(canary)
+			c.Assert(os.IsNotExist(err), Equals, true)
+		default:
 			c.Check(s.systemctlArgs, DeepEquals, [][]string{
 				{"--root", dirs.GlobalRootDir, "unmask", srv},
 				{"--root", dirs.GlobalRootDir, "enable", srv},
