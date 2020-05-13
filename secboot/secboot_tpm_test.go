@@ -545,6 +545,18 @@ func (s *secbootSuite) TestSealKey(c *C) {
 	}
 }
 
+func (s *secbootSuite) TestSealKeyNoModelParams(c *C) {
+	myKey := partition.EncryptionKey{}
+	myParams := secboot.SealKeyParams{
+		KeyFile:              "keyfile",
+		PolicyUpdateDataFile: "policy-update-data-file",
+		TPMLockoutAuthFile:   "lockout-auth-file",
+	}
+
+	err := secboot.SealKey(myKey, &myParams)
+	c.Assert(err, ErrorMatches, "at least one set of model-specific parameters is required")
+}
+
 func mockSbTPMConnection(c *C, tpmErr error) (*sb.TPMConnection, func()) {
 	tcti, err := os.Open("/dev/null")
 	c.Assert(err, IsNil)

@@ -266,12 +266,17 @@ func unlockEncryptedPartition(tpm *sb.TPMConnection, name, device, keyfile, pinf
 }
 
 func SealKey(key partition.EncryptionKey, params *SealKeyParams) error {
+	numModels := len(params.ModelParams)
+	if numModels < 1 {
+		return fmt.Errorf("at least one set of model-specific parameters is required")
+	}
+
 	tpm, err := sbConnectToDefaultTPM()
 	if err != nil {
 		return fmt.Errorf("cannot connect to TPM: %v", err)
 	}
 
-	modelPCRProfiles := make([]*sb.PCRProtectionProfile, 0, len(params.ModelParams))
+	modelPCRProfiles := make([]*sb.PCRProtectionProfile, 0, numModels)
 
 	for _, modelParams := range params.ModelParams {
 		modelProfile := sb.NewPCRProtectionProfile()
@@ -323,7 +328,12 @@ func SealKey(key partition.EncryptionKey, params *SealKeyParams) error {
 		modelPCRProfiles = append(modelPCRProfiles, modelProfile)
 	}
 
-	pcrProfile := sb.NewPCRProtectionProfile().AddProfileOR(modelPCRProfiles...)
+	var pcrProfile *sb.PCRProtectionProfile
+	if numModels > 1 {
+		pcrProfile = sb.NewPCRProtectionProfile().AddProfileOR(modelPCRProfiles...)
+	} else {
+		pcrProfile = modelPCRProfiles[0]
+	}
 
 	// Provision the TPM as late as possible
 	if err := tpmProvision(tpm, params.TPMLockoutAuthFile); err != nil {
@@ -339,7 +349,6 @@ func SealKey(key partition.EncryptionKey, params *SealKeyParams) error {
 	}
 
 	return nil
-
 }
 
 func tpmProvision(tpm *sb.TPMConnection, lockoutAuthFile string) error {
