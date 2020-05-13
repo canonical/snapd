@@ -11,7 +11,6 @@ systems: [ubuntu-18.04-64]
 # The test is sensitive to backend type, which designates the used image.
 # Backends are enabled one-by-one along with the matching data set.
 backends: [google]
-manual: true
 details: |
     This test measures the mount table of the host, of the mount namespace for
     a simple core16-based snap for the per-user mount namespace of a simple
