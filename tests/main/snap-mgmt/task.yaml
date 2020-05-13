@@ -12,6 +12,8 @@ prepare: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
 
+    snap set core experimental.user-daemons=true
+
     snap install test-snapd-sh
     snap list | MATCH test-snapd-sh
 
@@ -19,7 +21,7 @@ prepare: |
     install_local test-snapd-service
     snap list | MATCH test-snapd-service
 
-    # a snap with timers
+    # a snap with timers (and also services by extension)
     install_local test-snapd-timer-service
     snap list | MATCH test-snapd-timer-service
 
@@ -29,6 +31,18 @@ prepare: |
 
     # with socket activation
     install_local socket-activation
+
+    # a snap with user services
+    install_local test-snapd-user-service
+    snap list | MATCH test-snapd-user-service
+
+    # a snap with user sockets
+    install_local test-snapd-user-service-sockets
+    snap list | MATCH test-snapd-user-service-sockets
+
+    # a snap with user timers
+    install_local test-snapd-user-timer-service
+    snap list | MATCH test-snapd-user-timer-service
 
     before=$(find ${SNAP_MOUNT_DIR} -type d | wc -l)
     if [ "$before" -lt 2 ]; then
@@ -44,6 +58,9 @@ prepare: |
     test "$(find /etc/dbus-1/system.d -name 'snap.*.conf' | wc -l)" -gt 0
     test "$(find /etc/systemd/system -name 'snap.*.timer' | wc -l)" -gt 0
     test "$(find /etc/systemd/system -name 'snap.*.socket' | wc -l)" -gt 0
+    test "$(find /etc/systemd/user -name 'snap.*.service' | wc -l)" -gt 0
+    test "$(find /etc/systemd/user -name 'snap.*.timer' | wc -l)" -gt 0
+    test "$(find /etc/systemd/user -name 'snap.*.socket' | wc -l)" -gt 0
 
 execute: |
     echo "Stop snapd before purging"
@@ -88,8 +105,17 @@ execute: |
 
     echo "No dangling service symlinks are left behind"
     test -z "$(find /etc/systemd/system/multi-user.target.wants/ -name 'snap.test-snapd-service.*')"
+    test -z "$(find /etc/systemd/system/sockets.target.wants/ -name 'snap.*')"
+    test -z "$(find /etc/systemd/system/timers.target.wants/ -name 'snap.*')"
+    test -z "$(find /etc/systemd/user/default.target.wants/ -name 'snap.*')"
+    test -z "$(find /etc/systemd/user/sockets.target.wants/ -name 'snap.*')"
+    test -z "$(find /etc/systemd/user/timers.target.wants/ -name 'snap.*')"
 
     test "$(find /etc/udev/rules.d -name '*-snap.*.rules' | wc -l)" -eq 0
     test "$(find /etc/dbus-1/system.d -name 'snap.*.conf' | wc -l)" -eq 0
+    test "$(find /etc/systemd/system -name 'snap.*.service' | wc -l)" -eq 0
     test "$(find /etc/systemd/system -name 'snap.*.timer' | wc -l)" -eq 0
     test "$(find /etc/systemd/system -name 'snap.*.socket' | wc -l)" -eq 0
+    test "$(find /etc/systemd/user -name 'snap.*.service' | wc -l)" -eq 0
+    test "$(find /etc/systemd/user -name 'snap.*.timer' | wc -l)" -eq 0
+    test "$(find /etc/systemd/user -name 'snap.*.socket' | wc -l)" -eq 0
