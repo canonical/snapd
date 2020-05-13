@@ -263,14 +263,15 @@ func generateMountsModeRecover(mst *initramfsMountsState, recoverySystem string)
 func selectPartitionMatchingKernelDisk(dir, fallbacklabel string) error {
 	// TODO:UC20: should this only run on grade > dangerous? where do we
 	//            get the model at this point?
-	if partuuid, err := bootFindPartitionUUIDForBootedKernelDisk(); err == nil {
-		// TODO: the by-partuuid is only available on gpt disks, on mbr we need
-		//       to use by-uuid or by-id
-		fmt.Fprintf(stdout, "/dev/disk/by-partuuid/%s %s\n", partuuid, dir)
+	partuuid, err := bootFindPartitionUUIDForBootedKernelDisk()
+	if err != nil {
+		// no luck, try mounting by label instead
+		fmt.Fprintf(stdout, "/dev/disk/by-label/%s %s\n", fallbacklabel, dir)
 		return nil
 	}
-	// no luck, try mounting by label instead
-	fmt.Fprintf(stdout, "/dev/disk/by-label/%s %s\n", fallbacklabel, dir)
+	// TODO: the by-partuuid is only available on gpt disks, on mbr we need
+	//       to use by-uuid or by-id
+	fmt.Fprintf(stdout, "/dev/disk/by-partuuid/%s %s\n", partuuid, dir)
 	return nil
 }
 
