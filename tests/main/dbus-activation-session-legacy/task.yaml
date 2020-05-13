@@ -1,24 +1,16 @@
-summary: D-Bus session services support activation via systemd user session
+summary: D-Bus session services support activation without a user of instance systemd
 
-systems:
-    # Ubuntu Core does not contain the D-Bus user session systemd units
-    - -ubuntu-core-*
-    # Ubuntu 14.04 does not provide user@.service
-    - -ubuntu-14.04-*
-    # CentOS/Amazon Linux give error "Unit user@0.service not loaded."
-    - -amazon-linux-2-*
-    - -centos-7-*
+systems: [-ubuntu-core-*]
 
 prepare: |
     snap set system experimental.user-daemons=true
     snap set system experimental.dbus-activation=true
-    #shellcheck source=tests/lib/pkgdb.sh
-    . "$TESTSLIB"/pkgdb.sh
-    distro_install_package dbus-user-session
-    session-tool -u test --prepare
 
 restore: |
-    session-tool -u test --restore
+    if [ -f dbus-launch.pid ]; then
+        kill "$(cat dbus-launch.pid)"
+        rm -f dbus-launch.pid
+    fi
     snap unset system experimental.dbus-activation
     snap unset system experimental.user-daemons
 
@@ -26,23 +18,21 @@ execute: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
 
+    echo "Set up a private D-Bus session bus"
+    eval "$(dbus-launch --sh-syntax)"
+    echo "$DBUS_SESSION_BUS_PID" > dbus-launch.pid
+
     echo "Install a snap containing an activatable D-Bus session service"
     snap install --edge test-snapd-dbus-service
 
     echo "A service activation file has been created"
     [ -f /var/lib/snapd/dbus/services/io.snapcraft.SnapDbusService.service ]
 
-    echo "The service is not initially running"
-    not session-tool -u test systemctl --user is-active snap.test-snapd-dbus-service.session.service
-
     echo "Making a method call wakes the service"
     install_local test-snapd-dbus-service-client
     snap connect test-snapd-dbus-service-client:dbus-session-plug \
                  test-snapd-dbus-service:dbus-session-slot
-    session-tool -u test test-snapd-dbus-service-client.session | MATCH hello
-
-    echo "The corresponding D-Bus service is now running"
-    session-tool -u test systemctl --user is-active snap.test-snapd-dbus-service.session.service
+    test-snapd-dbus-service-client.session | MATCH hello
 
     echo "Removing the snap also removes the service activation file"
     snap remove test-snapd-dbus-service
