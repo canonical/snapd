@@ -1190,7 +1190,16 @@ func (s *apiSuite) testSysInfoSystemMode(c *check.C, mode string) {
 	c.Assert(mode != "", check.Equals, true, check.Commentf("mode is unset for the test"))
 	rec := httptest.NewRecorder()
 
-	// reload dirs for release info to have effect
+	restore := release.MockReleaseInfo(&release.OS{ID: "distro-id", VersionID: "1.2"})
+	defer restore()
+	restore = release.MockOnClassic(false)
+	defer restore()
+	restore = sandbox.MockForceDevMode(false)
+	defer restore()
+	restore = mockSystemdVirt("")
+	defer restore()
+
+	// reload dirs for release info to have effect on paths
 	dirs.SetRootDir(dirs.GlobalRootDir)
 
 	// mock the modeenv file
@@ -1203,15 +1212,6 @@ func (s *apiSuite) testSysInfoSystemMode(c *check.C, mode string) {
 
 	d := s.daemon(c)
 	d.Version = "42b1"
-
-	restore := release.MockReleaseInfo(&release.OS{ID: "distro-id", VersionID: "1.2"})
-	defer restore()
-	restore = release.MockOnClassic(false)
-	defer restore()
-	restore = sandbox.MockForceDevMode(false)
-	defer restore()
-	restore = mockSystemdVirt("")
-	defer restore()
 
 	// add a test security backend
 	err = d.overlord.InterfaceManager().Repository().AddBackend(&ifacetest.TestSecurityBackend{
