@@ -5,9 +5,6 @@ systems: [ ubuntu-core-20-* ]
 restore: |
   rm -f /writable/systems.json.run
   rm -f /writable/systems.label
-  rm -f system-info systems.json
-
-  snap remove http jq
 
 debug: |
   if [ -e systems.json ]; then
@@ -15,7 +12,7 @@ debug: |
   fi
 
 execute: |
-  if [[ "$SPREAD_REBOOT" == "0" ]]; then
+  if [ "$SPREAD_REBOOT" == "0" ]; then
       echo "In run mode"
 
       snap install jq
@@ -33,7 +30,8 @@ execute: |
       jq .result.systems[0].current < systems.json | MATCH 'true'
       label="$(jq -r .result.systems[0].label < systems.json)"
       test -n "$label"
-      test "$label" = "$(date +%Y%m%d)"
+      # make sure that the seed exists
+      test -d "/var/lib/snapd/seed/systems/$label"
       jq -r .result.systems[0].actions[].mode < systems.json | MATCH 'recover'
 
       # keep a copy of the systems dump for later reference
@@ -42,18 +40,29 @@ execute: |
 
       # request a recovery mode
       echo "Request rebooting into recovery mode"
+      # response contains maintenance: {"maintenance":{"message":"system is restarting","kind":"system-restart"}}
       test-snapd-curl.curl -X POST --data '{"action":"do","mode":"recover"}' \
-          -s --unix-socket /run/snapd.socket "http://localhost/v2/systems/$label"
+          -s --unix-socket /run/snapd.socket "http://localhost/v2/systems/$label" | \
+          MATCH '"system-restart"'
 
       # XXX: is this a race between spread seeing REBOOT and machine rebooting?
       REBOOT
 
-  elif [[ "$SPREAD_REBOOT" == "1" ]]; then
+  elif [ "$SPREAD_REBOOT" == "1" ]; then
       echo "In recovery mode"
+
+      # the system is seeding and snap command may not be available yet
+      for _ in $(seq 120); do
+          if [ "$(command -v snap)" = "/usr/bin/snap" ] ; then
+              break
+          fi
+          sleep 1
+      done
+
       # wait till the system seeding is finished
       snap wait system seed.loaded
 
-      # we're running in an ephemeral system
+      # we're running in an ephemeral system and thus have to re-install snaps
       snap install jq
       snap install test-snapd-curl --devmode --edge
 
@@ -63,22 +72,26 @@ execute: |
       jq -r '.result["system-mode"]' < system-info | MATCH 'recover'
 
       # host data should be accessible
-      test -e /run/mnt/host/ubuntu-data/systems.json.run
+      test -e /host/ubuntu-data/systems.json.run
 
       test-snapd-curl.curl -s --unix-socket /run/snapd.socket http://localhost/v2/systems > systems.json
       # systems list should be identical
-      diff -up /run/mnt/host/ubuntu-data/systems.json.run systems.json
-      label="$(cat /run/mnt/host/ubuntu-data/systems.label)"
+      diff -up /host/ubuntu-data/systems.json.run systems.json
+      label="$(cat /host/ubuntu-data/systems.label)"
+      test -n "$label"
+      # seed in mounted in recover mode too
+      test -d "/var/lib/snapd/seed/systems/$label"
 
       MATCH "snapd_recovery_system=$label" < /proc/cmdline
 
       # request going back to run mode
       test-snapd-curl.curl -X POST --data '{"action":"do","mode":"run"}' \
-          -s --unix-socket /run/snapd.socket "http://localhost/v2/systems/$label"
+          -s --unix-socket /run/snapd.socket "http://localhost/v2/systems/$label" | \
+          MATCH '"system-restart"'
       # XXX: is this a race between spread seeing REBOOT and machine rebooting?
       REBOOT
 
-  elif [[ "$SPREAD_REBOOT" == "2" ]]; then
+  elif [ "$SPREAD_REBOOT" == "2" ]; then
       echo "In run mode again"
       test-snapd-curl.curl -s --unix-socket /run/snapd.socket http://localhost/v2/system-info > system-info
       jq -r '.result["system-mode"]' < system-info | MATCH 'run'
