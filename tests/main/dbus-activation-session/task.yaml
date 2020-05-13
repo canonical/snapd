@@ -3,6 +3,7 @@ summary: D-Bus session services support activation
 systems: [-ubuntu-core-*]
 
 prepare: |
+    snap set system experimental.user-daemons=true
     snap set system experimental.dbus-activation=true
 
 restore: |
@@ -11,6 +12,7 @@ restore: |
         rm -f dbus-launch.pid
     fi
     snap unset system experimental.dbus-activation
+    snap unset system experimental.user-daemons
 
 execute: |
     #shellcheck source=tests/lib/snaps.sh

@@ -15,13 +15,15 @@ slots:
 apps:
   session:
     command: bin/test-snapd-dbus-service session
+    passthrough:
+      daemon: dbus
+      daemon-scope: user
+      activates-on:
+        - dbus-session-slot
     plugs:
       - network
     slots:
       - dbus-session-slot
-    passthrough:
-      activates-on:
-        - dbus-session-slot
   system:
     command: bin/test-snapd-dbus-service system
     passthrough:
