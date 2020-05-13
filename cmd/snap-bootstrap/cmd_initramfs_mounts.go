@@ -354,12 +354,18 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState, recoverySyste
 func generateMountsModeRun(mst *initramfsMountsState) error {
 	// 1. mount ubuntu-boot
 	isMounted, err := mst.IsMounted(boot.InitramfsUbuntuBootDir)
+	if err != nil {
+		return err
+	}
 	if !isMounted {
 		return selectPartitionMatchingKernelDisk(boot.InitramfsUbuntuBootDir, "ubuntu-boot")
 	}
 
 	// 2. mount ubuntu-seed
 	isMounted, err = mst.IsMounted(boot.InitramfsUbuntuSeedDir)
+	if err != nil {
+		return err
+	}
 	if !isMounted {
 		// TODO:UC20: use the ubuntu-boot partition as a reference for what
 		//            partition to mount for ubuntu-seed
