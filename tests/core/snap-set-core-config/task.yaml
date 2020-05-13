@@ -1,7 +1,6 @@
 summary: Ensure "snap set core" works
 
-# TODO:UC20: enable for UC20
-systems: [ubuntu-core-1*]
+systems: [ubuntu-core-*]
 
 # TODO: use `snap set system` instead of `snap set core`
 
