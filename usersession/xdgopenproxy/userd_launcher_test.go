@@ -30,7 +30,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/testutil"
-	"github.com/snapcore/snapd/xdgopenproxy"
+	"github.com/snapcore/snapd/usersession/xdgopenproxy"
 )
 
 type userdSuite struct {

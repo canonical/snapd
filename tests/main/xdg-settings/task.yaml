@@ -123,15 +123,15 @@ execute: |
 
     # Ensure settings whitelist works
     ensure_error_no_xdg_settings_output "set" "random-settting" "something" 2> stderr.log
-    MATCH 'cannot use setting "random-settting": not allowed' < stderr.log
+    MATCH 'invalid setting "random-settting"' < stderr.log
 
 
     # Ensure settings value validation works
     ensure_error_no_xdg_settings_output "set" "default-web-browser" "inälid" 2> stderr.log
-    MATCH 'cannot set setting "default-web-browser" to value "inälid": value not allowed' < stderr.log
+    MATCH 'cannot set "default-web-browser" setting to invalid value "inälid"' < stderr.log
 
     ensure_error_no_xdg_settings_output "set" "default-url-scheme-handler" "irc" "inälid" 2> stderr.log
-    MATCH 'cannot set setting "default-url-scheme-handler" subproperty "irc" to value "inälid": value not allowed' < stderr.log
+    MATCH 'cannot set "default-url-scheme-handler" subproperty "irc" setting to invalid value "inälid"' < stderr.log
 
 
     # ensure zenity answers "no"
