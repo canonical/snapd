@@ -44,8 +44,9 @@ func ConfigureRunSystem(opts *Options) error {
 	return nil
 }
 
-// WritableDefaultsDir returns full path of subdir under
-// rootdir/_writable_defaults.
-func WritableDefaultsDir(rootdir, subdir string) string {
-	return filepath.Join(rootdir, "_writable_defaults", subdir)
+// WritableDefaultsDir returns the full path of the joined subdir under the
+// subtree for default content for system data living at rootdir,
+// i.e. rootdir/_writable_defaults/subdir...
+func WritableDefaultsDir(rootdir string, subdir ...string) string {
+	return filepath.Join(rootdir, "_writable_defaults", filepath.Join(subdir...))
 }

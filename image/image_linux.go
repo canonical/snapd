@@ -426,7 +426,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 			return err
 		}
 
-		defaultsDir := sysconfig.WritableDefaultsDir(rootDir, "")
+		defaultsDir := sysconfig.WritableDefaultsDir(rootDir)
 		defaults := gadget.SystemDefaults(gadgetInfo.Defaults)
 		if len(defaults) > 0 {
 			if err := os.MkdirAll(sysconfig.WritableDefaultsDir(rootDir, "/etc"), 0755); err != nil {
