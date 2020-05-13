@@ -30,11 +30,18 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/systemd"
 )
 
 type journalSuite struct {
-	configcoreSuite
+	state *state.State
+
+	systemdVersion    string
+	systemctlArgs     [][]string
+	systemctlRestorer func()
+
 	findGidRestore   func()
 	chownPathRestore func()
 }
@@ -42,7 +49,13 @@ type journalSuite struct {
 var _ = Suite(&journalSuite{})
 
 func (s *journalSuite) SetUpTest(c *C) {
-	s.configcoreSuite.SetUpTest(c)
+	s.state = state.New(nil)
+	s.systemdVersion = "236"
+	s.systemctlRestorer = systemd.MockSystemctl(func(args ...string) ([]byte, error) {
+		s.systemctlArgs = append(s.systemctlArgs, args[:])
+		output := []byte("systemd " + s.systemdVersion + "\n+XYZ")
+		return output, nil
+	})
 	s.systemctlArgs = nil
 	dirs.SetRootDir(c.MkDir())
 
@@ -62,7 +75,7 @@ func (s *journalSuite) SetUpTest(c *C) {
 }
 
 func (s *journalSuite) TearDownTest(c *C) {
-	s.configcoreSuite.TearDownTest(c)
+	s.systemctlRestorer()
 	dirs.SetRootDir("/")
 	s.findGidRestore()
 	s.chownPathRestore()
@@ -87,7 +100,30 @@ func (s *journalSuite) TestConfigurePersistentJournalOnCore(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
+		{"--version"},
 		{"kill", "systemd-journald", "-s", "USR1", "--kill-who=all"},
+	})
+
+	exists, _, err := osutil.DirExists(filepath.Join(dirs.GlobalRootDir, "/var/log/journal"))
+	c.Assert(err, IsNil)
+	c.Check(exists, Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/var/log/journal/.snapd-created")), Equals, true)
+}
+
+func (s *journalSuite) TestConfigurePersistentJournalOldSystemd(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	s.systemdVersion = "235"
+
+	err := configcore.Run(&mockConf{
+		state: s.state,
+		conf:  map[string]interface{}{"journal.persistent": "true"},
+	})
+	c.Assert(err, IsNil)
+
+	c.Check(s.systemctlArgs, DeepEquals, [][]string{
+		{"--version"}, // version query, but no usr1 signal sent
 	})
 
 	exists, _, err := osutil.DirExists(filepath.Join(dirs.GlobalRootDir, "/var/log/journal"))
@@ -150,6 +186,7 @@ func (s *journalSuite) TestDisablePersistentJournalOnCore(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
+		{"--version"},
 		{"kill", "systemd-journald", "-s", "USR1", "--kill-who=all"},
 	})
 
@@ -166,7 +203,7 @@ func (s *journalSuite) TestFilesystemOnlyApply(c *C) {
 		"journal.persistent": "true",
 	})
 	tmpDir := c.MkDir()
-	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf), IsNil)
+	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf, nil), IsNil)
 	c.Check(s.systemctlArgs, HasLen, 0)
 
 	exists, _, err := osutil.DirExists(filepath.Join(tmpDir, "/var/log/journal"))
