@@ -7,31 +7,23 @@ systems: [-ubuntu-core-*]
 backends: [-autopkgtest]
 
 prepare: |
+    # TODO: unify this with tests/main/postrm-purge/task.yaml
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB"/dirs.sh
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
 
-    snap install test-snapd-sh
-    snap list | MATCH test-snapd-sh
+    # Install a number of snaps that contain various features that have
+    # representation in the file system.
+    for name in test-snapd-service test-snapd-timer-service socket-activation \
+            test-snapd-tools \
+            test-snapd-control-consumer test-snapd-auto-aliases; do
+        install_local "$name"
+        snap list | MATCH test-snapd-service
+    done
 
-    # a snap with services
-    install_local test-snapd-service
-    snap list | MATCH test-snapd-service
-
-    # a snap with timers
-    install_local test-snapd-timer-service
-    snap list | MATCH test-snapd-timer-service
-
-    # a snap with DBus policy files
     snap install --edge test-snapd-dbus-provider
     snap list | MATCH test-snapd-dbus-provider
-
-    # with socket activation
-    install_local socket-activation
-
-    # with socket activation
-    install_local socket-activation
 
     before=$(find ${SNAP_MOUNT_DIR} -type d | wc -l)
     if [ "$before" -lt 2 ]; then
