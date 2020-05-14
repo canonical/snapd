@@ -131,7 +131,7 @@ func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	if deviceCtx.HasModeenv() && deviceCtx.RunMode() {
-		modeEnv, err := m.maybeReadModeenv()
+		modeEnv, err := maybeReadModeenv()
 		if err != nil {
 			return err
 		}
@@ -152,6 +152,8 @@ func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 	if whatSeeded != nil && deviceCtx.RunMode() {
+		// record what seeded in the state only when in run mode
+
 		whatSeeded.SeedTime = now
 		// TODO:UC20 what about remodels?
 		if err := m.recordSeededSystem(st, whatSeeded); err != nil {
