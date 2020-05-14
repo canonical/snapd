@@ -398,7 +398,10 @@ func (s *apiSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 		assertstatetest.AddMany(st, s.storeSigning.StoreAccountKey(""))
 		assertstatetest.AddMany(st, s.brands.AccountsAndKeys("my-brand")...)
 		s.mockModel(c, st, model)
-		st.Set("seeded-systems", currentSystem)
+		if tc.currentMode == "run" {
+			// only set in run mode
+			st.Set("seeded-systems", currentSystem)
+		}
 		st.Unlock()
 
 		body := map[string]string{
