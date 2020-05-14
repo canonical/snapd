@@ -69,6 +69,8 @@ var (
 	secbootMeasureSnapSystemEpochWhenPossible = secboot.MeasureSnapSystemEpochWhenPossible
 	secbootMeasureSnapModelWhenPossible       = secboot.MeasureSnapModelWhenPossible
 	secbootUnlockVolumeIfEncrypted            = secboot.UnlockVolumeIfEncrypted
+
+	bootFindPartitionUUIDForBootedKernelDisk = boot.FindPartitionUUIDForBootedKernelDisk
 )
 
 func stampedAction(stamp string, action func() error) error {
@@ -127,7 +129,7 @@ func generateMountsModeInstall(mst *initramfsMountsState, recoverySystem string)
 		return nil
 	}
 
-	// 3. final step: write modeend to tmpfs data dir and disable cloud-init in
+	// 3. final step: write modeenv to tmpfs data dir and disable cloud-init in
 	//   install mode
 	modeEnv := &boot.Modeenv{
 		Mode:           "install",
@@ -253,16 +255,35 @@ func generateMountsModeRecover(mst *initramfsMountsState, recoverySystem string)
 	return nil
 }
 
+// TODO:UC20: move all of this to a helper in boot?
+// selectPartitionToMount will select the partition to mount at dir, preferring
+// to use efi variables to determine which partition matches the disk we booted
+// the kernel from. If it can't figure out which disk the kernel came from, then
+// it will fallback to mounting via the specified label
+func selectPartitionMatchingKernelDisk(dir, fallbacklabel string) error {
+	// TODO:UC20: should this only run on grade > dangerous? where do we
+	//            get the model at this point?
+	partuuid, err := bootFindPartitionUUIDForBootedKernelDisk()
+	if err != nil {
+		// no luck, try mounting by label instead
+		fmt.Fprintf(stdout, "/dev/disk/by-label/%s %s\n", fallbacklabel, dir)
+		return nil
+	}
+	// TODO: the by-partuuid is only available on gpt disks, on mbr we need
+	//       to use by-uuid or by-id
+	fmt.Fprintf(stdout, "/dev/disk/by-partuuid/%s %s\n", partuuid, dir)
+	return nil
+}
+
 func generateMountsCommonInstallRecover(mst *initramfsMountsState, recoverySystem string) (allMounted bool, err error) {
-	// 1.1. always ensure seed partition is mounted first before the others,
+	// 1. always ensure seed partition is mounted first before the others,
 	//      since the seed partition is needed to mount the snap files there
 	isMounted, err := mst.IsMounted(boot.InitramfsUbuntuSeedDir)
 	if err != nil {
 		return false, err
 	}
 	if !isMounted {
-		fmt.Fprintf(stdout, "/dev/disk/by-label/ubuntu-seed %s\n", boot.InitramfsUbuntuSeedDir)
-		return false, nil
+		return false, selectPartitionMatchingKernelDisk(boot.InitramfsUbuntuSeedDir, "ubuntu-seed")
 	}
 
 	// 2.1. measure model
@@ -333,22 +354,28 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState, recoverySyste
 
 func generateMountsModeRun(mst *initramfsMountsState) error {
 	// 1. mount ubuntu-boot
+	isMounted, err := mst.IsMounted(boot.InitramfsUbuntuBootDir)
+	if err != nil {
+		return err
+	}
+	if !isMounted {
+		return selectPartitionMatchingKernelDisk(boot.InitramfsUbuntuBootDir, "ubuntu-boot")
+	}
+
 	// 2. mount ubuntu-seed
-	for _, d := range []string{boot.InitramfsUbuntuBootDir, boot.InitramfsUbuntuSeedDir} {
-		isMounted, err := mst.IsMounted(d)
-		if err != nil {
-			return err
-		}
-		if !isMounted {
-			// we need ubuntu-seed to be mounted before we can continue to
-			// check ubuntu-data, so return if we need something mounted
-			fmt.Fprintf(stdout, "/dev/disk/by-label/%s %s\n", filepath.Base(d), d)
-			return nil
-		}
+	isMounted, err = mst.IsMounted(boot.InitramfsUbuntuSeedDir)
+	if err != nil {
+		return err
+	}
+	if !isMounted {
+		// TODO:UC20: use the ubuntu-boot partition as a reference for what
+		//            partition to mount for ubuntu-seed
+		fmt.Fprintf(stdout, "/dev/disk/by-label/ubuntu-seed %s\n", boot.InitramfsUbuntuSeedDir)
+		return nil
 	}
 
 	// 3.1. measure model
-	err := stampedAction("run-model-measured", func() error {
+	err = stampedAction("run-model-measured", func() error {
 		return secbootMeasureSnapModelWhenPossible(mst.UnverifiedBootModel)
 	})
 	if err != nil {
