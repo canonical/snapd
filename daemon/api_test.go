@@ -49,6 +49,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
@@ -1095,6 +1096,7 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 		"sandbox-features": map[string]interface{}{"confinement-options": []interface{}{"classic", "devmode"}},
 		"architecture":     arch.DpkgArchitecture(),
 		"virtualization":   "magic",
+		"system-mode":      "run",
 	}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
@@ -1173,6 +1175,7 @@ func (s *apiSuite) TestSysInfoLegacyRefresh(c *check.C) {
 		},
 		"architecture":   arch.DpkgArchitecture(),
 		"virtualization": "kvm",
+		"system-mode":    "run",
 	}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
@@ -1181,6 +1184,94 @@ func (s *apiSuite) TestSysInfoLegacyRefresh(c *check.C) {
 	const kernelVersionKey = "kernel-version"
 	delete(rsp.Result.(map[string]interface{}), kernelVersionKey)
 	c.Check(rsp.Result, check.DeepEquals, expected)
+}
+
+func (s *apiSuite) testSysInfoSystemMode(c *check.C, mode string) {
+	c.Assert(mode != "", check.Equals, true, check.Commentf("mode is unset for the test"))
+	rec := httptest.NewRecorder()
+
+	restore := release.MockReleaseInfo(&release.OS{ID: "distro-id", VersionID: "1.2"})
+	defer restore()
+	restore = release.MockOnClassic(false)
+	defer restore()
+	restore = sandbox.MockForceDevMode(false)
+	defer restore()
+	restore = mockSystemdVirt("")
+	defer restore()
+
+	// reload dirs for release info to have effect on paths
+	dirs.SetRootDir(dirs.GlobalRootDir)
+
+	// mock the modeenv file
+	m := boot.Modeenv{
+		Mode:           mode,
+		RecoverySystem: "20191127",
+	}
+	err := m.WriteTo("")
+	c.Assert(err, check.IsNil)
+
+	d := s.daemon(c)
+	d.Version = "42b1"
+
+	// add a test security backend
+	err = d.overlord.InterfaceManager().Repository().AddBackend(&ifacetest.TestSecurityBackend{
+		BackendName:             "apparmor",
+		SandboxFeaturesCallback: func() []string { return []string{"feature-1", "feature-2"} },
+	})
+	c.Assert(err, check.IsNil)
+
+	buildID := "this-is-my-build-id"
+	restore = MockBuildID(buildID)
+	defer restore()
+
+	sysInfoCmd.GET(sysInfoCmd, nil, nil).ServeHTTP(rec, nil)
+	c.Check(rec.Code, check.Equals, 200)
+	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json")
+
+	expected := map[string]interface{}{
+		"series":  "16",
+		"version": "42b1",
+		"os-release": map[string]interface{}{
+			"id":         "distro-id",
+			"version-id": "1.2",
+		},
+		"build-id":   buildID,
+		"on-classic": false,
+		"managed":    false,
+		"locations": map[string]interface{}{
+			"snap-mount-dir": dirs.SnapMountDir,
+			"snap-bin-dir":   dirs.SnapBinariesDir,
+		},
+		"refresh": map[string]interface{}{
+			"timer": "00:00~24:00/4",
+		},
+		"confinement": "strict",
+		"sandbox-features": map[string]interface{}{
+			"apparmor":            []interface{}{"feature-1", "feature-2"},
+			"confinement-options": []interface{}{"devmode", "strict"}, // we know it's this because of the release.Mock... calls above
+		},
+		"architecture": arch.DpkgArchitecture(),
+		"system-mode":  mode,
+	}
+	var rsp resp
+	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	const kernelVersionKey = "kernel-version"
+	delete(rsp.Result.(map[string]interface{}), kernelVersionKey)
+	c.Check(rsp.Result, check.DeepEquals, expected)
+}
+
+func (s *apiSuite) TestSysInfoSystemModeRun(c *check.C) {
+	s.testSysInfoSystemMode(c, "run")
+}
+
+func (s *apiSuite) TestSysInfoSystemModeRecover(c *check.C) {
+	s.testSysInfoSystemMode(c, "recover")
+}
+
+func (s *apiSuite) TestSysInfoSystemModeInstall(c *check.C) {
+	s.testSysInfoSystemMode(c, "install")
 }
 
 func (s *apiSuite) TestLoginUser(c *check.C) {
