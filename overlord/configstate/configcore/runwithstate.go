@@ -40,12 +40,6 @@ func init() {
 	// proxy.{http,https,ftp}
 	addWithStateHandler(validateProxyStore, handleProxyConfiguration, coreOnly)
 
-	// XXX: port to FSOnlyHandler. the vitality code requires access to
-	// GetPristine which is not available on the ConfGetter interface.
-	// It also requires access to the state to see what is installed right
-	// now to be able to act on removals. Both should be worked around
-	// to ensure this can be used as an early config option.
-	//
 	// resilience.vitality-hint
 	addWithStateHandler(validateVitalitySettings, handleVitalityConfiguration, nil)
 
