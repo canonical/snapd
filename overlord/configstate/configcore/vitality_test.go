@@ -114,3 +114,68 @@ func (s *vitalitySuite) TestConfigureVitalityHintTooMany(c *C) {
 	})
 	c.Assert(err, ErrorMatches, `cannot set more than 100 snaps in "resilience.vitality-hint": got 101`)
 }
+
+func (s *vitalitySuite) TestConfigureVitalityManySnaps(c *C) {
+	for _, snapName := range []string{"snap1", "snap2", "snap3"} {
+		si := &snap.SideInfo{RealName: snapName, Revision: snap.R(1)}
+		snaptest.MockSnap(c, mockSnapWithService, si)
+		s.state.Lock()
+		snapstate.Set(s.state, snapName, &snapstate.SnapState{
+			Sequence: []*snap.SideInfo{si},
+			Current:  snap.R(1),
+			Active:   true,
+			SnapType: "app",
+		})
+		s.state.Unlock()
+	}
+
+	// snap1,snap2,snap3
+	err := configcore.Run(&mockConf{
+		state: s.state,
+		changes: map[string]interface{}{
+			"resilience.vitality-hint": "snap1,snap2,snap3",
+		},
+	})
+	c.Assert(err, IsNil)
+	// test
+	svcPath := filepath.Join(dirs.SnapServicesDir, "snap.snap1.foo.service")
+	c.Check(svcPath, testutil.FileContains, "\nOOMScoreAdjust=-899\n")
+	svcPath = filepath.Join(dirs.SnapServicesDir, "snap.snap2.foo.service")
+	c.Check(svcPath, testutil.FileContains, "\nOOMScoreAdjust=-898\n")
+	svcPath = filepath.Join(dirs.SnapServicesDir, "snap.snap3.foo.service")
+	c.Check(svcPath, testutil.FileContains, "\nOOMScoreAdjust=-897\n")
+}
+
+func (s *vitalitySuite) TestConfigureVitalityManySnapsDelta(c *C) {
+	for _, snapName := range []string{"snap1", "snap2", "snap3"} {
+		si := &snap.SideInfo{RealName: snapName, Revision: snap.R(1)}
+		snaptest.MockSnap(c, mockSnapWithService, si)
+		s.state.Lock()
+		snapstate.Set(s.state, snapName, &snapstate.SnapState{
+			Sequence: []*snap.SideInfo{si},
+			Current:  snap.R(1),
+			Active:   true,
+			SnapType: "app",
+		})
+		s.state.Unlock()
+	}
+
+	// snap1,snap2,snap3 switch to snap3,snap1
+	err := configcore.Run(&mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			"resilience.vitality-hint": "snap1,snap2,snap3",
+		},
+		changes: map[string]interface{}{
+			"resilience.vitality-hint": "snap3,snap1",
+		},
+	})
+	c.Assert(err, IsNil)
+	// test
+	svcPath := filepath.Join(dirs.SnapServicesDir, "snap.snap1.foo.service")
+	c.Check(svcPath, testutil.FileContains, "\nOOMScoreAdjust=-898")
+	svcPath = filepath.Join(dirs.SnapServicesDir, "snap.snap2.foo.service")
+	c.Check(svcPath, Not(testutil.FileContains), "\nOOMScoreAdjust=")
+	svcPath = filepath.Join(dirs.SnapServicesDir, "snap.snap3.foo.service")
+	c.Check(svcPath, testutil.FileContains, "\nOOMScoreAdjust=-899\n")
+}
