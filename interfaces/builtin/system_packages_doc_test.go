@@ -84,11 +84,11 @@ func (s *sytemPackagesDocSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Description: Can access documentation stored on the host in /usr/share/doc")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Description: can access documentation of system packages.")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/usr/share/doc/{,**} r,")
 
 	updateNS := spec.UpdateNS()
-	c.Check(updateNS, testutil.Contains, "  # Mount host documentation\n")
+	c.Check(updateNS, testutil.Contains, "  # Mount documentation of system packages\n")
 	c.Check(updateNS, testutil.Contains, "  mount options=(bind) /var/lib/snapd/hostfs/usr/share/doc/ -> /usr/share/doc/,\n")
 	c.Check(updateNS, testutil.Contains, "  remount options=(bind, ro) /usr/share/doc/,\n")
 	c.Check(updateNS, testutil.Contains, "  umount /usr/share/doc/,\n")
@@ -115,7 +115,7 @@ func (s *sytemPackagesDocSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, false)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
-	c.Assert(si.Summary, Equals, `allows access to /usr/share/doc stored on the system`)
+	c.Assert(si.Summary, Equals, `allows access to documentation of system packages`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "system-packages-doc")
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "deny-auto-connection: true")
 }

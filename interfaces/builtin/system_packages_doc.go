@@ -26,7 +26,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-const sytemPackagesDocSummary = `allows access to /usr/share/doc stored on the system`
+const sytemPackagesDocSummary = `allows access to documentation of system packages`
 
 const sytemPackagesDocBaseDeclarationSlots = `
   system-packages-doc:
@@ -37,7 +37,7 @@ const sytemPackagesDocBaseDeclarationSlots = `
 `
 
 const sytemPackagesDocConnectedPlugAppArmor = `
-# Description: Can access documentation stored on the host in /usr/share/doc
+# Description: can access documentation of system packages.
 
 /usr/share/doc/{,**} r,
 `
@@ -49,7 +49,7 @@ type sytemPackagesDocInterface struct {
 func (iface *sytemPackagesDocInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	spec.AddSnippet(sytemPackagesDocConnectedPlugAppArmor)
 	emit := spec.AddUpdateNSf
-	emit("  # Mount host documentation\n")
+	emit("  # Mount documentation of system packages\n")
 	emit("  mount options=(bind) /var/lib/snapd/hostfs/usr/share/doc/ -> /usr/share/doc/,\n")
 	emit("  remount options=(bind, ro) /usr/share/doc/,\n")
 	emit("  umount /usr/share/doc/,\n")
