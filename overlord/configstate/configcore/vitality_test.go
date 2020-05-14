@@ -97,7 +97,7 @@ func (s *vitalitySuite) TestConfigureVitalityWithValidSnap(c *C) {
 		{"start", "snap.test-snap.foo.service"},
 	})
 	svcPath := filepath.Join(dirs.SnapServicesDir, svcName)
-	c.Check(svcPath, testutil.FileContains, "\nOOMScoreAdjust=-897\n")
+	c.Check(svcPath, testutil.FileContains, "\nOOMScoreAdjust=-898\n")
 }
 
 func (s *vitalitySuite) TestConfigureVitalityHintTooMany(c *C) {
