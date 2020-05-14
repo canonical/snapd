@@ -130,7 +130,7 @@ func (p *Pool) Singleton(group string) (Grouping, error) {
 
 	var grouping internal.Grouping
 	p.groupings.AddTo(&grouping, gnum)
-	return Grouping(p.groupings.Label(&grouping)), nil
+	return Grouping(p.groupings.Serialize(&grouping)), nil
 }
 
 // An unresolvedRec tracks a single unresolved assertion until it is
@@ -141,16 +141,16 @@ type unresolvedRec struct {
 	at       *AtRevision
 	grouping internal.Grouping
 
-	label Grouping
+	serializedLabel Grouping
 
 	err error
 }
 
 func (u *unresolvedRec) exportTo(r map[Grouping][]*AtRevision, gr *internal.Groupings) {
-	label := Grouping(gr.Label(&u.grouping))
-	// remember label
-	u.label = label
-	r[label] = append(r[label], u.at)
+	serLabel := Grouping(gr.Serialize(&u.grouping))
+	// remember serialized label
+	u.serializedLabel = serLabel
+	r[serLabel] = append(r[serLabel], u.at)
 }
 
 func (u *unresolvedRec) merge(at *AtRevision, gnum uint16, gr *internal.Groupings) {
@@ -478,9 +478,9 @@ func (p *Pool) Add(a Assertion, grouping Grouping) error {
 		u.at.Revision = RevisionNotKnown
 	}
 
-	if u.label != grouping {
+	if u.serializedLabel != grouping {
 		var err error
-		extrag, err = p.groupings.Parse(string(grouping))
+		extrag, err = p.groupings.Deserialize(string(grouping))
 		if err != nil {
 			return err
 		}

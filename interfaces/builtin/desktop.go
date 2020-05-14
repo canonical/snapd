@@ -229,7 +229,7 @@ dbus (receive, send)
 
 # These accesses are noisy and applications can't do anything with the found
 # icon files, so explicitly deny to silence the denials
-deny /var/lib/snapd/desktop/icons/ r,
+deny /var/lib/snapd/desktop/icons/{,**/} r,
 `
 
 type desktopInterface struct {

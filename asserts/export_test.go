@@ -261,5 +261,5 @@ func (b *Batch) DoPrecheck(db *Database) error {
 // pool tests
 
 func MakePoolGrouping(elems ...uint16) Grouping {
-	return Grouping(internal.MakeLabel(elems))
+	return Grouping(internal.Serialize(elems))
 }
