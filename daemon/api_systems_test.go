@@ -349,9 +349,10 @@ func (s *apiSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 		},
 		{
 			// from recover mode -> recover mode is no-op
-			currentMode: "recover",
-			actionMode:  "recover",
-			comment:     "recover mode to recover mode",
+			currentMode:    "recover",
+			actionMode:     "recover",
+			expUnsupported: true,
+			comment:        "recover mode to recover mode",
 		},
 		{
 			// from install mode -> install mode is no-no
