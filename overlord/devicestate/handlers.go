@@ -151,7 +151,7 @@ func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
 	if err := t.Get("seed-system", &whatSeeded); err != nil && err != state.ErrNoState {
 		return err
 	}
-	if whatSeeded != nil {
+	if whatSeeded != nil && deviceCtx.RunMode() {
 		whatSeeded.SeedTime = now
 		// TODO:UC20 what about remodels?
 		if err := m.recordSeededSystem(st, whatSeeded); err != nil {
