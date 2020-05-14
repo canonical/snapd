@@ -68,3 +68,11 @@ func MockEnsureNodesExist(f func(ds []DeviceStructure, timeout time.Duration) er
 		ensureNodesExist = old
 	}
 }
+
+func MockUdevPropertiesForDevice(new func(string) (map[string]string, error)) (restore func()) {
+	old := udevProperties
+	udevProperties = new
+	return func() {
+		udevProperties = old
+	}
+}
