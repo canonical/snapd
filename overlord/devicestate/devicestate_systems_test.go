@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/strutil"
 )
 
 type mockedSystemSeed struct {
@@ -180,6 +181,9 @@ func (s *deviceMgrSystemsSuite) SetUpTest(c *C) {
 		brand: otherBrandAcc,
 	}}
 
+	// all tests should be in run mode by default, if they need to be in
+	// different modes they should set that individually
+	devicestate.SetSystemMode(s.mgr, "run")
 }
 
 func (s *deviceMgrSystemsSuite) TestListNoSystems(c *C) {
@@ -319,7 +323,7 @@ func (s *deviceMgrSystemsSuite) TestRequestModeInstallHappyForAny(c *C) {
 	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
 }
 
-func (s *deviceMgrSystemsSuite) TestRequestModeRunHappyDoesNothing(c *C) {
+func (s *deviceMgrSystemsSuite) TestRequestSameModeSameSystem(c *C) {
 	s.state.Lock()
 	s.state.Set("seeded-systems", []devicestate.SeededSystem{
 		{
@@ -330,15 +334,79 @@ func (s *deviceMgrSystemsSuite) TestRequestModeRunHappyDoesNothing(c *C) {
 	})
 	s.state.Unlock()
 
-	err := s.mgr.RequestSystemAction(s.mockedSystemSeeds[0].label, devicestate.SystemAction{Mode: "run"})
-	c.Assert(err, IsNil)
-	m, err := s.bootloader.GetBootVars("snapd_recovery_mode", "snapd_recovery_system")
-	c.Assert(err, IsNil)
-	c.Check(m, DeepEquals, map[string]string{
-		"snapd_recovery_system": "",
-		"snapd_recovery_mode":   "",
+	label := s.mockedSystemSeeds[0].label
+
+	happyModes := []string{"run", "recover"}
+	sadModes := []string{"install"}
+
+	for _, mode := range append(happyModes, sadModes...) {
+		devicestate.SetSystemMode(s.mgr, mode)
+		err := s.bootloader.SetBootVars(map[string]string{
+			"snapd_recovery_mode":   mode,
+			"snapd_recovery_system": label,
+		})
+		c.Assert(err, IsNil)
+		err = s.mgr.RequestSystemAction(label, devicestate.SystemAction{Mode: mode})
+		if strutil.ListContains(sadModes, mode) {
+			c.Assert(err, Equals, devicestate.ErrUnsupportedAction)
+		} else {
+			c.Assert(err, IsNil)
+		}
+		// bootloader vars shouldn't change
+		m, err := s.bootloader.GetBootVars("snapd_recovery_mode", "snapd_recovery_system")
+		c.Assert(err, IsNil)
+		c.Check(m, DeepEquals, map[string]string{
+			"snapd_recovery_mode":   mode,
+			"snapd_recovery_system": label,
+		})
+		// should never restart
+		c.Check(s.restartRequests, HasLen, 0)
+	}
+}
+
+func (s *deviceMgrSystemsSuite) TestRequestNotYetSeeded(c *C) {
+	// seeded-systems is unset
+	label := s.mockedSystemSeeds[0].label
+
+	for _, mode := range []string{"run", "install", "recover"} {
+		devicestate.SetSystemMode(s.mgr, mode)
+		err := s.bootloader.SetBootVars(map[string]string{
+			"snapd_recovery_mode":   mode,
+			"snapd_recovery_system": label,
+		})
+		c.Assert(err, IsNil)
+		err = s.mgr.RequestSystemAction(label, devicestate.SystemAction{Mode: mode})
+		c.Assert(err, Equals, devicestate.ErrUnsupportedAction)
+	}
+}
+
+func (s *deviceMgrSystemsSuite) TestRequestModeRunInstallForRecover(c *C) {
+	// we are in recover mode here
+	devicestate.SetSystemMode(s.mgr, "recover")
+	s.state.Lock()
+	s.state.Set("seeded-systems", []devicestate.SeededSystem{
+		{
+			System:  s.mockedSystemSeeds[0].label,
+			Model:   s.mockedSystemSeeds[0].model.Model(),
+			BrandID: s.mockedSystemSeeds[0].brand.AccountID(),
+		},
 	})
-	c.Check(s.restartRequests, HasLen, 0)
+	s.state.Unlock()
+
+	for _, mode := range []string{"install", "run"} {
+		err := s.mgr.RequestSystemAction(s.mockedSystemSeeds[0].label,
+			devicestate.SystemAction{Mode: mode})
+		c.Assert(err, IsNil)
+		m, err := s.bootloader.GetBootVars("snapd_recovery_mode", "snapd_recovery_system")
+		c.Assert(err, IsNil)
+		c.Check(m, DeepEquals, map[string]string{
+			"snapd_recovery_system": s.mockedSystemSeeds[0].label,
+			"snapd_recovery_mode":   mode,
+		})
+		c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
+		s.restartRequests = nil
+		s.bootloader.BootVars = map[string]string{}
+	}
 }
 
 func (s *deviceMgrSystemsSuite) TestRequestModeInstallRecoverForCurrent(c *C) {

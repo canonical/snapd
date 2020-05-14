@@ -11,7 +11,7 @@ pkgdesc="Service and tools for management of snap packages."
 depends=('squashfs-tools' 'libseccomp' 'libsystemd')
 optdepends=('bash-completion: bash completion support'
             'zsh: zsh completion support')
-pkgver=2.44.5
+pkgver=2.45
 pkgrel=1
 arch=('x86_64')
 url="https://github.com/snapcore/snapd"
