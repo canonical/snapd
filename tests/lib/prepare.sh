@@ -375,8 +375,8 @@ EOF
 #!/bin/sh
 set -e
 # ensure we don't enable ssh in install mode or spread will get confused
-if ! grep 'snapd_recovery_mode=run' /proc/cmdline; then
-    echo "not in run mode - script not running"
+if ! grep -E 'snapd_recovery_mode=(run|recover)' /proc/cmdline; then
+    echo "not in run or recovery mode - script not running"
     exit 0
 fi
 if [ -e /root/spread-setup-done ]; then
