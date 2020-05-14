@@ -31,6 +31,7 @@ prepare: |
     # expecting to find various files that snap installation produced
     test "$(find /etc/udev/rules.d -name '*-snap.*.rules' | wc -l)" -gt 0
     test "$(find /etc/dbus-1/system.d -name 'snap.*.conf' | wc -l)" -gt 0
+    test "$(find /etc/systemd/system -name 'snap.*.service' | wc -l)" -gt 0
     test "$(find /etc/systemd/system -name 'snap.*.timer' | wc -l)" -gt 0
     test "$(find /etc/systemd/system -name 'snap.*.socket' | wc -l)" -gt 0
 
