@@ -66,7 +66,7 @@ func openHintFileLock(snapName string) (*osutil.FileLock, error) {
 // start and will block, presenting a user interface if possible.
 func LockWithHint(snapName string, hint Hint) error {
 	if len(hint) == 0 {
-		return fmt.Errorf("hint cannot be empty")
+		return fmt.Errorf("lock hint cannot be empty")
 	}
 	if err := os.MkdirAll(InhibitDir, 0755); err != nil {
 		return err

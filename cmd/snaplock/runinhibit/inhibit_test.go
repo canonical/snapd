@@ -52,7 +52,7 @@ func (s *runInhibitSuite) TestLockWithEmptyHint(c *C) {
 	c.Assert(os.IsNotExist(err), Equals, true)
 
 	err = runinhibit.LockWithHint("pkg", runinhibit.HintNotInhibited)
-	c.Assert(err, ErrorMatches, "hint cannot be empty")
+	c.Assert(err, ErrorMatches, "lock hint cannot be empty")
 
 	_, err = os.Stat(runinhibit.InhibitDir)
 	c.Assert(os.IsNotExist(err), Equals, true)
