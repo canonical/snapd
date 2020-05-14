@@ -88,7 +88,7 @@ func (e *evdevKeyboardInputDevice) probeKeyState() (bool, error) {
 }
 
 func (e *evdevKeyboardInputDevice) WaitForTrigger(ch chan keyEvent) {
-	logger.Noticef("%s: starting wait", e)
+	logger.Noticef("%s: starting wait, hold %s to trigger", e, holdToTrigger)
 
 	// XXX: do not mess with setting the key repeat rate, as it's cumbersome
 	// and golang-evdev SetRepeatRate() parameter order is actually reversed

@@ -65,8 +65,10 @@ func (as *assertsSuite) TestTypeNames(c *C) {
 		"system-user",
 		"test-only",
 		"test-only-2",
+		"test-only-decl",
 		"test-only-no-authority",
 		"test-only-no-authority-pk",
+		"test-only-rev",
 		"validation",
 	})
 }
@@ -856,10 +858,19 @@ func (as *assertsSuite) TestSelfRef(c *C) {
 		PrimaryKey: []string{"0"},
 	})
 
+	c.Check(a1.At(), DeepEquals, &asserts.AtRevision{
+		Ref: asserts.Ref{
+			Type:       asserts.TestOnlyType,
+			PrimaryKey: []string{"0"},
+		},
+		Revision: 0,
+	})
+
 	headers = map[string]interface{}{
 		"authority-id": "auth-id1",
 		"pk1":          "a",
 		"pk2":          "b",
+		"revision":     "1",
 	}
 	a2, err := asserts.AssembleAndSignInTest(asserts.TestOnly2Type, headers, nil, testPrivKey1)
 	c.Assert(err, IsNil)
@@ -867,6 +878,14 @@ func (as *assertsSuite) TestSelfRef(c *C) {
 	c.Check(a2.Ref(), DeepEquals, &asserts.Ref{
 		Type:       asserts.TestOnly2Type,
 		PrimaryKey: []string{"a", "b"},
+	})
+
+	c.Check(a2.At(), DeepEquals, &asserts.AtRevision{
+		Ref: asserts.Ref{
+			Type:       asserts.TestOnly2Type,
+			PrimaryKey: []string{"a", "b"},
+		},
+		Revision: 1,
 	})
 }
 
