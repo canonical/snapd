@@ -826,6 +826,9 @@ EOF
             MATCH "^test:" </var/lib/extrausers/"$f"
             MATCH "^ubuntu:" </var/lib/extrausers/"$f"
         done
+        # Make sure systemd-journal group has the "test" user as a member. Due to the way we copy that from the host
+        # and merge it from the core snap this is done explicitly as a second step.
+        sed -r -i -e 's/^systemd-journal:x:([0-9]+):$/systemd-journal:x:\1:test/' /root/test-etc/group
         tar -c -z \
           --exclude '*.a' \
           --exclude '*.deb' \
