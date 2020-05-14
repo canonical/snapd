@@ -22,6 +22,7 @@ package secboot_test
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -275,7 +276,13 @@ func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
 			tpmErr: errors.New("no tpm"), device: "name",
 		},
 	} {
-		c.Logf("tc %v: %#v", idx, tc)
+		randomUUID := fmt.Sprintf("random-uuid-for-test-%d", idx)
+		restore := secboot.MockRandomKernelUUID(func() string {
+			return randomUUID
+		})
+		defer restore()
+
+		c.Logf("tc %v: %+v", idx, tc)
 		mockSbTPM, restoreConnect := mockSbTPMConnection(c, tc.tpmErr)
 		defer restoreConnect()
 
@@ -299,7 +306,7 @@ func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
 
 		restoreActivate := secboot.MockSbActivateVolumeWithTPMSealedKey(func(tpm *sb.TPMConnection, volumeName, sourceDevicePath,
 			keyPath string, pinReader io.Reader, options *sb.ActivateWithTPMSealedKeyOptions) (bool, error) {
-			c.Assert(volumeName, Equals, "name")
+			c.Assert(volumeName, Equals, "name-"+randomUUID)
 			c.Assert(sourceDevicePath, Equals, filepath.Join(devDiskByLabel, "name-enc"))
 			c.Assert(keyPath, Equals, filepath.Join(boot.InitramfsEncryptionKeyDir, "name.sealed-key"))
 			c.Assert(*options, DeepEquals, sb.ActivateWithTPMSealedKeyOptions{
@@ -323,7 +330,11 @@ func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
 		if tc.device == "" {
 			c.Assert(device, Equals, tc.device)
 		} else {
-			c.Assert(device, Equals, filepath.Join(devDiskByLabel, tc.device))
+			if tc.hasEncdev {
+				c.Assert(device, Equals, filepath.Join("/dev/mapper", tc.device+"-"+randomUUID))
+			} else {
+				c.Assert(device, Equals, filepath.Join(devDiskByLabel, tc.device))
+			}
 		}
 		// LockAccessToSealedKeys should be called whenever there is a TPM device
 		// detected, regardless of whether secure boot is enabled or there is an

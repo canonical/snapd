@@ -77,7 +77,7 @@ func (c *cmdRecoveryChooserTrigger) Execute(args []string) error {
 	if c.MarkerFile != "" {
 		markerFile = c.MarkerFile
 	}
-	logger.Noticef("trigger timeout %v", timeout)
+	logger.Noticef("trigger wait timeout %v", timeout)
 	logger.Noticef("marker file %v", markerFile)
 
 	_, err := os.Stat(markerFile)

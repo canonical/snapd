@@ -95,27 +95,27 @@ func (s *bootenvTestSuite) TestInstallBootloaderConfigNoConfig(c *C) {
 
 func (s *bootenvTestSuite) TestInstallBootloaderConfig(c *C) {
 	for _, t := range []struct {
-		name           string
-		gFile, sysFile string
-		gFileContent   []byte
-		opts           *bootloader.Options
+		name                string
+		gadgetFile, sysFile string
+		gadgetFileContent   []byte
+		opts                *bootloader.Options
 	}{
-		{name: "grub", gFile: "grub.conf", sysFile: "/boot/grub/grub.cfg"},
+		{name: "grub", gadgetFile: "grub.conf", sysFile: "/boot/grub/grub.cfg"},
 		// traditional uboot.env - the uboot.env file needs to be non-empty
-		{name: "uboot.env", gFile: "uboot.conf", sysFile: "/boot/uboot/uboot.env", gFileContent: []byte{1}},
+		{name: "uboot.env", gadgetFile: "uboot.conf", sysFile: "/boot/uboot/uboot.env", gadgetFileContent: []byte{1}},
 		// boot.scr in place of uboot.env means we create the boot.sel file
 		{
-			name:    "uboot boot.scr",
-			gFile:   "uboot.conf",
-			sysFile: "/uboot/ubuntu/boot.sel",
-			opts:    &bootloader.Options{NoSlashBoot: true},
+			name:       "uboot boot.scr",
+			gadgetFile: "uboot.conf",
+			sysFile:    "/uboot/ubuntu/boot.sel",
+			opts:       &bootloader.Options{NoSlashBoot: true},
 		},
-		{name: "androidboot", gFile: "androidboot.conf", sysFile: "/boot/androidboot/androidboot.env"},
-		{name: "lk", gFile: "lk.conf", sysFile: "/boot/lk/snapbootsel.bin"},
-		{name: "grub recovery", gFile: "grub-recovery.conf", sysFile: "/EFI/ubuntu/grub.cfg", opts: &bootloader.Options{Recovery: true}},
+		{name: "androidboot", gadgetFile: "androidboot.conf", sysFile: "/boot/androidboot/androidboot.env"},
+		{name: "lk", gadgetFile: "lk.conf", sysFile: "/boot/lk/snapbootsel.bin"},
+		{name: "grub recovery", gadgetFile: "grub-recovery.conf", sysFile: "/EFI/ubuntu/grub.cfg", opts: &bootloader.Options{Recovery: true}},
 	} {
 		mockGadgetDir := c.MkDir()
-		err := ioutil.WriteFile(filepath.Join(mockGadgetDir, t.gFile), t.gFileContent, 0644)
+		err := ioutil.WriteFile(filepath.Join(mockGadgetDir, t.gadgetFile), t.gadgetFileContent, 0644)
 		c.Assert(err, IsNil)
 		err = bootloader.InstallBootConfig(mockGadgetDir, s.rootdir, t.opts)
 		c.Assert(err, IsNil, Commentf("installing boot config for %s", t.name))
