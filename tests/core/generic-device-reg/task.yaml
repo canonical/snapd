@@ -11,16 +11,14 @@ prepare: |
         echo "This test needs test keys to be trusted"
         exit
     fi
-    #shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB"/systemd.sh
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
 
     systemctl stop snapd.service snapd.socket
     rm -rf /var/lib/snapd/assertions/*
     rm -rf /var/lib/snapd/device
     rm -rf /var/lib/snapd/state.json
     mv /var/lib/snapd/seed/assertions/model model.bak
+    # get the account and signing account-key of the
+    # pc-18-amd64-accept-generic.model's signer (pedronis)
     snap known --remote account account-id=CA5GLZgNQWPhspDQK63Er46Uxz2SO7ez > /var/lib/snapd/seed/assertions/pedronis.account
     snap known --remote account-key public-key-sha3-384=x1Tnl94nkgb-rMDs_l63gvgkLYGjXKfpkCCIQZwJ72-LR6X6OrSvNS9z2WS1lAGz > /var/lib/snapd/seed/assertions/test-models.account-key
     cp "$TESTSLIB"/assertions/pc-18-amd64-accept-generic.model /var/lib/snapd/seed/assertions/
@@ -33,8 +31,6 @@ restore: |
         echo "This test needs test keys to be trusted"
         exit
     fi
-    #shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB"/systemd.sh
 
     systemctl stop snapd.service snapd.socket
     rm -rf /var/lib/snapd/assertions/*
@@ -44,11 +40,10 @@ restore: |
     rm -f /var/lib/snapd/seed/assertions/test-models.account-key
     rm -f /var/lib/snapd/seed/assertions/pc-18-amd64-accept-generic.model
     cp model.bak /var/lib/snapd/seed/assertions/model
-    rm -f ./*.bak
     # kick first boot again
     systemctl start snapd.service snapd.socket
     # wait for first boot to be done
-    while ! snap changes | grep -q "Done.*Initialize system state"; do sleep 1; done
+    retry-tool --maxmins 2 --wait 5 sh -c 'snap changes | grep -q "Done.*Initialize system state"'
 
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -56,12 +51,13 @@ execute: |
         exit
     fi
     echo "Wait for first boot to be done"
-    while ! snap changes | grep -q "Done.*Initialize system state"; do sleep 1; done
+    retry-tool --maxmins 2 --wait 5 sh -c 'snap changes | grep -q "Done.*Initialize system state"'
+
     echo "We have a model assertion"
     snap model --verbose|MATCH "model:\s* pc-18-amd64-accept-generic"
 
     echo "Wait for device initialisation to be done"
-    while ! snap changes | grep -q "Done.*Initialize device"; do sleep 1; done
+    retry-tool --maxmins 2 --wait 5 sh -c 'snap changes | grep -q "Done.*Initialize device"'
 
     echo "Check we have a serial with authority-id: generic"
     snap model --serial --assertion|MATCH "authority-id: generic"
