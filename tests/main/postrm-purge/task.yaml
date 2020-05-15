@@ -22,7 +22,7 @@ prepare: |
             test-snapd-tools \
             test-snapd-control-consumer test-snapd-auto-aliases; do
         install_local "$name"
-        snap list | MATCH test-snapd-service
+        snap list | MATCH "$name"
     done
 
     snap install --edge test-snapd-dbus-provider
