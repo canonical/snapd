@@ -23,7 +23,9 @@ execute: |
 
     test "$( snap run  jq -r ".data.snaps.\"$A_SNAP\".channel" < /var/lib/snapd/state.json )" = "$A_TRACK/candidate"
 
-    snap remove --purge "$A_SNAP" http jq
+    snap remove --purge "$A_SNAP"
+    snap remove --purge http
+    snap remove --purge jq
 
     # now try a multi-install
     snap install "$A_SNAP" "jq"

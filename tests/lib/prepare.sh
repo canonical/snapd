@@ -81,7 +81,9 @@ disable_refreshes() {
     snap refresh --time --abs-time | MATCH "last: 2[0-9]{3}"
 
     echo "Ensure jq is gone"
-    snap remove --purge jq jq-core18 jq-core20
+    snap remove --purge jq
+    snap remove --purge jq-core18
+    snap remove --purge jq-core20
 }
 
 setup_systemd_snapd_overrides() {
