@@ -94,6 +94,10 @@ if [ "$1" = "purge" ]; then
         rm -f "/etc/systemd/system/multi-user.target.wants/$unit"
     done
 
+    # dbus activation configuration
+    rm -f /etc/dbus-1/session.d/snapd.session-services.conf
+    rm -f /etc/dbus-1/system.d/snapd.system-services.conf
+
     # generated readme files
     rm -f "/snap/README"
 
