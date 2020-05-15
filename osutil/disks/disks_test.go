@@ -166,7 +166,7 @@ fi
 	c.Assert(d.Dev(), Equals, "42:0")
 
 	c.Assert(udevadmCmd.Calls(), DeepEquals, [][]string{
-		[]string{"udevadm", "info", "--query", "property", "--name", "/dev/vda1"},
+		{"udevadm", "info", "--query", "property", "--name", "/dev/vda1"},
 	})
 }
 
@@ -177,7 +177,7 @@ func (s *diskSuite) TestDiskFromMountPointVolumeHappy(c *C) {
 
 	udevadmCmd := testutil.MockCommand(c, "udevadm", `
 if [ "$*" = "info --query property --name /dev/mapper/something" ]; then
-	# not a disk, so no ID_PART_ENTRY_DISK, but we will have DEVTYPE=disk
+	# not a partition, so no ID_PART_ENTRY_DISK, but we will have DEVTYPE=disk
 	echo "DEVTYPE=disk"
 else
 	echo "unexpected arguments"
@@ -190,7 +190,7 @@ fi
 	c.Assert(d.Dev(), Equals, "42:1")
 
 	c.Assert(udevadmCmd.Calls(), DeepEquals, [][]string{
-		[]string{"udevadm", "info", "--query", "property", "--name", "/dev/mapper/something"},
+		{"udevadm", "info", "--query", "property", "--name", "/dev/mapper/something"},
 	})
 }
 
@@ -212,7 +212,7 @@ fi
 	c.Assert(err, ErrorMatches, "unsupported DEVTYPE \"not-a-disk\" for mount point source /dev/not-a-disk")
 
 	c.Assert(udevadmCmd.Calls(), DeepEquals, [][]string{
-		[]string{"udevadm", "info", "--query", "property", "--name", "/dev/not-a-disk"},
+		{"udevadm", "info", "--query", "property", "--name", "/dev/not-a-disk"},
 	})
 }
 
