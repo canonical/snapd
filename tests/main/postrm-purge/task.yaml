@@ -29,7 +29,7 @@ prepare: |
             continue
         fi
         install_local "$name"
-        snap list | MATCH test-snapd-service
+        snap list | MATCH "$name"
     done
 
     snap install --edge test-snapd-dbus-provider
