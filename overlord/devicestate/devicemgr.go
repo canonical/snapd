@@ -773,7 +773,7 @@ var currentSystemActions = []SystemAction{
 	{Title: "Run normally", Mode: "run"},
 }
 
-func systemFromSeed(label string, current *seededSystem) (*System, error) {
+func systemFromSeed(label string) (*System, error) {
 	s, err := seed.Open(dirs.SnapSeedDir, label)
 	if err != nil {
 		return nil, fmt.Errorf("cannot open: %v", err)
@@ -828,7 +828,7 @@ func seededSystemFromModeenv() (*seededSystem, error) {
 		return nil, fmt.Errorf("internal error: recovery system is unset")
 	}
 
-	system, err := systemFromSeed(modeEnv.RecoverySystem, nil)
+	system, err := systemFromSeed(modeEnv.RecoverySystem)
 	if err != nil {
 		return nil, err
 	}
@@ -882,7 +882,7 @@ func (m *DeviceManager) Systems() ([]*System, error) {
 	var systems []*System
 	for _, fpLabel := range systemLabels {
 		label := filepath.Base(fpLabel)
-		system, err := systemFromSeed(label, currentSys)
+		system, err := systemFromSeed(label)
 		if err != nil {
 			// TODO:UC20 add a Broken field to the seed system like
 			// we do for snap.Info
@@ -910,7 +910,7 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 	if _, err := os.Stat(systemSeedDir); err != nil {
 		return err
 	}
-	system, err := systemFromSeed(systemLabel, currentSys)
+	system, err := systemFromSeed(systemLabel)
 	if err != nil {
 		return fmt.Errorf("cannot load seed system: %v", err)
 	}
