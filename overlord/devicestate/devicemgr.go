@@ -904,6 +904,10 @@ var ErrUnsupportedAction = errors.New("unsupported action")
 // system reboot will be requested when the request can be successfully carried
 // out.
 func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAction) error {
+	if err := checkSystemRequestConflict(m.state, systemLabel); err != nil {
+		return err
+	}
+
 	currentSys, _ := currentSystemForMode(m.state, m.systemMode)
 
 	systemSeedDir := filepath.Join(dirs.SnapSeedDir, "systems", systemLabel)
