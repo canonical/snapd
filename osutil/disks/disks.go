@@ -72,13 +72,6 @@ type Disk interface {
 	Dev() string
 }
 
-type partition struct {
-	major    int
-	minor    int
-	label    string
-	partuuid string
-	path     string
-}
 func parseDeviceMajorMinor(s string) (int, int, error) {
 	errMsg := fmt.Errorf("invalid device number format: (expected <int>:<int>)")
 	devNums := strings.SplitN(s, ":", 2)
@@ -152,12 +145,14 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 	}
 	found := false
 	d := &disk{}
-	mountpointPart := partition{}
-	for _, mount := range mounts {
-		if mount.MountDir == mountpoint {
-			mountpointPart.major = mount.DevMajor
-			mountpointPart.minor = mount.DevMinor
-			mountpointPart.path = mount.MountSource
+	var partMountPointSource string
+	// loop over the mount entries in reverse order to prevent shadowing of a
+	// particular mount on top of another one
+	for i := len(mounts) - 1; i >= 0; i-- {
+		if mounts[i].MountDir == mountpoint {
+			d.major = mounts[i].DevMajor
+			d.minor = mounts[i].DevMinor
+			partMountPointSource = mounts[i].MountSource
 			found = true
 			break
 		}
@@ -174,11 +169,11 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 	// now we have the partition for this mountpoint, we need to tie that back
 	// to a disk with a major minor, so query udev with the mount source path
 	// of the mountpoint for properties
-	props, err := udevProperties(mountpointPart.path)
+	props, err := udevProperties(partMountPointSource)
 	if err != nil && props == nil {
 		// only fail here if props is nil, if it's available we validate it
 		// below
-		return nil, fmt.Errorf("cannot find disk for partition %s: %v", mountpointPart.path, err)
+		return nil, fmt.Errorf("cannot find disk for partition %s: %v", partMountPointSource, err)
 	}
 
 	// ID_PART_ENTRY_DISK will give us the major and minor of the disk that this
@@ -187,7 +182,7 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 		maj, min, err := parseDeviceMajorMinor(majorMinor)
 		if err != nil {
 			// bad udev output?
-			return nil, fmt.Errorf("cannot find disk for partition %s, bad udev output: %v", mountpointPart.path, err)
+			return nil, fmt.Errorf("cannot find disk for partition %s, bad udev output: %v", partMountPointSource, err)
 		}
 		d.major = maj
 		d.minor = min
@@ -197,12 +192,12 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 	}
 
 	return d, nil
-
 }
 
 func (d *disk) FindMatchingPartitionUUID(label string) (string, error) {
 	// if we haven't found the partitions for this disk yet, do that now
 	if d.partitions == nil {
+		d.partitions = make(map[string]string)
 		// step 1. find all devices with a matching major number
 		// step 2. start at the major + minor device for the disk, and iterate over
 		//         all devices that have a partition attribute, starting with the
@@ -234,14 +229,8 @@ func (d *disk) FindMatchingPartitionUUID(label string) (string, error) {
 				break
 			}
 
-			p := &partition{
-				major: d.major,
-				minor: currentMinor,
-			}
-
-			if label := props["ID_FS_LABEL"]; label != "" {
-				p.label = label
-			} else {
+			label := props["ID_FS_LABEL"]
+			if label == "" {
 				// this partition does not have a filesystem, and thus doesn't have
 				// a filesystem label - this is not fatal, i.e. the bios-boot
 				// partition does not have a filesystem label but it is the first
@@ -249,14 +238,12 @@ func (d *disk) FindMatchingPartitionUUID(label string) (string, error) {
 				continue
 			}
 
-			if partuuid := props["ID_PART_ENTRY_UUID"]; partuuid != "" {
-				p.partuuid = partuuid
-			} else {
+			partuuid := props["ID_PART_ENTRY_UUID"]
+			if partuuid == "" {
 				return "", fmt.Errorf("cannot get udev properties for partition %s, missing udev property \"ID_PART_ENTRY_UUID\"", partMajMin)
 			}
 
-			d.partitions = append(d.partitions, p)
-
+			d.partitions[label] = partuuid
 		}
 	}
 
@@ -265,11 +252,8 @@ func (d *disk) FindMatchingPartitionUUID(label string) (string, error) {
 		return "", fmt.Errorf("no partitions found for disk %s", d.Dev())
 	}
 
-	// iterate over the partitions looking for the specified label
-	for _, part := range d.partitions {
-		if part.label == label {
-			return part.partuuid, nil
-		}
+	if partuuid, ok := d.partitions[label]; ok {
+		return partuuid, nil
 	}
 
 	return "", fmt.Errorf("couldn't find label %q", label)
