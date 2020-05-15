@@ -42,6 +42,12 @@ func resetPreseededChroot(preseedChroot string) error {
 		filepath.Join(dirs.SnapServicesDir, "snap.*.socket"),
 		filepath.Join(dirs.SnapServicesDir, "snap-*.mount"),
 		filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", "snap-*.mount"),
+		filepath.Join(dirs.SnapUserServicesDir, "snap.*.service"),
+		filepath.Join(dirs.SnapUserServicesDir, "snap.*.socket"),
+		filepath.Join(dirs.SnapUserServicesDir, "snap.*.timer"),
+		filepath.Join(dirs.SnapUserServicesDir, "default.target.wants", "snap.*.service"),
+		filepath.Join(dirs.SnapUserServicesDir, "sockets.target.wants", "snap.*.socket"),
+		filepath.Join(dirs.SnapUserServicesDir, "timers.target.wants", "snap.*.timer"),
 	}
 
 	for _, gl := range globs {

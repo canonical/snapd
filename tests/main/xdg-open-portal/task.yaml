@@ -33,8 +33,8 @@ prepare: |
     install_local test-snapd-desktop
 
     # Configure fake web browser
-    mkdir -p ~test/.local/share/applications
-    cat << EOF > ~test/.local/share/applications/test-browser.desktop
+    session-tool -u test mkdir -p ~test/.local/share/applications
+    session-tool -u test sh -c 'cat > ~test/.local/share/applications/test-browser.desktop' << EOF
     [Desktop Entry]
     Type=Application
     Name=Test Web Browser
@@ -43,7 +43,7 @@ prepare: |
     EOF
 
     # Configure a fake editor
-    cat << EOF > ~test/.local/share/applications/test-editor.desktop
+    session-tool -u test sh -c 'cat > ~test/.local/share/applications/test-editor.desktop' << EOF
     [Desktop Entry]
     Type=Application
     Name=Test Editor
@@ -52,19 +52,18 @@ prepare: |
     EOF
 
     # Set up file type handlers
-    mkdir -p ~test/.config
-    cat << EOF > ~test/.config/mimeapps.list
+    session-tool -u test mkdir -p ~test/.config
+    session-tool -u test sh -c 'cat > ~test/.config/mimeapps.list' << EOF
     [Default Applications]
     x-scheme-handler/http=test-browser.desktop
     text/plain=test-editor.desktop
     EOF
 
     # Prepare test data for editor
-    commondir=~test/snap/test-snapd-desktop/common
-    testfile="$commondir/test.txt"
-    mkdir -p "$commondir"
-    echo "Hello World" > "$testfile"
-    chown -R test:test ~test/snap
+    session-tool -u test mkdir -p ~test/snap/test-snapd-desktop/common
+    session-tool -u test sh -c 'cat > ~test/snap/test-snapd-desktop/common/test.txt' << EOF
+    Hello World
+    EOF
 
 restore: |
     session-tool -u test --restore

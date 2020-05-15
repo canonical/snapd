@@ -68,6 +68,8 @@ type fakeOp struct {
 
 	services         []string
 	disabledServices []string
+
+	vitalityRank int
 }
 
 type fakeOps []fakeOp
@@ -251,6 +253,15 @@ func (f *fakeStore) snap(spec snapSpec, user *auth.UserState) (*snap.Info, error
 				Snap:    info,
 				Path:    "/usr",
 				Symlink: "$SNAP/usr",
+			},
+		}
+	case "channel-for-user-daemon":
+		info.Apps = map[string]*snap.AppInfo{
+			"user-daemon": {
+				Snap:        info,
+				Name:        "user-daemon",
+				Daemon:      "simple",
+				DaemonScope: "user",
 			},
 		}
 	}
@@ -833,6 +844,7 @@ func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, dev boot.Device, linkCtx b
 	if len(linkCtx.PrevDisabledServices) != 0 {
 		op.disabledServices = linkCtx.PrevDisabledServices
 	}
+	op.vitalityRank = linkCtx.VitalityRank
 
 	if info.MountDir() == f.linkSnapFailTrigger {
 		op.op = "link-snap.failed"

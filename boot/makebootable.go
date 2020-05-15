@@ -227,9 +227,12 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet)
 func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *BootableSet) error {
 	// TODO:UC20:
 	// - create grub.cfg instead of using the gadget one
+	// - figure out what to do for uboot gadgets, currently we require them to
+	//   install the boot.sel onto ubuntu-boot directly, but the file should be
+	//   managed by snapd instead
 
 	// copy kernel/base into the ubuntu-data partition
-	snapBlobDir := dirs.SnapBlobDirUnder(InitramfsWritableDir)
+	snapBlobDir := dirs.SnapBlobDirUnder(InstallHostWritableDir)
 	if err := os.MkdirAll(snapBlobDir, 0755); err != nil {
 		return err
 	}
@@ -250,7 +253,7 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 		Model:          model.Model(),
 		Grade:          string(model.Grade()),
 	}
-	if err := modeenv.WriteTo(InitramfsWritableDir); err != nil {
+	if err := modeenv.WriteTo(InstallHostWritableDir); err != nil {
 		return fmt.Errorf("cannot write modeenv: %v", err)
 	}
 
