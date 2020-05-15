@@ -26,15 +26,10 @@ import (
 	"io"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/snapcore/snapd/osutil"
-)
-
-var (
-	luksUUIDPatternRe = regexp.MustCompile(`(?m)CRYPT-LUKS2-([0-9a-f]{32})`)
 )
 
 // diskFromMountPoint is exposed for mocking from other tests via
