@@ -118,8 +118,6 @@ func (s *diskSuite) TestDiskFromMountPointHappyNoPartitions(c *C) {
 }
 
 func (s *diskSuite) TestDiskFromMountPointHappyOnePartition(c *C) {
-	// this test ensures that we still get a Disk, even if we don't find any
-	// other partitions for the current disk
 	restore := osutil.MockMountInfo(`130 30 42:1 / /run/mnt/point rw,relatime shared:54 - ext4 /dev/vda1 rw
 `)
 	defer restore()
@@ -147,6 +145,75 @@ func (s *diskSuite) TestDiskFromMountPointHappyOnePartition(c *C) {
 	d, err := disks.DiskFromMountPoint("/run/mnt/point", nil)
 	c.Assert(err, IsNil)
 	c.Assert(d.Dev(), Equals, "42:0")
+}
+
+func (s *diskSuite) TestDiskFromMountPointHappy(c *C) {
+	restore := osutil.MockMountInfo(`130 30 42:1 / /run/mnt/point rw,relatime shared:54 - ext4 /dev/vda1 rw
+`)
+	defer restore()
+
+	udevadmCmd := testutil.MockCommand(c, "udevadm", `
+if [ "$*" = "info --query property --name /dev/vda1" ]; then
+	echo "ID_PART_ENTRY_DISK=42:0"
+else
+	echo "unexpected arguments"
+	exit 1
+fi
+`)
+
+	d, err := disks.DiskFromMountPoint("/run/mnt/point", nil)
+	c.Assert(err, IsNil)
+	c.Assert(d.Dev(), Equals, "42:0")
+
+	c.Assert(udevadmCmd.Calls(), DeepEquals, [][]string{
+		[]string{"udevadm", "info", "--query", "property", "--name", "/dev/vda1"},
+	})
+}
+
+func (s *diskSuite) TestDiskFromMountPointVolumeHappy(c *C) {
+	restore := osutil.MockMountInfo(`130 30 42:1 / /run/mnt/point rw,relatime shared:54 - ext4 /dev/mapper/something rw
+`)
+	defer restore()
+
+	udevadmCmd := testutil.MockCommand(c, "udevadm", `
+if [ "$*" = "info --query property --name /dev/mapper/something" ]; then
+	# not a disk, so no ID_PART_ENTRY_DISK, but we will have DEVTYPE=disk
+	echo "DEVTYPE=disk"
+else
+	echo "unexpected arguments"
+	exit 1
+fi
+`)
+
+	d, err := disks.DiskFromMountPoint("/run/mnt/point", nil)
+	c.Assert(err, IsNil)
+	c.Assert(d.Dev(), Equals, "42:1")
+
+	c.Assert(udevadmCmd.Calls(), DeepEquals, [][]string{
+		[]string{"udevadm", "info", "--query", "property", "--name", "/dev/mapper/something"},
+	})
+}
+
+func (s *diskSuite) TestDiskFromMountPointNotDiskUnsupported(c *C) {
+	restore := osutil.MockMountInfo(`130 30 42:1 / /run/mnt/point rw,relatime shared:54 - ext4 /dev/not-a-disk rw
+`)
+	defer restore()
+
+	udevadmCmd := testutil.MockCommand(c, "udevadm", `
+if [ "$*" = "info --query property --name /dev/not-a-disk" ]; then
+	echo "DEVTYPE=not-a-disk"
+else
+	echo "unexpected arguments"
+	exit 1
+fi
+`)
+
+	_, err := disks.DiskFromMountPoint("/run/mnt/point", nil)
+	c.Assert(err, ErrorMatches, "unsupported DEVTYPE \"not-a-disk\" for mount point source /dev/not-a-disk")
+
+	c.Assert(udevadmCmd.Calls(), DeepEquals, [][]string{
+		[]string{"udevadm", "info", "--query", "property", "--name", "/dev/not-a-disk"},
+	})
 }
 
 func (s *diskSuite) TestDiskFromMountPointPartitionsHappy(c *C) {

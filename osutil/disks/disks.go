@@ -187,8 +187,17 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 		d.major = maj
 		d.minor = min
 	} else {
-		// didn't find the property we need
-		return nil, fmt.Errorf("cannot find disk for partition %s, incomplete udev output", mountpointPart.path)
+		// the partition is probably a volume or other non-physical disk, so
+		// confirm that DEVTYPE == disk and return the maj/min for it
+		if devType, ok := props["DEVTYPE"]; ok {
+			if devType == "disk" {
+				return d, nil
+			}
+			// unclear what other DEVTYPE's we should support for this
+			return nil, fmt.Errorf("unsupported DEVTYPE %q for mount point source %s", devType, partMountPointSource)
+		}
+
+		return nil, fmt.Errorf("cannot find disk for partition %s, incomplete udev output", partMountPointSource)
 	}
 
 	return d, nil
