@@ -39,8 +39,8 @@ var (
 
 // diskFromMountPoint is exposed for mocking from other tests via
 // MockMountPointDisksToPartionMapping, but we can't just assign
-// diskFromMountPoint to diskFromMountPointImpl due to signature differences,
-// the former returns a Disk, the latter returns a *disk, and as such they can't
+// diskFromMountPointImpl to diskFromMountPoint due to signature differences,
+// the former returns a *disk, the latter returns a Disk, and as such they can't
 // be assigned to each other
 var diskFromMountPoint = func(mountpoint string, opts *Options) (Disk, error) {
 	return diskFromMountPointImpl(mountpoint, opts)
@@ -68,8 +68,7 @@ type Disk interface {
 	// DiskFromMountPoint.
 	MountPointIsFromDisk(string, *Options) (bool, error)
 
-	// Dev returns the string "major:minor" for the disk device for
-	// identification, it should be unique but is not guaranteed to be unique.
+	// Dev returns the string "major:minor" number for the disk device.
 	Dev() string
 }
 
@@ -80,13 +79,6 @@ type partition struct {
 	partuuid string
 	path     string
 }
-
-type disk struct {
-	major      int
-	minor      int
-	partitions []*partition
-}
-
 func parseDeviceMajorMinor(s string) (int, int, error) {
 	errMsg := fmt.Errorf("invalid device number format: (expected <int>:<int>)")
 	devNums := strings.SplitN(s, ":", 2)
@@ -134,19 +126,24 @@ func parseUdevProperties(r io.Reader) (map[string]string, error) {
 	return m, scanner.Err()
 }
 
-// DiskFromMountPoint finds a matching Disk for the specified mount point. It
-// does a best effort in identifying partitions for the disk, but may be racy
-// due to races inherent in the initramfs surrounding udev and sysfs.
+// DiskFromMountPoint finds a matching Disk for the specified mount point.
 func DiskFromMountPoint(mountpoint string, opts *Options) (Disk, error) {
 	// call the unexported version that may be mocked by tests
 	return diskFromMountPoint(mountpoint, opts)
 }
 
-// diskFromMountPointImpl uses the mount table, sysfs and udev to try and
-// identify the disk and full set of partitions for the specified mount point.
-// since during the initramfs things may be racy around udev adding new devices
-// this is a best effort search and partially matching partitions which do not
-// have the full information are discarded from the returned disk.
+type disk struct {
+	major int
+	minor int
+	// partitions is a map of label -> partition uuid for now
+	// eventually this may be expanded to be more generally useful
+	partitions map[string]string
+}
+
+// diskFromMountPointImpl returns a Disk for the underlying mount source of the
+// specified mount point. For mount points which have sources that are not
+// partitions, and thus are a part of a disk, the returned Disk refers to the
+// volume/disk of the mount point itself.
 func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 	// first get the mount entry for the mountpoint
 	mounts, err := osutil.LoadMountInfo()
