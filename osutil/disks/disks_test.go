@@ -149,7 +149,7 @@ func (s *diskSuite) TestDiskFromMountPointHappyOnePartition(c *C) {
 	c.Assert(d.Dev(), Equals, "42:0")
 }
 
-func (s *diskSuite) TestDiskFromMountPointHappy(c *C) {
+func (s *diskSuite) TestDiskFromMountPointPartitionsHappy(c *C) {
 	restore := osutil.MockMountInfo(`130 30 42:4 / /run/mnt/data rw,relatime shared:54 - ext4 /dev/vda4 rw
  130 30 42:4 / /run/mnt/ubuntu-boot rw,relatime shared:54 - ext4 /dev/vda3 rw
 `)
