@@ -24,12 +24,22 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/snapcore/snapd/osutil"
+)
+
+var (
+	// for mocking in tests
+	devBlockDir = "/sys/dev/block"
+
+	luksUUIDPatternRe = regexp.MustCompile(`(?m)CRYPT-LUKS2-([0-9a-f]{32})`)
 )
 
 // diskFromMountPoint is exposed for mocking from other tests via
@@ -140,14 +150,14 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 	}
 	found := false
 	d := &disk{}
-	var partMountPointSource string
+	var mountpointSrc string
 	// loop over the mount entries in reverse order to prevent shadowing of a
 	// particular mount on top of another one
 	for i := len(mounts) - 1; i >= 0; i-- {
 		if mounts[i].MountDir == mountpoint {
 			d.major = mounts[i].DevMajor
 			d.minor = mounts[i].DevMinor
-			partMountPointSource = mounts[i].MountSource
+			mountpointSrc = mounts[i].MountSource
 			found = true
 			break
 		}
@@ -156,19 +166,86 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 		return nil, fmt.Errorf("cannot find mountpoint %q", mountpoint)
 	}
 
-	// TODO:UC20: if the mountpoint is of a decrypted mapper device, then we
-	//            need to trace back from the decrypted mapper device through
-	//            luks to find the real encrypted partition underneath the
-	//            decrypted one and thus the disk device for that partition
-
 	// now we have the partition for this mountpoint, we need to tie that back
 	// to a disk with a major minor, so query udev with the mount source path
 	// of the mountpoint for properties
-	props, err := udevProperties(partMountPointSource)
+	props, err := udevProperties(mountpointSrc)
 	if err != nil && props == nil {
 		// only fail here if props is nil, if it's available we validate it
 		// below
-		return nil, fmt.Errorf("cannot find disk for partition %s: %v", partMountPointSource, err)
+		return nil, fmt.Errorf("cannot find disk for partition %s: %v", mountpointSrc, err)
+	}
+
+	if opts != nil && opts.IsDecryptedDevice {
+		// verify that the mount point is indeed a mapper device, it should:
+		// 1. have DEVTYPE == disk from udev
+		// 2. have dm files in the sysfs entry for the maj:min of the device
+		if props["DEVTYPE"] != "disk" {
+			// not a decrypted device
+			return nil, fmt.Errorf("mountpoint source %s is not a decrypted device", mountpointSrc)
+		}
+
+		// TODO:UC20: these files should also be readable through udev env
+		//            properties, but currently aren't available for some reason
+		dmUUID, err := ioutil.ReadFile(filepath.Join(devBlockDir, d.Dev(), "dm", "uuid"))
+		if err != nil && os.IsNotExist(err) {
+			return nil, fmt.Errorf("mountpoint source %s is not a decrypted device", mountpointSrc)
+		}
+
+		dmName, err := ioutil.ReadFile(filepath.Join(devBlockDir, d.Dev(), "dm", "name"))
+		if err != nil && os.IsNotExist(err) {
+			return nil, fmt.Errorf("mountpoint source %s is not a decrypted device", mountpointSrc)
+		}
+
+		// trim the suffix of the dm name from the dm uuid to safely match the
+		// regex - the dm uuid contains the dm name, and the dm name is user
+		// controlled, so we want to remove that and just use the luks pattern
+		// to match the device uuid
+		// we are extra safe here since the dm name could be hypothetically user
+		// controlled via an external USB disk with LVM partition names, etc.
+		dmUUIDSafe := bytes.TrimSuffix(
+			bytes.TrimSpace(dmUUID),
+			append([]byte("-"), bytes.TrimSpace(dmName)...),
+		)
+		matches := luksUUIDPatternRe.FindSubmatch(dmUUIDSafe)
+		if len(matches) != 2 {
+			// the format of the uuid is different - different luks version maybe?
+			return nil, fmt.Errorf("cannot verify disk: partition %s does not have a valid luks uuid format", d.Dev())
+		}
+
+		// the uuid is the first and only submatch, but it is not in the same
+		// format exactly as we want to use, namely it is missing all of the "-"
+		// characters in a typical uuid, i.e. it is of the form:
+		// ae6e79de00a9406f80ee64ba7c1966bb but we want it to be like:
+		// ae6e79de-00a9-406f-80ee-64ba7c1966bb so we need to add in 4 "-"
+		// characters
+		fullUUID := string(matches[1])
+		realUUID := fmt.Sprintf(
+			"%s-%s-%s-%s-%s",
+			fullUUID[0:8],
+			fullUUID[8:12],
+			fullUUID[12:16],
+			fullUUID[16:20],
+			fullUUID[20:],
+		)
+
+		// now finally, we need to use this uuid, which is the device uuid of
+		// the actual physical encrypted partition to get the path, which will
+		// be something like /dev/vda4, etc.
+		byUUIDPath := filepath.Join("/dev/disk/by-uuid", realUUID)
+		props, err = udevProperties(byUUIDPath)
+		if err != nil {
+			return nil, fmt.Errorf("cannot get udev properties for encrypted partition %s: %v", byUUIDPath, err)
+		}
+
+		// after this, the rest of the function is the same, with props
+		// "redirected" to the physical partition
+		if devType := props["DEVTYPE"]; devType != "partition" {
+			// something wrong, we followed the decrypted mapper device, but
+			// didn't end up back at a physical partition, unclear what kind of
+			// setup this is, but we don't support it right now
+			return nil, fmt.Errorf("cannot find disk for decrypted mount point %s: expected encrypted device %s to be a partition, not %q", mountpoint, byUUIDPath, devType)
+		}
 	}
 
 	// ID_PART_ENTRY_DISK will give us the major and minor of the disk that this
@@ -177,11 +254,14 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 		maj, min, err := parseDeviceMajorMinor(majorMinor)
 		if err != nil {
 			// bad udev output?
-			return nil, fmt.Errorf("cannot find disk for partition %s, bad udev output: %v", partMountPointSource, err)
+			return nil, fmt.Errorf("cannot find disk for partition %s, bad udev output: %v", mountpointSrc, err)
 		}
 		d.major = maj
 		d.minor = min
 	} else {
+		// note that the decrypted device case not being a partition was handled
+		// above, this code path is not executed for a decrypted device
+
 		// the partition is probably a volume or other non-physical disk, so
 		// confirm that DEVTYPE == disk and return the maj/min for it
 		if devType, ok := props["DEVTYPE"]; ok {
@@ -189,10 +269,10 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 				return d, nil
 			}
 			// unclear what other DEVTYPE's we should support for this
-			return nil, fmt.Errorf("unsupported DEVTYPE %q for mount point source %s", devType, partMountPointSource)
+			return nil, fmt.Errorf("unsupported DEVTYPE %q for mount point source %s", devType, mountpointSrc)
 		}
 
-		return nil, fmt.Errorf("cannot find disk for partition %s, incomplete udev output", partMountPointSource)
+		return nil, fmt.Errorf("cannot find disk for partition %s, incomplete udev output", mountpointSrc)
 	}
 
 	return d, nil
