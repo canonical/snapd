@@ -264,6 +264,7 @@ func formatRefreshTime(t time.Time) string {
 func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	st := c.d.overlord.State()
 	snapMgr := c.d.overlord.SnapManager()
+	deviceMgr := c.d.overlord.DeviceManager()
 	st.Lock()
 	defer st.Unlock()
 	nextRefresh := snapMgr.NextRefresh()
@@ -303,6 +304,7 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		},
 		"refresh":      refreshInfo,
 		"architecture": arch.DpkgArchitecture(),
+		"system-mode":  deviceMgr.SystemMode(),
 	}
 	if systemdVirt != "" {
 		m["virtualization"] = systemdVirt

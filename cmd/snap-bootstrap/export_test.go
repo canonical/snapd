@@ -20,6 +20,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"time"
 
@@ -89,5 +90,20 @@ func MockSecbootMeasureSnapModelWhenPossible(f func(findModel func() (*asserts.M
 	secbootMeasureSnapModelWhenPossible = f
 	return func() {
 		secbootMeasureSnapModelWhenPossible = old
+	}
+}
+
+func MockPartitionUUIDForBootedKernelDisk(uuid string) (restore func()) {
+	old := bootFindPartitionUUIDForBootedKernelDisk
+	bootFindPartitionUUIDForBootedKernelDisk = func() (string, error) {
+		if uuid == "" {
+			// mock error
+			return "", fmt.Errorf("mocked error")
+		}
+		return uuid, nil
+	}
+
+	return func() {
+		bootFindPartitionUUIDForBootedKernelDisk = old
 	}
 }
