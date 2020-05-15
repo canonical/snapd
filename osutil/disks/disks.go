@@ -247,7 +247,11 @@ func (d *disk) FindMatchingPartitionUUID(label string) (string, error) {
 				return "", fmt.Errorf("cannot get udev properties for partition %s, missing udev property \"ID_PART_ENTRY_UUID\"", partMajMin)
 			}
 
-			d.partitions[label] = partuuid
+			// unclear how we can have multiple partitions on same disk with
+			// same label, but don't overwrite it and use the first one we find
+			if d.partitions[label] == "" {
+				d.partitions[label] = partuuid
+			}
 		}
 	}
 
