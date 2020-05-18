@@ -75,6 +75,11 @@ type Disk interface {
 
 	// Dev returns the string "major:minor" number for the disk device.
 	Dev() string
+
+	// HasPartitions returns whether the disk has partitions or not. A physical
+	// disk will have partitions, but a mapper device will just be a volume that
+	// does not have partitions volume for example.
+	HasPartitions() bool
 }
 
 func parseDeviceMajorMinor(s string) (int, int, error) {
@@ -136,6 +141,10 @@ type disk struct {
 	// partitions is a map of label -> partition uuid for now
 	// eventually this may be expanded to be more generally useful
 	partitions map[string]string
+
+	// whether the disk device has partitions, and thus is of type "disk", or
+	// whether the disk device is
+	hasPartitions bool
 }
 
 // diskFromMountPointImpl returns a Disk for the underlying mount source of the
@@ -237,15 +246,6 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 		if err != nil {
 			return nil, fmt.Errorf("cannot get udev properties for encrypted partition %s: %v", byUUIDPath, err)
 		}
-
-		// after this, the rest of the function is the same, with props
-		// "redirected" to the physical partition
-		if devType := props["DEVTYPE"]; devType != "partition" {
-			// something wrong, we followed the decrypted mapper device, but
-			// didn't end up back at a physical partition, unclear what kind of
-			// setup this is, but we don't support it right now
-			return nil, fmt.Errorf("cannot find disk for decrypted mount point %s: expected encrypted device %s to be a partition, not %q", mountpoint, byUUIDPath, devType)
-		}
 	}
 
 	// ID_PART_ENTRY_DISK will give us the major and minor of the disk that this
@@ -258,10 +258,11 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 		}
 		d.major = maj
 		d.minor = min
-	} else {
-		// note that the decrypted device case not being a partition was handled
-		// above, this code path is not executed for a decrypted device
 
+		// since the mountpoint device has a disk, the mountpoint source itself
+		// must be a partition from a disk, thus the disk has partitions
+		d.hasPartitions = true
+	} else {
 		// the partition is probably a volume or other non-physical disk, so
 		// confirm that DEVTYPE == disk and return the maj/min for it
 		if devType, ok := props["DEVTYPE"]; ok {
@@ -353,10 +354,18 @@ func (d *disk) MountPointIsFromDisk(mountpoint string, opts *Options) (bool, err
 		return false, err
 	}
 
-	// compare if the major/minor devices are the same
-	return d.major == d2.major && d.minor == d2.minor, nil
+	// compare if the major/minor devices are the same and if both devices have
+	// partitions
+	return d.major == d2.major &&
+			d.minor == d2.minor &&
+			d.hasPartitions == d2.hasPartitions,
+		nil
 }
 
 func (d *disk) Dev() string {
 	return fmt.Sprintf("%d:%d", d.major, d.minor)
+}
+
+func (d *disk) HasPartitions() bool {
+	return d.hasPartitions
 }

@@ -89,7 +89,7 @@ func (s *diskSuite) TestDiskFromMountPointUnhappyBadUdevPropsMountpointPartition
 	c.Assert(err, ErrorMatches, `cannot find disk for partition /dev/vda4, bad udev output: invalid device number format: \(expected <int>:<int>\)`)
 }
 
-func (s *diskSuite) TestDiskFromMountPointUnhappyIsDecryptedDeviceNotDecryptedDevice(c *C) {
+func (s *diskSuite) TestDiskFromMountPointUnhappyIsDecryptedDeviceNotDiskDevice(c *C) {
 	restore := osutil.MockMountInfo(`130 30 42:1 / /run/mnt/point rw,relatime shared:54 - ext4 /dev/vda4 rw
 `)
 	defer restore()
@@ -99,13 +99,15 @@ func (s *diskSuite) TestDiskFromMountPointUnhappyIsDecryptedDeviceNotDecryptedDe
 		case "/dev/vda4":
 			return map[string]string{
 				"ID_PART_ENTRY_DISK": "42:0",
-				"DEVTYPE":            "partition",
+				// DEVTYPE == partition is unexpected for this, so this makes
+				// DiskFromMountPoint fail, as decrypted devices should not be
+				// direct partitions, they should be mapper device volumes/disks
+				"DEVTYPE": "partition",
 			}, nil
 		default:
 			c.Logf("unexpected udev device properties requested: %s", dev)
 			c.Fail()
 			return nil, fmt.Errorf("unexpected udev device")
-
 		}
 	})
 	defer restore()
@@ -167,7 +169,7 @@ func (s *diskSuite) TestDiskFromMountPointHappyNoPartitions(c *C) {
 	disk, err := disks.DiskFromMountPoint("/run/mnt/point", nil)
 	c.Assert(err, IsNil)
 	c.Assert(disk.Dev(), Equals, "42:0")
-
+	c.Assert(disk.HasPartitions(), Equals, true)
 	// trying to search for any labels though will fail
 	_, err = disk.FindMatchingPartitionUUID("ubuntu-boot")
 	c.Assert(err, ErrorMatches, "no partitions found for disk 42:0")
@@ -201,6 +203,11 @@ func (s *diskSuite) TestDiskFromMountPointHappyOnePartition(c *C) {
 	d, err := disks.DiskFromMountPoint("/run/mnt/point", nil)
 	c.Assert(err, IsNil)
 	c.Assert(d.Dev(), Equals, "42:0")
+	c.Assert(d.HasPartitions(), Equals, true)
+
+	label, err := d.FindMatchingPartitionUUID("ubuntu-seed")
+	c.Assert(err, IsNil)
+	c.Assert(label, Equals, "ubuntu-seed-partuuid")
 }
 
 func (s *diskSuite) TestDiskFromMountPointHappy(c *C) {
@@ -220,6 +227,7 @@ fi
 	d, err := disks.DiskFromMountPoint("/run/mnt/point", nil)
 	c.Assert(err, IsNil)
 	c.Assert(d.Dev(), Equals, "42:0")
+	c.Assert(d.HasPartitions(), Equals, true)
 
 	c.Assert(udevadmCmd.Calls(), DeepEquals, [][]string{
 		{"udevadm", "info", "--query", "property", "--name", "/dev/vda1"},
@@ -244,10 +252,66 @@ fi
 	d, err := disks.DiskFromMountPoint("/run/mnt/point", nil)
 	c.Assert(err, IsNil)
 	c.Assert(d.Dev(), Equals, "42:1")
+	c.Assert(d.HasPartitions(), Equals, false)
 
 	c.Assert(udevadmCmd.Calls(), DeepEquals, [][]string{
 		{"udevadm", "info", "--query", "property", "--name", "/dev/mapper/something"},
 	})
+}
+
+func (s *diskSuite) TestDiskFromMountPointIsDecryptedDeviceVolumeHappy(c *C) {
+	restore := osutil.MockMountInfo(`130 30 242:1 / /run/mnt/point rw,relatime shared:54 - ext4 /dev/mapper/something rw
+`)
+	defer restore()
+
+	restore = disks.MockUdevPropertiesForDevice(func(dev string) (map[string]string, error) {
+		switch dev {
+		case "/dev/mapper/something":
+			return map[string]string{
+				"DEVTYPE": "disk",
+			}, nil
+		case "/dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1304":
+			return map[string]string{
+				"DEVTYPE": "disk",
+			}, nil
+		default:
+			c.Logf("unexpected udev device properties requested: %s", dev)
+			c.Fail()
+			return nil, fmt.Errorf("unexpected udev device")
+
+		}
+	})
+	defer restore()
+
+	// mock the /sys/dev/block dir
+	devBlockDir := filepath.Join(dirs.SysfsDir, "dev", "block")
+	restore = disks.MockDevBlockDir(devBlockDir)
+	defer restore()
+
+	// mock the sysfs dm uuid and name files
+	dmDir := filepath.Join(devBlockDir, "242:1", "dm")
+	err := os.MkdirAll(dmDir, 0755)
+	c.Assert(err, IsNil)
+
+	err = ioutil.WriteFile(
+		filepath.Join(dmDir, "name"),
+		[]byte("something"),
+		0644,
+	)
+	c.Assert(err, IsNil)
+
+	err = ioutil.WriteFile(
+		filepath.Join(dmDir, "uuid"),
+		[]byte("CRYPT-LUKS2-5a522809c87e4dfa81a88dc5667d1304-something"),
+		0644,
+	)
+	c.Assert(err, IsNil)
+
+	opts := &disks.Options{IsDecryptedDevice: true}
+	d, err := disks.DiskFromMountPoint("/run/mnt/point", opts)
+	c.Assert(err, IsNil)
+	c.Assert(d.Dev(), Equals, "242:1")
+	c.Assert(d.HasPartitions(), Equals, false)
 }
 
 func (s *diskSuite) TestDiskFromMountPointNotDiskUnsupported(c *C) {
