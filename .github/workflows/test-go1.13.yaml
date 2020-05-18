@@ -94,8 +94,8 @@ jobs:
         - ubuntu-20.04-64
         - ubuntu-core-20-64
         - debian-sid-64
-        - fedora-30-64
         - fedora-31-64
+        - fedora-32-64
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
