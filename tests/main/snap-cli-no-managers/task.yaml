@@ -1,0 +1,12 @@
+summary: Check that snap binary does not inadvertently import snapstate.
+description: |
+  This test checks that snap binary does not import snapstate when built
+  with -tags nomanagers.
+
+execute: |
+  # XXX: just check /usr/bin/snap when packaging handles 'nomanagers' tag.
+  go build -tags nomanagers -o snap-test github.com/snapcore/snapd/cmd/snap
+  if strings snap-test | MATCH "overlord/snapstate"; then
+    echo "snap binary should not import overlord/snapstate"
+    exit 1
+  fi
