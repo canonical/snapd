@@ -1,9 +1,11 @@
 summary: cases where tracking applications and hooks with cgroups does not work
 details: |
-    Cgroup-based application process tracking is implemented using the systemd DBus
-    API org.freedesktop.systemd1.Manager.StartTransientUnit. While exactly what we
-    need in spirit, in practice there are limitations that have been overcome only
-    starting with systemd version 238.
+    Cgroup-based application process tracking is implemented using the systemd
+    DBus API org.freedesktop.systemd1.Manager.StartTransientUnit. While exactly
+    what we need in spirit, in practice there are limitations that have been
+    overcome only starting with systemd version 238, which can forward a
+    request from systemd --user to systemd pid one, to perform some cgroup
+    transitions that the kernel normally does not allow.
 systems:
     - ubuntu-14.04-*
     - ubuntu-16.04-*
@@ -27,14 +29,29 @@ restore: |
     sh -xe refed.sh && rm -f {defer,refed}.sh
     rm -f phase.txt debug.txt cgroup.txt ps.txt run.txt
 execute: |
-    ## Phase 1: user is -root, dbus user session is not (manually) installed
-    echo "run a snap app as a root user" >phase.txt
+    ## Phase 1: user is root.
+    # Note that the images we are working with have the dbus-session-bus
+    # package pre-installed. To exercise the case that is similar to real
+    # systems, where snapd does not depend on this package and it is not
+    # pre-installed on standard images, we mask the dbus.socket for the user
+    # session. This is done for Ubuntu 16.04 and 18.04, because only 19.10
+    # started shipping dbus-user-session in all the images.
+    echo "run a snap app as a root user, without session bus" >phase.txt
     find /run/user/0 >run.txt
-    SNAPD_DEBUG=1 snap run test-snapd-sh.sh -c 'exec cat /proc/self/cgroup' >cgroup.txt 2>debug.txt
+    case "$SPREAD_SYSTEM" in
+        ubuntu-1[68].04-*)
+            systemctl --user mask dbus.socket
+            SNAPD_DEBUG=1 snap run test-snapd-sh.sh -c 'exec cat /proc/self/cgroup' >cgroup.txt 2>debug.txt
+            systemctl --user unmask dbus.socket || true
+            ;;
+        *)
+            SNAPD_DEBUG=1 snap run test-snapd-sh.sh -c 'exec cat /proc/self/cgroup' >cgroup.txt 2>debug.txt
+            ;;
+    esac
     case "$SPREAD_SYSTEM" in
         ubuntu-14.04-*)
             # On Ubuntu 14.04 there is no session bus, there is no systemd
-            # running as pid 1.  We fall back to the system bus where we
+            # running as pid 1. We fall back to the system bus where we
             # activate the systemd-shim, which provides various systemd DBus
             # APIs through non-systemd implementation. The shim does not
             # implement StartTransientUnit so we give up and carry on.
@@ -55,33 +72,42 @@ execute: |
             MATCH '1:name=systemd:/user/0.user/1.session' <cgroup.txt
             MATCH '2:name=dsystemd:/' <cgroup.txt
             ;;
-        ubuntu-16.04-*|ubuntu-core-16-*)
-            # On Ubuntu 16.04 with systemd 229 there is no session bus so we
-            # use the system bus. The request succeeds and works correctly.
-            # Core 16 behaves the same way.
-            MATCH 'DEBUG: session bus is not available: cannot find session bus' <debug.txt
-            MATCH 'DEBUG: falling back to system bus' <debug.txt
+        ubuntu-16.04-*)
+            # On Ubuntu 16.04 with systemd 229, without access to the session
+            # bus, we fall back to the system bus.
+            MATCH 'DEBUG: using system bus now, session bus was not available' <debug.txt
             MATCH 'DEBUG: created transient scope as object: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt
             MATCH '1:name=systemd:/system.slice/snap.test-snapd-sh.sh.[0-9a-f-]+.scope' <cgroup.txt
             ;;
         ubuntu-18.04-*)
-            # On Ubuntu 18.04 with systemd 237, for root, everything works out of the box.
+            # On Ubuntu 18.04 with systemd 237, without access to the session
+            # bus, we fall back to the system bus.
+            MATCH 'DEBUG: using system bus now, session bus was not available' <debug.txt
+            MATCH 'DEBUG: created transient scope as object: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt
+            MATCH '1:name=systemd:/system.slice/snap.test-snapd-sh.sh.[0-9a-f-]+.scope' <cgroup.txt
+            ;;
+        ubuntu-20.04-*)
+            # On Ubuntu 20.04 with systemd 245 everything works correctly.
+            # Note that on this system we no longer test the variant without
+            # session bus, as that is not considered a customization anymore.
             MATCH 'DEBUG: using session bus' <debug.txt
             MATCH 'DEBUG: created transient scope as object: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt
             MATCH '1:name=systemd:/user.slice/user-0.slice/user@0.service/snap.test-snapd-sh.sh.[0-9a-f-]+.scope' <cgroup.txt
             ;;
-        ubuntu-core-18-*)
-            # On Ubuntu Core 18 we end up in system.slice instead, as there is no session bus on core.
+        ubuntu-core-16-*)
+            # On Ubuntu Core 16.04 with systemd 229 there is no session bus so we
+            # use the system bus. The request succeeds and works correctly.
             MATCH 'DEBUG: session bus is not available: cannot find session bus' <debug.txt
             MATCH 'DEBUG: falling back to system bus' <debug.txt
             MATCH 'DEBUG: created transient scope as object: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt
             MATCH '1:name=systemd:/system.slice/snap.test-snapd-sh.sh.[0-9a-f-]+.scope' <cgroup.txt
             ;;
-        ubuntu-20.04-*)
-            # On Ubuntu 20.04 with systemd 245 everything is correct.
-            MATCH 'DEBUG: using session bus' <debug.txt
+        ubuntu-core-18-*)
+            # On Ubuntu Core 18 behaves exactly the same as Ubuntu Core 16.
+            MATCH 'DEBUG: session bus is not available: cannot find session bus' <debug.txt
+            MATCH 'DEBUG: falling back to system bus' <debug.txt
             MATCH 'DEBUG: created transient scope as object: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt
-            MATCH '1:name=systemd:/user.slice/user-0.slice/user@0.service/snap.test-snapd-sh.sh.[0-9a-f-]+.scope' <cgroup.txt
+            MATCH '1:name=systemd:/system.slice/snap.test-snapd-sh.sh.[0-9a-f-]+.scope' <cgroup.txt
             ;;
         ubuntu-core-20-*)
             # On Ubuntu Core 20 everything is correct.
@@ -102,70 +128,26 @@ execute: |
         exit 0
     fi
 
-    # Let's see what happens when we have the session bus available. Install
-    # the package that provides the socket on versions of Ubuntu that don't
-    # have it.
-    if [ ! -e /usr/lib/systemd/user/dbus.socket ]; then
-        if [ -d /writable ]; then
-            # We'd like to install the dbus-user-session but this is core so we
-            # cannot do that. The remainder of the test is skipped.
-            case "$SPREAD_SYSTEM" in
-                ubuntu-core-1[68]-*)
-                    exit 0
-                    ;;
-                ubuntu-core-20-*)
-                    exit 0
-                    ;;
-            esac
-            # To catch core-22 and re-evaluate.
-            false
-        fi
-        apt-get install -y dbus-user-session
-        echo 'apt-get remove --purge -y dbus-user-session' >> defer.sh
+    # The remaining tests require a dbus session bus. On Ubuntu Core systems
+    # that is available starting with Core 20 so bail out of the remainder of
+    # the test on those systems.
+    if [ ! -e /usr/lib/systemd/user/dbus.socket ] &&  [ -d /writable ]; then
+        case "$SPREAD_SYSTEM" in
+            ubuntu-core-1[68]-*)
+                exit 0
+                ;;
+        esac
     fi
 
-    ## Phase 2: user is root, dbus user session is installed
-    echo "run a snap app as a root user, having the session bus installed" >phase.txt
+    ## Phase 2: user is root.
+    echo "run a snap app as a root user, with session bus" >phase.txt
     session-tool --prepare -u root
-    find /run/user/0 >run.txt
-    case "$SPREAD_SYSTEM" in
-        ubuntu-16.04-*)
-            # This version of ubuntu does not use systemd --user so the root
-            # user does not get the session bus socket. Non-root users use
-            # upstart for services, including dbus, so this functionality works
-            # in the case below.
-            not test -S /run/user/0/bus
-            ;;
-        ubuntu-18.04-*)
-            test -S /run/user/0/bus
-            ;;
-        ubuntu-20.04-*)
-            test -S /run/user/0/bus
-            ;;
-    esac
+    test -S /run/user/0/bus
     SNAPD_DEBUG=1 session-tool -u root snap run test-snapd-sh.sh -c 'exec cat /proc/self/cgroup' >cgroup.txt 2>debug.txt
     session-tool --restore -u root
-    case "$SPREAD_SYSTEM" in
-        ubuntu-16.04-*)
-            # There is no session bus so we fall back to the system bus,
-            # because the calling user is root, and everything works correctly.
-            MATCH 'DEBUG: session bus is not available: cannot find session bus' <debug.txt
-            MATCH 'DEBUG: using system bus now, session bus was not available' <debug.txt
-            MATCH 'DEBUG: created transient scope as object: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt
-            MATCH '1:name=systemd:/system.slice/snap.test-snapd-sh.sh.[0-9a-f-]+.scope' <cgroup.txt
-            ;;
-        ubuntu-18.04-*)
-            # There is a session bus and everything works correctly.
-            MATCH 'DEBUG: using session bus' <debug.txt
-            MATCH 'DEBUG: created transient scope as object: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt
-            MATCH '1:name=systemd:/user.slice/user-0.slice/user@0.service/snap.test-snapd-sh.sh.[0-9a-f-]+.scope' <cgroup.txt
-            ;;
-        ubuntu-20.04-*)
-            # There is a session bus and everything works correctly.
-            MATCH 'DEBUG: using session bus' <debug.txt
-            MATCH 'DEBUG: created transient scope as object: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt
-            MATCH '1:name=systemd:/user.slice/user-0.slice/user@0.service/snap.test-snapd-sh.sh.[0-9a-f-]+.scope' <cgroup.txt
-    esac
+    MATCH 'DEBUG: using session bus' <debug.txt
+    MATCH 'DEBUG: created transient scope as object: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt
+    MATCH '1:name=systemd:/user.slice/user-0.slice/user@0.service/snap.test-snapd-sh.sh.[0-9a-f-]+.scope' <cgroup.txt
 
     ## Phase 3: user is non-root, dbus user session is installed
     echo "run a snap app as a test user, having the session bus installed" >phase.txt
@@ -185,7 +167,7 @@ execute: |
             # be related to the version of the kernel? Perhaps the security
             # check in the kernel only exists since a particular version?
             #
-            # XXX: could it be also relatd to activation of systemd --user and,
+            # XXX: could it be also related to activation of systemd --user and,
             # perhaps, correct ownership of of the source and destination
             # cgroup? In 18.04 systemd --user runs automatically on session
             # startup, in 16.04 it does not.
@@ -213,8 +195,10 @@ execute: |
     esac
 
 debug: |
+    set +e  # any of the files below may not exist and this causes the command to be indicated as failure
     test -e phase.txt && cat phase.txt
     test -e run.txt && cat run.txt
     test -e debug.txt && head -n 10 debug.txt
     test -e cgroup.txt && cat cgroup.txt
     test -e ps.txt && cat ps.txt
+    set -e
