@@ -52,6 +52,5 @@ func init() {
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  appLaunchBaseDeclarationSlots,
 		connectedPlugAppArmor: appLaunchConnectedPlugAppArmor,
-		reservedForOS:         true,
 	})
 }
