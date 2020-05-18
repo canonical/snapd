@@ -39,7 +39,15 @@ var (
 	// for mocking in tests
 	devBlockDir = "/sys/dev/block"
 
-	luksUUIDPatternRe = regexp.MustCompile(`(?m)CRYPT-LUKS2-([0-9a-f]{32})`)
+	// this regexp is for the DM_UUID udev property, or equivalently the dm/uuid
+	// sysfs entry for a luks2 device mapper volume dynamically created by
+	// systemd-cryptsetup when unlocking
+	// the actual value that is returned also has "-some-name" appended to this
+	// pattern, but we delete that from the string before matching with this
+	// regexp to prevent issues like a mapper volume name that has CRYPT-LUKS2-
+	// in the name and thus we might accidentally match it
+	// see also the comments in DiskFromMountPoint about this value
+	luksUUIDPatternRe = regexp.MustCompile(`^CRYPT-LUKS2-([0-9a-f]{32})$`)
 )
 
 // diskFromMountPoint is exposed for mocking from other tests via
@@ -194,8 +202,27 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 			return nil, fmt.Errorf("mountpoint source %s is not a decrypted device", mountpointSrc)
 		}
 
-		// TODO:UC20: these files should also be readable through udev env
-		//            properties, but currently aren't available for some reason
+		// TODO:UC20: currently, we effectively parse the DM_UUID env variable
+		//            that is set for the mapper device volume, but doing so is
+		//            actually wrong, since the value of DM_UUID is an
+		//            implementation detail that depends on the subsystem
+		//            "owner" of the device such that the prefix is considered
+		//            the owner and the suffix is private data owned by the
+		//            subsystem. In our case, in UC20 initramfs, we have the
+		//            device "owned" by systemd-cryptsetup, so we should ideally
+		//            parse that the first part of DM_UUID matches CRYPT- and
+		//            then use `cryptsetup status` (since CRYPT indicates it is
+		//            "owned" by cryptsetup) to get more information on the
+		//            device sufficient for our purposes to find the encrypted
+		//            device/partition underneath the mapper.
+		//            However we don't currently have cryptsetup in the initrd,
+		//            so we can't do that yet :-(
+
+		// TODO:UC20: these files are also likely readable through udev env
+		//            properties, but it's unclear if reading there is reliable
+		//            or not, given that these variables have been observed to
+		//            be missing from the initrd previously, and are not
+		//            available at all during userspace on UC20 for some reason
 		dmUUID, err := ioutil.ReadFile(filepath.Join(devBlockDir, d.Dev(), "dm", "uuid"))
 		if err != nil && os.IsNotExist(err) {
 			return nil, fmt.Errorf("mountpoint source %s is not a decrypted device", mountpointSrc)
@@ -218,7 +245,8 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 		)
 		matches := luksUUIDPatternRe.FindSubmatch(dmUUIDSafe)
 		if len(matches) != 2 {
-			// the format of the uuid is different - different luks version maybe?
+			// the format of the uuid is different - different luks version
+			// maybe?
 			return nil, fmt.Errorf("cannot verify disk: partition %s does not have a valid luks uuid format", d.Dev())
 		}
 
