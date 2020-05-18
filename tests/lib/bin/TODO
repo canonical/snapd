@@ -1,0 +1,76 @@
+ONCE THINGS ARE RENAMED/MADE UNIFORM THIS SHOULD BECOME A README WITHOUT THE TODO PART!
+
+This directory collects useful utility commands that can be used in
+our spread test suites. (They are separate from the shell function
+libraries *.sh in the level above.)
+
+Commands here should have names that differentiate them from most
+commands in {/usr,}{/bin,/sbin} (historically we have used *-tool
+names but actually *-tool commands do exist there.)
+
+If possible the name should indicate what they do or if many things
+what their area is.
+
+All of them invoked without arguments should either do something
+informative/non-destructive or print usage.
+
+All of them should support at least a -h help option.
+
+To achieve the naming goals we are going to use names with dots in
+them (not a very common pattern in *bin, mostly as command.variant) of
+the form:
+
+  <context|entity>.<action|property|activity>
+  do.<invocation-modifier>
+
+the 2nd form is for commands taking themselves a command to execute,
+wrapping/modifying its execution (do.retry, do.memory-observe, ...)
+without any particular implied context.
+
+The commands might take one or multiple subcommands themselves if
+meaningful, subcommands should use '-' as internal word separator.
+
+If a subcommand executes other commands it should usually be called
+"exec" (suite.session exec ...", abbreviated as session.do).
+
+Commands that operate on state that crosses the spread task boundary
+should usually be called "suite.<activity>", where activity might be a
+system tool name or concept (suite.lxd, suite.apt, suite.session, ...). And
+then take more specific subcommands.
+
+Exceptions to the rules: not, MATCH, REBOOT, any-python
+
+TODO:
+
+Things to fix or rename ATM:
+
+retry-tool -> do.retry
+memory-tool -> do.memory-observe
+mountinfo-tool -> mountinfo.query
+version-tool -> version.compare
+
+user-tool -> suite.user
+  fix with no args
+  fix -h help
+
+apt-tool -> suite.apt
+  use any-python?
+  fix no args
+  fix to have -h
+
+lxd-tool -> suite.lxd
+  fix no args
+  fix to have -h
+
+snap-tool -> snapd.tool
+  fix no args
+  fix to have -h
+
+session-tool -> suite.session
+  fix to have -h
+  convert --ACTION into subcommands
+  require "exec" subcommand to execute a command
+  have do.session as shortcut for "exec"?
+
+invariant-tool -> suite.invariant
+  fix to have -h
