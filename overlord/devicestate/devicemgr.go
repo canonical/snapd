@@ -547,7 +547,7 @@ func (m *DeviceManager) ensureInstalled() error {
 
 	var seeded bool
 	err := m.state.Get("seeded", &seeded)
-	if err != nil {
+	if err != nil && err != state.ErrNoState {
 		return err
 	}
 	if !seeded {
