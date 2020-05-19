@@ -38,6 +38,13 @@ restore: |
     mv /var/lib/snapd/system-key.orig /var/lib/snapd/system-key || true
     rm -f bad-snap-seccomp
 
+    # XXX: When this test is sequenced immediately before a test in the main
+    # suite something in this test or in the suite prepare/restore logic is
+    # wrong and we leave the system in a state where "snap run" hangs, waiting
+    # for the system key to match. It might be related to the fact that prepare
+    # restores and restore prepares (really) and we archive and preserve a
+    # broken state somehow.
+
 execute: |
     systemctl stop snapd.socket snapd.service
     systemctl start snapd.socket snapd.service

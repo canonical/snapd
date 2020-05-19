@@ -39,9 +39,13 @@ test_ssh(){
 }
 
 prepare_ssh(){
-    execute_remote "sudo adduser --extrausers --quiet --disabled-password --gecos '' test"
+    execute_remote "sudo adduser --uid 12345 --extrausers --quiet --disabled-password --gecos '' test"
     execute_remote "echo test:ubuntu | sudo chpasswd"
-    execute_remote "echo 'test ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/test-user"
+    execute_remote "echo 'test ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/create-user-test"
+
+    execute_remote "sudo adduser --extrausers --quiet --disabled-password --gecos '' external"
+    execute_remote "echo external:ubuntu | sudo chpasswd"
+    execute_remote "echo 'external ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/create-user-external"
 }
 
 create_assertions_disk(){
@@ -211,15 +215,6 @@ create_nested_core_vm(){
             ;;
         ubuntu-20.04-64)
             NESTED_MODEL="$TESTSLIB/assertions/nested-20-amd64.model"
-
-            # shellcheck source=tests/lib/prepare.sh
-            . "$TESTSLIB"/prepare.sh
-            snap download --basename=pc-kernel --channel="20/edge" pc-kernel
-            uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$WORK_DIR/image"
-
-            EXTRA_FUNDAMENTAL="--snap $WORK_DIR/image/pc-kernel_*.snap"
-            chmod 0600 "$WORK_DIR"/image/pc-kernel_*.snap
-            rm -f "$PWD/pc-kernel.snap"
             ;;
         *)
             echo "unsupported system"
@@ -227,13 +222,20 @@ create_nested_core_vm(){
             ;;
         esac
 
-        if [ "$BUILD_FROM_CURRENT" = "true" ]; then
+        if [ "$BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
             if is_core_16_nested_system; then
                 echo "Build from current branch is not supported yet for uc16"
                 exit 1
             fi
             # shellcheck source=tests/lib/prepare.sh
             . "$TESTSLIB"/prepare.sh
+
+            snap download --basename=pc-kernel --channel="20/edge" pc-kernel
+            uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$WORK_DIR/image"
+            EXTRA_FUNDAMENTAL="--snap $WORK_DIR/image/pc-kernel_*.snap"
+            chmod 0600 "$WORK_DIR"/image/pc-kernel_*.snap
+            rm -f "$PWD/pc-kernel.snap"
+
             snap download --channel="latest/edge" snapd
             repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$PWD/new-snapd" "false"
             EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-snapd/snapd_*.snap"
@@ -363,9 +365,9 @@ start_nested_core_vm(){
         fi
 
         if [ "$ENABLE_SECURE_BOOT" = "true" ]; then
-            cp -f /usr/share/OVMF/OVMF_VARS.snakeoil.fd "$WORK_DIR/image/OVMF_VARS.snakeoil.fd"
-            PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE.secboot.fd,if=pflash,format=raw,unit=0,readonly=on -drive file=$WORK_DIR/image/OVMF_VARS.snakeoil.fd,if=pflash,format=raw,unit=1"
-            PARAM_MACHINE="-machine ubuntu-q35,accel=kvm -global ICH9-LPC.disable_s3=1 -global ICH9-LPC.disable_s4=1 -cpu host"
+            cp -f /usr/share/OVMF/OVMF_VARS.ms.fd "$WORK_DIR/image/OVMF_VARS.ms.fd"
+            PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE.secboot.fd,if=pflash,format=raw,unit=0,readonly=on -drive file=$WORK_DIR/image/OVMF_VARS.ms.fd,if=pflash,format=raw,unit=1"
+            PARAM_MACHINE="-machine ubuntu-q35,accel=kvm -global ICH9-LPC.disable_s3=1"
         fi
 
         if [ "$ENABLE_TPM" = "true" ]; then
@@ -397,13 +399,14 @@ start_nested_core_vm(){
         prepare_ssh
     else
         echo "ssh not established, exiting..."
+        journalctl -u "$NESTED_VM" -n 150
         exit 1
     fi
 }
 
 create_nested_classic_vm(){
     mkdir -p "$WORK_DIR/image"
-    IMAGE=$(ls $WORK_DIR/image/*.img || true)
+    IMAGE=$(ls "$WORK_DIR"/image/*.img || true)
     if [ -z "$IMAGE" ]; then
         # Get the cloud image
         local IMAGE_URL
@@ -411,7 +414,7 @@ create_nested_classic_vm(){
         wget -P "$WORK_DIR/image" "$IMAGE_URL"
         # Check the image
         local IMAGE
-        IMAGE=$(ls $WORK_DIR/image/*.img)
+        IMAGE=$(ls "$WORK_DIR"/image/*.img)
         test "$(echo "$IMAGE" | wc -l)" = "1"
 
         # Prepare the cloud-init configuration and configure image
@@ -421,12 +424,12 @@ create_nested_classic_vm(){
 }
 
 get_nested_classic_image_path() {
-    ls $WORK_DIR/image/*.img
+    ls "$WORK_DIR"/image/*.img
 }
 
 start_nested_classic_vm(){
     local IMAGE QEMU
-    IMAGE=$(ls $WORK_DIR/image/*.img)
+    IMAGE=$(ls "$WORK_DIR"/image/*.img)
     QEMU=$(get_qemu_for_nested_vm)
 
     # Now qemu parameters are defined
@@ -441,18 +444,6 @@ start_nested_classic_vm(){
     PARAM_SEED="-drive file=$WORK_DIR/seed.img,if=virtio"
     PARAM_BIOS=""
     PARAM_TPM=""
-
-    if [ "$ENABLE_TPM" = "true" ] && is_focal_system; then
-        if ! snap list swtpm-mvo; then
-            snap install swtpm-mvo --beta
-        fi
-        PARAM_TPM="-chardev socket,id=chrtpm,path=/var/snap/swtpm-mvo/current/swtpm-sock -tpmdev emulator,id=tpm0,chardev=chrtpm -device tpm-tis,tpmdev=tpm0"
-    fi
-    if [ "$ENABLE_SECURE_BOOT" = "true" ] && is_focal_system; then
-        cp -f /usr/share/OVMF/OVMF_VARS.snakeoil.fd "$WORK_DIR/image/OVMF_VARS.snakeoil.fd"
-        PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE.secboot.fd,if=pflash,format=raw,unit=0,readonly=on -drive file=$WORK_DIR/image/OVMF_VARS.snakeoil.fd,if=pflash,format=raw,unit=1"
-        PARAM_MACHINE="-machine ubuntu-q35,accel=kvm -global ICH9-LPC.disable_s3=1 -global ICH9-LPC.disable_s4=1 -cpu host"
-    fi
 
     systemd_create_and_start_unit "$NESTED_VM" "${QEMU}  \
         ${PARAM_CPU} \
