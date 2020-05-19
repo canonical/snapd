@@ -1,7 +1,7 @@
 summary: Integration tests for the snap-bootstrap binary
 
 # use the same system and tooling as uc20
-systems: [ubuntu-20.04-64-secboot]
+systems: [ubuntu-secboot-20.04-64]
 
 environment:
     # an empty $topsrcdir/tests/go.mod seems to break importing or building go
