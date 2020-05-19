@@ -166,6 +166,8 @@ override_dh_auto_build:
 	# this is the main go build
 	SNAPD_VANILLA_GO=$$(which go) PATH="$$(pwd)/packaging/build-tools/:$$PATH" dh_auto_build -- $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS)
 
+	(cd _build/bin && GOPATH=$$(pwd)/.. GOCACHE=/tmp/go-build CGO_ENABLED=0 go build $(BUILDFLAGS) $(GCCGOFLAGS) -tags nomanagers $(DH_GOPKG)/cmd/snap)
+
 	# Generate static snap-exec, snapctl and snap-update-ns - it somehow includes CGO so
 	# we must force a static build here. We need a static snap-{exec,update-ns}/snapctl
 	# inside the core snap because not all bases will have a libc
