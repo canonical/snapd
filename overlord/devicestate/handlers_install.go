@@ -107,7 +107,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 	kernelDir := kernelInfo.MountDir()
 
-	modeEnv, err := m.maybeReadModeenv()
+	modeEnv, err := maybeReadModeenv()
 	if err != nil {
 		return err
 	}

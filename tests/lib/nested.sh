@@ -66,9 +66,13 @@ test_ssh(){
 }
 
 prepare_ssh(){
-    execute_remote "sudo adduser --extrausers --quiet --disabled-password --gecos '' test"
+    execute_remote "sudo adduser --uid 12345 --extrausers --quiet --disabled-password --gecos '' test"
     execute_remote "echo test:ubuntu | sudo chpasswd"
-    execute_remote "echo 'test ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/test-user"
+    execute_remote "echo 'test ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/create-user-test"
+
+    execute_remote "sudo adduser --extrausers --quiet --disabled-password --gecos '' external"
+    execute_remote "echo external:ubuntu | sudo chpasswd"
+    execute_remote "echo 'external ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/create-user-external"
 }
 
 create_assertions_disk(){
@@ -116,16 +120,16 @@ get_google_image_url_for_nested_vm(){
 
 get_ubuntu_image_url_for_nested_vm(){
     case "$SPREAD_SYSTEM" in
-        ubuntu-16.04-64)
+        ubuntu-16.04-64*)
             echo "https://cloud-images.ubuntu.com/xenial/current/xenial-server-cloudimg-amd64-disk1.img"
             ;;
-        ubuntu-18.04-64)
+        ubuntu-18.04-64*)
             echo "https://cloud-images.ubuntu.com/bionic/current/bionic-server-cloudimg-amd64.img"
             ;;
-        ubuntu-19.10-64)
+        ubuntu-19.10-64*)
             echo "https://cloud-images.ubuntu.com/eoan/current/eoan-server-cloudimg-amd64.img"
             ;;
-        ubuntu-20.04-64)
+        ubuntu-20.04-64*)
             echo "https://cloud-images.ubuntu.com/focal/current/focal-server-cloudimg-amd64.img"
             ;;
         *)
@@ -258,16 +262,7 @@ create_nested_core_vm(){
                     ;;
                 ubuntu-20.04-64)
                     NESTED_MODEL="$TESTSLIB/assertions/nested-20-amd64.model"
-
                     if [ "$UPDATE_PC_KERNEL" = "true" ]; then
-                        # shellcheck source=tests/lib/prepare.sh
-                        . "$TESTSLIB"/prepare.sh
-                        snap download --basename=pc-kernel --channel="20/$CORE_CHANNEL" pc-kernel
-                        uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$WORK_DIR/image"
-
-                        EXTRA_FUNDAMENTAL="--snap $WORK_DIR/image/pc-kernel_*.snap"
-                        chmod 0600 "$WORK_DIR"/image/pc-kernel_*.snap
-                        rm -f "$PWD/pc-kernel.snap"
                     fi
                     ;;
                 *)
@@ -276,13 +271,20 @@ create_nested_core_vm(){
                     ;;
             esac
 
-            if [ "$BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
+        if [ "$BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
                 if is_core_16_nested_system; then
                     echo "Build from current branch is not supported yet for uc16"
                     exit 1
                 fi
                 # shellcheck source=tests/lib/prepare.sh
                 . "$TESTSLIB"/prepare.sh
+
+            snap download --basename=pc-kernel --channel="20/edge" pc-kernel
+            uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$WORK_DIR/image"
+            EXTRA_FUNDAMENTAL="--snap $WORK_DIR/image/pc-kernel_*.snap"
+            chmod 0600 "$WORK_DIR"/image/pc-kernel_*.snap
+            rm -f "$PWD/pc-kernel.snap"
+
                 snap download --channel="latest/edge" snapd
                 repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$PWD/new-snapd" "false"
                 EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-snapd/snapd_*.snap"
@@ -416,9 +418,9 @@ start_nested_core_vm(){
         fi
 
         if [ "$ENABLE_SECURE_BOOT" = "true" ]; then
-            cp -f "/usr/share/OVMF/OVMF_VARS.$OVMF_VARS.fd" "$WORK_DIR/image/OVMF_VARS.$OVMF_VARS.fd"
-            PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE.$OVMF_CODE.fd,if=pflash,format=raw,unit=0,readonly=on -drive file=$WORK_DIR/image/OVMF_VARS.$OVMF_VARS.fd,if=pflash,format=raw,unit=1"
-            PARAM_MACHINE="-machine q35,accel=kvm -global ICH9-LPC.disable_s3=1"
+            cp -f /usr/share/OVMF/OVMF_VARS.ms.fd "$WORK_DIR/image/OVMF_VARS.ms.fd"
+            PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE.secboot.fd,if=pflash,format=raw,unit=0,readonly=on -drive file=$WORK_DIR/image/OVMF_VARS.ms.fd,if=pflash,format=raw,unit=1"
+            PARAM_MACHINE="-machine ubuntu-q35,accel=kvm -global ICH9-LPC.disable_s3=1"
         fi
 
         if [ "$ENABLE_TPM" = "true" ]; then
@@ -470,7 +472,7 @@ create_nested_classic_vm(){
             wget -P "$WORK_DIR/image" "$IMAGE_URL"
             # Check the image
             local IMAGE
-            IMAGE=$(ls "$WORK_DIR"/image/*.img)
+        IMAGE=$(ls "$WORK_DIR"/image/*.img)
             test "$(echo "$IMAGE" | wc -l)" = "1"
         else
             # download the ubuntu cloud image
