@@ -35,6 +35,7 @@ func SnapNameFromPid(pid int) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("cannot determine cgroup path of pid %v: %v", pid, err)
 	}
+	// TODO: use the tracking cgroup and fall back to freezer in cgroupv1 mode only.
 
 	if !strings.HasPrefix(group, "/snap.") {
 		return "", fmt.Errorf("cannot find a snap for pid %v", pid)
