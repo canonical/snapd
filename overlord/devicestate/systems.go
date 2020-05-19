@@ -41,39 +41,24 @@ func checkSystemRequestConflict(st *state.State, systemLabel string) error {
 		return nil
 	}
 
+	// inspect the current system which is stored in modeenv, were are
+	// holding the state lock so there is no race against mark-seeded
+	// clearing recovery system; recovery system is not cleared when seeding
+	// fails
+	modeEnv, err := maybeReadModeenv()
+	if err != nil {
+		return err
+	}
+	if modeEnv == nil {
+		// non UC20 systems do not support actions, no conflict can
+		// happen
+		return nil
+	}
+
 	// not yet fully seeded, hold off requests for the system that is being
 	// seeded, but allow requests for other systems
-	var isSeeding bool
-	var whatSeeds *seededSystem
-changesLoop:
-	for _, chg := range st.Changes() {
-		if chg.Kind() != "seed" {
-			continue
-		}
-		isSeeding = true
-		if chg.Status().Ready() {
-			// change is done but 'seeded' was unset, perhaps it
-			// errored
-			return nil
-		}
-		for _, t := range chg.Tasks() {
-			if t.Kind() != "mark-seeded" {
-				continue
-			}
-			if err := t.Get("seed-system", &whatSeeds); err != nil && err != state.ErrNoState {
-				return err
-			}
-			break changesLoop
-		}
-	}
-	if whatSeeds != nil && whatSeeds.System == systemLabel {
-		//
+	if modeEnv.RecoverySystem == systemLabel {
 		return &snapstate.ChangeConflictError{Message: "cannot request system action, system is seeding"}
-	}
-	if !isSeeding {
-		// seeding not yet started, error out just in case the same
-		// system is seeded
-		return &snapstate.ChangeConflictError{Message: "cannot request system action, seeding not started yet"}
 	}
 	return nil
 }
