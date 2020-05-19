@@ -247,16 +247,16 @@ create_nested_core_vm(){
             EXTRA_FUNDAMENTAL="--snap $KERNEL_SNAP"
 
             # Prepare the pc gadget snap
-            git clone https://github.com/snapcore/pc-amd64-gadget
+            wget https://raw.githubusercontent.com/snapcore/pc-amd64-gadget/20/snakeoil/PkKek-1-snakeoil.key
+            wget https://raw.githubusercontent.com/snapcore/pc-amd64-gadget/20/snakeoil/PkKek-1-snakeoil.pem
             snap download --basename=pc --channel="20/edge" pc
             unsquashfs -d pc-gadget pc.snap
             sbattach --remove pc-gadget/shim.efi.signed
-            sbsign --key pc-amd64-gadget/snakeoil/PkKek-1-snakeoil.key --cert pc-amd64-gadget/snakeoil/PkKek-1-snakeoil.pem --output pc-gadget/shim.efi.signed pc-gadget/shim.efi.signed
+            sbsign --key PkKek-1-snakeoil.key --cert PkKek-1-snakeoil.pem --output pc-gadget/shim.efi.signed pc-gadget/shim.efi.signed
             snap pack pc-gadget/ "$WORK_DIR/image"
 
             GADGET_SNAP=$(ls "$WORK_DIR"/image/pc_*.snap)
-            rm -f "$PWD/pc.snap"
-            rm -rf "$PWD/pc-amd64-gadget"
+            rm -f "$PWD/pc.snap" PkKek-1-snakeoil.key PkKek-1-snakeoil.pem
             EXTRA_FUNDAMENTAL="--snap $GADGET_SNAP"
 
             snap download --channel="latest/edge" snapd
