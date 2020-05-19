@@ -232,9 +232,32 @@ create_nested_core_vm(){
 
             snap download --basename=pc-kernel --channel="20/edge" pc-kernel
             uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$WORK_DIR/image"
-            EXTRA_FUNDAMENTAL="--snap $WORK_DIR/image/pc-kernel_*.snap"
-            chmod 0600 "$WORK_DIR"/image/pc-kernel_*.snap
+
+            # Prepare the pc kernel snap
+            KERNEL_SNAP=$(ls "$WORK_DIR"/image/pc-kernel_*.snap)
+            KERNEL_UNPACKED="$WORK_DIR"/image/kernel-unpacked
+            unsquashfs -d "$KERNEL_UNPACKED" "$KERNEL_SNAP"
+            sbattach --remove "$KERNEL_UNPACKED/kernel.efi"
+            sbsign --key /etc/ssl/private/ssl-cert-snakeoil.key --cert /etc/ssl/certs/ssl-cert-snakeoil.pem "$KERNEL_UNPACKED/kernel.efi"  --output "$KERNEL_UNPACKED/kernel.efi"
+            snap pack "$KERNEL_UNPACKED" "$WORK_DIR/image"
+
+            chmod 0600 "$KERNEL_SNAP"
             rm -f "$PWD/pc-kernel.snap"
+            rm -rf "$KERNEL_UNPACKED"
+            EXTRA_FUNDAMENTAL="--snap $KERNEL_SNAP"
+
+            # Prepare the pc gadget snap
+            git clone https://github.com/snapcore/pc-amd64-gadget
+            snap download --basename=pc --channel="20/edge" pc
+            unsquashfs -d pc-gadget pc.snap
+            sbattach --remove pc-gadget/shim.efi.signed
+            sbsign --key pc-amd64-gadget/snakeoil/PkKek-1-snakeoil.key --cert pc-amd64-gadget/snakeoil/PkKek-1-snakeoil.pem --output pc-gadget/shim.efi.signed pc-gadget/shim.efi.signed
+            snap pack pc-gadget/ "$WORK_DIR/image"
+
+            GADGET_SNAP=$(ls "$WORK_DIR"/image/pc_*.snap)
+            rm -f "$PWD/pc.snap"
+            rm -rf "$PWD/pc-amd64-gadget"
+            EXTRA_FUNDAMENTAL="--snap $GADGET_SNAP"
 
             snap download --channel="latest/edge" snapd
             repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$PWD/new-snapd" "false"
@@ -364,9 +387,16 @@ start_nested_core_vm(){
             apt update
         fi
 
+        OVMF_CODE="secboot"
+        OVMF_VARS="ms"
+        # In this case the kernel.efi is unsigned and signed with snaleoil certs
+        if [ "$BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
+            OVMF_VARS="snakeoil"            
+        fi
+
         if [ "$ENABLE_SECURE_BOOT" = "true" ]; then
-            cp -f /usr/share/OVMF/OVMF_VARS.ms.fd "$WORK_DIR/image/OVMF_VARS.ms.fd"
-            PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE.secboot.fd,if=pflash,format=raw,unit=0,readonly=on -drive file=$WORK_DIR/image/OVMF_VARS.ms.fd,if=pflash,format=raw,unit=1"
+            cp -f "/usr/share/OVMF/OVMF_VARS.$OVMF_VARS.fd" "$WORK_DIR/image/OVMF_VARS.$OVMF_VARS.fd"
+            PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE.$OVMF_CODE.fd,if=pflash,format=raw,unit=0,readonly=on -drive file=$WORK_DIR/image/OVMF_VARS.$OVMF_VARS.fd,if=pflash,format=raw,unit=1"
             PARAM_MACHINE="-machine ubuntu-q35,accel=kvm -global ICH9-LPC.disable_s3=1"
         fi
 
