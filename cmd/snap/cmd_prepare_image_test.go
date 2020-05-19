@@ -93,7 +93,7 @@ func (s *SnapPrepareImageSuite) TestPrepareImageClassicArch(c *C) {
 	})
 }
 
-func (s *SnapPrepareImageSuite) TestPrepareImageClassicCohort(c *C) {
+func (s *SnapPrepareImageSuite) TestPrepareImageClassicWideCohort(c *C) {
 	var opts *image.Options
 	prep := func(o *image.Options) error {
 		opts = o
@@ -110,7 +110,7 @@ func (s *SnapPrepareImageSuite) TestPrepareImageClassicCohort(c *C) {
 
 	c.Check(opts, DeepEquals, &image.Options{
 		Classic:    true,
-		CohortKey:  "is-six-centuries",
+		WideCohortKey:  "is-six-centuries",
 		ModelFile:  "model",
 		PrepareDir: "prepare-dir",
 	})

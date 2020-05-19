@@ -299,7 +299,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 			dlOpts := DownloadOptions{
 				TargetPathFunc: targetPathFunc,
 				Channel:        sn.Channel,
-				CohortKey:      opts.CohortKey,
+				CohortKey:      opts.WideCohortKey,
 			}
 			fn, info, redirectChannel, err := tsto.DownloadSnap(sn.SnapName(), dlOpts) // TODO|XXX make this take the SnapRef really
 			if err != nil {

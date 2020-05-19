@@ -111,7 +111,9 @@ func (x *cmdPrepareImage) Execute(args []string) error {
 		opts.SnapChannels = snapChannels
 	}
 
-	opts.CohortKey = os.Getenv("UBUNTU_STORE_COHORT_KEY")
+	// store-wide cohort key via env, see image/options.go
+	opts.WideCohortKey = os.Getenv("UBUNTU_STORE_COHORT_KEY")
+
 	opts.PrepareDir = x.Positional.TargetDir
 	opts.Classic = x.Classic
 
