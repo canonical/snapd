@@ -14,9 +14,6 @@ apps:
   alsa:
     command: bin/run
     plugs: [ alsa ]
-  app-launch:
-    command: bin/run
-    plugs: [ app-launch ]
   audio-playback:
     command: bin/run
     plugs: [ audio-playback ]
@@ -92,6 +89,9 @@ apps:
   desktop:
     command: bin/run
     plugs: [ desktop ]
+  desktop-launch:
+    command: bin/run
+    plugs: [ desktop-launch ]
   desktop-legacy:
     command: bin/run
     plugs: [ desktop-legacy ]

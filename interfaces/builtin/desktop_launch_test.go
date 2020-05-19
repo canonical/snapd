@@ -29,7 +29,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type appLaunchSuite struct {
+type desktopLaunchSuite struct {
 	iface    interfaces.Interface
 	slotInfo *snap.SlotInfo
 	slot     *interfaces.ConnectedSlot
@@ -37,44 +37,44 @@ type appLaunchSuite struct {
 	plug     *interfaces.ConnectedPlug
 }
 
-var _ = Suite(&appLaunchSuite{
-	iface: builtin.MustInterface("app-launch"),
+var _ = Suite(&desktopLaunchSuite{
+	iface: builtin.MustInterface("desktop-launch"),
 })
 
-const appLaunchConsumerYaml = `
+const desktopLaunchConsumerYaml = `
 name: other
 version: 0
 apps:
  app:
     command: foo
-    plugs: [app-launch]
+    plugs: [desktop-launch]
 `
 
-const appLaunchCoreYaml = `name: core
+const desktopLaunchCoreYaml = `name: core
 version: 0
 type: os
 slots:
-  app-launch:
+  desktop-launch:
 `
 
-func (s *appLaunchSuite) SetUpTest(c *C) {
-	s.plug, s.plugInfo = MockConnectedPlug(c, appLaunchConsumerYaml, nil, "app-launch")
-	s.slot, s.slotInfo = MockConnectedSlot(c, appLaunchCoreYaml, nil, "app-launch")
+func (s *desktopLaunchSuite) SetUpTest(c *C) {
+	s.plug, s.plugInfo = MockConnectedPlug(c, desktopLaunchConsumerYaml, nil, "desktop-launch")
+	s.slot, s.slotInfo = MockConnectedSlot(c, desktopLaunchCoreYaml, nil, "desktop-launch")
 }
 
-func (s *appLaunchSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "app-launch")
+func (s *desktopLaunchSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "desktop-launch")
 }
 
-func (s *appLaunchSuite) TestSanitizeSlot(c *C) {
+func (s *desktopLaunchSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 }
 
-func (s *appLaunchSuite) TestSanitizePlug(c *C) {
+func (s *desktopLaunchSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
-func (s *appLaunchSuite) TestConnectedPlugSnippet(c *C) {
+func (s *desktopLaunchSuite) TestConnectedPlugSnippet(c *C) {
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
@@ -82,6 +82,6 @@ func (s *appLaunchSuite) TestConnectedPlugSnippet(c *C) {
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `Can identify and launch other snaps.`)
 }
 
-func (s *appLaunchSuite) TestInterfaces(c *C) {
+func (s *desktopLaunchSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

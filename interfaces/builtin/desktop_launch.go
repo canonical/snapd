@@ -19,17 +19,17 @@
 
 package builtin
 
-const appLaunchSummary = `allows snaps to identify and launch other snaps`
+const desktopLaunchSummary = `allows snaps to identify and launch other snaps`
 
-const appLaunchBaseDeclarationSlots = `
-  app-launch:
+const desktopLaunchBaseDeclarationSlots = `
+  desktop-launch:
     allow-installation:
       slot-snap-type:
         - core
     deny-auto-connection: true
 `
 
-const appLaunchConnectedPlugAppArmor = `
+const desktopLaunchConnectedPlugAppArmor = `
 # Description: Can identify and launch other snaps.
 
 # Access to the desktop files installed by snaps
@@ -47,10 +47,10 @@ dbus (send)
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "app-launch",
-		summary:               appLaunchSummary,
+		name:                  "desktop-launch",
+		summary:               desktopLaunchSummary,
 		implicitOnClassic:     true,
-		baseDeclarationSlots:  appLaunchBaseDeclarationSlots,
-		connectedPlugAppArmor: appLaunchConnectedPlugAppArmor,
+		baseDeclarationSlots:  desktopLaunchBaseDeclarationSlots,
+		connectedPlugAppArmor: desktopLaunchConnectedPlugAppArmor,
 	})
 }
