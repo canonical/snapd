@@ -85,13 +85,19 @@ func handleVitalityConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 		if oldVitalityMap[instanceName] == newVitalityMap[instanceName] {
 			continue
 		}
+
+		disabledSvcs, err := wrappers.QueryDisabledServices(info, progress.Null)
+		if err != nil {
+			return err
+		}
+
 		// rank changed, rewrite/restart services
 		for _, app := range info.Apps {
 			if !app.IsService() {
 				continue
 			}
 			opts := &wrappers.AddSnapServicesOptions{VitalityRank: rank}
-			if err := wrappers.AddSnapServices(info, nil, opts, progress.Null); err != nil {
+			if err := wrappers.AddSnapServices(info, disabledSvcs, opts, progress.Null); err != nil {
 				return err
 			}
 		}

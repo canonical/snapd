@@ -101,6 +101,7 @@ func (s *vitalitySuite) TestConfigureVitalityWithValidSnap(c *C) {
 	rootdir := dirs.GlobalRootDir
 	svcName := "snap.test-snap.foo.service"
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
+		{"--root", rootdir, "is-enabled", "snap.test-snap.foo.service"},
 		{"--root", rootdir, "enable", "snap.test-snap.foo.service"},
 		{"daemon-reload"},
 		{"--root", rootdir, "is-enabled", "snap.test-snap.foo.service"},

@@ -23,3 +23,12 @@ execute: |
     snap set core resilience.vitality-hint=unrelated-snap,test-snapd-go-webserver
     echo "then the score is adjusted immediately"
     systemctl show snap.test-snapd-go-webserver.webserver.service |MATCH "OOMScoreAdjust=-898"
+
+    echo "When a service is disabled"
+    snap remove test-snapd-go-webserver
+    snap install test-snapd-go-webserver
+    systemctl is-enabled snap.test-snapd-go-webserver.webserver.service
+    snap stop --disable test-snapd-go-webserver.webserver
+    not systemctl is-enabled snap.test-snapd-go-webserver.webserver.service
+    snap set core resilience.vitality-hint=test-snapd-go-webserver
+    not systemctl is-enabled snap.test-snapd-go-webserver.webserver.service
