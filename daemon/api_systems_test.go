@@ -208,7 +208,15 @@ func (s *apiSuite) TestSystemsGetNone(c *check.C) {
 }
 
 func (s *apiSuite) TestSystemActionRequestErrors(c *check.C) {
+	// modenev must be mocked before daemon is initialized
+	m := boot.Modeenv{
+		Mode: "run",
+	}
+	err := m.WriteTo("")
+	c.Assert(err, check.IsNil)
+
 	d := s.daemonWithOverlordMock(c)
+
 	hookMgr, err := hookstate.Manager(d.overlord.State(), d.overlord.TaskRunner())
 	c.Assert(err, check.IsNil)
 	mgr, err := devicestate.Manager(d.overlord.State(), hookMgr, d.overlord.TaskRunner(), nil)
@@ -261,7 +269,7 @@ func (s *apiSuite) TestSystemActionRequestErrors(c *check.C) {
 			// valid label and action, but seeding is not complete yet
 			label:    "20191119",
 			body:     `{"action":"do","mode":"install"}`,
-			error:    `cannot request system action, seeding not started yet`,
+			error:    `cannot request system action, system is seeding`,
 			status:   500,
 			unseeded: true,
 		},
@@ -270,6 +278,12 @@ func (s *apiSuite) TestSystemActionRequestErrors(c *check.C) {
 		st.Lock()
 		if tc.unseeded {
 			st.Set("seeded", nil)
+			m := boot.Modeenv{
+				Mode:           "run",
+				RecoverySystem: tc.label,
+			}
+			err := m.WriteTo("")
+			c.Assert(err, check.IsNil)
 		} else {
 			st.Set("seeded", true)
 		}
