@@ -25,7 +25,6 @@ import (
 	"os/user"
 	"time"
 
-	"github.com/godbus/dbus"
 	"github.com/jessevdk/go-flags"
 	. "gopkg.in/check.v1"
 
@@ -333,33 +332,6 @@ func MockSignalNotify(newSignalNotify func(sig ...os.Signal) (chan os.Signal, fu
 }
 
 type ServiceName = serviceName
-
-func MockDBusConnections(system, session func() (*dbus.Conn, error)) func() {
-	oldSystem := dbusSystemBus
-	oldSession := dbusSessionBus
-	dbusSystemBus = system
-	dbusSessionBus = session
-	return func() {
-		dbusSystemBus = oldSystem
-		dbusSessionBus = oldSession
-	}
-}
-
-func MockDBusSystemBus(conn *dbus.Conn) func() {
-	systemBus := func() (*dbus.Conn, error) { return conn, nil }
-	sessionBus := func() (*dbus.Conn, error) {
-		panic("DBus session bus should not have been used")
-	}
-	return MockDBusConnections(systemBus, sessionBus)
-}
-
-func MockDBusSessionBus(conn *dbus.Conn) func() {
-	systemBus := func() (*dbus.Conn, error) {
-		panic("DBus system bus should not have been used")
-	}
-	sessionBus := func() (*dbus.Conn, error) { return conn, nil }
-	return MockDBusConnections(systemBus, sessionBus)
-}
 
 func MockOsGetuid(uid int) func() {
 	old := osGetuid

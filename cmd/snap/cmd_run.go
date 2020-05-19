@@ -39,6 +39,7 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/dbusutil"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
@@ -717,7 +718,7 @@ func activateXdgDocumentPortal(info *snap.Info, snapApp, hook string) error {
 		return nil
 	}
 
-	conn, err := dbusSessionBus()
+	conn, err := dbusutil.SessionBus()
 	if err != nil {
 		return err
 	}
@@ -1150,48 +1151,7 @@ func doCreateTransientScope(conn *dbus.Conn, unitName string, pid int) error {
 	return nil
 }
 
-var dbusSystemBus = func() (*dbus.Conn, error) {
-	return dbus.SystemBus()
-}
-
 var osGetuid = os.Getuid
-
-// isSessionBusLikelyPresent checks for the apparent availability of DBus session bus.
-//
-// The code matches what go-dbus does when it tries to detect the session bus:
-// - the presence of the environment variable DBUS_SESSION_BUS_ADDRESS
-// - the presence of the bus socket address in the file /run/user/UID/dbus-session
-// - the presence of the bus socket in /run/user/UID/bus
-func isSessionBusLikelyPresent() bool {
-	if address := os.Getenv("DBUS_SESSION_BUS_ADDRESS"); address != "" {
-		return true
-	}
-	if fi, err := os.Stat(fmt.Sprintf("/run/user/%d/dbus-session", osGetuid())); err == nil {
-		if stat, ok := fi.Sys().(*syscall.Stat_t); ok {
-			if stat.Mode&syscall.S_IFREG == syscall.S_IFREG {
-				return true
-			}
-		}
-	}
-	if fi, err := os.Stat(fmt.Sprintf("/run/user/%d/bus", osGetuid())); err == nil {
-		if stat, ok := fi.Sys().(*syscall.Stat_t); ok {
-			if stat.Mode&syscall.S_IFSOCK == syscall.S_IFSOCK {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-var dbusSessionBus = func() (*dbus.Conn, error) {
-	// This started as a helper for mocking and testing but we ended up needing
-	// a custom implementation to prevent go-dbus from spawning and *leaving
-	// behind* a dbus-launch process that will never be used by anything again.
-	if isSessionBusLikelyPresent() {
-		return dbus.SessionBus()
-	}
-	return nil, fmt.Errorf("cannot find session bus")
-}
 
 var randomUUID = func() (string, error) {
 	// The source of the bytes generated here is the same as that of
@@ -1244,13 +1204,13 @@ var createTransientScope = func(securityTag string) error {
 	// connect to, as they are invoked as descendants of snapd, and snapd is a
 	// service running outside of any session.
 	isSessionBus := true
-	conn, err := dbusSessionBus()
+	conn, err := dbusutil.SessionBus()
 	if err != nil {
 		logger.Debugf("session bus is not available: %s", err)
 		if osGetuid() == 0 {
 			logger.Debugf("falling back to system bus")
 			isSessionBus = false
-			conn, err = dbusSystemBus()
+			conn, err = dbusutil.SystemBus()
 			if err != nil {
 				logger.Debugf("system bus is not available: %s", err)
 			} else {
@@ -1286,7 +1246,7 @@ tryAgain:
 			if isSessionBus && osGetuid() == 0 {
 				logger.Debugf("cannot activate systemd --user on session bus, falling back to system bus: %s", err)
 				isSessionBus = false
-				conn, err = dbusSystemBus()
+				conn, err = dbusutil.SystemBus()
 				if err != nil {
 					logger.Debugf("system bus is not available: %s", err)
 					return errCannotTrackProcess

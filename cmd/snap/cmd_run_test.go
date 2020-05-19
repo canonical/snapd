@@ -32,6 +32,7 @@ import (
 	"gopkg.in/check.v1"
 
 	snaprun "github.com/snapcore/snapd/cmd/snap"
+	"github.com/snapcore/snapd/dbusutil"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/logger"
@@ -1268,7 +1269,7 @@ func (s *RunSuite) TestCreateTransientScopeFeatureDisabled(c *check.C) {
 	noDBus := func() (*dbus.Conn, error) {
 		return nil, fmt.Errorf("dbus should not have been used")
 	}
-	restore := snaprun.MockDBusConnections(noDBus, noDBus)
+	restore := dbusutil.MockConnections(noDBus, noDBus)
 	defer restore()
 
 	c.Assert(features.RefreshAppAwareness.IsEnabled(), check.Equals, false)
@@ -1300,7 +1301,7 @@ func (s *RunSuite) TestCreateTransientScopeFeatureEnabled(c *check.C) {
 		return nil, fmt.Errorf("unexpected message #%d: %s", n, msg)
 	})
 	c.Assert(err, check.IsNil)
-	restore = snaprun.MockDBusSessionBus(conn)
+	restore = dbusutil.MockSessionBus(conn)
 	defer restore()
 	// Replace the cgroup analyzer function
 	restore = snaprun.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
