@@ -33,6 +33,7 @@ import (
 
 	snaprun "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/dbusutil"
+	"github.com/snapcore/snapd/dbusutil/dbustest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/logger"
@@ -1293,7 +1294,7 @@ func (s *RunSuite) TestCreateTransientScopeFeatureEnabled(c *check.C) {
 	restore = snaprun.MockRandomUUID(uuid)
 	defer restore()
 	// Replace interactions with DBus so that only session bus is available and responds with our logic.
-	conn, err := testutil.NewDBusTestConn(func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
+	conn, err := dbustest.Connection(func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
 		switch n {
 		case 0:
 			return []*dbus.Message{happyResponseToStartTransientUnit(c, msg, "snap.pkg.app."+uuid+".scope", 312123)}, nil
@@ -1359,7 +1360,7 @@ func happyResponseToStartTransientUnit(c *check.C, msg *dbus.Message, scopeName 
 }
 
 func (s *RunSuite) TestDoCreateTransientScopeHappy(c *check.C) {
-	conn, err := testutil.NewDBusTestConn(func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
+	conn, err := dbustest.Connection(func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
 		switch n {
 		case 0:
 			return []*dbus.Message{happyResponseToStartTransientUnit(c, msg, "foo.scope", 312123)}, nil
