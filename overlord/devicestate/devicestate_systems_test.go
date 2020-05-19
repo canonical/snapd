@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
@@ -340,8 +341,19 @@ func (s *deviceMgrSystemsSuite) TestRequestSameModeSameSystem(c *C) {
 	sadModes := []string{"install"}
 
 	for _, mode := range append(happyModes, sadModes...) {
+		c.Logf("checking mode: %q", mode)
+		// non run modes use modeenv
+		modeenv := boot.Modeenv{
+			Mode: mode,
+		}
+		if mode != "run" {
+			modeenv.RecoverySystem = s.mockedSystemSeeds[0].label
+		}
+		err := modeenv.WriteTo("")
+		c.Assert(err, IsNil)
+
 		devicestate.SetSystemMode(s.mgr, mode)
-		err := s.bootloader.SetBootVars(map[string]string{
+		err = s.bootloader.SetBootVars(map[string]string{
 			"snapd_recovery_mode":   mode,
 			"snapd_recovery_system": label,
 		})
@@ -369,6 +381,7 @@ func (s *deviceMgrSystemsSuite) TestRequestNotYetSeeded(c *C) {
 	label := s.mockedSystemSeeds[0].label
 
 	for _, mode := range []string{"run", "install", "recover"} {
+		c.Logf("checking mode: %q", mode)
 		devicestate.SetSystemMode(s.mgr, mode)
 		err := s.bootloader.SetBootVars(map[string]string{
 			"snapd_recovery_mode":   mode,
@@ -383,6 +396,14 @@ func (s *deviceMgrSystemsSuite) TestRequestNotYetSeeded(c *C) {
 func (s *deviceMgrSystemsSuite) TestRequestModeRunInstallForRecover(c *C) {
 	// we are in recover mode here
 	devicestate.SetSystemMode(s.mgr, "recover")
+	// non run modes use modeenv
+	modeenv := boot.Modeenv{
+		Mode:           "recover",
+		RecoverySystem: s.mockedSystemSeeds[0].label,
+	}
+	err := modeenv.WriteTo("")
+	c.Assert(err, IsNil)
+
 	s.state.Lock()
 	s.state.Set("seeded-systems", []devicestate.SeededSystem{
 		{
@@ -394,6 +415,7 @@ func (s *deviceMgrSystemsSuite) TestRequestModeRunInstallForRecover(c *C) {
 	s.state.Unlock()
 
 	for _, mode := range []string{"install", "run"} {
+		c.Logf("checking mode: %q", mode)
 		err := s.mgr.RequestSystemAction(s.mockedSystemSeeds[0].label,
 			devicestate.SystemAction{Mode: mode})
 		c.Assert(err, IsNil)
@@ -410,6 +432,14 @@ func (s *deviceMgrSystemsSuite) TestRequestModeRunInstallForRecover(c *C) {
 }
 
 func (s *deviceMgrSystemsSuite) TestRequestModeInstallRecoverForCurrent(c *C) {
+	devicestate.SetSystemMode(s.mgr, "run")
+	// non run modes use modeenv
+	modeenv := boot.Modeenv{
+		Mode: "run",
+	}
+	err := modeenv.WriteTo("")
+	c.Assert(err, IsNil)
+
 	s.state.Lock()
 	s.state.Set("seeded-systems", []devicestate.SeededSystem{
 		{
@@ -421,6 +451,7 @@ func (s *deviceMgrSystemsSuite) TestRequestModeInstallRecoverForCurrent(c *C) {
 	s.state.Unlock()
 
 	for _, mode := range []string{"install", "recover"} {
+		c.Logf("checking mode: %q", mode)
 		err := s.mgr.RequestSystemAction(s.mockedSystemSeeds[0].label,
 			devicestate.SystemAction{Mode: mode})
 		c.Assert(err, IsNil)

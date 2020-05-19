@@ -27,7 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/xdgopenproxy"
+	"github.com/snapcore/snapd/usersession/xdgopenproxy"
 )
 
 func Test(t *testing.T) { TestingT(t) }

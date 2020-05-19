@@ -31,19 +31,6 @@ import (
 
 var bootstrapRun = bootstrap.Run
 
-func init() {
-	const (
-		short = "Create missing partitions for the device"
-		long  = ""
-	)
-
-	addCommandBuilder(func(parser *flags.Parser) {
-		if _, err := parser.AddCommand("create-partitions", short, long, &cmdCreatePartitions{}); err != nil {
-			panic(err)
-		}
-	})
-}
-
 type cmdCreatePartitions struct {
 	Mount                bool   `short:"m" long:"mount" description:"Also mount filesystems after creation"`
 	Encrypt              bool   `long:"encrypt" description:"Encrypt the data partition"`
@@ -60,29 +47,10 @@ type cmdCreatePartitions struct {
 	} `positional-args:"yes"`
 }
 
-func (c *cmdCreatePartitions) Execute(args []string) error {
-	var model *asserts.Model
-	if c.ModelPath != "" {
-		var err error
-		model, err = readModel(c.ModelPath)
-		if err != nil {
-			return fmt.Errorf("cannot load model: %v", err)
-		}
-	}
-
-	options := bootstrap.Options{
-		Mount:                c.Mount,
-		Encrypt:              c.Encrypt,
-		KeyFile:              c.KeyFile,
-		RecoveryKeyFile:      c.RecoveryKeyFile,
-		TPMLockoutAuthFile:   c.TPMLockoutAuthFile,
-		PolicyUpdateDataFile: c.PolicyUpdateDataFile,
-		KernelPath:           c.KernelPath,
-		Model:                model,
-	}
-
-	return bootstrapRun(c.Positional.GadgetRoot, c.Positional.Device, options)
-}
+const (
+	short = "Create missing partitions for the device"
+	long  = ""
+)
 
 func readModel(modelPath string) (*asserts.Model, error) {
 	f, err := os.Open(modelPath)
@@ -99,4 +67,35 @@ func readModel(modelPath string) (*asserts.Model, error) {
 		return nil, fmt.Errorf("not a model assertion")
 	}
 	return a.(*asserts.Model), nil
+}
+
+func main() {
+	args := &cmdCreatePartitions{}
+	_, err := flags.ParseArgs(args, os.Args[1:])
+	if err != nil {
+		panic(err)
+	}
+
+	var model *asserts.Model
+	if args.ModelPath != "" {
+		var err error
+		model, err = readModel(args.ModelPath)
+		if err != nil {
+			panic(fmt.Sprintf("cannot load model: %v", err))
+		}
+	}
+	options := bootstrap.Options{
+		Mount:                args.Mount,
+		Encrypt:              args.Encrypt,
+		KeyFile:              args.KeyFile,
+		RecoveryKeyFile:      args.RecoveryKeyFile,
+		TPMLockoutAuthFile:   args.TPMLockoutAuthFile,
+		PolicyUpdateDataFile: args.PolicyUpdateDataFile,
+		KernelPath:           args.KernelPath,
+		Model:                model,
+	}
+	err = bootstrapRun(args.Positional.GadgetRoot, args.Positional.Device, options)
+	if err != nil {
+		panic(err)
+	}
 }

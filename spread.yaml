@@ -81,6 +81,10 @@ backends:
                 image: ubuntu-2004-64-virt-enabled
                 workers: 6
                 storage: 20G
+            - ubuntu-20.04-64-secboot:
+                image: ubuntu-20.04-64
+                workers: 1
+                secureboot: true
 
             - debian-9-64:
                 workers: 6
@@ -860,7 +864,7 @@ suites:
             # Enable secure boot in the nested vm in case it is supported
             ENABLE_SECURE_BOOT: '$(HOST: echo "${SPREAD_ENABLE_SECURE_BOOT:-false}")'
             # Build and use snapd from current branch
-            BUILD_FROM_CURRENT: '$(HOST: echo "${SPREAD_BUILD_FROM_CURRENT:-false}")'
+            BUILD_SNAPD_FROM_CURRENT: '$(HOST: echo "${SPREAD_BUILD_SNAPD_FROM_CURRENT:-false}")'
         manual: true
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
@@ -868,6 +872,9 @@ suites:
             distro_update_package_db
             distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx
             snap install ubuntu-image --classic
+
+            # TODO: replace with distro package once 2.45 is in stable
+            dpkg -i "$SPREAD_PATH"/../snapd_*.deb
 
         restore: |
             #shellcheck source=tests/lib/nested.sh
@@ -897,10 +904,9 @@ suites:
             # Enable secure boot in the nested vm in case it is supported
             ENABLE_SECURE_BOOT: '$(HOST: echo "${SPREAD_ENABLE_SECURE_BOOT:-false}")'
             # Build and use snapd from current branch
-            BUILD_FROM_CURRENT: '$(HOST: echo "${SPREAD_BUILD_FROM_CURRENT:-false}")'
+            BUILD_SNAPD_FROM_CURRENT: '$(HOST: echo "${SPREAD_BUILD_SNAPD_FROM_CURRENT:-false}")'
         manual: true
         prepare: |
-            "$TESTSLIB"/prepare-restore.sh --prepare-suite
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
@@ -946,7 +952,7 @@ suites:
             # Enable secure boot in the nested vm in case it is supported
             ENABLE_SECURE_BOOT: '$(HOST: echo "${SPREAD_ENABLE_SECURE_BOOT:-false}")'
             # Build and use snapd from current branch
-            BUILD_FROM_CURRENT: '$(HOST: echo "${SPREAD_BUILD_FROM_CURRENT:-false}")'
+            BUILD_SNAPD_FROM_CURRENT: '$(HOST: echo "${SPREAD_BUILD_SNAPD_FROM_CURRENT:-false}")'
         manual: true
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
@@ -990,16 +996,18 @@ suites:
             # Enable secure boot in the nested vm in case it is supported
             ENABLE_SECURE_BOOT: '$(HOST: echo "${SPREAD_ENABLE_SECURE_BOOT:-true}")'
             # Build and use snapd from current branch
-            BUILD_FROM_CURRENT: '$(HOST: echo "${SPREAD_BUILD_FROM_CURRENT:-true}")'
+            BUILD_SNAPD_FROM_CURRENT: '$(HOST: echo "${SPREAD_BUILD_SNAPD_FROM_CURRENT:-false}")'
         manual: true
         prepare: |
-            "$TESTSLIB"/prepare-restore.sh --prepare-suite
-
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
             distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx
             snap install ubuntu-image --classic
+
+            # TODO: replace with distro package once 2.45 is in stable
+            dpkg -i "$SPREAD_PATH"/../snapd_*.deb
+            snap install core --beta
 
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
