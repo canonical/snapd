@@ -50,6 +50,16 @@ func (s *vitalitySuite) TestConfigureVitalityUnhappyName(c *C) {
 	c.Assert(err, ErrorMatches, `cannot set "resilience.vitality-hint": invalid snap name: ".*"`)
 }
 
+func (s *vitalitySuite) TestConfigureVitalityNoSnapd(c *C) {
+	err := configcore.Run(&mockConf{
+		state: s.state,
+		changes: map[string]interface{}{
+			"resilience.vitality-hint": "snapd",
+		},
+	})
+	c.Assert(err, ErrorMatches, `cannot set "resilience.vitality-hint": snapd snap cannot be changed`)
+}
+
 func (s *vitalitySuite) TestConfigureVitalityhappyName(c *C) {
 	err := configcore.Run(&mockConf{
 		state: s.state,

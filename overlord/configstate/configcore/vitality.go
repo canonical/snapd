@@ -126,6 +126,10 @@ func validateVitalitySettings(tr config.Conf) error {
 		if err := naming.ValidateInstance(instanceName); err != nil {
 			return fmt.Errorf("cannot set %q: %v", vitalityOpt, err)
 		}
+		// The "snapd" snap is always at OOMScoreAdjust=-900.
+		if instanceName == "snapd" {
+			return fmt.Errorf("cannot set %q: snapd snap cannot be changed", vitalityOpt)
+		}
 	}
 
 	return nil
