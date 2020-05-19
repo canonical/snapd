@@ -93,16 +93,16 @@ get_google_image_url_for_nested_vm(){
 
 get_ubuntu_image_url_for_nested_vm(){
     case "$SPREAD_SYSTEM" in
-        ubuntu-16.04-64)
+        ubuntu-16.04-64*)
             echo "https://cloud-images.ubuntu.com/xenial/current/xenial-server-cloudimg-amd64-disk1.img"
             ;;
-        ubuntu-18.04-64)
+        ubuntu-18.04-64*)
             echo "https://cloud-images.ubuntu.com/bionic/current/bionic-server-cloudimg-amd64.img"
             ;;
-        ubuntu-19.10-64)
+        ubuntu-19.10-64*)
             echo "https://cloud-images.ubuntu.com/eoan/current/eoan-server-cloudimg-amd64.img"
             ;;
-        ubuntu-20.04-64)
+        ubuntu-20.04-64*)
             echo "https://cloud-images.ubuntu.com/focal/current/focal-server-cloudimg-amd64.img"
             ;;
         *)
