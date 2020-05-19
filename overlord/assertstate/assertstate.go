@@ -72,8 +72,14 @@ func RefreshSnapDeclarations(s *state.State, userID int) error {
 		// done
 		return nil
 	}
-	logger.Noticef("bulk refresh of snap-declarations failed, falling back to extensive fetching: %v", err)
+	if err != errBulkAssertionFallback {
+		// not an error that indicates the server rejecting/failing
+		// the bulk request itself
+		return err
+	}
+	logger.Noticef("bulk refresh of snap-declarations failed, falling back to one-by-one assertion fetching: %v", err)
 	// XXX test fallback
+	panic("Fallback")
 
 	modelAs := deviceCtx.Model()
 
