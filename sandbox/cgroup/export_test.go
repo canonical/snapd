@@ -28,6 +28,7 @@ var (
 	ParsePid                  = parsePid
 	PidsInFile                = pidsInFile
 	SecurityTagFromCgroupPath = securityTagFromCgroupPath
+	DoCreateTransientScope    = doCreateTransientScope
 )
 
 func MockFsTypeForPath(mock func(string) (int64, error)) (restore func()) {
@@ -56,4 +57,42 @@ func MockFreezerCgroupDir(c *C) (restore func()) {
 
 func FreezerCgroupDir() string {
 	return freezerCgroupDir
+}
+
+func MockRandomUUID(uuid string) func() {
+	old := randomUUID
+	randomUUID = func() (string, error) {
+		return uuid, nil
+	}
+	return func() {
+		randomUUID = old
+	}
+}
+
+func MockOsGetuid(uid int) func() {
+	old := osGetuid
+	osGetuid = func() int {
+		return uid
+	}
+	return func() {
+		osGetuid = old
+	}
+}
+
+func MockOsGetpid(pid int) func() {
+	old := osGetpid
+	osGetpid = func() int {
+		return pid
+	}
+	return func() {
+		osGetpid = old
+	}
+}
+
+func MockCgroupProcessPathInTrackingCgroup(fn func(pid int) (string, error)) func() {
+	old := cgroupProcessPathInTrackingCgroup
+	cgroupProcessPathInTrackingCgroup = fn
+	return func() {
+		cgroupProcessPathInTrackingCgroup = old
+	}
 }

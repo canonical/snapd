@@ -28,14 +28,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/godbus/dbus"
 	"gopkg.in/check.v1"
 
 	snaprun "github.com/snapcore/snapd/cmd/snap"
-	"github.com/snapcore/snapd/dbusutil"
-	"github.com/snapcore/snapd/dbusutil/dbustest"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox/selinux"
@@ -1263,113 +1259,4 @@ esac
 	c.Check(systemctl.Calls(), check.DeepEquals, [][]string{
 		{"systemctl", "is-system-running"},
 	})
-}
-
-// CreateTransientScope is a no-op when refresh app awareness is off
-func (s *RunSuite) TestCreateTransientScopeFeatureDisabled(c *check.C) {
-	noDBus := func() (*dbus.Conn, error) {
-		return nil, fmt.Errorf("dbus should not have been used")
-	}
-	restore := dbusutil.MockConnections(noDBus, noDBus)
-	defer restore()
-
-	c.Assert(features.RefreshAppAwareness.IsEnabled(), check.Equals, false)
-	err := snaprun.CreateTransientScope("snap.pkg.app")
-	c.Check(err, check.IsNil)
-}
-
-// CreateTransientScope does stuff when refresh app awareness is on
-func (s *RunSuite) TestCreateTransientScopeFeatureEnabled(c *check.C) {
-	// Pretend that refresh app awareness is enabled
-	snaprun.EnableFeatures(c, features.RefreshAppAwareness)
-	c.Assert(features.RefreshAppAwareness.IsEnabled(), check.Equals, true)
-	// Pretend we are a non-root user so that session bus is used.
-	restore := snaprun.MockOsGetuid(12345)
-	defer restore()
-	// Pretend our PID is this value.
-	restore = snaprun.MockOsGetpid(312123)
-	defer restore()
-	// Rig the random UUID generator to return this value.
-	uuid := "cc98cd01-6a25-46bd-b71b-82069b71b770"
-	restore = snaprun.MockRandomUUID(uuid)
-	defer restore()
-	// Replace interactions with DBus so that only session bus is available and responds with our logic.
-	conn, err := dbustest.Connection(func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
-		switch n {
-		case 0:
-			return []*dbus.Message{happyResponseToStartTransientUnit(c, msg, "snap.pkg.app."+uuid+".scope", 312123)}, nil
-		}
-		return nil, fmt.Errorf("unexpected message #%d: %s", n, msg)
-	})
-	c.Assert(err, check.IsNil)
-	restore = dbusutil.MockSessionBus(conn)
-	defer restore()
-	// Replace the cgroup analyzer function
-	restore = snaprun.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
-		return "/user.slice/user-12345.slice/user@12345.service/snap.pkg.app." + uuid + ".scope", nil
-	})
-	defer restore()
-
-	err = snaprun.CreateTransientScope("snap.pkg.app")
-	c.Check(err, check.IsNil)
-}
-
-func happyResponseToStartTransientUnit(c *check.C, msg *dbus.Message, scopeName string, pid int) *dbus.Message {
-	// XXX: Those types might live in a package somewhere
-	type Property struct {
-		Name  string
-		Value interface{}
-	}
-	type Unit struct {
-		Name  string
-		Props []Property
-	}
-	// Signature of StartTransientUnit, string, string, array of Property and array of Unit (see above).
-	requestSig := dbus.SignatureOf("", "", []Property{}, []Unit{})
-
-	c.Assert(msg.Type, check.Equals, dbus.TypeMethodCall)
-	c.Check(msg.Flags, check.Equals, dbus.Flags(0))
-	c.Check(msg.Headers, check.DeepEquals, map[dbus.HeaderField]dbus.Variant{
-		dbus.FieldDestination: dbus.MakeVariant("org.freedesktop.systemd1"),
-		dbus.FieldPath:        dbus.MakeVariant(dbus.ObjectPath("/org/freedesktop/systemd1")),
-		dbus.FieldInterface:   dbus.MakeVariant("org.freedesktop.systemd1.Manager"),
-		dbus.FieldMember:      dbus.MakeVariant("StartTransientUnit"),
-		dbus.FieldSignature:   dbus.MakeVariant(requestSig),
-	})
-	c.Check(msg.Body, check.DeepEquals, []interface{}{
-		scopeName,
-		"fail",
-		[][]interface{}{
-			{"PIDs", dbus.MakeVariant([]uint32{uint32(pid)})},
-		},
-		[][]interface{}{},
-	})
-
-	responseSig := dbus.SignatureOf(dbus.ObjectPath(""))
-	return &dbus.Message{
-		Type: dbus.TypeMethodReply,
-		Headers: map[dbus.HeaderField]dbus.Variant{
-			dbus.FieldReplySerial: dbus.MakeVariant(msg.Serial()),
-			dbus.FieldSender:      dbus.MakeVariant(":1"), // This does not matter.
-			// dbus.FieldDestination is provided automatically by DBus test helper.
-			dbus.FieldSignature: dbus.MakeVariant(responseSig),
-		},
-		// The object path returned in the body is not used by snap run yet.
-		Body: []interface{}{dbus.ObjectPath("/org/freedesktop/systemd1/job/1462")},
-	}
-}
-
-func (s *RunSuite) TestDoCreateTransientScopeHappy(c *check.C) {
-	conn, err := dbustest.Connection(func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
-		switch n {
-		case 0:
-			return []*dbus.Message{happyResponseToStartTransientUnit(c, msg, "foo.scope", 312123)}, nil
-		}
-		return nil, fmt.Errorf("unexpected message #%d: %s", n, msg)
-	})
-
-	c.Assert(err, check.IsNil)
-	defer conn.Close()
-	err = snaprun.DoCreateTransientScope(conn, "foo.scope", 312123)
-	c.Assert(err, check.IsNil)
 }

@@ -92,9 +92,6 @@ var (
 	PrintInstallHint = printInstallHint
 
 	IsStopping = isStopping
-
-	CreateTransientScope   = createTransientScope
-	DoCreateTransientScope = doCreateTransientScope
 )
 
 func HiddenCmd(descr string, completeHidden bool) *cmdInfo {
@@ -333,31 +330,11 @@ func MockSignalNotify(newSignalNotify func(sig ...os.Signal) (chan os.Signal, fu
 
 type ServiceName = serviceName
 
-func MockOsGetuid(uid int) func() {
-	old := osGetuid
-	osGetuid = func() int {
-		return uid
-	}
-	return func() {
-		osGetuid = old
-	}
-}
-
-func MockOsGetpid(pid int) func() {
-	old := osGetpid
-	osGetpid = func() int {
-		return pid
-	}
-	return func() {
-		osGetpid = old
-	}
-}
-
 func MockCreateTransientScope(fn func(securitTag string) error) func() {
-	old := createTransientScope
-	createTransientScope = fn
+	old := cgroupCreateTransientScope
+	cgroupCreateTransientScope = fn
 	return func() {
-		createTransientScope = old
+		cgroupCreateTransientScope = old
 	}
 }
 
@@ -374,24 +351,6 @@ func MockCgroupSnapNameFromPid(f func(pid int) (string, error)) (restore func())
 	cgroupSnapNameFromPid = f
 	return func() {
 		cgroupSnapNameFromPid = old
-	}
-}
-
-func MockRandomUUID(uuid string) func() {
-	old := randomUUID
-	randomUUID = func() (string, error) {
-		return uuid, nil
-	}
-	return func() {
-		randomUUID = old
-	}
-}
-
-func MockCgroupProcessPathInTrackingCgroup(fn func(pid int) (string, error)) func() {
-	old := cgroupProcessPathInTrackingCgroup
-	cgroupProcessPathInTrackingCgroup = fn
-	return func() {
-		cgroupProcessPathInTrackingCgroup = old
 	}
 }
 
