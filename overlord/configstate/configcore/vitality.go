@@ -81,7 +81,7 @@ func handleVitalityConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 		if err != nil {
 			return err
 		}
-		// nothing rank to do if rank is unchanged
+		// nothing to do if rank is unchanged
 		if oldVitalityMap[instanceName] == newVitalityMap[instanceName] {
 			continue
 		}
@@ -102,8 +102,7 @@ func handleVitalityConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 			return err
 		}
 		tm := timings.New(nil)
-		pb := progress.Null
-		if err = wrappers.StartServices(startupOrdered, pb, tm); err != nil {
+		if err = wrappers.StartServices(startupOrdered, progress.Null, tm); err != nil {
 			return err
 		}
 	}
