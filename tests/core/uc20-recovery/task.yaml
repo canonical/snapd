@@ -42,7 +42,7 @@ execute: |
       test -n "$label"
       # make sure that the seed exists
       test -d "/var/lib/snapd/seed/systems/$label"
-      jq -r .result.systems[0].actions[].mode < systems.json | MATCH 'recover'
+      jq -r .result.systems[0].actions[].mode < systems.json | sort | tr '\n' ' ' | MATCH 'install recover run'
 
       # keep a copy of the systems dump for later reference
       cp systems.json /writable/systems.json.run
@@ -95,8 +95,8 @@ execute: |
       test -e /host/ubuntu-data/systems.json.run
 
       test-snapd-curl.curl -s --unix-socket /run/snapd.socket http://localhost/v2/systems > systems.json
-      # systems list should be identical
-      diff -up /host/ubuntu-data/systems.json.run systems.json
+      jq -r .result.systems[0].actions[].mode < systems.json | sort | tr '\n' ' ' | MATCH 'install run'
+
       label="$(cat /host/ubuntu-data/systems.label)"
       test -n "$label"
       # seed in mounted in recover mode too
