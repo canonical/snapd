@@ -160,8 +160,9 @@ jobs:
           fi
           # Register a problem matcher to highlight spread failures
           echo "::add-matcher::.github/spread-problem-matcher.json"
-          spread -abend google:${{ matrix.system }}:tests/...
-          touch "$stamp"
+          if spread -abend google:${{ matrix.system }}:tests/... ; then
+              touch "$stamp"
+          fi
     - name: Discard spread workers
       if: always()
       run: |
