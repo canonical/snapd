@@ -106,7 +106,13 @@ func (s *apiSuite) mockSystemSeeds(c *check.C) (restore func()) {
 	return restore
 }
 
-func (s *apiSuite) TestGetSystemsSome(c *check.C) {
+func (s *apiSuite) TestSystemsGetSome(c *check.C) {
+	m := boot.Modeenv{
+		Mode: "run",
+	}
+	err := m.WriteTo("")
+	c.Assert(err, check.IsNil)
+
 	d := s.daemonWithOverlordMock(c)
 	hookMgr, err := hookstate.Manager(d.overlord.State(), d.overlord.TaskRunner())
 	c.Assert(err, check.IsNil)
@@ -175,7 +181,13 @@ func (s *apiSuite) TestGetSystemsSome(c *check.C) {
 		}})
 }
 
-func (s *apiSuite) TestGetSystemsNone(c *check.C) {
+func (s *apiSuite) TestSystemsGetNone(c *check.C) {
+	m := boot.Modeenv{
+		Mode: "run",
+	}
+	err := m.WriteTo("")
+	c.Assert(err, check.IsNil)
+
 	// model assertion setup
 	d := s.daemonWithOverlordMock(c)
 	hookMgr, err := hookstate.Manager(d.overlord.State(), d.overlord.TaskRunner())
@@ -337,9 +349,10 @@ func (s *apiSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 		},
 		{
 			// from recover mode -> recover mode is no-op
-			currentMode: "recover",
-			actionMode:  "recover",
-			comment:     "recover mode to recover mode",
+			currentMode:    "recover",
+			actionMode:     "recover",
+			expUnsupported: true,
+			comment:        "recover mode to recover mode",
 		},
 		{
 			// from install mode -> install mode is no-no
@@ -365,11 +378,15 @@ func (s *apiSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 	}
 	s.vars = map[string]string{"label": "20191119"}
 
-	for _, t := range tt {
+	for _, tc := range tt {
+		c.Logf("tc: %v", tc.comment)
 		// daemon setup - need to do this per-test because we need to re-read
 		// the modeenv during devicemgr startup
 		m := boot.Modeenv{
-			Mode: t.currentMode,
+			Mode: tc.currentMode,
+		}
+		if tc.currentMode != "run" {
+			m.RecoverySystem = "20191119"
 		}
 		err := m.WriteTo("")
 		c.Assert(err, check.IsNil)
@@ -382,34 +399,37 @@ func (s *apiSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 		assertstatetest.AddMany(st, s.storeSigning.StoreAccountKey(""))
 		assertstatetest.AddMany(st, s.brands.AccountsAndKeys("my-brand")...)
 		s.mockModel(c, st, model)
-		st.Set("seeded-systems", currentSystem)
+		if tc.currentMode == "run" {
+			// only set in run mode
+			st.Set("seeded-systems", currentSystem)
+		}
 		st.Unlock()
 
 		body := map[string]string{
 			"action": "do",
-			"mode":   t.actionMode,
+			"mode":   tc.actionMode,
 		}
 		b, err := json.Marshal(body)
-		c.Assert(err, check.IsNil, check.Commentf(t.comment))
+		c.Assert(err, check.IsNil, check.Commentf(tc.comment))
 		buf := bytes.NewBuffer(b)
 		req, err := http.NewRequest("POST", "/v2/systems/20191119", buf)
-		c.Assert(err, check.IsNil, check.Commentf(t.comment))
+		c.Assert(err, check.IsNil, check.Commentf(tc.comment))
 		// as root
 		req.RemoteAddr = "pid=100;uid=0;socket=;"
 		rec := httptest.NewRecorder()
 		systemsActionCmd.ServeHTTP(rec, req)
-		if t.expUnsupported {
-			c.Check(rec.Code, check.Equals, 400, check.Commentf(t.comment))
+		if tc.expUnsupported {
+			c.Check(rec.Code, check.Equals, 400, check.Commentf(tc.comment))
 		} else {
-			c.Check(rec.Code, check.Equals, 200, check.Commentf(t.comment))
+			c.Check(rec.Code, check.Equals, 200, check.Commentf(tc.comment))
 		}
 
 		var rspBody map[string]interface{}
 		err = json.Unmarshal(rec.Body.Bytes(), &rspBody)
-		c.Assert(err, check.IsNil, check.Commentf(t.comment))
+		c.Assert(err, check.IsNil, check.Commentf(tc.comment))
 
 		var expResp map[string]interface{}
-		if t.expUnsupported {
+		if tc.expUnsupported {
 			expResp = map[string]interface{}{
 				"result": map[string]interface{}{
 					"message": fmt.Sprintf("requested action is not supported by system %q", "20191119"),
@@ -425,7 +445,7 @@ func (s *apiSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 				"status-code": 200.0,
 				"type":        "sync",
 			}
-			if t.expRestart {
+			if tc.expRestart {
 				expResp["maintenance"] = map[string]interface{}{
 					"kind":    "system-restart",
 					"message": "system is restarting",
@@ -434,17 +454,17 @@ func (s *apiSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 				// daemon is not started, only check whether reboot was scheduled as expected
 
 				// reboot flag
-				c.Check(d.restartSystem, check.Equals, state.RestartSystemNow, check.Commentf(t.comment))
+				c.Check(d.restartSystem, check.Equals, state.RestartSystemNow, check.Commentf(tc.comment))
 				// slow reboot schedule
 				c.Check(cmd.Calls(), check.DeepEquals, [][]string{
 					{"shutdown", "-r", "+10", "reboot scheduled to update the system"},
 				},
-					check.Commentf(t.comment),
+					check.Commentf(tc.comment),
 				)
 			}
 		}
 
-		c.Assert(rspBody, check.DeepEquals, expResp, check.Commentf(t.comment))
+		c.Assert(rspBody, check.DeepEquals, expResp, check.Commentf(tc.comment))
 
 		cmd.ForgetCalls()
 		s.d = nil

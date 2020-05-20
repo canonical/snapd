@@ -1,7 +1,13 @@
 summary: Integration tests for the snap-bootstrap binary
 
 # use the same system and tooling as uc20
-systems: [ubuntu-20.04-64]
+systems: [ubuntu-20.04-64-secboot]
+
+environment:
+    # an empty $topsrcdir/tests/go.mod seems to break importing or building go
+    # packages referenced by their import paths while under the tests directory,
+    # need to disable go modules support for this test
+    GO111MODULE: off
 
 debug: |
     cat /proc/partitions
@@ -20,6 +26,8 @@ restore: |
         losetup -d "$(cat loop.txt)"
     fi
     apt remove -y cryptsetup
+
+    rm -Rf /run/mnt
 
 prepare: |
     echo "Create a fake block device image that looks like an image from u-i"
@@ -50,16 +58,31 @@ prepare: |
     snap download --channel=20/edge pc
     unsquashfs -d gadget-dir pc_*.snap
 
+    echo "Install EFI binaries"
+    bootdir=/run/mnt/ubuntu-boot/EFI/boot
+    mkdir -p "$bootdir"
+    cp /usr/lib/shim/shimx64.efi.signed "$bootdir"/bootx64.efi
+    cp /usr/lib/grub/x86_64-efi-signed/grubx64.efi.signed "$bootdir"/grubx64.efi
+
 execute: |
+    bootdir=/run/mnt/ubuntu-boot/EFI/boot
+    ls -l "$bootdir"
+    sbverify --list "$bootdir"/bootx64.efi
+    sbverify --list "$bootdir"/grubx64.efi
     LOOP="$(cat loop.txt)"
+
     echo "Run the snap-bootstrap tool"
-    /usr/lib/snapd/snap-bootstrap create-partitions --mount \
+    go get ../../../lib/create-partitions
+    create-partitions \
         --encrypt --key-file keyfile \
-        --recovery-key-file /run/mnt/ubuntu-data/system-data/recovery-key \
+        --recovery-key-file recovery-key \
+        --policy-update-data-file policy-update-data \
+        --tpm-lockout-auth tpm-lockout-auth \
+        --model <(snap model --assertion) \
         ./gadget-dir "$LOOP"
 
     echo "Check that the key file was created"
-    test "$(stat --printf="%s" ./keyfile)" = 64
+    test "$(stat --printf=%s ./keyfile)" = 1095
 
     echo "Check that the partitions are created"
     sfdisk -d "$LOOP" | MATCH "^${LOOP}p1 .*size=\s*2048, type=21686148-6449-6E6F-744E-656564454649,.*BIOS Boot"
@@ -73,33 +96,18 @@ execute: |
     cryptsetup isLuks "${LOOP}p4"
 
     cryptsetup luksDump "${LOOP}p4" | MATCH 'Label:\s*ubuntu-data-enc'
-
-    # we used "lsblk --fs" here but it was unreliable
-    df -T "${LOOP}p3" | MATCH ext4
-    file -s "${LOOP}p3" | MATCH 'volume name "ubuntu-boot"'
-
-    df -T /dev/mapper/ubuntu-data | MATCH ext4
     POSIXLY_CORRECT=1 file -s /dev/mapper/ubuntu-data | MATCH 'volume name "ubuntu-data"'
 
-    echo "Check that the filesystem content was deployed"
-    ls /run/mnt/ubuntu-boot/EFI/boot/grubx64.efi
-    ls /run/mnt/ubuntu-boot/EFI/boot/bootx64.efi
-    ls /run/mnt/ubuntu-boot/EFI/ubuntu/grub.cfg
-
-    umount /run/mnt/ubuntu-boot
-    umount /run/mnt/ubuntu-data
     cryptsetup close /dev/mapper/ubuntu-data
 
-    echo "Ensure that we can open the encrypted device using the key"
-    mkdir -p ./mnt
-    cryptsetup open --key-file keyfile "${LOOP}p4" test-udata
-    mount /dev/mapper/test-udata ./mnt
-    echo "Check that the recovery key was stored"
-    test "$(stat --printf="%s" ./mnt/system-data/recovery-key)" = 16
-    cp ./mnt/system-data/recovery-key .
-    umount ./mnt
-    cryptsetup close /dev/mapper/test-udata
+    echo "Check the policy update data and TPM lockout authorization files"
+    ls -l policy-update-data
+    ls -l tpm-lockout-auth
 
+    # Test the recovery key
+
+    # Can't test the keyfile because it's now sealed to the TPM
+    mkdir -p ./mnt
     echo "Ensure that we can open the encrypted device using the recovery key"
     cryptsetup open --key-file recovery-key "${LOOP}p4" test-recovery
     mount /dev/mapper/test-recovery ./mnt
