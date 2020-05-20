@@ -18,10 +18,6 @@
  */
 package cgroup
 
-import (
-	. "gopkg.in/check.v1"
-)
-
 var (
 	Cgroup2SuperMagic         = cgroup2SuperMagic
 	ProbeCgroupVersion        = probeCgroupVersion
@@ -46,18 +42,6 @@ func MockFsRootPath(p string) (restore func()) {
 	return func() {
 		rootPath = old
 	}
-}
-
-func MockFreezerCgroupDir(c *C) (restore func()) {
-	old := freezerCgroupDir
-	freezerCgroupDir = c.MkDir()
-	return func() {
-		freezerCgroupDir = old
-	}
-}
-
-func FreezerCgroupDir() string {
-	return freezerCgroupDir
 }
 
 func MockRandomUUID(uuid string) func() {
