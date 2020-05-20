@@ -20,22 +20,57 @@
 package store_test
 
 import (
+	"bytes"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"time"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/store"
 )
 
 type storeAssertsSuite struct {
 	baseStoreSuite
+
+	storeSigning *assertstest.StoreStack
+	dev1Acct     *asserts.Account
+	decl1        *asserts.SnapDeclaration
+
+	db *asserts.Database
 }
 
 var _ = Suite(&storeAssertsSuite{})
+
+func (s *storeAssertsSuite) SetUpTest(c *C) {
+	s.baseStoreSuite.SetUpTest(c)
+
+	s.storeSigning = assertstest.NewStoreStack("can0nical", nil)
+	s.dev1Acct = assertstest.NewAccount(s.storeSigning, "developer1", map[string]interface{}{
+		"account-id": "developer1",
+	}, "")
+
+	a, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+		"series":       "16",
+		"snap-id":      "asnapid",
+		"snap-name":    "asnap",
+		"publisher-id": "developer1",
+		"timestamp":    time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	s.decl1 = a.(*asserts.SnapDeclaration)
+
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   s.storeSigning.Trusted,
+	})
+	c.Assert(err, IsNil)
+	s.db = db
+}
 
 var testAssertion = `type: snap-declaration
 authority-id: super
@@ -170,4 +205,193 @@ func (s *storeAssertsSuite) TestAssertion500(c *C) {
 	_, err := sto.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, nil)
 	c.Assert(err, ErrorMatches, `cannot fetch assertion: got unexpected HTTP status code 500 via .+`)
 	c.Assert(n, Equals, 5)
+}
+
+func (s *storeAssertsSuite) TestDownloadAssertionsSimple(c *C) {
+	assertstest.AddMany(s.db, s.storeSigning.StoreAccountKey(""), s.dev1Acct)
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "GET", "/assertions/.*")
+		// check device authorization is set, implicitly checking doRequest was used
+		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		c.Check(r.Header.Get("Accept"), Equals, "application/x.ubuntu.assertion")
+		c.Check(r.URL.Path, Matches, ".*/snap-declaration/16/asnapid")
+		c.Check(r.URL.Query().Get("max-format"), Equals, "88")
+		w.Write(asserts.Encode(s.decl1))
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	streamURL, err := mockServerURL.Parse("/assertions/snap-declaration/16/asnapid")
+	c.Assert(err, IsNil)
+	urls := []string{streamURL.String() + "?max-format=88"}
+
+	b := asserts.NewBatch(nil)
+	err = sto.DownloadAssertions(urls, b, nil)
+	c.Assert(err, IsNil)
+
+	c.Assert(b.CommitTo(s.db, nil), IsNil)
+
+	// added
+	_, err = s.decl1.Ref().Resolve(s.db.Find)
+	c.Check(err, IsNil)
+}
+
+func (s *storeAssertsSuite) TestDownloadAssertionsWithStreams(c *C) {
+	stream1 := append(asserts.Encode(s.decl1), "\n"...)
+	stream1 = append(stream1, asserts.Encode(s.dev1Acct)...)
+	stream2 := asserts.Encode(s.storeSigning.StoreAccountKey(""))
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "GET", "/assertions/.*")
+
+		c.Check(r.Header.Get("Accept"), Equals, "application/x.ubuntu.assertion")
+		var stream []byte
+		switch r.URL.Path {
+		case "/assertions/stream1":
+			stream = stream1
+		case "/assertions/stream2":
+			stream = stream2
+		default:
+			c.Fatal("unexpected stream url")
+		}
+
+		w.Write(stream)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	stream1URL, err := mockServerURL.Parse("/assertions/stream1")
+	c.Assert(err, IsNil)
+	stream2URL, err := mockServerURL.Parse("/assertions/stream2")
+	c.Assert(err, IsNil)
+
+	urls := []string{stream1URL.String(), stream2URL.String()}
+
+	b := asserts.NewBatch(nil)
+	err = sto.DownloadAssertions(urls, b, nil)
+	c.Assert(err, IsNil)
+
+	c.Assert(b.CommitTo(s.db, nil), IsNil)
+
+	// added
+	_, err = s.decl1.Ref().Resolve(s.db.Find)
+	c.Check(err, IsNil)
+}
+
+func (s *storeAssertsSuite) TestDownloadAssertionsBrokenStream(c *C) {
+	stream1 := append(asserts.Encode(s.decl1), "\n"...)
+	stream1 = append(stream1, asserts.Encode(s.dev1Acct)...)
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "GET", "/assertions/stream1")
+
+		c.Check(r.Header.Get("Accept"), Equals, "application/x.ubuntu.assertion")
+
+		breakAt := bytes.Index(stream1, []byte("account-id"))
+		w.Write(stream1[:breakAt])
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	stream1URL, err := mockServerURL.Parse("/assertions/stream1")
+	c.Assert(err, IsNil)
+
+	urls := []string{stream1URL.String()}
+
+	b := asserts.NewBatch(nil)
+	err = sto.DownloadAssertions(urls, b, nil)
+	c.Assert(err, Equals, io.ErrUnexpectedEOF)
+}
+
+func (s *storeAssertsSuite) TestDownloadAssertions500(c *C) {
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "GET", "/assertions/stream1")
+
+		c.Check(r.Header.Get("Accept"), Equals, "application/x.ubuntu.assertion")
+
+		n++
+		w.WriteHeader(500)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	stream1URL, err := mockServerURL.Parse("/assertions/stream1")
+	c.Assert(err, IsNil)
+
+	urls := []string{stream1URL.String()}
+
+	b := asserts.NewBatch(nil)
+	err = sto.DownloadAssertions(urls, b, nil)
+	c.Assert(err, ErrorMatches, `cannot download assertion stream: got unexpected HTTP status code 500 via .+`)
+	c.Check(n, Equals, 5)
+}
+
+func (s *storeAssertsSuite) TestDownloadAssertionsStreamNotFound(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "GET", "/assertions/stream1")
+
+		c.Check(r.Header.Get("Accept"), Equals, "application/x.ubuntu.assertion")
+		w.Header().Set("Content-Type", "application/problem+json")
+		w.WriteHeader(404)
+		io.WriteString(w, `{"status": 404,"title": "not found"}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	stream1URL, err := mockServerURL.Parse("/assertions/stream1")
+	c.Assert(err, IsNil)
+
+	urls := []string{stream1URL.String()}
+
+	b := asserts.NewBatch(nil)
+	err = sto.DownloadAssertions(urls, b, nil)
+	c.Assert(err, ErrorMatches, `assertion service error: \[not found\].*`)
 }
