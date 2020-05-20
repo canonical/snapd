@@ -36,11 +36,11 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-type PerstistentNetworkError struct {
+type PersistentNetworkError struct {
 	Err error
 }
 
-func (e *PerstistentNetworkError) Error() string {
+func (e *PersistentNetworkError) Error() string {
 	return fmt.Sprintf("persistent network error: %v", e.Err)
 }
 
@@ -264,7 +264,7 @@ func RetryRequest(endpoint string, doRequest func() (*http.Response, error), rea
 			}
 
 			if isNetworkDown(err) || isDnsUnavailable(err) {
-				err = &PerstistentNetworkError{Err: err}
+				err = &PersistentNetworkError{Err: err}
 			}
 			break
 		}
