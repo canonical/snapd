@@ -151,3 +151,16 @@ func isCurrentSystem(current *seededSystem, other *System) bool {
 		current.Model == other.Model.Model() &&
 		current.BrandID == other.Brand.AccountID()
 }
+
+func currentSystemActionsForMode(mode string) []SystemAction {
+	switch mode {
+	case "install":
+		// there should be no current system in install mode
+		return nil
+	case "run":
+		return currentSystemActions
+	case "recover":
+		return recoverSystemActions
+	}
+	return nil
+}

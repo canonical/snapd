@@ -771,6 +771,10 @@ var currentSystemActions = []SystemAction{
 	{Title: "Recover", Mode: "recover"},
 	{Title: "Run normally", Mode: "run"},
 }
+var recoverSystemActions = []SystemAction{
+	{Title: "Reinstall", Mode: "install"},
+	{Title: "Run normally", Mode: "run"},
+}
 
 var ErrNoSystems = errors.New("no systems seeds")
 
@@ -801,7 +805,7 @@ func (m *DeviceManager) Systems() ([]*System, error) {
 		}
 		if currentSys != nil && isCurrentSystem(currentSys, system) {
 			system.Current = true
-			system.Actions = currentSystemActions
+			system.Actions = currentSystemActionsForMode(m.systemMode)
 		}
 		systems = append(systems, system)
 	}
@@ -829,8 +833,7 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 		return fmt.Errorf("cannot load seed system: %v", err)
 	}
 	if currentSys != nil && isCurrentSystem(currentSys, system) {
-		system.Current = true
-		system.Actions = currentSystemActions
+		system.Actions = currentSystemActionsForMode(m.systemMode)
 	}
 
 	var sysAction *SystemAction
