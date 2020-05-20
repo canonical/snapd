@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"testing"
 
@@ -66,10 +67,12 @@ func testParser(c *C) *flags.Parser {
 	return parser
 }
 
-func mockChrootDirs(c *C, rootDir string) {
-	c.Assert(os.MkdirAll(filepath.Join(rootDir, "/sys/kernel/security/apparmor"), 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(rootDir, "/proc/self"), 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(rootDir, "/dev/mem"), 0755), IsNil)
+func mockChrootDirs(c *C, rootDir string) func() {
+	mockMountInfo := `912 920 0:57 / ${rootDir}/proc rw,nosuid,nodev,noexec,relatime - proc proc rw
+914 913 0:7 / ${rootDir}/sys/kernel/security rw,nosuid,nodev,noexec,relatime master:8 - securityfs securityfs rw
+915 920 0:58 / ${rootDir}/dev rw,relatime - tmpfs none rw,size=492k,mode=755,uid=100000,gid=100000
+`
+	return osutil.MockMountInfo(strings.Replace(mockMountInfo, "${rootDir}", rootDir, -1))
 }
 
 func (s *startPreseedSuite) TestRequiresRoot(c *C) {
@@ -107,7 +110,7 @@ func (s *startPreseedSuite) TestChrootValidationUnhappy(c *C) {
 	tmpDir := c.MkDir()
 
 	parser := testParser(c)
-	c.Check(main.Run(parser, []string{tmpDir}), ErrorMatches, `cannot pre-seed without access to ".*sys/kernel/security/apparmor"`)
+	c.Check(main.Run(parser, []string{tmpDir}), ErrorMatches, `cannot preseed without access to ".*/dev" \(not a mountpoint\)`)
 }
 
 func (s *startPreseedSuite) TestChrootValidationAlreadyPreseeded(c *C) {
