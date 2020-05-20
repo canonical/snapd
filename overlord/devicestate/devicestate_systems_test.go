@@ -610,7 +610,7 @@ func (s *deviceMgrSystemsSuite) TestRequestAction1618(c *C) {
 	s.state.Unlock()
 	// a label exists
 	err = s.mgr.RequestSystemAction(s.mockedSystemSeeds[0].label, devicestate.SystemAction{Mode: "install"})
-	c.Assert(err, Equals, devicestate.ErrUnsupportedAction)
+	c.Assert(err, ErrorMatches, "cannot set device to boot .*: system mode is unsupported")
 
 	s.state.Lock()
 	s.state.Set("seeded", true)
@@ -629,5 +629,5 @@ func (s *deviceMgrSystemsSuite) TestRequestAction1618(c *C) {
 	}
 
 	err = s.mgr.RequestSystemAction(s.mockedSystemSeeds[0].label, devicestate.SystemAction{Mode: "install"})
-	c.Assert(err, Equals, devicestate.ErrUnsupportedAction)
+	c.Assert(err, ErrorMatches, ".*/seed/systems/20191119: no such file or directory")
 }

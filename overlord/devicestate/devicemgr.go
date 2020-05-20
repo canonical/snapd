@@ -782,7 +782,8 @@ var ErrNoSystems = errors.New("no systems seeds")
 // systems, ErrNoSystems when no systems seeds were found or other error.
 func (m *DeviceManager) Systems() ([]*System, error) {
 	// it's tough luck when we cannot determine the current system seed
-	currentSys, _ := currentSystemForMode(m.state, m.systemMode)
+	systemMode := m.SystemMode()
+	currentSys, _ := currentSystemForMode(m.state, systemMode)
 
 	systemLabels, err := filepath.Glob(filepath.Join(dirs.SnapSeedDir, "systems", "*"))
 	if err != nil && !os.IsNotExist(err) {
@@ -805,7 +806,7 @@ func (m *DeviceManager) Systems() ([]*System, error) {
 		}
 		if currentSys != nil && isCurrentSystem(currentSys, system) {
 			system.Current = true
-			system.Actions = currentSystemActionsForMode(m.systemMode)
+			system.Actions = currentSystemActionsForMode(systemMode)
 		}
 		systems = append(systems, system)
 	}
@@ -821,16 +822,13 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 	if systemLabel == "" {
 		return fmt.Errorf("internal error: system label is unset")
 	}
-	if m.systemMode == "" {
-		// uc16/uc18 have no mode
-		return ErrUnsupportedAction
-	}
 
 	if err := checkSystemRequestConflict(m.state, systemLabel); err != nil {
 		return err
 	}
 
-	currentSys, _ := currentSystemForMode(m.state, m.systemMode)
+	systemMode := m.SystemMode()
+	currentSys, _ := currentSystemForMode(m.state, systemMode)
 
 	systemSeedDir := filepath.Join(dirs.SnapSeedDir, "systems", systemLabel)
 	if _, err := os.Stat(systemSeedDir); err != nil {
@@ -841,7 +839,7 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 		return fmt.Errorf("cannot load seed system: %v", err)
 	}
 	if currentSys != nil && isCurrentSystem(currentSys, system) {
-		system.Actions = currentSystemActionsForMode(m.systemMode)
+		system.Actions = currentSystemActionsForMode(systemMode)
 	}
 
 	var sysAction *SystemAction
@@ -858,11 +856,11 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 	// XXX: requested mode is valid; only current system has 'run' and
 	// recover 'actions'
 
-	switch m.systemMode {
+	switch systemMode {
 	case "recover", "run":
 		// if going from recover to recover or from run to run and the systems
 		// are the same do nothing
-		if m.systemMode == sysAction.Mode && systemLabel == currentSys.System {
+		if systemMode == sysAction.Mode && systemLabel == currentSys.System {
 			return nil
 		}
 	case "install":
@@ -874,7 +872,7 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 	default:
 		// probably test device manager mocking problem, or also potentially
 		// missing modeenv
-		return fmt.Errorf("internal error: unexpected manager system mode %q", m.systemMode)
+		return fmt.Errorf("internal error: unexpected manager system mode %q", systemMode)
 	}
 
 	m.state.Lock()
