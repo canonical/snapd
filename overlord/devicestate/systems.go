@@ -58,7 +58,10 @@ func checkSystemRequestConflict(st *state.State, systemLabel string) error {
 	// not yet fully seeded, hold off requests for the system that is being
 	// seeded, but allow requests for other systems
 	if modeEnv.RecoverySystem == systemLabel {
-		return &snapstate.ChangeConflictError{Message: "cannot request system action, system is seeding"}
+		return &snapstate.ChangeConflictError{
+			ChangeKind: "seed",
+			Message:    "cannot request system action, system is seeding",
+		}
 	}
 	return nil
 }
