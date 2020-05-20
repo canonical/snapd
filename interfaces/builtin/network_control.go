@@ -307,7 +307,17 @@ var networkControlConnectedPlugMount = []osutil.MountEntry{{
 // mount options=(rw bind) /foo/bar/ -> /bar/,
 // umount /bar/,
 // ...
-// You'll need 'rw' rules to support cases when ...
+// You'll need 'r' rules for all the directories that need to be traversed,
+// starting from the root directory all the way down to the directory being
+// mounted. This is required by the safe bind mounting trick employed by
+// snap-update-ns.
+//
+// You'll need 'rw' rules to support cases when snap-update-ns is expected to
+// create the missing directory, before performing the bind mount. Note that
+// there are two sides, one side is the host visible through
+// /var/lib/snapd/hostfs and the other side is everything else. To support
+// writes to the host side you need to coordinate with the trespassing rules
+// implemented in snap-update-ns/system.go.
 var networkControlConnectedPlugUpdateNSAppArmor = `
 /var/ r,
 /var/lib/ r,
