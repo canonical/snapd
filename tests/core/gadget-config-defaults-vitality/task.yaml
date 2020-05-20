@@ -38,6 +38,19 @@ prepare: |
 
     # Update the gadget config file
     cat "$GADGET_FILE" >> squashfs-root/meta/gadget.yaml
+    # add service to the gadget
+    cat <<EOF >> squashfs-root/meta/snap.yaml
+    apps:
+     other:
+      command: service
+      daemon: simple
+    EOF
+    cat <<EOF >> squashfs-root/service
+    #!/bin/sh
+    echo other service
+    sleep infinity
+    EOF
+    chmod +x squashfs-root/service
 
     mksquashfs squashfs-root pc_x1.snap -comp xz -no-fragments -no-progress
     rm -rf squashfs-root
@@ -131,10 +144,11 @@ execute: |
     snap list|MATCH "test-snapd-with-configure${SUFFIX}"
 
     echo "The configuration for the service is applied"
+    systemctl show snap.pc.other.service |MATCH "OOMScoreAdjust=-898"
     if [ "$SUFFIX" = "" ]; then
-        systemctl show snap.test-snapd-with-configure${SUFFIX}.some.service |MATCH "OOMScoreAdjust=-898"
-    elif [ "$SUFFIX" = -"core18" ]; then
         systemctl show snap.test-snapd-with-configure${SUFFIX}.some.service |MATCH "OOMScoreAdjust=-897"
+    elif [ "$SUFFIX" = -"core18" ]; then
+        systemctl show snap.test-snapd-with-configure${SUFFIX}.some.service |MATCH "OOMScoreAdjust=-896"
     else
         echo "Unknown suffix $SUFFIX"
         exit 1
