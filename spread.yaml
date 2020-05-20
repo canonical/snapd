@@ -81,6 +81,10 @@ backends:
                 image: ubuntu-2004-64-virt-enabled
                 workers: 6
                 storage: 20G
+            - ubuntu-secboot-20.04-64:
+                image: ubuntu-20.04-64
+                workers: 1
+                secureboot: true
 
             - debian-9-64:
                 workers: 6
@@ -97,15 +101,18 @@ backends:
                 workers: 6
             - fedora-31-64:
                 workers: 6
+
             - opensuse-15.0-64:
                 workers: 6
                 manual: true
+
             - arch-linux-64:
                 workers: 6
 
             - amazon-linux-2-64:
                 workers: 6
                 storage: preserve-size
+
             - centos-7-64:
                 workers: 6
                 storage: preserve-size
@@ -686,6 +693,7 @@ suites:
     # All other tests run now and will heavily modify the system.
     tests/main/:
         summary: Full-system tests for snapd
+        systems: [-ubuntu-secboot-*]
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
@@ -713,7 +721,7 @@ suites:
     tests/completion/:
         summary: completion tests
         # ppc64el disabled because of https://bugs.launchpad.net/snappy/+bug/1655594
-        systems: [-ubuntu-core-*, -ubuntu-*-ppc64el]
+        systems: [-ubuntu-core-*, -ubuntu-*-ppc64el, -ubuntu-secboot-*]
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
@@ -740,6 +748,7 @@ suites:
 
     tests/regression/:
         summary: Regression tests for snapd
+        systems: [-ubuntu-secboot-*]
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
@@ -754,7 +763,7 @@ suites:
         # Test cases are not yet ported to openSUSE that is why we keep
         # it disabled. A later PR will enable most tests and
         # drop this blacklist.
-        systems: [-ubuntu-core-*, -opensuse-*]
+        systems: [-ubuntu-core-*, -opensuse-*, -ubuntu-secboot-*]
         prepare-each: |
             # FIXME: this should really use prepare-restore.sh --prepare-suite-each
             # like other suites, needs more investigation
@@ -787,7 +796,7 @@ suites:
         # Test cases are not yet ported to Fedora/openSUSE/Arch that is why
         # we keep them disabled. A later PR will enable most tests and
         # drop this blacklist.
-        systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
+        systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*, -ubuntu-secboot-*]
         # unittests are run as part of the autopkgtest build already
         backends: [-autopkgtest]
         environment:
