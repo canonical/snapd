@@ -233,12 +233,18 @@ create_nested_core_vm(){
             snap download --basename=pc-kernel --channel="20/edge" pc-kernel
             uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$WORK_DIR/image"
 
+            # Get the snaleoil key and cert
+            wget https://raw.githubusercontent.com/snapcore/pc-amd64-gadget/20/snakeoil/PkKek-1-snakeoil.key
+            wget https://raw.githubusercontent.com/snapcore/pc-amd64-gadget/20/snakeoil/PkKek-1-snakeoil.pem
+            SNAKEOIL_KEY="$PWD/PkKek-1-snakeoil.key"
+            SNAKEOIL_CERT="$PWD/PkKek-1-snakeoil.pem"
+
             # Prepare the pc kernel snap
             KERNEL_SNAP=$(ls "$WORK_DIR"/image/pc-kernel_*.snap)
             KERNEL_UNPACKED="$WORK_DIR"/image/kernel-unpacked
             unsquashfs -d "$KERNEL_UNPACKED" "$KERNEL_SNAP"
             sbattach --remove "$KERNEL_UNPACKED/kernel.efi"
-            sbsign --key /etc/ssl/private/ssl-cert-snakeoil.key --cert /etc/ssl/certs/ssl-cert-snakeoil.pem "$KERNEL_UNPACKED/kernel.efi"  --output "$KERNEL_UNPACKED/kernel.efi"
+            sbsign --key "$SNAKEOIL_KEY" --cert "$SNAKEOIL_CERT" "$KERNEL_UNPACKED/kernel.efi"  --output "$KERNEL_UNPACKED/kernel.efi"
             snap pack "$KERNEL_UNPACKED" "$WORK_DIR/image"
 
             chmod 0600 "$KERNEL_SNAP"
@@ -247,16 +253,14 @@ create_nested_core_vm(){
             EXTRA_FUNDAMENTAL="--snap $KERNEL_SNAP"
 
             # Prepare the pc gadget snap
-            wget https://raw.githubusercontent.com/snapcore/pc-amd64-gadget/20/snakeoil/PkKek-1-snakeoil.key
-            wget https://raw.githubusercontent.com/snapcore/pc-amd64-gadget/20/snakeoil/PkKek-1-snakeoil.pem
             snap download --basename=pc --channel="20/edge" pc
             unsquashfs -d pc-gadget pc.snap
             sbattach --remove pc-gadget/shim.efi.signed
-            sbsign --key PkKek-1-snakeoil.key --cert PkKek-1-snakeoil.pem --output pc-gadget/shim.efi.signed pc-gadget/shim.efi.signed
+            sbsign --key "$SNAKEOIL_KEY" --cert "$SNAKEOIL_CERT" --output pc-gadget/shim.efi.signed pc-gadget/shim.efi.signed
             snap pack pc-gadget/ "$WORK_DIR/image"
 
             GADGET_SNAP=$(ls "$WORK_DIR"/image/pc_*.snap)
-            rm -f "$PWD/pc.snap" PkKek-1-snakeoil.key PkKek-1-snakeoil.pem
+            rm -f "$PWD/pc.snap" "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
             EXTRA_FUNDAMENTAL="--snap $GADGET_SNAP"
 
             snap download --channel="latest/edge" snapd
