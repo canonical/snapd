@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"context"
 	"crypto"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
@@ -38,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -77,6 +79,9 @@ type fakeStore struct {
 	state                  *state.State
 	db                     asserts.RODatabase
 	maxDeclSupportedFormat int
+
+	snapActionErr         error
+	downloadAssertionsErr error
 }
 
 func (sto *fakeStore) pokeStateLock() {
@@ -108,6 +113,10 @@ func (sto *fakeStore) SnapAction(_ context.Context, currentSnaps []*store.Curren
 		return nil, nil, err
 	}
 
+	if sto.snapActionErr != nil {
+		return nil, nil, sto.snapActionErr
+	}
+
 	restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, sto.maxDeclSupportedFormat)
 	defer restore()
 
@@ -135,6 +144,10 @@ func (sto *fakeStore) SnapAction(_ context.Context, currentSnaps []*store.Curren
 
 func (sto *fakeStore) DownloadAssertions(urls []string, b *asserts.Batch, user *auth.UserState) error {
 	sto.pokeStateLock()
+
+	if sto.downloadAssertionsErr != nil {
+		return sto.downloadAssertionsErr
+	}
 
 	resolve := func(ref *asserts.Ref) (asserts.Assertion, error) {
 		restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, sto.maxDeclSupportedFormat)
@@ -196,8 +209,8 @@ func (s *assertMgrSuite) SetUpTest(c *C) {
 	s.o.AddManager(s.o.TaskRunner())
 
 	s.fakeStore = &fakeStore{
-		state:                  s.state,
-		db:                     s.storeSigning,
+		state: s.state,
+		db:    s.storeSigning,
 		maxDeclSupportedFormat: asserts.SnapDeclarationType.MaxSupportedFormat(),
 	}
 	s.trivialDeviceCtx = &snapstatetest.TrivialDeviceContext{
@@ -966,7 +979,67 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsNoStore(c *C) {
 	c.Check(a.(*asserts.SnapDeclaration).Revision(), Equals, 1)
 }
 
-// XXX test a snap declaration changing signing key
+func (s *assertMgrSuite) TestRefreshSnapDeclarationsChangingKey(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.setModel(sysdb.GenericClassicModel())
+
+	snapDeclFoo := s.snapDecl(c, "foo", nil)
+
+	s.stateFromDecl(c, snapDeclFoo, "", snap.R(7))
+
+	// previous state
+	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, s.dev1Acct)
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, snapDeclFoo)
+	c.Assert(err, IsNil)
+
+	storePrivKey2, _ := assertstest.GenerateKey(752)
+	err = s.storeSigning.ImportKey(storePrivKey2)
+	c.Assert(err, IsNil)
+	storeKey2 := assertstest.NewAccountKey(s.storeSigning.RootSigning, s.storeSigning.TrustedAccount, map[string]interface{}{
+		"name": "store2",
+	}, storePrivKey2.PublicKey(), "")
+	err = s.storeSigning.Add(storeKey2)
+	c.Assert(err, IsNil)
+
+	// one changed assertion signed with different key
+	headers := map[string]interface{}{
+		"series":       "16",
+		"snap-id":      "foo-id",
+		"snap-name":    "foo",
+		"publisher-id": s.dev1Acct.AccountID(),
+		"timestamp":    time.Now().Format(time.RFC3339),
+		"revision":     "1",
+	}
+	storeKey2ID := storePrivKey2.PublicKey().ID()
+	snapDeclFoo1, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, storeKey2ID)
+	c.Assert(err, IsNil)
+	c.Check(snapDeclFoo1.SignKeyID(), Not(Equals), snapDeclFoo.SignKeyID())
+	err = s.storeSigning.Add(snapDeclFoo1)
+	c.Assert(err, IsNil)
+
+	_, err = storeKey2.Ref().Resolve(assertstate.DB(s.state).Find)
+	c.Check(asserts.IsNotFound(err), Equals, true)
+
+	err = assertstate.RefreshSnapDeclarations(s.state, 0)
+	c.Assert(err, IsNil)
+
+	a, err := assertstate.DB(s.state).Find(asserts.SnapDeclarationType, map[string]string{
+		"series":  "16",
+		"snap-id": "foo-id",
+	})
+	c.Assert(err, IsNil)
+	c.Check(a.Revision(), Equals, 1)
+	c.Check(a.SignKeyID(), Equals, storeKey2ID)
+
+	// key was fetched as well
+	_, err = storeKey2.Ref().Resolve(assertstate.DB(s.state).Find)
+	c.Check(err, IsNil)
+}
 
 func (s *assertMgrSuite) TestRefreshSnapDeclarationsWithStore(c *C) {
 	s.state.Lock()
@@ -1065,6 +1138,112 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsWithStore(c *C) {
 	})
 	c.Assert(err, IsNil)
 	c.Check(a.(*asserts.Store).Location(), Equals, "the-cloud")
+}
+
+func (s *assertMgrSuite) TestRefreshSnapDeclarationsDownloadError(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.setModel(sysdb.GenericClassicModel())
+
+	snapDeclFoo := s.snapDecl(c, "foo", nil)
+
+	s.stateFromDecl(c, snapDeclFoo, "", snap.R(7))
+
+	// previous state
+	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, s.dev1Acct)
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, snapDeclFoo)
+	c.Assert(err, IsNil)
+
+	// one changed assertion
+	headers := map[string]interface{}{
+		"series":       "16",
+		"snap-id":      "foo-id",
+		"snap-name":    "fo-o",
+		"publisher-id": s.dev1Acct.AccountID(),
+		"timestamp":    time.Now().Format(time.RFC3339),
+		"revision":     "1",
+	}
+	snapDeclFoo1, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
+	c.Assert(err, IsNil)
+	err = s.storeSigning.Add(snapDeclFoo1)
+	c.Assert(err, IsNil)
+
+	s.fakeStore.(*fakeStore).downloadAssertionsErr = errors.New("download error")
+
+	err = assertstate.RefreshSnapDeclarations(s.state, 0)
+	c.Assert(err, ErrorMatches, `cannot refresh snap-declarations for snaps:
+ - foo: download error`)
+}
+
+func (s *assertMgrSuite) TestRefreshSnapDeclarationsPersistentNetworkError(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.setModel(sysdb.GenericClassicModel())
+
+	snapDeclFoo := s.snapDecl(c, "foo", nil)
+
+	s.stateFromDecl(c, snapDeclFoo, "", snap.R(7))
+
+	// previous state
+	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, s.dev1Acct)
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, snapDeclFoo)
+	c.Assert(err, IsNil)
+
+	// one changed assertion
+	headers := map[string]interface{}{
+		"series":       "16",
+		"snap-id":      "foo-id",
+		"snap-name":    "fo-o",
+		"publisher-id": s.dev1Acct.AccountID(),
+		"timestamp":    time.Now().Format(time.RFC3339),
+		"revision":     "1",
+	}
+	snapDeclFoo1, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
+	c.Assert(err, IsNil)
+	err = s.storeSigning.Add(snapDeclFoo1)
+	c.Assert(err, IsNil)
+
+	pne := new(httputil.PersistentNetworkError)
+	s.fakeStore.(*fakeStore).snapActionErr = pne
+
+	err = assertstate.RefreshSnapDeclarations(s.state, 0)
+	c.Assert(err, Equals, pne)
+}
+
+func (s *assertMgrSuite) TestRefreshSnapDeclarationsNoStoreFallback(c *C) {
+	// test that if we get a 4xx or 500 error from the store trying bulk
+	// assertion refresh we fall back to the old logic
+	s.fakeStore.(*fakeStore).snapActionErr = &store.UnexpectedHTTPStatusError{StatusCode: 400}
+
+	s.TestRefreshSnapDeclarationsNoStore(c)
+}
+
+func (s *assertMgrSuite) TestRefreshSnapDeclarationsNoStoreFallbackUnexpectedSnapActionError(c *C) {
+	// test that if we get an unexpected SnapAction error from the
+	// store trying bulk assertion refresh we fall back to the old
+	// logic
+	s.fakeStore.(*fakeStore).snapActionErr = &store.SnapActionError{
+		NoResults: true,
+		Other:     []error{errors.New("unexpected error")},
+	}
+
+	s.TestRefreshSnapDeclarationsNoStore(c)
+}
+
+func (s *assertMgrSuite) TestRefreshSnapDeclarationsWithStoreFallback(c *C) {
+	// test that if we get a 4xx or 500 error from the store trying bulk
+	// assertion refresh we fall back to the old logic
+	s.fakeStore.(*fakeStore).snapActionErr = &store.UnexpectedHTTPStatusError{StatusCode: 500}
+
+	s.TestRefreshSnapDeclarationsWithStore(c)
 }
 
 func (s *assertMgrSuite) TestValidateRefreshesNothing(c *C) {

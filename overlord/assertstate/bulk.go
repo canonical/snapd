@@ -37,7 +37,7 @@ const storeGroup = "store assertion"
 
 func bulkRefreshSnapDeclarations(s *state.State, snapStates map[string]*snapstate.SnapState, userID int, deviceCtx snapstate.DeviceContext) error {
 	if len(snapStates) > 512 {
-		return fmt.Errorf("internal error: bulk refresh of snap-declarations for more than 512 snaps not yet supported")
+		return errBulkAssertionFallback
 		// TODO: make that work, it's a matter of using many or reusing pools, but keeping only one trail of what is resolved for efficiency
 	}
 
@@ -93,7 +93,7 @@ func bulkRefreshSnapDeclarations(s *state.State, snapStates map[string]*snapstat
 			if len(rpe.errors) == 0 {
 				return nil
 			}
-			// XXX adjust error message to refer to snap-declarations and snaps
+			rpe.message = "cannot refresh snap-declarations for snaps"
 		}
 	}
 	return err
@@ -137,12 +137,12 @@ func resolvePool(s *state.State, pool *asserts.Pool, userID int, deviceCtx snaps
 	unsupported := handleUnsupported(db)
 
 	for {
-		// XXX pass refresh options?
+		// TODO: pass refresh options?
 		s.Unlock()
 		_, aresults, err := sto.SnapAction(context.TODO(), nil, nil, pool, user, nil)
 		s.Lock()
 		if err != nil {
-			if saErr, ok := err.(*store.SnapActionError); !ok || !saErr.NoResults {
+			if saErr, ok := err.(*store.SnapActionError); !ok || !saErr.NoResults || len(saErr.Other) != 0 {
 				// request fallback on
 				//  * unexpected SnapActionErrors or
 				//  * unexpected HTTP status of 4xx or 500

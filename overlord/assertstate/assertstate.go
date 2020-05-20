@@ -78,8 +78,6 @@ func RefreshSnapDeclarations(s *state.State, userID int) error {
 		return err
 	}
 	logger.Noticef("bulk refresh of snap-declarations failed, falling back to one-by-one assertion fetching: %v", err)
-	// XXX test fallback
-	panic("Fallback")
 
 	modelAs := deviceCtx.Model()
 
