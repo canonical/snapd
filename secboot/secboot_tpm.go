@@ -339,6 +339,17 @@ func SealKey(key partition.EncryptionKey, params *SealKeyParams) error {
 	if err := tpmProvision(tpm, params.TPMLockoutAuthFile); err != nil {
 		return err
 	}
+
+	// If we are re-installing, there will be an a sealed keyfile that already
+	// exists on the ubuntu-seed partition that we should remove before trying
+	// to seal the new key, otherwise trying to seal the new key will fail
+	if osutil.FileExists(params.KeyFile) {
+		logger.Noticef("keyfile from previous install exists, deleting")
+		if err := os.Remove(params.KeyFile); err != nil {
+			return fmt.Errorf("cannot delete encryption key from previous install: %v", err)
+		}
+	}
+
 	// Seal key to the TPM
 	creationParams := sb.KeyCreationParams{
 		PCRProfile: pcrProfile,

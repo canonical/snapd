@@ -87,7 +87,7 @@ func Run(gadgetRoot, device string, options Options) error {
 		return fmt.Errorf("gadget and %v partition table not compatible: %v", device, err)
 	}
 
-	// remove partitions added during a previous (failed) install attempt
+	// remove partitions added during a previous install attempt
 	if err := diskLayout.RemoveCreated(); err != nil {
 		return fmt.Errorf("cannot remove partitions from previous install: %v", err)
 	}
