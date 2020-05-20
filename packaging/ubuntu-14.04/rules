@@ -55,7 +55,7 @@ endif
 # check if we need to include the testkeys in the binary
 TAGS=
 ifneq (,$(filter testkeys,$(DEB_BUILD_OPTIONS)))
-	TAGS=-tags withtestkeys
+	TAGS=withtestkeys
 endif
 
 BUILT_USING_PACKAGES=
@@ -122,7 +122,10 @@ override_dh_auto_build:
 	# Build golang bits
 	mkdir -p _build/src/$(DH_GOPKG)/cmd/snap/test-data
 	cp -a cmd/snap/test-data/*.gpg _build/src/$(DH_GOPKG)/cmd/snap/test-data/
-	dh_auto_build -- $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS)
+	dh_auto_build -- $(BUILDFLAGS) -tags "$(TAGS)" $(GCCGOFLAGS)
+
+	(cd _build/bin && GOPATH=$$(pwd)/.. CGO_ENABLED=0 go build $(BUILDFLAGS) $(GCCGOFLAGS) -tags "$(TAGS) nomanagers" $(DH_GOPKG)/cmd/snap)
+
 	# Generate static snap-exec, snapctl and snap-udpate-ns - it somehow includes CGO so we must
 	# force a static build here. We need a static snap-{exec,update-ns}/snapctl inside
 	# the core snap because not all bases will have a libc

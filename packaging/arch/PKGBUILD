@@ -51,8 +51,10 @@ build() {
 
   # GOFLAGS may be modified by CI tools
   GOFLAGS=""
+  GOFLAGS_SNAP="-tags nomanagers"
   if [[ "$WITH_TEST_KEYS" == 1 ]]; then
       GOFLAGS="$GOFLAGS -tags withtestkeys"
+      GOFLAGS_SNAP="-tags nomanagers,withtestkeys"
   fi
 
   export CGO_ENABLED="1"
@@ -71,7 +73,7 @@ build() {
   gobuild="go build -x -v -buildmode=pie"
   gobuild_static="go build -x -v -buildmode=pie -ldflags=-extldflags=-static"
   # Build/install snap and snapd
-  $gobuild -o $srcdir/go/bin/snap $GOFLAGS "${_gourl}/cmd/snap"
+  $gobuild -o $srcdir/go/bin/snap $GOFLAGS_SNAP "${_gourl}/cmd/snap"
   $gobuild -o $srcdir/go/bin/snapd $GOFLAGS "${_gourl}/cmd/snapd"
   $gobuild -o $srcdir/go/bin/snap-seccomp $GOFLAGS "${_gourl}/cmd/snap-seccomp"
   $gobuild -o $srcdir/go/bin/snap-failure $GOFLAGS "${_gourl}/cmd/snap-failure"
