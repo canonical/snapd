@@ -109,10 +109,10 @@ func (s *SnapPrepareImageSuite) TestPrepareImageClassicWideCohort(c *C) {
 	c.Assert(rest, DeepEquals, []string{})
 
 	c.Check(opts, DeepEquals, &image.Options{
-		Classic:    true,
-		WideCohortKey:  "is-six-centuries",
-		ModelFile:  "model",
-		PrepareDir: "prepare-dir",
+		Classic:       true,
+		WideCohortKey: "is-six-centuries",
+		ModelFile:     "model",
+		PrepareDir:    "prepare-dir",
 	})
 
 	os.Unsetenv("UBUNTU_STORE_COHORT_KEY")
