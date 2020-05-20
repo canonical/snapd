@@ -130,6 +130,8 @@ func (s *baseBootenv20Suite) SetUpTest(c *C) {
 	// state for after trying a new kernel for robustness tests, etc.
 	s.normalTryingKernelState = &bootenv20Setup{
 		modeenv: &boot.Modeenv{
+			// operating mode is run
+			Mode: "run",
 			// base is base1
 			Base: s.base1.Filename(),
 			// no try base
@@ -197,7 +199,7 @@ func setupUC20Bootenv(c *C, bl bootloader.Bootloader, opts *bootenv20Setup) (res
 		// multiple modeenvs from a single test and just call the restore
 		// function in between the parts of the test that use different modeenvs
 		r := func() {
-			emptyModeenv := &boot.Modeenv{}
+			emptyModeenv := &boot.Modeenv{Mode: "run"}
 			c.Assert(emptyModeenv.WriteTo(""), IsNil)
 		}
 		cleanups = append(cleanups, r)
