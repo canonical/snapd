@@ -55,6 +55,10 @@ func (s *setupSuite) SetUpTest(c *C) {
 
 	dirs.SetRootDir(c.MkDir())
 
+	// needed for system key generation
+	restore := osutil.MockMountInfo("")
+	s.AddCleanup(restore)
+
 	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc", "systemd", "system", "multi-user.target.wants"), 0755)
 	c.Assert(err, IsNil)
 

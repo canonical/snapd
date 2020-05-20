@@ -20,6 +20,8 @@
 package systemd
 
 import (
+	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -129,6 +131,43 @@ func Available() error {
 	return err
 }
 
+// Version returns systemd version.
+func Version() (int, error) {
+	out, err := systemctlCmd("--version")
+	if err != nil {
+		return 0, err
+	}
+
+	// systemd version outpus is two lines - actual version and a list
+	// of features, e.g:
+	// systemd 229
+	// +PAM +AUDIT +SELINUX +IMA +APPARMOR +SMACK +SYSVINIT +UTMP ...
+	//
+	// The version string may have extra data (a case on newer ubuntu), e.g:
+	// systemd 245 (245.4-4ubuntu3)
+	r := bufio.NewScanner(bytes.NewReader(out))
+	r.Split(bufio.ScanWords)
+	var verstr string
+	for i := 0; i < 2; i++ {
+		if !r.Scan() {
+			return 0, fmt.Errorf("cannot read systemd version: %v", r.Err())
+		}
+		s := r.Text()
+		if i == 0 && s != "systemd" {
+			return 0, fmt.Errorf("cannot parse systemd version: expected \"systemd\", got %q", s)
+		}
+		if i == 1 {
+			verstr = strings.TrimSpace(s)
+		}
+	}
+
+	ver, err := strconv.Atoi(verstr)
+	if err != nil {
+		return 0, fmt.Errorf("cannot convert systemd version to number: %s", verstr)
+	}
+	return ver, nil
+}
+
 var osutilStreamCommand = osutil.StreamCommand
 
 // jctl calls journalctl to get the JSON logs of the given services.
@@ -165,6 +204,10 @@ func MockJournalctl(f func(svcs []string, n int, follow bool) (io.ReadCloser, er
 type Systemd interface {
 	// DaemonReload reloads systemd's configuration.
 	DaemonReload() error
+	// DaemonRexec reexecutes systemd's system manager, should be
+	// only necessary to apply manager's configuration like
+	// watchdog.
+	DaemonReexec() error
 	// Enable the given service.
 	Enable(service string) error
 	// Disable the given service.
@@ -214,6 +257,9 @@ const (
 
 	// the default target for systemd timer units that we generate
 	TimersTarget = "timers.target"
+
+	// the target for systemd user session units that we generate
+	UserServicesTarget = "default.target"
 )
 
 type reporter interface {
@@ -288,6 +334,17 @@ func (s *systemd) daemonReloadNoLock() error {
 	daemonReloadLock.Taken("cannot use daemon-reload without lock")
 
 	_, err := s.systemctl("daemon-reload")
+	return err
+}
+
+func (s *systemd) DaemonReexec() error {
+	if s.mode == GlobalUserMode {
+		panic("cannot call daemon-reexec with GlobalUserMode")
+	}
+	daemonReloadLock.Lock()
+	defer daemonReloadLock.Unlock()
+
+	_, err := s.systemctl("daemon-reexec")
 	return err
 }
 
@@ -483,9 +540,6 @@ func (s *systemd) Status(unitNames ...string) ([]*UnitStatus, error) {
 }
 
 func (s *systemd) IsEnabled(serviceName string) (bool, error) {
-	if s.mode == GlobalUserMode {
-		panic("cannot call is-enabled with GlobalUserMode")
-	}
 	_, err := s.systemctl("--root", s.rootDir, "is-enabled", serviceName)
 	if err == nil {
 		return true, nil

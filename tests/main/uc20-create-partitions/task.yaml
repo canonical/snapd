@@ -1,7 +1,13 @@
-summary: Integration tests for the snap-bootstrap create-partitions
+summary: Integration tests for the bootstrap.Run
 
-# one system is enough, its a very specialized test for now
+# use the same system and tooling as uc20
 systems: [ubuntu-20.04-64]
+
+environment:
+    # an empty $topsrcdir/tests/go.mod seems to break importing or building go
+    # packages referenced by their import paths while under the tests directory,
+    # need to disable go modules support for this test
+    GO111MODULE: off
 
 debug: |
     cat /proc/partitions
@@ -45,7 +51,8 @@ execute: |
     LOOP="$(cat loop.txt)"
 
     echo "Run the snap-bootstrap tool"
-    /usr/lib/snapd/snap-bootstrap create-partitions ./gadget-dir "$LOOP"
+    go get ../../lib/uc20-create-partitions
+    uc20-create-partitions ./gadget-dir "$LOOP"
 
     echo "And check that the partitions are created"
     sfdisk -l "$LOOP" | MATCH '750M Linux filesystem'
@@ -81,7 +88,14 @@ execute: |
     df -T "${LOOP}p4" | MATCH ext4
     umount ./mnt
     file -s "${LOOP}p4" | MATCH 'ext4 filesystem data,.* volume name "ubuntu-data"'
-    # TODO: verify that partition was automatically expanded
+    # size is reported in 512 blocks
+    sz="$(udevadm info -q property "${LOOP}p4" |grep "^ID_PART_ENTRY_SIZE=" | cut -f2 -d=)"
+    # the disk size is 20GB, 1GB in 512 blocks is 2097152, with auto grow, the
+    # partition can be safely assumed to be > 10GB
+    if [ "$sz" -lt "$((10 * 2097152))" ]; then
+        echo "unexpected system-data partition size $((sz * 512))"
+        exit 1
+    fi
 
     echo "Check that the filesystem content was deployed"
     mkdir -p ./mnt
@@ -101,7 +115,7 @@ execute: |
             filesystem-label: other-ext4
             size: 110M
     EOF
-    /usr/lib/snapd/snap-bootstrap create-partitions --mount ./gadget-dir "$LOOP"
+    uc20-create-partitions --mount ./gadget-dir "$LOOP"
     sfdisk -l "$LOOP" | MATCH "${LOOP}p1 .* 1M\s* BIOS boot"
     sfdisk -l "$LOOP" | MATCH "${LOOP}p2 .* 1.2G\s* EFI System"
     sfdisk -l "$LOOP" | MATCH "${LOOP}p3 .* 750M\s* Linux filesystem"

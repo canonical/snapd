@@ -10,12 +10,12 @@
     "base": "core20",
     "snaps": [
         {
-            "default-channel": "20-pi/edge",
+            "default-channel": "20/edge",
             "id": "YbGa9O3dAXl88YLI6Y1bGG74pwBxZyKg",
             "name": "pi",
             "type": "gadget"
         }, {
-            "default-channel": "20-pi3/edge",
+            "default-channel": "20/edge",
             "id": "jeIuP6tfFrvAdic8DMWqHmoaoukAPNbJ",
             "name": "pi-kernel",
             "type": "kernel"

@@ -152,6 +152,24 @@ var formatAnalyzer = map[*AssertionType]func(headers map[string]interface{}, bod
 	SnapDeclarationType: snapDeclarationFormatAnalyze,
 }
 
+// MaxSupportedFormats returns a mapping between assertion type names
+// and corresponding max supported format if it is >= min. Typical
+// usage passes 1 or 0 for min.
+func MaxSupportedFormats(min int) (maxFormats map[string]int) {
+	if min == 0 {
+		maxFormats = make(map[string]int, len(typeRegistry))
+	} else {
+		maxFormats = make(map[string]int)
+	}
+	for name := range typeRegistry {
+		m := maxSupportedFormat[name]
+		if m >= min {
+			maxFormats[name] = m
+		}
+	}
+	return maxFormats
+}
+
 // SuggestFormat returns a minimum format that supports the features that would be used by an assertion with the given components.
 func SuggestFormat(assertType *AssertionType, headers map[string]interface{}, body []byte) (formatnum int, err error) {
 	analyzer := formatAnalyzer[assertType]
@@ -237,6 +255,23 @@ func (ref *Ref) Resolve(find func(assertType *AssertionType, headers map[string]
 	return find(ref.Type, headers)
 }
 
+const RevisionNotKnown = -1
+
+// AtRevision represents an assertion at a given revision, possibly
+// not known (RevisionNotKnown).
+type AtRevision struct {
+	Ref
+	Revision int
+}
+
+func (at *AtRevision) String() string {
+	s := at.Ref.String()
+	if at.Revision == RevisionNotKnown {
+		return s
+	}
+	return fmt.Sprintf("%s at revision %d", s, at.Revision)
+}
+
 // Assertion represents an assertion through its general elements.
 type Assertion interface {
 	// Type returns the type of this assertion
@@ -275,6 +310,9 @@ type Assertion interface {
 
 	// Ref returns a reference representing this assertion.
 	Ref() *Ref
+
+	// At returns an AtRevision referencing this assertion at its revision.
+	At() *AtRevision
 }
 
 // customSigner represents an assertion with special arrangements for its signing key (e.g. self-signed), rather than the usual case where an assertion is signed by its authority.
@@ -378,6 +416,11 @@ func (ab *assertionBase) Ref() *Ref {
 		Type:       assertType,
 		PrimaryKey: primKey,
 	}
+}
+
+// At returns an AtRevision referencing this assertion at its revision.
+func (ab *assertionBase) At() *AtRevision {
+	return &AtRevision{Ref: *ab.Ref(), Revision: ab.Revision()}
 }
 
 // sanity check

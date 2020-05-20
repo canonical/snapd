@@ -8,7 +8,7 @@ execute: |
     apt autoremove -y lxd
 
     echo "Install lxd"
-    snap install --candidate lxd
+    snap install lxd --channel="$LXD_SNAP_CHANNEL"
 
     echo "Create a trivial container using the lxd snap"
     snap set lxd waitready.timeout=240

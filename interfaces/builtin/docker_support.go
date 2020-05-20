@@ -260,8 +260,11 @@ chown
 chown32
 chroot
 clock_getres
+clock_getres_time64
 clock_gettime
+clock_gettime64
 clock_nanosleep
+clock_nanosleep_time64
 clone
 close
 connect
@@ -313,6 +316,7 @@ fsync
 ftruncate
 ftruncate64
 futex
+futex_time64
 futimesat
 getcpu
 getcwd
@@ -345,6 +349,7 @@ getsid
 getsockname
 getsockopt
 get_thread_area
+get_tls
 gettid
 gettimeofday
 getuid
@@ -401,7 +406,9 @@ mq_getsetattr
 mq_notify
 mq_open
 mq_timedreceive
+mq_timedreceive_time64
 mq_timedsend
+mq_timedsend_time64
 mq_unlink
 mremap
 msgctl
@@ -424,6 +431,7 @@ pipe
 pipe2
 poll
 ppoll
+ppoll_time64
 prctl
 pread64
 preadv
@@ -431,6 +439,7 @@ prlimit64
 process_vm_readv
 process_vm_writev
 pselect6
+pselect6_time64
 pwrite64
 pwritev
 read
@@ -442,6 +451,7 @@ reboot
 recv
 recvfrom
 recvmmsg
+recvmmsg_time64
 recvmsg
 remap_file_pages
 removexattr
@@ -457,6 +467,7 @@ rt_sigqueueinfo
 rt_sigreturn
 rt_sigsuspend
 rt_sigtimedwait
+rt_sigtimedwait_time64
 rt_tgsigqueueinfo
 s390_pci_mmio_read
 s390_pci_mmio_write
@@ -468,6 +479,7 @@ sched_get_priority_max
 sched_get_priority_min
 sched_getscheduler
 sched_rr_get_interval
+sched_rr_get_interval_time64
 sched_setaffinity
 sched_setattr
 sched_setparam
@@ -479,6 +491,7 @@ semctl
 semget
 semop
 semtimedop
+semtimedop_time64
 send
 sendfile
 sendfile64
@@ -550,10 +563,14 @@ timer_create
 timer_delete
 timerfd_create
 timerfd_gettime
+timerfd_gettime64
 timerfd_settime
+timerfd_settime64
 timer_getoverrun
 timer_gettime
+timer_gettime64
 timer_settime
+timer_settime64
 times
 tkill
 truncate
@@ -568,6 +585,7 @@ unlinkat
 unshare
 utime
 utimensat
+utimensat_time64
 utimes
 vfork
 vhangup
