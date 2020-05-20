@@ -190,8 +190,6 @@ case "$action" in
 			systemctl restart systemd-logind.service
 		fi
 
-		sleep 3
-
 		exit 0
 		;;
 	dump)
