@@ -772,6 +772,10 @@ var currentSystemActions = []SystemAction{
 	{Title: "Recover", Mode: "recover"},
 	{Title: "Run normally", Mode: "run"},
 }
+var recoverSystemActions = []SystemAction{
+	{Title: "Reinstall", Mode: "install"},
+	{Title: "Run normally", Mode: "run"},
+}
 
 func systemFromSeed(label string) (*System, error) {
 	s, err := seed.Open(dirs.SnapSeedDir, label)
@@ -864,6 +868,19 @@ func isCurrentSystem(current *seededSystem, other *System) bool {
 		current.BrandID == other.Brand.AccountID()
 }
 
+func currentSystemActionsForMode(mode string) []SystemAction {
+	switch mode {
+	case "install":
+		// there should be no current system in install mode
+		return nil
+	case "run":
+		return currentSystemActions
+	case "recover":
+		return recoverSystemActions
+	}
+	return nil
+}
+
 // Systems list the available recovery/seeding systems. Returns the list of
 // systems, ErrNoSystems when no systems seeds were found or other error.
 func (m *DeviceManager) Systems() ([]*System, error) {
@@ -891,7 +908,7 @@ func (m *DeviceManager) Systems() ([]*System, error) {
 		}
 		if currentSys != nil && isCurrentSystem(currentSys, system) {
 			system.Current = true
-			system.Actions = currentSystemActions
+			system.Actions = currentSystemActionsForMode(m.systemMode)
 		}
 		systems = append(systems, system)
 	}
@@ -915,8 +932,7 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 		return fmt.Errorf("cannot load seed system: %v", err)
 	}
 	if currentSys != nil && isCurrentSystem(currentSys, system) {
-		system.Current = true
-		system.Actions = currentSystemActions
+		system.Actions = currentSystemActionsForMode(m.systemMode)
 	}
 
 	var sysAction *SystemAction
