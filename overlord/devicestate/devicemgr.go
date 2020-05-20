@@ -818,6 +818,14 @@ var ErrUnsupportedAction = errors.New("unsupported action")
 // system reboot will be requested when the request can be successfully carried
 // out.
 func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAction) error {
+	if systemLabel == "" {
+		return fmt.Errorf("internal error: system label is unset")
+	}
+	if m.systemMode == "" {
+		// uc16/uc18 have no mode
+		return ErrUnsupportedAction
+	}
+
 	if err := checkSystemRequestConflict(m.state, systemLabel); err != nil {
 		return err
 	}

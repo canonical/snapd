@@ -549,6 +549,11 @@ func (s *deviceMgrSystemsSuite) TestRequestModeNonUC20(c *C) {
 	c.Check(s.restartRequests, HasLen, 0)
 }
 
+func (s *deviceMgrSystemsSuite) TestRequestActionNoLabel(c *C) {
+	err := s.mgr.RequestSystemAction("", devicestate.SystemAction{Mode: "install"})
+	c.Assert(err, ErrorMatches, "internal error: system label is unset")
+}
+
 func (s *deviceMgrSystemsSuite) TestRequestModeForNonCurrent(c *C) {
 	s.state.Lock()
 	s.state.Set("seeded-systems", []devicestate.SeededSystem{
@@ -589,4 +594,40 @@ func (s *deviceMgrSystemsSuite) TestRequestInstallForOther(c *C) {
 	s.state.Unlock()
 	// reinstall from different system seed is ok
 	s.testRequestModeWithRestart(c, []string{"install"}, s.mockedSystemSeeds[1].label)
+}
+
+func (s *deviceMgrSystemsSuite) TestRequestAction1618(c *C) {
+	s.setPCModelInState(c)
+	// system mode is unset in 16/18
+	devicestate.SetSystemMode(s.mgr, "")
+	// no modeenv either
+	err := os.Remove(dirs.SnapModeenvFileUnder(dirs.GlobalRootDir))
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	s.state.Set("seeded-systems", nil)
+	s.state.Set("seeded", nil)
+	s.state.Unlock()
+	// a label exists
+	err = s.mgr.RequestSystemAction(s.mockedSystemSeeds[0].label, devicestate.SystemAction{Mode: "install"})
+	c.Assert(err, Equals, devicestate.ErrUnsupportedAction)
+
+	s.state.Lock()
+	s.state.Set("seeded", true)
+	s.state.Unlock()
+
+	// even with system mode explicitly set, the action is not executed
+	devicestate.SetSystemMode(s.mgr, "run")
+
+	err = s.mgr.RequestSystemAction(s.mockedSystemSeeds[0].label, devicestate.SystemAction{Mode: "install"})
+	c.Assert(err, ErrorMatches, "cannot set device to boot .*: system mode is unsupported")
+
+	devicestate.SetSystemMode(s.mgr, "")
+	// also no UC20 style system seeds
+	for _, m := range s.mockedSystemSeeds {
+		os.RemoveAll(filepath.Join(dirs.SnapSeedDir, "systems", m.label))
+	}
+
+	err = s.mgr.RequestSystemAction(s.mockedSystemSeeds[0].label, devicestate.SystemAction{Mode: "install"})
+	c.Assert(err, Equals, devicestate.ErrUnsupportedAction)
 }
