@@ -294,14 +294,14 @@ func (p *Pool) addUnresolved(unresolved *AtRevision, gnum uint16) error {
 		return err
 	}
 	if ok {
-		// we assume that either the resolving of
+		// We assume that either the resolving of
 		// prerequisites for the already resolved assertion in
-		// progress has succeeded or will. if that's not the
-		// case we will fail at CommitTo time. we could
+		// progress has succeeded or will. If that's not the
+		// case we will fail at CommitTo time. We could
 		// instead recurse into its prerequisites again but the
 		// complexity isn't clearly worth it.
-		// see TestParallelPartialResolutionFailure
-		// mark this as resolved in the group
+		// See TestParallelPartialResolutionFailure
+		// Mark this as resolved in the group.
 		p.groups[gnum].markResolved(&unresolved.Ref)
 		return nil
 	}
