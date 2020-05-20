@@ -149,6 +149,20 @@ func happyResponseToStartTransientUnit(c *C, msg *dbus.Message, scopeName string
 	}
 }
 
+func unhappyResponseToStartTransientUnit(c *C, msg *dbus.Message, errMsg string) *dbus.Message {
+	c.Assert(msg.Type, Equals, dbus.TypeMethodCall)
+	// ignore the message and just produce an error response
+	return &dbus.Message{
+		Type: dbus.TypeError,
+		Headers: map[dbus.HeaderField]dbus.Variant{
+			dbus.FieldReplySerial: dbus.MakeVariant(msg.Serial()),
+			dbus.FieldSender:      dbus.MakeVariant(":1"), // This does not matter.
+			// dbus.FieldDestination is provided automatically by DBus test helper.
+			dbus.FieldErrorName: dbus.MakeVariant(errMsg),
+		},
+	}
+}
+
 func (s *trackingSuite) TestDoCreateTransientScopeHappy(c *C) {
 	conn, err := dbustest.Connection(func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
 		switch n {
@@ -162,6 +176,61 @@ func (s *trackingSuite) TestDoCreateTransientScopeHappy(c *C) {
 	defer conn.Close()
 	err = cgroup.DoCreateTransientScope(conn, "foo.scope", 312123)
 	c.Assert(err, IsNil)
+}
+
+func (s *trackingSuite) TestDoCreateTransientScopeForwardedErrors(c *C) {
+	// Certain errors are forwareded and handled in the logic calling into
+	// DoCreateTransientScope. Those are tested here.
+	for _, errMsg := range []string{
+		"org.freedesktop.DBus.Error.NameHasNoOwner",
+		"org.freedesktop.DBus.Error.UnknownMethod",
+		"org.freedesktop.DBus.Error.Spawn.ChildExited",
+	} {
+		conn, err := dbustest.Connection(func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
+			switch n {
+			case 0:
+				return []*dbus.Message{unhappyResponseToStartTransientUnit(c, msg, errMsg)}, nil
+			}
+			return nil, fmt.Errorf("unexpected message #%d: %s", n, msg)
+		})
+		c.Assert(err, IsNil)
+		defer conn.Close()
+		err = cgroup.DoCreateTransientScope(conn, "foo.scope", 312123)
+		c.Assert(err, ErrorMatches, errMsg)
+	}
+}
+
+func (s *trackingSuite) TestDoCreateTransientScopeClashingScopeName(c *C) {
+	// In case our UUID algorithm is bad and systemd reports that an unit with
+	// identical name already exists, we provide a special error handler for that.
+	errMsg := "org.freedesktop.systemd1.UnitExists"
+	conn, err := dbustest.Connection(func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
+		switch n {
+		case 0:
+			return []*dbus.Message{unhappyResponseToStartTransientUnit(c, msg, errMsg)}, nil
+		}
+		return nil, fmt.Errorf("unexpected message #%d: %s", n, msg)
+	})
+	c.Assert(err, IsNil)
+	defer conn.Close()
+	err = cgroup.DoCreateTransientScope(conn, "foo.scope", 312123)
+	c.Assert(err, ErrorMatches, "cannot create transient scope: scope .* clashed: .*")
+}
+
+func (s *trackingSuite) TestDoCreateTransientScopeOtherDBusErrors(c *C) {
+	// Other DBus errors are not special-cased and cause a generic failure handler.
+	errMsg := "org.example.BadHairDay"
+	conn, err := dbustest.Connection(func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
+		switch n {
+		case 0:
+			return []*dbus.Message{unhappyResponseToStartTransientUnit(c, msg, errMsg)}, nil
+		}
+		return nil, fmt.Errorf("unexpected message #%d: %s", n, msg)
+	})
+	c.Assert(err, IsNil)
+	defer conn.Close()
+	err = cgroup.DoCreateTransientScope(conn, "foo.scope", 312123)
+	c.Assert(err, ErrorMatches, `cannot create transient scope: DBus error "org.example.BadHairDay": \[\]`)
 }
 
 // stubReadWriteCloser implements ReadWriteCloser for dbus.NewConn
