@@ -101,15 +101,18 @@ backends:
                 workers: 6
             - fedora-31-64:
                 workers: 6
+
             - opensuse-15.0-64:
                 workers: 6
                 manual: true
+
             - arch-linux-64:
                 workers: 6
 
             - amazon-linux-2-64:
                 workers: 6
                 storage: preserve-size
+
             - centos-7-64:
                 workers: 6
                 storage: preserve-size
