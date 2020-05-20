@@ -506,6 +506,11 @@ func (s *apiSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 }
 
 func (s *apiSuite) TestSystemActionBrokenSeed(c *check.C) {
+	m := boot.Modeenv{
+		Mode: "run",
+	}
+	err := m.WriteTo("")
+	c.Assert(err, check.IsNil)
 
 	d := s.daemonWithOverlordMock(c)
 	hookMgr, err := hookstate.Manager(d.overlord.State(), d.overlord.TaskRunner())
