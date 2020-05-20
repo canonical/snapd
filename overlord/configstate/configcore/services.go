@@ -91,7 +91,7 @@ func switchDisableSSHService(sysd systemd.Systemd, serviceName, value string, op
 	}
 }
 
-// switchDisableSSHService handles the special case of disabling/enabling
+// switchDisableConsoleConfService handles the special case of disabling/enabling
 // console-conf on core devices.
 //
 // The only command that works to start/stop console-conf after setting
