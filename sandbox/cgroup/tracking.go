@@ -40,11 +40,6 @@ func CreateTransientScope(securityTag string) error {
 	// - the originally started scope must be marked as a delegate, with all
 	//   consequences.
 	// - the method AttachProcessesToUnit is unavailable on Ubuntu 16.04
-	//
-	// TODO: invert the arguments so that security tag comes first, UUID
-	// second. This will result in nicer scope names but needs to be
-	// coordinated with code in sandbox/cgroup and with the spread tests
-	// exercising that.
 	unitName := fmt.Sprintf("%s.%s.scope", securityTag, uuid)
 
 	// Session or system bus might be unavailable. To avoid being fragile
