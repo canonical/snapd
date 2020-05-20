@@ -6,7 +6,16 @@ description: |
 systems: [-ubuntu-core-*]
 
 execute: |
-  if strings /usr/bin/snap | MATCH "overlord/snapstate"; then
-    echo "snap binary should not import overlord/snapstate"
-    exit 1
+  check_imports() {
+    local BINFILE="$1"
+    if strings "$BINFILE" | MATCH "overlord/snapstate"; then
+      echo "$BINFILE binary should not import overlord/snapstate"
+      exit 1
+    fi
+  }
+
+  check_imports /usr/bin/snap
+
+  if [[ "$SPREAD_SYSTEM" = ubuntu-2* ]] ||  [[ "$SPREAD_SYSTEM" = ubuntu-1-* ]]; then
+    check_imports /usr/lib/snapd/snap-bootstrap
   fi
