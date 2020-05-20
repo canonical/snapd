@@ -31,7 +31,9 @@ import (
 	"github.com/snapcore/snapd/dbusutil/dbustest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/sandbox/cgroup"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func enableFeatures(c *C, ff ...features.SnapdFeature) {
@@ -160,4 +162,97 @@ func (s *trackingSuite) TestDoCreateTransientScopeHappy(c *C) {
 	defer conn.Close()
 	err = cgroup.DoCreateTransientScope(conn, "foo.scope", 312123)
 	c.Assert(err, IsNil)
+}
+
+// stubReadWriteCloser implements ReadWriteCloser for dbus.NewConn
+type stubReadWriteCloser struct{}
+
+func (*stubReadWriteCloser) Read(p []byte) (n int, err error) {
+	return 0, nil
+}
+
+func (*stubReadWriteCloser) Write(p []byte) (n int, err error) {
+	return 0, nil
+}
+
+func (*stubReadWriteCloser) Close() error {
+	return nil
+}
+
+// stubBusConnection returns a dbus connection for the tests below.
+//
+// Using dbustest.Connection panics as the goroutines spawned by
+// go-dbus do not expect the connection to be immediatley closed.
+func stubBusConnection() (*dbus.Conn, error) {
+	return dbus.NewConn(&stubReadWriteCloser{})
+}
+
+func (s *trackingSuite) TestSessionOrMaybeSystemBusTotalFailureForRoot(c *C) {
+	system := func() (*dbus.Conn, error) {
+		return nil, fmt.Errorf("system bus unavailable for testing")
+	}
+	session := func() (*dbus.Conn, error) {
+		return nil, fmt.Errorf("session bus unavailable for testing")
+	}
+	restore := dbusutil.MockConnections(system, session)
+	defer restore()
+	logBuf, restore := logger.MockLogger()
+	defer restore()
+	os.Setenv("SNAPD_DEBUG", "true")
+	defer os.Unsetenv("SNAPD_DEBUG")
+
+	uid := 0
+	isSession, conn, err := cgroup.SessionOrMaybeSystemBus(uid)
+	c.Assert(err, ErrorMatches, "system bus unavailable for testing")
+	c.Check(conn, IsNil)
+	c.Check(isSession, Equals, false)
+	c.Check(logBuf.String(), testutil.Contains, "DEBUG: session bus is not available: session bus unavailable for testing\n")
+	c.Check(logBuf.String(), testutil.Contains, "DEBUG: falling back to system bus\n")
+	c.Check(logBuf.String(), testutil.Contains, "DEBUG: system bus is not available: system bus unavailable for testing\n")
+}
+
+func (s *trackingSuite) TestSessionOrMaybeSystemBusFallbackForRoot(c *C) {
+	system := func() (*dbus.Conn, error) {
+		return stubBusConnection()
+	}
+	session := func() (*dbus.Conn, error) {
+		return nil, fmt.Errorf("session bus unavailable for testing")
+	}
+	restore := dbusutil.MockConnections(system, session)
+	defer restore()
+	logBuf, restore := logger.MockLogger()
+	defer restore()
+	os.Setenv("SNAPD_DEBUG", "true")
+	defer os.Unsetenv("SNAPD_DEBUG")
+
+	uid := 0
+	isSession, conn, err := cgroup.SessionOrMaybeSystemBus(uid)
+	c.Assert(err, IsNil)
+	conn.Close()
+	c.Check(isSession, Equals, false)
+	c.Check(logBuf.String(), testutil.Contains, "DEBUG: session bus is not available: session bus unavailable for testing\n")
+	c.Check(logBuf.String(), testutil.Contains, "DEBUG: falling back to system bus\n")
+	c.Check(logBuf.String(), testutil.Contains, "DEBUG: using system bus now, session bus was not available\n")
+}
+
+func (s *trackingSuite) TestSessionOrMaybeSystemBusNonRootSessionFailure(c *C) {
+	system := func() (*dbus.Conn, error) {
+		return stubBusConnection()
+	}
+	session := func() (*dbus.Conn, error) {
+		return nil, fmt.Errorf("session bus unavailable for testing")
+	}
+	restore := dbusutil.MockConnections(system, session)
+	defer restore()
+	logBuf, restore := logger.MockLogger()
+	defer restore()
+	os.Setenv("SNAPD_DEBUG", "true")
+	defer os.Unsetenv("SNAPD_DEBUG")
+
+	uid := 12345
+	isSession, conn, err := cgroup.SessionOrMaybeSystemBus(uid)
+	c.Assert(err, ErrorMatches, "session bus unavailable for testing")
+	c.Check(conn, IsNil)
+	c.Check(isSession, Equals, false)
+	c.Check(logBuf.String(), testutil.Contains, "DEBUG: session bus is not available: session bus unavailable for testing\n")
 }

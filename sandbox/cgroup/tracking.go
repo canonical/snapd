@@ -46,33 +46,6 @@ func CreateTransientScope(securityTag string) error {
 	// coordinated with code in sandbox/cgroup and with the spread tests
 	// exercising that.
 	unitName := fmt.Sprintf("%s.%s.scope", securityTag, uuid)
-	pid := osGetpid()
-
-	// The scope is created with a DBus call to systemd running either on
-	// system or session bus. We have a preference for session bus, as this is
-	// where applications normally go to. When a session bus is not available
-	// and the invoking user is root, we use the system bus instead.
-	//
-	// It is worth noting that hooks will not normally have a session bus to
-	// connect to, as they are invoked as descendants of snapd, and snapd is a
-	// service running outside of any session.
-	isSessionBus := true
-	conn, err := dbusutil.SessionBus()
-	if err != nil {
-		logger.Debugf("session bus is not available: %s", err)
-		if osGetuid() == 0 {
-			logger.Debugf("falling back to system bus")
-			isSessionBus = false
-			conn, err = dbusutil.SystemBus()
-			if err != nil {
-				logger.Debugf("system bus is not available: %s", err)
-			} else {
-				logger.Debugf("using system bus now, session bus was not available")
-			}
-		}
-	} else {
-		logger.Debugf("using session bus")
-	}
 
 	// Session or system bus might be unavailable. To avoid being fragile
 	// ignore all errors when establishing session bus connection to avoid
@@ -81,10 +54,12 @@ func CreateTransientScope(securityTag string) error {
 	//
 	// Ideally we would check for a distinct error type but this is just an
 	// errors.New() in go-dbus code.
+	isSessionBus, conn, err := sessionOrMaybeSystemBus(osGetuid())
 	if err != nil {
 		return ErrCannotTrackProcess
 	}
 
+	pid := osGetpid()
 tryAgain:
 	// Create a transient scope by talking to systemd over DBus.
 	if err := doCreateTransientScope(conn, unitName, pid); err != nil {
@@ -127,6 +102,33 @@ tryAgain:
 		return ErrCannotTrackProcess
 	}
 	return nil
+}
+
+func sessionOrMaybeSystemBus(uid int) (isSessionBus bool, conn *dbus.Conn, err error) {
+	// The scope is created with a DBus call to systemd running either on
+	// system or session bus. We have a preference for session bus, as this is
+	// where applications normally go to. When a session bus is not available
+	// and the invoking user is root, we use the system bus instead.
+	//
+	// It is worth noting that hooks will not normally have a session bus to
+	// connect to, as they are invoked as descendants of snapd, and snapd is a
+	// service running outside of any session.
+	conn, err = dbusutil.SessionBus()
+	if err == nil {
+		logger.Debugf("using session bus")
+		return true, conn, nil
+	}
+	logger.Debugf("session bus is not available: %s", err)
+	if uid == 0 {
+		logger.Debugf("falling back to system bus")
+		conn, err = dbusutil.SystemBus()
+		if err != nil {
+			logger.Debugf("system bus is not available: %s", err)
+		} else {
+			logger.Debugf("using system bus now, session bus was not available")
+		}
+	}
+	return isSessionBus, conn, err
 }
 
 var errDBusUnknownMethod = errors.New("org.freedesktop.DBus.Error.UnknownMethod")

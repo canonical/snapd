@@ -29,6 +29,7 @@ var (
 	PidsInFile                = pidsInFile
 	SecurityTagFromCgroupPath = securityTagFromCgroupPath
 	DoCreateTransientScope    = doCreateTransientScope
+	SessionOrMaybeSystemBus   = sessionOrMaybeSystemBus
 )
 
 func MockFsTypeForPath(mock func(string) (int64, error)) (restore func()) {
