@@ -60,8 +60,10 @@ prepare: |
 
     echo "Install EFI binaries"
     bootdir=/run/mnt/ubuntu-boot/EFI/boot
-    mkdir -p "$bootdir"
-    cp /usr/lib/shim/shimx64.efi.signed "$bootdir"/bootx64.efi
+    seeddir=/run/mnt/ubuntu-seed/EFI/boot
+    mkdir -p "$bootdir" "$seeddir"
+    cp /usr/lib/shim/shimx64.efi.signed "$seeddir"/bootx64.efi
+    cp /usr/lib/grub/x86_64-efi-signed/grubx64.efi.signed "$seeddir"/grubx64.efi
     cp /usr/lib/grub/x86_64-efi-signed/grubx64.efi.signed "$bootdir"/grubx64.efi
 
 execute: |
