@@ -26,6 +26,18 @@ func CreateTransientScope(securityTag string) error {
 	}
 	logger.Debugf("creating transient scope %s", securityTag)
 
+	// Session or system bus might be unavailable. To avoid being fragile
+	// ignore all errors when establishing session bus connection to avoid
+	// breaking user interactions. This is consistent with similar failure
+	// modes below, where other parts of the stack fail.
+	//
+	// Ideally we would check for a distinct error type but this is just an
+	// errors.New() in go-dbus code.
+	isSessionBus, conn, err := sessionOrMaybeSystemBus(osGetuid())
+	if err != nil {
+		return ErrCannotTrackProcess
+	}
+
 	// We ask the kernel for a random UUID. We need one because each transient
 	// scope needs a unique name. The unique name is comprosed of said UUID and
 	// the snap security tag.
@@ -41,18 +53,6 @@ func CreateTransientScope(securityTag string) error {
 	//   consequences.
 	// - the method AttachProcessesToUnit is unavailable on Ubuntu 16.04
 	unitName := fmt.Sprintf("%s.%s.scope", securityTag, uuid)
-
-	// Session or system bus might be unavailable. To avoid being fragile
-	// ignore all errors when establishing session bus connection to avoid
-	// breaking user interactions. This is consistent with similar failure
-	// modes below, where other parts of the stack fail.
-	//
-	// Ideally we would check for a distinct error type but this is just an
-	// errors.New() in go-dbus code.
-	isSessionBus, conn, err := sessionOrMaybeSystemBus(osGetuid())
-	if err != nil {
-		return ErrCannotTrackProcess
-	}
 
 	pid := osGetpid()
 tryAgain:
