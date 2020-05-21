@@ -1039,17 +1039,31 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	//
 	// For more information about systemd cgroups, including unit types, see:
 	// https://www.freedesktop.org/wiki/Software/systemd/ControlGroupInterface/
-	if app := info.Apps[snapApp]; app == nil || !app.IsService() {
-		if err := cgroupCreateTransientScope(securityTag); err != nil {
-			if err != cgroup.ErrCannotTrackProcess {
-				return err
-			}
-			logger.Debugf("snapd cannot track the started application")
-			logger.Debugf("snap refreshes will not be postponed by this process")
-		}
+	needsTracking := true
+	if app := info.Apps[snapApp]; hook == "" && app != nil && app.IsService() {
+		// If we are not running a service app then we do not need to use
+		// application tracking. Services, both in the system and user scope,
+		// do not need tracking because systemd already places them in a
+		// tracking cgroup, named after the systemd unit name, and those are
+		// sufficient to identify both the snap name and the app name.
+		needsTracking = false
+	}
+	// Track, or confirm existing tracking from systemd.
+	var trackingErr error
+	if needsTracking {
+		trackingErr = cgroupCreateTransientScope(securityTag)
 	} else {
-		// TODO verify that the service is placed in a .service path in one of
-		// the applicable cgroups.
+		trackingErr = cgroupConfirmSystemdServiceTracking(securityTag)
+	}
+	if trackingErr != nil {
+		if trackingErr != cgroup.ErrCannotTrackProcess {
+			return trackingErr
+		}
+		// If we cannot track the process then log a debug message.
+		// TODO: if we could, create a warning. Currently this is not possible
+		// because only snapd can create warnings, internally.
+		logger.Debugf("snapd cannot track the started application")
+		logger.Debugf("snap refreshes will not be postponed by this process")
 	}
 	if x.TraceExec {
 		return x.runCmdWithTraceExec(cmd, envForExec)
@@ -1063,3 +1077,4 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 }
 
 var cgroupCreateTransientScope = cgroup.CreateTransientScope
+var cgroupConfirmSystemdServiceTracking = cgroup.ConfirmSystemdServiceTracking
