@@ -291,12 +291,10 @@ func SealKey(key partition.EncryptionKey, params *SealKeyParams) error {
 		// Add EFI secure boot policy profile
 		policyParams := sb.EFISecureBootPolicyProfileParams{
 			PCRAlgorithm:  tpm2.HashAlgorithmSHA256,
-			LoadSequences: make([]*sb.EFIImageLoadEvent, 0, len(modelParams.EFILoadChains)),
+			LoadSequences: buildLoadSequences(modelParams.EFILoadChains),
 			// TODO:UC20: set SignatureDbUpdateKeystore to support key rotation
 		}
-		for _, chain := range modelParams.EFILoadChains {
-			policyParams.LoadSequences = append(policyParams.LoadSequences, buildLoadSequence(chain))
-		}
+
 		if err := sbAddEFISecureBootPolicyProfile(modelProfile, &policyParams); err != nil {
 			return fmt.Errorf("cannot add EFI secure boot policy profile: %v", err)
 		}
@@ -384,7 +382,9 @@ func tpmProvision(tpm *sb.TPMConnection, lockoutAuthFile string) error {
 	return nil
 }
 
-func buildLoadSequence(filePaths []string) *sb.EFIImageLoadEvent {
+// buildLoadSequences creates a linear EFI image load event chain for each one of the
+// specified sequences of file paths.
+func buildLoadSequences(pathSequences [][]string) []*sb.EFIImageLoadEvent {
 	// The idea of EFIImageLoadEvent is to build a set of load paths for the current
 	// device configuration. So you could have something like this:
 	//
@@ -406,21 +406,27 @@ func buildLoadSequence(filePaths []string) *sb.EFIImageLoadEvent {
 	// the system with the Microsoft chain of trust, then the actual trees of
 	// EFIImageLoadEvents will need to match the exact supported boot sequences.
 
-	var event *sb.EFIImageLoadEvent
-	var next []*sb.EFIImageLoadEvent
+	loadEvents := make([]*sb.EFIImageLoadEvent, 0, len(pathSequences))
 
-	for i := len(filePaths) - 1; i >= 0; i-- {
-		event = &sb.EFIImageLoadEvent{
-			Source: sb.Shim,
-			Image:  sb.FileEFIImage(filePaths[i]),
-			Next:   next,
+	for _, filePaths := range pathSequences {
+		var event *sb.EFIImageLoadEvent
+		var next []*sb.EFIImageLoadEvent
+
+		for i := len(filePaths) - 1; i >= 0; i-- {
+			event = &sb.EFIImageLoadEvent{
+				Source: sb.Shim,
+				Image:  sb.FileEFIImage(filePaths[i]),
+				Next:   next,
+			}
+			next = []*sb.EFIImageLoadEvent{event}
 		}
-		next = []*sb.EFIImageLoadEvent{event}
-	}
-	// fix event source for the first binary in chain (shim)
-	event.Source = sb.Firmware
+		// fix event source for the first binary in chain (shim)
+		event.Source = sb.Firmware
 
-	return event
+		loadEvents = append(loadEvents, event)
+	}
+
+	return loadEvents
 }
 
 func checkFilesPresence(pathList []string) error {
