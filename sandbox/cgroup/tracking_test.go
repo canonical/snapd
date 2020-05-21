@@ -489,7 +489,7 @@ func (*stubReadWriteCloser) Close() error {
 // stubBusConnection returns a dbus connection for the tests below.
 //
 // Using dbustest.Connection panics as the goroutines spawned by
-// go-dbus do not expect the connection to be immediatley closed.
+// go-dbus do not expect the connection to be immediately closed.
 func stubBusConnection() (*dbus.Conn, error) {
 	return dbus.NewConn(&stubReadWriteCloser{})
 }
