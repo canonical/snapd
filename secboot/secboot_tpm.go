@@ -401,6 +401,10 @@ func buildLoadSequence(filePaths []string) *sb.EFIImageLoadEvent {
 	// shim -> recovery grub -> recovery kernel ...
 	// shim -> recovery grub -> normal grub -> run kernel good
 	// shim -> recovery grub -> normal grub -> run kernel try
+	//
+	// When we add the ability to seal against specific binaries in order to secure
+	// the system with the Microsoft chain of trust, then the actual trees of
+	// EFIImageLoadEvents will need to match the exact supported boot sequences.
 
 	var event *sb.EFIImageLoadEvent
 	var next []*sb.EFIImageLoadEvent
