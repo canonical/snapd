@@ -536,6 +536,9 @@ prepare_suite_each() {
             ausearch -i -m AVC --checkpoint "$RUNTIME_STATE_PATH/audit-stamp" || true
             ;;
     esac
+
+    # Check for invariants late, in order to detect any bugs in the code above.
+    invariant-tool check
 }
 
 restore_suite_each() {
@@ -596,6 +599,9 @@ restore_suite() {
 }
 
 restore_project_each() {
+    # Check for invariants early, in order not to mask bugs in tests.
+    invariant-tool check
+
     restore_dev_random
 
     # Udev rules are notoriously hard to write and seemingly correct but subtly
