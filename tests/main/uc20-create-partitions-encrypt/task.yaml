@@ -1,7 +1,7 @@
 summary: Integration tests for the snap-bootstrap binary
 
 # use the same system and tooling as uc20
-systems: [ubuntu-20.04-64-secboot]
+systems: [ubuntu-secboot-20.04-64]
 
 environment:
     # an empty $topsrcdir/tests/go.mod seems to break importing or building go
@@ -72,8 +72,8 @@ execute: |
     LOOP="$(cat loop.txt)"
 
     echo "Run the snap-bootstrap tool"
-    go get ../../../lib/create-partitions
-    create-partitions \
+    go get ../../lib/uc20-create-partitions
+    uc20-create-partitions \
         --encrypt --key-file keyfile \
         --recovery-key-file recovery-key \
         --policy-update-data-file policy-update-data \
@@ -82,7 +82,7 @@ execute: |
         ./gadget-dir "$LOOP"
 
     echo "Check that the key file was created"
-    test "$(stat --printf=%s ./keyfile)" = 1095
+    test "$(stat --printf=%s ./keyfile)" -ge 1000
 
     echo "Check that the partitions are created"
     sfdisk -d "$LOOP" | MATCH "^${LOOP}p1 .*size=\s*2048, type=21686148-6449-6E6F-744E-656564454649,.*BIOS Boot"
