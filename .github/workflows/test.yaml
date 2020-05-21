@@ -115,6 +115,10 @@ jobs:
     runs-on: self-hosted
     strategy:
       # FIXME: enable fail-fast mode once spread can cancel an executing job.
+      # Disable fail-fast mode as it doesn't function with spread. It seems
+      # that cancelling tasks requires short, interruptible actions and
+      # interrupting spread, notably, does not work today. As such disable
+      # fail-fast while we tackle that problem upstream.
       fail-fast: false
       matrix:
         system:
