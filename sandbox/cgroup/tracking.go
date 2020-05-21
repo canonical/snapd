@@ -99,6 +99,27 @@ tryAgain:
 	return nil
 }
 
+// ConfirmSystemdServiceTracking checks if systemd tracks this process as a snap service.
+//
+// Systemd is placing started services, both user and system, into appropriate
+// tracking groups. Given a security tag we can confirm if the current process
+// belongs to such tracking group and thus could be identified by snapd as
+// belonging to a particular snap and application.
+//
+// If the application process is not tracked then ErrCannotTrackProcess is returned.
+func ConfirmSystemdServiceTracking(securityTag string) error {
+	pid := osGetpid()
+	path, err := cgroupProcessPathInTrackingCgroup(pid)
+	if err != nil {
+		return err
+	}
+	unitName := fmt.Sprintf("%s.service", securityTag)
+	if !strings.Contains(path, unitName) {
+		return ErrCannotTrackProcess
+	}
+	return nil
+}
+
 func sessionOrMaybeSystemBus(uid int) (isSessionBus bool, conn *dbus.Conn, err error) {
 	// The scope is created with a DBus call to systemd running either on
 	// system or session bus. We have a preference for session bus, as this is
