@@ -350,6 +350,7 @@ func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
 
 func (s *secbootSuite) TestSealKey(c *C) {
 	tmpDir := c.MkDir()
+	keyfile := filepath.Join(tmpDir, "keyfile")
 
 	var mockEFI []string
 	for _, name := range []string{"a", "b", "c", "d", "e", "f"} {
@@ -372,7 +373,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 				Model:          &asserts.Model{},
 			},
 		},
-		KeyFile:              "keyfile",
+		KeyFile:              keyfile,
 		PolicyUpdateDataFile: "policy-update-data-file",
 		TPMLockoutAuthFile:   filepath.Join(tmpDir, "lockout-auth-file"),
 	}
@@ -516,7 +517,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		})
 		defer restore()
 
-		// test sealing
+		// mock sealing
 		sealCalls := 0
 		restore = secboot.MockSbSealKeyToTPM(func(t *sb.TPMConnection, key []byte, keyPath, policyUpdatePath string, params *sb.KeyCreationParams) error {
 			sealCalls++
@@ -526,11 +527,18 @@ func (s *secbootSuite) TestSealKey(c *C) {
 			c.Assert(policyUpdatePath, Equals, myParams.PolicyUpdateDataFile)
 			c.Assert(params.PINHandle, Equals, tpm2.Handle(0x01880000))
 
+			// make sure the keyfile doesn't exist
+			c.Assert(keyfile, testutil.FileAbsent)
+
 			return nil
 		})
 		defer restore()
 
-		err := secboot.SealKey(myKey, &myParams)
+		// SealKey should erase any existing keyfile before creating a new sealed key file
+		err := ioutil.WriteFile(keyfile, nil, 0644)
+		c.Assert(err, IsNil)
+
+		err = secboot.SealKey(myKey, &myParams)
 		if tc.err == "" {
 			c.Assert(err, IsNil)
 		} else {
