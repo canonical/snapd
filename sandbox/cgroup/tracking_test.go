@@ -104,6 +104,244 @@ func (s *trackingSuite) TestCreateTransientScopeFeatureEnabled(c *C) {
 	c.Check(err, IsNil)
 }
 
+func (s *trackingSuite) TestCreateTransientScopeUnhappyNotRootGeneric(c *C) {
+	// Pretend that refresh app awareness is enabled
+	enableFeatures(c, features.RefreshAppAwareness)
+
+	// Hand out stub connections to both the system and session bus.
+	// Neither is really used here but they must appear to be available.
+	restore := dbusutil.MockConnections(stubBusConnection, stubBusConnection)
+	defer restore()
+
+	// Pretend we are a non-root user so that session bus is used.
+	restore = cgroup.MockOsGetuid(12345)
+	defer restore()
+	// Pretend our PID is this value.
+	restore = cgroup.MockOsGetpid(312123)
+	defer restore()
+
+	// Disable the cgroup analyzer function as we don't expect it to be used in this test.
+	restore = cgroup.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
+		panic("we are not expecting this call")
+	})
+	defer restore()
+
+	// Pretend that attempting to create a transient scope fails with a canned error.
+	restore = cgroup.MockDoCreateTransientScope(func(conn *dbus.Conn, unitName string, pid int) error {
+		return fmt.Errorf("cannot create transient scope for testing")
+	})
+	defer restore()
+
+	// Create a transient scope and see it fail according to how doCreateTransientScope is rigged.
+	err := cgroup.CreateTransientScope("snap.pkg.app")
+	c.Assert(err, ErrorMatches, "cannot create transient scope for testing")
+
+	// Calling StartTransientUnit fails with org.freedesktop.DBus.UnknownMethod error.
+	// This is possible on old systemd or on deputy systemd.
+	restore = cgroup.MockDoCreateTransientScope(func(conn *dbus.Conn, unitName string, pid int) error {
+		return cgroup.ErrDBusUnknownMethod
+	})
+	defer restore()
+
+	// Attempts to create a transient scope fail with a special error
+	// indicating that we cannot track application process.
+	err = cgroup.CreateTransientScope("snap.pkg.app")
+	c.Assert(err, ErrorMatches, "cannot track application process")
+
+	// Calling StartTransientUnit fails with org.freedesktop.DBus.Spawn.ChildExited error.
+	// This is possible where we try to activate socket activate session bus
+	// but it's not available OR when we try to socket activate systemd --user.
+	restore = cgroup.MockDoCreateTransientScope(func(conn *dbus.Conn, unitName string, pid int) error {
+		return cgroup.ErrDBusSpawnChildExited
+	})
+	defer restore()
+
+	// Attempts to create a transient scope fail with a special error
+	// indicating that we cannot track application process and because we are
+	// not root, we do not attempt to fall back to the system bus.
+	err = cgroup.CreateTransientScope("snap.pkg.app")
+	c.Assert(err, ErrorMatches, "cannot track application process")
+}
+
+func (s *trackingSuite) TestCreateTransientScopeUnhappyRootFallback(c *C) {
+	// Pretend that refresh app awareness is enabled
+	enableFeatures(c, features.RefreshAppAwareness)
+
+	// Hand out stub connections to both the system and session bus.
+	// Neither is really used here but they must appear to be available.
+	restore := dbusutil.MockConnections(stubBusConnection, stubBusConnection)
+	defer restore()
+
+	// Pretend we are a root user so that we attempt to use the system bus as fallback.
+	restore = cgroup.MockOsGetuid(0)
+	defer restore()
+	// Pretend our PID is this value.
+	restore = cgroup.MockOsGetpid(312123)
+	defer restore()
+
+	// Rig the random UUID generator to return this value.
+	uuid := "cc98cd01-6a25-46bd-b71b-82069b71b770"
+	restore = cgroup.MockRandomUUID(uuid)
+	defer restore()
+
+	// Calling StartTransientUnit fails on the session and then works on the system bus.
+	// This test emulates a root user falling back from the session bus to the system bus.
+	n := 0
+	restore = cgroup.MockDoCreateTransientScope(func(conn *dbus.Conn, unitName string, pid int) error {
+		n++
+		switch n {
+		case 1:
+			// On first try we fail. This is when we used the session bus/
+			return cgroup.ErrDBusSpawnChildExited
+		case 2:
+			// On second try we succeed.
+			return nil
+		}
+		panic("expected to call doCreateTransientScope at most twice")
+	})
+	defer restore()
+
+	// Rig the cgroup analyzer to pretend that we got placed into the system slice.
+	restore = cgroup.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
+		c.Assert(pid, Equals, 312123)
+		return "/system.slice/snap.pkg.app." + uuid + ".scope", nil
+	})
+	defer restore()
+
+	// Attempts to create a transient scope fail with a special error
+	// indicating that we cannot track application process and but because we were
+	// root we attempted to fall back to the system bus.
+	err := cgroup.CreateTransientScope("snap.pkg.app")
+	c.Assert(err, IsNil)
+}
+
+func (s *trackingSuite) TestCreateTransientScopeUnhappyRootFailedFallback(c *C) {
+	// Pretend that refresh app awareness is enabled
+	enableFeatures(c, features.RefreshAppAwareness)
+
+	// Make it appear that session bus is there but system bus is not.
+	noSystemBus := func() (*dbus.Conn, error) {
+		return nil, fmt.Errorf("system bus is not available for testing")
+	}
+	restore := dbusutil.MockConnections(noSystemBus, stubBusConnection)
+	defer restore()
+
+	// Pretend we are a root user so that we attempt to use the system bus as fallback.
+	restore = cgroup.MockOsGetuid(0)
+	defer restore()
+	// Pretend our PID is this value.
+	restore = cgroup.MockOsGetpid(312123)
+	defer restore()
+
+	// Rig the random UUID generator to return this value.
+	uuid := "cc98cd01-6a25-46bd-b71b-82069b71b770"
+	restore = cgroup.MockRandomUUID(uuid)
+	defer restore()
+
+	// Calling StartTransientUnit fails so that we try to use the system bus as fallback.
+	restore = cgroup.MockDoCreateTransientScope(func(conn *dbus.Conn, unitName string, pid int) error {
+		return cgroup.ErrDBusSpawnChildExited
+	})
+	defer restore()
+
+	// Disable the cgroup analyzer function as we don't expect it to be used in this test.
+	restore = cgroup.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
+		panic("we are not expecting this call")
+	})
+	defer restore()
+
+	// Attempts to create a transient scope fail with a special error
+	// indicating that we cannot track application process.
+	err := cgroup.CreateTransientScope("snap.pkg.app")
+	c.Assert(err, ErrorMatches, "cannot track application process")
+}
+
+func (s *trackingSuite) TestCreateTransientScopeUnhappyNoDBus(c *C) {
+	// Pretend that refresh app awareness is enabled
+	enableFeatures(c, features.RefreshAppAwareness)
+
+	// Make it appear that DBus is entirely unavailable.
+	noBus := func() (*dbus.Conn, error) {
+		return nil, fmt.Errorf("dbus is not available for testing")
+	}
+	restore := dbusutil.MockConnections(noBus, noBus)
+	defer restore()
+
+	// Pretend we are a root user so that we attempt to use the system bus as fallback.
+	restore = cgroup.MockOsGetuid(0)
+	defer restore()
+	// Pretend our PID is this value.
+	restore = cgroup.MockOsGetpid(312123)
+	defer restore()
+
+	// Rig the random UUID generator to return this value.
+	uuid := "cc98cd01-6a25-46bd-b71b-82069b71b770"
+	restore = cgroup.MockRandomUUID(uuid)
+	defer restore()
+
+	// Calling StartTransientUnit is not attempted without a DBus connection.
+	restore = cgroup.MockDoCreateTransientScope(func(conn *dbus.Conn, unitName string, pid int) error {
+		panic("we are not expecting this call")
+	})
+	defer restore()
+
+	// Disable the cgroup analyzer function as we don't expect it to be used in this test.
+	restore = cgroup.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
+		panic("we are not expecting this call")
+	})
+	defer restore()
+
+	// Attempts to create a transient scope fail with a special error
+	// indicating that we cannot track application process.
+	err := cgroup.CreateTransientScope("snap.pkg.app")
+	c.Assert(err, ErrorMatches, "cannot track application process")
+}
+
+func (s *trackingSuite) TestCreateTransientScopeSilentlyFails(c *C) {
+	// Pretend that refresh app awareness is enabled
+	enableFeatures(c, features.RefreshAppAwareness)
+
+	// Hand out stub connections to both the system and session bus.
+	// Neither is really used here but they must appear to be available.
+	restore := dbusutil.MockConnections(stubBusConnection, stubBusConnection)
+	defer restore()
+
+	// Pretend we are a non-root user.
+	restore = cgroup.MockOsGetuid(12345)
+	defer restore()
+	// Pretend our PID is this value.
+	restore = cgroup.MockOsGetpid(312123)
+	defer restore()
+
+	// Rig the random UUID generator to return this value.
+	uuid := "cc98cd01-6a25-46bd-b71b-82069b71b770"
+	restore = cgroup.MockRandomUUID(uuid)
+	defer restore()
+
+	// Calling StartTransientUnit succeeds but in reality does not move our
+	// process to the new cgroup hierarchy. This can happen when systemd
+	// version is < 238 and when the calling user is in a hierarchy that is
+	// owned by another user. One example is a user logging in remotely over
+	// ssh.
+	restore = cgroup.MockDoCreateTransientScope(func(conn *dbus.Conn, unitName string, pid int) error {
+		return nil
+	})
+	defer restore()
+
+	// Rig the cgroup analyzer to pretend that we are not placed in a snap-related slice.
+	restore = cgroup.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
+		c.Assert(pid, Equals, 312123)
+		return "/system.slice/foo.service", nil
+	})
+	defer restore()
+
+	// Attempts to create a transient scope fail with a special error
+	// indicating that we cannot track application process even though
+	// the DBus call has returned no error.
+	err := cgroup.CreateTransientScope("snap.pkg.app")
+	c.Assert(err, ErrorMatches, "cannot track application process")
+}
+
 func happyResponseToStartTransientUnit(c *C, msg *dbus.Message, scopeName string, pid int) *dbus.Message {
 	// XXX: Those types might live in a package somewhere
 	type Property struct {

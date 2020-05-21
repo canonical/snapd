@@ -30,6 +30,10 @@ var (
 	SecurityTagFromCgroupPath = securityTagFromCgroupPath
 	DoCreateTransientScope    = doCreateTransientScope
 	SessionOrMaybeSystemBus   = sessionOrMaybeSystemBus
+
+	ErrDBusUnknownMethod    = errDBusUnknownMethod
+	ErrDBusNameHasNoOwner   = errDBusNameHasNoOwner
+	ErrDBusSpawnChildExited = errDBusSpawnChildExited
 )
 
 func MockFsTypeForPath(mock func(string) (int64, error)) (restore func()) {
