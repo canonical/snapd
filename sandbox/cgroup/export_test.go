@@ -18,6 +18,10 @@
  */
 package cgroup
 
+import (
+	"github.com/godbus/dbus"
+)
+
 var (
 	Cgroup2SuperMagic         = cgroup2SuperMagic
 	ProbeCgroupVersion        = probeCgroupVersion
@@ -79,5 +83,13 @@ func MockCgroupProcessPathInTrackingCgroup(fn func(pid int) (string, error)) fun
 	cgroupProcessPathInTrackingCgroup = fn
 	return func() {
 		cgroupProcessPathInTrackingCgroup = old
+	}
+}
+
+func MockDoCreateTransientScope(fn func(conn *dbus.Conn, unitName string, pid int) error) func() {
+	old := doCreateTransientScope
+	doCreateTransientScope = fn
+	return func() {
+		doCreateTransientScope = old
 	}
 }

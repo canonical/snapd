@@ -135,7 +135,7 @@ var errDBusSpawnChildExited = errors.New("org.freedesktop.DBus.Error.Spawn.Child
 // The scope is created by asking systemd via the specified DBus connection.
 // The unit name and the PID to attach are provided as well. The DBus method
 // call is performed outside confinement established by snap-confine.
-func doCreateTransientScope(conn *dbus.Conn, unitName string, pid int) error {
+var doCreateTransientScope = func(conn *dbus.Conn, unitName string, pid int) error {
 	// The property and auxUnit types are not well documented but can be traced
 	// from systemd source code. Systemd defines the signature of
 	// StartTransientUnit as "ssa(sv)a(sa(sv))". The signature can be
