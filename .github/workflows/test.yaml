@@ -122,25 +122,26 @@ jobs:
       fail-fast: false
       matrix:
         system:
-        - centos-8-64
-        - opensuse-15.1-64
-        - opensuse-tumbleweed-64
-        - ubuntu-14.04-64
-        - ubuntu-18.04-64
-        - ubuntu-core-18-64
-        - debian-9-64
-        - arch-linux-64
         - amazon-linux-2-64
+        - arch-linux-64
         - centos-7-64
-        - ubuntu-19.10-64
-        - ubuntu-20.04-64
-        - ubuntu-core-20-64
+        - centos-8-64
+        - debian-9-64
         - debian-sid-64
         - fedora-31-64
         - fedora-32-64
-        - ubuntu-16.04-64
+        - opensuse-15.1-64
+        - opensuse-tumbleweed-64
+        - ubuntu-14.04-64
         - ubuntu-16.04-32
+        - ubuntu-16.04-64
+        - ubuntu-18.04-64
+        - ubuntu-19.10-64
+        - ubuntu-20.04-64
         - ubuntu-core-16-64
+        - ubuntu-core-18-64
+        - ubuntu-core-20-64
+        - ubuntu-secboot-20.04-64
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
