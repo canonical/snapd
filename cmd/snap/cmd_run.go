@@ -1062,6 +1062,4 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	}
 }
 
-var cgroupCreateTransientScope = func(securityTag string) error {
-	return cgroup.CreateTransientScope(securityTag)
-}
+var cgroupCreateTransientScope = cgroup.CreateTransientScope
