@@ -233,6 +233,22 @@ func (s *SquashfsTestSuite) TestInstallSeedNoLink(c *C) {
 	c.Check(osutil.IsSymlink(targetPath), Equals, true) // \o/
 }
 
+func (s *SquashfsTestSuite) TestInstallUC20SeedNoLink(c *C) {
+	defer noLink()()
+
+	systemSnapsDir := filepath.Join(dirs.SnapSeedDir, "systems", "20200521", "snaps")
+	c.Assert(os.MkdirAll(systemSnapsDir, 0755), IsNil)
+	snap := makeSnapInDir(c, systemSnapsDir, "name: test2", "")
+	targetPath := filepath.Join(c.MkDir(), "target.snap")
+	_, err := os.Lstat(targetPath)
+	c.Check(os.IsNotExist(err), Equals, true)
+
+	didNothing, err := snap.Install(targetPath, c.MkDir())
+	c.Assert(err, IsNil)
+	c.Assert(didNothing, Equals, false)
+	c.Check(osutil.IsSymlink(targetPath), Equals, true) // \o/
+}
+
 func (s *SquashfsTestSuite) TestInstallNothingToDo(c *C) {
 	snap := makeSnap(c, "name: test2", "")
 

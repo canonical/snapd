@@ -128,9 +128,14 @@ func (s *Snap) Install(targetPath, mountDir string) (bool, error) {
 		}
 	}
 
-	// if the file is a seed, but the hardlink failed, symlinking it
-	// saves the copy (which in livecd is expensive) so try that next
-	if filepath.Dir(s.path) == dirs.SnapSeedDir && os.Symlink(s.path, targetPath) == nil {
+	// if the source snap file is in seed, but the hardlink failed, symlinking
+	// it saves the copy (which in livecd is expensive) so try that next
+	// note that on UC20, the snap file could be in a deep subdir of
+	// SnapSeedDir, i.e. /var/lib/snapd/seed/systems/20200521/snaps/<name>.snap
+	// so we need to check if it has the prefix of the seed dir
+	cleanSrc := filepath.Clean(s.path)
+	if strings.HasPrefix(cleanSrc, dirs.SnapSeedDir) &&
+		os.Symlink(s.path, targetPath) == nil {
 		return false, nil
 	}
 
