@@ -60,6 +60,7 @@ execute: |
   lxd init --auto
 
   lxc launch "ubuntu:20.04" my-ubuntu
+  # based on lxd config created by https://git.launchpad.net/launchpad-buildd/tree/lpbuildd/target/lxd.py
   lxc config set my-ubuntu security.privileged true
   lxc config set my-ubuntu security.nesting true
   cat <<__LXC__ | lxc config set my-ubuntu raw.lxc -
