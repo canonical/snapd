@@ -67,9 +67,11 @@ prepare: |
     cp /usr/lib/grub/x86_64-efi-signed/grubx64.efi.signed "$bootdir"/grubx64.efi
 
 execute: |
+    seeddir=/run/mnt/ubuntu-seed/EFI/boot
     bootdir=/run/mnt/ubuntu-boot/EFI/boot
     ls -l "$bootdir"
-    sbverify --list "$bootdir"/bootx64.efi
+    sbverify --list "$seeddir"/bootx64.efi
+    sbverify --list "$seeddir"/grubx64.efi
     sbverify --list "$bootdir"/grubx64.efi
     LOOP="$(cat loop.txt)"
 
