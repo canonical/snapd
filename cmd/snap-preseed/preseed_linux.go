@@ -24,11 +24,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/snapcore/snapd/cmd/cmdutil"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/squashfs"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
@@ -174,7 +176,11 @@ func prepareChroot(preseedChroot string) (func(), error) {
 		}
 	}
 
-	cmd := exec.Command("mount", "-t", "squashfs", coreSnapPath, where)
+	fstype, fsopts, err := squashfs.FsType()
+	if err != nil {
+		return nil, fmt.Errorf("cannot determine filesystem type to use for squashfs: %v", err)
+	}
+	cmd := exec.Command("mount", "-t", fstype, "-o", strings.Join(fsopts, ","), coreSnapPath, where)
 	if err := cmd.Run(); err != nil {
 		removeMountpoint()
 		return nil, fmt.Errorf("cannot mount %s at %s in preseed mode: %v ", coreSnapPath, where, err)

@@ -733,28 +733,7 @@ func MountUnitPath(baseDir string) string {
 
 var squashfsFsType = squashfs.FsType
 
-func writeMountUnitFile(snapName, revision, what, where, fstype string) (mountUnitName, actualFsType string, options []string, err error) {
-	options = []string{"nodev"}
-	actualFsType = fstype
-	if fstype == "squashfs" {
-		newFsType, newOptions, err := squashfsFsType()
-		if err != nil {
-			return "", "", nil, err
-		}
-		options = append(options, newOptions...)
-		actualFsType = newFsType
-		if selinux.ProbedLevel() != selinux.Unsupported {
-			if mountCtx := selinux.SnapMountContext(); mountCtx != "" {
-				options = append(options, "context="+mountCtx)
-			}
-		}
-	}
-	if osutil.IsDirectory(what) {
-		options = append(options, "bind")
-		actualFsType = "none"
-	}
-
-	c := fmt.Sprintf(`[Unit]
+var mountUnitTemplate = `[Unit]
 Description=Mount unit for %s, revision %s
 Before=snapd.service
 
@@ -767,25 +746,61 @@ LazyUnmount=yes
 
 [Install]
 WantedBy=multi-user.target
-`, snapName, revision, what, where, actualFsType, strings.Join(options, ","))
+`
 
+func writeMountUnitFile(snapName, revision, what, where, fstype string, options []string) (mountUnitName string, err error) {
+	content := fmt.Sprintf(mountUnitTemplate, snapName, revision, what, where, fstype, strings.Join(options, ","))
 	mu := MountUnitPath(where)
-	mountUnitName, err = filepath.Base(mu), osutil.AtomicWriteFile(mu, []byte(c), 0644, 0)
+	mountUnitName, err = filepath.Base(mu), osutil.AtomicWriteFile(mu, []byte(content), 0644, 0)
 	if err != nil {
-		return "", "", nil, err
+		return "", err
 	}
+	return mountUnitName, nil
+}
 
-	return mountUnitName, actualFsType, options, err
+func fsOptions(fstype string) []string {
+	options := []string{"nodev"}
+	if fstype == "squashfs" {
+		if selinux.ProbedLevel() != selinux.Unsupported {
+			if mountCtx := selinux.SnapMountContext(); mountCtx != "" {
+				options = append(options, "context="+mountCtx)
+			}
+		}
+	}
+	return options
+}
+
+func actualFs(fstype string) (actualFsType string, options []string, err error) {
+	options = fsOptions(fstype)
+	actualFsType = fstype
+	if fstype == "squashfs" {
+		newFsType, newOptions, err := squashfsFsType()
+		if err != nil {
+			return "", nil, err
+		}
+		options = append(options, newOptions...)
+		actualFsType = newFsType
+	}
+	return actualFsType, options, err
 }
 
 func (s *systemd) AddMountUnitFile(snapName, revision, what, where, fstype string) (string, error) {
 	daemonReloadLock.Lock()
 	defer daemonReloadLock.Unlock()
 
-	mountUnitName, _, _, err := writeMountUnitFile(snapName, revision, what, where, fstype)
+	actualFsType, options, err := actualFs(fstype)
 	if err != nil {
 		return "", err
 	}
+	if osutil.IsDirectory(what) {
+		options = append(options, "bind")
+		actualFsType = "none"
+	}
+	mountUnitName, err := writeMountUnitFile(snapName, revision, what, where, actualFsType, options)
+	if err != nil {
+		return "", err
+	}
+
 	// we need to do a daemon-reload here to ensure that systemd really
 	// knows about this new mount unit file
 	if err := s.daemonReloadNoLock(); err != nil {

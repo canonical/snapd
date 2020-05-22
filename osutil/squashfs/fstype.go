@@ -62,11 +62,16 @@ func NeedsFuse() bool {
 	return needsFuseImpl()
 }
 
+// StandardOptions returns base squashfs options.
+func StandardOptions() []string {
+	return []string{"ro", "x-gdu.hide"}
+}
+
 // FsType returns what fstype to use for squashfs mounts and what
 // mount options
 func FsType() (fstype string, options []string, err error) {
 	fstype = "squashfs"
-	options = []string{"ro", "x-gdu.hide"}
+	options = StandardOptions()
 
 	if NeedsFuse() {
 		options = append(options, "allow_other")
