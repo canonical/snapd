@@ -784,6 +784,56 @@ func (s *imageSuite) TestSetupSeedLocalCoreBrandKernel(c *C) {
 	c.Check(s.stderr.String(), Equals, "WARNING: \"core\", \"required-snap1\" installed from local snaps disconnected from a store cannot be refreshed subsequently!\n")
 }
 
+func (s *imageSuite) TestSetupSeedWithWideCohort(c *C) {
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	rootdir := filepath.Join(c.MkDir(), "image")
+	s.setupSnaps(c, map[string]string{
+		"pc":        "canonical",
+		"pc-kernel": "canonical",
+	})
+
+	snapFile := snaptest.MakeTestSnapWithFiles(c, devmodeSnap, nil)
+
+	opts := &image.Options{
+		Snaps: []string{snapFile},
+
+		PrepareDir:    filepath.Dir(rootdir),
+		WideCohortKey: "wide-cohort-key",
+	}
+
+	err := image.SetupSeed(s.tsto, s.model, opts)
+	c.Assert(err, IsNil)
+
+	// check the downloads
+	c.Check(s.storeActions, HasLen, 4)
+	c.Check(s.storeActions[0], DeepEquals, &store.SnapAction{
+		Action:       "download",
+		InstanceName: "core",
+		Channel:      stableChannel,
+		CohortKey:    "wide-cohort-key",
+	})
+	c.Check(s.storeActions[1], DeepEquals, &store.SnapAction{
+		Action:       "download",
+		InstanceName: "pc-kernel",
+		Channel:      stableChannel,
+		CohortKey:    "wide-cohort-key",
+	})
+	c.Check(s.storeActions[2], DeepEquals, &store.SnapAction{
+		Action:       "download",
+		InstanceName: "pc",
+		Channel:      stableChannel,
+		CohortKey:    "wide-cohort-key",
+	})
+	c.Check(s.storeActions[3], DeepEquals, &store.SnapAction{
+		Action:       "download",
+		InstanceName: "required-snap1",
+		Channel:      stableChannel,
+		CohortKey:    "wide-cohort-key",
+	})
+}
+
 func (s *imageSuite) TestSetupSeedDevmodeSnap(c *C) {
 	restore := image.MockTrusted(s.StoreSigning.Trusted)
 	defer restore()
