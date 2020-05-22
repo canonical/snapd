@@ -38,7 +38,6 @@ prepare: |
 restore: |
   lxc stop my-ubuntu --force
   lxc delete my-ubuntu
-  lxd-tool undo-lxd-mount-changes
 
   umount "$IMAGE_MOUNTPOINT"
   rmdir "$IMAGE_MOUNTPOINT"
@@ -47,8 +46,11 @@ restore: |
   # reporting it's still in use.
   retry-tool -n 5 --wait 1 qemu-nbd -d /dev/nbd0
 
+  lxd-tool undo-lxd-mount-changes
+
 execute: |
   echo "Install snapd"
+  # shellcheck disable=SC2046
   SNAPD_DEB=$(basename $(ls "$GOHOME"/snapd_*.deb))
   dpkg -i "$GOHOME/$SNAPD_DEB"
 
