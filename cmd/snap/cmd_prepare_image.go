@@ -20,18 +20,27 @@
 package main
 
 import (
+
 	"os"
+	"fmt"
+	"path/filepath"
+
 	"strings"
 
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/image"
+	"github.com/snapcore/snapd/seed"
+	"github.com/snapcore/snapd/timings"
 )
 
 type cmdPrepareImage struct {
 	Classic      bool   `long:"classic"`
 	Architecture string `long:"arch"`
+
+	Append bool `long:"append"`
+	Remove bool `long:"remove"`
 
 	Positional struct {
 		ModelAssertionFn string
@@ -60,6 +69,10 @@ For preparing classic images it supports a --classic mode`),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"classic": i18n.G("Enable classic mode to prepare a classic model image"),
 			// TRANSLATORS: This should not start with a lowercase letter.
+			"append": i18n.G("Append snaps to existing seed, instead of creating a new one"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"remove": i18n.G("Remove snaps from existing seed, instead of creating a new one"),
+			// TRANSLATORS: This should not start with a lowercase letter.
 			"arch": i18n.G("Specify an architecture for snaps for --classic when the model does not"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"snap": i18n.G("Include the given snap from the store or a local file and/or specify the channel to track for the given snap"),
@@ -86,10 +99,13 @@ var imagePrepare = image.Prepare
 
 func (x *cmdPrepareImage) Execute(args []string) error {
 	opts := &image.Options{
-		Snaps:        x.ExtraSnaps,
 		ModelFile:    x.Positional.ModelAssertionFn,
 		Channel:      x.Channel,
 		Architecture: x.Architecture,
+		Classic:      x.Classic,
+		PrepareDir:   x.Positional.TargetDir,
+		// store-wide cohort key via env, see image/options.go
+		WideCohortKey: os.Getenv("UBUNTU_STORE_COHORT_KEY"),
 	}
 
 	snaps := make([]string, 0, len(x.Snaps)+len(x.ExtraSnaps))
@@ -104,18 +120,66 @@ func (x *cmdPrepareImage) Execute(args []string) error {
 
 	snaps = append(snaps, x.ExtraSnaps...)
 
+	if x.Append || x.Remove {
+		if !x.Classic {
+			return fmt.Errorf("Append/Remove only supported in --classic mode")
+		}
+		if x.Append && x.Remove {
+			return fmt.Errorf("Only one of Append or Remove can be used")
+		}
+		seedDir := filepath.Join(opts.PrepareDir, "/var/lib/snapd/seed")
+		seed, err := seed.Open(seedDir, "")
+		if err != nil {
+			return err
+		}
+		if err := seed.LoadAssertions(nil, nil); err != nil {
+			return err
+		}
+		if err := seed.LoadMeta(timings.New(nil)); err != nil {
+			return err
+		}
+		modeSnaps, err := seed.ModeSnaps("run")
+		if err != nil {
+			return err
+		}
+		// Populate seedsnaps & snapChannels for seed.yaml snaps
+		seedsnapsIter := append(seed.EssentialSnaps(), modeSnaps...)
+		seedsnaps := make([]string, 0, len(seedsnapsIter))
+		for _, seedsnap := range seedsnapsIter {
+			// but skip any we were asked to remove
+			if x.Remove {
+				// Below is `if seedsnap in snaps: continue`
+				// XXX TODO this should also _remove_ the snap & the snap revision assertion from disk
+				skip := false
+				for _, argsnap := range snaps {
+					if seedsnap.SnapName() == argsnap {
+						skip = true
+						break
+					}
+				}
+				if skip {
+					continue
+				}
+			}
+			seedsnaps = append(seedsnaps, seedsnap.SnapName())
+			snapChannels[seedsnap.SnapName()] = seedsnap.Channel
+		}
+
+		// If append, final list of snaps is seed + arg snaps
+		if x.Append {
+			snaps = append(seedsnaps, snaps...)
+		}
+		// If remove, final list of snaps is filtered seed snaps only
+		if x.Remove {
+			snaps = seedsnaps
+		}
+	}
 	if len(snaps) != 0 {
 		opts.Snaps = snaps
 	}
 	if len(snapChannels) != 0 {
 		opts.SnapChannels = snapChannels
 	}
-
-	// store-wide cohort key via env, see image/options.go
-	opts.WideCohortKey = os.Getenv("UBUNTU_STORE_COHORT_KEY")
-
-	opts.PrepareDir = x.Positional.TargetDir
-	opts.Classic = x.Classic
 
 	return imagePrepare(opts)
 }
