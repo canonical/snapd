@@ -42,13 +42,13 @@ execute: |
     session-tool -u test test-snapd-desktop.sh -c 'echo hello world'
     session-tool -u test test-snapd-desktop.sh -c 'mkdir /home/test/foo'
     session-tool -u test test-snapd-desktop.sh -c 'echo foo >/home/test/foo/bar'
-    ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
+    retry-tool -n 5 --wait 2 sh -c 'ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | grep -q "no matches"'
     # another revision triggers copy of snap data
     install_local test-snapd-desktop
-    ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
+    retry-tool -n 5 --wait 2 sh -c 'ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | grep -q "no matches"'
     # removal triggers cleanups
     snap remove test-snapd-desktop
-    ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
+    retry-tool -n 5 --wait 2 sh -c 'ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | grep -q "no matches"'
 
     install_local test-snapd-service
     snap stop test-snapd-service
@@ -56,18 +56,18 @@ execute: |
     # TODO: enable once there is a workaround for denials caused by journalctl
     # snap logs test-snapd-service
     snap remove test-snapd-service
-    ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
+    retry-tool -n 5 --wait 2 sh -c 'ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | grep -q "no matches"'
 
     install_local test-snapd-layout
     test-snapd-layout.sh -c 'ls /'
     su test -c "test-snapd-layout.sh -c 'ls /'"
     snap remove test-snapd-layout
-    ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
+    retry-tool -n 5 --wait 2 sh -c 'ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | grep -q "no matches"'
 
     install_local socket-activation
     [ -S /var/snap/socket-activation/common/socket ]
     snap remove socket-activation
-    ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
+    retry-tool -n 5 --wait 2 sh -c 'ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | grep -q "no matches"'
 
     # snaps with bases are special in the way that $(libexecdir)/snapd form host
     # is bind mounted into the mount namespace of a snap, thus the SELinux
@@ -76,13 +76,13 @@ execute: |
     install_local test-snapd-snapctl-core18
     snap restart test-snapd-snapctl-core18
     snap remove test-snapd-snapctl-core18
-    ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
+    retry-tool -n 5 --wait 2 sh -c 'ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | grep -q "no matches"'
 
     snap install snap-store
-    ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
+    retry-tool -n 5 --wait 2 sh -c 'ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | grep -q "no matches"'
     # we are likely running without a display, so this will likely fail,
     # hopefully triggering enough of earlier setup to catch any relevant denials
     session-tool -u test snap run snap-store || true
     # removal triggers cleanups
     snap remove snap-store
-    ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
+    retry-tool -n 5 --wait 2 sh -c 'ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | grep -q "no matches"'

@@ -1,14 +1,14 @@
 summary: Verify directories from the base snap are not mounted over symlinks in /etc
 
 description: |
-  The host's /etc is made avaialable inside the snap's mount namespace. During
+  The host's /etc is made available inside the snap's mount namespace. During
   setup, snap-confine attempts to preserve some entries from the base snap to
   present a uniform environment for the snaps. When the entries in host
   namespace are symlinks, they are followed when mounting and the mount, with
   source from the base snap, appears in the host's mount namespace.
 
 # we only know of this happening on Fedora, see https://bugzilla.redhat.com/show_bug.cgi?id=1584461
-systems: [fedora-*]
+systems: [fedora-30-*, fedora-31-*]
 
 restore: |
     if [ "$(readlink /etc/ssl)" == "/etc/ssl-backup" ]; then
@@ -19,7 +19,8 @@ restore: |
     rm -f ./in-snap ./on-host
 
 execute: |
-    # on Fedora, /etc/nsswitch.conf is a symlink to /etc/authselect/nsswitch.conf
+    # on Fedora 30 and 31, /etc/nsswitch.conf is a symlink to /etc/authselect/nsswitch.conf
+    # on Fedora 32, /etc/nsswitch.conf is not a symlink to /etc/authselect/nsswitch.conf
     test -L /etc/nsswitch.conf
 
     # the following mount entries are visible on a broken system:
