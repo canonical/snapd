@@ -29,6 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapdir"
+	"github.com/snapcore/snapd/snap/snapfile"
 
 	"github.com/snapcore/snapd/testutil"
 )
@@ -45,13 +46,13 @@ func (s *FileSuite) TestFileOpenForSnapDir(c *C) {
 	err = ioutil.WriteFile(snapYaml, []byte(`name: foo`), 0644)
 	c.Assert(err, IsNil)
 
-	f, err := snap.Open(sd)
+	f, err := snapfile.Open(sd)
 	c.Assert(err, IsNil)
 	c.Assert(f, FitsTypeOf, &snapdir.SnapDir{})
 }
 
 func (s *FileSuite) TestFileOpenForSnapDirErrors(c *C) {
-	_, err := snap.Open(c.MkDir())
+	_, err := snapfile.Open(c.MkDir())
 	c.Assert(err, FitsTypeOf, snap.NotSnapError{})
 	c.Assert(err, ErrorMatches, `"/.*" is not a snap or snapdir`)
 }
