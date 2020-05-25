@@ -1,0 +1,12 @@
+summary: System settings work
+
+prepare: |
+    hostname > old-hostname
+
+restore: |
+    hostname --file old-hostname || true
+
+execute: |
+    echo "Check that settings the hostname works"
+    hostname coole-kiste
+    hostname | MATCH coole-kiste
