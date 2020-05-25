@@ -53,14 +53,15 @@ const blockDevicesConnectedPlugAppArmor = `
 /sys/devices/**/block/** r,
 
 # Access to raw devices, not individual partitions
-/dev/hd[a-t] rw,                         # IDE, MFM, RLL
-/dev/sd{,[a-h]}[a-z] rw,                 # SCSI
-/dev/sdi[a-v] rw,                        # SCSI continued
-/dev/i2o/hd{,[a-c]}[a-z] rw,             # I2O hard disk
-/dev/i2o/hdd[a-x] rw,                    # I2O hard disk continued
-/dev/mmcblk[0-9]{,[0-9],[0-9][0-9]} rw,  # MMC (up to 1000 devices)
-/dev/nvme[0-9]{,[0-9]} rw,               # NVMe (up to 100 devices)
-/dev/vd[a-z] rw,                         # virtio
+/dev/hd[a-t] rw,                                          # IDE, MFM, RLL
+/dev/sd{,[a-h]}[a-z] rw,                                  # SCSI
+/dev/sdi[a-v] rw,                                         # SCSI continued
+/dev/i2o/hd{,[a-c]}[a-z] rw,                              # I2O hard disk
+/dev/i2o/hdd[a-x] rw,                                     # I2O hard disk continued
+/dev/mmcblk[0-9]{,[0-9],[0-9][0-9]} rw,                   # MMC (up to 1000 devices)
+/dev/nvme{[0-9],[1-9][0-9]} rw,                           # NVMe (up to 100 devices)
+/dev/nvme{[0-9],[1-9][0-9]}n{[1-9],[1-5][0-9],6[0-3]} rw, # NVMe (up to 100 devices, with 1-63 namespaces)
+/dev/vd[a-z] rw,                                          # virtio
 
 # SCSI device commands, et al
 capability sys_rawio,
@@ -75,6 +76,7 @@ capability sys_admin,
 
 var blockDevicesConnectedPlugUDev = []string{
 	`SUBSYSTEM=="block"`,
+	`SUBSYSTEM=="nvme"`,
 	`KERNEL=="mpt2ctl*"`,
 	`KERNEL=="megaraid_sas_ioctl_node"`,
 }
