@@ -1,12 +1,12 @@
 summary: System settings work
 
 prepare: |
-    hostname > old-hostname
+    cp -a /etc/hostname /etc/hostname.bak
 
 restore: |
-    hostname --file old-hostname || true
+    cp -a /etc/hostname.bak /etc/hostname
 
 execute: |
     echo "Check that settings the hostname works"
-    hostname coole-kiste
-    hostname | MATCH coole-kiste
+    echo coole-kiste > /etc/hostname
+
