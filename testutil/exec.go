@@ -110,6 +110,7 @@ var selfLock = `if [ "${FLOCKER}" != "$0" ]; then exec env FLOCKER="$0" flock -e
 func mockCommand(c *check.C, basename, script, template string) *MockCmd {
 	var wholeScript bytes.Buffer
 	var binDir, exeFile, logFile string
+	var newpath string
 	if filepath.IsAbs(basename) {
 		binDir = filepath.Dir(basename)
 		err := os.MkdirAll(binDir, 0755)
@@ -122,7 +123,7 @@ func mockCommand(c *check.C, basename, script, template string) *MockCmd {
 		binDir = c.MkDir()
 		exeFile = path.Join(binDir, basename)
 		logFile = path.Join(binDir, basename+".log")
-		os.Setenv("PATH", binDir+":"+os.Getenv("PATH"))
+		newpath = binDir + ":" + os.Getenv("PATH")
 	}
 	fmt.Fprintf(&wholeScript, template, logFile, script)
 	err := ioutil.WriteFile(exeFile, wholeScript.Bytes(), 0700)
@@ -131,6 +132,10 @@ func mockCommand(c *check.C, basename, script, template string) *MockCmd {
 	}
 
 	maybeShellcheck(c, script, &wholeScript)
+
+	if newpath != "" {
+		os.Setenv("PATH", binDir+":"+os.Getenv("PATH"))
+	}
 
 	return &MockCmd{binDir: binDir, exeFile: exeFile, logFile: logFile}
 }
