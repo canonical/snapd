@@ -50,7 +50,7 @@ var (
 
 func setSysconfigCloudOptions(opts *sysconfig.Options, gadgetDir string, model *asserts.Model) {
 	// TODO: add support for a single cloud-init `cloud.conf` file
-	//       that is then pased to sysconfig
+	//       that is then passed to sysconfig
 
 	// check cloud.cfg.d on the ubuntu-seed partition
 	//
