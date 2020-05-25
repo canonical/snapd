@@ -120,6 +120,9 @@ func (s *servicesSuite) TestConfigureServiceDisabledIntegration(c *C) {
 			c.Assert(err, IsNil)
 			c.Check(s.systemctlArgs, DeepEquals, [][]string{
 				{"restart", srv, "--all"},
+				{"restart", "serial-getty@*", "--all"},
+				{"restart", "serial-console-conf@*", "--all"},
+				{"restart", "console-conf@*", "--all"},
 			})
 		default:
 			c.Check(s.systemctlArgs, DeepEquals, [][]string{
@@ -170,6 +173,9 @@ func (s *servicesSuite) TestConfigureServiceEnableIntegration(c *C) {
 		case "console-conf":
 			c.Check(s.systemctlArgs, DeepEquals, [][]string{
 				{"restart", srv, "--all"},
+				{"restart", "serial-getty@*", "--all"},
+				{"restart", "serial-console-conf@*", "--all"},
+				{"restart", "console-conf@*", "--all"},
 			})
 			canary := filepath.Join(dirs.GlobalRootDir, "/var/lib/console-conf/complete")
 			_, err := os.Stat(canary)
