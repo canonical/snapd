@@ -25,6 +25,7 @@ import (
 
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
@@ -37,11 +38,6 @@ const vitalityOpt = "resilience.vitality-hint"
 func init() {
 	// add supported configuration of this module
 	supportedConfigurations["core."+vitalityOpt] = true
-}
-
-func isNotInstalled(err error) bool {
-	_, ok := err.(*snap.NotInstalledError)
-	return ok
 }
 
 func handleVitalityConfiguration(tr config.Conf, opts *fsOnlyContext) error {
@@ -74,18 +70,33 @@ func handleVitalityConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 	}
 
 	for instanceName, rank := range newVitalityMap {
-		info, err := snapstate.CurrentInfo(st, instanceName)
-		if isNotInstalled(err) {
+		var snapst snapstate.SnapState
+		err := snapstate.Get(st, instanceName, &snapst)
+		// not installed, vitality-score will applied when the snap
+		// gets installed
+		if err == state.ErrNoState {
 			continue
 		}
 		if err != nil {
 			return err
 		}
+		// not active, vitality-score will applied when the snap
+		// becomes active
+		if !snapst.Active {
+			continue
+		}
+		info, err := snapst.CurrentInfo()
+		if err != nil {
+			return err
+		}
+
 		// nothing to do if rank is unchanged
 		if oldVitalityMap[instanceName] == newVitalityMap[instanceName] {
 			continue
 		}
 
+		// TODO: this should become some kind of Ensure*
+		// method in wrappers
 		disabledSvcs, err := wrappers.QueryDisabledServices(info, progress.Null)
 		if err != nil {
 			return err
@@ -96,6 +107,7 @@ func handleVitalityConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 			if !app.IsService() {
 				continue
 			}
+
 			opts := &wrappers.AddSnapServicesOptions{VitalityRank: rank}
 			if err := wrappers.AddSnapServices(info, disabledSvcs, opts, progress.Null); err != nil {
 				return err
@@ -134,7 +146,7 @@ func validateVitalitySettings(tr config.Conf) error {
 		}
 		// The "snapd" snap is always at OOMScoreAdjust=-900.
 		if instanceName == "snapd" {
-			return fmt.Errorf("cannot set %q: snapd snap cannot be changed", vitalityOpt)
+			return fmt.Errorf("cannot set %q: snapd snap vitality cannot be changed", vitalityOpt)
 		}
 	}
 

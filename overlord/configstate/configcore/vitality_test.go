@@ -57,7 +57,7 @@ func (s *vitalitySuite) TestConfigureVitalityNoSnapd(c *C) {
 			"resilience.vitality-hint": "snapd",
 		},
 	})
-	c.Assert(err, ErrorMatches, `cannot set "resilience.vitality-hint": snapd snap cannot be changed`)
+	c.Assert(err, ErrorMatches, `cannot set "resilience.vitality-hint": snapd snap vitality cannot be changed`)
 }
 
 func (s *vitalitySuite) TestConfigureVitalityhappyName(c *C) {
@@ -189,4 +189,26 @@ func (s *vitalitySuite) TestConfigureVitalityManySnapsDelta(c *C) {
 	c.Check(svcPath, Not(testutil.FileContains), "\nOOMScoreAdjust=")
 	svcPath = filepath.Join(dirs.SnapServicesDir, "snap.snap3.foo.service")
 	c.Check(svcPath, testutil.FileContains, "\nOOMScoreAdjust=-899\n")
+}
+
+func (s *vitalitySuite) TestConfigureVitalityNotActiveSnap(c *C) {
+	si := &snap.SideInfo{RealName: "test-snap", Revision: snap.R(1)}
+	snaptest.MockSnap(c, mockSnapWithService, si)
+	s.state.Lock()
+	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(1),
+		Active:   false,
+		SnapType: "app",
+	})
+	s.state.Unlock()
+
+	err := configcore.Run(&mockConf{
+		state: s.state,
+		changes: map[string]interface{}{
+			"resilience.vitality-hint": "unrelated,test-snap",
+		},
+	})
+	c.Assert(err, IsNil)
+	c.Check(s.systemctlArgs, HasLen, 0)
 }
