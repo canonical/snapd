@@ -47,11 +47,13 @@ jobs:
       with:
         path: /var/cache/apt
         key: var-cache-apt-{{ hashFiles('**/debian/control') }}
+    - name: Run "apt update"
+      run: |
+          sudo apt update
     - name: Download Debian dependencies
       if: steps.cache-deb-downloads.outputs.cache-hit != 'true'
       run: |
           sudo apt clean
-          sudo apt update
           sudo apt build-dep -d -y ${{ github.workspace }}/src/github.com/snapcore/snapd
     # Work around caching files owned by root https://github.com/actions/cache/issues/133
     - name: Install Debian dependencies
