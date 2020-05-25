@@ -12,10 +12,6 @@ if [ $# -eq 0 ]; then
 	show_help
 	exit 1
 fi
-if [ "$(id -u)" -ne 0 ]; then
-    echo "session-tool needs to be invoked as root" >&2
-    exit 1
-fi
 user=root
 pid_file=
 action=
@@ -79,6 +75,11 @@ while [ $# -gt 0 ]; do
 			;;
 	esac
 done
+
+if [ "$(id -u)" -ne 0 ]; then
+    echo "session-tool needs to be invoked as root" >&2
+    exit 1
+fi
 
 case "$action" in
 	kill-leaked)
