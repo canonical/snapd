@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -82,7 +83,8 @@ func New(snapPath string) *Snap {
 var osLink = os.Link
 var cmdutilCommandFromSystemSnap = cmdutil.CommandFromSystemSnap
 
-func (s *Snap) Install(targetPath, mountDir string) (bool, error) {
+// Install installs a squashfs snap file through an appropriate method.
+func (s *Snap) Install(targetPath, mountDir string, opts *snap.InstallOptions) (bool, error) {
 
 	// ensure mount-point and blob target dir.
 	for _, dir := range []string{mountDir, filepath.Dir(targetPath)} {
@@ -106,6 +108,11 @@ func (s *Snap) Install(targetPath, mountDir string) (bool, error) {
 	if s.path == targetPath || osutil.FilesAreEqual(s.path, targetPath) {
 		didNothing := true
 		return didNothing, nil
+	}
+
+	// if we need to copy by policy, do that first
+	if opts != nil && opts.MustCopy {
+		return false, osutil.CopyFile(s.path, targetPath, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync)
 	}
 
 	overlayRoot, err := isRootWritableOverlay()

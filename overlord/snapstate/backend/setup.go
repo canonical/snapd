@@ -75,7 +75,7 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 	}
 
 	var didNothing bool
-	if didNothing, err = snapf.Install(s.MountFile(), instdir); err != nil {
+	if didNothing, err = snapf.Install(s.MountFile(), instdir, nil); err != nil {
 		return snapType, nil, err
 	}
 

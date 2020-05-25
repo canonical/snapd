@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap"
 )
 
 func IsSnapDir(path string) bool {
@@ -64,7 +65,12 @@ func (s *SnapDir) Size() (size int64, err error) {
 	return totalSize, nil
 }
 
-func (s *SnapDir) Install(targetPath, mountDir string) (bool, error) {
+func (s *SnapDir) Install(targetPath, mountDir string, opts *snap.InstallOptions) (bool, error) {
+	// if we need to copy by policy, do that
+	if opts != nil && opts.MustCopy {
+		return false, osutil.CopyFile(s.path, targetPath, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync)
+	}
+
 	return false, os.Symlink(s.path, targetPath)
 }
 
