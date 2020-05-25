@@ -43,7 +43,6 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/timings"
 )
@@ -772,103 +771,19 @@ var currentSystemActions = []SystemAction{
 	{Title: "Recover", Mode: "recover"},
 	{Title: "Run normally", Mode: "run"},
 }
-
-func systemFromSeed(label string) (*System, error) {
-	s, err := seed.Open(dirs.SnapSeedDir, label)
-	if err != nil {
-		return nil, fmt.Errorf("cannot open: %v", err)
-	}
-	if err := s.LoadAssertions(nil, nil); err != nil {
-		return nil, fmt.Errorf("cannot load assertions: %v", err)
-	}
-	// get the model
-	model, err := s.Model()
-	if err != nil {
-		return nil, fmt.Errorf("cannot obtain model: %v", err)
-	}
-	brand, err := s.Brand()
-	if err != nil {
-		return nil, fmt.Errorf("cannot obtain brand: %v", err)
-	}
-	system := System{
-		Current: false,
-		Label:   label,
-		Model:   model,
-		Brand:   brand,
-		Actions: defaultSystemActions,
-	}
-	return &system, nil
+var recoverSystemActions = []SystemAction{
+	{Title: "Reinstall", Mode: "install"},
+	{Title: "Run normally", Mode: "run"},
 }
 
 var ErrNoSystems = errors.New("no systems seeds")
-
-func currentSystemForMode(st *state.State, mode string) (*seededSystem, error) {
-	switch mode {
-	case "run":
-		return currentSeedSystem(st)
-	case "install":
-		// there is no current system for install mode
-		return nil, nil
-	case "recover":
-		// recover mode uses modeenv for reference
-		return seededSystemFromModeenv()
-	}
-	return nil, fmt.Errorf("internal error: cannot identify current system for unsupported mode %q", mode)
-}
-
-func seededSystemFromModeenv() (*seededSystem, error) {
-	modeEnv, err := maybeReadModeenv()
-	if err != nil {
-		return nil, err
-	}
-	if modeEnv == nil {
-		return nil, fmt.Errorf("internal error: modeenv does not exist")
-	}
-	if modeEnv.RecoverySystem == "" {
-		return nil, fmt.Errorf("internal error: recovery system is unset")
-	}
-
-	system, err := systemFromSeed(modeEnv.RecoverySystem)
-	if err != nil {
-		return nil, err
-	}
-	seededSys := &seededSystem{
-		System:    modeEnv.RecoverySystem,
-		Model:     system.Model.Model(),
-		BrandID:   system.Model.BrandID(),
-		Revision:  system.Model.Revision(),
-		Timestamp: system.Model.Timestamp(),
-		// SeedTime is intentionally left unset
-	}
-	return seededSys, nil
-}
-
-func currentSeedSystem(st *state.State) (*seededSystem, error) {
-	st.Lock()
-	defer st.Unlock()
-
-	var whatseeded []seededSystem
-	if err := st.Get("seeded-systems", &whatseeded); err != nil {
-		return nil, err
-	}
-	if len(whatseeded) == 0 {
-		// unexpected
-		return nil, state.ErrNoState
-	}
-	return &whatseeded[0], nil
-}
-
-func isCurrentSystem(current *seededSystem, other *System) bool {
-	return current.System == other.Label &&
-		current.Model == other.Model.Model() &&
-		current.BrandID == other.Brand.AccountID()
-}
 
 // Systems list the available recovery/seeding systems. Returns the list of
 // systems, ErrNoSystems when no systems seeds were found or other error.
 func (m *DeviceManager) Systems() ([]*System, error) {
 	// it's tough luck when we cannot determine the current system seed
-	currentSys, _ := currentSystemForMode(m.state, m.systemMode)
+	systemMode := m.SystemMode()
+	currentSys, _ := currentSystemForMode(m.state, systemMode)
 
 	systemLabels, err := filepath.Glob(filepath.Join(dirs.SnapSeedDir, "systems", "*"))
 	if err != nil && !os.IsNotExist(err) {
@@ -891,7 +806,7 @@ func (m *DeviceManager) Systems() ([]*System, error) {
 		}
 		if currentSys != nil && isCurrentSystem(currentSys, system) {
 			system.Current = true
-			system.Actions = currentSystemActions
+			system.Actions = currentSystemActionsForMode(systemMode)
 		}
 		systems = append(systems, system)
 	}
@@ -904,7 +819,16 @@ var ErrUnsupportedAction = errors.New("unsupported action")
 // system reboot will be requested when the request can be successfully carried
 // out.
 func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAction) error {
-	currentSys, _ := currentSystemForMode(m.state, m.systemMode)
+	if systemLabel == "" {
+		return fmt.Errorf("internal error: system label is unset")
+	}
+
+	if err := checkSystemRequestConflict(m.state, systemLabel); err != nil {
+		return err
+	}
+
+	systemMode := m.SystemMode()
+	currentSys, _ := currentSystemForMode(m.state, systemMode)
 
 	systemSeedDir := filepath.Join(dirs.SnapSeedDir, "systems", systemLabel)
 	if _, err := os.Stat(systemSeedDir); err != nil {
@@ -915,8 +839,7 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 		return fmt.Errorf("cannot load seed system: %v", err)
 	}
 	if currentSys != nil && isCurrentSystem(currentSys, system) {
-		system.Current = true
-		system.Actions = currentSystemActions
+		system.Actions = currentSystemActionsForMode(systemMode)
 	}
 
 	var sysAction *SystemAction
@@ -933,11 +856,11 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 	// XXX: requested mode is valid; only current system has 'run' and
 	// recover 'actions'
 
-	switch m.systemMode {
+	switch systemMode {
 	case "recover", "run":
 		// if going from recover to recover or from run to run and the systems
 		// are the same do nothing
-		if m.systemMode == sysAction.Mode && systemLabel == currentSys.System {
+		if systemMode == sysAction.Mode && systemLabel == currentSys.System {
 			return nil
 		}
 	case "install":
@@ -949,7 +872,7 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 	default:
 		// probably test device manager mocking problem, or also potentially
 		// missing modeenv
-		return fmt.Errorf("internal error: unexpected manager system mode %q", m.systemMode)
+		return fmt.Errorf("internal error: unexpected manager system mode %q", systemMode)
 	}
 
 	m.state.Lock()
