@@ -1,11 +1,11 @@
 #!/bin/bash -e
 show_help() {
-	echo "usage: session-tool [-u USER] [-p PID_FILE] [--] <CMD>"
-	echo "usage: session-tool --prepare | --restore [-u USER | -u USER1,USER2,...]"
-	echo "usage: session-tool --kill-leaked"
-	echo "usage: session-tool --dump"
-	echo "usage: session-tool --has-system-systemd-and-dbus"
-	echo "usage: session-tool --has-session-systemd-and-dbus"
+	echo "usage: session-tool exec [-u USER] [-p PID_FILE] [--] <CMD>"
+	echo "usage: session-tool prepare | restore [-u USER | -u USER1,USER2,...]"
+	echo "usage: session-tool kill-leaked"
+	echo "usage: session-tool dump"
+	echo "usage: session-tool has-system-systemd-and-dbus"
+	echo "usage: session-tool has-session-systemd-and-dbus"
 }
 
 if [ $# -eq 0 ]; then
@@ -34,27 +34,27 @@ while [ $# -gt 0 ]; do
 			shift
 			break
 			;;
-		--kill-leaked)
+		kill-leaked|--kill-leaked)
 			action=kill-leaked
 			shift
 			;;
-		--prepare)
+		prepare|--prepare)
 			action=prepare
 			shift
 			;;
-		--restore)
+		restore|--restore)
 			action=restore
 			shift
 			;;
-		--dump)
+		dump|--dump)
 			action=dump
 			shift
 			;;
-		--has-system-systemd-and-dbus)
+		has-system-systemd-and-dbus|--has-system-systemd-and-dbus)
 			action=has-system-systemd-and-dbus
 			shift
 			;;
-		--has-session-systemd-and-dbus)
+		has-session-systemd-and-dbus|--has-session-systemd-and-dbus)
 			action=has-session-systemd-and-dbus
 			shift
 			;;
@@ -70,7 +70,13 @@ while [ $# -gt 0 ]; do
 			echo "session-tool: unsupported argument $1" >&2
 			exit 1
 			;;
+		exec)
+			shift
+			action="exec"
+			break
+			;;
 		*)
+			action="exec"
 			break
 			;;
 	esac
