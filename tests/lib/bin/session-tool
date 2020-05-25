@@ -1,11 +1,15 @@
 #!/bin/bash -e
-if [ $# -eq 0 ]; then
+show_help() {
 	echo "usage: session-tool [-u USER] [-p PID_FILE] [--] <CMD>"
 	echo "usage: session-tool --prepare | --restore [-u USER | -u USER1,USER2,...]"
 	echo "usage: session-tool --kill-leaked"
 	echo "usage: session-tool --dump"
 	echo "usage: session-tool --has-system-systemd-and-dbus"
 	echo "usage: session-tool --has-session-systemd-and-dbus"
+}
+
+if [ $# -eq 0 ]; then
+	show_help
 	exit 1
 fi
 if [ "$(id -u)" -ne 0 ]; then
@@ -17,9 +21,10 @@ pid_file=
 action=
 while [ $# -gt 0 ]; do
 	case "$1" in
-		--)
+		-h)
 			shift
-			break
+			show_help
+			exit 0
 			;;
 		-p)
 			if [ $# -eq 1 ]; then
@@ -28,6 +33,10 @@ while [ $# -gt 0 ]; do
 			fi
 			pid_file="$2"
 			shift 2
+			;;
+		--)
+			shift
+			break
 			;;
 		--kill-leaked)
 			action=kill-leaked
