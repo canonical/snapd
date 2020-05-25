@@ -38,16 +38,38 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 )
 
 var (
-	// Magic is the magic prefix of squashfs snap files.
-	Magic = []byte{'h', 's', 'q', 's'}
+	// magic is the magic prefix of squashfs snap files.
+	magic = []byte{'h', 's', 'q', 's'}
 
 	// for testing
 	isRootWritableOverlay = osutil.IsRootWritableOverlay
 )
+
+func fileHasSquashfsHeader(path string) bool {
+	f, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+
+	header := make([]byte, 20)
+	if _, err := f.ReadAt(header, 0); err != nil {
+		return false
+	}
+
+	return bytes.HasPrefix(header, magic)
+}
+
+func init() {
+	snap.RegisterContainerFormatHandler(
+		fileHasSquashfsHeader,
+		func(fn string) (snap.Container, error) { return New(fn), nil })
+}
 
 // Snap is the squashfs based snap.
 type Snap struct {

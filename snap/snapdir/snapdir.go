@@ -25,7 +25,26 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap"
 )
+
+func isSnapDir(path string) bool {
+	if osutil.IsDirectory(path) {
+		if osutil.FileExists(filepath.Join(path, "meta", "snap.yaml")) {
+			return true
+		}
+	}
+	return false
+}
+
+func init() {
+	snap.RegisterContainerFormatHandler(
+		isSnapDir,
+		func(fn string) (snap.Container, error) { return New(fn), nil },
+	)
+}
 
 // SnapDir is the snapdir based snap.
 type SnapDir struct {
