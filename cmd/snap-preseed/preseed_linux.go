@@ -79,12 +79,13 @@ func checkChroot(preseedChroot string) error {
 	}
 	// non empty required indicates missing mountpoint(s)
 	if len(required) > 0 {
-		sorted := []string{""}
+		var sorted []string
 		for path := range required {
 			sorted = append(sorted, path)
 		}
 		sort.Strings(sorted)
-		return fmt.Errorf("cannot preseed without the following mountpoints:%s", strings.Join(sorted, "\n - "))
+		parts := append([]string{""}, sorted...)
+		return fmt.Errorf("cannot preseed without the following mountpoints:%s", strings.Join(parts, "\n - "))
 	}
 
 	path := filepath.Join(preseedChroot, "/sys/kernel/security/apparmor")
