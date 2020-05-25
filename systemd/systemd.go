@@ -758,7 +758,7 @@ func writeMountUnitFile(snapName, revision, what, where, fstype string, options 
 	return mountUnitName, nil
 }
 
-func fsOptions(fstype string) []string {
+func fsMountOptions(fstype string) []string {
 	options := []string{"nodev"}
 	if fstype == "squashfs" {
 		if selinux.ProbedLevel() != selinux.Unsupported {
@@ -770,8 +770,8 @@ func fsOptions(fstype string) []string {
 	return options
 }
 
-func actualFs(fstype string) (actualFsType string, options []string, err error) {
-	options = fsOptions(fstype)
+func actualFsTypeAndMountOptions(fstype string) (actualFsType string, options []string, err error) {
+	options = fsMountOptions(fstype)
 	actualFsType = fstype
 	if fstype == "squashfs" {
 		newFsType, newOptions, err := squashfsFsType()
@@ -788,7 +788,7 @@ func (s *systemd) AddMountUnitFile(snapName, revision, what, where, fstype strin
 	daemonReloadLock.Lock()
 	defer daemonReloadLock.Unlock()
 
-	actualFsType, options, err := actualFs(fstype)
+	actualFsType, options, err := actualFsTypeAndMountOptions(fstype)
 	if err != nil {
 		return "", err
 	}
