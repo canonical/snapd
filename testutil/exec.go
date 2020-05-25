@@ -147,7 +147,7 @@ func MockCommand(c *check.C, basename, script string) *MockCmd {
 	return mockCommand(c, basename, script, strings.Replace(scriptTpl, "###LOCK###", "", 1))
 }
 
-// MockLockCommand is the same as MockCommand(), but the script uses flock to
+// MockLockedCommand is the same as MockCommand(), but the script uses flock to
 // enforce exclusive locking, preventing the call tracking from being corrupted.
 // Thus it is safe to be called in parallel.
 func MockLockedCommand(c *check.C, basename, script string) *MockCmd {
