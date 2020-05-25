@@ -34,7 +34,7 @@ import (
 var services = []struct{ configName, systemdName string }{
 	{"ssh", "ssh.service"},
 	{"rsyslog", "rsyslog.service"},
-	{"console-conf", "getty@*"},
+	{"console-conf", "console-conf@*"},
 }
 
 func init() {
@@ -171,7 +171,7 @@ func switchDisableService(serviceName, value string, opts *fsOnlyContext) error 
 	switch serviceName {
 	case "ssh.service":
 		return switchDisableSSHService(sysd, serviceName, value, opts)
-	case "getty@*":
+	case "console-conf@*":
 		return switchDisableConsoleConfService(sysd, serviceName, value, opts)
 	}
 
