@@ -31,14 +31,7 @@ jobs:
         # is relevant for go's import system.
         path: ./src/github.com/snapcore/snapd
 
-    - name: Prepare results store
-      run: mkdir "${{ github.workspace }}/.test-results"
-    - name: Cache snapd test results
-      id: cache-snapd-test-results
-      uses: actions/cache@v1
-      with:
-        path: "${{ github.workspace }}/.test-results"
-        key: "${{ github.run_id }}-${{ github.job }}-results"
+    # Work around caching files owned by root https://github.com/actions/cache/issues/133
     - name: Make /var/cache/apt owned by current user
       run: sudo chown -R $(id -u) /var/cache/apt
     - name: Cache Debian dependencies
@@ -55,19 +48,35 @@ jobs:
       run: |
           sudo apt clean
           sudo apt build-dep -d -y ${{ github.workspace }}/src/github.com/snapcore/snapd
-    # Work around caching files owned by root https://github.com/actions/cache/issues/133
-    - name: Install Debian dependencies
+
+    - name: Cache snapd test results
+      id: cache-snapd-test-results
+      uses: actions/cache@v1
+      with:
+        path: "${{ github.workspace }}/.test-results"
+        # must include matrix or things get racy, i.e. when latest/edge
+        # finishes after 1.9 it overrides the results from 1.9
+        key: "${{ github.run_id }}-${{ github.job }}-${{ matrix.gochannel }}-results"
+    - name: Check cached test results
+      id: cached-results
       run: |
-          [ -e "${{ github.workspace }}/.test-results/${{ matrix.gochannel }}-success" ] && exit 0
+          CACHE_RESULT_STAMP="${{ github.workspace }}/.test-results/${{ matrix.gochannel }}-success"
+          echo "::set-env name=CACHE_RESULT_STAMP::$CACHE_RESULT_STAMP"
+          if [ -e "$CACHE_RESULT_STAMP" ]; then
+              echo "::set-output name=already-ran::true"
+          fi
+    - name: Install Debian dependencies
+      if: steps.cached-results.outputs.cached-resulsts != 'true'
+      run: |
           sudo apt build-dep -y ${{ github.workspace }}/src/github.com/snapcore/snapd
     # golang latest ensures things work on the edge
     - name: Install the go snap
+      if: steps.cached-results.outputs.already-ran != 'true'
       run: |
-          [ -e "${{ github.workspace }}/.test-results/${{ matrix.gochannel }}-success" ] && exit 0
           sudo snap install --classic --channel=${{ matrix.gochannel }} go
     - name: Install ShellCheck as a snap
+      if: steps.cached-results.outputs.already-ran != 'true'
       run: |
-          [ -e "${{ github.workspace }}/.test-results/${{ matrix.gochannel }}-success" ] && exit 0
           sudo apt-get remove --purge shellcheck
           sudo snap install shellcheck
     - name: Make /var/cache/apt owned by current user
@@ -83,34 +92,33 @@ jobs:
     - name: Get Go dependencies
       run: cd ${{ github.workspace }}/src/github.com/snapcore/snapd && ${{ github.workspace }}/bin/govendor sync
     - name: Run static checks
+      if: steps.cached-results.outputs.already-ran != 'true'
       run: |
-          [ -e "${{ github.workspace }}/.test-results/${{ matrix.gochannel }}-success" ] && exit 0
           cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
           ./run-checks --static
     - name: Build C
+      if: steps.cached-results.outputs.already-ran != 'true'
       run: |
-          [ -e "${{ github.workspace }}/.test-results/${{ matrix.gochannel }}-success" ] && exit 0
           cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/
           ./autogen.sh
           make -j2
     - name: Build Go
+      if: steps.cached-results.outputs.already-ran != 'true'
       run: |
-          [ -e "${{ github.workspace }}/.test-results/${{ matrix.gochannel }}-success" ] && exit 0
           go build github.com/snapcore/snapd/...
     - name: Test C
+      if: steps.cached-results.outputs.already-ran != 'true'
       run: |
-          [ -e "${{ github.workspace }}/.test-results/${{ matrix.gochannel }}-success" ] && exit 0
           cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/ && make check
     - name: Test Go
+      if: steps.cached-results.outputs.already-ran != 'true'
       run: |
-        [ -e "${{ github.workspace }}/.test-results/${{ matrix.gochannel }}-success" ] && exit 0
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
         ./run-checks --unit
     - name: Cache successful run
       run: |
-        stamp="${{ github.workspace }}/.test-results/${{ matrix.gochannel }}-success"
-        mkdir -p $(dirname "$stamp")
-        touch "$stamp"        
+        mkdir -p $(dirname "$CACHE_RESULT_STAMP")
+        touch "$CACHE_RESULT_STAMP"
 
   spread:
     needs: [unit-tests]
@@ -147,29 +155,32 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
-    - name: Prepare results store
-      run: mkdir -p "${{ github.workspace }}/.test-results"
     - name: Cache snapd test results
       id: cache-snapd-test-results
       uses: actions/cache@v1
       with:
         path: "${{ github.workspace }}/.test-results"
-        key: "${{ github.run_id }}-${{ github.job }}-results"
+        key: "${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-results"
+    - name: Check cached test results
+      id: cached-results
+      run: |
+          CACHE_RESULT_STAMP="${{ github.workspace }}/.test-results/${{ matrix.system }}-success"
+          echo "::set-env name=CACHE_RESULT_STAMP::$CACHE_RESULT_STAMP"
+          if [ -e "$CACHE_RESULT_STAMP" ]; then
+              echo "::set-output name=already-ran::true"
+          fi
     - name: Run spread tests
       env:
           SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
-      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
+      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread') && steps.cached-results.outputs.already-ran != 'true'"
       run: |
-          stamp="${{ github.workspace }}/.test-results/${{ matrix.system }}-success"
-          if [ -e "$stamp" ]; then
-              echo "cached success result"
-              exit 0
-          fi
           # Register a problem matcher to highlight spread failures
           echo "::add-matcher::.github/spread-problem-matcher.json"
-          if spread -abend google:${{ matrix.system }}:tests/... ; then
-              touch "$stamp"
-          fi
+          spread -abend google:${{ matrix.system }}:tests/...
+    - name: Cache successful run
+      run: |
+        mkdir -p $(dirname "$CACHE_RESULT_STAMP")
+        touch "$CACHE_RESULT_STAMP"
     - name: Discard spread workers
       if: always()
       run: |
