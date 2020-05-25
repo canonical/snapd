@@ -148,7 +148,7 @@ override_dh_auto_build:
 	# and build
 	dh_auto_build -- $(BUILDFLAGS) -tags "$(TAGS)" $(GCCGOFLAGS)
 
-	(cd _build/bin && GOPATH=$$(pwd)/.. GOCACHE=/tmp/go-build CGO_ENABLED=0 go build $(BUILDFLAGS) $(GCCGOFLAGS) -tags "$(SNAP_TAGS)" $(DH_GOPKG)/cmd/snap)
+	(cd _build/bin && GOPATH=$$(pwd)/.. GOCACHE=/tmp/go-build go build $(BUILDFLAGS) $(GCCGOFLAGS) -tags "$(SNAP_TAGS)" $(DH_GOPKG)/cmd/snap)
 
 	# (static linking on powerpc with cgo is broken)
 ifneq ($(shell dpkg-architecture -qDEB_HOST_ARCH),powerpc)
