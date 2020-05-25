@@ -74,8 +74,14 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 		}
 	}
 
+	// in uc20 run mode, all snaps must be copied when installing
+	opts := &snap.InstallOptions{}
+	if dev.HasModeenv() && dev.RunMode() {
+		opts.MustCopy = true
+	}
+
 	var didNothing bool
-	if didNothing, err = snapf.Install(s.MountFile(), instdir, nil); err != nil {
+	if didNothing, err = snapf.Install(s.MountFile(), instdir, opts); err != nil {
 		return snapType, nil, err
 	}
 
