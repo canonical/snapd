@@ -139,3 +139,10 @@ func (s *snapFileTestSuite) TestOpenSnapdirFileNoExists(c *C) {
 	_, err := snapfile.Open(filepath.Join(dir, "garbage"))
 	c.Assert(err, FitsTypeOf, snap.NotSnapError{})
 }
+
+func (s *snapFileTestSuite) TestFileOpenForSnapDirErrors(c *C) {
+	// no snap.yaml file
+	_, err := snapfile.Open(c.MkDir())
+	c.Assert(err, FitsTypeOf, snap.NotSnapError{})
+	c.Assert(err, ErrorMatches, `"/.*" is not a snap or snapdir`)
+}
