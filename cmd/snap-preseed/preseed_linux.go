@@ -24,6 +24,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"syscall"
 
@@ -61,12 +62,34 @@ func checkChroot(preseedChroot string) error {
 		return fmt.Errorf("the system at %q appears to be preseeded, pass --reset flag to clean it up", preseedChroot)
 	}
 
-	// sanity checks of the critical mountpoints inside chroot directory
-	for _, p := range []string{"/sys/kernel/security/apparmor", "/proc/self", "/dev/mem"} {
-		path := filepath.Join(preseedChroot, p)
-		if exists := osutil.FileExists(path); !exists {
-			return fmt.Errorf("cannot pre-seed without access to %q", path)
+	// sanity checks of the critical mountpoints inside chroot directory.
+	required := map[string]bool{}
+	// required mountpoints are relative to the preseed chroot
+	for _, p := range []string{"/sys/kernel/security", "/proc", "/dev"} {
+		required[filepath.Join(preseedChroot, p)] = true
+	}
+	entries, err := osutil.LoadMountInfo()
+	if err != nil {
+		return fmt.Errorf("cannot parse mount info: %v", err)
+	}
+	for _, ent := range entries {
+		if _, ok := required[ent.MountDir]; ok {
+			delete(required, ent.MountDir)
 		}
+	}
+	// non empty required indicates missing mountpoint(s)
+	if len(required) > 0 {
+		sorted := []string{""}
+		for path := range required {
+			sorted = append(sorted, path)
+		}
+		sort.Strings(sorted)
+		return fmt.Errorf("cannot preseed without the following mountpoints:%s", strings.Join(sorted, "\n - "))
+	}
+
+	path := filepath.Join(preseedChroot, "/sys/kernel/security/apparmor")
+	if exists := osutil.FileExists(path); !exists {
+		return fmt.Errorf("cannot preseed without access to %q", path)
 	}
 
 	return nil
