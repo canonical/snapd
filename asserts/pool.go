@@ -59,7 +59,7 @@ type Grouping string
 //        \ __________ Add
 //
 //
-// If errors prevent from fulfilling assertions from a ToResolve
+// If errors prevent from fulfilling assertions from a ToResolve,
 // AddError and AddGroupingError can be used to report the errors so
 // that they can be associated with groups.
 //
@@ -323,7 +323,7 @@ func (p *Pool) addUnresolved(unresolved *AtRevision, gnum uint16) error {
 // At the next ToResolve any unresolved assertion with not known
 // revision that was not added via Add or AddBatch will result in all
 // groups requiring it being in error with ErrUnresolved.
-// Conversely that means still unresolved assertions originally added
+// Conversely, the remaining unresolved assertions originally added
 // via AddToUpdate will be assumed to still be at their current
 // revisions.
 func (p *Pool) ToResolve() (map[Grouping][]*AtRevision, error) {
