@@ -182,13 +182,73 @@ func (s *vitalitySuite) TestConfigureVitalityManySnapsDelta(c *C) {
 		},
 	})
 	c.Assert(err, IsNil)
-	// test
+	// test that snap1,snap3 got the new rank
 	svcPath := filepath.Join(dirs.SnapServicesDir, "snap.snap1.foo.service")
 	c.Check(svcPath, testutil.FileContains, "\nOOMScoreAdjust=-898")
+	// and that snap2 no longer has a OOMScoreAdjust setting
 	svcPath = filepath.Join(dirs.SnapServicesDir, "snap.snap2.foo.service")
 	c.Check(svcPath, Not(testutil.FileContains), "\nOOMScoreAdjust=")
 	svcPath = filepath.Join(dirs.SnapServicesDir, "snap.snap3.foo.service")
 	c.Check(svcPath, testutil.FileContains, "\nOOMScoreAdjust=-899\n")
+}
+
+func (s *vitalitySuite) TestConfigureVitalityManySnapsOneRemovedOneUnchanged(c *C) {
+	for _, snapName := range []string{"snap1", "snap2", "snap3"} {
+		si := &snap.SideInfo{RealName: snapName, Revision: snap.R(1)}
+		snaptest.MockSnap(c, mockSnapWithService, si)
+		s.state.Lock()
+		snapstate.Set(s.state, snapName, &snapstate.SnapState{
+			Sequence: []*snap.SideInfo{si},
+			Current:  snap.R(1),
+			Active:   true,
+			SnapType: "app",
+		})
+		s.state.Unlock()
+	}
+
+	// first run generates the snap1,snap2 configs
+	err := configcore.Run(&mockConf{
+		state: s.state,
+		changes: map[string]interface{}{
+			"resilience.vitality-hint": "snap1,snap2",
+		},
+	})
+	c.Assert(err, IsNil)
+	svcPath := filepath.Join(dirs.SnapServicesDir, "snap.snap1.foo.service")
+	c.Check(svcPath, testutil.FileContains, "\nOOMScoreAdjust=-899")
+	svcPath = filepath.Join(dirs.SnapServicesDir, "snap.snap2.foo.service")
+	c.Check(svcPath, testutil.FileContains, "\nOOMScoreAdjust=-898\n")
+	c.Check(s.systemctlArgs, testutil.DeepContains, []string{"start", "snap.snap1.foo.service"})
+	c.Check(s.systemctlArgs, testutil.DeepContains, []string{"start", "snap.snap2.foo.service"})
+	s.systemctlArgs = nil
+
+	// now we change the configuration and set snap1,snap3
+	err = configcore.Run(&mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			"resilience.vitality-hint": "snap1,snap2",
+		},
+		changes: map[string]interface{}{
+			"resilience.vitality-hint": "snap1,snap3",
+		},
+	})
+	c.Assert(err, IsNil)
+	// test that snap1 is unchanged
+	svcPath = filepath.Join(dirs.SnapServicesDir, "snap.snap1.foo.service")
+	c.Check(svcPath, testutil.FileContains, "\nOOMScoreAdjust=-899")
+	// and that snap2 no longer has a OOMScoreAdjust setting
+	svcPath = filepath.Join(dirs.SnapServicesDir, "snap.snap2.foo.service")
+	c.Check(svcPath, Not(testutil.FileContains), "\nOOMScoreAdjust=")
+	// snap3 got added
+	svcPath = filepath.Join(dirs.SnapServicesDir, "snap.snap3.foo.service")
+	c.Check(svcPath, testutil.FileContains, "\nOOMScoreAdjust=-898\n")
+
+	// ensure that snap1 did not get started again (it is unchanged)
+	c.Check(s.systemctlArgs, Not(testutil.DeepContains), []string{"start", "snap.snap1.foo.service"})
+	// snap2 changed (no OOMScoreAdjust anymore) so needs restart
+	c.Check(s.systemctlArgs, testutil.DeepContains, []string{"start", "snap.snap2.foo.service"})
+	// snap3 changed so needs restart
+	c.Check(s.systemctlArgs, testutil.DeepContains, []string{"start", "snap.snap3.foo.service"})
 }
 
 func (s *vitalitySuite) TestConfigureVitalityNotActiveSnap(c *C) {
