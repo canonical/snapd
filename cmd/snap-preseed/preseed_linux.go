@@ -25,6 +25,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strings"
 	"syscall"
 
 	"github.com/snapcore/snapd/cmd/cmdutil"
@@ -75,14 +76,19 @@ func checkChroot(preseedChroot string) error {
 			delete(required, ent.MountDir)
 		}
 	}
-	// non empty required indicates missing mountpoint(s), print just one.
+	// non empty required indicates missing mountpoint(s)
 	if len(required) > 0 {
-		sorted := []string{}
+		sorted := []string{""}
 		for path := range required {
 			sorted = append(sorted, path)
 		}
 		sort.Strings(sorted)
-		return fmt.Errorf("cannot preseed without access to %q (not a mountpoint)", sorted[0])
+		return fmt.Errorf("cannot preseed without the following mountpoints:%s", strings.Join(sorted, "\n - "))
+	}
+
+	path := filepath.Join(preseedChroot, "/sys/kernel/security/apparmor")
+	if exists := osutil.FileExists(path); !exists {
+		return fmt.Errorf("cannot preseed without access to %q", path)
 	}
 
 	return nil
