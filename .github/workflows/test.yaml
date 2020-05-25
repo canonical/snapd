@@ -160,7 +160,7 @@ jobs:
           SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
       if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
       run: |
-          stamp="${{ github.workspace }}/.test-results/${{ matrix.gochannel }}-success"
+          stamp="${{ github.workspace }}/.test-results/${{ matrix.system }}-success"
           if [ -e "$stamp" ]; then
               echo "cached success result"
               exit 0
