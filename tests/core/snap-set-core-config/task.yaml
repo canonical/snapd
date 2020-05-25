@@ -102,8 +102,9 @@ execute: |
     test -e /var/lib/console-conf/complete
     # no output for anything console-conf
     test -z "$(systemctl status 'console-conf@*')"
-    # serial-console-conf is usually in failed status
-    systemctl status 'serial-console-conf@*' | MATCH "Active: (inactive|failed)"
+    # serial-console-conf is usually in failed status, depending on how the
+    # process went down
+    systemctl status 'serial-console-conf@*' | MATCH "(|Active: (inactive|failed))"
 
     # getty@ services are now active
     systemctl status getty@tty1 | MATCH "Active: active"
