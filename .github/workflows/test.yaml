@@ -31,9 +31,6 @@ jobs:
         # is relevant for go's import system.
         path: ./src/github.com/snapcore/snapd
 
-    # Work around caching files owned by root https://github.com/actions/cache/issues/133
-    - name: Make /var/cache/apt owned by current user
-      run: sudo chown -R $(id -u) /var/cache/apt
     - name: Cache Debian dependencies
       id: cache-deb-downloads
       uses: actions/cache@v1
@@ -79,8 +76,6 @@ jobs:
       run: |
           sudo apt-get remove --purge shellcheck
           sudo snap install shellcheck
-    - name: Make /var/cache/apt owned by current user
-      run: sudo chown -R $(id -u) /var/cache/apt
     - name: Install govendor
       run: go get -u github.com/kardianos/govendor
     - name: Cache Go dependencies
