@@ -41,7 +41,7 @@ func checkSystemRequestConflict(st *state.State, systemLabel string) error {
 		return nil
 	}
 
-	// inspect the current system which is stored in modeenv, were are
+	// inspect the current system which is stored in modeenv, note we are
 	// holding the state lock so there is no race against mark-seeded
 	// clearing recovery system; recovery system is not cleared when seeding
 	// fails
