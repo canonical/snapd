@@ -57,7 +57,7 @@ func FileHasSquashfsHeader(path string) bool {
 	}
 	defer f.Close()
 
-	header := make([]byte, 20)
+	header := make([]byte, len(magic)+1)
 	if _, err := f.ReadAt(header, 0); err != nil {
 		return false
 	}
