@@ -42,6 +42,11 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
+const (
+	// https://github.com/plougher/squashfs-tools/blob/master/squashfs-tools/squashfs_fs.h#L289
+	superblockSize = 96
+)
+
 var (
 	// magic is the magic prefix of squashfs snap files.
 	magic = []byte{'h', 's', 'q', 's'}
@@ -57,7 +62,8 @@ func FileHasSquashfsHeader(path string) bool {
 	}
 	defer f.Close()
 
-	header := make([]byte, 20)
+	// a squashfs file would contain at least the superblock + some data
+	header := make([]byte, superblockSize+1)
 	if _, err := f.ReadAt(header, 0); err != nil {
 		return false
 	}
