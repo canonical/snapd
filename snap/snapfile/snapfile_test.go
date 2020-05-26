@@ -74,7 +74,7 @@ func (s *snapFileTestSuite) TestOpenSquashfs(c *C) {
 	targetPath := filepath.Join(c.MkDir(), "target.snap")
 	mountDir := c.MkDir()
 	// we should have copied it
-	didNothing, err := sn.Install(targetPath, mountDir)
+	didNothing, err := sn.Install(targetPath, mountDir, nil)
 	c.Assert(err, IsNil)
 	c.Assert(didNothing, Equals, false)
 	c.Check(osutil.FileExists(targetPath), Equals, true)
@@ -107,7 +107,7 @@ func (s *snapFileTestSuite) TestOpenSnapdir(c *C) {
 	targetPath := filepath.Join(c.MkDir(), "target.snap")
 	mountDir := c.MkDir()
 	// we should have copied it
-	didNothing, err := sn.Install(targetPath, mountDir)
+	didNothing, err := sn.Install(targetPath, mountDir, nil)
 	c.Assert(err, IsNil)
 	c.Assert(didNothing, Equals, false)
 	c.Check(osutil.FileExists(targetPath), Equals, true)

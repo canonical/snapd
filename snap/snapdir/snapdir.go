@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap"
 )
 
 func IsSnapDir(path string) bool {
@@ -64,7 +65,9 @@ func (s *SnapDir) Size() (size int64, err error) {
 	return totalSize, nil
 }
 
-func (s *SnapDir) Install(targetPath, mountDir string) (bool, error) {
+func (s *SnapDir) Install(targetPath, mountDir string, opts *snap.InstallOptions) (bool, error) {
+	// TODO:UC20: support MustNotCrossDevices somehow here
+
 	return false, os.Symlink(s.path, targetPath)
 }
 

@@ -239,6 +239,18 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 	}
 	for _, fn := range []string{bootWith.BasePath, bootWith.KernelPath} {
 		dst := filepath.Join(snapBlobDir, filepath.Base(fn))
+		// if the source filename is a symlink, don't copy the symlink, copy the
+		// target file instead of copying the symlink, as the initramfs won't
+		// follow the symlink when it goes to mount the base and kernel snaps by
+		// design as the initramfs should only be using trusted things from
+		// ubuntu-data to boot in run mode
+		if osutil.IsSymlink(fn) {
+			link, err := os.Readlink(fn)
+			if err != nil {
+				return err
+			}
+			fn = link
+		}
 		if err := osutil.CopyFile(fn, dst, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync); err != nil {
 			return err
 		}
