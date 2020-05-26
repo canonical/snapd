@@ -770,7 +770,7 @@ func fsMountOptions(fstype string) []string {
 	return options
 }
 
-func actualFsTypeAndMountOptions(fstype string) (actualFsType string, options []string, err error) {
+func actualFsTypeAndMountOptions(fstype string) (actualFsType string, options []string) {
 	options = fsMountOptions(fstype)
 	actualFsType = fstype
 	if fstype == "squashfs" {
@@ -778,17 +778,14 @@ func actualFsTypeAndMountOptions(fstype string) (actualFsType string, options []
 		options = append(options, newOptions...)
 		actualFsType = newFsType
 	}
-	return actualFsType, options, err
+	return actualFsType, options
 }
 
 func (s *systemd) AddMountUnitFile(snapName, revision, what, where, fstype string) (string, error) {
 	daemonReloadLock.Lock()
 	defer daemonReloadLock.Unlock()
 
-	actualFsType, options, err := actualFsTypeAndMountOptions(fstype)
-	if err != nil {
-		return "", err
-	}
+	actualFsType, options := actualFsTypeAndMountOptions(fstype)
 	if osutil.IsDirectory(what) {
 		options = append(options, "bind")
 		actualFsType = "none"
