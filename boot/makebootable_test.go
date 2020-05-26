@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/bootloader/ubootenv"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -354,12 +355,14 @@ func (s *makeBootable20Suite) TestMakeBootable20RunMode(c *C) {
 	err = ioutil.WriteFile(mockBootGrubCfg, nil, 0644)
 	c.Assert(err, IsNil)
 
+	// make the snaps symlinks so that we can ensure that makebootable follows
+	// the symlinks and copies the files and not the symlinks
 	baseFn, baseInfo := makeSnap(c, "core20", `name: core20
 type: base
 version: 5.0
 `, snap.R(3))
 	baseInSeed := filepath.Join(seedSnapsDirs, baseInfo.Filename())
-	err = os.Rename(baseFn, baseInSeed)
+	err = os.Symlink(baseFn, baseInSeed)
 	c.Assert(err, IsNil)
 	kernelFn, kernelInfo := makeSnapWithFiles(c, "pc-kernel", `name: pc-kernel
 type: kernel
@@ -370,7 +373,7 @@ version: 5.0
 		},
 	)
 	kernelInSeed := filepath.Join(seedSnapsDirs, kernelInfo.Filename())
-	err = os.Rename(kernelFn, kernelInSeed)
+	err = os.Symlink(kernelFn, kernelInSeed)
 	c.Assert(err, IsNil)
 
 	bootWith := &boot.BootableSet{
@@ -386,8 +389,12 @@ version: 5.0
 	c.Assert(err, IsNil)
 
 	// ensure base/kernel got copied to /var/lib/snapd/snaps
-	c.Check(filepath.Join(dirs.SnapBlobDirUnder(boot.InstallHostWritableDir), "core20_3.snap"), testutil.FilePresent)
-	c.Check(filepath.Join(dirs.SnapBlobDirUnder(boot.InstallHostWritableDir), "pc-kernel_5.snap"), testutil.FilePresent)
+	core20Snap := filepath.Join(dirs.SnapBlobDirUnder(boot.InstallHostWritableDir), "core20_3.snap")
+	pcKernelSnap := filepath.Join(dirs.SnapBlobDirUnder(boot.InstallHostWritableDir), "pc-kernel_5.snap")
+	c.Check(core20Snap, testutil.FilePresent)
+	c.Check(pcKernelSnap, testutil.FilePresent)
+	c.Check(osutil.IsSymlink(core20Snap), Equals, false)
+	c.Check(osutil.IsSymlink(pcKernelSnap), Equals, false)
 
 	// ensure the bootvars got updated the right way
 	mockSeedGrubenv := filepath.Join(mockSeedGrubDir, "grubenv")

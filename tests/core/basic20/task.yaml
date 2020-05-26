@@ -35,6 +35,15 @@ execute: |
     echo "Check that we booted with the rebuilt initramfs in the kernel snap"
     test -e /writable/system-data/the-tool-ran
 
+    # ensure that we have no symlinks from /var/lib/snapd/snaps to
+    # /var/lib/snapd/seed
+    for sn in /var/lib/snapd/snaps/*.snap ; do
+        if [[ -L $sn ]]; then
+            echo "snap $sn is a symlink but should not be"
+            exit 1
+        fi
+    done
+
     # TODO:UC20: move to the nested test
     #if [ -e /dev/tpm0 ]; then
     #    echo "The recovery key is available"
