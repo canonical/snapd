@@ -783,7 +783,7 @@ var ErrNoSystems = errors.New("no systems seeds")
 func (m *DeviceManager) Systems() ([]*System, error) {
 	// it's tough luck when we cannot determine the current system seed
 	systemMode := m.SystemMode()
-	currentSys, currentSysActions, _ := currentSystemForMode(m.state, systemMode)
+	currentSys, _ := currentSystemForMode(m.state, systemMode)
 
 	systemLabels, err := filepath.Glob(filepath.Join(dirs.SnapSeedDir, "systems", "*"))
 	if err != nil && !os.IsNotExist(err) {
@@ -797,7 +797,7 @@ func (m *DeviceManager) Systems() ([]*System, error) {
 	var systems []*System
 	for _, fpLabel := range systemLabels {
 		label := filepath.Base(fpLabel)
-		system, err := systemFromSeed(label, currentSys, currentSysActions)
+		system, err := systemFromSeed(label, currentSys)
 		if err != nil {
 			// TODO:UC20 add a Broken field to the seed system like
 			// we do for snap.Info
@@ -824,13 +824,13 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 	}
 
 	systemMode := m.SystemMode()
-	currentSys, currentSysActions, _ := currentSystemForMode(m.state, systemMode)
+	currentSys, _ := currentSystemForMode(m.state, systemMode)
 
 	systemSeedDir := filepath.Join(dirs.SnapSeedDir, "systems", systemLabel)
 	if _, err := os.Stat(systemSeedDir); err != nil {
 		return err
 	}
-	system, err := systemFromSeed(systemLabel, currentSys, currentSysActions)
+	system, err := systemFromSeed(systemLabel, currentSys)
 	if err != nil {
 		return fmt.Errorf("cannot load seed system: %v", err)
 	}
