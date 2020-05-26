@@ -199,8 +199,8 @@ func setupUC20Bootenv(c *C, bl bootloader.Bootloader, opts *bootenv20Setup) (res
 		// multiple modeenvs from a single test and just call the restore
 		// function in between the parts of the test that use different modeenvs
 		r := func() {
-			emptyModeenv := &boot.Modeenv{Mode: "run"}
-			c.Assert(emptyModeenv.WriteTo(""), IsNil)
+			defaultModeenv := &boot.Modeenv{Mode: "run"}
+			c.Assert(defaultModeenv.WriteTo(""), IsNil)
 		}
 		cleanups = append(cleanups, r)
 	}
