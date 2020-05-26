@@ -42,12 +42,27 @@ import (
 )
 
 var (
-	// Magic is the magic prefix of squashfs snap files.
-	Magic = []byte{'h', 's', 'q', 's'}
+	// magic is the magic prefix of squashfs snap files.
+	magic = []byte{'h', 's', 'q', 's'}
 
 	// for testing
 	isRootWritableOverlay = osutil.IsRootWritableOverlay
 )
+
+func FileHasSquashfsHeader(path string) bool {
+	f, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+
+	header := make([]byte, 20)
+	if _, err := f.ReadAt(header, 0); err != nil {
+		return false
+	}
+
+	return bytes.HasPrefix(header, magic)
+}
 
 // Snap is the squashfs based snap.
 type Snap struct {
