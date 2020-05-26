@@ -109,10 +109,7 @@ func (s *emulation) AddMountUnitFile(snapName, revision, what, where, fstype str
 		return "", err
 	}
 
-	actualFsType, actualOptions, err := actualFsTypeAndMountOptions(fstype)
-	if err != nil {
-		return "", err
-	}
+	actualFsType, actualOptions := actualFsTypeAndMountOptions(fstype)
 	cmd := exec.Command("mount", "-t", actualFsType, what, where, "-o", strings.Join(actualOptions, ","))
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return "", fmt.Errorf("cannot mount %s (%s) at %s in preseed mode: %s; %s", what, actualFsType, where, err, string(out))
