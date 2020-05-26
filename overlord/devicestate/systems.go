@@ -90,7 +90,7 @@ func systemFromSeed(label string, current *currentSystem) (*System, error) {
 		Brand:   brand,
 		Actions: defaultSystemActions,
 	}
-	if current != nil && current.sameAs(system) {
+	if current.sameAs(system) {
 		system.Current = true
 		system.Actions = current.actions
 	}
@@ -117,7 +117,7 @@ func currentSystemForMode(st *state.State, mode string) (*currentSystem, error) 
 	switch mode {
 	case "run":
 		actions = currentSystemActions
-		system, err = currentSeedSystem(st)
+		system, err = currentSeededSystem(st)
 	case "install":
 		// there is no current system for install mode
 		return nil, nil
@@ -138,7 +138,7 @@ func currentSystemForMode(st *state.State, mode string) (*currentSystem, error) 
 	return currentSys, nil
 }
 
-func currentSeedSystem(st *state.State) (*seededSystem, error) {
+func currentSeededSystem(st *state.State) (*seededSystem, error) {
 	st.Lock()
 	defer st.Unlock()
 
