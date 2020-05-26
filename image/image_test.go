@@ -793,7 +793,7 @@ func (s *imageSuite) TestSetupSeedWithWideCohort(c *C) {
 	s.setupSnaps(c, map[string]string{
 		"pc":        "canonical",
 		"pc-kernel": "canonical",
-	})
+	}, "")
 
 	snapFile := snaptest.MakeTestSnapWithFiles(c, devmodeSnap, nil)
 
