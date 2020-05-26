@@ -145,8 +145,12 @@ func switchDisableConsoleConfService(sysd systemd.Systemd, serviceName, value st
 		return nil
 	case "false":
 		err := os.Remove(consoleConfCanary)
-		if err != nil && !os.IsNotExist(err) {
-			return err
+		if err != nil {
+			if !os.IsNotExist(err) {
+				return err
+			}
+			// no need to restart the services
+			return nil
 		}
 		if opts == nil {
 			return restartServicesOnTTYs()
