@@ -40,7 +40,7 @@ execute: |
     snap connect test-devmode-cgroup:framebuffer
 
     echo "the jailmode snap can access the framebuffer"
-    test-devmode-cgroup.read-dev fb0 2>&1 | MATCH -v '(Permission denied|Operation not permitted)'
+    test-devmode-cgroup.read-dev fb0 2>&1 | not MATCH '(Permission denied|Operation not permitted)'
 
     echo "the jailmode snap cannot access other devices"
     test-devmode-cgroup.read-dev test1 2>&1 | MATCH '(Permission denied|Operation not permitted)'

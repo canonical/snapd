@@ -42,17 +42,17 @@ execute: |
     # as there are two shell expansions done. Also, we are using "snap run
     # test-snapd-sh" in order to ensure that we can start the program even if
     # su/sudo's secure PATH does not contain the snap bin directory.
-    su -l -c "snap run test-snapd-sh -c '\$SNAP_COMMON/has-sys-admin'" test | MATCH 'Does not have cap_sys_admin'
+    su -l -c "snap run test-snapd-sh.sh -c '\$SNAP_COMMON/has-sys-admin'" test | MATCH 'Does not have cap_sys_admin'
     #shellcheck disable=SC2016
-    snap run test-snapd-sh -c '$SNAP_COMMON/has-sys-admin'                  | MATCH 'Has cap_sys_admin'
+    snap run test-snapd-sh.sh -c '$SNAP_COMMON/has-sys-admin'                  | MATCH 'Has cap_sys_admin'
 
     # We should preserve CAP_SYS_ADMIN when run under sudo from non-root or
     # root
     echo "Running under sudo and under snap-confine from non-root and root"
-    su -l -c "sudo snap run test-snapd-sh -c '\$SNAP_COMMON/has-sys-admin'" test | MATCH 'Has cap_sys_admin'
-    sudo snap run test-snapd-sh -c '$SNAP_COMMON/has-sys-admin'                  | MATCH 'Has cap_sys_admin'
+    su -l -c "sudo snap run test-snapd-sh.sh -c '\$SNAP_COMMON/has-sys-admin'" test | MATCH 'Has cap_sys_admin'
+    sudo snap run test-snapd-sh.sh -c '$SNAP_COMMON/has-sys-admin'                  | MATCH 'Has cap_sys_admin'
 
     # We should drop CAP_SYS_ADMIN when run with sudo -u test
     echo "Running under sudo -u non-root under snap-confine from non-root and root"
-    su -l -c "sudo -u test snap run test-snapd-sh -c '\$SNAP_COMMON/has-sys-admin'" test | MATCH 'Does not have cap_sys_admin'
-    sudo -u test snap run test-snapd-sh -c '$SNAP_COMMON/has-sys-admin'                  | MATCH 'Does not have cap_sys_admin'
+    su -l -c "sudo -u test snap run test-snapd-sh.sh -c '\$SNAP_COMMON/has-sys-admin'" test | MATCH 'Does not have cap_sys_admin'
+    sudo -u test snap run test-snapd-sh.sh -c '$SNAP_COMMON/has-sys-admin'                  | MATCH 'Does not have cap_sys_admin'

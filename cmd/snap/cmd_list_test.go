@@ -227,16 +227,11 @@ func (s *SnapSuite) TestFormatChannel(c *check.C) {
 	}
 	for _, t := range []tableT{
 		{"", "-"},
-		{"stable", "stable"},
-		{"edge", "edge"},
-		{"latest/stable", "stable"},
-		{"foo/stable", "foo"},
+		{"latest/stable", "latest/stable"},
+		{"foo/stable", "foo/stable"},
 		{"foo/edge", "foo/edge"},
-		{"foo", "foo"},
 		{"foo/stable/bar", "foo/stable/…"},
 		{"foo/edge/bar", "foo/edge/…"},
-		{"stable/bar", "stable/…"},
-		{"edge/bar", "edge/…"},
 	} {
 		c.Check(snap.FormatChannel(t.channel), check.Equals, t.expected, check.Commentf(t.channel))
 	}

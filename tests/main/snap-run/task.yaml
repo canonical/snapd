@@ -8,7 +8,7 @@ prepare: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
     install_local basic-run
-    install_local test-snapd-tools
+    install_local test-snapd-sh
 
 debug: |
     if [ -f stderr ]; then
@@ -21,7 +21,7 @@ execute: |
 
     if command -v gdb; then
        echo "Test snap run --gdb works"
-       echo "c" | snap run --gdb test-snapd-tools.echo hello > stdout
+       echo "c" | snap run --gdb test-snapd-sh.sh -c 'echo hello' > stdout
        MATCH 'Continuing.' < stdout
        MATCH hello < stdout
     fi
@@ -40,7 +40,7 @@ execute: |
     fi
 
     echo "Test snap --strace invalid works"
-    if snap run --strace="invalid" test-snapd-tools.echo hello 2>stderr ; then
+    if snap run --strace="invalid" test-snapd-sh.sh -c 'echo hello' 2>stderr ; then
         echo "snap run with an invalid strace option should fail but it did not"
         exit 1
     fi
@@ -58,7 +58,7 @@ execute: |
     # XXX: any tests that execute strace should be added below this point
 
     echo "Test snap run --strace"
-    snap run --strace test-snapd-tools.echo "hello-world" >stdout 2>stderr
+    snap run --strace test-snapd-sh.sh -c 'echo hello-world' >stdout 2>stderr
     MATCH hello-world < stdout
     MATCH 'write\(1, \"hello-world\\n\",' < stderr
     if grep "snap-confine" stderr; then
@@ -68,11 +68,11 @@ execute: |
     fi
 
     echo "Test snap run --strace with options works"
-    snap run --strace="-V" test-snapd-tools.echo "hello-world" >stdout 2>stderr
+    snap run --strace="-V" test-snapd-sh.sh -c 'echo hello-world' >stdout 2>stderr
     MATCH "strace -- version" < stdout
     [ ! -s stderr ]
 
-    snap run --trace-exec test-snapd-tools.echo hello 2> stderr
+    snap run --trace-exec test-snapd-sh.sh -c 'echo hello' 2> stderr
     MATCH "Slowest [0-9]+ exec calls during snap run" < stderr
     MATCH "  [0-9.]+s .*/snap-exec" < stderr
     MATCH "  [0-9.]+s .*/snap-confine" < stderr

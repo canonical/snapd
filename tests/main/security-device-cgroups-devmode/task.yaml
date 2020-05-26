@@ -37,16 +37,16 @@ execute: |
     snap connect test-devmode-cgroup:framebuffer
 
     echo "the devmode snap can access the framebuffer"
-    test-devmode-cgroup.read-dev fb0 2>&1 | MATCH -v '(Permission denied|Operation not permitted)'
+    test-devmode-cgroup.read-dev fb0 2>&1 | not MATCH '(Permission denied|Operation not permitted)'
 
     echo "the devmode snap can access other devices"
-    test-devmode-cgroup.read-dev test1 | MATCH -v '(Permission denied|Operation not permitted)'
+    test-devmode-cgroup.read-dev test1 | not MATCH '(Permission denied|Operation not permitted)'
 
     echo "And the framebuffer plug is disconnected"
     snap disconnect test-devmode-cgroup:framebuffer
 
     echo "the devmode snap can access the framebuffer"
-    test-devmode-cgroup.read-dev fb0 2>&1 | MATCH -v '(Permission denied|Operation not permitted)'
+    test-devmode-cgroup.read-dev fb0 2>&1 | not MATCH '(Permission denied|Operation not permitted)'
 
     echo "the devmode snap can access other devices"
-    test-devmode-cgroup.read-dev test1 | MATCH -v '(Permission denied|Operation not permitted)'
+    test-devmode-cgroup.read-dev test1 | not MATCH '(Permission denied|Operation not permitted)'

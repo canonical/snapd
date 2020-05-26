@@ -67,8 +67,10 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
@@ -108,6 +110,8 @@ var api = []*Command{
 	modelCmd,
 	cohortsCmd,
 	serialModelCmd,
+	systemsCmd,
+	systemsActionCmd,
 }
 
 var (
@@ -261,6 +265,7 @@ func formatRefreshTime(t time.Time) string {
 func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	st := c.d.overlord.State()
 	snapMgr := c.d.overlord.SnapManager()
+	deviceMgr := c.d.overlord.DeviceManager()
 	st.Lock()
 	defer st.Unlock()
 	nextRefresh := snapMgr.NextRefresh()
@@ -300,6 +305,7 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		},
 		"refresh":      refreshInfo,
 		"architecture": arch.DpkgArchitecture(),
+		"system-mode":  deviceMgr.SystemMode(),
 	}
 	if systemdVirt != "" {
 		m["virtualization"] = systemdVirt
@@ -310,7 +316,7 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	// enabled) or no confinement at all. Once we have a better system
 	// in place how we can dynamically retrieve these information from
 	// snapd we will use this here.
-	if release.ReleaseInfo.ForceDevMode() {
+	if sandbox.ForceDevMode() {
 		m["confinement"] = "partial"
 	} else {
 		m["confinement"] = "strict"
@@ -337,7 +343,7 @@ func sandboxFeatures(backends []interfaces.SecurityBackend) map[string][]string 
 	// Add information about supported confinement types as a fake backend
 	features := make([]string, 1, 3)
 	features[0] = "devmode"
-	if !release.ReleaseInfo.ForceDevMode() {
+	if !sandbox.ForceDevMode() {
 		features = append(features, "strict")
 	}
 	if dirs.SupportsClassicConfinement() {
@@ -473,6 +479,7 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	query := r.URL.Query()
 	q := query.Get("q")
 	commonID := query.Get("common-id")
+	// TODO: support both "category" (search v2) and "section"
 	section := query.Get("section")
 	name := query.Get("name")
 	scope := query.Get("scope")
@@ -523,7 +530,7 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 		Query:    q,
 		Prefix:   prefix,
 		CommonID: commonID,
-		Section:  section,
+		Category: section,
 		Private:  private,
 		Scope:    scope,
 	}, user)
@@ -765,11 +772,10 @@ func (ropt *snapRevisionOptions) validate() error {
 	}
 
 	if ropt.Channel != "" {
-		ch, err := channel.Parse(ropt.Channel, "-")
+		_, err := channel.Parse(ropt.Channel, "-")
 		if err != nil {
 			return err
 		}
-		ropt.Channel = ch.Name
 	}
 	return nil
 }
@@ -887,7 +893,7 @@ var errNoJailMode = errors.New("this system cannot honour the jailmode flag")
 
 func modeFlags(devMode, jailMode, classic bool) (snapstate.Flags, error) {
 	flags := snapstate.Flags{}
-	devModeOS := release.ReleaseInfo.ForceDevMode()
+	devModeOS := sandbox.ForceDevMode()
 	switch {
 	case jailMode && devModeOS:
 		return flags, errNoJailMode
@@ -1540,7 +1546,7 @@ out:
 
 func unsafeReadSnapInfoImpl(snapPath string) (*snap.Info, error) {
 	// Condider using DeriveSideInfo before falling back to this!
-	snapf, err := snap.Open(snapPath)
+	snapf, err := snapfile.Open(snapPath)
 	if err != nil {
 		return nil, err
 	}
@@ -1811,21 +1817,28 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 		}
 	case "disconnect":
 		var conns []*interfaces.ConnRef
-		repo := c.d.overlord.InterfaceManager().Repository()
 		summary = fmt.Sprintf("Disconnect %s:%s from %s:%s", a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
-		conns, err = repo.ResolveDisconnect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
+		conns, err = c.d.overlord.InterfaceManager().ResolveDisconnect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name, a.Forget)
 		if err == nil {
 			if len(conns) == 0 {
 				return InterfacesUnchanged("nothing to do")
 			}
+			repo := c.d.overlord.InterfaceManager().Repository()
 			for _, connRef := range conns {
 				var ts *state.TaskSet
 				var conn *interfaces.Connection
-				conn, err = repo.Connection(connRef)
-				if err != nil {
-					break
+				if a.Forget {
+					ts, err = ifacestate.Forget(st, repo, connRef)
+				} else {
+					conn, err = repo.Connection(connRef)
+					if err != nil {
+						break
+					}
+					ts, err = ifacestate.Disconnect(st, conn)
+					if err != nil {
+						break
+					}
 				}
-				ts, err = ifacestate.Disconnect(st, conn)
 				if err != nil {
 					break
 				}
@@ -2137,6 +2150,22 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 	context, _ := c.d.overlord.HookManager().Context(snapctlOptions.ContextID)
 	stdout, stderr, err := ctlcmdRun(context, snapctlOptions.Args, uid)
 	if err != nil {
+		if e, ok := err.(*ctlcmd.UnsuccessfulError); ok {
+			result := map[string]interface{}{
+				"stdout":    string(stdout),
+				"stderr":    string(stderr),
+				"exit-code": e.ExitCode,
+			}
+			return &resp{
+				Type: ResponseTypeError,
+				Result: &errorResult{
+					Message: e.Error(),
+					Kind:    errorKindUnsuccessful,
+					Value:   result,
+				},
+				Status: 200,
+			}
+		}
 		if e, ok := err.(*ctlcmd.ForbiddenCommandError); ok {
 			return Forbidden(e.Error())
 		}

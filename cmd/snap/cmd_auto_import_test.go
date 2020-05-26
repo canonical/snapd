@@ -28,11 +28,14 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/boot"
 	snap "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func makeMockMountInfo(c *C, content string) string {
@@ -62,10 +65,10 @@ func (s *SnapSuite) TestAutoImportAssertsHappy(c *C) {
 			n++
 		case 1:
 			c.Check(r.Method, Equals, "POST")
-			c.Check(r.URL.Path, Equals, "/v2/create-user")
+			c.Check(r.URL.Path, Equals, "/v2/users")
 			postData, err := ioutil.ReadAll(r.Body)
 			c.Assert(err, IsNil)
-			c.Check(string(postData), Equals, `{"sudoer":true,"known":true}`)
+			c.Check(string(postData), Equals, `{"action":"create","sudoer":true,"known":true}`)
 
 			fmt.Fprintln(w, `{"type": "sync", "result": [{"username": "foo"}]}`)
 			n++
@@ -239,10 +242,10 @@ func (s *SnapSuite) TestAutoImportFromSpoolHappy(c *C) {
 			n++
 		case 1:
 			c.Check(r.Method, Equals, "POST")
-			c.Check(r.URL.Path, Equals, "/v2/create-user")
+			c.Check(r.URL.Path, Equals, "/v2/users")
 			postData, err := ioutil.ReadAll(r.Body)
 			c.Assert(err, IsNil)
-			c.Check(string(postData), Equals, `{"sudoer":true,"known":true}`)
+			c.Check(string(postData), Equals, `{"action":"create","sudoer":true,"known":true}`)
 
 			fmt.Fprintln(w, `{"type": "sync", "result": [{"username": "foo"}]}`)
 			n++
@@ -299,4 +302,164 @@ func (s *SnapSuite) TestAutoImportIntoSpoolUnhappyTooBig(c *C) {
 
 	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"auto-import"})
 	c.Assert(err, ErrorMatches, "cannot queue .*, file size too big: 656384")
+}
+
+func (s *SnapSuite) TestAutoImportUnhappyInInstallMode(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	_, restoreLogger := logger.MockLogger()
+	defer restoreLogger()
+
+	mockProcCmdlinePath := filepath.Join(c.MkDir(), "cmdline")
+	err := ioutil.WriteFile(mockProcCmdlinePath, []byte("foo=bar snapd_recovery_mode=install snapd_recovery_system=20191118"), 0644)
+	c.Assert(err, IsNil)
+
+	restore = boot.MockProcCmdline(mockProcCmdlinePath)
+	defer restore()
+
+	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"auto-import"})
+	c.Assert(err, IsNil)
+	c.Check(s.Stdout(), Equals, "")
+	c.Check(s.Stderr(), Equals, "auto-import is disabled in install-mode\n")
+}
+
+var mountStatic = []string{"mount", "-t", "ext4,vfat", "-o", "ro", "--make-private"}
+
+func (s *SnapSuite) TestAutoImportFromRemovable(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	_, restoreLogger := logger.MockLogger()
+	defer restoreLogger()
+
+	rootdir := c.MkDir()
+	dirs.SetRootDir(rootdir)
+
+	var umounts []string
+	restore = snap.MockSyscallUmount(func(p string, _ int) error {
+		umounts = append(umounts, p)
+		return nil
+	})
+	defer restore()
+
+	var tmpdirIdx int
+	restore = snap.MockIoutilTempDir(func(where string, p string) (string, error) {
+		c.Check(where, Equals, "")
+		tmpdirIdx++
+		return filepath.Join(rootdir, fmt.Sprintf("/tmp/%s%d", p, tmpdirIdx)), nil
+	})
+	defer restore()
+
+	mountCmd := testutil.MockCommand(c, "mount", "")
+	defer mountCmd.Restore()
+
+	snaptest.PopulateDir(rootdir, [][]string{
+		// removable without partitions
+		{"sys/block/sdremovable/removable", "1\n"},
+		// fixed disk
+		{"sys/block/sdfixed/removable", "0\n"},
+		// removable with partitions
+		{"sys/block/sdpart/removable", "1\n"},
+		{"sys/block/sdpart/sdpart1/partition", "1\n"},
+		{"sys/block/sdpart/sdpart2/partition", "0\n"},
+		{"sys/block/sdpart/sdpart3/partition", "1\n"},
+		// removable but subdevices are not partitions?
+		{"sys/block/sdother/removable", "1\n"},
+		{"sys/block/sdother/sdother1/partition", "0\n"},
+	})
+
+	// do not mock mountinfo contents, we just want to observe whether we
+	// try to mount and umount the right stuff
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"auto-import"})
+	c.Assert(err, IsNil)
+	c.Check(s.Stdout(), Equals, "")
+	c.Check(s.Stderr(), Equals, "")
+	c.Check(mountCmd.Calls(), DeepEquals, [][]string{
+		append(mountStatic, "/dev/sdpart1", filepath.Join(rootdir, "/tmp/snapd-auto-import-mount-1")),
+		append(mountStatic, "/dev/sdpart3", filepath.Join(rootdir, "/tmp/snapd-auto-import-mount-2")),
+		append(mountStatic, "/dev/sdremovable", filepath.Join(rootdir, "/tmp/snapd-auto-import-mount-3")),
+	})
+	c.Check(umounts, DeepEquals, []string{
+		filepath.Join(rootdir, "/tmp/snapd-auto-import-mount-3"),
+		filepath.Join(rootdir, "/tmp/snapd-auto-import-mount-2"),
+		filepath.Join(rootdir, "/tmp/snapd-auto-import-mount-1"),
+	})
+}
+
+func (s *SnapSuite) TestAutoImportNoRemovable(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	rootdir := c.MkDir()
+	dirs.SetRootDir(rootdir)
+
+	var umounts []string
+	restore = snap.MockSyscallUmount(func(p string, _ int) error {
+		return fmt.Errorf("unexpected call")
+	})
+	defer restore()
+
+	mountCmd := testutil.MockCommand(c, "mount", "exit 1")
+	defer mountCmd.Restore()
+
+	snaptest.PopulateDir(rootdir, [][]string{
+		// fixed disk
+		{"sys/block/sdfixed/removable", "0\n"},
+		// removable but subdevices are not partitions?
+		{"sys/block/sdother/removable", "1\n"},
+		{"sys/block/sdother/sdother1/partition", "0\n"},
+	})
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"auto-import"})
+	c.Assert(err, IsNil)
+	c.Check(s.Stdout(), Equals, "")
+	c.Check(s.Stderr(), Equals, "")
+	c.Check(mountCmd.Calls(), HasLen, 0)
+	c.Check(umounts, HasLen, 0)
+}
+
+func (s *SnapSuite) TestAutoImportFromMount(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	_, restoreLogger := logger.MockLogger()
+	defer restoreLogger()
+
+	mountCmd := testutil.MockCommand(c, "mount", "")
+
+	rootdir := c.MkDir()
+	dirs.SetRootDir(rootdir)
+
+	var umounts []string
+	restore = snap.MockSyscallUmount(func(p string, _ int) error {
+		c.Assert(umounts, HasLen, 0)
+		umounts = append(umounts, p)
+		return nil
+	})
+	defer restore()
+
+	var tmpdircalls int
+	restore = snap.MockIoutilTempDir(func(where string, p string) (string, error) {
+		c.Check(where, Equals, "")
+		c.Assert(tmpdircalls, Equals, 0)
+		tmpdircalls++
+		return filepath.Join(rootdir, fmt.Sprintf("/tmp/%s1", p)), nil
+	})
+	defer restore()
+
+	// do not mock mountinfo contents, we just want to observe whether we
+	// try to mount and umount the right stuff
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"auto-import", "--mount", "/dev/foobar"})
+	c.Assert(err, IsNil)
+	c.Check(s.Stdout(), Equals, "")
+	c.Check(s.Stderr(), Equals, "")
+	c.Check(mountCmd.Calls(), DeepEquals, [][]string{
+		append(mountStatic, "/dev/foobar", filepath.Join(rootdir, "/tmp/snapd-auto-import-mount-1")),
+	})
+	c.Check(umounts, DeepEquals, []string{
+		filepath.Join(rootdir, "/tmp/snapd-auto-import-mount-1"),
+	})
 }

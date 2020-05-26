@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2018 Canonical Ltd
+ * Copyright (C) 2016-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -36,9 +36,9 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/asserts/systestkeys"
-	"github.com/snapcore/snapd/httputil"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapfile"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 )
 
@@ -72,7 +72,7 @@ func NewStore(topDir, addr string, assertFallback bool) *Store {
 	mux := http.NewServeMux()
 	var sto *store.Store
 	if assertFallback {
-		httputil.SetUserAgentFromVersion("unknown", "fakestore")
+		snapdenv.SetUserAgentFromVersion("unknown", nil, "fakestore")
 		sto = store.New(nil, nil)
 	}
 	store := &Store{
@@ -178,7 +178,7 @@ type essentialInfo struct {
 var errInfo = errors.New("cannot get info")
 
 func snapEssentialInfo(w http.ResponseWriter, fn, snapID string, bs asserts.Backstore) (*essentialInfo, error) {
-	snapFile, err := snap.Open(fn)
+	f, err := snapfile.Open(fn)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("cannot read: %v: %v", fn, err), 400)
 		return nil, errInfo
@@ -187,7 +187,7 @@ func snapEssentialInfo(w http.ResponseWriter, fn, snapID string, bs asserts.Back
 	restoreSanitize := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 	defer restoreSanitize()
 
-	info, err := snap.ReadInfoFromSnapFile(snapFile, nil)
+	info, err := snap.ReadInfoFromSnapFile(f, nil)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("cannot get info for: %v: %v", fn, err), 400)
 		return nil, errInfo
@@ -325,11 +325,11 @@ func (s *Store) collectSnaps() (map[string]string, error) {
 	defer restoreSanitize()
 
 	for _, fn := range snapFns {
-		snapFile, err := snap.Open(fn)
+		f, err := snapfile.Open(fn)
 		if err != nil {
 			return nil, err
 		}
-		info, err := snap.ReadInfoFromSnapFile(snapFile, nil)
+		info, err := snap.ReadInfoFromSnapFile(f, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -391,7 +391,7 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 	}
 
 	var remoteStore string
-	if osutil.GetenvBool("SNAPPY_USE_STAGING_STORE") {
+	if snapdenv.UseStagingStore() {
 		remoteStore = "staging"
 	} else {
 		remoteStore = "production"
@@ -556,7 +556,7 @@ func (s *Store) snapActionEndpoint(w http.ResponseWriter, req *http.Request) {
 	}
 
 	var remoteStore string
-	if osutil.GetenvBool("SNAPPY_USE_STAGING_STORE") {
+	if snapdenv.UseStagingStore() {
 		remoteStore = "staging"
 	} else {
 		remoteStore = "production"

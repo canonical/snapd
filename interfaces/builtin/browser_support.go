@@ -167,6 +167,14 @@ owner @{PROC}/@{pid}/fd/[0-9]* w,
 /sys/devices/**/vendor r,
 /sys/devices/system/node/node[0-9]*/meminfo r,
 
+# Allow getting the manufacturer and model of the
+# computer where Chrome/chromium is currently running.
+# This is going to be used by the upcoming Hardware Platform
+# extension API.
+# https://chromium.googlesource.com/chromium/src.git/+/84618eee98fdf7548905e883e63e4f693800fcfa
+/sys/devices/virtual/dmi/id/product_name r,
+/sys/devices/virtual/dmi/id/sys_vendor r,
+
 # Chromium content api tries to read these. It is an information disclosure
 # since these contain the names of snaps. Chromium operates fine without the
 # access so just block it.
@@ -249,6 +257,24 @@ owner /{dev,run}/shm/shmfd-* mrw,
 # other snaps and the system, so it is limited to snaps that specify:
 # allow-sandbox: true.
 owner @{PROC}/@{pid}/clear_refs w,
+
+# Allow setting realtime priorities. Clients require RLIMIT_RTTIME in the first
+# place and client authorization is done via PolicyKit. Note that setrlimit()
+# is allowed by default seccomp policy but requires 'capability sys_resource',
+# which we deny be default.
+# http://git.0pointer.net/rtkit.git/tree/README
+dbus (send)
+    bus=system
+    path=/org/freedesktop/RealtimeKit1
+    interface=org.freedesktop.DBus.Properties
+    member=Get
+    peer=(name=org.freedesktop.RealtimeKit1, label=unconfined),
+dbus (send)
+    bus=system
+    path=/org/freedesktop/RealtimeKit1
+    interface=org.freedesktop.RealtimeKit1
+    member=MakeThread{HighPriority,Realtime}
+    peer=(name=org.freedesktop.RealtimeKit1, label=unconfined),
 `
 
 const browserSupportConnectedPlugSecComp = `

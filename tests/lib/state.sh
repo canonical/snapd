@@ -56,7 +56,8 @@ save_snapd_state() {
         for unit in $units; do
             systemctl stop "$unit"
         done
-        snapd_env="/etc/environment /etc/systemd/system/snapd.service.d /etc/systemd/system/snapd.socket.d"
+        snapd_env="/etc/environment"
+        snapd_service_env=$(ls -d /etc/systemd/system/snapd.*.d || true)
         snap_confine_profiles="$(ls /etc/apparmor.d/snap.core.* || true)"
 
         # shellcheck disable=SC2086
@@ -67,7 +68,8 @@ save_snapd_state() {
             /etc/systemd/system/"$escaped_snap_mount_dir"-*core*.mount \
             /etc/systemd/system/multi-user.target.wants/"$escaped_snap_mount_dir"-*core*.mount \
             $snap_confine_profiles \
-            $snapd_env
+            $snapd_env \
+            $snapd_service_env
 
         systemctl daemon-reload # Workaround for http://paste.ubuntu.com/17735820/
         core="$(readlink -f "$SNAP_MOUNT_DIR/core/current")"
@@ -126,6 +128,12 @@ restore_snapd_lib() {
     # Synchronize snaps, seed and cache directories. The this is done separately in order to avoid copying
     # the snap files due to it is a heavy task and take most of the time of the restore phase.
     rsync -av --delete "$SNAPD_STATE_PATH"/snapd-lib/snaps /var/lib/snapd
-    rsync -av --delete "$SNAPD_STATE_PATH"/snapd-lib/seed /var/lib/snapd
+    if is_core20_system ; then
+        # TODO:UC20: /var/lib/snapd/seed is a read only bind mount, use the rw
+        # mount or later mount seed as needed
+        rsync -av --delete "$SNAPD_STATE_PATH"/snapd-lib/seed/ /run/mnt/ubuntu-seed/
+    else
+        rsync -av --delete "$SNAPD_STATE_PATH"/snapd-lib/seed/ /var/lib/snapd/seed/
+    fi
     rsync -av --delete "$SNAPD_STATE_PATH"/snapd-lib/cache /var/lib/snapd
 }

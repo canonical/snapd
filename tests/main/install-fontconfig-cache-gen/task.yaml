@@ -15,6 +15,6 @@ execute: |
     rm /var/cache/fontconfig/*
 
     echo "Installing a snap generates a fontconfig cache"
-    snap install test-snapd-tools
+    snap install test-snapd-sh
     ls /var/cache/fontconfig/*.cache-6
     ls /var/cache/fontconfig/*.cache-7

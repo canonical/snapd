@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -23,7 +23,6 @@ package seedwriter
 import (
 	"errors"
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
@@ -204,8 +203,7 @@ type policy interface {
 type tree interface {
 	mkFixedDirs() error
 
-	// XXX might need to differentiate for extra snaps
-	snapsDir() string
+	snapPath(*SeedSnap) (string, error)
 
 	localSnapPath(*SeedSnap) (string, error)
 
@@ -544,8 +542,35 @@ func (w *Writer) SetInfo(sn *SeedSnap, info *snap.Info) error {
 		return nil
 	}
 
-	sn.Path = filepath.Join(w.tree.snapsDir(), filepath.Base(info.MountFile()))
+	p, err := w.tree.snapPath(sn)
+	if err != nil {
+		return err
+	}
+
+	sn.Path = p
 	return nil
+}
+
+// SetRedirectChannel sets the redirect channel for the SeedSnap
+// for the in case there is a default track for it.
+func (w *Writer) SetRedirectChannel(sn *SeedSnap, redirectChannel string) error {
+	if sn.local {
+		return fmt.Errorf("internal error: cannot set redirect channel for local snap %q", sn.Path)
+	}
+	if sn.Info == nil {
+		return fmt.Errorf("internal error: before using seedwriter.Writer.SetRedirectChannel snap %q Info should have been set", sn.SnapName())
+	}
+	if redirectChannel == "" {
+		// nothing to do
+		return nil
+	}
+	_, err := channel.ParseVerbatim(redirectChannel, "-")
+	if err != nil {
+		return fmt.Errorf("invalid redirect channel for snap %q: %v", sn.SnapName(), err)
+	}
+	sn.Channel = redirectChannel
+	return nil
+
 }
 
 // snapsToDownloadSet indicates which set of snaps SnapsToDownload should compute
@@ -978,13 +1003,14 @@ func (w *Writer) SeedSnaps(copySnap func(name, src, dst string) error) error {
 		return err
 	}
 
-	snapsDir := w.tree.snapsDir()
-
 	seedSnaps := func(snaps []*SeedSnap) error {
 		for _, sn := range snaps {
 			info := sn.Info
 			if !sn.local {
-				expectedPath := filepath.Join(snapsDir, filepath.Base(info.MountFile()))
+				expectedPath, err := w.tree.snapPath(sn)
+				if err != nil {
+					return err
+				}
 				if sn.Path != expectedPath {
 					return fmt.Errorf("internal error: before seedwriter.Writer.SeedSnaps snap %q Path should have been set to %q", sn.SnapName(), expectedPath)
 				}
@@ -992,7 +1018,15 @@ func (w *Writer) SeedSnaps(copySnap func(name, src, dst string) error) error {
 					return fmt.Errorf("internal error: before seedwriter.Writer.SeedSnaps snap file %q should exist", expectedPath)
 				}
 			} else {
-				dst, err := w.tree.localSnapPath(sn)
+				var snapPath func(*SeedSnap) (string, error)
+				if sn.Info.ID() != "" {
+					// actually asserted
+					snapPath = w.tree.snapPath
+				} else {
+					// purely local
+					snapPath = w.tree.localSnapPath
+				}
+				dst, err := snapPath(sn)
 				if err != nil {
 					return err
 				}

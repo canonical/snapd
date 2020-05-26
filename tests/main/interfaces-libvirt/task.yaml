@@ -56,7 +56,7 @@ execute: |
 
     echo "And the snap is able to destroy the unikernel domain"
     su -l -c "test-snapd-libvirt-consumer.machine-down" test
-    virsh list | MATCH -v ping-unikernel
+    virsh list | not MATCH ping-unikernel
 
     echo "When the plug is disconnected"
     snap disconnect test-snapd-libvirt-consumer:libvirt

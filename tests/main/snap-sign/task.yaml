@@ -4,6 +4,10 @@ summary: Run snap sign to sign a model assertion
 # amazon: requires extra gpg-agent setup
 systems: [-ubuntu-core-*, -ubuntu-*-ppc64el, -fedora-*, -opensuse-*, -amazon-*, -centos-*]
 
+environment:
+  VARIANT/stdin: stdin
+  VARIANT/file: file
+
 prepare: |
     #shellcheck source=tests/lib/mkpinentry.sh
     . "$TESTSLIB"/mkpinentry.sh

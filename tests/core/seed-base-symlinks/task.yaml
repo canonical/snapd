@@ -1,0 +1,23 @@
+summary: Check that the seed symlinks work
+
+# We explicitly don't want symlinks from /var/lib/snapd/snaps to
+# /var/lib/snapd/seed in UC20 run mode because /var/lib/snapd/seed snaps are
+# essentially untrusted
+systems: [-ubuntu-core-20-*]
+
+execute: |
+    # shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB/systems.sh"
+
+    TARGET_SNAP=core
+    if is_core18_system; then
+        TARGET_SNAP=core18
+    fi
+
+    echo "Ensure that the $TARGET_SNAP snap is a symlink into the seed"
+    core_symlink="$(readlink -f /var/lib/snapd/snaps/${TARGET_SNAP}_*.snap)"
+    if [[ "${core_symlink}" != /var/lib/snapd/seed/snaps/* ]]; then
+        echo "The initial $TARGET_SNAP snap should symlink into the seed directory"
+        echo "but it does not."
+        exit 1
+    fi

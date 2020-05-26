@@ -24,4 +24,4 @@ execute: |
     snap info test-snapd-tools | MATCH ^installed:.*in-cohort
 
     snap switch --leave-cohort test-snapd-tools
-    snap info test-snapd-tools | grep installed: | MATCH -v in-cohort
+    snap info test-snapd-tools | grep installed: | not MATCH in-cohort

@@ -499,6 +499,53 @@ func (sds *snapDeclSuite) TestSuggestedFormat(c *C) {
 	}
 	_, err = asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil)
 	c.Assert(err, ErrorMatches, `assertion snap-declaration: "slots" header must be a map`)
+
+	// plug-names/slot-names => format 4
+	for _, sidePrefix := range []string{"plug", "slot"} {
+		side := sidePrefix + "s"
+		headers := map[string]interface{}{
+			side: map[string]interface{}{
+				"interface3": map[string]interface{}{
+					"allow-installation": map[string]interface{}{
+						sidePrefix + "-names": []interface{}{"foo"},
+					},
+				},
+			},
+		}
+		fmtnum, err = asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil)
+		c.Assert(err, IsNil)
+		c.Check(fmtnum, Equals, 4)
+
+		for _, conn := range []string{"connection", "auto-connection"} {
+
+			headers = map[string]interface{}{
+				side: map[string]interface{}{
+					"interface3": map[string]interface{}{
+						"allow-" + conn: map[string]interface{}{
+							sidePrefix + "-names": []interface{}{"foo"},
+						},
+					},
+				},
+			}
+			fmtnum, err = asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil)
+			c.Assert(err, IsNil)
+			c.Check(fmtnum, Equals, 4)
+
+			headers = map[string]interface{}{
+				side: map[string]interface{}{
+					"interface3": map[string]interface{}{
+						"allow-" + conn: map[string]interface{}{
+							"plug-names": []interface{}{"Pfoo"},
+							"slot-names": []interface{}{"Sfoo"},
+						},
+					},
+				},
+			}
+			fmtnum, err = asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil)
+			c.Assert(err, IsNil)
+			c.Check(fmtnum, Equals, 4)
+		}
+	}
 }
 
 func prereqDevAccount(c *C, storeDB assertstest.SignerDB, db *asserts.Database) {

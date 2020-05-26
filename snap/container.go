@@ -20,22 +20,24 @@
 package snap
 
 import (
-	"bytes"
 	"errors"
-	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/snap/snapdir"
-	"github.com/snapcore/snapd/snap/squashfs"
 )
 
 // Container is the interface to interact with the low-level snap files.
 type Container interface {
 	// Size returns the size of the snap in bytes.
 	Size() (int64, error)
+
+	// RandomAccessFile returns an implementation to read at any
+	// given location for a single file inside the snap.
+	RandomAccessFile(relative string) (interface {
+		io.ReaderAt
+		io.Closer
+	}, error)
 
 	// ReadFile returns the content of a single file from the snap.
 	ReadFile(relative string) ([]byte, error)
@@ -48,55 +50,23 @@ type Container interface {
 
 	// Install copies the snap file to targetPath (and possibly unpacks it to mountDir).
 	// The bool return value indicates if the backend had nothing to do on install.
-	Install(targetPath, mountDir string) (bool, error)
+	Install(targetPath, mountDir string, opts *InstallOptions) (bool, error)
 
 	// Unpack unpacks the src parts to the dst directory
 	Unpack(src, dst string) error
 }
 
-// backend implements a specific snap format
-type snapFormat struct {
-	magic []byte
-	open  func(fn string) (Container, error)
-}
-
-// formatHandlers is the registry of known formats, squashfs is the only one atm.
-var formatHandlers = []snapFormat{
-	{squashfs.Magic, func(p string) (Container, error) {
-		return squashfs.New(p), nil
-	}},
-}
-
-// Open opens a given snap file with the right backend.
-func Open(path string) (Container, error) {
-
-	if osutil.IsDirectory(path) {
-		if osutil.FileExists(filepath.Join(path, "meta", "snap.yaml")) {
-			return snapdir.New(path), nil
-		}
-
-		return nil, NotSnapError{Path: path}
-	}
-
-	// open the file and check magic
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, fmt.Errorf("cannot open snap: %v", err)
-	}
-	defer f.Close()
-
-	header := make([]byte, 20)
-	if _, err := f.ReadAt(header, 0); err != nil {
-		return nil, fmt.Errorf("cannot read snap: %v", err)
-	}
-
-	for _, h := range formatHandlers {
-		if bytes.HasPrefix(header, h.magic) {
-			return h.open(path)
-		}
-	}
-
-	return nil, fmt.Errorf("cannot open snap: unknown header: %q", header)
+// InstallOptions is for customizing the behavior of Install() from a higher
+// level function, i.e. from overlord customizing how a snap file is installed
+// on a system with tmpfs mounted as writable or with full disk encryption and
+// graded secured on UC20.
+type InstallOptions struct {
+	// MustNotCrossDevices indicates that the snap file when installed to the
+	// target must not cross devices. For example, installing a snap file from
+	// the ubuntu-seed partition onto the ubuntu-data partition must result in
+	// an installation on ubuntu-data that does not depend or reference
+	// ubuntu-seed at all.
+	MustNotCrossDevices bool
 }
 
 var (

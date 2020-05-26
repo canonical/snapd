@@ -159,6 +159,10 @@ AC_ARG_WITH([snap-mount-dir],
 AC_SUBST(SNAP_MOUNT_DIR)
 AC_DEFINE_UNQUOTED([SNAP_MOUNT_DIR], "${SNAP_MOUNT_DIR}", [Location of the snap mount points])
 
+SNAP_MOUNT_DIR_SYSTEMD_UNIT="$(systemd-escape -p "$SNAP_MOUNT_DIR")"
+AC_SUBST([SNAP_MOUNT_DIR_SYSTEMD_UNIT])
+AC_DEFINE_UNQUOTED([SNAP_MOUNT_DIR_SYSTEMD_UNIT], "${SNAP_MOUNT_DIR_SYSTEMD_UNIT}", [Systemd unit name for snap mount points location])
+
 AC_PATH_PROGS([HAVE_RST2MAN],[rst2man rst2man.py])
 AS_IF([test "x$HAVE_RST2MAN" = "x"], [AC_MSG_WARN(["cannot find the rst2man tool, install python-docutils or similar"])])
 AM_CONDITIONAL([HAVE_RST2MAN], [test "x${HAVE_RST2MAN}" != "x"])

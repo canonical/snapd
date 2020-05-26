@@ -29,8 +29,8 @@ import (
 
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/strutil"
 )
 
 // Context represents the context under which the snap is calling back into snapd.
@@ -57,7 +57,11 @@ type Context struct {
 // A random ID is generated if contextID is empty.
 func NewContext(task *state.Task, state *state.State, setup *HookSetup, handler Handler, contextID string) (*Context, error) {
 	if contextID == "" {
-		contextID = strutil.MakeRandomString(44)
+		var err error
+		contextID, err = randutil.CryptoToken(32)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &Context{

@@ -82,22 +82,22 @@ func refreshOptions(st *state.State, origOpts *store.RefreshOptions) (*store.Ref
 	return &opts, nil
 }
 
-func installInfo(ctx context.Context, st *state.State, name string, revOpts *RevisionOptions, userID int, deviceCtx DeviceContext) (*snap.Info, error) {
+func installInfo(ctx context.Context, st *state.State, name string, revOpts *RevisionOptions, userID int, deviceCtx DeviceContext) (store.SnapActionResult, error) {
 	// TODO: support ignore-validation?
 
 	curSnaps, err := currentSnaps(st)
 	if err != nil {
-		return nil, err
+		return store.SnapActionResult{}, err
 	}
 
 	user, err := userFromUserID(st, userID)
 	if err != nil {
-		return nil, err
+		return store.SnapActionResult{}, err
 	}
 
 	opts, err := refreshOptions(st, nil)
 	if err != nil {
-		return nil, err
+		return store.SnapActionResult{}, err
 	}
 
 	action := &store.SnapAction{
@@ -118,7 +118,7 @@ func installInfo(ctx context.Context, st *state.State, name string, revOpts *Rev
 
 	theStore := Store(st, deviceCtx)
 	st.Unlock() // calls to the store should be done without holding the state lock
-	res, err := theStore.SnapAction(ctx, curSnaps, []*store.SnapAction{action}, user, opts)
+	res, _, err := theStore.SnapAction(ctx, curSnaps, []*store.SnapAction{action}, nil, user, opts)
 	st.Lock()
 
 	return singleActionResult(name, action.Action, res, err)
@@ -164,10 +164,11 @@ func updateInfo(st *state.State, snapst *SnapState, opts *RevisionOptions, userI
 
 	theStore := Store(st, deviceCtx)
 	st.Unlock() // calls to the store should be done without holding the state lock
-	res, err := theStore.SnapAction(context.TODO(), curSnaps, []*store.SnapAction{action}, user, refreshOpts)
+	res, _, err := theStore.SnapAction(context.TODO(), curSnaps, []*store.SnapAction{action}, nil, user, refreshOpts)
 	st.Lock()
 
-	return singleActionResult(curInfo.InstanceName(), action.Action, res, err)
+	sar, err := singleActionResult(curInfo.InstanceName(), action.Action, res, err)
+	return sar.Info, err
 }
 
 func preUpdateInfo(st *state.State, snapst *SnapState, amend bool, userID int) (*snap.Info, *auth.UserState, error) {
@@ -192,9 +193,9 @@ func preUpdateInfo(st *state.State, snapst *SnapState, amend bool, userID int) (
 
 var ErrMissingExpectedResult = fmt.Errorf("unexpectedly empty response from the server (try again later)")
 
-func singleActionResult(name, action string, results []*snap.Info, e error) (info *snap.Info, err error) {
+func singleActionResult(name, action string, results []store.SnapActionResult, e error) (store.SnapActionResult, error) {
 	if len(results) > 1 {
-		return nil, fmt.Errorf("internal error: multiple store results for a single snap op")
+		return store.SnapActionResult{}, fmt.Errorf("internal error: multiple store results for a single snap op")
 	}
 	if len(results) > 0 {
 		// TODO: if we also have an error log/warn about it
@@ -203,7 +204,7 @@ func singleActionResult(name, action string, results []*snap.Info, e error) (inf
 
 	if saErr, ok := e.(*store.SnapActionError); ok {
 		if len(saErr.Other) != 0 {
-			return nil, saErr
+			return store.SnapActionResult{}, saErr
 		}
 
 		var snapErr error
@@ -214,16 +215,16 @@ func singleActionResult(name, action string, results []*snap.Info, e error) (inf
 			snapErr = saErr.Install[name]
 		}
 		if snapErr != nil {
-			return nil, snapErr
+			return store.SnapActionResult{}, snapErr
 		}
 
 		// no result, atypical case
 		if saErr.NoResults {
-			return nil, ErrMissingExpectedResult
+			return store.SnapActionResult{}, ErrMissingExpectedResult
 		}
 	}
 
-	return nil, e
+	return store.SnapActionResult{}, e
 }
 
 func updateToRevisionInfo(st *state.State, snapst *SnapState, revision snap.Revision, userID int, deviceCtx DeviceContext) (*snap.Info, error) {
@@ -254,10 +255,11 @@ func updateToRevisionInfo(st *state.State, snapst *SnapState, revision snap.Revi
 
 	theStore := Store(st, deviceCtx)
 	st.Unlock() // calls to the store should be done without holding the state lock
-	res, err := theStore.SnapAction(context.TODO(), curSnaps, []*store.SnapAction{action}, user, opts)
+	res, _, err := theStore.SnapAction(context.TODO(), curSnaps, []*store.SnapAction{action}, nil, user, opts)
 	st.Lock()
 
-	return singleActionResult(curInfo.InstanceName(), action.Action, res, err)
+	sar, err := singleActionResult(curInfo.InstanceName(), action.Action, res, err)
+	return sar.Info, err
 }
 
 func currentSnaps(st *state.State) ([]*store.CurrentSnap, error) {
@@ -425,7 +427,7 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 	updates := make([]*snap.Info, 0, nCands)
 	for u, actions := range actionsForUser {
 		st.Unlock()
-		updatesForUser, err := theStore.SnapAction(ctx, curSnaps, actions, u, opts)
+		sarsForUser, _, err := theStore.SnapAction(ctx, curSnaps, actions, nil, u, opts)
 		st.Lock()
 		if err != nil {
 			saErr, ok := err.(*store.SnapActionError)
@@ -436,13 +438,15 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 			logger.Noticef("%v", saErr)
 		}
 
-		updates = append(updates, updatesForUser...)
+		for _, sar := range sarsForUser {
+			updates = append(updates, sar.Info)
+		}
 	}
 
 	return updates, stateByInstanceName, ignoreValidationByInstanceName, nil
 }
 
-func installCandidates(st *state.State, names []string, channel string, user *auth.UserState) ([]*snap.Info, error) {
+func installCandidates(st *state.State, names []string, channel string, user *auth.UserState) ([]store.SnapActionResult, error) {
 	curSnaps, err := currentSnaps(st)
 	if err != nil {
 		return nil, err
@@ -467,5 +471,6 @@ func installCandidates(st *state.State, names []string, channel string, user *au
 	theStore := Store(st, nil)
 	st.Unlock() // calls to the store should be done without holding the state lock
 	defer st.Lock()
-	return theStore.SnapAction(context.TODO(), curSnaps, actions, user, opts)
+	results, _, err := theStore.SnapAction(context.TODO(), curSnaps, actions, nil, user, opts)
+	return results, err
 }

@@ -2,7 +2,8 @@
 Description=Automatically repair incorrect owner/permissions on core devices
 Before=snapd.service
 # don't run on classic
-ConditionKernelCommandLine=snap_core
+ConditionKernelCommandLine=|snap_core
+ConditionKernelCommandLine=|snapd_recovery_mode
 Documentation=man:snap(1)
 
 [Service]

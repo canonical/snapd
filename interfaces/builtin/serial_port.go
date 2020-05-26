@@ -72,7 +72,8 @@ func (iface *serialPortInterface) String() string {
 //  - ttySX (UART serial ports)
 //  - ttyOX (UART serial ports on ARM)
 //  - ttymxcX (serial ports on i.mx6UL)
-var serialDeviceNodePattern = regexp.MustCompile("^/dev/tty(mxc|USB|ACM|AMA|XRUSB|S|O)[0-9]+$")
+//  - ttySCX (NXP SC16IS7xx serial devices)
+var serialDeviceNodePattern = regexp.MustCompile("^/dev/tty(mxc|USB|ACM|AMA|XRUSB|S|O|SC)[0-9]+$")
 
 // Pattern that is considered valid for the udev symlink to the serial device,
 // path attributes will be compared to this for validity when usb vid and pid
@@ -87,7 +88,10 @@ func (iface *serialPortInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 		return fmt.Errorf("serial-port slot must have a path attribute")
 	}
 
-	// Clean the path before further checks
+	// XXX: this interface feeds the cleaned path into the regex and is
+	// left unchanged here for historical reasons. New interfaces (eg,
+	// like raw-volume) should instead use verifySlotPathAttribute() which
+	// performs additional verification.
 	path = filepath.Clean(path)
 
 	if iface.hasUsbAttrs(slot) {

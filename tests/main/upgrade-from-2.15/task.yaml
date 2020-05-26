@@ -20,6 +20,12 @@ restore: |
     apt-tool restore installed.pkgs
     rm -f installed.pkgs
 
+    # snap-confine, in the old version of snapd, leaves behind junk in
+    # /tmp/snap.rootfs_* This is now detected by invariant detector, which uses
+    # it as a sign of possible snap-confine crash. To avoid the false positive,
+    # remove those leftovers.
+    rm -rf /tmp/snap.rootfs_*
+
 execute: |
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB"/systemd.sh
@@ -49,7 +55,7 @@ execute: |
     wait_for_service snap.go-example-webserver.webserver.service
 
     echo "Install a test snap"
-    snap install test-snapd-tools
+    snap install test-snapd-sh
     
     echo "upgrade to current snapd"
     apt install -y "$GOHOME"/snapd*.deb
@@ -77,4 +83,4 @@ execute: |
     test ! -f /etc/apparmor.d/usr.lib.snapd.snap-confine
 
     echo "Smoke test, this should fail if profiles were wrong"
-    test-snapd-tools.echo hello | MATCH hello
+    test-snapd-sh.sh -c 'echo hello' | MATCH hello

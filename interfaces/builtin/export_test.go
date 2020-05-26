@@ -34,6 +34,9 @@ var (
 	ResolveSpecialVariable      = resolveSpecialVariable
 	ImplicitSystemPermanentSlot = implicitSystemPermanentSlot
 	ImplicitSystemConnectedSlot = implicitSystemConnectedSlot
+	LabelExpr                   = labelExpr
+	PlugAppLabelExpr            = plugAppLabelExpr
+	SlotAppLabelExpr            = slotAppLabelExpr
 )
 
 func MprisGetName(iface interfaces.Interface, attribs map[string]interface{}) (string, error) {

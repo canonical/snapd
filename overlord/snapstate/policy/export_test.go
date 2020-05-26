@@ -15,6 +15,8 @@ var (
 
 	ErrSnapdNotRemovableOnCore       = errSnapdNotRemovableOnCore
 	ErrSnapdNotYetRemovableOnClassic = errSnapdNotYetRemovableOnClassic
+
+	ErrEphemeralSnapsNotRemovalable = errEphemeralSnapsNotRemovalable
 )
 
 func InUseByErr(snaps ...string) error {

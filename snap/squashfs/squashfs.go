@@ -23,6 +23,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -35,12 +36,34 @@ import (
 
 	"github.com/snapcore/snapd/cmd/cmdutil"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 )
 
-// Magic is the magic prefix of squashfs snap files.
-var Magic = []byte{'h', 's', 'q', 's'}
+var (
+	// magic is the magic prefix of squashfs snap files.
+	magic = []byte{'h', 's', 'q', 's'}
+
+	// for testing
+	isRootWritableOverlay = osutil.IsRootWritableOverlay
+)
+
+func FileHasSquashfsHeader(path string) bool {
+	f, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+
+	header := make([]byte, 20)
+	if _, err := f.ReadAt(header, 0); err != nil {
+		return false
+	}
+
+	return bytes.HasPrefix(header, magic)
+}
 
 // Snap is the squashfs based snap.
 type Snap struct {
@@ -60,7 +83,8 @@ func New(snapPath string) *Snap {
 var osLink = os.Link
 var cmdutilCommandFromSystemSnap = cmdutil.CommandFromSystemSnap
 
-func (s *Snap) Install(targetPath, mountDir string) (bool, error) {
+// Install installs a squashfs snap file through an appropriate method.
+func (s *Snap) Install(targetPath, mountDir string, opts *snap.InstallOptions) (bool, error) {
 
 	// ensure mount-point and blob target dir.
 	for _, dir := range []string{mountDir, filepath.Dir(targetPath)} {
@@ -86,20 +110,41 @@ func (s *Snap) Install(targetPath, mountDir string) (bool, error) {
 		return didNothing, nil
 	}
 
-	// try to (hard)link the file, but go on to trying to copy it
-	// if it fails for whatever reason
-	//
-	// link(2) returns EPERM on filesystems that don't support
-	// hard links (like vfat), so checking the error here doesn't
-	// make sense vs just trying to copy it.
-	if err := osLink(s.path, targetPath); err == nil {
-		return false, nil
+	overlayRoot, err := isRootWritableOverlay()
+	if err != nil {
+		logger.Noticef("cannot detect root filesystem on overlay: %v", err)
+	}
+	// Hard-linking on overlayfs is identical to a full blown
+	// copy.  When we are operating on a overlayfs based system (e.g. live
+	// installer) use symbolic links.
+	// https://bugs.launchpad.net/snapd/+bug/1867415
+	if overlayRoot == "" {
+		// try to (hard)link the file, but go on to trying to copy it
+		// if it fails for whatever reason
+		//
+		// link(2) returns EPERM on filesystems that don't support
+		// hard links (like vfat), so checking the error here doesn't
+		// make sense vs just trying to copy it.
+		if err := osLink(s.path, targetPath); err == nil {
+			return false, nil
+		}
 	}
 
-	// if the file is a seed, but the hardlink failed, symlinking it
-	// saves the copy (which in livecd is expensive) so try that next
-	if filepath.Dir(s.path) == dirs.SnapSeedDir && os.Symlink(s.path, targetPath) == nil {
-		return false, nil
+	// if the installation must not cross devices, then we should not use
+	// symlinks and instead must copy the file entirely, this is the case
+	// during seeding on uc20 in run mode for example
+	if opts == nil || !opts.MustNotCrossDevices {
+		// if the source snap file is in seed, but the hardlink failed, symlinking
+		// it saves the copy (which in livecd is expensive) so try that next
+		// note that on UC20, the snap file could be in a deep subdir of
+		// SnapSeedDir, i.e. /var/lib/snapd/seed/systems/20200521/snaps/<name>.snap
+		// so we need to check if it has the prefix of the seed dir
+		cleanSrc := filepath.Clean(s.path)
+		if strings.HasPrefix(cleanSrc, dirs.SnapSeedDir) {
+			if os.Symlink(s.path, targetPath) == nil {
+				return false, nil
+			}
+		}
 	}
 
 	return false, osutil.CopyFile(s.path, targetPath, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync)
@@ -171,20 +216,48 @@ func (s *Snap) Size() (size int64, err error) {
 	return st.Size(), nil
 }
 
-// ReadFile returns the content of a single file inside a squashfs snap.
-func (s *Snap) ReadFile(filePath string) (content []byte, err error) {
+func (s *Snap) withUnpackedFile(filePath string, f func(p string) error) error {
 	tmpdir, err := ioutil.TempDir("", "read-file")
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer os.RemoveAll(tmpdir)
 
 	unpackDir := filepath.Join(tmpdir, "unpack")
-	if err := exec.Command("unsquashfs", "-n", "-i", "-d", unpackDir, s.path, filePath).Run(); err != nil {
-		return nil, err
+	if output, err := exec.Command("unsquashfs", "-n", "-i", "-d", unpackDir, s.path, filePath).CombinedOutput(); err != nil {
+		return fmt.Errorf("cannot run unsquashfs: %v", osutil.OutputErr(output, err))
 	}
 
-	return ioutil.ReadFile(filepath.Join(unpackDir, filePath))
+	return f(filepath.Join(unpackDir, filePath))
+}
+
+// RandomAccessFile returns an implementation to read at any given location
+// for a single file inside the squashfs snap.
+func (s *Snap) RandomAccessFile(filePath string) (interface {
+	io.ReaderAt
+	io.Closer
+}, error) {
+	var f *os.File
+	err := s.withUnpackedFile(filePath, func(p string) (err error) {
+		f, err = os.Open(p)
+		return
+	})
+	if err != nil {
+		return nil, err
+	}
+	return f, nil
+}
+
+// ReadFile returns the content of a single file inside a squashfs snap.
+func (s *Snap) ReadFile(filePath string) (content []byte, err error) {
+	err = s.withUnpackedFile(filePath, func(p string) (err error) {
+		content, err = ioutil.ReadFile(p)
+		return
+	})
+	if err != nil {
+		return nil, err
+	}
+	return content, nil
 }
 
 // skipper is used to track directories that should be skipped
@@ -393,8 +466,17 @@ func verifyContentAccessibleForBuild(sourceDir string) error {
 	return errPaths.asErr()
 }
 
+type BuildOpts struct {
+	SnapType     string
+	Compression  string
+	ExcludeFiles []string
+}
+
 // Build builds the snap.
-func (s *Snap) Build(sourceDir, snapType string, excludeFiles ...string) error {
+func (s *Snap) Build(sourceDir string, opts *BuildOpts) error {
+	if opts == nil {
+		opts = &BuildOpts{}
+	}
 	if err := verifyContentAccessibleForBuild(sourceDir); err != nil {
 		return err
 	}
@@ -403,6 +485,14 @@ func (s *Snap) Build(sourceDir, snapType string, excludeFiles ...string) error {
 	if err != nil {
 		return err
 	}
+	// default to xz
+	compression := opts.Compression
+	if compression == "" {
+		// TODO: support other compression options, xz is very
+		// slow for certain apps, see
+		// https://forum.snapcraft.io/t/squashfs-performance-effect-on-snap-startup-time/13920
+		compression = "xz"
+	}
 	cmd, err := cmdutilCommandFromSystemSnap("/usr/bin/mksquashfs")
 	if err != nil {
 		cmd = exec.Command("mksquashfs")
@@ -410,16 +500,17 @@ func (s *Snap) Build(sourceDir, snapType string, excludeFiles ...string) error {
 	cmd.Args = append(cmd.Args,
 		".", fullSnapPath,
 		"-noappend",
-		"-comp", "xz",
+		"-comp", compression,
 		"-no-fragments",
 		"-no-progress",
 	)
-	if len(excludeFiles) > 0 {
+	if len(opts.ExcludeFiles) > 0 {
 		cmd.Args = append(cmd.Args, "-wildcards")
-		for _, excludeFile := range excludeFiles {
+		for _, excludeFile := range opts.ExcludeFiles {
 			cmd.Args = append(cmd.Args, "-ef", excludeFile)
 		}
 	}
+	snapType := opts.SnapType
 	if snapType != "os" && snapType != "core" && snapType != "base" {
 		cmd.Args = append(cmd.Args, "-all-root", "-no-xattrs")
 	}

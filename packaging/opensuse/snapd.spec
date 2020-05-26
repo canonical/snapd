@@ -77,7 +77,7 @@
 
 
 Name:           snapd
-Version:        2.42.4
+Version:        2.45
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -103,7 +103,6 @@ BuildRequires:  libuuid-devel
 BuildRequires:  make
 BuildRequires:  openssh
 BuildRequires:  pkg-config
-BuildRequires:  python-docutils
 BuildRequires:  python3-docutils
 BuildRequires:  squashfs
 # Due to: rpm -q --whatprovides /usr/share/pkgconfig/systemd.pc
@@ -295,9 +294,12 @@ install -m 644 -D %{indigo_srcdir}/data/info %{buildroot}%{_libexecdir}/snapd/in
 
 # Install bash completion for "snap"
 # TODO: This should be handled by data makefile.
-install -m 644 -D %{indigo_srcdir}/data/completion/snap %{buildroot}%{_datadir}/bash-completion/completions/snap
-install -m 644 -D %{indigo_srcdir}/data/completion/complete.sh %{buildroot}%{_libexecdir}/snapd
-install -m 644 -D %{indigo_srcdir}/data/completion/etelpmoc.sh %{buildroot}%{_libexecdir}/snapd
+install -m 644 -D %{indigo_srcdir}/data/completion/bash/snap %{buildroot}%{_datadir}/bash-completion/completions/snap
+install -m 644 -D %{indigo_srcdir}/data/completion/bash/complete.sh %{buildroot}%{_libexecdir}/snapd
+install -m 644 -D %{indigo_srcdir}/data/completion/bash/etelpmoc.sh %{buildroot}%{_libexecdir}/snapd
+# Install zsh completion for "snap"
+install -d -p %{buildroot}%{_datadir}/zsh/site-functions
+install -m 644 -D %{indigo_srcdir}/data/completion/zsh/_snap %{buildroot}%{_datadir}/zsh/site-functions/_snap
 
 %verifyscript
 %verify_permissions -e %{_libexecdir}/snapd/snap-confine
@@ -338,6 +340,7 @@ fi
 %config %{_sysconfdir}/permissions.d/snapd
 %config %{_sysconfdir}/permissions.d/snapd.paranoid
 %config %{_sysconfdir}/profile.d/snapd.sh
+%config %{_sysconfdir}/sudoers.d/99-snapd.conf
 
 # Directories
 %dir %attr(0111,root,root) %{_sharedstatedir}/snapd/void
@@ -359,6 +362,7 @@ fi
 %dir %{_sharedstatedir}/snapd/desktop/applications
 %dir %{_sharedstatedir}/snapd/device
 %dir %{_sharedstatedir}/snapd/hostfs
+%dir %{_sharedstatedir}/snapd/inhibit
 %dir %{_sharedstatedir}/snapd/lib
 %dir %{_sharedstatedir}/snapd/lib/gl
 %dir %{_sharedstatedir}/snapd/lib/gl32
@@ -374,6 +378,9 @@ fi
 %dir %{_userunitdir}
 %dir %{snap_mount_dir}
 %dir %{snap_mount_dir}/bin
+# this is typically owned by zsh, but we do not want to explicitly require zsh
+%dir %{_datadir}/zsh
+%dir %{_datadir}/zsh/site-functions
 
 # Ghost entries for things created at runtime
 %ghost %dir %{_localstatedir}/snap
@@ -384,11 +391,12 @@ fi
 %ghost %{_sharedstatedir}/snapd/state.json
 %ghost %{_sharedstatedir}/snapd/system-key
 %ghost %{snap_mount_dir}/README
-%verify(not user group mode) %attr(06755,root,root) %{_libexecdir}/snapd/snap-confine
+%verify(not user group mode) %attr(04755,root,root) %{_libexecdir}/snapd/snap-confine
 %{_bindir}/snap
 %{_bindir}/snapctl
 %{_datadir}/applications/snap-handle-link.desktop
 %{_datadir}/bash-completion/completions/snap
+%{_datadir}/zsh/site-functions/_snap
 %{_datadir}/dbus-1/services/io.snapcraft.Launcher.service
 %{_datadir}/dbus-1/services/io.snapcraft.Settings.service
 %{_datadir}/polkit-1/actions/io.snapcraft.snapd.policy

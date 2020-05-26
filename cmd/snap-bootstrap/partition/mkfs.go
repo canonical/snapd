@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+
 package partition
 
 import (
@@ -24,12 +25,17 @@ import (
 	"github.com/snapcore/snapd/gadget"
 )
 
-func MakeFilesystems(created []DeviceStructure) error {
-	for _, part := range created {
-		if part.VolumeStructure.Filesystem != "" {
-			if err := mkfs(part.Node, part.VolumeStructure.Label, part.VolumeStructure.Filesystem); err != nil {
-				return err
-			}
+func MakeFilesystem(part DeviceStructure) error {
+	if part.VolumeStructure == nil {
+		return fmt.Errorf("cannot use incomplete device %v", part.Node)
+	}
+
+	if part.VolumeStructure.Filesystem != "" {
+		if err := mkfs(part.Node, part.VolumeStructure.Label, part.VolumeStructure.Filesystem); err != nil {
+			return err
+		}
+		if err := udevTrigger(part.Node); err != nil {
+			return err
 		}
 	}
 	return nil

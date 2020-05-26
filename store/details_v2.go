@@ -133,11 +133,12 @@ func infoFromStoreInfo(si *storeInfo) (*snap.Info, error) {
 	seen := make(map[string]bool, len(si.ChannelMap))
 	for _, s := range si.ChannelMap {
 		ch := s.Channel
-		info.Channels[ch.Track+"/"+ch.Risk] = &snap.ChannelSnapInfo{
+		chName := ch.Track + "/" + ch.Risk
+		info.Channels[chName] = &snap.ChannelSnapInfo{
 			Revision:    snap.R(s.Revision),
 			Confinement: snap.ConfinementType(s.Confinement),
 			Version:     s.Version,
-			Channel:     ch.Name,
+			Channel:     chName,
 			Epoch:       s.Epoch,
 			Size:        s.Download.Size,
 			ReleasedAt:  ch.ReleasedAt.UTC(),
@@ -173,6 +174,9 @@ func copyNonZeroFrom(src, dst *storeSnap) {
 	}
 	if src.Download.URL != "" {
 		dst.Download = src.Download
+	} else if src.Download.Size != 0 {
+		// search v2 results do not contain download url, only size
+		dst.Download.Size = src.Download.Size
 	}
 	if src.Epoch.String() != "0" {
 		dst.Epoch = src.Epoch

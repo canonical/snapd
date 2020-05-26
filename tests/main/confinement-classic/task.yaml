@@ -42,7 +42,7 @@ execute: |
     fi
 
     # Instal again and put the snap into jailmode
-    snap remove test-snapd-hello-classic
+    snap remove --purge test-snapd-hello-classic
     snap install --classic --jailmode test-snapd-hello-classic
 
     $SNAP_MOUNT_DIR/bin/test-snapd-hello-classic | MATCH 'Hello Classic!'

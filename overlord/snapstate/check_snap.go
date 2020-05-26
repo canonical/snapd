@@ -187,7 +187,7 @@ func checkAssumes(si *snap.Info) error {
 		}
 	}
 	if len(missing) > 0 {
-		hint := "try to refresh the core snap"
+		hint := "try to refresh the core or snapd snaps"
 		if release.OnClassic {
 			hint = "try to update snapd and refresh the core snap"
 		}
@@ -452,7 +452,7 @@ func checkCoreName(st *state.State, snapInfo, curInfo *snap.Info, _ snap.Contain
 	return nil
 }
 
-func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, _ snap.Container, flags Flags, deviceCtx DeviceContext) error {
+func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, snapf snap.Container, flags Flags, deviceCtx DeviceContext) error {
 	typ := snapInfo.GetType()
 	kind := ""
 	var whichName func(*asserts.Model) string

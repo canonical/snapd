@@ -79,6 +79,7 @@ func (s *SystemdTestSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
 	c.Assert(err, IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants"), 0755), IsNil)
 
 	// force UTC timezone, for reproducible timestamps
 	os.Setenv("TZ", "")
@@ -147,6 +148,12 @@ func (s *SystemdTestSuite) TestDaemonReload(c *C) {
 	err := New("", SystemMode, s.rep).DaemonReload()
 	c.Assert(err, IsNil)
 	c.Assert(s.argses, DeepEquals, [][]string{{"daemon-reload"}})
+}
+
+func (s *SystemdTestSuite) TestDaemonReexec(c *C) {
+	err := New("", SystemMode, s.rep).DaemonReexec()
+	c.Assert(err, IsNil)
+	c.Assert(s.argses, DeepEquals, [][]string{{"daemon-reexec"}})
 }
 
 func (s *SystemdTestSuite) TestStart(c *C) {
@@ -390,6 +397,42 @@ func (s *SystemdTestSuite) TestAvailable(c *C) {
 	c.Check(s.argses, DeepEquals, [][]string{{"--version"}})
 }
 
+func (s *SystemdTestSuite) TestVersion(c *C) {
+	s.outs = [][]byte{
+		[]byte("systemd 223\n+PAM\n"),
+		[]byte("systemd 245 (245.4-4ubuntu3)\n+PAM +AUDIT +SELINUX +IMA\n"),
+		// error cases
+		[]byte("foo 223\n+PAM\n"),
+		[]byte(""),
+		[]byte("systemd abc\n+PAM\n"),
+	}
+
+	v, err := Version()
+	c.Assert(err, IsNil)
+	c.Check(v, Equals, 223)
+
+	v, err = Version()
+	c.Assert(err, IsNil)
+	c.Check(v, Equals, 245)
+
+	_, err = Version()
+	c.Assert(err, ErrorMatches, `cannot parse systemd version: expected "systemd", got "foo"`)
+
+	_, err = Version()
+	c.Assert(err, ErrorMatches, `cannot read systemd version: <nil>`)
+
+	_, err = Version()
+	c.Assert(err, ErrorMatches, `cannot convert systemd version to number: abc`)
+
+	c.Check(s.argses, DeepEquals, [][]string{
+		{"--version"},
+		{"--version"},
+		{"--version"},
+		{"--version"},
+		{"--version"},
+	})
+}
+
 func (s *SystemdTestSuite) TestEnable(c *C) {
 	err := New("xyzzy", SystemMode, s.rep).Enable("foo")
 	c.Assert(err, IsNil)
@@ -574,6 +617,8 @@ WantedBy=multi-user.target
 func (s *SystemdTestSuite) TestWriteSELinuxMountUnit(c *C) {
 	restore := selinux.MockIsEnabled(func() (bool, error) { return true, nil })
 	defer restore()
+	restore = selinux.MockIsEnforcing(func() (bool, error) { return true, nil })
+	defer restore()
 	restore = squashfs.MockNeedsFuse(false)
 	defer restore()
 
@@ -708,8 +753,23 @@ func (s *SystemdTestSuite) TestJctl(c *C) {
 
 func (s *SystemdTestSuite) TestIsActiveIsInactive(c *C) {
 	sysErr := &Error{}
+	// manpage states that systemctl returns exit code 3 for inactive
+	// services, however we should check any non-0 exit status
 	sysErr.SetExitCode(1)
 	sysErr.SetMsg([]byte("inactive\n"))
+	s.errors = []error{sysErr}
+
+	active, err := New("xyzzy", SystemMode, s.rep).IsActive("foo")
+	c.Assert(active, Equals, false)
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "is-active", "foo"}})
+}
+
+func (s *SystemdTestSuite) TestIsActiveIsFailed(c *C) {
+	sysErr := &Error{}
+	// seen in the wild to be reported for a 'failed' service
+	sysErr.SetExitCode(3)
+	sysErr.SetMsg([]byte("failed\n"))
 	s.errors = []error{sysErr}
 
 	active, err := New("xyzzy", SystemMode, s.rep).IsActive("foo")
@@ -727,7 +787,7 @@ func (s *SystemdTestSuite) TestIsActiveIsActive(c *C) {
 	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "is-active", "foo"}})
 }
 
-func (s *SystemdTestSuite) TestIsActiveErr(c *C) {
+func (s *SystemdTestSuite) TestIsActiveUnexpectedErr(c *C) {
 	sysErr := &Error{}
 	sysErr.SetExitCode(1)
 	sysErr.SetMsg([]byte("random-failure\n"))
@@ -749,6 +809,9 @@ func makeMockMountUnit(c *C, mountDir string) string {
 func (s *SystemdTestSuite) TestRemoveMountUnit(c *C) {
 	rootDir := dirs.GlobalRootDir
 
+	restore := osutil.MockMountInfo("")
+	defer restore()
+
 	mountDir := rootDir + "/snap/foo/42"
 	mountUnit := makeMockMountUnit(c, mountDir)
 	err := New(rootDir, SystemMode, nil).RemoveMountUnitFile(mountDir)
@@ -764,6 +827,10 @@ func (s *SystemdTestSuite) TestRemoveMountUnit(c *C) {
 }
 
 func (s *SystemdTestSuite) TestDaemonReloadMutex(c *C) {
+	s.testDaemonReloadMutex(c, Systemd.DaemonReload)
+}
+
+func (s *SystemdTestSuite) testDaemonReloadMutex(c *C, reload func(Systemd) error) {
 	rootDir := dirs.GlobalRootDir
 	sysd := New(rootDir, SystemMode, nil)
 
@@ -796,6 +863,10 @@ func (s *SystemdTestSuite) TestDaemonReloadMutex(c *C) {
 	<-stoppedCh
 }
 
+func (s *SystemdTestSuite) TestDaemonReexecMutex(c *C) {
+	s.testDaemonReloadMutex(c, Systemd.DaemonReexec)
+}
+
 func (s *SystemdTestSuite) TestUserMode(c *C) {
 	rootDir := dirs.GlobalRootDir
 	sysd := New(rootDir, UserMode, nil)
@@ -818,15 +889,200 @@ func (s *SystemdTestSuite) TestGlobalUserMode(c *C) {
 	c.Check(s.argses[2], DeepEquals, []string{"--user", "--global", "--root", rootDir, "mask", "foo"})
 	c.Assert(sysd.Unmask("foo"), IsNil)
 	c.Check(s.argses[3], DeepEquals, []string{"--user", "--global", "--root", rootDir, "unmask", "foo"})
+	_, err := sysd.IsEnabled("foo")
+	c.Check(err, IsNil)
+	c.Check(s.argses[4], DeepEquals, []string{"--user", "--global", "--root", rootDir, "is-enabled", "foo"})
 
 	// Commands that don't make sense for GlobalUserMode panic
 	c.Check(sysd.DaemonReload, Panics, "cannot call daemon-reload with GlobalUserMode")
+	c.Check(sysd.DaemonReexec, Panics, "cannot call daemon-reexec with GlobalUserMode")
 	c.Check(func() { sysd.Start("foo") }, Panics, "cannot call start with GlobalUserMode")
 	c.Check(func() { sysd.StartNoBlock("foo") }, Panics, "cannot call start with GlobalUserMode")
 	c.Check(func() { sysd.Stop("foo", 0) }, Panics, "cannot call stop with GlobalUserMode")
 	c.Check(func() { sysd.Restart("foo", 0) }, Panics, "cannot call restart with GlobalUserMode")
 	c.Check(func() { sysd.Kill("foo", "HUP", "") }, Panics, "cannot call kill with GlobalUserMode")
 	c.Check(func() { sysd.Status("foo") }, Panics, "cannot call status with GlobalUserMode")
-	c.Check(func() { sysd.IsEnabled("foo") }, Panics, "cannot call is-enabled with GlobalUserMode")
 	c.Check(func() { sysd.IsActive("foo") }, Panics, "cannot call is-active with GlobalUserMode")
+}
+
+const unitTemplate = `
+[Unit]
+Description=Mount unit for foo, revision 42
+Before=snapd.service
+
+[Mount]
+What=%s
+Where=/snap/snapname/123
+Type=%s
+Options=%s
+LazyUnmount=yes
+
+[Install]
+WantedBy=multi-user.target
+`
+
+func (s *SystemdTestSuite) TestPreseedModeAddMountUnit(c *C) {
+	sysd := NewEmulationMode(dirs.GlobalRootDir)
+
+	restore := squashfs.MockNeedsFuse(false)
+	defer restore()
+
+	mockMountCmd := testutil.MockCommand(c, "mount", "")
+	defer mockMountCmd.Restore()
+
+	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
+	makeMockFile(c, mockSnapPath)
+
+	mountUnitName, err := sysd.AddMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "squashfs")
+	c.Assert(err, IsNil)
+	defer os.Remove(mountUnitName)
+
+	// systemd was not called
+	c.Check(s.argses, HasLen, 0)
+	// mount was called
+	c.Check(mockMountCmd.Calls()[0], DeepEquals, []string{"mount", "-t", "squashfs", mockSnapPath, "/snap/snapname/123", "-o", "nodev,ro,x-gdu.hide"})
+	// unit was enabled with a symlink
+	c.Check(osutil.IsSymlink(filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", mountUnitName)), Equals, true)
+	c.Check(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(unitTemplate[1:], mockSnapPath, "squashfs", "nodev,ro,x-gdu.hide"))
+}
+
+func (s *SystemdTestSuite) TestPreseedModeAddMountUnitWithFuse(c *C) {
+	sysd := NewEmulationMode(dirs.GlobalRootDir)
+
+	restore := MockSquashFsType(func() (string, []string, error) { return "fuse.squashfuse", []string{"a,b,c"}, nil })
+	defer restore()
+
+	mockMountCmd := testutil.MockCommand(c, "mount", "")
+	defer mockMountCmd.Restore()
+
+	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
+	makeMockFile(c, mockSnapPath)
+
+	mountUnitName, err := sysd.AddMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "squashfs")
+	c.Assert(err, IsNil)
+	defer os.Remove(mountUnitName)
+
+	c.Check(mockMountCmd.Calls()[0], DeepEquals, []string{"mount", "-t", "fuse.squashfuse", mockSnapPath, "/snap/snapname/123", "-o", "nodev,a,b,c"})
+	c.Check(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(unitTemplate[1:], mockSnapPath, "fuse.squashfuse", "nodev,a,b,c"))
+}
+
+func (s *SystemdTestSuite) TestPreseedModeMountError(c *C) {
+	sysd := NewEmulationMode(dirs.GlobalRootDir)
+
+	restore := squashfs.MockNeedsFuse(false)
+	defer restore()
+
+	mockMountCmd := testutil.MockCommand(c, "mount", `echo "some failure"; exit 1`)
+	defer mockMountCmd.Restore()
+
+	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
+	makeMockFile(c, mockSnapPath)
+
+	_, err := sysd.AddMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "squashfs")
+	c.Assert(err, ErrorMatches, `cannot mount .*/var/lib/snappy/snaps/foo_1.0.snap \(squashfs\) at /snap/snapname/123 in preseed mode: exit status 1; some failure\n`)
+}
+
+func (s *SystemdTestSuite) TestPreseedModeRemoveMountUnit(c *C) {
+	mountDir := dirs.GlobalRootDir + "/snap/foo/42"
+
+	restore := MockOsutilIsMounted(func(path string) (bool, error) {
+		c.Check(path, Equals, mountDir)
+		return true, nil
+	})
+	defer restore()
+
+	mockUmountCmd := testutil.MockCommand(c, "umount", "")
+	defer mockUmountCmd.Restore()
+
+	sysd := NewEmulationMode(dirs.GlobalRootDir)
+
+	mountUnit := makeMockMountUnit(c, mountDir)
+	symlinkPath := filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", filepath.Base(mountUnit))
+	c.Assert(os.Symlink(mountUnit, symlinkPath), IsNil)
+	c.Assert(sysd.RemoveMountUnitFile(mountDir), IsNil)
+
+	// the file is gone
+	c.Check(osutil.FileExists(mountUnit), Equals, false)
+	// unit symlink is gone
+	c.Check(osutil.IsSymlink(symlinkPath), Equals, false)
+	// and systemd was not called
+	c.Check(s.argses, HasLen, 0)
+	// umount was called
+	c.Check(mockUmountCmd.Calls(), DeepEquals, [][]string{{"umount", "-d", "-l", mountDir}})
+}
+
+func (s *SystemdTestSuite) TestPreseedModeRemoveMountUnitUnmounted(c *C) {
+	mountDir := dirs.GlobalRootDir + "/snap/foo/42"
+
+	restore := MockOsutilIsMounted(func(path string) (bool, error) {
+		c.Check(path, Equals, mountDir)
+		return false, nil
+	})
+	defer restore()
+
+	mockUmountCmd := testutil.MockCommand(c, "umount", "")
+	defer mockUmountCmd.Restore()
+
+	sysd := NewEmulationMode(dirs.GlobalRootDir)
+	mountUnit := makeMockMountUnit(c, mountDir)
+	symlinkPath := filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", filepath.Base(mountUnit))
+	c.Assert(os.Symlink(mountUnit, symlinkPath), IsNil)
+
+	c.Assert(sysd.RemoveMountUnitFile(mountDir), IsNil)
+
+	// the file is gone
+	c.Check(osutil.FileExists(mountUnit), Equals, false)
+	// unit symlink is gone
+	c.Check(osutil.IsSymlink(symlinkPath), Equals, false)
+	// and systemd was not called
+	c.Check(s.argses, HasLen, 0)
+	// umount was not called
+	c.Check(mockUmountCmd.Calls(), HasLen, 0)
+}
+
+func (s *SystemdTestSuite) TestPreseedModeBindmountNotSupported(c *C) {
+	sysd := NewEmulationMode(dirs.GlobalRootDir)
+
+	restore := squashfs.MockNeedsFuse(false)
+	defer restore()
+
+	mockSnapPath := c.MkDir()
+
+	_, err := sysd.AddMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "")
+	c.Assert(err, ErrorMatches, `bind-mounted directory is not supported in emulation mode`)
+}
+
+func (s *SystemdTestSuite) TestEnableInEmulationMode(c *C) {
+	sysd := NewEmulationMode("/path")
+	c.Assert(sysd.Enable("foo"), IsNil)
+
+	sysd = NewEmulationMode("")
+	c.Assert(sysd.Enable("bar"), IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{
+		{"--root", "/path", "enable", "foo"},
+		{"--root", dirs.GlobalRootDir, "enable", "bar"}})
+}
+
+func (s *SystemdTestSuite) TestDisableInEmulationMode(c *C) {
+	sysd := NewEmulationMode("/path")
+	c.Assert(sysd.Disable("foo"), IsNil)
+
+	c.Check(s.argses, DeepEquals, [][]string{
+		{"--root", "/path", "disable", "foo"}})
+}
+
+func (s *SystemdTestSuite) TestMaskInEmulationMode(c *C) {
+	sysd := NewEmulationMode("/path")
+	c.Assert(sysd.Mask("foo"), IsNil)
+
+	c.Check(s.argses, DeepEquals, [][]string{
+		{"--root", "/path", "mask", "foo"}})
+}
+
+func (s *SystemdTestSuite) TestUnmaskInEmulationMode(c *C) {
+	sysd := NewEmulationMode("/path")
+	c.Assert(sysd.Unmask("foo"), IsNil)
+
+	c.Check(s.argses, DeepEquals, [][]string{
+		{"--root", "/path", "unmask", "foo"}})
 }

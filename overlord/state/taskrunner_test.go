@@ -31,6 +31,7 @@ import (
 	. "gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -184,11 +185,12 @@ func (ts *taskRunnerSuite) TestSequenceTests(c *C) {
 	r.AddHandler("do", fn("do"), nil)
 	r.AddHandler("do-undo", fn("do"), fn("undo"))
 
+	past := time.Now().AddDate(-1, 0, 0)
 	for _, test := range sequenceTests {
 		st.Lock()
 
 		// Delete previous changes.
-		st.Prune(1, 1, 1)
+		st.Prune(past, 1, 1, 1)
 
 		chg := st.NewChange("install", "...")
 		tasks := make(map[string]*state.Task)
@@ -908,4 +910,72 @@ func (ts *taskRunnerSuite) TestCleanup(c *C) {
 	r.Wait()
 	c.Assert(chgIsClean(), Equals, true)
 	c.Assert(called, Equals, 2)
+}
+
+func (ts *taskRunnerSuite) TestErrorCallbackCalledOnError(c *C) {
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	sb := &stateBackend{}
+	st := state.New(sb)
+	r := state.NewTaskRunner(st)
+
+	var called bool
+	r.OnTaskError(func(err error) {
+		called = true
+	})
+
+	r.AddHandler("foo", func(t *state.Task, tomb *tomb.Tomb) error {
+		return fmt.Errorf("handler error for %q", t.Kind())
+	}, nil)
+
+	st.Lock()
+	chg := st.NewChange("install", "change summary")
+	t1 := st.NewTask("foo", "task summary")
+	chg.AddTask(t1)
+	st.Unlock()
+
+	// Mark tasks as done.
+	ensureChange(c, r, sb, chg)
+	r.Stop()
+
+	st.Lock()
+	defer st.Unlock()
+
+	c.Check(t1.Status(), Equals, state.ErrorStatus)
+	c.Check(strings.Join(t1.Log(), ""), Matches, `.*handler error for "foo"`)
+	c.Check(called, Equals, true)
+
+	c.Check(logbuf.String(), Matches, `(?m).*: \[change 1 "task summary" task\] failed: handler error for "foo".*`)
+}
+
+func (ts *taskRunnerSuite) TestErrorCallbackNotCalled(c *C) {
+	sb := &stateBackend{}
+	st := state.New(sb)
+	r := state.NewTaskRunner(st)
+
+	var called bool
+	r.OnTaskError(func(err error) {
+		called = true
+	})
+
+	r.AddHandler("foo", func(t *state.Task, tomb *tomb.Tomb) error {
+		return nil
+	}, nil)
+
+	st.Lock()
+	chg := st.NewChange("install", "...")
+	t1 := st.NewTask("foo", "...")
+	chg.AddTask(t1)
+	st.Unlock()
+
+	// Mark tasks as done.
+	ensureChange(c, r, sb, chg)
+	r.Stop()
+
+	st.Lock()
+	defer st.Unlock()
+
+	c.Check(t1.Status(), Equals, state.DoneStatus)
+	c.Check(called, Equals, false)
 }

@@ -26,7 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 const desktopSummary = `allows access to basic graphical desktop resources`
@@ -57,6 +57,8 @@ dbus (send)
 owner @{HOME}/.local/share/fonts/{,**} r,
 /var/cache/fontconfig/   r,
 /var/cache/fontconfig/** mr,
+# some applications are known to mmap fonts
+/usr/{,local/}share/fonts/** m,
 
 # subset of gnome abstraction
 /etc/gtk-3.0/settings.ini r,
@@ -105,7 +107,7 @@ dbus (receive)
     bus=session
     path=/org/freedesktop/Notifications
     interface=org.freedesktop.Notifications
-    member={ActionInvoked,NotificationClosed}
+    member={ActionInvoked,NotificationClosed,NotificationReplied}
     peer=(label=unconfined),
 
 # DesktopAppInfo Launched
@@ -130,6 +132,29 @@ dbus (send)
   path=/org/gnome/SettingsDaemon/MediaKeys
   member="Get{,All}"
   peer=(label=unconfined),
+
+# Allow accessing the GNOME crypto services prompt APIs as used by
+# applications using libgcr (such as pinentry-gnome3) for secure pin
+# entry to unlock GPG keys etc. See:
+# https://developer.gnome.org/gcr/unstable/GcrPrompt.html
+# https://developer.gnome.org/gcr/unstable/GcrSecretExchange.html
+dbus (send)
+    bus=session
+    path=/org/gnome/keyring/Prompter
+    interface=org.gnome.keyring.internal.Prompter
+    member="{BeginPrompting,PerformPrompt,StopPrompting}"
+    peer=(label=unconfined),
+
+# While the DBus path is not snap-specific, by the time an application
+# registers the prompt path via DBus, Gcr will check that it isn't
+# already in use and send the client an error if it is. See:
+# https://github.com/snapcore/snapd/pull/7673#issuecomment-592229711
+dbus (receive)
+    bus=session
+    path=/org/gnome/keyring/Prompt/p[0-9]*
+    interface=org.gnome.keyring.internal.Prompter.Callback
+    member="{PromptReady,PromptDone}"
+    peer=(label=unconfined),
 
 # Allow use of snapd's internal 'xdg-open'
 /usr/bin/xdg-open ixr,
@@ -178,13 +203,17 @@ dbus (send)
     bus=session
     path=/io/snapcraft/Settings
     interface=io.snapcraft.Settings
-    member={Check,Get,Set}
+    member={Check,CheckSub,Get,GetSub,Set,SetSub}
     peer=(label=unconfined),
 
-## Allow access to xdg-document-portal file system.  Access control is
-## handled by bind mounting a snap-specific sub-tree to this location.
-owner /run/user/[0-9]*/doc/ r,
-owner /run/user/[0-9]*/doc/** rw,
+# Allow access to xdg-document-portal file system.  Access control is
+# handled by bind mounting a snap-specific sub-tree to this location
+# (ie, this is /run/user/<uid>/doc/by-app/snap.@{SNAP_INSTANCE_NAME}
+# on the host).
+owner /run/user/[0-9]*/doc/{,*/} r,
+# Allow rw access without owner match to the documents themselves since
+# the user guided the access and can specify anything DAC allows.
+/run/user/[0-9]*/doc/*/** rw,
 
 # Allow access to xdg-desktop-portal and xdg-document-portal
 dbus (receive, send)
@@ -201,26 +230,11 @@ dbus (receive, send)
 
 # These accesses are noisy and applications can't do anything with the found
 # icon files, so explicitly deny to silence the denials
-deny /var/lib/snapd/desktop/icons/ r,
+deny /var/lib/snapd/desktop/icons/{,**/} r,
 `
 
-type desktopInterface struct{}
-
-func (iface *desktopInterface) Name() string {
-	return "desktop"
-}
-
-func (iface *desktopInterface) StaticInfo() interfaces.StaticInfo {
-	return interfaces.StaticInfo{
-		Summary:              desktopSummary,
-		ImplicitOnClassic:    true,
-		BaseDeclarationSlots: desktopBaseDeclarationSlots,
-	}
-}
-
-func (iface *desktopInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
-	// allow what declarations allowed
-	return true
+type desktopInterface struct {
+	commonInterface
 }
 
 func (iface *desktopInterface) fontconfigDirs() []string {
@@ -275,6 +289,19 @@ func (iface *desktopInterface) MountConnectedPlug(spec *mount.Specification, plu
 		if !osutil.IsDirectory(dir) {
 			continue
 		}
+		if release.DistroLike("arch", "fedora") {
+			// XXX: on Arch and Fedora 32+ there is a known
+			// incompatibility between the binary fonts cache files
+			// and ones expected by desktop snaps; even though the
+			// cache format level is same for both, the host
+			// generated cache files cause instability, segfaults or
+			// incorrect rendering of fonts, for this reason do not
+			// mount the cache directories on those distributions,
+			// see https://bugs.launchpad.net/snapd/+bug/1877109
+			if strutil.ListContains(dirs.SystemFontconfigCacheDirs, dir) {
+				continue
+			}
+		}
 		// Since /etc/fonts/fonts.conf in the snap mount ns is the same
 		// as on the host, we need to preserve the original directory
 		// paths for the fontconfig runtime to poke the correct
@@ -290,5 +317,12 @@ func (iface *desktopInterface) MountConnectedPlug(spec *mount.Specification, plu
 }
 
 func init() {
-	registerIface(&desktopInterface{})
+	registerIface(&desktopInterface{
+		commonInterface: commonInterface{
+			name:                 "desktop",
+			summary:              desktopSummary,
+			implicitOnClassic:    true,
+			baseDeclarationSlots: desktopBaseDeclarationSlots,
+		},
+	})
 }

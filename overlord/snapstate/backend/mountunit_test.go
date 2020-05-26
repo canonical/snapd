@@ -40,12 +40,17 @@ type mountunitSuite struct {
 	umount *testutil.MockCmd
 
 	systemctlRestorer func()
+
+	testutil.BaseTest
 }
 
 var _ = Suite(&mountunitSuite{})
 
 func (s *mountunitSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
+
+	// needed for system key generation
+	s.AddCleanup(osutil.MockMountInfo(""))
 
 	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc", "systemd", "system", "multi-user.target.wants"), 0755)
 	c.Assert(err, IsNil)
@@ -74,7 +79,7 @@ func (s *mountunitSuite) TestAddMountUnit(c *C) {
 		Version:       "1.1",
 		Architectures: []string{"all"},
 	}
-	err := backend.AddMountUnit(info, progress.Null)
+	err := backend.AddMountUnit(info, false, progress.Null)
 	c.Assert(err, IsNil)
 
 	// ensure correct mount unit
@@ -106,7 +111,7 @@ func (s *mountunitSuite) TestRemoveMountUnit(c *C) {
 		Architectures: []string{"all"},
 	}
 
-	err := backend.AddMountUnit(info, progress.Null)
+	err := backend.AddMountUnit(info, false, progress.Null)
 	c.Assert(err, IsNil)
 
 	// ensure we have the files

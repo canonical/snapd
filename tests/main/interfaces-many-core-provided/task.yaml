@@ -87,4 +87,4 @@ execute: |
 
 restore: |
     # Remove the snaps to avoid timeout in next test
-    snap remove "$CONSUMER_SNAP"
+    snap remove --purge "$CONSUMER_SNAP"

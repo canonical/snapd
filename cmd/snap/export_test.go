@@ -86,6 +86,8 @@ var (
 	SortTimingsTasks = sortTimingsTasks
 
 	PrintInstallHint = printInstallHint
+
+	IsStopping = isStopping
 )
 
 func HiddenCmd(descr string, completeHidden bool) *cmdInfo {
@@ -323,3 +325,35 @@ func MockSignalNotify(newSignalNotify func(sig ...os.Signal) (chan os.Signal, fu
 }
 
 type ServiceName = serviceName
+
+func MockApparmorSnapAppFromPid(f func(pid int) (string, string, string, error)) (restore func()) {
+	old := apparmorSnapAppFromPid
+	apparmorSnapAppFromPid = f
+	return func() {
+		apparmorSnapAppFromPid = old
+	}
+}
+
+func MockCgroupSnapNameFromPid(f func(pid int) (string, error)) (restore func()) {
+	old := cgroupSnapNameFromPid
+	cgroupSnapNameFromPid = f
+	return func() {
+		cgroupSnapNameFromPid = old
+	}
+}
+
+func MockSyscallUmount(f func(string, int) error) (restore func()) {
+	old := syscallUnmount
+	syscallUnmount = f
+	return func() {
+		syscallUnmount = old
+	}
+}
+
+func MockIoutilTempDir(f func(string, string) (string, error)) (restore func()) {
+	old := ioutilTempDir
+	ioutilTempDir = f
+	return func() {
+		ioutilTempDir = old
+	}
+}

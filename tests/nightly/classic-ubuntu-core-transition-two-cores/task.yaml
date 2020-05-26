@@ -38,8 +38,8 @@ execute: |
     cp /var/lib/snapd/state.json /var/lib/snapd/state.json.old
     jq -r '.data.snaps["core"].type="os"' < /var/lib/snapd/state.json.old > /var/lib/snapd/state.json
 
-    snap list | MATCH "ubuntu-core "
-    snap list | MATCH "core "
+    snap list ubuntu-core
+    snap list core
 
     echo "Ensure transition is triggered"
     # wait for steady state or ensure-state-soon will be pointless
@@ -71,7 +71,7 @@ execute: |
         exit 1
     fi
 
-    if ! snap list|MATCH -v ubuntu-core; then
+    if snap list ubuntu-core; then
         echo "ubuntu-core still installed, transition failed"
         exit 1
     fi

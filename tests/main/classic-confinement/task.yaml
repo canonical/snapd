@@ -45,7 +45,7 @@ execute: |
     snap install --dangerous --classic "${CLASSIC_SNAP}_1.0_all.snap"
     touch /tmp/lala
     "$CLASSIC_SNAP" | MATCH lala
-    snap remove "$CLASSIC_SNAP"
+    snap remove --purge "$CLASSIC_SNAP"
 
     echo "Check that we can install classic confinement snaps from the store"
     snap install --classic "$CLASSIC_SNAP"

@@ -30,6 +30,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -49,6 +51,31 @@ const (
 	Partial
 	// Full indicates that all features are supported.
 	Full
+)
+
+func setupConfCacheDirs(newrootdir string) {
+	ConfDir = filepath.Join(newrootdir, "/etc/apparmor.d")
+	CacheDir = filepath.Join(newrootdir, "/var/cache/apparmor")
+
+	SystemCacheDir = filepath.Join(ConfDir, "cache")
+	exists, isDir, _ := osutil.DirExists(SystemCacheDir)
+	if !exists || !isDir {
+		// some systems use a single cache dir instead of splitting
+		// out the system cache
+		// TODO: it seems Solus has a different setup too, investigate this
+		SystemCacheDir = CacheDir
+	}
+}
+
+func init() {
+	dirs.AddRootDirCallback(setupConfCacheDirs)
+	setupConfCacheDirs(dirs.GlobalRootDir)
+}
+
+var (
+	ConfDir        string
+	CacheDir       string
+	SystemCacheDir string
 )
 
 func (level LevelType) String() string {
@@ -147,9 +174,14 @@ var (
 	// system-key and that could be called by different users on the
 	// system, use a predictable search path for finding the parser.
 	parserSearchPath = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-	// Each apparmor feature is manifested as a directory entry.
-	featuresSysPath = "/sys/kernel/security/apparmor/features"
+
+	// Filesystem root defined locally to avoid dependency on the
+	// 'dirs' package
+	rootPath = "/"
 )
+
+// Each apparmor feature is manifested as a directory entry.
+const featuresSysPath = "sys/kernel/security/apparmor/features"
 
 type appArmorProber interface {
 	KernelFeatures() ([]string, error)
@@ -270,7 +302,7 @@ func (aap *appArmorProbe) ParserFeatures() ([]string, error) {
 
 func probeKernelFeatures() ([]string, error) {
 	// note that ioutil.ReadDir() is already sorted
-	dentries, err := ioutil.ReadDir(featuresSysPath)
+	dentries, err := ioutil.ReadDir(filepath.Join(rootPath, featuresSysPath))
 	if err != nil {
 		return []string{}, err
 	}

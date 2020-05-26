@@ -59,6 +59,11 @@ func (s *modeenvSuite) makeMockModeenvFile(c *C, content string) {
 	c.Assert(err, IsNil)
 }
 
+func (s *modeenvSuite) TestWasReadSanity(c *C) {
+	modeenv := &boot.Modeenv{}
+	c.Check(modeenv.WasRead(), Equals, false)
+}
+
 func (s *modeenvSuite) TestReadEmpty(c *C) {
 	s.makeMockModeenvFile(c, "")
 
@@ -66,6 +71,8 @@ func (s *modeenvSuite) TestReadEmpty(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(modeenv.Mode, Equals, "")
 	c.Check(modeenv.RecoverySystem, Equals, "")
+	// an empty modeenv still means the modeenv was set
+	c.Check(modeenv.WasRead(), Equals, true)
 }
 
 func (s *modeenvSuite) TestReadMode(c *C) {
@@ -93,7 +100,8 @@ func (s *modeenvSuite) TestReadModeWithBase(c *C) {
 	s.makeMockModeenvFile(c, `mode=recovery
 recovery_system=20191126
 base=core20_123.snap
-kernel=pc-kernel_987.snap
+try_base=core20_124.snap
+base_status=try
 `)
 
 	modeenv, err := boot.ReadModeenv(s.tmpdir)
@@ -101,17 +109,126 @@ kernel=pc-kernel_987.snap
 	c.Check(modeenv.Mode, Equals, "recovery")
 	c.Check(modeenv.RecoverySystem, Equals, "20191126")
 	c.Check(modeenv.Base, Equals, "core20_123.snap")
-	c.Check(modeenv.Kernel, Equals, "pc-kernel_987.snap")
+	c.Check(modeenv.TryBase, Equals, "core20_124.snap")
+	c.Check(modeenv.BaseStatus, Equals, boot.TryStatus)
 }
 
-func (s *modeenvSuite) TestWriteNonExisting(c *C) {
+func (s *modeenvSuite) TestReadModeWithGrade(c *C) {
+	s.makeMockModeenvFile(c, `mode=run
+grade=dangerous
+`)
+	modeenv, err := boot.ReadModeenv(s.tmpdir)
+	c.Assert(err, IsNil)
+	c.Check(modeenv.Mode, Equals, "run")
+	c.Check(modeenv.Grade, Equals, "dangerous")
+
+	s.makeMockModeenvFile(c, `mode=run
+grade=some-random-grade-string
+`)
+	modeenv, err = boot.ReadModeenv(s.tmpdir)
+	c.Assert(err, IsNil)
+	c.Check(modeenv.Mode, Equals, "run")
+	c.Check(modeenv.Grade, Equals, "some-random-grade-string")
+}
+
+func (s *modeenvSuite) TestReadModeWithModel(c *C) {
+	tt := []struct {
+		entry        string
+		model, brand string
+	}{
+		{
+			entry: "my-brand/my-model",
+			brand: "my-brand",
+			model: "my-model",
+		}, {
+			entry: "my-brand/",
+		}, {
+			entry: "my-model/",
+		}, {
+			entry: "foobar",
+		}, {
+			entry: "/",
+		}, {
+			entry: ",",
+		}, {
+			entry: "",
+		},
+	}
+
+	for _, t := range tt {
+		s.makeMockModeenvFile(c, `mode=run
+model=`+t.entry+"\n")
+		modeenv, err := boot.ReadModeenv(s.tmpdir)
+		c.Assert(err, IsNil)
+		c.Check(modeenv.Mode, Equals, "run")
+		c.Check(modeenv.Model, Equals, t.model)
+		c.Check(modeenv.BrandID, Equals, t.brand)
+	}
+}
+
+func (s *modeenvSuite) TestReadModeWithCurrentKernels(c *C) {
+
+	tt := []struct {
+		kernelString    string
+		expectedKernels []string
+	}{
+		{
+			"pc-kernel_1.snap",
+			[]string{"pc-kernel_1.snap"},
+		},
+		{
+			"pc-kernel_1.snap,pc-kernel_2.snap",
+			[]string{"pc-kernel_1.snap", "pc-kernel_2.snap"},
+		},
+		{
+			"pc-kernel_1.snap,,,,,pc-kernel_2.snap",
+			[]string{"pc-kernel_1.snap", "pc-kernel_2.snap"},
+		},
+		// we should be robust in parsing the modeenv against garbage
+		{
+			`pc-kernel_1.snap,this-is-not-a-real-snap$%^&^%$#@#$%^%"$,pc-kernel_2.snap`,
+			[]string{"pc-kernel_1.snap", `this-is-not-a-real-snap$%^&^%$#@#$%^%"$`, "pc-kernel_2.snap"},
+		},
+		{",,,", nil},
+		{"", nil},
+	}
+
+	for _, t := range tt {
+		s.makeMockModeenvFile(c, `mode=recovery
+recovery_system=20191126
+current_kernels=`+t.kernelString+"\n")
+
+		modeenv, err := boot.ReadModeenv(s.tmpdir)
+		c.Assert(err, IsNil)
+		c.Check(modeenv.Mode, Equals, "recovery")
+		c.Check(modeenv.RecoverySystem, Equals, "20191126")
+		c.Check(len(modeenv.CurrentKernels), Equals, len(t.expectedKernels))
+		if len(t.expectedKernels) != 0 {
+			c.Check(modeenv.CurrentKernels, DeepEquals, t.expectedKernels)
+		}
+	}
+}
+
+func (s *modeenvSuite) TestWriteToNonExisting(c *C) {
 	c.Assert(s.mockModeenvPath, testutil.FileAbsent)
 
 	modeenv := &boot.Modeenv{Mode: "run"}
-	err := modeenv.Write(s.tmpdir)
+	err := modeenv.WriteTo(s.tmpdir)
 	c.Assert(err, IsNil)
 
 	c.Assert(s.mockModeenvPath, testutil.FileEquals, "mode=run\n")
+}
+
+func (s *modeenvSuite) TestWriteToExisting(c *C) {
+	s.makeMockModeenvFile(c, "mode=run")
+
+	modeenv, err := boot.ReadModeenv(s.tmpdir)
+	c.Assert(err, IsNil)
+	modeenv.Mode = "recovery"
+	err = modeenv.WriteTo(s.tmpdir)
+	c.Assert(err, IsNil)
+
+	c.Assert(s.mockModeenvPath, testutil.FileEquals, "mode=recovery\n")
 }
 
 func (s *modeenvSuite) TestWriteExisting(c *C) {
@@ -120,27 +237,38 @@ func (s *modeenvSuite) TestWriteExisting(c *C) {
 	modeenv, err := boot.ReadModeenv(s.tmpdir)
 	c.Assert(err, IsNil)
 	modeenv.Mode = "recovery"
-	err = modeenv.Write(s.tmpdir)
+	err = modeenv.Write()
 	c.Assert(err, IsNil)
 
 	c.Assert(s.mockModeenvPath, testutil.FileEquals, "mode=recovery\n")
 }
 
-func (s *modeenvSuite) TestWriteNonExistingFull(c *C) {
+func (s *modeenvSuite) TestWriteFreshError(c *C) {
+	modeenv := &boot.Modeenv{Mode: "recovery"}
+
+	err := modeenv.Write()
+	c.Assert(err, ErrorMatches, `internal error: must use WriteTo with modeenv not read from disk`)
+}
+
+func (s *modeenvSuite) TestWriteToNonExistingFull(c *C) {
 	c.Assert(s.mockModeenvPath, testutil.FileAbsent)
 
 	modeenv := &boot.Modeenv{
 		Mode:           "run",
 		RecoverySystem: "20191128",
 		Base:           "core20_321.snap",
-		Kernel:         "pc-kernel_456.snap",
+		TryBase:        "core20_322.snap",
+		BaseStatus:     boot.TryStatus,
+		CurrentKernels: []string{"pc-kernel_1.snap", "pc-kernel_2.snap"},
 	}
-	err := modeenv.Write(s.tmpdir)
+	err := modeenv.WriteTo(s.tmpdir)
 	c.Assert(err, IsNil)
 
 	c.Assert(s.mockModeenvPath, testutil.FileEquals, `mode=run
 recovery_system=20191128
 base=core20_321.snap
-kernel=pc-kernel_456.snap
+try_base=core20_322.snap
+base_status=try
+current_kernels=pc-kernel_1.snap,pc-kernel_2.snap
 `)
 }

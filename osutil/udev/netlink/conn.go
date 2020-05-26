@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"syscall"
+	"time"
 )
 
 type Mode int
@@ -100,24 +101,61 @@ func (c *UEventConn) ReadUEvent() (*UEvent, error) {
 // Monitor run in background a worker to read netlink msg in loop and notify
 // when msg receive inside a queue using channel.
 // To be notified with only relevant message, use Matcher.
-func (c *UEventConn) Monitor(queue chan UEvent, errors chan error, matcher Matcher) chan struct{} {
-	quit := make(chan struct{}, 1)
-
+func (c *UEventConn) Monitor(queue chan UEvent, errors chan error, matcher Matcher) (stop func(stopTimeout time.Duration) (ok bool)) {
 	if matcher != nil {
 		if err := matcher.Compile(); err != nil {
 			errors <- fmt.Errorf("Wrong matcher, err: %v", err)
-			quit <- struct{}{}
-			return quit
+			return func(time.Duration) bool {
+				return true
+			}
 		}
 	}
 
+	quitting := make(chan struct{})
+	quit := make(chan struct{})
+
+	readableOrStop, stop1, err := RawSockStopper(c.Fd)
+	if err != nil {
+		errors <- fmt.Errorf("Internal error: %v", err)
+		return func(time.Duration) bool {
+			return true
+		}
+	}
+	// c.Fd is set to non-blocking at this point
+
+	stop = func(stopTimeout time.Duration) bool {
+		close(quitting)
+		stop1()
+		select {
+		case <-quit:
+			return true
+		case <-time.After(stopTimeout):
+		}
+		return false
+	}
+
 	go func() {
+	EventReading:
 		for {
+			_, err := readableOrStop()
+			if err != nil {
+				errors <- fmt.Errorf("Internal error: %v", err)
+				return
+			}
 			select {
-			case <-quit:
+			case <-quitting:
+				close(quit)
 				return
 			default:
 				uevent, err := c.ReadUEvent()
+				// underlying file descriptor is
+				// non-blocking here, be paranoid if
+				// for some reason we get here after
+				// readableOrStop but the read would
+				// block anyway
+				if errno, ok := err.(syscall.Errno); ok && errno.Temporary() {
+					continue EventReading
+				}
 				if err != nil {
 					errors <- fmt.Errorf("Unable to parse uevent, err: %v", err)
 					continue
@@ -133,5 +171,5 @@ func (c *UEventConn) Monitor(queue chan UEvent, errors chan error, matcher Match
 			}
 		}
 	}()
-	return quit
+	return stop
 }

@@ -2,6 +2,7 @@
 from __future__ import print_function, absolute_import, unicode_literals
 
 import argparse
+import itertools
 import subprocess
 import sys
 import time
@@ -41,6 +42,13 @@ attempt. On failure the exit code from the final attempt is returned.
         help="grace period between attempts (default %(default)ss)",
     )
     parser.add_argument(
+        "--maxmins",
+        metavar="MINUTES",
+        type=float,
+        default=0,
+        help="number of minutes after which to give up (no default, if set attempts is ignored)",
+    )
+    parser.add_argument(
         "--quiet",
         dest="verbose",
         action="store_false",
@@ -53,32 +61,46 @@ attempt. On failure the exit code from the final attempt is returned.
     return parser
 
 
-def run_cmd(cmd, n, wait, verbose):
-    # type: (List[Text], int, float, bool) -> int
+def run_cmd(cmd, n, wait, maxmins, verbose):
+    # type: (List[Text], int, float, float, bool) -> int
+    if maxmins != 0:
+        attempts = itertools.count(1)
+        t0 = time.time()
+        after = "{} minutes".format(maxmins)
+        of_attempts_suffix = ""
+    else:
+        attempts = range(1, n + 1)
+        after = "{} attempts".format(n)
+        of_attempts_suffix = " of {}".format(n)
     retcode = 0
-    for i in range(1, n + 1):
+    i = 0
+    for i in attempts:
         retcode = subprocess.call(cmd)
         if retcode == 0:
-            break
+            return 0
         if verbose:
             print(
                 "retry: command {} failed with code {}".format(" ".join(cmd), retcode),
                 file=sys.stderr,
             )
-        if i < n:
+        if maxmins != 0:
+            elapsed = (time.time()-t0)/60
+            if elapsed > maxmins:
+                break
+        if i < n or maxmins != 0:
             if verbose:
                 print(
-                    "retry: next attempt in {} second(s) (attempt {} of {})".format(
-                        wait, i, n
+                    "retry: next attempt in {} second(s) (attempt {}{})".format(
+                        wait, i, of_attempts_suffix
                     ),
                     file=sys.stderr,
                 )
             time.sleep(wait)
-    else:
-        if verbose and n > 1:
-            print(
-                "retry: command {} keeps failing after {} attempts".format(
-                    " ".join(cmd), n
+
+    if verbose and i > 1:
+        print(
+            "retry: command {} keeps failing after {}".format(
+                " ".join(cmd), after
                 ),
                 file=sys.stderr,
             )
@@ -95,7 +117,7 @@ def main():
         parser.exit(0)
     # Return the last exit code as the exit code of this process.
     try:
-        retcode = run_cmd(ns.cmd, ns.attempts, ns.wait, ns.verbose)
+        retcode = run_cmd(ns.cmd, ns.attempts, ns.wait, ns.maxmins, ns.verbose)
     except OSError as exc:
         if ns.verbose:
             print(

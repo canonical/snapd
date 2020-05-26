@@ -25,7 +25,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/xdgopenproxy"
+	"github.com/snapcore/snapd/usersession/xdgopenproxy"
 )
 
 var clientConfig = client.Config{
@@ -58,6 +58,22 @@ func main() {
 	// no internal command, route via snapd
 	stdout, stderr, err := run()
 	if err != nil {
+		if e, ok := err.(*client.Error); ok {
+			switch e.Kind {
+			case client.ErrorKindUnsuccessful:
+				if errRes, ok := e.Value.(map[string]interface{}); ok {
+					if stdout, ok := errRes["stdout"].(string); ok {
+						os.Stdout.Write([]byte(stdout))
+					}
+					if stderr, ok := errRes["stderr"].(string); ok {
+						os.Stderr.Write([]byte(stderr))
+					}
+					if errCode, ok := errRes["exit-code"].(float64); ok {
+						os.Exit(int(errCode))
+					}
+				}
+			}
+		}
 		fmt.Fprintf(os.Stderr, "error: %s\n", err)
 		os.Exit(1)
 	}

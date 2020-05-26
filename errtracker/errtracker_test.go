@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/errtracker"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -123,6 +124,9 @@ bugs		: very yes
 	s.AddCleanup(errtracker.MockProcSelfExe(mockSelfExe))
 	s.AddCleanup(errtracker.MockProcSelfCwd(mockSelfCwd))
 	s.AddCleanup(testutil.MockCommand(c, "journalctl", "echo "+someJournalEntry).Restore)
+
+	mockCmd := testutil.MockCommand(c, "systemctl", "echo enabled; exit 0")
+	s.AddCleanup(mockCmd.Restore)
 }
 
 func (s *ErrtrackerTestSuite) TestReport(c *C) {
@@ -232,8 +236,7 @@ func (s *ErrtrackerTestSuite) TestReport(c *C) {
 }
 
 func (s *ErrtrackerTestSuite) TestReportUnderTesting(c *C) {
-	os.Setenv("SNAPPY_TESTING", "1")
-	defer os.Unsetenv("SNAPPY_TESTING")
+	defer snapdenv.MockTesting(true)()
 
 	n := 0
 	prev := errtracker.SnapdVersion

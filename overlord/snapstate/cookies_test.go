@@ -20,6 +20,7 @@
 package snapstate
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -68,7 +69,9 @@ func checkCookie(c *C, st *state.State, snapName string) {
 	c.Assert(found, Equals, 1)
 
 	c.Assert(fmt.Sprintf("%s/snap.%s", dirs.SnapCookieDir, snapName), testutil.FileEquals, cookieID)
-	c.Assert(cookieID, HasLen, 44)
+	cookieBytes, err := base64.RawURLEncoding.DecodeString(cookieID)
+	c.Assert(err, IsNil)
+	c.Assert(cookieBytes, HasLen, 39)
 }
 
 func (s *cookiesSuite) TestSyncCookies(c *C) {

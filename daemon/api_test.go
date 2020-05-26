@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2018 Canonical Ltd
+ * Copyright (C) 2014-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -49,6 +49,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
@@ -71,6 +72,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -120,6 +122,8 @@ type apiBaseSuite struct {
 	userInfoExpectedEmail  string
 
 	restoreSanitize func()
+
+	testutil.BaseTest
 }
 
 func (s *apiBaseSuite) pokeStateLock() {
@@ -150,8 +154,11 @@ func (s *apiBaseSuite) Find(ctx context.Context, search *store.Search, user *aut
 	return s.rsnaps, s.err
 }
 
-func (s *apiBaseSuite) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error) {
+func (s *apiBaseSuite) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
 	s.pokeStateLock()
+	if assertQuery != nil {
+		panic("no assertion query support")
+	}
 
 	if ctx == nil {
 		panic("context required")
@@ -160,7 +167,11 @@ func (s *apiBaseSuite) SnapAction(ctx context.Context, currentSnaps []*store.Cur
 	s.actions = actions
 	s.user = user
 
-	return s.rsnaps, s.err
+	sars := make([]store.SnapActionResult, len(s.rsnaps))
+	for i, rsnap := range s.rsnaps {
+		sars[i] = store.SnapActionResult{Info: rsnap}
+	}
+	return sars, nil, s.err
 }
 
 func (s *apiBaseSuite) SuggestedCurrency() string {
@@ -211,7 +222,7 @@ func (s *apiBaseSuite) muxVars(*http.Request) map[string]string {
 
 func (s *apiBaseSuite) SetUpSuite(c *check.C) {
 	muxVars = s.muxVars
-	s.restoreRelease = release.MockForcedDevmode(false)
+	s.restoreRelease = sandbox.MockForceDevMode(false)
 	s.systemctlRestorer = systemd.MockSystemctl(s.systemctl)
 	s.journalctlRestorer = systemd.MockJournalctl(s.journalctl)
 	s.restoreSanitize = snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
@@ -276,6 +287,9 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 
 	dirs.SetRootDir(c.MkDir())
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
+	restore := osutil.MockMountInfo("")
+	s.AddCleanup(restore)
+
 	c.Assert(err, check.IsNil)
 	c.Assert(os.MkdirAll(dirs.SnapMountDir, 0755), check.IsNil)
 	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0755), check.IsNil)
@@ -797,12 +811,11 @@ UnitFileState=enabled
 					},
 				},
 			},
-			Broken:      "",
-			Contact:     "",
-			License:     "GPL-3.0",
-			CommonIDs:   []string{"org.foo.cmd"},
-			Screenshots: []snap.ScreenshotInfo{{Note: snap.ScreenshotsDeprecationNotice}},
-			CohortKey:   "some-long-cohort-key",
+			Broken:    "",
+			Contact:   "",
+			License:   "GPL-3.0",
+			CommonIDs: []string{"org.foo.cmd"},
+			CohortKey: "some-long-cohort-key",
 		},
 		Meta: meta,
 	}
@@ -956,7 +969,6 @@ func (s *apiSuite) TestMapLocalFields(c *check.C) {
 		CommonIDs:        []string{"foo", "bar"},
 		MountedFrom:      filepath.Join(dirs.SnapBlobDir, "some-snap_instance_7.snap"),
 		Media:            media,
-		Screenshots:      []snap.ScreenshotInfo{{Note: snap.ScreenshotsDeprecationNotice}},
 		Apps: []client.AppInfo{
 			{Snap: "some-snap_instance", Name: "bar"},
 			{Snap: "some-snap_instance", Name: "foo"},
@@ -1000,7 +1012,6 @@ func (s *apiSuite) TestRootCmd(c *check.C) {
 	// check it only does GET
 	c.Check(rootCmd.PUT, check.IsNil)
 	c.Check(rootCmd.POST, check.IsNil)
-	c.Check(rootCmd.DELETE, check.IsNil)
 	c.Assert(rootCmd.GET, check.NotNil)
 
 	rec := httptest.NewRecorder()
@@ -1027,7 +1038,6 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 	// check it only does GET
 	c.Check(sysInfoCmd.PUT, check.IsNil)
 	c.Check(sysInfoCmd.POST, check.IsNil)
-	c.Check(sysInfoCmd.DELETE, check.IsNil)
 	c.Assert(sysInfoCmd.GET, check.NotNil)
 
 	rec := httptest.NewRecorder()
@@ -1049,7 +1059,7 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 	defer restore()
 	restore = release.MockOnClassic(true)
 	defer restore()
-	restore = release.MockForcedDevmode(true)
+	restore = sandbox.MockForceDevMode(true)
 	defer restore()
 	// reload dirs for release info to have effect
 	dirs.SetRootDir(dirs.GlobalRootDir)
@@ -1086,6 +1096,7 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 		"sandbox-features": map[string]interface{}{"confinement-options": []interface{}{"classic", "devmode"}},
 		"architecture":     arch.DpkgArchitecture(),
 		"virtualization":   "magic",
+		"system-mode":      "run",
 	}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
@@ -1108,7 +1119,7 @@ func (s *apiSuite) TestSysInfoLegacyRefresh(c *check.C) {
 	defer restore()
 	restore = release.MockOnClassic(true)
 	defer restore()
-	restore = release.MockForcedDevmode(true)
+	restore = sandbox.MockForceDevMode(true)
 	defer restore()
 	restore = mockSystemdVirt("kvm")
 	defer restore()
@@ -1164,6 +1175,7 @@ func (s *apiSuite) TestSysInfoLegacyRefresh(c *check.C) {
 		},
 		"architecture":   arch.DpkgArchitecture(),
 		"virtualization": "kvm",
+		"system-mode":    "run",
 	}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
@@ -1172,6 +1184,94 @@ func (s *apiSuite) TestSysInfoLegacyRefresh(c *check.C) {
 	const kernelVersionKey = "kernel-version"
 	delete(rsp.Result.(map[string]interface{}), kernelVersionKey)
 	c.Check(rsp.Result, check.DeepEquals, expected)
+}
+
+func (s *apiSuite) testSysInfoSystemMode(c *check.C, mode string) {
+	c.Assert(mode != "", check.Equals, true, check.Commentf("mode is unset for the test"))
+	rec := httptest.NewRecorder()
+
+	restore := release.MockReleaseInfo(&release.OS{ID: "distro-id", VersionID: "1.2"})
+	defer restore()
+	restore = release.MockOnClassic(false)
+	defer restore()
+	restore = sandbox.MockForceDevMode(false)
+	defer restore()
+	restore = mockSystemdVirt("")
+	defer restore()
+
+	// reload dirs for release info to have effect on paths
+	dirs.SetRootDir(dirs.GlobalRootDir)
+
+	// mock the modeenv file
+	m := boot.Modeenv{
+		Mode:           mode,
+		RecoverySystem: "20191127",
+	}
+	err := m.WriteTo("")
+	c.Assert(err, check.IsNil)
+
+	d := s.daemon(c)
+	d.Version = "42b1"
+
+	// add a test security backend
+	err = d.overlord.InterfaceManager().Repository().AddBackend(&ifacetest.TestSecurityBackend{
+		BackendName:             "apparmor",
+		SandboxFeaturesCallback: func() []string { return []string{"feature-1", "feature-2"} },
+	})
+	c.Assert(err, check.IsNil)
+
+	buildID := "this-is-my-build-id"
+	restore = MockBuildID(buildID)
+	defer restore()
+
+	sysInfoCmd.GET(sysInfoCmd, nil, nil).ServeHTTP(rec, nil)
+	c.Check(rec.Code, check.Equals, 200)
+	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json")
+
+	expected := map[string]interface{}{
+		"series":  "16",
+		"version": "42b1",
+		"os-release": map[string]interface{}{
+			"id":         "distro-id",
+			"version-id": "1.2",
+		},
+		"build-id":   buildID,
+		"on-classic": false,
+		"managed":    false,
+		"locations": map[string]interface{}{
+			"snap-mount-dir": dirs.SnapMountDir,
+			"snap-bin-dir":   dirs.SnapBinariesDir,
+		},
+		"refresh": map[string]interface{}{
+			"timer": "00:00~24:00/4",
+		},
+		"confinement": "strict",
+		"sandbox-features": map[string]interface{}{
+			"apparmor":            []interface{}{"feature-1", "feature-2"},
+			"confinement-options": []interface{}{"devmode", "strict"}, // we know it's this because of the release.Mock... calls above
+		},
+		"architecture": arch.DpkgArchitecture(),
+		"system-mode":  mode,
+	}
+	var rsp resp
+	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	const kernelVersionKey = "kernel-version"
+	delete(rsp.Result.(map[string]interface{}), kernelVersionKey)
+	c.Check(rsp.Result, check.DeepEquals, expected)
+}
+
+func (s *apiSuite) TestSysInfoSystemModeRun(c *check.C) {
+	s.testSysInfoSystemMode(c, "run")
+}
+
+func (s *apiSuite) TestSysInfoSystemModeRecover(c *check.C) {
+	s.testSysInfoSystemMode(c, "recover")
+}
+
+func (s *apiSuite) TestSysInfoSystemModeInstall(c *check.C) {
+	s.testSysInfoSystemMode(c, "install")
 }
 
 func (s *apiSuite) TestLoginUser(c *check.C) {
@@ -1787,7 +1887,6 @@ func (s *apiSuite) TestFind(c *check.C) {
 	c.Assert(snaps, check.HasLen, 1)
 	c.Assert(snaps[0]["name"], check.Equals, "store")
 	c.Check(snaps[0]["prices"], check.IsNil)
-	c.Check(snaps[0]["screenshots"], check.DeepEquals, []interface{}{map[string]interface{}{"note": snap.ScreenshotsDeprecationNotice}})
 	c.Check(snaps[0]["channels"], check.IsNil)
 
 	c.Check(rsp.SuggestedCurrency, check.Equals, "EUR")
@@ -1946,8 +2045,8 @@ func (s *apiSuite) TestFindSection(c *check.C) {
 	_ = searchStore(findCmd, req, nil).(*resp)
 
 	c.Check(s.storeSearch, check.DeepEquals, store.Search{
-		Query:   "foo",
-		Section: "bar",
+		Query:    "foo",
+		Category: "bar",
 	})
 }
 
@@ -2209,11 +2308,6 @@ func (s *apiSuite) TestFindScreenshotted(c *check.C) {
 	c.Assert(snaps, check.HasLen, 1)
 
 	c.Check(snaps[0]["name"], check.Equals, "test-screenshot")
-	c.Check(snaps[0]["screenshots"], check.DeepEquals, []interface{}{
-		map[string]interface{}{
-			"note": snap.ScreenshotsDeprecationNotice,
-		},
-	})
 	c.Check(snaps[0]["media"], check.DeepEquals, []interface{}{
 		map[string]interface{}{
 			"type":   "screenshot",
@@ -2468,8 +2562,8 @@ func (s *apiSuite) testPostSnap(c *check.C, withChannel bool) {
 
 	snapInstructionDispTable["install"] = func(inst *snapInstruction, _ *state.State) (string, []*state.TaskSet, error) {
 		if withChannel {
-			// channel in -> it was parsed
-			c.Check(inst.Channel, check.Equals, "xyzzy/stable")
+			// channel in -> channel out
+			c.Check(inst.Channel, check.Equals, "xyzzy")
 		} else {
 			// no channel in -> no channel out
 			c.Check(inst.Channel, check.Equals, "")
@@ -2767,7 +2861,7 @@ func (s *apiSuite) TestSideloadSnapOnDevModeDistro(c *check.C) {
 	// try a multipart/form-data upload
 	body := sideLoadBodyWithoutDevMode
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
-	restore := release.MockForcedDevmode(true)
+	restore := sandbox.MockForceDevMode(true)
 	defer restore()
 	flags := snapstate.Flags{RemoveSnapPath: true}
 	chgSummary := s.sideloadCheck(c, body, head, "local", flags)
@@ -2939,7 +3033,7 @@ func (s *apiSuite) TestSideloadSnapJailModeInDevModeOS(c *check.C) {
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 
-	restore := release.MockForcedDevmode(true)
+	restore := sandbox.MockForceDevMode(true)
 	defer restore()
 
 	rsp := postSnaps(snapsCmd, req, nil).(*resp)
@@ -3702,7 +3796,7 @@ func (s *apiSuite) TestInstallRevision(c *check.C) {
 func (s *apiSuite) testInstall(c *check.C, forcedDevmode bool, flags snapstate.Flags, revision snap.Revision) {
 	calledFlags := snapstate.Flags{}
 	installQueue := []string{}
-	restore := release.MockForcedDevmode(forcedDevmode)
+	restore := sandbox.MockForceDevMode(forcedDevmode)
 	defer restore()
 
 	snapstateInstall = func(ctx context.Context, s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
@@ -4401,7 +4495,7 @@ func (s *apiSuite) TestInstallJailMode(c *check.C) {
 }
 
 func (s *apiSuite) TestInstallJailModeDevModeOS(c *check.C) {
-	restore := release.MockForcedDevmode(true)
+	restore := sandbox.MockForceDevMode(true)
 	defer restore()
 
 	d := s.daemon(c)
@@ -5252,6 +5346,42 @@ func (s *apiSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
 			"message": "cannot disconnect consumer:plug from producer:slot, it is not connected",
+		},
+		"status":      "Bad Request",
+		"status-code": 400.0,
+		"type":        "error",
+	})
+}
+
+func (s *apiSuite) TestDisconnectForgetPlugFailureNotConnected(c *check.C) {
+	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	defer revert()
+	s.daemon(c)
+
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+
+	action := &interfaceAction{
+		Action: "disconnect",
+		Forget: true,
+		Plugs:  []plugJSON{{Snap: "consumer", Name: "plug"}},
+		Slots:  []slotJSON{{Snap: "producer", Name: "slot"}},
+	}
+	text, err := json.Marshal(action)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	interfacesCmd.POST(interfacesCmd, req, nil).ServeHTTP(rec, req)
+
+	c.Check(rec.Code, check.Equals, 400)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"result": map[string]interface{}{
+			"message": "cannot forget connection consumer:plug from producer:slot, it was not connected",
 		},
 		"status":      "Bad Request",
 		"status-code": 400.0,
@@ -6586,6 +6716,32 @@ func (s *apiSuite) TestSnapctlForbiddenError(c *check.C) {
 	c.Assert(rsp.Status, check.Equals, 403)
 }
 
+func (s *apiSuite) TestSnapctlUnsuccesfulError(c *check.C) {
+	_ = s.daemon(c)
+
+	runSnapctlUcrednetGet = func(string) (int32, uint32, string, error) {
+		return 100, 9999, dirs.SnapSocket, nil
+	}
+	defer func() { runSnapctlUcrednetGet = ucrednetGet }()
+
+	ctlcmdRun = func(ctx *hookstate.Context, arg []string, uid uint32) ([]byte, []byte, error) {
+		return nil, nil, &ctlcmd.UnsuccessfulError{ExitCode: 123}
+	}
+	defer func() { ctlcmdRun = ctlcmd.Run }()
+
+	buf := bytes.NewBufferString(fmt.Sprintf(`{"context-id": "some-context", "args": [%q, %q]}`, "is-connected", "plug"))
+	req, err := http.NewRequest("POST", "/v2/snapctl", buf)
+	c.Assert(err, check.IsNil)
+	rsp := runSnapctl(snapctlCmd, req, nil).(*resp)
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Check(rsp.Result.(*errorResult).Kind, check.Equals, errorKindUnsuccessful)
+	c.Check(rsp.Result.(*errorResult).Value, check.DeepEquals, map[string]interface{}{
+		"stdout":    "",
+		"stderr":    "",
+		"exit-code": 123,
+	})
+}
+
 type appSuite struct {
 	apiBaseSuite
 	cmd *testutil.MockCmd
@@ -7409,6 +7565,15 @@ func (s *apiSuite) TestErrToResponse(c *check.C) {
 
 	e := errors.New("other error")
 
+	sa1e := &store.SnapActionError{Refresh: map[string]error{"foo": store.ErrSnapNotFound}}
+	sa2e := &store.SnapActionError{Refresh: map[string]error{
+		"foo": store.ErrSnapNotFound,
+		"bar": store.ErrSnapNotFound,
+	}}
+	saOe := &store.SnapActionError{Other: []error{e}}
+	// this one can't happen (but fun to test):
+	saXe := &store.SnapActionError{Refresh: map[string]error{"foo": sa1e}}
+
 	makeErrorRsp := func(kind errorKind, err error, value interface{}) Response {
 		return SyncResponse(&resp{
 			Type:   ResponseTypeError,
@@ -7435,6 +7600,13 @@ func (s *apiSuite) TestErrToResponse(c *check.C) {
 		{netoe, BadRequest("ERR: %v", netoe)},
 		{nettmpe, BadRequest("ERR: %v", nettmpe)},
 		{e, BadRequest("ERR: %v", e)},
+
+		// action error unwrapping:
+		{sa1e, SnapNotFound("foo", store.ErrSnapNotFound)},
+		{saXe, SnapNotFound("foo", store.ErrSnapNotFound)},
+		// action errors, unwrapped:
+		{sa2e, BadRequest(`ERR: cannot refresh: snap not found: "bar", "foo"`)},
+		{saOe, BadRequest("ERR: cannot refresh, install, or download: other error")},
 	}
 
 	for _, t := range tests {

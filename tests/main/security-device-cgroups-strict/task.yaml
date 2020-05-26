@@ -30,7 +30,7 @@ execute: |
     snap connect test-strict-cgroup:framebuffer
 
     echo "the strict snap can access the framebuffer"
-    test-strict-cgroup.read-dev fb0 2>&1 | MATCH -v '(Permission denied|Operation not permitted)'
+    test-strict-cgroup.read-dev fb0 2>&1 | not MATCH '(Permission denied|Operation not permitted)'
 
     echo "the strict snap cannot access other devices"
     test-strict-cgroup.read-dev mem 2>&1 | MATCH '(Permission denied|Operation not permitted)'

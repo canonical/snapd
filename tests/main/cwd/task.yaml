@@ -10,26 +10,26 @@ prepare: |
     . "$TESTSLIB"/snaps.sh
     install_local test-snapd-sh
 restore: |
-    snap remove test-snapd-sh
+    snap remove --purge test-snapd-sh
     rmdir /tmp/test || true
 execute: |
     # The current working directory that exists in the snap mount namespace and
     # represents the same inode is is preserved.
-    test "$(cd "$HOME" && test-snapd-sh -c pwd)" = "$HOME"
-    test "$(cd "$HOME" && test-snapd-sh -c 'stat -c %i .')" = "$(cd "$HOME" && stat -c %i .)"
+    test "$(cd "$HOME" && test-snapd-sh.sh -c pwd)" = "$HOME"
+    test "$(cd "$HOME" && test-snapd-sh.sh -c 'stat -c %i .')" = "$(cd "$HOME" && stat -c %i .)"
     # The current working directory that is visible in the snap mount namespace
     # but represents a different inode is re-interpreted to give the view on
     # the inside.
-    test "$(cd /tmp && test-snapd-sh -c pwd)" = "/tmp"
-    test "$(cd /tmp && test-snapd-sh -c 'stat -c %i .')" != "$(cd /tmp && stat -c %i .)"
+    test "$(cd /tmp && test-snapd-sh.sh -c pwd)" = "/tmp"
+    test "$(cd /tmp && test-snapd-sh.sh -c 'stat -c %i .')" != "$(cd /tmp && stat -c %i .)"
     # The current working directory that does not exist in the snap mount
     # namespace is re-mapped to a special directory.
-    test "$(mkdir -p /tmp/test && cd /tmp/test && test-snapd-sh -c pwd)" = "/var/lib/snapd/void"
+    test "$(mkdir -p /tmp/test && cd /tmp/test && test-snapd-sh.sh -c pwd)" = "/var/lib/snapd/void"
     # The current working directory that does exist in the snap mount
     # namespace but has permissions preventing the user to enter it (e.g.
     # via a symlink attack in /tmp) is remapped to a special directory.
     # FIXME: su doesn't have /snap/bin in PATH.
-    test "$(cd /root && su -c "snap run test-snapd-sh -c pwd" test)" = "/var/lib/snapd/void"
+    test "$(cd /root && su -c "snap run test-snapd-sh.sh -c pwd" test)" = "/var/lib/snapd/void"
     # Since the void directory is used when there are insufficient permissions
     # to enter the regular directory we must be able to go there in the first
     # place. The directory is sometimes created on demand so check for the

@@ -38,6 +38,7 @@ const openglConnectedPlugAppArmor = `
 # Bi-arch distribution nvidia support
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcuda*.so{,.*} rm,
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnvidia*.so{,.*} rm,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnvoptix*.so{,.*} rm,
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}tls/libnvidia*.so{,.*} rm,
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnvcuvid.so{,.*} rm,
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}lib{GL,GLESv1_CM,GLESv2,EGL}*nvidia.so{,.*} rm,
@@ -116,6 +117,10 @@ unix (bind,listen) type=seqpacket addr="@cuda-uvmfd-[0-9a-f]*",
 # For now, allow 'c'haracter devices and 'b'lock devices based on
 # https://www.kernel.org/doc/Documentation/devices.txt
 /run/udev/data/c226:[0-9]* r,  # 226 drm
+
+# From https://bugs.launchpad.net/snapd/+bug/1862832
+/run/nvidia-xdriver-* rw,
+unix (send, receive) type=dgram peer=(addr="@var/run/nvidia-xdriver-*"),
 `
 
 // Some nvidia modules don't use sysfs (therefore they can't be udev tagged) and

@@ -299,6 +299,9 @@ apps:
   physical-memory-observe:
     command: bin/run
     plugs: [ physical-memory-observe ]
+  power-control:
+    command: bin/run
+    plugs: [ power-control ]
   ppp:
     command: bin/run
     plugs: [ ppp ]
@@ -311,6 +314,9 @@ apps:
   raw-usb:
     command: bin/run
     plugs: [ raw-usb ]
+  raw-volume:
+    command: bin/run
+    plugs: [ raw-volume ]
   removable-media:
     command: bin/run
     plugs: [ removable-media ]
@@ -380,6 +386,9 @@ apps:
   uhid:
     command: bin/run
     plugs: [ uhid ]
+  uio:
+    command: bin/run
+    plugs: [ uio ]
   unity7:
     command: bin/run
     plugs: [ unity7 ]

@@ -25,7 +25,6 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
@@ -174,34 +173,6 @@ func (s *configHelpersSuite) TestSnapConfig(c *C) {
 		c.Assert(err, IsNil)
 		c.Check(rawCfg, IsNil)
 	}
-}
-
-func (s *configHelpersSuite) TestGetFeatureFlag(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-	tr := config.NewTransaction(s.state)
-
-	// Feature flags have a value even if unset.
-	flag, err := config.GetFeatureFlag(tr, features.Layouts)
-	c.Assert(err, IsNil)
-	c.Check(flag, Equals, true)
-
-	// Feature flags can be disabled.
-	c.Assert(tr.Set("core", "experimental.layouts", "false"), IsNil)
-	flag, err = config.GetFeatureFlag(tr, features.Layouts)
-	c.Assert(err, IsNil)
-	c.Check(flag, Equals, false)
-
-	// Feature flags can be enabled.
-	c.Assert(tr.Set("core", "experimental.layouts", "true"), IsNil)
-	flag, err = config.GetFeatureFlag(tr, features.Layouts)
-	c.Assert(err, IsNil)
-	c.Check(flag, Equals, true)
-
-	// Feature flags must have a well-known value.
-	c.Assert(tr.Set("core", "experimental.layouts", "banana"), IsNil)
-	_, err = config.GetFeatureFlag(tr, features.Layouts)
-	c.Assert(err, ErrorMatches, `layouts can only be set to 'true' or 'false', got "banana"`)
 }
 
 func (s *configHelpersSuite) TestPatchInvalidConfig(c *C) {

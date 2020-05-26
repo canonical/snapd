@@ -1,5 +1,9 @@
 summary: Check that timezone interface works
 
+# TODO:UC20: enable once the systemd fix:
+#  https://launchpad.net/ubuntu/+source/systemd/244-3ubuntu2 lands
+systems: [-ubuntu-core-20-*]
+
 details: |
     This test makes sure that a snap using the timezone-control interface
     can access timezone information and update it.

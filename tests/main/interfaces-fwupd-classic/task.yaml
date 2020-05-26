@@ -34,4 +34,4 @@ execute: |
        systemctl start fwupd.service
     fi
     echo "With the plug connected, we can talk to fwupd"
-    test-snapd-fwupd.get-version | MATCH 'variant +string "[0-9.]+"'
+    test-snapd-fwupd.get-version | MATCH 'variant +string "[0-9.]+(-[0-9a-g-]+)?"'

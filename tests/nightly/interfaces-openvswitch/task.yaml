@@ -2,7 +2,7 @@ summary: Ensure that the openvswitch interface works.
 
 # Openvswitch getting stuck during installation sporadically on ubuntu-14.04-64
 # Openvswitch service not available on the following systems
-systems: [-ubuntu-core-*, -opensuse-*, -amazon-*, -arch-linux-*, -ubuntu-14.04-64]
+systems: [-ubuntu-core-*, -opensuse-*, -amazon-*, -arch-linux-*, -centos-7-*, -ubuntu-14.04-64]
 
 details: |
     The openvswitch interface allows to task to the openvswitch socket (rw mode).
@@ -65,11 +65,11 @@ execute: |
 
     echo "And the snap is able to delete a port"
     test-snapd-openvswitch-consumer.ovs-vsctl del-port br0 tap1
-    ovs-vsctl list-ports br0 | MATCH -v tap1
+    ovs-vsctl list-ports br0 | not MATCH tap1
 
     echo "And the snap is able to delete a bridge"
     test-snapd-openvswitch-consumer.ovs-vsctl del-br br0
-    ovs-vsctl list-br | MATCH -v br0
+    ovs-vsctl list-br | not MATCH br0
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0

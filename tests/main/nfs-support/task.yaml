@@ -51,7 +51,7 @@ restore: |
 
     # Restart snapd in to ensure it doesn't know about NFS configuration anymore.
     systemctl stop snapd.service snapd.socket
-    systemctl reset-failed snapd.service
+    systemctl reset-failed snapd.service snapd.socket
     systemctl start snapd.service
 
     # Depending on OS do cleanup appropriate for the host.
@@ -98,7 +98,7 @@ execute: |
     # only needed because we do it 11 times (!)
     restart_snapd() {
         systemctl stop snapd.service snapd.socket
-        systemctl reset-failed snapd.service
+        systemctl reset-failed snapd.service snapd.socket
         systemctl start snapd.service
     }
     ensure_extra_perms() {
@@ -111,7 +111,7 @@ execute: |
     ensure_normal_perms() {
         if [ "$(snap debug confinement)" = strict ]; then
             test ! -e /var/lib/snapd/apparmor/snap-confine/nfs-support
-            MATCH -v 'network inet,' < /var/lib/snapd/apparmor/profiles/snap.test-snapd-sh.with-home-plug
+            not MATCH 'network inet,' < /var/lib/snapd/apparmor/profiles/snap.test-snapd-sh.with-home-plug
         fi
     }
 

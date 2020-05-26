@@ -34,18 +34,18 @@ execute: |
         echo "Then a private snap belonging to that user shows up in the find results and nothing else"
         result=$(snap find test-snapd-private2 --private)
         echo "$result" | MATCH 'test-snapd-private2 +[0-9]+\.[0-9]+'
-        echo "$result" | MATCH -v 'test-snapd-private +[0-9]+\.[0-9]+'
-        echo "$result" | MATCH -v 'test-snapd-public +[0-9]+\.[0-9]+'
+        echo "$result" | not MATCH 'test-snapd-private +[0-9]+\.[0-9]+'
+        echo "$result" | not MATCH 'test-snapd-public +[0-9]+\.[0-9]+'
 
         echo "And searching for private snaps shows all of them and anything else"
         result=$(snap find --private)
         echo "$result" | MATCH 'test-snapd-private2 +[0-9]+\.[0-9]+'
         echo "$result" | MATCH 'test-snapd-private +[0-9]+\.[0-9]+'
-        echo "$result" | MATCH -v 'test-snapd-public +[0-9]+\.[0-9]+'
+        echo "$result" | not MATCH 'test-snapd-public +[0-9]+\.[0-9]+'
 
         echo "And searching for public snaps does not show private ones"
         result=$(snap find test-snapd)
-        echo "$result" | MATCH -v 'test-snapd-private2 +[0-9]+\.[0-9]+'
-        echo "$result" | MATCH -v 'test-snapd-private +[0-9]+\.[0-9]+'
+        echo "$result" | not MATCH 'test-snapd-private2 +[0-9]+\.[0-9]+'
+        echo "$result" | not MATCH 'test-snapd-private +[0-9]+\.[0-9]+'
         echo "$result" | MATCH 'test-snapd-public +[0-9]+\.[0-9]+'
     fi

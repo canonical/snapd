@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2016 Canonical Ltd
+ * Copyright (C) 2014-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -28,17 +28,20 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"syscall"
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snapdenv"
 )
 
 const autoImportsName = "auto-import.assert"
@@ -55,6 +58,8 @@ func autoImportCandidates() ([]string, error) {
 		return nil, err
 	}
 	defer f.Close()
+
+	isTesting := snapdenv.Testing()
 
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
@@ -85,7 +90,7 @@ func autoImportCandidates() ([]string, error) {
 			continue
 		}
 		// skip all ram disks (unless in tests)
-		if !osutil.GetenvBool("SNAPPY_TESTING") && strings.HasPrefix(mountSrc, "/dev/ram") {
+		if !isTesting && strings.HasPrefix(mountSrc, "/dev/ram") {
 			continue
 		}
 
@@ -183,8 +188,10 @@ func autoImportFromAllMounts(cli *client.Client) (int, error) {
 	return added, nil
 }
 
+var ioutilTempDir = ioutil.TempDir
+
 func tryMount(deviceName string) (string, error) {
-	tmpMountTarget, err := ioutil.TempDir("", "snapd-auto-import-mount-")
+	tmpMountTarget, err := ioutilTempDir("", "snapd-auto-import-mount-")
 	if err != nil {
 		err = fmt.Errorf("cannot create temporary mount point: %v", err)
 		logger.Noticef("error: %v", err)
@@ -206,8 +213,10 @@ func tryMount(deviceName string) (string, error) {
 	return tmpMountTarget, nil
 }
 
+var syscallUnmount = syscall.Unmount
+
 func doUmount(mp string) error {
-	if err := syscall.Unmount(mp, 0); err != nil {
+	if err := syscallUnmount(mp, 0); err != nil {
 		return err
 	}
 	return os.Remove(mp)
@@ -259,6 +268,55 @@ func (x *cmdAutoImport) autoAddUsers() error {
 	return cmd.Execute(nil)
 }
 
+func removableBlockDevices() (removableDevices []string) {
+	// eg. /sys/block/sda/removable
+	removable, err := filepath.Glob(filepath.Join(dirs.GlobalRootDir, "/sys/block/*/removable"))
+	if err != nil {
+		return nil
+	}
+	for _, removableAttr := range removable {
+		val, err := ioutil.ReadFile(removableAttr)
+		if err != nil || string(val) != "1\n" {
+			// non removable
+			continue
+		}
+		// let's see if it has partitions
+		dev := filepath.Base(filepath.Dir(removableAttr))
+
+		pattern := fmt.Sprintf(filepath.Join(dirs.GlobalRootDir, "/sys/block/%s/%s*/partition"), dev, dev)
+		// eg. /sys/block/sda/sda1/partition
+		partitionAttrs, _ := filepath.Glob(pattern)
+
+		if len(partitionAttrs) == 0 {
+			// not partitioned? try to use the main device
+			removableDevices = append(removableDevices, fmt.Sprintf("/dev/%s", dev))
+			continue
+		}
+
+		for _, partAttr := range partitionAttrs {
+			val, err := ioutil.ReadFile(partAttr)
+			if err != nil || string(val) != "1\n" {
+				// non partition?
+				continue
+			}
+			pdev := filepath.Base(filepath.Dir(partAttr))
+			removableDevices = append(removableDevices, fmt.Sprintf("/dev/%s", pdev))
+			// hasPartitions = true
+		}
+	}
+	sort.Strings(removableDevices)
+	return removableDevices
+}
+
+// inInstallmode returns true if it's UC20 system in install mode
+func inInstallMode() bool {
+	mode, _, err := boot.ModeAndRecoverySystemFromKernelCommandLine()
+	if err != nil {
+		return false
+	}
+	return mode == "install"
+}
+
 func (x *cmdAutoImport) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
@@ -268,8 +326,19 @@ func (x *cmdAutoImport) Execute(args []string) error {
 		fmt.Fprintf(Stderr, "auto-import is disabled on classic\n")
 		return nil
 	}
+	// TODO:UC20: workaround for LP: #1860231
+	if inInstallMode() {
+		fmt.Fprintf(Stderr, "auto-import is disabled in install-mode\n")
+		return nil
+	}
 
-	for _, path := range x.Mount {
+	devices := x.Mount
+	if len(devices) == 0 {
+		// coldplug scenario, try all removable devices
+		devices = removableBlockDevices()
+	}
+
+	for _, path := range devices {
 		// udev adds new /dev/loopX devices on the fly when a
 		// loop mount happens and there is no loop device left.
 		//

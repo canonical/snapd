@@ -15,16 +15,16 @@ class NetplanApplyService(dbus.service.Object):
         super().__init__(connection, object_path)
         self._logfile = logfile
 
-    @dbus.service.method(dbus_interface=DOC_IFACE, in_signature="",
-                         out_signature="b")
+    @dbus.service.method(dbus_interface=DOC_IFACE, in_signature="", out_signature="b")
     def Apply(self):
         # log that we were called and always return True
         with open(self._logfile, "a+") as fp:
             fp.write("Apply called\n")
         return True
 
-    @dbus.service.method(dbus_interface=DOC_IFACE, in_signature="",
-                         out_signature="a(sv)")
+    @dbus.service.method(
+        dbus_interface=DOC_IFACE, in_signature="", out_signature="a(sv)"
+    )
     def Info(self):
         # log that we were called and always return a dbus struct (i.e. python
         # tuple) with Features in it
@@ -41,19 +41,21 @@ def main(argv):
     bus = dbus.SystemBus()
     # Make sure we quit when the bus shuts down
     bus.add_signal_receiver(
-        main_loop.quit, signal_name="Disconnected",
+        main_loop.quit,
+        signal_name="Disconnected",
         path="/org/freedesktop/DBus/Local",
-        dbus_interface="org.freedesktop.DBus.Local")
+        dbus_interface="org.freedesktop.DBus.Local",
+    )
 
     NetplanApplyService(bus, OBJECT_PATH, logfile)
 
     # Allow other services to assume our bus name
     dbus.service.BusName(
-        BUS_NAME, bus, allow_replacement=True, replace_existing=True,
-        do_not_queue=True)
+        BUS_NAME, bus, allow_replacement=True, replace_existing=True, do_not_queue=True
+    )
 
     main_loop.run()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main(sys.argv))

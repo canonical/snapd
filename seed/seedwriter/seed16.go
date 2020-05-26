@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2019 Canonical Ltd
+ * Copyright (C) 2014-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -159,12 +159,12 @@ func (tr *tree16) mkFixedDirs() error {
 	return os.MkdirAll(tr.snapsDirPath, 0755)
 }
 
-func (tr *tree16) snapsDir() string {
-	return tr.snapsDirPath
+func (tr *tree16) snapPath(sn *SeedSnap) (string, error) {
+	return filepath.Join(tr.snapsDirPath, sn.Info.Filename()), nil
 }
 
 func (tr *tree16) localSnapPath(sn *SeedSnap) (string, error) {
-	return filepath.Join(tr.snapsDirPath, filepath.Base(sn.Info.MountFile())), nil
+	return filepath.Join(tr.snapsDirPath, sn.Info.Filename()), nil
 }
 
 func (tr *tree16) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Ref, snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error {
@@ -224,8 +224,6 @@ func (tr *tree16) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) 
 	seedYaml.Snaps = make([]*internal.Snap16, len(seedSnaps))
 	for i, sn := range seedSnaps {
 		info := sn.Info
-		// TODO: with default tracks this might be
-		// redirected by the store during the download
 		channel := sn.Channel
 		unasserted := info.SnapID == ""
 		if unasserted {
