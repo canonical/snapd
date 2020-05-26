@@ -20,6 +20,7 @@
 package asserts_test
 
 import (
+	"errors"
 	"sort"
 
 	. "gopkg.in/check.v1"
@@ -230,6 +231,63 @@ func (s *poolSuite) TestFetch(c *C) {
 	c.Check(pool.Err("for_one"), IsNil)
 }
 
+func (s *poolSuite) TestCompleteFetch(c *C) {
+	pool := asserts.NewPool(s.db, 64)
+
+	at1111 := &asserts.AtRevision{
+		Ref:      asserts.Ref{Type: asserts.TestOnlyRevType, PrimaryKey: []string{"1111"}},
+		Revision: asserts.RevisionNotKnown,
+	}
+	err := pool.AddUnresolved(at1111, "for_one")
+	c.Assert(err, IsNil)
+
+	toResolve, err := pool.ToResolve()
+	c.Assert(err, IsNil)
+	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
+		asserts.MakePoolGrouping(0): {at1111},
+	})
+
+	err = pool.Add(s.rev1_1111, asserts.MakePoolGrouping(0))
+	c.Assert(err, IsNil)
+
+	toResolve, err = pool.ToResolve()
+	c.Assert(err, IsNil)
+	sortToResolve(toResolve)
+	dev1AcctAt := s.dev1Acct.At()
+	dev1AcctAt.Revision = asserts.RevisionNotKnown
+	decl1At := s.decl1.At()
+	decl1At.Revision = asserts.RevisionNotKnown
+	storeKey := s.hub.StoreAccountKey("")
+	storeKeyAt := storeKey.At()
+	storeKeyAt.Revision = asserts.RevisionNotKnown
+	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
+		asserts.MakePoolGrouping(0): {storeKeyAt, dev1AcctAt, decl1At},
+	})
+
+	err = pool.Add(s.decl1, asserts.MakePoolGrouping(0))
+	c.Assert(err, IsNil)
+
+	err = pool.Add(storeKey, asserts.MakePoolGrouping(0))
+	c.Assert(err, IsNil)
+
+	err = pool.Add(s.dev1Acct, asserts.MakePoolGrouping(0))
+	c.Assert(err, IsNil)
+
+	toResolve, err = pool.ToResolve()
+	c.Assert(err, IsNil)
+	c.Check(toResolve, HasLen, 0)
+
+	c.Check(pool.Err("for_one"), IsNil)
+
+	err = pool.CommitTo(s.db)
+	c.Check(err, IsNil)
+	c.Assert(pool.Err("for_one"), IsNil)
+
+	a, err := at1111.Ref.Resolve(s.db.Find)
+	c.Assert(err, IsNil)
+	c.Check(a.(*asserts.TestOnlyRev).H(), Equals, "1111")
+}
+
 func (s *poolSuite) TestPushSuggestionForPrerequisite(c *C) {
 	assertstest.AddMany(s.db, s.hub.StoreAccountKey(""))
 
@@ -276,7 +334,13 @@ func (s *poolSuite) TestPushSuggestionForPrerequisite(c *C) {
 
 	c.Check(pool.Err("for_one"), IsNil)
 
-	// TODO: test after committing
+	err = pool.CommitTo(s.db)
+	c.Check(err, IsNil)
+	c.Assert(pool.Err("for_one"), IsNil)
+
+	a, err := at1111.Ref.Resolve(s.db.Find)
+	c.Assert(err, IsNil)
+	c.Check(a.(*asserts.TestOnlyRev).H(), Equals, "1111")
 }
 
 func (s *poolSuite) TestPushSuggestionForNew(c *C) {
@@ -325,7 +389,13 @@ func (s *poolSuite) TestPushSuggestionForNew(c *C) {
 
 	c.Check(pool.Err("for_one"), IsNil)
 
-	// TODO: test after committing
+	err = pool.CommitTo(s.db)
+	c.Check(err, IsNil)
+	c.Assert(pool.Err("for_one"), IsNil)
+
+	a, err := s.rev1_1111.Ref().Resolve(s.db.Find)
+	c.Assert(err, IsNil)
+	c.Check(a.(*asserts.TestOnlyRev).H(), Equals, "1111")
 }
 
 func (s *poolSuite) TestAddUnresolvedUnresolved(c *C) {
@@ -457,4 +527,324 @@ func (s *poolSuite) TestAddCurrentRevision(c *C) {
 	c.Assert(toResolve, HasLen, 0)
 
 	c.Check(pool.Err("one"), IsNil)
+}
+
+func (s *poolSuite) TestUpdate(c *C) {
+	assertstest.AddMany(s.db, s.hub.StoreAccountKey(""))
+	assertstest.AddMany(s.db, s.dev1Acct, s.decl1, s.rev1_1111)
+	assertstest.AddMany(s.db, s.dev2Acct, s.decl2, s.rev2_2222)
+
+	pool := asserts.NewPool(s.db, 64)
+
+	err := pool.AddToUpdate(s.decl1.Ref(), "for_one") // group num: 0
+	c.Assert(err, IsNil)
+	err = pool.AddToUpdate(s.decl2.Ref(), "for_two") // group num: 1
+	c.Assert(err, IsNil)
+
+	storeKeyAt := s.hub.StoreAccountKey("").At()
+
+	toResolve, err := pool.ToResolve()
+	c.Assert(err, IsNil)
+	sortToResolve(toResolve)
+	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
+		asserts.MakePoolGrouping(0, 1): {storeKeyAt},
+		asserts.MakePoolGrouping(0):    {s.dev1Acct.At(), s.decl1.At()},
+		asserts.MakePoolGrouping(1):    {s.dev2Acct.At(), s.decl2.At()},
+	})
+
+	err = pool.Add(s.decl1_1, asserts.MakePoolGrouping(0))
+	c.Assert(err, IsNil)
+
+	toResolve, err = pool.ToResolve()
+	c.Assert(err, IsNil)
+	c.Check(toResolve, HasLen, 0)
+
+	at2222 := &asserts.AtRevision{
+		Ref:      asserts.Ref{Type: asserts.TestOnlyRevType, PrimaryKey: []string{"2222"}},
+		Revision: asserts.RevisionNotKnown,
+	}
+	err = pool.AddUnresolved(at2222, "for_two")
+	c.Assert(err, IsNil)
+
+	toResolve, err = pool.ToResolve()
+	c.Assert(err, IsNil)
+	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
+		asserts.MakePoolGrouping(1): {&asserts.AtRevision{
+			Ref:      asserts.Ref{Type: asserts.TestOnlyRevType, PrimaryKey: []string{"2222"}},
+			Revision: 0,
+		}},
+	})
+
+	c.Check(pool.Err("for_one"), IsNil)
+	c.Check(pool.Err("for_two"), IsNil)
+}
+
+var errBoom = errors.New("boom")
+
+func (s *poolSuite) TestAddErrorEarly(c *C) {
+	assertstest.AddMany(s.db, s.hub.StoreAccountKey(""))
+
+	pool := asserts.NewPool(s.db, 64)
+
+	storeKey := s.hub.StoreAccountKey("")
+	err := pool.AddToUpdate(storeKey.Ref(), "store_key")
+	c.Assert(err, IsNil)
+
+	at1111 := &asserts.AtRevision{
+		Ref:      asserts.Ref{Type: asserts.TestOnlyRevType, PrimaryKey: []string{"1111"}},
+		Revision: asserts.RevisionNotKnown,
+	}
+	err = pool.AddUnresolved(at1111, "for_one")
+	c.Assert(err, IsNil)
+
+	toResolve, err := pool.ToResolve()
+	c.Assert(err, IsNil)
+	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
+		asserts.MakePoolGrouping(0): {storeKey.At()},
+		asserts.MakePoolGrouping(1): {at1111},
+	})
+
+	err = pool.AddError(errBoom, storeKey.Ref())
+	c.Assert(err, IsNil)
+
+	err = pool.Add(s.rev1_1111, asserts.MakePoolGrouping(1))
+	c.Assert(err, IsNil)
+
+	toResolve, err = pool.ToResolve()
+	c.Assert(err, IsNil)
+	c.Check(toResolve, HasLen, 0)
+
+	c.Check(pool.Err("store_key"), Equals, errBoom)
+	c.Check(pool.Err("for_one"), Equals, errBoom)
+}
+
+func (s *poolSuite) TestAddErrorLater(c *C) {
+	assertstest.AddMany(s.db, s.hub.StoreAccountKey(""))
+
+	pool := asserts.NewPool(s.db, 64)
+
+	storeKey := s.hub.StoreAccountKey("")
+	err := pool.AddToUpdate(storeKey.Ref(), "store_key")
+	c.Assert(err, IsNil)
+
+	at1111 := &asserts.AtRevision{
+		Ref:      asserts.Ref{Type: asserts.TestOnlyRevType, PrimaryKey: []string{"1111"}},
+		Revision: asserts.RevisionNotKnown,
+	}
+	err = pool.AddUnresolved(at1111, "for_one")
+	c.Assert(err, IsNil)
+
+	toResolve, err := pool.ToResolve()
+	c.Assert(err, IsNil)
+	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
+		asserts.MakePoolGrouping(0): {storeKey.At()},
+		asserts.MakePoolGrouping(1): {at1111},
+	})
+
+	err = pool.Add(s.rev1_1111, asserts.MakePoolGrouping(1))
+	c.Assert(err, IsNil)
+
+	err = pool.AddError(errBoom, storeKey.Ref())
+	c.Assert(err, IsNil)
+
+	toResolve, err = pool.ToResolve()
+	c.Assert(err, IsNil)
+	c.Check(toResolve, HasLen, 0)
+
+	c.Check(pool.Err("store_key"), Equals, errBoom)
+	c.Check(pool.Err("for_one"), Equals, errBoom)
+}
+
+func (s *poolSuite) TestNopUpdatePlusFetchOfPushed(c *C) {
+	storeKey := s.hub.StoreAccountKey("")
+	assertstest.AddMany(s.db, storeKey)
+	assertstest.AddMany(s.db, s.dev1Acct)
+	assertstest.AddMany(s.db, s.decl1)
+	assertstest.AddMany(s.db, s.rev1_1111)
+
+	pool := asserts.NewPool(s.db, 64)
+
+	atOne := s.decl1.At()
+	err := pool.AddToUpdate(&atOne.Ref, "for_one")
+	c.Assert(err, IsNil)
+
+	toResolve, err := pool.ToResolve()
+	c.Assert(err, IsNil)
+	sortToResolve(toResolve)
+	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
+		asserts.MakePoolGrouping(0): {storeKey.At(), s.dev1Acct.At(), atOne},
+	})
+
+	// no updates but
+	// new push suggestion
+
+	gSuggestion, err := pool.Singleton("suggestion")
+	c.Assert(err, IsNil)
+
+	err = pool.Add(s.rev1_3333, gSuggestion)
+	c.Assert(err, IsNil)
+
+	toResolve, err = pool.ToResolve()
+	c.Assert(err, IsNil)
+	c.Assert(toResolve, HasLen, 0)
+
+	c.Check(pool.Err("for_one"), IsNil)
+
+	pool.AddGroupingError(errBoom, gSuggestion)
+
+	c.Assert(pool.Err("for_one"), IsNil)
+	c.Assert(pool.Err("suggestion"), Equals, errBoom)
+
+	at3333 := s.rev1_3333.At()
+	at3333.Revision = asserts.RevisionNotKnown
+	err = pool.AddUnresolved(at3333, at3333.Unique())
+	c.Assert(err, IsNil)
+
+	toResolve, err = pool.ToResolve()
+	c.Assert(err, IsNil)
+	c.Assert(toResolve, HasLen, 0)
+
+	err = pool.CommitTo(s.db)
+	c.Check(err, IsNil)
+
+	c.Assert(pool.Err(at3333.Unique()), IsNil)
+
+	a, err := s.rev1_3333.Ref().Resolve(s.db.Find)
+	c.Assert(err, IsNil)
+	c.Check(a.(*asserts.TestOnlyRev).H(), Equals, "3333")
+}
+
+func (s *poolSuite) TestAddToUpdateThenUnresolved(c *C) {
+	assertstest.AddMany(s.db, s.hub.StoreAccountKey(""))
+
+	pool := asserts.NewPool(s.db, 64)
+
+	storeKey := s.hub.StoreAccountKey("")
+	storeKeyAt := storeKey.At()
+	storeKeyAt.Revision = asserts.RevisionNotKnown
+
+	err := pool.AddToUpdate(storeKey.Ref(), "for_one")
+	c.Assert(err, IsNil)
+	err = pool.AddUnresolved(storeKeyAt, "for_one")
+	c.Assert(err, IsNil)
+
+	toResolve, err := pool.ToResolve()
+	c.Assert(err, IsNil)
+	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
+		asserts.MakePoolGrouping(0): {storeKey.At()},
+	})
+}
+
+func (s *poolSuite) TestAddUnresolvedThenToUpdate(c *C) {
+	assertstest.AddMany(s.db, s.hub.StoreAccountKey(""))
+
+	pool := asserts.NewPool(s.db, 64)
+
+	storeKey := s.hub.StoreAccountKey("")
+	storeKeyAt := storeKey.At()
+	storeKeyAt.Revision = asserts.RevisionNotKnown
+
+	err := pool.AddUnresolved(storeKeyAt, "for_one")
+	c.Assert(err, IsNil)
+	err = pool.AddToUpdate(storeKey.Ref(), "for_one")
+	c.Assert(err, IsNil)
+
+	toResolve, err := pool.ToResolve()
+	c.Assert(err, IsNil)
+	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
+		asserts.MakePoolGrouping(0): {storeKey.At()},
+	})
+}
+
+func (s *poolSuite) TestNopUpdatePlusFetch(c *C) {
+	assertstest.AddMany(s.db, s.hub.StoreAccountKey(""))
+
+	pool := asserts.NewPool(s.db, 64)
+
+	storeKey := s.hub.StoreAccountKey("")
+	err := pool.AddToUpdate(storeKey.Ref(), "store_key")
+	c.Assert(err, IsNil)
+
+	at1111 := &asserts.AtRevision{
+		Ref:      asserts.Ref{Type: asserts.TestOnlyRevType, PrimaryKey: []string{"1111"}},
+		Revision: asserts.RevisionNotKnown,
+	}
+	err = pool.AddUnresolved(at1111, "for_one")
+	c.Assert(err, IsNil)
+
+	toResolve, err := pool.ToResolve()
+	c.Assert(err, IsNil)
+	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
+		asserts.MakePoolGrouping(0): {storeKey.At()},
+		asserts.MakePoolGrouping(1): {at1111},
+	})
+
+	err = pool.Add(s.rev1_1111, asserts.MakePoolGrouping(1))
+	c.Assert(err, IsNil)
+
+	toResolve, err = pool.ToResolve()
+	c.Assert(err, IsNil)
+	sortToResolve(toResolve)
+	dev1AcctAt := s.dev1Acct.At()
+	dev1AcctAt.Revision = asserts.RevisionNotKnown
+	decl1At := s.decl1.At()
+	decl1At.Revision = asserts.RevisionNotKnown
+	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
+		asserts.MakePoolGrouping(1): {dev1AcctAt, decl1At},
+	})
+
+	c.Check(pool.Err("store_key"), IsNil)
+	c.Check(pool.Err("for_one"), IsNil)
+}
+
+func (s *poolSuite) TestParallelPartialResolutionFailure(c *C) {
+	pool := asserts.NewPool(s.db, 64)
+
+	atOne := &asserts.AtRevision{
+		Ref:      asserts.Ref{Type: asserts.TestOnlyDeclType, PrimaryKey: []string{"one"}},
+		Revision: asserts.RevisionNotKnown,
+	}
+	err := pool.AddUnresolved(atOne, "one")
+	c.Assert(err, IsNil)
+
+	toResolve, err := pool.ToResolve()
+	c.Assert(err, IsNil)
+	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
+		asserts.MakePoolGrouping(0): {atOne},
+	})
+
+	err = pool.Add(s.decl1, asserts.MakePoolGrouping(0))
+	c.Assert(err, IsNil)
+
+	toResolve, err = pool.ToResolve()
+	c.Assert(err, IsNil)
+	sortToResolve(toResolve)
+	dev1AcctAt := s.dev1Acct.At()
+	dev1AcctAt.Revision = asserts.RevisionNotKnown
+	decl1At := s.decl1.At()
+	decl1At.Revision = asserts.RevisionNotKnown
+	storeKeyAt := s.hub.StoreAccountKey("").At()
+	storeKeyAt.Revision = asserts.RevisionNotKnown
+	c.Check(toResolve, DeepEquals, map[asserts.Grouping][]*asserts.AtRevision{
+		asserts.MakePoolGrouping(0): {storeKeyAt, dev1AcctAt},
+	})
+
+	// failed to get prereqs
+	c.Check(pool.AddGroupingError(errBoom, asserts.MakePoolGrouping(0)), IsNil)
+
+	err = pool.AddUnresolved(atOne, "other")
+	c.Assert(err, IsNil)
+
+	toResolve, err = pool.ToResolve()
+	c.Assert(err, IsNil)
+	c.Check(toResolve, HasLen, 0)
+
+	c.Check(pool.Err("one"), Equals, errBoom)
+	c.Check(pool.Err("other"), IsNil)
+
+	// we fail at commit though
+	err = pool.CommitTo(s.db)
+	c.Check(err, IsNil)
+	c.Check(pool.Err("one"), Equals, errBoom)
+	c.Check(pool.Err("other"), ErrorMatches, "cannot resolve prerequisite assertion.*")
 }
