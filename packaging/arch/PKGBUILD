@@ -50,6 +50,8 @@ build() {
   export GOPATH="$srcdir/go"
 
   # GOFLAGS may be modified by CI tools
+  # GOFLAGS are the go build flags for all binaries, GOFLAGS_SNAP are for snap
+  # build only.
   GOFLAGS=""
   GOFLAGS_SNAP="-tags nomanagers"
   if [[ "$WITH_TEST_KEYS" == 1 ]]; then

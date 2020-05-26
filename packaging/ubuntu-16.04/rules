@@ -60,6 +60,8 @@ export GOMAXPROCS=2
 endif
 
 # build with "tpm" support on ubuntu by default
+# TAGS are the go build tags for all binaries, SNAP_TAGS are for snap and
+# snap-bootstrap build only.
 TAGS=
 SNAP_TAGS=
 # check if we need to include the testkeys in the binary
