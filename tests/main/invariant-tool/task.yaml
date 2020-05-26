@@ -51,3 +51,9 @@ execute: |
         chown root /home/ubuntu
     fi
     invariant-tool check root-files-in-home | MATCH 'invariant-tool: root-files-in-home ok'
+
+    # Invariant tool detects leftovers from crashed snap-confine.
+    mkdir /tmp/snap.rootfs_invariant-tool
+    invariant-tool check crashed-snap-confine 2>&1 | MATCH 'invariant-tool: crashed-snap-confine not-ok'
+    invariant-tool check crashed-snap-confine 2>&1 | MATCH 'invariant-tool: it seems snap-confine has crashed'
+    rmdir /tmp/snap.rootfs_invariant-tool

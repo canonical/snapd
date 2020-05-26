@@ -21,11 +21,10 @@ environment:
     EDITOR_HISTORY: /tmp/editor-history.txt
 
 prepare: |
-    session-tool -u test --prepare
-
     #shellcheck source=tests/lib/desktop-portal.sh
     . "$TESTSLIB"/desktop-portal.sh
     setup_portals
+    session-tool -u test --prepare
 
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
@@ -67,7 +66,6 @@ prepare: |
 
 restore: |
     session-tool -u test --restore
-
     #shellcheck source=tests/lib/desktop-portal.sh
     . "$TESTSLIB"/desktop-portal.sh
     teardown_portals

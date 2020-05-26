@@ -41,6 +41,15 @@ execute: |
     #    extra config will be merged
     test -e /writable/system-data/etc/cloud/cloud-init.disabled || [ "$(find /writable/system-data/etc/cloud/cloud.cfg.d/ | wc -l)" -gt "$(find /snap/core20/current/etc/cloud/cloud.cfg.d/ | wc -l)" ]
 
+    # ensure that we have no symlinks from /var/lib/snapd/snaps to
+    # /var/lib/snapd/seed
+    for sn in /var/lib/snapd/snaps/*.snap ; do
+        if [[ -L $sn ]]; then
+            echo "snap $sn is a symlink but should not be"
+            exit 1
+        fi
+    done
+
     # TODO:UC20: move to the nested test
     #if [ -e /dev/tpm0 ]; then
     #    echo "The recovery key is available"
