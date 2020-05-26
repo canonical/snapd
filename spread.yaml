@@ -108,7 +108,6 @@ backends:
 
             - arch-linux-64:
                 workers: 6
-
             - amazon-linux-2-64:
                 workers: 6
                 storage: preserve-size
@@ -117,17 +116,7 @@ backends:
                 workers: 6
                 storage: preserve-size
                 image: centos-7-64
-
-    # TODO: spread is really unhappy when it sees a backend without any systems,
-    # so this block is intentially kept commented out, until we need to add
-    # systems to it
-    #
-    google-unstable:
-       type: google
-       key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-       location: computeengine/us-east1-b
-       halt-timeout: 2h
-       systems:
+            # unstable systems below
             - opensuse-15.1-64:
                 workers: 6
             - opensuse-tumbleweed-64:
@@ -506,6 +495,8 @@ debug-each: |
         echo '# mounts'
         # use ascii output to prevent travis from messing up the encoding
         findmnt --ascii -o+PROPAGATION || true
+        echo "# processes"
+        ps aux
     fi
 
 rename:
