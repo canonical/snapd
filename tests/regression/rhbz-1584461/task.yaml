@@ -8,7 +8,7 @@ description: |
   source from the base snap, appears in the host's mount namespace.
 
 # we only know of this happening on Fedora, see https://bugzilla.redhat.com/show_bug.cgi?id=1584461
-systems: [fedora-30-*, fedora-31-*]
+systems: [fedora-*]
 
 restore: |
     if [ "$(readlink /etc/ssl)" == "/etc/ssl-backup" ]; then
@@ -20,7 +20,6 @@ restore: |
 
 execute: |
     # on Fedora 30 and 31, /etc/nsswitch.conf is a symlink to /etc/authselect/nsswitch.conf
-    # on Fedora 32, /etc/nsswitch.conf is not a symlink to /etc/authselect/nsswitch.conf
     test -L /etc/nsswitch.conf
 
     # the following mount entries are visible on a broken system:
