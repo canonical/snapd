@@ -34,6 +34,9 @@ restore: |
     session-tool -u test --restore
 
 execute: |
+    systemctl restart snapd.socket
+    ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
+
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
 

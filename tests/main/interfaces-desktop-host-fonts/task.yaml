@@ -49,7 +49,16 @@ execute: |
     test-snapd-desktop.check-files /usr/local/share/fonts/local-font.txt | MATCH "Local font"
 
     echo "Checking access to host $cache_dir"
-    test-snapd-desktop.check-files "$cache_dir"/cache.txt | MATCH "Cache file"
+    case "$SPREAD_SYSTEM" in
+        fedora-*|centos-*|amazon-linux-*|arch-linux-*)
+            # system fonts cache is inaccessible due to
+            # https://bugs.launchpad.net/snapd/+bug/1877109
+            test-snapd-desktop.sh -c "test ! -e $cache_dir/cache.txt"
+            ;;
+        *)
+            test-snapd-desktop.check-files "$cache_dir"/cache.txt | MATCH "Cache file"
+            ;;
+    esac
 
     echo "Checking access to host ~/.fonts"
     test-snapd-desktop.check-files "$HOME"/.fonts/user-font1.txt | MATCH "User font 1"
