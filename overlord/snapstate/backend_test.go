@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
 	"github.com/snapcore/snapd/strutil"
@@ -653,7 +654,7 @@ func (f *fakeSnappyBackend) OpenSnapFile(snapFilePath string, si *snap.SideInfo)
 		}
 	} else {
 		// for snap try only
-		snapf, err := snap.Open(snapFilePath)
+		snapf, err := snapfile.Open(snapFilePath)
 		if err != nil {
 			return nil, nil, err
 		}

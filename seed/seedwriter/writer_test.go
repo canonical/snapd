@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -989,7 +990,7 @@ func (s *writerSuite) TestLocalSnapsCore18FullUse(c *C) {
 		if !asserts.IsNotFound(err) {
 			c.Assert(err, IsNil)
 		}
-		f, err := snap.Open(sn.Path)
+		f, err := snapfile.Open(sn.Path)
 		c.Assert(err, IsNil)
 		info, err := snap.ReadInfoFromSnapFile(f, si)
 		c.Assert(err, IsNil)
@@ -1259,7 +1260,7 @@ func (s *writerSuite) TestInfoDerivedRepeatedLocalSnap(c *C) {
 	c.Check(localSnaps, HasLen, 4)
 
 	for _, sn := range localSnaps {
-		f, err := snap.Open(sn.Path)
+		f, err := snapfile.Open(sn.Path)
 		c.Assert(err, IsNil)
 		info, err := snap.ReadInfoFromSnapFile(f, nil)
 		c.Assert(err, IsNil)
@@ -1303,7 +1304,7 @@ func (s *writerSuite) TestInfoDerivedInconsistentChannel(c *C) {
 	c.Check(localSnaps, HasLen, 3)
 
 	for _, sn := range localSnaps {
-		f, err := snap.Open(sn.Path)
+		f, err := snapfile.Open(sn.Path)
 		c.Assert(err, IsNil)
 		info, err := snap.ReadInfoFromSnapFile(f, nil)
 		c.Assert(err, IsNil)
@@ -1341,7 +1342,7 @@ func (s *writerSuite) TestSetRedirectChannelLocalError(c *C) {
 	c.Check(localSnaps, HasLen, 1)
 
 	sn := localSnaps[0]
-	f, err := snap.Open(sn.Path)
+	f, err := snapfile.Open(sn.Path)
 	c.Assert(err, IsNil)
 	info, err := snap.ReadInfoFromSnapFile(f, nil)
 	c.Assert(err, IsNil)
@@ -1644,7 +1645,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaLocalExtraSnaps(c *C) {
 		if !asserts.IsNotFound(err) {
 			c.Assert(err, IsNil)
 		}
-		f, err := snap.Open(sn.Path)
+		f, err := snapfile.Open(sn.Path)
 		c.Assert(err, IsNil)
 		info, err := snap.ReadInfoFromSnapFile(f, si)
 		c.Assert(err, IsNil)
@@ -2179,7 +2180,7 @@ func (s *writerSuite) TestCore20NonDangerousDisallowedOptionsSnaps(c *C) {
 				if !asserts.IsNotFound(err) {
 					c.Assert(err, IsNil)
 				}
-				f, err := snap.Open(sn.Path)
+				f, err := snapfile.Open(sn.Path)
 				c.Assert(err, IsNil)
 				info, err := snap.ReadInfoFromSnapFile(f, si)
 				c.Assert(err, IsNil)
@@ -2260,7 +2261,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20LocalSnaps(c *C) {
 	for _, sn := range localSnaps {
 		_, _, err := seedwriter.DeriveSideInfo(sn.Path, tf, s.db)
 		c.Assert(asserts.IsNotFound(err), Equals, true)
-		f, err := snap.Open(sn.Path)
+		f, err := snapfile.Open(sn.Path)
 		c.Assert(err, IsNil)
 		info, err := snap.ReadInfoFromSnapFile(f, nil)
 		c.Assert(err, IsNil)
@@ -2641,7 +2642,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ExtraSnaps(c *C) {
 	for _, sn := range localSnaps {
 		_, _, err := seedwriter.DeriveSideInfo(sn.Path, tf, s.db)
 		c.Assert(asserts.IsNotFound(err), Equals, true)
-		f, err := snap.Open(sn.Path)
+		f, err := snapfile.Open(sn.Path)
 		c.Assert(err, IsNil)
 		info, err := snap.ReadInfoFromSnapFile(f, nil)
 		c.Assert(err, IsNil)
@@ -2813,7 +2814,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20LocalAssertedSnaps(c *C) {
 	for _, sn := range localSnaps {
 		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, tf, s.db)
 		c.Assert(err, IsNil)
-		f, err := snap.Open(sn.Path)
+		f, err := snapfile.Open(sn.Path)
 		c.Assert(err, IsNil)
 		info, err := snap.ReadInfoFromSnapFile(f, si)
 		c.Assert(err, IsNil)
