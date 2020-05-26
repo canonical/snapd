@@ -41,11 +41,11 @@ execute: |
     #    extra config will be merged
     test -e /writable/system-data/etc/cloud/cloud-init.disabled || [ "$(find /writable/system-data/etc/cloud/cloud.cfg.d/ | wc -l)" -gt "$(find /snap/core20/current/etc/cloud/cloud.cfg.d/ | wc -l)" ]
 
-    # ensure that we have no symlinks from /var/lib/snapd/snaps to 
+    # ensure that we have no symlinks from /var/lib/snapd/snaps to
     # /var/lib/snapd/seed
-    for f in $(ls /var/lib/snapd/snaps/); do
-        if [[ -L /var/lib/snapd/snaps/$f ]]; then
-            echo "snap /var/lib/snapd/snaps/$f is a symlink but should not be"
+    for sn in /var/lib/snapd/snaps/*.snap ; do
+        if [[ -L $sn ]]; then
+            echo "snap $sn is a symlink but should not be"
             exit 1
         fi
     done
