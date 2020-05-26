@@ -133,11 +133,6 @@ func (s *Snap) Install(targetPath, mountDir string, opts *snap.InstallOptions) (
 	// if the installation must not cross devices, then we should not use
 	// symlinks and instead must copy the file entirely, this is the case
 	// during seeding on uc20 in run mode for example
-
-	// TODO:UC20: we might still have some situation where
-	//            opts.MustNotCrossDevice is true, but we can safely symlink
-	//            from the source to the destination, but this requires knowing
-	//            what device the source and target would be on
 	if opts == nil || !opts.MustNotCrossDevices {
 		// if the source snap file is in seed, but the hardlink failed, symlinking
 		// it saves the copy (which in livecd is expensive) so try that next
