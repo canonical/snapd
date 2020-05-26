@@ -50,10 +50,23 @@ type Container interface {
 
 	// Install copies the snap file to targetPath (and possibly unpacks it to mountDir).
 	// The bool return value indicates if the backend had nothing to do on install.
-	Install(targetPath, mountDir string) (bool, error)
+	Install(targetPath, mountDir string, opts *InstallOptions) (bool, error)
 
 	// Unpack unpacks the src parts to the dst directory
 	Unpack(src, dst string) error
+}
+
+// InstallOptions is for customizing the behavior of Install() from a higher
+// level function, i.e. from overlord customizing how a snap file is installed
+// on a system with tmpfs mounted as writable or with full disk encryption and
+// graded secured on UC20.
+type InstallOptions struct {
+	// MustNotCrossDevices indicates that the snap file when installed to the
+	// target must not cross devices. For example, installing a snap file from
+	// the ubuntu-seed partition onto the ubuntu-data partition must result in
+	// an installation on ubuntu-data that does not depend or reference
+	// ubuntu-seed at all.
+	MustNotCrossDevices bool
 }
 
 var (
