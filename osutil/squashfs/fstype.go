@@ -69,7 +69,7 @@ func StandardOptions() []string {
 
 // FsType returns what fstype to use for squashfs mounts and what
 // mount options
-func FsType() (fstype string, options []string, err error) {
+func FsType() (fstype string, options []string) {
 	fstype = "squashfs"
 	options = StandardOptions()
 
@@ -85,5 +85,5 @@ func FsType() (fstype string, options []string, err error) {
 		}
 	}
 
-	return fstype, options, nil
+	return fstype, options
 }

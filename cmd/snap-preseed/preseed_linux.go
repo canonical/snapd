@@ -77,14 +77,20 @@ func checkChroot(preseedChroot string) error {
 			delete(required, ent.MountDir)
 		}
 	}
-	// non empty required indicates missing mountpoint(s), print just one.
+	// non empty required indicates missing mountpoint(s)
 	if len(required) > 0 {
-		sorted := []string{}
+		var sorted []string
 		for path := range required {
 			sorted = append(sorted, path)
 		}
 		sort.Strings(sorted)
-		return fmt.Errorf("cannot preseed without access to %q (not a mountpoint)", sorted[0])
+		parts := append([]string{""}, sorted...)
+		return fmt.Errorf("cannot preseed without the following mountpoints:%s", strings.Join(parts, "\n - "))
+	}
+
+	path := filepath.Join(preseedChroot, "/sys/kernel/security/apparmor")
+	if exists := osutil.FileExists(path); !exists {
+		return fmt.Errorf("cannot preseed without access to %q", path)
 	}
 
 	return nil
@@ -194,10 +200,7 @@ func prepareChroot(preseedChroot string) (func(), error) {
 		}
 	}
 
-	fstype, fsopts, err := squashfs.FsType()
-	if err != nil {
-		return nil, fmt.Errorf("cannot determine filesystem type to use for squashfs: %v", err)
-	}
+	fstype, fsopts := squashfs.FsType()
 	cmd := exec.Command("mount", "-t", fstype, "-o", strings.Join(fsopts, ","), coreSnapPath, where)
 	if err := cmd.Run(); err != nil {
 		removeMountpoint()
