@@ -57,8 +57,9 @@ go_binaries = snap snapctl snap-seccomp snap-update-ns snap-exec snapd
 .PHONY: all
 all: $(go_binaries) 
 
+snap: GO_TAGS += nomanagers
 snap snap-seccomp:
-	go build -buildmode=pie $(import_path)/cmd/$@
+	go build $(if $(GO_TAGS),-tags $(GO_TAGS)) -buildmode=pie $(import_path)/cmd/$@
 
 # Those three need to be built as static binaries. They run on the inside of a
 # nearly-arbitrary mount namespace that does not contain anything we can depend
