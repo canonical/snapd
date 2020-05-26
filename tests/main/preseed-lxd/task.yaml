@@ -34,9 +34,15 @@ prepare: |
   mksnap_fast squashfs-root "$SNAP_IMAGE"
   sed -i "$IMAGE_MOUNTPOINT/var/lib/snapd/seed/seed.yaml" -E -e "s/^(\\s+)name: snapd/\\1name: snapd\\n\\1unasserted: true/"
 
+  apt install -y lxd
+  touch remove-lxd
+
 restore: |
-  lxc stop my-ubuntu --force
-  lxc delete my-ubuntu
+  if [ -f remove-lxd ]; then
+    lxc stop my-ubuntu --force || true
+    lxc delete my-ubuntu || true
+    apt purge -y lxd
+  fi
 
   umount "$IMAGE_MOUNTPOINT"
   rmdir "$IMAGE_MOUNTPOINT"
@@ -45,13 +51,9 @@ restore: |
   # reporting it's still in use.
   retry-tool -n 5 --wait 1 qemu-nbd -d /dev/nbd0
 
-  apt purge -y lxd
   lxd-tool undo-lxd-mount-changes
 
 execute: |
-  echo "Install lxd"
-  apt install -y lxd
-
   echo "Create a trivial container using the lxd snap"
   lxd waitready
   lxd init --auto
