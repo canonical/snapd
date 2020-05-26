@@ -61,9 +61,12 @@ type Container interface {
 // on a system with tmpfs mounted as writable or with full disk encryption and
 // graded secured on UC20.
 type InstallOptions struct {
-	// MustCopy indicates that the snap file must be copied as-is, and cannot be
-	// linked either through a hard-link or a symlink.
-	MustCopy bool
+	// MustNotCrossDevices indicates that the snap file when installed to the
+	// target must not cross devices. For example, installing a snap file from
+	// the ubuntu-seed partition onto the ubuntu-data partition must result in
+	// an installation on ubuntu-data that does not depend or reference
+	// ubuntu-seed at all.
+	MustNotCrossDevices bool
 }
 
 var (

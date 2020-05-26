@@ -110,11 +110,6 @@ func (s *Snap) Install(targetPath, mountDir string, opts *snap.InstallOptions) (
 		return didNothing, nil
 	}
 
-	// if we need to copy by policy, do that first
-	if opts != nil && opts.MustCopy {
-		return false, osutil.CopyFile(s.path, targetPath, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync)
-	}
-
 	overlayRoot, err := isRootWritableOverlay()
 	if err != nil {
 		logger.Noticef("cannot detect root filesystem on overlay: %v", err)
@@ -135,15 +130,26 @@ func (s *Snap) Install(targetPath, mountDir string, opts *snap.InstallOptions) (
 		}
 	}
 
-	// if the source snap file is in seed, but the hardlink failed, symlinking
-	// it saves the copy (which in livecd is expensive) so try that next
-	// note that on UC20, the snap file could be in a deep subdir of
-	// SnapSeedDir, i.e. /var/lib/snapd/seed/systems/20200521/snaps/<name>.snap
-	// so we need to check if it has the prefix of the seed dir
-	cleanSrc := filepath.Clean(s.path)
-	if strings.HasPrefix(cleanSrc, dirs.SnapSeedDir) &&
-		os.Symlink(s.path, targetPath) == nil {
-		return false, nil
+	// if the installation must not cross devices, then we should not use
+	// symlinks and instead must copy the file entirely, this is the case
+	// during seeding on uc20 in run mode for example
+
+	// TODO:UC20: we might still have some situation where
+	//            opts.MustNotCrossDevice is true, but we can safely symlink
+	//            from the source to the destination, but this requires knowing
+	//            what device the source and target would be on
+	if opts == nil || !opts.MustNotCrossDevices {
+		// if the source snap file is in seed, but the hardlink failed, symlinking
+		// it saves the copy (which in livecd is expensive) so try that next
+		// note that on UC20, the snap file could be in a deep subdir of
+		// SnapSeedDir, i.e. /var/lib/snapd/seed/systems/20200521/snaps/<name>.snap
+		// so we need to check if it has the prefix of the seed dir
+		cleanSrc := filepath.Clean(s.path)
+		if strings.HasPrefix(cleanSrc, dirs.SnapSeedDir) {
+			if os.Symlink(s.path, targetPath) == nil {
+				return false, nil
+			}
+		}
 	}
 
 	return false, osutil.CopyFile(s.path, targetPath, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync)

@@ -250,7 +250,7 @@ func (s *SquashfsTestSuite) TestInstallUC20SeedNoLink(c *C) {
 	c.Check(osutil.IsSymlink(targetPath), Equals, true) // \o/
 }
 
-func (s *SquashfsTestSuite) TestInstallMustCopy(c *C) {
+func (s *SquashfsTestSuite) TestInstallMustNotCrossDevices(c *C) {
 	defer noLink()()
 
 	c.Assert(os.MkdirAll(dirs.SnapSeedDir, 0755), IsNil)
@@ -259,7 +259,7 @@ func (s *SquashfsTestSuite) TestInstallMustCopy(c *C) {
 	_, err := os.Lstat(targetPath)
 	c.Check(os.IsNotExist(err), Equals, true)
 
-	didNothing, err := sn.Install(targetPath, c.MkDir(), &snap.InstallOptions{MustCopy: true})
+	didNothing, err := sn.Install(targetPath, c.MkDir(), &snap.InstallOptions{MustNotCrossDevices: true})
 	c.Assert(err, IsNil)
 	c.Assert(didNothing, Equals, false)
 	c.Check(osutil.IsSymlink(targetPath), Equals, false)

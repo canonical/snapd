@@ -105,13 +105,13 @@ func (s *SnapdirTestSuite) TestInstall(c *C) {
 	c.Assert(symlinkTarget, Equals, tryBaseDir)
 }
 
-func (s *SnapdirTestSuite) TestInstallMustCopy(c *C) {
+func (s *SnapdirTestSuite) TestInstallMustNotCrossDevices(c *C) {
 	tryBaseDir := c.MkDir()
 	sn := snapdir.New(tryBaseDir)
 
 	varLibSnapd := c.MkDir()
 	targetPath := filepath.Join(varLibSnapd, "foo_1.0.snap")
-	didNothing, err := sn.Install(targetPath, "unused-mount-dir", &snap.InstallOptions{MustCopy: true})
+	didNothing, err := sn.Install(targetPath, "unused-mount-dir", &snap.InstallOptions{MustNotCrossDevices: true})
 	c.Assert(err, IsNil)
 	c.Check(didNothing, Equals, false)
 	c.Check(osutil.IsSymlink(targetPath), Equals, false)

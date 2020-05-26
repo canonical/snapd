@@ -67,7 +67,7 @@ func (s *SnapDir) Size() (size int64, err error) {
 
 func (s *SnapDir) Install(targetPath, mountDir string, opts *snap.InstallOptions) (bool, error) {
 	// if we need to copy by policy, do that
-	if opts != nil && opts.MustCopy {
+	if opts != nil && opts.MustNotCrossDevices {
 		return false, osutil.CopyFile(s.path, targetPath, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync)
 	}
 

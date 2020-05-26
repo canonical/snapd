@@ -74,10 +74,10 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 		}
 	}
 
-	// in uc20 run mode, all snaps must be copied when installing
+	// in uc20 run mode, all snaps must be on the same device
 	opts := &snap.InstallOptions{}
 	if dev.HasModeenv() && dev.RunMode() {
-		opts.MustCopy = true
+		opts.MustNotCrossDevices = true
 	}
 
 	var didNothing bool
