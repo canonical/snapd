@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -278,7 +279,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 			return err
 		}
 
-		snapFile, err := snap.Open(sn.Path)
+		snapFile, err := snapfile.Open(sn.Path)
 		if err != nil {
 			return err
 		}
