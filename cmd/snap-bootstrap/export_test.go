@@ -20,25 +20,16 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
-
-	"github.com/snapcore/snapd/cmd/snap-bootstrap/bootstrap"
 )
 
 var (
 	Parser = parser
 )
-
-func MockBootstrapRun(f func(string, string, bootstrap.Options) error) (restore func()) {
-	oldBootstrapRun := bootstrapRun
-	bootstrapRun = f
-	return func() {
-		bootstrapRun = oldBootstrapRun
-	}
-}
 
 func MockStdout(newStdout io.Writer) (restore func()) {
 	oldStdout := stdout
@@ -99,5 +90,20 @@ func MockSecbootMeasureSnapModelWhenPossible(f func(findModel func() (*asserts.M
 	secbootMeasureSnapModelWhenPossible = f
 	return func() {
 		secbootMeasureSnapModelWhenPossible = old
+	}
+}
+
+func MockPartitionUUIDForBootedKernelDisk(uuid string) (restore func()) {
+	old := bootFindPartitionUUIDForBootedKernelDisk
+	bootFindPartitionUUIDForBootedKernelDisk = func() (string, error) {
+		if uuid == "" {
+			// mock error
+			return "", fmt.Errorf("mocked error")
+		}
+		return uuid, nil
+	}
+
+	return func() {
+		bootFindPartitionUUIDForBootedKernelDisk = old
 	}
 }

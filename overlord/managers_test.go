@@ -70,6 +70,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/systemd"
@@ -665,7 +666,7 @@ func (s *baseMgrsSuite) newestThatCanRead(name string, epoch snap.Epoch) (info *
 	rev = s.serveRevision[name]
 	path := s.serveSnapPath[name]
 	for {
-		snapf, err := snap.Open(path)
+		snapf, err := snapfile.Open(path)
 		if err != nil {
 			panic(err)
 		}
@@ -880,7 +881,7 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 // serveSnap starts serving the snap at snapPath, moving the current
 // one onto the list of previous ones if already set.
 func (s *baseMgrsSuite) serveSnap(snapPath, revno string) {
-	snapf, err := snap.Open(snapPath)
+	snapf, err := snapfile.Open(snapPath)
 	if err != nil {
 		panic(err)
 	}
@@ -2318,7 +2319,7 @@ func (s *mgrsSuite) installLocalTestSnap(c *C, snapYamlContent string) *snap.Inf
 	st := s.o.State()
 
 	snapPath := makeTestSnap(c, snapYamlContent)
-	snapf, err := snap.Open(snapPath)
+	snapf, err := snapfile.Open(snapPath)
 	c.Assert(err, IsNil)
 	info, err := snap.ReadInfoFromSnapFile(snapf, nil)
 	c.Assert(err, IsNil)

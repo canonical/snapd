@@ -129,9 +129,9 @@ func (s *settingsSuite) TestGetUnhappy(c *C) {
 		setting    string
 		errMatcher string
 	}{
-		{"random-setting", `cannot use setting "random-setting": not allowed`},
-		{"invälid", `cannot use setting "invälid": not allowed`},
-		{"", `cannot use setting "": not allowed`},
+		{"random-setting", `invalid setting "random-setting"`},
+		{"invälid", `invalid setting "invälid"`},
+		{"", `invalid setting ""`},
 	} {
 		_, err := s.settings.Get(t.setting, ":some-dbus-sender")
 		c.Assert(err, ErrorMatches, t.errMatcher)
@@ -150,7 +150,7 @@ func (s *settingsSuite) TestGetHappy(c *C) {
 
 func (s *settingsSuite) TestCheckInvalidSetting(c *C) {
 	_, err := s.settings.Check("random-setting", "foo.desktop", ":some-dbus-sender")
-	c.Assert(err, ErrorMatches, `cannot use setting "random-setting": not allowed`)
+	c.Assert(err, ErrorMatches, `invalid setting "random-setting"`)
 	c.Assert(s.mockXdgSettings.Calls(), IsNil)
 }
 
@@ -225,25 +225,25 @@ exit 1
 
 func (s *settingsSuite) TestSetInvalidSetting(c *C) {
 	err := s.settings.Set("random-setting", "foo.desktop", ":some-dbus-sender")
-	c.Assert(err, ErrorMatches, `cannot use setting "random-setting": not allowed`)
+	c.Assert(err, ErrorMatches, `invalid setting "random-setting"`)
 	c.Assert(s.mockXdgSettings.Calls(), IsNil)
 }
 
 func (s *settingsSuite) TestSetInvalidValue(c *C) {
 	err := s.settings.Set("default-web-browser", "foo", ":some-dbus-sender")
-	c.Assert(err, ErrorMatches, `cannot set setting "default-web-browser" to value "foo": value not allowed`)
+	c.Assert(err, ErrorMatches, `cannot set "default-web-browser" setting to invalid value "foo"`)
 	c.Assert(s.mockXdgSettings.Calls(), IsNil)
 }
 
 func (s *settingsSuite) TestSetSubInvalidSetting(c *C) {
 	err := s.settings.SetSub("random-setting", "subprop", "foo.desktop", ":some-dbus-sender")
-	c.Assert(err, ErrorMatches, `cannot use setting "random-setting": not allowed`)
+	c.Assert(err, ErrorMatches, `invalid setting "random-setting"`)
 	c.Assert(s.mockXdgSettings.Calls(), IsNil)
 }
 
 func (s *settingsSuite) TestSetSubInvalidValue(c *C) {
 	err := s.settings.SetSub("default-url-scheme-handler", "irc", "foo", ":some-dbus-sender")
-	c.Assert(err, ErrorMatches, `cannot set setting "default-url-scheme-handler" subproperty "irc" to value "foo": value not allowed`)
+	c.Assert(err, ErrorMatches, `cannot set "default-url-scheme-handler" subproperty "irc" setting to invalid value "foo"`)
 	c.Assert(s.mockXdgSettings.Calls(), IsNil)
 }
 
@@ -387,7 +387,7 @@ func (s *settingsSuite) TestSetUserAcceptsZenityUrlSchemeXdgSettingsError(c *C) 
 	c.Assert(err, IsNil)
 
 	err = s.settings.SetSub("default-url-scheme-handler", "irc2", "ircclient.desktop", ":some-dbus-sender")
-	c.Assert(err, ErrorMatches, `cannot set setting "default-url-scheme-handler" subproperty "irc2": fail`)
+	c.Assert(err, ErrorMatches, `cannot set "default-url-scheme-handler" subproperty "irc2" setting: fail`)
 	c.Check(s.mockXdgSettings.Calls(), DeepEquals, [][]string{
 		{"xdg-settings", "set", "default-url-scheme-handler", "irc2", "some-snap_ircclient.desktop"},
 	})

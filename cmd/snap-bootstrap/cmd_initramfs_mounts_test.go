@@ -199,10 +199,30 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep1(c *C) {
 		notYetMounted{boot.InitramfsUbuntuSeedDir},
 	)
 
+	// mock that we don't know which partition uuid the kernel was booted from
+	restore := main.MockPartitionUUIDForBootedKernelDisk("")
+	defer restore()
+
 	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Assert(*n, Equals, 1)
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf("/dev/disk/by-label/ubuntu-seed %s/ubuntu-seed\n", boot.InitramfsRunMntDir))
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep1BootedKernelPartitionUUID(c *C) {
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install snapd_recovery_system="+s.sysLabel)
+
+	n := s.mockExpectedMountChecks(c,
+		notYetMounted{boot.InitramfsUbuntuSeedDir},
+	)
+
+	restore := main.MockPartitionUUIDForBootedKernelDisk("specific-ubuntu-seed-partuuid")
+	defer restore()
+
+	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+	c.Assert(*n, Equals, 1)
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf("/dev/disk/by-partuuid/specific-ubuntu-seed-partuuid %s/ubuntu-seed\n", boot.InitramfsRunMntDir))
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep2(c *C) {
@@ -228,7 +248,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep2(c *C) {
 `, s.seedDir, boot.InitramfsRunMntDir))
 }
 
-func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep4(c *C) {
+func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep3(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install snapd_recovery_system="+s.sysLabel)
 
 	n := s.mockExpectedMountChecks(c,
@@ -248,16 +268,20 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep4(c *C) {
 	c.Check(modeEnv, testutil.FileEquals, `mode=install
 recovery_system=20191118
 `)
-	cloudInitDisable := filepath.Join(boot.InitramfsWritableDir, "etc/cloud/cloud-init.disabled")
+	cloudInitDisable := filepath.Join(boot.InitramfsWritableDir, "_writable_defaults/etc/cloud/cloud-init.disabled")
 	c.Check(cloudInitDisable, testutil.FilePresent)
 }
 
-func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1Boot(c *C) {
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
 	n := s.mockExpectedMountChecks(c,
 		notYetMounted{boot.InitramfsUbuntuBootDir},
 	)
+
+	// mock that we don't know which partition uuid the kernel was booted from
+	restore := main.MockPartitionUUIDForBootedKernelDisk("")
+	defer restore()
 
 	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
@@ -266,7 +290,24 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1Boot(c *C) {
 `, boot.InitramfsRunMntDir))
 }
 
-func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1Seed(c *C) {
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1WithBootedKernelPartUUID(c *C) {
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	n := s.mockExpectedMountChecks(c,
+		notYetMounted{boot.InitramfsUbuntuBootDir},
+	)
+
+	restore := main.MockPartitionUUIDForBootedKernelDisk("specific-ubuntu-boot-partuuid")
+	defer restore()
+
+	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+	c.Assert(*n, Equals, 1)
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`/dev/disk/by-partuuid/specific-ubuntu-boot-partuuid %[1]s/ubuntu-boot
+`, boot.InitramfsRunMntDir))
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
 	n := s.mockExpectedMountChecks(c,
@@ -281,7 +322,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1Seed(c *C) {
 `, boot.InitramfsRunMntDir))
 }
 
-func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1Data(c *C) {
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep3(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
 	n := s.mockExpectedMountChecks(c,
@@ -299,7 +340,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1Data(c *C) {
 `, boot.InitramfsRunMntDir))
 }
 
-func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1EncryptedData(c *C) {
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep3EncryptedData(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
 	// write the installed model like makebootable does it
@@ -362,19 +403,19 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1EncryptedData(c *C
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "run-model-measured"), testutil.FilePresent)
 }
 
-func (s *initramfsMountsSuite) TestInitramfsMountsStep1EncryptedNoModelRun(c *C) {
-	s.testInitramfsMountsStep1EncryptedNoModel(c, "run", "")
+func (s *initramfsMountsSuite) TestInitramfsMountsStep3EncryptedNoModelRun(c *C) {
+	s.testInitramfsMountsStep3EncryptedNoModel(c, "run", "")
 }
 
-func (s *initramfsMountsSuite) TestInitramfsMountsStep1EncryptedNoModelInstall(c *C) {
-	s.testInitramfsMountsStep1EncryptedNoModel(c, "install", s.sysLabel)
+func (s *initramfsMountsSuite) TestInitramfsMountsStep3EncryptedNoModelInstall(c *C) {
+	s.testInitramfsMountsStep3EncryptedNoModel(c, "install", s.sysLabel)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsStep1EncryptedNoModelRecovery(c *C) {
-	s.testInitramfsMountsStep1EncryptedNoModel(c, "recover", s.sysLabel)
+	s.testInitramfsMountsStep3EncryptedNoModel(c, "recover", s.sysLabel)
 }
 
-func (s *initramfsMountsSuite) testInitramfsMountsStep1EncryptedNoModel(c *C, mode, label string) {
+func (s *initramfsMountsSuite) testInitramfsMountsStep3EncryptedNoModel(c *C, mode, label string) {
 	s.mockProcCmdlineContent(c, fmt.Sprintf("snapd_recovery_mode=%s", mode))
 	if label != "" {
 		s.mockProcCmdlineContent(c,
@@ -421,7 +462,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsStep1EncryptedNoModel(c *C, mo
 	c.Assert(gl, HasLen, 0)
 }
 
-func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2(c *C) {
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
 	n := s.mockExpectedMountChecks(c,
@@ -466,7 +507,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2(c *C) {
 `, boot.InitramfsRunMntDir))
 }
 
-func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2BaseSnapUpgradeFailsHappy(c *C) {
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4BaseSnapUpgradeFailsHappy(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
 	n := s.mockExpectedMountChecks(c,
@@ -511,7 +552,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2BaseSnapUpgradeFai
 	c.Assert(newModeenv.Base, DeepEquals, modeEnv.Base)
 }
 
-func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2ModeenvTryBaseEmptyHappy(c *C) {
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4ModeenvTryBaseEmptyHappy(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
 	n := s.mockExpectedMountChecks(c,
@@ -546,7 +587,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2ModeenvTryBaseEmpt
 	c.Assert(newModeenv.Base, DeepEquals, modeEnv.Base)
 }
 
-func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2BaseSnapUpgradeHappy(c *C) {
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4BaseSnapUpgradeHappy(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
 	n := s.mockExpectedMountChecks(c,
@@ -589,7 +630,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2BaseSnapUpgradeHap
 	c.Assert(newModeenv.Base, DeepEquals, modeEnv.Base)
 }
 
-func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2ModeenvBaseEmptyUnhappy(c *C) {
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4ModeenvBaseEmptyUnhappy(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
 	n := s.mockExpectedMountChecks(c,
@@ -613,7 +654,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2ModeenvBaseEmptyUn
 	c.Check(s.Stdout.String(), Equals, "")
 }
 
-func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2ModeenvTryBaseNotExistsHappy(c *C) {
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4ModeenvTryBaseNotExistsHappy(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
 	n := s.mockExpectedMountChecks(c,
@@ -650,7 +691,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2ModeenvTryBaseNotE
 	c.Assert(newModeenv.Base, DeepEquals, modeEnv.Base)
 }
 
-func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2KernelSnapUpgradeHappy(c *C) {
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4KernelSnapUpgradeHappy(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
 	n := s.mockExpectedMountChecks(c,
@@ -707,7 +748,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2KernelSnapUpgradeH
 // TODO:UC20: in this case snap-bootstrap should request a reboot, since we
 //            already booted the try snap, so mounting the fallback kernel will
 //            not match in some cases
-func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2UntrustedKernelSnap(c *C) {
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4UntrustedKernelSnap(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
 	n := s.mockExpectedMountChecks(c,
@@ -747,7 +788,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2UntrustedKernelSna
 // TODO:UC20: in this case snap-bootstrap should request a reboot, since we
 //            already booted the try snap, so mounting the fallback kernel will
 //            not match in some cases
-func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2UntrustedTryKernelSnapFallsBack(c *C) {
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4UntrustedTryKernelSnapFallsBack(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
 	n := s.mockExpectedMountChecks(c,
@@ -795,7 +836,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2UntrustedTryKernel
 `, boot.InitramfsRunMntDir))
 }
 
-func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2KernelStatusTryingNoTryKernel(c *C) {
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4KernelStatusTryingNoTryKernel(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
 	n := s.mockExpectedMountChecks(c,
@@ -842,7 +883,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2KernelStatusTrying
 `, boot.InitramfsRunMntDir))
 }
 
-func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2EnvRefKernelBootstate(c *C) {
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4EnvRefKernelBootstate(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
 	n := s.mockExpectedMountChecks(c,
@@ -884,7 +925,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2EnvRefKernelBootst
 `, boot.InitramfsRunMntDir))
 }
 
-func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2EnvRefKernelBootstateKernelSnapUpgradeHappy(c *C) {
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4EnvRefKernelBootstateKernelSnapUpgradeHappy(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
 	n := s.mockExpectedMountChecks(c,
@@ -933,7 +974,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2EnvRefKernelBootst
 // TODO:UC20: in this case snap-bootstrap should request a reboot, since we
 //            already booted the try snap, so mounting the fallback kernel will
 //            not match in some cases
-func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2EnvRefKernelBootstateUntrustedKernelSnap(c *C) {
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4EnvRefKernelBootstateUntrustedKernelSnap(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
 	n := s.mockExpectedMountChecks(c,
@@ -970,7 +1011,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2EnvRefKernelBootst
 // TODO:UC20: in this case snap-bootstrap should request a reboot, since we
 //            already booted the try snap, so mounting the fallback kernel will
 //            not match in some cases
-func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2EnvRefKernelBootstateUntrustedTryKernelSnapFallsBack(c *C) {
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4EnvRefKernelBootstateUntrustedTryKernelSnapFallsBack(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
 	n := s.mockExpectedMountChecks(c,
@@ -1014,7 +1055,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2EnvRefKernelBootst
 `, boot.InitramfsRunMntDir))
 }
 
-func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2EnvRefKernelBootstateKernelStatusTryingNoTryKernel(c *C) {
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4EnvRefKernelBootstateKernelStatusTryingNoTryKernel(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
 	n := s.mockExpectedMountChecks(c,
@@ -1065,10 +1106,30 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep1(c *C) {
 		notYetMounted{boot.InitramfsUbuntuSeedDir},
 	)
 
+	// mock that we don't know which partition uuid the kernel was booted from
+	restore := main.MockPartitionUUIDForBootedKernelDisk("")
+	defer restore()
+
 	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Assert(*n, Equals, 1)
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf("/dev/disk/by-label/ubuntu-seed %s/ubuntu-seed\n", boot.InitramfsRunMntDir))
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep1BootedKernelPartitionUUID(c *C) {
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover snapd_recovery_system="+s.sysLabel)
+
+	n := s.mockExpectedMountChecks(c,
+		notYetMounted{boot.InitramfsUbuntuSeedDir},
+	)
+
+	restore := main.MockPartitionUUIDForBootedKernelDisk("specific-ubuntu-seed-partuuid")
+	defer restore()
+
+	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+	c.Assert(*n, Equals, 1)
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf("/dev/disk/by-partuuid/specific-ubuntu-seed-partuuid %s/ubuntu-seed\n", boot.InitramfsRunMntDir))
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep2(c *C) {
@@ -1173,7 +1234,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep3Encrypted(c *C
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, fmt.Sprintf("%s-model-measured", s.sysLabel)), testutil.FilePresent)
 }
 
-var mockStateContent = `{"data":{"auth":{"users":[{"name":"mvo"}]}},"some":{"other":"stuff"}}`
+var mockStateContent = `{"data":{"auth":{"users":[{"id":1,"name":"mvo"}],"macaroon-key":"not-a-cookie","last-id":1}},"some":{"other":"stuff"}}`
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep4(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover snapd_recovery_system="+s.sysLabel)
@@ -1208,6 +1269,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep4(c *C) {
 		// user ssh
 		"user-data/user1/.ssh/authorized_keys",
 		"user-data/user2/.ssh/authorized_keys",
+		// user snap authentication
+		"user-data/user1/.snap/auth.json",
 		// sudoers
 		"system-data/etc/sudoers.d/create-user-test",
 	}
@@ -1216,6 +1279,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep4(c *C) {
 		"system-data/etc/passwd",
 		"user-data/user1/some-random-data",
 		"user-data/user2/other-random-data",
+		"user-data/user2/.snap/sneaky-not-auth.json",
 	}
 	for _, mockAuthFile := range append(mockAuthFiles, mockUnrelatedFiles...) {
 		p := filepath.Join(hostUbuntuData, mockAuthFile)
@@ -1256,10 +1320,10 @@ recovery_system=20191118
 		c.Check(fiParent.Mode(), Equals, os.FileMode(os.ModeDir|0750))
 	}
 
-	c.Check(filepath.Join(ephemeralUbuntuData, "system-data/var/lib/snapd/state.json"), testutil.FileEquals, `{"data":{"auth":{"users":[{"name":"mvo"}]}},"changes":{},"tasks":{},"last-change-id":0,"last-task-id":0,"last-lane-id":0}`)
+	c.Check(filepath.Join(ephemeralUbuntuData, "system-data/var/lib/snapd/state.json"), testutil.FileEquals, `{"data":{"auth":{"last-id":1,"macaroon-key":"not-a-cookie","users":[{"id":1,"name":"mvo"}]}},"changes":{},"tasks":{},"last-change-id":0,"last-task-id":0,"last-lane-id":0}`)
 }
 
-func (s *initramfsMountsSuite) testInitramfsMountsInstallRecoverModeStep1Measure(c *C, mode string) {
+func (s *initramfsMountsSuite) testInitramfsMountsInstallRecoverModeStep2Measure(c *C, mode string) {
 	s.mockProcCmdlineContent(c, fmt.Sprintf("snapd_recovery_mode=%s snapd_recovery_system=%s", mode, s.sysLabel))
 
 	n := s.mockExpectedMountChecks(c,
@@ -1308,10 +1372,10 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallRecoverModeStep1Measure
 	c.Check(*n, Equals, 5)
 }
 
-func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep1Measure(c *C) {
-	s.testInitramfsMountsInstallRecoverModeStep1Measure(c, "")
+func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep2Measure(c *C) {
+	s.testInitramfsMountsInstallRecoverModeStep2Measure(c, "")
 }
 
-func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep1Measure(c *C) {
-	s.testInitramfsMountsInstallRecoverModeStep1Measure(c, "recover")
+func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep2Measure(c *C) {
+	s.testInitramfsMountsInstallRecoverModeStep2Measure(c, "recover")
 }
