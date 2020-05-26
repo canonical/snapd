@@ -1,29 +1,29 @@
 summary: The portal-info command provides information about a confined process
 
-# TODO: fedora-31: uses cgroupv2, which does not have a separate freezer
-# controller hierarchy
-systems: [ -fedora-31-*]
+systems:
+    - -ubuntu-14.04-*
+    - -fedora-31-*  # TODO: add support for cgroupv2 based tracking
+    - -fedora-32-*
 
 prepare: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
     install_local test-snapd-desktop
+    session-tool -u test --prepare
 
 restore: |
     rm -f output.txt
+    session-tool -u test systemctl --user stop test-snapd-desktop-sleep.service
+    session-tool -u test --restore
 
 execute: |
     # Start a "sleep" process in the background
     #shellcheck disable=SC2016
-    test-snapd-desktop.cmd sh -c 'touch $SNAP_DATA/1.stamp && exec sleep 1h' &
-    pid1=$!
-    trap 'kill "$pid1" || true' EXIT
+    session-tool -u test systemd-run --user --unit test-snapd-desktop-sleep.service test-snapd-desktop.cmd sh -c 'touch $SNAP_USER_DATA/1.stamp && exec sleep 1h'
     # Ensure that snap-confine has finished its task and that the snap process
     # is active. Note that we don't want to wait forever either.
-    for _ in $(seq 30); do
-        test -e /var/snap/test-snapd-desktop/current/1.stamp && break
-        sleep 0.1
-    done
+    retry-tool -n 30 --wait 0.1 test -e /home/test/snap/test-snapd-desktop/current/1.stamp
+    pid1="$(session-tool -u test systemctl --user show --property=MainPID test-snapd-desktop-sleep.service | cut -d = -f 2)"
 
     snap routine portal-info "$pid1" > output.txt
     diff -u output.txt - << \EOF
@@ -33,6 +33,3 @@ execute: |
     DesktopFile=test-snapd-desktop_cmd.desktop
     HasNetworkStatus=false
     EOF
-
-    kill "$pid1"
-    wait "$pid1" || true
