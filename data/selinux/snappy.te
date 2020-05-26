@@ -261,8 +261,10 @@ allow snappy_t usr_t:lnk_file { create unlink };
 # Allow snapd to use ssh-keygen
 ssh_exec_keygen(snappy_t)
 
-# Allow snapd to access passwd file for lookup
+# Allow snapd to access passwd file for trivial user lookup
 auth_read_passwd(snappy_t)
+# also via nsswitch if called via libc
+auth_use_nsswitch(snappy_t)
 
 # because /run/snapd/ns/*.mnt gets a label of the process context
 gen_require(` type unconfined_t; ')
@@ -280,7 +282,7 @@ allow snappy_t self:netlink_route_socket create_netlink_socket_perms;
 allow snappy_t self:unix_stream_socket create_stream_socket_perms;
 allow snappy_t self:tcp_socket create_stream_socket_perms;
 allow snappy_t self:udp_socket create_stream_socket_perms;
-allow snappy_t self:unix_dgram_socket create_socket_perms;
+allow snappy_t self:unix_dgram_socket { create_socket_perms sendto };
 allow snappy_t self:capability2 block_suspend;
 
 # snapd needs to check for ipv6 support
