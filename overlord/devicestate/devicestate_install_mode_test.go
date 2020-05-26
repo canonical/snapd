@@ -512,7 +512,8 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeNoCloudInitForSigned(c *C) {
 	})
 }
 
-func (s *deviceMgrInstallModeSuite) TestInstallModeSupportsCloudInitFromGadget(c *C) {
+// TODO: convert test to "cloud.conf" support
+func (s *deviceMgrInstallModeSuite) TestInstallModeSupportsCloudInitFromGadgetNotSupported(c *C) {
 	// XXX: this is slightly magic - in mockInstallModeChange() we create
 	//      a mock pc gadget snap with revno 1. This is why we can set
 	//      set gadget dir here
@@ -530,12 +531,13 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeSupportsCloudInitFromGadget(c
 	// cloud init config from gadget works for signed models too
 	s.mockInstallModeChange(c, "signed")
 
-	// and did tell sysconfig about the cloud-init files
-	c.Assert(s.configureRunSystemOptsPassed, DeepEquals, []*sysconfig.Options{
-		{
-			CloudInitSrcDir: filepath.Join(gadgetDir, "cloud.cfg.d"),
-			TargetRootDir:   boot.InstallHostWritableDir,
-		},
+	// nothing about cloud-init got passed to sysconf, we don't
+	// support cloud.cfg.d anymore
+	c.Assert(s.configureRunSystemOptsPassed, HasLen, 1)
+	c.Assert(s.configureRunSystemOptsPassed[0], DeepEquals, &sysconfig.Options{
+		TargetRootDir: boot.InstallHostWritableDir,
+		// not set
+		CloudInitSrcDir: "",
 	})
 }
 
