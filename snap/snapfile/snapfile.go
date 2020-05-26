@@ -36,12 +36,12 @@ var formatHandlers = []snapFormat{
 	// standard squashfs snap file format
 	{
 		squashfs.FileHasSquashfsHeader,
-		func(f string) (snap.Container, error) { return squashfs.New(f), nil },
+		func(p string) (snap.Container, error) { return squashfs.New(p), nil },
 	},
 	// snap directory format, i.e. snap try <dir>
 	{
 		snapdir.IsSnapDir,
-		func(f string) (snap.Container, error) { return snapdir.New(f), nil },
+		func(p string) (snap.Container, error) { return snapdir.New(p), nil },
 	},
 }
 
