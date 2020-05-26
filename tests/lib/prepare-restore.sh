@@ -55,6 +55,12 @@ create_test_user(){
                 echo "ERROR: system $SPREAD_SYSTEM not yet supported!"
                 exit 1
         esac
+
+        # Allow the test user to access systemd journal.
+        if getent group systemd-journal >/dev/null; then
+            usermod -G systemd-journal -a test
+            id test | MATCH systemd-journal
+        fi
     fi
 
     owner=$( stat -c "%U:%G" /home/test )
@@ -530,6 +536,9 @@ prepare_suite_each() {
             ausearch -i -m AVC --checkpoint "$RUNTIME_STATE_PATH/audit-stamp" || true
             ;;
     esac
+
+    # Check for invariants late, in order to detect any bugs in the code above.
+    invariant-tool check
 }
 
 restore_suite_each() {
@@ -590,6 +599,9 @@ restore_suite() {
 }
 
 restore_project_each() {
+    # Check for invariants early, in order not to mask bugs in tests.
+    invariant-tool check
+
     restore_dev_random
 
     # Udev rules are notoriously hard to write and seemingly correct but subtly

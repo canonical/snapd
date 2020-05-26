@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapfile"
 )
 
 // BootableSet represents the boot snaps of a system to be made bootable.
@@ -125,7 +126,7 @@ func makeBootable16(model *asserts.Model, rootdir string, bootWith *BootableSet)
 	setBoot("snap_core", bootWith.BasePath)
 
 	// kernel
-	kernelf, err := snap.Open(bootWith.KernelPath)
+	kernelf, err := snapfile.Open(bootWith.KernelPath)
 	if err != nil {
 		return err
 	}
@@ -190,7 +191,7 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet)
 	// the recovery system
 	erkbl, ok := bl.(bootloader.ExtractedRecoveryKernelImageBootloader)
 	if ok {
-		kernelf, err := snap.Open(bootWith.KernelPath)
+		kernelf, err := snapfile.Open(bootWith.KernelPath)
 		if err != nil {
 			return err
 		}
@@ -227,6 +228,9 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet)
 func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *BootableSet) error {
 	// TODO:UC20:
 	// - create grub.cfg instead of using the gadget one
+	// - figure out what to do for uboot gadgets, currently we require them to
+	//   install the boot.sel onto ubuntu-boot directly, but the file should be
+	//   managed by snapd instead
 
 	// copy kernel/base into the ubuntu-data partition
 	snapBlobDir := dirs.SnapBlobDirUnder(InstallHostWritableDir)
@@ -268,7 +272,7 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 	}
 
 	// extract the kernel first and mark kernel_status ready
-	kernelf, err := snap.Open(bootWith.KernelPath)
+	kernelf, err := snapfile.Open(bootWith.KernelPath)
 	if err != nil {
 		return err
 	}

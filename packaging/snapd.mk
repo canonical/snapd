@@ -107,6 +107,7 @@ install::
 	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/desktop/applications
 	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/device
 	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/hostfs
+	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/inhibit
 	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/lib/gl
 	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/lib/gl32
 	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/lib/glvnd
