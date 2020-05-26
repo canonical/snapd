@@ -200,10 +200,7 @@ func prepareChroot(preseedChroot string) (func(), error) {
 		}
 	}
 
-	fstype, fsopts, err := squashfs.FsType()
-	if err != nil {
-		return nil, fmt.Errorf("cannot determine filesystem type to use for squashfs: %v", err)
-	}
+	fstype, fsopts := squashfs.FsType()
 	cmd := exec.Command("mount", "-t", fstype, "-o", strings.Join(fsopts, ","), coreSnapPath, where)
 	if err := cmd.Run(); err != nil {
 		removeMountpoint()

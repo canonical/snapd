@@ -949,7 +949,7 @@ func (s *SystemdTestSuite) TestPreseedModeAddMountUnit(c *C) {
 func (s *SystemdTestSuite) TestPreseedModeAddMountUnitWithFuse(c *C) {
 	sysd := NewEmulationMode(dirs.GlobalRootDir)
 
-	restore := MockSquashFsType(func() (string, []string, error) { return "fuse.squashfuse", []string{"a,b,c"}, nil })
+	restore := MockSquashFsType(func() (string, []string) { return "fuse.squashfuse", []string{"a,b,c"} })
 	defer restore()
 
 	mockMountCmd := testutil.MockCommand(c, "mount", "")

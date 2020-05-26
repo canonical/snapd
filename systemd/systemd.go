@@ -774,10 +774,7 @@ func actualFsTypeAndMountOptions(fstype string) (actualFsType string, options []
 	options = fsMountOptions(fstype)
 	actualFsType = fstype
 	if fstype == "squashfs" {
-		newFsType, newOptions, err := squashfsFsType()
-		if err != nil {
-			return "", nil, err
-		}
+		newFsType, newOptions := squashfsFsType()
 		options = append(options, newOptions...)
 		actualFsType = newFsType
 	}
