@@ -262,7 +262,7 @@ trap 'rm -rf $tmp_dir' EXIT
 # Run dbus-monitor waiting for systemd JobRemoved signal. Process the output
 # with awk, forwarding the result of the service to a fifo.
 monitor_expr="type='signal', sender='org.freedesktop.systemd1', interface='org.freedesktop.systemd1.Manager', path='/org/freedesktop/systemd1', member='JobRemoved'"
-stdbuf -oL dbus-monitor --system --monitor "$monitor_expr" > "$tmp_dir/dbus-monitor.pipe" &
+stdbuf -oL dbus-monitor --system --monitor "$monitor_expr" > "$tmp_dir/dbus-monitor.pipe" 2>/dev/null &
 dbus_monitor_pid=$!
 
 awk_expr="
