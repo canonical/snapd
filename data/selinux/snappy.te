@@ -206,8 +206,8 @@ storage_getattr_fuse_dev(snappy_t)
 miscfiles_read_localization(snappy_t)
 
 # Allow snapd to read its run files, those files are managed elsewhere
-read_files_pattern(snappy_t, snappy_var_run_t, snappy_var_run_t)
-getattr_files_pattern(snappy_t, snappy_var_run_t, snappy_var_run_t)
+manage_files_pattern(snappy_t, snappy_var_run_t, snappy_var_run_t)
+manage_sock_files_pattern(snappy_t, snappy_var_run_t, snappy_var_run_t)
 
 gen_require(`
 	type user_tmp_t;

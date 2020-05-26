@@ -70,6 +70,7 @@ import (
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
@@ -1545,7 +1546,7 @@ out:
 
 func unsafeReadSnapInfoImpl(snapPath string) (*snap.Info, error) {
 	// Condider using DeriveSideInfo before falling back to this!
-	snapf, err := snap.Open(snapPath)
+	snapf, err := snapfile.Open(snapPath)
 	if err != nil {
 		return nil, err
 	}
