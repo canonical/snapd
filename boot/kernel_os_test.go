@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -502,6 +503,31 @@ func (s *ubootSuite) TestExtractKernelAssetsAndRemoveOnUboot(c *C) {
 		if def[0] == "meta/kernel.yaml" {
 			break
 		}
+		fn := snaptest.MakeTestSnapWithFiles(c, packageKernel, files)
+		snapf, err := snapfile.Open(fn)
+		c.Assert(err, IsNil)
+
+		info, err := snap.ReadInfoFromSnapFile(snapf, si)
+		c.Assert(err, IsNil)
+
+		bp := boot.NewCoreKernel(info, boottest.MockDevice(""))
+		err = bp.ExtractKernelAssets(snapf)
+		c.Assert(err, IsNil)
+
+		// this is where the kernel/initrd is unpacked
+		kernelAssetsDir := filepath.Join(s.bootdir, "/uboot/ubuntu-kernel_42.snap")
+		for _, def := range files {
+			if def[0] == "meta/kernel.yaml" {
+				break
+			}
+
+			fullFn := filepath.Join(kernelAssetsDir, def[0])
+			c.Check(fullFn, testutil.FileEquals, def[1])
+		}
+
+		// it's idempotent
+		err = bp.ExtractKernelAssets(snapf)
+		c.Assert(err, IsNil)
 
 		fullFn := filepath.Join(kernelAssetsDir, def[0])
 		c.Check(fullFn, testutil.FileEquals, def[1])
@@ -567,7 +593,7 @@ func (s *grubSuite) TestExtractKernelAssetsNoUnpacksKernelForGrub(c *C) {
 		Revision: snap.R(42),
 	}
 	fn := snaptest.MakeTestSnapWithFiles(c, packageKernel, files)
-	snapf, err := snap.Open(fn)
+	snapf, err := snapfile.Open(fn)
 	c.Assert(err, IsNil)
 
 	info, err := snap.ReadInfoFromSnapFile(snapf, si)
@@ -598,7 +624,7 @@ func (s *grubSuite) TestExtractKernelForceWorks(c *C) {
 		Revision: snap.R(42),
 	}
 	fn := snaptest.MakeTestSnapWithFiles(c, packageKernel, files)
-	snapf, err := snap.Open(fn)
+	snapf, err := snapfile.Open(fn)
 	c.Assert(err, IsNil)
 
 	info, err := snap.ReadInfoFromSnapFile(snapf, si)

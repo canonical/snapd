@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/ubootenv"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -64,7 +65,7 @@ func makeSnapWithFiles(c *C, name, yaml string, revno snap.Revision, files [][]s
 		Revision: revno,
 	}
 	fn = snaptest.MakeTestSnapWithFiles(c, yaml, files)
-	snapf, err := snap.Open(fn)
+	snapf, err := snapfile.Open(fn)
 	c.Assert(err, IsNil)
 	info, err = snap.ReadInfoFromSnapFile(snapf, si)
 	c.Assert(err, IsNil)

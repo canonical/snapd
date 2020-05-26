@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/testutil"
@@ -395,7 +396,7 @@ epoch: 1*
 confinement: devmode`
 	snapPath := snaptest.MakeTestSnapWithFiles(c, yaml, nil)
 
-	snapf, err := snap.Open(snapPath)
+	snapf, err := snapfile.Open(snapPath)
 	c.Assert(err, IsNil)
 
 	info, err := snap.ReadInfoFromSnapFile(snapf, nil)
@@ -417,7 +418,7 @@ type: app
 confinement: classic`
 	snapPath := snaptest.MakeTestSnapWithFiles(c, yaml, nil)
 
-	snapf, err := snap.Open(snapPath)
+	snapf, err := snapfile.Open(snapPath)
 	c.Assert(err, IsNil)
 
 	info, err := snap.ReadInfoFromSnapFile(snapf, nil)
@@ -437,7 +438,7 @@ version: 1.0
 type: app`
 	snapPath := snaptest.MakeTestSnapWithFiles(c, yaml, nil)
 
-	snapf, err := snap.Open(snapPath)
+	snapf, err := snapfile.Open(snapPath)
 	c.Assert(err, IsNil)
 
 	info, err := snap.ReadInfoFromSnapFile(snapf, nil)
@@ -457,7 +458,7 @@ version: 1.0
 type: app`
 	snapPath := snaptest.MakeTestSnapWithFiles(c, yaml, nil)
 
-	snapf, err := snap.Open(snapPath)
+	snapf, err := snapfile.Open(snapPath)
 	c.Assert(err, IsNil)
 
 	info, err := snap.ReadInfoFromSnapFile(snapf, &snap.SideInfo{
@@ -477,7 +478,7 @@ version: 1.0
 type: app`
 	snapPath := makeTestSnap(c, yaml)
 
-	snapf, err := snap.Open(snapPath)
+	snapf, err := snapfile.Open(snapPath)
 	c.Assert(err, IsNil)
 
 	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
@@ -490,7 +491,7 @@ version: 1.0
 type: foo`
 	snapPath := makeTestSnap(c, yaml)
 
-	snapf, err := snap.Open(snapPath)
+	snapf, err := snapfile.Open(snapPath)
 	c.Assert(err, IsNil)
 
 	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
@@ -503,7 +504,7 @@ version: 1.0
 confinement: foo`
 	snapPath := makeTestSnap(c, yaml)
 
-	snapf, err := snap.Open(snapPath)
+	snapf, err := snapfile.Open(snapPath)
 	c.Assert(err, IsNil)
 
 	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
@@ -651,7 +652,7 @@ hooks:
   123abc:`
 	snapPath := makeTestSnap(c, yaml)
 
-	snapf, err := snap.Open(snapPath)
+	snapf, err := snapfile.Open(snapPath)
 	c.Assert(err, IsNil)
 
 	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
@@ -663,7 +664,7 @@ func (s *infoSuite) TestReadInfoFromSnapFileCatchesInvalidImplicitHook(c *C) {
 version: 1.0`
 	snapPath := snaptest.MakeTestSnapWithFiles(c, yaml, emptyHooks("123abc"))
 
-	snapf, err := snap.Open(snapPath)
+	snapf, err := snapfile.Open(snapPath)
 	c.Assert(err, IsNil)
 
 	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
@@ -681,7 +682,7 @@ func (s *infoSuite) checkInstalledSnapAndSnapFile(c *C, instanceName, yaml strin
 
 	// Now check snap file
 	snapPath := snaptest.MakeTestSnapWithFiles(c, yaml, emptyHooks(hooks...))
-	snapf, err := snap.Open(snapPath)
+	snapf, err := snapfile.Open(snapPath)
 	c.Assert(err, IsNil)
 	info, err = snap.ReadInfoFromSnapFile(snapf, nil)
 	c.Check(err, IsNil)
@@ -1124,7 +1125,7 @@ plugs:
 func (s *infoSuite) TestReadInfoFromSnapFileRenamesCorePlus(c *C) {
 	snapPath := snaptest.MakeTestSnapWithFiles(c, coreSnapYaml, nil)
 
-	snapf, err := snap.Open(snapPath)
+	snapf, err := snapfile.Open(snapPath)
 	c.Assert(err, IsNil)
 
 	info, err := snap.ReadInfoFromSnapFile(snapf, nil)
