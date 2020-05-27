@@ -78,6 +78,10 @@ func (s *emulation) Restart(service string, timeout time.Duration) error {
 	return errNotImplemented
 }
 
+func (s *emulation) RestartAll(service string) error {
+	return errNotImplemented
+}
+
 func (s *emulation) Status(units ...string) ([]*UnitStatus, error) {
 	return nil, errNotImplemented
 }

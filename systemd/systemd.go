@@ -222,6 +222,8 @@ type Systemd interface {
 	Kill(service, signal, who string) error
 	// Restart the service, waiting for it to stop before starting it again.
 	Restart(service string, timeout time.Duration) error
+	// RestartAll restarts the given service using systemctl restart --all
+	RestartAll(service string) error
 	// Status fetches the status of given units. Statuses are
 	// returned in the same order as unit names passed in
 	// argument.
@@ -636,6 +638,14 @@ func (s *systemd) Restart(serviceName string, timeout time.Duration) error {
 		return err
 	}
 	return s.Start(serviceName)
+}
+
+func (s *systemd) RestartAll(serviceName string) error {
+	if s.mode == GlobalUserMode {
+		panic("cannot call restart with GlobalUserMode")
+	}
+	_, err := s.systemctl("restart", serviceName, "--all")
+	return err
 }
 
 type systemctlError interface {
