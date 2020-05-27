@@ -292,7 +292,10 @@ func SealKey(key partition.EncryptionKey, params *SealKeyParams) error {
 		policyParams := sb.EFISecureBootPolicyProfileParams{
 			PCRAlgorithm:  tpm2.HashAlgorithmSHA256,
 			LoadSequences: buildLoadSequences(modelParams.EFILoadChains),
-			// TODO:UC20: set SignatureDbUpdateKeystore to support key rotation
+			// TODO:UC20: set SignatureDbUpdateKeystore to support applying forbidden
+			//            signature updates to blacklist signing keys (after rotating them).
+			//            This also requires integration of sbkeysync, and some work to
+			//            ensure that the PCR profile is updated before/after sbkeysync executes.
 		}
 
 		if err := sbAddEFISecureBootPolicyProfile(modelProfile, &policyParams); err != nil {
