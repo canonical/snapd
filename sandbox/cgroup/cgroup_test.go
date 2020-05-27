@@ -298,10 +298,8 @@ func (s *cgroupSuite) writePids(c *C, dir string, pids []int) {
 		path = filepath.Join(s.rootDir, "/sys/fs/cgroup", dir)
 	}
 
-	err = os.MkdirAll(path, 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(path, "cgroup.procs"), buf.Bytes(), 0644)
-	c.Assert(err, IsNil)
+	c.Assert(os.MkdirAll(path, 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(path, "cgroup.procs"), buf.Bytes(), 0644), IsNil)
 }
 
 func (s *cgroupSuite) TestPidsOfSnapEmpty(c *C) {
@@ -421,6 +419,12 @@ func (s *cgroupSuite) TestPidsOfSnapUnrelated(c *C) {
 		s.writePids(c, "user.slice/.../snap.other.snap.$RANDOM2.scope", []int{2})
 		s.writePids(c, "user.slice/.../pkg.service", []int{3})
 		s.writePids(c, "user.slice/.../snap.pkg_instance.app.$RANDOM3.scope", []int{4})
+
+		// Write a file which is not cgroup.procs with the number 666 inside.
+		// We want to ensure this is not read by accident.
+		f := filepath.Join(s.rootDir, "/sys/fs/cgroup/unrelated.txt")
+		c.Assert(os.MkdirAll(filepath.Dir(f), 0755), IsNil)
+		c.Assert(ioutil.WriteFile(f, []byte("666"), 0644), IsNil)
 
 		pids, err := cgroup.PidsOfSnap("pkg")
 		c.Assert(err, IsNil, comment)
