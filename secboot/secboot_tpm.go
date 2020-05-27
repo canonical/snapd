@@ -52,6 +52,7 @@ var (
 	sbMeasureSnapModelToTPM          = sb.MeasureSnapModelToTPM
 	sbLockAccessToSealedKeys         = sb.LockAccessToSealedKeys
 	sbActivateVolumeWithTPMSealedKey = sb.ActivateVolumeWithTPMSealedKey
+	sbActivateVolumeWithRecoveryKey  = sb.ActivateVolumeWithRecoveryKey
 	sbAddEFISecureBootPolicyProfile  = sb.AddEFISecureBootPolicyProfile
 	sbAddSystemdEFIStubProfile       = sb.AddSystemdEFIStubProfile
 	sbAddSnapModelProfile            = sb.AddSnapModelProfile
@@ -211,16 +212,16 @@ func UnlockVolumeIfEncrypted(name string, lockKeysOnFinish bool) (string, error)
 			return nil
 		}
 
+		mapperName = name + "-" + randutilRandomKernelUUID()
 		if !tpmDeviceAvailable {
-			return fmt.Errorf("cannot unlock encrypted device %q: %v", name, tpmErr)
+			return unlockEncryptedPartitionWithRecoveryKey(mapperName, encdev)
 		}
 		// TODO:UC20: snap-bootstrap should validate that <name>-enc is what
 		//            we expect (and not e.g. an external disk), and also that
 		//            <name> is from <name>-enc and not an unencrypted partition
 		//            with the same name (LP #1863886)
 		sealedKeyPath := filepath.Join(boot.InitramfsEncryptionKeyDir, name+".sealed-key")
-		mapperName = name + "-" + randutilRandomKernelUUID()
-		return unlockEncryptedPartition(tpm, mapperName, encdev, sealedKeyPath, "", lockKeysOnFinish)
+		return unlockEncryptedPartitionWithSealedKey(tpm, mapperName, encdev, sealedKeyPath, "", lockKeysOnFinish)
 	}()
 	if err != nil {
 		return "", err
@@ -242,8 +243,24 @@ func UnlockVolumeIfEncrypted(name string, lockKeysOnFinish bool) (string, error)
 	return filepath.Join(devDiskByLabelDir, name), nil
 }
 
-// UnlockEncryptedPartition unseals the keyfile and opens an encrypted device.
-func unlockEncryptedPartition(tpm *sb.TPMConnection, name, device, keyfile, pinfile string, lock bool) error {
+// unlockEncryptedPartitionWithRecoveryKey prompts for the recovery key and use
+// it to open an encrypted device.
+func unlockEncryptedPartitionWithRecoveryKey(name, device string) error {
+	options := sb.ActivateWithRecoveryKeyOptions{
+		Tries: 3,
+	}
+
+	if err := sbActivateVolumeWithRecoveryKey(name, device, nil, &options); err != nil {
+		return fmt.Errorf("cannot unlock encrypted device %q: %v", device, err)
+	}
+
+	return nil
+}
+
+// unlockEncryptedPartitionWithSealedKey unseals the keyfile and opens an encrypted
+// device. If activation with the sealed key fails, this function will attempt to
+// activate it with the fallback recovery key instead.
+func unlockEncryptedPartitionWithSealedKey(tpm *sb.TPMConnection, name, device, keyfile, pinfile string, lock bool) error {
 	options := sb.ActivateWithTPMSealedKeyOptions{
 		PINTries:            1,
 		RecoveryKeyTries:    3,

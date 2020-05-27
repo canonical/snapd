@@ -213,6 +213,7 @@ func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
 	for idx, tc := range []struct {
 		tpmErr    error
 		hasEncdev bool
+		rkErr     error // recovery key unlock error, only relevant if TPM not available
 		last      bool
 		lockOk    bool
 		activated bool
@@ -263,16 +264,25 @@ func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
 			tpmErr: errors.New("tpm error"), last: true,
 			err: `cannot unlock encrypted device "name": tpm error`,
 		}, {
-			tpmErr: noTPMDeviceErr,
+			// has encrypted device and no tpm, unlocked using the recovery key (last device)
+			tpmErr: noTPMDeviceErr, hasEncdev: true, last: true,
 			device: "name",
 		}, {
+			// has encrypted device and no tpm, recovery key unlocking fails
+			rkErr:  errors.New("cannot unlock with recovery key"),
 			tpmErr: noTPMDeviceErr, hasEncdev: true, last: true,
-			err: `cannot unlock encrypted device "name": open path: no tpm`,
+			err: `cannot unlock encrypted device ".*/name-enc": cannot unlock with recovery key`,
 		}, {
+			// has encrypted device and no tpm, unlocked using the recovery key
 			tpmErr: noTPMDeviceErr, hasEncdev: true,
-			err: `cannot unlock encrypted device "name": open path: no tpm`,
+			device: "name",
 		}, {
+			// no tpm, no encrypted device (last device)
 			tpmErr: noTPMDeviceErr, last: true,
+			device: "name",
+		}, {
+			// no tpm, no encrypted device
+			tpmErr: noTPMDeviceErr,
 			device: "name",
 		},
 	} {
@@ -287,7 +297,7 @@ func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
 		defer restoreConnect()
 
 		n := 0
-		restoreLock := secboot.MockSbLockAccessToSealedKeys(func(tpm *sb.TPMConnection) error {
+		restore = secboot.MockSbLockAccessToSealedKeys(func(tpm *sb.TPMConnection) error {
 			n++
 			c.Assert(tpm, Equals, mockSbTPM)
 			if tc.lockOk {
@@ -295,7 +305,7 @@ func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
 			}
 			return errors.New("lock failed")
 		})
-		defer restoreLock()
+		defer restore()
 
 		devDiskByLabel, restoreDev := mockDevDiskByLabel(c)
 		defer restoreDev()
@@ -304,7 +314,7 @@ func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
 			c.Assert(err, IsNil)
 		}
 
-		restoreActivate := secboot.MockSbActivateVolumeWithTPMSealedKey(func(tpm *sb.TPMConnection, volumeName, sourceDevicePath,
+		restore = secboot.MockSbActivateVolumeWithTPMSealedKey(func(tpm *sb.TPMConnection, volumeName, sourceDevicePath,
 			keyPath string, pinReader io.Reader, options *sb.ActivateWithTPMSealedKeyOptions) (bool, error) {
 			c.Assert(volumeName, Equals, "name-"+randomUUID)
 			c.Assert(sourceDevicePath, Equals, filepath.Join(devDiskByLabel, "name-enc"))
@@ -319,7 +329,13 @@ func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
 			}
 			return true, nil
 		})
-		defer restoreActivate()
+		defer restore()
+
+		restore = secboot.MockSbActivateVolumeWithRecoveryKey(func(name, device string, keyReader io.Reader,
+			options *sb.ActivateWithRecoveryKeyOptions) error {
+			return tc.rkErr
+		})
+		defer restore()
 
 		device, err := secboot.UnlockVolumeIfEncrypted("name", tc.last)
 		if tc.err == "" {

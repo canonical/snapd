@@ -84,6 +84,15 @@ func MockSbLockAccessToSealedKeys(f func(tpm *sb.TPMConnection) error) (restore 
 	}
 }
 
+func MockSbActivateVolumeWithRecoveryKey(f func(volumeName, sourceDevicePath string,
+	keyReader io.Reader, options *sb.ActivateWithRecoveryKeyOptions) error) (restore func()) {
+	old := sbActivateVolumeWithRecoveryKey
+	sbActivateVolumeWithRecoveryKey = f
+	return func() {
+		sbActivateVolumeWithRecoveryKey = old
+	}
+}
+
 func MockSbActivateVolumeWithTPMSealedKey(f func(tpm *sb.TPMConnection, volumeName, sourceDevicePath, keyPath string,
 	pinReader io.Reader, options *sb.ActivateWithTPMSealedKeyOptions) (bool, error)) (restore func()) {
 	old := sbActivateVolumeWithTPMSealedKey
