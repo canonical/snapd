@@ -92,7 +92,7 @@ func (s *trackingSuite) TestCreateTransientScopeFeatureEnabled(c *C) {
 		return nil, fmt.Errorf("unexpected message #%d: %s", n, msg)
 	})
 	c.Assert(err, IsNil)
-	restore = dbusutil.MockSessionBus(conn)
+	restore = dbusutil.MockOnlySessionBusAvailable(conn)
 	defer restore()
 	// Replace the cgroup analyzer function
 	restore = cgroup.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {

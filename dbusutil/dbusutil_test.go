@@ -94,24 +94,28 @@ func (*dbusutilSuite) TestSessionBusWithoutBus(c *C) {
 	c.Assert(err, ErrorMatches, "cannot find session bus")
 }
 
-func (*dbusutilSuite) TestMockSessionBus(c *C) {
+func (*dbusutilSuite) TestMockOnlySessionBusAvailable(c *C) {
 	stub, err := dbustest.StubConnection()
 	c.Assert(err, IsNil)
 	defer stub.Close()
-	restore := dbusutil.MockSessionBus(stub)
+	restore := dbusutil.MockOnlySessionBusAvailable(stub)
 	defer restore()
 
 	conn, err := dbusutil.SessionBus()
 	c.Assert(err, IsNil)
 	c.Check(conn, Equals, stub)
+
+	c.Check(func() { dbusutil.SystemBus() }, PanicMatches, "DBus system bus should not have been used")
 }
 
-func (*dbusutilSuite) TestMockSystemBus(c *C) {
+func (*dbusutilSuite) TestMockOnlySystemBusAvailable(c *C) {
 	stub, err := dbustest.StubConnection()
 	c.Assert(err, IsNil)
 	defer stub.Close()
-	restore := dbusutil.MockSystemBus(stub)
+	restore := dbusutil.MockOnlySystemBusAvailable(stub)
 	defer restore()
+
+	c.Check(func() { dbusutil.SessionBus() }, PanicMatches, "DBus session bus should not have been used")
 
 	conn, err := dbusutil.SystemBus()
 	c.Assert(err, IsNil)

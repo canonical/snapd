@@ -94,10 +94,10 @@ func MockConnections(system, session func() (*dbus.Conn, error)) (restore func()
 	}
 }
 
-// MockSystemBus makes SystemBus return the given connection.
+// MockOnlySystemBusAvailable makes SystemBus return the given connection.
 //
 // In addition calling SessionBus will panic.
-func MockSystemBus(conn *dbus.Conn) (restore func()) {
+func MockOnlySystemBusAvailable(conn *dbus.Conn) (restore func()) {
 	systemBus := func() (*dbus.Conn, error) { return conn, nil }
 	sessionBus := func() (*dbus.Conn, error) {
 		panic("DBus session bus should not have been used")
@@ -105,10 +105,10 @@ func MockSystemBus(conn *dbus.Conn) (restore func()) {
 	return MockConnections(systemBus, sessionBus)
 }
 
-// MockSessionBus makes SessionBus return the given connection.
+// MockOnlySessionBusAvailable makes SessionBus return the given connection.
 //
 // In addition calling SystemBus will panic.
-func MockSessionBus(conn *dbus.Conn) (restore func()) {
+func MockOnlySessionBusAvailable(conn *dbus.Conn) (restore func()) {
 	systemBus := func() (*dbus.Conn, error) {
 		panic("DBus system bus should not have been used")
 	}
