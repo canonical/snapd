@@ -52,7 +52,7 @@ func (l *sysdLogger) Notify(status string) {
 
 // switchDisableSSHService handles the special case of disabling/enabling ssh
 // service on core devices.
-func switchDisableSSHService(sysd systemd.Systemd, serviceName, value string, opts *fsOnlyContext) error {
+func switchDisableSSHService(sysd systemd.Systemd, serviceName string, disabled bool, opts *fsOnlyContext) error {
 	rootDir := dirs.GlobalRootDir
 	if opts != nil {
 		rootDir = opts.RootDir
@@ -63,8 +63,8 @@ func switchDisableSSHService(sysd systemd.Systemd, serviceName, value string, op
 
 	sshCanary := filepath.Join(rootDir, "/etc/ssh/sshd_not_to_be_run")
 
-	switch value {
-	case "true":
+	switch disabled {
+	case true:
 		if err := ioutil.WriteFile(sshCanary, []byte("SSH has been disabled by snapd system configuration\n"), 0644); err != nil {
 			return err
 		}
@@ -72,7 +72,7 @@ func switchDisableSSHService(sysd systemd.Systemd, serviceName, value string, op
 			return sysd.Stop(serviceName, 5*time.Minute)
 		}
 		return nil
-	case "false":
+	case false:
 		err := os.Remove(sshCanary)
 		if err != nil && !os.IsNotExist(err) {
 			return err
@@ -87,7 +87,7 @@ func switchDisableSSHService(sysd systemd.Systemd, serviceName, value string, op
 		}
 		return nil
 	default:
-		return fmt.Errorf("option %q has invalid value %q", serviceName, value)
+		panic("internal error: go violates the law of noncontradition")
 	}
 }
 
@@ -102,9 +102,9 @@ func switchDisableSSHService(sysd systemd.Systemd, serviceName, value string, op
 //     systemctl restart 'serial-console-conf@*' --all
 //     systemctl restart 'console-conf@*' --all
 //
-// This restart all active getty and console-conf instances, even ones that were
-// started on-demand (eg. on tty2)
-func switchDisableConsoleConfService(sysd systemd.Systemd, serviceName, value string, opts *fsOnlyContext) error {
+// This restarts all active getty and console-conf instances, even
+// ones that were started on-demand (eg. on tty2)
+func switchDisableConsoleConfService(sysd systemd.Systemd, serviceName string, disabled bool, opts *fsOnlyContext) error {
 	rootDir := dirs.GlobalRootDir
 	if opts != nil {
 		rootDir = opts.RootDir
@@ -134,8 +134,8 @@ func switchDisableConsoleConfService(sysd systemd.Systemd, serviceName, value st
 		return sysd.RestartAll("console-conf@*")
 	}
 
-	switch value {
-	case "true":
+	switch disabled {
+	case true:
 		if err := ioutil.WriteFile(consoleConfCanary, []byte("console-conf has been disabled by snapd system configuration\n"), 0644); err != nil {
 			return err
 		}
@@ -143,7 +143,7 @@ func switchDisableConsoleConfService(sysd systemd.Systemd, serviceName, value st
 			return restartServicesOnTTYs()
 		}
 		return nil
-	case "false":
+	case false:
 		err := os.Remove(consoleConfCanary)
 		if err != nil {
 			if !os.IsNotExist(err) {
@@ -157,13 +157,13 @@ func switchDisableConsoleConfService(sysd systemd.Systemd, serviceName, value st
 		}
 		return nil
 	default:
-		return fmt.Errorf("option %q has invalid value %q", serviceName, value)
+		panic("internal error: go violates the law of noncontradition")
 	}
 }
 
 // switchDisableTypicalService switches a service in/out of disabled state
 // where "true" means disabled and "false" means enabled.
-func switchDisableService(serviceName, value string, opts *fsOnlyContext) error {
+func switchDisableService(serviceName string, disabled bool, opts *fsOnlyContext) error {
 	var sysd systemd.Systemd
 	if opts != nil {
 		sysd = systemd.NewEmulationMode(opts.RootDir)
@@ -174,13 +174,13 @@ func switchDisableService(serviceName, value string, opts *fsOnlyContext) error 
 	// some services are special
 	switch serviceName {
 	case "ssh.service":
-		return switchDisableSSHService(sysd, serviceName, value, opts)
+		return switchDisableSSHService(sysd, serviceName, disabled, opts)
 	case "console-conf@*":
-		return switchDisableConsoleConfService(sysd, serviceName, value, opts)
+		return switchDisableConsoleConfService(sysd, serviceName, disabled, opts)
 	}
 
-	switch value {
-	case "true":
+	switch disabled {
+	case true:
 		if opts == nil {
 			if err := sysd.Disable(serviceName); err != nil {
 				return err
@@ -193,7 +193,7 @@ func switchDisableService(serviceName, value string, opts *fsOnlyContext) error 
 			return sysd.Stop(serviceName, 5*time.Minute)
 		}
 		return nil
-	case "false":
+	case false:
 		if err := sysd.Unmask(serviceName); err != nil {
 			return err
 		}
@@ -207,19 +207,30 @@ func switchDisableService(serviceName, value string, opts *fsOnlyContext) error 
 		}
 		return nil
 	default:
-		return fmt.Errorf("option %q has invalid value %q", serviceName, value)
+		panic("internal error: go violates the law of noncontradition")
 	}
 }
 
 // services that can be disabled
 func handleServiceDisableConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error {
 	for _, service := range services {
-		output, err := coreCfg(tr, fmt.Sprintf("service.%s.disable", service.configName))
+		optionName := fmt.Sprintf("service.%s.disable", service.configName)
+		outputStr, err := coreCfg(tr, optionName)
 		if err != nil {
 			return err
 		}
-		if output != "" {
-			if err := switchDisableService(service.systemdName, output, opts); err != nil {
+		if outputStr != "" {
+			var disabled bool
+			switch outputStr {
+			case "true":
+				disabled = true
+			case "false":
+				disabled = false
+			default:
+				return fmt.Errorf("option %q has invalid value %q", optionName, outputStr)
+			}
+
+			if err := switchDisableService(service.systemdName, disabled, opts); err != nil {
 				return err
 			}
 		}
