@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/cmd/cmdutil"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/squashfs"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
@@ -78,12 +79,13 @@ func checkChroot(preseedChroot string) error {
 	}
 	// non empty required indicates missing mountpoint(s)
 	if len(required) > 0 {
-		sorted := []string{""}
+		var sorted []string
 		for path := range required {
 			sorted = append(sorted, path)
 		}
 		sort.Strings(sorted)
-		return fmt.Errorf("cannot preseed without the following mountpoints:%s", strings.Join(sorted, "\n - "))
+		parts := append([]string{""}, sorted...)
+		return fmt.Errorf("cannot preseed without the following mountpoints:%s", strings.Join(parts, "\n - "))
 	}
 
 	path := filepath.Join(preseedChroot, "/sys/kernel/security/apparmor")
@@ -198,7 +200,8 @@ func prepareChroot(preseedChroot string) (func(), error) {
 		}
 	}
 
-	cmd := exec.Command("mount", "-t", "squashfs", coreSnapPath, where)
+	fstype, fsopts := squashfs.FsType()
+	cmd := exec.Command("mount", "-t", fstype, "-o", strings.Join(fsopts, ","), coreSnapPath, where)
 	if err := cmd.Run(); err != nil {
 		removeMountpoint()
 		return nil, fmt.Errorf("cannot mount %s at %s in preseed mode: %v ", coreSnapPath, where, err)

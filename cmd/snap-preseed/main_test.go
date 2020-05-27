@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/cmd/snap-preseed"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/squashfs"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
@@ -53,6 +54,8 @@ type startPreseedSuite struct {
 
 func (s *startPreseedSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
+	restore := squashfs.MockNeedsFuse(false)
+	s.BaseTest.AddCleanup(restore)
 }
 
 func (s *startPreseedSuite) TearDownTest(c *C) {
@@ -198,7 +201,7 @@ func (s *startPreseedSuite) TestRunPreseedHappy(c *C) {
 	c.Assert(mockMountCmd.Calls(), HasLen, 1)
 	// note, tmpDir, targetSnapdRoot are contactenated again cause we're not really chrooting in the test
 	// and mocking dirs.RootDir
-	c.Check(mockMountCmd.Calls()[0], DeepEquals, []string{"mount", "-t", "squashfs", "/a/core.snap", filepath.Join(tmpDir, targetSnapdRoot)})
+	c.Check(mockMountCmd.Calls()[0], DeepEquals, []string{"mount", "-t", "squashfs", "-o", "ro,x-gdu.hide", "/a/core.snap", filepath.Join(tmpDir, targetSnapdRoot)})
 
 	c.Assert(mockTargetSnapd.Calls(), HasLen, 1)
 	c.Check(mockTargetSnapd.Calls()[0], DeepEquals, []string{"snapd"})

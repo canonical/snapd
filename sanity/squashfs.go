@@ -108,10 +108,7 @@ func checkSquashfsMount() error {
 	}
 
 	// the fstype can be squashfs or fuse.{snap,squash}fuse
-	fstype, _, err := squashfs.FsType()
-	if err != nil {
-		return err
-	}
+	fstype, _ := squashfs.FsType()
 	options := []string{"-t", fstype}
 	if selinux.ProbedLevel() != selinux.Unsupported {
 		if ctx := selinux.SnapMountContext(); ctx != "" {

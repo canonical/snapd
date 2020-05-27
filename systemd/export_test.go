@@ -55,7 +55,7 @@ func MockOsutilIsMounted(f func(path string) (bool, error)) func() {
 	}
 }
 
-func MockSquashFsType(f func() (string, []string, error)) func() {
+func MockSquashFsType(f func() (string, []string)) func() {
 	old := squashfsFsType
 	squashfsFsType = f
 	return func() {
