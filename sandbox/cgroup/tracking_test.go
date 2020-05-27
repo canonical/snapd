@@ -110,7 +110,7 @@ func (s *trackingSuite) TestCreateTransientScopeUnhappyNotRootGeneric(c *C) {
 
 	// Hand out stub connections to both the system and session bus.
 	// Neither is really used here but they must appear to be available.
-	restore := dbusutil.MockConnections(stubBusConnection, stubBusConnection)
+	restore := dbusutil.MockConnections(dbustest.StubConnection, dbustest.StubConnection)
 	defer restore()
 
 	// Pretend we are a non-root user so that session bus is used.
@@ -169,7 +169,7 @@ func (s *trackingSuite) TestCreateTransientScopeUnhappyRootFallback(c *C) {
 
 	// Hand out stub connections to both the system and session bus.
 	// Neither is really used here but they must appear to be available.
-	restore := dbusutil.MockConnections(stubBusConnection, stubBusConnection)
+	restore := dbusutil.MockConnections(dbustest.StubConnection, dbustest.StubConnection)
 	defer restore()
 
 	// Pretend we are a root user so that we attempt to use the system bus as fallback.
@@ -223,7 +223,7 @@ func (s *trackingSuite) TestCreateTransientScopeUnhappyRootFailedFallback(c *C) 
 	noSystemBus := func() (*dbus.Conn, error) {
 		return nil, fmt.Errorf("system bus is not available for testing")
 	}
-	restore := dbusutil.MockConnections(noSystemBus, stubBusConnection)
+	restore := dbusutil.MockConnections(noSystemBus, dbustest.StubConnection)
 	defer restore()
 
 	// Pretend we are a root user so that we attempt to use the system bus as fallback.
@@ -303,7 +303,7 @@ func (s *trackingSuite) TestCreateTransientScopeSilentlyFails(c *C) {
 
 	// Hand out stub connections to both the system and session bus.
 	// Neither is really used here but they must appear to be available.
-	restore := dbusutil.MockConnections(stubBusConnection, stubBusConnection)
+	restore := dbusutil.MockConnections(dbustest.StubConnection, dbustest.StubConnection)
 	defer restore()
 
 	// Pretend we are a non-root user.
@@ -471,29 +471,6 @@ func (s *trackingSuite) TestDoCreateTransientScopeOtherDBusErrors(c *C) {
 	c.Assert(err, ErrorMatches, `cannot create transient scope: DBus error "org.example.BadHairDay": \[\]`)
 }
 
-// stubReadWriteCloser implements ReadWriteCloser for dbus.NewConn
-type stubReadWriteCloser struct{}
-
-func (*stubReadWriteCloser) Read(p []byte) (n int, err error) {
-	return 0, nil
-}
-
-func (*stubReadWriteCloser) Write(p []byte) (n int, err error) {
-	return 0, nil
-}
-
-func (*stubReadWriteCloser) Close() error {
-	return nil
-}
-
-// stubBusConnection returns a dbus connection for the tests below.
-//
-// Using dbustest.Connection panics as the goroutines spawned by
-// go-dbus do not expect the connection to be immediately closed.
-func stubBusConnection() (*dbus.Conn, error) {
-	return dbus.NewConn(&stubReadWriteCloser{})
-}
-
 func (s *trackingSuite) TestSessionOrMaybeSystemBusTotalFailureForRoot(c *C) {
 	system := func() (*dbus.Conn, error) {
 		return nil, fmt.Errorf("system bus unavailable for testing")
@@ -520,7 +497,7 @@ func (s *trackingSuite) TestSessionOrMaybeSystemBusTotalFailureForRoot(c *C) {
 
 func (s *trackingSuite) TestSessionOrMaybeSystemBusFallbackForRoot(c *C) {
 	system := func() (*dbus.Conn, error) {
-		return stubBusConnection()
+		return dbustest.StubConnection()
 	}
 	session := func() (*dbus.Conn, error) {
 		return nil, fmt.Errorf("session bus unavailable for testing")
@@ -544,7 +521,7 @@ func (s *trackingSuite) TestSessionOrMaybeSystemBusFallbackForRoot(c *C) {
 
 func (s *trackingSuite) TestSessionOrMaybeSystemBusNonRootSessionFailure(c *C) {
 	system := func() (*dbus.Conn, error) {
-		return stubBusConnection()
+		return dbustest.StubConnection()
 	}
 	session := func() (*dbus.Conn, error) {
 		return nil, fmt.Errorf("session bus unavailable for testing")
