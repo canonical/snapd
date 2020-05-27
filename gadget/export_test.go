@@ -19,7 +19,16 @@
 
 package gadget
 
+import (
+	"time"
+)
+
 type ValidationState = validationState
+
+type LsblkFilesystemInfo = lsblkFilesystemInfo
+type LsblkBlockDevice = lsblkBlockDevice
+type SFDiskPartitionTable = sfdiskPartitionTable
+type SFDiskPartition = sfdiskPartition
 
 var (
 	ValidateStructureType   = validateStructureType
@@ -43,6 +52,13 @@ var (
 	EnsureVolumeConsistency = ensureVolumeConsistency
 
 	Flatten = flatten
+
+	FilesystemInfo                 = filesystemInfo
+	BuildPartitionList             = buildPartitionList
+	Mkfs                           = mkfs
+	EnsureNodesExist               = ensureNodesExist
+	DeviceLayoutFromPartitionTable = deviceLayoutFromPartitionTable
+	ListCreatedPartitions          = listCreatedPartitions
 )
 
 func MockEvalSymlinks(mock func(path string) (string, error)) (restore func()) {
@@ -58,5 +74,37 @@ func MockMkfsHandlers(mock map[string]MkfsFunc) (restore func()) {
 	mkfsHandlers = mock
 	return func() {
 		mkfsHandlers = old
+	}
+}
+
+func MockEnsureNodesExist(f func(ds []OnDiskStructure, timeout time.Duration) error) (restore func()) {
+	old := ensureNodesExist
+	ensureNodesExist = f
+	return func() {
+		ensureNodesExist = old
+	}
+}
+
+func MockDeployMountpoint(new string) (restore func()) {
+	old := deployMountpoint
+	deployMountpoint = new
+	return func() {
+		deployMountpoint = old
+	}
+}
+
+func MockSysMount(f func(source, target, fstype string, flags uintptr, data string) error) (restore func()) {
+	old := sysMount
+	sysMount = f
+	return func() {
+		sysMount = old
+	}
+}
+
+func MockSysUnmount(f func(target string, flags int) error) (restore func()) {
+	old := sysUnmount
+	sysUnmount = f
+	return func() {
+		sysUnmount = old
 	}
 }

@@ -17,129 +17,172 @@
  *
  */
 
-package partition_test
+package gadget_test
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"time"
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/cmd/snap-bootstrap/partition"
+	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/testutil"
 )
 
-const mockSfdiskScriptBiosAndRecovery = `
+type ondiskTestSuite struct {
+	testutil.BaseTest
+
+	dir string
+
+	gadgetRoot string
+
+	mockMountPoint   string
+	mockMountCalls   []struct{ source, target, fstype string }
+	mockUnmountCalls []string
+
+	mockMountErr error
+}
+
+var _ = Suite(&ondiskTestSuite{})
+
+func (s *ondiskTestSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+
+	s.dir = c.MkDir()
+
+	s.mockMountErr = nil
+	s.mockMountCalls = nil
+	s.mockUnmountCalls = nil
+
+	s.gadgetRoot = c.MkDir()
+	err := makeMockGadget(s.gadgetRoot, gadgetContent)
+	c.Assert(err, IsNil)
+
+	s.mockMountPoint = c.MkDir()
+	restore := gadget.MockDeployMountpoint(s.mockMountPoint)
+	s.AddCleanup(restore)
+
+	restore = gadget.MockSysMount(func(source, target, fstype string, flags uintptr, data string) error {
+		s.mockMountCalls = append(s.mockMountCalls, struct{ source, target, fstype string }{source, target, fstype})
+		return s.mockMountErr
+	})
+	s.AddCleanup(restore)
+
+	restore = gadget.MockSysUnmount(func(target string, flags int) error {
+		s.mockUnmountCalls = append(s.mockUnmountCalls, target)
+		return nil
+	})
+	s.AddCleanup(restore)
+}
+
+const (
+	scriptPartitionsBios = iota + 1
+	scriptPartitionsBiosSeed
+	scriptPartitionsBiosSeedData
+)
+
+func makeSfdiskScript(num int) string {
+	var b bytes.Buffer
+
+	b.WriteString(`
 >&2 echo "Some warning from sfdisk"
 echo '{
-   "partitiontable": {
-      "label": "gpt",
-      "id": "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA",
-      "device": "/dev/node",
-      "unit": "sectors",
-      "firstlba": 34,
-      "lastlba": 8388574,
-      "partitions": [
-         {"node": "/dev/node1", "start": 2048, "size": 2048, "type": "21686148-6449-6E6F-744E-656564454649", "uuid": "2E59D969-52AB-430B-88AC-F83873519F6F", "name": "BIOS Boot"},
-         {"node": "/dev/node2", "start": 4096, "size": 2457600, "type": "C12A7328-F81F-11D2-BA4B-00A0C93EC93B", "uuid": "44C3D5C3-CAE1-4306-83E8-DF437ACDB32F", "name": "Recovery", "attrs": "GUID:59"}
-      ]
-   }
-}'`
+  "partitiontable": {
+    "label": "gpt",
+    "id": "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA",
+    "device": "/dev/node",
+    "unit": "sectors",
+    "firstlba": 34,
+    "lastlba": 8388574,
+    "partitions": [`)
 
-const mockSfdiskScriptBiosRecoveryWritable = `
->&2 echo "Some warning from sfdisk"
-echo '{
-   "partitiontable": {
-      "label": "gpt",
-      "id": "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA",
-      "device": "/dev/node",
-      "unit": "sectors",
-      "firstlba": 34,
-      "lastlba": 8388574,
-      "partitions": [
-         {"node": "/dev/node1", "start": 2048, "size": 2048, "type": "21686148-6449-6E6F-744E-656564454649", "uuid": "2E59D969-52AB-430B-88AC-F83873519F6F", "name": "BIOS Boot"},
-         {"node": "/dev/node2", "start": 4096, "size": 2457600, "type": "C12A7328-F81F-11D2-BA4B-00A0C93EC93B", "uuid": "44C3D5C3-CAE1-4306-83E8-DF437ACDB32F", "name": "Recovery"},
-         {"node": "/dev/node3", "start": 2461696, "size": 2457600, "type": "0FC63DAF-8483-4772-8E79-3D69D8477DE4", "uuid": "f940029d-bfbb-4887-9d44-321e85c63866", "name": "Writable", "attrs": "GUID:59"}
-      ]
-   }
-}'`
+	// BIOS boot partition
+	if num > 0 {
+		b.WriteString(`
+      {
+        "node": "/dev/node1",
+        "start": 2048,
+        "size": 2048,
+        "type": "21686148-6449-6E6F-744E-656564454649",
+        "uuid": "2E59D969-52AB-430B-88AC-F83873519F6F",
+        "name": "BIOS Boot"
+      }`)
+	}
 
-const mockSfdiskScriptBiosAndRemovableRecovery = `
-if [ -f %[1]s/2 ]; then
-   rm %[1]s/[0-9]
-elif [ -f %[1]s/1 ]; then
-   touch %[1]s/2
-   exit 0
-else
-   PART=',{"node": "/dev/node2", "start": 4096, "size": 2457600, "type": "0FC63DAF-8483-4772-8E79-3D69D8477DE4", "uuid": "44C3D5C3-CAE1-4306-83E8-DF437ACDB32F", "name": "Recovery", "attrs": "GUID:59"}'
-   touch %[1]s/1
-fi
-echo '{
-   "partitiontable": {
-      "label": "gpt",
-      "id": "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA",
-      "device": "/dev/node",
-      "unit": "sectors",
-      "firstlba": 34,
-      "lastlba": 8388574,
-      "partitions": [
-         {"node": "/dev/node1", "start": 2048, "size": 2048, "type": "21686148-6449-6E6F-744E-656564454649", "uuid": "2E59D969-52AB-430B-88AC-F83873519F6F", "name": "BIOS Boot"}
-         '"$PART
-      ]
-   }
-}"`
+	// Seed partition
+	if num > 1 {
+		b.WriteString(`,
+      {
+        "node": "/dev/node2",
+        "start": 4096,
+        "size": 2457600,
+        "type": "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
+        "uuid": "44C3D5C3-CAE1-4306-83E8-DF437ACDB32F",
+        "name": "Recovery",
+        "attrs": "GUID:59"
+      }`)
+	}
 
-const mockSfdiskScriptBios = `echo '{
-    "partitiontable": {
-        "label": "gpt",
-        "id": "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA",
-        "device": "/dev/node",
-        "unit": "sectors",
-        "firstlba": 34,
-        "lastlba": 8388574,
-        "partitions": [
-            {
-                "node": "/dev/node1",
-                "start": 2048,
-                "size": 2048,
-                "type": "21686148-6449-6E6F-744E-656564454649",
-                "uuid": "2E59D969-52AB-430B-88AC-F83873519F6F",
-                "name": "BIOS Boot"
-            }
-        ]
-    }
-}'`
+	// Data partition
+	if num > 2 {
+		b.WriteString(`,
+      {
+        "node": "/dev/node3",
+        "start": 2461696,
+        "size": 2457600,
+        "type": "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+        "uuid": "f940029d-bfbb-4887-9d44-321e85c63866",
+        "name": "Writable",
+        "attrs": "GUID:59"
+      }`)
+	}
 
-// XXX: improve mocking later
-const mockLsblkScript = `echo '{
-    "blockdevices": [
-        {"name": "nodeX", "fstype": null, "label": null, "uuid": null, "mountpoint": null}
+	b.WriteString(`
     ]
-}'`
+  }
+}'`)
+	return b.String()
+}
 
-const mockLsblkScriptBiosAndRecovery = `
-[ "$3" == "/dev/node1" ] && echo '{
+func makeLsblkScript(devdir string) string {
+	return fmt.Sprintf(`
+[ "$3" == "%[1]s/node1" ] && echo '{
     "blockdevices": [ {"name": "node1", "fstype": null, "label": null, "uuid": null, "mountpoint": null} ]
 }'
-[ "$3" == "/dev/node2" ] && echo '{
+[ "$3" == "%[1]s/node2" ] && echo '{
     "blockdevices": [ {"name": "node2", "fstype": "vfat", "label": "ubuntu-seed", "uuid": "A644-B807", "mountpoint": null} ]
 }'
-exit 0`
-
-const mockLsblkScriptBiosRecoveryWritable = `
-[ "$3" == "/dev/node1" ] && echo '{
-    "blockdevices": [ {"name": "node1", "fstype": null, "label": null, "uuid": null, "mountpoint": null} ]
-}'
-[ "$3" == "/dev/node2" ] && echo '{
-    "blockdevices": [ {"name": "node2", "fstype": "vfat", "label": "ubuntu-seed", "uuid": "A644-B807", "mountpoint": null} ]
-}'
-[ "$3" == "/dev/node3" ] && echo '{
+[ "$3" == "%[1]s/node3" ] && echo '{
     "blockdevices": [ {"name": "node3", "fstype": "ext4", "label": "ubuntu-data", "uuid": "8781-433a", "mountpoint": null} ]
 }'
-exit 0`
+exit 0`, devdir)
+}
+
+func makeMockGadget(gadgetRoot, gadgetContent string) error {
+	if err := os.MkdirAll(filepath.Join(gadgetRoot, "meta"), 0755); err != nil {
+		return err
+	}
+	if err := ioutil.WriteFile(filepath.Join(gadgetRoot, "meta", "gadget.yaml"), []byte(gadgetContent), 0644); err != nil {
+		return err
+	}
+	if err := ioutil.WriteFile(filepath.Join(gadgetRoot, "pc-boot.img"), []byte("pc-boot.img content"), 0644); err != nil {
+		return err
+	}
+	if err := ioutil.WriteFile(filepath.Join(gadgetRoot, "pc-core.img"), []byte("pc-core.img content"), 0644); err != nil {
+		return err
+	}
+	if err := ioutil.WriteFile(filepath.Join(gadgetRoot, "grubx64.efi"), []byte("grubx64.efi content"), 0644); err != nil {
+		return err
+	}
+
+	return nil
+}
 
 const gadgetContent = `volumes:
   pc:
@@ -173,14 +216,31 @@ const gadgetContent = `volumes:
         size: 1200M
 `
 
-func (s *partitionTestSuite) TestDeviceInfoGPT(c *C) {
-	cmdSfdisk := testutil.MockCommand(c, "sfdisk", mockSfdiskScriptBiosAndRecovery)
+var mockOnDiskStructureWritable = gadget.OnDiskStructure{
+	Node:                 "/dev/node3",
+	CreatedDuringInstall: true,
+	LaidOutStructure: gadget.LaidOutStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Name:       "Writable",
+			Size:       1258291200,
+			Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+			Role:       "system-data",
+			Label:      "ubuntu-data",
+			Filesystem: "ext4",
+		},
+		StartOffset: 1260388352,
+		Index:       3,
+	},
+}
+
+func (s *ondiskTestSuite) TestDeviceInfoGPT(c *C) {
+	cmdSfdisk := testutil.MockCommand(c, "sfdisk", makeSfdiskScript(scriptPartitionsBiosSeed))
 	defer cmdSfdisk.Restore()
 
-	cmdLsblk := testutil.MockCommand(c, "lsblk", mockLsblkScriptBiosAndRecovery)
+	cmdLsblk := testutil.MockCommand(c, "lsblk", makeLsblkScript("/dev"))
 	defer cmdLsblk.Restore()
 
-	dl, err := partition.DeviceLayoutFromDisk("/dev/node")
+	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
 	c.Assert(err, IsNil)
 	c.Assert(cmdSfdisk.Calls(), DeepEquals, [][]string{
 		{"sfdisk", "--json", "-d", "/dev/node"},
@@ -197,7 +257,7 @@ func (s *partitionTestSuite) TestDeviceInfoGPT(c *C) {
 	c.Assert(dl.Size, Equals, gadget.Size(8388575*512))
 	c.Assert(len(dl.Structure), Equals, 2)
 
-	c.Assert(dl.Structure, DeepEquals, []partition.DeviceStructure{
+	c.Assert(dl.Structure, DeepEquals, []gadget.OnDiskStructure{
 		{
 			LaidOutStructure: gadget.LaidOutStructure{
 				VolumeStructure: &gadget.VolumeStructure{
@@ -229,7 +289,7 @@ func (s *partitionTestSuite) TestDeviceInfoGPT(c *C) {
 	})
 }
 
-func (s *partitionTestSuite) TestDeviceInfoMBR(c *C) {
+func (s *ondiskTestSuite) TestDeviceInfoMBR(c *C) {
 	const mockSfdiskWithMBR = `
 >&2 echo "Some warning from sfdisk"
 echo '{
@@ -265,7 +325,7 @@ exit 0`
 	cmdBlockdev := testutil.MockCommand(c, "blockdev", "echo 12345670")
 	defer cmdBlockdev.Restore()
 
-	dl, err := partition.DeviceLayoutFromDisk("/dev/node")
+	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
 	c.Assert(err, IsNil)
 	c.Assert(cmdSfdisk.Calls(), DeepEquals, [][]string{
 		{"sfdisk", "--json", "-d", "/dev/node"},
@@ -286,7 +346,7 @@ exit 0`
 	c.Assert(dl.Size, Equals, gadget.Size(12345670*512))
 	c.Assert(len(dl.Structure), Equals, 3)
 
-	c.Assert(dl.Structure, DeepEquals, []partition.DeviceStructure{
+	c.Assert(dl.Structure, DeepEquals, []gadget.OnDiskStructure{
 		{
 			LaidOutStructure: gadget.LaidOutStructure{
 				VolumeStructure: &gadget.VolumeStructure{
@@ -332,7 +392,7 @@ exit 0`
 	})
 }
 
-func (s *partitionTestSuite) TestDeviceInfoNotSectors(c *C) {
+func (s *ondiskTestSuite) TestDeviceInfoNotSectors(c *C) {
 	cmdSfdisk := testutil.MockCommand(c, "sfdisk", `echo '{
    "partitiontable": {
       "label": "gpt",
@@ -348,11 +408,11 @@ func (s *partitionTestSuite) TestDeviceInfoNotSectors(c *C) {
 }'`)
 	defer cmdSfdisk.Restore()
 
-	_, err := partition.DeviceLayoutFromDisk("/dev/node")
+	_, err := gadget.OnDiskVolumeFromDevice("/dev/node")
 	c.Assert(err, ErrorMatches, "cannot position partitions: unknown unit .*")
 }
 
-func (s *partitionTestSuite) TestDeviceInfoFilesystemInfoError(c *C) {
+func (s *ondiskTestSuite) TestDeviceInfoFilesystemInfoError(c *C) {
 	cmdSfdisk := testutil.MockCommand(c, "sfdisk", `echo '{
    "partitiontable": {
       "label": "gpt",
@@ -371,43 +431,43 @@ func (s *partitionTestSuite) TestDeviceInfoFilesystemInfoError(c *C) {
 	cmdLsblk := testutil.MockCommand(c, "lsblk", "echo lsblk error; exit 1")
 	defer cmdLsblk.Restore()
 
-	_, err := partition.DeviceLayoutFromDisk("/dev/node")
+	_, err := gadget.OnDiskVolumeFromDevice("/dev/node")
 	c.Assert(err, ErrorMatches, "cannot obtain filesystem information: lsblk error")
 }
 
-func (s *partitionTestSuite) TestDeviceInfoJsonError(c *C) {
+func (s *ondiskTestSuite) TestDeviceInfoJsonError(c *C) {
 	cmd := testutil.MockCommand(c, "sfdisk", `echo 'This is not a json'`)
 	defer cmd.Restore()
 
-	dl, err := partition.DeviceLayoutFromDisk("/dev/node")
+	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
 	c.Assert(err, ErrorMatches, "cannot parse sfdisk output: invalid .*")
 	c.Assert(dl, IsNil)
 }
 
-func (s *partitionTestSuite) TestDeviceInfoError(c *C) {
+func (s *ondiskTestSuite) TestDeviceInfoError(c *C) {
 	cmd := testutil.MockCommand(c, "sfdisk", "echo 'sfdisk: not found'; exit 127")
 	defer cmd.Restore()
 
-	dl, err := partition.DeviceLayoutFromDisk("/dev/node")
+	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
 	c.Assert(err, ErrorMatches, "sfdisk: not found")
 	c.Assert(dl, IsNil)
 }
 
-func (s *partitionTestSuite) TestBuildPartitionList(c *C) {
-	cmdSfdisk := testutil.MockCommand(c, "sfdisk", mockSfdiskScriptBiosAndRecovery)
+func (s *ondiskTestSuite) TestBuildPartitionList(c *C) {
+	cmdSfdisk := testutil.MockCommand(c, "sfdisk", makeSfdiskScript(scriptPartitionsBiosSeed))
 	defer cmdSfdisk.Restore()
 
-	cmdLsblk := testutil.MockCommand(c, "lsblk", mockLsblkScript)
+	cmdLsblk := testutil.MockCommand(c, "lsblk", makeLsblkScript("/dev"))
 	defer cmdLsblk.Restore()
 
-	ptable := partition.SFDiskPartitionTable{
+	ptable := gadget.SFDiskPartitionTable{
 		Label:    "gpt",
 		ID:       "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA",
 		Device:   "/dev/node",
 		Unit:     "sectors",
 		FirstLBA: 34,
 		LastLBA:  8388574,
-		Partitions: []partition.SFDiskPartition{
+		Partitions: []gadget.SFDiskPartition{
 			{
 				Node:  "/dev/node1",
 				Start: 2048,
@@ -433,31 +493,35 @@ func (s *partitionTestSuite) TestBuildPartitionList(c *C) {
 	pv, err := gadget.PositionedVolumeFromGadget(gadgetRoot)
 	c.Assert(err, IsNil)
 
-	dl, err := partition.DeviceLayoutFromPartitionTable(ptable)
+	dl, err := gadget.DeviceLayoutFromPartitionTable(ptable)
 	c.Assert(err, IsNil)
 
 	// the expected expanded writable partition size is:
 	// start offset = (2M + 1200M), expanded size in sectors = (8388575*512 - start offset)/512
-	sfdiskInput, create := partition.BuildPartitionList(dl, pv)
+	sfdiskInput, create := gadget.BuildPartitionList(dl, pv)
 	c.Assert(sfdiskInput.String(), Equals, `/dev/node3 : start=     2461696, size=     5926879, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Writable", attrs="GUID:59"
 `)
-	c.Assert(create, DeepEquals, []partition.DeviceStructure{mockDeviceStructureWritable})
+	c.Assert(create, DeepEquals, []gadget.OnDiskStructure{mockOnDiskStructureWritable})
 }
 
-func (s *partitionTestSuite) TestCreatePartitions(c *C) {
-	restore := partition.MockEnsureNodesExist(func(ds []partition.DeviceStructure, timeout time.Duration) error {
-		return nil
-	})
-	defer restore()
-
-	cmdSfdisk := testutil.MockCommand(c, "sfdisk", mockSfdiskScriptBiosAndRecovery)
+func (s *ondiskTestSuite) TestCreatePartitions(c *C) {
+	cmdSfdisk := testutil.MockCommand(c, "sfdisk", makeSfdiskScript(scriptPartitionsBiosSeed))
 	defer cmdSfdisk.Restore()
 
-	cmdLsblk := testutil.MockCommand(c, "lsblk", mockLsblkScript)
+	cmdLsblk := testutil.MockCommand(c, "lsblk", makeLsblkScript("/dev"))
 	defer cmdLsblk.Restore()
 
 	cmdPartx := testutil.MockCommand(c, "partx", "")
 	defer cmdPartx.Restore()
+
+	calls := 0
+	restore := gadget.MockEnsureNodesExist(func(ds []gadget.OnDiskStructure, timeout time.Duration) error {
+		calls++
+		c.Assert(ds, HasLen, 1)
+		c.Assert(ds[0].Node, Equals, "/dev/node3")
+		return nil
+	})
+	defer restore()
 
 	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
 	err := makeMockGadget(gadgetRoot, gadgetContent)
@@ -465,11 +529,12 @@ func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 	pv, err := gadget.PositionedVolumeFromGadget(gadgetRoot)
 	c.Assert(err, IsNil)
 
-	dl, err := partition.DeviceLayoutFromDisk("/dev/node")
+	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
 	c.Assert(err, IsNil)
 	created, err := dl.CreateMissing(pv)
 	c.Assert(err, IsNil)
-	c.Assert(created, DeepEquals, []partition.DeviceStructure{mockDeviceStructureWritable})
+	c.Assert(created, DeepEquals, []gadget.OnDiskStructure{mockOnDiskStructureWritable})
+	c.Assert(calls, Equals, 1)
 
 	// Check partition table read and write
 	c.Assert(cmdSfdisk.Calls(), DeepEquals, [][]string{
@@ -483,18 +548,18 @@ func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 	})
 }
 
-func (s *partitionTestSuite) TestRemovePartitionsTrivial(c *C) {
+func (s *ondiskTestSuite) TestRemovePartitionsTrivial(c *C) {
 	// no locally created partitions
-	cmdSfdisk := testutil.MockCommand(c, "sfdisk", mockSfdiskScriptBios)
+	cmdSfdisk := testutil.MockCommand(c, "sfdisk", makeSfdiskScript(scriptPartitionsBios))
 	defer cmdSfdisk.Restore()
 
-	cmdLsblk := testutil.MockCommand(c, "lsblk", mockLsblkScriptBiosAndRecovery)
+	cmdLsblk := testutil.MockCommand(c, "lsblk", makeLsblkScript("/dev"))
 	defer cmdLsblk.Restore()
 
 	cmdPartx := testutil.MockCommand(c, "partx", "")
 	defer cmdPartx.Restore()
 
-	dl, err := partition.DeviceLayoutFromDisk("/dev/node")
+	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
 	c.Assert(err, IsNil)
 
 	err = dl.RemoveCreated()
@@ -505,18 +570,48 @@ func (s *partitionTestSuite) TestRemovePartitionsTrivial(c *C) {
 	})
 }
 
-func (s *partitionTestSuite) TestRemovePartitions(c *C) {
-	cmdSfdisk := testutil.MockCommand(c, "sfdisk", fmt.Sprintf(mockSfdiskScriptBiosAndRemovableRecovery, s.dir))
+func (s *ondiskTestSuite) TestRemovePartitions(c *C) {
+	const mockSfdiskScriptRemovableRecovery = `
+if [ -f %[1]s/2 ]; then
+   rm %[1]s/[0-9]
+elif [ -f %[1]s/1 ]; then
+   touch %[1]s/2
+   exit 0
+else
+   PART=',{"node": "/dev/node2", "start": 4096, "size": 2457600, "type": "0FC63DAF-8483-4772-8E79-3D69D8477DE4", "uuid": "44C3D5C3-CAE1-4306-83E8-DF437ACDB32F", "name": "Recovery", "attrs": "GUID:59"}'
+   touch %[1]s/1
+fi
+echo '{
+   "partitiontable": {
+      "label": "gpt",
+      "id": "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA",
+      "device": "/dev/node",
+      "unit": "sectors",
+      "firstlba": 34,
+      "lastlba": 8388574,
+      "partitions": [
+         {"node": "/dev/node1", "start": 2048, "size": 2048, "type": "21686148-6449-6E6F-744E-656564454649", "uuid": "2E59D969-52AB-430B-88AC-F83873519F6F", "name": "BIOS Boot"}
+         '"$PART
+      ]
+   }
+}"`
+
+	cmdSfdisk := testutil.MockCommand(c, "sfdisk", fmt.Sprintf(mockSfdiskScriptRemovableRecovery, s.dir))
 	defer cmdSfdisk.Restore()
 
-	cmdLsblk := testutil.MockCommand(c, "lsblk", mockLsblkScriptBiosAndRecovery)
+	cmdLsblk := testutil.MockCommand(c, "lsblk", makeLsblkScript("/dev"))
 	defer cmdLsblk.Restore()
 
 	cmdPartx := testutil.MockCommand(c, "partx", "")
 	defer cmdPartx.Restore()
 
-	dl, err := partition.DeviceLayoutFromDisk("/dev/node")
+	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
 	c.Assert(err, IsNil)
+
+	c.Assert(cmdLsblk.Calls(), DeepEquals, [][]string{
+		{"lsblk", "--fs", "--json", "/dev/node1"},
+		{"lsblk", "--fs", "--json", "/dev/node2"},
+	})
 
 	err = dl.RemoveCreated()
 	c.Assert(err, IsNil)
@@ -528,35 +623,35 @@ func (s *partitionTestSuite) TestRemovePartitions(c *C) {
 	})
 }
 
-func (s *partitionTestSuite) TestRemovePartitionsError(c *C) {
-	cmdSfdisk := testutil.MockCommand(c, "sfdisk", mockSfdiskScriptBiosRecoveryWritable)
+func (s *ondiskTestSuite) TestRemovePartitionsError(c *C) {
+	cmdSfdisk := testutil.MockCommand(c, "sfdisk", makeSfdiskScript(scriptPartitionsBiosSeedData))
 	defer cmdSfdisk.Restore()
 
-	cmdLsblk := testutil.MockCommand(c, "lsblk", mockLsblkScriptBiosRecoveryWritable)
+	cmdLsblk := testutil.MockCommand(c, "lsblk", makeLsblkScript("/dev"))
 	defer cmdLsblk.Restore()
 
 	cmdPartx := testutil.MockCommand(c, "partx", "")
 	defer cmdPartx.Restore()
 
-	dl, err := partition.DeviceLayoutFromDisk("/dev/node")
+	dl, err := gadget.OnDiskVolumeFromDevice("node")
 	c.Assert(err, IsNil)
 
 	err = dl.RemoveCreated()
 	c.Assert(err, ErrorMatches, "cannot remove partitions: /dev/node3")
 }
 
-func (s *partitionTestSuite) TestListCreatedPartitionsGPT(c *C) {
+func (s *ondiskTestSuite) TestListCreatedPartitionsGPT(c *C) {
 	cmdLsblk := testutil.MockCommand(c, "lsblk", `echo '{ "blockdevices": [ {"fstype":"ext4", "label":null} ] }'`)
 	defer cmdLsblk.Restore()
 
-	ptable := partition.SFDiskPartitionTable{
+	ptable := gadget.SFDiskPartitionTable{
 		Label:    "gpt",
 		ID:       "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA",
 		Device:   "/dev/node",
 		Unit:     "sectors",
 		FirstLBA: 34,
 		LastLBA:  8388574,
-		Partitions: []partition.SFDiskPartition{
+		Partitions: []gadget.SFDiskPartition{
 			{
 				Node:  "/dev/node1",
 				Start: 1024,
@@ -591,9 +686,9 @@ func (s *partitionTestSuite) TestListCreatedPartitionsGPT(c *C) {
 			},
 		},
 	}
-	dl, err := partition.DeviceLayoutFromPartitionTable(ptable)
+	dl, err := gadget.DeviceLayoutFromPartitionTable(ptable)
 	c.Assert(err, IsNil)
-	list := partition.ListCreatedPartitions(dl)
+	list := gadget.ListCreatedPartitions(dl)
 	c.Assert(list, HasLen, 0)
 
 	// Set attribute bit for all partitions except the last one
@@ -601,13 +696,13 @@ func (s *partitionTestSuite) TestListCreatedPartitionsGPT(c *C) {
 		ptable.Partitions[i].Attrs = "RequiredPartition LegacyBIOSBootable GUID:58,59"
 	}
 
-	dl, err = partition.DeviceLayoutFromPartitionTable(ptable)
+	dl, err = gadget.DeviceLayoutFromPartitionTable(ptable)
 	c.Assert(err, IsNil)
-	list = partition.ListCreatedPartitions(dl)
+	list = gadget.ListCreatedPartitions(dl)
 	c.Assert(list, DeepEquals, []string{"/dev/node1", "/dev/node2"})
 }
 
-func (s *partitionTestSuite) TestListCreatedPartitionsMBR(c *C) {
+func (s *ondiskTestSuite) TestListCreatedPartitionsMBR(c *C) {
 	cmdLsblk := testutil.MockCommand(c, "lsblk", `
 what=
 shift 2
@@ -640,11 +735,11 @@ EOF`)
 	cmdBlockdev := testutil.MockCommand(c, "blockdev", `echo '1234567'`)
 	defer cmdBlockdev.Restore()
 
-	ptable := partition.SFDiskPartitionTable{
+	ptable := gadget.SFDiskPartitionTable{
 		Label:  "dos",
 		Device: "/dev/node",
 		Unit:   "sectors",
-		Partitions: []partition.SFDiskPartition{
+		Partitions: []gadget.SFDiskPartition{
 			{
 				// ubuntu-seed
 				Node:  "/dev/node1",
@@ -675,13 +770,13 @@ EOF`)
 			},
 		},
 	}
-	dl, err := partition.DeviceLayoutFromPartitionTable(ptable)
+	dl, err := gadget.DeviceLayoutFromPartitionTable(ptable)
 	c.Assert(err, IsNil)
-	list := partition.ListCreatedPartitions(dl)
+	list := gadget.ListCreatedPartitions(dl)
 	c.Assert(list, DeepEquals, []string{"/dev/node2", "/dev/node4"})
 }
 
-func (s *partitionTestSuite) TestFilesystemInfo(c *C) {
+func (s *ondiskTestSuite) TestFilesystemInfo(c *C) {
 	cmd := testutil.MockCommand(c, "lsblk", `echo '{
    "blockdevices": [
       {"name": "loop8p2", "fstype": "vfat", "label": "ubuntu-seed", "uuid": "C1F4-CE43", "mountpoint": null}
@@ -689,7 +784,7 @@ func (s *partitionTestSuite) TestFilesystemInfo(c *C) {
 }'`)
 	defer cmd.Restore()
 
-	info, err := partition.FilesystemInfo("/dev/node")
+	info, err := gadget.FilesystemInfo("/dev/node")
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{"lsblk", "--fs", "--json", "/dev/node"},
 	})
@@ -702,49 +797,145 @@ func (s *partitionTestSuite) TestFilesystemInfo(c *C) {
 	c.Assert(bd.UUID, Equals, "C1F4-CE43")
 }
 
-func (s *partitionTestSuite) TestFilesystemInfoJsonError(c *C) {
+func (s *ondiskTestSuite) TestFilesystemInfoJsonError(c *C) {
 	cmd := testutil.MockCommand(c, "lsblk", `echo 'This is not a json'`)
 	defer cmd.Restore()
 
-	info, err := partition.FilesystemInfo("/dev/node")
+	info, err := gadget.FilesystemInfo("/dev/node")
 	c.Assert(err, ErrorMatches, "cannot parse lsblk output: invalid .*")
 	c.Assert(info, IsNil)
 }
 
-func (s *partitionTestSuite) TestFilesystemInfoError(c *C) {
+func (s *ondiskTestSuite) TestFilesystemInfoError(c *C) {
 	cmd := testutil.MockCommand(c, "lsblk", "echo 'lsblk: not found'; exit 127")
 	defer cmd.Restore()
 
-	info, err := partition.FilesystemInfo("/dev/node")
+	info, err := gadget.FilesystemInfo("/dev/node")
 	c.Assert(err, ErrorMatches, "lsblk: not found")
 	c.Assert(info, IsNil)
 }
 
-func (s *partitionTestSuite) TestEnsureNodesExist(c *C) {
+func (s *ondiskTestSuite) TestEnsureNodesExist(c *C) {
 	cmdUdevadm := testutil.MockCommand(c, "udevadm", "")
 	defer cmdUdevadm.Restore()
 
 	node := filepath.Join(c.MkDir(), "node")
 	err := ioutil.WriteFile(node, nil, 0644)
 	c.Assert(err, IsNil)
-	ds := []partition.DeviceStructure{{Node: node}}
-	err = partition.EnsureNodesExist(ds, 10*time.Millisecond)
+	ds := []gadget.OnDiskStructure{{Node: node}}
+	err = gadget.EnsureNodesExist(ds, 10*time.Millisecond)
 	c.Assert(err, IsNil)
 	c.Assert(cmdUdevadm.Calls(), DeepEquals, [][]string{
 		{"udevadm", "trigger", "--settle", node},
 	})
 }
 
-func (s *partitionTestSuite) TestEnsureNodesExistTimeout(c *C) {
+func (s *ondiskTestSuite) TestEnsureNodesExistTimeout(c *C) {
 	cmdUdevadm := testutil.MockCommand(c, "udevadm", "")
 	defer cmdUdevadm.Restore()
 
 	node := filepath.Join(c.MkDir(), "node")
-	ds := []partition.DeviceStructure{{Node: node}}
+	ds := []gadget.OnDiskStructure{{Node: node}}
 	t := time.Now()
 	timeout := 1 * time.Second
-	err := partition.EnsureNodesExist(ds, timeout)
+	err := gadget.EnsureNodesExist(ds, timeout)
 	c.Assert(err, ErrorMatches, fmt.Sprintf("device %s not available", node))
 	c.Assert(time.Since(t) >= timeout, Equals, true)
 	c.Assert(cmdUdevadm.Calls(), HasLen, 0)
+}
+
+var mockOnDiskStructureBiosBoot = gadget.OnDiskStructure{
+	Node: "/dev/node1",
+	LaidOutStructure: gadget.LaidOutStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Name: "BIOS Boot",
+			Size: 1 * 1024 * 1024,
+			Type: "DA,21686148-6449-6E6F-744E-656564454649",
+			Content: []gadget.VolumeContent{
+				{
+					Image: "pc-core.img",
+				},
+			},
+		},
+		StartOffset: 0,
+		Index:       1,
+	},
+}
+
+var mockOnDiskStructureSystemSeed = gadget.OnDiskStructure{
+	Node: "/dev/node2",
+	LaidOutStructure: gadget.LaidOutStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Name:       "Recovery",
+			Size:       1258291200,
+			Type:       "EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
+			Role:       "system-seed",
+			Label:      "ubuntu-seed",
+			Filesystem: "vfat",
+			Content: []gadget.VolumeContent{
+				{
+					Source: "grubx64.efi",
+					Target: "EFI/boot/grubx64.efi",
+				},
+			},
+		},
+		StartOffset: 2097152,
+		Index:       2,
+	},
+}
+
+func (s *ondiskTestSuite) TestDeployRawContent(c *C) {
+	mockNode := filepath.Join(s.dir, "mock-node")
+	err := ioutil.WriteFile(mockNode, nil, 0644)
+	c.Assert(err, IsNil)
+
+	// copy existing mock
+	m := mockOnDiskStructureBiosBoot
+	m.Node = mockNode
+	m.LaidOutContent = []gadget.LaidOutContent{
+		{
+			VolumeContent: &gadget.VolumeContent{
+				Image: "pc-core.img",
+			},
+			StartOffset: 2,
+			Size:        gadget.Size(len("pc-core.img content")),
+		},
+	}
+
+	err = m.DeployContent(s.gadgetRoot)
+	c.Assert(err, IsNil)
+
+	content, err := ioutil.ReadFile(m.Node)
+	c.Assert(err, IsNil)
+	// note the 2 zero byte start offset
+	c.Check(string(content), Equals, "\x00\x00pc-core.img content")
+}
+
+func (s *ondiskTestSuite) TestMountFilesystem(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
+	// mounting will only happen for devices with a label
+	mockOnDiskStructureBiosBoot.Label = "bios-boot"
+	defer func() { mockOnDiskStructureBiosBoot.Label = "" }()
+
+	err := mockOnDiskStructureBiosBoot.MountFilesystem(boot.InitramfsRunMntDir)
+	c.Assert(err, ErrorMatches, "cannot mount a partition with no filesystem")
+
+	// mount a filesystem...
+	err = mockOnDiskStructureSystemSeed.MountFilesystem(boot.InitramfsRunMntDir)
+	c.Assert(err, IsNil)
+
+	// ...and check if it was mounted at the right mount point
+	c.Check(s.mockMountCalls, HasLen, 1)
+	c.Check(s.mockMountCalls, DeepEquals, []struct{ source, target, fstype string }{
+		{"/dev/node2", boot.InitramfsUbuntuSeedDir, "vfat"},
+	})
+
+	// now try to mount a filesystem with no label
+	mockOnDiskStructureSystemSeed.Label = ""
+	defer func() { mockOnDiskStructureSystemSeed.Label = "ubuntu-seed" }()
+
+	err = mockOnDiskStructureSystemSeed.MountFilesystem(boot.InitramfsRunMntDir)
+	c.Assert(err, ErrorMatches, "cannot mount a filesystem with no label")
 }

@@ -17,18 +17,20 @@
  *
  */
 
-package partition
+package gadget
 
 import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
-	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/strutil"
@@ -39,7 +41,7 @@ const (
 	ubuntuSeedLabel = "ubuntu-seed"
 	ubuntuDataLabel = "ubuntu-data"
 
-	sectorSize gadget.Size = 512
+	sectorSize Size = 512
 
 	createdPartitionAttr = "59"
 )
@@ -47,13 +49,6 @@ const (
 var createdPartitionGUID = []string{
 	"0FC63DAF-8483-4772-8E79-3D69D8477DE4", // Linux filesystem data
 	"0657FD6D-A4AB-43C4-84E5-0933C84B4F4F", // Linux swap partition
-}
-
-// creationSupported returns whether we support and expect to create partitions
-// of the given type, it also means we are ready to remove them for re-installation
-// or retried installation if they are appropriately marked with createdPartitionAttr.
-func creationSupported(ptype string) bool {
-	return strutil.ListContains(createdPartitionGUID, strings.ToUpper(ptype))
 }
 
 // sfdiskDeviceDump represents the sfdisk --dump JSON output format.
@@ -83,6 +78,13 @@ type sfdiskPartition struct {
 	Type  string `json:"type"`
 	UUID  string `json:"uuid"`
 	Name  string `json:"name"`
+}
+
+// creationSupported returns whether we support and expect to create partitions
+// of the given type, it also means we are ready to remove them for re-installation
+// or retried installation if they are appropriately marked with createdPartitionAttr.
+func creationSupported(ptype string) bool {
+	return strutil.ListContains(createdPartitionGUID, strings.ToUpper(ptype))
 }
 
 func isCreatedDuringInstall(p *sfdiskPartition, fs *lsblkBlockDevice, sfdiskLabel string) bool {
@@ -117,28 +119,103 @@ func isCreatedDuringInstall(p *sfdiskPartition, fs *lsblkBlockDevice, sfdiskLabe
 	return false
 }
 
-type DeviceLayout struct {
-	Structure []DeviceStructure
-	ID        string
-	Device    string
-	Schema    string
-	// size in bytes
-	Size gadget.Size
-	// sector size in bytes
-	SectorSize     gadget.Size
-	partitionTable *sfdiskPartitionTable
-}
+var (
+	deployMountpoint = "/run/snap-recover"
 
-type DeviceStructure struct {
-	gadget.LaidOutStructure
+	sysMount   = syscall.Mount
+	sysUnmount = syscall.Unmount
+)
+
+// OnDiskStructure represents a gadget structure laid on a block device,
+// with a device node name and a flag stating whether it was created during
+// installation.
+type OnDiskStructure struct {
+	LaidOutStructure
 
 	Node                 string
 	CreatedDuringInstall bool
 }
 
-// DeviceLayoutFromDisk obtains the partitioning and filesystem information from
+func mkfs(node, label, filesystem string) error {
+	switch filesystem {
+	case "vfat":
+		return MkfsVfat(node, label, "")
+	case "ext4":
+		return MkfsExt4(node, label, "")
+	default:
+		return fmt.Errorf("cannot create unsupported filesystem %q", filesystem)
+	}
+}
+
+// MakeFilesystem creates a filesystem on the on-disk structure, according
+// to the filesystem type defined in the gadget.
+func (ds *OnDiskStructure) MakeFilesystem() error {
+	if ds.VolumeStructure.Filesystem != "" {
+		if err := mkfs(ds.Node, ds.VolumeStructure.Label, ds.VolumeStructure.Filesystem); err != nil {
+			return err
+		}
+		if err := udevTrigger(ds.Node); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// DeployContent populates the give on-disk structure, acording to the contents
+// defined in the gadget.
+func (ds *OnDiskStructure) DeployContent(gadgetRoot string) error {
+	switch {
+	case !ds.IsPartition():
+		return fmt.Errorf("cannot deploy non-partitions yet")
+	case !ds.HasFilesystem():
+		if err := deployNonFSContent(ds, gadgetRoot); err != nil {
+			return err
+		}
+	case ds.HasFilesystem():
+		if err := deployFilesystemContent(ds, gadgetRoot); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// MountFilesystem mounts the on-disk structure filesystem, using the label
+// defined in the gadget as the mount point name.
+func (ds *OnDiskStructure) MountFilesystem(baseMntPoint string) error {
+	if !ds.HasFilesystem() {
+		return fmt.Errorf("cannot mount a partition with no filesystem")
+	}
+	if ds.Label == "" {
+		return fmt.Errorf("cannot mount a filesystem with no label")
+	}
+
+	mountpoint := filepath.Join(baseMntPoint, ds.Label)
+	if err := os.MkdirAll(mountpoint, 0755); err != nil {
+		return fmt.Errorf("cannot create mountpoint: %v", err)
+	}
+	if err := sysMount(ds.Node, mountpoint, ds.Filesystem, 0, ""); err != nil {
+		return fmt.Errorf("cannot mount filesystem %q at %q: %v", ds.Node, mountpoint, err)
+	}
+
+	return nil
+}
+
+type OnDiskVolume struct {
+	Structure []OnDiskStructure
+	ID        string
+	Device    string
+	Schema    string
+	// size in bytes
+	Size Size
+	// sector size in bytes
+	SectorSize     Size
+	partitionTable *sfdiskPartitionTable
+}
+
+// OnDiskVolumeFromDevice obtains the partitioning and filesystem information from
 // the block device.
-func DeviceLayoutFromDisk(device string) (*DeviceLayout, error) {
+func OnDiskVolumeFromDevice(device string) (*OnDiskVolume, error) {
 	output, err := exec.Command("sfdisk", "--json", "-d", device).Output()
 	if err != nil {
 		return nil, osutil.OutputErr(output, err)
@@ -164,7 +241,7 @@ var (
 
 // CreateMissing creates the partitions listed in the positioned volume pv
 // that are missing from the existing device layout.
-func (dl *DeviceLayout) CreateMissing(pv *gadget.LaidOutVolume) ([]DeviceStructure, error) {
+func (dl *OnDiskVolume) CreateMissing(pv *LaidOutVolume) ([]OnDiskStructure, error) {
 	buf, created := buildPartitionList(dl, pv)
 	if len(created) == 0 {
 		return created, nil
@@ -195,7 +272,7 @@ func (dl *DeviceLayout) CreateMissing(pv *gadget.LaidOutVolume) ([]DeviceStructu
 
 // RemoveCreated removes partitions added during a previous failed install
 // attempt.
-func (dl *DeviceLayout) RemoveCreated() error {
+func (dl *OnDiskVolume) RemoveCreated() error {
 	indexes := make([]string, 0, len(dl.partitionTable.Partitions))
 	for i, s := range dl.Structure {
 		if s.CreatedDuringInstall {
@@ -219,7 +296,7 @@ func (dl *DeviceLayout) RemoveCreated() error {
 	}
 
 	// Re-read the partition table from the device to update our partition list
-	layout, err := DeviceLayoutFromDisk(dl.Device)
+	layout, err := OnDiskVolumeFromDevice(dl.Device)
 	if err != nil {
 		return fmt.Errorf("cannot read disk layout: %v", err)
 	}
@@ -239,23 +316,23 @@ func (dl *DeviceLayout) RemoveCreated() error {
 
 // ensureNodeExists makes sure the device nodes for all device structures are
 // available and notified to udev, within a specified amount of time.
-func ensureNodesExistImpl(ds []DeviceStructure, timeout time.Duration) error {
+func ensureNodesExistImpl(dss []OnDiskStructure, timeout time.Duration) error {
 	t0 := time.Now()
-	for _, part := range ds {
+	for _, ds := range dss {
 		found := false
 		for time.Since(t0) < timeout {
-			if osutil.FileExists(part.Node) {
+			if osutil.FileExists(ds.Node) {
 				found = true
 				break
 			}
 			time.Sleep(100 * time.Millisecond)
 		}
 		if found {
-			if err := udevTrigger(part.Node); err != nil {
+			if err := udevTrigger(ds.Node); err != nil {
 				return err
 			}
 		} else {
-			return fmt.Errorf("device %s not available", part.Node)
+			return fmt.Errorf("device %s not available", ds.Node)
 		}
 	}
 	return nil
@@ -278,7 +355,7 @@ func fromSfdiskPartitionType(st string, sfdiskLabel string) (string, error) {
 	}
 }
 
-func blockDeviceSizeInSectors(devpath string) (gadget.Size, error) {
+func blockDeviceSizeInSectors(devpath string) (Size, error) {
 	// the size is reported in 512-byte sectors
 	// XXX: consider using /sys/block/<dev>/size directly
 	out, err := exec.Command("blockdev", "--getsz", devpath).CombinedOutput()
@@ -290,18 +367,18 @@ func blockDeviceSizeInSectors(devpath string) (gadget.Size, error) {
 	if err != nil {
 		return 0, fmt.Errorf("cannot parse device size %q: %v", nospace, err)
 	}
-	return gadget.Size(sz), nil
+	return Size(sz), nil
 }
 
 // deviceLayoutFromPartitionTable takes an sfdisk dump partition table and returns
 // the partitioning information as a device layout.
-func deviceLayoutFromPartitionTable(ptable sfdiskPartitionTable) (*DeviceLayout, error) {
+func deviceLayoutFromPartitionTable(ptable sfdiskPartitionTable) (*OnDiskVolume, error) {
 	if ptable.Unit != "sectors" {
 		return nil, fmt.Errorf("cannot position partitions: unknown unit %q", ptable.Unit)
 	}
 
-	structure := make([]gadget.VolumeStructure, len(ptable.Partitions))
-	ds := make([]DeviceStructure, len(ptable.Partitions))
+	structure := make([]VolumeStructure, len(ptable.Partitions))
+	ds := make([]OnDiskStructure, len(ptable.Partitions))
 
 	for i, p := range ptable.Partitions {
 		info, err := filesystemInfo(p.Node)
@@ -321,18 +398,18 @@ func deviceLayoutFromPartitionTable(ptable sfdiskPartitionTable) (*DeviceLayout,
 			return nil, fmt.Errorf("cannot convert sfdisk partition type %q: %v", p.Type, err)
 		}
 
-		structure[i] = gadget.VolumeStructure{
+		structure[i] = VolumeStructure{
 			Name:       p.Name,
-			Size:       gadget.Size(p.Size) * sectorSize,
+			Size:       Size(p.Size) * sectorSize,
 			Label:      bd.Label,
 			Type:       vsType,
 			Filesystem: bd.FSType,
 		}
 
-		ds[i] = DeviceStructure{
-			LaidOutStructure: gadget.LaidOutStructure{
+		ds[i] = OnDiskStructure{
+			LaidOutStructure: LaidOutStructure{
 				VolumeStructure: &structure[i],
-				StartOffset:     gadget.Size(p.Start) * sectorSize,
+				StartOffset:     Size(p.Start) * sectorSize,
 				Index:           i + 1,
 			},
 			Node:                 p.Node,
@@ -340,10 +417,10 @@ func deviceLayoutFromPartitionTable(ptable sfdiskPartitionTable) (*DeviceLayout,
 		}
 	}
 
-	var numSectors gadget.Size
+	var numSectors Size
 	if ptable.LastLBA != 0 {
 		// sfdisk reports the last usable LBA for GPT disks only
-		numSectors = gadget.Size(ptable.LastLBA + 1)
+		numSectors = Size(ptable.LastLBA + 1)
 	} else {
 		// sfdisk does not report any information about the size of a
 		// MBR partitioned disk, find out the size of the device by
@@ -355,7 +432,7 @@ func deviceLayoutFromPartitionTable(ptable sfdiskPartitionTable) (*DeviceLayout,
 		numSectors = sz
 	}
 
-	dl := &DeviceLayout{
+	dl := &OnDiskVolume{
 		Structure:      ds,
 		ID:             ptable.ID,
 		Device:         ptable.Device,
@@ -382,7 +459,7 @@ func deviceName(name string, index int) string {
 // device contents and gadget structure list, in sfdisk dump format, and
 // returns a partitioning description suitable for sfdisk input and a
 // list of the partitions to be created.
-func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume) (sfdiskInput *bytes.Buffer, toBeCreated []DeviceStructure) {
+func buildPartitionList(dl *OnDiskVolume, pv *LaidOutVolume) (sfdiskInput *bytes.Buffer, toBeCreated []OnDiskStructure) {
 	ptable := dl.partitionTable
 
 	// Keep track what partitions we already have on disk
@@ -395,7 +472,7 @@ func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume) (sfdiskInput
 	canExpandData := false
 	if n := len(pv.LaidOutStructure); n > 0 {
 		last := pv.LaidOutStructure[n-1]
-		if last.VolumeStructure.Role == gadget.SystemData {
+		if last.VolumeStructure.Role == SystemData {
 			canExpandData = true
 		}
 	}
@@ -429,7 +506,7 @@ func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume) (sfdiskInput
 
 		// Check if the data partition should be expanded
 		size := s.Size
-		if s.Role == gadget.SystemData && canExpandData && p.StartOffset+s.Size < dl.Size {
+		if s.Role == SystemData && canExpandData && p.StartOffset+s.Size < dl.Size {
 			size = dl.Size - p.StartOffset
 		}
 
@@ -442,15 +519,15 @@ func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume) (sfdiskInput
 
 		// Set expected labels based on role
 		switch s.Role {
-		case gadget.SystemBoot:
+		case SystemBoot:
 			s.Label = ubuntuBootLabel
-		case gadget.SystemSeed:
+		case SystemSeed:
 			s.Label = ubuntuSeedLabel
-		case gadget.SystemData:
+		case SystemData:
 			s.Label = ubuntuDataLabel
 		}
 
-		toBeCreated = append(toBeCreated, DeviceStructure{
+		toBeCreated = append(toBeCreated, OnDiskStructure{
 			LaidOutStructure:     p,
 			Node:                 node,
 			CreatedDuringInstall: true,
@@ -462,7 +539,7 @@ func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume) (sfdiskInput
 
 // listCreatedPartitions returns a list of partitions created during the
 // install process.
-func listCreatedPartitions(layout *DeviceLayout) []string {
+func listCreatedPartitions(layout *OnDiskVolume) []string {
 	created := make([]string, 0, len(layout.Structure))
 	for _, s := range layout.Structure {
 		if s.CreatedDuringInstall {
@@ -535,4 +612,52 @@ func filesystemInfo(node string) (*lsblkFilesystemInfo, error) {
 	}
 
 	return &info, nil
+}
+
+func deployFilesystemContent(ds *OnDiskStructure, gadgetRoot string) (err error) {
+	mountpoint := filepath.Join(deployMountpoint, strconv.Itoa(ds.Index))
+	if err := os.MkdirAll(mountpoint, 0755); err != nil {
+		return err
+	}
+
+	// temporarily mount the filesystem
+	if err := sysMount(ds.Node, mountpoint, ds.Filesystem, 0, ""); err != nil {
+		return fmt.Errorf("cannot mount filesystem %q at %q: %v", ds.Node, mountpoint, err)
+	}
+	defer func() {
+		errUnmount := sysUnmount(mountpoint, 0)
+		if err == nil {
+			err = errUnmount
+		}
+	}()
+
+	fs, err := NewMountedFilesystemWriter(gadgetRoot, &ds.LaidOutStructure)
+	if err != nil {
+		return fmt.Errorf("cannot create filesystem image writer: %v", err)
+	}
+
+	var preserveFiles []string
+	if err := fs.Write(mountpoint, preserveFiles); err != nil {
+		return fmt.Errorf("cannot create filesystem image: %v", err)
+	}
+
+	return nil
+}
+
+func deployNonFSContent(ds *OnDiskStructure, gadgetRoot string) error {
+	f, err := os.OpenFile(ds.Node, os.O_RDWR, 0644)
+	if err != nil {
+		return fmt.Errorf("cannot deploy bare content for %q: %v", ds.Node, err)
+	}
+	defer f.Close()
+
+	// Laid out structures start relative to the beginning of the
+	// volume, shift the structure offsets to 0, so that it starts
+	// at the beginning of the partition
+	l := ShiftStructureTo(ds.LaidOutStructure, 0)
+	raw, err := NewRawStructureWriter(gadgetRoot, &l)
+	if err != nil {
+		return err
+	}
+	return raw.Write(f)
 }
