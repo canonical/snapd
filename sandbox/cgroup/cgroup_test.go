@@ -297,6 +297,9 @@ func (s *cgroupSuite) writePids(c *C, dir string, pids []int) {
 }
 
 func (s *cgroupSuite) TestPidsOfSnapEmpty(c *C) {
+	restore := cgroup.MockVersion(cgroup.V1, nil)
+	defer restore()
+
 	// Not having any cgroup directories is not an error.
 	pids, err := cgroup.PidsOfSnap("pkg")
 	c.Assert(err, IsNil)
@@ -304,6 +307,9 @@ func (s *cgroupSuite) TestPidsOfSnapEmpty(c *C) {
 }
 
 func (s *cgroupSuite) TestPidsOfSnapUnrelatedStuff(c *C) {
+	restore := cgroup.MockVersion(cgroup.V1, nil)
+	defer restore()
+
 	// Things that are not related to the snap are not being picked up.
 	s.writePids(c, "udisks2.service", []int{100})
 	s.writePids(c, "snap..service", []int{101})
@@ -319,6 +325,9 @@ func (s *cgroupSuite) TestPidsOfSnapUnrelatedStuff(c *C) {
 }
 
 func (s *cgroupSuite) TestPidsOfSnapSecurityTags(c *C) {
+	restore := cgroup.MockVersion(cgroup.V1, nil)
+	defer restore()
+
 	// Pids are collected and assigned to bins by security tag
 	s.writePids(c, "system.slice/snap.pkg.hook.configure.$RANDOM.scope", []int{1})
 	s.writePids(c, "system.slice/snap.pkg.daemon.service", []int{2})
@@ -332,6 +341,9 @@ func (s *cgroupSuite) TestPidsOfSnapSecurityTags(c *C) {
 }
 
 func (s *cgroupSuite) TestPidsOfInstances(c *C) {
+	restore := cgroup.MockVersion(cgroup.V1, nil)
+	defer restore()
+
 	// Instances are not confused between themselves and between the non-instance version.
 	s.writePids(c, "system.slice/snap.pkg_prod.daemon.service", []int{1})
 	s.writePids(c, "system.slice/snap.pkg_devel.daemon.service", []int{2})
@@ -360,6 +372,9 @@ func (s *cgroupSuite) TestPidsOfInstances(c *C) {
 }
 
 func (s *cgroupSuite) TestPidsOfAggregation(c *C) {
+	restore := cgroup.MockVersion(cgroup.V1, nil)
+	defer restore()
+
 	// A single snap may be invoked by multiple users in different sessions.
 	// All of their PIDs are collected though.
 	s.writePids(c, "user.slice/user-1000.slice/user@1000.service/gnome-shell-wayland.service/snap.pkg.app.$RANDOM1.scope", []int{1}) // mock 1st invocation
@@ -375,6 +390,9 @@ func (s *cgroupSuite) TestPidsOfAggregation(c *C) {
 }
 
 func (s *cgroupSuite) TestPidsOfSnapUnrelated(c *C) {
+	restore := cgroup.MockVersion(cgroup.V1, nil)
+	defer restore()
+
 	// We are not confusing snaps with other snaps, instances of our snap, and
 	// with non-snap hierarchies.
 	s.writePids(c, "user.slice/.../snap.pkg.app.$RANDOM1.scope", []int{1})
