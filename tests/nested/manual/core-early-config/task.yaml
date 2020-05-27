@@ -23,7 +23,6 @@ prepare: |
     rm -rf squashfs-root
     mv "$GADGET_SNAP" extra-snaps/
 
-    # XXX: pc-kernel initrd fix; this will be removed once initrd changes land
     snap download --channel=18/edge pc-kernel
     KERNEL_SNAP=$(ls pc-kernel_*.snap)
     mv "$KERNEL_SNAP" extra-snaps/
