@@ -91,15 +91,12 @@ backends:
             - debian-sid-64:
                   workers: 6
 
-            - fedora-28-64:
-                  workers: 4
-                  manual: true
-            - fedora-29-64:
-                  workers: 6
-                  manual: true
             - fedora-30-64:
                   workers: 6
+                  manual: true
             - fedora-31-64:
+                  workers: 6
+            - fedora-32-64:
                   workers: 6
 
             - opensuse-15.0-64:
