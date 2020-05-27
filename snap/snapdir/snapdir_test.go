@@ -43,6 +43,22 @@ type SnapdirTestSuite struct {
 
 var _ = Suite(&SnapdirTestSuite{})
 
+func (s *SnapdirTestSuite) TestIsSnapDir(c *C) {
+	d := c.MkDir()
+	err := os.MkdirAll(filepath.Join(d, "meta"), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(d, "meta/snap.yaml"), nil, 0644)
+	c.Assert(err, IsNil)
+
+	c.Check(snapdir.IsSnapDir(d), Equals, true)
+}
+
+func (s *SnapdirTestSuite) TestNotIsSnapDir(c *C) {
+	c.Check(snapdir.IsSnapDir("/not-existent"), Equals, false)
+	c.Check(snapdir.IsSnapDir("/dev/null"), Equals, false)
+	c.Check(snapdir.IsSnapDir(c.MkDir()), Equals, false)
+}
+
 func (s *SnapdirTestSuite) TestReadFile(c *C) {
 	d := c.MkDir()
 	needle := []byte(`stuff`)
