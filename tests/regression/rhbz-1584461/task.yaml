@@ -19,9 +19,6 @@ restore: |
     rm -f ./in-snap ./on-host
 
 execute: |
-    # on Fedora 30 and 31, /etc/nsswitch.conf is a symlink to /etc/authselect/nsswitch.conf
-    test -L /etc/nsswitch.conf
-
     # the following mount entries are visible on a broken system:
     # /var/lib/snapd/snaps/core_6818.snap on /etc/authselect/nsswitch.conf type squashfs (ro,nodev,relatime,context=system_u:object_r:snappy_snap_t:s0)
     # /var/lib/snapd/snaps/core_6818.snap on /var/lib/snapd/snap/core/6818/etc/nsswitch.conf type squashfs (ro,nodev,relatime,context=system_u:object_r:snappy_snap_t:s0)
@@ -29,7 +26,7 @@ execute: |
     # /var/lib/snapd/snaps/core_6818.snap on /etc/authselect/nsswitch.conf type squashfs (ro,nodev,relatime,context=system_u:object_r:snappy_snap_t:s0)
     # /var/lib/snapd/snaps/core_6818.snap on /etc/ssl-backup type squashfs (ro,nodev,relatime,context=system_u:object_r:snappy_snap_t:s0)
 
-    # since we cannot look at /etc/nsswitch.conf, make /etc/ssl a symlink
+    # make /etc/ssl a symlink
     mv /etc/ssl /etc/ssl-backup
     ln -s /etc/ssl-backup /etc/ssl
 
