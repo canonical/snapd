@@ -34,7 +34,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
-	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
 
@@ -1765,7 +1765,7 @@ version: 1.0
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlFromSnapFileMissing(c *C) {
 	snapPath := snaptest.MakeTestSnapWithFiles(c, string(mockSnapYaml), nil)
-	snapf, err := snap.Open(snapPath)
+	snapf, err := snapfile.Open(snapPath)
 	c.Assert(err, IsNil)
 
 	// if constraints are nil, we allow a missing gadget.yaml
@@ -1786,7 +1786,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlFromSnapFileValid(c *C) {
 	snapPath := snaptest.MakeTestSnapWithFiles(c, mockSnapYaml, [][]string{
 		{"meta/gadget.yaml", string(minimalMockGadgetYaml)},
 	})
-	snapf, err := snap.Open(snapPath)
+	snapf, err := snapfile.Open(snapPath)
 	c.Assert(err, IsNil)
 
 	ginfo, err := gadget.ReadInfoFromSnapFile(snapf, nil)
