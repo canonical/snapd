@@ -28,6 +28,12 @@ prepare: |
         MODEL=developer1-pc-18-w-config.model
     fi
 
+    # Stop snapd and remove existing state, modify and repack gadget
+    # snap and provide developer assertions in order to force first
+    # boot again.
+    #
+    # TODO: find common pattern and extract code from the various tests
+    #       that use similar code to simulate a first-boot
     systemctl stop snapd.service snapd.socket
     rm -rf /var/lib/snapd/assertions/*
     rm -rf /var/lib/snapd/device
@@ -48,7 +54,7 @@ prepare: |
     cat <<EOF >> squashfs-root/service
     #!/bin/sh
     echo other service
-    sleep infinity
+    exec sleep infinity
     EOF
     chmod +x squashfs-root/service
 
