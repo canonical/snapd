@@ -66,6 +66,7 @@ func doExec(t *state.Task, tomb *tomb.Tomb) error {
 	}
 
 	err := t.Get("timeout", &tout)
+	// timeout is optional and might not be set
 	if err != nil && err != state.ErrNoState {
 		return err
 	}
@@ -73,9 +74,13 @@ func doExec(t *state.Task, tomb *tomb.Tomb) error {
 		tout = defaultExecTimeout
 	}
 
+	// the command needs to be run with unlocked state, but after that
+	// we need to restore the lock (for Errorf, and for deferred unlocking
+	// above).
 	st.Unlock()
 	buf, err := osutil.RunAndWait(argv, nil, tout, tomb)
 	st.Lock()
+
 	if err != nil {
 		t.Errorf("# %s\n%s", strings.Join(argv, " "), buf)
 		return err
