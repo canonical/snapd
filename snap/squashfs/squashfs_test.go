@@ -132,6 +132,28 @@ func (s *SquashfsTestSuite) TearDownTest(c *C) {
 	c.Check(string(outbuf), Equals, "")
 }
 
+func (s *SquashfsTestSuite) TestFileHasSquashfsHeader(c *C) {
+	sn := makeSnap(c, "name: test", "")
+	c.Check(squashfs.FileHasSquashfsHeader(sn.Path()), Equals, true)
+}
+
+func (s *SquashfsTestSuite) TestNotFileHasSquashfsHeader(c *C) {
+	data := []string{
+		"hsqs",
+		"hsqs\x00",
+		"hsqs" + strings.Repeat("\x00", squashfs.SuperblockSize-4),
+		"hsqt" + strings.Repeat("\x00", squashfs.SuperblockSize-4+1),
+		"not a snap",
+	}
+
+	for _, d := range data {
+		err := ioutil.WriteFile("not-a-snap", []byte(d), 0644)
+		c.Assert(err, IsNil)
+
+		c.Check(squashfs.FileHasSquashfsHeader("not-a-snap"), Equals, false)
+	}
+}
+
 func (s *SquashfsTestSuite) TestInstallSimpleNoCp(c *C) {
 	// mock cp but still cp
 	cmd := testutil.MockCommand(c, "cp", `#!/bin/sh

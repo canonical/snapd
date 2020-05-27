@@ -88,3 +88,38 @@ execute: |
         cat /etc/environment
         exit 1
     fi
+
+    echo "Check that 'service.console-conf.disable' handling works"
+    # start some instances of console-conf
+    systemctl start console-conf@tty1
+    systemctl start console-conf@tty2
+    systemctl start serial-console-conf@ttyS0
+
+    systemctl status 'console-conf@*' | MATCH "Active: active"
+    systemctl status 'serial-console-conf@*' | MATCH "Active: active"
+
+    snap set system service.console-conf.disable=true
+    test -e /var/lib/console-conf/complete
+    # no output for anything console-conf
+    test -z "$(systemctl status 'console-conf@*')"
+    # serial-console-conf is usually in failed status, depending on how the
+    # process went down
+    systemctl status 'serial-console-conf@*' | MATCH "(|Active: (inactive|failed))"
+
+    # getty@ services are now active
+    systemctl status getty@tty1 | MATCH "Active: active"
+    systemctl status getty@tty2 | MATCH "Active: active"
+    systemctl status serial-getty@ttyS0 | MATCH "Active: active"
+
+    # enable it again
+    snap set system service.console-conf.disable=false
+    not test -e /var/lib/console-conf/complete
+
+    # console-conf@ services are now active
+    systemctl status 'console-conf@tty1' | MATCH "Active: active"
+    systemctl status 'console-conf@tty2' | MATCH "Active: active"
+    systemctl status 'serial-console-conf@ttyS0' | MATCH "Active: active"
+    # but getty@ ones are not
+    systemctl status getty@tty1 | MATCH "Active: (inactive|failed)"
+    systemctl status getty@tty2 | MATCH "Active: (inactive|failed)"
+    systemctl status serial-getty@ttyS0 | MATCH "Active: (inactive|failed)"
