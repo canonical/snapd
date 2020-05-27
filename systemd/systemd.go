@@ -780,6 +780,9 @@ func fsMountOptions(fstype string) []string {
 	return options
 }
 
+// actualFsTypeAndMountOptions returns filesystem type and options to actually
+// mount the given fstype at runtime, i.e. it determines if fuse should be used
+// for squashfs.
 func actualFsTypeAndMountOptions(fstype string) (actualFsType string, options []string) {
 	options = fsMountOptions(fstype)
 	actualFsType = fstype
