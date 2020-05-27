@@ -81,6 +81,10 @@ func (s *emulation) ReloadOrRestart(service string) error {
 	return errNotImplemented
 }
 
+func (s *emulation) RestartAll(service string) error {
+	return errNotImplemented
+}
+
 func (s *emulation) Status(units ...string) ([]*UnitStatus, error) {
 	return nil, errNotImplemented
 }
