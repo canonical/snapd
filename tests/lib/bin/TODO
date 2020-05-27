@@ -47,9 +47,10 @@ appropriate.
 
 TODO:
 
-rename tests/lib/bin to tests/lib/tools
+rename tests/lib/bin to tests/lib/tools, define TESTSTOOLS in
+spread.yaml pointing at it
 
-create tests/bin
+create tests/bin, have ultimately this on the PATH and not tools
 
 symlinks and renames (plus fixes):
 
