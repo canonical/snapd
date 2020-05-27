@@ -346,6 +346,8 @@ func PidsOfSnap(snapInstanceName string) (map[string][]int, error) {
 			return err
 		}
 		pidsByTag[securityTag] = append(pidsByTag[securityTag], pids...)
+		// Since we've found the file we are looking for (cgroup.procs) we no
+		// longer need to scan the remaining files of this directory.
 		return filepath.SkipDir
 	}
 
