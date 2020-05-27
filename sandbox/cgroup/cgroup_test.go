@@ -315,104 +315,119 @@ func (s *cgroupSuite) TestPidsOfSnapEmpty(c *C) {
 }
 
 func (s *cgroupSuite) TestPidsOfSnapUnrelatedStuff(c *C) {
-	restore := cgroup.MockVersion(cgroup.V1, nil)
-	defer restore()
+	for _, ver := range []int{cgroup.V2, cgroup.V1} {
+		comment := Commentf("cgroup version %v", ver)
+		restore := cgroup.MockVersion(ver, nil)
+		defer restore()
 
-	// Things that are not related to the snap are not being picked up.
-	s.writePids(c, "udisks2.service", []int{100})
-	s.writePids(c, "snap..service", []int{101})
-	s.writePids(c, "snap..scope", []int{102})
-	s.writePids(c, "snap.*.service", []int{103})
-	s.writePids(c, "snap.*.scope", []int{104})
-	s.writePids(c, "snapd.service", []int{105})
-	s.writePids(c, "snap-spotify-35.mount", []int{106})
+		// Things that are not related to the snap are not being picked up.
+		s.writePids(c, "udisks2.service", []int{100})
+		s.writePids(c, "snap..service", []int{101})
+		s.writePids(c, "snap..scope", []int{102})
+		s.writePids(c, "snap.*.service", []int{103})
+		s.writePids(c, "snap.*.scope", []int{104})
+		s.writePids(c, "snapd.service", []int{105})
+		s.writePids(c, "snap-spotify-35.mount", []int{106})
 
-	pids, err := cgroup.PidsOfSnap("pkg")
-	c.Assert(err, IsNil)
-	c.Check(pids, HasLen, 0)
+		pids, err := cgroup.PidsOfSnap("pkg")
+		c.Assert(err, IsNil, comment)
+		c.Check(pids, HasLen, 0, comment)
+	}
 }
 
 func (s *cgroupSuite) TestPidsOfSnapSecurityTags(c *C) {
-	restore := cgroup.MockVersion(cgroup.V1, nil)
-	defer restore()
+	for _, ver := range []int{cgroup.V2, cgroup.V1} {
+		comment := Commentf("cgroup version %v", ver)
+		restore := cgroup.MockVersion(ver, nil)
+		defer restore()
 
-	// Pids are collected and assigned to bins by security tag
-	s.writePids(c, "system.slice/snap.pkg.hook.configure.$RANDOM.scope", []int{1})
-	s.writePids(c, "system.slice/snap.pkg.daemon.service", []int{2})
+		// Pids are collected and assigned to bins by security tag
+		s.writePids(c, "system.slice/snap.pkg.hook.configure.$RANDOM.scope", []int{1})
+		s.writePids(c, "system.slice/snap.pkg.daemon.service", []int{2})
 
-	pids, err := cgroup.PidsOfSnap("pkg")
-	c.Assert(err, IsNil)
-	c.Check(pids, DeepEquals, map[string][]int{
-		"snap.pkg.hook.configure": {1},
-		"snap.pkg.daemon":         {2},
-	})
+		pids, err := cgroup.PidsOfSnap("pkg")
+		c.Assert(err, IsNil, comment)
+		c.Check(pids, DeepEquals, map[string][]int{
+			"snap.pkg.hook.configure": {1},
+			"snap.pkg.daemon":         {2},
+		}, comment)
+	}
 }
 
 func (s *cgroupSuite) TestPidsOfInstances(c *C) {
-	restore := cgroup.MockVersion(cgroup.V1, nil)
-	defer restore()
+	for _, ver := range []int{cgroup.V2, cgroup.V1} {
+		comment := Commentf("cgroup version %v", ver)
+		restore := cgroup.MockVersion(ver, nil)
+		defer restore()
 
-	// Instances are not confused between themselves and between the non-instance version.
-	s.writePids(c, "system.slice/snap.pkg_prod.daemon.service", []int{1})
-	s.writePids(c, "system.slice/snap.pkg_devel.daemon.service", []int{2})
-	s.writePids(c, "system.slice/snap.pkg.daemon.service", []int{3})
+		// Instances are not confused between themselves and between the non-instance version.
+		s.writePids(c, "system.slice/snap.pkg_prod.daemon.service", []int{1})
+		s.writePids(c, "system.slice/snap.pkg_devel.daemon.service", []int{2})
+		s.writePids(c, "system.slice/snap.pkg.daemon.service", []int{3})
 
-	// The main one
-	pids, err := cgroup.PidsOfSnap("pkg")
-	c.Assert(err, IsNil)
-	c.Check(pids, DeepEquals, map[string][]int{
-		"snap.pkg.daemon": {3},
-	})
+		// The main one
+		pids, err := cgroup.PidsOfSnap("pkg")
+		c.Assert(err, IsNil, comment)
+		c.Check(pids, DeepEquals, map[string][]int{
+			"snap.pkg.daemon": {3},
+		}, comment)
 
-	// The development one
-	pids, err = cgroup.PidsOfSnap("pkg_devel")
-	c.Assert(err, IsNil)
-	c.Check(pids, DeepEquals, map[string][]int{
-		"snap.pkg_devel.daemon": {2},
-	})
+		// The development one
+		pids, err = cgroup.PidsOfSnap("pkg_devel")
+		c.Assert(err, IsNil, comment)
+		c.Check(pids, DeepEquals, map[string][]int{
+			"snap.pkg_devel.daemon": {2},
+		}, comment)
 
-	// The production one
-	pids, err = cgroup.PidsOfSnap("pkg_prod")
-	c.Assert(err, IsNil)
-	c.Check(pids, DeepEquals, map[string][]int{
-		"snap.pkg_prod.daemon": {1},
-	})
+		// The production one
+		pids, err = cgroup.PidsOfSnap("pkg_prod")
+		c.Assert(err, IsNil, comment)
+		c.Check(pids, DeepEquals, map[string][]int{
+			"snap.pkg_prod.daemon": {1},
+		}, comment)
+	}
 }
 
 func (s *cgroupSuite) TestPidsOfAggregation(c *C) {
-	restore := cgroup.MockVersion(cgroup.V1, nil)
-	defer restore()
+	for _, ver := range []int{cgroup.V2, cgroup.V1} {
+		comment := Commentf("cgroup version %v", ver)
+		restore := cgroup.MockVersion(ver, nil)
+		defer restore()
 
-	// A single snap may be invoked by multiple users in different sessions.
-	// All of their PIDs are collected though.
-	s.writePids(c, "user.slice/user-1000.slice/user@1000.service/gnome-shell-wayland.service/snap.pkg.app.$RANDOM1.scope", []int{1}) // mock 1st invocation
-	s.writePids(c, "user.slice/user-1000.slice/user@1000.service/gnome-shell-wayland.service/snap.pkg.app.$RANDOM2.scope", []int{2}) // mock fork() by pid 1
-	s.writePids(c, "user.slice/user-1001.slice/user@1001.service/gnome-shell-wayland.service/snap.pkg.app.$RANDOM3.scope", []int{3}) // mock 2nd invocation
-	s.writePids(c, "user.slice/user-1001.slice/user@1001.service/gnome-shell-wayland.service/snap.pkg.app.$RANDOM4.scope", []int{4}) // mock fork() by pid 3
+		// A single snap may be invoked by multiple users in different sessions.
+		// All of their PIDs are collected though.
+		s.writePids(c, "user.slice/user-1000.slice/user@1000.service/gnome-shell-wayland.service/snap.pkg.app.$RANDOM1.scope", []int{1}) // mock 1st invocation
+		s.writePids(c, "user.slice/user-1000.slice/user@1000.service/gnome-shell-wayland.service/snap.pkg.app.$RANDOM2.scope", []int{2}) // mock fork() by pid 1
+		s.writePids(c, "user.slice/user-1001.slice/user@1001.service/gnome-shell-wayland.service/snap.pkg.app.$RANDOM3.scope", []int{3}) // mock 2nd invocation
+		s.writePids(c, "user.slice/user-1001.slice/user@1001.service/gnome-shell-wayland.service/snap.pkg.app.$RANDOM4.scope", []int{4}) // mock fork() by pid 3
 
-	pids, err := cgroup.PidsOfSnap("pkg")
-	c.Assert(err, IsNil)
-	c.Check(pids, DeepEquals, map[string][]int{
-		"snap.pkg.app": {1, 2, 3, 4},
-	})
+		pids, err := cgroup.PidsOfSnap("pkg")
+		c.Assert(err, IsNil, comment)
+		c.Check(pids, DeepEquals, map[string][]int{
+			"snap.pkg.app": {1, 2, 3, 4},
+		}, comment)
+	}
 }
 
 func (s *cgroupSuite) TestPidsOfSnapUnrelated(c *C) {
-	restore := cgroup.MockVersion(cgroup.V1, nil)
-	defer restore()
+	for _, ver := range []int{cgroup.V2, cgroup.V1} {
+		comment := Commentf("cgroup version %v", ver)
+		restore := cgroup.MockVersion(ver, nil)
+		defer restore()
 
-	// We are not confusing snaps with other snaps, instances of our snap, and
-	// with non-snap hierarchies.
-	s.writePids(c, "user.slice/.../snap.pkg.app.$RANDOM1.scope", []int{1})
-	s.writePids(c, "user.slice/.../snap.other.snap.$RANDOM2.scope", []int{2})
-	s.writePids(c, "user.slice/.../pkg.service", []int{3})
-	s.writePids(c, "user.slice/.../snap.pkg_instance.app.$RANDOM3.scope", []int{4})
+		// We are not confusing snaps with other snaps, instances of our snap, and
+		// with non-snap hierarchies.
+		s.writePids(c, "user.slice/.../snap.pkg.app.$RANDOM1.scope", []int{1})
+		s.writePids(c, "user.slice/.../snap.other.snap.$RANDOM2.scope", []int{2})
+		s.writePids(c, "user.slice/.../pkg.service", []int{3})
+		s.writePids(c, "user.slice/.../snap.pkg_instance.app.$RANDOM3.scope", []int{4})
 
-	pids, err := cgroup.PidsOfSnap("pkg")
-	c.Assert(err, IsNil)
-	c.Check(pids, DeepEquals, map[string][]int{
-		"snap.pkg.app": {1},
-	})
+		pids, err := cgroup.PidsOfSnap("pkg")
+		c.Assert(err, IsNil, comment)
+		c.Check(pids, DeepEquals, map[string][]int{
+			"snap.pkg.app": {1},
+		}, comment)
+	}
 }
 
 func (s *cgroupSuite) TestProcessPathInTrackingCgroup(c *C) {
