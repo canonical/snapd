@@ -41,6 +41,9 @@ func init() {
 	// proxy.{http,https,ftp}
 	addWithStateHandler(validateProxyStore, handleProxyConfiguration, coreOnly)
 
+	// resilience.vitality-hint
+	addWithStateHandler(validateVitalitySettings, handleVitalityConfiguration, nil)
+
 	// XXX: this should become a FSOnlyHandler. We need to
 	// add/implement Changes() to the ConfGetter interface
 	// store-certs.*
