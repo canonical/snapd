@@ -4,6 +4,8 @@ systems:
     - -ubuntu-14.04-*
     - -fedora-31-*  # TODO: add support for cgroupv2 based tracking
     - -fedora-32-*
+    - -amazon-linux-*
+    - -centos-7-*
 
 prepare: |
     #shellcheck source=tests/lib/snaps.sh
