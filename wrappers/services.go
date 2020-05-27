@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"text/template"
@@ -34,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
+	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
@@ -1151,4 +1153,28 @@ func generateOnCalendarSchedules(schedule []*timeutil.Schedule) []string {
 		}
 	}
 	return calendarEvents
+}
+
+// QueryDisabledServices returns a list of all currently disabled snap services
+// in the snap.
+func QueryDisabledServices(info *snap.Info, pb progress.Meter) ([]string, error) {
+	// save the list of services that are in the disabled state before unlinking
+	// and thus removing the snap services
+	snapSvcStates, err := ServicesEnableState(info, pb)
+	if err != nil {
+		return nil, err
+	}
+
+	disabledSnapSvcs := []string{}
+	// add all disabled services to the list
+	for svc, isEnabled := range snapSvcStates {
+		if !isEnabled {
+			disabledSnapSvcs = append(disabledSnapSvcs, svc)
+		}
+	}
+
+	// sort for easier testing
+	sort.Strings(disabledSnapSvcs)
+
+	return disabledSnapSvcs, nil
 }
