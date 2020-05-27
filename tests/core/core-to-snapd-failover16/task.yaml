@@ -8,6 +8,12 @@ prepare: |
   . "$TESTSLIB/snaps.sh"
   repack_core_snap_into_snapd_snap
 
+restore: |
+  rm -f /etc/systemd/user/snapd.session-agent.service
+  rm -f /etc/systemd/user/snapd.session-agent.socket
+  rm -f /etc/systemd/user/sockets.target.wants/snapd.session-agent.socket
+  systemctl --user daemon-reload
+
 execute: |
   # shellcheck source=tests/lib/journalctl.sh
   . "$TESTSLIB/journalctl.sh"
