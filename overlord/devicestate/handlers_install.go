@@ -49,24 +49,16 @@ var (
 )
 
 func setSysconfigCloudOptions(opts *sysconfig.Options, gadgetDir string, model *asserts.Model) {
-	// TODO: Decide what to do when both gadget and ubuntu-seed have
-	//       cloud.cfg.d/ directories.
+	// TODO: add support for a single cloud-init `cloud.conf` file
+	//       that is then passed to sysconfig
 
-	// 1. check cloud.cfg.d in the gadget snap, this is always ok regardless
-	//    of grade
-	cloudCfg := filepath.Join(gadgetDir, "cloud.cfg.d")
-	if osutil.IsDirectory(cloudCfg) {
-		opts.CloudInitSrcDir = cloudCfg
-		return
-	}
-
-	// 2. check cloud.cfg.d on the ubuntu-seed partition
+	// check cloud.cfg.d on the ubuntu-seed partition
 	//
 	// Support custom cloud.cfg.d/*.cfg files on the ubuntu-seed partition
 	// during install when in grade "dangerous".
 	//
 	// XXX: maybe move policy decision into configureRunSystem later?
-	cloudCfg = filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d")
+	cloudCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d")
 	if osutil.IsDirectory(cloudCfg) && model.Grade() == asserts.ModelDangerous {
 		opts.CloudInitSrcDir = cloudCfg
 		return

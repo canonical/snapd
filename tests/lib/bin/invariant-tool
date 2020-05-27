@@ -5,6 +5,7 @@ show_help() {
 	echo
 	echo "Supported invariants:"
 	echo "    root-files-in-home: most of /home/* does not contain root-owned files"
+	echo "    crashed-snap-confine: /tmp/snap.rootfs_* does not exist"
 }
 
 if [ $# -eq 0 ]; then
@@ -51,10 +52,24 @@ check_root_files_in_home() {
 	fi
 }
 
+check_crashed_snap_confine() {
+	n="$1" # invariant name
+	find /tmp -name 'snap.rootfs_*' > "/tmp/invariant-tool.$n"
+	# NOTE: it may be a mount point but we are not checking that here.
+	if [ -s "/tmp/invariant-tool.$n" ]; then
+		echo "invariant-tool: it seems snap-confine has crashed" >&2
+		cat "/tmp/invariant-tool.$n" >&2
+		return 1
+	fi
+}
+
 check_invariant() {
 	case "$1" in
 		root-files-in-home)
 			check_root_files_in_home "$1"
+			;;
+		crashed-snap-confine)
+			check_crashed_snap_confine "$1"
 			;;
 		*)
 			echo "invariant-tool: unknown invariant $1" >&2
@@ -63,7 +78,7 @@ check_invariant() {
 	esac
 }
 
-ALL_INVARIANTS="root-files-in-home"
+ALL_INVARIANTS="root-files-in-home crashed-snap-confine"
 
 case "$action" in
 	check)
