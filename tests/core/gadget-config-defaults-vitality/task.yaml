@@ -48,7 +48,7 @@ prepare: |
     cat <<EOF >> squashfs-root/service
     #!/bin/sh
     echo other service
-    sleep infinity
+    exec sleep infinity
     EOF
     chmod +x squashfs-root/service
 
