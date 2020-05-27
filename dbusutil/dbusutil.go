@@ -25,6 +25,8 @@ import (
 	"syscall"
 
 	"github.com/godbus/dbus"
+
+	"github.com/snapcore/snapd/dirs"
 )
 
 // isSessionBusLikelyPresent checks for the apparent availability of DBus session bus.
@@ -37,14 +39,15 @@ func isSessionBusLikelyPresent() bool {
 	if address := os.Getenv("DBUS_SESSION_BUS_ADDRESS"); address != "" {
 		return true
 	}
-	if fi, err := os.Stat(fmt.Sprintf("/run/user/%d/dbus-session", os.Getuid())); err == nil {
+	uid := os.Getuid()
+	if fi, err := os.Stat(fmt.Sprintf("%s/%d/dbus-session", dirs.XdgRuntimeDirBase, uid)); err == nil {
 		if stat, ok := fi.Sys().(*syscall.Stat_t); ok {
 			if stat.Mode&syscall.S_IFREG == syscall.S_IFREG {
 				return true
 			}
 		}
 	}
-	if fi, err := os.Stat(fmt.Sprintf("/run/user/%d/bus", os.Getuid())); err == nil {
+	if fi, err := os.Stat(fmt.Sprintf("%s/%d/bus", dirs.XdgRuntimeDirBase, uid)); err == nil {
 		if stat, ok := fi.Sys().(*syscall.Stat_t); ok {
 			if stat.Mode&syscall.S_IFSOCK == syscall.S_IFSOCK {
 				return true
