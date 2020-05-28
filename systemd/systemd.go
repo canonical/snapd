@@ -780,30 +780,30 @@ func fsMountOptions(fstype string) []string {
 	return options
 }
 
-// actualFsTypeAndMountOptions returns filesystem type and options to actually
+// hostFsTypeAndMountOptions returns filesystem type and options to actually
 // mount the given fstype at runtime, i.e. it determines if fuse should be used
 // for squashfs.
-func actualFsTypeAndMountOptions(fstype string) (actualFsType string, options []string) {
+func hostFsTypeAndMountOptions(fstype string) (hostFsType string, options []string) {
 	options = fsMountOptions(fstype)
-	actualFsType = fstype
+	hostFsType = fstype
 	if fstype == "squashfs" {
 		newFsType, newOptions := squashfsFsType()
 		options = append(options, newOptions...)
-		actualFsType = newFsType
+		hostFsType = newFsType
 	}
-	return actualFsType, options
+	return hostFsType, options
 }
 
 func (s *systemd) AddMountUnitFile(snapName, revision, what, where, fstype string) (string, error) {
 	daemonReloadLock.Lock()
 	defer daemonReloadLock.Unlock()
 
-	actualFsType, options := actualFsTypeAndMountOptions(fstype)
+	hostFsType, options := hostFsTypeAndMountOptions(fstype)
 	if osutil.IsDirectory(what) {
 		options = append(options, "bind")
-		actualFsType = "none"
+		hostFsType = "none"
 	}
-	mountUnitName, err := writeMountUnitFile(snapName, revision, what, where, actualFsType, options)
+	mountUnitName, err := writeMountUnitFile(snapName, revision, what, where, hostFsType, options)
 	if err != nil {
 		return "", err
 	}

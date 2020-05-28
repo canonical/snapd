@@ -103,7 +103,7 @@ func (s *emulation) AddMountUnitFile(snapName, revision, what, where, fstype str
 		return "", fmt.Errorf("bind-mounted directory is not supported in emulation mode")
 	}
 
-	// In emulation mode actualFsType is the fs we want to use to manually mount
+	// In emulation mode hostFsType is the fs we want to use to manually mount
 	// the snap below, but fstype is used for the created mount unit.
 	// This means that when preseeding in a lxd container, the snap will be
 	// mounted with fuse, but mount unit will use squashfs.
@@ -113,10 +113,10 @@ func (s *emulation) AddMountUnitFile(snapName, revision, what, where, fstype str
 		return "", err
 	}
 
-	actualFsType, actualOptions := actualFsTypeAndMountOptions(fstype)
-	cmd := exec.Command("mount", "-t", actualFsType, what, where, "-o", strings.Join(actualOptions, ","))
+	hostFsType, actualOptions := hostFsTypeAndMountOptions(fstype)
+	cmd := exec.Command("mount", "-t", hostFsType, what, where, "-o", strings.Join(actualOptions, ","))
 	if out, err := cmd.CombinedOutput(); err != nil {
-		return "", fmt.Errorf("cannot mount %s (%s) at %s in preseed mode: %s; %s", what, actualFsType, where, err, string(out))
+		return "", fmt.Errorf("cannot mount %s (%s) at %s in preseed mode: %s; %s", what, hostFsType, where, err, string(out))
 	}
 
 	multiUserTargetWantsDir := filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants")
