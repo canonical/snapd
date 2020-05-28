@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -82,6 +82,8 @@ func (s *HugepagesControlSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains,
 		"/sys/kernel/mm/hugepages/{,hugepages-[0-9]*}/* r,")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains,
+		"/sys/kernel/mm/hugepages/{,hugepages-[0-9]*}/nr_{hugepages,hugepages_mempolicy,overcommit_hugepages} w,")
 }
 
 func (s *HugepagesControlSuite) TestStaticInfo(c *C) {

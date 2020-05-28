@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -41,6 +41,9 @@ const hugepagesControlConnectedPlugAppArmor = `
 /sys/devices/system/node/node[0-9]*/hugepages/{,hugepages-[0-9]*}/* r,
 /sys/devices/system/node/node[0-9]*/hugepages/{,hugepages-[0-9]*}/nr_hugepages w,
 @{PROC}/sys/vm/nr_{hugepages,hugepages_mempolicy,overcommit_hugepages} rw,
+
+# Observe which group can create shm segments using hugetlb pages
+@{PROC}/sys/vm/hugetlb_shm_group r,
 
 # Observe allocated huge pages by node (@{PROC}/meminfo already in base abstraction)
 /sys/devices/system/node/node[0-9]*/meminfo r,
