@@ -33,7 +33,7 @@ type MkfsFunc func(imgFile, label, contentsRootDir string) error
 var (
 	mkfsHandlers = map[string]MkfsFunc{
 		"vfat": MkfsVfat,
-		"ext4": MkfsExt4WithoutMetadataChecksum,
+		"ext4": MkfsExt4,
 	}
 )
 
