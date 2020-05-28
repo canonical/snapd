@@ -170,7 +170,7 @@ type runnerSuite struct {
 
 func (s *runnerSuite) SetUpSuite(c *C) {
 	s.baseRunnerSuite.SetUpSuite(c)
-	s.restore = snapdenv.SetUserAgentFromVersion("1", "snap-repair")
+	s.restore = snapdenv.SetUserAgentFromVersion("1", nil, "snap-repair")
 }
 
 func (s *runnerSuite) TearDownSuite(c *C) {

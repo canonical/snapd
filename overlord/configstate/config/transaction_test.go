@@ -490,3 +490,44 @@ func (s *transactionSuite) TestPristineIsNotTainted(c *C) {
 	c.Assert(json.Unmarshal([]byte(*pristine["test-snap"]["foo"]), &data), IsNil)
 	c.Assert(data, DeepEquals, map[string]interface{}{"a": map[string]interface{}{"a": "a"}})
 }
+
+func (s *transactionSuite) TestPristineGet(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// start with a pristine config
+	s.state.Set("config", map[string]map[string]interface{}{
+		"some-snap": {"opt1": "pristine-value"},
+	})
+
+	// change the config
+	var res interface{}
+	tr := config.NewTransaction(s.state)
+	err := tr.Set("some-snap", "opt1", "changed-value")
+	c.Assert(err, IsNil)
+
+	// and get will get the changed value
+	err = tr.Get("some-snap", "opt1", &res)
+	c.Assert(err, IsNil)
+	c.Assert(res, Equals, "changed-value")
+
+	// but GetPristine will get the pristine value
+	err = tr.GetPristine("some-snap", "opt1", &res)
+	c.Assert(err, IsNil)
+	c.Assert(res, Equals, "pristine-value")
+
+	// and GetPristine errors for options that don't exist in pristine
+	var res2 interface{}
+	err = tr.Set("some-snap", "opt2", "other-value")
+	c.Assert(err, IsNil)
+	err = tr.GetPristine("some-snap", "opt2", &res2)
+	c.Assert(err, ErrorMatches, `snap "some-snap" has no "opt2" configuration option`)
+	// but GetPristineMaybe does not error but also give no value
+	err = tr.GetPristineMaybe("some-snap", "opt2", &res2)
+	c.Assert(err, IsNil)
+	c.Assert(res2, IsNil)
+	// but regular get works
+	err = tr.Get("some-snap", "opt2", &res2)
+	c.Assert(err, IsNil)
+	c.Assert(res2, Equals, "other-value")
+}

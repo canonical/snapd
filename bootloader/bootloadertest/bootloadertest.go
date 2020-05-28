@@ -44,12 +44,15 @@ type MockBootloader struct {
 	InstallBootConfigCalled []string
 	InstallBootConfigResult bool
 	InstallBootConfigErr    error
+
+	panicMethods map[string]bool
 }
 
 // ensure MockBootloader(s) implement the Bootloader interfaceces
 var _ bootloader.Bootloader = (*MockBootloader)(nil)
 var _ bootloader.RecoveryAwareBootloader = (*MockRecoveryAwareBootloader)(nil)
 var _ bootloader.ExtractedRunKernelImageBootloader = (*MockExtractedRunKernelImageBootloader)(nil)
+var _ bootloader.ExtractedRecoveryKernelImageBootloader = (*MockExtractedRecoveryKernelImageBootloader)(nil)
 
 func Mock(name, bootdir string) *MockBootloader {
 	return &MockBootloader{
@@ -57,10 +60,19 @@ func Mock(name, bootdir string) *MockBootloader {
 		bootdir: bootdir,
 
 		BootVars: make(map[string]string),
+
+		panicMethods: make(map[string]bool),
+	}
+}
+
+func (b *MockBootloader) maybePanic(which string) {
+	if b.panicMethods[which] {
+		panic(fmt.Sprintf("mocked reboot panic in %s", which))
 	}
 }
 
 func (b *MockBootloader) SetBootVars(values map[string]string) error {
+	b.maybePanic("SetBootVars")
 	b.SetBootVarsCalls++
 	for k, v := range values {
 		b.BootVars[k] = v
@@ -69,6 +81,8 @@ func (b *MockBootloader) SetBootVars(values map[string]string) error {
 }
 
 func (b *MockBootloader) GetBootVars(keys ...string) (map[string]string, error) {
+	b.maybePanic("GetBootVars")
+
 	out := map[string]string{}
 	for _, k := range keys {
 		out[k] = b.BootVars[k]
@@ -109,6 +123,42 @@ type MockRecoveryAwareBootloader struct {
 
 	RecoverySystemDir      string
 	RecoverySystemBootVars map[string]string
+}
+
+type ExtractedRecoveryKernelCall struct {
+	RecoverySystemDir string
+	S                 snap.PlaceInfo
+}
+
+// MockExtractedRecoveryKernelImageBootloader mocks a bootloader implementing
+// the ExtractedRecoveryKernelImage interface.
+type MockExtractedRecoveryKernelImageBootloader struct {
+	*MockBootloader
+
+	ExtractRecoveryKernelAssetsCalls []ExtractedRecoveryKernelCall
+}
+
+// ExtractedRecoveryKernelImage derives a MockRecoveryAwareBootloader from a base
+// MockBootloader.
+func (b *MockBootloader) ExtractedRecoveryKernelImage() *MockExtractedRecoveryKernelImageBootloader {
+	return &MockExtractedRecoveryKernelImageBootloader{MockBootloader: b}
+}
+
+// ExtractRecoveryKernelAssets extracts the kernel assets for the provided
+// kernel snap into the specified recovery system dir; part of
+// RecoveryAwareBootloader.
+func (b *MockExtractedRecoveryKernelImageBootloader) ExtractRecoveryKernelAssets(recoverySystemDir string, s snap.PlaceInfo, snapf snap.Container) error {
+	if recoverySystemDir == "" {
+		panic("MockBootloader.ExtractRecoveryKernelAssets called without recoverySystemDir")
+	}
+
+	b.ExtractRecoveryKernelAssetsCalls = append(
+		b.ExtractRecoveryKernelAssetsCalls,
+		ExtractedRecoveryKernelCall{
+			S:                 s,
+			RecoverySystemDir: recoverySystemDir},
+	)
+	return nil
 }
 
 // RecoveryAware derives a MockRecoveryAwareBootloader from a base
@@ -194,6 +244,27 @@ func (b *MockExtractedRunKernelImageBootloader) SetRunKernelImageFunctionError(f
 	}
 }
 
+// SetRunKernelImagePanic allows setting any method in the
+// ExtractedRunKernelImageBootloader interface on
+// MockExtractedRunKernelImageBootloader to panic instead of
+// returning. This allows one to test what would happen if the system
+// was rebooted during execution of a particular
+// function. Specifically, the panic will be done immediately entering
+// the function so setting SetBootVars to panic will emulate a reboot
+// before any boot vars are set persistently
+func (b *MockExtractedRunKernelImageBootloader) SetRunKernelImagePanic(f string) (restore func()) {
+	switch f {
+	case "EnableKernel", "EnableTryKernel", "Kernel", "TryKernel", "DisableTryKernel", "SetBootVars", "GetBootVars":
+		old := b.panicMethods[f]
+		b.panicMethods[f] = true
+		return func() {
+			b.panicMethods[f] = old
+		}
+	default:
+		panic(fmt.Sprintf("unknown ExtractedRunKernelImageBootloader method %q to mock reboot via panic for", f))
+	}
+}
+
 // GetRunKernelImageFunctionSnapCalls returns which snaps were specified during
 // execution, in order of calls, as well as the number of calls for methods that
 // don't take a snap to set.
@@ -214,6 +285,7 @@ func (b *MockExtractedRunKernelImageBootloader) GetRunKernelImageFunctionSnapCal
 
 // EnableKernel enables the kernel; part of ExtractedRunKernelImageBootloader.
 func (b *MockExtractedRunKernelImageBootloader) EnableKernel(s snap.PlaceInfo) error {
+	b.maybePanic("EnableKernel")
 	b.runKernelImageEnableKernelCalls = append(b.runKernelImageEnableKernelCalls, s)
 	b.runKernelImageEnabledKernel = s
 	return b.runKernelImageMockedErrs["EnableKernel"]
@@ -222,6 +294,7 @@ func (b *MockExtractedRunKernelImageBootloader) EnableKernel(s snap.PlaceInfo) e
 // EnableTryKernel enables a try-kernel; part of
 // ExtractedRunKernelImageBootloader.
 func (b *MockExtractedRunKernelImageBootloader) EnableTryKernel(s snap.PlaceInfo) error {
+	b.maybePanic("EnableTryKernel")
 	b.runKernelImageEnableTryKernelCalls = append(b.runKernelImageEnableTryKernelCalls, s)
 	b.runKernelImageEnabledTryKernel = s
 	return b.runKernelImageMockedErrs["EnableTryKernel"]
@@ -230,6 +303,7 @@ func (b *MockExtractedRunKernelImageBootloader) EnableTryKernel(s snap.PlaceInfo
 // Kernel returns the current kernel set in the bootloader; part of
 // ExtractedRunKernelImageBootloader.
 func (b *MockExtractedRunKernelImageBootloader) Kernel() (snap.PlaceInfo, error) {
+	b.maybePanic("Kernel")
 	b.runKernelImageMockedNumCalls["Kernel"]++
 	err := b.runKernelImageMockedErrs["Kernel"]
 	if err != nil {
@@ -241,6 +315,7 @@ func (b *MockExtractedRunKernelImageBootloader) Kernel() (snap.PlaceInfo, error)
 // TryKernel returns the current kernel set in the bootloader; part of
 // ExtractedRunKernelImageBootloader.
 func (b *MockExtractedRunKernelImageBootloader) TryKernel() (snap.PlaceInfo, error) {
+	b.maybePanic("TryKernel")
 	b.runKernelImageMockedNumCalls["TryKernel"]++
 	err := b.runKernelImageMockedErrs["TryKernel"]
 	if err != nil {
@@ -255,6 +330,8 @@ func (b *MockExtractedRunKernelImageBootloader) TryKernel() (snap.PlaceInfo, err
 // DisableTryKernel removes the current try-kernel "symlink" set in the
 // bootloader; part of ExtractedRunKernelImageBootloader.
 func (b *MockExtractedRunKernelImageBootloader) DisableTryKernel() error {
+	b.maybePanic("DisableTryKernel")
 	b.runKernelImageMockedNumCalls["DisableTryKernel"]++
+	b.runKernelImageEnabledTryKernel = nil
 	return b.runKernelImageMockedErrs["DisableTryKernel"]
 }

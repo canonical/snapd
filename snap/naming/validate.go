@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2018-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,6 +21,7 @@
 package naming
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -162,4 +163,61 @@ func ValidateSocket(name string) error {
 		return fmt.Errorf("invalid socket name: %q", name)
 	}
 	return nil
+}
+
+// ValidSnapID is a regular expression describing a valid snapd-id
+var ValidSnapID = regexp.MustCompile("^[a-z0-9A-Z]{32}$")
+
+// ValidateSnapID checks whether the string is a valid snap-id.
+func ValidateSnapID(id string) error {
+	if !ValidSnapID.MatchString(id) {
+		return fmt.Errorf("invalid snap-id: %q", id)
+	}
+	return nil
+}
+
+var errInvalidSecurityTag = errors.New("invalid security tag")
+
+// ValidateSecurityTag validates known variants of snap security tag.
+//
+// Two forms are recognised, one for apps and one for hooks. Other forms
+// are possible but are not handled here.
+//
+// TODO: handle the weird udev variant.
+func ValidateSecurityTag(tag string) error {
+	// We expect at most four parts. Split with up to five parts so that the
+	// len(parts) test catches invalid format tags very early.
+	parts := strings.SplitN(tag, ".", 5)
+	// We expect either three or four components.
+	if len(parts) != 3 && len(parts) != 4 {
+		return errInvalidSecurityTag
+	}
+	// We expect "snap" and the snap instance name as first two fields.
+	snapLiteral, snapName := parts[0], parts[1]
+	if snapLiteral != "snap" {
+		return errInvalidSecurityTag
+	}
+	if err := ValidateInstance(snapName); err != nil {
+		return errInvalidSecurityTag
+	}
+	// Depending on the type of the tag we either expect application name or
+	// the "hook" literal and the hook name.
+	switch len(parts) {
+	case 3:
+		appName := parts[2]
+		if err := ValidateApp(appName); err != nil {
+			return errInvalidSecurityTag
+		}
+		return nil
+	case 4:
+		hookLiteral, hookName := parts[2], parts[3]
+		if hookLiteral != "hook" {
+			return errInvalidSecurityTag
+		}
+		if err := ValidateHook(hookName); err != nil {
+			return errInvalidSecurityTag
+		}
+		return nil
+	}
+	return errInvalidSecurityTag
 }

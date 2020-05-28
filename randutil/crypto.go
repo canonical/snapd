@@ -23,6 +23,8 @@ import (
 	cryptorand "crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"io/ioutil"
+	"strings"
 )
 
 // CryptoTokenBytes returns a crypthographically secure token of
@@ -31,7 +33,7 @@ func CryptoTokenBytes(nbytes int) ([]byte, error) {
 	b := make([]byte, nbytes)
 	_, err := cryptorand.Read(b)
 	if err != nil {
-		return nil, fmt.Errorf("canot obtain %d crypto random bytes: %v", nbytes, err)
+		return nil, fmt.Errorf("cannot obtain %d crypto random bytes: %v", nbytes, err)
 	}
 	return b, nil
 }
@@ -45,4 +47,15 @@ func CryptoToken(nbytes int) (string, error) {
 		return "", err
 	}
 	return base64.RawURLEncoding.EncodeToString(b), nil
+}
+
+// RandomKernelUUID will return a UUID from the kernel's procfs API at
+// /proc/sys/kernel/random/uuid. Only to be used in very specific uses, most
+// random code should use CryptoToken(Bytes) instead.
+func RandomKernelUUID() string {
+	b, err := ioutil.ReadFile("/proc/sys/kernel/random/uuid")
+	if err != nil {
+		panic("cannot read kernel generated uuid")
+	}
+	return strings.TrimSpace(string(b))
 }

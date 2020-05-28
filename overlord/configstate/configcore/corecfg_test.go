@@ -27,9 +27,12 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func Test(t *testing.T) { TestingT(t) }
@@ -59,6 +62,37 @@ func (cfg *mockConf) Get(snapName, key string, result interface{}) error {
 	return cfg.err
 }
 
+func (cfg *mockConf) GetMaybe(snapName, key string, result interface{}) error {
+	err := cfg.Get(snapName, key, result)
+	if err != nil && !config.IsNoOption(err) {
+		return err
+	}
+	return nil
+}
+
+func (cfg *mockConf) GetPristine(snapName, key string, result interface{}) error {
+	if snapName != "core" {
+		return fmt.Errorf("mockConf only knows about core")
+	}
+
+	var value interface{}
+	value = cfg.conf[key]
+	if value != nil {
+		v1 := reflect.ValueOf(result)
+		v2 := reflect.Indirect(v1)
+		v2.Set(reflect.ValueOf(value))
+	}
+	return cfg.err
+}
+
+func (cfg *mockConf) GetPristineMaybe(snapName, key string, result interface{}) error {
+	err := cfg.GetPristine(snapName, key, result)
+	if err != nil && !config.IsNoOption(err) {
+		return err
+	}
+	return nil
+}
+
 func (cfg *mockConf) Set(snapName, key string, v interface{}) error {
 	if snapName != "core" {
 		return fmt.Errorf("mockConf only knows about core")
@@ -84,6 +118,8 @@ func (cfg *mockConf) State() *state.State {
 
 // configcoreSuite is the base for all the configcore tests
 type configcoreSuite struct {
+	testutil.BaseTest
+
 	state *state.State
 
 	systemctlArgs     [][]string
@@ -105,12 +141,16 @@ func (s *configcoreSuite) TearDownSuite(c *C) {
 }
 
 func (s *configcoreSuite) SetUpTest(c *C) {
-	dirs.SetRootDir(c.MkDir())
-	s.state = state.New(nil)
-}
+	s.BaseTest.SetUpTest(c)
 
-func (s *configcoreSuite) TearDownTest(c *C) {
-	dirs.SetRootDir("")
+	dirs.SetRootDir(c.MkDir())
+	s.AddCleanup(func() { dirs.SetRootDir("") })
+
+	s.state = state.New(nil)
+
+	restore := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
+	s.AddCleanup(restore)
+	s.systemctlArgs = nil
 }
 
 // runCfgSuite tests configcore.Run()
@@ -130,4 +170,61 @@ func (r *runCfgSuite) TestConfigureUnknownOption(c *C) {
 
 	err := configcore.Run(conf)
 	c.Check(err, ErrorMatches, `cannot set "core.unknown.option": unsupported system option`)
+}
+
+// applyCfgSuite tests configcore.Apply()
+type applyCfgSuite struct {
+	tmpDir string
+}
+
+var _ = Suite(&applyCfgSuite{})
+
+func (s *applyCfgSuite) SetUpTest(c *C) {
+	s.tmpDir = c.MkDir()
+	dirs.SetRootDir(s.tmpDir)
+}
+
+func (s *applyCfgSuite) TearDownTest(c *C) {
+	dirs.SetRootDir("")
+}
+
+func (s *applyCfgSuite) TestEmptyRootDir(c *C) {
+	err := configcore.FilesystemOnlyApply("", nil, nil)
+	c.Check(err, ErrorMatches, `internal error: root directory for configcore.FilesystemOnlyApply\(\) not set`)
+}
+
+func (s *applyCfgSuite) TestSmoke(c *C) {
+	conf := &mockConf{}
+	c.Assert(configcore.FilesystemOnlyApply(s.tmpDir, conf, nil), IsNil)
+}
+
+func (s *applyCfgSuite) TestPlainCoreConfigGetErrorIfNotCore(c *C) {
+	conf := configcore.PlainCoreConfig(map[string]interface{}{})
+	var val interface{}
+	c.Assert(conf.Get("some-snap", "a", &val), ErrorMatches, `internal error: expected core snap in Get\(\), "some-snap" was requested`)
+}
+
+func (s *applyCfgSuite) TestPlainCoreConfigGet(c *C) {
+	conf := configcore.PlainCoreConfig(map[string]interface{}{"foo": "bar"})
+	var val interface{}
+	c.Assert(conf.Get("core", "a", &val), DeepEquals, &config.NoOptionError{SnapName: "core", Key: "a"})
+	c.Assert(conf.Get("core", "foo", &val), IsNil)
+	c.Check(val, DeepEquals, "bar")
+}
+
+func (s *applyCfgSuite) TestPlainCoreConfigGetMaybe(c *C) {
+	conf := configcore.PlainCoreConfig(map[string]interface{}{"foo": "bar"})
+	var val interface{}
+	c.Assert(conf.GetMaybe("core", "a", &val), IsNil)
+	c.Assert(val, IsNil)
+	c.Assert(conf.Get("core", "foo", &val), IsNil)
+	c.Check(val, DeepEquals, "bar")
+}
+
+func (s *applyCfgSuite) TestNilHandlePanics(c *C) {
+	c.Assert(func() { configcore.AddFSOnlyHandler(nil, nil, nil) },
+		Panics, "cannot have nil handle with fsOnlyHandler")
+
+	c.Assert(func() { configcore.AddWithStateHandler(nil, nil, nil) },
+		Panics, "cannot have nil handle with addWithStateHandler if validatedOnlyStateConfig flag is not set")
 }

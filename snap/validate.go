@@ -38,9 +38,6 @@ import (
 	"github.com/snapcore/snapd/timeutil"
 )
 
-// The fixed length of valid snap IDs.
-const validSnapIDLength = 32
-
 // ValidateInstanceName checks if a string can be used as a snap instance name.
 func ValidateInstanceName(instanceName string) error {
 	return naming.ValidateInstance(instanceName)
@@ -201,9 +198,19 @@ func validateSocketAddrPath(socket *SocketInfo, fieldName string, path string) e
 		return fmt.Errorf("invalid %q: %q should be written as %q", fieldName, path, clean)
 	}
 
-	if !(strings.HasPrefix(path, "$SNAP_DATA/") || strings.HasPrefix(path, "$SNAP_COMMON/") || strings.HasPrefix(path, "$XDG_RUNTIME_DIR/")) {
-		return fmt.Errorf(
-			"invalid %q: must have a prefix of $SNAP_DATA, $SNAP_COMMON or $XDG_RUNTIME_DIR", fieldName)
+	switch socket.App.DaemonScope {
+	case SystemDaemon:
+		if !(strings.HasPrefix(path, "$SNAP_DATA/") || strings.HasPrefix(path, "$SNAP_COMMON/") || strings.HasPrefix(path, "$XDG_RUNTIME_DIR/")) {
+			return fmt.Errorf(
+				"invalid %q: system daemon sockets must have a prefix of $SNAP_DATA, $SNAP_COMMON or $XDG_RUNTIME_DIR", fieldName)
+		}
+	case UserDaemon:
+		if !(strings.HasPrefix(path, "$SNAP_USER_DATA/") || strings.HasPrefix(path, "$SNAP_USER_COMMON/") || strings.HasPrefix(path, "$XDG_RUNTIME_DIR/")) {
+			return fmt.Errorf(
+				"invalid %q: user daemon sockets must have a prefix of $SNAP_USER_DATA, $SNAP_USER_COMMON, or $XDG_RUNTIME_DIR", fieldName)
+		}
+	default:
+		return fmt.Errorf("invalid %q: cannot validate sockets for daemon-scope %q", fieldName, socket.App.DaemonScope)
 	}
 
 	return nil
@@ -513,6 +520,10 @@ func validateAppOrderNames(app *AppInfo, dependencies []string) error {
 		if !other.IsService() {
 			return fmt.Errorf("before/after references a non-service application %q", dep)
 		}
+
+		if app.DaemonScope != other.DaemonScope {
+			return fmt.Errorf("before/after references service with different daemon-scope %q", dep)
+		}
 	}
 	return nil
 }
@@ -600,6 +611,19 @@ func ValidateApp(app *AppInfo) error {
 		// valid
 	default:
 		return fmt.Errorf(`"daemon" field contains invalid value %q`, app.Daemon)
+	}
+
+	switch app.DaemonScope {
+	case "":
+		if app.Daemon != "" {
+			return fmt.Errorf(`"daemon-scope" must be set for daemons`)
+		}
+	case SystemDaemon, UserDaemon:
+		if app.Daemon == "" {
+			return fmt.Errorf(`"daemon-scope" can only be set for daemons`)
+		}
+	default:
+		return fmt.Errorf(`invalid "daemon-scope": %q`, app.DaemonScope)
 	}
 
 	// Validate app name

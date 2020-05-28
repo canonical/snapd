@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build !nomanagers
 
 /*
  * Copyright (C) 2017 Canonical Ltd
@@ -72,7 +73,7 @@ func updateEtcEnvironmentConfig(path string, config map[string]string) error {
 	return nil
 }
 
-func handleProxyConfiguration(tr config.Conf) error {
+func handleProxyConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 	config := map[string]string{}
 	// normal proxy settings
 	for _, key := range []string{"http", "https", "ftp"} {

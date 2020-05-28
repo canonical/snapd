@@ -20,6 +20,7 @@
 package seed_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -167,6 +168,16 @@ func (s *seed20Suite) TestLoadMetaCore20Minimal(c *C) {
 		},
 	})
 
+	// check that PlaceInfo method works
+	pi := essSnaps[0].PlaceInfo()
+	c.Check(pi.Filename(), Equals, "snapd_1.snap")
+	pi = essSnaps[1].PlaceInfo()
+	c.Check(pi.Filename(), Equals, "pc-kernel_1.snap")
+	pi = essSnaps[2].PlaceInfo()
+	c.Check(pi.Filename(), Equals, "core20_1.snap")
+	pi = essSnaps[3].PlaceInfo()
+	c.Check(pi.Filename(), Equals, "pc_1.snap")
+
 	runSnaps, err := seed20.ModeSnaps("run")
 	c.Assert(err, IsNil)
 	c.Check(runSnaps, HasLen, 0)
@@ -217,6 +228,11 @@ func (s *seed20Suite) TestLoadAssertionsModelTempDBHappy(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(model.Model(), Equals, "my-model")
 	c.Check(model.Base(), Equals, "core20")
+
+	brand, err := seed20.Brand()
+	c.Assert(err, IsNil)
+	c.Check(brand.AccountID(), Equals, "my-brand")
+	c.Check(brand.DisplayName(), Equals, "My-brand")
 }
 
 func (s *seed20Suite) TestLoadAssertionsMultiModels(c *C) {
@@ -310,7 +326,7 @@ func (s *seed20Suite) TestLoadAssertionsMultiSnapRev(c *C) {
 	seed20, err := seed.Open(s.SeedDir, sysLabel)
 	c.Assert(err, IsNil)
 	err = seed20.LoadAssertions(s.db, s.commitTo)
-	c.Check(err, ErrorMatches, `cannot have multiple snap-revisions for the same snap-id: core20ididididididididididididid`)
+	c.Check(err, ErrorMatches, fmt.Sprintf(`cannot have multiple snap-revisions for the same snap-id: %s`, s.AssertedSnapID("core20")))
 }
 
 func (s *seed20Suite) TestLoadAssertionsMultiSnapDecl(c *C) {
@@ -354,7 +370,38 @@ func (s *seed20Suite) TestLoadAssertionsMultiSnapDecl(c *C) {
 
 func (s *seed20Suite) TestLoadMetaMissingSnapDeclByName(c *C) {
 	sysLabel := "20191031"
-	sysDir := s.makeCore20MinimalSeed(c, sysLabel)
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "core20",
+				// no id
+				"type": "base",
+			}},
+	}, nil)
+
+	sysDir := filepath.Join(s.SeedDir, "systems", sysLabel)
 
 	wrongDecl, err := s.StoreSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
@@ -1763,4 +1810,19 @@ func (s *seed20Suite) TestLoadMetaCore20LocalAssertedSnaps(c *C) {
 			Channel:  "latest/stable",
 		},
 	})
+}
+
+func (s *seed20Suite) TestOpenInvalidLabel(c *C) {
+	invalid := []string{
+		// empty string not included, as it's not a UC20 seed
+		"/bin",
+		"../../bin/bar",
+		":invalid:",
+		"日本語",
+	}
+	for _, label := range invalid {
+		seed20, err := seed.Open(s.SeedDir, label)
+		c.Assert(err, ErrorMatches, fmt.Sprintf("invalid seed system label: %q", label))
+		c.Assert(seed20, IsNil)
+	}
 }

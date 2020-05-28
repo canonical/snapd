@@ -76,12 +76,19 @@ func MockDeviceService(c *C, bhv *DeviceServiceBehavior) *httptest.Server {
 	var mu sync.Mutex
 	count := 0
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// check.Assert here will produce harder to understand failure
+		// modes
+
 		switch r.Method {
 		default:
-			c.Fatalf("unexpected verb %q", r.Method)
+			c.Errorf("unexpected verb %q", r.Method)
+			w.WriteHeader(500)
+			return
 		case "HEAD":
 			if r.URL.Path != "/" {
-				c.Fatalf("unexpected HEAD request %q", r.URL.String())
+				c.Errorf("unexpected HEAD request %q", r.URL.String())
+				w.WriteHeader(500)
+				return
 			}
 			if bhv.Head != nil {
 				bhv.Head(c, bhv, w, r)
@@ -98,7 +105,9 @@ func MockDeviceService(c *C, bhv *DeviceServiceBehavior) *httptest.Server {
 
 		switch r.URL.Path {
 		default:
-			c.Fatalf("unexpected POST request %q", r.URL.String())
+			c.Errorf("unexpected POST request %q", r.URL.String())
+			w.WriteHeader(500)
+			return
 		case bhv.RequestIDURLPath:
 			if bhv.ReqID == ReqIDFailID501 {
 				w.WriteHeader(501)
@@ -119,20 +128,40 @@ func MockDeviceService(c *C, bhv *DeviceServiceBehavior) *httptest.Server {
 			dec := asserts.NewDecoder(r.Body)
 
 			a, err := dec.Decode()
-			c.Assert(err, IsNil)
+			if err != nil {
+				w.WriteHeader(400)
+				return
+			}
 			serialReq, ok := a.(*asserts.SerialRequest)
-			c.Assert(ok, Equals, true)
+			if !ok {
+				w.WriteHeader(400)
+				w.Write([]byte(`{
+  "error_list": [{"message": "expected serial-request"}]
+}`))
+				return
+			}
 			extra := []asserts.Assertion{}
 			for {
 				a1, err := dec.Decode()
 				if err == io.EOF {
 					break
 				}
-				c.Assert(err, IsNil)
+				if err != nil {
+					w.WriteHeader(400)
+					return
+				}
 				extra = append(extra, a1)
 			}
 			err = asserts.SignatureCheck(serialReq, serialReq.DeviceKey())
-			c.Assert(err, IsNil)
+			c.Check(err, IsNil)
+			if err != nil {
+				// also return response to client
+				w.WriteHeader(400)
+				w.Write([]byte(`{
+  "error_list": [{"message": "invalid serial-request self-signature"}]
+}`))
+				return
+			}
 			brandID := serialReq.BrandID()
 			model := serialReq.Model()
 			reqID := serialReq.RequestID()
@@ -155,15 +184,42 @@ func MockDeviceService(c *C, bhv *DeviceServiceBehavior) *httptest.Server {
 			}
 			if serialReq.HeaderString("original-model") != "" {
 				// re-registration
-				c.Check(extra, HasLen, 2)
+				if len(extra) != 2 {
+					w.WriteHeader(400)
+					w.Write([]byte(`{
+  "error_list": [{"message": "expected model and original serial"}]
+}`))
+					return
+				}
 				_, ok := extra[0].(*asserts.Model)
-				c.Check(ok, Equals, true)
+				if !ok {
+					w.WriteHeader(400)
+					w.Write([]byte(`{
+  "error_list": [{"message": "expected model"}]
+}`))
+					return
+				}
 				origSerial, ok := extra[1].(*asserts.Serial)
-				c.Check(ok, Equals, true)
+				if !ok {
+					w.WriteHeader(400)
+					w.Write([]byte(`{
+  "error_list": [{"message": "expected model"}]
+}`))
+				}
 				c.Check(origSerial.DeviceKey(), DeepEquals, serialReq.DeviceKey())
 				// TODO: more checks once we have Original* accessors
 			} else {
-				c.Check(extra, HasLen, 0)
+
+				mod, ok := extra[0].(*asserts.Model)
+				if !ok {
+					w.WriteHeader(400)
+					w.Write([]byte(`{
+  "error_list": [{"message": "expected model"}]
+}`))
+					return
+				}
+				c.Check(mod.BrandID(), Equals, brandID)
+				c.Check(mod.Model(), Equals, model)
 			}
 			serial, ancillary, err := bhv.SignSerial(c, bhv, map[string]interface{}{
 				"authority-id":        "canonical",
@@ -174,7 +230,12 @@ func MockDeviceService(c *C, bhv *DeviceServiceBehavior) *httptest.Server {
 				"device-key-sha3-384": serialReq.SignKeyID(),
 				"timestamp":           time.Now().Format(time.RFC3339),
 			}, serialReq.Body())
-			c.Assert(err, IsNil)
+			c.Check(err, IsNil)
+			if err != nil {
+				// also return response to client
+				w.WriteHeader(500)
+				return
+			}
 			w.Header().Set("Content-Type", asserts.MediaType)
 			w.WriteHeader(200)
 			if reqID == ReqIDSerialWithBadModel {

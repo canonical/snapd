@@ -61,6 +61,11 @@ func (s *Snap) ID() string {
 	return s.SideInfo.SnapID
 }
 
+// PlaceInfo returns a PlaceInfo for the seed snap.
+func (s *Snap) PlaceInfo() snap.PlaceInfo {
+	return &snap.Info{SideInfo: *s.SideInfo}
+}
+
 // Seed supports loading assertions and seed snaps' metadata.
 type Seed interface {
 	// LoadAssertions loads all assertions from the seed with
@@ -76,6 +81,10 @@ type Seed interface {
 	// Model returns the seed provided model assertion. It is an
 	// error to call Model before LoadAssertions.
 	Model() (*asserts.Model, error)
+
+	// Brand returns the brand information of the seed. It is an
+	// error to call Brand before LoadAssertions.
+	Brand() (*asserts.Account, error)
 
 	// LoadMeta loads the seed and seed's snaps metadata while
 	// verifying the underlying snaps against assertions. It can
@@ -115,6 +124,9 @@ type EssentialMetaLoaderSeed interface {
 // label if not empty is used to identify a Core 20 recovery system seed.
 func Open(seedDir, label string) (Seed, error) {
 	if label != "" {
+		if err := validateUC20SeedSystemLabel(label); err != nil {
+			return nil, err
+		}
 		return &seed20{systemDir: filepath.Join(seedDir, "systems", label)}, nil
 	}
 	// TODO: consider if systems is present to open the Core 20

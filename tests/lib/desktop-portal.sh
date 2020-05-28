@@ -3,9 +3,6 @@
 #shellcheck source=tests/lib/pkgdb.sh
 . "$TESTSLIB"/pkgdb.sh
 
-#shellcheck source=tests/lib/user.sh
-. "$TESTSLIB"/user.sh
-
 setup_portals() {
     # Install xdg-desktop-portal and configure service activation for
     # fake portal UI.
@@ -25,6 +22,13 @@ BusName=org.freedesktop.impl.portal.spread
 ExecStart=/usr/bin/python3 $TESTSLIB/fakeportalui/portalui.py
 EOF
     mkdir -p /usr/share/xdg-desktop-portal/portals
+    # Disable any existing portal implementations
+    for p in /usr/share/xdg-desktop-portal/portals/*.portal; do
+        if [ ! -f "$p" ]; then
+            continue
+        fi
+        mv "$p" "$p.disabled"
+    done
     cat << EOF > /usr/share/xdg-desktop-portal/portals/spread.portal
 [portal]
 DBusName=org.freedesktop.impl.portal.spread
@@ -32,19 +36,21 @@ Interfaces=org.freedesktop.impl.portal.FileChooser;org.freedesktop.impl.portal.S
 UseIn=spread
 EOF
 
-    start_user_session
-    as_user systemctl --user set-environment XDG_CURRENT_DESKTOP=spread
+    session-tool -u test systemctl --user set-environment XDG_CURRENT_DESKTOP=spread
 }
 
 teardown_portals() {
-    stop_user_session
-
     rm -f /usr/share/dbus-1/services/org.freedesktop.impl.portal.spread.service
     rm -f /usr/lib/systemd/user/spread-portal-ui.service
     rm -f /usr/share/xdg-desktop-portal/portals/spread.portal
+    # Re-enable any disabled portal implementations
+    for p in /usr/share/xdg-desktop-portal/portals/*.portal.disabled; do
+        if [ ! -f "$p" ]; then
+            continue
+        fi
+        mv "$p" "/usr/share/xdg-desktop-portal/portals/$(basename "$p" .disabled)"
+    done
 
     distro_purge_package xdg-desktop-portal
     distro_auto_remove_packages
-
-    purge_user_session_data
 }

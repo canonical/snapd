@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+
 package partition
 
 import (
@@ -28,10 +29,12 @@ type SFDiskPartitionTable = sfdiskPartitionTable
 type SFDiskPartition = sfdiskPartition
 
 var (
-	FilesystemInfo     = filesystemInfo
-	BuildPartitionList = buildPartitionList
-	Mkfs               = mkfs
-	EnsureNodesExist   = ensureNodesExist
+	FilesystemInfo                 = filesystemInfo
+	BuildPartitionList             = buildPartitionList
+	Mkfs                           = mkfs
+	EnsureNodesExist               = ensureNodesExist
+	DeviceLayoutFromPartitionTable = deviceLayoutFromPartitionTable
+	ListCreatedPartitions          = listCreatedPartitions
 )
 
 func MockDeployMountpoint(new string) (restore func()) {

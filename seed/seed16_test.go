@@ -189,6 +189,11 @@ func (s *seed16Suite) TestLoadAssertionsModelTempDBHappy(c *C) {
 	model, err := s.seed16.Model()
 	c.Assert(err, IsNil)
 	c.Check(model.Model(), Equals, "my-model")
+
+	brand, err := s.seed16.Brand()
+	c.Assert(err, IsNil)
+	c.Check(brand.AccountID(), Equals, "my-brand")
+	c.Check(brand.DisplayName(), Equals, "My-brand")
 }
 
 func (s *seed16Suite) TestSkippedLoadAssertion(c *C) {
@@ -196,6 +201,9 @@ func (s *seed16Suite) TestSkippedLoadAssertion(c *C) {
 	c.Check(err, ErrorMatches, "internal error: model assertion unset")
 
 	err = s.seed16.LoadMeta(s.perfTimings)
+	c.Check(err, ErrorMatches, "internal error: model assertion unset")
+
+	_, err = s.seed16.Brand()
 	c.Check(err, ErrorMatches, "internal error: model assertion unset")
 }
 
@@ -486,6 +494,14 @@ func (s *seed16Suite) TestLoadMetaCore16(c *C) {
 	runSnaps, err := s.seed16.ModeSnaps("run")
 	c.Assert(err, IsNil)
 	c.Check(runSnaps, HasLen, 1)
+
+	// check that PlaceInfo method works
+	pi := essSnaps[0].PlaceInfo()
+	c.Check(pi.Filename(), Equals, "core_1.snap")
+	pi = essSnaps[1].PlaceInfo()
+	c.Check(pi.Filename(), Equals, "pc-kernel_1.snap")
+	pi = essSnaps[2].PlaceInfo()
+	c.Check(pi.Filename(), Equals, "pc_1.snap")
 
 	c.Check(runSnaps, DeepEquals, []*seed.Snap{
 		{

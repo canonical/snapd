@@ -80,7 +80,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 	task.State().Lock()
 	defer task.State().Unlock()
 
-	perfTimings := timings.NewForTask(task)
+	perfTimings := state.TimingsForTask(task)
 	defer perfTimings.Save(task.State())
 
 	// Get snap.Info from bits handed by the snap manager.
@@ -213,7 +213,7 @@ func (m *InterfaceManager) doRemoveProfiles(task *state.Task, tomb *tomb.Tomb) e
 	st.Lock()
 	defer st.Unlock()
 
-	perfTimings := timings.NewForTask(task)
+	perfTimings := state.TimingsForTask(task)
 	defer perfTimings.Save(st)
 
 	// Get SnapSetup for this snap. This is gives us the name of the snap.
@@ -258,7 +258,7 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 	st.Lock()
 	defer st.Unlock()
 
-	perfTimings := timings.NewForTask(task)
+	perfTimings := state.TimingsForTask(task)
 	defer perfTimings.Save(st)
 
 	var corePhase2 bool
@@ -390,7 +390,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	perfTimings := timings.NewForTask(task)
+	perfTimings := state.TimingsForTask(task)
 	defer perfTimings.Save(st)
 
 	plugRef, slotRef, err := getPlugAndSlotRefs(task)
@@ -524,7 +524,7 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	perfTimings := timings.NewForTask(task)
+	perfTimings := state.TimingsForTask(task)
 	defer perfTimings.Save(st)
 
 	plugRef, slotRef, err := getPlugAndSlotRefs(task)
@@ -631,7 +631,7 @@ func (m *InterfaceManager) undoDisconnect(task *state.Task, _ *tomb.Tomb) error 
 	st.Lock()
 	defer st.Unlock()
 
-	perfTimings := timings.NewForTask(task)
+	perfTimings := state.TimingsForTask(task)
 	defer perfTimings.Save(st)
 
 	var oldconn connState
@@ -1005,7 +1005,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// The previous task (link-snap) may have triggered a restart,
-	// if this is the case we can only procceed once the restart
+	// if this is the case we can only proceed once the restart
 	// has happened or we may not have all the interfaces of the
 	// new core/base snap.
 	if err := snapstate.WaitRestart(task, snapsup); err != nil {

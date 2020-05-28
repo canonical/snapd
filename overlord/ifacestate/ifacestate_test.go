@@ -54,6 +54,7 @@ import (
 	seccomp_compiler "github.com/snapcore/snapd/sandbox/seccomp"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
@@ -223,6 +224,9 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 
 	dirs.SetRootDir(c.MkDir())
 	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapSystemKeyFile), 0755), IsNil)
+
+	// needed for system key generation
+	s.AddCleanup(osutil.MockMountInfo(""))
 
 	s.o = overlord.Mock()
 	s.state = s.o.State()
@@ -8007,7 +8011,7 @@ plugs:
 }
 
 func (s *interfaceManagerSuite) TestPreseedAutoConnectErrorWithInterfaceHooks(c *C) {
-	restore := release.MockPreseedMode(func() bool { return true })
+	restore := snapdenv.MockPreseeding(true)
 	defer restore()
 
 	s.MockModel(c, nil)

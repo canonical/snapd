@@ -34,6 +34,7 @@ import (
 var services = []struct{ configName, systemdName string }{
 	{"ssh", "ssh.service"},
 	{"rsyslog", "rsyslog.service"},
+	{"console-conf", "console-conf@*"},
 }
 
 func init() {
@@ -51,16 +52,26 @@ func (l *sysdLogger) Notify(status string) {
 
 // switchDisableSSHService handles the special case of disabling/enabling ssh
 // service on core devices.
-func switchDisableSSHService(serviceName, value string) error {
-	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, &sysdLogger{})
-	sshCanary := filepath.Join(dirs.GlobalRootDir, "/etc/ssh/sshd_not_to_be_run")
+func switchDisableSSHService(sysd systemd.Systemd, serviceName, value string, opts *fsOnlyContext) error {
+	rootDir := dirs.GlobalRootDir
+	if opts != nil {
+		rootDir = opts.RootDir
+		if err := os.MkdirAll(filepath.Join(rootDir, "/etc/ssh"), 0755); err != nil {
+			return err
+		}
+	}
+
+	sshCanary := filepath.Join(rootDir, "/etc/ssh/sshd_not_to_be_run")
 
 	switch value {
 	case "true":
 		if err := ioutil.WriteFile(sshCanary, []byte("SSH has been disabled by snapd system configuration\n"), 0644); err != nil {
 			return err
 		}
-		return sysd.Stop(serviceName, 5*time.Minute)
+		if opts == nil {
+			return sysd.Stop(serviceName, 5*time.Minute)
+		}
+		return nil
 	case "false":
 		err := os.Remove(sshCanary)
 		if err != nil && !os.IsNotExist(err) {
@@ -71,7 +82,80 @@ func switchDisableSSHService(serviceName, value string) error {
 		// versions of snapd.
 		sysd.Unmask("sshd.service")
 		sysd.Unmask("ssh.service")
-		return sysd.Start(serviceName)
+		if opts == nil {
+			return sysd.Start(serviceName)
+		}
+		return nil
+	default:
+		return fmt.Errorf("option %q has invalid value %q", serviceName, value)
+	}
+}
+
+// switchDisableConsoleConfService handles the special case of disabling/enabling
+// console-conf on core devices.
+//
+// The command sequence that works to start/stop console-conf after setting
+// the marker file in /var/lib/console-conf/complete is:
+//
+//     systemctl restart 'getty@*' --all
+//     systemctl restart 'serial-getty@*' --all
+//     systemctl restart 'serial-console-conf@*' --all
+//     systemctl restart 'console-conf@*' --all
+//
+// This restart all active getty and console-conf instances, even ones that were
+// started on-demand (eg. on tty2)
+func switchDisableConsoleConfService(sysd systemd.Systemd, serviceName, value string, opts *fsOnlyContext) error {
+	rootDir := dirs.GlobalRootDir
+	if opts != nil {
+		rootDir = opts.RootDir
+	}
+	if err := os.MkdirAll(filepath.Join(rootDir, "/var/lib/console-conf"), 0755); err != nil {
+		return err
+	}
+
+	consoleConfCanary := filepath.Join(rootDir, "/var/lib/console-conf/complete")
+
+	restartServicesOnTTYs := func() error {
+		// getty@ and console-conf@ are template services, that only
+		// exist when an instance is active, typically in a UC20 image
+		// only getty@tty1 is defined as a side effect of being 'wanted'
+		// by the getty.target;
+		// restarting all console-conf@* units ensures on-demand units
+		// started on other ttys are affected too
+		if err := sysd.RestartAll("getty@*"); err != nil {
+			return err
+		}
+		if err := sysd.RestartAll("serial-getty@*"); err != nil {
+			return err
+		}
+		if err := sysd.RestartAll("serial-console-conf@*"); err != nil {
+			return err
+		}
+		return sysd.RestartAll("console-conf@*")
+	}
+
+	switch value {
+	case "true":
+		if err := ioutil.WriteFile(consoleConfCanary, []byte("console-conf has been disabled by snapd system configuration\n"), 0644); err != nil {
+			return err
+		}
+		if opts == nil {
+			return restartServicesOnTTYs()
+		}
+		return nil
+	case "false":
+		err := os.Remove(consoleConfCanary)
+		if err != nil {
+			if !os.IsNotExist(err) {
+				return err
+			}
+			// no need to restart the services
+			return nil
+		}
+		if opts == nil {
+			return restartServicesOnTTYs()
+		}
+		return nil
 	default:
 		return fmt.Errorf("option %q has invalid value %q", serviceName, value)
 	}
@@ -79,44 +163,63 @@ func switchDisableSSHService(serviceName, value string) error {
 
 // switchDisableTypicalService switches a service in/out of disabled state
 // where "true" means disabled and "false" means enabled.
-func switchDisableService(serviceName, value string) error {
-	if serviceName == "ssh.service" {
-		return switchDisableSSHService(serviceName, value)
+func switchDisableService(serviceName, value string, opts *fsOnlyContext) error {
+	var sysd systemd.Systemd
+	if opts != nil {
+		sysd = systemd.NewEmulationMode(opts.RootDir)
+	} else {
+		sysd = systemd.New(dirs.GlobalRootDir, systemd.SystemMode, &sysdLogger{})
 	}
 
-	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, &sysdLogger{})
+	// some services are special
+	switch serviceName {
+	case "ssh.service":
+		return switchDisableSSHService(sysd, serviceName, value, opts)
+	case "console-conf@*":
+		return switchDisableConsoleConfService(sysd, serviceName, value, opts)
+	}
 
 	switch value {
 	case "true":
-		if err := sysd.Disable(serviceName); err != nil {
-			return err
+		if opts == nil {
+			if err := sysd.Disable(serviceName); err != nil {
+				return err
+			}
 		}
 		if err := sysd.Mask(serviceName); err != nil {
 			return err
 		}
-		return sysd.Stop(serviceName, 5*time.Minute)
+		if opts == nil {
+			return sysd.Stop(serviceName, 5*time.Minute)
+		}
+		return nil
 	case "false":
 		if err := sysd.Unmask(serviceName); err != nil {
 			return err
 		}
-		if err := sysd.Enable(serviceName); err != nil {
-			return err
+		if opts == nil {
+			if err := sysd.Enable(serviceName); err != nil {
+				return err
+			}
 		}
-		return sysd.Start(serviceName)
+		if opts == nil {
+			return sysd.Start(serviceName)
+		}
+		return nil
 	default:
 		return fmt.Errorf("option %q has invalid value %q", serviceName, value)
 	}
 }
 
 // services that can be disabled
-func handleServiceDisableConfiguration(tr config.Conf) error {
+func handleServiceDisableConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error {
 	for _, service := range services {
 		output, err := coreCfg(tr, fmt.Sprintf("service.%s.disable", service.configName))
 		if err != nil {
 			return err
 		}
 		if output != "" {
-			if err := switchDisableService(service.systemdName, output); err != nil {
+			if err := switchDisableService(service.systemdName, output, opts); err != nil {
 				return err
 			}
 		}

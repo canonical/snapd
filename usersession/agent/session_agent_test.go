@@ -135,7 +135,7 @@ func (s *sessionAgentSuite) TestExitOnIdle(c *C) {
 		c.Fatal("agent did not exit after idle timeout expired")
 	}
 	elapsed := time.Since(startTime)
-	if elapsed < 175*time.Millisecond || elapsed > 250*time.Millisecond {
+	if elapsed < 175*time.Millisecond || elapsed > 450*time.Millisecond {
 		// The idle timeout should have been extended when we
 		// issued a second request after 25ms.
 		c.Errorf("Expected ellaped time close to 175 ms, but got %v", elapsed)
@@ -158,7 +158,7 @@ func (s *sessionAgentSuite) TestConnectFromOtherUser(c *C) {
 
 	_, err = s.client.Get("http://localhost/v1/session-info")
 	// This could be an EOF error or a failed read, depending on timing
-	c.Assert(err, ErrorMatches, "Get http://localhost/v1/session-info: .*")
+	c.Assert(err, ErrorMatches, "Get \"?http://localhost/v1/session-info\"?: .*")
 	logger.WithLoggerLock(func() {
 		c.Check(logbuf.String(), testutil.Contains, "Blocking request from user ID")
 	})
@@ -200,7 +200,7 @@ func (s *sessionAgentSuite) TestConnectWithFailedPeerCredentials(c *C) {
 	defer sa.Stop()
 
 	_, err = s.client.Get("http://localhost/v1/session-info")
-	c.Assert(err, ErrorMatches, "Get http://localhost/v1/session-info: .*")
+	c.Assert(err, ErrorMatches, "Get \"?http://localhost/v1/session-info\"?: .*")
 	logger.WithLoggerLock(func() {
 		c.Check(logbuf.String(), testutil.Contains, "Failed to retrieve peer credentials: SO_PEERCRED failed")
 	})

@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapfile"
 )
 
 var trusted = sysdb.Trusted()
@@ -94,7 +95,7 @@ func readAsserts(batch *asserts.Batch, fn string) ([]*asserts.Ref, error) {
 }
 
 func readInfo(snapPath string, si *snap.SideInfo) (*snap.Info, error) {
-	snapf, err := snap.Open(snapPath)
+	snapf, err := snapfile.Open(snapPath)
 	if err != nil {
 		return nil, err
 	}
@@ -138,4 +139,18 @@ func essentialSnapTypesToModelFilter(essentialTypes []snap.Type) func(modSnap *a
 	return func(modSnap *asserts.ModelSnap) bool {
 		return m[modSnap.SnapType]
 	}
+}
+
+func findBrand(seed Seed, db asserts.RODatabase) (*asserts.Account, error) {
+	model, err := seed.Model()
+	if err != nil {
+		return nil, err
+	}
+	a, err := db.Find(asserts.AccountType, map[string]string{
+		"account-id": model.BrandID(),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("internal error: %v", err)
+	}
+	return a.(*asserts.Account), nil
 }

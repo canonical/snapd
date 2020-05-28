@@ -50,7 +50,7 @@ import (
 	_ "github.com/snapcore/snapd/overlord/snapstate/policy"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
-	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/timings"
 )
@@ -316,7 +316,7 @@ func (o *Overlord) StartUp() error {
 
 	// account for deviceMgr == nil as it's not always present in
 	// the tests.
-	if o.deviceMgr != nil && !release.PreseedMode() {
+	if o.deviceMgr != nil && !snapdenv.Preseeding() {
 		var err error
 		st := o.State()
 		st.Lock()
@@ -414,7 +414,7 @@ var preseedExitWithError = func(err error) {
 // Loop runs a loop in a goroutine to ensure the current state regularly through StateEngine Ensure.
 func (o *Overlord) Loop() {
 	o.ensureTimerSetup()
-	preseed := release.PreseedMode()
+	preseed := snapdenv.Preseeding()
 	if preseed {
 		o.runner.OnTaskError(preseedExitWithError)
 	}
@@ -622,20 +622,22 @@ func (o *Overlord) SnapshotManager() *snapshotstate.SnapshotManager {
 // Mock creates an Overlord without any managers and with a backend
 // not using disk. Managers can be added with AddManager. For testing.
 func Mock() *Overlord {
-	return MockWithRestartHandler(nil)
+	return MockWithStateAndRestartHandler(nil, nil)
 }
 
-// MockWithRestartHandler creates an Overlord without any managers and
-// with a backend not using disk. It will use the given handler on
-// restart requests. Managers can be added with AddManager. For
-// testing.
-func MockWithRestartHandler(handleRestart func(state.RestartType)) *Overlord {
+// MockWithStateAndRestartHandler creates an Overlord with the given state
+// unless it is nil in which case it uses a state backend not using
+// disk. It will use the given handler on restart requests. Managers
+// can be added with AddManager. For testing.
+func MockWithStateAndRestartHandler(s *state.State, handleRestart func(state.RestartType)) *Overlord {
 	o := &Overlord{
 		loopTomb:        new(tomb.Tomb),
 		inited:          false,
 		restartBehavior: mockRestartBehavior(handleRestart),
 	}
-	s := state.New(mockBackend{o: o})
+	if s == nil {
+		s = state.New(mockBackend{o: o})
+	}
 	o.stateEng = NewStateEngine(s)
 	o.runner = state.NewTaskRunner(s)
 

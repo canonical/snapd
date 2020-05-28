@@ -38,16 +38,38 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 )
 
+const (
+	// https://github.com/plougher/squashfs-tools/blob/master/squashfs-tools/squashfs_fs.h#L289
+	superblockSize = 96
+)
+
 var (
-	// Magic is the magic prefix of squashfs snap files.
-	Magic = []byte{'h', 's', 'q', 's'}
+	// magic is the magic prefix of squashfs snap files.
+	magic = []byte{'h', 's', 'q', 's'}
 
 	// for testing
 	isRootWritableOverlay = osutil.IsRootWritableOverlay
 )
+
+func FileHasSquashfsHeader(path string) bool {
+	f, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+
+	// a squashfs file would contain at least the superblock + some data
+	header := make([]byte, superblockSize+1)
+	if _, err := f.ReadAt(header, 0); err != nil {
+		return false
+	}
+
+	return bytes.HasPrefix(header, magic)
+}
 
 // Snap is the squashfs based snap.
 type Snap struct {
@@ -67,7 +89,8 @@ func New(snapPath string) *Snap {
 var osLink = os.Link
 var cmdutilCommandFromSystemSnap = cmdutil.CommandFromSystemSnap
 
-func (s *Snap) Install(targetPath, mountDir string) (bool, error) {
+// Install installs a squashfs snap file through an appropriate method.
+func (s *Snap) Install(targetPath, mountDir string, opts *snap.InstallOptions) (bool, error) {
 
 	// ensure mount-point and blob target dir.
 	for _, dir := range []string{mountDir, filepath.Dir(targetPath)} {
@@ -95,8 +118,12 @@ func (s *Snap) Install(targetPath, mountDir string) (bool, error) {
 
 	overlayRoot, err := isRootWritableOverlay()
 	if err != nil {
-		logger.Noticef("cannot determine if root filesystem on overlay: %v", err)
+		logger.Noticef("cannot detect root filesystem on overlay: %v", err)
 	}
+	// Hard-linking on overlayfs is identical to a full blown
+	// copy.  When we are operating on a overlayfs based system (e.g. live
+	// installer) use symbolic links.
+	// https://bugs.launchpad.net/snapd/+bug/1867415
 	if overlayRoot == "" {
 		// try to (hard)link the file, but go on to trying to copy it
 		// if it fails for whatever reason
@@ -109,10 +136,21 @@ func (s *Snap) Install(targetPath, mountDir string) (bool, error) {
 		}
 	}
 
-	// if the file is a seed, but the hardlink failed, symlinking it
-	// saves the copy (which in livecd is expensive) so try that next
-	if filepath.Dir(s.path) == dirs.SnapSeedDir && os.Symlink(s.path, targetPath) == nil {
-		return false, nil
+	// if the installation must not cross devices, then we should not use
+	// symlinks and instead must copy the file entirely, this is the case
+	// during seeding on uc20 in run mode for example
+	if opts == nil || !opts.MustNotCrossDevices {
+		// if the source snap file is in seed, but the hardlink failed, symlinking
+		// it saves the copy (which in livecd is expensive) so try that next
+		// note that on UC20, the snap file could be in a deep subdir of
+		// SnapSeedDir, i.e. /var/lib/snapd/seed/systems/20200521/snaps/<name>.snap
+		// so we need to check if it has the prefix of the seed dir
+		cleanSrc := filepath.Clean(s.path)
+		if strings.HasPrefix(cleanSrc, dirs.SnapSeedDir) {
+			if os.Symlink(s.path, targetPath) == nil {
+				return false, nil
+			}
+		}
 	}
 
 	return false, osutil.CopyFile(s.path, targetPath, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync)

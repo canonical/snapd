@@ -25,6 +25,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -39,6 +40,9 @@ var _ = Suite(&hotplugSuite{})
 func (s *hotplugSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	dirs.SetRootDir("/")
+
+	restore := osutil.MockMountInfo("")
+	s.AddCleanup(restore)
 }
 
 func (s *hotplugSuite) TearDownTest(c *C) {
