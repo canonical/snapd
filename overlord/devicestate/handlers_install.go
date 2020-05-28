@@ -171,7 +171,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 	defaults := gadget.SystemDefaults(ginf.Defaults)
 	if len(defaults) > 0 {
-		defaultsDir := sysconfig.WritableDefaultsDir(boot.InitramfsWritableDir)
+		defaultsDir := sysconfig.WritableDefaultsDir(boot.InstallHostWritableDir)
 		if err := ConfigcoreFilesystemOnlyApply(defaultsDir, defaults); err != nil {
 			return err
 		}
