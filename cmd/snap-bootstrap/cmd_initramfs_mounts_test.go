@@ -199,10 +199,30 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep1(c *C) {
 		notYetMounted{boot.InitramfsUbuntuSeedDir},
 	)
 
+	// mock that we don't know which partition uuid the kernel was booted from
+	restore := main.MockPartitionUUIDForBootedKernelDisk("")
+	defer restore()
+
 	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Assert(*n, Equals, 1)
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf("/dev/disk/by-label/ubuntu-seed %s/ubuntu-seed\n", boot.InitramfsRunMntDir))
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep1BootedKernelPartitionUUID(c *C) {
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install snapd_recovery_system="+s.sysLabel)
+
+	n := s.mockExpectedMountChecks(c,
+		notYetMounted{boot.InitramfsUbuntuSeedDir},
+	)
+
+	restore := main.MockPartitionUUIDForBootedKernelDisk("specific-ubuntu-seed-partuuid")
+	defer restore()
+
+	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+	c.Assert(*n, Equals, 1)
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf("/dev/disk/by-partuuid/specific-ubuntu-seed-partuuid %s/ubuntu-seed\n", boot.InitramfsRunMntDir))
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep2(c *C) {
@@ -259,10 +279,31 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1(c *C) {
 		notYetMounted{boot.InitramfsUbuntuBootDir},
 	)
 
+	// mock that we don't know which partition uuid the kernel was booted from
+	restore := main.MockPartitionUUIDForBootedKernelDisk("")
+	defer restore()
+
 	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Assert(*n, Equals, 1)
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`/dev/disk/by-label/ubuntu-boot %[1]s/ubuntu-boot
+`, boot.InitramfsRunMntDir))
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep1WithBootedKernelPartUUID(c *C) {
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	n := s.mockExpectedMountChecks(c,
+		notYetMounted{boot.InitramfsUbuntuBootDir},
+	)
+
+	restore := main.MockPartitionUUIDForBootedKernelDisk("specific-ubuntu-boot-partuuid")
+	defer restore()
+
+	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+	c.Assert(*n, Equals, 1)
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`/dev/disk/by-partuuid/specific-ubuntu-boot-partuuid %[1]s/ubuntu-boot
 `, boot.InitramfsRunMntDir))
 }
 
@@ -439,6 +480,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4(c *C) {
 
 	// write modeenv
 	modeEnv := boot.Modeenv{
+		Mode:           "run",
 		RecoverySystem: "20191118",
 		Base:           "core20_123.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap"},
@@ -482,6 +524,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4BaseSnapUpgradeFai
 	// write modeenv as if we failed to boot and were rebooted because the
 	// base snap was broken
 	modeEnv := &boot.Modeenv{
+		Mode:       "run",
 		Base:       "core20_123.snap",
 		TryBase:    "core20_124.snap",
 		BaseStatus: boot.TryingStatus,
@@ -526,6 +569,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4ModeenvTryBaseEmpt
 
 	// write a modeenv with no try_base so we fall back to using base
 	modeEnv := &boot.Modeenv{
+		Mode:       "run",
 		Base:       "core20_123.snap",
 		BaseStatus: boot.TryStatus,
 	}
@@ -561,6 +605,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4BaseSnapUpgradeHap
 
 	// write modeenv
 	modeEnv := &boot.Modeenv{
+		Mode:       "run",
 		Base:       "core20_123.snap",
 		TryBase:    "core20_124.snap",
 		BaseStatus: boot.TryStatus,
@@ -603,7 +648,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4ModeenvBaseEmptyUn
 	)
 
 	// write an empty modeenv
-	modeEnv := &boot.Modeenv{}
+	modeEnv := &boot.Modeenv{
+		Mode: "run",
+	}
 	err := modeEnv.WriteTo(boot.InitramfsWritableDir)
 	c.Assert(err, IsNil)
 
@@ -629,6 +676,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4ModeenvTryBaseNotE
 	// write a modeenv with try_base not existing on disk so we fall back to
 	// using the normal base
 	modeEnv := &boot.Modeenv{
+		Mode:       "run",
 		Base:       "core20_123.snap",
 		TryBase:    "core20_124.snap",
 		BaseStatus: boot.TryStatus,
@@ -665,6 +713,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4KernelSnapUpgradeH
 
 	// write modeenv
 	modeEnv := &boot.Modeenv{
+		Mode:           "run",
 		Base:           "core20_123.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap", "pc-kernel_2.snap"},
 	}
@@ -722,6 +771,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4UntrustedKernelSna
 
 	// write modeenv
 	modeEnv := boot.Modeenv{
+		Mode:           "run",
 		Base:           "core20_123.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap"},
 	}
@@ -762,6 +812,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4UntrustedTryKernel
 
 	// write modeenv
 	modeEnv := boot.Modeenv{
+		Mode:           "run",
 		Base:           "core20_123.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap"},
 	}
@@ -810,6 +861,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4KernelStatusTrying
 
 	// write modeenv
 	modeEnv := boot.Modeenv{
+		Mode:           "run",
 		Base:           "core20_123.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap"},
 	}
@@ -860,6 +912,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4EnvRefKernelBootst
 
 	// write modeenv
 	modeEnv := boot.Modeenv{
+		Mode:           "run",
 		RecoverySystem: "20191118",
 		Base:           "core20_123.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap"},
@@ -899,6 +952,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4EnvRefKernelBootst
 
 	// write modeenv
 	modeEnv := &boot.Modeenv{
+		Mode:           "run",
 		Base:           "core20_123.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap", "pc-kernel_2.snap"},
 	}
@@ -948,6 +1002,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4EnvRefKernelBootst
 
 	// write modeenv
 	modeEnv := boot.Modeenv{
+		Mode:           "run",
 		Base:           "core20_123.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap"},
 	}
@@ -985,6 +1040,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4EnvRefKernelBootst
 
 	// write modeenv
 	modeEnv := boot.Modeenv{
+		Mode:           "run",
 		Base:           "core20_123.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap"},
 	}
@@ -1029,6 +1085,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4EnvRefKernelBootst
 
 	// write modeenv
 	modeEnv := boot.Modeenv{
+		Mode:           "run",
 		Base:           "core20_123.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap"},
 	}
@@ -1065,10 +1122,30 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep1(c *C) {
 		notYetMounted{boot.InitramfsUbuntuSeedDir},
 	)
 
+	// mock that we don't know which partition uuid the kernel was booted from
+	restore := main.MockPartitionUUIDForBootedKernelDisk("")
+	defer restore()
+
 	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Assert(*n, Equals, 1)
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf("/dev/disk/by-label/ubuntu-seed %s/ubuntu-seed\n", boot.InitramfsRunMntDir))
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep1BootedKernelPartitionUUID(c *C) {
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover snapd_recovery_system="+s.sysLabel)
+
+	n := s.mockExpectedMountChecks(c,
+		notYetMounted{boot.InitramfsUbuntuSeedDir},
+	)
+
+	restore := main.MockPartitionUUIDForBootedKernelDisk("specific-ubuntu-seed-partuuid")
+	defer restore()
+
+	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+	c.Assert(*n, Equals, 1)
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf("/dev/disk/by-partuuid/specific-ubuntu-seed-partuuid %s/ubuntu-seed\n", boot.InitramfsRunMntDir))
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep2(c *C) {
@@ -1173,7 +1250,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep3Encrypted(c *C
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, fmt.Sprintf("%s-model-measured", s.sysLabel)), testutil.FilePresent)
 }
 
-var mockStateContent = `{"data":{"auth":{"users":[{"name":"mvo"}]}},"some":{"other":"stuff"}}`
+var mockStateContent = `{"data":{"auth":{"users":[{"id":1,"name":"mvo"}],"macaroon-key":"not-a-cookie","last-id":1}},"some":{"other":"stuff"}}`
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep4(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover snapd_recovery_system="+s.sysLabel)
@@ -1208,6 +1285,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep4(c *C) {
 		// user ssh
 		"user-data/user1/.ssh/authorized_keys",
 		"user-data/user2/.ssh/authorized_keys",
+		// user snap authentication
+		"user-data/user1/.snap/auth.json",
 		// sudoers
 		"system-data/etc/sudoers.d/create-user-test",
 	}
@@ -1216,6 +1295,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep4(c *C) {
 		"system-data/etc/passwd",
 		"user-data/user1/some-random-data",
 		"user-data/user2/other-random-data",
+		"user-data/user2/.snap/sneaky-not-auth.json",
 	}
 	for _, mockAuthFile := range append(mockAuthFiles, mockUnrelatedFiles...) {
 		p := filepath.Join(hostUbuntuData, mockAuthFile)
@@ -1256,7 +1336,7 @@ recovery_system=20191118
 		c.Check(fiParent.Mode(), Equals, os.FileMode(os.ModeDir|0750))
 	}
 
-	c.Check(filepath.Join(ephemeralUbuntuData, "system-data/var/lib/snapd/state.json"), testutil.FileEquals, `{"data":{"auth":{"users":[{"name":"mvo"}]}},"changes":{},"tasks":{},"last-change-id":0,"last-task-id":0,"last-lane-id":0}`)
+	c.Check(filepath.Join(ephemeralUbuntuData, "system-data/var/lib/snapd/state.json"), testutil.FileEquals, `{"data":{"auth":{"last-id":1,"macaroon-key":"not-a-cookie","users":[{"id":1,"name":"mvo"}]}},"changes":{},"tasks":{},"last-change-id":0,"last-task-id":0,"last-lane-id":0}`)
 }
 
 func (s *initramfsMountsSuite) testInitramfsMountsInstallRecoverModeStep2Measure(c *C, mode string) {

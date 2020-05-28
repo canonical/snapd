@@ -21,6 +21,7 @@ package main_test
 
 import (
 	. "gopkg.in/check.v1"
+	"os"
 
 	snap "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/image"
@@ -90,6 +91,31 @@ func (s *SnapPrepareImageSuite) TestPrepareImageClassicArch(c *C) {
 		ModelFile:    "model",
 		PrepareDir:   "prepare-dir",
 	})
+}
+
+func (s *SnapPrepareImageSuite) TestPrepareImageClassicWideCohort(c *C) {
+	var opts *image.Options
+	prep := func(o *image.Options) error {
+		opts = o
+		return nil
+	}
+	r := snap.MockImagePrepare(prep)
+	defer r()
+
+	os.Setenv("UBUNTU_STORE_COHORT_KEY", "is-six-centuries")
+
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"prepare-image", "--classic", "model", "prepare-dir"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+
+	c.Check(opts, DeepEquals, &image.Options{
+		Classic:       true,
+		WideCohortKey: "is-six-centuries",
+		ModelFile:     "model",
+		PrepareDir:    "prepare-dir",
+	})
+
+	os.Unsetenv("UBUNTU_STORE_COHORT_KEY")
 }
 
 func (s *SnapPrepareImageSuite) TestPrepareImageExtraSnaps(c *C) {

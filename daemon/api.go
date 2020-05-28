@@ -70,6 +70,7 @@ import (
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
@@ -264,6 +265,7 @@ func formatRefreshTime(t time.Time) string {
 func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	st := c.d.overlord.State()
 	snapMgr := c.d.overlord.SnapManager()
+	deviceMgr := c.d.overlord.DeviceManager()
 	st.Lock()
 	defer st.Unlock()
 	nextRefresh := snapMgr.NextRefresh()
@@ -303,6 +305,7 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		},
 		"refresh":      refreshInfo,
 		"architecture": arch.DpkgArchitecture(),
+		"system-mode":  deviceMgr.SystemMode(),
 	}
 	if systemdVirt != "" {
 		m["virtualization"] = systemdVirt
@@ -1543,7 +1546,7 @@ out:
 
 func unsafeReadSnapInfoImpl(snapPath string) (*snap.Info, error) {
 	// Condider using DeriveSideInfo before falling back to this!
-	snapf, err := snap.Open(snapPath)
+	snapf, err := snapfile.Open(snapPath)
 	if err != nil {
 		return nil, err
 	}
