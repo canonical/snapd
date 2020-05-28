@@ -6,7 +6,7 @@ summary: Ensure that the accounts-service interface works
 systems:
     - ubuntu-16.04-*
     - ubuntu-18.04-*
-    - ubuntu-20.04-*
+    - ubuntu-2*
 
 prepare: |
     # Not all the images have the same packages pre-installed.
