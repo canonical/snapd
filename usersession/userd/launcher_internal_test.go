@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-20 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,10 +21,16 @@ package userd
 
 import (
 	"github.com/snapcore/snapd/strutil"
-	"reflect"
-	"strings"
 	"testing"
+	. "gopkg.in/check.v1"
 )
+
+func Test(t *testing.T) { TestingT(t) }
+
+type launcherInternalSuite struct {
+}
+
+var _ = Suite(&launcherInternalSuite{})
 
 var mockFileSystem = []string{
 	"/var/lib/snapd/desktop/applications/mir-kiosk-scummvm_mir-kiosk-scummvm.desktop",
@@ -49,7 +55,8 @@ func existsOnMockFileSystem(desktop_file string) bool {
 	return strutil.ListContains(mockFileSystem, desktop_file)
 }
 
-func TestLauncher_desktopFileIDToFilenameSucceedsWithValidId(t *testing.T) {
+func (s *launcherInternalSuite) TestDesktopFileIDToFilenameSucceedsWithValidId(c *C) {
+
 	var desktopIdTests = []struct {
 		id     string
 		expect string
@@ -60,14 +67,13 @@ func TestLauncher_desktopFileIDToFilenameSucceedsWithValidId(t *testing.T) {
 	}
 
 	for _, test := range desktopIdTests {
-		actual, _ := desktopFileIDToFilename(existsOnMockFileSystem, test.id)
-		if actual != test.expect {
-			t.Errorf("desktopFileIDToFilename(%s): expected %s, actual %s", test.id, test.expect, actual)
-		}
+		actual, err := desktopFileIDToFilename(existsOnMockFileSystem, test.id)
+		c.Assert(err, IsNil)
+		c.Assert(actual, Equals, test.expect)
 	}
 }
 
-func TestLauncher_desktopFileIDToFilenameFailsWithInvalidId(t *testing.T) {
+func (s *launcherInternalSuite) TestDesktopFileIDToFilenameFailsWithInvalidId(c *C) {
 	var desktopIdTests = []string{
 		"mir-kiosk-scummvm-mir-kiosk-scummvm.desktop",
 		"bar-foo-baz.desktop",
@@ -75,14 +81,12 @@ func TestLauncher_desktopFileIDToFilenameFailsWithInvalidId(t *testing.T) {
 	}
 
 	for _, id := range desktopIdTests {
-		actual, err := desktopFileIDToFilename(existsOnMockFileSystem, id)
-		if err == nil {
-			t.Errorf("desktopFileIDToFilename(%s): expected <error>, actual %s", id, actual)
-		}
+		_, err := desktopFileIDToFilename(existsOnMockFileSystem, id)
+		c.Assert(err, NotNil)
 	}
 }
 
-func TestLauncher_parseExecCommandSucceedsWithValidEntry(t *testing.T) {
+func (s *launcherInternalSuite) TestParseExecCommandSucceedsWithValidEntry(c *C) {
 	var exec_command = []struct {
 		exec_command string
 		expect       []string
@@ -96,24 +100,19 @@ func TestLauncher_parseExecCommandSucceedsWithValidEntry(t *testing.T) {
 
 	for _, test := range exec_command {
 		actual, err := parseExecCommand(test.exec_command)
-		if err != nil {
-			t.Errorf("parseExecCommand(\"%s\"): expected SUCCESS, actual FAILED %e", test.exec_command, err)
-		} else if !reflect.DeepEqual(actual, test.expect) {
-			t.Errorf("parseExecCommand(\"%s\"): expected {\"%s\"}, actual {\"%s\"}", test.exec_command, strings.Join(test.expect, "\", \""), strings.Join(actual, "\", \""))
-		}
+		c.Assert(err, IsNil)
+		c.Assert(actual, DeepEquals, test.expect)
 	}
 }
 
-func TestLauncher_parseExecCommandFailsWithInvalidEntry(t *testing.T) {
+func (s *launcherInternalSuite) TestParseExecCommandFailsWithInvalidEntry(c *C) {
 	var exec_command = []string{
 		"/snap/bin/foo \"unclosed double quote",
 		"/snap/bin/foo 'unclosed single quote",
 	}
 
 	for _, test := range exec_command {
-		actual, err := parseExecCommand(test)
-		if err == nil {
-			t.Errorf("parseExecCommand(\"%s\"): expected FAILED, actual {\"%s\"}", test, strings.Join(actual, "\", \""))
-		}
+		_, err := parseExecCommand(test)
+		c.Assert(err, NotNil)
 	}
 }
