@@ -280,6 +280,10 @@ func (b Backend) ServicesEnableState(info *snap.Info, meter progress.Meter) (map
 	return wrappers.ServicesEnableState(info, meter)
 }
 
+func (b Backend) QueryDisabledServices(info *snap.Info, pb progress.Meter) ([]string, error) {
+	return wrappers.QueryDisabledServices(info, pb)
+}
+
 func removeCurrentSymlinks(info snap.PlaceInfo) error {
 	var err1, err2 error
 
