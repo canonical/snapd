@@ -49,7 +49,7 @@ func existsOnMockFileSystem(desktop_file string) bool {
 	return strutil.ListContains(mockFileSystem, desktop_file)
 }
 
-func TestLauncher_desktopFileIdToFilenameSucceedsWithValidId(t *testing.T) {
+func TestLauncher_desktopFileIDToFilenameSucceedsWithValidId(t *testing.T) {
 	var desktopIdTests = []struct {
 		id     string
 		expect string
@@ -60,14 +60,14 @@ func TestLauncher_desktopFileIdToFilenameSucceedsWithValidId(t *testing.T) {
 	}
 
 	for _, test := range desktopIdTests {
-		actual, _ := desktopFileIdToFilename(existsOnMockFileSystem, test.id)
+		actual, _ := desktopFileIDToFilename(existsOnMockFileSystem, test.id)
 		if actual != test.expect {
-			t.Errorf("desktopFileIdToFilename(%s): expected %s, actual %s", test.id, test.expect, actual)
+			t.Errorf("desktopFileIDToFilename(%s): expected %s, actual %s", test.id, test.expect, actual)
 		}
 	}
 }
 
-func TestLauncher_desktopFileIdToFilenameFailsWithInvalidId(t *testing.T) {
+func TestLauncher_desktopFileIDToFilenameFailsWithInvalidId(t *testing.T) {
 	var desktopIdTests = []string{
 		"mir-kiosk-scummvm-mir-kiosk-scummvm.desktop",
 		"bar-foo-baz.desktop",
@@ -75,9 +75,9 @@ func TestLauncher_desktopFileIdToFilenameFailsWithInvalidId(t *testing.T) {
 	}
 
 	for _, id := range desktopIdTests {
-		actual, err := desktopFileIdToFilename(existsOnMockFileSystem, id)
+		actual, err := desktopFileIDToFilename(existsOnMockFileSystem, id)
 		if err == nil {
-			t.Errorf("desktopFileIdToFilename(%s): expected <error>, actual %s", id, actual)
+			t.Errorf("desktopFileIDToFilename(%s): expected <error>, actual %s", id, actual)
 		}
 	}
 }
