@@ -226,16 +226,11 @@ func readExecCommandFromDesktopFile(desktopFile string) (string, error) {
 		return launch, err
 	}
 	defer file.Close()
-	reader := bufio.NewReader(file)
+	scanner := bufio.NewScanner(file)
 
 	in_desktop_section := false
-	for {
-		line, err := reader.ReadString('\n')
-		if err != nil {
-			return launch, err
-		}
-
-		line = strings.TrimSpace(line)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
 
 		if line == "[Desktop Entry]" {
 			in_desktop_section = true
