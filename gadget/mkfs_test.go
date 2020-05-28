@@ -102,61 +102,6 @@ func (m *mkfsSuite) TestMkfsExt4Happy(c *C) {
 
 }
 
-func (m *mkfsSuite) TestMkfsExt4WithoutMetadataChecksumHappy(c *C) {
-	cmd := testutil.MockCommand(c, "fakeroot", "")
-	defer cmd.Restore()
-
-	err := gadget.MkfsExt4WithoutMetadataChecksum("foo.img", "my-label", "contents")
-	c.Assert(err, IsNil)
-	c.Check(cmd.Calls(), DeepEquals, [][]string{
-		{
-			"fakeroot",
-			"mkfs.ext4",
-			"-T", "default",
-			"-O", "-metadata_csum",
-			"-O", "uninit_bg",
-			"-d", "contents",
-			"-L", "my-label",
-			"foo.img",
-		},
-	})
-
-	cmd.ForgetCalls()
-
-	// empty label
-	err = gadget.MkfsExt4WithoutMetadataChecksum("foo.img", "", "contents")
-	c.Assert(err, IsNil)
-	c.Check(cmd.Calls(), DeepEquals, [][]string{
-		{
-			"fakeroot",
-			"mkfs.ext4",
-			"-T", "default",
-			"-O", "-metadata_csum",
-			"-O", "uninit_bg",
-			"-d", "contents",
-			"foo.img",
-		},
-	})
-
-	cmd.ForgetCalls()
-
-	// no content
-	err = gadget.MkfsExt4WithoutMetadataChecksum("foo.img", "my-label", "")
-	c.Assert(err, IsNil)
-	c.Check(cmd.Calls(), DeepEquals, [][]string{
-		{
-			"fakeroot",
-			"mkfs.ext4",
-			"-T", "default",
-			"-O", "-metadata_csum",
-			"-O", "uninit_bg",
-			"-L", "my-label",
-			"foo.img",
-		},
-	})
-
-}
-
 func (m *mkfsSuite) TestMkfsExt4Error(c *C) {
 	cmd := testutil.MockCommand(c, "fakeroot", "echo 'command failed'; exit 1")
 	defer cmd.Restore()
