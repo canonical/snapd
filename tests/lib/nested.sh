@@ -357,6 +357,10 @@ configure_cloud_init_nested_core_vm_uc20(){
     umount "$tmp"
 }
 
+get_nested_core_image_path(){
+    echo "$WORK_DIR/image/ubuntu-core.img"
+}
+
 start_nested_core_vm(){
     local IMAGE QEMU
     QEMU=$(get_qemu_for_nested_vm)
