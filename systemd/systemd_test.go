@@ -397,6 +397,42 @@ func (s *SystemdTestSuite) TestAvailable(c *C) {
 	c.Check(s.argses, DeepEquals, [][]string{{"--version"}})
 }
 
+func (s *SystemdTestSuite) TestVersion(c *C) {
+	s.outs = [][]byte{
+		[]byte("systemd 223\n+PAM\n"),
+		[]byte("systemd 245 (245.4-4ubuntu3)\n+PAM +AUDIT +SELINUX +IMA\n"),
+		// error cases
+		[]byte("foo 223\n+PAM\n"),
+		[]byte(""),
+		[]byte("systemd abc\n+PAM\n"),
+	}
+
+	v, err := Version()
+	c.Assert(err, IsNil)
+	c.Check(v, Equals, 223)
+
+	v, err = Version()
+	c.Assert(err, IsNil)
+	c.Check(v, Equals, 245)
+
+	_, err = Version()
+	c.Assert(err, ErrorMatches, `cannot parse systemd version: expected "systemd", got "foo"`)
+
+	_, err = Version()
+	c.Assert(err, ErrorMatches, `cannot read systemd version: <nil>`)
+
+	_, err = Version()
+	c.Assert(err, ErrorMatches, `cannot convert systemd version to number: abc`)
+
+	c.Check(s.argses, DeepEquals, [][]string{
+		{"--version"},
+		{"--version"},
+		{"--version"},
+		{"--version"},
+		{"--version"},
+	})
+}
+
 func (s *SystemdTestSuite) TestEnable(c *C) {
 	err := New("xyzzy", SystemMode, s.rep).Enable("foo")
 	c.Assert(err, IsNil)
@@ -605,7 +641,7 @@ Before=snapd.service
 What=%s
 Where=/snap/snapname/123
 Type=squashfs
-Options=nodev,ro,x-gdu.hide,context=system_u:object_r:snappy_snap_t:s0
+Options=nodev,context=system_u:object_r:snappy_snap_t:s0,ro,x-gdu.hide
 LazyUnmount=yes
 
 [Install]
@@ -853,6 +889,9 @@ func (s *SystemdTestSuite) TestGlobalUserMode(c *C) {
 	c.Check(s.argses[2], DeepEquals, []string{"--user", "--global", "--root", rootDir, "mask", "foo"})
 	c.Assert(sysd.Unmask("foo"), IsNil)
 	c.Check(s.argses[3], DeepEquals, []string{"--user", "--global", "--root", rootDir, "unmask", "foo"})
+	_, err := sysd.IsEnabled("foo")
+	c.Check(err, IsNil)
+	c.Check(s.argses[4], DeepEquals, []string{"--user", "--global", "--root", rootDir, "is-enabled", "foo"})
 
 	// Commands that don't make sense for GlobalUserMode panic
 	c.Check(sysd.DaemonReload, Panics, "cannot call daemon-reload with GlobalUserMode")
@@ -863,7 +902,6 @@ func (s *SystemdTestSuite) TestGlobalUserMode(c *C) {
 	c.Check(func() { sysd.Restart("foo", 0) }, Panics, "cannot call restart with GlobalUserMode")
 	c.Check(func() { sysd.Kill("foo", "HUP", "") }, Panics, "cannot call kill with GlobalUserMode")
 	c.Check(func() { sysd.Status("foo") }, Panics, "cannot call status with GlobalUserMode")
-	c.Check(func() { sysd.IsEnabled("foo") }, Panics, "cannot call is-enabled with GlobalUserMode")
 	c.Check(func() { sysd.IsActive("foo") }, Panics, "cannot call is-active with GlobalUserMode")
 }
 
@@ -911,7 +949,7 @@ func (s *SystemdTestSuite) TestPreseedModeAddMountUnit(c *C) {
 func (s *SystemdTestSuite) TestPreseedModeAddMountUnitWithFuse(c *C) {
 	sysd := NewEmulationMode(dirs.GlobalRootDir)
 
-	restore := MockSquashFsType(func() (string, []string, error) { return "fuse.squashfuse", []string{"a,b,c"}, nil })
+	restore := MockSquashFsType(func() (string, []string) { return "fuse.squashfuse", []string{"a,b,c"} })
 	defer restore()
 
 	mockMountCmd := testutil.MockCommand(c, "mount", "")
@@ -925,7 +963,7 @@ func (s *SystemdTestSuite) TestPreseedModeAddMountUnitWithFuse(c *C) {
 	defer os.Remove(mountUnitName)
 
 	c.Check(mockMountCmd.Calls()[0], DeepEquals, []string{"mount", "-t", "fuse.squashfuse", mockSnapPath, "/snap/snapname/123", "-o", "nodev,a,b,c"})
-	c.Check(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(unitTemplate[1:], mockSnapPath, "fuse.squashfuse", "nodev,a,b,c"))
+	c.Check(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(unitTemplate[1:], mockSnapPath, "squashfs", "nodev,ro,x-gdu.hide"))
 }
 
 func (s *SystemdTestSuite) TestPreseedModeMountError(c *C) {

@@ -200,7 +200,7 @@ func (s *restSuite) TestServicesStartFailureStopsServices(c *C) {
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
 	c.Check(rsp.Type, Equals, agent.ResponseTypeError)
 	c.Check(rsp.Result, DeepEquals, map[string]interface{}{
-		"message": "some services failed to start",
+		"message": "some user services failed to start",
 		"kind":    "service-control",
 		"value": map[string]interface{}{
 			"start-errors": map[string]interface{}{
@@ -247,7 +247,7 @@ func (s *restSuite) TestServicesStartFailureReportsStopFailures(c *C) {
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
 	c.Check(rsp.Type, Equals, agent.ResponseTypeError)
 	c.Check(rsp.Result, DeepEquals, map[string]interface{}{
-		"message": "some services failed to start",
+		"message": "some user services failed to start",
 		"kind":    "service-control",
 		"value": map[string]interface{}{
 			"start-errors": map[string]interface{}{
@@ -343,7 +343,7 @@ func (s *restSuite) TestServicesStopReportsTimeout(c *C) {
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
 	c.Check(rsp.Type, Equals, agent.ResponseTypeError)
 	c.Check(rsp.Result, DeepEquals, map[string]interface{}{
-		"message": "some services failed to stop",
+		"message": "some user services failed to stop",
 		"kind":    "service-control",
 		"value": map[string]interface{}{
 			"stop-errors": map[string]interface{}{

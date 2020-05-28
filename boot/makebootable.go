@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapfile"
 )
 
 // BootableSet represents the boot snaps of a system to be made bootable.
@@ -125,7 +126,7 @@ func makeBootable16(model *asserts.Model, rootdir string, bootWith *BootableSet)
 	setBoot("snap_core", bootWith.BasePath)
 
 	// kernel
-	kernelf, err := snap.Open(bootWith.KernelPath)
+	kernelf, err := snapfile.Open(bootWith.KernelPath)
 	if err != nil {
 		return err
 	}
@@ -190,7 +191,7 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet)
 	// the recovery system
 	erkbl, ok := bl.(bootloader.ExtractedRecoveryKernelImageBootloader)
 	if ok {
-		kernelf, err := snap.Open(bootWith.KernelPath)
+		kernelf, err := snapfile.Open(bootWith.KernelPath)
 		if err != nil {
 			return err
 		}
@@ -227,14 +228,29 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet)
 func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *BootableSet) error {
 	// TODO:UC20:
 	// - create grub.cfg instead of using the gadget one
+	// - figure out what to do for uboot gadgets, currently we require them to
+	//   install the boot.sel onto ubuntu-boot directly, but the file should be
+	//   managed by snapd instead
 
 	// copy kernel/base into the ubuntu-data partition
-	snapBlobDir := dirs.SnapBlobDirUnder(InitramfsWritableDir)
+	snapBlobDir := dirs.SnapBlobDirUnder(InstallHostWritableDir)
 	if err := os.MkdirAll(snapBlobDir, 0755); err != nil {
 		return err
 	}
 	for _, fn := range []string{bootWith.BasePath, bootWith.KernelPath} {
 		dst := filepath.Join(snapBlobDir, filepath.Base(fn))
+		// if the source filename is a symlink, don't copy the symlink, copy the
+		// target file instead of copying the symlink, as the initramfs won't
+		// follow the symlink when it goes to mount the base and kernel snaps by
+		// design as the initramfs should only be using trusted things from
+		// ubuntu-data to boot in run mode
+		if osutil.IsSymlink(fn) {
+			link, err := os.Readlink(fn)
+			if err != nil {
+				return err
+			}
+			fn = link
+		}
 		if err := osutil.CopyFile(fn, dst, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync); err != nil {
 			return err
 		}
@@ -250,7 +266,7 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 		Model:          model.Model(),
 		Grade:          string(model.Grade()),
 	}
-	if err := modeenv.WriteTo(InitramfsWritableDir); err != nil {
+	if err := modeenv.WriteTo(InstallHostWritableDir); err != nil {
 		return fmt.Errorf("cannot write modeenv: %v", err)
 	}
 
@@ -268,7 +284,7 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 	}
 
 	// extract the kernel first and mark kernel_status ready
-	kernelf, err := snap.Open(bootWith.KernelPath)
+	kernelf, err := snapfile.Open(bootWith.KernelPath)
 	if err != nil {
 		return err
 	}

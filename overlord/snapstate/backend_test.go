@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
 	"github.com/snapcore/snapd/strutil"
@@ -68,6 +69,8 @@ type fakeOp struct {
 
 	services         []string
 	disabledServices []string
+
+	vitalityRank int
 }
 
 type fakeOps []fakeOp
@@ -251,6 +254,15 @@ func (f *fakeStore) snap(spec snapSpec, user *auth.UserState) (*snap.Info, error
 				Snap:    info,
 				Path:    "/usr",
 				Symlink: "$SNAP/usr",
+			},
+		}
+	case "channel-for-user-daemon":
+		info.Apps = map[string]*snap.AppInfo{
+			"user-daemon": {
+				Snap:        info,
+				Name:        "user-daemon",
+				Daemon:      "simple",
+				DaemonScope: "user",
 			},
 		}
 	}
@@ -656,7 +668,7 @@ func (f *fakeSnappyBackend) OpenSnapFile(snapFilePath string, si *snap.SideInfo)
 		}
 	} else {
 		// for snap try only
-		snapf, err := snap.Open(snapFilePath)
+		snapf, err := snapfile.Open(snapFilePath)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -833,6 +845,7 @@ func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, dev boot.Device, linkCtx b
 	if len(linkCtx.PrevDisabledServices) != 0 {
 		op.disabledServices = linkCtx.PrevDisabledServices
 	}
+	op.vitalityRank = linkCtx.VitalityRank
 
 	if info.MountDir() == f.linkSnapFailTrigger {
 		op.op = "link-snap.failed"
@@ -894,6 +907,24 @@ func (f *fakeSnappyBackend) ServicesEnableState(info *snap.Info, meter progress.
 	})
 
 	return m, nil
+}
+
+func (f *fakeSnappyBackend) QueryDisabledServices(info *snap.Info, meter progress.Meter) ([]string, error) {
+	var l []string
+
+	m, err := f.ServicesEnableState(info, meter)
+	if err != nil {
+		return nil, err
+	}
+	for name, enabled := range m {
+		if !enabled {
+			l = append(l, name)
+		}
+	}
+
+	// XXX: add a fakeOp here?
+
+	return l, nil
 }
 
 func (f *fakeSnappyBackend) UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, installRecord *backend.InstallRecord, dev boot.Device, p progress.Meter) error {

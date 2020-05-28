@@ -22,6 +22,7 @@ package boot_test
 import (
 	"errors"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
@@ -32,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -448,15 +450,14 @@ type ubootSuite struct {
 
 var _ = Suite(&ubootSuite{})
 
-func (s *ubootSuite) SetUpTest(c *C) {
-	s.baseBootenvSuite.SetUpTest(c)
-	s.forceUbootBootloader(c)
-}
-
+// forceUbootBootloader sets up a uboot bootloader, in the uc16/uc18 style
+// where all env is stored in a single uboot.env
 func (s *ubootSuite) forceUbootBootloader(c *C) {
 	bootloader.Force(nil)
 
 	mockGadgetDir := c.MkDir()
+	// this is testing the uc16/uc18 style uboot bootloader layout, the file
+	// must be non-empty for uc16/uc18 gadget config install behavior
 	err := ioutil.WriteFile(filepath.Join(mockGadgetDir, "uboot.conf"), []byte{1}, 0644)
 	c.Assert(err, IsNil)
 	err = bootloader.InstallBootConfig(mockGadgetDir, dirs.GlobalRootDir, nil)
@@ -471,54 +472,113 @@ func (s *ubootSuite) forceUbootBootloader(c *C) {
 	c.Assert(osutil.FileExists(fn), Equals, true)
 }
 
+// forceUbootBootloader sets up a uboot bootloader, in the uc20 style where we
+// have a separate boot.sel file for snapd specific bootloader env
+func (s *ubootSuite) forceUC20UbootBootloader(c *C) {
+	bootloader.Force(nil)
+
+	// to find the uboot bootloader we need to pass in NoSlashBoot because
+	// that's where the gadget assets get installed to
+	installOpts := &bootloader.Options{
+		NoSlashBoot: true,
+	}
+
+	mockGadgetDir := c.MkDir()
+	// this must be empty for uc20 behavior
+	// TODO:UC20: update this test for the new behavior when that is implemented
+	err := ioutil.WriteFile(filepath.Join(mockGadgetDir, "uboot.conf"), nil, 0644)
+	c.Assert(err, IsNil)
+	err = bootloader.InstallBootConfig(mockGadgetDir, dirs.GlobalRootDir, installOpts)
+	c.Assert(err, IsNil)
+
+	// in reality for uc20, we will bind mount <ubuntu-boot>/uboot/ubuntu/ onto
+	// /boot/uboot, so to emulate this at runtime for the tests, just put files
+	// into "/uboot" under bootdir for the test to see things that on disk are
+	// at "/uboot/ubuntu" as "/boot/uboot/"
+
+	fn := filepath.Join(dirs.GlobalRootDir, "/uboot/ubuntu/boot.sel")
+	c.Assert(osutil.FileExists(fn), Equals, true)
+
+	targetFile := filepath.Join(s.bootdir, "uboot", "boot.sel")
+	err = os.MkdirAll(filepath.Dir(targetFile), 0755)
+	c.Assert(err, IsNil)
+	err = os.Rename(fn, targetFile)
+	c.Assert(err, IsNil)
+
+	// however when finding the bootloader, since we want it to show up as the
+	// "runtime" bootloader, just use ExtractedRunKernelImage
+	runtimeOpts := &bootloader.Options{
+		ExtractedRunKernelImage: true,
+	}
+
+	bloader, err := bootloader.Find("", runtimeOpts)
+	c.Assert(err, IsNil)
+	c.Check(bloader, NotNil)
+	s.forceBootloader(bloader)
+	c.Assert(bloader.Name(), Equals, "uboot")
+}
+
 func (s *ubootSuite) TestExtractKernelAssetsAndRemoveOnUboot(c *C) {
-	files := [][]string{
-		{"kernel.img", "I'm a kernel"},
-		{"initrd.img", "...and I'm an initrd"},
-		{"dtbs/foo.dtb", "g'day, I'm foo.dtb"},
-		{"dtbs/bar.dtb", "hello, I'm bar.dtb"},
-		// must be last
-		{"meta/kernel.yaml", "version: 4.2"},
+
+	// test for both uc16/uc18 style uboot bootloader and for uc20 style bootloader
+	bloaderSetups := []func(){
+		func() { s.forceUbootBootloader(c) },
+		func() { s.forceUC20UbootBootloader(c) },
 	}
 
-	si := &snap.SideInfo{
-		RealName: "ubuntu-kernel",
-		Revision: snap.R(42),
-	}
-	fn := snaptest.MakeTestSnapWithFiles(c, packageKernel, files)
-	snapf, err := snap.Open(fn)
-	c.Assert(err, IsNil)
+	for _, setup := range bloaderSetups {
+		setup()
 
-	info, err := snap.ReadInfoFromSnapFile(snapf, si)
-	c.Assert(err, IsNil)
-
-	bp := boot.NewCoreKernel(info, boottest.MockDevice(""))
-	err = bp.ExtractKernelAssets(snapf)
-	c.Assert(err, IsNil)
-
-	// this is where the kernel/initrd is unpacked
-	kernelAssetsDir := filepath.Join(s.bootdir, "/uboot/ubuntu-kernel_42.snap")
-	for _, def := range files {
-		if def[0] == "meta/kernel.yaml" {
-			break
+		files := [][]string{
+			{"kernel.img", "I'm a kernel"},
+			{"initrd.img", "...and I'm an initrd"},
+			{"dtbs/foo.dtb", "g'day, I'm foo.dtb"},
+			{"dtbs/bar.dtb", "hello, I'm bar.dtb"},
+			// must be last
+			{"meta/kernel.yaml", "version: 4.2"},
 		}
 
-		fullFn := filepath.Join(kernelAssetsDir, def[0])
-		c.Check(fullFn, testutil.FileEquals, def[1])
+		si := &snap.SideInfo{
+			RealName: "ubuntu-kernel",
+			Revision: snap.R(42),
+		}
+		fn := snaptest.MakeTestSnapWithFiles(c, packageKernel, files)
+		snapf, err := snapfile.Open(fn)
+		c.Assert(err, IsNil)
+
+		info, err := snap.ReadInfoFromSnapFile(snapf, si)
+		c.Assert(err, IsNil)
+
+		bp := boot.NewCoreKernel(info, boottest.MockDevice(""))
+		err = bp.ExtractKernelAssets(snapf)
+		c.Assert(err, IsNil)
+
+		// this is where the kernel/initrd is unpacked
+		kernelAssetsDir := filepath.Join(s.bootdir, "/uboot/ubuntu-kernel_42.snap")
+		for _, def := range files {
+			if def[0] == "meta/kernel.yaml" {
+				break
+			}
+
+			fullFn := filepath.Join(kernelAssetsDir, def[0])
+			c.Check(fullFn, testutil.FileEquals, def[1])
+		}
+
+		// it's idempotent
+		err = bp.ExtractKernelAssets(snapf)
+		c.Assert(err, IsNil)
+
+		// remove
+		err = bp.RemoveKernelAssets()
+		c.Assert(err, IsNil)
+		c.Check(osutil.FileExists(kernelAssetsDir), Equals, false)
+
+		// it's idempotent
+		err = bp.RemoveKernelAssets()
+		c.Assert(err, IsNil)
+
 	}
 
-	// it's idempotent
-	err = bp.ExtractKernelAssets(snapf)
-	c.Assert(err, IsNil)
-
-	// remove
-	err = bp.RemoveKernelAssets()
-	c.Assert(err, IsNil)
-	c.Check(osutil.FileExists(kernelAssetsDir), Equals, false)
-
-	// it's idempotent
-	err = bp.RemoveKernelAssets()
-	c.Assert(err, IsNil)
 }
 
 type grubSuite struct {
@@ -567,7 +627,7 @@ func (s *grubSuite) TestExtractKernelAssetsNoUnpacksKernelForGrub(c *C) {
 		Revision: snap.R(42),
 	}
 	fn := snaptest.MakeTestSnapWithFiles(c, packageKernel, files)
-	snapf, err := snap.Open(fn)
+	snapf, err := snapfile.Open(fn)
 	c.Assert(err, IsNil)
 
 	info, err := snap.ReadInfoFromSnapFile(snapf, si)
@@ -598,7 +658,7 @@ func (s *grubSuite) TestExtractKernelForceWorks(c *C) {
 		Revision: snap.R(42),
 	}
 	fn := snaptest.MakeTestSnapWithFiles(c, packageKernel, files)
-	snapf, err := snap.Open(fn)
+	snapf, err := snapfile.Open(fn)
 	c.Assert(err, IsNil)
 
 	info, err := snap.ReadInfoFromSnapFile(snapf, si)

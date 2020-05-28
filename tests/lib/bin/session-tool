@@ -1,24 +1,26 @@
 #!/bin/bash -e
+show_help() {
+	echo "usage: session-tool exec [-u USER] [-p PID_FILE] [--] <CMD>"
+	echo "usage: session-tool prepare | restore [-u USER | -u USER1,USER2,...]"
+	echo "usage: session-tool kill-leaked"
+	echo "usage: session-tool dump"
+	echo "usage: session-tool has-system-systemd-and-dbus"
+	echo "usage: session-tool has-session-systemd-and-dbus"
+}
+
 if [ $# -eq 0 ]; then
-	echo "usage: session-tool [-u USER] [-p PID_FILE] [--] <CMD>"
-	echo "usage: session-tool --prepare | --restore [-u USER | -u USER1,USER2,...]"
-	echo "usage: session-tool --kill-leaked"
-	echo "usage: session-tool --dump"
-	echo "usage: session-tool --has-systemd-and-dbus [-u USER]"
+	show_help
 	exit 1
-fi
-if [ "$(id -u)" -ne 0 ]; then
-    echo "session-tool needs to be invoked as root" >&2
-    exit 1
 fi
 user=root
 pid_file=
 action=
 while [ $# -gt 0 ]; do
 	case "$1" in
-		--)
+		-h)
 			shift
-			break
+			show_help
+			exit 0
 			;;
 		-p)
 			if [ $# -eq 1 ]; then
@@ -28,24 +30,32 @@ while [ $# -gt 0 ]; do
 			pid_file="$2"
 			shift 2
 			;;
-		--kill-leaked)
+		--)
+			shift
+			break
+			;;
+		kill-leaked|--kill-leaked)
 			action=kill-leaked
 			shift
 			;;
-		--prepare)
+		prepare|--prepare)
 			action=prepare
 			shift
 			;;
-		--restore)
+		restore|--restore)
 			action=restore
 			shift
 			;;
-		--dump)
+		dump|--dump)
 			action=dump
 			shift
 			;;
-		--has-systemd-and-dbus)
-			action=has-systemd-and-dbus
+		has-system-systemd-and-dbus|--has-system-systemd-and-dbus)
+			action=has-system-systemd-and-dbus
+			shift
+			;;
+		has-session-systemd-and-dbus|--has-session-systemd-and-dbus)
+			action=has-session-systemd-and-dbus
 			shift
 			;;
 		-u)
@@ -60,11 +70,22 @@ while [ $# -gt 0 ]; do
 			echo "session-tool: unsupported argument $1" >&2
 			exit 1
 			;;
+		exec)
+			shift
+			action="exec"
+			break
+			;;
 		*)
+			action="exec"
 			break
 			;;
 	esac
 done
+
+if [ "$(id -u)" -ne 0 ]; then
+    echo "session-tool needs to be invoked as root" >&2
+    exit 1
+fi
 
 case "$action" in
 	kill-leaked)
@@ -119,6 +140,16 @@ case "$action" in
 		# Enable linger for the selected user(s).
 		for u in $(echo "$user" | tr ',' ' '); do
 			loginctl enable-linger "$u"
+			# We've enabled linger, now let's explicitly start the
+			# default.target. This ensures that test code does not need to pay
+			# extra attention to synchronization.
+			#
+			# Because some systems do not support systemd --user (see
+			# tests/main/session-tool-support for details), check if this is
+			# expected to work ahead of trying.
+                        if session-tool -u "$u" systemctl --user is-enabled default.target >/dev/null; then
+				session-tool -u "$u" systemctl --user start default.target
+			fi
 		done
 
 		exit 0
@@ -185,24 +216,25 @@ case "$action" in
 		done
 		exit 0
 		;;
-	has-systemd-and-dbus)
-		# Older systems don't have support for modern sessions
-		# There are two known issues:
-		#  - CentOS 7 and derivatives disabled systemd --user
-		#    https://bugs.centos.org/view.php?id=8767
-		#  - Ubuntu 14.04 with deputy systemd does not connect to DBus
-		#    and systemd-shim is really responding to "systemd" requests.
+	has-system-systemd-and-dbus)
+		#  Ubuntu 14.04 with deputy systemd does not connect to DBus
+		#  and systemd-shim is really responding to "systemd" requests.
 		test -n "$(command -v busctl)"         			|| ( echo "no busctl"; exit 1 )
-		if [ "$user" = "root" ]; then
-			# 		/lib										   /usr/lib									   (if present) dbus-broker.service variant
-			test -f /lib/systemd/system/default.target	|| test -f /usr/lib/systemd/system/default.target	|| ( echo "no system default.target"; exit 1 )
-			test -f /lib/systemd/system/dbus.socket  	|| test -f /usr/lib/systemd/system/dbus.socket		|| ( echo "no system dbus.socket"; exit 1 )
-			test -f /lib/systemd/system/dbus.service	|| test -f /usr/lib/systemd/system/dbus.service		|| test -f /lib/systemd/system/dbus-broker.service || ( echo "no system dbus{,-broker}.service"; exit 1 )
-		else
-			test -f /lib/systemd/user/default.target 	|| test -f /usr/lib/systemd/user/default.target		|| ( echo "no user default.target"; exit 1)
-			test -f /lib/systemd/user/dbus.socket 		|| test -f /usr/lib/systemd/user/dbus.socket 		|| ( echo "no user dbus.socket"; exit 1 )
-			test -f /lib/systemd/user/dbus.service		|| test -f /usr/lib/systemd/user/dbus.service		|| test -f /lib/systemd/user/dbus-broker.service || ( echo "no system dbus{,-broker}.service"; exit 1 )
-		fi
+		# 		/lib										   /usr/lib									   (if present) dbus-broker.service variant
+		test -f /lib/systemd/system/default.target	|| test -f /usr/lib/systemd/system/default.target	|| ( echo "no system default.target"; exit 1 )
+		test -f /lib/systemd/system/dbus.socket  	|| test -f /usr/lib/systemd/system/dbus.socket		|| ( echo "no system dbus.socket"; exit 1 )
+		test -f /lib/systemd/system/dbus.service	|| test -f /usr/lib/systemd/system/dbus.service		|| test -f /lib/systemd/system/dbus-broker.service || ( echo "no system dbus{,-broker}.service"; exit 1 )
+		echo "ok"
+		exit 0
+		;;
+	has-session-systemd-and-dbus)
+		#  CentOS 7 and derivatives disabled systemd --user
+		#  https://bugs.centos.org/view.php?id=8767
+		test -n "$(command -v busctl)"         			|| ( echo "no busctl"; exit 1 )
+		# 		/lib										   /usr/lib									   (if present) dbus-broker.service variant
+		test -f /lib/systemd/user/default.target 	|| test -f /usr/lib/systemd/user/default.target		|| ( echo "no user default.target"; exit 1)
+		test -f /lib/systemd/user/dbus.socket 		|| test -f /usr/lib/systemd/user/dbus.socket 		|| ( echo "no user dbus.socket"; exit 1 )
+		test -f /lib/systemd/user/dbus.service		|| test -f /usr/lib/systemd/user/dbus.service		|| test -f /lib/systemd/user/dbus-broker.service || ( echo "no system dbus{,-broker}.service"; exit 1 )
 		echo "ok"
 		exit 0
 		;;
@@ -230,7 +262,7 @@ trap 'rm -rf $tmp_dir' EXIT
 # Run dbus-monitor waiting for systemd JobRemoved signal. Process the output
 # with awk, forwarding the result of the service to a fifo.
 monitor_expr="type='signal', sender='org.freedesktop.systemd1', interface='org.freedesktop.systemd1.Manager', path='/org/freedesktop/systemd1', member='JobRemoved'"
-stdbuf -oL dbus-monitor --system --monitor "$monitor_expr" > "$tmp_dir/dbus-monitor.pipe" &
+stdbuf -oL dbus-monitor --system --monitor "$monitor_expr" > "$tmp_dir/dbus-monitor.pipe" 2>"$tmp_dir/dbus-monitor.stderr" &
 dbus_monitor_pid=$!
 
 awk_expr="
@@ -286,7 +318,9 @@ cat "$tmp_dir/ready.pipe" >/dev/null
 # and redirects to capture output. Sadly busctl doesn't support passing file
 # descriptors https://github.com/systemd/systemd/issues/14954 As a workaround
 # we pass a set of pipes. This is good for non-interactive work.
-cat >"$tmp_dir/stdin.pipe" &
+# NOTE: /dev/stdin is provided explicitly to trigger special behavior in bash,
+# as otherwise background tasks are started with /dev/null for stdin.
+cat </dev/stdin >"$tmp_dir/stdin.pipe" &
 cat_stdin_pid=$!
 cat <"$tmp_dir/stdout.pipe" >&1 &
 cat_stdout_pid=$!

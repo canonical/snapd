@@ -77,7 +77,7 @@
 
 
 Name:           snapd
-Version:        2.44.5
+Version:        2.45
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -362,6 +362,7 @@ fi
 %dir %{_sharedstatedir}/snapd/desktop/applications
 %dir %{_sharedstatedir}/snapd/device
 %dir %{_sharedstatedir}/snapd/hostfs
+%dir %{_sharedstatedir}/snapd/inhibit
 %dir %{_sharedstatedir}/snapd/lib
 %dir %{_sharedstatedir}/snapd/lib/gl
 %dir %{_sharedstatedir}/snapd/lib/gl32

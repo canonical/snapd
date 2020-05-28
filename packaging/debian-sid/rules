@@ -60,9 +60,13 @@ export GOMAXPROCS=2
 endif
 
 # check if we need to include the testkeys in the binary
+# TAGS are the go build tags for all binaries, SNAP_TAGS are for snap
+# build only.
 TAGS=nosecboot
+SNAP_TAGS=nosecboot nomanagers
 ifneq (,$(filter testkeys,$(DEB_BUILD_OPTIONS)))
 	TAGS+= withtestkeys
+	SNAP_TAGS+= withtestkeys
 endif
 
 DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
@@ -145,6 +149,8 @@ override_dh_auto_build:
 	find _build/src/$(DH_GOPKG)/secboot/ -name "*.go" | grep -Ev '(secboot_dummy\.go|secboot\.go)' | xargs rm -f
 	# and build
 	dh_auto_build -- $(BUILDFLAGS) -tags "$(TAGS)" $(GCCGOFLAGS)
+
+	(cd _build/bin && GOPATH=$$(pwd)/.. GOCACHE=/tmp/go-build go build $(BUILDFLAGS) $(GCCGOFLAGS) -tags "$(SNAP_TAGS)" $(DH_GOPKG)/cmd/snap)
 
 	# (static linking on powerpc with cgo is broken)
 ifneq ($(shell dpkg-architecture -qDEB_HOST_ARCH),powerpc)

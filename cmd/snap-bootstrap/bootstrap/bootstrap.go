@@ -145,7 +145,7 @@ func Run(gadgetRoot, device string, options Options) error {
 	}
 
 	// store the encryption key as the last part of the process to reduce the
-	// possiblity of exiting with an error after the TPM provisioning
+	// possibility of exiting with an error after the TPM provisioning
 	if options.Encrypt {
 		if err := tpmSealKey(key, rkey, options); err != nil {
 			return fmt.Errorf("cannot seal the encryption key: %v", err)
@@ -153,12 +153,6 @@ func Run(gadgetRoot, device string, options Options) error {
 	}
 
 	return nil
-}
-
-// TODO:UC20: get cmdline definition from bootloaders
-var kernelCmdlines = []string{
-	// run mode
-	"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
 }
 
 func tpmSealKey(key partition.EncryptionKey, rkey partition.RecoveryKey, options Options) error {
@@ -223,6 +217,15 @@ func tpmSealKey(key partition.EncryptionKey, rkey partition.RecoveryKey, options
 			return err
 		}
 	}
+
+	// TODO:UC20: get cmdline definition from bootloaders
+	kernelCmdlines := []string{
+		// run mode
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
+		// recover mode
+		fmt.Sprintf("snapd_recovery_mode=recover snapd_recovery_system=%s console=ttyS0 console=tty1 panic=-1", options.SystemLabel),
+	}
+
 	tpm.SetKernelCmdlines(kernelCmdlines)
 
 	if options.Model != nil {
