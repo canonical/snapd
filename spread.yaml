@@ -91,15 +91,12 @@ backends:
             - debian-sid-64:
                   workers: 6
 
-            - fedora-28-64:
-                  workers: 4
-                  manual: true
-            - fedora-29-64:
-                  workers: 6
-                  manual: true
             - fedora-30-64:
                   workers: 6
+                  manual: true
             - fedora-31-64:
+                  workers: 6
+            - fedora-32-64:
                   workers: 6
 
             - opensuse-15.0-64:
@@ -853,7 +850,7 @@ suites:
     tests/nested/manual/:
         summary: Tests for nested images controlled manually from the tests
         backends: [google-nested]
-        systems: [ubuntu-19.10-64, ubuntu-20.04-64]
+        systems: [ubuntu-19.10-64, ubuntu-18.04-64, ubuntu-20.04-64]
         environment:
             NESTED_TYPE: "classic"
             # Channel used to create the nested vm
