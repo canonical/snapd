@@ -491,6 +491,17 @@ snap_gdb_shim_snap_gdb_shim_SOURCES = \
 snap_gdb_shim_snap_gdb_shim_LDADD = libsnap-confine-private.a
 
 ##
+## snap-gdbserver-shim
+##
+
+libexec_PROGRAMS += snap-gdb-shim/snap-gdbserver-shim
+
+snap_gdb_shim_snap_gdb_shim_SOURCES = \
+	snap-gdb-shim/snap-gdbserver-shim.c
+
+snap_gdb_shim_snap_gdbserver_shim_LDADD = libsnap-confine-private.a
+
+##
 ## snapd-generator
 ##
 

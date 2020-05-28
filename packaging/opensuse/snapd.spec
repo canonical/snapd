@@ -408,6 +408,7 @@ fi
 %{_libexecdir}/snapd/snap-discard-ns
 %{_libexecdir}/snapd/snap-exec
 %{_libexecdir}/snapd/snap-gdb-shim
+%{_libexecdir}/snapd/snap-gdbserver-shim
 %{_libexecdir}/snapd/snap-mgmt
 %{_libexecdir}/snapd/snap-seccomp
 %{_libexecdir}/snapd/snap-update-ns
