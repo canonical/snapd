@@ -19,6 +19,8 @@
 
 package sysconfig
 
+import "path/filepath"
+
 // See https://github.com/snapcore/core20/pull/46
 const writableDefaultsDir = "_writable_defaults"
 
@@ -43,4 +45,11 @@ func ConfigureRunSystem(opts *Options) error {
 	}
 
 	return nil
+}
+
+// WritableDefaultsDir returns the full path of the joined subdir under the
+// subtree for default content for system data living at rootdir,
+// i.e. rootdir/_writable_defaults/subdir...
+func WritableDefaultsDir(rootdir string, subdir ...string) string {
+	return filepath.Join(rootdir, writableDefaultsDir, filepath.Join(subdir...))
 }

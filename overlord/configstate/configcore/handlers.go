@@ -80,9 +80,6 @@ func init() {
 
 	// journal.persistent
 	addFSOnlyHandler(validateJournalSettings, handleJournalConfiguration, coreOnly)
-
-	// resilience.vitality-hint
-	addFSOnlyHandler(validateVitalitySettings, handleVitalityConfiguration, nil)
 }
 
 // addFSOnlyHandler registers functions to validate and handle a subset of
