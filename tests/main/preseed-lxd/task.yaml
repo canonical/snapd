@@ -11,7 +11,9 @@ environment:
   IMAGE_MOUNTPOINT: /mnt/cloudimg
 
 prepare: |
-  IMGURL="https://storage.googleapis.com/spread-snapd-tests/images/cloudimg/focal-server-cloudimg-amd64.img"
+  #shellcheck source=tests/lib/nested.sh
+  . "$TESTSLIB/nested.sh"
+  IMGURL=$(get_google_image_url_for_nested_vm ubuntu-20.04-64)
   wget --quiet "$IMGURL" -O cloudimg.img
 
   modprobe nbd
@@ -34,8 +36,10 @@ prepare: |
   mksnap_fast squashfs-root "$SNAP_IMAGE"
   sed -i "$IMAGE_MOUNTPOINT/var/lib/snapd/seed/seed.yaml" -E -e "s/^(\\s+)name: snapd/\\1name: snapd\\n\\1unasserted: true/"
 
-  apt install -y lxd
-  touch remove-lxd
+  if [ ! -x /usr/bin/lxc ]; then
+    apt install -y lxd
+    touch remove-lxd
+  fi
 
 restore: |
   if [ -f remove-lxd ]; then
