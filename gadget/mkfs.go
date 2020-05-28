@@ -33,10 +33,10 @@ import (
 // filesystem label, and populates it with the contents of provided root
 // directory.
 func MkfsExt4(img, label, contentsRootDir string) error {
-	// taken from ubuntu-image
-	// Filesystem creation is used only in snap-bootstrap for uc20 install.
-	// See https://github.com/snapcore/snapd/pull/6997#discussion_r293967140
-	// and https://bugs.launchpad.net/snappy/+bug/1878374
+	// Originally taken from ubuntu-image
+	// Switched to use mkfs defaults for https://bugs.launchpad.net/snappy/+bug/1878374
+	// For caveats/requirements in case we need support for older systems:
+	// https://github.com/snapcore/snapd/pull/6997#discussion_r293967140
 	mkfsArgs := []string{
 		"mkfs.ext4",
 		// default usage type
