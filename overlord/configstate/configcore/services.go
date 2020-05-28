@@ -63,16 +63,14 @@ func switchDisableSSHService(sysd systemd.Systemd, serviceName string, disabled 
 
 	sshCanary := filepath.Join(rootDir, "/etc/ssh/sshd_not_to_be_run")
 
-	switch disabled {
-	case true:
+	if disabled {
 		if err := ioutil.WriteFile(sshCanary, []byte("SSH has been disabled by snapd system configuration\n"), 0644); err != nil {
 			return err
 		}
 		if opts == nil {
 			return sysd.Stop(serviceName, 5*time.Minute)
 		}
-		return nil
-	case false:
+	} else {
 		err := os.Remove(sshCanary)
 		if err != nil && !os.IsNotExist(err) {
 			return err
@@ -85,10 +83,8 @@ func switchDisableSSHService(sysd systemd.Systemd, serviceName string, disabled 
 		if opts == nil {
 			return sysd.Start(serviceName)
 		}
-		return nil
-	default:
-		panic("internal error: go violates the law of noncontradition")
 	}
+	return nil
 }
 
 // switchDisableConsoleConfService handles the special case of disabling/enabling
@@ -134,16 +130,14 @@ func switchDisableConsoleConfService(sysd systemd.Systemd, serviceName string, d
 		return sysd.RestartAll("console-conf@*")
 	}
 
-	switch disabled {
-	case true:
+	if disabled {
 		if err := ioutil.WriteFile(consoleConfCanary, []byte("console-conf has been disabled by snapd system configuration\n"), 0644); err != nil {
 			return err
 		}
 		if opts == nil {
 			return restartServicesOnTTYs()
 		}
-		return nil
-	case false:
+	} else {
 		err := os.Remove(consoleConfCanary)
 		if err != nil {
 			if !os.IsNotExist(err) {
@@ -155,10 +149,8 @@ func switchDisableConsoleConfService(sysd systemd.Systemd, serviceName string, d
 		if opts == nil {
 			return restartServicesOnTTYs()
 		}
-		return nil
-	default:
-		panic("internal error: go violates the law of noncontradition")
 	}
+	return nil
 }
 
 // switchDisableTypicalService switches a service in/out of disabled state
@@ -179,8 +171,7 @@ func switchDisableService(serviceName string, disabled bool, opts *fsOnlyContext
 		return switchDisableConsoleConfService(sysd, serviceName, disabled, opts)
 	}
 
-	switch disabled {
-	case true:
+	if disabled {
 		if opts == nil {
 			if err := sysd.Disable(serviceName); err != nil {
 				return err
@@ -192,8 +183,7 @@ func switchDisableService(serviceName string, disabled bool, opts *fsOnlyContext
 		if opts == nil {
 			return sysd.Stop(serviceName, 5*time.Minute)
 		}
-		return nil
-	case false:
+	} else {
 		if err := sysd.Unmask(serviceName); err != nil {
 			return err
 		}
@@ -205,10 +195,8 @@ func switchDisableService(serviceName string, disabled bool, opts *fsOnlyContext
 		if opts == nil {
 			return sysd.Start(serviceName)
 		}
-		return nil
-	default:
-		panic("internal error: go violates the law of noncontradition")
 	}
+	return nil
 }
 
 // services that can be disabled
