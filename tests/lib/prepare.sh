@@ -375,8 +375,8 @@ EOF
 #!/bin/sh
 set -e
 # ensure we don't enable ssh in install mode or spread will get confused
-if ! grep 'snapd_recovery_mode=run' /proc/cmdline; then
-    echo "not in run mode - script not running"
+if ! grep -E 'snapd_recovery_mode=(run|recover)' /proc/cmdline; then
+    echo "not in run or recovery mode - script not running"
     exit 0
 fi
 if [ -e /root/spread-setup-done ]; then
@@ -633,9 +633,7 @@ EOF
     # the writeable-path sync-boot won't work
     mkdir -p /mnt/system-data/etc/systemd
 
-    # we do not need console-conf, so prevent it from running
     mkdir -p /mnt/system-data/var/lib/console-conf
-    touch /mnt/system-data/var/lib/console-conf/complete
 
     (cd /tmp ; unsquashfs -no-progress -v  /var/lib/snapd/snaps/"$core_name"_*.snap etc/systemd/system)
     cp -avr /tmp/squashfs-root/etc/systemd/system /mnt/system-data/etc/systemd/
@@ -826,6 +824,9 @@ EOF
             MATCH "^test:" </var/lib/extrausers/"$f"
             MATCH "^ubuntu:" </var/lib/extrausers/"$f"
         done
+        # Make sure systemd-journal group has the "test" user as a member. Due to the way we copy that from the host
+        # and merge it from the core snap this is done explicitly as a second step.
+        sed -r -i -e 's/^systemd-journal:x:([0-9]+):$/systemd-journal:x:\1:test/' /root/test-etc/group
         tar -c -z \
           --exclude '*.a' \
           --exclude '*.deb' \

@@ -85,8 +85,6 @@ func init() {
 	devicestate.ConfigcoreFilesystemOnlyApply = func(rootDir string, defaults map[string]interface{}) error {
 		return FilesystemOnlyApply(rootDir, PlainCoreConfig(defaults), nil)
 	}
-	// resilience.vitality-hint
-	addFSOnlyHandler(validateVitalitySettings, handleVitalityConfiguration, nil)
 }
 
 // addFSOnlyHandler registers functions to validate and handle a subset of

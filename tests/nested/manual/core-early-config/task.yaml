@@ -9,13 +9,9 @@ prepare: |
 
     cleanup_nested_env
 
-    # nested suite installs latest snapd only in the nested system; we need
-    # new snapd on the host as well for prepare-image changes.
-    dpkg -i "$SPREAD_PATH"/../snapd_*.deb
-
     mkdir extra-snaps
 
-    # modify and repack gadget snap (add defaults section)
+    # modify and repack gadget snap (add defaults section and install hook)
     snap download --channel=18/stable pc
     GADGET_SNAP=$(ls pc_*.snap)
     unsquashfs -no-progress "$GADGET_SNAP"
@@ -27,7 +23,6 @@ prepare: |
     rm -rf squashfs-root
     mv "$GADGET_SNAP" extra-snaps/
 
-    # XXX: pc-kernel initrd fix; this will be removed once initrd changes land
     snap download --channel=18/edge pc-kernel
     KERNEL_SNAP=$(ls pc-kernel_*.snap)
     mv "$KERNEL_SNAP" extra-snaps/
@@ -49,18 +44,12 @@ prepare: |
 
     start_nested_core_vm
 
-kill-timeout: 40m
-
 restore: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
     destroy_nested_vm
     cleanup_nested_env
     rm -rf extra-snaps
-
-debug: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
 
 execute: |
     #shellcheck source=tests/lib/nested.sh

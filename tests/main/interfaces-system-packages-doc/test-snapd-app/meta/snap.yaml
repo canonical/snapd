@@ -1,0 +1,7 @@
+name: test-snapd-app
+version: 1
+architectures: [all]
+apps:
+    sh:
+        command: bin/sh
+        plugs: [system-packages-doc]

@@ -310,6 +310,9 @@ type Assertion interface {
 
 	// Ref returns a reference representing this assertion.
 	Ref() *Ref
+
+	// At returns an AtRevision referencing this assertion at its revision.
+	At() *AtRevision
 }
 
 // customSigner represents an assertion with special arrangements for its signing key (e.g. self-signed), rather than the usual case where an assertion is signed by its authority.
@@ -413,6 +416,11 @@ func (ab *assertionBase) Ref() *Ref {
 		Type:       assertType,
 		PrimaryKey: primKey,
 	}
+}
+
+// At returns an AtRevision referencing this assertion at its revision.
+func (ab *assertionBase) At() *AtRevision {
+	return &AtRevision{Ref: *ab.Ref(), Revision: ab.Revision()}
 }
 
 // sanity check
