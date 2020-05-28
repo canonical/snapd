@@ -70,6 +70,7 @@ get_qemu_for_nested_vm(){
     esac
 }
 
+# shellcheck disable=SC2120
 get_google_image_url_for_nested_vm(){
     case "${1:-$SPREAD_SYSTEM}" in
         ubuntu-16.04-64)
