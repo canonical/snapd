@@ -537,6 +537,11 @@ prepare_suite_each() {
             ;;
     esac
 
+    # See the comment next to another invocation of invariant-tool in
+    # restore_project_each. The description is not repeated here.
+    if pgrep -u root --full  "systemd --user"; then
+        systemctl --user daemon-reload
+    fi
     # Check for invariants late, in order to detect any bugs in the code above.
     invariant-tool check
 }
@@ -599,6 +604,22 @@ restore_suite() {
 }
 
 restore_project_each() {
+    # If the root user has a systemd --user instance then ask it to reload.
+    # This prevents tests from leaking user-session services that stay in
+    # memory but are not present on disk, or have been modified on disk, as is
+    # common with tests that use snaps with user services _or_ with tests that
+    # cause installation of the snapd.session-agent.service unit via re-exec
+    # machinery.
+    #
+    # This is done AHEAD of the invariant checks as it is very widespread
+    # and fixing it in each test is not a priority right now.
+    #
+    # Note that similar treatment is not required for the "test" user as
+    # correct usage of session-tool ensures that the session and all the
+    # processes of the "test" user are terminated.
+    if pgrep -u root --full "systemd --user"; then
+        systemctl --user daemon-reload
+    fi
     # Check for invariants early, in order not to mask bugs in tests.
     invariant-tool check
 

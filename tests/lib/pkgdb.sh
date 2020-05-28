@@ -660,6 +660,9 @@ pkg_dependencies_ubuntu_classic(){
             ;;
         debian-*)
             echo "
+                autopkgtest
+                debootstrap
+                dbus-user-session
                 eatmydata
                 evolution-data-server
                 fwupd
@@ -669,7 +672,7 @@ pkg_dependencies_ubuntu_classic(){
                 net-tools
                 packagekit
                 sbuild
-                dbus-user-session
+                schroot
                 "
             ;;
     esac

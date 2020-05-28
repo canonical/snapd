@@ -14,6 +14,10 @@ prepare: |
     # Install pulseaudio.
     apt-get update
     apt-get install -y pulseaudio pulseaudio-utils
+    # Remove the package and reload systemd later, when we are restoring. This
+    # is important because of rtkit-daemon.service that gets pulled by
+    # pulseaudio and that is subsequently removed.
+    echo "systemctl daemon-reload" >>defer.sh
     echo "apt-get autoremove --purge -y pulseaudio pulseaudio-utils" >>defer.sh
 
     # Make sure the socket and the server is available in the user session.
