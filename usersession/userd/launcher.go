@@ -53,7 +53,7 @@ const launcherIntrospectionXML = `
 		<arg type='s' name='url' direction='in'/>
 	</method>
 	<method name='OpenDesktopEntryEnv'>
-		<arg type='s' name='desktop_file_id' direction='in'/>
+		<arg type='s' name='desktopFileID' direction='in'/>
 		<arg type='as' name='env' direction='in'/>
 	</method>
 	<method name="OpenFile">
@@ -131,15 +131,15 @@ func (s *Launcher) OpenURL(addr string, sender dbus.Sender) *dbus.Error {
 }
 
 // OpenDesktopEntryEnv implements the 'OpenDesktopEntryEnv' method of the 'io.snapcraft.Launcher'
-// DBus interface. The desktop_file_id is described here:
+// DBus interface. The desktopFileID is described here:
 // https://standards.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#desktop-file-id
-func (s *Launcher) OpenDesktopEntryEnv(desktop_file_id string, env []string, sender dbus.Sender) *dbus.Error {
-	desktop_file, err := desktopFileIdToFilename(existsOnFileSystem, desktop_file_id)
+func (s *Launcher) OpenDesktopEntryEnv(desktopFileID string, env []string, sender dbus.Sender) *dbus.Error {
+	desktopFile, err := desktopFileIDToFilename(existsOnFileSystem, desktopFileID)
 	if err != nil {
 		return dbus.MakeFailedError(err)
 	}
 
-	exec_command, err := readExecCommandFromDesktopFile(desktop_file)
+	exec_command, err := readExecCommandFromDesktopFile(desktopFile)
 	if err != nil {
 		return dbus.MakeFailedError(err)
 	}
@@ -176,52 +176,52 @@ func (s *Launcher) OpenDesktopEntryEnv(desktop_file_id string, env []string, sen
 
 type fileExists func(string) bool
 
-func existsOnFileSystem(desktop_file string) bool {
-	fileStat, err := os.Stat(desktop_file)
+func existsOnFileSystem(desktopFile string) bool {
+	fileStat, err := os.Stat(desktopFile)
 
 	return err == nil && !fileStat.IsDir()
 }
 
 // findDesktopFile recursively tries each subdirectory that can be formed from the (split) desktop file ID.
-func findDesktopFile(desktop_file_exists fileExists, base_dir string, splitFileId []string) *string {
-	desktop_file := filepath.Join(base_dir, strings.Join(splitFileId, "-"))
+func findDesktopFile(desktopFile_exists fileExists, base_dir string, splitFileId []string) *string {
+	desktopFile := filepath.Join(base_dir, strings.Join(splitFileId, "-"))
 
-	if desktop_file_exists(desktop_file) {
-		return &desktop_file
+	if desktopFile_exists(desktopFile) {
+		return &desktopFile
 	}
 
 	// Iterate through the potential subdirectories formed by the first i elements of the desktop file ID
 	for i := 1; i != len(splitFileId); i++ {
-		desktop_file := findDesktopFile(desktop_file_exists, filepath.Join(base_dir, strings.Join(splitFileId[:i], "-")), splitFileId[i:])
-		if desktop_file != nil {
-			return desktop_file
+		desktopFile := findDesktopFile(desktopFile_exists, filepath.Join(base_dir, strings.Join(splitFileId[:i], "-")), splitFileId[i:])
+		if desktopFile != nil {
+			return desktopFile
 		}
 	}
 
 	return nil
 }
 
-// desktopFileIdToFilename determines the path associated with a desktop file ID.
-func desktopFileIdToFilename(desktop_file_exists fileExists, desktop_file_id string) (string, error) {
+// desktopFileIDToFilename determines the path associated with a desktop file ID.
+func desktopFileIDToFilename(desktopFile_exists fileExists, desktopFileID string) (string, error) {
 
 	// Currently the caller only has access to /var/lib/snapd/desktop/applications/, so we just look there
 	// and ignore https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
 	base_dir := dirs.SnapDesktopFilesDir
 
-	desktop_file := findDesktopFile(desktop_file_exists, base_dir, strings.Split(desktop_file_id, "-"))
+	desktopFile := findDesktopFile(desktopFile_exists, base_dir, strings.Split(desktopFileID, "-"))
 
-	if desktop_file != nil {
-		return *desktop_file, nil
+	if desktopFile != nil {
+		return *desktopFile, nil
 	}
 
-	return "", fmt.Errorf("cannot find desktop file for %q", desktop_file_id)
+	return "", fmt.Errorf("cannot find desktop file for %q", desktopFileID)
 }
 
 // readExecCommandFromDesktopFile parses the desktop file to get the Exec entry.
-func readExecCommandFromDesktopFile(desktop_file string) (string, error) {
+func readExecCommandFromDesktopFile(desktopFile string) (string, error) {
 	var launch string
 
-	file, err := os.Open(desktop_file)
+	file, err := os.Open(desktopFile)
 	if err != nil {
 		return launch, err
 	}
