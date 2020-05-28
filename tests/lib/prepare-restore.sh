@@ -500,6 +500,8 @@ install_snap_profiler(){
 }
 
 prepare_suite_each() {
+    local variant="$1"
+
     # back test directory to be restored during the restore
     tar cf "${PWD}.tar" "$PWD"
 
@@ -510,8 +512,10 @@ prepare_suite_each() {
 
     # save the job which is going to be executed in the system
     echo -n "$SPREAD_JOB " >> "$RUNTIME_STATE_PATH/runs"
-    # shellcheck source=tests/lib/reset.sh
-    "$TESTSLIB"/reset.sh --reuse-core
+    if [[ "$variant" = full ]]; then
+        # shellcheck source=tests/lib/reset.sh
+        "$TESTSLIB"/reset.sh --reuse-core
+    fi
     # Restart journal log and reset systemd journal cursor.
     if ! systemctl restart systemd-journald.service; then
         systemctl status systemd-journald.service || true
@@ -520,13 +524,15 @@ prepare_suite_each() {
     fi
     start_new_journalctl_log
 
-    echo "Install the snaps profiler snap"
-    install_snap_profiler
+    if [[ "$variant" = full ]]; then
+        echo "Install the snaps profiler snap"
+        install_snap_profiler
 
-    # shellcheck source=tests/lib/prepare.sh
-    . "$TESTSLIB"/prepare.sh
-    if is_classic_system; then
-        prepare_each_classic
+        # shellcheck source=tests/lib/prepare.sh
+        . "$TESTSLIB"/prepare.sh
+        if is_classic_system; then
+            prepare_each_classic
+        fi
     fi
     # Check if journalctl is ready to run the test
     check_journalctl_ready
@@ -538,10 +544,14 @@ prepare_suite_each() {
     esac
 
     # Check for invariants late, in order to detect any bugs in the code above.
-    invariant-tool check
+    if [[ "$variant" = full ]]; then
+        invariant-tool check
+    fi
 }
 
 restore_suite_each() {
+    local variant="$1"
+
     rm -f "$RUNTIME_STATE_PATH/audit-stamp"
 
     # restore test directory saved during prepare
@@ -551,7 +561,7 @@ restore_suite_each() {
         rm -rf "${PWD}.tar"
     fi
 
-    if [ "$PROFILE_SNAPS" = 1 ]; then
+    if [[ "$variant" = full && "$PROFILE_SNAPS" = 1 ]]; then
         echo "Save snaps profiler log"
         local logs_id logs_dir logs_file
         logs_dir="$RUNTIME_STATE_PATH/logs"
@@ -579,9 +589,11 @@ restore_suite_each() {
         sleep 1
     done
 
-    # reset the failed status of snapd, snapd.socket, and snapd.failure.socket
-    # to prevent hitting the system restart rate-limit for these services
-    systemctl reset-failed snapd.service snapd.socket snapd.failure.service
+    if [[ "$variant" = full ]]; then
+        # reset the failed status of snapd, snapd.socket, and snapd.failure.socket
+        # to prevent hitting the system restart rate-limit for these services
+        systemctl reset-failed snapd.service snapd.socket snapd.failure.service
+    fi
 }
 
 restore_suite() {
@@ -698,10 +710,16 @@ case "$1" in
         prepare_suite
         ;;
     --prepare-suite-each)
-        prepare_suite_each
+        prepare_suite_each full
+        ;;
+    --prepare-suite-each-minimal-no-snaps)
+        prepare_suite_each minimal-no-snaps
         ;;
     --restore-suite-each)
-        restore_suite_each
+        restore_suite_each full
+        ;;
+    --restore-suite-each-minimal-no-snaps)
+        restore_suite_each minimal-no-snaps
         ;;
     --restore-suite)
         restore_suite
@@ -714,7 +732,7 @@ case "$1" in
         ;;
     *)
         echo "unsupported argument: $1"
-        echo "try one of --{prepare,restore}-{project,suite}{,-each}"
+        echo "try one of --{prepare,restore}-{project,suite}{,-each} or --{prepare,restore}-suite-each-minimal-no-snaps"
         exit 1
         ;;
 esac
