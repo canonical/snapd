@@ -33,18 +33,26 @@ import (
 // filesystem label, and populates it with the contents of provided root
 // directory.
 func MkfsExt4(img, label, contentsRootDir string) error {
+	return mkfsExt4(img, label, contentsRootDir)
+}
+
+// mkfsExt4WithoutMetadataChecksum also creates an EXT4 filesystem in given image
+// file, but using checksum protection for block group descriptors instead of
+// metadata checksum.
+func MkfsExt4WithoutMetadataChecksum(img, label, contentsRootDir string) error {
+	// disable metadata checksum, which were unsupported in Ubuntu 16.04 and
+	// Ubuntu Core 16 systems and would lead to a boot failure if enabled
+	return mkfsExt4(img, label, contentsRootDir, "-O", "-metadata_csum", "-O", "uninit_bg")
+}
+
+func mkfsExt4(img, label, contentsRootDir string, options ...string) error {
 	// taken from ubuntu-image
-	mkfsArgs := []string{
+	mkfsArgs := append([]string{
 		"mkfs.ext4",
 		// default usage type
 		"-T", "default",
-		// disable metadata checksum, which were unsupported in Ubuntu
-		// 16.04 and Ubuntu Core 16 systems and would lead to a boot
-		// failure if enabled
-		"-O", "-metadata_csum",
-		// allow uninitialized block groups
-		"-O", "uninit_bg",
-	}
+	}, options...)
+
 	if contentsRootDir != "" {
 		// mkfs.ext4 can populate the filesystem with contents of given
 		// root directory
