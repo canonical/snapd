@@ -163,6 +163,9 @@ func cryptsetupClose(name string) error {
 func cryptsetupAddKey(key EncryptionKey, rkey RecoveryKey, node string) error {
 	// create a named pipe to pass the recovery key
 	fpath := filepath.Join(dirs.SnapRunDir, "tmp-rkey")
+	if err := os.MkdirAll(dirs.SnapRunDir, 0755); err != nil {
+		return err
+	}
 	if err := syscall.Mkfifo(fpath, 0600); err != nil {
 		return fmt.Errorf("cannot create named pipe: %v", err)
 	}

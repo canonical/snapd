@@ -37,6 +37,10 @@ architecture: amd64
 base: core18
 gadget: pc=18
 kernel: pc-kernel=18
+store: mememestore
+system-user-authority:
+  - youyouyou
+  - mememe
 required-snaps:
   - core
   - hello-world
@@ -65,6 +69,10 @@ display-name: Model Name
 base: core18
 gadget: pc=18
 kernel: pc-kernel=18
+store: mememestore
+system-user-authority:
+  - youyouyou
+  - mememe
 required-snaps:
   - core
   - hello-world
@@ -314,13 +322,17 @@ func (s *SnapSuite) TestModelVerbose(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `
-brand-id:        mememe
-model:           test-model
-serial:          serialserial
-architecture:    amd64
-base:            core18
-gadget:          pc=18
-kernel:          pc-kernel=18
+brand-id:               mememe
+model:                  test-model
+serial:                 serialserial
+architecture:           amd64
+base:                   core18
+gadget:                 pc=18
+kernel:                 pc-kernel=18
+store:                  mememestore
+system-user-authority:  
+  - youyouyou
+  - mememe
 timestamp:       2017-07-27T00:00:00Z
 required-snaps:  
   - core
@@ -341,14 +353,18 @@ func (s *SnapSuite) TestModelVerboseDisplayName(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `
-brand-id:        mememe
-model:           test-model
-serial:          serialserial
-architecture:    amd64
-base:            core18
-display-name:    Model Name
-gadget:          pc=18
-kernel:          pc-kernel=18
+brand-id:               mememe
+model:                  test-model
+serial:                 serialserial
+architecture:           amd64
+base:                   core18
+display-name:           Model Name
+gadget:                 pc=18
+kernel:                 pc-kernel=18
+store:                  mememestore
+system-user-authority:  
+  - youyouyou
+  - mememe
 timestamp:       2017-07-27T00:00:00Z
 required-snaps:  
   - core
@@ -369,13 +385,17 @@ func (s *SnapSuite) TestModelVerboseNoSerialYet(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `
-brand-id:        mememe
-model:           test-model
-serial:          -- (device not registered yet)
-architecture:    amd64
-base:            core18
-gadget:          pc=18
-kernel:          pc-kernel=18
+brand-id:               mememe
+model:                  test-model
+serial:                 -- (device not registered yet)
+architecture:           amd64
+base:                   core18
+gadget:                 pc=18
+kernel:                 pc-kernel=18
+store:                  mememestore
+system-user-authority:  
+  - youyouyou
+  - mememe
 timestamp:       2017-07-27T00:00:00Z
 required-snaps:  
   - core

@@ -70,8 +70,9 @@ get_qemu_for_nested_vm(){
     esac
 }
 
+# shellcheck disable=SC2120
 get_google_image_url_for_nested_vm(){
-    case "$SPREAD_SYSTEM" in
+    case "${1:-$SPREAD_SYSTEM}" in
         ubuntu-16.04-64)
             echo "https://storage.googleapis.com/spread-snapd-tests/images/cloudimg/xenial-server-cloudimg-amd64-disk1.img"
             ;;
@@ -355,6 +356,10 @@ configure_cloud_init_nested_core_vm_uc20(){
     mkdir -p "$tmp/data/etc/cloud/cloud.cfg.d/"
     cp -f "$WORK_DIR/data.cfg" "$tmp/data/etc/cloud/cloud.cfg.d/"
     umount "$tmp"
+}
+
+get_nested_core_image_path(){
+    echo "$WORK_DIR/image/ubuntu-core.img"
 }
 
 start_nested_core_vm(){

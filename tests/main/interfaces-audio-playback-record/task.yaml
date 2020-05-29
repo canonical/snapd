@@ -2,7 +2,7 @@ summary: Ensure that the audio-playback/record interface works
 
 # Only classic Ubuntu has the pulseaudio mediation patches. Ubuntu 14.04 is unsupported on the desktop.
 # TODO: extend session-tool and run this test on 14.04 as well.
-systems: [ubuntu-16.04-*, ubuntu-18.04-*, ubuntu-19.10-*, ubuntu-20.04-*]
+systems: [ubuntu-16.04-*, ubuntu-18.04-*, ubuntu-19.10-*, ubuntu-2*]
 
 environment:
     PLAY_FILE: "/snap/test-snapd-audio-record/current/usr/share/sounds/alsa/Noise.wav"
@@ -16,6 +16,10 @@ prepare: |
     # Install pulseaudio.
     apt-get update
     apt-get install -y pulseaudio pulseaudio-utils
+    # Remove the package and reload systemd later, when we are restoring. This
+    # is important because of rtkit-daemon.service that gets pulled by
+    # pulseaudio and that is subsequently removed.
+    echo "systemctl daemon-reload" >>defer.sh
     echo "apt-get autoremove --purge -y pulseaudio pulseaudio-utils" >>defer.sh
 
     # Make sure the socket and the server is available in the user session.
