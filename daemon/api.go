@@ -2446,7 +2446,8 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 	st.Lock()
 	defer st.Unlock()
-	// names can be snap or snap.app
+	// names received in the request can be snap or snap.app, we need to
+	// extract the actual snap names before associating them with a change
 	chg := newChange(st, "service-control", fmt.Sprintf("Running service command"), tss, namesToSnapNames(&inst))
 	st.EnsureBefore(0)
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
