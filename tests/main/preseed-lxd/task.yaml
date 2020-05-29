@@ -63,6 +63,9 @@ execute: |
   lxd init --auto
 
   lxc launch "ubuntu:20.04" my-ubuntu
+
+  # use a privileged and unconfined lxd container that is close to launchpad
+  # builders configuration; this is required for mounting inside the container.
   # based on lxd config created by https://git.launchpad.net/launchpad-buildd/tree/lpbuildd/target/lxd.py
   lxc config set my-ubuntu security.privileged true
   lxc config set my-ubuntu security.nesting true
@@ -92,9 +95,9 @@ execute: |
   echo "Sanity check of mount units"
   # preseeded image is mounted on the host, so we can directly inspect
   # preseeding artifacts.
-  MATCH squashf < "$IMAGE_MOUNTPOINT"/etc/systemd/system/snap-lxd-*.mount
-  MATCH squashf < "$IMAGE_MOUNTPOINT"/etc/systemd/system/snap-snapd-*.mount
-  MATCH squashf < "$IMAGE_MOUNTPOINT"/etc/systemd/system/snap-core18-*.mount
+  MATCH "Type=squashfs$" < "$IMAGE_MOUNTPOINT"/etc/systemd/system/snap-lxd-*.mount
+  MATCH "Type=squashfs$" < "$IMAGE_MOUNTPOINT"/etc/systemd/system/snap-snapd-*.mount
+  MATCH "Type=squashfs$" < "$IMAGE_MOUNTPOINT"/etc/systemd/system/snap-core18-*.mount
 
   snap debug state "$IMAGE_MOUNTPOINT"/var/lib/snapd/state.json --change=1 > tasks.log
 
