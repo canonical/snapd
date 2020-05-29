@@ -53,7 +53,8 @@ if [ ! -e "$app_dev_cgroup" ]; then
 fi
 
 # check if it's a block or char dev
-if [ "${DEVPATH#*/block/}" != "$DEVPATH" ]; then
+# all non-block and non-nvme devices are considered character devices
+if [ "${DEVPATH#*/block/}" != "$DEVPATH" ] || [ "${DEVPATH#*/nvme/}" != "$DEVPATH" ]; then
     type="b"
 else
     type="c"
