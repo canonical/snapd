@@ -543,13 +543,9 @@ prepare_suite_each() {
             ;;
     esac
 
-    # See the comment next to another invocation of invariant-tool in
-    # restore_project_each. The description is not repeated here.
-    if pgrep -u root --full  "systemd --user"; then
-        systemctl --user daemon-reload
-    fi
     # Check for invariants late, in order to detect any bugs in the code above.
     if [[ "$variant" = full ]]; then
+        "$TESTSTOOLS"/cleanup-state pre-invariant
         invariant-tool check
     fi
 }
@@ -616,27 +612,15 @@ restore_suite() {
 }
 
 restore_project_each() {
-    # If the root user has a systemd --user instance then ask it to reload.
-    # This prevents tests from leaking user-session services that stay in
-    # memory but are not present on disk, or have been modified on disk, as is
-    # common with tests that use snaps with user services _or_ with tests that
-    # cause installation of the snapd.session-agent.service unit via re-exec
-    # machinery.
-    #
-    # This is done AHEAD of the invariant checks as it is very widespread
-    # and fixing it in each test is not a priority right now.
-    #
-    # Note that similar treatment is not required for the "test" user as
-    # correct usage of session-tool ensures that the session and all the
-    # processes of the "test" user are terminated.
-    if pgrep -u root --full "systemd --user"; then
-        systemctl --user daemon-reload
-    fi
+    "$TESTSTOOLS"/cleanup-state pre-invariant
     # Check for invariants early, in order not to mask bugs in tests.
     invariant-tool check
+    "$TESTSTOOLS"/cleanup-state post-invariant
 
+    # TODO: move this to tests.cleanup.
     restore_dev_random
 
+    # TODO: move this to tests.invariant.
     # Udev rules are notoriously hard to write and seemingly correct but subtly
     # wrong rules can pass review. Whenever that happens udev logs an error
     # message. As a last resort from lack of a better mechanism we can try to
@@ -646,6 +630,7 @@ restore_project_each() {
         exit 1
     fi
 
+    # TODO: move this to tests.invariant.
     # Check if the OOM killer got invoked - if that is the case our tests
     # will most likely not function correctly anymore. It looks like this
     # happens with: https://forum.snapcraft.io/t/4101 and is a source of
@@ -659,6 +644,7 @@ restore_project_each() {
         exit 1
     fi
 
+    # TODO: move this to tests.invariant.
     # check if there is a shutdown pending, no test should trigger this
     # and it leads to very confusing test failures
     if [ -e /run/systemd/shutdown/scheduled ]; then
@@ -667,6 +653,7 @@ restore_project_each() {
         exit 1
     fi
 
+    # TODO: move this to tests.invariant.
     # Check for kernel oops during the tests
     if dmesg|grep "Oops: "; then
         echo "A kernel oops happened during the tests, test results will be unreliable"
@@ -675,6 +662,7 @@ restore_project_each() {
         exit 1
     fi
 
+    # TODO: move this to tests.invariant.
     if getent passwd snap_daemon; then
         echo "Test left the snap_daemon user behind, this should not happen"
         exit 1
@@ -684,13 +672,16 @@ restore_project_each() {
         exit 1
     fi
 
+    # TODO: move this to tests.invariant.
     # Something is hosing the filesystem so look for signs of that
     not grep -F "//deleted /etc" /proc/self/mountinfo
 
+    # TODO: move this to tests.invariant.
     if journalctl -u snapd.service | grep -F "signal: terminated"; then
         exit 1;
     fi
 
+    # TODO: move this to tests.invariant.
     case "$SPREAD_SYSTEM" in
         fedora-*|centos-*)
             # Make sure that we are not leaving behind incorrectly labeled snap
