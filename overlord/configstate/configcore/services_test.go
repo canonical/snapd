@@ -56,12 +56,20 @@ func (s *servicesSuite) TearDownTest(c *C) {
 }
 
 func (s *servicesSuite) TestConfigureServiceInvalidValue(c *C) {
-	err := configcore.SwitchDisableService("ssh.service", "xxx", nil)
-	c.Check(err, ErrorMatches, `option "ssh.service" has invalid value "xxx"`)
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	err := configcore.Run(&mockConf{
+		state: s.state,
+		changes: map[string]interface{}{
+			"service.ssh.disable": "xxx",
+		},
+	})
+	c.Check(err, ErrorMatches, `option "service.ssh.disable" has invalid value "xxx"`)
 }
 
 func (s *servicesSuite) TestConfigureServiceNotDisabled(c *C) {
-	err := configcore.SwitchDisableService("sshd.service", "false", nil)
+	err := configcore.SwitchDisableService("sshd.service", false, nil)
 	c.Assert(err, IsNil)
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
 		{"--root", dirs.GlobalRootDir, "unmask", "sshd.service"},
@@ -71,7 +79,7 @@ func (s *servicesSuite) TestConfigureServiceNotDisabled(c *C) {
 }
 
 func (s *servicesSuite) TestConfigureServiceDisabled(c *C) {
-	err := configcore.SwitchDisableService("sshd.service", "true", nil)
+	err := configcore.SwitchDisableService("sshd.service", true, nil)
 	c.Assert(err, IsNil)
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
 		{"--root", dirs.GlobalRootDir, "disable", "sshd.service"},

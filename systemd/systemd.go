@@ -222,6 +222,8 @@ type Systemd interface {
 	Kill(service, signal, who string) error
 	// Restart the service, waiting for it to stop before starting it again.
 	Restart(service string, timeout time.Duration) error
+	// Reload or restart the service via 'systemctl reload-or-restart'
+	ReloadOrRestart(service string) error
 	// RestartAll restarts the given service using systemctl restart --all
 	RestartAll(service string) error
 	// Status fetches the status of given units. Statuses are
@@ -863,4 +865,12 @@ func (s *systemd) RemoveMountUnitFile(mountedDir string) error {
 	}
 
 	return nil
+}
+
+func (s *systemd) ReloadOrRestart(serviceName string) error {
+	if s.mode == GlobalUserMode {
+		panic("cannot call restart with GlobalUserMode")
+	}
+	_, err := s.systemctl("reload-or-restart", serviceName)
+	return err
 }
