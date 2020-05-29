@@ -19,7 +19,11 @@
 
 package sysconfig
 
-import "path/filepath"
+import (
+	"path/filepath"
+
+	"github.com/snapcore/snapd/gadget"
+)
 
 // See https://github.com/snapcore/core20/pull/46
 const writableDefaultsDir = "_writable_defaults"
@@ -35,6 +39,25 @@ type Options struct {
 	// data, i.e. for cloud-init during the initramfs it will be something like
 	// boot.InstallHostWritableDir
 	TargetRootDir string
+
+	// GadgetDir is the path of the mounted gadget snap.
+	GadgetDir string
+}
+
+type FilesystemOnlyApplyOptions struct {
+	// Classic is true when the system in rootdir is a classic system
+	Classic bool
+}
+
+// ConfigcoreFilesystemOnlyApplyImpl is initialized by init() of configcore.
+var ConfigcoreFilesystemOnlyApplyImpl = func(rootDir string, defaults map[string]interface{}, options *FilesystemOnlyApplyOptions) error {
+	panic("configcoreFilesystemOnlyApply not set")
+}
+
+// filesystemOnlyApply applies filesystem modifications under rootDir via
+// configcore.filesystemOnlyApply().
+func ConfigcoreFilesystemOnlyApply(rootDir string, defaults map[string]interface{}, options *FilesystemOnlyApplyOptions) error {
+	return ConfigcoreFilesystemOnlyApplyImpl(rootDir, defaults, options)
 }
 
 // ConfigureRunSystem configures the ubuntu-data partition with any
@@ -42,6 +65,21 @@ type Options struct {
 func ConfigureRunSystem(opts *Options) error {
 	if err := configureCloudInit(opts); err != nil {
 		return err
+	}
+
+	if opts.GadgetDir != "" {
+		ginf, err := gadget.ReadInfo(opts.GadgetDir, nil)
+		if err != nil {
+			return err
+		}
+		defaults := gadget.SystemDefaults(ginf.Defaults)
+		if len(defaults) > 0 {
+			// options are nil which implies core system
+			var options *FilesystemOnlyApplyOptions
+			if err := ConfigcoreFilesystemOnlyApply(WritableDefaultsDir(opts.TargetRootDir), defaults, options); err != nil {
+				return err
+			}
+		}
 	}
 
 	return nil

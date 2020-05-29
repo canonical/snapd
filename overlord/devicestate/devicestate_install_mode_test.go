@@ -451,7 +451,10 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeRunSysconfig(c *C) {
 
 	// and sysconfig.ConfigureRunSystem was run exactly once
 	c.Assert(s.configureRunSystemOptsPassed, DeepEquals, []*sysconfig.Options{
-		{TargetRootDir: boot.InstallHostWritableDir},
+		{
+			TargetRootDir: boot.InstallHostWritableDir,
+			GadgetDir:     filepath.Join(dirs.SnapMountDir, "pc/1/"),
+		},
 	})
 }
 
@@ -468,7 +471,10 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeRunSysconfigErr(c *C) {
 - Setup system for run mode \(error from sysconfig.ConfigureRunSystem\)`)
 	// and sysconfig.ConfigureRunSystem was run exactly once
 	c.Assert(s.configureRunSystemOptsPassed, DeepEquals, []*sysconfig.Options{
-		{TargetRootDir: boot.InstallHostWritableDir},
+		{
+			TargetRootDir: boot.InstallHostWritableDir,
+			GadgetDir:     filepath.Join(dirs.SnapMountDir, "pc/1/"),
+		},
 	})
 }
 
@@ -489,6 +495,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeSupportsCloudInitInDangerous(
 		{
 			CloudInitSrcDir: filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d"),
 			TargetRootDir:   boot.InstallHostWritableDir,
+			GadgetDir:       filepath.Join(dirs.SnapMountDir, "pc/1/"),
 		},
 	})
 }
@@ -508,7 +515,10 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeNoCloudInitForSigned(c *C) {
 
 	// so no cloud-init src dir is passed
 	c.Assert(s.configureRunSystemOptsPassed, DeepEquals, []*sysconfig.Options{
-		{TargetRootDir: boot.InstallHostWritableDir},
+		{
+			TargetRootDir: boot.InstallHostWritableDir,
+			GadgetDir:     filepath.Join(dirs.SnapMountDir, "pc/1/"),
+		},
 	})
 }
 
@@ -538,59 +548,8 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeSupportsCloudInitFromGadgetNo
 		TargetRootDir: boot.InstallHostWritableDir,
 		// not set
 		CloudInitSrcDir: "",
+		GadgetDir:       filepath.Join(dirs.SnapMountDir, "pc/1/"),
 	})
-}
-
-func (s *deviceMgrInstallModeSuite) TestInstallModeAppliesEarlyDefaultsFromGadget(c *C) {
-	const gadgetDefaults = `
-defaults:
-  system:
-    service:
-      rsyslog.disable: true
-      ssh.disable: true
-    journal.persistent: true
-`
-
-	rsyslogServiceFile := filepath.Join(boot.InitramfsWritableDir, "_writable_defaults/etc/systemd/system/rsyslog.service")
-	journalPath := filepath.Join(boot.InitramfsWritableDir, "_writable_defaults/var/log/journal")
-	sshDontRunFile := filepath.Join(boot.InitramfsWritableDir, "_writable_defaults/etc/ssh/sshd_not_to_be_run")
-
-	// sanity
-	c.Check(osutil.FileExists(rsyslogServiceFile), Equals, false)
-	c.Check(osutil.FileExists(sshDontRunFile), Equals, false)
-	exists, _, _ := osutil.DirExists(journalPath)
-	c.Check(exists, Equals, false)
-
-	s.mockInstallModeChange(c, "signed", gadgetDefaults)
-
-	c.Check(osutil.FileExists(rsyslogServiceFile), Equals, true)
-	c.Check(osutil.IsSymlink(rsyslogServiceFile), Equals, true)
-	c.Check(osutil.FileExists(sshDontRunFile), Equals, true)
-	exists, _, _ = osutil.DirExists(journalPath)
-	c.Check(exists, Equals, true)
-}
-
-func (s *deviceMgrInstallModeSuite) TestInstallModeEarlyDefaultsFromGadgetInvalid(c *C) {
-	const gadgetDefaults = `
-defaults:
-  system:
-    service:
-      rsyslog:
-        disable: foo
-`
-
-	s.mockInstallModeChange(c, "signed", gadgetDefaults)
-
-	path := filepath.Join(boot.InitramfsWritableDir, "_writable_defaults/etc/systemd/system/rsyslog.service")
-	c.Check(osutil.FileExists(path), Equals, false)
-
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	// install failed due to invalid defaults
-	installSystem := s.findInstallSystem()
-	c.Assert(installSystem, NotNil)
-	c.Check(installSystem.Err(), ErrorMatches, `.*\n.*Setup system for run mode \(option "rsyslog.service" has invalid value "foo".*`)
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallModeWritesModel(c *C) {

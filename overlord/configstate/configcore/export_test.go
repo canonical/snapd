@@ -28,6 +28,7 @@ var (
 	UpdateKeyValueStream = updateKeyValueStream
 	AddFSOnlyHandler     = addFSOnlyHandler
 	AddWithStateHandler  = addWithStateHandler
+	FilesystemOnlyApply  = filesystemOnlyApply
 )
 
 func MockFindGid(f func(string) (uint64, error)) func() {
