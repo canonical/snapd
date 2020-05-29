@@ -97,7 +97,7 @@ execute: |
         --model <(snap model --assertion) \
         ./gadget-dir "$LOOP"
     # keep for later
-    cp -a /run/mnt/ubuntu-seed/keyfile /run/mnt/ubuntu-seed/keyfile.$SPREAD_REBOOT
+    cp -a /run/mnt/ubuntu-seed/keyfile "/run/mnt/ubuntu-seed/keyfile.$SPREAD_REBOOT"
 
     echo "Check that the key file was created"
     test "$(stat --printf=%s /run/mnt/ubuntu-seed/keyfile)" -ge 1000
