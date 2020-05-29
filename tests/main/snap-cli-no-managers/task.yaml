@@ -3,13 +3,20 @@ description: |
   This test checks that snap binary does not import snapstate when built
   with -tags nomanagers.
 
-# XXX: enable on all systems once nomanagers tag is applied during packaging.
-systems: [ubuntu-1*, ubuntu-2*]
+systems: [-ubuntu-core-*]
 
 execute: |
-  # XXX: just check /usr/bin/snap when packaging handles 'nomanagers' tag.
-  go build -tags nomanagers -o snap-test github.com/snapcore/snapd/cmd/snap
-  if strings snap-test | MATCH "overlord/snapstate"; then
-    echo "snap binary should not import overlord/snapstate"
-    exit 1
+  check_imports() {
+    local BINFILE="$1"
+    if strings "$BINFILE" | MATCH "overlord/snapstate"; then
+      echo "$BINFILE binary should not import overlord/snapstate"
+      exit 1
+    fi
+  }
+
+  check_imports /usr/bin/snap
+
+  # snap-bootstrap is shipped only on ubuntu (except for 14.04)
+  if [[ "$SPREAD_SYSTEM" = ubuntu-2* ]] ||  [[ "$SPREAD_SYSTEM" = ubuntu-18.04-* ]] || [[ "$SPREAD_SYSTEM" = ubuntu-16.04-* ]]; then
+    check_imports /usr/lib/snapd/snap-bootstrap
   fi

@@ -8,7 +8,8 @@ summary: Ensure that the calendar-service interface works
 # ubuntu-19.10+: test-snapd-eds is incompatible with eds version shipped with the distro
 # arch-linux: test-snapd-eds is incompatible with eds version shipped with the distro
 # fedora-31: test-snapd-eds is incompatible with eds version shipped with the distro
-systems: [-ubuntu-core-*, -ubuntu-14.04-*, -amazon-*, -centos-*, -opensuse-tumbleweed-*, -ubuntu-19.10-*, -ubuntu-20.04-*, -arch-linux-*, -debian-sid-*, -fedora-31-*]
+# fedora-32: test-snapd-eds is incompatible with eds version shipped with the distro
+systems: [-ubuntu-core-*, -ubuntu-14.04-*, -amazon-*, -centos-*, -opensuse-tumbleweed-*, -ubuntu-19.10-*, -ubuntu-2*, -arch-linux-*, -debian-sid-*, -fedora-31-*, -fedora-32-*]
 
 # fails in the autopkgtest env with:
 # [Wed Aug 15 16:34:12 2018] audit: type=1400

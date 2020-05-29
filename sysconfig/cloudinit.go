@@ -29,7 +29,7 @@ import (
 )
 
 func ubuntuDataCloudDir(rootdir string) string {
-	return filepath.Join(rootdir, writableDefaultsDir, "etc/cloud/")
+	return WritableDefaultsDir(rootdir, "etc/cloud/")
 }
 
 func DisableCloudInit(targetdir string) error {
@@ -66,9 +66,8 @@ func installCloudInitCfg(src, targetdir string) error {
 	return nil
 }
 
-// disable cloud-init by default (as it's not confined)
-// TODO:UC20: - allow cloud.cfg.d (with whitelisted keys) for non
-//              grade dangerous systems
+// TODO:UC20: - allow cloud.conf coming from the gadget
+//            - think about if/what cloud-init means on "secured" models
 func configureCloudInit(opts *Options) (err error) {
 	if opts.TargetRootDir == "" {
 		return fmt.Errorf("unable to configure cloud-init, missing target dir")
@@ -76,6 +75,7 @@ func configureCloudInit(opts *Options) (err error) {
 
 	switch opts.CloudInitSrcDir {
 	case "":
+		// disable cloud-init by default (as it's not confined)
 		err = DisableCloudInit(opts.TargetRootDir)
 	default:
 		err = installCloudInitCfg(opts.CloudInitSrcDir, opts.TargetRootDir)
