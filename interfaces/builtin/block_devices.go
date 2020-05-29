@@ -59,9 +59,26 @@ const blockDevicesConnectedPlugAppArmor = `
 /dev/i2o/hd{,[a-c]}[a-z] rw,                              # I2O hard disk
 /dev/i2o/hdd[a-x] rw,                                     # I2O hard disk continued
 /dev/mmcblk[0-9]{,[0-9],[0-9][0-9]} rw,                   # MMC (up to 1000 devices)
-/dev/nvme{[0-9],[1-9][0-9]} rw,                           # NVMe (up to 100 devices)
-/dev/nvme{[0-9],[1-9][0-9]}n{[1-9],[1-5][0-9],6[0-3]} rw, # NVMe (up to 100 devices, with 1-63 namespaces)
 /dev/vd[a-z] rw,                                          # virtio
+
+# Allow /dev/nvmeXnY namespace block devices. Please note this grants access to all
+# NVMe namespace block devices and that the numeric suffix on the character device
+# does not necessarily correspond to a namespace block device with the same suffix
+# From 'man nvme-format' : 
+#   Note, the numeric suffix on the character device, for example the 0 in
+#   /dev/nvme0, does NOT indicate this device handle is the parent controller
+#   of any namespaces with the same suffix. The namespace handle’s numeral may
+#   be coming from the subsystem identifier, which is independent of the
+#   controller’s identifier. Do not assume any particular device relationship
+#   based on their names. If you do, you may irrevocably erase data on an
+#   unintended device.
+/dev/nvme{[0-9],[1-9][0-9]}n{[1-9],[1-5][0-9],6[0-3]} rw, # NVMe (up to 100 devices, with 1-63 namespaces)
+
+# Allow /dev/nvmeX controller character devices. These character devices allow
+# manipulation of the block devices that we also allow above, so grouping this
+# access here makes sense, whereas access to individual partitions is delegated
+# to the raw-volume interface.
+/dev/nvme{[0-9],[1-9][0-9]} rw,                           # NVMe (up to 100 devices)
 
 # SCSI device commands, et al
 capability sys_rawio,
@@ -76,6 +93,9 @@ capability sys_admin,
 
 var blockDevicesConnectedPlugUDev = []string{
 	`SUBSYSTEM=="block"`,
+	// these additional subsystems may not directly be block devices but they
+	// allow for manipulation of the block devices and so are grouped here as
+	// well
 	`SUBSYSTEM=="nvme"`,
 	`KERNEL=="mpt2ctl*"`,
 	`KERNEL=="megaraid_sas_ioctl_node"`,
