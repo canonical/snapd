@@ -37,7 +37,7 @@ prepare: |
     apt install -y cryptsetup
 
     echo "Setup the image as a block device"
-    # use a script here as we will need this code on the next boot
+    # use a script here as this code needs to be run on the next boot
     cat > losetup.sh <<'EOF'
     #!/bin/sh -e
     echo "Setting up loop"
@@ -67,7 +67,7 @@ prepare: |
     unsquashfs -d gadget-dir pc_*.snap
 
 execute: |
-    # this test simulates a reinstall, to clean the TPM this requires
+    # this test simulates a reinstall, to clear the TPM this requires
     # a reboot so the losetup has to be redone
     if [ "$SPREAD_REBOOT" = 1 ]; then
         ./losetup.sh
@@ -127,7 +127,7 @@ execute: |
     # Can't test the keyfile because it's now sealed to the TPM
     mkdir -p ./mnt
     echo "Ensure that we can open the encrypted device using the recovery key"
-    cryptsetup open --key-file /run/mnt/ubuntu-data/system-data/var/lib/snapd/fde/recovery-key "${LOOP}p4" test-recovery
+    cryptsetup open --key-file /run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde/recovery-key "${LOOP}p4" test-recovery
     mount /dev/mapper/test-recovery ./mnt
     umount ./mnt
     cryptsetup close /dev/mapper/test-recovery
