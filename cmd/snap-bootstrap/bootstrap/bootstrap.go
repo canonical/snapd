@@ -93,8 +93,9 @@ func Run(gadgetRoot, device string, options Options) error {
 	if err := diskLayout.RemoveCreated(); err != nil {
 		return fmt.Errorf("cannot remove partitions from previous install: %v", err)
 	}
-	// existing sealed key files placed outside of the encrypted
-	// partitions (LP: #1879338)
+	// at this point we removed any existing partition, nuke any
+	// of the existing sealed key files placed outside of the
+	// encrypted partitions (LP: #1879338)
 	if options.KeyFile != "" {
 		if err := os.Remove(options.KeyFile); err != nil && !os.IsNotExist(err) {
 			return fmt.Errorf("cannot cleanup obsolete key file: %v", options.KeyFile)
