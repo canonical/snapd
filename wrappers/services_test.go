@@ -1780,3 +1780,43 @@ func (s *servicesTestSuite) TestAddRemoveSnapServiceWithSnapd(c *C) {
 	err = wrappers.RemoveSnapServices(info, progress.Null)
 	c.Check(err, ErrorMatches, "internal error: removing explicit services for snapd snap is unexpected")
 }
+
+func (s *servicesTestSuite) TestReloadOrRestart(c *C) {
+	const surviveYaml = `name: test-snap
+version: 1.0
+apps:
+  foo:
+    command: bin/foo
+    daemon: simple
+`
+	info := snaptest.MockSnap(c, surviveYaml, &snap.SideInfo{Revision: snap.R(1)})
+	srvFile := "snap.test-snap.foo.service"
+
+	err := wrappers.AddSnapServices(info, nil, nil, progress.Null)
+	c.Assert(err, IsNil)
+
+	s.sysdLog = nil
+	flags := &wrappers.RestartFlags{Reload: true}
+	c.Assert(wrappers.RestartServices(info.Services(), flags, progress.Null, s.perfTimings), IsNil)
+	c.Assert(err, IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"reload-or-restart", srvFile},
+	})
+
+	s.sysdLog = nil
+	flags.Reload = false
+	c.Assert(wrappers.RestartServices(info.Services(), flags, progress.Null, s.perfTimings), IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"stop", srvFile},
+		{"show", "--property=ActiveState", srvFile},
+		{"start", srvFile},
+	})
+
+	s.sysdLog = nil
+	c.Assert(wrappers.RestartServices(info.Services(), nil, progress.Null, s.perfTimings), IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"stop", srvFile},
+		{"show", "--property=ActiveState", srvFile},
+		{"start", srvFile},
+	})
+}
