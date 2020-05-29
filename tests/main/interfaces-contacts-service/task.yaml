@@ -12,8 +12,7 @@ systems:
     - -opensuse-tumbleweed-*  # test-snapd-eds is incompatible with eds version shipped with the distro
     - -ubuntu-14.04-*  # no session-tool support, eds is too old
     - -ubuntu-19.10-*  # test-snapd-eds is incompatible with eds shipped with the distro
-    - -ubuntu-20.04-*
-    - -ubuntu-20.10-*
+    - -ubuntu-2*
     - -ubuntu-core-*  # EDS is unsupported on core systems
 
 # fails in autopkgtest environment with:
