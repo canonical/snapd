@@ -112,6 +112,9 @@ network netlink raw,
 # containers
 /run/systemd/container r,
 
+# ioports
+@{PROC}/proc/ioports r,
+
 # /proc/1/sched in a systemd-nspawn container with '-a' is supposed to show on
 # its first line a pid that != 1 and systemd-detect-virt tries to detect this.
 # This doesn't seem to be the case on (at least) systemd 240 on Ubuntu. This
