@@ -91,9 +91,9 @@ execute: |
     go get ../../lib/uc20-create-partitions
     uc20-create-partitions \
         --encrypt --key-file /run/mnt/ubuntu-seed/keyfile \
-        --recovery-key-file /run/mnt/ubuntu-data/system-data/var/lib/snapd/fde/recovery-key \
-        --policy-update-data-file /run/mnt/ubuntu-data/system-data/var/lib/snapd/fde/policy-update-data \
-        --tpm-lockout-auth /run/mnt/ubuntu-data/system-data/var/lib/snapd/fde/tpm-lockout-auth \
+        --recovery-key-file /run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde/recovery-key \
+        --policy-update-data-file /run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde/policy-update-data \
+        --tpm-lockout-auth /run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde/tpm-lockout-auth \
         --model <(snap model --assertion) \
         ./gadget-dir "$LOOP"
     # keep for later
@@ -119,8 +119,8 @@ execute: |
     cryptsetup close /dev/mapper/ubuntu-data
 
     echo "Check the policy update data and TPM lockout authorization files"
-    ls -l /run/mnt/ubuntu-data/system-data/var/lib/snapd/fde/policy-update-data
-    ls -l /run/mnt/ubuntu-data/system-data/var/lib/snapd/fde/tpm-lockout-auth
+    ls -l /run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde/policy-update-data
+    ls -l /run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde/tpm-lockout-auth
 
     # Test the recovery key
 
