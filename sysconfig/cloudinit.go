@@ -29,7 +29,7 @@ import (
 )
 
 func ubuntuDataCloudDir(rootdir string) string {
-	return filepath.Join(rootdir, writableDefaultsDir, "etc/cloud/")
+	return WritableDefaultsDir(rootdir, "etc/cloud/")
 }
 
 func DisableCloudInit(targetdir string) error {

@@ -3,7 +3,7 @@ summary: Ensure that the password-manager-service interface works
 systems:
     - ubuntu-16.04-*
     - ubuntu-18.04-*
-    - ubuntu-20.04-*
+    - ubuntu-2*
 
 prepare: |
     echo "Ensure we have a working gnome-keyring"
