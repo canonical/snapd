@@ -1164,6 +1164,37 @@ func generateOnCalendarSchedules(schedule []*timeutil.Schedule) []string {
 	return calendarEvents
 }
 
+type RestartFlags struct {
+	Reload bool
+}
+
+// Restart or reload services; if reload flag is set then "systemctl reload-or-restart" is attempted.
+func RestartServices(svcs []*snap.AppInfo, flags *RestartFlags, inter interacter, tm timings.Measurer) error {
+	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
+
+	for _, srv := range svcs {
+		// they're *supposed* to be all services, but checking doesn't hurt
+		if !srv.IsService() {
+			continue
+		}
+
+		var err error
+		timings.Run(tm, "restart-service", fmt.Sprintf("restart service %q", srv), func(nested timings.Measurer) {
+			if flags != nil && flags.Reload {
+				err = sysd.ReloadOrRestart(srv.ServiceName())
+			} else {
+				// note: stop followed by start, not just 'restart'
+				err = sysd.Restart(srv.ServiceName(), 5*time.Second)
+			}
+		})
+		if err != nil {
+			// there is nothing we can do about failed service
+			return err
+		}
+	}
+	return nil
+}
+
 // QueryDisabledServices returns a list of all currently disabled snap services
 // in the snap.
 func QueryDisabledServices(info *snap.Info, pb progress.Meter) ([]string, error) {
