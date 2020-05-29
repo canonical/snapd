@@ -53,9 +53,20 @@ if [ ! -e "$app_dev_cgroup" ]; then
 fi
 
 # check if it's a block or char dev
-# all non-block and non-nvme devices are considered character devices
-if [ "${DEVPATH#*/block/}" != "$DEVPATH" ] || [ "${DEVPATH#*/nvme/}" != "$DEVPATH" ]; then
+# TODO: re-write this to be more robust, the bash variable substitution done 
+# here is quite awkard :-/
+if [ "${DEVPATH#*/block/}" != "$DEVPATH" ] ; then
     type="b"
+elif [ "${DEVPATH#*/nvme/}" != "$DEVPATH" ]; then
+    # nvme subsystem devices can either be block or character devices, the
+    # block devices have a more deeply nested path than the character devices
+    NVME_SUBPATH="${DEVPATH#*/nvme*/}"
+    if [ "${NVME_SUBPATH#*/}" != "$NVME_SUBPATH" ]; then
+        # it is more deeply nested
+        type="b"
+    else
+        type="c"
+    fi
 else
     type="c"
 fi
