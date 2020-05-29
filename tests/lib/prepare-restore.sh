@@ -546,8 +546,8 @@ prepare_suite_each() {
     # Check for invariants late, in order to detect any bugs in the code above.
     if [[ "$variant" = full ]]; then
         "$TESTSTOOLS"/cleanup-state pre-invariant
-        invariant-tool check
     fi
+    invariant-tool check
 }
 
 restore_suite_each() {
