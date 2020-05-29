@@ -47,22 +47,23 @@ appropriate.
 
 TODO:
 
-rename tests/lib/bin to tests/lib/tools, define TESTSTOOLS in
+[done] rename tests/lib/bin to tests/lib/tools, define TESTSTOOLS in
 spread.yaml pointing at it
 
-create tests/bin, have ultimately this on the PATH and not tools
+[wip] create tests/bin, have ultimately this on the PATH and not tools:
+  drop tests/lib/tools from PATH in spread.yaml and debian/tests/integrationtests
 
 symlinks and renames (plus fixes):
 
-tests/bin/MATCH -> tests/lib/tools/MATCH
-tests/bin/REBOOT -> tests/lib/tools/REBOOT
-tests/bin/not -> tests/lib/tools/not
+[done] tests/bin/MATCH -> tests/lib/tools/MATCH
+[done] tests/bin/REBOOT -> tests/lib/tools/REBOOT
+[done] tests/bin/not -> tests/lib/tools/not
 tests/bin/retry -> tests/lib/tools/retry (was retry-tool)
 
 tests/bin/tests.session -> tests/lib/tools/tests.session (was session-tool)
-  fix to have -h
-  convert --ACTION into subcommands
-  require "exec" subcommand to execute a command
+  [done] fix to have -h
+  [done] convert --ACTION into subcommands
+  [wip] require "exec" subcommand to execute a command
 
 tests/lib/tools/memory-observe-do (was memory-tool)
 tests/lib/tools/version-compare (was version-tool)
