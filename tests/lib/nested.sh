@@ -84,6 +84,9 @@ get_google_image_url_for_nested_vm(){
         ubuntu-20.04-64)
             echo "https://storage.googleapis.com/spread-snapd-tests/images/cloudimg/focal-server-cloudimg-amd64.img"
             ;;
+        ubuntu-20.10-64*)
+            echo "https://storage.googleapis.com/spread-snapd-tests/images/cloudimg/groovy-server-cloudimg-amd64.img"
+            ;;
         *)
             echo "unsupported system"
             exit 1
@@ -104,6 +107,9 @@ get_ubuntu_image_url_for_nested_vm(){
             ;;
         ubuntu-20.04-64*)
             echo "https://cloud-images.ubuntu.com/focal/current/focal-server-cloudimg-amd64.img"
+            ;;
+        ubuntu-20.10-64*)
+            echo "https://cloud-images.ubuntu.com/groovy/current/groovy-server-cloudimg-amd64.img"
             ;;
         *)
             echo "unsupported system"
