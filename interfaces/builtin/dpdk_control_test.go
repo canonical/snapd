@@ -81,14 +81,14 @@ func (s *DpdkControlSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains,
-		"/sys/bus/pci/drivers/igb_uio/bind rw,")
+		"/sys/bus/pci/drivers/igb_uio/{,un}bind rw,")
 }
 
 func (s *DpdkControlSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, true)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
-	c.Assert(si.Summary, Equals, "allows using dpdk")
+	c.Assert(si.Summary, Equals, "allows configuring dpdk drivers")
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "dpdk-control")
 }
 
