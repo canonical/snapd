@@ -29,7 +29,6 @@ import (
 
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -96,21 +95,31 @@ func (s *bootenvTestSuite) TestInstallBootloaderConfigNoConfig(c *C) {
 
 func (s *bootenvTestSuite) TestInstallBootloaderConfig(c *C) {
 	for _, t := range []struct {
-		gadgetFile, systemFile string
-		opts                   *bootloader.Options
+		name                string
+		gadgetFile, sysFile string
+		gadgetFileContent   []byte
+		opts                *bootloader.Options
 	}{
-		{"grub.conf", "/boot/grub/grub.cfg", nil},
-		{"uboot.conf", "/boot/uboot/uboot.env", nil},
-		{"androidboot.conf", "/boot/androidboot/androidboot.env", nil},
-		{"lk.conf", "/boot/lk/snapbootsel.bin", nil},
-		{"grub-recovery.conf", "/EFI/ubuntu/grub.cfg", &bootloader.Options{Recovery: true}},
+		{name: "grub", gadgetFile: "grub.conf", sysFile: "/boot/grub/grub.cfg"},
+		// traditional uboot.env - the uboot.env file needs to be non-empty
+		{name: "uboot.env", gadgetFile: "uboot.conf", sysFile: "/boot/uboot/uboot.env", gadgetFileContent: []byte{1}},
+		// boot.scr in place of uboot.env means we create the boot.sel file
+		{
+			name:       "uboot boot.scr",
+			gadgetFile: "uboot.conf",
+			sysFile:    "/uboot/ubuntu/boot.sel",
+			opts:       &bootloader.Options{NoSlashBoot: true},
+		},
+		{name: "androidboot", gadgetFile: "androidboot.conf", sysFile: "/boot/androidboot/androidboot.env"},
+		{name: "lk", gadgetFile: "lk.conf", sysFile: "/boot/lk/snapbootsel.bin"},
+		{name: "grub recovery", gadgetFile: "grub-recovery.conf", sysFile: "/EFI/ubuntu/grub.cfg", opts: &bootloader.Options{Recovery: true}},
 	} {
 		mockGadgetDir := c.MkDir()
-		err := ioutil.WriteFile(filepath.Join(mockGadgetDir, t.gadgetFile), nil, 0644)
+		err := ioutil.WriteFile(filepath.Join(mockGadgetDir, t.gadgetFile), t.gadgetFileContent, 0644)
 		c.Assert(err, IsNil)
 		err = bootloader.InstallBootConfig(mockGadgetDir, s.rootdir, t.opts)
-		c.Assert(err, IsNil)
-		fn := filepath.Join(s.rootdir, t.systemFile)
-		c.Check(osutil.FileExists(fn), Equals, true, Commentf("boot config missing for %s", t.gadgetFile))
+		c.Assert(err, IsNil, Commentf("installing boot config for %s", t.name))
+		fn := filepath.Join(s.rootdir, t.sysFile)
+		c.Assert(fn, testutil.FilePresent, Commentf("boot config missing for %s at %s", t.name, t.sysFile))
 	}
 }

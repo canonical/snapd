@@ -482,12 +482,19 @@ func getTime(st *state.State, timeKey string) (time.Time, error) {
 // that period the refresh will go ahead despite application activity.
 func inhibitRefresh(st *state.State, snapst *SnapState, info *snap.Info, checker func(*snap.Info) error) error {
 	if err := checker(info); err != nil {
+		days := int(maxInhibition.Truncate(time.Hour).Hours() / 24)
 		now := time.Now()
 		if snapst.RefreshInhibitedTime == nil {
 			// Store the instant when the snap was first inhibited.
 			// This is reset to nil on successful refresh.
 			snapst.RefreshInhibitedTime = &now
 			Set(st, info.InstanceName(), snapst)
+			if _, ok := err.(*BusySnapError); ok {
+				st.Warnf(i18n.NG(
+					"snap %q is currently in use. Its refresh will be postponed for up to %d day to wait for the snap to no longer be in use.",
+					"snap %q is currently in use. Its refresh will be postponed for up to %d days to wait for the snap to no longer be in use.", days),
+					info.SnapName(), days)
+			}
 			return err
 		}
 
@@ -495,6 +502,12 @@ func inhibitRefresh(st *state.State, snapst *SnapState, info *snap.Info, checker
 			// If we are still in the allowed window then just return
 			// the error but don't change the snap state again.
 			return err
+		}
+		if _, ok := err.(*BusySnapError); ok {
+			st.Warnf(i18n.NG(
+				"snap %q has been running for the maximum allowable %d day since its refresh was postponed. It will now be refreshed.",
+				"snap %q has been running for the maximum allowable %d days since its refresh was postponed. It will now be refreshed.", days),
+				info.SnapName(), days)
 		}
 	}
 	return nil

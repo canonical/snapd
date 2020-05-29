@@ -48,10 +48,18 @@ func FindDeviceForStructure(ps *LaidOutStructure) (string, error) {
 		byPartlabel := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/", encodeLabel(ps.Name))
 		candidates = append(candidates, byPartlabel)
 	}
-
-	if ps.Label != "" {
-		byFsLabel := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label/", encodeLabel(ps.Label))
-		candidates = append(candidates, byFsLabel)
+	if ps.HasFilesystem() {
+		fsLabel := ps.EffectiveFilesystemLabel()
+		if fsLabel == "" && ps.Name != "" {
+			// when image is built and the structure has no
+			// filesystem label, the structure name will be used by
+			// default as the label
+			fsLabel = ps.Name
+		}
+		if fsLabel != "" {
+			byFsLabel := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label/", encodeLabel(fsLabel))
+			candidates = append(candidates, byFsLabel)
+		}
 	}
 
 	var found string
@@ -118,7 +126,7 @@ func FindDeviceForStructureWithFallback(ps *LaidOutStructure) (dev string, offs 
 		// error out on other errors
 		return "", 0, err
 	}
-	if err == ErrDeviceNotFound && ps.Type != "bare" && ps.Name != "" {
+	if err == ErrDeviceNotFound && ps.IsPartition() && ps.Name != "" {
 		// structures with partition table entry and a name must have
 		// been located already
 		return "", 0, err

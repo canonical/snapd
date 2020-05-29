@@ -27,6 +27,7 @@ import (
 	"sort"
 
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -97,6 +98,13 @@ func ValidateFromYaml(seedYamlFile string) error {
 
 	tm := timings.New(nil)
 	if err := seed.LoadMeta(tm); err != nil {
+		if missingErr, ok := err.(*essentialSnapMissingError); ok {
+			// Model always succeed after LoadAssertions
+			mod, _ := seed.Model()
+			if mod.Classic() && missingErr.SnapName == "core" {
+				err = fmt.Errorf("essential snap core or snapd must be part of the seed")
+			}
+		}
 		return newValidationError("", err)
 	}
 
@@ -107,7 +115,7 @@ func ValidateFromYaml(seedYamlFile string) error {
 	// read the snap infos
 	snapInfos := make([]*snap.Info, 0, seed16.NumSnaps())
 	seed16.Iter(func(sn *Snap) error {
-		snapf, err := snap.Open(sn.Path)
+		snapf, err := snapfile.Open(sn.Path)
 		if err != nil {
 			ve.addErr("", err)
 		} else {

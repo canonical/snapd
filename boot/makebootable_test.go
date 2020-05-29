@@ -20,6 +20,7 @@
 package boot_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -31,8 +32,11 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
+	"github.com/snapcore/snapd/bootloader/ubootenv"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -62,7 +66,7 @@ func makeSnapWithFiles(c *C, name, yaml string, revno snap.Revision, files [][]s
 		Revision: revno,
 	}
 	fn = snaptest.MakeTestSnapWithFiles(c, yaml, files)
-	snapf, err := snap.Open(fn)
+	snapf, err := snapfile.Open(fn)
 	c.Assert(err, IsNil)
 	info, err = snap.ReadInfoFromSnapFile(snapf, si)
 	c.Assert(err, IsNil)
@@ -351,12 +355,14 @@ func (s *makeBootable20Suite) TestMakeBootable20RunMode(c *C) {
 	err = ioutil.WriteFile(mockBootGrubCfg, nil, 0644)
 	c.Assert(err, IsNil)
 
+	// make the snaps symlinks so that we can ensure that makebootable follows
+	// the symlinks and copies the files and not the symlinks
 	baseFn, baseInfo := makeSnap(c, "core20", `name: core20
 type: base
 version: 5.0
 `, snap.R(3))
 	baseInSeed := filepath.Join(seedSnapsDirs, baseInfo.Filename())
-	err = os.Rename(baseFn, baseInSeed)
+	err = os.Symlink(baseFn, baseInSeed)
 	c.Assert(err, IsNil)
 	kernelFn, kernelInfo := makeSnapWithFiles(c, "pc-kernel", `name: pc-kernel
 type: kernel
@@ -367,7 +373,7 @@ version: 5.0
 		},
 	)
 	kernelInSeed := filepath.Join(seedSnapsDirs, kernelInfo.Filename())
-	err = os.Rename(kernelFn, kernelInSeed)
+	err = os.Symlink(kernelFn, kernelInSeed)
 	c.Assert(err, IsNil)
 
 	bootWith := &boot.BootableSet{
@@ -383,15 +389,17 @@ version: 5.0
 	c.Assert(err, IsNil)
 
 	// ensure base/kernel got copied to /var/lib/snapd/snaps
-	c.Check(filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), "core20_3.snap"), testutil.FilePresent)
-	c.Check(filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), "pc-kernel_5.snap"), testutil.FilePresent)
+	core20Snap := filepath.Join(dirs.SnapBlobDirUnder(boot.InstallHostWritableDir), "core20_3.snap")
+	pcKernelSnap := filepath.Join(dirs.SnapBlobDirUnder(boot.InstallHostWritableDir), "pc-kernel_5.snap")
+	c.Check(core20Snap, testutil.FilePresent)
+	c.Check(pcKernelSnap, testutil.FilePresent)
+	c.Check(osutil.IsSymlink(core20Snap), Equals, false)
+	c.Check(osutil.IsSymlink(pcKernelSnap), Equals, false)
 
 	// ensure the bootvars got updated the right way
 	mockSeedGrubenv := filepath.Join(mockSeedGrubDir, "grubenv")
 	c.Check(mockSeedGrubenv, testutil.FilePresent)
 	c.Check(mockSeedGrubenv, testutil.FileContains, "snapd_recovery_mode=run")
-	// TODO:UC20: update once we write the static UC20 kernels and stop
-	// using the UC16 bootmode
 	mockBootGrubenv := filepath.Join(mockBootGrubDir, "grubenv")
 	c.Check(mockBootGrubenv, testutil.FilePresent)
 
@@ -416,10 +424,12 @@ version: 5.0
 recovery_system=20191216
 base=core20_3.snap
 current_kernels=pc-kernel_5.snap
+model=my-brand/my-model-uc20
+grade=dangerous
 `)
 }
 
-func (s *makeBootable20UbootSuite) TestUbootMakeBootable20(c *C) {
+func (s *makeBootable20UbootSuite) TestUbootMakeBootable20TraditionalUbootenvFails(c *C) {
 	dirs.SetRootDir("")
 
 	model := makeMockUC20Model()
@@ -468,16 +478,67 @@ version: 5.0
 		Recovery:            true,
 	}
 
+	// TODO:UC20: enable this use case
+	err = boot.MakeBootable(model, rootdir, bootWith)
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find boot config in %q", unpackedGadgetDir))
+}
+
+func (s *makeBootable20UbootSuite) TestUbootMakeBootable20BootScr(c *C) {
+	dirs.SetRootDir("")
+
+	model := makeMockUC20Model()
+
+	unpackedGadgetDir := c.MkDir()
+	// the uboot.conf must be empty for this to work/do the right thing
+	err := ioutil.WriteFile(filepath.Join(unpackedGadgetDir, "uboot.conf"), nil, 0644)
+	c.Assert(err, IsNil)
+
+	rootdir := c.MkDir()
+	// on uc20 the seed layout if different
+	seedSnapsDirs := filepath.Join(rootdir, "/snaps")
+	err = os.MkdirAll(seedSnapsDirs, 0755)
+	c.Assert(err, IsNil)
+
+	baseFn, baseInfo := makeSnap(c, "core20", `name: core20
+type: base
+version: 5.0
+`, snap.R(3))
+	baseInSeed := filepath.Join(seedSnapsDirs, baseInfo.Filename())
+	err = os.Rename(baseFn, baseInSeed)
+	c.Assert(err, IsNil)
+	kernelFn, kernelInfo := makeSnapWithFiles(c, "arm-kernel", `name: arm-kernel
+type: kernel
+version: 5.0
+`, snap.R(5), [][]string{
+		{"kernel.img", "I'm a kernel"},
+		{"initrd.img", "...and I'm an initrd"},
+		{"dtbs/foo.dtb", "foo dtb"},
+		{"dtbs/bar.dto", "bar dtbo"},
+	})
+	kernelInSeed := filepath.Join(seedSnapsDirs, kernelInfo.Filename())
+	err = os.Rename(kernelFn, kernelInSeed)
+	c.Assert(err, IsNil)
+
+	label := "20191209"
+	recoverySystemDir := filepath.Join("/systems", label)
+	bootWith := &boot.BootableSet{
+		Base:                baseInfo,
+		BasePath:            baseInSeed,
+		Kernel:              kernelInfo,
+		KernelPath:          kernelInSeed,
+		RecoverySystemDir:   recoverySystemDir,
+		RecoverySystemLabel: label,
+		UnpackedGadgetDir:   unpackedGadgetDir,
+		Recovery:            true,
+	}
+
 	err = boot.MakeBootable(model, rootdir, bootWith)
 	c.Assert(err, IsNil)
 
-	// ensure only a single file got copied (the uboot.env)
-	files, err := filepath.Glob(filepath.Join(rootdir, "boot/uboot/*"))
-	c.Assert(err, IsNil)
-	c.Check(files, HasLen, 1)
-	// check that the recovery bootloader configuration was copied with
-	// the correct content
-	c.Check(filepath.Join(rootdir, "boot/uboot/uboot.env"), testutil.FileEquals, ubootEnv)
+	// since uboot.conf was absent, we won't have installed the uboot.env, as
+	// it is expected that the gadget assets would have installed boot.scr
+	// instead
+	c.Check(filepath.Join(rootdir, "uboot.env"), testutil.FileAbsent)
 
 	c.Check(s.bootloader.BootVars, DeepEquals, map[string]string{
 		"snapd_recovery_system": label,
@@ -492,4 +553,100 @@ version: 5.0
 			S:                 kernelInfo,
 		}},
 	)
+}
+
+func (s *makeBootable20UbootSuite) TestUbootMakeBootable20RunModeBootScr(c *C) {
+	dirs.SetRootDir("")
+	bootloader.Force(nil)
+
+	model := makeMockUC20Model()
+	rootdir := c.MkDir()
+	dirs.SetRootDir(rootdir)
+	seedSnapsDirs := filepath.Join(rootdir, "/snaps")
+	err := os.MkdirAll(seedSnapsDirs, 0755)
+	c.Assert(err, IsNil)
+
+	// uboot on ubuntu-seed
+	mockSeedUbootBootSel := filepath.Join(boot.InitramfsUbuntuSeedDir, "uboot/ubuntu/boot.sel")
+	err = os.MkdirAll(filepath.Dir(mockSeedUbootBootSel), 0755)
+	c.Assert(err, IsNil)
+	env, err := ubootenv.Create(mockSeedUbootBootSel, 4096)
+	c.Assert(err, IsNil)
+	c.Assert(env.Save(), IsNil)
+
+	// uboot on ubuntu-boot
+	mockBootUbootBootSel := filepath.Join(boot.InitramfsUbuntuBootDir, "uboot/ubuntu/boot.sel")
+	err = os.MkdirAll(filepath.Dir(mockBootUbootBootSel), 0755)
+	c.Assert(err, IsNil)
+	env, err = ubootenv.Create(mockBootUbootBootSel, 4096)
+	c.Assert(err, IsNil)
+	c.Assert(env.Save(), IsNil)
+
+	baseFn, baseInfo := makeSnap(c, "core20", `name: core20
+type: base
+version: 5.0
+`, snap.R(3))
+	baseInSeed := filepath.Join(seedSnapsDirs, baseInfo.Filename())
+	err = os.Rename(baseFn, baseInSeed)
+	c.Assert(err, IsNil)
+	kernelSnapFiles := [][]string{
+		{"kernel.img", "I'm a kernel"},
+		{"initrd.img", "...and I'm an initrd"},
+		{"dtbs/foo.dtb", "foo dtb"},
+		{"dtbs/bar.dto", "bar dtbo"},
+	}
+	kernelFn, kernelInfo := makeSnapWithFiles(c, "arm-kernel", `name: arm-kernel
+type: kernel
+version: 5.0
+`, snap.R(5), kernelSnapFiles)
+	kernelInSeed := filepath.Join(seedSnapsDirs, kernelInfo.Filename())
+	err = os.Rename(kernelFn, kernelInSeed)
+	c.Assert(err, IsNil)
+
+	bootWith := &boot.BootableSet{
+		RecoverySystemDir: "20191216",
+		BasePath:          baseInSeed,
+		Base:              baseInfo,
+		KernelPath:        kernelInSeed,
+		Kernel:            kernelInfo,
+		Recovery:          false,
+	}
+
+	err = boot.MakeBootable(model, rootdir, bootWith)
+	c.Assert(err, IsNil)
+
+	// ensure base/kernel got copied to /var/lib/snapd/snaps
+	c.Check(filepath.Join(dirs.SnapBlobDirUnder(boot.InstallHostWritableDir), "core20_3.snap"), testutil.FilePresent)
+	c.Check(filepath.Join(dirs.SnapBlobDirUnder(boot.InstallHostWritableDir), "arm-kernel_5.snap"), testutil.FilePresent)
+
+	// ensure the bootvars on ubuntu-seed got updated the right way
+	mockSeedUbootenv := filepath.Join(boot.InitramfsUbuntuSeedDir, "uboot/ubuntu/boot.sel")
+	uenvSeed, err := ubootenv.Open(mockSeedUbootenv)
+	c.Assert(err, IsNil)
+	c.Assert(uenvSeed.Get("snapd_recovery_mode"), Equals, "run")
+
+	// now check ubuntu-boot boot.sel
+	mockBootUbootenv := filepath.Join(boot.InitramfsUbuntuBootDir, "uboot/ubuntu/boot.sel")
+	uenvBoot, err := ubootenv.Open(mockBootUbootenv)
+	c.Assert(err, IsNil)
+	c.Assert(uenvBoot.Get("snap_try_kernel"), Equals, "")
+	c.Assert(uenvBoot.Get("snap_kernel"), Equals, "arm-kernel_5.snap")
+	c.Assert(uenvBoot.Get("kernel_status"), Equals, boot.DefaultStatus)
+
+	// check that we have the extracted kernel in the right places, in the
+	// old uc16/uc18 location
+	for _, file := range kernelSnapFiles {
+		fName := file[0]
+		c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "uboot/ubuntu/arm-kernel_5.snap", fName), testutil.FilePresent)
+	}
+
+	// ensure modeenv looks correct
+	ubuntuDataModeEnvPath := filepath.Join(rootdir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/modeenv")
+	c.Check(ubuntuDataModeEnvPath, testutil.FileEquals, `mode=run
+recovery_system=20191216
+base=core20_3.snap
+current_kernels=arm-kernel_5.snap
+model=my-brand/my-model-uc20
+grade=dangerous
+`)
 }

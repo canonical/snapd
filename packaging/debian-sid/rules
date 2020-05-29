@@ -60,9 +60,13 @@ export GOMAXPROCS=2
 endif
 
 # check if we need to include the testkeys in the binary
-TAGS=
+# TAGS are the go build tags for all binaries, SNAP_TAGS are for snap
+# build only.
+TAGS=nosecboot
+SNAP_TAGS=nosecboot nomanagers
 ifneq (,$(filter testkeys,$(DEB_BUILD_OPTIONS)))
-	TAGS=-tags withtestkeys
+	TAGS+= withtestkeys
+	SNAP_TAGS+= withtestkeys
 endif
 
 DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
@@ -140,9 +144,13 @@ override_dh_auto_build:
 	mkdir -p _build/src/$(DH_GOPKG)/cmd/snap/test-data
 	cp -a cmd/snap/test-data/*.gpg _build/src/$(DH_GOPKG)/cmd/snap/test-data/
 	# exclude certain parts that won't be used by debian
-	rm -rf _build/src/$(DH_GOPKG)/cmd/snap-bootstrap
+	find _build/src/$(DH_GOPKG)/cmd/snap-bootstrap -name "*.go" | grep -vE '(bootstrap_dummy\.go|options\.go)'| xargs rm -f
+	# XXX: once dh-golang understands go build tags this would not be needed
+	find _build/src/$(DH_GOPKG)/secboot/ -name "*.go" | grep -Ev '(secboot_dummy\.go|secboot\.go)' | xargs rm -f
 	# and build
-	dh_auto_build -- $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS)
+	dh_auto_build -- $(BUILDFLAGS) -tags "$(TAGS)" $(GCCGOFLAGS)
+
+	(cd _build/bin && GOPATH=$$(pwd)/.. GOCACHE=/tmp/go-build go build $(BUILDFLAGS) $(GCCGOFLAGS) -tags "$(SNAP_TAGS)" $(DH_GOPKG)/cmd/snap)
 
 	# (static linking on powerpc with cgo is broken)
 ifneq ($(shell dpkg-architecture -qDEB_HOST_ARCH),powerpc)
@@ -182,7 +190,7 @@ endif
 	$(MAKE) -C data all
 
 override_dh_auto_test:
-	dh_auto_test -- $(GCCGOFLAGS)
+	dh_auto_test -- $(BUILDFLAGS) -tags "$(TAGS)" $(GCCGOFLAGS)
 # a tested default (production) build should have no test keys
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	# check that only the main trusted account-keys are included

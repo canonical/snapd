@@ -341,3 +341,19 @@ func MockCgroupSnapNameFromPid(f func(pid int) (string, error)) (restore func())
 		cgroupSnapNameFromPid = old
 	}
 }
+
+func MockSyscallUmount(f func(string, int) error) (restore func()) {
+	old := syscallUnmount
+	syscallUnmount = f
+	return func() {
+		syscallUnmount = old
+	}
+}
+
+func MockIoutilTempDir(f func(string, string) (string, error)) (restore func()) {
+	old := ioutilTempDir
+	ioutilTempDir = f
+	return func() {
+		ioutilTempDir = old
+	}
+}

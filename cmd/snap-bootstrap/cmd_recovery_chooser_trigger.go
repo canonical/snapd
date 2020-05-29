@@ -77,7 +77,7 @@ func (c *cmdRecoveryChooserTrigger) Execute(args []string) error {
 	if c.MarkerFile != "" {
 		markerFile = c.MarkerFile
 	}
-	logger.Noticef("trigger timeout %v", timeout)
+	logger.Noticef("trigger wait timeout %v", timeout)
 	logger.Noticef("marker file %v", markerFile)
 
 	_, err := os.Stat(markerFile)
@@ -88,11 +88,16 @@ func (c *cmdRecoveryChooserTrigger) Execute(args []string) error {
 
 	err = triggerwatchWait(timeout)
 	if err != nil {
-		if err == triggerwatch.ErrTriggerNotDetected {
+		switch err {
+		case triggerwatch.ErrTriggerNotDetected:
 			logger.Noticef("trigger not detected")
 			return nil
+		case triggerwatch.ErrNoMatchingInputDevices:
+			logger.Noticef("no matching input devices")
+			return nil
+		default:
+			return err
 		}
-		return err
 	}
 
 	// got the trigger, try to create the marker file
