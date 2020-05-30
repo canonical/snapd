@@ -70,8 +70,9 @@ get_qemu_for_nested_vm(){
     esac
 }
 
+# shellcheck disable=SC2120
 get_google_image_url_for_nested_vm(){
-    case "$SPREAD_SYSTEM" in
+    case "${1:-$SPREAD_SYSTEM}" in
         ubuntu-16.04-64)
             echo "https://storage.googleapis.com/spread-snapd-tests/images/cloudimg/xenial-server-cloudimg-amd64-disk1.img"
             ;;
