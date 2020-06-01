@@ -55,12 +55,10 @@ func isSessionBusLikelyPresent() bool {
 // SessionBus is like dbus.SessionBus but it avoids auto-starting
 // a new dbus-daemon when a bus is not already available.
 //
-// The age where DBus daemon being explicitly started by software being a good
-// idea are long gone and DBus is either already present or socket activated.
-// Attempting to start the daemon is a part of the official specification but
-// is never useful as it creates fractured "session" buses that are not managed
-// by anything, that only some programs can talk to. In the current Linux world
-// it's much better not to.
+// The go-dbus package will launch a session bus instance on demand when none
+// is present, something we do not want to do. In all contexts where there is a need
+//  to use the session bus, we expect session bus daemon to have been started and
+// managed by the corresponding user session manager.
 //
 // This function is mockable by either MockConnections or MockSessionBus.
 var SessionBus = func() (*dbus.Conn, error) {
