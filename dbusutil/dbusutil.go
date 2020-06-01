@@ -22,7 +22,6 @@ package dbusutil
 import (
 	"fmt"
 	"os"
-	"syscall"
 
 	"github.com/godbus/dbus"
 
@@ -41,17 +40,13 @@ func isSessionBusLikelyPresent() bool {
 	}
 	uid := os.Getuid()
 	if fi, err := os.Stat(fmt.Sprintf("%s/%d/dbus-session", dirs.XdgRuntimeDirBase, uid)); err == nil {
-		if stat, ok := fi.Sys().(*syscall.Stat_t); ok {
-			if stat.Mode&syscall.S_IFREG == syscall.S_IFREG {
-				return true
-			}
+		if fi.Mode()&os.ModeType == 0 {
+			return true
 		}
 	}
 	if fi, err := os.Stat(fmt.Sprintf("%s/%d/bus", dirs.XdgRuntimeDirBase, uid)); err == nil {
-		if stat, ok := fi.Sys().(*syscall.Stat_t); ok {
-			if stat.Mode&syscall.S_IFSOCK == syscall.S_IFSOCK {
-				return true
-			}
+		if fi.Mode()&os.ModeType == os.ModeSocket {
+			return true
 		}
 	}
 	return false
