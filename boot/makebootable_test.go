@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/bootloader/ubootenv"
 	"github.com/snapcore/snapd/dirs"
@@ -344,7 +345,7 @@ func (s *makeBootable20Suite) TestMakeBootable20RunMode(c *C) {
 	mockSeedGrubCfg := filepath.Join(mockSeedGrubDir, "grub.cfg")
 	err = os.MkdirAll(filepath.Dir(mockSeedGrubCfg), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(mockSeedGrubCfg, nil, 0644)
+	err = ioutil.WriteFile(mockSeedGrubCfg, []byte("this is grub.cfg on seed"), 0644)
 	c.Assert(err, IsNil)
 
 	// grub on ubuntu-boot
@@ -352,7 +353,7 @@ func (s *makeBootable20Suite) TestMakeBootable20RunMode(c *C) {
 	mockBootGrubCfg := filepath.Join(mockBootGrubDir, "grub.cfg")
 	err = os.MkdirAll(filepath.Dir(mockBootGrubCfg), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(mockBootGrubCfg, nil, 0644)
+	err = ioutil.WriteFile(mockBootGrubCfg, []byte("this is grub.cfg on boot"), 0644)
 	c.Assert(err, IsNil)
 
 	// make the snaps symlinks so that we can ensure that makebootable follows
@@ -427,6 +428,12 @@ current_kernels=pc-kernel_5.snap
 model=my-brand/my-model-uc20
 grade=dangerous
 `)
+
+	// ensure grub.cfg on boot was updated
+	c.Check(mockBootGrubCfg, testutil.FileContains, "X-Snapd-boot-script-edition: 1\n")
+	c.Check(mockBootGrubCfg, testutil.FileEquals, string(assets.GetBootAsset("grub.conf")))
+	// ensure grub.cfg on boot was updated
+	c.Check(mockSeedGrubCfg, testutil.FileEquals, []byte("this is grub.cfg on seed"))
 }
 
 func (s *makeBootable20UbootSuite) TestUbootMakeBootable20TraditionalUbootenvFails(c *C) {

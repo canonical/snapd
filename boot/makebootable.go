@@ -330,6 +330,15 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 		return fmt.Errorf("cannot set run system environment: %v", err)
 	}
 
+	mbl, ok := bl.(bootloader.ManagedBootloader)
+	if ok {
+		// the bootloader can manage its boot script, let it
+		// install/update the script now
+		if err := mbl.InstallBootScript(opts); err != nil {
+			return fmt.Errorf("cannot install managed bootloader script: %v", err)
+		}
+	}
+
 	// LAST step: update recovery bootloader environment to indicate that we
 	// transition to run mode now
 	opts = &bootloader.Options{
