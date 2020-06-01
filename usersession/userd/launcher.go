@@ -176,10 +176,14 @@ type fileExists func(string) bool
 func existsOnFileSystem(desktopFile string) bool {
 	fileStat, err := os.Stat(desktopFile)
 
-	return err == nil && !fileStat.IsDir()
+	// We only support files in /var/lib/snapd/desktop/applications and they should
+    // all be regular files.
+    return err == nil && fileStat.Mode().IsRegular()
 }
 
 // findDesktopFile recursively tries each subdirectory that can be formed from the (split) desktop file ID.
+// We're not required to diagnose multiple files matching the desktop file ID.
+// https://standards.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#desktop-file-id
 func findDesktopFile(desktopFile_exists fileExists, base_dir string, splitFileId []string) *string {
 	desktopFile := filepath.Join(base_dir, strings.Join(splitFileId, "-"))
 
@@ -201,8 +205,14 @@ func findDesktopFile(desktopFile_exists fileExists, base_dir string, splitFileId
 // desktopFileIDToFilename determines the path associated with a desktop file ID.
 func desktopFileIDToFilename(desktopFile_exists fileExists, desktopFileID string) (string, error) {
 
-	// Currently the caller only has access to /var/lib/snapd/desktop/applications/, so we just look there
-	// and ignore https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
+	// OpenDesktopEntryEnv() currently only supports launching snap applications from
+    // desktop files in /var/lib/snapd/desktop/applications and these desktop files are
+    // written by snapd and considered safe for userd to process. If other directories are
+    // added in the future, readExecCommandFromDesktopFile() and
+    // parseExecCommand() may need to be updated for any changed assumptions.
+    //
+    // Since we only access /var/lib/snapd/desktop/applications, ignore
+    // https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
 	base_dir := dirs.SnapDesktopFilesDir
 
 	desktopFile := findDesktopFile(desktopFile_exists, base_dir, strings.Split(desktopFileID, "-"))
@@ -231,7 +241,7 @@ func readExecCommandFromDesktopFile(desktopFile string) (string, error) {
 
 		if line == "[Desktop Entry]" {
 			in_desktop_section = true
-		} else if strings.HasPrefix(line, "[Desktop Action") {
+		} else if strings.HasPrefix(line, "[Desktop Action ") {
 			// maybe later we'll add support here
 			in_desktop_section = false
 		} else if strings.HasPrefix(line, "[") {
@@ -242,9 +252,20 @@ func readExecCommandFromDesktopFile(desktopFile string) (string, error) {
 		}
 	}
 
+	expectedPrefix := fmt.Sprintf("env BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/%s /snap/bin/", filepath.Base(desktopFile))
+    if ! strings.HasPrefix(launch, expectedPrefix) {
+        return "", fmt.Errorf("Desktop file %q has an unsupported 'Exec' value", desktopFile)
+    }
+
 	return launch, nil
 }
 
+// Parse the Exec command by stripping any exec variables.
+// Passing exec variables (eg, %foo) between confined snaps is unsupported. Currently,
+// we do not have support for passing them in the D-Bus API but there are security
+// implications that must be thought through regarding the influence of the launching
+// snap over the launcher wrt exec variables. For now we simply filter them out.
+// https://standards.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#exec-variables
 func parseExecCommand(exec_command string) ([]string, error) {
 	args, err := shlex.Split(exec_command)
 	if err != nil {
@@ -253,14 +274,10 @@ func parseExecCommand(exec_command string) ([]string, error) {
 
 	i := 0
 	for {
-		if strings.HasPrefix(args[i], "%%") {
+		if strings.HasPrefix(args[i], "%%") { // A double "%" means a real "%"
 			args[i] = strings.TrimPrefix(args[i], "%")
 			i++
-		} else if strings.HasPrefix(args[i], "%") {
-			// Passing exec variables between confined snaps raises unanswered questions and they are not required
-			// for the simple cases.  For now, we don't have support for passing them in the dbus API and drop
-			// them from the command.
-			// https://standards.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#exec-variables
+		} else if strings.HasPrefix(args[i], "%") { // A single "%" is an exec variable
 			args = append(args[:i], args[i+1:]...)
 		} else {
 			i++
