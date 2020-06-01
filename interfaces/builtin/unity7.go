@@ -506,15 +506,7 @@ deny /usr/share/applications/python*.desktop r,
 deny /usr/share/applications/vim.desktop r,
 deny /usr/share/applications/snap-handle-link.desktop r,  # core16
 
-# support applications which use the unity messaging menu, xdg-mime, etc
-# This leaks the names of snaps with desktop files
-/var/lib/snapd/desktop/applications/ r,
-# allowing reading only our desktop files (required by (at least) the unity
-# messaging menu). Note: a future update may suppress noisy denials when
-# attempting to read other desktop files.
-# parallel-installs: this leaks read access to desktop files owned by keyed
-# instances of @{SNAP_NAME} to @{SNAP_NAME} snap
-/var/lib/snapd/desktop/applications/@{SNAP_INSTANCE_NAME}_*.desktop r,
+###SNAP_DESKTOP_FILE_RULES###
 # Snaps are unable to use the data in mimeinfo.cache (since they can't execute
 # the returned desktop file themselves). unity messaging menu doesn't require
 # mimeinfo.cache and xdg-mime will fallback to reading the desktop files
@@ -689,6 +681,14 @@ func (iface *unity7Interface) AppArmorConnectedPlug(spec *apparmor.Specification
 	new := strings.Replace(plug.Snap().InstanceName(), "-", "_", -1)
 	old := "###UNITY_SNAP_NAME###"
 	snippet := strings.Replace(unity7ConnectedPlugAppArmor, old, new, -1)
+
+	old = "###SNAP_DESKTOP_FILE_RULES###"
+	new = ""
+	for _, r := range getDesktopFileRules(plug.Snap().InstanceName()) {
+		new += r + "\n"
+	}
+	snippet = strings.Replace(snippet, old, new, -1)
+
 	spec.AddSnippet(snippet)
 	return nil
 }
