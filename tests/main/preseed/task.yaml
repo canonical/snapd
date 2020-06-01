@@ -4,8 +4,7 @@ description: |
   command works, up to the point where the image is ready to be booted.
   The test assumes cloud image with a core and lxd snaps in its seeds/.
 
-# TODO: add ubuntu-20-10-64 once qemu-ndb is included in qemu-utils package 
-systems: [ubuntu-19.10-*, ubuntu-20.04-*]
+systems: [ubuntu-19.10-*, ubuntu-20*]
 
 environment:
   IMAGE_MOUNTPOINT: /mnt/cloudimg

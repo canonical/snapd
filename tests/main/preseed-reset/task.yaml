@@ -3,8 +3,7 @@ description: |
   This test checks that preseeding of Ubuntu cloud images with snap-preseed
   can be undone with --reset flag.
 
-# TODO: add ubuntu-20-10-64 once qemu-ndb is included in qemu-utils package 
-systems: [ubuntu-19.10-*, ubuntu-20.04-*]
+systems: [ubuntu-19.10-*, ubuntu-20*]
 
 environment:
   IMAGE_MOUNTPOINT: /mnt/cloudimg
