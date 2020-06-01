@@ -149,15 +149,7 @@ func (s *Launcher) OpenDesktopEntryEnv(desktopFileID string, env []string, sende
 		return dbus.MakeFailedError(err)
 	}
 
-	// Before rejoining args to create a new command-line: escape "\" escapes; escape "\"" quotes; and, wrap each arg in "\"" quotes
-	for i := 0; i != len(args); i++ {
-		args[i] = strings.Replace(args[i], `\`, `\\`, -1)
-		args[i] = strings.Replace(args[i], `"`, `\"`, -1)
-		args[i] = `"` + args[i] + `"`
-    }
-
-	// Invoke indirectly via sh to unparent and avoid potentially leaving a zombie
-	cmd := exec.Command("sh", "-c", strings.Join(args, " ")+"&")
+	cmd := exec.Command(args[0], args[1:]...)
 	cmd.Env = os.Environ()
 	for _, e := range env {
 		if !strutil.ListContains(allowedEnvVars, strings.SplitN(e, "=", 2)[0]) {
@@ -166,6 +158,11 @@ func (s *Launcher) OpenDesktopEntryEnv(desktopFileID string, env []string, sende
 
 		cmd.Env = append(cmd.Env, e)
 	}
+
+    // XXX: this avoids defunct processes but causes userd to persist
+    // until all children are gone (currently, this is not a problem since
+    // userd is long running once started)
+    go cmd.Wait()
 
 	if cmd.Run() != nil {
 		return dbus.MakeFailedError(fmt.Errorf("cannot run %q", exec_command))
