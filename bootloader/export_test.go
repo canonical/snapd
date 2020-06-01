@@ -102,3 +102,9 @@ func LkRuntimeMode(b Bootloader) bool {
 	lk := b.(*lk)
 	return lk.inRuntimeMode
 }
+
+var (
+	EditionFromScriptFile = editionFromScriptFile
+	EditionFromScript     = editionFromScript
+	BootScriptFrom        = bootScriptFrom
+)
