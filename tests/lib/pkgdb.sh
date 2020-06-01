@@ -634,6 +634,7 @@ pkg_dependencies_ubuntu_classic(){
                 evolution-data-server
                 fwupd
                 packagekit
+                qemu-utils
                 "
             ;;
         ubuntu-19.10-64)
