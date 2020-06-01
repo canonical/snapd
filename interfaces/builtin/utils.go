@@ -148,9 +148,9 @@ func aareExclusivePatterns(orig string) []string {
 
 // getDesktopFileRules(<snap instance name>) generates snippet rules for
 // allowing access to the specified snap's desktop files in
-// dirs.SnapDesktopFilesDir, but explicitly denies access to all other snap's
+// dirs.SnapDesktopFilesDir, but explicitly denies access to all other snaps'
 // desktop files since xdg libraries may try to read all the desktop files
-// in the dir. (LP: #1868051)
+// in the dir, causing excessive noise. (LP: #1868051)
 func getDesktopFileRules(snapInstanceName string) []string {
 	baseDir := dirs.SnapDesktopFilesDir
 
