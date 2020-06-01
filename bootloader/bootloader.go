@@ -139,6 +139,13 @@ type ExtractedRunKernelImageBootloader interface {
 	DisableTryKernel() error
 }
 
+// ManagedBootloader manages its boot assets (typically boot scripts).
+type ManagedBootloader interface {
+	// InstallBootScript installs or updates the boot script used by the
+	// bootloader.
+	InstallBootScript(*Options) error
+}
+
 func genericInstallBootConfig(gadgetFile, systemFile string) (bool, error) {
 	if !osutil.FileExists(gadgetFile) {
 		return false, nil

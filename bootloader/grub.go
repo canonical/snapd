@@ -21,9 +21,11 @@ package bootloader
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 
+	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/bootloader/grubenv"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
@@ -35,6 +37,7 @@ var (
 	_ installableBootloader             = (*grub)(nil)
 	_ RecoveryAwareBootloader           = (*grub)(nil)
 	_ ExtractedRunKernelImageBootloader = (*grub)(nil)
+	_ ManagedBootloader                 = (*grub)(nil)
 )
 
 type grub struct {
@@ -299,4 +302,36 @@ func (g *grub) TryKernel() (snap.PlaceInfo, error) {
 		return p, nil
 	}
 	return nil, ErrNoTryKernelRef
+}
+
+// InstallBootScript installs or updates the grub boot script.
+//
+// Implements ManagedBootloader for the grub bootloader.
+func (g *grub) InstallBootScript(opts *Options) error {
+	bootScriptName := "grub.conf"
+	currentBootScript := filepath.Join(g.dir(), "grub.cfg")
+	if opts != nil && opts.Recovery {
+		bootScriptName = "grub-recovery.conf"
+	}
+	currentBootScriptEdition, err := editionFromScriptFile(currentBootScript)
+	if err != nil && err != errNoEdition {
+		return err
+	}
+	newBootScript := assets.GetBootAsset(bootScriptName)
+	if len(newBootScript) == 0 {
+		return fmt.Errorf("no boot script with name %q", bootScriptName)
+	}
+	gbs, err := bootScriptFrom(newBootScript)
+	if err != nil {
+		return err
+	}
+	if gbs.Edition() <= currentBootScriptEdition {
+		// edition of the candidate boot script is lower than one
+		// currently installed
+		return nil
+	}
+	if err := ioutil.WriteFile(currentBootScript, gbs.Script(), 0644); err != nil {
+		return err
+	}
+	return nil
 }
