@@ -21,6 +21,12 @@ package builtin
 
 const desktopLaunchSummary = `allows snaps to identify and launch other snaps`
 
+const desktopLaunchBaseDeclarationPlugs = `
+  desktop-launch:
+    allow-installation: false
+    deny-auto-connection: true
+`
+
 const desktopLaunchBaseDeclarationSlots = `
   desktop-launch:
     allow-installation:
@@ -50,6 +56,7 @@ func init() {
 		name:                  "desktop-launch",
 		summary:               desktopLaunchSummary,
 		implicitOnClassic:     true,
+		baseDeclarationPlugs:  desktopLaunchBaseDeclarationPlugs,
 		baseDeclarationSlots:  desktopLaunchBaseDeclarationSlots,
 		connectedPlugAppArmor: desktopLaunchConnectedPlugAppArmor,
 	})
