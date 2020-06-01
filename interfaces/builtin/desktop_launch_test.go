@@ -85,3 +85,12 @@ func (s *desktopLaunchSuite) TestConnectedPlugSnippet(c *C) {
 func (s *desktopLaunchSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }
+
+func (s *desktopLaunchSuite) TestStaticInfo(c *C) {
+	si := interfaces.StaticInfoOf(s.iface)
+	c.Assert(si.ImplicitOnCore, Equals, false)
+	c.Assert(si.ImplicitOnClassic, Equals, true)
+	c.Assert(si.Summary, Equals, `allows snaps to identify and launch other snaps`)
+	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "desktop-launch")
+	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "deny-auto-connection: true")
+}
