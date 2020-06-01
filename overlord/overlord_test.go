@@ -53,7 +53,7 @@ import (
 func TestOverlord(t *testing.T) { TestingT(t) }
 
 type overlordSuite struct {
-	restoreBackends func()
+	testutil.BaseTest
 }
 
 var _ = Suite(&overlordSuite{})
@@ -81,14 +81,12 @@ func fakePruneTicker() (w *ticker, restore func()) {
 func (ovs *overlordSuite) SetUpTest(c *C) {
 	tmpdir := c.MkDir()
 	dirs.SetRootDir(tmpdir)
+	ovs.AddCleanup(func() { dirs.SetRootDir("") })
+	ovs.AddCleanup(osutil.MockMountInfo(""))
+
 	dirs.SnapStateFile = filepath.Join(tmpdir, "test.json")
 	snapstate.CanAutoRefresh = nil
-	ovs.restoreBackends = ifacestate.MockSecurityBackends(nil)
-}
-
-func (ovs *overlordSuite) TearDownTest(c *C) {
-	dirs.SetRootDir("/")
-	ovs.restoreBackends()
+	ovs.AddCleanup(func() { ifacestate.MockSecurityBackends(nil) })
 }
 
 func (ovs *overlordSuite) TestNew(c *C) {
@@ -672,9 +670,6 @@ func (ovs *overlordSuite) TestEnsureLoopPruneDoesntAbortShortlyAfterStartOfOpera
 	w, restoreTicker := fakePruneTicker()
 	defer restoreTicker()
 
-	restoreIntv := overlord.MockPruneInterval(1*time.Millisecond, 1000*time.Millisecond, 1*time.Hour)
-	defer restoreIntv()
-
 	// use real overlord, we need device manager to be there
 	o, err := overlord.New(nil)
 	c.Assert(err, IsNil)
@@ -728,9 +723,6 @@ func (ovs *overlordSuite) TestEnsureLoopPruneAbortsOld(c *C) {
 
 	w, restoreTicker := fakePruneTicker()
 	defer restoreTicker()
-
-	restoreIntv := overlord.MockPruneInterval(1*time.Millisecond, 24*time.Hour, 1*time.Hour)
-	defer restoreIntv()
 
 	// use real overlord, we need device manager to be there
 	o, err := overlord.New(nil)
@@ -789,9 +781,6 @@ func (ovs *overlordSuite) TestEnsureLoopPruneAbortsOld(c *C) {
 func (ovs *overlordSuite) TestEnsureLoopNoPruneWhenPreseed(c *C) {
 	w, restoreTicker := fakePruneTicker()
 	defer restoreTicker()
-
-	restoreIntv := overlord.MockPruneInterval(1*time.Millisecond, 1000*time.Millisecond, 1*time.Hour)
-	defer restoreIntv()
 
 	restore := snapdenv.MockPreseeding(true)
 	defer restore()

@@ -20,11 +20,14 @@
 package sysconfig_test
 
 import (
+	"fmt"
+	"io/ioutil"
 	"path/filepath"
 	"testing"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/testutil"
@@ -50,16 +53,30 @@ func (s *sysconfigSuite) SetUpTest(c *C) {
 }
 
 func (s *sysconfigSuite) TestCloudInitDisablesByDefault(c *C) {
-	err := sysconfig.ConfigureRunSystem(&sysconfig.Options{})
+	err := sysconfig.ConfigureRunSystem(&sysconfig.Options{
+		TargetRootDir: boot.InstallHostWritableDir,
+	})
 	c.Assert(err, IsNil)
 
-	ubuntuDataCloudDisabled := filepath.Join(dirs.RunMnt, "ubuntu-data/system-data/etc/cloud/cloud-init.disabled/")
+	ubuntuDataCloudDisabled := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud-init.disabled/")
 	c.Check(ubuntuDataCloudDisabled, testutil.FilePresent)
 }
 
 func (s *sysconfigSuite) TestCloudInitInstalls(c *C) {
+	cloudCfgSrcDir := c.MkDir()
+	for _, mockCfg := range []string{"foo.cfg", "bar.cfg"} {
+		err := ioutil.WriteFile(filepath.Join(cloudCfgSrcDir, mockCfg), []byte(fmt.Sprintf("%s config", mockCfg)), 0644)
+		c.Assert(err, IsNil)
+	}
+
 	err := sysconfig.ConfigureRunSystem(&sysconfig.Options{
-		CloudInitSrcDir: "some-dir",
+		CloudInitSrcDir: cloudCfgSrcDir,
+		TargetRootDir:   boot.InstallHostWritableDir,
 	})
-	c.Assert(err, ErrorMatches, "installCloudInitCfg not implemented yet")
+	c.Assert(err, IsNil)
+
+	// and did copy the cloud-init files
+	ubuntuDataCloudCfg := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud.cfg.d/")
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "foo.cfg"), testutil.FileEquals, "foo.cfg config")
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "bar.cfg"), testutil.FileEquals, "bar.cfg config")
 }

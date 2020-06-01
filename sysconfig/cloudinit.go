@@ -25,11 +25,15 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 )
 
-func DisableCloudInit() error {
-	ubuntuDataCloud := filepath.Join(dirs.RunMnt, "ubuntu-data/system-data/etc/cloud/")
+func ubuntuDataCloudDir(rootdir string) string {
+	return WritableDefaultsDir(rootdir, "etc/cloud/")
+}
+
+func DisableCloudInit(targetdir string) error {
+	ubuntuDataCloud := ubuntuDataCloudDir(targetdir)
 	if err := os.MkdirAll(ubuntuDataCloud, 0755); err != nil {
 		return fmt.Errorf("cannot make cloud config dir: %v", err)
 	}
@@ -40,21 +44,41 @@ func DisableCloudInit() error {
 	return nil
 }
 
-func installCloudInitCfg(src string) error {
-	return fmt.Errorf("installCloudInitCfg not implemented yet")
+func installCloudInitCfg(src, targetdir string) error {
+	ccl, err := filepath.Glob(filepath.Join(src, "*.cfg"))
+	if err != nil {
+		return err
+	}
+	if len(ccl) == 0 {
+		return nil
+	}
+
+	ubuntuDataCloudCfgDir := filepath.Join(ubuntuDataCloudDir(targetdir), "cloud.cfg.d/")
+	if err := os.MkdirAll(ubuntuDataCloudCfgDir, 0755); err != nil {
+		return fmt.Errorf("cannot make cloud config dir: %v", err)
+	}
+
+	for _, cc := range ccl {
+		if err := osutil.CopyFile(cc, filepath.Join(ubuntuDataCloudCfgDir, filepath.Base(cc)), 0); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
-// disable cloud-init by default (as it's not confined)
-// TODO:UC20: 1. allow drop-in cloud.cfg.d/* in mode dangerous
-//            2. allow gadget cloud.cfg.d/* (with whitelisted keys?)
-//            3. allow cloud.cfg.d (with whitelisted keys) for non
-//               grade dangerous systems
+// TODO:UC20: - allow cloud.conf coming from the gadget
+//            - think about if/what cloud-init means on "secured" models
 func configureCloudInit(opts *Options) (err error) {
+	if opts.TargetRootDir == "" {
+		return fmt.Errorf("unable to configure cloud-init, missing target dir")
+	}
+
 	switch opts.CloudInitSrcDir {
 	case "":
-		err = DisableCloudInit()
+		// disable cloud-init by default (as it's not confined)
+		err = DisableCloudInit(opts.TargetRootDir)
 	default:
-		err = installCloudInitCfg(opts.CloudInitSrcDir)
+		err = installCloudInitCfg(opts.CloudInitSrcDir, opts.TargetRootDir)
 	}
 	return err
 }

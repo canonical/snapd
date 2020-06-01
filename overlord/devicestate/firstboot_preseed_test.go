@@ -235,7 +235,7 @@ func (s *firstbootPreseed16Suite) TestPreseedHappy(c *C) {
 	s.startOverlord(c)
 	st := s.overlord.State()
 	opts := &devicestate.PopulateStateFromSeedOptions{Preseed: true}
-	chg := s.makeSeedChange(c, st, opts, checkPreseedTasks, checkPreseedOrder)
+	chg, _ := s.makeSeedChange(c, st, opts, checkPreseedTasks, checkPreseedOrder)
 	err := s.overlord.Settle(settleTimeout)
 
 	st.Lock()

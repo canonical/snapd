@@ -20,6 +20,12 @@ restore: |
     apt-tool restore installed.pkgs
     rm -f installed.pkgs
 
+    # snap-confine, in the old version of snapd, leaves behind junk in
+    # /tmp/snap.rootfs_* This is now detected by invariant detector, which uses
+    # it as a sign of possible snap-confine crash. To avoid the false positive,
+    # remove those leftovers.
+    rm -rf /tmp/snap.rootfs_*
+
 execute: |
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB"/systemd.sh

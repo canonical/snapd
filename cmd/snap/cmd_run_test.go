@@ -159,6 +159,13 @@ func (s *RunSuite) TestSnapRunWhenMissingConfine(c *check.C) {
 func (s *RunSuite) TestSnapRunAppIntegration(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
+	tmpdir := os.Getenv("TMPDIR")
+	if tmpdir == "" {
+		tmpdir = "/var/tmp"
+		os.Setenv("TMPDIR", tmpdir)
+		defer os.Unsetenv("TMPDIR")
+	}
+
 	// mock installed snap
 	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
 		Revision: snap.R("x2"),
@@ -187,10 +194,18 @@ func (s *RunSuite) TestSnapRunAppIntegration(c *check.C) {
 		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
 		"snapname.app", "--arg1", "arg2"})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=x2")
+	c.Check(execEnv, testutil.Contains, fmt.Sprintf("TMPDIR=%s", tmpdir))
 }
 
 func (s *RunSuite) TestSnapRunClassicAppIntegration(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
+
+	tmpdir := os.Getenv("TMPDIR")
+	if tmpdir == "" {
+		tmpdir = "/var/tmp"
+		os.Setenv("TMPDIR", tmpdir)
+		defer os.Unsetenv("TMPDIR")
+	}
 
 	// mock installed snap
 	snaptest.MockSnapCurrent(c, string(mockYaml)+"confinement: classic\n", &snap.SideInfo{
@@ -220,7 +235,7 @@ func (s *RunSuite) TestSnapRunClassicAppIntegration(c *check.C) {
 		filepath.Join(dirs.DistroLibExecDir, "snap-exec"),
 		"snapname.app", "--arg1", "arg2"})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=x2")
-
+	c.Check(execEnv, testutil.Contains, fmt.Sprintf("SNAP_SAVED_TMPDIR=%s", tmpdir))
 }
 
 func (s *RunSuite) TestSnapRunClassicAppIntegrationReexecedFromCore(c *check.C) {
@@ -1181,4 +1196,64 @@ func (s *RunSuite) TestSnapRunRestoreSecurityContextFail(c *check.C) {
 	c.Check(isEnabledCalls, check.Equals, 3)
 	c.Check(verifyCalls, check.Equals, 2)
 	c.Check(restoreCalls, check.Equals, 1)
+}
+
+// systemctl is-system-running returns "running" in normal situations.
+func (s *RunSuite) TestIsStoppingRunning(c *check.C) {
+	systemctl := testutil.MockCommand(c, "systemctl", `
+case "$1" in
+	is-system-running)
+		echo "running"
+		exit 0
+		;;
+esac
+`)
+	defer systemctl.Restore()
+	stop, err := snaprun.IsStopping()
+	c.Check(err, check.IsNil)
+	c.Check(stop, check.Equals, false)
+	c.Check(systemctl.Calls(), check.DeepEquals, [][]string{
+		{"systemctl", "is-system-running"},
+	})
+}
+
+// systemctl is-system-running returns "stopping" when the system is
+// shutting down or rebooting. At the same time it returns a non-zero
+// exit status.
+func (s *RunSuite) TestIsStoppingStopping(c *check.C) {
+	systemctl := testutil.MockCommand(c, "systemctl", `
+case "$1" in
+	is-system-running)
+		echo "stopping"
+		exit 1
+		;;
+esac
+`)
+	defer systemctl.Restore()
+	stop, err := snaprun.IsStopping()
+	c.Check(err, check.IsNil)
+	c.Check(stop, check.Equals, true)
+	c.Check(systemctl.Calls(), check.DeepEquals, [][]string{
+		{"systemctl", "is-system-running"},
+	})
+}
+
+// systemctl is-system-running can often return "degraded"
+// Let's make sure that is not confusing us.
+func (s *RunSuite) TestIsStoppingDegraded(c *check.C) {
+	systemctl := testutil.MockCommand(c, "systemctl", `
+case "$1" in
+	is-system-running)
+		echo "degraded"
+		exit 1
+		;;
+esac
+`)
+	defer systemctl.Restore()
+	stop, err := snaprun.IsStopping()
+	c.Check(err, check.IsNil)
+	c.Check(stop, check.Equals, false)
+	c.Check(systemctl.Calls(), check.DeepEquals, [][]string{
+		{"systemctl", "is-system-running"},
+	})
 }

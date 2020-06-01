@@ -28,6 +28,8 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
+	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/state"
 )
 
 func Test(t *testing.T) { TestingT(t) }
@@ -45,6 +47,7 @@ func (*featureSuite) TestName(c *C) {
 	c.Check(features.RefreshAppAwareness.String(), Equals, "refresh-app-awareness")
 	c.Check(features.ClassicPreservesXdgRuntimeDir.String(), Equals, "classic-preserves-xdg-runtime-dir")
 	c.Check(features.RobustMountNamespaceUpdates.String(), Equals, "robust-mount-namespace-updates")
+	c.Check(features.UserDaemons.String(), Equals, "user-daemons")
 	c.Check(func() { _ = features.SnapdFeature(1000).String() }, PanicMatches, "unknown feature flag code 1000")
 }
 
@@ -66,6 +69,7 @@ func (*featureSuite) TestIsExported(c *C) {
 	c.Check(features.PerUserMountNamespace.IsExported(), Equals, true)
 	c.Check(features.RefreshAppAwareness.IsExported(), Equals, true)
 	c.Check(features.ClassicPreservesXdgRuntimeDir.IsExported(), Equals, true)
+	c.Check(features.UserDaemons.IsExported(), Equals, false)
 }
 
 func (*featureSuite) TestIsEnabled(c *C) {
@@ -95,7 +99,8 @@ func (*featureSuite) TestIsEnabledWhenUnset(c *C) {
 	c.Check(features.PerUserMountNamespace.IsEnabledWhenUnset(), Equals, false)
 	c.Check(features.RefreshAppAwareness.IsEnabledWhenUnset(), Equals, false)
 	c.Check(features.ClassicPreservesXdgRuntimeDir.IsEnabledWhenUnset(), Equals, false)
-	c.Check(features.RobustMountNamespaceUpdates.IsEnabledWhenUnset(), Equals, false)
+	c.Check(features.RobustMountNamespaceUpdates.IsEnabledWhenUnset(), Equals, true)
+	c.Check(features.UserDaemons.IsEnabledWhenUnset(), Equals, false)
 }
 
 func (*featureSuite) TestControlFile(c *C) {
@@ -117,4 +122,33 @@ func (*featureSuite) TestConfigOptionRefreshAppAwareness(c *C) {
 	snapName, configName := features.RefreshAppAwareness.ConfigOption()
 	c.Check(snapName, Equals, "core")
 	c.Check(configName, Equals, "experimental.refresh-app-awareness")
+}
+
+func (s *featureSuite) TestFlag(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+	tr := config.NewTransaction(st)
+
+	// Feature flags have a value even if unset.
+	flag, err := features.Flag(tr, features.Layouts)
+	c.Assert(err, IsNil)
+	c.Check(flag, Equals, true)
+
+	// Feature flags can be disabled.
+	c.Assert(tr.Set("core", "experimental.layouts", "false"), IsNil)
+	flag, err = features.Flag(tr, features.Layouts)
+	c.Assert(err, IsNil)
+	c.Check(flag, Equals, false)
+
+	// Feature flags can be enabled.
+	c.Assert(tr.Set("core", "experimental.layouts", "true"), IsNil)
+	flag, err = features.Flag(tr, features.Layouts)
+	c.Assert(err, IsNil)
+	c.Check(flag, Equals, true)
+
+	// Feature flags must have a well-known value.
+	c.Assert(tr.Set("core", "experimental.layouts", "banana"), IsNil)
+	_, err = features.Flag(tr, features.Layouts)
+	c.Assert(err, ErrorMatches, `layouts can only be set to 'true' or 'false', got "banana"`)
 }

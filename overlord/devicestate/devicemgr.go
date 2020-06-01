@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2019 Canonical Ltd
+ * Copyright (C) 2016-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,8 +20,10 @@
 package devicestate
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -31,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -47,7 +50,7 @@ import (
 // DeviceManager is responsible for managing the device identity and device
 // policies.
 type DeviceManager struct {
-	modeEnv boot.Modeenv
+	systemMode string
 
 	state      *state.State
 	keypairMgr asserts.KeypairManager
@@ -87,12 +90,12 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		preseed:    snapdenv.Preseeding(),
 	}
 
-	modeEnv, err := boot.ReadModeenv("")
-	if err != nil && !os.IsNotExist(err) {
+	modeEnv, err := maybeReadModeenv()
+	if err != nil {
 		return nil, err
 	}
 	if modeEnv != nil {
-		m.modeEnv = *modeEnv
+		m.systemMode = modeEnv.Mode
 	}
 
 	s.Lock()
@@ -126,6 +129,14 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	runner.AddBlocked(gadgetUpdateBlocked)
 
 	return m, nil
+}
+
+func maybeReadModeenv() (*boot.Modeenv, error) {
+	modeEnv, err := boot.ReadModeenv("")
+	if err != nil && !os.IsNotExist(err) {
+		return nil, fmt.Errorf("cannot read modeenv: %v", err)
+	}
+	return modeEnv, nil
 }
 
 type deviceMgrKey struct{}
@@ -262,18 +273,18 @@ func setClassicFallbackModel(st *state.State, device *auth.DeviceState) error {
 	return nil
 }
 
-func (m *DeviceManager) OperatingMode() string {
-	if m.modeEnv.Mode == "" {
+func (m *DeviceManager) SystemMode() string {
+	if m.systemMode == "" {
 		return "run"
 	}
-	return m.modeEnv.Mode
+	return m.systemMode
 }
 
 func (m *DeviceManager) ensureOperational() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	if m.OperatingMode() != "run" {
+	if m.SystemMode() != "run" {
 		// avoid doing registration in ephemeral mode
 		// note: this also stop auto-refreshes indirectly
 		return nil
@@ -408,7 +419,7 @@ func (m *DeviceManager) ensureOperational() error {
 	chg := m.state.NewChange("become-operational", i18n.G("Initialize device"))
 	chg.AddAll(state.NewTaskSet(tasks...))
 
-	perfTimings.AddTag("change-id", chg.ID())
+	state.TagTimingsWithChange(perfTimings, chg)
 	perfTimings.Save(m.state)
 
 	return nil
@@ -438,14 +449,19 @@ func (m *DeviceManager) ensureSeeded() error {
 	}
 
 	var opts *populateStateFromSeedOptions
-	if !m.modeEnv.Unset() {
-		opts = &populateStateFromSeedOptions{
-			Label: m.modeEnv.RecoverySystem,
-			Mode:  m.modeEnv.Mode,
-		}
-	}
 	if m.preseed {
 		opts = &populateStateFromSeedOptions{Preseed: true}
+	} else {
+		modeEnv, err := maybeReadModeenv()
+		if err != nil {
+			return err
+		}
+		if modeEnv != nil {
+			opts = &populateStateFromSeedOptions{
+				Mode:  m.systemMode,
+				Label: modeEnv.RecoverySystem,
+			}
+		}
 	}
 
 	var tsAll []*state.TaskSet
@@ -459,14 +475,13 @@ func (m *DeviceManager) ensureSeeded() error {
 		return nil
 	}
 
-	msg := fmt.Sprintf("Initialize system state")
-	chg := m.state.NewChange("seed", msg)
+	chg := m.state.NewChange("seed", "Initialize system state")
 	for _, ts := range tsAll {
 		chg.AddAll(ts)
 	}
 	m.state.EnsureBefore(0)
 
-	perfTimings.AddTag("change-id", chg.ID())
+	state.TagTimingsWithChange(perfTimings, chg)
 	perfTimings.Save(m.state)
 	return nil
 }
@@ -486,7 +501,7 @@ func (m *DeviceManager) ensureBootOk() error {
 	}
 
 	// boot-ok/update-boot-revision is only relevant in run-mode
-	if m.OperatingMode() != "run" {
+	if m.SystemMode() != "run" {
 		return nil
 	}
 
@@ -525,13 +540,13 @@ func (m *DeviceManager) ensureInstalled() error {
 		return nil
 	}
 
-	if m.OperatingMode() != "install" {
+	if m.SystemMode() != "install" {
 		return nil
 	}
 
 	var seeded bool
 	err := m.state.Get("seeded", &seeded)
-	if err != nil {
+	if err != nil && err != state.ErrNoState {
 		return err
 	}
 	if !seeded {
@@ -648,12 +663,18 @@ func (e *ensureError) Error() string {
 	return strings.Join(parts, "\n - ")
 }
 
+// no \n allowed in warnings
+var seedFailureFmt = `seeding failed with: %v. This indicates an error in your distribution, please see https://forum.snapcraft.io/t/16341 for more information.`
+
 // Ensure implements StateManager.Ensure.
 func (m *DeviceManager) Ensure() error {
 	var errs []error
 
 	if err := m.ensureSeeded(); err != nil {
-		errs = append(errs, err)
+		m.state.Lock()
+		m.state.Warnf(seedFailureFmt, err)
+		m.state.Unlock()
+		errs = append(errs, fmt.Errorf("cannot seed: %v", err))
 	}
 
 	if !m.preseed {
@@ -723,12 +744,146 @@ func (m *DeviceManager) Serial() (*asserts.Serial, error) {
 	return findSerial(m.state, nil)
 }
 
-// Systems list the available recovery/seeding systems.
-func (m *DeviceManager) Systems() ([]string, error) {
-	// TODO:UC20 list available systems in the seed, load each with
-	// seed.LoadAssertions()
-	// TODO:UC20 convert brand-id to user friendly brand name
-	return nil, fmt.Errorf("not implemented")
+type SystemAction struct {
+	Title string
+	Mode  string
+}
+
+type System struct {
+	// Current is true when the system running now was installed from that
+	// seed
+	Current bool
+	// Label of the seed system
+	Label string
+	// Model assertion of the system
+	Model *asserts.Model
+	// Brand information
+	Brand *asserts.Account
+	// Actions available for this system
+	Actions []SystemAction
+}
+
+var defaultSystemActions = []SystemAction{
+	{Title: "Install", Mode: "install"},
+}
+var currentSystemActions = []SystemAction{
+	{Title: "Reinstall", Mode: "install"},
+	{Title: "Recover", Mode: "recover"},
+	{Title: "Run normally", Mode: "run"},
+}
+var recoverSystemActions = []SystemAction{
+	{Title: "Reinstall", Mode: "install"},
+	{Title: "Run normally", Mode: "run"},
+}
+
+var ErrNoSystems = errors.New("no systems seeds")
+
+// Systems list the available recovery/seeding systems. Returns the list of
+// systems, ErrNoSystems when no systems seeds were found or other error.
+func (m *DeviceManager) Systems() ([]*System, error) {
+	// it's tough luck when we cannot determine the current system seed
+	systemMode := m.SystemMode()
+	currentSys, _ := currentSystemForMode(m.state, systemMode)
+
+	systemLabels, err := filepath.Glob(filepath.Join(dirs.SnapSeedDir, "systems", "*"))
+	if err != nil && !os.IsNotExist(err) {
+		return nil, fmt.Errorf("cannot list available systems: %v", err)
+	}
+	if len(systemLabels) == 0 {
+		// maybe not a UC20 system
+		return nil, ErrNoSystems
+	}
+
+	var systems []*System
+	for _, fpLabel := range systemLabels {
+		label := filepath.Base(fpLabel)
+		system, err := systemFromSeed(label, currentSys)
+		if err != nil {
+			// TODO:UC20 add a Broken field to the seed system like
+			// we do for snap.Info
+			logger.Noticef("cannot load system %q seed: %v", label, err)
+			continue
+		}
+		systems = append(systems, system)
+	}
+	return systems, nil
+}
+
+var ErrUnsupportedAction = errors.New("unsupported action")
+
+// RequestSystemAction request provided system to be run in a given mode. A
+// system reboot will be requested when the request can be successfully carried
+// out.
+func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAction) error {
+	if systemLabel == "" {
+		return fmt.Errorf("internal error: system label is unset")
+	}
+
+	if err := checkSystemRequestConflict(m.state, systemLabel); err != nil {
+		return err
+	}
+
+	systemMode := m.SystemMode()
+	currentSys, _ := currentSystemForMode(m.state, systemMode)
+
+	systemSeedDir := filepath.Join(dirs.SnapSeedDir, "systems", systemLabel)
+	if _, err := os.Stat(systemSeedDir); err != nil {
+		return err
+	}
+	system, err := systemFromSeed(systemLabel, currentSys)
+	if err != nil {
+		return fmt.Errorf("cannot load seed system: %v", err)
+	}
+
+	var sysAction *SystemAction
+	for _, act := range system.Actions {
+		if action.Mode == act.Mode {
+			sysAction = &act
+			break
+		}
+	}
+	if sysAction == nil {
+		return ErrUnsupportedAction
+	}
+
+	// XXX: requested mode is valid; only current system has 'run' and
+	// recover 'actions'
+
+	switch systemMode {
+	case "recover", "run":
+		// if going from recover to recover or from run to run and the systems
+		// are the same do nothing
+		if systemMode == sysAction.Mode && systemLabel == currentSys.System {
+			return nil
+		}
+	case "install":
+		// requesting system actions in install mode does not make sense atm
+		//
+		// TODO:UC20: maybe factory hooks will be able to something like
+		// this?
+		return ErrUnsupportedAction
+	default:
+		// probably test device manager mocking problem, or also potentially
+		// missing modeenv
+		return fmt.Errorf("internal error: unexpected manager system mode %q", systemMode)
+	}
+
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	deviceCtx, err := DeviceCtx(m.state, nil, nil)
+	if err != nil {
+		return err
+	}
+
+	if err := boot.SetRecoveryBootSystemAndMode(deviceCtx, systemLabel, action.Mode); err != nil {
+		return fmt.Errorf("cannot set device to boot into system %q in mode %q: %v",
+			systemLabel, action.Mode, err)
+	}
+
+	logger.Noticef("restarting into system %q for action %q", systemLabel, sysAction.Title)
+	m.state.RequestRestart(state.RestartSystemNow)
+	return nil
 }
 
 // implement storecontext.Backend

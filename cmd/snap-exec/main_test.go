@@ -30,6 +30,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -176,13 +177,11 @@ func (s *snapExecSuite) TestSnapExecAppIntegration(c *C) {
 	c.Check(execEnv, testutil.Contains, "BASE_PATH=/some/path")
 	c.Check(execEnv, testutil.Contains, "LD_LIBRARY_PATH=/some/path/lib")
 	c.Check(execEnv, testutil.Contains, fmt.Sprintf("MY_PATH=%s", os.Getenv("PATH")))
-	// Note that TEST_PATH has two values: environment sets it to /vanilla
-	// but snap.yaml sets it to /custom. One would expect that only one
-	// value prevails but due to
-	// https://bugs.launchpad.net/snapd/+bug/1860369 both environment items
-	// exist as distinct entries.
-	c.Check(execEnv, testutil.Contains, "TEST_PATH=/vanilla")
-	c.Check(execEnv, testutil.Contains, "TEST_PATH=/custom") // Surprise!
+	// TEST_PATH is properly handled and we only see one value, /custom, defined
+	// as an app-specific override.
+	// See also https://bugs.launchpad.net/snapd/+bug/1860369
+	c.Check(execEnv, Not(testutil.Contains), "TEST_PATH=/vanilla")
+	c.Check(execEnv, testutil.Contains, "TEST_PATH=/custom")
 }
 
 func (s *snapExecSuite) TestSnapExecAppCommandChainIntegration(c *C) {
@@ -479,8 +478,8 @@ func (s *snapExecSuite) TestSnapExecExpandEnvCmdArgs(c *C) {
 			expected: []string{"foo", "bar", "baz"},
 		},
 	} {
-		c.Check(snapExec.ExpandEnvCmdArgs(t.args, t.env), DeepEquals, t.expected)
-
+		env := osutil.Environment(t.env)
+		c.Check(snapExec.ExpandEnvCmdArgs(t.args, env), DeepEquals, t.expected)
 	}
 }
 
@@ -589,9 +588,11 @@ func (s *snapExecSuite) TestSnapExecCompleteClassicNoReexec(c *C) {
 
 	execArgv0 := ""
 	execArgs := []string{}
+	execEnv := []string{}
 	restore = snapExec.MockSyscallExec(func(argv0 string, argv []string, env []string) error {
 		execArgv0 = argv0
 		execArgs = argv
+		execEnv = env
 		return nil
 	})
 	defer restore()
@@ -606,6 +607,8 @@ func (s *snapExecSuite) TestSnapExecCompleteClassicNoReexec(c *C) {
 	// setup env
 	os.Setenv("SNAP_DATA", "/var/snap/snapname/42")
 	defer os.Unsetenv("SNAP_DATA")
+	os.Setenv("SNAP_SAVED_TMPDIR", "/var/tmp99")
+	defer os.Unsetenv("SNAP_SAVED_TMPDIR")
 
 	// launch and verify its run the right way
 	err := snapExec.ExecApp("snapname.app", "42", "complete", []string{"foo"})
@@ -615,4 +618,6 @@ func (s *snapExecSuite) TestSnapExecCompleteClassicNoReexec(c *C) {
 		filepath.Join(dirs.DistroLibExecDir, "etelpmoc.sh"),
 		filepath.Join(dirs.SnapMountDir, "snapname/42/you/complete/me"),
 		"foo"})
+	c.Check(execEnv, testutil.Contains, "SNAP_DATA=/var/snap/snapname/42")
+	c.Check(execEnv, testutil.Contains, "TMPDIR=/var/tmp99")
 }

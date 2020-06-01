@@ -67,6 +67,16 @@ func (u *uenvTestSuite) TestOpenEnv(c *C) {
 	c.Assert(env2.String(), Equals, "foo=bar\n")
 }
 
+func (u *uenvTestSuite) TestOpenEnvBadEmpty(c *C) {
+	empty := filepath.Join(c.MkDir(), "empty.env")
+
+	err := ioutil.WriteFile(empty, nil, 0644)
+	c.Assert(err, IsNil)
+
+	_, err = ubootenv.Open(empty)
+	c.Assert(err, ErrorMatches, `cannot open ".*": smaller than expected header`)
+}
+
 func (u *uenvTestSuite) TestOpenEnvBadCRC(c *C) {
 	corrupted := filepath.Join(c.MkDir(), "corrupted.env")
 

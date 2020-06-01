@@ -81,6 +81,9 @@ func (t *firstBootBaseTest) setupBaseTest(c *C, s *seedtest.SeedSnaps) {
 
 	t.AddCleanup(release.MockOnClassic(false))
 
+	restore := osutil.MockMountInfo("")
+	t.AddCleanup(restore)
+
 	// mock the world!
 	err := os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "snaps"), 0755)
 	c.Assert(err, IsNil)
@@ -446,7 +449,7 @@ func checkSeedTasks(c *C, tsAll []*state.TaskSet) {
 }
 
 func (s *firstBoot16BaseTest) makeSeedChange(c *C, st *state.State, opts *devicestate.PopulateStateFromSeedOptions,
-	checkTasks func(c *C, tsAll []*state.TaskSet), checkOrder func(c *C, tsAll []*state.TaskSet, snaps ...string)) *state.Change {
+	checkTasks func(c *C, tsAll []*state.TaskSet), checkOrder func(c *C, tsAll []*state.TaskSet, snaps ...string)) (*state.Change, *asserts.Model) {
 
 	coreFname, kernelFname, gadgetFname := s.makeCoreSnaps(c, "")
 
@@ -468,10 +471,15 @@ version: 1.0`
 	c.Assert(err, IsNil)
 
 	// add a model assertion and its chain
+	var model *asserts.Model = nil
 	assertsChain := s.makeModelAssertionChain(c, "my-model", nil, "foo")
 	for i, as := range assertsChain {
+		if as.Type() == asserts.ModelType {
+			model = as.(*asserts.Model)
+		}
 		s.WriteAssertions(strconv.Itoa(i), as)
 	}
+	c.Assert(model, NotNil)
 
 	// create a seed.yaml
 	content := []byte(fmt.Sprintf(`
@@ -516,7 +524,7 @@ snaps:
 	chg1 := st.NewChange("become-operational", "init device")
 	chg1.SetStatus(state.DoingStatus)
 
-	return chg
+	return chg, model
 }
 
 func (s *firstBoot16Suite) TestPopulateFromSeedHappy(c *C) {
@@ -527,7 +535,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedHappy(c *C) {
 	bloader.SetBootBase("core_1.snap")
 
 	st := s.overlord.State()
-	chg := s.makeSeedChange(c, st, nil, checkSeedTasks, checkOrder)
+	chg, model := s.makeSeedChange(c, st, nil, checkSeedTasks, checkOrder)
 	err := s.overlord.Settle(settleTimeout)
 	c.Assert(err, IsNil)
 
@@ -602,6 +610,18 @@ func (s *firstBoot16Suite) TestPopulateFromSeedHappy(c *C) {
 	err = state.Get("seed-time", &seedTime)
 	c.Assert(err, IsNil)
 	c.Check(seedTime.IsZero(), Equals, false)
+
+	var whatseeded []devicestate.SeededSystem
+	err = state.Get("seeded-systems", &whatseeded)
+	c.Assert(err, IsNil)
+	c.Assert(whatseeded, DeepEquals, []devicestate.SeededSystem{{
+		System:    "",
+		Model:     "my-model",
+		BrandID:   "my-brand",
+		Revision:  model.Revision(),
+		Timestamp: model.Timestamp(),
+		SeedTime:  seedTime,
+	}})
 }
 
 func (s *firstBoot16Suite) TestPopulateFromSeedMissingBootloader(c *C) {
@@ -634,7 +654,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedMissingBootloader(c *C) {
 
 	o.AddManager(o.TaskRunner())
 
-	chg := s.makeSeedChange(c, st, nil, checkSeedTasks, checkOrder)
+	chg, _ := s.makeSeedChange(c, st, nil, checkSeedTasks, checkOrder)
 
 	se := o.StateEngine()
 	// we cannot use Settle because the Change will not become Clean
@@ -759,7 +779,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedConfigureHappy(c *C) {
 defaults:
     foodidididididididididididididid:
        foo-cfg: foo.
-    coreidididididididididididididid:
+    99T7MUlRhtI3U0QFgl5mXXESAiSwt776:  # core
        core-cfg: core_cfg_defl
     pckernelidididididididididididid:
        pc-kernel-cfg: pc-kernel_cfg_defl

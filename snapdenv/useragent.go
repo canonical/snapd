@@ -32,13 +32,13 @@ import (
 var userAgent = "unset"
 
 // SetUserAgentFromVersion sets up a user-agent string.
-func SetUserAgentFromVersion(version string, extraProds ...string) (restore func()) {
+func SetUserAgentFromVersion(version string, probeForceDevMode func() bool, extraProds ...string) (restore func()) {
 	extras := make([]string, 1, 3)
 	extras[0] = "series " + release.Series
 	if release.OnClassic {
 		extras = append(extras, "classic")
 	}
-	if release.ReleaseInfo.ForceDevMode() {
+	if probeForceDevMode != nil && probeForceDevMode() {
 		extras = append(extras, "devmode")
 	}
 	if Testing() {

@@ -35,8 +35,9 @@ type patch62Suite struct{}
 
 var _ = Suite(&patch62Suite{})
 
-// State with snapd snap marked as 'app' (to be converted to 'snapd' type) and a regular 'other' snap,
-// plus three tasks - two of them need to have their SnapSetup migrated to 'snapd' type.
+// State with snapd snap marked as 'app' (to be converted to 'snapd'
+// type) and a regular 'other' snap, plus three tasks - two of them
+// need to have their SnapSetup migrated to 'snapd' type.
 var statePatch6_2JSON = []byte(`
 {
 	"data": {
@@ -47,7 +48,7 @@ var statePatch6_2JSON = []byte(`
 			"sequence": [
 			  {
 				"name": "snapd",
-				"snap-id": "snapd-snap-id",
+				"snap-id": "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4",
 				"revision": "2"
 			  }
 			],
@@ -130,7 +131,7 @@ var statePatch6_2JSON = []byte(`
 				},
 				"side-info": {
 				  "name": "snapd",
-				  "snap-id": "snapd-snap-id",
+				  "snap-id": "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4",
 				  "revision": "1",
 				  "channel": "stable",
 				  "title": "snapd"
@@ -173,7 +174,7 @@ var statePatch6_2JSON = []byte(`
 				"snap-path": "/path",
 				"side-info": {
 				  "name": "snapd",
-				  "snap-id": "snapd-snap-id",
+				  "snap-id": "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4",
 				  "revision": "1",
 				  "channel": "stable",
 				  "title": "snapd"
@@ -194,7 +195,7 @@ var statePatch6_2JSON = []byte(`
 				"snap-path": "/path",
 				"side-info": {
 				  "name": "snapd",
-				  "snap-id": "snapd-snap-id",
+				  "snap-id": "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4",
 				  "revision": "1",
 				  "channel": "stable",
 				  "title": "snapd"
@@ -208,8 +209,9 @@ var statePatch6_2JSON = []byte(`
 	}
 }`)
 
-// State with 'snapd' snap with proper snap type, and an extra 'other' snap
-// with snapd-snap-id but improper 'app' type.
+// State with 'snapd' snap with proper snap type, and an extra 'other'
+// snap with snapd snap-id (PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4) but
+// improper 'app' type.
 var statePatch6_2JSONWithSnapd = []byte(`
 {
 	"data": {
@@ -220,7 +222,7 @@ var statePatch6_2JSONWithSnapd = []byte(`
 			"sequence": [
 			  {
 				"name": "snapd",
-				"snap-id": "snapd-snap-id",
+				"snap-id": "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4",
 				"revision": "2"
 			  }
 			],
@@ -233,7 +235,7 @@ var statePatch6_2JSONWithSnapd = []byte(`
 			"sequence": [
 			  {
 				"name": "other",
-				"snap-id": "snapd-snap-id",
+				"snap-id": "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4",
 				"revision": "1"
 			  }
 			],
@@ -249,7 +251,8 @@ var statePatch6_2JSONWithSnapd = []byte(`
 	}
 }`)
 
-// State with two snaps with snapd-snap-id and improper snap types
+// State with two snaps with snapd snap-id
+// (PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4) and improper snap types
 var statePatch6_2JSONWithSnapd2 = []byte(`
 {
 	"data": {
@@ -260,7 +263,7 @@ var statePatch6_2JSONWithSnapd2 = []byte(`
 			"sequence": [
 			  {
 				"name": "snapd",
-				"snap-id": "snapd-snap-id",
+				"snap-id": "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4",
 				"revision": "2"
 			  }
 			],
@@ -273,7 +276,7 @@ var statePatch6_2JSONWithSnapd2 = []byte(`
 			"sequence": [
 			  {
 				"name": "other",
-				"snap-id": "snapd-snap-id",
+				"snap-id": "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4",
 				"revision": "1"
 			  }
 			],
@@ -297,9 +300,6 @@ func (s *patch62Suite) SetUpTest(c *C) {
 func (s *patch62Suite) TestPatch62(c *C) {
 	restore1 := patch.MockLevel(6, 2)
 	defer restore1()
-
-	restore2 := snap.MockSnapdSnapID("snapd-snap-id")
-	defer restore2()
 
 	r := bytes.NewReader(statePatch6_2JSON)
 	st, err := state.ReadState(nil, r)
@@ -353,9 +353,6 @@ func (s *patch62Suite) TestPatch62(c *C) {
 func (s *patch62Suite) TestPatch62StopsAfterFirstSnapd(c *C) {
 	restore1 := patch.MockLevel(6, 2)
 	defer restore1()
-
-	restore2 := snap.MockSnapdSnapID("snapd-snap-id")
-	defer restore2()
 
 	r := bytes.NewReader(statePatch6_2JSONWithSnapd2)
 	st, err := state.ReadState(nil, r)

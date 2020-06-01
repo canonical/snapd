@@ -277,3 +277,47 @@ zebra
 	c.Assert(err, ErrorMatches, `cannot parse pid "zebra"`)
 	c.Assert(pids, IsNil)
 }
+
+func (s *cgroupSuite) TestProcessPathInTrackingCgroup(c *C) {
+	const noise = `12:cpuset:/
+11:rdma:/
+10:blkio:/
+9:freezer:/
+8:cpu,cpuacct:/
+7:perf_event:/
+6:net_cls,net_prio:/
+5:devices:/user.slice
+4:hugetlb:/
+3:memory:/user.slice/user-1000.slice/user@1000.service
+2:pids:/user.slice/user-1000.slice/user@1000.service
+`
+
+	d := c.MkDir()
+	f := filepath.Join(d, "cgroup")
+	restore := cgroup.MockPathOfProcPidCgroup(func(pid int) string {
+		c.Assert(pid, Equals, 1234)
+		return f
+	})
+	defer restore()
+
+	for _, scenario := range []struct{ cgroups, path, errMsg string }{
+		{cgroups: "", path: "", errMsg: "cannot find tracking cgroup"},
+		{cgroups: noise + "", path: "", errMsg: "cannot find tracking cgroup"},
+		{cgroups: noise + "0::/foo", path: "/foo"},
+		{cgroups: noise + "1:name=systemd:/bar", path: "/bar"},
+		// First match wins (normally they are in sync).
+		{cgroups: noise + "1:name=systemd:/bar\n0::/foo", path: "/bar"},
+		{cgroups: "0::/tricky:path", path: "/tricky:path"},
+		{cgroups: "1:ctrl" /* no path */, errMsg: `cannot parse proc cgroup entry ".*": expected three fields`},
+		{cgroups: "potato:foo:/bar" /* bad ID number */, errMsg: `cannot parse proc cgroup entry ".*": cannot parse cgroup id "potato"`},
+	} {
+		c.Assert(ioutil.WriteFile(f, []byte(scenario.cgroups), 0644), IsNil)
+		path, err := cgroup.ProcessPathInTrackingCgroup(1234)
+		if scenario.errMsg != "" {
+			c.Assert(err, ErrorMatches, scenario.errMsg)
+		} else {
+			c.Assert(path, Equals, scenario.path)
+		}
+	}
+
+}

@@ -17,8 +17,9 @@ execute: |
     # snap-confine (which includes snap-update-ns and snap-discard-ns) ran as
     # the group of the calling user and did not manage that properly.
     for dname in /run/snapd /sys/fs/cgroup /tmp/snap.*; do
-        find "$dname" -user test >> wrong-user.txt
-        find "$dname" -group test >> wrong-group.txt
+        # Filter out cgroups that are expected to be owned by the test user.
+        find "$dname" -user test ! -path '*/user@12345.service*' ! -path '*/user-12345.slice*' >> wrong-user.txt
+        find "$dname" -group test ! -path '*/user@12345.service*' ! -path '*/user-12345.slice*' >> wrong-group.txt
         # Filter out the following elements:
         # - sockets, we don't create any and there are some that are 777
         # - symbolic links, those are always 777

@@ -20,12 +20,17 @@
 package builtin_test
 
 import (
+	"os"
+	"path/filepath"
+
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/dbus"
+	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
@@ -155,6 +160,10 @@ func (s *FwupdInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(dbusSpec.SecurityTags(), HasLen, 1)
 
+	// On an all-snaps system, the only UpdateNS rule is applied
+	updateNS := apparmorSpec.UpdateNS()
+	c.Check(updateNS, testutil.Contains, "  # Read-write access to /boot\n")
+
 	// When connecting to the implicit slot on Classic systems, we
 	// don't generate slot-side AppArmor rules.
 	apparmorSpec = &apparmor.Specification{}
@@ -173,6 +182,26 @@ func (s *FwupdInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	err = dbusSpec.AddPermanentSlot(s.iface, s.coreSlotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(dbusSpec.SecurityTags(), HasLen, 0)
+}
+
+func (s *FwupdInterfaceSuite) TestMountPermanentSlot(c *C) {
+	tmpdir := c.MkDir()
+	dirs.SetRootDir(tmpdir)
+
+	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/boot"), 0777), IsNil)
+
+	// On all-snaps systems, boot partition should be
+	// bind mounted from the host system if they exist.
+	mountSpec := &mount.Specification{}
+	c.Assert(mountSpec.AddPermanentSlot(s.iface, s.appSlotInfo), IsNil)
+
+	entries := mountSpec.MountEntries()
+	c.Assert(entries, HasLen, 1)
+
+	const hostfs = "/var/lib/snapd/hostfs"
+	c.Check(entries[0].Name, Equals, filepath.Join(hostfs, dirs.GlobalRootDir, "/boot"))
+	c.Check(entries[0].Dir, Equals, "/boot")
+	c.Check(entries[0].Options, DeepEquals, []string{"rbind", "rw"})
 }
 
 func (s *FwupdInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2019 Canonical Ltd
+ * Copyright (C) 2014-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -161,6 +161,14 @@ func (s *seed16) addSnap(sn *internal.Snap16, pinnedTrack string, tm timings.Mea
 	return seedSnap, nil
 }
 
+type essentialSnapMissingError struct {
+	SnapName string
+}
+
+func (e *essentialSnapMissingError) Error() string {
+	return fmt.Sprintf("essential snap %q required by the model is missing in the seed", e.SnapName)
+}
+
 func (s *seed16) LoadMeta(tm timings.Measurer) error {
 	model, err := s.Model()
 	if err != nil {
@@ -185,7 +193,9 @@ func (s *seed16) LoadMeta(tm timings.Measurer) error {
 	}
 	added := make(map[string]bool, 3)
 	classic := model.Classic()
-	_, s.usesSnapdSnap = seeding["snapd"]
+	_, usesSnapdSnap := seeding["snapd"]
+	usesSnapdSnap = usesSnapdSnap || required.Contains(naming.Snap("snapd"))
+	s.usesSnapdSnap = usesSnapdSnap
 
 	baseSnap := "core"
 	classicWithSnapd := false
@@ -207,7 +217,7 @@ func (s *seed16) LoadMeta(tm timings.Measurer) error {
 		}
 		yamlSnap := seeding[snapName]
 		if yamlSnap == nil {
-			return nil, fmt.Errorf("essential snap %q required by the model is missing in the seed", snapName)
+			return nil, &essentialSnapMissingError{SnapName: snapName}
 		}
 
 		seedSnap, err := s.addSnap(yamlSnap, pinnedTrack, tm)
@@ -306,4 +316,17 @@ func (s *seed16) ModeSnaps(mode string) ([]*Snap, error) {
 		return nil, fmt.Errorf("internal error: Core 16/18 have only run mode, got: %s", mode)
 	}
 	return s.snaps[s.essentialSnapsNum:], nil
+}
+
+func (s *seed16) NumSnaps() int {
+	return len(s.snaps)
+}
+
+func (s *seed16) Iter(f func(sn *Snap) error) error {
+	for _, sn := range s.snaps {
+		if err := f(sn); err != nil {
+			return err
+		}
+	}
+	return nil
 }

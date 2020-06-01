@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/overlord/state"
 )
 
 // TimingJSON and rootTimingsJSON aid in marshalling of flattened timings into state.
@@ -116,13 +115,24 @@ func flattenRecursive(data *rootTimingsJSON, timings []*Span, nestLevel int, max
 	}
 }
 
-// Save appends Timings data to the "timings" list in the state and purges old timings, ensuring
-// that up to MaxTimings are kept. Timings are only stored in state if their duration is greater
-// than or equal to DurationThreshold.
-// It's responsibility of the caller to lock the state before calling this function.
-func (t *Timings) Save(st *state.State) {
+// A GetSaver helps storing Timings (ignoring their details).
+type GetSaver interface {
+	// GetMaybeTimings gets the saved timings.
+	// It will not return an error if none were saved yet.
+	GetMaybeTimings(timings interface{}) error
+	// SaveTimings saves the given timings.
+	SaveTimings(timings interface{})
+}
+
+// Save appends Timings data to a timings list in the GetSaver (usually
+// state.State) and purges old timings, ensuring that up to MaxTimings
+// are kept. Timings are only stored if their duration is greater than
+// or equal to DurationThreshold.  If GetSaver is a state.State, it's
+// responsibility of the caller to lock the state before calling this
+// function.
+func (t *Timings) Save(s GetSaver) {
 	var stateTimings []*json.RawMessage
-	if err := st.Get("timings", &stateTimings); err != nil && err != state.ErrNoState {
+	if err := s.GetMaybeTimings(&stateTimings); err != nil {
 		logger.Noticef("could not get timings data from the state: %v", err)
 		return
 	}
@@ -142,15 +152,17 @@ func (t *Timings) Save(st *state.State) {
 	if len(stateTimings) > MaxTimings {
 		stateTimings = stateTimings[len(stateTimings)-MaxTimings:]
 	}
-	st.Set("timings", stateTimings)
+	s.SaveTimings(stateTimings)
 }
 
-// Get returns timings for which filter predicate is true and filters out nested timings whose level is greater than maxLevel.
+// Get returns timings for which filter predicate is true and filters
+// out nested timings whose level is greater than maxLevel.
 // Negative maxLevel value disables filtering by level.
-// It's responsibility of the caller to lock the state before calling this function.
-func Get(st *state.State, maxLevel int, filter func(tags map[string]string) bool) ([]*TimingsInfo, error) {
+// If GetSaver is a state.State, it's responsibility of the caller to
+// lock the state before calling this function.
+func Get(s GetSaver, maxLevel int, filter func(tags map[string]string) bool) ([]*TimingsInfo, error) {
 	var stateTimings []rootTimingsJSON
-	if err := st.Get("timings", &stateTimings); err != nil && err != state.ErrNoState {
+	if err := s.GetMaybeTimings(&stateTimings); err != nil {
 		return nil, fmt.Errorf("could not get timings data from the state: %v", err)
 	}
 
