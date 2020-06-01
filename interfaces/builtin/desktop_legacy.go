@@ -19,6 +19,13 @@
 
 package builtin
 
+import (
+	"strings"
+
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+)
+
 const desktopLegacySummary = `allows privileged access to desktop legacy methods`
 
 // While this gives privileged access to legacy methods we should auto-connect
@@ -234,16 +241,7 @@ dbus (send)
     interface=org.gtk.vfs.MountTracker
     member=LookupMount,
 
-# support applications which use the unity messaging menu, xdg-mime, etc
-# This leaks the names of snaps with desktop files
-/var/lib/snapd/desktop/applications/ r,
-# allowing reading only our desktop files (required by (at least) the unity
-# messaging menu). Note: a future update may suppress noisy denials when
-# attempting to read other desktop files.
-# parallel-installs: this leaks read access to desktop files owned by keyed
-# instances of @{SNAP_NAME} to @{SNAP_NAME} snap
-/var/lib/snapd/desktop/applications/@{SNAP_INSTANCE_NAME}_*.desktop r,
-
+###SNAP_DESKTOP_FILE_RULES###
 # Snaps are unable to use the data in mimeinfo.cache (since they can't execute
 # the returned desktop file themselves). unity messaging menu doesn't require
 # mimeinfo.cache and xdg-mime will fallback to reading the desktop files
@@ -261,7 +259,6 @@ dbus (send)
     member=Lookup
     peer=(label=unconfined),
 `
-
 const desktopLegacyConnectedPlugSecComp = `
 # Description: Can access common desktop legacy methods. This gives privileged
 # access to the user's input.
@@ -271,13 +268,28 @@ accept
 accept4
 `
 
+type desktopLegacyInterface struct {
+	commonInterface
+}
+
+func (iface *desktopLegacyInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	snippet := ""
+	for _, r := range getDesktopFileRules(plug.Snap().InstanceName()) {
+		snippet += r + "\n"
+	}
+	spec.AddSnippet(strings.Replace(desktopLegacyConnectedPlugAppArmor, "###SNAP_DESKTOP_FILE_RULES###", snippet, -1))
+
+	return nil
+}
+
 func init() {
-	registerIface(&commonInterface{
-		name:                  "desktop-legacy",
-		summary:               desktopLegacySummary,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  desktopLegacyBaseDeclarationSlots,
-		connectedPlugAppArmor: desktopLegacyConnectedPlugAppArmor,
-		connectedPlugSecComp:  desktopLegacyConnectedPlugSecComp,
+	registerIface(&desktopLegacyInterface{
+		commonInterface: commonInterface{
+			name:                 "desktop-legacy",
+			summary:              desktopLegacySummary,
+			implicitOnClassic:    true,
+			baseDeclarationSlots: desktopLegacyBaseDeclarationSlots,
+			connectedPlugSecComp: desktopLegacyConnectedPlugSecComp,
+		},
 	})
 }
