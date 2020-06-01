@@ -26,6 +26,7 @@ import (
 	"regexp"
 	"sort"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -124,4 +125,50 @@ func verifySlotPathAttribute(slotRef *interfaces.SlotRef, attrs interfaces.Attre
 		return "", fmt.Errorf(invalidErrFmt, slotRef)
 	}
 	return cleanPath, nil
+}
+
+// aareExclusivePatterns takes a string and generates deny alternations. Eg,
+// aareExclusivePatterns("foo") returns:
+// []string{
+//   "[^f]*",
+//   "f[^o]*",
+//   "fo[^o]*",
+// }
+func aareExclusivePatterns(orig string) []string {
+	s := make([]string, len(orig))
+	prefix := ""
+	for i, letter := range orig {
+		if i > 0 {
+			prefix = orig[:i]
+		}
+		s[i] = fmt.Sprintf("%s[^%c]*", prefix, letter)
+	}
+	return s
+}
+
+// getDesktopFileRules(<snap instance name>) generates snippet rules for
+// allowing access to the specified snap's desktop files in
+// dirs.SnapDesktopFilesDir, but explicitly denies access to all other snap's
+// desktop files since xdg libraries may try to read all the desktop files
+// in the dir. (LP: #1868051)
+func getDesktopFileRules(snapInstanceName string) []string {
+	baseDir := dirs.SnapDesktopFilesDir
+
+	rules := []string{
+		"# Support applications which use the unity messaging menu, xdg-mime, etc",
+		"# This leaks the names of snaps with desktop files",
+		fmt.Sprintf("%s/ r,", baseDir),
+		"# Allowing reading only our desktop files (required by (at least) the unity",
+		"# messaging menu).",
+		"# parallel-installs: this leaks read access to desktop files owned by keyed",
+		"# instances of @{SNAP_NAME} to @{SNAP_NAME} snap",
+		fmt.Sprintf("%s/@{SNAP_INSTANCE_NAME}_*.desktop r,", baseDir),
+		"# Explicitly deny access to other snap's desktop files",
+		fmt.Sprintf("deny %s/@{SNAP_INSTANCE_NAME}[^_.]*.desktop r,", baseDir),
+	}
+	for _, t := range aareExclusivePatterns(snapInstanceName) {
+		rules = append(rules, fmt.Sprintf("deny %s/%s r,", baseDir, t))
+	}
+
+	return rules
 }
