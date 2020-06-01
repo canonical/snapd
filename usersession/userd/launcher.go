@@ -159,10 +159,10 @@ func (s *Launcher) OpenDesktopEntryEnv(desktopFileID string, env []string, sende
 		cmd.Env = append(cmd.Env, e)
 	}
 
-    // XXX: this avoids defunct processes but causes userd to persist
-    // until all children are gone (currently, this is not a problem since
-    // userd is long running once started)
-    go cmd.Wait()
+	// XXX: this avoids defunct processes but causes userd to persist
+	// until all children are gone (currently, this is not a problem since
+	// userd is long running once started)
+	go cmd.Wait()
 
 	if cmd.Run() != nil {
 		return dbus.MakeFailedError(fmt.Errorf("cannot run %q", exec_command))
@@ -177,8 +177,8 @@ func existsOnFileSystem(desktopFile string) bool {
 	fileStat, err := os.Stat(desktopFile)
 
 	// We only support files in /var/lib/snapd/desktop/applications and they should
-    // all be regular files.
-    return err == nil && fileStat.Mode().IsRegular()
+	// all be regular files.
+	return err == nil && fileStat.Mode().IsRegular()
 }
 
 // findDesktopFile recursively tries each subdirectory that can be formed from the (split) desktop file ID.
@@ -206,13 +206,13 @@ func findDesktopFile(desktopFile_exists fileExists, base_dir string, splitFileId
 func desktopFileIDToFilename(desktopFile_exists fileExists, desktopFileID string) (string, error) {
 
 	// OpenDesktopEntryEnv() currently only supports launching snap applications from
-    // desktop files in /var/lib/snapd/desktop/applications and these desktop files are
-    // written by snapd and considered safe for userd to process. If other directories are
-    // added in the future, readExecCommandFromDesktopFile() and
-    // parseExecCommand() may need to be updated for any changed assumptions.
-    //
-    // Since we only access /var/lib/snapd/desktop/applications, ignore
-    // https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
+	// desktop files in /var/lib/snapd/desktop/applications and these desktop files are
+	// written by snapd and considered safe for userd to process. If other directories are
+	// added in the future, readExecCommandFromDesktopFile() and
+	// parseExecCommand() may need to be updated for any changed assumptions.
+	//
+	// Since we only access /var/lib/snapd/desktop/applications, ignore
+	// https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
 	base_dir := dirs.SnapDesktopFilesDir
 
 	desktopFile := findDesktopFile(desktopFile_exists, base_dir, strings.Split(desktopFileID, "-"))
@@ -228,20 +228,20 @@ func desktopFileIDToFilename(desktopFile_exists fileExists, desktopFileID string
 func readExecCommandFromDesktopFile(desktopFile string) (string, error) {
 	var launch string
 
-    if strings.HasPrefix(desktopFile, dirs.SnapDesktopFilesDir) {
-        for checkPath := filepath.Dir(desktopFile); strings.HasPrefix(checkPath, dirs.SnapDesktopFilesDir); checkPath = filepath.Dir(checkPath) {
-            fileStat, err := os.Stat(checkPath)
-            if err != nil || ! fileStat.Mode().IsDir() || (fileStat.Mode().Perm() & 0022) != 0 || fileStat.Sys().(*syscall.Stat_t).Uid != 0 {
-                return "", fmt.Errorf("cannot verify path %q", checkPath)
-            }
-        }
-    } else {
-        // We currently only support launching snap applications from desktop files in
-        // /var/lib/snapd/desktop/applications and these desktop files are written by snapd and
-        // considered safe for userd to process. If other directories are added in the future,
-        // readExecCommandFromDesktopFile() and  parseExecCommand() may need to be updated if this changes.
-        return "", fmt.Errorf("only launching snap applications from /var/lib/snapd/desktop/applications is supported")
-    }
+	if strings.HasPrefix(desktopFile, dirs.SnapDesktopFilesDir) {
+		for checkPath := filepath.Dir(desktopFile); strings.HasPrefix(checkPath, dirs.SnapDesktopFilesDir); checkPath = filepath.Dir(checkPath) {
+			fileStat, err := os.Stat(checkPath)
+			if err != nil || !fileStat.Mode().IsDir() || (fileStat.Mode().Perm()&0022) != 0 || fileStat.Sys().(*syscall.Stat_t).Uid != 0 {
+				return "", fmt.Errorf("cannot verify path %q", checkPath)
+			}
+		}
+	} else {
+		// We currently only support launching snap applications from desktop files in
+		// /var/lib/snapd/desktop/applications and these desktop files are written by snapd and
+		// considered safe for userd to process. If other directories are added in the future,
+		// readExecCommandFromDesktopFile() and  parseExecCommand() may need to be updated if this changes.
+		return "", fmt.Errorf("only launching snap applications from /var/lib/snapd/desktop/applications is supported")
+	}
 
 	file, err := os.Open(desktopFile)
 	if err != nil {
@@ -268,9 +268,9 @@ func readExecCommandFromDesktopFile(desktopFile string) (string, error) {
 	}
 
 	expectedPrefix := fmt.Sprintf("env BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/%s /snap/bin/", filepath.Base(desktopFile))
-    if ! strings.HasPrefix(launch, expectedPrefix) {
-        return "", fmt.Errorf("Desktop file %q has an unsupported 'Exec' value", desktopFile)
-    }
+	if !strings.HasPrefix(launch, expectedPrefix) {
+		return "", fmt.Errorf("Desktop file %q has an unsupported 'Exec' value", desktopFile)
+	}
 
 	return launch, nil
 }
