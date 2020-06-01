@@ -457,6 +457,7 @@ func EnableSnapServices(s *snap.Info, inter interacter) (err error) {
 }
 
 // StopFlags carries extra flags for StopServices.
+// It reflects backend.StopFlags.
 type StopFlags struct {
 	Disable bool
 }
@@ -465,6 +466,9 @@ type StopFlags struct {
 // from the snap which are services.
 func StopServices(apps []*snap.AppInfo, flags *StopFlags, reason snap.ServiceStopReason, inter interacter, tm timings.Measurer) error {
 	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
+	if flags == nil {
+		flags = &StopFlags{}
+	}
 
 	logger.Debugf("StopServices called for %q, reason: %v", apps, reason)
 	for _, app := range apps {
@@ -487,7 +491,7 @@ func StopServices(apps []*snap.AppInfo, flags *StopFlags, reason snap.ServiceSto
 		var err error
 		timings.Run(tm, "stop-service", fmt.Sprintf("stop service %q", app.ServiceName()), func(nested timings.Measurer) {
 			err = stopService(sysd, app, inter)
-			if err == nil && flags != nil && flags.Disable {
+			if err == nil && flags.Disable {
 				err = sysd.Disable(app.ServiceName())
 			}
 		})
