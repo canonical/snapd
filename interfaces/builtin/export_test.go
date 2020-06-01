@@ -37,6 +37,8 @@ var (
 	LabelExpr                   = labelExpr
 	PlugAppLabelExpr            = plugAppLabelExpr
 	SlotAppLabelExpr            = slotAppLabelExpr
+	AareExclusivePatterns       = aareExclusivePatterns
+	GetDesktopFileRules         = getDesktopFileRules
 )
 
 func MprisGetName(iface interfaces.Interface, attribs map[string]interface{}) (string, error) {
