@@ -228,6 +228,21 @@ func desktopFileIDToFilename(desktopFile_exists fileExists, desktopFileID string
 func readExecCommandFromDesktopFile(desktopFile string) (string, error) {
 	var launch string
 
+    if strings.HasPrefix(desktopFile, dirs.SnapDesktopFilesDir) {
+        for checkPath := filepath.Dir(desktopFile); strings.HasPrefix(checkPath, dirs.SnapDesktopFilesDir); checkPath = filepath.Dir(checkPath) {
+            fileStat, err := os.Stat(checkPath)
+            if err != nil || ! fileStat.Mode().IsDir() || (fileStat.Mode().Perm() & 0022) != 0 || fileStat.Sys().(*syscall.Stat_t).Uid != 0 {
+                return "", fmt.Errorf("cannot verify path %q", checkPath)
+            }
+        }
+    } else {
+        // We currently only support launching snap applications from desktop files in
+        // /var/lib/snapd/desktop/applications and these desktop files are written by snapd and
+        // considered safe for userd to process. If other directories are added in the future,
+        // readExecCommandFromDesktopFile() and  parseExecCommand() may need to be updated if this changes.
+        return "", fmt.Errorf("only launching snap applications from /var/lib/snapd/desktop/applications is supported")
+    }
+
 	file, err := os.Open(desktopFile)
 	if err != nil {
 		return launch, err
