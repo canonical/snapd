@@ -142,6 +142,42 @@ func (s *utilsSuite) TestSlotLabelExpr(c *C) {
 	c.Check(label, Equals, `"snap.test-snap.*"`)
 }
 
+func (s *utilsSuite) TestAareExclusivePatterns(c *C) {
+	res := builtin.AareExclusivePatterns("foo-bar")
+	c.Check(res, DeepEquals, []string{
+		"[^f]*",
+		"f[^o]*",
+		"fo[^o]*",
+		"foo[^-]*",
+		"foo-[^b]*",
+		"foo-b[^a]*",
+		"foo-ba[^r]*",
+	})
+}
+
+func (s *utilsSuite) TestGetDesktopFileRules(c *C) {
+	res := builtin.GetDesktopFileRules("foo-bar")
+	c.Check(res, DeepEquals, []string{
+		"# Support applications which use the unity messaging menu, xdg-mime, etc",
+		"# This leaks the names of snaps with desktop files",
+		"/var/lib/snapd/desktop/applications/ r,",
+		"# Allowing reading only our desktop files (required by (at least) the unity",
+		"# messaging menu).",
+		"# parallel-installs: this leaks read access to desktop files owned by keyed",
+		"# instances of @{SNAP_NAME} to @{SNAP_NAME} snap",
+		"/var/lib/snapd/desktop/applications/@{SNAP_INSTANCE_NAME}_*.desktop r,",
+		"# Explicitly deny access to other snap's desktop files",
+		"deny /var/lib/snapd/desktop/applications/@{SNAP_INSTANCE_NAME}[^_.]*.desktop r,",
+		"deny /var/lib/snapd/desktop/applications/[^f]* r,",
+		"deny /var/lib/snapd/desktop/applications/f[^o]* r,",
+		"deny /var/lib/snapd/desktop/applications/fo[^o]* r,",
+		"deny /var/lib/snapd/desktop/applications/foo[^-]* r,",
+		"deny /var/lib/snapd/desktop/applications/foo-[^b]* r,",
+		"deny /var/lib/snapd/desktop/applications/foo-b[^a]* r,",
+		"deny /var/lib/snapd/desktop/applications/foo-ba[^r]* r,",
+	})
+}
+
 func MockPlug(c *C, yaml string, si *snap.SideInfo, plugName string) *snap.PlugInfo {
 	return builtin.MockPlug(c, yaml, si, plugName)
 }
