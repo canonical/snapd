@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -32,17 +32,18 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type logControlSuite struct {
+type sysctlSuite struct {
 	configcoreSuite
 
-	mockSysctlPath string
-	restores       []func()
-	mockSysctl     *testutil.MockCmd
+	mockSysctlPath               string
+	mockSysctlConsoleMsgConfPath string
+	restores                     []func()
+	mockSysctl                   *testutil.MockCmd
 }
 
-var _ = Suite(&logControlSuite{})
+var _ = Suite(&sysctlSuite{})
 
-func (s *logControlSuite) SetUpTest(c *C) {
+func (s *sysctlSuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
 	s.restores = append(s.restores, release.MockOnClassic(false))
@@ -50,66 +51,80 @@ func (s *logControlSuite) SetUpTest(c *C) {
 	s.mockSysctl = testutil.MockCommand(c, "sysctl", "")
 	s.restores = append(s.restores, func() { s.mockSysctl.Restore() })
 
-	s.mockSysctlPath = filepath.Join(dirs.GlobalRootDir, "/etc/sysctl.d/10-console-messages.conf")
+	s.mockSysctlPath = filepath.Join(dirs.GlobalRootDir, "/etc/sysctl.d/99-snapd.conf")
 	c.Assert(os.MkdirAll(filepath.Dir(s.mockSysctlPath), 0755), IsNil)
+	s.mockSysctlConsoleMsgConfPath = filepath.Join(dirs.GlobalRootDir, "/etc/sysctl.d/10-console-messages.conf")
 }
 
-func (s *logControlSuite) TearDownTest(c *C) {
+func (s *sysctlSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
 	for _, f := range s.restores {
 		f()
 	}
 }
 
-func (s *logControlSuite) TestConfigureLogControlIntegration(c *C) {
+func (s *sysctlSuite) TestConfigureSysctlIntegration(c *C) {
 	err := configcore.Run(&mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
-			"system.printk.console-loglevel": "2",
+			"system.kernel.printk.console-loglevel": "2",
 		},
 	})
 	c.Assert(err, IsNil)
-
 	c.Check(s.mockSysctlPath, testutil.FileEquals, "kernel.printk = 2 4 1 7\n")
 	c.Check(s.mockSysctl.Calls(), DeepEquals, [][]string{
-		{"sysctl", "-w", "kernel.printk=2"},
+		{"sysctl", "-p", s.mockSysctlPath},
+	})
+	s.mockSysctl.ForgetCalls()
+
+	// Unset console-loglevel and restore default vaule
+	err = configcore.Run(&mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			"system.kernel.printk.console-loglevel": "",
+		},
+	})
+	c.Assert(err, IsNil)
+	c.Check(osutil.FileExists(s.mockSysctlPath), Equals, false)
+	c.Check(s.mockSysctl.Calls(), DeepEquals, [][]string{
+		{"sysctl", "-p", s.mockSysctlConsoleMsgConfPath},
 	})
 }
 
-func (s *logControlSuite) TestConfigureLoglevelUnderRange(c *C) {
+func (s *sysctlSuite) TestConfigureLoglevelUnderRange(c *C) {
 	err := configcore.Run(&mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
-			"system.printk.console-loglevel": "-1",
+			"system.kernel.printk.console-loglevel": "-1",
 		},
 	})
 	c.Check(osutil.FileExists(s.mockSysctlPath), Equals, false)
-	c.Assert(err, ErrorMatches, `loglevel must be a number between 0 and 7, not "-1"`)
+	c.Assert(err, ErrorMatches, `console-loglevel must be a number between 0 and 7, not "-1"`)
 }
 
-func (s *logControlSuite) TestConfigureLoglevelOverRange(c *C) {
+func (s *sysctlSuite) TestConfigureLoglevelOverRange(c *C) {
 	err := configcore.Run(&mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
-			"system.printk.console-loglevel": "8",
+			"system.kernel.printk.console-loglevel": "8",
 		},
 	})
 	c.Check(osutil.FileExists(s.mockSysctlPath), Equals, false)
-	c.Assert(err, ErrorMatches, `loglevel must be a number between 0 and 7, not "8"`)
+	c.Assert(err, ErrorMatches, `console-loglevel must be a number between 0 and 7, not "8"`)
 }
 
-func (s *logControlSuite) TestConfigureLevelRejected(c *C) {
+func (s *sysctlSuite) TestConfigureLevelRejected(c *C) {
 	err := configcore.Run(&mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
-			"system.printk.console-loglevel": "invalid",
+			"system.kernel.printk.console-loglevel": "invalid",
 		},
 	})
 	c.Check(osutil.FileExists(s.mockSysctlPath), Equals, false)
-	c.Assert(err, ErrorMatches, `loglevel must be a number between 0 and 7, not "invalid"`)
+	c.Assert(err, ErrorMatches, `console-loglevel must be a number between 0 and 7, not "invalid"`)
 }
 
-func (s *logControlSuite) TestConfigureLogControlIntegrationNoSetting(c *C) {
+func (s *sysctlSuite) TestConfigureSysctlIntegrationNoSetting(c *C) {
 	err := configcore.Run(&mockConf{
 		state: s.state,
 		conf:  map[string]interface{}{},
@@ -118,16 +133,16 @@ func (s *logControlSuite) TestConfigureLogControlIntegrationNoSetting(c *C) {
 	c.Check(osutil.FileExists(s.mockSysctlPath), Equals, false)
 }
 
-func (s *logControlSuite) TestFilesystemOnlyApply(c *C) {
+func (s *sysctlSuite) TestFilesystemOnlyApply(c *C) {
 	conf := configcore.PlainCoreConfig(map[string]interface{}{
-		"system.printk.console-loglevel": "4",
+		"system.kernel.printk.console-loglevel": "4",
 	})
 
 	tmpDir := c.MkDir()
 	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "/etc/sysctl.d/"), 0755), IsNil)
 	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf, nil), IsNil)
 
-	networkSysctlPath := filepath.Join(tmpDir, "/etc/sysctl.d/10-console-messages.conf")
+	networkSysctlPath := filepath.Join(tmpDir, "/etc/sysctl.d/99-snapd.conf")
 	c.Check(networkSysctlPath, testutil.FileEquals, "kernel.printk = 4 4 1 7\n")
 
 	// sysctl was not executed
