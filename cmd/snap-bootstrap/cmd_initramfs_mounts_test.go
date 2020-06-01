@@ -480,6 +480,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4(c *C) {
 
 	// write modeenv
 	modeEnv := boot.Modeenv{
+		Mode:           "run",
 		RecoverySystem: "20191118",
 		Base:           "core20_123.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap"},
@@ -523,6 +524,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4BaseSnapUpgradeFai
 	// write modeenv as if we failed to boot and were rebooted because the
 	// base snap was broken
 	modeEnv := &boot.Modeenv{
+		Mode:       "run",
 		Base:       "core20_123.snap",
 		TryBase:    "core20_124.snap",
 		BaseStatus: boot.TryingStatus,
@@ -567,6 +569,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4ModeenvTryBaseEmpt
 
 	// write a modeenv with no try_base so we fall back to using base
 	modeEnv := &boot.Modeenv{
+		Mode:       "run",
 		Base:       "core20_123.snap",
 		BaseStatus: boot.TryStatus,
 	}
@@ -602,6 +605,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4BaseSnapUpgradeHap
 
 	// write modeenv
 	modeEnv := &boot.Modeenv{
+		Mode:       "run",
 		Base:       "core20_123.snap",
 		TryBase:    "core20_124.snap",
 		BaseStatus: boot.TryStatus,
@@ -644,7 +648,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4ModeenvBaseEmptyUn
 	)
 
 	// write an empty modeenv
-	modeEnv := &boot.Modeenv{}
+	modeEnv := &boot.Modeenv{
+		Mode: "run",
+	}
 	err := modeEnv.WriteTo(boot.InitramfsWritableDir)
 	c.Assert(err, IsNil)
 
@@ -670,6 +676,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4ModeenvTryBaseNotE
 	// write a modeenv with try_base not existing on disk so we fall back to
 	// using the normal base
 	modeEnv := &boot.Modeenv{
+		Mode:       "run",
 		Base:       "core20_123.snap",
 		TryBase:    "core20_124.snap",
 		BaseStatus: boot.TryStatus,
@@ -706,6 +713,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4KernelSnapUpgradeH
 
 	// write modeenv
 	modeEnv := &boot.Modeenv{
+		Mode:           "run",
 		Base:           "core20_123.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap", "pc-kernel_2.snap"},
 	}
@@ -763,6 +771,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4UntrustedKernelSna
 
 	// write modeenv
 	modeEnv := boot.Modeenv{
+		Mode:           "run",
 		Base:           "core20_123.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap"},
 	}
@@ -803,6 +812,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4UntrustedTryKernel
 
 	// write modeenv
 	modeEnv := boot.Modeenv{
+		Mode:           "run",
 		Base:           "core20_123.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap"},
 	}
@@ -851,6 +861,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4KernelStatusTrying
 
 	// write modeenv
 	modeEnv := boot.Modeenv{
+		Mode:           "run",
 		Base:           "core20_123.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap"},
 	}
@@ -901,6 +912,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4EnvRefKernelBootst
 
 	// write modeenv
 	modeEnv := boot.Modeenv{
+		Mode:           "run",
 		RecoverySystem: "20191118",
 		Base:           "core20_123.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap"},
@@ -940,6 +952,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4EnvRefKernelBootst
 
 	// write modeenv
 	modeEnv := &boot.Modeenv{
+		Mode:           "run",
 		Base:           "core20_123.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap", "pc-kernel_2.snap"},
 	}
@@ -989,6 +1002,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4EnvRefKernelBootst
 
 	// write modeenv
 	modeEnv := boot.Modeenv{
+		Mode:           "run",
 		Base:           "core20_123.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap"},
 	}
@@ -1026,6 +1040,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4EnvRefKernelBootst
 
 	// write modeenv
 	modeEnv := boot.Modeenv{
+		Mode:           "run",
 		Base:           "core20_123.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap"},
 	}
@@ -1070,6 +1085,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4EnvRefKernelBootst
 
 	// write modeenv
 	modeEnv := boot.Modeenv{
+		Mode:           "run",
 		Base:           "core20_123.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap"},
 	}
