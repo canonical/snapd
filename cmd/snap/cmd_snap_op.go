@@ -75,8 +75,8 @@ common data directory. When a --revision option is passed only the specified
 revision is removed.
 
 Unless automatic snapshots are disabled, a snapshot of all data for the snap is 
-saved upon removable and available for future restoration with snap restore. The
---purge option disables automatically creating snapshots.
+saved upon removal, which is then available for future restoration with snap
+restore. The --purge option disables automatically creating snapshots.
 `)
 
 var longRefreshHelp = i18n.G(`
