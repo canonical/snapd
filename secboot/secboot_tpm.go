@@ -364,7 +364,7 @@ func SealKey(key partition.EncryptionKey, params *SealKeyParams) error {
 		PINHandle:  pinHandle,
 	}
 	if err := sbSealKeyToTPM(tpm, key[:], params.KeyFile, params.PolicyUpdateDataFile, &creationParams); err != nil {
-		return fmt.Errorf("cannot seal data: %v", err)
+		return err
 	}
 
 	return nil
