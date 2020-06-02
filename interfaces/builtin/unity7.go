@@ -89,6 +89,10 @@ owner @{HOME}/.local/share/fonts/{,**} r,
 # interface. This is duplicated from desktop for compatibility with existing
 # snaps.
 /usr/bin/xdg-open ixr,
+# While /usr/share/applications comes from the base runtime of the snap, it
+# has some things that snaps actually need, so allow access to those and deny
+# access to the others. This is duplicated from desktop for compatibility with
+# existing snaps.
 /usr/share/applications/ r,
 /usr/share/applications/mimeapps.list r,
 /usr/share/applications/xdg-open.desktop r,
@@ -492,19 +496,6 @@ dbus (receive)
     interface="{com.canonical.dbusmenu,org.freedesktop.DBus.Properties}"
     member=Get*
     peer=(label=unconfined),
-
-# While /usr/share/applications comes from the base runtime of the snap, it
-# has some things that snaps actually need, so allow access to those and deny
-# access to the others. This is duplicated from desktop for compatibility with
-# existing snaps.
-/usr/share/applications/ r,
-/usr/share/applications/mimeapps.list r,
-/usr/share/applications/xdg-open.desktop r,
-# silence noisy denials from desktop files in core* snaps that aren't usable by
-# snaps
-deny /usr/share/applications/python*.desktop r,
-deny /usr/share/applications/vim.desktop r,
-deny /usr/share/applications/snap-handle-link.desktop r,  # core16
 
 ###SNAP_DESKTOP_FILE_RULES###
 # Snaps are unable to use the data in mimeinfo.cache (since they can't execute
