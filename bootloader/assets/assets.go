@@ -20,12 +20,14 @@ package assets
 
 import (
 	"fmt"
+	"os"
+	"strings"
 )
 
 var registeredAssets = map[string][]byte{}
 
-// RegisterAsset registers a boot asset under the given name.
-func RegisterAsset(name string, data []byte) {
+// registerAsset registers a boot asset under the given name.
+func registerAsset(name string, data []byte) {
 	if _, ok := registeredAssets[name]; ok {
 		panic(fmt.Sprintf("asset %v is already registered", name))
 	}
@@ -40,6 +42,11 @@ func GetBootAsset(name string) []byte {
 
 // MockBootAsset mocks the contents of boot asset for use in testing.
 func MockBootAsset(name string, data []byte) (restore func()) {
+	var isSnapdTest = len(os.Args) > 0 && strings.HasSuffix(os.Args[0], ".test")
+	if !isSnapdTest {
+		panic("mocking can be done only in tests")
+	}
+
 	old := registeredAssets[name]
 	registeredAssets[name] = data
 	return func() {
