@@ -129,6 +129,20 @@ func copyUbuntuDataAuth(src, dst string) error {
 		// so that users have proper perms, i.e. console-conf added users are
 		// sudoers
 		"system-data/etc/sudoers.d/*",
+		// for network configuration setup by console-conf, etc.
+		// TODO:UC20: we want some way to "try" or "verify" the network
+		//            configuration before installing it onto recover mode,
+		//            because the network configuration could have been what was
+		//            broken so we don't want to break network configuration for
+		//            recover mode as well, but for now this is fine
+		"system-data/etc/netplan/*",
+		// so that the time in recover mode moves forward to what it was in run
+		// mode
+		// NOTE: we don't sync back the time movement from recover mode to run
+		// mode currently, unclear how/when we could do this, but recover mode
+		// isn't meant to be long lasting and as such it's probably not a big
+		// problem to "lose" the time spent in recover mode
+		"system-data/var/lib/systemd/timesync/clock",
 	} {
 		matches, err := filepath.Glob(filepath.Join(src, globEx))
 		if err != nil {
