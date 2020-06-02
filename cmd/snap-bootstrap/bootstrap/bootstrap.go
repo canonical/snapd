@@ -193,9 +193,9 @@ func Run(gadgetRoot, device string, options Options) error {
 				EFILoadChains:  [][]string{loadChain},
 			},
 		},
-		KeyFile:              options.KeyFile,
-		PolicyUpdateDataFile: options.PolicyUpdateDataFile,
-		TPMLockoutAuthFile:   options.TPMLockoutAuthFile,
+		KeyFile:                 options.KeyFile,
+		TPMPolicyUpdateDataFile: options.TPMPolicyUpdateDataFile,
+		TPMLockoutAuthFile:      options.TPMLockoutAuthFile,
 	}
 
 	if err := secboot.SealKey(key, &sealKeyParams); err != nil {

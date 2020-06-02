@@ -51,7 +51,7 @@ type SealKeyParams struct {
 	// The path to store the sealed key file
 	KeyFile string
 	// The path to authorization policy update data file (only relevant for TPM)
-	PolicyUpdateDataFile string
+	TPMPolicyUpdateDataFile string
 	// The path to the lockout authorization file (only relevant for TPM)
 	TPMLockoutAuthFile string
 }

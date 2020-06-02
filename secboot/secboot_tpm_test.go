@@ -388,9 +388,9 @@ func (s *secbootSuite) TestSealKey(c *C) {
 				Model:          &asserts.Model{},
 			},
 		},
-		KeyFile:              "keyfile",
-		PolicyUpdateDataFile: "policy-update-data-file",
-		TPMLockoutAuthFile:   filepath.Join(tmpDir, "lockout-auth-file"),
+		KeyFile:                 "keyfile",
+		TPMPolicyUpdateDataFile: "policy-update-data-file",
+		TPMLockoutAuthFile:      filepath.Join(tmpDir, "lockout-auth-file"),
 	}
 
 	myKey := partition.EncryptionKey{}
@@ -539,7 +539,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 			c.Assert(t, Equals, tpm)
 			c.Assert(key, DeepEquals, myKey[:])
 			c.Assert(keyPath, Equals, myParams.KeyFile)
-			c.Assert(policyUpdatePath, Equals, myParams.PolicyUpdateDataFile)
+			c.Assert(policyUpdatePath, Equals, myParams.TPMPolicyUpdateDataFile)
 			c.Assert(params.PINHandle, Equals, tpm2.Handle(0x01880000))
 
 			return nil
@@ -564,9 +564,9 @@ func (s *secbootSuite) TestSealKey(c *C) {
 func (s *secbootSuite) TestSealKeyNoModelParams(c *C) {
 	myKey := partition.EncryptionKey{}
 	myParams := secboot.SealKeyParams{
-		KeyFile:              "keyfile",
-		PolicyUpdateDataFile: "policy-update-data-file",
-		TPMLockoutAuthFile:   "lockout-auth-file",
+		KeyFile:                 "keyfile",
+		TPMPolicyUpdateDataFile: "policy-update-data-file",
+		TPMLockoutAuthFile:      "lockout-auth-file",
 	}
 
 	err := secboot.SealKey(myKey, &myParams)
