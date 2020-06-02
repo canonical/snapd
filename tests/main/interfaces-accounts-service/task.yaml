@@ -13,13 +13,13 @@ prepare: |
     apt-get install -y --no-install-recommends gnome-online-accounts
 
     snap install --edge test-snapd-accounts-service
-    session-tool -u test --prepare
+    tests.session -u test prepare
 
     echo "Creating account"
     # We set a long timeout here because goa-daemon will be activated
     # by the method call, and this can take a while on heavily loaded
     # or IO constrained VMs.
-    session-tool -u test busctl call --verbose --user --timeout 300 \
+    tests.session -u test exec busctl call --verbose --user --timeout 300 \
       org.gnome.OnlineAccounts \
       /org/gnome/OnlineAccounts/Manager \
       org.gnome.OnlineAccounts.Manager AddAccount \
@@ -31,7 +31,7 @@ prepare: |
       5 'Enabled' 'true' 'EmailAddress' 'test@example.com' 'Name' 'Test User' 'ImapHost' 'imap.example.com' 'SmtpHost': 'mail.example.com'
 
 restore: |
-    session-tool -u test --restore
+    tests.session -u test restore
 
     apt-get remove -y --purge gnome-online-accounts
     apt-get autoremove --purge -y
@@ -44,8 +44,8 @@ restore: |
 execute: |
     echo "The interface is initially disconnected"
     snap interfaces -i accounts-service | MATCH '\- +test-snapd-accounts-service:accounts-service'
-    not session-tool -u test test-snapd-accounts-service.list-accounts
+    not tests.session -u test exec test-snapd-accounts-service.list-accounts
 
     echo "When the plug is connected we can get the data"
     snap connect test-snapd-accounts-service:accounts-service
-    session-tool -u test test-snapd-accounts-service.list-accounts | MATCH "Display Name at IMAP and SMTP"
+    tests.session -u test exec test-snapd-accounts-service.list-accounts | MATCH "Display Name at IMAP and SMTP"
