@@ -56,15 +56,15 @@ prepare: |
     # User session services do not posses a logind session session so
     # pulseaudio immediately quits, and remains inactive outside of the moments
     # we execute paplay through tests.session.
-    tests.session -u test systemctl --user is-active pulseaudio.socket | MATCH active
+    tests.session -u test exec systemctl --user is-active pulseaudio.socket | MATCH active
 
     # Start pulseaudio to give it a chance to write the pulseaudio cookie file.
     # Otherwise paplay invocation will race with pulse startup, and will race
     # with cookie file being available.
-    if not tests.session -u test systemctl --user start pulseaudio.service; then
+    if not tests.session -u test exec systemctl --user start pulseaudio.service; then
         echo "cannot start pulseaudio server"
-        tests.session -u test systemctl --user status pulseaudio.service || true
-        tests.session -u test journalctl --user -u pulseaudio.service || true
+        tests.session -u test exec systemctl --user status pulseaudio.service || true
+        tests.session -u test exec journalctl --user -u pulseaudio.service || true
         exit 1
     fi
 
@@ -90,10 +90,10 @@ restore: |
 
 execute: |
     echo "The unconfined user can play audio"
-    tests.session -u test /usr/bin/paplay "$PLAY_FILE"
+    tests.session -u test exec /usr/bin/paplay "$PLAY_FILE"
 
     echo "The unconfined user can record audio"
-    tests.session -u test /snap/test-snapd-audio-record/current/bin/parec-simple
+    tests.session -u test exec /snap/test-snapd-audio-record/current/bin/parec-simple
 
     echo "The audio-playback interface is connected by default"
     snap connections test-snapd-audio-record | MATCH "audio-playback +test-snapd-audio-record:audio-playback +:audio-playback +-"
@@ -105,13 +105,13 @@ execute: |
     snap connect test-snapd-audio-record:audio-playback
 
     echo "Then the snap can play audio"
-    tests.session -u test test-snapd-audio-record.play "$PLAY_FILE"
+    tests.session -u test exec test-snapd-audio-record.play "$PLAY_FILE"
 
     echo "When the audio-record plug is connected"
     snap connect test-snapd-audio-record:audio-record
 
     echo "Then the snap can record audio"
-    tests.session -u test test-snapd-audio-record.recsimple
+    tests.session -u test exec test-snapd-audio-record.recsimple
 
     echo "When the audio-record plug is disconnected"
     snap disconnect test-snapd-audio-record:audio-record
@@ -122,10 +122,10 @@ execute: |
     fi
 
     echo "Then the snap command is not able to record audio"
-    if [ "$mediating_pa" = "no" ] && ! tests.session -u test test-snapd-audio-record.recsimple; then
+    if [ "$mediating_pa" = "no" ] && ! tests.session -u test exec test-snapd-audio-record.recsimple; then
         echo "Could not record audio. Does '$SPREAD_SYSTEM' have mediation patches?"
         exit 1
-    elif [ "$mediating_pa" = "yes" ] && tests.session -u test test-snapd-audio-record.recsimple; then
+    elif [ "$mediating_pa" = "yes" ] && tests.session -u test exec test-snapd-audio-record.recsimple; then
         echo "Could record audio even though '$SPREAD_SYSTEM' should have mediation patches"
         exit 1
     fi
@@ -138,7 +138,7 @@ execute: |
     snap disconnect test-snapd-audio-record:audio-playback
 
     echo "Then the snap command is not able to connect to the pulseaudio socket"
-    if tests.session -u test test-snapd-audio-record.play "$PLAY_FILE"; then
+    if tests.session -u test exec test-snapd-audio-record.play "$PLAY_FILE"; then
         echo "Expected error with plug disconnected"
         exit 1
     fi

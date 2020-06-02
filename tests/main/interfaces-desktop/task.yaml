@@ -29,9 +29,9 @@ execute: |
 
     echo "Then the snap is able to desktop files and directories"
     # shellcheck disable=SC2086
-    tests.session -u test test-snapd-desktop.check-files $files
+    tests.session -u test exec test-snapd-desktop.check-files $files
     # shellcheck disable=SC2086
-    tests.session -u test test-snapd-desktop.check-dirs $dirs
+    tests.session -u test exec test-snapd-desktop.check-dirs $dirs
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
@@ -42,7 +42,7 @@ execute: |
 
     echo "Then the snap is not able to access the desktop files"
     for file in $files; do
-        if tests.session -u test test-snapd-desktop.check-files "$file" 2> call.error; then
+        if tests.session -u test exec test-snapd-desktop.check-files "$file" 2> call.error; then
             echo "Expected permission error calling desktop with disconnected plug"
             exit 1
         fi
@@ -51,7 +51,7 @@ execute: |
 
     echo "Then the snap is not able to access the desktop dirs"
     for dir in $dirs; do
-        if tests.session -u test test-snapd-desktop.check-dirs "$dir" 2> call.error; then
+        if tests.session -u test exec test-snapd-desktop.check-dirs "$dir" 2> call.error; then
             echo "Expected permission error calling desktop with disconnected plug"
             exit 1
         fi

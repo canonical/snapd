@@ -22,7 +22,7 @@ execute: |
     snap connect test-snapd-password-manager-consumer:password-manager-service
 
     echo "Then the snap command is able use the libsecret service"
-    tests.session -u test test-snapd-password-manager-consumer.secret-tool clear foo bar
+    tests.session -u test exec test-snapd-password-manager-consumer.secret-tool clear foo bar
 
     if [ "$(snap debug confinement)" = "partial" ] ; then
         exit 0
@@ -32,7 +32,7 @@ execute: |
     snap disconnect test-snapd-password-manager-consumer:password-manager-service
 
     echo "Then the snap command is not able to use the secret-tool"
-    if tests.session -u test test-snapd-password-manager-consumer.secret-tool clear foo bar; then
+    if tests.session -u test exec test-snapd-password-manager-consumer.secret-tool clear foo bar; then
         echo "Expected error with plug disconnected"
         exit 1
     fi

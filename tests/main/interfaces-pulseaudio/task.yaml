@@ -54,15 +54,15 @@ prepare: |
     # User session services do not posses a logind session session so
     # pulseaudio immediately quits, and remains inactive outside of the moments
     # we execute paplay through tests.session.
-    tests.session -u test systemctl --user is-active pulseaudio.socket | MATCH active
+    tests.session -u test exec systemctl --user is-active pulseaudio.socket | MATCH active
 
     # Start pulseaudio to give it a chance to write the pulseaudio cookie file.
     # Otherwise paplay invocation will race with pulse startup, and will race
     # with cookie file being available.
-    if not tests.session -u test systemctl --user start pulseaudio.service; then
+    if not tests.session -u test exec systemctl --user start pulseaudio.service; then
         echo "cannot start pulseaudio server"
-        tests.session -u test systemctl --user status pulseaudio.service || true
-        tests.session -u test journalctl --user -u pulseaudio.service || true
+        tests.session -u test exec systemctl --user status pulseaudio.service || true
+        tests.session -u test exec journalctl --user -u pulseaudio.service || true
         exit 1
     fi
 
@@ -88,10 +88,10 @@ restore: |
 
 execute: |
     echo "The unconfined user can play audio"
-    tests.session -u test /usr/bin/paplay "$PLAY_FILE"
+    tests.session -u test exec /usr/bin/paplay "$PLAY_FILE"
 
     echo "The unconfined user can record audio"
-    tests.session -u test /snap/test-snapd-pulseaudio/current/bin/parec-simple
+    tests.session -u test exec /snap/test-snapd-pulseaudio/current/bin/parec-simple
 
     echo "The interface is disconnected by default"
     snap connections test-snapd-pulseaudio | MATCH "pulseaudio +test-snapd-pulseaudio:pulseaudio +- +-"
@@ -100,10 +100,10 @@ execute: |
     snap connect test-snapd-pulseaudio:pulseaudio
 
     echo "Then the snap can play audio"
-    tests.session -u test test-snapd-pulseaudio.play "$PLAY_FILE"
+    tests.session -u test exec test-snapd-pulseaudio.play "$PLAY_FILE"
 
     echo "Then the snap can record audio"
-    tests.session -u test test-snapd-pulseaudio.recsimple
+    tests.session -u test exec test-snapd-pulseaudio.recsimple
 
     if [ "$(snap debug confinement)" = "partial" ] ; then
         exit 0
@@ -113,7 +113,7 @@ execute: |
     snap disconnect test-snapd-pulseaudio:pulseaudio
 
     echo "Then the snap command is not able to connect to the pulseaudio socket"
-    if tests.session -u test test-snapd-pulseaudio.play "$PLAY_FILE"; then
+    if tests.session -u test exec test-snapd-pulseaudio.play "$PLAY_FILE"; then
         echo "Expected error with plug disconnected"
         exit 1
     fi

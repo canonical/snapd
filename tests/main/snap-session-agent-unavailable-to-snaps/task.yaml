@@ -39,7 +39,7 @@ execute: |
     test -S "/run/user/12345/snapd-session-agent.socket"
 
     echo "But confined applications can not access it"
-    not tests.session -u test test-snapd-curl.curl \
+    not tests.session -u test exec test-snapd-curl.curl \
         --unix-socket /run/user/12345/snapd-session-agent.socket \
         -D- http://localhost/v1/session-info
 

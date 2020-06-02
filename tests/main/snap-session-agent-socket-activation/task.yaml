@@ -38,7 +38,7 @@ restore: |
 
 execute: |
     echo "Initially snap session-agent is not running"
-    not tests.session -u test systemctl --user is-active snapd.session-agent.service
+    not tests.session -u test exec systemctl --user is-active snapd.session-agent.service
 
     echo "However its REST API socket exists"
     test -S /run/user/12345/snapd-session-agent.socket
@@ -48,16 +48,16 @@ execute: |
         -D- http://localhost/v1/session-info | MATCH "HTTP/1.1 200 OK"
 
     echo "Now snap session-agent is running"
-    tests.session -u test systemctl --user is-active snapd.session-agent.service
+    tests.session -u test exec systemctl --user is-active snapd.session-agent.service
 
     echo "If we stop session-agent, it can be restarted via socket activation"
-    tests.session -u test systemctl --user stop snapd.session-agent.service
-    not tests.session -u test systemctl --user is-active snapd.session-agent.service
+    tests.session -u test exec systemctl --user stop snapd.session-agent.service
+    not tests.session -u test exec systemctl --user is-active snapd.session-agent.service
 
     curl --unix-socket /run/user/12345/snapd-session-agent.socket \
         -D- http://localhost/v1/session-info | MATCH "HTTP/1.1 200 OK"
-    tests.session -u test systemctl --user is-active snapd.session-agent.service
+    tests.session -u test exec systemctl --user is-active snapd.session-agent.service
 
     echo "The user running the session agent can also communicate with it"
-    tests.session -u test curl --unix-socket /run/user/12345/snapd-session-agent.socket \
+    tests.session -u test exec curl --unix-socket /run/user/12345/snapd-session-agent.socket \
         -D- http://localhost/v1/session-info | MATCH "HTTP/1.1 200 OK"

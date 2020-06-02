@@ -33,7 +33,7 @@ restore: |
 
 execute: |
     function systemctl_user() {
-      tests.session -u test systemctl --user "$@"
+      tests.session -u test exec systemctl --user "$@"
     }
 
     echo "Install the a snap with user services while a user session is active"
@@ -62,5 +62,5 @@ execute: |
 
 debug: |
     tests.session --dump
-    tests.session -u test systemctl --user status snapd.session-agent.service || true
-    tests.session -u test journalctl --user || true
+    tests.session -u test exec systemctl --user status snapd.session-agent.service || true
+    tests.session -u test exec journalctl --user || true

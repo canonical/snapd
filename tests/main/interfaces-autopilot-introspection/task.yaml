@@ -23,10 +23,10 @@ prepare: |
     # XXX: The test snap doesn't run as a service so we must do it ourselves.
     # The app requires a session bus connection to operate. The interface is
     # defined for session bus only.
-    tests.session -u test systemd-run --user --unit test-snapd-autopilot-consumer-provider.service test-snapd-autopilot-consumer.provider
+    tests.session -u test exec systemd-run --user --unit test-snapd-autopilot-consumer-provider.service test-snapd-autopilot-consumer.provider
 
 restore: |
-    tests.session -u test systemctl --user stop test-snapd-autopilot-consumer-provider.service
+    tests.session -u test exec systemctl --user stop test-snapd-autopilot-consumer-provider.service
     tests.session -u test restore
 
 execute: |
@@ -38,11 +38,11 @@ execute: |
 
     echo "Then the dbus name is properly reserved and the snap app version can be introspectd"
 
-    retry-tool -n 10 --wait 1 sh -c 'tests.session -u test dbus-send --print-reply --dest=com.canonical.Autopilot.Introspection /com/canonical/Autopilot/Introspection com.canonical.Autopilot.Introspection.GetVersion | MATCH "my-ap-version"'
-    tests.session -u test test-snapd-autopilot-consumer.consumer GetVersion | MATCH "my-ap-version"
+    retry-tool -n 10 --wait 1 sh -c 'tests.session -u test exec dbus-send --print-reply --dest=com.canonical.Autopilot.Introspection /com/canonical/Autopilot/Introspection com.canonical.Autopilot.Introspection.GetVersion | MATCH "my-ap-version"'
+    tests.session -u test exec test-snapd-autopilot-consumer.consumer GetVersion | MATCH "my-ap-version"
 
     echo "And the snap app state can be introspected"
-    tests.session -u test test-snapd-autopilot-consumer.consumer GetState | MATCH "my-ap-state"
+    tests.session -u test exec test-snapd-autopilot-consumer.consumer GetState | MATCH "my-ap-state"
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
@@ -52,14 +52,14 @@ execute: |
     snap disconnect test-snapd-autopilot-consumer:autopilot-introspection
 
     echo "Then the snap version is not introspectable"
-    if tests.session -u test test-snapd-autopilot-consumer.consumer GetVersion 2> getversion.error ; then
+    if tests.session -u test exec test-snapd-autopilot-consumer.consumer GetVersion 2> getversion.error ; then
         echo "Expected permission error trying to introspect version with disconnected plug"
         exit 1
     fi
     MATCH "Permission denied" < getversion.error
 
     echo "And the snap state is not introspectable"
-    if tests.session -u test test-snapd-autopilot-consumer.consumer GetState 2> getstate.error; then
+    if tests.session -u test exec test-snapd-autopilot-consumer.consumer GetState 2> getstate.error; then
         echo "Expected permission error trying to introspect state with disconnected plug"
         exit 1
     fi

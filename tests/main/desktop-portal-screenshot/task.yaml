@@ -45,7 +45,7 @@ execute: |
     # file ownership is exposed through the document portal, and our
     # AppArmor policy uses the @owner restriction.
     chown test:test /tmp/screenshot.txt
-    tests.session -u test test-snapd-portal-client screenshot | MATCH "my screenshot"
+    tests.session -u test exec test-snapd-portal-client screenshot | MATCH "my screenshot"
 
 debug: |
     #shellcheck source=tests/lib/desktop-portal.sh

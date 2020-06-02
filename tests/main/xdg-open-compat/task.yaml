@@ -57,7 +57,7 @@ prepare: |
     tests.session -u test prepare
 
     # wait for session to be ready
-    tests.session -u test env "PATH=$PATH" retry-tool -n 5 --wait 0.5 dbus-send \
+    tests.session -u test exec env "PATH=$PATH" retry-tool -n 5 --wait 0.5 dbus-send \
             --session                                         \
             --dest=com.canonical.SafeLauncher                 \
             --type=method_call                                \
@@ -76,7 +76,7 @@ prepare: |
 
 execute: |
     xdg_open_url() {
-        tests.session -u test test-snapd-desktop.cmd /usr/bin/dbus-send \
+        tests.session -u test exec test-snapd-desktop.cmd /usr/bin/dbus-send \
             --session                                       \
             --dest=com.canonical.SafeLauncher               \
             --type=method_call                              \

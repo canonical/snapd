@@ -42,7 +42,7 @@ execute: |
     # file ownership is exposed through the document portal, and our
     # AppArmor policy uses the @owner restriction.
     chown test:test /tmp/file-to-read.txt
-    tests.session -u test test-snapd-portal-client open-file | MATCH "from-host-system"
+    tests.session -u test exec test-snapd-portal-client open-file | MATCH "from-host-system"
 
     echo "The confined application can write files via the portal"
     [ ! -f /tmp/file-to-write.txt ]
@@ -57,7 +57,7 @@ execute: |
     touch /tmp/file-to-write.txt
     chown test:test /tmp/file-to-write.txt
 
-    tests.session -u test test-snapd-portal-client save-file "from-sandbox"
+    tests.session -u test exec test-snapd-portal-client save-file "from-sandbox"
 
     # TODO: another workaround for testing on 18.04
     # Retry checking until the file contains the written text. In particular on
