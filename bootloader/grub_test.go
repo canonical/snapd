@@ -230,19 +230,19 @@ func (s *grubTestSuite) grubDir() string {
 	return filepath.Join(s.bootdir, "grub")
 }
 
-func (s *grubTestSuite) grubRecoveryDir() string {
+func (s *grubTestSuite) grubEFINativeDir() string {
 	return filepath.Join(s.rootdir, "EFI/ubuntu")
 }
 
-func (s *grubTestSuite) makeFakeGrubRecoveryEnv(c *C, content []byte) {
-	err := os.MkdirAll(s.grubRecoveryDir(), 0755)
+func (s *grubTestSuite) makeFakeGrubEFINativeEnv(c *C, content []byte) {
+	err := os.MkdirAll(s.grubEFINativeDir(), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(s.grubRecoveryDir(), "grub.cfg"), content, 0644)
+	err = ioutil.WriteFile(filepath.Join(s.grubEFINativeDir(), "grub.cfg"), content, 0644)
 	c.Assert(err, IsNil)
 }
 
 func (s *grubTestSuite) TestNewGrubWithOptionRecovery(c *C) {
-	s.makeFakeGrubRecoveryEnv(c, nil)
+	s.makeFakeGrubEFINativeEnv(c, nil)
 
 	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Recovery: true})
 	c.Assert(g, NotNil)
@@ -250,17 +250,17 @@ func (s *grubTestSuite) TestNewGrubWithOptionRecovery(c *C) {
 }
 
 func (s *grubTestSuite) TestNewGrubWithOptionRecoveryBootEnv(c *C) {
-	s.makeFakeGrubRecoveryEnv(c, nil)
+	s.makeFakeGrubEFINativeEnv(c, nil)
 	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Recovery: true})
 
 	// check that setting vars goes to the right place
-	c.Check(filepath.Join(s.grubRecoveryDir(), "grubenv"), testutil.FileAbsent)
+	c.Check(filepath.Join(s.grubEFINativeDir(), "grubenv"), testutil.FileAbsent)
 	err := g.SetBootVars(map[string]string{
 		"k1": "v1",
 		"k2": "v2",
 	})
 	c.Assert(err, IsNil)
-	c.Check(filepath.Join(s.grubRecoveryDir(), "grubenv"), testutil.FilePresent)
+	c.Check(filepath.Join(s.grubEFINativeDir(), "grubenv"), testutil.FilePresent)
 
 	env, err := g.GetBootVars("k1", "k2")
 	c.Assert(err, IsNil)
@@ -280,7 +280,7 @@ func (s *grubTestSuite) TestNewGrubWithOptionRecoveryNoEnv(c *C) {
 }
 
 func (s *grubTestSuite) TestGrubSetRecoverySystemEnv(c *C) {
-	s.makeFakeGrubRecoveryEnv(c, nil)
+	s.makeFakeGrubEFINativeEnv(c, nil)
 	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Recovery: true})
 
 	// check that we can set a recovery system specific bootenv
@@ -520,7 +520,7 @@ func (s *grubTestSuite) TestKernelExtractionRunImageKernel(c *C) {
 func (s *grubTestSuite) TestKernelExtractionRunImageKernelNoSlashBoot(c *C) {
 	// this is ubuntu-boot but during install we use the native EFI/ubuntu
 	// layout, same as Recovery, without the /boot mount
-	s.makeFakeGrubRecoveryEnv(c, nil)
+	s.makeFakeGrubEFINativeEnv(c, nil)
 
 	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{ExtractedRunKernelImage: true, NoSlashBoot: true})
 	c.Assert(g, NotNil)
@@ -573,7 +573,7 @@ func (s *grubTestSuite) TestKernelExtractionRunImageKernelNoSlashBoot(c *C) {
 
 func (s *grubTestSuite) TestNoSlashBootInstallBootScriptNoEdition(c *C) {
 	// native EFI/ubuntu setup
-	s.makeFakeGrubRecoveryEnv(c, []byte("boot script"))
+	s.makeFakeGrubEFINativeEnv(c, []byte("boot script"))
 
 	opts := &bootloader.Options{NoSlashBoot: true}
 	g := bootloader.NewGrub(s.rootdir, opts)
@@ -590,14 +590,14 @@ this is mocked grub.conf
 	err := mb.InstallBootScript(opts)
 	c.Assert(err, IsNil)
 
-	c.Assert(filepath.Join(s.grubRecoveryDir(), "grub.cfg"), testutil.FileEquals, `# X-Snapd-boot-script-edition: 123
+	c.Assert(filepath.Join(s.grubEFINativeDir(), "grub.cfg"), testutil.FileEquals, `# X-Snapd-boot-script-edition: 123
 this is mocked grub.conf
 `)
 }
 
 func (s *grubTestSuite) TestRecoveryInstallBootScriptNoEdition(c *C) {
 	// native EFI/ubuntu setup
-	s.makeFakeGrubRecoveryEnv(c, []byte("recovery boot script"))
+	s.makeFakeGrubEFINativeEnv(c, []byte("recovery boot script"))
 
 	opts := &bootloader.Options{Recovery: true}
 	g := bootloader.NewGrub(s.rootdir, opts)
@@ -614,14 +614,14 @@ this is mocked grub-recovery.conf
 	err := mb.InstallBootScript(opts)
 	c.Assert(err, IsNil)
 
-	c.Assert(filepath.Join(s.grubRecoveryDir(), "grub.cfg"), testutil.FileEquals, `# X-Snapd-boot-script-edition: 5
+	c.Assert(filepath.Join(s.grubEFINativeDir(), "grub.cfg"), testutil.FileEquals, `# X-Snapd-boot-script-edition: 5
 this is mocked grub-recovery.conf
 `)
 }
 
 func (s *grubTestSuite) testBootInstallBootScriptUpdates(c *C, oldScript, newScript string, update bool) {
 	// native EFI/ubuntu setup
-	s.makeFakeGrubRecoveryEnv(c, []byte(oldScript))
+	s.makeFakeGrubEFINativeEnv(c, []byte(oldScript))
 
 	opts := &bootloader.Options{NoSlashBoot: true}
 	g := bootloader.NewGrub(s.rootdir, opts)
@@ -637,9 +637,9 @@ func (s *grubTestSuite) testBootInstallBootScriptUpdates(c *C, oldScript, newScr
 	c.Assert(err, IsNil)
 
 	if update {
-		c.Assert(filepath.Join(s.grubRecoveryDir(), "grub.cfg"), testutil.FileEquals, newScript)
+		c.Assert(filepath.Join(s.grubEFINativeDir(), "grub.cfg"), testutil.FileEquals, newScript)
 	} else {
-		c.Assert(filepath.Join(s.grubRecoveryDir(), "grub.cfg"), testutil.FileEquals, oldScript)
+		c.Assert(filepath.Join(s.grubEFINativeDir(), "grub.cfg"), testutil.FileEquals, oldScript)
 	}
 }
 
