@@ -7,8 +7,9 @@ environment:
     PROJECT_PATH: $GOHOME/src/github.com/snapcore/snapd
     # /usr/lib/go-1.6/bin for trusty (needs to be last as we use
     # a different go in gccgo tests)
-    PATH: $GOHOME/bin:/snap/bin:$PATH:/usr/lib/go-1.6/bin:/var/lib/snapd/snap/bin:$PROJECT_PATH/tests/lib/bin
+    PATH: $GOHOME/bin:/snap/bin:$PATH:/usr/lib/go-1.6/bin:/var/lib/snapd/snap/bin:$PROJECT_PATH/tests/bin:$PROJECT_PATH/tests/lib/tools
     TESTSLIB: $PROJECT_PATH/tests/lib
+    TESTSTOOLS: $PROJECT_PATH/tests/lib/tools
     SNAPPY_TESTING: 1
     # we run the entire suite with re-exec on (the default) and modify
     # the core snap so that it contains our new code.  So we run new
@@ -122,6 +123,9 @@ backends:
                   workers: 4
                   storage: preserve-size
                   image: centos-8-64
+            - ubuntu-20.10-64:
+                  workers: 6
+                  image: ubuntu-os-cloud-devel/ubuntu-2010
 
     google-sru:
         type: google
@@ -662,6 +666,12 @@ restore: |
 restore-each: |
     "$TESTSLIB"/prepare-restore.sh --restore-project-each
 suites:
+    tests/lib/tools/suite/:
+        summary: Tests for tests/lib/tools tools
+        prepare-each: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each-minimal-no-snaps
+        restore-each: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite-each-minimal-no-snaps
     # The essential tests designed to run inside the autopkgtest
     # environment on each platform. On autopkgtest we cannot run all tests
     # as this is very slow and we run into timeouts.
