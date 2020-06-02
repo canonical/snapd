@@ -228,6 +228,22 @@ dbus (receive, send)
     path=/org/freedesktop/portal/{desktop,documents}{,/**}
     peer=(label=unconfined),
 
+# The portals service is normally running and newer versions of
+# xdg-desktop-portal include AssumedAppArmor=unconfined. Since older
+# systems don't have this and because gtkfilechoosernativeportal.c relies on
+# service activation, allow sends to peer=(name=org.freedesktop.portal.Desktop)
+# for service activation.
+dbus (send)
+    bus=session
+    interface=org.freedesktop.portal.*
+    path=/org/freedesktop/portal/{desktop,documents}{,/**}
+    peer=(name=org.freedesktop.portal.Desktop),
+dbus (send)
+    bus=session
+    interface=org.freedesktop.DBus.Properties
+    path=/org/freedesktop/portal/{desktop,documents}{,/**}
+    peer=(name=org.freedesktop.portal.Desktop),
+
 # These accesses are noisy and applications can't do anything with the found
 # icon files, so explicitly deny to silence the denials
 deny /var/lib/snapd/desktop/icons/{,**/} r,
