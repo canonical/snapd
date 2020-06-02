@@ -103,5 +103,5 @@ defaults:
 		TargetRootDir: boot.InstallHostWritableDir,
 		GadgetDir:     snapInfo.MountDir(),
 	})
-	c.Check(err, ErrorMatches, `option "rsyslog.service" has invalid value "foo"`)
+	c.Check(err, ErrorMatches, `option "service.rsyslog.disable" has invalid value "foo"`)
 }
