@@ -42,7 +42,7 @@ for brevity, but only when appropriate:
   that hints at observing, checking the system
 
 In general if none of these apply they should continue to be invoked
-via $TESTTOOLS, or possibly have a tests/lib/*.sh wrapping them if
+via $TESTSTOOLS, or possibly have a tests/lib/*.sh wrapping them if
 appropriate.
 
 TODO:
