@@ -1,12 +1,22 @@
 summary: System settings work
 
 prepare: |
-    cp -aL /etc/hostname /tmp/hostname.bak
+    hostname > hostname.bak
+    cp /etc/timezone timezone.bak
 
 restore: |
-    cp -a /tmp/hostname.bak /etc/hostname
+    hostnamectl set-hostname "$(cat hostname.bak)" || true
+    timedatectl set-timezone "$(cat timezone.bak)" || true
 
 execute: |
     echo "Check that setting the hostname works"
-    echo coole-kiste > /etc/hostname
+    hostnamectl set-hostname coole-kiste
+    MATCH coole-kiste < /etc/hostname
+    hostname | MATCH coole-kiste
 
+    echo "Check that setting the timezone works"
+    timedatectl set-timezone "Europe/Berlin"
+    date +"%Z" | MATCH CEST
+    timedatectl | MATCH "Time zone: Europe/Berlin"
+    /etc/timezone < MATCH "Europe/Berlin"
+    test "$(readlink -f /etc/localtime)" = "/usr/share/zoneinfo/Europe/Berlin"
