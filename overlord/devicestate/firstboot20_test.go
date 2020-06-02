@@ -147,7 +147,7 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv
 	// bootloader, so set the current kernel there
 	kernel, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
 	c.Assert(err, IsNil)
-	r := bloader.SetRunKernelImageEnabledKernel(kernel)
+	r := bloader.SetEnabledKernel(kernel)
 	defer r()
 
 	opts := devicestate.PopulateStateFromSeedOptions{

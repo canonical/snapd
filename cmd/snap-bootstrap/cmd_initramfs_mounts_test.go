@@ -507,7 +507,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4(c *C) {
 	// set the current kernel
 	kernel, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
 	c.Assert(err, IsNil)
-	r := bloader.SetRunKernelImageEnabledKernel(kernel)
+	r := bloader.SetEnabledKernel(kernel)
 	defer r()
 
 	makeSnapFilesOnEarlyBootUbuntuData(c, kernel.Filename(), "core20_123.snap")
@@ -737,13 +737,13 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4KernelSnapUpgradeH
 	// set the current kernel
 	kernel, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
 	c.Assert(err, IsNil)
-	r := bloader.SetRunKernelImageEnabledKernel(kernel)
+	r := bloader.SetEnabledKernel(kernel)
 	defer r()
 
 	// set the try kernel
 	tryKernel, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_2.snap")
 	c.Assert(err, IsNil)
-	r = bloader.SetRunKernelImageEnabledTryKernel(tryKernel)
+	r = bloader.SetEnabledTryKernel(tryKernel)
 	defer r()
 
 	makeSnapFilesOnEarlyBootUbuntuData(c, kernel.Filename(), tryKernel.Filename())
@@ -788,7 +788,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4UntrustedKernelSna
 	// set the current kernel as a kernel not in CurrentKernels
 	kernel, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_2.snap")
 	c.Assert(err, IsNil)
-	r := bloader.SetRunKernelImageEnabledKernel(kernel)
+	r := bloader.SetEnabledKernel(kernel)
 	defer r()
 
 	makeSnapFilesOnEarlyBootUbuntuData(c, kernel.Filename())
@@ -831,13 +831,13 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4UntrustedTryKernel
 	// set the try kernel as a kernel not in CurrentKernels
 	kernel2, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_2.snap")
 	c.Assert(err, IsNil)
-	r := bloader.SetRunKernelImageEnabledTryKernel(kernel2)
+	r := bloader.SetEnabledTryKernel(kernel2)
 	defer r()
 
 	// set the normal kernel as a valid kernel
 	kernel1, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
 	c.Assert(err, IsNil)
-	r = bloader.SetRunKernelImageEnabledKernel(kernel1)
+	r = bloader.SetEnabledKernel(kernel1)
 	defer r()
 
 	makeSnapFilesOnEarlyBootUbuntuData(c, kernel1.Filename(), kernel2.Filename())
@@ -887,7 +887,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4KernelStatusTrying
 	// set the normal kernel as a valid kernel
 	kernel, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
 	c.Assert(err, IsNil)
-	r := bloader.SetRunKernelImageEnabledKernel(kernel)
+	r := bloader.SetEnabledKernel(kernel)
 	defer r()
 
 	makeSnapFilesOnEarlyBootUbuntuData(c, kernel.Filename())

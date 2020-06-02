@@ -1974,7 +1974,7 @@ func (s *mgrsSuite) TestInstallKernelSnap20UpdatesBootloaderEnv(c *C) {
 	// we have revision 1 installed
 	kernel, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
 	c.Assert(err, IsNil)
-	restore := bloader.SetRunKernelImageEnabledKernel(kernel)
+	restore := bloader.SetEnabledKernel(kernel)
 	defer restore()
 
 	restore = release.MockOnClassic(false)
@@ -2141,7 +2141,7 @@ func (s *mgrsSuite) TestInstallKernelSnap20UndoUpdatesBootloaderEnv(c *C) {
 	// we have revision 1 installed
 	kernel, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
 	c.Assert(err, IsNil)
-	restore := bloader.SetRunKernelImageEnabledKernel(kernel)
+	restore := bloader.SetEnabledKernel(kernel)
 	defer restore()
 
 	restore = release.MockOnClassic(false)
