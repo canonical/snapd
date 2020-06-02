@@ -20,6 +20,7 @@
 package main_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -108,5 +109,22 @@ func (s *SnapSuite) TestDownloadDirect(c *check.C) {
 		"a-snap"},
 	)
 	c.Assert(err, check.IsNil)
+	c.Check(n, check.Equals, 1)
+}
+
+func (s *SnapSuite) TestDownloadDirectErrors(c *check.C) {
+	var n int
+	restore := snapCmd.MockDownloadDirect(func(snapName string, revision snap.Revision, dlOpts image.DownloadOptions) error {
+		n++
+		return fmt.Errorf("some-error")
+	})
+	defer restore()
+
+	// check that a direct download got issued
+	_, err := snapCmd.Parser(snapCmd.Client()).ParseArgs([]string{
+		"download",
+		"a-snap"},
+	)
+	c.Assert(err, check.ErrorMatches, "some-error")
 	c.Check(n, check.Equals, 1)
 }
