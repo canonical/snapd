@@ -16,7 +16,7 @@ prepare: |
 restore: |
     snap remove test-snapd-wayland
     tests.session -u test systemctl --user stop headless-weston.service
-    tests.session -u test --restore
+    tests.session -u test restore
 
 execute: |
     echo "The interface is connected by default"

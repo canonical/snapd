@@ -15,7 +15,7 @@ prepare: |
     tests.session --kill-leaked
 
 restore: |
-    tests.session -u test --restore
+    tests.session -u test restore
     snap unset system experimental.user-daemons
 
 execute: |

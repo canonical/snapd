@@ -35,7 +35,7 @@ prepare: |
 
 restore: |
     tests.session -u test systemctl --user stop dbus-provider.service
-    tests.session -u test --restore
+    tests.session -u test restore
 
 execute: |
     echo "Then the dbus name is properly reserved by the provider and the method is accessible"

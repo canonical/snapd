@@ -28,7 +28,7 @@ prepare: |
     tests.session -u test prepare
 
 restore: |
-    tests.session -u test --restore
+    tests.session -u test restore
     snap remove --purge test-snapd-curl
 
     if [ -f agent-was-enabled ]; then

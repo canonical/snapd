@@ -31,7 +31,7 @@ restore: |
     setenforce "$(cat enforcing.mode)"
     rm -f stamp enforcing.mode
 
-    tests.session -u test --restore
+    tests.session -u test restore
 
 execute: |
     systemctl restart snapd.socket

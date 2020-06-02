@@ -12,7 +12,7 @@ systems:
     - -ubuntu-core-*
 
 restore: |
-    tests.session -u test --restore
+    tests.session -u test restore
     rm -f /usr/share/fonts/dist-font.txt
     rm -f /usr/local/share/fonts/local-font.txt
     rm -f /home/test/.fonts/user-font1.txt

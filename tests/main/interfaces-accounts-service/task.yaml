@@ -31,7 +31,7 @@ prepare: |
       5 'Enabled' 'true' 'EmailAddress' 'test@example.com' 'Name' 'Test User' 'ImapHost' 'imap.example.com' 'SmtpHost': 'mail.example.com'
 
 restore: |
-    tests.session -u test --restore
+    tests.session -u test restore
 
     apt-get remove -y --purge gnome-online-accounts
     apt-get autoremove --purge -y

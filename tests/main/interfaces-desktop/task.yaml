@@ -18,7 +18,7 @@ prepare: |
     tests.session -u test prepare
 
 restore: |
-    tests.session -u test --restore
+    tests.session -u test restore
 
 execute: |
     dirs="/var/cache/fontconfig /usr/share/icons /usr/share/pixmaps"

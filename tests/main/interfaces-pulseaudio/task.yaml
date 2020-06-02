@@ -45,7 +45,7 @@ prepare: |
 
     # Prepare a session for the user.
     tests.session -u test prepare
-    echo "tests.session -u test --restore" >>defer.sh
+    echo "tests.session -u test restore" >>defer.sh
 
     # Ensure that the socket is active but do not check the service. In user
     # mode pulseaudio is documented to quit when there are no active logind

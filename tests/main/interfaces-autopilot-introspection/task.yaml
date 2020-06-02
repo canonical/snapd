@@ -27,7 +27,7 @@ prepare: |
 
 restore: |
     tests.session -u test systemctl --user stop test-snapd-autopilot-consumer-provider.service
-    tests.session -u test --restore
+    tests.session -u test restore
 
 execute: |
     echo "Then the plug is disconnected by default"

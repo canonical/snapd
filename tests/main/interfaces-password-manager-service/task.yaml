@@ -12,7 +12,7 @@ prepare: |
     tests.session -u test prepare
 
 restore: |
-    tests.session -u test --restore
+    tests.session -u test restore
 
 execute: |
     echo "The interface is disconnected by default"

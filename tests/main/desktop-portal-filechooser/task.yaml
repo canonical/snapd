@@ -26,7 +26,7 @@ prepare: |
     tests.session -u test prepare
 
 restore: |
-    tests.session -u test --restore
+    tests.session -u test restore
     #shellcheck source=tests/lib/desktop-portal.sh
     . "$TESTSLIB"/desktop-portal.sh
     teardown_portals

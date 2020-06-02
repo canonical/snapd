@@ -30,7 +30,7 @@ prepare: |
 
 restore: |
     systemctl stop test-snapd-location-control-provider.service
-    tests.session -u test --restore
+    tests.session -u test restore
 
 execute: |
     echo "The interface is not connected by default"

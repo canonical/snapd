@@ -25,7 +25,7 @@ prepare: |
 
 restore: |
     tests.session -u test systemctl --user stop test-snapd-network-monitor.service
-    tests.session -u test --restore
+    tests.session -u test restore
 
 execute: |
     #shellcheck source=tests/lib/snaps.sh
