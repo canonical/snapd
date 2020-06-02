@@ -63,7 +63,7 @@ tests/bin/retry -> tests/lib/tools/retry (was retry-tool)
 tests/bin/tests.session -> tests/lib/tools/tests.session (was session-tool)
   [done] fix to have -h
   [done] convert --ACTION into subcommands
-  [wip] require "exec" subcommand to execute a command
+  [done] require "exec" subcommand to execute a command
 
 tests/lib/tools/memory-observe-do (was memory-tool)
 tests/lib/tools/version-compare (was version-tool)

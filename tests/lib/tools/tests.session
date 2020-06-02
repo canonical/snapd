@@ -58,6 +58,12 @@ while [ $# -gt 0 ]; do
 			action=has-session-systemd-and-dbus
 			shift
 			;;
+		exec)
+			action="exec"
+			shift
+			# remaining arguments are the command to execute
+			break
+			;;
 		-u)
 			if [ $# -eq 1 ]; then
 				echo "tests.session: option -u requires an argument" >&2
@@ -70,14 +76,9 @@ while [ $# -gt 0 ]; do
 			echo "tests.session: unsupported argument $1" >&2
 			exit 1
 			;;
-		exec)
-			shift
-			action="exec"
-			break
-			;;
 		*)
-			action="exec"
-			break
+			echo "tests.session: unsupported action $1" >&2
+			exit 1
 			;;
 	esac
 done
