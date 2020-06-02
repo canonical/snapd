@@ -326,8 +326,8 @@ func (g *grub) InstallBootScript(opts *Options) error {
 		return err
 	}
 	if gbs.Edition() <= currentBootScriptEdition {
-		// edition of the candidate boot script is lower than one
-		// currently installed
+		// edition of the candidate boot script is not higher than the
+		// currently installed one
 		return nil
 	}
 	if err := ioutil.WriteFile(currentBootScript, gbs.Script(), 0644); err != nil {

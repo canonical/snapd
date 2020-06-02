@@ -571,7 +571,7 @@ func (s *grubTestSuite) TestKernelExtractionRunImageKernelNoSlashBoot(c *C) {
 	c.Check(exists, Equals, false)
 }
 
-func (s *grubTestSuite) TestNoSlahBootInstallBootScriptNoEdition(c *C) {
+func (s *grubTestSuite) TestNoSlashBootInstallBootScriptNoEdition(c *C) {
 	// native EFI/ubuntu setup
 	s.makeFakeGrubRecoveryEnv(c, []byte("boot script"))
 
@@ -584,10 +584,10 @@ this is mocked grub.conf
 `))
 	defer restore()
 
-	eg, ok := g.(bootloader.ManagedBootloader)
+	mb, ok := g.(bootloader.ManagedBootloader)
 	c.Assert(ok, Equals, true)
 	// install the boot script
-	err := eg.InstallBootScript(opts)
+	err := mb.InstallBootScript(opts)
 	c.Assert(err, IsNil)
 
 	c.Assert(filepath.Join(s.grubRecoveryDir(), "grub.cfg"), testutil.FileEquals, `# X-Snapd-boot-script-edition: 123
@@ -608,10 +608,10 @@ this is mocked grub-recovery.conf
 `))
 	defer restore()
 
-	eg, ok := g.(bootloader.ManagedBootloader)
+	mb, ok := g.(bootloader.ManagedBootloader)
 	c.Assert(ok, Equals, true)
 	// install the recovery boot script
-	err := eg.InstallBootScript(opts)
+	err := mb.InstallBootScript(opts)
 	c.Assert(err, IsNil)
 
 	c.Assert(filepath.Join(s.grubRecoveryDir(), "grub.cfg"), testutil.FileEquals, `# X-Snapd-boot-script-edition: 5
@@ -630,10 +630,10 @@ func (s *grubTestSuite) testBootInstallBootScriptUpdates(c *C, oldScript, newScr
 	restore := assets.MockBootAsset("grub.conf", []byte(newScript))
 	defer restore()
 
-	eg, ok := g.(bootloader.ManagedBootloader)
+	mb, ok := g.(bootloader.ManagedBootloader)
 	c.Assert(ok, Equals, true)
 	// the new boot script edition is higher, so an update is applied
-	err := eg.InstallBootScript(opts)
+	err := mb.InstallBootScript(opts)
 	c.Assert(err, IsNil)
 
 	if update {
@@ -643,7 +643,7 @@ func (s *grubTestSuite) testBootInstallBootScriptUpdates(c *C, oldScript, newScr
 	}
 }
 
-func (s *grubTestSuite) TestNoSlahBootInstallBootScriptUpdates(c *C) {
+func (s *grubTestSuite) TestNoSlashBootInstallBootScriptUpdates(c *C) {
 	oldScript := `# X-Snapd-boot-script-edition: 2
 boot script
 `
@@ -654,7 +654,7 @@ this is updated grub.conf
 	s.testBootInstallBootScriptUpdates(c, oldScript, newScript, updateApplied)
 }
 
-func (s *grubTestSuite) TestNoSlahBootInstallBootScriptNoUpdate(c *C) {
+func (s *grubTestSuite) TestNoSlashBootInstallBootScriptNoUpdate(c *C) {
 	oldScript := `# X-Snapd-boot-script-edition: 2
 boot script
 `
@@ -666,7 +666,7 @@ this is updated grub.conf
 	s.testBootInstallBootScriptUpdates(c, oldScript, newScript, updateApplied)
 }
 
-func (s *grubTestSuite) TestNoSlahBootInstallBootScriptSameEdition(c *C) {
+func (s *grubTestSuite) TestNoSlashBootInstallBootScriptSameEdition(c *C) {
 	oldScript := `# X-Snapd-boot-script-edition: 1
 boot script
 `
