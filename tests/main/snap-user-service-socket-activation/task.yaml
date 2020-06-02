@@ -12,7 +12,7 @@ kill-timeout: 5m
 
 prepare: |
     snap set system experimental.user-daemons=true
-    tests.session --kill-leaked
+    tests.session kill-leaked
 
 restore: |
     tests.session -u test restore
@@ -39,6 +39,6 @@ execute: |
     nc -w 30 -U "$USER_RUNTIME_DIR"/snap.test-snapd-user-service-sockets/run.sock | MATCH "Connected to runtime"
 
 debug: |
-    tests.session --dump
+    tests.session dump
     tests.session -u test exec systemctl --user status snapd.session-agent.service || true
     tests.session -u test exec journalctl --user || true

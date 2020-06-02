@@ -20,7 +20,7 @@ prepare: |
         touch agent-was-enabled
     fi
     snap set system experimental.user-daemons=true
-    tests.session --kill-leaked
+    tests.session kill-leaked
     tests.session -u test prepare
 
 restore: |
@@ -54,6 +54,6 @@ execute: |
     fi
 
 debug: |
-    tests.session --dump
+    tests.session dump
     tests.session -u test exec systemctl --user status snapd.session-agent.service || true
     tests.session -u test exec journalctl --user || true
