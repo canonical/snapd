@@ -83,7 +83,7 @@ func init() {
 	addFSOnlyHandler(validateJournalSettings, handleJournalConfiguration, coreOnly)
 
 	sysconfig.ApplyFilesystemOnlyDefaultsImpl = func(rootDir string, defaults map[string]interface{}, options *sysconfig.FilesystemOnlyApplyOptions) error {
-		return filesystemOnlyApply(rootDir, PlainCoreConfig(defaults), options)
+		return filesystemOnlyApply(rootDir, plainCoreConfig(defaults), options)
 	}
 }
 
