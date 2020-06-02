@@ -45,6 +45,9 @@ type MockBootloader struct {
 	InstallBootConfigResult bool
 	InstallBootConfigErr    error
 
+	enabledKernel    snap.PlaceInfo
+	enabledTryKernel snap.PlaceInfo
+
 	panicMethods map[string]bool
 }
 
@@ -107,6 +110,28 @@ func (b *MockBootloader) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Contai
 func (b *MockBootloader) RemoveKernelAssets(s snap.PlaceInfo) error {
 	b.RemoveKernelAssetsCalls = append(b.RemoveKernelAssetsCalls, s)
 	return nil
+}
+
+func (b *MockBootloader) SetEnabledKernel(s snap.PlaceInfo) (restore func()) {
+	oldSn := b.enabledTryKernel
+	oldVar := b.BootVars["snap_kernel"]
+	b.enabledKernel = s
+	b.BootVars["snap_kernel"] = s.Filename()
+	return func() {
+		b.BootVars["snap_kernel"] = oldVar
+		b.enabledKernel = oldSn
+	}
+}
+
+func (b *MockBootloader) SetEnabledTryKernel(s snap.PlaceInfo) (restore func()) {
+	oldSn := b.enabledTryKernel
+	oldVar := b.BootVars["snap_try_kernel"]
+	b.enabledTryKernel = s
+	b.BootVars["snap_try_kernel"] = s.Filename()
+	return func() {
+		b.BootVars["snap_try_kernel"] = oldVar
+		b.enabledTryKernel = oldSn
+	}
 }
 
 // InstallBootConfig installs the boot config in the gadget directory to the
