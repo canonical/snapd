@@ -29,7 +29,7 @@ prepare: |
     install_local test-snapd-desktop
     install_local test-snapd-sh
     rm -f /usr/share/dbus-1/services/fake-document-portal.service
-    session-tool --prepare -u test
+    tests.session -u test prepare
 
     # The fake portal writes to current working directory so let's give it permission to.
     touch doc-portal.log
@@ -41,7 +41,7 @@ restore: |
     rm -f /usr/share/dbus-1/services/fake-document-portal.service
     rm -f doc-portal.log
     rm -f report-error.txt
-    session-tool --restore -u test
+    tests.session -u test restore
 
 execute: |
     #shellcheck source=tests/lib/systems.sh
@@ -64,7 +64,7 @@ execute: |
     fi
 
     echo "No output on stderr when running with a session bus, when xdg-document-portal is not present."
-    session-tool -u test test-snapd-desktop.check-dirs /home/test/snap/test-snapd-desktop/current 2>stderr.log
+    tests.session -u test exec test-snapd-desktop.check-dirs /home/test/snap/test-snapd-desktop/current 2>stderr.log
     check_stderr stderr.log
 
     echo "The absence of the document portal service was recorded"
@@ -78,14 +78,14 @@ execute: |
     EOF
 
     echo "No attempt is made to activate the document portal due to the previous failure"
-    session-tool -u test test-snapd-desktop.check-dirs /home/test/snap/test-snapd-desktop/current
+    tests.session -u test exec test-snapd-desktop.check-dirs /home/test/snap/test-snapd-desktop/current
     not MATCH "GetMountPoint called" < doc-portal.log
 
     echo "Remove the .portals-unavailable file to force a recheck"
     rm /run/user/12345/.portals-unavailable
 
     echo "No output on stderr when running with a session bus and xdg-document-portal is present".
-    session-tool -u test test-snapd-desktop.check-dirs /home/test/snap/test-snapd-desktop/current 2>stderr.log
+    tests.session -u test exec test-snapd-desktop.check-dirs /home/test/snap/test-snapd-desktop/current 2>stderr.log
     MATCH "GetMountPoint called" < doc-portal.log
     check_stderr stderr.log
 
@@ -94,19 +94,19 @@ execute: |
     : > doc-portal.log
 
     echo "Failures from a running xdg-document-portal are reported"
-    session-tool -u test test-snapd-desktop.check-dirs /home/test/snap/test-snapd-desktop/current 2>stderr.log
+    tests.session -u test exec test-snapd-desktop.check-dirs /home/test/snap/test-snapd-desktop/current 2>stderr.log
     MATCH "GetMountPoint called" < doc-portal.log
     MATCH "WARNING: cannot start document portal: failure" < stderr.log
 
     echo "Snaps not using the desktop interface will not try to contact the document portal"
     : > doc-portal.log
-    session-tool -u test test-snapd-sh.sh -c 'true' 2>stderr.log
+    tests.session -u test exec test-snapd-sh.sh -c 'true' 2>stderr.log
     check_stderr stderr.log
     test "$(wc -c < doc-portal.log)" -eq 0
 
     echo "No output on stderr when running without a session bus"
     # NOTE: lack of session bus is emulated by unsetting DBUS_SESSION_BUS address
     # and stopping dbus.socket
-    session-tool -u test systemctl --user stop dbus.socket
-    session-tool -u test sh -c "DBUS_SESSION_BUS_ADDRESS= test-snapd-desktop.check-dirs /home/test/snap/test-snapd-desktop/current" 2>stderr.log
+    tests.session -u test exec systemctl --user stop dbus.socket
+    tests.session -u test exec sh -c "DBUS_SESSION_BUS_ADDRESS= test-snapd-desktop.check-dirs /home/test/snap/test-snapd-desktop/current" 2>stderr.log
     check_stderr stderr.log
