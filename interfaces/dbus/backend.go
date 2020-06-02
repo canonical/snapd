@@ -354,7 +354,7 @@ func BusNameOwner(bus, name string) (owner string, err error) {
 	case "system":
 		servicesDir = dirs.SnapDBusSystemServicesDir
 	default:
-		panic(bus)
+		return "", fmt.Errorf("unknown D-Bus bus %q", bus)
 	}
 	serviceFile := filepath.Join(servicesDir, name+".service")
 	return snapNameFromServiceFile(serviceFile)
