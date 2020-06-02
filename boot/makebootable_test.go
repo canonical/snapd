@@ -432,7 +432,7 @@ grade=dangerous
 	// ensure grub.cfg on boot was updated
 	c.Check(mockBootGrubCfg, testutil.FileContains, "X-Snapd-boot-script-edition: 1\n")
 	c.Check(mockBootGrubCfg, testutil.FileEquals, string(assets.GetBootAsset("grub.conf")))
-	// ensure grub.cfg on boot was updated
+	// ensure grub.cfg on seed was not updated
 	c.Check(mockSeedGrubCfg, testutil.FileEquals, []byte("this is grub.cfg on seed"))
 }
 
