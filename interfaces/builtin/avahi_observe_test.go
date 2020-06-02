@@ -150,7 +150,7 @@ func (s *AvahiObserveInterfaceSuite) testAppArmorSpecFromSystem(c *C,
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "name=org.freedesktop.Avahi")
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "peer=(label=\"{unconfined,/usr/sbin/avahi-daemon}\"),")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "peer=(label=\"{unconfined,/usr/sbin/avahi-daemon,avahi-daemon}\"),")
 	// make sure observe does have observe but not control capabilities
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `interface=org.freedesktop.Avahi.AddressResolver`)
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `interface=org.freedesktop.Avahi.HostNameResolver`)

@@ -434,7 +434,8 @@ func (iface *avahiObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specifi
 	// label like it would when installed as a snap.
 	if implicitSystemConnectedSlot(slot) {
 		// avahi from the OS is typically unconfined but known to sometimes be confined
-		new = "\"{unconfined,/usr/sbin/avahi-daemon}\""
+		// with stock apparmor 2.13.2+ profiles the label is avahi-daemon
+		new = "\"{unconfined,/usr/sbin/avahi-daemon,avahi-daemon}\""
 	} else {
 		new = slotAppLabelExpr(slot)
 	}
