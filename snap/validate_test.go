@@ -580,23 +580,6 @@ apps:
 	c.Check(ValidateApp(app), IsNil)
 }
 
-func (s *ValidateSuite) TestAppActivatesOnSlotNotFound(c *C) {
-	info, err := InfoFromSnapYaml([]byte(`name: foo
-version: 1.0
-slots:
-  dbus-slot:
-    interface: dbus
-apps:
-  server:
-    activates-on: [dbus-slot]
-  other-server:
-    slots: [dbus-slot]
-`))
-	c.Assert(err, IsNil)
-	app := info.Apps["server"]
-	c.Check(ValidateApp(app), ErrorMatches, `invalid activates-on value "dbus-slot": slot not found`)
-}
-
 func (s *ValidateSuite) TestAppActivatesOnSlotNotDbus(c *C) {
 	info, err := InfoFromSnapYaml([]byte(`name: foo
 version: 1.0

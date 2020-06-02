@@ -137,14 +137,10 @@ apps:
   test-session-activatable-provider:
     daemon: dbus
     daemon-scope: user
-    slots:
-    - test-session-activatable-slot
     activates-on:
     - test-session-activatable-slot
   test-system-activatable-provider:
     daemon: dbus
-    slots:
-    - test-system-activatable-slot
     activates-on:
     - test-system-activatable-slot
 `, nil)
@@ -379,15 +375,11 @@ slots:
 apps:
   system-service:
     daemon: simple
-    slots:
-    - dbus-session-service-slot
     activates-on:
     - dbus-session-service-slot
   session-service:
     daemon: simple
     daemon-scope: user
-    slots:
-    - dbus-system-service-slot
     activates-on:
     - dbus-system-service-slot
 `

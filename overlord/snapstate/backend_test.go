@@ -266,14 +266,29 @@ func (f *fakeStore) snap(spec snapSpec, user *auth.UserState) (*snap.Info, error
 			},
 		}
 	case "channel-for-dbus-activation":
+		slot := &snap.SlotInfo{
+			Snap:      info,
+			Name:      "dbus-slot",
+			Interface: "dbus",
+			Attrs: map[string]interface{}{
+				"bus":  "system",
+				"name": "org.example.Foo",
+			},
+			Apps: make(map[string]*snap.AppInfo),
+		}
 		info.Apps = map[string]*snap.AppInfo{
 			"dbus-daemon": {
 				Snap:        info,
 				Name:        "dbus-daemon",
 				Daemon:      "simple",
-				ActivatesOn: []string{"dbus-slot"},
+				DaemonScope: snap.SystemDaemon,
+				ActivatesOn: []*snap.SlotInfo{slot},
+				Slots: map[string]*snap.SlotInfo{
+					slot.Name: slot,
+				},
 			},
 		}
+		slot.Apps["dbus-daemon"] = info.Apps["dbus-daemon"]
 	}
 
 	return info, nil

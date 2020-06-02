@@ -357,7 +357,6 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info, strk *scopedTracker) error {
 			PostStopCommand: yApp.PostStopCommand,
 			RestartCond:     yApp.RestartCond,
 			RestartDelay:    yApp.RestartDelay,
-			ActivatesOn:     yApp.ActivatesOn,
 			CommonID:        yApp.CommonID,
 			Environment:     yApp.Environment,
 			Completer:       yApp.Completer,
@@ -376,6 +375,9 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info, strk *scopedTracker) error {
 		}
 		if len(yApp.Sockets) > 0 {
 			app.Sockets = make(map[string]*SocketInfo, len(yApp.Sockets))
+		}
+		if len(yApp.ActivatesOn) > 0 {
+			app.ActivatesOn = make([]*SlotInfo, 0, len(yApp.ActivatesOn))
 		}
 		// Daemons default to being system daemons
 		if app.Daemon != "" && app.DaemonScope == "" {
@@ -436,6 +438,17 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info, strk *scopedTracker) error {
 				App:   app,
 				Timer: yApp.Timer,
 			}
+		}
+		for _, slotName := range yApp.ActivatesOn {
+			slot, ok := snap.Slots[slotName]
+			if !ok {
+				return fmt.Errorf("invalid activates-on value %q on app %q: slot not found", slotName, appName)
+			}
+			app.ActivatesOn = append(app.ActivatesOn, slot)
+			// Implicitly add the slot to the app
+			strk.markSlot(slot)
+			app.Slots[slotName] = slot
+			slot.Apps[appName] = app
 		}
 		// collect all common IDs
 		if app.CommonID != "" {
