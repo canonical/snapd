@@ -20,7 +20,7 @@ prepare: |
     install_local test-snapd-desktop
     snap disconnect test-snapd-desktop:desktop
 
-    tests.session -u test --prepare
+    tests.session -u test prepare
 restore: |
     tests.session -u test --restore
 

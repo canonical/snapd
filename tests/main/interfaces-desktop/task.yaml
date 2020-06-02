@@ -15,7 +15,7 @@ systems:
 prepare: |
     echo "Given the desktop snap is installed"
     snap try "$TESTSLIB"/snaps/test-snapd-desktop
-    tests.session -u test --prepare
+    tests.session -u test prepare
 
 restore: |
     tests.session -u test --restore

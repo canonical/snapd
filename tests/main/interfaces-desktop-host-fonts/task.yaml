@@ -21,7 +21,7 @@ restore: |
     rm -f /usr/lib/fontconfig/cache/cache.txt
 
 prepare: |
-    tests.session -u test --prepare
+    tests.session -u test prepare
 
     echo "Distribution font" > /usr/share/fonts/dist-font.txt
     # this may not exist across all distributions

@@ -9,7 +9,7 @@ prepare: |
     echo "Ensure we have a working gnome-keyring"
     snap install --edge test-snapd-password-manager-consumer
 
-    tests.session -u test --prepare
+    tests.session -u test prepare
 
 restore: |
     tests.session -u test --restore

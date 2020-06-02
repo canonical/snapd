@@ -22,7 +22,7 @@ prepare: |
     echo "And a snap declaring a matching dbus plug is installed"
     snap install --beta test-snapd-dbus-consumer
 
-    tests.session -u test --prepare
+    tests.session -u test prepare
 
     # XXX: The pair of snaps in this test communicate over the session bus but
     # are normal applications that require starting. Instead of using

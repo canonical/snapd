@@ -54,7 +54,7 @@ prepare: |
     Name=xdg-open
     EOF
 
-    tests.session -u test --prepare
+    tests.session -u test prepare
 
     # wait for session to be ready
     tests.session -u test env "PATH=$PATH" retry-tool -n 5 --wait 0.5 dbus-send \

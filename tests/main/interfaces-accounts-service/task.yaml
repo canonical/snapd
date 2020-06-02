@@ -13,7 +13,7 @@ prepare: |
     apt-get install -y --no-install-recommends gnome-online-accounts
 
     snap install --edge test-snapd-accounts-service
-    tests.session -u test --prepare
+    tests.session -u test prepare
 
     echo "Creating account"
     # We set a long timeout here because goa-daemon will be activated

@@ -17,7 +17,7 @@ prepare: |
     echo "Given a snap declaring an autopilot-introspection plug in installed"
     snap install --edge test-snapd-autopilot-consumer
 
-    tests.session -u test --prepare
+    tests.session -u test prepare
 
     echo "And the provider dbus loop is started"
     # XXX: The test snap doesn't run as a service so we must do it ourselves.

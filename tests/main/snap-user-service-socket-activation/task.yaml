@@ -25,7 +25,7 @@ execute: |
     install_local test-snapd-user-service-sockets
 
     echo "And the user mode systemd instance is started"
-    tests.session -u test --prepare
+    tests.session -u test prepare
 
     echo "It's sockets are created in the test user's directories and activate the service"
     [ -S ~test/snap/test-snapd-user-service-sockets/common/common.sock ]

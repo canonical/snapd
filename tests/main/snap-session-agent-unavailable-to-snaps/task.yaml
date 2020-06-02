@@ -20,7 +20,7 @@ prepare: |
     echo "Install the curl snap as a confined example client"
     snap install --edge test-snapd-curl
 
-    tests.session -u test --prepare
+    tests.session -u test prepare
 
 restore: |
     tests.session -u test --restore

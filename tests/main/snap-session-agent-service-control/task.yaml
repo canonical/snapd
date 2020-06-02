@@ -25,7 +25,7 @@ prepare: |
         snap alias test-snapd-curl.curl curl
     fi
 
-    tests.session -u test --prepare
+    tests.session -u test prepare
 
 restore: |
     tests.session -u test --restore

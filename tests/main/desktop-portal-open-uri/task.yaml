@@ -15,7 +15,7 @@ prepare: |
     #shellcheck source=tests/lib/desktop-portal.sh
     . "$TESTSLIB"/desktop-portal.sh
     setup_portals
-    tests.session -u test --prepare
+    tests.session -u test prepare
 
     # Configure fake web browser
     tests.session -u test mkdir -p ~test/.local/share/applications

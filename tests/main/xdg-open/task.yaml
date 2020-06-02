@@ -26,7 +26,7 @@ prepare: |
     . "$TESTSLIB/snaps.sh"
     install_local test-snapd-desktop
 
-    tests.session -u test --prepare
+    tests.session -u test prepare
     # this will be later used by userd
     tests.session -u test systemctl --user set-environment XDG_DATA_DIRS=/usr/share
 

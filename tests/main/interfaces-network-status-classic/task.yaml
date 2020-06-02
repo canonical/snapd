@@ -20,7 +20,7 @@ prepare: |
     echo "Start the stub xdg-desktop-portal NetworkMonitor provider"
     # The network-status interface is defined to operate on a session
     # bus so for most realism, invoke it as the test user.
-    tests.session -u test --prepare
+    tests.session -u test prepare
     tests.session -u test systemd-run --user --unit test-snapd-network-monitor.service "$(pwd)/fake-portal-network-monitor.py"
 
 restore: |

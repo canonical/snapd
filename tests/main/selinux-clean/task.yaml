@@ -20,7 +20,7 @@ prepare: |
     # NOTE: Enable linger (what effectively happens in tests.session --prepare)
     # before we enable enforcing mode, as otherwise the remote ssh session
     # won't have access to this.
-    tests.session -u test --prepare
+    tests.session -u test prepare
 
     # Enable enforcing mode, our policy is already marked as permissive, so we
     # will get audit entries but the program will not be stopped by SELinux

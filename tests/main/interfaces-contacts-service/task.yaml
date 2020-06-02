@@ -25,7 +25,7 @@ systems:
 backends: [-autopkgtest]
 
 prepare: |
-    tests.session -u test --prepare
+    tests.session -u test prepare
 restore: |
     snap remove --purge test-snapd-eds
     tests.session -u test --restore
