@@ -14,7 +14,7 @@ prepare: |
 
     mkdir extra-snaps
 
-    # Get the snaleoil key and cert
+    # Get the snakeoil key and cert
     KEY_NAME=$(get_snakeoil_key)
     SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
     SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"

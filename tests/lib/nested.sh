@@ -241,7 +241,7 @@ create_nested_core_vm(){
             snap download --basename=pc-kernel --channel="20/edge" pc-kernel
             uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$WORK_DIR/image"
 
-            # Get the snaleoil key and cert
+            # Get the snakeoil key and cert
             KEY_NAME=$(get_snakeoil_key)
             SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
             SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
@@ -260,7 +260,8 @@ create_nested_core_vm(){
             EXTRA_FUNDAMENTAL="--snap $KERNEL_SNAP"
 
             # Prepare the pc gadget snap (unless provided by extra-snaps)
-            if [ ! -f "${PWD}"/extra-snaps/pc_*.snap ]; then
+            GADGET_SNAP=$(ls "${PWD}"/extra-snaps/pc_*.snap)
+            if [ -z "$GADGET_SNAP" ]; then
                 snap download --basename=pc --channel="20/edge" pc
                 unsquashfs -d pc-gadget pc.snap
                 sbattach --remove pc-gadget/shim.efi.signed
