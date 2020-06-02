@@ -946,7 +946,7 @@ prepare_ubuntu_core() {
         elif is_core20_system; then
             rsync_snap="test-snapd-rsync-core20"
         fi
-        snap install --devmode "$rsync_snap"
+        snap install --devmode --edge "$rsync_snap"
         snap alias "$rsync_snap".rsync rsync
     fi
 
