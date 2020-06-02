@@ -153,15 +153,16 @@ func (s *initramfsSuite) TestInitramfsRunModeChooseSnapsToMount(c *C) {
 			expected:    map[snap.Type]snap.PlaceInfo{kernelT: kernel1},
 			comment:     "fallback kernel upgrade path, due to try kernel file not existing",
 		},
-		// kernel upgrade path, but uses fallback due to missing kernel_status
+		// kernel upgrade path, but uses fallback due to default kernel_status
 		{
 			m:           &boot.Modeenv{Mode: "run", CurrentKernels: []string{kernel1.Filename(), kernel2.Filename()}},
 			kernel:      kernel1,
 			trykernel:   kernel2,
 			typs:        []snap.Type{kernelT},
+			blvars:      map[string]string{"kernel_status": boot.DefaultStatus},
 			snapsToMake: []snap.PlaceInfo{kernel1, kernel2},
 			expected:    map[snap.Type]snap.PlaceInfo{kernelT: kernel1},
-			comment:     "fallback kernel upgrade path, due to kernel_status missing",
+			comment:     "fallback kernel upgrade path, due to kernel_status empty (default)",
 		},
 		// kernel upgrade path, but uses fallback due to invalid kernel_status
 		{
@@ -412,6 +413,7 @@ func (s *initramfsSuite) TestInitramfsRunModeChooseSnapsToMount(c *C) {
 			kernel:      kernel1,
 			trykernel:   kernel2,
 			typs:        []snap.Type{baseT, kernelT},
+			blvars:      map[string]string{"kernel_status": boot.DefaultStatus},
 			snapsToMake: []snap.PlaceInfo{base1, kernel1, kernel2},
 			expected: map[snap.Type]snap.PlaceInfo{
 				baseT:   base1,
@@ -446,67 +448,85 @@ func (s *initramfsSuite) TestInitramfsRunModeChooseSnapsToMount(c *C) {
 		},
 	}
 
-	for _, t := range tt {
-		var cleanups []func()
+	// do both the normal uc20 bootloader and the env ref bootloader
+	bloaderTable := []struct {
+		bl   bootloadertest.Mock20BootloaderSetup
+		name string
+	}{
+		{
+			boottest.MockUC20RunBootenv(bootloadertest.Mock("mock", c.MkDir())),
+			"env ref extracted kernel",
+		},
+		{
+			boottest.MockUC20EnvRefExtractedKernelRunBootenv(bootloadertest.Mock("mock", c.MkDir())),
+			"extracted run kernel image",
+		},
+	}
 
-		// make a fresh bootloader
-		bloader := boottest.MockUC20RunBootenv(bootloadertest.Mock("mock", c.MkDir()))
-		bootloader.Force(bloader)
-		cleanups = append(cleanups, func() { bootloader.Force(nil) })
+	for _, tbl := range bloaderTable {
+		bl := tbl.bl
+		for _, t := range tt {
+			var cleanups []func()
 
-		// set the bl kernel / try kernel
-		if t.kernel != nil {
-			bloader.SetRunKernelImageEnabledKernel(t.kernel)
-		}
+			comment := fmt.Sprintf("[%s] %s", tbl.name, t.comment)
 
-		if t.trykernel != nil {
-			bloader.SetRunKernelImageEnabledTryKernel(t.trykernel)
-		}
+			bootloader.Force(bl)
+			cleanups = append(cleanups, func() { bootloader.Force(nil) })
 
-		if t.blvars != nil {
-			bloader.BootVars = t.blvars
-		}
+			// set the bl kernel / try kernel
+			if t.kernel != nil {
+				cleanups = append(cleanups, bl.SetEnabledKernel(t.kernel))
+			}
 
-		if len(t.snapsToMake) != 0 {
-			r := makeSnapFilesOnInitramfsUbuntuData(c, t.comment, t.snapsToMake...)
-			cleanups = append(cleanups, r)
-		}
+			if t.trykernel != nil {
+				cleanups = append(cleanups, bl.SetEnabledTryKernel(t.trykernel))
+			}
 
-		// write the modeenv to somewhere so we can read it and pass that to
-		// InitramfsRunModeChooseSnapsToMount
-		err := t.m.WriteTo(boot.InitramfsWritableDir)
-		// remove it because we are writing many modeenvs in this single test
-		cleanups = append(cleanups, func() {
-			c.Assert(os.Remove(dirs.SnapModeenvFileUnder(boot.InitramfsWritableDir)), IsNil, Commentf(t.comment))
-		})
-		c.Assert(err, IsNil)
+			if t.blvars != nil {
+				c.Assert(bl.SetBootVars(t.blvars), IsNil)
+			}
 
-		m, err := boot.ReadModeenv(boot.InitramfsWritableDir)
-		c.Assert(err, IsNil)
+			if len(t.snapsToMake) != 0 {
+				r := makeSnapFilesOnInitramfsUbuntuData(c, comment, t.snapsToMake...)
+				cleanups = append(cleanups, r)
+			}
 
-		mounts, err := boot.InitramfsRunModeSelectSnapsToMount(t.typs, m)
-		if t.errPattern != "" {
-			c.Assert(err, ErrorMatches, t.errPattern, Commentf(t.comment))
-		} else {
-			c.Assert(err, IsNil, Commentf(t.comment))
-			c.Assert(mounts, DeepEquals, t.expected, Commentf(t.comment))
-		}
+			// write the modeenv to somewhere so we can read it and pass that to
+			// InitramfsRunModeChooseSnapsToMount
+			err := t.m.WriteTo(boot.InitramfsWritableDir)
+			// remove it because we are writing many modeenvs in this single test
+			cleanups = append(cleanups, func() {
+				c.Assert(os.Remove(dirs.SnapModeenvFileUnder(boot.InitramfsWritableDir)), IsNil, Commentf(t.comment))
+			})
+			c.Assert(err, IsNil)
 
-		// check that the modeenv changed as expected
-		if t.expectedM != nil {
-			newM, err := boot.ReadModeenv(boot.InitramfsWritableDir)
-			c.Assert(err, IsNil, Commentf(t.comment))
-			c.Assert(newM.Base, Equals, t.expectedM.Base, Commentf(t.comment))
-			c.Assert(newM.BaseStatus, Equals, t.expectedM.BaseStatus, Commentf(t.comment))
-			c.Assert(newM.TryBase, Equals, t.expectedM.TryBase, Commentf(t.comment))
+			m, err := boot.ReadModeenv(boot.InitramfsWritableDir)
+			c.Assert(err, IsNil)
 
-			// shouldn't be changing in the initramfs, but be safe
-			c.Assert(newM.CurrentKernels, DeepEquals, t.expectedM.CurrentKernels, Commentf(t.comment))
-		}
+			mountSnaps, err := boot.InitramfsRunModeSelectSnapsToMount(t.typs, m)
+			if t.errPattern != "" {
+				c.Assert(err, ErrorMatches, t.errPattern, Commentf(comment))
+			} else {
+				c.Assert(err, IsNil, Commentf(comment))
+				c.Assert(mountSnaps, DeepEquals, t.expected, Commentf(comment))
+			}
 
-		// clean up
-		for _, r := range cleanups {
-			r()
+			// check that the modeenv changed as expected
+			if t.expectedM != nil {
+				newM, err := boot.ReadModeenv(boot.InitramfsWritableDir)
+				c.Assert(err, IsNil, Commentf(comment))
+				c.Assert(newM.Base, Equals, t.expectedM.Base, Commentf(comment))
+				c.Assert(newM.BaseStatus, Equals, t.expectedM.BaseStatus, Commentf(comment))
+				c.Assert(newM.TryBase, Equals, t.expectedM.TryBase, Commentf(comment))
+
+				// shouldn't be changing in the initramfs, but be safe
+				c.Assert(newM.CurrentKernels, DeepEquals, t.expectedM.CurrentKernels, Commentf(comment))
+			}
+
+			// clean up
+			for _, r := range cleanups {
+				r()
+			}
 		}
 	}
 }
