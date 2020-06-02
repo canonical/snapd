@@ -282,6 +282,9 @@ func unlockEncryptedPartitionWithSealedKey(tpm *sb.TPMConnection, name, device, 
 	return nil
 }
 
+// SealKey provisions the TPM and seals a partition encryption key according to the
+// specified parameters. If the TPM is already provisioned, or a sealed key already
+// exists, SealKey will fail and return an error.
 func SealKey(key partition.EncryptionKey, params *SealKeyParams) error {
 	numModels := len(params.ModelParams)
 	if numModels < 1 {
