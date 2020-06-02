@@ -43,6 +43,19 @@ next line
 one after that`))
 	c.Assert(err, IsNil)
 	c.Assert(e, Equals, uint(321))
+
+	e, err = bootloader.EditionFromScript(bytes.NewBufferString(`# X-Snapd-boot-script-edition: 932
+# X-Snapd-boot-script-edition: 321
+one after that`))
+	c.Assert(err, IsNil)
+	c.Assert(e, Equals, uint(932))
+
+	e, err = bootloader.EditionFromScript(bytes.NewBufferString(`# X-Snapd-boot-script-edition: 1234
+one after that
+# X-Snapd-boot-script-edition: 321
+`))
+	c.Assert(err, IsNil)
+	c.Assert(e, Equals, uint(1234))
 }
 
 func (s *scriptTestSuite) TestTrivialFromFile(c *C) {
