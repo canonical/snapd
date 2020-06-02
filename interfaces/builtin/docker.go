@@ -51,5 +51,6 @@ func init() {
 		baseDeclarationSlots:  dockerBaseDeclarationSlots,
 		connectedPlugAppArmor: dockerConnectedPlugAppArmor,
 		connectedPlugSecComp:  dockerConnectedPlugSecComp,
+		implicitOnClassic:     true,
 	})
 }
