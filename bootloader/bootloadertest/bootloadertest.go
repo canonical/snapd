@@ -51,7 +51,13 @@ type MockBootloader struct {
 	panicMethods map[string]bool
 }
 
-// ensure MockBootloader(s) implement the Bootloader interfaceces
+type Mock20BootloaderSetup interface {
+	bootloader.Bootloader
+	SetEnabledKernel(s snap.PlaceInfo) (restore func())
+	SetEnabledTryKernel(s snap.PlaceInfo) (restore func())
+}
+
+// ensure MockBootloader(s) implement the Bootloader interface
 var _ bootloader.Bootloader = (*MockBootloader)(nil)
 var _ bootloader.RecoveryAwareBootloader = (*MockRecoveryAwareBootloader)(nil)
 var _ bootloader.ExtractedRunKernelImageBootloader = (*MockExtractedRunKernelImageBootloader)(nil)
