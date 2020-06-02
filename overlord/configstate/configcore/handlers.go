@@ -82,7 +82,7 @@ func init() {
 	// journal.persistent
 	addFSOnlyHandler(validateJournalSettings, handleJournalConfiguration, coreOnly)
 
-	sysconfig.ConfigcoreFilesystemOnlyApplyImpl = func(rootDir string, defaults map[string]interface{}, options *sysconfig.FilesystemOnlyApplyOptions) error {
+	sysconfig.ApplyFilesystemOnlyDefaultsImpl = func(rootDir string, defaults map[string]interface{}, options *sysconfig.FilesystemOnlyApplyOptions) error {
 		return filesystemOnlyApply(rootDir, PlainCoreConfig(defaults), options)
 	}
 }
@@ -128,6 +128,7 @@ func (h *fsOnlyHandler) handle(cfg config.ConfGetter, opts *fsOnlyContext) error
 // cfg configuration. This is a subset of core config options that is important
 // early during boot, before all the configuration is applied as part of
 // normal execution of configure hook.
+// This is called from sysconfig.ApplyFilesystemOnlyDefaults().
 func filesystemOnlyApply(rootDir string, cfg config.ConfGetter, opts *sysconfig.FilesystemOnlyApplyOptions) error {
 	if rootDir == "" {
 		return fmt.Errorf("internal error: root directory for configcore.FilesystemOnlyApply() not set")

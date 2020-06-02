@@ -29,7 +29,7 @@ import (
 	"syscall"
 	"time"
 
-	// to set sysconfig.ConfigcoreFilesystemOnlyApply hook
+	// to set sysconfig.ApplyFilesystemOnlyDefaults hook
 	_ "github.com/snapcore/snapd/overlord/configstate/configcore"
 
 	"github.com/snapcore/snapd/asserts"
@@ -437,7 +437,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 				return err
 			}
 			applyOpts := &sysconfig.FilesystemOnlyApplyOptions{Classic: opts.Classic}
-			return sysconfig.ConfigcoreFilesystemOnlyApply(defaultsDir, defaults, applyOpts)
+			return sysconfig.ApplyFilesystemOnlyDefaults(defaultsDir, defaults, applyOpts)
 		}
 	}
 

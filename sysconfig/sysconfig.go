@@ -49,15 +49,18 @@ type FilesystemOnlyApplyOptions struct {
 	Classic bool
 }
 
-// ConfigcoreFilesystemOnlyApplyImpl is initialized by init() of configcore.
-var ConfigcoreFilesystemOnlyApplyImpl = func(rootDir string, defaults map[string]interface{}, options *FilesystemOnlyApplyOptions) error {
-	panic("configcoreFilesystemOnlyApply not set")
+// ApplyFilesystemOnlyDefaultsImpl is initialized by init() of configcore.
+var ApplyFilesystemOnlyDefaultsImpl = func(rootDir string, defaults map[string]interface{}, options *FilesystemOnlyApplyOptions) error {
+	panic("ApplyFilesystemOnlyDefaultsImpl not set")
 }
 
-// filesystemOnlyApply applies filesystem modifications under rootDir via
-// configcore.filesystemOnlyApply().
-func ConfigcoreFilesystemOnlyApply(rootDir string, defaults map[string]interface{}, options *FilesystemOnlyApplyOptions) error {
-	return ConfigcoreFilesystemOnlyApplyImpl(rootDir, defaults, options)
+// ApplyFilesystemOnlyDefaults applies (via configcore.filesystemOnlyApply())
+// filesystem modifications under rootDir, according to the defaults.
+// This is a subset of core config options that is important
+// early during boot, before all the configuration is applied as part of
+// normal execution of configure hook.
+func ApplyFilesystemOnlyDefaults(rootDir string, defaults map[string]interface{}, options *FilesystemOnlyApplyOptions) error {
+	return ApplyFilesystemOnlyDefaultsImpl(rootDir, defaults, options)
 }
 
 // ConfigureRunSystem configures the ubuntu-data partition with any
@@ -76,7 +79,7 @@ func ConfigureRunSystem(opts *Options) error {
 		if len(defaults) > 0 {
 			// options are nil which implies core system
 			var options *FilesystemOnlyApplyOptions
-			if err := ConfigcoreFilesystemOnlyApply(WritableDefaultsDir(opts.TargetRootDir), defaults, options); err != nil {
+			if err := ApplyFilesystemOnlyDefaults(WritableDefaultsDir(opts.TargetRootDir), defaults, options); err != nil {
 				return err
 			}
 		}

@@ -27,7 +27,7 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/osutil"
 
-	// to set ConfigcoreFilesystemOnlyApply hook
+	// to set ApplyFilesystemOnlyDefaults hook
 	_ "github.com/snapcore/snapd/overlord/configstate/configcore"
 
 	"github.com/snapcore/snapd/snap"
