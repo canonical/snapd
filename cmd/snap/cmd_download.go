@@ -130,8 +130,11 @@ func downloadDirectImpl(snapName string, revision snap.Revision, dlOpts image.Do
 
 	fmt.Fprintf(Stdout, i18n.G("Fetching assertions for %q\n"), snapName)
 	assertPath, err := fetchSnapAssertionsDirect(tsto, snapPath, snapInfo)
+	if err != nil {
+		return err
+	}
 	printInstallHint(assertPath, snapPath)
-	return err
+	return nil
 }
 
 func (x *cmdDownload) downloadFromStore(snapName string, revision snap.Revision) error {
@@ -177,7 +180,5 @@ func (x *cmdDownload) Execute(args []string) error {
 	}
 
 	snapName := string(x.Positional.Snap)
-	x.downloadFromStore(snapName, revision)
-
-	return nil
+	return x.downloadFromStore(snapName, revision)
 }
