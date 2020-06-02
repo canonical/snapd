@@ -22,6 +22,17 @@ package assets
 
 // TODO:UC20 extract common and template parts of command line
 
+// scripts content from https://github.com/snapcore/pc-amd64-gadget, commit:
+//
+// commit e4d63119322691f14a3f9dfa36a3a075e941ec9d (HEAD -> 20, origin/HEAD, origin/20)
+// Merge: b70d2ae d113aca
+// Author: Dimitri John Ledkov <xnox@ubuntu.com>
+// Date:   Thu May 7 19:30:00 2020 +0100
+//
+//     Merge pull request #47 from xnox/production-keys
+//
+//     gadget: bump edition to 2, using production signing keys for everything.
+
 const grubBootScript = `# X-Snapd-boot-script-edition: 1
 
 set default=0
@@ -134,6 +145,6 @@ menuentry 'System setup' --hotkey=f 'uefi-firmware' {
 `
 
 func init() {
-	RegisterAsset("grub.conf", []byte(grubBootScript))
-	RegisterAsset("grub-recovery.conf", []byte(grubRecoveryScript))
+	registerAsset("grub.conf", []byte(grubBootScript))
+	registerAsset("grub-recovery.conf", []byte(grubRecoveryScript))
 }
