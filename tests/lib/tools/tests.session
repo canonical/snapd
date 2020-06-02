@@ -34,27 +34,27 @@ while [ $# -gt 0 ]; do
 			shift
 			break
 			;;
-		kill-leaked|--kill-leaked)
+		kill-leaked)
 			action=kill-leaked
 			shift
 			;;
-		prepare|--prepare)
+		prepare)
 			action=prepare
 			shift
 			;;
-		restore|--restore)
+		restore)
 			action=restore
 			shift
 			;;
-		dump|--dump)
+		dump)
 			action=dump
 			shift
 			;;
-		has-system-systemd-and-dbus|--has-system-systemd-and-dbus)
+		has-system-systemd-and-dbus)
 			action=has-system-systemd-and-dbus
 			shift
 			;;
-		has-session-systemd-and-dbus|--has-session-systemd-and-dbus)
+		has-session-systemd-and-dbus)
 			action=has-session-systemd-and-dbus
 			shift
 			;;
