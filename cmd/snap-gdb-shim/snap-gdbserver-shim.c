@@ -43,9 +43,14 @@ int main(int argc, char **argv) {
     //  "continue; signal SIGCONT"
     raise(SIGSTOP);
 
-    // XXX: should we stop here so that users can do stuff before
-    //      the app starts? or do users expect the program to run?
-    //      Or an environment to control it?
+	// signal gdb to stop here
+	printf("\n\n");
+	printf("Welcome to `snap run --gdb`.\n");
+	printf("You are right before your application is execed():\n");
+	printf("- set any options you may need\n");
+	printf("- (optionally) set a breakpoint in 'main'\n");
+	printf("- use 'cont' to start\n");
+	printf("\n\n");
     raise(SIGTRAP);
 
     const char *executable = argv[1];
