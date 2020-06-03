@@ -25,9 +25,13 @@
 int main(int argc, char **argv) {
     if (sc_is_debug_enabled()) {
         for (int i = 0; i < argc; i++) {
-            printf("-%s-\n", argv[i]);
+            fprintf(stderr, "-%s-\n", argv[i]);
         }
     }
+	if (argc < 2) {
+		fprintf(stderr, "missing a command to execute");
+		abort();
+	}
     // Signal to "snap run" that we are ready to get a debugger attached.
     // When a debugger attached it will stop the binary at whatever
     // point the binary is executing. So we cannot have clever code

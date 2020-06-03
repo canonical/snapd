@@ -26,8 +26,12 @@ int main(int argc, char **argv)
 {
 	if (sc_is_debug_enabled()) {
 		for (int i = 0; i < argc; i++) {
-			printf("-%s-\n", argv[i]);
+			fprintf(stderr, "-%s-\n", argv[i]);
 		}
+	}
+	if (argc < 2) {
+		fprintf(stderr, "missing a command to execute");
+		abort();
 	}
 	// signal gdb to stop here
 	printf("\n\n");
