@@ -13,9 +13,9 @@ mount_ubuntu_image() {
         modprobe nbd
     fi
 
-    # Run qemu-ndb as a service, so that it does not interact with ssh
+    # Run qemu-nbd as a service, so that it does not interact with ssh
     # stdin/stdout it would otherwise inherit from the spread session.
-    systemd-run --system --service-type=forking --unit=qemu-ndb-preseed.service "$(command -v qemu-nbd)" --fork -c /dev/nbd0 "$CLOUD_IMAGE"
+    systemd-run --system --service-type=forking --unit=qemu-nbd-preseed.service "$(command -v qemu-nbd)" --fork -c /dev/nbd0 "$CLOUD_IMAGE"
     # nbd0p1 may take a short while to become available
     retry-tool -n 5 --wait 1 test -e /dev/nbd0p1
     mount /dev/nbd0p1 "$IMAGE_MOUNTPOINT"
