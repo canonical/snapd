@@ -17,7 +17,7 @@
  *
  */
 
-package testutil
+package dbustest
 
 import (
 	"bytes"
@@ -211,12 +211,12 @@ func (a *testAuth) HandleData(data []byte) (resp []byte, status dbus.AuthStatus)
 	return []byte(""), dbus.AuthOk
 }
 
-// NewDBusTestConn returns a DBus connection for writing unit tests.
+// Connection returns a DBus connection for writing unit tests.
 //
 // The handler function is called for each message sent to the bus. It can
 // return any number of messages to send in response. The counter aids in
 // testing a sequence of messages that is expected.
-func NewDBusTestConn(handler DBusHandlerFunc) (*dbus.Conn, error) {
+func Connection(handler DBusHandlerFunc) (*dbus.Conn, error) {
 	conn, err := dbus.NewConn(newTestDBusStream(handler))
 	if err != nil {
 		return nil, err

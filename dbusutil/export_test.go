@@ -1,8 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build amd64 arm64 ppc ppc64le riscv64 s390x
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -18,15 +17,6 @@
  *
  */
 
-package sys
+package dbusutil
 
-import "syscall"
-
-// these are the constants for where getuid et al are already 32-bit
-
-const (
-	_SYS_GETUID  = syscall.SYS_GETUID
-	_SYS_GETGID  = syscall.SYS_GETGID
-	_SYS_GETEUID = syscall.SYS_GETEUID
-	_SYS_GETEGID = syscall.SYS_GETEGID
-)
+var IsSessionBusLikelyPresent = isSessionBusLikelyPresent
