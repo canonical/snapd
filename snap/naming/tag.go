@@ -27,8 +27,8 @@ import (
 
 var errInvalidSecurityTag = errors.New("invalid security tag")
 
-// ParsedSecurityTag describes a parsed snap security tag.
-type ParsedSecurityTag interface {
+// SecurityTag describes a parsed snap security tag.
+type SecurityTag interface {
 	// String returns the entire security tag.
 	String() string
 
@@ -38,7 +38,7 @@ type ParsedSecurityTag interface {
 
 // AppSecurityTag describes a parsed snap application security tag.
 type AppSecurityTag interface {
-	ParsedSecurityTag
+	SecurityTag
 	// AppName returns the name of the application.
 	AppName() string
 }
@@ -62,7 +62,7 @@ func (t appSecurityTag) AppName() string {
 
 // HookSecurityTag describes a parsed snap hook security tag.
 type HookSecurityTag interface {
-	ParsedSecurityTag
+	SecurityTag
 	// HookName returns the name of the hook.
 	HookName() string
 }
@@ -88,7 +88,7 @@ func (t hookSecurityTag) HookName() string {
 //
 // Further type assertions can be used to described the particular form, either
 // describing an application or a hook specific security tag.
-func ParseSecurityTag(tag string) (ParsedSecurityTag, error) {
+func ParseSecurityTag(tag string) (SecurityTag, error) {
 	// We expect at most four parts. Split with up to five parts so that the
 	// len(parts) test catches invalid format tags very early.
 	parts := strings.SplitN(tag, ".", 5)
