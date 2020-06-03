@@ -1,4 +1,4 @@
-summary: Test that config defaults are applied early.
+summary: Test that gadget config defaults are applied early on core20.
 
 systems: [ubuntu-20.04-64]
 
@@ -10,8 +10,6 @@ prepare: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
 
-    cleanup_nested_env
-
     mkdir extra-snaps
 
     # Get the snakeoil key and cert
@@ -19,7 +17,7 @@ prepare: |
     SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
     SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
 
-    # modify and repack gadget snap (add defaults section and install hook)aą
+    # modify and repack gadget snap (add defaults section and install hook)
     snap download --basename=pc --channel="20/edge" pc
     unsquashfs -d pc-gadget pc.snap
 
@@ -34,20 +32,6 @@ prepare: |
     rm -f "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
 
     create_nested_core_vm
-
-    # Modify seed options to use devmode for pc gadget snap. This is needed for the
-    # install hook to have access to /etc/systemd. Ideally we would use
-    # system-files plug, but it wouldn't get autoconnected due to assertions. 
-    IMAGE_PATH="$(get_nested_core_image_path)"
-    loops=$(kpartx -avs "$IMAGE_PATH"  | cut -d' ' -f 3)
-    part=$(echo "$loops" | tail -1)
-    tmp=$(mktemp -d)
-    mount "/dev/mapper/$part" "$tmp"
-    OPTIONS_PATH=$(find "$tmp/systems" -name options.yaml)
-    sed -i "$OPTIONS_PATH" -E -e 's/^(\s+)unasserted: (pc_.+)/\1unasserted: \2\n\1devmode: true/'
-    umount "$tmp"
-    kpartx -d "$IMAGE_PATH"
-    rmdir "$tmp"
 
     start_nested_core_vm
 
