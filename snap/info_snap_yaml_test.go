@@ -1459,6 +1459,7 @@ apps:
    stop-timeout: 25s
    start-timeout: 42m
    daemon: forking
+   daemon-scope: system
    stop-command: stop-cmd
    post-stop-command: post-stop-cmd
    restart-condition: on-abnormal
@@ -1476,6 +1477,7 @@ apps:
 		Name:            "svc",
 		Command:         "svc1",
 		Daemon:          "forking",
+		DaemonScope:     snap.SystemDaemon,
 		RestartCond:     snap.RestartOnAbnormal,
 		StopTimeout:     timeout.Timeout(25 * time.Second),
 		StartTimeout:    timeout.Timeout(42 * time.Minute),
@@ -1493,6 +1495,35 @@ apps:
 	}
 
 	c.Check(info.Apps, DeepEquals, map[string]*snap.AppInfo{"svc": &app})
+}
+
+func (s *YamlSuite) TestDaemonUserDaemon(c *C) {
+	y := []byte(`name: wat
+version: 42
+apps:
+ svc:
+   command: svc1
+   daemon: simple
+   daemon-scope: user
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+	c.Check(info.Apps["svc"].DaemonScope, Equals, snap.UserDaemon)
+}
+
+func (s *YamlSuite) TestDaemonNoDaemonScope(c *C) {
+	y := []byte(`name: wat
+version: 42
+apps:
+ svc:
+   command: svc1
+   daemon: simple
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+
+	// If daemon-scope is unset, default to system scope
+	c.Check(info.Apps["svc"].DaemonScope, Equals, snap.SystemDaemon)
 }
 
 func (s *YamlSuite) TestDaemonListenStreamAsInteger(c *C) {
@@ -1540,6 +1571,18 @@ apps:
 	_, err := snap.InfoFromSnapYaml(y)
 	c.Check(err.Error(), Equals, "cannot parse snap.yaml: yaml: unmarshal errors:\n"+
 		"  line 9: cannot unmarshal !!str `asdfasdf` into os.FileMode")
+}
+
+func (s *YamlSuite) TestDaemonInvalidDaemonScope(c *C) {
+	y := []byte(`name: wat
+version: 42
+apps:
+ svc:
+   command: svc
+   daemon-scope: invalid
+`)
+	_, err := snap.InfoFromSnapYaml(y)
+	c.Check(err.Error(), Equals, "cannot parse snap.yaml: invalid daemon scope: \"invalid\"")
 }
 
 func (s *YamlSuite) TestSnapYamlGlobalEnvironment(c *C) {

@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/strutil"
 )
 
 const desktopSummary = `allows access to basic graphical desktop resources`
@@ -202,7 +203,7 @@ dbus (send)
     bus=session
     path=/io/snapcraft/Settings
     interface=io.snapcraft.Settings
-    member={Check,Get,Set}
+    member={Check,CheckSub,Get,GetSub,Set,SetSub}
     peer=(label=unconfined),
 
 # Allow access to xdg-document-portal file system.  Access control is
@@ -229,7 +230,7 @@ dbus (receive, send)
 
 # These accesses are noisy and applications can't do anything with the found
 # icon files, so explicitly deny to silence the denials
-deny /var/lib/snapd/desktop/icons/ r,
+deny /var/lib/snapd/desktop/icons/{,**/} r,
 `
 
 type desktopInterface struct {
@@ -287,6 +288,19 @@ func (iface *desktopInterface) MountConnectedPlug(spec *mount.Specification, plu
 	for _, dir := range iface.fontconfigDirs() {
 		if !osutil.IsDirectory(dir) {
 			continue
+		}
+		if release.DistroLike("arch", "fedora") {
+			// XXX: on Arch and Fedora 32+ there is a known
+			// incompatibility between the binary fonts cache files
+			// and ones expected by desktop snaps; even though the
+			// cache format level is same for both, the host
+			// generated cache files cause instability, segfaults or
+			// incorrect rendering of fonts, for this reason do not
+			// mount the cache directories on those distributions,
+			// see https://bugs.launchpad.net/snapd/+bug/1877109
+			if strutil.ListContains(dirs.SystemFontconfigCacheDirs, dir) {
+				continue
+			}
 		}
 		// Since /etc/fonts/fonts.conf in the snap mount ns is the same
 		// as on the host, we need to preserve the original directory

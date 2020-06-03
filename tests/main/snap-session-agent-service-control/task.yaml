@@ -25,14 +25,10 @@ prepare: |
         snap alias test-snapd-curl.curl curl
     fi
 
-    session-tool -u test --prepare
-    # Wait for sockets.target to finish starting so the session agent
-    # socket is available.
-    # XXX: I strongly believe this is not required anymore.
-    session-tool -u test systemctl --user start sockets.target
+    tests.session -u test prepare
 
 restore: |
-    session-tool -u test --restore
+    tests.session -u test restore
     snap remove --purge test-snapd-curl
 
     if [ -f agent-was-enabled ]; then
@@ -57,19 +53,19 @@ execute: |
         http://localhost/v1/service-control | MATCH "HTTP/1.1 200 OK"
 
     echo "The service is now visible but not active"
-    session-tool -u test systemctl --user show --property=LoadState snap.test-service.service | MATCH LoadState=loaded
-    session-tool -u test systemctl --user show --property=ActiveState snap.test-service.service | MATCH ActiveState=inactive
+    tests.session -u test exec systemctl --user show --property=LoadState snap.test-service.service | MATCH LoadState=loaded
+    tests.session -u test exec systemctl --user show --property=ActiveState snap.test-service.service | MATCH ActiveState=inactive
 
     echo "The session agent can start user mode services"
     curl --unix-socket /run/user/12345/snapd-session-agent.socket \
         -D- -X POST -H "Content-Type: application/json" \
         -d '{"action": "start", "services": ["snap.test-service.service"]}' \
         http://localhost/v1/service-control | MATCH "HTTP/1.1 200 OK"
-    session-tool -u test systemctl --user show --property=ActiveState snap.test-service.service | MATCH ActiveState=active
+    tests.session -u test exec systemctl --user show --property=ActiveState snap.test-service.service | MATCH ActiveState=active
 
     echo "The session agent can stop user mode services"
     curl --unix-socket /run/user/12345/snapd-session-agent.socket \
         -D- -X POST -H "Content-Type: application/json" \
         -d '{"action": "stop", "services": ["snap.test-service.service"]}' \
         http://localhost/v1/service-control | MATCH "HTTP/1.1 200 OK"
-    session-tool -u test systemctl --user show --property=ActiveState snap.test-service.service | MATCH ActiveState=inactive
+    tests.session -u test exec systemctl --user show --property=ActiveState snap.test-service.service | MATCH ActiveState=inactive

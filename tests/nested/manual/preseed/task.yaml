@@ -5,7 +5,7 @@ description: |
   command works, and the resulting image boots and finalizes seeding.
   The test assumes cloud image with a core and lxd snaps in its seeds/.
 
-systems: [ubuntu-19.10-*, ubuntu-20.04-*]
+systems: [ubuntu-19.10-*, ubuntu-2*]
 
 environment:
   IMAGE_MOUNTPOINT: /mnt/cloudimg
@@ -13,12 +13,20 @@ environment:
 prepare: |
   #shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB/nested.sh"
+  dpkg -i "$SPREAD_PATH"/../snapd_*.deb
   create_nested_classic_vm
   mkdir -p "$IMAGE_MOUNTPOINT"
   #shellcheck source=tests/lib/preseed.sh
   . "$TESTSLIB/preseed.sh"
   CLOUD_IMAGE=$(get_nested_classic_image_path)
   mount_ubuntu_image "$CLOUD_IMAGE" "$IMAGE_MOUNTPOINT"
+
+  # on 20.04 snapd from the deb is newer than snapd from seeds;
+  # this is not a sensible scenario for preseeding but since
+  # we're cheating and preseeding images that were not meant to be
+  # preseeded in their current state, we need to inject newer snapd
+  # into seeds/ to make snap-preseed and the test happy.
+  inject_snapd_into_seeds "$IMAGE_MOUNTPOINT"
 
 restore: |
   #shellcheck source=tests/lib/nested.sh

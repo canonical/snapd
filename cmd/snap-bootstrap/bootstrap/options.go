@@ -40,4 +40,6 @@ type Options struct {
 	KernelPath string
 	// Model is the device model to seal the keyfile to
 	Model *asserts.Model
+	// SystemLabel is the recover system label to seal the keyfile to
+	SystemLabel string
 }

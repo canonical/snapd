@@ -53,9 +53,15 @@ export DH_GOLANG_GO_GENERATE=0
 endif
 
 # check if we need to include the testkeys in the binary
+# TAGS are the go build tags for all binaries, SNAP_TAGS are for snap
+# build only.
 TAGS=
+SNAP_TAGS=
 ifneq (,$(filter testkeys,$(DEB_BUILD_OPTIONS)))
 	TAGS=-tags withtestkeys
+	SNAP_TAGS=-tags "nomanagers withtestkeys"
+else
+	SNAP_TAGS=-tags nomanagers
 endif
 
 BUILT_USING_PACKAGES=
@@ -123,6 +129,9 @@ override_dh_auto_build:
 	mkdir -p _build/src/$(DH_GOPKG)/cmd/snap/test-data
 	cp -a cmd/snap/test-data/*.gpg _build/src/$(DH_GOPKG)/cmd/snap/test-data/
 	dh_auto_build -- $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS)
+
+	(cd _build/bin && GOPATH=$$(pwd)/.. go build $(BUILDFLAGS) $(GCCGOFLAGS) $(SNAP_TAGS) $(DH_GOPKG)/cmd/snap)
+
 	# Generate static snap-exec, snapctl and snap-udpate-ns - it somehow includes CGO so we must
 	# force a static build here. We need a static snap-{exec,update-ns}/snapctl inside
 	# the core snap because not all bases will have a libc
@@ -143,7 +152,7 @@ override_dh_auto_build:
 	$(MAKE) -C data all
 
 override_dh_auto_test:
-	dh_auto_test -- $(BUILDFLAGS) -tags "$(TAGS)" $(GCCGOFLAGS)
+	dh_auto_test -- $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS)
 # a tested default (production) build should have no test keys
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	# check that only the main trusted account-keys are included

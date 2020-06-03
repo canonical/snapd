@@ -20,13 +20,10 @@ prepare: |
     echo "Install the curl snap as a confined example client"
     snap install --edge test-snapd-curl
 
-    session-tool -u test --prepare
-    # Wait for sockets.target to finish starting so the session agent
-    # socket is available.
-    session-tool -u test systemctl --user start sockets.target
+    tests.session -u test prepare
 
 restore: |
-    session-tool -u test --restore
+    tests.session -u test restore
     snap remove test-snapd-curl
     if [ -f agent-was-enabled ]; then
         systemctl --user --global disable snapd.session-agent.socket
@@ -42,7 +39,7 @@ execute: |
     test -S "/run/user/12345/snapd-session-agent.socket"
 
     echo "But confined applications can not access it"
-    not session-tool -u test test-snapd-curl.curl \
+    not tests.session -u test exec test-snapd-curl.curl \
         --unix-socket /run/user/12345/snapd-session-agent.socket \
         -D- http://localhost/v1/session-info
 
