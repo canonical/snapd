@@ -75,7 +75,7 @@ type cmdRun struct {
 	// "default" and "optional-value" to distinguish this.
 	Strace    string `long:"strace" optional:"true" optional-value:"with-strace" default:"no-strace" default-mask:"-"`
 	Gdb       bool   `long:"gdb"`
-	Gdbserver bool   `long:"gdbserver"`
+	Gdbserver string `long:"gdbserver" default:"no-gdbserver" optional-value:":0" optional:"true"`
 	TraceExec bool   `long:"trace-exec"`
 
 	// not a real option, used to check if cmdRun is initialized by
@@ -757,7 +757,7 @@ Welcome to "snap run --gdbserver".
 You are right before your application is run.
 Please open a different terminal and run:
 
-gdb -ex="target remote %[1]s" -ex="continue" -ex="signal SIGCONT"
+gdb -ex="target remote %[1]s" -ex=continue -ex="signal SIGCONT" -ex=continue
 (gdb) continue
 
 or use your favorite gdb frontend and connect to %[1]s
@@ -772,6 +772,10 @@ func racyFindFreePort() (int, error) {
 	return l.Addr().(*net.TCPAddr).Port, nil
 }
 
+func (x *cmdRun) useGdbserver() bool {
+	return x.ParserRan == 1 && x.Gdbserver != "no-gdbserver"
+}
+
 func (x *cmdRun) runCmdUnderGdbserver(origCmd []string, envForExec envForExecFunc) error {
 	gcmd := exec.Command(origCmd[0], origCmd[1:]...)
 	gcmd.Stdin = os.Stdin
@@ -781,19 +785,24 @@ func (x *cmdRun) runCmdUnderGdbserver(origCmd []string, envForExec envForExecFun
 	if err := gcmd.Start(); err != nil {
 		return err
 	}
+	// wait for the child process executing gdb helper to raise SIGSTOP
+	// signalling readiness to attach a gdbserver process
 	var status syscall.WaitStatus
 	_, err := syscall.Wait4(gcmd.Process.Pid, &status, syscall.WSTOPPED, nil)
 	if err != nil {
 		return err
 	}
 
-	// XXX: run "gdbserver :0" instead and parse "Listening on port 45971"
-	//      on stderr instead?
-	port, err := racyFindFreePort()
-	if err != nil {
-		return fmt.Errorf("cannot find free port: %v", err)
+	addr := x.Gdbserver
+	if addr == ":0" {
+		// XXX: run "gdbserver :0" instead and parse "Listening on port 45971"
+		//      on stderr instead?
+		port, err := racyFindFreePort()
+		if err != nil {
+			return fmt.Errorf("cannot find free port: %v", err)
+		}
+		addr = fmt.Sprintf(":%v", port)
 	}
-	addr := fmt.Sprintf(":%v", port)
 	// XXX: should we provide a helper here instead? something like
 	//      `snap run --attach-debugger` or similar? The downside
 	//      is that attaching a gdb frontend is harder?
@@ -808,6 +817,7 @@ func (x *cmdRun) runCmdUnderGdbserver(origCmd []string, envForExec envForExecFun
 }
 
 func (x *cmdRun) runCmdUnderGdb(origCmd []string, envForExec envForExecFunc) error {
+	// the resulting application process runs as root
 	cmd := []string{"sudo", "-E", "gdb", "-ex=run", "-ex=catch exec", "-ex=continue", "--args"}
 	cmd = append(cmd, origCmd...)
 
@@ -1019,7 +1029,7 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	if x.Gdb {
 		cmd = append(cmd, "--command=gdb")
 	}
-	if x.Gdbserver {
+	if x.useGdbserver() {
 		cmd = append(cmd, "--command=gdbserver")
 	}
 	if x.Command != "" {
@@ -1069,7 +1079,7 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 		return x.runCmdWithTraceExec(cmd, envForExec)
 	} else if x.Gdb {
 		return x.runCmdUnderGdb(cmd, envForExec)
-	} else if x.Gdbserver {
+	} else if x.useGdbserver() {
 		return x.runCmdUnderGdbserver(cmd, envForExec)
 	} else if x.useStrace() {
 		return x.runCmdUnderStrace(cmd, envForExec)
