@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
 	"github.com/snapcore/snapd/strutil"
@@ -68,6 +69,8 @@ type fakeOp struct {
 
 	services         []string
 	disabledServices []string
+
+	vitalityRank int
 }
 
 type fakeOps []fakeOp
@@ -665,7 +668,7 @@ func (f *fakeSnappyBackend) OpenSnapFile(snapFilePath string, si *snap.SideInfo)
 		}
 	} else {
 		// for snap try only
-		snapf, err := snap.Open(snapFilePath)
+		snapf, err := snapfile.Open(snapFilePath)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -838,6 +841,8 @@ func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, dev boot.Device, linkCtx b
 		path: info.MountDir(),
 	}
 
+	op.vitalityRank = linkCtx.VitalityRank
+
 	if info.MountDir() == f.linkSnapFailTrigger {
 		op.op = "link-snap.failed"
 		f.ops = append(f.ops, op)
@@ -882,7 +887,7 @@ func (f *fakeSnappyBackend) StartServices(svcs []*snap.AppInfo, disabledSvcs []s
 	return nil
 }
 
-func (f *fakeSnappyBackend) StopServices(svcs []*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error {
+func (f *fakeSnappyBackend) StopServices(svcs []*snap.AppInfo, flags *backend.StopFlags, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error {
 	f.appendOp(&fakeOp{
 		op:   fmt.Sprintf("stop-snap-services:%s", reason),
 		path: svcSnapMountDir(svcs),
@@ -903,6 +908,24 @@ func (f *fakeSnappyBackend) ServicesEnableState(info *snap.Info, meter progress.
 	})
 
 	return m, nil
+}
+
+func (f *fakeSnappyBackend) QueryDisabledServices(info *snap.Info, meter progress.Meter) ([]string, error) {
+	var l []string
+
+	m, err := f.ServicesEnableState(info, meter)
+	if err != nil {
+		return nil, err
+	}
+	for name, enabled := range m {
+		if !enabled {
+			l = append(l, name)
+		}
+	}
+
+	// XXX: add a fakeOp here?
+
+	return l, nil
 }
 
 func (f *fakeSnappyBackend) UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, installRecord *backend.InstallRecord, dev boot.Device, p progress.Meter) error {

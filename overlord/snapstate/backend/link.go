@@ -41,6 +41,10 @@ type LinkContext struct {
 	// PrevDisabledServices is a list snap services that were manually
 	// disable in the previous revisions of this snap
 	PrevDisabledServices []string
+
+	// VitalityRank is used to hint how much the services should be
+	// protected from the OOM killer
+	VitalityRank int
 }
 
 func updateCurrentSymlinks(info *snap.Info) (e error) {
@@ -87,6 +91,11 @@ func hasFontConfigCache(info *snap.Info) bool {
 	return false
 }
 
+// StopFlags carries extra flags for StopServices
+type StopFlags struct {
+	Disable bool
+}
+
 // LinkSnap makes the snap available by generating wrappers and setting the current symlinks.
 func (b Backend) LinkSnap(info *snap.Info, dev boot.Device, linkCtx LinkContext, tm timings.Measurer) (rebootRequired bool, e error) {
 	if info.Revision.Unset() {
@@ -95,7 +104,7 @@ func (b Backend) LinkSnap(info *snap.Info, dev boot.Device, linkCtx LinkContext,
 
 	var err error
 	timings.Run(tm, "generate-wrappers", fmt.Sprintf("generate wrappers for snap %s", info.InstanceName()), func(timings.Measurer) {
-		err = b.generateWrappers(info)
+		err = b.generateWrappers(info, linkCtx)
 	})
 	if err != nil {
 		return false, err
@@ -150,11 +159,15 @@ func (b Backend) StartServices(apps []*snap.AppInfo, disabledSvcs []string, enab
 	return wrappers.StartServices(apps, disabledSvcs, enableBeforeStart, meter, tm)
 }
 
-func (b Backend) StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error {
-	return wrappers.StopServices(apps, reason, meter, tm)
+func (b Backend) StopServices(apps []*snap.AppInfo, flags *StopFlags, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error {
+	f := &wrappers.StopFlags{}
+	if flags != nil {
+		f.Disable = flags.Disable
+	}
+	return wrappers.StopServices(apps, f, reason, meter, tm)
 }
 
-func (b Backend) generateWrappers(s *snap.Info) error {
+func (b Backend) generateWrappers(s *snap.Info, linkCtx LinkContext) error {
 	var err error
 	var cleanupFuncs []func(*snap.Info) error
 	defer func() {
@@ -177,7 +190,10 @@ func (b Backend) generateWrappers(s *snap.Info) error {
 	cleanupFuncs = append(cleanupFuncs, wrappers.RemoveSnapBinaries)
 
 	// add the daemons from the snap.yaml
-	opts := &wrappers.AddSnapServicesOptions{Preseeding: b.preseed}
+	opts := &wrappers.AddSnapServicesOptions{
+		Preseeding:   b.preseed,
+		VitalityRank: linkCtx.VitalityRank,
+	}
 	if err = wrappers.AddSnapServices(s, opts, progress.Null); err != nil {
 		return err
 	}
@@ -261,6 +277,10 @@ func (b Backend) UnlinkSnap(info *snap.Info, linkCtx LinkContext, meter progress
 // services, primarily for committing before snap removal/disable/revert.
 func (b Backend) ServicesEnableState(info *snap.Info, meter progress.Meter) (map[string]bool, error) {
 	return wrappers.ServicesEnableState(info, meter)
+}
+
+func (b Backend) QueryDisabledServices(info *snap.Info, pb progress.Meter) ([]string, error) {
+	return wrappers.QueryDisabledServices(info, pb)
 }
 
 func removeCurrentSymlinks(info snap.PlaceInfo) error {

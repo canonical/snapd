@@ -267,6 +267,8 @@ func (r *TaskRunner) run(t *Task) {
 			r.abortLanes(t.Change(), t.Lanes())
 			t.SetStatus(ErrorStatus)
 			t.Errorf("%s", err)
+			// ensure the error is available in the global log too
+			logger.Noticef("[change %s %q task] failed: %v", t.Change().ID(), t.Summary(), err)
 			if r.taskErrorCallback != nil {
 				r.taskErrorCallback(err)
 			}

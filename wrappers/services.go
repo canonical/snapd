@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"text/template"
@@ -34,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
+	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
@@ -59,12 +61,12 @@ func serviceStopTimeout(app *snap.AppInfo) time.Duration {
 	return time.Duration(tout)
 }
 
-func generateSnapServiceFile(app *snap.AppInfo) ([]byte, error) {
+func generateSnapServiceFile(app *snap.AppInfo, opts *AddSnapServicesOptions) ([]byte, error) {
 	if err := snap.ValidateApp(app); err != nil {
 		return nil, err
 	}
 
-	return genServiceFile(app), nil
+	return genServiceFile(app, opts), nil
 }
 
 func stopUserServices(cli *client.Client, inter interacter, services ...string) error {
@@ -310,7 +312,8 @@ func userDaemonReload() error {
 }
 
 type AddSnapServicesOptions struct {
-	Preseeding bool
+	Preseeding   bool
+	VitalityRank int
 }
 
 // AddSnapServices adds service units for the applications from the snap which are services.
@@ -357,7 +360,7 @@ func AddSnapServices(s *snap.Info, opts *AddSnapServicesOptions, inter interacte
 			continue
 		}
 		// Generate service file
-		content, err := generateSnapServiceFile(app)
+		content, err := generateSnapServiceFile(app, opts)
 		if err != nil {
 			return err
 		}
@@ -435,9 +438,19 @@ func EnableSnapServices(s *snap.Info, inter interacter) (err error) {
 	return nil
 }
 
-// StopServices stops service units for the applications from the snap which are services.
-func StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, inter interacter, tm timings.Measurer) error {
+// StopFlags carries extra flags for StopServices.
+// It reflects backend.StopFlags.
+type StopFlags struct {
+	Disable bool
+}
+
+// StopServices stops and optionally disables service units for the applications
+// from the snap which are services.
+func StopServices(apps []*snap.AppInfo, flags *StopFlags, reason snap.ServiceStopReason, inter interacter, tm timings.Measurer) error {
 	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
+	if flags == nil {
+		flags = &StopFlags{}
+	}
 
 	logger.Debugf("StopServices called for %q, reason: %v", apps, reason)
 	for _, app := range apps {
@@ -460,6 +473,9 @@ func StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, inter int
 		var err error
 		timings.Run(tm, "stop-service", fmt.Sprintf("stop service %q", app.ServiceName()), func(nested timings.Measurer) {
 			err = stopService(sysd, app, inter)
+			if err == nil && flags.Disable {
+				err = sysd.Disable(app.ServiceName())
+			}
 		})
 		if err != nil {
 			return err
@@ -592,7 +608,11 @@ func genServiceNames(snap *snap.Info, appNames []string) []string {
 	return names
 }
 
-func genServiceFile(appInfo *snap.AppInfo) []byte {
+func genServiceFile(appInfo *snap.AppInfo, opts *AddSnapServicesOptions) []byte {
+	if opts == nil {
+		opts = &AddSnapServicesOptions{}
+	}
+
 	serviceTemplate := `[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application {{.App.Snap.InstanceName}}.{{.App.Name}}
@@ -650,6 +670,9 @@ KillMode={{.KillMode}}
 {{- if .KillSignal}}
 KillSignal={{.KillSignal}}
 {{- end}}
+{{- if .OOMAdjustScore }}
+OOMScoreAdjust={{.OOMAdjustScore}}
+{{- end}}
 {{- if not .App.Sockets}}
 
 [Install]
@@ -666,6 +689,14 @@ WantedBy={{.ServicesTarget}}
 	restartCond := appInfo.RestartCond.String()
 	if restartCond == "" {
 		restartCond = snap.RestartOnFailure.String()
+	}
+
+	// use score -900+vitalityRank, where vitalityRank starts at 1
+	// and considering snapd itself has OOMScoreAdjust=-900
+	const baseOOMAdjustScore = -900
+	var oomAdjustScore int
+	if opts.VitalityRank > 0 {
+		oomAdjustScore = baseOOMAdjustScore + opts.VitalityRank
 	}
 
 	var remain string
@@ -696,6 +727,7 @@ WantedBy={{.ServicesTarget}}
 		Remain             string
 		KillMode           string
 		KillSignal         string
+		OOMAdjustScore     int
 		Before             []string
 		After              []string
 
@@ -704,12 +736,13 @@ WantedBy={{.ServicesTarget}}
 	}{
 		App: appInfo,
 
-		Restart:      restartCond,
-		StopTimeout:  serviceStopTimeout(appInfo),
-		StartTimeout: time.Duration(appInfo.StartTimeout),
-		Remain:       remain,
-		KillMode:     killMode,
-		KillSignal:   appInfo.StopMode.KillSignal(),
+		Restart:        restartCond,
+		StopTimeout:    serviceStopTimeout(appInfo),
+		StartTimeout:   time.Duration(appInfo.StartTimeout),
+		Remain:         remain,
+		KillMode:       killMode,
+		KillSignal:     appInfo.StopMode.KillSignal(),
+		OOMAdjustScore: oomAdjustScore,
 
 		Before: genServiceNames(appInfo.Snap, appInfo.Before),
 		After:  genServiceNames(appInfo.Snap, appInfo.After),
@@ -1115,4 +1148,59 @@ func generateOnCalendarSchedules(schedule []*timeutil.Schedule) []string {
 		}
 	}
 	return calendarEvents
+}
+
+type RestartFlags struct {
+	Reload bool
+}
+
+// Restart or reload services; if reload flag is set then "systemctl reload-or-restart" is attempted.
+func RestartServices(svcs []*snap.AppInfo, flags *RestartFlags, inter interacter, tm timings.Measurer) error {
+	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
+
+	for _, srv := range svcs {
+		// they're *supposed* to be all services, but checking doesn't hurt
+		if !srv.IsService() {
+			continue
+		}
+
+		var err error
+		timings.Run(tm, "restart-service", fmt.Sprintf("restart service %q", srv), func(nested timings.Measurer) {
+			if flags != nil && flags.Reload {
+				err = sysd.ReloadOrRestart(srv.ServiceName())
+			} else {
+				// note: stop followed by start, not just 'restart'
+				err = sysd.Restart(srv.ServiceName(), 5*time.Second)
+			}
+		})
+		if err != nil {
+			// there is nothing we can do about failed service
+			return err
+		}
+	}
+	return nil
+}
+
+// QueryDisabledServices returns a list of all currently disabled snap services
+// in the snap.
+func QueryDisabledServices(info *snap.Info, pb progress.Meter) ([]string, error) {
+	// save the list of services that are in the disabled state before unlinking
+	// and thus removing the snap services
+	snapSvcStates, err := ServicesEnableState(info, pb)
+	if err != nil {
+		return nil, err
+	}
+
+	disabledSnapSvcs := []string{}
+	// add all disabled services to the list
+	for svc, isEnabled := range snapSvcStates {
+		if !isEnabled {
+			disabledSnapSvcs = append(disabledSnapSvcs, svc)
+		}
+	}
+
+	// sort for easier testing
+	sort.Strings(disabledSnapSvcs)
+
+	return disabledSnapSvcs, nil
 }
