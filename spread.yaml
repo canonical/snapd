@@ -85,7 +85,7 @@ backends:
             - ubuntu-secboot-20.04-64:
                   image: ubuntu-20.04-64
                   workers: 1
-                  secureboot: true
+                  secure-boot: true
 
             - debian-9-64:
                   workers: 6
