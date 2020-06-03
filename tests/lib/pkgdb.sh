@@ -653,6 +653,11 @@ pkg_dependencies_ubuntu_classic(){
                 qemu-utils
                 "
             ;;
+        ubuntu-20.10-64)
+            echo "
+                qemu-utils
+                "
+            ;;
         ubuntu-*)
             echo "
                 squashfs-tools

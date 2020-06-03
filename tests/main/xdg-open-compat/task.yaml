@@ -16,7 +16,7 @@ environment:
     XDG_OPEN_OUTPUT: /tmp/xdg-open-output
 
 restore: |
-    session-tool -u test --restore
+    tests.session -u test restore
 
     rm -f /usr/bin/xdg-open
     rm -f "$XDG_OPEN_OUTPUT"
@@ -54,10 +54,10 @@ prepare: |
     Name=xdg-open
     EOF
 
-    session-tool -u test --prepare
+    tests.session -u test prepare
 
     # wait for session to be ready
-    session-tool -u test env "PATH=$PATH" retry-tool -n 5 --wait 0.5 dbus-send \
+    tests.session -u test exec env "PATH=$PATH" retry-tool -n 5 --wait 0.5 dbus-send \
             --session                                         \
             --dest=com.canonical.SafeLauncher                 \
             --type=method_call                                \
@@ -76,7 +76,7 @@ prepare: |
 
 execute: |
     xdg_open_url() {
-        session-tool -u test test-snapd-desktop.cmd /usr/bin/dbus-send \
+        tests.session -u test exec test-snapd-desktop.cmd /usr/bin/dbus-send \
             --session                                       \
             --dest=com.canonical.SafeLauncher               \
             --type=method_call                              \
