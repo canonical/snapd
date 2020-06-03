@@ -117,10 +117,12 @@ func copyNetworkConfig(src, dst string) error {
 	for _, globEx := range []string{
 		// for network configuration setup by console-conf, etc.
 		// TODO:UC20: we want some way to "try" or "verify" the network
-		//            configuration before installing it onto recover mode,
-		//            because the network configuration could have been what was
-		//            broken so we don't want to break network configuration for
-		//            recover mode as well, but for now this is fine
+		//            configuration or to only use known-to-be-good network
+		//            configuration i.e. from ubuntu-save before installing it
+		//            onto recover mode, because the network configuration could
+		//            have been what was broken so we don't want to break
+		//            network configuration for recover mode as well, but for
+		//            now this is fine
 		"system-data/etc/netplan/*",
 	} {
 		if err := copyFromGlobHelper(src, dst, globEx); err != nil {
