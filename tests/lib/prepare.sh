@@ -176,7 +176,7 @@ update_core_snap_for_classic_reexec() {
     rm -rf squashfs-root
 
     # Now mount the new core snap, first discarding the old mount namespace
-    "$TESTSTOOLS"/snapd.tool exec snap-discard-ns core
+    snapd.tool exec snap-discard-ns core
     mount "$snap" "$core"
 
     check_file() {
@@ -228,9 +228,9 @@ prepare_classic() {
         distro_query_package_info snapd
         exit 1
     fi
-    if "$TESTSTOOLS"/snapd.tool exec snap-confine --version | MATCH unknown; then
+    if snapd.tool exec snap-confine --version | MATCH unknown; then
         echo "Package build incorrect, 'snap-confine --version' mentions 'unknown'"
-        "$TESTSTOOLS"/snapd.tool exec snap-confine --version
+        snapd.tool exec snap-confine --version
         case "$SPREAD_SYSTEM" in
             ubuntu-*|debian-*)
                 apt-cache policy snapd

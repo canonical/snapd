@@ -48,13 +48,13 @@ execute: |
       MATCH "Permission denied" < check.error
     fi
 
-    "$TESTSTOOLS"/snapd.tool exec snap-discard-ns test-snapd-desktop
+    snapd.tool exec snap-discard-ns test-snapd-desktop
 
     echo "With desktop connected, we see confined version"
     snap connect test-snapd-desktop:desktop
     su -l -c "sh /tmp/check-doc-portal.sh" test | MATCH is-confined
 
-    "$TESTSTOOLS"/snapd.tool exec snap-discard-ns test-snapd-desktop
+    snapd.tool exec snap-discard-ns test-snapd-desktop
 
     echo "It is not an error if the document portal is missing"
     rm -rf /run/user/12345/*

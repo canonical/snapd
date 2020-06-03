@@ -10,7 +10,7 @@ prepare: |
     install_local test-snapd-sh
     # Ensure that every snap namespace is discarded.
     for name in $(snap list | awk '!/Name/ {print $1}'); do
-        "$TESTSTOOLS"/snapd.tool exec snap-discard-ns "$name"
+        snapd.tool exec snap-discard-ns "$name"
     done
     if findmnt --noheadings /run/snapd/ns >/dev/null; then
         umount /run/snapd/ns

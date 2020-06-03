@@ -7,7 +7,7 @@ prepare: |
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB/systemd.sh"
     echo "Ensure all snaps are gone"
-    "$TESTSTOOLS"/snapd.tool exec snap-mgmt --purge
+    snapd.tool exec snap-mgmt --purge
 
     systemd_stop_units snapd.service
     rm -f /var/lib/snapd/state.json
