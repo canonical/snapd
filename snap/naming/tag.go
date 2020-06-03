@@ -36,8 +36,8 @@ type ParsedSecurityTag interface {
 	InstanceName() string
 }
 
-// ParsedAppSecurityTag describes a parsed snap application security tag.
-type ParsedAppSecurityTag interface {
+// AppSecurityTag describes a parsed snap application security tag.
+type AppSecurityTag interface {
 	ParsedSecurityTag
 	// AppName returns the name of the application.
 	AppName() string
@@ -60,8 +60,8 @@ func (t appSecurityTag) AppName() string {
 	return t.appName
 }
 
-// ParsedAppSecurityTag describes a parsed snap hook security tag.
-type ParsedHookSecurityTag interface {
+// HookSecurityTag describes a parsed snap hook security tag.
+type HookSecurityTag interface {
 	ParsedSecurityTag
 	// HookName returns the name of the hook.
 	HookName() string
