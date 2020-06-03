@@ -27,7 +27,7 @@ import (
 
 var errInvalidSecurityTag = errors.New("invalid security tag")
 
-// SecurityTag describes a parsed snap security tag.
+// SecurityTag exposes details of a validated snap security tag.
 type SecurityTag interface {
 	// String returns the entire security tag.
 	String() string
@@ -36,7 +36,7 @@ type SecurityTag interface {
 	InstanceName() string
 }
 
-// AppSecurityTag describes a parsed snap application security tag.
+// AppSecurityTag exposes details of a validated snap application security tag.
 type AppSecurityTag interface {
 	SecurityTag
 	// AppName returns the name of the application.
@@ -60,7 +60,7 @@ func (t appSecurityTag) AppName() string {
 	return t.appName
 }
 
-// HookSecurityTag describes a parsed snap hook security tag.
+// HookSecurityTag exposes details of a validated snap hook security tag.
 type HookSecurityTag interface {
 	SecurityTag
 	// HookName returns the name of the hook.
