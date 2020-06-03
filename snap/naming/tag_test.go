@@ -109,3 +109,22 @@ func (s *tagSuite) TestParseAppSecurityTag(c *C) {
 	c.Assert(err, ErrorMatches, `"snap.pkg.hook.configure" is not an app security tag`)
 	c.Assert(tag, IsNil)
 }
+
+func (s *tagSuite) TestParseHookSecurityTag(c *C) {
+	// Invalid security tags cannot be parsed.
+	tag, err := naming.ParseHookSecurityTag("potato")
+	c.Assert(err, ErrorMatches, "invalid security tag")
+	c.Assert(tag, IsNil)
+
+	// Hook security tags can be parsed.
+	tag, err = naming.ParseHookSecurityTag("snap.pkg.hook.configure")
+	c.Assert(err, IsNil)
+	c.Check(tag.String(), Equals, "snap.pkg.hook.configure")
+	c.Check(tag.InstanceName(), Equals, "pkg")
+	c.Check(tag.HookName(), Equals, "configure")
+
+	// App security tags are not hook security tags.
+	tag, err = naming.ParseHookSecurityTag("snap.pkg.app")
+	c.Assert(err, ErrorMatches, `"snap.pkg.app" is not a hook security tag`)
+	c.Assert(tag, IsNil)
+}
