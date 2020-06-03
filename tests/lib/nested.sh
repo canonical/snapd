@@ -200,6 +200,14 @@ get_snakeoil_key(){
     echo "$KEYNAME"
 }
 
+secboot_sign_gadget(){
+    local GADGET_DIR="$1"
+    local KEY="$2"
+    local CERT="$3"
+    sbattach --remove "$GADGET_DIR"/shim.efi.signed
+    sbsign --key "$KEY" --cert "$CERT" --output pc-gadget/shim.efi.signed pc-gadget/shim.efi.signed
+}
+
 cleanup_nested_env(){
     rm -rf "$WORK_DIR"
 }
@@ -270,8 +278,7 @@ create_nested_core_vm(){
             if [ -z "$GADGET_SNAP" ]; then
                 snap download --basename=pc --channel="20/edge" pc
                 unsquashfs -d pc-gadget pc.snap
-                sbattach --remove pc-gadget/shim.efi.signed
-                sbsign --key "$SNAKEOIL_KEY" --cert "$SNAKEOIL_CERT" --output pc-gadget/shim.efi.signed pc-gadget/shim.efi.signed
+                secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
                 snap pack pc-gadget/ "$WORK_DIR/image"
 
                 GADGET_SNAP=$(ls "$WORK_DIR"/image/pc_*.snap)
