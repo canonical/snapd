@@ -58,7 +58,7 @@ symlinks and renames (plus fixes):
 [done] tests/bin/MATCH -> tests/lib/tools/MATCH
 [done] tests/bin/REBOOT -> tests/lib/tools/REBOOT
 [done] tests/bin/not -> tests/lib/tools/not
-tests/bin/retry -> tests/lib/tools/retry (was retry-tool)
+[done] tests/bin/retry -> tests/lib/tools/retry (was retry-tool)
 
 tests/bin/tests.session -> tests/lib/tools/tests.session (was session-tool)
   [done] fix to have -h
