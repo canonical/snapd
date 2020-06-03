@@ -442,33 +442,16 @@ func (iface *dbusInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 		return err
 	}
 
-	var apps []*snap.AppInfo
+	var isActivatable bool
 	for _, app := range slot.Apps {
 		for _, s := range app.ActivatesOn {
 			if s == slot {
-				apps = append(apps, app)
+				isActivatable = true
 				break
 			}
 		}
 	}
-	if len(apps) > 1 {
-		return fmt.Errorf("cannot add activatable dbus service slot to multiple apps")
-	}
-	if len(apps) == 1 {
-		app := apps[0]
-		if !app.IsService() {
-			return fmt.Errorf("only daemons can be activatable D-Bus services")
-		}
-		switch app.DaemonScope {
-		case snap.SystemDaemon:
-			if bus != "system" {
-				return fmt.Errorf("system daemons can only activate from the D-Bus system bus")
-			}
-		case snap.UserDaemon:
-			if bus != "session" {
-				return fmt.Errorf("user daemons can only activate from the D-Bus session bus")
-			}
-		}
+	if isActivatable {
 		if owner, err := dbus.BusNameOwner(bus, name); err != nil {
 			if !os.IsNotExist(err) {
 				return err

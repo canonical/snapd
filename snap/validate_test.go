@@ -571,8 +571,10 @@ version: 1.0
 slots:
   dbus-slot:
     interface: dbus
+    bus: system
 apps:
   server:
+    daemon: simple
     activates-on: [dbus-slot]
 `))
 	c.Assert(err, IsNil)
@@ -580,17 +582,85 @@ apps:
 	c.Check(ValidateApp(app), IsNil)
 }
 
+func (s *ValidateSuite) TestAppActivatesOnNotDaemon(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+slots:
+  dbus-slot:
+apps:
+  server:
+    activates-on: [dbus-slot]
+`))
+	c.Assert(err, IsNil)
+	app := info.Apps["server"]
+	c.Check(ValidateApp(app), ErrorMatches, `activates-on is only applicable to services`)
+}
+
 func (s *ValidateSuite) TestAppActivatesOnSlotNotDbus(c *C) {
 	info, err := InfoFromSnapYaml([]byte(`name: foo
 version: 1.0
 apps:
   server:
+    daemon: simple
     slots: [network-bind]
     activates-on: [network-bind]
 `))
 	c.Assert(err, IsNil)
 	app := info.Apps["server"]
 	c.Check(ValidateApp(app), ErrorMatches, `invalid activates-on value "network-bind": slot does not use dbus interface`)
+}
+
+func (s *ValidateSuite) TestAppActivatesOnDaemonScopeMismatch(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+slots:
+  dbus-slot:
+    interface: dbus
+    bus: session
+apps:
+  server:
+    daemon: simple
+    activates-on: [dbus-slot]
+`))
+	c.Assert(err, IsNil)
+	app := info.Apps["server"]
+	c.Check(ValidateApp(app), ErrorMatches, `invalid activates-on value "dbus-slot": bus "session" does not match daemon-scope "system"`)
+
+	info, err = InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+slots:
+  dbus-slot:
+    interface: dbus
+    bus: system
+apps:
+  server:
+    daemon: simple
+    daemon-scope: user
+    activates-on: [dbus-slot]
+`))
+	c.Assert(err, IsNil)
+	app = info.Apps["server"]
+	c.Check(ValidateApp(app), ErrorMatches, `invalid activates-on value "dbus-slot": bus "system" does not match daemon-scope "user"`)
+}
+
+func (s *ValidateSuite) TestAppActivatesOnDuplicateApp(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+slots:
+  dbus-slot:
+    interface: dbus
+    bus: system
+apps:
+  server:
+    daemon: simple
+    activates-on: [dbus-slot]
+  dup:
+    daemon: simple
+    activates-on: [dbus-slot]
+`))
+	c.Assert(err, IsNil)
+	app := info.Apps["server"]
+	c.Check(ValidateApp(app), ErrorMatches, `invalid activates-on value "dbus-slot": slot is also activatable on app "dup"`)
 }
 
 // Validate
