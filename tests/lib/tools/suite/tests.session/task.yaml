@@ -70,7 +70,7 @@ restore: |
 
     # When we are done the sessions are exactly what we started with but this
     # can take a moment as the termination process is asnychronous.
-    retry-tool -n 10 --wait 1 sh -c 'loginctl --no-legend list-sessions | sort > after.txt && diff -u before.txt after.txt'
+    retry -n 10 --wait 1 sh -c 'loginctl --no-legend list-sessions | sort > after.txt && diff -u before.txt after.txt'
     # Remove files we've created
     rm -f /tmp/{inner,outer}.pid
     rm -f {before,after}.txt

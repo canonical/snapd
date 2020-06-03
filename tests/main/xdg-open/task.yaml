@@ -31,7 +31,7 @@ prepare: |
     tests.session -u test exec systemctl --user set-environment XDG_DATA_DIRS=/usr/share
 
     # wait for session to be ready
-    tests.session -u test exec env "PATH=$PATH" retry-tool -n 5 --wait 0.5 dbus-send \
+    tests.session -u test exec env "PATH=$PATH" retry -n 5 --wait 0.5 dbus-send \
             --session                                         \
             --dest=io.snapcraft.Launcher                      \
             --type=method_call                                \

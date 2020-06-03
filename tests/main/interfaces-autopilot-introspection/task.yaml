@@ -38,7 +38,7 @@ execute: |
 
     echo "Then the dbus name is properly reserved and the snap app version can be introspectd"
 
-    retry-tool -n 10 --wait 1 sh -c 'tests.session -u test exec dbus-send --print-reply --dest=com.canonical.Autopilot.Introspection /com/canonical/Autopilot/Introspection com.canonical.Autopilot.Introspection.GetVersion | MATCH "my-ap-version"'
+    retry -n 10 --wait 1 sh -c 'tests.session -u test exec dbus-send --print-reply --dest=com.canonical.Autopilot.Introspection /com/canonical/Autopilot/Introspection com.canonical.Autopilot.Introspection.GetVersion | MATCH "my-ap-version"'
     tests.session -u test exec test-snapd-autopilot-consumer.consumer GetVersion | MATCH "my-ap-version"
 
     echo "And the snap app state can be introspected"

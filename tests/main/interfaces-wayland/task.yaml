@@ -11,7 +11,7 @@ prepare: |
     snap install --edge test-snapd-wayland
     tests.session -u test prepare
     tests.session -u test exec systemd-run --user --unit headless-weston.service weston --backend=headless-backend.so
-    retry-tool -n 10 --wait 1 test -S /run/user/12345/wayland-0
+    retry -n 10 --wait 1 test -S /run/user/12345/wayland-0
 
 restore: |
     snap remove test-snapd-wayland
