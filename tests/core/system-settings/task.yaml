@@ -16,7 +16,7 @@ execute: |
 
     echo "Check that setting the timezone works"
     timedatectl set-timezone "Europe/Berlin"
-    date +"%Z" | MATCH CEST
+    date +"%Z" | MATCH 'CE[S]?T'
     timedatectl | MATCH "Time zone: Europe/Berlin"
     /etc/timezone < MATCH "Europe/Berlin"
     test "$(readlink -f /etc/localtime)" = "/usr/share/zoneinfo/Europe/Berlin"
