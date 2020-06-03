@@ -123,3 +123,15 @@ func ParseSecurityTag(tag string) (ParsedSecurityTag, error) {
 		return &hookSecurityTag{instanceName: snapName, hookName: hookName}, nil
 	}
 }
+
+// ParseAppSecurityTag parses an app security tag.
+func ParseAppSecurityTag(tag string) (AppSecurityTag, error) {
+	parsedTag, err := ParseSecurityTag(tag)
+	if err != nil {
+		return nil, err
+	}
+	if parsedAppTag, ok := parsedTag.(AppSecurityTag); ok {
+		return parsedAppTag, nil
+	}
+	return nil, fmt.Errorf("%q is not an app security tag", tag)
+}
