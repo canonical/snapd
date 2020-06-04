@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -28,7 +28,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/snapcore/snapd/logger"
@@ -121,9 +120,6 @@ func isCreatedDuringInstall(p *sfdiskPartition, fs *lsblkBlockDevice, sfdiskLabe
 
 var (
 	deployMountpoint = "/run/snap-recover"
-
-	sysMount   = syscall.Mount
-	sysUnmount = syscall.Unmount
 )
 
 // OnDiskStructure represents a gadget structure laid on a block device,
