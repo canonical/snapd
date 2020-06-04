@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/sysconfig"
+	"github.com/snapcore/snapd/systemd"
 )
 
 var gadgetYaml = `
@@ -59,12 +60,17 @@ defaults:
 		{"meta/gadget.yaml", gadgetYaml + gadgetDefaultsYaml},
 	})
 
-	rsyslogServiceFile := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/systemd/system/rsyslog.service")
+	var sysctlArgs [][]string
+	systemctlRestorer := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
+		sysctlArgs = append(sysctlArgs, args)
+		return nil, nil
+	})
+	defer systemctlRestorer()
+
 	journalPath := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/var/log/journal")
 	sshDontRunFile := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/ssh/sshd_not_to_be_run")
 
 	// sanity
-	c.Check(osutil.FileExists(rsyslogServiceFile), Equals, false)
 	c.Check(osutil.FileExists(sshDontRunFile), Equals, false)
 	exists, _, _ := osutil.DirExists(journalPath)
 	c.Check(exists, Equals, false)
@@ -75,11 +81,11 @@ defaults:
 	})
 	c.Assert(err, IsNil)
 
-	c.Check(osutil.FileExists(rsyslogServiceFile), Equals, true)
-	c.Check(osutil.IsSymlink(rsyslogServiceFile), Equals, true)
 	c.Check(osutil.FileExists(sshDontRunFile), Equals, true)
 	exists, _, _ = osutil.DirExists(journalPath)
 	c.Check(exists, Equals, true)
+
+	c.Check(sysctlArgs, DeepEquals, [][]string{{"--root", filepath.Join(boot.InstallHostWritableDir, "_writable_defaults"), "mask", "rsyslog.service"}})
 }
 
 func (s *sysconfigSuite) TestInstallModeEarlyDefaultsFromGadgetInvalid(c *C) {

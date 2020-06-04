@@ -42,7 +42,9 @@ const accountControlConnectedPlugAppArmor = `
 /{,usr/}sbin/chpasswd ixr,
 /{,usr/}sbin/user{add,del} ixr,
 
-# Only allow modifying the non-system extrausers database
+# Allow modifying the non-system extrausers NSS database. The extrausers
+# database is used on Ubuntu Core devices to manage both privileged and
+# unprivileged users (since /etc/passwd, /etc/group, etc are all read-only).
 /var/lib/extrausers/ r,
 /var/lib/extrausers/** rwkl,
 

@@ -51,7 +51,7 @@ type FilesystemOnlyApplyOptions struct {
 
 // ApplyFilesystemOnlyDefaultsImpl is initialized by init() of configcore.
 var ApplyFilesystemOnlyDefaultsImpl = func(rootDir string, defaults map[string]interface{}, options *FilesystemOnlyApplyOptions) error {
-	panic("ApplyFilesystemOnlyDefaultsImpl not set")
+	panic("ApplyFilesystemOnlyDefaultsImpl is unset, import overlord/configstate/configcore")
 }
 
 // ApplyFilesystemOnlyDefaults applies (via configcore.filesystemOnlyApply())
