@@ -85,14 +85,14 @@ func main() {
 		}
 	}
 	options := bootstrap.Options{
-		Mount:                args.Mount,
-		Encrypt:              args.Encrypt,
-		KeyFile:              args.KeyFile,
-		RecoveryKeyFile:      args.RecoveryKeyFile,
-		TPMLockoutAuthFile:   args.TPMLockoutAuthFile,
-		PolicyUpdateDataFile: args.PolicyUpdateDataFile,
-		KernelPath:           args.KernelPath,
-		Model:                model,
+		Mount:                   args.Mount,
+		Encrypt:                 args.Encrypt,
+		KeyFile:                 args.KeyFile,
+		RecoveryKeyFile:         args.RecoveryKeyFile,
+		TPMLockoutAuthFile:      args.TPMLockoutAuthFile,
+		TPMPolicyUpdateDataFile: args.PolicyUpdateDataFile,
+		KernelPath:              args.KernelPath,
+		Model:                   model,
 	}
 	err = bootstrapRun(args.Positional.GadgetRoot, args.Positional.Device, options)
 	if err != nil {
