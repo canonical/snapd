@@ -1,8 +1,7 @@
 summary: Ensure that snap create-user works in ubuntu-core
 # FIXME: combine this test with tests/core/create-user-2?
 
-# TODO:UC20: enable for UC20
-systems: [ubuntu-core-1*]
+systems: [ubuntu-core-*]
 
 environment:
     USER_EMAIL: mvo@ubuntu.com
