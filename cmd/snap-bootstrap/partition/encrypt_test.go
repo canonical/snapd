@@ -134,9 +134,9 @@ func (s *encryptSuite) TestEncryptAddKey(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *encryptSuite) TestRecoveryKeyStore(c *C) {
+func (s *encryptSuite) TestRecoveryKeySave(c *C) {
 	rkey := partition.RecoveryKey{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 255}
-	err := rkey.Store("test-key")
+	err := rkey.Save("test-key")
 	c.Assert(err, IsNil)
 	fileInfo, err := os.Stat("test-key")
 	c.Assert(err, IsNil)
