@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2018-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -19,14 +19,18 @@
 
 package sanity
 
+import (
+	"time"
+)
+
 var (
 	CheckSquashfsMount  = checkSquashfsMount
 	CheckKernelVersion  = checkKernelVersion
 	CheckApparmorUsable = checkApparmorUsable
 	CheckWSL            = checkWSL
 	CheckCgroup         = checkCgroup
-
-	CheckFuse = firstCheckFuse
+	CheckFuse           = firstCheckFuse
+	CheckTime           = checkTime
 )
 
 func Checks() []func() error {
@@ -54,5 +58,13 @@ func MockFuseBinary(new string) (restore func()) {
 	fuseBinary = new
 	return func() {
 		fuseBinary = oldFuseBinary
+	}
+}
+
+func MockTimeNow(fn func() time.Time) (restore func()) {
+	old := timeNow
+	timeNow = fn
+	return func() {
+		timeNow = old
 	}
 }
