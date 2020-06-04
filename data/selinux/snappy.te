@@ -398,7 +398,12 @@ userdom_manage_user_tmp_symlinks(snappy_t)
 
 # appstream-metadata interface checks whether /var/cache/app-info (labeled
 # fwupd_cache_t) exists
-fwupd_search_cache(snappy_t)
+# RHEL7: fwupd.if is not defined in the policy
+ifndef(`distro_rhel7',`
+	optional_policy(`
+	  fwupd_search_cache(snappy_t)
+  ')
+')
 
 ########################################
 #
@@ -518,7 +523,12 @@ fs_remount_xattr_fs(snappy_mount_t)
 
 # when applying update due to appstream-metadata interface, snap-update-ns ns
 # whether /var/cache/app-info (labeled fwupd_cache_t) exists
-fwupd_search_cache(snappy_t)
+# RHEL7: fwupd.if is not defined in the policy
+ifndef(`distro_rhel7',`
+	optional_policy(`
+		fwupd_search_cache(snappy_mount_t)
+	')
+')
 
 ########################################
 #

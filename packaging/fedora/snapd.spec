@@ -507,10 +507,15 @@ sed -e "s/-Bstatic -lseccomp/-Bstatic/g" -i cmd/snap-seccomp/*.go
 %gobuild -o bin/snap-seccomp $GOFLAGS %{import_path}/cmd/snap-seccomp
 
 %if 0%{?with_selinux}
-# Build SELinux module
-pushd ./data/selinux
-make SHARE="%{_datadir}" TARGETS="snappy"
-popd
+(
+%if 0%{?rhel} == 7
+    M4PARAM='-D distro_rhel7'
+%endif
+    # Build SELinux module
+    cd ./data/selinux
+    # pass M4PARAM in env so that make can still manipulate it freely
+    M4PARAM="$M4PARAM" make SHARE="%{_datadir}" TARGETS="snappy"
+)
 %endif
 
 # Build snap-confine
