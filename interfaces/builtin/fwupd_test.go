@@ -160,7 +160,8 @@ func (s *FwupdInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(dbusSpec.SecurityTags(), HasLen, 1)
 
-	// On an all-snaps system, the only UpdateNS rule is applied
+	// UpdateNS rules are only applied if the permanent slot is provided by
+	// an app snap
 	updateNS := apparmorSpec.UpdateNS()
 	c.Check(updateNS, testutil.Contains, "  # Read-write access to /boot\n")
 
@@ -190,8 +191,8 @@ func (s *FwupdInterfaceSuite) TestMountPermanentSlot(c *C) {
 
 	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/boot"), 0777), IsNil)
 
-	// On all-snaps systems, boot partition should be
-	// bind mounted from the host system if they exist.
+	// If the permanent slot is provided by an app snap, the boot partition
+	// should be bind mounted from the host system if they exist.
 	mountSpec := &mount.Specification{}
 	c.Assert(mountSpec.AddPermanentSlot(s.iface, s.appSlotInfo), IsNil)
 
