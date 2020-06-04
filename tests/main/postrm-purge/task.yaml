@@ -80,7 +80,7 @@ execute: |
         systemctl reset-failed snap.test-snapd-service.test-snapd-service-refuses-to-stop.service
     fi
 
-    # XXX: use retry-tool instead
+    # XXX: use retry instead
     sleep 5
     systemctl --no-legend --full > output.txt
     if grep -E "snap\..*\.(service|timer|socket)" < output.txt; then

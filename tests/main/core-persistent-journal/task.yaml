@@ -36,7 +36,7 @@ execute: |
         # this check relies on *anything* getting logged; enabling persistent
         # journal writes an entry about journal size, which should be sufficient.
         MACHINE_ID=$(cat /etc/machine-id)
-        retry-tool -n30 --wait 1 test -e "/var/log/journal/$MACHINE_ID"
+        retry -n30 --wait 1 test -e "/var/log/journal/$MACHINE_ID"
     fi
 
     echo "Check that persistent journal can be disabled"
@@ -48,7 +48,7 @@ execute: |
     snap set core journal.persistent=true
     not test -e /var/log/journal/.snapd-created
 
-    # NOTE: Since this is failing early, before we do anything to the journal, there is no need to use retry-tool.
+    # NOTE: Since this is failing early, before we do anything to the journal, there is no need to use retry.
     snap set core journal.persistent=false 2>&1 | MATCH "the /var/log/journal directory was not created by snapd"
     # the journal dir was not removed
     test -e /var/log/journal/

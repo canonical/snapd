@@ -93,7 +93,7 @@ execute: |
   snap stop --disable disabled-svcs-kept.svc
 
   echo "Check that it was actually disabled"
-  retry-tool -n 10 --wait 1 snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc\\s+disabled\\s+inactive"
+  retry -n 10 --wait 1 snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc\\s+disabled\\s+inactive"
 
   echo "Trigger a failing configure hook"
   touch /root/disabled-svcs-kept-fail

@@ -76,7 +76,7 @@ execute: |
         test-snapd-timedate-control-consumer.timedatectl-timeserver set-ntp "$value"
         # Starting or stopping NTP takes non-zero time so give it some time to take effect.
         # shellcheck disable=SC2016
-        retry-tool --wait 5 sh -c 'test "$(busctl get-property org.freedesktop.timedate1 /org/freedesktop/timedate1 org.freedesktop.timedate1 NTP)" = "b '"$value"'"'
+        retry --wait 5 sh -c 'test "$(busctl get-property org.freedesktop.timedate1 /org/freedesktop/timedate1 org.freedesktop.timedate1 NTP)" = "b '"$value"'"'
     done
 
     if [ "$(snap debug confinement)" = partial ] ; then
