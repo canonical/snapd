@@ -18,9 +18,10 @@
  *
  */
 
-package bootstrap
+package install
 
 var (
 	EnsureLayoutCompatibility = ensureLayoutCompatibility
 	DeviceFromRole            = deviceFromRole
+	NewEncryptedDevice        = newEncryptedDevice
 )
