@@ -66,7 +66,7 @@ func checkSystemRequestConflict(st *state.State, systemLabel string) error {
 	return nil
 }
 
-func systemFromSeed(label string) (*System, error) {
+func systemFromSeed(label string, current *currentSystem) (*System, error) {
 	s, err := seed.Open(dirs.SnapSeedDir, label)
 	if err != nil {
 		return nil, fmt.Errorf("cannot open: %v", err)
@@ -83,31 +83,62 @@ func systemFromSeed(label string) (*System, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot obtain brand: %v", err)
 	}
-	system := System{
+	system := &System{
 		Current: false,
 		Label:   label,
 		Model:   model,
 		Brand:   brand,
 		Actions: defaultSystemActions,
 	}
-	return &system, nil
+	if current.sameAs(system) {
+		system.Current = true
+		system.Actions = current.actions
+	}
+	return system, nil
 }
 
-func currentSystemForMode(st *state.State, mode string) (*seededSystem, error) {
+type currentSystem struct {
+	*seededSystem
+	actions []SystemAction
+}
+
+func (c *currentSystem) sameAs(other *System) bool {
+	return c != nil &&
+		c.System == other.Label &&
+		c.Model == other.Model.Model() &&
+		c.BrandID == other.Brand.AccountID()
+}
+
+func currentSystemForMode(st *state.State, mode string) (*currentSystem, error) {
+	var system *seededSystem
+	var actions []SystemAction
+	var err error
+
 	switch mode {
 	case "run":
-		return currentSeedSystem(st)
+		actions = currentSystemActions
+		system, err = currentSeededSystem(st)
 	case "install":
 		// there is no current system for install mode
 		return nil, nil
 	case "recover":
+		actions = recoverSystemActions
 		// recover mode uses modeenv for reference
-		return seededSystemFromModeenv()
+		system, err = seededSystemFromModeenv()
+	default:
+		return nil, fmt.Errorf("internal error: cannot identify current system for unsupported mode %q", mode)
 	}
-	return nil, fmt.Errorf("internal error: cannot identify current system for unsupported mode %q", mode)
+	if err != nil {
+		return nil, err
+	}
+	currentSys := &currentSystem{
+		seededSystem: system,
+		actions:      actions,
+	}
+	return currentSys, nil
 }
 
-func currentSeedSystem(st *state.State) (*seededSystem, error) {
+func currentSeededSystem(st *state.State) (*seededSystem, error) {
 	st.Lock()
 	defer st.Unlock()
 
@@ -134,7 +165,7 @@ func seededSystemFromModeenv() (*seededSystem, error) {
 		return nil, fmt.Errorf("internal error: recovery system is unset")
 	}
 
-	system, err := systemFromSeed(modeEnv.RecoverySystem)
+	system, err := systemFromSeed(modeEnv.RecoverySystem, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -147,23 +178,4 @@ func seededSystemFromModeenv() (*seededSystem, error) {
 		// SeedTime is intentionally left unset
 	}
 	return seededSys, nil
-}
-
-func isCurrentSystem(current *seededSystem, other *System) bool {
-	return current.System == other.Label &&
-		current.Model == other.Model.Model() &&
-		current.BrandID == other.Brand.AccountID()
-}
-
-func currentSystemActionsForMode(mode string) []SystemAction {
-	switch mode {
-	case "install":
-		// there should be no current system in install mode
-		return nil
-	case "run":
-		return currentSystemActions
-	case "recover":
-		return recoverSystemActions
-	}
-	return nil
 }

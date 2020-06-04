@@ -9,7 +9,7 @@ details: |
     method exposed by the provider.
 
 systems:
-    - -ubuntu-14.04-*  # no session-tool support
+    - -ubuntu-14.04-*  # no tests.session support
     - -ubuntu-core-*  # dbus interface disallows unconfined access on core,
                       # in addition, up until core20 session bus was not supported
     - -amazon-linux-2-* # session bus is not supported
@@ -22,7 +22,7 @@ prepare: |
     echo "And a snap declaring a matching dbus plug is installed"
     snap install --beta test-snapd-dbus-consumer
 
-    session-tool -u test --prepare
+    tests.session -u test prepare
 
     # XXX: The pair of snaps in this test communicate over the session bus but
     # are normal applications that require starting. Instead of using
@@ -31,15 +31,15 @@ prepare: |
     # and that if it forks off any unexpected processes, those are cleaned up
     # on shutdown.
     echo "And the provider dbus loop is started"
-    session-tool -u test systemd-run --user --unit dbus-provider.service test-snapd-dbus-provider.provider
+    tests.session -u test exec systemd-run --user --unit dbus-provider.service test-snapd-dbus-provider.provider
 
 restore: |
-    session-tool -u test systemctl --user stop dbus-provider.service
-    session-tool -u test --restore
+    tests.session -u test exec systemctl --user stop dbus-provider.service
+    tests.session -u test restore
 
 execute: |
     echo "Then the dbus name is properly reserved by the provider and the method is accessible"
-    retry-tool -n 5 --wait 1 sh -c 'session-tool -u test dbus-send --print-reply --dest=com.dbustest.HelloWorld /com/dbustest/HelloWorld com.dbustest.HelloWorld.SayHello | MATCH "hello world"'
+    retry -n 5 --wait 1 sh -c 'tests.session -u test exec dbus-send --print-reply --dest=com.dbustest.HelloWorld /com/dbustest/HelloWorld com.dbustest.HelloWorld.SayHello | MATCH "hello world"'
 
     echo "And plug is disconnected by default"
     snap interfaces -i dbus | MATCH '^- +test-snapd-dbus-consumer:dbus-test'
@@ -48,7 +48,7 @@ execute: |
     snap connect test-snapd-dbus-consumer:dbus-test test-snapd-dbus-provider:dbus-test
 
     echo "Then the consumer is able to call the provided method"
-    session-tool -u test test-snapd-dbus-consumer.dbus-consumer | MATCH "hello world"
+    tests.session -u test exec test-snapd-dbus-consumer.dbus-consumer | MATCH "hello world"
 
     if [ "$(snap debug confinement)" = partial ]; then
         exit 0
@@ -58,7 +58,7 @@ execute: |
     snap disconnect test-snapd-dbus-consumer:dbus-test test-snapd-dbus-provider:dbus-test
 
     echo "The consumer is not able to access the provided method"
-    if session-tool -u test test-snapd-dbus-consumer.dbus-consumer 2> call.error; then
+    if tests.session -u test exec test-snapd-dbus-consumer.dbus-consumer 2> call.error; then
         echo "Expected permission error calling dbus method with disconnected plug"
         exit 1
     fi

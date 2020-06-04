@@ -1,4 +1,4 @@
-summary: tests for session-tool
+summary: tests for tests.session
 # Session-tool depends on busctl and doesn't work on 14.04
 systems: [-ubuntu-14.04-*]
 environment:
@@ -23,38 +23,38 @@ prepare: |
     fi
 
     # Kill sessions that systemd has leaked earlier.
-    session-tool --kill-leaked
+    tests.session kill-leaked
 
     # Remember details of sessions before we start.
-    session-tool --dump > before.debug.txt
+    tests.session dump > before.debug.txt
 
     # Brief version of existing sessions to measure during "restore".
     loginctl --no-legend list-sessions | sort > before.txt
 
     # Prepare for using sessions as the given user
-    session-tool --prepare -u "$USER"
+    tests.session prepare -u "$USER"
 execute: |
     # Check that stdin is forwarded correctly.
-    echo "it-works" | session-tool -u "$USER" cat | MATCH "it-works"
+    echo "it-works" | tests.session -u "$USER" exec cat | MATCH "it-works"
 
     for n in $(seq 300); do
         echo "ITERATION $(date) $n"
-        session-tool -u "$USER" id -u  2>/tmp/session-tool.log | MATCH "$(id -u "$USER")"
-        session-tool -u "$USER" env    2>/tmp/session-tool.log | MATCH "XDG_RUNTIME_DIR=/run/user/$(id -u "$USER")"
+        tests.session -u "$USER" exec id -u 2>/tmp/tests.session.log | MATCH "$(id -u "$USER")"
+        tests.session -u "$USER" exec env   2>/tmp/tests.session.log | MATCH "XDG_RUNTIME_DIR=/run/user/$(id -u "$USER")"
         # We get a logind session
-        session-tool -u "$USER" loginctl list-sessions | grep "$USER"
+        tests.session -u "$USER" exec loginctl list-sessions | grep "$USER"
         # Exit code is forwarded
-        session-tool -u "$USER" true
-        not session-tool -u "$USER" false
+        tests.session -u "$USER" exec true
+        not tests.session -u "$USER" exec false
         # The -p option can be used to know the PID of the started program.
-        # This is different from the pid of session-tool as there's a session
+        # This is different from the pid of tests.session as there's a session
         # manager overlooking the termination of PAM stack (internally we use runuser).
-        session-tool -u "$USER" -p /tmp/outer.pid "$(command -v any-python)" -c 'from __future__ import print_function; import os; print(os.getpid())' >/tmp/inner.pid
+        tests.session -u "$USER" -p /tmp/outer.pid exec "$(command -v any-python)" -c 'from __future__ import print_function; import os; print(os.getpid())' >/tmp/inner.pid
         test "$(cat /tmp/outer.pid)" = "$(cat /tmp/inner.pid)"
     done
 restore: |
     # Restore after using sessions as the given user
-    session-tool --restore -u "$USER"
+    tests.session restore -u "$USER"
 
     # Kill cron if it is running (check prepare for details).
     if loginctl show-session 2 >/dev/null 2>&1 && loginctl show-session 2 | grep -q Service=crond; then
@@ -62,7 +62,7 @@ restore: |
     fi
 
     # Kill sessions that systemd has leaked over time.
-    session-tool --kill-leaked
+    tests.session kill-leaked
 
     # NOTE: This part of the test is very flaky if you restart systemd-logind
     # It *seems* that all new systems (Debian Sid, Arch, Tumbleweed and Ubuntu 20.04)
@@ -70,7 +70,7 @@ restore: |
 
     # When we are done the sessions are exactly what we started with but this
     # can take a moment as the termination process is asnychronous.
-    retry-tool -n 10 --wait 1 sh -c 'loginctl --no-legend list-sessions | sort > after.txt && diff -u before.txt after.txt'
+    retry -n 10 --wait 1 sh -c 'loginctl --no-legend list-sessions | sort > after.txt && diff -u before.txt after.txt'
     # Remove files we've created
     rm -f /tmp/{inner,outer}.pid
     rm -f {before,after}.txt
@@ -79,7 +79,7 @@ restore: |
     sh -xe defer.sh && rm -f defer.sh
 
 debug: |
-    session-tool --dump > after.debug.txt
+    tests.session dump > after.debug.txt
     diff -u before.debug.txt after.debug.txt
     echo "Active timers"
     systemctl list-timers

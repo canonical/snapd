@@ -58,7 +58,7 @@ execute: |
     systemctl start snapd.service
 
     echo "Ensure we get a warning message"
-    retry-tool -n 30 sh -c 'snap warnings | MATCH "seeding failed "'
+    retry -n 30 sh -c 'snap warnings | MATCH "seeding failed "'
 
     # the ubuntu postinst will fix broken seeds, see LP: 1868706
     if [[ "$SPREAD_SYSTEM" == ubuntu-* ]]; then

@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"testing"
 
@@ -35,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/cmd/snap-preseed"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/squashfs"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
@@ -52,6 +54,8 @@ type startPreseedSuite struct {
 
 func (s *startPreseedSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
+	restore := squashfs.MockNeedsFuse(false)
+	s.BaseTest.AddCleanup(restore)
 }
 
 func (s *startPreseedSuite) TearDownTest(c *C) {
@@ -66,10 +70,15 @@ func testParser(c *C) *flags.Parser {
 	return parser
 }
 
-func mockChrootDirs(c *C, rootDir string) {
-	c.Assert(os.MkdirAll(filepath.Join(rootDir, "/sys/kernel/security/apparmor"), 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(rootDir, "/proc/self"), 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(rootDir, "/dev/mem"), 0755), IsNil)
+func mockChrootDirs(c *C, rootDir string, apparmorDir bool) func() {
+	if apparmorDir {
+		c.Assert(os.MkdirAll(filepath.Join(rootDir, "/sys/kernel/security/apparmor"), 0755), IsNil)
+	}
+	mockMountInfo := `912 920 0:57 / ${rootDir}/proc rw,nosuid,nodev,noexec,relatime - proc proc rw
+914 913 0:7 / ${rootDir}/sys/kernel/security rw,nosuid,nodev,noexec,relatime master:8 - securityfs securityfs rw
+915 920 0:58 / ${rootDir}/dev rw,relatime - tmpfs none rw,size=492k,mode=755,uid=100000,gid=100000
+`
+	return osutil.MockMountInfo(strings.Replace(mockMountInfo, "${rootDir}", rootDir, -1))
 }
 
 func (s *startPreseedSuite) TestRequiresRoot(c *C) {
@@ -105,9 +114,21 @@ func (s *startPreseedSuite) TestChrootValidationUnhappy(c *C) {
 	defer restore()
 
 	tmpDir := c.MkDir()
+	defer osutil.MockMountInfo("")()
 
 	parser := testParser(c)
-	c.Check(main.Run(parser, []string{tmpDir}), ErrorMatches, `cannot pre-seed without access to ".*sys/kernel/security/apparmor"`)
+	c.Check(main.Run(parser, []string{tmpDir}), ErrorMatches, "cannot preseed without the following mountpoints:\n - .*/dev\n - .*/proc\n - .*/sys/kernel/security")
+}
+
+func (s *startPreseedSuite) TestChrootValidationUnhappyNoApparmor(c *C) {
+	restore := main.MockOsGetuid(func() int { return 0 })
+	defer restore()
+
+	tmpDir := c.MkDir()
+	defer mockChrootDirs(c, tmpDir, false)()
+
+	parser := testParser(c)
+	c.Check(main.Run(parser, []string{tmpDir}), ErrorMatches, `cannot preseed without access to ".*sys/kernel/security/apparmor"`)
 }
 
 func (s *startPreseedSuite) TestChrootValidationAlreadyPreseeded(c *C) {
@@ -133,7 +154,7 @@ func (s *startPreseedSuite) TestChrootFailure(c *C) {
 	defer restoreSyscallChroot()
 
 	tmpDir := c.MkDir()
-	mockChrootDirs(c, tmpDir)
+	defer mockChrootDirs(c, tmpDir, true)()
 
 	parser := testParser(c)
 	c.Check(main.Run(parser, []string{tmpDir}), ErrorMatches, fmt.Sprintf("cannot chroot into %s: FAIL: %s", tmpDir, tmpDir))
@@ -142,7 +163,7 @@ func (s *startPreseedSuite) TestChrootFailure(c *C) {
 func (s *startPreseedSuite) TestRunPreseedHappy(c *C) {
 	tmpDir := c.MkDir()
 	dirs.SetRootDir(tmpDir)
-	mockChrootDirs(c, tmpDir)
+	defer mockChrootDirs(c, tmpDir, true)()
 
 	restoreOsGuid := main.MockOsGetuid(func() int { return 0 })
 	defer restoreOsGuid()
@@ -180,7 +201,7 @@ func (s *startPreseedSuite) TestRunPreseedHappy(c *C) {
 	c.Assert(mockMountCmd.Calls(), HasLen, 1)
 	// note, tmpDir, targetSnapdRoot are contactenated again cause we're not really chrooting in the test
 	// and mocking dirs.RootDir
-	c.Check(mockMountCmd.Calls()[0], DeepEquals, []string{"mount", "-t", "squashfs", "/a/core.snap", filepath.Join(tmpDir, targetSnapdRoot)})
+	c.Check(mockMountCmd.Calls()[0], DeepEquals, []string{"mount", "-t", "squashfs", "-o", "ro,x-gdu.hide", "/a/core.snap", filepath.Join(tmpDir, targetSnapdRoot)})
 
 	c.Assert(mockTargetSnapd.Calls(), HasLen, 1)
 	c.Check(mockTargetSnapd.Calls()[0], DeepEquals, []string{"snapd"})
@@ -342,7 +363,7 @@ func (s *startPreseedSuite) TestClassicRequired(c *C) {
 func (s *startPreseedSuite) TestRunPreseedUnsupportedVersion(c *C) {
 	tmpDir := c.MkDir()
 	dirs.SetRootDir(tmpDir)
-	mockChrootDirs(c, tmpDir)
+	defer mockChrootDirs(c, tmpDir, true)()
 
 	restoreOsGuid := main.MockOsGetuid(func() int { return 0 })
 	defer restoreOsGuid()

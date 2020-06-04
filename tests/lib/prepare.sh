@@ -176,7 +176,7 @@ update_core_snap_for_classic_reexec() {
     rm -rf squashfs-root
 
     # Now mount the new core snap, first discarding the old mount namespace
-    "$LIBEXECDIR/snapd/snap-discard-ns" core
+    snapd.tool exec snap-discard-ns core
     mount "$snap" "$core"
 
     check_file() {
@@ -228,9 +228,9 @@ prepare_classic() {
         distro_query_package_info snapd
         exit 1
     fi
-    if "$LIBEXECDIR/snapd/snap-confine" --version | MATCH unknown; then
+    if snapd.tool exec snap-confine --version | MATCH unknown; then
         echo "Package build incorrect, 'snap-confine --version' mentions 'unknown'"
-        "$LIBEXECDIR/snapd/snap-confine" --version
+        snapd.tool exec snap-confine --version
         case "$SPREAD_SYSTEM" in
             ubuntu-*|debian-*)
                 apt-cache policy snapd
@@ -633,9 +633,7 @@ EOF
     # the writeable-path sync-boot won't work
     mkdir -p /mnt/system-data/etc/systemd
 
-    # we do not need console-conf, so prevent it from running
     mkdir -p /mnt/system-data/var/lib/console-conf
-    touch /mnt/system-data/var/lib/console-conf/complete
 
     (cd /tmp ; unsquashfs -no-progress -v  /var/lib/snapd/snaps/"$core_name"_*.snap etc/systemd/system)
     cp -avr /tmp/squashfs-root/etc/systemd/system /mnt/system-data/etc/systemd/
@@ -948,7 +946,7 @@ prepare_ubuntu_core() {
         elif is_core20_system; then
             rsync_snap="test-snapd-rsync-core20"
         fi
-        snap install --devmode "$rsync_snap"
+        snap install --devmode --edge "$rsync_snap"
         snap alias "$rsync_snap".rsync rsync
     fi
 
