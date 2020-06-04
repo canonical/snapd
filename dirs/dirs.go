@@ -110,7 +110,7 @@ var (
 	SystemLocalFontsDir       string
 	SystemFontconfigCacheDirs []string
 
-	PidsCgroupDir    string
+	PidsCgroupDir string
 
 	SnapshotsDir string
 
