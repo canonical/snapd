@@ -80,11 +80,14 @@ execute: |
 
     echo "Install EFI binaries"
     bootdir=/run/mnt/ubuntu-boot/EFI/boot
-    mkdir -p "$bootdir"
-    cp /usr/lib/shim/shimx64.efi.signed "$bootdir"/bootx64.efi
+    seedbootdir=/run/mnt/ubuntu-seed/EFI/boot
+    mkdir -p "$bootdir" "$seedbootdir"
+    cp /usr/lib/shim/shimx64.efi.signed "$seedbootdir"/bootx64.efi
+    cp /usr/lib/grub/x86_64-efi-signed/grubx64.efi.signed "$seedbootdir"/grubx64.efi
     cp /usr/lib/grub/x86_64-efi-signed/grubx64.efi.signed "$bootdir"/grubx64.efi
-    ls -l "$bootdir"
-    sbverify --list "$bootdir"/bootx64.efi
+
+    sbverify --list "$seedbootdir"/bootx64.efi
+    sbverify --list "$seedbootdir"/grubx64.efi
     sbverify --list "$bootdir"/grubx64.efi
 
     echo "Run the snap-bootstrap tool"

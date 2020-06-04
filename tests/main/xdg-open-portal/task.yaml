@@ -101,9 +101,4 @@ execute: |
     MATCH /home/test/snap/test-snapd-desktop/common/test.txt < "$EDITOR_HISTORY"
 
 debug: |
-    #shellcheck source=tests/lib/desktop-portal.sh
-    . "$TESTSLIB"/desktop-portal.sh
-
-    ls -la "/run/user/$TEST_UID/" || true
-    #shellcheck disable=SC2009
-    ps -ef | grep xdg || true
+    ls -la /run/user/12345/ || true
