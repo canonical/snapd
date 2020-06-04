@@ -149,17 +149,22 @@ func resolvePool(s *state.State, pool *asserts.Pool, userID int, deviceCtx snaps
 			// request fallback on
 			//  * unexpected SnapActionErrors or
 			//  * unexpected HTTP status of 4xx or 500
+			ignore := false
 			switch stoErr := err.(type) {
 			case *store.SnapActionError:
 				if !stoErr.NoResults || len(stoErr.Other) != 0 {
 					return errBulkAssertionFallback
 				}
+				// simply no results error, we are likely done
+				ignore = true
 			case *store.UnexpectedHTTPStatusError:
 				if stoErr.StatusCode >= 400 && stoErr.StatusCode <= 500 {
 					return errBulkAssertionFallback
 				}
 			}
-			return err
+			if !ignore {
+				return err
+			}
 		}
 		if len(aresults) == 0 {
 			// everything resolved if no errors

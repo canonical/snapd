@@ -139,6 +139,13 @@ func (sto *fakeStore) SnapAction(_ context.Context, currentSnaps []*store.Curren
 		})
 	}
 
+	// behave like the actual SnapAction if there are no results
+	if len(ares) == 0 {
+		return nil, ares, &store.SnapActionError{
+			NoResults: true,
+		}
+	}
+
 	return nil, ares, nil
 }
 
@@ -870,6 +877,16 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsTooEarly(c *C) {
 
 	err := assertstate.RefreshSnapDeclarations(s.state, 0)
 	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
+}
+
+func (s *assertMgrSuite) TestRefreshSnapDeclarationsNop(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.setModel(sysdb.GenericClassicModel())
+
+	err := assertstate.RefreshSnapDeclarations(s.state, 0)
+	c.Assert(err, IsNil)
 }
 
 func (s *assertMgrSuite) TestRefreshSnapDeclarationsNoStore(c *C) {
