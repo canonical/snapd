@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -82,7 +82,7 @@ func (s *ondiskTestSuite) SetUpTest(c *C) {
 }
 
 const (
-	scriptPartitionsBios = iota + 1
+	scriptPartitionsBios = iota
 	scriptPartitionsBiosSeed
 	scriptPartitionsBiosSeedData
 )
@@ -103,7 +103,7 @@ echo '{
     "partitions": [`)
 
 	// BIOS boot partition
-	if num > 0 {
+	if num >= scriptPartitionsBios {
 		b.WriteString(`
       {
         "node": "/dev/node1",
@@ -116,7 +116,7 @@ echo '{
 	}
 
 	// Seed partition
-	if num > 1 {
+	if num >= scriptPartitionsBiosSeed {
 		b.WriteString(`,
       {
         "node": "/dev/node2",
@@ -130,7 +130,7 @@ echo '{
 	}
 
 	// Data partition
-	if num > 2 {
+	if num >= scriptPartitionsBiosSeedData {
 		b.WriteString(`,
       {
         "node": "/dev/node3",
@@ -150,18 +150,37 @@ echo '{
 	return b.String()
 }
 
-func makeLsblkScript(devdir string) string {
-	return fmt.Sprintf(`
-[ "$3" == "%[1]s/node1" ] && echo '{
+func makeLsblkScript(num int) string {
+	var b bytes.Buffer
+
+	// BIOS boot partition
+	if num >= scriptPartitionsBios {
+		b.WriteString(`
+[ "$3" == "/dev/node1" ] && echo '{
     "blockdevices": [ {"name": "node1", "fstype": null, "label": null, "uuid": null, "mountpoint": null} ]
-}'
-[ "$3" == "%[1]s/node2" ] && echo '{
+}'`)
+	}
+
+	// Seed partition
+	if num >= scriptPartitionsBiosSeed {
+		b.WriteString(`
+[ "$3" == "/dev/node2" ] && echo '{
     "blockdevices": [ {"name": "node2", "fstype": "vfat", "label": "ubuntu-seed", "uuid": "A644-B807", "mountpoint": null} ]
-}'
-[ "$3" == "%[1]s/node3" ] && echo '{
+}'`)
+	}
+
+	// Data partition
+	if num >= scriptPartitionsBiosSeedData {
+		b.WriteString(`
+[ "$3" == "/dev/node3" ] && echo '{
     "blockdevices": [ {"name": "node3", "fstype": "ext4", "label": "ubuntu-data", "uuid": "8781-433a", "mountpoint": null} ]
-}'
-exit 0`, devdir)
+}'`)
+	}
+
+	b.WriteString(`
+exit 0`)
+
+	return b.String()
 }
 
 func makeMockGadget(gadgetRoot, gadgetContent string) error {
@@ -237,7 +256,7 @@ func (s *ondiskTestSuite) TestDeviceInfoGPT(c *C) {
 	cmdSfdisk := testutil.MockCommand(c, "sfdisk", makeSfdiskScript(scriptPartitionsBiosSeed))
 	defer cmdSfdisk.Restore()
 
-	cmdLsblk := testutil.MockCommand(c, "lsblk", makeLsblkScript("/dev"))
+	cmdLsblk := testutil.MockCommand(c, "lsblk", makeLsblkScript(scriptPartitionsBiosSeed))
 	defer cmdLsblk.Restore()
 
 	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
@@ -457,7 +476,7 @@ func (s *ondiskTestSuite) TestBuildPartitionList(c *C) {
 	cmdSfdisk := testutil.MockCommand(c, "sfdisk", makeSfdiskScript(scriptPartitionsBiosSeed))
 	defer cmdSfdisk.Restore()
 
-	cmdLsblk := testutil.MockCommand(c, "lsblk", makeLsblkScript("/dev"))
+	cmdLsblk := testutil.MockCommand(c, "lsblk", makeLsblkScript(scriptPartitionsBiosSeed))
 	defer cmdLsblk.Restore()
 
 	ptable := gadget.SFDiskPartitionTable{
@@ -508,7 +527,7 @@ func (s *ondiskTestSuite) TestCreatePartitions(c *C) {
 	cmdSfdisk := testutil.MockCommand(c, "sfdisk", makeSfdiskScript(scriptPartitionsBiosSeed))
 	defer cmdSfdisk.Restore()
 
-	cmdLsblk := testutil.MockCommand(c, "lsblk", makeLsblkScript("/dev"))
+	cmdLsblk := testutil.MockCommand(c, "lsblk", makeLsblkScript(scriptPartitionsBiosSeed))
 	defer cmdLsblk.Restore()
 
 	cmdPartx := testutil.MockCommand(c, "partx", "")
@@ -553,7 +572,7 @@ func (s *ondiskTestSuite) TestRemovePartitionsTrivial(c *C) {
 	cmdSfdisk := testutil.MockCommand(c, "sfdisk", makeSfdiskScript(scriptPartitionsBios))
 	defer cmdSfdisk.Restore()
 
-	cmdLsblk := testutil.MockCommand(c, "lsblk", makeLsblkScript("/dev"))
+	cmdLsblk := testutil.MockCommand(c, "lsblk", makeLsblkScript(scriptPartitionsBios))
 	defer cmdLsblk.Restore()
 
 	cmdPartx := testutil.MockCommand(c, "partx", "")
@@ -571,7 +590,7 @@ func (s *ondiskTestSuite) TestRemovePartitionsTrivial(c *C) {
 }
 
 func (s *ondiskTestSuite) TestRemovePartitions(c *C) {
-	const mockSfdiskScriptRemovableRecovery = `
+	const mockSfdiskScriptRemovablePartition = `
 if [ -f %[1]s/2 ]; then
    rm %[1]s/[0-9]
 elif [ -f %[1]s/1 ]; then
@@ -596,10 +615,10 @@ echo '{
    }
 }"`
 
-	cmdSfdisk := testutil.MockCommand(c, "sfdisk", fmt.Sprintf(mockSfdiskScriptRemovableRecovery, s.dir))
+	cmdSfdisk := testutil.MockCommand(c, "sfdisk", fmt.Sprintf(mockSfdiskScriptRemovablePartition, s.dir))
 	defer cmdSfdisk.Restore()
 
-	cmdLsblk := testutil.MockCommand(c, "lsblk", makeLsblkScript("/dev"))
+	cmdLsblk := testutil.MockCommand(c, "lsblk", makeLsblkScript(scriptPartitionsBiosSeed))
 	defer cmdLsblk.Restore()
 
 	cmdPartx := testutil.MockCommand(c, "partx", "")
@@ -627,7 +646,7 @@ func (s *ondiskTestSuite) TestRemovePartitionsError(c *C) {
 	cmdSfdisk := testutil.MockCommand(c, "sfdisk", makeSfdiskScript(scriptPartitionsBiosSeedData))
 	defer cmdSfdisk.Restore()
 
-	cmdLsblk := testutil.MockCommand(c, "lsblk", makeLsblkScript("/dev"))
+	cmdLsblk := testutil.MockCommand(c, "lsblk", makeLsblkScript(scriptPartitionsBiosSeedData))
 	defer cmdLsblk.Restore()
 
 	cmdPartx := testutil.MockCommand(c, "partx", "")
