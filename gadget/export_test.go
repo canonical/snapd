@@ -77,7 +77,7 @@ func MockMkfsHandlers(mock map[string]MkfsFunc) (restore func()) {
 	}
 }
 
-func MockEnsureNodesExist(f func(ds []OnDiskStructure, timeout time.Duration) error) (restore func()) {
+func MockEnsureNodesExist(f func(dss []OnDiskStructure, timeout time.Duration) error) (restore func()) {
 	old := ensureNodesExist
 	ensureNodesExist = f
 	return func() {

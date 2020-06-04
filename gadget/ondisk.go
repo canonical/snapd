@@ -51,6 +51,13 @@ var createdPartitionGUID = []string{
 	"0657FD6D-A4AB-43C4-84E5-0933C84B4F4F", // Linux swap partition
 }
 
+// creationSupported returns whether we support and expect to create partitions
+// of the given type, it also means we are ready to remove them for re-installation
+// or retried installation if they are appropriately marked with createdPartitionAttr.
+func creationSupported(ptype string) bool {
+	return strutil.ListContains(createdPartitionGUID, strings.ToUpper(ptype))
+}
+
 // sfdiskDeviceDump represents the sfdisk --dump JSON output format.
 type sfdiskDeviceDump struct {
 	PartitionTable sfdiskPartitionTable `json:"partitiontable"`
@@ -78,13 +85,6 @@ type sfdiskPartition struct {
 	Type  string `json:"type"`
 	UUID  string `json:"uuid"`
 	Name  string `json:"name"`
-}
-
-// creationSupported returns whether we support and expect to create partitions
-// of the given type, it also means we are ready to remove them for re-installation
-// or retried installation if they are appropriately marked with createdPartitionAttr.
-func creationSupported(ptype string) bool {
-	return strutil.ListContains(createdPartitionGUID, strings.ToUpper(ptype))
 }
 
 func isCreatedDuringInstall(p *sfdiskPartition, fs *lsblkBlockDevice, sfdiskLabel string) bool {
@@ -161,7 +161,7 @@ func (ds *OnDiskStructure) MakeFilesystem() error {
 	return nil
 }
 
-// DeployContent populates the give on-disk structure, acording to the contents
+// DeployContent populates the give on-disk structure, according to the contents
 // defined in the gadget.
 func (ds *OnDiskStructure) DeployContent(gadgetRoot string) error {
 	switch {
@@ -201,6 +201,8 @@ func (ds *OnDiskStructure) MountFilesystem(baseMntPoint string) error {
 	return nil
 }
 
+// OnDiskVolume holds information about the disk device including its partitioning
+// schema, the partition table, and the structure layout it contains.
 type OnDiskVolume struct {
 	Structure []OnDiskStructure
 	ID        string
