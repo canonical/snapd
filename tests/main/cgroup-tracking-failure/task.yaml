@@ -125,7 +125,7 @@ execute: |
     MATCH '[0-9]+:freezer:/snap.test-snapd-sh' <cgroup.txt
 
     if [ "$(command -v busctl)" == "" ]; then
-        # The remainder of the test relies on session-tool which requires
+        # The remainder of the test relies on tests.session which requires
         # busctl. This effectively cuts 14.04 support.
         exit 0
     fi
@@ -143,23 +143,23 @@ execute: |
 
     ## Phase 2: user is root.
     echo "run a snap app as a root user, with session bus" >phase.txt
-    session-tool --prepare -u root
+    tests.session -u root prepare
     test -S /run/user/0/bus
-    SNAPD_DEBUG=1 session-tool -u root snap run test-snapd-sh.sh -c 'exec cat /proc/self/cgroup' >cgroup.txt 2>debug.txt
-    session-tool --restore -u root
+    SNAPD_DEBUG=1 tests.session -u root exec snap run test-snapd-sh.sh -c 'exec cat /proc/self/cgroup' >cgroup.txt 2>debug.txt
+    tests.session -u root restore
     MATCH 'DEBUG: using session bus' <debug.txt
     MATCH 'DEBUG: created transient scope as object: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt
     MATCH '1:name=systemd:/user.slice/user-0.slice/user@0.service/snap.test-snapd-sh.sh.[0-9a-f-]+.scope' <cgroup.txt
 
     ## Phase 3: user is non-root, dbus user session is installed
     echo "run a snap app as a test user, having the session bus installed" >phase.txt
-    session-tool --prepare -u test
+    tests.session -u test prepare
     find /run/user/12345 >run.txt
     ps -u test >ps.txt
     test "$(wc -l <ps.txt)" -gt 1
     test -S /run/user/12345/bus
-    SNAPD_DEBUG=1 session-tool -u test snap run test-snapd-sh.sh -c 'exec cat /proc/self/cgroup' >cgroup.txt 2>debug.txt
-    session-tool --restore -u test
+    SNAPD_DEBUG=1 tests.session -u test exec snap run test-snapd-sh.sh -c 'exec cat /proc/self/cgroup' >cgroup.txt 2>debug.txt
+    tests.session -u test restore
     case "$SPREAD_SYSTEM" in
         ubuntu-16.04-*)
             # There is a session bus, we activate systemd --user and everything

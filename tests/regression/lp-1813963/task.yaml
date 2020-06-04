@@ -14,7 +14,7 @@ prepare: |
     # Discard the mount namespace in case the snap has any hooks. We rely on
     # the mount namespace to be absent and about to be constructed in the test
     # below.
-    "$LIBEXECDIR"/snapd/snap-discard-ns test-snapd-sh
+    snapd.tool exec snap-discard-ns test-snapd-sh
 
     # Install a simple service snap. This snap has a single service that just
     # runs for an hour and quits. The point is that it is just one service
@@ -23,7 +23,7 @@ prepare: |
     # For the purpose of the test we want the service to be off.
     install_local test-snapd-simple-service
     systemctl stop snap.test-snapd-simple-service.test-snapd-simple-service.service
-    "$LIBEXECDIR"/snapd/snap-discard-ns test-snapd-simple-service
+    snapd.tool exec snap-discard-ns test-snapd-simple-service
 
     # Nothing should have been denied yet.
     test "$(dmesg | grep -c DENIED)" -eq 0
