@@ -275,7 +275,7 @@ var templateCommon = `
   /run/uuidd/request rw,
   /sys/devices/virtual/tty/{console,tty*}/active r,
   /sys/fs/cgroup/memory/memory.limit_in_bytes r,
-  /sys/fs/cgroup/memory/snap.@{SNAP_INSTANCE_NAME}{,.*}/memory.limit_in_bytes r,
+  /sys/fs/cgroup/memory/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/memory.limit_in_bytes r,
   /sys/kernel/mm/transparent_hugepage/hpage_pmd_size r,
   /sys/module/apparmor/parameters/enabled r,
   /{,usr/}lib/ r,
@@ -901,11 +901,11 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
   # Allow reading the dynamic linker cache.
   /etc/ld.so.cache r,
   # Allow reading, mapping and executing the dynamic linker.
-  /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}ld-*.so mrix,
+  /{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}ld-*.so mrix,
   # Allow reading and mapping various parts of the standard library and
   # dynamically loaded nss modules and what not.
-  /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libc{,-[0-9]*}.so* mr,
-  /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpthread{,-[0-9]*}.so* mr,
+  /{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}libc{,-[0-9]*}.so* mr,
+  /{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}libpthread{,-[0-9]*}.so* mr,
 
   # Common devices accesses
   /dev/null rw,
