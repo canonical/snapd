@@ -26,9 +26,9 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-const sytemPackagesDocSummary = `allows access to documentation of system packages`
+const systemPackagesDocSummary = `allows access to documentation of system packages`
 
-const sytemPackagesDocBaseDeclarationSlots = `
+const systemPackagesDocBaseDeclarationSlots = `
   system-packages-doc:
     allow-installation:
       slot-snap-type:
@@ -36,18 +36,18 @@ const sytemPackagesDocBaseDeclarationSlots = `
     deny-auto-connection: true
 `
 
-const sytemPackagesDocConnectedPlugAppArmor = `
+const systemPackagesDocConnectedPlugAppArmor = `
 # Description: can access documentation of system packages.
 
 /usr/share/doc/{,**} r,
 `
 
-type sytemPackagesDocInterface struct {
+type systemPackagesDocInterface struct {
 	commonInterface
 }
 
-func (iface *sytemPackagesDocInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	spec.AddSnippet(sytemPackagesDocConnectedPlugAppArmor)
+func (iface *systemPackagesDocInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	spec.AddSnippet(systemPackagesDocConnectedPlugAppArmor)
 	emit := spec.AddUpdateNSf
 	emit("  # Mount documentation of system packages\n")
 	emit("  mount options=(bind) /var/lib/snapd/hostfs/usr/share/doc/ -> /usr/share/doc/,\n")
@@ -56,7 +56,7 @@ func (iface *sytemPackagesDocInterface) AppArmorConnectedPlug(spec *apparmor.Spe
 	return nil
 }
 
-func (iface *sytemPackagesDocInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+func (iface *systemPackagesDocInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	return spec.AddMountEntry(osutil.MountEntry{
 		Name:    "/var/lib/snapd/hostfs/usr/share/doc",
 		Dir:     "/usr/share/doc",
@@ -65,12 +65,12 @@ func (iface *sytemPackagesDocInterface) MountConnectedPlug(spec *mount.Specifica
 }
 
 func init() {
-	registerIface(&sytemPackagesDocInterface{
+	registerIface(&systemPackagesDocInterface{
 		commonInterface: commonInterface{
 			name:                 "system-packages-doc",
-			summary:              sytemPackagesDocSummary,
+			summary:              systemPackagesDocSummary,
 			implicitOnClassic:    true,
-			baseDeclarationSlots: sytemPackagesDocBaseDeclarationSlots,
+			baseDeclarationSlots: systemPackagesDocBaseDeclarationSlots,
 		},
 	})
 }
