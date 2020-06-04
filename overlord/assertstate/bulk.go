@@ -55,6 +55,8 @@ func bulkRefreshSnapDeclarations(s *state.State, snapStates map[string]*snapstat
 			Type:       asserts.SnapDeclarationType,
 			PrimaryKey: []string{release.Series, sideInfo.SnapID},
 		}
+		// update snap-declaration (and prereqs) for the snap,
+		// they were originally added at install time
 		if err := pool.AddToUpdate(declRef, instanceName); err != nil {
 			return fmt.Errorf("cannot prepare snap-declaration refresh for snap %q: %v", instanceName, err)
 		}
@@ -72,6 +74,8 @@ func bulkRefreshSnapDeclarations(s *state.State, snapStates map[string]*snapstat
 			if !asserts.IsNotFound(err) {
 				return fmt.Errorf("cannot prepare store assertion refresh: %v", err)
 			}
+			// assertion is not present in the db yet,
+			// we'll try to resolve it (fetch it) first
 			storeAt := &asserts.AtRevision{
 				Ref:      storeRef,
 				Revision: asserts.RevisionNotKnown,
@@ -142,20 +146,20 @@ func resolvePool(s *state.State, pool *asserts.Pool, userID int, deviceCtx snaps
 		_, aresults, err := sto.SnapAction(context.TODO(), nil, nil, pool, user, nil)
 		s.Lock()
 		if err != nil {
-			if saErr, ok := err.(*store.SnapActionError); !ok || !saErr.NoResults || len(saErr.Other) != 0 {
-				// request fallback on
-				//  * unexpected SnapActionErrors or
-				//  * unexpected HTTP status of 4xx or 500
-				if ok {
+			// request fallback on
+			//  * unexpected SnapActionErrors or
+			//  * unexpected HTTP status of 4xx or 500
+			switch stoErr := err.(type) {
+			case *store.SnapActionError:
+				if !stoErr.NoResults || len(stoErr.Other) != 0 {
 					return errBulkAssertionFallback
 				}
-				if usErr, ok := err.(*store.UnexpectedHTTPStatusError); ok {
-					if usErr.StatusCode >= 400 && usErr.StatusCode <= 500 {
-						return errBulkAssertionFallback
-					}
+			case *store.UnexpectedHTTPStatusError:
+				if stoErr.StatusCode >= 400 && stoErr.StatusCode <= 500 {
+					return errBulkAssertionFallback
 				}
-				return err
 			}
+			return err
 		}
 		if len(aresults) == 0 {
 			// everything resolved if no errors

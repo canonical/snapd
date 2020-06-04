@@ -508,7 +508,7 @@ func (p *Pool) Add(a Assertion, grouping Grouping) (ok bool, err error) {
 	return p.resolveWith(unresolved, uniq, u, a, extrag)
 }
 
-// AddBatch adds the all the assertions in the Batch to the Pool,
+// AddBatch adds all the assertions in the Batch to the Pool,
 // associated with the given grouping and as resolved in all the
 // groups requiring them. It is equivalent to using Add on each of them.
 // If an error is returned it refers to an immediate or local error.

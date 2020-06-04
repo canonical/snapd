@@ -161,7 +161,9 @@ type Store struct {
 var ErrTooManyRequests = errors.New("too many requests")
 
 // UnexpectedHTTPStatusError represents an error where the store
-// returned an unexpected HTTP status code.
+// returned an unexpected HTTP status code, i.e. a status code that
+// doesn't represent success nor an expected error condition with
+// known handling (e.g. a 404 when presence is alway expected).
 type UnexpectedHTTPStatusError struct {
 	OpSummary  string
 	StatusCode int
