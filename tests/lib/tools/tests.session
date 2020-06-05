@@ -1,11 +1,11 @@
 #!/bin/bash -e
 show_help() {
-	echo "usage: session-tool exec [-u USER] [-p PID_FILE] [--] <CMD>"
-	echo "usage: session-tool prepare | restore [-u USER | -u USER1,USER2,...]"
-	echo "usage: session-tool kill-leaked"
-	echo "usage: session-tool dump"
-	echo "usage: session-tool has-system-systemd-and-dbus"
-	echo "usage: session-tool has-session-systemd-and-dbus"
+	echo "usage: tests.session exec [-u USER] [-p PID_FILE] [--] <CMD>"
+	echo "usage: tests.session prepare | restore [-u USER | -u USER1,USER2,...]"
+	echo "usage: tests.session kill-leaked"
+	echo "usage: tests.session dump"
+	echo "usage: tests.session has-system-systemd-and-dbus"
+	echo "usage: tests.session has-session-systemd-and-dbus"
 }
 
 if [ $# -eq 0 ]; then
@@ -24,7 +24,7 @@ while [ $# -gt 0 ]; do
 			;;
 		-p)
 			if [ $# -eq 1 ]; then
-				echo "session-tool: option -p requires an argument" >&2
+				echo "tests.session: option -p requires an argument" >&2
 				exit 1
 			fi
 			pid_file="$2"
@@ -34,56 +34,57 @@ while [ $# -gt 0 ]; do
 			shift
 			break
 			;;
-		kill-leaked|--kill-leaked)
+		kill-leaked)
 			action=kill-leaked
 			shift
 			;;
-		prepare|--prepare)
+		prepare)
 			action=prepare
 			shift
 			;;
-		restore|--restore)
+		restore)
 			action=restore
 			shift
 			;;
-		dump|--dump)
+		dump)
 			action=dump
 			shift
 			;;
-		has-system-systemd-and-dbus|--has-system-systemd-and-dbus)
+		has-system-systemd-and-dbus)
 			action=has-system-systemd-and-dbus
 			shift
 			;;
-		has-session-systemd-and-dbus|--has-session-systemd-and-dbus)
+		has-session-systemd-and-dbus)
 			action=has-session-systemd-and-dbus
 			shift
 			;;
+		exec)
+			action="exec"
+			shift
+			# remaining arguments are the command to execute
+			break
+			;;
 		-u)
 			if [ $# -eq 1 ]; then
-				echo "session-tool: option -u requires an argument" >&2
+				echo "tests.session: option -u requires an argument" >&2
 				exit 1
 			fi
 			user="$2"
 			shift 2
 			;;
 		-*)
-			echo "session-tool: unsupported argument $1" >&2
+			echo "tests.session: unsupported argument $1" >&2
 			exit 1
 			;;
-		exec)
-			shift
-			action="exec"
-			break
-			;;
 		*)
-			action="exec"
-			break
+			echo "tests.session: unsupported action $1" >&2
+			exit 1
 			;;
 	esac
 done
 
 if [ "$(id -u)" -ne 0 ]; then
-    echo "session-tool needs to be invoked as root" >&2
+    echo "tests.session needs to be invoked as root" >&2
     exit 1
 fi
 
@@ -116,7 +117,7 @@ case "$action" in
 				mount --bind /writable/system-data/var/lib/systemd/rfkill /var/lib/systemd/rfkill
 				mount --bind /writable/system-data/var/lib/systemd/random-seed /var/lib/systemd/random-seed
 
-				touch /run/session-tool-core16.workaround
+				touch /run/tests.session-core16.workaround
 				;;
 		esac
 
@@ -134,7 +135,7 @@ case "$action" in
 			systemctl daemon-reload
 			systemctl restart systemd-logind.service
 
-			touch /run/session-tool-systemd-issue-12401.workaround
+			touch /run/tests.session-systemd-issue-12401.workaround
 		fi
 
 		# Enable linger for the selected user(s).
@@ -145,10 +146,10 @@ case "$action" in
 			# extra attention to synchronization.
 			#
 			# Because some systems do not support systemd --user (see
-			# tests/main/session-tool-support for details), check if this is
+			# tests/main/tests.session-support for details), check if this is
 			# expected to work ahead of trying.
-                        if session-tool -u "$u" systemctl --user is-enabled default.target >/dev/null; then
-				session-tool -u "$u" systemctl --user start default.target
+                        if tests.session -u "$u" exec systemctl --user is-enabled default.target >/dev/null; then
+				tests.session -u "$u" exec systemctl --user start default.target
 			fi
 		done
 
@@ -181,22 +182,22 @@ case "$action" in
 				# it works more reliably).
 				#
 				# Give the system some time to clean things up.
-				retry-tool -n 3 --wait 3 test ! -e "/run/user/$uid"
+				retry -n 3 --wait 3 test ! -e "/run/user/$uid"
 				if [ -e "/run/user/$uid" ]; then
-					echo "session-tool: /run/user/$uid still exists" >&2
+					echo "tests.session: /run/user/$uid still exists" >&2
 					exit 1
 				fi
 			fi
 		done
 
-		if [ -e /run/session-tool-core16.workaround ]; then
-			rm  /run/session-tool-core16.workaround
+		if [ -e /run/tests.session-core16.workaround ]; then
+			rm  /run/tests.session-core16.workaround
 			# Undo changes to make /var/lib/systemd/ writable.
 			umount -l /var/lib/systemd
 		fi
 
-		if [ -e /run/session-tool-systemd-issue-12401.workaround ]; then
-			rm  /run/session-tool-systemd-issue-12401.workaround
+		if [ -e /run/tests.session-systemd-issue-12401.workaround ]; then
+			rm  /run/tests.session-systemd-issue-12401.workaround
 
 			# Remove the logind customizations we (may have) done above.
 			rm -rf /etc/systemd/system/systemd-logind.service.d
@@ -241,7 +242,7 @@ case "$action" in
 esac
 
 if [ -z "$(command -v busctl)" ]; then
-    echo "session-tool requires busctl" >&2
+    echo "tests.session requires busctl" >&2
     exit 1
 fi
 
@@ -253,8 +254,8 @@ fi
 test -f /root/.profile && sed -i -e 's/mesg n .*true/tty -s \&\& mesg n/g' /root/.profile
 
 read -r uuid < /proc/sys/kernel/random/uuid
-unit_name="session-tool-$uuid.service"
-tmp_dir="/tmp/session-tool-$uuid"
+unit_name="tests.session-$uuid.service"
+tmp_dir="/tmp/tests.session-$uuid"
 mkdir "$tmp_dir"
 mkfifo -m 0666 "$tmp_dir/dbus-monitor.pipe" "$tmp_dir/ready.pipe" "$tmp_dir/result.pipe" "$tmp_dir/stdin.pipe" "$tmp_dir/stdout.pipe" "$tmp_dir/stderr.pipe"
 trap 'rm -rf $tmp_dir' EXIT
@@ -284,7 +285,7 @@ BEGIN {
 }
 
 # This part matches an argument to JobRemoved that contains the name of the
-# session-tool-xxx.service name we picked earlier. Once we see this we are sure
+# tests.session-xxx.service name we picked earlier. Once we see this we are sure
 # the job is gone.
 /   string \"$unit_name\"/ {
 	found=1;
@@ -296,7 +297,7 @@ BEGIN {
 # This matches any string argument but only takes effect once we found our
 # JobRemoved message. The order of arguments to JobRemoved is such that the
 # immediate successor of the service name is the result word. This is
-# translated to a pass / fail exit code from session-tool. Scanning this part
+# translated to a pass / fail exit code from tests.session. Scanning this part
 # terminates awk.
 /string \".*\"/ {
 	if (found==1) {
@@ -362,7 +363,7 @@ busctl \
 	 org.freedesktop.systemd1.Manager \
 	StartTransientUnit "ssa(sv)a(sa(sv))" \
 	"$unit_name" fail $(( 4 + $(test -n "$selinux_context_arg" && echo 1 || echo 0))) \
-		Description s "session-tool running $* as $user" \
+		Description s "tests.session running $* as $user" \
 		Type s oneshot \
 		Environment as 1 TERM=xterm-256color \
 		$selinux_context_arg \

@@ -62,7 +62,7 @@ execute: |
       # snapd schedules a slow timeout and an immediate one, however it is
       # scheduled asynchronously, try keep the check simple
       # shellcheck disable=SC2016
-      retry-tool -n 30 --wait 1 sh -c 'test "$(wc -l < /tmp/mock-shutdown.calls)" = "2"'
+      retry -n 30 --wait 1 sh -c 'test "$(wc -l < /tmp/mock-shutdown.calls)" = "2"'
       # an immediate reboot should have been scheduled
       MATCH -- '-r \+0' < /tmp/mock-shutdown.calls
 
@@ -77,7 +77,7 @@ execute: |
 
       # the system is seeding and snap command may not be available yet
       # shellcheck disable=SC2016
-      retry-tool -n 60 --wait 1 sh -c 'test "$(command -v snap)" = /usr/bin/snap'
+      retry -n 60 --wait 1 sh -c 'test "$(command -v snap)" = /usr/bin/snap'
 
       # wait till the system seeding is finished
       snap wait system seed.loaded
@@ -115,7 +115,7 @@ execute: |
 
       # see earlier note about shutdown
       # shellcheck disable=SC2016
-      retry-tool -n 30 --wait 1 sh -c 'test "$(wc -l < /tmp/mock-shutdown.calls)" = "2"'
+      retry -n 30 --wait 1 sh -c 'test "$(wc -l < /tmp/mock-shutdown.calls)" = "2"'
       # an immediate reboot should have been scheduled
       MATCH -- '-r \+0' < /tmp/mock-shutdown.calls
 

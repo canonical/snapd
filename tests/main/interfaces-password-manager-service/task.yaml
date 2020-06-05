@@ -9,10 +9,10 @@ prepare: |
     echo "Ensure we have a working gnome-keyring"
     snap install --edge test-snapd-password-manager-consumer
 
-    session-tool -u test --prepare
+    tests.session -u test prepare
 
 restore: |
-    session-tool -u test --restore
+    tests.session -u test restore
 
 execute: |
     echo "The interface is disconnected by default"
@@ -22,7 +22,7 @@ execute: |
     snap connect test-snapd-password-manager-consumer:password-manager-service
 
     echo "Then the snap command is able use the libsecret service"
-    session-tool -u test test-snapd-password-manager-consumer.secret-tool clear foo bar
+    tests.session -u test exec test-snapd-password-manager-consumer.secret-tool clear foo bar
 
     if [ "$(snap debug confinement)" = "partial" ] ; then
         exit 0
@@ -32,7 +32,7 @@ execute: |
     snap disconnect test-snapd-password-manager-consumer:password-manager-service
 
     echo "Then the snap command is not able to use the secret-tool"
-    if session-tool -u test test-snapd-password-manager-consumer.secret-tool clear foo bar; then
+    if tests.session -u test exec test-snapd-password-manager-consumer.secret-tool clear foo bar; then
         echo "Expected error with plug disconnected"
         exit 1
     fi

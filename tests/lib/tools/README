@@ -42,7 +42,7 @@ for brevity, but only when appropriate:
   that hints at observing, checking the system
 
 In general if none of these apply they should continue to be invoked
-via $TESTTOOLS, or possibly have a tests/lib/*.sh wrapping them if
+via $TESTSTOOLS, or possibly have a tests/lib/*.sh wrapping them if
 appropriate.
 
 TODO:
@@ -58,12 +58,12 @@ symlinks and renames (plus fixes):
 [done] tests/bin/MATCH -> tests/lib/tools/MATCH
 [done] tests/bin/REBOOT -> tests/lib/tools/REBOOT
 [done] tests/bin/not -> tests/lib/tools/not
-tests/bin/retry -> tests/lib/tools/retry (was retry-tool)
+[done] tests/bin/retry -> tests/lib/tools/retry (was retry-tool)
 
 tests/bin/tests.session -> tests/lib/tools/tests.session (was session-tool)
   [done] fix to have -h
   [done] convert --ACTION into subcommands
-  [wip] require "exec" subcommand to execute a command
+  [done] require "exec" subcommand to execute a command
 
 tests/lib/tools/memory-observe-do (was memory-tool)
 tests/lib/tools/version-compare (was version-tool)
@@ -72,8 +72,8 @@ tests/bin/mountinfo.query -> tests/lib/tools/mountinfo.query (was mountinfo-tool
   (we might not do this and keep just tests/lib/tools/mountinfo and call it the long way)
 
 tests/bin/snapd.tool -> tests/lib/tools/snapd.tool (was snap-tool)
-  fix no args
-  fix to have -h
+  [done] fix no args
+  [done] fix to have -h
   (we might not do this, this would be a special case, the name has
    snapd in itself, it makes sense in /bin mostly for debugging,
    otherwise it could stay just in tools as in itself it is not called

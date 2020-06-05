@@ -60,7 +60,7 @@ case "$action" in
 		# and fixing it in each test is not a priority right now.
 		#
 		# Note that similar treatment is not required for the "test" user as
-		# correct usage of session-tool ensures that the session and all the
+		# correct usage of tests.session ensures that the session and all the
 		# processes of the "test" user are terminated.
 		if pgrep -u root --full "systemd --user"; then
 			systemctl --user daemon-reload

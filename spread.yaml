@@ -123,6 +123,9 @@ backends:
                   workers: 4
                   storage: preserve-size
                   image: centos-8-64
+            - ubuntu-20.10-64:
+                  workers: 6
+                  image: ubuntu-os-cloud-devel/ubuntu-2010
 
     google-sru:
         type: google
@@ -495,6 +498,8 @@ debug-each: |
         findmnt --ascii -o+PROPAGATION || true
         echo "# processes"
         ps aux
+        echo "# /var/lib/snapd"
+        ls -lR /var/lib/snapd || true
     fi
 
 rename:
