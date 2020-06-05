@@ -72,7 +72,7 @@ func RefreshSnapDeclarations(s *state.State, userID int) error {
 		// done
 		return nil
 	}
-	if err != errBulkAssertionFallback {
+	if _, ok := err.(*bulkAssertionFallbackError); !ok {
 		// not an error that indicates the server rejecting/failing
 		// the bulk request itself
 		return err

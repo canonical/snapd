@@ -1240,7 +1240,12 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsNoStoreFallback(c *C) {
 	// assertion refresh we fall back to the old logic
 	s.fakeStore.(*fakeStore).snapActionErr = &store.UnexpectedHTTPStatusError{StatusCode: 400}
 
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
 	s.TestRefreshSnapDeclarationsNoStore(c)
+
+	c.Check(logbuf.String(), Matches, "(?m).*bulk refresh of snap-declarations failed, falling back to one-by-one assertion fetching:.*HTTP status code 400.*")
 }
 
 func (s *assertMgrSuite) TestRefreshSnapDeclarationsNoStoreFallbackUnexpectedSnapActionError(c *C) {
@@ -1252,7 +1257,12 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsNoStoreFallbackUnexpectedSna
 		Other:     []error{errors.New("unexpected error")},
 	}
 
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
 	s.TestRefreshSnapDeclarationsNoStore(c)
+
+	c.Check(logbuf.String(), Matches, "(?m).*bulk refresh of snap-declarations failed, falling back to one-by-one assertion fetching:.*unexpected error.*")
 }
 
 func (s *assertMgrSuite) TestRefreshSnapDeclarationsWithStoreFallback(c *C) {
@@ -1260,7 +1270,12 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsWithStoreFallback(c *C) {
 	// assertion refresh we fall back to the old logic
 	s.fakeStore.(*fakeStore).snapActionErr = &store.UnexpectedHTTPStatusError{StatusCode: 500}
 
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
 	s.TestRefreshSnapDeclarationsWithStore(c)
+
+	c.Check(logbuf.String(), Matches, "(?m).*bulk refresh of snap-declarations failed, falling back to one-by-one assertion fetching:.*HTTP status code 500.*")
 }
 
 func (s *assertMgrSuite) TestValidateRefreshesNothing(c *C) {

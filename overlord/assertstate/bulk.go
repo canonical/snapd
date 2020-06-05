@@ -37,7 +37,7 @@ const storeGroup = "store assertion"
 
 func bulkRefreshSnapDeclarations(s *state.State, snapStates map[string]*snapstate.SnapState, userID int, deviceCtx snapstate.DeviceContext) error {
 	if len(snapStates) > 512 {
-		return errBulkAssertionFallback
+		return &bulkAssertionFallbackError{errors.New("internal error: more than supported number of snaps")}
 		// TODO: make that work, it's a matter of using many or reusing pools, but keeping only one trail of what is resolved for efficiency
 	}
 
@@ -105,7 +105,13 @@ func bulkRefreshSnapDeclarations(s *state.State, snapStates map[string]*snapstat
 
 // marker error to request falling back to the old implemention for assertion
 // refreshes
-var errBulkAssertionFallback = errors.New("bulk assertion request rejected or failed, fallback")
+type bulkAssertionFallbackError struct {
+	err error
+}
+
+func (e *bulkAssertionFallbackError) Error() string {
+	return fmt.Sprintf("unsuccessful bulk assertion refresh, fallback: %v", e.err)
+}
 
 type resolvePoolError struct {
 	message string
@@ -153,13 +159,13 @@ func resolvePool(s *state.State, pool *asserts.Pool, userID int, deviceCtx snaps
 			switch stoErr := err.(type) {
 			case *store.SnapActionError:
 				if !stoErr.NoResults || len(stoErr.Other) != 0 {
-					return errBulkAssertionFallback
+					return &bulkAssertionFallbackError{stoErr}
 				}
 				// simply no results error, we are likely done
 				ignore = true
 			case *store.UnexpectedHTTPStatusError:
 				if stoErr.StatusCode >= 400 && stoErr.StatusCode <= 500 {
-					return errBulkAssertionFallback
+					return &bulkAssertionFallbackError{stoErr}
 				}
 			}
 			if !ignore {
