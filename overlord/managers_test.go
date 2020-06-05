@@ -34,6 +34,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -357,6 +358,15 @@ type mgrsSuite struct {
 }
 
 var settleTimeout = 45 * time.Second
+
+func init() {
+	// virt riscv64 builders are 5x times slower than armhf when
+	// building golang-1.14. These tests timeout, hence bump timeouts
+	// by 6x
+	if runtime.GOARCH == "riscv64" {
+		settleTimeout *= 6
+	}
+}
 
 func makeTestSnapWithFiles(c *C, snapYamlContent string, files [][]string) string {
 	info, err := snap.InfoFromSnapYaml([]byte(snapYamlContent))

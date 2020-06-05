@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"runtime"
 	"testing"
 	"time"
 
@@ -213,6 +214,15 @@ func (s *deviceMgrBaseSuite) TearDownTest(c *C) {
 }
 
 var settleTimeout = 15 * time.Second
+
+func init() {
+	// virt riscv64 builders are 5x times slower than armhf when
+	// building golang-1.14. These tests timeout, hence bump timeouts
+	// by 6x
+	if runtime.GOARCH == "riscv64" {
+		settleTimeout *= 6
+	}
+}
 
 func (s *deviceMgrBaseSuite) settle(c *C) {
 	err := s.o.Settle(settleTimeout)
