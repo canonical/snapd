@@ -304,10 +304,10 @@ func (g *grub) TryKernel() (snap.PlaceInfo, error) {
 	return nil, ErrNoTryKernelRef
 }
 
-// InstallBootScript installs or updates the grub boot script.
+// UpdateBootScript updates the grub boot script.
 //
 // Implements ManagedBootloader for the grub bootloader.
-func (g *grub) InstallBootScript(opts *Options) error {
+func (g *grub) UpdateBootScript(opts *Options) error {
 	bootScriptName := "grub.conf"
 	currentBootScript := filepath.Join(g.dir(), "grub.cfg")
 	if opts != nil && opts.Recovery {

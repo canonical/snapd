@@ -141,9 +141,9 @@ type ExtractedRunKernelImageBootloader interface {
 
 // ManagedBootloader manages its boot assets (typically boot scripts).
 type ManagedBootloader interface {
-	// InstallBootScript installs or updates the boot script used by the
+	// UpdateBootScript updates the boot script used by the
 	// bootloader.
-	InstallBootScript(*Options) error
+	UpdateBootScript(*Options) error
 }
 
 func genericInstallBootConfig(gadgetFile, systemFile string) (bool, error) {

@@ -571,7 +571,7 @@ func (s *grubTestSuite) TestKernelExtractionRunImageKernelNoSlashBoot(c *C) {
 	c.Check(exists, Equals, false)
 }
 
-func (s *grubTestSuite) TestNoSlashBootInstallBootScriptNoEdition(c *C) {
+func (s *grubTestSuite) TestNoSlashBootUpdateBootScriptNoEdition(c *C) {
 	// native EFI/ubuntu setup
 	s.makeFakeGrubEFINativeEnv(c, []byte("boot script"))
 
@@ -586,8 +586,8 @@ this is mocked grub.conf
 
 	mb, ok := g.(bootloader.ManagedBootloader)
 	c.Assert(ok, Equals, true)
-	// install the boot script
-	err := mb.InstallBootScript(opts)
+	// update the boot script
+	err := mb.UpdateBootScript(opts)
 	c.Assert(err, IsNil)
 
 	c.Assert(filepath.Join(s.grubEFINativeDir(), "grub.cfg"), testutil.FileEquals, `# X-Snapd-boot-script-edition: 123
@@ -595,7 +595,7 @@ this is mocked grub.conf
 `)
 }
 
-func (s *grubTestSuite) TestRecoveryInstallBootScriptNoEdition(c *C) {
+func (s *grubTestSuite) TestRecoveryUpdateBootScriptNoEdition(c *C) {
 	// native EFI/ubuntu setup
 	s.makeFakeGrubEFINativeEnv(c, []byte("recovery boot script"))
 
@@ -610,8 +610,8 @@ this is mocked grub-recovery.conf
 
 	mb, ok := g.(bootloader.ManagedBootloader)
 	c.Assert(ok, Equals, true)
-	// install the recovery boot script
-	err := mb.InstallBootScript(opts)
+	// update the recovery boot script
+	err := mb.UpdateBootScript(opts)
 	c.Assert(err, IsNil)
 
 	c.Assert(filepath.Join(s.grubEFINativeDir(), "grub.cfg"), testutil.FileEquals, `# X-Snapd-boot-script-edition: 5
@@ -619,7 +619,7 @@ this is mocked grub-recovery.conf
 `)
 }
 
-func (s *grubTestSuite) testBootInstallBootScriptUpdates(c *C, oldScript, newScript string, update bool) {
+func (s *grubTestSuite) testBootUpdateBootScriptUpdates(c *C, oldScript, newScript string, update bool) {
 	// native EFI/ubuntu setup
 	s.makeFakeGrubEFINativeEnv(c, []byte(oldScript))
 
@@ -633,7 +633,7 @@ func (s *grubTestSuite) testBootInstallBootScriptUpdates(c *C, oldScript, newScr
 	mb, ok := g.(bootloader.ManagedBootloader)
 	c.Assert(ok, Equals, true)
 	// the new boot script edition is higher, so an update is applied
-	err := mb.InstallBootScript(opts)
+	err := mb.UpdateBootScript(opts)
 	c.Assert(err, IsNil)
 
 	if update {
@@ -643,7 +643,7 @@ func (s *grubTestSuite) testBootInstallBootScriptUpdates(c *C, oldScript, newScr
 	}
 }
 
-func (s *grubTestSuite) TestNoSlashBootInstallBootScriptUpdates(c *C) {
+func (s *grubTestSuite) TestNoSlashBootUpdateBootScriptUpdates(c *C) {
 	oldScript := `# X-Snapd-boot-script-edition: 2
 boot script
 `
@@ -651,10 +651,10 @@ boot script
 this is updated grub.conf
 `
 	const updateApplied = true
-	s.testBootInstallBootScriptUpdates(c, oldScript, newScript, updateApplied)
+	s.testBootUpdateBootScriptUpdates(c, oldScript, newScript, updateApplied)
 }
 
-func (s *grubTestSuite) TestNoSlashBootInstallBootScriptNoUpdate(c *C) {
+func (s *grubTestSuite) TestNoSlashBootUpdateBootScriptNoUpdate(c *C) {
 	oldScript := `# X-Snapd-boot-script-edition: 2
 boot script
 `
@@ -663,10 +663,10 @@ boot script
 this is updated grub.conf
 `
 	const updateApplied = false
-	s.testBootInstallBootScriptUpdates(c, oldScript, newScript, updateApplied)
+	s.testBootUpdateBootScriptUpdates(c, oldScript, newScript, updateApplied)
 }
 
-func (s *grubTestSuite) TestNoSlashBootInstallBootScriptSameEdition(c *C) {
+func (s *grubTestSuite) TestNoSlashBootUpdateBootScriptSameEdition(c *C) {
 	oldScript := `# X-Snapd-boot-script-edition: 1
 boot script
 `
@@ -675,5 +675,5 @@ boot script
 this is updated grub.conf
 `
 	const updateApplied = false
-	s.testBootInstallBootScriptUpdates(c, oldScript, newScript, updateApplied)
+	s.testBootUpdateBootScriptUpdates(c, oldScript, newScript, updateApplied)
 }
