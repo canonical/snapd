@@ -57,7 +57,7 @@ func (s *installSuite) SetUpTest(c *C) {
 }
 
 func (s *installSuite) TestInstallRunError(c *C) {
-	err := install.Install("", "", install.Options{})
+	err := install.Run("", "", install.Options{})
 	c.Assert(err, ErrorMatches, "cannot use empty gadget root directory")
 }
 
