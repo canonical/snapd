@@ -127,17 +127,21 @@ func (s *imageSuite) TearDownTest(c *C) {
 }
 
 // interface for the store
-func (s *imageSuite) SnapAction(_ context.Context, _ []*store.CurrentSnap, actions []*store.SnapAction, _ *auth.UserState, _ *store.RefreshOptions) ([]store.SnapActionResult, error) {
+func (s *imageSuite) SnapAction(_ context.Context, _ []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, _ *auth.UserState, _ *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
+	if assertQuery != nil {
+		return nil, nil, fmt.Errorf("unexpected assertion query")
+	}
+
 	if len(actions) != 1 {
-		return nil, fmt.Errorf("expected 1 action, got %d", len(actions))
+		return nil, nil, fmt.Errorf("expected 1 action, got %d", len(actions))
 	}
 
 	if actions[0].Action != "download" {
-		return nil, fmt.Errorf("unexpected action %q", actions[0].Action)
+		return nil, nil, fmt.Errorf("unexpected action %q", actions[0].Action)
 	}
 
 	if _, instanceKey := snap.SplitInstanceName(actions[0].InstanceName); instanceKey != "" {
-		return nil, fmt.Errorf("unexpected instance key in %q", actions[0].InstanceName)
+		return nil, nil, fmt.Errorf("unexpected instance key in %q", actions[0].InstanceName)
 	}
 	// record
 	s.storeActions = append(s.storeActions, actions[0])
@@ -151,9 +155,9 @@ func (s *imageSuite) SnapAction(_ context.Context, _ []*store.CurrentSnap, actio
 			redirectChannel = channel
 		}
 		info1.Channel = channel
-		return []store.SnapActionResult{{Info: &info1, RedirectChannel: redirectChannel}}, nil
+		return []store.SnapActionResult{{Info: &info1, RedirectChannel: redirectChannel}}, nil, nil
 	}
-	return nil, fmt.Errorf("no %q in the fake store", actions[0].InstanceName)
+	return nil, nil, fmt.Errorf("no %q in the fake store", actions[0].InstanceName)
 }
 
 func (s *imageSuite) Download(ctx context.Context, name, targetFn string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState, dlOpts *store.DownloadOptions) error {
@@ -475,17 +479,18 @@ const pcGadgetYaml = `
      bootloader: grub
  `
 
-func (s *imageSuite) setupSnaps(c *C, publishers map[string]string) {
+func (s *imageSuite) setupSnaps(c *C, publishers map[string]string, defaultsYaml string) {
+	gadgetYaml := pcGadgetYaml + defaultsYaml
 	if _, ok := publishers["pc"]; ok {
 		s.MakeAssertedSnap(c, packageGadget, [][]string{
 			{"grub.conf", ""}, {"grub.cfg", "I'm a grub.cfg"},
-			{"meta/gadget.yaml", pcGadgetYaml},
+			{"meta/gadget.yaml", gadgetYaml},
 		}, snap.R(1), publishers["pc"])
 	}
 	if _, ok := publishers["pc18"]; ok {
 		s.MakeAssertedSnap(c, packageGadgetWithBase, [][]string{
 			{"grub.conf", ""}, {"grub.cfg", "I'm a grub.cfg"},
-			{"meta/gadget.yaml", pcGadgetYaml},
+			{"meta/gadget.yaml", gadgetYaml},
 		}, snap.R(4), publishers["pc18"])
 	}
 
@@ -574,7 +579,7 @@ func (s *imageSuite) TestSetupSeed(c *C) {
 	s.setupSnaps(c, map[string]string{
 		"pc":        "canonical",
 		"pc-kernel": "canonical",
-	})
+	}, "")
 
 	opts := &image.Options{
 		PrepareDir: filepath.Dir(rootdir),
@@ -694,7 +699,7 @@ func (s *imageSuite) TestSetupSeedLocalCoreBrandKernel(c *C) {
 	s.setupSnaps(c, map[string]string{
 		"pc":        "canonical",
 		"pc-kernel": "my-brand",
-	})
+	}, "")
 
 	coreFn := snaptest.MakeTestSnapWithFiles(c, packageCore, [][]string{{"local", ""}})
 	requiredSnap1Fn := snaptest.MakeTestSnapWithFiles(c, requiredSnap1, [][]string{{"local", ""}})
@@ -780,6 +785,56 @@ func (s *imageSuite) TestSetupSeedLocalCoreBrandKernel(c *C) {
 	c.Check(s.stderr.String(), Equals, "WARNING: \"core\", \"required-snap1\" installed from local snaps disconnected from a store cannot be refreshed subsequently!\n")
 }
 
+func (s *imageSuite) TestSetupSeedWithWideCohort(c *C) {
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	rootdir := filepath.Join(c.MkDir(), "image")
+	s.setupSnaps(c, map[string]string{
+		"pc":        "canonical",
+		"pc-kernel": "canonical",
+	}, "")
+
+	snapFile := snaptest.MakeTestSnapWithFiles(c, devmodeSnap, nil)
+
+	opts := &image.Options{
+		Snaps: []string{snapFile},
+
+		PrepareDir:    filepath.Dir(rootdir),
+		WideCohortKey: "wide-cohort-key",
+	}
+
+	err := image.SetupSeed(s.tsto, s.model, opts)
+	c.Assert(err, IsNil)
+
+	// check the downloads
+	c.Check(s.storeActions, HasLen, 4)
+	c.Check(s.storeActions[0], DeepEquals, &store.SnapAction{
+		Action:       "download",
+		InstanceName: "core",
+		Channel:      stableChannel,
+		CohortKey:    "wide-cohort-key",
+	})
+	c.Check(s.storeActions[1], DeepEquals, &store.SnapAction{
+		Action:       "download",
+		InstanceName: "pc-kernel",
+		Channel:      stableChannel,
+		CohortKey:    "wide-cohort-key",
+	})
+	c.Check(s.storeActions[2], DeepEquals, &store.SnapAction{
+		Action:       "download",
+		InstanceName: "pc",
+		Channel:      stableChannel,
+		CohortKey:    "wide-cohort-key",
+	})
+	c.Check(s.storeActions[3], DeepEquals, &store.SnapAction{
+		Action:       "download",
+		InstanceName: "required-snap1",
+		Channel:      stableChannel,
+		CohortKey:    "wide-cohort-key",
+	})
+}
+
 func (s *imageSuite) TestSetupSeedDevmodeSnap(c *C) {
 	restore := image.MockTrusted(s.StoreSigning.Trusted)
 	defer restore()
@@ -788,7 +843,7 @@ func (s *imageSuite) TestSetupSeedDevmodeSnap(c *C) {
 	s.setupSnaps(c, map[string]string{
 		"pc":        "canonical",
 		"pc-kernel": "canonical",
-	})
+	}, "")
 
 	snapFile := snaptest.MakeTestSnapWithFiles(c, devmodeSnap, nil)
 
@@ -848,7 +903,7 @@ func (s *imageSuite) TestSetupSeedWithClassicSnapFails(c *C) {
 	s.setupSnaps(c, map[string]string{
 		"pc":        "canonical",
 		"pc-kernel": "canonical",
-	})
+	}, "")
 
 	s.MakeAssertedSnap(c, classicSnap, nil, snap.R(1), "other")
 
@@ -884,7 +939,7 @@ func (s *imageSuite) TestSetupSeedWithBase(c *C) {
 		"pc-kernel":  "canonical",
 		"snapd":      "canonical",
 		"other-base": "other",
-	})
+	}, "")
 
 	opts := &image.Options{
 		PrepareDir: filepath.Dir(rootdir),
@@ -1005,7 +1060,7 @@ func (s *imageSuite) TestSetupSeedWithBaseWithCloudConf(c *C) {
 		"core18":    "canonical",
 		"pc-kernel": "canonical",
 		"snapd":     "canonical",
-	})
+	}, "")
 	s.MakeAssertedSnap(c, packageGadgetWithBase, [][]string{
 		{"grub.conf", ""},
 		{"grub.cfg", "I'm a grub.cfg"},
@@ -1045,7 +1100,7 @@ func (s *imageSuite) TestSetupSeedWithBaseLegacySnap(c *C) {
 		"pc18":      "canonical",
 		"pc-kernel": "canonical",
 		"snapd":     "canonical",
-	})
+	}, "")
 
 	opts := &image.Options{
 		PrepareDir: filepath.Dir(rootdir),
@@ -1140,7 +1195,7 @@ func (s *imageSuite) TestSetupSeedWithBaseDefaultTrackSnap(c *C) {
 		"pc18":      "canonical",
 		"pc-kernel": "canonical",
 		"snapd":     "canonical",
-	})
+	}, "")
 
 	opts := &image.Options{
 		PrepareDir: filepath.Dir(rootdir),
@@ -1208,7 +1263,7 @@ func (s *imageSuite) TestSetupSeedKernelPublisherMismatch(c *C) {
 	s.setupSnaps(c, map[string]string{
 		"pc":        "canonical",
 		"pc-kernel": "other",
-	})
+	}, "")
 
 	opts := &image.Options{
 		PrepareDir: filepath.Dir(rootdir),
@@ -1287,7 +1342,7 @@ func (s *imageSuite) TestSetupSeedLocalSnapsWithStoreAsserts(c *C) {
 	s.setupSnaps(c, map[string]string{
 		"pc":        "canonical",
 		"pc-kernel": "my-brand",
-	})
+	}, "")
 
 	opts := &image.Options{
 		Snaps: []string{
@@ -1377,7 +1432,7 @@ func (s *imageSuite) TestSetupSeedLocalSnapsWithChannels(c *C) {
 	s.setupSnaps(c, map[string]string{
 		"pc":        "canonical",
 		"pc-kernel": "my-brand",
-	})
+	}, "")
 
 	opts := &image.Options{
 		Snaps: []string{
@@ -1584,7 +1639,7 @@ func (s *imageSuite) TestSetupSeedWithKernelAndGadgetTrack(c *C) {
 		"core":      "canonical",
 		"pc":        "canonical",
 		"pc-kernel": "canonical",
-	})
+	}, "")
 
 	opts := &image.Options{
 		PrepareDir: filepath.Dir(rootdir),
@@ -1660,7 +1715,7 @@ func (s *imageSuite) TestSetupSeedWithKernelTrackWithDefaultChannel(c *C) {
 		"core":      "canonical",
 		"pc":        "canonical",
 		"pc-kernel": "canonical",
-	})
+	}, "")
 
 	rootdir := filepath.Join(c.MkDir(), "image")
 	opts := &image.Options{
@@ -1720,7 +1775,7 @@ func (s *imageSuite) TestSetupSeedWithKernelTrackOnLocalSnap(c *C) {
 		"core":      "canonical",
 		"pc":        "canonical",
 		"pc-kernel": "canonical",
-	})
+	}, "")
 
 	// pretend we downloaded the core,kernel already
 	cfn := s.AssertedSnap("core")
@@ -1777,7 +1832,7 @@ func (s *imageSuite) TestSetupSeedWithBaseAndLocalLegacyCoreOrdering(c *C) {
 		"core18":    "canonical",
 		"pc18":      "canonical",
 		"pc-kernel": "canonical",
-	})
+	}, "")
 
 	coreFn := snaptest.MakeTestSnapWithFiles(c, packageCore, [][]string{{"local", ""}})
 
@@ -1826,7 +1881,7 @@ func (s *imageSuite) TestSetupSeedWithBaseAndLegacyCoreOrdering(c *C) {
 		"core":      "canonical",
 		"pc18":      "canonical",
 		"pc-kernel": "canonical",
-	})
+	}, "")
 
 	opts := &image.Options{
 		PrepareDir: filepath.Dir(rootdir),
@@ -1869,7 +1924,7 @@ func (s *imageSuite) TestSetupSeedGadgetBaseModelBaseMismatch(c *C) {
 		"core18":    "canonical",
 		"pc":        "canonical",
 		"pc-kernel": "canonical",
-	})
+	}, "")
 	opts := &image.Options{
 		PrepareDir: filepath.Dir(rootdir),
 	}
@@ -1894,7 +1949,7 @@ func (s *imageSuite) TestSetupSeedSnapReqBase(c *C) {
 		"pc":                  "canonical",
 		"pc-kernel":           "canonical",
 		"snap-req-other-base": "canonical",
-	})
+	}, "")
 	opts := &image.Options{
 		PrepareDir: filepath.Dir(rootdir),
 	}
@@ -1919,12 +1974,57 @@ func (s *imageSuite) TestSetupSeedBaseNone(c *C) {
 		"pc":             "canonical",
 		"pc-kernel":      "canonical",
 		"snap-base-none": "canonical",
-	})
+	}, "")
 	opts := &image.Options{
 		PrepareDir: filepath.Dir(rootdir),
 	}
 
 	c.Assert(image.SetupSeed(s.tsto, model, opts), IsNil)
+}
+
+func (s *imageSuite) TestSetupSeedCore18GadgetDefaults(c *C) {
+	systemctlMock := testutil.MockCommand(c, "systemctl", "")
+	defer systemctlMock.Restore()
+
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	// replace model with a model that uses core18
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"architecture": "amd64",
+		"gadget":       "pc18",
+		"kernel":       "pc-kernel",
+		"base":         "core18",
+	})
+
+	defaults := `defaults:
+  system:
+       service:
+         ssh:
+           disable: true
+`
+
+	rootdir := filepath.Join(c.MkDir(), "image")
+	s.setupSnaps(c, map[string]string{
+		"pc18":      "canonical",
+		"pc-kernel": "canonical",
+	}, defaults)
+
+	snapdFn := snaptest.MakeTestSnapWithFiles(c, snapdSnap, [][]string{{"local", ""}})
+	core18Fn := snaptest.MakeTestSnapWithFiles(c, packageCore18, [][]string{{"local", ""}})
+
+	opts := &image.Options{
+		Snaps: []string{
+			snapdFn,
+			core18Fn,
+		},
+
+		PrepareDir: filepath.Dir(rootdir),
+	}
+
+	err := image.SetupSeed(s.tsto, model, opts)
+	c.Assert(err, IsNil)
+	c.Check(osutil.FileExists(filepath.Join(rootdir, "_writable_defaults/etc/ssh/sshd_not_to_be_run")), Equals, true)
 }
 
 func (s *imageSuite) TestSetupSeedSnapCoreSatisfiesCore16(c *C) {
@@ -1943,7 +2043,7 @@ func (s *imageSuite) TestSetupSeedSnapCoreSatisfiesCore16(c *C) {
 		"pc":                  "canonical",
 		"pc-kernel":           "canonical",
 		"snap-req-other-base": "canonical",
-	})
+	}, "")
 	opts := &image.Options{
 		PrepareDir: filepath.Dir(rootdir),
 	}
@@ -1967,7 +2067,7 @@ func (s *imageSuite) TestSetupSeedStoreAssertionMissing(c *C) {
 		"core":      "canonical",
 		"pc":        "canonical",
 		"pc-kernel": "canonical",
-	})
+	}, "")
 	opts := &image.Options{
 		PrepareDir: filepath.Dir(rootdir),
 	}
@@ -2002,7 +2102,7 @@ func (s *imageSuite) TestSetupSeedStoreAssertionFetched(c *C) {
 		"core":      "canonical",
 		"pc":        "canonical",
 		"pc-kernel": "canonical",
-	})
+	}, "")
 	opts := &image.Options{
 		PrepareDir: filepath.Dir(rootdir),
 	}
@@ -2042,7 +2142,7 @@ func (s *imageSuite) TestSetupSeedSnapReqBaseFromLocal(c *C) {
 		"pc-kernel":           "canonical",
 		"snap-req-other-base": "canonical",
 		"other-base":          "canonical",
-	})
+	}, "")
 	bfn := s.AssertedSnap("other-base")
 	opts := &image.Options{
 		PrepareDir: filepath.Dir(rootdir),
@@ -2070,7 +2170,7 @@ func (s *imageSuite) TestSetupSeedSnapReqBaseFromExtraFails(c *C) {
 		"pc-kernel":           "canonical",
 		"snap-req-other-base": "canonical",
 		"other-base":          "canonical",
-	})
+	}, "")
 	bfn := s.AssertedSnap("other-base")
 	opts := &image.Options{
 		PrepareDir: filepath.Dir(rootdir),
@@ -2097,7 +2197,7 @@ func (s *imageSuite) TestSetupSeedMissingContentProvider(c *C) {
 		"pc":                    "canonical",
 		"pc-kernel":             "canonical",
 		"snap-req-content-snap": "canonical",
-	})
+	}, "")
 	opts := &image.Options{
 		PrepareDir: filepath.Dir(rootdir),
 	}
@@ -2121,7 +2221,7 @@ func (s *imageSuite) TestSetupSeedClassic(c *C) {
 	rootdir := c.MkDir()
 	s.setupSnaps(c, map[string]string{
 		"classic-gadget": "my-brand",
-	})
+	}, "")
 
 	opts := &image.Options{
 		Classic:    true,
@@ -2195,7 +2295,7 @@ func (s *imageSuite) TestSetupSeedClassicWithLocalClassicSnap(c *C) {
 	})
 
 	rootdir := c.MkDir()
-	s.setupSnaps(c, nil)
+	s.setupSnaps(c, nil, "")
 
 	snapFile := snaptest.MakeTestSnapWithFiles(c, classicSnap, nil)
 
@@ -2262,7 +2362,7 @@ func (s *imageSuite) TestSetupSeedClassicSnapdOnly(c *C) {
 	rootdir := c.MkDir()
 	s.setupSnaps(c, map[string]string{
 		"classic-gadget18": "my-brand",
-	})
+	}, "")
 
 	opts := &image.Options{
 		Classic:    true,
@@ -2380,7 +2480,7 @@ func (s *imageSuite) TestSetupSeedClassicSnapdOnlyMissingCore16(c *C) {
 	rootdir := c.MkDir()
 	s.setupSnaps(c, map[string]string{
 		"classic-gadget18": "my-brand",
-	})
+	}, "")
 
 	opts := &image.Options{
 		Classic:    true,
@@ -2407,7 +2507,7 @@ func (s *imageSuite) TestSetupSeedLocalSnapd(c *C) {
 	s.setupSnaps(c, map[string]string{
 		"pc18":      "canonical",
 		"pc-kernel": "canonical",
-	})
+	}, "")
 
 	snapdFn := snaptest.MakeTestSnapWithFiles(c, snapdSnap, [][]string{{"local", ""}})
 	core18Fn := snaptest.MakeTestSnapWithFiles(c, packageCore18, [][]string{{"local", ""}})

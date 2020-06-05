@@ -265,6 +265,7 @@ func formatRefreshTime(t time.Time) string {
 func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	st := c.d.overlord.State()
 	snapMgr := c.d.overlord.SnapManager()
+	deviceMgr := c.d.overlord.DeviceManager()
 	st.Lock()
 	defer st.Unlock()
 	nextRefresh := snapMgr.NextRefresh()
@@ -304,6 +305,7 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		},
 		"refresh":      refreshInfo,
 		"architecture": arch.DpkgArchitecture(),
+		"system-mode":  deviceMgr.SystemMode(),
 	}
 	if systemdVirt != "" {
 		m["virtualization"] = systemdVirt
@@ -1986,12 +1988,16 @@ func getChanges(c *Command, r *http.Request, user *auth.UserState) Response {
 				return false
 			}
 
-			for _, snapName := range snapNames {
+			for _, name := range snapNames {
+				// due to
+				// https://bugs.launchpad.net/snapd/+bug/1880560
+				// the snap-names in service-control changes
+				// could have included <snap>.<app>
+				snapName, _ := snap.SplitSnapApp(name)
 				if snapName == wantedName {
 					return true
 				}
 			}
-
 			return false
 		}
 	}
@@ -2392,6 +2398,21 @@ func getLogs(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 }
 
+func namesToSnapNames(inst *servicestate.Instruction) []string {
+	seen := make(map[string]struct{}, len(inst.Names))
+	for _, snapOrSnapDotApp := range inst.Names {
+		snapName, _ := snap.SplitSnapApp(snapOrSnapDotApp)
+		seen[snapName] = struct{}{}
+	}
+	names := make([]string, 0, len(seen))
+	for k := range seen {
+		names = append(names, k)
+	}
+	// keep stable ordering
+	sort.Strings(names)
+	return names
+}
+
 func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 	var inst servicestate.Instruction
 	decoder := json.NewDecoder(r.Body)
@@ -2425,7 +2446,9 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 	st.Lock()
 	defer st.Unlock()
-	chg := newChange(st, "service-control", fmt.Sprintf("Running service command"), tss, inst.Names)
+	// names received in the request can be snap or snap.app, we need to
+	// extract the actual snap names before associating them with a change
+	chg := newChange(st, "service-control", fmt.Sprintf("Running service command"), tss, namesToSnapNames(&inst))
 	st.EnsureBefore(0)
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
 }

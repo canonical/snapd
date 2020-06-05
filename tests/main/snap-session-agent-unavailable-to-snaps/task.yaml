@@ -17,44 +17,33 @@ prepare: |
         touch agent-was-enabled
     fi
 
-    #shellcheck source=tests/lib/user.sh
-    . "$TESTSLIB/user.sh"
-    start_user_session
-    # Wait for sockets.target to finish starting so the session agent
-    # socket is available.
-    as_user systemctl --user start sockets.target
+    echo "Install the curl snap as a confined example client"
+    snap install --edge test-snapd-curl
+
+    tests.session -u test prepare
 
 restore: |
-    #shellcheck source=tests/lib/user.sh
-    . "$TESTSLIB/user.sh"
-    stop_user_session
-    purge_user_session_data
-
+    tests.session -u test restore
+    snap remove test-snapd-curl
     if [ -f agent-was-enabled ]; then
         systemctl --user --global disable snapd.session-agent.socket
         rm agent-was-enabled
     fi
 
 execute: |
-    #shellcheck source=tests/lib/user.sh
-    . "$TESTSLIB/user.sh"
-
     if [ "$(snap debug confinement)" != strict ]; then
         exit 0
     fi
 
-    echo "Install the curl snap as a confined example client"
-    snap install --edge test-snapd-curl
-
     echo "The snap session agent REST API socket exists"
-    test -S "${USER_RUNTIME_DIR}/snapd-session-agent.socket"
+    test -S "/run/user/12345/snapd-session-agent.socket"
 
     echo "But confined applications can not access it"
-    not su -l -c "test-snapd-curl.curl \
-        --unix-socket \"${USER_RUNTIME_DIR}/snapd-session-agent.socket\" \
-        -D- http://localhost/v1/session-info" test
+    not tests.session -u test exec test-snapd-curl.curl \
+        --unix-socket /run/user/12345/snapd-session-agent.socket \
+        -D- http://localhost/v1/session-info
 
     echo "Confined apps running as root also can not access it"
     not test-snapd-curl.curl \
-        --unix-socket "${USER_RUNTIME_DIR}/snapd-session-agent.socket" \
+        --unix-socket /run/user/12345/snapd-session-agent.socket \
         -D- http://localhost/v1/session-info

@@ -5,9 +5,7 @@ systems: [-ubuntu-core-*]
 execute: |
     echo "Ensure we have no core"
     systemctl stop snapd
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB/dirs.sh"
-    $LIBEXECDIR/snapd/snap-mgmt --purge
+    snapd.tool exec snap-mgmt --purge
     systemctl start snapd
     snap wait system seed.loaded
     test "$(snap list | grep -v -c ^Name)" = 0

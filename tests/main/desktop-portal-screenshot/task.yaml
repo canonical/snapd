@@ -20,23 +20,22 @@ description: |
 
 # Only enable the test on systems we know portals to function on.
 # Expand as needed.
-systems: [ubuntu-18.04-*, ubuntu-19.10-*, ubuntu-20.04-*]
+systems: [ubuntu-18.04-*, ubuntu-19.10-*, ubuntu-2*]
 
 prepare: |
     #shellcheck source=tests/lib/desktop-portal.sh
     . "$TESTSLIB"/desktop-portal.sh
     setup_portals
+    tests.session -u test prepare
 
 restore: |
+    tests.session -u test restore
     #shellcheck source=tests/lib/desktop-portal.sh
     . "$TESTSLIB"/desktop-portal.sh
     teardown_portals
     rm -f /tmp/screenshot.txt
 
 execute: |
-    #shellcheck source=tests/lib/desktop-portal.sh
-    . "$TESTSLIB"/desktop-portal.sh
-
     echo "Install the portals test client"
     snap install --edge test-snapd-portal-client
 
@@ -46,12 +45,12 @@ execute: |
     # file ownership is exposed through the document portal, and our
     # AppArmor policy uses the @owner restriction.
     chown test:test /tmp/screenshot.txt
-    as_user test-snapd-portal-client screenshot | MATCH "my screenshot"
+    tests.session -u test exec test-snapd-portal-client screenshot | MATCH "my screenshot"
 
 debug: |
     #shellcheck source=tests/lib/desktop-portal.sh
     . "$TESTSLIB"/desktop-portal.sh
 
-    ls -la "/run/user/$TEST_UID/" || true
+    ls -la "/run/user/$(id -u test)" || true
     #shellcheck disable=SC2009
     ps -ef | grep xdg || true
