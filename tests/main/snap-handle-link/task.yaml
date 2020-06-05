@@ -12,10 +12,14 @@ prepare: |
 
     # Make sure there is a default handler to open a snap package
     tests.session -u test exec mkdir -p /home/test/.config
+    tests.session -u test exec mv /home/test/.config /home/test/.config.bak
+    tests.session -u test exec mkdir -p /home/test/.config
     tests.session -u test exec xdg-mime default snap-handle-link.desktop x-scheme-handler/snap
 
 restore: |
     umount -f /usr/bin/zenity || :
+    tests.session -u test exec rm -rf /home/test/.config
+    tests.session -u test exec mv /home/test/.config.bak /home/test/.config
     tests.session -u test restore
 
 execute: |
