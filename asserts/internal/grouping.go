@@ -227,6 +227,10 @@ func (gr *Groupings) bitsetDeserialize(g *Grouping, b []byte) (*Grouping, error)
 	if g.size > gr.maxGroup+1 {
 		return nil, errSerializedLabel
 	}
+	if g.size <= gr.bitsetThreshold {
+		// should not have used a bitset repr for so few elements
+		return nil, errSerializedLabel
+	}
 	g.elems = make([]uint16, gr.bitsetThreshold)
 	binary.Read(buf, binary.LittleEndian, g.elems)
 	return g, nil

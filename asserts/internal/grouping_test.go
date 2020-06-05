@@ -160,6 +160,10 @@ func (s *groupingsSuite) TestDeserializeLabelErrors(c *C) {
 		internal.Serialize([]uint16{0, 0, 0, 0, 0, 0}),
 		// bitset: larger than maxgroup
 		internal.Serialize([]uint16{6, 0, 0, 0, 0}),
+		// bitset: grouping size is too small
+		internal.Serialize([]uint16{0, 0, 0, 0, 0}),
+		internal.Serialize([]uint16{1, 0, 0, 0, 0}),
+		internal.Serialize([]uint16{4, 0, 0, 0, 0}),
 	}
 
 	for _, il := range invalidLabels {
