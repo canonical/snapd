@@ -47,6 +47,59 @@ import (
 	_ "github.com/snapcore/snapd/overlord/configstate"
 )
 
+func verifyInstallTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.State) {
+	kinds := taskKinds(ts.Tasks())
+
+	expected := []string{
+		"prerequisites",
+		"download-snap",
+		"validate-snap",
+		"mount-snap",
+	}
+	if opts&unlinkBefore != 0 {
+		expected = append(expected,
+			"stop-snap-services",
+			"remove-aliases",
+			"unlink-current-snap",
+		)
+	}
+	if opts&updatesGadget != 0 {
+		expected = append(expected, "update-gadget-assets")
+	}
+	expected = append(expected,
+		"copy-snap-data",
+		"setup-profiles",
+		"link-snap",
+	)
+	expected = append(expected,
+		"auto-connect",
+		"set-auto-aliases",
+		"setup-aliases",
+		"run-hook[install]",
+		"start-snap-services")
+	for i := 0; i < discards; i++ {
+		expected = append(expected,
+			"clear-snap",
+			"discard-snap",
+		)
+	}
+	if opts&cleanupAfter != 0 {
+		expected = append(expected,
+			"cleanup",
+		)
+	}
+	if opts&noConfigure == 0 {
+		expected = append(expected,
+			"run-hook[configure]",
+		)
+	}
+	expected = append(expected,
+		"run-hook[check-health]",
+	)
+
+	c.Assert(kinds, DeepEquals, expected)
+}
+
 func (s *snapmgrTestSuite) TestInstallDevModeConfinementFiltering(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -2998,4 +3051,58 @@ version: 1.0
 
 	_, _, err = snapstate.InstallPath(s.state, si, mockSnap, "some-snap_foo", "", snapstate.Flags{})
 	c.Assert(err, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestInstallMany(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	installed, tts, err := snapstate.InstallMany(s.state, []string{"one", "two"}, 0)
+	c.Assert(err, IsNil)
+	c.Assert(tts, HasLen, 2)
+	c.Check(installed, DeepEquals, []string{"one", "two"})
+
+	c.Check(s.fakeStore.seenPrivacyKeys["privacy-key"], Equals, true)
+
+	for i, ts := range tts {
+		verifyInstallTasks(c, 0, 0, ts, s.state)
+		// check that tasksets are in separate lanes
+		for _, t := range ts.Tasks() {
+			c.Assert(t.Lanes(), DeepEquals, []int{i + 1})
+		}
+	}
+}
+
+func (s *snapmgrTestSuite) TestInstallManyTooEarly(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("seeded", nil)
+
+	_, _, err := snapstate.InstallMany(s.state, []string{"one", "two"}, 0)
+	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
+	c.Assert(err, ErrorMatches, `too early for operation, device not yet seeded or device model not acknowledged`)
+}
+
+func (s *snapmgrTestSuite) TestInstallManyChecksPreconditions(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	_, _, err := snapstate.InstallMany(s.state, []string{"some-snap-now-classic"}, 0)
+	c.Assert(err, NotNil)
+	c.Check(err, DeepEquals, &snapstate.SnapNeedsClassicError{Snap: "some-snap-now-classic"})
+
+	_, _, err = snapstate.InstallMany(s.state, []string{"some-snap_foo"}, 0)
+	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.parallel-instances' to true")
+}
+
+func verifyStopReason(c *C, ts *state.TaskSet, reason string) {
+	tl := tasksWithKind(ts, "stop-snap-services")
+	c.Check(tl, HasLen, 1)
+
+	var stopReason string
+	err := tl[0].Get("stop-reason", &stopReason)
+	c.Assert(err, IsNil)
+	c.Check(stopReason, Equals, reason)
+
 }
