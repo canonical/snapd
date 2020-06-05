@@ -333,8 +333,8 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 	mbl, ok := bl.(bootloader.ManagedBootloader)
 	if ok {
 		// the bootloader can manage its boot script, let it
-		// install/update the script now
-		if err := mbl.InstallBootScript(opts); err != nil {
+		// update the script now
+		if err := mbl.UpdateBootScript(opts); err != nil {
 			return fmt.Errorf("cannot install managed bootloader script: %v", err)
 		}
 	}
