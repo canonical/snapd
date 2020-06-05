@@ -1,0 +1,52 @@
+summary: Test that gadget config defaults are applied early on core20.
+
+systems: [ubuntu-20.04-64]
+
+environment:
+    ENABLE_TPM: true
+    ENABLE_SECURE_BOOT: true
+    BUILD_SNAPD_FROM_CURRENT: true
+
+prepare: |
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+
+    mkdir extra-snaps
+
+    # Get the snakeoil key and cert
+    KEY_NAME=$(get_snakeoil_key)
+    SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
+    SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
+
+    # modify and repack gadget snap (add defaults section and install hook)
+    snap download --basename=pc --channel="20/edge" pc
+    unsquashfs -d pc-gadget pc.snap
+
+    cat defaults.yaml >> pc-gadget/meta/gadget.yaml
+    mkdir -p pc-gadget/meta/hooks
+    cp install pc-gadget/meta/hooks/
+
+    secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+    snap pack pc-gadget/ extra-snaps/
+
+    rm -f "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+
+    create_nested_core_vm
+    start_nested_core_vm
+
+restore: |
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+    destroy_nested_vm
+    cleanup_nested_env
+
+execute: |
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+
+    execute_remote "sudo snap wait system seed.loaded"
+
+    echo "Test that rsyslog was disabled early."
+    # early config is witnessed by install hook of the pc gadget
+    execute_remote "cat /var/snap/pc/common/debug.txt" | MATCH "/dev/null"
+    execute_remote "test -L /etc/systemd/system/rsyslog.service"

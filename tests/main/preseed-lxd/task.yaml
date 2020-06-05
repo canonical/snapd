@@ -46,6 +46,7 @@ restore: |
     lxc stop my-ubuntu --force || true
     lxc delete my-ubuntu || true
     apt purge -y lxd
+    apt autoremove --purge -y
   fi
 
   umount "$IMAGE_MOUNTPOINT"
