@@ -163,7 +163,8 @@ var ErrTooManyRequests = errors.New("too many requests")
 // UnexpectedHTTPStatusError represents an error where the store
 // returned an unexpected HTTP status code, i.e. a status code that
 // doesn't represent success nor an expected error condition with
-// known handling (e.g. a 404 when presence is alway expected).
+// known handling (e.g. a 404 when instead presence is always
+// expected).
 type UnexpectedHTTPStatusError struct {
 	OpSummary  string
 	StatusCode int
