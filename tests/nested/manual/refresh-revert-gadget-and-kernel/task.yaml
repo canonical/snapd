@@ -13,19 +13,40 @@ environment:
     USE_CLOUD_INIT: true
     ENABLE_SECURE_BOOT: true
     ENABLE_TPM: true
+    SNAP/kernel: pc-kernel
+    SNAP/gadget: pc
 
 prepare: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
 
+    FROM_REV="$(get_snap_rev_for_channel $SNAP 20/$CORE_CHANNEL)"
+    TO_REV="$(get_snap_rev_for_channel $SNAP 20/$CORE_REFRESH_CHANNEL)"
+
+    if [ "$FROM_REV" = "$TO_REV" ]; then
+        echo "Initial and target revisions are the same, skipping..."
+        touch skip.test
+        exit
+    fi
+
+    mkdir -p "$WORK_DIR/image"
     rm -f "$WORK_DIR/image/ubuntu-core.img"
 
-    create_nested_core_vm
+    URL="$(get_cdimage_current_image_url 20 dangerous-$CORE_CHANNEL amd64)"
+    wget -O "$WORK_DIR/image/ubuntu-core.img.xz" "$URL"
+    unxz "$WORK_DIR/image/ubuntu-core.img.xz"
+
+    configure_cloud_init_nested_core_vm_uc20
     start_nested_core_vm
 
 restore: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
+
+    if [ -f skip.test ]; then
+        rm -f skip.test
+        exit
+    fi
 
     destroy_nested_vm
     cleanup_nested_env
@@ -36,40 +57,27 @@ execute: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
 
-    # Check the initial version of the snaps is correct
-    execute_remote "snap list pc" | MATCH "^pc .* 20/$CORE_CHANNEL .*"
-    execute_remote "snap list pc-kernel" | MATCH "^pc-kernel .* 20/$CORE_CHANNEL .*"
+    if [ -f skip.test ]; then
+        exit
+    fi
 
-    # The kernel and gadget snaps are refreshed
-    execute_remote "sudo snap refresh --$CORE_REFRESH_CHANNEL pc"
-    execute_remote "sudo snap refresh --$CORE_REFRESH_CHANNEL pc-kernel"
+    execute_remote "snap list $SNAP" | MATCH "^$SNAP .* 20/$CORE_CHANNEL .*"
+    # The snap is refreshed
+    execute_remote "sudo snap refresh --channel $CORE_REFRESH_CHANNEL $SNAP" || true
 
-    # Check the new version of the snaps is correct
-    execute_remote "snap list pc" | MATCH "^pc .* 20/$CORE_REFRESH_CHANNEL .*"
-    execute_remote "snap list pc-kernel" | MATCH "^pc-kernel .* 20/$CORE_REFRESH_CHANNEL .*"
-
-    # Reboot the system
-    execute_remote "sudo reboot"
+    # Wait for system reboot
     wait_for_no_ssh
     wait_for_ssh
 
     # Check the new version of the snaps is correct after the system reboot
-    execute_remote "snap list pc" | MATCH "^pc .* 20/$CORE_REFRESH_CHANNEL .*"
-    execute_remote "snap list pc-kernel" | MATCH "^pc-kernel .* 20/$CORE_REFRESH_CHANNEL .*"
+    execute_remote "snap list $SNAP" | MATCH "^$SNAP .* 20/$CORE_REFRESH_CHANNEL .*"
 
-    # The kernel and gadget snaps are reverted
-    execute_remote "sudo snap revert pc"
-    execute_remote "sudo snap revert pc-kernel"
+    # The snap is reverted
+    execute_remote "sudo snap revert $SNAP" || true
 
-    # Check the version of the snaps after the revert is correct
-    execute_remote "snap list pc" | MATCH "^pc .* 20/$CORE_CHANNEL .*"
-    execute_remote "snap list pc-kernel" | MATCH "^pc-kernel .* 20/$CORE_CHANNEL .*"
-
-    # Reboot the system
-    execute_remote "sudo reboot"
+    # Wait for system reboot
     wait_for_no_ssh
     wait_for_ssh
 
-    # Check the reverted version of the snaps is correct after the system reboot
-    execute_remote "snap list pc" | MATCH "^pc .* 20/$CORE_CHANNEL .*"
-    execute_remote "snap list pc-kernel" | MATCH "^pc-kernel .* 20/$CORE_CHANNEL .*"
+    # Check the version of the snaps after the revert is correct
+    execute_remote "snap list $SNAP" | MATCH "^$SNAP .* 20/$CORE_CHANNEL .*"
