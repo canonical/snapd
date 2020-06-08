@@ -44,9 +44,7 @@ execute: |
     echo "And the snap app state can be introspected"
     tests.session -u test exec test-snapd-autopilot-consumer.consumer GetState | MATCH "my-ap-state"
 
-    if [ "$(snap debug confinement)" = partial ] ; then
-        exit 0
-    fi
+    SKIP [ "$(snap debug confinement)" = partial ]
 
     echo "When the plug is disconnected"
     snap disconnect test-snapd-autopilot-consumer:autopilot-introspection

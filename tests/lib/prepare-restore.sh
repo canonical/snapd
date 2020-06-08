@@ -595,6 +595,9 @@ restore_suite_each() {
         # to prevent hitting the system restart rate-limit for these services
         systemctl reset-failed snapd.service snapd.socket snapd.failure.service
     fi
+
+    # Clean the skip file
+    rm -f skip.test
 }
 
 restore_suite() {

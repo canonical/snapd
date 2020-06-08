@@ -1,0 +1,12 @@
+#!/bin/bash
+
+if [ -z "$@" ] && [ -f skip.test ]; then
+	echo "Skipping phase..."
+	exit
+fi
+
+if eval "$@" &>/dev/null; then
+	echo "SKIP matched..."
+	touch skip.test
+	exit
+fi
