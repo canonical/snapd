@@ -104,7 +104,7 @@ func LkRuntimeMode(b Bootloader) bool {
 }
 
 var (
-	EditionFromScriptFile = editionFromScriptFile
-	EditionFromScript     = editionFromScript
-	BootScriptFrom        = bootScriptFrom
+	EditionFromDiskConfigAsset = editionFromDiskConfigAsset
+	EditionFromConfigAsset     = editionFromConfigAsset
+	ConfigAssetFrom            = configAssetFrom
 )

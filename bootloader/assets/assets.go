@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+
 package assets
 
 import (
@@ -34,14 +35,14 @@ func registerAsset(name string, data []byte) {
 	registeredAssets[name] = data
 }
 
-// GetBootAsset returns the content of boot asset registered under the given
-// name, or nil when none was found.
-func GetBootAsset(name string) []byte {
+// GetInternalBootAsset returns the content of internal boot asset registered
+// under the given name, or nil when none was found.
+func GetInternalBootAsset(name string) []byte {
 	return registeredAssets[name]
 }
 
-// MockBootAsset mocks the contents of boot asset for use in testing.
-func MockBootAsset(name string, data []byte) (restore func()) {
+// MockInternalBootAsset mocks the contents of boot asset for use in testing.
+func MockInternalBootAsset(name string, data []byte) (restore func()) {
 	var isSnapdTest = len(os.Args) > 0 && strings.HasSuffix(os.Args[0], ".test")
 	if !isSnapdTest {
 		panic("mocking can be done only in tests")

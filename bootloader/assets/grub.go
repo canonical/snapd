@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+
 package assets
 
 // TODO:UC20 extract common and template parts of command line
@@ -31,7 +32,7 @@ package assets
 //
 //     gadget: bump edition to 2, using production signing keys for everything.
 
-const grubBootScript = `# Snapd-Boot-Script-Edition: 1
+const grubBootConfig = `# Snapd-Boot-Config-Edition: 1
 
 set default=0
 set timeout=3
@@ -77,7 +78,7 @@ else
 fi
 `
 
-const grubRecoveryScript = `# Snapd-Boot-Script-Edition: 1
+const grubRecoveryConfig = `# Snapd-Boot-Config-Edition: 1
 
 set default=0
 set timeout=3
@@ -143,6 +144,6 @@ menuentry 'System setup' --hotkey=f 'uefi-firmware' {
 `
 
 func init() {
-	registerAsset("grub.cfg", []byte(grubBootScript))
-	registerAsset("grub-recovery.cfg", []byte(grubRecoveryScript))
+	registerAsset("grub.cfg", []byte(grubBootConfig))
+	registerAsset("grub-recovery.cfg", []byte(grubRecoveryConfig))
 }

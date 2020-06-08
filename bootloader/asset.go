@@ -30,41 +30,31 @@ import (
 	"strings"
 )
 
-var (
-	_ bootScript = (*textBootScript)(nil)
-)
-
-// bootScript is a wrapper for boot scripts
-type bootScript interface {
-	Edition() uint
-	Script() []byte
-}
-
 var errNoEdition = errors.New("no edition")
 
-// editionFromScriptFile extracts the edition information from a boot script
-// file
-func editionFromScriptFile(p string) (uint, error) {
+// editionFromDiskConfigAsset extracts the edition information from a boot
+// config asset on disk.
+func editionFromDiskConfigAsset(p string) (uint, error) {
 	f, err := os.Open(p)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return 0, errNoEdition
 		}
-		return 0, fmt.Errorf("cannot load existing boot script: %v", err)
+		return 0, fmt.Errorf("cannot load existing config asset: %v", err)
 	}
 	defer f.Close()
-	return editionFromScript(f)
+	return editionFromConfigAsset(f)
 }
 
-const editionHeader = "# Snapd-Boot-Script-Edition: "
+const editionHeader = "# Snapd-Boot-Config-Edition: "
 
-// editionFromScript extracts edition information from boot script
-func editionFromScript(script io.Reader) (uint, error) {
-	scanner := bufio.NewScanner(script)
+// editionFromConfigAsset extracts edition information from boot config asset.
+func editionFromConfigAsset(asset io.Reader) (uint, error) {
+	scanner := bufio.NewScanner(asset)
 	if !scanner.Scan() {
-		err := fmt.Errorf("cannot read boot script: unexpected EOF")
+		err := fmt.Errorf("cannot read config asset: unexpected EOF")
 		if sErr := scanner.Err(); sErr != nil {
-			err = fmt.Errorf("cannot read boot script: %v", err)
+			err = fmt.Errorf("cannot read config asset: %v", err)
 		}
 		return 0, err
 	}
@@ -78,32 +68,33 @@ func editionFromScript(script io.Reader) (uint, error) {
 	editionStr = strings.TrimSpace(editionStr)
 	edition, err := strconv.ParseUint(editionStr, 10, 32)
 	if err != nil {
-		return 0, fmt.Errorf("cannot parse script edition: %v", err)
+		return 0, fmt.Errorf("cannot parse asset edition: %v", err)
 	}
 	return uint(edition), nil
 }
 
-// textBootScript is a simple, textual boot script, used by grub or u-boot
-type textBootScript struct {
-	text          []byte
+// configAsset is a boot config asset, such as text script, used by grub or
+// u-boot.
+type configAsset struct {
+	body          []byte
 	parsedEdition uint
 }
 
-func (g *textBootScript) Edition() uint {
+func (g *configAsset) Edition() uint {
 	return g.parsedEdition
 }
 
-func (g *textBootScript) Script() []byte {
-	return g.text
+func (g *configAsset) Raw() []byte {
+	return g.body
 }
 
-func bootScriptFrom(data []byte) (bootScript, error) {
-	edition, err := editionFromScript(bytes.NewReader(data))
+func configAssetFrom(data []byte) (*configAsset, error) {
+	edition, err := editionFromConfigAsset(bytes.NewReader(data))
 	if err != nil && err != errNoEdition {
 		return nil, err
 	}
-	gbs := &textBootScript{
-		text:          data,
+	gbs := &configAsset{
+		body:          data,
 		parsedEdition: edition,
 	}
 	return gbs, nil
