@@ -104,7 +104,7 @@ const launcherIntrospectionXML = `
 //   - https://github.com/snapcore/snapd/pull/8304
 
 var (
-	allowedURLSchemes = []string{"http", "https", "mailto", "snap", "help", "apt", "zoommtg"}
+	allowedURLSchemes = []string{"http", "https", "mailto", "snap", "help", "apt", "zoommtg", "slack"}
 )
 
 // Launcher implements the 'io.snapcraft.Launcher' DBus interface.
