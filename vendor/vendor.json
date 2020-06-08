@@ -7,10 +7,10 @@
 			"revision": ""
 		},
 		{
-			"checksumSHA1": "FM+dp3Hv1n+R9b/gqhtjSq6W4T8=",
+			"checksumSHA1": "s0Ow9uk/0H2Pmfq4JAGpzy5x6T0=",
 			"path": "github.com/canonical/go-tpm2",
-			"revision": "16307201a54dc51583440f9416cfa836bcf0b3fc",
-			"revisionTime": "2020-04-16T00:17:14Z"
+			"revision": "aaf158ed20ca23c48b446f78fb0bbaf4055e7123",
+			"revisionTime": "2020-05-14T15:04:06Z"
 		},
 		{
 			"checksumSHA1": "bT/rC7K8St3lNRXf/XJGpB4wNJU=",
@@ -110,10 +110,16 @@
 			"revisionTime": "2017-09-28T14:21:59Z"
 		},
 		{
-			"checksumSHA1": "DLybl1kT3Xoui39mHI4jO4+1GuM=",
+			"checksumSHA1": "jK98PjsZS3gPOZfc+pqIQaz6r1A=",
 			"path": "github.com/snapcore/secboot",
-			"revision": "9530c0bc45a0828327097bd5d966da15bc9e8697",
-			"revisionTime": "2020-05-12T08:22:20Z"
+			"revision": "cfffb144f9df6f8aa65c4c4ee0786602a79d1b60",
+			"revisionTime": "2020-07-02T10:51:30Z"
+		},
+		{
+			"checksumSHA1": "loFEiH6evGaDnDSlQgk3ugemkcU=",
+			"path": "github.com/snapcore/secboot/internal/pe1.14",
+			"revision": "cfffb144f9df6f8aa65c4c4ee0786602a79d1b60",
+			"revisionTime": "2020-07-02T10:51:30Z"
 		},
 		{
 			"checksumSHA1": "3AmEm18mKj8XxBuru/ix4OOpRkE=",
