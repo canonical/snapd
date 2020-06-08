@@ -17,14 +17,16 @@ description: |
 # Expand as needed.
 # ubuntu-18.04-*: Ships xdg-desktop-portal 0.11
 # ubuntu-19.10-*: Ships xdg-desktop-portal 1.2.0
-systems: [ubuntu-18.04-*, ubuntu-19.10-*, ubuntu-20.04-*]
+systems: [ubuntu-18.04-*, ubuntu-19.10-*, ubuntu-2*]
 
 prepare: |
     #shellcheck source=tests/lib/desktop-portal.sh
     . "$TESTSLIB"/desktop-portal.sh
     setup_portals
+    tests.session -u test prepare
 
 restore: |
+    tests.session -u test restore
     #shellcheck source=tests/lib/desktop-portal.sh
     . "$TESTSLIB"/desktop-portal.sh
     teardown_portals
@@ -32,9 +34,6 @@ restore: |
     rm -f /tmp/file-to-write.txt
 
 execute: |
-    #shellcheck source=tests/lib/desktop-portal.sh
-    . "$TESTSLIB"/desktop-portal.sh
-
     echo "Install the portals test client"
     snap install --edge test-snapd-portal-client
 
@@ -43,7 +42,7 @@ execute: |
     # file ownership is exposed through the document portal, and our
     # AppArmor policy uses the @owner restriction.
     chown test:test /tmp/file-to-read.txt
-    as_user test-snapd-portal-client open-file | MATCH "from-host-system"
+    tests.session -u test exec test-snapd-portal-client open-file | MATCH "from-host-system"
 
     echo "The confined application can write files via the portal"
     [ ! -f /tmp/file-to-write.txt ]
@@ -58,7 +57,7 @@ execute: |
     touch /tmp/file-to-write.txt
     chown test:test /tmp/file-to-write.txt
 
-    as_user test-snapd-portal-client save-file "from-sandbox"
+    tests.session -u test exec test-snapd-portal-client save-file "from-sandbox"
 
     # TODO: another workaround for testing on 18.04
     # Retry checking until the file contains the written text. In particular on
@@ -68,13 +67,13 @@ execute: |
     # backing file. It was observed that, even after client does close and the
     # corresponding *fuse_release() code completes on the portal side, the
     # contents are not visible in the destination file.
-    retry-tool -n 5 test -s /tmp/file-to-write.txt
+    retry -n 5 test -s /tmp/file-to-write.txt
     MATCH "from-sandbox" < /tmp/file-to-write.txt
 
 debug: |
     #shellcheck source=tests/lib/desktop-portal.sh
     . "$TESTSLIB"/desktop-portal.sh
 
-    ls -la "/run/user/$TEST_UID/" || true
+    ls -la "/run/user/$(id -u test)" || true
     #shellcheck disable=SC2009
     ps -ef | grep xdg || true

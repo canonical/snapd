@@ -21,10 +21,12 @@
 package secboot
 
 import (
-	sb "github.com/snapcore/secboot"
-)
+	"io"
 
-type TPMSupport = tpmSupport
+	sb "github.com/snapcore/secboot"
+
+	"github.com/snapcore/snapd/asserts"
+)
 
 func MockSbConnectToDefaultTPM(f func() (*sb.TPMConnection, error)) (restore func()) {
 	old := sbConnectToDefaultTPM
@@ -58,10 +60,76 @@ func MockSbAddSystemdEFIStubProfile(f func(profile *sb.PCRProtectionProfile, par
 	}
 }
 
+func MockSbAddSnapModelProfile(f func(profile *sb.PCRProtectionProfile, params *sb.SnapModelProfileParams) error) (restore func()) {
+	old := sbAddSnapModelProfile
+	sbAddSnapModelProfile = f
+	return func() {
+		sbAddSnapModelProfile = old
+	}
+}
+
 func MockSbSealKeyToTPM(f func(tpm *sb.TPMConnection, key []byte, keyPath, policyUpdatePath string, params *sb.KeyCreationParams) error) (restore func()) {
 	old := sbSealKeyToTPM
 	sbSealKeyToTPM = f
 	return func() {
 		sbSealKeyToTPM = old
+	}
+}
+
+func MockSbLockAccessToSealedKeys(f func(tpm *sb.TPMConnection) error) (restore func()) {
+	old := sbLockAccessToSealedKeys
+	sbLockAccessToSealedKeys = f
+	return func() {
+		sbLockAccessToSealedKeys = old
+	}
+}
+
+func MockSbActivateVolumeWithRecoveryKey(f func(volumeName, sourceDevicePath string,
+	keyReader io.Reader, options *sb.ActivateWithRecoveryKeyOptions) error) (restore func()) {
+	old := sbActivateVolumeWithRecoveryKey
+	sbActivateVolumeWithRecoveryKey = f
+	return func() {
+		sbActivateVolumeWithRecoveryKey = old
+	}
+}
+
+func MockSbActivateVolumeWithTPMSealedKey(f func(tpm *sb.TPMConnection, volumeName, sourceDevicePath, keyPath string,
+	pinReader io.Reader, options *sb.ActivateWithTPMSealedKeyOptions) (bool, error)) (restore func()) {
+	old := sbActivateVolumeWithTPMSealedKey
+	sbActivateVolumeWithTPMSealedKey = f
+	return func() {
+		sbActivateVolumeWithTPMSealedKey = old
+	}
+}
+
+func MockSbMeasureSnapSystemEpochToTPM(f func(tpm *sb.TPMConnection, pcrIndex int) error) (restore func()) {
+	old := sbMeasureSnapSystemEpochToTPM
+	sbMeasureSnapSystemEpochToTPM = f
+	return func() {
+		sbMeasureSnapSystemEpochToTPM = old
+	}
+}
+
+func MockSbMeasureSnapModelToTPM(f func(tpm *sb.TPMConnection, pcrIndex int, model *asserts.Model) error) (restore func()) {
+	old := sbMeasureSnapModelToTPM
+	sbMeasureSnapModelToTPM = f
+	return func() {
+		sbMeasureSnapModelToTPM = old
+	}
+}
+
+func MockDevDiskByLabelDir(new string) (restore func()) {
+	old := devDiskByLabelDir
+	devDiskByLabelDir = new
+	return func() {
+		devDiskByLabelDir = old
+	}
+}
+
+func MockRandomKernelUUID(new func() string) (restore func()) {
+	old := randutilRandomKernelUUID
+	randutilRandomKernelUUID = new
+	return func() {
+		randutilRandomKernelUUID = old
 	}
 }

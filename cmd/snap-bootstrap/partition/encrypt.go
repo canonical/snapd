@@ -54,17 +54,6 @@ func NewEncryptionKey() (EncryptionKey, error) {
 	return key, err
 }
 
-// Store writes the LUKS key in the location specified by filename.
-func (key EncryptionKey) Store(filename string) error {
-	// TODO:UC20: provision the TPM, generate and store the lockout authorization,
-	//            and seal the key. Currently we're just storing the unprocessed data.
-	if err := ioutil.WriteFile(filename, key[:], 0600); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 type RecoveryKey [recoveryKeySize]byte
 
 func NewRecoveryKey() (RecoveryKey, error) {
@@ -75,12 +64,12 @@ func NewRecoveryKey() (RecoveryKey, error) {
 	return key, err
 }
 
-// Store writes the recovery key in the location specified by filename.
-func (key RecoveryKey) Store(filename string) error {
+// Save writes the recovery key in the location specified by filename.
+func (key RecoveryKey) Save(filename string) error {
 	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
 		return err
 	}
-	return ioutil.WriteFile(filename, key[:], 0600)
+	return osutil.AtomicWriteFile(filename, key[:], 0600, 0)
 }
 
 // EncryptedDevice represents a LUKS-backed encrypted block device.
@@ -174,6 +163,9 @@ func cryptsetupClose(name string) error {
 func cryptsetupAddKey(key EncryptionKey, rkey RecoveryKey, node string) error {
 	// create a named pipe to pass the recovery key
 	fpath := filepath.Join(dirs.SnapRunDir, "tmp-rkey")
+	if err := os.MkdirAll(dirs.SnapRunDir, 0755); err != nil {
+		return err
+	}
 	if err := syscall.Mkfifo(fpath, 0600); err != nil {
 		return fmt.Errorf("cannot create named pipe: %v", err)
 	}

@@ -83,6 +83,15 @@ prepare: |
             fi
         ;;
     esac
+
+    # Systemd creates an automount unit for the /proc/sys/fs/binfmt_misc filesystem.
+    # Any non-special interaction with that directory will trigger auto-mount
+    # behavior.  Since this is extremely easy to do, we don't want to affect
+    # our measurement by it in any way. A simple way to avoid that is to stop
+    # the *mount* unit, it will still be auto-mounted on demand but will no
+    # longer be mounted while we measure.
+    systemctl stop proc-sys-fs-binfmt_misc.mount
+
     # The --renumber and --rename options renumber and rename various
     # non-deterministic elements of the mount table. The --ref-x1000 option
     # sets a multiple of 1000 as the base value for allocated renumbered
@@ -153,9 +162,9 @@ prepare: |
 
     echo "Collect mountinfo from the host after running apps"
     # "make sure that persistent mount namespaces don't clobber the output"
-    snap-tool snap-discard-ns test-snapd-mountinfo-classic
-    snap-tool snap-discard-ns test-snapd-mountinfo-core16
-    snap-tool snap-discard-ns test-snapd-mountinfo-core18
+    snapd.tool exec snap-discard-ns test-snapd-mountinfo-classic
+    snapd.tool exec snap-discard-ns test-snapd-mountinfo-core16
+    snapd.tool exec snap-discard-ns test-snapd-mountinfo-core18
     umount /run/snapd/ns
     cat /proc/self/mountinfo >HOST-AFTER.raw.txt
 

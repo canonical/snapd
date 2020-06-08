@@ -47,6 +47,10 @@ restore: |
         not test -d /snap/snapd
         # cleanup the snapd-from-core snap we built
         rm -f snapd-from-core.snap
+        rm -f /etc/systemd/user/snapd.session-agent.service
+        rm -f /etc/systemd/user/snapd.session-agent.socket
+        rm -f /etc/systemd/user/sockets.target.wants/snapd.session-agent.socket
+        systemctl --user daemon-reload
     fi
 
 execute: |
@@ -117,7 +121,7 @@ execute: |
             # just because snapd.failure.service is active doesn't mean that we are 
             # fully ready; we should wait until the snap command shows up again
             echo "And verify that snap commands still work and snapd is reverted"
-            retry-tool --maxmins 5.5 bash -c "snap list | MATCH '^snapd .* $current .*'"
+            retry --maxmins 5.5 bash -c "snap list | MATCH '^snapd .* $current .*'"
 
             echo "Verify we got the expected error message"
             snap change --last=install|MATCH "there was a snapd rollback across the restart"
