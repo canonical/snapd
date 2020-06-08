@@ -145,6 +145,6 @@ menuentry 'System setup' --hotkey=f 'uefi-firmware' {
 `
 
 func init() {
-	registerAsset("grub.conf", []byte(grubBootScript))
-	registerAsset("grub-recovery.conf", []byte(grubRecoveryScript))
+	registerAsset("grub.cfg", []byte(grubBootScript))
+	registerAsset("grub-recovery.cfg", []byte(grubRecoveryScript))
 }

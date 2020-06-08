@@ -49,13 +49,13 @@ func (s *grubAssetsTestSuite) testGrubScript(c *C, name string, keys []string) {
 }
 
 func (s *grubAssetsTestSuite) TestGrubConf(c *C) {
-	s.testGrubScript(c, "grub.conf", []string{
+	s.testGrubScript(c, "grub.cfg", []string{
 		"snapd_recovery_mode",
 	})
 }
 
 func (s *grubAssetsTestSuite) TestGrubRecoveryConf(c *C) {
-	s.testGrubScript(c, "grub-recovery.conf", []string{
+	s.testGrubScript(c, "grub-recovery.cfg", []string{
 		"snapd_recovery_mode",
 		"snapd_recovery_system",
 	})
