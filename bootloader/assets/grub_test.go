@@ -36,7 +36,7 @@ type grubAssetsTestSuite struct{}
 
 var _ = Suite(&grubAssetsTestSuite{})
 
-func (s *grubAssetsTestSuite) testGrubConfig(c *C, name string, keys []string) {
+func (s *grubAssetsTestSuite) testGrubConfigContains(c *C, name string, keys ...string) {
 	a := assets.Internal(name)
 	c.Assert(a, NotNil)
 	as := string(a)
@@ -49,14 +49,12 @@ func (s *grubAssetsTestSuite) testGrubConfig(c *C, name string, keys []string) {
 }
 
 func (s *grubAssetsTestSuite) TestGrubConf(c *C) {
-	s.testGrubConfig(c, "grub.cfg", []string{
-		"snapd_recovery_mode",
-	})
+	s.testGrubConfigContains(c, "grub.cfg", "snapd_recovery_mode")
 }
 
 func (s *grubAssetsTestSuite) TestGrubRecoveryConf(c *C) {
-	s.testGrubConfig(c, "grub-recovery.cfg", []string{
+	s.testGrubConfigContains(c, "grub-recovery.cfg",
 		"snapd_recovery_mode",
 		"snapd_recovery_system",
-	})
+	)
 }
