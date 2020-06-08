@@ -153,10 +153,6 @@ func (s *configcoreSuite) SetUpTest(c *C) {
 	s.systemctlArgs = nil
 }
 
-func (s *configcoreSuite) TearDownTest(c *C) {
-	s.BaseTest.TearDownTest(c)
-}
-
 // runCfgSuite tests configcore.Run()
 type runCfgSuite struct {
 	configcoreSuite

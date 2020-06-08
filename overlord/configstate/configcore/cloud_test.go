@@ -41,10 +41,6 @@ func (s *cloudSuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
 }
 
-func (s *cloudSuite) TearDownTest(c *C) {
-	s.configcoreSuite.TearDownTest(c)
-}
-
 func (s *cloudSuite) TestHandleCloud(c *C) {
 	tests := []struct {
 		instData         string

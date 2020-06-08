@@ -72,10 +72,6 @@ func (s *proxySuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *proxySuite) TearDownTest(c *C) {
-	s.configcoreSuite.TearDownTest(c)
-}
-
 func (s *proxySuite) makeMockEtcEnvironment(c *C) {
 	err := ioutil.WriteFile(s.mockEtcEnvironment, []byte(`
 PATH="/usr/bin"

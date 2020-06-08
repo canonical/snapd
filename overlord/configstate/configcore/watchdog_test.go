@@ -50,10 +50,6 @@ func (s *watchdogSuite) SetUpTest(c *C) {
 	s.systemctlArgs = nil
 }
 
-func (s *watchdogSuite) TearDownTest(c *C) {
-	s.configcoreSuite.TearDownTest(c)
-}
-
 func (s *watchdogSuite) TestConfigureWatchdog(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()

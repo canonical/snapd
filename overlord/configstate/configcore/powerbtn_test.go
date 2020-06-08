@@ -47,10 +47,6 @@ func (s *powerbtnSuite) SetUpTest(c *C) {
 	s.mockPowerBtnCfg = filepath.Join(dirs.GlobalRootDir, "/etc/systemd/logind.conf.d/00-snap-core.conf")
 }
 
-func (s *powerbtnSuite) TearDownTest(c *C) {
-	s.configcoreSuite.TearDownTest(c)
-}
-
 func (s *powerbtnSuite) TestConfigurePowerButtonInvalid(c *C) {
 	err := configcore.SwitchHandlePowerKey("invalid-action", nil)
 	c.Check(err, ErrorMatches, `invalid action "invalid-action" supplied for system.power-key-action option`)

@@ -45,10 +45,6 @@ func (s *backlightSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *backlightSuite) TearDownTest(c *C) {
-	s.configcoreSuite.TearDownTest(c)
-}
-
 func (s *backlightSuite) TestConfigureBacklightServiceMaskIntegration(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()

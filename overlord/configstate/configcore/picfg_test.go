@@ -62,10 +62,6 @@ func (s *piCfgSuite) SetUpTest(c *C) {
 	s.mockConfig(c, mockConfigTxt)
 }
 
-func (s *piCfgSuite) TearDownTest(c *C) {
-	s.configcoreSuite.TearDownTest(c)
-}
-
 func (s *piCfgSuite) mockConfig(c *C, txt string) {
 	err := ioutil.WriteFile(s.mockConfigPath, []byte(txt), 0644)
 	c.Assert(err, IsNil)

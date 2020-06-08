@@ -47,10 +47,6 @@ func (s *servicesSuite) SetUpTest(c *C) {
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 }
 
-func (s *servicesSuite) TearDownTest(c *C) {
-	s.configcoreSuite.TearDownTest(c)
-}
-
 func (s *servicesSuite) TestConfigureServiceInvalidValue(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
