@@ -47,7 +47,6 @@ func (s *watchdogSuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
 
 	s.mockEtcEnvironment = filepath.Join(dirs.SnapSystemdConfDir, "10-snapd-watchdog.conf")
-	s.systemctlArgs = nil
 }
 
 func (s *watchdogSuite) TestConfigureWatchdog(c *C) {

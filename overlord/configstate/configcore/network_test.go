@@ -46,7 +46,7 @@ func (s *networkSuite) SetUpTest(c *C) {
 	s.AddCleanup(release.MockOnClassic(false))
 
 	s.mockSysctl = testutil.MockCommand(c, "sysctl", "")
-	s.AddCleanup(func() { s.mockSysctl.Restore() })
+	s.AddCleanup(s.mockSysctl.Restore)
 
 	s.mockNetworkSysctlPath = filepath.Join(dirs.GlobalRootDir, "/etc/sysctl.d/10-snapd-network.conf")
 	c.Assert(os.MkdirAll(filepath.Dir(s.mockNetworkSysctlPath), 0755), IsNil)

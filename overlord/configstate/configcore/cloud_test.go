@@ -37,10 +37,6 @@ type cloudSuite struct {
 
 var _ = Suite(&cloudSuite{})
 
-func (s *cloudSuite) SetUpTest(c *C) {
-	s.configcoreSuite.SetUpTest(c)
-}
-
 func (s *cloudSuite) TestHandleCloud(c *C) {
 	tests := []struct {
 		instData         string
