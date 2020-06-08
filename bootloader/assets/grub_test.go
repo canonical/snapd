@@ -45,7 +45,7 @@ func (s *grubAssetsTestSuite) testGrubScript(c *C, name string, keys []string) {
 	}
 	idx := bytes.IndexRune(a, '\n')
 	c.Assert(idx, Not(Equals), -1)
-	c.Assert(string(a[:idx]), Equals, "# X-Snapd-boot-script-edition: 1")
+	c.Assert(string(a[:idx]), Equals, "# Snapd-Boot-Script-Edition: 1")
 }
 
 func (s *grubAssetsTestSuite) TestGrubConf(c *C) {

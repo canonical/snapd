@@ -38,21 +38,21 @@ type scriptTestSuite struct {
 var _ = Suite(&scriptTestSuite{})
 
 func (s *scriptTestSuite) TestTrivialFromScript(c *C) {
-	e, err := bootloader.EditionFromScript(bytes.NewBufferString(`# X-Snapd-boot-script-edition: 321
+	e, err := bootloader.EditionFromScript(bytes.NewBufferString(`# Snapd-Boot-Script-Edition: 321
 next line
 one after that`))
 	c.Assert(err, IsNil)
 	c.Assert(e, Equals, uint(321))
 
-	e, err = bootloader.EditionFromScript(bytes.NewBufferString(`# X-Snapd-boot-script-edition: 932
-# X-Snapd-boot-script-edition: 321
+	e, err = bootloader.EditionFromScript(bytes.NewBufferString(`# Snapd-Boot-Script-Edition: 932
+# Snapd-Boot-Script-Edition: 321
 one after that`))
 	c.Assert(err, IsNil)
 	c.Assert(e, Equals, uint(932))
 
-	e, err = bootloader.EditionFromScript(bytes.NewBufferString(`# X-Snapd-boot-script-edition: 1234
+	e, err = bootloader.EditionFromScript(bytes.NewBufferString(`# Snapd-Boot-Script-Edition: 1234
 one after that
-# X-Snapd-boot-script-edition: 321
+# Snapd-Boot-Script-Edition: 321
 `))
 	c.Assert(err, IsNil)
 	c.Assert(e, Equals, uint(1234))
@@ -61,7 +61,7 @@ one after that
 func (s *scriptTestSuite) TestTrivialFromFile(c *C) {
 	d := c.MkDir()
 	p := filepath.Join(d, "foo")
-	ioutil.WriteFile(p, []byte(`# X-Snapd-boot-script-edition: 123
+	ioutil.WriteFile(p, []byte(`# Snapd-Boot-Script-Edition: 123
 this is some
 this too`), 0644)
 	e, err := bootloader.EditionFromScriptFile(p)
@@ -70,7 +70,7 @@ this too`), 0644)
 }
 
 func (s *scriptTestSuite) TestRealScript(c *C) {
-	grubScript := assets.GetBootAsset("grub.conf")
+	grubScript := assets.GetBootAsset("grub.cfg")
 	c.Assert(grubScript, NotNil)
 	e, err := bootloader.EditionFromScript(bytes.NewReader(grubScript))
 	c.Assert(err, IsNil)
@@ -111,14 +111,14 @@ without edition header
 }
 
 func (s *scriptTestSuite) TestBadEdition(c *C) {
-	_, err := bootloader.EditionFromScript(bytes.NewReader([]byte(`# X-Snapd-boot-script-edition: random
+	_, err := bootloader.EditionFromScript(bytes.NewReader([]byte(`# Snapd-Boot-Script-Edition: random
 data follows
 `)))
 	c.Assert(err, ErrorMatches, `cannot parse script edition: .* parsing "random": invalid syntax`)
 }
 
 func (s *scriptTestSuite) TestBootScriptFrom(c *C) {
-	script := []byte(`# X-Snapd-boot-script-edition: 123
+	script := []byte(`# Snapd-Boot-Script-Edition: 123
 data follows
 `)
 	bs, err := bootloader.BootScriptFrom(script)

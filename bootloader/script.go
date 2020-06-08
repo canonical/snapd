@@ -56,7 +56,7 @@ func editionFromScriptFile(p string) (uint, error) {
 	return editionFromScript(f)
 }
 
-const editionHeader = "# X-Snapd-boot-script-edition: "
+const editionHeader = "# Snapd-Boot-Script-Edition: "
 
 // editionFromScript extracts edition information from boot script
 func editionFromScript(script io.Reader) (uint, error) {

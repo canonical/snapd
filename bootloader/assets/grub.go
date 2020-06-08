@@ -33,7 +33,7 @@ package assets
 //
 //     gadget: bump edition to 2, using production signing keys for everything.
 
-const grubBootScript = `# X-Snapd-boot-script-edition: 1
+const grubBootScript = `# Snapd-Boot-Script-Edition: 1
 
 set default=0
 set timeout=3
@@ -79,7 +79,7 @@ else
 fi
 `
 
-const grubRecoveryScript = `# X-Snapd-boot-script-edition: 1
+const grubRecoveryScript = `# Snapd-Boot-Script-Edition: 1
 
 set default=0
 set timeout=3
