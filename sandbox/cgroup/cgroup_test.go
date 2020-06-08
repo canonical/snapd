@@ -293,12 +293,11 @@ func (s *cgroupSuite) TestProcessPathInTrackingCgroup(c *C) {
 `
 
 	d := c.MkDir()
-	f := filepath.Join(d, "cgroup")
-	restore := cgroup.MockPathOfProcPidCgroup(func(pid int) string {
-		c.Assert(pid, Equals, 1234)
-		return f
-	})
+	restore := cgroup.MockFsRootPath(d)
 	defer restore()
+
+	f := filepath.Join(d, "proc", "1234", "cgroup")
+	c.Assert(os.MkdirAll(filepath.Dir(f), 0755), IsNil)
 
 	for _, scenario := range []struct{ cgroups, path, errMsg string }{
 		{cgroups: "", path: "", errMsg: "cannot find tracking cgroup"},
