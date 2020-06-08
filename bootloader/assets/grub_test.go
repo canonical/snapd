@@ -36,8 +36,8 @@ type grubAssetsTestSuite struct{}
 
 var _ = Suite(&grubAssetsTestSuite{})
 
-func (s *grubAssetsTestSuite) testGrubScript(c *C, name string, keys []string) {
-	a := assets.GetInternalBootAsset(name)
+func (s *grubAssetsTestSuite) testGrubConfig(c *C, name string, keys []string) {
+	a := assets.Internal(name)
 	c.Assert(a, NotNil)
 	as := string(a)
 	for _, canary := range keys {
@@ -49,13 +49,13 @@ func (s *grubAssetsTestSuite) testGrubScript(c *C, name string, keys []string) {
 }
 
 func (s *grubAssetsTestSuite) TestGrubConf(c *C) {
-	s.testGrubScript(c, "grub.cfg", []string{
+	s.testGrubConfig(c, "grub.cfg", []string{
 		"snapd_recovery_mode",
 	})
 }
 
 func (s *grubAssetsTestSuite) TestGrubRecoveryConf(c *C) {
-	s.testGrubScript(c, "grub-recovery.cfg", []string{
+	s.testGrubConfig(c, "grub-recovery.cfg", []string{
 		"snapd_recovery_mode",
 		"snapd_recovery_system",
 	})

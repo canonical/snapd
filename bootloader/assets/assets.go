@@ -27,7 +27,7 @@ import (
 
 var registeredAssets = map[string][]byte{}
 
-// registerAsset registers a boot asset under the given name.
+// registerAsset registers an asset under the given name.
 func registerAsset(name string, data []byte) {
 	if _, ok := registeredAssets[name]; ok {
 		panic(fmt.Sprintf("asset %v is already registered", name))
@@ -35,14 +35,14 @@ func registerAsset(name string, data []byte) {
 	registeredAssets[name] = data
 }
 
-// GetInternalBootAsset returns the content of internal boot asset registered
-// under the given name, or nil when none was found.
-func GetInternalBootAsset(name string) []byte {
+// Internal returns the content of internal registered under the given name, or
+// nil when none was found.
+func Internal(name string) []byte {
 	return registeredAssets[name]
 }
 
-// MockInternalBootAsset mocks the contents of boot asset for use in testing.
-func MockInternalBootAsset(name string, data []byte) (restore func()) {
+// MockInternalAsset mocks the contents of an asset for use in testing.
+func MockInternalAsset(name string, data []byte) (restore func()) {
 	var isSnapdTest = len(os.Args) > 0 && strings.HasSuffix(os.Args[0], ".test")
 	if !isSnapdTest {
 		panic("mocking can be done only in tests")

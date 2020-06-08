@@ -70,7 +70,7 @@ this too`), 0644)
 }
 
 func (s *configAssetTestSuite) TestRealConfig(c *C) {
-	grubConfig := assets.GetInternalBootAsset("grub.cfg")
+	grubConfig := assets.Internal("grub.cfg")
 	c.Assert(grubConfig, NotNil)
 	e, err := bootloader.EditionFromConfigAsset(bytes.NewReader(grubConfig))
 	c.Assert(err, IsNil)
