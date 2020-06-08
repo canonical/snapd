@@ -18,8 +18,6 @@
  */
 package assets
 
-// TODO:UC20 use go generate
-
 // TODO:UC20 extract common and template parts of command line
 
 // scripts content from https://github.com/snapcore/pc-amd64-gadget, commit:
