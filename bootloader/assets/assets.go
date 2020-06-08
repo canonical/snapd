@@ -48,9 +48,13 @@ func MockInternalAsset(name string, data []byte) (restore func()) {
 		panic("mocking can be done only in tests")
 	}
 
-	old := registeredAssets[name]
+	old, ok := registeredAssets[name]
 	registeredAssets[name] = data
 	return func() {
-		registeredAssets[name] = old
+		if ok {
+			registeredAssets[name] = old
+		} else {
+			delete(registeredAssets, name)
+		}
 	}
 }
