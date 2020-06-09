@@ -19,9 +19,11 @@
 
 package gadget
 
-type ValidationState = validationState
-type MountedFilesystemUpdater = mountedFilesystemUpdater
-type RawStructureUpdater = rawStructureUpdater
+type (
+	ValidationState          = validationState
+	MountedFilesystemUpdater = mountedFilesystemUpdater
+	RawStructureUpdater      = rawStructureUpdater
+)
 
 var (
 	ValidateStructureType   = validateStructureType
