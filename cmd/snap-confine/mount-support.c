@@ -390,7 +390,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 			struct stat sb;
 			sc_must_snprintf(src, sizeof src, "/var/lib/snapd/export/%s/tools/snap-exec", *provider);
 			/* Check that snap-exec exists, the tools directory may be empty. */
-			if (stat(src, &sb) != 0) {
+			if (lstat(src, &sb) != 0) {
 				continue;
 			}
 			/* Mount the entire tools directory as /usr/lib/snapd inside the mount namespace. */
