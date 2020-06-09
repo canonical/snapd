@@ -1929,15 +1929,19 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 		removeAliases.WaitFor(prev) // prev is not needed beyond here
 		removeAliases.Set("snap-setup-task", stopSnapServices.ID())
 
+		unexportContent := st.NewTask("unexport-content", fmt.Sprintf(i18n.G("Remove content exposed by snap %q"), name))
+		unexportContent.WaitFor(removeAliases)
+		unexportContent.Set("snap-setup-task", stopSnapServices.ID())
+
 		unlink := st.NewTask("unlink-snap", fmt.Sprintf(i18n.G("Make snap %q unavailable to the system"), name))
 		unlink.Set("snap-setup-task", stopSnapServices.ID())
-		unlink.WaitFor(removeAliases)
+		unlink.WaitFor(unexportContent)
 
 		removeSecurity := st.NewTask("remove-profiles", fmt.Sprintf(i18n.G("Remove security profile for snap %q (%s)"), name, revision))
 		removeSecurity.WaitFor(unlink)
 		removeSecurity.Set("snap-setup-task", stopSnapServices.ID())
 
-		tasks = append(tasks, removeAliases, unlink, removeSecurity)
+		tasks = append(tasks, removeAliases, unexportContent, unlink, removeSecurity)
 		addNext(state.NewTaskSet(tasks...))
 	}
 

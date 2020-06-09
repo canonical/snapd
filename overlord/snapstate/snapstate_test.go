@@ -469,6 +469,7 @@ func verifyRemoveTasks(c *C, ts *state.TaskSet) {
 		"auto-disconnect",
 		"save-snapshot",
 		"remove-aliases",
+		"unexport-content",
 		"unlink-snap",
 		"remove-profiles",
 		"clear-snap",
@@ -483,6 +484,7 @@ func verifyCoreRemoveTasks(c *C, ts *state.TaskSet) {
 		"run-hook[remove]",
 		"auto-disconnect",
 		"remove-aliases",
+		"unexport-content",
 		"unlink-snap",
 		"remove-profiles",
 		"clear-snap",
@@ -1998,6 +2000,7 @@ func (s *snapmgrTestSuite) TestRemoveTasksAutoSnapshotDisabled(c *C) {
 		"run-hook[remove]",
 		"auto-disconnect",
 		"remove-aliases",
+		"unexport-content",
 		"unlink-snap",
 		"remove-profiles",
 		"clear-snap",
@@ -2026,6 +2029,7 @@ func (s *snapmgrTestSuite) TestRemoveTasksAutoSnapshotDisabledByPurgeFlag(c *C) 
 		"run-hook[remove]",
 		"auto-disconnect",
 		"remove-aliases",
+		"unexport-content",
 		"unlink-snap",
 		"remove-profiles",
 		"clear-snap",
@@ -5872,6 +5876,11 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 			name: "some-snap",
 		},
 		{
+			op:    "unexport-content:Doing",
+			name:  "some-snap",
+			revno: snap.R(7),
+		},
+		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
 		},
@@ -6007,6 +6016,11 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThrough(c *C) {
 		{
 			op:   "remove-snap-aliases",
 			name: "some-snap_instance",
+		},
+		{
+			op:    "unexport-content:Doing",
+			name:  "some-snap_instance",
+			revno: snap.R(7),
 		},
 		{
 			op:   "unlink-snap",
@@ -6152,6 +6166,11 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThroughOtherInstances(c 
 			name: "some-snap_instance",
 		},
 		{
+			op:    "unexport-content:Doing",
+			name:  "some-snap_instance",
+			revno: snap.R(7),
+		},
+		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap_instance/7"),
 		},
@@ -6253,6 +6272,11 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 		{
 			op:   "remove-snap-aliases",
 			name: "some-snap",
+		},
+		{
+			op:    "unexport-content:Doing",
+			name:  "some-snap",
+			revno: snap.R(7),
 		},
 		{
 			op:   "unlink-snap",
@@ -10356,13 +10380,14 @@ func (s *snapmgrTestSuite) TestRemoveMany(c *C) {
 	c.Assert(tts, HasLen, 2)
 	c.Check(removed, DeepEquals, []string{"one", "two"})
 
-	c.Assert(s.state.TaskCount(), Equals, 8*2)
+	c.Assert(s.state.TaskCount(), Equals, 9*2)
 	for i, ts := range tts {
 		c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
 			"stop-snap-services",
 			"run-hook[remove]",
 			"auto-disconnect",
 			"remove-aliases",
+			"unexport-content",
 			"unlink-snap",
 			"remove-profiles",
 			"clear-snap",
@@ -10918,6 +10943,11 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 			name: "ubuntu-core",
 		},
 		{
+			op:    "unexport-content:Doing",
+			name:  "ubuntu-core",
+			revno: snap.R(1),
+		},
+		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "ubuntu-core/1"),
 		},
@@ -11012,6 +11042,11 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThroughWithCore(c *C) {
 		{
 			op:   "remove-snap-aliases",
 			name: "ubuntu-core",
+		},
+		{
+			op:    "unexport-content:Doing",
+			name:  "ubuntu-core",
+			revno: snap.R(1),
 		},
 		{
 			op:   "unlink-snap",
