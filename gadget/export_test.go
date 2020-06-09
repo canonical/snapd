@@ -51,6 +51,9 @@ var (
 
 	FindDeviceForStructureWithFallback = findDeviceForStructureWithFallback
 	FindMountPointForStructure         = findMountPointForStructure
+
+	ParseSize           = parseSize
+	ParseRelativeOffset = parseRelativeOffset
 )
 
 func MockEvalSymlinks(mock func(path string) (string, error)) (restore func()) {

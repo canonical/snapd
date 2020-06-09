@@ -826,16 +826,16 @@ func (s *Size) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	var err error
-	*s, err = ParseSize(gs)
+	*s, err = parseSize(gs)
 	if err != nil {
 		return fmt.Errorf("cannot parse size %q: %v", gs, err)
 	}
 	return err
 }
 
-// ParseSize parses a string expressing size in gadget declaration. The
+// parseSize parses a string expressing size in gadget declaration. The
 // accepted format is one of: <bytes> | <bytes/2^20>M | <bytes/2^30>G.
-func ParseSize(gs string) (Size, error) {
+func parseSize(gs string) (Size, error) {
 	number, unit, err := strutil.SplitUnit(gs)
 	if err != nil {
 		return 0, err
@@ -909,9 +909,9 @@ func (r *RelativeOffset) String() string {
 	return fmt.Sprintf("%d", r.Offset)
 }
 
-// ParseRelativeOffset parses a string describing an offset that can be
+// parseRelativeOffset parses a string describing an offset that can be
 // expressed relative to a named structure, with the format: [<name>+]<size>.
-func ParseRelativeOffset(grs string) (*RelativeOffset, error) {
+func parseRelativeOffset(grs string) (*RelativeOffset, error) {
 	toWhat := ""
 	sizeSpec := grs
 	if idx := strings.IndexRune(grs, '+'); idx != -1 {
@@ -924,7 +924,7 @@ func ParseRelativeOffset(grs string) (*RelativeOffset, error) {
 		return nil, errors.New("missing offset")
 	}
 
-	size, err := ParseSize(sizeSpec)
+	size, err := parseSize(sizeSpec)
 	if err != nil {
 		return nil, fmt.Errorf("cannot parse offset %q: %v", sizeSpec, err)
 	}
@@ -944,7 +944,7 @@ func (s *RelativeOffset) UnmarshalYAML(unmarshal func(interface{}) error) error 
 		return errors.New(`cannot unmarshal gadget relative offset`)
 	}
 
-	ro, err := ParseRelativeOffset(grs)
+	ro, err := parseRelativeOffset(grs)
 	if err != nil {
 		return fmt.Errorf("cannot parse relative offset %q: %v", grs, err)
 	}
