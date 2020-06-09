@@ -34,7 +34,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -76,6 +75,12 @@ import (
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
+)
+
+var (
+	settleTimeout           = testutil.HostScaledTimeout(45 * time.Second)
+	aggressiveSettleTimeout = testutil.HostScaledTimeout(50 * time.Millisecond)
+	connectRetryTimeout     = testutil.HostScaledTimeout(70 * time.Millisecond)
 )
 
 type automaticSnapshotCall struct {
@@ -126,11 +131,6 @@ var (
 	develPrivKey, _ = assertstest.GenerateKey(752)
 
 	deviceKey, _ = assertstest.GenerateKey(752)
-)
-
-const (
-	aggressiveSettleTimeout = 50 * time.Millisecond
-	connectRetryTimeout     = 70 * time.Millisecond
 )
 
 func verifyLastTasksetIsRerefresh(c *C, tts []*state.TaskSet) {
@@ -355,17 +355,6 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 
 type mgrsSuite struct {
 	baseMgrsSuite
-}
-
-var settleTimeout = 45 * time.Second
-
-func init() {
-	// virt riscv64 builders are 5x times slower than armhf when
-	// building golang-1.14. These tests timeout, hence bump timeouts
-	// by 6x
-	if runtime.GOARCH == "riscv64" {
-		settleTimeout *= 6
-	}
 }
 
 func makeTestSnapWithFiles(c *C, snapYamlContent string, files [][]string) string {

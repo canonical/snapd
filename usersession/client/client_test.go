@@ -26,7 +26,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"runtime"
 	"testing"
 	"time"
 
@@ -35,6 +34,10 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/usersession/client"
+)
+
+var (
+	timeout = testutil.HostScaledTimeout(80 * time.Millisecond)
 )
 
 func Test(t *testing.T) { TestingT(t) }
@@ -120,14 +123,6 @@ func (s *clientSuite) TestAgentTimeout(c *C) {
   }
 }`))
 	})
-
-	var timeout = 80 * time.Millisecond
-	// virt riscv64 builders are 5x times slower than armhf when
-	// building golang-1.14. These tests timeout, hence bump timeouts
-	// by 6x
-	if runtime.GOARCH == "riscv64" {
-		timeout *= 6
-	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()

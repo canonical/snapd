@@ -23,7 +23,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"runtime"
 	"testing"
 	"time"
 
@@ -59,6 +58,10 @@ import (
 	"github.com/snapcore/snapd/store/storetest"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
+)
+
+var (
+	settleTimeout = testutil.HostScaledTimeout(15 * time.Second)
 )
 
 func TestDeviceManager(t *testing.T) { TestingT(t) }
@@ -211,17 +214,6 @@ func (s *deviceMgrBaseSuite) TearDownTest(c *C) {
 	s.restoreGenericClassicMod()
 	s.restoreOnClassic()
 	s.restoreSanitize()
-}
-
-var settleTimeout = 15 * time.Second
-
-func init() {
-	// virt riscv64 builders are 5x times slower than armhf when
-	// building golang-1.14. These tests timeout, hence bump timeouts
-	// by 6x
-	if runtime.GOARCH == "riscv64" {
-		settleTimeout *= 6
-	}
 }
 
 func (s *deviceMgrBaseSuite) settle(c *C) {
