@@ -1276,6 +1276,7 @@ func (s *snapmgrTestSuite) TestEnableTasks(c *C) {
 		"prepare-snap",
 		"setup-profiles",
 		"link-snap",
+		"export-content",
 		"setup-aliases",
 		"start-snap-services",
 	})
@@ -7797,6 +7798,11 @@ func (s *snapmgrTestSuite) TestEnableRunThrough(c *C) {
 			revno: snap.R(7),
 		},
 		{
+			op:    "export-content:Doing",
+			name:  "some-snap",
+			revno: snap.R(7),
+		},
+		{
 			op: "update-aliases",
 		},
 	}
@@ -7957,6 +7963,11 @@ func (s *snapmgrTestSuite) TestParallelInstanceEnableRunThrough(c *C) {
 		},
 		{
 			op:    "auto-connect:Doing",
+			name:  "some-snap_instance",
+			revno: snap.R(7),
+		},
+		{
+			op:    "export-content:Doing",
 			name:  "some-snap_instance",
 			revno: snap.R(7),
 		},

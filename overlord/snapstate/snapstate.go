@@ -1700,16 +1700,19 @@ func Enable(st *state.State, name string) (*state.TaskSet, error) {
 	linkSnap.Set("snap-setup-task", prepareSnap.ID())
 	linkSnap.WaitFor(setupProfiles)
 
-	// setup aliases
+	exportContent := st.NewTask("export-content", fmt.Sprintf(i18n.G("Export content from snap %q%s to the system"), snapsup.InstanceName(), snapst.Current))
+	exportContent.Set("snap-setup-task", prepareSnap.ID())
+	exportContent.WaitFor(linkSnap)
+
 	setupAliases := st.NewTask("setup-aliases", fmt.Sprintf(i18n.G("Setup snap %q aliases"), snapsup.InstanceName()))
 	setupAliases.Set("snap-setup-task", prepareSnap.ID())
-	setupAliases.WaitFor(linkSnap)
+	setupAliases.WaitFor(exportContent)
 
 	startSnapServices := st.NewTask("start-snap-services", fmt.Sprintf(i18n.G("Start snap %q (%s) services"), snapsup.InstanceName(), snapst.Current))
 	startSnapServices.Set("snap-setup-task", prepareSnap.ID())
 	startSnapServices.WaitFor(setupAliases)
 
-	return state.NewTaskSet(prepareSnap, setupProfiles, linkSnap, setupAliases, startSnapServices), nil
+	return state.NewTaskSet(prepareSnap, setupProfiles, linkSnap, exportContent, setupAliases, startSnapServices), nil
 }
 
 // Disable sets a snap to the inactive state
