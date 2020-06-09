@@ -378,54 +378,35 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 			sc_do_mount("none", dst, NULL, MS_SLAVE, NULL);
 		}
 	}
-	// The "core" base snap is special as it contains snapd and friends.
-	// Other base snaps do not, so whenever a base snap other than core is
-	// in use we need extra provisions for setting up internal tooling to
-	// be available.
-	//
-	// However on a core18 (and similar) system the core snap is not
-	// a special base anymore and we should map our own tooling in.
-	if (config->distro == SC_DISTRO_CORE_OTHER
-	    || !sc_streq(config->base_snap_name, "core")) {
-		// when bases are used we need to bind-mount the libexecdir
-		// (that contains snap-exec) into /usr/lib/snapd of the
-		// base snap so that snap-exec is available for the snaps
-		// (base snaps do not ship snapd)
-
-		// dst is always /usr/lib/snapd as this is where snapd
-		// assumes to find snap-exec
-		sc_must_snprintf(dst, sizeof dst, "%s/usr/lib/snapd",
-				 scratch_dir);
-
-		// bind mount the current $ROOT/usr/lib/snapd path,
-		// where $ROOT is either "/" or the "/snap/{core,snapd}/current"
-		// that we are re-execing from
-		char *src = NULL;
-		char self[PATH_MAX + 1] = { 0 };
-		ssize_t nread;
-		nread = readlink("/proc/self/exe", self, sizeof self - 1);
-		if (nread < 0) {
-			die("cannot read /proc/self/exe");
+	/* XXX: Put tools exported by snapd over /usr/lib/snapd. */
+	{
+		/* TODO: Use a fixed <snapd> export and have the export manager put the
+		 * appropriate tools inside, this will automatically handle all
+		 * possible transitions. */
+		static const char *providers[] = {"snapd", "core", NULL};
+		bool tools_mounted = false;
+		sc_must_snprintf(dst, sizeof dst, "%s/usr/lib/snapd", scratch_dir);
+		for (const char **provider = providers; *provider != NULL; ++provider) {
+			struct stat sb;
+			sc_must_snprintf(src, sizeof src, "/var/lib/snapd/export/%s/tools/snap-exec", *provider);
+			/* Check that snap-exec exists, the tools directory may be empty. */
+			if (stat(src, &sb) != 0) {
+				continue;
+			}
+			/* Mount the entire tools directory as /usr/lib/snapd inside the mount namespace. */
+			sc_must_snprintf(src, sizeof src, "/var/lib/snapd/export/%s/tools", *provider);
+			sc_do_mount(src, dst, NULL, MS_BIND | MS_RDONLY, NULL);
+			sc_do_mount("none", dst, NULL, MS_SLAVE, NULL);
+			tools_mounted = true;
+			break;
 		}
-		// Though we initialized self to NULs and passed one less to
-		// readlink, therefore guaranteeing that self is
-		// zero-terminated, perform an explicit assignment to make
-		// Coverity happy.
-		self[nread] = '\0';
-		// this cannot happen except when the kernel is buggy
-		if (strstr(self, "/snap-confine") == NULL) {
-			die("cannot use result from readlink: %s", self);
+		if (!tools_mounted) {
+			/* XXX: We didn't find any exported tools. We could mount a
+			 * snapshot of the host tools but since they would not be able to
+			 * update, we should instead export the host tools with hostfs
+			 * symlinks. */
+			die("cannot find snapd tools");
 		}
-		src = dirname(self);
-		// dirname(path) might return '.' depending on path.
-		// /proc/self/exe should always point
-		// to an absolute path, but let's guarantee that.
-		if (src[0] != '/') {
-			die("cannot use the result of dirname(): %s", src);
-		}
-
-		sc_do_mount(src, dst, NULL, MS_BIND | MS_RDONLY, NULL);
-		sc_do_mount("none", dst, NULL, MS_SLAVE, NULL);
 	}
 	// Bind mount the directory where all snaps are mounted. The location of
 	// the this directory on the host filesystem may not match the location in
