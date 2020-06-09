@@ -20,22 +20,29 @@
 package testutil
 
 import (
-	"github.com/snapcore/snapd/arch"
 	"time"
+
+	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/arch"
 )
 
-// HostScaledTimeout returns a timeout for tests that is adjusted
-// for the slowness of certain systems.
-//
-// This should only be used in tests and is a bit of a guess.
-func HostScaledTimeout(t time.Duration) time.Duration {
-	switch arch.DpkgArchitecture() {
-	case "riscv64":
-		// virt riscv64 builders are 5x times slower than
-		// armhf when building golang-1.14. These tests
-		// timeout, hence bump timeouts by 6x
-		return t * 6
-	default:
-		return t
-	}
+var _ = Suite(&TimeoutTestSuite{})
+
+type TimeoutTestSuite struct {
+}
+
+func (ts *TimeoutTestSuite) TestHostScaledTimeout(c *C) {
+	currentarch := arch.ArchitectureType(arch.DpkgArchitecture())
+
+	arch.SetArchitecture("amd64")
+	amd64_timeout := HostScaledTimeout(2 * time.Second)
+
+	arch.SetArchitecture("riscv64")
+	riscv64_timeout := HostScaledTimeout(2 * time.Second)
+
+	arch.SetArchitecture(currentarch)
+
+	c.Check(amd64_timeout, Equals, 2*time.Second)
+	c.Check(riscv64_timeout > amd64_timeout, Equals, true)
 }
