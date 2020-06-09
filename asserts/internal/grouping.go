@@ -263,9 +263,8 @@ func (gr *Groupings) bitsetIter(g *Grouping, f func(group uint16) error) error {
 		if w == 0 {
 			continue
 		}
-		bit := uint16(1)
-		for j := uint16(0); j < 16; j++ {
-			if w&bit != 0 {
+		for j := uint16(0); w != 0; j++ {
+			if w&1 != 0 {
 				if err := f(i*16 + j); err != nil {
 					return err
 				}
@@ -275,7 +274,7 @@ func (gr *Groupings) bitsetIter(g *Grouping, f func(group uint16) error) error {
 					return nil
 				}
 			}
-			bit <<= 1
+			w >>= 1
 		}
 	}
 	return nil

@@ -280,6 +280,37 @@ func (s *groupingsSuite) TestCopy(c *C) {
 
 	c.Check(g2, Not(DeepEquals), g)
 }
+func (s *groupingsSuite) TestBitsetSerializeAndIterSimple(c *C) {
+	gr, err := internal.NewGroupings(32)
+	c.Assert(err, IsNil)
+
+	var elems []uint16
+	f := func(group uint16) error {
+		elems = append(elems, group)
+		return nil
+	}
+
+	var g internal.Grouping
+	err = gr.AddTo(&g, 1)
+	c.Assert(err, IsNil)
+	err = gr.AddTo(&g, 5)
+	c.Assert(err, IsNil)
+	err = gr.AddTo(&g, 17)
+	c.Assert(err, IsNil)
+	err = gr.AddTo(&g, 24)
+	c.Assert(err, IsNil)
+
+	l := gr.Serialize(&g)
+	c.Check(l, DeepEquals,
+		internal.Serialize([]uint16{4,
+			uint16(1<<1 | 1<<5),
+			uint16(1<<(17-16) | 1<<(24-16)),
+		}))
+
+	err = gr.Iter(&g, f)
+	c.Assert(err, IsNil)
+	c.Check(elems, DeepEquals, []uint16{1, 5, 17, 24})
+}
 
 func (s *groupingsSuite) TestBitSet(c *C) {
 	var g internal.Grouping
