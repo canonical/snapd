@@ -72,7 +72,9 @@ new_format = \
 	 snap-confine/snap-confine-invocation-test.c \
 	 snap-confine/snap-confine-invocation.c \
 	 snap-confine/snap-confine-invocation.h \
-	 snap-discard-ns/snap-discard-ns.c
+	 snap-discard-ns/snap-discard-ns.c \
+	 snap-gdb-shim/snap-gdb-shim.c \
+	 snap-gdb-shim/snap-gdbserver-shim.c
 
 # NOTE: clang-format is using project-wide .clang-format file.
 .PHONY: fmt

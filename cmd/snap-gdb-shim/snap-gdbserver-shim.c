@@ -28,29 +28,29 @@ int main(int argc, char **argv) {
             fprintf(stderr, "-%s-\n", argv[i]);
         }
     }
-	if (argc < 2) {
-		fprintf(stderr, "missing a command to execute");
-		abort();
-	}
-    // Signal to "snap run" that we are ready to get a debugger attached.
-    // When a debugger attached it will stop the binary at whatever
-    // point the binary is executing. So we cannot have clever code
-    // here that e.g. waits for a debugger to get attached because that
-    // code would also get stoppped/debugged by that debugger and that
-    // would be confusing for the user.
+    if (argc < 2) {
+        fprintf(stderr, "missing a command to execute");
+        abort();
+    }
+    // Signal to "snap run" that we are ready to get a debugger attached. When a
+    // debugger gets attached it will stop the binary at whatever point the
+    // binary is executing. So we cannot have clever code here that e.g. waits
+    // for a debugger to get attached because that code would also get
+    // stoppped/debugged by that debugger and that would be confusing for the
+    // user.
     //
     // once a debugger is attached we expect it to send:
     //  "continue; signal SIGCONT"
     raise(SIGSTOP);
 
-	// signal gdb to stop here
-	printf("\n\n");
-	printf("Welcome to `snap run --gdb`.\n");
-	printf("You are right before your application is execed():\n");
-	printf("- set any options you may need\n");
-	printf("- (optionally) set a breakpoint in 'main'\n");
-	printf("- use 'cont' to start\n");
-	printf("\n\n");
+    // signal gdb to stop here
+    printf("\n\n");
+    printf("Welcome to `snap run --gdb`.\n");
+    printf("You are right before your application is execed():\n");
+    printf("- set any options you may need\n");
+    printf("- (optionally) set a breakpoint in 'main'\n");
+    printf("- use 'cont' to start\n");
+    printf("\n\n");
     raise(SIGTRAP);
 
     const char *executable = argv[1];
