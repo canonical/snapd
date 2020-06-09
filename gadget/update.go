@@ -338,9 +338,9 @@ func updaterForStructureImpl(ps *LaidOutStructure, newRootDir, rollbackDir strin
 	var updater Updater
 	var err error
 	if !ps.HasFilesystem() {
-		updater, err = NewRawStructureUpdater(newRootDir, ps, rollbackDir, FindDeviceForStructureWithFallback)
+		updater, err = newRawStructureUpdater(newRootDir, ps, rollbackDir, FindDeviceForStructureWithFallback)
 	} else {
-		updater, err = NewMountedFilesystemUpdater(newRootDir, ps, rollbackDir, FindMountPointForStructure)
+		updater, err = newMountedFilesystemUpdater(newRootDir, ps, rollbackDir, FindMountPointForStructure)
 	}
 	return updater, err
 }
