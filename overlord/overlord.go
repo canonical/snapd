@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/proxyconf"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/exportstate"
 	"github.com/snapcore/snapd/overlord/healthstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
@@ -99,6 +100,7 @@ type Overlord struct {
 	deviceMgr *devicestate.DeviceManager
 	cmdMgr    *cmdstate.CommandManager
 	shotMgr   *snapshotstate.SnapshotManager
+	xprtMgr   *exportstate.ExportManager
 	// proxyConf mediates the http proxy config
 	proxyConf func(req *http.Request) (*url.URL, error)
 }
@@ -177,6 +179,7 @@ func New(restartBehavior RestartBehavior) (*Overlord, error) {
 
 	o.addManager(cmdstate.Manager(s, o.runner))
 	o.addManager(snapshotstate.Manager(s, o.runner))
+	o.addManager(exportstate.Manager(s, o.runner))
 
 	if err := configstateInit(s, hookMgr); err != nil {
 		return nil, err
