@@ -24,8 +24,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"gopkg.in/tomb.v2"
-
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -70,38 +68,6 @@ func (m *ExportManager) readInfo(task *state.Task) (*snap.Info, error) {
 		return nil, err
 	}
 	return snapstate.Info(st, snapsup.InstanceName(), snapsup.Revision())
-}
-
-func (m *ExportManager) doExportContent(task *state.Task, tomb *tomb.Tomb) error {
-	info, err := m.readInfo(task)
-	if err != nil {
-		return err
-	}
-	return m.exportContent(task, info)
-}
-
-func (m *ExportManager) undoExportContent(task *state.Task, tomb *tomb.Tomb) error {
-	info, err := m.readInfo(task)
-	if err != nil {
-		return err
-	}
-	return m.unexportContent(task, info)
-}
-
-func (m *ExportManager) doUnexportContent(task *state.Task, tomb *tomb.Tomb) error {
-	info, err := m.readInfo(task)
-	if err != nil {
-		return err
-	}
-	return m.unexportContent(task, info)
-}
-
-func (m *ExportManager) undoUnexportContent(task *state.Task, tomb *tomb.Tomb) error {
-	info, err := m.readInfo(task)
-	if err != nil {
-		return err
-	}
-	return m.exportContent(task, info)
 }
 
 func (m *ExportManager) exportContent(task *state.Task, info *snap.Info) error {
