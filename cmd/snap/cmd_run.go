@@ -107,7 +107,7 @@ and environment.
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"gdb": i18n.G("Run the command with gdb"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"gdbserver": i18n.G("Run the command with gdbserver"),
+			"gdbserver": i18n.G("Run the command with gdbserver (experimental)"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"timer": i18n.G("Run as a timer service with given schedule"),
 			// TRANSLATORS: This should not start with a lowercase letter.
@@ -419,6 +419,7 @@ func maybeRestoreSecurityContext(usr *user.User) error {
 }
 
 func (x *cmdRun) useStrace() bool {
+	// make sure the go-flag parser ran and assigned default values
 	return x.ParserRan == 1 && x.Strace != "no-strace"
 }
 
@@ -773,6 +774,7 @@ func racyFindFreePort() (int, error) {
 }
 
 func (x *cmdRun) useGdbserver() bool {
+	// make sure the go-flag parser ran and assigned default values
 	return x.ParserRan == 1 && x.Gdbserver != "no-gdbserver"
 }
 
