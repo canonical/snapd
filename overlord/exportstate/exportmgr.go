@@ -20,12 +20,27 @@
 package exportstate
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
+
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
+
+const defaultExportDir = "/var/lib/snapd/export"
+
+var ExportDir = defaultExportDir
+
+func init() {
+	dirs.AddRootDirCallback(func(root string) {
+		ExportDir = filepath.Join(root, defaultExportDir)
+	})
+}
 
 type ExportManager struct {
 	state  *state.State
@@ -90,9 +105,36 @@ func (m *ExportManager) undoUnexportContent(task *state.Task, tomb *tomb.Tomb) e
 }
 
 func (m *ExportManager) exportContent(task *state.Task, info *snap.Info) error {
+	for path, export := range info.Export {
+		// XXX: This is is not aware of /snap vs /var/lib/snapd/snap
+		privateName := filepath.Join(info.MountDir(), export.Path)
+		publicName := filepath.Join(ExportDir, path)
+		if err := os.MkdirAll(filepath.Dir(publicName), 0755); err != nil {
+			return err
+		}
+		switch export.Method {
+		case "symlink":
+			if err := os.Symlink(privateName, publicName); err != nil {
+				return fmt.Errorf("cannot export %q as %q: %v", privateName, publicName, err)
+			}
+		default:
+			return fmt.Errorf("cannot export %q as %q, unsupported export method %s", privateName, publicName, export.Method)
+		}
+	}
 	return nil
 }
 
 func (m *ExportManager) unexportContent(task *state.Task, info *snap.Info) error {
+	for path, export := range info.Export {
+		publicName := filepath.Join(ExportDir, path)
+		switch export.Method {
+		case "symlink":
+			if err := os.Remove(publicName); err != nil {
+				return fmt.Errorf("cannot unexport %q: %v", publicName, err)
+			}
+		default:
+			return fmt.Errorf("cannot unexport %q, unsupported export method %s", publicName, export.Method)
+		}
+	}
 	return nil
 }
