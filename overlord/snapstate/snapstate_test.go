@@ -1478,6 +1478,7 @@ func (s *snapmgrTestSuite) TestDisableTasks(c *C) {
 	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
 		"stop-snap-services",
 		"remove-aliases",
+		"unexport-content",
 		"unlink-snap",
 		"remove-profiles",
 	})
@@ -7867,6 +7868,11 @@ func (s *snapmgrTestSuite) TestDisableRunThrough(c *C) {
 			name: "some-snap",
 		},
 		{
+			op:    "unexport-content:Doing",
+			name:  "some-snap",
+			revno: snap.R(7),
+		},
+		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
 		},
@@ -8036,6 +8042,11 @@ func (s *snapmgrTestSuite) TestParallelInstanceDisableRunThrough(c *C) {
 		{
 			op:   "remove-snap-aliases",
 			name: "some-snap_instance",
+		},
+		{
+			op:    "unexport-content:Doing",
+			name:  "some-snap_instance",
+			revno: snap.R(7),
 		},
 		{
 			op:   "unlink-snap",
