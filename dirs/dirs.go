@@ -33,6 +33,9 @@ var (
 	GlobalRootDir string
 
 	SnapMountDir string
+	// This is like SnapMountDir but always gives value true only
+	// from inside the snap mount namespace.
+	SnapMountDirInsideNs string
 
 	DistroLibExecDir string
 
@@ -270,6 +273,7 @@ func SetRootDir(rootdir string) {
 	} else {
 		SnapMountDir = filepath.Join(rootdir, defaultSnapMountDir)
 	}
+	SnapMountDirInsideNs = filepath.Join(rootdir, defaultSnapMountDir)
 
 	SnapDataDir = filepath.Join(rootdir, "/var/snap")
 	SnapDataHomeGlob = filepath.Join(rootdir, "/home/*/", UserHomeSnapDir)
