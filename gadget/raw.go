@@ -31,6 +31,8 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
+// TODO: RawStructureWriter should not be exported
+
 // RawStructureWriter implements support for writing raw (bare) structures.
 type RawStructureWriter struct {
 	contentDir string

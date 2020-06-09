@@ -56,6 +56,8 @@ func checkContent(content *VolumeContent) error {
 	return nil
 }
 
+// TODO: MountedFilesystemWriter should not be exported
+
 // MountedFilesystemWriter assists in writing contents of a structure to a
 // mounted filesystem.
 type MountedFilesystemWriter struct {
