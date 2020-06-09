@@ -48,6 +48,9 @@ var (
 
 	NewRawStructureUpdater      = newRawStructureUpdater
 	NewMountedFilesystemUpdater = newMountedFilesystemUpdater
+
+	FindDeviceForStructureWithFallback = findDeviceForStructureWithFallback
+	FindMountPointForStructure         = findMountPointForStructure
 )
 
 func MockEvalSymlinks(mock func(path string) (string, error)) (restore func()) {
