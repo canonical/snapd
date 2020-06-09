@@ -21,7 +21,7 @@ execute: |
     su -l -c 'snap run --experimental-gdbserver test-snapd-sh.sh -c "echo hello-hello-hello uid:$UID"' test >stdout &
 
     # wait for the instructions that gdb is ready to get attached
-    retry-tool -n60 grep '^gdb -ex' stdout
+    retry -n60 grep '^gdb -ex' stdout
     # ensure that the actual program is *not* run yet
     not grep hello-hello-hello < stdout
 
