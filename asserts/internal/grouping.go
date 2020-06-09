@@ -115,7 +115,13 @@ func (gr *Groupings) AddTo(g *Grouping, group uint16) error {
 	if newsize > gr.bitsetThreshold {
 		// switching to a bit-set representation after the size point
 		// where the space cost is the same, the representation uses
-		// bitsetThreshold-many 16-bits words stored in elems
+		// bitsetThreshold-many 16-bits words stored in elems.
+		// We don't always use the bit-set representation because
+		// * we expect small groupings and iteration to be common,
+		//   iteration is more costly over the bit-set representation
+		// * serialization matches more or less what we do in memory,
+		//   so again is more efficient for small groupings in the
+		//   extensive representation.
 		if g.size == gr.bitsetThreshold {
 			prevelems := g.elems
 			g.elems = make([]uint16, gr.bitsetThreshold)
