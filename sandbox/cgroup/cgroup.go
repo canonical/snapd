@@ -278,19 +278,6 @@ type procInfoEntry struct {
 	Path        string
 }
 
-var pathOfProcPidCgroup = func(pid int) string {
-	return fmt.Sprintf("/proc/%d/cgroup", pid)
-}
-
-// MockPathOfProcPidCgroup mocks the function used to compute /proc/PID/cgroup
-func MockPathOfProcPidCgroup(fn func(int) string) func() {
-	old := pathOfProcPidCgroup
-	pathOfProcPidCgroup = fn
-	return func() {
-		pathOfProcPidCgroup = old
-	}
-}
-
 // ProcessPathInTrackingCgroup returns the path in the hierarchy of the tracking cgroup.
 //
 // Tracking cgroup is whichever cgroup systemd uses for tracking processes.
@@ -300,7 +287,7 @@ func MockPathOfProcPidCgroup(fn func(int) string) func() {
 // This function fails on systems where systemd is not used and subsequently
 // cgroups are not mounted.
 func ProcessPathInTrackingCgroup(pid int) (string, error) {
-	fname := pathOfProcPidCgroup(pid)
+	fname := ProcPidPath(pid)
 	// Cgroup entries we're looking for look like this:
 	// 1:name=systemd:/user.slice/user-1000.slice/user@1000.service/tmux.slice/tmux@default.service
 	// 0::/user.slice/user-1000.slice/user@1000.service/tmux.slice/tmux@default.service
