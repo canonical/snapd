@@ -75,7 +75,7 @@ type cmdRun struct {
 	// "default" and "optional-value" to distinguish this.
 	Strace    string `long:"strace" optional:"true" optional-value:"with-strace" default:"no-strace" default-mask:"-"`
 	Gdb       bool   `long:"gdb"`
-	Gdbserver string `long:"gdbserver" default:"no-gdbserver" optional-value:":0" optional:"true"`
+	Gdbserver string `long:"experimental-gdbserver" default:"no-gdbserver" optional-value:":0" optional:"true"`
 	TraceExec bool   `long:"trace-exec"`
 
 	// not a real option, used to check if cmdRun is initialized by
@@ -107,7 +107,7 @@ and environment.
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"gdb": i18n.G("Run the command with gdb"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"gdbserver": i18n.G("Run the command with gdbserver (experimental)"),
+			"experimental-gdbserver": i18n.G("Run the command with gdbserver (experimental)"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"timer": i18n.G("Run as a timer service with given schedule"),
 			// TRANSLATORS: This should not start with a lowercase letter.
