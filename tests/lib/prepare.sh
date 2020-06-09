@@ -661,6 +661,14 @@ setup_reflash_magic() {
     elif is_core20_system; then        
         core_name="core20"
     fi
+    # XXX: we get "error: too early for operation, device not yet
+    # seeded or device model not acknowledged" here sometimes. To
+    # understand that better show some debug output.
+    snap changes
+    snap tasks --last=seed || true
+    journalctl -u snapd
+    snap model --verbose
+    # remove the above debug lines once the mentioned bug is fixed
     snap install "--channel=${CORE_CHANNEL}" "$core_name"
     if is_core16_system || is_core18_system; then
         UNPACK_DIR="/tmp/$core_name-snap"
