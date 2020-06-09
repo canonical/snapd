@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/ubootenv"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -149,7 +150,7 @@ func (s *ubootTestSuite) TestExtractKernelAssetsAndRemove(c *C) {
 		Revision: snap.R(42),
 	}
 	fn := snaptest.MakeTestSnapWithFiles(c, packageKernel, files)
-	snapf, err := snap.Open(fn)
+	snapf, err := snapfile.Open(fn)
 	c.Assert(err, IsNil)
 
 	info, err := snap.ReadInfoFromSnapFile(snapf, si)
@@ -194,7 +195,7 @@ func (s *ubootTestSuite) TestExtractRecoveryKernelAssets(c *C) {
 		Revision: snap.R(42),
 	}
 	fn := snaptest.MakeTestSnapWithFiles(c, packageKernel, files)
-	snapf, err := snap.Open(fn)
+	snapf, err := snapfile.Open(fn)
 	c.Assert(err, IsNil)
 
 	info, err := snap.ReadInfoFromSnapFile(snapf, si)
@@ -221,7 +222,7 @@ func (s *ubootTestSuite) TestExtractRecoveryKernelAssets(c *C) {
 	}
 }
 
-func (s *ubootTestSuite) TestUbootUC20OptsFormat(c *C) {
+func (s *ubootTestSuite) TestUbootUC20OptsPlacement(c *C) {
 	tt := []struct {
 		blOpts  *bootloader.Options
 		expEnv  string

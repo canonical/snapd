@@ -8,6 +8,4 @@ execute: |
     test ! -e /var/lib/snapd/ns/snap-hooks-bad-install.mnt
     test ! -e /var/lib/snapd/ns/snap.snap-hooks-bad-install.fstab
 restore: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/dirs.sh"
-    "$LIBEXECDIR/snapd/snap-discard-ns" snap-hooks-bad-install
+    snapd.tool exec snap-discard-ns snap-hooks-bad-install

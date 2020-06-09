@@ -99,6 +99,7 @@ reset_classic() {
                 EXTRA_NC_ARGS=""
                 ;;
         esac
+        # shellcheck disable=SC2086
         while ! printf 'GET / HTTP/1.0\r\n\r\n' | nc -U $EXTRA_NC_ARGS /run/snapd.socket; do sleep 0.5; done
     fi
 }

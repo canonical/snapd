@@ -36,7 +36,7 @@ Interfaces=org.freedesktop.impl.portal.FileChooser;org.freedesktop.impl.portal.S
 UseIn=spread
 EOF
 
-    session-tool -u test systemctl --user set-environment XDG_CURRENT_DESKTOP=spread
+    tests.session -u test exec systemctl --user set-environment XDG_CURRENT_DESKTOP=spread
 }
 
 teardown_portals() {

@@ -72,6 +72,9 @@ func ReadModeenv(rootdir string) (*Modeenv, error) {
 	// TODO:UC20: should we check these errors and try to do something?
 	recoverySystem, _ := cfg.Get("", "recovery_system")
 	mode, _ := cfg.Get("", "mode")
+	if mode == "" {
+		return nil, fmt.Errorf("internal error: mode is unset")
+	}
 	base, _ := cfg.Get("", "base")
 	baseStatus, _ := cfg.Get("", "base_status")
 	tryBase, _ := cfg.Get("", "try_base")
@@ -134,9 +137,11 @@ func (m *Modeenv) WriteTo(rootdir string) error {
 		return err
 	}
 	buf := bytes.NewBuffer(nil)
-	if m.Mode != "" {
-		fmt.Fprintf(buf, "mode=%s\n", m.Mode)
+	if m.Mode == "" {
+		return fmt.Errorf("internal error: mode is unset")
 	}
+	fmt.Fprintf(buf, "mode=%s\n", m.Mode)
+
 	if m.RecoverySystem != "" {
 		fmt.Fprintf(buf, "recovery_system=%s\n", m.RecoverySystem)
 	}

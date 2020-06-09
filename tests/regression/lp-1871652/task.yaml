@@ -14,7 +14,7 @@ prepare: |
 
     # XXX: This fails on: error: cannot communicate with server: Post http://localhost/v2/snaps/core: dial unix /run/snapd.socket: connect: no such file or directory
     # But why?
-    retry-tool -n 30 lxc exec bionic -- snap install core
+    retry -n 30 lxc exec bionic -- snap install core
 
     # Install lxd inside the container and activate it (it is socket activated)
     # by running a lxc command. When lxd service shuts down systemd runs a
