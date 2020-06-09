@@ -243,6 +243,10 @@ func AddForeignTaskHandlers(runner *state.TaskRunner, tracker ForeignTaskTracker
 	runner.AddHandler("transition-ubuntu-core", fakeHandler, nil)
 	runner.AddHandler("transition-to-snapd-snap", fakeHandler, nil)
 
+	// Add fake handlers for tasks handled by the export manager
+	runner.AddHandler("export-content", fakeHandler, nil)
+	runner.AddHandler("unexport-content", fakeHandler, nil)
+
 	// Add handler to test full aborting of changes
 	erroringHandler := func(task *state.Task, _ *tomb.Tomb) error {
 		return errors.New("error out")
@@ -414,6 +418,7 @@ func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.St
 		"copy-snap-data",
 		"setup-profiles",
 		"link-snap",
+		"export-content",
 	)
 	if opts&maybeCore != 0 {
 		expected = append(expected, "setup-profiles")
@@ -553,6 +558,7 @@ func (s *snapmgrTestSuite) testRevertTasksFullFlags(flags fullFlags, c *C) {
 		"unlink-current-snap",
 		"setup-profiles",
 		"link-snap",
+		"export-content",
 		"auto-connect",
 		"set-auto-aliases",
 		"setup-aliases",
@@ -1240,6 +1246,7 @@ func (s *snapmgrTestSuite) TestRevertCreatesNoGCTasks(c *C) {
 		"unlink-current-snap",
 		"setup-profiles",
 		"link-snap",
+		"export-content",
 		"auto-connect",
 		"set-auto-aliases",
 		"setup-aliases",
@@ -2705,6 +2712,7 @@ func (s *snapmgrTestSuite) TestUpdateAmendRunThrough(c *C) {
 		"setup-profiles:Doing",
 		"candidate",
 		"link-snap",
+		"export-content:Doing",
 		"auto-connect:Doing",
 		"update-aliases",
 		"cleanup-trash",
@@ -2752,7 +2760,7 @@ func (s *snapmgrTestSuite) TestUpdateAmendRunThrough(c *C) {
 	verifyStopReason(c, ts, "refresh")
 
 	// check post-refresh hook
-	task = ts.Tasks()[14]
+	task = ts.Tasks()[15]
 	c.Assert(task.Kind(), Equals, "run-hook")
 	c.Assert(task.Summary(), Matches, `Run post-refresh hook of "some-snap" snap if present`)
 
@@ -2914,6 +2922,11 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "services-snap/11"),
 		},
 		{
+			op:    "export-content:Doing",
+			name:  "services-snap",
+			revno: snap.R(11),
+		},
+		{
 			op:    "auto-connect:Doing",
 			name:  "services-snap",
 			revno: snap.R(11),
@@ -2978,7 +2991,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	verifyStopReason(c, ts, "refresh")
 
 	// check post-refresh hook
-	task = ts.Tasks()[14]
+	task = ts.Tasks()[15]
 	c.Assert(task.Kind(), Equals, "run-hook")
 	c.Assert(task.Summary(), Matches, `Run post-refresh hook of "services-snap" snap if present`)
 
@@ -3140,6 +3153,11 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "services-snap_instance/11"),
 		},
 		{
+			op:    "export-content:Doing",
+			name:  "services-snap_instance",
+			revno: snap.R(11),
+		},
+		{
 			op:    "auto-connect:Doing",
 			name:  "services-snap_instance",
 			revno: snap.R(11),
@@ -3204,7 +3222,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
 	verifyStopReason(c, ts, "refresh")
 
 	// check post-refresh hook
-	task = ts.Tasks()[14]
+	task = ts.Tasks()[15]
 	c.Assert(task.Kind(), Equals, "run-hook")
 	c.Assert(task.Summary(), Matches, `Run post-refresh hook of "services-snap_instance" snap if present`)
 
@@ -4321,6 +4339,11 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 		{
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/11"),
+		},
+		{
+			op:    "export-content:Doing",
+			name:  "some-snap",
+			revno: snap.R(11),
 		},
 		{
 			op:    "auto-connect:Doing",
@@ -5650,7 +5673,7 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 		}
 		if scenario.update {
 			first := tasks[j]
-			j += 19
+			j += 20
 			c.Check(first.Kind(), Equals, "prerequisites")
 			wait := false
 			if expectedPruned["other-snap"]["aliasA"] {
@@ -6921,6 +6944,11 @@ func (s *snapmgrTestSuite) TestUpdateDoesGC(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/11"),
 		},
 		{
+			op:    "export-content:Doing",
+			name:  "some-snap",
+			revno: snap.R(11),
+		},
+		{
 			op:    "auto-connect:Doing",
 			name:  "some-snap",
 			revno: snap.R(11),
@@ -7107,6 +7135,11 @@ func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/2"),
 		},
 		{
+			op:    "export-content:Doing",
+			name:  "some-snap",
+			revno: snap.R(2),
+		},
+		{
 			op:    "auto-connect:Doing",
 			name:  "some-snap",
 			revno: snap.R(2),
@@ -7216,6 +7249,11 @@ func (s *snapmgrTestSuite) TestRevertWithBaseRunThrough(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "some-snap-with-base/2"),
 		},
 		{
+			op:    "export-content:Doing",
+			name:  "some-snap-with-base",
+			revno: snap.R(2),
+		},
+		{
 			op:    "auto-connect:Doing",
 			name:  "some-snap-with-base",
 			revno: snap.R(2),
@@ -7302,6 +7340,11 @@ func (s *snapmgrTestSuite) TestParallelInstanceRevertRunThrough(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "some-snap_instance/2"),
 		},
 		{
+			op:    "export-content:Doing",
+			name:  "some-snap_instance",
+			revno: snap.R(2),
+		},
+		{
 			op:    "auto-connect:Doing",
 			name:  "some-snap_instance",
 			revno: snap.R(2),
@@ -7373,7 +7416,7 @@ func (s *snapmgrTestSuite) TestRevertWithLocalRevisionRunThrough(c *C) {
 	s.settle(c)
 	s.state.Lock()
 
-	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 7)
+	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 8)
 
 	// verify that LocalRevision is still -7
 	var snapst snapstate.SnapState
@@ -7438,6 +7481,11 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 		{
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
+		},
+		{
+			op:    "export-content:Doing",
+			name:  "some-snap",
+			revno: snap.R(7),
 		},
 		{
 			op:    "auto-connect:Doing",
@@ -7527,6 +7575,11 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 		{
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/1"),
+		},
+		{
+			op:    "export-content:Doing",
+			name:  "some-snap",
+			revno: snap.R(1),
 		},
 		{
 			op:    "auto-connect:Doing",
@@ -8231,6 +8284,7 @@ func (s *snapmgrTestSuite) testUpdateScenario(c *C, desc string, t switchScenari
 		"setup-profiles:Doing",
 		"candidate",
 		"link-snap",
+		"export-content:Doing",
 		"auto-connect:Doing",
 		"update-aliases",
 		"cleanup-trash",
@@ -8390,6 +8444,7 @@ validate-snap: Done
 link-snap: Error
  INFO unlink
  ERROR fail
+export-content: Hold
 auto-connect: Hold
 set-auto-aliases: Hold
 setup-aliases: Hold
@@ -8406,6 +8461,7 @@ validate-snap: Done
 link-snap: Error
  INFO unlink
  ERROR fail
+export-content: Hold
 auto-connect: Hold
 set-auto-aliases: Hold
 setup-aliases: Hold
@@ -10203,6 +10259,11 @@ func (s *snapmgrTestSuite) TestUpdateCanDoBackwards(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
 		},
 		{
+			op:    "export-content:Doing",
+			name:  "some-snap",
+			revno: snap.R(7),
+		},
+		{
 			op:    "auto-connect:Doing",
 			name:  "some-snap",
 			revno: snap.R(7),
@@ -10807,6 +10868,11 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 		{
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, "core/11"),
+		},
+		{
+			op:    "export-content:Doing",
+			name:  "core",
+			revno: snap.R(11),
 		},
 		{
 			op:    "auto-connect:Doing",

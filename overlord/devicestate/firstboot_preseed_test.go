@@ -73,6 +73,7 @@ func checkPreseedTaskStates(c *C, st *state.State) {
 		"prerequisites":    true,
 		"prepare-snap":     true,
 		"link-snap":        true,
+		"export-content":   true,
 		"mount-snap":       true,
 		"setup-profiles":   true,
 		"copy-snap-data":   true,

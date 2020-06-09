@@ -247,6 +247,11 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	addTask(linkSnap)
 	prev = linkSnap
 
+	// export content
+	exportContent := st.NewTask("export-content", fmt.Sprintf(i18n.G("Export content from snap %q%s to the system"), snapsup.InstanceName(), revisionStr))
+	addTask(exportContent)
+	prev = exportContent
+
 	// auto-connections
 	autoConnect := st.NewTask("auto-connect", fmt.Sprintf(i18n.G("Automatically connect eligible plugs and slots of snap %q"), snapsup.InstanceName()))
 	addTask(autoConnect)

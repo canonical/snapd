@@ -97,6 +97,7 @@ func (s *snapmgrTestSuite) testTrySetsTryMode(flags snapstate.Flags, c *C, extra
 		"copy-snap-data",
 		"setup-profiles",
 		"link-snap",
+		"export-content",
 		"auto-connect",
 		"set-auto-aliases",
 		"setup-aliases",
