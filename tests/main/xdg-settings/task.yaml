@@ -2,53 +2,36 @@ summary: Ensure snap userd allows settings via xdg-settings
 
 # Not supposed to work on Ubuntu Core systems as we don't have
 # a user session environment there
-systems: [-ubuntu-core-*]
-
-environment:
-    DISPLAY: :0
+systems:
+    - -amazon-linux-2-*  # does not support systemd --user
+    - -centos-7-*  # does not support systemd --user
+    - -ubuntu-14.04-*  # not supported as desktop OS, systemd too old for tests.session
+    - -ubuntu-core-*  # test exercises regular xdg-settings, not the custom one in ubuntu-core
 
 restore: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB/dirs.sh"
-    #shellcheck source=tests/lib/pkgdb.sh
-    . "$TESTSLIB/pkgdb.sh"
+    tests.session -u test restore
     umount -f /usr/bin/xdg-settings || true
     umount -f /usr/bin/zenity || true
     rm -f stderr.log
 
-execute: |
-    #shellcheck source=tests/lib/pkgdb.sh
-    . "$TESTSLIB/pkgdb.sh"
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB/dirs.sh"
+prepare: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
-
     install_local test-snapd-xdg-settings
 
-    # setup dbus
-    dbus-launch > dbus.env
-    #shellcheck disable=SC2046
-    export $(xargs < dbus.env)
+    tests.session -u test prepare
 
     # wait for session to be ready
-    ping_settings() {
-        dbus-send --session                                        \
-            --dest=io.snapcraft.Settings                           \
-            --type=method_call                                     \
-            --print-reply                                          \
-            /                                                      \
+    tests.session -u test exec env "PATH=$PATH" retry -n 5 --wait 0.5 dbus-send \
+            --session                                         \
+            --dest=io.snapcraft.Settings                      \
+            --type=method_call                                \
+            --print-reply                                     \
+            /                                                 \
             org.freedesktop.DBus.Peer.Ping
-    }
-    while ! ping_settings ; do
-        sleep .5
-    done
 
     # Create a small helper which will tell us if snap passes
     # the settings to the right handler
-    
     cat << 'EOF' > /tmp/xdg-settings
     #!/bin/sh
     echo "$@" > /tmp/xdg-settings-output
@@ -58,20 +41,20 @@ execute: |
     touch /usr/bin/xdg-settings
     mount --bind /tmp/xdg-settings /usr/bin/xdg-settings
 
+execute: |
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
 
     ensure_xdg_settings_output() {
         rm -f /tmp/xdg-settings-output
-        export DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS
 
         # run xdg-settings from inside the snap
-        test-snapd-xdg-settings.xdg-settings-wrapper "$@"
+        tests.session -u test exec test-snapd-xdg-settings.xdg-settings-wrapper "$@"
 
-        if [[ $# -eq 3 ]]
-        then
+        if [ $# -eq 3 ]; then
             # the dbus interface rewrites the final param to be <snap name>_<desktop file>
             test_output="$1 $2 test-snapd-xdg-settings_$3"
-        elif [[ $# -eq 4 ]]
-        then
+        elif [ $# -eq 4 ]; then
             # the dbus interface rewrites the final param to be <snap name>_<desktop file>
             test_output="$1 $2 $3 test-snapd-xdg-settings_$4"
         else
@@ -85,10 +68,9 @@ execute: |
 
     ensure_error_no_xdg_settings_output() {
         rm -f /tmp/xdg-settings-output
-        export DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS
 
         # run xdg-settings from inside the snap
-        not test-snapd-xdg-settings.xdg-settings-wrapper "$@"
+        not tests.session -u test exec test-snapd-xdg-settings.xdg-settings-wrapper "$@"
 
         # verify that the output file doesn't exist
         test ! -e /tmp/xdg-settings-output
@@ -132,7 +114,6 @@ execute: |
 
     ensure_error_no_xdg_settings_output "set" "default-url-scheme-handler" "irc" "inälid" 2> stderr.log
     MATCH 'cannot set "default-url-scheme-handler" subproperty "irc" setting to invalid value "inälid"' < stderr.log
-
 
     # ensure zenity answers "no"
     umount /usr/bin/zenity
