@@ -50,7 +50,7 @@ execute: |
 
     # Ensure that snap-confine has finished its task and that the snap process
     # is active. Note that we don't want to wait forever either.
-    retry-tool -n 30 --wait 0.1 test -e /var/snap/test-snapd-refresh/current/stamp
+    retry -n 30 --wait 0.1 test -e /var/snap/test-snapd-refresh/current/stamp
 
     # Try to install v2, it should fail because v1 is running. Snapd is kind
     # enough to tell us what is preventing the install from working.

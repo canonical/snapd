@@ -31,7 +31,7 @@ prepare: |
     tests.session -u test exec systemctl --user set-environment XDG_DATA_DIRS=/usr/share
 
     # wait for session to be ready
-    tests.session -u test exec env "PATH=$PATH" retry-tool -n 5 --wait 0.5 dbus-send \
+    tests.session -u test exec env "PATH=$PATH" retry -n 5 --wait 0.5 dbus-send \
             --session                                         \
             --dest=io.snapcraft.Launcher                      \
             --type=method_call                                \
@@ -85,6 +85,7 @@ execute: |
     ensure_xdg_open_output "help:snapcraft"
     ensure_xdg_open_output "apt:snapcraft"
     ensure_xdg_open_output "zoommtg://snapcraft.io"
+    ensure_xdg_open_output "slack://5NAPPY111/magic-login/bcaf81ee-07b1-4362-9c09-ff46bd6e1bb9"
 
     # Ensure XDG_DATA_DIRS was prefixed with snap specific location
     test "$(tail -1 /tmp/xdg-open-output)" = "XDG_DATA_DIRS=$SNAP_MOUNT_DIR/test-snapd-desktop/current/usr/share:/usr/share"

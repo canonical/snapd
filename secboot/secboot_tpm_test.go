@@ -31,12 +31,13 @@ import (
 
 	"github.com/canonical/go-tpm2"
 	sb "github.com/snapcore/secboot"
-
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader/efi"
+	// TODO: UC20: move/merge partition with gadget
+	"github.com/snapcore/snapd/cmd/snap-bootstrap/partition"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/testutil"
@@ -207,10 +208,12 @@ func (s *secbootSuite) TestMeasureSnapModelWhenPossible(c *C) {
 }
 
 func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
+	noTPMDeviceErr := &os.PathError{Op: "open", Path: "path", Err: errors.New("no tpm")}
+
 	for idx, tc := range []struct {
-		hasTPM    bool
 		tpmErr    error
 		hasEncdev bool
+		rkErr     error // recovery key unlock error, only relevant if TPM not available
 		last      bool
 		lockOk    bool
 		activated bool
@@ -219,61 +222,68 @@ func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
 	}{
 		// TODO: verify which cases are possible
 		{
-			hasTPM: true, hasEncdev: true, last: true, lockOk: true,
+			hasEncdev: true, last: true, lockOk: true,
 			activated: true, device: "name",
 		}, {
-			hasTPM: true, hasEncdev: true, last: true, lockOk: true,
+			hasEncdev: true, last: true, lockOk: true,
 			err: "cannot activate encrypted device .*: activation error",
 		}, {
-			hasTPM: true, hasEncdev: true, last: true, activated: true,
+			hasEncdev: true, last: true, activated: true,
 			err: "cannot lock access to sealed keys: lock failed",
 		}, {
-			hasTPM: true, hasEncdev: true, lockOk: true, activated: true,
+			hasEncdev: true, lockOk: true, activated: true,
 			device: "name",
 		}, {
-			hasTPM: true, hasEncdev: true, lockOk: true,
+			hasEncdev: true, lockOk: true,
 			err: "cannot activate encrypted device .*: activation error",
 		}, {
-			hasTPM: true, hasEncdev: true, activated: true, device: "name",
-		}, {
-			hasTPM: true, hasEncdev: true,
-			err: "cannot activate encrypted device .*: activation error",
-		}, {
-			hasTPM: true, last: true, lockOk: true, activated: true,
-			device: "name",
-		}, {
-			hasTPM: true, last: true, activated: true,
-			err: "cannot lock access to sealed keys: lock failed",
-		}, {
-			hasTPM: true, lockOk: true, activated: true, device: "name",
-		}, {
-			hasTPM: true, activated: true, device: "name",
-		}, {
-			hasTPM: true, hasEncdev: true, last: true,
-			tpmErr: errors.New("tpm error"),
-			err:    `cannot unlock encrypted device "name": tpm error`,
-		}, {
-			hasTPM: true, hasEncdev: true,
-			tpmErr: errors.New("tpm error"),
-			err:    `cannot unlock encrypted device "name": tpm error`,
-		}, {
-			hasTPM: true, last: true, device: "name",
-			tpmErr: errors.New("tpm error"),
-		}, {
-			hasTPM: true, device: "name",
-			tpmErr: errors.New("tpm error"),
-		}, {
-			hasEncdev: true, last: true,
-			tpmErr: errors.New("no tpm"),
-			err:    `cannot unlock encrypted device "name": no tpm`,
+			hasEncdev: true, activated: true, device: "name",
 		}, {
 			hasEncdev: true,
-			tpmErr:    errors.New("no tpm"),
-			err:       `cannot unlock encrypted device "name": no tpm`,
+			err:       "cannot activate encrypted device .*: activation error",
 		}, {
-			last: true, device: "name", tpmErr: errors.New("no tpm"),
+			last: true, lockOk: true, activated: true,
+			device: "name",
 		}, {
-			tpmErr: errors.New("no tpm"), device: "name",
+			last: true, activated: true,
+			err: "cannot lock access to sealed keys: lock failed",
+		}, {
+			lockOk: true, activated: true, device: "name",
+		}, {
+			activated: true, device: "name",
+		}, {
+			tpmErr: errors.New("tpm error"),
+			err:    `cannot unlock encrypted device "name": tpm error`,
+		}, {
+			tpmErr: errors.New("tpm error"), hasEncdev: true, last: true,
+			err: `cannot unlock encrypted device "name": tpm error`,
+		}, {
+			tpmErr: errors.New("tpm error"), hasEncdev: true,
+			err: `cannot unlock encrypted device "name": tpm error`,
+		}, {
+			tpmErr: errors.New("tpm error"), last: true,
+			err: `cannot unlock encrypted device "name": tpm error`,
+		}, {
+			// has encrypted device and no tpm, unlocked using the recovery key (last device)
+			tpmErr: noTPMDeviceErr, hasEncdev: true, last: true,
+			device: "name",
+		}, {
+			// has encrypted device and no tpm, recovery key unlocking fails
+			rkErr:  errors.New("cannot unlock with recovery key"),
+			tpmErr: noTPMDeviceErr, hasEncdev: true, last: true,
+			err: `cannot unlock encrypted device ".*/name-enc": cannot unlock with recovery key`,
+		}, {
+			// has encrypted device and no tpm, unlocked using the recovery key
+			tpmErr: noTPMDeviceErr, hasEncdev: true,
+			device: "name",
+		}, {
+			// no tpm, no encrypted device (last device)
+			tpmErr: noTPMDeviceErr, last: true,
+			device: "name",
+		}, {
+			// no tpm, no encrypted device
+			tpmErr: noTPMDeviceErr,
+			device: "name",
 		},
 	} {
 		randomUUID := fmt.Sprintf("random-uuid-for-test-%d", idx)
@@ -287,7 +297,7 @@ func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
 		defer restoreConnect()
 
 		n := 0
-		restoreLock := secboot.MockSbLockAccessToSealedKeys(func(tpm *sb.TPMConnection) error {
+		restore = secboot.MockSbLockAccessToSealedKeys(func(tpm *sb.TPMConnection) error {
 			n++
 			c.Assert(tpm, Equals, mockSbTPM)
 			if tc.lockOk {
@@ -295,7 +305,7 @@ func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
 			}
 			return errors.New("lock failed")
 		})
-		defer restoreLock()
+		defer restore()
 
 		devDiskByLabel, restoreDev := mockDevDiskByLabel(c)
 		defer restoreDev()
@@ -304,7 +314,7 @@ func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
 			c.Assert(err, IsNil)
 		}
 
-		restoreActivate := secboot.MockSbActivateVolumeWithTPMSealedKey(func(tpm *sb.TPMConnection, volumeName, sourceDevicePath,
+		restore = secboot.MockSbActivateVolumeWithTPMSealedKey(func(tpm *sb.TPMConnection, volumeName, sourceDevicePath,
 			keyPath string, pinReader io.Reader, options *sb.ActivateWithTPMSealedKeyOptions) (bool, error) {
 			c.Assert(volumeName, Equals, "name-"+randomUUID)
 			c.Assert(sourceDevicePath, Equals, filepath.Join(devDiskByLabel, "name-enc"))
@@ -319,7 +329,13 @@ func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
 			}
 			return true, nil
 		})
-		defer restoreActivate()
+		defer restore()
+
+		restore = secboot.MockSbActivateVolumeWithRecoveryKey(func(name, device string, keyReader io.Reader,
+			options *sb.ActivateWithRecoveryKeyOptions) error {
+			return tc.rkErr
+		})
+		defer restore()
 
 		device, err := secboot.UnlockVolumeIfEncrypted("name", tc.last)
 		if tc.err == "" {
@@ -340,10 +356,221 @@ func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
 		// detected, regardless of whether secure boot is enabled or there is an
 		// encrypted volume to unlock. If we have multiple encrypted volumes, we
 		// should call it after the last one is unlocked.
-		if tc.hasTPM && tc.tpmErr == nil && tc.last {
+		if tc.tpmErr == nil && tc.last {
 			c.Assert(n, Equals, 1)
+		} else {
+			c.Assert(n, Equals, 0)
 		}
 	}
+}
+
+func (s *secbootSuite) TestSealKey(c *C) {
+	tmpDir := c.MkDir()
+
+	var mockEFI []string
+	for _, name := range []string{"a", "b", "c", "d", "e", "f"} {
+		mockFileName := filepath.Join(tmpDir, name)
+		err := ioutil.WriteFile(mockFileName, nil, 0644)
+		c.Assert(err, IsNil)
+		mockEFI = append(mockEFI, mockFileName)
+	}
+
+	myParams := secboot.SealKeyParams{
+		ModelParams: []*secboot.SealKeyModelParams{
+			{
+				EFILoadChains:  [][]string{{mockEFI[0], mockEFI[1], mockEFI[2], mockEFI[3]}},
+				KernelCmdlines: []string{"cmdline1"},
+				Model:          &asserts.Model{},
+			},
+			{
+				EFILoadChains:  [][]string{{mockEFI[0], mockEFI[1], mockEFI[2]}, {mockEFI[3], mockEFI[4]}},
+				KernelCmdlines: []string{"cmdline2", "cmdline3"},
+				Model:          &asserts.Model{},
+			},
+		},
+		KeyFile:                 "keyfile",
+		TPMPolicyUpdateDataFile: "policy-update-data-file",
+		TPMLockoutAuthFile:      filepath.Join(tmpDir, "lockout-auth-file"),
+	}
+
+	myKey := partition.EncryptionKey{}
+	for i := range myKey {
+		myKey[i] = byte(i)
+	}
+
+	sequences1 := []*sb.EFIImageLoadEvent{
+		{
+			Source: sb.Firmware,
+			Image:  sb.FileEFIImage(mockEFI[0]),
+			Next: []*sb.EFIImageLoadEvent{
+				{
+					Source: sb.Shim,
+					Image:  sb.FileEFIImage(mockEFI[1]),
+					Next: []*sb.EFIImageLoadEvent{
+						{
+							Source: sb.Shim,
+							Image:  sb.FileEFIImage(mockEFI[2]),
+							Next: []*sb.EFIImageLoadEvent{
+								{
+									Source: sb.Shim,
+									Image:  sb.FileEFIImage(mockEFI[3]),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	sequences2 := []*sb.EFIImageLoadEvent{
+		{
+			Source: sb.Firmware,
+			Image:  sb.FileEFIImage(mockEFI[0]),
+			Next: []*sb.EFIImageLoadEvent{
+				{
+					Source: sb.Shim,
+					Image:  sb.FileEFIImage(mockEFI[1]),
+					Next: []*sb.EFIImageLoadEvent{
+						{
+							Source: sb.Shim,
+							Image:  sb.FileEFIImage(mockEFI[2]),
+						},
+					},
+				},
+			},
+		},
+		{
+			Source: sb.Firmware,
+			Image:  sb.FileEFIImage(mockEFI[3]),
+			Next: []*sb.EFIImageLoadEvent{
+				{
+					Source: sb.Shim,
+					Image:  sb.FileEFIImage(mockEFI[4]),
+				},
+			},
+		},
+	}
+
+	for _, tc := range []struct {
+		tpmErr               error
+		addProfileCallNum    int
+		provisionSealCallNum int
+		err                  string
+	}{
+		{tpmErr: errors.New("tpm error"), addProfileCallNum: 0, provisionSealCallNum: 0, err: "cannot connect to TPM: tpm error"},
+		{tpmErr: nil, addProfileCallNum: 2, provisionSealCallNum: 1, err: ""},
+	} {
+		tpm, restore := mockSbTPMConnection(c, tc.tpmErr)
+		defer restore()
+
+		// mock adding EFI secure boot policy profile
+		var pcrProfile *sb.PCRProtectionProfile
+		addEFISbPolicyCalls := 0
+		restore = secboot.MockSbAddEFISecureBootPolicyProfile(func(profile *sb.PCRProtectionProfile, params *sb.EFISecureBootPolicyProfileParams) error {
+			addEFISbPolicyCalls++
+			pcrProfile = profile
+			c.Assert(params.PCRAlgorithm, Equals, tpm2.HashAlgorithmSHA256)
+			switch addEFISbPolicyCalls {
+			case 1:
+				c.Assert(params.LoadSequences, DeepEquals, sequences1)
+			case 2:
+				c.Assert(params.LoadSequences, DeepEquals, sequences2)
+			default:
+				c.Error("AddEFISecureBootPolicyProfile shouldn't be called a third time")
+			}
+			return nil
+		})
+		defer restore()
+
+		// mock adding systemd EFI stub profile
+		addSystemdEfiStubCalls := 0
+		restore = secboot.MockSbAddSystemdEFIStubProfile(func(profile *sb.PCRProtectionProfile, params *sb.SystemdEFIStubProfileParams) error {
+			addSystemdEfiStubCalls++
+			c.Assert(profile, Equals, pcrProfile)
+			c.Assert(params.PCRAlgorithm, Equals, tpm2.HashAlgorithmSHA256)
+			c.Assert(params.PCRIndex, Equals, 12)
+			switch addSystemdEfiStubCalls {
+			case 1:
+				c.Assert(params.KernelCmdlines, DeepEquals, myParams.ModelParams[0].KernelCmdlines)
+			case 2:
+				c.Assert(params.KernelCmdlines, DeepEquals, myParams.ModelParams[1].KernelCmdlines)
+			default:
+				c.Error("AddSystemdEFIStubProfile shouldn't be called a third time")
+			}
+			return nil
+		})
+		defer restore()
+
+		// mock adding snap model profile
+		addSnapModelCalls := 0
+		restore = secboot.MockSbAddSnapModelProfile(func(profile *sb.PCRProtectionProfile, params *sb.SnapModelProfileParams) error {
+			addSnapModelCalls++
+			c.Assert(profile, Equals, pcrProfile)
+			c.Assert(params.PCRAlgorithm, Equals, tpm2.HashAlgorithmSHA256)
+			c.Assert(params.PCRIndex, Equals, 12)
+			switch addSnapModelCalls {
+			case 1:
+				c.Assert(params.Models[0], DeepEquals, myParams.ModelParams[0].Model)
+			case 2:
+				c.Assert(params.Models[0], DeepEquals, myParams.ModelParams[1].Model)
+			default:
+				c.Error("AddSnapModelProfile shouldn't be called a third time")
+			}
+			return nil
+		})
+		defer restore()
+
+		// mock provisioning
+		provisioningCalls := 0
+		restore = secboot.MockSbProvisionTPM(func(t *sb.TPMConnection, mode sb.ProvisionMode, newLockoutAuth []byte) error {
+			provisioningCalls++
+			c.Assert(t, Equals, tpm)
+			c.Assert(mode, Equals, sb.ProvisionModeFull)
+			c.Assert(myParams.TPMLockoutAuthFile, testutil.FilePresent)
+			return nil
+		})
+		defer restore()
+
+		// mock sealing
+		sealCalls := 0
+		restore = secboot.MockSbSealKeyToTPM(func(t *sb.TPMConnection, key []byte, keyPath, policyUpdatePath string, params *sb.KeyCreationParams) error {
+			sealCalls++
+			c.Assert(t, Equals, tpm)
+			c.Assert(key, DeepEquals, myKey[:])
+			c.Assert(keyPath, Equals, myParams.KeyFile)
+			c.Assert(policyUpdatePath, Equals, myParams.TPMPolicyUpdateDataFile)
+			c.Assert(params.PINHandle, Equals, tpm2.Handle(0x01880000))
+
+			return nil
+		})
+		defer restore()
+
+		err := secboot.SealKey(myKey, &myParams)
+		if tc.err == "" {
+			c.Assert(err, IsNil)
+		} else {
+			c.Assert(err, ErrorMatches, tc.err)
+		}
+		c.Assert(addEFISbPolicyCalls, Equals, tc.addProfileCallNum)
+		c.Assert(addSystemdEfiStubCalls, Equals, tc.addProfileCallNum)
+		c.Assert(addSnapModelCalls, Equals, tc.addProfileCallNum)
+		c.Assert(provisioningCalls, Equals, tc.provisionSealCallNum)
+		c.Assert(sealCalls, Equals, tc.provisionSealCallNum)
+
+	}
+}
+
+func (s *secbootSuite) TestSealKeyNoModelParams(c *C) {
+	myKey := partition.EncryptionKey{}
+	myParams := secboot.SealKeyParams{
+		KeyFile:                 "keyfile",
+		TPMPolicyUpdateDataFile: "policy-update-data-file",
+		TPMLockoutAuthFile:      "lockout-auth-file",
+	}
+
+	err := secboot.SealKey(myKey, &myParams)
+	c.Assert(err, ErrorMatches, "at least one set of model-specific parameters is required")
 }
 
 func mockSbTPMConnection(c *C, tpmErr error) (*sb.TPMConnection, func()) {

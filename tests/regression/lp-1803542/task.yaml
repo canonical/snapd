@@ -8,11 +8,9 @@ prepare: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
     install_local test-snapd-sh
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB/dirs.sh"
     # Ensure that every snap namespace is discarded.
     for name in $(snap list | awk '!/Name/ {print $1}'); do
-        "$LIBEXECDIR"/snapd/snap-discard-ns "$name"
+        snapd.tool exec snap-discard-ns "$name"
     done
     if findmnt --noheadings /run/snapd/ns >/dev/null; then
         umount /run/snapd/ns
