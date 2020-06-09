@@ -32,11 +32,11 @@ import (
 
 const defaultExportDir = "/var/lib/snapd/export"
 
-var ExportDir = defaultExportDir
+var exportDir = defaultExportDir
 
 func init() {
 	dirs.AddRootDirCallback(func(root string) {
-		ExportDir = filepath.Join(root, defaultExportDir)
+		exportDir = filepath.Join(root, defaultExportDir)
 	})
 }
 
@@ -71,36 +71,86 @@ func (m *ExportManager) readInfo(task *state.Task) (*snap.Info, error) {
 }
 
 func (m *ExportManager) exportContent(task *state.Task, info *snap.Info) error {
-	for path, export := range info.Export {
-		// XXX: This is is not aware of /snap vs /var/lib/snapd/snap
-		privateName := filepath.Join(info.MountDir(), export.Path)
-		publicName := filepath.Join(ExportDir, path)
-		if err := os.MkdirAll(filepath.Dir(publicName), 0755); err != nil {
-			return err
+	// TODO: store each exported file into the state.
+	for _, export := range info.NamespaceExports {
+		if err := m.exportOne(dirs.SnapMountDirInsideNs, export); err != nil {
+			return fmt.Errorf("cannot export %q from snap %s, to mount namespace, as %q: %v",
+				export.PrivatePath, info.SnapName(), export.PublicPath, err)
 		}
-		switch export.Method {
-		case "symlink":
-			if err := os.Symlink(privateName, publicName); err != nil {
-				return fmt.Errorf("cannot export %q as %q: %v", privateName, publicName, err)
-			}
-		default:
-			return fmt.Errorf("cannot export %q as %q, unsupported export method %s", privateName, publicName, export.Method)
+	}
+	for _, export := range info.HostExports {
+		if err := m.exportOne(dirs.SnapMountDir, export); err != nil {
+			return fmt.Errorf("cannot export %q from snap %s, to the host, as %q: %v",
+				export.PrivatePath, info.SnapName(), export.PublicPath, err)
+		}
+	}
+	return nil
+}
+func (m *ExportManager) unexportContent(task *state.Task, info *snap.Info) error {
+	// TODO: use the state to know what to unexport from the given snap name.
+	for _, export := range info.NamespaceExports {
+		if err := m.unexportOne(export); err != nil {
+			return fmt.Errorf("cannot unexport %q from snap %s: %v",
+				export.PrivatePath, info.SnapName(), err)
+		}
+	}
+	for _, export := range info.HostExports {
+		if err := m.unexportOne(export); err != nil {
+			return fmt.Errorf("cannot unexport %q from snap %s: %v",
+				export.PrivatePath, info.SnapName(), err)
 		}
 	}
 	return nil
 }
 
-func (m *ExportManager) unexportContent(task *state.Task, info *snap.Info) error {
-	for path, export := range info.Export {
-		publicName := filepath.Join(ExportDir, path)
-		switch export.Method {
-		case "symlink":
-			if err := os.Remove(publicName); err != nil {
-				return fmt.Errorf("cannot unexport %q: %v", publicName, err)
-			}
-		default:
-			return fmt.Errorf("cannot unexport %q, unsupported export method %s", publicName, export.Method)
+func (m *ExportManager) exportOne(baseDir string, export *snap.Export) error {
+	info := export.Snap
+	privateName := filepath.Join(baseDir, info.InstanceName(), info.Revision.String(), export.PrivatePath)
+	publicName := filepath.Join(exportDir, export.PublicPath)
+	if err := os.MkdirAll(filepath.Dir(publicName), 0755); err != nil {
+		return err
+	}
+	switch export.Method {
+	case snap.ExportMethodSymlink:
+		// Do we have an existing file?
+		fi, err := os.Stat(publicName)
+		if err != nil && !os.IsNotExist(err) {
+			return err
 		}
+		// Verify existing symlink.
+		if fi != nil && fi.Mode()&os.ModeSymlink != 0 {
+			target, err := os.Readlink(publicName)
+			if err != nil {
+				return err
+			}
+			if target == privateName {
+				// Symlink is up-to-date.
+				return nil
+			}
+		}
+		// Remove existing file.
+		// XXX: This should never happen if we modeled the exported state.
+		if fi != nil {
+			if err := os.Remove(publicName); err != nil {
+				return err
+			}
+		}
+		// Export the current version.
+		return os.Symlink(privateName, publicName)
+	default:
+		return fmt.Errorf("unsupported export method %s", export.Method)
+	}
+}
+
+func (m *ExportManager) unexportOne(export *snap.Export) error {
+	publicPath := filepath.Join(exportDir, export.PublicPath)
+	switch export.Method {
+	case snap.ExportMethodSymlink:
+		if err := os.Remove(publicPath); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("unsupported export method %s", export.Method)
 	}
 	return nil
 }
