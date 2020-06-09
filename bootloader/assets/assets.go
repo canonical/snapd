@@ -27,22 +27,22 @@ import (
 
 var registeredAssets = map[string][]byte{}
 
-// registerAsset registers an asset under the given name.
-func registerAsset(name string, data []byte) {
+// registerInternal registers an internal asset under the given name.
+func registerInternal(name string, data []byte) {
 	if _, ok := registeredAssets[name]; ok {
 		panic(fmt.Sprintf("asset %v is already registered", name))
 	}
 	registeredAssets[name] = data
 }
 
-// Internal returns the content of internal registered under the given name, or
-// nil when none was found.
+// Internal returns the content of an internal asset registered under the given
+// name, or nil when none was found.
 func Internal(name string) []byte {
 	return registeredAssets[name]
 }
 
-// MockInternalAsset mocks the contents of an asset for use in testing.
-func MockInternalAsset(name string, data []byte) (restore func()) {
+// MockInternal mocks the contents of an internal asset for use in testing.
+func MockInternal(name string, data []byte) (restore func()) {
 	var isSnapdTest = len(os.Args) > 0 && strings.HasSuffix(os.Args[0], ".test")
 	if !isSnapdTest {
 		panic("mocking can be done only in tests")
