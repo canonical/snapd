@@ -1195,14 +1195,14 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 			"etelpmoc.sh",        // sourced inside the mount namespace
 			"info",               // read inside the mount namespace by other tools
 		}
-		info.Export = make(map[string]*Export, len(exportedFiles))
+		info.NamespaceExports = make([]*Export, 0, len(exportedFiles))
 		for _, fname := range exportedFiles {
-			publicName := fmt.Sprintf("%s/tools/%s", info.SnapName(), fname)
-			privateName := fmt.Sprintf("usr/lib/snapd/%s", fname)
-			info.Export[publicName] = &Export{
-				Path:   privateName,
-				Method: "symlink",
-			}
+			info.NamespaceExports = append(info.NamespaceExports, &Export{
+				Snap:        info,
+				PublicPath:  fmt.Sprintf("%s/tools/%s", info.SnapName(), fname),
+				PrivatePath: fmt.Sprintf("usr/lib/snapd/%s", fname),
+				Method:      ExportMethodSymlink,
+			})
 		}
 	}
 
