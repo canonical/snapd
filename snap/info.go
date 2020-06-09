@@ -312,7 +312,10 @@ type Info struct {
 	// name must also exist.
 	SystemUsernames map[string]*SystemUsernameInfo
 
-	Export map[string]*Export
+	// List of files to export to the host.
+	HostExports []*Export
+	// List of files to export to snap mount namespaces.
+	NamespaceExports []*Export
 }
 
 // StoreAccount holds information about a store account, for example of snap
@@ -338,11 +341,18 @@ type Layout struct {
 	Symlink  string      `json:"symlink,omitempty"`
 }
 
-// Export describes a file or directory exported from a snap to the host system.
+type ExportMethod string
+
+const (
+	ExportMethodSymlink ExportMethod = "symlink"
+)
+
+// Export describes a file or directory exported from a snap to the host system or the snap mount namespace.
 type Export struct {
-	Snap   *Info
-	Path   string // Path relative to the snap mount directory.
-	Method string // symlink, copy, bind mount ...
+	Snap        *Info
+	PrivatePath string       // path relative to snap mount point in the appropriate mount namespace.
+	PublicPath  string       // path relative to /var/lib/snapd/exports/
+	Method      ExportMethod // symlink, copy, bind mount ...
 }
 
 // String returns a simple textual representation of a layout.
