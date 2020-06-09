@@ -132,22 +132,16 @@ type OnDiskStructure struct {
 	CreatedDuringInstall bool
 }
 
-func mkfs(node, label, filesystem string) error {
-	switch filesystem {
-	case "vfat":
-		return MkfsVfat(node, label, "")
-	case "ext4":
-		return MkfsExt4(node, label, "")
-	default:
-		return fmt.Errorf("cannot create unsupported filesystem %q", filesystem)
-	}
-}
-
 // MakeFilesystem creates a filesystem on the on-disk structure, according
 // to the filesystem type defined in the gadget.
 func (ds *OnDiskStructure) MakeFilesystem() error {
-	if ds.VolumeStructure.Filesystem != "" {
-		if err := mkfs(ds.Node, ds.VolumeStructure.Label, ds.VolumeStructure.Filesystem); err != nil {
+	if ds.VolumeStructure.HasFilesystem() {
+		fs := ds.VolumeStructure.Filesystem
+		mkfs, ok := mkfsHandlers[fs]
+		if !ok {
+			return fmt.Errorf("cannot create unsupported filesystem %q", fs)
+		}
+		if err := mkfs(ds.Node, ds.VolumeStructure.Label, ""); err != nil {
 			return err
 		}
 		if err := udevTrigger(ds.Node); err != nil {
