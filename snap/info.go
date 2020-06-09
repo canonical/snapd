@@ -1183,6 +1183,29 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 		info.Size = st.Size()
 	}
 
+	// Inject implicit exports to snapd and snapd snaps.
+	if info.SnapID == naming.WellKnownSnapID("snapd") || info.SnapID == naming.WellKnownSnapID("core") {
+		exportedFiles := []string{
+			"snap-exec",          // invoked inside the mount namespace
+			"snap-confine",       // invoked inside the snap namespace, in special cases
+			"snap-update-ns",     // invoked inside the mount namespace
+			"snapctl",            // invoked inside the mount namespace
+			"snap-gdb-shim",      // invoked inside the mount namespace
+			"snap-device-helper", // invoked inside the mount namespace
+			"etelpmoc.sh",        // sourced inside the mount namespace
+			"info",               // read inside the mount namespace by other tools
+		}
+		info.Export = make(map[string]*Export, len(exportedFiles))
+		for _, fname := range exportedFiles {
+			publicName := fmt.Sprintf("%s/tools/%s", info.SnapName(), fname)
+			privateName := fmt.Sprintf("usr/lib/snapd/%s", fname)
+			info.Export[publicName] = &Export{
+				Path:   privateName,
+				Method: "symlink",
+			}
+		}
+	}
+
 	return info, nil
 }
 
