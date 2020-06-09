@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2017 Canonical Ltd
+ * Copyright (C) 2015-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -79,6 +79,7 @@ var (
 	SnapDeveloperType   = &AssertionType{"snap-developer", []string{"snap-id", "publisher-id"}, assembleSnapDeveloper, 0}
 	SystemUserType      = &AssertionType{"system-user", []string{"brand-id", "email"}, assembleSystemUser, 0}
 	ValidationType      = &AssertionType{"validation", []string{"series", "snap-id", "approved-snap-id", "approved-snap-revision"}, assembleValidation, 0}
+	ValidationSetType   = &AssertionType{"validation-set", []string{"series", "account-id", "name", "sequence"}, assembleValidationSet, 0}
 	StoreType           = &AssertionType{"store", []string{"store"}, assembleStore, 0}
 
 // ...
@@ -103,6 +104,7 @@ var typeRegistry = map[string]*AssertionType{
 	SnapDeveloperType.Name:   SnapDeveloperType,
 	SystemUserType.Name:      SystemUserType,
 	ValidationType.Name:      ValidationType,
+	ValidationSetType.Name:   ValidationSetType,
 	RepairType.Name:          RepairType,
 	StoreType.Name:           StoreType,
 	// no authority
