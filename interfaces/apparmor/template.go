@@ -165,14 +165,15 @@ var templateCommon = `
   /etc/libnl-3/{classid,pktloc} r,      # apps that use libnl
 
   # For snappy reexec on 4.8+ kernels
-  /usr/lib/snapd/snap-exec m,
+  /{,snap/{core,snapd}/*/,var/lib/snapd/snap/{core,snapd}/*/}usr/lib/snapd/snap-exec m,
+  /{,snap/{core,snapd}/*/,var/lib/snapd/snap/{core,snapd}/*/}usr/lib/snapd/snap-exec ixr,
 
   # For gdb support
-  /usr/lib/snapd/snap-gdb-shim ixr,
+  /{,snap/{core,snapd}/*/,var/lib/snapd/snap/{core,snapd}/*/}usr/lib/snapd/snap-gdb-shim ixr,
 
   # For in-snap tab completion
   /etc/bash_completion.d/{,*} r,
-  /usr/lib/snapd/etelpmoc.sh ixr,               # marshaller (see complete.sh for out-of-snap unmarshal)
+  /{,snap/{core,snapd}/*/,var/lib/snapd/snap/{core,snapd}/*/}usr/lib/snapd/etelpmoc.sh ixr,               # marshaller (see complete.sh for out-of-snap unmarshal)
   /usr/share/bash-completion/bash_completion r, # user-provided completions (run in-snap) may use functions from here
 
   # uptime
@@ -193,8 +194,7 @@ var templateCommon = `
 
   # snapctl and its requirements
   /usr/bin/snapctl ixr,
-  /usr/lib/snapd/snapctl ixr,
-  /snap/{core,snapd}/*/usr/lib/snapd/snapctl ixr,
+  /{,snap/{core,snapd}/*/,var/lib/snapd/snap/{core,snapd}/*/}usr/lib/snapd/snapctl ixr,
   @{PROC}/sys/net/core/somaxconn r,
   /run/snapd-snap.socket rw,
 
