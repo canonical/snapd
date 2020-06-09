@@ -311,6 +311,8 @@ type Info struct {
 	// List of system users (usernames) this snap may use. The group of the same
 	// name must also exist.
 	SystemUsernames map[string]*SystemUsernameInfo
+
+	Export map[string]*Export
 }
 
 // StoreAccount holds information about a store account, for example of snap
@@ -334,6 +336,13 @@ type Layout struct {
 	Group    string      `json:"group,omitempty"`
 	Mode     os.FileMode `json:"mode,omitempty"`
 	Symlink  string      `json:"symlink,omitempty"`
+}
+
+// Export describes a file or directory exported from a snap to the host system.
+type Export struct {
+	Snap   *Info
+	Path   string // Path relative to the snap mount directory.
+	Method string // symlink, copy, bind mount ...
 }
 
 // String returns a simple textual representation of a layout.
