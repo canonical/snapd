@@ -1,7 +1,5 @@
 summary: Ensure create-user functionality
 
-systems: [ubuntu-core-*]
-
 environment:
     USER_EMAIL: mvo@ubuntu.com
     USER_NAME: mvo
