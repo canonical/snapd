@@ -197,6 +197,25 @@ var doCreateTransientScope = func(conn *dbus.Conn, unitName string, pid int) err
 		Props []property
 	}
 
+	// The mode string decides how the job is interacting with other systemd
+	// jobs on the system. The documentation of the systemd StartUnit() method
+	// describes the possible values and their properties:
+	//
+	// >> StartUnit() enqeues a start job, and possibly depending jobs. Takes
+	// >> the unit to activate, plus a mode string. The mode needs to be one of
+	// >> replace, fail, isolate, ignore-dependencies, ignore-requirements. If
+	// >> "replace" the call will start the unit and its dependencies, possibly
+	// >> replacing already queued jobs that conflict with this. If "fail" the
+	// >> call will start the unit and its dependencies, but will fail if this
+	// >> would change an already queued job. If "isolate" the call will start
+	// >> the unit in question and terminate all units that aren't dependencies
+	// >> of it. If "ignore-dependencies" it will start a unit but ignore all
+	// >> its dependencies. If "ignore-requirements" it will start a unit but
+	// >> only ignore the requirement dependencies. It is not recommended to
+	// >> make use of the latter two options. Returns the newly created job
+	// >> object.
+	//
+	// Here we choose "fail" to match systemd-run.
 	mode := "fail"
 	properties := []property{{"PIDs", []uint{uint(pid)}}}
 	aux := []auxUnit(nil)
