@@ -113,7 +113,7 @@ func (m *ExportManager) exportOne(baseDir string, export *snap.Export) error {
 	switch export.Method {
 	case snap.ExportMethodSymlink:
 		// Do we have an existing file?
-		fi, err := os.Stat(publicName)
+		fi, err := os.Lstat(publicName)
 		if err != nil && !os.IsNotExist(err) {
 			return err
 		}
