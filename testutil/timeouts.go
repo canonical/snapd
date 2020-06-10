@@ -20,16 +20,18 @@
 package testutil
 
 import (
-	"github.com/snapcore/snapd/arch"
+	"runtime"
 	"time"
 )
+
+var runtimeGOARCH = runtime.GOARCH
 
 // HostScaledTimeout returns a timeout for tests that is adjusted
 // for the slowness of certain systems.
 //
 // This should only be used in tests and is a bit of a guess.
 func HostScaledTimeout(t time.Duration) time.Duration {
-	switch arch.DpkgArchitecture() {
+	switch runtimeGOARCH {
 	case "riscv64":
 		// virt riscv64 builders are 5x times slower than
 		// armhf when building golang-1.14. These tests

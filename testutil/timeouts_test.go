@@ -17,32 +17,29 @@
  *
  */
 
-package testutil
+package testutil_test
 
 import (
 	"time"
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/testutil"
 )
 
 var _ = Suite(&TimeoutTestSuite{})
 
-type TimeoutTestSuite struct {
-}
+type TimeoutTestSuite struct{}
 
 func (ts *TimeoutTestSuite) TestHostScaledTimeout(c *C) {
-	currentarch := arch.ArchitectureType(arch.DpkgArchitecture())
+	restore := testutil.MockRuntimeARCH("some-fast-arch")
+	defer restore()
+	default_timeout := testutil.HostScaledTimeout(2 * time.Second)
 
-	arch.SetArchitecture("amd64")
-	amd64_timeout := HostScaledTimeout(2 * time.Second)
+	restore = testutil.MockRuntimeARCH("riscv64")
+	defer restore()
+	riscv64_timeout := testutil.HostScaledTimeout(2 * time.Second)
 
-	arch.SetArchitecture("riscv64")
-	riscv64_timeout := HostScaledTimeout(2 * time.Second)
-
-	arch.SetArchitecture(currentarch)
-
-	c.Check(amd64_timeout, Equals, 2*time.Second)
-	c.Check(riscv64_timeout > amd64_timeout, Equals, true)
+	c.Check(default_timeout, Equals, 2*time.Second)
+	c.Check(riscv64_timeout > default_timeout, Equals, true)
 }
