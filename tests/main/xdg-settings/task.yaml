@@ -22,7 +22,7 @@ prepare: |
     tests.session -u test prepare
 
     # wait for session to be ready
-    tests.session -u test exec env "PATH=$PATH" retry-tool -n 5 --wait 0.5 dbus-send \
+    tests.session -u test exec env "PATH=$PATH" retry -n 5 --wait 0.5 dbus-send \
             --session                                         \
             --dest=io.snapcraft.Settings                      \
             --type=method_call                                \

@@ -85,9 +85,19 @@ func (s *TimeControlInterfaceSuite) TestSecCompSpec(c *C) {
 	spec := &seccomp.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "settimeofday")
-	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "adjtimex")
-	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "socket AF_NETLINK - NETLINK_AUDIT")
+
+	snippet := spec.SnippetForTag("snap.consumer.app")
+	for _, needle := range []string{
+		"settimeofday",
+		"adjtimex",
+		"socket AF_NETLINK - NETLINK_AUDIT",
+		"clock_adjtime",
+		"clock_adjtime64",
+		"clock_settime",
+		"clock_settime64",
+	} {
+		c.Check(snippet, testutil.Contains, needle)
+	}
 }
 
 func (s *TimeControlInterfaceSuite) TestUDevSpec(c *C) {

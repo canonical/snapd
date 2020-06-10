@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,22 +17,29 @@
  *
  */
 
-package gadget
+package testutil_test
 
 import (
-	"errors"
+	"time"
+
+	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/testutil"
 )
 
-var errNotImplemented = errors.New("not implemented")
+var _ = Suite(&TimeoutTestSuite{})
 
-func FindDeviceForStructure(ps *LaidOutStructure) (string, error) {
-	return "", errNotImplemented
-}
+type TimeoutTestSuite struct{}
 
-func findDeviceForStructureWithFallback(ps *LaidOutStructure) (string, Size, error) {
-	return "", 0, errNotImplemented
-}
+func (ts *TimeoutTestSuite) TestHostScaledTimeout(c *C) {
+	restore := testutil.MockRuntimeARCH("some-fast-arch")
+	defer restore()
+	default_timeout := testutil.HostScaledTimeout(2 * time.Second)
 
-func findMountPointForStructure(ps *LaidOutStructure) (string, error) {
-	return "", errNotImplemented
+	restore = testutil.MockRuntimeARCH("riscv64")
+	defer restore()
+	riscv64_timeout := testutil.HostScaledTimeout(2 * time.Second)
+
+	c.Check(default_timeout, Equals, 2*time.Second)
+	c.Check(riscv64_timeout > default_timeout, Equals, true)
 }

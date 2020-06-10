@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,22 +17,27 @@
  *
  */
 
-package gadget
+package testutil
 
 import (
-	"errors"
+	"runtime"
+	"time"
 )
 
-var errNotImplemented = errors.New("not implemented")
+var runtimeGOARCH = runtime.GOARCH
 
-func FindDeviceForStructure(ps *LaidOutStructure) (string, error) {
-	return "", errNotImplemented
-}
-
-func findDeviceForStructureWithFallback(ps *LaidOutStructure) (string, Size, error) {
-	return "", 0, errNotImplemented
-}
-
-func findMountPointForStructure(ps *LaidOutStructure) (string, error) {
-	return "", errNotImplemented
+// HostScaledTimeout returns a timeout for tests that is adjusted
+// for the slowness of certain systems.
+//
+// This should only be used in tests and is a bit of a guess.
+func HostScaledTimeout(t time.Duration) time.Duration {
+	switch runtimeGOARCH {
+	case "riscv64":
+		// virt riscv64 builders are 5x times slower than
+		// armhf when building golang-1.14. These tests
+		// timeout, hence bump timeouts by 6x
+		return t * 6
+	default:
+		return t
+	}
 }
