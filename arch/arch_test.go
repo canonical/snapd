@@ -38,11 +38,11 @@ func (ts *ArchTestSuite) TestArchDpkgArchitecture(c *C) {
 	c.Check(dpkgArchFromGoArch("amd64"), Equals, "amd64")
 	c.Check(dpkgArchFromGoArch("arm"), Equals, "armhf")
 	c.Check(dpkgArchFromGoArch("arm64"), Equals, "arm64")
-	c.Check(dpkgArchFromGoArch("ppc64le"), Equals, "ppc64el")
-	c.Check(dpkgArchFromGoArch("ppc64"), Equals, "ppc64")
-	c.Check(dpkgArchFromGoArch("s390x"), Equals, "s390x")
 	c.Check(dpkgArchFromGoArch("ppc"), Equals, "powerpc")
 	c.Check(dpkgArchFromGoArch("ppc64"), Equals, "ppc64")
+	c.Check(dpkgArchFromGoArch("ppc64le"), Equals, "ppc64el")
+	c.Check(dpkgArchFromGoArch("riscv64"), Equals, "riscv64")
+	c.Check(dpkgArchFromGoArch("s390x"), Equals, "s390x")
 }
 
 func (ts *ArchTestSuite) TestArchSetArchitecture(c *C) {

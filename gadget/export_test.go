@@ -23,7 +23,11 @@ import (
 	"time"
 )
 
-type ValidationState = validationState
+type (
+	ValidationState          = validationState
+	MountedFilesystemUpdater = mountedFilesystemUpdater
+	RawStructureUpdater      = rawStructureUpdater
+)
 
 type LsblkFilesystemInfo = lsblkFilesystemInfo
 type LsblkBlockDevice = lsblkBlockDevice
@@ -58,6 +62,15 @@ var (
 	EnsureNodesExist               = ensureNodesExist
 	DeviceLayoutFromPartitionTable = deviceLayoutFromPartitionTable
 	ListCreatedPartitions          = listCreatedPartitions
+
+	NewRawStructureUpdater      = newRawStructureUpdater
+	NewMountedFilesystemUpdater = newMountedFilesystemUpdater
+
+	FindDeviceForStructureWithFallback = findDeviceForStructureWithFallback
+	FindMountPointForStructure         = findMountPointForStructure
+
+	ParseSize           = parseSize
+	ParseRelativeOffset = parseRelativeOffset
 )
 
 func MockEvalSymlinks(mock func(path string) (string, error)) (restore func()) {
