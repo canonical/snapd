@@ -138,16 +138,16 @@ func Run(gadgetRoot, device string, options Options) error {
 			part.Node = dataPart.Node
 		}
 
-		if err := part.MakeFilesystem(); err != nil {
+		if err := makeFilesystem(&part); err != nil {
 			return err
 		}
 
-		if err := part.DeployContent(gadgetRoot); err != nil {
+		if err := deployContent(&part, gadgetRoot); err != nil {
 			return err
 		}
 
 		if options.Mount && part.Label != "" && part.HasFilesystem() {
-			if err := part.MountFilesystem(boot.InitramfsRunMntDir); err != nil {
+			if err := mountFilesystem(&part, boot.InitramfsRunMntDir); err != nil {
 				return err
 			}
 		}

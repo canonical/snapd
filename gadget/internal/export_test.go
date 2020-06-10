@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,13 +17,9 @@
  *
  */
 
-package gadget
-
-import (
-	"syscall"
-)
+package internal
 
 var (
-	sysMount   = syscall.Mount
-	sysUnmount = syscall.Unmount
+	MkfsExt4 = mkfsExt4
+	MkfsVfat = mkfsVfat
 )

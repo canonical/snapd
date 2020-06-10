@@ -17,7 +17,7 @@
  *
  */
 
-package gadget
+package internal
 
 import (
 	"fmt"
@@ -29,10 +29,19 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-// MkfsExt4 creates an EXT4 filesystem in given image file, with an optional
+type MkfsFunc func(imgFile, label, contentsRootDir string) error
+
+var (
+	MkfsHandlers = map[string]MkfsFunc{
+		"vfat": mkfsVfat,
+		"ext4": mkfsExt4,
+	}
+)
+
+// mkfsExt4 creates an EXT4 filesystem in given image file, with an optional
 // filesystem label, and populates it with the contents of provided root
 // directory.
-func MkfsExt4(img, label, contentsRootDir string) error {
+func mkfsExt4(img, label, contentsRootDir string) error {
 	// Originally taken from ubuntu-image
 	// Switched to use mkfs defaults for https://bugs.launchpad.net/snappy/+bug/1878374
 	// For caveats/requirements in case we need support for older systems:
@@ -68,10 +77,10 @@ func MkfsExt4(img, label, contentsRootDir string) error {
 	return nil
 }
 
-// MkfsVfat creates a VFAT filesystem in given image file, with an optional
+// mkfsVfat creates a VFAT filesystem in given image file, with an optional
 // filesystem label, and populates it with the contents of provided root
 // directory.
-func MkfsVfat(img, label, contentsRootDir string) error {
+func mkfsVfat(img, label, contentsRootDir string) error {
 	// taken from ubuntu-image
 	mkfsArgs := []string{
 		// 512B logical sector size

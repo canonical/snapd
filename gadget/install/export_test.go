@@ -1,8 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build !nosecboot
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -24,4 +23,32 @@ var (
 	EnsureLayoutCompatibility = ensureLayoutCompatibility
 	DeviceFromRole            = deviceFromRole
 	NewEncryptedDevice        = newEncryptedDevice
+
+	MakeFilesystem  = makeFilesystem
+	DeployContent   = deployContent
+	MountFilesystem = mountFilesystem
 )
+
+func MockDeployMountpoint(new string) (restore func()) {
+	old := deployMountpoint
+	deployMountpoint = new
+	return func() {
+		deployMountpoint = old
+	}
+}
+
+func MockSysMount(f func(source, target, fstype string, flags uintptr, data string) error) (restore func()) {
+	old := sysMount
+	sysMount = f
+	return func() {
+		sysMount = old
+	}
+}
+
+func MockSysUnmount(f func(target string, flags int) error) (restore func()) {
+	old := sysUnmount
+	sysUnmount = f
+	return func() {
+		sysUnmount = old
+	}
+}

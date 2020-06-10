@@ -23,13 +23,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/snapcore/snapd/gadget/internal"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/strutil"
@@ -118,10 +117,6 @@ func isCreatedDuringInstall(p *sfdiskPartition, fs *lsblkBlockDevice, sfdiskLabe
 	return false
 }
 
-var (
-	deployMountpoint = "/run/snap-recover"
-)
-
 // OnDiskStructure represents a gadget structure laid on a block device,
 // with a device node name and a flag stating whether it was created during
 // installation.
@@ -130,71 +125,6 @@ type OnDiskStructure struct {
 
 	Node                 string
 	CreatedDuringInstall bool
-}
-
-func mkfs(node, label, filesystem string) error {
-	switch filesystem {
-	case "vfat":
-		return MkfsVfat(node, label, "")
-	case "ext4":
-		return MkfsExt4(node, label, "")
-	default:
-		return fmt.Errorf("cannot create unsupported filesystem %q", filesystem)
-	}
-}
-
-// MakeFilesystem creates a filesystem on the on-disk structure, according
-// to the filesystem type defined in the gadget.
-func (ds *OnDiskStructure) MakeFilesystem() error {
-	if ds.VolumeStructure.Filesystem != "" {
-		if err := mkfs(ds.Node, ds.VolumeStructure.Label, ds.VolumeStructure.Filesystem); err != nil {
-			return err
-		}
-		if err := udevTrigger(ds.Node); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// DeployContent populates the give on-disk structure, according to the contents
-// defined in the gadget.
-func (ds *OnDiskStructure) DeployContent(gadgetRoot string) error {
-	switch {
-	case !ds.IsPartition():
-		return fmt.Errorf("cannot deploy non-partitions yet")
-	case !ds.HasFilesystem():
-		if err := deployNonFSContent(ds, gadgetRoot); err != nil {
-			return err
-		}
-	case ds.HasFilesystem():
-		if err := deployFilesystemContent(ds, gadgetRoot); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// MountFilesystem mounts the on-disk structure filesystem, using the label
-// defined in the gadget as the mount point name.
-func (ds *OnDiskStructure) MountFilesystem(baseMntPoint string) error {
-	if !ds.HasFilesystem() {
-		return fmt.Errorf("cannot mount a partition with no filesystem")
-	}
-	if ds.Label == "" {
-		return fmt.Errorf("cannot mount a filesystem with no label")
-	}
-
-	mountpoint := filepath.Join(baseMntPoint, ds.Label)
-	if err := os.MkdirAll(mountpoint, 0755); err != nil {
-		return fmt.Errorf("cannot create mountpoint: %v", err)
-	}
-	if err := sysMount(ds.Node, mountpoint, ds.Filesystem, 0, ""); err != nil {
-		return fmt.Errorf("cannot mount filesystem %q at %q: %v", ds.Node, mountpoint, err)
-	}
-
-	return nil
 }
 
 // OnDiskVolume holds information about the disk device including its partitioning
@@ -312,6 +242,8 @@ func (dl *OnDiskVolume) RemoveCreated() error {
 	return nil
 }
 
+var internalUdevTrigger = internal.UdevTrigger
+
 // ensureNodeExists makes sure the device nodes for all device structures are
 // available and notified to udev, within a specified amount of time.
 func ensureNodesExistImpl(dss []OnDiskStructure, timeout time.Duration) error {
@@ -326,7 +258,7 @@ func ensureNodesExistImpl(dss []OnDiskStructure, timeout time.Duration) error {
 			time.Sleep(100 * time.Millisecond)
 		}
 		if found {
-			if err := udevTrigger(ds.Node); err != nil {
+			if err := internalUdevTrigger(ds.Node); err != nil {
 				return err
 			}
 		} else {
@@ -547,15 +479,6 @@ func listCreatedPartitions(layout *OnDiskVolume) []string {
 	return created
 }
 
-// udevTrigger triggers udev for the specified device and waits until
-// all events in the udev queue are handled.
-func udevTrigger(device string) error {
-	if output, err := exec.Command("udevadm", "trigger", "--settle", device).CombinedOutput(); err != nil {
-		return osutil.OutputErr(output, err)
-	}
-	return nil
-}
-
 // reloadPartitionTable instructs the kernel to re-read the partition
 // table of a given block device.
 func reloadPartitionTable(device string) error {
@@ -610,52 +533,4 @@ func filesystemInfo(node string) (*lsblkFilesystemInfo, error) {
 	}
 
 	return &info, nil
-}
-
-func deployFilesystemContent(ds *OnDiskStructure, gadgetRoot string) (err error) {
-	mountpoint := filepath.Join(deployMountpoint, strconv.Itoa(ds.Index))
-	if err := os.MkdirAll(mountpoint, 0755); err != nil {
-		return err
-	}
-
-	// temporarily mount the filesystem
-	if err := sysMount(ds.Node, mountpoint, ds.Filesystem, 0, ""); err != nil {
-		return fmt.Errorf("cannot mount filesystem %q at %q: %v", ds.Node, mountpoint, err)
-	}
-	defer func() {
-		errUnmount := sysUnmount(mountpoint, 0)
-		if err == nil {
-			err = errUnmount
-		}
-	}()
-
-	fs, err := NewMountedFilesystemWriter(gadgetRoot, &ds.LaidOutStructure)
-	if err != nil {
-		return fmt.Errorf("cannot create filesystem image writer: %v", err)
-	}
-
-	var preserveFiles []string
-	if err := fs.Write(mountpoint, preserveFiles); err != nil {
-		return fmt.Errorf("cannot create filesystem image: %v", err)
-	}
-
-	return nil
-}
-
-func deployNonFSContent(ds *OnDiskStructure, gadgetRoot string) error {
-	f, err := os.OpenFile(ds.Node, os.O_RDWR, 0644)
-	if err != nil {
-		return fmt.Errorf("cannot deploy bare content for %q: %v", ds.Node, err)
-	}
-	defer f.Close()
-
-	// Laid out structures start relative to the beginning of the
-	// volume, shift the structure offsets to 0, so that it starts
-	// at the beginning of the partition
-	l := ShiftStructureTo(ds.LaidOutStructure, 0)
-	raw, err := NewRawStructureWriter(gadgetRoot, &l)
-	if err != nil {
-		return err
-	}
-	return raw.Write(f)
 }

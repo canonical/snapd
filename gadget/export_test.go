@@ -23,7 +23,11 @@ import (
 	"time"
 )
 
-type ValidationState = validationState
+type (
+	ValidationState          = validationState
+	MountedFilesystemUpdater = mountedFilesystemUpdater
+	RawStructureUpdater      = rawStructureUpdater
+)
 
 type LsblkFilesystemInfo = lsblkFilesystemInfo
 type LsblkBlockDevice = lsblkBlockDevice
@@ -55,10 +59,18 @@ var (
 
 	FilesystemInfo                 = filesystemInfo
 	BuildPartitionList             = buildPartitionList
-	Mkfs                           = mkfs
 	EnsureNodesExist               = ensureNodesExist
 	DeviceLayoutFromPartitionTable = deviceLayoutFromPartitionTable
 	ListCreatedPartitions          = listCreatedPartitions
+
+	NewRawStructureUpdater      = newRawStructureUpdater
+	NewMountedFilesystemUpdater = newMountedFilesystemUpdater
+
+	FindDeviceForStructureWithFallback = findDeviceForStructureWithFallback
+	FindMountPointForStructure         = findMountPointForStructure
+
+	ParseSize           = parseSize
+	ParseRelativeOffset = parseRelativeOffset
 )
 
 func MockEvalSymlinks(mock func(path string) (string, error)) (restore func()) {
@@ -66,14 +78,6 @@ func MockEvalSymlinks(mock func(path string) (string, error)) (restore func()) {
 	evalSymlinks = mock
 	return func() {
 		evalSymlinks = oldEvalSymlinks
-	}
-}
-
-func MockMkfsHandlers(mock map[string]MkfsFunc) (restore func()) {
-	old := mkfsHandlers
-	mkfsHandlers = mock
-	return func() {
-		mkfsHandlers = old
 	}
 }
 
@@ -85,26 +89,10 @@ func MockEnsureNodesExist(f func(dss []OnDiskStructure, timeout time.Duration) e
 	}
 }
 
-func MockDeployMountpoint(new string) (restore func()) {
-	old := deployMountpoint
-	deployMountpoint = new
+func MockInternalUdevTrigger(f func(node string) error) (restore func()) {
+	old := internalUdevTrigger
+	internalUdevTrigger = f
 	return func() {
-		deployMountpoint = old
-	}
-}
-
-func MockSysMount(f func(source, target, fstype string, flags uintptr, data string) error) (restore func()) {
-	old := sysMount
-	sysMount = f
-	return func() {
-		sysMount = old
-	}
-}
-
-func MockSysUnmount(f func(target string, flags int) error) (restore func()) {
-	old := sysUnmount
-	sysUnmount = f
-	return func() {
-		sysUnmount = old
+		internalUdevTrigger = old
 	}
 }
