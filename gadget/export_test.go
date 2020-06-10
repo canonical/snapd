@@ -71,6 +71,9 @@ var (
 
 	ParseSize           = parseSize
 	ParseRelativeOffset = parseRelativeOffset
+
+	MkfsExt4 = mkfsExt4
+	MkfsVfat = mkfsVfat
 )
 
 func MockEvalSymlinks(mock func(path string) (string, error)) (restore func()) {
