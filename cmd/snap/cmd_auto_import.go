@@ -332,6 +332,11 @@ func (x *cmdAutoImport) Execute(args []string) error {
 		return nil
 	}
 
+	if osutil.FileExists(dirs.SnapAssertsAutoImportDisabledFile) {
+		fmt.Fprintf(Stderr, "auto-import is disabled by config\n")
+		return nil
+	}
+
 	devices := x.Mount
 	if len(devices) == 0 {
 		// coldplug scenario, try all removable devices

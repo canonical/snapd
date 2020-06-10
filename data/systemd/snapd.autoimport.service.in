@@ -5,6 +5,8 @@ After=snapd.service snapd.socket snapd.seeded.service
 ConditionKernelCommandLine=|snap_core
 # TODO:UC20: only enable this in run mode?
 ConditionKernelCommandLine=|snapd_recovery_mode
+# allow disable via snap config
+ConditionPathExists=!/var/lib/snapd/auto-import/disabled
 
 [Service]
 Type=oneshot

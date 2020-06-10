@@ -68,6 +68,8 @@ var (
 	SnapAssertsSpoolDir   string
 	SnapSeqDir            string
 
+	SnapAssertsAutoImportDisabledFile string
+
 	SnapStateFile     string
 	SnapSystemKeyFile string
 
@@ -303,6 +305,9 @@ func SetRootDir(rootdir string) {
 	SnapCookieDir = filepath.Join(rootdir, snappyDir, "cookie")
 	SnapAssertsSpoolDir = filepath.Join(rootdir, "run/snapd/auto-import")
 	SnapSeqDir = filepath.Join(rootdir, snappyDir, "sequence")
+
+	// Keep in sync with data/systemd/snapd.autoimport.service
+	SnapAssertsAutoImportDisabledFile = filepath.Join(rootdir, snappyDir, "auto-import/disabled")
 
 	SnapStateFile = SnapStateFileUnder(rootdir)
 	SnapSystemKeyFile = filepath.Join(rootdir, snappyDir, "system-key")

@@ -95,6 +95,7 @@ func (s *servicesSuite) TestConfigureServiceDisabledIntegration(c *C) {
 		{"ssh", "ssh.service"},
 		{"rsyslog", "rsyslog.service"},
 		{"console-conf", "getty@*"},
+		{"snapd-autoimport", "snapd.autoimport.service"},
 	} {
 		s.systemctlArgs = nil
 
@@ -125,6 +126,13 @@ func (s *servicesSuite) TestConfigureServiceDisabledIntegration(c *C) {
 				{"restart", "serial-console-conf@*", "--all"},
 				{"restart", "console-conf@*", "--all"},
 			})
+		case "snapd-autoimport":
+			canary := filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/auto-import/disabled")
+			_, err := os.Stat(canary)
+			c.Assert(err, IsNil)
+			// auto-import is a one-shot service at boot, no need
+			// to
+			c.Check(s.systemctlArgs, HasLen, 0)
 		default:
 			c.Check(s.systemctlArgs, DeepEquals, [][]string{
 				{"--root", dirs.GlobalRootDir, "disable", srv},
@@ -257,4 +265,29 @@ func (s *servicesSuite) TestFilesystemOnlyApply(c *C) {
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
 		{"--root", tmpDir, "mask", "rsyslog.service"},
 	})
+}
+
+func (s *servicesSuite) TestConfigureSnapdAutoimportEnableIntegration(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	// pretend that auto-import is disabled
+	canary := filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/auto-import/disabled")
+	err := os.MkdirAll(filepath.Dir(canary), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(canary, nil, 0644)
+	c.Assert(err, IsNil)
+
+	// now enable it
+	err = configcore.Run(&mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			"service.snapd-autoimport.disable": false,
+		},
+	})
+	c.Assert(err, IsNil)
+	// nothing to do for systemd, it's a oneshot service at startup
+	c.Check(s.systemctlArgs, HasLen, 0)
+	// and that the canary file is no longer there
+	c.Assert(canary, testutil.FileAbsent)
 }

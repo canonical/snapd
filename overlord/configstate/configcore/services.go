@@ -35,6 +35,7 @@ var services = []struct{ configName, systemdName string }{
 	{"ssh", "ssh.service"},
 	{"rsyslog", "rsyslog.service"},
 	{"console-conf", "console-conf@*"},
+	{"snapd-autoimport", "snapd.autoimport.service"},
 }
 
 func init() {
@@ -153,6 +154,31 @@ func switchDisableConsoleConfService(sysd systemd.Systemd, serviceName string, d
 	return nil
 }
 
+// switchDisablesnapdAutoimportService handles the special case of
+// disabling/enabling the snapd autoimport service on core devices.
+func switchDisableSnapdAutoimportService(sysd systemd.Systemd, serviceName string, disabled bool, opts *fsOnlyContext) error {
+	autoimportCanary := dirs.SnapAssertsAutoImportDisabledFile
+	if opts != nil {
+		autoimportCanary = filepath.Join(opts.RootDir, autoimportCanary)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(autoimportCanary), 0755); err != nil {
+		return err
+	}
+
+	if disabled {
+		if err := ioutil.WriteFile(autoimportCanary, []byte("snapd autoimport has been disabled by snapd system configuration\n"), 0644); err != nil {
+			return err
+		}
+	} else {
+		err := os.Remove(autoimportCanary)
+		if err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
+	return nil
+}
+
 // switchDisableTypicalService switches a service in/out of disabled state
 // where "true" means disabled and "false" means enabled.
 func switchDisableService(serviceName string, disabled bool, opts *fsOnlyContext) error {
@@ -169,6 +195,9 @@ func switchDisableService(serviceName string, disabled bool, opts *fsOnlyContext
 		return switchDisableSSHService(sysd, serviceName, disabled, opts)
 	case "console-conf@*":
 		return switchDisableConsoleConfService(sysd, serviceName, disabled, opts)
+	case "snapd.autoimport.service":
+		return switchDisableSnapdAutoimportService(sysd, serviceName, disabled, opts)
+
 	}
 
 	if disabled {

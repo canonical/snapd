@@ -463,3 +463,19 @@ func (s *SnapSuite) TestAutoImportFromMount(c *C) {
 		filepath.Join(rootdir, "/tmp/snapd-auto-import-mount-1"),
 	})
 }
+
+func (s *SnapSuite) TestAutoImportAssertsDisabledByConfig(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	// pretend the auto-import is disabled
+	err := os.MkdirAll(filepath.Dir(dirs.SnapAssertsAutoImportDisabledFile), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(dirs.SnapAssertsAutoImportDisabledFile, nil, 0644)
+	c.Assert(err, IsNil)
+
+	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"auto-import"})
+	c.Assert(err, IsNil)
+	c.Check(s.Stdout(), Equals, "")
+	c.Check(s.Stderr(), Equals, "auto-import is disabled by config\n")
+}
