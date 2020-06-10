@@ -87,7 +87,7 @@ func (s *trackingSuite) TestCreateTransientScopeForTrackingFeatureEnabled(c *C) 
 	conn, err := dbustest.Connection(func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
 		switch n {
 		case 0:
-			return []*dbus.Message{happyResponseToStartTransientUnit(c, msg, "snap.pkg.app."+uuid+".scope", 312123)}, nil
+			return []*dbus.Message{checkAndRespond(c, msg, "snap.pkg.app."+uuid+".scope", 312123)}, nil
 		}
 		return nil, fmt.Errorf("unexpected message #%d: %s", n, msg)
 	})
@@ -342,7 +342,7 @@ func (s *trackingSuite) TestCreateTransientScopeForTrackingSilentlyFails(c *C) {
 	c.Assert(err, ErrorMatches, "cannot track application process")
 }
 
-func happyResponseToStartTransientUnit(c *C, msg *dbus.Message, scopeName string, pid int) *dbus.Message {
+func checkAndRespond(c *C, msg *dbus.Message, scopeName string, pid int) *dbus.Message {
 	// XXX: Those types might live in a package somewhere
 	type Property struct {
 		Name  string
@@ -387,7 +387,7 @@ func happyResponseToStartTransientUnit(c *C, msg *dbus.Message, scopeName string
 	}
 }
 
-func unhappyResponseToStartTransientUnit(c *C, msg *dbus.Message, errMsg string) *dbus.Message {
+func checkAndFail(c *C, msg *dbus.Message, errMsg string) *dbus.Message {
 	c.Assert(msg.Type, Equals, dbus.TypeMethodCall)
 	// ignore the message and just produce an error response
 	return &dbus.Message{
@@ -405,7 +405,7 @@ func (s *trackingSuite) TestDoCreateTransientScopeHappy(c *C) {
 	conn, err := dbustest.Connection(func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
 		switch n {
 		case 0:
-			return []*dbus.Message{happyResponseToStartTransientUnit(c, msg, "foo.scope", 312123)}, nil
+			return []*dbus.Message{checkAndRespond(c, msg, "foo.scope", 312123)}, nil
 		}
 		return nil, fmt.Errorf("unexpected message #%d: %s", n, msg)
 	})
@@ -427,7 +427,7 @@ func (s *trackingSuite) TestDoCreateTransientScopeForwardedErrors(c *C) {
 		conn, err := dbustest.Connection(func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
 			switch n {
 			case 0:
-				return []*dbus.Message{unhappyResponseToStartTransientUnit(c, msg, errMsg)}, nil
+				return []*dbus.Message{checkAndFail(c, msg, errMsg)}, nil
 			}
 			return nil, fmt.Errorf("unexpected message #%d: %s", n, msg)
 		})
@@ -445,7 +445,7 @@ func (s *trackingSuite) TestDoCreateTransientScopeClashingScopeName(c *C) {
 	conn, err := dbustest.Connection(func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
 		switch n {
 		case 0:
-			return []*dbus.Message{unhappyResponseToStartTransientUnit(c, msg, errMsg)}, nil
+			return []*dbus.Message{checkAndFail(c, msg, errMsg)}, nil
 		}
 		return nil, fmt.Errorf("unexpected message #%d: %s", n, msg)
 	})
@@ -461,7 +461,7 @@ func (s *trackingSuite) TestDoCreateTransientScopeOtherDBusErrors(c *C) {
 	conn, err := dbustest.Connection(func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
 		switch n {
 		case 0:
-			return []*dbus.Message{unhappyResponseToStartTransientUnit(c, msg, errMsg)}, nil
+			return []*dbus.Message{checkAndFail(c, msg, errMsg)}, nil
 		}
 		return nil, fmt.Errorf("unexpected message #%d: %s", n, msg)
 	})
