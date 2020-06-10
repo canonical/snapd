@@ -3,7 +3,6 @@ package cgroup
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 
@@ -12,6 +11,7 @@ import (
 	"github.com/snapcore/snapd/dbusutil"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/randutil"
 )
 
 var osGetuid = os.Getuid
@@ -238,6 +238,5 @@ var randomUUID = func() (string, error) {
 	// /dev/urandom which doesn't block and is sufficient for our purposes
 	// of avoiding clashing UUIDs that are needed for all of the non-service
 	// commands that are started with the help of this UUID.
-	uuidBytes, err := ioutil.ReadFile("/proc/sys/kernel/random/uuid")
-	return strings.TrimSpace(string(uuidBytes)), err
+	return randutil.RandomKernelUUID(), nil
 }
