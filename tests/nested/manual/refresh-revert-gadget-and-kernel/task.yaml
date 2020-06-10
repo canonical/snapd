@@ -20,8 +20,8 @@ prepare: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
 
-    FROM_REV="$(get_snap_rev_for_channel $SNAP 20/$CORE_CHANNEL)"
-    TO_REV="$(get_snap_rev_for_channel $SNAP 20/$CORE_REFRESH_CHANNEL)"
+    FROM_REV="$(get_snap_rev_for_channel "$SNAP" 20/$CORE_CHANNEL)"
+    TO_REV="$(get_snap_rev_for_channel "$SNAP" 20/$CORE_REFRESH_CHANNEL)"
 
     if [ "$FROM_REV" = "$TO_REV" ]; then
         echo "Initial and target revisions are the same, skipping..."
