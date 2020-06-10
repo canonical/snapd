@@ -914,12 +914,8 @@ prepare_ubuntu_core() {
 
     # Wait for the snap command to become available.
     if [ "$SPREAD_BACKEND" != "external" ]; then
-        for i in $(seq 120); do
-            if [ "$(command -v snap)" = "/usr/bin/snap" ] && snap version | grep -q 'snapd +1337.*'; then
-                break
-            fi
-            sleep 1
-        done
+        # shellcheck disable=SC2016
+        retry -n 120 --wait 1 sh -c 'test "$(command -v snap)" = /usr/bin/snap && snap version | grep -E -q "snapd +1337.*"'
     fi
 
     # Wait for seeding to finish.
