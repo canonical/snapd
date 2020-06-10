@@ -144,7 +144,7 @@ func sessionOrMaybeSystemBus(uid int) (isSessionBus bool, conn *dbus.Conn, err e
 			logger.Debugf("using system bus now, session bus was not available")
 		}
 	}
-	return isSessionBus, conn, err
+	return false, conn, err
 }
 
 var errDBusUnknownMethod = errors.New("org.freedesktop.DBus.Error.UnknownMethod")
