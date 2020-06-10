@@ -21,6 +21,7 @@ package gadget_test
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -804,18 +805,36 @@ func (s *ondiskTestSuite) TestFilesystemInfoError(c *C) {
 }
 
 func (s *ondiskTestSuite) TestEnsureNodesExist(c *C) {
-	cmdUdevadm := testutil.MockCommand(c, "udevadm", "")
-	defer cmdUdevadm.Restore()
+	for _, tc := range []struct {
+		utErr error
+		err   string
+	}{
+		{utErr: nil, err: ""},
+		{utErr: errors.New("some error"), err: "some error"},
+	} {
+		c.Logf("utErr:%v err:%q", tc.utErr, tc.err)
 
-	node := filepath.Join(c.MkDir(), "node")
-	err := ioutil.WriteFile(node, nil, 0644)
-	c.Assert(err, IsNil)
-	ds := []gadget.OnDiskStructure{{Node: node}}
-	err = gadget.EnsureNodesExist(ds, 10*time.Millisecond)
-	c.Assert(err, IsNil)
-	c.Assert(cmdUdevadm.Calls(), DeepEquals, [][]string{
-		{"udevadm", "trigger", "--settle", node},
-	})
+		node := filepath.Join(c.MkDir(), "node")
+		err := ioutil.WriteFile(node, nil, 0644)
+		c.Assert(err, IsNil)
+
+		calls := 0
+		restore := gadget.MockInternalUdevTrigger(func(node string) error {
+			calls++
+			c.Assert(node, Equals, node)
+			return tc.utErr
+		})
+		defer restore()
+
+		ds := []gadget.OnDiskStructure{{Node: node}}
+		err = gadget.EnsureNodesExist(ds, 10*time.Millisecond)
+		if tc.err == "" {
+			c.Assert(err, IsNil)
+		} else {
+			c.Assert(err, ErrorMatches, tc.err)
+		}
+		c.Assert(calls, Equals, 1)
+	}
 }
 
 func (s *ondiskTestSuite) TestEnsureNodesExistTimeout(c *C) {

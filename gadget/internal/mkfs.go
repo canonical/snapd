@@ -17,7 +17,7 @@
  *
  */
 
-package gadget
+package internal
 
 import (
 	"fmt"

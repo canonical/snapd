@@ -71,9 +71,6 @@ var (
 
 	ParseSize           = parseSize
 	ParseRelativeOffset = parseRelativeOffset
-
-	MkfsExt4 = mkfsExt4
-	MkfsVfat = mkfsVfat
 )
 
 func MockEvalSymlinks(mock func(path string) (string, error)) (restore func()) {
@@ -84,18 +81,18 @@ func MockEvalSymlinks(mock func(path string) (string, error)) (restore func()) {
 	}
 }
 
-func MockMkfsHandlers(mock map[string]MkfsFunc) (restore func()) {
-	old := MkfsHandlers
-	MkfsHandlers = mock
-	return func() {
-		MkfsHandlers = old
-	}
-}
-
 func MockEnsureNodesExist(f func(dss []OnDiskStructure, timeout time.Duration) error) (restore func()) {
 	old := ensureNodesExist
 	ensureNodesExist = f
 	return func() {
 		ensureNodesExist = old
+	}
+}
+
+func MockInternalUdevTrigger(f func(node string) error) (restore func()) {
+	old := internalUdevTrigger
+	internalUdevTrigger = f
+	return func() {
+		internalUdevTrigger = old
 	}
 }

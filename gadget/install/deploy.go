@@ -26,6 +26,7 @@ import (
 	"strconv"
 
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/internal"
 )
 
 var (
@@ -37,14 +38,14 @@ var (
 func MakeFilesystem(ds *gadget.OnDiskStructure) error {
 	if ds.VolumeStructure.HasFilesystem() {
 		fs := ds.VolumeStructure.Filesystem
-		mkfs, ok := gadget.MkfsHandlers[fs]
+		mkfs, ok := internal.MkfsHandlers[fs]
 		if !ok {
 			return fmt.Errorf("cannot create unsupported filesystem %q", fs)
 		}
 		if err := mkfs(ds.Node, ds.VolumeStructure.Label, ""); err != nil {
 			return err
 		}
-		if err := gadget.UdevTrigger(ds.Node); err != nil {
+		if err := internal.UdevTrigger(ds.Node); err != nil {
 			return err
 		}
 	}
