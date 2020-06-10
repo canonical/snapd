@@ -643,6 +643,14 @@ setup_reflash_magic() {
     # install the stuff we need
     distro_install_package kpartx busybox-static
 
+    # Ensure we don't have snapd already. On some ubuntu-20.04 images
+    # it seems like we have snapd/core18/lxd already installed 
+    if [ "$(find /snap -type d | wc -l)" -gt 1 ]; then
+        echo "reflash image not pristine, snaps already installed"
+        find /snap -type d
+        exit 1
+    fi
+
     distro_install_local_package "$GOHOME"/snapd_*.deb
     distro_clean_package_cache
 
