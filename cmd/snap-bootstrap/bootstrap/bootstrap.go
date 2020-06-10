@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/partition"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/secboot"
 )
 
@@ -139,16 +140,16 @@ func Run(gadgetRoot, device string, options Options) error {
 			part.Node = dataPart.Node
 		}
 
-		if err := part.MakeFilesystem(); err != nil {
+		if err := install.MakeFilesystem(&part); err != nil {
 			return err
 		}
 
-		if err := part.DeployContent(gadgetRoot); err != nil {
+		if err := install.DeployContent(&part, gadgetRoot); err != nil {
 			return err
 		}
 
 		if options.Mount && part.Label != "" && part.HasFilesystem() {
-			if err := part.MountFilesystem(boot.InitramfsRunMntDir); err != nil {
+			if err := install.MountFilesystem(&part, boot.InitramfsRunMntDir); err != nil {
 				return err
 			}
 		}

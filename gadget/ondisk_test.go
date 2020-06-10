@@ -29,8 +29,6 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/boot"
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -41,12 +39,6 @@ type ondiskTestSuite struct {
 	dir string
 
 	gadgetRoot string
-
-	mockMountPoint   string
-	mockMountCalls   []struct{ source, target, fstype string }
-	mockUnmountCalls []string
-
-	mockMountErr error
 }
 
 var _ = Suite(&ondiskTestSuite{})
@@ -56,29 +48,9 @@ func (s *ondiskTestSuite) SetUpTest(c *C) {
 
 	s.dir = c.MkDir()
 
-	s.mockMountErr = nil
-	s.mockMountCalls = nil
-	s.mockUnmountCalls = nil
-
 	s.gadgetRoot = c.MkDir()
 	err := makeMockGadget(s.gadgetRoot, gadgetContent)
 	c.Assert(err, IsNil)
-
-	s.mockMountPoint = c.MkDir()
-	restore := gadget.MockDeployMountpoint(s.mockMountPoint)
-	s.AddCleanup(restore)
-
-	restore = gadget.MockSysMount(func(source, target, fstype string, flags uintptr, data string) error {
-		s.mockMountCalls = append(s.mockMountCalls, struct{ source, target, fstype string }{source, target, fstype})
-		return s.mockMountErr
-	})
-	s.AddCleanup(restore)
-
-	restore = gadget.MockSysUnmount(func(target string, flags int) error {
-		s.mockUnmountCalls = append(s.mockUnmountCalls, target)
-		return nil
-	})
-	s.AddCleanup(restore)
 }
 
 const (
@@ -506,10 +478,7 @@ func (s *ondiskTestSuite) TestBuildPartitionList(c *C) {
 		},
 	}
 
-	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
-	err := makeMockGadget(gadgetRoot, gadgetContent)
-	c.Assert(err, IsNil)
-	pv, err := gadget.PositionedVolumeFromGadget(gadgetRoot)
+	pv, err := gadget.PositionedVolumeFromGadget(s.gadgetRoot)
 	c.Assert(err, IsNil)
 
 	dl, err := gadget.DeviceLayoutFromPartitionTable(ptable)
@@ -861,100 +830,4 @@ func (s *ondiskTestSuite) TestEnsureNodesExistTimeout(c *C) {
 	c.Assert(err, ErrorMatches, fmt.Sprintf("device %s not available", node))
 	c.Assert(time.Since(t) >= timeout, Equals, true)
 	c.Assert(cmdUdevadm.Calls(), HasLen, 0)
-}
-
-var mockOnDiskStructureBiosBoot = gadget.OnDiskStructure{
-	Node: "/dev/node1",
-	LaidOutStructure: gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
-			Name: "BIOS Boot",
-			Size: 1 * 1024 * 1024,
-			Type: "DA,21686148-6449-6E6F-744E-656564454649",
-			Content: []gadget.VolumeContent{
-				{
-					Image: "pc-core.img",
-				},
-			},
-		},
-		StartOffset: 0,
-		Index:       1,
-	},
-}
-
-var mockOnDiskStructureSystemSeed = gadget.OnDiskStructure{
-	Node: "/dev/node2",
-	LaidOutStructure: gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
-			Name:       "Recovery",
-			Size:       1258291200,
-			Type:       "EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
-			Role:       "system-seed",
-			Label:      "ubuntu-seed",
-			Filesystem: "vfat",
-			Content: []gadget.VolumeContent{
-				{
-					Source: "grubx64.efi",
-					Target: "EFI/boot/grubx64.efi",
-				},
-			},
-		},
-		StartOffset: 2097152,
-		Index:       2,
-	},
-}
-
-func (s *ondiskTestSuite) TestDeployRawContent(c *C) {
-	mockNode := filepath.Join(s.dir, "mock-node")
-	err := ioutil.WriteFile(mockNode, nil, 0644)
-	c.Assert(err, IsNil)
-
-	// copy existing mock
-	m := mockOnDiskStructureBiosBoot
-	m.Node = mockNode
-	m.LaidOutContent = []gadget.LaidOutContent{
-		{
-			VolumeContent: &gadget.VolumeContent{
-				Image: "pc-core.img",
-			},
-			StartOffset: 2,
-			Size:        gadget.Size(len("pc-core.img content")),
-		},
-	}
-
-	err = m.DeployContent(s.gadgetRoot)
-	c.Assert(err, IsNil)
-
-	content, err := ioutil.ReadFile(m.Node)
-	c.Assert(err, IsNil)
-	// note the 2 zero byte start offset
-	c.Check(string(content), Equals, "\x00\x00pc-core.img content")
-}
-
-func (s *ondiskTestSuite) TestMountFilesystem(c *C) {
-	dirs.SetRootDir(c.MkDir())
-	defer dirs.SetRootDir("")
-
-	// mounting will only happen for devices with a label
-	mockOnDiskStructureBiosBoot.Label = "bios-boot"
-	defer func() { mockOnDiskStructureBiosBoot.Label = "" }()
-
-	err := mockOnDiskStructureBiosBoot.MountFilesystem(boot.InitramfsRunMntDir)
-	c.Assert(err, ErrorMatches, "cannot mount a partition with no filesystem")
-
-	// mount a filesystem...
-	err = mockOnDiskStructureSystemSeed.MountFilesystem(boot.InitramfsRunMntDir)
-	c.Assert(err, IsNil)
-
-	// ...and check if it was mounted at the right mount point
-	c.Check(s.mockMountCalls, HasLen, 1)
-	c.Check(s.mockMountCalls, DeepEquals, []struct{ source, target, fstype string }{
-		{"/dev/node2", boot.InitramfsUbuntuSeedDir, "vfat"},
-	})
-
-	// now try to mount a filesystem with no label
-	mockOnDiskStructureSystemSeed.Label = ""
-	defer func() { mockOnDiskStructureSystemSeed.Label = "ubuntu-seed" }()
-
-	err = mockOnDiskStructureSystemSeed.MountFilesystem(boot.InitramfsRunMntDir)
-	c.Assert(err, ErrorMatches, "cannot mount a filesystem with no label")
 }

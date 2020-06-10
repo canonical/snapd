@@ -31,7 +31,7 @@ import (
 type MkfsFunc func(imgFile, label, contentsRootDir string) error
 
 var (
-	mkfsHandlers = map[string]MkfsFunc{
+	MkfsHandlers = map[string]MkfsFunc{
 		"vfat": MkfsVfat,
 		"ext4": MkfsExt4,
 	}
@@ -64,7 +64,7 @@ func NewFilesystemImageWriter(contentDir string, ps *LaidOutStructure, workDir s
 	if contentDir == "" {
 		return nil, fmt.Errorf("internal error: gadget content directory cannot be unset")
 	}
-	if _, ok := mkfsHandlers[ps.Filesystem]; !ok {
+	if _, ok := MkfsHandlers[ps.Filesystem]; !ok {
 		return nil, fmt.Errorf("internal error: filesystem %q has no handler", ps.Filesystem)
 	}
 
@@ -89,7 +89,7 @@ func (f *FilesystemImageWriter) Write(fname string, postStage PostStageFunc) err
 		return fmt.Errorf("size of image file %v is different from declared structure size %v", sz, f.ps.Size)
 	}
 
-	mkfsWithContent := mkfsHandlers[f.ps.Filesystem]
+	mkfsWithContent := MkfsHandlers[f.ps.Filesystem]
 	if mkfsWithContent == nil {
 		return fmt.Errorf("internal error: filesystem %q has no handler", f.ps.Filesystem)
 	}

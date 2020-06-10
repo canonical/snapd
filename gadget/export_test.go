@@ -55,7 +55,6 @@ var (
 
 	FilesystemInfo                 = filesystemInfo
 	BuildPartitionList             = buildPartitionList
-	Mkfs                           = mkfs
 	EnsureNodesExist               = ensureNodesExist
 	DeviceLayoutFromPartitionTable = deviceLayoutFromPartitionTable
 	ListCreatedPartitions          = listCreatedPartitions
@@ -70,10 +69,10 @@ func MockEvalSymlinks(mock func(path string) (string, error)) (restore func()) {
 }
 
 func MockMkfsHandlers(mock map[string]MkfsFunc) (restore func()) {
-	old := mkfsHandlers
-	mkfsHandlers = mock
+	old := MkfsHandlers
+	MkfsHandlers = mock
 	return func() {
-		mkfsHandlers = old
+		MkfsHandlers = old
 	}
 }
 
@@ -82,29 +81,5 @@ func MockEnsureNodesExist(f func(dss []OnDiskStructure, timeout time.Duration) e
 	ensureNodesExist = f
 	return func() {
 		ensureNodesExist = old
-	}
-}
-
-func MockDeployMountpoint(new string) (restore func()) {
-	old := deployMountpoint
-	deployMountpoint = new
-	return func() {
-		deployMountpoint = old
-	}
-}
-
-func MockSysMount(f func(source, target, fstype string, flags uintptr, data string) error) (restore func()) {
-	old := sysMount
-	sysMount = f
-	return func() {
-		sysMount = old
-	}
-}
-
-func MockSysUnmount(f func(target string, flags int) error) (restore func()) {
-	old := sysUnmount
-	sysUnmount = f
-	return func() {
-		sysUnmount = old
 	}
 }

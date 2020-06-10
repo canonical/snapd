@@ -1,5 +1,4 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build !linux
 
 /*
  * Copyright (C) 2020 Canonical Ltd
@@ -18,18 +17,13 @@
  *
  */
 
-package gadget
+package install
 
 import (
-	"errors"
 	"syscall"
 )
 
 var (
-	sysMount   = unimplementedMount
+	sysMount   = syscall.Mount
 	sysUnmount = syscall.Unmount
 )
-
-func unimplementedMount(source string, target string, fstype string, flags uintptr, data string) error {
-	return errors.New("mount not implemented")
-}
