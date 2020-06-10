@@ -20,7 +20,17 @@ var cgroupProcessPathInTrackingCgroup = ProcessPathInTrackingCgroup
 
 var ErrCannotTrackProcess = errors.New("cannot track application process")
 
-func CreateTransientScope(securityTag string) error {
+// CreateTransientScopeForTracking puts the current process in a transient scope.
+//
+// To quote systemd documentation about scope units:
+//
+// >> Scopes units manage a set of system processes. Unlike service units,
+// >> scope units manage externally created processes, and do not fork off
+// >> processes on its own.
+//
+// Scope names must be unique, a randomly generated UUID is appended to the
+// security tag, further suffixed with the string ".scope".
+func CreateTransientScopeForTracking(securityTag string) error {
 	if !features.RefreshAppAwareness.IsEnabled() {
 		return nil
 	}

@@ -55,8 +55,8 @@ func (s *trackingSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
 }
 
-// CreateTransientScope is a no-op when refresh app awareness is off
-func (s *trackingSuite) TestCreateTransientScopeFeatureDisabled(c *C) {
+// CreateTransientScopeForTracking is a no-op when refresh app awareness is off
+func (s *trackingSuite) TestCreateTransientScopeForTrackingFeatureDisabled(c *C) {
 	noDBus := func() (*dbus.Conn, error) {
 		return nil, fmt.Errorf("dbus should not have been used")
 	}
@@ -64,12 +64,12 @@ func (s *trackingSuite) TestCreateTransientScopeFeatureDisabled(c *C) {
 	defer restore()
 
 	c.Assert(features.RefreshAppAwareness.IsEnabled(), Equals, false)
-	err := cgroup.CreateTransientScope("snap.pkg.app")
+	err := cgroup.CreateTransientScopeForTracking("snap.pkg.app")
 	c.Check(err, IsNil)
 }
 
-// CreateTransientScope does stuff when refresh app awareness is on
-func (s *trackingSuite) TestCreateTransientScopeFeatureEnabled(c *C) {
+// CreateTransientScopeForTracking does stuff when refresh app awareness is on
+func (s *trackingSuite) TestCreateTransientScopeForTrackingFeatureEnabled(c *C) {
 	// Pretend that refresh app awareness is enabled
 	enableFeatures(c, features.RefreshAppAwareness)
 	c.Assert(features.RefreshAppAwareness.IsEnabled(), Equals, true)
@@ -100,11 +100,11 @@ func (s *trackingSuite) TestCreateTransientScopeFeatureEnabled(c *C) {
 	})
 	defer restore()
 
-	err = cgroup.CreateTransientScope("snap.pkg.app")
+	err = cgroup.CreateTransientScopeForTracking("snap.pkg.app")
 	c.Check(err, IsNil)
 }
 
-func (s *trackingSuite) TestCreateTransientScopeUnhappyNotRootGeneric(c *C) {
+func (s *trackingSuite) TestCreateTransientScopeForTrackingUnhappyNotRootGeneric(c *C) {
 	// Pretend that refresh app awareness is enabled
 	enableFeatures(c, features.RefreshAppAwareness)
 
@@ -133,7 +133,7 @@ func (s *trackingSuite) TestCreateTransientScopeUnhappyNotRootGeneric(c *C) {
 	defer restore()
 
 	// Create a transient scope and see it fail according to how doCreateTransientScope is rigged.
-	err := cgroup.CreateTransientScope("snap.pkg.app")
+	err := cgroup.CreateTransientScopeForTracking("snap.pkg.app")
 	c.Assert(err, ErrorMatches, "cannot create transient scope for testing")
 
 	// Calling StartTransientUnit fails with org.freedesktop.DBus.UnknownMethod error.
@@ -145,7 +145,7 @@ func (s *trackingSuite) TestCreateTransientScopeUnhappyNotRootGeneric(c *C) {
 
 	// Attempts to create a transient scope fail with a special error
 	// indicating that we cannot track application process.
-	err = cgroup.CreateTransientScope("snap.pkg.app")
+	err = cgroup.CreateTransientScopeForTracking("snap.pkg.app")
 	c.Assert(err, ErrorMatches, "cannot track application process")
 
 	// Calling StartTransientUnit fails with org.freedesktop.DBus.Spawn.ChildExited error.
@@ -159,11 +159,11 @@ func (s *trackingSuite) TestCreateTransientScopeUnhappyNotRootGeneric(c *C) {
 	// Attempts to create a transient scope fail with a special error
 	// indicating that we cannot track application process and because we are
 	// not root, we do not attempt to fall back to the system bus.
-	err = cgroup.CreateTransientScope("snap.pkg.app")
+	err = cgroup.CreateTransientScopeForTracking("snap.pkg.app")
 	c.Assert(err, ErrorMatches, "cannot track application process")
 }
 
-func (s *trackingSuite) TestCreateTransientScopeUnhappyRootFallback(c *C) {
+func (s *trackingSuite) TestCreateTransientScopeForTrackingUnhappyRootFallback(c *C) {
 	// Pretend that refresh app awareness is enabled
 	enableFeatures(c, features.RefreshAppAwareness)
 
@@ -211,11 +211,11 @@ func (s *trackingSuite) TestCreateTransientScopeUnhappyRootFallback(c *C) {
 	// Attempts to create a transient scope fail with a special error
 	// indicating that we cannot track application process and but because we were
 	// root we attempted to fall back to the system bus.
-	err := cgroup.CreateTransientScope("snap.pkg.app")
+	err := cgroup.CreateTransientScopeForTracking("snap.pkg.app")
 	c.Assert(err, IsNil)
 }
 
-func (s *trackingSuite) TestCreateTransientScopeUnhappyRootFailedFallback(c *C) {
+func (s *trackingSuite) TestCreateTransientScopeForTrackingUnhappyRootFailedFallback(c *C) {
 	// Pretend that refresh app awareness is enabled
 	enableFeatures(c, features.RefreshAppAwareness)
 
@@ -252,11 +252,11 @@ func (s *trackingSuite) TestCreateTransientScopeUnhappyRootFailedFallback(c *C) 
 
 	// Attempts to create a transient scope fail with a special error
 	// indicating that we cannot track application process.
-	err := cgroup.CreateTransientScope("snap.pkg.app")
+	err := cgroup.CreateTransientScopeForTracking("snap.pkg.app")
 	c.Assert(err, ErrorMatches, "cannot track application process")
 }
 
-func (s *trackingSuite) TestCreateTransientScopeUnhappyNoDBus(c *C) {
+func (s *trackingSuite) TestCreateTransientScopeForTrackingUnhappyNoDBus(c *C) {
 	// Pretend that refresh app awareness is enabled
 	enableFeatures(c, features.RefreshAppAwareness)
 
@@ -293,11 +293,11 @@ func (s *trackingSuite) TestCreateTransientScopeUnhappyNoDBus(c *C) {
 
 	// Attempts to create a transient scope fail with a special error
 	// indicating that we cannot track application process.
-	err := cgroup.CreateTransientScope("snap.pkg.app")
+	err := cgroup.CreateTransientScopeForTracking("snap.pkg.app")
 	c.Assert(err, ErrorMatches, "cannot track application process")
 }
 
-func (s *trackingSuite) TestCreateTransientScopeSilentlyFails(c *C) {
+func (s *trackingSuite) TestCreateTransientScopeForTrackingSilentlyFails(c *C) {
 	// Pretend that refresh app awareness is enabled
 	enableFeatures(c, features.RefreshAppAwareness)
 
@@ -338,7 +338,7 @@ func (s *trackingSuite) TestCreateTransientScopeSilentlyFails(c *C) {
 	// Attempts to create a transient scope fail with a special error
 	// indicating that we cannot track application process even though
 	// the DBus call has returned no error.
-	err := cgroup.CreateTransientScope("snap.pkg.app")
+	err := cgroup.CreateTransientScopeForTracking("snap.pkg.app")
 	c.Assert(err, ErrorMatches, "cannot track application process")
 }
 
