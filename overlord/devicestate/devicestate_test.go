@@ -60,6 +60,10 @@ import (
 	"github.com/snapcore/snapd/timings"
 )
 
+var (
+	settleTimeout = testutil.HostScaledTimeout(15 * time.Second)
+)
+
 func TestDeviceManager(t *testing.T) { TestingT(t) }
 
 type deviceMgrBaseSuite struct {
@@ -211,8 +215,6 @@ func (s *deviceMgrBaseSuite) TearDownTest(c *C) {
 	s.restoreOnClassic()
 	s.restoreSanitize()
 }
-
-var settleTimeout = 15 * time.Second
 
 func (s *deviceMgrBaseSuite) settle(c *C) {
 	err := s.o.Settle(settleTimeout)
