@@ -34,7 +34,8 @@ import (
 type typeFlags int
 
 const (
-	noAuthority typeFlags = iota + 1
+	noAuthority typeFlags = 1 << iota
+	sequenceForming
 )
 
 // MetaHeaders is a list of headers in assertions which are about the assertion
@@ -65,11 +66,20 @@ func (at *AssertionType) MaxSupportedFormat() int {
 	return maxSupportedFormat[at.Name]
 }
 
+// SequencingForming returns true if the assertion type has a positive
+// intenger >= 1 as the last component (preferably called "sequence")
+// of its primary key over which the assertions of the type form
+// sequences, usually without gaps, one sequence per primary key
+// prefix. See SequenceMember.
+func (at *AssertionType) SequenceForming() bool {
+	return at.flags&sequenceForming != 0
+}
+
 // Understood assertion types.
 var (
 	AccountType         = &AssertionType{"account", []string{"account-id"}, assembleAccount, 0}
 	AccountKeyType      = &AssertionType{"account-key", []string{"public-key-sha3-384"}, assembleAccountKey, 0}
-	RepairType          = &AssertionType{"repair", []string{"brand-id", "repair-id"}, assembleRepair, 0}
+	RepairType          = &AssertionType{"repair", []string{"brand-id", "repair-id"}, assembleRepair, sequenceForming}
 	ModelType           = &AssertionType{"model", []string{"series", "brand-id", "model"}, assembleModel, 0}
 	SerialType          = &AssertionType{"serial", []string{"brand-id", "model", "serial"}, assembleSerial, 0}
 	BaseDeclarationType = &AssertionType{"base-declaration", []string{"series"}, assembleBaseDeclaration, 0}
@@ -79,7 +89,7 @@ var (
 	SnapDeveloperType   = &AssertionType{"snap-developer", []string{"snap-id", "publisher-id"}, assembleSnapDeveloper, 0}
 	SystemUserType      = &AssertionType{"system-user", []string{"brand-id", "email"}, assembleSystemUser, 0}
 	ValidationType      = &AssertionType{"validation", []string{"series", "snap-id", "approved-snap-id", "approved-snap-revision"}, assembleValidation, 0}
-	ValidationSetType   = &AssertionType{"validation-set", []string{"series", "account-id", "name", "sequence"}, assembleValidationSet, 0}
+	ValidationSetType   = &AssertionType{"validation-set", []string{"series", "account-id", "name", "sequence"}, assembleValidationSet, sequenceForming}
 	StoreType           = &AssertionType{"store", []string{"store"}, assembleStore, 0}
 
 // ...
@@ -319,6 +329,14 @@ type Assertion interface {
 
 	// At returns an AtRevision referencing this assertion at its revision.
 	At() *AtRevision
+}
+
+// SequenceMember is implemented by assertions of sequence forming types.
+type SequenceMember interface {
+	Assertion
+
+	// Sequence returns the sequential number of this assertion.
+	Sequence() int
 }
 
 // customSigner represents an assertion with special arrangements for its signing key (e.g. self-signed), rather than the usual case where an assertion is signed by its authority.

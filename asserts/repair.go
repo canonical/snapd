@@ -55,6 +55,11 @@ func (r *Repair) RepairID() int {
 	return r.id
 }
 
+// Sequence implements SequenceMember, it returns the same as RepairID.
+func (r Repair) Sequence() int {
+	return r.RepairID()
+}
+
 // Summary returns the mandatory summary description of the repair.
 func (r *Repair) Summary() string {
 	return r.HeaderString("summary")
