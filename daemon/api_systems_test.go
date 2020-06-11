@@ -208,7 +208,15 @@ func (s *apiSuite) TestSystemsGetNone(c *check.C) {
 }
 
 func (s *apiSuite) TestSystemActionRequestErrors(c *check.C) {
+	// modenev must be mocked before daemon is initialized
+	m := boot.Modeenv{
+		Mode: "run",
+	}
+	err := m.WriteTo("")
+	c.Assert(err, check.IsNil)
+
 	d := s.daemonWithOverlordMock(c)
+
 	hookMgr, err := hookstate.Manager(d.overlord.State(), d.overlord.TaskRunner())
 	c.Assert(err, check.IsNil)
 	mgr, err := devicestate.Manager(d.overlord.State(), hookMgr, d.overlord.TaskRunner(), nil)
@@ -218,9 +226,12 @@ func (s *apiSuite) TestSystemActionRequestErrors(c *check.C) {
 	restore := s.mockSystemSeeds(c)
 	defer restore()
 
+	st := d.overlord.State()
+
 	type table struct {
 		label, body, error string
 		status             int
+		unseeded           bool
 	}
 	tests := []table{
 		{
@@ -254,9 +265,29 @@ func (s *apiSuite) TestSystemActionRequestErrors(c *check.C) {
 			body:   `{"action":"do","mode":"foobar"}`,
 			error:  `requested action is not supported by system "20191119"`,
 			status: 400,
+		}, {
+			// valid label and action, but seeding is not complete yet
+			label:    "20191119",
+			body:     `{"action":"do","mode":"install"}`,
+			error:    `cannot request system action, system is seeding`,
+			status:   500,
+			unseeded: true,
 		},
 	}
 	for _, tc := range tests {
+		st.Lock()
+		if tc.unseeded {
+			st.Set("seeded", nil)
+			m := boot.Modeenv{
+				Mode:           "run",
+				RecoverySystem: tc.label,
+			}
+			err := m.WriteTo("")
+			c.Assert(err, check.IsNil)
+		} else {
+			st.Set("seeded", true)
+		}
+		st.Unlock()
 		s.vars = map[string]string{"label": tc.label}
 		c.Logf("tc: %#v", tc)
 		req, err := http.NewRequest("POST", "/v2/systems/"+tc.label, strings.NewReader(tc.body))
@@ -403,6 +434,8 @@ func (s *apiSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 			// only set in run mode
 			st.Set("seeded-systems", currentSystem)
 		}
+		// the seeding is done
+		st.Set("seeded", true)
 		st.Unlock()
 
 		body := map[string]string{
@@ -473,12 +506,24 @@ func (s *apiSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 }
 
 func (s *apiSuite) TestSystemActionBrokenSeed(c *check.C) {
+	m := boot.Modeenv{
+		Mode: "run",
+	}
+	err := m.WriteTo("")
+	c.Assert(err, check.IsNil)
+
 	d := s.daemonWithOverlordMock(c)
 	hookMgr, err := hookstate.Manager(d.overlord.State(), d.overlord.TaskRunner())
 	c.Assert(err, check.IsNil)
 	mgr, err := devicestate.Manager(d.overlord.State(), hookMgr, d.overlord.TaskRunner(), nil)
 	c.Assert(err, check.IsNil)
 	d.overlord.AddManager(mgr)
+
+	// the seeding is done
+	st := d.overlord.State()
+	st.Lock()
+	st.Set("seeded", true)
+	st.Unlock()
 
 	restore := s.mockSystemSeeds(c)
 	defer restore()

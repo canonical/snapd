@@ -16,3 +16,6 @@ apps:
     hwclock-time:
         command: bin/hwclock
         plugs: [time-control, netlink-audit]
+    date:
+        command: bin/date
+        plugs: [time-control]

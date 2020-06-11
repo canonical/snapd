@@ -480,6 +480,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4(c *C) {
 
 	// write modeenv
 	modeEnv := boot.Modeenv{
+		Mode:           "run",
 		RecoverySystem: "20191118",
 		Base:           "core20_123.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap"},
@@ -523,6 +524,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4BaseSnapUpgradeFai
 	// write modeenv as if we failed to boot and were rebooted because the
 	// base snap was broken
 	modeEnv := &boot.Modeenv{
+		Mode:       "run",
 		Base:       "core20_123.snap",
 		TryBase:    "core20_124.snap",
 		BaseStatus: boot.TryingStatus,
@@ -567,6 +569,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4ModeenvTryBaseEmpt
 
 	// write a modeenv with no try_base so we fall back to using base
 	modeEnv := &boot.Modeenv{
+		Mode:       "run",
 		Base:       "core20_123.snap",
 		BaseStatus: boot.TryStatus,
 	}
@@ -602,6 +605,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4BaseSnapUpgradeHap
 
 	// write modeenv
 	modeEnv := &boot.Modeenv{
+		Mode:       "run",
 		Base:       "core20_123.snap",
 		TryBase:    "core20_124.snap",
 		BaseStatus: boot.TryStatus,
@@ -644,7 +648,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4ModeenvBaseEmptyUn
 	)
 
 	// write an empty modeenv
-	modeEnv := &boot.Modeenv{}
+	modeEnv := &boot.Modeenv{
+		Mode: "run",
+	}
 	err := modeEnv.WriteTo(boot.InitramfsWritableDir)
 	c.Assert(err, IsNil)
 
@@ -670,6 +676,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4ModeenvTryBaseNotE
 	// write a modeenv with try_base not existing on disk so we fall back to
 	// using the normal base
 	modeEnv := &boot.Modeenv{
+		Mode:       "run",
 		Base:       "core20_123.snap",
 		TryBase:    "core20_124.snap",
 		BaseStatus: boot.TryStatus,
@@ -706,6 +713,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4KernelSnapUpgradeH
 
 	// write modeenv
 	modeEnv := &boot.Modeenv{
+		Mode:           "run",
 		Base:           "core20_123.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap", "pc-kernel_2.snap"},
 	}
@@ -763,6 +771,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4UntrustedKernelSna
 
 	// write modeenv
 	modeEnv := boot.Modeenv{
+		Mode:           "run",
 		Base:           "core20_123.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap"},
 	}
@@ -803,6 +812,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4UntrustedTryKernel
 
 	// write modeenv
 	modeEnv := boot.Modeenv{
+		Mode:           "run",
 		Base:           "core20_123.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap"},
 	}
@@ -851,6 +861,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4KernelStatusTrying
 
 	// write modeenv
 	modeEnv := boot.Modeenv{
+		Mode:           "run",
 		Base:           "core20_123.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap"},
 	}
@@ -901,6 +912,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4EnvRefKernelBootst
 
 	// write modeenv
 	modeEnv := boot.Modeenv{
+		Mode:           "run",
 		RecoverySystem: "20191118",
 		Base:           "core20_123.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap"},
@@ -940,6 +952,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4EnvRefKernelBootst
 
 	// write modeenv
 	modeEnv := &boot.Modeenv{
+		Mode:           "run",
 		Base:           "core20_123.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap", "pc-kernel_2.snap"},
 	}
@@ -989,6 +1002,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4EnvRefKernelBootst
 
 	// write modeenv
 	modeEnv := boot.Modeenv{
+		Mode:           "run",
 		Base:           "core20_123.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap"},
 	}
@@ -1026,6 +1040,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4EnvRefKernelBootst
 
 	// write modeenv
 	modeEnv := boot.Modeenv{
+		Mode:           "run",
 		Base:           "core20_123.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap"},
 	}
@@ -1070,6 +1085,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep4EnvRefKernelBootst
 
 	// write modeenv
 	modeEnv := boot.Modeenv{
+		Mode:           "run",
 		Base:           "core20_123.snap",
 		CurrentKernels: []string{"pc-kernel_1.snap"},
 	}
@@ -1257,7 +1273,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep4(c *C) {
 	hostUbuntuData := filepath.Join(boot.InitramfsRunMntDir, "host/ubuntu-data/")
 	err = os.MkdirAll(hostUbuntuData, 0755)
 	c.Assert(err, IsNil)
-	mockAuthFiles := []string{
+	mockCopiedFiles := []string{
 		// extrausers
 		"system-data/var/lib/extrausers/passwd",
 		"system-data/var/lib/extrausers/shadow",
@@ -1273,6 +1289,11 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep4(c *C) {
 		"user-data/user1/.snap/auth.json",
 		// sudoers
 		"system-data/etc/sudoers.d/create-user-test",
+		// netplan networking
+		"system-data/etc/netplan/00-snapd-config.yaml", // example console-conf filename
+		"system-data/etc/netplan/50-cloud-init.yaml",   // example cloud-init filename
+		// systemd clock file
+		"system-data/var/lib/systemd/timesync/clock",
 	}
 	mockUnrelatedFiles := []string{
 		"system-data/var/lib/foo",
@@ -1280,12 +1301,14 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep4(c *C) {
 		"user-data/user1/some-random-data",
 		"user-data/user2/other-random-data",
 		"user-data/user2/.snap/sneaky-not-auth.json",
+		"system-data/etc/not-networking/netplan",
+		"system-data/var/lib/systemd/timesync/clock-not-the-clock",
 	}
-	for _, mockAuthFile := range append(mockAuthFiles, mockUnrelatedFiles...) {
-		p := filepath.Join(hostUbuntuData, mockAuthFile)
+	for _, mockFile := range append(mockCopiedFiles, mockUnrelatedFiles...) {
+		p := filepath.Join(hostUbuntuData, mockFile)
 		err = os.MkdirAll(filepath.Dir(p), 0750)
 		c.Assert(err, IsNil)
-		mockContent := fmt.Sprintf("content of %s", filepath.Base(mockAuthFile))
+		mockContent := fmt.Sprintf("content of %s", filepath.Base(mockFile))
 		err = ioutil.WriteFile(p, []byte(mockContent), 0640)
 		c.Assert(err, IsNil)
 	}
@@ -1308,7 +1331,7 @@ recovery_system=20191118
 	for _, p := range mockUnrelatedFiles {
 		c.Check(filepath.Join(ephemeralUbuntuData, p), testutil.FileAbsent)
 	}
-	for _, p := range mockAuthFiles {
+	for _, p := range mockCopiedFiles {
 		c.Check(filepath.Join(ephemeralUbuntuData, p), testutil.FilePresent)
 		fi, err := os.Stat(filepath.Join(ephemeralUbuntuData, p))
 		// check file mode is set

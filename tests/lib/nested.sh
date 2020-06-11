@@ -70,8 +70,9 @@ get_qemu_for_nested_vm(){
     esac
 }
 
+# shellcheck disable=SC2120
 get_google_image_url_for_nested_vm(){
-    case "$SPREAD_SYSTEM" in
+    case "${1:-$SPREAD_SYSTEM}" in
         ubuntu-16.04-64)
             echo "https://storage.googleapis.com/spread-snapd-tests/images/cloudimg/xenial-server-cloudimg-amd64-disk1.img"
             ;;
@@ -83,6 +84,9 @@ get_google_image_url_for_nested_vm(){
             ;;
         ubuntu-20.04-64)
             echo "https://storage.googleapis.com/spread-snapd-tests/images/cloudimg/focal-server-cloudimg-amd64.img"
+            ;;
+        ubuntu-20.10-64*)
+            echo "https://storage.googleapis.com/spread-snapd-tests/images/cloudimg/groovy-server-cloudimg-amd64.img"
             ;;
         *)
             echo "unsupported system"
@@ -104,6 +108,9 @@ get_ubuntu_image_url_for_nested_vm(){
             ;;
         ubuntu-20.04-64*)
             echo "https://cloud-images.ubuntu.com/focal/current/focal-server-cloudimg-amd64.img"
+            ;;
+        ubuntu-20.10-64*)
+            echo "https://cloud-images.ubuntu.com/groovy/current/groovy-server-cloudimg-amd64.img"
             ;;
         *)
             echo "unsupported system"
@@ -186,6 +193,21 @@ refresh_to_new_core(){
     fi
 }
 
+get_snakeoil_key(){
+    local KEYNAME="PkKek-1-snakeoil"
+    wget https://raw.githubusercontent.com/snapcore/pc-amd64-gadget/20/snakeoil/$KEYNAME.key
+    wget https://raw.githubusercontent.com/snapcore/pc-amd64-gadget/20/snakeoil/$KEYNAME.pem
+    echo "$KEYNAME"
+}
+
+secboot_sign_gadget(){
+    local GADGET_DIR="$1"
+    local KEY="$2"
+    local CERT="$3"
+    sbattach --remove "$GADGET_DIR"/shim.efi.signed
+    sbsign --key "$KEY" --cert "$CERT" --output pc-gadget/shim.efi.signed pc-gadget/shim.efi.signed
+}
+
 cleanup_nested_env(){
     rm -rf "$WORK_DIR"
 }
@@ -232,9 +254,37 @@ create_nested_core_vm(){
 
             snap download --basename=pc-kernel --channel="20/edge" pc-kernel
             uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$WORK_DIR/image"
-            EXTRA_FUNDAMENTAL="--snap $WORK_DIR/image/pc-kernel_*.snap"
-            chmod 0600 "$WORK_DIR"/image/pc-kernel_*.snap
+
+            # Get the snakeoil key and cert
+            KEY_NAME=$(get_snakeoil_key)
+            SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
+            SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
+
+            # Prepare the pc kernel snap
+            KERNEL_SNAP=$(ls "$WORK_DIR"/image/pc-kernel_*.snap)
+            KERNEL_UNPACKED="$WORK_DIR"/image/kernel-unpacked
+            unsquashfs -d "$KERNEL_UNPACKED" "$KERNEL_SNAP"
+            sbattach --remove "$KERNEL_UNPACKED/kernel.efi"
+            sbsign --key "$SNAKEOIL_KEY" --cert "$SNAKEOIL_CERT" "$KERNEL_UNPACKED/kernel.efi"  --output "$KERNEL_UNPACKED/kernel.efi"
+            snap pack "$KERNEL_UNPACKED" "$WORK_DIR/image"
+
+            chmod 0600 "$KERNEL_SNAP"
             rm -f "$PWD/pc-kernel.snap"
+            rm -rf "$KERNEL_UNPACKED"
+            EXTRA_FUNDAMENTAL="--snap $KERNEL_SNAP"
+
+            # Prepare the pc gadget snap (unless provided by extra-snaps)
+            GADGET_SNAP=$(ls "${PWD}"/extra-snaps/pc_*.snap)
+            if [ -z "$GADGET_SNAP" ]; then
+                snap download --basename=pc --channel="20/edge" pc
+                unsquashfs -d pc-gadget pc.snap
+                secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+                snap pack pc-gadget/ "$WORK_DIR/image"
+
+                GADGET_SNAP=$(ls "$WORK_DIR"/image/pc_*.snap)
+                rm -f "$PWD/pc.snap" "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+                EXTRA_FUNDAMENTAL="--snap $GADGET_SNAP"
+            fi
 
             snap download --channel="latest/edge" snapd
             repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$PWD/new-snapd" "false"
@@ -330,6 +380,10 @@ configure_cloud_init_nested_core_vm_uc20(){
     umount "$tmp"
 }
 
+get_nested_core_image_path(){
+    echo "$WORK_DIR/image/ubuntu-core.img"
+}
+
 start_nested_core_vm(){
     local IMAGE QEMU
     QEMU=$(get_qemu_for_nested_vm)
@@ -364,9 +418,16 @@ start_nested_core_vm(){
             apt update
         fi
 
+        OVMF_CODE="secboot"
+        OVMF_VARS="ms"
+        # In this case the kernel.efi is unsigned and signed with snaleoil certs
+        if [ "$BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
+            OVMF_VARS="snakeoil"            
+        fi
+
         if [ "$ENABLE_SECURE_BOOT" = "true" ]; then
-            cp -f /usr/share/OVMF/OVMF_VARS.ms.fd "$WORK_DIR/image/OVMF_VARS.ms.fd"
-            PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE.secboot.fd,if=pflash,format=raw,unit=0,readonly=on -drive file=$WORK_DIR/image/OVMF_VARS.ms.fd,if=pflash,format=raw,unit=1"
+            cp -f "/usr/share/OVMF/OVMF_VARS.$OVMF_VARS.fd" "$WORK_DIR/image/OVMF_VARS.$OVMF_VARS.fd"
+            PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE.$OVMF_CODE.fd,if=pflash,format=raw,unit=0,readonly=on -drive file=$WORK_DIR/image/OVMF_VARS.$OVMF_VARS.fd,if=pflash,format=raw,unit=1"
             PARAM_MACHINE="-machine ubuntu-q35,accel=kvm -global ICH9-LPC.disable_s3=1"
         fi
 
