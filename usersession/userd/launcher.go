@@ -236,10 +236,14 @@ func desktopFileIDToFilename(desktopFile_exists fileExists, desktopFileID string
 func readExecCommandFromDesktopFile(desktopFile string) (string, error) {
 	var launch string
 
+    // Be careful with which desktop files we process and verify that:
+    // 1. we only consider desktop files in dirs.SnapDesktopFilesDir
+    // 2. the desktop file itself and all directories above it are root owned without group/other write
+    // 3. the Exec line has an expected prefix
 	if strings.HasPrefix(desktopFile, dirs.SnapDesktopFilesDir) {
-		for checkPath := filepath.Dir(desktopFile); strings.HasPrefix(checkPath, dirs.SnapDesktopFilesDir); checkPath = filepath.Dir(checkPath) {
+		for checkPath := desktopFile; strings.HasPrefix(checkPath, dirs.SnapDesktopFilesDir); checkPath = filepath.Dir(checkPath) {
 			fileStat, err := os.Stat(checkPath)
-			if err != nil || !fileStat.Mode().IsDir() || (fileStat.Mode().Perm()&0022) != 0 || fileStat.Sys().(*syscall.Stat_t).Uid != 0 {
+			if err != nil || !(fileStat.Mode().IsDir() || fileStat.Mode().IsRegular()) || (fileStat.Mode().Perm()&0022) != 0 || fileStat.Sys().(*syscall.Stat_t).Uid != 0 {
 				return "", fmt.Errorf("cannot verify path %q", checkPath)
 			}
 		}
