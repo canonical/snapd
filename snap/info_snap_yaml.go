@@ -427,6 +427,17 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info, strk *scopedTracker) error {
 			app.Slots[slotName] = slot
 			slot.Apps[appName] = app
 		}
+		for _, slotName := range yApp.ActivatesOn {
+			slot, ok := snap.Slots[slotName]
+			if !ok {
+				return fmt.Errorf("invalid activates-on value %q on app %q: slot not found", slotName, appName)
+			}
+			app.ActivatesOn = append(app.ActivatesOn, slot)
+			// Implicitly add the slot to the app
+			strk.markSlot(slot)
+			app.Slots[slotName] = slot
+			slot.Apps[appName] = app
+		}
 		for name, data := range yApp.Sockets {
 			app.Sockets[name] = &SocketInfo{
 				App:          app,
@@ -440,17 +451,6 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info, strk *scopedTracker) error {
 				App:   app,
 				Timer: yApp.Timer,
 			}
-		}
-		for _, slotName := range yApp.ActivatesOn {
-			slot, ok := snap.Slots[slotName]
-			if !ok {
-				return fmt.Errorf("invalid activates-on value %q on app %q: slot not found", slotName, appName)
-			}
-			app.ActivatesOn = append(app.ActivatesOn, slot)
-			// Implicitly add the slot to the app
-			strk.markSlot(slot)
-			app.Slots[slotName] = slot
-			slot.Apps[appName] = app
 		}
 		// collect all common IDs
 		if app.CommonID != "" {
