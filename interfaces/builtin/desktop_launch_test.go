@@ -93,4 +93,7 @@ func (s *desktopLaunchSuite) TestStaticInfo(c *C) {
 	c.Assert(si.Summary, Equals, `allows snaps to identify and launch other snaps`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "desktop-launch")
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "deny-auto-connection: true")
+	c.Assert(si.BaseDeclarationPlugs, testutil.Contains, "desktop-launch")
+	c.Assert(si.BaseDeclarationPlugs, testutil.Contains, "deny-auto-connection: true")
+	c.Assert(si.BaseDeclarationPlugs, testutil.Contains, "allow-installation: false")
 }
