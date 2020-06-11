@@ -111,7 +111,7 @@ func (s *servicesTestSuite) TestAddSnapServicesAndRemove(c *C) {
 	}
 
 	s.sysdLog = nil
-	err = wrappers.StopServices(info.Services(), "", progress.Null, s.perfTimings)
+	err = wrappers.StopServices(info.Services(), nil, "", progress.Null, s.perfTimings)
 	c.Assert(err, IsNil)
 	c.Assert(s.sysdLog, HasLen, 2)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
@@ -150,7 +150,7 @@ func (s *servicesTestSuite) TestAddSnapServicesAndRemoveUserDaemons(c *C) {
 	c.Check(string(content), Matches, "(?ms).*^"+regexp.QuoteMeta(expected)) // check.v1 adds ^ and $ around the regexp provided
 
 	s.sysdLog = nil
-	err = wrappers.StopServices(info.Services(), "", progress.Null, s.perfTimings)
+	err = wrappers.StopServices(info.Services(), nil, "", progress.Null, s.perfTimings)
 	c.Assert(err, IsNil)
 	c.Assert(s.sysdLog, HasLen, 2)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
@@ -190,7 +190,7 @@ func (s *servicesTestSuite) TestRemoveSnapWithSocketsRemovesSocketsService(c *C)
 	err := wrappers.AddSnapServices(info, nil, nil, progress.Null)
 	c.Assert(err, IsNil)
 
-	err = wrappers.StopServices(info.Services(), "", &progress.Null, s.perfTimings)
+	err = wrappers.StopServices(info.Services(), nil, "", &progress.Null, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	err = wrappers.RemoveSnapServices(info, &progress.Null)
@@ -234,7 +234,7 @@ apps:
 
 	svcFName := "snap.wat.wat.service"
 
-	err = wrappers.StopServices(info.Services(), "", progress.Null, s.perfTimings)
+	err = wrappers.StopServices(info.Services(), nil, "", progress.Null, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	c.Check(sysdLog, DeepEquals, [][]string{
@@ -277,7 +277,7 @@ apps:
 
 	svcFName := "snap.wat.wat.service"
 
-	err = wrappers.StopServices(info.Services(), "", progress.Null, s.perfTimings)
+	err = wrappers.StopServices(info.Services(), nil, "", progress.Null, s.perfTimings)
 	c.Check(err, ErrorMatches, "some user services failed to stop")
 	c.Check(sysdLog, DeepEquals, [][]string{
 		{"--user", "stop", svcFName},
@@ -614,7 +614,7 @@ func (s *servicesTestSuite) TestStopServicesWithSockets(c *C) {
 	sysServices = nil
 	userServices = nil
 
-	err = wrappers.StopServices(info.Services(), "", &progress.Null, s.perfTimings)
+	err = wrappers.StopServices(info.Services(), nil, "", &progress.Null, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	sort.Strings(sysServices)
@@ -1408,12 +1408,12 @@ apps:
 	})
 
 	s.sysdLog = nil
-	err = wrappers.StopServices(info.Services(), snap.StopReasonRefresh, progress.Null, s.perfTimings)
+	err = wrappers.StopServices(info.Services(), nil, snap.StopReasonRefresh, progress.Null, s.perfTimings)
 	c.Assert(err, IsNil)
 	c.Assert(s.sysdLog, HasLen, 0)
 
 	s.sysdLog = nil
-	err = wrappers.StopServices(info.Services(), snap.StopReasonRemove, progress.Null, s.perfTimings)
+	err = wrappers.StopServices(info.Services(), nil, snap.StopReasonRemove, progress.Null, s.perfTimings)
 	c.Assert(err, IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
 		{"stop", filepath.Base(survivorFile)},
@@ -1460,7 +1460,7 @@ apps:
 		})
 
 		s.sysdLog = nil
-		err = wrappers.StopServices(info.Services(), snap.StopReasonRefresh, progress.Null, s.perfTimings)
+		err = wrappers.StopServices(info.Services(), nil, snap.StopReasonRefresh, progress.Null, s.perfTimings)
 		c.Assert(err, IsNil)
 		c.Check(s.sysdLog, DeepEquals, [][]string{
 			{"stop", filepath.Base(survivorFile)},
@@ -1468,7 +1468,7 @@ apps:
 		}, Commentf("failure in %s", t.mode))
 
 		s.sysdLog = nil
-		err = wrappers.StopServices(info.Services(), snap.StopReasonRemove, progress.Null, s.perfTimings)
+		err = wrappers.StopServices(info.Services(), nil, snap.StopReasonRemove, progress.Null, s.perfTimings)
 		c.Assert(err, IsNil)
 		switch t.expectedWho {
 		case "all":
@@ -1618,7 +1618,7 @@ func (s *servicesTestSuite) TestAddRemoveSnapWithTimersAddsRemovesTimerFiles(c *
 	c.Check(osutil.FileExists(app.Timer.File()), Equals, true)
 	c.Check(osutil.FileExists(app.ServiceFile()), Equals, true)
 
-	err = wrappers.StopServices(info.Services(), "", &progress.Null, s.perfTimings)
+	err = wrappers.StopServices(info.Services(), nil, "", &progress.Null, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	err = wrappers.RemoveSnapServices(info, &progress.Null)
@@ -1779,4 +1779,65 @@ func (s *servicesTestSuite) TestAddRemoveSnapServiceWithSnapd(c *C) {
 
 	err = wrappers.RemoveSnapServices(info, progress.Null)
 	c.Check(err, ErrorMatches, "internal error: removing explicit services for snapd snap is unexpected")
+}
+
+func (s *servicesTestSuite) TestReloadOrRestart(c *C) {
+	const surviveYaml = `name: test-snap
+version: 1.0
+apps:
+  foo:
+    command: bin/foo
+    daemon: simple
+`
+	info := snaptest.MockSnap(c, surviveYaml, &snap.SideInfo{Revision: snap.R(1)})
+	srvFile := "snap.test-snap.foo.service"
+
+	err := wrappers.AddSnapServices(info, nil, nil, progress.Null)
+	c.Assert(err, IsNil)
+
+	s.sysdLog = nil
+	flags := &wrappers.RestartFlags{Reload: true}
+	c.Assert(wrappers.RestartServices(info.Services(), flags, progress.Null, s.perfTimings), IsNil)
+	c.Assert(err, IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"reload-or-restart", srvFile},
+	})
+
+	s.sysdLog = nil
+	flags.Reload = false
+	c.Assert(wrappers.RestartServices(info.Services(), flags, progress.Null, s.perfTimings), IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"stop", srvFile},
+		{"show", "--property=ActiveState", srvFile},
+		{"start", srvFile},
+	})
+
+	s.sysdLog = nil
+	c.Assert(wrappers.RestartServices(info.Services(), nil, progress.Null, s.perfTimings), IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"stop", srvFile},
+		{"show", "--property=ActiveState", srvFile},
+		{"start", srvFile},
+	})
+}
+
+func (s *servicesTestSuite) TestStopAndDisableServices(c *C) {
+	info := snaptest.MockSnap(c, packageHello+`
+ svc1:
+  daemon: simple
+`, &snap.SideInfo{Revision: snap.R(12)})
+	svcFile := "snap.hello-snap.svc1.service"
+
+	err := wrappers.AddSnapServices(info, nil, nil, progress.Null)
+	c.Assert(err, IsNil)
+
+	s.sysdLog = nil
+	flags := &wrappers.StopFlags{Disable: true}
+	err = wrappers.StopServices(info.Services(), flags, "", progress.Null, s.perfTimings)
+	c.Assert(err, IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"stop", svcFile},
+		{"show", "--property=ActiveState", svcFile},
+		{"--root", s.tempdir, "disable", svcFile},
+	})
 }

@@ -162,9 +162,9 @@ prepare: |
 
     echo "Collect mountinfo from the host after running apps"
     # "make sure that persistent mount namespaces don't clobber the output"
-    snap-tool snap-discard-ns test-snapd-mountinfo-classic
-    snap-tool snap-discard-ns test-snapd-mountinfo-core16
-    snap-tool snap-discard-ns test-snapd-mountinfo-core18
+    snapd.tool exec snap-discard-ns test-snapd-mountinfo-classic
+    snapd.tool exec snap-discard-ns test-snapd-mountinfo-core16
+    snapd.tool exec snap-discard-ns test-snapd-mountinfo-core18
     umount /run/snapd/ns
     cat /proc/self/mountinfo >HOST-AFTER.raw.txt
 

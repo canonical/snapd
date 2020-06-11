@@ -456,9 +456,19 @@ func EnableSnapServices(s *snap.Info, inter interacter) (err error) {
 	return nil
 }
 
-// StopServices stops service units for the applications from the snap which are services.
-func StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, inter interacter, tm timings.Measurer) error {
+// StopFlags carries extra flags for StopServices.
+// It reflects backend.StopFlags.
+type StopFlags struct {
+	Disable bool
+}
+
+// StopServices stops and optionally disables service units for the applications
+// from the snap which are services.
+func StopServices(apps []*snap.AppInfo, flags *StopFlags, reason snap.ServiceStopReason, inter interacter, tm timings.Measurer) error {
 	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
+	if flags == nil {
+		flags = &StopFlags{}
+	}
 
 	logger.Debugf("StopServices called for %q, reason: %v", apps, reason)
 	for _, app := range apps {
@@ -481,6 +491,9 @@ func StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, inter int
 		var err error
 		timings.Run(tm, "stop-service", fmt.Sprintf("stop service %q", app.ServiceName()), func(nested timings.Measurer) {
 			err = stopService(sysd, app, inter)
+			if err == nil && flags.Disable {
+				err = sysd.Disable(app.ServiceName())
+			}
 		})
 		if err != nil {
 			return err
@@ -1153,6 +1166,37 @@ func generateOnCalendarSchedules(schedule []*timeutil.Schedule) []string {
 		}
 	}
 	return calendarEvents
+}
+
+type RestartFlags struct {
+	Reload bool
+}
+
+// Restart or reload services; if reload flag is set then "systemctl reload-or-restart" is attempted.
+func RestartServices(svcs []*snap.AppInfo, flags *RestartFlags, inter interacter, tm timings.Measurer) error {
+	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
+
+	for _, srv := range svcs {
+		// they're *supposed* to be all services, but checking doesn't hurt
+		if !srv.IsService() {
+			continue
+		}
+
+		var err error
+		timings.Run(tm, "restart-service", fmt.Sprintf("restart service %q", srv), func(nested timings.Measurer) {
+			if flags != nil && flags.Reload {
+				err = sysd.ReloadOrRestart(srv.ServiceName())
+			} else {
+				// note: stop followed by start, not just 'restart'
+				err = sysd.Restart(srv.ServiceName(), 5*time.Second)
+			}
+		})
+		if err != nil {
+			// there is nothing we can do about failed service
+			return err
+		}
+	}
+	return nil
 }
 
 // QueryDisabledServices returns a list of all currently disabled snap services
