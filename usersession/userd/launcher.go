@@ -67,12 +67,12 @@ var (
 
 	// allowedEnvVars are those environment variables that snaps who have access
 	// to OpenDesktopEntryEnv() can set for the launched snap's environment.
-    // - DISPLAY: set the X11 display
-    // - WAYLAND_DISPLAY: set the wayland display
-    // - XDG_CURRENT_DESKTOP: set identifiers for desktop environments
-    // - XDG_SESSION_DESKTOP: set identifier for the desktop environment
-    // - XDG_SESSION_TYPE: set the session type (e.g. "wayland" or "x11")
-	allowedEnvVars    = []string{"DISPLAY", "WAYLAND_DISPLAY", "XDG_CURRENT_DESKTOP", "XDG_SESSION_DESKTOP", "XDG_SESSION_TYPE"}
+	// - DISPLAY: set the X11 display
+	// - WAYLAND_DISPLAY: set the wayland display
+	// - XDG_CURRENT_DESKTOP: set identifiers for desktop environments
+	// - XDG_SESSION_DESKTOP: set identifier for the desktop environment
+	// - XDG_SESSION_TYPE: set the session type (e.g. "wayland" or "x11")
+	allowedEnvVars = []string{"DISPLAY", "WAYLAND_DISPLAY", "XDG_CURRENT_DESKTOP", "XDG_SESSION_DESKTOP", "XDG_SESSION_TYPE"}
 )
 
 // Launcher implements the 'io.snapcraft.Launcher' DBus interface.
@@ -236,10 +236,10 @@ func desktopFileIDToFilename(desktopFile_exists fileExists, desktopFileID string
 func readExecCommandFromDesktopFile(desktopFile string) (string, error) {
 	var launch string
 
-    // Be careful with which desktop files we process and verify that:
-    // 1. we only consider desktop files in dirs.SnapDesktopFilesDir
-    // 2. the desktop file itself and all directories above it are root owned without group/other write
-    // 3. the Exec line has an expected prefix
+	// Be careful with which desktop files we process and verify that:
+	// 1. we only consider desktop files in dirs.SnapDesktopFilesDir
+	// 2. the desktop file itself and all directories above it are root owned without group/other write
+	// 3. the Exec line has an expected prefix
 	if strings.HasPrefix(desktopFile, dirs.SnapDesktopFilesDir) {
 		for checkPath := desktopFile; strings.HasPrefix(checkPath, dirs.SnapDesktopFilesDir); checkPath = filepath.Dir(checkPath) {
 			fileStat, err := os.Stat(checkPath)
@@ -301,8 +301,8 @@ func parseExecCommand(exec_command string) ([]string, error) {
 
 	i := 0
 	for {
-	    // We want to keep literal '%' (expressed as '%%') but filter our exec variables
-        // like '%foo'
+		// We want to keep literal '%' (expressed as '%%') but filter our exec variables
+		// like '%foo'
 		if strings.HasPrefix(args[i], "%%") {
 			args[i] = strings.TrimPrefix(args[i], "%")
 			i++
