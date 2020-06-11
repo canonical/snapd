@@ -107,6 +107,7 @@ func (s *launcherInternalSuite) TestParseExecCommandSucceedsWithValidEntry(c *C)
 }
 
 func (s *launcherInternalSuite) TestParseExecCommandFailsWithInvalidEntry(c *C) {
+	// the only invalid entries are those that error from shlex.Split()
 	var exec_command = []string{
 		"/snap/bin/foo \"unclosed double quote",
 		"/snap/bin/foo 'unclosed single quote",
