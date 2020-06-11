@@ -64,6 +64,14 @@ const launcherIntrospectionXML = `
 
 var (
 	allowedURLSchemes = []string{"http", "https", "mailto", "snap", "help", "apt", "zoommtg"}
+
+	// allowedEnvVars are those environment variables that snaps who have access
+	// to OpenDesktopEntryEnv() can set for the launched snap's environment.
+    // - DISPLAY: set the X11 display
+    // - WAYLAND_DISPLAY: set the wayland display
+    // - XDG_CURRENT_DESKTOP: set identifiers for desktop environments
+    // - XDG_SESSION_DESKTOP: set identifier for the desktop environment
+    // - XDG_SESSION_TYPE: set the session type (e.g. "wayland" or "x11")
 	allowedEnvVars    = []string{"DISPLAY", "WAYLAND_DISPLAY", "XDG_CURRENT_DESKTOP", "XDG_SESSION_DESKTOP", "XDG_SESSION_TYPE"}
 )
 
