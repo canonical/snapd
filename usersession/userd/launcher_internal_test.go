@@ -78,6 +78,7 @@ func (s *launcherInternalSuite) TestDesktopFileIDToFilenameFailsWithInvalidId(c 
 		"mir-kiosk-scummvm-mir-kiosk-scummvm.desktop",
 		"bar-foo-baz.desktop",
 		"bar-baz-foo.desktop",
+		"foo-bar_foo-bar.desktop",
 	}
 
 	for _, id := range desktopIdTests {
