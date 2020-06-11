@@ -297,10 +297,12 @@ func parseExecCommand(exec_command string) ([]string, error) {
 
 	i := 0
 	for {
-		if strings.HasPrefix(args[i], "%%") { // A double "%" means a real "%"
+	    // We want to keep literal '%' (expressed as '%%') but filter our exec variables
+        // like '%foo'
+		if strings.HasPrefix(args[i], "%%") {
 			args[i] = strings.TrimPrefix(args[i], "%")
 			i++
-		} else if strings.HasPrefix(args[i], "%") { // A single "%" is an exec variable
+		} else if strings.HasPrefix(args[i], "%") {
 			args = append(args[:i], args[i+1:]...)
 		} else {
 			i++
