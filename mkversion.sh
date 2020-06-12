@@ -22,7 +22,7 @@ PKG_BUILDDIR=$(dirname "$0")
 GO_GENERATE_BUILDDIR="$(pwd)"
 
 # run from "go generate" adjust path
-if [ "$GOPACKAGE" = "cmd" ]; then
+if [ "$GOPACKAGE" = "snapdtool" ]; then
     GO_GENERATE_BUILDDIR="$(pwd)/.."
 fi
 
