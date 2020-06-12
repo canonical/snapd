@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,6 +21,9 @@ package asserts
 
 import (
 	"errors"
+	"fmt"
+	"sort"
+	"strconv"
 	"sync"
 )
 
@@ -33,11 +36,17 @@ type memBSNode interface {
 	put(assertType *AssertionType, key []string, assert Assertion) error
 	get(key []string, maxFormat int) (Assertion, error)
 	search(hint []string, found func(Assertion), maxFormat int)
+	sequenceMemberAfter(prefix []string, after, maxFormat int) (Assertion, error)
 }
 
 type memBSBranch map[string]memBSNode
 
 type memBSLeaf map[string]map[int]Assertion
+
+type memBSSeqLeaf struct {
+	memBSLeaf
+	sequence []int
+}
 
 func (br memBSBranch) put(assertType *AssertionType, key []string, assert Assertion) error {
 	key0 := key[0]
@@ -46,7 +55,12 @@ func (br memBSBranch) put(assertType *AssertionType, key []string, assert Assert
 		if len(key) > 2 {
 			down = make(memBSBranch)
 		} else {
-			down = make(memBSLeaf)
+			leaf := make(memBSLeaf)
+			if assertType.SequenceForming() {
+				down = &memBSSeqLeaf{memBSLeaf: leaf}
+			} else {
+				down = leaf
+			}
 		}
 		br[key0] = down
 	}
@@ -78,6 +92,23 @@ func (leaf memBSLeaf) put(assertType *AssertionType, key []string, assert Assert
 		leaf[key0] = make(map[int]Assertion)
 	}
 	leaf[key0][assert.Format()] = assert
+	return nil
+}
+
+func (leaf *memBSSeqLeaf) put(assertType *AssertionType, key []string, assert Assertion) error {
+	if err := leaf.memBSLeaf.put(assertType, key, assert); err != nil {
+		return err
+	}
+	if len(leaf.memBSLeaf) != len(leaf.sequence) {
+		seqnum := assert.(SequenceMember).Sequence()
+		inspos := sort.SearchInts(leaf.sequence, seqnum)
+		n := len(leaf.sequence)
+		leaf.sequence = append(leaf.sequence, seqnum)
+		if inspos != n {
+			copy(leaf.sequence[inspos+1:n+1], leaf.sequence[inspos:n])
+			leaf.sequence[inspos] = seqnum
+		}
+	}
 	return nil
 }
 
@@ -136,6 +167,52 @@ func (leaf memBSLeaf) search(hint []string, found func(Assertion), maxFormat int
 	}
 }
 
+func (br memBSBranch) sequenceMemberAfter(prefix []string, after, maxFormat int) (Assertion, error) {
+	prefix0 := prefix[0]
+	down := br[prefix0]
+	if down == nil {
+		return nil, errNotFound
+	}
+	return down.sequenceMemberAfter(prefix[1:], after, maxFormat)
+}
+
+func (left memBSLeaf) sequenceMemberAfter(prefix []string, after, maxFormat int) (Assertion, error) {
+	panic("internal error: unexpected sequenceMemberAfter on memBSLeaf")
+}
+
+func (leaf *memBSSeqLeaf) sequenceMemberAfter(prefix []string, after, maxFormat int) (Assertion, error) {
+	n := len(leaf.sequence)
+	dir := 1
+	var start int
+	if after == -1 {
+		// search for the latest in sequence compatible with
+		// maxFormat: consider all sequential numbers in
+		// sequence backward
+		dir = -1
+		start = n - 1
+	} else {
+		// search for the first in sequence with sequential number
+		// > after and compatible with maxFormat
+		start = sort.SearchInts(leaf.sequence, after)
+		if start == n {
+			// nothing
+			return nil, errNotFound
+		}
+		if leaf.sequence[start] == after {
+			// skip after itself
+			start += 1
+		}
+	}
+	for j := start; j >= 0 && j < n; j += dir {
+		seqkey := strconv.Itoa(leaf.sequence[j])
+		cur := leaf.cur(seqkey, maxFormat)
+		if cur != nil {
+			return cur, nil
+		}
+	}
+	return nil, errNotFound
+}
+
 // NewMemoryBackstore creates a memory backed assertions backstore.
 func NewMemoryBackstore() Backstore {
 	return &memoryBackstore{
@@ -188,4 +265,26 @@ func (mbs *memoryBackstore) Search(assertType *AssertionType, headers map[string
 
 	mbs.top.search(hint, candCb, maxFormat)
 	return nil
+}
+
+func (mbs *memoryBackstore) SequenceMemberAfter(assertType *AssertionType, keyPrefix []string, after, maxFormat int) (SequenceMember, error) {
+	if !assertType.SequenceForming() {
+		panic(fmt.Sprintf("internal error: SequenceMemberAfter on not sequence-forming assertion type %q", assertType.Name))
+	}
+	if len(keyPrefix) != len(assertType.PrimaryKey)-1 {
+		return nil, fmt.Errorf("internal error: SequenceMemberAfter key prefix argument length must be exactly 1 less than the assertion type primary key")
+	}
+
+	mbs.mu.RLock()
+	defer mbs.mu.RUnlock()
+
+	internalPrefix := make([]string, len(assertType.PrimaryKey))
+	internalPrefix[0] = assertType.Name
+	copy(internalPrefix[1:], keyPrefix)
+
+	a, err := mbs.top.sequenceMemberAfter(internalPrefix, after, maxFormat)
+	if err == errNotFound {
+		return nil, &NotFoundError{Type: assertType}
+	}
+	return a.(SequenceMember), err
 }

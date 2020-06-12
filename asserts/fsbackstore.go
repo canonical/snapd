@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2016 Canonical Ltd
+ * Copyright (C) 2015-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -218,4 +218,11 @@ func (fsbs *filesystemBackstore) Search(assertType *AssertionType, headers map[s
 		}
 	}
 	return fsbs.search(assertType, diskPattern, candCb, maxFormat)
+}
+
+func (fsbs *filesystemBackstore) SequenceMemberAfter(assertType *AssertionType, keyPrefix []string, after, maxFormat int) (SequenceMember, error) {
+	if !assertType.SequenceForming() {
+		panic(fmt.Sprintf("internal error: SequenceMemberAfter on not sequence-forming assertion type %s", assertType.Name))
+	}
+	return nil, &NotFoundError{Type: assertType}
 }

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2016 Canonical Ltd
+ * Copyright (C) 2015-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -65,6 +65,14 @@ type Backstore interface {
 	// Search returns assertions matching the given headers.
 	// It invokes foundCb for each found assertion.
 	Search(assertType *AssertionType, headers map[string]string, foundCb func(Assertion), maxFormat int) error
+	// SequenceMemberAfter returns for a sequence-forming assertType the
+	// first assertion in the sequence under keyPrefix with
+	// sequential number larger than after. If after==-1 it
+	// returns the assertion with largest sequential number. If
+	// none exists it returns a NotFoundError, usually with
+	// omitted Headers. If assertType is not sequence-forming
+	// it can panic.
+	SequenceMemberAfter(assertType *AssertionType, keyPrefix []string, after, maxFormat int) (SequenceMember, error)
 }
 
 type nullBackstore struct{}
@@ -79,6 +87,10 @@ func (nbs nullBackstore) Get(t *AssertionType, k []string, maxFormat int) (Asser
 
 func (nbs nullBackstore) Search(t *AssertionType, h map[string]string, f func(Assertion), maxFormat int) error {
 	return nil
+}
+
+func (nbs nullBackstore) SequenceMemberAfter(t *AssertionType, kp []string, after, maxFormat int) (SequenceMember, error) {
+	return nil, &NotFoundError{Type: t}
 }
 
 // A KeypairManager is a manager and backstore for private/public key pairs.
