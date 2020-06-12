@@ -99,7 +99,17 @@ func (s *sysconfigSuite) TestCloudInitStatus(c *C) {
 		{
 			comment:         "running",
 			cloudInitOutput: "status: running",
-			exp:             sysconfig.CloudInitRunning,
+			exp:             sysconfig.CloudInitEnabled,
+		},
+		{
+			comment:         "not run",
+			cloudInitOutput: "status: not run",
+			exp:             sysconfig.CloudInitEnabled,
+		},
+		{
+			comment:         "new unrecognized state",
+			cloudInitOutput: "status: newfangledstatus",
+			exp:             sysconfig.CloudInitEnabled,
 		},
 		{
 			comment:        "restricted by snapd",
@@ -126,11 +136,6 @@ func (s *sysconfigSuite) TestCloudInitStatus(c *C) {
 			comment:         "broken cloud-init output",
 			cloudInitOutput: "broken cloud-init output",
 			expError:        "invalid cloud-init output: broken cloud-init output",
-		},
-		{
-			comment:         "new cloud-init status",
-			cloudInitOutput: "status: some-new-thing",
-			expError:        "internal error: unexpected cloud-init status \"some-new-thing\"",
 		},
 	}
 
