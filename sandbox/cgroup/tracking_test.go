@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"strings"
 
 	"github.com/godbus/dbus"
 	. "gopkg.in/check.v1"
@@ -417,24 +418,27 @@ func (s *trackingSuite) TestDoCreateTransientScopeHappy(c *C) {
 }
 
 func (s *trackingSuite) TestDoCreateTransientScopeForwardedErrors(c *C) {
-	// Certain errors are forwareded and handled in the logic calling into
+	// Certain errors are forwarded and handled in the logic calling into
 	// DoCreateTransientScope. Those are tested here.
-	for _, errMsg := range []string{
-		"org.freedesktop.DBus.Error.NameHasNoOwner",
-		"org.freedesktop.DBus.Error.UnknownMethod",
-		"org.freedesktop.DBus.Error.Spawn.ChildExited",
+	for _, t := range []struct {
+		dbusError, msg string
+	}{
+		{"org.freedesktop.DBus.Error.NameHasNoOwner", "dbus name has no owner"},
+		{"org.freedesktop.DBus.Error.UnknownMethod", "unknown dbus object method"},
+		{"org.freedesktop.DBus.Error.Spawn.ChildExited", "dbus spawned child process exited"},
 	} {
 		conn, err := dbustest.Connection(func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
 			switch n {
 			case 0:
-				return []*dbus.Message{checkAndFailToStartTransientUnit(c, msg, errMsg)}, nil
+				return []*dbus.Message{checkAndFailToStartTransientUnit(c, msg, t.dbusError)}, nil
 			}
 			return nil, fmt.Errorf("unexpected message #%d: %s", n, msg)
 		})
 		c.Assert(err, IsNil)
 		defer conn.Close()
 		err = cgroup.DoCreateTransientScope(conn, "foo.scope", 312123)
-		c.Assert(err, ErrorMatches, errMsg)
+		c.Assert(strings.HasSuffix(err.Error(), fmt.Sprintf(" [%s]", t.dbusError)), Equals, true, Commentf("%q ~ %s", err, t.dbusError))
+		c.Check(err, ErrorMatches, t.msg+" .*")
 	}
 }
 

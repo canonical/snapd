@@ -157,9 +157,20 @@ func sessionOrMaybeSystemBus(uid int) (isSessionBus bool, conn *dbus.Conn, err e
 	return false, conn, err
 }
 
-var errDBusUnknownMethod = errors.New("org.freedesktop.DBus.Error.UnknownMethod")
-var errDBusNameHasNoOwner = errors.New("org.freedesktop.DBus.Error.NameHasNoOwner")
-var errDBusSpawnChildExited = errors.New("org.freedesktop.DBus.Error.Spawn.ChildExited")
+type handledDBusError struct {
+	msg       string
+	dbusError string
+}
+
+func (e *handledDBusError) Error() string {
+	return fmt.Sprintf("%s [%s]", e.msg, e.dbusError)
+}
+
+var (
+	errDBusUnknownMethod    = &handledDBusError{msg: "unknown dbus object method", dbusError: "org.freedesktop.DBus.Error.UnknownMethod"}
+	errDBusNameHasNoOwner   = &handledDBusError{msg: "dbus name has no owner", dbusError: "org.freedesktop.DBus.Error.NameHasNoOwner"}
+	errDBusSpawnChildExited = &handledDBusError{msg: "dbus spawned child process exited", dbusError: "org.freedesktop.DBus.Error.Spawn.ChildExited"}
+)
 
 // doCreateTransientScope creates a systemd transient scope with specified properties.
 //
