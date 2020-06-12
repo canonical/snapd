@@ -11,7 +11,7 @@ description: |
 adopt-info: snapd-deb
 # build-base is needed here for snapcraft to build this snap as with "modern"
 # snapcraft
-build-base: core
+build-base: core18
 grade: stable
 license: GPL-3.0
 
@@ -37,8 +37,6 @@ parts:
       export DEBCONF_NONINTERACTIVE_SEEN=true
       sudo -E apt-get build-dep -y ./
       ./get-deps.sh --skip-unused-check
-      # set version after installing dependencies so we have all the tools here
-      snapcraftctl set-version "$(./mkversion.sh --output-only)"
     override-build: |
       # unset the LD_FLAGS and LD_LIBRARY_PATH vars that snapcraft sets for us
       # as those will point to the $SNAPCRAFT_STAGE which on re-builds will 
@@ -57,6 +55,10 @@ parts:
       # bother compressing it too much)
       dpkg-buildpackage -b -Zgzip -zfast
       dpkg-deb -x $(pwd)/../snapd_*.deb $SNAPCRAFT_PART_INSTALL
+      # set version as late as possible cause snapcraft is picky about setting 
+      # it and re-setting it, so only set the version if we had a successful 
+      # build
+      snapcraftctl set-version "$(./mkversion.sh --output-only)"
 
   # xdelta is used to enable delta downloads (even if the host does not have it)
   xdelta3:
@@ -109,7 +111,8 @@ parts:
   fontconfig-xenial:
     plugin: nil
     build-packages: [python3-apt]
-    source: https://github.com/snapcore/fc-cache-static-builder.git
+    source: https://github.com/anonymouse64/fc-cache-static-builder.git
+    source-branch: fonts-are-silly
     override-build: |
       ./build-from-security.py xenial
       mkdir -p $SNAPCRAFT_PART_INSTALL/bin
@@ -120,10 +123,23 @@ parts:
   fontconfig-bionic:
     plugin: nil
     build-packages: [python3-apt]
-    source: https://github.com/snapcore/fc-cache-static-builder.git
+    source: https://github.com/anonymouse64/fc-cache-static-builder.git
+    source-branch: fonts-are-silly
     override-build: |
       ./build-from-security.py bionic
       mkdir -p $SNAPCRAFT_PART_INSTALL/bin
       cp -a fc-cache-bionic $SNAPCRAFT_PART_INSTALL/bin/fc-cache-v7
     prime:
       - bin/fc-cache-v7
+  # the version in Ubuntu 20.04 (cache v7.5ish????)
+  fontconfig-focal:
+    plugin: nil
+    build-packages: [python3-apt, uuid-dev]
+    source: https://github.com/anonymouse64/fc-cache-static-builder.git
+    source-branch: fonts-are-silly
+    override-build: |
+      ./build-from-security.py focal
+      mkdir -p $SNAPCRAFT_PART_INSTALL/bin
+      cp -a fc-cache-focal $SNAPCRAFT_PART_INSTALL/bin/fc-cache-v7.5
+    prime:
+      - bin/fc-cache-v7.5

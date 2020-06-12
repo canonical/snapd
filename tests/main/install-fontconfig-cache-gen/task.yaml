@@ -20,6 +20,19 @@ prepare: |
     echo "ensure the font is now in the cache"
     fc-cat /var/cache/fontconfig/* 2>/dev/null | MATCH "$NAME"
 
+    # HACK HACK HACK - I fixed this in the snapd snap, so build that and install
+    # it here so we are using snapd from the snapd snap and not from the snapd
+    # deb
+    apt remove lxd lxc lxd-client -y
+    apt autoremove -y
+    snap install lxd 
+    snap install snapcraft --classic
+    lxd init --auto
+    cd /home/gopath/src/github.com/snapcore/snapd
+    snapcraft --use-lxd
+    ls -lah snapd*.snap
+    snap install --dangerous snapd_*.snap
+
 restore: |
     if [ "$SPREAD_SYSTEM" = ubuntu-16.04-64 ]; then
         PKG=fonts-kiloji
@@ -30,6 +43,10 @@ restore: |
     fi
 
     apt autoremove -y "$PKG" || true
+
+    # cleanup after ourselves
+    # TODO: transition back to the snapd deb instead of the snapd snap
+    snap remove lxd snapcraft
 
 execute: |
     if [ "$SPREAD_SYSTEM" = ubuntu-16.04-64 ]; then
