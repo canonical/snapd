@@ -2,15 +2,42 @@ summary: Check that install works
 
 # limiting to ubuntu because we need a known fonts package
 # to install so that actual caches get generated
-systems: [ubuntu-16.04-64, ubuntu-18.04-64]
+systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64]
 
 prepare: |
-    apt install -y fonts-kiloji
+    if [ "$SPREAD_SYSTEM" = ubuntu-16.04-64 ]; then
+        PKG=fonts-kiloji
+        NAME=kiloji
+    else
+        PKG=fonts-noto-color-emoji
+        NAME=NotoColorE
+    fi
+
+    echo "ensure the font is not already in the fontconfig cache before installing"
+    fc-cat /var/cache/fontconfig/* 2>/dev/null | not MATCH "$NAME"
+    apt update -yqq
+    apt install -y "$PKG"
+    echo "ensure the font is now in the cache"
+    fc-cat /var/cache/fontconfig/* 2>/dev/null | MATCH "$NAME"
 
 restore: |
-    apt autoremove -y fonts-kiloji
+    if [ "$SPREAD_SYSTEM" = ubuntu-16.04-64 ]; then
+        PKG=fonts-kiloji
+        NAME=kiloji
+    else
+        PKG=fonts-noto-color-emoji
+        NAME=NotoColorE
+    fi
+
+    apt autoremove -y "$PKG" || true
 
 execute: |
+    if [ "$SPREAD_SYSTEM" = ubuntu-16.04-64 ]; then
+        NAME=kiloji
+    else
+        NAME=NotoColorE
+    fi
+
     echo "With no fontconfig cache"
     rm /var/cache/fontconfig/*
 
@@ -18,3 +45,6 @@ execute: |
     snap install test-snapd-sh
     ls /var/cache/fontconfig/*.cache-6
     ls /var/cache/fontconfig/*.cache-7
+
+    echo "and the user installed font is in the cache"
+    fc-cat /var/cache/fontconfig/* 2>/dev/null | MATCH "$NAME"
