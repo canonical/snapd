@@ -26,7 +26,6 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/snapcore/snapd/cmd/cmdutil"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -78,7 +77,7 @@ func distroSupportsReExec() bool {
 // version of core that do not yet have it.
 func coreSupportsReExec(coreOrSnapdPath string) bool {
 	infoPath := filepath.Join(coreOrSnapdPath, filepath.Join(dirs.CoreLibExecDir, "info"))
-	ver, err := cmdutil.SnapdVersionFromInfoFile(infoPath)
+	ver, err := SnapdVersionFromInfoFile(infoPath)
 	if err != nil {
 		logger.Noticef("%v", err)
 		return false
