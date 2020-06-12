@@ -130,12 +130,24 @@ func cloudInitDisabledByFile() bool {
 	return osutil.FileExists(disabledFile)
 }
 
-// CloudInitStatus returns the current status of cloud-init.
+// CloudInitStatus returns the current status of cloud-init. Note that it will
+// first check for static file-based statuses first through the snapd
+// restriction file and the disabled file before consulting
+// cloud-init directly through the status command.
+// Also note that in unknown situations we are conservative in assuming that
+// cloud-init may be doing something and will return CloudInitEnabled when we
+// do not recognize the state returned by the cloud-init status command.
 func CloudInitStatus() (CloudInitState, error) {
 	// if cloud-init has been restricted by snapd, check that first
 	snapdRestrictingFile := filepath.Join(dirs.GlobalRootDir, cloudInitSnapdRestrictFile)
 	if osutil.FileExists(snapdRestrictingFile) {
 		return CloudInitRestrictedBySnapd, nil
+	}
+
+	// if it was explicitly disabled via the cloud-init disable file, then
+	// return special status for that
+	if cloudInitDisabledByFile() {
+		return CloudInitDisabledPermanently, nil
 	}
 
 	out, err := exec.Command("cloud-init", "status").CombinedOutput()
@@ -149,11 +161,11 @@ func CloudInitStatus() (CloudInitState, error) {
 	}
 	switch string(match[1]) {
 	case "disabled":
-		// check if it was permanently disabled by the disabled file or if it
-		// just "hasn't run" in which case it is untriggered
-		if cloudInitDisabledByFile() {
-			return CloudInitDisabledPermanently, nil
-		}
+		// here since we weren't disabled by the file, we are in "disabled but
+		// could be enabled" state - arguably this should be a different state
+		// than "disabled", see
+		// https://bugs.launchpad.net/cloud-init/+bug/1883124 and
+		// https://bugs.launchpad.net/cloud-init/+bug/1883122
 		return CloudInitUntriggered, nil
 	case "error":
 		return CloudInitErrored, nil

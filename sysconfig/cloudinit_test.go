@@ -178,7 +178,7 @@ fi
 
 		// if the restricted file was there we don't call cloud-init status
 		var expCalls [][]string
-		if !t.restrictedFile {
+		if !t.restrictedFile && !t.disabledFile {
 			expCalls = [][]string{
 				{"cloud-init", "status"},
 			}
