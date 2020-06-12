@@ -1,7 +1,8 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build !linux
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,15 +18,23 @@
  *
  */
 
-package cmd
+package snapdtool
 
-//go:generate mkversion.sh
+import (
+	"errors"
+)
 
-// Version will be overwritten at build-time via mkversion.sh
-var Version = "unknown"
+// ExecInSnapdOrCoreSnap makes sure you're executing the binary that ships in
+// the snapd/core snap.
+// On this OS this is a stub.
+func ExecInSnapdOrCoreSnap() {
+	return
+}
 
-func MockVersion(version string) (restore func()) {
-	old := Version
-	Version = version
-	return func() { Version = old }
+// InternalToolPath returns the path of an internal snapd tool. The tool
+// *must* be located inside the same tree as the current binary.
+//
+// On this OS this is a stub and always returns an error.
+func InternalToolPath(tool string) (string, error) {
+	return "", errors.New("unsupported on non-Linux systems")
 }
