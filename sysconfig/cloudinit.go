@@ -114,9 +114,12 @@ const (
 	CloudInitUntriggered
 	// CloudInitDone is when cloud-init has been run on this boot.
 	CloudInitDone
-	// CloudInitRunning is when cloud-init is still running/processing and has
-	// not finished yet.
-	CloudInitRunning
+	// CloudInitEnabled is when cloud-init is active, but not necessarily
+	// finished. This matches the "running" and "not run" states from cloud-init
+	// as well as any other state that does not match any of the other defined
+	// states, as we are conservative in assuming that cloud-init is doing
+	// something.
+	CloudInitEnabled
 	// CloudInitErrored is when cloud-init tried to run, but failed or had invalid
 	// configuration.
 	CloudInitErrored
@@ -156,10 +159,13 @@ func CloudInitStatus() (CloudInitState, error) {
 		return CloudInitErrored, nil
 	case "done":
 		return CloudInitDone, nil
+	// "running" and "not run" are considered Enabled, see doc-comment
 	case "running":
-		return CloudInitRunning, nil
+		fallthrough
+	case "not run":
+		fallthrough
 	default:
-		// unknown what other state cloud-init could be in ...
-		return CloudInitErrored, fmt.Errorf("internal error: unexpected cloud-init status %q", string(match[1]))
+		// these states are all
+		return CloudInitEnabled, nil
 	}
 }
