@@ -790,6 +790,34 @@ EOF
                            --output "$IMAGE_HOME/$IMAGE"
     rm -f ./pc-kernel_*.{snap,assert} ./pc_*.{snap,assert} ./snapd_*.{snap,assert}
 
+    if is_core20_system; then
+        # (ab)use ubuntu-seed
+        LOOP_PARTITION=2
+    else
+        LOOP_PARTITION=3
+    fi
+
+    # expand the uc16 and uc18 images a little bit (400M) as it currently will
+    # run out of space easily from local spread runs if there are extra files in
+    # the project not included in the git ignore and spread ignore, etc.
+    if ! is_core20_system; then
+        dd if=/dev/zero bs=1M count=400 >> "$IMAGE_HOME/$IMAGE"
+        # fix the GPT table because old versions of parted complain about this and
+        # refuse to properly run the next command unless the GPT table is updated
+        sgdisk "$IMAGE_HOME/$IMAGE" -e
+
+        # use parted to get the last part of free space in the image
+        # (aka the zeros we just added)
+        END_FREE_SPACE_PARTITION=$(parted -s --machine "$IMAGE_HOME/$IMAGE" print free | grep "free;$" | tail -n1)
+
+        # read the fields of the partition so we can get where the end of the free space
+        # is (which is the 3rd field in parted machine parsable output)
+        IFS=':' read -ra PARTITION <<< "$END_FREE_SPACE_PARTITION"
+
+        # resize the partition to go to the end of the free space
+        sudo parted -s "$IMAGE_HOME/$IMAGE" resizepart ${LOOP_PARTITION} "${PARTITION[2]}"
+    fi
+
     # mount fresh image and add all our SPREAD_PROJECT data
     kpartx -avs "$IMAGE_HOME/$IMAGE"
     # losetup --list --noheadings returns:
@@ -798,12 +826,15 @@ EOF
     # /dev/loop19  0 0  1  1 /var/lib/snapd/snaps/test-snapd-netplan-apply_75.snap  0     512
     devloop=$(losetup --list --noheadings | grep "$IMAGE_HOME/$IMAGE" | awk '{print $1}')
     dev=$(basename "$devloop")
-    if is_core20_system; then
-        # (ab)use ubuntu-seed
-        mount "/dev/mapper/${dev}p2" /mnt
-    else
-        mount "/dev/mapper/${dev}p3" /mnt
+
+    # resize the 2nd partition from that loop device to fix the size
+    if ! is_core20_system; then
+        sudo resize2fs -p "/dev/mapper/${dev}p${LOOP_PARTITION}"
     fi
+
+    # mount it so we can use it now
+    mount "/dev/mapper/${dev}p${LOOP_PARTITION}" /mnt
+
     mkdir -p /mnt/user-data/
     # copy over everything from gopath to user-data, exclude:
     # - VCS files
