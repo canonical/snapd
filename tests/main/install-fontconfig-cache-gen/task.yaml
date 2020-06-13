@@ -44,7 +44,7 @@ restore: |
 
     # cleanup after ourselves
     # TODO: transition back to the snapd deb instead of the snapd snap
-    snap remove lxd snapcraft
+    snap remove lxd snapcraft || true
 
 execute: |
     if [ "$SPREAD_SYSTEM" = ubuntu-16.04-64 ]; then
