@@ -36,10 +36,8 @@ prepare: |
 restore: |
     if [ "$SPREAD_SYSTEM" = ubuntu-16.04-64 ]; then
         PKG=fonts-kiloji
-        NAME=kiloji
     else
         PKG=fonts-noto-color-emoji
-        NAME=NotoColorE
     fi
 
     apt autoremove -y "$PKG" || true
