@@ -24,11 +24,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
+	"strings"
 	"syscall"
 
 	"github.com/snapcore/snapd/cmd/cmdutil"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/squashfs"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
@@ -55,12 +58,39 @@ func checkChroot(preseedChroot string) error {
 		return fmt.Errorf("cannot verify %q: is not a directory", preseedChroot)
 	}
 
-	// sanity checks of the critical mountpoints inside chroot directory
-	for _, p := range []string{"/sys/kernel/security/apparmor", "/proc/self", "/dev/mem"} {
-		path := filepath.Join(preseedChroot, p)
-		if exists := osutil.FileExists(path); !exists {
-			return fmt.Errorf("cannot pre-seed without access to %q", path)
+	if osutil.FileExists(filepath.Join(preseedChroot, dirs.SnapStateFile)) {
+		return fmt.Errorf("the system at %q appears to be preseeded, pass --reset flag to clean it up", preseedChroot)
+	}
+
+	// sanity checks of the critical mountpoints inside chroot directory.
+	required := map[string]bool{}
+	// required mountpoints are relative to the preseed chroot
+	for _, p := range []string{"/sys/kernel/security", "/proc", "/dev"} {
+		required[filepath.Join(preseedChroot, p)] = true
+	}
+	entries, err := osutil.LoadMountInfo()
+	if err != nil {
+		return fmt.Errorf("cannot parse mount info: %v", err)
+	}
+	for _, ent := range entries {
+		if _, ok := required[ent.MountDir]; ok {
+			delete(required, ent.MountDir)
 		}
+	}
+	// non empty required indicates missing mountpoint(s)
+	if len(required) > 0 {
+		var sorted []string
+		for path := range required {
+			sorted = append(sorted, path)
+		}
+		sort.Strings(sorted)
+		parts := append([]string{""}, sorted...)
+		return fmt.Errorf("cannot preseed without the following mountpoints:%s", strings.Join(parts, "\n - "))
+	}
+
+	path := filepath.Join(preseedChroot, "/sys/kernel/security/apparmor")
+	if exists := osutil.FileExists(path); !exists {
+		return fmt.Errorf("cannot preseed without access to %q", path)
 	}
 
 	return nil
@@ -85,24 +115,37 @@ var systemSnapFromSeed = func(rootDir string) (string, error) {
 		return "", err
 	}
 
-	// TODO: handle core18, snapd snap.
-	if seed.UsesSnapdSnap() {
-		return "", fmt.Errorf("preseeding with snapd snap is not supported yet")
+	model, err := seed.Model()
+	if err != nil {
+		return "", err
 	}
 
-	var coreSnapPath string
+	// TODO: implement preseeding for core.
+	if !model.Classic() {
+		return "", fmt.Errorf("preseeding is only supported on classic systems")
+	}
+
+	var required string
+	if seed.UsesSnapdSnap() {
+		required = "snapd"
+	} else {
+		required = "core"
+	}
+
+	var snapPath string
 	ess := seed.EssentialSnaps()
 	if len(ess) > 0 {
-		if ess[0].SnapName() == "core" {
-			coreSnapPath = ess[0].Path
+		// core / snapd snap is the first essential snap.
+		if ess[0].SnapName() == required {
+			snapPath = ess[0].Path
 		}
 	}
 
-	if coreSnapPath == "" {
-		return "", fmt.Errorf("core snap not found")
+	if snapPath == "" {
+		return "", fmt.Errorf("%s snap not found", required)
 	}
 
-	return coreSnapPath, nil
+	return snapPath, nil
 }
 
 const snapdPreseedSupportVer = `2.43.3+`
@@ -157,7 +200,8 @@ func prepareChroot(preseedChroot string) (func(), error) {
 		}
 	}
 
-	cmd := exec.Command("mount", "-t", "squashfs", coreSnapPath, where)
+	fstype, fsopts := squashfs.FsType()
+	cmd := exec.Command("mount", "-t", fstype, "-o", strings.Join(fsopts, ","), coreSnapPath, where)
 	if err := cmd.Run(); err != nil {
 		removeMountpoint()
 		return nil, fmt.Errorf("cannot mount %s at %s in preseed mode: %v ", coreSnapPath, where, err)

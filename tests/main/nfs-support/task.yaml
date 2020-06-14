@@ -51,7 +51,7 @@ restore: |
 
     # Restart snapd in to ensure it doesn't know about NFS configuration anymore.
     systemctl stop snapd.service snapd.socket
-    systemctl reset-failed snapd.service
+    systemctl reset-failed snapd.service snapd.socket
     systemctl start snapd.service
 
     # Depending on OS do cleanup appropriate for the host.
@@ -98,7 +98,7 @@ execute: |
     # only needed because we do it 11 times (!)
     restart_snapd() {
         systemctl stop snapd.service snapd.socket
-        systemctl reset-failed snapd.service
+        systemctl reset-failed snapd.service snapd.socket
         systemctl start snapd.service
     }
     ensure_extra_perms() {
@@ -183,9 +183,11 @@ execute: |
     # Ensure that this removed the extra permissions.
     ensure_normal_perms
 
-    # Skip udp protocol on arch-linux because it is not supported
-    # Error displayed: mount.nfs: requested NFS version or transport protocol is not supported
-    if [[ ! "$SPREAD_SYSTEM" =~ arch-* ]]; then
+    # Skip udp protocol on arch-linux and debian-sid because it is not supported
+    # Error displayed:
+    # - arch: mount.nfs: requested NFS version or transport protocol is not supported
+    # - debian-sid: mount.nfs: an incorrect mount option was specified
+    if [[ "$SPREAD_SYSTEM" != arch-* && "$SPREAD_SYSTEM" != debian-sid-* ]]; then
         # Mount NFS-exported /home over real /home using NFSv3 and UDP transport
         mount -t nfs localhost:/home /home -o nfsvers=3,proto=udp
 

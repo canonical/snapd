@@ -9,7 +9,7 @@ description: |
 
 # Only enable the test on systems we know portals to function on.
 # Expand as needed.
-systems: [ubuntu-18.04-*, ubuntu-19.10-*, ubuntu-20.04-*]
+systems: [ubuntu-18.04-*, ubuntu-19.10-*, ubuntu-2*]
 
 environment:
     EDITOR_HISTORY: /tmp/editor-history.txt
@@ -18,23 +18,26 @@ prepare: |
     #shellcheck source=tests/lib/desktop-portal.sh
     . "$TESTSLIB"/desktop-portal.sh
     setup_portals
+    tests.session -u test prepare
 
     # Configure fake web browser
-    mkdir -p ~test/.local/share/applications
-    cat << EOF > ~test/.local/share/applications/test-editor.desktop
+    tests.session -u test exec mkdir -p ~test/.local/share/applications
+    tests.session -u test exec sh -c 'cat > ~test/.local/share/applications/test-editor.desktop' << EOF
     [Desktop Entry]
     Type=Application
     Name=Test Editor
     Exec=$(pwd)/editor.sh %f $EDITOR_HISTORY
     MimeType=text/plain;
     EOF
-    mkdir -p ~test/.config
-    cat << EOF > ~test/.config/mimeapps.list
+
+    tests.session -u test exec mkdir -p ~test/.config
+    tests.session -u test exec sh -c 'cat > ~test/.config/mimeapps.list' << EOF
     [Default Applications]
     text/plain=test-editor.desktop
     EOF
 
 restore: |
+    tests.session -u test restore
     #shellcheck source=tests/lib/desktop-portal.sh
     . "$TESTSLIB"/desktop-portal.sh
     teardown_portals
@@ -44,8 +47,6 @@ restore: |
     rm -f "$EDITOR_HISTORY"
 
 execute: |
-    #shellcheck source=tests/lib/desktop-portal.sh
-    . "$TESTSLIB"/desktop-portal.sh
     #shellcheck source=tests/lib/files.sh
     . "$TESTSLIB"/files.sh
 
@@ -60,7 +61,7 @@ execute: |
     chown -R test:test ~test/snap
 
     echo "The confined application can open URLs in the default browser"
-    as_user test-snapd-portal-client launch-file "$testfile"
+    tests.session -u test exec test-snapd-portal-client launch-file "$testfile"
 
     echo "The test-browser process was invoked with the URL"
     wait_for_file "$EDITOR_HISTORY" 4 .5
@@ -70,6 +71,6 @@ debug: |
     #shellcheck source=tests/lib/desktop-portal.sh
     . "$TESTSLIB"/desktop-portal.sh
 
-    ls -la "/run/user/$TEST_UID/" || true
+    ls -la "/run/user/$(id -u test)" || true
     #shellcheck disable=SC2009
     ps -ef | grep xdg || true

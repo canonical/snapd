@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -112,7 +113,7 @@ func (iw *infoWriter) maybePrintHealth() {
 }
 
 func clientSnapFromPath(path string) (*client.Snap, error) {
-	snapf, err := snap.Open(path)
+	snapf, err := snapfile.Open(path)
 	if err != nil {
 		return nil, err
 	}
@@ -207,11 +208,10 @@ func wrapGeneric(out io.Writer, text []rune, indent, indent2 string, termWidth i
 	width := termWidth - indentWidth
 
 	// establish the indent of the whole block
-	idx := 0
 	var err error
 	for len(text) > width && err == nil {
 		// find a good place to chop the text
-		idx = runesLastIndexSpace(text[:width+1])
+		idx := runesLastIndexSpace(text[:width+1])
 		if idx < 0 {
 			// there's no whitespace; just chop at line width
 			idx = width

@@ -22,7 +22,6 @@ package main
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -83,15 +82,13 @@ func handle(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		b, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			internalError(w, "cannot read request: %v", err)
-			return
-		}
+		defer r.Body.Close()
 
-		a, err := asserts.Decode(b)
+		dec := asserts.NewDecoder(r.Body)
+
+		a, err := dec.Decode()
 		if err != nil {
-			badRequestError(w, "cannot decode request: %v", err)
+			internalError(w, "cannot read/decode request: %v", err)
 			return
 		}
 
@@ -100,6 +97,24 @@ func handle(w http.ResponseWriter, r *http.Request) {
 			badRequestError(w, "request is not a serial-request")
 			return
 
+		}
+
+		a, err = dec.Decode()
+		if err != nil {
+			internalError(w, "cannot read/decode model: %v", err)
+			return
+		}
+
+		mod, ok := a.(*asserts.Model)
+		if !ok {
+			badRequestError(w, "expected model after serial-request")
+			return
+
+		}
+
+		if mod.Model() != serialReq.Model() || mod.BrandID() != serialReq.BrandID() {
+			badRequestError(w, "model and serial-request do not cross check")
+			return
 		}
 
 		err = asserts.SignatureCheck(serialReq, serialReq.DeviceKey())

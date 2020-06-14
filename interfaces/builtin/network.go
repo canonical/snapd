@@ -32,7 +32,9 @@ const networkBaseDeclarationSlots = `
 const networkConnectedPlugAppArmor = `
 # Description: Can access the network as a client.
 #include <abstractions/nameservice>
-/run/systemd/resolve/stub-resolv.conf r,
+/run/systemd/resolve/stub-resolv.conf rk,
+/etc/mdns.allow r,     # not yet included in the mdns abstraction
+network netlink dgram, # not yet included in the nameservice abstraction
 
 # systemd-resolved (not yet included in nameservice abstraction)
 #
@@ -52,6 +54,16 @@ dbus send
      interface="org.freedesktop.resolve1.Manager"
      member="Resolve{Address,Hostname,Record,Service}"
      peer=(name="org.freedesktop.resolve1"),
+
+# libnss-systemd (D-Bus portion from nameservice abstraction)
+# Also allow lookups for systemd-exec's DynamicUsers via D-Bus
+#   https://www.freedesktop.org/software/systemd/man/systemd.exec.html
+dbus send
+     bus=system
+     path="/org/freedesktop/systemd1"
+     interface="org.freedesktop.systemd1.Manager"
+     member="{GetDynamicUsers,LookupDynamicUserByName,LookupDynamicUserByUID}"
+     peer=(name="org.freedesktop.systemd1"),
 
 #include <abstractions/ssl_certs>
 

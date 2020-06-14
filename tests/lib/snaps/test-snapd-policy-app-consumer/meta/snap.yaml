@@ -158,9 +158,15 @@ apps:
   home:
     command: bin/run
     plugs: [ home ]
+  system-packages-doc:
+    command: bin/run
+    plugs: [ system-packages-doc ]
   hostname-control:
     command: bin/run
     plugs: [ hostname-control ]
+  hugepages-control:
+    command: bin/run
+    plugs: [ hugepages-control ]
   intel-mei:
     command: bin/run
     plugs: [ intel-mei ]
@@ -299,6 +305,9 @@ apps:
   physical-memory-observe:
     command: bin/run
     plugs: [ physical-memory-observe ]
+  power-control:
+    command: bin/run
+    plugs: [ power-control ]
   ppp:
     command: bin/run
     plugs: [ ppp ]

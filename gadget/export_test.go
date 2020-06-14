@@ -19,7 +19,11 @@
 
 package gadget
 
-type ValidationState = validationState
+type (
+	ValidationState          = validationState
+	MountedFilesystemUpdater = mountedFilesystemUpdater
+	RawStructureUpdater      = rawStructureUpdater
+)
 
 var (
 	ValidateStructureType   = validateStructureType
@@ -41,6 +45,17 @@ var (
 	UpdaterForStructure = updaterForStructure
 
 	EnsureVolumeConsistency = ensureVolumeConsistency
+
+	Flatten = flatten
+
+	NewRawStructureUpdater      = newRawStructureUpdater
+	NewMountedFilesystemUpdater = newMountedFilesystemUpdater
+
+	FindDeviceForStructureWithFallback = findDeviceForStructureWithFallback
+	FindMountPointForStructure         = findMountPointForStructure
+
+	ParseSize           = parseSize
+	ParseRelativeOffset = parseRelativeOffset
 )
 
 func MockEvalSymlinks(mock func(path string) (string, error)) (restore func()) {

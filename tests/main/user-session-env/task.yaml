@@ -1,0 +1,60 @@
+summary: verify that user environment settings are added
+
+description: |
+    User environment variables are added via /etc/profile.d/snapd.sh (bash/sh
+    specific) or via /lib/environment.d/ helpers. Make sure that at least one of
+    the mechanisms works and XDG_DATA_DIRS and PATH are updated accordingly
+    inside the user session, no matter the shell they use.
+
+systems:
+   - -ubuntu-core-*  # cannot install zsh
+   - -ubuntu-14.04-* # cannot use systemd
+
+environment:
+    TEST_ZSH_USER: test-zsh
+
+prepare: |
+    echo "Create a user with a different shell"
+    useradd --create-home --user-group -s /bin/zsh "$TEST_ZSH_USER"
+    tests.session prepare -u test,test-zsh
+
+restore: |
+    tests.session restore -u test,test-zsh
+    userdel -f -r "$TEST_ZSH_USER"
+    rm -f test-profile-env test-profile-zsh-env test-session-env test-zsh-session-env
+
+execute: |
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB/dirs.sh"
+
+    for user in test "$TEST_ZSH_USER"; do
+        # Dump the environment set up by the user session manager
+        if tests.session has-session-systemd-and-dbus; then
+            tests.session -u "$user" exec systemctl --user show-environment > "${user}-session-env"
+        fi
+        tests.session -u "$user" exec env > "${user}-profile-env"
+    done
+
+    for user in test "$TEST_ZSH_USER"; do
+        if [ -e "${user}-session-env" ]; then
+            # Even though there's user session support, systemd may be too old and
+            # not support user-environment-generators (specifically systemd versions
+            # earlier than 233).
+            if [ -d /usr/lib/systemd/user-environment-generators ]; then
+                MATCH 'XDG_DATA_DIRS=.*[:]?/var/lib/snapd/desktop[:]?.*' < "${user}-session-env"
+                MATCH "PATH=.*[:]?${SNAP_MOUNT_DIR}/bin[:]?.*" < "${user}-session-env"
+            fi
+        fi
+        # Profile should also be correctly set up
+        case "$user:$SPREAD_SYSTEM" in
+            test-zsh:ubuntu-*|test-zsh:debian-*)
+                # Due to https://bugs.launchpad.net/ubuntu/+source/zsh/+bug/1640514
+                not MATCH 'XDG_DATA_DIRS=.*[:]?/var/lib/snapd/desktop[:]?.*' < "${user}-profile-env"
+                not MATCH "PATH=.*[:]?${SNAP_MOUNT_DIR}/bin[:]?.*" < "${user}-profile-env"
+                ;;
+            *)
+                MATCH 'XDG_DATA_DIRS=.*[:]?/var/lib/snapd/desktop[:]?.*' < "${user}-profile-env"
+                MATCH "PATH=.*[:]?${SNAP_MOUNT_DIR}/bin[:]?.*" < "${user}-profile-env"
+                ;;
+        esac
+    done

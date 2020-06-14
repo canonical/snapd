@@ -39,7 +39,6 @@ func (s *handlersSuite) SetUpTest(c *C) {
 	s.setup(c, s.stateBackend)
 
 	s.AddCleanup(snapstatetest.MockDeviceModel(DefaultModel()))
-	s.AddCleanup(snap.MockSnapdSnapID("snapd-snap-id"))
 }
 
 func (s *handlersSuite) TestSetTaskSnapSetupFirstTask(c *C) {

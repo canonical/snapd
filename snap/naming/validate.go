@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2018-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -162,4 +162,26 @@ func ValidateSocket(name string) error {
 		return fmt.Errorf("invalid socket name: %q", name)
 	}
 	return nil
+}
+
+// ValidSnapID is a regular expression describing a valid snapd-id
+var ValidSnapID = regexp.MustCompile("^[a-z0-9A-Z]{32}$")
+
+// ValidateSnapID checks whether the string is a valid snap-id.
+func ValidateSnapID(id string) error {
+	if !ValidSnapID.MatchString(id) {
+		return fmt.Errorf("invalid snap-id: %q", id)
+	}
+	return nil
+}
+
+// ValidateSecurityTag validates known variants of snap security tag.
+//
+// Two forms are recognised, one for apps and one for hooks. Other forms
+// are possible but are not handled here.
+//
+// TODO: handle the weird udev variant.
+func ValidateSecurityTag(tag string) error {
+	_, err := ParseSecurityTag(tag)
+	return err
 }

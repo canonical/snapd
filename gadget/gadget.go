@@ -36,32 +36,31 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/metautil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
 )
 
-// The fixed length of valid snap IDs.
-const validSnapIDLength = 32
-
 const (
-	// MBR identifies a Master Boot Record partitioning schema, or an MBR like role
-	MBR = "mbr"
-	// GPT identifies a GUID Partition Table partitioning schema
-	GPT = "gpt"
+	// schemaMBR identifies a Master Boot Record partitioning schema, or an
+	// MBR like role
+	schemaMBR = "mbr"
+	// schemaGPT identifies a GUID Partition Table partitioning schema
+	schemaGPT = "gpt"
 
 	SystemBoot = "system-boot"
 	SystemData = "system-data"
 	SystemSeed = "system-seed"
 
-	BootImage  = "system-boot-image"
-	BootSelect = "system-boot-select"
+	bootImage  = "system-boot-image"
+	bootSelect = "system-boot-select"
 
-	// ImplicitSystemDataLabel is the implicit filesystem label of structure
+	// implicitSystemDataLabel is the implicit filesystem label of structure
 	// of system-data role
-	ImplicitSystemDataLabel = "writable"
+	implicitSystemDataLabel = "writable"
 
 	// only supported for legacy reasons
-	LegacyBootImage  = "bootimg"
-	LegacyBootSelect = "bootselect"
+	legacyBootImage  = "bootimg"
+	legacyBootSelect = "bootselect"
 )
 
 var (
@@ -94,7 +93,7 @@ type Volume struct {
 
 func (v *Volume) EffectiveSchema() string {
 	if v.Schema == "" {
-		return GPT
+		return schemaGPT
 	}
 	return v.Schema
 }
@@ -123,8 +122,9 @@ type VolumeStructure struct {
 	// For backwards compatibility type 'mbr' is also accepted, and the
 	// structure is treated as if it is of role 'mbr'.
 	Type string `yaml:"type"`
-	// Role describes the role of given structure, can be one of 'mbr',
-	// 'system-data', 'system-boot', 'bootimg', 'bootselect'. Structures of type 'mbr', must have a
+	// Role describes the role of given structure, can be one of
+	// 'mbr', 'system-data', 'system-boot', 'system-boot-image',
+	// 'system-boot-select'. Structures of type 'mbr', must have a
 	// size of 446 bytes and must start at 0 offset.
 	Role string `yaml:"role"`
 	// ID is the GPT partition ID
@@ -145,7 +145,7 @@ func (vs *VolumeStructure) HasFilesystem() bool {
 // IsPartition returns true when the structure describes a partition in a block
 // device.
 func (vs *VolumeStructure) IsPartition() bool {
-	return vs.Type != "bare" && vs.EffectiveRole() != MBR
+	return vs.Type != "bare" && vs.EffectiveRole() != schemaMBR
 }
 
 // EffectiveRole returns the role of given structure
@@ -153,8 +153,8 @@ func (vs *VolumeStructure) EffectiveRole() string {
 	if vs.Role != "" {
 		return vs.Role
 	}
-	if vs.Role == "" && vs.Type == MBR {
-		return MBR
+	if vs.Role == "" && vs.Type == schemaMBR {
+		return schemaMBR
 	}
 	if vs.Label == SystemBoot {
 		// for gadgets that only specify a filesystem-label, eg. pc
@@ -167,7 +167,7 @@ func (vs *VolumeStructure) EffectiveRole() string {
 // explicitly provided or implied by the structure's role
 func (vs *VolumeStructure) EffectiveFilesystemLabel() string {
 	if vs.EffectiveRole() == SystemData {
-		return ImplicitSystemDataLabel
+		return implicitSystemDataLabel
 	}
 	return vs.Label
 }
@@ -283,7 +283,7 @@ func parseSnapIDColonName(s string) (snapID, name string, err error) {
 }
 
 func systemOrSnapID(s string) bool {
-	if s != "system" && len(s) != validSnapIDLength {
+	if s != "system" && naming.ValidateSnapID(s) != nil {
 		return false
 	}
 	return true
@@ -415,7 +415,7 @@ func validateVolume(name string, vol *Volume, model Model) error {
 	if !validVolumeName.MatchString(name) {
 		return errors.New("invalid name")
 	}
-	if vol.Schema != "" && vol.Schema != GPT && vol.Schema != MBR {
+	if vol.Schema != "" && vol.Schema != schemaGPT && vol.Schema != schemaMBR {
 		return fmt.Errorf("invalid schema %q", vol.Schema)
 	}
 
@@ -497,8 +497,8 @@ func ensureVolumeConsistencyNoConstraints(state *validationState) error {
 	case state.SystemSeed != nil && state.SystemData == nil:
 		return fmt.Errorf("the system-seed role requires system-data to be defined")
 	case state.SystemSeed == nil && state.SystemData != nil:
-		if state.SystemData.Label != "" && state.SystemData.Label != ImplicitSystemDataLabel {
-			return fmt.Errorf("system-data structure must have an implicit label or %q, not %q", ImplicitSystemDataLabel, state.SystemData.Label)
+		if state.SystemData.Label != "" && state.SystemData.Label != implicitSystemDataLabel {
+			return fmt.Errorf("system-data structure must have an implicit label or %q, not %q", implicitSystemDataLabel, state.SystemData.Label)
 		}
 	case state.SystemSeed != nil && state.SystemData != nil:
 		if err := ensureSeedDataLabelsUnset(state); err != nil {
@@ -523,9 +523,9 @@ func ensureVolumeConsistencyWithConstraints(state *validationState, model Model)
 			return fmt.Errorf("model requires system-seed structure, but none was found")
 		}
 		// without SystemSeed, system-data label must be implicit or writable
-		if state.SystemData != nil && state.SystemData.Label != "" && state.SystemData.Label != ImplicitSystemDataLabel {
+		if state.SystemData != nil && state.SystemData.Label != "" && state.SystemData.Label != implicitSystemDataLabel {
 			return fmt.Errorf("system-data structure must have an implicit label or %q, not %q",
-				ImplicitSystemDataLabel, state.SystemData.Label)
+				implicitSystemDataLabel, state.SystemData.Label)
 		}
 	case state.SystemSeed != nil && state.SystemData != nil:
 		// error if we don't have the SystemSeed constraint but we have a system-seed structure
@@ -564,7 +564,7 @@ func validateCrossVolumeStructure(structures []LaidOutStructure, knownStructures
 	// - laid out structure overlap
 	// use structures laid out within the volume
 	for pidx, ps := range structures {
-		if ps.EffectiveRole() == MBR {
+		if ps.EffectiveRole() == schemaMBR {
 			if ps.StartOffset != 0 {
 				return fmt.Errorf(`structure %v has "mbr" role and must start at offset 0`, ps)
 			}
@@ -658,7 +658,7 @@ func validateStructureType(s string, vol *Volume) error {
 
 	schema := vol.Schema
 	if schema == "" {
-		schema = GPT
+		schema = schemaGPT
 	}
 
 	if s == "" {
@@ -670,7 +670,7 @@ func validateStructureType(s string, vol *Volume) error {
 		return nil
 	}
 
-	if s == MBR {
+	if s == schemaMBR {
 		// backward compatibility for type: mbr
 		return nil
 	}
@@ -697,11 +697,11 @@ func validateStructureType(s string, vol *Volume) error {
 		}
 	}
 
-	if schema != GPT && isGPT {
+	if schema != schemaGPT && isGPT {
 		// type: <uuid> is only valid for GPT volumes
 		return fmt.Errorf("GUID structure type with non-GPT schema %q", vol.Schema)
 	}
-	if schema != MBR && isMBR {
+	if schema != schemaMBR && isMBR {
 		return fmt.Errorf("MBR structure type with non-MBR schema %q", vol.Schema)
 	}
 
@@ -710,24 +710,24 @@ func validateStructureType(s string, vol *Volume) error {
 
 func validateRole(vs *VolumeStructure, vol *Volume) error {
 	if vs.Type == "bare" {
-		if vs.Role != "" && vs.Role != MBR {
+		if vs.Role != "" && vs.Role != schemaMBR {
 			return fmt.Errorf("conflicting type: %q", vs.Type)
 		}
 	}
 	vsRole := vs.Role
-	if vs.Type == MBR {
-		if vsRole != "" && vsRole != MBR {
+	if vs.Type == schemaMBR {
+		if vsRole != "" && vsRole != schemaMBR {
 			return fmt.Errorf(`conflicting legacy type: "mbr"`)
 		}
 		// backward compatibility
-		vsRole = MBR
+		vsRole = schemaMBR
 	}
 
 	switch vsRole {
 	case SystemData, SystemSeed:
 		// roles have cross dependencies, consistency checks are done at
 		// the volume level
-	case MBR:
+	case schemaMBR:
 		if vs.Size > SizeMBR {
 			return errors.New("mbr structures cannot be larger than 446 bytes")
 		}
@@ -740,9 +740,9 @@ func validateRole(vs *VolumeStructure, vol *Volume) error {
 		if vs.Filesystem != "" && vs.Filesystem != "none" {
 			return errors.New("mbr structures must not specify a file system")
 		}
-	case SystemBoot, BootImage, BootSelect, "":
+	case SystemBoot, bootImage, bootSelect, "":
 		// noop
-	case LegacyBootImage, LegacyBootSelect:
+	case legacyBootImage, legacyBootSelect:
 		// noop
 		// legacy role names were added in 2.42 can be removed
 		// on snapd epoch bump
@@ -826,16 +826,16 @@ func (s *Size) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	var err error
-	*s, err = ParseSize(gs)
+	*s, err = parseSize(gs)
 	if err != nil {
 		return fmt.Errorf("cannot parse size %q: %v", gs, err)
 	}
 	return err
 }
 
-// ParseSize parses a string expressing size in gadget declaration. The
+// parseSize parses a string expressing size in gadget declaration. The
 // accepted format is one of: <bytes> | <bytes/2^20>M | <bytes/2^30>G.
-func ParseSize(gs string) (Size, error) {
+func parseSize(gs string) (Size, error) {
 	number, unit, err := strutil.SplitUnit(gs)
 	if err != nil {
 		return 0, err
@@ -909,9 +909,9 @@ func (r *RelativeOffset) String() string {
 	return fmt.Sprintf("%d", r.Offset)
 }
 
-// ParseRelativeOffset parses a string describing an offset that can be
+// parseRelativeOffset parses a string describing an offset that can be
 // expressed relative to a named structure, with the format: [<name>+]<size>.
-func ParseRelativeOffset(grs string) (*RelativeOffset, error) {
+func parseRelativeOffset(grs string) (*RelativeOffset, error) {
 	toWhat := ""
 	sizeSpec := grs
 	if idx := strings.IndexRune(grs, '+'); idx != -1 {
@@ -924,7 +924,7 @@ func ParseRelativeOffset(grs string) (*RelativeOffset, error) {
 		return nil, errors.New("missing offset")
 	}
 
-	size, err := ParseSize(sizeSpec)
+	size, err := parseSize(sizeSpec)
 	if err != nil {
 		return nil, fmt.Errorf("cannot parse offset %q: %v", sizeSpec, err)
 	}
@@ -944,7 +944,7 @@ func (s *RelativeOffset) UnmarshalYAML(unmarshal func(interface{}) error) error 
 		return errors.New(`cannot unmarshal gadget relative offset`)
 	}
 
-	ro, err := ParseRelativeOffset(grs)
+	ro, err := parseRelativeOffset(grs)
 	if err != nil {
 		return fmt.Errorf("cannot parse relative offset %q: %v", grs, err)
 	}
@@ -989,6 +989,12 @@ func IsCompatible(current, new *Info) error {
 // PositionedVolumeFromGadget takes a gadget rootdir and positions the
 // partitions as specified.
 func PositionedVolumeFromGadget(gadgetRoot string) (*LaidOutVolume, error) {
+	// TODO:UC20: since this is unconstrained via the model, it returns an
+	//            err == nil and an empty info when the gadgetRoot does not
+	//            actually contain the required gadget.yaml file (for example
+	//            when you have a typo in the args to snap-bootstrap
+	//            create-partitions). anyways just verify this more because
+	//            otherwise it's unhelpful :-/
 	info, err := ReadInfo(gadgetRoot, nil)
 	if err != nil {
 		return nil, err
@@ -1012,4 +1018,30 @@ func PositionedVolumeFromGadget(gadgetRoot string) (*LaidOutVolume, error) {
 		return pvol, nil
 	}
 	return nil, fmt.Errorf("internal error in PositionedVolumeFromGadget: this line cannot be reached")
+}
+
+func flatten(path string, cfg interface{}, out map[string]interface{}) {
+	if cfgMap, ok := cfg.(map[string]interface{}); ok {
+		for k, v := range cfgMap {
+			p := k
+			if path != "" {
+				p = path + "." + k
+			}
+			flatten(p, v, out)
+		}
+	} else {
+		out[path] = cfg
+	}
+}
+
+// SystemDefaults returns default system configuration from gadget defaults.
+func SystemDefaults(gadgetDefaults map[string]map[string]interface{}) map[string]interface{} {
+	for _, systemSnap := range []string{"system", naming.WellKnownSnapID("core")} {
+		if defaults, ok := gadgetDefaults[systemSnap]; ok {
+			coreDefaults := map[string]interface{}{}
+			flatten("", defaults, coreDefaults)
+			return coreDefaults
+		}
+	}
+	return nil
 }

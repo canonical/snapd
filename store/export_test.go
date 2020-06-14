@@ -169,6 +169,10 @@ func (sto *Store) SessionUnlock() {
 	sto.sessionMu.Unlock()
 }
 
+func (sto *Store) FindFields() []string {
+	return sto.findFields
+}
+
 func (cfg *Config) SetBaseURL(u *url.URL) error {
 	return cfg.setBaseURL(u)
 }
@@ -191,3 +195,10 @@ func MockRatelimitReader(f func(r io.Reader, bucket *ratelimit.Bucket) io.Reader
 		ratelimitReader = oldRatelimitReader
 	}
 }
+
+type (
+	ErrorListEntryJSON   = errorListEntry
+	SnapActionResultJSON = snapActionResult
+)
+
+var ReportFetchAssertionsError = reportFetchAssertionsError

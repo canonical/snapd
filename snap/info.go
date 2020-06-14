@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
@@ -837,6 +838,7 @@ type AppInfo struct {
 	CommonID      string
 
 	Daemon          string
+	DaemonScope     DaemonScope
 	StopTimeout     timeout.Timeout
 	StartTimeout    timeout.Timeout
 	WatchdogTimeout timeout.Timeout
@@ -927,12 +929,12 @@ type SystemUsernameInfo struct {
 
 // File returns the path to the *.socket file
 func (socket *SocketInfo) File() string {
-	return filepath.Join(dirs.SnapServicesDir, socket.App.SecurityTag()+"."+socket.Name+".socket")
+	return filepath.Join(socket.App.serviceDir(), socket.App.SecurityTag()+"."+socket.Name+".socket")
 }
 
 // File returns the path to the *.timer file
 func (timer *TimerInfo) File() string {
-	return filepath.Join(dirs.SnapServicesDir, timer.App.SecurityTag()+".timer")
+	return filepath.Join(timer.App.serviceDir(), timer.App.SecurityTag()+".timer")
 }
 
 func (app *AppInfo) String() string {
@@ -1005,24 +1007,34 @@ func (app *AppInfo) ServiceName() string {
 	return app.SecurityTag() + ".service"
 }
 
-// ServiceFile returns the systemd service file path for the daemon app.
-func (app *AppInfo) ServiceFile() string {
-	return filepath.Join(dirs.SnapServicesDir, app.ServiceName())
+func (app *AppInfo) serviceDir() string {
+	switch app.DaemonScope {
+	case SystemDaemon:
+		return dirs.SnapServicesDir
+	case UserDaemon:
+		return dirs.SnapUserServicesDir
+	default:
+		panic("unknown daemon scope")
+	}
 }
 
-// Env returns the app specific environment overrides
-func (app *AppInfo) Env() []string {
-	appEnv := app.Snap.Environment.Copy()
-	for _, k := range app.Environment.Keys() {
-		appEnv.Set(k, app.Environment.Get(k))
-	}
-
-	return envFromMap(appEnv)
+// ServiceFile returns the systemd service file path for the daemon app.
+func (app *AppInfo) ServiceFile() string {
+	return filepath.Join(app.serviceDir(), app.ServiceName())
 }
 
 // IsService returns whether app represents a daemon/service.
 func (app *AppInfo) IsService() bool {
 	return app.Daemon != ""
+}
+
+// EnvChain returns the chain of environment overrides, possibly with
+// expandable $ vars, specific for the app.
+func (app *AppInfo) EnvChain() []osutil.ExpandableEnv {
+	return []osutil.ExpandableEnv{
+		{OrderedMap: &app.Snap.Environment},
+		{OrderedMap: &app.Environment},
+	}
 }
 
 // SecurityTag returns the hook-specific security tag.
@@ -1033,23 +1045,13 @@ func (hook *HookInfo) SecurityTag() string {
 	return HookSecurityTag(hook.Snap.InstanceName(), hook.Name)
 }
 
-// Env returns the hook-specific environment overrides
-func (hook *HookInfo) Env() []string {
-	hookEnv := hook.Snap.Environment.Copy()
-	for _, k := range hook.Environment.Keys() {
-		hookEnv.Set(k, hook.Environment.Get(k))
+// EnvChain returns the chain of environment overrides, possibly with
+// expandable $ vars, specific for the hook.
+func (hook *HookInfo) EnvChain() []osutil.ExpandableEnv {
+	return []osutil.ExpandableEnv{
+		{OrderedMap: &hook.Snap.Environment},
+		{OrderedMap: &hook.Environment},
 	}
-
-	return envFromMap(hookEnv)
-}
-
-func envFromMap(envMap *strutil.OrderedMap) []string {
-	env := []string{}
-	for _, k := range envMap.Keys() {
-		env = append(env, fmt.Sprintf("%s=%s", k, envMap.Get(k)))
-	}
-
-	return env
 }
 
 func infoFromSnapYamlWithSideInfo(meta []byte, si *SideInfo, strk *scopedTracker) (*Info, error) {

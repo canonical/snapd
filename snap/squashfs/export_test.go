@@ -32,7 +32,10 @@ var (
 	NewUnsquashfsStderrWriter = newUnsquashfsStderrWriter
 )
 
-const MaxErrPaths = maxErrPaths
+const (
+	SuperblockSize = superblockSize
+	MaxErrPaths    = maxErrPaths
+)
 
 func (s stat) User() string  { return s.user }
 func (s stat) Group() string { return s.group }
@@ -76,4 +79,12 @@ func Alike(a, b os.FileInfo, c *check.C, comment check.CommentInterface) {
 	am := a.ModTime().UTC().Truncate(time.Minute)
 	bm := b.ModTime().UTC().Truncate(time.Minute)
 	c.Check(am.Equal(bm), check.Equals, true, check.Commentf("%s != %s (%s)", am, bm, comment))
+}
+
+func MockIsRootWritableOverlay(new func() (string, error)) (restore func()) {
+	old := isRootWritableOverlay
+	isRootWritableOverlay = new
+	return func() {
+		isRootWritableOverlay = old
+	}
 }

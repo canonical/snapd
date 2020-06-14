@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build !nomanagers
 
 /*
  * Copyright (C) 2018 Canonical Ltd
@@ -79,7 +80,7 @@ func (c *cloudInitInstanceData) UnmarshalJSON(bs []byte) error {
 	return nil
 }
 
-func setCloudInfoWhenSeeding(tr config.Conf) error {
+func setCloudInfoWhenSeeding(tr config.Conf, opts *fsOnlyContext) error {
 	// if we are during seeding try to capture cloud information
 	seeded, err := alreadySeeded(tr)
 	if err != nil {

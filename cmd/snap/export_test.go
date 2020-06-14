@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/image"
 	"github.com/snapcore/snapd/sandbox/selinux"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 )
 
@@ -86,6 +87,8 @@ var (
 	SortTimingsTasks = sortTimingsTasks
 
 	PrintInstallHint = printInstallHint
+
+	IsStopping = isStopping
 )
 
 func HiddenCmd(descr string, completeHidden bool) *cmdInfo {
@@ -323,3 +326,43 @@ func MockSignalNotify(newSignalNotify func(sig ...os.Signal) (chan os.Signal, fu
 }
 
 type ServiceName = serviceName
+
+func MockApparmorSnapAppFromPid(f func(pid int) (string, string, string, error)) (restore func()) {
+	old := apparmorSnapAppFromPid
+	apparmorSnapAppFromPid = f
+	return func() {
+		apparmorSnapAppFromPid = old
+	}
+}
+
+func MockCgroupSnapNameFromPid(f func(pid int) (string, error)) (restore func()) {
+	old := cgroupSnapNameFromPid
+	cgroupSnapNameFromPid = f
+	return func() {
+		cgroupSnapNameFromPid = old
+	}
+}
+
+func MockSyscallUmount(f func(string, int) error) (restore func()) {
+	old := syscallUnmount
+	syscallUnmount = f
+	return func() {
+		syscallUnmount = old
+	}
+}
+
+func MockIoutilTempDir(f func(string, string) (string, error)) (restore func()) {
+	old := ioutilTempDir
+	ioutilTempDir = f
+	return func() {
+		ioutilTempDir = old
+	}
+}
+
+func MockDownloadDirect(f func(snapName string, revision snap.Revision, dlOpts image.DownloadOptions) error) (restore func()) {
+	old := downloadDirect
+	downloadDirect = f
+	return func() {
+		downloadDirect = old
+	}
+}

@@ -106,6 +106,8 @@ func (p *ANSIMeter) percent() string {
 	return fmt.Sprintf("%3.0f%%", q)
 }
 
+var formatDuration = quantity.FormatDuration
+
 func (p *ANSIMeter) Set(current float64) {
 	if current < 0 {
 		current = 0
@@ -134,7 +136,9 @@ func (p *ANSIMeter) Set(current float64) {
 		since := time.Now().UTC().Sub(p.t0).Seconds()
 		per := since / p.written
 		left := (p.total - p.written) * per
-		timeleft = " " + quantity.FormatDuration(left)
+		// XXX: duration unit string is controlled by translations, and
+		// may carry a multibyte unit suffix
+		timeleft = " " + formatDuration(left)
 		if col > 20 {
 			percent = " " + p.percent()
 			if col > 29 {
@@ -143,11 +147,15 @@ func (p *ANSIMeter) Set(current float64) {
 		}
 	}
 
+	rpercent := []rune(percent)
+	rspeed := []rune(speed)
+	rtimeleft := []rune(timeleft)
 	msg := make([]rune, 0, col)
-	msg = append(msg, norm(col-len(percent)-len(speed)-len(timeleft), p.label)...)
-	msg = append(msg, []rune(percent)...)
-	msg = append(msg, []rune(speed)...)
-	msg = append(msg, []rune(timeleft)...)
+	// XXX: assuming terminal can display `col` number of runes
+	msg = append(msg, norm(col-len(rpercent)-len(rspeed)-len(rtimeleft), p.label)...)
+	msg = append(msg, rpercent...)
+	msg = append(msg, rspeed...)
+	msg = append(msg, rtimeleft...)
 	i := int(current * float64(col) / p.total)
 	fmt.Fprint(stdout, "\r", enterReverseMode, string(msg[:i]), exitAttributeMode, string(msg[i:]))
 }

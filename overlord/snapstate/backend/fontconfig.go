@@ -32,7 +32,7 @@ var commandFromSystemSnap = cmdutil.CommandFromSystemSnap
 // updateFontconfigCaches always update the fontconfig caches
 func updateFontconfigCachesImpl() error {
 	for _, fc := range []string{"fc-cache-v6", "fc-cache-v7"} {
-		cmd, err := commandFromSystemSnap("/bin/" + fc)
+		cmd, err := commandFromSystemSnap("/bin/"+fc, "--system-only")
 		if err != nil {
 			return fmt.Errorf("cannot get %s from core: %v", fc, err)
 		}

@@ -21,13 +21,13 @@ package internal
 
 import (
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 func MakeSystemSnap(snapName string, defaultChannel string, modes []string) *asserts.ModelSnap {
-	// TODO: set SnapID too
-	// introduce some kind of asserts|/snapsserts WellKnownSnapID(name)
 	return &asserts.ModelSnap{
 		Name:           snapName,
+		SnapID:         naming.WellKnownSnapID(snapName),
 		SnapType:       snapName, // same as snapName for core, snapd
 		Modes:          modes,
 		DefaultChannel: defaultChannel,

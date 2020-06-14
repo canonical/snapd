@@ -37,25 +37,6 @@ type FileSuite struct{}
 
 var _ = Suite(&FileSuite{})
 
-func (s *FileSuite) TestFileOpenForSnapDir(c *C) {
-	sd := c.MkDir()
-	snapYaml := filepath.Join(sd, "meta", "snap.yaml")
-	err := os.MkdirAll(filepath.Dir(snapYaml), 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(snapYaml, []byte(`name: foo`), 0644)
-	c.Assert(err, IsNil)
-
-	f, err := snap.Open(sd)
-	c.Assert(err, IsNil)
-	c.Assert(f, FitsTypeOf, &snapdir.SnapDir{})
-}
-
-func (s *FileSuite) TestFileOpenForSnapDirErrors(c *C) {
-	_, err := snap.Open(c.MkDir())
-	c.Assert(err, FitsTypeOf, snap.NotSnapError{})
-	c.Assert(err, ErrorMatches, `"/.*" is not a snap or snapdir`)
-}
-
 type validateSuite struct {
 	testutil.BaseTest
 	log func(string, ...interface{})

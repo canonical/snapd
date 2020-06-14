@@ -49,6 +49,7 @@ brk
 # ARM private syscalls
 breakpoint
 cacheflush
+get_tls
 set_tls
 usr26
 usr32
@@ -95,8 +96,11 @@ lchown - -1 g:root
 lchown32 - -1 g:root
 
 clock_getres
+clock_getres_time64
 clock_gettime
+clock_gettime64
 clock_nanosleep
+clock_nanosleep_time64
 clone
 close
 
@@ -135,6 +139,7 @@ flock
 fork
 ftime
 futex
+futex_time64
 get_mempolicy
 get_robust_list
 get_thread_area
@@ -188,6 +193,8 @@ ioctl - !TIOCSTI
 io_cancel
 io_destroy
 io_getevents
+io_pgetevents
+io_pgetevents_time64
 io_setup
 io_submit
 ioprio_get
@@ -244,7 +251,9 @@ mprotect
 #mq_notify
 #mq_open
 #mq_timedreceive
+#mq_timedreceive_time64
 #mq_timedsend
+#mq_timedsend_time64
 #mq_unlink
 
 mremap
@@ -259,15 +268,19 @@ munmap
 
 nanosleep
 
+# Argument filtering with gt/ge/lt/le does not work properly with
+# libseccomp < 2.4 or golang-seccomp < 0.9.1. See:
+# - https://bugs.launchpad.net/snapd/+bug/1825052/comments/9
+# - https://github.com/seccomp/libseccomp/issues/69
+# Eventually we want to use >=0, but we need libseccomp and golang-seccomp to
+# be updated everywhere first. In the meantime, use <=19 and rely on the fact
+# that AppArmor mediates CAP_SYS_NICE (and for systems without AppArmor, we
+# ignore this lack of mediation since snaps are not meaningfully confined).
+#
 # Allow using nice() with default or lower priority
-# FIXME: https://github.com/seccomp/libseccomp/issues/69 which means we
-# currently have to use <=19. When that bug is fixed, use >=0
 nice <=19
 # Allow using setpriority to set the priority of the calling process to default
 # or lower priority (eg, 'nice -n 9 <command>')
-# default or lower priority.
-# FIXME: https://github.com/seccomp/libseccomp/issues/69 which means we
-# currently have to use <=19. When that bug is fixed, use >=0
 setpriority PRIO_PROCESS 0 <=19
 
 # LP: #1446748 - support syscall arg filtering for mode_t with O_CREAT
@@ -280,6 +293,7 @@ pipe
 pipe2
 poll
 ppoll
+ppoll_time64
 
 # LP: #1446748 - support syscall arg filtering
 prctl
@@ -301,6 +315,7 @@ recv
 recvfrom
 recvmsg
 recvmmsg
+recvmmsg_time64
 
 remap_file_pages
 
@@ -324,6 +339,7 @@ rt_sigqueueinfo
 rt_sigreturn
 rt_sigsuspend
 rt_sigtimedwait
+rt_sigtimedwait_time64
 rt_tgsigqueueinfo
 sched_getaffinity
 sched_getattr
@@ -332,6 +348,7 @@ sched_get_priority_max
 sched_get_priority_min
 sched_getscheduler
 sched_rr_get_interval
+sched_rr_get_interval_time64
 # enforce pid_t is 0 so the app may only change its own scheduler and affinity.
 # Use process-control interface for controlling other pids.
 sched_setaffinity 0 - -
@@ -353,6 +370,7 @@ select
 _newselect
 pselect
 pselect6
+pselect6_time64
 
 # Allow use of SysV semaphores. Note that allocated resources are not freed by
 # OOM which can lead to global kernel resource leakage.
@@ -360,6 +378,7 @@ semctl
 semget
 semop
 semtimedop
+semtimedop_time64
 
 # allow sending to sockets
 send
@@ -512,11 +531,15 @@ timer_create
 timer_delete
 timer_getoverrun
 timer_gettime
+timer_gettime64
 timer_settime
+timer_settime64
 timerfd
 timerfd_create
 timerfd_gettime
+timerfd_gettime64
 timerfd_settime
+timerfd_settime64
 times
 tkill
 
@@ -536,6 +559,7 @@ unlinkat
 
 utime
 utimensat
+utimensat_time64
 utimes
 futimesat
 
@@ -605,9 +629,13 @@ var rootSetUidGidSyscalls = `
 # filtering. AppArmor has corresponding CAP_SETUID, CAP_SETGID and CAP_CHOWN
 # rules.
 
-# allow use of setgroups(0, NULL)
-setgroups 0 0
-setgroups32 0 0
+# allow use of setgroups(0, ...). Note: while the setgroups() man page states
+# that 'setgroups(0, NULL) should be used to clear all supplementary groups,
+# the kernel will not consult the group list when size is '0', so we allow it
+# to be anything for compatibility with (arguably buggy) programs that expect
+# to clear the groups with 'setgroups(0, <non-null>).
+setgroups 0 -
+setgroups32 0 -
 
 # allow setgid to root
 setgid g:root

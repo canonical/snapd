@@ -48,7 +48,10 @@ type fakeStore struct {
 	storetest.Store
 }
 
-func (f *fakeStore) SnapAction(_ context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, error) {
+func (f *fakeStore) SnapAction(_ context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
+	if assertQuery != nil {
+		panic("no assertion query support")
+	}
 	if actions[0].Action == "install" {
 		installs := make([]store.SnapActionResult, 0, len(actions))
 		for _, a := range actions {
@@ -66,7 +69,7 @@ func (f *fakeStore) SnapAction(_ context.Context, currentSnaps []*store.CurrentS
 			}})
 		}
 
-		return installs, nil
+		return installs, nil, nil
 	}
 
 	snaps := []store.SnapActionResult{{Info: &snap.Info{
@@ -84,7 +87,7 @@ func (f *fakeStore) SnapAction(_ context.Context, currentSnaps []*store.CurrentS
 		},
 		Architectures: []string{"all"},
 	}}}
-	return snaps, nil
+	return snaps, nil, nil
 }
 
 type servicectlSuite struct {

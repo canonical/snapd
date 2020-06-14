@@ -29,7 +29,7 @@ disable_journald_rate_limiting() {
     # Disable journald rate limiting
     mkdir -p /etc/systemd/journald.conf.d
     # The RateLimitIntervalSec key is not supported on some systemd versions causing
-    # the journal rate limit could be considered as not valid and discarded in concecuence.
+    # the journal rate limit could be considered as not valid and discarded in consequence.
     # RateLimitInterval key is supported in old systemd versions and in new ones as well,
     # maintaining backward compatibility.
     cat <<-EOF > /etc/systemd/journald.conf.d/no-rate-limit.conf
@@ -85,19 +85,11 @@ disable_refreshes() {
 }
 
 setup_systemd_snapd_overrides() {
-    START_LIMIT_INTERVAL="StartLimitInterval=0"
     mkdir -p /etc/systemd/system/snapd.service.d
     cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
-[Unit]
-$START_LIMIT_INTERVAL
 [Service]
 Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_REBOOT_DELAY=10m SNAPD_CONFIGURE_HOOK_TIMEOUT=30s SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE
 ExecStartPre=/bin/touch /dev/iio:device0
-EOF
-    mkdir -p /etc/systemd/system/snapd.socket.d
-    cat <<EOF > /etc/systemd/system/snapd.socket.d/local.conf
-[Unit]
-$START_LIMIT_INTERVAL
 EOF
 
     # We change the service configuration so reload and restart
@@ -184,7 +176,7 @@ update_core_snap_for_classic_reexec() {
     rm -rf squashfs-root
 
     # Now mount the new core snap, first discarding the old mount namespace
-    "$LIBEXECDIR/snapd/snap-discard-ns" core
+    snapd.tool exec snap-discard-ns core
     mount "$snap" "$core"
 
     check_file() {
@@ -236,9 +228,9 @@ prepare_classic() {
         distro_query_package_info snapd
         exit 1
     fi
-    if "$LIBEXECDIR/snapd/snap-confine" --version | MATCH unknown; then
+    if snapd.tool exec snap-confine --version | MATCH unknown; then
         echo "Package build incorrect, 'snap-confine --version' mentions 'unknown'"
-        "$LIBEXECDIR/snapd/snap-confine" --version
+        snapd.tool exec snap-confine --version
         case "$SPREAD_SYSTEM" in
             ubuntu-*|debian-*)
                 apt-cache policy snapd
@@ -349,6 +341,7 @@ repack_snapd_snap_with_deb_content() {
 
 repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks() {
     local TARGET="$1"
+    local ENABLE_SSH="${2:-true}"
 
     local UNPACK_DIR="/tmp/snapd-unpack"
     unsquashfs -no-progress -d "$UNPACK_DIR" snapd_*.snap
@@ -361,8 +354,9 @@ repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks() {
     dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$UNPACK_DIR"
     cp /usr/lib/snapd/info "$UNPACK_DIR"/usr/lib/
 
-    # now install a unit that setups enough so that we can connect
-    cat > "$UNPACK_DIR"/lib/systemd/system/snapd.spread-tests-run-mode-tweaks.service <<'EOF'
+    if [ "$ENABLE_SSH" = "true" ]; then
+        # now install a unit that sets up enough so that we can connect
+        cat > "$UNPACK_DIR"/lib/systemd/system/snapd.spread-tests-run-mode-tweaks.service <<'EOF'
 [Unit]
 Description=Tweaks to run mode for spread tests
 Before=snapd.service
@@ -376,13 +370,13 @@ RemainAfterExit=true
 [Install]
 WantedBy=multi-user.target
 EOF
-    # XXX: this duplicates a lot of setup_test_user_by_modify_writable()
-    cat > "$UNPACK_DIR"/usr/lib/snapd/snapd.spread-tests-run-mode-tweaks.sh <<'EOF'
+        # XXX: this duplicates a lot of setup_test_user_by_modify_writable()
+        cat > "$UNPACK_DIR"/usr/lib/snapd/snapd.spread-tests-run-mode-tweaks.sh <<'EOF'
 #!/bin/sh
 set -e
 # ensure we don't enable ssh in install mode or spread will get confused
-if ! grep 'snapd_recovery_mode=run' /proc/cmdline; then
-    echo "not in run mode - script not running"
+if ! grep -E 'snapd_recovery_mode=(run|recover)' /proc/cmdline; then
+    echo "not in run or recovery mode - script not running"
     exit 0
 fi
 if [ -e /root/spread-setup-done ]; then
@@ -427,7 +421,9 @@ systemctl reload ssh
 
 touch /root/spread-setup-done
 EOF
-    chmod 0755 "$UNPACK_DIR"/usr/lib/snapd/snapd.spread-tests-run-mode-tweaks.sh
+        chmod 0755 "$UNPACK_DIR"/usr/lib/snapd/snapd.spread-tests-run-mode-tweaks.sh
+    fi
+
     snap pack "$UNPACK_DIR" "$TARGET"
     rm -rf "$UNPACK_DIR"
 }
@@ -460,8 +456,11 @@ uc20_build_initramfs_kernel_snap() {
         # this works on 20.04 but not on 18.04
         unmkinitramfs initrd unpacked-initrd
 
-        # use distro skeleton
-        cp -ar /usr/lib/ubuntu-core-initramfs skeleton
+        # use only the initrd we got from the kernel snap to inject our changes
+        # we don't use the distro package because the distro package may be 
+        # different systemd version, etc. in the initrd from the one in the 
+        # kernel and we don't want to test that, just test our snap-bootstrap
+        cp -ar unpacked-initrd skeleton
         # all the skeleton edits go to a local copy of distro directory
         skeletondir=$PWD/skeleton
         cp -a /usr/lib/snapd/snap-bootstrap "$skeletondir/main/usr/lib/snapd/snap-bootstrap"
@@ -469,7 +468,7 @@ uc20_build_initramfs_kernel_snap() {
         # is verified in the tests/core/basic20 spread test
         sed -i -e 's/set -e/set -ex/' "$skeletondir/main/usr/lib/the-tool"
         echo "" >> "$skeletondir/main/usr/lib/the-tool"
-        echo "if test -d /run/mnt/ubuntu-data/system-data; then touch /run/mnt/ubuntu-data/system-data/the-tool-ran; fi" >> \
+        echo "if test -d /run/mnt/data/system-data; then touch /run/mnt/data/system-data/the-tool-ran; fi" >> \
             "$skeletondir/main/usr/lib/the-tool"
 
         # XXX: need to be careful to build an initrd using the right kernel
@@ -615,6 +614,10 @@ EOF
         MATCH "^ubuntu:" </mnt/system-data/var/lib/extrausers/"$f"
     done
 
+    # Make sure systemd-journal group has the "test" user as a member. Due to the way we copy that from the host
+    # and merge it from the core snap this is done explicitly as a second step.
+    sed -r -i -e 's/^systemd-journal:x:([0-9]+):$/systemd-journal:x:\1:test/' /mnt/system-data/root/test-etc/group
+
     # ensure spread -reuse works in the core image as well
     if [ -e /.spread.yaml ]; then
         cp -av /.spread.yaml /mnt/system-data
@@ -630,9 +633,7 @@ EOF
     # the writeable-path sync-boot won't work
     mkdir -p /mnt/system-data/etc/systemd
 
-    # we do not need console-conf, so prevent it from running
     mkdir -p /mnt/system-data/var/lib/console-conf
-    touch /mnt/system-data/var/lib/console-conf/complete
 
     (cd /tmp ; unsquashfs -no-progress -v  /var/lib/snapd/snaps/"$core_name"_*.snap etc/systemd/system)
     cp -avr /tmp/squashfs-root/etc/systemd/system /mnt/system-data/etc/systemd/
@@ -641,9 +642,14 @@ EOF
 setup_reflash_magic() {
     # install the stuff we need
     distro_install_package kpartx busybox-static
-    # for core20 we need debootstrap to build the initramfs in the kernel snap
-    if is_core20_system; then
-        distro_install_package debootstrap
+
+    # Ensure we don't have snapd already installed, sometimes
+    # on 20.04 purge seems to fail, catch that for further
+    # debugging
+    if [ -e /var/lib/snapd/state.json ]; then
+        echo "reflash image not pristine, snaps already installed"
+        python3 -m json.tool < /var/lib/snapd/state.json
+        exit 1
     fi
 
     distro_install_local_package "$GOHOME"/snapd_*.deb
@@ -652,16 +658,31 @@ setup_reflash_magic() {
     # need to be seeded to proceed with snap install
     snap wait system seed.loaded
 
+    # download the snapd snap for all uc systems except uc16
+    if ! is_core16_system; then
+        snap download "--channel=${SNAPD_CHANNEL}" snapd
+    fi
+
     # we cannot use "names.sh" here because no snaps are installed yet
     core_name="core"
     if is_core18_system; then
-        snap download "--channel=${SNAPD_CHANNEL}" snapd
         core_name="core18"
-    elif is_core20_system; then
-        snap download "--channel=${SNAPD_CHANNEL}" snapd
+    elif is_core20_system; then        
         core_name="core20"
     fi
+    # XXX: we get "error: too early for operation, device not yet
+    # seeded or device model not acknowledged" here sometimes. To
+    # understand that better show some debug output.
+    snap changes
+    snap tasks --last=seed || true
+    journalctl -u snapd
+    snap model --verbose
+    # remove the above debug lines once the mentioned bug is fixed
     snap install "--channel=${CORE_CHANNEL}" "$core_name"
+    if is_core16_system || is_core18_system; then
+        UNPACK_DIR="/tmp/$core_name-snap"
+        unsquashfs -no-progress -d "$UNPACK_DIR" /var/lib/snapd/snaps/${core_name}_*.snap
+    fi
 
     # install ubuntu-image
     snap install --classic --edge ubuntu-image
@@ -685,15 +706,9 @@ setup_reflash_magic() {
         IMAGE=core18-amd64.img
     elif is_core20_system; then
         repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$IMAGE_HOME"
-        # TODO:UC20: use canonical model instead of "mvo" one
         cp "$TESTSLIB/assertions/ubuntu-core-20-amd64.model" "$IMAGE_HOME/pc.model"
         IMAGE=core20-amd64.img
     else
-        # modify the core snap so that the current root-pw works there
-        # for spread to do the first login
-        UNPACK_DIR="/tmp/core-snap"
-        unsquashfs -no-progress -d "$UNPACK_DIR" /var/lib/snapd/snaps/core_*.snap
-
         # FIXME: install would be better but we don't have dpkg on
         #        the image
         # unpack our freshly build snapd into the new snapd snap
@@ -783,9 +798,7 @@ EOF
     # /dev/loop19  0 0  1  1 /var/lib/snapd/snaps/test-snapd-netplan-apply_75.snap  0     512
     devloop=$(losetup --list --noheadings | grep "$IMAGE_HOME/$IMAGE" | awk '{print $1}')
     dev=$(basename "$devloop")
-    if is_core18_system; then
-        mount "/dev/mapper/${dev}p3" /mnt
-    elif is_core20_system; then
+    if is_core20_system; then
         # (ab)use ubuntu-seed
         mount "/dev/mapper/${dev}p2" /mnt
     else
@@ -828,6 +841,9 @@ EOF
             MATCH "^test:" </var/lib/extrausers/"$f"
             MATCH "^ubuntu:" </var/lib/extrausers/"$f"
         done
+        # Make sure systemd-journal group has the "test" user as a member. Due to the way we copy that from the host
+        # and merge it from the core snap this is done explicitly as a second step.
+        sed -r -i -e 's/^systemd-journal:x:([0-9]+):$/systemd-journal:x:\1:test/' /root/test-etc/group
         tar -c -z \
           --exclude '*.a' \
           --exclude '*.deb' \
@@ -838,12 +854,7 @@ EOF
           /home/gopath /root/test-etc /var/lib/extrausers
     fi
 
-    # now modify the image writable partition
-    if is_core18_system; then
-        UNPACK_DIR="/tmp/core18-snap"
-        unsquashfs -no-progress -d "$UNPACK_DIR" /var/lib/snapd/snaps/core18_*.snap
-    fi
-    # modifying "writable" is only possible on uc16/uc18
+    # now modify the image writable partition - only possible on uc16 / uc18
     if is_core16_system || is_core18_system; then
         # modify the writable partition of "core" so that we have the
         # test user
@@ -912,12 +923,8 @@ prepare_ubuntu_core() {
 
     # Wait for the snap command to become available.
     if [ "$SPREAD_BACKEND" != "external" ]; then
-        for i in $(seq 120); do
-            if [ "$(command -v snap)" = "/usr/bin/snap" ] && snap version | grep -q 'snapd +1337.*'; then
-                break
-            fi
-            sleep 1
-        done
+        # shellcheck disable=SC2016
+        retry -n 120 --wait 1 sh -c 'test "$(command -v snap)" = /usr/bin/snap && snap version | grep -E -q "snapd +1337.*"'
     fi
 
     # Wait for seeding to finish.
@@ -936,7 +943,7 @@ prepare_ubuntu_core() {
     done
 
     echo "Ensure the snapd snap is available"
-    if is_core18_system; then
+    if is_core18_system || is_core20_system; then
         if ! snap list snapd; then
             echo "snapd snap on core18 is missing"
             snap list
@@ -952,7 +959,7 @@ prepare_ubuntu_core() {
         elif is_core20_system; then
             rsync_snap="test-snapd-rsync-core20"
         fi
-        snap install --devmode "$rsync_snap"
+        snap install --devmode --edge "$rsync_snap"
         snap alias "$rsync_snap".rsync rsync
     fi
 
@@ -962,13 +969,16 @@ prepare_ubuntu_core() {
 
     echo "Ensure the core snap is cached"
     # Cache snaps
-    if is_core18_system; then
+    if is_core18_system || is_core20_system; then
         if snap list core >& /dev/null; then
             echo "core snap on core18 should not be installed yet"
             snap list
             exit 1
         fi
-        cache_snaps core test-snapd-sh-core18
+        cache_snaps core
+        if is_core18_system; then
+            cache_snaps test-snapd-sh-core18
+        fi
     fi
 
     echo "Cache the snaps profiler snap"

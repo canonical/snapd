@@ -44,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store/storetest"
 )
@@ -1042,7 +1043,7 @@ volumes:
 	// so that we get a directory
 	currInfo := snaptest.MockSnapWithFiles(c, currentSnapYaml, siCurrent, nil)
 	info := snaptest.MockSnapWithFiles(c, remodelSnapYaml, &snap.SideInfo{Revision: snap.R(1)}, nil)
-	snapf, err := snap.Open(info.MountDir())
+	snapf, err := snapfile.Open(info.MountDir())
 	c.Assert(err, IsNil)
 
 	s.setupBrands(c)
@@ -1173,7 +1174,7 @@ version: 123
 	info := snaptest.MockSnapWithFiles(c, remodelSnapYaml, &snap.SideInfo{Revision: snap.R(1)}, [][]string{
 		{"meta/gadget.yaml", newGadgetYaml},
 	})
-	snapf, err := snap.Open(info.MountDir())
+	snapf, err := snapfile.Open(info.MountDir())
 	c.Assert(err, IsNil)
 
 	s.setupBrands(c)

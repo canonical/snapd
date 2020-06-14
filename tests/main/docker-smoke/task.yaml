@@ -14,4 +14,4 @@ execute: |
     exit 1
   fi
 
-  retry-tool -n 30 --wait 1 docker run hello-world | MATCH "installation appears to be working correctly"
+  retry -n 30 --wait 1 docker run hello-world | MATCH "installation appears to be working correctly"

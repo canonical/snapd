@@ -31,8 +31,12 @@ import (
 )
 
 var (
-	// ErrBootloader is returned if the bootloader can not be determined
+	// ErrBootloader is returned if the bootloader can not be determined.
 	ErrBootloader = errors.New("cannot determine bootloader")
+
+	// ErrNoTryKernelRef is returned if the bootloader finds no enabled
+	// try-kernel.
+	ErrNoTryKernelRef = errors.New("no try-kernel referenced")
 )
 
 // Options carries bootloader options.
@@ -55,18 +59,18 @@ type Options struct {
 }
 
 // Bootloader provides an interface to interact with the system
-// bootloader
+// bootloader.
 type Bootloader interface {
-	// Return the value of the specified bootloader variable
+	// Return the value of the specified bootloader variable.
 	GetBootVars(names ...string) (map[string]string, error)
 
-	// Set the value of the specified bootloader variable
+	// Set the value of the specified bootloader variable.
 	SetBootVars(values map[string]string) error
 
-	// Name returns the bootloader name
+	// Name returns the bootloader name.
 	Name() string
 
-	// ConfigFile returns the name of the config file
+	// ConfigFile returns the name of the config file.
 	ConfigFile() string
 
 	// InstallBootConfig will try to install the boot config in the
@@ -91,13 +95,48 @@ type RecoveryAwareBootloader interface {
 	SetRecoverySystemEnv(recoverySystemDir string, values map[string]string) error
 }
 
+type ExtractedRecoveryKernelImageBootloader interface {
+	Bootloader
+	ExtractRecoveryKernelAssets(recoverySystemDir string, s snap.PlaceInfo, snapf snap.Container) error
+}
+
+// ExtractedRunKernelImageBootloader is a Bootloader that also supports specific
+// methods needed to setup booting from an extracted kernel, which is needed to
+// implement encryption and/or secure boot. Prototypical implementation is UC20
+// grub implementation with FDE.
 type ExtractedRunKernelImageBootloader interface {
 	Bootloader
-	EnableKernel(snap.PlaceInfo) error        // makes the symlink
-	EnableTryKernel(snap.PlaceInfo) error     // makes the symlink
-	Kernel() (snap.PlaceInfo, error)          // gives the symlink
-	TryKernel() (snap.PlaceInfo, bool, error) // gives the symlink (if exists)
-	DisableTryKernel() error                  // removes the symlink
+
+	// EnableKernel enables the specified kernel on ubuntu-boot to be used
+	// during normal boots. The specified kernel should already have been
+	// extracted. This is usually implemented with a "kernel.efi" symlink
+	// pointing to the extracted kernel image.
+	EnableKernel(snap.PlaceInfo) error
+
+	// EnableTryKernel enables the specified kernel on ubuntu-boot to be
+	// tried by the bootloader on a reboot, to be used in conjunction with
+	// setting "kernel_status" to "try". The specified kernel should already
+	// have been extracted. This is usually implemented with a
+	// "try-kernel.efi" symlink pointing to the extracted kernel image.
+	EnableTryKernel(snap.PlaceInfo) error
+
+	// Kernel returns the current enabled kernel on the bootloader, not
+	// necessarily the kernel that was used to boot the current session, but the
+	// kernel that is enabled to boot on "normal" boots.
+	// If error is not nil, the first argument shall be non-nil.
+	Kernel() (snap.PlaceInfo, error)
+
+	// TryKernel returns the current enabled try-kernel on the bootloader, if
+	// there is no such enabled try-kernel, then ErrNoTryKernelRef is returned.
+	// If error is not nil, the first argument shall be non-nil.
+	TryKernel() (snap.PlaceInfo, error)
+
+	// DisableTryKernel disables the current enabled try-kernel on the
+	// bootloader, if it exists. It does not need to return an error if the
+	// enabled try-kernel does not exist or is in an inconsistent state before
+	// disabling it, errors should only be returned when the implementation
+	// fails to disable the try-kernel.
+	DisableTryKernel() error
 }
 
 func genericInstallBootConfig(gadgetFile, systemFile string) (bool, error) {
@@ -148,7 +187,7 @@ func Find(rootdir string, opts *Options) (Bootloader, error) {
 	}
 
 	// try uboot
-	if uboot := newUboot(rootdir); uboot != nil {
+	if uboot := newUboot(rootdir, opts); uboot != nil {
 		return uboot, nil
 	}
 
@@ -185,7 +224,7 @@ func ForceError(err error) {
 	forcedError = err
 }
 
-func extractKernelAssetsToBootDir(dstDir string, s snap.PlaceInfo, snapf snap.Container, assets []string) error {
+func extractKernelAssetsToBootDir(dstDir string, snapf snap.Container, assets []string) error {
 	// now do the kernel specific bits
 	if err := os.MkdirAll(dstDir, 0755); err != nil {
 		return err

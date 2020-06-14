@@ -29,11 +29,6 @@ prepare: |
     install_local test-snapd-content-advanced-slot
 
 execute: |
-    # Put our internal tools on PATH so that we can call snap-discard-ns easily.
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
-    PATH=$LIBEXECDIR/snapd:$PATH
-
     # Test that initially there are no mount points on the plug side (because
     # nothing is connected). All of the plug side target directories are
     # created dynamically when the corresponding content interface connects.
@@ -61,8 +56,8 @@ execute: |
     # snap-update-ns is invoked from snapd is easier than the one when
     # snap-confine invokes it to do the initial setup. We are testing the
     # initial setup here.
-    snap-discard-ns test-snapd-content-advanced-plug
-    snap-discard-ns test-snapd-content-advanced-slot
+    snapd.tool exec snap-discard-ns test-snapd-content-advanced-plug
+    snapd.tool exec snap-discard-ns test-snapd-content-advanced-slot
 
     # Connect the plug to the slot. This should just write the mount profiles
     # to disk as we just have discarded the namespaces so there is nothing to
