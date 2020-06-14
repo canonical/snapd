@@ -4,6 +4,11 @@ summary: Check that install works
 # to install so that actual caches get generated
 systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64]
 
+debug: |
+    ls -lah /var/cache/fontconfig/
+    dpkg-reconfigure fontconfig
+    ls -lah /var/cache/fontconfig/
+
 prepare: |
     if [ "$SPREAD_SYSTEM" = ubuntu-16.04-64 ]; then
         PKG=fonts-kiloji
