@@ -253,3 +253,17 @@ func (s *systemUserSuite) TestDecodeOKFormat1(c *C) {
 	c.Check(systemUser.Serials(), DeepEquals, []string{"7c7f435d-ed28-4281-bd77-e271e0846904"})
 
 }
+
+func (s *systemUserSuite) TestSuggestedFormat(c *C) {
+	fmtnum, err := asserts.SuggestFormat(asserts.SystemUserType, nil, nil)
+	c.Assert(err, IsNil)
+	c.Check(fmtnum, Equals, 0)
+
+	headers := map[string]interface{}{
+		"serials": []interface{}{"serialserial"},
+	}
+	fmtnum, err = asserts.SuggestFormat(asserts.SystemUserType, headers, nil)
+	c.Assert(err, IsNil)
+	c.Check(fmtnum, Equals, 1)
+
+}

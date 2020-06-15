@@ -297,3 +297,17 @@ func assembleSystemUser(assert assertionBase) (Assertion, error) {
 		forcePasswordChange: forcePasswordChange,
 	}, nil
 }
+
+func systemUserFormatAnalyze(headers map[string]interface{}, body []byte) (formatnum int, err error) {
+	formatnum = 0
+
+	serials, err := checkStringList(headers, "serials")
+	if err != nil {
+		return 0, err
+	}
+	if len(serials) > 0 {
+		formatnum = 1
+	}
+
+	return formatnum, nil
+}

@@ -153,6 +153,7 @@ func MockMaxSupportedFormat(assertType *AssertionType, maxFormat int) (restore f
 
 var formatAnalyzer = map[*AssertionType]func(headers map[string]interface{}, body []byte) (formatnum int, err error){
 	SnapDeclarationType: snapDeclarationFormatAnalyze,
+	SystemUserType:      systemUserFormatAnalyze,
 }
 
 // MaxSupportedFormats returns a mapping between assertion type names
