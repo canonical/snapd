@@ -42,6 +42,10 @@ func makeMockSnapdSnap(c *C) *snap.Info {
 	c.Assert(err, IsNil)
 	err = os.MkdirAll(dirs.SnapUserServicesDir, 0755)
 	c.Assert(err, IsNil)
+	err = os.MkdirAll(dirs.SnapDBusSystemPolicyDir, 0755)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(dirs.SnapDBusSessionPolicyDir, 0755)
+	c.Assert(err, IsNil)
 
 	info := snaptest.MockSnapWithFiles(c, snapdYaml, &snap.SideInfo{Revision: snap.R(1)}, [][]string{
 		// system services
@@ -53,6 +57,9 @@ func makeMockSnapdSnap(c *C) *snap.Info {
 		// user services
 		{"usr/lib/systemd/user/snapd.session-agent.service", "[Unit]\n[Service]\nExecStart=/usr/bin/snap session-agent"},
 		{"usr/lib/systemd/user/snapd.session-agent.socket", "[Unit]\n[Socket]\nListenStream=%t/snap-session.socket"},
+		// D-Bus configuration
+		{"usr/share/dbus-1/session.d/snapd.session-services.conf", "<busconfig/>"},
+		{"usr/share/dbus-1/system.d/snapd.system-services.conf", "<busconfig/>"},
 	})
 
 	return info
@@ -148,6 +155,12 @@ WantedBy=snapd.service
 		// check that snapd.session-agent.socket is created
 		filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.socket"),
 		"[Unit]\n[Socket]\nListenStream=%t/snap-session.socket",
+	}, {
+		filepath.Join(dirs.SnapDBusSystemPolicyDir, "snapd.system-services.conf"),
+		"<busconfig/>",
+	}, {
+		filepath.Join(dirs.SnapDBusSessionPolicyDir, "snapd.session-services.conf"),
+		"<busconfig/>",
 	}} {
 		c.Check(entry[0], testutil.FileEquals, entry[1])
 	}
@@ -202,6 +215,8 @@ func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnClassic(c *C) {
 	c.Check(osutil.FileExists(filepath.Join(dirs.SnapServicesDir, "usr-lib-snapd.mount")), Equals, false)
 	c.Check(osutil.FileExists(filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.service")), Equals, false)
 	c.Check(osutil.FileExists(filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.socket")), Equals, false)
+	c.Check(osutil.FileExists(filepath.Join(dirs.SnapDBusSystemPolicyDir, "snapd.system-services.conf")), Equals, false)
+	c.Check(osutil.FileExists(filepath.Join(dirs.SnapDBusSessionPolicyDir, "snapd.session-services.conf")), Equals, false)
 
 	// check that no systemctl calls happened
 	c.Check(s.sysdLog, IsNil)
@@ -257,6 +272,8 @@ func (s *servicesTestSuite) TestRemoveSnapServicesForFirstInstallSnapdOnCore(c *
 		{filepath.Join(dirs.SnapServicesDir, "snapd.system-shutdown.service"), "from-snapd"},
 		{filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.service"), "from-snapd"},
 		{filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.socket"), "from-snapd"},
+		{filepath.Join(dirs.SnapDBusSystemPolicyDir, "snapd.system-services.conf"), "from-snapd"},
+		{filepath.Join(dirs.SnapDBusSessionPolicyDir, "snapd.session-services.conf"), "from-snapd"},
 		// extra unit not present in core snap
 		{filepath.Join(dirs.SnapServicesDir, "snapd.not-in-core.service"), "from-snapd"},
 	}
