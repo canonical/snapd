@@ -25,7 +25,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"math/bits"
 	"sort"
 )
 
@@ -264,13 +263,8 @@ func (gr *Groupings) bitsetIter(g *Grouping, f func(group uint16) error) error {
 		if w == 0 {
 			continue
 		}
-		if w != 0xffff {
-			for j := uint16(0); w != 0; j++ {
-				var m uint16
-				if w&1 == 0 {
-					m = uint16(bits.TrailingZeros16(w))
-					j += m
-				}
+		for j := uint16(0); w != 0; j++ {
+			if w&1 != 0 {
 				if err := f(i*16 + j); err != nil {
 					return err
 				}
@@ -279,19 +273,8 @@ func (gr *Groupings) bitsetIter(g *Grouping, f func(group uint16) error) error {
 					// found all elements
 					return nil
 				}
-				w >>= 1 + m
 			}
-		} else {
-			for j := uint16(0); j < 16; j++ {
-				if err := f(i*16 + j); err != nil {
-					return err
-				}
-			}
-			c -= 16
-			if c == 0 {
-				// found all elements
-				return nil
-			}
+			w >>= 1
 		}
 	}
 	return nil
