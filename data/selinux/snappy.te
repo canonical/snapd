@@ -810,3 +810,14 @@ gen_require(`
 ')
 # mandb cache update scans whe whole directory tree looking for 'man'
 allow mandb_t snappy_var_lib_t:dir search_dir_perms;
+
+########################################
+#
+# extra policy for system dbus
+#
+gen_require(`
+	type system_dbusd_t;
+  ')
+# system dbus may look info /var/lib/snapd/dbus
+snappy_search_lib(system_dbusd_t)
+snappy_read_lib(system_dbusd_t)
