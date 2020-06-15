@@ -35,6 +35,7 @@ parts:
       # install build dependencies
       export DEBIAN_FRONTEND=noninteractive
       export DEBCONF_NONINTERACTIVE_SEEN=true
+      sudo -E apt upgrade -y
       sudo -E apt-get build-dep -y ./
       ./get-deps.sh --skip-unused-check
     override-build: |
