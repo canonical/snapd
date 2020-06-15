@@ -266,11 +266,6 @@ func (s *serviceControlSuite) TestStartListedServices(c *C) {
 
 	s.mockTestSnap(c)
 
-	var snapst snapstate.SnapState
-	c.Assert(snapstate.Get(st, "test-snap", &snapst), IsNil)
-	snapst.LastActiveDisabledServices = []string{"foo", "bar"}
-	snapstate.Set(st, "test-snap", &snapst)
-
 	chg := st.NewChange("service-control", "...")
 	t := st.NewTask("service-control", "...")
 	cmd := &servicestate.ServiceAction{
@@ -291,10 +286,6 @@ func (s *serviceControlSuite) TestStartListedServices(c *C) {
 		{"--root", dirs.GlobalRootDir, "is-enabled", "snap.test-snap.foo.service"},
 		{"start", "snap.test-snap.foo.service"},
 	})
-
-	var snapst2 snapstate.SnapState
-	c.Assert(snapstate.Get(st, "test-snap", &snapst2), IsNil)
-	c.Check(snapst2.LastActiveDisabledServices, DeepEquals, []string{"bar"})
 }
 
 func (s *serviceControlSuite) TestStartEnableServices(c *C) {
@@ -353,10 +344,6 @@ func (s *serviceControlSuite) TestStopServices(c *C) {
 		{"stop", "snap.test-snap.foo.service"},
 		{"show", "--property=ActiveState", "snap.test-snap.foo.service"},
 	})
-
-	var snapst snapstate.SnapState
-	c.Assert(snapstate.Get(st, "test-snap", &snapst), IsNil)
-	c.Check(snapst.LastActiveDisabledServices, DeepEquals, []string{"foo"})
 }
 
 func (s *serviceControlSuite) TestStopDisableServices(c *C) {
@@ -387,10 +374,6 @@ func (s *serviceControlSuite) TestStopDisableServices(c *C) {
 		{"show", "--property=ActiveState", "snap.test-snap.foo.service"},
 		{"--root", dirs.GlobalRootDir, "disable", "snap.test-snap.foo.service"},
 	})
-
-	var snapst snapstate.SnapState
-	c.Assert(snapstate.Get(st, "test-snap", &snapst), IsNil)
-	c.Check(snapst.LastActiveDisabledServices, DeepEquals, []string{"foo"})
 }
 
 func (s *serviceControlSuite) TestRestartServices(c *C) {

@@ -21,7 +21,6 @@ package servicestate
 
 import (
 	"fmt"
-	"sort"
 
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -102,11 +101,6 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 		if err := wrappers.StopServices(services, flags, reason, meter, perfTimings); err != nil {
 			return err
 		}
-		// update the list of disabled services; this affects operations such as snap refresh where
-		// snap-control is invoked from hooks (via snapctl), a service is stopped by the hook and should
-		// not then get started by start-snap-services.
-		snapst.LastActiveDisabledServices = append(snapst.LastActiveDisabledServices, sc.Services...)
-		snapstate.Set(st, sc.SnapName, &snapst)
 	case "start":
 		startupOrdered, err := snap.SortServices(services)
 		if err != nil {
@@ -117,21 +111,6 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 		}
 		if err := wrappers.StartServices(startupOrdered, nil, flags, meter, perfTimings); err != nil {
 			return err
-		}
-		// remove started services from the list of disabled services
-		if len(snapst.LastActiveDisabledServices) > 0 {
-			for _, svc := range services {
-				for i, ds := range snapst.LastActiveDisabledServices {
-					if svc.Name == ds {
-						lastActiveDisabled := snapst.LastActiveDisabledServices
-						lastActiveDisabled[i] = lastActiveDisabled[len(lastActiveDisabled)-1]
-						snapst.LastActiveDisabledServices = lastActiveDisabled[:len(lastActiveDisabled)-1]
-						break
-					}
-				}
-			}
-			sort.Strings(snapst.LastActiveDisabledServices)
-			snapstate.Set(st, sc.SnapName, &snapst)
 		}
 	case "restart":
 		return wrappers.RestartServices(services, nil, meter, perfTimings)
