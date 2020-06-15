@@ -1,0 +1,7 @@
+#!/bin/bash -e
+
+# start running
+snapctl start --enable "$SNAP_NAME.svc"
+
+# stop running
+snapctl stop --disable "$SNAP_NAME.svc"
