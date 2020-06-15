@@ -29,21 +29,27 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
+type MkfsFunc func(imgFile, label, contentsRootDir string) error
+
+var (
+	mkfsHandlers = map[string]MkfsFunc{
+		"vfat": MkfsVfat,
+		"ext4": MkfsExt4,
+	}
+)
+
 // MkfsExt4 creates an EXT4 filesystem in given image file, with an optional
 // filesystem label, and populates it with the contents of provided root
 // directory.
 func MkfsExt4(img, label, contentsRootDir string) error {
-	// taken from ubuntu-image
+	// Originally taken from ubuntu-image
+	// Switched to use mkfs defaults for https://bugs.launchpad.net/snappy/+bug/1878374
+	// For caveats/requirements in case we need support for older systems:
+	// https://github.com/snapcore/snapd/pull/6997#discussion_r293967140
 	mkfsArgs := []string{
 		"mkfs.ext4",
 		// default usage type
 		"-T", "default",
-		// disable metadata checksum, which were unsupported in Ubuntu
-		// 16.04 and Ubuntu Core 16 systems and would lead to a boot
-		// failure if enabled
-		"-O", "-metadata_csum",
-		// allow uninitialized block groups
-		"-O", "uninit_bg",
 	}
 	if contentsRootDir != "" {
 		// mkfs.ext4 can populate the filesystem with contents of given

@@ -3,8 +3,7 @@ description: |
   This test checks that preseeding of Ubuntu cloud images with snap-preseed
   can be undone with --reset flag.
 
-# TODO: reenable for ubuntu-20.04-*, that now uses the snapd snap
-systems: [ubuntu-19.10-*, ubuntu-20.04-*]
+systems: [ubuntu-19.10-*, ubuntu-2*]
 
 environment:
   IMAGE_MOUNTPOINT: /mnt/cloudimg

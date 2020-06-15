@@ -3,8 +3,6 @@ summary: Run a smoke test on UC20 with encryption enabled
 description: |
     This test checks basic snapd commands on UC20 with secure boot and encryption enabled
 
-systems: [ubuntu-20.04-*]
-
 execute: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"

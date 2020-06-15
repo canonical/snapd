@@ -114,8 +114,7 @@ var (
 	SystemLocalFontsDir       string
 	SystemFontconfigCacheDirs []string
 
-	FreezerCgroupDir string
-	PidsCgroupDir    string
+	PidsCgroupDir string
 
 	SnapshotsDir string
 
@@ -342,7 +341,6 @@ func SetRootDir(rootdir string) {
 	SnapBusPolicyDir = filepath.Join(rootdir, "/etc/dbus-1/system.d")
 	SnapBusSessionPolicyDir = filepath.Join(rootdir, "/etc/dbus-1/session.d")
 
-	CloudMetaDataFile = filepath.Join(rootdir, "/var/lib/cloud/seed/nocloud-net/meta-data")
 	CloudInstanceDataFile = filepath.Join(rootdir, "/run/cloud-init/instance-data.json")
 
 	SnapUdevRulesDir = filepath.Join(rootdir, "/etc/udev/rules.d")
@@ -386,7 +384,6 @@ func SetRootDir(rootdir string) {
 		SystemFontconfigCacheDirs = append(SystemFontconfigCacheDirs, filepath.Join(rootdir, "/usr/lib/fontconfig/cache"))
 	}
 
-	FreezerCgroupDir = filepath.Join(rootdir, "/sys/fs/cgroup/freezer/")
 	PidsCgroupDir = filepath.Join(rootdir, "/sys/fs/cgroup/pids/")
 	SnapshotsDir = filepath.Join(rootdir, snappyDir, "snapshots")
 

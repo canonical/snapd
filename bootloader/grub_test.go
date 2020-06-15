@@ -229,19 +229,19 @@ func (s *grubTestSuite) grubDir() string {
 	return filepath.Join(s.bootdir, "grub")
 }
 
-func (s *grubTestSuite) grubRecoveryDir() string {
+func (s *grubTestSuite) grubEFINativeDir() string {
 	return filepath.Join(s.rootdir, "EFI/ubuntu")
 }
 
-func (s *grubTestSuite) makeFakeGrubRecoveryEnv(c *C) {
-	err := os.MkdirAll(s.grubRecoveryDir(), 0755)
+func (s *grubTestSuite) makeFakeGrubEFINativeEnv(c *C) {
+	err := os.MkdirAll(s.grubEFINativeDir(), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(s.grubRecoveryDir(), "grub.cfg"), nil, 0644)
+	err = ioutil.WriteFile(filepath.Join(s.grubEFINativeDir(), "grub.cfg"), nil, 0644)
 	c.Assert(err, IsNil)
 }
 
 func (s *grubTestSuite) TestNewGrubWithOptionRecovery(c *C) {
-	s.makeFakeGrubRecoveryEnv(c)
+	s.makeFakeGrubEFINativeEnv(c)
 
 	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Recovery: true})
 	c.Assert(g, NotNil)
@@ -249,17 +249,17 @@ func (s *grubTestSuite) TestNewGrubWithOptionRecovery(c *C) {
 }
 
 func (s *grubTestSuite) TestNewGrubWithOptionRecoveryBootEnv(c *C) {
-	s.makeFakeGrubRecoveryEnv(c)
+	s.makeFakeGrubEFINativeEnv(c)
 	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Recovery: true})
 
 	// check that setting vars goes to the right place
-	c.Check(filepath.Join(s.grubRecoveryDir(), "grubenv"), testutil.FileAbsent)
+	c.Check(filepath.Join(s.grubEFINativeDir(), "grubenv"), testutil.FileAbsent)
 	err := g.SetBootVars(map[string]string{
 		"k1": "v1",
 		"k2": "v2",
 	})
 	c.Assert(err, IsNil)
-	c.Check(filepath.Join(s.grubRecoveryDir(), "grubenv"), testutil.FilePresent)
+	c.Check(filepath.Join(s.grubEFINativeDir(), "grubenv"), testutil.FilePresent)
 
 	env, err := g.GetBootVars("k1", "k2")
 	c.Assert(err, IsNil)
@@ -279,7 +279,7 @@ func (s *grubTestSuite) TestNewGrubWithOptionRecoveryNoEnv(c *C) {
 }
 
 func (s *grubTestSuite) TestGrubSetRecoverySystemEnv(c *C) {
-	s.makeFakeGrubRecoveryEnv(c)
+	s.makeFakeGrubEFINativeEnv(c)
 	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Recovery: true})
 
 	// check that we can set a recovery system specific bootenv
@@ -519,7 +519,7 @@ func (s *grubTestSuite) TestKernelExtractionRunImageKernel(c *C) {
 func (s *grubTestSuite) TestKernelExtractionRunImageKernelNoSlashBoot(c *C) {
 	// this is ubuntu-boot but during install we use the native EFI/ubuntu
 	// layout, same as Recovery, without the /boot mount
-	s.makeFakeGrubRecoveryEnv(c)
+	s.makeFakeGrubEFINativeEnv(c)
 
 	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{ExtractedRunKernelImage: true, NoSlashBoot: true})
 	c.Assert(g, NotNil)

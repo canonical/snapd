@@ -11,21 +11,21 @@ prepare: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
     install_local test-snapd-desktop
-    session-tool -u test --prepare
+    tests.session -u test prepare
 
 restore: |
     rm -f output.txt
-    session-tool -u test systemctl --user stop test-snapd-desktop-sleep.service
-    session-tool -u test --restore
+    tests.session -u test exec systemctl --user stop test-snapd-desktop-sleep.service
+    tests.session -u test restore
 
 execute: |
     # Start a "sleep" process in the background
     #shellcheck disable=SC2016
-    session-tool -u test systemd-run --user --unit test-snapd-desktop-sleep.service test-snapd-desktop.cmd sh -c 'touch $SNAP_USER_DATA/1.stamp && exec sleep 1h'
+    tests.session -u test exec systemd-run --user --unit test-snapd-desktop-sleep.service test-snapd-desktop.cmd sh -c 'touch $SNAP_USER_DATA/1.stamp && exec sleep 1h'
     # Ensure that snap-confine has finished its task and that the snap process
     # is active. Note that we don't want to wait forever either.
-    retry-tool -n 30 --wait 0.1 test -e /home/test/snap/test-snapd-desktop/current/1.stamp
-    pid1="$(session-tool -u test systemctl --user show --property=MainPID test-snapd-desktop-sleep.service | cut -d = -f 2)"
+    retry -n 30 --wait 0.1 test -e /home/test/snap/test-snapd-desktop/current/1.stamp
+    pid1="$(tests.session -u test exec systemctl --user show --property=MainPID test-snapd-desktop-sleep.service | cut -d = -f 2)"
 
     snap routine portal-info "$pid1" > output.txt
     diff -u output.txt - << \EOF
