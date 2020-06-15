@@ -147,28 +147,32 @@ func (s *groupingsSuite) TestDeserializeLabelErrors(c *C) {
 	err = gr.AddTo(&g, 4)
 	c.Assert(err, IsNil)
 
-	invalidLabels := []string{
+	const errPrefix = "invalid serialized grouping label: "
+
+	invalidLabels := []struct {
+		invalid, errSuffix string
+	}{
 		// not base64
-		"\x0a\x02\xf4",
+		{"\x0a\x02\xf4", `illegal base64 data.*`},
 		// wrong length
-		base64.RawURLEncoding.EncodeToString([]byte{1}),
+		{base64.RawURLEncoding.EncodeToString([]byte{1}), `not divisible in 16-bits words`},
 		// not a known group
-		internal.Serialize([]uint16{5}),
+		{internal.Serialize([]uint16{5}), `element larger than maximum group`},
 		// not in order
-		internal.Serialize([]uint16{0, 2, 1}),
+		{internal.Serialize([]uint16{0, 2, 1}), `not sorted`},
 		// bitset: too many words
-		internal.Serialize([]uint16{0, 0, 0, 0, 0, 0}),
+		{internal.Serialize([]uint16{0, 0, 0, 0, 0, 0}), `too large`},
 		// bitset: larger than maxgroup
-		internal.Serialize([]uint16{6, 0, 0, 0, 0}),
+		{internal.Serialize([]uint16{6, 0, 0, 0, 0}), `bitset for unexpectedly more than maximum group elements`},
 		// bitset: grouping size is too small
-		internal.Serialize([]uint16{0, 0, 0, 0, 0}),
-		internal.Serialize([]uint16{1, 0, 0, 0, 0}),
-		internal.Serialize([]uint16{4, 0, 0, 0, 0}),
+		{internal.Serialize([]uint16{0, 0, 0, 0, 0}), `bitset for too few elements`},
+		{internal.Serialize([]uint16{1, 0, 0, 0, 0}), `bitset for too few elements`},
+		{internal.Serialize([]uint16{4, 0, 0, 0, 0}), `bitset for too few elements`},
 	}
 
 	for _, il := range invalidLabels {
-		_, err := gr.Deserialize(il)
-		c.Check(err, ErrorMatches, "invalid serialized grouping label")
+		_, err := gr.Deserialize(il.invalid)
+		c.Check(err, ErrorMatches, errPrefix+il.errSuffix)
 	}
 }
 
