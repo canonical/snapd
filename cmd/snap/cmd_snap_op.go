@@ -321,10 +321,7 @@ func maybeWithSudoSecurePath() bool {
 		return false
 	}
 	// Known distros setting secure_path:
-	if !release.DistroLike("fedora", "opensuse") {
-		return false
-	}
-	return true
+	return release.DistroLike("fedora", "opensuse")
 }
 
 // show what has been done
