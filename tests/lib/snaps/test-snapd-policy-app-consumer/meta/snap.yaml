@@ -392,6 +392,9 @@ apps:
   uhid:
     command: bin/run
     plugs: [ uhid ]
+  uinput:
+    command: bin/run
+    plugs: [ uinput ]
   uio:
     command: bin/run
     plugs: [ uio ]
