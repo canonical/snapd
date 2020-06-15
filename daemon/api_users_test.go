@@ -387,6 +387,7 @@ func (s *userSuite) makeSystemUsers(c *check.C, systemUsers []map[string]interfa
 	// and a serial
 	deviceKey, _ := assertstest.GenerateKey(752)
 	encDevKey, err := asserts.EncodePublicKey(deviceKey.PublicKey())
+	c.Assert(err, check.IsNil)
 	serial, err := s.brands.Signing("my-brand").Sign(asserts.SerialType, map[string]interface{}{
 		"authority-id":        "my-brand",
 		"brand-id":            "my-brand",
@@ -396,6 +397,7 @@ func (s *userSuite) makeSystemUsers(c *check.C, systemUsers []map[string]interfa
 		"device-key-sha3-384": deviceKey.PublicKey().ID(),
 		"timestamp":           time.Now().Format(time.RFC3339),
 	}, nil, "")
+	c.Assert(err, check.IsNil)
 	assertstatetest.AddMany(st, serial)
 
 	for _, suMap := range systemUsers {
@@ -750,6 +752,7 @@ func (s *userSuite) TestPostCreateUserFromAssertionNoModel(c *check.C) {
 		Serial: "other-serial-assertion",
 	})
 	st.Unlock()
+	c.Assert(err, check.IsNil)
 
 	// do it!
 	buf := bytes.NewBufferString(`{"email":"serial@bar.com", "known":true}`)
