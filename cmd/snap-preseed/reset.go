@@ -36,7 +36,7 @@ func resetPreseededChroot(preseedChroot string) error {
 		dirs.SnapSystemKeyFile,
 		filepath.Join(dirs.SnapBlobDir, "*.snap"),
 		filepath.Join(dirs.SnapUdevRulesDir, "*-snap.*.rules"),
-		filepath.Join(dirs.SnapBusPolicyDir, "snap.*.*.conf"),
+		filepath.Join(dirs.SnapDBusSystemPolicyDir, "snap.*.*.conf"),
 		filepath.Join(dirs.SnapServicesDir, "snap.*.service"),
 		filepath.Join(dirs.SnapServicesDir, "snap.*.timer"),
 		filepath.Join(dirs.SnapServicesDir, "snap.*.socket"),

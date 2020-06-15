@@ -431,7 +431,7 @@ func (s *startPreseedSuite) TestReset(c *C) {
 		{filepath.Join(dirs.SnapMountPolicyDir, "foo.fstab"), ""},
 		{filepath.Join(dirs.SnapBlobDir, "foo.snap"), ""},
 		{filepath.Join(dirs.SnapUdevRulesDir, "foo-snap.bar.rules"), ""},
-		{filepath.Join(dirs.SnapBusPolicyDir, "snap.foo.bar.conf"), ""},
+		{filepath.Join(dirs.SnapDBusSystemPolicyDir, "snap.foo.bar.conf"), ""},
 		{filepath.Join(dirs.SnapServicesDir, "snap.foo.service"), ""},
 		{filepath.Join(dirs.SnapServicesDir, "snap.foo.timer"), ""},
 		{filepath.Join(dirs.SnapServicesDir, "snap.foo.socket"), ""},

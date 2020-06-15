@@ -112,7 +112,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 		return fmt.Errorf("cannot obtain expected DBus configuration files for snap %q: %s", snapName, err)
 	}
 	glob := fmt.Sprintf("%s.conf", interfaces.SecurityTagGlob(snapName))
-	dir := dirs.SnapBusPolicyDir
+	dir := dirs.SnapDBusSystemPolicyDir
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory for DBus configuration files %q: %s", dir, err)
 	}
@@ -128,7 +128,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 // This method should be called after removing a snap.
 func (b *Backend) Remove(snapName string) error {
 	glob := fmt.Sprintf("%s.conf", interfaces.SecurityTagGlob(snapName))
-	_, _, err := osutil.EnsureDirState(dirs.SnapBusPolicyDir, glob, nil)
+	_, _, err := osutil.EnsureDirState(dirs.SnapDBusSystemPolicyDir, glob, nil)
 	if err != nil {
 		return fmt.Errorf("cannot synchronize DBus configuration files for snap %q: %s", snapName, err)
 	}

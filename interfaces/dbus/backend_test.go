@@ -56,7 +56,7 @@ func (s *backendSuite) SetUpTest(c *C) {
 
 	// Prepare a directory for DBus configuration files.
 	// NOTE: Normally this is a part of the OS snap.
-	err := os.MkdirAll(dirs.SnapBusPolicyDir, 0700)
+	err := os.MkdirAll(dirs.SnapDBusSystemPolicyDir, 0700)
 	c.Assert(err, IsNil)
 }
 
@@ -77,7 +77,7 @@ func (s *backendSuite) TestInstallingSnapWritesConfigFiles(c *C) {
 	}
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 0)
-		profile := filepath.Join(dirs.SnapBusPolicyDir, "snap.samba.smbd.conf")
+		profile := filepath.Join(dirs.SnapDBusSystemPolicyDir, "snap.samba.smbd.conf")
 		// file called "snap.sambda.smbd.conf" was created
 		_, err := os.Stat(profile)
 		c.Check(err, IsNil)
@@ -97,7 +97,7 @@ func (s *backendSuite) TestInstallingSnapWithHookWritesConfigFiles(c *C) {
 	}
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, "", ifacetest.HookYaml, 0)
-		profile := filepath.Join(dirs.SnapBusPolicyDir, "snap.foo.hook.configure.conf")
+		profile := filepath.Join(dirs.SnapDBusSystemPolicyDir, "snap.foo.hook.configure.conf")
 
 		// Verify that "snap.foo.hook.configure.conf" was created
 		_, err := os.Stat(profile)
@@ -115,7 +115,7 @@ func (s *backendSuite) TestRemovingSnapRemovesConfigFiles(c *C) {
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 0)
 		s.RemoveSnap(c, snapInfo)
-		profile := filepath.Join(dirs.SnapBusPolicyDir, "snap.samba.smbd.conf")
+		profile := filepath.Join(dirs.SnapDBusSystemPolicyDir, "snap.samba.smbd.conf")
 		// file called "snap.sambda.smbd.conf" was removed
 		_, err := os.Stat(profile)
 		c.Check(os.IsNotExist(err), Equals, true)
@@ -135,7 +135,7 @@ func (s *backendSuite) TestRemovingSnapWithHookRemovesConfigFiles(c *C) {
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, "", ifacetest.HookYaml, 0)
 		s.RemoveSnap(c, snapInfo)
-		profile := filepath.Join(dirs.SnapBusPolicyDir, "snap.foo.hook.configure.conf")
+		profile := filepath.Join(dirs.SnapDBusSystemPolicyDir, "snap.foo.hook.configure.conf")
 
 		// Verify that "snap.foo.hook.configure.conf" was removed
 		_, err := os.Stat(profile)
@@ -152,7 +152,7 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreApps(c *C) {
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 0)
 		snapInfo = s.UpdateSnap(c, snapInfo, opts, ifacetest.SambaYamlV1WithNmbd, 0)
-		profile := filepath.Join(dirs.SnapBusPolicyDir, "snap.samba.nmbd.conf")
+		profile := filepath.Join(dirs.SnapDBusSystemPolicyDir, "snap.samba.nmbd.conf")
 		// file called "snap.sambda.nmbd.conf" was created
 		_, err := os.Stat(profile)
 		c.Check(err, IsNil)
@@ -173,7 +173,7 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreHooks(c *C) {
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 0)
 		snapInfo = s.UpdateSnap(c, snapInfo, opts, ifacetest.SambaYamlWithHook, 0)
-		profile := filepath.Join(dirs.SnapBusPolicyDir, "snap.samba.hook.configure.conf")
+		profile := filepath.Join(dirs.SnapDBusSystemPolicyDir, "snap.samba.hook.configure.conf")
 
 		// Verify that "snap.samba.hook.configure.conf" was created
 		_, err := os.Stat(profile)
@@ -191,7 +191,7 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerApps(c *C) {
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1WithNmbd, 0)
 		snapInfo = s.UpdateSnap(c, snapInfo, opts, ifacetest.SambaYamlV1, 0)
-		profile := filepath.Join(dirs.SnapBusPolicyDir, "snap.samba.nmbd.conf")
+		profile := filepath.Join(dirs.SnapDBusSystemPolicyDir, "snap.samba.nmbd.conf")
 		// file called "snap.sambda.nmbd.conf" was removed
 		_, err := os.Stat(profile)
 		c.Check(os.IsNotExist(err), Equals, true)
@@ -212,7 +212,7 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerHooks(c *C) {
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, "", ifacetest.SambaYamlWithHook, 0)
 		snapInfo = s.UpdateSnap(c, snapInfo, opts, ifacetest.SambaYamlV1, 0)
-		profile := filepath.Join(dirs.SnapBusPolicyDir, "snap.samba.hook.configure.conf")
+		profile := filepath.Join(dirs.SnapDBusSystemPolicyDir, "snap.samba.hook.configure.conf")
 
 		// Verify that "snap.samba.hook.configure.conf" was removed
 		_, err := os.Stat(profile)
@@ -231,7 +231,7 @@ func (s *backendSuite) TestCombineSnippetsWithActualSnippets(c *C) {
 	}
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 0)
-		profile := filepath.Join(dirs.SnapBusPolicyDir, "snap.samba.smbd.conf")
+		profile := filepath.Join(dirs.SnapDBusSystemPolicyDir, "snap.samba.smbd.conf")
 		c.Check(profile, testutil.FileEquals, "<?xml>\n<policy>...</policy>\n</xml>")
 		stat, err := os.Stat(profile)
 		c.Assert(err, IsNil)
@@ -243,7 +243,7 @@ func (s *backendSuite) TestCombineSnippetsWithActualSnippets(c *C) {
 func (s *backendSuite) TestCombineSnippetsWithoutAnySnippets(c *C) {
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 0)
-		profile := filepath.Join(dirs.SnapBusPolicyDir, "snap.samba.smbd.conf")
+		profile := filepath.Join(dirs.SnapDBusSystemPolicyDir, "snap.samba.smbd.conf")
 		_, err := os.Stat(profile)
 		// Without any snippets, there the .conf file is not created.
 		c.Check(os.IsNotExist(err), Equals, true)
@@ -272,9 +272,9 @@ func (s *backendSuite) TestAppBoundIfaces(c *C) {
 	snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{}, "", sambaYamlWithIfaceBoundToNmbd, 0)
 	defer s.RemoveSnap(c, snapInfo)
 	// Check that only one of the .conf files is actually created
-	_, err := os.Stat(filepath.Join(dirs.SnapBusPolicyDir, "snap.samba.smbd.conf"))
+	_, err := os.Stat(filepath.Join(dirs.SnapDBusSystemPolicyDir, "snap.samba.smbd.conf"))
 	c.Check(os.IsNotExist(err), Equals, true)
-	_, err = os.Stat(filepath.Join(dirs.SnapBusPolicyDir, "snap.samba.nmbd.conf"))
+	_, err = os.Stat(filepath.Join(dirs.SnapDBusSystemPolicyDir, "snap.samba.nmbd.conf"))
 	c.Check(err, IsNil)
 }
 
