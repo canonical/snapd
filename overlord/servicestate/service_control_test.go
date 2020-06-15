@@ -448,3 +448,24 @@ func (s *serviceControlSuite) TestReloadServices(c *C) {
 		{"reload-or-restart", "snap.test-snap.foo.service"},
 	})
 }
+
+func (s *serviceControlSuite) TestConflict(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	s.mockTestSnap(c)
+
+	chg := st.NewChange("service-control", "...")
+	t := st.NewTask("service-control", "...")
+	cmd := &servicestate.ServiceAction{
+		SnapName: "test-snap",
+		Action:   "reload-or-restart",
+		Services: []string{"foo"},
+	}
+	t.Set("service-action", cmd)
+	chg.AddTask(t)
+
+	_, err := snapstate.Remove(st, "test-snap", snap.Revision{}, nil)
+	c.Assert(err, ErrorMatches, `snap "test-snap" has "service-control" change in progress`)
+}

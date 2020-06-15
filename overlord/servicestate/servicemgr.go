@@ -20,6 +20,9 @@
 package servicestate
 
 import (
+	"fmt"
+
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -28,8 +31,9 @@ type ServiceManager struct {
 	state *state.State
 }
 
-// Manager returns a new device manager.
+// Manager returns a new service manager.
 func Manager(st *state.State, runner *state.TaskRunner) *ServiceManager {
+	delayedCrossMgrInit()
 	m := &ServiceManager{
 		state: st,
 	}
@@ -41,4 +45,17 @@ func Manager(st *state.State, runner *state.TaskRunner) *ServiceManager {
 // Ensure implements StateManager.Ensure.
 func (m *ServiceManager) Ensure() error {
 	return nil
+}
+
+func delayedCrossMgrInit() {
+	// hook into conflict checks mechanisms
+	snapstate.AddAffectedSnapsByKind("service-control", serviceControlAffectedSnaps)
+}
+
+func serviceControlAffectedSnaps(t *state.Task) ([]string, error) {
+	var serviceAction ServiceAction
+	if err := t.Get("service-action", &serviceAction); err != nil {
+		return nil, fmt.Errorf("internal error: cannot obtain service action from task: %s", t.Summary())
+	}
+	return []string{serviceAction.SnapName}, nil
 }
