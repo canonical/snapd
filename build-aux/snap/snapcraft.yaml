@@ -120,19 +120,7 @@ parts:
       cp -a fc-cache-xenial $SNAPCRAFT_PART_INSTALL/bin/fc-cache-v6
     prime:
       - bin/fc-cache-v6
-  # the version in Ubuntu 18.04 (cache v7)
-  fontconfig-bionic:
-    plugin: nil
-    build-packages: [python3-apt]
-    source: https://github.com/anonymouse64/fc-cache-static-builder.git
-    source-branch: fonts-are-silly
-    override-build: |
-      ./build-from-security.py bionic
-      mkdir -p $SNAPCRAFT_PART_INSTALL/bin
-      cp -a fc-cache-bionic $SNAPCRAFT_PART_INSTALL/bin/fc-cache-v7
-    prime:
-      - bin/fc-cache-v7
-  # the version in Ubuntu 20.04 (cache v7.5ish????)
+  # the version in Ubuntu 20.04 (cache v7 + some new version?)
   fontconfig-focal:
     plugin: nil
     build-packages: [python3-apt, uuid-dev]
@@ -141,6 +129,6 @@ parts:
     override-build: |
       ./build-from-security.py focal
       mkdir -p $SNAPCRAFT_PART_INSTALL/bin
-      cp -a fc-cache-focal $SNAPCRAFT_PART_INSTALL/bin/fc-cache-v7.5
+      cp -a fc-cache-focal $SNAPCRAFT_PART_INSTALL/bin/fc-cache-v7
     prime:
-      - bin/fc-cache-v7.5
+      - bin/fc-cache-v7
