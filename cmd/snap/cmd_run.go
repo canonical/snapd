@@ -758,7 +758,7 @@ Welcome to "snap run --gdbserver".
 You are right before your application is run.
 Please open a different terminal and run:
 
-gdb -ex="target remote %[1]s" -ex=continue -ex="signal SIGCONT" -ex=continue
+gdb -ex="target remote %[1]s" -ex=continue -ex="signal SIGCONT"
 (gdb) continue
 
 or use your favorite gdb frontend and connect to %[1]s
