@@ -189,7 +189,7 @@ func (s *systemUserSuite) TestDecodeInvalid(c *C) {
 		{s.untilLine, "until: 1002-11-01T22:08:41+00:00\n", `'until' time cannot be before 'since' time`},
 		{s.modelsLine, s.modelsLine + "serials: \n", `"serials" header must be a list of strings`},
 		{s.modelsLine, s.modelsLine + "serials: something\n", `"serials" header must be a list of strings`},
-		{s.modelsLine, s.modelsLine + "serials:\n  - 7c7f435d-ed28-4281-bd77-e271e0846904\n", `the "serials" header is only available for format 1 or greater`},
+		{s.modelsLine, s.modelsLine + "serials:\n  - 7c7f435d-ed28-4281-bd77-e271e0846904\n", `the "serials" header is only supported for format 1 or greater`},
 	}
 
 	for _, test := range invalidTests {
@@ -230,7 +230,7 @@ func (s *systemUserSuite) TestDecodeInvalidFormat1(c *C) {
 	serialWithMultipleModels := "models:\n  - m1\n  - m2\n" + serialsLine
 
 	invalidTests := []struct{ original, invalid, expectedErr string }{
-		{s.modelsLine, serialWithMultipleModels, `the "serials" header must specify exactly one model`},
+		{s.modelsLine, serialWithMultipleModels, `in the presence of the "serials" header "models" must specify exactly one model`},
 	}
 	for _, test := range invalidTests {
 		invalid := strings.Replace(s.systemUserStr, test.original, test.invalid, 1)

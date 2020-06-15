@@ -241,10 +241,10 @@ func assembleSystemUser(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 	if len(serials) > 0 && assert.Format() < 1 {
-		return nil, fmt.Errorf(`the "serials" header is only available for format 1 or greater`)
+		return nil, fmt.Errorf(`the "serials" header is only supported for format 1 or greater`)
 	}
 	if len(serials) > 0 && len(models) != 1 {
-		return nil, fmt.Errorf(`the "serials" header must specify exactly one model`)
+		return nil, fmt.Errorf(`in the presence of the "serials" header "models" must specify exactly one model`)
 	}
 
 	if _, err := checkOptionalString(assert.headers, "name"); err != nil {
