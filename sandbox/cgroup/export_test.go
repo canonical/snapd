@@ -23,17 +23,18 @@ import (
 )
 
 var (
-	Cgroup2SuperMagic         = cgroup2SuperMagic
-	ProbeCgroupVersion        = probeCgroupVersion
-	ParsePid                  = parsePid
-	PidsInFile                = pidsInFile
-	SecurityTagFromCgroupPath = securityTagFromCgroupPath
-	DoCreateTransientScope    = doCreateTransientScope
-	SessionOrMaybeSystemBus   = sessionOrMaybeSystemBus
+	Cgroup2SuperMagic       = cgroup2SuperMagic
+	ProbeCgroupVersion      = probeCgroupVersion
+	ParsePid                = parsePid
+	PidsInFile              = pidsInFile
+	DoCreateTransientScope  = doCreateTransientScope
+	SessionOrMaybeSystemBus = sessionOrMaybeSystemBus
 
 	ErrDBusUnknownMethod    = errDBusUnknownMethod
 	ErrDBusNameHasNoOwner   = errDBusNameHasNoOwner
 	ErrDBusSpawnChildExited = errDBusSpawnChildExited
+
+	SecurityTagFromCgroupPath = securityTagFromCgroupPath
 )
 
 func MockFsTypeForPath(mock func(string) (int64, error)) (restore func()) {
