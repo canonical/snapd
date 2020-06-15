@@ -169,6 +169,7 @@ var templateCommon = `
 
   # For gdb support
   /usr/lib/snapd/snap-gdb-shim ixr,
+  /usr/lib/snapd/snap-gdbserver-shim ixr,
 
   # For in-snap tab completion
   /etc/bash_completion.d/{,*} r,
