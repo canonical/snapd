@@ -519,6 +519,7 @@ prepare_suite_each() {
         "$TESTSLIB"/reset.sh --reuse-core
     fi
     # Restart journal log and reset systemd journal cursor.
+    systemctl reset-failed systemd-journald.service
     if ! systemctl restart systemd-journald.service; then
         systemctl status systemd-journald.service || true
         echo "Failed to restart systemd-journald.service, exiting..."
