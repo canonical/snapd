@@ -1051,7 +1051,7 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	// Track, or confirm existing tracking from systemd.
 	var trackingErr error
 	if needsTracking {
-		trackingErr = cgroupCreateTransientScope(securityTag)
+		trackingErr = cgroupCreateTransientScopeForTracking(securityTag)
 	} else {
 		trackingErr = cgroupConfirmSystemdServiceTracking(securityTag)
 	}
@@ -1076,5 +1076,5 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	}
 }
 
-var cgroupCreateTransientScope = cgroup.CreateTransientScope
+var cgroupCreateTransientScopeForTracking = cgroup.CreateTransientScopeForTracking
 var cgroupConfirmSystemdServiceTracking = cgroup.ConfirmSystemdServiceTracking

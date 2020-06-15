@@ -3,7 +3,6 @@ package cgroup
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 
@@ -12,6 +11,7 @@ import (
 	"github.com/snapcore/snapd/dbusutil"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/randutil"
 )
 
 var osGetuid = os.Getuid
@@ -20,7 +20,17 @@ var cgroupProcessPathInTrackingCgroup = ProcessPathInTrackingCgroup
 
 var ErrCannotTrackProcess = errors.New("cannot track application process")
 
-func CreateTransientScope(securityTag string) error {
+// CreateTransientScopeForTracking puts the current process in a transient scope.
+//
+// To quote systemd documentation about scope units:
+//
+// >> Scopes units manage a set of system processes. Unlike service units,
+// >> scope units manage externally created processes, and do not fork off
+// >> processes on its own.
+//
+// Scope names must be unique, a randomly generated UUID is appended to the
+// security tag, further suffixed with the string ".scope".
+func CreateTransientScopeForTracking(securityTag string) error {
 	if !features.RefreshAppAwareness.IsEnabled() {
 		return nil
 	}
@@ -144,12 +154,23 @@ func sessionOrMaybeSystemBus(uid int) (isSessionBus bool, conn *dbus.Conn, err e
 			logger.Debugf("using system bus now, session bus was not available")
 		}
 	}
-	return isSessionBus, conn, err
+	return false, conn, err
 }
 
-var errDBusUnknownMethod = errors.New("org.freedesktop.DBus.Error.UnknownMethod")
-var errDBusNameHasNoOwner = errors.New("org.freedesktop.DBus.Error.NameHasNoOwner")
-var errDBusSpawnChildExited = errors.New("org.freedesktop.DBus.Error.Spawn.ChildExited")
+type handledDBusError struct {
+	msg       string
+	dbusError string
+}
+
+func (e *handledDBusError) Error() string {
+	return fmt.Sprintf("%s [%s]", e.msg, e.dbusError)
+}
+
+var (
+	errDBusUnknownMethod    = &handledDBusError{msg: "unknown dbus object method", dbusError: "org.freedesktop.DBus.Error.UnknownMethod"}
+	errDBusNameHasNoOwner   = &handledDBusError{msg: "dbus name has no owner", dbusError: "org.freedesktop.DBus.Error.NameHasNoOwner"}
+	errDBusSpawnChildExited = &handledDBusError{msg: "dbus spawned child process exited", dbusError: "org.freedesktop.DBus.Error.Spawn.ChildExited"}
+)
 
 // doCreateTransientScope creates a systemd transient scope with specified properties.
 //
@@ -179,8 +200,7 @@ var doCreateTransientScope = func(conn *dbus.Conn, unitName string, pid int) err
 	//	 }
 	// } // auxUnits describe any additional units to define.
 	type property struct {
-		Name string
-		// XXX: This is getting marshaled as an invalid variant.
+		Name  string
 		Value interface{}
 	}
 	type auxUnit struct {
@@ -188,6 +208,25 @@ var doCreateTransientScope = func(conn *dbus.Conn, unitName string, pid int) err
 		Props []property
 	}
 
+	// The mode string decides how the job is interacting with other systemd
+	// jobs on the system. The documentation of the systemd StartUnit() method
+	// describes the possible values and their properties:
+	//
+	// >> StartUnit() enqeues a start job, and possibly depending jobs. Takes
+	// >> the unit to activate, plus a mode string. The mode needs to be one of
+	// >> replace, fail, isolate, ignore-dependencies, ignore-requirements. If
+	// >> "replace" the call will start the unit and its dependencies, possibly
+	// >> replacing already queued jobs that conflict with this. If "fail" the
+	// >> call will start the unit and its dependencies, but will fail if this
+	// >> would change an already queued job. If "isolate" the call will start
+	// >> the unit in question and terminate all units that aren't dependencies
+	// >> of it. If "ignore-dependencies" it will start a unit but ignore all
+	// >> its dependencies. If "ignore-requirements" it will start a unit but
+	// >> only ignore the requirement dependencies. It is not recommended to
+	// >> make use of the latter two options. Returns the newly created job
+	// >> object.
+	//
+	// Here we choose "fail" to match systemd-run.
 	mode := "fail"
 	properties := []property{{"PIDs", []uint{uint(pid)}}}
 	aux := []auxUnit(nil)
@@ -239,6 +278,5 @@ var randomUUID = func() (string, error) {
 	// /dev/urandom which doesn't block and is sufficient for our purposes
 	// of avoiding clashing UUIDs that are needed for all of the non-service
 	// commands that are started with the help of this UUID.
-	uuidBytes, err := ioutil.ReadFile("/proc/sys/kernel/random/uuid")
-	return strings.TrimSpace(string(uuidBytes)), err
+	return randutil.RandomKernelUUID(), nil
 }
