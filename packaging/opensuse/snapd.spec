@@ -346,6 +346,8 @@ fi
 %dir %attr(0111,root,root) %{_sharedstatedir}/snapd/void
 %dir %{_datadir}/dbus-1
 %dir %{_datadir}/dbus-1/services
+%dir %{_datadir}/dbus-1/session.d
+%dir %{_datadir}/dbus-1/system.d
 %dir %{_datadir}/polkit-1
 %dir %{_datadir}/polkit-1/actions
 %dir %{_environmentdir}
@@ -358,6 +360,9 @@ fi
 %dir %{_sharedstatedir}/snapd/assertions
 %dir %{_sharedstatedir}/snapd/cache
 %dir %{_sharedstatedir}/snapd/cookie
+%dir %{_sharedstatedir}/snapd/dbus
+%dir %{_sharedstatedir}/snapd/dbus/services
+%dir %{_sharedstatedir}/snapd/dbus/system-services
 %dir %{_sharedstatedir}/snapd/desktop
 %dir %{_sharedstatedir}/snapd/desktop/applications
 %dir %{_sharedstatedir}/snapd/device
@@ -399,6 +404,8 @@ fi
 %{_datadir}/zsh/site-functions/_snap
 %{_datadir}/dbus-1/services/io.snapcraft.Launcher.service
 %{_datadir}/dbus-1/services/io.snapcraft.Settings.service
+%{_datadir}/dbus-1/session.d/snapd.session-services.conf
+%{_datadir}/dbus-1/system.d/snapd.system-services.conf
 %{_datadir}/polkit-1/actions/io.snapcraft.snapd.policy
 %{_environmentdir}/990-snapd.conf
 %{_libexecdir}/snapd/complete.sh
