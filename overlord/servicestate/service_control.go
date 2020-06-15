@@ -31,11 +31,11 @@ import (
 	tomb "gopkg.in/tomb.v2"
 )
 
-// ServiceCommand encapsulates a single service-related action (such as starting,
+// ServiceAction encapsulates a single service-related action (such as starting,
 // stopping or restarting) run against services of a given snap. The action is
 // run for services listed in names attribute, or for all services of the snap
 // if names is empty.
-type ServiceCommand struct {
+type ServiceAction struct {
 	SnapName       string                 `json:"snap-name"`
 	Action         string                 `json:"action"`
 	ActionModifier string                 `json:"action-modifier,omitempty"`
@@ -51,10 +51,10 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 	perfTimings := state.TimingsForTask(t)
 	defer perfTimings.Save(st)
 
-	var sc ServiceCommand
-	err := t.Get("service-command", &sc)
+	var sc ServiceAction
+	err := t.Get("service-action", &sc)
 	if err != nil {
-		return fmt.Errorf("internal error: cannot get service-command: %v", err)
+		return fmt.Errorf("internal error: cannot get service-action: %v", err)
 	}
 
 	var snapst snapstate.SnapState
