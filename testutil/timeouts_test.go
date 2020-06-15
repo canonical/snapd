@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2018 Canonical Ltd
+ * Copyright (C) 2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,28 +17,29 @@
  *
  */
 
-package testutil
+package testutil_test
 
 import (
-	"gopkg.in/check.v1"
+	"time"
+
+	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/testutil"
 )
 
-func UnexpectedIntChecker(relation string) *intChecker {
-	return &intChecker{CheckerInfo: &check.CheckerInfo{Name: "unexpected", Params: []string{"a", "b"}}, rel: relation}
-}
+var _ = Suite(&TimeoutTestSuite{})
 
-func MockShellcheckPath(p string) (restore func()) {
-	old := shellcheckPath
-	shellcheckPath = p
-	return func() {
-		shellcheckPath = old
-	}
-}
+type TimeoutTestSuite struct{}
 
-func MockRuntimeARCH(new string) (restore func()) {
-	old := runtimeGOARCH
-	runtimeGOARCH = new
-	return func() {
-		runtimeGOARCH = old
-	}
+func (ts *TimeoutTestSuite) TestHostScaledTimeout(c *C) {
+	restore := testutil.MockRuntimeARCH("some-fast-arch")
+	defer restore()
+	default_timeout := testutil.HostScaledTimeout(2 * time.Second)
+
+	restore = testutil.MockRuntimeARCH("riscv64")
+	defer restore()
+	riscv64_timeout := testutil.HostScaledTimeout(2 * time.Second)
+
+	c.Check(default_timeout, Equals, 2*time.Second)
+	c.Check(riscv64_timeout > default_timeout, Equals, true)
 }

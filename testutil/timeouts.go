@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2018 Canonical Ltd
+ * Copyright (C) 2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,25 +20,24 @@
 package testutil
 
 import (
-	"gopkg.in/check.v1"
+	"runtime"
+	"time"
 )
 
-func UnexpectedIntChecker(relation string) *intChecker {
-	return &intChecker{CheckerInfo: &check.CheckerInfo{Name: "unexpected", Params: []string{"a", "b"}}, rel: relation}
-}
+var runtimeGOARCH = runtime.GOARCH
 
-func MockShellcheckPath(p string) (restore func()) {
-	old := shellcheckPath
-	shellcheckPath = p
-	return func() {
-		shellcheckPath = old
-	}
-}
-
-func MockRuntimeARCH(new string) (restore func()) {
-	old := runtimeGOARCH
-	runtimeGOARCH = new
-	return func() {
-		runtimeGOARCH = old
+// HostScaledTimeout returns a timeout for tests that is adjusted
+// for the slowness of certain systems.
+//
+// This should only be used in tests and is a bit of a guess.
+func HostScaledTimeout(t time.Duration) time.Duration {
+	switch runtimeGOARCH {
+	case "riscv64":
+		// virt riscv64 builders are 5x times slower than
+		// armhf when building golang-1.14. These tests
+		// timeout, hence bump timeouts by 6x
+		return t * 6
+	default:
+		return t
 	}
 }

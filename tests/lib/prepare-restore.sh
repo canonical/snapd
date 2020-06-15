@@ -377,6 +377,8 @@ prepare_project() {
                 systemctl stop "$(basename "$f")" || true
                 rm -f "$f"
             done
+            # double check that purge really worked
+            test ! -d /var/lib/snapd
             ;;
         *)
             # snapd state directory must not exist when the package is not
