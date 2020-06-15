@@ -176,7 +176,7 @@ update_core_snap_for_classic_reexec() {
     rm -rf squashfs-root
 
     # Now mount the new core snap, first discarding the old mount namespace
-    "$LIBEXECDIR/snapd/snap-discard-ns" core
+    snapd.tool exec snap-discard-ns core
     mount "$snap" "$core"
 
     check_file() {
@@ -228,9 +228,9 @@ prepare_classic() {
         distro_query_package_info snapd
         exit 1
     fi
-    if "$LIBEXECDIR/snapd/snap-confine" --version | MATCH unknown; then
+    if snapd.tool exec snap-confine --version | MATCH unknown; then
         echo "Package build incorrect, 'snap-confine --version' mentions 'unknown'"
-        "$LIBEXECDIR/snapd/snap-confine" --version
+        snapd.tool exec snap-confine --version
         case "$SPREAD_SYSTEM" in
             ubuntu-*|debian-*)
                 apt-cache policy snapd
@@ -643,6 +643,15 @@ setup_reflash_magic() {
     # install the stuff we need
     distro_install_package kpartx busybox-static
 
+    # Ensure we don't have snapd already installed, sometimes
+    # on 20.04 purge seems to fail, catch that for further
+    # debugging
+    if [ -e /var/lib/snapd/state.json ]; then
+        echo "reflash image not pristine, snaps already installed"
+        python3 -m json.tool < /var/lib/snapd/state.json
+        exit 1
+    fi
+
     distro_install_local_package "$GOHOME"/snapd_*.deb
     distro_clean_package_cache
 
@@ -661,6 +670,14 @@ setup_reflash_magic() {
     elif is_core20_system; then        
         core_name="core20"
     fi
+    # XXX: we get "error: too early for operation, device not yet
+    # seeded or device model not acknowledged" here sometimes. To
+    # understand that better show some debug output.
+    snap changes
+    snap tasks --last=seed || true
+    journalctl -u snapd
+    snap model --verbose
+    # remove the above debug lines once the mentioned bug is fixed
     snap install "--channel=${CORE_CHANNEL}" "$core_name"
     if is_core16_system || is_core18_system; then
         UNPACK_DIR="/tmp/$core_name-snap"
@@ -906,12 +923,8 @@ prepare_ubuntu_core() {
 
     # Wait for the snap command to become available.
     if [ "$SPREAD_BACKEND" != "external" ]; then
-        for i in $(seq 120); do
-            if [ "$(command -v snap)" = "/usr/bin/snap" ] && snap version | grep -q 'snapd +1337.*'; then
-                break
-            fi
-            sleep 1
-        done
+        # shellcheck disable=SC2016
+        retry -n 120 --wait 1 sh -c 'test "$(command -v snap)" = /usr/bin/snap && snap version | grep -E -q "snapd +1337.*"'
     fi
 
     # Wait for seeding to finish.

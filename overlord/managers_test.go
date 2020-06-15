@@ -77,6 +77,12 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
+var (
+	settleTimeout           = testutil.HostScaledTimeout(45 * time.Second)
+	aggressiveSettleTimeout = testutil.HostScaledTimeout(50 * time.Millisecond)
+	connectRetryTimeout     = testutil.HostScaledTimeout(70 * time.Millisecond)
+)
+
 type automaticSnapshotCall struct {
 	InstanceName string
 	SnapConfig   map[string]interface{}
@@ -125,11 +131,6 @@ var (
 	develPrivKey, _ = assertstest.GenerateKey(752)
 
 	deviceKey, _ = assertstest.GenerateKey(752)
-)
-
-const (
-	aggressiveSettleTimeout = 50 * time.Millisecond
-	connectRetryTimeout     = 70 * time.Millisecond
 )
 
 func verifyLastTasksetIsRerefresh(c *C, tts []*state.TaskSet) {
@@ -355,8 +356,6 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 type mgrsSuite struct {
 	baseMgrsSuite
 }
-
-var settleTimeout = 45 * time.Second
 
 func makeTestSnapWithFiles(c *C, snapYamlContent string, files [][]string) string {
 	info, err := snap.InfoFromSnapYaml([]byte(snapYamlContent))

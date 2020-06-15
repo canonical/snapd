@@ -182,7 +182,7 @@ case "$action" in
 				# it works more reliably).
 				#
 				# Give the system some time to clean things up.
-				retry-tool -n 3 --wait 3 test ! -e "/run/user/$uid"
+				retry -n 3 --wait 3 test ! -e "/run/user/$uid"
 				if [ -e "/run/user/$uid" ]; then
 					echo "tests.session: /run/user/$uid still exists" >&2
 					exit 1
