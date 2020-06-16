@@ -36,8 +36,8 @@ type IioInterfaceSuite struct {
 	iface interfaces.Interface
 
 	// OS Snap
-	testSlot1           *interfaces.ConnectedSlot
 	testSlot1Info       *snap.SlotInfo
+	testSlot2Info       *snap.SlotInfo
 	testSlotCleaned     *interfaces.ConnectedSlot
 	testSlotCleanedInfo *snap.SlotInfo
 
@@ -206,21 +206,48 @@ KERNEL=="iio:device1", TAG+="snap_client-snap_app-accessing-1-port"`)
 }
 
 func (s *IioInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
-	expectedSnippet1 := `
+	expectedSnippet := `
 # Description: Give access to a specific IIO device on the system.
 
 /dev/iio:device1 rw,
 /sys/bus/iio/devices/iio:device1/ r,
 /sys/bus/iio/devices/iio:device1/** rwk,
+
 /sys/devices/**/iio:device1/ r,
-/sys/devices/**/iio:device1/** rwk,
-`
+/sys/devices/**/iio:device1/** rwk,`
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev1)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-1-port"})
 	snippet := apparmorSpec.SnippetForTag("snap.client-snap.app-accessing-1-port")
-	c.Assert(snippet, Equals, expectedSnippet1)
+	c.Assert(snippet, Equals, expectedSnippet)
+}
+
+func (s *IioInterfaceSuite) TestConnectedPlugAppArmorSnippetsMultipleOptimized(c *C) {
+	expectedSnippet := `
+# Description: Give access to a specific IIO device on the system.
+
+/dev/iio:device1 rw,
+/sys/bus/iio/devices/iio:device1/ r,
+/sys/bus/iio/devices/iio:device1/** rwk,
+
+
+# Description: Give access to a specific IIO device on the system.
+
+/dev/iio:device2 rw,
+/sys/bus/iio/devices/iio:device2/ r,
+/sys/bus/iio/devices/iio:device2/** rwk,
+
+/sys/devices/**/{iio:device1,iio:device2}/ r,
+/sys/devices/**/{iio:device1,iio:device2}/** rwk,`
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev1)
+	c.Assert(err, IsNil)
+	err = apparmorSpec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev2)
+	c.Assert(err, IsNil)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-1-port"})
+	snippet := apparmorSpec.SnippetForTag("snap.client-snap.app-accessing-1-port")
+	c.Assert(snippet, Equals, expectedSnippet)
 }
 
 func (s *IioInterfaceSuite) TestAutoConnect(c *C) {

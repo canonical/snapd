@@ -48,8 +48,6 @@ const iioConnectedPlugAppArmor = `
 ###IIO_DEVICE_PATH### rw,
 /sys/bus/iio/devices/###IIO_DEVICE_NAME###/ r,
 /sys/bus/iio/devices/###IIO_DEVICE_NAME###/** rwk,
-/sys/devices/**/###IIO_DEVICE_NAME###/ r,
-/sys/devices/**/###IIO_DEVICE_NAME###/** rwk,
 `
 
 // The type for iio interface
@@ -113,7 +111,17 @@ func (iface *iioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 	deviceName := strings.TrimPrefix(path, "/dev/")
 	snippet = strings.Replace(snippet, "###IIO_DEVICE_NAME###", deviceName, -1)
 
+	// Add a snippet for various device specific rules, except for sysfs write
+	// access that are specialized below.
 	spec.AddSnippet(snippet)
+	// This part contains two sets of "**" that can use exponential memory when
+	// compiling without -O no-expr-simplify, so handle it with the parametric
+	// snippet workaround. Only one instance of this line will show up in the
+	// resulting profile.
+	spec.AddParametricSnippet("/sys/devices/**/###PARAM###/** rwk,", deviceName)
+	// For consistency, not an efficiency problem.
+	spec.AddParametricSnippet("/sys/devices/**/###PARAM###/ r,", deviceName)
+
 	return nil
 }
 
