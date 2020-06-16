@@ -419,3 +419,290 @@ func (s *groupingsSuite) TestBitsetIterError(c *C) {
 	c.Check(err, Equals, errBoom)
 	c.Check(n, Equals, 1)
 }
+
+func BenchmarkIterBaseline(b *testing.B) {
+	b.StopTimer()
+
+	n := 0
+	f := func(group uint16) error {
+		n++
+		return nil
+	}
+
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		n = 0
+		for j := uint16(0); j < 64; j++ {
+			f(j)
+		}
+		if n != 64 {
+			b.FailNow()
+		}
+	}
+}
+
+func BenchmarkIter4Elems(b *testing.B) {
+	b.StopTimer()
+
+	gr, err := internal.NewGroupings(64)
+	if err != nil {
+		b.FailNow()
+	}
+
+	n := 0
+	f := func(group uint16) error {
+		n++
+		return nil
+	}
+
+	var g internal.Grouping
+	gr.AddTo(&g, 1)
+	gr.AddTo(&g, 5)
+	gr.AddTo(&g, 17)
+	gr.AddTo(&g, 24)
+
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		n = 0
+		gr.Iter(&g, f)
+		if n != 4 {
+			b.FailNow()
+		}
+	}
+}
+
+func BenchmarkIterBitset5Elems(b *testing.B) {
+	b.StopTimer()
+
+	gr, err := internal.NewGroupings(64)
+	if err != nil {
+		b.FailNow()
+	}
+
+	n := 0
+	f := func(group uint16) error {
+		n++
+		return nil
+	}
+
+	var g internal.Grouping
+	gr.AddTo(&g, 1)
+	gr.AddTo(&g, 5)
+	gr.AddTo(&g, 17)
+	gr.AddTo(&g, 24)
+	gr.AddTo(&g, 33)
+
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		n = 0
+		gr.Iter(&g, f)
+		if n != 5 {
+			b.FailNow()
+		}
+	}
+}
+
+func BenchmarkIterBitsetEmptyStretches(b *testing.B) {
+	b.StopTimer()
+
+	gr, err := internal.NewGroupings(64)
+	if err != nil {
+		b.FailNow()
+	}
+
+	n := 0
+	f := func(group uint16) error {
+		n++
+		return nil
+	}
+
+	var g internal.Grouping
+	gr.AddTo(&g, 0)
+	gr.AddTo(&g, 15)
+	gr.AddTo(&g, 16)
+	gr.AddTo(&g, 31)
+	gr.AddTo(&g, 32)
+
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		n = 0
+		gr.Iter(&g, f)
+		if n != 5 {
+			b.FailNow()
+		}
+	}
+}
+
+func BenchmarkIterBitsetEven(b *testing.B) {
+	b.StopTimer()
+
+	gr, err := internal.NewGroupings(64)
+	if err != nil {
+		b.FailNow()
+	}
+
+	n := 0
+	f := func(group uint16) error {
+		n++
+		return nil
+	}
+
+	var g internal.Grouping
+	for i := 0; i <= 63; i += 2 {
+		gr.AddTo(&g, uint16(i))
+	}
+
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		n = 0
+		gr.Iter(&g, f)
+		if n != 32 {
+			b.FailNow()
+		}
+	}
+}
+
+func BenchmarkIterBitsetOdd(b *testing.B) {
+	b.StopTimer()
+
+	gr, err := internal.NewGroupings(64)
+	if err != nil {
+		b.FailNow()
+	}
+
+	n := 0
+	f := func(group uint16) error {
+		n++
+		return nil
+	}
+
+	var g internal.Grouping
+	for i := 1; i <= 63; i += 2 {
+		gr.AddTo(&g, uint16(i))
+	}
+
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		n = 0
+		gr.Iter(&g, f)
+		if n != 32 {
+			b.FailNow()
+		}
+	}
+}
+
+func BenchmarkIterBitset0Inc3(b *testing.B) {
+	b.StopTimer()
+
+	gr, err := internal.NewGroupings(64)
+	if err != nil {
+		b.FailNow()
+	}
+
+	n := 0
+	f := func(group uint16) error {
+		n++
+		return nil
+	}
+
+	var g internal.Grouping
+	for i := 0; i <= 63; i += 3 {
+		gr.AddTo(&g, uint16(i))
+	}
+
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		n = 0
+		gr.Iter(&g, f)
+		if n != 22 {
+			b.FailNow()
+		}
+	}
+}
+
+func BenchmarkIterBitset1Inc3(b *testing.B) {
+	b.StopTimer()
+
+	gr, err := internal.NewGroupings(64)
+	if err != nil {
+		b.FailNow()
+	}
+
+	n := 0
+	f := func(group uint16) error {
+		n++
+		return nil
+	}
+
+	var g internal.Grouping
+	for i := 1; i <= 63; i += 3 {
+		gr.AddTo(&g, uint16(i))
+	}
+
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		n = 0
+		gr.Iter(&g, f)
+		if n != 21 {
+			b.FailNow()
+		}
+	}
+}
+
+func BenchmarkIterBitset0Inc4(b *testing.B) {
+	b.StopTimer()
+
+	gr, err := internal.NewGroupings(64)
+	if err != nil {
+		b.FailNow()
+	}
+
+	n := 0
+	f := func(group uint16) error {
+		n++
+		return nil
+	}
+
+	var g internal.Grouping
+	for i := 0; i <= 63; i += 4 {
+		gr.AddTo(&g, uint16(i))
+	}
+
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		n = 0
+		gr.Iter(&g, f)
+		if n != 16 {
+			b.FailNow()
+		}
+	}
+}
+
+func BenchmarkIterBitsetComplete(b *testing.B) {
+	b.StopTimer()
+
+	gr, err := internal.NewGroupings(64)
+	if err != nil {
+		b.FailNow()
+	}
+
+	n := 0
+	f := func(group uint16) error {
+		n++
+		return nil
+	}
+
+	var g internal.Grouping
+	for i := 0; i <= 63; i++ {
+		gr.AddTo(&g, uint16(i))
+	}
+
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		n = 0
+		gr.Iter(&g, f)
+		if n != 64 {
+			b.FailNow()
+		}
+	}
+}
