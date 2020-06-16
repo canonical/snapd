@@ -202,7 +202,7 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv
 
 	state.Lock()
 	defer state.Unlock()
-	// check snapd, core18, kernel, gadget
+	// check snapd, core20, kernel, gadget
 	_, err = snapstate.CurrentInfo(state, "snapd")
 	c.Check(err, IsNil)
 	_, err = snapstate.CurrentInfo(state, "core20")

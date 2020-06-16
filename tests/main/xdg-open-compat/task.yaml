@@ -24,10 +24,20 @@ restore: |
     rm -f /usr/share/applications/defaults.list
     rm -f /usr/share/applications/xdg-open.desktop
 
+    # restore original xdg-open
+    if [ -e /usr/bin/xdg-open.orig ]; then
+        mv /usr/bin/xdg-open.orig /usr/bin/xdg-open
+    fi
+
 prepare: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
     install_local test-snapd-desktop
+
+    # make a backup of the original xdg-open
+    if [ -e /usr/bin/xdg-open ]; then
+        mv /usr/bin/xdg-open /usr/bin/xdg-open.orig
+    fi
 
     # download from LP, it is not available in the archive anymore
     wget https://launchpad.net/ubuntu/+source/snapd-xdg-open/0.0.0~16.04/+build/10503735/+files/snapd-xdg-open_0.0.0~16.04_amd64.deb
