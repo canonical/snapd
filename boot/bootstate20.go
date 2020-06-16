@@ -552,7 +552,7 @@ func (ks20 *bootState20Kernel) selectAndCommitSnapInitramfsMount() (sn snap.Plac
 	}
 
 	// first do the generic choice of which snap to use
-	first, second, expectFallback, err := genericInitramfsSelectSnap(ks20, TryingStatus, "kernel")
+	first, second, err := genericInitramfsSelectSnap(ks20, TryingStatus, "kernel")
 	if err != nil {
 		return nil, err
 	}
@@ -732,7 +732,7 @@ func (bs20 *bootState20Base) selectAndCommitSnapInitramfsMount() (sn snap.PlaceI
 	// so we don't ever need to look at the fallback snap, we just need to know
 	// whether the chosen snap is a try snap or not, if it is then we process
 	// the modeenv in the "try" -> "trying" case
-	first, _, currentlyTryingSnap, err := genericInitramfsSelectSnap(bs20, TryStatus, "base")
+	first, second, err := genericInitramfsSelectSnap(bs20, TryStatus, "base")
 	if err != nil {
 		return nil, err
 	}
@@ -745,7 +745,7 @@ func (bs20 *bootState20Base) selectAndCommitSnapInitramfsMount() (sn snap.PlaceI
 		// if we were in try status and we have a fallback, then we are in a
 		// normal try state and we change status to TryingStatus now
 		// all other cleanup of state is left to user space snapd
-		if currentlyTryingSnap {
+		if second != nil {
 			bs20.modeenv.BaseStatus = TryingStatus
 			modeenvChanged = true
 		}
@@ -927,19 +927,18 @@ func (bsmark *bootState20MarkSuccessful) commit() error {
 // status. The try status is needed because during the initramfs we will have
 // different statuses for kernel vs base snaps, where base snap is expected to
 // be in "try" mode, but kernel is expected to be in "trying" mode. It returns
-// the first and second choice for what snaps to mount, and the bool indicates
-// if there is a second snap set or not. If there is a second snap, then that
-// snap is the fallback or non-trying snap and the first snap is the try snap.
+// the first and second choice for what snaps to mount. If there is a second
+// snap, then that snap is the fallback or non-trying snap and the first snap is
+// the try snap.
 func genericInitramfsSelectSnap(bs bootState, expectedTryStatus, typeString string) (
 	firstChoice, secondChoice snap.PlaceInfo,
-	fallbackExpected bool,
 	err error,
 ) {
 	curSnap, trySnap, snapTryStatus, err := bs.revisions()
 
 	if err != nil && !isTrySnapError(err) {
 		// we have no fallback snap!
-		return nil, nil, false, fmt.Errorf("fallback %s snap unusable: %v", typeString, err)
+		return nil, nil, fmt.Errorf("fallback %s snap unusable: %v", typeString, err)
 	}
 
 	// check that the current snap actually exists
@@ -953,35 +952,38 @@ func genericInitramfsSelectSnap(bs bootState, expectedTryStatus, typeString stri
 		// the kernel snap as it is "refreshed"
 		// for a base, this could happen if the modeenv is manipulated
 		// out-of-band from snapd
-		return nil, nil, false, fmt.Errorf("%s snap %q does not exist on ubuntu-data", typeString, file)
+		return nil, nil, fmt.Errorf("%s snap %q does not exist on ubuntu-data", typeString, file)
 	}
 
 	if err != nil && isTrySnapError(err) {
 		// just log that we had issues with the try snap and continue with
 		// using the normal snap
 		logger.Noticef("unable to process try %s snap: %v", typeString, err)
-	} else {
-		if snapTryStatus == expectedTryStatus {
-			// then we are trying a snap update and there should be a try snap
-			if trySnap != nil {
-				// check that the TryBase exists in ubuntu-data, if it doesn't
-				// we will fall back to using the normal snap
-				trySnapPath := filepath.Join(dirs.SnapBlobDirUnder(InitramfsWritableDir), trySnap.Filename())
-				if osutil.FileExists(trySnapPath) {
-					return trySnap, curSnap, true, nil
-				}
-				logger.Noticef("try-%s snap %q does not exist", typeString, trySnap.Filename())
-			} else {
-				logger.Noticef("try-%[1]s snap is empty, but \"%[1]s_status\" is \"trying\"", typeString)
-			}
-		} else {
-			switch snapTryStatus {
-			case TryStatus, DefaultStatus, TryingStatus:
-			default:
-				logger.Noticef("\"%s_status\" has an invalid setting: %q", typeString, snapTryStatus)
-			}
+		return curSnap, nil, nil
+	}
+	if snapTryStatus != expectedTryStatus {
+		// the status is unexpected, log if its value is invalid and continue
+		// with the normal snap
+		switch snapTryStatus {
+		case TryStatus, DefaultStatus, TryingStatus:
+		default:
+			logger.Noticef("\"%s_status\" has an invalid setting: %q", typeString, snapTryStatus)
 		}
+		return curSnap, nil, nil
+	}
+	// then we are trying a snap update and there should be a try snap
+	if trySnap == nil {
+		// it is unexpected when there isn't one
+		logger.Noticef("try-%[1]s snap is empty, but \"%[1]s_status\" is \"trying\"", typeString)
+		return curSnap, nil, nil
+	}
+	trySnapPath := filepath.Join(dirs.SnapBlobDirUnder(InitramfsWritableDir), trySnap.Filename())
+	if !osutil.FileExists(trySnapPath) {
+		// or when the snap file does not exist
+		logger.Noticef("try-%s snap %q does not exist", typeString, trySnap.Filename())
+		return curSnap, nil, nil
 	}
 
-	return curSnap, nil, false, nil
+	// we have a try snap and everything appears in order
+	return trySnap, curSnap, nil
 }
