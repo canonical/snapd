@@ -82,6 +82,23 @@ func (s *sysconfigSuite) TestCloudInitInstalls(c *C) {
 	c.Check(filepath.Join(ubuntuDataCloudCfg, "bar.cfg"), testutil.FileEquals, "bar.cfg config")
 }
 
+func (s *sysconfigSuite) TestCloudInitStatusUnhappy(c *C) {
+	old := dirs.GlobalRootDir
+	dirs.SetRootDir(c.MkDir())
+	defer func() { dirs.SetRootDir(old) }()
+	cmd := testutil.MockCommand(c, "cloud-init", `
+echo cloud-init borken
+exit 1
+`)
+
+	status, err := sysconfig.CloudInitStatus()
+	c.Assert(err, ErrorMatches, "cloud-init borken")
+	c.Assert(status, Equals, sysconfig.CloudInitErrored)
+	c.Assert(cmd.Calls(), DeepEquals, [][]string{
+		{"cloud-init", "status"},
+	})
+}
+
 func (s *sysconfigSuite) TestCloudInitStatus(c *C) {
 	tt := []struct {
 		comment         string
