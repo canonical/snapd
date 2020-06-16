@@ -509,7 +509,6 @@ func writeSnapdDbusConfigOnCore(s *snap.Info) error {
 	}
 	_, _, err = osutil.EnsureDirState(dirs.SnapDBusSystemPolicyDir, "snapd.*.conf", state)
 	if err != nil {
-		// TODO: uhhhh, what do we do in this case?
 		return err
 	}
 
@@ -521,7 +520,6 @@ func writeSnapdDbusConfigOnCore(s *snap.Info) error {
 	}
 	_, _, err = osutil.EnsureDirState(dirs.SnapDBusSessionPolicyDir, "snapd.*.conf", state)
 	if err != nil {
-		// TODO: uhhhh, what do we do in this case?
 		return err
 	}
 
