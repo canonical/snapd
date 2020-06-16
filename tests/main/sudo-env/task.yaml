@@ -14,14 +14,22 @@ debug: |
     cat sudo.path || true
     cat sudo-login.path || true
 
+prepare: |
+    tests.session -u test prepare
+
+restore: |
+    tests.session -u test restore
+
 execute: |
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB/dirs.sh"
 
     # run a snap command via sudo
-    su -l -c "sudo sh -c 'echo :\$PATH:'" test > sudo.path
+    # shellcheck disable=SC2016
+    tests.session -u test exec sudo sh -c 'echo :$PATH:' test > sudo.path
     # and again via sudo --login which should load /etc/profile
-    su -l -c "sudo --login sh -c 'echo :\$PATH:'" test > sudo-login.path
+    # shellcheck disable=SC2016
+    tests.session -u test exec sudo --login sh -c 'echo :$PATH:' > sudo-login.path
 
     secure_path=no
     for regex in $SECURE_PATH_SUDO ; do
