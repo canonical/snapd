@@ -77,7 +77,7 @@
 
 
 Name:           snapd
-Version:        2.45
+Version:        2.45.1
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -408,6 +408,7 @@ fi
 %{_libexecdir}/snapd/snap-discard-ns
 %{_libexecdir}/snapd/snap-exec
 %{_libexecdir}/snapd/snap-gdb-shim
+%{_libexecdir}/snapd/snap-gdbserver-shim
 %{_libexecdir}/snapd/snap-mgmt
 %{_libexecdir}/snapd/snap-seccomp
 %{_libexecdir}/snapd/snap-update-ns

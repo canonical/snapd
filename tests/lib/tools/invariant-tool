@@ -6,6 +6,7 @@ show_help() {
 	echo "Supported invariants:"
 	echo "    root-files-in-home: most of /home/* does not contain root-owned files"
 	echo "    crashed-snap-confine: /tmp/snap.rootfs_* does not exist"
+	echo "    lxcfs-mounted: /var/lib/lxcfs is a mount point"
 }
 
 if [ $# -eq 0 ]; then
@@ -63,6 +64,16 @@ check_crashed_snap_confine() {
 	fi
 }
 
+check_lxcfs_mounted() {
+	n="$1" # invariant name
+	"$TESTSTOOLS"/mountinfo-tool /var/lib/lxcfs > "/tmp/invariant-tool.$n"
+	if [ -s "/tmp/invariant-tool.$n" ]; then
+		echo "invariant-tool: it seems lxcfs is mounted" >&2
+		cat "/tmp/invariant-tool.$n" >&2
+		return 1
+	fi
+}
+
 check_invariant() {
 	case "$1" in
 		root-files-in-home)
@@ -71,6 +82,9 @@ check_invariant() {
 		crashed-snap-confine)
 			check_crashed_snap_confine "$1"
 			;;
+		lxcfs-mounted)
+			check_lxcfs_mounted "$1"
+			;;
 		*)
 			echo "invariant-tool: unknown invariant $1" >&2
 			exit 1
@@ -78,7 +92,7 @@ check_invariant() {
 	esac
 }
 
-ALL_INVARIANTS="root-files-in-home crashed-snap-confine"
+ALL_INVARIANTS="root-files-in-home crashed-snap-confine lxcfs-mounted"
 
 case "$action" in
 	check)

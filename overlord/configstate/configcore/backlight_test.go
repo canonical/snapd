@@ -39,15 +39,8 @@ var _ = Suite(&backlightSuite{})
 func (s *backlightSuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
 
-	s.systemctlArgs = nil
-
-	dirs.SetRootDir(c.MkDir())
 	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0755)
 	c.Assert(err, IsNil)
-}
-
-func (s *backlightSuite) TearDownTest(c *C) {
-	dirs.SetRootDir("/")
 }
 
 func (s *backlightSuite) TestConfigureBacklightServiceMaskIntegration(c *C) {
