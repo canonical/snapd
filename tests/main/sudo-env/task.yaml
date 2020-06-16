@@ -10,6 +10,9 @@ environment:
     # secure_path
     SECURE_PATH_SUDO: "fedora-.* centos-.* amazon-linux-2-64 opensuse-.* debian-.*"
 
+# ubuntu-14.04: no support for user sessions used by test helpers
+systems: [ -ubuntu-14.04-* ]
+
 debug: |
     cat sudo.path || true
     cat sudo-login.path || true
