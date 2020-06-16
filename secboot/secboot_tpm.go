@@ -56,6 +56,7 @@ var (
 	sbAddSnapModelProfile            = sb.AddSnapModelProfile
 	sbProvisionTPM                   = sb.ProvisionTPM
 	sbSealKeyToTPM                   = sb.SealKeyToTPM
+	sbUpdateKeyPCRProtectionPolicy   = sb.UpdateKeyPCRProtectionPolicy
 
 	randutilRandomKernelUUID = randutil.RandomKernelUUID
 
@@ -308,64 +309,9 @@ func SealKey(key EncryptionKey, params *SealKeyParams) error {
 		return fmt.Errorf("TPM device is not enabled")
 	}
 
-	modelPCRProfiles := make([]*sb.PCRProtectionProfile, 0, numModels)
-
-	for _, modelParams := range params.ModelParams {
-		modelProfile := sb.NewPCRProtectionProfile()
-
-		// Verify if all EFI image files exist
-		for _, chain := range modelParams.EFILoadChains {
-			if err := checkFilesPresence(chain); err != nil {
-				return err
-			}
-		}
-
-		// Add EFI secure boot policy profile
-		policyParams := sb.EFISecureBootPolicyProfileParams{
-			PCRAlgorithm:  tpm2.HashAlgorithmSHA256,
-			LoadSequences: buildLoadSequences(modelParams.EFILoadChains),
-			// TODO:UC20: set SignatureDbUpdateKeystore to support applying forbidden
-			//            signature updates to blacklist signing keys (after rotating them).
-			//            This also requires integration of sbkeysync, and some work to
-			//            ensure that the PCR profile is updated before/after sbkeysync executes.
-		}
-
-		if err := sbAddEFISecureBootPolicyProfile(modelProfile, &policyParams); err != nil {
-			return fmt.Errorf("cannot add EFI secure boot policy profile: %v", err)
-		}
-
-		// Add systemd EFI stub profile
-		if len(modelParams.KernelCmdlines) != 0 {
-			systemdStubParams := sb.SystemdEFIStubProfileParams{
-				PCRAlgorithm:   tpm2.HashAlgorithmSHA256,
-				PCRIndex:       tpmPCR,
-				KernelCmdlines: modelParams.KernelCmdlines,
-			}
-			if err := sbAddSystemdEFIStubProfile(modelProfile, &systemdStubParams); err != nil {
-				return fmt.Errorf("cannot add systemd EFI stub profile: %v", err)
-			}
-		}
-
-		// Add snap model profile
-		if modelParams.Model != nil {
-			snapModelParams := sb.SnapModelProfileParams{
-				PCRAlgorithm: tpm2.HashAlgorithmSHA256,
-				PCRIndex:     tpmPCR,
-				Models:       []*asserts.Model{modelParams.Model},
-			}
-			if err := sbAddSnapModelProfile(modelProfile, &snapModelParams); err != nil {
-				return fmt.Errorf("cannot add snap model profile: %v", err)
-			}
-		}
-
-		modelPCRProfiles = append(modelPCRProfiles, modelProfile)
-	}
-
-	var pcrProfile *sb.PCRProtectionProfile
-	if numModels > 1 {
-		pcrProfile = sb.NewPCRProtectionProfile().AddProfileOR(modelPCRProfiles...)
-	} else {
-		pcrProfile = modelPCRProfiles[0]
+	pcrProfile, err := buildPCRProtectionProfile(numModels, params.ModelParams)
+	if err != nil {
+		return err
 	}
 
 	// Provision the TPM as late as possible
@@ -383,6 +329,95 @@ func SealKey(key EncryptionKey, params *SealKeyParams) error {
 	}
 
 	return nil
+}
+
+// ResealKey updates the PCR protection policy for the sealed encryption key according to
+// the specified parameters.
+func ResealKey(params *ResealKeyParams) error {
+	numModels := len(params.ModelParams)
+	if numModels < 1 {
+		return fmt.Errorf("at least one set of model-specific parameters is required")
+	}
+
+	tpm, err := sbConnectToDefaultTPM()
+	if err != nil {
+		return fmt.Errorf("cannot connect to TPM: %v", err)
+	}
+
+	pcrProfile, err := buildPCRProtectionProfile(numModels, params.ModelParams)
+	if err != nil {
+		return err
+	}
+
+	if err := sbUpdateKeyPCRProtectionPolicy(tpm, params.KeyFile, params.TPMPolicyUpdateDataFile, pcrProfile); err != nil {
+		return fmt.Errorf("cannot reseal key: %v", err)
+	}
+
+	return nil
+}
+
+func buildPCRProtectionProfile(numModels int, modelParams []*SealKeyModelParams) (*sb.PCRProtectionProfile, error) {
+	modelPCRProfiles := make([]*sb.PCRProtectionProfile, 0, numModels)
+
+	for _, mp := range modelParams {
+		modelProfile := sb.NewPCRProtectionProfile()
+
+		// Verify if all EFI image files exist
+		for _, chain := range mp.EFILoadChains {
+			if err := checkFilesPresence(chain); err != nil {
+				return nil, err
+			}
+		}
+
+		// Add EFI secure boot policy profile
+		policyParams := sb.EFISecureBootPolicyProfileParams{
+			PCRAlgorithm:  tpm2.HashAlgorithmSHA256,
+			LoadSequences: buildLoadSequences(mp.EFILoadChains),
+			// TODO:UC20: set SignatureDbUpdateKeystore to support applying forbidden
+			//            signature updates to blacklist signing keys (after rotating them).
+			//            This also requires integration of sbkeysync, and some work to
+			//            ensure that the PCR profile is updated before/after sbkeysync executes.
+		}
+
+		if err := sbAddEFISecureBootPolicyProfile(modelProfile, &policyParams); err != nil {
+			return nil, fmt.Errorf("cannot add EFI secure boot policy profile: %v", err)
+		}
+
+		// Add systemd EFI stub profile
+		if len(mp.KernelCmdlines) != 0 {
+			systemdStubParams := sb.SystemdEFIStubProfileParams{
+				PCRAlgorithm:   tpm2.HashAlgorithmSHA256,
+				PCRIndex:       tpmPCR,
+				KernelCmdlines: mp.KernelCmdlines,
+			}
+			if err := sbAddSystemdEFIStubProfile(modelProfile, &systemdStubParams); err != nil {
+				return nil, fmt.Errorf("cannot add systemd EFI stub profile: %v", err)
+			}
+		}
+
+		// Add snap model profile
+		if mp.Model != nil {
+			snapModelParams := sb.SnapModelProfileParams{
+				PCRAlgorithm: tpm2.HashAlgorithmSHA256,
+				PCRIndex:     tpmPCR,
+				Models:       []*asserts.Model{mp.Model},
+			}
+			if err := sbAddSnapModelProfile(modelProfile, &snapModelParams); err != nil {
+				return nil, fmt.Errorf("cannot add snap model profile: %v", err)
+			}
+		}
+
+		modelPCRProfiles = append(modelPCRProfiles, modelProfile)
+	}
+
+	var pcrProfile *sb.PCRProtectionProfile
+	if numModels > 1 {
+		pcrProfile = sb.NewPCRProtectionProfile().AddProfileOR(modelPCRProfiles...)
+	} else {
+		pcrProfile = modelPCRProfiles[0]
+	}
+
+	return pcrProfile, nil
 }
 
 func tpmProvision(tpm *sb.TPMConnection, lockoutAuthFile string) error {
