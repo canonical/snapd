@@ -48,10 +48,18 @@ func FindDeviceForStructure(ps *LaidOutStructure) (string, error) {
 		byPartlabel := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/", encodeLabel(ps.Name))
 		candidates = append(candidates, byPartlabel)
 	}
-
-	if ps.Label != "" {
-		byFsLabel := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label/", encodeLabel(ps.Label))
-		candidates = append(candidates, byFsLabel)
+	if ps.HasFilesystem() {
+		fsLabel := ps.EffectiveFilesystemLabel()
+		if fsLabel == "" && ps.Name != "" {
+			// when image is built and the structure has no
+			// filesystem label, the structure name will be used by
+			// default as the label
+			fsLabel = ps.Name
+		}
+		if fsLabel != "" {
+			byFsLabel := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label/", encodeLabel(fsLabel))
+			candidates = append(candidates, byFsLabel)
+		}
 	}
 
 	var found string
@@ -86,7 +94,7 @@ func FindDeviceForStructure(ps *LaidOutStructure) (string, error) {
 	return found, nil
 }
 
-// FindDeviceForStructureWithFallback attempts to find an existing block device
+// findDeviceForStructureWithFallback attempts to find an existing block device
 // partition containing given non-filesystem volume structure, by inspecting the
 // structure's name.
 //
@@ -103,7 +111,7 @@ func FindDeviceForStructure(ps *LaidOutStructure) (string, error) {
 //
 // Returns the device name and an offset at which the structure content starts
 // within the device or an error.
-func FindDeviceForStructureWithFallback(ps *LaidOutStructure) (dev string, offs Size, err error) {
+func findDeviceForStructureWithFallback(ps *LaidOutStructure) (dev string, offs Size, err error) {
 	if ps.HasFilesystem() {
 		return "", 0, fmt.Errorf("internal error: cannot use with filesystem structures")
 	}
@@ -118,7 +126,7 @@ func FindDeviceForStructureWithFallback(ps *LaidOutStructure) (dev string, offs 
 		// error out on other errors
 		return "", 0, err
 	}
-	if err == ErrDeviceNotFound && ps.Type != "bare" && ps.Name != "" {
+	if err == ErrDeviceNotFound && ps.IsPartition() && ps.Name != "" {
 		// structures with partition table entry and a name must have
 		// been located already
 		return "", 0, err
@@ -155,10 +163,10 @@ func encodeLabel(in string) string {
 	return buf.String()
 }
 
-// FindMountPointForStructure locates a mount point of a device that matches
+// findMountPointForStructure locates a mount point of a device that matches
 // given structure. The structure must have a filesystem defined, otherwise an
 // error is raised.
-func FindMountPointForStructure(ps *LaidOutStructure) (string, error) {
+func findMountPointForStructure(ps *LaidOutStructure) (string, error) {
 	if !ps.HasFilesystem() {
 		return "", ErrNoFilesystemDefined
 	}
@@ -169,7 +177,7 @@ func FindMountPointForStructure(ps *LaidOutStructure) (string, error) {
 	}
 
 	var mountPoint string
-	mountInfo, err := osutil.LoadMountInfo(filepath.Join(dirs.GlobalRootDir, osutil.ProcSelfMountInfo))
+	mountInfo, err := osutil.LoadMountInfo()
 	if err != nil {
 		return "", fmt.Errorf("cannot read mount info: %v", err)
 	}
@@ -199,7 +207,7 @@ func isWritableMount(entry *osutil.MountInfoEntry) bool {
 }
 
 func findDeviceForWritable() (device string, err error) {
-	mountInfo, err := osutil.LoadMountInfo(filepath.Join(dirs.GlobalRootDir, osutil.ProcSelfMountInfo))
+	mountInfo, err := osutil.LoadMountInfo()
 	if err != nil {
 		return "", fmt.Errorf("cannot read mount info: %v", err)
 	}

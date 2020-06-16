@@ -9,12 +9,26 @@ jobs:
       GOPATH: ${{ github.workspace }}
       GO111MODULE: off
       # Set PATH to ignore the load of magic binaries from /usr/local/bin And
-      # to use the go-1.10 automatically. Note that we install go 1.10 from the
-      # archive in a step below. Without this we get the GitHub-controlled latest
+      # to use the go snap automatically. Note that we install go from the
+      # snap in a step below. Without this we get the GitHub-controlled latest
       # version of go.
-      PATH: /usr/lib/go-1.10/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/snap/bin
+      PATH: /snap/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games
       GOROOT: ""
-
+      # XXX: only skip format checks on 1.13+
+      SKIP_GOFMT: 1
+      # XXX: compat env for "check-pr-title.py" in "run-checks", can go
+      #      once we switch away from that. Note that we cannot currently
+      #      use a github action check (like deepakputhraya/action-pr-title)
+      #      because an update of the PR title in the github UI is not visible
+      #      to the github action.
+      TRAVIS_PULL_REQUEST: ${{ github.event.number }}
+    strategy:
+      # we cache successful runs so it's fine to keep going
+      fail-fast: false      
+      matrix:
+        gochannel:
+          - 1.9
+          - latest/edge
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
@@ -22,27 +36,52 @@ jobs:
         # NOTE: checkout the code in a fixed location, even for forks, as this
         # is relevant for go's import system.
         path: ./src/github.com/snapcore/snapd
+
     - name: Cache Debian dependencies
       id: cache-deb-downloads
       uses: actions/cache@v1
       with:
         path: /var/cache/apt
         key: var-cache-apt-{{ hashFiles('**/debian/control') }}
+    - name: Run "apt update"
+      run: |
+          sudo apt update
     - name: Download Debian dependencies
       if: steps.cache-deb-downloads.outputs.cache-hit != 'true'
       run: |
           sudo apt clean
-          sudo apt update
           sudo apt build-dep -d -y ${{ github.workspace }}/src/github.com/snapcore/snapd
-    # Work around caching files owned by root https://github.com/actions/cache/issues/133
+
+    - name: Cache snapd test results
+      id: cache-snapd-test-results
+      uses: actions/cache@v1
+      with:
+        path: "${{ github.workspace }}/.test-results"
+        # must include matrix or things get racy, i.e. when latest/edge
+        # finishes after 1.9 it overrides the results from 1.9
+        key: "${{ github.run_id }}-${{ github.job }}-${{ matrix.gochannel }}-results"
+    - name: Check cached test results
+      id: cached-results
+      run: |
+          CACHE_RESULT_STAMP="${{ github.workspace }}/.test-results/${{ matrix.gochannel }}-success"
+          echo "::set-env name=CACHE_RESULT_STAMP::$CACHE_RESULT_STAMP"
+          if [ -e "$CACHE_RESULT_STAMP" ]; then
+              echo "::set-output name=already-ran::true"
+          fi
     - name: Install Debian dependencies
-      run: sudo apt build-dep -y ${{ github.workspace }}/src/github.com/snapcore/snapd
+      if: steps.cached-results.outputs.cached-resulsts != 'true'
+      run: |
+          sudo apt build-dep -y ${{ github.workspace }}/src/github.com/snapcore/snapd
+    # golang latest ensures things work on the edge
+    - name: Install the go snap
+      if: steps.cached-results.outputs.already-ran != 'true'
+      run: |
+          sudo snap install --classic --channel=${{ matrix.gochannel }} go
     - name: Install ShellCheck as a snap
+      if: steps.cached-results.outputs.already-ran != 'true'
       run: |
           sudo apt-get remove --purge shellcheck
           sudo snap install shellcheck
-    - name: Make /var/cache/apt owned by current user
-      run: sudo chown -R $(id -u) /var/cache/apt
     - name: Install govendor
       run: go get -u github.com/kardianos/govendor
     - name: Cache Go dependencies
@@ -54,55 +93,39 @@ jobs:
     - name: Get Go dependencies
       run: cd ${{ github.workspace }}/src/github.com/snapcore/snapd && ${{ github.workspace }}/bin/govendor sync
     - name: Run static checks
-      run: cd ${{ github.workspace }}/src/github.com/snapcore/snapd && ./run-checks --static
+      if: steps.cached-results.outputs.already-ran != 'true'
+      run: |
+          cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
+          ./run-checks --static
     - name: Build C
+      if: steps.cached-results.outputs.already-ran != 'true'
       run: |
           cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/
           ./autogen.sh
           make -j2
     - name: Build Go
-      run: go build github.com/snapcore/snapd/...
+      if: steps.cached-results.outputs.already-ran != 'true'
+      run: |
+          go build github.com/snapcore/snapd/...
     - name: Test C
-      run: cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/ && make check
+      if: steps.cached-results.outputs.already-ran != 'true'
+      run: |
+          cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/ && make check
     - name: Test Go
-      run: cd ${{ github.workspace }}/src/github.com/snapcore/snapd && ./run-checks --unit
+      if: steps.cached-results.outputs.already-ran != 'true'
+      run: |
+        cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
+        ./run-checks --unit
+    - name: Cache successful run
+      run: |
+        mkdir -p $(dirname "$CACHE_RESULT_STAMP")
+        touch "$CACHE_RESULT_STAMP"
 
-  spread-canary:
-    needs: unit-tests
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        system:
-        - ubuntu-16.04-64
-        - ubuntu-core-16-64
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
-    - name: Install spread
-      run: |
-          cd /tmp
-          curl -s -O https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz
-          tar xzvf spread-amd64.tar.gz
-          # Register a problem matcher to highlight spread failures
-          echo "::add-matcher::.github/spread-problem-matcher.json"
-    - name: Run spread tests
-      env:
-          SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
-      run: /tmp/spread -abend google:${{ matrix.system }}:tests/...
-    - name: Discard spread workers
-      if: always()
-      run: |
-        shopt -s nullglob;
-        for r in .spread-reuse.*.yaml; do
-          /tmp/spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
-        done
-  spread-stable:
-    needs: [unit-tests, spread-canary]
-    runs-on: ubuntu-latest
+  spread:
+    needs: [unit-tests]
+    runs-on: self-hosted
     strategy:
       # FIXME: enable fail-fast mode once spread can cancel an executing job.
-      #
       # Disable fail-fast mode as it doesn't function with spread. It seems
       # that cancelling tasks requires short, interruptible actions and
       # interrupting spread, notably, does not work today. As such disable
@@ -110,69 +133,60 @@ jobs:
       fail-fast: false
       matrix:
         system:
+        - amazon-linux-2-64
+        - arch-linux-64
+        - centos-7-64
+        - centos-8-64
+        - debian-9-64
+        - debian-sid-64
+        - fedora-31-64
+        - fedora-32-64
+        - opensuse-15.1-64
+        - opensuse-tumbleweed-64
         - ubuntu-14.04-64
+        - ubuntu-16.04-32
+        - ubuntu-16.04-64
         - ubuntu-18.04-64
         - ubuntu-19.10-64
         - ubuntu-20.04-64
+        - ubuntu-20.10-64
+        - ubuntu-core-16-64
         - ubuntu-core-18-64
         - ubuntu-core-20-64
-        - debian-9-64
-        - debian-sid-64
-        - fedora-30-64
-        - fedora-31-64
-        - arch-linux-64
-        - amazon-linux-2-64
-        - centos-7-64
+        - ubuntu-secboot-20.04-64
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
-    - name: Install spread
+    - name: Cache snapd test results
+      id: cache-snapd-test-results
+      uses: actions/cache@v1
+      with:
+        path: "${{ github.workspace }}/.test-results"
+        key: "${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-results"
+    - name: Check cached test results
+      id: cached-results
       run: |
-          cd /tmp
-          curl -s -O https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz
-          tar xzvf spread-amd64.tar.gz
-          # Register a problem matcher to highlight spread failures
-          echo "::add-matcher::.github/spread-problem-matcher.json"
+          CACHE_RESULT_STAMP="${{ github.workspace }}/.test-results/${{ matrix.system }}-success"
+          echo "::set-env name=CACHE_RESULT_STAMP::$CACHE_RESULT_STAMP"
+          if [ -e "$CACHE_RESULT_STAMP" ]; then
+              echo "::set-output name=already-ran::true"
+          fi
     - name: Run spread tests
       env:
           SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
-      run: /tmp/spread google:${{ matrix.system }}:tests/...
+      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread') && steps.cached-results.outputs.already-ran != 'true'"
+      run: |
+          # Register a problem matcher to highlight spread failures
+          echo "::add-matcher::.github/spread-problem-matcher.json"
+          spread -abend google:${{ matrix.system }}:tests/...
+    - name: Cache successful run
+      run: |
+        mkdir -p $(dirname "$CACHE_RESULT_STAMP")
+        touch "$CACHE_RESULT_STAMP"
     - name: Discard spread workers
       if: always()
       run: |
         shopt -s nullglob;
         for r in .spread-reuse.*.yaml; do
-          /tmp/spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
-        done
-  spread-unstable:
-    needs: [unit-tests, spread-stable]
-    runs-on: ubuntu-latest
-    strategy:
-      # FIXME: enable fail-fast mode once spread can cancel an executing job.
-      fail-fast: false
-      matrix:
-        system:
-        - centos-8-64
-        - opensuse-15.1-64
-        - opensuse-tumbleweed-64
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
-    - name: Install spread
-      run: |
-          cd /tmp
-          curl -s -O https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz
-          tar xzvf spread-amd64.tar.gz
-          # Register a problem matcher to highlight spread failures
-          echo "::add-matcher::.github/spread-problem-matcher.json"
-    - name: Run spread tests
-      env:
-          SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
-      run: /tmp/spread -abend google-unstable:${{ matrix.system }}:tests/...
-    - name: Discard spread workers
-      if: always()
-      run: |
-        shopt -s nullglob;
-        for r in .spread-reuse.*.yaml; do
-          /tmp/spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
+          spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
         done

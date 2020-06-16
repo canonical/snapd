@@ -838,6 +838,7 @@ type AppInfo struct {
 	CommonID      string
 
 	Daemon          string
+	DaemonScope     DaemonScope
 	StopTimeout     timeout.Timeout
 	StartTimeout    timeout.Timeout
 	WatchdogTimeout timeout.Timeout
@@ -853,7 +854,8 @@ type AppInfo struct {
 	// TODO: this should go away once we have more plumbing and can change
 	// things vs refactor
 	// https://github.com/snapcore/snapd/pull/794#discussion_r58688496
-	BusName string
+	BusName     string
+	ActivatesOn []*SlotInfo
 
 	Plugs   map[string]*PlugInfo
 	Slots   map[string]*SlotInfo
@@ -928,12 +930,12 @@ type SystemUsernameInfo struct {
 
 // File returns the path to the *.socket file
 func (socket *SocketInfo) File() string {
-	return filepath.Join(dirs.SnapServicesDir, socket.App.SecurityTag()+"."+socket.Name+".socket")
+	return filepath.Join(socket.App.serviceDir(), socket.App.SecurityTag()+"."+socket.Name+".socket")
 }
 
 // File returns the path to the *.timer file
 func (timer *TimerInfo) File() string {
-	return filepath.Join(dirs.SnapServicesDir, timer.App.SecurityTag()+".timer")
+	return filepath.Join(timer.App.serviceDir(), timer.App.SecurityTag()+".timer")
 }
 
 func (app *AppInfo) String() string {
@@ -1006,9 +1008,20 @@ func (app *AppInfo) ServiceName() string {
 	return app.SecurityTag() + ".service"
 }
 
+func (app *AppInfo) serviceDir() string {
+	switch app.DaemonScope {
+	case SystemDaemon:
+		return dirs.SnapServicesDir
+	case UserDaemon:
+		return dirs.SnapUserServicesDir
+	default:
+		panic("unknown daemon scope")
+	}
+}
+
 // ServiceFile returns the systemd service file path for the daemon app.
 func (app *AppInfo) ServiceFile() string {
-	return filepath.Join(dirs.SnapServicesDir, app.ServiceName())
+	return filepath.Join(app.serviceDir(), app.ServiceName())
 }
 
 // IsService returns whether app represents a daemon/service.

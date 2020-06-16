@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2019 Canonical Ltd
+ * Copyright (C) 2016-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,23 +20,16 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"time"
 
-	"github.com/snapcore/snapd/cmd/snap-bootstrap/bootstrap"
+	"github.com/snapcore/snapd/asserts"
 )
 
 var (
 	Parser = parser
 )
-
-func MockBootstrapRun(f func(string, string, bootstrap.Options) error) (restore func()) {
-	oldBootstrapRun := bootstrapRun
-	bootstrapRun = f
-	return func() {
-		bootstrapRun = oldBootstrapRun
-	}
-}
 
 func MockStdout(newStdout io.Writer) (restore func()) {
 	oldStdout := stdout
@@ -54,6 +47,10 @@ func MockOsutilIsMounted(f func(path string) (bool, error)) (restore func()) {
 	}
 }
 
+type InitramfsMountsState = initramfsMountsState
+
+var NewInitramfsMountsState = newInitramfsMountsState
+
 func MockTriggerwatchWait(f func(_ time.Duration) error) (restore func()) {
 	oldTriggerwatchWait := triggerwatchWait
 	triggerwatchWait = f
@@ -69,5 +66,44 @@ func MockDefaultMarkerFile(p string) (restore func()) {
 	defaultMarkerFile = p
 	return func() {
 		defaultMarkerFile = old
+	}
+}
+
+func MockSecbootUnlockVolumeIfEncrypted(f func(name string, lockKeysOnFinish bool) (string, error)) (restore func()) {
+	old := secbootUnlockVolumeIfEncrypted
+	secbootUnlockVolumeIfEncrypted = f
+	return func() {
+		secbootUnlockVolumeIfEncrypted = old
+	}
+}
+
+func MockSecbootMeasureSnapSystemEpochWhenPossible(f func() error) (restore func()) {
+	old := secbootMeasureSnapSystemEpochWhenPossible
+	secbootMeasureSnapSystemEpochWhenPossible = f
+	return func() {
+		secbootMeasureSnapSystemEpochWhenPossible = old
+	}
+}
+
+func MockSecbootMeasureSnapModelWhenPossible(f func(findModel func() (*asserts.Model, error)) error) (restore func()) {
+	old := secbootMeasureSnapModelWhenPossible
+	secbootMeasureSnapModelWhenPossible = f
+	return func() {
+		secbootMeasureSnapModelWhenPossible = old
+	}
+}
+
+func MockPartitionUUIDForBootedKernelDisk(uuid string) (restore func()) {
+	old := bootFindPartitionUUIDForBootedKernelDisk
+	bootFindPartitionUUIDForBootedKernelDisk = func() (string, error) {
+		if uuid == "" {
+			// mock error
+			return "", fmt.Errorf("mocked error")
+		}
+		return uuid, nil
+	}
+
+	return func() {
+		bootFindPartitionUUIDForBootedKernelDisk = old
 	}
 }

@@ -25,7 +25,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 )
 
@@ -42,7 +41,6 @@ var (
 	SnapDataHomeGlob          string
 	SnapDownloadCacheDir      string
 	SnapAppArmorDir           string
-	AppArmorCacheDir          string
 	SnapAppArmorAdditionalDir string
 	SnapConfineAppArmorDir    string
 	SnapSeccompBase           string
@@ -57,6 +55,7 @@ var (
 	SnapRunDir                string
 	SnapRunNsDir              string
 	SnapRunLockDir            string
+	SnapBootstrapRunDir       string
 
 	SnapdStoreSSLCertsDir string
 
@@ -96,9 +95,6 @@ var (
 
 	SnapModeenvFile string
 
-	SystemApparmorDir      string
-	SystemApparmorCacheDir string
-
 	CloudMetaDataFile     string
 	CloudInstanceDataFile string
 
@@ -114,8 +110,7 @@ var (
 	SystemLocalFontsDir       string
 	SystemFontconfigCacheDirs []string
 
-	FreezerCgroupDir string
-	PidsCgroupDir    string
+	PidsCgroupDir string
 
 	SnapshotsDir string
 
@@ -280,7 +275,6 @@ func SetRootDir(rootdir string) {
 	SnapDataHomeGlob = filepath.Join(rootdir, "/home/*/", UserHomeSnapDir)
 	SnapAppArmorDir = filepath.Join(rootdir, snappyDir, "apparmor", "profiles")
 	SnapConfineAppArmorDir = filepath.Join(rootdir, snappyDir, "apparmor", "snap-confine")
-	AppArmorCacheDir = filepath.Join(rootdir, "/var/cache/apparmor")
 	SnapAppArmorAdditionalDir = filepath.Join(rootdir, snappyDir, "apparmor", "additional")
 	SnapDownloadCacheDir = filepath.Join(rootdir, snappyDir, "cache")
 	SnapSeccompBase = filepath.Join(rootdir, snappyDir, "seccomp")
@@ -296,6 +290,8 @@ func SetRootDir(rootdir string) {
 	SnapRunDir = filepath.Join(rootdir, "/run/snapd")
 	SnapRunNsDir = filepath.Join(SnapRunDir, "/ns")
 	SnapRunLockDir = filepath.Join(SnapRunDir, "/lock")
+
+	SnapBootstrapRunDir = filepath.Join(SnapRunDir, "snap-bootstrap")
 
 	SnapdStoreSSLCertsDir = filepath.Join(rootdir, snappyDir, "ssl/store-certs")
 
@@ -336,16 +332,6 @@ func SetRootDir(rootdir string) {
 	SnapSystemdConfDir = SnapSystemdConfDirUnder(rootdir)
 	SnapBusPolicyDir = filepath.Join(rootdir, "/etc/dbus-1/system.d")
 
-	SystemApparmorDir = filepath.Join(rootdir, "/etc/apparmor.d")
-	SystemApparmorCacheDir = filepath.Join(rootdir, "/etc/apparmor.d/cache")
-	exists, isDir, _ := osutil.DirExists(SystemApparmorCacheDir)
-	if !exists || !isDir {
-		// some systems use a single cache dir instead of splitting
-		// out the system cache
-		SystemApparmorCacheDir = AppArmorCacheDir
-	}
-
-	CloudMetaDataFile = filepath.Join(rootdir, "/var/lib/cloud/seed/nocloud-net/meta-data")
 	CloudInstanceDataFile = filepath.Join(rootdir, "/run/cloud-init/instance-data.json")
 
 	SnapUdevRulesDir = filepath.Join(rootdir, "/etc/udev/rules.d")
@@ -389,7 +375,6 @@ func SetRootDir(rootdir string) {
 		SystemFontconfigCacheDirs = append(SystemFontconfigCacheDirs, filepath.Join(rootdir, "/usr/lib/fontconfig/cache"))
 	}
 
-	FreezerCgroupDir = filepath.Join(rootdir, "/sys/fs/cgroup/freezer/")
 	PidsCgroupDir = filepath.Join(rootdir, "/sys/fs/cgroup/pids/")
 	SnapshotsDir = filepath.Join(rootdir, snappyDir, "snapshots")
 

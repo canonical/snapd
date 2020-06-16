@@ -792,31 +792,13 @@ func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	return m.backend.RemoveSnapDir(snapsup.placeInfo(), otherInstances)
 }
 
-// queryDisabledServices returns a list of all currently disabled snap services
-// in the snap.
+// queryDisabledServices uses wrappers.QueryDisabledServices()
+//
 // Note this function takes a snap info rather than snapst because there are
 // situations where we want to call this on non-current snap infos, i.e. in the
 // undo handlers, see undoLinkSnap for an example.
 func (m *SnapManager) queryDisabledServices(info *snap.Info, pb progress.Meter) ([]string, error) {
-	// save the list of services that are in the disabled state before unlinking
-	// and thus removing the snap services
-	snapSvcStates, err := m.backend.ServicesEnableState(info, pb)
-	if err != nil {
-		return nil, err
-	}
-
-	disabledSnapSvcs := []string{}
-	// add all disabled services to the list
-	for svc, isEnabled := range snapSvcStates {
-		if !isEnabled {
-			disabledSnapSvcs = append(disabledSnapSvcs, svc)
-		}
-	}
-
-	// sort for easier testing
-	sort.Strings(disabledSnapSvcs)
-
-	return disabledSnapSvcs, nil
+	return m.backend.QueryDisabledServices(info, pb)
 }
 
 func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -913,9 +895,14 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	snapst.Active = true
+	vitalityRank, err := vitalityRank(st, snapsup.InstanceName())
+	if err != nil {
+		return err
+	}
 	linkCtx := backend.LinkContext{
 		PrevDisabledServices: svcsToDisable,
 		FirstInstall:         false,
+		VitalityRank:         vitalityRank,
 	}
 	reboot, err := m.backend.LinkSnap(oldInfo, deviceCtx, linkCtx, perfTimings)
 	if err != nil {
@@ -1103,6 +1090,22 @@ func missingDisabledServices(svcs []string, info *snap.Info) ([]string, []string
 	return missingSvcs, foundSvcs, nil
 }
 
+func vitalityRank(st *state.State, instanceName string) (rank int, err error) {
+	tr := config.NewTransaction(st)
+
+	var vitalityStr string
+	err = tr.GetMaybe("core", "resilience.vitality-hint", &vitalityStr)
+	if err != nil {
+		return 0, err
+	}
+	for i, s := range strings.Split(vitalityStr, ",") {
+		if s == instanceName {
+			return i + 1, nil
+		}
+	}
+	return 0, nil
+}
+
 func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	st := t.State()
 	st.Lock()
@@ -1202,9 +1205,14 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		return err
 	}
 
+	vitalityRank, err := vitalityRank(st, snapsup.InstanceName())
+	if err != nil {
+		return err
+	}
 	linkCtx := backend.LinkContext{
 		FirstInstall:         oldCurrent.Unset(),
 		PrevDisabledServices: svcsToDisable,
+		VitalityRank:         vitalityRank,
 	}
 	reboot, err := m.backend.LinkSnap(newInfo, deviceCtx, linkCtx, perfTimings)
 	// defer a cleanup helper which will unlink the snap if anything fails after
@@ -1784,7 +1792,7 @@ func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	defer st.Lock()
 
 	// stop the services
-	err = m.backend.StopServices(svcs, stopReason, pb, perfTimings)
+	err = m.backend.StopServices(svcs, nil, stopReason, pb, perfTimings)
 	if err != nil {
 		return err
 	}

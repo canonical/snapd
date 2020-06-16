@@ -26,6 +26,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/cmd/snap-bootstrap/bootstrap"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -211,11 +212,11 @@ func MockBootMakeBootable(f func(model *asserts.Model, rootdir string, bootWith 
 	}
 }
 
-func MockCheckTPMAvailability(f func() error) (restore func()) {
-	old := checkTPMAvailability
-	checkTPMAvailability = f
+func MockSecbootCheckKeySealingSupported(f func() error) (restore func()) {
+	old := secbootCheckKeySealingSupported
+	secbootCheckKeySealingSupported = f
 	return func() {
-		checkTPMAvailability = old
+		secbootCheckKeySealingSupported = old
 	}
 }
 
@@ -232,5 +233,13 @@ func MockSysconfigConfigureRunSystem(f func(opts *sysconfig.Options) error) (res
 	sysconfigConfigureRunSystem = f
 	return func() {
 		sysconfigConfigureRunSystem = old
+	}
+}
+
+func MockBootstrapRun(f func(gadgetRoot, device string, options bootstrap.Options) error) (restore func()) {
+	old := bootstrapRun
+	bootstrapRun = f
+	return func() {
+		bootstrapRun = old
 	}
 }

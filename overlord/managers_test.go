@@ -70,10 +70,17 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
+)
+
+var (
+	settleTimeout           = testutil.HostScaledTimeout(45 * time.Second)
+	aggressiveSettleTimeout = testutil.HostScaledTimeout(50 * time.Millisecond)
+	connectRetryTimeout     = testutil.HostScaledTimeout(70 * time.Millisecond)
 )
 
 type automaticSnapshotCall struct {
@@ -126,11 +133,6 @@ var (
 	deviceKey, _ = assertstest.GenerateKey(752)
 )
 
-const (
-	aggressiveSettleTimeout = 50 * time.Millisecond
-	connectRetryTimeout     = 70 * time.Millisecond
-)
-
 func verifyLastTasksetIsRerefresh(c *C, tts []*state.TaskSet) {
 	ts := tts[len(tts)-1]
 	c.Assert(ts.Tasks(), HasLen, 1)
@@ -143,6 +145,9 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	s.tempdir = c.MkDir()
 	dirs.SetRootDir(s.tempdir)
 	s.AddCleanup(func() { dirs.SetRootDir("") })
+
+	// needed for system key generation
+	s.AddCleanup(osutil.MockMountInfo(""))
 
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
 	c.Assert(err, IsNil)
@@ -351,8 +356,6 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 type mgrsSuite struct {
 	baseMgrsSuite
 }
-
-var settleTimeout = 45 * time.Second
 
 func makeTestSnapWithFiles(c *C, snapYamlContent string, files [][]string) string {
 	info, err := snap.InfoFromSnapYaml([]byte(snapYamlContent))
@@ -662,7 +665,7 @@ func (s *baseMgrsSuite) newestThatCanRead(name string, epoch snap.Epoch) (info *
 	rev = s.serveRevision[name]
 	path := s.serveSnapPath[name]
 	for {
-		snapf, err := snap.Open(path)
+		snapf, err := snapfile.Open(path)
 		if err != nil {
 			panic(err)
 		}
@@ -877,7 +880,7 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 // serveSnap starts serving the snap at snapPath, moving the current
 // one onto the list of previous ones if already set.
 func (s *baseMgrsSuite) serveSnap(snapPath, revno string) {
-	snapf, err := snap.Open(snapPath)
+	snapf, err := snapfile.Open(snapPath)
 	if err != nil {
 		panic(err)
 	}
@@ -2076,21 +2079,21 @@ type: kernel`
 	// here to make comparison easier
 	kernelSnapInfo.SideInfo.Revision = snap.R(-1)
 
+	// the current kernel in the bootloader is still the same
+	currentKernel, err := bloader.Kernel()
+	c.Assert(err, IsNil)
+	firstKernel := snap.Info{SideInfo: *si1}
+	c.Assert(currentKernel.Filename(), Equals, firstKernel.Filename())
+
+	// the current try kernel in the bootloader is our new kernel
+	currentTryKernel, err := bloader.TryKernel()
+	c.Assert(err, IsNil)
+	c.Assert(currentTryKernel.Filename(), Equals, kernelSnapInfo.Filename())
+
 	// check that we extracted the kernel snap assets
 	extractedKernels := bloader.ExtractKernelAssetsCalls
 	c.Assert(extractedKernels, HasLen, 1)
 	c.Assert(extractedKernels[0].Filename(), Equals, kernelSnapInfo.Filename())
-
-	// and that we enabled the try kernel
-	enabledTryKernels, _ := bloader.GetRunKernelImageFunctionSnapCalls("EnableTryKernel")
-	c.Assert(enabledTryKernels, HasLen, 1)
-	c.Assert(enabledTryKernels[0].Filename(), Equals, kernelSnapInfo.Filename())
-
-	// we won't disable any try kernels nor will we enable any kernels
-	_, nDisableTryKernelCalls := bloader.GetRunKernelImageFunctionSnapCalls("DisableTryKernel")
-	c.Assert(nDisableTryKernelCalls, Equals, 0)
-	_, nEnableKernelCalls := bloader.GetRunKernelImageFunctionSnapCalls("EnableKernel")
-	c.Assert(nEnableKernelCalls, Equals, 0)
 
 	// pretend we restarted
 	s.mockSuccessfulReboot(c, bloader, []snap.Type{snap.TypeKernel})
@@ -2099,15 +2102,6 @@ type: kernel`
 	err = s.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
-
-	// we should now have enabled a kernel
-	enabledKernels, _ := bloader.GetRunKernelImageFunctionSnapCalls("EnableKernel")
-	c.Assert(enabledKernels, HasLen, 1)
-	c.Assert(enabledKernels[0].Filename(), Equals, kernelSnapInfo.Filename())
-
-	// we should have now disabled a TryKernel
-	_, nDisableTryKernelCalls = bloader.GetRunKernelImageFunctionSnapCalls("DisableTryKernel")
-	c.Assert(nDisableTryKernelCalls, Equals, 1)
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 
@@ -2119,6 +2113,23 @@ type: kernel`
 	c.Check(snapst.Sequence, DeepEquals, []*snap.SideInfo{si1, &kernelSnapInfo.SideInfo})
 	c.Check(snapst.Active, Equals, true)
 	c.Check(snapst.Current, DeepEquals, snap.R(-1))
+
+	// since we need to do a reboot to go back to the old kernel, we should now
+	// have kernel on the bootloader as the new one, and no try kernel on the
+	// bootloader
+	finalCurrentKernel, err := bloader.Kernel()
+	c.Assert(err, IsNil)
+	c.Assert(finalCurrentKernel.Filename(), Equals, kernelSnapInfo.Filename())
+
+	_, err = bloader.TryKernel()
+	c.Assert(err, Equals, bootloader.ErrNoTryKernelRef)
+
+	// finally check that GetCurrentBoot gives us the new kernel
+	dev, err := devicestate.DeviceCtx(st, nil, nil)
+	c.Assert(err, IsNil)
+	sn, err := boot.GetCurrentBoot(snap.TypeKernel, dev)
+	c.Assert(err, IsNil)
+	c.Assert(sn.Filename(), Equals, kernelSnapInfo.Filename())
 }
 
 func (s *mgrsSuite) TestInstallKernelSnap20UndoUpdatesBootloaderEnv(c *C) {
@@ -2239,16 +2250,16 @@ type: kernel`
 	c.Assert(extractedKernels, HasLen, 1)
 	c.Assert(extractedKernels[0].Filename(), Equals, kernelSnapInfo.Filename())
 
-	// and that we enabled the try kernel
-	enabledTryKernels, _ := bloader.GetRunKernelImageFunctionSnapCalls("EnableTryKernel")
-	c.Assert(enabledTryKernels, HasLen, 1)
-	c.Assert(enabledTryKernels[0].Filename(), Equals, kernelSnapInfo.Filename())
+	// the current kernel in the bootloader is still the same
+	currentKernel, err := bloader.Kernel()
+	c.Assert(err, IsNil)
+	firstKernel := snap.Info{SideInfo: *si1}
+	c.Assert(currentKernel.Filename(), Equals, firstKernel.Filename())
 
-	// we won't disable any try kernels nor will we enable any kernels
-	_, nDisableTryKernelCalls := bloader.GetRunKernelImageFunctionSnapCalls("DisableTryKernel")
-	c.Assert(nDisableTryKernelCalls, Equals, 0)
-	_, nEnableKernelCalls := bloader.GetRunKernelImageFunctionSnapCalls("EnableKernel")
-	c.Assert(nEnableKernelCalls, Equals, 0)
+	// the current try kernel in the bootloader is our new kernel
+	currentTryKernel, err := bloader.TryKernel()
+	c.Assert(err, IsNil)
+	c.Assert(currentTryKernel.Filename(), Equals, kernelSnapInfo.Filename())
 
 	// we are in restarting state and the change is not done yet
 	restarting, _ := st.Restarting()
@@ -2278,22 +2289,6 @@ type: kernel`
 	extractedKernels = bloader.ExtractKernelAssetsCalls
 	c.Assert(extractedKernels, HasLen, 1) // same as above check
 
-	// we should have enabled a try kernel, which is now the original kernel
-	// snap
-	enabledTryKernels, _ = bloader.GetRunKernelImageFunctionSnapCalls("EnableTryKernel")
-	c.Assert(enabledTryKernels, HasLen, 2) // same as above, but 1 more
-	c.Assert(enabledTryKernels[1].Filename(), Equals, "pc-kernel_1.snap")
-
-	// we should have disabled the try-kernel we just booted and then enabled
-	// a new kernel (which is the original kernel)
-	_, nDisableTryKernelCalls = bloader.GetRunKernelImageFunctionSnapCalls("DisableTryKernel")
-	c.Assert(nDisableTryKernelCalls, Equals, 1)
-
-	// we should have enabled the new kernel, as that technically finished
-	enabledKernels, _ := bloader.GetRunKernelImageFunctionSnapCalls("EnableKernel")
-	c.Assert(enabledKernels, HasLen, 1)
-	c.Assert(enabledKernels[0].Filename(), Equals, kernelSnapInfo.Filename())
-
 	// also check that we are active on the first revision again
 	var snapst snapstate.SnapState
 	err = snapstate.Get(st, "pc-kernel", &snapst)
@@ -2302,13 +2297,28 @@ type: kernel`
 	c.Check(snapst.Sequence, DeepEquals, []*snap.SideInfo{si1})
 	c.Check(snapst.Active, Equals, true)
 	c.Check(snapst.Current, DeepEquals, snap.R(1))
+
+	// since we need to do a reboot to go back to the old kernel, we should now
+	// have kernel on the bootloader as the new one, and the try kernel on the
+	// booloader as the old one
+	finalCurrentKernel, err := bloader.Kernel()
+	c.Assert(err, IsNil)
+	c.Assert(finalCurrentKernel.Filename(), Equals, kernelSnapInfo.Filename())
+
+	finalTryKernel, err := bloader.TryKernel()
+	c.Assert(err, IsNil)
+	c.Assert(finalTryKernel.Filename(), Equals, firstKernel.Filename())
+
+	// TODO:UC20: this test should probably simulate another reboot and confirm
+	// that at the end of everything we have GetCurrentBoot() return the old
+	// kernel we reverted back to again
 }
 
 func (s *mgrsSuite) installLocalTestSnap(c *C, snapYamlContent string) *snap.Info {
 	st := s.o.State()
 
 	snapPath := makeTestSnap(c, snapYamlContent)
-	snapf, err := snap.Open(snapPath)
+	snapf, err := snapfile.Open(snapPath)
 	c.Assert(err, IsNil)
 	info, err := snap.ReadInfoFromSnapFile(snapf, nil)
 	c.Assert(err, IsNil)

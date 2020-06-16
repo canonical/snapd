@@ -8,11 +8,12 @@
 
 pkgname=snapd
 pkgdesc="Service and tools for management of snap packages."
-depends=('squashfs-tools' 'libseccomp' 'libsystemd')
-optdepends=('bash-completion: bash completion support')
-pkgver=2.44.1
+depends=('squashfs-tools' 'libseccomp' 'libsystemd' 'apparmor')
+optdepends=('bash-completion: bash completion support'
+            'xdg-desktop-portal: desktop integration')
+pkgver=2.45.1
 pkgrel=1
-arch=('x86_64')
+arch=('x86_64' 'i686' 'armv7h' 'aarch64')
 url="https://github.com/snapcore/snapd"
 license=('GPL3')
 makedepends=('git' 'go' 'go-tools' 'libseccomp' 'libcap' 'systemd' 'xfsprogs' 'python-docutils' 'apparmor')
@@ -49,10 +50,16 @@ build() {
   export GOPATH="$srcdir/go"
 
   # GOFLAGS may be modified by CI tools
+  # GOFLAGS are the go build flags for all binaries, GOFLAGS_SNAP are for snap
+  # build only.
   GOFLAGS=""
+  GOFLAGS_SNAP="-tags nomanagers"
   if [[ "$WITH_TEST_KEYS" == 1 ]]; then
       GOFLAGS="$GOFLAGS -tags withtestkeys"
+      GOFLAGS_SNAP="-tags nomanagers,withtestkeys"
   fi
+  # snapd does not support modules yet, explicitly disable Go modules
+  export GO111MODULE=off
 
   export CGO_ENABLED="1"
   export CGO_CFLAGS="${CFLAGS}"
@@ -67,17 +74,20 @@ build() {
   cd "$srcdir/go/src/${_gourl}"
   XDG_CONFIG_HOME="$srcdir" ./get-deps.sh
 
-  gobuild="go build -x -v -buildmode=pie"
-  gobuild_static="go build -x -v -buildmode=pie -ldflags=-extldflags=-static"
+  # because argument expansion with quoting in bash is hard, and -ldflags=-extldflags='-foo'
+  # is not exactly the same as -ldflags "-extldflags '-foo'" use the array trick
+  # to pass exactly what we want
+  flags=(-buildmode=pie -ldflags "-s -extldflags '$LDFLAGS'")
+  staticflags=(-buildmode=pie -ldflags "-s -extldflags '$LDFLAGS -static'")
   # Build/install snap and snapd
-  $gobuild -o $srcdir/go/bin/snap $GOFLAGS "${_gourl}/cmd/snap"
-  $gobuild -o $srcdir/go/bin/snapd $GOFLAGS "${_gourl}/cmd/snapd"
-  $gobuild -o $srcdir/go/bin/snap-seccomp $GOFLAGS "${_gourl}/cmd/snap-seccomp"
-  $gobuild -o $srcdir/go/bin/snap-failure $GOFLAGS "${_gourl}/cmd/snap-failure"
+  go build "${flags[@]}" -o "$srcdir/go/bin/snap" $GOFLAGS_SNAP "${_gourl}/cmd/snap"
+  go build "${flags[@]}" -o "$srcdir/go/bin/snapd" $GOFLAGS "${_gourl}/cmd/snapd"
+  go build "${flags[@]}" -o "$srcdir/go/bin/snap-seccomp" $GOFLAGS "${_gourl}/cmd/snap-seccomp"
+  go build "${flags[@]}" -o "$srcdir/go/bin/snap-failure" $GOFLAGS "${_gourl}/cmd/snap-failure"
   # build snap-exec and snap-update-ns completely static for base snaps
-  $gobuild_static -o $srcdir/go/bin/snap-update-ns $GOFLAGS "${_gourl}/cmd/snap-update-ns"
-  $gobuild_static -o $srcdir/go/bin/snap-exec $GOFLAGS "${_gourl}/cmd/snap-exec"
-  $gobuild_static -o $srcdir/go/bin/snapctl $GOFLAGS "${_gourl}/cmd/snapctl"
+  go build "${staticflags[@]}" -o "$srcdir/go/bin/snap-update-ns" $GOFLAGS "${_gourl}/cmd/snap-update-ns"
+  go build "${staticflags[@]}" -o "$srcdir/go/bin/snap-exec" $GOFLAGS "${_gourl}/cmd/snap-exec"
+  go build "${staticflags[@]}" -o "$srcdir/go/bin/snapctl" $GOFLAGS "${_gourl}/cmd/snapctl"
 
   # Generate data files such as real systemd units, dbus service, environment
   # setup helpers out of the available templates
@@ -104,6 +114,11 @@ check() {
   export GOPATH="$srcdir/go"
   cd "$srcdir/go/src/${_gourl}"
 
+  # make sure the binaries that need to be built statically really are
+  for binary in snap-exec snap-update-ns snapctl; do
+      LC_ALL=C ldd "$srcdir/go/bin/$binary" 2>&1 | grep -q 'not a dynamic executable'
+  done
+
   SKIP_UNCLEAN=1 ./run-checks --unit
   # XXX: Static checks choke on autotools generated cruft. Let's not run them
   # here as they are designed to pass on a clean tree, before anything else is
@@ -119,12 +134,15 @@ package() {
   export GOPATH="$srcdir/go"
 
   # Install bash completion
-  install -Dm644 data/completion/snap \
+  install -Dm644 data/completion/bash/snap \
     "$pkgdir/usr/share/bash-completion/completions/snap"
-  install -Dm644 data/completion/complete.sh \
+  install -Dm644 data/completion/bash/complete.sh \
     "$pkgdir/usr/lib/snapd/complete.sh"
-  install -Dm644 data/completion/etelpmoc.sh \
+  install -Dm644 data/completion/bash/etelpmoc.sh \
     "$pkgdir/usr/lib/snapd/etelpmoc.sh"
+  # Install zsh completion
+  install -Dm644 data/completion/zsh/_snap \
+    "$pkgdir/usr/share/zsh/site-functions/_snap"
 
   # Install systemd units, dbus services and a script for environment variables
   make -C data/ install \
@@ -133,6 +151,8 @@ package() {
      SYSTEMDSYSTEMUNITDIR=/usr/lib/systemd/system \
      SNAP_MOUNT_DIR=/var/lib/snapd/snap \
      DESTDIR="$pkgdir"
+  # no tweaks for sudo are needed
+  rm -rfv "$pkgdir/etc/sudoers.d"
 
   # Install polkit policy
   install -Dm644 data/polkit/io.snapcraft.snapd.policy \
@@ -140,14 +160,14 @@ package() {
 
   # Install executables
   install -Dm755 "$srcdir/go/bin/snap" "$pkgdir/usr/bin/snap"
+  install -Dm755 "$srcdir/go/bin/snapctl" "$pkgdir/usr/lib/snapd/snapctl"
   install -Dm755 "$srcdir/go/bin/snapd" "$pkgdir/usr/lib/snapd/snapd"
   install -Dm755 "$srcdir/go/bin/snap-seccomp" "$pkgdir/usr/lib/snapd/snap-seccomp"
   install -Dm755 "$srcdir/go/bin/snap-failure" "$pkgdir/usr/lib/snapd/snap-failure"
   install -Dm755 "$srcdir/go/bin/snap-update-ns" "$pkgdir/usr/lib/snapd/snap-update-ns"
   install -Dm755 "$srcdir/go/bin/snap-exec" "$pkgdir/usr/lib/snapd/snap-exec"
   # Ensure /usr/bin/snapctl is a symlink to /usr/libexec/snapd/snapctl
-  install -Dm755 "$srcdir/go/bin/snapctl" "$pkgdir/usr/lib/snapd/snapctl"
-  ln -s  ../lib/snapd/snapctl  "$pkgdir/usr/bin/snapctl"
+  ln -s /usr/lib/snapd/snapctl "$pkgdir/usr/bin/snapctl"
 
   # pre-create directories
   install -dm755 "$pkgdir/var/lib/snapd/snap"
@@ -161,6 +181,7 @@ package() {
   install -dm755 "$pkgdir/var/lib/snapd/seccomp/bpf"
   install -dm755 "$pkgdir/var/lib/snapd/snap/bin"
   install -dm755 "$pkgdir/var/lib/snapd/snaps"
+  install -dm755 "$pkgdir/var/lib/snapd/inhibit"
   install -dm755 "$pkgdir/var/lib/snapd/lib/gl"
   install -dm755 "$pkgdir/var/lib/snapd/lib/gl32"
   install -dm755 "$pkgdir/var/lib/snapd/lib/vulkan"

@@ -19,6 +19,8 @@
 
 package configcore
 
+import "github.com/snapcore/snapd/osutil/sys"
+
 var (
 	UpdatePiConfig       = updatePiConfig
 	SwitchHandlePowerKey = switchHandlePowerKey
@@ -26,4 +28,23 @@ var (
 	UpdateKeyValueStream = updateKeyValueStream
 	AddFSOnlyHandler     = addFSOnlyHandler
 	AddWithStateHandler  = addWithStateHandler
+	FilesystemOnlyApply  = filesystemOnlyApply
 )
+
+type PlainCoreConfig = plainCoreConfig
+
+func MockFindGid(f func(string) (uint64, error)) func() {
+	old := osutilFindGid
+	osutilFindGid = f
+	return func() {
+		osutilFindGid = old
+	}
+}
+
+func MockChownPath(f func(string, sys.UserID, sys.GroupID) error) func() {
+	old := sysChownPath
+	sysChownPath = f
+	return func() {
+		sysChownPath = old
+	}
+}

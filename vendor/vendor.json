@@ -7,6 +7,24 @@
 			"revision": ""
 		},
 		{
+			"checksumSHA1": "FM+dp3Hv1n+R9b/gqhtjSq6W4T8=",
+			"path": "github.com/canonical/go-tpm2",
+			"revision": "16307201a54dc51583440f9416cfa836bcf0b3fc",
+			"revisionTime": "2020-04-16T00:17:14Z"
+		},
+		{
+			"checksumSHA1": "bT/rC7K8St3lNRXf/XJGpB4wNJU=",
+			"path": "github.com/canonical/go-tpm2/internal",
+			"revision": "16307201a54dc51583440f9416cfa836bcf0b3fc",
+			"revisionTime": "2020-04-16T00:17:14Z"
+		},
+		{
+			"checksumSHA1": "eDjzake0GpHm9kfTH7FMUWX8zVA=",
+			"path": "github.com/chrisccoulson/tcglog-parser",
+			"revision": "7b0f085a85398d368e10382a21a44ec2226c35b3",
+			"revisionTime": "2020-02-28T14:36:39Z"
+		},
+		{
 			"checksumSHA1": "zg16zjZTQ9R89+UOLmEZxHgxDtM=",
 			"path": "github.com/coreos/go-systemd/activation",
 			"revision": "39ca1b05acc7ad1220e09f133283b8859a8b71ab",
@@ -73,11 +91,11 @@
 			"revisionTime": "2018-03-08T15:25:21Z"
 		},
 		{
-			"checksumSHA1": "XEtWdIrRbRSFBR9q+SOATOuy7vM=",
+			"checksumSHA1": "fFe39jZ9Y2DPUuNvx2Bzs6N/yYs=",
 			"comment": "fork of boltdb/bolt to fix build failure on ppc. upstream: https://github.com/boltdb/bolt/pull/740 and https://github.com/coreos/bbolt/pull/73",
 			"path": "github.com/snapcore/bolt",
-			"revision": "9eca199504ee1299394669820724322b5bfc070a",
-			"revisionTime": "2018-01-18T17:01:45Z"
+			"revision": "e23dabaa2861760fc674e679fad48343c06c0afc",
+			"revisionTime": "2020-06-03T12:59:28Z"
 		},
 		{
 			"checksumSHA1": "CSPV27Mm4+WBlyGFT/lKz1la/VI=",
@@ -92,11 +110,23 @@
 			"revisionTime": "2017-09-28T14:21:59Z"
 		},
 		{
+			"checksumSHA1": "DLybl1kT3Xoui39mHI4jO4+1GuM=",
+			"path": "github.com/snapcore/secboot",
+			"revision": "9530c0bc45a0828327097bd5d966da15bc9e8697",
+			"revisionTime": "2020-05-12T08:22:20Z"
+		},
+		{
 			"checksumSHA1": "3AmEm18mKj8XxBuru/ix4OOpRkE=",
 			"path": "github.com/snapcore/squashfuse",
 			"revision": "319f6d41a0419465a55d9dcb848d2408b97764f9",
 			"revisionTime": "2017-12-20T16:53:23Z",
 			"tree": true
+		},
+		{
+			"checksumSHA1": "/mphxOFx5uIoQCnt6YtFmmPDBao=",
+			"path": "go.mozilla.org/pkcs7",
+			"revision": "432b2356ecb18209c1cec25680b8a23632794f21",
+			"revisionTime": "2020-01-28T12:03:23Z"
 		},
 		{
 			"checksumSHA1": "TT1rac6kpQp2vz24m5yDGUNQ/QQ=",
@@ -169,6 +199,12 @@
 			"path": "golang.org/x/net/context",
 			"revision": "c81e7f25cb61200d8bf0ae971a0bac8cb638d5bc",
 			"revisionTime": "2017-06-28T23:42:41Z"
+		},
+		{
+			"checksumSHA1": "kohbRG3D0CRhcgwH6z7YQ6uq1xo=",
+			"path": "golang.org/x/sys/unix",
+			"revision": "e3b113bbe6a423737ae98f42118ce9366e112e12",
+			"revisionTime": "2020-04-06T14:27:27Z"
 		},
 		{
 			"checksumSHA1": "fqi5wrtLirDRLeXBetveI1nLg5M=",

@@ -208,49 +208,6 @@ func ProcGroup(pid int, matcher GroupMatcher) (string, error) {
 	return "", fmt.Errorf("cannot find %s cgroup path for pid %v", matcher, pid)
 }
 
-// PidsInGroup returns the list of process ID currently registered in a given cgroup
-func PidsInGroup(hierarchyMount, groupPath string) ([]int, error) {
-	// TODO: check whether hierarchyMount looks like a valid cgroup root
-	// (i.e. at cgroup.procs exists)
-	fname := filepath.Join(hierarchyMount, groupPath, "cgroup.procs")
-	file, err := os.Open(fname)
-	if os.IsNotExist(err) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-	return parsePids(bufio.NewReader(file))
-}
-
-// parsePid parses a string as a process identifier.
-func parsePid(text string) (int, error) {
-	pid, err := strconv.Atoi(text)
-	if err != nil || (err == nil && pid <= 0) {
-		return 0, fmt.Errorf("cannot parse pid %q", text)
-	}
-	return pid, err
-}
-
-// parsePids parses a list of pids, one per line, from a reader.
-func parsePids(reader io.Reader) ([]int, error) {
-	scanner := bufio.NewScanner(reader)
-	var pids []int
-	for scanner.Scan() {
-		s := scanner.Text()
-		pid, err := parsePid(s)
-		if err != nil {
-			return nil, err
-		}
-		pids = append(pids, pid)
-	}
-	if err := scanner.Err(); err != nil {
-		return nil, err
-	}
-	return pids, nil
-}
-
 // MockVersion sets the reported version of cgroup support. For use in testing only
 func MockVersion(mockVersion int, mockErr error) (restore func()) {
 	oldVersion, oldErr := probeVersion, probeErr
@@ -278,19 +235,6 @@ type procInfoEntry struct {
 	Path        string
 }
 
-var pathOfProcPidCgroup = func(pid int) string {
-	return fmt.Sprintf("/proc/%d/cgroup", pid)
-}
-
-// MockPathOfProcPidCgroup mocks the function used to compute /proc/PID/cgroup
-func MockPathOfProcPidCgroup(fn func(int) string) func() {
-	old := pathOfProcPidCgroup
-	pathOfProcPidCgroup = fn
-	return func() {
-		pathOfProcPidCgroup = old
-	}
-}
-
 // ProcessPathInTrackingCgroup returns the path in the hierarchy of the tracking cgroup.
 //
 // Tracking cgroup is whichever cgroup systemd uses for tracking processes.
@@ -300,48 +244,65 @@ func MockPathOfProcPidCgroup(fn func(int) string) func() {
 // This function fails on systems where systemd is not used and subsequently
 // cgroups are not mounted.
 func ProcessPathInTrackingCgroup(pid int) (string, error) {
-	fname := pathOfProcPidCgroup(pid)
-	entries, err := loadProcCgroup(fname)
+	fname := ProcPidPath(pid)
+	// Cgroup entries we're looking for look like this:
+	// 1:name=systemd:/user.slice/user-1000.slice/user@1000.service/tmux.slice/tmux@default.service
+	// 0::/user.slice/user-1000.slice/user@1000.service/tmux.slice/tmux@default.service
+	entry, err := scanProcCgroupFile(fname, func(e *procInfoEntry) bool {
+		if e.CgroupID == 0 {
+			return true
+		}
+		if len(e.Controllers) == 1 && e.Controllers[0] == "name=systemd" {
+			return true
+		}
+		return false
+	})
 	if err != nil {
 		return "", err
 	}
-	for _, e := range entries {
-		if e.CgroupID == 0 {
-			return e.Path, nil
-		}
-		if len(e.Controllers) == 1 && e.Controllers[0] == "name=systemd" {
-			return e.Path, nil
-		}
+	if entry == nil {
+		return "", fmt.Errorf("cannot find tracking cgroup")
 	}
-	return "", fmt.Errorf("cannot find tracking cgroup")
+	return entry.Path, nil
 }
 
-func loadProcCgroup(fname string) ([]*procInfoEntry, error) {
+// scanProcCgroupFile scans a file for /proc/PID/cgroup entries and returns the
+// first one matching the given predicate.
+//
+// If no entry matches the predicate nil is returned without errors.
+func scanProcCgroupFile(fname string, pred func(entry *procInfoEntry) bool) (*procInfoEntry, error) {
 	f, err := os.Open(fname)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
-	return readProcCgroup(f)
+	return scanProcCgroup(f, pred)
 }
 
-func readProcCgroup(reader io.Reader) ([]*procInfoEntry, error) {
+// scanProcCgroup scans a reader for /proc/PID/cgroup entries and returns the
+// first one matching the given predicate.
+//
+// If no entry matches the predicate nil is returned without errors.
+func scanProcCgroup(reader io.Reader, pred func(entry *procInfoEntry) bool) (*procInfoEntry, error) {
 	scanner := bufio.NewScanner(reader)
-	var entries []*procInfoEntry
 	for scanner.Scan() {
 		line := scanner.Text()
 		entry, err := parseProcCgroupEntry(line)
 		if err != nil {
 			return nil, fmt.Errorf("cannot parse proc cgroup entry %q: %s", line, err)
 		}
-		entries = append(entries, entry)
+		if pred(entry) {
+			return entry, nil
+		}
 	}
 	if err := scanner.Err(); err != nil {
 		return nil, err
 	}
-	return entries, nil
+	return nil, nil
 }
 
+// parseProcCgroupEntry parses a line in format described by cgroups(7)
+// Such files represent cgroup membership of a particular process.
 func parseProcCgroupEntry(line string) (*procInfoEntry, error) {
 	var e procInfoEntry
 	var err error

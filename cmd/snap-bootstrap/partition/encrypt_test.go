@@ -71,7 +71,8 @@ func (s *encryptSuite) TestEncryptHappy(c *C) {
 	c.Assert(s.mockCryptsetup.Calls(), DeepEquals, [][]string{
 		{
 			"cryptsetup", "-q", "luksFormat", "--type", "luks2", "--key-file", "-",
-			"--pbkdf", "argon2i", "--iter-time", "1", "--label", "some-label-enc", "/dev/node1",
+			"--cipher", "aes-xts-plain64", "--key-size", "512", "--pbkdf", "argon2i",
+			"--iter-time", "1", "--label", "some-label-enc", "/dev/node1",
 		},
 		{
 			"cryptsetup", "open", "--key-file", "-", "/dev/node1", "some-label",
@@ -116,7 +117,8 @@ func (s *encryptSuite) TestEncryptAddKey(c *C) {
 	c.Assert(s.mockCryptsetup.Calls(), DeepEquals, [][]string{
 		{
 			"cryptsetup", "-q", "luksFormat", "--type", "luks2", "--key-file", "-",
-			"--pbkdf", "argon2i", "--iter-time", "1", "--label", "some-label-enc", "/dev/node1",
+			"--cipher", "aes-xts-plain64", "--key-size", "512", "--pbkdf", "argon2i",
+			"--iter-time", "1", "--label", "some-label-enc", "/dev/node1",
 		},
 		{
 			"cryptsetup", "open", "--key-file", "-", "/dev/node1", "some-label",
@@ -132,9 +134,9 @@ func (s *encryptSuite) TestEncryptAddKey(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *encryptSuite) TestRecoveryKeyStore(c *C) {
+func (s *encryptSuite) TestRecoveryKeySave(c *C) {
 	rkey := partition.RecoveryKey{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 255}
-	err := rkey.Store("test-key")
+	err := rkey.Save("test-key")
 	c.Assert(err, IsNil)
 	fileInfo, err := os.Stat("test-key")
 	c.Assert(err, IsNil)

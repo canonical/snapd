@@ -43,12 +43,14 @@ func MockAndroidBootFile(c *C, rootdir string, mode os.FileMode) {
 	c.Assert(err, IsNil)
 }
 
-func NewUboot(rootdir string) ExtractedRecoveryKernelImageBootloader {
-	return newUboot(rootdir)
+func NewUboot(rootdir string, blOpts *Options) ExtractedRecoveryKernelImageBootloader {
+	return newUboot(rootdir, blOpts)
 }
 
-func MockUbootFiles(c *C, rootdir string) {
+func MockUbootFiles(c *C, rootdir string, blOpts *Options) {
 	u := &uboot{rootdir: rootdir}
+	u.setDefaults()
+	u.processBlOpts(blOpts)
 	err := os.MkdirAll(u.dir(), 0755)
 	c.Assert(err, IsNil)
 
@@ -100,3 +102,9 @@ func LkRuntimeMode(b Bootloader) bool {
 	lk := b.(*lk)
 	return lk.inRuntimeMode
 }
+
+var (
+	EditionFromDiskConfigAsset = editionFromDiskConfigAsset
+	EditionFromConfigAsset     = editionFromConfigAsset
+	ConfigAssetFrom            = configAssetFrom
+)

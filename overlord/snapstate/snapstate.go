@@ -429,7 +429,7 @@ var CheckHealthHook = func(st *state.State, snapName string, rev snap.Revision) 
 func WaitRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 	if ok, _ := task.State().Restarting(); ok {
 		// don't continue until we are in the restarted snapd
-		task.Logf("Waiting for restart...")
+		task.Logf("Waiting for automatic snapd restart...")
 		return &state.Retry{}
 	}
 
@@ -561,6 +561,36 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 		}
 		if !flag {
 			return fmt.Errorf("experimental feature disabled - test it by setting 'experimental.parallel-instances' to true")
+		}
+	}
+
+	var hasUserService, usesDbusActivation bool
+	for _, app := range info.Apps {
+		if app.IsService() && app.DaemonScope == snap.UserDaemon {
+			hasUserService = true
+		}
+		if len(app.ActivatesOn) != 0 {
+			usesDbusActivation = true
+		}
+	}
+
+	if hasUserService {
+		flag, err := features.Flag(tr, features.UserDaemons)
+		if err != nil {
+			return err
+		}
+		if !flag {
+			return fmt.Errorf("experimental feature disabled - test it by setting 'experimental.user-daemons' to true")
+		}
+	}
+
+	if usesDbusActivation {
+		flag, err := features.Flag(tr, features.DbusActivation)
+		if err != nil {
+			return err
+		}
+		if !flag {
+			return fmt.Errorf("experimental feature disabled - test it by setting 'experimental.dbus-activation' to true")
 		}
 	}
 

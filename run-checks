@@ -16,8 +16,8 @@ else
 fi
 COVERMODE=${COVERMODE:-atomic}
 
-if [ -z "${TRAVIS_BUILD_ID:-}" ]; then
-    # when *not* running inside travis, ensure we use go-1.10 by default
+if [ -z "${TRAVIS_BUILD_ID:-}" ] && [ -z "${GITHUB_WORKFLOW:-}" ]; then
+    # when *not* running inside travis/gh, ensure we use go-1.10 by default
     export PATH=/usr/lib/go-1.10/bin:${PATH}
 fi
 
@@ -150,6 +150,8 @@ if [ "$STATIC" = 1 ]; then
     echo Checking docs
     ./mdlint.py ./*.md docs/*.md
 
+    # XXX: remove once we can use an action, see workflows/test.yaml for
+    #      details why we still use this script
     if [ -n "${TRAVIS_PULL_REQUEST:-}" ] && [ "${TRAVIS_PULL_REQUEST:-}" != "false" ]; then
         echo Checking pull request summary
         ./check-pr-title.py "$TRAVIS_PULL_REQUEST"
@@ -177,7 +179,7 @@ if [ "$STATIC" = 1 ]; then
     echo Running vet
     go list ./... | grep -v '/vendor/' | xargs go vet
 
-    echo 'Check for usages of http.Status*'
+    echo 'Checking for usages of http.Status*'
     got=""
     for dir in $(go list -f '{{.Dir}}' ./... | grep -v '/vendor/' ); do
         s="$(grep -nP 'http\.Status(?!Text)' "$dir"/*.go || true)"
@@ -192,7 +194,7 @@ if [ "$STATIC" = 1 ]; then
         exit 1
     fi
 
-    echo 'Check for direct usages of math/rand'
+    echo "Checking for direct usages of math/rand"
     got=""
     for dir in $(go list -f '{{.Dir}}' ./... | grep -v '/vendor/' ); do
         # shellcheck disable=SC2063
@@ -225,7 +227,7 @@ if [ "$STATIC" = 1 ]; then
         unset regexp
     fi
 
-    echo Checking spelling errors
+    echo "Checking spelling errors"
     if ! command -v misspell >/dev/null; then
         go get -u github.com/client9/misspell/cmd/misspell
     fi
@@ -236,14 +238,14 @@ if [ "$STATIC" = 1 ]; then
         misspell -error -i auther,PROCES,PROCESSS,proces,processs,exportfs "$file"
     done
 
-    echo Checking for ineffective assignments
+    echo "Checking for ineffective assignments"
     if ! command -v ineffassign >/dev/null; then
         go get -u github.com/gordonklaus/ineffassign
     fi
     # ineffassign knows about ignoring vendor/ \o/
     ineffassign .
 
-    echo Checking for naked returns
+    echo "Checking for naked returns"
     if ! command -v nakedret >/dev/null; then
         go get -u github.com/alexkohler/nakedret
     fi
@@ -257,10 +259,10 @@ if [ "$STATIC" = 1 ]; then
         fi
     fi
 
-    echo Checking all interfaces have minimal spread test
+    echo "Checking all interfaces have minimal spread test"
     missing_interface_spread_test
 
-    echo Checking for incorrect multiline strings in spread tests
+    echo "Checking for incorrect multiline strings in spread tests"
     badmultiline=$(find tests -name 'task.yaml' -print0 -o -name 'spread.yaml' -print0 | \
                        xargs -0 grep -R -n -E '(restore*|prepare*|execute|debug):\s*$' || true)
     if [ -n "$badmultiline" ]; then
@@ -283,6 +285,10 @@ fi
 
 if [ "$UNIT" = 1 ]; then
     ./get-deps.sh
+
+    echo "Show go version"
+    command -v go
+    go version
 
     echo Building
     go build -v github.com/snapcore/snapd/...
@@ -315,10 +321,10 @@ if [ "$UNIT" = 1 ]; then
     fi
 
     # python unit test for mountinfo-tool and version-tool
-    command -v python2 && python2 ./tests/lib/bin/mountinfo-tool --run-unit-tests
-    command -v python3 && python3 ./tests/lib/bin/mountinfo-tool --run-unit-tests
-    command -v python2 && python2 ./tests/lib/bin/version-tool --run-unit-tests
-    command -v python3 && python3 ./tests/lib/bin/version-tool --run-unit-tests
+    command -v python2 && python2 ./tests/lib/tools/mountinfo-tool --run-unit-tests
+    command -v python3 && python3 ./tests/lib/tools/mountinfo-tool --run-unit-tests
+    command -v python2 && python2 ./tests/lib/tools/version-tool --run-unit-tests
+    command -v python3 && python3 ./tests/lib/tools/version-tool --run-unit-tests
 fi
 
 if [ -n "$SPREAD" ]; then

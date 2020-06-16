@@ -559,6 +559,9 @@ func (s *RunSuite) TestSnapRunSaneEnvironmentHandling(c *check.C) {
 }
 
 func (s *RunSuite) TestSnapRunSnapdHelperPath(c *check.C) {
+	_, r := logger.MockLogger()
+	defer r()
+
 	var osReadlinkResult string
 	restore := snaprun.MockOsReadlink(func(name string) (string, error) {
 		return osReadlinkResult, nil
@@ -580,6 +583,15 @@ func (s *RunSuite) TestSnapRunSnapdHelperPath(c *check.C) {
 		},
 		{
 			filepath.Join("/usr/bin/snap"),
+			filepath.Join(dirs.DistroLibExecDir, tool),
+		},
+		{
+			filepath.Join("/home/foo/ws/snapd/snap"),
+			filepath.Join(dirs.DistroLibExecDir, tool),
+		},
+		// unexpected case
+		{
+			filepath.Join(dirs.SnapMountDir, "snapd2/current/bin/snap"),
 			filepath.Join(dirs.DistroLibExecDir, tool),
 		},
 	} {
@@ -1011,6 +1023,9 @@ func (s *RunSuite) TestSnapRunAppTimer(c *check.C) {
 }
 
 func (s *RunSuite) TestRunCmdWithTraceExecUnhappy(c *check.C) {
+	_, r := logger.MockLogger()
+	defer r()
+
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	// mock installed snap
@@ -1196,4 +1211,64 @@ func (s *RunSuite) TestSnapRunRestoreSecurityContextFail(c *check.C) {
 	c.Check(isEnabledCalls, check.Equals, 3)
 	c.Check(verifyCalls, check.Equals, 2)
 	c.Check(restoreCalls, check.Equals, 1)
+}
+
+// systemctl is-system-running returns "running" in normal situations.
+func (s *RunSuite) TestIsStoppingRunning(c *check.C) {
+	systemctl := testutil.MockCommand(c, "systemctl", `
+case "$1" in
+	is-system-running)
+		echo "running"
+		exit 0
+		;;
+esac
+`)
+	defer systemctl.Restore()
+	stop, err := snaprun.IsStopping()
+	c.Check(err, check.IsNil)
+	c.Check(stop, check.Equals, false)
+	c.Check(systemctl.Calls(), check.DeepEquals, [][]string{
+		{"systemctl", "is-system-running"},
+	})
+}
+
+// systemctl is-system-running returns "stopping" when the system is
+// shutting down or rebooting. At the same time it returns a non-zero
+// exit status.
+func (s *RunSuite) TestIsStoppingStopping(c *check.C) {
+	systemctl := testutil.MockCommand(c, "systemctl", `
+case "$1" in
+	is-system-running)
+		echo "stopping"
+		exit 1
+		;;
+esac
+`)
+	defer systemctl.Restore()
+	stop, err := snaprun.IsStopping()
+	c.Check(err, check.IsNil)
+	c.Check(stop, check.Equals, true)
+	c.Check(systemctl.Calls(), check.DeepEquals, [][]string{
+		{"systemctl", "is-system-running"},
+	})
+}
+
+// systemctl is-system-running can often return "degraded"
+// Let's make sure that is not confusing us.
+func (s *RunSuite) TestIsStoppingDegraded(c *check.C) {
+	systemctl := testutil.MockCommand(c, "systemctl", `
+case "$1" in
+	is-system-running)
+		echo "degraded"
+		exit 1
+		;;
+esac
+`)
+	defer systemctl.Restore()
+	stop, err := snaprun.IsStopping()
+	c.Check(err, check.IsNil)
+	c.Check(stop, check.Equals, false)
+	c.Check(systemctl.Calls(), check.DeepEquals, [][]string{
+		{"systemctl", "is-system-running"},
+	})
 }

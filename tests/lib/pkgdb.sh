@@ -602,6 +602,7 @@ pkg_dependencies_ubuntu_classic(){
             ;;
         ubuntu-16.04-32)
             echo "
+                dbus-user-session
                 gccgo-6
                 evolution-data-server
                 fwupd
@@ -612,6 +613,7 @@ pkg_dependencies_ubuntu_classic(){
             ;;
         ubuntu-16.04-64)
             echo "
+                dbus-user-session
                 evolution-data-server
                 fwupd
                 gccgo-6
@@ -627,10 +629,12 @@ pkg_dependencies_ubuntu_classic(){
             ;;
         ubuntu-18.04-64)
             echo "
+                dbus-user-session
                 gccgo-8
                 evolution-data-server
                 fwupd
                 packagekit
+                qemu-utils
                 "
             ;;
         ubuntu-19.10-64)
@@ -649,6 +653,11 @@ pkg_dependencies_ubuntu_classic(){
                 qemu-utils
                 "
             ;;
+        ubuntu-20.10-64)
+            echo "
+                qemu-utils
+                "
+            ;;
         ubuntu-*)
             echo "
                 squashfs-tools
@@ -656,12 +665,19 @@ pkg_dependencies_ubuntu_classic(){
             ;;
         debian-*)
             echo "
+                autopkgtest
+                debootstrap
+                dbus-user-session
                 eatmydata
                 evolution-data-server
                 fwupd
+                gcc-multilib
+                libc6-dev-i386
+                linux-libc-dev
                 net-tools
                 packagekit
                 sbuild
+                schroot
                 "
             ;;
     esac
@@ -844,7 +860,7 @@ pkg_dependencies(){
 install_pkg_dependencies(){
     pkgs=$(pkg_dependencies)
     # shellcheck disable=SC2086
-    distro_install_package $pkgs
+    distro_install_package --no-install-recommends $pkgs
 }
 
 # upgrade distribution and indicate if reboot is needed by outputting 'reboot'

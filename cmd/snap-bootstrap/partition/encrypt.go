@@ -40,7 +40,7 @@ var (
 const (
 	// The encryption key size is set so it has the same entropy as the derived
 	// key. The recovery key is shorter and goes through KDF iterations.
-	encryptionKeySize = 32
+	encryptionKeySize = 64
 	recoveryKeySize   = 16
 )
 
@@ -54,17 +54,6 @@ func NewEncryptionKey() (EncryptionKey, error) {
 	return key, err
 }
 
-// Store writes the LUKS key in the location specified by filename.
-func (key EncryptionKey) Store(filename string) error {
-	// TODO:UC20: provision the TPM, generate and store the lockout authorization,
-	//            and seal the key. Currently we're just storing the unprocessed data.
-	if err := ioutil.WriteFile(filename, key[:], 0600); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 type RecoveryKey [recoveryKeySize]byte
 
 func NewRecoveryKey() (RecoveryKey, error) {
@@ -75,12 +64,12 @@ func NewRecoveryKey() (RecoveryKey, error) {
 	return key, err
 }
 
-// Store writes the recovery key in the location specified by filename.
-func (key RecoveryKey) Store(filename string) error {
+// Save writes the recovery key in the location specified by filename.
+func (key RecoveryKey) Save(filename string) error {
 	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
 		return err
 	}
-	return ioutil.WriteFile(filename, key[:], 0600)
+	return osutil.AtomicWriteFile(filename, key[:], 0600, 0)
 }
 
 // EncryptedDevice represents a LUKS-backed encrypted block device.
@@ -134,6 +123,8 @@ func cryptsetupFormat(key EncryptionKey, label, node string) error {
 		"--type", "luks2",
 		// read key from stdin
 		"--key-file", "-",
+		// use AES-256 with XTS block cipher mode (XTS requires 2 keys)
+		"--cipher", "aes-xts-plain64", "--key-size", "512",
 		// use --iter-time 1 with the default KDF argon2i so
 		// to do virtually no derivation, here key is a random
 		// key with good entropy, not a passphrase, so
@@ -172,6 +163,9 @@ func cryptsetupClose(name string) error {
 func cryptsetupAddKey(key EncryptionKey, rkey RecoveryKey, node string) error {
 	// create a named pipe to pass the recovery key
 	fpath := filepath.Join(dirs.SnapRunDir, "tmp-rkey")
+	if err := os.MkdirAll(dirs.SnapRunDir, 0755); err != nil {
+		return err
+	}
 	if err := syscall.Mkfifo(fpath, 0600); err != nil {
 		return fmt.Errorf("cannot create named pipe: %v", err)
 	}

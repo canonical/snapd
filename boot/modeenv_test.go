@@ -68,11 +68,8 @@ func (s *modeenvSuite) TestReadEmpty(c *C) {
 	s.makeMockModeenvFile(c, "")
 
 	modeenv, err := boot.ReadModeenv(s.tmpdir)
-	c.Assert(err, IsNil)
-	c.Check(modeenv.Mode, Equals, "")
-	c.Check(modeenv.RecoverySystem, Equals, "")
-	// an empty modeenv still means the modeenv was set
-	c.Check(modeenv.WasRead(), Equals, true)
+	c.Assert(err, ErrorMatches, "internal error: mode is unset")
+	c.Assert(modeenv, IsNil)
 }
 
 func (s *modeenvSuite) TestReadMode(c *C) {
@@ -111,6 +108,59 @@ base_status=try
 	c.Check(modeenv.Base, Equals, "core20_123.snap")
 	c.Check(modeenv.TryBase, Equals, "core20_124.snap")
 	c.Check(modeenv.BaseStatus, Equals, boot.TryStatus)
+}
+
+func (s *modeenvSuite) TestReadModeWithGrade(c *C) {
+	s.makeMockModeenvFile(c, `mode=run
+grade=dangerous
+`)
+	modeenv, err := boot.ReadModeenv(s.tmpdir)
+	c.Assert(err, IsNil)
+	c.Check(modeenv.Mode, Equals, "run")
+	c.Check(modeenv.Grade, Equals, "dangerous")
+
+	s.makeMockModeenvFile(c, `mode=run
+grade=some-random-grade-string
+`)
+	modeenv, err = boot.ReadModeenv(s.tmpdir)
+	c.Assert(err, IsNil)
+	c.Check(modeenv.Mode, Equals, "run")
+	c.Check(modeenv.Grade, Equals, "some-random-grade-string")
+}
+
+func (s *modeenvSuite) TestReadModeWithModel(c *C) {
+	tt := []struct {
+		entry        string
+		model, brand string
+	}{
+		{
+			entry: "my-brand/my-model",
+			brand: "my-brand",
+			model: "my-model",
+		}, {
+			entry: "my-brand/",
+		}, {
+			entry: "my-model/",
+		}, {
+			entry: "foobar",
+		}, {
+			entry: "/",
+		}, {
+			entry: ",",
+		}, {
+			entry: "",
+		},
+	}
+
+	for _, t := range tt {
+		s.makeMockModeenvFile(c, `mode=run
+model=`+t.entry+"\n")
+		modeenv, err := boot.ReadModeenv(s.tmpdir)
+		c.Assert(err, IsNil)
+		c.Check(modeenv.Mode, Equals, "run")
+		c.Check(modeenv.Model, Equals, t.model)
+		c.Check(modeenv.BrandID, Equals, t.brand)
+	}
 }
 
 func (s *modeenvSuite) TestReadModeWithCurrentKernels(c *C) {

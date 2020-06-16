@@ -4,14 +4,12 @@ summary: Ensure that lxd works
 # currently nor on ubuntu 14.04
 # TODO:UC20: enable for UC20
 # TODO: enable for ubuntu-16-32 again
-systems: [ubuntu-16.04*64, ubuntu-18.04*, ubuntu-2*, ubuntu-core-1*]
+# TODO: enable ubuntu-20.10-64 once the image is available
+systems: [ubuntu-16.04*64, ubuntu-18.04*, ubuntu-20.04*, ubuntu-core-1*]
 
 # autopkgtest run only a subset of tests that deals with the integration
 # with the distro
 backends: [-autopkgtest]
-
-environment:
-    LXD_CHANNEL: candidate
 
 # lxd downloads can be quite slow
 kill-timeout: 25m
@@ -53,7 +51,7 @@ execute: |
     fi
 
     echo "Install lxd"
-    snap install --channel=${LXD_CHANNEL} lxd
+    snap install lxd --channel="$LXD_SNAP_CHANNEL"
 
     echo "Create a trivial container using the lxd snap"
     snap set lxd waitready.timeout=240
@@ -138,7 +136,7 @@ execute: |
 
     echo "Ensure we can use lxd as a snap inside lxd"
     lxd.lxc exec my-nesting-ubuntu -- apt autoremove -y lxd
-    lxd.lxc exec my-nesting-ubuntu -- snap install --channel=${LXD_CHANNEL} lxd
+    lxd.lxc exec my-nesting-ubuntu -- snap install lxd --channel="$LXD_SNAP_CHANNEL"
     echo "And we can run lxd containers inside the lxd container"
     lxd.lxc exec my-nesting-ubuntu -- snap set lxd waitready.timeout=240
     lxd.lxc exec my-nesting-ubuntu -- lxd waitready

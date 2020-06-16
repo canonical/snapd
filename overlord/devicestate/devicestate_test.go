@@ -60,6 +60,10 @@ import (
 	"github.com/snapcore/snapd/timings"
 )
 
+var (
+	settleTimeout = testutil.HostScaledTimeout(15 * time.Second)
+)
+
 func TestDeviceManager(t *testing.T) { TestingT(t) }
 
 type deviceMgrBaseSuite struct {
@@ -136,7 +140,7 @@ func (s *deviceMgrBaseSuite) SetUpTest(c *C) {
 	s.restoreOnClassic = release.MockOnClassic(false)
 
 	s.storeSigning = assertstest.NewStoreStack("canonical", nil)
-	s.o = overlord.MockWithRestartHandler(func(req state.RestartType) {
+	s.o = overlord.MockWithStateAndRestartHandler(nil, func(req state.RestartType) {
 		s.restartRequests = append(s.restartRequests, req)
 	})
 	s.state = s.o.State()
@@ -211,8 +215,6 @@ func (s *deviceMgrBaseSuite) TearDownTest(c *C) {
 	s.restoreOnClassic()
 	s.restoreSanitize()
 }
-
-var settleTimeout = 15 * time.Second
 
 func (s *deviceMgrBaseSuite) settle(c *C) {
 	err := s.o.Settle(settleTimeout)

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -989,7 +990,7 @@ func (s *writerSuite) TestLocalSnapsCore18FullUse(c *C) {
 		if !asserts.IsNotFound(err) {
 			c.Assert(err, IsNil)
 		}
-		f, err := snap.Open(sn.Path)
+		f, err := snapfile.Open(sn.Path)
 		c.Assert(err, IsNil)
 		info, err := snap.ReadInfoFromSnapFile(f, si)
 		c.Assert(err, IsNil)
@@ -1091,6 +1092,107 @@ func (s *writerSuite) TestLocalSnapsCore18FullUse(c *C) {
 	}
 }
 
+func (s *writerSuite) TestSeedSnapsWriteMetaDefaultTrackCore18(c *C) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name":   "my model",
+		"architecture":   "amd64",
+		"base":           "core18",
+		"gadget":         "pc=18",
+		"kernel":         "pc-kernel=18",
+		"required-snaps": []interface{}{"required18"},
+	})
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core18", "")
+	s.makeSnap(c, "pc-kernel=18", "")
+	s.makeSnap(c, "pc=18", "")
+	s.makeSnap(c, "required18", "developerid")
+
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "required18", Channel: "candidate"}})
+	c.Assert(err, IsNil)
+
+	_, err = w.Start(s.db, s.newFetcher)
+	c.Assert(err, IsNil)
+
+	snaps, err := w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Check(snaps, HasLen, 5)
+
+	for _, sn := range snaps {
+		s.fillDownloadedSnap(c, w, sn)
+		if sn.SnapName() == "required18" {
+			c.Check(sn.Channel, Equals, "candidate")
+			w.SetRedirectChannel(sn, "default-track/candidate")
+		}
+	}
+
+	complete, err := w.Downloaded()
+	c.Assert(err, IsNil)
+	c.Check(complete, Equals, true)
+
+	err = w.SeedSnaps(nil)
+	c.Assert(err, IsNil)
+
+	err = w.WriteMeta()
+	c.Assert(err, IsNil)
+
+	// check seed
+	seedYaml, err := seedwriter.InternalReadSeedYaml(filepath.Join(s.opts.SeedDir, "seed.yaml"))
+	c.Assert(err, IsNil)
+
+	c.Check(seedYaml.Snaps, HasLen, 5)
+
+	info := s.AssertedSnapInfo("required18")
+	fn := info.Filename()
+	c.Check(filepath.Join(s.opts.SeedDir, "snaps", fn), testutil.FilePresent)
+	c.Check(seedYaml.Snaps[4], DeepEquals, &seedwriter.InternalSnap16{
+		Name:    info.SnapName(),
+		SnapID:  info.SnapID,
+		Channel: "default-track/candidate",
+		File:    fn,
+	})
+
+}
+
+func (s *writerSuite) TestSetRedirectChannelErrors(c *C) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name":   "my model",
+		"architecture":   "amd64",
+		"base":           "core18",
+		"gadget":         "pc=18",
+		"kernel":         "pc-kernel=18",
+		"required-snaps": []interface{}{"required18"},
+	})
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core18", "")
+	s.makeSnap(c, "pc-kernel=18", "")
+	s.makeSnap(c, "pc=18", "")
+	s.makeSnap(c, "required18", "developerid")
+
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	_, err = w.Start(s.db, s.newFetcher)
+	c.Assert(err, IsNil)
+
+	snaps, err := w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Check(snaps, HasLen, 5)
+
+	sn := snaps[4]
+	c.Assert(sn.SnapName(), Equals, "required18")
+
+	c.Check(w.SetRedirectChannel(sn, "default-track/stable"), ErrorMatches, `internal error: before using seedwriter.Writer.SetRedirectChannel snap "required18" Info should have been set`)
+
+	s.fillDownloadedSnap(c, w, sn)
+
+	c.Check(w.SetRedirectChannel(sn, "default-track//stable"), ErrorMatches, `invalid redirect channel for snap "required18":.*`)
+}
+
 func (s *writerSuite) TestInfoDerivedInfosNotSet(c *C) {
 	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
 		"display-name":   "my model",
@@ -1158,7 +1260,7 @@ func (s *writerSuite) TestInfoDerivedRepeatedLocalSnap(c *C) {
 	c.Check(localSnaps, HasLen, 4)
 
 	for _, sn := range localSnaps {
-		f, err := snap.Open(sn.Path)
+		f, err := snapfile.Open(sn.Path)
 		c.Assert(err, IsNil)
 		info, err := snap.ReadInfoFromSnapFile(f, nil)
 		c.Assert(err, IsNil)
@@ -1202,7 +1304,7 @@ func (s *writerSuite) TestInfoDerivedInconsistentChannel(c *C) {
 	c.Check(localSnaps, HasLen, 3)
 
 	for _, sn := range localSnaps {
-		f, err := snap.Open(sn.Path)
+		f, err := snapfile.Open(sn.Path)
 		c.Assert(err, IsNil)
 		info, err := snap.ReadInfoFromSnapFile(f, nil)
 		c.Assert(err, IsNil)
@@ -1211,6 +1313,44 @@ func (s *writerSuite) TestInfoDerivedInconsistentChannel(c *C) {
 
 	err = w.InfoDerived()
 	c.Assert(err, ErrorMatches, `option snap has different channels specified: ".*/pc.*.snap"="edge" vs "pc"="beta"`)
+}
+
+func (s *writerSuite) TestSetRedirectChannelLocalError(c *C) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core18",
+		"gadget":       "pc=18",
+		"kernel":       "pc-kernel=18",
+	})
+
+	core18Fn := s.makeLocalSnap(c, "core18")
+
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{
+		{Path: core18Fn},
+	})
+	c.Assert(err, IsNil)
+
+	_, err = w.Start(s.db, s.newFetcher)
+	c.Assert(err, IsNil)
+
+	localSnaps, err := w.LocalSnaps()
+	c.Assert(err, IsNil)
+	c.Check(localSnaps, HasLen, 1)
+
+	sn := localSnaps[0]
+	f, err := snapfile.Open(sn.Path)
+	c.Assert(err, IsNil)
+	info, err := snap.ReadInfoFromSnapFile(f, nil)
+	c.Assert(err, IsNil)
+	err = w.SetInfo(sn, info)
+	c.Assert(err, IsNil)
+
+	c.Check(w.SetRedirectChannel(sn, "foo"), ErrorMatches, `internal error: cannot set redirect channel for local snap .*`)
+
 }
 
 func (s *writerSuite) TestSeedSnapsWriteMetaClassicWithCore(c *C) {
@@ -1505,7 +1645,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaLocalExtraSnaps(c *C) {
 		if !asserts.IsNotFound(err) {
 			c.Assert(err, IsNil)
 		}
-		f, err := snap.Open(sn.Path)
+		f, err := snapfile.Open(sn.Path)
 		c.Assert(err, IsNil)
 		info, err := snap.ReadInfoFromSnapFile(f, si)
 		c.Assert(err, IsNil)
@@ -2040,7 +2180,7 @@ func (s *writerSuite) TestCore20NonDangerousDisallowedOptionsSnaps(c *C) {
 				if !asserts.IsNotFound(err) {
 					c.Assert(err, IsNil)
 				}
-				f, err := snap.Open(sn.Path)
+				f, err := snapfile.Open(sn.Path)
 				c.Assert(err, IsNil)
 				info, err := snap.ReadInfoFromSnapFile(f, si)
 				c.Assert(err, IsNil)
@@ -2121,7 +2261,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20LocalSnaps(c *C) {
 	for _, sn := range localSnaps {
 		_, _, err := seedwriter.DeriveSideInfo(sn.Path, tf, s.db)
 		c.Assert(asserts.IsNotFound(err), Equals, true)
-		f, err := snap.Open(sn.Path)
+		f, err := snapfile.Open(sn.Path)
 		c.Assert(err, IsNil)
 		info, err := snap.ReadInfoFromSnapFile(f, nil)
 		c.Assert(err, IsNil)
@@ -2502,7 +2642,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ExtraSnaps(c *C) {
 	for _, sn := range localSnaps {
 		_, _, err := seedwriter.DeriveSideInfo(sn.Path, tf, s.db)
 		c.Assert(asserts.IsNotFound(err), Equals, true)
-		f, err := snap.Open(sn.Path)
+		f, err := snapfile.Open(sn.Path)
 		c.Assert(err, IsNil)
 		info, err := snap.ReadInfoFromSnapFile(f, nil)
 		c.Assert(err, IsNil)
@@ -2674,7 +2814,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20LocalAssertedSnaps(c *C) {
 	for _, sn := range localSnaps {
 		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, tf, s.db)
 		c.Assert(err, IsNil)
-		f, err := snap.Open(sn.Path)
+		f, err := snapfile.Open(sn.Path)
 		c.Assert(err, IsNil)
 		info, err := snap.ReadInfoFromSnapFile(f, si)
 		c.Assert(err, IsNil)

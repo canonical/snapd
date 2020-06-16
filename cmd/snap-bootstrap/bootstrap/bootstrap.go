@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build !nosecboot
 
 /*
  * Copyright (C) 2019-2020 Canonical Ltd
@@ -21,26 +22,18 @@ package bootstrap
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/partition"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/secboot"
 )
 
 const (
 	ubuntuDataLabel = "ubuntu-data"
 )
-
-type Options struct {
-	// Also mount the filesystems after creation
-	Mount bool
-	// Encrypt the data partition
-	Encrypt bool
-	// KeyFile is the location where the encryption key is written to
-	KeyFile string
-	// RecoveryKeyFile is the location where the recovery key is written to
-	RecoveryKeyFile string
-}
 
 func deviceFromRole(lv *gadget.LaidOutVolume, role string) (device string, err error) {
 	for _, vs := range lv.LaidOutStructure {
@@ -57,6 +50,8 @@ func deviceFromRole(lv *gadget.LaidOutVolume, role string) (device string, err e
 	return "", fmt.Errorf("cannot find role %s in gadget", role)
 }
 
+// Run bootstraps the partitions of a device, by either creating
+// missing ones or recreating installed ones.
 func Run(gadgetRoot, device string, options Options) error {
 	if options.Encrypt && (options.KeyFile == "" || options.RecoveryKeyFile == "") {
 		return fmt.Errorf("key file and recovery key file must be specified when encrypting")
@@ -93,9 +88,18 @@ func Run(gadgetRoot, device string, options Options) error {
 		return fmt.Errorf("gadget and %v partition table not compatible: %v", device, err)
 	}
 
-	// remove partitions added during a previous (failed) install attempt
+	// remove partitions added during a previous install attempt
 	if err := diskLayout.RemoveCreated(); err != nil {
 		return fmt.Errorf("cannot remove partitions from previous install: %v", err)
+	}
+	// at this point we removed any existing partition, nuke any
+	// of the existing sealed key files placed outside of the
+	// encrypted partitions (LP: #1879338)
+	if options.KeyFile != "" {
+		if err := os.Remove(options.KeyFile); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("cannot cleanup obsolete key file: %v", options.KeyFile)
+		}
+
 	}
 
 	created, err := diskLayout.CreateMissing(lv)
@@ -103,7 +107,8 @@ func Run(gadgetRoot, device string, options Options) error {
 		return fmt.Errorf("cannot create the partitions: %v", err)
 	}
 
-	// generate keys externally so multiple encrypted partitions can use the same key
+	// We're currently generating a single encryption key, this may change later
+	// if we create multiple encrypted partitions.
 	var key partition.EncryptionKey
 	var rkey partition.RecoveryKey
 
@@ -149,16 +154,52 @@ func Run(gadgetRoot, device string, options Options) error {
 		}
 	}
 
-	// store the encryption key as the last part of the process to reduce the
-	// possiblity of exiting with an error after the TPM provisioning
-	if options.Encrypt {
-		if err := rkey.Store(options.RecoveryKeyFile); err != nil {
-			return fmt.Errorf("cannot store recovery key: %v", err)
-		}
+	if !options.Encrypt {
+		return nil
+	}
 
-		if err := key.Store(options.KeyFile); err != nil {
-			return fmt.Errorf("cannot store encryption key: %v", err)
-		}
+	// Write the recovery key
+	if err := rkey.Save(options.RecoveryKeyFile); err != nil {
+		return fmt.Errorf("cannot store recovery key: %v", err)
+	}
+
+	// TODO:UC20: binaries are EFI/bootloader-specific, hardcoded for now
+	loadChain := []string{
+		// the path to the shim EFI binary
+		filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot/bootx64.efi"),
+		// the path to the recovery grub EFI binary
+		filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot/grubx64.efi"),
+		// the path to the run mode grub EFI binary
+		filepath.Join(boot.InitramfsUbuntuBootDir, "EFI/boot/grubx64.efi"),
+	}
+	if options.KernelPath != "" {
+		// the path to the kernel EFI binary
+		loadChain = append(loadChain, options.KernelPath)
+	}
+
+	// TODO:UC20: get cmdline definition from bootloaders
+	kernelCmdlines := []string{
+		// run mode
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
+		// recover mode
+		fmt.Sprintf("snapd_recovery_mode=recover snapd_recovery_system=%s console=ttyS0 console=tty1 panic=-1", options.SystemLabel),
+	}
+
+	sealKeyParams := secboot.SealKeyParams{
+		ModelParams: []*secboot.SealKeyModelParams{
+			{
+				Model:          options.Model,
+				KernelCmdlines: kernelCmdlines,
+				EFILoadChains:  [][]string{loadChain},
+			},
+		},
+		KeyFile:                 options.KeyFile,
+		TPMPolicyUpdateDataFile: options.TPMPolicyUpdateDataFile,
+		TPMLockoutAuthFile:      options.TPMLockoutAuthFile,
+	}
+
+	if err := secboot.SealKey(key, &sealKeyParams); err != nil {
+		return fmt.Errorf("cannot seal the encryption key: %v", err)
 	}
 
 	return nil
@@ -168,15 +209,18 @@ func ensureLayoutCompatibility(gadgetLayout *gadget.LaidOutVolume, diskLayout *p
 	eq := func(ds partition.DeviceStructure, gs gadget.LaidOutStructure) bool {
 		dv := ds.VolumeStructure
 		gv := gs.VolumeStructure
+		nameMatch := gv.Name == dv.Name
+		if gadgetLayout.Schema == "mbr" {
+			// partitions have no names in MBR
+			nameMatch = true
+		}
 		// Previous installation may have failed before filesystem creation or partition may be encrypted
-		check := dv.Name == gv.Name && ds.StartOffset == gs.StartOffset && (ds.Created || dv.Filesystem == gv.Filesystem)
-
+		check := nameMatch && ds.StartOffset == gs.StartOffset && (ds.CreatedDuringInstall || dv.Filesystem == gv.Filesystem)
 		if gv.Role == gadget.SystemData {
 			// system-data may have been expanded
 			return check && dv.Size >= gv.Size
-		} else {
-			return check && dv.Size == gv.Size
 		}
+		return check && dv.Size == gv.Size
 	}
 	contains := func(haystack []gadget.LaidOutStructure, needle partition.DeviceStructure) bool {
 		for _, h := range haystack {

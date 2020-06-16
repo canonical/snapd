@@ -49,6 +49,7 @@ brk
 # ARM private syscalls
 breakpoint
 cacheflush
+get_tls
 set_tls
 usr26
 usr32
@@ -95,8 +96,11 @@ lchown - -1 g:root
 lchown32 - -1 g:root
 
 clock_getres
+clock_getres_time64
 clock_gettime
+clock_gettime64
 clock_nanosleep
+clock_nanosleep_time64
 clone
 close
 
@@ -135,6 +139,7 @@ flock
 fork
 ftime
 futex
+futex_time64
 get_mempolicy
 get_robust_list
 get_thread_area
@@ -181,13 +186,20 @@ inotify_init
 inotify_init1
 inotify_rm_watch
 
-# TIOCSTI allows for faking input (man tty_ioctl)
+# ioctl() mediation currently primarily relies on Linux capabilities as well as
+# the initial syscall for the fd to pass to ioctl(). See 'man capabilities'
+# and 'man ioctl_list'. TIOCSTI requires CAP_SYS_ADMIN but allows for faking
+# input (man tty_ioctl), so we disallow it to prevent snaps plugging interfaces
+# with 'capability sys_admin' from interfering with other snaps or the
+# unconfined user's terminal.
 # TODO: this should be scaled back even more
 ioctl - !TIOCSTI
 
 io_cancel
 io_destroy
 io_getevents
+io_pgetevents
+io_pgetevents_time64
 io_setup
 io_submit
 ioprio_get
@@ -244,7 +256,9 @@ mprotect
 #mq_notify
 #mq_open
 #mq_timedreceive
+#mq_timedreceive_time64
 #mq_timedsend
+#mq_timedsend_time64
 #mq_unlink
 
 mremap
@@ -284,6 +298,7 @@ pipe
 pipe2
 poll
 ppoll
+ppoll_time64
 
 # LP: #1446748 - support syscall arg filtering
 prctl
@@ -305,6 +320,7 @@ recv
 recvfrom
 recvmsg
 recvmmsg
+recvmmsg_time64
 
 remap_file_pages
 
@@ -328,6 +344,7 @@ rt_sigqueueinfo
 rt_sigreturn
 rt_sigsuspend
 rt_sigtimedwait
+rt_sigtimedwait_time64
 rt_tgsigqueueinfo
 sched_getaffinity
 sched_getattr
@@ -336,6 +353,7 @@ sched_get_priority_max
 sched_get_priority_min
 sched_getscheduler
 sched_rr_get_interval
+sched_rr_get_interval_time64
 # enforce pid_t is 0 so the app may only change its own scheduler and affinity.
 # Use process-control interface for controlling other pids.
 sched_setaffinity 0 - -
@@ -357,6 +375,7 @@ select
 _newselect
 pselect
 pselect6
+pselect6_time64
 
 # Allow use of SysV semaphores. Note that allocated resources are not freed by
 # OOM which can lead to global kernel resource leakage.
@@ -364,6 +383,7 @@ semctl
 semget
 semop
 semtimedop
+semtimedop_time64
 
 # allow sending to sockets
 send
@@ -516,11 +536,15 @@ timer_create
 timer_delete
 timer_getoverrun
 timer_gettime
+timer_gettime64
 timer_settime
+timer_settime64
 timerfd
 timerfd_create
 timerfd_gettime
+timerfd_gettime64
 timerfd_settime
+timerfd_settime64
 times
 tkill
 
@@ -540,6 +564,7 @@ unlinkat
 
 utime
 utimensat
+utimensat_time64
 utimes
 futimesat
 

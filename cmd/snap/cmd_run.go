@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"os"
 	"os/exec"
 	"os/user"
@@ -74,6 +75,7 @@ type cmdRun struct {
 	// "default" and "optional-value" to distinguish this.
 	Strace    string `long:"strace" optional:"true" optional-value:"with-strace" default:"no-strace" default-mask:"-"`
 	Gdb       bool   `long:"gdb"`
+	Gdbserver string `long:"experimental-gdbserver" default:"no-gdbserver" optional-value:":0" optional:"true"`
 	TraceExec bool   `long:"trace-exec"`
 
 	// not a real option, used to check if cmdRun is initialized by
@@ -105,11 +107,33 @@ and environment.
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"gdb": i18n.G("Run the command with gdb"),
 			// TRANSLATORS: This should not start with a lowercase letter.
+			"experimental-gdbserver": i18n.G("Run the command with gdbserver (experimental)"),
+			// TRANSLATORS: This should not start with a lowercase letter.
 			"timer": i18n.G("Run as a timer service with given schedule"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"trace-exec": i18n.G("Display exec calls timing data"),
 			"parser-ran": "",
 		}, nil)
+}
+
+// isStopping returns true if the system is shutting down.
+func isStopping() (bool, error) {
+	// Make sure, just in case, that systemd doesn't localize the output string.
+	env, err := osutil.OSEnvironment()
+	if err != nil {
+		return false, err
+	}
+	env["LC_MESSAGES"] = "C"
+	// Check if systemd is stopping (shutting down or rebooting).
+	cmd := exec.Command("systemctl", "is-system-running")
+	cmd.Env = env.ForExec()
+	stdout, err := cmd.Output()
+	// systemctl is-system-running returns non-zero for outcomes other than "running"
+	// As such, ignore any ExitError and just process the stdout buffer.
+	if _, ok := err.(*exec.ExitError); ok {
+		return string(stdout) == "stopping\n", nil
+	}
+	return false, err
 }
 
 func maybeWaitForSecurityProfileRegeneration(cli *client.Client) error {
@@ -123,6 +147,18 @@ func maybeWaitForSecurityProfileRegeneration(cli *client.Client) error {
 	// reach snapd before continuing
 	if err != nil {
 		logger.Debugf("SystemKeyMismatch returned an error: %v", err)
+	}
+
+	// We have a mismatch but maybe it is only because systemd is shutting down
+	// and core or snapd were already unmounted and we failed to re-execute.
+	// For context see: https://bugs.launchpad.net/snapd/+bug/1871652
+	stopping, err := isStopping()
+	if err != nil {
+		logger.Debugf("cannot check if system is stopping: %s", err)
+	}
+	if stopping {
+		logger.Debugf("ignoring system key mismatch during system shutdown/reboot")
+		return nil
 	}
 
 	// We have a mismatch, try to connect to snapd, once we can
@@ -144,6 +180,8 @@ func maybeWaitForSecurityProfileRegeneration(cli *client.Client) error {
 			timeout = i
 		}
 	}
+
+	logger.Debugf("system key mismatch detected, waiting for snapd to start responding...")
 
 	for i := 0; i < timeout; i++ {
 		if _, err := cli.SysInfo(); err == nil {
@@ -381,6 +419,7 @@ func maybeRestoreSecurityContext(usr *user.User) error {
 }
 
 func (x *cmdRun) useStrace() bool {
+	// make sure the go-flag parser ran and assigned default values
 	return x.ParserRan == 1 && x.Strace != "no-strace"
 }
 
@@ -714,7 +753,73 @@ func activateXdgDocumentPortal(info *snap.Info, snapApp, hook string) error {
 
 type envForExecFunc func(extra map[string]string) []string
 
+var gdbServerWelcomeFmt = `
+Welcome to "snap run --gdbserver".
+You are right before your application is run.
+Please open a different terminal and run:
+
+gdb -ex="target remote %[1]s" -ex=continue -ex="signal SIGCONT"
+(gdb) continue
+
+or use your favorite gdb frontend and connect to %[1]s
+`
+
+func racyFindFreePort() (int, error) {
+	l, err := net.Listen("tcp", ":0")
+	if err != nil {
+		return 0, err
+	}
+	defer l.Close()
+	return l.Addr().(*net.TCPAddr).Port, nil
+}
+
+func (x *cmdRun) useGdbserver() bool {
+	// make sure the go-flag parser ran and assigned default values
+	return x.ParserRan == 1 && x.Gdbserver != "no-gdbserver"
+}
+
+func (x *cmdRun) runCmdUnderGdbserver(origCmd []string, envForExec envForExecFunc) error {
+	gcmd := exec.Command(origCmd[0], origCmd[1:]...)
+	gcmd.Stdin = os.Stdin
+	gcmd.Stdout = os.Stdout
+	gcmd.Stderr = os.Stderr
+	gcmd.Env = envForExec(map[string]string{"SNAP_CONFINE_RUN_UNDER_GDBSERVER": "1"})
+	if err := gcmd.Start(); err != nil {
+		return err
+	}
+	// wait for the child process executing gdb helper to raise SIGSTOP
+	// signalling readiness to attach a gdbserver process
+	var status syscall.WaitStatus
+	_, err := syscall.Wait4(gcmd.Process.Pid, &status, syscall.WSTOPPED, nil)
+	if err != nil {
+		return err
+	}
+
+	addr := x.Gdbserver
+	if addr == ":0" {
+		// XXX: run "gdbserver :0" instead and parse "Listening on port 45971"
+		//      on stderr instead?
+		port, err := racyFindFreePort()
+		if err != nil {
+			return fmt.Errorf("cannot find free port: %v", err)
+		}
+		addr = fmt.Sprintf(":%v", port)
+	}
+	// XXX: should we provide a helper here instead? something like
+	//      `snap run --attach-debugger` or similar? The downside
+	//      is that attaching a gdb frontend is harder?
+	fmt.Fprintf(Stdout, fmt.Sprintf(gdbServerWelcomeFmt, addr))
+	// note that only gdbserver needs to run as root, the application
+	// keeps running as the user
+	gdbSrvCmd := exec.Command("sudo", "-E", "gdbserver", "--attach", addr, strconv.Itoa(gcmd.Process.Pid))
+	if output, err := gdbSrvCmd.CombinedOutput(); err != nil {
+		return osutil.OutputErr(output, err)
+	}
+	return nil
+}
+
 func (x *cmdRun) runCmdUnderGdb(origCmd []string, envForExec envForExecFunc) error {
+	// the resulting application process runs as root
 	cmd := []string{"sudo", "-E", "gdb", "-ex=run", "-ex=catch exec", "-ex=continue", "--args"}
 	cmd = append(cmd, origCmd...)
 
@@ -926,6 +1031,9 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	if x.Gdb {
 		cmd = append(cmd, "--command=gdb")
 	}
+	if x.useGdbserver() {
+		cmd = append(cmd, "--command=gdbserver")
+	}
 	if x.Command != "" {
 		cmd = append(cmd, "--command="+x.Command)
 	}
@@ -973,6 +1081,8 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 		return x.runCmdWithTraceExec(cmd, envForExec)
 	} else if x.Gdb {
 		return x.runCmdUnderGdb(cmd, envForExec)
+	} else if x.useGdbserver() {
+		return x.runCmdUnderGdbserver(cmd, envForExec)
 	} else if x.useStrace() {
 		return x.runCmdUnderStrace(cmd, envForExec)
 	} else {
