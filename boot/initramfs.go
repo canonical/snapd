@@ -24,8 +24,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// TODO:UC20: add install/recover mode mounts code here too?
-
 // InitramfsRunModeSelectSnapsToMount returns a map of the snap paths to mount
 // for the specified snap types.
 func InitramfsRunModeSelectSnapsToMount(
