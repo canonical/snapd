@@ -92,11 +92,28 @@ func (s *launcherInternalSuite) TestParseExecCommandSucceedsWithValidEntry(c *C)
 		exec_command string
 		expect       []string
 	}{
+		// valid with no exec variables
 		{"env BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/mir-kiosk-scummvm_mir-kiosk-scummvm.desktop /snap/bin/mir-kiosk-scummvm %U",
 			[]string{"env", "BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/mir-kiosk-scummvm_mir-kiosk-scummvm.desktop", "/snap/bin/mir-kiosk-scummvm"}},
-		{"/snap/bin/foo -f %U %%bar", []string{"/snap/bin/foo", "-f", "%bar"}},
+		// valid with literal '%' and no exec variables
+		{"/snap/bin/foo -f %%bar", []string{"/snap/bin/foo", "-f", "%bar"}},
+		{"/snap/bin/foo -f %%bar %%baz", []string{"/snap/bin/foo", "-f", "%bar", "%baz"}},
+		// valid where quoted strings are passed through
+		{"/snap/bin/foo '-f %U'", []string{"/snap/bin/foo", "-f %U"}},
+		{"/snap/bin/foo '-f %%bar'", []string{"/snap/bin/foo", "-f %%bar"}},
 		{"/snap/bin/foo '-f %U %%bar'", []string{"/snap/bin/foo", "-f %U %%bar"}},
 		{"/snap/bin/foo \"'-f bar'\"", []string{"/snap/bin/foo", "'-f bar'"}},
+		{"/snap/bin/foo '\"-f bar\"'", []string{"/snap/bin/foo", "\"-f bar\""}},
+		// valid with exec variables stripped out
+		{"/snap/bin/foo -f %U", []string{"/snap/bin/foo", "-f"}},
+		{"/snap/bin/foo -f %U %Y", []string{"/snap/bin/foo", "-f"}},
+		{"/snap/bin/foo -f %U bar", []string{"/snap/bin/foo", "-f", "bar"}},
+		{"/snap/bin/foo -f %U bar %Y", []string{"/snap/bin/foo", "-f", "bar"}},
+		// valid with mixture of literal '%' and exec variables
+		{"/snap/bin/foo -f %U %%bar", []string{"/snap/bin/foo", "-f", "%bar"}},
+		{"/snap/bin/foo -f %U %Y %%bar", []string{"/snap/bin/foo", "-f", "%bar"}},
+		{"/snap/bin/foo -f %U %%bar %Y", []string{"/snap/bin/foo", "-f", "%bar"}},
+		{"/snap/bin/foo -f %%bar %U %Y", []string{"/snap/bin/foo", "-f", "%bar"}},
 	}
 
 	for _, test := range exec_command {
