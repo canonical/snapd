@@ -288,11 +288,17 @@ func readExecCommandFromDesktopFile(desktopFile string) (string, error) {
 	// 2. the desktop file itself and all directories above it are root owned without group/other write
 	// 3. the Exec line has an expected prefix
 	if strings.HasPrefix(desktopFile, dirs.SnapDesktopFilesDir) {
-		for checkPath := desktopFile; strings.HasPrefix(checkPath, dirs.SnapDesktopFilesDir); checkPath = filepath.Dir(checkPath) {
+		if filepath.Clean(desktopFile) != desktopFile {
+			return "", fmt.Errorf("desktop file has unclean path: %q", desktopFile)
+		}
+		last := "/"
+		for _, val := range strings.Split(desktopFile, "/") {
+			checkPath := filepath.Join(last, val) // val is "" for root ('/')
 			fileStat, err := os.Stat(checkPath)
 			if err != nil || !(fileStat.Mode().IsDir() || fileStat.Mode().IsRegular()) || (fileStat.Mode().Perm()&0022) != 0 || fileStat.Sys().(*syscall.Stat_t).Uid != 0 {
 				return "", fmt.Errorf("cannot verify path %q", checkPath)
 			}
+			last = checkPath
 		}
 	} else {
 		// We currently only support launching snap applications from desktop files in
