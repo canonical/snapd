@@ -194,6 +194,11 @@ func (s *Launcher) OpenDesktopEntryEnv(desktopFileID string, env []string, sende
 		return dbus.MakeFailedError(err)
 	}
 
+	err = verifyDesktopFileLocation(desktopFile)
+	if err != nil {
+		return dbus.MakeFailedError(err)
+	}
+
 	exec_command, err := readExecCommandFromDesktopFile(desktopFile)
 	if err != nil {
 		return dbus.MakeFailedError(err)
@@ -288,34 +293,39 @@ func desktopFileIDToFilename(desktopFile_exists fileExists, desktopFileID string
 	return "", fmt.Errorf("cannot find desktop file for %q", desktopFileID)
 }
 
-// readExecCommandFromDesktopFile parses the desktop file to get the Exec entry.
-func readExecCommandFromDesktopFile(desktopFile string) (string, error) {
-	var launch string
-
-	// Be careful with which desktop files we process and verify that:
-	// 1. we only consider desktop files in dirs.SnapDesktopFilesDir
-	// 2. the desktop file itself and all directories above it are root owned without group/other write
-	// 3. the Exec line has an expected prefix
-	if strings.HasPrefix(desktopFile, dirs.SnapDesktopFilesDir) {
-		if filepath.Clean(desktopFile) != desktopFile {
-			return "", fmt.Errorf("desktop file has unclean path: %q", desktopFile)
-		}
-		last := "/"
-		for _, val := range strings.Split(desktopFile, "/") {
-			checkPath := filepath.Join(last, val) // val is "" for root ('/')
-			fileStat, err := os.Stat(checkPath)
-			if err != nil || !(fileStat.Mode().IsDir() || fileStat.Mode().IsRegular()) || (fileStat.Mode().Perm()&0022) != 0 || fileStat.Sys().(*syscall.Stat_t).Uid != 0 {
-				return "", fmt.Errorf("cannot verify path %q", checkPath)
-			}
-			last = checkPath
-		}
-	} else {
+// verifyDesktopFileLocation checks the desktop file location and access.
+// 1. we only consider desktop files in dirs.SnapDesktopFilesDir
+// 2. the desktop file itself and all directories above it are root owned without group/other write
+// 3. the Exec line has an expected prefix
+func verifyDesktopFileLocation(desktopFile string) error {
+	if !strings.HasPrefix(desktopFile, dirs.SnapDesktopFilesDir) {
 		// We currently only support launching snap applications from desktop files in
 		// /var/lib/snapd/desktop/applications and these desktop files are written by snapd and
 		// considered safe for userd to process. If other directories are added in the future,
-		// readExecCommandFromDesktopFile() and  parseExecCommand() may need to be updated if this changes.
-		return "", fmt.Errorf("only launching snap applications from /var/lib/snapd/desktop/applications is supported")
+		// verifyDesktopFileLocation() and parseExecCommand() may need to be updated.
+		return fmt.Errorf("only launching snap applications from /var/lib/snapd/desktop/applications is supported")
 	}
+
+	if filepath.Clean(desktopFile) != desktopFile {
+		return fmt.Errorf("desktop file has unclean path: %q", desktopFile)
+	}
+
+	last := "/"
+	for _, val := range strings.Split(desktopFile, "/") {
+		checkPath := filepath.Join(last, val) // val is "" for root ('/')
+		fileStat, err := os.Stat(checkPath)
+		if err != nil || !(fileStat.Mode().IsDir() || fileStat.Mode().IsRegular()) || (fileStat.Mode().Perm()&0022) != 0 || fileStat.Sys().(*syscall.Stat_t).Uid != 0 {
+			return fmt.Errorf("cannot verify path %q", checkPath)
+		}
+		last = checkPath
+	}
+
+	return nil
+}
+
+// readExecCommandFromDesktopFile parses the desktop file to get the Exec entry.
+func readExecCommandFromDesktopFile(desktopFile string) (string, error) {
+	var launch string
 
 	file, err := os.Open(desktopFile)
 	if err != nil {
