@@ -20,7 +20,9 @@
 package builtin
 
 // Only allow raw disk devices; not loop, ram, CDROM, generic SCSI, network,
-// tape, raid, etc devices or disk partitions
+// tape, raid, etc devices or disk partitions. For some devices, allow controller
+// character devices since they are used to configure the corresponding block
+// device.
 const blockDevicesSummary = `allows access to disk block devices`
 
 const blockDevicesBaseDeclarationPlugs = `
@@ -67,9 +69,9 @@ const blockDevicesConnectedPlugAppArmor = `
 # From 'man nvme-format' : 
 #   Note, the numeric suffix on the character device, for example the 0 in
 #   /dev/nvme0, does NOT indicate this device handle is the parent controller
-#   of any namespaces with the same suffix. The namespace handle’s numeral may
+#   of any namespaces with the same suffix. The namespace handle's numeral may
 #   be coming from the subsystem identifier, which is independent of the
-#   controller’s identifier. Do not assume any particular device relationship
+#   controller's identifier. Do not assume any particular device relationship
 #   based on their names. If you do, you may irrevocably erase data on an
 #   unintended device.
 /dev/nvme{[0-9],[1-9][0-9]}n{[1-9],[1-5][0-9],6[0-3]} rw, # NVMe (up to 100 devices, with 1-63 namespaces)

@@ -55,18 +55,14 @@ fi
 # check if it's a block or char dev
 # TODO: re-write this to be more robust, the bash variable substitution done 
 # here is quite awkard :-/
-if [ "${DEVPATH#*/block/}" != "$DEVPATH" ] ; then
+if [ "${DEVPATH#*/block/}" != "$DEVPATH" ]; then
     type="b"
-elif [ "${DEVPATH#*/nvme/}" != "$DEVPATH" ]; then
-    # nvme subsystem devices can either be block or character devices, the
-    # block devices have a more deeply nested path than the character devices
-    NVME_SUBPATH="${DEVPATH#*/nvme*/}"
-    if [ "${NVME_SUBPATH#*/}" != "$NVME_SUBPATH" ]; then
-        # it is more deeply nested
-        type="b"
-    else
-        type="c"
-    fi
+elif [ "${DEVPATH#*/nvme/nvme*/nvme*n*}" != "$DEVPATH" ]; then
+    # char devices are .../nvme/nvme* but block devices are
+    # .../nvme/nvme*/nvme*n* and .../nvme/nvme*/nvme*n*p*
+    # so if have a device that has nvme/nvme*/nvme*n* in it,
+    # treat it as a block device
+    type="b"
 else
     type="c"
 fi
