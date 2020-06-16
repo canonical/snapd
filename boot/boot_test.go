@@ -605,6 +605,7 @@ func (s *bootenvSuite) TestMarkBootSuccessfulKernelStatusTryingNoTryKernelSnapCl
 	err = boot.MarkBootSuccessful(coreDev)
 	c.Assert(err, IsNil)
 	m2, err := s.bootloader.GetBootVars("snap_mode", "snap_try_kernel", "snap_kernel")
+	c.Assert(err, IsNil)
 	c.Assert(m2, DeepEquals, expected)
 }
 
@@ -637,6 +638,7 @@ func (s *bootenvSuite) TestMarkBootSuccessfulTryKernelKernelStatusDefaultCleansU
 	err = boot.MarkBootSuccessful(coreDev)
 	c.Assert(err, IsNil)
 	m2, err := s.bootloader.GetBootVars("snap_mode", "snap_try_kernel", "snap_kernel")
+	c.Assert(err, IsNil)
 	c.Assert(m2, DeepEquals, expected)
 }
 
