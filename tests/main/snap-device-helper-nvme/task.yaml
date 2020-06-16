@@ -1,0 +1,38 @@
+summary: |
+  Check that snap-device-helper correctly handles nvme block and nvme char
+  devices by simulating how udev calls snap-device-helper with prototypical 
+  paths, including the various types of nvme devices.
+
+# fedora-31: uses cgroupv2, which we don't support
+# fedora-32: uses cgroupv2, which we don't support
+systems: [-fedora-31-*, -fedora-32-*]
+
+execute: |
+  # make a fake snap devices cgroup
+  mkdir /sys/fs/cgroup/devices/snap.test.me
+
+  # deny all devices by default
+  echo "a *.* rwm" > /sys/fs/cgroup/devices/snap.test.me/devices.deny
+
+  echo "Simulating devices being added to the device cgroup by udev by invoking snap-device-helper directly"
+  # add some example devices, including both char and block devs for nvme
+  count=0
+  for i in /devices/pci0000:00/0000:00:14.0/usb1/1-2/1-2:1.0/host8/target8:0:0/8:0:0:0/block/sda/sda1 \
+    /devices/pci0000:00/0000:00:1d.0/0000:3c:00.0/nvme/nvme0/nvme0n1 \
+    /devices/pci0000:40/0000:40:01.1/0000:41:00.0/nvme/nvme0 \
+    /devices/virtual/mem/null; do 
+      count=$((count+1))
+      # assumes that the snapd deb is installed and that 
+      # /usr/lib/snapd/snap-device-helper on the system is from the PR being tested
+      /usr/lib/snapd/snap-device-helper add snap_test_me $i $count:$count
+  done
+
+  echo "All of the expected devices are added to the cgroup with the expected types"
+  # run MATCH multiple times to handle all the expected lines
+  MATCH "b 1:1 rwm" < /sys/fs/cgroup/devices/snap.test.me/devices.list # block device @ /dev/sda1
+  MATCH "b 2:2 rwm" < /sys/fs/cgroup/devices/snap.test.me/devices.list # block device @ /dev/nvme0n1
+  MATCH "c 3:3 rwm" < /sys/fs/cgroup/devices/snap.test.me/devices.list # char device @ /dev/nvme0
+  MATCH "c 4:4 rwm" < /sys/fs/cgroup/devices/snap.test.me/devices.list # char device @ /dev/null
+
+  # ensure we don't have any extra entries in the cgroup
+  wc -l < /sys/fs/cgroup/devices/snap.test.me/devices.list | MATCH 4
