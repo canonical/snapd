@@ -801,7 +801,8 @@ EOF
     # run out of space easily from local spread runs if there are extra files in
     # the project not included in the git ignore and spread ignore, etc.
     if ! is_core20_system; then
-        dd if=/dev/zero bs=1M count=400 >> "$IMAGE_HOME/$IMAGE"
+        # grow the image by 400M
+        truncate --size=+400M "$IMAGE_HOME/$IMAGE"
         # fix the GPT table because old versions of parted complain about this and
         # refuse to properly run the next command unless the GPT table is updated
         sgdisk "$IMAGE_HOME/$IMAGE" -e
@@ -815,7 +816,7 @@ EOF
         IFS=':' read -ra PARTITION <<< "$END_FREE_SPACE_PARTITION"
 
         # resize the partition to go to the end of the free space
-        sudo parted -s "$IMAGE_HOME/$IMAGE" resizepart ${LOOP_PARTITION} "${PARTITION[2]}"
+        parted -s "$IMAGE_HOME/$IMAGE" resizepart ${LOOP_PARTITION} "${PARTITION[2]}"
     fi
 
     # mount fresh image and add all our SPREAD_PROJECT data
@@ -829,7 +830,7 @@ EOF
 
     # resize the 2nd partition from that loop device to fix the size
     if ! is_core20_system; then
-        sudo resize2fs -p "/dev/mapper/${dev}p${LOOP_PARTITION}"
+        resize2fs -p "/dev/mapper/${dev}p${LOOP_PARTITION}"
     fi
 
     # mount it so we can use it now
