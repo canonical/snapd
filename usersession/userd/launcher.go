@@ -237,8 +237,14 @@ func existsOnFileSystem(desktopFile string) bool {
 }
 
 // findDesktopFile recursively tries each subdirectory that can be formed from the (split) desktop file ID.
+// Per https://standards.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#desktop-file-id,
+// if desktop entries have dashes in the name ('-'), this could be an indication of subdirectories, so search
+// for those too. Eg, given foo-bar_baz_norf.desktop the following are searched for:
+//   o .../foo-bar_baz-norf.desktop
+//   o .../foo/bar_baz-norf.desktop
+//   o .../foo/bar_baz/norf.desktop
+//   o .../foo-bar_baz/norf.desktop
 // We're not required to diagnose multiple files matching the desktop file ID.
-// https://standards.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#desktop-file-id
 func findDesktopFile(desktopFile_exists fileExists, base_dir string, splitFileId []string) *string {
 	desktopFile := filepath.Join(base_dir, strings.Join(splitFileId, "-"))
 
@@ -246,7 +252,10 @@ func findDesktopFile(desktopFile_exists fileExists, base_dir string, splitFileId
 		return &desktopFile
 	}
 
-	// Iterate through the potential subdirectories formed by the first i elements of the desktop file ID
+	// Iterate through the potential subdirectories formed by the first i elements of the desktop file ID.
+    // Maybe this is overkill: At the time of writing, the only use is in desktopFileIDToFilename() and there
+    // we're only checking dirs.SnapDesktopFilesDir (and not all entries in $XDG_DATA_DIRS).
+    // For dirs.SnapDesktopFilesDir snapd will not create any subdirectories.
 	for i := 1; i != len(splitFileId); i++ {
 		desktopFile := findDesktopFile(desktopFile_exists, filepath.Join(base_dir, strings.Join(splitFileId[:i], "-")), splitFileId[i:])
 		if desktopFile != nil {
