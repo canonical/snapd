@@ -113,7 +113,7 @@ func findCommand(app *snap.AppInfo, command string) (string, error) {
 		cmd = app.ReloadCommand
 	case "post-stop":
 		cmd = app.PostStopCommand
-	case "", "gdb":
+	case "", "gdb", "gdbserver":
 		cmd = app.Command
 	default:
 		return "", fmt.Errorf("cannot use %q command", command)
@@ -220,6 +220,9 @@ func execApp(snapApp, revision, command string, args []string) error {
 	case "gdb":
 		fullCmd = append(fullCmd, fullCmd[0])
 		fullCmd[0] = filepath.Join(dirs.CoreLibExecDir, "snap-gdb-shim")
+	case "gdbserver":
+		fullCmd = append(fullCmd, fullCmd[0])
+		fullCmd[0] = filepath.Join(dirs.CoreLibExecDir, "snap-gdbserver-shim")
 	}
 	fullCmd = append(fullCmd, cmdArgs...)
 	fullCmd = append(fullCmd, args...)

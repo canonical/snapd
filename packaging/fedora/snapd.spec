@@ -97,7 +97,7 @@
 %endif
 
 Name:           snapd
-Version:        2.45
+Version:        2.45.1
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -810,6 +810,7 @@ popd
 %{_libexecdir}/snapd/snap-device-helper
 %{_libexecdir}/snapd/snap-discard-ns
 %{_libexecdir}/snapd/snap-gdb-shim
+%{_libexecdir}/snapd/snap-gdbserver-shim
 %{_libexecdir}/snapd/snap-seccomp
 %{_libexecdir}/snapd/snap-update-ns
 %{_libexecdir}/snapd/system-shutdown
@@ -910,6 +911,35 @@ fi
 
 
 %changelog
+* Fri Jun 05 2020 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.45.1
+ - data/selinux: allow checking /var/cache/app-info
+ - cmd/snap-confine: add support for libc6-lse
+ - interfaces: miscellaneous policy updates xlv
+ - snap-bootstrap: remove sealed key file on reinstall
+ - interfaces-ssh-keys: Support reading /etc/ssh/ssh_config.d/
+ - gadget: make ext4 filesystems with or without metadata checksum
+ - interfaces/fwupd: allow bind mount to /boot on core
+ - tests: cherry-pick test fixes from master
+ - snap/squashfs: also symlink snap Install with uc20 seed snap dir
+   layout
+ - interfaces/serial-port: add NXP SC16IS7xx (ttySCX) to allowed
+   devices
+ - snap,many: mv Open to snapfile pkg to support add'l options to
+   Container methods
+ - interfaces/builtin/desktop: do not mount fonts cache on distros
+   with quirks
+ - devicestate, sysconfig: revert support for cloud.cfg.d/ in the
+   gadget
+ - data/completion, packaging: cherry-pick zsh completion
+ - state: log task errors in the journal too
+ - devicestate: do not report "ErrNoState" for seeded up
+ - interfaces/desktop: silence more /var/lib/snapd/desktop/icons
+   denials
+ - packaging/fedora: disable FIPS compliant crypto for static
+   binaries
+ - packaging: stop depending on python-docutils
+
 * Tue May 12 2020 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.45
  - o/devicestate: support doing system action reboots from recover
