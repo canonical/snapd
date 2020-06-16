@@ -12,8 +12,7 @@ execute: |
     execute_remote "test -e /sys/kernel/security/tpm0/binary_bios_measurements"
 
     echo "and secure boot is enabled on the nested vm"
-    execute_remote "ls /sys/firmware/efi/efivars/SecureBoot-*"
-    execute_remote "ls /sys/firmware/efi/efivars/SetupMode-*"
+    execute_remote "xxd /sys/firmware/efi/efivars/SecureBoot-*" | MATCH '0600 0000 01'
 
     echo "and the recovery key is available"
     execute_remote "test -e /var/lib/snapd/device/fde/recovery.key"
