@@ -36,16 +36,12 @@ func InitramfsRunModeSelectSnapsToMount(
 	var err error
 	m := make(map[snap.Type]snap.PlaceInfo)
 	for _, typ := range typs {
-		// TODO: it would be nice to use an interface here since the methods are
-		// already organized this way...
+		var selectSnapFn func() (snap.PlaceInfo, error)
 		switch typ {
 		case snap.TypeBase:
 			bs := &bootState20Base{}
 			bs.modeenv = modeenv
-			sn, err = bs.selectAndCommitSnapInitramfsMount()
-			if err != nil {
-				return nil, err
-			}
+			selectSnapFn = bs.selectAndCommitSnapInitramfsMount
 		case snap.TypeKernel:
 			blOpts := &bootloader.Options{NoSlashBoot: true}
 			blDir := InitramfsUbuntuBootDir
@@ -56,10 +52,11 @@ func InitramfsRunModeSelectSnapsToMount(
 					modeenv: modeenv,
 				},
 			}
-			sn, err = bs.selectAndCommitSnapInitramfsMount()
-			if err != nil {
-				return nil, err
-			}
+			selectSnapFn = bs.selectAndCommitSnapInitramfsMount
+		}
+		sn, err = selectSnapFn()
+		if err != nil {
+			return nil, err
 		}
 
 		m[typ] = sn
