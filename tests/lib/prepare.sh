@@ -807,16 +807,8 @@ EOF
         # refuse to properly run the next command unless the GPT table is updated
         sgdisk "$IMAGE_HOME/$IMAGE" -e
 
-        # use parted to get the last part of free space in the image
-        # (aka the zeros we just added)
-        END_FREE_SPACE_PARTITION=$(parted -s --machine "$IMAGE_HOME/$IMAGE" print free | grep "free;$" | tail -n1)
-
-        # read the fields of the partition so we can get where the end of the free space
-        # is (which is the 3rd field in parted machine parsable output)
-        IFS=':' read -ra PARTITION <<< "$END_FREE_SPACE_PARTITION"
-
-        # resize the partition to go to the end of the free space
-        parted -s "$IMAGE_HOME/$IMAGE" resizepart ${LOOP_PARTITION} "${PARTITION[2]}"
+        # resize the partition to go to the end of the disk
+        parted -s "$IMAGE_HOME/$IMAGE" resizepart ${LOOP_PARTITION} "100%"
     fi
 
     # mount fresh image and add all our SPREAD_PROJECT data
