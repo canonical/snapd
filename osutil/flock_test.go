@@ -37,8 +37,8 @@ type flockSuite struct{}
 var _ = Suite(&flockSuite{})
 
 // Test that opening and closing a lock works as expected, and that the mode is right.
-func (s *flockSuite) TestNewFileModeLock(c *C) {
-	lock, err := osutil.NewFileModeLock(filepath.Join(c.MkDir(), "name"), 0644)
+func (s *flockSuite) TestNewFileLockWithMode(c *C) {
+	lock, err := osutil.NewFileLockWithMode(filepath.Join(c.MkDir(), "name"), 0644)
 	c.Assert(err, IsNil)
 	defer lock.Close()
 

@@ -50,6 +50,7 @@ type StoreService interface {
 	DownloadStream(context.Context, string, *snap.DownloadInfo, int64, *auth.UserState) (r io.ReadCloser, status int, err error)
 
 	Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error)
+	DownloadAssertions([]string, *asserts.Batch, *auth.UserState) error
 
 	SuggestedCurrency() string
 	Buy(options *client.BuyOptions, user *auth.UserState) (*client.BuyResult, error)
@@ -67,8 +68,9 @@ type managerBackend interface {
 	CopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter) error
 	LinkSnap(info *snap.Info, dev boot.Device, linkCtx backend.LinkContext, tm timings.Measurer) (rebootRequired bool, err error)
 	StartServices(svcs []*snap.AppInfo, meter progress.Meter, tm timings.Measurer) error
-	StopServices(svcs []*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error
+	StopServices(svcs []*snap.AppInfo, flags *backend.StopFlags, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error
 	ServicesEnableState(info *snap.Info, meter progress.Meter) (map[string]bool, error)
+	QueryDisabledServices(info *snap.Info, pb progress.Meter) ([]string, error)
 
 	// the undoers for install
 	UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, installRecord *backend.InstallRecord, dev boot.Device, meter progress.Meter) error

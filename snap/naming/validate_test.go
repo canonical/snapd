@@ -306,6 +306,7 @@ func (s *ValidateSuite) TestValidateSecurityTag(c *C) {
 	c.Check(naming.ValidateSecurityTag("snap.pkg_key.app"), IsNil)
 	c.Check(naming.ValidateSecurityTag("snap.pkg_key.hook.configure"), IsNil)
 
+	// invalid format is rejected
 	c.Check(naming.ValidateSecurityTag("snap.pkg_key.app.surprise"), ErrorMatches, "invalid security tag")
 	c.Check(naming.ValidateSecurityTag("snap.pkg_key.hook.configure.surprise"), ErrorMatches, "invalid security tag")
 

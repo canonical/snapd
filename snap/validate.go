@@ -198,9 +198,19 @@ func validateSocketAddrPath(socket *SocketInfo, fieldName string, path string) e
 		return fmt.Errorf("invalid %q: %q should be written as %q", fieldName, path, clean)
 	}
 
-	if !(strings.HasPrefix(path, "$SNAP_DATA/") || strings.HasPrefix(path, "$SNAP_COMMON/") || strings.HasPrefix(path, "$XDG_RUNTIME_DIR/")) {
-		return fmt.Errorf(
-			"invalid %q: must have a prefix of $SNAP_DATA, $SNAP_COMMON or $XDG_RUNTIME_DIR", fieldName)
+	switch socket.App.DaemonScope {
+	case SystemDaemon:
+		if !(strings.HasPrefix(path, "$SNAP_DATA/") || strings.HasPrefix(path, "$SNAP_COMMON/") || strings.HasPrefix(path, "$XDG_RUNTIME_DIR/")) {
+			return fmt.Errorf(
+				"invalid %q: system daemon sockets must have a prefix of $SNAP_DATA, $SNAP_COMMON or $XDG_RUNTIME_DIR", fieldName)
+		}
+	case UserDaemon:
+		if !(strings.HasPrefix(path, "$SNAP_USER_DATA/") || strings.HasPrefix(path, "$SNAP_USER_COMMON/") || strings.HasPrefix(path, "$XDG_RUNTIME_DIR/")) {
+			return fmt.Errorf(
+				"invalid %q: user daemon sockets must have a prefix of $SNAP_USER_DATA, $SNAP_USER_COMMON, or $XDG_RUNTIME_DIR", fieldName)
+		}
+	default:
+		return fmt.Errorf("invalid %q: cannot validate sockets for daemon-scope %q", fieldName, socket.App.DaemonScope)
 	}
 
 	return nil
@@ -510,6 +520,10 @@ func validateAppOrderNames(app *AppInfo, dependencies []string) error {
 		if !other.IsService() {
 			return fmt.Errorf("before/after references a non-service application %q", dep)
 		}
+
+		if app.DaemonScope != other.DaemonScope {
+			return fmt.Errorf("before/after references service with different daemon-scope %q", dep)
+		}
 	}
 	return nil
 }
@@ -578,6 +592,43 @@ func validateAppRestart(app *AppInfo) error {
 	return nil
 }
 
+func validateAppActivatesOn(app *AppInfo) error {
+	if len(app.ActivatesOn) == 0 {
+		return nil
+	}
+
+	if !app.IsService() {
+		return errors.New("activates-on is only applicable to services")
+	}
+
+	for _, slot := range app.ActivatesOn {
+		// ActivatesOn slots must use the "dbus" interface
+		if slot.Interface != "dbus" {
+			return fmt.Errorf("invalid activates-on value %q: slot does not use dbus interface", slot.Name)
+		}
+
+		// D-Bus slots must match the daemon scope
+		bus := slot.Attrs["bus"]
+		if app.DaemonScope == SystemDaemon && bus != "system" || app.DaemonScope == UserDaemon && bus != "session" {
+			return fmt.Errorf("invalid activates-on value %q: bus %q does not match daemon-scope %q", slot.Name, bus, app.DaemonScope)
+		}
+
+		// Slots must only be activatable on a single app
+		for _, otherApp := range slot.Apps {
+			if otherApp == app {
+				continue
+			}
+			for _, otherSlot := range otherApp.ActivatesOn {
+				if otherSlot == slot {
+					return fmt.Errorf("invalid activates-on value %q: slot is also activatable on app %q", slot.Name, otherApp.Name)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
 // appContentWhitelist is the whitelist of legal chars in the "apps"
 // section of snap.yaml. Do not allow any of [',",`] here or snap-exec
 // will get confused. chainContentWhitelist is the same, but for the
@@ -597,6 +648,19 @@ func ValidateApp(app *AppInfo) error {
 		// valid
 	default:
 		return fmt.Errorf(`"daemon" field contains invalid value %q`, app.Daemon)
+	}
+
+	switch app.DaemonScope {
+	case "":
+		if app.Daemon != "" {
+			return fmt.Errorf(`"daemon-scope" must be set for daemons`)
+		}
+	case SystemDaemon, UserDaemon:
+		if app.Daemon == "" {
+			return fmt.Errorf(`"daemon-scope" can only be set for daemons`)
+		}
+	default:
+		return fmt.Errorf(`invalid "daemon-scope": %q`, app.DaemonScope)
 	}
 
 	// Validate app name
@@ -637,6 +701,10 @@ func ValidateApp(app *AppInfo) error {
 		if err := validateAppSocket(socket); err != nil {
 			return fmt.Errorf("invalid definition of socket %q: %v", socket.Name, err)
 		}
+	}
+
+	if err := validateAppActivatesOn(app); err != nil {
+		return err
 	}
 
 	if err := validateAppRestart(app); err != nil {

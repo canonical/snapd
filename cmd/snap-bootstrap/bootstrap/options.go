@@ -34,10 +34,12 @@ type Options struct {
 	RecoveryKeyFile string
 	// TPMLockoutAuthFile is the location where the TPM lockout authorization is written to
 	TPMLockoutAuthFile string
-	// PolicyUpdateDataFile is the location where the authorization policy update data is written to
-	PolicyUpdateDataFile string
+	// TPMPolicyUpdateDataFile is the location where the TPM authorization policy update data is written to
+	TPMPolicyUpdateDataFile string
 	// KernelPath is the path to the kernel to seal the keyfile to
 	KernelPath string
 	// Model is the device model to seal the keyfile to
 	Model *asserts.Model
+	// SystemLabel is the recover system label to seal the keyfile to
+	SystemLabel string
 }

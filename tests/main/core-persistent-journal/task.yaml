@@ -26,67 +26,29 @@ execute: |
     not test -e /var/log/journal
 
     echo "Check that persistent journal can be enabled"
-    # FIXME: any time we manipulate the journal on core16 systems, with the
-    # systemd version used there, systemd-journald closes the pipes it uses to
-    # communicate with services, resulting in SIGPIPE. This also means that
-    # snapd is killed with SIGPIPE and restarts on failure, due to the
-    # configuration specified in snapd.service. Other services may not be so
-    # lucky and just decide to die and stay dead.
-    #
-    # This is upstream bug https://bugs.freedesktop.org/show_bug.cgi?id=84923
-    #
-    # It has been fixed in the version of systemd on core18+ but core16 makes
-    # configuring the journal entirely unreliable as it leaves us with the
-    # following alternatives:
-    #
-    # 1) Die in the middle of the hook, because journal is restarting.
-    #    We can polish this so that snapd can die "cleanly", with enough
-    #    effort, perhaps.
-    #
-    # 2) Ignore SIGPIPE and not log anything from snapd following the restart.
-    #
-    # Note that this also affects *all* services on the system, not just snapd.
-    case "$SPREAD_SYSTEM" in
-        ubuntu-core-16-*)
-            retry-tool -n 10 --wait 3 snap set core journal.persistent=true
-            ;;
-        *)
-            snap set core journal.persistent=true
-            ;;
-    esac
+    snap set core journal.persistent=true
     test -e /var/log/journal/
     test -e /var/log/journal/.snapd-created
 
-    # this check relies on *anything* getting logged; enabling persistent
-    # journal writes an entry about journal size, which should be sufficient.
-    MACHINE_ID=$(cat /etc/machine-id)
-    retry-tool -n30 --wait 1 test -e "/var/log/journal/$MACHINE_ID"
+    # on core16 journald is not reloaded, so changes are not visible until
+    # rebooted.
+    if [[ ! "$SPREAD_SYSTEM" = ubuntu-core-16-* ]]; then
+        # this check relies on *anything* getting logged; enabling persistent
+        # journal writes an entry about journal size, which should be sufficient.
+        MACHINE_ID=$(cat /etc/machine-id)
+        retry -n30 --wait 1 test -e "/var/log/journal/$MACHINE_ID"
+    fi
 
     echo "Check that persistent journal can be disabled"
-    # FIXME: see the longer comment above.
-    case "$SPREAD_SYSTEM" in
-        ubuntu-core-16-*)
-            retry-tool -n 10 --wait 3 snap set core journal.persistent=false
-            ;;
-        *)
-            snap set core journal.persistent=false
-            ;;
-    esac
+    snap set core journal.persistent=false
     not test -e /var/log/journal
 
     echo "Check that journal log is not removed if managed manually"
     mkdir /var/log/journal
-    # FIXME: see the longer comment above.
-    case "$SPREAD_SYSTEM" in
-        ubuntu-core-16-*)
-            retry-tool -n 10 --wait 3 snap set core journal.persistent=true
-            ;;
-        *)
-            snap set core journal.persistent=true
-            ;;
-    esac
+    snap set core journal.persistent=true
     not test -e /var/log/journal/.snapd-created
-    # NOTE: Since this is failing early, before we do anything to the journal, there is no need to use retry-tool.
+
+    # NOTE: Since this is failing early, before we do anything to the journal, there is no need to use retry.
     snap set core journal.persistent=false 2>&1 | MATCH "the /var/log/journal directory was not created by snapd"
     # the journal dir was not removed
     test -e /var/log/journal/

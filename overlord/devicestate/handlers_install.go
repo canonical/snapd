@@ -49,24 +49,16 @@ var (
 )
 
 func setSysconfigCloudOptions(opts *sysconfig.Options, gadgetDir string, model *asserts.Model) {
-	// TODO: Decide what to do when both gadget and ubuntu-seed have
-	//       cloud.cfg.d/ directories.
+	// TODO: add support for a single cloud-init `cloud.conf` file
+	//       that is then passed to sysconfig
 
-	// 1. check cloud.cfg.d in the gadget snap, this is always ok regardless
-	//    of grade
-	cloudCfg := filepath.Join(gadgetDir, "cloud.cfg.d")
-	if osutil.IsDirectory(cloudCfg) {
-		opts.CloudInitSrcDir = cloudCfg
-		return
-	}
-
-	// 2. check cloud.cfg.d on the ubuntu-seed partition
+	// check cloud.cfg.d on the ubuntu-seed partition
 	//
 	// Support custom cloud.cfg.d/*.cfg files on the ubuntu-seed partition
 	// during install when in grade "dangerous".
 	//
 	// XXX: maybe move policy decision into configureRunSystem later?
-	cloudCfg = filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d")
+	cloudCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d")
 	if osutil.IsDirectory(cloudCfg) && model.Grade() == asserts.ModelDangerous {
 		opts.CloudInitSrcDir = cloudCfg
 		return
@@ -107,6 +99,14 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 	kernelDir := kernelInfo.MountDir()
 
+	modeEnv, err := maybeReadModeenv()
+	if err != nil {
+		return err
+	}
+	if modeEnv == nil {
+		return fmt.Errorf("missing modeenv, cannot proceed")
+	}
+
 	// bootstrap
 	bopts := bootstrap.Options{
 		Mount: true,
@@ -118,7 +118,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	if useEncryption {
 		fdeDir := "var/lib/snapd/device/fde"
 		// ensure directories
-		for _, p := range []string{boot.InitramfsEncryptionKeyDir, filepath.Join(boot.InitramfsWritableDir, fdeDir)} {
+		for _, p := range []string{boot.InitramfsEncryptionKeyDir, filepath.Join(boot.InstallHostWritableDir, fdeDir)} {
 			if err := os.MkdirAll(p, 0755); err != nil {
 				return err
 			}
@@ -126,11 +126,12 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 
 		bopts.Encrypt = true
 		bopts.KeyFile = filepath.Join(boot.InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key")
-		bopts.RecoveryKeyFile = filepath.Join(boot.InitramfsWritableDir, fdeDir, "recovery.key")
-		bopts.TPMLockoutAuthFile = filepath.Join(boot.InitramfsWritableDir, fdeDir, "tpm-lockout-auth")
-		bopts.PolicyUpdateDataFile = filepath.Join(boot.InitramfsWritableDir, fdeDir, "policy-update-data")
+		bopts.RecoveryKeyFile = filepath.Join(boot.InstallHostWritableDir, fdeDir, "recovery.key")
+		bopts.TPMLockoutAuthFile = filepath.Join(boot.InstallHostWritableDir, fdeDir, "tpm-lockout-auth")
+		bopts.TPMPolicyUpdateDataFile = filepath.Join(boot.InstallHostWritableDir, fdeDir, "policy-update-data")
 		bopts.KernelPath = filepath.Join(kernelDir, "kernel.efi")
 		bopts.Model = deviceCtx.Model()
+		bopts.SystemLabel = modeEnv.RecoverySystem
 	}
 
 	// run the create partition code
@@ -151,7 +152,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// configure the run system
-	opts := &sysconfig.Options{TargetRootDir: boot.InitramfsWritableDir}
+	opts := &sysconfig.Options{TargetRootDir: boot.InstallHostWritableDir, GadgetDir: gadgetDir}
 	// configure cloud init
 	setSysconfigCloudOptions(opts, gadgetDir, deviceCtx.Model())
 	if err := sysconfigConfigureRunSystem(opts); err != nil {
@@ -163,13 +164,6 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	bootBaseInfo, err := snapstate.BootBaseInfo(st, deviceCtx)
 	if err != nil {
 		return fmt.Errorf("cannot get boot base info: %v", err)
-	}
-	modeEnv, err := m.maybeReadModeenv()
-	if err != nil {
-		return err
-	}
-	if modeEnv == nil {
-		return fmt.Errorf("missing modeenv, cannot proceed")
 	}
 	recoverySystemDir := filepath.Join("/systems", modeEnv.RecoverySystem)
 	bootWith := &boot.BootableSet{

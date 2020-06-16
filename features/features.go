@@ -47,6 +47,10 @@ const (
 	ClassicPreservesXdgRuntimeDir
 	// RobustMountNamespaceUpdates controls how snap-update-ns updates existing mount namespaces.
 	RobustMountNamespaceUpdates
+	// UserDaemons controls availability of user mode service support.
+	UserDaemons
+	// DbusActivation controls whether snaps daemons can be activated via D-Bus
+	DbusActivation
 	// lastFeature is the final known feature, it is only used for testing.
 	lastFeature
 )
@@ -72,6 +76,9 @@ var featureNames = map[SnapdFeature]string{
 
 	ClassicPreservesXdgRuntimeDir: "classic-preserves-xdg-runtime-dir",
 	RobustMountNamespaceUpdates:   "robust-mount-namespace-updates",
+
+	UserDaemons:    "user-daemons",
+	DbusActivation: "dbus-activation",
 }
 
 // featuresEnabledWhenUnset contains a set of features that are enabled when not explicitly configured.

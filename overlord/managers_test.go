@@ -70,10 +70,17 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
+)
+
+var (
+	settleTimeout           = testutil.HostScaledTimeout(45 * time.Second)
+	aggressiveSettleTimeout = testutil.HostScaledTimeout(50 * time.Millisecond)
+	connectRetryTimeout     = testutil.HostScaledTimeout(70 * time.Millisecond)
 )
 
 type automaticSnapshotCall struct {
@@ -124,11 +131,6 @@ var (
 	develPrivKey, _ = assertstest.GenerateKey(752)
 
 	deviceKey, _ = assertstest.GenerateKey(752)
-)
-
-const (
-	aggressiveSettleTimeout = 50 * time.Millisecond
-	connectRetryTimeout     = 70 * time.Millisecond
 )
 
 func verifyLastTasksetIsRerefresh(c *C, tts []*state.TaskSet) {
@@ -354,8 +356,6 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 type mgrsSuite struct {
 	baseMgrsSuite
 }
-
-var settleTimeout = 45 * time.Second
 
 func makeTestSnapWithFiles(c *C, snapYamlContent string, files [][]string) string {
 	info, err := snap.InfoFromSnapYaml([]byte(snapYamlContent))
@@ -665,7 +665,7 @@ func (s *baseMgrsSuite) newestThatCanRead(name string, epoch snap.Epoch) (info *
 	rev = s.serveRevision[name]
 	path := s.serveSnapPath[name]
 	for {
-		snapf, err := snap.Open(path)
+		snapf, err := snapfile.Open(path)
 		if err != nil {
 			panic(err)
 		}
@@ -880,7 +880,7 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 // serveSnap starts serving the snap at snapPath, moving the current
 // one onto the list of previous ones if already set.
 func (s *baseMgrsSuite) serveSnap(snapPath, revno string) {
-	snapf, err := snap.Open(snapPath)
+	snapf, err := snapfile.Open(snapPath)
 	if err != nil {
 		panic(err)
 	}
@@ -2318,7 +2318,7 @@ func (s *mgrsSuite) installLocalTestSnap(c *C, snapYamlContent string) *snap.Inf
 	st := s.o.State()
 
 	snapPath := makeTestSnap(c, snapYamlContent)
-	snapf, err := snap.Open(snapPath)
+	snapf, err := snapfile.Open(snapPath)
 	c.Assert(err, IsNil)
 	info, err := snap.ReadInfoFromSnapFile(snapf, nil)
 	c.Assert(err, IsNil)

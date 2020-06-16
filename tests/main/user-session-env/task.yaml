@@ -16,10 +16,10 @@ environment:
 prepare: |
     echo "Create a user with a different shell"
     useradd --create-home --user-group -s /bin/zsh "$TEST_ZSH_USER"
-    session-tool --prepare -u test,test-zsh
+    tests.session prepare -u test,test-zsh
 
 restore: |
-    session-tool --restore -u test,test-zsh
+    tests.session restore -u test,test-zsh
     userdel -f -r "$TEST_ZSH_USER"
     rm -f test-profile-env test-profile-zsh-env test-session-env test-zsh-session-env
 
@@ -29,10 +29,10 @@ execute: |
 
     for user in test "$TEST_ZSH_USER"; do
         # Dump the environment set up by the user session manager
-        if session-tool -u "$user" --has-systemd-and-dbus; then
-            session-tool -u "$user" systemctl --user show-environment > "${user}-session-env"
+        if tests.session has-session-systemd-and-dbus; then
+            tests.session -u "$user" exec systemctl --user show-environment > "${user}-session-env"
         fi
-        session-tool -u "$user" env > "${user}-profile-env"
+        tests.session -u "$user" exec env > "${user}-profile-env"
     done
 
     for user in test "$TEST_ZSH_USER"; do
