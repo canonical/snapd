@@ -14,7 +14,7 @@ execute: |
   # deny all devices by default
   echo "a *.* rwm" > /sys/fs/cgroup/devices/snap.test.me/devices.deny
 
-  if [[ "$SPREAD_SYSTEM" == amazon-linux-2-* ]]; then
+  if [[ "$SPREAD_SYSTEM" == amazon-linux-2-* ]] || [[ "$SPREAD_SYSTEM" == centos-* ]] ; then
     SNAP_DEVICE_HELPER=/usr/libexec/snapd/snap-device-helper
   else
     SNAP_DEVICE_HELPER=/usr/lib/snapd/snap-device-helper
