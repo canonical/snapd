@@ -150,17 +150,9 @@ if [ "$STATIC" = 1 ]; then
     echo Checking docs
     ./mdlint.py ./*.md docs/*.md
 
-    # XXX: obsolete
     if [ -n "${TRAVIS_PULL_REQUEST:-}" ] && [ "${TRAVIS_PULL_REQUEST:-}" != "false" ]; then
-        echo "Checking pull request summary"
+        echo Checking pull request summary
         ./check-pr-title.py "$TRAVIS_PULL_REQUEST"
-    fi
-    # XXX: is there a better way on GH?
-    if [ -n "${GITHUB_EVENT_PATH:-}" ]; then
-        set -x
-        echo "Checking pull request summary"
-        PR_TITLE="$(jq -r .pull_request.title $GITHUB_EVENT_PATH)"
-        ./check-pr-title.py "$PR_TITLE"
     fi
 
     if [ -z "${SKIP_GOFMT:-}" ]; then
