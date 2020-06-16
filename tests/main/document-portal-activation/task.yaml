@@ -17,56 +17,58 @@ description: |
 # Disabled on Ubuntu Core because it doesn't provide the "desktop"
 # slot, and Amazon Linux because it doesn't have the required Python 3
 # packages to run the test.
-systems: [ -ubuntu-core-*, -amazon-linux-2-*, -centos-* ]
-
-environment:
-    XDG_RUNTIME_DIR: /run/user/$(id -u)
+systems:
+    - -amazon-linux-2-*
+    - -centos-*
+    - -ubuntu-14.04-*
+    - -ubuntu-core-*
 
 prepare: |
-    #shellcheck source=tests/lib/pkgdb.sh
-    . "$TESTSLIB"/pkgdb.sh
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
     install_local test-snapd-desktop
     install_local test-snapd-sh
     rm -f /usr/share/dbus-1/services/fake-document-portal.service
-    mkdir -p "$XDG_RUNTIME_DIR"
-    rm -rf "${XDG_RUNTIME_DIR:?}/*" "${XDG_RUNTIME_DIR:?}/.[!.]*"
+    tests.session -u test prepare
+
+    # The fake portal writes to current working directory so let's give it permission to.
+    touch doc-portal.log
+    touch report-error.txt
+    chown test doc-portal.log
+    chown test report-error.txt
 
 restore: |
-    #shellcheck source=tests/lib/pkgdb.sh
-    . "$TESTSLIB"/pkgdb.sh
-    [ -f dbus-launch.pid ] && kill "$(cat dbus-launch.pid)"
     rm -f /usr/share/dbus-1/services/fake-document-portal.service
-    rm -rf "${XDG_RUNTIME_DIR:?}/*" "${XDG_RUNTIME_DIR:?}/.[!.]*"
+    rm -f doc-portal.log
+    rm -f report-error.txt
+    tests.session -u test restore
 
 execute: |
     #shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB"/systems.sh
 
-    check_stderr() {
-        test -n "$1"
-        if is_cgroupv2; then
-            [ "$(cat "$1")" = "WARNING: cgroup v2 is not fully supported yet, proceeding with partial confinement" ]
-        else
-            [ "$(wc -c < "$1")" -eq 0 ]
-        fi
-    }
-    echo "No output on stderr when running without a session bus"
-    user_data="$HOME/snap/test-snapd-desktop/current"
-    test-snapd-desktop.check-dirs "$user_data" 2>stderr.log
-    check_stderr stderr.log
-
-    echo "Starting session bus"
-    eval "$(dbus-launch --sh-syntax)"
-    echo "$DBUS_SESSION_BUS_PID" > dbus-launch.pid
+    if is_cgroupv2; then
+        check_stderr() {
+            test -n "$1"
+            test "WARNING: cgroup v2 is not fully supported yet, proceeding with partial confinement" = "$(cat "$1")"
+        }
+    else
+        check_stderr() {
+            test -n "$1"
+            if [ -s "$1" ]; then
+                echo "stderr contains some messages"
+                cat "$1"
+                exit 1
+            fi
+        }
+    fi
 
     echo "No output on stderr when running with a session bus, when xdg-document-portal is not present."
-    test-snapd-desktop.check-dirs "$user_data" 2>stderr.log
+    tests.session -u test exec test-snapd-desktop.check-dirs /home/test/snap/test-snapd-desktop/current 2>stderr.log
     check_stderr stderr.log
 
     echo "The absence of the document portal service was recorded"
-    [ -f "$XDG_RUNTIME_DIR/.portals-unavailable" ]
+    test -f /run/user/12345/.portals-unavailable
 
     echo "Make the fake document portal activatable"
     cat << EOF > /usr/share/dbus-1/services/fake-document-portal.service
@@ -74,18 +76,16 @@ execute: |
     Name=org.freedesktop.portal.Documents
     Exec=$(pwd)/fake-document-portal.py $(pwd)/doc-portal.log $(pwd)/report-error.txt
     EOF
-    : > doc-portal.log
-    : > report-error.txt
 
     echo "No attempt is made to activate the document portal due to the previous failure"
-    test-snapd-desktop.check-dirs "$user_data"
+    tests.session -u test exec test-snapd-desktop.check-dirs /home/test/snap/test-snapd-desktop/current
     not MATCH "GetMountPoint called" < doc-portal.log
 
     echo "Remove the .portals-unavailable file to force a recheck"
-    rm "$XDG_RUNTIME_DIR/.portals-unavailable"
+    rm /run/user/12345/.portals-unavailable
 
-    echo "No output on stderr when running with a session bus and xdg-document-portal is present".
-    test-snapd-desktop.check-dirs "$user_data" 2>stderr.log
+    echo "No output on stderr when running with a session bus and xdg-document-portal is present."
+    tests.session -u test exec test-snapd-desktop.check-dirs /home/test/snap/test-snapd-desktop/current 2>stderr.log
     MATCH "GetMountPoint called" < doc-portal.log
     check_stderr stderr.log
 
@@ -94,12 +94,19 @@ execute: |
     : > doc-portal.log
 
     echo "Failures from a running xdg-document-portal are reported"
-    test-snapd-desktop.check-dirs "$user_data" 2>stderr.log
+    tests.session -u test exec test-snapd-desktop.check-dirs /home/test/snap/test-snapd-desktop/current 2>stderr.log
     MATCH "GetMountPoint called" < doc-portal.log
     MATCH "WARNING: cannot start document portal: failure" < stderr.log
 
     echo "Snaps not using the desktop interface will not try to contact the document portal"
     : > doc-portal.log
-    test-snapd-sh.sh -c 'true' 2>stderr.log
+    tests.session -u test exec test-snapd-sh.sh -c 'true' 2>stderr.log
     check_stderr stderr.log
-    [ "$(wc -c < doc-portal.log)" -eq 0 ]
+    test "$(wc -c < doc-portal.log)" -eq 0
+
+    echo "No output on stderr when running without a session bus"
+    # NOTE: lack of session bus is emulated by unsetting DBUS_SESSION_BUS address
+    # and stopping dbus.socket
+    tests.session -u test exec systemctl --user stop dbus.socket
+    tests.session -u test exec sh -c "DBUS_SESSION_BUS_ADDRESS= test-snapd-desktop.check-dirs /home/test/snap/test-snapd-desktop/current" 2>stderr.log
+    check_stderr stderr.log

@@ -13,7 +13,7 @@ environment:
     DISPLAY: :0
 
 restore: |
-    session-tool -u test --restore
+    tests.session -u test restore
 
     umount /usr/bin/xdg-open
     rm /usr/bin/xdg-open
@@ -26,12 +26,12 @@ prepare: |
     . "$TESTSLIB/snaps.sh"
     install_local test-snapd-desktop
 
-    session-tool -u test --prepare
+    tests.session -u test prepare
     # this will be later used by userd
-    session-tool -u test systemctl --user set-environment XDG_DATA_DIRS=/usr/share
+    tests.session -u test exec systemctl --user set-environment XDG_DATA_DIRS=/usr/share
 
     # wait for session to be ready
-    session-tool -u test env "PATH=$PATH" retry-tool -n 5 --wait 0.5 dbus-send \
+    tests.session -u test exec env "PATH=$PATH" retry -n 5 --wait 0.5 dbus-send \
             --session                                         \
             --dest=io.snapcraft.Launcher                      \
             --type=method_call                                \
@@ -61,7 +61,7 @@ execute: |
 
     ensure_xdg_open_output() {
         rm -f /tmp/xdg-open-output
-        session-tool -u test test-snapd-desktop.cmd /usr/bin/xdg-open "$1"
+        tests.session -u test exec test-snapd-desktop.cmd /usr/bin/xdg-open "$1"
         test -e /tmp/xdg-open-output
         test "$(head -1 /tmp/xdg-open-output)" = "$1"
     }
@@ -85,13 +85,15 @@ execute: |
     ensure_xdg_open_output "help:snapcraft"
     ensure_xdg_open_output "apt:snapcraft"
     ensure_xdg_open_output "zoommtg://snapcraft.io"
+    ensure_xdg_open_output "slack://5NAPPY111/magic-login/bcaf81ee-07b1-4362-9c09-ff46bd6e1bb9"
+    ensure_xdg_open_output "msteams://snapcraft.io"
 
     # Ensure XDG_DATA_DIRS was prefixed with snap specific location
     test "$(tail -1 /tmp/xdg-open-output)" = "XDG_DATA_DIRS=$SNAP_MOUNT_DIR/test-snapd-desktop/current/usr/share:/usr/share"
 
     # Ensure other schemes are not passed through
     rm /tmp/xdg-open-output
-    not session-tool -u test test-snapd-desktop.cmd /usr/bin/xdg-open ftp://snapcraft.io
+    not tests.session -u test exec test-snapd-desktop.cmd /usr/bin/xdg-open ftp://snapcraft.io
     test ! -e /tmp/xdg-open-output
-    not session-tool -u test test-snapd-desktop.cmd /usr/bin/xdg-open aabbcc
+    not tests.session -u test exec test-snapd-desktop.cmd /usr/bin/xdg-open aabbcc
     test ! -e /tmp/xdg-open-output

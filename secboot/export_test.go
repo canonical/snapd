@@ -28,8 +28,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 )
 
-type TPMSupport = tpmSupport
-
 func MockSbConnectToDefaultTPM(f func() (*sb.TPMConnection, error)) (restore func()) {
 	old := sbConnectToDefaultTPM
 	sbConnectToDefaultTPM = f
@@ -83,6 +81,15 @@ func MockSbLockAccessToSealedKeys(f func(tpm *sb.TPMConnection) error) (restore 
 	sbLockAccessToSealedKeys = f
 	return func() {
 		sbLockAccessToSealedKeys = old
+	}
+}
+
+func MockSbActivateVolumeWithRecoveryKey(f func(volumeName, sourceDevicePath string,
+	keyReader io.Reader, options *sb.ActivateWithRecoveryKeyOptions) error) (restore func()) {
+	old := sbActivateVolumeWithRecoveryKey
+	sbActivateVolumeWithRecoveryKey = f
+	return func() {
+		sbActivateVolumeWithRecoveryKey = old
 	}
 }
 

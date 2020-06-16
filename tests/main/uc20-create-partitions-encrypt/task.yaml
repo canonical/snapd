@@ -55,6 +55,7 @@ prepare: |
     start=2048, size=2048, type=21686148-6449-6E6F-744E-656564454649, name="BIOS Boot"
     start=4096, size=2457600, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, name="ubuntu-seed"
     EOF
+    retry -n 3 --wait 1 test -e "${LOOP}p2"
     udevadm trigger --settle "${LOOP}p2"
     mkfs.vfat "${LOOP}p2"
     udevadm trigger --settle "${LOOP}p2"
@@ -80,11 +81,14 @@ execute: |
 
     echo "Install EFI binaries"
     bootdir=/run/mnt/ubuntu-boot/EFI/boot
-    mkdir -p "$bootdir"
-    cp /usr/lib/shim/shimx64.efi.signed "$bootdir"/bootx64.efi
+    seedbootdir=/run/mnt/ubuntu-seed/EFI/boot
+    mkdir -p "$bootdir" "$seedbootdir"
+    cp /usr/lib/shim/shimx64.efi.signed "$seedbootdir"/bootx64.efi
+    cp /usr/lib/grub/x86_64-efi-signed/grubx64.efi.signed "$seedbootdir"/grubx64.efi
     cp /usr/lib/grub/x86_64-efi-signed/grubx64.efi.signed "$bootdir"/grubx64.efi
-    ls -l "$bootdir"
-    sbverify --list "$bootdir"/bootx64.efi
+
+    sbverify --list "$seedbootdir"/bootx64.efi
+    sbverify --list "$seedbootdir"/grubx64.efi
     sbverify --list "$bootdir"/grubx64.efi
 
     echo "Run the snap-bootstrap tool"

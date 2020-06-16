@@ -7,7 +7,7 @@ environment:
     PROJECT_PATH: $GOHOME/src/github.com/snapcore/snapd
     # /usr/lib/go-1.6/bin for trusty (needs to be last as we use
     # a different go in gccgo tests)
-    PATH: $GOHOME/bin:/snap/bin:$PATH:/usr/lib/go-1.6/bin:/var/lib/snapd/snap/bin:$PROJECT_PATH/tests/lib/bin
+    PATH: $GOHOME/bin:/snap/bin:$PATH:/usr/lib/go-1.6/bin:/var/lib/snapd/snap/bin:$PROJECT_PATH/tests/bin:$PROJECT_PATH/tests/lib/tools
     TESTSLIB: $PROJECT_PATH/tests/lib
     TESTSTOOLS: $PROJECT_PATH/tests/lib/tools
     SNAPPY_TESTING: 1
@@ -123,6 +123,9 @@ backends:
                   workers: 4
                   storage: preserve-size
                   image: centos-8-64
+            - ubuntu-20.10-64:
+                  workers: 6
+                  image: ubuntu-os-cloud-devel/ubuntu-2010
 
     google-sru:
         type: google
@@ -495,6 +498,8 @@ debug-each: |
         findmnt --ascii -o+PROPAGATION || true
         echo "# processes"
         ps aux
+        echo "# /var/lib/snapd"
+        find /var/lib/snapd/ -not -path '/var/lib/snapd/snap/*' -ls || true
     fi
 
 rename:
@@ -663,8 +668,8 @@ restore: |
 restore-each: |
     "$TESTSLIB"/prepare-restore.sh --restore-project-each
 suites:
-    tests/lib-tools/:
-        summary: Tests for tests/lib/bin tools
+    tests/lib/tools/suite/:
+        summary: Tests for tests/lib/tools tools
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each-minimal-no-snaps
         restore-each: |
