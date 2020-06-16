@@ -153,7 +153,8 @@ execute: |
     not lxd.lxc exec my-nesting-ubuntu -- \
         lxd.lxc exec my-inner-ubuntu -- \
             snap install test-snapd-sh 2>stderr.log
-    MATCH "error: system does not fully support snapd: apparmor detected but insufficient\s+permissions to use it" < stderr.log
+    # replace newlines with spaces to get one long line
+    tr '\n' ' ' < stderr.log | MATCH "error:\s+system\s+does\s+not\s+fully\s+support\s+snapd:\s+apparmor\s+detected\s+but\s+insufficient\s+permissions\s+to\s+use\s+it" 
 
     echo "Install lxd-demo server to exercise the lxd interface"
     snap install lxd-demo-server
