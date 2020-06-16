@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 func newBootState20(typ snap.Type) bootState {
@@ -558,20 +559,15 @@ func (ks20 *bootState20Kernel) selectAndCommitSnapInitramfsMount() (sn snap.Plac
 
 	// now validate the chosen kernel snap against the modeenv CurrentKernel's
 	// setting
-	// make a map to easily check if a kernel snap is valid or not
-	validKernels := make(map[string]bool, len(ks20.kModeenv.modeenv.CurrentKernels))
-	for _, validKernel := range ks20.kModeenv.modeenv.CurrentKernels {
-		validKernels[validKernel] = true
-	}
 
 	// always try the first and fallback to the second if we fail
-	if validKernels[first.Filename()] {
+	if strutil.ListContains(ks20.kModeenv.modeenv.CurrentKernels, first.Filename()) {
 		return first, nil
 	}
 
 	// first isn't trusted, so if we expected a fallback then use it
-	if expectFallback {
-		if validKernels[second.Filename()] {
+	if second != nil {
+		if strutil.ListContains(ks20.kModeenv.modeenv.CurrentKernels, second.Filename()) {
 			// TODO:UC20: actually we really shouldn't be falling back here at
 			//            all - if the kernel we booted isn't mountable in the
 			//            initramfs, we should trigger a reboot so that we boot
