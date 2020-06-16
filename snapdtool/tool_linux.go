@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,7 +17,7 @@
  *
  */
 
-package cmd
+package snapdtool
 
 import (
 	"log"
@@ -26,7 +26,6 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/snapcore/snapd/cmd/cmdutil"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -78,7 +77,7 @@ func distroSupportsReExec() bool {
 // version of core that do not yet have it.
 func coreSupportsReExec(coreOrSnapdPath string) bool {
 	infoPath := filepath.Join(coreOrSnapdPath, filepath.Join(dirs.CoreLibExecDir, "info"))
-	ver, err := cmdutil.SnapdVersionFromInfoFile(infoPath)
+	ver, err := SnapdVersionFromInfoFile(infoPath)
 	if err != nil {
 		logger.Noticef("%v", err)
 		return false
@@ -97,8 +96,6 @@ func coreSupportsReExec(coreOrSnapdPath string) bool {
 	return true
 }
 
-// TODO: move to cmd/cmdutil/
-//
 // InternalToolPath returns the path of an internal snapd tool. The tool
 // *must* be located inside the same tree as the current binary.
 //

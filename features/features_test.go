@@ -48,6 +48,7 @@ func (*featureSuite) TestName(c *C) {
 	c.Check(features.ClassicPreservesXdgRuntimeDir.String(), Equals, "classic-preserves-xdg-runtime-dir")
 	c.Check(features.RobustMountNamespaceUpdates.String(), Equals, "robust-mount-namespace-updates")
 	c.Check(features.UserDaemons.String(), Equals, "user-daemons")
+	c.Check(features.DbusActivation.String(), Equals, "dbus-activation")
 	c.Check(func() { _ = features.SnapdFeature(1000).String() }, PanicMatches, "unknown feature flag code 1000")
 }
 
@@ -70,6 +71,7 @@ func (*featureSuite) TestIsExported(c *C) {
 	c.Check(features.RefreshAppAwareness.IsExported(), Equals, true)
 	c.Check(features.ClassicPreservesXdgRuntimeDir.IsExported(), Equals, true)
 	c.Check(features.UserDaemons.IsExported(), Equals, false)
+	c.Check(features.DbusActivation.IsExported(), Equals, false)
 }
 
 func (*featureSuite) TestIsEnabled(c *C) {
@@ -101,6 +103,7 @@ func (*featureSuite) TestIsEnabledWhenUnset(c *C) {
 	c.Check(features.ClassicPreservesXdgRuntimeDir.IsEnabledWhenUnset(), Equals, false)
 	c.Check(features.RobustMountNamespaceUpdates.IsEnabledWhenUnset(), Equals, true)
 	c.Check(features.UserDaemons.IsEnabledWhenUnset(), Equals, false)
+	c.Check(features.DbusActivation.IsEnabledWhenUnset(), Equals, false)
 }
 
 func (*featureSuite) TestControlFile(c *C) {

@@ -29,6 +29,15 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
+type MkfsFunc func(imgFile, label, contentsRootDir string) error
+
+var (
+	mkfsHandlers = map[string]MkfsFunc{
+		"vfat": MkfsVfat,
+		"ext4": MkfsExt4,
+	}
+)
+
 // MkfsExt4 creates an EXT4 filesystem in given image file, with an optional
 // filesystem label, and populates it with the contents of provided root
 // directory.

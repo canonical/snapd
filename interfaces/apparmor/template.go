@@ -169,6 +169,7 @@ var templateCommon = `
 
   # For gdb support
   /usr/lib/snapd/snap-gdb-shim ixr,
+  /usr/lib/snapd/snap-gdbserver-shim ixr,
 
   # For in-snap tab completion
   /etc/bash_completion.d/{,*} r,
@@ -265,6 +266,7 @@ var templateCommon = `
   @{PROC}/sys/kernel/yama/ptrace_scope r,
   @{PROC}/sys/kernel/shmmax r,
   @{PROC}/sys/fs/file-max r,
+  @{PROC}/sys/fs/file-nr r,
   @{PROC}/sys/fs/inotify/max_* r,
   @{PROC}/sys/kernel/pid_max r,
   @{PROC}/sys/kernel/random/boot_id r,
