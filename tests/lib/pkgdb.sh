@@ -953,7 +953,7 @@ distro_restore_packages() {
         ubuntu-*|debian-*)
             dpkg --clear-selections
             dpkg --set-selections < "$before"
-            apt-get -y dselect-upgrade
+            apt-get dselect-upgrade -y --purge
             ;;
         arch-*)
             # shellcheck disable=SC2046
