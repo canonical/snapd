@@ -29,7 +29,7 @@ execute: |
 
     # run a snap command via sudo
     # shellcheck disable=SC2016
-    tests.session -u test exec sudo sh -c 'echo :$PATH:' test > sudo.path
+    tests.session -u test exec sudo sh -c 'echo :$PATH:' > sudo.path
     # and again via sudo --login which should load /etc/profile
     # shellcheck disable=SC2016
     tests.session -u test exec sudo --login sh -c 'echo :$PATH:' > sudo-login.path
