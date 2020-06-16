@@ -15,9 +15,9 @@ execute: |
   echo "a *.* rwm" > /sys/fs/cgroup/devices/snap.test.me/devices.deny
 
   if [[ "$SPREAD_SYSTEM" == amazon-linux-2-* ]]; then
-    SNAP_DEVICE_HELPER=/usr/lib/snapd/snap-device-helper
-  else
     SNAP_DEVICE_HELPER=/usr/libexec/snapd/snap-device-helper
+  else
+    SNAP_DEVICE_HELPER=/usr/lib/snapd/snap-device-helper
   fi
 
   echo "Simulating devices being added to the device cgroup by udev by invoking snap-device-helper directly"
