@@ -32,14 +32,14 @@ jobs:
         path: ./src/github.com/snapcore/snapd
 
     - name: Check PR title
-      uses: dylanvann/check-pull-request-title@v1
+      uses: deepakputhraya/action-pr-title@master
       with:
         # cover most common cases:
         # package: foo
         # package, otherpackage/subpackage: this is a title
         # tests/regression/lp-12341234: foo
         # [RFC] foo: bar
-        pattern: '[a-zA-Z0-9_\-/,. \[\]{}]+: .*'
+        regex: '[a-zA-Z0-9_\-/,. \[\]{}]+: .*'
 
     - name: Cache Debian dependencies
       id: cache-deb-downloads
