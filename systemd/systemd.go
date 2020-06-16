@@ -222,6 +222,8 @@ type Systemd interface {
 	Kill(service, signal, who string) error
 	// Restart the service, waiting for it to stop before starting it again.
 	Restart(service string, timeout time.Duration) error
+	// Reload or restart the service via 'systemctl reload-or-restart'
+	ReloadOrRestart(service string) error
 	// RestartAll restarts the given service using systemctl restart --all
 	RestartAll(service string) error
 	// Status fetches the status of given units. Statuses are
@@ -780,30 +782,30 @@ func fsMountOptions(fstype string) []string {
 	return options
 }
 
-// actualFsTypeAndMountOptions returns filesystem type and options to actually
+// hostFsTypeAndMountOptions returns filesystem type and options to actually
 // mount the given fstype at runtime, i.e. it determines if fuse should be used
 // for squashfs.
-func actualFsTypeAndMountOptions(fstype string) (actualFsType string, options []string) {
+func hostFsTypeAndMountOptions(fstype string) (hostFsType string, options []string) {
 	options = fsMountOptions(fstype)
-	actualFsType = fstype
+	hostFsType = fstype
 	if fstype == "squashfs" {
 		newFsType, newOptions := squashfsFsType()
 		options = append(options, newOptions...)
-		actualFsType = newFsType
+		hostFsType = newFsType
 	}
-	return actualFsType, options
+	return hostFsType, options
 }
 
 func (s *systemd) AddMountUnitFile(snapName, revision, what, where, fstype string) (string, error) {
 	daemonReloadLock.Lock()
 	defer daemonReloadLock.Unlock()
 
-	actualFsType, options := actualFsTypeAndMountOptions(fstype)
+	hostFsType, options := hostFsTypeAndMountOptions(fstype)
 	if osutil.IsDirectory(what) {
 		options = append(options, "bind")
-		actualFsType = "none"
+		hostFsType = "none"
 	}
-	mountUnitName, err := writeMountUnitFile(snapName, revision, what, where, actualFsType, options)
+	mountUnitName, err := writeMountUnitFile(snapName, revision, what, where, hostFsType, options)
 	if err != nil {
 		return "", err
 	}
@@ -863,4 +865,12 @@ func (s *systemd) RemoveMountUnitFile(mountedDir string) error {
 	}
 
 	return nil
+}
+
+func (s *systemd) ReloadOrRestart(serviceName string) error {
+	if s.mode == GlobalUserMode {
+		panic("cannot call restart with GlobalUserMode")
+	}
+	_, err := s.systemctl("reload-or-restart", serviceName)
+	return err
 }

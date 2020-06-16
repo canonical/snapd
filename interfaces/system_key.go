@@ -29,13 +29,13 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/sandbox/seccomp"
+	"github.com/snapcore/snapd/snapdtool"
 )
 
 // ErrSystemKeyIncomparableVersions indicates that the system-key
@@ -102,7 +102,7 @@ func generateSystemKey() (*systemKey, error) {
 	sk := &systemKey{
 		Version: systemKeyVersion,
 	}
-	snapdPath, err := cmd.InternalToolPath("snapd")
+	snapdPath, err := snapdtool.InternalToolPath("snapd")
 	if err != nil {
 		return nil, err
 	}

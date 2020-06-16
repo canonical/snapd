@@ -36,6 +36,7 @@ prepare: |
     start=2048, size=2048, type=21686148-6449-6E6F-744E-656564454649, name="BIOS Boot"
     start=4096, size=2457600, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, name="ubuntu-seed"
     EOF
+    retry -n 3 --wait 1 test -e "${LOOP}p2"
     udevadm trigger --settle "${LOOP}p2"
     mkfs.vfat "${LOOP}p2"
     udevadm trigger --settle "${LOOP}p2"
@@ -82,12 +83,16 @@ execute: |
     df -T "${LOOP}p3" | MATCH ext4
     umount ./mnt
     file -s "${LOOP}p3" | MATCH 'ext4 filesystem data,.* volume name "ubuntu-boot"'
+    # check metadata_csum
+    tune2fs -l "${LOOP}p3" | MATCH '^Filesystem features:.*metadata_csum'
 
     mkdir -p ./mnt
     mount "${LOOP}p4" ./mnt
     df -T "${LOOP}p4" | MATCH ext4
     umount ./mnt
     file -s "${LOOP}p4" | MATCH 'ext4 filesystem data,.* volume name "ubuntu-data"'
+    # check metadata_csum
+    tune2fs -l "${LOOP}p3" | MATCH '^Filesystem features:.*metadata_csum'
     # size is reported in 512 blocks
     sz="$(udevadm info -q property "${LOOP}p4" |grep "^ID_PART_ENTRY_SIZE=" | cut -f2 -d=)"
     # the disk size is 20GB, 1GB in 512 blocks is 2097152, with auto grow, the

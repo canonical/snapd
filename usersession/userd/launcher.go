@@ -56,8 +56,55 @@ const launcherIntrospectionXML = `
 	</method>
 </interface>`
 
+// allowedURLSchemes are those that can be passed to xdg-open so that it may
+// launch the handler for the url scheme on behalf of the snap (and therefore
+// outside of the calling snap's confinement). Historically we've been
+// conservative about adding url schemes but the thinking was refined in
+// https://github.com/snapcore/snapd/pull/7731#pullrequestreview-362900171
+//
+// The current criteria for adding url schemes is:
+// * understanding and documenting the scheme in this file
+// * the scheme itself does not cause xdg-open to open files (eg, file:// or
+//   matching '^[[:alpha:]+\.\-]+:' (from xdg-open source))
+// * verifying that the recipient of the url (ie, what xdg-open calls) won't
+//   process file paths/etc that can be leveraged to break out of the sandbox
+//   (but understanding how the url can drive the recipient application is
+//   important)
+//
+// This code uses golang's net/url.Parse() which will help ensure the url is
+// ok before passing to xdg-open. xdg-open itself properly quotes the url so
+// shell metacharacters are blocked.
+//
+// apt: the scheme allows specifying a package for xdg-open to pass to an
+//   apt-handling application, like gnome-software, apturl, etc which are all
+//   protected by policykit
+//   - scheme: apt:<name of package>
+//   - https://github.com/snapcore/snapd/pull/7731
+//
+// help: the scheme allows for specifying a help URL. This code ensures that
+//   the url is parseable
+//   - scheme: help://topic
+//   - https://github.com/snapcore/snapd/pull/6493
+//
+// http/https: the scheme allows specifying a web URL. This code ensures that
+//   the url is parseable
+//   - scheme: http(s)://example.com
+//
+// mailto: the scheme allows for specifying an email address
+//   - scheme: mailto:foo@example.com
+//
+// snap: the scheme allows specifying a package for xdg-open to pass to a
+//   snap-handling installer application, like snap-store, etc which are
+//   protected by policykit/snap login
+//   - https://github.com/snapcore/snapd/pull/5181
+//
+// zoommtg: the scheme is a modified web url scheme
+//   - scheme: https://medium.com/zoom-developer-blog/zoom-url-schemes-748b95fd9205
+//     (eg, zoommtg://zoom.us/...)
+//   - https://github.com/snapcore/snapd/pull/8304
+
 var (
-	allowedURLSchemes = []string{"http", "https", "mailto", "snap", "help", "apt", "zoommtg"}
+	allowedURLSchemes = []string{"http", "https", "mailto", "snap", "help", "apt", "zoommtg", "slack"}
 )
 
 // Launcher implements the 'io.snapcraft.Launcher' DBus interface.
