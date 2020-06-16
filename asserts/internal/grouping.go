@@ -196,7 +196,7 @@ func (gr *Groupings) Deserialize(label string) (*Grouping, error) {
 		return nil, fmt.Errorf(errSerializedLabelFmt, err)
 	}
 	if len(b)%2 != 0 {
-		return nil, fmt.Errorf(errSerializedLabelFmt, "not divisible in 16-bits words")
+		return nil, fmt.Errorf(errSerializedLabelFmt, "not divisible into 16-bits words")
 	}
 	m := len(b) / 2
 	var g Grouping
@@ -230,7 +230,7 @@ func (gr *Groupings) bitsetDeserialize(g *Grouping, b []byte) (*Grouping, error)
 	buf := bytes.NewBuffer(b)
 	binary.Read(buf, binary.LittleEndian, &g.size)
 	if g.size > gr.maxGroup+1 {
-		return nil, fmt.Errorf(errSerializedLabelFmt, "bitset for unexpectedly more than maximum group elements")
+		return nil, fmt.Errorf(errSerializedLabelFmt, "bitset size cannot be possibly larger than maximum group plus 1")
 	}
 	if g.size <= gr.bitsetThreshold {
 		// should not have used a bitset repr for so few elements

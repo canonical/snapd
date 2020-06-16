@@ -155,7 +155,7 @@ func (s *groupingsSuite) TestDeserializeLabelErrors(c *C) {
 		// not base64
 		{"\x0a\x02\xf4", `illegal base64 data.*`},
 		// wrong length
-		{base64.RawURLEncoding.EncodeToString([]byte{1}), `not divisible in 16-bits words`},
+		{base64.RawURLEncoding.EncodeToString([]byte{1}), `not divisible into 16-bits words`},
 		// not a known group
 		{internal.Serialize([]uint16{5}), `element larger than maximum group`},
 		// not in order
@@ -163,7 +163,7 @@ func (s *groupingsSuite) TestDeserializeLabelErrors(c *C) {
 		// bitset: too many words
 		{internal.Serialize([]uint16{0, 0, 0, 0, 0, 0}), `too large`},
 		// bitset: larger than maxgroup
-		{internal.Serialize([]uint16{6, 0, 0, 0, 0}), `bitset for unexpectedly more than maximum group elements`},
+		{internal.Serialize([]uint16{6, 0, 0, 0, 0}), `bitset size cannot be possibly larger than maximum group plus 1`},
 		// bitset: grouping size is too small
 		{internal.Serialize([]uint16{0, 0, 0, 0, 0}), `bitset for too few elements`},
 		{internal.Serialize([]uint16{1, 0, 0, 0, 0}), `bitset for too few elements`},
