@@ -16,6 +16,12 @@ jobs:
       GOROOT: ""
       # XXX: only skip format checks on 1.13+
       SKIP_GOFMT: 1
+      # XXX: compat env for "check-pr-title.py" in "run-checks", can go
+      #      once we switch away from that. Note that we cannot currently
+      #      use a github action check (like deepakputhraya/action-pr-title)
+      #      because an update of the PR title in the github UI is not visible
+      #      to the github action.
+      TRAVIS_PULL_REQUEST: ${{ github.event.number }}
     strategy:
       # we cache successful runs so it's fine to keep going
       fail-fast: false      
@@ -31,9 +37,6 @@ jobs:
         # is relevant for go's import system.
         path: ./src/github.com/snapcore/snapd
 
-    # Work around caching files owned by root https://github.com/actions/cache/issues/133
-    - name: Make /var/cache/apt owned by current user
-      run: sudo chown -R $(id -u) /var/cache/apt
     - name: Cache Debian dependencies
       id: cache-deb-downloads
       uses: actions/cache@v1
@@ -79,8 +82,6 @@ jobs:
       run: |
           sudo apt-get remove --purge shellcheck
           sudo snap install shellcheck
-    - name: Make /var/cache/apt owned by current user
-      run: sudo chown -R $(id -u) /var/cache/apt
     - name: Install govendor
       run: go get -u github.com/kardianos/govendor
     - name: Cache Go dependencies
@@ -148,6 +149,7 @@ jobs:
         - ubuntu-18.04-64
         - ubuntu-19.10-64
         - ubuntu-20.04-64
+        - ubuntu-20.10-64
         - ubuntu-core-16-64
         - ubuntu-core-18-64
         - ubuntu-core-20-64

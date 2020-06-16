@@ -8,10 +8,11 @@ systems:
     - -centos-*
     - -debian-sid-*
     - -fedora-31-*  # test-snapd-eds is incompatible with eds version shipped with the distro
+    - -fedora-32-*  # test-snapd-eds is incompatible with eds version shipped with the distro
     - -opensuse-tumbleweed-*  # test-snapd-eds is incompatible with eds version shipped with the distro
-    - -ubuntu-14.04-*  # no session-tool support, eds is too old
+    - -ubuntu-14.04-*  # no tests.session support, eds is too old
     - -ubuntu-19.10-*  # test-snapd-eds is incompatible with eds shipped with the distro
-    - -ubuntu-20.04-*
+    - -ubuntu-2*
     - -ubuntu-core-*  # EDS is unsupported on core systems
 
 # fails in autopkgtest environment with:
@@ -24,10 +25,10 @@ systems:
 backends: [-autopkgtest]
 
 prepare: |
-    session-tool -u test --prepare
+    tests.session -u test prepare
 restore: |
     snap remove --purge test-snapd-eds
-    session-tool -u test --restore
+    tests.session -u test restore
 execute: |
     if ! snap install --edge test-snapd-eds ; then
         if [ "$SPREAD_SYSTEM" = ubuntu-16.04-64 ]; then
@@ -41,12 +42,12 @@ execute: |
     echo "The interface is initially disconnected"
     snap interfaces -i contacts-service | MATCH -- '- +test-snapd-eds:contacts-service'
     if [ "$(snap debug confinement)" = strict ]; then
-      not session-tool -u test test-snapd-eds.contacts list test-address-book
+      not tests.session -u test exec test-snapd-eds.contacts list test-address-book
     fi
 
     echo "When the plug is connected, we can add contacts to address books"
     snap connect test-snapd-eds:contacts-service
-    session-tool -u test test-snapd-eds.contacts load test-address-book << EOF
+    tests.session -u test exec test-snapd-eds.contacts load test-address-book << EOF
     BEGIN:VCARD
     VERSION:3.0
     FN:Fred Smith
@@ -57,7 +58,7 @@ execute: |
 
     echo "We can also retrieve those contacts"
     # Filter out ID and revision, which are unpredictable
-    session-tool -u test test-snapd-eds.contacts list test-address-book | sed -E 's/^(UID|REV):.*/\1:.../' > /tmp/contacts.vcf
+    tests.session -u test exec test-snapd-eds.contacts list test-address-book | sed -E 's/^(UID|REV):.*/\1:.../' > /tmp/contacts.vcf
     diff -uw - /tmp/contacts.vcf << EOF
     BEGIN:VCARD
     VERSION:3.0
@@ -70,4 +71,4 @@ execute: |
     EOF
 
     echo "Finally, remove the address book we created"
-    session-tool -u test test-snapd-eds.contacts remove test-address-book
+    tests.session -u test exec test-snapd-eds.contacts remove test-address-book

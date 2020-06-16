@@ -11,7 +11,7 @@ pkgdesc="Service and tools for management of snap packages."
 depends=('squashfs-tools' 'libseccomp' 'libsystemd' 'apparmor')
 optdepends=('bash-completion: bash completion support'
             'xdg-desktop-portal: desktop integration')
-pkgver=2.45
+pkgver=2.45.1
 pkgrel=1
 arch=('x86_64' 'i686' 'armv7h' 'aarch64')
 url="https://github.com/snapcore/snapd"
@@ -50,9 +50,13 @@ build() {
   export GOPATH="$srcdir/go"
 
   # GOFLAGS may be modified by CI tools
+  # GOFLAGS are the go build flags for all binaries, GOFLAGS_SNAP are for snap
+  # build only.
   GOFLAGS=""
+  GOFLAGS_SNAP="-tags nomanagers"
   if [[ "$WITH_TEST_KEYS" == 1 ]]; then
       GOFLAGS="$GOFLAGS -tags withtestkeys"
+      GOFLAGS_SNAP="-tags nomanagers,withtestkeys"
   fi
   # snapd does not support modules yet, explicitly disable Go modules
   export GO111MODULE=off
@@ -76,7 +80,7 @@ build() {
   flags=(-buildmode=pie -ldflags "-s -extldflags '$LDFLAGS'")
   staticflags=(-buildmode=pie -ldflags "-s -extldflags '$LDFLAGS -static'")
   # Build/install snap and snapd
-  go build "${flags[@]}" -o "$srcdir/go/bin/snap" $GOFLAGS "${_gourl}/cmd/snap"
+  go build "${flags[@]}" -o "$srcdir/go/bin/snap" $GOFLAGS_SNAP "${_gourl}/cmd/snap"
   go build "${flags[@]}" -o "$srcdir/go/bin/snapd" $GOFLAGS "${_gourl}/cmd/snapd"
   go build "${flags[@]}" -o "$srcdir/go/bin/snap-seccomp" $GOFLAGS "${_gourl}/cmd/snap-seccomp"
   go build "${flags[@]}" -o "$srcdir/go/bin/snap-failure" $GOFLAGS "${_gourl}/cmd/snap-failure"

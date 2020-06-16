@@ -94,7 +94,7 @@ func FindDeviceForStructure(ps *LaidOutStructure) (string, error) {
 	return found, nil
 }
 
-// FindDeviceForStructureWithFallback attempts to find an existing block device
+// findDeviceForStructureWithFallback attempts to find an existing block device
 // partition containing given non-filesystem volume structure, by inspecting the
 // structure's name.
 //
@@ -111,7 +111,7 @@ func FindDeviceForStructure(ps *LaidOutStructure) (string, error) {
 //
 // Returns the device name and an offset at which the structure content starts
 // within the device or an error.
-func FindDeviceForStructureWithFallback(ps *LaidOutStructure) (dev string, offs Size, err error) {
+func findDeviceForStructureWithFallback(ps *LaidOutStructure) (dev string, offs Size, err error) {
 	if ps.HasFilesystem() {
 		return "", 0, fmt.Errorf("internal error: cannot use with filesystem structures")
 	}
@@ -163,10 +163,10 @@ func encodeLabel(in string) string {
 	return buf.String()
 }
 
-// FindMountPointForStructure locates a mount point of a device that matches
+// findMountPointForStructure locates a mount point of a device that matches
 // given structure. The structure must have a filesystem defined, otherwise an
 // error is raised.
-func FindMountPointForStructure(ps *LaidOutStructure) (string, error) {
+func findMountPointForStructure(ps *LaidOutStructure) (string, error) {
 	if !ps.HasFilesystem() {
 		return "", ErrNoFilesystemDefined
 	}

@@ -21,6 +21,7 @@ package devicestate_test
 
 import (
 	"os"
+	"path/filepath"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -30,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -200,7 +202,7 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv
 
 	state.Lock()
 	defer state.Unlock()
-	// check snapd, core18, kernel, gadget
+	// check snapd, core20, kernel, gadget
 	_, err = snapstate.CurrentInfo(state, "snapd")
 	c.Check(err, IsNil)
 	_, err = snapstate.CurrentInfo(state, "core20")
@@ -216,6 +218,15 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv
 		err = snapstate.Get(state, reqName, &snapst)
 		c.Assert(err, IsNil)
 		c.Assert(snapst.Required, Equals, true, Commentf("required not set for %v", reqName))
+
+		if m.Mode == "run" {
+			// also ensure that in run mode none of the snaps are installed as
+			// symlinks, they must be copied onto ubuntu-data
+			files, err := filepath.Glob(filepath.Join(dirs.SnapBlobDir, reqName+"_*.snap"))
+			c.Assert(err, IsNil)
+			c.Assert(files, HasLen, 1)
+			c.Assert(osutil.IsSymlink(files[0]), Equals, false)
+		}
 	}
 
 	// the right systemd commands were run

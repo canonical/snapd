@@ -3,12 +3,13 @@ project: snapd
 environment:
     GOHOME: /home/gopath
     GOPATH: $GOHOME
-    REUSE_PROJECT: "$(HOST: echo \"$REUSE_PROJECT\")"
+    REUSE_PROJECT: '$(HOST: echo "$REUSE_PROJECT")'
     PROJECT_PATH: $GOHOME/src/github.com/snapcore/snapd
     # /usr/lib/go-1.6/bin for trusty (needs to be last as we use
     # a different go in gccgo tests)
-    PATH: $GOHOME/bin:/snap/bin:$PATH:/usr/lib/go-1.6/bin:/var/lib/snapd/snap/bin:$PROJECT_PATH/tests/lib/bin
+    PATH: $GOHOME/bin:/snap/bin:$PATH:/usr/lib/go-1.6/bin:/var/lib/snapd/snap/bin:$PROJECT_PATH/tests/bin:$PROJECT_PATH/tests/lib/tools
     TESTSLIB: $PROJECT_PATH/tests/lib
+    TESTSTOOLS: $PROJECT_PATH/tests/lib/tools
     SNAPPY_TESTING: 1
     # we run the entire suite with re-exec on (the default) and modify
     # the core snap so that it contains our new code.  So we run new
@@ -50,8 +51,8 @@ environment:
     # always skip removing the rsync snap
     SKIP_REMOVE_SNAPS: '$(HOST: echo "${SPREAD_SKIP_REMOVE_SNAPS:-}") test-snapd-rsync test-snapd-rsync-core18 test-snapd-rsync-core20'
     # Use the installed snapd and reset the systems without removing snapd
-    REUSE_SNAPD: "$(HOST: echo \"${SPREAD_REUSE_SNAPD:-0}\")"
-    PROFILE_SNAPS: "$(HOST: echo \"${SPREAD_PROFILE_SNAPS:-0}\")"
+    REUSE_SNAPD: '$(HOST: echo "${SPREAD_REUSE_SNAPD:-0}")'
+    PROFILE_SNAPS: '$(HOST: echo "${SPREAD_PROFILE_SNAPS:-0}")'
 
 backends:
     google:
@@ -60,71 +61,71 @@ backends:
         halt-timeout: 2h
         systems:
             - ubuntu-14.04-64:
-                workers: 6
+                  workers: 6
             - ubuntu-16.04-32:
-                workers: 6
+                  workers: 6
             - ubuntu-16.04-64:
-                workers: 8
+                  workers: 8
             - ubuntu-18.04-64:
-                workers: 8
+                  workers: 8
             - ubuntu-19.10-64:
-                workers: 6
+                  workers: 6
             - ubuntu-20.04-64:
-                workers: 8
+                  workers: 8
             - ubuntu-core-16-64:
-                image: ubuntu-16.04-64
-                workers: 6
+                  image: ubuntu-16.04-64
+                  workers: 6
             - ubuntu-core-18-64:
-                image: ubuntu-16.04-64
-                workers: 6
+                  image: ubuntu-16.04-64
+                  workers: 6
             - ubuntu-core-20-64:
-                image: ubuntu-2004-64-virt-enabled
-                workers: 6
-                storage: 20G
+                  image: ubuntu-2004-64-virt-enabled
+                  workers: 6
+                  storage: 20G
             - ubuntu-secboot-20.04-64:
-                image: ubuntu-20.04-64
-                workers: 1
-                secureboot: true
+                  image: ubuntu-20.04-64
+                  workers: 1
+                  secureboot: true
 
             - debian-9-64:
-                workers: 6
+                  workers: 6
             - debian-sid-64:
-                workers: 6
+                  workers: 6
 
-            - fedora-28-64:
-                workers: 4
-                manual: true
-            - fedora-29-64:
-                workers: 6
-                manual: true
             - fedora-30-64:
-                workers: 6
+                  workers: 6
+                  manual: true
             - fedora-31-64:
-                workers: 6
+                  workers: 6
+            - fedora-32-64:
+                  workers: 6
 
             - opensuse-15.0-64:
-                workers: 6
-                manual: true
+                  workers: 6
+                  manual: true
 
             - arch-linux-64:
-                workers: 6
+                  workers: 6
             - amazon-linux-2-64:
-                workers: 6
-                storage: preserve-size
+                  workers: 6
+                  storage: preserve-size
 
             - centos-7-64:
-                workers: 6
-                storage: preserve-size
-                image: centos-7-64
+                  workers: 6
+                  storage: preserve-size
+                  image: centos-7-64
             # unstable systems below
             - opensuse-15.1-64:
-                workers: 6
+                  workers: 6
             - opensuse-tumbleweed-64:
-                workers: 6
+                  workers: 6
             - centos-8-64:
-                workers: 4
-                storage: preserve-size
-                image: centos-8-64
+                  workers: 4
+                  storage: preserve-size
+                  image: centos-8-64
+            - ubuntu-20.10-64:
+                  workers: 6
+                  image: ubuntu-os-cloud-devel/ubuntu-2010
 
     google-sru:
         type: google
@@ -133,13 +134,13 @@ backends:
         halt-timeout: 2h
         systems:
             - ubuntu-16.04-64:
-                workers: 6
+                  workers: 6
             - ubuntu-18.04-64:
-                workers: 6
+                  workers: 6
             - ubuntu-19.04-64:
-                workers: 6
+                  workers: 6
             - ubuntu-19.10-64:
-                workers: 6
+                  workers: 6
 
     google-nested:
         type: google
@@ -149,105 +150,105 @@ backends:
         halt-timeout: 2h
         systems:
             - ubuntu-16.04-64:
-                image: ubuntu-1604-64-virt-enabled
-                storage: 20G
-                workers: 1
+                  image: ubuntu-1604-64-virt-enabled
+                  storage: 20G
+                  workers: 1
             - ubuntu-18.04-64:
-                image: ubuntu-1804-64-virt-enabled
-                storage: 20G
-                workers: 1
+                  image: ubuntu-1804-64-virt-enabled
+                  storage: 20G
+                  workers: 1
             - ubuntu-19.10-64:
-                image: ubuntu-1910-64-virt-enabled
-                storage: 20G
-                workers: 1
+                  image: ubuntu-1910-64-virt-enabled
+                  storage: 20G
+                  workers: 1
             - ubuntu-20.04-64:
-                image: ubuntu-2004-64-virt-enabled
-                storage: 20G
-                workers: 1
+                  image: ubuntu-2004-64-virt-enabled
+                  storage: 20G
+                  workers: 1
 
     qemu:
         # TODO:UC20: uc20 needs 2G or grub will not loopback the kernel snap
         memory: 2G
         systems:
             - ubuntu-14.04-32:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             - ubuntu-14.04-64:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             - ubuntu-16.04-32:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             - ubuntu-16.04-64:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             - ubuntu-core-16-64:
-                image: ubuntu-16.04-64
-                username: ubuntu
-                password: ubuntu
+                  image: ubuntu-16.04-64
+                  username: ubuntu
+                  password: ubuntu
             - ubuntu-core-18-64:
-                image: ubuntu-16.04-64
-                username: ubuntu
-                password: ubuntu
+                  image: ubuntu-16.04-64
+                  username: ubuntu
+                  password: ubuntu
             - ubuntu-core-20-64:
-                image: ubuntu-20.04-64
-                username: ubuntu
-                password: ubuntu
-                flags: [virtio]
+                  image: ubuntu-20.04-64
+                  username: ubuntu
+                  password: ubuntu
+                  flags: [virtio]
             - ubuntu-17.10-64:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             - ubuntu-18.04-64:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             - ubuntu-18.04-32:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             - ubuntu-18.10-64:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             - ubuntu-18.10-32:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             - ubuntu-19.04-64:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             - ubuntu-19.04-32:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             - ubuntu-19.10-64:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             - ubuntu-19.10-32:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             - ubuntu-20.04-64:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             - ubuntu-20.04-32:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             - debian-sid-64:
-                username: debian
-                password: debian
+                  username: debian
+                  password: debian
             - debian-9-64:
-                username: debian
-                password: debian
+                  username: debian
+                  password: debian
             - debian-sid-64:
-                username: debian
-                password: debian
+                  username: debian
+                  password: debian
             - fedora-27-64:
-                username: fedora
-                password: fedora
+                  username: fedora
+                  password: fedora
             - fedora-28-64:
-                username: fedora
-                password: fedora
+                  username: fedora
+                  password: fedora
             - fedora-29-64:
-                username: fedora
-                password: fedora
+                  username: fedora
+                  password: fedora
             - centos-7-64:
-                username: centos
-                password: centos
+                  username: centos
+                  password: centos
     autopkgtest:
         type: adhoc
         allocate: |
@@ -263,138 +264,138 @@ backends:
         systems:
             # Trusty
             - ubuntu-14.04-amd64:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             - ubuntu-14.04-i386:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             # Xenial
             - ubuntu-16.04-amd64:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             - ubuntu-16.04-i386:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             - ubuntu-16.04-ppc64el:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             - ubuntu-16.04-armhf:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             - ubuntu-16.04-s390x:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             # Artful
             - ubuntu-17.10-amd64:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             - ubuntu-17.10-i386:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             - ubuntu-17.10-ppc64el:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             - ubuntu-17.10-armhf:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             - ubuntu-17.10-s390x:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             # Bionic
             - ubuntu-18.04-amd64:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             - ubuntu-18.04-i386:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             - ubuntu-18.04-ppc64el:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             - ubuntu-18.04-armhf:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             - ubuntu-18.04-s390x:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             - ubuntu-18.04-arm64:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             # Cosmic
             - ubuntu-18.10-amd64:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             - ubuntu-18.10-i386:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             - ubuntu-18.10-ppc64el:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             - ubuntu-18.10-armhf:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             - ubuntu-18.10-s390x:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             - ubuntu-18.10-arm64:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             # Disco
             - ubuntu-19.04-amd64:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             - ubuntu-19.04-i386:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             - ubuntu-19.04-ppc64el:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             - ubuntu-19.04-armhf:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             - ubuntu-19.04-s390x:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             - ubuntu-19.04-arm64:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             # Eoan
             - ubuntu-19.10-amd64:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             - ubuntu-19.10-i386:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             - ubuntu-19.10-ppc64el:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             - ubuntu-19.10-armhf:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             - ubuntu-19.10-s390x:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             - ubuntu-19.10-arm64:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             # Focal
             - ubuntu-20.04-amd64:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             - ubuntu-20.04-i386:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             - ubuntu-20.04-ppc64el:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             - ubuntu-20.04-armhf:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             - ubuntu-20.04-s390x:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
             - ubuntu-20.04-arm64:
-                username: ubuntu
-                password: ubuntu
+                  username: ubuntu
+                  password: ubuntu
 
     external:
         type: adhoc
@@ -406,41 +407,41 @@ backends:
             ADDRESS $SPREAD_EXTERNAL_ADDRESS
         systems:
             - ubuntu-core-16-64:
-                username: external
-                password: ubuntu
+                  username: external
+                  password: ubuntu
             - ubuntu-core-16-32:
-                username: external
-                password: ubuntu
+                  username: external
+                  password: ubuntu
             - ubuntu-core-16-arm-64:
-                username: external
-                password: ubuntu
+                  username: external
+                  password: ubuntu
             - ubuntu-core-16-arm-32:
-                username: external
-                password: ubuntu
+                  username: external
+                  password: ubuntu
             - ubuntu-core-18-64:
-                username: external
-                password: ubuntu
+                  username: external
+                  password: ubuntu
             - ubuntu-core-18-32:
-                username: external
-                password: ubuntu
+                  username: external
+                  password: ubuntu
             - ubuntu-core-18-arm-64:
-                username: external
-                password: ubuntu
+                  username: external
+                  password: ubuntu
             - ubuntu-core-18-arm-32:
-                username: external
-                password: ubuntu
+                  username: external
+                  password: ubuntu
             - ubuntu-core-20-64:
-                username: external
-                password: ubuntu
+                  username: external
+                  password: ubuntu
             - ubuntu-core-20-32:
-                username: external
-                password: ubuntu
+                  username: external
+                  password: ubuntu
             - ubuntu-core-20-arm-64:
-                username: external
-                password: ubuntu
+                  username: external
+                  password: ubuntu
             - ubuntu-core-20-arm-32:
-                username: external
-                password: ubuntu
+                  username: external
+                  password: ubuntu
 
 path: /home/gopath/src/github.com/snapcore/snapd
 
@@ -495,6 +496,10 @@ debug-each: |
         echo '# mounts'
         # use ascii output to prevent travis from messing up the encoding
         findmnt --ascii -o+PROPAGATION || true
+        echo "# processes"
+        ps aux
+        echo "# /var/lib/snapd"
+        find /var/lib/snapd/ -not -path '/var/lib/snapd/snap/*' -ls || true
     fi
 
 rename:
@@ -663,6 +668,12 @@ restore: |
 restore-each: |
     "$TESTSLIB"/prepare-restore.sh --restore-project-each
 suites:
+    tests/lib/tools/suite/:
+        summary: Tests for tests/lib/tools tools
+        prepare-each: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each-minimal-no-snaps
+        restore-each: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite-each-minimal-no-snaps
     # The essential tests designed to run inside the autopkgtest
     # environment on each platform. On autopkgtest we cannot run all tests
     # as this is very slow and we run into timeouts.
@@ -720,20 +731,20 @@ suites:
         restore: |
             "$TESTSLIB"/prepare-restore.sh --restore-suite
         environment:
-          _/plain: _
-          _/plain_plusdirs: _
-          _/funky: _
-          _/files: _
-          # dirs fails on indirection because of (mis)handling of trailing
-          # slashes. This might be configuration-dependent.
-          # _/dirs: _
-          _/hosts: _
-          _/hosts_n_dirs: _
-          # twisted fails in travis (but not regular spread).
-          # _/twisted: _
-          _/func: _
-          _/funkyfunc: _
-          _/funcarg: _
+            _/plain: _
+            _/plain_plusdirs: _
+            _/funky: _
+            _/files: _
+            # dirs fails on indirection because of (mis)handling of trailing
+            # slashes. This might be configuration-dependent.
+            # _/dirs: _
+            _/hosts: _
+            _/hosts_n_dirs: _
+            # twisted fails in travis (but not regular spread).
+            # _/twisted: _
+            _/func: _
+            _/funkyfunc: _
+            _/funcarg: _
 
     tests/regression/:
         summary: Regression tests for snapd
@@ -785,7 +796,16 @@ suites:
         # Test cases are not yet ported to Fedora/openSUSE/Arch that is why
         # we keep them disabled. A later PR will enable most tests and
         # drop this blacklist.
-        systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*, -ubuntu-secboot-*]
+        systems:
+            [
+                -ubuntu-core-*,
+                -fedora-*,
+                -opensuse-*,
+                -arch-*,
+                -amazon-*,
+                -centos-*,
+                -ubuntu-secboot-*,
+            ]
         # unittests are run as part of the autopkgtest build already
         backends: [-autopkgtest]
         environment:
@@ -842,7 +862,7 @@ suites:
     tests/nested/manual/:
         summary: Tests for nested images controlled manually from the tests
         backends: [google-nested]
-        systems: [ubuntu-19.10-64, ubuntu-20.04-64]
+        systems: [ubuntu-19.10-64, ubuntu-18.04-64, ubuntu-20.04-64]
         environment:
             NESTED_TYPE: "classic"
             # Channel used to create the nested vm

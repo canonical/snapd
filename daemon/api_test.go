@@ -5730,6 +5730,41 @@ func (s *apiSuite) TestStateChangesForSnapName(c *check.C) {
 	c.Assert(err, check.IsNil)
 }
 
+func (s *apiSuite) TestStateChangesForSnapNameWithApp(c *check.C) {
+	restore := state.MockTime(time.Date(2016, 04, 21, 1, 2, 3, 0, time.UTC))
+	defer restore()
+
+	// Setup
+	d := newTestDaemon(c)
+	st := d.overlord.State()
+	st.Lock()
+	chg1 := st.NewChange("service-control", "install...")
+	// as triggered by snap restart lxd.daemon
+	chg1.Set("snap-names", []string{"lxd.daemon"})
+	t1 := st.NewTask("exec-command", "1...")
+	chg1.AddAll(state.NewTaskSet(t1))
+	t1.Logf("foobar")
+
+	st.Unlock()
+
+	// Execute
+	req, err := http.NewRequest("GET", "/v2/changes?for=lxd&select=all", nil)
+	c.Assert(err, check.IsNil)
+	rsp := getChanges(stateChangesCmd, req, nil).(*resp)
+
+	// Verify
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Assert(rsp.Result, check.FitsTypeOf, []*changeInfo(nil))
+
+	res := rsp.Result.([]*changeInfo)
+	c.Assert(res, check.HasLen, 1)
+	c.Check(res[0].Kind, check.Equals, `service-control`)
+
+	_, err = rsp.MarshalJSON()
+	c.Assert(err, check.IsNil)
+}
+
 func (s *apiSuite) TestStateChange(c *check.C) {
 	restore := state.MockTime(time.Date(2016, 04, 21, 1, 2, 3, 0, time.UTC))
 	defer restore()
@@ -7212,7 +7247,14 @@ func (s *appSuite) testPostApps(c *check.C, inst servicestate.Instruction, syste
 func (s *appSuite) TestPostAppsStartOne(c *check.C) {
 	inst := servicestate.Instruction{Action: "start", Names: []string{"snap-a.svc2"}}
 	expected := [][]string{{"systemctl", "start", "snap.snap-a.svc2.service"}}
-	s.testPostApps(c, inst, expected)
+	chg := s.testPostApps(c, inst, expected)
+	chg.State().Lock()
+	defer chg.State().Unlock()
+
+	var names []string
+	err := chg.Get("snap-names", &names)
+	c.Assert(err, check.IsNil)
+	c.Assert(names, check.DeepEquals, []string{"snap-a"})
 }
 
 func (s *appSuite) TestPostAppsStartTwo(c *check.C) {
@@ -7224,6 +7266,11 @@ func (s *appSuite) TestPostAppsStartTwo(c *check.C) {
 	// check the summary expands the snap into actual apps
 	c.Check(chg.Summary(), check.Equals, "Running service command")
 	c.Check(chg.Tasks()[0].Summary(), check.Equals, "start of [snap-a.svc1 snap-a.svc2]")
+
+	var names []string
+	err := chg.Get("snap-names", &names)
+	c.Assert(err, check.IsNil)
+	c.Assert(names, check.DeepEquals, []string{"snap-a"})
 }
 
 func (s *appSuite) TestPostAppsStartThree(c *check.C) {
@@ -7235,6 +7282,11 @@ func (s *appSuite) TestPostAppsStartThree(c *check.C) {
 	chg.State().Lock()
 	defer chg.State().Unlock()
 	c.Check(chg.Tasks()[0].Summary(), check.Equals, "start of [snap-a.svc1 snap-a.svc2 snap-b.svc3]")
+
+	var names []string
+	err := chg.Get("snap-names", &names)
+	c.Assert(err, check.IsNil)
+	c.Assert(names, check.DeepEquals, []string{"snap-a", "snap-b"})
 }
 
 func (s *appSuite) TestPosetAppsStop(c *check.C) {

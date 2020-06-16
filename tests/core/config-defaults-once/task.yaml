@@ -102,7 +102,7 @@ restore: |
     # kick first boot again
     systemctl start snapd.service snapd.socket
     # wait for first boot to be done
-    retry-tool -n 60 --wait 5 sh -c 'snap changes | grep -q "Done.*Initialize system state"'
+    retry -n 60 --wait 5 sh -c 'snap changes | grep -q "Done.*Initialize system state"'
 
 execute: |
     #shellcheck source=tests/lib/systems.sh
@@ -123,7 +123,7 @@ execute: |
         exit
     fi
     echo "Wait for first boot to be done"
-    retry-tool -n 60 --wait 5 sh -c 'snap changes | grep -q "Done.*Initialize system state"'
+    retry -n 60 --wait 5 sh -c 'snap changes | grep -q "Done.*Initialize system state"'
 
     echo "The defaults are applied"
     for service in $SERVICES; do
