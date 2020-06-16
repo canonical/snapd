@@ -450,7 +450,11 @@ func (s *initramfsSuite) TestInitramfsRunModeChooseSnapsToMount(c *C) {
 
 	// do both the normal uc20 bootloader and the env ref bootloader
 	bloaderTable := []struct {
-		bl   bootloadertest.Mock20BootloaderSetup
+		bl interface {
+			bootloader.Bootloader
+			SetEnabledKernel(s snap.PlaceInfo) (restore func())
+			SetEnabledTryKernel(s snap.PlaceInfo) (restore func())
+		}
 		name string
 	}{
 		{
