@@ -138,7 +138,10 @@ func generateMountsModeInstall(mst *initramfsMountsState, recoverySystem string)
 	if err := modeEnv.WriteTo(boot.InitramfsWritableDir); err != nil {
 		return err
 	}
-	if err := sysconfig.DisableCloudInit(boot.InitramfsWritableDir); err != nil {
+	// we need to put the file to disable cloud-init in the
+	// _writable_defaults dir for writable-paths(5) to install it properly
+	writableDefaultsDir := sysconfig.WritableDefaultsDir(boot.InitramfsWritableDir)
+	if err := sysconfig.DisableCloudInit(writableDefaultsDir); err != nil {
 		return err
 	}
 
@@ -291,7 +294,10 @@ func generateMountsModeRecover(mst *initramfsMountsState, recoverySystem string)
 	if err := modeEnv.WriteTo(boot.InitramfsWritableDir); err != nil {
 		return err
 	}
-	if err := sysconfig.DisableCloudInit(boot.InitramfsWritableDir); err != nil {
+	// we need to put the file to disable cloud-init in the
+	// _writable_defaults dir for writable-paths(5) to install it properly
+	writableDefaultsDir := sysconfig.WritableDefaultsDir(boot.InitramfsWritableDir)
+	if err := sysconfig.DisableCloudInit(writableDefaultsDir); err != nil {
 		return err
 	}
 

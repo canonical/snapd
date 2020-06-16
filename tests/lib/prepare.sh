@@ -643,6 +643,15 @@ setup_reflash_magic() {
     # install the stuff we need
     distro_install_package kpartx busybox-static
 
+    # Ensure we don't have snapd already installed, sometimes
+    # on 20.04 purge seems to fail, catch that for further
+    # debugging
+    if [ -e /var/lib/snapd/state.json ]; then
+        echo "reflash image not pristine, snaps already installed"
+        python3 -m json.tool < /var/lib/snapd/state.json
+        exit 1
+    fi
+
     distro_install_local_package "$GOHOME"/snapd_*.deb
     distro_clean_package_cache
 

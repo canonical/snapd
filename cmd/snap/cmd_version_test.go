@@ -26,6 +26,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	snap "github.com/snapcore/snapd/cmd/snap"
+	"github.com/snapcore/snapd/snapdtool"
 )
 
 func (s *SnapSuite) TestVersionCommandOnClassic(c *C) {
@@ -34,7 +35,7 @@ func (s *SnapSuite) TestVersionCommandOnClassic(c *C) {
 	})
 	restore := mockArgs("snap", "version")
 	defer restore()
-	restore = mockVersion("4.56")
+	restore = snapdtool.MockVersion("4.56")
 	defer restore()
 
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"version"})
@@ -49,7 +50,7 @@ func (s *SnapSuite) TestVersionCommandOnAllSnap(c *C) {
 	})
 	restore := mockArgs("snap", "--version")
 	defer restore()
-	restore = mockVersion("4.56")
+	restore = snapdtool.MockVersion("4.56")
 	defer restore()
 
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"version"})
@@ -64,7 +65,7 @@ func (s *SnapSuite) TestVersionCommandOnClassicNoOsVersion(c *C) {
 	})
 	restore := mockArgs("snap", "version")
 	defer restore()
-	restore = mockVersion("4.56")
+	restore = snapdtool.MockVersion("4.56")
 	defer restore()
 
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"version"})

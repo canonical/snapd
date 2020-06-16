@@ -27,7 +27,6 @@ import (
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
@@ -35,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	seccomp_compiler "github.com/snapcore/snapd/sandbox/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snapdtool"
 )
 
 // featureSet contains the flag values that can be listed in assumes entries
@@ -205,7 +205,7 @@ func checkVersion(version string) bool {
 		return false
 	}
 
-	if cmd.Version == "unknown" {
+	if snapdtool.Version == "unknown" {
 		return true // Development tree.
 	}
 
@@ -213,7 +213,7 @@ func checkVersion(version string) bool {
 	// this code (see PR#7344). However this would change current
 	// behavior, i.e. "2.41~pre1" would *not* match [snapd2.41] anymore
 	// (which the code below does).
-	cur := versionExp.FindStringSubmatch(cmd.Version)
+	cur := versionExp.FindStringSubmatch(snapdtool.Version)
 	if cur == nil {
 		return false
 	}
@@ -608,7 +608,7 @@ func checkAndCreateSystemUsernames(si *snap.Info) error {
 	}
 
 	// Run /.../snap-seccomp version-info
-	vi, err := seccomp_compiler.CompilerVersionInfo(cmd.InternalToolPath)
+	vi, err := seccomp_compiler.CompilerVersionInfo(snapdtool.InternalToolPath)
 	if err != nil {
 		return fmt.Errorf("cannot obtain seccomp compiler information: %v", err)
 	}
