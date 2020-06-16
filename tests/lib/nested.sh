@@ -274,6 +274,7 @@ create_nested_core_vm(){
             EXTRA_FUNDAMENTAL="--snap $KERNEL_SNAP"
 
             # Prepare the pc gadget snap (unless provided by extra-snaps)
+            GADGET_SNAP=""
             if [ -d extra-snaps ]; then
                 GADGET_SNAP=$(find extra-snaps -name 'pc_*.snap')
             fi
