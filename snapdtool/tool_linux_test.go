@@ -1,4 +1,4 @@
-package cmd
+package snapdtool_test
 
 import (
 	"io/ioutil"
@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/snapdtool"
 )
 
 const dataOK = `one line
@@ -102,7 +103,7 @@ func benchmarkCSRE(b *testing.B, data string) {
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		coreSupportsReExec(tempdir)
+		snapdtool.CoreSupportsReExec(tempdir)
 	}
 }
 
@@ -112,6 +113,6 @@ func BenchmarkCSRE_fakeHuge(b *testing.B) { benchmarkCSRE(b, dataHuge) }
 
 func BenchmarkCSRE_real(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		coreSupportsReExec("/snap/core/current")
+		snapdtool.CoreSupportsReExec("/snap/core/current")
 	}
 }

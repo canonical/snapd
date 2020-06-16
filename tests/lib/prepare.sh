@@ -790,6 +790,27 @@ EOF
                            --output "$IMAGE_HOME/$IMAGE"
     rm -f ./pc-kernel_*.{snap,assert} ./pc_*.{snap,assert} ./snapd_*.{snap,assert}
 
+    if is_core20_system; then
+        # (ab)use ubuntu-seed
+        LOOP_PARTITION=2
+    else
+        LOOP_PARTITION=3
+    fi
+
+    # expand the uc16 and uc18 images a little bit (400M) as it currently will
+    # run out of space easily from local spread runs if there are extra files in
+    # the project not included in the git ignore and spread ignore, etc.
+    if ! is_core20_system; then
+        # grow the image by 400M
+        truncate --size=+400M "$IMAGE_HOME/$IMAGE"
+        # fix the GPT table because old versions of parted complain about this and
+        # refuse to properly run the next command unless the GPT table is updated
+        sgdisk "$IMAGE_HOME/$IMAGE" -e
+
+        # resize the partition to go to the end of the disk
+        parted -s "$IMAGE_HOME/$IMAGE" resizepart ${LOOP_PARTITION} "100%"
+    fi
+
     # mount fresh image and add all our SPREAD_PROJECT data
     kpartx -avs "$IMAGE_HOME/$IMAGE"
     # losetup --list --noheadings returns:
@@ -798,12 +819,15 @@ EOF
     # /dev/loop19  0 0  1  1 /var/lib/snapd/snaps/test-snapd-netplan-apply_75.snap  0     512
     devloop=$(losetup --list --noheadings | grep "$IMAGE_HOME/$IMAGE" | awk '{print $1}')
     dev=$(basename "$devloop")
-    if is_core20_system; then
-        # (ab)use ubuntu-seed
-        mount "/dev/mapper/${dev}p2" /mnt
-    else
-        mount "/dev/mapper/${dev}p3" /mnt
+
+    # resize the 2nd partition from that loop device to fix the size
+    if ! is_core20_system; then
+        resize2fs -p "/dev/mapper/${dev}p${LOOP_PARTITION}"
     fi
+
+    # mount it so we can use it now
+    mount "/dev/mapper/${dev}p${LOOP_PARTITION}" /mnt
+
     mkdir -p /mnt/user-data/
     # copy over everything from gopath to user-data, exclude:
     # - VCS files
