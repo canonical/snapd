@@ -803,8 +803,11 @@ EOF
     if ! is_core20_system; then
         # grow the image by 400M
         truncate --size=+400M "$IMAGE_HOME/$IMAGE"
-        # fix the GPT table because old versions of parted complain about this and
-        # refuse to properly run the next command unless the GPT table is updated
+        # fix the GPT table because old versions of parted complain about this 
+        # and refuse to properly run the next command unless the GPT table is 
+        # updated
+        # this command moves the backup gpt partition to the end of the disk,
+        # which is sensible since we've just resized the backing storage
         sgdisk "$IMAGE_HOME/$IMAGE" -e
 
         # resize the partition to go to the end of the disk
