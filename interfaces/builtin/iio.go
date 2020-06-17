@@ -117,7 +117,10 @@ func (iface *iioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 	// This part contains two sets of "**" that can use exponential memory when
 	// compiling without -O no-expr-simplify, so handle it with the parametric
 	// snippet workaround. Only one instance of this line will show up in the
-	// resulting profile.
+	// resulting profile. Eg, if the snap is assigned iio:device1 and
+	// iio:device3, this rule will expand to:
+	//  /sys/devices/**/{iio:device1,iio:device3}/** rwk,
+
 	spec.AddParametricSnippet("/sys/devices/**/###PARAM###/** rwk,", deviceName)
 	// For consistency, not an efficiency problem.
 	spec.AddParametricSnippet("/sys/devices/**/###PARAM###/ r,", deviceName)

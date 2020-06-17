@@ -205,7 +205,7 @@ KERNEL=="iio:device1", TAG+="snap_client-snap_app-accessing-1-port"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_client-snap_app-accessing-1-port", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_client-snap_app-accessing-1-port $devpath $major:$minor"`)
 }
 
-func (s *IioInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
+func (s *IioInterfaceSuite) TestConnectedPlugAppArmorSingleSnippet(c *C) {
 	expectedSnippet := `
 # Description: Give access to a specific IIO device on the system.
 
@@ -246,6 +246,8 @@ func (s *IioInterfaceSuite) TestConnectedPlugAppArmorSnippetsMultipleOptimized(c
 	err = apparmorSpec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev2)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-1-port"})
+	// XXX: the tag snap.client-snap.app-accessing-1-port is
+	// misleading when you are testing for '1' and '2' ports
 	snippet := apparmorSpec.SnippetForTag("snap.client-snap.app-accessing-1-port")
 	c.Assert(snippet, Equals, expectedSnippet)
 }
