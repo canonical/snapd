@@ -163,7 +163,7 @@ func checkValidationSetSnaps(snapList interface{}) ([]*ValidationSetSnap, error)
 
 // ValidationSet holds a validation-set assertion, which is a
 // statement by an account about a set snaps and possibly revisions
-// for which an extrisinc/implied property is valid (e.g. they work
+// for which an extrinsic/implied property is valid (e.g. they work
 // well together). validation-sets are organized in sequences under a
 // name.
 type ValidationSet struct {
