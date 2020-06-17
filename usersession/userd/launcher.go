@@ -276,10 +276,7 @@ func desktopFileIDToFilename(desktopFile_exists fileExists, desktopFileID string
 
 	// OpenDesktopEntryEnv() currently only supports launching snap applications from
 	// desktop files in /var/lib/snapd/desktop/applications and these desktop files are
-	// written by snapd and considered safe for userd to process. If other directories are
-	// added in the future, readExecCommandFromDesktopFile() and
-	// parseExecCommand() may need to be updated for any changed assumptions.
-	//
+	// written by snapd and considered safe for userd to process.
 	// Since we only access /var/lib/snapd/desktop/applications, ignore
 	// https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
 	base_dir := dirs.SnapDesktopFilesDir
@@ -323,7 +320,8 @@ func verifyDesktopFileLocation(desktopFile string) error {
 	return nil
 }
 
-// readExecCommandFromDesktopFile parses the desktop file to get the Exec entry.
+// readExecCommandFromDesktopFile parses the desktop file to get the Exec entry and
+// checks that the BAMF_DESKTOP_FILE_HINT is present and refers to the desktop file.
 func readExecCommandFromDesktopFile(desktopFile string) (string, error) {
 	var launch string
 
@@ -351,7 +349,7 @@ func readExecCommandFromDesktopFile(desktopFile string) (string, error) {
 		}
 	}
 
-	expectedPrefix := fmt.Sprintf("env BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/%s /snap/bin/", filepath.Base(desktopFile))
+	expectedPrefix := fmt.Sprintf("env BAMF_DESKTOP_FILE_HINT=%s /snap/bin/", desktopFile)
 	if !strings.HasPrefix(launch, expectedPrefix) {
 		return "", fmt.Errorf("Desktop file %q has an unsupported 'Exec' value", desktopFile)
 	}
