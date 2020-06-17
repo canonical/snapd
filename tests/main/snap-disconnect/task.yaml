@@ -9,7 +9,7 @@ prepare: |
     echo "Install a test snap"
     snap pack "$TESTSLIB"/snaps/home-consumer
     snap install --dangerous "$SNAP_FILE"
-    snap install jq
+    snap install --edge jq
 
 restore: |
     rm -f ./*.snap

@@ -137,14 +137,18 @@ func (s16 *bootState16) markSuccessful(update bootStateUpdate) (bootStateUpdate,
 	env := u16.env
 	toCommit := u16.toCommit
 
+	tryBootVar := fmt.Sprintf("snap_try_%s", s16.varSuffix)
+	bootVar := fmt.Sprintf("snap_%s", s16.varSuffix)
+
 	// snap_mode goes from "" -> "try" -> "trying" -> ""
 	// so if we are not in "trying" mode, nothing to do here
 	if env["snap_mode"] != TryingStatus {
+		// clean the try var anyways in case it was leftover from a rollback,
+		// etc.
+		toCommit[tryBootVar] = ""
 		return u16, nil
 	}
 
-	tryBootVar := fmt.Sprintf("snap_try_%s", s16.varSuffix)
-	bootVar := fmt.Sprintf("snap_%s", s16.varSuffix)
 	// update the boot vars
 	if env[tryBootVar] != "" {
 		toCommit[bootVar] = env[tryBootVar]
