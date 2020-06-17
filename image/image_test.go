@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/bootloader/ubootenv"
 	"github.com/snapcore/snapd/image"
@@ -2641,7 +2642,9 @@ func (s *imageSuite) TestSetupSeedCore20(c *C) {
 
 	// check boot config
 	grubCfg := filepath.Join(prepareDir, "system-seed", "EFI/ubuntu/grub.cfg")
-	c.Check(grubCfg, testutil.FileMatches, "# recovery grub.cfg")
+	grubRecoveryCfgAsset := assets.Internal("grub-recovery.cfg")
+	c.Assert(grubRecoveryCfgAsset, NotNil)
+	c.Check(grubCfg, testutil.FileEquals, string(grubRecoveryCfgAsset))
 
 	c.Check(s.stderr.String(), Equals, "")
 
