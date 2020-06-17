@@ -24,12 +24,12 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/snapcore/snapd/cmd"
+	. "gopkg.in/check.v1"
+
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
-
-	. "gopkg.in/check.v1"
+	"github.com/snapcore/snapd/snapdtool"
 )
 
 func Test(t *testing.T) { TestingT(t) }
@@ -322,7 +322,7 @@ type: os
 func (s *patchSuite) testMaybeResetPatchLevel6(c *C, snapdVersion, lastVersion string, expectedPatches []int) {
 	var sequence []int
 
-	cmd.MockVersion(snapdVersion)
+	snapdtool.MockVersion(snapdVersion)
 
 	p60 := generatePatchFunc(60, &sequence)
 	p61 := generatePatchFunc(61, &sequence)

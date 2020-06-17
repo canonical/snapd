@@ -90,7 +90,7 @@ execute: |
     # sanity check
     snap change 1 | MATCH "Mark system seeded"
     snap change 1 | MATCH "restart of .*test-snapd-service.test-snapd-other-service"
-    snap install jq
+    snap install --edge jq
     # extract task ids from state
     # XXX: snap change output cannot be used for that; ideally we would have some sort of 'snap debug ..' command.
     MARKSEEDED_WAIT=$(jq -r '.tasks[] | select (.kind == "mark-seeded") | ."wait-tasks"' < /var/lib/snapd/state.json)
