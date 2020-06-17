@@ -55,7 +55,7 @@ type Specification struct {
 	// interfaces.
 	//
 	// As a simple example, it can be used to craft rules like
-	// "/sys/**/foo{1,2,3}/** r,", which are not triggering the exponential
+	// "/sys/**/foo{1,2,3}/** r,", which do not triggering the exponential
 	// cost of parsing "/sys/**/foo1/** r,", followed by two similar rules for
 	// "2" and "3".
 	parametricSnippets map[string]map[string]*strutil.OrderedSet
@@ -143,20 +143,24 @@ func (spec *Specification) AddParametricSnippet(template, value string) {
 	if len(spec.securityTags) == 0 {
 		return
 	}
+	// Expand the spec's parametric snippets, initializing each
+	// part of the map as needed
 	if spec.parametricSnippets == nil {
 		spec.parametricSnippets = make(map[string]map[string]*strutil.OrderedSet)
 	}
 	for _, tag := range spec.securityTags {
-		templates := spec.parametricSnippets[tag]
-		if templates == nil {
-			templates = make(map[string]*strutil.OrderedSet)
-			spec.parametricSnippets[tag] = templates
+		expansions := spec.parametricSnippets[tag]
+		if expansions == nil {
+			expansions = make(map[string]*strutil.OrderedSet)
+			spec.parametricSnippets[tag] = expansions
 		}
-		bag := templates[template]
+		bag := expansions[template]
 		if bag == nil {
 			bag = &strutil.OrderedSet{}
-			templates[template] = bag
+			expansions[template] = bag
 		}
+		// Expand the spec's parametric snippets, initializing
+		// each part of the map as needed
 		bag.Put(value)
 	}
 }
@@ -444,10 +448,12 @@ func (spec *Specification) SecurityTags() []string {
 
 func (spec *Specification) snippetsForTag(tag string) []string {
 	snippets := append([]string(nil), spec.snippets[tag]...)
+	// First add any deduplicated snippets
 	if bag := spec.dedupSnippets[tag]; bag != nil {
 		snippets = append(snippets, bag.Items()...)
 	}
 	templates := make([]string, 0, len(spec.parametricSnippets[tag]))
+	// Then add any parametric snippets
 	for template := range spec.parametricSnippets[tag] {
 		templates = append(templates, template)
 	}
@@ -485,14 +491,6 @@ func snippetFromLayout(layout *snap.Layout) string {
 		return fmt.Sprintf("# Layout path: %s\n%s mrwklix,", mountPoint, mountPoint)
 	}
 	return fmt.Sprintf("# Layout path: %s\n# (no extra permissions required for symlink)", mountPoint)
-}
-
-func copySnippets(m map[string][]string) map[string][]string {
-	result := make(map[string][]string, len(m))
-	for k, v := range m {
-		result[k] = append([]string(nil), v...)
-	}
-	return result
 }
 
 // Implementation of methods required by interfaces.Specification
