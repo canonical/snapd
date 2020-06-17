@@ -19,11 +19,11 @@
 
 package install
 
-func MockDeployMountpoint(new string) (restore func()) {
-	old := deployMountpoint
-	deployMountpoint = new
+func MockContentMountpoint(new string) (restore func()) {
+	old := contentMountpoint
+	contentMountpoint = new
 	return func() {
-		deployMountpoint = old
+		contentMountpoint = old
 	}
 }
 

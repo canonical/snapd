@@ -30,7 +30,7 @@ import (
 )
 
 var (
-	deployMountpoint = "/run/snap-recover"
+	contentMountpoint = "/run/snap-recover"
 )
 
 // MakeFilesystem creates a filesystem on the on-disk structure, according
@@ -88,7 +88,7 @@ func MountFilesystem(ds *gadget.OnDiskStructure, baseMntPoint string) error {
 }
 
 func writeFilesystemContent(ds *gadget.OnDiskStructure, gadgetRoot string) (err error) {
-	mountpoint := filepath.Join(deployMountpoint, strconv.Itoa(ds.Index))
+	mountpoint := filepath.Join(contentMountpoint, strconv.Itoa(ds.Index))
 	if err := os.MkdirAll(mountpoint, 0755); err != nil {
 		return err
 	}
