@@ -32,11 +32,26 @@ import (
 type MkfsFunc func(imgFile, label, contentsRootDir string) error
 
 var (
-	MkfsHandlers = map[string]MkfsFunc{
+	mkfsHandlers = map[string]MkfsFunc{
 		"vfat": mkfsVfat,
 		"ext4": mkfsExt4,
 	}
 )
+
+// Mkfs creates a filesystem of given type and provided label in the device or file.
+func Mkfs(typ, img, label string) error {
+	return MkfsWithContent(typ, img, label, "")
+}
+
+// Mkfs creates a filesystem of given type and provided label in the device or file.
+// The filesystem is populated with contents of contentRootDir.
+func MkfsWithContent(typ, img, label, contentRootDir string) error {
+	h, ok := mkfsHandlers[typ]
+	if !ok {
+		return fmt.Errorf("cannot create unsupported filesystem %q", typ)
+	}
+	return h(img, label, contentRootDir)
+}
 
 // mkfsExt4 creates an EXT4 filesystem in given image file, with an optional
 // filesystem label, and populates it with the contents of provided root

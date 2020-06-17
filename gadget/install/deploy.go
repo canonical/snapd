@@ -37,12 +37,7 @@ var (
 // to the filesystem type defined in the gadget.
 func MakeFilesystem(ds *gadget.OnDiskStructure) error {
 	if ds.HasFilesystem() {
-		fs := ds.VolumeStructure.Filesystem
-		mkfs, ok := internal.MkfsHandlers[fs]
-		if !ok {
-			return fmt.Errorf("cannot create unsupported filesystem %q", fs)
-		}
-		if err := mkfs(ds.Node, ds.VolumeStructure.Label, ""); err != nil {
+		if err := internal.Mkfs(ds.VolumeStructure.Filesystem, ds.Node, ds.VolumeStructure.Label); err != nil {
 			return err
 		}
 		if err := internal.UdevTrigger(ds.Node); err != nil {
