@@ -762,7 +762,7 @@ func (s *userSuite) TestPostCreateUserFromAssertionNoModel(c *check.C) {
 	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
-	c.Check(rsp.Result.(*errorResult).Message, check.Matches, `cannot add system-user "serial@bar.com": bound to serial assertion but no serial assertion found for device`)
+	c.Check(rsp.Result.(*errorResult).Message, check.Matches, `cannot add system-user "serial@bar.com": bound to serial assertion but device not yet registered`)
 }
 
 func (s *userSuite) TestPostCreateUserFromAssertionAllKnownButOwned(c *check.C) {

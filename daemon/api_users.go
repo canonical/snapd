@@ -323,6 +323,7 @@ func createUser(c *Command, createData postUserCreateData) Response {
 	}
 
 	var model *asserts.Model
+	var serial *asserts.Serial
 	createKnown := createData.Known
 	if createKnown {
 		var err error
@@ -332,13 +333,12 @@ func createUser(c *Command, createData postUserCreateData) Response {
 		if err != nil {
 			return InternalError("cannot create user: cannot get model assertion: %v", err)
 		}
-	}
-	var serial *asserts.Serial
-	st.Lock()
-	serial, err = c.d.overlord.DeviceManager().Serial()
-	st.Unlock()
-	if err != nil && err != state.ErrNoState {
-		return InternalError("cannot create user: cannot get serial: %v", err)
+		st.Lock()
+		serial, err = c.d.overlord.DeviceManager().Serial()
+		st.Unlock()
+		if err != nil && err != state.ErrNoState {
+			return InternalError("cannot create user: cannot get serial: %v", err)
+		}
 	}
 
 	// special case: the user requested the creation of all known
@@ -484,11 +484,9 @@ func getUserDetailsFromAssertion(st *state.State, modelAs *asserts.Model, serial
 	if len(su.Models()) > 0 && !strutil.ListContains(su.Models(), model) {
 		return "", nil, fmt.Errorf(errorPrefix+"%q not in models %q", model, su.Models())
 	}
-	// XXX: should we really be this paranoid here, format check
-	// is already done on the assertion level
-	if len(su.Serials()) > 0 && su.Format() > 0 {
+	if len(su.Serials()) > 0 {
 		if serialAs == nil {
-			return "", nil, fmt.Errorf(errorPrefix + "bound to serial assertion but no serial assertion found for device")
+			return "", nil, fmt.Errorf(errorPrefix + "bound to serial assertion but device not yet registered")
 		}
 		serial := serialAs.Serial()
 		if !strutil.ListContains(su.Serials(), serial) {
