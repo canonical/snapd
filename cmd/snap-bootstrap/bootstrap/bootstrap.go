@@ -144,7 +144,7 @@ func Run(gadgetRoot, device string, options Options) error {
 			return err
 		}
 
-		if err := install.DeployContent(&part, gadgetRoot); err != nil {
+		if err := install.WriteContent(&part, gadgetRoot); err != nil {
 			return err
 		}
 
