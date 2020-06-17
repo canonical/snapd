@@ -53,6 +53,10 @@ execute: |
     snap remove test-snapd-desktop
     ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
 
+    install_local test-snapd-appstream-metadata
+    snap connect test-snapd-appstream-metadata:appstream-metadata
+    ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
+
     install_local test-snapd-service
     snap stop test-snapd-service
     snap start test-snapd-service

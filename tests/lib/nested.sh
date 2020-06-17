@@ -193,6 +193,21 @@ refresh_to_new_core(){
     fi
 }
 
+get_snakeoil_key(){
+    local KEYNAME="PkKek-1-snakeoil"
+    wget https://raw.githubusercontent.com/snapcore/pc-amd64-gadget/20/snakeoil/$KEYNAME.key
+    wget https://raw.githubusercontent.com/snapcore/pc-amd64-gadget/20/snakeoil/$KEYNAME.pem
+    echo "$KEYNAME"
+}
+
+secboot_sign_gadget(){
+    local GADGET_DIR="$1"
+    local KEY="$2"
+    local CERT="$3"
+    sbattach --remove "$GADGET_DIR"/shim.efi.signed
+    sbsign --key "$KEY" --cert "$CERT" --output pc-gadget/shim.efi.signed pc-gadget/shim.efi.signed
+}
+
 cleanup_nested_env(){
     rm -rf "$WORK_DIR"
 }
@@ -240,11 +255,10 @@ create_nested_core_vm(){
             snap download --basename=pc-kernel --channel="20/edge" pc-kernel
             uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$WORK_DIR/image"
 
-            # Get the snaleoil key and cert
-            wget https://raw.githubusercontent.com/snapcore/pc-amd64-gadget/20/snakeoil/PkKek-1-snakeoil.key
-            wget https://raw.githubusercontent.com/snapcore/pc-amd64-gadget/20/snakeoil/PkKek-1-snakeoil.pem
-            SNAKEOIL_KEY="$PWD/PkKek-1-snakeoil.key"
-            SNAKEOIL_CERT="$PWD/PkKek-1-snakeoil.pem"
+            # Get the snakeoil key and cert
+            KEY_NAME=$(get_snakeoil_key)
+            SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
+            SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
 
             # Prepare the pc kernel snap
             KERNEL_SNAP=$(ls "$WORK_DIR"/image/pc-kernel_*.snap)
@@ -259,16 +273,21 @@ create_nested_core_vm(){
             rm -rf "$KERNEL_UNPACKED"
             EXTRA_FUNDAMENTAL="--snap $KERNEL_SNAP"
 
-            # Prepare the pc gadget snap
-            snap download --basename=pc --channel="20/edge" pc
-            unsquashfs -d pc-gadget pc.snap
-            sbattach --remove pc-gadget/shim.efi.signed
-            sbsign --key "$SNAKEOIL_KEY" --cert "$SNAKEOIL_CERT" --output pc-gadget/shim.efi.signed pc-gadget/shim.efi.signed
-            snap pack pc-gadget/ "$WORK_DIR/image"
+            # Prepare the pc gadget snap (unless provided by extra-snaps)
+            GADGET_SNAP=""
+            if [ -d extra-snaps ]; then
+                GADGET_SNAP=$(find extra-snaps -name 'pc_*.snap')
+            fi
+            if [ -z "$GADGET_SNAP" ]; then
+                snap download --basename=pc --channel="20/edge" pc
+                unsquashfs -d pc-gadget pc.snap
+                secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+                snap pack pc-gadget/ "$WORK_DIR/image"
 
-            GADGET_SNAP=$(ls "$WORK_DIR"/image/pc_*.snap)
-            rm -f "$PWD/pc.snap" "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
-            EXTRA_FUNDAMENTAL="--snap $GADGET_SNAP"
+                GADGET_SNAP=$(ls "$WORK_DIR"/image/pc_*.snap)
+                rm -f "$PWD/pc.snap" "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+                EXTRA_FUNDAMENTAL="--snap $GADGET_SNAP"
+            fi
 
             snap download --channel="latest/edge" snapd
             repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$PWD/new-snapd" "false"

@@ -1350,6 +1350,64 @@ slots:
 		app1.Name: app1, app2.Name: app2})
 }
 
+func (s *YamlSuite) TestUnmarshalActivatesOn(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+slots:
+    test-slot1:
+    test-slot2:
+apps:
+    daemon:
+        activates-on: ["test-slot1", "test-slot2"]
+    foo:
+`))
+	c.Assert(err, IsNil)
+	c.Check(info.InstanceName(), Equals, "snap")
+	c.Check(info.Plugs, HasLen, 0)
+	c.Check(info.Slots, HasLen, 2)
+	c.Check(info.Apps, HasLen, 2)
+	c.Check(info.Hooks, HasLen, 0)
+
+	app1 := info.Apps["daemon"]
+	app2 := info.Apps["foo"]
+	slot1 := info.Slots["test-slot1"]
+	slot2 := info.Slots["test-slot2"]
+
+	c.Assert(app1, Not(IsNil))
+	c.Check(app1.Name, Equals, "daemon")
+	c.Check(app1.ActivatesOn, DeepEquals, []*snap.SlotInfo{slot1, slot2})
+	// activates-on slots are implicitly added to the app
+	c.Check(app1.Slots, DeepEquals, map[string]*snap.SlotInfo{
+		slot1.Name: slot1, slot2.Name: slot2})
+
+	c.Assert(app2, Not(IsNil))
+	c.Check(app2.Name, Equals, "foo")
+	c.Check(app2.ActivatesOn, HasLen, 0)
+	// As slot has been bound to app1, it isn't implicitly applied here
+	c.Check(app2.Slots, HasLen, 0)
+
+	c.Assert(slot1, Not(IsNil))
+	c.Check(slot1.Name, Equals, "test-slot1")
+	c.Check(slot1.Apps, DeepEquals, map[string]*snap.AppInfo{
+		app1.Name: app1})
+
+	c.Assert(slot2, Not(IsNil))
+	c.Check(slot2.Name, Equals, "test-slot2")
+	c.Check(slot2.Apps, DeepEquals, map[string]*snap.AppInfo{
+		app1.Name: app1})
+}
+
+func (s *YamlSuite) TestUnmarshalActivatesOnUnknownSlot(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+apps:
+    daemon:
+        activates-on: ["test-slot"]
+`))
+	c.Check(info, IsNil)
+	c.Check(err, ErrorMatches, `invalid activates-on value "test-slot" on app "daemon": slot not found`)
+}
+
 // type and architectures
 
 func (s *YamlSuite) TestSnapYamlTypeDefault(c *C) {

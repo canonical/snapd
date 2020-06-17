@@ -498,6 +498,8 @@ debug-each: |
         findmnt --ascii -o+PROPAGATION || true
         echo "# processes"
         ps aux
+        echo "# /var/lib/snapd"
+        find /var/lib/snapd/ -not -path '/var/lib/snapd/snap/*' -ls || true
     fi
 
 rename:

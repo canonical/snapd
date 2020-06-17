@@ -43,8 +43,8 @@ GCCGO := $(shell go tool dist env > /dev/null 2>&1 && echo no || echo yes)
 BUILDFLAGS:=-pkgdir=$(CURDIR)/_build/std
 # Disable -buildmode=pie mode on all our 32bit platforms
 # (i386 and armhf). For i386 because of LP: #1711052 and for
-# armhf because of LP: #1822738 and for riscv64 because of LP: #1881417
-ifeq (,$(filter i386 armhf riscv64,$(shell dpkg-architecture -qDEB_HOST_ARCH)))
+# armhf because of LP: #1822738
+ifeq ($(shell dpkg-architecture -qDEB_HOST_ARCH_BITS),64)
  BUILDFLAGS+= -buildmode=pie
 endif
 
