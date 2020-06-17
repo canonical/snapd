@@ -36,7 +36,7 @@ var (
 // MakeFilesystem creates a filesystem on the on-disk structure, according
 // to the filesystem type defined in the gadget.
 func MakeFilesystem(ds *gadget.OnDiskStructure) error {
-	if ds.VolumeStructure.HasFilesystem() {
+	if ds.HasFilesystem() {
 		fs := ds.VolumeStructure.Filesystem
 		mkfs, ok := internal.MkfsHandlers[fs]
 		if !ok {
