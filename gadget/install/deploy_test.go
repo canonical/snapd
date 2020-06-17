@@ -192,7 +192,7 @@ func (s *installTestSuite) TestDeployRawContent(c *C) {
 		},
 	}
 
-	err = install.DeployContent(&m, s.gadgetRoot)
+	err = install.WriteContent(&m, s.gadgetRoot)
 	c.Assert(err, IsNil)
 
 	content, err := ioutil.ReadFile(m.Node)

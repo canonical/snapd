@@ -47,18 +47,18 @@ func MakeFilesystem(ds *gadget.OnDiskStructure) error {
 	return nil
 }
 
-// DeployContent populates the given on-disk structure, according to the contents
+// WriteContent populates the given on-disk structure, according to the contents
 // defined in the gadget.
-func DeployContent(ds *gadget.OnDiskStructure, gadgetRoot string) error {
+func WriteContent(ds *gadget.OnDiskStructure, gadgetRoot string) error {
 	switch {
 	case !ds.IsPartition():
-		return fmt.Errorf("cannot deploy non-partitions yet")
+		return fmt.Errorf("cannot write non-partitions yet")
 	case !ds.HasFilesystem():
-		if err := deployNonFSContent(ds, gadgetRoot); err != nil {
+		if err := writeNonFSContent(ds, gadgetRoot); err != nil {
 			return err
 		}
 	case ds.HasFilesystem():
-		if err := deployFilesystemContent(ds, gadgetRoot); err != nil {
+		if err := writeFilesystemContent(ds, gadgetRoot); err != nil {
 			return err
 		}
 	}
@@ -87,7 +87,7 @@ func MountFilesystem(ds *gadget.OnDiskStructure, baseMntPoint string) error {
 	return nil
 }
 
-func deployFilesystemContent(ds *gadget.OnDiskStructure, gadgetRoot string) (err error) {
+func writeFilesystemContent(ds *gadget.OnDiskStructure, gadgetRoot string) (err error) {
 	mountpoint := filepath.Join(deployMountpoint, strconv.Itoa(ds.Index))
 	if err := os.MkdirAll(mountpoint, 0755); err != nil {
 		return err
@@ -117,10 +117,10 @@ func deployFilesystemContent(ds *gadget.OnDiskStructure, gadgetRoot string) (err
 	return nil
 }
 
-func deployNonFSContent(ds *gadget.OnDiskStructure, gadgetRoot string) error {
+func writeNonFSContent(ds *gadget.OnDiskStructure, gadgetRoot string) error {
 	f, err := os.OpenFile(ds.Node, os.O_RDWR, 0644)
 	if err != nil {
-		return fmt.Errorf("cannot deploy bare content for %q: %v", ds.Node, err)
+		return fmt.Errorf("cannot write bare content for %q: %v", ds.Node, err)
 	}
 	defer f.Close()
 
