@@ -138,6 +138,9 @@ func init() {
 	// 3: support for on-store/on-brand/on-model device scope constraints
 	// 4: support for plug-names/slot-names constraints
 	maxSupportedFormat[SnapDeclarationType.Name] = 4
+
+	// 1: support to limit to device serials
+	maxSupportedFormat[SystemUserType.Name] = 1
 }
 
 func MockMaxSupportedFormat(assertType *AssertionType, maxFormat int) (restore func()) {
@@ -150,6 +153,7 @@ func MockMaxSupportedFormat(assertType *AssertionType, maxFormat int) (restore f
 
 var formatAnalyzer = map[*AssertionType]func(headers map[string]interface{}, body []byte) (formatnum int, err error){
 	SnapDeclarationType: snapDeclarationFormatAnalyze,
+	SystemUserType:      systemUserFormatAnalyze,
 }
 
 // MaxSupportedFormats returns a mapping between assertion type names
