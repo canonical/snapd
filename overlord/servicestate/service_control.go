@@ -32,8 +32,9 @@ import (
 
 // ServiceAction encapsulates a single service-related action (such as starting,
 // stopping or restarting) run against services of a given snap. The action is
-// run for services listed in names attribute, or for all services of the snap
-// if names is empty.
+// run for services listed in services attribute, or for all services of the
+// snap if services list is empty.
+// The names of services are app names (as defined in snap yaml).
 type ServiceAction struct {
 	SnapName       string   `json:"snap-name"`
 	Action         string   `json:"action"`
