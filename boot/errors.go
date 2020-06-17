@@ -37,7 +37,7 @@ func newTrySnapErrorf(format string, args ...interface{}) error {
 // accessing information about the try snap or the trying status.
 func isTrySnapError(err error) bool {
 	switch err.(type) {
-	case *trySnapError:
+	case trySnapError:
 		return true
 	}
 	return false

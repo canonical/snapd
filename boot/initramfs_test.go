@@ -297,6 +297,19 @@ func (s *initramfsSuite) TestInitramfsRunModeChooseSnapsToMount(c *C) {
 			errPattern: fmt.Sprintf("base snap %q does not exist on ubuntu-data", base1.Filename()),
 			comment:    "base snap unset in modeenv",
 		},
+		// unhappy, but silent path with fallback, due to invalid try base snap name
+		{
+			m: &boot.Modeenv{
+				Mode:       "run",
+				Base:       base1.Filename(),
+				TryBase:    "bogusname",
+				BaseStatus: boot.TryStatus,
+			},
+			typs:        []snap.Type{baseT},
+			snapsToMake: []snap.PlaceInfo{base1},
+			expected:    map[snap.Type]snap.PlaceInfo{baseT: base1},
+			comment:     "corrupted base snap name",
+		},
 
 		//
 		// combined cases
