@@ -115,11 +115,6 @@ const (
 	CloudInitErrored
 )
 
-func cloudInitDisabledByFile() bool {
-	disabledFile := filepath.Join(dirs.GlobalRootDir, "etc/cloud/cloud-init.disabled")
-	return osutil.FileExists(disabledFile)
-}
-
 // CloudInitStatus returns the current status of cloud-init. Note that it will
 // first check for static file-based statuses first through the snapd
 // restriction file and the disabled file before consulting
@@ -136,7 +131,8 @@ func CloudInitStatus() (CloudInitState, error) {
 
 	// if it was explicitly disabled via the cloud-init disable file, then
 	// return special status for that
-	if cloudInitDisabledByFile() {
+	disabledFile := filepath.Join(dirs.GlobalRootDir, "etc/cloud/cloud-init.disabled")
+	if osutil.FileExists(disabledFile) {
 		return CloudInitDisabledPermanently, nil
 	}
 
