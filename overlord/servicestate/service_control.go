@@ -38,7 +38,7 @@ type ServiceAction struct {
 	SnapName       string   `json:"snap-name"`
 	Action         string   `json:"action"`
 	ActionModifier string   `json:"action-modifier,omitempty"`
-	Services       []string `json:"names,omitempty"`
+	Services       []string `json:"services,omitempty"`
 }
 
 func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
@@ -91,7 +91,7 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 	switch sc.Action {
 	case "stop":
 		flags := &wrappers.StopServicesFlags{
-			Disable: (sc.ActionModifier == "disable"),
+			Disable: sc.ActionModifier == "disable",
 		}
 		if err := wrappers.StopServices(services, flags, snap.StopReasonOther, meter, perfTimings); err != nil {
 			return err
@@ -102,7 +102,7 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 			return err
 		}
 		flags := &wrappers.StartServicesFlags{
-			Enable: (sc.ActionModifier == "enable"),
+			Enable: sc.ActionModifier == "enable",
 		}
 		if err := wrappers.StartServices(startupOrdered, nil, flags, meter, perfTimings); err != nil {
 			return err
