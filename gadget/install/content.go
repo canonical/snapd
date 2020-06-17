@@ -30,7 +30,7 @@ import (
 )
 
 var (
-	contentMountpoint = "/run/snap-recover"
+	contentMountpoint = "/run/snapd/gadget-install"
 )
 
 // MakeFilesystem creates a filesystem on the on-disk structure, according
