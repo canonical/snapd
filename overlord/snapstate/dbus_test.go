@@ -72,7 +72,7 @@ apps:
 	})
 
 	err = snapstate.CheckDBusServiceConflicts(s.state, someSnap)
-	c.Assert(err, ErrorMatches, `system bus name "org.example.Foo" already activates snap "other-snap"`)
+	c.Assert(err, ErrorMatches, `snap "some-snap" requesting to activate on system bus name "org.example.Foo" conflicts with snap "other-snap" use`)
 }
 
 func (s *snapmgrTestSuite) TestCheckDBusServiceConflictsSession(c *C) {
@@ -119,7 +119,7 @@ apps:
 	})
 
 	err = snapstate.CheckDBusServiceConflicts(s.state, someSnap)
-	c.Assert(err, ErrorMatches, `session bus name "org.example.Foo" already activates snap "other-snap"`)
+	c.Assert(err, ErrorMatches, `snap "some-snap" requesting to activate on session bus name "org.example.Foo" conflicts with snap "other-snap" use`)
 }
 
 func (s *snapmgrTestSuite) TestCheckDBusServiceConflictsDifferentBuses(c *C) {
@@ -283,5 +283,5 @@ apps:
 
 	opts := &snapstate.RevisionOptions{Channel: "channel-for-dbus-activation"}
 	_, err = snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
-	c.Check(err, ErrorMatches, `system bus name "org.example.Foo" already activates snap "other-snap"`)
+	c.Assert(err, ErrorMatches, `snap "some-snap" requesting to activate on system bus name "org.example.Foo" conflicts with snap "other-snap" use`)
 }
