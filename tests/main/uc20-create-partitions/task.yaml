@@ -1,7 +1,13 @@
-summary: Integration tests for the snap-bootstrap create-partitions
+summary: Integration tests for the bootstrap.Run
 
 # use the same system and tooling as uc20
 systems: [ubuntu-20.04-64]
+
+environment:
+    # an empty $topsrcdir/tests/go.mod seems to break importing or building go
+    # packages referenced by their import paths while under the tests directory,
+    # need to disable go modules support for this test
+    GO111MODULE: off
 
 debug: |
     cat /proc/partitions
@@ -30,6 +36,7 @@ prepare: |
     start=2048, size=2048, type=21686148-6449-6E6F-744E-656564454649, name="BIOS Boot"
     start=4096, size=2457600, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, name="ubuntu-seed"
     EOF
+    retry -n 3 --wait 1 test -e "${LOOP}p2"
     udevadm trigger --settle "${LOOP}p2"
     mkfs.vfat "${LOOP}p2"
     udevadm trigger --settle "${LOOP}p2"
@@ -45,7 +52,8 @@ execute: |
     LOOP="$(cat loop.txt)"
 
     echo "Run the snap-bootstrap tool"
-    /usr/lib/snapd/snap-bootstrap create-partitions ./gadget-dir "$LOOP"
+    go get ../../lib/uc20-create-partitions
+    uc20-create-partitions ./gadget-dir "$LOOP"
 
     echo "And check that the partitions are created"
     sfdisk -l "$LOOP" | MATCH '750M Linux filesystem'
@@ -75,12 +83,16 @@ execute: |
     df -T "${LOOP}p3" | MATCH ext4
     umount ./mnt
     file -s "${LOOP}p3" | MATCH 'ext4 filesystem data,.* volume name "ubuntu-boot"'
+    # check metadata_csum
+    tune2fs -l "${LOOP}p3" | MATCH '^Filesystem features:.*metadata_csum'
 
     mkdir -p ./mnt
     mount "${LOOP}p4" ./mnt
     df -T "${LOOP}p4" | MATCH ext4
     umount ./mnt
     file -s "${LOOP}p4" | MATCH 'ext4 filesystem data,.* volume name "ubuntu-data"'
+    # check metadata_csum
+    tune2fs -l "${LOOP}p3" | MATCH '^Filesystem features:.*metadata_csum'
     # size is reported in 512 blocks
     sz="$(udevadm info -q property "${LOOP}p4" |grep "^ID_PART_ENTRY_SIZE=" | cut -f2 -d=)"
     # the disk size is 20GB, 1GB in 512 blocks is 2097152, with auto grow, the
@@ -108,7 +120,7 @@ execute: |
             filesystem-label: other-ext4
             size: 110M
     EOF
-    /usr/lib/snapd/snap-bootstrap create-partitions --mount ./gadget-dir "$LOOP"
+    uc20-create-partitions --mount ./gadget-dir "$LOOP"
     sfdisk -l "$LOOP" | MATCH "${LOOP}p1 .* 1M\s* BIOS boot"
     sfdisk -l "$LOOP" | MATCH "${LOOP}p2 .* 1.2G\s* EFI System"
     sfdisk -l "$LOOP" | MATCH "${LOOP}p3 .* 750M\s* Linux filesystem"

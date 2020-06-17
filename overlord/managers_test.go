@@ -70,10 +70,17 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
+)
+
+var (
+	settleTimeout           = testutil.HostScaledTimeout(45 * time.Second)
+	aggressiveSettleTimeout = testutil.HostScaledTimeout(50 * time.Millisecond)
+	connectRetryTimeout     = testutil.HostScaledTimeout(70 * time.Millisecond)
 )
 
 type automaticSnapshotCall struct {
@@ -124,11 +131,6 @@ var (
 	develPrivKey, _ = assertstest.GenerateKey(752)
 
 	deviceKey, _ = assertstest.GenerateKey(752)
-)
-
-const (
-	aggressiveSettleTimeout = 50 * time.Millisecond
-	connectRetryTimeout     = 70 * time.Millisecond
 )
 
 func verifyLastTasksetIsRerefresh(c *C, tts []*state.TaskSet) {
@@ -354,8 +356,6 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 type mgrsSuite struct {
 	baseMgrsSuite
 }
-
-var settleTimeout = 45 * time.Second
 
 func makeTestSnapWithFiles(c *C, snapYamlContent string, files [][]string) string {
 	info, err := snap.InfoFromSnapYaml([]byte(snapYamlContent))
@@ -665,7 +665,7 @@ func (s *baseMgrsSuite) newestThatCanRead(name string, epoch snap.Epoch) (info *
 	rev = s.serveRevision[name]
 	path := s.serveSnapPath[name]
 	for {
-		snapf, err := snap.Open(path)
+		snapf, err := snapfile.Open(path)
 		if err != nil {
 			panic(err)
 		}
@@ -880,7 +880,7 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 // serveSnap starts serving the snap at snapPath, moving the current
 // one onto the list of previous ones if already set.
 func (s *baseMgrsSuite) serveSnap(snapPath, revno string) {
-	snapf, err := snap.Open(snapPath)
+	snapf, err := snapfile.Open(snapPath)
 	if err != nil {
 		panic(err)
 	}
@@ -1713,9 +1713,10 @@ type: os
 
 	// this is already set
 	c.Assert(bloader.BootVars, DeepEquals, map[string]string{
-		"snap_core":     "core_99.snap",
-		"snap_try_core": "core_x1.snap",
-		"snap_mode":     boot.TryStatus,
+		"snap_core":       "core_99.snap",
+		"snap_try_core":   "core_x1.snap",
+		"snap_try_kernel": "",
+		"snap_mode":       boot.TryStatus,
 	})
 
 	// simulate successful restart happened
@@ -1842,6 +1843,7 @@ type: kernel`
 
 	c.Assert(bloader.BootVars, DeepEquals, map[string]string{
 		"snap_core":       "core18_2.snap",
+		"snap_try_core":   "",
 		"snap_kernel":     "pc-kernel_123.snap",
 		"snap_try_kernel": "pc-kernel_x1.snap",
 		"snap_mode":       boot.TryStatus,
@@ -1937,6 +1939,7 @@ type: kernel`
 		"snap_kernel":     "pc-kernel_123.snap",
 		"snap_try_kernel": "pc-kernel_x1.snap",
 		"snap_mode":       boot.TryStatus,
+		"snap_try_core":   "",
 	})
 
 	// we are in restarting state and the change is not done yet
@@ -2318,7 +2321,7 @@ func (s *mgrsSuite) installLocalTestSnap(c *C, snapYamlContent string) *snap.Inf
 	st := s.o.State()
 
 	snapPath := makeTestSnap(c, snapYamlContent)
-	snapf, err := snap.Open(snapPath)
+	snapf, err := snapfile.Open(snapPath)
 	c.Assert(err, IsNil)
 	info, err := snap.ReadInfoFromSnapFile(snapf, nil)
 	c.Assert(err, IsNil)
@@ -4395,10 +4398,11 @@ version: 20.04`
 
 	// check that the boot vars got updated as expected
 	c.Assert(bloader.BootVars, DeepEquals, map[string]string{
-		"snap_mode":     boot.TryStatus,
-		"snap_core":     "core18_1.snap",
-		"snap_try_core": "core20_2.snap",
-		"snap_kernel":   "pc-kernel_1.snap",
+		"snap_mode":       boot.TryStatus,
+		"snap_core":       "core18_1.snap",
+		"snap_try_core":   "core20_2.snap",
+		"snap_kernel":     "pc-kernel_1.snap",
+		"snap_try_kernel": "",
 	})
 	// simulate successful restart happened
 	ms.mockSuccessfulReboot(c, bloader, []snap.Type{snap.TypeBase})
@@ -4534,10 +4538,11 @@ version: 20.04`
 
 	// check that the boot vars got updated as expected
 	c.Assert(bloader.BootVars, DeepEquals, map[string]string{
-		"snap_mode":     boot.TryStatus,
-		"snap_core":     "core18_1.snap",
-		"snap_try_core": "core20_2.snap",
-		"snap_kernel":   "pc-kernel_1.snap",
+		"snap_mode":       boot.TryStatus,
+		"snap_core":       "core18_1.snap",
+		"snap_try_core":   "core20_2.snap",
+		"snap_kernel":     "pc-kernel_1.snap",
+		"snap_try_kernel": "",
 	})
 	// simulate successful restart happened
 	ms.mockRollbackAcrossReboot(c, bloader, []snap.Type{snap.TypeBase})
@@ -4744,6 +4749,7 @@ func (ms *kernelSuite) TestRemodelSwitchToDifferentKernel(c *C) {
 		"snap_kernel":     "pc-kernel_1.snap",
 		"snap_try_kernel": "brand-kernel_2.snap",
 		"snap_mode":       boot.TryStatus,
+		"snap_try_core":   "",
 	})
 	// simulate successful system-restart bootenv updates (those
 	// vars will be cleared by snapd on a restart)
@@ -5757,6 +5763,7 @@ type: kernel`
 
 	c.Assert(bloader.BootVars, DeepEquals, map[string]string{
 		"snap_core":       "core18_2.snap",
+		"snap_try_core":   "",
 		"snap_kernel":     "pc-kernel_123.snap",
 		"snap_try_kernel": "pc-kernel_x1.snap",
 		"snap_mode":       boot.TryStatus,

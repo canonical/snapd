@@ -91,6 +91,11 @@ func hasFontConfigCache(info *snap.Info) bool {
 	return false
 }
 
+// StopFlags carries extra flags for StopServices
+type StopFlags struct {
+	Disable bool
+}
+
 // LinkSnap makes the snap available by generating wrappers and setting the current symlinks.
 func (b Backend) LinkSnap(info *snap.Info, dev boot.Device, linkCtx LinkContext, tm timings.Measurer) (rebootRequired bool, e error) {
 	if info.Revision.Unset() {
@@ -154,8 +159,12 @@ func (b Backend) StartServices(apps []*snap.AppInfo, meter progress.Meter, tm ti
 	return wrappers.StartServices(apps, meter, tm)
 }
 
-func (b Backend) StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error {
-	return wrappers.StopServices(apps, reason, meter, tm)
+func (b Backend) StopServices(apps []*snap.AppInfo, flags *StopFlags, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error {
+	f := &wrappers.StopFlags{}
+	if flags != nil {
+		f.Disable = flags.Disable
+	}
+	return wrappers.StopServices(apps, f, reason, meter, tm)
 }
 
 func (b Backend) generateWrappers(s *snap.Info, linkCtx LinkContext) error {
@@ -269,6 +278,10 @@ func (b Backend) UnlinkSnap(info *snap.Info, linkCtx LinkContext, meter progress
 // services, primarily for committing before snap removal/disable/revert.
 func (b Backend) ServicesEnableState(info *snap.Info, meter progress.Meter) (map[string]bool, error) {
 	return wrappers.ServicesEnableState(info, meter)
+}
+
+func (b Backend) QueryDisabledServices(info *snap.Info, pb progress.Meter) ([]string, error) {
+	return wrappers.QueryDisabledServices(info, pb)
 }
 
 func removeCurrentSymlinks(info snap.PlaceInfo) error {

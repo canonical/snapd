@@ -792,31 +792,13 @@ func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	return m.backend.RemoveSnapDir(snapsup.placeInfo(), otherInstances)
 }
 
-// queryDisabledServices returns a list of all currently disabled snap services
-// in the snap.
+// queryDisabledServices uses wrappers.QueryDisabledServices()
+//
 // Note this function takes a snap info rather than snapst because there are
 // situations where we want to call this on non-current snap infos, i.e. in the
 // undo handlers, see undoLinkSnap for an example.
 func (m *SnapManager) queryDisabledServices(info *snap.Info, pb progress.Meter) ([]string, error) {
-	// save the list of services that are in the disabled state before unlinking
-	// and thus removing the snap services
-	snapSvcStates, err := m.backend.ServicesEnableState(info, pb)
-	if err != nil {
-		return nil, err
-	}
-
-	disabledSnapSvcs := []string{}
-	// add all disabled services to the list
-	for svc, isEnabled := range snapSvcStates {
-		if !isEnabled {
-			disabledSnapSvcs = append(disabledSnapSvcs, svc)
-		}
-	}
-
-	// sort for easier testing
-	sort.Strings(disabledSnapSvcs)
-
-	return disabledSnapSvcs, nil
+	return m.backend.QueryDisabledServices(info, pb)
 }
 
 func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -1810,7 +1792,7 @@ func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	defer st.Lock()
 
 	// stop the services
-	err = m.backend.StopServices(svcs, stopReason, pb, perfTimings)
+	err = m.backend.StopServices(svcs, nil, stopReason, pb, perfTimings)
 	if err != nil {
 		return err
 	}

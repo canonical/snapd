@@ -2,9 +2,6 @@ summary: |
     Ensure after device initialisation registration worked and
     we have a serial and can acquire a session macaroon
 
-# TODO:UC20: enable on arm when we have the model names for these devices
-systems: [-ubuntu-core-20-arm*]
-
 execute: |
     #shellcheck source=tests/lib/names.sh
     . "$TESTSLIB"/names.sh
@@ -31,6 +28,9 @@ execute: |
     case "$SPREAD_SYSTEM" in
         ubuntu-core-20-64)
             snap model --serial --assertion | MATCH "model: ubuntu-core-20-amd64"
+            ;;
+        ubuntu-core-20-arm-*)
+            snap model --serial --assertion | MATCH "model: ubuntu-core-20-$gadget_name"
             ;;
         ubuntu-core-18-64)
             snap model --serial --assertion | MATCH "model: ubuntu-core-18-amd64"

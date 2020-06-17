@@ -138,12 +138,37 @@ func generateMountsModeInstall(mst *initramfsMountsState, recoverySystem string)
 	if err := modeEnv.WriteTo(boot.InitramfsWritableDir); err != nil {
 		return err
 	}
-	if err := sysconfig.DisableCloudInit(boot.InitramfsWritableDir); err != nil {
+	// we need to put the file to disable cloud-init in the
+	// _writable_defaults dir for writable-paths(5) to install it properly
+	writableDefaultsDir := sysconfig.WritableDefaultsDir(boot.InitramfsWritableDir)
+	if err := sysconfig.DisableCloudInit(writableDefaultsDir); err != nil {
 		return err
 	}
 
 	// done, no output, no error indicates to initramfs we are done with
 	// mounting stuff
+	return nil
+}
+
+// copyNetworkConfig copies the network configuration to the target
+// directory. This is used to copy the network configuration
+// data from a real uc20 ubuntu-data partition into a ephemeral one.
+func copyNetworkConfig(src, dst string) error {
+	for _, globEx := range []string{
+		// for network configuration setup by console-conf, etc.
+		// TODO:UC20: we want some way to "try" or "verify" the network
+		//            configuration or to only use known-to-be-good network
+		//            configuration i.e. from ubuntu-save before installing it
+		//            onto recover mode, because the network configuration could
+		//            have been what was broken so we don't want to break
+		//            network configuration for recover mode as well, but for
+		//            now this is fine
+		"system-data/etc/netplan/*",
+	} {
+		if err := copyFromGlobHelper(src, dst, globEx); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -166,36 +191,16 @@ func copyUbuntuDataAuth(src, dst string) error {
 		// so that users have proper perms, i.e. console-conf added users are
 		// sudoers
 		"system-data/etc/sudoers.d/*",
+		// so that the time in recover mode moves forward to what it was in run
+		// mode
+		// NOTE: we don't sync back the time movement from recover mode to run
+		// mode currently, unclear how/when we could do this, but recover mode
+		// isn't meant to be long lasting and as such it's probably not a big
+		// problem to "lose" the time spent in recover mode
+		"system-data/var/lib/systemd/timesync/clock",
 	} {
-		matches, err := filepath.Glob(filepath.Join(src, globEx))
-		if err != nil {
+		if err := copyFromGlobHelper(src, dst, globEx); err != nil {
 			return err
-		}
-		for _, p := range matches {
-			comps := strings.Split(strings.TrimPrefix(p, src), "/")
-			for i := range comps {
-				part := filepath.Join(comps[0 : i+1]...)
-				fi, err := os.Stat(filepath.Join(src, part))
-				if err != nil {
-					return err
-				}
-				if fi.IsDir() {
-					if err := os.Mkdir(filepath.Join(dst, part), fi.Mode()); err != nil && !os.IsExist(err) {
-						return err
-					}
-					st, ok := fi.Sys().(*syscall.Stat_t)
-					if !ok {
-						return fmt.Errorf("cannot get stat data: %v", err)
-					}
-					if err := os.Chown(filepath.Join(dst, part), int(st.Uid), int(st.Gid)); err != nil {
-						return err
-					}
-				} else {
-					if err := osutil.CopyFile(p, filepath.Join(dst, part), osutil.CopyFlagPreserveAll); err != nil {
-						return err
-					}
-				}
-			}
 		}
 	}
 
@@ -205,6 +210,41 @@ func copyUbuntuDataAuth(src, dst string) error {
 	err := state.CopyState(srcState, dstState, []string{"auth.users", "auth.macaroon-key", "auth.last-id"})
 	if err != nil && err != state.ErrNoState {
 		return fmt.Errorf("cannot copy user state: %v", err)
+	}
+
+	return nil
+}
+
+func copyFromGlobHelper(src, dst, globEx string) error {
+	matches, err := filepath.Glob(filepath.Join(src, globEx))
+	if err != nil {
+		return err
+	}
+	for _, p := range matches {
+		comps := strings.Split(strings.TrimPrefix(p, src), "/")
+		for i := range comps {
+			part := filepath.Join(comps[0 : i+1]...)
+			fi, err := os.Stat(filepath.Join(src, part))
+			if err != nil {
+				return err
+			}
+			if fi.IsDir() {
+				if err := os.Mkdir(filepath.Join(dst, part), fi.Mode()); err != nil && !os.IsExist(err) {
+					return err
+				}
+				st, ok := fi.Sys().(*syscall.Stat_t)
+				if !ok {
+					return fmt.Errorf("cannot get stat data: %v", err)
+				}
+				if err := os.Chown(filepath.Join(dst, part), int(st.Uid), int(st.Gid)); err != nil {
+					return err
+				}
+			} else {
+				if err := osutil.CopyFile(p, filepath.Join(dst, part), osutil.CopyFlagPreserveAll); err != nil {
+					return err
+				}
+			}
+		}
 	}
 
 	return nil
@@ -236,12 +276,17 @@ func generateMountsModeRecover(mst *initramfsMountsState, recoverySystem string)
 		return nil
 	}
 
-	// 4. final step: copy the auth data from the real ubuntu-data dir to the
-	//    ephemeral ubuntu-data dir, write the modeenv to the tmpfs data, and
-	//    disable cloud-init in recover mode
+	// 4. final step: copy the auth data and network config from
+	//    the real ubuntu-data dir to the ephemeral ubuntu-data
+	//    dir, write the modeenv to the tmpfs data, and disable
+	//    cloud-init in recover mode
 	if err := copyUbuntuDataAuth(boot.InitramfsHostUbuntuDataDir, boot.InitramfsDataDir); err != nil {
 		return err
 	}
+	if err := copyNetworkConfig(boot.InitramfsHostUbuntuDataDir, boot.InitramfsDataDir); err != nil {
+		return err
+	}
+
 	modeEnv := &boot.Modeenv{
 		Mode:           "recover",
 		RecoverySystem: recoverySystem,
@@ -249,7 +294,10 @@ func generateMountsModeRecover(mst *initramfsMountsState, recoverySystem string)
 	if err := modeEnv.WriteTo(boot.InitramfsWritableDir); err != nil {
 		return err
 	}
-	if err := sysconfig.DisableCloudInit(boot.InitramfsWritableDir); err != nil {
+	// we need to put the file to disable cloud-init in the
+	// _writable_defaults dir for writable-paths(5) to install it properly
+	writableDefaultsDir := sysconfig.WritableDefaultsDir(boot.InitramfsWritableDir)
+	if err := sysconfig.DisableCloudInit(writableDefaultsDir); err != nil {
 		return err
 	}
 

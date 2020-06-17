@@ -21,6 +21,7 @@ package devicestate_test
 
 import (
 	"os"
+	"path/filepath"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -30,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -117,12 +119,8 @@ volumes:
 	}, nil)
 }
 
-func (s *firstBoot20Suite) TestPopulateFromSeedCore20Happy(c *C) {
-	m := boot.Modeenv{
-		Mode:           "run",
-		RecoverySystem: "20191018",
-		Base:           "core20_1.snap",
-	}
+func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv) {
+	c.Assert(m, NotNil, Commentf("missing modeenv test data"))
 	err := m.WriteTo("")
 	c.Assert(err, IsNil)
 
@@ -137,7 +135,7 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20Happy(c *C) {
 	})
 	defer systemctlRestorer()
 
-	sysLabel := "20191018"
+	sysLabel := m.RecoverySystem
 	model := s.setupCore20Seed(c, sysLabel)
 
 	bloader := bootloadertest.Mock("mock", c.MkDir()).WithExtractedRunKernelImage()
@@ -154,7 +152,7 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20Happy(c *C) {
 
 	opts := devicestate.PopulateStateFromSeedOptions{
 		Label: sysLabel,
-		Mode:  "run",
+		Mode:  m.Mode,
 	}
 
 	// run the firstboot stuff
@@ -204,7 +202,7 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20Happy(c *C) {
 
 	state.Lock()
 	defer state.Unlock()
-	// check snapd, core18, kernel, gadget
+	// check snapd, core20, kernel, gadget
 	_, err = snapstate.CurrentInfo(state, "snapd")
 	c.Check(err, IsNil)
 	_, err = snapstate.CurrentInfo(state, "core20")
@@ -220,6 +218,15 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20Happy(c *C) {
 		err = snapstate.Get(state, reqName, &snapst)
 		c.Assert(err, IsNil)
 		c.Assert(snapst.Required, Equals, true, Commentf("required not set for %v", reqName))
+
+		if m.Mode == "run" {
+			// also ensure that in run mode none of the snaps are installed as
+			// symlinks, they must be copied onto ubuntu-data
+			files, err := filepath.Glob(filepath.Join(dirs.SnapBlobDir, reqName+"_*.snap"))
+			c.Assert(err, IsNil)
+			c.Assert(files, HasLen, 1)
+			c.Assert(osutil.IsSymlink(files[0]), Equals, false)
+		}
 	}
 
 	// the right systemd commands were run
@@ -240,7 +247,13 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20Happy(c *C) {
 	// check that we removed recovery_system from modeenv
 	m2, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
-	c.Assert(m2.RecoverySystem, Equals, "")
+	if m.Mode == "run" {
+		// recovery system is cleared in run mode
+		c.Assert(m2.RecoverySystem, Equals, "")
+	} else {
+		// but kept intact in other modes
+		c.Assert(m2.RecoverySystem, Equals, m.RecoverySystem)
+	}
 	c.Assert(m2.Base, Equals, m.Base)
 	c.Assert(m2.Mode, Equals, m.Mode)
 	// Note that we don't check CurrentKernels in the modeenv, even though in a
@@ -257,14 +270,17 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20Happy(c *C) {
 	// already booted from, we should only have checked what the current kernel
 	// is
 
-	// the 3 calls here are :
-	// * 1 from MarkBootSuccessful() from ensureBootOk() before we restart
-	// * 1 from boot.SetNextBoot() from LinkSnap() from doInstall() from InstallPath() from
-	//     installSeedSnap() after restart
-	// * 1 from boot.GetCurrentBoot() from WaitRestart after restart
-	_, numKernelCalls := bloader.GetRunKernelImageFunctionSnapCalls("Kernel")
-	c.Assert(numKernelCalls, Equals, 3)
+	if m.Mode == "run" {
+		// only relevant in run mode
 
+		// the 3 calls here are :
+		// * 1 from MarkBootSuccessful() from ensureBootOk() before we restart
+		// * 1 from boot.SetNextBoot() from LinkSnap() from doInstall() from InstallPath() from
+		//     installSeedSnap() after restart
+		// * 1 from boot.GetCurrentBoot() from WaitRestart after restart
+		_, numKernelCalls := bloader.GetRunKernelImageFunctionSnapCalls("Kernel")
+		c.Assert(numKernelCalls, Equals, 3)
+	}
 	actual, _ := bloader.GetRunKernelImageFunctionSnapCalls("EnableKernel")
 	c.Assert(actual, HasLen, 0)
 	actual, _ = bloader.GetRunKernelImageFunctionSnapCalls("DisableTryKernel")
@@ -274,13 +290,44 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20Happy(c *C) {
 
 	var whatseeded []devicestate.SeededSystem
 	err = state.Get("seeded-systems", &whatseeded)
-	c.Assert(err, IsNil)
-	c.Assert(whatseeded, DeepEquals, []devicestate.SeededSystem{{
-		System:    "20191018",
-		Model:     "my-model",
-		BrandID:   "my-brand",
-		Revision:  model.Revision(),
-		Timestamp: model.Timestamp(),
-		SeedTime:  seedTime,
-	}})
+	if m.Mode == "run" {
+		c.Assert(err, IsNil)
+		c.Assert(whatseeded, DeepEquals, []devicestate.SeededSystem{{
+			System:    m.RecoverySystem,
+			Model:     "my-model",
+			BrandID:   "my-brand",
+			Revision:  model.Revision(),
+			Timestamp: model.Timestamp(),
+			SeedTime:  seedTime,
+		}})
+	} else {
+		c.Assert(err, NotNil)
+	}
+}
+
+func (s *firstBoot20Suite) TestPopulateFromSeedCore20RunMode(c *C) {
+	m := boot.Modeenv{
+		Mode:           "run",
+		RecoverySystem: "20191018",
+		Base:           "core20_1.snap",
+	}
+	s.testPopulateFromSeedCore20Happy(c, &m)
+}
+
+func (s *firstBoot20Suite) TestPopulateFromSeedCore20InstallMode(c *C) {
+	m := boot.Modeenv{
+		Mode:           "install",
+		RecoverySystem: "20191019",
+		Base:           "core20_1.snap",
+	}
+	s.testPopulateFromSeedCore20Happy(c, &m)
+}
+
+func (s *firstBoot20Suite) TestPopulateFromSeedCore20RecoverMode(c *C) {
+	m := boot.Modeenv{
+		Mode:           "recover",
+		RecoverySystem: "20191020",
+		Base:           "core20_1.snap",
+	}
+	s.testPopulateFromSeedCore20Happy(c, &m)
 }
