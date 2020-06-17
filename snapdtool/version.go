@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2016-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,9 +17,18 @@
  *
  */
 
-package internal
+// Package snapdtool exposes version and related information, supports
+// re-execution and inter-tool lookup/execution across all snapd
+// tools.
+package snapdtool
 
-var (
-	MkfsExt4 = mkfsExt4
-	MkfsVfat = mkfsVfat
-)
+//go:generate mkversion.sh
+
+// Version will be overwritten at build-time via mkversion.sh
+var Version = "unknown"
+
+func MockVersion(version string) (restore func()) {
+	old := Version
+	Version = version
+	return func() { Version = old }
+}

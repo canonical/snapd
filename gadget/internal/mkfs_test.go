@@ -63,7 +63,7 @@ func (m *mkfsSuite) TestMkfsExt4Happy(c *C) {
 	cmd := testutil.MockCommand(c, "fakeroot", "")
 	defer cmd.Restore()
 
-	err := internal.MkfsExt4("foo.img", "my-label", "contents")
+	err := internal.MkfsWithContent("ext4", "foo.img", "my-label", "contents")
 	c.Assert(err, IsNil)
 	c.Check(cmd.Calls(), DeepEquals, [][]string{
 		{
@@ -79,7 +79,7 @@ func (m *mkfsSuite) TestMkfsExt4Happy(c *C) {
 	cmd.ForgetCalls()
 
 	// empty label
-	err = internal.MkfsExt4("foo.img", "", "contents")
+	err = internal.MkfsWithContent("ext4", "foo.img", "", "contents")
 	c.Assert(err, IsNil)
 	c.Check(cmd.Calls(), DeepEquals, [][]string{
 		{
@@ -94,7 +94,7 @@ func (m *mkfsSuite) TestMkfsExt4Happy(c *C) {
 	cmd.ForgetCalls()
 
 	// no content
-	err = internal.MkfsExt4("foo.img", "my-label", "")
+	err = internal.Mkfs("ext4", "foo.img", "my-label")
 	c.Assert(err, IsNil)
 	c.Check(cmd.Calls(), DeepEquals, [][]string{
 		{
@@ -112,7 +112,7 @@ func (m *mkfsSuite) TestMkfsExt4Error(c *C) {
 	cmd := testutil.MockCommand(c, "fakeroot", "echo 'command failed'; exit 1")
 	defer cmd.Restore()
 
-	err := internal.MkfsExt4("foo.img", "my-label", "contents")
+	err := internal.MkfsWithContent("ext4", "foo.img", "my-label", "contents")
 	c.Assert(err, ErrorMatches, "command failed")
 }
 
@@ -123,7 +123,7 @@ func (m *mkfsSuite) TestMkfsVfatHappySimple(c *C) {
 	cmd := testutil.MockCommand(c, "mkfs.vfat", "")
 	defer cmd.Restore()
 
-	err := internal.MkfsVfat("foo.img", "my-label", d)
+	err := internal.MkfsWithContent("vfat", "foo.img", "my-label", d)
 	c.Assert(err, IsNil)
 	c.Check(cmd.Calls(), DeepEquals, [][]string{
 		{
@@ -139,7 +139,7 @@ func (m *mkfsSuite) TestMkfsVfatHappySimple(c *C) {
 	cmd.ForgetCalls()
 
 	// empty label
-	err = internal.MkfsVfat("foo.img", "", d)
+	err = internal.MkfsWithContent("vfat", "foo.img", "", d)
 	c.Assert(err, IsNil)
 	c.Check(cmd.Calls(), DeepEquals, [][]string{
 		{
@@ -147,6 +147,22 @@ func (m *mkfsSuite) TestMkfsVfatHappySimple(c *C) {
 			"-S", "512",
 			"-s", "1",
 			"-F", "32",
+			"foo.img",
+		},
+	})
+
+	cmd.ForgetCalls()
+
+	// no content
+	err = internal.Mkfs("vfat", "foo.img", "my-label")
+	c.Assert(err, IsNil)
+	c.Check(cmd.Calls(), DeepEquals, [][]string{
+		{
+			"mkfs.vfat",
+			"-S", "512",
+			"-s", "1",
+			"-F", "32",
+			"-n", "my-label",
 			"foo.img",
 		},
 	})
@@ -163,7 +179,7 @@ func (m *mkfsSuite) TestMkfsVfatHappyContents(c *C) {
 	cmdMcopy := testutil.MockCommand(c, "mcopy", "")
 	defer cmdMcopy.Restore()
 
-	err := internal.MkfsVfat("foo.img", "my-label", d)
+	err := internal.MkfsWithContent("vfat", "foo.img", "my-label", d)
 	c.Assert(err, IsNil)
 	c.Assert(cmdMkfs.Calls(), HasLen, 1)
 
@@ -178,7 +194,7 @@ func (m *mkfsSuite) TestMkfsVfatErrorSimpleFail(c *C) {
 	cmd := testutil.MockCommand(c, "mkfs.vfat", "echo 'failed'; false")
 	defer cmd.Restore()
 
-	err := internal.MkfsVfat("foo.img", "my-label", d)
+	err := internal.MkfsWithContent("vfat", "foo.img", "my-label", d)
 	c.Assert(err, ErrorMatches, "failed")
 }
 
@@ -186,7 +202,7 @@ func (m *mkfsSuite) TestMkfsVfatErrorUnreadableDir(c *C) {
 	cmd := testutil.MockCommand(c, "mkfs.vfat", "")
 	defer cmd.Restore()
 
-	err := internal.MkfsVfat("foo.img", "my-label", "dir-does-not-exist")
+	err := internal.MkfsWithContent("vfat", "foo.img", "my-label", "dir-does-not-exist")
 	c.Assert(err, ErrorMatches, "cannot list directory contents: .* no such file or directory")
 	c.Assert(cmd.Calls(), HasLen, 1)
 }
@@ -201,7 +217,7 @@ func (m *mkfsSuite) TestMkfsVfatErrorInMcopy(c *C) {
 	cmdMcopy := testutil.MockCommand(c, "mcopy", "echo 'hard fail'; exit 1")
 	defer cmdMcopy.Restore()
 
-	err := internal.MkfsVfat("foo.img", "my-label", d)
+	err := internal.MkfsWithContent("vfat", "foo.img", "my-label", d)
 	c.Assert(err, ErrorMatches, "cannot populate vfat filesystem with contents: hard fail")
 	c.Assert(cmdMkfs.Calls(), HasLen, 1)
 	c.Assert(cmdMcopy.Calls(), HasLen, 1)
@@ -214,11 +230,19 @@ func (m *mkfsSuite) TestMkfsVfatHappyNoContents(c *C) {
 	cmdMcopy := testutil.MockCommand(c, "mcopy", "")
 	defer cmdMcopy.Restore()
 
-	err := internal.MkfsVfat("foo.img", "my-label", "")
+	err := internal.MkfsWithContent("vfat", "foo.img", "my-label", "")
 	c.Assert(err, IsNil)
 	c.Assert(cmdMkfs.Calls(), HasLen, 1)
 	// mcopy was not called
 	c.Assert(cmdMcopy.Calls(), HasLen, 0)
+}
+
+func (m *mkfsSuite) TestMkfsInvalidFs(c *C) {
+	err := internal.MkfsWithContent("no-fs", "foo.img", "my-label", "")
+	c.Assert(err, ErrorMatches, `cannot create unsupported filesystem "no-fs"`)
+
+	err = internal.Mkfs("no-fs", "foo.img", "my-label")
+	c.Assert(err, ErrorMatches, `cannot create unsupported filesystem "no-fs"`)
 }
 
 func makeSizedFile(c *C, path string, size int64, content []byte) {

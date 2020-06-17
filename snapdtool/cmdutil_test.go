@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,7 +17,7 @@
  *
  */
 
-package cmdutil_test
+package snapdtool_test
 
 import (
 	"fmt"
@@ -26,17 +26,13 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"testing"
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/cmd/cmdutil"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snapdtool"
 )
-
-// Hook up check.v1 into the "go test" runner
-func Test(t *testing.T) { TestingT(t) }
 
 var truePath = osutil.LookPathDefault("true", "/bin/true")
 
@@ -81,7 +77,7 @@ func (s *cmdutilSuite) TestCommandFromSystemSnap(c *C) {
 
 		os.MkdirAll(filepath.Join(root, "/usr/bin"), 0755)
 		osutil.CopyFile(truePath, filepath.Join(root, "/usr/bin/xdelta3"), 0)
-		cmd, err := cmdutil.CommandFromSystemSnap("/usr/bin/xdelta3", "--some-xdelta-arg")
+		cmd, err := snapdtool.CommandFromSystemSnap("/usr/bin/xdelta3", "--some-xdelta-arg")
 		c.Assert(err, IsNil)
 
 		out, err := exec.Command("/bin/sh", "-c", fmt.Sprintf("readelf -l %s |grep interpreter:|cut -f2 -d:|cut -f1 -d]", truePath)).Output()
@@ -113,6 +109,6 @@ func (s *cmdutilSuite) TestCommandFromCoreSymlinkCycle(c *C) {
 	c.Assert(os.MkdirAll(filepath.Dir(coreInterp), 0755), IsNil)
 	c.Assert(os.Symlink(filepath.Base(coreInterp), coreInterp), IsNil)
 
-	_, err = cmdutil.CommandFromSystemSnap("/usr/bin/xdelta3", "--some-xdelta-arg")
+	_, err = snapdtool.CommandFromSystemSnap("/usr/bin/xdelta3", "--some-xdelta-arg")
 	c.Assert(err, ErrorMatches, "cannot run command from core: symlink cycle found")
 }

@@ -20,9 +20,11 @@
 package install_test
 
 import (
+	"errors"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"testing"
 
 	. "gopkg.in/check.v1"
 
@@ -49,6 +51,8 @@ type installTestSuite struct {
 
 var _ = Suite(&installTestSuite{})
 
+func TestRun(t *testing.T) { TestingT(t) }
+
 func (s *installTestSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
@@ -63,7 +67,7 @@ func (s *installTestSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	s.mockMountPoint = c.MkDir()
-	restore := install.MockDeployMountpoint(s.mockMountPoint)
+	restore := install.MockContentMountpoint(s.mockMountPoint)
 	s.AddCleanup(restore)
 
 	restore = install.MockSysMount(func(source, target, fstype string, flags uintptr, data string) error {
@@ -171,7 +175,71 @@ const gadgetContent = `volumes:
         size: 1200M
 `
 
-func (s *installTestSuite) TestDeployRawContent(c *C) {
+func (s *installTestSuite) TestWriteFilesystemContent(c *C) {
+	for _, tc := range []struct {
+		mountErr   error
+		unmountErr error
+		err        string
+	}{
+		{
+			mountErr:   nil,
+			unmountErr: nil,
+			err:        "",
+		},
+		{
+			mountErr:   errors.New("mount error"),
+			unmountErr: nil,
+			err:        "cannot mount filesystem .*: mount error",
+		},
+		{
+			mountErr:   nil,
+			unmountErr: errors.New("unmount error"),
+			err:        "unmount error",
+		},
+	} {
+		mockMountpoint := c.MkDir()
+
+		restore := install.MockContentMountpoint(mockMountpoint)
+		defer restore()
+
+		restore = install.MockSysMount(func(source, target, fstype string, flags uintptr, data string) error {
+			return tc.mountErr
+		})
+		defer restore()
+
+		restore = install.MockSysUnmount(func(target string, flags int) error {
+			return tc.unmountErr
+		})
+		defer restore()
+
+		// copy existing mock
+		m := mockOnDiskStructureSystemSeed
+		m.LaidOutContent = []gadget.LaidOutContent{
+			{
+				VolumeContent: &gadget.VolumeContent{
+					Source: "grubx64.efi",
+					Target: "EFI/boot/grubx64.efi",
+				},
+			},
+		}
+
+		err := install.WriteContent(&m, s.gadgetRoot)
+		if tc.err == "" {
+			c.Assert(err, IsNil)
+		} else {
+			c.Assert(err, ErrorMatches, tc.err)
+		}
+
+		if err == nil {
+			// the target file system is mounted on a directory named after the structure index
+			content, err := ioutil.ReadFile(filepath.Join(mockMountpoint, "2", "EFI/boot/grubx64.efi"))
+			c.Assert(err, IsNil)
+			c.Check(string(content), Equals, "grubx64.efi content")
+		}
+	}
+}
+
+func (s *installTestSuite) TestWriteRawContent(c *C) {
 	mockNode := filepath.Join(s.dir, "mock-node")
 	err := ioutil.WriteFile(mockNode, nil, 0644)
 	c.Assert(err, IsNil)
@@ -189,7 +257,7 @@ func (s *installTestSuite) TestDeployRawContent(c *C) {
 		},
 	}
 
-	err = install.DeployContent(&m, s.gadgetRoot)
+	err = install.WriteContent(&m, s.gadgetRoot)
 	c.Assert(err, IsNil)
 
 	content, err := ioutil.ReadFile(m.Node)

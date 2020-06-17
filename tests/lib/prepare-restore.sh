@@ -377,11 +377,21 @@ prepare_project() {
                 systemctl stop "$(basename "$f")" || true
                 rm -f "$f"
             done
+            # double check that purge really worked
+            if [ -d /var/lib/snapd ]; then
+                echo "# /var/lib/snapd"
+                ls -lR /var/lib/snapd || true
+                exit 1
+            fi
             ;;
         *)
             # snapd state directory must not exist when the package is not
             # installed
-            test ! -d /var/lib/snapd
+            if [ -d /var/lib/snapd ]; then
+                echo "# /var/lib/snapd"
+                ls -lR /var/lib/snapd || true
+                exit 1
+            fi
             ;;
     esac
 
@@ -517,6 +527,7 @@ prepare_suite_each() {
         "$TESTSLIB"/reset.sh --reuse-core
     fi
     # Restart journal log and reset systemd journal cursor.
+    systemctl reset-failed systemd-journald.service
     if ! systemctl restart systemd-journald.service; then
         systemctl status systemd-journald.service || true
         echo "Failed to restart systemd-journald.service, exiting..."

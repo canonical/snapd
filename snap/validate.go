@@ -592,6 +592,43 @@ func validateAppRestart(app *AppInfo) error {
 	return nil
 }
 
+func validateAppActivatesOn(app *AppInfo) error {
+	if len(app.ActivatesOn) == 0 {
+		return nil
+	}
+
+	if !app.IsService() {
+		return errors.New("activates-on is only applicable to services")
+	}
+
+	for _, slot := range app.ActivatesOn {
+		// ActivatesOn slots must use the "dbus" interface
+		if slot.Interface != "dbus" {
+			return fmt.Errorf("invalid activates-on value %q: slot does not use dbus interface", slot.Name)
+		}
+
+		// D-Bus slots must match the daemon scope
+		bus := slot.Attrs["bus"]
+		if app.DaemonScope == SystemDaemon && bus != "system" || app.DaemonScope == UserDaemon && bus != "session" {
+			return fmt.Errorf("invalid activates-on value %q: bus %q does not match daemon-scope %q", slot.Name, bus, app.DaemonScope)
+		}
+
+		// Slots must only be activatable on a single app
+		for _, otherApp := range slot.Apps {
+			if otherApp == app {
+				continue
+			}
+			for _, otherSlot := range otherApp.ActivatesOn {
+				if otherSlot == slot {
+					return fmt.Errorf("invalid activates-on value %q: slot is also activatable on app %q", slot.Name, otherApp.Name)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
 // appContentWhitelist is the whitelist of legal chars in the "apps"
 // section of snap.yaml. Do not allow any of [',",`] here or snap-exec
 // will get confused. chainContentWhitelist is the same, but for the
@@ -664,6 +701,10 @@ func ValidateApp(app *AppInfo) error {
 		if err := validateAppSocket(socket); err != nil {
 			return fmt.Errorf("invalid definition of socket %q: %v", socket.Name, err)
 		}
+	}
+
+	if err := validateAppActivatesOn(app); err != nil {
+		return err
 	}
 
 	if err := validateAppRestart(app); err != nil {

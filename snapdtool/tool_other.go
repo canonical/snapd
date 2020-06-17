@@ -18,7 +18,7 @@
  *
  */
 
-package cmd
+package snapdtool
 
 import (
 	"errors"

@@ -25,24 +25,22 @@ import (
 	"path/filepath"
 	"strconv"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/internal"
 )
 
-var (
-	deployMountpoint = "/run/snap-recover"
-)
+var contentMountpoint string
+
+func init() {
+	contentMountpoint = filepath.Join(dirs.SnapRunDir, "gadget-install")
+}
 
 // makeFilesystem creates a filesystem on the on-disk structure, according
 // to the filesystem type defined in the gadget.
 func makeFilesystem(ds *gadget.OnDiskStructure) error {
-	if ds.VolumeStructure.HasFilesystem() {
-		fs := ds.VolumeStructure.Filesystem
-		mkfs, ok := internal.MkfsHandlers[fs]
-		if !ok {
-			return fmt.Errorf("cannot create unsupported filesystem %q", fs)
-		}
-		if err := mkfs(ds.Node, ds.VolumeStructure.Label, ""); err != nil {
+	if ds.HasFilesystem() {
+		if err := internal.Mkfs(ds.VolumeStructure.Filesystem, ds.Node, ds.VolumeStructure.Label); err != nil {
 			return err
 		}
 		if err := internal.UdevTrigger(ds.Node); err != nil {
@@ -52,18 +50,18 @@ func makeFilesystem(ds *gadget.OnDiskStructure) error {
 	return nil
 }
 
-// deployContent populates the give on-disk structure, according to the contents
+// writeContent populates the given on-disk structure, according to the contents
 // defined in the gadget.
-func deployContent(ds *gadget.OnDiskStructure, gadgetRoot string) error {
+func writeContent(ds *gadget.OnDiskStructure, gadgetRoot string) error {
 	switch {
 	case !ds.IsPartition():
-		return fmt.Errorf("cannot deploy non-partitions yet")
+		return fmt.Errorf("cannot write non-partitions yet")
 	case !ds.HasFilesystem():
-		if err := deployNonFSContent(ds, gadgetRoot); err != nil {
+		if err := writeNonFSContent(ds, gadgetRoot); err != nil {
 			return err
 		}
 	case ds.HasFilesystem():
-		if err := deployFilesystemContent(ds, gadgetRoot); err != nil {
+		if err := writeFilesystemContent(ds, gadgetRoot); err != nil {
 			return err
 		}
 	}
@@ -71,8 +69,8 @@ func deployContent(ds *gadget.OnDiskStructure, gadgetRoot string) error {
 	return nil
 }
 
-// mountFilesystem mounts the on-disk structure filesystem, using the label
-// defined in the gadget as the mount point name.
+// mountFilesystem mounts the on-disk structure filesystem under the given base
+// directory, using the label defined in the gadget as the mount point name.
 func mountFilesystem(ds *gadget.OnDiskStructure, baseMntPoint string) error {
 	if !ds.HasFilesystem() {
 		return fmt.Errorf("cannot mount a partition with no filesystem")
@@ -92,8 +90,8 @@ func mountFilesystem(ds *gadget.OnDiskStructure, baseMntPoint string) error {
 	return nil
 }
 
-func deployFilesystemContent(ds *gadget.OnDiskStructure, gadgetRoot string) (err error) {
-	mountpoint := filepath.Join(deployMountpoint, strconv.Itoa(ds.Index))
+func writeFilesystemContent(ds *gadget.OnDiskStructure, gadgetRoot string) (err error) {
+	mountpoint := filepath.Join(contentMountpoint, strconv.Itoa(ds.Index))
 	if err := os.MkdirAll(mountpoint, 0755); err != nil {
 		return err
 	}
@@ -114,18 +112,18 @@ func deployFilesystemContent(ds *gadget.OnDiskStructure, gadgetRoot string) (err
 		return fmt.Errorf("cannot create filesystem image writer: %v", err)
 	}
 
-	var preserveFiles []string
-	if err := fs.Write(mountpoint, preserveFiles); err != nil {
+	var noFilesToPreserve []string
+	if err := fs.Write(mountpoint, noFilesToPreserve); err != nil {
 		return fmt.Errorf("cannot create filesystem image: %v", err)
 	}
 
 	return nil
 }
 
-func deployNonFSContent(ds *gadget.OnDiskStructure, gadgetRoot string) error {
+func writeNonFSContent(ds *gadget.OnDiskStructure, gadgetRoot string) error {
 	f, err := os.OpenFile(ds.Node, os.O_RDWR, 0644)
 	if err != nil {
-		return fmt.Errorf("cannot deploy bare content for %q: %v", ds.Node, err)
+		return fmt.Errorf("cannot write bare content for %q: %v", ds.Node, err)
 	}
 	defer f.Close()
 
