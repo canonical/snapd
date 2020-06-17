@@ -28,6 +28,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
@@ -93,7 +94,7 @@ func (s *bootenvTestSuite) TestInstallBootloaderConfigNoConfig(c *C) {
 	c.Assert(err, ErrorMatches, `cannot find boot config in.*`)
 }
 
-func (s *bootenvTestSuite) TestInstallBootloaderConfig(c *C) {
+func (s *bootenvTestSuite) TestInstallBootloaderConfigFromGadget(c *C) {
 	for _, t := range []struct {
 		name                string
 		gadgetFile, sysFile string
@@ -115,11 +116,86 @@ func (s *bootenvTestSuite) TestInstallBootloaderConfig(c *C) {
 		{name: "grub recovery", gadgetFile: "grub-recovery.conf", sysFile: "/EFI/ubuntu/grub.cfg", opts: &bootloader.Options{Recovery: true}},
 	} {
 		mockGadgetDir := c.MkDir()
+		rootDir := c.MkDir()
 		err := ioutil.WriteFile(filepath.Join(mockGadgetDir, t.gadgetFile), t.gadgetFileContent, 0644)
 		c.Assert(err, IsNil)
-		err = bootloader.InstallBootConfig(mockGadgetDir, s.rootdir, t.opts)
+		err = bootloader.InstallBootConfig(mockGadgetDir, rootDir, t.opts)
 		c.Assert(err, IsNil, Commentf("installing boot config for %s", t.name))
-		fn := filepath.Join(s.rootdir, t.sysFile)
+		fn := filepath.Join(rootDir, t.sysFile)
 		c.Assert(fn, testutil.FilePresent, Commentf("boot config missing for %s at %s", t.name, t.sysFile))
+	}
+}
+
+func (s *bootenvTestSuite) TestInstallBootloaderConfigFromAssets(c *C) {
+	for _, t := range []struct {
+		name                string
+		gadgetFile, sysFile string
+		gadgetFileContent   []byte
+		assetContent        []byte
+		assetName           string
+		opts                *bootloader.Options
+		err                 string
+	}{
+		{
+			name:       "grub",
+			gadgetFile: "grub-recovery.conf",
+			// empty file in the gadget
+			gadgetFileContent: nil,
+			sysFile:           "/EFI/ubuntu/grub.cfg",
+			assetName:         "grub-recovery.cfg",
+			assetContent:      []byte("hello assets"),
+			opts: &bootloader.Options{
+				Recovery: true,
+			},
+		}, {
+			name:       "grub with defautl asset",
+			gadgetFile: "grub-recovery.conf",
+			// empty file in the gadget
+			gadgetFileContent: nil,
+			sysFile:           "/EFI/ubuntu/grub.cfg",
+			opts: &bootloader.Options{
+				Recovery: true,
+			},
+		}, {
+			name:       "grub missing asset",
+			gadgetFile: "grub-recovery.conf",
+			// empty file in the gadget
+			gadgetFileContent: nil,
+			sysFile:           "/EFI/ubuntu/grub.cfg",
+			opts: &bootloader.Options{
+				Recovery: true,
+			},
+			assetName: "grub-recovery.cfg",
+			// // no asset content
+			// assetContent: nil,
+			err: `internal error: no boot asset for "grub-recovery.cfg"`,
+		},
+	} {
+		mockGadgetDir := c.MkDir()
+		rootDir := c.MkDir()
+		fn := filepath.Join(rootDir, t.sysFile)
+		err := ioutil.WriteFile(filepath.Join(mockGadgetDir, t.gadgetFile), t.gadgetFileContent, 0644)
+		c.Assert(err, IsNil)
+		var restoreAsset func()
+		if t.assetName != "" {
+			restoreAsset = assets.MockInternal(t.assetName, t.assetContent)
+		}
+		err = bootloader.InstallBootConfig(mockGadgetDir, rootDir, t.opts)
+		if t.err == "" {
+			c.Assert(err, IsNil, Commentf("installing boot config for %s", t.name))
+			if t.assetContent != nil {
+				// mocked asset content
+				c.Assert(fn, testutil.FileEquals, string(t.assetContent))
+			} else {
+				// predefined content, make sure edition marker exists
+				c.Assert(fn, testutil.FileContains, "# Snapd-Boot-Config-Edition:")
+			}
+		} else {
+			c.Assert(err, ErrorMatches, t.err)
+			c.Assert(fn, testutil.FileAbsent)
+		}
+		if restoreAsset != nil {
+			restoreAsset()
+		}
 	}
 }
