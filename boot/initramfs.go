@@ -37,8 +37,11 @@ func InitramfsRunModeSelectSnapsToMount(
 		var selectSnapFn func() (snap.PlaceInfo, error)
 		switch typ {
 		case snap.TypeBase:
-			bs := &bootState20Base{}
-			bs.modeenv = modeenv
+			bs := &bootState20Base{
+				bootState20Modeenv: bootState20Modeenv{
+					modeenv: modeenv,
+				},
+			}
 			selectSnapFn = bs.selectAndCommitSnapInitramfsMount
 		case snap.TypeKernel:
 			blOpts := &bootloader.Options{NoSlashBoot: true}
