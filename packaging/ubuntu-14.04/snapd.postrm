@@ -2,6 +2,9 @@
 
 set -e
 
+# note that we run the debhelper scripts first to ensure snapd is stopped
+#DEBHELPER#
+
 systemctl_stop() {
     unit="$1"
 
@@ -133,5 +136,3 @@ if [ "$1" = "purge" ]; then
     echo "Removing snapd state"
     rm -rf /var/lib/snapd
 fi
-
-#DEBHELPER#
