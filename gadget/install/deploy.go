@@ -114,8 +114,8 @@ func deployFilesystemContent(ds *gadget.OnDiskStructure, gadgetRoot string) (err
 		return fmt.Errorf("cannot create filesystem image writer: %v", err)
 	}
 
-	var preserveFiles []string
-	if err := fs.Write(mountpoint, preserveFiles); err != nil {
+	var noFilesToPreserve []string
+	if err := fs.Write(mountpoint, noFilesToPreserve); err != nil {
 		return fmt.Errorf("cannot create filesystem image: %v", err)
 	}
 
