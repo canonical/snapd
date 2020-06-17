@@ -23,6 +23,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"testing"
 
 	. "gopkg.in/check.v1"
 
@@ -48,6 +49,8 @@ type installTestSuite struct {
 }
 
 var _ = Suite(&installTestSuite{})
+
+func TestRun(t *testing.T) { TestingT(t) }
 
 func (s *installTestSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
