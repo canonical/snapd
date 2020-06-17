@@ -225,7 +225,7 @@ func (s *systemUserSuite) TestUntilWithModels(c *C) {
 
 var serialsLine = "serials:\n  - 7c7f435d-ed28-4281-bd77-e271e0846904\n"
 
-func (s *systemUserSuite) TestDecodeInvalidFormat1(c *C) {
+func (s *systemUserSuite) TestDecodeInvalidFormat1Serials(c *C) {
 	s.systemUserStr = strings.Replace(s.systemUserStr, s.formatLine, "format: 1\n", 1)
 	serialWithMultipleModels := "models:\n  - m1\n  - m2\n" + serialsLine
 
@@ -239,7 +239,7 @@ func (s *systemUserSuite) TestDecodeInvalidFormat1(c *C) {
 	}
 }
 
-func (s *systemUserSuite) TestDecodeOKFormat1(c *C) {
+func (s *systemUserSuite) TestDecodeOKFormat1Serials(c *C) {
 	s.systemUserStr = strings.Replace(s.systemUserStr, s.formatLine, "format: 1\n", 1)
 
 	s.systemUserStr = strings.Replace(s.systemUserStr, s.modelsLine, s.modelsLine+serialsLine, 1)
