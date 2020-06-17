@@ -158,9 +158,7 @@ func CloudInitStatus() (CloudInitState, error) {
 	case "done":
 		return CloudInitDone, nil
 	// "running" and "not run" are considered Enabled, see doc-comment
-	case "running":
-		fallthrough
-	case "not run":
+	case "running", "not run":
 		fallthrough
 	default:
 		// these states are all
