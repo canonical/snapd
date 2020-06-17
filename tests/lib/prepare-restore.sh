@@ -383,6 +383,8 @@ prepare_project() {
                 ls -lR /var/lib/snapd || true
                 journalctl -b | tail -100 || true
                 cat /var/lib/snapd/state.json || true
+                echo "apt terminal output"
+                cat /var/log/apt/term.log || true
                 exit 1
             fi
             ;;
