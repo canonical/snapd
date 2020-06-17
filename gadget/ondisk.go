@@ -117,6 +117,8 @@ func isCreatedDuringInstall(p *sfdiskPartition, fs *lsblkBlockDevice, sfdiskLabe
 	return false
 }
 
+// TODO: consider looking into merging LaidOutVolume/Structure OnDiskVolume/Structure
+
 // OnDiskStructure represents a gadget structure laid on a block device.
 type OnDiskStructure struct {
 	LaidOutStructure
@@ -168,6 +170,8 @@ var (
 	ensureNodesExist = ensureNodesExistImpl
 )
 
+// TODO: move CreateMissing to gadget/install
+
 // CreateMissing creates the partitions listed in the positioned volume pv
 // that are missing from the existing device layout.
 func (dl *OnDiskVolume) CreateMissing(pv *LaidOutVolume) ([]OnDiskStructure, error) {
@@ -198,6 +202,8 @@ func (dl *OnDiskVolume) CreateMissing(pv *LaidOutVolume) ([]OnDiskStructure, err
 
 	return created, nil
 }
+
+// TODO: move RemoveCreated to gadget/install
 
 // RemoveCreated removes partitions added during a previous failed install
 // attempt.
