@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,7 +17,7 @@
  *
  */
 
-package cmdutil_test
+package snapdtool_test
 
 import (
 	"io/ioutil"
@@ -25,33 +25,33 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/cmd/cmdutil"
+	"github.com/snapcore/snapd/snapdtool"
 )
 
-type versionSuite struct{}
+type infoFileSuite struct{}
 
-var _ = Suite(&versionSuite{})
+var _ = Suite(&infoFileSuite{})
 
-func (s *versionSuite) TestNoVersionFile(c *C) {
-	_, err := cmdutil.SnapdVersionFromInfoFile("/non-existing-file")
+func (s *infoFileSuite) TestNoVersionFile(c *C) {
+	_, err := snapdtool.SnapdVersionFromInfoFile("/non-existing-file")
 	c.Assert(err, ErrorMatches, `cannot open snapd info file "/non-existing-file":.*`)
 }
 
-func (s *versionSuite) TestNoVersionData(c *C) {
+func (s *infoFileSuite) TestNoVersionData(c *C) {
 	top := c.MkDir()
 	infoFile := filepath.Join(top, "info")
 	c.Assert(ioutil.WriteFile(infoFile, []byte("foo"), 0644), IsNil)
 
-	_, err := cmdutil.SnapdVersionFromInfoFile(infoFile)
+	_, err := snapdtool.SnapdVersionFromInfoFile(infoFile)
 	c.Assert(err, ErrorMatches, `cannot find snapd version information in "foo"`)
 }
 
-func (s *versionSuite) TestVersionHappy(c *C) {
+func (s *infoFileSuite) TestVersionHappy(c *C) {
 	top := c.MkDir()
 	infoFile := filepath.Join(top, "info")
 	c.Assert(ioutil.WriteFile(infoFile, []byte("VERSION=1.2.3"), 0644), IsNil)
 
-	ver, err := cmdutil.SnapdVersionFromInfoFile(infoFile)
+	ver, err := snapdtool.SnapdVersionFromInfoFile(infoFile)
 	c.Assert(err, IsNil)
 	c.Check(ver, Equals, "1.2.3")
 }
