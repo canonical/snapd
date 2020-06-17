@@ -35,11 +35,10 @@ import (
 // run for services listed in names attribute, or for all services of the snap
 // if names is empty.
 type ServiceAction struct {
-	SnapName       string                 `json:"snap-name"`
-	Action         string                 `json:"action"`
-	ActionModifier string                 `json:"action-modifier,omitempty"`
-	Services       []string               `json:"names,omitempty"`
-	StopReason     snap.ServiceStopReason `json:"stop-reason,omitempty"`
+	SnapName       string   `json:"snap-name"`
+	Action         string   `json:"action"`
+	ActionModifier string   `json:"action-modifier,omitempty"`
+	Services       []string `json:"names,omitempty"`
 }
 
 func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
@@ -94,11 +93,7 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 		flags := &wrappers.StopServicesFlags{
 			Disable: (sc.ActionModifier == "disable"),
 		}
-		reason := sc.StopReason
-		if reason == "" {
-			reason = snap.StopReasonUserAction
-		}
-		if err := wrappers.StopServices(services, flags, reason, meter, perfTimings); err != nil {
+		if err := wrappers.StopServices(services, flags, snap.StopReasonOther, meter, perfTimings); err != nil {
 			return err
 		}
 	case "start":

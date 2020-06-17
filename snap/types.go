@@ -139,10 +139,10 @@ func (confinementType *ConfinementType) fromString(str string) error {
 type ServiceStopReason string
 
 const (
-	StopReasonRefresh    ServiceStopReason = "refresh"
-	StopReasonRemove     ServiceStopReason = "remove"
-	StopReasonDisable    ServiceStopReason = "disable"
-	StopReasonUserAction ServiceStopReason = "user"
+	StopReasonRefresh ServiceStopReason = "refresh"
+	StopReasonRemove  ServiceStopReason = "remove"
+	StopReasonDisable ServiceStopReason = "disable"
+	StopReasonOther   ServiceStopReason = ""
 )
 
 // DaemonScope represents the scope of the daemon running under systemd
