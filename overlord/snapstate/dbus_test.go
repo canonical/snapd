@@ -241,8 +241,7 @@ apps:
 }
 
 func (s *snapmgrTestSuite) TestInstallDBusActivationConflicts(c *C) {
-	otherSnap, err := snap.InfoFromSnapYaml([]byte(`name: other-snap\n
-slots:
+	yamlFragment := `slots:
   dbus-slot:
     interface: dbus
     bus: system
@@ -251,10 +250,16 @@ apps:
   daemon:
     daemon: simple
     activates-on: [dbus-slot]
-`))
+`
+	someSnap, err := snap.InfoFromSnapYaml([]byte("name: some-snap\n" + yamlFragment))
 	c.Assert(err, IsNil)
+	otherSnap, err := snap.InfoFromSnapYaml([]byte("name: other-snap\n" + yamlFragment))
+	c.Assert(err, IsNil)
+
 	restore := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
 		switch name {
+		case "some-snap":
+			return someSnap, nil
 		case "other-snap":
 			return otherSnap, nil
 		default:
@@ -281,7 +286,67 @@ apps:
 	tr.Set("core", "experimental.dbus-activation", true)
 	tr.Commit()
 
-	opts := &snapstate.RevisionOptions{Channel: "channel-for-dbus-activation"}
-	_, err = snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `snap "some-snap" requesting to activate on system bus name "org.example.Foo" conflicts with snap "other-snap" use`)
+	ts, err := snapstate.Install(context.Background(), s.state, "some-snap", nil, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("install", "install snap")
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n- Make snap "some-snap" \(11\) available to the system \(snap "some-snap" requesting to activate on system bus name "org.example.Foo" conflicts with snap "other-snap" use\)`)
+}
+
+func (s *snapmgrTestSuite) TestInstallManyDBusActivationConflicts(c *C) {
+	yamlFragment := `slots:
+  dbus-slot:
+    interface: dbus
+    bus: system
+    name: org.example.Foo
+apps:
+  daemon:
+    daemon: simple
+    activates-on: [dbus-slot]
+`
+	someSnap, err := snap.InfoFromSnapYaml([]byte("name: some-snap\n" + yamlFragment))
+	c.Assert(err, IsNil)
+	otherSnap, err := snap.InfoFromSnapYaml([]byte("name: other-snap\n" + yamlFragment))
+	c.Assert(err, IsNil)
+
+	restore := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+		switch name {
+		case "some-snap":
+			return someSnap, nil
+		case "other-snap":
+			return otherSnap, nil
+		default:
+			return s.fakeBackend.ReadInfo(name, si)
+		}
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.dbus-activation", true)
+	tr.Commit()
+
+	snapNames := []string{"some-snap", "other-snap"}
+	_, tss, err := snapstate.InstallMany(s.state, snapNames, s.user.ID)
+	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("install", "install two snaps")
+	for _, ts := range tss {
+		chg.AddAll(ts)
+	}
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	// The order of installation is indeterminant, but one will fail
+	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n- Make snap "(some|other)-snap" \(11\) available to the system \(snap "(some|other)-snap" requesting to activate on system bus name "org.example.Foo" conflicts with snap "(some|other)-snap" use\)`)
 }

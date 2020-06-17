@@ -604,9 +604,6 @@ func checkInstallPreconditions(st *state.State, info *snap.Info, flags Flags, sn
 	if err := validateFeatureFlags(st, info); err != nil {
 		return err
 	}
-	if err := checkDBusServiceConflicts(st, info); err != nil {
-		return err
-	}
 	return nil
 }
 
