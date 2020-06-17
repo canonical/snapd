@@ -68,6 +68,7 @@ func (s *serviceControlSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
 	dirs.SetRootDir(c.MkDir())
+	s.AddCleanup(func() { dirs.SetRootDir("") })
 
 	s.o = overlord.Mock()
 	s.state = s.o.State()
@@ -102,17 +103,11 @@ func (s *serviceControlSuite) mockTestSnap(c *C) {
 		SnapType: "app",
 	})
 
+	// mock systemd service units, this is required when testing "stop"
 	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc/systemd/system/"), 0775)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "etc/systemd/system/snap.test-snap.foo.service"), nil, 0644)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "etc/systemd/system/snap.test-snap.boo.service"), nil, 0644)
-	c.Assert(err, IsNil)
-}
-
-func (s *serviceControlSuite) TearDownTest(c *C) {
-	dirs.SetRootDir("")
-	s.BaseTest.TearDownTest(c)
 }
 
 func (s *serviceControlSuite) TestNoServiceCommandError(c *C) {
@@ -311,10 +306,39 @@ func (s *serviceControlSuite) TestStartEnableServices(c *C) {
 	st.Lock()
 
 	c.Assert(t.Status(), Equals, state.DoneStatus)
-	// XXX
 	c.Check(s.sysctlArgs, DeepEquals, [][]string{
 		{"--root", dirs.GlobalRootDir, "is-enabled", "snap.test-snap.foo.service"},
 		{"start", "snap.test-snap.foo.service"},
+	})
+}
+
+func (s *serviceControlSuite) TestStartEnableMultipleServices(c *C) {
+	st := s.state
+	st.Lock()
+
+	s.mockTestSnap(c)
+
+	chg := st.NewChange("service-control", "...")
+	t := st.NewTask("service-control", "...")
+	cmd := &servicestate.ServiceAction{
+		SnapName:       "test-snap",
+		Action:         "start",
+		ActionModifier: "enable",
+	}
+	t.Set("service-action", cmd)
+	chg.AddTask(t)
+
+	st.Unlock()
+	defer s.se.Stop()
+	c.Assert(s.o.Settle(5*time.Second), IsNil)
+	st.Lock()
+
+	c.Assert(t.Status(), Equals, state.DoneStatus)
+	c.Check(s.sysctlArgs, DeepEquals, [][]string{
+		{"--root", dirs.GlobalRootDir, "is-enabled", "snap.test-snap.foo.service"},
+		{"--root", dirs.GlobalRootDir, "is-enabled", "snap.test-snap.bar.service"},
+		{"start", "snap.test-snap.foo.service"},
+		{"start", "snap.test-snap.bar.service"},
 	})
 }
 
