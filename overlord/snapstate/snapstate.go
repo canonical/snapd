@@ -597,8 +597,13 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 	return nil
 }
 
-func checkInstallPreconditions(st *state.State, info *snap.Info, flags Flags, snapst *SnapState, deviceCtx DeviceContext) error {
-	if err := validateInfoAndFlags(info, snapst, flags); err != nil {
+func ensureInstallPreconditions(st *state.State, info *snap.Info, flags *Flags, snapst *SnapState, deviceCtx DeviceContext) error {
+	if flags.Classic && !info.NeedsClassic() {
+		// snap does not require classic confinement, silently drop the flag
+		flags.Classic = false
+	}
+
+	if err := validateInfoAndFlags(info, snapst, *flags); err != nil {
 		return err
 	}
 	if err := validateFeatureFlags(st, info); err != nil {
@@ -672,12 +677,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 	}
 	info.InstanceKey = instanceKey
 
-	if flags.Classic && !info.NeedsClassic() {
-		// snap does not require classic confinement, silently drop the flag
-		flags.Classic = false
-	}
-	// TODO: integrate classic override with the helper
-	if err := checkInstallPreconditions(st, info, flags, &snapst, deviceCtx); err != nil {
+	if err := ensureInstallPreconditions(st, info, &flags, &snapst, deviceCtx); err != nil {
 		return nil, nil, err
 	}
 	// this might be a refresh; check the epoch before proceeding
@@ -763,12 +763,7 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 		return nil, fmt.Errorf("unexpected snap type %q, instead of 'base'", info.GetType())
 	}
 
-	if flags.Classic && !info.NeedsClassic() {
-		// snap does not require classic confinement, silently drop the flag
-		flags.Classic = false
-	}
-	// TODO: integrate classic override with the helper
-	if err := checkInstallPreconditions(st, info, flags, &snapst, deviceCtx); err != nil {
+	if err := ensureInstallPreconditions(st, info, &flags, &snapst, deviceCtx); err != nil {
 		return nil, err
 	}
 
@@ -840,7 +835,7 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 		var snapst SnapState
 		var flags Flags
 
-		if err := checkInstallPreconditions(st, info, flags, &snapst, deviceCtx); err != nil {
+		if err := ensureInstallPreconditions(st, info, &flags, &snapst, deviceCtx); err != nil {
 			return nil, nil, err
 		}
 
@@ -1026,7 +1021,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 		revnoOpts, flags, snapst := params(update)
 		flags.IsAutoRefresh = globalFlags.IsAutoRefresh
 
-		if err := checkInstallPreconditions(st, update, flags, snapst, deviceCtx); err != nil {
+		if err := ensureInstallPreconditions(st, update, &flags, snapst, deviceCtx); err != nil {
 			if refreshAll {
 				logger.Noticef("cannot update %q: %v", update.InstanceName(), err)
 				continue
