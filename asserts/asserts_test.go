@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2016 Canonical Ltd
+ * Copyright (C) 2015-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -70,6 +70,7 @@ func (as *assertsSuite) TestTypeNames(c *C) {
 		"test-only-no-authority-pk",
 		"test-only-rev",
 		"validation",
+		"validation-set",
 	})
 }
 
@@ -945,6 +946,7 @@ func (as *assertsSuite) TestWithAuthority(c *C) {
 		"serial",
 		"system-user",
 		"validation",
+		"validation-set",
 		"repair",
 	}
 	c.Check(withAuthority, HasLen, asserts.NumAssertionType-3) // excluding device-session-request, serial-request, account-key-request
