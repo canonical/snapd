@@ -20,6 +20,7 @@
 package strutil
 
 import (
+	"bytes"
 	"fmt"
 	"sort"
 	"strconv"
@@ -202,4 +203,25 @@ func ElliptLeft(str string, n int) string {
 	}
 
 	return "…" + string(rstr[len(rstr)-n+1:])
+}
+
+// EncodeHexBlkIDFormat encodes a name for use as a partition or filesystem
+// label symlink by udev. The result matches the output of blkid_encode_string()
+// from libblkid.
+func EncodeHexBlkIDFormat(in string) string {
+	const allowed = `#+-.:=@_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789`
+
+	buf := &bytes.Buffer{}
+
+	for _, r := range in {
+		switch {
+		case utf8.RuneLen(r) > 1:
+			buf.WriteRune(r)
+		case !strings.ContainsRune(allowed, r):
+			fmt.Fprintf(buf, `\x%x`, r)
+		default:
+			buf.WriteRune(r)
+		}
+	}
+	return buf.String()
 }

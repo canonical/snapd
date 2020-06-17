@@ -35,8 +35,6 @@ var (
 	CanUpdateStructure = canUpdateStructure
 	CanUpdateVolume    = canUpdateVolume
 
-	EncodeLabel = encodeLabel
-
 	WriteFile      = writeFileOrSymlink
 	WriteDirectory = writeDirectory
 
