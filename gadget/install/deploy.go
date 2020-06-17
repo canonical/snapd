@@ -52,7 +52,7 @@ func MakeFilesystem(ds *gadget.OnDiskStructure) error {
 	return nil
 }
 
-// DeployContent populates the give on-disk structure, according to the contents
+// DeployContent populates the given on-disk structure, according to the contents
 // defined in the gadget.
 func DeployContent(ds *gadget.OnDiskStructure, gadgetRoot string) error {
 	switch {
@@ -71,8 +71,8 @@ func DeployContent(ds *gadget.OnDiskStructure, gadgetRoot string) error {
 	return nil
 }
 
-// MountFilesystem mounts the on-disk structure filesystem, using the label
-// defined in the gadget as the mount point name.
+// MountFilesystem mounts the on-disk structure filesystem under the given base
+// directory, using the label defined in the gadget as the mount point name.
 func MountFilesystem(ds *gadget.OnDiskStructure, baseMntPoint string) error {
 	if !ds.HasFilesystem() {
 		return fmt.Errorf("cannot mount a partition with no filesystem")
