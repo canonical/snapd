@@ -52,9 +52,9 @@ type Options struct {
 // Disk is a single physical disk device that contains partitions.
 type Disk interface {
 	// FindMatchingPartitionUUID finds the partition uuid for a partition
-	// matching the specified label on the disk. Note that for non-ascii labels
-	// like "Some label", the label should be encoded using \x<hex> for
-	// potentially non-safe characters like in "Some\x20Label".
+	// matching the specified filesystem label on the disk. Note that for
+	// non-ascii labels like "Some label", the label will be encoded using
+	// \x<hex> for potentially non-safe characters like in "Some\x20Label".
 	FindMatchingPartitionUUID(string) (string, error)
 
 	// MountPointIsFromDisk returns whether the specified mountpoint corresponds
@@ -85,6 +85,8 @@ func parseDeviceMajorMinor(s string) (int, int, error) {
 }
 
 var udevadmProperties = func(device string) ([]byte, error) {
+	// TODO: maybe combine with gadget interfaces hotplug code where the udev
+	// db is parsed?
 	cmd := exec.Command("udevadm", "info", "--query", "property", "--name", device)
 	return cmd.CombinedOutput()
 }
@@ -123,9 +125,9 @@ func DiskFromMountPoint(mountpoint string, opts *Options) (Disk, error) {
 type disk struct {
 	major int
 	minor int
-	// partitions is a map of label -> partition uuid for now
+	// fsLabelToPartUUID is a map of filesystem label -> partition uuid for now
 	// eventually this may be expanded to be more generally useful
-	partitions map[string]string
+	fsLabelToPartUUID map[string]string
 }
 
 // diskFromMountPointImpl returns a Disk for the underlying mount source of the
@@ -199,9 +201,10 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 }
 
 func (d *disk) FindMatchingPartitionUUID(label string) (string, error) {
+	encodedLabel := EncodeHexBlkIDFormat(label)
 	// if we haven't found the partitions for this disk yet, do that now
-	if d.partitions == nil {
-		d.partitions = make(map[string]string)
+	if d.fsLabelToPartUUID == nil {
+		d.fsLabelToPartUUID = make(map[string]string)
 		// step 1. find all devices with a matching major number
 		// step 2. start at the major + minor device for the disk, and iterate over
 		//         all devices that have a partition attribute, starting with the
@@ -209,9 +212,9 @@ func (d *disk) FindMatchingPartitionUUID(label string) (string, error) {
 		// step 3. if we hit a device that does not have a partition attribute, then
 		//         we hit another disk, and shall stop searching
 
-		// TODO: are there devices that have structures on them that show up as
-		//       contiguous devices but are _not_ partitions, i.e. some littlekernel
-		//       devices?
+		// note that this code assumes that all contiguous major / minor devices
+		// belong to the same physical device, even with MBR and
+		// logical/extended partition nodes jumping to i.e. /dev/sd*5
 
 		// start with the minor + 1, since the major + minor of the disk we have
 		// itself is not a partition
@@ -233,12 +236,15 @@ func (d *disk) FindMatchingPartitionUUID(label string) (string, error) {
 				break
 			}
 
-			label := props["ID_FS_LABEL"]
-			if label == "" {
-				// this partition does not have a filesystem, and thus doesn't have
-				// a filesystem label - this is not fatal, i.e. the bios-boot
-				// partition does not have a filesystem label but it is the first
-				// structure and so we should just skip it
+			// TODO: maybe save ID_PART_ENTRY_NAME here too, which is the name
+			//       of the partition. this may be useful if this function gets
+			//       used in the gadget update code
+			fsLabelEnc := props["ID_FS_LABEL_ENC"]
+			if fsLabelEnc == "" {
+				// this partition does not have a filesystem, and thus doesn't
+				// have a filesystem label - this is not fatal, i.e. the
+				// bios-boot partition does not have a filesystem label but it
+				// is the first structure and so we should just skip it
 				continue
 			}
 
@@ -247,20 +253,20 @@ func (d *disk) FindMatchingPartitionUUID(label string) (string, error) {
 				return "", fmt.Errorf("cannot get udev properties for partition %s, missing udev property \"ID_PART_ENTRY_UUID\"", partMajMin)
 			}
 
-			// unclear how we can have multiple partitions on same disk with
-			// same label, but don't overwrite it and use the first one we find
-			if d.partitions[label] == "" {
-				d.partitions[label] = partuuid
-			}
+			// we always overwrite the fsLabelEnc with the last one, this has
+			// the result that the last partition with a given filesystem label
+			// will be set/found
+			// this matches what udev does with the symlinks in /dev
+			d.fsLabelToPartUUID[fsLabelEnc] = partuuid
 		}
 	}
 
 	// if we didn't find any partitions from above then return an error
-	if len(d.partitions) == 0 {
+	if len(d.fsLabelToPartUUID) == 0 {
 		return "", fmt.Errorf("no partitions found for disk %s", d.Dev())
 	}
 
-	if partuuid, ok := d.partitions[label]; ok {
+	if partuuid, ok := d.fsLabelToPartUUID[encodedLabel]; ok {
 		return partuuid, nil
 	}
 
