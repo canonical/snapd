@@ -201,7 +201,7 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 }
 
 func (d *disk) FindMatchingPartitionUUID(label string) (string, error) {
-	encodedLabel := EncodeHexBlkIDFormat(label)
+	encodedLabel := BlkIDEncodeLabel(label)
 	// if we haven't found the partitions for this disk yet, do that now
 	if d.fsLabelToPartUUID == nil {
 		d.fsLabelToPartUUID = make(map[string]string)

@@ -26,10 +26,10 @@ import (
 	"unicode/utf8"
 )
 
-// EncodeHexBlkIDFormat encodes a name for use as a partition or filesystem
+// BlkIDEncodeLabel encodes a name for use as a partition or filesystem
 // label symlink by udev. The result matches the output of blkid_encode_string()
 // from libblkid.
-func EncodeHexBlkIDFormat(in string) string {
+func BlkIDEncodeLabel(in string) string {
 	const allowed = `#+-.:=@_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789`
 
 	buf := &bytes.Buffer{}
