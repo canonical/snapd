@@ -25,7 +25,7 @@ var (
 	NewEncryptedDevice        = newEncryptedDevice
 
 	MakeFilesystem  = makeFilesystem
-	DeployContent   = deployContent
+	WriteContent    = writeContent
 	MountFilesystem = mountFilesystem
 )
 
