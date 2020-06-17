@@ -83,9 +83,6 @@ func (s *sysconfigSuite) TestCloudInitInstalls(c *C) {
 }
 
 func (s *sysconfigSuite) TestCloudInitStatusUnhappy(c *C) {
-	old := dirs.GlobalRootDir
-	dirs.SetRootDir(c.MkDir())
-	defer func() { dirs.SetRootDir(old) }()
 	cmd := testutil.MockCommand(c, "cloud-init", `
 echo cloud-init borken
 exit 1
@@ -139,10 +136,9 @@ func (s *sysconfigSuite) TestCloudInitStatus(c *C) {
 			exp:             sysconfig.CloudInitUntriggered,
 		},
 		{
-			comment:         "disabled permanently via file",
-			cloudInitOutput: "status: disabled",
-			disabledFile:    true,
-			exp:             sysconfig.CloudInitDisabledPermanently,
+			comment:      "disabled permanently via file",
+			disabledFile: true,
+			exp:          sysconfig.CloudInitDisabledPermanently,
 		},
 		{
 			comment:         "errored",
