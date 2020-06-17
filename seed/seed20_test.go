@@ -704,7 +704,8 @@ func (s *seed20Suite) TestLoadEssentialMetaCore20(c *C) {
 	s.makeSnap(c, "core20", "")
 	s.makeSnap(c, "pc-kernel=20", "")
 	s.makeSnap(c, "pc=20", "")
-	s.makeSnap(c, "required20", "developerid")
+	s.makeSnap(c, "core18", "")
+	s.makeSnap(c, "required18", "developerid")
 
 	sysLabel := "20191018"
 	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
@@ -725,8 +726,13 @@ func (s *seed20Suite) TestLoadEssentialMetaCore20(c *C) {
 				"default-channel": "20",
 			},
 			map[string]interface{}{
-				"name": "required20",
-				"id":   s.AssertedSnapID("required20"),
+				"name": "core18",
+				"id":   s.AssertedSnapID("core18"),
+				"type": "base",
+			},
+			map[string]interface{}{
+				"name": "required18",
+				"id":   s.AssertedSnapID("required18"),
 			}},
 	}, nil)
 
@@ -761,11 +767,16 @@ func (s *seed20Suite) TestLoadEssentialMetaCore20(c *C) {
 		Required:      true,
 		Channel:       "20",
 	}
-	required20Snap := &seed.Snap{
-		Path: s.expectedPath("required20"),
+	core18Snap := &seed.Snap{
+		// no EssentialType, so it's always hidden, shouldn't matter
+		// because we should not look at it
+		Path: s.expectedPath("core18"),
+	}
+	required18Snap := &seed.Snap{
+		Path: s.expectedPath("required18"),
 	}
 
-	all := []*seed.Snap{snapdSnap, pcKernelSnap, core20Snap, pcSnap, required20Snap}
+	all := []*seed.Snap{snapdSnap, pcKernelSnap, core20Snap, pcSnap, core18Snap, required18Snap}
 
 	tests := []struct {
 		onlyTypes []snap.Type

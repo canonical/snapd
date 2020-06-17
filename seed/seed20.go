@@ -448,8 +448,16 @@ func (s *seed20) loadModelMeta(filterEssential func(*asserts.ModelSnap) bool, tm
 		}
 	}
 
+	modelSnaps := allSnaps
+	if essentialOnly {
+		// TODO:UC20: maybe just have Model.EssentialSnaps ?
+		expectedEssentialSnaps := len(model.RequiredWithEssentialSnaps()) - len(model.RequiredNoEssentialSnaps())
+		// we don't need to look further than the essential snaps
+		modelSnaps = modelSnaps[:expectedEssentialSnaps]
+	}
+
 	essential := true
-	for _, modelSnap := range allSnaps {
+	for _, modelSnap := range modelSnaps {
 		seedSnap, err := s.addModelSnap(modelSnap, essential, filter, tm)
 		if err != nil {
 			if err == errFiltered {
