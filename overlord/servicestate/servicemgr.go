@@ -49,7 +49,7 @@ func (m *ServiceManager) Ensure() error {
 
 func delayedCrossMgrInit() {
 	// hook into conflict checks mechanisms
-	snapstate.AddAffectedSnapsByKind("service-control", serviceControlAffectedSnaps)
+	snapstate.AddAffectedSnapsByAttr("service-action", serviceControlAffectedSnaps)
 }
 
 func serviceControlAffectedSnaps(t *state.Task) ([]string, error) {
