@@ -25,13 +25,16 @@ import (
 	"path/filepath"
 	"strconv"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/internal"
 )
 
-var (
-	contentMountpoint = "/run/snapd/gadget-install"
-)
+var contentMountpoint string
+
+func init() {
+	contentMountpoint = filepath.Join(dirs.SnapRunDir, "gadget-install")
+}
 
 // MakeFilesystem creates a filesystem on the on-disk structure, according
 // to the filesystem type defined in the gadget.
