@@ -136,13 +136,30 @@ func (spec *Specification) AddDeduplicatedSnippet(snippet string) {
 	}
 }
 
-func (spec *Specification) AddParametricSnippet(template, value string) {
-	if !strings.Contains(template, "###PARAM###") {
-		panic(fmt.Sprintf("template %q does not contain ###PARAM###", template))
-	}
+func (spec *Specification) AddParametricSnippet(templateFragment []string, value string) {
 	if len(spec.securityTags) == 0 {
 		return
 	}
+
+	// We need to build a temlate string from the templateFragment.
+	//
+	// If only a single fragment is given we just  append our "###PARM###":
+	//  []string{"prefix"} becomes -> "prefix###PARAM###"
+	//
+	// Otherwise we join the strings:
+	//  []string{"pre","post"} becomes -> "pre###PARAM###post"
+	//
+	// This seems to be the most natural way of doing this.
+	var template string
+	switch len(templateFragment) {
+	case 0:
+		return
+	case 1:
+		template = templateFragment[0] + "###PARAM###"
+	default:
+		template = strings.Join(templateFragment, "###PARAM###")
+	}
+
 	// Expand the spec's parametric snippets, initializing each
 	// part of the map as needed
 	if spec.parametricSnippets == nil {
