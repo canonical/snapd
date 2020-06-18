@@ -485,6 +485,8 @@ func (s *serviceControlSuite) TestUpdateSnapstateServices(c *C) {
 		expectedSnapstateDisabled []string
 		changed                   bool
 	}{
+		// These test scenarios share a single SnapState instance and accumulate
+		// changes to ServicesEnabledByHooks and ServicesDisabledByHooks.
 		{
 			changed: false,
 		},
