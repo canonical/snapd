@@ -84,7 +84,9 @@ func (iface *spiInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 		return nil
 	}
 	spec.AddSnippet(fmt.Sprintf("%s rw,", path))
-	spec.AddParametricSnippet([]string{"/sys/devices/platform/**/**.spi/**/", "/** rw,"}, strings.TrimPrefix(path, "/dev/"))
+	spec.AddParametricSnippet([]string{
+		"/sys/devices/platform/**/**.spi/**/" /* ###PARAM### */, "/** rw,  # Add any condensed parametric rules",
+	}, strings.TrimPrefix(path, "/dev/"))
 	return nil
 }
 
