@@ -59,9 +59,7 @@ show_help() {
     echo "$ cleanup_nested_env"
 }
 
-if [ -n "$1" ] && [ "$1" == '--help' ]; then
-    show_help
-fi 
+show_help
 
 # shellcheck source=tests/lib/systemd.sh
 . "$TESTSLIB"/systemd.sh
