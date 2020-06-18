@@ -19,6 +19,12 @@
 
 package install
 
+import (
+	"time"
+
+	"github.com/snapcore/snapd/gadget"
+)
+
 var (
 	EnsureLayoutCompatibility = ensureLayoutCompatibility
 	DeviceFromRole            = deviceFromRole
@@ -27,6 +33,10 @@ var (
 	MakeFilesystem  = makeFilesystem
 	WriteContent    = writeContent
 	MountFilesystem = mountFilesystem
+
+	CreateMissing    = createMissing
+	RemoveCreated    = removeCreated
+	EnsureNodesExist = ensureNodesExist
 )
 
 func MockContentMountpoint(new string) (restore func()) {
@@ -50,5 +60,21 @@ func MockSysUnmount(f func(target string, flags int) error) (restore func()) {
 	sysUnmount = f
 	return func() {
 		sysUnmount = old
+	}
+}
+
+func MockEnsureNodesExist(f func(dss []gadget.OnDiskStructure, timeout time.Duration) error) (restore func()) {
+	old := ensureNodesExist
+	ensureNodesExist = f
+	return func() {
+		ensureNodesExist = old
+	}
+}
+
+func MockInternalUdevTrigger(f func(node string) error) (restore func()) {
+	old := internalUdevTrigger
+	internalUdevTrigger = f
+	return func() {
+		internalUdevTrigger = old
 	}
 }
