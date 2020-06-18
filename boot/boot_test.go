@@ -222,12 +222,12 @@ func setupUC20Bootenv(c *C, bl bootloader.Bootloader, opts *bootenv20Setup) (res
 	case *bootloadertest.MockExtractedRunKernelImageBootloader:
 		// then we can use the advanced methods on it
 		if opts.kern != nil {
-			r := vbl.SetRunKernelImageEnabledKernel(opts.kern)
+			r := vbl.SetEnabledKernel(opts.kern)
 			cleanups = append(cleanups, r)
 		}
 
 		if opts.tryKern != nil {
-			r := vbl.SetRunKernelImageEnabledTryKernel(opts.tryKern)
+			r := vbl.SetEnabledTryKernel(opts.tryKern)
 			cleanups = append(cleanups, r)
 		}
 

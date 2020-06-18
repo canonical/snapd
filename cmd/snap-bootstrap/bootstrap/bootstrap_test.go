@@ -29,7 +29,6 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/bootstrap"
-	"github.com/snapcore/snapd/cmd/snap-bootstrap/partition"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/testutil"
@@ -85,8 +84,8 @@ const mockExtraStructure = `
         size: 1200M
 `
 
-var mockDeviceLayout = partition.DeviceLayout{
-	Structure: []partition.DeviceStructure{
+var mockDeviceLayout = gadget.OnDiskVolume{
+	Structure: []gadget.OnDiskStructure{
 		{
 			LaidOutStructure: gadget.LaidOutStructure{
 				VolumeStructure: &gadget.VolumeStructure{
@@ -128,7 +127,7 @@ func (s *bootstrapSuite) TestLayoutCompatibility(c *C) {
 
 	deviceLayoutWithExtras := mockDeviceLayout
 	deviceLayoutWithExtras.Structure = append(deviceLayoutWithExtras.Structure,
-		partition.DeviceStructure{
+		gadget.OnDiskStructure{
 			LaidOutStructure: gadget.LaidOutStructure{
 				VolumeStructure: &gadget.VolumeStructure{
 					Name:  "Extra partition",
@@ -168,8 +167,8 @@ func (s *bootstrapSuite) TestMBRLayoutCompatibility(c *C) {
         offset: 1M
         offset-write: mbr+92
 `
-	var mockMBRDeviceLayout = partition.DeviceLayout{
-		Structure: []partition.DeviceStructure{
+	var mockMBRDeviceLayout = gadget.OnDiskVolume{
+		Structure: []gadget.OnDiskStructure{
 			{
 				LaidOutStructure: gadget.LaidOutStructure{
 					VolumeStructure: &gadget.VolumeStructure{
@@ -211,7 +210,7 @@ func (s *bootstrapSuite) TestMBRLayoutCompatibility(c *C) {
 	// add it now
 	deviceLayoutWithExtras := mockMBRDeviceLayout
 	deviceLayoutWithExtras.Structure = append(deviceLayoutWithExtras.Structure,
-		partition.DeviceStructure{
+		gadget.OnDiskStructure{
 			LaidOutStructure: gadget.LaidOutStructure{
 				VolumeStructure: &gadget.VolumeStructure{
 					// name is ignored with MBR schema
@@ -230,7 +229,7 @@ func (s *bootstrapSuite) TestMBRLayoutCompatibility(c *C) {
 	c.Assert(err, IsNil)
 	// add another structure that's not part of the gadget
 	deviceLayoutWithExtras.Structure = append(deviceLayoutWithExtras.Structure,
-		partition.DeviceStructure{
+		gadget.OnDiskStructure{
 			LaidOutStructure: gadget.LaidOutStructure{
 				VolumeStructure: &gadget.VolumeStructure{
 					// name is ignored with MBR schema
@@ -251,7 +250,7 @@ func (s *bootstrapSuite) TestLayoutCompatibilityWithCreatedPartitions(c *C) {
 	deviceLayout := mockDeviceLayout
 	// device matches gadget except for the filesystem type
 	deviceLayout.Structure = append(deviceLayout.Structure,
-		partition.DeviceStructure{
+		gadget.OnDiskStructure{
 			LaidOutStructure: gadget.LaidOutStructure{
 				VolumeStructure: &gadget.VolumeStructure{
 					Name:       "Writable",

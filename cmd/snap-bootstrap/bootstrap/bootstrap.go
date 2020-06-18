@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/partition"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/secboot"
 )
 
@@ -77,7 +78,7 @@ func Run(gadgetRoot, device string, options Options) error {
 		}
 	}
 
-	diskLayout, err := partition.DeviceLayoutFromDisk(device)
+	diskLayout, err := gadget.OnDiskVolumeFromDevice(device)
 	if err != nil {
 		return fmt.Errorf("cannot read %v partitions: %v", device, err)
 	}
@@ -139,16 +140,16 @@ func Run(gadgetRoot, device string, options Options) error {
 			part.Node = dataPart.Node
 		}
 
-		if err := partition.MakeFilesystem(part); err != nil {
+		if err := install.MakeFilesystem(&part); err != nil {
 			return err
 		}
 
-		if err := partition.DeployContent(part, gadgetRoot); err != nil {
+		if err := install.WriteContent(&part, gadgetRoot); err != nil {
 			return err
 		}
 
 		if options.Mount && part.Label != "" && part.HasFilesystem() {
-			if err := partition.MountFilesystem(part, boot.InitramfsRunMntDir); err != nil {
+			if err := install.MountFilesystem(&part, boot.InitramfsRunMntDir); err != nil {
 				return err
 			}
 		}
@@ -205,8 +206,8 @@ func Run(gadgetRoot, device string, options Options) error {
 	return nil
 }
 
-func ensureLayoutCompatibility(gadgetLayout *gadget.LaidOutVolume, diskLayout *partition.DeviceLayout) error {
-	eq := func(ds partition.DeviceStructure, gs gadget.LaidOutStructure) bool {
+func ensureLayoutCompatibility(gadgetLayout *gadget.LaidOutVolume, diskLayout *gadget.OnDiskVolume) error {
+	eq := func(ds gadget.OnDiskStructure, gs gadget.LaidOutStructure) bool {
 		dv := ds.VolumeStructure
 		gv := gs.VolumeStructure
 		nameMatch := gv.Name == dv.Name
@@ -222,7 +223,7 @@ func ensureLayoutCompatibility(gadgetLayout *gadget.LaidOutVolume, diskLayout *p
 		}
 		return check && dv.Size == gv.Size
 	}
-	contains := func(haystack []gadget.LaidOutStructure, needle partition.DeviceStructure) bool {
+	contains := func(haystack []gadget.LaidOutStructure, needle gadget.OnDiskStructure) bool {
 		for _, h := range haystack {
 			if eq(needle, h) {
 				return true

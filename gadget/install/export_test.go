@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,31 +17,13 @@
  *
  */
 
-package partition
+package install
 
-import (
-	"time"
-)
-
-type LsblkFilesystemInfo = lsblkFilesystemInfo
-type LsblkBlockDevice = lsblkBlockDevice
-type SFDiskPartitionTable = sfdiskPartitionTable
-type SFDiskPartition = sfdiskPartition
-
-var (
-	FilesystemInfo                 = filesystemInfo
-	BuildPartitionList             = buildPartitionList
-	Mkfs                           = mkfs
-	EnsureNodesExist               = ensureNodesExist
-	DeviceLayoutFromPartitionTable = deviceLayoutFromPartitionTable
-	ListCreatedPartitions          = listCreatedPartitions
-)
-
-func MockDeployMountpoint(new string) (restore func()) {
-	old := deployMountpoint
-	deployMountpoint = new
+func MockContentMountpoint(new string) (restore func()) {
+	old := contentMountpoint
+	contentMountpoint = new
 	return func() {
-		deployMountpoint = old
+		contentMountpoint = old
 	}
 }
 
@@ -58,13 +40,5 @@ func MockSysUnmount(f func(target string, flags int) error) (restore func()) {
 	sysUnmount = f
 	return func() {
 		sysUnmount = old
-	}
-}
-
-func MockEnsureNodesExist(f func(ds []DeviceStructure, timeout time.Duration) error) (restore func()) {
-	old := ensureNodesExist
-	ensureNodesExist = f
-	return func() {
-		ensureNodesExist = old
 	}
 }
