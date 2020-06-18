@@ -320,8 +320,9 @@ func maybeWithSudoSecurePath() bool {
 	if _, isSet := os.LookupEnv("SUDO_UID"); !isSet {
 		return false
 	}
-	// Known distros setting secure_path:
-	return release.DistroLike("fedora", "opensuse")
+	// Known distros setting secure_path that does not include
+	// $SNAP_MOUNT_DIR/bin:
+	return release.DistroLike("fedora", "opensuse", "debian")
 }
 
 // show what has been done
