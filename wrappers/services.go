@@ -476,6 +476,8 @@ func StopServices(apps []*snap.AppInfo, flags *StopServicesFlags, reason snap.Se
 
 	if reason != snap.StopReasonOther {
 		logger.Debugf("StopServices called for %q, reason: %v", apps, reason)
+	} else {
+		logger.Debugf("StopServices called for %q", apps)
 	}
 	for _, app := range apps {
 		// Handle the case where service file doesn't exist and don't try to stop it as it will fail.
