@@ -567,8 +567,8 @@ install -d -p %{buildroot}%{_sysconfdir}/sysconfig
 install -d -p %{buildroot}%{_sysconfdir}/sudoers.d
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/assertions
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/cookie
-install -d -p %{buildroot}%{_sharedstatedir}/snapd/dbus/services
-install -d -p %{buildroot}%{_sharedstatedir}/snapd/dbus/system-services
+install -d -p %{buildroot}%{_sharedstatedir}/snapd/dbus-1/services
+install -d -p %{buildroot}%{_sharedstatedir}/snapd/dbus-1/system-services
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/desktop/applications
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/device
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/hostfs
@@ -777,9 +777,9 @@ popd
 %dir %{_sharedstatedir}/snapd
 %dir %{_sharedstatedir}/snapd/assertions
 %dir %{_sharedstatedir}/snapd/cookie
-%dir %{_sharedstatedir}/snapd/dbus
-%dir %{_sharedstatedir}/snapd/dbus/services
-%dir %{_sharedstatedir}/snapd/dbus/system-services
+%dir %{_sharedstatedir}/snapd/dbus-1
+%dir %{_sharedstatedir}/snapd/dbus-1/services
+%dir %{_sharedstatedir}/snapd/dbus-1/system-services
 %dir %{_sharedstatedir}/snapd/desktop
 %dir %{_sharedstatedir}/snapd/desktop/applications
 %dir %{_sharedstatedir}/snapd/device

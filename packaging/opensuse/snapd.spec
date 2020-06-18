@@ -360,9 +360,9 @@ fi
 %dir %{_sharedstatedir}/snapd/assertions
 %dir %{_sharedstatedir}/snapd/cache
 %dir %{_sharedstatedir}/snapd/cookie
-%dir %{_sharedstatedir}/snapd/dbus
-%dir %{_sharedstatedir}/snapd/dbus/services
-%dir %{_sharedstatedir}/snapd/dbus/system-services
+%dir %{_sharedstatedir}/snapd/dbus-1
+%dir %{_sharedstatedir}/snapd/dbus-1/services
+%dir %{_sharedstatedir}/snapd/dbus-1/system-services
 %dir %{_sharedstatedir}/snapd/desktop
 %dir %{_sharedstatedir}/snapd/desktop/applications
 %dir %{_sharedstatedir}/snapd/device

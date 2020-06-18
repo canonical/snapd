@@ -6,9 +6,9 @@ usr/share/dbus-1/system.d
 var/lib/snapd/apparmor/snap-confine
 var/lib/snapd/desktop/applications
 var/lib/snapd/auto-import
-var/lib/snapd/dbus
-var/lib/snapd/dbus/services
-var/lib/snapd/dbus/system-services
+var/lib/snapd/dbus-1
+var/lib/snapd/dbus-1/services
+var/lib/snapd/dbus-1/system-services
 var/lib/snapd/desktop
 var/lib/snapd/environment
 var/lib/snapd/firstboot

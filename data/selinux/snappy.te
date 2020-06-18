@@ -818,6 +818,6 @@ allow mandb_t snappy_var_lib_t:dir search_dir_perms;
 gen_require(`
 	type system_dbusd_t;
   ')
-# system dbus may look info /var/lib/snapd/dbus
+# system dbus may look info /var/lib/snapd/dbus-1
 snappy_search_lib(system_dbusd_t)
 snappy_read_lib(system_dbusd_t)
