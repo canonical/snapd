@@ -121,9 +121,9 @@ func (iface *iioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 	// iio:device3, this rule will expand to:
 	//  /sys/devices/**/{iio:device1,iio:device3}/** rwk,
 
-	spec.AddParametricSnippet("/sys/devices/**/###PARAM###/** rwk,", deviceName)
+	spec.AddParametricSnippet([]string{"/sys/devices/**/", "/** rwk,"}, deviceName)
 	// For consistency, not an efficiency problem.
-	spec.AddParametricSnippet("/sys/devices/**/###PARAM###/ r,", deviceName)
+	spec.AddParametricSnippet([]string{"/sys/devices/**/", "/ r,"}, deviceName)
 
 	return nil
 }

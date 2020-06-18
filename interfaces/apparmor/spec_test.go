@@ -157,11 +157,11 @@ func (s *specSuite) TestAddParametricSnippet(c *C) {
 	restore := apparmor.SetSpecScope(s.spec, []string{"snap.demo.command", "snap.demo.service"})
 	defer restore()
 
-	s.spec.AddParametricSnippet("prefix ###PARAM### postfix", "param1")
-	s.spec.AddParametricSnippet("prefix ###PARAM### postfix", "param1")
-	s.spec.AddParametricSnippet("prefix ###PARAM### postfix", "param2")
-	s.spec.AddParametricSnippet("prefix ###PARAM### postfix", "param2")
-	s.spec.AddParametricSnippet("other ###PARAM###", "param")
+	s.spec.AddParametricSnippet([]string{"prefix ", " postfix"}, "param1")
+	s.spec.AddParametricSnippet([]string{"prefix ", " postfix"}, "param1")
+	s.spec.AddParametricSnippet([]string{"prefix ", " postfix"}, "param2")
+	s.spec.AddParametricSnippet([]string{"prefix ", " postfix"}, "param2")
+	s.spec.AddParametricSnippet([]string{"other "}, "param")
 	c.Assert(s.spec.Snippets(), DeepEquals, map[string][]string{
 		"snap.demo.command": {"other param", "prefix {param1,param2} postfix"},
 		"snap.demo.service": {"other param", "prefix {param1,param2} postfix"},
@@ -176,7 +176,7 @@ func (s *specSuite) TestAddSnippetAndAddDeduplicatedAndParamSnippet(c *C) {
 	// Add two snippets in the context we are in.
 	s.spec.AddSnippet("normal")
 	s.spec.AddDeduplicatedSnippet("dedup")
-	s.spec.AddParametricSnippet("###PARAM###", "param")
+	s.spec.AddParametricSnippet([]string{""}, "param")
 
 	// The snippets were recorded correctly.
 	c.Assert(s.spec.UpdateNS(), HasLen, 0)
