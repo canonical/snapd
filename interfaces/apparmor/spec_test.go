@@ -155,7 +155,7 @@ func (s *specSuite) TestAddDeduplicatedSnippet(c *C) {
 	c.Assert(s.spec.SecurityTags(), DeepEquals, []string{"snap.demo.command", "snap.demo.service"})
 }
 
-// Both AddSnippet, AddDeduplicatedSnippet, AddParameticSnippet work correctly together.
+// All of AddSnippet, AddDeduplicatedSnippet, AddParameticSnippet work correctly together.
 func (s *specSuite) TestAddSnippetAndAddDeduplicatedAndParamSnippet(c *C) {
 	restore := apparmor.SetSpecScope(s.spec, []string{"snap.demo.command", "snap.demo.service"})
 	defer restore()
