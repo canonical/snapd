@@ -2436,7 +2436,7 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("no services found")
 	}
 
-	tss, err := servicestate.Control(st, appInfos, &inst, nil)
+	tss, err := servicestate.ServiceControlMany(st, appInfos, &inst, nil)
 	if err != nil {
 		// TODO: use errToResponse here too and introduce a proper error kind ?
 		if _, ok := err.(servicestate.ServiceActionConflictError); ok {

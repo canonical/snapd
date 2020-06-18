@@ -146,12 +146,36 @@ type StartServicesFlags struct {
 // are services. Service units will be started in the order provided by the
 // caller.
 func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServicesFlags, inter interacter, tm timings.Measurer) (err error) {
+	if flags == nil {
+		flags = &StartServicesFlags{}
+	}
 	systemSysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
 	userSysd := systemd.New(dirs.GlobalRootDir, systemd.GlobalUserMode, inter)
 	cli := client.New()
 
 	systemServices := make([]string, 0, len(apps))
 	userServices := make([]string, 0, len(apps))
+
+	var enabled []string
+	var userEnabled []string
+
+	defer func() {
+		if err == nil {
+			return
+		}
+
+		for _, srvName := range enabled {
+			if e := systemSysd.Disable(srvName); e != nil {
+				inter.Notify(fmt.Sprintf("While trying to disable previously enabled service %q: %v", srvName, e))
+			}
+		}
+		for _, s := range userEnabled {
+			if e := userSysd.Disable(s); e != nil {
+				inter.Notify(fmt.Sprintf("while trying to disable %s due to previous failure: %v", s, e))
+			}
+		}
+	}()
+
 	for _, app := range apps {
 		// they're *supposed* to be all services, but checking doesn't hurt
 		if !app.IsService() {
@@ -166,10 +190,38 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 			sysd = userSysd
 		}
 
+		// sockets and timers are enabled and started separately (and unconditionally) further down.
+		if len(app.Sockets) == 0 && app.Timer == nil {
+			svcName := app.ServiceName()
+
+			switch app.DaemonScope {
+			case snap.SystemDaemon:
+				if !strutil.ListContains(disabledSvcs, app.Name) {
+					if flags.Enable {
+						if err = sysd.Enable(svcName); err != nil {
+							return err
+
+						}
+						enabled = append(enabled, svcName)
+					}
+					systemServices = append(systemServices, svcName)
+				}
+			case snap.UserDaemon:
+				if flags.Enable {
+					if err := userSysd.Enable(svcName); err != nil {
+						return err
+					}
+					userEnabled = append(userEnabled, svcName)
+				}
+				userServices = append(userServices, svcName)
+			}
+		}
+
 		defer func(app *snap.AppInfo) {
 			if err == nil {
 				return
 			}
+
 			if e := stopService(sysd, app, inter); e != nil {
 				inter.Notify(fmt.Sprintf("While trying to stop previously started service %q: %v", app.ServiceName(), e))
 			}
@@ -187,29 +239,10 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 			}
 		}(app)
 
-		if len(app.Sockets) == 0 && app.Timer == nil {
-			// check if the service is disabled, if so don't start it up
-			// this could happen for example if the service was disabled in
-			// the install hook by snapctl or if the service was disabled in
-			// the previous installation
-			isEnabled, err := sysd.IsEnabled(app.ServiceName())
-			if err != nil {
-				return err
-			}
-			if isEnabled {
-				switch app.DaemonScope {
-				case snap.SystemDaemon:
-					systemServices = append(systemServices, app.ServiceName())
-				case snap.UserDaemon:
-					userServices = append(userServices, app.ServiceName())
-				}
-			}
-		}
-
 		for _, socket := range app.Sockets {
 			socketService := filepath.Base(socket.File())
 			// enable the socket
-			if err := sysd.Enable(socketService); err != nil {
+			if err = sysd.Enable(socketService); err != nil {
 				return err
 			}
 
@@ -231,7 +264,7 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 		if app.Timer != nil {
 			timerService := filepath.Base(app.Timer.File())
 			// enable the timer
-			if err := sysd.Enable(timerService); err != nil {
+			if err = sysd.Enable(timerService); err != nil {
 				return err
 			}
 
@@ -266,6 +299,7 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 			return err
 		}
 	}
+
 	if len(userServices) != 0 {
 		timings.Run(tm, "start-user-services", "start user services", func(nested timings.Measurer) {
 			err = startUserServices(cli, inter, userServices...)
@@ -291,7 +325,7 @@ type AddSnapServicesOptions struct {
 }
 
 // AddSnapServices adds service units for the applications from the snap which are services.
-func AddSnapServices(s *snap.Info, disabledSvcs []string, opts *AddSnapServicesOptions, inter interacter) (err error) {
+func AddSnapServices(s *snap.Info, opts *AddSnapServicesOptions, inter interacter) (err error) {
 	if s.GetType() == snap.TypeSnapd {
 		return fmt.Errorf("internal error: adding explicit services for snapd snap is unexpected")
 	}
@@ -300,39 +334,17 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, opts *AddSnapServicesO
 		opts = &AddSnapServicesOptions{}
 	}
 
-	// check if any previously disabled services are now no longer services and
-	// log messages about that
-	for _, svc := range disabledSvcs {
-		app, ok := s.Apps[svc]
-		if !ok {
-			logger.Noticef("previously disabled service %s no longer exists", svc)
-		} else if !app.IsService() {
-			logger.Noticef("previously disabled service %s is now an app and not a service", svc)
-		}
-	}
-
 	// TODO: remove once services get enabled on start and not when created.
 	preseeding := opts.Preseeding
 
 	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
-	userSysd := systemd.New(dirs.GlobalRootDir, systemd.GlobalUserMode, inter)
+
 	var written []string
 	var writtenSystem, writtenUser bool
-	var enabled []string
-	var userEnabled []string
+
 	defer func() {
 		if err == nil {
 			return
-		}
-		for _, s := range enabled {
-			if e := sysd.Disable(s); e != nil {
-				inter.Notify(fmt.Sprintf("while trying to disable %s due to previous failure: %v", s, e))
-			}
-		}
-		for _, s := range userEnabled {
-			if e := userSysd.Disable(s); e != nil {
-				inter.Notify(fmt.Sprintf("while trying to disable %s due to previous failure: %v", s, e))
-			}
 		}
 		for _, s := range written {
 			if e := os.Remove(s); e != nil {
@@ -374,69 +386,42 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, opts *AddSnapServicesO
 		}
 
 		// Generate systemd .socket files if needed
-		socketFiles, err := generateSnapSocketFiles(app)
+		var socketFiles *map[string][]byte
+		socketFiles, err = generateSnapSocketFiles(app)
 		if err != nil {
 			return err
 		}
 		for path, content := range *socketFiles {
 			os.MkdirAll(filepath.Dir(path), 0755)
-			if err := osutil.AtomicWriteFile(path, content, 0644, 0); err != nil {
+			if err = osutil.AtomicWriteFile(path, content, 0644, 0); err != nil {
 				return err
 			}
 			written = append(written, path)
 		}
 
 		if app.Timer != nil {
-			content, err := generateSnapTimerFile(app)
+			var content []byte
+			content, err = generateSnapTimerFile(app)
 			if err != nil {
 				return err
 			}
 			path := app.Timer.File()
 			os.MkdirAll(filepath.Dir(path), 0755)
-			if err := osutil.AtomicWriteFile(path, content, 0644, 0); err != nil {
+			if err = osutil.AtomicWriteFile(path, content, 0644, 0); err != nil {
 				return err
 			}
 			written = append(written, path)
-		}
-
-		if app.Timer != nil || len(app.Sockets) != 0 {
-			// service is socket or timer activated, not during the
-			// boot
-			continue
-		}
-
-		svcName := app.ServiceName()
-		switch app.DaemonScope {
-		case snap.SystemDaemon:
-			if strutil.ListContains(disabledSvcs, app.Name) {
-				// service is disabled, nothing to do
-				continue
-			}
-
-			if !preseeding {
-				if err := sysd.Enable(svcName); err != nil {
-					return err
-				}
-				enabled = append(enabled, svcName)
-			}
-		case snap.UserDaemon:
-			if !preseeding {
-				if err := userSysd.Enable(svcName); err != nil {
-					return err
-				}
-				userEnabled = append(userEnabled, svcName)
-			}
 		}
 	}
 
 	if !preseeding {
 		if writtenSystem {
-			if err := sysd.DaemonReload(); err != nil {
+			if err = sysd.DaemonReload(); err != nil {
 				return err
 			}
 		}
 		if writtenUser {
-			if err := userDaemonReload(); err != nil {
+			if err = userDaemonReload(); err != nil {
 				return err
 			}
 		}

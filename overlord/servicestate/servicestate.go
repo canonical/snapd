@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/cmdstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -40,6 +41,112 @@ type Instruction struct {
 }
 
 type ServiceActionConflictError struct{ error }
+
+// changeIDForContext returns change ID for non-ephemeral context
+// or empty string if context is nil or ephemeral.
+func changeIDForContext(context *hookstate.Context) string {
+	if context != nil && !context.IsEphemeral() {
+		if task, ok := context.Task(); ok {
+			if chg := task.Change(); chg != nil {
+				return chg.ID()
+			}
+		}
+	}
+	return ""
+}
+
+func ServiceControlMany(st *state.State, appInfos []*snap.AppInfo, inst *Instruction, context *hookstate.Context) ([]*state.TaskSet, error) {
+	servicesBySnap := make(map[string][]string)
+	for _, app := range appInfos {
+		if !app.IsService() {
+			// this function should be called with services only
+			return nil, fmt.Errorf("internal error: %s is not a service", app.Name)
+		}
+		snapName := app.Snap.InstanceName()
+		servicesBySnap[snapName] = append(servicesBySnap[snapName], app.Name)
+	}
+
+	ts := state.NewTaskSet()
+	for snapName, services := range servicesBySnap {
+		task, err := ServiceControl(st, snapName, services, inst, context)
+		if err != nil {
+			return nil, err
+		}
+		// XXX: should we chain tasks here?
+		ts.AddTask(task)
+	}
+	return []*state.TaskSet{ts}, nil
+}
+
+func ServiceControl(st *state.State, snapName string, serviceNames []string, inst *Instruction, context *hookstate.Context) (*state.Task, error) {
+	st.Lock()
+	defer st.Unlock()
+
+	ignoreChangeID := changeIDForContext(context)
+	if err := snapstate.CheckChangeConflictMany(st, []string{snapName}, ignoreChangeID); err != nil {
+		return nil, &ServiceActionConflictError{err}
+	}
+
+	var snapst snapstate.SnapState
+	if err := snapstate.Get(st, snapName, &snapst); err != nil {
+		return nil, err
+	}
+	info, err := snapst.CurrentInfo()
+	if err != nil {
+		return nil, err
+	}
+	if len(info.Services()) == 0 {
+		return nil, fmt.Errorf("snap %q does not have services", snapName)
+	}
+
+	cmd := &ServiceAction{SnapName: snapName}
+	switch {
+	case inst.Action == "start":
+		cmd.Action = "start"
+		if inst.Enable {
+			cmd.ActionModifier = "enable"
+		}
+	case inst.Action == "stop":
+		cmd.Action = "stop"
+		if inst.Disable {
+			cmd.ActionModifier = "disable"
+		}
+	case inst.Action == "restart":
+		if inst.Reload {
+			cmd.Action = "reload-or-restart"
+		} else {
+			cmd.Action = "restart"
+		}
+	default:
+		return nil, fmt.Errorf("unknown action %q", inst.Action)
+	}
+
+	var svcs []string
+	for _, svcName := range serviceNames {
+		if svcName == snapName {
+			// all services of the snap
+			svcs = nil
+			break
+		}
+		app, ok := info.Apps[svcName]
+		if !(ok && app.IsService()) {
+			return nil, fmt.Errorf(i18n.G("unknown service: %q"), svcName)
+		}
+		svcs = append(svcs, app.Name)
+	}
+	cmd.Services = svcs
+
+	var summary string
+	if len(svcs) > 0 {
+		summary = fmt.Sprintf("Run service command %q for services %q of snap %q", cmd.Action, svcs, cmd.SnapName)
+	} else {
+		summary = fmt.Sprintf("Run service command %q for services of snap %q", cmd.Action, cmd.SnapName)
+	}
+	task := st.NewTask("service-control", summary)
+	task.Set("service-action", cmd)
+	task.Logf("args: %q, svcs: %q", serviceNames, svcs)
+	return task, nil
+}
 
 // Control creates a taskset for starting/stopping/restarting services via systemctl.
 // The appInfos and inst define the services and the command to execute.
@@ -87,15 +194,7 @@ func Control(st *state.State, appInfos []*snap.AppInfo, inst *Instruction, conte
 		}
 	}
 
-	var ignoreChangeID string
-	if context != nil && !context.IsEphemeral() {
-		if task, ok := context.Task(); ok {
-			if chg := task.Change(); chg != nil {
-				ignoreChangeID = chg.ID()
-			}
-		}
-	}
-
+	ignoreChangeID := changeIDForContext(context)
 	if err := snapstate.CheckChangeConflictMany(st, snapNames, ignoreChangeID); err != nil {
 		return nil, &ServiceActionConflictError{err}
 	}
@@ -109,6 +208,12 @@ func Control(st *state.State, appInfos []*snap.AppInfo, inst *Instruction, conte
 		// reuse the snapd/systemd and snapd/wrapper packages
 		// to control the timeout in a single place.
 		ts := cmdstate.ExecWithTimeout(st, desc, argv, 61*time.Second)
+
+		// set ignore flag on the tasks, new snapd uses service-control tasks.
+		ignore := true
+		for _, t := range ts.Tasks() {
+			t.Set("ignore", ignore)
+		}
 		tts = append(tts, ts)
 	}
 

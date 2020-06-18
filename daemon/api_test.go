@@ -239,13 +239,15 @@ func (s *apiBaseSuite) TearDownSuite(c *check.C) {
 func (s *apiBaseSuite) systemctl(args ...string) (buf []byte, err error) {
 	s.sysctlArgses = append(s.sysctlArgses, args)
 
-	if len(args) > 2 && args[0] == "--root" && args[2] == "is-enabled" {
+	if len(args) > 2 && args[0] == "--root" && (args[2] == "is-enabled" || args[2] == "enable" || args[2] == "disable") {
 		// drop the first 2 args which are "--root some-dir"
 		args = args[2:]
 	}
-
+	if args[0] == "show" && args[1] == "--property=ActiveState" {
+		return []byte("ActiveState=inactive\n"), nil
+	}
 	switch args[0] {
-	case "show", "start", "stop", "restart", "is-enabled":
+	case "show", "start", "stop", "restart", "is-enabled", "disable", "enable", "reload-or-restart":
 	default:
 		panic(fmt.Sprintf("unexpected systemctl call: %v", args))
 	}
@@ -329,6 +331,10 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 	snapstateSwitch = nil
 
 	devicestateRemodel = nil
+
+	// required by "stop" check in service wrappers
+	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc/systemd/system/"), 0775), check.IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "etc/systemd/system/snap.snap-a.svc2.service"), nil, 0644), check.IsNil)
 }
 
 func (s *apiBaseSuite) TearDownTest(c *check.C) {
@@ -7217,7 +7223,7 @@ func (s *appSuite) TestLogsSad(c *check.C) {
 	c.Assert(rsp.Type, check.Equals, ResponseTypeError)
 }
 
-func (s *appSuite) testPostApps(c *check.C, inst servicestate.Instruction, systemctlCall [][]string) *state.Change {
+func (s *appSuite) testPostApps(c *check.C, inst servicestate.Instruction, systemctlCall [][]string, numTasks int) *state.Change {
 	postBody, err := json.Marshal(inst)
 	c.Assert(err, check.IsNil)
 
@@ -7234,20 +7240,20 @@ func (s *appSuite) testPostApps(c *check.C, inst servicestate.Instruction, syste
 	defer st.Unlock()
 	chg := st.Change(rsp.Change)
 	c.Assert(chg, check.NotNil)
-	c.Check(chg.Tasks(), check.HasLen, len(systemctlCall))
+	c.Check(chg.Tasks(), check.HasLen, numTasks)
 
 	st.Unlock()
 	<-chg.Ready()
 	st.Lock()
 
-	c.Check(s.cmd.Calls(), check.DeepEquals, systemctlCall)
+	c.Check(s.sysctlArgses, check.DeepEquals, systemctlCall)
 	return chg
 }
 
 func (s *appSuite) TestPostAppsStartOne(c *check.C) {
 	inst := servicestate.Instruction{Action: "start", Names: []string{"snap-a.svc2"}}
-	expected := [][]string{{"systemctl", "start", "snap.snap-a.svc2.service"}}
-	chg := s.testPostApps(c, inst, expected)
+	expected := [][]string{{"start", "snap.snap-a.svc2.service"}}
+	chg := s.testPostApps(c, inst, expected, 1)
 	chg.State().Lock()
 	defer chg.State().Unlock()
 
@@ -7259,13 +7265,13 @@ func (s *appSuite) TestPostAppsStartOne(c *check.C) {
 
 func (s *appSuite) TestPostAppsStartTwo(c *check.C) {
 	inst := servicestate.Instruction{Action: "start", Names: []string{"snap-a"}}
-	expected := [][]string{{"systemctl", "start", "snap.snap-a.svc1.service", "snap.snap-a.svc2.service"}}
-	chg := s.testPostApps(c, inst, expected)
+	expected := [][]string{{"start", "snap.snap-a.svc1.service"}, {"start", "snap.snap-a.svc2.service"}}
+	chg := s.testPostApps(c, inst, expected, 1)
 	chg.State().Lock()
 	defer chg.State().Unlock()
 	// check the summary expands the snap into actual apps
 	c.Check(chg.Summary(), check.Equals, "Running service command")
-	c.Check(chg.Tasks()[0].Summary(), check.Equals, "start of [snap-a.svc1 snap-a.svc2]")
+	c.Check(chg.Tasks()[0].Summary(), check.Equals, `Run service command "start" for services ["svc1" "svc2"] of snap "snap-a"`)
 
 	var names []string
 	err := chg.Get("snap-names", &names)
@@ -7275,13 +7281,13 @@ func (s *appSuite) TestPostAppsStartTwo(c *check.C) {
 
 func (s *appSuite) TestPostAppsStartThree(c *check.C) {
 	inst := servicestate.Instruction{Action: "start", Names: []string{"snap-a", "snap-b"}}
-	expected := [][]string{{"systemctl", "start", "snap.snap-a.svc1.service", "snap.snap-a.svc2.service", "snap.snap-b.svc3.service"}}
-	chg := s.testPostApps(c, inst, expected)
+	expected := [][]string{{"start", "snap.snap-a.svc1.service"}, {"start", "snap.snap-a.svc2.service"}, {"start", "snap.snap-b.svc3.service"}}
+	chg := s.testPostApps(c, inst, expected, 2)
 	// check the summary expands the snap into actual apps
 	c.Check(chg.Summary(), check.Equals, "Running service command")
 	chg.State().Lock()
 	defer chg.State().Unlock()
-	c.Check(chg.Tasks()[0].Summary(), check.Equals, "start of [snap-a.svc1 snap-a.svc2 snap-b.svc3]")
+	c.Check(chg.Tasks()[0].Summary(), check.Equals, `Run service command "start" for services ["svc1" "svc2"] of snap "snap-a"`)
 
 	var names []string
 	err := chg.Get("snap-names", &names)
@@ -7291,35 +7297,37 @@ func (s *appSuite) TestPostAppsStartThree(c *check.C) {
 
 func (s *appSuite) TestPosetAppsStop(c *check.C) {
 	inst := servicestate.Instruction{Action: "stop", Names: []string{"snap-a.svc2"}}
-	expected := [][]string{{"systemctl", "stop", "snap.snap-a.svc2.service"}}
-	s.testPostApps(c, inst, expected)
+	expected := [][]string{{"stop", "snap.snap-a.svc2.service"}, {"show", "--property=ActiveState", "snap.snap-a.svc2.service"}}
+	s.testPostApps(c, inst, expected, 1)
 }
 
 func (s *appSuite) TestPosetAppsRestart(c *check.C) {
 	inst := servicestate.Instruction{Action: "restart", Names: []string{"snap-a.svc2"}}
-	expected := [][]string{{"systemctl", "restart", "snap.snap-a.svc2.service"}}
-	s.testPostApps(c, inst, expected)
+	expected := [][]string{{"stop", "snap.snap-a.svc2.service"}, {"show", "--property=ActiveState", "snap.snap-a.svc2.service"}, {"start", "snap.snap-a.svc2.service"}}
+	s.testPostApps(c, inst, expected, 1)
 }
 
 func (s *appSuite) TestPosetAppsReload(c *check.C) {
 	inst := servicestate.Instruction{Action: "restart", Names: []string{"snap-a.svc2"}}
 	inst.Reload = true
-	expected := [][]string{{"systemctl", "reload-or-restart", "snap.snap-a.svc2.service"}}
-	s.testPostApps(c, inst, expected)
+	expected := [][]string{{"reload-or-restart", "snap.snap-a.svc2.service"}}
+	s.testPostApps(c, inst, expected, 1)
 }
 
 func (s *appSuite) TestPosetAppsEnableNow(c *check.C) {
 	inst := servicestate.Instruction{Action: "start", Names: []string{"snap-a.svc2"}}
 	inst.Enable = true
-	expected := [][]string{{"systemctl", "enable", "snap.snap-a.svc2.service"}, {"systemctl", "start", "snap.snap-a.svc2.service"}}
-	s.testPostApps(c, inst, expected)
+	expected := [][]string{{"--root", dirs.GlobalRootDir, "enable", "snap.snap-a.svc2.service"}, {"start", "snap.snap-a.svc2.service"}}
+	s.testPostApps(c, inst, expected, 1)
 }
 
-func (s *appSuite) TestPosetAppsDisableNow(c *check.C) {
+func (s *appSuite) TestPostAppsDisableNow(c *check.C) {
 	inst := servicestate.Instruction{Action: "stop", Names: []string{"snap-a.svc2"}}
 	inst.Disable = true
-	expected := [][]string{{"systemctl", "disable", "snap.snap-a.svc2.service"}, {"systemctl", "stop", "snap.snap-a.svc2.service"}}
-	s.testPostApps(c, inst, expected)
+	expected := [][]string{{"stop", "snap.snap-a.svc2.service"},
+		{"show", "--property=ActiveState", "snap.snap-a.svc2.service"},
+		{"--root", dirs.GlobalRootDir, "disable", "snap.snap-a.svc2.service"}}
+	s.testPostApps(c, inst, expected, 1)
 }
 
 func (s *appSuite) TestPostAppsBadJSON(c *check.C) {

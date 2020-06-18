@@ -248,8 +248,6 @@ func (s *serviceControlSuite) TestStartAllServices(c *C) {
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 
 	c.Check(s.sysctlArgs, DeepEquals, [][]string{
-		{"--root", dirs.GlobalRootDir, "is-enabled", "snap.test-snap.foo.service"},
-		{"--root", dirs.GlobalRootDir, "is-enabled", "snap.test-snap.bar.service"},
 		{"start", "snap.test-snap.foo.service"},
 		{"start", "snap.test-snap.bar.service"},
 	})
@@ -278,7 +276,6 @@ func (s *serviceControlSuite) TestStartListedServices(c *C) {
 
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.sysctlArgs, DeepEquals, [][]string{
-		{"--root", dirs.GlobalRootDir, "is-enabled", "snap.test-snap.foo.service"},
 		{"start", "snap.test-snap.foo.service"},
 	})
 }
@@ -307,7 +304,7 @@ func (s *serviceControlSuite) TestStartEnableServices(c *C) {
 
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.sysctlArgs, DeepEquals, [][]string{
-		{"--root", dirs.GlobalRootDir, "is-enabled", "snap.test-snap.foo.service"},
+		{"--root", dirs.GlobalRootDir, "enable", "snap.test-snap.foo.service"},
 		{"start", "snap.test-snap.foo.service"},
 	})
 }
@@ -335,8 +332,8 @@ func (s *serviceControlSuite) TestStartEnableMultipleServices(c *C) {
 
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.sysctlArgs, DeepEquals, [][]string{
-		{"--root", dirs.GlobalRootDir, "is-enabled", "snap.test-snap.foo.service"},
-		{"--root", dirs.GlobalRootDir, "is-enabled", "snap.test-snap.bar.service"},
+		{"--root", dirs.GlobalRootDir, "enable", "snap.test-snap.foo.service"},
+		{"--root", dirs.GlobalRootDir, "enable", "snap.test-snap.bar.service"},
 		{"start", "snap.test-snap.foo.service"},
 		{"start", "snap.test-snap.bar.service"},
 	})
@@ -475,4 +472,72 @@ func (s *serviceControlSuite) TestConflict(c *C) {
 
 	_, err := snapstate.Remove(st, "test-snap", snap.Revision{}, nil)
 	c.Assert(err, ErrorMatches, `snap "test-snap" has "service-control" change in progress`)
+}
+
+func (s *serviceControlSuite) TestUpdateSnapstateServices(c *C) {
+	var tests = []struct {
+		enable                    []string
+		disable                   []string
+		expectedSnapstateEnabled  []string
+		expectedSnapstateDisabled []string
+		changed                   bool
+	}{
+		{
+			changed: false,
+		},
+		{
+			enable:                   []string{"a"},
+			expectedSnapstateEnabled: []string{"a"},
+			changed:                  true,
+		},
+		// enable again does nothing
+		{
+			enable:                   []string{"a"},
+			expectedSnapstateEnabled: []string{"a"},
+			changed:                  false,
+		},
+		{
+			disable:                   []string{"a"},
+			expectedSnapstateDisabled: []string{"a"},
+			changed:                   true,
+		},
+		{
+			enable:                   []string{"a", "c"},
+			expectedSnapstateEnabled: []string{"a", "c"},
+			changed:                  true,
+		},
+		{
+			disable:                   []string{"b"},
+			expectedSnapstateEnabled:  []string{"a", "c"},
+			expectedSnapstateDisabled: []string{"b"},
+			changed:                   true,
+		},
+		{
+			disable:                   []string{"b", "c"},
+			expectedSnapstateEnabled:  []string{"a"},
+			expectedSnapstateDisabled: []string{"b", "c"},
+			changed:                   true,
+		},
+	}
+
+	snapst := snapstate.SnapState{}
+
+	for _, tst := range tests {
+		var enable, disable []*snap.AppInfo
+		for _, srv := range tst.enable {
+			enable = append(enable, &snap.AppInfo{Name: srv})
+		}
+		for _, srv := range tst.disable {
+			disable = append(disable, &snap.AppInfo{Name: srv})
+		}
+		result, err := servicestate.UpdateSnapstateServices(&snapst, enable, disable)
+		c.Assert(err, IsNil)
+		c.Check(result, Equals, tst.changed)
+		c.Check(snapst.ServicesEnabledByHooks, DeepEquals, tst.expectedSnapstateEnabled)
+		c.Check(snapst.ServicesDisabledByHooks, DeepEquals, tst.expectedSnapstateDisabled)
+	}
+
+	services := []*snap.AppInfo{{Name: "foo"}}
+	_, err := servicestate.UpdateSnapstateServices(nil, services, services)
+	c.Assert(err, ErrorMatches, `internal error: cannot handle enabled and disabled services at the same time`)
 }
