@@ -186,7 +186,12 @@ inotify_init
 inotify_init1
 inotify_rm_watch
 
-# TIOCSTI allows for faking input (man tty_ioctl)
+# ioctl() mediation currently primarily relies on Linux capabilities as well as
+# the initial syscall for the fd to pass to ioctl(). See 'man capabilities'
+# and 'man ioctl_list'. TIOCSTI requires CAP_SYS_ADMIN but allows for faking
+# input (man tty_ioctl), so we disallow it to prevent snaps plugging interfaces
+# with 'capability sys_admin' from interfering with other snaps or the
+# unconfined user's terminal.
 # TODO: this should be scaled back even more
 ioctl - !TIOCSTI
 

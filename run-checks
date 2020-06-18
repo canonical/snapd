@@ -150,6 +150,8 @@ if [ "$STATIC" = 1 ]; then
     echo Checking docs
     ./mdlint.py ./*.md docs/*.md
 
+    # XXX: remove once we can use an action, see workflows/test.yaml for
+    #      details why we still use this script
     if [ -n "${TRAVIS_PULL_REQUEST:-}" ] && [ "${TRAVIS_PULL_REQUEST:-}" != "false" ]; then
         echo Checking pull request summary
         ./check-pr-title.py "$TRAVIS_PULL_REQUEST"
@@ -319,10 +321,10 @@ if [ "$UNIT" = 1 ]; then
     fi
 
     # python unit test for mountinfo-tool and version-tool
-    command -v python2 && python2 ./tests/lib/bin/mountinfo-tool --run-unit-tests
-    command -v python3 && python3 ./tests/lib/bin/mountinfo-tool --run-unit-tests
-    command -v python2 && python2 ./tests/lib/bin/version-tool --run-unit-tests
-    command -v python3 && python3 ./tests/lib/bin/version-tool --run-unit-tests
+    command -v python2 && python2 ./tests/lib/tools/mountinfo-tool --run-unit-tests
+    command -v python3 && python3 ./tests/lib/tools/mountinfo-tool --run-unit-tests
+    command -v python2 && python2 ./tests/lib/tools/version-tool --run-unit-tests
+    command -v python3 && python3 ./tests/lib/tools/version-tool --run-unit-tests
 fi
 
 if [ -n "$SPREAD" ]; then

@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"testing"
 
 	. "gopkg.in/check.v1"
 
@@ -33,6 +34,8 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
+func TestPartition(t *testing.T) { TestingT(t) }
+
 type encryptSuite struct {
 	testutil.BaseTest
 
@@ -41,7 +44,7 @@ type encryptSuite struct {
 
 var _ = Suite(&encryptSuite{})
 
-var mockDeviceStructure = partition.DeviceStructure{
+var mockDeviceStructure = gadget.OnDiskStructure{
 	LaidOutStructure: gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Name: "Test structure",
@@ -134,9 +137,9 @@ func (s *encryptSuite) TestEncryptAddKey(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *encryptSuite) TestRecoveryKeyStore(c *C) {
+func (s *encryptSuite) TestRecoveryKeySave(c *C) {
 	rkey := partition.RecoveryKey{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 255}
-	err := rkey.Store("test-key")
+	err := rkey.Save("test-key")
 	c.Assert(err, IsNil)
 	fileInfo, err := os.Stat("test-key")
 	c.Assert(err, IsNil)

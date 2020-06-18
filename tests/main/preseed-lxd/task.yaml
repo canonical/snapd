@@ -1,0 +1,107 @@
+summary: Check that preseeding of current ubuntu cloud image works under lxd.
+description: |
+  This test checks that preseeding of Ubuntu cloud images with snap-preseed
+  command works in lxc container. 
+
+# this test works only on 18.04 because it requires lxd from deb (lxd snap
+# as it wouldn't allow mount) and tries to replicate launchpad builder setup.
+systems: [ubuntu-18.04-*]
+
+environment:
+  IMAGE_MOUNTPOINT: /mnt/cloudimg
+
+prepare: |
+  #shellcheck source=tests/lib/nested.sh
+  . "$TESTSLIB/nested.sh"
+  IMGURL=$(get_google_image_url_for_nested_vm ubuntu-20.04-64)
+  wget --quiet "$IMGURL" -O cloudimg.img
+
+  modprobe nbd
+
+  # Run qemu-nbd as a service, so that it does not interact with ssh
+  # stdin/stdout it would otherwise inherit from the spread session.
+  systemd-run --system --service-type=forking --unit=qemu-nbd-preseed.service "$(command -v qemu-nbd)" --fork -c /dev/nbd0 "$(pwd)/cloudimg.img"
+  # nbd0p1 may take a short while to become available
+  retry -n 5 --wait 1 test -e /dev/nbd0p1
+  mkdir -p "$IMAGE_MOUNTPOINT"
+  mount /dev/nbd0p1 "$IMAGE_MOUNTPOINT"
+
+  # Inject current snapd into seeds
+  #shellcheck source=tests/lib/snaps.sh
+  . "$TESTSLIB"/snaps.sh
+  SNAP_IMAGE=$(ls "$IMAGE_MOUNTPOINT"/var/lib/snapd/seed/snaps/snapd_*.snap)
+  unsquashfs "$SNAP_IMAGE"
+  cp /usr/lib/snapd/snapd squashfs-root/usr/lib/snapd/snapd
+  rm "$SNAP_IMAGE"
+  mksnap_fast squashfs-root "$SNAP_IMAGE"
+  sed -i "$IMAGE_MOUNTPOINT/var/lib/snapd/seed/seed.yaml" -E -e "s/^(\\s+)name: snapd/\\1name: snapd\\n\\1unasserted: true/"
+
+  if [ ! -x /usr/bin/lxc ]; then
+    apt install -y lxd
+    touch remove-lxd
+  fi
+
+restore: |
+  if [ -f remove-lxd ]; then
+    lxc stop my-ubuntu --force || true
+    lxc delete my-ubuntu || true
+    apt purge -y lxd
+    apt autoremove --purge -y
+  fi
+
+  umount "$IMAGE_MOUNTPOINT"
+  rmdir "$IMAGE_MOUNTPOINT"
+
+  # qemu-nbd -d may sporadically fail when removing the device,
+  # reporting it's still in use.
+  retry -n 5 --wait 1 qemu-nbd -d /dev/nbd0
+
+  lxd-tool undo-lxd-mount-changes
+
+execute: |
+  echo "Create a trivial container using the lxd snap"
+  lxd waitready
+  lxd init --auto
+
+  lxc launch "ubuntu:20.04" my-ubuntu
+
+  # use a privileged and unconfined lxd container that is close to launchpad
+  # builders configuration; this is required for mounting inside the container.
+  # based on lxd config created by https://git.launchpad.net/launchpad-buildd/tree/lpbuildd/target/lxd.py
+  lxc config set my-ubuntu security.privileged true
+  lxc config set my-ubuntu security.nesting true
+  cat <<__LXC__ | lxc config set my-ubuntu raw.lxc -
+  lxc.apparmor.profile=unconfined
+  lxc.cap.drop=
+  lxc.cap.drop=sys_time sys_module
+  lxc.cgroup.devices.allow=
+  lxc.cgroup.devices.deny=
+  lxc.mount.auto=
+  lxc.mount.auto=proc:rw sys:rw
+  __LXC__
+  lxc config device add my-ubuntu mounted-ubuntu-image disk source="$IMAGE_MOUNTPOINT" path="$IMAGE_MOUNTPOINT"
+  lxc restart my-ubuntu
+
+  echo "Make latest snap-preseed command available in the lxd container"
+  lxc exec my-ubuntu -- mkdir -p "$GOHOME"
+  lxc file push /usr/lib/snapd/snap-preseed "my-ubuntu/$GOHOME/"
+  lxc file push cloudimg.img "my-ubuntu/$GOHOME/"
+  lxc file push preseed-prepare.sh "my-ubuntu/$GOHOME/"
+
+  echo "Running preseeeding in the lxd container"
+  # mount /dev, /proc, /sys under mounted ubuntu image in the container.
+  lxc exec my-ubuntu -- "$GOHOME"/preseed-prepare.sh "$IMAGE_MOUNTPOINT"
+  lxc exec my-ubuntu -- "$GOHOME"/snap-preseed "$IMAGE_MOUNTPOINT"
+
+  echo "Sanity check of mount units"
+  # preseeded image is mounted on the host, so we can directly inspect
+  # preseeding artifacts.
+  MATCH "Type=squashfs$" < "$IMAGE_MOUNTPOINT"/etc/systemd/system/snap-lxd-*.mount
+  MATCH "Type=squashfs$" < "$IMAGE_MOUNTPOINT"/etc/systemd/system/snap-snapd-*.mount
+  MATCH "Type=squashfs$" < "$IMAGE_MOUNTPOINT"/etc/systemd/system/snap-core18-*.mount
+
+  snap debug state "$IMAGE_MOUNTPOINT"/var/lib/snapd/state.json --change=1 > tasks.log
+
+  echo "Checking preseeding tasks"
+  MATCH "Doing .+ mark-preseeded +Mark system pre-seeded" < tasks.log
+  MATCH "Do .+ mark-seeded +Mark system seeded" < tasks.log

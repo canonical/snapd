@@ -1,8 +1,6 @@
 summary: Check that `snap auto-import` works as expected
 
-# TODO:UC20: fix for UC20 and enable, currently fails because mkfs.vfat is not
-#            available on UC20
-systems: [ubuntu-core-1*-64]
+systems: [ubuntu-core-*-64]
 
 prepare: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then

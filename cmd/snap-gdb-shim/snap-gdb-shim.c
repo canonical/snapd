@@ -22,25 +22,28 @@
 
 #include "../libsnap-confine-private/utils.h"
 
-int main(int argc, char **argv)
-{
-	if (sc_is_debug_enabled()) {
-		for (int i = 0; i < argc; i++) {
-			printf("-%s-\n", argv[i]);
-		}
-	}
-	// signal gdb to stop here
-	printf("\n\n");
-	printf("Welcome to `snap run --gdb`.\n");
-	printf("You are right before your application is execed():\n");
-	printf("- set any options you may need\n");
-	printf("- use 'cont' to start\n");
-	printf("\n\n");
-	raise(SIGTRAP);
+int main(int argc, char **argv) {
+    if (sc_is_debug_enabled()) {
+        for (int i = 0; i < argc; i++) {
+            fprintf(stderr, "-%s-\n", argv[i]);
+        }
+    }
+    if (argc < 2) {
+        fprintf(stderr, "missing a command to execute");
+        abort();
+    }
+    // signal gdb to stop here
+    printf("\n\n");
+    printf("Welcome to `snap run --gdb`.\n");
+    printf("You are right before your application is execed():\n");
+    printf("- set any options you may need\n");
+    printf("- use 'cont' to start\n");
+    printf("\n\n");
+    raise(SIGTRAP);
 
-	const char *executable = argv[1];
-	execv(executable, (char *const *)&argv[1]);
-	perror("execv failed");
-	// very different exit code to make an execve failure easy to distinguish
-	return 101;
+    const char *executable = argv[1];
+    execv(executable, (char *const *)&argv[1]);
+    perror("execv failed");
+    // very different exit code to make an execve failure easy to distinguish
+    return 101;
 }

@@ -5,7 +5,7 @@ summary: Verify AppStream ID integration
 systems: [-ubuntu-14.04-*, -ubuntu-core*]
 
 prepare: |
-    snap install jq
+    snap install --edge jq
 
 restore: |
     rm -f response

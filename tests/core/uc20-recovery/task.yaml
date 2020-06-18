@@ -14,6 +14,9 @@ debug: |
   if [ -e systems.json ]; then
       cat systems.json
   fi
+  if [ -e system-info ]; then
+      cat system-info
+  fi
   if [ -e /tmp/mock-shutdown.calls ]; then
       cat /tmp/mock-shutdown.calls
   fi
@@ -22,7 +25,7 @@ execute: |
   if [ "$SPREAD_REBOOT" == "0" ]; then
       echo "In run mode"
 
-      snap install jq
+      snap install --edge jq
       # devmode as the snap does not have snapd-control
       snap install test-snapd-curl --devmode --edge
 
@@ -39,7 +42,7 @@ execute: |
       test -n "$label"
       # make sure that the seed exists
       test -d "/var/lib/snapd/seed/systems/$label"
-      jq -r .result.systems[0].actions[].mode < systems.json | MATCH 'recover'
+      jq -r .result.systems[0].actions[].mode < systems.json | sort | tr '\n' ' ' | MATCH 'install recover run'
 
       # keep a copy of the systems dump for later reference
       cp systems.json /writable/systems.json.run
@@ -59,7 +62,7 @@ execute: |
       # snapd schedules a slow timeout and an immediate one, however it is
       # scheduled asynchronously, try keep the check simple
       # shellcheck disable=SC2016
-      retry-tool -n 30 --wait 1 sh -c 'test "$(wc -l < /tmp/mock-shutdown.calls)" = "2"'
+      retry -n 30 --wait 1 sh -c 'test "$(wc -l < /tmp/mock-shutdown.calls)" = "2"'
       # an immediate reboot should have been scheduled
       MATCH -- '-r \+0' < /tmp/mock-shutdown.calls
 
@@ -74,13 +77,13 @@ execute: |
 
       # the system is seeding and snap command may not be available yet
       # shellcheck disable=SC2016
-      retry-tool -n 60 --wait 1 sh -c 'test "$(command -v snap)" = /usr/bin/snap'
+      retry -n 60 --wait 1 sh -c 'test "$(command -v snap)" = /usr/bin/snap'
 
       # wait till the system seeding is finished
       snap wait system seed.loaded
 
       # we're running in an ephemeral system and thus have to re-install snaps
-      snap install jq
+      snap install --edge jq
       snap install test-snapd-curl --devmode --edge
 
       MATCH 'snapd_recovery_mode=recover' < /proc/cmdline
@@ -92,8 +95,8 @@ execute: |
       test -e /host/ubuntu-data/systems.json.run
 
       test-snapd-curl.curl -s --unix-socket /run/snapd.socket http://localhost/v2/systems > systems.json
-      # systems list should be identical
-      diff -up /host/ubuntu-data/systems.json.run systems.json
+      jq -r .result.systems[0].actions[].mode < systems.json | sort | tr '\n' ' ' | MATCH 'install run'
+
       label="$(cat /host/ubuntu-data/systems.label)"
       test -n "$label"
       # seed in mounted in recover mode too
@@ -112,7 +115,7 @@ execute: |
 
       # see earlier note about shutdown
       # shellcheck disable=SC2016
-      retry-tool -n 30 --wait 1 sh -c 'test "$(wc -l < /tmp/mock-shutdown.calls)" = "2"'
+      retry -n 30 --wait 1 sh -c 'test "$(wc -l < /tmp/mock-shutdown.calls)" = "2"'
       # an immediate reboot should have been scheduled
       MATCH -- '-r \+0' < /tmp/mock-shutdown.calls
 
