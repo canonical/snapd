@@ -223,5 +223,34 @@ func (s *launcherSuite) TestOpenDesktopEntryEnvSucceedsWithGoodDesktopId(c *C) {
 
 	err = s.launcher.OpenDesktopEntryEnv("mircade_mircade.desktop", []string{}, ":some-dbus-sender")
 	c.Assert(err, IsNil)
-	c.Assert(cmd.Calls(), IsNil)
+}
+
+func (s *launcherSuite) TestOpenDesktopEntryEnvFailsWithBadDesktopId(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	cmd := testutil.MockCommand(c, "/snap/bin/mircade", "true")
+	defer cmd.Restore()
+
+	deskTopFile := filepath.Join(dirs.SnapDesktopFilesDir, "mircade_mircade.desktop")
+	err := os.MkdirAll(filepath.Dir(deskTopFile), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(deskTopFile, []byte(strings.Replace(mircadeDesktop, "/var/lib/snapd/desktop/applications", dirs.SnapDesktopFilesDir, -1)), 0644)
+	c.Assert(err, IsNil)
+
+	err = s.launcher.OpenDesktopEntryEnv("not-mircade_mircade.desktop", []string{}, ":some-dbus-sender")
+	c.Assert(err, NotNil)
+}
+
+func (s *launcherSuite) TestOpenDesktopEntryEnvFailsWithBadExecutable(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	cmd := testutil.MockCommand(c, "/snap/bin/mircade", "false")
+	defer cmd.Restore()
+
+	deskTopFile := filepath.Join(dirs.SnapDesktopFilesDir, "mircade_mircade.desktop")
+	err := os.MkdirAll(filepath.Dir(deskTopFile), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(deskTopFile, []byte(strings.Replace(mircadeDesktop, "/var/lib/snapd/desktop/applications", dirs.SnapDesktopFilesDir, -1)), 0644)
+	c.Assert(err, IsNil)
+
+	err = s.launcher.OpenDesktopEntryEnv("mircade_mircade.desktop", []string{}, ":some-dbus-sender")
+	c.Assert(err, NotNil)
 }
