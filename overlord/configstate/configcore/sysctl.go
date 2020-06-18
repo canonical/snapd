@@ -22,19 +22,31 @@ package configcore
 import (
 	"bytes"
 	"fmt"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/systemd"
 )
+
+// see https://www.kernel.org/doc/Documentation/sysctl/kernel.txt
+// The idea is that options of the form system.kernel. should
+// match the (/proc/)sys/kernel hierarchy etc.
 
 func init() {
 	// add supported configuration of this module
 	supportedConfigurations["core.system.kernel.printk.console-loglevel"] = true
 }
+
+const (
+	sysctlConfsDir  = "/etc/sysctl.d"
+	snapdSysctlConf = "99-snapd.conf"
+)
+
+// these are the sysctl parameters prefixes we handle
+var sysctlPrefixes = []string{"kernel.printk"}
 
 func validateSysctlOptions(tr config.ConfGetter) error {
 	consoleLoglevelStr, err := coreCfg(tr, "system.kernel.printk.console-loglevel")
@@ -43,7 +55,7 @@ func validateSysctlOptions(tr config.ConfGetter) error {
 	}
 	if consoleLoglevelStr != "" {
 		if n, err := strconv.ParseUint(consoleLoglevelStr, 10, 8); err != nil || (n < 0 || n > 7) {
-			return fmt.Errorf("console-loglevel must be a number between 0 and 7, not %q", consoleLoglevelStr)
+			return fmt.Errorf("console-loglevel must be a number between 0 and 7, not: %s", consoleLoglevelStr)
 		}
 	}
 	return nil
@@ -54,34 +66,34 @@ func handleSysctlConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error 
 	if opts != nil {
 		root = opts.RootDir
 	}
-	dir := filepath.Join(root, "/etc/sysctl.d")
-	name := "99-snapd.conf"
-	content := bytes.NewBuffer(nil)
 
 	consoleLoglevelStr, err := coreCfg(tr, "system.kernel.printk.console-loglevel")
 	if err != nil {
 		return nil
 	}
 
-	var sysctlConf string
+	content := bytes.NewBuffer(nil)
 	if consoleLoglevelStr != "" {
 		content.WriteString(fmt.Sprintf("kernel.printk = %s 4 1 7\n", consoleLoglevelStr))
-		sysctlConf = filepath.Join(dir, name)
 	} else {
-		// Don't write values to content so that the file setting this option gets removed.
-		// Reset console-loglevel to default value.
-		sysctlConf = filepath.Join(dir, "10-console-messages.conf")
+		// Don't write values to content so that the config
+		// file gets removed and console-loglevel gets reset
+		// to default value from 10-console-messages.conf
+
+		// TODO: this logic will need more non-obvious work to support
+		// kernel parameters that don't have already on-disk defaults.
 	}
 	dirContent := map[string]osutil.FileState{}
 	if content.Len() > 0 {
-		dirContent[name] = &osutil.MemoryFileState{
+		dirContent[snapdSysctlConf] = &osutil.MemoryFileState{
 			Content: content.Bytes(),
 			Mode:    0644,
 		}
 	}
 
 	// write the new config
-	glob := name
+	dir := filepath.Join(root, sysctlConfsDir)
+	glob := snapdSysctlConf
 	changed, removed, err := osutil.EnsureDirState(dir, glob, dirContent)
 	if err != nil {
 		return err
@@ -89,9 +101,9 @@ func handleSysctlConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error 
 
 	if opts == nil {
 		if len(changed) > 0 || len(removed) > 0 {
-			if output, err := exec.Command("sysctl", "-p", sysctlConf).CombinedOutput(); err != nil {
-				return osutil.OutputErr(output, err)
-			}
+			// apply our configuration or default configuration
+			// via systemd-sysctl for the relevant prefixes
+			return systemd.Sysctl(sysctlPrefixes)
 		}
 	}
 
