@@ -99,7 +99,7 @@ func (u *updateTestSuite) testCanUpdate(c *C, testCases []canUpdateTestCase) {
 		c.Logf("tc: %v", idx)
 		schema := tc.schema
 		if schema == "" {
-			schema = gadget.GPT
+			schema = "gpt"
 		}
 		err := gadget.CanUpdateStructure(&tc.from, &tc.to, schema)
 		if tc.err == "" {
@@ -508,7 +508,7 @@ func (u *updateTestSuite) TestCanUpdateName(c *C) {
 				VolumeStructure: &gadget.VolumeStructure{Name: "mbr-ok", Type: "0C"},
 			},
 			err:    ``,
-			schema: gadget.MBR,
+			schema: "mbr",
 		}, {
 			from: gadget.LaidOutStructure{
 				VolumeStructure: &gadget.VolumeStructure{Name: "foo", Type: "00000000-0000-0000-0000-dd00deadbeef"},
@@ -517,7 +517,7 @@ func (u *updateTestSuite) TestCanUpdateName(c *C) {
 				VolumeStructure: &gadget.VolumeStructure{Name: "gpt-unhappy", Type: "00000000-0000-0000-0000-dd00deadbeef"},
 			},
 			err:    `cannot change structure name from "foo" to "gpt-unhappy"`,
-			schema: gadget.GPT,
+			schema: "gpt",
 		},
 	}
 	u.testCanUpdate(c, cases)
@@ -667,7 +667,7 @@ func updateDataSet(c *C) (oldData gadget.GadgetData, newData gadget.GadgetData, 
 		Volumes: map[string]gadget.Volume{
 			"foo": {
 				Bootloader: "grub",
-				Schema:     gadget.GPT,
+				Schema:     "gpt",
 				Structure:  []gadget.VolumeStructure{bareStruct, fsStruct, lastStruct},
 			},
 		},
@@ -676,7 +676,7 @@ func updateDataSet(c *C) (oldData gadget.GadgetData, newData gadget.GadgetData, 
 		Volumes: map[string]gadget.Volume{
 			"foo": {
 				Bootloader: "grub",
-				Schema:     gadget.GPT,
+				Schema:     "gpt",
 				Structure:  []gadget.VolumeStructure{bareStruct, fsStruct, lastStruct},
 			},
 		},
@@ -824,7 +824,7 @@ func (u *updateTestSuite) TestUpdateApplyErrorLayout(c *C) {
 		Volumes: map[string]gadget.Volume{
 			"foo": {
 				Bootloader: "grub",
-				Schema:     gadget.GPT,
+				Schema:     "gpt",
 				Structure:  []gadget.VolumeStructure{bareStruct},
 			},
 		},
@@ -833,7 +833,7 @@ func (u *updateTestSuite) TestUpdateApplyErrorLayout(c *C) {
 		Volumes: map[string]gadget.Volume{
 			"foo": {
 				Bootloader: "grub",
-				Schema:     gadget.GPT,
+				Schema:     "gpt",
 				Structure:  []gadget.VolumeStructure{bareStructUpdate},
 			},
 		},
@@ -876,7 +876,7 @@ func (u *updateTestSuite) TestUpdateApplyErrorIllegalVolumeUpdate(c *C) {
 		Volumes: map[string]gadget.Volume{
 			"foo": {
 				Bootloader: "grub",
-				Schema:     gadget.GPT,
+				Schema:     "gpt",
 				Structure:  []gadget.VolumeStructure{bareStruct},
 			},
 		},
@@ -885,7 +885,7 @@ func (u *updateTestSuite) TestUpdateApplyErrorIllegalVolumeUpdate(c *C) {
 		Volumes: map[string]gadget.Volume{
 			"foo": {
 				Bootloader: "grub",
-				Schema:     gadget.GPT,
+				Schema:     "gpt",
 				// more structures than old
 				Structure: []gadget.VolumeStructure{bareStruct, bareStructUpdate},
 			},
@@ -929,7 +929,7 @@ func (u *updateTestSuite) TestUpdateApplyErrorIllegalStructureUpdate(c *C) {
 		Volumes: map[string]gadget.Volume{
 			"foo": {
 				Bootloader: "grub",
-				Schema:     gadget.GPT,
+				Schema:     "gpt",
 				Structure:  []gadget.VolumeStructure{bareStruct},
 			},
 		},
@@ -938,7 +938,7 @@ func (u *updateTestSuite) TestUpdateApplyErrorIllegalStructureUpdate(c *C) {
 		Volumes: map[string]gadget.Volume{
 			"foo": {
 				Bootloader: "grub",
-				Schema:     gadget.GPT,
+				Schema:     "gpt",
 				Structure:  []gadget.VolumeStructure{fsStruct},
 			},
 		},
@@ -971,7 +971,7 @@ func (u *updateTestSuite) TestUpdateApplyErrorDifferentVolume(c *C) {
 		Volumes: map[string]gadget.Volume{
 			"foo": {
 				Bootloader: "grub",
-				Schema:     gadget.GPT,
+				Schema:     "gpt",
 				Structure:  []gadget.VolumeStructure{bareStruct},
 			},
 		},
@@ -1013,7 +1013,7 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesAreOptInWithDefaultPolicy(c *C) 
 		Volumes: map[string]gadget.Volume{
 			"foo": {
 				Bootloader: "grub",
-				Schema:     gadget.GPT,
+				Schema:     "gpt",
 				Structure:  []gadget.VolumeStructure{bareStruct},
 			},
 		},

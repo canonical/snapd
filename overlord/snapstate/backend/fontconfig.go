@@ -22,12 +22,12 @@ package backend
 import (
 	"fmt"
 
-	"github.com/snapcore/snapd/cmd/cmdutil"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snapdtool"
 )
 
 var updateFontconfigCaches = updateFontconfigCachesImpl
-var commandFromSystemSnap = cmdutil.CommandFromSystemSnap
+var commandFromSystemSnap = snapdtool.CommandFromSystemSnap
 
 // updateFontconfigCaches always update the fontconfig caches
 func updateFontconfigCachesImpl() error {
