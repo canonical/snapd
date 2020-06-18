@@ -152,19 +152,19 @@ backends:
             - ubuntu-16.04-64:
                   image: ubuntu-1604-64-virt-enabled
                   storage: 20G
-                  workers: 1
+                  workers: 2
             - ubuntu-18.04-64:
                   image: ubuntu-1804-64-virt-enabled
                   storage: 20G
-                  workers: 1
+                  workers: 2
             - ubuntu-19.10-64:
                   image: ubuntu-1910-64-virt-enabled
                   storage: 20G
-                  workers: 1
+                  workers: 2
             - ubuntu-20.04-64:
                   image: ubuntu-2004-64-virt-enabled
                   storage: 20G
-                  workers: 1
+                  workers: 2
 
     qemu:
         # TODO:UC20: uc20 needs 2G or grub will not loopback the kernel snap
@@ -874,7 +874,7 @@ suites:
             # Use cloud init to make initial system configuration instead of user assertion
             USE_CLOUD_INIT: '$(HOST: echo "${SPREAD_USE_CLOUD_INIT:-true}")'
             # Enable tpm in the nested vm in case it is supported
-            ENABLE_TPM: '$(HOST: echo "${SPREAD_ENABLE_TPM:-false}")'
+            EMULATE_TPM: '$(HOST: echo "${SPREAD_EMULATE_TPM:-false}")'
             # Enable secure boot in the nested vm in case it is supported
             ENABLE_SECURE_BOOT: '$(HOST: echo "${SPREAD_ENABLE_SECURE_BOOT:-false}")'
             # Build and use snapd from current branch
@@ -916,7 +916,7 @@ suites:
             # Use cloud init to make initial system configuration instead of user assertion
             USE_CLOUD_INIT: '$(HOST: echo "${SPREAD_USE_CLOUD_INIT:-true}")'
             # Enable tpm in the nested vm in case it is supported
-            ENABLE_TPM: '$(HOST: echo "${SPREAD_ENABLE_TPM:-false}")'
+            EMULATE_TPM: '$(HOST: echo "${SPREAD_EMULATE_TPM:-false}")'
             # Enable secure boot in the nested vm in case it is supported
             ENABLE_SECURE_BOOT: '$(HOST: echo "${SPREAD_ENABLE_SECURE_BOOT:-false}")'
             # Build and use snapd from current branch
@@ -966,7 +966,7 @@ suites:
             # Use cloud init to make initial system configuration instead of user assertion
             USE_CLOUD_INIT: '$(HOST: echo "${SPREAD_USE_CLOUD_INIT:-true}")'
             # Enable tpm in the nested vm in case it is supported
-            ENABLE_TPM: '$(HOST: echo "${SPREAD_ENABLE_TPM:-false}")'
+            EMULATE_TPM: '$(HOST: echo "${SPREAD_EMULATE_TPM:-false}")'
             # Enable secure boot in the nested vm in case it is supported
             ENABLE_SECURE_BOOT: '$(HOST: echo "${SPREAD_ENABLE_SECURE_BOOT:-false}")'
             # Build and use snapd from current branch
@@ -1012,7 +1012,7 @@ suites:
             # Use cloud init to make initial system configuration instead of user assertion
             USE_CLOUD_INIT: '$(HOST: echo "${SPREAD_USE_CLOUD_INIT:-true}")'
             # Enable tpm in the nested vm in case it is supported
-            ENABLE_TPM: '$(HOST: echo "${SPREAD_ENABLE_TPM:-true}")'
+            EMULATE_TPM: '$(HOST: echo "${SPREAD_EMULATE_TPM:-true}")'
             # Enable secure boot in the nested vm in case it is supported
             ENABLE_SECURE_BOOT: '$(HOST: echo "${SPREAD_ENABLE_SECURE_BOOT:-true}")'
             # Build and use snapd from current branch

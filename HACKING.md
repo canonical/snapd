@@ -235,6 +235,7 @@ Define the variables used to create the VM:
     $ export BUILD_SNAPD_FROM_CURRENT=true
     $ export UPDATE_PC_KERNEL=false
     $ export BUILD_NEW_IMAGE=true
+    $ export EMULATE_TPM
 
 Source the nested library
 
@@ -256,6 +257,7 @@ Connect to the VM
 Destroy the VM
 
     $ destroy_nested_vm
+    $ rm -rf /tmp/work-dir/
 
 
 # Quick intro to hacking on snap-confine

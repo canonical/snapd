@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -x
+set -e
 
 # Define where helpers are stored to support scenario when the this script is used
 # to manage vms from other projects
@@ -11,7 +11,7 @@ USE_CLOUD_INIT=${USE_CLOUD_INIT:-"true"}
 ENABLE_SECURE_BOOT=${ENABLE_SECURE_BOOT:-"true"}
 OVMF_CODE=${OVMF_CODE:-"secboot"}
 OVMF_VARS=${OVMF_VARS:-"ms"}
-ENABLE_TPM=${ENABLE_TPM:-"true"}
+EMULATE_TPM=${EMULATE_TPM:-"true"}
 BUILD_SNAPD_FROM_CURRENT=${BUILD_SNAPD_FROM_CURRENT:-"true"}
 UPDATE_PC_KERNEL=${UPDATE_PC_KERNEL:-"false"}
 CUSTOM_IMAGE_URL=${CUSTOM_IMAGE_URL:-}
@@ -31,6 +31,37 @@ NESTED_MEM=${NESTED_MEM:-"4096"}
 # Define defaults for environment variables
 SPREAD_SYSTEM=${SPREAD_SYSTEM:-"$(lsb_release -is | tr '[:upper:]' '[:lower:]')-$(lsb_release -rs)-64"}
 SPREAD_BACKEND=${SPREAD_BACKEND:-"google"}
+
+show_help() {
+    echo "Nested library usage:"
+    echo ""
+    echo "1. Define the variables used to create the VM:"
+    echo "$ export BUILD_SNAPD_FROM_CURRENT=false"
+    echo "$ export UPDATE_PC_KERNEL=false"
+    echo "$ export BUILD_NEW_IMAGE=true"
+    echo "$ export EMULATE_TPM"
+    echo ""
+    echo "2. Source the nested library"
+    echo "$ . tests/lib/nested.sh"
+    echo ""
+    echo "3. Create the VM and start it as a systemd unit"
+    echo "$ create_nested_core_vm"
+    echo "$ start_nested_core_vm"
+    echo ""
+    echo "4. Check VM status"
+    echo "$ systemctl status nested-vm"
+    echo ""
+    echo "5. Connect to the VM"
+    echo "$ execute_remote"
+    echo ""
+    echo "6. Destroy the VM and clean env"
+    echo "$ destroy_nested_vm"
+    echo "$ cleanup_nested_env"
+}
+
+if [ -n "$1" ] && [ "$1" == '--help' ]; then
+    show_help
+fi 
 
 # shellcheck source=tests/lib/systemd.sh
 . "$TESTSLIB"/systemd.sh
@@ -262,13 +293,14 @@ create_nested_core_vm(){
     if [ ! -f "$WORK_DIR/image/ubuntu-core.img" ]; then
 
         if [ -z "$CUSTOM_IMAGE_URL" ]; then
-            # create the ubuntu-core image
+            echo "Creating the ubuntu-core image"
             local UBUNTU_IMAGE
             UBUNTU_IMAGE=/snap/bin/ubuntu-image
 
             local EXTRA_FUNDAMENTAL=""
             local EXTRA_SNAPS=""
             if [ -d "${PWD}/extra-snaps" ]; then
+                echo "Extra snaps detected"
                 while IFS= read -r mysnap; do
                     EXTRA_SNAPS="$EXTRA_SNAPS --snap $mysnap"
                 done <   <(find extra-snaps -name '*.snap')
@@ -284,84 +316,98 @@ create_nested_core_vm(){
                     ;;
                 ubuntu-20.04-64)
                     NESTED_MODEL="$TESTSLIB/assertions/nested-20-amd64.model"
-                    if [ "$UPDATE_PC_KERNEL" = "true" ]; then
-                    fi
                     ;;
                 *)
                     echo "unsupported system: \"$SPREAD_SYSTEM\"" 
                     exit 1
                     ;;
             esac
+            echo "Using model: $NESTED_MODEL"
 
-        if [ "$BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
-            if is_core_16_nested_system; then
-                echo "Build from current branch is not supported yet for uc16"
-                exit 1
-            fi
-            # shellcheck source=tests/lib/prepare.sh
-            . "$TESTSLIB"/prepare.sh
+            if [ "$BUILD_SNAPD_FROM_CURRENT" = "true" ] && [ -n "$SPREAD_PATH" ]; then
+                echo "Building snapd from current branch"
+                if is_core_16_nested_system; then
+                    echo "Build from current branch is not supported yet for uc16"
+                    exit 1
+                fi
 
-            snap download --basename=pc-kernel --channel="20/edge" pc-kernel
-            uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$WORK_DIR/image"
+                echo "Sourcing the prepare library"
+                # shellcheck source=tests/lib/prepare.sh
+                . "$TESTSLIB"/prepare.sh
 
-            # Get the snakeoil key and cert
-            KEY_NAME=$(get_snakeoil_key)
-            SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
-            SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
+                echo "Downloading pc-kernel snap and calling uc20_build_initramfs_kernel_snap function"
+                snap download --basename=pc-kernel --channel="20/edge" pc-kernel
+                uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$WORK_DIR/image"
 
-            # Prepare the pc kernel snap
-            KERNEL_SNAP=$(ls "$WORK_DIR"/image/pc-kernel_*.snap)
-            KERNEL_UNPACKED="$WORK_DIR"/image/kernel-unpacked
-            unsquashfs -d "$KERNEL_UNPACKED" "$KERNEL_SNAP"
-            sbattach --remove "$KERNEL_UNPACKED/kernel.efi"
-            sbsign --key "$SNAKEOIL_KEY" --cert "$SNAKEOIL_CERT" "$KERNEL_UNPACKED/kernel.efi"  --output "$KERNEL_UNPACKED/kernel.efi"
-            snap pack "$KERNEL_UNPACKED" "$WORK_DIR/image"
+                echo "Getting the snakeoil key and cert"
+                KEY_NAME=$(get_snakeoil_key)
+                SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
+                SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
 
-            chmod 0600 "$KERNEL_SNAP"
-            rm -f "$PWD/pc-kernel.snap"
-            rm -rf "$KERNEL_UNPACKED"
-            EXTRA_FUNDAMENTAL="--snap $KERNEL_SNAP"
+                echo "Signing the pc-kernel snap with the new key"
+                KERNEL_SNAP=$(ls "$WORK_DIR"/image/pc-kernel_*.snap)
+                KERNEL_UNPACKED="$WORK_DIR"/image/kernel-unpacked
+                unsquashfs -d "$KERNEL_UNPACKED" "$KERNEL_SNAP"
+                sbattach --remove "$KERNEL_UNPACKED/kernel.efi"
+                sbsign --key "$SNAKEOIL_KEY" --cert "$SNAKEOIL_CERT" "$KERNEL_UNPACKED/kernel.efi"  --output "$KERNEL_UNPACKED/kernel.efi"
+                snap pack "$KERNEL_UNPACKED" "$WORK_DIR/image"
 
-            # Prepare the pc gadget snap (unless provided by extra-snaps)
-            GADGET_SNAP=""
-            if [ -d extra-snaps ]; then
-                GADGET_SNAP=$(find extra-snaps -name 'pc_*.snap')
-            fi
-            if [ -z "$GADGET_SNAP" ]; then
-                snap download --basename=pc --channel="20/edge" pc
-                unsquashfs -d pc-gadget pc.snap
-                secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
-                snap pack pc-gadget/ "$WORK_DIR/image"
+                echo "Adding pc-kernel snap to the snaps to install"
+                chmod 0600 "$KERNEL_SNAP"
+                rm -f "$PWD/pc-kernel.snap"
+                rm -rf "$KERNEL_UNPACKED"
+                EXTRA_FUNDAMENTAL="--snap $KERNEL_SNAP"
 
-                GADGET_SNAP=$(ls "$WORK_DIR"/image/pc_*.snap)
-                rm -f "$PWD/pc.snap" "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
-                EXTRA_FUNDAMENTAL="--snap $GADGET_SNAP"
-            fi
+                echo "Preparing the pc gadget snap (unless provided by extra-snaps)"
+                GADGET_SNAP=""
+                if [ -d extra-snaps ]; then
+                    GADGET_SNAP=$(find extra-snaps -name 'pc_*.snap')
+                fi
+                if [ -z "$GADGET_SNAP" ]; then
+                    echo "Downloading pc snap"
+                    snap download --basename=pc --channel="20/edge" pc
 
-            snap download --channel="latest/edge" snapd
-            repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$PWD/new-snapd" "false"
-            EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-snapd/snapd_*.snap"
-         
+                    echo "Signing the pc snap with the new key"
+                    unsquashfs -d pc-gadget pc.snap
+                    secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+                    snap pack pc-gadget/ "$WORK_DIR/image"
+
+                    echo "Adding pc snap to the snaps to install"
+                    GADGET_SNAP=$(ls "$WORK_DIR"/image/pc_*.snap)
+                    rm -f "$PWD/pc.snap" "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+                    EXTRA_FUNDAMENTAL="--snap $GADGET_SNAP"
+                fi
+
+                echo "Downloading snapd snap and repacking with the code from the current branch"
+                snap download --channel="latest/edge" snapd
+                repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$PWD/new-snapd" "false"
+                EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-snapd/snapd_*.snap"                    
+            fi             
+            echo "Creating the image"
             sudo "$UBUNTU_IMAGE" --image-size 10G "$NESTED_MODEL" \
                 --channel "$CORE_CHANNEL" \
                 --output "$WORK_DIR/image/ubuntu-core.img" \
                 "$EXTRA_FUNDAMENTAL" \
                 "$EXTRA_SNAPS"
+
         else
-            # download the ubuntu-core image
+            echo "Downloading the ubuntu-core image from $CUSTOM_IMAGE_URL"
             get_nested_custom_image "$CUSTOM_IMAGE_URL" "ubuntu-core"
         fi
 
         if [ "$USE_CLOUD_INIT" = "true" ]; then
+            echo "Configuring cloud init for the created image"
             if is_core_20_nested_system; then
                 configure_cloud_init_nested_core_vm_uc20
             else
                 configure_cloud_init_nested_core_vm
             fi
         else
+            echo "Creating assertion disk for the created image"
             create_assertions_disk
         fi
     fi
+    echo "Image ready at $WORK_DIR/image/ubuntu-core.img"
 }
 
 configure_cloud_init_nested_core_vm(){
@@ -486,7 +532,7 @@ start_nested_core_vm(){
             PARAM_MACHINE="-machine ubuntu-q35,accel=kvm -global ICH9-LPC.disable_s3=1"
         fi
 
-        if [ "$ENABLE_TPM" = "true" ]; then
+        if [ "$EMULATE_TPM" = "true" ]; then
             if ! snap list swtpm-mvo; then
                 snap install swtpm-mvo --beta
             fi
@@ -498,6 +544,7 @@ start_nested_core_vm(){
     fi
 
     # Systemd unit is created, it is important to respect the qemu parameters order
+    echo "Starting VM" 
     systemd_create_and_start_unit "$NESTED_VM" "${QEMU} \
         ${PARAM_CPU} \
         ${PARAM_MEM} \
