@@ -41,7 +41,6 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/arch"
-	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
@@ -49,6 +48,7 @@ import (
 	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/sandbox/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
 )
@@ -61,7 +61,7 @@ var (
 	requiresSocketcall     = requiresSocketcallImpl
 
 	snapSeccompVersionInfo = snapSeccompVersionInfoImpl
-	seccompCompilerLookup  = cmd.InternalToolPath
+	seccompCompilerLookup  = snapdtool.InternalToolPath
 )
 
 func snapSeccompVersionInfoImpl(c Compiler) (seccomp.VersionInfo, error) {

@@ -384,6 +384,21 @@ func (s *userSuite) makeSystemUsers(c *check.C, systemUsers []map[string]interfa
 	})
 	// now add model related stuff to the system
 	assertstatetest.AddMany(st, model)
+	// and a serial
+	deviceKey, _ := assertstest.GenerateKey(752)
+	encDevKey, err := asserts.EncodePublicKey(deviceKey.PublicKey())
+	c.Assert(err, check.IsNil)
+	serial, err := s.brands.Signing("my-brand").Sign(asserts.SerialType, map[string]interface{}{
+		"authority-id":        "my-brand",
+		"brand-id":            "my-brand",
+		"model":               "my-model",
+		"serial":              "serialserial",
+		"device-key":          string(encDevKey),
+		"device-key-sha3-384": deviceKey.PublicKey().ID(),
+		"timestamp":           time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, check.IsNil)
+	assertstatetest.AddMany(st, serial)
 
 	for _, suMap := range systemUsers {
 		su, err := s.brands.Signing(suMap["authority-id"].(string)).Sign(asserts.SystemUserType, suMap, nil, "")
@@ -393,7 +408,7 @@ func (s *userSuite) makeSystemUsers(c *check.C, systemUsers []map[string]interfa
 		assertstatetest.AddMany(st, su)
 	}
 	// create fake device
-	err := devicestatetest.SetDevice(st, &auth.DeviceState{
+	err = devicestatetest.SetDevice(st, &auth.DeviceState{
 		Brand:  "my-brand",
 		Model:  "my-model",
 		Serial: "serialserial",
@@ -427,6 +442,21 @@ var partnerUser = map[string]interface{}{
 	"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
 }
 
+var serialUser = map[string]interface{}{
+	"format":       "1",
+	"authority-id": "my-brand",
+	"brand-id":     "my-brand",
+	"email":        "serial@bar.com",
+	"series":       []interface{}{"16", "18"},
+	"models":       []interface{}{"my-model"},
+	"serials":      []interface{}{"serialserial"},
+	"name":         "Serial Guy",
+	"username":     "goodserialguy",
+	"password":     "$6$salt$hash",
+	"since":        time.Now().Format(time.RFC3339),
+	"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
+}
+
 var badUser = map[string]interface{}{
 	// bad user (not valid for this model)
 	"authority-id": "my-brand",
@@ -436,6 +466,21 @@ var badUser = map[string]interface{}{
 	"models":       []interface{}{"non-of-the-models-i-have"},
 	"name":         "Random Gal",
 	"username":     "gal",
+	"password":     "$6$salt$hash",
+	"since":        time.Now().Format(time.RFC3339),
+	"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
+}
+
+var badUserNoMatchingSerial = map[string]interface{}{
+	"format":       "1",
+	"authority-id": "my-brand",
+	"brand-id":     "my-brand",
+	"email":        "noserial@bar.com",
+	"series":       []interface{}{"16", "18"},
+	"models":       []interface{}{"my-model"},
+	"serials":      []interface{}{"different-serialserial"},
+	"name":         "No Serial Guy",
+	"username":     "noserial",
 	"password":     "$6$salt$hash",
 	"since":        time.Now().Format(time.RFC3339),
 	"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
@@ -466,7 +511,7 @@ func (s *userSuite) TestGetUserDetailsFromAssertionHappy(c *check.C) {
 
 	// ensure that if we query the details from the assert DB we get
 	// the expected user
-	username, opts, err := getUserDetailsFromAssertion(st, model, "foo@bar.com")
+	username, opts, err := getUserDetailsFromAssertion(st, model, nil, "foo@bar.com")
 	c.Check(username, check.Equals, "guy")
 	c.Check(opts, check.DeepEquals, &osutil.AddUserOptions{
 		Gecos:    "foo@bar.com,Boring Guy",
@@ -567,7 +612,7 @@ func (s *userSuite) TestPostCreateUserFromAssertionWithForcePasswordChange(c *ch
 }
 
 func (s *userSuite) TestPostCreateUserFromAssertionAllKnown(c *check.C) {
-	s.makeSystemUsers(c, []map[string]interface{}{goodUser, partnerUser, badUser, unknownUser})
+	s.makeSystemUsers(c, []map[string]interface{}{goodUser, partnerUser, serialUser, badUser, badUserNoMatchingSerial, unknownUser})
 	created := map[string]bool{}
 	// mock the calls that create the user
 	osutilAddUser = func(username string, opts *osutil.AddUserOptions) error {
@@ -576,6 +621,8 @@ func (s *userSuite) TestPostCreateUserFromAssertionAllKnown(c *check.C) {
 			c.Check(opts.Gecos, check.Equals, "foo@bar.com,Boring Guy")
 		case "partnerguy":
 			c.Check(opts.Gecos, check.Equals, "p@partner.com,Partner Guy")
+		case "goodserialguy":
+			c.Check(opts.Gecos, check.Equals, "serial@bar.com,Serial Guy")
 		default:
 			c.Logf("unexpected username %q", username)
 			c.Fail()
@@ -611,8 +658,9 @@ func (s *userSuite) TestPostCreateUserFromAssertionAllKnown(c *check.C) {
 		c.Check(u, check.DeepEquals, userResponseData{Username: u.Username})
 	}
 	c.Check(seen, check.DeepEquals, map[string]bool{
-		"guy":        true,
-		"partnerguy": true,
+		"guy":           true,
+		"partnerguy":    true,
+		"goodserialguy": true,
 	})
 
 	// ensure the user was added to the state
@@ -621,7 +669,7 @@ func (s *userSuite) TestPostCreateUserFromAssertionAllKnown(c *check.C) {
 	users, err := auth.Users(st)
 	c.Assert(err, check.IsNil)
 	st.Unlock()
-	c.Check(users, check.HasLen, 2)
+	c.Check(users, check.HasLen, 3)
 }
 
 func (s *userSuite) TestPostCreateUserFromAssertionAllKnownClassicErrors(c *check.C) {
@@ -681,6 +729,40 @@ func (s *userSuite) TestPostCreateUserFromAssertionAllKnownNoModelError(c *check
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Result.(*errorResult).Message, check.Matches, `cannot create user: cannot get model assertion: no state entry for key`)
+}
+
+func (s *userSuite) TestPostCreateUserFromAssertionNoModel(c *check.C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	model := s.brands.Model("my-brand", "other-model", map[string]interface{}{
+		"architecture":          "amd64",
+		"gadget":                "pc",
+		"kernel":                "pc-kernel",
+		"system-user-authority": []interface{}{"my-brand", "partner"},
+	})
+	s.makeSystemUsers(c, []map[string]interface{}{serialUser})
+
+	st := s.d.overlord.State()
+	st.Lock()
+	assertstatetest.AddMany(st, model)
+	err := devicestatetest.SetDevice(st, &auth.DeviceState{
+		Brand:  "my-brand",
+		Model:  "my-model",
+		Serial: "other-serial-assertion",
+	})
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+
+	// do it!
+	buf := bytes.NewBufferString(`{"email":"serial@bar.com", "known":true}`)
+	req, err := http.NewRequest("POST", "/v2/create-user", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Result.(*errorResult).Message, check.Matches, `cannot add system-user "serial@bar.com": bound to serial assertion but device not yet registered`)
 }
 
 func (s *userSuite) TestPostCreateUserFromAssertionAllKnownButOwned(c *check.C) {

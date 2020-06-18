@@ -110,7 +110,7 @@ const launcherIntrospectionXML = `
 //   - https://github.com/snapcore/snapd/pull/8304
 
 var (
-	allowedURLSchemes = []string{"http", "https", "mailto", "snap", "help", "apt", "zoommtg", "slack"}
+	allowedURLSchemes = []string{"http", "https", "mailto", "snap", "help", "apt", "zoommtg", "slack", "msteams"}
 
 	// allowedEnvVars are those environment variables that snaps who have access
 	// to OpenDesktopEntryEnv() can set for the launched snap's environment.

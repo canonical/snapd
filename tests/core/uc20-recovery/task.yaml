@@ -25,7 +25,7 @@ execute: |
   if [ "$SPREAD_REBOOT" == "0" ]; then
       echo "In run mode"
 
-      snap install jq
+      snap install --edge jq
       # devmode as the snap does not have snapd-control
       snap install test-snapd-curl --devmode --edge
 
@@ -83,7 +83,7 @@ execute: |
       snap wait system seed.loaded
 
       # we're running in an ephemeral system and thus have to re-install snaps
-      snap install jq
+      snap install --edge jq
       snap install test-snapd-curl --devmode --edge
 
       MATCH 'snapd_recovery_mode=recover' < /proc/cmdline

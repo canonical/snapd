@@ -274,7 +274,10 @@ create_nested_core_vm(){
             EXTRA_FUNDAMENTAL="--snap $KERNEL_SNAP"
 
             # Prepare the pc gadget snap (unless provided by extra-snaps)
-            GADGET_SNAP=$(ls "${PWD}"/extra-snaps/pc_*.snap)
+            GADGET_SNAP=""
+            if [ -d extra-snaps ]; then
+                GADGET_SNAP=$(find extra-snaps -name 'pc_*.snap')
+            fi
             if [ -z "$GADGET_SNAP" ]; then
                 snap download --basename=pc --channel="20/edge" pc
                 unsquashfs -d pc-gadget pc.snap
