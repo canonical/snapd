@@ -85,6 +85,8 @@ backends:
             - ubuntu-secboot-20.04-64:
                   image: ubuntu-20.04-64
                   workers: 1
+                  secure-boot: true
+                  # XXX: old name, remove once new spread is deployed
                   secureboot: true
 
             - debian-9-64:

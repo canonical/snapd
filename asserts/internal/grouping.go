@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"sort"
 )
@@ -188,16 +187,16 @@ func (gr *Groupings) bitsetSerialize(g *Grouping) string {
 	return base64.RawURLEncoding.EncodeToString(b.Bytes())
 }
 
-var errSerializedLabel = errors.New("invalid serialized grouping label")
+const errSerializedLabelFmt = "invalid serialized grouping label: %v"
 
 // Deserialize reconstructs a grouping out of the serialized label.
 func (gr *Groupings) Deserialize(label string) (*Grouping, error) {
 	b, err := base64.RawURLEncoding.DecodeString(label)
 	if err != nil {
-		return nil, errSerializedLabel
+		return nil, fmt.Errorf(errSerializedLabelFmt, err)
 	}
 	if len(b)%2 != 0 {
-		return nil, errSerializedLabel
+		return nil, fmt.Errorf(errSerializedLabelFmt, "not divisible into 16-bits words")
 	}
 	m := len(b) / 2
 	var g Grouping
@@ -207,7 +206,7 @@ func (gr *Groupings) Deserialize(label string) (*Grouping, error) {
 		return gr.bitsetDeserialize(&g, b)
 	}
 	if m > int(gr.bitsetThreshold) {
-		return nil, errSerializedLabel
+		return nil, fmt.Errorf(errSerializedLabelFmt, "too large")
 	}
 	g.size = uint16(m)
 	esz := uint16(1)
@@ -218,10 +217,10 @@ func (gr *Groupings) Deserialize(label string) (*Grouping, error) {
 	binary.Read(bytes.NewBuffer(b), binary.LittleEndian, g.elems)
 	for i, e := range g.elems {
 		if e > gr.maxGroup {
-			return nil, errSerializedLabel
+			return nil, fmt.Errorf(errSerializedLabelFmt, "element larger than maximum group")
 		}
 		if i > 0 && g.elems[i-1] >= e {
-			return nil, errSerializedLabel
+			return nil, fmt.Errorf(errSerializedLabelFmt, "not sorted")
 		}
 	}
 	return &g, nil
@@ -231,11 +230,11 @@ func (gr *Groupings) bitsetDeserialize(g *Grouping, b []byte) (*Grouping, error)
 	buf := bytes.NewBuffer(b)
 	binary.Read(buf, binary.LittleEndian, &g.size)
 	if g.size > gr.maxGroup+1 {
-		return nil, errSerializedLabel
+		return nil, fmt.Errorf(errSerializedLabelFmt, "bitset size cannot be possibly larger than maximum group plus 1")
 	}
 	if g.size <= gr.bitsetThreshold {
 		// should not have used a bitset repr for so few elements
-		return nil, errSerializedLabel
+		return nil, fmt.Errorf(errSerializedLabelFmt, "bitset for too few elements")
 	}
 	g.elems = make([]uint16, gr.bitsetThreshold)
 	binary.Read(buf, binary.LittleEndian, g.elems)
