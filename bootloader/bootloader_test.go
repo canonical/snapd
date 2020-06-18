@@ -147,7 +147,17 @@ func (s *bootenvTestSuite) TestInstallBootloaderConfigFromAssets(c *C) {
 				Recovery: true,
 			},
 		}, {
-			name:       "grub with defautl asset",
+			name:              "grub with non empty gadget file",
+			gadgetFile:        "grub.conf",
+			gadgetFileContent: []byte("not so empty"),
+			sysFile:           "/EFI/ubuntu/grub.cfg",
+			assetName:         "grub-recovery.cfg",
+			assetContent:      []byte("hello assets"),
+			opts: &bootloader.Options{
+				Recovery: true,
+			},
+		}, {
+			name:       "grub with default asset",
 			gadgetFile: "grub.conf",
 			// empty file in the gadget
 			gadgetFileContent: nil,
