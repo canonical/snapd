@@ -171,14 +171,14 @@ func (spec *Specification) AddParametricSnippet(templateFragment []string, value
 			expansions = make(map[string]*strutil.OrderedSet)
 			spec.parametricSnippets[tag] = expansions
 		}
-		bag := expansions[template]
-		if bag == nil {
-			bag = &strutil.OrderedSet{}
-			expansions[template] = bag
+		values := expansions[template]
+		if values == nil {
+			values = &strutil.OrderedSet{}
+			expansions[template] = values
 		}
 		// Expand the spec's parametric snippets, initializing
 		// each part of the map as needed
-		bag.Put(value)
+		values.Put(value)
 	}
 }
 
