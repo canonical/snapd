@@ -80,14 +80,13 @@ func (g *grub) dir() string {
 }
 
 func (g *grub) installRecoveryBootConfig(gadgetDir string) (bool, error) {
-	recoveryGrubCfg := filepath.Join(gadgetDir, g.Name()+"-recovery.conf")
-	if !osutil.FileExists(recoveryGrubCfg) {
+	gadgetGrubCfg := filepath.Join(gadgetDir, g.Name()+".conf")
+	if !osutil.FileExists(gadgetGrubCfg) {
 		// gadget does not use grub bootloader
 		return false, nil
 	}
 	assetName := g.Name() + "-recovery.cfg"
 	bootConfig := assets.Internal(assetName)
-	// XXX: fallback to file content if not empty?
 	if bootConfig == nil {
 		return true, fmt.Errorf("internal error: no boot asset for %q", assetName)
 	}

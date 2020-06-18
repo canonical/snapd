@@ -113,7 +113,6 @@ func (s *bootenvTestSuite) TestInstallBootloaderConfigFromGadget(c *C) {
 		},
 		{name: "androidboot", gadgetFile: "androidboot.conf", sysFile: "/boot/androidboot/androidboot.env"},
 		{name: "lk", gadgetFile: "lk.conf", sysFile: "/boot/lk/snapbootsel.bin"},
-		{name: "grub recovery", gadgetFile: "grub-recovery.conf", sysFile: "/EFI/ubuntu/grub.cfg", opts: &bootloader.Options{Recovery: true}},
 	} {
 		mockGadgetDir := c.MkDir()
 		rootDir := c.MkDir()
@@ -138,7 +137,7 @@ func (s *bootenvTestSuite) TestInstallBootloaderConfigFromAssets(c *C) {
 	}{
 		{
 			name:       "grub",
-			gadgetFile: "grub-recovery.conf",
+			gadgetFile: "grub.conf",
 			// empty file in the gadget
 			gadgetFileContent: nil,
 			sysFile:           "/EFI/ubuntu/grub.cfg",
@@ -149,7 +148,7 @@ func (s *bootenvTestSuite) TestInstallBootloaderConfigFromAssets(c *C) {
 			},
 		}, {
 			name:       "grub with defautl asset",
-			gadgetFile: "grub-recovery.conf",
+			gadgetFile: "grub.conf",
 			// empty file in the gadget
 			gadgetFileContent: nil,
 			sysFile:           "/EFI/ubuntu/grub.cfg",
@@ -158,7 +157,7 @@ func (s *bootenvTestSuite) TestInstallBootloaderConfigFromAssets(c *C) {
 			},
 		}, {
 			name:       "grub missing asset",
-			gadgetFile: "grub-recovery.conf",
+			gadgetFile: "grub.conf",
 			// empty file in the gadget
 			gadgetFileContent: nil,
 			sysFile:           "/EFI/ubuntu/grub.cfg",
