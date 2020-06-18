@@ -180,7 +180,7 @@ func (s *specSuite) TestAddSnippetAndAddDeduplicatedAndParamSnippet(c *C) {
 	restore := apparmor.SetSpecScope(s.spec, []string{"snap.demo.command", "snap.demo.service"})
 	defer restore()
 
-	// Add two snippets in the context we are in.
+	// Add three snippets in the context we are in.
 	s.spec.AddSnippet("normal")
 	s.spec.AddDeduplicatedSnippet("dedup")
 	s.spec.AddParametricSnippet([]string{""}, "param")
