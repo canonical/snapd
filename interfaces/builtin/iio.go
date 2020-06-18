@@ -125,9 +125,13 @@ func (iface *iioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 	// by the sanitization logic above, we can trim that prefix and provide a
 	// shorter expansion expression.
 	deviceNum := strings.TrimPrefix(deviceName, "iio:device")
-	spec.AddParametricSnippet([]string{"/sys/devices/**/iio:device", "/** rwk,"}, deviceNum)
+	spec.AddParametricSnippet([]string{
+		"/sys/devices/**/iio:device" /* ###PARAM### */, "/** rwk,  # Add any condensed parametric rules",
+	}, deviceNum)
 	// For consistency, not an efficiency problem.
-	spec.AddParametricSnippet([]string{"/sys/devices/**/iio:device", "/ r,"}, deviceNum)
+	spec.AddParametricSnippet([]string{
+		"/sys/devices/**/iio:device" /* ###PARAM### */, "/ r,  # Add any condensed parametric rules",
+	}, deviceNum)
 
 	return nil
 }
