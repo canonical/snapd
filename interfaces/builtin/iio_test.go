@@ -238,8 +238,8 @@ func (s *IioInterfaceSuite) TestConnectedPlugAppArmorSnippetsMultipleOptimized(c
 /sys/bus/iio/devices/iio:device2/ r,
 /sys/bus/iio/devices/iio:device2/** rwk,
 
-/sys/devices/**/{iio:device1,iio:device2}/ r,
-/sys/devices/**/{iio:device1,iio:device2}/** rwk,`
+/sys/devices/**/iio:device{1,2}/ r,
+/sys/devices/**/iio:device{1,2}/** rwk,`
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev1)
 	c.Assert(err, IsNil)
