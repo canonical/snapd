@@ -46,7 +46,6 @@ const i2cConnectedPlugAppArmorPath = `
 # Description: Can access I2C controller
 
 %s rw,
-/sys/devices/platform/{*,**.i2c}/%s/** rw,
 `
 
 const i2cConnectedPlugAppArmorSysfsName = `
@@ -129,7 +128,8 @@ func (iface *i2cInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 	}
 
 	cleanedPath := filepath.Clean(path)
-	spec.AddSnippet(fmt.Sprintf(i2cConnectedPlugAppArmorPath, cleanedPath, strings.TrimPrefix(path, "/dev/")))
+	spec.AddSnippet(fmt.Sprintf(i2cConnectedPlugAppArmorPath, cleanedPath))
+	spec.AddParametricSnippet([]string{"/sys/devices/platform/{*,**.i2c}/", "/** rw,"}, strings.TrimPrefix(path, "/dev/"))
 	return nil
 }
 
