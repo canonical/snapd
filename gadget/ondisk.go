@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,7 +17,7 @@
  *
  */
 
-package partition
+package gadget
 
 import (
 	"bytes"
@@ -28,7 +28,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/internal"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/strutil"
@@ -39,7 +39,7 @@ const (
 	ubuntuSeedLabel = "ubuntu-seed"
 	ubuntuDataLabel = "ubuntu-data"
 
-	sectorSize gadget.Size = 512
+	sectorSize Size = 512
 
 	createdPartitionAttr = "59"
 )
@@ -117,28 +117,36 @@ func isCreatedDuringInstall(p *sfdiskPartition, fs *lsblkBlockDevice, sfdiskLabe
 	return false
 }
 
-type DeviceLayout struct {
-	Structure []DeviceStructure
+// TODO: consider looking into merging LaidOutVolume/Structure OnDiskVolume/Structure
+
+// OnDiskStructure represents a gadget structure laid on a block device.
+type OnDiskStructure struct {
+	LaidOutStructure
+
+	// Node identifies the device node of the block device.
+	Node string
+	// CreatedDuringInstall is true when the structure has properties indicating
+	// it was created based on the gadget description during installation.
+	CreatedDuringInstall bool
+}
+
+// OnDiskVolume holds information about the disk device including its partitioning
+// schema, the partition table, and the structure layout it contains.
+type OnDiskVolume struct {
+	Structure []OnDiskStructure
 	ID        string
 	Device    string
 	Schema    string
 	// size in bytes
-	Size gadget.Size
+	Size Size
 	// sector size in bytes
-	SectorSize     gadget.Size
+	SectorSize     Size
 	partitionTable *sfdiskPartitionTable
 }
 
-type DeviceStructure struct {
-	gadget.LaidOutStructure
-
-	Node                 string
-	CreatedDuringInstall bool
-}
-
-// DeviceLayoutFromDisk obtains the partitioning and filesystem information from
+// OnDiskVolumeFromDevice obtains the partitioning and filesystem information from
 // the block device.
-func DeviceLayoutFromDisk(device string) (*DeviceLayout, error) {
+func OnDiskVolumeFromDevice(device string) (*OnDiskVolume, error) {
 	output, err := exec.Command("sfdisk", "--json", "-d", device).Output()
 	if err != nil {
 		return nil, osutil.OutputErr(output, err)
@@ -162,9 +170,11 @@ var (
 	ensureNodesExist = ensureNodesExistImpl
 )
 
+// TODO: move CreateMissing to gadget/install
+
 // CreateMissing creates the partitions listed in the positioned volume pv
 // that are missing from the existing device layout.
-func (dl *DeviceLayout) CreateMissing(pv *gadget.LaidOutVolume) ([]DeviceStructure, error) {
+func (dl *OnDiskVolume) CreateMissing(pv *LaidOutVolume) ([]OnDiskStructure, error) {
 	buf, created := buildPartitionList(dl, pv)
 	if len(created) == 0 {
 		return created, nil
@@ -193,9 +203,11 @@ func (dl *DeviceLayout) CreateMissing(pv *gadget.LaidOutVolume) ([]DeviceStructu
 	return created, nil
 }
 
+// TODO: move RemoveCreated to gadget/install
+
 // RemoveCreated removes partitions added during a previous failed install
 // attempt.
-func (dl *DeviceLayout) RemoveCreated() error {
+func (dl *OnDiskVolume) RemoveCreated() error {
 	indexes := make([]string, 0, len(dl.partitionTable.Partitions))
 	for i, s := range dl.Structure {
 		if s.CreatedDuringInstall {
@@ -219,7 +231,7 @@ func (dl *DeviceLayout) RemoveCreated() error {
 	}
 
 	// Re-read the partition table from the device to update our partition list
-	layout, err := DeviceLayoutFromDisk(dl.Device)
+	layout, err := OnDiskVolumeFromDevice(dl.Device)
 	if err != nil {
 		return fmt.Errorf("cannot read disk layout: %v", err)
 	}
@@ -237,25 +249,27 @@ func (dl *DeviceLayout) RemoveCreated() error {
 	return nil
 }
 
+var internalUdevTrigger = internal.UdevTrigger
+
 // ensureNodeExists makes sure the device nodes for all device structures are
 // available and notified to udev, within a specified amount of time.
-func ensureNodesExistImpl(ds []DeviceStructure, timeout time.Duration) error {
+func ensureNodesExistImpl(dss []OnDiskStructure, timeout time.Duration) error {
 	t0 := time.Now()
-	for _, part := range ds {
+	for _, ds := range dss {
 		found := false
 		for time.Since(t0) < timeout {
-			if osutil.FileExists(part.Node) {
+			if osutil.FileExists(ds.Node) {
 				found = true
 				break
 			}
 			time.Sleep(100 * time.Millisecond)
 		}
 		if found {
-			if err := udevTrigger(part.Node); err != nil {
+			if err := internalUdevTrigger(ds.Node); err != nil {
 				return err
 			}
 		} else {
-			return fmt.Errorf("device %s not available", part.Node)
+			return fmt.Errorf("device %s not available", ds.Node)
 		}
 	}
 	return nil
@@ -278,7 +292,7 @@ func fromSfdiskPartitionType(st string, sfdiskLabel string) (string, error) {
 	}
 }
 
-func blockDeviceSizeInSectors(devpath string) (gadget.Size, error) {
+func blockDeviceSizeInSectors(devpath string) (Size, error) {
 	// the size is reported in 512-byte sectors
 	// XXX: consider using /sys/block/<dev>/size directly
 	out, err := exec.Command("blockdev", "--getsz", devpath).CombinedOutput()
@@ -290,18 +304,18 @@ func blockDeviceSizeInSectors(devpath string) (gadget.Size, error) {
 	if err != nil {
 		return 0, fmt.Errorf("cannot parse device size %q: %v", nospace, err)
 	}
-	return gadget.Size(sz), nil
+	return Size(sz), nil
 }
 
 // deviceLayoutFromPartitionTable takes an sfdisk dump partition table and returns
 // the partitioning information as a device layout.
-func deviceLayoutFromPartitionTable(ptable sfdiskPartitionTable) (*DeviceLayout, error) {
+func deviceLayoutFromPartitionTable(ptable sfdiskPartitionTable) (*OnDiskVolume, error) {
 	if ptable.Unit != "sectors" {
 		return nil, fmt.Errorf("cannot position partitions: unknown unit %q", ptable.Unit)
 	}
 
-	structure := make([]gadget.VolumeStructure, len(ptable.Partitions))
-	ds := make([]DeviceStructure, len(ptable.Partitions))
+	structure := make([]VolumeStructure, len(ptable.Partitions))
+	ds := make([]OnDiskStructure, len(ptable.Partitions))
 
 	for i, p := range ptable.Partitions {
 		info, err := filesystemInfo(p.Node)
@@ -321,18 +335,18 @@ func deviceLayoutFromPartitionTable(ptable sfdiskPartitionTable) (*DeviceLayout,
 			return nil, fmt.Errorf("cannot convert sfdisk partition type %q: %v", p.Type, err)
 		}
 
-		structure[i] = gadget.VolumeStructure{
+		structure[i] = VolumeStructure{
 			Name:       p.Name,
-			Size:       gadget.Size(p.Size) * sectorSize,
+			Size:       Size(p.Size) * sectorSize,
 			Label:      bd.Label,
 			Type:       vsType,
 			Filesystem: bd.FSType,
 		}
 
-		ds[i] = DeviceStructure{
-			LaidOutStructure: gadget.LaidOutStructure{
+		ds[i] = OnDiskStructure{
+			LaidOutStructure: LaidOutStructure{
 				VolumeStructure: &structure[i],
-				StartOffset:     gadget.Size(p.Start) * sectorSize,
+				StartOffset:     Size(p.Start) * sectorSize,
 				Index:           i + 1,
 			},
 			Node:                 p.Node,
@@ -340,10 +354,10 @@ func deviceLayoutFromPartitionTable(ptable sfdiskPartitionTable) (*DeviceLayout,
 		}
 	}
 
-	var numSectors gadget.Size
+	var numSectors Size
 	if ptable.LastLBA != 0 {
 		// sfdisk reports the last usable LBA for GPT disks only
-		numSectors = gadget.Size(ptable.LastLBA + 1)
+		numSectors = Size(ptable.LastLBA + 1)
 	} else {
 		// sfdisk does not report any information about the size of a
 		// MBR partitioned disk, find out the size of the device by
@@ -355,7 +369,7 @@ func deviceLayoutFromPartitionTable(ptable sfdiskPartitionTable) (*DeviceLayout,
 		numSectors = sz
 	}
 
-	dl := &DeviceLayout{
+	dl := &OnDiskVolume{
 		Structure:      ds,
 		ID:             ptable.ID,
 		Device:         ptable.Device,
@@ -382,7 +396,7 @@ func deviceName(name string, index int) string {
 // device contents and gadget structure list, in sfdisk dump format, and
 // returns a partitioning description suitable for sfdisk input and a
 // list of the partitions to be created.
-func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume) (sfdiskInput *bytes.Buffer, toBeCreated []DeviceStructure) {
+func buildPartitionList(dl *OnDiskVolume, pv *LaidOutVolume) (sfdiskInput *bytes.Buffer, toBeCreated []OnDiskStructure) {
 	ptable := dl.partitionTable
 
 	// Keep track what partitions we already have on disk
@@ -395,7 +409,7 @@ func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume) (sfdiskInput
 	canExpandData := false
 	if n := len(pv.LaidOutStructure); n > 0 {
 		last := pv.LaidOutStructure[n-1]
-		if last.VolumeStructure.Role == gadget.SystemData {
+		if last.VolumeStructure.Role == SystemData {
 			canExpandData = true
 		}
 	}
@@ -429,7 +443,7 @@ func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume) (sfdiskInput
 
 		// Check if the data partition should be expanded
 		size := s.Size
-		if s.Role == gadget.SystemData && canExpandData && p.StartOffset+s.Size < dl.Size {
+		if s.Role == SystemData && canExpandData && p.StartOffset+s.Size < dl.Size {
 			size = dl.Size - p.StartOffset
 		}
 
@@ -442,15 +456,15 @@ func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume) (sfdiskInput
 
 		// Set expected labels based on role
 		switch s.Role {
-		case gadget.SystemBoot:
+		case SystemBoot:
 			s.Label = ubuntuBootLabel
-		case gadget.SystemSeed:
+		case SystemSeed:
 			s.Label = ubuntuSeedLabel
-		case gadget.SystemData:
+		case SystemData:
 			s.Label = ubuntuDataLabel
 		}
 
-		toBeCreated = append(toBeCreated, DeviceStructure{
+		toBeCreated = append(toBeCreated, OnDiskStructure{
 			LaidOutStructure:     p,
 			Node:                 node,
 			CreatedDuringInstall: true,
@@ -462,7 +476,7 @@ func buildPartitionList(dl *DeviceLayout, pv *gadget.LaidOutVolume) (sfdiskInput
 
 // listCreatedPartitions returns a list of partitions created during the
 // install process.
-func listCreatedPartitions(layout *DeviceLayout) []string {
+func listCreatedPartitions(layout *OnDiskVolume) []string {
 	created := make([]string, 0, len(layout.Structure))
 	for _, s := range layout.Structure {
 		if s.CreatedDuringInstall {
@@ -470,15 +484,6 @@ func listCreatedPartitions(layout *DeviceLayout) []string {
 		}
 	}
 	return created
-}
-
-// udevTrigger triggers udev for the specified device and waits until
-// all events in the udev queue are handled.
-func udevTrigger(device string) error {
-	if output, err := exec.Command("udevadm", "trigger", "--settle", device).CombinedOutput(); err != nil {
-		return osutil.OutputErr(output, err)
-	}
-	return nil
 }
 
 // reloadPartitionTable instructs the kernel to re-read the partition

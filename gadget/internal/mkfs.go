@@ -17,7 +17,7 @@
  *
  */
 
-package gadget
+package internal
 
 import (
 	"fmt"
@@ -33,15 +33,30 @@ type MkfsFunc func(imgFile, label, contentsRootDir string) error
 
 var (
 	mkfsHandlers = map[string]MkfsFunc{
-		"vfat": MkfsVfat,
-		"ext4": MkfsExt4,
+		"vfat": mkfsVfat,
+		"ext4": mkfsExt4,
 	}
 )
 
-// MkfsExt4 creates an EXT4 filesystem in given image file, with an optional
+// Mkfs creates a filesystem of given type and provided label in the device or file.
+func Mkfs(typ, img, label string) error {
+	return MkfsWithContent(typ, img, label, "")
+}
+
+// Mkfs creates a filesystem of given type and provided label in the device or file.
+// The filesystem is populated with contents of contentRootDir.
+func MkfsWithContent(typ, img, label, contentRootDir string) error {
+	h, ok := mkfsHandlers[typ]
+	if !ok {
+		return fmt.Errorf("cannot create unsupported filesystem %q", typ)
+	}
+	return h(img, label, contentRootDir)
+}
+
+// mkfsExt4 creates an EXT4 filesystem in given image file, with an optional
 // filesystem label, and populates it with the contents of provided root
 // directory.
-func MkfsExt4(img, label, contentsRootDir string) error {
+func mkfsExt4(img, label, contentsRootDir string) error {
 	// Originally taken from ubuntu-image
 	// Switched to use mkfs defaults for https://bugs.launchpad.net/snappy/+bug/1878374
 	// For caveats/requirements in case we need support for older systems:
@@ -77,10 +92,10 @@ func MkfsExt4(img, label, contentsRootDir string) error {
 	return nil
 }
 
-// MkfsVfat creates a VFAT filesystem in given image file, with an optional
+// mkfsVfat creates a VFAT filesystem in given image file, with an optional
 // filesystem label, and populates it with the contents of provided root
 // directory.
-func MkfsVfat(img, label, contentsRootDir string) error {
+func mkfsVfat(img, label, contentsRootDir string) error {
 	// taken from ubuntu-image
 	mkfsArgs := []string{
 		// 512B logical sector size
