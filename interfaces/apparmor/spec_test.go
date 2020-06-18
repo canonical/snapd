@@ -196,6 +196,46 @@ func (s *specSuite) TestAddSnippetAndAddDeduplicatedAndParamSnippet(c *C) {
 	c.Assert(s.spec.SecurityTags(), DeepEquals, []string{"snap.demo.command", "snap.demo.service"})
 }
 
+// Define tags but don't add any snippets.
+func (s *specSuite) TestTagsButNoSnippets(c *C) {
+	restore := apparmor.SetSpecScope(s.spec, []string{"snap.demo.command", "snap.demo.service"})
+	defer restore()
+
+	c.Assert(s.spec.UpdateNS(), HasLen, 0)
+	c.Assert(s.spec.Snippets(), DeepEquals, map[string][]string{})
+	c.Assert(s.spec.SnippetsForTag("snap.demo.command"), DeepEquals, []string(nil))
+	c.Assert(s.spec.SnippetForTag("snap.demo.command"), Equals, "")
+	c.Assert(s.spec.SecurityTags(), DeepEquals, []string(nil))
+}
+
+// Don't define any tags but add snippets.
+func (s *specSuite) TestNoTagsNoSnippets(c *C) {
+	restore := apparmor.SetSpecScope(s.spec, []string{})
+	defer restore()
+
+	s.spec.AddSnippet("normal")
+	s.spec.AddDeduplicatedSnippet("dedup")
+	s.spec.AddParametricSnippet([]string{""}, "param")
+
+	c.Assert(s.spec.UpdateNS(), HasLen, 0)
+	c.Assert(s.spec.Snippets(), DeepEquals, map[string][]string{})
+	c.Assert(s.spec.SnippetsForTag("snap.demo.command"), DeepEquals, []string(nil))
+	c.Assert(s.spec.SnippetForTag("snap.demo.command"), Equals, "")
+	c.Assert(s.spec.SecurityTags(), DeepEquals, []string(nil))
+}
+
+// Don't define any tags or snippets.
+func (s *specSuite) TestsNoTagsOrSnippets(c *C) {
+	restore := apparmor.SetSpecScope(s.spec, []string{})
+	defer restore()
+
+	c.Assert(s.spec.UpdateNS(), HasLen, 0)
+	c.Assert(s.spec.Snippets(), DeepEquals, map[string][]string{})
+	c.Assert(s.spec.SnippetsForTag("snap.demo.command"), DeepEquals, []string(nil))
+	c.Assert(s.spec.SnippetForTag("snap.demo.command"), Equals, "")
+	c.Assert(s.spec.SecurityTags(), DeepEquals, []string(nil))
+}
+
 // AddUpdateNS adds a snippet for the snap-update-ns profile for a given snap.
 func (s *specSuite) TestAddUpdateNS(c *C) {
 	restore := apparmor.SetSpecScope(s.spec, []string{"snap.demo.command", "snap.demo.service"})
