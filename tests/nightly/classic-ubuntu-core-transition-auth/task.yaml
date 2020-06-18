@@ -20,9 +20,22 @@ debug: |
     . "$TESTSLIB/changes.sh"
     snap change "$(change_id 'Transition ubuntu-core to core')" || true
 
+restore: |
+    # shellcheck source=tests/lib/files.sh
+    . "$TESTSLIB/files.sh"
+
+    clean_file /root/.snap/auth.json
+    clean_dir /root/.snap
+
+    clean_file /home/test/.snap/auth.json
+    clean_dir /home/test/.snap
+
 execute: |
     #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB/pkgdb.sh"
+    # shellcheck source=tests/lib/files.sh
+    . "$TESTSLIB/files.sh"
+
     echo "Ensure core is gone and we have ubuntu-core instead"
     distro_purge_package snapd
     distro_install_build_snapd
@@ -34,9 +47,12 @@ execute: |
     snap ack ./ubuntu-core_*.assert
     snap install ./ubuntu-core_*.snap
 
-    mkdir -p /root/.snap/
+    ensure_dir_exists_backup_real /root/.snap
+    ensure_file_exists_backup_real /root/.snap/auth.json
     echo '{}' > /root/.snap/auth.json
-    mkdir -p /home/test/.snap/
+
+    ensure_dir_exists_backup_real /home/test/.snap
+    ensure_file_exists_backup_real /home/test/.snap/auth.json
     echo '{}' > /home/test/.snap/auth.json
 
     echo "Ensure transition is triggered"

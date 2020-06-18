@@ -1,8 +1,5 @@
 summary: Ensure create-user functionality
 
-# TODO:UC20: enable on UC20
-systems: [ubuntu-core-1*]
-
 environment:
     USER_EMAIL: mvo@ubuntu.com
     USER_NAME: mvo

@@ -30,55 +30,44 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
-	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/systemd"
 )
 
 type journalSuite struct {
-	state *state.State
-
-	systemdVersion    string
-	systemctlArgs     [][]string
-	systemctlRestorer func()
-
-	findGidRestore   func()
-	chownPathRestore func()
+	configcoreSuite
+	systemdVersion string
 }
 
 var _ = Suite(&journalSuite{})
 
 func (s *journalSuite) SetUpTest(c *C) {
-	s.state = state.New(nil)
+	s.configcoreSuite.SetUpTest(c)
+
 	s.systemdVersion = "236"
+	// this overrides systemctl mock from the base configcoreSuite.
 	s.systemctlRestorer = systemd.MockSystemctl(func(args ...string) ([]byte, error) {
 		s.systemctlArgs = append(s.systemctlArgs, args[:])
 		output := []byte("systemd " + s.systemdVersion + "\n+XYZ")
 		return output, nil
 	})
 	s.systemctlArgs = nil
-	dirs.SetRootDir(c.MkDir())
 
 	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0755)
 	c.Assert(err, IsNil)
 
-	s.findGidRestore = configcore.MockFindGid(func(group string) (uint64, error) {
+	findGidRestore := configcore.MockFindGid(func(group string) (uint64, error) {
 		c.Assert(group, Equals, "systemd-journal")
 		return 1234, nil
 	})
+	s.AddCleanup(findGidRestore)
 
-	s.chownPathRestore = configcore.MockChownPath(func(path string, uid sys.UserID, gid sys.GroupID) error {
+	chownPathRestore := configcore.MockChownPath(func(path string, uid sys.UserID, gid sys.GroupID) error {
 		c.Check(uid, Equals, sys.UserID(0))
 		c.Check(gid, Equals, sys.GroupID(1234))
 		return nil
 	})
-}
-
-func (s *journalSuite) TearDownTest(c *C) {
-	s.systemctlRestorer()
-	dirs.SetRootDir("/")
-	s.findGidRestore()
-	s.chownPathRestore()
+	s.AddCleanup(chownPathRestore)
 }
 
 func (s *journalSuite) TestConfigurePersistentJournalInvalid(c *C) {

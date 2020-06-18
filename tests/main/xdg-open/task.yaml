@@ -2,60 +2,48 @@ summary: Ensure snap userd allows opening a URL via xdg-open
 
 # Not supposed to work on Ubuntu Core systems as we don't have
 # a user session environment there
-systems: [-ubuntu-core-*]
+systems:
+    - -amazon-linux-2-*
+    - -centos-7-*
+    - -ubuntu-14.04-*
+    - -ubuntu-core-*
 
 environment:
+    # XXX: why is this here?
     DISPLAY: :0
+
+restore: |
+    tests.session -u test restore
+
+    umount /usr/bin/xdg-open
+    rm /usr/bin/xdg-open
+    if [ -e /usr/bin/xdg-open.orig ]; then
+        mv /usr/bin/xdg-open.orig /usr/bin/xdg-open
+    fi
 
 prepare: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
     install_local test-snapd-desktop
 
-restore: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB/dirs.sh"
-    #shellcheck source=tests/lib/pkgdb.sh
-    . "$TESTSLIB/pkgdb.sh"
-    umount -f /usr/bin/xdg-open || true
-    rm /usr/bin/xdg-open
-    if [ -e /usr/bin/xdg-open.orig ]; then
-        mv /usr/bin/xdg-open.orig /usr/bin/xdg-open
-    fi
-
-execute: |
-    #shellcheck source=tests/lib/pkgdb.sh
-    . "$TESTSLIB/pkgdb.sh"
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB/dirs.sh"
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
-
+    tests.session -u test prepare
     # this will be later used by userd
-    export XDG_DATA_DIRS=/usr/share
-
-    dbus-launch > dbus.env
-    #shellcheck disable=SC2046
-    export $(xargs < dbus.env)
+    tests.session -u test exec systemctl --user set-environment XDG_DATA_DIRS=/usr/share
 
     # wait for session to be ready
-    ping_launcher() {
-        dbus-send --session                                        \
-            --dest=io.snapcraft.Launcher                           \
-            --type=method_call                                     \
-            --print-reply                                          \
-            /                                                      \
+    tests.session -u test exec env "PATH=$PATH" retry -n 5 --wait 0.5 dbus-send \
+            --session                                         \
+            --dest=io.snapcraft.Launcher                      \
+            --type=method_call                                \
+            --print-reply                                     \
+            /                                                 \
             org.freedesktop.DBus.Peer.Ping
-    }
-    while ! ping_launcher ; do
-        sleep .5
-    done
 
     # Create a small helper which will tell us if snap passes
     # the URL correctly to the right handler
     cat << 'EOF' > /tmp/xdg-open
     #!/bin/sh
-    echo "$@" > /tmp/xdg-open-output
+    echo "$*" > /tmp/xdg-open-output
     echo "XDG_DATA_DIRS=$XDG_DATA_DIRS" >> /tmp/xdg-open-output
     EOF
     chmod +x /tmp/xdg-open
@@ -65,10 +53,15 @@ execute: |
     touch /usr/bin/xdg-open
     mount --bind /tmp/xdg-open /usr/bin/xdg-open
 
+execute: |
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB/dirs.sh"
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+
     ensure_xdg_open_output() {
         rm -f /tmp/xdg-open-output
-        export DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS
-        test-snapd-desktop.cmd /usr/bin/xdg-open "$1"
+        tests.session -u test exec test-snapd-desktop.cmd /usr/bin/xdg-open "$1"
         test -e /tmp/xdg-open-output
         test "$(head -1 /tmp/xdg-open-output)" = "$1"
     }
@@ -92,12 +85,15 @@ execute: |
     ensure_xdg_open_output "help:snapcraft"
     ensure_xdg_open_output "apt:snapcraft"
     ensure_xdg_open_output "zoommtg://snapcraft.io"
+    ensure_xdg_open_output "slack://5NAPPY111/magic-login/bcaf81ee-07b1-4362-9c09-ff46bd6e1bb9"
+    ensure_xdg_open_output "msteams://snapcraft.io"
+
     # Ensure XDG_DATA_DIRS was prefixed with snap specific location
     test "$(tail -1 /tmp/xdg-open-output)" = "XDG_DATA_DIRS=$SNAP_MOUNT_DIR/test-snapd-desktop/current/usr/share:/usr/share"
 
     # Ensure other schemes are not passed through
     rm /tmp/xdg-open-output
-    not test-snapd-desktop.cmd /usr/bin/xdg-open ftp://snapcraft.io
+    not tests.session -u test exec test-snapd-desktop.cmd /usr/bin/xdg-open ftp://snapcraft.io
     test ! -e /tmp/xdg-open-output
-    not test-snapd-desktop.cmd /usr/bin/xdg-open aabbcc
+    not tests.session -u test exec test-snapd-desktop.cmd /usr/bin/xdg-open aabbcc
     test ! -e /tmp/xdg-open-output

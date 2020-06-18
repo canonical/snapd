@@ -3,61 +3,23 @@ summary: Ensure that the accounts-service interface works
 # Only test on classic systems with AppArmor DBus mediation
 # Don't test on ubuntu-14.04, since it's gnome-online-accounts daemon
 # seems to be incompatible.
-systems: [ ubuntu-16* ]
-
-environment:
-    XDG_CONFIG_HOME: $(pwd)/config
-    XDG_DATA_HOME: $(pwd)/share
-    XDG_CACHE_HOME: $(pwd)/cache
+systems:
+    - ubuntu-16.04-*
+    - ubuntu-18.04-*
+    - ubuntu-2*
 
 prepare: |
-    if pgrep goa-daemon; then
-        echo "precondtion failed, goa-daemon already running!"
-        exit 1
-    fi
+    # Not all the images have the same packages pre-installed.
+    apt-get install -y --no-install-recommends gnome-online-accounts
 
-    #shellcheck source=tests/lib/pkgdb.sh
-    . "$TESTSLIB"/pkgdb.sh
     snap install --edge test-snapd-accounts-service
-    mkdir -p "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_CACHE_HOME"
-
-restore: |
-    #shellcheck source=tests/lib/pkgdb.sh
-    . "$TESTSLIB"/pkgdb.sh
-    # this will also kill the "gdbus monitor" command
-    kill "$(cat dbus-launch.pid)"
-    rm -rf "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_CACHE_HOME"
-    # usually not needed, this should die when dbus goes down
-    kill "$(cat gdbus-monitor.pid)" || true
-    pkill goa-daemon || true
-debug: |
-    ps aux
-    cat gdbus.log || true
-    if [[ -f dbus.env ]]; then
-        #shellcheck disable=SC1091
-        source dbus.env
-        busctl --user status org.gnome.OnlineAccounts
-    fi
-
-execute: |
-    echo "Ensure things run"
-    dbus-launch --sh-syntax > dbus.env
-    #shellcheck disable=SC1091
-    source dbus.env
-    echo "$DBUS_SESSION_BUS_PID" > dbus-launch.pid
-
-    # the test failed often in the past, log all dbus activity to ease debugging
-    dbus-monitor --session >gdbus.log 2>&1 &
-    echo "$!" > gdbus-monitor.pid
-
-    eval "$(printf password|gnome-keyring-daemon --login)"
-    eval "$(gnome-keyring-daemon --start)"
+    tests.session -u test prepare
 
     echo "Creating account"
     # We set a long timeout here because goa-daemon will be activated
     # by the method call, and this can take a while on heavily loaded
-    # or IO constrianed VMs.
-    busctl call --verbose --user --timeout 300 \
+    # or IO constrained VMs.
+    tests.session -u test exec busctl call --verbose --user --timeout 300 \
       org.gnome.OnlineAccounts \
       /org/gnome/OnlineAccounts/Manager \
       org.gnome.OnlineAccounts.Manager AddAccount \
@@ -68,11 +30,22 @@ execute: |
       0 \
       5 'Enabled' 'true' 'EmailAddress' 'test@example.com' 'Name' 'Test User' 'ImapHost' 'imap.example.com' 'SmtpHost': 'mail.example.com'
 
+restore: |
+    tests.session -u test restore
+
+    apt-get remove -y --purge gnome-online-accounts
+    apt-get autoremove --purge -y
+
+    # Ensure the file we are expecting to remove is there. This ought to catch
+    # future format changes.
+    test -e ~test/.config/goa-1.0/accounts.conf
+    rm -f ~test/.config/goa-1.0/accounts.conf
+
+execute: |
     echo "The interface is initially disconnected"
     snap interfaces -i accounts-service | MATCH '\- +test-snapd-accounts-service:accounts-service'
-    #shellcheck disable=SC2015
-    test-snapd-accounts-service.list-accounts && exit 1 || true
+    not tests.session -u test exec test-snapd-accounts-service.list-accounts
 
-    echo "When the plug is connected"
+    echo "When the plug is connected we can get the data"
     snap connect test-snapd-accounts-service:accounts-service
-    test-snapd-accounts-service.list-accounts | MATCH "Display Name at IMAP and SMTP"
+    tests.session -u test exec test-snapd-accounts-service.list-accounts | MATCH "Display Name at IMAP and SMTP"

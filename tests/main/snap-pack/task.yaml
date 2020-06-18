@@ -3,6 +3,9 @@ description: |
     Verify that snap pack creates squashfs files or fails in a predictable
     manner.
 
+restore: |
+    snap remove test-snapd-sh-lzo
+
 execute: |
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB"/dirs.sh
@@ -29,3 +32,7 @@ execute: |
     test -e test-snapd-sh-lzo.snap
     unsquashfs -l test-snapd-sh-lzo.snap
     unsquashfs -s test-snapd-sh-lzo.snap | MATCH "Compression lzo"
+
+    echo "The lzo snap can be used normally"
+    snap install --dangerous test-snapd-sh-lzo.snap
+    test-snapd-sh.sh -c "echo hello-lzo" | MATCH "hello-lzo"

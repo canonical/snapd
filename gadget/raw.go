@@ -31,6 +31,8 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
+// TODO: RawStructureWriter should not be exported
+
 // RawStructureWriter implements support for writing raw (bare) structures.
 type RawStructureWriter struct {
 	contentDir string
@@ -95,8 +97,8 @@ func (r *RawStructureWriter) Write(out io.WriteSeeker) error {
 	return nil
 }
 
-// RawStructureUpdater implements support for updating raw (bare) structures.
-type RawStructureUpdater struct {
+// rawStructureUpdater implements support for updating raw (bare) structures.
+type rawStructureUpdater struct {
 	*RawStructureWriter
 	backupDir    string
 	deviceLookup deviceLookupFunc
@@ -104,11 +106,11 @@ type RawStructureUpdater struct {
 
 type deviceLookupFunc func(ps *LaidOutStructure) (device string, offs Size, err error)
 
-// NewRawStructureUpdater returns an updater for the given raw (bare) structure.
+// newRawStructureUpdater returns an updater for the given raw (bare) structure.
 // Update data will be loaded from the provided gadget content directory.
 // Backups of replaced structures are temporarily kept in the rollback
 // directory.
-func NewRawStructureUpdater(contentDir string, ps *LaidOutStructure, backupDir string, deviceLookup deviceLookupFunc) (*RawStructureUpdater, error) {
+func newRawStructureUpdater(contentDir string, ps *LaidOutStructure, backupDir string, deviceLookup deviceLookupFunc) (*rawStructureUpdater, error) {
 	if deviceLookup == nil {
 		return nil, fmt.Errorf("internal error: device lookup helper must be provided")
 	}
@@ -120,7 +122,7 @@ func NewRawStructureUpdater(contentDir string, ps *LaidOutStructure, backupDir s
 	if err != nil {
 		return nil, err
 	}
-	ru := &RawStructureUpdater{
+	ru := &rawStructureUpdater{
 		RawStructureWriter: rw,
 		backupDir:          backupDir,
 		deviceLookup:       deviceLookup,
@@ -132,7 +134,7 @@ func rawContentBackupPath(backupDir string, ps *LaidOutStructure, pc *LaidOutCon
 	return filepath.Join(backupDir, fmt.Sprintf("struct-%v-%v", ps.Index, pc.Index))
 }
 
-func (r *RawStructureUpdater) backupOrCheckpointContent(disk io.ReadSeeker, pc *LaidOutContent) error {
+func (r *rawStructureUpdater) backupOrCheckpointContent(disk io.ReadSeeker, pc *LaidOutContent) error {
 	backupPath := rawContentBackupPath(r.backupDir, r.ps, pc)
 	backupName := backupPath + ".backup"
 	sameName := backupPath + ".same"
@@ -192,7 +194,7 @@ func (r *RawStructureUpdater) backupOrCheckpointContent(disk io.ReadSeeker, pc *
 
 // matchDevice identifies the device matching the configured structure, returns
 // device path and a shifted structure should any offset adjustments be needed
-func (r *RawStructureUpdater) matchDevice() (device string, shifted *LaidOutStructure, err error) {
+func (r *rawStructureUpdater) matchDevice() (device string, shifted *LaidOutStructure, err error) {
 	device, offs, err := r.deviceLookup(r.ps)
 	if err != nil {
 		return "", nil, fmt.Errorf("cannot find device matching structure %v: %v", r.ps, err)
@@ -209,11 +211,11 @@ func (r *RawStructureUpdater) matchDevice() (device string, shifted *LaidOutStru
 
 // Backup attempts to analyze and prepare a backup copy of data that will be
 // replaced during subsequent update. Backups are kept in the backup directory
-// passed to NewRawStructureUpdater(). Each region replaced by new content is
+// passed to newRawStructureUpdater(). Each region replaced by new content is
 // copied out to a separate file. Only differing regions are backed up. Analysis
 // and backup of each region is checkpointed. Regions that have been backed up
 // or determined to be identical will not be analyzed on subsequent calls.
-func (r *RawStructureUpdater) Backup() error {
+func (r *rawStructureUpdater) Backup() error {
 	device, structForDevice, err := r.matchDevice()
 	if err != nil {
 		return err
@@ -234,7 +236,7 @@ func (r *RawStructureUpdater) Backup() error {
 	return nil
 }
 
-func (r *RawStructureUpdater) rollbackDifferent(out io.WriteSeeker, pc *LaidOutContent) error {
+func (r *rawStructureUpdater) rollbackDifferent(out io.WriteSeeker, pc *LaidOutContent) error {
 	backupPath := rawContentBackupPath(r.backupDir, r.ps, pc)
 
 	if osutil.FileExists(backupPath + ".same") {
@@ -255,7 +257,7 @@ func (r *RawStructureUpdater) rollbackDifferent(out io.WriteSeeker, pc *LaidOutC
 }
 
 // Rollback attempts to restore original content from the backup copies prepared during Backup().
-func (r *RawStructureUpdater) Rollback() error {
+func (r *rawStructureUpdater) Rollback() error {
 	device, structForDevice, err := r.matchDevice()
 	if err != nil {
 		return err
@@ -276,7 +278,7 @@ func (r *RawStructureUpdater) Rollback() error {
 	return nil
 }
 
-func (r *RawStructureUpdater) updateDifferent(disk io.WriteSeeker, pc *LaidOutContent) error {
+func (r *rawStructureUpdater) updateDifferent(disk io.WriteSeeker, pc *LaidOutContent) error {
 	backupPath := rawContentBackupPath(r.backupDir, r.ps, pc)
 
 	if osutil.FileExists(backupPath + ".same") {
@@ -299,7 +301,7 @@ func (r *RawStructureUpdater) updateDifferent(disk io.WriteSeeker, pc *LaidOutCo
 
 // Update attempts to update the structure. The structure must have been
 // analyzed and backed up by a prior Backup() call.
-func (r *RawStructureUpdater) Update() error {
+func (r *rawStructureUpdater) Update() error {
 	device, structForDevice, err := r.matchDevice()
 	if err != nil {
 		return err

@@ -22,12 +22,13 @@ package bootstrap
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 
-	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/partition"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/secboot"
 )
 
@@ -77,7 +78,7 @@ func Run(gadgetRoot, device string, options Options) error {
 		}
 	}
 
-	diskLayout, err := partition.DeviceLayoutFromDisk(device)
+	diskLayout, err := gadget.OnDiskVolumeFromDevice(device)
 	if err != nil {
 		return fmt.Errorf("cannot read %v partitions: %v", device, err)
 	}
@@ -88,9 +89,18 @@ func Run(gadgetRoot, device string, options Options) error {
 		return fmt.Errorf("gadget and %v partition table not compatible: %v", device, err)
 	}
 
-	// remove partitions added during a previous (failed) install attempt
+	// remove partitions added during a previous install attempt
 	if err := diskLayout.RemoveCreated(); err != nil {
 		return fmt.Errorf("cannot remove partitions from previous install: %v", err)
+	}
+	// at this point we removed any existing partition, nuke any
+	// of the existing sealed key files placed outside of the
+	// encrypted partitions (LP: #1879338)
+	if options.KeyFile != "" {
+		if err := os.Remove(options.KeyFile); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("cannot cleanup obsolete key file: %v", options.KeyFile)
+		}
+
 	}
 
 	created, err := diskLayout.CreateMissing(lv)
@@ -98,7 +108,8 @@ func Run(gadgetRoot, device string, options Options) error {
 		return fmt.Errorf("cannot create the partitions: %v", err)
 	}
 
-	// generate keys externally so multiple encrypted partitions can use the same key
+	// We're currently generating a single encryption key, this may change later
+	// if we create multiple encrypted partitions.
 	var key partition.EncryptionKey
 	var rkey partition.RecoveryKey
 
@@ -129,93 +140,42 @@ func Run(gadgetRoot, device string, options Options) error {
 			part.Node = dataPart.Node
 		}
 
-		if err := partition.MakeFilesystem(part); err != nil {
+		if err := install.MakeFilesystem(&part); err != nil {
 			return err
 		}
 
-		if err := partition.DeployContent(part, gadgetRoot); err != nil {
+		if err := install.WriteContent(&part, gadgetRoot); err != nil {
 			return err
 		}
 
 		if options.Mount && part.Label != "" && part.HasFilesystem() {
-			if err := partition.MountFilesystem(part, boot.InitramfsRunMntDir); err != nil {
+			if err := install.MountFilesystem(&part, boot.InitramfsRunMntDir); err != nil {
 				return err
 			}
 		}
 	}
 
-	// store the encryption key as the last part of the process to reduce the
-	// possibility of exiting with an error after the TPM provisioning
-	if options.Encrypt {
-		if err := tpmSealKey(key, rkey, options); err != nil {
-			return fmt.Errorf("cannot seal the encryption key: %v", err)
-		}
+	if !options.Encrypt {
+		return nil
 	}
 
-	return nil
-}
-
-func tpmSealKey(key partition.EncryptionKey, rkey partition.RecoveryKey, options Options) error {
-	if err := rkey.Store(options.RecoveryKeyFile); err != nil {
+	// Write the recovery key
+	if err := rkey.Save(options.RecoveryKeyFile); err != nil {
 		return fmt.Errorf("cannot store recovery key: %v", err)
 	}
 
-	tpm, err := secboot.NewTPMSupport()
-	if err != nil {
-		return fmt.Errorf("cannot initialize TPM: %v", err)
-	}
-
-	if options.TPMLockoutAuthFile != "" {
-		if err := tpm.StoreLockoutAuth(options.TPMLockoutAuthFile); err != nil {
-			return fmt.Errorf("cannot store TPM lockout authorization: %v", err)
-		}
-	}
-
-	shim := filepath.Join(boot.InitramfsUbuntuBootDir, "EFI/boot/bootx64.efi")
-	grub := filepath.Join(boot.InitramfsUbuntuBootDir, "EFI/boot/grubx64.efi")
-
-	// TODO:UC20: Fix EFI image loading events
-	//
-	// The idea of EFIImageLoadEvent is to build a set of load paths for the current
-	// device configuration. So you could have something like this:
-	//
-	// shim -> recovery grub -> recovery kernel 1
-	//                      |-> recovery kernel 2
-	//                      |-> recovery kernel ...
-	//                      |-> normal grub -> run kernel good
-	//                                     |-> run kernel try
-	//
-	// Or it could look like this, which is the same thing:
-	//
-	// shim -> recovery grub -> recovery kernel 1
-	// shim -> recovery grub -> recovery kernel 2
-	// shim -> recovery grub -> recovery kernel ...
-	// shim -> recovery grub -> normal grub -> run kernel good
-	// shim -> recovery grub -> normal grub -> run kernel try
-	//
-	// This implementation in #8476, seems to just build a tree of shim -> grub -> kernel
-	// sequences for every combination of supplied input file, although the code here just
-	// specifies a single shim, grub and kernel binary, so you get one load path that looks
-	// like this:
-	//
-	// shim -> grub -> kernel
-	//
-	// This is ok for now because every boot path uses the same chain of trust, regardless
-	// of which kernel you're booting or whether you're booting through both the recovery
-	// and normal grubs. But when we add the ability to seal against specific binaries in
-	// order to secure the system with the Microsoft chain of trust, then the actual trees
-	// of EFIImageLoadEvents will need to match the exact supported boot sequences.
-
-	if err := tpm.SetShimFiles(shim); err != nil {
-		return err
-	}
-	if err := tpm.SetBootloaderFiles(grub); err != nil {
-		return err
+	// TODO:UC20: binaries are EFI/bootloader-specific, hardcoded for now
+	loadChain := []string{
+		// the path to the shim EFI binary
+		filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot/bootx64.efi"),
+		// the path to the recovery grub EFI binary
+		filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot/grubx64.efi"),
+		// the path to the run mode grub EFI binary
+		filepath.Join(boot.InitramfsUbuntuBootDir, "EFI/boot/grubx64.efi"),
 	}
 	if options.KernelPath != "" {
-		if err := tpm.SetKernelFiles(options.KernelPath); err != nil {
-			return err
-		}
+		// the path to the kernel EFI binary
+		loadChain = append(loadChain, options.KernelPath)
 	}
 
 	// TODO:UC20: get cmdline definition from bootloaders
@@ -226,29 +186,28 @@ func tpmSealKey(key partition.EncryptionKey, rkey partition.RecoveryKey, options
 		fmt.Sprintf("snapd_recovery_mode=recover snapd_recovery_system=%s console=ttyS0 console=tty1 panic=-1", options.SystemLabel),
 	}
 
-	tpm.SetKernelCmdlines(kernelCmdlines)
-
-	if options.Model != nil {
-		tpm.SetModels([]*asserts.Model{options.Model})
+	sealKeyParams := secboot.SealKeyParams{
+		ModelParams: []*secboot.SealKeyModelParams{
+			{
+				Model:          options.Model,
+				KernelCmdlines: kernelCmdlines,
+				EFILoadChains:  [][]string{loadChain},
+			},
+		},
+		KeyFile:                 options.KeyFile,
+		TPMPolicyUpdateDataFile: options.TPMPolicyUpdateDataFile,
+		TPMLockoutAuthFile:      options.TPMLockoutAuthFile,
 	}
 
-	// Provision the TPM as late as possible
-	// TODO:UC20: ideally we should ask the firmware to clear the TPM and then reboot
-	//            if the device has previously been provisioned, see
-	//            https://godoc.org/github.com/snapcore/secboot#RequestTPMClearUsingPPI
-	if err := tpm.Provision(); err != nil {
-		return fmt.Errorf("cannot provision the TPM: %v", err)
-	}
-
-	if err := tpm.Seal(key[:], options.KeyFile, options.PolicyUpdateDataFile); err != nil {
-		return fmt.Errorf("cannot seal and store encryption key: %v", err)
+	if err := secboot.SealKey(key, &sealKeyParams); err != nil {
+		return fmt.Errorf("cannot seal the encryption key: %v", err)
 	}
 
 	return nil
 }
 
-func ensureLayoutCompatibility(gadgetLayout *gadget.LaidOutVolume, diskLayout *partition.DeviceLayout) error {
-	eq := func(ds partition.DeviceStructure, gs gadget.LaidOutStructure) bool {
+func ensureLayoutCompatibility(gadgetLayout *gadget.LaidOutVolume, diskLayout *gadget.OnDiskVolume) error {
+	eq := func(ds gadget.OnDiskStructure, gs gadget.LaidOutStructure) bool {
 		dv := ds.VolumeStructure
 		gv := gs.VolumeStructure
 		nameMatch := gv.Name == dv.Name
@@ -264,7 +223,7 @@ func ensureLayoutCompatibility(gadgetLayout *gadget.LaidOutVolume, diskLayout *p
 		}
 		return check && dv.Size == gv.Size
 	}
-	contains := func(haystack []gadget.LaidOutStructure, needle partition.DeviceStructure) bool {
+	contains := func(haystack []gadget.LaidOutStructure, needle gadget.OnDiskStructure) bool {
 		for _, h := range haystack {
 			if eq(needle, h) {
 				return true

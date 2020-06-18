@@ -24,7 +24,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"testing"
 
 	. "gopkg.in/check.v1"
 
@@ -37,8 +36,6 @@ import (
 type diskSuite struct {
 	testutil.BaseTest
 }
-
-func Test(t *testing.T) { TestingT(t) }
 
 var _ = Suite(&diskSuite{})
 
@@ -186,7 +183,7 @@ func (s *diskSuite) TestDiskFromMountPointHappyOnePartition(c *C) {
 			return map[string]string{
 				"ID_PART_ENTRY_DISK": "42:0",
 				"DEVTYPE":            "partition",
-				"ID_FS_LABEL":        "ubuntu-seed",
+				"ID_FS_LABEL_ENC":    "ubuntu-seed",
 				"ID_PART_ENTRY_UUID": "ubuntu-seed-partuuid",
 			}, nil
 		case "/dev/block/42:2":
@@ -358,19 +355,19 @@ func (s *diskSuite) TestDiskFromMountPointPartitionsHappy(c *C) {
 		case "/dev/block/42:2":
 			return map[string]string{
 				"DEVTYPE":            "partition",
-				"ID_FS_LABEL":        "ubuntu-seed",
+				"ID_FS_LABEL_ENC":    "ubuntu-seed",
 				"ID_PART_ENTRY_UUID": "ubuntu-seed-partuuid",
 			}, nil
 		case "/dev/block/42:3":
 			return map[string]string{
 				"DEVTYPE":            "partition",
-				"ID_FS_LABEL":        "ubuntu-boot",
+				"ID_FS_LABEL_ENC":    "ubuntu-boot",
 				"ID_PART_ENTRY_UUID": "ubuntu-boot-partuuid",
 			}, nil
 		case "/dev/block/42:4":
 			return map[string]string{
 				"DEVTYPE":            "partition",
-				"ID_FS_LABEL":        "ubuntu-data",
+				"ID_FS_LABEL_ENC":    "ubuntu-data",
 				"ID_PART_ENTRY_UUID": "ubuntu-data-partuuid",
 			}, nil
 		case "/dev/block/42:5":
@@ -460,19 +457,19 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 		case "/dev/block/42:2":
 			return map[string]string{
 				"DEVTYPE":            "partition",
-				"ID_FS_LABEL":        "ubuntu-seed",
+				"ID_FS_LABEL_ENC":    "ubuntu-seed",
 				"ID_PART_ENTRY_UUID": "ubuntu-seed-partuuid",
 			}, nil
 		case "/dev/block/42:3":
 			return map[string]string{
 				"DEVTYPE":            "partition",
-				"ID_FS_LABEL":        "ubuntu-boot",
+				"ID_FS_LABEL_ENC":    "ubuntu-boot",
 				"ID_PART_ENTRY_UUID": "ubuntu-boot-partuuid",
 			}, nil
 		case "/dev/block/42:4":
 			return map[string]string{
 				"DEVTYPE":            "partition",
-				"ID_FS_LABEL":        "ubuntu-data-enc",
+				"ID_FS_LABEL_ENC":    "ubuntu-data-enc",
 				"ID_PART_ENTRY_UUID": "ubuntu-data-enc-partuuid",
 			}, nil
 		case "/dev/block/42:5":

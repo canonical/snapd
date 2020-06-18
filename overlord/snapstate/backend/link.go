@@ -151,11 +151,11 @@ func (b Backend) LinkSnap(info *snap.Info, dev boot.Device, linkCtx LinkContext,
 }
 
 func (b Backend) StartServices(apps []*snap.AppInfo, meter progress.Meter, tm timings.Measurer) error {
-	return wrappers.StartServices(apps, meter, tm)
+	return wrappers.StartServices(apps, nil, nil, meter, tm)
 }
 
 func (b Backend) StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error {
-	return wrappers.StopServices(apps, reason, meter, tm)
+	return wrappers.StopServices(apps, nil, reason, meter, tm)
 }
 
 func (b Backend) generateWrappers(s *snap.Info, linkCtx LinkContext) error {
@@ -269,6 +269,10 @@ func (b Backend) UnlinkSnap(info *snap.Info, linkCtx LinkContext, meter progress
 // services, primarily for committing before snap removal/disable/revert.
 func (b Backend) ServicesEnableState(info *snap.Info, meter progress.Meter) (map[string]bool, error) {
 	return wrappers.ServicesEnableState(info, meter)
+}
+
+func (b Backend) QueryDisabledServices(info *snap.Info, pb progress.Meter) ([]string, error) {
+	return wrappers.QueryDisabledServices(info, pb)
 }
 
 func removeCurrentSymlinks(info snap.PlaceInfo) error {

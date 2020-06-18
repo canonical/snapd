@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/image"
 	"github.com/snapcore/snapd/sandbox/selinux"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 )
 
@@ -355,5 +356,13 @@ func MockIoutilTempDir(f func(string, string) (string, error)) (restore func()) 
 	ioutilTempDir = f
 	return func() {
 		ioutilTempDir = old
+	}
+}
+
+func MockDownloadDirect(f func(snapName string, revision snap.Revision, dlOpts image.DownloadOptions) error) (restore func()) {
+	old := downloadDirect
+	downloadDirect = f
+	return func() {
+		downloadDirect = old
 	}
 }
