@@ -152,6 +152,9 @@ type SnapState struct {
 	// or otherwise removed from the snap in a future refresh.
 	LastActiveDisabledServices []string `json:"last-active-disabled-services,omitempty"`
 
+	ServicesEnabledByHooks  []string `json:"services-enabled-by-hooks,omitempty"`
+	ServicesDisabledByHooks []string `json:"services-disabled-by-hooks,omitempty"`
+
 	// Current indicates the current active revision if Active is
 	// true or the last active revision if Active is false
 	// (usually while a snap is being operated on or disabled)
