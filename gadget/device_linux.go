@@ -43,7 +43,7 @@ func FindDeviceForStructure(ps *LaidOutStructure) (string, error) {
 	var candidates []string
 
 	if ps.Name != "" {
-		byPartlabel := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/", disks.EncodeHexBlkIDFormat(ps.Name))
+		byPartlabel := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/", disks.BlkIDEncodeLabel(ps.Name))
 		candidates = append(candidates, byPartlabel)
 	}
 	if ps.HasFilesystem() {
@@ -55,7 +55,7 @@ func FindDeviceForStructure(ps *LaidOutStructure) (string, error) {
 			fsLabel = ps.Name
 		}
 		if fsLabel != "" {
-			byFsLabel := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label/", disks.EncodeHexBlkIDFormat(fsLabel))
+			byFsLabel := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label/", disks.BlkIDEncodeLabel(fsLabel))
 			candidates = append(candidates, byFsLabel)
 		}
 	}

@@ -19,30 +19,25 @@
 
 package disks
 
-import (
-	"bytes"
-	"fmt"
-	"strings"
-	"unicode/utf8"
-)
+import "fmt"
 
-// BlkIDEncodeLabel encodes a name for use as a partition or filesystem
-// label symlink by udev. The result matches the output of blkid_encode_string()
-// from libblkid.
-func BlkIDEncodeLabel(in string) string {
-	const allowed = `#+-.:=@_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789`
-
-	buf := &bytes.Buffer{}
-
-	for _, r := range in {
-		switch {
-		case utf8.RuneLen(r) > 1:
-			buf.WriteRune(r)
-		case !strings.ContainsRune(allowed, r):
-			fmt.Fprintf(buf, `\x%x`, r)
-		default:
-			buf.WriteRune(r)
+func MockUdevPropertiesForDevice(new func(string) (map[string]string, error)) (restore func()) {
+	old := udevadmProperties
+	// for better testing we mock the udevadm command output so that we still
+	// test the parsing
+	udevadmProperties = func(dev string) ([]byte, error) {
+		props, err := new(dev)
+		if err != nil {
+			return []byte(err.Error()), err
 		}
+		// put it into udevadm format output, i.e. "KEY=VALUE\n"
+		output := ""
+		for k, v := range props {
+			output += fmt.Sprintf("%s=%s\n", k, v)
+		}
+		return []byte(output), nil
 	}
-	return buf.String()
+	return func() {
+		udevadmProperties = old
+	}
 }

@@ -84,6 +84,6 @@ func (ts *diskLabelSuite) TestEncodeHexBlkIDFormat(c *C) {
 	}
 	for _, t := range tt {
 		c.Logf("tc: %v %q", t.in, t.out)
-		c.Assert(disks.EncodeHexBlkIDFormat(t.in), check.Equals, t.out)
+		c.Assert(disks.BlkIDEncodeLabel(t.in), check.Equals, t.out)
 	}
 }

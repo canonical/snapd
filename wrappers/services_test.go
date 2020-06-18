@@ -629,7 +629,7 @@ func (s *servicesTestSuite) TestStartServices(c *C) {
 	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
 	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 
-	err := wrappers.StartServices(info.Services(), nil, s.perfTimings)
+	err := wrappers.StartServices(info.Services(), nil, nil, &progress.Null, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	c.Assert(s.sysdLog, DeepEquals, [][]string{
@@ -646,7 +646,7 @@ func (s *servicesTestSuite) TestStartServicesUserDaemons(c *C) {
 `, &snap.SideInfo{Revision: snap.R(12)})
 	svcFile := filepath.Join(s.tempdir, "/etc/systemd/user/snap.hello-snap.svc1.service")
 
-	err := wrappers.StartServices(info.Services(), nil, s.perfTimings)
+	err := wrappers.StartServices(info.Services(), nil, nil, &progress.Null, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	c.Assert(s.sysdLog, DeepEquals, [][]string{
@@ -694,7 +694,7 @@ func (s *servicesTestSuite) TestNoStartDisabledServices(c *C) {
 	`)
 	defer r.Restore()
 
-	err := wrappers.StartServices(info.Services(), nil, s.perfTimings)
+	err := wrappers.StartServices(info.Services(), nil, nil, &progress.Null, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	c.Assert(r.Calls(), DeepEquals, [][]string{
@@ -1095,7 +1095,7 @@ func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanup(c *C) {
 	if svcs[0].Name == "svc2" {
 		svcs[0], svcs[1] = svcs[1], svcs[0]
 	}
-	err := wrappers.StartServices(svcs, nil, s.perfTimings)
+	err := wrappers.StartServices(svcs, nil, nil, &progress.Null, s.perfTimings)
 	c.Assert(err, ErrorMatches, "failed")
 	c.Assert(sysdLog, HasLen, 8, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
 	c.Check(sysdLog, DeepEquals, [][]string{
@@ -1149,7 +1149,7 @@ func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanupWithSocket
 	// ensure desired order
 	apps := []*snap.AppInfo{info.Apps["svc1"], info.Apps["svc2"], info.Apps["svc3"]}
 
-	err := wrappers.StartServices(apps, nil, s.perfTimings)
+	err := wrappers.StartServices(apps, nil, nil, &progress.Null, s.perfTimings)
 	c.Assert(err, ErrorMatches, "failed")
 	c.Logf("sysdlog: %v", sysdLog)
 	c.Assert(sysdLog, HasLen, 17, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
@@ -1207,7 +1207,7 @@ func (s *servicesTestSuite) TestStartSnapMultiUserServicesFailStartCleanup(c *C)
 	if svcs[0].Name == "svc2" {
 		svcs[0], svcs[1] = svcs[1], svcs[0]
 	}
-	err := wrappers.StartServices(svcs, progress.Null, s.perfTimings)
+	err := wrappers.StartServices(svcs, nil, nil, &progress.Null, s.perfTimings)
 	c.Assert(err, ErrorMatches, "some user services failed to start")
 	c.Assert(sysdLog, HasLen, 10, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
 	c.Check(sysdLog, DeepEquals, [][]string{
@@ -1257,7 +1257,7 @@ apps:
 	sorted, err := snap.SortServices(svcs)
 	c.Assert(err, IsNil)
 
-	err = wrappers.StartServices(sorted, nil, s.perfTimings)
+	err = wrappers.StartServices(sorted, nil, nil, &progress.Null, s.perfTimings)
 	c.Assert(err, IsNil)
 	c.Assert(sysdLog, HasLen, 6, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
 	c.Check(sysdLog, DeepEquals, [][]string{
@@ -1273,7 +1273,7 @@ apps:
 	sorted[1], sorted[0] = sorted[0], sorted[1]
 
 	// we should observe the calls done in the same order as services
-	err = wrappers.StartServices(sorted, nil, s.perfTimings)
+	err = wrappers.StartServices(sorted, nil, nil, &progress.Null, s.perfTimings)
 	c.Assert(err, IsNil)
 	c.Assert(sysdLog, HasLen, 12, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
 	c.Check(sysdLog[6:], DeepEquals, [][]string{
@@ -1514,7 +1514,7 @@ func (s *servicesTestSuite) TestStartSnapSocketEnableStart(c *C) {
 
 	// fix the apps order to make the test stable
 	apps := []*snap.AppInfo{info.Apps["svc1"], info.Apps["svc2"], info.Apps["svc3"]}
-	err := wrappers.StartServices(apps, nil, s.perfTimings)
+	err := wrappers.StartServices(apps, nil, nil, &progress.Null, s.perfTimings)
 	c.Assert(err, IsNil)
 	c.Assert(s.sysdLog, HasLen, 6, Commentf("len: %v calls: %v", len(s.sysdLog), s.sysdLog))
 	c.Check(s.sysdLog, DeepEquals, [][]string{
@@ -1547,7 +1547,7 @@ func (s *servicesTestSuite) TestStartSnapTimerEnableStart(c *C) {
 
 	// fix the apps order to make the test stable
 	apps := []*snap.AppInfo{info.Apps["svc1"], info.Apps["svc2"], info.Apps["svc3"]}
-	err := wrappers.StartServices(apps, nil, s.perfTimings)
+	err := wrappers.StartServices(apps, nil, nil, &progress.Null, s.perfTimings)
 	c.Assert(err, IsNil)
 	c.Assert(s.sysdLog, HasLen, 6, Commentf("len: %v calls: %v", len(s.sysdLog), s.sysdLog))
 	c.Check(s.sysdLog, DeepEquals, [][]string{
@@ -1584,7 +1584,7 @@ func (s *servicesTestSuite) TestStartSnapTimerCleanup(c *C) {
 
 	// fix the apps order to make the test stable
 	apps := []*snap.AppInfo{info.Apps["svc1"], info.Apps["svc2"]}
-	err := wrappers.StartServices(apps, nil, s.perfTimings)
+	err := wrappers.StartServices(apps, nil, nil, &progress.Null, s.perfTimings)
 	c.Assert(err, ErrorMatches, "failed")
 	c.Assert(sysdLog, HasLen, 10, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
 	c.Check(sysdLog, DeepEquals, [][]string{
@@ -1796,7 +1796,7 @@ apps:
 	c.Assert(err, IsNil)
 
 	s.sysdLog = nil
-	flags := &wrappers.RestartFlags{Reload: true}
+	flags := &wrappers.RestartServicesFlags{Reload: true}
 	c.Assert(wrappers.RestartServices(info.Services(), flags, progress.Null, s.perfTimings), IsNil)
 	c.Assert(err, IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
@@ -1832,7 +1832,7 @@ func (s *servicesTestSuite) TestStopAndDisableServices(c *C) {
 	c.Assert(err, IsNil)
 
 	s.sysdLog = nil
-	flags := &wrappers.StopFlags{Disable: true}
+	flags := &wrappers.StopServicesFlags{Disable: true}
 	err = wrappers.StopServices(info.Services(), flags, "", progress.Null, s.perfTimings)
 	c.Assert(err, IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
