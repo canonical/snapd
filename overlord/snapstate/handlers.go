@@ -1792,7 +1792,7 @@ func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	defer st.Lock()
 
 	// stop the services
-	err = m.backend.StopServices(svcs, nil, stopReason, pb, perfTimings)
+	err = m.backend.StopServices(svcs, stopReason, pb, perfTimings)
 	if err != nil {
 		return err
 	}
