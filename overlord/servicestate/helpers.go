@@ -26,9 +26,9 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// updateSnapstateServices ServicesEnabledByHooks and ServicesDisabledByHooks in
-// snapstate according to enable and disable list. It should be called with
-// either enable or disable list, but not both.
+// updateSnapstateServices uses ServicesEnabledByHooks and ServicesDisabledByHooks in
+// snapstate and the provided enabled or disabled list to update the state of services in snapstate.
+// It is meant for doServiceControl to help track enabling and disabling of services.
 func updateSnapstateServices(snapst *snapstate.SnapState, enable, disable []*snap.AppInfo) (bool, error) {
 	if len(enable) > 0 && len(disable) > 0 {
 		// We do one op at a time for given service-control task; we could in
