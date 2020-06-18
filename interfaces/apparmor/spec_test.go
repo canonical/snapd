@@ -153,22 +153,38 @@ func (s *specSuite) TestAddDeduplicatedSnippet(c *C) {
 	c.Assert(s.spec.SecurityTags(), DeepEquals, []string{"snap.demo.command", "snap.demo.service"})
 }
 
-// Both AddSnippet and AddDeduplicatedSnippet work correctly together.
-func (s *specSuite) TestAddSnippetAndAddDeduplicatedSnippet(c *C) {
+func (s *specSuite) TestAddParametricSnippet(c *C) {
+	restore := apparmor.SetSpecScope(s.spec, []string{"snap.demo.command", "snap.demo.service"})
+	defer restore()
+
+	s.spec.AddParametricSnippet("prefix ###PARAM### postfix", "param1")
+	s.spec.AddParametricSnippet("prefix ###PARAM### postfix", "param1")
+	s.spec.AddParametricSnippet("prefix ###PARAM### postfix", "param2")
+	s.spec.AddParametricSnippet("prefix ###PARAM### postfix", "param2")
+	s.spec.AddParametricSnippet("other ###PARAM###", "param")
+	c.Assert(s.spec.Snippets(), DeepEquals, map[string][]string{
+		"snap.demo.command": {"other param", "prefix {param1,param2} postfix"},
+		"snap.demo.service": {"other param", "prefix {param1,param2} postfix"},
+	})
+}
+
+// Both AddSnippet, AddDeduplicatedSnippet, AddParameticSnippet work correctly together.
+func (s *specSuite) TestAddSnippetAndAddDeduplicatedAndParamSnippet(c *C) {
 	restore := apparmor.SetSpecScope(s.spec, []string{"snap.demo.command", "snap.demo.service"})
 	defer restore()
 
 	// Add two snippets in the context we are in.
 	s.spec.AddSnippet("normal")
 	s.spec.AddDeduplicatedSnippet("dedup")
+	s.spec.AddParametricSnippet("###PARAM###", "param")
 
 	// The snippets were recorded correctly.
 	c.Assert(s.spec.UpdateNS(), HasLen, 0)
 	c.Assert(s.spec.Snippets(), DeepEquals, map[string][]string{
-		"snap.demo.command": {"normal", "dedup"},
-		"snap.demo.service": {"normal", "dedup"},
+		"snap.demo.command": {"normal", "dedup", "param"},
+		"snap.demo.service": {"normal", "dedup", "param"},
 	})
-	c.Assert(s.spec.SnippetForTag("snap.demo.command"), Equals, "normal\ndedup")
+	c.Assert(s.spec.SnippetForTag("snap.demo.command"), Equals, "normal\ndedup\nparam")
 	c.Assert(s.spec.SecurityTags(), DeepEquals, []string{"snap.demo.command", "snap.demo.service"})
 }
 
