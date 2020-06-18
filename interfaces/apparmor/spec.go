@@ -141,7 +141,7 @@ func (spec *Specification) AddParametricSnippet(templateFragment []string, value
 		return
 	}
 
-	// We need to build a temlate string from the templateFragment.
+	// We need to build a template string from the templateFragment.
 	//
 	// If only a single fragment is given we just  append our "###PARM###":
 	//  []string{"prefix"} becomes -> "prefix###PARAM###"
