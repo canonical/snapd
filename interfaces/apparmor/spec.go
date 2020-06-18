@@ -136,6 +136,38 @@ func (spec *Specification) AddDeduplicatedSnippet(snippet string) {
 	}
 }
 
+// AddParametricSnippet adds a new apparmor snippet both de-duplicated and optimized for the parser.
+//
+// Conceptually the function takes a parametric template and a single value to
+// remember. The resulting snippet text is a single entry resulting from the
+// expanding the template and all the unique values observed, in the order they
+// were observed.
+//
+// The template is expressed as a slice of strings, with the parameter
+// automatically injected between any two of them, or in the special case of
+// only one fragment, after that fragment.
+//
+// The resulting expansion depends on the number of values seen. If only one
+// value is seen the resulting snippet is just the plain string one would
+// expect if no parametric optimization had taken place. If more than one
+// distinct value was seen then the resulting apparmor rule uses alternation
+// syntax {param1,param2,...,paramN} which has better compilation time and
+// memory complexity as compared to a set of naive expansions of the full
+// snippet one after another.
+//
+// For example the code:
+//
+// 		AddParametricSnippet([]{"/dev/", "rw,", "sda1")
+//		AddParametricSnippet([]{"/dev/", "rw,", "sda3")
+//		AddParametricSnippet([]{"/dev/", "rw,", "sdb2")
+//
+// Results in a single apparmor rule:
+//
+//		"/dev/{sda1,sda3,sdb2} rw,"
+//
+// It should be used whenever the apparmor template combines more than one use
+// of "**" syntax (which represent arbitrary many directories or files) and a
+// variable component, like a device name or similar.
 func (spec *Specification) AddParametricSnippet(templateFragment []string, value string) {
 	if len(spec.securityTags) == 0 {
 		return
