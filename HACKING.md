@@ -222,6 +222,42 @@ maybe you need to replace system installed snap-seccomp with the one aligned to 
 you are testing. To do this, simply backup /usr/lib/snapd/snap-seccomp and overwrite it with 
 the testing one. Don't forget to rollback to the original when finish testing)
 
+### Creating nested VMs for testing
+
+To create ubuntu core and ubuntu classic VMs which can be used for testing the current snapd
+code can be used the nested library. The nested library detects the currnt OS version and
+automatically creates the VM for that.
+
+The following steps show how to use the library:
+
+Define the variables used to create the VM:
+
+    $ export BUILD_SNAPD_FROM_CURRENT=true
+    $ export UPDATE_PC_KERNEL=false
+    $ export BUILD_NEW_IMAGE=true
+
+Source the nested library
+
+    $ . tests/lib/nested.sh
+
+Create the VM and start it as a systemd unit
+
+    $ create_nested_core_vm
+    $ start_nested_core_vm
+
+Check VM status
+
+    $ systemctl status nested-vm
+
+Connect to the VM
+
+    $ execute_remote
+
+Destroy the VM
+
+    $ destroy_nested_vm
+
+
 # Quick intro to hacking on snap-confine
 
 Hey, welcome to the nice, low-level world of snap-confine
