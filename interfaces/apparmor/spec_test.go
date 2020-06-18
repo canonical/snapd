@@ -155,6 +155,26 @@ func (s *specSuite) TestAddDeduplicatedSnippet(c *C) {
 	c.Assert(s.spec.SecurityTags(), DeepEquals, []string{"snap.demo.command", "snap.demo.service"})
 }
 
+func (s *specSuite) TestAddParametricSnippet(c *C) {
+	restore := apparmor.SetSpecScope(s.spec, []string{"snap.demo.command", "snap.demo.service"})
+	defer restore()
+
+	s.spec.AddParametricSnippet([]string{"prefix ", " postfix"}, "param1")
+	s.spec.AddParametricSnippet([]string{"prefix ", " postfix"}, "param1")
+	s.spec.AddParametricSnippet([]string{"prefix ", " postfix"}, "param2")
+	s.spec.AddParametricSnippet([]string{"prefix ", " postfix"}, "param2")
+	s.spec.AddParametricSnippet([]string{"other "}, "param")
+	c.Assert(s.spec.SnippetsForTag("snap.demo.command"), DeepEquals, []string{
+		"other param",
+		"prefix {param1,param2} postfix",
+	})
+	c.Assert(s.spec.SnippetForTag("snap.demo.command"), Equals, "other param\nprefix {param1,param2} postfix")
+	c.Assert(s.spec.Snippets(), DeepEquals, map[string][]string{
+		"snap.demo.command": {"other param", "prefix {param1,param2} postfix"},
+		"snap.demo.service": {"other param", "prefix {param1,param2} postfix"},
+	})
+}
+
 // All of AddSnippet, AddDeduplicatedSnippet, AddParameticSnippet work correctly together.
 func (s *specSuite) TestAddSnippetAndAddDeduplicatedAndParamSnippet(c *C) {
 	restore := apparmor.SetSpecScope(s.spec, []string{"snap.demo.command", "snap.demo.service"})
@@ -174,26 +194,6 @@ func (s *specSuite) TestAddSnippetAndAddDeduplicatedAndParamSnippet(c *C) {
 	c.Assert(s.spec.SnippetsForTag("snap.demo.command"), DeepEquals, []string{"normal", "dedup", "param"})
 	c.Assert(s.spec.SnippetForTag("snap.demo.command"), Equals, "normal\ndedup\nparam")
 	c.Assert(s.spec.SecurityTags(), DeepEquals, []string{"snap.demo.command", "snap.demo.service"})
-}
-
-func (s *specSuite) TestAddParametricSnippet(c *C) {
-	restore := apparmor.SetSpecScope(s.spec, []string{"snap.demo.command", "snap.demo.service"})
-	defer restore()
-
-	s.spec.AddParametricSnippet([]string{"prefix ", " postfix"}, "param1")
-	s.spec.AddParametricSnippet([]string{"prefix ", " postfix"}, "param1")
-	s.spec.AddParametricSnippet([]string{"prefix ", " postfix"}, "param2")
-	s.spec.AddParametricSnippet([]string{"prefix ", " postfix"}, "param2")
-	s.spec.AddParametricSnippet([]string{"other "}, "param")
-	c.Assert(s.spec.SnippetsForTag("snap.demo.command"), DeepEquals, []string{
-		"other param",
-		"prefix {param1,param2} postfix",
-	})
-	c.Assert(s.spec.SnippetForTag("snap.demo.command"), Equals, "other param\nprefix {param1,param2} postfix")
-	c.Assert(s.spec.Snippets(), DeepEquals, map[string][]string{
-		"snap.demo.command": {"other param", "prefix {param1,param2} postfix"},
-		"snap.demo.service": {"other param", "prefix {param1,param2} postfix"},
-	})
 }
 
 // AddUpdateNS adds a snippet for the snap-update-ns profile for a given snap.
