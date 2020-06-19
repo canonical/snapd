@@ -2019,7 +2019,7 @@ func (s *interfaceManagerSuite) mockSnapInstance(c *C, instanceName, yamlText st
 		Active:      true,
 		Sequence:    []*snap.SideInfo{sideInfo},
 		Current:     sideInfo.Revision,
-		SnapType:    string(snapInfo.GetType()),
+		SnapType:    string(snapInfo.Type()),
 		InstanceKey: snapInfo.InstanceKey,
 	})
 	return snapInfo
