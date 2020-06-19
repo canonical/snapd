@@ -30,6 +30,7 @@ import (
 	"syscall"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -74,14 +75,14 @@ func (key RecoveryKey) Save(filename string) error {
 
 // EncryptedDevice represents a LUKS-backed encrypted block device.
 type EncryptedDevice struct {
-	parent *DeviceStructure
+	parent *gadget.OnDiskStructure
 	name   string
 	Node   string
 }
 
 // NewEncryptedDevice creates an encrypted device in the existing partition using the
 // specified key.
-func NewEncryptedDevice(part *DeviceStructure, key EncryptionKey, name string) (*EncryptedDevice, error) {
+func NewEncryptedDevice(part *gadget.OnDiskStructure, key EncryptionKey, name string) (*EncryptedDevice, error) {
 	dev := &EncryptedDevice{
 		parent: part,
 		name:   name,
