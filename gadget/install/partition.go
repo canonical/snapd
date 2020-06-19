@@ -36,7 +36,7 @@ var (
 	ensureNodesExist = ensureNodesExistImpl
 )
 
-// createMissingPartitions creates the partitions listed in the positioned volume
+// createMissingPartitions creates the partitions listed in the laid out volume
 // pv that are missing from the existing device layout, returning a list of
 // structures that have been created.
 func createMissingPartitions(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume) ([]gadget.OnDiskStructure, error) {
@@ -104,7 +104,7 @@ func removeCreatedPartitions(dl *gadget.OnDiskVolume) error {
 	dl.PartitionTable = layout.PartitionTable
 
 	// Ensure all created partitions were removed
-	if remaining := gadget.ListCreatedPartitions(layout); len(remaining) > 0 {
+	if remaining := gadget.CreatedDuringInstall(layout); len(remaining) > 0 {
 		return fmt.Errorf("cannot remove partitions: %s", strings.Join(remaining, ", "))
 	}
 

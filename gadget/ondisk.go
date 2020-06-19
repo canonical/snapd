@@ -363,10 +363,10 @@ func BuildPartitionList(dl *OnDiskVolume, pv *LaidOutVolume) (sfdiskInput *bytes
 	return buf, toBeCreated
 }
 
-// ListCreatedPartitions returns a list of partitions created during the
+// CreatedDuringInstall returns a list of partitions created during the
 // install process.
-func ListCreatedPartitions(layout *OnDiskVolume) []string {
-	created := make([]string, 0, len(layout.Structure))
+func CreatedDuringInstall(layout *OnDiskVolume) (created []string) {
+	created = make([]string, 0, len(layout.Structure))
 	for _, s := range layout.Structure {
 		if s.CreatedDuringInstall {
 			created = append(created, s.Node)

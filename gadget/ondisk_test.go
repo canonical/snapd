@@ -428,7 +428,7 @@ func (s *ondiskTestSuite) TestBuildPartitionList(c *C) {
 	c.Assert(create, DeepEquals, []gadget.OnDiskStructure{mockOnDiskStructureWritable})
 }
 
-func (s *ondiskTestSuite) TestListCreatedPartitionsGPT(c *C) {
+func (s *ondiskTestSuite) TestCreatedDuringInstallGPT(c *C) {
 	cmdLsblk := testutil.MockCommand(c, "lsblk", `echo '{ "blockdevices": [ {"fstype":"ext4", "label":null} ] }'`)
 	defer cmdLsblk.Restore()
 
@@ -476,7 +476,7 @@ func (s *ondiskTestSuite) TestListCreatedPartitionsGPT(c *C) {
 	}
 	dl, err := gadget.DeviceLayoutFromPartitionTable(ptable)
 	c.Assert(err, IsNil)
-	list := gadget.ListCreatedPartitions(dl)
+	list := gadget.CreatedDuringInstall(dl)
 	c.Assert(list, HasLen, 0)
 
 	// Set attribute bit for all partitions except the last one
@@ -486,11 +486,11 @@ func (s *ondiskTestSuite) TestListCreatedPartitionsGPT(c *C) {
 
 	dl, err = gadget.DeviceLayoutFromPartitionTable(ptable)
 	c.Assert(err, IsNil)
-	list = gadget.ListCreatedPartitions(dl)
+	list = gadget.CreatedDuringInstall(dl)
 	c.Assert(list, DeepEquals, []string{"/dev/node1", "/dev/node2"})
 }
 
-func (s *ondiskTestSuite) TestListCreatedPartitionsMBR(c *C) {
+func (s *ondiskTestSuite) TestCreatedDuringInstallMBR(c *C) {
 	cmdLsblk := testutil.MockCommand(c, "lsblk", `
 what=
 shift 2
@@ -560,7 +560,7 @@ EOF`)
 	}
 	dl, err := gadget.DeviceLayoutFromPartitionTable(ptable)
 	c.Assert(err, IsNil)
-	list := gadget.ListCreatedPartitions(dl)
+	list := gadget.CreatedDuringInstall(dl)
 	c.Assert(list, DeepEquals, []string{"/dev/node2", "/dev/node4"})
 }
 
