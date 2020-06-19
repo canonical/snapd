@@ -1,5 +1,7 @@
 [![Snapcraft](https://avatars2.githubusercontent.com/u/19532717?s=200)](https://snapcraft.io)
 
+changes
+
 # Welcome to snapd
 
 This is the code repository for **snapd**, the background service that manages
