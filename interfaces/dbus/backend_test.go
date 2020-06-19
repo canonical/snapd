@@ -282,8 +282,20 @@ func (s *backendSuite) TestSandboxFeatures(c *C) {
 	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{"mediated-bus-access"})
 }
 
-func makeFakeDbusUserdServiceFiles(c *C, coreOrSnapdSnap *snap.Info) {
-	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/usr/share/dbus-1/services"), 0755)
+func makeFakeDbusConfigAndUserdServiceFiles(c *C, coreOrSnapdSnap *snap.Info) {
+	err := os.MkdirAll(filepath.Join(coreOrSnapdSnap.MountDir(), "/usr/share/dbus-1/session.d"), 0755)
+	c.Assert(err, IsNil)
+	content := fmt.Sprintf("content of snapd.session-services.conf for snap %s", coreOrSnapdSnap.InstanceName())
+	err = ioutil.WriteFile(filepath.Join(coreOrSnapdSnap.MountDir(), "/usr/share/dbus-1/session.d/snapd.session-services.conf"), []byte(content), 0644)
+	c.Assert(err, IsNil)
+
+	err = os.MkdirAll(filepath.Join(coreOrSnapdSnap.MountDir(), "/usr/share/dbus-1/system.d"), 0755)
+	c.Assert(err, IsNil)
+	content = fmt.Sprintf("content of snapd.system-services.conf for snap %s", coreOrSnapdSnap.InstanceName())
+	err = ioutil.WriteFile(filepath.Join(coreOrSnapdSnap.MountDir(), "/usr/share/dbus-1/system.d/snapd.system-services.conf"), []byte(content), 0644)
+	c.Assert(err, IsNil)
+
+	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/usr/share/dbus-1/services"), 0755)
 	c.Assert(err, IsNil)
 
 	servicesPath := filepath.Join(coreOrSnapdSnap.MountDir(), "/usr/share/dbus-1/services")
@@ -300,18 +312,20 @@ func makeFakeDbusUserdServiceFiles(c *C, coreOrSnapdSnap *snap.Info) {
 	}
 }
 
-func (s *backendSuite) testSetupWritesUsedFilesForCoreOrSnapd(c *C, coreOrSnapdYaml string) {
+func (s *backendSuite) testSetupWritesDbusFilesForCoreOrSnapd(c *C, coreOrSnapdYaml string) {
 	coreOrSnapdInfo := snaptest.MockInfo(c, coreOrSnapdYaml, &snap.SideInfo{Revision: snap.R(2)})
-	makeFakeDbusUserdServiceFiles(c, coreOrSnapdInfo)
+	makeFakeDbusConfigAndUserdServiceFiles(c, coreOrSnapdInfo)
 
 	err := s.Backend.Setup(coreOrSnapdInfo, interfaces.ConfinementOptions{}, s.Repo, nil)
 	c.Assert(err, IsNil)
 
 	for _, fn := range []string{
-		"io.snapcraft.Launcher.service",
-		"io.snapcraft.Settings.service",
+		"/usr/share/dbus-1/services/io.snapcraft.Launcher.service",
+		"/usr/share/dbus-1/services/io.snapcraft.Settings.service",
+		"/usr/share/dbus-1/session.d/snapd.session-services.conf",
+		"/usr/share/dbus-1/system.d/snapd.system-services.conf",
 	} {
-		c.Assert(filepath.Join(dirs.GlobalRootDir, "/usr/share/dbus-1/services/"+fn), testutil.FilePresent)
+		c.Check(filepath.Join(dirs.GlobalRootDir, fn), testutil.FilePresent)
 	}
 }
 
@@ -320,22 +334,22 @@ var (
 	snapdYaml string = "name: snapd\nversion: 1\ntype: snapd"
 )
 
-func (s *backendSuite) TestSetupWritesUsedFilesForCore(c *C) {
-	s.testSetupWritesUsedFilesForCoreOrSnapd(c, coreYaml)
+func (s *backendSuite) TestSetupWritesDbusFilesForCore(c *C) {
+	s.testSetupWritesDbusFilesForCoreOrSnapd(c, coreYaml)
 }
 
-func (s *backendSuite) TestSetupWritesUsedFilesForSnapd(c *C) {
-	s.testSetupWritesUsedFilesForCoreOrSnapd(c, snapdYaml)
+func (s *backendSuite) TestSetupWritesDbusFilesForSnapd(c *C) {
+	s.testSetupWritesDbusFilesForCoreOrSnapd(c, snapdYaml)
 }
 
-func (s *backendSuite) TestSetupWritesUsedFilesBothSnapdAndCoreInstalled(c *C) {
+func (s *backendSuite) TestSetupWritesDbusFilesBothSnapdAndCoreInstalled(c *C) {
 	err := os.MkdirAll(filepath.Join(dirs.SnapMountDir, "snapd/current"), 0755)
 	c.Assert(err, IsNil)
 
 	coreInfo := snaptest.MockInfo(c, coreYaml, &snap.SideInfo{Revision: snap.R(2)})
-	makeFakeDbusUserdServiceFiles(c, coreInfo)
+	makeFakeDbusConfigAndUserdServiceFiles(c, coreInfo)
 	snapdInfo := snaptest.MockInfo(c, snapdYaml, &snap.SideInfo{Revision: snap.R(3)})
-	makeFakeDbusUserdServiceFiles(c, snapdInfo)
+	makeFakeDbusConfigAndUserdServiceFiles(c, snapdInfo)
 
 	// first setup snapd which writes the files
 	err = s.Backend.Setup(snapdInfo, interfaces.ConfinementOptions{}, s.Repo, nil)
@@ -346,9 +360,11 @@ func (s *backendSuite) TestSetupWritesUsedFilesBothSnapdAndCoreInstalled(c *C) {
 	c.Assert(err, IsNil)
 
 	for _, fn := range []string{
-		"io.snapcraft.Launcher.service",
-		"io.snapcraft.Settings.service",
+		"/usr/share/dbus-1/services/io.snapcraft.Launcher.service",
+		"/usr/share/dbus-1/services/io.snapcraft.Settings.service",
+		"/usr/share/dbus-1/session.d/snapd.session-services.conf",
+		"/usr/share/dbus-1/system.d/snapd.system-services.conf",
 	} {
-		c.Assert(filepath.Join(dirs.GlobalRootDir, "/usr/share/dbus-1/services/"+fn), testutil.FileEquals, fmt.Sprintf("content of %s for snap snapd", fn))
+		c.Check(filepath.Join(dirs.GlobalRootDir, fn), testutil.FileEquals, fmt.Sprintf("content of %s for snap snapd", filepath.Base(fn)))
 	}
 }

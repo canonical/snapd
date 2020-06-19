@@ -490,7 +490,7 @@ func undoSnapdUserServicesOnCore(s *snap.Info, inter interacter) error {
 	return nil
 }
 
-func deriveSnapdDBusConfig(s *snap.Info) (sessionContent, systemContent map[string]osutil.FileState, err error) {
+func DeriveSnapdDBusConfig(s *snap.Info) (sessionContent, systemContent map[string]osutil.FileState, err error) {
 	sessionConfigs, err := filepath.Glob(filepath.Join(s.MountDir(), "usr/share/dbus-1/session.d/*.conf"))
 	if err != nil {
 		return nil, nil, err
@@ -517,7 +517,7 @@ func deriveSnapdDBusConfig(s *snap.Info) (sessionContent, systemContent map[stri
 }
 
 func writeSnapdDbusConfigOnCore(s *snap.Info) error {
-	sessionContent, systemContent, err := deriveSnapdDBusConfig(s)
+	sessionContent, systemContent, err := DeriveSnapdDBusConfig(s)
 	if err != nil {
 		return err
 	}

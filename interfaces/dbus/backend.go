@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/timings"
+	"github.com/snapcore/snapd/wrappers"
 )
 
 // Backend is responsible for maintaining DBus policy files.
@@ -60,16 +61,6 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 func setupDbusServiceForUserd(snapInfo *snap.Info) error {
 	coreOrSnapdRoot := snapInfo.MountDir()
 
-	// fugly - but we need to make sure that the content of the
-	// "snapd" snap wins
-	//
-	// TODO: this is also racy but the content of the files in core and
-	// snapd is identical cleanup after link-snap and
-	// setup-profiles are unified
-	if snapInfo.InstanceName() == "core" && osutil.FileExists(filepath.Join(coreOrSnapdRoot, "../..", "snapd/current")) {
-		return nil
-	}
-
 	for _, srv := range []string{
 		"io.snapcraft.Launcher.service",
 		"io.snapcraft.Settings.service",
@@ -88,6 +79,33 @@ func setupDbusServiceForUserd(snapInfo *snap.Info) error {
 	return nil
 }
 
+func setupHostDBusConf(snapInfo *snap.Info) error {
+	sessionContent, systemContent, err := wrappers.DeriveSnapdDBusConfig(snapInfo)
+	if err != nil {
+		return err
+	}
+
+	dest := filepath.Join(dirs.GlobalRootDir, "/usr/share/dbus-1/session.d")
+	if err = os.MkdirAll(dest, 0755); err != nil {
+		return err
+	}
+	_, _, err = osutil.EnsureDirState(dest, "snapd.*.conf", sessionContent)
+	if err != nil {
+		return err
+	}
+
+	dest = filepath.Join(dirs.GlobalRootDir, "/usr/share/dbus-1/system.d")
+	if err = os.MkdirAll(dest, 0755); err != nil {
+		return err
+	}
+	_, _, err = osutil.EnsureDirState(dest, "snapd.*.conf", systemContent)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // Setup creates dbus configuration files specific to a given snap.
 //
 // DBus has no concept of a complain mode so confinment type is ignored.
@@ -101,8 +119,19 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 
 	// core/snapd on classic are special
 	if (snapInfo.GetType() == snap.TypeOS || snapInfo.GetType() == snap.TypeSnapd) && release.OnClassic {
-		if err := setupDbusServiceForUserd(snapInfo); err != nil {
-			logger.Noticef("cannot create host `snap userd` dbus service file: %s", err)
+		// fugly - but we need to make sure that the content of the
+		// "snapd" snap wins
+		//
+		// TODO: this is also racy but the content of the files in core and
+		// snapd is identical cleanup after link-snap and
+		// setup-profiles are unified
+		if !(snapInfo.InstanceName() == "core" && osutil.FileExists(filepath.Join(snapInfo.MountDir(), "../..", "snapd/current"))) {
+			if err := setupDbusServiceForUserd(snapInfo); err != nil {
+				logger.Noticef("cannot create host `snap userd` dbus service file: %s", err)
+			}
+			if err := setupHostDBusConf(snapInfo); err != nil {
+				logger.Noticef("cannot create host dbus config: %s", err)
+			}
 		}
 	}
 
