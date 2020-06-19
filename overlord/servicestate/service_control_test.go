@@ -491,13 +491,13 @@ func (s *serviceControlSuite) TestUpdateSnapstateServices(c *C) {
 			changed: false,
 		},
 		{
-			enable:                   []string{"a"},
+			enable: []string{"a"},
 			expectedSnapstateEnabled: []string{"a"},
 			changed:                  true,
 		},
 		// enable again does nothing
 		{
-			enable:                   []string{"a"},
+			enable: []string{"a"},
 			expectedSnapstateEnabled: []string{"a"},
 			changed:                  false,
 		},
@@ -507,7 +507,7 @@ func (s *serviceControlSuite) TestUpdateSnapstateServices(c *C) {
 			changed:                   true,
 		},
 		{
-			enable:                   []string{"a", "c"},
+			enable: []string{"a", "c"},
 			expectedSnapstateEnabled: []string{"a", "c"},
 			changed:                  true,
 		},
