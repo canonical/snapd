@@ -105,7 +105,6 @@ type apiBaseSuite struct {
 
 	systemctlRestorer func()
 	sysctlBufs        [][]byte
-	sysctlErrs        []error
 
 	journalctlRestorer func()
 	jctlSvcses         [][]string
@@ -245,9 +244,6 @@ func (s *apiBaseSuite) TearDownSuite(c *check.C) {
 }
 
 func (s *apiBaseSuite) systemctl(args ...string) (buf []byte, err error) {
-	if len(s.sysctlErrs) > 0 {
-		err, s.sysctlErrs = s.sysctlErrs[0], s.sysctlErrs[1:]
-	}
 	if len(s.sysctlBufs) > 0 {
 		buf, s.sysctlBufs = s.sysctlBufs[0], s.sysctlBufs[1:]
 	}
@@ -272,7 +268,6 @@ func (s *apiBaseSuite) journalctl(svcs []string, n int, follow bool) (rc io.Read
 
 func (s *apiBaseSuite) SetUpTest(c *check.C) {
 	s.sysctlBufs = nil
-	s.sysctlErrs = nil
 	s.jctlSvcses = nil
 	s.jctlNs = nil
 	s.jctlFollows = nil
