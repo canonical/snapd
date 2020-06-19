@@ -371,6 +371,8 @@ func (s *apiBaseSuite) fakeServiceControl(st *state.State, appInfos []*snap.AppI
 	if inst.RestartOptions.Reload {
 		serviceCommand.options = "reload"
 	}
+	// only one flag should ever be set (depending on Action), but appending
+	// them below acts as an extra sanity check.
 	if inst.StartOptions.Enable {
 		serviceCommand.options += "enable"
 	}
