@@ -24,8 +24,9 @@ is_github_actions = os.getenv("GITHUB_ACTIONS", "") == "true"
 
 
 def get_emails_for_range(r):
-    output = check_output(["git", "shortlog", "-se", r])
+    output = check_output(["git", "shortlog", "-e", r])
     print(">>>", output)
+    output = check_output(["git", "shortlog", "-se", r])
     return set(m.group(1) for m in shortlog_email_rx.finditer(output))
 
 
