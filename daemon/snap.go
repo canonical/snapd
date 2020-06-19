@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2016 Canonical Ltd
+ * Copyright (C) 2015-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -281,7 +281,7 @@ func appInfosFor(st *state.State, names []string, opts appInfoOptions) ([]*snap.
 		}
 	}
 
-	sort.Sort(cmd.BySnapApp(appInfos))
+	sort.Sort(snap.AppInfoBySnapApp(appInfos))
 
 	return appInfos, nil
 }

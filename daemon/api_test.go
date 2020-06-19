@@ -51,7 +51,6 @@ import (
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/client"
-	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -7036,7 +7035,7 @@ func (s *appSuite) TestAppInfosForOneSnap(c *check.C) {
 	appInfos, rsp := appInfosFor(st, []string{"snap-a"}, appInfoOptions{service: true})
 	c.Assert(rsp, check.IsNil)
 	c.Assert(appInfos, check.HasLen, 2)
-	sort.Sort(cmd.BySnapApp(appInfos))
+	sort.Sort(snap.AppInfoBySnapApp(appInfos))
 
 	c.Check(appInfos[0].Snap, check.DeepEquals, s.infoA)
 	c.Check(appInfos[0].Name, check.Equals, "svc1")
@@ -7049,7 +7048,7 @@ func (s *appSuite) TestAppInfosForMixedArgs(c *check.C) {
 	appInfos, rsp := appInfosFor(st, []string{"snap-a", "snap-a.svc1"}, appInfoOptions{service: true})
 	c.Assert(rsp, check.IsNil)
 	c.Assert(appInfos, check.HasLen, 2)
-	sort.Sort(cmd.BySnapApp(appInfos))
+	sort.Sort(snap.AppInfoBySnapApp(appInfos))
 
 	c.Check(appInfos[0].Snap, check.DeepEquals, s.infoA)
 	c.Check(appInfos[0].Name, check.Equals, "svc1")
@@ -7071,7 +7070,7 @@ func (s *appSuite) TestAppInfosCleanupAndSorted(c *check.C) {
 	}, appInfoOptions{service: true})
 	c.Assert(rsp, check.IsNil)
 	c.Assert(appInfos, check.HasLen, 3)
-	sort.Sort(cmd.BySnapApp(appInfos))
+	sort.Sort(snap.AppInfoBySnapApp(appInfos))
 
 	c.Check(appInfos[0].Snap, check.DeepEquals, s.infoA)
 	c.Check(appInfos[0].Name, check.Equals, "svc1")

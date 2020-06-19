@@ -48,7 +48,7 @@ func ClientSnapFromSnapInfo(snapInfo *snap.Info) (*client.Snap, error) {
 	for _, app := range snapInfo.Apps {
 		snapapps = append(snapapps, app)
 	}
-	sort.Sort(BySnapApp(snapapps))
+	sort.Sort(snap.AppInfoBySnapApp(snapapps))
 
 	apps, err := ClientAppInfosFromSnapAppInfos(snapapps)
 	result := &client.Snap{
@@ -109,20 +109,6 @@ func ClientAppInfoNotes(app *client.AppInfo) string {
 		return "-"
 	}
 	return strings.Join(notes, ",")
-}
-
-// BySnapApp sorts apps by (snap name, app name)
-type BySnapApp []*snap.AppInfo
-
-func (a BySnapApp) Len() int      { return len(a) }
-func (a BySnapApp) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
-func (a BySnapApp) Less(i, j int) bool {
-	iName := a[i].Snap.InstanceName()
-	jName := a[j].Snap.InstanceName()
-	if iName == jName {
-		return a[i].Name < a[j].Name
-	}
-	return iName < jName
 }
 
 func ClientAppInfosFromSnapAppInfos(apps []*snap.AppInfo) ([]client.AppInfo, error) {
