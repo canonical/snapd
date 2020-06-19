@@ -490,35 +490,44 @@ func undoSnapdUserServicesOnCore(s *snap.Info, inter interacter) error {
 	return nil
 }
 
-func writeSnapdDbusConfigOnCore(s *snap.Info) error {
-	// list D-Bus configuration fragments in the snapd snap
-	systemConfigs, err := filepath.Glob(filepath.Join(s.MountDir(), "usr/share/dbus-1/system.d/*.conf"))
-	if err != nil {
-		return err
-	}
+func deriveSnapdDBusConfig(s *snap.Info) (sessionContent, systemContent map[string]osutil.FileState, err error) {
 	sessionConfigs, err := filepath.Glob(filepath.Join(s.MountDir(), "usr/share/dbus-1/session.d/*.conf"))
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
-
-	state := make(map[string]osutil.FileState, len(systemConfigs)+1)
-	for _, config := range systemConfigs {
-		state[filepath.Base(config)] = &osutil.FileReference{
+	sessionContent = make(map[string]osutil.FileState, len(sessionConfigs)+1)
+	for _, config := range sessionConfigs {
+		sessionContent[filepath.Base(config)] = &osutil.FileReference{
 			Path: config,
 		}
 	}
-	_, _, err = osutil.EnsureDirState(dirs.SnapDBusSystemPolicyDir, "snapd.*.conf", state)
+
+	systemConfigs, err := filepath.Glob(filepath.Join(s.MountDir(), "usr/share/dbus-1/system.d/*.conf"))
+	if err != nil {
+		return nil, nil, err
+	}
+	systemContent = make(map[string]osutil.FileState, len(systemConfigs)+1)
+	for _, config := range systemConfigs {
+		systemContent[filepath.Base(config)] = &osutil.FileReference{
+			Path: config,
+		}
+	}
+
+	return sessionContent, systemContent, nil
+}
+
+func writeSnapdDbusConfigOnCore(s *snap.Info) error {
+	sessionContent, systemContent, err := deriveSnapdDBusConfig(s)
 	if err != nil {
 		return err
 	}
 
-	state = make(map[string]osutil.FileState, len(sessionConfigs)+1)
-	for _, config := range sessionConfigs {
-		state[filepath.Base(config)] = &osutil.FileReference{
-			Path: config,
-		}
+	_, _, err = osutil.EnsureDirState(dirs.SnapDBusSessionPolicyDir, "snapd.*.conf", sessionContent)
+	if err != nil {
+		return err
 	}
-	_, _, err = osutil.EnsureDirState(dirs.SnapDBusSessionPolicyDir, "snapd.*.conf", state)
+
+	_, _, err = osutil.EnsureDirState(dirs.SnapDBusSystemPolicyDir, "snapd.*.conf", systemContent)
 	if err != nil {
 		return err
 	}

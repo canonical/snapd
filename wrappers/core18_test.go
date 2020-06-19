@@ -347,3 +347,20 @@ func (s *servicesTestSuite) TestRemoveSnapdServicesWithNonSnapd(c *C) {
 	err := wrappers.RemoveSnapdSnapServicesOnCore(info, progress.Null)
 	c.Assert(err, ErrorMatches, `internal error: removing explicit snapd services for snap "foo" type "app" is unexpected`)
 }
+
+func (s *servicesTestSuite) TestDeriveSnapdDBusConfig(c *C) {
+	info := makeMockSnapdSnap(c)
+
+	sessionContent, systemContent, err := wrappers.DeriveSnapdDBusConfig(info)
+	c.Assert(err, IsNil)
+	c.Check(sessionContent, DeepEquals, map[string]osutil.FileState{
+		"snapd.session-services.conf": &osutil.FileReference{
+			Path: filepath.Join(info.MountDir(), "usr/share/dbus-1/session.d/snapd.session-services.conf"),
+		},
+	})
+	c.Check(systemContent, DeepEquals, map[string]osutil.FileState{
+		"snapd.system-services.conf": &osutil.FileReference{
+			Path: filepath.Join(info.MountDir(), "usr/share/dbus-1/system.d/snapd.system-services.conf"),
+		},
+	})
+}

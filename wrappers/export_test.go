@@ -41,6 +41,9 @@ var (
 
 	// icons
 	FindIconFiles = findIconFiles
+
+	// core18
+	DeriveSnapdDBusConfig = deriveSnapdDBusConfig
 )
 
 func MockKillWait(wait time.Duration) (restore func()) {
