@@ -36,10 +36,10 @@ var (
 	ensureNodesExist = ensureNodesExistImpl
 )
 
-// createMissing creates the partitions listed in the positioned volume pv
-// that are missing from the existing device layout, returning a list of
+// createMissingPartitions creates the partitions listed in the positioned volume
+// pv that are missing from the existing device layout, returning a list of
 // structures that have been created.
-func createMissing(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume) ([]gadget.OnDiskStructure, error) {
+func createMissingPartitions(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume) ([]gadget.OnDiskStructure, error) {
 	buf, created := gadget.BuildPartitionList(dl, pv)
 	if len(created) == 0 {
 		return created, nil
@@ -68,9 +68,8 @@ func createMissing(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume) ([]gadget.
 	return created, nil
 }
 
-// removeCreated removes partitions added during a previous failed install
-// attempt.
-func removeCreated(dl *gadget.OnDiskVolume) error {
+// removeCreatedPartitions removes partitions added during a previous install.
+func removeCreatedPartitions(dl *gadget.OnDiskVolume) error {
 	indexes := make([]string, 0, len(dl.PartitionTable.Partitions))
 	for i, s := range dl.Structure {
 		if s.CreatedDuringInstall {

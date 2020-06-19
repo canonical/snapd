@@ -88,7 +88,7 @@ func Run(gadgetRoot, device string, options Options) error {
 	}
 
 	// remove partitions added during a previous install attempt
-	if err := removeCreated(diskLayout); err != nil {
+	if err := removeCreatedPartitions(diskLayout); err != nil {
 		return fmt.Errorf("cannot remove partitions from previous install: %v", err)
 	}
 	// at this point we removed any existing partition, nuke any
@@ -101,7 +101,7 @@ func Run(gadgetRoot, device string, options Options) error {
 
 	}
 
-	created, err := createMissing(diskLayout, lv)
+	created, err := createMissingPartitions(diskLayout, lv)
 	if err != nil {
 		return fmt.Errorf("cannot create the partitions: %v", err)
 	}

@@ -194,7 +194,7 @@ func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 
 	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
 	c.Assert(err, IsNil)
-	created, err := install.CreateMissing(dl, pv)
+	created, err := install.CreateMissingPartitions(dl, pv)
 	c.Assert(err, IsNil)
 	c.Assert(created, DeepEquals, []gadget.OnDiskStructure{mockOnDiskStructureWritable})
 	c.Assert(calls, Equals, 1)
@@ -225,7 +225,7 @@ func (s *partitionTestSuite) TestRemovePartitionsTrivial(c *C) {
 	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
 	c.Assert(err, IsNil)
 
-	err = install.RemoveCreated(dl)
+	err = install.RemoveCreatedPartitions(dl)
 	c.Assert(err, IsNil)
 
 	c.Assert(cmdSfdisk.Calls(), DeepEquals, [][]string{
@@ -276,7 +276,7 @@ echo '{
 		{"lsblk", "--fs", "--json", "/dev/node2"},
 	})
 
-	err = install.RemoveCreated(dl)
+	err = install.RemoveCreatedPartitions(dl)
 	c.Assert(err, IsNil)
 
 	c.Assert(cmdSfdisk.Calls(), DeepEquals, [][]string{
@@ -299,7 +299,7 @@ func (s *partitionTestSuite) TestRemovePartitionsError(c *C) {
 	dl, err := gadget.OnDiskVolumeFromDevice("node")
 	c.Assert(err, IsNil)
 
-	err = install.RemoveCreated(dl)
+	err = install.RemoveCreatedPartitions(dl)
 	c.Assert(err, ErrorMatches, "cannot remove partitions: /dev/node3")
 }
 

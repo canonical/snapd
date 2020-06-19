@@ -34,9 +34,9 @@ var (
 	WriteContent    = writeContent
 	MountFilesystem = mountFilesystem
 
-	CreateMissing    = createMissing
-	RemoveCreated    = removeCreated
-	EnsureNodesExist = ensureNodesExist
+	CreateMissingPartitions = createMissingPartitions
+	RemoveCreatedPartitions = removeCreatedPartitions
+	EnsureNodesExist        = ensureNodesExist
 )
 
 func MockContentMountpoint(new string) (restore func()) {
