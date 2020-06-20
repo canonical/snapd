@@ -143,8 +143,7 @@ func reloadPartitionTable(device string) error {
 	// Re-read the partition table using the BLKPG ioctl, which doesn't
 	// remove existing partitions, only appends new partitions with the right
 	// size and offset. As long as we provide consistent partitioning from
-	// userspace we're safe. At this point we also trigger udev to create
-	// the new partition device nodes.
+	// userspace we're safe.
 	output, err := exec.Command("partx", "-u", device).CombinedOutput()
 	if err != nil {
 		return osutil.OutputErr(output, err)
