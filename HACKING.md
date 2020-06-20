@@ -257,7 +257,7 @@ Connect to the VM
 Destroy the VM
 
     $ destroy_nested_vm
-    $ rm -rf /tmp/work-dir/
+    $ rm -rf /tmp/work-dir/ ./repacked-kernel
 
 
 # Quick intro to hacking on snap-confine
