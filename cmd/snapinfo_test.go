@@ -20,39 +20,218 @@
 package cmd_test
 
 import (
+	"io/ioutil"
+	"os"
+	"path/filepath"
+	"reflect"
 	"testing"
 
-	"gopkg.in/check.v1"
+	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/cmd"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
-func Test(t *testing.T) { check.TestingT(t) }
+func Test(t *testing.T) { TestingT(t) }
 
-type cmdSuite struct{}
-
-var _ = check.Suite(&cmdSuite{})
-
-func (*cmdSuite) TestC2S(c *check.C) {
-	// TODO: add moar fields!
-	si := &snap.Info{
-		Website: "http://example.com/xyzzy",
-	}
-	ci, err := cmd.ClientSnapFromSnapInfo(si)
-	c.Check(err, check.IsNil)
-	c.Check(ci.Website, check.Equals, si.Website)
+type cmdSuite struct {
+	testutil.BaseTest
 }
 
-func (*cmdSuite) TestAppStatusNotes(c *check.C) {
+func (s *cmdSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	dirs.SetRootDir(c.MkDir())
+	s.AddCleanup(func() { dirs.SetRootDir("/") })
+}
+
+var _ = Suite(&cmdSuite{})
+
+func (*cmdSuite) TestClientSnapFromSnapInfo(c *C) {
+	si := &snap.Info{
+		SnapType:      snap.TypeApp,
+		SuggestedName: "",
+		InstanceKey:   "insta",
+		Version:       "v1",
+		Confinement:   snap.StrictConfinement,
+		License:       "Proprietary",
+		Publisher: snap.StoreAccount{
+			ID:          "ZvtzsxbsHivZLdvzrt0iqW529riGLfXJ",
+			Username:    "thingyinc",
+			DisplayName: "Thingy Inc.",
+			Validation:  "unproven",
+		},
+		Base: "core18",
+		SideInfo: snap.SideInfo{
+			RealName:          "the-snap",
+			SnapID:            "snapidid",
+			Revision:          snap.R(99),
+			EditedTitle:       "the-title",
+			EditedSummary:     "the-summary",
+			EditedDescription: "the-description",
+			Channel:           "latest/stable",
+			Contact:           "https://thingy.com",
+			Private:           true,
+		},
+		Channels: map[string]*snap.ChannelSnapInfo{},
+		Tracks:   []string{},
+		Prices:   map[string]float64{},
+		Media: []snap.MediaInfo{
+			{Type: "icon", URL: "https://dashboard.snapcraft.io/site_media/appmedia/2017/12/Thingy.png"},
+			{Type: "screenshot", URL: "https://dashboard.snapcraft.io/site_media/appmedia/2018/01/Thingy_01.png"},
+			{Type: "screenshot", URL: "https://dashboard.snapcraft.io/site_media/appmedia/2018/01/Thingy_02.png", Width: 600, Height: 200},
+		},
+		CommonIDs: []string{"org.thingy"},
+		Website:   "http://example.com/thingy",
+		StoreURL:  "https://snapcraft.io/thingy",
+		Broken:    "broken",
+	}
+	// valid InstallDate
+	err := os.MkdirAll(si.MountDir(), 0755)
+	c.Assert(err, IsNil)
+	err = os.Symlink(si.Revision.String(), filepath.Join(filepath.Dir(si.MountDir()), "current"))
+	c.Assert(err, IsNil)
+
+	ci, err := cmd.ClientSnapFromSnapInfo(si)
+	c.Check(err, IsNil)
+
+	// check that fields are filled
+	// see daemon/snap.go for fields filled after this
+	expectedZeroFields := []string{
+		"Screenshots", // unused nowadays
+		"DownloadSize",
+		"InstalledSize",
+		"Health",
+		"Status",
+		"TrackingChannel",
+		"IgnoreValidation",
+		"CohortKey",
+		"DevMode",
+		"TryMode",
+		"JailMode",
+		"MountedFrom",
+	}
+	var checker func(string, reflect.Value)
+	checker = func(pfx string, x reflect.Value) {
+		t := x.Type()
+		for i := 0; i < x.NumField(); i++ {
+			f := t.Field(i)
+			if f.PkgPath != "" {
+				// not exported, ignore
+				continue
+			}
+			v := x.Field(i)
+			if f.Anonymous {
+				checker(pfx+f.Name+".", v)
+				continue
+			}
+			if reflect.DeepEqual(v.Interface(), reflect.Zero(f.Type).Interface()) {
+				name := pfx + f.Name
+				c.Check(expectedZeroFields, testutil.Contains, name, Commentf("%s not set", name))
+			}
+		}
+	}
+	x := reflect.ValueOf(ci).Elem()
+	checker("", x)
+
+	// check some values
+	c.Check(ci.Name, Equals, "the-snap_insta")
+	c.Check(ci.Type, Equals, "app")
+	c.Check(ci.ID, Equals, si.ID())
+	c.Check(ci.Revision, Equals, snap.R(99))
+	c.Check(ci.Version, Equals, "v1")
+	c.Check(ci.Title, Equals, "the-title")
+	c.Check(ci.Summary, Equals, "the-summary")
+	c.Check(ci.Description, Equals, "the-description")
+	c.Check(ci.Icon, Equals, si.Media.IconURL())
+	c.Check(ci.Website, Equals, si.Website)
+	c.Check(ci.StoreURL, Equals, si.StoreURL)
+	c.Check(ci.Developer, Equals, "thingyinc")
+	c.Check(ci.Publisher, DeepEquals, &si.Publisher)
+}
+
+func (*cmdSuite) TestClientSnapFromSnapInfoApps(c *C) {
+	si := &snap.Info{
+		SnapType:      snap.TypeApp,
+		SuggestedName: "",
+		InstanceKey:   "insta",
+		SideInfo: snap.SideInfo{
+			RealName: "the-snap",
+			SnapID:   "snapidid",
+			Revision: snap.R(99),
+		},
+	}
+	si.Apps = map[string]*snap.AppInfo{
+		"svc": {Snap: si, Name: "svc", Daemon: "simple"},
+		"app": {Snap: si, Name: "app", CommonID: "common.id"},
+	}
+	// sanity
+	c.Check(si.IsActive(), Equals, false)
+	// desktop file
+	df := si.Apps["app"].DesktopFile()
+	err := os.MkdirAll(filepath.Dir(df), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(df, nil, 0644)
+	c.Assert(err, IsNil)
+
+	ci, err := cmd.ClientSnapFromSnapInfo(si)
+	c.Check(err, IsNil)
+
+	c.Check(ci.Name, Equals, "the-snap_insta")
+	c.Check(ci.Apps, DeepEquals, []client.AppInfo{
+		{
+			Snap:        "the-snap_insta",
+			Name:        "app",
+			CommonID:    "common.id",
+			DesktopFile: df,
+		},
+		{Snap: "the-snap_insta", Name: "svc", Daemon: "simple"},
+	})
+}
+
+func (*cmdSuite) TestClientSnapFromSnapInfoAppsActive(c *C) {
+	si := &snap.Info{
+		SnapType:      snap.TypeApp,
+		SuggestedName: "",
+		InstanceKey:   "insta",
+		SideInfo: snap.SideInfo{
+			RealName: "the-snap",
+			SnapID:   "snapidid",
+			Revision: snap.R(99),
+		},
+	}
+	si.Apps = map[string]*snap.AppInfo{
+		"svc": {Snap: si, Name: "svc", Daemon: "simple"},
+	}
+	// make it active
+	err := os.MkdirAll(si.MountDir(), 0755)
+	c.Assert(err, IsNil)
+	err = os.Symlink(si.Revision.String(), filepath.Join(filepath.Dir(si.MountDir()), "current"))
+	c.Assert(err, IsNil)
+	c.Check(si.IsActive(), Equals, true)
+
+	c.Skip("NOT YET")
+
+	ci, err := cmd.ClientSnapFromSnapInfo(si)
+	c.Check(err, IsNil)
+	// ... service status
+	c.Check(ci.Name, Equals, "the-snap_insta")
+	c.Check(ci.Apps, DeepEquals, []client.AppInfo{
+		{Snap: "the-snap_insta", Name: "svc", Daemon: "simple"},
+	})
+
+}
+
+func (*cmdSuite) TestAppStatusNotes(c *C) {
 	ai := client.AppInfo{}
-	c.Check(cmd.ClientAppInfoNotes(&ai), check.Equals, "-")
+	c.Check(cmd.ClientAppInfoNotes(&ai), Equals, "-")
 
 	ai = client.AppInfo{
 		Daemon: "oneshot",
 	}
-	c.Check(cmd.ClientAppInfoNotes(&ai), check.Equals, "-")
+	c.Check(cmd.ClientAppInfoNotes(&ai), Equals, "-")
 
 	ai = client.AppInfo{
 		Daemon: "oneshot",
@@ -60,7 +239,7 @@ func (*cmdSuite) TestAppStatusNotes(c *check.C) {
 			{Type: "timer"},
 		},
 	}
-	c.Check(cmd.ClientAppInfoNotes(&ai), check.Equals, "timer-activated")
+	c.Check(cmd.ClientAppInfoNotes(&ai), Equals, "timer-activated")
 
 	ai = client.AppInfo{
 		Daemon: "oneshot",
@@ -68,7 +247,7 @@ func (*cmdSuite) TestAppStatusNotes(c *check.C) {
 			{Type: "socket"},
 		},
 	}
-	c.Check(cmd.ClientAppInfoNotes(&ai), check.Equals, "socket-activated")
+	c.Check(cmd.ClientAppInfoNotes(&ai), Equals, "socket-activated")
 
 	// check that the output is stable regardless of the order of activators
 	ai = client.AppInfo{
@@ -78,7 +257,7 @@ func (*cmdSuite) TestAppStatusNotes(c *check.C) {
 			{Type: "socket"},
 		},
 	}
-	c.Check(cmd.ClientAppInfoNotes(&ai), check.Equals, "timer-activated,socket-activated")
+	c.Check(cmd.ClientAppInfoNotes(&ai), Equals, "timer-activated,socket-activated")
 	ai = client.AppInfo{
 		Daemon: "oneshot",
 		Activators: []client.AppActivator{
@@ -86,5 +265,5 @@ func (*cmdSuite) TestAppStatusNotes(c *check.C) {
 			{Type: "timer"},
 		},
 	}
-	c.Check(cmd.ClientAppInfoNotes(&ai), check.Equals, "timer-activated,socket-activated")
+	c.Check(cmd.ClientAppInfoNotes(&ai), Equals, "timer-activated,socket-activated")
 }

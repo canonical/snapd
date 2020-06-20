@@ -56,7 +56,7 @@ func ClientSnapFromSnapInfo(snapInfo *snap.Info) (*client.Snap, error) {
 		Developer:   snapInfo.Publisher.Username,
 		Publisher:   publisher,
 		Icon:        snapInfo.Media.IconURL(),
-		ID:          snapInfo.SnapID,
+		ID:          snapInfo.ID(),
 		InstallDate: snapInfo.InstallDate(),
 		Name:        snapInfo.InstanceName(),
 		Revision:    snapInfo.Revision,
