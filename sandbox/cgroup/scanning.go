@@ -29,10 +29,10 @@ import (
 )
 
 var (
-	// string that looks like an hook security tag
-	taggish1 = regexp.MustCompile(`snap\.[^.]+\.hook\.[^.]+`)
+	// string that looks like a hook security tag
+	roughHookTagPattern = regexp.MustCompile(`snap\.[^.]+\.hook\.[^.]+`)
 	// string that looks like an app security tag
-	taggish2 = regexp.MustCompile(`snap\.[^.]+\.[^.]+`)
+	roughAppTagPattern = regexp.MustCompile(`snap\.[^.]+\.[^.]+`)
 )
 
 // securityTagFromCgroupPath returns a security tag from cgroup path.
@@ -46,8 +46,8 @@ func securityTagFromCgroupPath(path string) (securityTag string) {
 		return ""
 	}
 
-	// There are two broad forms expressed by taggish1 and taggish2 regular expressions.
-	for _, re := range []*regexp.Regexp{taggish1, taggish2} {
+	// There are two broad forms expressed by the pair of regular expressions defined above.
+	for _, re := range []*regexp.Regexp{roughHookTagPattern, roughAppTagPattern} {
 		if maybeTag := re.FindString(leaf); maybeTag != "" {
 			// NOTE: The things we are returning need to minimally look like
 			// security tags. They are further refined and looked at below, in
