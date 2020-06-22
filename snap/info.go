@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2016 Canonical Ltd
+ * Copyright (C) 2014-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -433,9 +433,9 @@ func (s *Info) Description() string {
 	return s.OriginalDescription
 }
 
-// GetType returns the type of the snap, including additional snap ID check
+// Type returns the type of the snap, including additional snap ID check
 // for the legacy snapd snap definitions.
-func (s *Info) GetType() Type {
+func (s *Info) Type() Type {
 	if s.SnapType == TypeApp && IsSnapd(s.SnapID) {
 		return TypeSnapd
 	}
@@ -1284,7 +1284,7 @@ type ByType []*Info
 func (r ByType) Len() int      { return len(r) }
 func (r ByType) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
 func (r ByType) Less(i, j int) bool {
-	return r[i].GetType().SortsBefore(r[j].GetType())
+	return r[i].Type().SortsBefore(r[j].Type())
 }
 
 // SortServices sorts the apps based on their Before and After specs, such that

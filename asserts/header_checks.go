@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2016 Canonical Ltd
+ * Copyright (C) 2015-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -124,13 +124,17 @@ func checkIntWithDefault(headers map[string]interface{}, name string, defl int) 
 }
 
 func checkInt(headers map[string]interface{}, name string) (int, error) {
-	valueStr, err := checkNotEmptyString(headers, name)
+	return checkIntWhat(headers, name, "header")
+}
+
+func checkIntWhat(headers map[string]interface{}, name, what string) (int, error) {
+	valueStr, err := checkNotEmptyStringWhat(headers, name, what)
 	if err != nil {
 		return -1, err
 	}
 	value, err := strconv.Atoi(valueStr)
 	if err != nil {
-		return -1, fmt.Errorf("%q header is not an integer: %v", name, valueStr)
+		return -1, fmt.Errorf("%q %s is not an integer: %v", name, what, valueStr)
 	}
 	return value, nil
 }
