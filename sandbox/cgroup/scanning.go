@@ -39,7 +39,7 @@ var (
 func securityTagFromCgroupPath(path string) (securityTag string) {
 	leaf := filepath.Base(filepath.Clean(path))
 
-	// We are only interested cgroup directory names that correspond to
+	// We are only interested in cgroup directory names that correspond to
 	// services and scopes, as they contain processes that have been invoked
 	// from a snap.
 	if ext := filepath.Ext(leaf); ext != ".service" && ext != ".scope" {
