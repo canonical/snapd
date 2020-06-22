@@ -197,25 +197,32 @@ type cloudInitStatus struct {
 // values for Action are "disable" or "restrict", and the Datasource will be set
 // to the restricted datasource if Action is "restrict".
 type CloudInitRestrictionResult struct {
-	Datasource string
 	Action     string
+	Datasource string
+}
+
+// CloudInitRestrictOptions are options for how to restrict cloud-init with
+// RestrictCloudInit. ForceDisable will force disabling cloud-init even if it is
+// in an active/running or errored state.
+type CloudInitRestrictOptions struct {
+	ForceDisable bool
 }
 
 // RestrictCloudInit will limit the operations of cloud-init on subsequent boots
-// to only use a specific datasource, and additionally if the currently
+// by either disabling cloud-init in the untriggered state, or restrict
+// cloud-init to only use a specific datasource (additionally if the currently
 // detected datasource for this boot was NoCloud, it will disable the automatic
-// import of filesystems with labels such as CIDATA (or cidata) as datasources.
-// This is to protect against CVE-2020-11933.
-func RestrictCloudInit(state CloudInitState, opts *Options) (CloudInitRestrictionResult, error) {
+// import of filesystems with labels such as CIDATA (or cidata) as datasources).
+// This is expected to be run when cloud-init is in a "steady" state such as
+// done or disabled (untriggered). If called in other states such as errored, it
+// will return an error, but it can be forced to disable cloud-init anyways in
+// these states with the opts parameter and the ForceDisable field.
+// This function is meant to protect against CVE-2020-11933.
+func RestrictCloudInit(state CloudInitState, opts *CloudInitRestrictOptions) (CloudInitRestrictionResult, error) {
 	res := CloudInitRestrictionResult{}
 
-	// for disabling, we need the target dir, but that can be influenced by
-	// options
-	targetdir := dirs.GlobalRootDir
-	if opts != nil {
-		if opts.TargetRootDir != "" {
-			targetdir = opts.TargetRootDir
-		}
+	if opts == nil {
+		opts = &CloudInitRestrictOptions{}
 	}
 
 	switch state {
@@ -226,12 +233,18 @@ func RestrictCloudInit(state CloudInitState, opts *Options) (CloudInitRestrictio
 		return res, fmt.Errorf("cannot restrict cloud-init: already restricted")
 	case CloudInitDisabledPermanently:
 		return res, fmt.Errorf("cannot restrict cloud-init: already disabled")
-	case CloudInitErrored, CloudInitEnabled, CloudInitUntriggered:
-		// all of these cases we should disable cloud-init
+	case CloudInitErrored, CloudInitEnabled:
+		// if we are not forcing a disable, return error as these states are
+		// where cloud-init could still be running doing things
+		if !opts.ForceDisable {
+			return res, fmt.Errorf("cannot restrict cloud-init in error or enabled state")
+		}
+		fallthrough
+	case CloudInitUntriggered:
 		fallthrough
 	default:
 		res.Action = "disable"
-		return res, DisableCloudInit(targetdir)
+		return res, DisableCloudInit(dirs.GlobalRootDir)
 	}
 
 	// from here on out, we are taking the "restrict" action
@@ -244,6 +257,7 @@ func RestrictCloudInit(state CloudInitState, opts *Options) (CloudInitRestrictio
 	if err != nil {
 		return res, err
 	}
+	defer f.Close()
 
 	var stat cloudInitStatus
 	err = json.NewDecoder(f).Decode(&stat)
@@ -251,8 +265,9 @@ func RestrictCloudInit(state CloudInitState, opts *Options) (CloudInitRestrictio
 		return res, err
 	}
 
-	// if the datasource was empty then either cloud-init didn't run or we
-	// had invalid json in the status file
+	// if the datasource was empty then cloud-init did something wrong or
+	// perhaps it incorrectly reported that it ran but something else deleted
+	// the file
 	datasourceRaw := stat.V1.Datasource
 	if datasourceRaw == "" {
 		return res, fmt.Errorf("cloud-init error: missing datasource from status.json")
