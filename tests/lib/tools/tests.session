@@ -121,9 +121,17 @@ case "$action" in
 				;;
 		esac
 
-		# Work around https://github.com/systemd/systemd/issues/12401 fixed
-		# in systemd v243.
-		if systemctl cat systemd-logind.service | not grep -q StateDirectory; then
+		# Try to enable linger for the selected user(s).
+    needs_linger_workaround=
+		for u in $(echo "$user" | tr ',' ' '); do
+			  if ! loginctl enable-linger "$u"; then
+            needs_linger_workaround=true
+        fi
+    done
+
+		# Work around https://github.com/systemd/systemd/issues/12401 fixed in
+		# systemd v243.
+		if [ "$needs_linger_workaround" = "true" ] && systemctl cat systemd-logind.service | not grep -q StateDirectory; then
 			mkdir -p /etc/systemd/system/systemd-logind.service.d
 			(
 				echo "[Service]"
