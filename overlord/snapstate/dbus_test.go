@@ -286,17 +286,9 @@ apps:
 	tr.Set("core", "experimental.dbus-activation", true)
 	tr.Commit()
 
-	ts, err := snapstate.Install(context.Background(), s.state, "some-snap", nil, s.user.ID, snapstate.Flags{})
-	c.Assert(err, IsNil)
-
-	chg := s.state.NewChange("install", "install snap")
-	chg.AddAll(ts)
-
-	s.state.Unlock()
-	s.settle(c)
-	s.state.Lock()
-
-	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n- Make snap "some-snap" \(11\) available to the system \(snap "some-snap" requesting to activate on system bus name "org.example.Foo" conflicts with snap "other-snap" use\)`)
+	opts := &snapstate.RevisionOptions{Channel: "channel-for-dbus-activation"}
+	_, err = snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
+	c.Check(err, ErrorMatches, `snap "some-snap" requesting to activate on system bus name "org.example.Foo" conflicts with snap "other-snap" use`)
 }
 
 func (s *snapmgrTestSuite) TestInstallManyDBusActivationConflicts(c *C) {

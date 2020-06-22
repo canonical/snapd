@@ -1196,6 +1196,8 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 
 	pb := NewTaskProgressAdapterLocked(t)
 
+	// Check for D-Bus service conflicts a second time to detect
+	// conflicts within a transaction.
 	if err := checkDBusServiceConflicts(st, newInfo); err != nil {
 		return err
 	}
