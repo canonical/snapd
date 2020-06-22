@@ -144,6 +144,14 @@ get_image_url_for_nested_vm(){
     fi
 }
 
+is_nested_system(){
+    if is_core_nested_system || is_classic_nested_system ; then
+        return 0
+    else 
+        return 1
+    fi
+}
+
 is_core_nested_system(){
     if [ -z "$NESTED_TYPE" ]; then
         echo "Variable NESTED_TYPE not defined. Exiting..."
@@ -479,8 +487,8 @@ start_nested_core_vm(){
         ${PARAM_TPM} \
         ${PARAM_IMAGE} \
         ${PARAM_ASSERTIONS} \
-        ${PARAM_MONITOR} \
-        ${PARAM_SERIAL} "
+        ${PARAM_SERIAL} \
+        ${PARAM_MONITOR} "
 
     # Wait until ssh is ready and configure ssh
     if wait_for_ssh; then
@@ -545,8 +553,8 @@ start_nested_classic_vm(){
         ${PARAM_TPM} \
         ${PARAM_IMAGE} \
         ${PARAM_SEED} \
-        ${PARAM_MONITOR} \
-        ${PARAM_SERIAL} "
+        ${PARAM_SERIAL} \
+        ${PARAM_MONITOR} "
     wait_for_ssh
 }
 
