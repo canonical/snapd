@@ -248,7 +248,7 @@ func (s *sysconfigSuite) TestRestrictCloudInit(c *C) {
 	tt := []struct {
 		comment                string
 		state                  sysconfig.CloudInitState
-		sysconfOpts            *sysconfig.Options
+		sysconfOpts            *sysconfig.CloudInitRestrictOptions
 		cloudInitStatusJSON    string
 		expError               string
 		expRestrictYamlWritten string
@@ -267,22 +267,29 @@ func (s *sysconfigSuite) TestRestrictCloudInit(c *C) {
 			expError: "cannot restrict cloud-init: already restricted",
 		},
 		{
-			comment:        "errored",
-			state:          sysconfig.CloudInitErrored,
+			comment:  "errored",
+			state:    sysconfig.CloudInitErrored,
+			expError: "cannot restrict cloud-init in error or enabled state",
+		},
+		{
+			comment:  "enable (not running)",
+			state:    sysconfig.CloudInitEnabled,
+			expError: "cannot restrict cloud-init in error or enabled state",
+		},
+		{
+			comment: "errored w/ force disable",
+			state:   sysconfig.CloudInitErrored,
+			sysconfOpts: &sysconfig.CloudInitRestrictOptions{
+				ForceDisable: true,
+			},
 			expAction:      "disable",
 			expDisableFile: true,
 		},
 		{
-			comment:        "enable (not running)",
-			state:          sysconfig.CloudInitEnabled,
-			expAction:      "disable",
-			expDisableFile: true,
-		},
-		{
-			comment: "enable (not running) w/ targetdir opts",
+			comment: "enable (not running) w/ force disable",
 			state:   sysconfig.CloudInitEnabled,
-			sysconfOpts: &sysconfig.Options{
-				TargetRootDir: "REPLACE-DURING-TEST-EXECUTION",
+			sysconfOpts: &sysconfig.CloudInitRestrictOptions{
+				ForceDisable: true,
 			},
 			expAction:      "disable",
 			expDisableFile: true,
@@ -348,12 +355,6 @@ func (s *sysconfigSuite) TestRestrictCloudInit(c *C) {
 			c.Assert(err, IsNil, Commentf(t.comment))
 			err = ioutil.WriteFile(statusJSONFile, []byte(t.cloudInitStatusJSON), 0644)
 			c.Assert(err, IsNil, Commentf(t.comment))
-		}
-
-		if t.sysconfOpts != nil {
-			if t.sysconfOpts.TargetRootDir == "REPLACE-DURING-TEST-EXECUTION" {
-				t.sysconfOpts.TargetRootDir = dirs.GlobalRootDir
-			}
 		}
 
 		// if we expect snapd to write a yaml config file for cloud-init, ensure
