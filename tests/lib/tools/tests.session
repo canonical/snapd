@@ -84,8 +84,8 @@ while [ $# -gt 0 ]; do
 done
 
 if [ "$(id -u)" -ne 0 ]; then
-    echo "tests.session needs to be invoked as root" >&2
-    exit 1
+	echo "tests.session needs to be invoked as root" >&2
+	exit 1
 fi
 
 case "$action" in
@@ -122,12 +122,12 @@ case "$action" in
 		esac
 
 		# Try to enable linger for the selected user(s).
-    needs_linger_workaround=
+		needs_linger_workaround=
 		for u in $(echo "$user" | tr ',' ' '); do
-			  if ! loginctl enable-linger "$u"; then
-            needs_linger_workaround=true
-        fi
-    done
+			if ! loginctl enable-linger "$u"; then
+				needs_linger_workaround=true
+			fi
+		done
 
 		# Work around https://github.com/systemd/systemd/issues/12401 fixed in
 		# systemd v243.
@@ -156,7 +156,7 @@ case "$action" in
 			# Because some systems do not support systemd --user (see
 			# tests/main/tests.session-support for details), check if this is
 			# expected to work ahead of trying.
-      if tests.session -u "$u" exec systemctl --user is-enabled default.target >/dev/null; then
+			if tests.session -u "$u" exec systemctl --user is-enabled default.target >/dev/null; then
 				tests.session -u "$u" exec systemctl --user start default.target
 			fi
 		done
@@ -250,8 +250,8 @@ case "$action" in
 esac
 
 if [ -z "$(command -v busctl)" ]; then
-    echo "tests.session requires busctl" >&2
-    exit 1
+	echo "tests.session requires busctl" >&2
+	exit 1
 fi
 
 # This fixes a bug in some older Debian systems where /root/.profile contains
