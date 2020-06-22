@@ -1,0 +1,36 @@
+summary: Check that `snap run --experimental-gdbserver` works
+
+# testing only here to avoid having to install gdb/gdbserver everywhere
+systems: [ubuntu-16.04-*, ubuntu-18.04-*, ubuntu-2*]
+
+prepare: |
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+    install_local test-snapd-sh
+    apt install -y gdbserver gdb
+
+restore: |
+    apt autoremove -y gdbserver gdb
+
+execute: |
+    echo "Test snap run --experimental-gdbserver works"
+
+    # run the gdbserver command as a user
+    # XXX: use "systemd-run --user -p StandardOutput=file:$(pwd)/stdout"
+    # shellcheck disable=SC2016
+    su -l -c 'snap run --experimental-gdbserver test-snapd-sh.sh -c "echo hello-hello-hello uid:$UID"' test >stdout &
+
+    # wait for the instructions that gdb is ready to get attached
+    retry -n60 grep '^gdb -ex' stdout
+    # ensure that the actual program is *not* run yet
+    not grep hello-hello-hello < stdout
+
+    # now attach gdb as instructed via "snap run" and continue running the
+    # program
+    gdb_cmd="$(grep '^gdb -ex' stdout)"
+    # shellcheck disable=SC2086
+    echo c | eval $gdb_cmd
+
+    # ensure the program ran and was running as a user
+    MATCH hello-hello-hello < stdout
+    MATCH "uid:$(id -u test)" < stdout

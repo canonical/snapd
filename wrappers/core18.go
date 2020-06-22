@@ -128,7 +128,7 @@ func undoSnapdToolingMountUnit(sysd systemd.Systemd) error {
 // AddSnapdSnapServices sets up the services based on a given snapd snap in the
 // system.
 func AddSnapdSnapServices(s *snap.Info, inter interacter) error {
-	if snapType := s.GetType(); snapType != snap.TypeSnapd {
+	if snapType := s.Type(); snapType != snap.TypeSnapd {
 		return fmt.Errorf("internal error: adding explicit snapd services for snap %q type %q is unexpected", s.InstanceName(), snapType)
 	}
 
@@ -549,7 +549,7 @@ func undoSnapdDbusConfigOnCore(s *snap.Info) error {
 // restoring the system state, making this undo helper suitable for use when
 // reverting the first installation of the snapd snap on a core device.
 func RemoveSnapdSnapServicesOnCore(s *snap.Info, inter interacter) error {
-	if snapType := s.GetType(); snapType != snap.TypeSnapd {
+	if snapType := s.Type(); snapType != snap.TypeSnapd {
 		return fmt.Errorf("internal error: removing explicit snapd services for snap %q type %q is unexpected", s.InstanceName(), snapType)
 	}
 

@@ -118,7 +118,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	}
 
 	// core/snapd on classic are special
-	if (snapInfo.GetType() == snap.TypeOS || snapInfo.GetType() == snap.TypeSnapd) && release.OnClassic {
+	if (snapInfo.Type() == snap.TypeOS || snapInfo.Type() == snap.TypeSnapd) && release.OnClassic {
 		// fugly - but we need to make sure that the content of the
 		// "snapd" snap wins
 		//

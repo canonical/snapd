@@ -813,7 +813,7 @@ func (w *Writer) checkBase(info *snap.Info) error {
 	// Sanity check, note that we could support this case
 	// if we have a use-case but it requires changes in the
 	// devicestate/firstboot.go ordering code.
-	if info.GetType() == snap.TypeGadget && !w.model.Classic() && info.Base != w.model.Base() {
+	if info.Type() == snap.TypeGadget && !w.model.Classic() && info.Base != w.model.Base() {
 		return fmt.Errorf("cannot use gadget snap because its base %q is different from model base %q", info.Base, w.model.Base())
 	}
 
@@ -958,7 +958,7 @@ func (w *Writer) checkPublisher(sn *SeedSnap) error {
 	}
 	info := sn.Info
 	var kind string
-	switch info.GetType() {
+	switch info.Type() {
 	case snap.TypeKernel:
 		kind = "kernel"
 	case snap.TypeGadget:
@@ -1089,7 +1089,7 @@ func (w *Writer) BootSnaps() ([]*SeedSnap, error) {
 	var bootSnaps []*SeedSnap
 	for _, sn := range w.snapsFromModel {
 		bootSnaps = append(bootSnaps, sn)
-		if sn.Info.GetType() == snap.TypeGadget {
+		if sn.Info.Type() == snap.TypeGadget {
 			break
 
 		}

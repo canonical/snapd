@@ -26,7 +26,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/errtracker"
 	"github.com/snapcore/snapd/logger"
@@ -34,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/sanity"
 	"github.com/snapcore/snapd/snapdenv"
+	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -48,7 +48,7 @@ func init() {
 	}
 	// set here to avoid accidental submits in e.g. unit tests
 	errtracker.CrashDbURLBase = "https://daisy.ubuntu.com/"
-	errtracker.SnapdVersion = cmd.Version
+	errtracker.SnapdVersion = snapdtool.Version
 }
 
 func main() {
@@ -56,7 +56,7 @@ func main() {
 	if snapdenv.Preseeding() {
 		logger.Noticef("running for preseeding")
 	} else {
-		cmd.ExecInSnapdOrCoreSnap()
+		snapdtool.ExecInSnapdOrCoreSnap()
 	}
 
 	ch := make(chan os.Signal, 2)
@@ -109,7 +109,7 @@ var checkRunningConditionsRetryDelay = 300 * time.Second
 
 func run(ch chan os.Signal) error {
 	t0 := time.Now().Truncate(time.Millisecond)
-	snapdenv.SetUserAgentFromVersion(cmd.Version, sandbox.ForceDevMode)
+	snapdenv.SetUserAgentFromVersion(snapdtool.Version, sandbox.ForceDevMode)
 
 	d, err := daemon.New()
 	if err != nil {
@@ -132,7 +132,7 @@ func run(ch chan os.Signal) error {
 		checkTicker = tic.C
 	}
 
-	d.Version = cmd.Version
+	d.Version = snapdtool.Version
 
 	if err := d.Start(); err != nil {
 		return err

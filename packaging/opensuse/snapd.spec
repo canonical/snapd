@@ -340,7 +340,6 @@ fi
 %config %{_sysconfdir}/permissions.d/snapd
 %config %{_sysconfdir}/permissions.d/snapd.paranoid
 %config %{_sysconfdir}/profile.d/snapd.sh
-%config %{_sysconfdir}/sudoers.d/99-snapd.conf
 
 # Directories
 %dir %attr(0111,root,root) %{_sharedstatedir}/snapd/void
@@ -415,6 +414,7 @@ fi
 %{_libexecdir}/snapd/snap-discard-ns
 %{_libexecdir}/snapd/snap-exec
 %{_libexecdir}/snapd/snap-gdb-shim
+%{_libexecdir}/snapd/snap-gdbserver-shim
 %{_libexecdir}/snapd/snap-mgmt
 %{_libexecdir}/snapd/snap-seccomp
 %{_libexecdir}/snapd/snap-update-ns

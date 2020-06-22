@@ -236,66 +236,6 @@ func (s *cgroupSuite) TestProgGroupBadSelector(c *C) {
 	c.Check(group, Equals, "")
 }
 
-func (s *cgroupSuite) TestParsePid(c *C) {
-	pid, err := cgroup.ParsePid("10")
-	c.Assert(err, IsNil)
-	c.Check(pid, Equals, 10)
-	_, err = cgroup.ParsePid("")
-	c.Assert(err, ErrorMatches, `cannot parse pid ""`)
-	_, err = cgroup.ParsePid("-1")
-	c.Assert(err, ErrorMatches, `cannot parse pid "-1"`)
-	_, err = cgroup.ParsePid("foo")
-	c.Assert(err, ErrorMatches, `cannot parse pid "foo"`)
-	_, err = cgroup.ParsePid("12\x0034")
-	c.Assert(err.Error(), Equals, "cannot parse pid \"12\\x0034\"")
-	_, err = cgroup.ParsePid("ł")
-	c.Assert(err, ErrorMatches, `cannot parse pid "ł"`)
-	_, err = cgroup.ParsePid("1000000000000000000000000000000000000000000000")
-	c.Assert(err, ErrorMatches, `cannot parse pid "1000000000000000000000000000000000000000000000"`)
-}
-
-func (s *cgroupSuite) TestPidsHappy(c *C) {
-	err := os.MkdirAll(filepath.Join(s.rootDir, "group1/group2"), 0755)
-	c.Assert(err, IsNil)
-	g2Pids := []byte(`123
-234
-567
-`)
-	allPids := append(g2Pids, []byte(`999
-`)...)
-	err = ioutil.WriteFile(filepath.Join(s.rootDir, "group1/cgroup.procs"), allPids, 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(s.rootDir, "group1/group2/cgroup.procs"), g2Pids, 0755)
-	c.Assert(err, IsNil)
-
-	pids, err := cgroup.PidsInGroup(s.rootDir, "group1")
-	c.Assert(err, IsNil)
-	c.Assert(pids, DeepEquals, []int{123, 234, 567, 999})
-
-	pids, err = cgroup.PidsInGroup(s.rootDir, "group1/group2")
-	c.Assert(err, IsNil)
-	c.Assert(pids, DeepEquals, []int{123, 234, 567})
-
-	pids, err = cgroup.PidsInGroup(s.rootDir, "group.does.not.exist")
-	c.Assert(err, IsNil)
-	c.Assert(pids, IsNil)
-}
-
-func (s *cgroupSuite) TestPidsBadInput(c *C) {
-	err := os.MkdirAll(filepath.Join(s.rootDir, "group1"), 0755)
-	c.Assert(err, IsNil)
-	gPids := []byte(`123
-zebra
-567
-`)
-	err = ioutil.WriteFile(filepath.Join(s.rootDir, "group1/cgroup.procs"), gPids, 0755)
-	c.Assert(err, IsNil)
-
-	pids, err := cgroup.PidsInGroup(s.rootDir, "group1")
-	c.Assert(err, ErrorMatches, `cannot parse pid "zebra"`)
-	c.Assert(pids, IsNil)
-}
-
 func (s *cgroupSuite) TestProcessPathInTrackingCgroup(c *C) {
 	const noise = `12:cpuset:/
 11:rdma:/

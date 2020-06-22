@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2017 Canonical Ltd
+ * Copyright (C) 2015-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -79,6 +79,7 @@ var (
 	SnapDeveloperType   = &AssertionType{"snap-developer", []string{"snap-id", "publisher-id"}, assembleSnapDeveloper, 0}
 	SystemUserType      = &AssertionType{"system-user", []string{"brand-id", "email"}, assembleSystemUser, 0}
 	ValidationType      = &AssertionType{"validation", []string{"series", "snap-id", "approved-snap-id", "approved-snap-revision"}, assembleValidation, 0}
+	ValidationSetType   = &AssertionType{"validation-set", []string{"series", "account-id", "name", "sequence"}, assembleValidationSet, 0}
 	StoreType           = &AssertionType{"store", []string{"store"}, assembleStore, 0}
 
 // ...
@@ -103,6 +104,7 @@ var typeRegistry = map[string]*AssertionType{
 	SnapDeveloperType.Name:   SnapDeveloperType,
 	SystemUserType.Name:      SystemUserType,
 	ValidationType.Name:      ValidationType,
+	ValidationSetType.Name:   ValidationSetType,
 	RepairType.Name:          RepairType,
 	StoreType.Name:           StoreType,
 	// no authority
@@ -138,6 +140,9 @@ func init() {
 	// 3: support for on-store/on-brand/on-model device scope constraints
 	// 4: support for plug-names/slot-names constraints
 	maxSupportedFormat[SnapDeclarationType.Name] = 4
+
+	// 1: support to limit to device serials
+	maxSupportedFormat[SystemUserType.Name] = 1
 }
 
 func MockMaxSupportedFormat(assertType *AssertionType, maxFormat int) (restore func()) {
@@ -150,6 +155,7 @@ func MockMaxSupportedFormat(assertType *AssertionType, maxFormat int) (restore f
 
 var formatAnalyzer = map[*AssertionType]func(headers map[string]interface{}, body []byte) (formatnum int, err error){
 	SnapDeclarationType: snapDeclarationFormatAnalyze,
+	SystemUserType:      systemUserFormatAnalyze,
 }
 
 // MaxSupportedFormats returns a mapping between assertion type names
