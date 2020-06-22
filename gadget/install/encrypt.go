@@ -34,6 +34,11 @@ var (
 	tempFile = ioutil.TempFile
 )
 
+var (
+	secbootFormatEncryptedDevice = secboot.FormatEncryptedDevice
+	secbootAddRecoveryKey        = secboot.AddRecoveryKey
+)
+
 // encryptedDevice represents a LUKS-backed encrypted block device.
 type encryptedDevice struct {
 	parent *gadget.OnDiskStructure
@@ -53,7 +58,7 @@ func newEncryptedDevice(part *gadget.OnDiskStructure, key secboot.EncryptionKey,
 		Node: fmt.Sprintf("/dev/mapper/%s", name),
 	}
 
-	if err := secboot.FormatEncryptedDevice(key, name+"-enc", part.Node); err != nil {
+	if err := secbootFormatEncryptedDevice(key, name+"-enc", part.Node); err != nil {
 		return nil, fmt.Errorf("cannot format encrypted device: %v", err)
 	}
 
@@ -65,7 +70,7 @@ func newEncryptedDevice(part *gadget.OnDiskStructure, key secboot.EncryptionKey,
 }
 
 func (dev *encryptedDevice) AddRecoveryKey(key secboot.EncryptionKey, rkey secboot.RecoveryKey) error {
-	return secboot.AddRecoveryKey(key, rkey, dev.parent.Node)
+	return secbootAddRecoveryKey(key, rkey, dev.parent.Node)
 }
 
 func (dev *encryptedDevice) Close() error {

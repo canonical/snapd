@@ -20,9 +20,9 @@
 package install_test
 
 import (
+	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
@@ -58,78 +58,123 @@ func (s *encryptSuite) SetUpTest(c *C) {
 	c.Assert(os.MkdirAll(dirs.SnapRunDir, 0755), IsNil)
 }
 
-func (s *encryptSuite) TestEncryptHappy(c *C) {
-	s.mockCryptsetup = testutil.MockCommand(c, "cryptsetup", "")
-	s.AddCleanup(s.mockCryptsetup.Restore)
-
-	// create empty key to prevent blocking on lack of system entropy
-	key := secboot.EncryptionKey{}
-	dev, err := install.NewEncryptedDevice(&mockDeviceStructure, key, "some-label")
-	c.Assert(err, IsNil)
-	c.Assert(dev.Node, Equals, "/dev/mapper/some-label")
-
-	c.Assert(s.mockCryptsetup.Calls(), DeepEquals, [][]string{
+func (s *encryptSuite) TestNewEncryptedDevice(c *C) {
+	for _, tc := range []struct {
+		formatErr error
+		openErr   string
+		err       string
+	}{
 		{
-			"cryptsetup", "-q", "luksFormat", "--type", "luks2", "--key-file", "-",
-			"--cipher", "aes-xts-plain64", "--key-size", "512", "--pbkdf", "argon2i",
-			"--iter-time", "1", "--label", "some-label-enc", "/dev/node1",
+			formatErr: nil,
+			openErr:   "",
+			err:       "",
 		},
 		{
-			"cryptsetup", "open", "--key-file", "-", "/dev/node1", "some-label",
+			formatErr: errors.New("format error"),
+			openErr:   "",
+			err:       "cannot format encrypted device: format error",
 		},
-	})
+		{
+			formatErr: nil,
+			openErr:   "open error",
+			err:       "cannot open encrypted device on /dev/node1: open error",
+		},
+	} {
+		script := ""
+		if tc.openErr != "" {
+			script = fmt.Sprintf("echo '%s'>&2; exit 1", tc.openErr)
 
-	err = dev.Close()
-	c.Assert(err, IsNil)
+		}
+		s.mockCryptsetup = testutil.MockCommand(c, "cryptsetup", script)
+		s.AddCleanup(s.mockCryptsetup.Restore)
+
+		// create empty key to prevent blocking on lack of system entropy
+		myKey := secboot.EncryptionKey{}
+		for i := range myKey {
+			myKey[i] = byte(i)
+		}
+
+		calls := 0
+		restore := install.MockSecbootFormatEncryptedDevice(func(key secboot.EncryptionKey, label, node string) error {
+			calls++
+			c.Assert(key, DeepEquals, myKey)
+			c.Assert(label, Equals, "some-label-enc")
+			return tc.formatErr
+		})
+		defer restore()
+
+		dev, err := install.NewEncryptedDevice(&mockDeviceStructure, myKey, "some-label")
+		c.Assert(calls, Equals, 1)
+		if tc.err == "" {
+			c.Assert(err, IsNil)
+		} else {
+			c.Assert(err, ErrorMatches, tc.err)
+			continue
+		}
+		c.Assert(dev.Node, Equals, "/dev/mapper/some-label")
+
+		err = dev.Close()
+		c.Assert(err, IsNil)
+
+		c.Assert(s.mockCryptsetup.Calls(), DeepEquals, [][]string{
+			{"cryptsetup", "open", "--key-file", "-", "/dev/node1", "some-label"},
+			{"cryptsetup", "close", "some-label"},
+		})
+	}
 }
 
-func (s *encryptSuite) TestEncryptFormatError(c *C) {
-	s.mockCryptsetup = testutil.MockCommand(c, "cryptsetup", `[ "$2" == "luksFormat" ] && exit 127 || exit 0`)
-	s.AddCleanup(s.mockCryptsetup.Restore)
+func (s *encryptSuite) TestAddRecoveryKey(c *C) {
+	for _, tc := range []struct {
+		addErr error
+		err    string
+	}{
+		{addErr: nil, err: ""},
+		{addErr: errors.New("add key error"), err: "add key error"},
+	} {
 
-	key := secboot.EncryptionKey{}
-	_, err := install.NewEncryptedDevice(&mockDeviceStructure, key, "some-label")
-	c.Assert(err, ErrorMatches, "cannot format encrypted device:.*")
-}
+		s.mockCryptsetup = testutil.MockCommand(c, "cryptsetup", "")
+		s.AddCleanup(s.mockCryptsetup.Restore)
 
-func (s *encryptSuite) TestEncryptOpenError(c *C) {
-	s.mockCryptsetup = testutil.MockCommand(c, "cryptsetup", `[ "$1" == "open" ] && exit 127 || exit 0`)
-	s.AddCleanup(s.mockCryptsetup.Restore)
+		// create empty key to prevent blocking on lack of system entropy
+		myKey := secboot.EncryptionKey{}
+		for i := range myKey {
+			myKey[i] = byte(i)
+		}
+		myRKey := secboot.RecoveryKey{15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0}
 
-	key := secboot.EncryptionKey{}
-	_, err := install.NewEncryptedDevice(&mockDeviceStructure, key, "some-label")
-	c.Assert(err, ErrorMatches, "cannot open encrypted device on /dev/node1:.*")
-}
+		restore := install.MockSecbootFormatEncryptedDevice(func(key secboot.EncryptionKey, label, node string) error {
+			return nil
+		})
+		defer restore()
 
-func (s *encryptSuite) TestEncryptAddKey(c *C) {
-	capturedFifo := filepath.Join(c.MkDir(), "captured-stdin")
-	s.mockCryptsetup = testutil.MockCommand(c, "cryptsetup", fmt.Sprintf(`[ "$1" == "luksAddKey" ] && cat %s/tmp-rkey > %s || exit 0`, dirs.SnapRunDir, capturedFifo))
-	s.AddCleanup(s.mockCryptsetup.Restore)
+		calls := 0
+		restore = install.MockSecbootAddRecoveryKey(func(key secboot.EncryptionKey, rkey secboot.RecoveryKey, node string) error {
+			calls++
+			c.Assert(key, DeepEquals, myKey)
+			c.Assert(rkey, DeepEquals, myRKey)
+			c.Assert(node, Equals, "/dev/node1")
+			return tc.addErr
+		})
+		defer restore()
 
-	key := secboot.EncryptionKey{}
-	dev, err := install.NewEncryptedDevice(&mockDeviceStructure, key, "some-label")
-	c.Assert(err, IsNil)
+		dev, err := install.NewEncryptedDevice(&mockDeviceStructure, myKey, "some-label")
+		c.Assert(err, IsNil)
 
-	rkey := secboot.RecoveryKey{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
-	err = dev.AddRecoveryKey(key, rkey)
-	c.Assert(err, IsNil)
+		err = dev.AddRecoveryKey(myKey, myRKey)
+		c.Assert(calls, Equals, 1)
+		if tc.err == "" {
+			c.Assert(err, IsNil)
+		} else {
+			c.Assert(err, ErrorMatches, tc.err)
+			continue
+		}
 
-	c.Assert(s.mockCryptsetup.Calls(), DeepEquals, [][]string{
-		{
-			"cryptsetup", "-q", "luksFormat", "--type", "luks2", "--key-file", "-",
-			"--cipher", "aes-xts-plain64", "--key-size", "512", "--pbkdf", "argon2i",
-			"--iter-time", "1", "--label", "some-label-enc", "/dev/node1",
-		},
-		{
-			"cryptsetup", "open", "--key-file", "-", "/dev/node1", "some-label",
-		},
-		{
-			"cryptsetup", "luksAddKey", "/dev/node1", "-q", "--key-file", "-",
-			"--key-slot", "1", filepath.Join(dirs.SnapRunDir, "tmp-rkey"),
-		},
-	})
-	c.Assert(capturedFifo, testutil.FileEquals, rkey[:])
+		err = dev.Close()
+		c.Assert(err, IsNil)
 
-	err = dev.Close()
-	c.Assert(err, IsNil)
+		c.Assert(s.mockCryptsetup.Calls(), DeepEquals, [][]string{
+			{"cryptsetup", "open", "--key-file", "-", "/dev/node1", "some-label"},
+			{"cryptsetup", "close", "some-label"},
+		})
+	}
 }
