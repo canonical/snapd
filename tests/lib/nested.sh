@@ -423,6 +423,7 @@ start_nested_core_vm(){
     PARAM_MONITOR="-monitor tcp:127.0.0.1:$MON_PORT,server,nowait -usb"
     PARAM_MACHINE="-machine ubuntu,accel=kvm"
     PARAM_ASSERTIONS=""
+    PARAM_SERIAL="-serial file:${WORK_DIR}/serial-log.txt"
     PARAM_BIOS=""
     PARAM_TPM=""
     if [ "$USE_CLOUD_INIT" != "true" ]; then
@@ -478,7 +479,8 @@ start_nested_core_vm(){
         ${PARAM_TPM} \
         ${PARAM_IMAGE} \
         ${PARAM_ASSERTIONS} \
-        ${PARAM_MONITOR} "
+        ${PARAM_MONITOR} \
+        ${PARAM_SERIAL} "
 
     # Wait until ssh is ready and configure ssh
     if wait_for_ssh; then
@@ -528,6 +530,7 @@ start_nested_classic_vm(){
     PARAM_MACHINE="-machine ubuntu,accel=kvm"
     PARAM_IMAGE="-drive file=$IMAGE,if=virtio"
     PARAM_SEED="-drive file=$WORK_DIR/seed.img,if=virtio"
+    PARAM_SERIAL="-serial file:${WORK_DIR}/serial-log.txt"
     PARAM_BIOS=""
     PARAM_TPM=""
 
@@ -542,7 +545,8 @@ start_nested_classic_vm(){
         ${PARAM_TPM} \
         ${PARAM_IMAGE} \
         ${PARAM_SEED} \
-        ${PARAM_MONITOR} "
+        ${PARAM_MONITOR} \
+        ${PARAM_SERIAL} "
     wait_for_ssh
 }
 
