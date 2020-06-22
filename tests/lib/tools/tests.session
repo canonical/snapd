@@ -156,7 +156,7 @@ case "$action" in
 			# Because some systems do not support systemd --user (see
 			# tests/main/tests.session-support for details), check if this is
 			# expected to work ahead of trying.
-                        if tests.session -u "$u" exec systemctl --user is-enabled default.target >/dev/null; then
+      if tests.session -u "$u" exec systemctl --user is-enabled default.target >/dev/null; then
 				tests.session -u "$u" exec systemctl --user start default.target
 			fi
 		done
