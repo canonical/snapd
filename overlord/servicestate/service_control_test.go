@@ -179,6 +179,25 @@ func makeControlChange(c *C, st *state.State, inst *servicestate.Instruction, in
 	return chg
 }
 
+func (s *serviceControlSuite) TestControlConflict(c *C) {
+	st := s.state
+	st.Lock()
+
+	inf := s.mockTestSnap(c)
+
+	// create conflicting change
+	t := st.NewTask("link-snap", "...")
+	snapsup := &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "test-snap"}}
+	t.Set("snap-setup", snapsup)
+	chg := st.NewChange("manip", "...")
+	chg.AddTask(t)
+	st.Unlock()
+
+	inst := &servicestate.Instruction{Action: "start", Names: []string{"foo"}}
+	_, err := servicestate.Control(st, []*snap.AppInfo{inf.Apps["foo"]}, inst, nil)
+	c.Check(err, ErrorMatches, `snap "test-snap" has "manip" change in progress`)
+}
+
 func (s *serviceControlSuite) TestControlStartInstruction(c *C) {
 	st := s.state
 	st.Lock()
