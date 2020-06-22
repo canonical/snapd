@@ -49,9 +49,6 @@ func securityTagFromCgroupPath(path string) (securityTag string) {
 	// There are two broad forms expressed by the pair of regular expressions defined above.
 	for _, re := range []*regexp.Regexp{roughHookTagPattern, roughAppTagPattern} {
 		if maybeTag := re.FindString(leaf); maybeTag != "" {
-			// NOTE: The things we are returning need to minimally look like
-			// security tags. They are further refined and looked at below, in
-			// PidsOfSnap.
 			if naming.ValidateSecurityTag(maybeTag) == nil {
 				return maybeTag
 			}
