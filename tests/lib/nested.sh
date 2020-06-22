@@ -50,9 +50,26 @@ prepare_ssh(){
 
 create_assertions_disk(){
     mkdir -p "$WORK_DIR"
-    dd if=/dev/null of="$WORK_DIR/assertions.disk" bs=1M seek=1
-    mkfs.ext4 -F "$WORK_DIR/assertions.disk"
-    debugfs -w -R "write $TESTSLIB/assertions/auto-import.assert auto-import.assert" "$WORK_DIR/assertions.disk"
+    ASSERTIONS_DISK="$WORK_DIR/assertions.disk"
+    # make an image
+    dd if=/dev/null of="$ASSERTIONS_DISK" bs=1M seek=1
+    # format it as dos with a vfat partition
+    # TODO: can we do this more programmatically without printing into fdisk ?
+    printf 'o\nn\np\n1\n\n\nt\nc\nw\n' | fdisk "$ASSERTIONS_DISK"
+    # mount the disk image
+    kpartx -av "$ASSERTIONS_DISK"
+    # find the loopback device for the partition
+    LOOP_DEV=$(losetup --list | grep "$ASSERTIONS_DISK" | awk '{print $1}' | grep -Po "/dev/loop\K([0-9]*)")
+    # make a vfat partition
+    mkfs.vfat -n SYSUSER "/dev/mapper/loop${LOOP_DEV}p1"
+    # mount the partition and copy the files 
+    mkdir -p "$WORK_DIR/sys-user-partition"
+    mount "/dev/mapper/loop${LOOP_DEV}p1" "$WORK_DIR/sys-user-partition"
+    sudo cp "$TESTSLIB/assertions/auto-import.assert" "$WORK_DIR/sys-user-partition"
+
+    # unmount the partition and the image disk
+    sudo umount "$WORK_DIR/sys-user-partition"
+    sudo kpartx -d "$ASSERTIONS_DISK"
 }
 
 get_qemu_for_nested_vm(){
@@ -390,7 +407,7 @@ get_nested_core_image_path(){
 start_nested_core_vm(){
     local IMAGE QEMU
     QEMU=$(get_qemu_for_nested_vm)
-    # As core18 systems use to fail to start the assetion disk when using the
+    # As core18 systems use to fail to start the assertion disk when using the
     # snapshot feature, we copy the original image and use that copy to start
     # the VM.
     IMAGE_FILE="$WORK_DIR/image/ubuntu-core-new.img"
@@ -409,7 +426,12 @@ start_nested_core_vm(){
     PARAM_BIOS=""
     PARAM_TPM=""
     if [ "$USE_CLOUD_INIT" != "true" ]; then
-        PARAM_ASSERTIONS="-drive file=$WORK_DIR/assertions.disk,cache=none,format=raw"
+        # this simulates a usb drive attached to the device, the removable=true
+        # is necessary otherwise snapd will not import it, as snapd only 
+        # considers removable devices for cold-plug first-boot runs
+        # the nec-usb-xhci device is necessary to create the bus we attach the
+        # storage to
+        PARAM_ASSERTIONS="-drive if=none,id=stick,format=raw,file=$WORK_DIR/assertions.disk,cache=none,format=raw -device nec-usb-xhci,id=xhci -device usb-storage,bus=xhci.0,removable=true,drive=stick"
     fi
     if is_core_20_nested_system; then
         if ! is_focal_system; then
