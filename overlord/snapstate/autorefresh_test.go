@@ -24,12 +24,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -204,6 +206,52 @@ func (s *autoRefreshTestSuite) TestRefreshManagedTimerWins(c *C) {
 	c.Check(refreshScheduleStr, Equals, "00:00-12:00")
 	c.Check(legacy, Equals, false)
 	c.Check(err, IsNil)
+}
+
+func (s *autoRefreshTestSuite) TestRefreshManagedDenied(c *C) {
+	canManageCalled := false
+	snapstate.CanManageRefreshes = func(st *state.State) bool {
+		canManageCalled = true
+		// always deny
+		return false
+	}
+	defer func() { snapstate.CanManageRefreshes = nil }()
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	for _, conf := range []string{"refresh.timer", "refresh.schedule"} {
+		tr := config.NewTransaction(s.state)
+		tr.Set("core", conf, "managed")
+		tr.Commit()
+
+		af := snapstate.NewAutoRefresh(s.state)
+		for i := 0; i < 2; i++ {
+			c.Logf("ensure iteration: %v", i)
+			s.state.Unlock()
+			err := af.Ensure()
+			s.state.Lock()
+			c.Check(err, IsNil)
+			c.Check(s.store.ops, DeepEquals, []string{"list-refresh"})
+
+			refreshScheduleStr, _, err := af.RefreshSchedule()
+			c.Check(refreshScheduleStr, Equals, snapstate.DefaultRefreshSchedule)
+			c.Check(err, IsNil)
+			c.Check(canManageCalled, Equals, true)
+			count := strings.Count(logbuf.String(), ": managed refresh schedule denied, no snapd-control\n")
+			c.Check(count, Equals, 1, Commentf("to many occurrences:\n%s", logbuf.String()))
+
+			canManageCalled = false
+		}
+
+		// ensure clean config for the next run
+		s.state.Set("config", nil)
+		logbuf.Reset()
+		canManageCalled = false
+	}
 }
 
 func (s *autoRefreshTestSuite) TestLastRefreshNoRefreshNeeded(c *C) {

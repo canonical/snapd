@@ -64,6 +64,7 @@ type autoRefresh struct {
 	lastRefreshSchedule string
 	nextRefresh         time.Time
 	lastRefreshAttempt  time.Time
+	managedDeniedLogged bool
 }
 
 func newAutoRefresh(st *state.State) *autoRefresh {
@@ -329,12 +330,24 @@ func (m *autoRefresh) ensureLastRefreshAnchor() {
 // TODO: we can remove the refreshSchedule reset because we have validation
 //       of the schedule now.
 func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Schedule, scheduleAsStr string, legacy bool, err error) {
-	if managed, legacy := refreshScheduleManaged(m.state); managed {
+	managed, requested, legacy := refreshScheduleManaged(m.state)
+	if managed {
 		if m.lastRefreshSchedule != "managed" {
 			logger.Noticef("refresh is managed via the snapd-control interface")
 			m.lastRefreshSchedule = "managed"
 		}
+		m.managedDeniedLogged = false
 		return nil, "managed", legacy, nil
+	} else if requested {
+		// managed refresh schedule was denied
+		if !m.managedDeniedLogged {
+			logger.Noticef("managed refresh schedule denied, no snapd-control")
+			m.managedDeniedLogged = true
+		}
+		// fallback to default schedule
+		return refreshScheduleDefault()
+	} else {
+		m.managedDeniedLogged = false
 	}
 
 	tr := config.NewTransaction(m.state)
@@ -437,32 +450,33 @@ func autoRefreshInFlight(st *state.State) bool {
 
 // refreshScheduleManaged returns true if the refresh schedule of the
 // device is managed by an external snap
-func refreshScheduleManaged(st *state.State) (managed bool, legacy bool) {
+func refreshScheduleManaged(st *state.State) (managed, requested, legacy bool) {
 	var confStr string
 
 	// this will only be "nil" if running in tests
 	if CanManageRefreshes == nil {
-		return false, legacy
+		return false, false, legacy
 	}
 
 	// check new style timer first
 	tr := config.NewTransaction(st)
 	err := tr.Get("core", "refresh.timer", &confStr)
 	if err != nil && !config.IsNoOption(err) {
-		return false, legacy
+		return false, false, legacy
 	}
 	// if not set, fallback to refresh.schedule
 	if confStr == "" {
 		if err := tr.Get("core", "refresh.schedule", &confStr); err != nil {
-			return false, legacy
+			return false, false, legacy
 		}
 		legacy = true
 	}
 
 	if confStr != "managed" {
-		return false, legacy
+		return false, false, legacy
 	}
-	return CanManageRefreshes(st), legacy
+
+	return CanManageRefreshes(st), true, legacy
 }
 
 // getTime retrieves a time from a state value.
