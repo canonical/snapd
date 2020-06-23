@@ -317,6 +317,19 @@ func (g *grub) TryKernel() (snap.PlaceInfo, error) {
 	return nil, ErrNoTryKernelRef
 }
 
+// UpdateBootConfig updates the grub boot config only if it is already managed
+// and has a lower edition.
+//
+// Implements ManagedAssetsBootloader for the grub bootloader.
+func (g *grub) UpdateBootConfig(opts *Options) error {
+	bootScriptName := "grub.cfg"
+	currentBootScript := filepath.Join(g.dir(), "grub.cfg")
+	if opts != nil && opts.Recovery {
+		bootScriptName = "grub-recovery.cfg"
+	}
+	return genericUpdateBootConfigFromAssets(currentBootScript, bootScriptName)
+}
+
 // IsCurrentlyManaged returns true when the boot config is managed by snapd.
 //
 // Implements ManagedBootloader for the grub bootloader.
