@@ -167,32 +167,32 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 	if err != nil {
 		return nil, err
 	}
-	found := false
-	d := &disk{}
-	var mountpointSrc string
+	var d *disk
+	var partMountPointSource string
 	// loop over the mount entries in reverse order to prevent shadowing of a
 	// particular mount on top of another one
 	for i := len(mounts) - 1; i >= 0; i-- {
 		if mounts[i].MountDir == mountpoint {
-			d.major = mounts[i].DevMajor
-			d.minor = mounts[i].DevMinor
-			mountpointSrc = mounts[i].MountSource
-			found = true
+			d = &disk{
+				major: mounts[i].DevMajor,
+				minor: mounts[i].DevMinor,
+			}
+			partMountPointSource = mounts[i].MountSource
 			break
 		}
 	}
-	if !found {
+	if d == nil {
 		return nil, fmt.Errorf("cannot find mountpoint %q", mountpoint)
 	}
 
 	// now we have the partition for this mountpoint, we need to tie that back
 	// to a disk with a major minor, so query udev with the mount source path
 	// of the mountpoint for properties
-	props, err := udevProperties(mountpointSrc)
+	props, err := udevProperties(partMountPointSource)
 	if err != nil && props == nil {
 		// only fail here if props is nil, if it's available we validate it
 		// below
-		return nil, fmt.Errorf("cannot find disk for partition %s: %v", mountpointSrc, err)
+		return nil, fmt.Errorf("cannot find disk for partition %s: %v", partMountPointSource, err)
 	}
 
 	if opts != nil && opts.IsDecryptedDevice {
@@ -201,7 +201,7 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 		// 2. have dm files in the sysfs entry for the maj:min of the device
 		if props["DEVTYPE"] != "disk" {
 			// not a decrypted device
-			return nil, fmt.Errorf("mountpoint source %s is not a decrypted device", mountpointSrc)
+			return nil, fmt.Errorf("mountpoint source %s is not a decrypted device", partMountPointSource)
 		}
 
 		// TODO:UC20: currently, we effectively parse the DM_UUID env variable
@@ -227,12 +227,12 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 		//            available at all during userspace on UC20 for some reason
 		dmUUID, err := ioutil.ReadFile(filepath.Join(devBlockDir, d.Dev(), "dm", "uuid"))
 		if err != nil && os.IsNotExist(err) {
-			return nil, fmt.Errorf("mountpoint source %s is not a decrypted device", mountpointSrc)
+			return nil, fmt.Errorf("mountpoint source %s is not a decrypted device", partMountPointSource)
 		}
 
 		dmName, err := ioutil.ReadFile(filepath.Join(devBlockDir, d.Dev(), "dm", "name"))
 		if err != nil && os.IsNotExist(err) {
-			return nil, fmt.Errorf("mountpoint source %s is not a decrypted device", mountpointSrc)
+			return nil, fmt.Errorf("mountpoint source %s is not a decrypted device", partMountPointSource)
 		}
 
 		// trim the suffix of the dm name from the dm uuid to safely match the
@@ -284,7 +284,7 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 		maj, min, err := parseDeviceMajorMinor(majorMinor)
 		if err != nil {
 			// bad udev output?
-			return nil, fmt.Errorf("cannot find disk for partition %s, bad udev output: %v", mountpointSrc, err)
+			return nil, fmt.Errorf("cannot find disk for partition %s, bad udev output: %v", partMountPointSource, err)
 		}
 		d.major = maj
 		d.minor = min
@@ -292,21 +292,21 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 		// since the mountpoint device has a disk, the mountpoint source itself
 		// must be a partition from a disk, thus the disk has partitions
 		d.hasPartitions = true
-	} else {
-		// the partition is probably a volume or other non-physical disk, so
-		// confirm that DEVTYPE == disk and return the maj/min for it
-		if devType, ok := props["DEVTYPE"]; ok {
-			if devType == "disk" {
-				return d, nil
-			}
-			// unclear what other DEVTYPE's we should support for this
-			return nil, fmt.Errorf("unsupported DEVTYPE %q for mount point source %s", devType, mountpointSrc)
-		}
-
-		return nil, fmt.Errorf("cannot find disk for partition %s, incomplete udev output", mountpointSrc)
+		return d, nil
 	}
 
-	return d, nil
+	// if we don't have ID_PART_ENTRY_DISK, the partition is probably a volume
+	// or other non-physical disk, so confirm that DEVTYPE == disk and return
+	// the maj/min for it
+	if devType, ok := props["DEVTYPE"]; ok {
+		if devType == "disk" {
+			return d, nil
+		}
+		// unclear what other DEVTYPE's we should support for this function
+		return nil, fmt.Errorf("unsupported DEVTYPE %q for mount point source %s", devType, partMountPointSource)
+	}
+
+	return nil, fmt.Errorf("cannot find disk for partition %s, incomplete udev output", partMountPointSource)
 }
 
 func (d *disk) FindMatchingPartitionUUID(label string) (string, error) {

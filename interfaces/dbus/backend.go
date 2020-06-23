@@ -100,7 +100,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	}
 
 	// core/snapd on classic are special
-	if (snapInfo.GetType() == snap.TypeOS || snapInfo.GetType() == snap.TypeSnapd) && release.OnClassic {
+	if (snapInfo.Type() == snap.TypeOS || snapInfo.Type() == snap.TypeSnapd) && release.OnClassic {
 		if err := setupDbusServiceForUserd(snapInfo); err != nil {
 			logger.Noticef("cannot create host `snap userd` dbus service file: %s", err)
 		}
