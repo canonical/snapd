@@ -9,55 +9,55 @@ prepare: |
         echo "This test needs test keys to be trusted"
         exit
     fi
+    #shellcheck source=tests/lib/core-config.sh
+    . "$TESTSLIB"/core-config.sh
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB"/systemd.sh
     #shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB"/systems.sh
 
     systemctl stop snapd.service snapd.socket
-    rm -rf /var/lib/snapd/assertions/*
-    rm -rf /var/lib/snapd/device
-    rm -rf /var/lib/snapd/state.json
-    mv /var/lib/snapd/seed/assertions/model model.bak
-    cp "$TESTSLIB"/assertions/developer1.account /var/lib/snapd/seed/assertions
-    cp "$TESTSLIB"/assertions/developer1.account-key /var/lib/snapd/seed/assertions    
-    if is_core18_system; then
-        cp "$TESTSLIB"/assertions/developer1-pc-18.model /var/lib/snapd/seed/assertions/developer1-pc.model
-        cp "$TESTSLIB"/assertions/developer1-pc-18-revno2.model developer1-pc-revno2.model
-        cp "$TESTSLIB"/assertions/developer1-pc-18-revno3.model developer1-pc-revno3.model
-    else
-        cp "$TESTSLIB"/assertions/developer1-pc.model /var/lib/snapd/seed/assertions
-        cp "$TESTSLIB"/assertions/developer1-pc-revno2.model .
-        cp "$TESTSLIB"/assertions/developer1-pc-revno3.model .
-    fi
-    cp "$TESTSLIB"/assertions/testrootorg-store.account-key /var/lib/snapd/seed/assertions
+    clean_snapd_lib
+
+    # Generic setup for test account
+    prepare_model
+    prepare_test_account developer1
+    prepare_test_model developer1-pc
+    prepare_testrootorg_store
+
     # kick first boot again
     systemctl start snapd.service snapd.socket
+
+    # wait for first boot to be done
+    wait_for_first_boot
 
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
         exit
     fi
-
+    #shellcheck source=tests/lib/core-config.sh
+    . "$TESTSLIB"/core-config.sh
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB"/systemd.sh
-    systemctl stop snapd.service snapd.socket
-    rm -rf /var/lib/snapd/assertions/*
-    rm -rf /var/lib/snapd/device
-    rm -rf /var/lib/snapd/state.json
 
-    rm -f /var/lib/snapd/seed/assertions/developer1.account
-    rm -f /var/lib/snapd/seed/assertions/developer1.account-key
-    rm -f /var/lib/snapd/seed/assertions/developer1-pc.model
-    rm -f /var/lib/snapd/seed/assertions/testrootorg-store.account-key
+    systemctl stop snapd.service snapd.socket
+    clean_snapd_lib
+
+    # Generic restore for test account
+    restore_test_account developer1
+    restore_test_model developer1-pc
+    restore_testrootorg_store
+    restore_model
+
     rm -f /var/lib/snapd/seed/assertions/test-snapd-with-configure_*.assert
-    cp model.bak /var/lib/snapd/seed/assertions/model
-    rm -f ./*.bak
+
     # kick first boot again
     systemctl start snapd.service snapd.socket
+
     # wait for first boot to be done
-    while ! snap changes | grep -q "Done.*Initialize system state"; do sleep 1; done
+    wait_for_first_boot
+
     # extra paranoia because failure to cleanup earlier took us a long time
     # to find
     if [ -e /var/snap/test-snapd-tools/current ]; then
@@ -72,9 +72,11 @@ execute: |
         echo "This test needs test keys to be trusted"
         exit
     fi
-
+    #shellcheck source=tests/lib/core-config.sh
+    . "$TESTSLIB"/core-config.sh
     #shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB"/systems.sh
+
     SNAP="$(get_snap_for_system test-snapd-tools)"
 
     # sanity check
@@ -86,7 +88,8 @@ execute: |
     snap debug model|MATCH "model: my-model"
 
     echo "Now we remodel"
-    snap remodel developer1-pc-revno2.model
+    MODEL="$(get_model developer1-pc-revno2)"
+    snap remodel "${TESTSLIB}/assertions/${MODEL}"
 
     echo "and we got the new required snap"
     snap list "$SNAP"
@@ -99,7 +102,8 @@ execute: |
     not snap remove --purge "$SNAP"
 
     echo "And we can remodel again this time test-snapd-tools is no longer required"
-    snap remodel developer1-pc-revno3.model
+    MODEL="$(get_model developer1-pc-revno3)"
+    snap remodel "${TESTSLIB}/assertions/${MODEL}"
     snap debug model|MATCH "revision: 3"
     snap changes | MATCH "Refresh model assertion from revision 2 to 3"
     echo "and $SNAP is still available"

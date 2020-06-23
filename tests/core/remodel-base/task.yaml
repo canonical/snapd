@@ -11,43 +11,50 @@ prepare: |
         echo "This test needs test keys to be trusted"
         exit
     fi
+    #shellcheck source=tests/lib/core-config.sh
+    . "$TESTSLIB"/core-config.sh
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB"/systemd.sh
     systemctl stop snapd.service snapd.socket
-    rm -rf /var/lib/snapd/assertions/*
-    rm -rf /var/lib/snapd/device
-    rm -rf /var/lib/snapd/state.json
-    mv /var/lib/snapd/seed/assertions/model model.bak
-    cp "$TESTSLIB"/assertions/developer1.account /var/lib/snapd/seed/assertions
-    cp "$TESTSLIB"/assertions/developer1.account-key /var/lib/snapd/seed/assertions
-    cp "$TESTSLIB"/assertions/developer1-pc-18.model /var/lib/snapd/seed/assertions
-    cp "$TESTSLIB"/assertions/testrootorg-store.account-key /var/lib/snapd/seed/assertions
+
+    # Generic setup for test account
+    clean_snapd_lib
+    prepare_model
+    prepare_test_account developer1
+    prepare_test_model developer1-pc
+    prepare_testrootorg_store
+
     # kick first boot again
     systemctl start snapd.service snapd.socket
-    retry -n 60 --wait 5 sh -c 'snap changes | grep -q "Done.*Initialize system state"'
+
+    # wait for first boot to be done
+    wait_for_first_boot
 
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
         exit
     fi
+    #shellcheck source=tests/lib/core-config.sh
+    . "$TESTSLIB"/core-config.sh
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB"/systemd.sh
+
     systemctl stop snapd.service snapd.socket
-    rm -rf /var/lib/snapd/assertions/*
-    rm -rf /var/lib/snapd/device
-    rm -rf /var/lib/snapd/state.json
-    rm -f /var/lib/snapd/seed/assertions/developer1.account
-    rm -f /var/lib/snapd/seed/assertions/developer1.account-key
-    rm -f /var/lib/snapd/seed/assertions/developer1-pc-18.model
-    rm -f /var/lib/snapd/seed/assertions/testrootorg-store.account-key
-    mv model.bak /var/lib/snapd/seed/assertions/model
-    rm -f ./*.bak
+    clean_snapd_lib
+
+    # Generic restore for test account
+    restore_test_account developer1
+    restore_test_model developer1-pc
+    restore_testrootorg_store
+    restore_model
+
     # kick first boot again
     systemctl start snapd.service snapd.socket
+
     # wait for first boot to be done
-    snap wait system seed.loaded
-    retry -n 60 --wait 5 sh -c 'snap changes | grep -q "Done.*Initialize system state"'
+    wait_for_first_boot
+
     # extra paranoia because failure to cleanup earlier took us a long time
     # to find
     if [ -e /var/snap/$NEW_BASE/current ]; then
@@ -58,6 +65,7 @@ restore: |
         find /var/snap
         exit 1
     fi
+
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
@@ -65,6 +73,9 @@ execute: |
     fi
     #shellcheck source=tests/lib/boot.sh
     . "$TESTSLIB"/boot.sh
+    #shellcheck source=tests/lib/core-config.sh
+    . "$TESTSLIB"/core-config.sh
+
     wait_change_done() {
         chg_summary="$1"
         for _ in $(seq 10); do
@@ -86,12 +97,14 @@ execute: |
         echo "We have the right model assertion"
         snap debug model|MATCH "model: my-model"
         echo "Now we remodel"
-        snap remodel "$TESTSLIB"/assertions/developer1-pc-18-new-base.model
+        MODEL="$(get_model developer1-pc-new-base)"
+        snap remodel "${TESTSLIB}/assertions/${MODEL}"
         echo "Double check that we boot into the right base"
         MATCH "snap_try_core=$NEW_BASE" < /boot/grub/grubenv
         echo "reboot to finish the change"
         REBOOT
     fi
+
     # first boot with the new model base
     if [ "$SPREAD_REBOOT" = 1 ]; then
         echo "and we have the new base snap installed"
@@ -107,9 +120,11 @@ execute: |
         # TODO: test when keeping the old base, test removing the old base
         #       (not possible here as the pc gadget uses core18 as its base)
         echo "And we can remodel again and remove the new base"
-        snap remodel "$TESTSLIB"/assertions/developer1-pc-18-revno3.model
+        MODEL="$(get_model developer1-pc-revno3)"
+        snap remodel "${TESTSLIB}/assertions/${MODEL}"
         REBOOT
     fi
+
     # reboot from new model to undo the new model again (to not pollute tests)
     if [ "$SPREAD_REBOOT" = 2 ]; then
         wait_core_post_boot

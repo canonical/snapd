@@ -14,30 +14,38 @@ prepare: |
         echo "This test needs test keys to be trusted"
         exit
     fi
+    #shellcheck source=tests/lib/core-config.sh
+    . "$TESTSLIB"/core-config.sh
+    #shellcheck source=tests/lib/systemd.sh
+    . "$TESTSLIB"/systemd.sh
 
     # Save the revision of the pc-kernel snap.
     readlink /snap/pc-kernel/current > original-revision.txt
 
-    #shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB"/systemd.sh
     systemctl stop snapd.service snapd.socket
-    rm -rf /var/lib/snapd/assertions/*
-    rm -rf /var/lib/snapd/device
-    rm -rf /var/lib/snapd/state.json
-    mv /var/lib/snapd/seed/assertions/model model.bak
-    cp "$TESTSLIB"/assertions/developer1.account /var/lib/snapd/seed/assertions
-    cp "$TESTSLIB"/assertions/developer1.account-key /var/lib/snapd/seed/assertions
-    cp "$TESTSLIB"/assertions/developer1-pc.model /var/lib/snapd/seed/assertions
-    cp "$TESTSLIB"/assertions/testrootorg-store.account-key /var/lib/snapd/seed/assertions
+    clean_snapd_lib
+
+    # Generic setup for test account
+    prepare_model   
+    prepare_test_account developer1
+    prepare_test_model developer1-pc
+    prepare_testrootorg_store
+
     # kick first boot again
     systemctl start snapd.service snapd.socket
-    while ! snap changes | grep -q "Done.*Initialize system state"; do sleep 1; done
+
+    # wait for first boot to be done
+    wait_for_first_boot
 
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
         exit
     fi
+    #shellcheck source=tests/lib/core-config.sh
+    . "$TESTSLIB"/core-config.sh
+    #shellcheck source=tests/lib/systemd.sh
+    . "$TESTSLIB"/systemd.sh
 
     # Wait for the final refresh to complete.
     snap watch --last=refresh
@@ -51,24 +59,21 @@ restore: |
         snap remove pc-kernel --revision="$revno"
     done
 
-    #shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB"/systemd.sh
     systemctl stop snapd.service snapd.socket
-    rm -rf /var/lib/snapd/assertions/*
-    rm -rf /var/lib/snapd/device
-    rm -rf /var/lib/snapd/state.json
+    clean_snapd_lib
 
-    rm -f /var/lib/snapd/seed/assertions/developer1.account
-    rm -f /var/lib/snapd/seed/assertions/developer1.account-key
-    rm -f /var/lib/snapd/seed/assertions/developer1-pc.model
-    rm -f /var/lib/snapd/seed/assertions/testrootorg-store.account-key
-    cp model.bak /var/lib/snapd/seed/assertions/model
-    rm -f ./*.bak
+    # Generic restore for test account
+    restore_test_account developer1
+    restore_test_model developer1-pc
+    restore_testrootorg_store
+    restore_model
+
     # kick first boot again
     systemctl start snapd.service snapd.socket
+
     # wait for first boot to be done
-    snap wait system seed.loaded
-    while ! snap changes | grep -q "Done.*Initialize system state"; do sleep 1; done
+    wait_for_first_boot
+
     # extra paranoia because failure to cleanup earlier took us a long time
     # to find
     if [ -e /var/snap/$NEW_KERNEL/current ]; then
@@ -85,9 +90,10 @@ execute: |
         echo "This test needs test keys to be trusted"
         exit
     fi
-
     #shellcheck source=tests/lib/boot.sh
     . "$TESTSLIB"/boot.sh
+    #shellcheck source=tests/lib/core-config.sh
+    . "$TESTSLIB"/core-config.sh
 
     wait_change_done() {
         chg_summary="$1"
@@ -112,7 +118,8 @@ execute: |
         snap debug model|MATCH "model: my-model"
 
         echo "Now we remodel"
-        snap remodel "$TESTSLIB"/assertions/developer1-pc-new-kernel.model
+        MODEL="$(get_model developer1-pc-new-kernel)"
+        snap remodel "${TESTSLIB}/assertions/${MODEL}"
 
         echo "Double check that we boot into the right kernel"
         grub-editenv list | MATCH "snap_try_kernel=$NEW_KERNEL"
@@ -142,7 +149,8 @@ execute: |
         snap remove --purge "$OLD_KERNEL"
 
         echo "And we can remodel again and remove the new kernel"
-        snap remodel "$TESTSLIB"/assertions/developer1-pc-revno3.model
+        MODEL="$(get_model developer1-pc-revno3)"
+        snap remodel "${TESTSLIB}/assertions/${MODEL}"
         REBOOT
     fi
 
