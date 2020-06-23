@@ -86,7 +86,7 @@ type Disk interface {
 
 	// HasPartitions returns whether the disk has partitions or not. A physical
 	// disk will have partitions, but a mapper device will just be a volume that
-	// does not have partitions volume for example.
+	// does not have partitions for example.
 	HasPartitions() bool
 }
 
@@ -201,7 +201,7 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 		// 2. have dm files in the sysfs entry for the maj:min of the device
 		if props["DEVTYPE"] != "disk" {
 			// not a decrypted device
-			return nil, fmt.Errorf("mountpoint source %s is not a decrypted device", partMountPointSource)
+			return nil, fmt.Errorf("mountpoint source %s is not a decrypted device: devtype is not disk (is %s)", partMountPointSource, props["DEVTYPE"])
 		}
 
 		// TODO:UC20: currently, we effectively parse the DM_UUID env variable
@@ -227,12 +227,12 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 		//            available at all during userspace on UC20 for some reason
 		dmUUID, err := ioutil.ReadFile(filepath.Join(devBlockDir, d.Dev(), "dm", "uuid"))
 		if err != nil && os.IsNotExist(err) {
-			return nil, fmt.Errorf("mountpoint source %s is not a decrypted device", partMountPointSource)
+			return nil, fmt.Errorf("mountpoint source %s is not a decrypted device: missing device mapper metadata: no dm-uuid", partMountPointSource)
 		}
 
 		dmName, err := ioutil.ReadFile(filepath.Join(devBlockDir, d.Dev(), "dm", "name"))
 		if err != nil && os.IsNotExist(err) {
-			return nil, fmt.Errorf("mountpoint source %s is not a decrypted device", partMountPointSource)
+			return nil, fmt.Errorf("mountpoint source %s is not a decrypted device: missing device mapper metadata: no dm-name", partMountPointSource)
 		}
 
 		// trim the suffix of the dm name from the dm uuid to safely match the
@@ -258,20 +258,20 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 		// ae6e79de00a9406f80ee64ba7c1966bb but we want it to be like:
 		// ae6e79de-00a9-406f-80ee-64ba7c1966bb so we need to add in 4 "-"
 		// characters
-		fullUUID := string(matches[1])
-		realUUID := fmt.Sprintf(
+		compactUUID := string(matches[1])
+		canonicalUUID := fmt.Sprintf(
 			"%s-%s-%s-%s-%s",
-			fullUUID[0:8],
-			fullUUID[8:12],
-			fullUUID[12:16],
-			fullUUID[16:20],
-			fullUUID[20:],
+			compactUUID[0:8],
+			compactUUID[8:12],
+			compactUUID[12:16],
+			compactUUID[16:20],
+			compactUUID[20:],
 		)
 
 		// now finally, we need to use this uuid, which is the device uuid of
 		// the actual physical encrypted partition to get the path, which will
 		// be something like /dev/vda4, etc.
-		byUUIDPath := filepath.Join("/dev/disk/by-uuid", realUUID)
+		byUUIDPath := filepath.Join("/dev/disk/by-uuid", canonicalUUID)
 		props, err = udevProperties(byUUIDPath)
 		if err != nil {
 			return nil, fmt.Errorf("cannot get udev properties for encrypted partition %s: %v", byUUIDPath, err)

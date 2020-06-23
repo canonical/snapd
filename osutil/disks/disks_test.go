@@ -111,7 +111,7 @@ func (s *diskSuite) TestDiskFromMountPointUnhappyIsDecryptedDeviceNotDiskDevice(
 
 	opts := &disks.Options{IsDecryptedDevice: true}
 	_, err := disks.DiskFromMountPoint("/run/mnt/point", opts)
-	c.Assert(err, ErrorMatches, `mountpoint source /dev/vda4 is not a decrypted device`)
+	c.Assert(err, ErrorMatches, `mountpoint source /dev/vda4 is not a decrypted device: devtype is not disk \(is partition\)`)
 }
 
 func (s *diskSuite) TestDiskFromMountPointUnhappyIsDecryptedDeviceNoSysfs(c *C) {
@@ -138,7 +138,7 @@ func (s *diskSuite) TestDiskFromMountPointUnhappyIsDecryptedDeviceNoSysfs(c *C) 
 
 	opts := &disks.Options{IsDecryptedDevice: true}
 	_, err := disks.DiskFromMountPoint("/run/mnt/point", opts)
-	c.Assert(err, ErrorMatches, `mountpoint source /dev/mapper/something is not a decrypted device`)
+	c.Assert(err, ErrorMatches, `mountpoint source /dev/mapper/something is not a decrypted device: missing device mapper metadata: no dm-uuid`)
 }
 
 func (s *diskSuite) TestDiskFromMountPointHappyNoPartitions(c *C) {
