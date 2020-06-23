@@ -605,3 +605,31 @@ managed by snapd`))
 	c.Assert(err, ErrorMatches, "cannot load existing config asset: .*/grub.cfg: permission denied")
 	c.Assert(is, Equals, false)
 }
+
+func (s *grubTestSuite) TestListAssets(c *C) {
+	s.makeFakeGrubEFINativeEnv(c, []byte(`this is
+some random boot config`))
+
+	opts := &bootloader.Options{NoSlashBoot: true}
+	g := bootloader.NewGrub(s.rootdir, opts)
+	c.Assert(g, NotNil)
+	mg, ok := g.(bootloader.ManagedAssetsBootloader)
+	c.Assert(ok, Equals, true)
+
+	c.Check(mg.BootAssets(), DeepEquals, []string{
+		"EFI/ubuntu/grub.cfg",
+	})
+
+	opts = &bootloader.Options{Recovery: true}
+	mg = bootloader.NewGrub(s.rootdir, opts).(bootloader.ManagedAssetsBootloader)
+	c.Check(mg.BootAssets(), DeepEquals, []string{
+		"EFI/ubuntu/grub.cfg",
+	})
+
+	// as it called for the root fs rather than a mount point of a partition
+	// with boot assets
+	mg = bootloader.NewGrub(s.rootdir, nil).(bootloader.ManagedAssetsBootloader)
+	c.Check(mg.BootAssets(), DeepEquals, []string{
+		"boot/grub/grub.cfg",
+	})
+}
