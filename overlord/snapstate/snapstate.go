@@ -941,11 +941,6 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, us
 
 	params := func(update *snap.Info) (*RevisionOptions, Flags, *SnapState) {
 		snapst := stateByInstanceName[update.InstanceName()]
-		updateFlags := snapst.Flags
-		if !update.NeedsClassic() && updateFlags.Classic {
-			// allow updating from classic to strict
-			updateFlags.Classic = false
-		}
 		// setting options to what's in state as multi-refresh doesn't let you change these
 		opts := &RevisionOptions{
 			Channel:   snapst.TrackingChannel,
@@ -1485,12 +1480,7 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 	}
 
 	params := func(update *snap.Info) (*RevisionOptions, Flags, *SnapState) {
-		updateFlags := flags
-		if !update.NeedsClassic() && updateFlags.Classic {
-			// allow updating from classic to strict
-			updateFlags.Classic = false
-		}
-		return opts, updateFlags, &snapst
+		return opts, flags, &snapst
 	}
 
 	_, tts, err := doUpdate(context.TODO(), st, []string{name}, updates, params, userID, &flags, deviceCtx, fromChange)
