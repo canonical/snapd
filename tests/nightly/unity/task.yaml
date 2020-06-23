@@ -25,13 +25,14 @@ disabled_restore: |
 
 execute: |
     echo "Given a unity snap is installed"
-    snap install ubuntu-clock-app
+    snap install sensors-unity
+    snap connect sensors-unity:hardware-observe :hardware-observe
 
     echo "When the app is started"
-    systemd-run --unit unity-app --setenv=DISPLAY="$DISPLAY" --uid "$(id -u test)" "$(command -v xvfb-run)" --server-args="$DISPLAY -screen 0 1200x960x24 -ac +extension RANDR" "$(command -v ubuntu-clock-app.clock)"
+    systemd-run --unit unity-app --setenv=DISPLAY="$DISPLAY" --uid "$(id -u test)" "$(command -v xvfb-run)" --server-args="$DISPLAY -screen 0 1200x960x24 -ac +extension RANDR" "$(command -v sensors-unity)"
 
     echo "Then the app window is created"
-    expected='.*?\"qmlscene: clockMainView\": \(\"qmlscene\" \"com\.ubuntu\.clock\"\)'
+    expected='"Sensor Monitor": ("sensors-gui.py" "Sensors-gui.py")'
     while ! xwininfo -tree -root | grep -Pq "$expected"; do
         sleep 1;
     done
