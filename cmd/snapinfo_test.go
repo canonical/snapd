@@ -20,12 +20,20 @@
 package cmd_test
 
 import (
+	"testing"
+
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/snap"
 )
+
+func Test(t *testing.T) { check.TestingT(t) }
+
+type cmdSuite struct{}
+
+var _ = check.Suite(&cmdSuite{})
 
 func (*cmdSuite) TestC2S(c *check.C) {
 	// TODO: add moar fields!

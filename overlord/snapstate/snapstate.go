@@ -564,13 +564,16 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 		}
 	}
 
-	var hasUserService bool
+	var hasUserService, usesDbusActivation bool
 	for _, app := range info.Apps {
 		if app.IsService() && app.DaemonScope == snap.UserDaemon {
 			hasUserService = true
-			break
+		}
+		if len(app.ActivatesOn) != 0 {
+			usesDbusActivation = true
 		}
 	}
+
 	if hasUserService {
 		flag, err := features.Flag(tr, features.UserDaemons)
 		if err != nil {
@@ -585,6 +588,16 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 		// systemd user instance.
 		if release.ReleaseInfo.ID == "ubuntu" && release.ReleaseInfo.VersionID == "14.04" {
 			return fmt.Errorf("user session daemons are not supported on Ubuntu 14.04")
+		}
+	}
+
+	if usesDbusActivation {
+		flag, err := features.Flag(tr, features.DbusActivation)
+		if err != nil {
+			return err
+		}
+		if !flag {
+			return fmt.Errorf("experimental feature disabled - test it by setting 'experimental.dbus-activation' to true")
 		}
 	}
 
@@ -686,7 +699,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 		SnapPath:    path,
 		Channel:     channel,
 		Flags:       flags.ForSnapSetup(),
-		Type:        info.GetType(),
+		Type:        info.Type(),
 		PlugsOnly:   len(info.Slots) == 0,
 		InstanceKey: info.InstanceKey,
 	}
@@ -753,8 +766,8 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 	}
 	info := sar.Info
 
-	if flags.RequireTypeBase && info.GetType() != snap.TypeBase && info.GetType() != snap.TypeOS {
-		return nil, fmt.Errorf("unexpected snap type %q, instead of 'base'", info.GetType())
+	if flags.RequireTypeBase && info.Type() != snap.TypeBase && info.Type() != snap.TypeOS {
+		return nil, fmt.Errorf("unexpected snap type %q, instead of 'base'", info.Type())
 	}
 
 	if flags.Classic && !info.NeedsClassic() {
@@ -774,7 +787,7 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 		Flags:        flags.ForSnapSetup(),
 		DownloadInfo: &info.DownloadInfo,
 		SideInfo:     &info.SideInfo,
-		Type:         info.GetType(),
+		Type:         info.Type(),
 		PlugsOnly:    len(info.Slots) == 0,
 		InstanceKey:  info.InstanceKey,
 		auxStoreInfo: auxStoreInfo{
@@ -851,7 +864,7 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 			Flags:        flags.ForSnapSetup(),
 			DownloadInfo: &info.DownloadInfo,
 			SideInfo:     &info.SideInfo,
-			Type:         info.GetType(),
+			Type:         info.Type(),
 			PlugsOnly:    len(info.Slots) == 0,
 			InstanceKey:  info.InstanceKey,
 		}
@@ -1050,7 +1063,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 			Flags:        flags.ForSnapSetup(),
 			DownloadInfo: &update.DownloadInfo,
 			SideInfo:     &update.SideInfo,
-			Type:         update.GetType(),
+			Type:         update.Type(),
 			PlugsOnly:    len(update.Slots) == 0,
 			InstanceKey:  update.InstanceKey,
 			auxStoreInfo: auxStoreInfo{
@@ -1073,7 +1086,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 		// because of the sorting of updates we fill prereqs
 		// first (if branch) and only then use it to setup
 		// waits (else branch)
-		if t := update.GetType(); t == snap.TypeOS || t == snap.TypeBase || t == snap.TypeSnapd {
+		if t := update.Type(); t == snap.TypeOS || t == snap.TypeBase || t == snap.TypeSnapd {
 			// prereq types come first in updates, we
 			// also assume bases don't have hooks, otherwise
 			// they would need to wait on core or snapd
@@ -1630,18 +1643,18 @@ func LinkNewBaseOrKernel(st *state.State, name string) (*state.TaskSet, error) {
 		return nil, err
 	}
 
-	switch info.GetType() {
+	switch info.Type() {
 	case snap.TypeOS, snap.TypeBase, snap.TypeKernel:
 		// good
 	default:
 		// bad
-		return nil, fmt.Errorf("cannot link type %v", info.GetType())
+		return nil, fmt.Errorf("cannot link type %v", info.Type())
 	}
 
 	snapsup := &SnapSetup{
 		SideInfo:    snapst.CurrentSideInfo(),
 		Flags:       snapst.Flags.ForSnapSetup(),
-		Type:        info.GetType(),
+		Type:        info.Type(),
 		PlugsOnly:   len(info.Slots) == 0,
 		InstanceKey: snapst.InstanceKey,
 	}
@@ -1686,7 +1699,7 @@ func Enable(st *state.State, name string) (*state.TaskSet, error) {
 	snapsup := &SnapSetup{
 		SideInfo:    snapst.CurrentSideInfo(),
 		Flags:       snapst.Flags.ForSnapSetup(),
-		Type:        info.GetType(),
+		Type:        info.Type(),
 		PlugsOnly:   len(info.Slots) == 0,
 		InstanceKey: snapst.InstanceKey,
 	}
@@ -1745,7 +1758,7 @@ func Disable(st *state.State, name string) (*state.TaskSet, error) {
 			RealName: snap.InstanceSnap(name),
 			Revision: snapst.Current,
 		},
-		Type:        info.GetType(),
+		Type:        info.Type(),
 		PlugsOnly:   len(info.Slots) == 0,
 		InstanceKey: snapst.InstanceKey,
 	}
@@ -1772,7 +1785,7 @@ func Disable(st *state.State, name string) (*state.TaskSet, error) {
 // canDisable verifies that a snap can be deactivated.
 func canDisable(si *snap.Info) bool {
 	for _, importantSnapType := range []snap.Type{snap.TypeGadget, snap.TypeKernel, snap.TypeOS} {
-		if importantSnapType == si.GetType() {
+		if importantSnapType == si.Type() {
 			return false
 		}
 	}
@@ -1787,7 +1800,7 @@ func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool
 		rev = si.Revision
 	}
 
-	return PolicyFor(si.GetType(), deviceCtx.Model()).CanRemove(st, snapst, rev, deviceCtx)
+	return PolicyFor(si.Type(), deviceCtx.Model()).CanRemove(st, snapst, rev, deviceCtx)
 }
 
 // RemoveFlags are used to pass additional flags to the Remove operation.
@@ -1859,7 +1872,7 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 			RealName: snap.InstanceSnap(name),
 			Revision: revision,
 		},
-		Type:        info.GetType(),
+		Type:        info.Type(),
 		PlugsOnly:   len(info.Slots) == 0,
 		InstanceKey: snapst.InstanceKey,
 	}
@@ -2052,7 +2065,7 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 		Base:        info.Base,
 		SideInfo:    snapst.Sequence[i],
 		Flags:       flags.ForSnapSetup(),
-		Type:        info.GetType(),
+		Type:        info.Type(),
 		PlugsOnly:   len(info.Slots) == 0,
 		InstanceKey: snapst.InstanceKey,
 	}
@@ -2096,7 +2109,7 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 			Channel:      oldSnapst.TrackingChannel,
 			DownloadInfo: &newInfo.DownloadInfo,
 			SideInfo:     &newInfo.SideInfo,
-			Type:         newInfo.GetType(),
+			Type:         newInfo.Type(),
 		}, 0, "", nil)
 		if err != nil {
 			return nil, err

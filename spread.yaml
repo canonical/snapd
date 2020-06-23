@@ -85,6 +85,8 @@ backends:
             - ubuntu-secboot-20.04-64:
                   image: ubuntu-20.04-64
                   workers: 1
+                  secure-boot: true
+                  # XXX: old name, remove once new spread is deployed
                   secureboot: true
 
             - debian-9-64:
@@ -164,7 +166,7 @@ backends:
             - ubuntu-20.04-64:
                   image: ubuntu-2004-64-virt-enabled
                   storage: 20G
-                  workers: 1
+                  workers: 2
 
     qemu:
         # TODO:UC20: uc20 needs 2G or grub will not loopback the kernel snap
@@ -499,7 +501,7 @@ debug-each: |
         echo "# processes"
         ps aux
         echo "# /var/lib/snapd"
-        ls -lR /var/lib/snapd || true
+        find /var/lib/snapd/ -not -path '/var/lib/snapd/snap/*' -ls || true
     fi
 
 rename:

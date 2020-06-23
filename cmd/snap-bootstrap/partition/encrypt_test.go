@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"testing"
 
 	. "gopkg.in/check.v1"
 
@@ -33,6 +34,8 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
+func TestPartition(t *testing.T) { TestingT(t) }
+
 type encryptSuite struct {
 	testutil.BaseTest
 
@@ -41,7 +44,7 @@ type encryptSuite struct {
 
 var _ = Suite(&encryptSuite{})
 
-var mockDeviceStructure = partition.DeviceStructure{
+var mockDeviceStructure = gadget.OnDiskStructure{
 	LaidOutStructure: gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Name: "Test structure",
