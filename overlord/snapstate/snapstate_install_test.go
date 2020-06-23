@@ -2948,7 +2948,7 @@ func (s *snapmgrTestSuite) TestInstallUserDaemonsUsupportedOnTrusty(c *C) {
 	// daemons are not supported on Trusty
 	opts := &snapstate.RevisionOptions{Channel: "channel-for-user-daemon"}
 	_, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, "user session daemons are not supported on Ubuntu 14.04")
+	c.Assert(err, ErrorMatches, "user session daemons are not supported on this release")
 }
 
 func (s *snapmgrTestSuite) TestInstallDbusActivationChecksFeatureFlag(c *C) {

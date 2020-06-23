@@ -582,12 +582,8 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 		if !flag {
 			return fmt.Errorf("experimental feature disabled - test it by setting 'experimental.user-daemons' to true")
 		}
-		// Ubuntu 14.04's systemctl does not support the
-		// arguments needed to enable user session
-		// units. Further more, it does not ship with a
-		// systemd user instance.
-		if release.ReleaseInfo.ID == "ubuntu" && release.ReleaseInfo.VersionID == "14.04" {
-			return fmt.Errorf("user session daemons are not supported on Ubuntu 14.04")
+		if !release.SystemctlSupportsUserUnits() {
+			return fmt.Errorf("user session daemons are not supported on this release")
 		}
 	}
 
