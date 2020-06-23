@@ -595,6 +595,7 @@ var (
 		"browser-support":         {"core"},
 		"content":                 {"app", "gadget"},
 		"core-support":            {"core"},
+		"cups-control":            {"app", "core"},
 		"dbus":                    {"app"},
 		"docker-support":          {"core"},
 		"dummy":                   {"app"},
