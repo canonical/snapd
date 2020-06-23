@@ -20,8 +20,6 @@ prepare: |
 
     # Generic setup for test account
     prepare_model
-    prepare_seed
-    manip_seed
     prepare_test_account developer1
     prepare_test_model developer1-pc
     prepare_testrootorg_store
@@ -46,7 +44,6 @@ restore: |
     clean_snapd_lib
 
     # Generic restore for test account
-    restore_seed
     restore_test_account developer1
     restore_test_model developer1-pc
     restore_testrootorg_store
