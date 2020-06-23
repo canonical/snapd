@@ -88,7 +88,7 @@ restore: |
     systemctl stop snapd.service snapd.socket
     clean_snapd_lib
 
-    # Restore pc snap conifguration
+    # Restore pc snap configuration
     restore_pc_snap
 
     TEST_REVNO=$(awk "/^snap-revision: / {print \$2}" "test-snapd-with-configure${SUFFIX}"_*.assert)

@@ -58,7 +58,7 @@ restore: |
     systemd_stop_and_destroy_unit fakedevicesvc
     clean_snapd_lib
 
-    # Restore pc snap conifguration
+    # Restore pc snap configuration
     restore_pc_snap
 
     # Generic restore for test account
