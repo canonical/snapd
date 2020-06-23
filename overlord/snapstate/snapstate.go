@@ -597,19 +597,19 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 	return nil
 }
 
-func ensureInstallPreconditions(st *state.State, info *snap.Info, flags *Flags, snapst *SnapState, deviceCtx DeviceContext) error {
+func ensureInstallPreconditions(st *state.State, info *snap.Info, flags Flags, snapst *SnapState, deviceCtx DeviceContext) (Flags, error) {
 	if flags.Classic && !info.NeedsClassic() {
 		// snap does not require classic confinement, silently drop the flag
 		flags.Classic = false
 	}
 
-	if err := validateInfoAndFlags(info, snapst, *flags); err != nil {
-		return err
+	if err := validateInfoAndFlags(info, snapst, flags); err != nil {
+		return flags, err
 	}
 	if err := validateFeatureFlags(st, info); err != nil {
-		return err
+		return flags, err
 	}
-	return nil
+	return flags, nil
 }
 
 // InstallPath returns a set of tasks for installing a snap from a file path
@@ -677,7 +677,8 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 	}
 	info.InstanceKey = instanceKey
 
-	if err := ensureInstallPreconditions(st, info, &flags, &snapst, deviceCtx); err != nil {
+	newFlags, err := ensureInstallPreconditions(st, info, flags, &snapst, deviceCtx)
+	if err != nil {
 		return nil, nil, err
 	}
 	// this might be a refresh; check the epoch before proceeding
@@ -691,7 +692,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 		SideInfo:    si,
 		SnapPath:    path,
 		Channel:     channel,
-		Flags:       flags.ForSnapSetup(),
+		Flags:       newFlags.ForSnapSetup(),
 		Type:        info.GetType(),
 		PlugsOnly:   len(info.Slots) == 0,
 		InstanceKey: info.InstanceKey,
@@ -763,7 +764,8 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 		return nil, fmt.Errorf("unexpected snap type %q, instead of 'base'", info.GetType())
 	}
 
-	if err := ensureInstallPreconditions(st, info, &flags, &snapst, deviceCtx); err != nil {
+	newFlags, err := ensureInstallPreconditions(st, info, flags, &snapst, deviceCtx)
+	if err != nil {
 		return nil, err
 	}
 
@@ -772,7 +774,7 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 		Base:         info.Base,
 		Prereq:       defaultContentPlugProviders(st, info),
 		UserID:       userID,
-		Flags:        flags.ForSnapSetup(),
+		Flags:        newFlags.ForSnapSetup(),
 		DownloadInfo: &info.DownloadInfo,
 		SideInfo:     &info.SideInfo,
 		Type:         info.GetType(),
@@ -835,7 +837,8 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 		var snapst SnapState
 		var flags Flags
 
-		if err := ensureInstallPreconditions(st, info, &flags, &snapst, deviceCtx); err != nil {
+		newFlags, err := ensureInstallPreconditions(st, info, flags, &snapst, deviceCtx)
+		if err != nil {
 			return nil, nil, err
 		}
 
@@ -849,7 +852,7 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 			Base:         info.Base,
 			Prereq:       defaultContentPlugProviders(st, info),
 			UserID:       userID,
-			Flags:        flags.ForSnapSetup(),
+			Flags:        newFlags.ForSnapSetup(),
 			DownloadInfo: &info.DownloadInfo,
 			SideInfo:     &info.SideInfo,
 			Type:         info.GetType(),
@@ -1021,7 +1024,8 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 		revnoOpts, flags, snapst := params(update)
 		flags.IsAutoRefresh = globalFlags.IsAutoRefresh
 
-		if err := ensureInstallPreconditions(st, update, &flags, snapst, deviceCtx); err != nil {
+		newFlags, err := ensureInstallPreconditions(st, update, flags, snapst, deviceCtx)
+		if err != nil {
 			if refreshAll {
 				logger.Noticef("cannot update %q: %v", update.InstanceName(), err)
 				continue
@@ -1048,7 +1052,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 			Channel:      revnoOpts.Channel,
 			CohortKey:    revnoOpts.CohortKey,
 			UserID:       snapUserID,
-			Flags:        flags.ForSnapSetup(),
+			Flags:        newFlags.ForSnapSetup(),
 			DownloadInfo: &update.DownloadInfo,
 			SideInfo:     &update.SideInfo,
 			Type:         update.GetType(),
