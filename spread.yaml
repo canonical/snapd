@@ -166,7 +166,7 @@ backends:
             - ubuntu-20.04-64:
                   image: ubuntu-2004-64-virt-enabled
                   storage: 20G
-                  workers: 1
+                  workers: 2
 
     qemu:
         # TODO:UC20: uc20 needs 2G or grub will not loopback the kernel snap
