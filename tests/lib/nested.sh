@@ -60,6 +60,8 @@ create_assertions_disk(){
     kpartx -av "$ASSERTIONS_DISK"
     # find the loopback device for the partition
     LOOP_DEV=$(losetup --list | grep "$ASSERTIONS_DISK" | awk '{print $1}' | grep -Po "/dev/loop\K([0-9]*)")
+    # wait for the loop device to show up
+    retry -n 3 --wait 1 test -e "/dev/mapper/loop${LOOP_DEV}p1"
     # make a vfat partition
     mkfs.vfat -n SYSUSER "/dev/mapper/loop${LOOP_DEV}p1"
     # mount the partition and copy the files 
@@ -579,7 +581,7 @@ start_nested_classic_vm(){
         echo "unknown spread backend $SPREAD_BACKEND"
         exit 1
     fi
-    
+
     PARAM_IMAGE="-drive file=$IMAGE,if=virtio"
     PARAM_SEED="-drive file=$WORK_DIR/seed.img,if=virtio"
     PARAM_SERIAL="-serial file:${WORK_DIR}/serial-log.txt"
