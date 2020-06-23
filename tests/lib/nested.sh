@@ -456,6 +456,9 @@ start_nested_core_vm(){
     PARAM_BIOS=""
     PARAM_TPM=""
     if [ "$USE_CLOUD_INIT" != "true" ]; then
+        # TODO: fix using the old way of an ext4 formatted drive w/o partitions
+        #       as this used to work but has since regressed
+        
         # this simulates a usb drive attached to the device, the removable=true
         # is necessary otherwise snapd will not import it, as snapd only 
         # considers removable devices for cold-plug first-boot runs
