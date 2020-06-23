@@ -3,7 +3,7 @@
 #shellcheck source=tests/lib/systems.sh
 . "$TESTSLIB"/systems.sh
 
-clean_snapd_lib() {	
+clean_snapd_lib() {
     rm -rf /var/lib/snapd/assertions/*
     rm -rf /var/lib/snapd/device
     rm -rf /var/lib/snapd/state.json
@@ -18,46 +18,46 @@ restore_model(){
 }
 
 prepare_seed(){
-	cp -f /var/lib/snapd/seed/seed.yaml seed.yaml.bak
+    cp -f /var/lib/snapd/seed/seed.yaml seed.yaml.bak
 }
 
 restore_seed(){
-	mv seed.yaml.bak /var/lib/snapd/seed/seed.yaml
+    mv seed.yaml.bak /var/lib/snapd/seed/seed.yaml
 }
 
 manip_seed(){
-	python3 "$TESTSLIB"/manip_seed.py /var/lib/snapd/seed/seed.yaml "$@"
+    python3 "$TESTSLIB"/manip_seed.py /var/lib/snapd/seed/seed.yaml "$@"
 }
 
 prepare_testrootorg_store(){
-	cp -f "$TESTSLIB"/assertions/testrootorg-store.account-key /var/lib/snapd/seed/assertions
+    cp -f "$TESTSLIB"/assertions/testrootorg-store.account-key /var/lib/snapd/seed/assertions
 }
 
 restore_testrootorg_store(){
-	rm -f /var/lib/snapd/seed/assertions/testrootorg-store.account-key
+    rm -f /var/lib/snapd/seed/assertions/testrootorg-store.account-key
 }
 
 prepare_test_account(){
-	ACCOUNT_NAME=$1
-	cp -f "$TESTSLIB"/assertions/${ACCOUNT_NAME}.account /var/lib/snapd/seed/assertions
-    cp -f "$TESTSLIB"/assertions/${ACCOUNT_NAME}.account-key /var/lib/snapd/seed/assertions
+    ACCOUNT_NAME=$1
+    cp -f "$TESTSLIB/assertions/${ACCOUNT_NAME}.account" /var/lib/snapd/seed/assertions
+    cp -f "$TESTSLIB/assertions/${ACCOUNT_NAME}.account-key" /var/lib/snapd/seed/assertions
 }
 
 restore_test_account(){
-	ACCOUNT_NAME=$1
-	rm -f "/var/lib/snapd/seed/assertions/${ACCOUNT_NAME}.account"
+    ACCOUNT_NAME=$1
+    rm -f "/var/lib/snapd/seed/assertions/${ACCOUNT_NAME}.account"
     rm -f "/var/lib/snapd/seed/assertions/${ACCOUNT_NAME}.account-key"
 }
 
 prepare_test_model(){
-	MODEL_NAME=$1
-	MODEL_FINAL="$(get_model $MODEL_NAME)"
+    MODEL_NAME=$1
+    MODEL_FINAL=$(get_model "$MODEL_NAME")
     cp -f "${TESTSLIB}/assertions/${MODEL_FINAL}" "/var/lib/snapd/seed/assertions/${MODEL_NAME}.model"
 }
 
 restore_test_model(){
-	MODEL_NAME=$1
-	rm -f "/var/lib/snapd/seed/assertions/${MODEL_NAME}.model"
+    MODEL_NAME=$1
+    rm -f "/var/lib/snapd/seed/assertions/${MODEL_NAME}.model"
 }
 
 prepare_pc_snap(){
@@ -71,7 +71,7 @@ complete_pc_snap(){
 }
 
 restore_pc_snap(){
-	if systemctl status snap-pc-x1.mount ; then
+    if systemctl status snap-pc-x1.mount ; then
        systemctl stop snap-pc-x1.mount
        rm -f /etc/systemd/system/snap-pc-x1.mount
        rm -f /etc/systemd/system/multi-user.target.wants/snap-pc-x1.mount
@@ -82,18 +82,18 @@ restore_pc_snap(){
 }
 
 get_model(){
-	MODEL_NAME=$1
-	if is_core18_system; then
+    MODEL_NAME=$1
+    if is_core18_system; then
         echo "${MODEL_NAME}-18.model"
     elif is_core20_system; then
         echo "${MODEL_NAME}-20.model"
     else
-    	echo "${MODEL_NAME}.model"
+        echo "${MODEL_NAME}.model"
     fi
 }
 
 get_snap_suffix(){
-	if is_core18_system; then
+    if is_core18_system; then
         echo "-core18"
     elif is_core20_system; then
         echo "-core20"
@@ -101,5 +101,5 @@ get_snap_suffix(){
 }
 
 wait_for_first_boot(){
-	while ! snap changes | grep -q "Done.*Initialize system state"; do sleep 1; done
+    while ! snap changes | grep -q "Done.*Initialize system state"; do sleep 1; done
 }
