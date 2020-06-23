@@ -21,6 +21,7 @@ package servicestate
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/snap"
@@ -50,44 +51,49 @@ func updateSnapstateServices(snapst *snapstate.SnapState, enable, disable []*sna
 		alreadyDisabled[serviceName] = true
 	}
 
-	var changed bool
-	for _, service := range enable {
-		if !alreadyEnabled[service.Name] {
-			alreadyEnabled[service.Name] = true
-			snapst.ServicesEnabledByHooks = append(snapst.ServicesEnabledByHooks, service.Name)
-			if alreadyDisabled[service.Name] {
-				for i, s := range snapst.ServicesDisabledByHooks {
-					if s == service.Name {
-						snapst.ServicesDisabledByHooks = append(snapst.ServicesDisabledByHooks[:i], snapst.ServicesDisabledByHooks[i+1:]...)
-						if len(snapst.ServicesDisabledByHooks) == 0 {
-							snapst.ServicesDisabledByHooks = nil
-						}
-						break
-					}
+	migrateServices := func(services []*snap.AppInfo, from map[string]bool, to map[string]bool) (changed bool) {
+		// migrate given services from one map to another, if they do
+		// not exist in the target map
+		for _, service := range services {
+			if !to[service.Name] {
+				to[service.Name] = true
+				if from[service.Name] {
+					delete(from, service.Name)
 				}
-			}
-			changed = true
-		}
-	}
-
-	for _, service := range disable {
-		if !alreadyDisabled[service.Name] {
-			alreadyDisabled[service.Name] = true
-			snapst.ServicesDisabledByHooks = append(snapst.ServicesDisabledByHooks, service.Name)
-			if alreadyEnabled[service.Name] {
-				for i, s := range snapst.ServicesEnabledByHooks {
-					if s == service.Name {
-						snapst.ServicesEnabledByHooks = append(snapst.ServicesEnabledByHooks[:i], snapst.ServicesEnabledByHooks[i+1:]...)
-						if len(snapst.ServicesEnabledByHooks) == 0 {
-							snapst.ServicesEnabledByHooks = nil
-						}
-						break
-					}
-				}
+				changed = true
 			}
 		}
-		changed = true
+		return changed
 	}
 
-	return changed, nil
+	// we are not disabling and enabling the services at the same time as
+	// checked in the function entry, only one path is possible
+	from, to := alreadyDisabled, alreadyEnabled
+	which := enable
+	if len(disable) > 0 {
+		from, to = alreadyEnabled, alreadyDisabled
+		which = disable
+	}
+	if changed := migrateServices(which, from, to); !changed {
+		// nothing changed
+		return false, nil
+	}
+	// reset and recreate the state
+	snapst.ServicesEnabledByHooks = nil
+	snapst.ServicesDisabledByHooks = nil
+	if len(alreadyEnabled) != 0 {
+		snapst.ServicesEnabledByHooks = make([]string, 0, len(alreadyEnabled))
+		for srv := range alreadyEnabled {
+			snapst.ServicesEnabledByHooks = append(snapst.ServicesEnabledByHooks, srv)
+		}
+		sort.Strings(snapst.ServicesEnabledByHooks)
+	}
+	if len(alreadyDisabled) != 0 {
+		snapst.ServicesDisabledByHooks = make([]string, 0, len(alreadyDisabled))
+		for srv := range alreadyDisabled {
+			snapst.ServicesDisabledByHooks = append(snapst.ServicesDisabledByHooks, srv)
+		}
+		sort.Strings(snapst.ServicesDisabledByHooks)
+	}
+	return true, nil
 }
