@@ -1,0 +1,6 @@
+name: test-connect
+version: 1
+summary: Basic snap with a connect hook
+
+plugs:
+  home:
