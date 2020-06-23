@@ -169,8 +169,8 @@ backends:
                   workers: 1
 
     qemu-nested:
+        memory: 4G
         type: qemu
-        memory: 8G
         systems:
             - ubuntu-16.04-64:
                   username: ubuntu

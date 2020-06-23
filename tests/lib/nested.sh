@@ -425,11 +425,32 @@ start_nested_core_vm(){
     # Increase the number of cpus used once the issue related to kvm and ovmf is fixed
     # https://bugs.launchpad.net/ubuntu/+source/kvm/+bug/1872803
     PARAM_CPU="-smp 1"
-    PARAM_MEM="-m 4096"
+    
+    # use only 2G of RAM for qemu-nested
+    if [ "$SPREAD_BACKEND" = "google-nested" ]; then
+        PARAM_MEM="-m 4096"
+    elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
+        PARAM_MEM="-m 2048"
+    else
+        echo "unknown spread backend $SPREAD_BACKEND"
+        exit 1
+    fi
+
     PARAM_DISPLAY="-nographic"
     PARAM_NETWORK="-net nic,model=virtio -net user,hostfwd=tcp::$SSH_PORT-:22"
-    PARAM_MONITOR="-monitor tcp:127.0.0.1:$MON_PORT,server,nowait -usb"
-    PARAM_MACHINE="-machine ubuntu,accel=kvm"
+    PARAM_MONITOR="-monitor tcp:127.0.0.1:$MON_PORT,server,nowait"
+    PARAM_USB="-usb"
+
+    # with qemu-nested, we can't use kvm acceleration
+    if [ "$SPREAD_BACKEND" = "google-nested" ]; then
+        PARAM_MACHINE="-machine ubuntu,accel=kvm"
+    elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
+        PARAM_MACHINE=""
+    else
+        echo "unknown spread backend $SPREAD_BACKEND"
+        exit 1
+    fi
+    
     PARAM_ASSERTIONS=""
     PARAM_SERIAL="-serial file:${WORK_DIR}/serial-log.txt"
     PARAM_BIOS=""
@@ -488,7 +509,8 @@ start_nested_core_vm(){
         ${PARAM_IMAGE} \
         ${PARAM_ASSERTIONS} \
         ${PARAM_SERIAL} \
-        ${PARAM_MONITOR} "
+        ${PARAM_MONITOR} \
+        ${PARAM_USB} "
 
     # Wait until ssh is ready and configure ssh
     if wait_for_ssh; then
@@ -530,12 +552,31 @@ start_nested_classic_vm(){
 
     # Now qemu parameters are defined
     PARAM_CPU="-smp 1"
-    PARAM_MEM="-m 4096"
+    # use only 2G of RAM for qemu-nested
+    if [ "$SPREAD_BACKEND" = "google-nested" ]; then
+        PARAM_MEM="-m 4096"
+    elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
+        PARAM_MEM="-m 2048"
+    else
+        echo "unknown spread backend $SPREAD_BACKEND"
+        exit 1
+    fi
     PARAM_DISPLAY="-nographic"
     PARAM_NETWORK="-net nic,model=virtio -net user,hostfwd=tcp::$SSH_PORT-:22"
-    PARAM_MONITOR="-monitor tcp:127.0.0.1:$MON_PORT,server,nowait -usb"
+    PARAM_MONITOR="-monitor tcp:127.0.0.1:$MON_PORT,server,nowait"
+    PARAM_USB="-usb"
     PARAM_SNAPSHOT="-snapshot"
-    PARAM_MACHINE="-machine ubuntu,accel=kvm"
+
+    # with qemu-nested, we can't use kvm acceleration
+    if [ "$SPREAD_BACKEND" = "google-nested" ]; then
+        PARAM_MACHINE="-machine ubuntu,accel=kvm"
+    elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
+        PARAM_MACHINE=""
+    else
+        echo "unknown spread backend $SPREAD_BACKEND"
+        exit 1
+    fi
+    
     PARAM_IMAGE="-drive file=$IMAGE,if=virtio"
     PARAM_SEED="-drive file=$WORK_DIR/seed.img,if=virtio"
     PARAM_SERIAL="-serial file:${WORK_DIR}/serial-log.txt"
@@ -554,7 +595,9 @@ start_nested_classic_vm(){
         ${PARAM_IMAGE} \
         ${PARAM_SEED} \
         ${PARAM_SERIAL} \
-        ${PARAM_MONITOR} "
+        ${PARAM_MONITOR} \
+        ${PARAM_USB} "
+
     wait_for_ssh
 }
 
