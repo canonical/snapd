@@ -2397,7 +2397,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreTwoSnapsWithFailureRunThrough(c
 
 		// we use our own settle as we need a bigger timeout
 		s.state.Unlock()
-		err = s.o.Settle(15 * time.Second)
+		err = s.o.Settle(testutil.HostScaledTimeout(15 * time.Second))
 		s.state.Lock()
 		c.Assert(err, IsNil)
 
