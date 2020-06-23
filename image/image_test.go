@@ -606,7 +606,7 @@ func (s *imageSuite) TestSetupSeed(c *C) {
 
 			SideInfo: &info.SideInfo,
 
-			EssentialType: info.GetType(),
+			EssentialType: info.Type(),
 			Essential:     true,
 			Required:      true,
 
@@ -741,7 +741,7 @@ func (s *imageSuite) TestSetupSeedLocalCoreBrandKernel(c *C) {
 			}
 		} else {
 			sideInfo = &info.SideInfo
-			snapType = info.GetType()
+			snapType = info.Type()
 		}
 
 		fn := pinfo.Filename()
@@ -869,7 +869,7 @@ func (s *imageSuite) TestSetupSeedDevmodeSnap(c *C) {
 		c.Check(essSnaps[i], DeepEquals, &seed.Snap{
 			Path:          filepath.Join(seedsnapsdir, info.Filename()),
 			SideInfo:      &info.SideInfo,
-			EssentialType: info.GetType(),
+			EssentialType: info.Type(),
 			Essential:     true,
 			Required:      true,
 			Channel:       "beta",
@@ -978,7 +978,7 @@ func (s *imageSuite) TestSetupSeedWithBase(c *C) {
 		c.Check(essSnaps[i], DeepEquals, &seed.Snap{
 			Path:          p,
 			SideInfo:      &info.SideInfo,
-			EssentialType: info.GetType(),
+			EssentialType: info.Type(),
 			Essential:     true,
 			Required:      true,
 			Channel:       stableChannel,
@@ -1139,7 +1139,7 @@ func (s *imageSuite) TestSetupSeedWithBaseLegacySnap(c *C) {
 		c.Check(essSnaps[i], DeepEquals, &seed.Snap{
 			Path:          p,
 			SideInfo:      &info.SideInfo,
-			EssentialType: info.GetType(),
+			EssentialType: info.Type(),
 			Essential:     true,
 			Required:      true,
 			Channel:       stableChannel,
@@ -1234,7 +1234,7 @@ func (s *imageSuite) TestSetupSeedWithBaseDefaultTrackSnap(c *C) {
 		c.Check(essSnaps[i], DeepEquals, &seed.Snap{
 			Path:          p,
 			SideInfo:      &info.SideInfo,
-			EssentialType: info.GetType(),
+			EssentialType: info.Type(),
 			Essential:     true,
 			Required:      true,
 			Channel:       stableChannel,
@@ -1387,7 +1387,7 @@ func (s *imageSuite) TestSetupSeedLocalSnapsWithStoreAsserts(c *C) {
 		c.Check(essSnaps[i], DeepEquals, &seed.Snap{
 			Path:          p,
 			SideInfo:      &info.SideInfo,
-			EssentialType: info.GetType(),
+			EssentialType: info.Type(),
 			Essential:     true,
 			Required:      true,
 			Channel:       stableChannel,
@@ -1484,7 +1484,7 @@ func (s *imageSuite) TestSetupSeedLocalSnapsWithChannels(c *C) {
 		c.Check(essSnaps[i], DeepEquals, &seed.Snap{
 			Path:          p,
 			SideInfo:      &info.SideInfo,
-			EssentialType: info.GetType(),
+			EssentialType: info.Type(),
 			Essential:     true,
 			Required:      true,
 			Channel:       channel,
@@ -2389,7 +2389,7 @@ func (s *imageSuite) TestSetupSeedClassicSnapdOnly(c *C) {
 		c.Check(essSnaps[i], DeepEquals, &seed.Snap{
 			Path:          p,
 			SideInfo:      &info.SideInfo,
-			EssentialType: info.GetType(),
+			EssentialType: info.Type(),
 			Essential:     true,
 			Required:      true,
 			Channel:       stableChannel,
@@ -2621,7 +2621,7 @@ func (s *imageSuite) TestSetupSeedCore20(c *C) {
 		c.Check(essSnaps[i], DeepEquals, &seed.Snap{
 			Path:          p,
 			SideInfo:      &info.SideInfo,
-			EssentialType: info.GetType(),
+			EssentialType: info.Type(),
 			Essential:     true,
 			Required:      true,
 			Channel:       channel,
