@@ -241,7 +241,8 @@ func (s *autoRefreshTestSuite) TestRefreshManagedDenied(c *C) {
 			c.Check(refreshScheduleStr, Equals, snapstate.DefaultRefreshSchedule)
 			c.Check(err, IsNil)
 			c.Check(canManageCalled, Equals, true)
-			count := strings.Count(logbuf.String(), ": managed refresh schedule denied, no snapd-control\n")
+			count := strings.Count(logbuf.String(),
+				": managed refresh schedule denied, no properly configured snapd-control\n")
 			c.Check(count, Equals, 1, Commentf("to many occurrences:\n%s", logbuf.String()))
 
 			canManageCalled = false

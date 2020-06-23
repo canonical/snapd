@@ -341,7 +341,7 @@ func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Sche
 	} else if requested {
 		// managed refresh schedule was denied
 		if !m.managedDeniedLogged {
-			logger.Noticef("managed refresh schedule denied, no snapd-control")
+			logger.Noticef("managed refresh schedule denied, no properly configured snapd-control")
 			m.managedDeniedLogged = true
 		}
 		// fallback to default schedule
