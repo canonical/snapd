@@ -25,8 +25,8 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
-	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/snapdtool"
 )
 
 var shortVersionHelp = i18n.G("Show version details")
@@ -56,7 +56,7 @@ func printVersions(cli *client.Client) error {
 	sv := serverVersion(cli)
 	w := tabWriter()
 
-	fmt.Fprintf(w, "snap\t%s\n", cmd.Version)
+	fmt.Fprintf(w, "snap\t%s\n", snapdtool.Version)
 	fmt.Fprintf(w, "snapd\t%s\n", sv.Version)
 	fmt.Fprintf(w, "series\t%s\n", sv.Series)
 	if sv.OnClassic {

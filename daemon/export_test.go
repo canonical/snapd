@@ -24,6 +24,10 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/overlord"
+	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/servicestate"
+	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 )
 
 type Resp = resp
@@ -58,5 +62,13 @@ func MockShutdownTimeout(tm time.Duration) (restore func()) {
 	shutdownTimeout = tm
 	return func() {
 		shutdownTimeout = old
+	}
+}
+
+func MockServicestateControl(f func(st *state.State, appInfos []*snap.AppInfo, inst *servicestate.Instruction, context *hookstate.Context) ([]*state.TaskSet, error)) (restore func()) {
+	old := servicestateControl
+	servicestateControl = f
+	return func() {
+		servicestateControl = old
 	}
 }

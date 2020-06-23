@@ -712,7 +712,7 @@ func (s *writerSuite) TestDownloadedCheckType(c *C) {
 
 		_, _, err := s.upToDownloaded(c, model, s.fillMetaDownloadedSnap)
 
-		expErr := fmt.Sprintf("%s %q has unexpected type: %v", t.what, t.wrongTypeSnap, s.AssertedSnapInfo(t.wrongTypeSnap).GetType())
+		expErr := fmt.Sprintf("%s %q has unexpected type: %v", t.what, t.wrongTypeSnap, s.AssertedSnapInfo(t.wrongTypeSnap).Type())
 		c.Check(err, ErrorMatches, expErr)
 	}
 }
