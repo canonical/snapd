@@ -233,15 +233,15 @@ func (s *grubTestSuite) grubEFINativeDir() string {
 	return filepath.Join(s.rootdir, "EFI/ubuntu")
 }
 
-func (s *grubTestSuite) makeFakeGrubEFINativeEnv(c *C) {
+func (s *grubTestSuite) makeFakeGrubEFINativeEnv(c *C, content []byte) {
 	err := os.MkdirAll(s.grubEFINativeDir(), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(s.grubEFINativeDir(), "grub.cfg"), nil, 0644)
+	err = ioutil.WriteFile(filepath.Join(s.grubEFINativeDir(), "grub.cfg"), content, 0644)
 	c.Assert(err, IsNil)
 }
 
 func (s *grubTestSuite) TestNewGrubWithOptionRecovery(c *C) {
-	s.makeFakeGrubEFINativeEnv(c)
+	s.makeFakeGrubEFINativeEnv(c, nil)
 
 	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Recovery: true})
 	c.Assert(g, NotNil)
@@ -249,7 +249,7 @@ func (s *grubTestSuite) TestNewGrubWithOptionRecovery(c *C) {
 }
 
 func (s *grubTestSuite) TestNewGrubWithOptionRecoveryBootEnv(c *C) {
-	s.makeFakeGrubEFINativeEnv(c)
+	s.makeFakeGrubEFINativeEnv(c, nil)
 	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Recovery: true})
 
 	// check that setting vars goes to the right place
@@ -279,7 +279,7 @@ func (s *grubTestSuite) TestNewGrubWithOptionRecoveryNoEnv(c *C) {
 }
 
 func (s *grubTestSuite) TestGrubSetRecoverySystemEnv(c *C) {
-	s.makeFakeGrubEFINativeEnv(c)
+	s.makeFakeGrubEFINativeEnv(c, nil)
 	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Recovery: true})
 
 	// check that we can set a recovery system specific bootenv
@@ -519,7 +519,7 @@ func (s *grubTestSuite) TestKernelExtractionRunImageKernel(c *C) {
 func (s *grubTestSuite) TestKernelExtractionRunImageKernelNoSlashBoot(c *C) {
 	// this is ubuntu-boot but during install we use the native EFI/ubuntu
 	// layout, same as Recovery, without the /boot mount
-	s.makeFakeGrubEFINativeEnv(c)
+	s.makeFakeGrubEFINativeEnv(c, nil)
 
 	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{ExtractedRunKernelImage: true, NoSlashBoot: true})
 	c.Assert(g, NotNil)
@@ -568,4 +568,40 @@ func (s *grubTestSuite) TestKernelExtractionRunImageKernelNoSlashBoot(c *C) {
 	exists, _, err := osutil.DirExists(filepath.Dir(kernefi))
 	c.Assert(err, IsNil)
 	c.Check(exists, Equals, false)
+}
+
+func (s *grubTestSuite) TestIsManaged(c *C) {
+	// native EFI/ubuntu setup, as we're using NoSlashBoot
+	s.makeFakeGrubEFINativeEnv(c, []byte(`this is
+some random boot config`))
+
+	opts := &bootloader.Options{NoSlashBoot: true}
+	g := bootloader.NewGrub(s.rootdir, opts)
+	c.Assert(g, NotNil)
+	mg, ok := g.(bootloader.ManagedBootloader)
+	c.Assert(ok, Equals, true)
+
+	// native EFI/ubuntu setup, as we're using NoSlashBoot
+	s.makeFakeGrubEFINativeEnv(c, []byte(`this is
+some random boot config`))
+
+	is, err := mg.IsManaged()
+	c.Assert(err, IsNil)
+	c.Assert(is, Equals, false)
+
+	// try with real snap managed config
+	s.makeFakeGrubEFINativeEnv(c, []byte(`# Snapd-Boot-Config-Edition: 5
+managed by snapd`))
+
+	is, err = mg.IsManaged()
+	c.Assert(err, IsNil)
+	c.Assert(is, Equals, true)
+
+	// break boot config
+	err = os.Chmod(s.grubEFINativeDir(), 0000)
+	defer os.Chmod(s.grubEFINativeDir(), 0755)
+	c.Assert(err, IsNil)
+	is, err = mg.IsManaged()
+	c.Assert(err, ErrorMatches, "cannot load existing config asset: .*/grub.cfg: permission denied")
+	c.Assert(is, Equals, false)
 }

@@ -35,6 +35,7 @@ var (
 	_ installableBootloader             = (*grub)(nil)
 	_ RecoveryAwareBootloader           = (*grub)(nil)
 	_ ExtractedRunKernelImageBootloader = (*grub)(nil)
+	_ ManagedBootloader                 = (*grub)(nil)
 )
 
 type grub struct {
@@ -299,4 +300,16 @@ func (g *grub) TryKernel() (snap.PlaceInfo, error) {
 		return p, nil
 	}
 	return nil, ErrNoTryKernelRef
+}
+
+// IsManaged returns true when the boot config is managed by snapd.
+//
+// Implements ManagedBootloader for the grub bootloader.
+func (g *grub) IsManaged() (bool, error) {
+	currentBootScript := filepath.Join(g.dir(), "grub.cfg")
+	_, err := editionFromDiskConfigAsset(currentBootScript)
+	if err != nil && err != errNoEdition {
+		return false, err
+	}
+	return err != errNoEdition, nil
 }
