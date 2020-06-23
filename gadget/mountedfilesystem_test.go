@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/testutil"
@@ -2407,4 +2408,137 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterNonFilePreserveError(c *C
 	c.Check(err, ErrorMatches, `cannot map preserve entries for mount location ".*/out-dir": preserved entry "foo" cannot be a directory`)
 	err = rw.Rollback()
 	c.Check(err, ErrorMatches, `cannot map preserve entries for mount location ".*/out-dir": preserved entry "foo" cannot be a directory`)
+}
+
+func (s *mountedfilesystemTestSuite) testMountedUpdaterGrubBootAssets(c *C, managed bool, role string, preserved bool) {
+	// mirror pc-amd64-gadget
+	gd := []gadgetData{
+		{name: "grub.conf", content: "grub.conf from gadget"},
+		{name: "grubx64.efi", content: "grubx64.efi from gadget"},
+		{name: "foo", content: "foo from gadget"},
+	}
+	makeGadgetData(c, s.dir, gd)
+
+	outDir := filepath.Join(c.MkDir(), "out-dir")
+
+	existingGrubCfg := `# Snapd-Boot-Config-Edition: 1
+managed grub.cfg from disk`
+	if !managed {
+		existingGrubCfg = `existing grub.cfg from disk`
+	}
+	makeExistingData(c, outDir, []gadgetData{
+		{target: "EFI/boot/grubx64.efi", content: "grubx64.efi from disk"},
+		{target: "EFI/ubuntu/grub.cfg", content: existingGrubCfg},
+		{target: "foo", content: "foo from disk"},
+	})
+	// based on pc gadget
+	ps := &gadget.LaidOutStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Size:       2048,
+			Role:       role,
+			Filesystem: "ext4",
+			Content: []gadget.VolumeContent{
+				{Source: "grubx64.efi", Target: "EFI/boot/grubx64.efi"},
+				{Source: "grub.conf", Target: "EFI/ubuntu/grub.cfg"},
+				{Source: "foo", Target: "foo"},
+			},
+			Update: gadget.VolumeUpdate{
+				Preserve: []string{"foo"},
+				Edition:  1,
+			},
+		},
+	}
+	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup,
+		func(to *gadget.LaidOutStructure) (string, error) {
+			c.Check(to, DeepEquals, ps)
+			return outDir, nil
+		})
+	c.Assert(err, IsNil)
+	c.Assert(rw, NotNil)
+
+	for _, step := range []struct {
+		name string
+		call func() error
+	}{
+		{name: "backup", call: rw.Backup},
+		{name: "update", call: rw.Update},
+		{name: "rollback", call: rw.Rollback},
+	} {
+		c.Logf("step: %v", step.name)
+		err := step.call()
+		c.Assert(err, IsNil)
+
+		switch step.name {
+		case "backup":
+			c.Check(filepath.Join(outDir, "EFI/boot/grubx64.efi"), testutil.FileEquals, "grubx64.efi from disk")
+			c.Check(filepath.Join(outDir, "EFI/ubuntu/grub.cfg"), testutil.FileEquals, existingGrubCfg)
+			c.Check(filepath.Join(outDir, "foo"), testutil.FileEquals, "foo from disk")
+		case "update":
+			c.Check(filepath.Join(outDir, "EFI/boot/grubx64.efi"), testutil.FileEquals, "grubx64.efi from gadget")
+			if preserved {
+				c.Check(filepath.Join(outDir, "EFI/ubuntu/grub.cfg"), testutil.FileEquals,
+					`# Snapd-Boot-Config-Edition: 1
+managed grub.cfg from disk`)
+			} else {
+				c.Check(filepath.Join(outDir, "EFI/ubuntu/grub.cfg"), testutil.FileEquals,
+					`grub.conf from gadget`)
+			}
+			c.Check(filepath.Join(outDir, "foo"), testutil.FileEquals, "foo from disk")
+		case "rollback":
+			c.Check(filepath.Join(outDir, "EFI/boot/grubx64.efi"), testutil.FileEquals, "grubx64.efi from disk")
+			c.Check(filepath.Join(outDir, "EFI/ubuntu/grub.cfg"), testutil.FileEquals, existingGrubCfg)
+			c.Check(filepath.Join(outDir, "foo"), testutil.FileEquals, "foo from disk")
+		default:
+			c.Fatalf("unexpected step: %q", step.name)
+		}
+	}
+}
+
+func (s *mountedfilesystemTestSuite) TestMountedUpdaterGrubBootAssetsManaged(c *C) {
+	managed := true
+	preserved := true
+	s.testMountedUpdaterGrubBootAssets(c, managed, gadget.SystemBoot, preserved)
+}
+
+func (s *mountedfilesystemTestSuite) TestMountedUpdaterGrubSeedAssetsManaged(c *C) {
+	managed := true
+	preserved := true
+	s.testMountedUpdaterGrubBootAssets(c, managed, gadget.SystemSeed, preserved)
+}
+
+func (s *mountedfilesystemTestSuite) TestMountedUpdaterGrubBootAssetsNotManaged(c *C) {
+	notManaged := false
+	notPreserved := false
+	s.testMountedUpdaterGrubBootAssets(c, notManaged, gadget.SystemSeed, notPreserved)
+}
+
+func (s *mountedfilesystemTestSuite) TestMountedUpdaterGrubBootAssetsManagedOtherRole(c *C) {
+	managed := true
+	notPreserved := false
+	s.testMountedUpdaterGrubBootAssets(c, managed, gadget.SystemData, notPreserved)
+}
+
+func (s *mountedfilesystemTestSuite) TestMountedUpdaterBootAssetsErr(c *C) {
+	outDir := filepath.Join(c.MkDir(), "out-dir")
+
+	bootloader.ForceError(errors.New("foo"))
+	defer bootloader.ForceError(nil)
+	// based on pc gadget
+	ps := &gadget.LaidOutStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Size:       2048,
+			Role:       gadget.SystemBoot,
+			Filesystem: "ext4",
+			Content: []gadget.VolumeContent{
+				{Source: "grubx64.efi", Target: "EFI/boot/grubx64.efi"},
+				{Source: "grub.conf", Target: "EFI/ubuntu/grub.cfg"},
+			},
+		},
+	}
+	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup,
+		func(to *gadget.LaidOutStructure) (string, error) {
+			return outDir, nil
+		})
+	c.Assert(err, ErrorMatches, "cannot preserve managed boot assets: foo")
+	c.Assert(rw, IsNil)
 }
