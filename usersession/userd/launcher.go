@@ -95,7 +95,9 @@ var (
 		// mailto: the scheme allows for specifying an email address
 		//   - scheme: mailto:foo@example.com
 		"mailto",
-		// msteams: TODO: document me.
+		// msteams: the scheme is a thin wrapper around https.
+		//   - scheme: msteams:...
+		//   - https://github.com/snapcore/snapd/pull/8761
 		"msteams",
 		"slack",
 		// snap: the scheme allows specifying a package for xdg-open to pass to a
