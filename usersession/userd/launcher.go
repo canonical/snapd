@@ -102,6 +102,12 @@ const launcherIntrospectionXML = `
 //   - scheme: https://medium.com/zoom-developer-blog/zoom-url-schemes-748b95fd9205
 //     (eg, zoommtg://zoom.us/...)
 //   - https://github.com/snapcore/snapd/pull/8304
+//
+// zoomus: alternative name for zoommtg
+//   - https://github.com/snapcore/snapd/pull/8910
+//
+// zoomphonecall: another zoom URL scheme, for dialing phone numbers
+//   - https://github.com/snapcore/snapd/pull/8910
 
 var (
 	allowedURLSchemes = []string{"http", "https", "mailto", "snap", "help", "apt", "zoommtg", "zoomus", "zoomphonecall", "slack", "msteams"}
