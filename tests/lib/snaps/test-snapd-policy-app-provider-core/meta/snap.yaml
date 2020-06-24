@@ -15,6 +15,7 @@ slots:
     content: test-content
     read:
     - $SNAP/content
+  cups: null
   cups-control: null
   dbus-session:
     interface: dbus
@@ -68,6 +69,9 @@ apps:
   content-read:
     command: bin/run
     slots: [ content-read ]
+  cups:
+    command: bin/run
+    slots: [ cups ]
   cups-control:
     command: bin/run
     slots: [ cups-control ]
