@@ -2587,7 +2587,7 @@ func (s *imageSuite) TestSetupSeedCore20(c *C) {
 		{"grub-recovery.conf", "# recovery grub.cfg"},
 		{"grub.conf", "# boot grub.cfg"},
 	}
-	s.makeSnap(c, "pc=20", gadgetContent, snap.R(22), "") // XXX likely don't need grub.cfg there
+	s.makeSnap(c, "pc=20", gadgetContent, snap.R(22), "")
 	s.makeSnap(c, "required20", nil, snap.R(21), "other")
 
 	opts := &image.Options{

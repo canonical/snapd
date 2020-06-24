@@ -132,7 +132,6 @@ func (s *bootenvTestSuite) TestInstallBootloaderConfigFromAssets(c *C) {
 		gadgetFileContent   []byte
 		assetContent        []byte
 		assetName           string
-		opts                *bootloader.Options
 		err                 string
 	}{
 		{
@@ -143,9 +142,6 @@ func (s *bootenvTestSuite) TestInstallBootloaderConfigFromAssets(c *C) {
 			sysFile:           "/EFI/ubuntu/grub.cfg",
 			assetName:         "grub-recovery.cfg",
 			assetContent:      []byte("hello assets"),
-			opts: &bootloader.Options{
-				Recovery: true,
-			},
 		}, {
 			name:              "grub with non empty gadget file",
 			gadgetFile:        "grub.conf",
@@ -153,30 +149,20 @@ func (s *bootenvTestSuite) TestInstallBootloaderConfigFromAssets(c *C) {
 			sysFile:           "/EFI/ubuntu/grub.cfg",
 			assetName:         "grub-recovery.cfg",
 			assetContent:      []byte("hello assets"),
-			opts: &bootloader.Options{
-				Recovery: true,
-			},
 		}, {
 			name:       "grub with default asset",
 			gadgetFile: "grub.conf",
 			// empty file in the gadget
 			gadgetFileContent: nil,
 			sysFile:           "/EFI/ubuntu/grub.cfg",
-			opts: &bootloader.Options{
-				Recovery: true,
-			},
 		}, {
 			name:       "grub missing asset",
 			gadgetFile: "grub.conf",
 			// empty file in the gadget
 			gadgetFileContent: nil,
 			sysFile:           "/EFI/ubuntu/grub.cfg",
-			opts: &bootloader.Options{
-				Recovery: true,
-			},
-			assetName: "grub-recovery.cfg",
-			// // no asset content
-			// assetContent: nil,
+			assetName:         "grub-recovery.cfg",
+			// no asset content
 			err: `internal error: no boot asset for "grub-recovery.cfg"`,
 		},
 	} {
@@ -189,7 +175,10 @@ func (s *bootenvTestSuite) TestInstallBootloaderConfigFromAssets(c *C) {
 		if t.assetName != "" {
 			restoreAsset = assets.MockInternal(t.assetName, t.assetContent)
 		}
-		err = bootloader.InstallBootConfig(mockGadgetDir, rootDir, t.opts)
+		opts := &bootloader.Options{
+			Recovery: true,
+		}
+		err = bootloader.InstallBootConfig(mockGadgetDir, rootDir, opts)
 		if t.err == "" {
 			c.Assert(err, IsNil, Commentf("installing boot config for %s", t.name))
 			if t.assetContent != nil {

@@ -273,7 +273,7 @@ version: 5.0
 	files, err := filepath.Glob(filepath.Join(rootdir, "EFI/ubuntu/*"))
 	c.Assert(err, IsNil)
 	c.Check(files, HasLen, 1)
-	// check that the recovery bootloader configuration was copied with
+	// check that the recovery bootloader configuration was installed with
 	// the correct content
 	c.Check(filepath.Join(rootdir, "EFI/ubuntu/grub.cfg"), testutil.FileEquals, grubRecoveryCfgAsset)
 
