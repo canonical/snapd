@@ -146,6 +146,9 @@ func (s *autoRefreshTestSuite) TestLastRefreshRefreshManaged(c *C) {
 	}
 	defer func() { snapstate.CanManageRefreshes = nil }()
 
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -174,8 +177,13 @@ func (s *autoRefreshTestSuite) TestLastRefreshRefreshManaged(c *C) {
 
 		c.Check(af.NextRefresh(), DeepEquals, time.Time{})
 
+		count := strings.Count(logbuf.String(),
+			": refresh is managed via the snapd-control interface\n")
+		c.Check(count, Equals, 1, Commentf("too many occurrences:\n%s", logbuf.String()))
+
 		// ensure clean config for the next run
 		s.state.Set("config", nil)
+		logbuf.Reset()
 	}
 }
 
@@ -243,7 +251,7 @@ func (s *autoRefreshTestSuite) TestRefreshManagedDenied(c *C) {
 			c.Check(canManageCalled, Equals, true)
 			count := strings.Count(logbuf.String(),
 				": managed refresh schedule denied, no properly configured snapd-control\n")
-			c.Check(count, Equals, 1, Commentf("to many occurrences:\n%s", logbuf.String()))
+			c.Check(count, Equals, 1, Commentf("too many occurrences:\n%s", logbuf.String()))
 
 			canManageCalled = false
 		}
