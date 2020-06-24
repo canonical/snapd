@@ -700,7 +700,7 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 		hit = strings.Replace(hit, "@ICON@", baseURL.String()+"/icon", -1)
 		hit = strings.Replace(hit, "@VERSION@", info.Version, -1)
 		hit = strings.Replace(hit, "@REVISION@", revno, -1)
-		hit = strings.Replace(hit, `@TYPE@`, string(info.GetType()), -1)
+		hit = strings.Replace(hit, `@TYPE@`, string(info.Type()), -1)
 		hit = strings.Replace(hit, `@EPOCH@`, string(epochBuf), -1)
 		return hit
 	}

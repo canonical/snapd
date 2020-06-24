@@ -529,10 +529,10 @@ func (s *bootenvSuite) TestParticipantBaseWithModel(c *C) {
 
 	for i, t := range table {
 		dev := boottest.MockDevice(t.model)
-		bp := boot.Participant(t.with, t.with.GetType(), dev)
+		bp := boot.Participant(t.with, t.with.Type(), dev)
 		c.Check(bp.IsTrivial(), Equals, t.nop, Commentf("%d", i))
 		if !t.nop {
-			c.Check(bp, DeepEquals, boot.NewCoreBootParticipant(t.with, t.with.GetType(), dev))
+			c.Check(bp, DeepEquals, boot.NewCoreBootParticipant(t.with, t.with.Type(), dev))
 		}
 	}
 }

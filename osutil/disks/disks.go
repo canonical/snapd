@@ -140,21 +140,21 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 	if err != nil {
 		return nil, err
 	}
-	found := false
-	d := &disk{}
+	var d *disk
 	var partMountPointSource string
 	// loop over the mount entries in reverse order to prevent shadowing of a
 	// particular mount on top of another one
 	for i := len(mounts) - 1; i >= 0; i-- {
 		if mounts[i].MountDir == mountpoint {
-			d.major = mounts[i].DevMajor
-			d.minor = mounts[i].DevMinor
+			d = &disk{
+				major: mounts[i].DevMajor,
+				minor: mounts[i].DevMinor,
+			}
 			partMountPointSource = mounts[i].MountSource
-			found = true
 			break
 		}
 	}
-	if !found {
+	if d == nil {
 		return nil, fmt.Errorf("cannot find mountpoint %q", mountpoint)
 	}
 
@@ -183,21 +183,21 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 		}
 		d.major = maj
 		d.minor = min
-	} else {
-		// the partition is probably a volume or other non-physical disk, so
-		// confirm that DEVTYPE == disk and return the maj/min for it
-		if devType, ok := props["DEVTYPE"]; ok {
-			if devType == "disk" {
-				return d, nil
-			}
-			// unclear what other DEVTYPE's we should support for this
-			return nil, fmt.Errorf("unsupported DEVTYPE %q for mount point source %s", devType, partMountPointSource)
-		}
-
-		return nil, fmt.Errorf("cannot find disk for partition %s, incomplete udev output", partMountPointSource)
+		return d, nil
 	}
 
-	return d, nil
+	// if we don't have ID_PART_ENTRY_DISK, the partition is probably a volume
+	// or other non-physical disk, so confirm that DEVTYPE == disk and return
+	// the maj/min for it
+	if devType, ok := props["DEVTYPE"]; ok {
+		if devType == "disk" {
+			return d, nil
+		}
+		// unclear what other DEVTYPE's we should support for this function
+		return nil, fmt.Errorf("unsupported DEVTYPE %q for mount point source %s", devType, partMountPointSource)
+	}
+
+	return nil, fmt.Errorf("cannot find disk for partition %s, incomplete udev output", partMountPointSource)
 }
 
 func (d *disk) FindMatchingPartitionUUID(label string) (string, error) {
