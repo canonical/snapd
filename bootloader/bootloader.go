@@ -139,10 +139,11 @@ type ExtractedRunKernelImageBootloader interface {
 	DisableTryKernel() error
 }
 
-// ManagedBootloader can manage its own boot assets (typically boot config).
-type ManagedBootloader interface {
-	// IsManaged returns true when the on disk boot assets are managed.
-	IsManaged() (bool, error)
+// ManagedAssetsBootloader has its boot assets (typically boot config) managed
+// by snapd.
+type ManagedAssetsBootloader interface {
+	// IsCurrentlyManaged returns true when the on disk boot assets are managed.
+	IsCurrentlyManaged() (bool, error)
 }
 
 func genericInstallBootConfig(gadgetFile, systemFile string) (bool, error) {

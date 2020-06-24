@@ -570,7 +570,7 @@ func (s *grubTestSuite) TestKernelExtractionRunImageKernelNoSlashBoot(c *C) {
 	c.Check(exists, Equals, false)
 }
 
-func (s *grubTestSuite) TestIsManaged(c *C) {
+func (s *grubTestSuite) TestIsCurrentlyManaged(c *C) {
 	// native EFI/ubuntu setup, as we're using NoSlashBoot
 	s.makeFakeGrubEFINativeEnv(c, []byte(`this is
 some random boot config`))
@@ -578,14 +578,14 @@ some random boot config`))
 	opts := &bootloader.Options{NoSlashBoot: true}
 	g := bootloader.NewGrub(s.rootdir, opts)
 	c.Assert(g, NotNil)
-	mg, ok := g.(bootloader.ManagedBootloader)
+	mg, ok := g.(bootloader.ManagedAssetsBootloader)
 	c.Assert(ok, Equals, true)
 
 	// native EFI/ubuntu setup, as we're using NoSlashBoot
 	s.makeFakeGrubEFINativeEnv(c, []byte(`this is
 some random boot config`))
 
-	is, err := mg.IsManaged()
+	is, err := mg.IsCurrentlyManaged()
 	c.Assert(err, IsNil)
 	c.Assert(is, Equals, false)
 
@@ -593,7 +593,7 @@ some random boot config`))
 	s.makeFakeGrubEFINativeEnv(c, []byte(`# Snapd-Boot-Config-Edition: 5
 managed by snapd`))
 
-	is, err = mg.IsManaged()
+	is, err = mg.IsCurrentlyManaged()
 	c.Assert(err, IsNil)
 	c.Assert(is, Equals, true)
 
@@ -601,7 +601,7 @@ managed by snapd`))
 	err = os.Chmod(s.grubEFINativeDir(), 0000)
 	defer os.Chmod(s.grubEFINativeDir(), 0755)
 	c.Assert(err, IsNil)
-	is, err = mg.IsManaged()
+	is, err = mg.IsCurrentlyManaged()
 	c.Assert(err, ErrorMatches, "cannot load existing config asset: .*/grub.cfg: permission denied")
 	c.Assert(is, Equals, false)
 }
