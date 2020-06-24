@@ -5068,6 +5068,8 @@ func (s *interfaceManagerSuite) TestUndoConnect(c *C) {
 	for _, t := range chg.Tasks() {
 		if t.Kind() != "error-trigger" {
 			c.Assert(t.Status(), Equals, state.UndoneStatus)
+			var old interface{}
+			c.Assert(t.Get("old-conn", &old), NotNil)
 		}
 	}
 
@@ -5106,6 +5108,11 @@ func (s *interfaceManagerSuite) TestUndoConnectUndesired(c *C) {
 	for _, t := range chg.Tasks() {
 		if t.Kind() != "error-trigger" {
 			c.Assert(t.Status(), Equals, state.UndoneStatus)
+			if t.Kind() == "connect" {
+				var old interface{}
+				c.Assert(t.Get("old-conn", &old), IsNil)
+				c.Check(old, DeepEquals, map[string]interface{}{"undesired": true})
+			}
 		}
 	}
 
