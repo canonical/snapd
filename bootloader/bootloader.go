@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
@@ -156,11 +157,15 @@ func genericInstallBootConfig(gadgetFile, systemFile string) (bool, error) {
 	return true, osutil.CopyFile(gadgetFile, systemFile, osutil.CopyFlagOverwrite)
 }
 
-func genericSetBootConfig(systemFile string, content []byte) (bool, error) {
+func genericSetBootConfigFromAsset(systemFile, assetName string) (bool, error) {
+	bootConfig := assets.Internal(assetName)
+	if bootConfig == nil {
+		return true, fmt.Errorf("internal error: no boot asset for %q", assetName)
+	}
 	if err := os.MkdirAll(filepath.Dir(systemFile), 0755); err != nil {
 		return true, err
 	}
-	return true, osutil.AtomicWriteFile(systemFile, content, 0644, 0)
+	return true, osutil.AtomicWriteFile(systemFile, bootConfig, 0644, 0)
 }
 
 // InstallBootConfig installs the bootloader config from the gadget
