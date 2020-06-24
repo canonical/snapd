@@ -23,18 +23,12 @@ execute: |
     # this works because an older revision was installed and we don't re-connect
     # existing connections.
     snap install --dangerous test-connect_2_all.snap
-    
-    jq -r '.data["conns"]' /var/lib/snapd/state.json
 
     snap disconnect test-connect:home
-
-    jq -r '.data["conns"]' /var/lib/snapd/state.json
 
     echo "Triggering connect hook"
     # this fails because of connect hook
     snap connect test-connect:home 2>&1 | MATCH 'failure of connect hook'
-
-    jq -r '.data["conns"]' /var/lib/snapd/state.json
 
     echo "Removing the test snap"
     snap remove test-connect
