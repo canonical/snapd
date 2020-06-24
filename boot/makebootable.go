@@ -330,6 +330,18 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 		return fmt.Errorf("cannot set run system environment: %v", err)
 	}
 
+	_, ok = bl.(bootloader.ManagedAssetsBootloader)
+	if ok {
+		// the bootloader can manage its boot config
+		ok, err := bl.InstallBootConfig(bootWith.UnpackedGadgetDir, opts)
+		if err != nil {
+			return fmt.Errorf("cannot install managed bootloader assets: %v", err)
+		}
+		if !ok {
+			return fmt.Errorf("cannot install boot config with mismatched gadget")
+		}
+	}
+
 	// LAST step: update recovery bootloader environment to indicate that we
 	// transition to run mode now
 	opts = &bootloader.Options{
