@@ -32,6 +32,7 @@ prepare: |
 
     # Generic setup for test account
     prepare_seed
+    # shellcheck disable=SC2119
     manip_seed
     prepare_test_account developer1
     prepare_testrootorg_store

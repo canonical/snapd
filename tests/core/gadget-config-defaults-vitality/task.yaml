@@ -137,9 +137,9 @@ execute: |
     echo "The configuration for the service is applied"
     systemctl show snap.pc.other.service |MATCH "OOMScoreAdjust=-898"
     if [ "$SUFFIX" = "" ]; then
-        systemctl show snap.test-snapd-with-configure${SUFFIX}.some.service |MATCH "OOMScoreAdjust=-897"
+        systemctl show "snap.test-snapd-with-configure${SUFFIX}.some.service" | MATCH "OOMScoreAdjust=-897"
     elif [ "$SUFFIX" = -"core18" ]; then
-        systemctl show snap.test-snapd-with-configure${SUFFIX}.some.service |MATCH "OOMScoreAdjust=-896"
+        systemctl show "snap.test-snapd-with-configure${SUFFIX}.some.service" | MATCH "OOMScoreAdjust=-896"
     else
         echo "Unknown suffix $SUFFIX"
         exit 1
