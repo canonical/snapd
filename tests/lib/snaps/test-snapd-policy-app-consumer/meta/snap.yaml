@@ -74,6 +74,9 @@ apps:
   cpu-control:
     command: bin/run
     plugs: [ cpu-control ]
+  cups:
+    command: bin/run
+    plugs: [ cups ]
   cups-control:
     command: bin/run
     plugs: [ cups-control ]
