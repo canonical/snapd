@@ -486,8 +486,8 @@ debug-each: |
         
         if is_nested_system; then
             echo '# nested VM status'
-            systemctl status nested-vm
-            journalctl -e --no-pager -u nested-vm
+            systemctl status nested-vm || true
+            journalctl -e --no-pager -u nested-vm || true
 
             if [ -f "${WORK_DIR}/serial-log.txt" ]; then
                 echo '# nested VM serial boot log'
