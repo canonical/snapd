@@ -95,6 +95,7 @@ var (
 		// mailto: the scheme allows for specifying an email address
 		//   - scheme: mailto:foo@example.com
 		"mailto",
+		// msteams: TODO: document me.
 		"msteams",
 		"slack",
 		// snap: the scheme allows specifying a package for xdg-open to pass to a
