@@ -109,7 +109,7 @@ func (s *cupsControlSuite) TestAppArmorSpecCore(c *C) {
 	spec = &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.providerSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Description: Can access cups control socket.")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Allow communicating with the cups server for printing and configuration.")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "#include <abstractions/cups-client>")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "peer=(name=org.freedesktop.DBus,label=\"snap.provider.app\"")
 	c.Assert(spec.SnippetForTag("snap.provider.app"), Not(testutil.Contains), "# Allow daemon access to create the CUPS socket")
@@ -136,7 +136,7 @@ func (s *cupsControlSuite) TestAppArmorSpecClassic(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Description: Can access cups control socket.")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Allow communicating with the cups server for printing and configuration.")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "#include <abstractions/cups-client>")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "peer=(name=org.freedesktop.DBus,label=\"{unconfined,/usr/sbin/cupsd,cupsd}\"")
 	c.Assert(spec.SnippetForTag("snap.provider.app"), Not(testutil.Contains), "# Allow daemon access to create the CUPS socket")
@@ -155,7 +155,7 @@ func (s *cupsControlSuite) TestAppArmorSpecClassic(c *C) {
 	spec = &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.providerSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Description: Can access cups control socket.")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Allow communicating with the cups server for printing and configuration.")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "#include <abstractions/cups-client>")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "peer=(name=org.freedesktop.DBus,label=\"snap.provider.app\"")
 	c.Assert(spec.SnippetForTag("snap.provider.app"), Not(testutil.Contains), "# Allow daemon access to create the CUPS socket")

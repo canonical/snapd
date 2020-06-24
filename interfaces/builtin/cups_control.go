@@ -28,8 +28,17 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+// The cups-control interface is the companion interface to the cups interface.
+// The design of this interface is based on the idea that the slot
+// implementation (eg cupsd) is expected to query snapd on if the cups-control
+// interface is connected or not and the print service will mediate admin
+// functionality (ie, the rules in these interfaces allow connecting to the
+// print service, but do not implement enforcement rules; it is up to the
+// print service to provide enforcement).
 const cupsControlSummary = `allows access to the CUPS control socket`
 
+// cups-control is implicit on classic but may also be provided by an app snap
+// on core or classic.
 const cupsControlBaseDeclarationSlots = `
   cups-control:
     allow-installation:
@@ -85,8 +94,7 @@ dbus (send)
 `
 
 const cupsControlConnectedPlugAppArmor = `
-# Description: Can access cups control socket. This is restricted because it
-# provides privileged access to configure printing.
+# Allow communicating with the cups server for printing and configuration.
 
 #include <abstractions/cups-client>
 /{,var/}run/cups/printcap r,
