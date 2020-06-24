@@ -99,6 +99,7 @@ var (
 		//   - scheme: msteams:...
 		//   - https://github.com/snapcore/snapd/pull/8761
 		"msteams",
+		// TODO: document slack URL scheme.
 		"slack",
 		// snap: the scheme allows specifying a package for xdg-open to pass to a
 		//   snap-handling installer application, like snap-store, etc which are
