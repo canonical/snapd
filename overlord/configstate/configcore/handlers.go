@@ -79,6 +79,9 @@ func init() {
 	// system.disable-backlight-service
 	addFSOnlyHandler(validateBacklightServiceSettings, handleBacklightServiceConfiguration, coreOnly)
 
+	// system.kernel.printk.console-loglevel
+	addFSOnlyHandler(validateSysctlOptions, handleSysctlConfiguration, coreOnly)
+
 	// journal.persistent
 	addFSOnlyHandler(validateJournalSettings, handleJournalConfiguration, coreOnly)
 
