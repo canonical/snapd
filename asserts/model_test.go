@@ -205,6 +205,7 @@ func (mods *modelSuite) TestDecodeOK(c *C) {
 	for _, s := range snaps {
 		c.Check(reqSnaps.Contains(s), Equals, true)
 	}
+	c.Check(reqSnaps.Size(), Equals, len(essentialSnaps)+len(snaps))
 	// essential snaps excluded
 	noEssential := naming.NewSnapSet(model.RequiredNoEssentialSnaps())
 	for _, e := range essentialSnaps {
@@ -213,6 +214,7 @@ func (mods *modelSuite) TestDecodeOK(c *C) {
 	for _, s := range snaps {
 		c.Check(noEssential.Contains(s), Equals, true)
 	}
+	c.Check(noEssential.Size(), Equals, len(snaps))
 
 	c.Check(model.SystemUserAuthority(), HasLen, 0)
 	c.Check(model.SerialAuthority(), DeepEquals, []string{"brand-id1", "generic"})
@@ -572,6 +574,7 @@ func (mods *modelSuite) TestClassicDecodeOK(c *C) {
 	for _, s := range snaps {
 		c.Check(reqSnaps.Contains(s), Equals, true)
 	}
+	c.Check(reqSnaps.Size(), Equals, len(essentialSnaps)+len(snaps))
 	// gadget excluded
 	noEssential := naming.NewSnapSet(model.RequiredNoEssentialSnaps())
 	for _, e := range essentialSnaps {
@@ -580,6 +583,7 @@ func (mods *modelSuite) TestClassicDecodeOK(c *C) {
 	for _, s := range snaps {
 		c.Check(noEssential.Contains(s), Equals, true)
 	}
+	c.Check(noEssential.Size(), Equals, len(snaps))
 }
 
 func (mods *modelSuite) TestClassicDecodeInvalid(c *C) {
@@ -710,6 +714,7 @@ func (mods *modelSuite) TestCore20DecodeOK(c *C) {
 	for _, s := range snaps {
 		c.Check(reqSnaps.Contains(s), Equals, s.Presence == "required")
 	}
+	c.Check(reqSnaps.Size(), Equals, len(essentialSnaps)+len(snaps)-1)
 	// essential snaps excluded
 	noEssential := naming.NewSnapSet(model.RequiredNoEssentialSnaps())
 	for _, e := range essentialSnaps {
@@ -718,6 +723,7 @@ func (mods *modelSuite) TestCore20DecodeOK(c *C) {
 	for _, s := range snaps {
 		c.Check(noEssential.Contains(s), Equals, s.Presence == "required")
 	}
+	c.Check(noEssential.Size(), Equals, len(snaps)-1)
 
 	c.Check(model.SystemUserAuthority(), HasLen, 0)
 	c.Check(model.SerialAuthority(), DeepEquals, []string{"brand-id1"})
