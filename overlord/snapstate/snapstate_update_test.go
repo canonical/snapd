@@ -4389,6 +4389,34 @@ func (s *snapmgrTestSuite) TestUpdateManyClassic(c *C) {
 	verifyLastTasksetIsReRefresh(c, tts)
 }
 
+func (s *snapmgrTestSuite) TestUpdateManyClassicToStrict(c *C) {
+	restore := maybeMockClassicSupport(c)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:          true,
+		TrackingChannel: "stable",
+		Sequence:        []*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}},
+		Current:         snap.R(7),
+		SnapType:        "app",
+		Flags:           snapstate.Flags{Classic: true},
+	})
+
+	// snap installed with classic: refresh gets classic
+	_, tts, err := snapstate.UpdateMany(context.Background(), s.state, []string{"some-snap"}, s.user.ID, &snapstate.Flags{Classic: true})
+	c.Assert(err, IsNil)
+	c.Assert(tts, HasLen, 2)
+	// ensure we clear the classic flag
+	snapsup, err := snapstate.TaskSnapSetup(tts[0].Tasks()[0])
+	c.Assert(err, IsNil)
+	c.Assert(snapsup.Flags.Classic, Equals, false)
+
+	verifyLastTasksetIsReRefresh(c, tts)
+}
+
 func (s *snapmgrTestSuite) TestUpdateManyDevMode(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

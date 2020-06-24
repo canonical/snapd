@@ -149,6 +149,13 @@ func genericInstallBootConfig(gadgetFile, systemFile string) (bool, error) {
 	return true, osutil.CopyFile(gadgetFile, systemFile, osutil.CopyFlagOverwrite)
 }
 
+func genericSetBootConfig(systemFile string, content []byte) (bool, error) {
+	if err := os.MkdirAll(filepath.Dir(systemFile), 0755); err != nil {
+		return true, err
+	}
+	return true, osutil.AtomicWriteFile(systemFile, content, 0644, 0)
+}
+
 // InstallBootConfig installs the bootloader config from the gadget
 // snap dir into the right place.
 func InstallBootConfig(gadgetDir, rootDir string, opts *Options) error {
