@@ -208,8 +208,8 @@ func (spec *Specification) AddParametricSnippet(templateFragment []string, value
 			values = &strutil.OrderedSet{}
 			expansions[template] = values
 		}
-		// Expand the spec's parametric snippets, initializing
-		// each part of the map as needed
+		// Now that everything is initialized, insert value into the
+		// spec.parametricSnippets[<tag>][<template>]'s OrderedSet.
 		values.Put(value)
 	}
 }
