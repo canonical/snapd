@@ -209,7 +209,7 @@ func (s *specSuite) TestTagsButNoSnippets(c *C) {
 }
 
 // Don't define any tags but add snippets.
-func (s *specSuite) TestNoTagsNoSnippets(c *C) {
+func (s *specSuite) TestNoTagsButWithSnippets(c *C) {
 	restore := apparmor.SetSpecScope(s.spec, []string{})
 	defer restore()
 
