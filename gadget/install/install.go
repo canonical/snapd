@@ -52,8 +52,14 @@ func deviceFromRole(lv *gadget.LaidOutVolume, role string) (device string, err e
 // Run bootstraps the partitions of a device, by either creating
 // missing ones or recreating installed ones.
 func Run(gadgetRoot, device string, options Options) error {
-	if options.Encrypt && (options.KeyFile == "" || options.RecoveryKeyFile == "") {
-		return fmt.Errorf("key file and recovery key file must be specified when encrypting")
+	if options.Encrypt {
+		if options.KeyFile == "" || options.RecoveryKeyFile == "" {
+			return fmt.Errorf("key file and recovery key file must be specified when encrypting")
+		}
+		if err := secboot.CheckTPMProvisionable(); err != nil {
+			// XXX: request to clear the TPM if it's already provisioned?
+			return err
+		}
 	}
 
 	if gadgetRoot == "" {

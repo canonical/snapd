@@ -54,9 +54,33 @@ var (
 	sbAddEFISecureBootPolicyProfile  = sb.AddEFISecureBootPolicyProfile
 	sbAddSystemdEFIStubProfile       = sb.AddSystemdEFIStubProfile
 	sbAddSnapModelProfile            = sb.AddSnapModelProfile
+	sbProvisionStatus                = sb.ProvisionStatus
 	sbProvisionTPM                   = sb.ProvisionTPM
 	sbSealKeyToTPM                   = sb.SealKeyToTPM
 )
+
+// CheckTPMProvisionable verifies if the TPM can be provisioned, returning an error
+// if the TPM device does not exist, or if it exists and is already provisioned.
+func CheckTPMProvisionable() error {
+	errPrefix := "cannot check if the TPM can be provisioned"
+
+	tpm, err := sbConnectToDefaultTPM()
+	if err != nil {
+		return fmt.Errorf("%s: %v", errPrefix, err)
+	}
+	defer tpm.Close()
+
+	attr, err := sbProvisionStatus(tpm)
+	if err != nil {
+		return fmt.Errorf("%s: %v", errPrefix, err)
+	}
+
+	if attr&sb.AttrValidSRK == sb.AttrValidSRK {
+		return errors.New("the TPM is already provisioned")
+	}
+
+	return nil
+}
 
 func CheckKeySealingSupported() error {
 	logger.Noticef("checking if secure boot is enabled...")

@@ -54,40 +54,80 @@ func (s *secbootSuite) SetUpTest(c *C) {
 	s.AddCleanup(func() { dirs.SetRootDir("/") })
 }
 
+func (s *secbootSuite) TestCheckTPMProvisionable(c *C) {
+	for _, tc := range []struct {
+		tpmErr error
+		prvErr error
+		attr   sb.ProvisionStatusAttributes
+		err    string
+	}{
+		{
+			// happy case
+			attr: ^sb.AttrValidSRK,
+			err:  "",
+		},
+		{
+			// system is already provisioned
+			attr: sb.AttrValidSRK,
+			err:  "the TPM is already provisioned",
+		},
+		{
+			// TPM error
+			tpmErr: errors.New("TPM error"),
+			err:    "cannot check if the TPM can be provisioned: TPM error",
+		},
+		{
+			// ProvisionStatus error
+			prvErr: errors.New("provision status error"),
+			err:    "cannot check if the TPM can be provisioned: provision status error",
+		},
+	} {
+		mockTpm, restore := mockSbTPMConnection(c, tc.tpmErr)
+		defer restore()
+
+		restore = secboot.MockSbProvisionStatus(func(tpm *sb.TPMConnection) (sb.ProvisionStatusAttributes, error) {
+			c.Assert(tpm, Equals, mockTpm)
+			return tc.attr, tc.prvErr
+		})
+		defer restore()
+
+		err := secboot.CheckTPMProvisionable()
+		if tc.err == "" {
+			c.Assert(err, IsNil)
+		} else {
+			c.Assert(err, ErrorMatches, tc.err)
+		}
+	}
+}
+
 func (s *secbootSuite) TestCheckKeySealingSupported(c *C) {
 	sbEmpty := []uint8{}
 	sbEnabled := []uint8{1}
 	sbDisabled := []uint8{0}
 	efiNotSupported := []uint8(nil)
 
+	errNoTPM := errors.New("TPM not available")
+
 	type testCase struct {
-		hasTPM bool
+		tpmErr error
 		sbData []uint8
 		errStr string
 	}
 	for _, t := range []testCase{
-		{true, sbEnabled, ""},
-		{true, sbEmpty, "secure boot variable does not exist"},
-		{false, sbEmpty, "secure boot variable does not exist"},
-		{true, sbDisabled, "secure boot is disabled"},
-		{false, sbEnabled, "cannot connect to TPM device: TPM not available"},
-		{false, sbDisabled, "secure boot is disabled"},
-		{true, efiNotSupported, "not a supported EFI system"},
+		{nil, sbEnabled, ""},
+		{nil, sbEmpty, "secure boot variable does not exist"},
+		{errNoTPM, sbEmpty, "secure boot variable does not exist"},
+		{nil, sbDisabled, "secure boot is disabled"},
+		{errNoTPM, sbEnabled, "cannot connect to TPM device: TPM not available"},
+		{errNoTPM, sbDisabled, "secure boot is disabled"},
+		{nil, efiNotSupported, "not a supported EFI system"},
 	} {
-		c.Logf("t: %v %v %q", t.hasTPM, t.sbData, t.errStr)
+		c.Logf("t: %v %v %q", t.tpmErr, t.sbData, t.errStr)
 
-		restore := secboot.MockSbConnectToDefaultTPM(func() (*sb.TPMConnection, error) {
-			if !t.hasTPM {
-				return nil, errors.New("TPM not available")
-			}
-			tcti, err := os.Open("/dev/null")
-			c.Assert(err, IsNil)
-			tpm, err := tpm2.NewTPMContext(tcti)
-			c.Assert(err, IsNil)
-			mockTPM := &sb.TPMConnection{TPMContext: tpm}
-			return mockTPM, nil
-		})
+		mockTpm, restore := mockSbTPMConnection(c, t.tpmErr)
 		defer restore()
+
+		c.Assert(mockTpm, Not(IsNil))
 
 		var vars map[string][]byte
 		if t.sbData != nil {
