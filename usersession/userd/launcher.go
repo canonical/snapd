@@ -74,53 +74,44 @@ const launcherIntrospectionXML = `
 // This code uses golang's net/url.Parse() which will help ensure the url is
 // ok before passing to xdg-open. xdg-open itself properly quotes the url so
 // shell metacharacters are blocked.
-//
-// apt: the scheme allows specifying a package for xdg-open to pass to an
-//   apt-handling application, like gnome-software, apturl, etc which are all
-//   protected by policykit
-//   - scheme: apt:<name of package>
-//   - https://github.com/snapcore/snapd/pull/7731
-//
-// help: the scheme allows for specifying a help URL. This code ensures that
-//   the url is parseable
-//   - scheme: help://topic
-//   - https://github.com/snapcore/snapd/pull/6493
-//
-// http/https: the scheme allows specifying a web URL. This code ensures that
-//   the url is parseable
-//   - scheme: http(s)://example.com
-//
-// mailto: the scheme allows for specifying an email address
-//   - scheme: mailto:foo@example.com
-//
-// snap: the scheme allows specifying a package for xdg-open to pass to a
-//   snap-handling installer application, like snap-store, etc which are
-//   protected by policykit/snap login
-//   - https://github.com/snapcore/snapd/pull/5181
-//
-// zoommtg: the scheme is a modified web url scheme
-//   - scheme: https://medium.com/zoom-developer-blog/zoom-url-schemes-748b95fd9205
-//     (eg, zoommtg://zoom.us/...)
-//   - https://github.com/snapcore/snapd/pull/8304
-//
-// zoomus: alternative name for zoommtg
-//   - https://github.com/snapcore/snapd/pull/8910
-//
-// zoomphonecall: another zoom URL scheme, for dialing phone numbers
-//   - https://github.com/snapcore/snapd/pull/8910
-
 var (
 	allowedURLSchemes = []string{
+		// apt: the scheme allows specifying a package for xdg-open to pass to an
+		//   apt-handling application, like gnome-software, apturl, etc which are all
+		//   protected by policykit
+		//   - scheme: apt:<name of package>
+		//   - https://github.com/snapcore/snapd/pull/7731
 		"apt",
+		// help: the scheme allows for specifying a help URL. This code ensures that
+		//   the url is parseable
+		//   - scheme: help://topic
+		//   - https://github.com/snapcore/snapd/pull/6493
 		"help",
+		// http/https: the scheme allows specifying a web URL. This code ensures that
+		//   the url is parseable
+		//   - scheme: http(s)://example.com
 		"http",
 		"https",
+		// mailto: the scheme allows for specifying an email address
+		//   - scheme: mailto:foo@example.com
 		"mailto",
 		"msteams",
 		"slack",
+		// snap: the scheme allows specifying a package for xdg-open to pass to a
+		//   snap-handling installer application, like snap-store, etc which are
+		//   protected by policykit/snap login
+		//   - https://github.com/snapcore/snapd/pull/5181
 		"snap",
+		// zoommtg: the scheme is a modified web url scheme
+		//   - scheme: https://medium.com/zoom-developer-blog/zoom-url-schemes-748b95fd9205
+		//     (eg, zoommtg://zoom.us/...)
+		//   - https://github.com/snapcore/snapd/pull/8304
 		"zoommtg",
+		// zoomphonecall: another zoom URL scheme, for dialing phone numbers
+		//   - https://github.com/snapcore/snapd/pull/8910
 		"zoomphonecall",
+		// zoomus: alternative name for zoommtg
+		//   - https://github.com/snapcore/snapd/pull/8910
 		"zoomus",
 	}
 )
