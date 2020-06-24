@@ -677,7 +677,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 	}
 	info.InstanceKey = instanceKey
 
-	newFlags, err := ensureInstallPreconditions(st, info, flags, &snapst, deviceCtx)
+	flags, err = ensureInstallPreconditions(st, info, flags, &snapst, deviceCtx)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -692,7 +692,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 		SideInfo:    si,
 		SnapPath:    path,
 		Channel:     channel,
-		Flags:       newFlags.ForSnapSetup(),
+		Flags:       flags.ForSnapSetup(),
 		Type:        info.GetType(),
 		PlugsOnly:   len(info.Slots) == 0,
 		InstanceKey: info.InstanceKey,
@@ -764,7 +764,7 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 		return nil, fmt.Errorf("unexpected snap type %q, instead of 'base'", info.GetType())
 	}
 
-	newFlags, err := ensureInstallPreconditions(st, info, flags, &snapst, deviceCtx)
+	flags, err = ensureInstallPreconditions(st, info, flags, &snapst, deviceCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -774,7 +774,7 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 		Base:         info.Base,
 		Prereq:       defaultContentPlugProviders(st, info),
 		UserID:       userID,
-		Flags:        newFlags.ForSnapSetup(),
+		Flags:        flags.ForSnapSetup(),
 		DownloadInfo: &info.DownloadInfo,
 		SideInfo:     &info.SideInfo,
 		Type:         info.GetType(),
@@ -837,7 +837,7 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 		var snapst SnapState
 		var flags Flags
 
-		newFlags, err := ensureInstallPreconditions(st, info, flags, &snapst, deviceCtx)
+		flags, err := ensureInstallPreconditions(st, info, flags, &snapst, deviceCtx)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -852,7 +852,7 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 			Base:         info.Base,
 			Prereq:       defaultContentPlugProviders(st, info),
 			UserID:       userID,
-			Flags:        newFlags.ForSnapSetup(),
+			Flags:        flags.ForSnapSetup(),
 			DownloadInfo: &info.DownloadInfo,
 			SideInfo:     &info.SideInfo,
 			Type:         info.GetType(),
@@ -1019,7 +1019,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 		revnoOpts, flags, snapst := params(update)
 		flags.IsAutoRefresh = globalFlags.IsAutoRefresh
 
-		newFlags, err := ensureInstallPreconditions(st, update, flags, snapst, deviceCtx)
+		flags, err := ensureInstallPreconditions(st, update, flags, snapst, deviceCtx)
 		if err != nil {
 			if refreshAll {
 				logger.Noticef("cannot update %q: %v", update.InstanceName(), err)
@@ -1047,7 +1047,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 			Channel:      revnoOpts.Channel,
 			CohortKey:    revnoOpts.CohortKey,
 			UserID:       snapUserID,
-			Flags:        newFlags.ForSnapSetup(),
+			Flags:        flags.ForSnapSetup(),
 			DownloadInfo: &update.DownloadInfo,
 			SideInfo:     &update.SideInfo,
 			Type:         update.GetType(),
