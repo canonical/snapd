@@ -32,7 +32,5 @@ execute: |
     systemd-run --unit unity-app --setenv=DISPLAY="$DISPLAY" --uid "$(id -u test)" "$(command -v xvfb-run)" --server-args="$DISPLAY -screen 0 1200x960x24 -ac +extension RANDR" "$(command -v sensors-unity)"
 
     echo "Then the app window is created"
-    expected='"Sensor Monitor": ("sensors-gui.py" "Sensors-gui.py")'
-    while ! xwininfo -tree -root | grep -Pq "$expected"; do
-        sleep 1;
-    done
+    expected='Sensor Monitor.*sensors-gui.py.*Sensors-gui.py'
+    retry -n 60 --wait 1 sh -c "xwininfo -tree -root | MATCH "$expected""
