@@ -51,14 +51,14 @@ func updateSnapstateServices(snapst *snapstate.SnapState, enable, disable []*sna
 		alreadyDisabled[serviceName] = true
 	}
 
-	migrateServices := func(services []*snap.AppInfo, from map[string]bool, to map[string]bool) (changed bool) {
+	toggleServices := func(services []*snap.AppInfo, fromState map[string]bool, toState map[string]bool) (changed bool) {
 		// migrate given services from one map to another, if they do
 		// not exist in the target map
 		for _, service := range services {
-			if !to[service.Name] {
-				to[service.Name] = true
-				if from[service.Name] {
-					delete(from, service.Name)
+			if !toState[service.Name] {
+				toState[service.Name] = true
+				if fromState[service.Name] {
+					delete(fromState, service.Name)
 				}
 				changed = true
 			}
@@ -68,13 +68,13 @@ func updateSnapstateServices(snapst *snapstate.SnapState, enable, disable []*sna
 
 	// we are not disabling and enabling the services at the same time as
 	// checked in the function entry, only one path is possible
-	from, to := alreadyDisabled, alreadyEnabled
+	fromState, toState := alreadyDisabled, alreadyEnabled
 	which := enable
 	if len(disable) > 0 {
-		from, to = alreadyEnabled, alreadyDisabled
+		fromState, toState = alreadyEnabled, alreadyDisabled
 		which = disable
 	}
-	if changed := migrateServices(which, from, to); !changed {
+	if changed := toggleServices(which, fromState, toState); !changed {
 		// nothing changed
 		return false, nil
 	}
