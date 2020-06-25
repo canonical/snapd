@@ -138,7 +138,7 @@ func (s *diskSuite) TestDiskFromMountPointUnhappyIsDecryptedDeviceNoSysfs(c *C) 
 
 	opts := &disks.Options{IsDecryptedDevice: true}
 	_, err := disks.DiskFromMountPoint("/run/mnt/point", opts)
-	c.Assert(err, ErrorMatches, `mountpoint source /dev/mapper/something is not a decrypted device: missing device mapper metadata: no dm-uuid`)
+	c.Assert(err, ErrorMatches, `mountpoint source /dev/mapper/something is not a decrypted device: could not read device mapper metadata: open /sys/dev/block/252:0/dm/uuid: no such file or directory`)
 }
 
 func (s *diskSuite) TestDiskFromMountPointHappyNoPartitions(c *C) {

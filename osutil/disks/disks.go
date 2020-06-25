@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
@@ -225,14 +224,15 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 		//            or not, given that these variables have been observed to
 		//            be missing from the initrd previously, and are not
 		//            available at all during userspace on UC20 for some reason
+		errFmt := "mountpoint source %s is not a decrypted device: could not read device mapper metadata: %v"
 		dmUUID, err := ioutil.ReadFile(filepath.Join(devBlockDir, d.Dev(), "dm", "uuid"))
-		if err != nil && os.IsNotExist(err) {
-			return nil, fmt.Errorf("mountpoint source %s is not a decrypted device: missing device mapper metadata: no dm-uuid", partMountPointSource)
+		if err != nil {
+			return nil, fmt.Errorf(errFmt, partMountPointSource, err)
 		}
 
 		dmName, err := ioutil.ReadFile(filepath.Join(devBlockDir, d.Dev(), "dm", "name"))
-		if err != nil && os.IsNotExist(err) {
-			return nil, fmt.Errorf("mountpoint source %s is not a decrypted device: missing device mapper metadata: no dm-name", partMountPointSource)
+		if err != nil {
+			return nil, fmt.Errorf(errFmt, partMountPointSource, err)
 		}
 
 		// trim the suffix of the dm name from the dm uuid to safely match the
@@ -249,7 +249,7 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 		if len(matches) != 2 {
 			// the format of the uuid is different - different luks version
 			// maybe?
-			return nil, fmt.Errorf("cannot verify disk: partition %s does not have a valid luks uuid format", d.Dev())
+			return nil, fmt.Errorf("cannot verify disk: partition %s does not have a valid luks uuid format: %s", d.Dev(), dmUUIDSafe)
 		}
 
 		// the uuid is the first and only submatch, but it is not in the same
