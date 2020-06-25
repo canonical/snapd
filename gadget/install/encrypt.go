@@ -17,11 +17,10 @@
  *
  */
 
-package partition
+package install
 
 import (
 	"bytes"
-	"crypto/rand"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -32,58 +31,24 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/secboot"
 )
 
 var (
 	tempFile = ioutil.TempFile
 )
 
-const (
-	// The encryption key size is set so it has the same entropy as the derived
-	// key. The recovery key is shorter and goes through KDF iterations.
-	encryptionKeySize = 64
-	recoveryKeySize   = 16
-)
-
-type EncryptionKey [encryptionKeySize]byte
-
-func NewEncryptionKey() (EncryptionKey, error) {
-	var key EncryptionKey
-	// rand.Read() is protected against short reads
-	_, err := rand.Read(key[:])
-	// On return, n == len(b) if and only if err == nil
-	return key, err
-}
-
-type RecoveryKey [recoveryKeySize]byte
-
-func NewRecoveryKey() (RecoveryKey, error) {
-	var key RecoveryKey
-	// rand.Read() is protected against short reads
-	_, err := rand.Read(key[:])
-	// On return, n == len(b) if and only if err == nil
-	return key, err
-}
-
-// Save writes the recovery key in the location specified by filename.
-func (key RecoveryKey) Save(filename string) error {
-	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
-		return err
-	}
-	return osutil.AtomicWriteFile(filename, key[:], 0600, 0)
-}
-
-// EncryptedDevice represents a LUKS-backed encrypted block device.
-type EncryptedDevice struct {
+// encryptedDevice represents a LUKS-backed encrypted block device.
+type encryptedDevice struct {
 	parent *gadget.OnDiskStructure
 	name   string
 	Node   string
 }
 
-// NewEncryptedDevice creates an encrypted device in the existing partition using the
+// newEncryptedDevice creates an encrypted device in the existing partition using the
 // specified key.
-func NewEncryptedDevice(part *gadget.OnDiskStructure, key EncryptionKey, name string) (*EncryptedDevice, error) {
-	dev := &EncryptedDevice{
+func newEncryptedDevice(part *gadget.OnDiskStructure, key secboot.EncryptionKey, name string) (*encryptedDevice, error) {
+	dev := &encryptedDevice{
 		parent: part,
 		name:   name,
 		// A new block device is used to access the encrypted data. Note that
@@ -103,15 +68,15 @@ func NewEncryptedDevice(part *gadget.OnDiskStructure, key EncryptionKey, name st
 	return dev, nil
 }
 
-func (dev *EncryptedDevice) AddRecoveryKey(key EncryptionKey, rkey RecoveryKey) error {
+func (dev *encryptedDevice) AddRecoveryKey(key secboot.EncryptionKey, rkey secboot.RecoveryKey) error {
 	return cryptsetupAddKey(key, rkey, dev.parent.Node)
 }
 
-func (dev *EncryptedDevice) Close() error {
+func (dev *encryptedDevice) Close() error {
 	return cryptsetupClose(dev.name)
 }
 
-func cryptsetupFormat(key EncryptionKey, label, node string) error {
+func cryptsetupFormat(key secboot.EncryptionKey, label, node string) error {
 	// We use a keyfile with the same entropy as the derived key so we can
 	// keep the KDF iteration count to a minimum. Longer processing will not
 	// increase security in this case.
@@ -145,7 +110,7 @@ func cryptsetupFormat(key EncryptionKey, label, node string) error {
 	return nil
 }
 
-func cryptsetupOpen(key EncryptionKey, node, name string) error {
+func cryptsetupOpen(key secboot.EncryptionKey, node, name string) error {
 	cmd := exec.Command("cryptsetup", "open", "--key-file", "-", node, name)
 	cmd.Stdin = bytes.NewReader(key[:])
 	if output, err := cmd.CombinedOutput(); err != nil {
@@ -161,7 +126,7 @@ func cryptsetupClose(name string) error {
 	return nil
 }
 
-func cryptsetupAddKey(key EncryptionKey, rkey RecoveryKey, node string) error {
+func cryptsetupAddKey(key secboot.EncryptionKey, rkey secboot.RecoveryKey, node string) error {
 	// create a named pipe to pass the recovery key
 	fpath := filepath.Join(dirs.SnapRunDir, "tmp-rkey")
 	if err := os.MkdirAll(dirs.SnapRunDir, 0755); err != nil {
@@ -204,7 +169,7 @@ func cryptsetupAddKey(key EncryptionKey, rkey RecoveryKey, node string) error {
 		return fmt.Errorf("cannot open recovery key pipe: %v", err)
 	}
 	n, err := file.Write(rkey[:])
-	if n != recoveryKeySize {
+	if n != len(rkey) {
 		file.Close()
 		return fmt.Errorf("cannot write recovery key: short write (%d bytes written)", n)
 	}
