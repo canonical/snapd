@@ -501,8 +501,11 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		logger.Debugf("Connect handler: skipping setupSnapSecurity for snaps %q and %q", plug.Snap.InstanceName(), slot.Snap.InstanceName())
 	}
 
-	// for undo handler. it's only relevant for preserving undesired flag,
-	// otherwise undo can delete any trace of the connection.
+	// For undo handler. We need to remember old state of the connection only
+	// if undesired flag is set because that means there was a remembered
+	// inactive connection already and we should restore its properties
+	// in case of undo. Otherwise we don't have to keep old-conn because undo
+	// can simply delete any trace of the connection.
 	if old, ok := conns[connRef.ID()]; ok && old.Undesired {
 		task.Set("old-conn", old)
 	}
