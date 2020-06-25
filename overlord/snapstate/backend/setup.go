@@ -157,7 +157,7 @@ func (b Backend) UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, installRecord *I
 	return b.RemoveSnapFiles(s, typ, installRecord, dev, meter)
 }
 
-// RemoveSnapInhibitLock removes the file controling inhibition of "snap run".
+// RemoveSnapInhibitLock removes the file controlling inhibition of "snap run".
 func (b Backend) RemoveSnapInhibitLock(instanceName string) error {
 	return runinhibit.RemoveLockFile(instanceName)
 }
