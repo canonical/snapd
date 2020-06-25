@@ -157,9 +157,9 @@ func (spec *Specification) AddDeduplicatedSnippet(snippet string) {
 //
 // For example the code:
 //
-// 		AddParametricSnippet([]{"/dev/", "rw,", "sda1")
-//		AddParametricSnippet([]{"/dev/", "rw,", "sda3")
-//		AddParametricSnippet([]{"/dev/", "rw,", "sdb2")
+// 		AddParametricSnippet([]{"/dev/", "rw,"}, "sda1")
+//		AddParametricSnippet([]{"/dev/", "rw,"}, "sda3")
+//		AddParametricSnippet([]{"/dev/", "rw,"}, "sdb2")
 //
 // Results in a single apparmor rule:
 //
