@@ -3,4 +3,4 @@ version: 2
 summary: Basic snap with a connect hook
 
 plugs:
-  home:
+  network:

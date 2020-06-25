@@ -9,37 +9,26 @@ prepare: |
     snap pack test-connect.v2
 
 execute: |
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
-
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
 
-    # home is not auto-connected on core
-    if ! is_core_system; then
-      echo "Installing a revision with broken connect hook fails"
-      snap install --dangerous test-connect_2_all.snap 2>&1 | MATCH 'failure of connect hook'
-      snap list | not MATCH test-connect
-    fi
+    echo "Installing a revision with broken connect hook fails"
+    snap install --dangerous test-connect_2_all.snap 2>&1 | MATCH 'failure of connect hook'
+    snap list | not MATCH test-connect
 
     echo "Installing a revision with no hook"
     snap install --dangerous test-connect_1_all.snap
-
-    # home is not auto-connected on core
-    if is_core_system; then
-      snap connect test-connect:home
-    fi
 
     echo "Installing the broken revision without triggering connect hook"
     # this works because an older revision was installed and we don't re-connect
     # existing connections.
     snap install --dangerous test-connect_2_all.snap
 
-    snap disconnect test-connect:home
+    snap disconnect test-connect:network
 
     echo "Triggering connect hook"
     # this fails because of connect hook
-    snap connect test-connect:home 2>&1 | MATCH 'failure of connect hook'
+    snap connect test-connect:network 2>&1 | MATCH 'failure of connect hook'
 
     echo "Removing the test snap"
     snap remove test-connect
