@@ -7939,6 +7939,10 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 			name: "some-snap",
 		},
 		{
+			op:   "remove-inhibit-lock",
+			name: "some-snap",
+		},
+		{
 			op:   "remove-snap-dir",
 			name: "some-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap"),
@@ -8074,6 +8078,10 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThrough(c *C) {
 		},
 		{
 			op:   "discard-namespace",
+			name: "some-snap_instance",
+		},
+		{
+			op:   "remove-inhibit-lock",
 			name: "some-snap_instance",
 		},
 		{
@@ -8220,6 +8228,10 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThroughOtherInstances(c 
 			name: "some-snap_instance",
 		},
 		{
+			op:   "remove-inhibit-lock",
+			name: "some-snap_instance",
+		},
+		{
 			op:             "remove-snap-dir",
 			name:           "some-snap_instance",
 			path:           filepath.Join(dirs.SnapMountDir, "some-snap"),
@@ -8337,6 +8349,10 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 		},
 		{
 			op:   "discard-namespace",
+			name: "some-snap",
+		},
+		{
+			op:   "remove-inhibit-lock",
 			name: "some-snap",
 		},
 		{
@@ -8510,7 +8526,7 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 	s.settle(c)
 	s.state.Lock()
 
-	c.Check(len(s.fakeBackend.ops), Equals, 7)
+	c.Check(len(s.fakeBackend.ops), Equals, 8)
 	expected := fakeOps{
 		{
 			op:    "auto-disconnect:Doing",
@@ -8537,6 +8553,10 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 		},
 		{
 			op:   "discard-namespace",
+			name: "some-snap",
+		},
+		{
+			op:   "remove-inhibit-lock",
 			name: "some-snap",
 		},
 		{
@@ -13376,6 +13396,10 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 			name: "ubuntu-core",
 		},
 		{
+			op:   "remove-inhibit-lock",
+			name: "ubuntu-core",
+		},
+		{
 			op:   "remove-snap-dir",
 			name: "ubuntu-core",
 			path: filepath.Join(dirs.SnapMountDir, "ubuntu-core"),
@@ -13469,6 +13493,10 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThroughWithCore(c *C) {
 		},
 		{
 			op:   "discard-namespace",
+			name: "ubuntu-core",
+		},
+		{
+			op:   "remove-inhibit-lock",
 			name: "ubuntu-core",
 		},
 		{

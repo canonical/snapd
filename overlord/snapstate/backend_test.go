@@ -1020,6 +1020,14 @@ func (f *fakeSnappyBackend) DiscardSnapNamespace(snapName string) error {
 	return nil
 }
 
+func (f *fakeSnappyBackend) RemoveSnapInhibitLock(snapName string) error {
+	f.appendOp(&fakeOp{
+		op:   "remove-inhibit-lock",
+		name: snapName,
+	})
+	return nil
+}
+
 func (f *fakeSnappyBackend) Candidate(sideInfo *snap.SideInfo) {
 	var sinfo snap.SideInfo
 	if sideInfo != nil {

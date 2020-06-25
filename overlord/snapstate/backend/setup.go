@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
@@ -154,4 +155,9 @@ func (b Backend) RemoveSnapDir(s snap.PlaceInfo, hasOtherInstances bool) error {
 // UndoSetupSnap undoes the work of SetupSnap using RemoveSnapFiles.
 func (b Backend) UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, installRecord *InstallRecord, dev boot.Device, meter progress.Meter) error {
 	return b.RemoveSnapFiles(s, typ, installRecord, dev, meter)
+}
+
+// RemoveSnapInhibitLock removes the file controling inhibition of "snap run".
+func (b Backend) RemoveSnapInhibitLock(instanceName string) error {
+	return runinhibit.RemoveLockFile(instanceName)
 }

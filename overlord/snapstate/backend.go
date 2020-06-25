@@ -86,6 +86,7 @@ type managerBackend interface {
 	RemoveSnapCommonData(info *snap.Info) error
 	RemoveSnapDataDir(info *snap.Info, hasOtherInstances bool) error
 	DiscardSnapNamespace(snapName string) error
+	RemoveSnapInhibitLock(snapName string) error
 
 	// alias related
 	UpdateAliases(add []*backend.Alias, remove []*backend.Alias) error
