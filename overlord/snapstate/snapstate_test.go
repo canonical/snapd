@@ -83,7 +83,7 @@ type snapmgrTestSuite struct {
 }
 
 func (s *snapmgrTestSuite) settle(c *C) {
-	err := s.o.Settle(5 * time.Second)
+	err := s.o.Settle(testutil.HostScaledTimeout(5 * time.Second))
 	c.Assert(err, IsNil)
 }
 
