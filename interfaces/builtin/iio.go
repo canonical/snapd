@@ -114,17 +114,13 @@ func (iface *iioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 	// Add a snippet for various device specific rules, except for sysfs write
 	// access that are specialized below.
 	spec.AddSnippet(snippet)
-	// This part contains two sets of "**" that can use exponential memory when
-	// compiling without -O no-expr-simplify, so handle it with the parametric
-	// snippet workaround. Only one instance of this line will show up in the
-	// resulting profile. Eg, if the snap is assigned iio:device1 and
-	// iio:device3, this rule will expand to:
-	//  /sys/devices/**/iio:device{1,3}/** rwk,
 
 	// Because all deviceName values have the prefix of "iio:device" enforced
 	// by the sanitization logic above, we can trim that prefix and provide a
 	// shorter expansion expression.
 	deviceNum := strings.TrimPrefix(deviceName, "iio:device")
+
+	// Use parametric snippets to avoid no-expr-simplify side-effects.
 	spec.AddParametricSnippet([]string{
 		"/sys/devices/**/iio:device" /* ###PARAM### */, "/** rwk,  # Add any condensed parametric rules",
 	}, deviceNum)

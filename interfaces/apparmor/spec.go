@@ -165,9 +165,11 @@ func (spec *Specification) AddDeduplicatedSnippet(snippet string) {
 //
 //		"/dev/{sda1,sda3,sdb2} rw,"
 //
-// It should be used whenever the apparmor template combines more than one use
-// of "**" syntax (which represent arbitrary many directories or files) and a
-// variable component, like a device name or similar.
+// This function should be used whenever the apparmor template features more
+// than one use of "**" syntax (which represent arbitrary many directories or
+// files) and a variable component, like a device name or similar. Repeated
+// instances of this pattern require exponential memory when compiled with
+// apparmor_parser -O no-expr-simplify.
 func (spec *Specification) AddParametricSnippet(templateFragment []string, value string) {
 	if len(spec.securityTags) == 0 {
 		return
