@@ -46,6 +46,20 @@ type Specification struct {
 	// rules by apparmor_parser.
 	dedupSnippets map[string]*strutil.OrderedSet
 
+	// parametricSnippets are like snippets but are further parametrized where
+	// one template is instantiated with multiple values that end up producing
+	// a single apparmor rule that is computationally cheaper than naive
+	// repetition of the template alone. The first map index is the security
+	// tag, the second map index is the template. The final map value is the
+	// set of strings that the template is instantiated with across all the
+	// interfaces.
+	//
+	// As a simple example, it can be used to craft rules like
+	// "/sys/**/foo{1,2,3}/** r,", which do not triggering the exponential
+	// cost of parsing "/sys/**/foo1/** r,", followed by two similar rules for
+	// "2" and "3".
+	parametricSnippets map[string]map[string]*strutil.OrderedSet
+
 	// updateNS describe parts of apparmor policy for snap-update-ns executing
 	// on behalf of a given snap.
 	updateNS strutil.OrderedSet
@@ -119,6 +133,86 @@ func (spec *Specification) AddDeduplicatedSnippet(snippet string) {
 			spec.dedupSnippets[tag] = bag
 		}
 		bag.Put(snippet)
+	}
+}
+
+// AddParametricSnippet adds a new apparmor snippet both de-duplicated and optimized for the parser.
+//
+// Conceptually the function takes a parametric template and a single value to
+// remember. The resulting snippet text is a single entry resulting from the
+// expanding the template and all the unique values observed, in the order they
+// were observed.
+//
+// The template is expressed as a slice of strings, with the parameter
+// automatically injected between any two of them, or in the special case of
+// only one fragment, after that fragment.
+//
+// The resulting expansion depends on the number of values seen. If only one
+// value is seen the resulting snippet is just the plain string one would
+// expect if no parametric optimization had taken place. If more than one
+// distinct value was seen then the resulting apparmor rule uses alternation
+// syntax {param1,param2,...,paramN} which has better compilation time and
+// memory complexity as compared to a set of naive expansions of the full
+// snippet one after another.
+//
+// For example the code:
+//
+// 		AddParametricSnippet([]string{"/dev/", "rw,"}, "sda1")
+//		AddParametricSnippet([]string{"/dev/", "rw,"}, "sda3")
+//		AddParametricSnippet([]string{"/dev/", "rw,"}, "sdb2")
+//
+// Results in a single apparmor rule:
+//
+//		"/dev/{sda1,sda3,sdb2} rw,"
+//
+// This function should be used whenever the apparmor template features more
+// than one use of "**" syntax (which represent arbitrary many directories or
+// files) and a variable component, like a device name or similar. Repeated
+// instances of this pattern require exponential memory when compiled with
+// apparmor_parser -O no-expr-simplify.
+func (spec *Specification) AddParametricSnippet(templateFragment []string, value string) {
+	if len(spec.securityTags) == 0 {
+		return
+	}
+
+	// We need to build a template string from the templateFragment.
+	//
+	// If only a single fragment is given we just  append our "###PARM###":
+	//  []string{"prefix"} becomes -> "prefix###PARAM###"
+	//
+	// Otherwise we join the strings:
+	//  []string{"pre","post"} becomes -> "pre###PARAM###post"
+	//
+	// This seems to be the most natural way of doing this.
+	var template string
+	switch len(templateFragment) {
+	case 0:
+		return
+	case 1:
+		template = templateFragment[0] + "###PARAM###"
+	default:
+		template = strings.Join(templateFragment, "###PARAM###")
+	}
+
+	// Expand the spec's parametric snippets, initializing each
+	// part of the map as needed
+	if spec.parametricSnippets == nil {
+		spec.parametricSnippets = make(map[string]map[string]*strutil.OrderedSet)
+	}
+	for _, tag := range spec.securityTags {
+		expansions := spec.parametricSnippets[tag]
+		if expansions == nil {
+			expansions = make(map[string]*strutil.OrderedSet)
+			spec.parametricSnippets[tag] = expansions
+		}
+		values := expansions[template]
+		if values == nil {
+			values = &strutil.OrderedSet{}
+			expansions[template] = values
+		}
+		// Now that everything is initialized, insert value into the
+		// spec.parametricSnippets[<tag>][<template>]'s OrderedSet.
+		values.Put(value)
 	}
 }
 
@@ -366,11 +460,10 @@ func parent(path string) string {
 
 // Snippets returns a deep copy of all the added application snippets.
 func (spec *Specification) Snippets() map[string][]string {
-	snippets := copySnippets(spec.snippets)
-	for tag, bag := range spec.dedupSnippets {
-		if bag != nil {
-			snippets[tag] = append(snippets[tag], bag.Items()...)
-		}
+	tags := spec.SecurityTags()
+	snippets := make(map[string][]string, len(tags))
+	for _, tag := range tags {
+		snippets[tag] = spec.snippetsForTag(tag)
 	}
 	return snippets
 }
@@ -379,11 +472,7 @@ func (spec *Specification) Snippets() map[string][]string {
 // individual snippets joined with the newline character. Empty string is
 // returned for non-existing security tag.
 func (spec *Specification) SnippetForTag(tag string) string {
-	snippets := append([]string(nil), spec.snippets[tag]...)
-	if bag := spec.dedupSnippets[tag]; bag != nil {
-		snippets = append(snippets, bag.Items()...)
-	}
-	return strings.Join(snippets, "\n")
+	return strings.Join(spec.snippetsForTag(tag), "\n")
 }
 
 // SecurityTags returns a list of security tags which have a snippet.
@@ -399,8 +488,45 @@ func (spec *Specification) SecurityTags() []string {
 			tags = append(tags, t)
 		}
 	}
+	for t := range spec.parametricSnippets {
+		if !seen[t] {
+			tags = append(tags, t)
+		}
+	}
 	sort.Strings(tags)
 	return tags
+}
+
+func (spec *Specification) snippetsForTag(tag string) []string {
+	snippets := append([]string(nil), spec.snippets[tag]...)
+	// First add any deduplicated snippets
+	if bag := spec.dedupSnippets[tag]; bag != nil {
+		snippets = append(snippets, bag.Items()...)
+	}
+	templates := make([]string, 0, len(spec.parametricSnippets[tag]))
+	// Then add any parametric snippets
+	for template := range spec.parametricSnippets[tag] {
+		templates = append(templates, template)
+	}
+	sort.Strings(templates)
+	for _, template := range templates {
+		bag := spec.parametricSnippets[tag][template]
+		if bag != nil {
+			values := bag.Items()
+			switch len(values) {
+			case 0:
+				/* no values, nothing to do */
+			case 1:
+				snippet := strings.Replace(template, "###PARAM###", values[0], -1)
+				snippets = append(snippets, snippet)
+			default:
+				snippet := strings.Replace(template, "###PARAM###",
+					fmt.Sprintf("{%s}", strings.Join(values, ",")), -1)
+				snippets = append(snippets, snippet)
+			}
+		}
+	}
+	return snippets
 }
 
 // UpdateNS returns a deep copy of all the added snap-update-ns snippets.
@@ -416,14 +542,6 @@ func snippetFromLayout(layout *snap.Layout) string {
 		return fmt.Sprintf("# Layout path: %s\n%s mrwklix,", mountPoint, mountPoint)
 	}
 	return fmt.Sprintf("# Layout path: %s\n# (no extra permissions required for symlink)", mountPoint)
-}
-
-func copySnippets(m map[string][]string) map[string][]string {
-	result := make(map[string][]string, len(m))
-	for k, v := range m {
-		result[k] = append([]string(nil), v...)
-	}
-	return result
 }
 
 // Implementation of methods required by interfaces.Specification
