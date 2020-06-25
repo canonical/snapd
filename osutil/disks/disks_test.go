@@ -290,18 +290,12 @@ func (s *diskSuite) TestDiskFromMountPointIsDecryptedDeviceVolumeHappy(c *C) {
 	err := os.MkdirAll(dmDir, 0755)
 	c.Assert(err, IsNil)
 
-	err = ioutil.WriteFile(
-		filepath.Join(dmDir, "name"),
-		[]byte("something"),
-		0644,
-	)
+	b := []byte("something")
+	err = ioutil.WriteFile(filepath.Join(dmDir, "name"), b, 0644)
 	c.Assert(err, IsNil)
 
-	err = ioutil.WriteFile(
-		filepath.Join(dmDir, "uuid"),
-		[]byte("CRYPT-LUKS2-5a522809c87e4dfa81a88dc5667d1304-something"),
-		0644,
-	)
+	b = []byte("CRYPT-LUKS2-5a522809c87e4dfa81a88dc5667d1304-something")
+	err = ioutil.WriteFile(filepath.Join(dmDir, "uuid"), b, 0644)
 	c.Assert(err, IsNil)
 
 	opts := &disks.Options{IsDecryptedDevice: true}
@@ -493,18 +487,12 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 	err := os.MkdirAll(dmDir, 0755)
 	c.Assert(err, IsNil)
 
-	err = ioutil.WriteFile(
-		filepath.Join(dmDir, "name"),
-		[]byte("ubuntu-data-3776bab4-8bcc-46b7-9da2-6a84ce7f93b4"),
-		0644,
-	)
+	b := []byte("ubuntu-data-3776bab4-8bcc-46b7-9da2-6a84ce7f93b4")
+	err = ioutil.WriteFile(filepath.Join(dmDir, "name"), b, 0644)
 	c.Assert(err, IsNil)
 
-	err = ioutil.WriteFile(
-		filepath.Join(dmDir, "uuid"),
-		[]byte("CRYPT-LUKS2-5a522809c87e4dfa81a88dc5667d1304-ubuntu-data-3776bab4-8bcc-46b7-9da2-6a84ce7f93b4"),
-		0644,
-	)
+	b = []byte("CRYPT-LUKS2-5a522809c87e4dfa81a88dc5667d1304-ubuntu-data-3776bab4-8bcc-46b7-9da2-6a84ce7f93b4")
+	err = ioutil.WriteFile(filepath.Join(dmDir, "uuid"), b, 0644)
 	c.Assert(err, IsNil)
 
 	opts := &disks.Options{IsDecryptedDevice: true}
