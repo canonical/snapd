@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -312,19 +313,35 @@ func makeFakeDbusConfigAndUserdServiceFiles(c *C, coreOrSnapdSnap *snap.Info) {
 	}
 }
 
+var expectedDBusConfigFiles = []string{
+	"/usr/share/dbus-1/services/io.snapcraft.Launcher.service",
+	"/usr/share/dbus-1/services/io.snapcraft.Settings.service",
+	"/usr/share/dbus-1/session.d/snapd.session-services.conf",
+	"/usr/share/dbus-1/system.d/snapd.system-services.conf",
+}
+
 func (s *backendSuite) testSetupWritesDbusFilesForCoreOrSnapd(c *C, coreOrSnapdYaml string) {
 	coreOrSnapdInfo := snaptest.MockInfo(c, coreOrSnapdYaml, &snap.SideInfo{Revision: snap.R(2)})
 	makeFakeDbusConfigAndUserdServiceFiles(c, coreOrSnapdInfo)
 
+	// Config files are not copied if we haven't reexecuted
 	err := s.Backend.Setup(coreOrSnapdInfo, interfaces.ConfinementOptions{}, s.Repo, nil)
 	c.Assert(err, IsNil)
 
-	for _, fn := range []string{
-		"/usr/share/dbus-1/services/io.snapcraft.Launcher.service",
-		"/usr/share/dbus-1/services/io.snapcraft.Settings.service",
-		"/usr/share/dbus-1/session.d/snapd.session-services.conf",
-		"/usr/share/dbus-1/system.d/snapd.system-services.conf",
-	} {
+	for _, fn := range expectedDBusConfigFiles {
+		c.Check(filepath.Join(dirs.GlobalRootDir, fn), testutil.FileAbsent)
+	}
+
+	// Now make it look like snapd was reexecuted
+	restore := snapdtool.MockOsReadlink(func(string) (string, error) {
+		return filepath.Join(coreOrSnapdInfo.MountDir(), "/usr/lib/snapd/snapd"), nil
+	})
+	defer restore()
+
+	err = s.Backend.Setup(coreOrSnapdInfo, interfaces.ConfinementOptions{}, s.Repo, nil)
+	c.Assert(err, IsNil)
+
+	for _, fn := range expectedDBusConfigFiles {
 		c.Check(filepath.Join(dirs.GlobalRootDir, fn), testutil.FilePresent)
 	}
 }
@@ -351,6 +368,11 @@ func (s *backendSuite) TestSetupWritesDbusFilesBothSnapdAndCoreInstalled(c *C) {
 	snapdInfo := snaptest.MockInfo(c, snapdYaml, &snap.SideInfo{Revision: snap.R(3)})
 	makeFakeDbusConfigAndUserdServiceFiles(c, snapdInfo)
 
+	restore := snapdtool.MockOsReadlink(func(string) (string, error) {
+		return filepath.Join(snapdInfo.MountDir(), "/usr/lib/snapd/snapd"), nil
+	})
+	defer restore()
+
 	// first setup snapd which writes the files
 	err = s.Backend.Setup(snapdInfo, interfaces.ConfinementOptions{}, s.Repo, nil)
 	c.Assert(err, IsNil)
@@ -359,12 +381,7 @@ func (s *backendSuite) TestSetupWritesDbusFilesBothSnapdAndCoreInstalled(c *C) {
 	err = s.Backend.Setup(coreInfo, interfaces.ConfinementOptions{}, s.Repo, nil)
 	c.Assert(err, IsNil)
 
-	for _, fn := range []string{
-		"/usr/share/dbus-1/services/io.snapcraft.Launcher.service",
-		"/usr/share/dbus-1/services/io.snapcraft.Settings.service",
-		"/usr/share/dbus-1/session.d/snapd.session-services.conf",
-		"/usr/share/dbus-1/system.d/snapd.system-services.conf",
-	} {
+	for _, fn := range expectedDBusConfigFiles {
 		c.Check(filepath.Join(dirs.GlobalRootDir, fn), testutil.FileEquals, fmt.Sprintf("content of %s for snap snapd", filepath.Base(fn)))
 	}
 }

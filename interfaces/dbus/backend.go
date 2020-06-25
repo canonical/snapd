@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/timings"
 	"github.com/snapcore/snapd/wrappers"
 )
@@ -54,6 +55,31 @@ func (b *Backend) Initialize(*interfaces.SecurityBackendOptions) error {
 // Name returns the name of the backend.
 func (b *Backend) Name() interfaces.SecuritySystem {
 	return "dbus"
+}
+
+func shouldCopyConfigFiles(snapInfo *snap.Info) bool {
+	// Only copy config files on classic distros
+	if !release.OnClassic {
+		return false
+	}
+	// Only copy config files if we have been reexecuted
+	if reexecd, _ := snapdtool.IsReexecd(); !reexecd {
+		return false
+	}
+	switch snapInfo.Type() {
+	case snap.TypeOS:
+		// fugly - but we need to make sure that the content of the
+		// "snapd" snap wins
+		//
+		// TODO: this is also racy but the content of the files in core and
+		// snapd is identical cleanup after link-snap and
+		// setup-profiles are unified
+		return !osutil.FileExists(filepath.Join(snapInfo.MountDir(), "../..", "snapd/current"))
+	case snap.TypeSnapd:
+		return true
+	default:
+		return false
+	}
 }
 
 // setupDbusServiceForUserd will setup the service file for the new
@@ -117,21 +143,13 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 		return fmt.Errorf("cannot obtain dbus specification for snap %q: %s", snapName, err)
 	}
 
-	// core/snapd on classic are special
-	if (snapInfo.Type() == snap.TypeOS || snapInfo.Type() == snap.TypeSnapd) && release.OnClassic {
-		// fugly - but we need to make sure that the content of the
-		// "snapd" snap wins
-		//
-		// TODO: this is also racy but the content of the files in core and
-		// snapd is identical cleanup after link-snap and
-		// setup-profiles are unified
-		if !(snapInfo.InstanceName() == "core" && osutil.FileExists(filepath.Join(snapInfo.MountDir(), "../..", "snapd/current"))) {
-			if err := setupDbusServiceForUserd(snapInfo); err != nil {
-				logger.Noticef("cannot create host `snap userd` dbus service file: %s", err)
-			}
-			if err := setupHostDBusConf(snapInfo); err != nil {
-				logger.Noticef("cannot create host dbus config: %s", err)
-			}
+	// copy some config files when installing core/snapd if we reexec
+	if shouldCopyConfigFiles(snapInfo) {
+		if err := setupDbusServiceForUserd(snapInfo); err != nil {
+			logger.Noticef("cannot create host `snap userd` dbus service file: %s", err)
+		}
+		if err := setupHostDBusConf(snapInfo); err != nil {
+			logger.Noticef("cannot create host dbus config: %s", err)
 		}
 	}
 
