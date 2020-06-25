@@ -263,8 +263,8 @@ type mountLookupFunc func(ps *LaidOutStructure) (string, error)
 // backup copies of files, newly created directories are removed
 type mountedFilesystemUpdater struct {
 	*MountedFilesystemWriter
-	backupDir   string
-	mountLookup mountLookupFunc
+	backupDir  string
+	mountPoint string
 }
 
 // newMountedFilesystemUpdater returns an updater for given filesystem
@@ -282,10 +282,15 @@ func newMountedFilesystemUpdater(rootDir string, ps *LaidOutStructure, backupDir
 	if backupDir == "" {
 		return nil, fmt.Errorf("internal error: backup directory must not be unset")
 	}
+	mount, err := mountLookup(ps)
+	if err != nil {
+		return nil, fmt.Errorf("cannot find mount location of structure %v: %v", ps, err)
+	}
+
 	fu := &mountedFilesystemUpdater{
 		MountedFilesystemWriter: fw,
 		backupDir:               backupDir,
-		mountLookup:             mountLookup,
+		mountPoint:              mount,
 	}
 	return fu, nil
 }
@@ -327,21 +332,16 @@ func (f *mountedFilesystemUpdater) entrySourcePath(source string) string {
 // Update applies an update to a mounted filesystem. The caller must have
 // executed a Backup() before, to prepare a data set for rollback purpose.
 func (f *mountedFilesystemUpdater) Update() error {
-	mount, err := f.mountLookup(f.ps)
+	preserveInDst, err := mapPreserve(f.mountPoint, f.ps.Update.Preserve)
 	if err != nil {
-		return fmt.Errorf("cannot find mount location of structure %v: %v", f.ps, err)
-	}
-
-	preserveInDst, err := mapPreserve(mount, f.ps.Update.Preserve)
-	if err != nil {
-		return fmt.Errorf("cannot map preserve entries for mount location %q: %v", mount, err)
+		return fmt.Errorf("cannot map preserve entries for mount location %q: %v", f.mountPoint, err)
 	}
 
 	backupRoot := fsStructBackupPath(f.backupDir, f.ps)
 
 	skipped := 0
 	for _, c := range f.ps.Content {
-		if err := f.updateVolumeContent(mount, &c, preserveInDst, backupRoot); err != nil {
+		if err := f.updateVolumeContent(f.mountPoint, &c, preserveInDst, backupRoot); err != nil {
 			if err == ErrNoUpdate {
 				skipped++
 				continue
@@ -500,24 +500,19 @@ func (f *mountedFilesystemUpdater) updateVolumeContent(volumeRoot string, conten
 // └── c.preserve         <-- stamp indicating ./c is to be preserved
 //
 func (f *mountedFilesystemUpdater) Backup() error {
-	mount, err := f.mountLookup(f.ps)
-	if err != nil {
-		return fmt.Errorf("cannot find mount location of structure %v: %v", f.ps, err)
-	}
-
 	backupRoot := fsStructBackupPath(f.backupDir, f.ps)
 
 	if err := os.MkdirAll(backupRoot, 0755); err != nil {
 		return fmt.Errorf("cannot create backup directory: %v", err)
 	}
 
-	preserveInDst, err := mapPreserve(mount, f.ps.Update.Preserve)
+	preserveInDst, err := mapPreserve(f.mountPoint, f.ps.Update.Preserve)
 	if err != nil {
-		return fmt.Errorf("cannot map preserve entries for mount location %q: %v", mount, err)
+		return fmt.Errorf("cannot map preserve entries for mount location %q: %v", f.mountPoint, err)
 	}
 
 	for _, c := range f.ps.Content {
-		if err := f.backupVolumeContent(mount, &c, preserveInDst, backupRoot); err != nil {
+		if err := f.backupVolumeContent(f.mountPoint, &c, preserveInDst, backupRoot); err != nil {
 			return fmt.Errorf("cannot backup content: %v", err)
 		}
 	}
@@ -706,20 +701,15 @@ func (f *mountedFilesystemUpdater) backupVolumeContent(volumeRoot string, conten
 // update are stored from their backup copies, newly added directories are
 // removed.
 func (f *mountedFilesystemUpdater) Rollback() error {
-	mount, err := f.mountLookup(f.ps)
-	if err != nil {
-		return fmt.Errorf("cannot find mount location of structure %v: %v", f.ps, err)
-	}
-
 	backupRoot := fsStructBackupPath(f.backupDir, f.ps)
 
-	preserveInDst, err := mapPreserve(mount, f.ps.Update.Preserve)
+	preserveInDst, err := mapPreserve(f.mountPoint, f.ps.Update.Preserve)
 	if err != nil {
-		return fmt.Errorf("cannot map preserve entries for mount location %q: %v", mount, err)
+		return fmt.Errorf("cannot map preserve entries for mount location %q: %v", f.mountPoint, err)
 	}
 
 	for _, c := range f.ps.Content {
-		if err := f.rollbackVolumeContent(mount, &c, preserveInDst, backupRoot); err != nil {
+		if err := f.rollbackVolumeContent(f.mountPoint, &c, preserveInDst, backupRoot); err != nil {
 			return fmt.Errorf("cannot rollback content: %v", err)
 		}
 	}
