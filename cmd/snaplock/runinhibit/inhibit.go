@@ -54,9 +54,12 @@ const (
 	HintInhibitedForRefresh Hint = "refresh"
 )
 
+func hintFile(snapName string) string {
+	return filepath.Join(InhibitDir, snapName+".lock")
+}
+
 func openHintFileLock(snapName string) (*osutil.FileLock, error) {
-	fname := filepath.Join(InhibitDir, snapName+".lock")
-	return osutil.NewFileLockWithMode(fname, 0644)
+	return osutil.NewFileLockWithMode(hintFile(snapName), 0644)
 }
 
 // LockWithHint sets a persistent "snap run" inhibition lock, for the given snap, with a given hint.
@@ -131,4 +134,20 @@ func IsLocked(snapName string) (Hint, error) {
 		return "", err
 	}
 	return Hint(string(buf)), nil
+}
+
+// RemoveLockFile removes the run inhibition lock for the given snap.
+//
+// This function should not be used as a substitute of Unlock, as race-free
+// ability to inspect the inhibition state relies on flock(2) which requires the
+// file to exist in the first place and non-privileged processes cannot create
+// it.
+//
+// The function does not fail if the inhibition lock does not exist.
+func RemoveLockFile(snapName string) error {
+	err := os.Remove(hintFile(snapName))
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
 }
