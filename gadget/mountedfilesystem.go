@@ -247,7 +247,7 @@ func makeStamp(stamp string) error {
 
 type mountLookupFunc func(ps *LaidOutStructure) (string, error)
 
-// mountedFilesystemUpdater assits in applying updates to a mounted filesystem.
+// mountedFilesystemUpdater assists in applying updates to a mounted filesystem.
 //
 // The update process is composed of 2 main passes, and an optional rollback:
 //
