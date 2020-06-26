@@ -19,6 +19,9 @@ execute: |
     echo "Installing a revision with no hook"
     snap install --dangerous test-connect_1_all.snap
 
+    echo "Then the snap is able to use netcat"
+    test-connect.network-consumer
+
     echo "Installing the broken revision without triggering connect hook"
     # this works because an older revision was installed and we don't re-connect
     # existing connections.
@@ -26,9 +29,15 @@ execute: |
 
     snap disconnect test-connect:network
 
+    echo "Then the snap is not able to use netcat with disconnected network"
+    test-connect.network-consumer 2>&1 | MATCH "nc: Permission denied"
+
     echo "Triggering connect hook"
     # this fails because of connect hook
     snap connect test-connect:network 2>&1 | MATCH 'failure of connect hook'
+
+    echo "And the snap is still not able to use netcat"
+    test-connect.network-consumer 2>&1 | MATCH "nc: Permission denied"
 
     echo "Removing the test snap"
     snap remove test-connect

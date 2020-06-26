@@ -1,0 +1,2 @@
+#!/bin/sh
+nc -h > /dev/null
