@@ -34,8 +34,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader/efi"
-	// TODO: UC20: move/merge partition with gadget
-	"github.com/snapcore/snapd/cmd/snap-bootstrap/partition"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/randutil"
@@ -285,7 +283,7 @@ func unlockEncryptedPartitionWithSealedKey(tpm *sb.TPMConnection, name, device, 
 // SealKey provisions the TPM and seals a partition encryption key according to the
 // specified parameters. If the TPM is already provisioned, or a sealed key already
 // exists, SealKey will fail and return an error.
-func SealKey(key partition.EncryptionKey, params *SealKeyParams) error {
+func SealKey(key EncryptionKey, params *SealKeyParams) error {
 	numModels := len(params.ModelParams)
 	if numModels < 1 {
 		return fmt.Errorf("at least one set of model-specific parameters is required")

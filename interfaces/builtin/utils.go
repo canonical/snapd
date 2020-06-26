@@ -89,7 +89,7 @@ func plugAppLabelExpr(plug *interfaces.ConnectedPlug) string {
 // - slot owned by an application snap typically requires rules updates
 func implicitSystemPermanentSlot(slot *snap.SlotInfo) bool {
 	if release.OnClassic &&
-		(slot.Snap.GetType() == snap.TypeOS || slot.Snap.GetType() == snap.TypeSnapd) {
+		(slot.Snap.Type() == snap.TypeOS || slot.Snap.Type() == snap.TypeSnapd) {
 		return true
 	}
 	return false
@@ -100,7 +100,7 @@ func implicitSystemPermanentSlot(slot *snap.SlotInfo) bool {
 // application.
 func implicitSystemConnectedSlot(slot *interfaces.ConnectedSlot) bool {
 	if release.OnClassic &&
-		(slot.Snap().GetType() == snap.TypeOS || slot.Snap().GetType() == snap.TypeSnapd) {
+		(slot.Snap().Type() == snap.TypeOS || slot.Snap().Type() == snap.TypeSnapd) {
 		return true
 	}
 	return false

@@ -181,7 +181,7 @@ func checkGadgetRemodelCompatible(st *state.State, snapInfo, curInfo *snap.Info,
 	if release.OnClassic {
 		return nil
 	}
-	if snapInfo.GetType() != snap.TypeGadget {
+	if snapInfo.Type() != snap.TypeGadget {
 		// We are only interested in gadget snaps.
 		return nil
 	}

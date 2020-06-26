@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2019 Canonical Ltd
+ * Copyright (C) 2016-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -486,19 +486,29 @@ func (mod *Model) Store() string {
 	return mod.HeaderString("store")
 }
 
-// RequiredNoEssentialSnaps returns the snaps that must be installed at all times and cannot be removed for this model, excluding the essential snaps (gadget, kernel, boot base).
+// RequiredNoEssentialSnaps returns the snaps that must be installed at all times and cannot be removed for this model, excluding the essential snaps (gadget, kernel, boot base, snapd).
 func (mod *Model) RequiredNoEssentialSnaps() []naming.SnapRef {
 	return mod.requiredWithEssentialSnaps[mod.numEssentialSnaps:]
 }
 
-// RequiredWithEssentialSnaps returns the snaps that must be installed at all times and cannot be removed for this model, including the essential snaps (gadget, kernel, boot base).
+// RequiredWithEssentialSnaps returns the snaps that must be installed at all times and cannot be removed for this model, including any essential snaps (gadget, kernel, boot base, snapd).
 func (mod *Model) RequiredWithEssentialSnaps() []naming.SnapRef {
 	return mod.requiredWithEssentialSnaps
 }
 
-// AllSnaps returns all the snap listed by the model.
-func (mod *Model) AllSnaps() []*ModelSnap {
-	return mod.allSnaps
+// EssentialSnaps returns all essential snaps explicitly mentioned by
+// the model.
+// They are always returned according to this order with some skipped
+// if not mentioned: snapd, kernel, boot base, gadget.
+func (mod *Model) EssentialSnaps() []*ModelSnap {
+	return mod.allSnaps[:mod.numEssentialSnaps]
+}
+
+// SnapsWithoutEssential returns all the snaps listed by the model
+// without any of the essential snaps (as returned by EssentialSnaps).
+// They are returned in the order of mention by the model.
+func (mod *Model) SnapsWithoutEssential() []*ModelSnap {
+	return mod.allSnaps[mod.numEssentialSnaps:]
 }
 
 // SerialAuthority returns the authority ids that are accepted as

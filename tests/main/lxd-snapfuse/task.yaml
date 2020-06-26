@@ -4,6 +4,8 @@ summary: Check snapfuse works
 systems: [ubuntu-18.04-64]
 
 restore: |
+    lxc delete --force my-ubuntu
+    snap remove ---purge lxd
     lxd-tool undo-lxd-mount-changes
 
 execute: |

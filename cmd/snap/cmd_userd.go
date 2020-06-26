@@ -28,8 +28,8 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
-	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/usersession/agent"
 	"github.com/snapcore/snapd/usersession/autostart"
 	"github.com/snapcore/snapd/usersession/userd"
@@ -103,7 +103,7 @@ func (x *cmdUserd) runAgent() error {
 	if err != nil {
 		return err
 	}
-	agent.Version = cmd.Version
+	agent.Version = snapdtool.Version
 	agent.Start()
 
 	ch, stop := signalNotify(syscall.SIGINT, syscall.SIGTERM)

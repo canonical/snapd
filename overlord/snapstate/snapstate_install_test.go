@@ -513,7 +513,7 @@ func (s *snapmgrTestSuite) TestInstallSnapWithDefaultTrack(c *C) {
 	defer s.state.Unlock()
 
 	opts := &snapstate.RevisionOptions{Channel: "candidate"}
-	ts, err := snapstate.Install(context.Background(), s.state, "some-snap-with-default-track", opts, s.user.ID, snapstate.Flags{Classic: true})
+	ts, err := snapstate.Install(context.Background(), s.state, "some-snap-with-default-track", opts, s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
 	chg := s.state.NewChange("install", "install snap")
@@ -2397,7 +2397,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreTwoSnapsWithFailureRunThrough(c
 
 		// we use our own settle as we need a bigger timeout
 		s.state.Unlock()
-		err = s.o.Settle(15 * time.Second)
+		err = s.o.Settle(testutil.HostScaledTimeout(15 * time.Second))
 		s.state.Lock()
 		c.Assert(err, IsNil)
 
@@ -2893,6 +2893,10 @@ func (s *snapmgrTestSuite) TestInstallLayoutsChecksFeatureFlag(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestInstallUserDaemonsChecksFeatureFlag(c *C) {
+	if release.ReleaseInfo.ID == "ubuntu" && release.ReleaseInfo.VersionID == "14.04" {
+		c.Skip("Ubuntu 14.04 does not support user daemons")
+	}
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -2928,6 +2932,61 @@ func (s *snapmgrTestSuite) TestInstallUserDaemonsChecksFeatureFlag(c *C) {
 	tr.Commit()
 	_, err = snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
 	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.user-daemons' to true")
+}
+
+func (s *snapmgrTestSuite) TestInstallUserDaemonsUsupportedOnTrusty(c *C) {
+	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer restore()
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.user-daemons", true)
+	tr.Commit()
+
+	// Even with the experimental.user-daemons flag set, user
+	// daemons are not supported on Trusty
+	opts := &snapstate.RevisionOptions{Channel: "channel-for-user-daemon"}
+	_, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, "user session daemons are not supported on this release")
+}
+
+func (s *snapmgrTestSuite) TestInstallDbusActivationChecksFeatureFlag(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// D-Bus activation is disabled by default.
+	opts := &snapstate.RevisionOptions{Channel: "channel-for-dbus-activation"}
+	_, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.dbus-activation' to true")
+
+	// D-Bus activation can be explicitly enabled.
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.dbus-activation", true)
+	tr.Commit()
+	_, err = snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	// D-Bus activation can be explicitly disabled.
+	tr = config.NewTransaction(s.state)
+	tr.Set("core", "experimental.dbus-activation", false)
+	tr.Commit()
+	_, err = snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.dbus-activation' to true")
+
+	// The default empty value means "disabled"
+	tr = config.NewTransaction(s.state)
+	tr.Set("core", "experimental.dbus-activation", "")
+	tr.Commit()
+	_, err = snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.dbus-activation' to true")
+
+	// D-Bus activation is disabled when the controlling flag is reset to nil.
+	tr = config.NewTransaction(s.state)
+	tr.Set("core", "experimental.dbus-activation", nil)
+	tr.Commit()
+	_, err = snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.dbus-activation' to true")
 }
 
 func (s *snapmgrTestSuite) TestInstallValidatesInstanceNames(c *C) {

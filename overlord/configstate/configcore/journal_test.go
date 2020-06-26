@@ -46,11 +46,11 @@ func (s *journalSuite) SetUpTest(c *C) {
 
 	s.systemdVersion = "236"
 	// this overrides systemctl mock from the base configcoreSuite.
-	s.systemctlRestorer = systemd.MockSystemctl(func(args ...string) ([]byte, error) {
+	s.AddCleanup(systemd.MockSystemctl(func(args ...string) ([]byte, error) {
 		s.systemctlArgs = append(s.systemctlArgs, args[:])
 		output := []byte("systemd " + s.systemdVersion + "\n+XYZ")
 		return output, nil
-	})
+	}))
 	s.systemctlArgs = nil
 
 	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0755)
