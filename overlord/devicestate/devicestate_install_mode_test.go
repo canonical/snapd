@@ -309,7 +309,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallTaskErrors(c *C) {
 
 	installSystem := s.findInstallSystem()
 	c.Check(installSystem.Err(), ErrorMatches, `(?ms)cannot perform the following tasks:
-- Setup system for run mode \(cannot create partitions: The horror, The horror\)`)
+- Setup system for run mode \(cannot install: The horror, The horror\)`)
 	// no restart request on failure
 	c.Check(s.restartRequests, HasLen, 0)
 }

@@ -131,14 +131,14 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// run the create partition code
-	logger.Noticef("create and deploy partitions")
+	logger.Noticef("installing the system")
 	func() {
 		st.Unlock()
 		defer st.Lock()
 		err = installRun(gadgetDir, "", bopts)
 	}()
 	if err != nil {
-		return fmt.Errorf("cannot create partitions: %v", err)
+		return fmt.Errorf("cannot install: %v", err)
 	}
 
 	// keep track of the model we installed
