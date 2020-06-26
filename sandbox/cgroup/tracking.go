@@ -43,7 +43,8 @@ func CreateTransientScopeForTracking(securityTag string) error {
 	//
 	// Ideally we would check for a distinct error type but this is just an
 	// errors.New() in go-dbus code.
-	isSessionBus, conn, err := sessionOrMaybeSystemBus(osGetuid())
+	uid := osGetuid()
+	isSessionBus, conn, err := sessionOrMaybeSystemBus(uid)
 	if err != nil {
 		return ErrCannotTrackProcess
 	}
@@ -76,7 +77,7 @@ tryAgain:
 		case errDBusNameHasNoOwner:
 			// We cannot activate systemd --user for root, try the system bus
 			// as a fallback.
-			if isSessionBus && osGetuid() == 0 {
+			if isSessionBus && uid == 0 {
 				logger.Debugf("cannot activate systemd --user on session bus, falling back to system bus: %s", err)
 				isSessionBus = false
 				conn, err = dbusutil.SystemBus()
