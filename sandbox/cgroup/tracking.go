@@ -49,7 +49,7 @@ func CreateTransientScopeForTracking(securityTag string) error {
 	}
 
 	// We ask the kernel for a random UUID. We need one because each transient
-	// scope needs a unique name. The unique name is comprosed of said UUID and
+	// scope needs a unique name. The unique name is composed of said UUID and
 	// the snap security tag.
 	uuid, err := randomUUID()
 	if err != nil {
