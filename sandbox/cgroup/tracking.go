@@ -77,9 +77,9 @@ tryAgain:
 		case errDBusSpawnChildExited:
 			fallthrough
 		case errDBusNameHasNoOwner:
-			// We cannot activate systemd --user for root, try the system bus
-			// as a fallback.
 			if isSessionBus && uid == 0 {
+				// We cannot activate systemd --user for root,
+				// try the system bus as a fallback.
 				logger.Debugf("cannot activate systemd --user on session bus, falling back to system bus: %s", err)
 				isSessionBus = false
 				conn, err = dbusutil.SystemBus()
