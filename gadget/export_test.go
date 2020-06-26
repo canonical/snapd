@@ -19,10 +19,6 @@
 
 package gadget
 
-import (
-	"time"
-)
-
 type (
 	ValidationState          = validationState
 	MountedFilesystemUpdater = mountedFilesystemUpdater
@@ -56,10 +52,7 @@ var (
 	Flatten = flatten
 
 	FilesystemInfo                 = filesystemInfo
-	BuildPartitionList             = buildPartitionList
-	EnsureNodesExist               = ensureNodesExist
 	DeviceLayoutFromPartitionTable = deviceLayoutFromPartitionTable
-	ListCreatedPartitions          = listCreatedPartitions
 
 	NewRawStructureUpdater      = newRawStructureUpdater
 	NewMountedFilesystemUpdater = newMountedFilesystemUpdater
@@ -76,21 +69,5 @@ func MockEvalSymlinks(mock func(path string) (string, error)) (restore func()) {
 	evalSymlinks = mock
 	return func() {
 		evalSymlinks = oldEvalSymlinks
-	}
-}
-
-func MockEnsureNodesExist(f func(dss []OnDiskStructure, timeout time.Duration) error) (restore func()) {
-	old := ensureNodesExist
-	ensureNodesExist = f
-	return func() {
-		ensureNodesExist = old
-	}
-}
-
-func MockInternalUdevTrigger(f func(node string) error) (restore func()) {
-	old := internalUdevTrigger
-	internalUdevTrigger = f
-	return func() {
-		internalUdevTrigger = old
 	}
 }
