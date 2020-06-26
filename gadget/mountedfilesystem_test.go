@@ -2507,15 +2507,15 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterGrubSeedAssetsManaged(c *
 }
 
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterGrubBootAssetsNotManaged(c *C) {
-	notManaged := false
-	notPreserved := false
-	s.testMountedUpdaterGrubBootAssets(c, notManaged, gadget.SystemSeed, notPreserved)
+	managed := false
+	preserved := false
+	s.testMountedUpdaterGrubBootAssets(c, managed, gadget.SystemSeed, preserved)
 }
 
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterGrubBootAssetsManagedOtherRole(c *C) {
 	managed := true
-	notPreserved := false
-	s.testMountedUpdaterGrubBootAssets(c, managed, gadget.SystemData, notPreserved)
+	preserved := false
+	s.testMountedUpdaterGrubBootAssets(c, managed, gadget.SystemData, preserved)
 }
 
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterBootAssetsErr(c *C) {

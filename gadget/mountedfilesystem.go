@@ -311,7 +311,9 @@ func maybePreserveManagedBootAssets(mountPoint string, ps *LaidOutStructure) ([]
 	if ps.Role != SystemSeed && ps.Role != SystemBoot {
 		return nil, nil
 	}
-
+	// the assets are within the system-boot or system-seed partition, set
+	// the right flags so that files are looked for using their paths inside
+	// the partition
 	opts := &bootloader.Options{
 		Recovery:    ps.Role == SystemSeed,
 		NoSlashBoot: ps.Role == SystemBoot,
