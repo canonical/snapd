@@ -69,17 +69,17 @@ func (s *secbootSuite) TestCheckTPMProvisionable(c *C) {
 		{
 			// system is already provisioned
 			attr: sb.AttrValidSRK,
-			err:  "the TPM is already provisioned",
+			err:  `the TPM is already provisioned \(status=.*\)`,
 		},
 		{
 			// system is already provisioned
 			attr: sb.AttrLockoutAuthSet,
-			err:  "the TPM is already provisioned",
+			err:  `the TPM is already provisioned \(status=.*\)`,
 		},
 		{
 			// system is already provisioned
 			attr: sb.AttrValidLockNVIndex,
-			err:  "the TPM is already provisioned",
+			err:  `the TPM is already provisioned \(status=.*\)`,
 		},
 		{
 			// TPM error

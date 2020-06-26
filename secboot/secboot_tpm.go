@@ -77,7 +77,7 @@ func CheckTPMUnprovisioned() error {
 
 	// XXX: is testing against these attributes enough? should we test if !=0 instead?
 	if attr&(sb.AttrValidSRK|sb.AttrLockoutAuthSet|sb.AttrValidLockNVIndex) != 0 {
-		return errors.New("the TPM is already provisioned")
+		return fmt.Errorf("the TPM is already provisioned (status=%04x)", attr)
 	}
 
 	return nil
