@@ -44,6 +44,8 @@ func CreateTransientScopeForTracking(securityTag string) error {
 	// Ideally we would check for a distinct error type but this is just an
 	// errors.New() in go-dbus code.
 	uid := osGetuid()
+	// TODO: change this logic so that CreateTransientScope for hooks is always
+	// using system bus and doesn't even attempt to use the session bus.
 	isSessionBus, conn, err := sessionOrMaybeSystemBus(uid)
 	if err != nil {
 		return ErrCannotTrackProcess
