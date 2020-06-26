@@ -92,7 +92,7 @@ tryAgain:
 		return err
 	}
 	// We may have created a transient scope but due to a kernel design,
-	// in specific situation when we are in a cgroup owned by one user,
+	// in the specific situation when we are in a cgroup owned by one user,
 	// and we want to run a process as a different user, *and* systemd is
 	// older than 238, then this can silently fail.
 	//
