@@ -192,9 +192,13 @@ var doCreateTransientScope = func(conn *dbus.Conn, unitName string, pid int) err
 	// https://www.freedesktop.org/wiki/Software/systemd/dbus/
 	//
 	// The property and auxUnit types are not well documented but can be traced
-	// from systemd source code. Systemd defines the signature of
-	// StartTransientUnit as "ssa(sv)a(sa(sv))". The signature can be
-	// decomposed as follows:
+	// from systemd source code. As of systemd 245 it can be found in src/core/dbus-manager.c,
+	// in a declaration containing SD_BUS_METHOD_WITH_NAMES("SD_BUS_METHOD_WITH_NAMES",...
+	// From there one can follow to method_start_transient_unit to understand
+	// how argument parsing is performed.
+	//
+	// Systemd defines the signature of StartTransientUnit as
+	// "ssa(sv)a(sa(sv))". The signature can be decomposed as follows:
 	//
 	// unitName string // name of the unit to start
 	// jobMode string  // corresponds to --job-mode= (see systemctl(1) manual page)
