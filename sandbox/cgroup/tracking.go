@@ -112,7 +112,7 @@ tryAgain:
 	if err != nil {
 		return err
 	}
-	if !strings.Contains(path, unitName) {
+	if !strings.HasSuffix(path, unitName) {
 		logger.Debugf("systemd could not associate process %d with transient scope %s", pid, unitName)
 		return ErrCannotTrackProcess
 	}
