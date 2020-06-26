@@ -191,6 +191,16 @@ func (b Backend) generateWrappers(s *snap.Info, linkCtx LinkContext) error {
 	}
 	cleanupFuncs = append(cleanupFuncs, wrappers.RemoveSnapBinaries)
 
+	// check DaemonStartup settings and do not start services on first
+	// install that are inhibited
+	if linkCtx.FirstInstall {
+		for _, app := range s.Apps {
+			if app.DaemonStartup == snap.DaemonStartupInhibit {
+				disabledSvcs = append(disabledSvcs, app.Name)
+			}
+		}
+	}
+
 	// add the daemons from the snap.yaml
 	opts := &wrappers.AddSnapServicesOptions{
 		Preseeding:   b.preseed,

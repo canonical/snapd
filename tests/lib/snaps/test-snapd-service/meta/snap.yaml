@@ -57,3 +57,8 @@ apps:
         daemon: simple
         stop-command: bin/stop 60
         stop-timeout: 10s
+    test-snapd-service-inhibit-startup:
+        command: bin/start
+        stop-command: bin/stop
+        daemon: simple
+        daemon-startup: inhibit

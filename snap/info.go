@@ -854,6 +854,7 @@ type AppInfo struct {
 
 	Daemon          string
 	DaemonScope     DaemonScope
+	DaemonStartup   DaemonStartup
 	StopTimeout     timeout.Timeout
 	StartTimeout    timeout.Timeout
 	WatchdogTimeout timeout.Timeout

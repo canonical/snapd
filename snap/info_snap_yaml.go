@@ -72,8 +72,9 @@ type appYaml struct {
 	Command      string   `yaml:"command"`
 	CommandChain []string `yaml:"command-chain,omitempty"`
 
-	Daemon      string      `yaml:"daemon"`
-	DaemonScope DaemonScope `yaml:"daemon-scope"`
+	Daemon        string        `yaml:"daemon"`
+	DaemonScope   DaemonScope   `yaml:"daemon-scope"`
+	DaemonStartup DaemonStartup `yaml:"daemon-startup"`
 
 	StopCommand     string          `yaml:"stop-command,omitempty"`
 	ReloadCommand   string          `yaml:"reload-command,omitempty"`
@@ -352,6 +353,7 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info, strk *scopedTracker) error {
 			StartTimeout:    yApp.StartTimeout,
 			Daemon:          yApp.Daemon,
 			DaemonScope:     yApp.DaemonScope,
+			DaemonStartup:   yApp.DaemonStartup,
 			StopTimeout:     yApp.StopTimeout,
 			StopCommand:     yApp.StopCommand,
 			ReloadCommand:   yApp.ReloadCommand,
@@ -384,6 +386,10 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info, strk *scopedTracker) error {
 		// Daemons default to being system daemons
 		if app.Daemon != "" && app.DaemonScope == "" {
 			app.DaemonScope = SystemDaemon
+		}
+		// DaemonStartup is default if empty
+		if app.Daemon != "" && app.DaemonStartup == "" {
+			app.DaemonStartup = DaemonStartupDefault
 		}
 
 		snap.Apps[appName] = app

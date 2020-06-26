@@ -25,3 +25,15 @@ execute: |
     else
         systemctl status snap.test-snapd-service.test-snapd-service-refuses-to-stop|MATCH "Result: timeout"
     fi
+
+    echo "A snap that was inhibited on startup will not start by default"
+    snap services | MATCH 'test-snapd-service.test-snapd-service-inhibit-startup\s+disabled\s+inactive'
+    echo "And after a refresh the service stays disabled"
+    install_local test-snapd-service
+    snap services | MATCH 'test-snapd-service.test-snapd-service-inhibit-startup\s+disabled\s+inactive'
+    echo "But a inhibited startup snap can be enabled"
+    snap start --enable test-snapd-service.test-snapd-service-inhibit-startup
+    snap services | MATCH 'test-snapd-service.test-snapd-service-inhibit-startup\s+enabled\s+active'
+    echo "And after a refresh the service stays enabled"
+    install_local test-snapd-service
+    snap services | MATCH 'test-snapd-service.test-snapd-service-inhibit-startup\s+enabled\s+active'

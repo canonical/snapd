@@ -182,3 +182,40 @@ func (daemonScope *DaemonScope) fromString(str string) error {
 	*daemonScope = d
 	return nil
 }
+
+// DaemonStartup controls if the daemon should be started
+type DaemonStartup string
+
+const (
+	DaemonStartupDefault DaemonStartup = "default"
+	DaemonStartupInhibit DaemonStartup = "inhibit"
+)
+
+func (daemonStartup *DaemonStartup) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+
+	return daemonStartup.fromString(s)
+}
+
+// UnmarshalYAML so DaemonStartup implements yaml's Unmarshaler interface
+func (daemonStartup *DaemonStartup) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var s string
+	if err := unmarshal(&s); err != nil {
+		return err
+	}
+
+	return daemonStartup.fromString(s)
+}
+
+func (daemonStartup *DaemonStartup) fromString(str string) error {
+	d := DaemonStartup(str)
+	if d != DaemonStartupInhibit && d != DaemonStartupDefault {
+		return fmt.Errorf("invalid daemon startup: %q", str)
+	}
+
+	*daemonStartup = d
+	return nil
+}
