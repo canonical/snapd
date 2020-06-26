@@ -59,10 +59,10 @@ var (
 	sbSealKeyToTPM                   = sb.SealKeyToTPM
 )
 
-// CheckTPMProvisionable verifies if the TPM can be provisioned, returning an error
-// if the TPM device does not exist, or if it exists and is already provisioned.
-func CheckTPMProvisionable() error {
-	errPrefix := "cannot check if the TPM can be provisioned"
+// CheckTPMUnprovisioned verifies if the TPM can be provisioned, returning an error
+// if the TPM device does not exist, or if it's already provisioned.
+func CheckTPMUnprovisioned() error {
+	errPrefix := "cannot check if the TPM is unprovisioned"
 
 	tpm, err := sbConnectToDefaultTPM()
 	if err != nil {
@@ -75,7 +75,8 @@ func CheckTPMProvisionable() error {
 		return fmt.Errorf("%s: %v", errPrefix, err)
 	}
 
-	if attr&sb.AttrValidSRK == sb.AttrValidSRK {
+	// XXX: is testing against these attributes enough? should we test if !=0 instead?
+	if attr&(sb.AttrValidSRK|sb.AttrLockoutAuthSet|sb.AttrValidLockNVIndex) != 0 {
 		return errors.New("the TPM is already provisioned")
 	}
 

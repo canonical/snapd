@@ -63,7 +63,7 @@ func (s *secbootSuite) TestCheckTPMProvisionable(c *C) {
 	}{
 		{
 			// happy case
-			attr: ^sb.AttrValidSRK,
+			attr: ^(sb.AttrValidSRK | sb.AttrLockoutAuthSet | sb.AttrValidLockNVIndex),
 			err:  "",
 		},
 		{
@@ -72,14 +72,24 @@ func (s *secbootSuite) TestCheckTPMProvisionable(c *C) {
 			err:  "the TPM is already provisioned",
 		},
 		{
+			// system is already provisioned
+			attr: sb.AttrLockoutAuthSet,
+			err:  "the TPM is already provisioned",
+		},
+		{
+			// system is already provisioned
+			attr: sb.AttrValidLockNVIndex,
+			err:  "the TPM is already provisioned",
+		},
+		{
 			// TPM error
 			tpmErr: errors.New("TPM error"),
-			err:    "cannot check if the TPM can be provisioned: TPM error",
+			err:    "cannot check if the TPM is unprovisioned: TPM error",
 		},
 		{
 			// ProvisionStatus error
 			prvErr: errors.New("provision status error"),
-			err:    "cannot check if the TPM can be provisioned: provision status error",
+			err:    "cannot check if the TPM is unprovisioned: provision status error",
 		},
 	} {
 		mockTpm, restore := mockSbTPMConnection(c, tc.tpmErr)
@@ -91,7 +101,7 @@ func (s *secbootSuite) TestCheckTPMProvisionable(c *C) {
 		})
 		defer restore()
 
-		err := secboot.CheckTPMProvisionable()
+		err := secboot.CheckTPMUnprovisioned()
 		if tc.err == "" {
 			c.Assert(err, IsNil)
 		} else {

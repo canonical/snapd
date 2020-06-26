@@ -56,7 +56,7 @@ func Run(gadgetRoot, device string, options Options) error {
 		if options.KeyFile == "" || options.RecoveryKeyFile == "" {
 			return fmt.Errorf("key file and recovery key file must be specified when encrypting")
 		}
-		if err := secboot.CheckTPMProvisionable(); err != nil {
+		if err := secboot.CheckTPMUnprovisioned(); err != nil {
 			// XXX: request to clear the TPM if it's already provisioned?
 			return err
 		}
