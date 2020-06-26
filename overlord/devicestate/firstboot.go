@@ -223,7 +223,7 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 		if err != nil {
 			return nil, err
 		}
-		if info.GetType() == snap.TypeKernel || info.GetType() == snap.TypeGadget {
+		if info.Type() == snap.TypeKernel || info.Type() == snap.TypeGadget {
 			configTs := snapstate.ConfigureSnap(st, info.SnapName(), snapstate.UseConfigDefaults)
 			// wait for the previous configTss
 			configTss = chainTs(configTss, configTs)

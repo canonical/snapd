@@ -36,8 +36,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader/efi"
-	// TODO: UC20: move/merge partition with gadget
-	"github.com/snapcore/snapd/cmd/snap-bootstrap/partition"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/testutil"
@@ -393,7 +391,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		TPMLockoutAuthFile:      filepath.Join(tmpDir, "lockout-auth-file"),
 	}
 
-	myKey := partition.EncryptionKey{}
+	myKey := secboot.EncryptionKey{}
 	for i := range myKey {
 		myKey[i] = byte(i)
 	}
@@ -562,7 +560,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 }
 
 func (s *secbootSuite) TestSealKeyNoModelParams(c *C) {
-	myKey := partition.EncryptionKey{}
+	myKey := secboot.EncryptionKey{}
 	myParams := secboot.SealKeyParams{
 		KeyFile:                 "keyfile",
 		TPMPolicyUpdateDataFile: "policy-update-data-file",

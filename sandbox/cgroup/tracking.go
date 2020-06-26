@@ -43,13 +43,16 @@ func CreateTransientScopeForTracking(securityTag string) error {
 	//
 	// Ideally we would check for a distinct error type but this is just an
 	// errors.New() in go-dbus code.
-	isSessionBus, conn, err := sessionOrMaybeSystemBus(osGetuid())
+	uid := osGetuid()
+	// TODO: change this logic so that CreateTransientScope for hooks is always
+	// using system bus and doesn't even attempt to use the session bus.
+	isSessionBus, conn, err := sessionOrMaybeSystemBus(uid)
 	if err != nil {
 		return ErrCannotTrackProcess
 	}
 
 	// We ask the kernel for a random UUID. We need one because each transient
-	// scope needs a unique name. The unique name is comprosed of said UUID and
+	// scope needs a unique name. The unique name is composed of said UUID and
 	// the snap security tag.
 	uuid, err := randomUUID()
 	if err != nil {
@@ -57,7 +60,7 @@ func CreateTransientScopeForTracking(securityTag string) error {
 	}
 
 	// Enforcing uniqueness is preferred to reusing an existing scope for
-	// simplicity since doing otherwise and joining an existing scope has
+	// simplicity since doing otherwise by joining an existing scope has
 	// limitations:
 	// - the originally started scope must be marked as a delegate, with all
 	//   consequences.
@@ -74,9 +77,9 @@ tryAgain:
 		case errDBusSpawnChildExited:
 			fallthrough
 		case errDBusNameHasNoOwner:
-			// We cannot activate systemd --user for root, try the system bus
-			// as a fallback.
-			if isSessionBus && osGetuid() == 0 {
+			if isSessionBus && uid == 0 {
+				// We cannot activate systemd --user for root,
+				// try the system bus as a fallback.
 				logger.Debugf("cannot activate systemd --user on session bus, falling back to system bus: %s", err)
 				isSessionBus = false
 				conn, err = dbusutil.SystemBus()
@@ -91,18 +94,25 @@ tryAgain:
 		}
 		return err
 	}
-	// We may have created a transient scope but due to a kernel design,
-	// in specific situation when we are in a cgroup owned by one user,
-	// and we want to run a process as a different user, *and* systemd is
-	// older than 238, then this can silently fail.
+	// We may have created a transient scope but due to the constraints the
+	// kernel puts on process transitions on unprivileged users (and remember
+	// that systemd --user is unprivileged) the actual re-association with the
+	// scope cgroup may have silently failed - unfortunately some versions of
+	// systemd do not report an error in that case. Systemd 238 and newer
+	// detects the error correctly and uses privileged systemd running as pid 1
+	// to assist in the transition.
 	//
-	// Verify the effective tracking cgroup and check that our scope name
-	// is contained therein.
+	// For more details about the transition constraints refer to
+	// cgroup_procs_write_permission() as of linux 5.8 and
+	// unit_attach_pids_to_cgroup() as of systemd 245.
+	//
+	// Verify the effective tracking cgroup and check that our scope name is
+	// contained therein.
 	path, err := cgroupProcessPathInTrackingCgroup(pid)
 	if err != nil {
 		return err
 	}
-	if !strings.Contains(path, unitName) {
+	if !strings.HasSuffix(path, unitName) {
 		logger.Debugf("systemd could not associate process %d with transient scope %s", pid, unitName)
 		return ErrCannotTrackProcess
 	}
@@ -178,13 +188,17 @@ var (
 // The unit name and the PID to attach are provided as well. The DBus method
 // call is performed outside confinement established by snap-confine.
 var doCreateTransientScope = func(conn *dbus.Conn, unitName string, pid int) error {
-	// The property and auxUnit types are not well documented but can be traced
-	// from systemd source code. Systemd defines the signature of
-	// StartTransientUnit as "ssa(sv)a(sa(sv))". The signature can be
-	// decomposed as follows:
-	//
-	// Partial documentation, at the time of this writing, is available at
+	// Documentation of StartTransientUnit is available at
 	// https://www.freedesktop.org/wiki/Software/systemd/dbus/
+	//
+	// The property and auxUnit types are not well documented but can be traced
+	// from systemd source code. As of systemd 245 it can be found in src/core/dbus-manager.c,
+	// in a declaration containing SD_BUS_METHOD_WITH_NAMES("SD_BUS_METHOD_WITH_NAMES",...
+	// From there one can follow to method_start_transient_unit to understand
+	// how argument parsing is performed.
+	//
+	// Systemd defines the signature of StartTransientUnit as
+	// "ssa(sv)a(sa(sv))". The signature can be decomposed as follows:
 	//
 	// unitName string // name of the unit to start
 	// jobMode string  // corresponds to --job-mode= (see systemctl(1) manual page)
