@@ -145,8 +145,8 @@ is_nested_system(){
 
 is_core_nested_system(){
     if [ -z "${NESTED_TYPE-}" ]; then
-        echo "Variable NESTED_TYPE not defined. Exiting..."
-        exit 1
+        echo "Variable NESTED_TYPE not defined."
+        return 1
     fi
 
     test "$NESTED_TYPE" = "core"
@@ -154,8 +154,8 @@ is_core_nested_system(){
 
 is_classic_nested_system(){
     if [ -z "${NESTED_TYPE-}" ]; then
-        echo "Variable NESTED_TYPE not defined. Exiting..."
-        exit 1
+        echo "Variable NESTED_TYPE not defined."
+        return 1
     fi
 
     test "$NESTED_TYPE" = "classic"
