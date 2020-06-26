@@ -123,7 +123,7 @@ func (s *trackingSuite) TestCreateTransientScopeForTrackingUnhappyNotRootGeneric
 
 	// Disable the cgroup analyzer function as we don't expect it to be used in this test.
 	restore = cgroup.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
-		panic("we are not expecting this call")
+		return "", fmt.Errorf("test was not expected to measure process path in the tracking cgroup")
 	})
 	defer restore()
 
@@ -247,7 +247,7 @@ func (s *trackingSuite) TestCreateTransientScopeForTrackingUnhappyRootFailedFall
 
 	// Disable the cgroup analyzer function as we don't expect it to be used in this test.
 	restore = cgroup.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
-		panic("we are not expecting this call")
+		return "", fmt.Errorf("test was not expected to measure process path in the tracking cgroup")
 	})
 	defer restore()
 
@@ -282,13 +282,13 @@ func (s *trackingSuite) TestCreateTransientScopeForTrackingUnhappyNoDBus(c *C) {
 
 	// Calling StartTransientUnit is not attempted without a DBus connection.
 	restore = cgroup.MockDoCreateTransientScope(func(conn *dbus.Conn, unitName string, pid int) error {
-		panic("we are not expecting this call")
+		return fmt.Errorf("test was not expected to create a transient scope")
 	})
 	defer restore()
 
 	// Disable the cgroup analyzer function as we don't expect it to be used in this test.
 	restore = cgroup.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
-		panic("we are not expecting this call")
+		return "", fmt.Errorf("test was not expected to measure process path in the tracking cgroup")
 	})
 	defer restore()
 
