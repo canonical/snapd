@@ -1360,37 +1360,6 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterUpdate(c *C) {
 	verifyWrittenGadgetData(c, outDir, append(gdWritten, gdIdentical...))
 }
 
-func (s *mountedfilesystemTestSuite) TestMountedUpdaterUpdateLookupFails(c *C) {
-	makeGadgetData(c, s.dir, []gadgetData{
-		{name: "canary", target: "canary", content: "data"},
-	})
-
-	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
-			Size:       2048,
-			Filesystem: "ext4",
-			Content: []gadget.VolumeContent{
-				{
-					Source: "/",
-					Target: "/",
-				},
-			},
-			Update: gadget.VolumeUpdate{
-				Edition: 1,
-			},
-		},
-	}
-
-	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
-		c.Check(to, DeepEquals, ps)
-		return "", errors.New("failed")
-	})
-	c.Assert(err, IsNil)
-	c.Assert(rw, NotNil)
-
-	err = rw.Update()
-	c.Assert(err, ErrorMatches, "cannot find mount location of structure #0: failed")
-}
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterDirContents(c *C) {
 	// some data for the gadget
 	gdWritten := []gadgetData{
@@ -2383,25 +2352,20 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterMountLookupFail(c *C) {
 			Content: []gadget.VolumeContent{
 				{Source: "/", Target: "/"},
 			},
+			Update: gadget.VolumeUpdate{
+				Edition: 1,
+			},
 		},
 	}
 
 	lookupFail := func(to *gadget.LaidOutStructure) (string, error) {
+		c.Check(to, DeepEquals, ps)
 		return "", errors.New("fail fail fail")
 	}
 
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, lookupFail)
-	c.Assert(err, IsNil)
-	c.Assert(rw, NotNil)
-
-	err = rw.Update()
 	c.Assert(err, ErrorMatches, "cannot find mount location of structure #0: fail fail fail")
-
-	err = rw.Backup()
-	c.Assert(err, ErrorMatches, "cannot find mount location of structure #0: fail fail fail")
-
-	err = rw.Rollback()
-	c.Assert(err, ErrorMatches, "cannot find mount location of structure #0: fail fail fail")
+	c.Assert(rw, IsNil)
 }
 
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterNonFilePreserveError(c *C) {

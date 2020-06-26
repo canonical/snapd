@@ -53,7 +53,15 @@ if [ ! -e "$app_dev_cgroup" ]; then
 fi
 
 # check if it's a block or char dev
+# TODO: re-write this to be more robust, the bash variable substitution done 
+# here is quite awkard :-/
 if [ "${DEVPATH#*/block/}" != "$DEVPATH" ]; then
+    type="b"
+elif [ "${DEVPATH#*/nvme/nvme*/nvme*n*}" != "$DEVPATH" ]; then
+    # char devices are .../nvme/nvme* but block devices are
+    # .../nvme/nvme*/nvme*n* and .../nvme/nvme*/nvme*n*p*
+    # so if have a device that has nvme/nvme*/nvme*n* in it,
+    # treat it as a block device
     type="b"
 else
     type="c"

@@ -139,6 +139,13 @@ type ExtractedRunKernelImageBootloader interface {
 	DisableTryKernel() error
 }
 
+// ManagedAssetsBootloader has its boot assets (typically boot config) managed
+// by snapd.
+type ManagedAssetsBootloader interface {
+	// IsCurrentlyManaged returns true when the on disk boot assets are managed.
+	IsCurrentlyManaged() (bool, error)
+}
+
 func genericInstallBootConfig(gadgetFile, systemFile string) (bool, error) {
 	if !osutil.FileExists(gadgetFile) {
 		return false, nil
@@ -147,6 +154,13 @@ func genericInstallBootConfig(gadgetFile, systemFile string) (bool, error) {
 		return true, err
 	}
 	return true, osutil.CopyFile(gadgetFile, systemFile, osutil.CopyFlagOverwrite)
+}
+
+func genericSetBootConfig(systemFile string, content []byte) (bool, error) {
+	if err := os.MkdirAll(filepath.Dir(systemFile), 0755); err != nil {
+		return true, err
+	}
+	return true, osutil.AtomicWriteFile(systemFile, content, 0644, 0)
 }
 
 // InstallBootConfig installs the bootloader config from the gadget
