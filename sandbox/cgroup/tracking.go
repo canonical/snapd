@@ -91,13 +91,20 @@ tryAgain:
 		}
 		return err
 	}
-	// We may have created a transient scope but due to a kernel design,
-	// in the specific situation when we are in a cgroup owned by one user,
-	// and we want to run a process as a different user, *and* systemd is
-	// older than 238, then this can silently fail.
+	// We may have created a transient scope but due to the constraints the
+	// kernel puts on process transitions on unprivileged users (and remember
+	// that systemd --user is unprivileged) the actual re-association with the
+	// scope cgroup may have silently failed - unfortunately some versions of
+	// systemd do not report an error in that case. Systemd 238 and newer
+	// detects the error correctly and uses privileged systemd running as pid 1
+	// to assist in the transition.
 	//
-	// Verify the effective tracking cgroup and check that our scope name
-	// is contained therein.
+	// For more details about the transition constraints refer to
+	// cgroup_procs_write_permission() as of linux 5.8 and
+	// unit_attach_pids_to_cgroup() as of systemd 245.
+	//
+	// Verify the effective tracking cgroup and check that our scope name is
+	// contained therein.
 	path, err := cgroupProcessPathInTrackingCgroup(pid)
 	if err != nil {
 		return err
