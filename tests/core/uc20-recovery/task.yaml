@@ -69,6 +69,25 @@ execute: |
         # restore shutdown so that spread can reboot the host
         umount /usr/sbin/shutdown
 
+        if [ "$SPREAD_BACKEND" = "external" ]; then
+            mkdir -p /home/external/.ssh
+            chown external:external /home/external/.ssh
+            touch /home/external/.ssh/rc
+            chown external:external /home/external/.ssh/rc
+            cat <<-EOF > /home/external/.ssh/rc
+    #!/bin/sh
+    # added by spread tests
+    if grep -q 'snapd_recovery_mode=recover' /proc/cmdline; then
+        # use as sudo for proper permissions, assumes that the external user is
+        # a sudo user, which it must be by definition of it being the login user
+        # that spread uses
+        # silence the output so that nothing is output to a ssh command,
+        # potentially confusing spread
+        sudo cp -r /host/ubuntu-data/user-data/gopath /home 2>/dev/null >/dev/null
+    fi
+    EOF
+        fi
+
         # XXX: is this a race between spread seeing REBOOT and machine rebooting?
         REBOOT
 
@@ -120,6 +139,18 @@ execute: |
         MATCH -- '-r \+0' < /tmp/mock-shutdown.calls
 
         umount /usr/sbin/shutdown
+
+        # if we are using the external backend, remove the .ssh/rc hack we used
+        # to copy data around, it's not necessary going back to run mode, and it
+        # somehow interferes with spread re-connecting over ssh, causing an 
+        # spread to timeout trying to reconnect after the reboot with an error
+        # message like this:
+        # ssh: unexpected packet in response to channel open: <nil>
+        if [ "$SPREAD_BACKEND" = "external" ]; then
+            # TODO:UC20: if/when /host is mounted ro, then we will need to 
+            # either remount it rw or do some other hack to fix this
+            rm -f /host/ubuntu-data/user-data/external/.ssh/rc
+        fi
 
         REBOOT
 
