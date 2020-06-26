@@ -57,7 +57,7 @@ func CreateTransientScopeForTracking(securityTag string) error {
 	}
 
 	// Enforcing uniqueness is preferred to reusing an existing scope for
-	// simplicity since doing otherwise and joining an existing scope has
+	// simplicity since doing otherwise by joining an existing scope has
 	// limitations:
 	// - the originally started scope must be marked as a delegate, with all
 	//   consequences.
