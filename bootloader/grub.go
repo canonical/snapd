@@ -323,11 +323,12 @@ func (g *grub) TryKernel() (snap.PlaceInfo, error) {
 // Implements ManagedAssetsBootloader for the grub bootloader.
 func (g *grub) UpdateBootConfig(opts *Options) error {
 	bootScriptName := "grub.cfg"
-	currentBootScript := filepath.Join(g.dir(), "grub.cfg")
+	currentBootConfig := filepath.Join(g.dir(), "grub.cfg")
 	if opts != nil && opts.Recovery {
+		// use the recovery asset when asked to do so
 		bootScriptName = "grub-recovery.cfg"
 	}
-	return genericUpdateBootConfigFromAssets(currentBootScript, bootScriptName)
+	return genericUpdateBootConfigFromAssets(currentBootConfig, bootScriptName)
 }
 
 // IsCurrentlyManaged returns true when the boot config is managed by snapd.

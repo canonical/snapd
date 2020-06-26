@@ -178,16 +178,16 @@ func genericUpdateBootConfigFromAssets(systemFile string, assetName string) erro
 	if len(newBootConfig) == 0 {
 		return fmt.Errorf("no boot config asset with name %q", assetName)
 	}
-	gbs, err := configAssetFrom(newBootConfig)
+	bc, err := configAssetFrom(newBootConfig)
 	if err != nil {
 		return err
 	}
-	if gbs.Edition() <= currentBootConfigEdition {
+	if bc.Edition() <= currentBootConfigEdition {
 		// edition of the candidate boot config is lower than or equal
 		// to one currently installed
 		return nil
 	}
-	return osutil.AtomicWriteFile(systemFile, gbs.Raw(), 0644, 0)
+	return osutil.AtomicWriteFile(systemFile, bc.Raw(), 0644, 0)
 }
 
 // InstallBootConfig installs the bootloader config from the gadget
