@@ -59,6 +59,7 @@ func (s *trackingSuite) TearDownTest(c *C) {
 // CreateTransientScopeForTracking is a no-op when refresh app awareness is off
 func (s *trackingSuite) TestCreateTransientScopeForTrackingFeatureDisabled(c *C) {
 	noDBus := func() (*dbus.Conn, error) {
+		c.Error("test sequence violated")
 		return nil, fmt.Errorf("dbus should not have been used")
 	}
 	restore := dbusutil.MockConnections(noDBus, noDBus)
@@ -123,6 +124,7 @@ func (s *trackingSuite) TestCreateTransientScopeForTrackingUnhappyNotRootGeneric
 
 	// Disable the cgroup analyzer function as we don't expect it to be used in this test.
 	restore = cgroup.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
+		c.Error("test sequence violated")
 		return "", fmt.Errorf("test was not expected to measure process path in the tracking cgroup")
 	})
 	defer restore()
@@ -247,6 +249,7 @@ func (s *trackingSuite) TestCreateTransientScopeForTrackingUnhappyRootFailedFall
 
 	// Disable the cgroup analyzer function as we don't expect it to be used in this test.
 	restore = cgroup.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
+		c.Error("test sequence violated")
 		return "", fmt.Errorf("test was not expected to measure process path in the tracking cgroup")
 	})
 	defer restore()
@@ -282,12 +285,14 @@ func (s *trackingSuite) TestCreateTransientScopeForTrackingUnhappyNoDBus(c *C) {
 
 	// Calling StartTransientUnit is not attempted without a DBus connection.
 	restore = cgroup.MockDoCreateTransientScope(func(conn *dbus.Conn, unitName string, pid int) error {
+		c.Error("test sequence violated")
 		return fmt.Errorf("test was not expected to create a transient scope")
 	})
 	defer restore()
 
 	// Disable the cgroup analyzer function as we don't expect it to be used in this test.
 	restore = cgroup.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
+		c.Error("test sequence violated")
 		return "", fmt.Errorf("test was not expected to measure process path in the tracking cgroup")
 	})
 	defer restore()
