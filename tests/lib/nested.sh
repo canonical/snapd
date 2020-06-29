@@ -383,6 +383,7 @@ start_nested_core_vm_unit() {
     PARAM_NETWORK="-net nic,model=virtio -net user,hostfwd=tcp::$SSH_PORT-:22"
     PARAM_MONITOR="-monitor tcp:127.0.0.1:$MON_PORT,server,nowait"
     PARAM_USB="-usb"
+    PARAM_CD="${PARAM_CD:-}"
 
     # with qemu-nested, we can't use kvm acceleration
     if [ "$SPREAD_BACKEND" = "google-nested" ]; then
@@ -449,7 +450,8 @@ start_nested_core_vm_unit() {
         ${PARAM_ASSERTIONS} \
         ${PARAM_SERIAL} \
         ${PARAM_MONITOR} \
-        ${PARAM_USB} "
+        ${PARAM_USB} \
+        ${PARAM_CD} "
 
     # wait for the nested-vm service to appear active
     wait_for_service "$NESTED_VM"
