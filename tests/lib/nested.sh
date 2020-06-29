@@ -214,6 +214,12 @@ cleanup_nested_env(){
 }
 
 create_nested_core_vm(){
+    # shellcheck source=tests/lib/prepare.sh
+    . "$TESTSLIB"/prepare.sh
+
+    # shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+
     mkdir -p "$WORK_DIR/image"
     if [ ! -f "$WORK_DIR/image/ubuntu-core.img" ]; then
         local UBUNTU_IMAGE
@@ -239,8 +245,6 @@ create_nested_core_vm(){
         ubuntu-20.04-64)
             NESTED_MODEL="$TESTSLIB/assertions/nested-20-amd64.model"
 
-            # shellcheck source=tests/lib/prepare.sh
-            . "$TESTSLIB"/prepare.sh
             snap download --basename=pc-kernel --channel="20/edge" pc-kernel
             uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$WORK_DIR/image"
 
@@ -256,14 +260,58 @@ create_nested_core_vm(){
 
         if [ "$BUILD_FROM_CURRENT" = "true" ]; then
             if is_core_16_nested_system; then
-                echo "Build from current branch is not supported yet for uc16"
+                repack_snapd_deb_into_core_snap "$WORK_DIR"
+                EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $WORK_DIR/core-from-snapd-deb.snap"
+
+            elif is_core_18_nested_system; then
+                repack_snapd_deb_into_snapd_snap "$WORK_DIR"
+                EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $WORK_DIR/snapd-from-deb.snap"
+
+            elif is_core_20_nested_system; then
+                snap download --basename=pc-kernel --channel="20/edge" pc-kernel
+                uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$WORK_DIR/image"
+
+                # Get the snakeoil key and cert
+                KEY_NAME=$(get_snakeoil_key)
+                SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
+                SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
+
+                # Prepare the pc kernel snap
+                KERNEL_SNAP=$(ls "$WORK_DIR"/image/pc-kernel_*.snap)
+                KERNEL_UNPACKED="$WORK_DIR"/image/kernel-unpacked
+                unsquashfs -d "$KERNEL_UNPACKED" "$KERNEL_SNAP"
+                sbattach --remove "$KERNEL_UNPACKED/kernel.efi"
+                sbsign --key "$SNAKEOIL_KEY" --cert "$SNAKEOIL_CERT" "$KERNEL_UNPACKED/kernel.efi"  --output "$KERNEL_UNPACKED/kernel.efi"
+                snap pack "$KERNEL_UNPACKED" "$WORK_DIR/image"
+
+                chmod 0600 "$KERNEL_SNAP"
+                rm -f "$PWD/pc-kernel.snap"
+                rm -rf "$KERNEL_UNPACKED"
+                EXTRA_FUNDAMENTAL="--snap $KERNEL_SNAP"
+
+                # Prepare the pc gadget snap (unless provided by extra-snaps)
+                GADGET_SNAP=""
+                if [ -d extra-snaps ]; then
+                    GADGET_SNAP=$(find extra-snaps -name 'pc_*.snap')
+                fi
+                if [ -z "$GADGET_SNAP" ] && [ "$ENABLE_SECURE_BOOT" != "true" ] && [ "$ENABLE_TPM" != "true" ]; then
+                    snap download --basename=pc --channel="20/edge" pc
+                    unsquashfs -d pc-gadget pc.snap
+                    secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+                    snap pack pc-gadget/ "$WORK_DIR/image"
+
+                    GADGET_SNAP=$(ls "$WORK_DIR"/image/pc_*.snap)
+                    rm -f "$PWD/pc.snap" "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+                    EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $GADGET_SNAP"
+                fi
+
+                snap download --channel="latest/edge" snapd
+                repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$PWD/new-snapd" "false"
+                EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-snapd/snapd_*.snap"
+            else
+                echo "unknown nested core system (host is $(lsb_release -cs) )"
                 exit 1
             fi
-            # shellcheck source=tests/lib/prepare.sh
-            . "$TESTSLIB"/prepare.sh
-            snap download --channel="latest/edge" snapd
-            repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$PWD/new-snapd" "false"
-            EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-snapd/snapd_*.snap"
         fi
 
         "$UBUNTU_IMAGE" --image-size 10G "$NESTED_MODEL" \
