@@ -68,12 +68,12 @@ func shouldCopyConfigFiles(snapInfo *snap.Info) bool {
 	}
 	switch snapInfo.Type() {
 	case snap.TypeOS:
-		// fugly - but we need to make sure that the content of the
-		// "snapd" snap wins
+		// XXX: ugly but we need to make sure that the content
+		// of the "snapd" snap wins
 		//
-		// TODO: this is also racy but the content of the files in core and
-		// snapd is identical cleanup after link-snap and
-		// setup-profiles are unified
+		// TODO: this is also racy but the content of the
+		// files in core and snapd is identical.  Cleanup
+		// after link-snap and setup-profiles are unified
 		return !osutil.FileExists(filepath.Join(snapInfo.MountDir(), "../..", "snapd/current"))
 	case snap.TypeSnapd:
 		return true
