@@ -193,6 +193,12 @@ func (b Backend) generateWrappers(s *snap.Info, linkCtx LinkContext) error {
 		return wrappers.RemoveSnapServices(s, progress.Null)
 	})
 
+	// add D-Bus service activation files
+	if err = wrappers.AddSnapDBusActivationFiles(s); err != nil {
+		return err
+	}
+	cleanupFuncs = append(cleanupFuncs, wrappers.RemoveSnapDBusActivationFiles)
+
 	// add the desktop files
 	if err = wrappers.AddSnapDesktopFiles(s); err != nil {
 		return err
@@ -218,22 +224,27 @@ func removeGeneratedWrappers(s *snap.Info, firstInstallUndo bool, meter progress
 		logger.Noticef("Cannot remove binaries for %q: %v", s.InstanceName(), err1)
 	}
 
-	err2 := wrappers.RemoveSnapServices(s, meter)
+	err2 := wrappers.RemoveSnapDBusActivationFiles(s)
 	if err2 != nil {
-		logger.Noticef("Cannot remove services for %q: %v", s.InstanceName(), err2)
+		logger.Noticef("Cannot remove D-Bus activation for %q: %v", s.InstanceName(), err2)
 	}
 
-	err3 := wrappers.RemoveSnapDesktopFiles(s)
+	err3 := wrappers.RemoveSnapServices(s, meter)
 	if err3 != nil {
-		logger.Noticef("Cannot remove desktop files for %q: %v", s.InstanceName(), err3)
+		logger.Noticef("Cannot remove services for %q: %v", s.InstanceName(), err3)
 	}
 
-	err4 := wrappers.RemoveSnapIcons(s)
+	err4 := wrappers.RemoveSnapDesktopFiles(s)
 	if err4 != nil {
-		logger.Noticef("Cannot remove desktop icons for %q: %v", s.InstanceName(), err4)
+		logger.Noticef("Cannot remove desktop files for %q: %v", s.InstanceName(), err4)
 	}
 
-	return firstErr(err1, err2, err3, err4)
+	err5 := wrappers.RemoveSnapIcons(s)
+	if err5 != nil {
+		logger.Noticef("Cannot remove desktop icons for %q: %v", s.InstanceName(), err5)
+	}
+
+	return firstErr(err1, err2, err3, err4, err5)
 }
 
 func generateSnapdWrappers(s *snap.Info) error {
