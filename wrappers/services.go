@@ -457,6 +457,9 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, opts *AddSnapServicesO
 			// boot
 			continue
 		}
+		// XXX: this may become quadratic, optimize.
+		// When preseeding services get enabled in doMarkPresseeded instead at
+		// the moment.
 		if strutil.ListContains(disabledSvcs, app.Name) || preseeding {
 			continue
 		}
