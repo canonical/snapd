@@ -48,6 +48,10 @@ func securityTagFromCgroupPath(path string) (securityTag string) {
 	// We are only interested in cgroup directory names that correspond to
 	// services and scopes, as they contain processes that have been invoked
 	// from a snap.
+	// Expected format of leaf name:
+	//   snap.<pkg>.<app>.service - assigned by systemd for services
+	//   snap.<pkg>.<app>.<uuid>.scope - transient scope for apps
+	//   snap.<pkg>.hook.<app>.<uuid>.scope - transient scope for hooks
 	if ext := filepath.Ext(leaf); ext != ".service" && ext != ".scope" {
 		return ""
 	}
