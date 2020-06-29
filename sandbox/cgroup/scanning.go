@@ -29,29 +29,36 @@ import (
 )
 
 var (
-	// string that looks like an hook security tag
-	taggish1 = regexp.MustCompile(`snap\.[^.]+\.hook\.[^.]+`)
+	// string that looks like a hook security tag
+	roughHookTagPattern = regexp.MustCompile(`snap\.[^.]+\.hook\.[^.]+`)
 	// string that looks like an app security tag
-	taggish2 = regexp.MustCompile(`snap\.[^.]+\.[^.]+`)
+	roughAppTagPattern = regexp.MustCompile(`snap\.[^.]+\.[^.]+`)
 )
 
 // securityTagFromCgroupPath returns a security tag from cgroup path.
 func securityTagFromCgroupPath(path string) (securityTag string) {
 	leaf := filepath.Base(filepath.Clean(path))
 
-	// We are only interested cgroup directory names that correspond to
+	// If the security cgroup name doesn't start with "snap." then there is no
+	// point in doing other checks.
+	if !strings.HasPrefix(leaf, "snap.") {
+		return ""
+	}
+
+	// We are only interested in cgroup directory names that correspond to
 	// services and scopes, as they contain processes that have been invoked
 	// from a snap.
+	// Expected format of leaf name:
+	//   snap.<pkg>.<app>.service - assigned by systemd for services
+	//   snap.<pkg>.<app>.<uuid>.scope - transient scope for apps
+	//   snap.<pkg>.hook.<app>.<uuid>.scope - transient scope for hooks
 	if ext := filepath.Ext(leaf); ext != ".service" && ext != ".scope" {
 		return ""
 	}
 
-	// There are two broad forms expressed by taggish1 and taggish2 regular expressions.
-	for _, re := range []*regexp.Regexp{taggish1, taggish2} {
+	// There are two broad forms expressed by the pair of regular expressions defined above.
+	for _, re := range []*regexp.Regexp{roughHookTagPattern, roughAppTagPattern} {
 		if maybeTag := re.FindString(leaf); maybeTag != "" {
-			// NOTE: The things we are returning need to minimally look like
-			// security tags. They are further refined and looked at below, in
-			// PidsOfSnap.
 			if naming.ValidateSecurityTag(maybeTag) == nil {
 				return maybeTag
 			}
@@ -135,12 +142,12 @@ func PidsOfSnap(snapInstanceName string) (map[string][]int, error) {
 		// In v2 mode scan all of /sys/fs/cgroup as there is no specialization
 		// anymore (each directory represents a hierarchy with equal
 		// capabilities and old split into controllers is gone).
-		cgroupPathToScan = filepath.Join(rootPath, expectedMountPoint)
+		cgroupPathToScan = filepath.Join(rootPath, cgroupMountPoint)
 	} else {
 		// In v1 mode scan just /sys/fs/cgroup/systemd as that is sufficient
 		// for finding snap-specific cgroup names. Systemd uses this for
 		// tracking and scopes and services are represented there.
-		cgroupPathToScan = filepath.Join(rootPath, expectedMountPoint, "systemd")
+		cgroupPathToScan = filepath.Join(rootPath, cgroupMountPoint, "systemd")
 	}
 	// NOTE: Walk is internally performed in lexical order so the output is
 	// deterministic and we don't need to sort the returned aggregated PIDs.
