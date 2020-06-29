@@ -452,9 +452,9 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, opts *AddSnapServicesO
 			written = append(written, path)
 		}
 
-		if app.Timer != nil || len(app.Sockets) != 0 {
-			// service is socket or timer activated, not during the
-			// boot
+		if app.Timer != nil || len(app.Sockets) != 0 || len(app.ActivatesOn) != 0 {
+			// service is dbus, socket, or timer
+			// activated, not during the boot
 			continue
 		}
 		// XXX: this may become quadratic, optimize.
@@ -727,8 +727,8 @@ Type={{.App.Daemon}}
 {{- if .Remain}}
 RemainAfterExit={{.Remain}}
 {{- end}}
-{{- if .App.BusName}}
-BusName={{.App.BusName}}
+{{- if .BusName}}
+BusName={{.BusName}}
 {{- end}}
 {{- if .App.WatchdogTimeout}}
 WatchdogSec={{.App.WatchdogTimeout.Seconds}}
@@ -783,6 +783,18 @@ WantedBy={{.ServicesTarget}}
 		killMode = "process"
 	}
 
+	var busName string
+	if appInfo.Daemon == "dbus" {
+		busName = appInfo.BusName
+		if busName == "" && len(appInfo.ActivatesOn) != 0 {
+			slot := appInfo.ActivatesOn[len(appInfo.ActivatesOn)-1]
+			if err := slot.Attr("name", &busName); err != nil {
+				// This should be impossible for a valid AppInfo
+				logger.Noticef("Cannot get 'name' attribute of dbus slot %q: %v", slot.Name, err)
+			}
+		}
+	}
+
 	wrapperData := struct {
 		App *snap.AppInfo
 
@@ -797,6 +809,7 @@ WantedBy={{.ServicesTarget}}
 		KillMode           string
 		KillSignal         string
 		OOMAdjustScore     int
+		BusName            string
 		Before             []string
 		After              []string
 
@@ -812,6 +825,7 @@ WantedBy={{.ServicesTarget}}
 		KillMode:       killMode,
 		KillSignal:     appInfo.StopMode.KillSignal(),
 		OOMAdjustScore: oomAdjustScore,
+		BusName:        busName,
 
 		Before: genServiceNames(appInfo.Snap, appInfo.Before),
 		After:  genServiceNames(appInfo.Snap, appInfo.After),

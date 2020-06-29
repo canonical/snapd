@@ -253,6 +253,11 @@ func (s *servicesWrapperGenSuite) TestGenServiceFileWithBusName(c *C) {
 	yamlText := `
 name: snap
 version: 1.0
+slots:
+    dbus-slot:
+        interface: dbus
+        bus: system
+        name: org.example.Foo
 apps:
     app:
         command: bin/start
@@ -262,6 +267,7 @@ apps:
         stop-timeout: 10s
         bus-name: foo.bar.baz
         daemon: dbus
+        activates-on: [dbus-slot]
 `
 
 	info, err := snap.InfoFromSnapYaml([]byte(yamlText))
@@ -272,6 +278,44 @@ apps:
 	generatedWrapper, err := wrappers.GenerateSnapServiceFile(app, nil)
 	c.Assert(err, IsNil)
 
+	c.Assert(string(generatedWrapper), Equals, expectedDbusService)
+}
+
+func (s *servicesWrapperGenSuite) TestGenServiceFileWithBusNameFromSlot(c *C) {
+
+	yamlText := `
+name: snap
+version: 1.0
+slots:
+    dbus-slot1:
+        interface: dbus
+        bus: system
+        name: org.example.Foo
+    dbus-slot2:
+        interface: dbus
+        bus: system
+        name: foo.bar.baz
+apps:
+    app:
+        command: bin/start
+        stop-command: bin/stop
+        reload-command: bin/reload
+        post-stop-command: bin/stop --post
+        stop-timeout: 10s
+        daemon: dbus
+        activates-on: [dbus-slot1, dbus-slot2]
+`
+
+	info, err := snap.InfoFromSnapYaml([]byte(yamlText))
+	c.Assert(err, IsNil)
+	info.Revision = snap.R(44)
+	app := info.Apps["app"]
+
+	generatedWrapper, err := wrappers.GenerateSnapServiceFile(app, nil)
+	c.Assert(err, IsNil)
+
+	// Bus name defaults to the name from the last slot the daemon
+	// activates on.
 	c.Assert(string(generatedWrapper), Equals, expectedDbusService)
 }
 
