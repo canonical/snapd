@@ -20,6 +20,9 @@ restore: |
     rm -f test-snapd-refresh.*/meta/snap.yaml
     snap unset core experimental.refresh-app-awareness
     rm -f install.log
+    if [ "$USER" = root ]; then
+        systemctl --user stop dbus.service || true
+    fi
 execute: |
     if ! snap debug sandbox-features --required "confinement-options:$CONFINEMENT"; then
         echo "SKIP: unsupported confinement variant"

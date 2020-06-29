@@ -24,6 +24,9 @@ restore: |
     snap unset core experimental.refresh-app-awareness
     tests.session -u "$USER" restore
     rm -f /tmp/*.pid /tmp/*.stamp
+    if [ "$USER" = root ]; then
+        systemctl --user stop dbus.service || true
+    fi
 
 execute: |
     # TODO: add a variant that uses a service
