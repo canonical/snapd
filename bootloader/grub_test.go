@@ -629,6 +629,34 @@ this is mocked grub-recovery.conf
 	c.Assert(filepath.Join(s.grubEFINativeDir(), "grub.cfg"), testutil.FileEquals, `recovery boot script`)
 }
 
+func (s *grubTestSuite) TestRecoveryUpdateBootConfigUpdates(c *C) {
+	// native EFI/ubuntu setup
+	s.makeFakeGrubEFINativeEnv(c, []byte(`# Snapd-Boot-Config-Edition: 1
+recovery boot script`))
+
+	opts := &bootloader.Options{Recovery: true}
+	g := bootloader.NewGrub(s.rootdir, opts)
+	c.Assert(g, NotNil)
+
+	restore := assets.MockInternal("grub-recovery.cfg", []byte(`# Snapd-Boot-Config-Edition: 3
+this is mocked grub-recovery.conf
+`))
+	defer restore()
+	restore = assets.MockInternal("grub.cfg", []byte(`# Snapd-Boot-Config-Edition: 4
+this is mocked grub.conf
+`))
+	defer restore()
+	eg, ok := g.(bootloader.ManagedAssetsBootloader)
+	c.Assert(ok, Equals, true)
+	// install the recovery boot script
+	err := eg.UpdateBootConfig(opts)
+	c.Assert(err, IsNil)
+	// the recovery boot asset was picked
+	c.Assert(filepath.Join(s.grubEFINativeDir(), "grub.cfg"), testutil.FileEquals, `# Snapd-Boot-Config-Edition: 3
+this is mocked grub-recovery.conf
+`)
+}
+
 func (s *grubTestSuite) testBootUpdateBootConfigUpdates(c *C, oldConfig, newConfig string, update bool) {
 	// native EFI/ubuntu setup
 	s.makeFakeGrubEFINativeEnv(c, []byte(oldConfig))
