@@ -32,7 +32,7 @@ var (
 	ErrDBusUnknownMethod    = errDBusUnknownMethod
 	ErrDBusNameHasNoOwner   = errDBusNameHasNoOwner
 	ErrDBusSpawnChildExited = errDBusSpawnChildExited
-	
+
 	SecurityTagFromCgroupPath = securityTagFromCgroupPath
 )
 
