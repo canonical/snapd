@@ -916,6 +916,8 @@ suites:
             ENABLE_SECURE_BOOT: '$(HOST: echo "${SPREAD_ENABLE_SECURE_BOOT:-false}")'
             # Build and use snapd from current branch
             BUILD_SNAPD_FROM_CURRENT: '$(HOST: echo "${SPREAD_BUILD_SNAPD_FROM_CURRENT:-false}")'
+            # Download and use an custom image from this url
+            CUSTOM_IMAGE_URL: '$(HOST: echo "${SPREAD_CUSTOM_IMAGE_URL:-}")'
         manual: true
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
@@ -956,6 +958,8 @@ suites:
             ENABLE_SECURE_BOOT: '$(HOST: echo "${SPREAD_ENABLE_SECURE_BOOT:-false}")'
             # Build and use snapd from current branch
             BUILD_SNAPD_FROM_CURRENT: '$(HOST: echo "${SPREAD_BUILD_SNAPD_FROM_CURRENT:-false}")'
+            # Download and use an custom image from this url
+            CUSTOM_IMAGE_URL: '$(HOST: echo "${SPREAD_CUSTOM_IMAGE_URL:-}")'
         manual: true
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
@@ -1004,6 +1008,8 @@ suites:
             ENABLE_SECURE_BOOT: '$(HOST: echo "${SPREAD_ENABLE_SECURE_BOOT:-false}")'
             # Build and use snapd from current branch
             BUILD_SNAPD_FROM_CURRENT: '$(HOST: echo "${SPREAD_BUILD_SNAPD_FROM_CURRENT:-false}")'
+            # Download and use an custom image from this url
+            CUSTOM_IMAGE_URL: '$(HOST: echo "${SPREAD_CUSTOM_IMAGE_URL:-}")'
         manual: true
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
@@ -1048,6 +1054,8 @@ suites:
             ENABLE_SECURE_BOOT: '$(HOST: echo "${SPREAD_ENABLE_SECURE_BOOT:-true}")'
             # Build and use snapd from current branch
             BUILD_SNAPD_FROM_CURRENT: '$(HOST: echo "${SPREAD_BUILD_SNAPD_FROM_CURRENT:-true}")'
+            # Download and use an custom image from this url
+            CUSTOM_IMAGE_URL: '$(HOST: echo "${SPREAD_CUSTOM_IMAGE_URL:-}")'
         manual: true
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh

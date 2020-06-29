@@ -239,99 +239,173 @@ cleanup_nested_env(){
     rm -rf "$WORK_DIR"
 }
 
-create_nested_core_vm(){
-    mkdir -p "$WORK_DIR/image"
-    if [ ! -f "$WORK_DIR/image/ubuntu-core.img" ]; then
-        local UBUNTU_IMAGE
-        UBUNTU_IMAGE=/snap/bin/ubuntu-image
+get_image_path(){
+    echo "$WORK_DIR/image"
+}
 
-        # create ubuntu-core image
-        local EXTRA_FUNDAMENTAL=""
-        local EXTRA_SNAPS=""
-        if [ -d "${PWD}/extra-snaps" ]; then
-            while IFS= read -r mysnap; do
-                EXTRA_SNAPS="$EXTRA_SNAPS --snap $mysnap"
-            done <   <(find extra-snaps -name '*.snap')
-        fi
+get_core_image_name(){
+    get_image_name core
+}
 
-        local NESTED_MODEL=""
-        case "$SPREAD_SYSTEM" in
+get_classic_image_name(){
+    get_image_name classic
+}
+
+get_image_name(){
+    local TYPE="$1"
+    local SOURCE="${CORE_CHANNEL}"
+    local VERSION="16"
+
+    if is_core_20_nested_system; then
+        VERSION="20"
+    elif is_core_18_nested_system; then
+        VERSION="18"
+    fi
+
+    if [ "$BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
+        SOURCE="custom"
+    fi
+    if [ "$(get_extra_snaps | wc -l)" != "0" ]; then
+        SOURCE="custom"
+    fi
+    echo "ubuntu-${TYPE}-${VERSION}-${SOURCE}.img"
+}
+
+prepare_image_dir(){
+    mkdir -p $(get_image_path)
+}
+
+get_extra_snaps_path(){
+    echo "${PWD}/extra-snaps"
+}
+
+get_extra_snaps(){
+    local EXTRA_SNAPS=""
+    local EXTRA_SNAPS_PATH=$(get_extra_snaps_path)
+    if [ -d "$EXTRA_SNAPS_PATH" ]; then
+        while IFS= read -r mysnap; do
+            echo "$mysnap"
+        done <   <(find "$EXTRA_SNAPS_PATH" -name '*.snap')
+    fi
+}
+
+download_nested_image(){
+    local IMAGE_URL=$1
+    local IMAGE_NAME=$2
+    local IMAGE_PATH=$(get_image_path)
+    if [[ "$IMAGE_URL" == *.img.xz ]]; then
+        curl -L -o "${IMAGE_PATH}/${IMAGE_NAME}.xz" "$IMAGE_URL"
+        unxz "${IMAGE_PATH}/${IMAGE_NAME}.xz"
+    elif [[ "$IMAGE_URL" == *.img ]]; then
+        curl -L -o "${IMAGE_PATH}/${IMAGE_NAME}" "$IMAGE_URL"
+    else
+        echo "Image extension not supported, exiting..."
+        exit 1
+    fi
+}
+
+get_nested_model(){
+    case "$SPREAD_SYSTEM" in
         ubuntu-16.04-64)
-            NESTED_MODEL="$TESTSLIB/assertions/nested-amd64.model"
+            echo "$TESTSLIB/assertions/nested-amd64.model"
             ;;
         ubuntu-18.04-64)
-            NESTED_MODEL="$TESTSLIB/assertions/nested-18-amd64.model"
+            echo "$TESTSLIB/assertions/nested-18-amd64.model"
             ;;
         ubuntu-20.04-64)
-            NESTED_MODEL="$TESTSLIB/assertions/nested-20-amd64.model"
+            echo "$TESTSLIB/assertions/nested-20-amd64.model"
             ;;
         *)
             echo "unsupported system"
             exit 1
             ;;
         esac
+}
 
-        if [ "$BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
-            if is_core_16_nested_system; then
-                echo "Build from current branch is not supported yet for uc16"
-                exit 1
+create_nested_core_vm(){
+    prepare_image_dir
+
+    local IMAGE_PATH=$(get_image_path)
+    local IMAGE_NAME=$(get_core_image_name)
+    if [ ! -f "$IMAGE_PATH/$IMAGE_NAME" ]; then
+
+        if [ -n "$CUSTOM_IMAGE_URL" ]; then
+            # download the ubuntu-core image from $CUSTOM_IMAGE_URL
+            download_nested_image "$CUSTOM_IMAGE_URL" "$IMAGE_NAME"
+        else
+            # create the ubuntu-core image
+            local UBUNTU_IMAGE=/snap/bin/ubuntu-image
+            local EXTRA_FUNDAMENTAL=""
+            local EXTRA_SNAPS=""
+            for mysnap in $(get_extra_snaps); do
+                EXTRA_SNAPS="$EXTRA_SNAPS --snap $mysnap"
+            done
+
+            if [ "$BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
+                if is_core_16_nested_system; then
+                    echo "Build from current branch is not supported yet for uc16"
+                    exit 1
+                fi
+                # shellcheck source=tests/lib/prepare.sh
+                . "$TESTSLIB"/prepare.sh
+
+                snap download --basename=pc-kernel --channel="20/edge" pc-kernel
+                uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$IMAGE_PATH"
+
+                # Get the snakeoil key and cert
+                KEY_NAME=$(get_snakeoil_key)
+                SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
+                SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
+
+                # Prepare the pc kernel snap
+                KERNEL_SNAP=$(ls "$IMAGE_PATH"/pc-kernel_*.snap)
+                KERNEL_UNPACKED="$IMAGE_PATH"/kernel-unpacked
+                unsquashfs -d "$KERNEL_UNPACKED" "$KERNEL_SNAP"
+                sbattach --remove "$KERNEL_UNPACKED/kernel.efi"
+                sbsign --key "$SNAKEOIL_KEY" --cert "$SNAKEOIL_CERT" "$KERNEL_UNPACKED/kernel.efi"  --output "$KERNEL_UNPACKED/kernel.efi"
+                snap pack "$KERNEL_UNPACKED" "$WORK_DIR/image"
+
+                chmod 0600 "$KERNEL_SNAP"
+                rm -f "$PWD/pc-kernel.snap"
+                rm -rf "$KERNEL_UNPACKED"
+                EXTRA_FUNDAMENTAL="--snap $KERNEL_SNAP"
+
+                # Prepare the pc gadget snap (unless provided by extra-snaps)
+                GADGET_SNAP=""
+                if [ -d $(get_extra_snaps_path) ]; then
+                    GADGET_SNAP=$(find extra-snaps -name 'pc_*.snap')
+                fi
+                if [ -z "$GADGET_SNAP" ]; then
+                    snap download --basename=pc --channel="20/edge" pc
+                    unsquashfs -d pc-gadget pc.snap
+                    secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+                    snap pack pc-gadget/ "$IMAGE_PATH"
+
+                    GADGET_SNAP=$(ls "$IMAGE_PATH"/pc_*.snap)
+                    rm -f "$PWD/pc.snap" "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+                    EXTRA_FUNDAMENTAL="--snap $GADGET_SNAP"
+                fi
+
+                snap download --channel="latest/edge" snapd
+                repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$PWD/new-snapd" "false"
+                EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-snapd/snapd_*.snap"
             fi
-            # shellcheck source=tests/lib/prepare.sh
-            . "$TESTSLIB"/prepare.sh
 
-            snap download --basename=pc-kernel --channel="20/edge" pc-kernel
-            uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$WORK_DIR/image"
-
-            # Get the snakeoil key and cert
-            KEY_NAME=$(get_snakeoil_key)
-            SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
-            SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
-
-            # Prepare the pc kernel snap
-            KERNEL_SNAP=$(ls "$WORK_DIR"/image/pc-kernel_*.snap)
-            KERNEL_UNPACKED="$WORK_DIR"/image/kernel-unpacked
-            unsquashfs -d "$KERNEL_UNPACKED" "$KERNEL_SNAP"
-            sbattach --remove "$KERNEL_UNPACKED/kernel.efi"
-            sbsign --key "$SNAKEOIL_KEY" --cert "$SNAKEOIL_CERT" "$KERNEL_UNPACKED/kernel.efi"  --output "$KERNEL_UNPACKED/kernel.efi"
-            snap pack "$KERNEL_UNPACKED" "$WORK_DIR/image"
-
-            chmod 0600 "$KERNEL_SNAP"
-            rm -f "$PWD/pc-kernel.snap"
-            rm -rf "$KERNEL_UNPACKED"
-            EXTRA_FUNDAMENTAL="--snap $KERNEL_SNAP"
-
-            # Prepare the pc gadget snap (unless provided by extra-snaps)
-            GADGET_SNAP=""
-            if [ -d extra-snaps ]; then
-                GADGET_SNAP=$(find extra-snaps -name 'pc_*.snap')
-            fi
-            if [ -z "$GADGET_SNAP" ]; then
-                snap download --basename=pc --channel="20/edge" pc
-                unsquashfs -d pc-gadget pc.snap
-                secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
-                snap pack pc-gadget/ "$WORK_DIR/image"
-
-                GADGET_SNAP=$(ls "$WORK_DIR"/image/pc_*.snap)
-                rm -f "$PWD/pc.snap" "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
-                EXTRA_FUNDAMENTAL="--snap $GADGET_SNAP"
-            fi
-
-            snap download --channel="latest/edge" snapd
-            repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$PWD/new-snapd" "false"
-            EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-snapd/snapd_*.snap"
+            # Invoke ubuntu image
+            local NESTED_MODEL=$(get_nested_model)
+            "$UBUNTU_IMAGE" --image-size 10G "$NESTED_MODEL" \
+                --channel "$CORE_CHANNEL" \
+                --output "$IMAGE_PATH/$IMAGE_NAME" \
+                "$EXTRA_FUNDAMENTAL" \
+                "$EXTRA_SNAPS"
         fi
 
-        "$UBUNTU_IMAGE" --image-size 10G "$NESTED_MODEL" \
-            --channel "$CORE_CHANNEL" \
-            --output "$WORK_DIR/image/ubuntu-core.img" \
-            "$EXTRA_FUNDAMENTAL" \
-            "$EXTRA_SNAPS"
-
+        # Configure the user for the vm
         if [ "$USE_CLOUD_INIT" = "true" ]; then
             if is_core_20_nested_system; then
-                configure_cloud_init_nested_core_vm_uc20
+                configure_cloud_init_nested_core_vm_uc20 "$IMAGE_PATH/$IMAGE_NAME"
             else
-                configure_cloud_init_nested_core_vm
+                configure_cloud_init_nested_core_vm "$IMAGE_PATH/$IMAGE_NAME"
             fi
         else
             create_assertions_disk
@@ -340,9 +414,10 @@ create_nested_core_vm(){
 }
 
 configure_cloud_init_nested_core_vm(){
+    local IMAGE=$1
     create_cloud_init_data "$WORK_DIR/user-data" "$WORK_DIR/meta-data"
 
-    loops=$(kpartx -avs "$WORK_DIR/image/ubuntu-core.img"  | cut -d' ' -f 3)
+    loops=$(kpartx -avs "$IMAGE"  | cut -d' ' -f 3)
     part=$(echo "$loops" | tail -1)
     tmp=$(mktemp -d)
     mount "/dev/mapper/$part" "$tmp"
@@ -352,7 +427,7 @@ configure_cloud_init_nested_core_vm(){
     cp "$WORK_DIR/meta-data" "$tmp/system-data/var/lib/cloud/seed/nocloud-net/"
 
     umount "$tmp"
-    kpartx -d "$WORK_DIR/image/ubuntu-core.img"
+    kpartx -d "$IMAGE"
 }
 
 create_cloud_init_data(){
@@ -399,9 +474,10 @@ EOF
 }
 
 configure_cloud_init_nested_core_vm_uc20(){
+    local IMAGE=$1
     create_cloud_init_config "$WORK_DIR/data.cfg"
 
-    loop=$(kpartx -avs "$WORK_DIR/image/ubuntu-core.img" | sed -n 2p | awk '{print $3}')
+    loop=$(kpartx -avs "$IMAGE" | sed -n 2p | awk '{print $3}')
     tmp=$(mktemp -d)
 
     mount "/dev/mapper/$loop" "$tmp"
@@ -410,18 +486,16 @@ configure_cloud_init_nested_core_vm_uc20(){
     umount "$tmp"
 }
 
-get_nested_core_image_path(){
-    echo "$WORK_DIR/image/ubuntu-core.img"
-}
-
 start_nested_core_vm(){
     local IMAGE QEMU
     QEMU=$(get_qemu_for_nested_vm)
     # As core18 systems use to fail to start the assertion disk when using the
     # snapshot feature, we copy the original image and use that copy to start
     # the VM.
-    IMAGE_FILE="$WORK_DIR/image/ubuntu-core-new.img"
-    cp -f "$WORK_DIR/image/ubuntu-core.img" "$IMAGE_FILE"
+    local CURRENT_IMAGE="$WORK_DIR/image/ubuntu-core-current.img"
+    local IMAGE_PATH=$(get_image_path)
+    local IMAGE_NAME=$(get_core_image_name)
+    cp "$IMAGE_PATH/$IMAGE_NAME" "$CURRENT_IMAGE"
 
     # Now qemu parameters are defined
     # Increase the number of cpus used once the issue related to kvm and ovmf is fixed
@@ -469,15 +543,6 @@ start_nested_core_vm(){
         PARAM_ASSERTIONS="-drive if=none,id=stick,format=raw,file=$WORK_DIR/assertions.disk,cache=none,format=raw -device nec-usb-xhci,id=xhci -device usb-storage,bus=xhci.0,removable=true,drive=stick"
     fi
     if is_core_20_nested_system; then
-        if ! is_focal_system; then
-            cp /etc/apt/sources.list /etc/apt/sources.list.back
-            echo "deb http://us-east1.gce.archive.ubuntu.com/ubuntu/ focal main restricted" >> /etc/apt/sources.list
-            apt update
-            apt install -y ovmf
-            mv /etc/apt/sources.list.back /etc/apt/sources.list
-            apt update
-        fi
-
         OVMF_CODE="secboot"
         OVMF_VARS="ms"
         # In this case the kernel.efi is unsigned and signed with snaleoil certs
@@ -497,9 +562,9 @@ start_nested_core_vm(){
             fi
             PARAM_TPM="-chardev socket,id=chrtpm,path=/var/snap/swtpm-mvo/current/swtpm-sock -tpmdev emulator,id=tpm0,chardev=chrtpm -device tpm-tis,tpmdev=tpm0"
         fi
-        PARAM_IMAGE="-drive file=$IMAGE_FILE,cache=none,format=raw,id=disk1,if=none -device virtio-blk-pci,drive=disk1,bootindex=1"
+        PARAM_IMAGE="-drive file=$CURRENT_IMAGE,cache=none,format=raw,id=disk1,if=none -device virtio-blk-pci,drive=disk1,bootindex=1"
     else
-        PARAM_IMAGE="-drive file=$IMAGE_FILE,cache=none,format=raw"
+        PARAM_IMAGE="-drive file=$CURRENT_IMAGE,cache=none,format=raw"
     fi
 
     # Systemd unit is created, it is important to respect the qemu parameters order
@@ -528,17 +593,16 @@ start_nested_core_vm(){
 }
 
 create_nested_classic_vm(){
-    mkdir -p "$WORK_DIR/image"
-    IMAGE=$(ls "$WORK_DIR"/image/*.img || true)
-    if [ -z "$IMAGE" ]; then
+    prepare_image_dir
+
+    local IMAGE_PATH=$(get_image_path)
+    local IMAGE_NAME=$(get_classic_image_name)
+    if [ ! -f "$IMAGE_PATH/$IMAGE_NAME" ]; then
         # Get the cloud image
         local IMAGE_URL
         IMAGE_URL=$(get_image_url_for_nested_vm)
-        wget -P "$WORK_DIR/image" "$IMAGE_URL"
-        # Check the image
-        local IMAGE
-        IMAGE=$(ls "$WORK_DIR"/image/*.img)
-        test "$(echo "$IMAGE" | wc -l)" = "1"
+        wget -P "$IMAGE_PATH" "$IMAGE_URL"
+        download_nested_image "$IMAGE_URL" "$IMAGE_NAME"
 
         # Prepare the cloud-init configuration and configure image
         create_cloud_init_config "$WORK_DIR/seed"
@@ -546,14 +610,11 @@ create_nested_classic_vm(){
     fi
 }
 
-get_nested_classic_image_path() {
-    ls "$WORK_DIR"/image/*.img
-}
-
 start_nested_classic_vm(){
-    local IMAGE QEMU
-    IMAGE=$(ls "$WORK_DIR"/image/*.img)
+    local IMAGE QEMU IMAGE_PATH IMAGE_NAME
     QEMU=$(get_qemu_for_nested_vm)
+    IMAGE_PATH=$(get_image_path)
+    IMAGE_NAME=$(get_classic_image_name)
 
     # Now qemu parameters are defined
     PARAM_CPU="-smp 1"
@@ -582,7 +643,7 @@ start_nested_classic_vm(){
         exit 1
     fi
 
-    PARAM_IMAGE="-drive file=$IMAGE,if=virtio"
+    PARAM_IMAGE="-drive file=$IMAGE_PATH/$IMAGE_NAME,if=virtio"
     PARAM_SEED="-drive file=$WORK_DIR/seed.img,if=virtio"
     PARAM_SERIAL="-serial file:${WORK_DIR}/serial-log.txt"
     PARAM_BIOS=""
