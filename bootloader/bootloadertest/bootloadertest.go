@@ -56,6 +56,7 @@ var _ bootloader.Bootloader = (*MockBootloader)(nil)
 var _ bootloader.RecoveryAwareBootloader = (*MockRecoveryAwareBootloader)(nil)
 var _ bootloader.ExtractedRunKernelImageBootloader = (*MockExtractedRunKernelImageBootloader)(nil)
 var _ bootloader.ExtractedRecoveryKernelImageBootloader = (*MockExtractedRecoveryKernelImageBootloader)(nil)
+var _ bootloader.ManagedAssetsBootloader = (*MockManagedAssetsBootloader)(nil)
 
 func Mock(name, bootdir string) *MockBootloader {
 	return &MockBootloader{
@@ -359,4 +360,36 @@ func (b *MockExtractedRunKernelImageBootloader) DisableTryKernel() error {
 	b.runKernelImageMockedNumCalls["DisableTryKernel"]++
 	b.runKernelImageEnabledTryKernel = nil
 	return b.runKernelImageMockedErrs["DisableTryKernel"]
+}
+
+// MockManagedAssetsBootloader mocks a bootloader implementing the
+// bootloader.ManagedAssetsBootloader interface.
+type MockManagedAssetsBootloader struct {
+	*MockBootloader
+
+	IsManaged    bool
+	IsManagedErr error
+	UpdateErr    error
+	Updated      bool
+	UpdateCalls  int
+	Assets       []string
+}
+
+func (b *MockBootloader) WithManagedAssets() *MockManagedAssetsBootloader {
+	return &MockManagedAssetsBootloader{
+		MockBootloader: b,
+	}
+}
+
+func (b *MockManagedAssetsBootloader) IsCurrentlyManaged() (bool, error) {
+	return b.IsManaged, b.IsManagedErr
+}
+
+func (b *MockManagedAssetsBootloader) BootAssets() []string {
+	return b.Assets
+}
+
+func (b *MockManagedAssetsBootloader) UpdateBootConfig(opts *bootloader.Options) (bool, error) {
+	b.UpdateCalls++
+	return b.Updated, b.UpdateErr
 }
