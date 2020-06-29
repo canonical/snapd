@@ -61,9 +61,6 @@ func checkDBusServiceConflicts(st *state.State, info *snap.Info) error {
 		return err
 	}
 	for instanceName, snapst := range stateMap {
-		if !snapst.IsInstalled() {
-			continue
-		}
 		if instanceName == info.InstanceName() {
 			continue
 		}
