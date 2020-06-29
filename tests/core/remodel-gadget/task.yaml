@@ -28,7 +28,7 @@ prepare: |
     systemctl start snapd.service snapd.socket
 
     # wait for first boot to be done
-    wait_for_first_boot
+    wait_for_first_boot_change
 
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -59,7 +59,7 @@ restore: |
     rm -f /boot/efi/canary.txt
 
     # wait for first boot to be done
-    wait_for_first_boot
+    wait_for_first_boot_change
 
     # extra paranoia because failure to cleanup earlier took us a long time
     # to find

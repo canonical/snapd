@@ -14,19 +14,16 @@ prepare_model(){
 }
 
 restore_model(){
-    cp model.bak /var/lib/snapd/seed/assertions/model
+    mv model.bak /var/lib/snapd/seed/assertions/model
 }
 
 prepare_seed(){
-    cp -f /var/lib/snapd/seed/seed.yaml seed.yaml.bak
+    mv /var/lib/snapd/seed/seed.yaml seed.yaml.bak
+    python3 "$TESTSLIB"/manip_seed.py /var/lib/snapd/seed/seed.yaml "$@"
 }
 
 restore_seed(){
     mv seed.yaml.bak /var/lib/snapd/seed/seed.yaml
-}
-
-manip_seed(){
-    python3 "$TESTSLIB"/manip_seed.py /var/lib/snapd/seed/seed.yaml "$@"
 }
 
 prepare_testrootorg_store(){
@@ -60,11 +57,11 @@ restore_test_model(){
     rm -f "/var/lib/snapd/seed/assertions/${MODEL_NAME}.model"
 }
 
-prepare_pc_snap(){
+unpack_pc_snap(){
     unsquashfs -no-progress /var/lib/snapd/snaps/pc_*.snap
 }
 
-complete_pc_snap(){
+pack_pc_snap(){
     mksquashfs squashfs-root pc_x1.snap -comp xz -no-fragments -no-progress
     rm -rf squashfs-root
     cp pc_x1.snap /var/lib/snapd/seed/snaps/
@@ -100,6 +97,6 @@ get_snap_suffix(){
     fi
 }
 
-wait_for_first_boot(){
+wait_for_first_boot_change(){
     while ! snap changes | grep -q "Done.*Initialize system state"; do sleep 1; done
 }

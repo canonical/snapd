@@ -89,6 +89,8 @@ execute: |
         exit 1
     fi
 
+
+    rm -f /var/lib/console-conf/complete
     echo "Check that 'service.console-conf.disable' handling works"
     # start some instances of console-conf
     systemctl start console-conf@tty1

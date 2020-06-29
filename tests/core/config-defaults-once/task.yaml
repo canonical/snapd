@@ -22,18 +22,17 @@ prepare: |
     systemctl stop snapd.service snapd.socket
     clean_snapd_lib
 
-    # Prepare pc snap
-    prepare_pc_snap
+    # Configure the pc snap
+    unpack_pc_snap
 
     # Update the gadget config file
     cat "$GADGET_FILE" >> squashfs-root/meta/gadget.yaml
 
-    complete_pc_snap
+    pack_pc_snap
 
     # Generic setup for test account
-    prepare_seed
     # shellcheck disable=SC2119
-    manip_seed
+    prepare_seed
     prepare_test_account developer1
     prepare_testrootorg_store
 
@@ -41,7 +40,7 @@ prepare: |
     systemctl start snapd.service snapd.socket
 
     # wait for first boot to be done
-    wait_for_first_boot
+    wait_for_first_boot_change
 
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -101,7 +100,7 @@ restore: |
     systemctl start snapd.service snapd.socket
 
     # wait for first boot to be done
-    wait_for_first_boot
+    wait_for_first_boot_change
 
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
