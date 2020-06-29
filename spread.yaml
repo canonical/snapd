@@ -265,6 +265,9 @@ backends:
             - centos-7-64:
                   username: centos
                   password: centos
+            - amazon-linux-2-64:
+                  username: ec2-user
+                  password: ec2-user
     autopkgtest:
         type: adhoc
         allocate: |
