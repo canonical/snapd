@@ -606,7 +606,7 @@ managed by snapd`))
 	c.Assert(is, Equals, false)
 }
 
-func (s *grubTestSuite) TestListAssets(c *C) {
+func (s *grubTestSuite) TestListManagedAssets(c *C) {
 	s.makeFakeGrubEFINativeEnv(c, []byte(`this is
 some random boot config`))
 
@@ -616,20 +616,20 @@ some random boot config`))
 	mg, ok := g.(bootloader.ManagedAssetsBootloader)
 	c.Assert(ok, Equals, true)
 
-	c.Check(mg.BootAssets(), DeepEquals, []string{
+	c.Check(mg.ManagedAssets(), DeepEquals, []string{
 		"EFI/ubuntu/grub.cfg",
 	})
 
 	opts = &bootloader.Options{Recovery: true}
 	mg = bootloader.NewGrub(s.rootdir, opts).(bootloader.ManagedAssetsBootloader)
-	c.Check(mg.BootAssets(), DeepEquals, []string{
+	c.Check(mg.ManagedAssets(), DeepEquals, []string{
 		"EFI/ubuntu/grub.cfg",
 	})
 
 	// as it called for the root fs rather than a mount point of a partition
 	// with boot assets
 	mg = bootloader.NewGrub(s.rootdir, nil).(bootloader.ManagedAssetsBootloader)
-	c.Check(mg.BootAssets(), DeepEquals, []string{
+	c.Check(mg.ManagedAssets(), DeepEquals, []string{
 		"boot/grub/grub.cfg",
 	})
 }

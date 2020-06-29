@@ -144,9 +144,9 @@ type ExtractedRunKernelImageBootloader interface {
 type ManagedAssetsBootloader interface {
 	// IsCurrentlyManaged returns true when the on disk boot assets are managed.
 	IsCurrentlyManaged() (bool, error)
-	// BootAssets returns a list of boot assets managed by the bootloader in
-	// the boot filesystem.
-	BootAssets() []string
+	// ManagedAssets returns a list of boot assets managed by the bootloader
+	// in the boot filesystem.
+	ManagedAssets() []string
 }
 
 func genericInstallBootConfig(gadgetFile, systemFile string) (bool, error) {
