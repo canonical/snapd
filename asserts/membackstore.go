@@ -186,12 +186,12 @@ func (leaf *memBSSeqLeaf) sequenceMemberAfter(prefix []string, after, maxFormat 
 	var start int
 	if after == -1 {
 		// search for the latest in sequence compatible with
-		// maxFormat: consider all sequential numbers in
+		// maxFormat: consider all sequence numbers in
 		// sequence backward
 		dir = -1
 		start = n - 1
 	} else {
-		// search for the first in sequence with sequential number
+		// search for the first in sequence with sequence number
 		// > after and compatible with maxFormat
 		start = sort.SearchInts(leaf.sequence, after)
 		if start == n {
@@ -267,12 +267,12 @@ func (mbs *memoryBackstore) Search(assertType *AssertionType, headers map[string
 	return nil
 }
 
-func (mbs *memoryBackstore) SequenceMemberAfter(assertType *AssertionType, keyPrefix []string, after, maxFormat int) (SequenceMember, error) {
+func (mbs *memoryBackstore) SequenceMemberAfter(assertType *AssertionType, sequenceKey []string, after, maxFormat int) (SequenceMember, error) {
 	if !assertType.SequenceForming() {
 		panic(fmt.Sprintf("internal error: SequenceMemberAfter on not sequence-forming assertion type %q", assertType.Name))
 	}
-	if len(keyPrefix) != len(assertType.PrimaryKey)-1 {
-		return nil, fmt.Errorf("internal error: SequenceMemberAfter key prefix argument length must be exactly 1 less than the assertion type primary key")
+	if len(sequenceKey) != len(assertType.PrimaryKey)-1 {
+		return nil, fmt.Errorf("internal error: SequenceMemberAfter's sequence key argument length must be exactly 1 less than the assertion type primary key")
 	}
 
 	mbs.mu.RLock()
@@ -280,7 +280,7 @@ func (mbs *memoryBackstore) SequenceMemberAfter(assertType *AssertionType, keyPr
 
 	internalPrefix := make([]string, len(assertType.PrimaryKey))
 	internalPrefix[0] = assertType.Name
-	copy(internalPrefix[1:], keyPrefix)
+	copy(internalPrefix[1:], sequenceKey)
 
 	a, err := mbs.top.sequenceMemberAfter(internalPrefix, after, maxFormat)
 	if err == errNotFound {

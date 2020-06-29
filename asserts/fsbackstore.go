@@ -224,12 +224,12 @@ func (fsbs *filesystemBackstore) Search(assertType *AssertionType, headers map[s
 // errFound marks the case an assertion was found
 var errFound = errors.New("found")
 
-func (fsbs *filesystemBackstore) SequenceMemberAfter(assertType *AssertionType, keyPrefix []string, after, maxFormat int) (SequenceMember, error) {
+func (fsbs *filesystemBackstore) SequenceMemberAfter(assertType *AssertionType, sequenceKey []string, after, maxFormat int) (SequenceMember, error) {
 	if !assertType.SequenceForming() {
 		panic(fmt.Sprintf("internal error: SequenceMemberAfter on not sequence-forming assertion type %s", assertType.Name))
 	}
-	if len(keyPrefix) != len(assertType.PrimaryKey)-1 {
-		return nil, fmt.Errorf("internal error: SequenceMemberAfter key prefix argument length must be exactly 1 less than the assertion type primary key")
+	if len(sequenceKey) != len(assertType.PrimaryKey)-1 {
+		return nil, fmt.Errorf("internal error: SequenceMemberAfter's sequence key argument length must be exactly 1 less than the assertion type primary key")
 	}
 
 	fsbs.mu.RLock()
@@ -237,7 +237,7 @@ func (fsbs *filesystemBackstore) SequenceMemberAfter(assertType *AssertionType, 
 
 	n := len(assertType.PrimaryKey)
 	diskPattern := make([]string, n+1)
-	for i, k := range keyPrefix {
+	for i, k := range sequenceKey {
 		diskPattern[i] = url.QueryEscape(k)
 	}
 	seqWildcard := "#>" // ascending sequence wildcard

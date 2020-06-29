@@ -326,7 +326,7 @@ func (fsbss *fsBackstoreSuite) TestSequenceMemberAfter(c *C) {
 		c.Assert(err, IsNil)
 	}
 
-	pkPrefix := []string{"s1"}
+	seqKey := []string{"s1"}
 	tests := []struct {
 		after     int
 		maxFormat int
@@ -351,7 +351,7 @@ func (fsbss *fsBackstoreSuite) TestSequenceMemberAfter(c *C) {
 	}
 
 	for _, t := range tests {
-		a, err := bs.SequenceMemberAfter(asserts.TestOnlySeqType, pkPrefix, t.after, t.maxFormat)
+		a, err := bs.SequenceMemberAfter(asserts.TestOnlySeqType, seqKey, t.after, t.maxFormat)
 		if t.sequence == -1 {
 			c.Check(err, DeepEquals, &asserts.NotFoundError{
 				Type: asserts.TestOnlySeqType,

@@ -66,13 +66,13 @@ type Backstore interface {
 	// It invokes foundCb for each found assertion.
 	Search(assertType *AssertionType, headers map[string]string, foundCb func(Assertion), maxFormat int) error
 	// SequenceMemberAfter returns for a sequence-forming assertType the
-	// first assertion in the sequence under keyPrefix with
-	// sequential number larger than after. If after==-1 it
-	// returns the assertion with largest sequential number. If
-	// none exists it returns a NotFoundError, usually with
-	// omitted Headers. If assertType is not sequence-forming
-	// it can panic.
-	SequenceMemberAfter(assertType *AssertionType, keyPrefix []string, after, maxFormat int) (SequenceMember, error)
+	// first assertion in the sequence under the given sequenceKey
+	// with sequence number larger than after. If after==-1 it
+	// returns the assertion with largest sequence number. If none
+	// exists it returns a NotFoundError, usually with omitted
+	// Headers. If assertType is not sequence-forming it can
+	// panic.
+	SequenceMemberAfter(assertType *AssertionType, sequenceKey []string, after, maxFormat int) (SequenceMember, error)
 }
 
 type nullBackstore struct{}

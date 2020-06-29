@@ -156,7 +156,7 @@ func findWildcardSequence(top, current, seqWildcard string, descendantWithWildca
 		for _, n := range names {
 			sqn, err := strconv.Atoi(n)
 			if err != nil || sqn < 0 {
-				return fmt.Errorf("cannot parse %q name as a sequential number", filepath.Join(current, n))
+				return fmt.Errorf("cannot parse %q name as a sequence number", filepath.Join(current, n))
 			}
 			if filter(sqn) {
 				seq = append(seq, sqn)

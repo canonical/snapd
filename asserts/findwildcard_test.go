@@ -271,9 +271,9 @@ func (fs *findWildcardSuite) TestFindWildcardSequenceSomeErrors(c *check.C) {
 	c.Assert(err, check.Equals, myErr)
 
 	err = findWildcard(top, []string{"s2", "#>", "active*"}, -1, foundCb)
-	c.Assert(err, check.ErrorMatches, `cannot parse ".*/top-errors/s2/a" name as a sequential number`)
+	c.Assert(err, check.ErrorMatches, `cannot parse ".*/top-errors/s2/a" name as a sequence number`)
 
 	err = findWildcard(top, []string{"s3", "#>", "active*"}, -1, foundCb)
-	c.Assert(err, check.ErrorMatches, `cannot parse ".*/top-errors/s3/-9" name as a sequential number`)
+	c.Assert(err, check.ErrorMatches, `cannot parse ".*/top-errors/s3/-9" name as a sequence number`)
 
 }
