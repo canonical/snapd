@@ -53,6 +53,7 @@ func (s *scanningSuite) TestSecurityTagFromCgroupPath(c *C) {
 	// We are not confused by snapd things.
 	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snap.service"), Equals, "")
 	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snapd.service"), Equals, "")
+	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snap.foo.mount"), Equals, "")
 	// Real data looks like this.
 	c.Check(cgroup.SecurityTagFromCgroupPath("snap.test-snapd-refresh.sh.d854bd35-2457-4ac8-b494-06061d74df33.scope"), Equals, "snap.test-snapd-refresh.sh")
 	c.Check(cgroup.SecurityTagFromCgroupPath("snap.test-snapd-refresh.hook.configure.d854bd35-2457-4ac8-b494-06061d74df33.scope"), Equals, "snap.test-snapd-refresh.hook.configure")

@@ -39,6 +39,12 @@ var (
 func securityTagFromCgroupPath(path string) (securityTag string) {
 	leaf := filepath.Base(filepath.Clean(path))
 
+	// If the security cgroup name doesn't start with "snap." then there is no
+	// point in doing other checks.
+	if !strings.HasPrefix(leaf, "snap.") {
+		return ""
+	}
+
 	// We are only interested in cgroup directory names that correspond to
 	// services and scopes, as they contain processes that have been invoked
 	// from a snap.
