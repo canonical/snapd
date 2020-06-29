@@ -1,2 +1,2 @@
 #!/bin/sh
-nc -h > /dev/null
+exec nc -h > /dev/null

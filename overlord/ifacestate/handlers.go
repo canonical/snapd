@@ -755,6 +755,7 @@ func (m *InterfaceManager) undoConnect(task *state.Task, _ *tomb.Tomb) error {
 	}
 	if delayedSetupProfiles {
 		logger.Debugf("Connect undo handler: skipping setupSnapSecurity for snaps %q and %q", connRef.PlugRef.Snap, connRef.SlotRef.Snap)
+		return nil
 	}
 
 	plug := m.repo.Plug(connRef.PlugRef.Snap, connRef.PlugRef.Name)

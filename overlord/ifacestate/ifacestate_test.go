@@ -5175,8 +5175,8 @@ func (s *interfaceManagerSuite) TestUndoConnectNoSetupProfilesWithDelayedSetupPr
 	notConnected, _ := err.(*interfaces.NotConnectedError)
 	c.Check(notConnected, NotNil)
 
-	// only 2 security backend calls, backend not called by undo
-	c.Assert(s.secBackend.SetupCalls, HasLen, 2)
+	// no backend calls because of delayed-setup-profiles flag
+	c.Assert(s.secBackend.SetupCalls, HasLen, 0)
 }
 
 func (s *interfaceManagerSuite) TestConnectErrorMissingSlotSnapOnAutoConnect(c *C) {
