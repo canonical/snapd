@@ -69,6 +69,12 @@ execute: |
         # restore shutdown so that spread can reboot the host
         umount /usr/sbin/shutdown
 
+        # with the external backend, we do not have the special snapd snap with
+        # the first-boot run mode tweaks as created from $TESTLIB/prepare.sh's 
+        # repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks func
+        # so instead to get the spread gopath and other data needed to continue
+        # the test, we need to add a .ssh/rc script which copies all of the data
+        # from /host/ubuntu-data in recover mode to the tmpfs /home
         if [ "$SPREAD_BACKEND" = "external" ]; then
             mkdir -p /home/external/.ssh
             chown external:external /home/external/.ssh
@@ -83,7 +89,8 @@ execute: |
         # that spread uses
         # silence the output so that nothing is output to a ssh command,
         # potentially confusing spread
-        sudo cp -r /host/ubuntu-data/user-data/gopath /home 2>/dev/null >/dev/null
+        sudo mkdir /home/gopath 2> /dev/null > /dev/null
+        sudo mount --bind /host/ubuntu-data/user-data/gopath /home/gopath 2> /dev/null > /dev/null
     fi
     EOF
         fi
