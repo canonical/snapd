@@ -107,8 +107,12 @@ void run_snappy_app_dev_add(struct snappy_udev *udev_s, const char *path)
 
 	struct udev_device *d =
 	    udev_device_new_from_syspath(udev_s->udev, path);
-	if (d == NULL)
-		die("cannot find device from syspath %s", path);
+	// udev may be late with registering the device, e.g. under high load, and
+	// udev lookup will fail.
+	if (d == NULL) {
+		debug("cannot find device from syspath %s", path);
+		return;
+	}
 	dev_t devnum = udev_device_get_devnum(d);
 	udev_device_unref(d);
 
