@@ -582,6 +582,9 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 		if !flag {
 			return fmt.Errorf("experimental feature disabled - test it by setting 'experimental.user-daemons' to true")
 		}
+		if !release.SystemctlSupportsUserUnits() {
+			return fmt.Errorf("user session daemons are not supported on this release")
+		}
 	}
 
 	if usesDbusActivation {

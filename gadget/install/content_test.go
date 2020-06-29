@@ -24,7 +24,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"testing"
 
 	. "gopkg.in/check.v1"
 
@@ -35,7 +34,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type installTestSuite struct {
+type contentTestSuite struct {
 	testutil.BaseTest
 
 	dir string
@@ -49,11 +48,9 @@ type installTestSuite struct {
 	mockMountErr error
 }
 
-var _ = Suite(&installTestSuite{})
+var _ = Suite(&contentTestSuite{})
 
-func TestRun(t *testing.T) { TestingT(t) }
-
-func (s *installTestSuite) SetUpTest(c *C) {
+func (s *contentTestSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
 	s.dir = c.MkDir()
@@ -175,7 +172,7 @@ const gadgetContent = `volumes:
         size: 1200M
 `
 
-func (s *installTestSuite) TestWriteFilesystemContent(c *C) {
+func (s *contentTestSuite) TestWriteFilesystemContent(c *C) {
 	for _, tc := range []struct {
 		mountErr   error
 		unmountErr error
@@ -239,7 +236,7 @@ func (s *installTestSuite) TestWriteFilesystemContent(c *C) {
 	}
 }
 
-func (s *installTestSuite) TestWriteRawContent(c *C) {
+func (s *contentTestSuite) TestWriteRawContent(c *C) {
 	mockNode := filepath.Join(s.dir, "mock-node")
 	err := ioutil.WriteFile(mockNode, nil, 0644)
 	c.Assert(err, IsNil)
@@ -266,7 +263,7 @@ func (s *installTestSuite) TestWriteRawContent(c *C) {
 	c.Check(string(content), Equals, "\x00\x00pc-core.img content")
 }
 
-func (s *installTestSuite) TestMountFilesystem(c *C) {
+func (s *contentTestSuite) TestMountFilesystem(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("")
 
