@@ -69,8 +69,9 @@ func (at *AssertionType) MaxSupportedFormat() int {
 // SequencingForming returns true if the assertion type has a positive
 // intenger >= 1 as the last component (preferably called "sequence")
 // of its primary key over which the assertions of the type form
-// sequences, usually without gaps, one sequence per primary key
-// prefix. See SequenceMember.
+// sequences, usually without gaps, one sequence per sequence key (the
+// primary key prefix omitting the sequence number).
+// See SequenceMember.
 func (at *AssertionType) SequenceForming() bool {
 	return at.flags&sequenceForming != 0
 }
@@ -335,7 +336,7 @@ type Assertion interface {
 type SequenceMember interface {
 	Assertion
 
-	// Sequence returns the sequential number of this assertion.
+	// Sequence returns the sequence number of this assertion.
 	Sequence() int
 }
 
