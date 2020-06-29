@@ -110,6 +110,7 @@ func (m *MountedFilesystemWriter) Write(whereDir string, preserve []string) erro
 		return fmt.Errorf("internal error: destination directory cannot be unset")
 	}
 
+	// TODO:UC20: preserve managed boot assets
 	preserveInDst, err := mapPreserve(whereDir, preserve)
 	if err != nil {
 		return fmt.Errorf("cannot map preserve entries for destination %q: %v", whereDir, err)
