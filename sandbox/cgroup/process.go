@@ -23,8 +23,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
-
-	"github.com/snapcore/snapd/snap/naming"
 )
 
 func snapNameFromPidUsingTrackingCgroup(pid int) (string, error) {
@@ -35,12 +33,10 @@ func snapNameFromPidUsingTrackingCgroup(pid int) (string, error) {
 	}
 	// TODO: this could return the parsed tag already, as it's doing all the
 	// work and discarding the parsed result. Make it so.
-	tag := securityTagFromCgroupPath(path)
-	parsedTag, err := naming.ParseSecurityTag(tag)
-	if err != nil {
-		return "", err
+	if parsedTag := securityTagFromCgroupPath(path); parsedTag != nil {
+		return parsedTag.InstanceName(), nil
 	}
-	return parsedTag.InstanceName(), nil
+	return "", fmt.Errorf("cannot find snap security tag")
 }
 
 func snapNameFromPidUsingFreezerCgroup(pid int) (string, error) {
