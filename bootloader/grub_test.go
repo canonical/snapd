@@ -623,9 +623,9 @@ this is mocked grub-recovery.conf
 	eg, ok := g.(bootloader.ManagedAssetsBootloader)
 	c.Assert(ok, Equals, true)
 	// install the recovery boot script
-	err := eg.UpdateBootConfig(opts)
+	updated, err := eg.UpdateBootConfig(opts)
 	c.Assert(err, IsNil)
-
+	c.Assert(updated, Equals, false)
 	c.Assert(filepath.Join(s.grubEFINativeDir(), "grub.cfg"), testutil.FileEquals, `recovery boot script`)
 }
 
@@ -649,8 +649,9 @@ this is mocked grub.conf
 	eg, ok := g.(bootloader.ManagedAssetsBootloader)
 	c.Assert(ok, Equals, true)
 	// install the recovery boot script
-	err := eg.UpdateBootConfig(opts)
+	updated, err := eg.UpdateBootConfig(opts)
 	c.Assert(err, IsNil)
+	c.Assert(updated, Equals, true)
 	// the recovery boot asset was picked
 	c.Assert(filepath.Join(s.grubEFINativeDir(), "grub.cfg"), testutil.FileEquals, `# Snapd-Boot-Config-Edition: 3
 this is mocked grub-recovery.conf
@@ -670,8 +671,9 @@ func (s *grubTestSuite) testBootUpdateBootConfigUpdates(c *C, oldConfig, newConf
 
 	eg, ok := g.(bootloader.ManagedAssetsBootloader)
 	c.Assert(ok, Equals, true)
-	err := eg.UpdateBootConfig(opts)
+	updated, err := eg.UpdateBootConfig(opts)
 	c.Assert(err, IsNil)
+	c.Assert(updated, Equals, update)
 	if update {
 		c.Assert(filepath.Join(s.grubEFINativeDir(), "grub.cfg"), testutil.FileEquals, newConfig)
 	} else {
@@ -748,8 +750,9 @@ this is updated grub.cfg
 	c.Assert(err, IsNil)
 	defer os.Chmod(s.grubEFINativeDir(), 0755)
 
-	err = eg.UpdateBootConfig(opts)
+	updated, err := eg.UpdateBootConfig(opts)
 	c.Assert(err, ErrorMatches, "cannot load existing config asset: .*/EFI/ubuntu/grub.cfg: permission denied")
+	c.Assert(updated, Equals, false)
 	err = os.Chmod(s.grubEFINativeDir(), 0555)
 	c.Assert(err, IsNil)
 
@@ -758,7 +761,8 @@ this is updated grub.cfg
 	// writing out new config fails
 	err = os.Chmod(s.grubEFINativeDir(), 0111)
 	c.Assert(err, IsNil)
-	err = eg.UpdateBootConfig(opts)
+	updated, err = eg.UpdateBootConfig(opts)
 	c.Assert(err, ErrorMatches, `open .*/EFI/ubuntu/grub.cfg\..+: permission denied`)
+	c.Assert(updated, Equals, false)
 	c.Assert(filepath.Join(s.grubEFINativeDir(), "grub.cfg"), testutil.FileEquals, oldConfig)
 }

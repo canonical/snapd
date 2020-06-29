@@ -145,8 +145,9 @@ type ExtractedRunKernelImageBootloader interface {
 type ManagedAssetsBootloader interface {
 	// IsCurrentlyManaged returns true when the on disk boot assets are managed.
 	IsCurrentlyManaged() (bool, error)
-	// UpdateBootConfig updates the boot config assets used by the bootloader.
-	UpdateBootConfig(*Options) error
+	// UpdateBootConfig attempts to update the boot config assets used by
+	// the bootloader. Returns true when assets were updated.
+	UpdateBootConfig(*Options) (bool, error)
 }
 
 func genericInstallBootConfig(gadgetFile, systemFile string) (bool, error) {
@@ -166,28 +167,31 @@ func genericSetBootConfig(systemFile string, content []byte) (bool, error) {
 	return true, osutil.AtomicWriteFile(systemFile, content, 0644, 0)
 }
 
-func genericUpdateBootConfigFromAssets(systemFile string, assetName string) error {
+func genericUpdateBootConfigFromAssets(systemFile string, assetName string) (updated bool, err error) {
 	currentBootConfigEdition, err := editionFromDiskConfigAsset(systemFile)
 	if err != nil && err != errNoEdition {
-		return err
+		return false, err
 	}
 	if err == errNoEdition {
-		return nil
+		return false, nil
 	}
 	newBootConfig := assets.Internal(assetName)
 	if len(newBootConfig) == 0 {
-		return fmt.Errorf("no boot config asset with name %q", assetName)
+		return false, fmt.Errorf("no boot config asset with name %q", assetName)
 	}
 	bc, err := configAssetFrom(newBootConfig)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if bc.Edition() <= currentBootConfigEdition {
 		// edition of the candidate boot config is lower than or equal
 		// to one currently installed
-		return nil
+		return false, nil
 	}
-	return osutil.AtomicWriteFile(systemFile, bc.Raw(), 0644, 0)
+	if err := osutil.AtomicWriteFile(systemFile, bc.Raw(), 0644, 0); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // InstallBootConfig installs the bootloader config from the gadget

@@ -321,7 +321,7 @@ func (g *grub) TryKernel() (snap.PlaceInfo, error) {
 // and has a lower edition.
 //
 // Implements ManagedAssetsBootloader for the grub bootloader.
-func (g *grub) UpdateBootConfig(opts *Options) error {
+func (g *grub) UpdateBootConfig(opts *Options) (bool, error) {
 	bootScriptName := "grub.cfg"
 	currentBootConfig := filepath.Join(g.dir(), "grub.cfg")
 	if opts != nil && opts.Recovery {
