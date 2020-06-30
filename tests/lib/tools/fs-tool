@@ -104,7 +104,7 @@ while [ $# -gt 0 ]; do
 			exit 0
 			;;
 		*)
-			action="$(echo $1 | tr '-' '_')"
+			action=$(echo "$1" | tr '-' '_')
 			shift
 			break
 			;;
