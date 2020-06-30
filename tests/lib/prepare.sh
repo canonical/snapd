@@ -288,7 +288,7 @@ prepare_classic() {
         # now use parameterized core channel (defaults to edge) instead
         # of a fixed one and close to stable in order to detect defects
         # earlier
-        if snap list | grep -q core; then
+        if snap list core ; then
             snap refresh --"$CORE_CHANNEL" core
         else 
             snap install --"$CORE_CHANNEL" core
