@@ -116,8 +116,15 @@ void run_snappy_app_dev_add(struct snappy_udev *udev_s, const char *path)
 	dev_t devnum = udev_device_get_devnum(d);
 	udev_device_unref(d);
 
-	_run_snappy_app_dev_add_majmin(udev_s, path, major(devnum),
-				       minor(devnum));
+	unsigned int devmaj = major(devnum);
+	unsigned int devmin = minor(devnum);
+	// per man page, on failure a device type with minor and major number
+	// set to 0 is returned.
+	if (devmaj == 0 && devmin == 0) {
+		debug("cannot get major/minor numbers for %s", path);
+	} else {
+		_run_snappy_app_dev_add_majmin(udev_s, path, devmaj, devmin);
+	}
 }
 
 /*
