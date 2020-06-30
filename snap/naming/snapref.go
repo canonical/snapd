@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -69,6 +69,8 @@ func SameSnap(snapRef1, snapRef2 SnapRef) bool {
 type SnapSet struct {
 	byID   map[string]SnapRef
 	byName map[string]SnapRef
+
+	n int
 }
 
 // NewSnapSet builds a snap set with the given references.
@@ -86,7 +88,12 @@ func NewSnapSet(refs []SnapRef) *SnapSet {
 
 // Empty returns whether the snap set is empty.
 func (s *SnapSet) Empty() bool {
-	return len(s.byID) == 0 && len(s.byName) == 0
+	return s.n == 0
+}
+
+// Size returns the number of snaps in the snap set.
+func (s *SnapSet) Size() int {
+	return s.n
 }
 
 // Lookup finds the reference in the set matching the given one if any.
@@ -118,10 +125,14 @@ func (s *SnapSet) Add(ref SnapRef) {
 		// nothing to do
 		return
 	}
+	inc := 0
 	if id := ref.ID(); id != "" {
 		s.byID[id] = ref
+		inc = 1
 	}
 	if name := ref.SnapName(); name != "" {
 		s.byName[name] = ref
+		inc = 1
 	}
+	s.n += inc
 }

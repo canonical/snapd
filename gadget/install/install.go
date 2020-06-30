@@ -18,7 +18,7 @@
  *
  */
 
-package bootstrap
+package install
 
 import (
 	"fmt"
@@ -26,9 +26,7 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/boot"
-	"github.com/snapcore/snapd/cmd/snap-bootstrap/partition"
 	"github.com/snapcore/snapd/gadget"
-	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/secboot"
 )
 
@@ -90,7 +88,7 @@ func Run(gadgetRoot, device string, options Options) error {
 	}
 
 	// remove partitions added during a previous install attempt
-	if err := diskLayout.RemoveCreated(); err != nil {
+	if err := removeCreatedPartitions(diskLayout); err != nil {
 		return fmt.Errorf("cannot remove partitions from previous install: %v", err)
 	}
 	// at this point we removed any existing partition, nuke any
@@ -103,23 +101,23 @@ func Run(gadgetRoot, device string, options Options) error {
 
 	}
 
-	created, err := diskLayout.CreateMissing(lv)
+	created, err := createMissingPartitions(diskLayout, lv)
 	if err != nil {
 		return fmt.Errorf("cannot create the partitions: %v", err)
 	}
 
 	// We're currently generating a single encryption key, this may change later
 	// if we create multiple encrypted partitions.
-	var key partition.EncryptionKey
-	var rkey partition.RecoveryKey
+	var key secboot.EncryptionKey
+	var rkey secboot.RecoveryKey
 
 	if options.Encrypt {
-		key, err = partition.NewEncryptionKey()
+		key, err = secboot.NewEncryptionKey()
 		if err != nil {
 			return fmt.Errorf("cannot create encryption key: %v", err)
 		}
 
-		rkey, err = partition.NewRecoveryKey()
+		rkey, err = secboot.NewRecoveryKey()
 		if err != nil {
 			return fmt.Errorf("cannot create recovery key: %v", err)
 		}
@@ -127,7 +125,7 @@ func Run(gadgetRoot, device string, options Options) error {
 
 	for _, part := range created {
 		if options.Encrypt && part.Role == gadget.SystemData {
-			dataPart, err := partition.NewEncryptedDevice(&part, key, ubuntuDataLabel)
+			dataPart, err := newEncryptedDevice(&part, key, ubuntuDataLabel)
 			if err != nil {
 				return err
 			}
@@ -140,16 +138,16 @@ func Run(gadgetRoot, device string, options Options) error {
 			part.Node = dataPart.Node
 		}
 
-		if err := install.MakeFilesystem(&part); err != nil {
+		if err := makeFilesystem(&part); err != nil {
 			return err
 		}
 
-		if err := install.WriteContent(&part, gadgetRoot); err != nil {
+		if err := writeContent(&part, gadgetRoot); err != nil {
 			return err
 		}
 
 		if options.Mount && part.Label != "" && part.HasFilesystem() {
-			if err := install.MountFilesystem(&part, boot.InitramfsRunMntDir); err != nil {
+			if err := mountFilesystem(&part, boot.InitramfsRunMntDir); err != nil {
 				return err
 			}
 		}

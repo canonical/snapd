@@ -18,7 +18,7 @@
  *
  */
 
-package bootstrap
+package install
 
 import (
 	"fmt"
