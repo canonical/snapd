@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
@@ -147,6 +148,8 @@ type ManagedAssetsBootloader interface {
 	// ManagedAssets returns a list of boot assets managed by the bootloader
 	// in the boot filesystem.
 	ManagedAssets() []string
+	// UpdateBootConfig updates the boot config assets used by the bootloader.
+	UpdateBootConfig(*Options) error
 }
 
 func genericInstallBootConfig(gadgetFile, systemFile string) (bool, error) {
@@ -164,6 +167,30 @@ func genericSetBootConfig(systemFile string, content []byte) (bool, error) {
 		return true, err
 	}
 	return true, osutil.AtomicWriteFile(systemFile, content, 0644, 0)
+}
+
+func genericUpdateBootConfigFromAssets(systemFile string, assetName string) error {
+	currentBootConfigEdition, err := editionFromDiskConfigAsset(systemFile)
+	if err != nil && err != errNoEdition {
+		return err
+	}
+	if err == errNoEdition {
+		return nil
+	}
+	newBootConfig := assets.Internal(assetName)
+	if len(newBootConfig) == 0 {
+		return fmt.Errorf("no boot config asset with name %q", assetName)
+	}
+	bc, err := configAssetFrom(newBootConfig)
+	if err != nil {
+		return err
+	}
+	if bc.Edition() <= currentBootConfigEdition {
+		// edition of the candidate boot config is lower than or equal
+		// to one currently installed
+		return nil
+	}
+	return osutil.AtomicWriteFile(systemFile, bc.Raw(), 0644, 0)
 }
 
 // InstallBootConfig installs the bootloader config from the gadget

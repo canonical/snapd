@@ -30,6 +30,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/bootloader/grubenv"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -613,6 +614,7 @@ some random boot config`))
 	opts := &bootloader.Options{NoSlashBoot: true}
 	g := bootloader.NewGrub(s.rootdir, opts)
 	c.Assert(g, NotNil)
+
 	mg, ok := g.(bootloader.ManagedAssetsBootloader)
 	c.Assert(ok, Equals, true)
 
@@ -632,4 +634,160 @@ some random boot config`))
 	c.Check(mg.ManagedAssets(), DeepEquals, []string{
 		"boot/grub/grub.cfg",
 	})
+}
+
+func (s *grubTestSuite) TestRecoveryUpdateBootConfigNoEdition(c *C) {
+	// native EFI/ubuntu setup
+	s.makeFakeGrubEFINativeEnv(c, []byte("recovery boot script"))
+
+	opts := &bootloader.Options{Recovery: true}
+	g := bootloader.NewGrub(s.rootdir, opts)
+	c.Assert(g, NotNil)
+
+	restore := assets.MockInternal("grub-recovery.cfg", []byte(`# Snapd-Boot-Config-Edition: 5
+this is mocked grub-recovery.conf
+`))
+	defer restore()
+
+	eg, ok := g.(bootloader.ManagedAssetsBootloader)
+	c.Assert(ok, Equals, true)
+	// install the recovery boot script
+	err := eg.UpdateBootConfig(opts)
+	c.Assert(err, IsNil)
+
+	c.Assert(filepath.Join(s.grubEFINativeDir(), "grub.cfg"), testutil.FileEquals, `recovery boot script`)
+}
+
+func (s *grubTestSuite) TestRecoveryUpdateBootConfigUpdates(c *C) {
+	// native EFI/ubuntu setup
+	s.makeFakeGrubEFINativeEnv(c, []byte(`# Snapd-Boot-Config-Edition: 1
+recovery boot script`))
+
+	opts := &bootloader.Options{Recovery: true}
+	g := bootloader.NewGrub(s.rootdir, opts)
+	c.Assert(g, NotNil)
+
+	restore := assets.MockInternal("grub-recovery.cfg", []byte(`# Snapd-Boot-Config-Edition: 3
+this is mocked grub-recovery.conf
+`))
+	defer restore()
+	restore = assets.MockInternal("grub.cfg", []byte(`# Snapd-Boot-Config-Edition: 4
+this is mocked grub.conf
+`))
+	defer restore()
+	eg, ok := g.(bootloader.ManagedAssetsBootloader)
+	c.Assert(ok, Equals, true)
+	// install the recovery boot script
+	err := eg.UpdateBootConfig(opts)
+	c.Assert(err, IsNil)
+	// the recovery boot asset was picked
+	c.Assert(filepath.Join(s.grubEFINativeDir(), "grub.cfg"), testutil.FileEquals, `# Snapd-Boot-Config-Edition: 3
+this is mocked grub-recovery.conf
+`)
+}
+
+func (s *grubTestSuite) testBootUpdateBootConfigUpdates(c *C, oldConfig, newConfig string, update bool) {
+	// native EFI/ubuntu setup
+	s.makeFakeGrubEFINativeEnv(c, []byte(oldConfig))
+
+	opts := &bootloader.Options{NoSlashBoot: true}
+	g := bootloader.NewGrub(s.rootdir, opts)
+	c.Assert(g, NotNil)
+
+	restore := assets.MockInternal("grub.cfg", []byte(newConfig))
+	defer restore()
+
+	eg, ok := g.(bootloader.ManagedAssetsBootloader)
+	c.Assert(ok, Equals, true)
+	err := eg.UpdateBootConfig(opts)
+	c.Assert(err, IsNil)
+	if update {
+		c.Assert(filepath.Join(s.grubEFINativeDir(), "grub.cfg"), testutil.FileEquals, newConfig)
+	} else {
+		c.Assert(filepath.Join(s.grubEFINativeDir(), "grub.cfg"), testutil.FileEquals, oldConfig)
+	}
+}
+
+func (s *grubTestSuite) TestNoSlashBootUpdateBootConfigNoUpdateWhenNotManaged(c *C) {
+	oldConfig := `not managed`
+	newConfig := `# Snapd-Boot-Config-Edition: 3
+this update is not applied
+`
+	// the current boot config is not managed, no update applied
+	const updateApplied = false
+	s.testBootUpdateBootConfigUpdates(c, oldConfig, newConfig, updateApplied)
+}
+
+func (s *grubTestSuite) TestNoSlashBootUpdateBootConfigUpdates(c *C) {
+	oldConfig := `# Snapd-Boot-Config-Edition: 2
+boot script
+`
+	// edition is higher, update is applied
+	newConfig := `# Snapd-Boot-Config-Edition: 3
+this is updated grub.cfg
+`
+	const updateApplied = true
+	s.testBootUpdateBootConfigUpdates(c, oldConfig, newConfig, updateApplied)
+}
+
+func (s *grubTestSuite) TestNoSlashBootUpdateBootConfigNoUpdate(c *C) {
+	oldConfig := `# Snapd-Boot-Config-Edition: 2
+boot script
+`
+	// edition is lower, no update is applied
+	newConfig := `# Snapd-Boot-Config-Edition: 1
+this is updated grub.cfg
+`
+	const updateApplied = false
+	s.testBootUpdateBootConfigUpdates(c, oldConfig, newConfig, updateApplied)
+}
+
+func (s *grubTestSuite) TestNoSlashBootUpdateBootConfigSameEdition(c *C) {
+	oldConfig := `# Snapd-Boot-Config-Edition: 1
+boot script
+`
+	// edition is equal, no update is applied
+	newConfig := `# Snapd-Boot-Config-Edition: 1
+this is updated grub.cfg
+`
+	const updateApplied = false
+	s.testBootUpdateBootConfigUpdates(c, oldConfig, newConfig, updateApplied)
+}
+
+func (s *grubTestSuite) TestBootUpdateBootConfigTrivialErr(c *C) {
+	oldConfig := `# Snapd-Boot-Config-Edition: 2
+boot script
+`
+	// edition is higher, update is applied
+	newConfig := `# Snapd-Boot-Config-Edition: 3
+this is updated grub.cfg
+`
+	// native EFI/ubuntu setup
+	s.makeFakeGrubEFINativeEnv(c, []byte(oldConfig))
+	restore := assets.MockInternal("grub.cfg", []byte(newConfig))
+	defer restore()
+
+	opts := &bootloader.Options{NoSlashBoot: true}
+	g := bootloader.NewGrub(s.rootdir, opts)
+	c.Assert(g, NotNil)
+	eg, ok := g.(bootloader.ManagedAssetsBootloader)
+	c.Assert(ok, Equals, true)
+
+	err := os.Chmod(s.grubEFINativeDir(), 0000)
+	c.Assert(err, IsNil)
+	defer os.Chmod(s.grubEFINativeDir(), 0755)
+
+	err = eg.UpdateBootConfig(opts)
+	c.Assert(err, ErrorMatches, "cannot load existing config asset: .*/EFI/ubuntu/grub.cfg: permission denied")
+	err = os.Chmod(s.grubEFINativeDir(), 0555)
+	c.Assert(err, IsNil)
+
+	c.Assert(filepath.Join(s.grubEFINativeDir(), "grub.cfg"), testutil.FileEquals, oldConfig)
+
+	// writing out new config fails
+	err = os.Chmod(s.grubEFINativeDir(), 0111)
+	c.Assert(err, IsNil)
+	err = eg.UpdateBootConfig(opts)
+	c.Assert(err, ErrorMatches, `open .*/EFI/ubuntu/grub.cfg\..+: permission denied`)
+	c.Assert(filepath.Join(s.grubEFINativeDir(), "grub.cfg"), testutil.FileEquals, oldConfig)
 }
