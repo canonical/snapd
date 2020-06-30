@@ -24,12 +24,29 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/snapcore/snapd/osutil"
+)
+
+var (
+	// for mocking in tests
+	devBlockDir = "/sys/dev/block"
+
+	// this regexp is for the DM_UUID udev property, or equivalently the dm/uuid
+	// sysfs entry for a luks2 device mapper volume dynamically created by
+	// systemd-cryptsetup when unlocking
+	// the actual value that is returned also has "-some-name" appended to this
+	// pattern, but we delete that from the string before matching with this
+	// regexp to prevent issues like a mapper volume name that has CRYPT-LUKS2-
+	// in the name and thus we might accidentally match it
+	// see also the comments in DiskFromMountPoint about this value
+	luksUUIDPatternRe = regexp.MustCompile(`^CRYPT-LUKS2-([0-9a-f]{32})$`)
 )
 
 // diskFromMountPoint is exposed for mocking from other tests via
@@ -65,6 +82,11 @@ type Disk interface {
 
 	// Dev returns the string "major:minor" number for the disk device.
 	Dev() string
+
+	// HasPartitions returns whether the disk has partitions or not. A physical
+	// disk will have partitions, but a mapper device will just be a volume that
+	// does not have partitions for example.
+	HasPartitions() bool
 }
 
 func parseDeviceMajorMinor(s string) (int, int, error) {
@@ -128,6 +150,10 @@ type disk struct {
 	// fsLabelToPartUUID is a map of filesystem label -> partition uuid for now
 	// eventually this may be expanded to be more generally useful
 	fsLabelToPartUUID map[string]string
+
+	// whether the disk device has partitions, and thus is of type "disk", or
+	// whether the disk device is a volume that is not a physical disk
+	hasPartitions bool
 }
 
 // diskFromMountPointImpl returns a Disk for the underlying mount source of the
@@ -158,11 +184,6 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 		return nil, fmt.Errorf("cannot find mountpoint %q", mountpoint)
 	}
 
-	// TODO:UC20: if the mountpoint is of a decrypted mapper device, then we
-	//            need to trace back from the decrypted mapper device through
-	//            luks to find the real encrypted partition underneath the
-	//            decrypted one and thus the disk device for that partition
-
 	// now we have the partition for this mountpoint, we need to tie that back
 	// to a disk with a major minor, so query udev with the mount source path
 	// of the mountpoint for properties
@@ -171,6 +192,90 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 		// only fail here if props is nil, if it's available we validate it
 		// below
 		return nil, fmt.Errorf("cannot find disk for partition %s: %v", partMountPointSource, err)
+	}
+
+	if opts != nil && opts.IsDecryptedDevice {
+		// verify that the mount point is indeed a mapper device, it should:
+		// 1. have DEVTYPE == disk from udev
+		// 2. have dm files in the sysfs entry for the maj:min of the device
+		if props["DEVTYPE"] != "disk" {
+			// not a decrypted device
+			return nil, fmt.Errorf("mountpoint source %s is not a decrypted device: devtype is not disk (is %s)", partMountPointSource, props["DEVTYPE"])
+		}
+
+		// TODO:UC20: currently, we effectively parse the DM_UUID env variable
+		//            that is set for the mapper device volume, but doing so is
+		//            actually wrong, since the value of DM_UUID is an
+		//            implementation detail that depends on the subsystem
+		//            "owner" of the device such that the prefix is considered
+		//            the owner and the suffix is private data owned by the
+		//            subsystem. In our case, in UC20 initramfs, we have the
+		//            device "owned" by systemd-cryptsetup, so we should ideally
+		//            parse that the first part of DM_UUID matches CRYPT- and
+		//            then use `cryptsetup status` (since CRYPT indicates it is
+		//            "owned" by cryptsetup) to get more information on the
+		//            device sufficient for our purposes to find the encrypted
+		//            device/partition underneath the mapper.
+		//            However we don't currently have cryptsetup in the initrd,
+		//            so we can't do that yet :-(
+
+		// TODO:UC20: these files are also likely readable through udev env
+		//            properties, but it's unclear if reading there is reliable
+		//            or not, given that these variables have been observed to
+		//            be missing from the initrd previously, and are not
+		//            available at all during userspace on UC20 for some reason
+		errFmt := "mountpoint source %s is not a decrypted device: could not read device mapper metadata: %v"
+		dmUUID, err := ioutil.ReadFile(filepath.Join(devBlockDir, d.Dev(), "dm", "uuid"))
+		if err != nil {
+			return nil, fmt.Errorf(errFmt, partMountPointSource, err)
+		}
+
+		dmName, err := ioutil.ReadFile(filepath.Join(devBlockDir, d.Dev(), "dm", "name"))
+		if err != nil {
+			return nil, fmt.Errorf(errFmt, partMountPointSource, err)
+		}
+
+		// trim the suffix of the dm name from the dm uuid to safely match the
+		// regex - the dm uuid contains the dm name, and the dm name is user
+		// controlled, so we want to remove that and just use the luks pattern
+		// to match the device uuid
+		// we are extra safe here since the dm name could be hypothetically user
+		// controlled via an external USB disk with LVM partition names, etc.
+		dmUUIDSafe := bytes.TrimSuffix(
+			bytes.TrimSpace(dmUUID),
+			append([]byte("-"), bytes.TrimSpace(dmName)...),
+		)
+		matches := luksUUIDPatternRe.FindSubmatch(dmUUIDSafe)
+		if len(matches) != 2 {
+			// the format of the uuid is different - different luks version
+			// maybe?
+			return nil, fmt.Errorf("cannot verify disk: partition %s does not have a valid luks uuid format: %s", d.Dev(), dmUUIDSafe)
+		}
+
+		// the uuid is the first and only submatch, but it is not in the same
+		// format exactly as we want to use, namely it is missing all of the "-"
+		// characters in a typical uuid, i.e. it is of the form:
+		// ae6e79de00a9406f80ee64ba7c1966bb but we want it to be like:
+		// ae6e79de-00a9-406f-80ee-64ba7c1966bb so we need to add in 4 "-"
+		// characters
+		compactUUID := string(matches[1])
+		canonicalUUID := fmt.Sprintf(
+			"%s-%s-%s-%s-%s",
+			compactUUID[0:8],
+			compactUUID[8:12],
+			compactUUID[12:16],
+			compactUUID[16:20],
+			compactUUID[20:],
+		)
+
+		// now finally, we need to use this uuid, which is the device uuid of
+		// the actual physical encrypted partition to get the path, which will
+		// be something like /dev/vda4, etc.
+		byUUIDPath := filepath.Join("/dev/disk/by-uuid", canonicalUUID)
+		props, err = udevProperties(byUUIDPath)
+		if err != nil {
+			return nil, fmt.Errorf("cannot get udev properties for encrypted partition %s: %v", byUUIDPath, err)
+		}
 	}
 
 	// ID_PART_ENTRY_DISK will give us the major and minor of the disk that this
@@ -183,6 +288,10 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 		}
 		d.major = maj
 		d.minor = min
+
+		// since the mountpoint device has a disk, the mountpoint source itself
+		// must be a partition from a disk, thus the disk has partitions
+		d.hasPartitions = true
 		return d, nil
 	}
 
@@ -279,10 +388,18 @@ func (d *disk) MountPointIsFromDisk(mountpoint string, opts *Options) (bool, err
 		return false, err
 	}
 
-	// compare if the major/minor devices are the same
-	return d.major == d2.major && d.minor == d2.minor, nil
+	// compare if the major/minor devices are the same and if both devices have
+	// partitions
+	return d.major == d2.major &&
+			d.minor == d2.minor &&
+			d.hasPartitions == d2.hasPartitions,
+		nil
 }
 
 func (d *disk) Dev() string {
 	return fmt.Sprintf("%d:%d", d.major, d.minor)
+}
+
+func (d *disk) HasPartitions() bool {
+	return d.hasPartitions
 }
