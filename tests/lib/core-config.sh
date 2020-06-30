@@ -18,7 +18,7 @@ restore_model(){
 }
 
 prepare_seed(){
-    mv /var/lib/snapd/seed/seed.yaml seed.yaml.bak
+    cp /var/lib/snapd/seed/seed.yaml seed.yaml.bak
     python3 "$TESTSLIB"/manip_seed.py /var/lib/snapd/seed/seed.yaml "$@"
 }
 
