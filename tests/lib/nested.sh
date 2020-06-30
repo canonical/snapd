@@ -281,7 +281,9 @@ get_extra_snaps_path(){
 
 get_extra_snaps(){
     local EXTRA_SNAPS=""
-    local EXTRA_SNAPS_PATH=$(get_extra_snaps_path)
+    local EXTRA_SNAPS_PATH
+    EXTRA_SNAPS_PATH="$(get_extra_snaps_path)"
+
     if [ -d "$EXTRA_SNAPS_PATH" ]; then
         while IFS= read -r mysnap; do
             echo "$mysnap"
@@ -292,7 +294,9 @@ get_extra_snaps(){
 download_nested_image(){
     local IMAGE_URL=$1
     local IMAGE_NAME=$2
-    local IMAGE_PATH=$(get_image_path)
+    local IMAGE_PATH
+    IMAGE_PATH="$(get_image_path)"
+
     if [[ "$IMAGE_URL" == *.img.xz ]]; then
         curl -L -o "${IMAGE_PATH}/${IMAGE_NAME}.xz" "$IMAGE_URL"
         unxz "${IMAGE_PATH}/${IMAGE_NAME}.xz"
@@ -323,10 +327,12 @@ get_nested_model(){
 }
 
 create_nested_core_vm(){
-    prepare_image_dir
+    local IMAGE_PATH
+    IMAGE_PATH="$(get_image_path)"
+    local IMAGE_NAME
+    IMAGE_NAME="$(get_core_image_name)"
 
-    local IMAGE_PATH=$(get_image_path)
-    local IMAGE_NAME=$(get_core_image_name)
+    prepare_image_dir
     if [ ! -f "$IMAGE_PATH/$IMAGE_NAME" ]; then
 
         if [ -n "$CUSTOM_IMAGE_URL" ]; then
@@ -372,7 +378,7 @@ create_nested_core_vm(){
 
                 # Prepare the pc gadget snap (unless provided by extra-snaps)
                 GADGET_SNAP=""
-                if [ -d $(get_extra_snaps_path) ]; then
+                if [ -d "$(get_extra_snaps_path)" ]; then
                     GADGET_SNAP=$(find extra-snaps -name 'pc_*.snap')
                 fi
                 if [ -z "$GADGET_SNAP" ]; then
@@ -392,7 +398,8 @@ create_nested_core_vm(){
             fi
 
             # Invoke ubuntu image
-            local NESTED_MODEL=$(get_nested_model)
+            local NESTED_MODEL
+            NESTED_MODEL="$(get_nested_model)"
             "$UBUNTU_IMAGE" --image-size 10G "$NESTED_MODEL" \
                 --channel "$CORE_CHANNEL" \
                 --output "$IMAGE_PATH/$IMAGE_NAME" \
@@ -493,8 +500,10 @@ start_nested_core_vm(){
     # snapshot feature, we copy the original image and use that copy to start
     # the VM.
     local CURRENT_IMAGE="$WORK_DIR/image/ubuntu-core-current.img"
-    local IMAGE_PATH=$(get_image_path)
-    local IMAGE_NAME=$(get_core_image_name)
+    local IMAGE_PATH
+    IMAGE_PATH="$(get_image_path)"
+    local IMAGE_NAME
+    IMAGE_NAME="$(get_core_image_name)"
     cp "$IMAGE_PATH/$IMAGE_NAME" "$CURRENT_IMAGE"
 
     # Now qemu parameters are defined
@@ -593,10 +602,12 @@ start_nested_core_vm(){
 }
 
 create_nested_classic_vm(){
-    prepare_image_dir
+    local IMAGE_PATH
+    IMAGE_PATH="$(get_image_path)"
+    local IMAGE_NAME
+    IMAGE_NAME="$(get_classic_image_name)"
 
-    local IMAGE_PATH=$(get_image_path)
-    local IMAGE_NAME=$(get_classic_image_name)
+    prepare_image_dir
     if [ ! -f "$IMAGE_PATH/$IMAGE_NAME" ]; then
         # Get the cloud image
         local IMAGE_URL
