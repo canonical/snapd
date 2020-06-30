@@ -139,7 +139,7 @@ type OnDiskVolume struct {
 	Size Size
 	// sector size in bytes
 	SectorSize     Size
-	PartitionTable *sfdiskPartitionTable
+	partitionTable *sfdiskPartitionTable
 }
 
 // OnDiskVolumeFromDevice obtains the partitioning and filesystem information from
@@ -265,7 +265,7 @@ func deviceLayoutFromPartitionTable(ptable sfdiskPartitionTable) (*OnDiskVolume,
 		Schema:         ptable.Label,
 		Size:           numSectors * sectorSize,
 		SectorSize:     sectorSize,
-		PartitionTable: &ptable,
+		partitionTable: &ptable,
 	}
 
 	return dl, nil
@@ -286,7 +286,7 @@ func deviceName(name string, index int) string {
 // returns a partitioning description suitable for sfdisk input and a
 // list of the partitions to be created.
 func BuildPartitionList(dl *OnDiskVolume, pv *LaidOutVolume) (sfdiskInput *bytes.Buffer, toBeCreated []OnDiskStructure) {
-	ptable := dl.PartitionTable
+	ptable := dl.partitionTable
 
 	// Keep track what partitions we already have on disk
 	seen := map[uint64]bool{}
@@ -361,6 +361,23 @@ func BuildPartitionList(dl *OnDiskVolume, pv *LaidOutVolume) (sfdiskInput *bytes
 	}
 
 	return buf, toBeCreated
+}
+
+// UpdatePartitionList re-reads the partitioning data from the device and
+// updates the partition list in the specified volume.
+func UpdatePartitionList(dl *OnDiskVolume) error {
+	layout, err := OnDiskVolumeFromDevice(dl.Device)
+	if err != nil {
+		return fmt.Errorf("cannot read disk layout: %v", err)
+	}
+	if dl.ID != layout.ID {
+		return fmt.Errorf("partition table IDs don't match")
+	}
+
+	dl.Structure = layout.Structure
+	dl.partitionTable = layout.partitionTable
+
+	return nil
 }
 
 // CreatedDuringInstall returns a list of partitions created during the
