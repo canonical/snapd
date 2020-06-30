@@ -250,10 +250,10 @@ func existsOnFileSystem(desktopFile string) bool {
 //   o .../foo/bar_baz/norf.desktop
 //   o .../foo-bar_baz/norf.desktop
 // We're not required to diagnose multiple files matching the desktop file ID.
-func findDesktopFile(desktopFile_exists fileExists, base_dir string, splitFileId []string) (string, error) {
-	desktopFile := filepath.Join(base_dir, strings.Join(splitFileId, "-"))
+func findDesktopFile(desktopFileExists fileExists, baseDir string, splitFileId []string) (string, error) {
+	desktopFile := filepath.Join(baseDir, strings.Join(splitFileId, "-"))
 
-	if desktopFile_exists(desktopFile) {
+	if desktopFileExists(desktopFile) {
 		return desktopFile, nil
 	}
 
@@ -262,7 +262,7 @@ func findDesktopFile(desktopFile_exists fileExists, base_dir string, splitFileId
 	// we're only checking dirs.SnapDesktopFilesDir (and not all entries in $XDG_DATA_DIRS).
 	// For dirs.SnapDesktopFilesDir snapd will not create any subdirectories.
 	for i := 1; i != len(splitFileId); i++ {
-		desktopFile, err := findDesktopFile(desktopFile_exists, filepath.Join(base_dir, strings.Join(splitFileId[:i], "-")), splitFileId[i:])
+		desktopFile, err := findDesktopFile(desktopFileExists, filepath.Join(baseDir, strings.Join(splitFileId[:i], "-")), splitFileId[i:])
 		if err == nil {
 			return desktopFile, err
 		}
@@ -272,16 +272,16 @@ func findDesktopFile(desktopFile_exists fileExists, base_dir string, splitFileId
 }
 
 // desktopFileIDToFilename determines the path associated with a desktop file ID.
-func desktopFileIDToFilename(desktopFile_exists fileExists, desktopFileID string) (string, error) {
+func desktopFileIDToFilename(desktopFileExists fileExists, desktopFileID string) (string, error) {
 
 	// OpenDesktopEntryEnv() currently only supports launching snap applications from
 	// desktop files in /var/lib/snapd/desktop/applications and these desktop files are
 	// written by snapd and considered safe for userd to process.
 	// Since we only access /var/lib/snapd/desktop/applications, ignore
 	// https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
-	base_dir := dirs.SnapDesktopFilesDir
+	baseDir := dirs.SnapDesktopFilesDir
 
-	desktopFile, err := findDesktopFile(desktopFile_exists, base_dir, strings.Split(desktopFileID, "-"))
+	desktopFile, err := findDesktopFile(desktopFileExists, baseDir, strings.Split(desktopFileID, "-"))
 
 	if err == nil {
 		return desktopFile, nil
