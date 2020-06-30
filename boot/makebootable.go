@@ -227,7 +227,6 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet)
 
 func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *BootableSet) error {
 	// TODO:UC20:
-	// - create grub.cfg instead of using the gadget one
 	// - figure out what to do for uboot gadgets, currently we require them to
 	//   install the boot.sel onto ubuntu-boot directly, but the file should be
 	//   managed by snapd instead
@@ -333,6 +332,9 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 	_, ok = bl.(bootloader.ManagedAssetsBootloader)
 	if ok {
 		// the bootloader can manage its boot config
+
+		// XXX: this must be performed after the boot partition has been
+		// populated with gadget data
 		ok, err := bl.InstallBootConfig(bootWith.UnpackedGadgetDir, opts)
 		if err != nil {
 			return fmt.Errorf("cannot install managed bootloader assets: %v", err)
