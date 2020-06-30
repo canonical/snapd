@@ -96,7 +96,7 @@ func (s *serviceControlSuite) mockTestSnap(c *C) *snap.Info {
 		RealName: "test-snap",
 		Revision: snap.R(7),
 	}
-	inf := snaptest.MockSnap(c, servicesSnapYaml1, &si)
+	info := snaptest.MockSnap(c, servicesSnapYaml1, &si)
 	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
 		Active:   true,
 		Sequence: []*snap.SideInfo{&si},
@@ -110,10 +110,10 @@ func (s *serviceControlSuite) mockTestSnap(c *C) *snap.Info {
 	err = ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "etc/systemd/system/snap.test-snap.foo.service"), nil, 0644)
 	c.Assert(err, IsNil)
 
-	return inf
+	return info
 }
 
-func verifyControlTasks(c *C, tasks []*state.Task, expectedAction, expectedFlag string, expectedServices ...string) {
+func verifyControlTasks(c *C, tasks []*state.Task, expectedAction, supportAction string, expectedServices ...string) {
 	// sanity, ensures test checks below are hit
 	c.Assert(len(tasks) > 0, Equals, true)
 	var i int
@@ -122,9 +122,9 @@ func verifyControlTasks(c *C, tasks []*state.Task, expectedAction, expectedFlag 
 		if tasks[i].Kind() == "exec-command" {
 			switch expectedAction {
 			case "start":
-				if expectedFlag != "" {
+				if supportAction != "" {
 					c.Assert(tasks[i].Get("argv", &argv), IsNil)
-					c.Check(argv, DeepEquals, append([]string{"systemctl", "enable"}, expectedServices...))
+					c.Check(argv, DeepEquals, append([]string{"systemctl", supportAction}, expectedServices...))
 					i++
 					wt := tasks[i].WaitTasks()
 					c.Assert(wt, HasLen, 1)
@@ -133,9 +133,9 @@ func verifyControlTasks(c *C, tasks []*state.Task, expectedAction, expectedFlag 
 				c.Assert(tasks[i].Get("argv", &argv), IsNil)
 				c.Check(argv, DeepEquals, append([]string{"systemctl", "start"}, expectedServices...))
 			case "stop":
-				if expectedFlag != "" {
+				if supportAction != "" {
 					c.Assert(tasks[i].Get("argv", &argv), IsNil)
-					c.Check(argv, DeepEquals, append([]string{"systemctl", "disable"}, expectedServices...))
+					c.Check(argv, DeepEquals, append([]string{"systemctl", supportAction}, expectedServices...))
 					i++
 					wt := tasks[i].WaitTasks()
 					c.Assert(wt, HasLen, 1)
@@ -144,7 +144,7 @@ func verifyControlTasks(c *C, tasks []*state.Task, expectedAction, expectedFlag 
 				c.Assert(tasks[i].Get("argv", &argv), IsNil)
 				c.Check(argv, DeepEquals, append([]string{"systemctl", "stop"}, expectedServices...))
 			case "restart":
-				if expectedFlag != "" {
+				if supportAction != "" {
 					c.Assert(tasks[i].Get("argv", &argv), IsNil)
 					c.Check(argv, DeepEquals, append([]string{"systemctl", "reload-or-restart"}, expectedServices...))
 				} else {
