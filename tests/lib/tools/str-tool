@@ -1,0 +1,31 @@
+#!/bin/sh
+
+show_help() {
+    echo "usage: str-tool to-one-line [string]"
+}
+
+to_one_line(){
+    echo "$1" | tr '\r\n' ' ' | tr -s ' '
+}
+
+if [ $# -eq 0 ]; then
+    show_help
+    exit 1
+fi
+
+action=
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -h|--help)
+            show_help
+            exit 0
+            ;;
+        *)
+            action=$(echo "$1" | tr '-' '_')
+            shift
+            break
+            ;;
+    esac
+done
+
+"$action" "$@"
