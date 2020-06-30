@@ -49,7 +49,7 @@ restore_test_account(){
 prepare_test_model(){
     local MODEL_NAME=$1
     local MODEL_FINAL
-    MODEL_FINAL=$(get_model "$MODEL_NAME")
+    MODEL_FINAL=$(get_test_model "$MODEL_NAME")
     cp -f "${TESTSLIB}/assertions/${MODEL_FINAL}" "/var/lib/snapd/seed/assertions/${MODEL_NAME}.model"
 }
 
