@@ -137,6 +137,64 @@ func stopService(sysd systemd.Systemd, app *snap.AppInfo, inter interacter) erro
 	return nil
 }
 
+// enableServices enables services specified by apps. On success the returned
+// disable function can be used to undo all the actions. On error all the
+// services get disabled automatically (disable is nil).
+func enableServices(apps []*snap.AppInfo, inter interacter) (disable func(), err error) {
+	var enabled []string
+	var userEnabled []string
+
+	systemSysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
+	userSysd := systemd.New(dirs.GlobalRootDir, systemd.GlobalUserMode, inter)
+
+	disableEnabledServices := func() {
+		for _, srvName := range enabled {
+			if e := systemSysd.Disable(srvName); e != nil {
+				inter.Notify(fmt.Sprintf("While trying to disable previously enabled service %q: %v", srvName, e))
+			}
+		}
+		for _, s := range userEnabled {
+			if e := userSysd.Disable(s); e != nil {
+				inter.Notify(fmt.Sprintf("while trying to disable %s due to previous failure: %v", s, e))
+			}
+		}
+	}
+
+	defer func() {
+		if err != nil {
+			disableEnabledServices()
+		}
+	}()
+
+	for _, app := range apps {
+		var sysd systemd.Systemd
+		switch app.DaemonScope {
+		case snap.SystemDaemon:
+			sysd = systemSysd
+		case snap.UserDaemon:
+			sysd = userSysd
+		}
+
+		svcName := app.ServiceName()
+
+		switch app.DaemonScope {
+		case snap.SystemDaemon:
+			if err = sysd.Enable(svcName); err != nil {
+				return nil, err
+
+			}
+			enabled = append(enabled, svcName)
+		case snap.UserDaemon:
+			if err = userSysd.Enable(svcName); err != nil {
+				return nil, err
+			}
+			userEnabled = append(userEnabled, svcName)
+		}
+	}
+
+	return disableEnabledServices, nil
+}
+
 // StartServicesFlags carries extra flags for StartServices.
 type StartServicesFlags struct {
 	Enable bool
@@ -315,24 +373,16 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, opts *AddSnapServicesO
 	preseeding := opts.Preseeding
 
 	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
-	userSysd := systemd.New(dirs.GlobalRootDir, systemd.GlobalUserMode, inter)
 	var written []string
 	var writtenSystem, writtenUser bool
-	var enabled []string
-	var userEnabled []string
+	var disableEnabledServices func()
+
 	defer func() {
 		if err == nil {
 			return
 		}
-		for _, s := range enabled {
-			if e := sysd.Disable(s); e != nil {
-				inter.Notify(fmt.Sprintf("while trying to disable %s due to previous failure: %v", s, e))
-			}
-		}
-		for _, s := range userEnabled {
-			if e := userSysd.Disable(s); e != nil {
-				inter.Notify(fmt.Sprintf("while trying to disable %s due to previous failure: %v", s, e))
-			}
+		if disableEnabledServices != nil {
+			disableEnabledServices()
 		}
 		for _, s := range written {
 			if e := os.Remove(s); e != nil {
@@ -351,6 +401,9 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, opts *AddSnapServicesO
 		}
 	}()
 
+	var toEnable []*snap.AppInfo
+
+	// create services first; this doesn't trigger systemd
 	for _, app := range s.Apps {
 		if !app.IsService() {
 			continue
@@ -404,29 +457,19 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, opts *AddSnapServicesO
 			// boot
 			continue
 		}
-
-		svcName := app.ServiceName()
-		switch app.DaemonScope {
-		case snap.SystemDaemon:
-			if strutil.ListContains(disabledSvcs, app.Name) {
-				// service is disabled, nothing to do
-				continue
-			}
-
-			if !preseeding {
-				if err := sysd.Enable(svcName); err != nil {
-					return err
-				}
-				enabled = append(enabled, svcName)
-			}
-		case snap.UserDaemon:
-			if !preseeding {
-				if err := userSysd.Enable(svcName); err != nil {
-					return err
-				}
-				userEnabled = append(userEnabled, svcName)
-			}
+		// XXX: this may become quadratic, optimize.
+		// When preseeding services get enabled in doMarkPresseeded instead at
+		// the moment.
+		if strutil.ListContains(disabledSvcs, app.Name) || preseeding {
+			continue
 		}
+
+		toEnable = append(toEnable, app)
+	}
+
+	disableEnabledServices, err = enableServices(toEnable, inter)
+	if err != nil {
+		return err
 	}
 
 	if !preseeding {
