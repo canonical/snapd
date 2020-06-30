@@ -138,6 +138,30 @@ get_ubuntu_image_url_for_nested_vm(){
         esac
 }
 
+get_cdimage_current_image_url(){
+    VERSION=$1
+    CHANNEL=$2
+    ARCH=$3
+
+    echo "http://cdimage.ubuntu.com/ubuntu-core/$VERSION/$CHANNEL/current/ubuntu-core-$VERSION-$ARCH.img.xz"
+}
+
+get_nested_snap_rev(){
+    SNAP=$1
+    execute_remote "snap list $SNAP" | grep -E "^$SNAP" | awk '{ print $3 }' | tr -d '\n'
+}
+
+get_snap_rev_for_channel(){
+    SNAP=$1
+    CHANNEL=$2
+    execute_remote "snap info $SNAP" | grep "$CHANNEL" | awk '{ print $4 }' | sed 's/.*(\(.*\))/\1/' | tr -d '\n'
+}
+
+get_nested_snap_channel(){
+    SNAP=$1
+    execute_remote "snap list $SNAP" | grep -E "^$SNAP" | awk '{ print $4 }' | tr -d '\n'
+}
+
 get_image_url_for_nested_vm(){
     if [[ "$SPREAD_BACKEND" == google* ]]; then
         get_google_image_url_for_nested_vm
@@ -156,8 +180,8 @@ is_nested_system(){
 
 is_core_nested_system(){
     if [ -z "${NESTED_TYPE-}" ]; then
-        echo "Variable NESTED_TYPE not defined. Exiting..."
-        exit 1
+        echo "Variable NESTED_TYPE not defined."
+        return 1
     fi
 
     test "$NESTED_TYPE" = "core"
@@ -165,8 +189,8 @@ is_core_nested_system(){
 
 is_classic_nested_system(){
     if [ -z "${NESTED_TYPE-}" ]; then
-        echo "Variable NESTED_TYPE not defined. Exiting..."
-        exit 1
+        echo "Variable NESTED_TYPE not defined."
+        return 1
     fi
 
     test "$NESTED_TYPE" = "classic"
