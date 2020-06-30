@@ -51,6 +51,8 @@ type Options struct {
 	// UC16/18 do not have a recovery partition.
 	Recovery bool
 
+	// TODO:UC20 consider different/better names for flags that follow
+
 	// NoSlashBoot indicates to use the run mode bootloader but
 	// under the native layout and not the /boot mount.
 	NoSlashBoot bool
