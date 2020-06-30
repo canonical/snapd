@@ -4,6 +4,9 @@ details: |
   Test that failures of connect hook are handled gracefully and do not leave
   snapd or snap in a broken state.
 
+# this test is sensitive to the version of netcat and needs strict confinement
+systems: [ubuntu-*]
+
 prepare: |
     snap pack test-connect.v1
     snap pack test-connect.v2
