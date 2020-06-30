@@ -297,7 +297,7 @@ func (s *serviceControlSuite) TestControlRestartReloadMultipleInstruction(c *C) 
 	verifyControlTasks(c, chg.Tasks(), "restart", "reload", "snap.test-snap.foo.service", "snap.test-snap.bar.service")
 }
 
-func (s *serviceControlSuite) TestControlUknownInstruction(c *C) {
+func (s *serviceControlSuite) TestControlUnknownInstruction(c *C) {
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
