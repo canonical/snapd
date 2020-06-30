@@ -19,7 +19,7 @@ prepare: |
 
     # Generic setup for test account
     clean_snapd_lib
-    prepare_model
+    prepare_core_model
     prepare_test_account developer1
     prepare_test_model developer1-pc
     prepare_testrootorg_store
@@ -47,7 +47,7 @@ restore: |
     restore_test_account developer1
     restore_test_model developer1-pc
     restore_testrootorg_store
-    restore_model
+    restore_core_model
 
     # kick first boot again
     systemctl start snapd.service snapd.socket
@@ -97,7 +97,7 @@ execute: |
         echo "We have the right model assertion"
         snap debug model|MATCH "model: my-model"
         echo "Now we remodel"
-        MODEL="$(get_model developer1-pc-new-base)"
+        MODEL="$(get_test_model developer1-pc-new-base)"
         snap remodel "${TESTSLIB}/assertions/${MODEL}"
         echo "Double check that we boot into the right base"
         MATCH "snap_try_core=$NEW_BASE" < /boot/grub/grubenv
@@ -120,7 +120,7 @@ execute: |
         # TODO: test when keeping the old base, test removing the old base
         #       (not possible here as the pc gadget uses core18 as its base)
         echo "And we can remodel again and remove the new base"
-        MODEL="$(get_model developer1-pc-revno3)"
+        MODEL="$(get_test_model developer1-pc-revno3)"
         snap remodel "${TESTSLIB}/assertions/${MODEL}"
         REBOOT
     fi

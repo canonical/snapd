@@ -9,20 +9,20 @@ clean_snapd_lib() {
     rm -rf /var/lib/snapd/state.json
 }
 
-prepare_model(){
+prepare_core_model(){
     mv /var/lib/snapd/seed/assertions/model model.bak
 }
 
-restore_model(){
+restore_core_model(){
     mv model.bak /var/lib/snapd/seed/assertions/model
 }
 
-prepare_seed(){
+prepare_and_manip_seed(){
     cp /var/lib/snapd/seed/seed.yaml seed.yaml.bak
     python3 "$TESTSLIB"/manip_seed.py /var/lib/snapd/seed/seed.yaml "$@"
 }
 
-restore_seed(){
+restore_updated_seed(){
     mv seed.yaml.bak /var/lib/snapd/seed/seed.yaml
 }
 
@@ -79,7 +79,7 @@ restore_pc_snap(){
     rm -f /var/lib/snapd/seed/snaps/pc_x1.snap
 }
 
-get_model(){
+get_test_model(){
     local MODEL_NAME=$1
     if is_core18_system; then
         echo "${MODEL_NAME}-18.model"
@@ -90,7 +90,7 @@ get_model(){
     fi
 }
 
-get_snap_suffix(){
+get_test_snap_suffix(){
     if is_core18_system; then
         echo "-core18"
     elif is_core20_system; then

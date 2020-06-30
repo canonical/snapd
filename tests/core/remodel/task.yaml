@@ -20,7 +20,7 @@ prepare: |
     clean_snapd_lib
 
     # Generic setup for test account
-    prepare_model
+    prepare_core_model
     prepare_test_account developer1
     prepare_test_model developer1-pc
     prepare_testrootorg_store
@@ -48,7 +48,7 @@ restore: |
     restore_test_account developer1
     restore_test_model developer1-pc
     restore_testrootorg_store
-    restore_model
+    restore_core_model
 
     rm -f /var/lib/snapd/seed/assertions/test-snapd-with-configure_*.assert
 
@@ -88,7 +88,7 @@ execute: |
     snap debug model|MATCH "model: my-model"
 
     echo "Now we remodel"
-    MODEL="$(get_model developer1-pc-revno2)"
+    MODEL="$(get_test_model developer1-pc-revno2)"
     snap remodel "${TESTSLIB}/assertions/${MODEL}"
 
     echo "and we got the new required snap"
@@ -102,7 +102,7 @@ execute: |
     not snap remove --purge "$SNAP"
 
     echo "And we can remodel again this time test-snapd-tools is no longer required"
-    MODEL="$(get_model developer1-pc-revno3)"
+    MODEL="$(get_test_model developer1-pc-revno3)"
     snap remodel "${TESTSLIB}/assertions/${MODEL}"
     snap debug model|MATCH "revision: 3"
     snap changes | MATCH "Refresh model assertion from revision 2 to 3"

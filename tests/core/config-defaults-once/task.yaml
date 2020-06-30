@@ -32,7 +32,7 @@ prepare: |
 
     # Generic setup for test account
     # shellcheck disable=SC2119
-    prepare_seed
+    prepare_and_manip_seed
     prepare_test_account developer1
     prepare_testrootorg_store
 
@@ -92,7 +92,7 @@ restore: |
     rm -f "/var/lib/snapd/seed/assertions/${SNAP}"_*.assert
 
     # Generic restore for test account
-    restore_seed
+    restore_updated_seed
     restore_test_account developer1
     restore_testrootorg_store
 

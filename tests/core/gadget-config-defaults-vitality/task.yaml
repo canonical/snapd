@@ -31,7 +31,7 @@ prepare: |
     systemctl stop snapd.service snapd.socket
     clean_snapd_lib
 
-    SUFFIX="$(get_snap_suffix)"
+    SUFFIX="$(get_test_snap_suffix)"
     snap download --edge "test-snapd-with-configure${SUFFIX}"
     
     # Configure the pc snap
@@ -56,8 +56,8 @@ prepare: |
     pack_pc_snap
 
     cp "test-snapd-with-configure${SUFFIX}"_*.snap /var/lib/snapd/seed/snaps/
-    prepare_model
-    prepare_seed "test-snapd-with-configure${SUFFIX}"_*.snap
+    prepare_core_model
+    prepare_and_manip_seed "test-snapd-with-configure${SUFFIX}"_*.snap
     
     prepare_test_account developer1
     prepare_test_model developer1-pc-w-config
@@ -80,7 +80,7 @@ restore: |
     #shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB"/systems.sh
 
-    SUFFIX="$(get_snap_suffix)"
+    SUFFIX="$(get_test_snap_suffix)"
 
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB"/systemd.sh
@@ -101,11 +101,11 @@ restore: |
     rm "/var/lib/snapd/seed/snaps/test-snapd-with-configure${SUFFIX}"_*.snap
 
     # Generic restore for test account
-    restore_seed
+    restore_updated_seed
     restore_test_account developer1
     restore_test_model developer1-pc-w-config
     restore_testrootorg_store
-    restore_model
+    restore_core_model
 
     rm -f "/var/lib/snapd/seed/assertions/test-snapd-with-configure${SUFFIX}"_*.assert
 
@@ -125,7 +125,7 @@ execute: |
     #shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB"/systems.sh
 
-    SUFFIX="$(get_snap_suffix)"
+    SUFFIX="$(get_test_snap_suffix)"
 
     echo "We have a model assertion"
     snap model --verbose|MATCH "model:\s* my-model-w-config"

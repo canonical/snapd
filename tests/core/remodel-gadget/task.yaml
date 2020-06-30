@@ -19,7 +19,7 @@ prepare: |
     clean_snapd_lib
 
     # Generic setup for test account
-    prepare_model
+    prepare_core_model
     prepare_test_account developer1
     prepare_test_model developer1-pc
     prepare_testrootorg_store
@@ -47,7 +47,7 @@ restore: |
     restore_test_account developer1
     restore_test_model developer1-pc
     restore_testrootorg_store
-    restore_model
+    restore_core_model
 
     # kick first boot again
     systemctl start snapd.service snapd.socket
@@ -104,7 +104,7 @@ execute: |
         snap debug model|MATCH "model: my-model"
 
         echo "Now we remodel"
-        MODEL="$(get_model developer1-pc-new-gadget)"
+        MODEL="$(get_test_model developer1-pc-new-gadget)"
         snap remodel "${TESTSLIB}/assertions/${MODEL}"
 
         echo "Double check that new gadget was installed"
@@ -130,7 +130,7 @@ execute: |
         snap remove --purge "$OLD_GADGET"
 
         echo "And we can remodel again and remove the new gadget"
-        MODEL="$(get_model developer1-pc-revno3)"
+        MODEL="$(get_test_model developer1-pc-revno3)"
         snap remodel "${TESTSLIB}/assertions/${MODEL}"
 
         REBOOT
