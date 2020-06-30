@@ -17,7 +17,7 @@
  *
  */
 
-package bootstrap
+package install
 
 import (
 	"github.com/snapcore/snapd/asserts"

@@ -76,6 +76,10 @@ func (s *nfsSuite) TestIsHomeUsingNFS(c *C) {
 	}, {
 		// NFS that may be mounted at /mnt/nfs is ignored (not in $HOME).
 		fstab: "localhost:/srv/nfs /mnt/nfs nfs defaults 0 0",
+	}, {
+		// autofs that is mounted at /home.
+		mountinfo: "137 29 0:50 / /home rw,relatime shared:87 - autofs /etc/auto.master.d/home rw,fd=7,pgrp=22588,timeout=300,minproto=5,maxproto=5,indirect,pipe_ino=173399",
+		nfs:       true,
 	}}
 	for _, tc := range cases {
 		restore := osutil.MockMountInfo(tc.mountinfo)

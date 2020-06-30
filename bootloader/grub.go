@@ -36,6 +36,7 @@ var (
 	_ installableBootloader             = (*grub)(nil)
 	_ RecoveryAwareBootloader           = (*grub)(nil)
 	_ ExtractedRunKernelImageBootloader = (*grub)(nil)
+	_ ManagedAssetsBootloader           = (*grub)(nil)
 )
 
 type grub struct {
@@ -314,4 +315,40 @@ func (g *grub) TryKernel() (snap.PlaceInfo, error) {
 		return p, nil
 	}
 	return nil, ErrNoTryKernelRef
+}
+
+// UpdateBootConfig updates the grub boot config only if it is already managed
+// and has a lower edition.
+//
+// Implements ManagedAssetsBootloader for the grub bootloader.
+func (g *grub) UpdateBootConfig(opts *Options) error {
+	bootScriptName := "grub.cfg"
+	currentBootConfig := filepath.Join(g.dir(), "grub.cfg")
+	if opts != nil && opts.Recovery {
+		// use the recovery asset when asked to do so
+		bootScriptName = "grub-recovery.cfg"
+	}
+	return genericUpdateBootConfigFromAssets(currentBootConfig, bootScriptName)
+}
+
+// IsCurrentlyManaged returns true when the boot config is managed by snapd.
+//
+// Implements ManagedBootloader for the grub bootloader.
+func (g *grub) IsCurrentlyManaged() (bool, error) {
+	currentBootScript := filepath.Join(g.dir(), "grub.cfg")
+	_, err := editionFromDiskConfigAsset(currentBootScript)
+	if err != nil && err != errNoEdition {
+		return false, err
+	}
+	return err != errNoEdition, nil
+}
+
+// ManagedAssets returns a list relative paths to boot assets inside the root
+// directory of the filesystem.
+//
+// Implements ManagedAssetsBootloader for the grub bootloader.
+func (g *grub) ManagedAssets() []string {
+	return []string{
+		filepath.Join(g.basedir, "grub.cfg"),
+	}
 }
