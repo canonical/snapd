@@ -417,7 +417,7 @@ func (s *ondiskTestSuite) TestBuildPartitionList(c *C) {
 	pv, err := gadget.PositionedVolumeFromGadget(s.gadgetRoot)
 	c.Assert(err, IsNil)
 
-	dl, err := gadget.DeviceLayoutFromPartitionTable(ptable)
+	dl, err := gadget.OnDiskVolumeFromPartitionTable(ptable)
 	c.Assert(err, IsNil)
 
 	// the expected expanded writable partition size is:
@@ -474,7 +474,7 @@ func (s *ondiskTestSuite) TestCreatedDuringInstallGPT(c *C) {
 			},
 		},
 	}
-	dl, err := gadget.DeviceLayoutFromPartitionTable(ptable)
+	dl, err := gadget.OnDiskVolumeFromPartitionTable(ptable)
 	c.Assert(err, IsNil)
 	list := gadget.CreatedDuringInstall(dl)
 	c.Assert(list, HasLen, 0)
@@ -484,7 +484,7 @@ func (s *ondiskTestSuite) TestCreatedDuringInstallGPT(c *C) {
 		ptable.Partitions[i].Attrs = "RequiredPartition LegacyBIOSBootable GUID:58,59"
 	}
 
-	dl, err = gadget.DeviceLayoutFromPartitionTable(ptable)
+	dl, err = gadget.OnDiskVolumeFromPartitionTable(ptable)
 	c.Assert(err, IsNil)
 	list = gadget.CreatedDuringInstall(dl)
 	c.Assert(list, DeepEquals, []string{"/dev/node1", "/dev/node2"})
@@ -558,7 +558,7 @@ EOF`)
 			},
 		},
 	}
-	dl, err := gadget.DeviceLayoutFromPartitionTable(ptable)
+	dl, err := gadget.OnDiskVolumeFromPartitionTable(ptable)
 	c.Assert(err, IsNil)
 	list := gadget.CreatedDuringInstall(dl)
 	c.Assert(list, DeepEquals, []string{"/dev/node2", "/dev/node4"})

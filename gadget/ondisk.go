@@ -155,7 +155,7 @@ func OnDiskVolumeFromDevice(device string) (*OnDiskVolume, error) {
 		return nil, fmt.Errorf("cannot parse sfdisk output: %v", err)
 	}
 
-	dl, err := deviceLayoutFromPartitionTable(dump.PartitionTable)
+	dl, err := onDiskVolumeFromPartitionTable(dump.PartitionTable)
 	if err != nil {
 		return nil, err
 	}
@@ -196,9 +196,9 @@ func blockDeviceSizeInSectors(devpath string) (Size, error) {
 	return Size(sz), nil
 }
 
-// deviceLayoutFromPartitionTable takes an sfdisk dump partition table and returns
-// the partitioning information as a device layout.
-func deviceLayoutFromPartitionTable(ptable sfdiskPartitionTable) (*OnDiskVolume, error) {
+// onDiskVolumeFromPartitionTable takes an sfdisk dump partition table and returns
+// the partitioning information as an on-disk volume.
+func onDiskVolumeFromPartitionTable(ptable sfdiskPartitionTable) (*OnDiskVolume, error) {
 	if ptable.Unit != "sectors" {
 		return nil, fmt.Errorf("cannot position partitions: unknown unit %q", ptable.Unit)
 	}
