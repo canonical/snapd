@@ -428,6 +428,65 @@ func (s *ondiskTestSuite) TestBuildPartitionList(c *C) {
 	c.Assert(create, DeepEquals, []gadget.OnDiskStructure{mockOnDiskStructureWritable})
 }
 
+func (s *ondiskTestSuite) TestUpdatePartitionList(c *C) {
+	const mockSfdiskScriptBios = `
+>&2 echo "Some warning from sfdisk"
+echo '{
+  "partitiontable": {
+    "label": "gpt",
+    "id": "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA",
+    "device": "/dev/node",
+    "unit": "sectors",
+    "firstlba": 34,
+    "lastlba": 8388574,
+    "partitions": [
+      {
+        "node": "/dev/node1",
+        "start": 2048,
+        "size": 2048,
+        "type": "21686148-6449-6E6F-744E-656564454649",
+        "uuid": "2E59D969-52AB-430B-88AC-F83873519F6F",
+        "name": "BIOS Boot"
+      }
+    ]
+  }
+}'`
+
+	const mockLsblkScriptBios = `
+[ "$3" == "/dev/node1" ] && echo '{
+    "blockdevices": [ {"name": "node1", "fstype": null, "label": null, "uuid": null, "mountpoint": null} ]
+}'
+exit 0`
+
+	// start with a single partition
+	cmdSfdisk := testutil.MockCommand(c, "sfdisk", mockSfdiskScriptBios)
+	defer cmdSfdisk.Restore()
+
+	cmdLsblk := testutil.MockCommand(c, "lsblk", mockLsblkScriptBios)
+	defer cmdLsblk.Restore()
+
+	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
+	c.Assert(err, IsNil)
+	c.Assert(len(dl.Structure), Equals, 1)
+	c.Assert(dl.Structure[0].Node, Equals, "/dev/node1")
+
+	// add a partition
+	cmdSfdisk = testutil.MockCommand(c, "sfdisk", mockSfdiskScriptBiosSeed)
+	defer cmdSfdisk.Restore()
+
+	cmdLsblk = testutil.MockCommand(c, "lsblk", mockLsblkScriptBiosSeed)
+	defer cmdLsblk.Restore()
+
+	// update the partition list
+	err = gadget.UpdatePartitionList(dl)
+	c.Assert(err, IsNil)
+
+	// check if the partition list was updated
+	c.Assert(len(dl.Structure), Equals, 2)
+	c.Assert(dl.Structure[0].Node, Equals, "/dev/node1")
+	c.Assert(dl.Structure[1].Node, Equals, "/dev/node2")
+}
+
 func (s *ondiskTestSuite) TestCreatedDuringInstallGPT(c *C) {
 	cmdLsblk := testutil.MockCommand(c, "lsblk", `echo '{ "blockdevices": [ {"fstype":"ext4", "label":null} ] }'`)
 	defer cmdLsblk.Restore()
