@@ -103,9 +103,11 @@ func (g *grub) installManagedBootConfig(gadgetDir string) (bool, error) {
 
 func (g *grub) InstallBootConfig(gadgetDir string, opts *Options) (bool, error) {
 	if opts != nil && opts.Recovery {
+		// install managed config for the recovery partition
 		return g.installManagedRecoveryBootConfig(gadgetDir)
 	}
-	if opts != nil && opts.NoSlashBoot {
+	if opts != nil && opts.ExtractedRunKernelImage {
+		// install managed boot config that can handle kernel.efi
 		return g.installManagedBootConfig(gadgetDir)
 	}
 
