@@ -240,7 +240,7 @@ refresh_to_new_core(){
             CHANGE_ID=$(execute_remote "sudo snap refresh core --${NEW_CHANNEL} --no-wait")
             wait_for_no_ssh
             wait_for_ssh
-            # wait for the refresh to be done before checking, if we check too 
+            # wait for the refresh to be done before checking, if we check too
             # quickly then operations on the core snap like reverting, etc. may
             # fail because it will have refresh-snap change in progress
             execute_remote "snap watch $CHANGE_ID"

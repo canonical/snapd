@@ -290,10 +290,10 @@ prepare_classic() {
         # earlier
         if snap list core ; then
             snap refresh --"$CORE_CHANNEL" core
-        else 
+        else
             snap install --"$CORE_CHANNEL" core
         fi
-        
+
         snap list | grep core
 
         systemctl stop snapd.{service,socket}
