@@ -30,4 +30,4 @@ execute: |
     execute_remote "sudo snap remove test-snapd-sh" || true
 
     echo "Ensure 'snap list' works and test-snapd-sh snap is removed"
-    execute_remote "snap list" | not MATCH test-snapd-sh
+    not execute_remote "snap list test-snapd-sh"
