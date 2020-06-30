@@ -26,7 +26,7 @@ execute: |
         done
     }
 
-    wait_for_file_change() {
+    fs-tool wait-for-file_change() {
         retry=5
         while ! MATCH "$2" < "$1"  ; do
             retry=$(( retry - 1 ))
@@ -77,7 +77,7 @@ execute: |
     snap tasks --last=configure|MATCH -z "restart of .test-snapd-service.test-snapd-service.+restart of .test-snapd-service.test-snapd-other-service"
 
     echo "And service could get the new service-option set from the hook"
-    wait_for_file_change "$SERVICEOPTIONFILE" "^foo$"
+    fs-tool wait-for-file_change "$SERVICEOPTIONFILE" "^foo$"
 
     echo "Reinstalling the snap with configure hook calling snapctl restart works"
     snap set test-snapd-service command=restart

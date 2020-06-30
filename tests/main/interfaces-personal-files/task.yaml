@@ -8,36 +8,30 @@ prepare: |
     . "$TESTSLIB/snaps.sh"
     install_local test-snapd-sh
 
-    # shellcheck source=tests/lib/files.sh
-    . "$TESTSLIB/files.sh"
-
     # Fist layer of dirs and files
-    ensure_file_exists_backup_real /root/.testfile1
-    ensure_file_exists_backup_real /root/testfile1
-    ensure_dir_exists_backup_real /root/.testdir1
-    ensure_dir_exists_backup_real /root/testdir1
+    fs-tool ensure-file-exists-backup-real /root/.testfile1
+    fs-tool ensure-file-exists-backup-real /root/testfile1
+    fs-tool ensure-dir-exists-backup-real /root/.testdir1
+    fs-tool ensure-dir-exists-backup-real /root/testdir1
 
     # Second layer of dirs and files
-    ensure_file_exists_backup_real /root/.testdir1/.testfilé2
-    ensure_file_exists_backup_real "/root/.testdir1/test file2"
-    ensure_dir_exists_backup_real /root/.testdir1/.testdir2
+    fs-tool ensure-file-exists-backup-real /root/.testdir1/.testfilé2
+    fs-tool ensure-file-exists-backup-real "/root/.testdir1/test file2"
+    fs-tool ensure-dir-exists-backup-real /root/.testdir1/.testdir2
 
     # Not accessible dirs and files
-    ensure_dir_exists_backup_real /var/tmp/.testdir1
-    ensure_file_exists_backup_real /var/tmp/.testfile1
-    ensure_dir_exists_backup_real /var/tmp/root/
-    ensure_file_exists_backup_real /var/tmp/root/testfile2
-    ensure_file_exists_backup_real /var/tmp/root/.testfile2
+    fs-tool ensure-dir-exists-backup-real /var/tmp/.testdir1
+    fs-tool ensure-file-exists-backup-real /var/tmp/.testfile1
+    fs-tool ensure-dir-exists-backup-real /var/tmp/root/
+    fs-tool ensure-file-exists-backup-real /var/tmp/root/testfile2
+    fs-tool ensure-file-exists-backup-real /var/tmp/root/.testfile2
 
 restore: |
-    # shellcheck source=tests/lib/files.sh
-    . "$TESTSLIB/files.sh"
-
-    clean_file /root/.testfile1
-    clean_file /root/testfile1
-    clean_dir /root/.testdir1
-    clean_dir /root/testdir1
-    clean_dir /var/tmp/root
+    fs-tool clean-file /root/.testfile1
+    fs-tool clean-file /root/testfile1
+    fs-tool clean-dir /root/.testdir1
+    fs-tool clean-dir /root/testdir1
+    fs-tool clean-dir /var/tmp/root
 
 execute: |
     echo "The interface is not connected by default"

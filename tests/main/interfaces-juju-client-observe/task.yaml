@@ -11,19 +11,13 @@ prepare: |
     . "$TESTSLIB/snaps.sh"
     install_local test-snapd-sh
 
-    # shellcheck source=tests/lib/files.sh
-    . "$TESTSLIB/files.sh"
-
-    ensure_dir_exists_backup_real "$HOME"/.local/share/juju
-    ensure_file_exists_backup_real "$HOME"/.local/share/juju/juju.conf
+    fs-tool ensure-dir-exists-backup-real "$HOME"/.local/share/juju
+    fs-tool ensure-file-exists-backup-real "$HOME"/.local/share/juju/juju.conf
 
 restore: |
-    # shellcheck source=tests/lib/files.sh
-    . "$TESTSLIB/files.sh"
-
     # Delete the created juju dir and configuration files
-    clean_file "$HOME"/.local/share/juju/juju.conf
-    clean_dir "$HOME"/.local/share/juju
+    fs-tool clean-file "$HOME"/.local/share/juju/juju.conf
+    fs-tool clean-dir "$HOME"/.local/share/juju
 
 execute: |
     echo "The interface is not connected by default"

@@ -1,38 +1,53 @@
 #!/bin/bash
 
+show_help() {
+	echo "usage: fs-tool wait-for-file [filename] [iterations] [sleep-time]"
+	echo "usage: fs-tool ensure-dir-exists [direname]"
+	echo "usage: fs-tool ensure-dir-exists-backup-real [direname]"
+	echo "usage: fs-tool clean-dir [direname]"
+	echo "usage: fs-tool ensure-file-exists [filename]"
+	echo "usage: fs-tool clean-file [filename]"
+}
+
 wait_for_file() {
-    the_file="$1"
-    iters="$2"
-    sleep_time="$3"
+    local file="$1"
+    local iters="$2"
+    local sleep_time="$3"
 
     for _ in $(seq "$iters"); do
-        if [ -e "$the_file" ]; then
+        if [ -e "$file" ]; then
+        	echo "File exists: $file"
             return 0
         fi
         sleep "$sleep_time"
     done
+    echo "File does not exists: $file"
     return 1
 }
 
 ensure_dir_exists() {
-    dir="$1"
+    local dir="$1"
     if ! [ -d "$dir" ]; then
+    	echo "Creating dir: $dir"
         mkdir -p "$dir"
         touch "$dir.fake"
     fi
 }
 
 ensure_dir_exists_backup_real() {
-    dir="$1"
+    local dir="$1"
     if [ -d "$dir" ]; then
         mv "$dir" "$dir.back"
     fi
+    echo "Creating dir: $dir"
     mkdir -p "$dir"
     touch "$dir.fake"
 }
 
 clean_dir() {
-    dir="$1"
+    local dir="$1"
+
+    echo "Cleaning dir: $dir"
     if [ -f "$dir.fake" ]; then
         rm -rf "$dir"
         rm -f "$dir.fake"
@@ -43,27 +58,30 @@ clean_dir() {
 }
 
 ensure_file_exists() {
-    file="$1"
+    local file="$1"
     if ! [ -e "$file" ]; then
+    	echo "Creating file: $file"
         echo "content for $file" > "$file"
         echo "content for fake $file" > "$file.fake"
     fi
 }
 
 ensure_file_exists_backup_real() {
-    file="$1"
+    local file="$1"
     if [ -e "$file" ]; then
+    	echo "Backuping file: $file"
         mv "$file" "$file.back"
     fi
     # ensure the parent dir is available
     if [ ! -d "$(dirname "$file")" ]; then
         mkdir -p "$(dirname "$file")"
     fi
-    ensure_file_exists "$file"
+    fs-tool ensure-file-exists "$file"
 }
 
 clean_file() {
-    file="$1"
+    local file="$1"
+    echo "Cleaning file: $file"
     if [ -e "$file.fake" ]; then
         rm -f "$file"
         rm -f "$file.fake"
@@ -72,3 +90,25 @@ clean_file() {
         mv "$file.back" "$file"
     fi
 }
+
+if [ $# -eq 0 ]; then
+	show_help
+	exit 1
+fi
+
+action=
+while [ $# -gt 0 ]; do
+	case "$1" in
+		-h|--help)
+			show_help
+			exit 0
+			;;
+		*)
+			action="$(echo $1 | tr '-' '_')"
+			shift
+			break
+			;;
+	esac
+done
+
+"$action" "$@"

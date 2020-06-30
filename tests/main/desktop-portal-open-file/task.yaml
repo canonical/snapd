@@ -47,9 +47,6 @@ restore: |
     rm -f "$EDITOR_HISTORY"
 
 execute: |
-    #shellcheck source=tests/lib/files.sh
-    . "$TESTSLIB"/files.sh
-
     echo "Install the portals test client"
     snap install --edge test-snapd-portal-client
 
@@ -64,7 +61,7 @@ execute: |
     tests.session -u test exec test-snapd-portal-client launch-file "$testfile"
 
     echo "The test-browser process was invoked with the URL"
-    wait_for_file "$EDITOR_HISTORY" 4 .5
+    fs-tool wait-for-file "$EDITOR_HISTORY" 4 .5
     MATCH "$testfile" < "$EDITOR_HISTORY"
 
 debug: |
