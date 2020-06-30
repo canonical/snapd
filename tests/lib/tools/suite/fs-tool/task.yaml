@@ -16,7 +16,8 @@ execute: |
     mkdir "$PWD"/mytestdir
     fs-tool ensure_dir_exists_backup_real "$PWD"/mytestdir
     test -d "$PWD"/mytestdir
-    not test -f "$PWD"/mytestdir.fake
+    test -f "$PWD"/mytestdir.fake
+    test -d "$PWD"/mytestdir.back
     fs-tool clean-dir "$PWD"/mytestdir
     test -d "$PWD"/mytestdir
     rm -r "$PWD"/mytestdir
@@ -33,7 +34,8 @@ execute: |
     touch "$PWD"/mytestfile
     fs-tool ensure_file_exists_backup_real "$PWD"/mytestfile
     test -f "$PWD"/mytestfile
-    not test -f "$PWD"/mytestfile.fake
+    test -f "$PWD"/mytestfile.fake
+    test -f "$PWD"/mytestfile.back
     fs-tool clean-file "$PWD"/mytestfile
     test -f "$PWD"/mytestfile
 
