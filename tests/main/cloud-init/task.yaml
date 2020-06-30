@@ -75,3 +75,13 @@ execute: |
     cloud_region=$(get_conf region)
     snap_cloud_region=$(snap get core cloud.region)
     test "$cloud_region" = "$snap_cloud_region"
+
+    # if we are on UC16 / UC18, then also check that we wrote out a restricting
+    # cloud-init file
+    # TODO:UC20: adapt for UC20 when cloud-init is supported on UC20
+    if [[ "$SPREAD_SYSTEM" == ubuntu-core-1* ]]; then
+        # TODO: is there a race here with snapd restricting cloud-init and us
+        # checking that it was restricted?
+        echo "Test that cloud-init restrict file was written"
+        test -f /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg
+    fi
