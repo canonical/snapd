@@ -35,25 +35,26 @@ restore_testrootorg_store(){
 }
 
 prepare_test_account(){
-    ACCOUNT_NAME=$1
+    local ACCOUNT_NAME=$1
     cp -f "$TESTSLIB/assertions/${ACCOUNT_NAME}.account" /var/lib/snapd/seed/assertions
     cp -f "$TESTSLIB/assertions/${ACCOUNT_NAME}.account-key" /var/lib/snapd/seed/assertions
 }
 
 restore_test_account(){
-    ACCOUNT_NAME=$1
+    local ACCOUNT_NAME=$1
     rm -f "/var/lib/snapd/seed/assertions/${ACCOUNT_NAME}.account"
     rm -f "/var/lib/snapd/seed/assertions/${ACCOUNT_NAME}.account-key"
 }
 
 prepare_test_model(){
-    MODEL_NAME=$1
+    local MODEL_NAME=$1
+    local MODEL_FINAL
     MODEL_FINAL=$(get_model "$MODEL_NAME")
     cp -f "${TESTSLIB}/assertions/${MODEL_FINAL}" "/var/lib/snapd/seed/assertions/${MODEL_NAME}.model"
 }
 
 restore_test_model(){
-    MODEL_NAME=$1
+    local MODEL_NAME=$1
     rm -f "/var/lib/snapd/seed/assertions/${MODEL_NAME}.model"
 }
 
@@ -79,7 +80,7 @@ restore_pc_snap(){
 }
 
 get_model(){
-    MODEL_NAME=$1
+    local MODEL_NAME=$1
     if is_core18_system; then
         echo "${MODEL_NAME}-18.model"
     elif is_core20_system; then
