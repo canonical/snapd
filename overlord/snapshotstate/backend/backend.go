@@ -323,3 +323,17 @@ func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, 
 
 	return nil
 }
+
+// Export allows exporting a given snapshot set with access to the underlying
+// file to stream it out
+// XXX: locking?
+func Export(ctx context.Context, setID uint64) (export []*Reader, err error) {
+	err = Iter(ctx, func(reader *Reader) error {
+		if reader.SetID == setID {
+			export = append(export, reader)
+		}
+		return nil
+	})
+
+	return export, err
+}
