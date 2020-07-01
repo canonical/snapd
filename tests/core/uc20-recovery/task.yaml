@@ -74,12 +74,14 @@ execute: |
         # repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks func
         # so instead to get the spread gopath and other data needed to continue
         # the test, we need to add a .ssh/rc script which copies all of the data
-        # from /host/ubuntu-data in recover mode to the tmpfs /home
+        # from /host/ubuntu-data in recover mode to the tmpfs /home, see
+        # sshd(8) for details on the ~/.ssh/rc script
         if [ "$SPREAD_BACKEND" = "external" ]; then
             mkdir -p /home/external/.ssh
             chown external:external /home/external/.ssh
             touch /home/external/.ssh/rc
             chown external:external /home/external/.ssh/rc
+            # Seethe sshrc section in sshd(8)
             cat <<-EOF > /home/external/.ssh/rc
     #!/bin/sh
     # added by spread tests
@@ -89,8 +91,8 @@ execute: |
         # that spread uses
         # silence the output so that nothing is output to a ssh command,
         # potentially confusing spread
-        sudo mkdir /home/gopath 2> /dev/null > /dev/null
-        sudo mount --bind /host/ubuntu-data/user-data/gopath /home/gopath 2> /dev/null > /dev/null
+        sudo mkdir /home/gopath > /dev/null
+        sudo mount --bind /host/ubuntu-data/user-data/gopath /home/gopath > /dev/null
     fi
     EOF
         fi
@@ -149,7 +151,7 @@ execute: |
 
         # if we are using the external backend, remove the .ssh/rc hack we used
         # to copy data around, it's not necessary going back to run mode, and it
-        # somehow interferes with spread re-connecting over ssh, causing an 
+        # somehow interferes with spread re-connecting over ssh, causing
         # spread to timeout trying to reconnect after the reboot with an error
         # message like this:
         # ssh: unexpected packet in response to channel open: <nil>
