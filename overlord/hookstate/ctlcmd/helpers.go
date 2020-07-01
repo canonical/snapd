@@ -147,20 +147,7 @@ func runServiceCommand(context *hookstate.Context, inst *servicestate.Instructio
 		return err
 	}
 
-	// serviceNames may be prefixed by snap name, getServiceInfos() resolves
-	// those but we need to turn it into list of app names. All are guaranteed
-	// to be resolved only for current snap.
-	var names []string
-	for _, app := range appInfos {
-		names = append(names, app.Name)
-	}
-	srvctl, err := servicestate.ServiceControl(st, context.InstanceName(), names, inst, context)
-	if err != nil {
-		return err
-	}
-
 	if !context.IsEphemeral() && context.HookName() == "configure" {
-		tts = append(tts, state.NewTaskSet(srvctl))
 		return queueCommand(context, tts)
 	}
 
@@ -170,8 +157,6 @@ func runServiceCommand(context *hookstate.Context, inst *servicestate.Instructio
 	for _, ts := range tts {
 		chg.AddAll(ts)
 	}
-	// new way of handling services with service-control task
-	chg.AddTask(srvctl)
 	st.EnsureBefore(0)
 	st.Unlock()
 

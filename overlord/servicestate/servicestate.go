@@ -55,7 +55,7 @@ func changeIDForContext(context *hookstate.Context) string {
 	return ""
 }
 
-func ServiceControlMany(st *state.State, appInfos []*snap.AppInfo, inst *Instruction, context *hookstate.Context) ([]*state.TaskSet, error) {
+func serviceControlTs(st *state.State, appInfos []*snap.AppInfo, inst *Instruction) (*state.TaskSet, error) {
 	servicesBySnap := make(map[string][]string)
 	for _, app := range appInfos {
 		if !app.IsService() {
@@ -67,85 +67,74 @@ func ServiceControlMany(st *state.State, appInfos []*snap.AppInfo, inst *Instruc
 	}
 
 	ts := state.NewTaskSet()
+	var prev *state.Task
 	for snapName, services := range servicesBySnap {
-		task, err := ServiceControl(st, snapName, services, inst, context)
+		var snapst snapstate.SnapState
+		if err := snapstate.Get(st, snapName, &snapst); err != nil {
+			return nil, err
+		}
+		info, err := snapst.CurrentInfo()
 		if err != nil {
 			return nil, err
 		}
-		// XXX: should we chain tasks here?
+		if len(info.Services()) == 0 {
+			return nil, fmt.Errorf("snap %q does not have services", snapName)
+		}
+
+		cmd := &ServiceAction{SnapName: snapName}
+		switch {
+		case inst.Action == "start":
+			cmd.Action = "start"
+			if inst.Enable {
+				cmd.ActionModifier = "enable"
+			}
+		case inst.Action == "stop":
+			cmd.Action = "stop"
+			if inst.Disable {
+				cmd.ActionModifier = "disable"
+			}
+		case inst.Action == "restart":
+			if inst.Reload {
+				cmd.Action = "reload-or-restart"
+			} else {
+				cmd.Action = "restart"
+			}
+		default:
+			return nil, fmt.Errorf("unknown action %q", inst.Action)
+		}
+
+		var svcs []string
+		for _, svcName := range services {
+			if svcName == snapName {
+				// all services of the snap
+				svcs = nil
+				break
+			}
+			app, ok := info.Apps[svcName]
+			if !(ok && app.IsService()) {
+				return nil, fmt.Errorf(i18n.G("unknown service: %q"), svcName)
+			}
+			svcs = append(svcs, app.Name)
+		}
+		cmd.Services = svcs
+
+		var summary string
+		if len(svcs) > 0 {
+			summary = fmt.Sprintf("Run service command %q for services %q of snap %q", cmd.Action, svcs, cmd.SnapName)
+		} else {
+			summary = fmt.Sprintf("Run service command %q for services of snap %q", cmd.Action, cmd.SnapName)
+		}
+
+		task := st.NewTask("service-control", summary)
+		task.Set("service-action", cmd)
+		task.Logf("args: %q, svcs: %q", services, svcs)
+		if prev != nil {
+			task.WaitFor(prev)
+		}
+		prev = task
 		ts.AddTask(task)
 	}
-	return []*state.TaskSet{ts}, nil
-}
-
-func ServiceControl(st *state.State, snapName string, serviceNames []string, inst *Instruction, context *hookstate.Context) (*state.Task, error) {
-	st.Lock()
-	defer st.Unlock()
-
-	ignoreChangeID := changeIDForContext(context)
-	if err := snapstate.CheckChangeConflictMany(st, []string{snapName}, ignoreChangeID); err != nil {
-		return nil, &ServiceActionConflictError{err}
-	}
-
-	var snapst snapstate.SnapState
-	if err := snapstate.Get(st, snapName, &snapst); err != nil {
-		return nil, err
-	}
-	info, err := snapst.CurrentInfo()
-	if err != nil {
-		return nil, err
-	}
-	if len(info.Services()) == 0 {
-		return nil, fmt.Errorf("snap %q does not have services", snapName)
-	}
-
-	cmd := &ServiceAction{SnapName: snapName}
-	switch {
-	case inst.Action == "start":
-		cmd.Action = "start"
-		if inst.Enable {
-			cmd.ActionModifier = "enable"
-		}
-	case inst.Action == "stop":
-		cmd.Action = "stop"
-		if inst.Disable {
-			cmd.ActionModifier = "disable"
-		}
-	case inst.Action == "restart":
-		if inst.Reload {
-			cmd.Action = "reload-or-restart"
-		} else {
-			cmd.Action = "restart"
-		}
-	default:
-		return nil, fmt.Errorf("unknown action %q", inst.Action)
-	}
-
-	var svcs []string
-	for _, svcName := range serviceNames {
-		if svcName == snapName {
-			// all services of the snap
-			svcs = nil
-			break
-		}
-		app, ok := info.Apps[svcName]
-		if !(ok && app.IsService()) {
-			return nil, fmt.Errorf(i18n.G("unknown service: %q"), svcName)
-		}
-		svcs = append(svcs, app.Name)
-	}
-	cmd.Services = svcs
-
-	var summary string
-	if len(svcs) > 0 {
-		summary = fmt.Sprintf("Run service command %q for services %q of snap %q", cmd.Action, svcs, cmd.SnapName)
-	} else {
-		summary = fmt.Sprintf("Run service command %q for services of snap %q", cmd.Action, cmd.SnapName)
-	}
-	task := st.NewTask("service-control", summary)
-	task.Set("service-action", cmd)
-	task.Logf("args: %q, svcs: %q", serviceNames, svcs)
-	return task, nil
+	return ts, nil
 }
 
 // Control creates a taskset for starting/stopping/restarting services via systemctl.
@@ -216,6 +205,12 @@ func Control(st *state.State, appInfos []*snap.AppInfo, inst *Instruction, conte
 		}
 		tts = append(tts, ts)
 	}
+
+	ts, err := serviceControlTs(st, appInfos, inst)
+	if err != nil {
+		return nil, err
+	}
+	tts = append(tts, ts)
 
 	// make a taskset wait for its predecessor
 	for i := 1; i < len(tts); i++ {

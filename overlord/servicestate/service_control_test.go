@@ -23,6 +23,8 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -116,10 +118,27 @@ func (s *serviceControlSuite) mockTestSnap(c *C) *snap.Info {
 func verifyControlTasks(c *C, tasks []*state.Task, expectedAction, supportAction string, expectedServices ...string) {
 	// sanity, ensures test checks below are hit
 	c.Assert(len(tasks) > 0, Equals, true)
+
+	// group service names by snaps
+	bySnap := make(map[string][]string)
+	for _, name := range expectedServices {
+		// split service name, e.g. snap.test-snap.foo.service
+		parts := strings.Split(name, ".")
+		c.Assert(parts, HasLen, 4)
+		snapName := parts[1]
+		serviceName := parts[2]
+		bySnap[snapName] = append(bySnap[snapName], serviceName)
+	}
+
+	var serviceControlTasks int
+	// snaps from service-control tasks
+	seenSnaps := make(map[string]bool)
+
 	var i int
 	for i < len(tasks) {
 		var argv []string
-		if tasks[i].Kind() == "exec-command" {
+		kind := tasks[i].Kind()
+		if kind == "exec-command" {
 			switch expectedAction {
 			case "start":
 				if supportAction != "" {
@@ -154,10 +173,46 @@ func verifyControlTasks(c *C, tasks []*state.Task, expectedAction, supportAction
 			default:
 				c.Fatalf("unhandled action %s", expectedAction)
 			}
+		} else if kind == "service-control" {
+			serviceControlTasks++
+			var sa servicestate.ServiceAction
+			c.Assert(tasks[i].Get("service-action", &sa), IsNil)
+			switch expectedAction {
+			case "start":
+				c.Check(sa.Action, Equals, "start")
+				if supportAction != "" {
+					c.Check(sa.ActionModifier, Equals, supportAction)
+				}
+			case "stop":
+				c.Check(sa.Action, Equals, "stop")
+				if supportAction != "" {
+					c.Check(sa.ActionModifier, Equals, supportAction)
+				}
+			case "restart":
+				if supportAction == "reload" {
+					c.Check(sa.Action, Equals, "reload-or-restart")
+				} else {
+					c.Check(sa.Action, Equals, "restart")
+				}
+			default:
+				c.Fatalf("unhandled action %s", expectedAction)
+			}
+			seenSnaps[sa.SnapName] = true
+			obtainedServices := sa.Services
+			sort.Strings(obtainedServices)
+			sort.Strings(bySnap[sa.SnapName])
+			c.Assert(obtainedServices, DeepEquals, bySnap[sa.SnapName])
 		} else {
 			c.Fatalf("unexpected task: %s", tasks[i].Kind())
 		}
 		i++
+	}
+
+	// we should have one service-control task for every snap
+	c.Assert(serviceControlTasks, Equals, len(bySnap))
+	c.Assert(len(bySnap), Equals, len(seenSnaps))
+	for snapName := range bySnap {
+		c.Assert(seenSnaps[snapName], Equals, true)
 	}
 }
 
@@ -707,13 +762,13 @@ func (s *serviceControlSuite) TestUpdateSnapstateServices(c *C) {
 			changed: false,
 		},
 		{
-			enable: []string{"a"},
+			enable:                   []string{"a"},
 			expectedSnapstateEnabled: []string{"a"},
 			changed:                  true,
 		},
 		// enable again does nothing
 		{
-			enable: []string{"a"},
+			enable:                   []string{"a"},
 			expectedSnapstateEnabled: []string{"a"},
 			changed:                  false,
 		},
@@ -723,7 +778,7 @@ func (s *serviceControlSuite) TestUpdateSnapstateServices(c *C) {
 			changed:                   true,
 		},
 		{
-			enable: []string{"a", "c"},
+			enable:                   []string{"a", "c"},
 			expectedSnapstateEnabled: []string{"a", "c"},
 			changed:                  true,
 		},
