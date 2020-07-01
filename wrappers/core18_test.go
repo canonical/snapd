@@ -60,6 +60,8 @@ func makeMockSnapdSnap(c *C) *snap.Info {
 		// D-Bus configuration
 		{"usr/share/dbus-1/session.d/snapd.session-services.conf", "<busconfig/>"},
 		{"usr/share/dbus-1/system.d/snapd.system-services.conf", "<busconfig/>"},
+		// Extra non-snapd D-Bus config that shouldn't be copied
+		{"usr/share/dbus-1/system.d/io.netplan.Netplan.conf", "<busconfig/>"},
 	})
 
 	return info
@@ -164,6 +166,9 @@ WantedBy=snapd.service
 	}} {
 		c.Check(entry[0], testutil.FileEquals, entry[1])
 	}
+
+	// Non-snapd D-Bus config is not copied
+	c.Check(filepath.Join(dirs.SnapDBusSystemPolicyDir, "io.netplan.Netplan.conf"), testutil.FileAbsent)
 
 	// check the systemctl calls
 	c.Check(s.sysdLog, DeepEquals, [][]string{
