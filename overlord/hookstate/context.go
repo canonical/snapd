@@ -252,3 +252,14 @@ func (c *Context) Done() error {
 func (c *Context) IsEphemeral() bool {
 	return c.task == nil
 }
+
+// ChangeID returns change ID for non-ephemeral context
+// or empty string otherwise.
+func (c *Context) ChangeID() string {
+	if task, ok := c.Task(); ok {
+		if chg := task.Change(); chg != nil {
+			return chg.ID()
+		}
+	}
+	return ""
+}

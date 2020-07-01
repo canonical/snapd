@@ -150,8 +150,9 @@ func (b Backend) LinkSnap(info *snap.Info, dev boot.Device, linkCtx LinkContext,
 	return reboot, nil
 }
 
-func (b Backend) StartServices(apps []*snap.AppInfo, meter progress.Meter, tm timings.Measurer) error {
-	return wrappers.StartServices(apps, nil, nil, meter, tm)
+func (b Backend) StartServices(apps []*snap.AppInfo, disabledSvcs []string, meter progress.Meter, tm timings.Measurer) error {
+	flags := &wrappers.StartServicesFlags{Enable: true}
+	return wrappers.StartServices(apps, disabledSvcs, flags, meter, tm)
 }
 
 func (b Backend) StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error {
@@ -169,7 +170,6 @@ func (b Backend) generateWrappers(s *snap.Info, linkCtx LinkContext) error {
 		}
 	}()
 
-	disabledSvcs := linkCtx.PrevDisabledServices
 	if s.Type() == snap.TypeSnapd {
 		// snapd services are handled separately
 		return generateSnapdWrappers(s)
@@ -186,7 +186,7 @@ func (b Backend) generateWrappers(s *snap.Info, linkCtx LinkContext) error {
 		Preseeding:   b.preseed,
 		VitalityRank: linkCtx.VitalityRank,
 	}
-	if err = wrappers.AddSnapServices(s, disabledSvcs, opts, progress.Null); err != nil {
+	if err = wrappers.AddSnapServices(s, opts, progress.Null); err != nil {
 		return err
 	}
 	cleanupFuncs = append(cleanupFuncs, func(s *snap.Info) error {

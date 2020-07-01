@@ -354,9 +354,10 @@ var modelDefaults = map[string]interface{}{
 	"kernel":       "kernel",
 }
 
-func (s *apiBaseSuite) fakeServiceControl(st *state.State, appInfos []*snap.AppInfo, inst *servicestate.Instruction, context *hookstate.Context) ([]*state.TaskSet, error) {
-	st.Lock()
-	defer st.Unlock()
+func (s *apiBaseSuite) fakeServiceControl(st *state.State, appInfos []*snap.AppInfo, inst *servicestate.Instruction, flags *servicestate.Flags, context *hookstate.Context) ([]*state.TaskSet, error) {
+	if flags != nil {
+		panic("flags are not expected")
+	}
 
 	if s.serviceControlError != nil {
 		return nil, s.serviceControlError

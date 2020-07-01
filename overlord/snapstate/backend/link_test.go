@@ -73,45 +73,6 @@ type linkSuite struct {
 
 var _ = Suite(&linkSuite{})
 
-func (s *linkSuite) TestLinkSnapGivesLastActiveDisabledServicesToWrappers(c *C) {
-	const yaml = `name: hello
-version: 1.0
-environment:
- KEY: value
-
-apps:
- bin:
-   command: bin
-   daemon: simple
- svc:
-   command: svc
-   daemon: simple
-`
-	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
-
-	svcsDisabled := []string{}
-	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
-		// drop --root from the cmd
-		if len(cmd) >= 3 && cmd[0] == "--root" {
-			cmd = cmd[2:]
-		}
-		// if it's an enable, save the service name to check later
-		if len(cmd) >= 2 && cmd[0] == "enable" {
-			svcsDisabled = append(svcsDisabled, cmd[1])
-		}
-		return nil, nil
-	})
-	defer r()
-
-	linkCtx := backend.LinkContext{
-		PrevDisabledServices: []string{"svc"},
-	}
-	_, err := s.be.LinkSnap(info, mockDev, linkCtx, s.perfTimings)
-	c.Assert(err, IsNil)
-
-	c.Assert(svcsDisabled, DeepEquals, []string{"snap.hello.bin.service"})
-}
-
 func (s *linkSuite) TestLinkDoUndoGenerateWrappers(c *C) {
 	const yaml = `name: hello
 version: 1.0

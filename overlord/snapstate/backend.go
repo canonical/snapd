@@ -67,7 +67,7 @@ type managerBackend interface {
 	SetupSnap(snapFilePath, instanceName string, si *snap.SideInfo, dev boot.Device, meter progress.Meter) (snap.Type, *backend.InstallRecord, error)
 	CopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter) error
 	LinkSnap(info *snap.Info, dev boot.Device, linkCtx backend.LinkContext, tm timings.Measurer) (rebootRequired bool, err error)
-	StartServices(svcs []*snap.AppInfo, meter progress.Meter, tm timings.Measurer) error
+	StartServices(svcs []*snap.AppInfo, disabledSvcs []string, meter progress.Meter, tm timings.Measurer) error
 	StopServices(svcs []*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error
 	ServicesEnableState(info *snap.Info, meter progress.Meter) (map[string]bool, error)
 	QueryDisabledServices(info *snap.Info, pb progress.Meter) ([]string, error)
