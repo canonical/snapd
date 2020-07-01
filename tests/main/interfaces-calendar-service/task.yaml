@@ -9,7 +9,18 @@ summary: Ensure that the calendar-service interface works
 # arch-linux: test-snapd-eds is incompatible with eds version shipped with the distro
 # fedora-31: test-snapd-eds is incompatible with eds version shipped with the distro
 # fedora-32: test-snapd-eds is incompatible with eds version shipped with the distro
-systems: [-ubuntu-core-*, -ubuntu-14.04-*, -amazon-*, -centos-*, -opensuse-tumbleweed-*, -ubuntu-19.10-*, -ubuntu-2*, -arch-linux-*, -debian-sid-*, -fedora-31-*, -fedora-32-*]
+systems:
+    - -amazon-*  # no need to run this on amazon
+    - -arch-linux-*  # test-snapd-eds is incompatible with eds version shipped with the distro
+    - -centos-*
+    - -debian-sid-*
+    - -fedora-31-*  # test-snapd-eds is incompatible with eds version shipped with the distro
+    - -fedora-32-*  # test-snapd-eds is incompatible with eds version shipped with the distro
+    - -opensuse-tumbleweed-*  # test-snapd-eds is incompatible with eds version shipped with the distro
+    - -ubuntu-14.04-*  # no tests.session support, eds is too old
+    - -ubuntu-19.10-*  # test-snapd-eds is incompatible with eds shipped with the distro
+    - -ubuntu-2*
+    - -ubuntu-core-*  # EDS is unsupported on core systems
 
 # fails in the autopkgtest env with:
 # [Wed Aug 15 16:34:12 2018] audit: type=1400
@@ -20,41 +31,24 @@ systems: [-ubuntu-core-*, -ubuntu-14.04-*, -amazon-*, -centos-*, -opensuse-tumbl
 # peer_addr="@/tmp/dbus-5FUilMiW8U" peer="unconfined"
 backends: [-autopkgtest]
 
-environment:
-    XDG: $(pwd)/xdg
-    XDG_CONFIG_HOME: $XDG/config
-    XDG_DATA_HOME: $XDG/share
-    XDG_CACHE_HOME: $XDG/cache
-
 prepare: |
+    tests.session -u test prepare
     snap install --edge test-snapd-eds
-    mkdir -p "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_CACHE_HOME"
 
 restore: |
-    kill "$(cat dbus-launch.pid)"
-
-    # In case the process gvfsd-metadata does not finish by itself, it is manually stopped
-    # The reason is that gvfsd-metadata locks the xdg/share/gvfs-metadata directory content
-    # producing an error when the xdg directory is removed.
-    if pid="$(pidof gvfsd-metadata)"; then
-        kill -9 "$pid" || true
-    fi
-    rm -rf "$XDG"
+    snap remove --purge test-snapd-eds
+    tests.session -u test restore
 
 execute: |
-    echo "Setting up D-Bus session bus"
-    eval "$(dbus-launch --sh-syntax)"
-    echo "$DBUS_SESSION_BUS_PID" > dbus-launch.pid
-
     echo "The interface is initially disconnected"
     snap interfaces -i calendar-service | MATCH -- '- +test-snapd-eds:calendar-service'
     if [ "$(snap debug confinement)" = strict ]; then
-      not test-snapd-eds.calendar list test-calendar
+      not tests.session -u test exec test-snapd-eds.calendar list test-calendar
     fi
 
     echo "When the plug is connected, we can add events to calendars"
     snap connect test-snapd-eds:calendar-service
-    test-snapd-eds.calendar load test-calendar << EOF
+    tests.session -u test exec test-snapd-eds.calendar load test-calendar << EOF
     BEGIN:VEVENT
     UID:19970610T172345Z-AF23B2@example.com
     DTSTAMP:19970610T172345Z
@@ -66,7 +60,7 @@ execute: |
 
     echo "We can also retrieve those contacts"
     # Filter out creation/modification date fields, which are unpredictable
-    test-snapd-eds.calendar list test-calendar | sed -E 's/^(CREATED|LAST-MODIFIED):.*/\1:.../' > /tmp/calendar.ics
+    tests.session -u test exec test-snapd-eds.calendar list test-calendar | sed -E 's/^(CREATED|LAST-MODIFIED):.*/\1:.../' > /tmp/calendar.ics
     diff -uw - /tmp/calendar.ics << EOF
     BEGIN:VEVENT
     UID:19970610T172345Z-AF23B2@example.com
@@ -81,4 +75,4 @@ execute: |
     EOF
 
     echo "Finally, remove the calendar we created"
-    test-snapd-eds.calendar remove test-calendar
+    tests.session -u test exec test-snapd-eds.calendar remove test-calendar

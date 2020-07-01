@@ -9,14 +9,14 @@ systems:
 
 prepare: |
     snap install --edge test-snapd-wayland
-    session-tool -u test --prepare
-    session-tool -u test systemd-run --user --unit headless-weston.service weston --backend=headless-backend.so
-    retry-tool -n 10 --wait 1 test -S /run/user/12345/wayland-0
+    tests.session -u test prepare
+    tests.session -u test exec systemd-run --user --unit headless-weston.service weston --backend=headless-backend.so
+    retry -n 10 --wait 1 test -S /run/user/12345/wayland-0
 
 restore: |
     snap remove test-snapd-wayland
-    session-tool -u test systemctl --user stop headless-weston.service
-    session-tool -u test --restore
+    tests.session -u test exec systemctl --user stop headless-weston.service
+    tests.session -u test restore
 
 execute: |
     echo "The interface is connected by default"
@@ -30,13 +30,13 @@ execute: |
     fi
 
     echo "Then the snap command under the test user is able connect to the wayland socket"
-    session-tool -u test test-snapd-wayland | MATCH wl_compositor
+    tests.session -u test exec test-snapd-wayland | MATCH wl_compositor
 
     echo "When the plug is disconnected"
     snap disconnect test-snapd-wayland:wayland
 
     echo "Then the snap command is not able to connect to the wayland socket"
-    if session-tool -u test test-snapd-wayland; then
+    if tests.session -u test exec test-snapd-wayland; then
         echo "Expected error with plug disconnected"
         exit 1
     fi

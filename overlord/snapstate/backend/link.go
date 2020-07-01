@@ -85,7 +85,7 @@ func updateCurrentSymlinks(info *snap.Info) (e error) {
 }
 
 func hasFontConfigCache(info *snap.Info) bool {
-	if info.GetType() == snap.TypeOS || info.GetType() == snap.TypeSnapd {
+	if info.Type() == snap.TypeOS || info.Type() == snap.TypeSnapd {
 		return true
 	}
 	return false
@@ -126,7 +126,7 @@ func (b Backend) LinkSnap(info *snap.Info, dev boot.Device, linkCtx LinkContext,
 		})
 	}
 
-	reboot, err := boot.Participant(info, info.GetType(), dev).SetNextBoot()
+	reboot, err := boot.Participant(info, info.Type(), dev).SetNextBoot()
 	if err != nil {
 		return false, err
 	}
@@ -151,11 +151,11 @@ func (b Backend) LinkSnap(info *snap.Info, dev boot.Device, linkCtx LinkContext,
 }
 
 func (b Backend) StartServices(apps []*snap.AppInfo, meter progress.Meter, tm timings.Measurer) error {
-	return wrappers.StartServices(apps, meter, tm)
+	return wrappers.StartServices(apps, nil, nil, meter, tm)
 }
 
 func (b Backend) StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error {
-	return wrappers.StopServices(apps, reason, meter, tm)
+	return wrappers.StopServices(apps, nil, reason, meter, tm)
 }
 
 func (b Backend) generateWrappers(s *snap.Info, linkCtx LinkContext) error {
@@ -170,7 +170,7 @@ func (b Backend) generateWrappers(s *snap.Info, linkCtx LinkContext) error {
 	}()
 
 	disabledSvcs := linkCtx.PrevDisabledServices
-	if s.GetType() == snap.TypeSnapd {
+	if s.Type() == snap.TypeSnapd {
 		// snapd services are handled separately
 		return generateSnapdWrappers(s)
 	}
@@ -209,7 +209,7 @@ func (b Backend) generateWrappers(s *snap.Info, linkCtx LinkContext) error {
 }
 
 func removeGeneratedWrappers(s *snap.Info, firstInstallUndo bool, meter progress.Meter) error {
-	if s.GetType() == snap.TypeSnapd {
+	if s.Type() == snap.TypeSnapd {
 		return removeGeneratedSnapdWrappers(s, firstInstallUndo, progress.Null)
 	}
 

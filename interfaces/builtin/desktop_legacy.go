@@ -249,7 +249,17 @@ dbus (send)
 # allowed, we can safely deny access to this file (and xdg-mime will either
 # return one of the snap's mimetypes, or none).
 deny /var/lib/snapd/desktop/applications/mimeinfo.cache r,
+
+# glib-networking's GLib proxy (different than the portal's proxy service
+# org.freedesktop.portal.ProxyResolver)
+dbus (send)
+    bus=session
+    path=/org/gtk/GLib/PACRunner
+    interface=org.gtk.GLib.PACRunner
+    member=Lookup
+    peer=(label=unconfined),
 `
+
 const desktopLegacyConnectedPlugSecComp = `
 # Description: Can access common desktop legacy methods. This gives privileged
 # access to the user's input.

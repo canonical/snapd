@@ -97,7 +97,7 @@
 %endif
 
 Name:           snapd
-Version:        2.45
+Version:        2.45.1
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -508,10 +508,17 @@ sed -e "s/-Bstatic -lseccomp/-Bstatic/g" -i cmd/snap-seccomp/*.go
 %gobuild -o bin/snap-seccomp $GOFLAGS %{import_path}/cmd/snap-seccomp
 
 %if 0%{?with_selinux}
-# Build SELinux module
-pushd ./data/selinux
-make SHARE="%{_datadir}" TARGETS="snappy"
-popd
+(
+%if 0%{?rhel} == 7
+    M4PARAM='-D distro_rhel7'
+%endif
+    # Build SELinux module
+    cd ./data/selinux
+    # pass M4PARAM in env instead of as an override, so that make can still
+    # manipulate it freely, for more details see:
+    # https://www.gnu.org/software/make/manual/html_node/Override-Directive.html
+    M4PARAM="$M4PARAM" make SHARE="%{_datadir}" TARGETS="snappy"
+)
 %endif
 
 # Build snap-confine
@@ -557,7 +564,6 @@ install -d -p %{buildroot}%{_systemd_system_env_generator_dir}
 install -d -p %{buildroot}%{_unitdir}
 install -d -p %{buildroot}%{_sysconfdir}/profile.d
 install -d -p %{buildroot}%{_sysconfdir}/sysconfig
-install -d -p %{buildroot}%{_sysconfdir}/sudoers.d
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/assertions
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/cookie
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/desktop/applications
@@ -629,7 +635,6 @@ pushd ./data
               SNAP_MOUNT_DIR="%{_sharedstatedir}/snapd/snap" \
               SNAPD_ENVIRONMENT_FILE="%{_sysconfdir}/sysconfig/snapd"
 popd
-
 
 %if 0%{?rhel} == 7
 # Install kernel tweaks
@@ -748,7 +753,6 @@ popd
 %{_datadir}/zsh/site-functions/_snap
 %{_libexecdir}/snapd/snapd.run-from-snap
 %{_sysconfdir}/profile.d/snapd.sh
-%{_sysconfdir}/sudoers.d/99-snapd.conf
 %{_mandir}/man8/snapd-env-generator.8*
 %{_systemd_system_env_generator_dir}/snapd-env-generator
 %{_unitdir}/snapd.socket
@@ -803,6 +807,7 @@ popd
 %{_libexecdir}/snapd/snap-device-helper
 %{_libexecdir}/snapd/snap-discard-ns
 %{_libexecdir}/snapd/snap-gdb-shim
+%{_libexecdir}/snapd/snap-gdbserver-shim
 %{_libexecdir}/snapd/snap-seccomp
 %{_libexecdir}/snapd/snap-update-ns
 %{_libexecdir}/snapd/system-shutdown
@@ -903,6 +908,35 @@ fi
 
 
 %changelog
+* Fri Jun 05 2020 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.45.1
+ - data/selinux: allow checking /var/cache/app-info
+ - cmd/snap-confine: add support for libc6-lse
+ - interfaces: miscellaneous policy updates xlv
+ - snap-bootstrap: remove sealed key file on reinstall
+ - interfaces-ssh-keys: Support reading /etc/ssh/ssh_config.d/
+ - gadget: make ext4 filesystems with or without metadata checksum
+ - interfaces/fwupd: allow bind mount to /boot on core
+ - tests: cherry-pick test fixes from master
+ - snap/squashfs: also symlink snap Install with uc20 seed snap dir
+   layout
+ - interfaces/serial-port: add NXP SC16IS7xx (ttySCX) to allowed
+   devices
+ - snap,many: mv Open to snapfile pkg to support add'l options to
+   Container methods
+ - interfaces/builtin/desktop: do not mount fonts cache on distros
+   with quirks
+ - devicestate, sysconfig: revert support for cloud.cfg.d/ in the
+   gadget
+ - data/completion, packaging: cherry-pick zsh completion
+ - state: log task errors in the journal too
+ - devicestate: do not report "ErrNoState" for seeded up
+ - interfaces/desktop: silence more /var/lib/snapd/desktop/icons
+   denials
+ - packaging/fedora: disable FIPS compliant crypto for static
+   binaries
+ - packaging: stop depending on python-docutils
+
 * Tue May 12 2020 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.45
  - o/devicestate: support doing system action reboots from recover

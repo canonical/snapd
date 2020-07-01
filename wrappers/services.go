@@ -137,10 +137,73 @@ func stopService(sysd systemd.Systemd, app *snap.AppInfo, inter interacter) erro
 	return nil
 }
 
+// enableServices enables services specified by apps. On success the returned
+// disable function can be used to undo all the actions. On error all the
+// services get disabled automatically (disable is nil).
+func enableServices(apps []*snap.AppInfo, inter interacter) (disable func(), err error) {
+	var enabled []string
+	var userEnabled []string
+
+	systemSysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
+	userSysd := systemd.New(dirs.GlobalRootDir, systemd.GlobalUserMode, inter)
+
+	disableEnabledServices := func() {
+		for _, srvName := range enabled {
+			if e := systemSysd.Disable(srvName); e != nil {
+				inter.Notify(fmt.Sprintf("While trying to disable previously enabled service %q: %v", srvName, e))
+			}
+		}
+		for _, s := range userEnabled {
+			if e := userSysd.Disable(s); e != nil {
+				inter.Notify(fmt.Sprintf("while trying to disable %s due to previous failure: %v", s, e))
+			}
+		}
+	}
+
+	defer func() {
+		if err != nil {
+			disableEnabledServices()
+		}
+	}()
+
+	for _, app := range apps {
+		var sysd systemd.Systemd
+		switch app.DaemonScope {
+		case snap.SystemDaemon:
+			sysd = systemSysd
+		case snap.UserDaemon:
+			sysd = userSysd
+		}
+
+		svcName := app.ServiceName()
+
+		switch app.DaemonScope {
+		case snap.SystemDaemon:
+			if err = sysd.Enable(svcName); err != nil {
+				return nil, err
+
+			}
+			enabled = append(enabled, svcName)
+		case snap.UserDaemon:
+			if err = userSysd.Enable(svcName); err != nil {
+				return nil, err
+			}
+			userEnabled = append(userEnabled, svcName)
+		}
+	}
+
+	return disableEnabledServices, nil
+}
+
+// StartServicesFlags carries extra flags for StartServices.
+type StartServicesFlags struct {
+	Enable bool
+}
+
 // StartServices starts service units for the applications from the snap which
 // are services. Service units will be started in the order provided by the
 // caller.
-func StartServices(apps []*snap.AppInfo, inter interacter, tm timings.Measurer) (err error) {
+func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServicesFlags, inter interacter, tm timings.Measurer) (err error) {
 	systemSysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
 	userSysd := systemd.New(dirs.GlobalRootDir, systemd.GlobalUserMode, inter)
 	cli := client.New()
@@ -287,7 +350,7 @@ type AddSnapServicesOptions struct {
 
 // AddSnapServices adds service units for the applications from the snap which are services.
 func AddSnapServices(s *snap.Info, disabledSvcs []string, opts *AddSnapServicesOptions, inter interacter) (err error) {
-	if s.GetType() == snap.TypeSnapd {
+	if s.Type() == snap.TypeSnapd {
 		return fmt.Errorf("internal error: adding explicit services for snapd snap is unexpected")
 	}
 
@@ -310,24 +373,16 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, opts *AddSnapServicesO
 	preseeding := opts.Preseeding
 
 	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
-	userSysd := systemd.New(dirs.GlobalRootDir, systemd.GlobalUserMode, inter)
 	var written []string
 	var writtenSystem, writtenUser bool
-	var enabled []string
-	var userEnabled []string
+	var disableEnabledServices func()
+
 	defer func() {
 		if err == nil {
 			return
 		}
-		for _, s := range enabled {
-			if e := sysd.Disable(s); e != nil {
-				inter.Notify(fmt.Sprintf("while trying to disable %s due to previous failure: %v", s, e))
-			}
-		}
-		for _, s := range userEnabled {
-			if e := userSysd.Disable(s); e != nil {
-				inter.Notify(fmt.Sprintf("while trying to disable %s due to previous failure: %v", s, e))
-			}
+		if disableEnabledServices != nil {
+			disableEnabledServices()
 		}
 		for _, s := range written {
 			if e := os.Remove(s); e != nil {
@@ -346,6 +401,9 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, opts *AddSnapServicesO
 		}
 	}()
 
+	var toEnable []*snap.AppInfo
+
+	// create services first; this doesn't trigger systemd
 	for _, app := range s.Apps {
 		if !app.IsService() {
 			continue
@@ -399,29 +457,19 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, opts *AddSnapServicesO
 			// boot
 			continue
 		}
-
-		svcName := app.ServiceName()
-		switch app.DaemonScope {
-		case snap.SystemDaemon:
-			if strutil.ListContains(disabledSvcs, app.Name) {
-				// service is disabled, nothing to do
-				continue
-			}
-
-			if !preseeding {
-				if err := sysd.Enable(svcName); err != nil {
-					return err
-				}
-				enabled = append(enabled, svcName)
-			}
-		case snap.UserDaemon:
-			if !preseeding {
-				if err := userSysd.Enable(svcName); err != nil {
-					return err
-				}
-				userEnabled = append(userEnabled, svcName)
-			}
+		// XXX: this may become quadratic, optimize.
+		// When preseeding services get enabled in doMarkPresseeded instead at
+		// the moment.
+		if strutil.ListContains(disabledSvcs, app.Name) || preseeding {
+			continue
 		}
+
+		toEnable = append(toEnable, app)
+	}
+
+	disableEnabledServices, err = enableServices(toEnable, inter)
+	if err != nil {
+		return err
 	}
 
 	if !preseeding {
@@ -456,11 +504,24 @@ func EnableSnapServices(s *snap.Info, inter interacter) (err error) {
 	return nil
 }
 
-// StopServices stops service units for the applications from the snap which are services.
-func StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, inter interacter, tm timings.Measurer) error {
-	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
+// StopServicesFlags carries extra flags for StopServices.
+type StopServicesFlags struct {
+	Disable bool
+}
 
-	logger.Debugf("StopServices called for %q, reason: %v", apps, reason)
+// StopServices stops and optionally disables service units for the applications
+// from the snap which are services.
+func StopServices(apps []*snap.AppInfo, flags *StopServicesFlags, reason snap.ServiceStopReason, inter interacter, tm timings.Measurer) error {
+	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
+	if flags == nil {
+		flags = &StopServicesFlags{}
+	}
+
+	if reason != snap.StopReasonOther {
+		logger.Debugf("StopServices called for %q, reason: %v", apps, reason)
+	} else {
+		logger.Debugf("StopServices called for %q", apps)
+	}
 	for _, app := range apps {
 		// Handle the case where service file doesn't exist and don't try to stop it as it will fail.
 		// This can happen with snap try when snap.yaml is modified on the fly and a daemon line is added.
@@ -481,6 +542,9 @@ func StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, inter int
 		var err error
 		timings.Run(tm, "stop-service", fmt.Sprintf("stop service %q", app.ServiceName()), func(nested timings.Measurer) {
 			err = stopService(sysd, app, inter)
+			if err == nil && flags.Disable {
+				err = sysd.Disable(app.ServiceName())
+			}
 		})
 		if err != nil {
 			return err
@@ -529,7 +593,7 @@ func ServicesEnableState(s *snap.Info, inter interacter) (map[string]bool, error
 // from the snap which are services. The optional flag indicates whether
 // services are removed as part of undoing of first install of a given snap.
 func RemoveSnapServices(s *snap.Info, inter interacter) error {
-	if s.GetType() == snap.TypeSnapd {
+	if s.Type() == snap.TypeSnapd {
 		return fmt.Errorf("internal error: removing explicit services for snapd snap is unexpected")
 	}
 	systemSysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
@@ -1155,12 +1219,12 @@ func generateOnCalendarSchedules(schedule []*timeutil.Schedule) []string {
 	return calendarEvents
 }
 
-type RestartFlags struct {
+type RestartServicesFlags struct {
 	Reload bool
 }
 
 // Restart or reload services; if reload flag is set then "systemctl reload-or-restart" is attempted.
-func RestartServices(svcs []*snap.AppInfo, flags *RestartFlags, inter interacter, tm timings.Measurer) error {
+func RestartServices(svcs []*snap.AppInfo, flags *RestartServicesFlags, inter interacter, tm timings.Measurer) error {
 	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
 
 	for _, srv := range svcs {

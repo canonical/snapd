@@ -6,6 +6,8 @@ show_help() {
 	echo "Supported invariants:"
 	echo "    root-files-in-home: most of /home/* does not contain root-owned files"
 	echo "    crashed-snap-confine: /tmp/snap.rootfs_* does not exist"
+	echo "    lxcfs-mounted: /var/lib/lxcfs is a mount point"
+	echo "    stray-dbus-daemon: at most one dbus-daemon is running"
 }
 
 if [ $# -eq 0 ]; then
@@ -63,6 +65,44 @@ check_crashed_snap_confine() {
 	fi
 }
 
+check_lxcfs_mounted() {
+	n="$1" # invariant name
+	"$TESTSTOOLS"/mountinfo-tool /var/lib/lxcfs > "/tmp/invariant-tool.$n"
+	if [ -s "/tmp/invariant-tool.$n" ]; then
+		echo "invariant-tool: it seems lxcfs is mounted" >&2
+		cat "/tmp/invariant-tool.$n" >&2
+		return 1
+	fi
+}
+
+check_stray_dbus_daemon() {
+	n="$1" # invariant name
+	(
+		skipped_system=0
+		for pid in $(pgrep dbus-daemon); do
+			cmdline="$(tr '\0' ' ' < "/proc/$pid/cmdline")"
+			# Ignore one dbus-daemon responsible for the system bus.
+			if echo "$cmdline" | grep -q 'dbus-daemon --system' && [ "$skipped_system" -eq 0 ]; then
+				skipped_system=1
+				continue
+			fi
+			# Ignore dbus-daemon running the session of the "external" user.
+			# This may happen when testing a core device using the ad-hoc
+			# backend. This user is never used by tests explicitly.
+			if [ "$(stat -c %U "/proc/$pid")" = "external" ]; then
+				continue
+			fi
+			# Report stray dbus-daemon.
+			echo "pid:$pid cmdline:$cmdline"
+		done
+	) > "/tmp/invariant-tool.$n"
+	if [ -s "/tmp/invariant-tool.$n" ]; then
+		echo "invariant-tool: more than one dbus-daemon running" >&2
+		cat "/tmp/invariant-tool.$n" >&2
+		return 1
+	fi
+}
+
 check_invariant() {
 	case "$1" in
 		root-files-in-home)
@@ -71,6 +111,12 @@ check_invariant() {
 		crashed-snap-confine)
 			check_crashed_snap_confine "$1"
 			;;
+		lxcfs-mounted)
+			check_lxcfs_mounted "$1"
+			;;
+		stray-dbus-daemon)
+			check_stray_dbus_daemon "$1"
+			;;
 		*)
 			echo "invariant-tool: unknown invariant $1" >&2
 			exit 1
@@ -78,7 +124,7 @@ check_invariant() {
 	esac
 }
 
-ALL_INVARIANTS="root-files-in-home crashed-snap-confine"
+ALL_INVARIANTS="root-files-in-home crashed-snap-confine lxcfs-mounted stray-dbus-daemon"
 
 case "$action" in
 	check)

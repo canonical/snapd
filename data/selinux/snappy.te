@@ -398,6 +398,15 @@ gnome_manage_home_config(snappy_t)
 gnome_manage_home_config_dirs(snappy_t)
 userdom_manage_user_tmp_symlinks(snappy_t)
 
+# appstream-metadata interface checks whether /var/cache/app-info (labeled
+# fwupd_cache_t) exists
+# RHEL7: fwupd.if is not defined in the policy
+ifndef(`distro_rhel7',`
+	optional_policy(`
+	  fwupd_search_cache(snappy_t)
+  ')
+')
+
 ########################################
 #
 # snap-update-ns, snap-dicsard-ns local policy
@@ -513,6 +522,15 @@ mmap_read_files_pattern(snappy_mount_t, tmpfs_t, tmpfs_t)
 # with robust mount namespace update snap-update-ns can remount filesystems that
 # were mounted from the host when updating the ns
 fs_remount_xattr_fs(snappy_mount_t)
+
+# when applying update due to appstream-metadata interface, snap-update-ns ns
+# whether /var/cache/app-info (labeled fwupd_cache_t) exists
+# RHEL7: fwupd.if is not defined in the policy
+ifndef(`distro_rhel7',`
+	optional_policy(`
+		fwupd_search_cache(snappy_mount_t)
+	')
+')
 
 ########################################
 #

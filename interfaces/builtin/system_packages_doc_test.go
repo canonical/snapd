@@ -32,7 +32,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type sytemPackagesDocSuite struct {
+type systemPackagesDocSuite struct {
 	iface        interfaces.Interface
 	coreSlotInfo *snap.SlotInfo
 	coreSlot     *interfaces.ConnectedSlot
@@ -40,44 +40,44 @@ type sytemPackagesDocSuite struct {
 	plug         *interfaces.ConnectedPlug
 }
 
-var _ = Suite(&sytemPackagesDocSuite{iface: builtin.MustInterface("system-packages-doc")})
+var _ = Suite(&systemPackagesDocSuite{iface: builtin.MustInterface("system-packages-doc")})
 
-const sytemPackagesDocConsumerYaml = `name: consumer
+const systemPackagesDocConsumerYaml = `name: consumer
 version: 0
 apps:
  app:
   plugs: [system-packages-doc]
 `
 
-const sytemPackagesDocCoreYaml = `name: core
+const systemPackagesDocCoreYaml = `name: core
 version: 0
 type: os
 slots:
   system-packages-doc:
 `
 
-func (s *sytemPackagesDocSuite) SetUpTest(c *C) {
-	s.plug, s.plugInfo = MockConnectedPlug(c, sytemPackagesDocConsumerYaml, nil, "system-packages-doc")
-	s.coreSlot, s.coreSlotInfo = MockConnectedSlot(c, sytemPackagesDocCoreYaml, nil, "system-packages-doc")
+func (s *systemPackagesDocSuite) SetUpTest(c *C) {
+	s.plug, s.plugInfo = MockConnectedPlug(c, systemPackagesDocConsumerYaml, nil, "system-packages-doc")
+	s.coreSlot, s.coreSlotInfo = MockConnectedSlot(c, systemPackagesDocCoreYaml, nil, "system-packages-doc")
 }
 
-func (s *sytemPackagesDocSuite) TearDownTest(c *C) {
+func (s *systemPackagesDocSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
 }
 
-func (s *sytemPackagesDocSuite) TestName(c *C) {
+func (s *systemPackagesDocSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "system-packages-doc")
 }
 
-func (s *sytemPackagesDocSuite) TestSanitizeSlot(c *C) {
+func (s *systemPackagesDocSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.coreSlotInfo), IsNil)
 }
 
-func (s *sytemPackagesDocSuite) TestSanitizePlug(c *C) {
+func (s *systemPackagesDocSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
-func (s *sytemPackagesDocSuite) TestAppArmorSpec(c *C) {
+func (s *systemPackagesDocSuite) TestAppArmorSpec(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 
@@ -94,7 +94,7 @@ func (s *sytemPackagesDocSuite) TestAppArmorSpec(c *C) {
 	c.Check(updateNS, testutil.Contains, "  umount /usr/share/doc/,\n")
 }
 
-func (s *sytemPackagesDocSuite) TestMountSpec(c *C) {
+func (s *systemPackagesDocSuite) TestMountSpec(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 
@@ -111,7 +111,7 @@ func (s *sytemPackagesDocSuite) TestMountSpec(c *C) {
 	c.Assert(entries, HasLen, 0)
 }
 
-func (s *sytemPackagesDocSuite) TestStaticInfo(c *C) {
+func (s *systemPackagesDocSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, false)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
@@ -120,6 +120,6 @@ func (s *sytemPackagesDocSuite) TestStaticInfo(c *C) {
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "deny-auto-connection: true")
 }
 
-func (s *sytemPackagesDocSuite) TestInterfaces(c *C) {
+func (s *systemPackagesDocSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

@@ -85,6 +85,8 @@ backends:
             - ubuntu-secboot-20.04-64:
                   image: ubuntu-20.04-64
                   workers: 1
+                  secure-boot: true
+                  # XXX: old name, remove once new spread is deployed
                   secureboot: true
 
             - debian-9-64:
@@ -123,6 +125,9 @@ backends:
                   workers: 4
                   storage: preserve-size
                   image: centos-8-64
+            - ubuntu-20.10-64:
+                  workers: 6
+                  image: ubuntu-os-cloud-devel/ubuntu-2010
 
     google-sru:
         type: google
@@ -134,9 +139,9 @@ backends:
                   workers: 6
             - ubuntu-18.04-64:
                   workers: 6
-            - ubuntu-19.04-64:
-                  workers: 6
             - ubuntu-19.10-64:
+                  workers: 6
+            - ubuntu-20.04-64:
                   workers: 6
 
     google-nested:
@@ -161,7 +166,21 @@ backends:
             - ubuntu-20.04-64:
                   image: ubuntu-2004-64-virt-enabled
                   storage: 20G
-                  workers: 1
+                  workers: 2
+
+    qemu-nested:
+        memory: 4G
+        type: qemu
+        systems:
+            - ubuntu-16.04-64:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-18.04-64:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-20.04-64:
+                  username: ubuntu
+                  password: ubuntu
 
     qemu:
         # TODO:UC20: uc20 needs 2G or grub will not loopback the kernel snap
@@ -246,6 +265,9 @@ backends:
             - centos-7-64:
                   username: centos
                   password: centos
+            - amazon-linux-2-64:
+                  username: ec2-user
+                  password: ec2-user
     autopkgtest:
         type: adhoc
         allocate: |
@@ -461,6 +483,20 @@ debug-each: |
         . "$TESTSLIB/journalctl.sh"
         #shellcheck source=tests/lib/state.sh
         . "$TESTSLIB/state.sh"
+        #shellcheck source=tests/lib/nested.sh
+        . "$TESTSLIB/nested.sh"
+
+        
+        if is_nested_system; then
+            echo '# nested VM status'
+            systemctl status nested-vm || true
+            journalctl -e --no-pager -u nested-vm || true
+
+            if [ -f "${WORK_DIR}/serial-log.txt" ]; then
+                echo '# nested VM serial boot log'
+                cat "${WORK_DIR}/serial-log.txt"
+            fi
+        fi
 
         echo '# journal messages for snapd'
         get_journalctl_log -u snapd
@@ -495,6 +531,8 @@ debug-each: |
         findmnt --ascii -o+PROPAGATION || true
         echo "# processes"
         ps aux
+        echo "# /var/lib/snapd"
+        find /var/lib/snapd/ -not -path '/var/lib/snapd/snap/*' -ls || true
     fi
 
 rename:
@@ -856,8 +894,12 @@ suites:
 
     tests/nested/manual/:
         summary: Tests for nested images controlled manually from the tests
-        backends: [google-nested]
-        systems: [ubuntu-19.10-64, ubuntu-18.04-64, ubuntu-20.04-64]
+        backends: [google-nested, qemu-nested]
+        systems:
+            - ubuntu-16.04-64
+            - ubuntu-18.04-64
+            - ubuntu-19.10-64
+            - ubuntu-20.04-64
         environment:
             NESTED_TYPE: "classic"
             # Channel used to create the nested vm
@@ -896,7 +938,7 @@ suites:
 
     tests/nested/classic/:
         summary: Tests for nested images
-        backends: [google-nested]
+        backends: [google-nested, qemu-nested]
         systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64]
         environment:
             NESTED_TYPE: "classic"
@@ -944,7 +986,7 @@ suites:
 
     tests/nested/core/:
         summary: Tests for nested images
-        backends: [google-nested]
+        backends: [google-nested, qemu-nested]
         systems: [ubuntu-16.04-64, ubuntu-18.04-64]
         environment:
             NESTED_TYPE: "core"
@@ -992,7 +1034,7 @@ suites:
 
     tests/nested/core20/:
         summary: Tests for nested uc20 images
-        backends: [google-nested]
+        backends: [google-nested, qemu-nested]
         systems: [ubuntu-20.04-64]
         environment:
             NESTED_TYPE: "core"

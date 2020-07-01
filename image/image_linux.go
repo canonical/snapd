@@ -29,13 +29,15 @@ import (
 	"syscall"
 	"time"
 
+	// to set sysconfig.ApplyFilesystemOnlyDefaults hook
+	_ "github.com/snapcore/snapd/overlord/configstate/configcore"
+
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
@@ -395,7 +397,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 	// that boot.MakeBootable can DTRT
 	gadgetFname := ""
 	for _, sn := range bootSnaps {
-		switch sn.Info.GetType() {
+		switch sn.Info.Type() {
 		case snap.TypeGadget:
 			gadgetFname = sn.Path
 		case snap.TypeOS, snap.TypeBase:
@@ -434,8 +436,8 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 			if err := os.MkdirAll(sysconfig.WritableDefaultsDir(rootDir, "/etc"), 0755); err != nil {
 				return err
 			}
-			applyOpts := &configcore.FilesystemOnlyApplyOptions{Classic: opts.Classic}
-			return configcore.FilesystemOnlyApply(defaultsDir, configcore.PlainCoreConfig(defaults), applyOpts)
+			applyOpts := &sysconfig.FilesystemOnlyApplyOptions{Classic: opts.Classic}
+			return sysconfig.ApplyFilesystemOnlyDefaults(defaultsDir, defaults, applyOpts)
 		}
 	}
 

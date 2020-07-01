@@ -18,11 +18,11 @@ prepare: |
 
   modprobe nbd
 
-  # Run qemu-ndb as a service, so that it does not interact with ssh
+  # Run qemu-nbd as a service, so that it does not interact with ssh
   # stdin/stdout it would otherwise inherit from the spread session.
-  systemd-run --system --service-type=forking --unit=qemu-ndb-preseed.service "$(command -v qemu-nbd)" --fork -c /dev/nbd0 "$(pwd)/cloudimg.img"
+  systemd-run --system --service-type=forking --unit=qemu-nbd-preseed.service "$(command -v qemu-nbd)" --fork -c /dev/nbd0 "$(pwd)/cloudimg.img"
   # nbd0p1 may take a short while to become available
-  retry-tool -n 5 --wait 1 test -e /dev/nbd0p1
+  retry -n 5 --wait 1 test -e /dev/nbd0p1
   mkdir -p "$IMAGE_MOUNTPOINT"
   mount /dev/nbd0p1 "$IMAGE_MOUNTPOINT"
 
@@ -46,6 +46,7 @@ restore: |
     lxc stop my-ubuntu --force || true
     lxc delete my-ubuntu || true
     apt purge -y lxd
+    apt autoremove --purge -y
   fi
 
   umount "$IMAGE_MOUNTPOINT"
@@ -53,7 +54,7 @@ restore: |
 
   # qemu-nbd -d may sporadically fail when removing the device,
   # reporting it's still in use.
-  retry-tool -n 5 --wait 1 qemu-nbd -d /dev/nbd0
+  retry -n 5 --wait 1 qemu-nbd -d /dev/nbd0
 
   lxd-tool undo-lxd-mount-changes
 

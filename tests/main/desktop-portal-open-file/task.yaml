@@ -18,11 +18,11 @@ prepare: |
     #shellcheck source=tests/lib/desktop-portal.sh
     . "$TESTSLIB"/desktop-portal.sh
     setup_portals
-    session-tool -u test --prepare
+    tests.session -u test prepare
 
     # Configure fake web browser
-    session-tool -u test mkdir -p ~test/.local/share/applications
-    session-tool -u test sh -c 'cat > ~test/.local/share/applications/test-editor.desktop' << EOF
+    tests.session -u test exec mkdir -p ~test/.local/share/applications
+    tests.session -u test exec sh -c 'cat > ~test/.local/share/applications/test-editor.desktop' << EOF
     [Desktop Entry]
     Type=Application
     Name=Test Editor
@@ -30,14 +30,14 @@ prepare: |
     MimeType=text/plain;
     EOF
 
-    session-tool -u test mkdir -p ~test/.config
-    session-tool -u test sh -c 'cat > ~test/.config/mimeapps.list' << EOF
+    tests.session -u test exec mkdir -p ~test/.config
+    tests.session -u test exec sh -c 'cat > ~test/.config/mimeapps.list' << EOF
     [Default Applications]
     text/plain=test-editor.desktop
     EOF
 
 restore: |
-    session-tool -u test --restore
+    tests.session -u test restore
     #shellcheck source=tests/lib/desktop-portal.sh
     . "$TESTSLIB"/desktop-portal.sh
     teardown_portals
@@ -61,7 +61,7 @@ execute: |
     chown -R test:test ~test/snap
 
     echo "The confined application can open URLs in the default browser"
-    session-tool -u test test-snapd-portal-client launch-file "$testfile"
+    tests.session -u test exec test-snapd-portal-client launch-file "$testfile"
 
     echo "The test-browser process was invoked with the URL"
     wait_for_file "$EDITOR_HISTORY" 4 .5

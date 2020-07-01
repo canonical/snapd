@@ -142,6 +142,7 @@ const (
 	StopReasonRefresh ServiceStopReason = "refresh"
 	StopReasonRemove  ServiceStopReason = "remove"
 	StopReasonDisable ServiceStopReason = "disable"
+	StopReasonOther   ServiceStopReason = ""
 )
 
 // DaemonScope represents the scope of the daemon running under systemd

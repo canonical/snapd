@@ -385,6 +385,13 @@ dbus (receive)
     member=Introspect
     peer=(label=unconfined),
 
+dbus (receive)
+    bus=session
+    path=/com/canonical/dbusmenu
+    interface=org.freedesktop.DBus.Properties
+    member=Get*
+    peer=(label=unconfined),
+
 # app-indicators
 dbus (send)
     bus=session
