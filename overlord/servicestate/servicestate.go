@@ -55,6 +55,7 @@ func changeIDForContext(context *hookstate.Context) string {
 	return ""
 }
 
+// serviceControlTs creates "service-control" task for every snap derived from appInfos.
 func serviceControlTs(st *state.State, appInfos []*snap.AppInfo, inst *Instruction) (*state.TaskSet, error) {
 	servicesBySnap := make(map[string][]string)
 	for _, app := range appInfos {
@@ -137,37 +138,44 @@ func serviceControlTs(st *state.State, appInfos []*snap.AppInfo, inst *Instructi
 	return ts, nil
 }
 
+// Flags carries extra flags for Control
+type Flags struct {
+	// CreateExecCommandTasks tells Control method to create exec-command tasks
+	// (algonside service-control tasks) for compatibility with old snapd.
+	CreateExecCommandTasks bool
+}
+
 // Control creates a taskset for starting/stopping/restarting services via systemctl.
 // The appInfos and inst define the services and the command to execute.
 // Context is used to determine change conflicts - we will not conflict with
 // tasks from same change as that of context's.
-func Control(st *state.State, appInfos []*snap.AppInfo, inst *Instruction, context *hookstate.Context) ([]*state.TaskSet, error) {
+func Control(st *state.State, appInfos []*snap.AppInfo, inst *Instruction, flags *Flags, context *hookstate.Context) ([]*state.TaskSet, error) {
 	var tts []*state.TaskSet
-
 	var ctlcmds []string
-	switch {
-	case inst.Action == "start":
-		if inst.Enable {
-			ctlcmds = []string{"enable"}
-		}
-		ctlcmds = append(ctlcmds, "start")
-	case inst.Action == "stop":
-		if inst.Disable {
-			ctlcmds = []string{"disable"}
-		}
-		ctlcmds = append(ctlcmds, "stop")
-	case inst.Action == "restart":
-		if inst.Reload {
-			ctlcmds = []string{"reload-or-restart"}
-		} else {
-			ctlcmds = []string{"restart"}
-		}
-	default:
-		return nil, fmt.Errorf("unknown action %q", inst.Action)
-	}
 
-	st.Lock()
-	defer st.Unlock()
+	// create exec-command tasks for compatibility with old snapd
+	if flags != nil && flags.CreateExecCommandTasks {
+		switch {
+		case inst.Action == "start":
+			if inst.Enable {
+				ctlcmds = []string{"enable"}
+			}
+			ctlcmds = append(ctlcmds, "start")
+		case inst.Action == "stop":
+			if inst.Disable {
+				ctlcmds = []string{"disable"}
+			}
+			ctlcmds = append(ctlcmds, "stop")
+		case inst.Action == "restart":
+			if inst.Reload {
+				ctlcmds = []string{"reload-or-restart"}
+			} else {
+				ctlcmds = []string{"restart"}
+			}
+		default:
+			return nil, fmt.Errorf("unknown action %q", inst.Action)
+		}
+	}
 
 	svcs := make([]string, 0, len(appInfos))
 	snapNames := make([]string, 0, len(appInfos))
@@ -206,6 +214,8 @@ func Control(st *state.State, appInfos []*snap.AppInfo, inst *Instruction, conte
 		tts = append(tts, ts)
 	}
 
+	// XXX: serviceControlTs could be merged with above logic at the cost of
+	// slightly more complicated logic.
 	ts, err := serviceControlTs(st, appInfos, inst)
 	if err != nil {
 		return nil, err

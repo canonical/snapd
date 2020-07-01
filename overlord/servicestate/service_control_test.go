@@ -130,6 +130,7 @@ func verifyControlTasks(c *C, tasks []*state.Task, expectedAction, supportAction
 		bySnap[snapName] = append(bySnap[snapName], serviceName)
 	}
 
+	var execCommandTasks int
 	var serviceControlTasks int
 	// snaps from service-control tasks
 	seenSnaps := make(map[string]bool)
@@ -139,6 +140,10 @@ func verifyControlTasks(c *C, tasks []*state.Task, expectedAction, supportAction
 		var argv []string
 		kind := tasks[i].Kind()
 		if kind == "exec-command" {
+			execCommandTasks++
+			var ignore bool
+			c.Assert(tasks[i].Get("ignore", &ignore), IsNil)
+			c.Check(ignore, Equals, true)
 			switch expectedAction {
 			case "start":
 				if supportAction != "" {
@@ -208,6 +213,8 @@ func verifyControlTasks(c *C, tasks []*state.Task, expectedAction, supportAction
 		i++
 	}
 
+	c.Check(execCommandTasks > 0, Equals, true)
+
 	// we should have one service-control task for every snap
 	c.Assert(serviceControlTasks, Equals, len(bySnap))
 	c.Assert(len(bySnap), Equals, len(seenSnaps))
@@ -222,9 +229,9 @@ func makeControlChange(c *C, st *state.State, inst *servicestate.Instruction, in
 		c.Assert(info.Apps[name], NotNil)
 		apps = append(apps, info.Apps[name])
 	}
-	st.Unlock()
-	tss, err := servicestate.Control(st, apps, inst, nil)
-	st.Lock()
+
+	flags := &servicestate.Flags{CreateExecCommandTasks: true}
+	tss, err := servicestate.Control(st, apps, inst, flags, nil)
 	c.Assert(err, IsNil)
 
 	chg := st.NewChange("service-control", "...")
@@ -234,9 +241,30 @@ func makeControlChange(c *C, st *state.State, inst *servicestate.Instruction, in
 	return chg
 }
 
+func (s *serviceControlSuite) TestControlDoesntCreateExecCommandTasks(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	info := s.mockTestSnap(c)
+	inst := &servicestate.Instruction{
+		Action: "start",
+		Names:  []string{"foo"},
+	}
+
+	flags := &servicestate.Flags{}
+	tss, err := servicestate.Control(st, []*snap.AppInfo{info.Apps["foo"]}, inst, flags, nil)
+	c.Assert(err, IsNil)
+	// service-control is the only task
+	c.Assert(tss, HasLen, 1)
+	c.Assert(tss[0].Tasks(), HasLen, 1)
+	c.Check(tss[0].Tasks()[0].Kind(), Equals, "service-control")
+}
+
 func (s *serviceControlSuite) TestControlConflict(c *C) {
 	st := s.state
 	st.Lock()
+	defer st.Unlock()
 
 	inf := s.mockTestSnap(c)
 
@@ -246,10 +274,9 @@ func (s *serviceControlSuite) TestControlConflict(c *C) {
 	t.Set("snap-setup", snapsup)
 	chg := st.NewChange("manip", "...")
 	chg.AddTask(t)
-	st.Unlock()
 
 	inst := &servicestate.Instruction{Action: "start", Names: []string{"foo"}}
-	_, err := servicestate.Control(st, []*snap.AppInfo{inf.Apps["foo"]}, inst, nil)
+	_, err := servicestate.Control(st, []*snap.AppInfo{inf.Apps["foo"]}, inst, nil, nil)
 	c.Check(err, ErrorMatches, `snap "test-snap" has "manip" change in progress`)
 }
 
@@ -357,13 +384,14 @@ func (s *serviceControlSuite) TestControlUnknownInstruction(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
+	info := s.mockTestSnap(c)
 	inst := &servicestate.Instruction{
 		Action:         "boo",
 		Names:          []string{"foo"},
 		RestartOptions: client.RestartOptions{Reload: true},
 	}
 
-	_, err := servicestate.Control(st, []*snap.AppInfo{}, inst, nil)
+	_, err := servicestate.Control(st, []*snap.AppInfo{info.Apps["foo"]}, inst, nil, nil)
 	c.Assert(err, ErrorMatches, `unknown action "boo"`)
 }
 
