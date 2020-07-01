@@ -56,7 +56,7 @@ func (r *Repair) RepairID() int {
 }
 
 // Sequence implements SequenceMember, it returns the same as RepairID.
-func (r Repair) Sequence() int {
+func (r *Repair) Sequence() int {
 	return r.RepairID()
 }
 
