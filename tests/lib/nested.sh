@@ -297,7 +297,7 @@ get_image_name(){
 }
 
 prepare_image_dir(){
-    mkdir -p $(get_image_path)
+    mkdir -p "$(get_image_path)"
 }
 
 get_extra_snaps_path(){
