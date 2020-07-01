@@ -25,8 +25,10 @@ import (
 	"fmt"
 	"io"
 	"mime"
+	"mime/multipart"
 	"net"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strconv"
 	"time"
@@ -306,6 +308,30 @@ func (f fileResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	filename := fmt.Sprintf("attachment; filename=%s", filepath.Base(string(f)))
 	w.Header().Add("Content-Disposition", filename)
 	http.ServeFile(w, r, string(f))
+}
+
+// A multiFileResponse serves multiple files with the appropriate header
+type multiFileResponse []string
+
+// ServeHTTP from the Response interface
+func (f multiFileResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	mpw := multipart.NewWriter(w)
+	defer mpw.Close()
+	for _, p := range f {
+		f, err := os.Open(p)
+		if err != nil {
+			InternalError("%s", err)
+			return
+		}
+		defer f.Close()
+
+		part, err := mpw.CreateFormFile(filepath.Base(p), filepath.Base(p))
+		if err != nil {
+			InternalError("%s", err)
+			return
+		}
+		io.Copy(part, f)
+	}
 }
 
 // A journalLineReaderSeqResponse's ServeHTTP method reads lines (presumed to

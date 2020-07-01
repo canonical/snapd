@@ -42,6 +42,11 @@ var snapshotCmd = &Command{
 	POST:     changeSnapshots,
 }
 
+var snapshotExportCmd = &Command{
+	Path: "/v2/snapshots/{id}/export",
+	GET:  getSnapshotExport,
+}
+
 func listSnapshots(c *Command, r *http.Request, user *auth.UserState) Response {
 	query := r.URL.Query()
 	var setID uint64
@@ -136,4 +141,24 @@ func changeSnapshots(c *Command, r *http.Request, user *auth.UserState) Response
 	ensureStateSoon(st)
 
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
+}
+
+func getSnapshotExport(c *Command, r *http.Request, user *auth.UserState) Response {
+	vars := muxVars(r)
+	sid := vars["id"]
+	setID, err := strconv.ParseUint(sid, 10, 64)
+	if err != nil {
+		return BadRequest("'id' must be a positive base 10 number; got %q", sid)
+	}
+
+	parts, err := snapshotExport(context.TODO(), setID)
+	if err != nil {
+		return InternalError("%v", err)
+	}
+	var l []string
+	for _, p := range parts {
+		l = append(l, p.Name())
+	}
+
+	return multiFileResponse(l)
 }

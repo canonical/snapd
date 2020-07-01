@@ -106,6 +106,7 @@ var api = []*Command{
 	debugPprofCmd,
 	debugCmd,
 	snapshotCmd,
+	snapshotExportCmd,
 	connectionsCmd,
 	modelCmd,
 	cohortsCmd,
@@ -879,6 +880,7 @@ var (
 	snapshotForget  = snapshotstate.Forget
 	snapshotRestore = snapshotstate.Restore
 	snapshotSave    = snapshotstate.Save
+	snapshotExport  = snapshotstate.Export
 
 	assertstateRefreshSnapDeclarations = assertstate.RefreshSnapDeclarations
 )
