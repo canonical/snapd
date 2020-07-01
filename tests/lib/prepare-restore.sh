@@ -381,6 +381,8 @@ prepare_project() {
             if [ -d /var/lib/snapd ]; then
                 echo "# /var/lib/snapd"
                 ls -lR /var/lib/snapd || true
+                journalctl -b | tail -100 || true
+                cat /var/lib/snapd/state.json || true
                 exit 1
             fi
             ;;

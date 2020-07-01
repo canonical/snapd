@@ -138,6 +138,30 @@ get_ubuntu_image_url_for_nested_vm(){
         esac
 }
 
+get_cdimage_current_image_url(){
+    VERSION=$1
+    CHANNEL=$2
+    ARCH=$3
+
+    echo "http://cdimage.ubuntu.com/ubuntu-core/$VERSION/$CHANNEL/current/ubuntu-core-$VERSION-$ARCH.img.xz"
+}
+
+get_nested_snap_rev(){
+    SNAP=$1
+    execute_remote "snap list $SNAP" | grep -E "^$SNAP" | awk '{ print $3 }' | tr -d '\n'
+}
+
+get_snap_rev_for_channel(){
+    SNAP=$1
+    CHANNEL=$2
+    execute_remote "snap info $SNAP" | grep "$CHANNEL" | awk '{ print $4 }' | sed 's/.*(\(.*\))/\1/' | tr -d '\n'
+}
+
+get_nested_snap_channel(){
+    SNAP=$1
+    execute_remote "snap list $SNAP" | grep -E "^$SNAP" | awk '{ print $4 }' | tr -d '\n'
+}
+
 get_image_url_for_nested_vm(){
     if [[ "$SPREAD_BACKEND" == google* ]]; then
         get_google_image_url_for_nested_vm
@@ -198,6 +222,7 @@ is_core_16_nested_system(){
 
 refresh_to_new_core(){
     local NEW_CHANNEL=$1
+    local CHANGE_ID
     if [ "$NEW_CHANNEL" = "" ]; then
         echo "Channel to refresh is not defined."
         exit 1
@@ -212,9 +237,13 @@ refresh_to_new_core(){
             execute_remote "sudo snap refresh snapd --${NEW_CHANNEL}"
             execute_remote "snap info snapd" | grep -E "^tracking: +latest/${NEW_CHANNEL}"
         else
-            execute_remote "sudo snap refresh core --${NEW_CHANNEL}"
+            CHANGE_ID=$(execute_remote "sudo snap refresh core --${NEW_CHANNEL} --no-wait")
             wait_for_no_ssh
             wait_for_ssh
+            # wait for the refresh to be done before checking, if we check too
+            # quickly then operations on the core snap like reverting, etc. may
+            # fail because it will have refresh-snap change in progress
+            execute_remote "snap watch $CHANGE_ID"
             execute_remote "snap info core" | grep -E "^tracking: +latest/${NEW_CHANNEL}"
         fi
     fi
