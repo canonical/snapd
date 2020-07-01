@@ -272,10 +272,6 @@ get_image_path(){
     echo "$WORK_DIR/image"
 }
 
-get_core_image_name(){
-    get_image_name core
-}
-
 get_classic_image_name(){
     get_image_name classic
 }
@@ -359,7 +355,7 @@ create_nested_core_vm(){
     local IMAGE_PATH
     IMAGE_PATH="$(get_image_path)"
     local IMAGE_NAME
-    IMAGE_NAME="$(get_core_image_name)"
+    IMAGE_NAME="$(get_image_name core)"
 
     prepare_image_dir
     if [ ! -f "$IMAGE_PATH/$IMAGE_NAME" ]; then
@@ -524,7 +520,7 @@ configure_cloud_init_nested_core_vm_uc20(){
 
 start_nested_core_vm(){
     local IMAGE QEMU
-    QEMU=$(get_qemu_for_nested_vm)
+    QEMU="$(get_qemu_for_nested_vm)"
     # As core18 systems use to fail to start the assertion disk when using the
     # snapshot feature, we copy the original image and use that copy to start
     # the VM.
@@ -532,7 +528,7 @@ start_nested_core_vm(){
     local IMAGE_PATH
     IMAGE_PATH="$(get_image_path)"
     local IMAGE_NAME
-    IMAGE_NAME="$(get_core_image_name)"
+    IMAGE_NAME="$(get_image_name core)"
     cp "$IMAGE_PATH/$IMAGE_NAME" "$CURRENT_IMAGE"
 
     # Now qemu parameters are defined
@@ -634,13 +630,13 @@ create_nested_classic_vm(){
     local IMAGE_PATH
     IMAGE_PATH="$(get_image_path)"
     local IMAGE_NAME
-    IMAGE_NAME="$(get_classic_image_name)"
+    IMAGE_NAME="$(get_image_name classic)"
 
     prepare_image_dir
     if [ ! -f "$IMAGE_PATH/$IMAGE_NAME" ]; then
         # Get the cloud image
         local IMAGE_URL
-        IMAGE_URL=$(get_image_url_for_nested_vm)
+        IMAGE_URL="$(get_image_url_for_nested_vm)"
         wget -P "$IMAGE_PATH" "$IMAGE_URL"
         download_nested_image "$IMAGE_URL" "$IMAGE_NAME"
 
@@ -652,9 +648,9 @@ create_nested_classic_vm(){
 
 start_nested_classic_vm(){
     local IMAGE QEMU IMAGE_PATH IMAGE_NAME
-    QEMU=$(get_qemu_for_nested_vm)
-    IMAGE_PATH=$(get_image_path)
-    IMAGE_NAME=$(get_classic_image_name)
+    QEMU="$(get_qemu_for_nested_vm)"
+    IMAGE_PATH="$(get_image_path)"
+    IMAGE_NAME="$(get_image_name classic)"
 
     # Now qemu parameters are defined
     PARAM_CPU="-smp 1"
