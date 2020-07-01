@@ -145,6 +145,9 @@ type ExtractedRunKernelImageBootloader interface {
 type ManagedAssetsBootloader interface {
 	// IsCurrentlyManaged returns true when the on disk boot assets are managed.
 	IsCurrentlyManaged() (bool, error)
+	// ManagedAssets returns a list of boot assets managed by the bootloader
+	// in the boot filesystem.
+	ManagedAssets() []string
 	// UpdateBootConfig attempts to update the boot config assets used by
 	// the bootloader. Returns true when assets were updated.
 	UpdateBootConfig(*Options) (bool, error)

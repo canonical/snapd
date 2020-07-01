@@ -222,6 +222,7 @@ is_core_16_nested_system(){
 
 refresh_to_new_core(){
     local NEW_CHANNEL=$1
+    local CHANGE_ID
     if [ "$NEW_CHANNEL" = "" ]; then
         echo "Channel to refresh is not defined."
         exit 1
@@ -236,9 +237,13 @@ refresh_to_new_core(){
             execute_remote "sudo snap refresh snapd --${NEW_CHANNEL}"
             execute_remote "snap info snapd" | grep -E "^tracking: +latest/${NEW_CHANNEL}"
         else
-            execute_remote "sudo snap refresh core --${NEW_CHANNEL}"
+            CHANGE_ID=$(execute_remote "sudo snap refresh core --${NEW_CHANNEL} --no-wait")
             wait_for_no_ssh
             wait_for_ssh
+            # wait for the refresh to be done before checking, if we check too
+            # quickly then operations on the core snap like reverting, etc. may
+            # fail because it will have refresh-snap change in progress
+            execute_remote "snap watch $CHANGE_ID"
             execute_remote "snap info core" | grep -E "^tracking: +latest/${NEW_CHANNEL}"
         fi
     fi

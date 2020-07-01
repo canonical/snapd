@@ -342,3 +342,13 @@ func (g *grub) IsCurrentlyManaged() (bool, error) {
 	}
 	return err != errNoEdition, nil
 }
+
+// ManagedAssets returns a list relative paths to boot assets inside the root
+// directory of the filesystem.
+//
+// Implements ManagedAssetsBootloader for the grub bootloader.
+func (g *grub) ManagedAssets() []string {
+	return []string{
+		filepath.Join(g.basedir, "grub.cfg"),
+	}
+}

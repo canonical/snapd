@@ -385,7 +385,7 @@ func (b *MockManagedAssetsBootloader) IsCurrentlyManaged() (bool, error) {
 	return b.IsManaged, b.IsManagedErr
 }
 
-func (b *MockManagedAssetsBootloader) BootAssets() []string {
+func (b *MockManagedAssetsBootloader) ManagedAssets() []string {
 	return b.Assets
 }
 
