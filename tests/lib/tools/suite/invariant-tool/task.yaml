@@ -57,3 +57,14 @@ execute: |
     invariant-tool check crashed-snap-confine 2>&1 | MATCH 'invariant-tool: crashed-snap-confine not-ok'
     invariant-tool check crashed-snap-confine 2>&1 | MATCH 'invariant-tool: it seems snap-confine has crashed'
     rmdir /tmp/snap.rootfs_invariant-tool
+
+    # This filters out 14.04 and ubuntu-core, respectively.
+    if [ "$(command -v systemd-run)" != "" ] && [ "$(command -v dbus-launch)" != "" ]; then
+        # Invariant tool detects leaked dbus-daemon.
+        systemd-run --service-type=forking --unit superfluous-dbus.service dbus-launch --sh-syntax
+        # shellcheck disable=SC2016
+        retry sh -c 'test "$(systemctl is-active superfluous-dbus.service)" = active'
+        invariant-tool check stray-dbus-daemon 2>&1 | MATCH 'invariant-tool: stray-dbus-daemon not-ok'
+        systemctl stop superfluous-dbus.service
+        invariant-tool check stray-dbus-daemon 2>&1 | MATCH 'invariant-tool: stray-dbus-daemon ok'
+    fi

@@ -61,7 +61,7 @@ func ClientSnapFromSnapInfo(snapInfo *snap.Info) (*client.Snap, error) {
 		Name:        snapInfo.InstanceName(),
 		Revision:    snapInfo.Revision,
 		Summary:     snapInfo.Summary(),
-		Type:        string(snapInfo.GetType()),
+		Type:        string(snapInfo.Type()),
 		Base:        snapInfo.Base,
 		Version:     snapInfo.Version,
 		Channel:     snapInfo.Channel,

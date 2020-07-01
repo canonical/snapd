@@ -21,14 +21,15 @@ package servicestate
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/snap"
 )
 
-// updateSnapstateServices ServicesEnabledByHooks and ServicesDisabledByHooks in
-// snapstate according to enable and disable list. It should be called with
-// either enable or disable list, but not both.
+// updateSnapstateServices uses ServicesEnabledByHooks and ServicesDisabledByHooks in
+// snapstate and the provided enabled or disabled list to update the state of services in snapstate.
+// It is meant for doServiceControl to help track enabling and disabling of services.
 func updateSnapstateServices(snapst *snapstate.SnapState, enable, disable []*snap.AppInfo) (bool, error) {
 	if len(enable) > 0 && len(disable) > 0 {
 		// We do one op at a time for given service-control task; we could in
@@ -50,44 +51,49 @@ func updateSnapstateServices(snapst *snapstate.SnapState, enable, disable []*sna
 		alreadyDisabled[serviceName] = true
 	}
 
-	var changed bool
-	for _, service := range enable {
-		if !alreadyEnabled[service.Name] {
-			alreadyEnabled[service.Name] = true
-			snapst.ServicesEnabledByHooks = append(snapst.ServicesEnabledByHooks, service.Name)
-			if alreadyDisabled[service.Name] {
-				for i, s := range snapst.ServicesDisabledByHooks {
-					if s == service.Name {
-						snapst.ServicesDisabledByHooks = append(snapst.ServicesDisabledByHooks[:i], snapst.ServicesDisabledByHooks[i+1:]...)
-						if len(snapst.ServicesDisabledByHooks) == 0 {
-							snapst.ServicesDisabledByHooks = nil
-						}
-						break
-					}
+	toggleServices := func(services []*snap.AppInfo, fromState map[string]bool, toState map[string]bool) (changed bool) {
+		// migrate given services from one map to another, if they do
+		// not exist in the target map
+		for _, service := range services {
+			if !toState[service.Name] {
+				toState[service.Name] = true
+				if fromState[service.Name] {
+					delete(fromState, service.Name)
 				}
-			}
-			changed = true
-		}
-	}
-
-	for _, service := range disable {
-		if !alreadyDisabled[service.Name] {
-			alreadyDisabled[service.Name] = true
-			snapst.ServicesDisabledByHooks = append(snapst.ServicesDisabledByHooks, service.Name)
-			if alreadyEnabled[service.Name] {
-				for i, s := range snapst.ServicesEnabledByHooks {
-					if s == service.Name {
-						snapst.ServicesEnabledByHooks = append(snapst.ServicesEnabledByHooks[:i], snapst.ServicesEnabledByHooks[i+1:]...)
-						if len(snapst.ServicesEnabledByHooks) == 0 {
-							snapst.ServicesEnabledByHooks = nil
-						}
-						break
-					}
-				}
+				changed = true
 			}
 		}
-		changed = true
+		return changed
 	}
 
-	return changed, nil
+	// we are not disabling and enabling the services at the same time as
+	// checked in the function entry, only one path is possible
+	fromState, toState := alreadyDisabled, alreadyEnabled
+	which := enable
+	if len(disable) > 0 {
+		fromState, toState = alreadyEnabled, alreadyDisabled
+		which = disable
+	}
+	if changed := toggleServices(which, fromState, toState); !changed {
+		// nothing changed
+		return false, nil
+	}
+	// reset and recreate the state
+	snapst.ServicesEnabledByHooks = nil
+	snapst.ServicesDisabledByHooks = nil
+	if len(alreadyEnabled) != 0 {
+		snapst.ServicesEnabledByHooks = make([]string, 0, len(alreadyEnabled))
+		for srv := range alreadyEnabled {
+			snapst.ServicesEnabledByHooks = append(snapst.ServicesEnabledByHooks, srv)
+		}
+		sort.Strings(snapst.ServicesEnabledByHooks)
+	}
+	if len(alreadyDisabled) != 0 {
+		snapst.ServicesDisabledByHooks = make([]string, 0, len(alreadyDisabled))
+		for srv := range alreadyDisabled {
+			snapst.ServicesDisabledByHooks = append(snapst.ServicesDisabledByHooks, srv)
+		}
+		sort.Strings(snapst.ServicesDisabledByHooks)
+	}
+	return true, nil
 }

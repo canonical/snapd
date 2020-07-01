@@ -152,6 +152,7 @@ type SnapState struct {
 	// or otherwise removed from the snap in a future refresh.
 	LastActiveDisabledServices []string `json:"last-active-disabled-services,omitempty"`
 
+	// tracking services enabled and disabled by hooks
 	ServicesEnabledByHooks  []string `json:"services-enabled-by-hooks,omitempty"`
 	ServicesDisabledByHooks []string `json:"services-disabled-by-hooks,omitempty"`
 

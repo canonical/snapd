@@ -137,6 +137,64 @@ func stopService(sysd systemd.Systemd, app *snap.AppInfo, inter interacter) erro
 	return nil
 }
 
+// enableServices enables services specified by apps. On success the returned
+// disable function can be used to undo all the actions. On error all the
+// services get disabled automatically (disable is nil).
+func enableServices(apps []*snap.AppInfo, inter interacter) (disable func(), err error) {
+	var enabled []string
+	var userEnabled []string
+
+	systemSysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
+	userSysd := systemd.New(dirs.GlobalRootDir, systemd.GlobalUserMode, inter)
+
+	disableEnabledServices := func() {
+		for _, srvName := range enabled {
+			if e := systemSysd.Disable(srvName); e != nil {
+				inter.Notify(fmt.Sprintf("While trying to disable previously enabled service %q: %v", srvName, e))
+			}
+		}
+		for _, s := range userEnabled {
+			if e := userSysd.Disable(s); e != nil {
+				inter.Notify(fmt.Sprintf("while trying to disable %s due to previous failure: %v", s, e))
+			}
+		}
+	}
+
+	defer func() {
+		if err != nil {
+			disableEnabledServices()
+		}
+	}()
+
+	for _, app := range apps {
+		var sysd systemd.Systemd
+		switch app.DaemonScope {
+		case snap.SystemDaemon:
+			sysd = systemSysd
+		case snap.UserDaemon:
+			sysd = userSysd
+		}
+
+		svcName := app.ServiceName()
+
+		switch app.DaemonScope {
+		case snap.SystemDaemon:
+			if err = sysd.Enable(svcName); err != nil {
+				return nil, err
+
+			}
+			enabled = append(enabled, svcName)
+		case snap.UserDaemon:
+			if err = userSysd.Enable(svcName); err != nil {
+				return nil, err
+			}
+			userEnabled = append(userEnabled, svcName)
+		}
+	}
+
+	return disableEnabledServices, nil
+}
+
 // StartServicesFlags carries extra flags for StartServices.
 type StartServicesFlags struct {
 	Enable bool
@@ -326,7 +384,7 @@ type AddSnapServicesOptions struct {
 
 // AddSnapServices adds service units for the applications from the snap which are services.
 func AddSnapServices(s *snap.Info, opts *AddSnapServicesOptions, inter interacter) (err error) {
-	if s.GetType() == snap.TypeSnapd {
+	if s.Type() == snap.TypeSnapd {
 		return fmt.Errorf("internal error: adding explicit services for snapd snap is unexpected")
 	}
 
@@ -363,6 +421,7 @@ func AddSnapServices(s *snap.Info, opts *AddSnapServicesOptions, inter interacte
 		}
 	}()
 
+	// create services first; this doesn't trigger systemd
 	for _, app := range s.Apps {
 		if !app.IsService() {
 			continue
@@ -535,7 +594,7 @@ func ServicesEnableState(s *snap.Info, inter interacter) (map[string]bool, error
 // from the snap which are services. The optional flag indicates whether
 // services are removed as part of undoing of first install of a given snap.
 func RemoveSnapServices(s *snap.Info, inter interacter) error {
-	if s.GetType() == snap.TypeSnapd {
+	if s.Type() == snap.TypeSnapd {
 		return fmt.Errorf("internal error: removing explicit services for snapd snap is unexpected")
 	}
 	systemSysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
