@@ -26,7 +26,6 @@ var (
 	Cgroup2SuperMagic       = cgroup2SuperMagic
 	ProbeCgroupVersion      = probeCgroupVersion
 	ParsePid                = parsePid
-	PidsInFile              = pidsInFile
 	DoCreateTransientScope  = doCreateTransientScope
 	SessionOrMaybeSystemBus = sessionOrMaybeSystemBus
 
