@@ -28,6 +28,7 @@ restore: |
     tac defer.sh > refed.sh
     sh -xe refed.sh && rm -f {defer,refed}.sh
     rm -f phase.txt debug.txt cgroup.txt ps.txt run.txt
+    systemctl --user stop dbus.service || true
 execute: |
     ## Phase 1: user is root.
     # Note that the images we are working with have the dbus-session-bus
