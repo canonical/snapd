@@ -7,10 +7,11 @@ prepare: |
     snap set system experimental.dbus-activation=true
 
 restore: |
-    if [ -f dbus-launch.pid ]; then
-        kill "$(cat dbus-launch.pid)"
-        rm -f dbus-launch.pid
+    if systemctl cat private-session-bus.service >/dev/null; then
+        # This will stop dbus-daemon and any processes it has spawned
+        systemctl stop private-session-bus.service
     fi
+    rm -f dbus-launch.env run-session-bus.sh
     snap unset system experimental.dbus-activation
     snap unset system experimental.user-daemons
 
@@ -18,9 +19,21 @@ execute: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
 
-    echo "Set up a private D-Bus session bus"
-    eval "$(dbus-launch --sh-syntax)"
-    echo "$DBUS_SESSION_BUS_PID" > dbus-launch.pid
+    cat << EOF > run-session-bus.sh
+    #!/bin/sh
+    cd $(pwd)
+    exec dbus-launch --sh-syntax > dbus-launch.env
+    EOF
+    chmod a+x run-session-bus.sh
+
+    echo "Run a private D-Bus session bus as a systemd service"
+    systemd-run --unit=private-session-bus.service \
+        --service-type=forking ./run-session-bus.sh
+    # CentOS 7's systemd does not seem to wait for the appear to wait
+    # for the service to finish starting, so wait for the environment
+    # file to be non-empty
+    retry -n 3 --wait 1 test -s dbus-launch.env
+    eval "$(cat dbus-launch.env)"
 
     echo "Install a snap containing an activatable D-Bus session service"
     snap install --edge test-snapd-dbus-service
