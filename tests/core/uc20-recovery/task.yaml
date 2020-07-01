@@ -81,7 +81,7 @@ execute: |
             chown external:external /home/external/.ssh
             touch /home/external/.ssh/rc
             chown external:external /home/external/.ssh/rc
-            # Seethe sshrc section in sshd(8)
+            # See the "sshrc" section in sshd(8)
             cat <<-EOF > /home/external/.ssh/rc
     #!/bin/sh
     # added by spread tests
