@@ -672,7 +672,7 @@ func (s *servicesTestSuite) TestAddSnapMultiServicesFailCreateCleanup(c *C) {
 	}
 }
 
-func (s *servicesTestSuite) TestAddSnapMultiServicesFailEnableCleanup(c *C) {
+func (s *servicesTestSuite) TestMultiServicesFailEnableCleanup(c *C) {
 	var sysdLog [][]string
 	svc1Name := "snap.hello-snap.svc1.service"
 	svc2Name := "snap.hello-snap.svc2.service"
@@ -731,11 +731,9 @@ func (s *servicesTestSuite) TestAddSnapMultiServicesFailEnableCleanup(c *C) {
 	c.Assert(err, ErrorMatches, "failed")
 
 	c.Check(sysdLog, DeepEquals, [][]string{
-		{"daemon-reload"},
+		{"daemon-reload"}, // from AddSnapServices
 		{"--root", dirs.GlobalRootDir, "enable", svc1Name},
 		{"--root", dirs.GlobalRootDir, "enable", svc2Name}, // this one fails
-		{"stop", svc1Name},
-		{"show", "--property=ActiveState", svc1Name},
 		{"--root", dirs.GlobalRootDir, "disable", svc1Name},
 	})
 }
@@ -1704,11 +1702,11 @@ apps:
 
 	c.Assert(s.sysdLog, HasLen, 6, Commentf("len: %v calls: %v", len(s.sysdLog), s.sysdLog))
 	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"--root", dirs.GlobalRootDir, "enable", svc3Name},
 		{"--root", dirs.GlobalRootDir, "enable", svc1Socket},
 		{"start", svc1Socket},
 		{"--root", dirs.GlobalRootDir, "enable", svc2Timer},
 		{"start", svc2Timer},
-		{"--root", dirs.GlobalRootDir, "enable", svc3Name},
 		{"start", svc3Name},
 	}, Commentf("calls: %v", s.sysdLog))
 }

@@ -211,28 +211,48 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 	userSysd := systemd.New(dirs.GlobalRootDir, systemd.GlobalUserMode, inter)
 	cli := client.New()
 
-	systemServices := make([]string, 0, len(apps))
-	userServices := make([]string, 0, len(apps))
-
-	var enabled []string
-	var userEnabled []string
+	var disableEnabledServices func()
 
 	defer func() {
 		if err == nil {
 			return
 		}
-
-		for _, srvName := range enabled {
-			if e := systemSysd.Disable(srvName); e != nil {
-				inter.Notify(fmt.Sprintf("While trying to disable previously enabled service %q: %v", srvName, e))
-			}
-		}
-		for _, s := range userEnabled {
-			if e := userSysd.Disable(s); e != nil {
-				inter.Notify(fmt.Sprintf("while trying to disable %s due to previous failure: %v", s, e))
-			}
+		if disableEnabledServices != nil {
+			disableEnabledServices()
 		}
 	}()
+
+	var toEnable []*snap.AppInfo
+	systemServices := make([]string, 0, len(apps))
+	userServices := make([]string, 0, len(apps))
+
+	for _, app := range apps {
+		// they're *supposed* to be all services, but checking doesn't hurt
+		if !app.IsService() {
+			continue
+		}
+		// sockets and timers are enabled and started separately (and unconditionally) further down.
+		if len(app.Sockets) == 0 && app.Timer == nil {
+			if strutil.ListContains(disabledSvcs, app.Name) {
+				continue
+			}
+			svcName := app.ServiceName()
+			switch app.DaemonScope {
+			case snap.SystemDaemon:
+				systemServices = append(systemServices, svcName)
+			case snap.UserDaemon:
+				userServices = append(userServices, svcName)
+			}
+			if flags.Enable {
+				toEnable = append(toEnable, app)
+			}
+		}
+	}
+
+	disableEnabledServices, err = enableServices(toEnable, inter)
+	if err != nil {
+		return err
+	}
 
 	for _, app := range apps {
 		// they're *supposed* to be all services, but checking doesn't hurt
@@ -246,33 +266,6 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 			sysd = systemSysd
 		case snap.UserDaemon:
 			sysd = userSysd
-		}
-
-		// sockets and timers are enabled and started separately (and unconditionally) further down.
-		if len(app.Sockets) == 0 && app.Timer == nil {
-			svcName := app.ServiceName()
-
-			switch app.DaemonScope {
-			case snap.SystemDaemon:
-				if !strutil.ListContains(disabledSvcs, app.Name) {
-					if flags.Enable {
-						if err = sysd.Enable(svcName); err != nil {
-							return err
-
-						}
-						enabled = append(enabled, svcName)
-					}
-					systemServices = append(systemServices, svcName)
-				}
-			case snap.UserDaemon:
-				if flags.Enable {
-					if err := userSysd.Enable(svcName); err != nil {
-						return err
-					}
-					userEnabled = append(userEnabled, svcName)
-				}
-				userServices = append(userServices, svcName)
-			}
 		}
 
 		defer func(app *snap.AppInfo) {
