@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/gadget"
-	"github.com/snapcore/snapd/gadget/internal"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 )
@@ -111,8 +110,6 @@ func removeCreatedPartitions(dl *gadget.OnDiskVolume) error {
 	return nil
 }
 
-var internalUdevTrigger = internal.UdevTrigger
-
 // ensureNodeExists makes sure the device nodes for all device structures are
 // available and notified to udev, within a specified amount of time.
 func ensureNodesExistImpl(dss []gadget.OnDiskStructure, timeout time.Duration) error {
@@ -127,7 +124,7 @@ func ensureNodesExistImpl(dss []gadget.OnDiskStructure, timeout time.Duration) e
 			time.Sleep(100 * time.Millisecond)
 		}
 		if found {
-			if err := internalUdevTrigger(ds.Node); err != nil {
+			if err := udevTrigger(ds.Node); err != nil {
 				return err
 			}
 		} else {
@@ -146,6 +143,15 @@ func reloadPartitionTable(device string) error {
 	// userspace we're safe.
 	output, err := exec.Command("partx", "-u", device).CombinedOutput()
 	if err != nil {
+		return osutil.OutputErr(output, err)
+	}
+	return nil
+}
+
+// udevTrigger triggers udev for the specified device and waits until
+// all events in the udev queue are handled.
+func udevTrigger(device string) error {
+	if output, err := exec.Command("udevadm", "trigger", "--settle", device).CombinedOutput(); err != nil {
 		return osutil.OutputErr(output, err)
 	}
 	return nil
