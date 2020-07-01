@@ -443,14 +443,14 @@ get_nested_core_image_path(){
     echo "$WORK_DIR/image/ubuntu-core.img"
 }
 
-start_nested_core_vm(){
-    local IMAGE QEMU
-    QEMU=$(get_qemu_for_nested_vm)
-    # As core18 systems use to fail to start the assertion disk when using the
-    # snapshot feature, we copy the original image and use that copy to start
-    # the VM.
+force_stop_nested_vm(){
+    systemctl stop nested-vm
+}
+
+start_nested_core_vm_unit(){
+    local IMAGE_FILE QEMU
     IMAGE_FILE="$WORK_DIR/image/ubuntu-core-new.img"
-    cp -f "$WORK_DIR/image/ubuntu-core.img" "$IMAGE_FILE"
+    QEMU=$(get_qemu_for_nested_vm)
 
     # Now qemu parameters are defined
     # Increase the number of cpus used once the issue related to kvm and ovmf is fixed
@@ -546,14 +546,28 @@ start_nested_core_vm(){
         ${PARAM_MONITOR} \
         ${PARAM_USB} "
 
-    # Wait until ssh is ready and configure ssh
-    if wait_for_ssh; then
-        prepare_ssh
-    else
-        echo "ssh not established, exiting..."
-        journalctl -u "$NESTED_VM" -n 150
-        exit 1
-    fi
+    # wait for the nested-vm service to appear active
+    wait_for_service "$NESTED_VM"
+
+    # Wait until ssh is ready
+    wait_for_ssh
+}
+
+start_nested_core_vm(){
+    local IMAGE_FILE
+    # As core18 systems use to fail to start the assertion disk when using the
+    # snapshot feature, we copy the original image and use that copy to start
+    # the VM.
+    # Some tests however need to force stop and restart the VM with different
+    # options, so if that env var is set, we will reuse the existing file if it
+    # exists
+    IMAGE_FILE="$WORK_DIR/image/ubuntu-core-new.img"
+    cp -f "$WORK_DIR/image/ubuntu-core.img" "$IMAGE_FILE"
+
+    start_nested_core_vm_unit
+
+    # configure ssh for first time
+    prepare_ssh
 }
 
 create_nested_classic_vm(){
