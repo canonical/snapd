@@ -22,10 +22,11 @@ package builtin
 // On systems where the slot is provided by an app snap, the cups interface is
 // the companion interface to the cups-control interface. The design of these
 // interfaces is based on the idea that the slot implementation (eg cupsd) is
-// expected to query snapd on if the cups-control interface is connected or not
-// and the print service will mediate admin functionality (ie, the rules in
-// these interfaces allow connecting to the print service, but do not implement
-// enforcement rules; it is up to the print service to provide enforcement).
+// expected to query snapd to determine if the cups-control interface is
+// connected or not for the peer client process and the print service will
+// mediate admin functionality (ie, the rules in these interfaces allow
+// connecting to the print service, but do not implement enforcement rules; it
+// is up to the print service to provide enforcement).
 const cupsSummary = `allows access to the CUPS socket for printing`
 
 // cups is currently only available via a providing app snap and this interface
