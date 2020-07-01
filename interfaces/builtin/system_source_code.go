@@ -20,7 +20,7 @@
 package builtin
 
 // https://refspecs.linuxfoundation.org/FHS_3.0/fhs-3.0.html#usrsrcSourceCode
-const systemSourceCodeSummary = `allows read-only access to /usr/src of the system`
+const systemSourceCodeSummary = `allows read-only access to /usr/src on the system`
 
 // Manually connected since this reveals kernel config, patches, etc of the
 // running system which may or may not correspond to public distro packages
