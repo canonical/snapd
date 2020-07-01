@@ -93,7 +93,7 @@ func (s *gconfInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, false)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
-	c.Assert(si.Summary, Equals, `allows access to any gconf item of the current user`)
+	c.Assert(si.Summary, Equals, `allows access to any item from the legacy gconf configuration system for the current user`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "gconf")
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "deny-auto-connection: true")
 }

@@ -19,7 +19,7 @@
 
 package builtin
 
-const gconfSummary = `allows access to any gconf item of the current user`
+const gconfSummary = `allows access to any item from the legacy gconf configuration system for the current user`
 
 // Manually connected since gconf is a global database for GNOME desktop and
 // application settings and offers no application isolation. Modern
