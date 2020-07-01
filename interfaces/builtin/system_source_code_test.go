@@ -87,7 +87,7 @@ func (s *systemSourceCodeSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, true)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
-	c.Assert(si.Summary, Equals, `allows read-only access to /usr/src of the system`)
+	c.Assert(si.Summary, Equals, `allows read-only access to /usr/src on the system`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "system-source-code")
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "deny-auto-connection: true")
 }
