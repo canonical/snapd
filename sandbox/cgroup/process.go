@@ -23,28 +23,52 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+
+	"github.com/snapcore/snapd/snap/naming"
 )
 
-func SnapNameFromPid(pid int) (string, error) {
+func snapNameFromPidUsingTrackingCgroup(pid int) (string, error) {
+	// Maybe we have application tracking and can use it?
+	path, err := ProcessPathInTrackingCgroup(pid)
+	if err != nil {
+		return "", err
+	}
+	// TODO: this could return the parsed tag already, as it's doing all the
+	// work and discarding the parsed result. Make it so.
+	tag := securityTagFromCgroupPath(path)
+	parsedTag, err := naming.ParseSecurityTag(tag)
+	if err != nil {
+		return "", err
+	}
+	return parsedTag.InstanceName(), nil
+}
+
+func snapNameFromPidUsingFreezerCgroup(pid int) (string, error) {
+	// This logic only makes sense with cgroup v1.
 	if IsUnified() {
-		// not supported
 		return "", fmt.Errorf("not supported")
 	}
 
+	// Find the path in the freezer cgroup.
 	group, err := ProcGroup(pid, MatchV1Controller("freezer"))
 	if err != nil {
 		return "", fmt.Errorf("cannot determine cgroup path of pid %v: %v", pid, err)
 	}
-
 	if !strings.HasPrefix(group, "/snap.") {
 		return "", fmt.Errorf("cannot find a snap for pid %v", pid)
 	}
 
+	// Extract the snap name form the path.
 	snapName := strings.SplitN(filepath.Base(group), ".", 2)[1]
-
 	if snapName == "" {
 		return "", fmt.Errorf("snap name in cgroup path is empty")
 	}
-
 	return snapName, nil
+}
+
+func SnapNameFromPid(pid int) (string, error) {
+	if snapName, err := snapNameFromPidUsingTrackingCgroup(pid); err == nil {
+		return snapName, nil
+	}
+	return snapNameFromPidUsingFreezerCgroup(pid)
 }
