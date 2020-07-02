@@ -2997,14 +2997,14 @@ func (s *changeSuite) TestUnmountFailsWithEINVALAndUnmounted(c *C) {
 	_, err := chg.Perform(s.as)
 	c.Assert(err, IsNil)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
-		testutil.CallResultError{C: `unmount "/target" UMOUNT_NOFOLLOW`, E: syscall.EINVAL},
-		testutil.CallResultError{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
-		testutil.CallResultError{C: `openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, R: 4},
-		testutil.CallResultError{C: `fstat 4 <ptr>`, R: syscall.Stat_t{}},
-		testutil.CallResultError{C: `close 3`},
-		testutil.CallResultError{C: `fstatfs 4 <ptr>`, R: syscall.Statfs_t{}},
-		testutil.CallResultError{C: `remove "/target"`},
-		testutil.CallResultError{C: `close 4`},
+		{C: `unmount "/target" UMOUNT_NOFOLLOW`, E: syscall.EINVAL},
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
+		{C: `openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, R: 4},
+		{C: `fstat 4 <ptr>`, R: syscall.Stat_t{}},
+		{C: `close 3`},
+		{C: `fstatfs 4 <ptr>`, R: syscall.Statfs_t{}},
+		{C: `remove "/target"`},
+		{C: `close 4`},
 	})
 }
 
@@ -3018,6 +3018,6 @@ func (s *changeSuite) TestUnmountFailsWithEINVALButStillMounted(c *C) {
 	_, err := chg.Perform(s.as)
 	c.Assert(err, Equals, syscall.EINVAL)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
-		testutil.CallResultError{C: `unmount "/target" UMOUNT_NOFOLLOW`, E: syscall.EINVAL},
+		{C: `unmount "/target" UMOUNT_NOFOLLOW`, E: syscall.EINVAL},
 	})
 }
