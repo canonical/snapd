@@ -111,6 +111,8 @@ func setupHostDBusConf(snapInfo *snap.Info) error {
 		return err
 	}
 
+	// We don't use `dirs.SnapDBusSessionPolicyDir because we want
+	// to match the path the package on the host sytem uses.
 	dest := filepath.Join(dirs.GlobalRootDir, "/usr/share/dbus-1/session.d")
 	if err = os.MkdirAll(dest, 0755); err != nil {
 		return err
@@ -148,6 +150,8 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 		if err := setupDbusServiceForUserd(snapInfo); err != nil {
 			logger.Noticef("cannot create host `snap userd` dbus service file: %s", err)
 		}
+		// TODO: Make this conditional on the dbus-activation
+		// feature flag.
 		if err := setupHostDBusConf(snapInfo); err != nil {
 			logger.Noticef("cannot create host dbus config: %s", err)
 		}
