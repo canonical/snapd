@@ -439,6 +439,11 @@ var templateCommon = `
   # (see 'parallel installs', above)
   /run/snap.@{SNAP_INSTANCE_NAME}/ rw,
   /run/snap.@{SNAP_INSTANCE_NAME}/** mrwklix,
+
+  # Snap-specific lock directory and prerequisite navigation permissions.
+  /run/lock/ r,
+  /run/lock/snap.@{SNAP_INSTANCE_NAME}/ rw,
+  /run/lock/snap.@{SNAP_INSTANCE_NAME}/** mrwklix,
 `
 
 var templateFooter = `
