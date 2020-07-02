@@ -370,6 +370,7 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 					entries, _ := osutil.LoadMountInfo()
 					for _, entry := range entries {
 						if entry.MountDir == c.Entry.Dir {
+							// Mount point still exists, EINVAL was unexpected.
 							return err
 						}
 					}
