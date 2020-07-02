@@ -27,7 +27,6 @@ import (
 	"fmt"
 	"io"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -180,31 +179,22 @@ func (client *Client) snapshotAction(action *snapshotAction) (changeID string, e
 	return client.doAsync("POST", "/v2/snapshots", nil, headers, bytes.NewBuffer(data))
 }
 
-func (client *Client) SnapshotExport(setID uint64, filename string) error {
+// XXX: or should we just pass a filename in here ? this is how it was
+// done in 6ae9f7554fd5491468b1e148b45e483a084ea7b5 but it feels nicer to
+// leave that to the API user.
+func (client *Client) SnapshotExport(setID uint64) (io.ReadCloser, int64, error) {
 	rsp, err := client.raw(context.Background(), "GET", fmt.Sprintf("/v2/snapshots/%v/export", setID), nil, nil, nil)
 	if err != nil {
-		return err
+		return nil, 0, err
 	}
 	if rsp.StatusCode != 200 {
 		var r response
-		return r.err(client, rsp.StatusCode)
+		specificErr := r.err(client, rsp.StatusCode)
+		if err != nil {
+			return nil, 0, specificErr
+		}
+		return nil, 0, fmt.Errorf("unexpected status code: %v", rsp.Status)
 	}
 
-	f, err := os.Create(filename + ".part")
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	defer func() { os.Remove(filename + ".part") }()
-
-	// XXX: double check that content-length mismatches are handled
-	// correctly by go http internally
-	if _, err := io.Copy(f, rsp.Body); err != nil {
-		return err
-	}
-	if err := os.Rename(filename+".part", filename); err != nil {
-		return err
-	}
-
-	return nil
+	return rsp.Body, rsp.ContentLength, nil
 }
