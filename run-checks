@@ -320,9 +320,9 @@ if [ "$UNIT" = 1 ]; then
         fi
     fi
 
-    # python unit test for mountinfo-tool and version-tool
-    command -v python2 && python2 ./tests/lib/tools/mountinfo-tool --run-unit-tests
-    command -v python3 && python3 ./tests/lib/tools/mountinfo-tool --run-unit-tests
+    # python unit test for mountinfo.query and version-tool
+    command -v python2 && python2 ./tests/lib/tools/mountinfo.query --run-unit-tests
+    command -v python3 && python3 ./tests/lib/tools/mountinfo.query --run-unit-tests
     command -v python2 && python2 ./tests/lib/tools/version-tool --run-unit-tests
     command -v python3 && python3 ./tests/lib/tools/version-tool --run-unit-tests
 fi

@@ -67,7 +67,7 @@ check_crashed_snap_confine() {
 
 check_lxcfs_mounted() {
 	n="$1" # invariant name
-	"$TESTSTOOLS"/mountinfo-tool /var/lib/lxcfs > "/tmp/invariant-tool.$n"
+	"$TESTSTOOLS"/mountinfo.query /var/lib/lxcfs > "/tmp/invariant-tool.$n"
 	if [ -s "/tmp/invariant-tool.$n" ]; then
 		echo "invariant-tool: it seems lxcfs is mounted" >&2
 		cat "/tmp/invariant-tool.$n" >&2
