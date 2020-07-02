@@ -118,18 +118,34 @@ func MockSbMeasureSnapModelToTPM(f func(tpm *sb.TPMConnection, pcrIndex int, mod
 	}
 }
 
-func MockDevDiskByLabelDir(new string) (restore func()) {
+func MockDevDiskByLabelDir(f string) (restore func()) {
 	old := devDiskByLabelDir
-	devDiskByLabelDir = new
+	devDiskByLabelDir = f
 	return func() {
 		devDiskByLabelDir = old
 	}
 }
 
-func MockRandomKernelUUID(new func() string) (restore func()) {
+func MockRandomKernelUUID(f func() string) (restore func()) {
 	old := randutilRandomKernelUUID
-	randutilRandomKernelUUID = new
+	randutilRandomKernelUUID = f
 	return func() {
 		randutilRandomKernelUUID = old
+	}
+}
+
+func MockSbInitializeLUKS2Container(f func(devicePath, label string, key []byte) error) (restore func()) {
+	old := sbInitializeLUKS2Container
+	sbInitializeLUKS2Container = f
+	return func() {
+		sbInitializeLUKS2Container = old
+	}
+}
+
+func MockSbAddRecoveryKeyToLUKS2Container(f func(devicePath string, key []byte, recoveryKey [16]byte) error) (restore func()) {
+	old := sbAddRecoveryKeyToLUKS2Container
+	sbAddRecoveryKeyToLUKS2Container = f
+	return func() {
+		sbAddRecoveryKeyToLUKS2Container = old
 	}
 }

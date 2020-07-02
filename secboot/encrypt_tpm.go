@@ -23,12 +23,17 @@ import (
 	sb "github.com/snapcore/secboot"
 )
 
+var (
+	sbInitializeLUKS2Container       = sb.InitializeLUKS2Container
+	sbAddRecoveryKeyToLUKS2Container = sb.AddRecoveryKeyToLUKS2Container
+)
+
 // FormatEncryptedDevice
 func FormatEncryptedDevice(key EncryptionKey, label, node string) error {
-	return sb.InitializeLUKS2Container(node, label, key[:])
+	return sbInitializeLUKS2Container(node, label, key[:])
 }
 
 // AddRecoveryKey
 func AddRecoveryKey(key EncryptionKey, rkey RecoveryKey, node string) error {
-	return sb.AddRecoveryKeyToLUKS2Container(node, key[:], rkey)
+	return sbAddRecoveryKeyToLUKS2Container(node, key[:], rkey)
 }
