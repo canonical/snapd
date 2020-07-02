@@ -68,7 +68,7 @@ tests/bin/tests.session -> tests/lib/tools/tests.session (was session-tool)
 [done] tests/lib/tools/memory-observe-do (was memory-tool)
 tests/lib/tools/version-compare (was version-tool)
 
-tests/bin/mountinfo.query -> tests/lib/tools/mountinfo.query (was mountinfo-tool)
+[done] tests/bin/mountinfo.query -> tests/lib/tools/mountinfo.query (was mountinfo-tool)
   (we might not do this and keep just tests/lib/tools/mountinfo and call it the long way)
 
 tests/bin/snapd.tool -> tests/lib/tools/snapd.tool (was snap-tool)
