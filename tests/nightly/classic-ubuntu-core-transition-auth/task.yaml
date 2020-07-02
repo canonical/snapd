@@ -21,11 +21,11 @@ debug: |
     snap change "$(change_id 'Transition ubuntu-core to core')" || true
 
 restore: |
-    fs-tool clean-file /root/.snap/auth.json
-    fs-tool clean-dir /root/.snap
+    "$TESTSTOOLS"/fs-tool clean-file /root/.snap/auth.json
+    "$TESTSTOOLS"/fs-tool clean-dir /root/.snap
 
-    fs-tool clean-file /home/test/.snap/auth.json
-    fs-tool clean-dir /home/test/.snap
+    "$TESTSTOOLS"/fs-tool clean-file /home/test/.snap/auth.json
+    "$TESTSTOOLS"/fs-tool clean-dir /home/test/.snap
 
 execute: |
     #shellcheck source=tests/lib/pkgdb.sh
@@ -42,12 +42,12 @@ execute: |
     snap ack ./ubuntu-core_*.assert
     snap install ./ubuntu-core_*.snap
 
-    fs-tool ensure-dir-exists-backup-real /root/.snap
-    fs-tool ensure-file-exists-backup-real /root/.snap/auth.json
+    "$TESTSTOOLS"/fs-tool ensure-dir-exists-backup-real /root/.snap
+    "$TESTSTOOLS"/fs-tool ensure-file-exists-backup-real /root/.snap/auth.json
     echo '{}' > /root/.snap/auth.json
 
-    fs-tool ensure-dir-exists-backup-real /home/test/.snap
-    fs-tool ensure-file-exists-backup-real /home/test/.snap/auth.json
+    "$TESTSTOOLS"/fs-tool ensure-dir-exists-backup-real /home/test/.snap
+    "$TESTSTOOLS"/fs-tool ensure-file-exists-backup-real /home/test/.snap/auth.json
     echo '{}' > /home/test/.snap/auth.json
 
     echo "Ensure transition is triggered"

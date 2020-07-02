@@ -1,45 +1,45 @@
 summary: smoke test for the fs test tool
 execute: |
     # Check help
-    fs-tool -h | MATCH "usage: fs-tool wait-for-file"
-    fs-tool --help | MATCH "usage: fs-tool wait-for-file"
+    "$TESTSTOOLS"/fs-tool -h | MATCH "usage: fs-tool wait-for-file"
+    "$TESTSTOOLS"/fs-tool --help | MATCH "usage: fs-tool wait-for-file"
 
     # Check non existing directory
-    fs-tool ensure-dir-exists "$PWD"/mytestdir
+    "$TESTSTOOLS"/fs-tool ensure-dir-exists "$PWD"/mytestdir
     test -d "$PWD"/mytestdir
     test -f "$PWD"/mytestdir.fake
 
-    fs-tool clean-dir "$PWD"/mytestdir
+    "$TESTSTOOLS"/fs-tool clean-dir "$PWD"/mytestdir
     not test -d "$PWD"/mytestdir
 
     # Check existing directory
     mkdir "$PWD"/mytestdir
-    fs-tool ensure_dir_exists_backup_real "$PWD"/mytestdir
+    "$TESTSTOOLS"/fs-tool ensure_dir_exists_backup_real "$PWD"/mytestdir
     test -d "$PWD"/mytestdir
     test -f "$PWD"/mytestdir.fake
     test -d "$PWD"/mytestdir.back
-    fs-tool clean-dir "$PWD"/mytestdir
+    "$TESTSTOOLS"/fs-tool clean-dir "$PWD"/mytestdir
     test -d "$PWD"/mytestdir
     rm -r "$PWD"/mytestdir
 
     # Check non existing file
-    fs-tool ensure-file-exists "$PWD"/mytestfile
+    "$TESTSTOOLS"/fs-tool ensure-file-exists "$PWD"/mytestfile
     test -f "$PWD"/mytestfile
     test -f "$PWD"/mytestfile.fake
 
-    fs-tool clean-file "$PWD"/mytestfile
+    "$TESTSTOOLS"/fs-tool clean-file "$PWD"/mytestfile
     not test -f "$PWD"/mytestfile
 
     # Check existing file
     touch "$PWD"/mytestfile
-    fs-tool ensure_file_exists_backup_real "$PWD"/mytestfile
+    "$TESTSTOOLS"/fs-tool ensure_file_exists_backup_real "$PWD"/mytestfile
     test -f "$PWD"/mytestfile
     test -f "$PWD"/mytestfile.fake
     test -f "$PWD"/mytestfile.back
-    fs-tool clean-file "$PWD"/mytestfile
+    "$TESTSTOOLS"/fs-tool clean-file "$PWD"/mytestfile
     test -f "$PWD"/mytestfile
 
     # Check wait for file
-    fs-tool wait_for_file "$PWD"/mytestfile 2 .5
+    "$TESTSTOOLS"/fs-tool wait_for_file "$PWD"/mytestfile 2 .5
     rm "$PWD"/mytestfile
-    not fs-tool wait_for_file "$PWD"/mytestfile 2 .5    
+    not "$TESTSTOOLS"/fs-tool wait_for_file "$PWD"/mytestfile 2 .5    

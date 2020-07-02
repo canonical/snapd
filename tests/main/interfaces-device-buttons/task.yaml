@@ -13,11 +13,11 @@ prepare: |
     # and input data. In case the device already exists, it is going to be
     # backed up. Devices used following documentation:
     # the https://github.com/torvalds/linux/blob/master/Documentation/admin-guide/devices.txt#L408
-    fs-tool ensure-file-exists-backup-real /dev/input/event1
+    "$TESTSTOOLS"/fs-tool ensure-file-exists-backup-real /dev/input/event1
 
 restore: |
     # Delete the created device files and restore backed up files
-    fs-tool clean-file /dev/input/event1
+    "$TESTSTOOLS"/fs-tool clean-file /dev/input/event1
 
 execute: |
     echo "The interface is not connected by default"

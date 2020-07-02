@@ -13,25 +13,25 @@ prepare: |
     install_local test-snapd-sh
 
     # Fist layer of dirs and files
-    fs-tool ensure-dir-exists-backup-real "$TESTDIR"
-    fs-tool ensure-file-exists-backup-real "$TESTDIR"/.testfile1
-    fs-tool ensure-file-exists-backup-real "$TESTDIR"/readonly_file1
-    fs-tool ensure-dir-exists-backup-real "$TESTDIR"/.testdir1
-    fs-tool ensure-dir-exists-backup-real "$TESTDIR"/testdir1
+    "$TESTSTOOLS"/fs-tool ensure-dir-exists-backup-real "$TESTDIR"
+    "$TESTSTOOLS"/fs-tool ensure-file-exists-backup-real "$TESTDIR"/.testfile1
+    "$TESTSTOOLS"/fs-tool ensure-file-exists-backup-real "$TESTDIR"/readonly_file1
+    "$TESTSTOOLS"/fs-tool ensure-dir-exists-backup-real "$TESTDIR"/.testdir1
+    "$TESTSTOOLS"/fs-tool ensure-dir-exists-backup-real "$TESTDIR"/testdir1
 
     # Second layer of dirs and files
-    fs-tool ensure-file-exists-backup-real "$TESTDIR"/.testdir1/.testfilé2
-    fs-tool ensure-file-exists-backup-real "$TESTDIR/.testdir1/test file2"
-    fs-tool ensure-dir-exists-backup-real "$TESTDIR"/root
+    "$TESTSTOOLS"/fs-tool ensure-file-exists-backup-real "$TESTDIR"/.testdir1/.testfilé2
+    "$TESTSTOOLS"/fs-tool ensure-file-exists-backup-real "$TESTDIR/.testdir1/test file2"
+    "$TESTSTOOLS"/fs-tool ensure-dir-exists-backup-real "$TESTDIR"/root
 
     # Not accessible dirs and files
-    fs-tool ensure-dir-exists-backup-real /root/.testdir1
-    fs-tool ensure-file-exists-backup-real /root/.testfile1
+    "$TESTSTOOLS"/fs-tool ensure-dir-exists-backup-real /root/.testdir1
+    "$TESTSTOOLS"/fs-tool ensure-file-exists-backup-real /root/.testfile1
 
 restore: |
-    fs-tool clean-dir "$TESTDIR"
-    fs-tool clean-dir /root/.testdira1
-    fs-tool clean-dir /root/.testfile1
+    "$TESTSTOOLS"/fs-tool clean-dir "$TESTDIR"
+    "$TESTSTOOLS"/fs-tool clean-dir /root/.testdira1
+    "$TESTSTOOLS"/fs-tool clean-dir /root/.testfile1
 
 execute: |
     echo "The interface is not connected by default"

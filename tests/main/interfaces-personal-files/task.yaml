@@ -9,29 +9,29 @@ prepare: |
     install_local test-snapd-sh
 
     # Fist layer of dirs and files
-    fs-tool ensure-file-exists-backup-real /root/.testfile1
-    fs-tool ensure-file-exists-backup-real /root/testfile1
-    fs-tool ensure-dir-exists-backup-real /root/.testdir1
-    fs-tool ensure-dir-exists-backup-real /root/testdir1
+    "$TESTSTOOLS"/fs-tool ensure-file-exists-backup-real /root/.testfile1
+    "$TESTSTOOLS"/fs-tool ensure-file-exists-backup-real /root/testfile1
+    "$TESTSTOOLS"/fs-tool ensure-dir-exists-backup-real /root/.testdir1
+    "$TESTSTOOLS"/fs-tool ensure-dir-exists-backup-real /root/testdir1
 
     # Second layer of dirs and files
-    fs-tool ensure-file-exists-backup-real /root/.testdir1/.testfilé2
-    fs-tool ensure-file-exists-backup-real "/root/.testdir1/test file2"
-    fs-tool ensure-dir-exists-backup-real /root/.testdir1/.testdir2
+    "$TESTSTOOLS"/fs-tool ensure-file-exists-backup-real /root/.testdir1/.testfilé2
+    "$TESTSTOOLS"/fs-tool ensure-file-exists-backup-real "/root/.testdir1/test file2"
+    "$TESTSTOOLS"/fs-tool ensure-dir-exists-backup-real /root/.testdir1/.testdir2
 
     # Not accessible dirs and files
-    fs-tool ensure-dir-exists-backup-real /var/tmp/.testdir1
-    fs-tool ensure-file-exists-backup-real /var/tmp/.testfile1
-    fs-tool ensure-dir-exists-backup-real /var/tmp/root/
-    fs-tool ensure-file-exists-backup-real /var/tmp/root/testfile2
-    fs-tool ensure-file-exists-backup-real /var/tmp/root/.testfile2
+    "$TESTSTOOLS"/fs-tool ensure-dir-exists-backup-real /var/tmp/.testdir1
+    "$TESTSTOOLS"/fs-tool ensure-file-exists-backup-real /var/tmp/.testfile1
+    "$TESTSTOOLS"/fs-tool ensure-dir-exists-backup-real /var/tmp/root/
+    "$TESTSTOOLS"/fs-tool ensure-file-exists-backup-real /var/tmp/root/testfile2
+    "$TESTSTOOLS"/fs-tool ensure-file-exists-backup-real /var/tmp/root/.testfile2
 
 restore: |
-    fs-tool clean-file /root/.testfile1
-    fs-tool clean-file /root/testfile1
-    fs-tool clean-dir /root/.testdir1
-    fs-tool clean-dir /root/testdir1
-    fs-tool clean-dir /var/tmp/root
+    "$TESTSTOOLS"/fs-tool clean-file /root/.testfile1
+    "$TESTSTOOLS"/fs-tool clean-file /root/testfile1
+    "$TESTSTOOLS"/fs-tool clean-dir /root/.testdir1
+    "$TESTSTOOLS"/fs-tool clean-dir /root/testdir1
+    "$TESTSTOOLS"/fs-tool clean-dir /var/tmp/root
 
 execute: |
     echo "The interface is not connected by default"

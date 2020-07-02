@@ -56,9 +56,9 @@ execute: |
     #shellcheck source=tests/lib/store.sh
     . "$TESTSLIB"/store.sh
     init_fake_refreshes "$BLOB_DIR" test-snapd-tools
-    fs-tool wait-for-file "$BLOB_DIR"/test-snapd-tools*fake1*.snap 4 .5
+    "$TESTSTOOLS"/fs-tool wait-for-file "$BLOB_DIR"/test-snapd-tools*fake1*.snap 4 .5
     init_fake_refreshes  "$BLOB_DIR" test-snapd-python-webserver
-    fs-tool wait-for-file "$BLOB_DIR"/test-snapd-python-webserver*fake1*.snap 4 .5
+    "$TESTSTOOLS"/fs-tool wait-for-file "$BLOB_DIR"/test-snapd-python-webserver*fake1*.snap 4 .5
 
     echo "And a refresh is performed"
     snap refresh
