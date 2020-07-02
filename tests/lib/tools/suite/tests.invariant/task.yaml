@@ -9,7 +9,10 @@ restore: |
     sh -xe refed.sh && rm -f {defer,refed}.sh
 execute: |
     # Invariant tool presents the usage screen when invoked without arguments
+    # or with the -h or --help options.
     tests.invariant | MATCH 'usage: tests.invariant check \[INVARIANT...\]'
+    tests.invariant -h | MATCH 'usage: tests.invariant check \[INVARIANT...\]'
+    tests.invariant --help | MATCH 'usage: tests.invariant check \[INVARIANT...\]'
 
     # When invoked with "check" argument, it runs either all invariants
     # or the specified set of invariants.
