@@ -20,6 +20,7 @@
 package backend
 
 import (
+	"archive/tar"
 	"archive/zip"
 	"context"
 	"crypto"
@@ -324,16 +325,82 @@ func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, 
 	return nil
 }
 
-// Export allows exporting a given snapshot set with access to the underlying
-// file to stream it out
-// XXX: locking?
-func Export(ctx context.Context, setID uint64) (export []*Reader, err error) {
-	err = Iter(ctx, func(reader *Reader) error {
+type exportMetadata struct {
+	Format int       `json:"format"`
+	Date   time.Time `json:"date"`
+}
+
+// Export allows exporting a given snapshot set to the given writer.
+//
+// XXX: locking? i.e. avoid being able to remove a snapshot while in use
+func Export(ctx context.Context, setID uint64, w io.Writer) error {
+	tw := tar.NewWriter(w)
+	defer tw.Close()
+
+	// write the archives
+	err := Iter(ctx, func(reader *Reader) error {
 		if reader.SetID == setID {
-			export = append(export, reader)
+			stat, err := reader.Stat()
+			if err != nil {
+				return err
+			}
+			// should never happen
+			if stat.IsDir() {
+				return fmt.Errorf("unexported directory in snapshot: %v", stat.Name())
+			}
+
+			hdr := &tar.Header{
+				Typeflag: tar.TypeReg,
+				Name:     filepath.Base(reader.Name()),
+				Size:     stat.Size(),
+				Mode:     int64(stat.Mode()),
+				ModTime:  stat.ModTime(),
+			}
+			if err = tw.WriteHeader(hdr); err != nil {
+				return err
+			}
+			// open the file
+			f, err := os.Open(reader.Name())
+			if err != nil {
+				return err
+			}
+			defer f.Close()
+
+			if _, err := io.Copy(tw, f); err != nil {
+				return err
+			}
 		}
 		return nil
 	})
+	if err != nil {
+		return err
+	}
 
-	return export, err
+	// write the metadata last, the client can validate with that
+	// that the archive is complete
+	//
+	// XXX: add hashes of the individual files to the metadata?
+	meta := exportMetadata{
+		Format: 1,
+		Date:   time.Now(),
+	}
+	metaDataBuf, err := json.Marshal(&meta)
+	if err != nil {
+		return fmt.Errorf("cannot marshal meta-data: %v", err)
+	}
+	hdr := &tar.Header{
+		Typeflag: tar.TypeReg,
+		Name:     "export.json",
+		Size:     int64(len(metaDataBuf)),
+		Mode:     0640,
+		ModTime:  time.Now(),
+	}
+	if err := tw.WriteHeader(hdr); err != nil {
+		return err
+	}
+	if _, err := tw.Write(metaDataBuf); err != nil {
+		return err
+	}
+
+	return nil
 }

@@ -20,11 +20,15 @@
 package client
 
 import (
+	"archive/tar"
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -175,4 +179,51 @@ func (client *Client) snapshotAction(action *snapshotAction) (changeID string, e
 	}
 
 	return client.doAsync("POST", "/v2/snapshots", nil, headers, bytes.NewBuffer(data))
+}
+
+func (client *Client) SnapshotExport(setID uint64, filename string) error {
+	rsp, err := client.raw(context.Background(), "GET", fmt.Sprintf("/v2/snapshots/%v/export", setID), nil, nil, nil)
+	if err != nil {
+		return err
+	}
+	if rsp.StatusCode != 200 {
+		var r response
+		return r.err(client, rsp.StatusCode)
+	}
+
+	// XXX: wrong layer?
+	f, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	if _, err := io.Copy(f, rsp.Body); err != nil {
+		return err
+	}
+
+	// validate
+	r, err := os.Open(filename)
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+	tr := tar.NewReader(r)
+
+	var lastHdr *tar.Header
+	for {
+		hdr, err := tr.Next()
+		if err != nil && err != io.EOF {
+			return err
+		}
+		// XXX: is this really the best we can do?
+		if err == io.EOF && lastHdr.Name != "export.json" {
+			return fmt.Errorf("incomplete snapshot data")
+		}
+		if err == io.EOF {
+			break
+		}
+		lastHdr = hdr
+	}
+
+	return nil
 }
