@@ -11,19 +11,41 @@ restore: |
     fi
 
 prepare: |
+    # TODO: unify this with tests/main/snap-mgmt/task.yaml
     echo "When some snaps are installed"
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-tools
-    # services shall be stopped, even when using stop-command
-    install_local test-snapd-service
-    # socket units shall be cleaned up
-    install_local socket-activation
-    # as well as timers
-    install_local test-snapd-timer-service
-    # regular snaps and aliases too
-    snap install test-snapd-control-consumer
-    snap install test-snapd-auto-aliases
+
+    snap set core experimental.user-daemons=true
+
+    # Install a number of snaps that contain various features that have
+    # representation in the file system.
+    for name in test-snapd-service test-snapd-timer-service socket-activation \
+            test-snapd-user-service test-snapd-user-service-sockets \
+            test-snapd-user-timer-service test-snapd-tools \
+            test-snapd-control-consumer test-snapd-auto-aliases; do
+        if echo "$name" | grep -q user && echo "$SPREAD_SYSTEM" | grep -qF ubuntu-14.04; then
+            # None of the "user" snaps work on 14.04
+            continue
+        fi
+        install_local "$name"
+        snap list | MATCH "$name"
+    done
+
+    snap install --edge test-snapd-dbus-provider
+    snap list | MATCH test-snapd-dbus-provider
+
+    # expecting to find various files that snap installation produced
+    test "$(find /etc/udev/rules.d -name '*-snap.*.rules' | wc -l)" -gt 0
+    test "$(find /etc/dbus-1/system.d -name 'snap.*.conf' | wc -l)" -gt 0
+    test "$(find /etc/systemd/system -name 'snap.*.service' | wc -l)" -gt 0
+    test "$(find /etc/systemd/system -name 'snap.*.timer' | wc -l)" -gt 0
+    test "$(find /etc/systemd/system -name 'snap.*.socket' | wc -l)" -gt 0
+    if echo "$SPREAD_SYSTEM" | grep -vqF ubuntu-14.04; then
+        test "$(find /etc/systemd/user -name 'snap.*.service' | wc -l)" -gt 0
+        test "$(find /etc/systemd/user -name 'snap.*.timer' | wc -l)" -gt 0
+        test "$(find /etc/systemd/user -name 'snap.*.socket' | wc -l)" -gt 0
+    fi
 
 debug: |
     systemctl --no-legend --full | grep -E 'snap\..*\.(service|timer|socket)'
@@ -58,10 +80,31 @@ execute: |
         systemctl reset-failed snap.test-snapd-service.test-snapd-service-refuses-to-stop.service
     fi
 
-    # XXX: use retry-tool instead
+    # XXX: use retry instead
     sleep 5
     systemctl --no-legend --full > output.txt
     if grep -E "snap\..*\.(service|timer|socket)" < output.txt; then
         echo "found unexpected leftovers"
         exit 1
+    fi
+
+    echo "No dangling service symlinks are left behind"
+    test -z "$(find /etc/systemd/system/multi-user.target.wants/ -name 'snap.test-snapd-service.*')"
+    test -z "$(find /etc/systemd/system/sockets.target.wants/ -name 'snap.*')"
+    test -z "$(find /etc/systemd/system/timers.target.wants/ -name 'snap.*')"
+    if echo "$SPREAD_SYSTEM" | grep -vqF ubuntu-14.04; then
+        test -z "$(find /etc/systemd/user/default.target.wants/ -name 'snap.*')"
+        test -z "$(find /etc/systemd/user/sockets.target.wants/ -name 'snap.*')"
+        test -z "$(find /etc/systemd/user/timers.target.wants/ -name 'snap.*')"
+    fi
+
+    test "$(find /etc/udev/rules.d -name '*-snap.*.rules' | wc -l)" -eq 0
+    test "$(find /etc/dbus-1/system.d -name 'snap.*.conf' | wc -l)" -eq 0
+    test "$(find /etc/systemd/system -name 'snap.*.service' -a ! -name "snap.mount.service" | wc -l)" -eq 0
+    test "$(find /etc/systemd/system -name 'snap.*.timer' | wc -l)" -eq 0
+    test "$(find /etc/systemd/system -name 'snap.*.socket' | wc -l)" -eq 0
+    if echo "$SPREAD_SYSTEM" | grep -vqF ubuntu-14.04; then
+        test "$(find /etc/systemd/user -name 'snap.*.service' | wc -l)" -eq 0
+        test "$(find /etc/systemd/user -name 'snap.*.timer' | wc -l)" -eq 0
+        test "$(find /etc/systemd/user -name 'snap.*.socket' | wc -l)" -eq 0
     fi

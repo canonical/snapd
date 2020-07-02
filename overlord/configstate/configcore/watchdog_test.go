@@ -46,12 +46,7 @@ var _ = Suite(&watchdogSuite{})
 func (s *watchdogSuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
 
-	dirs.SetRootDir(c.MkDir())
 	s.mockEtcEnvironment = filepath.Join(dirs.SnapSystemdConfDir, "10-snapd-watchdog.conf")
-}
-
-func (s *watchdogSuite) TearDownTest(c *C) {
-	dirs.SetRootDir("/")
 }
 
 func (s *watchdogSuite) TestConfigureWatchdog(c *C) {
@@ -78,6 +73,11 @@ func (s *watchdogSuite) TestConfigureWatchdog(c *C) {
 		c.Check(s.mockEtcEnvironment, testutil.FileEquals,
 			fmt.Sprintf("[Manager]\n%s=%s\n", systemdOption, val))
 	}
+
+	c.Check(s.systemctlArgs, DeepEquals, [][]string{
+		{"daemon-reexec"},
+		{"daemon-reexec"},
+	})
 }
 
 func (s *watchdogSuite) TestConfigureWatchdogUnits(c *C) {
@@ -121,6 +121,10 @@ func (s *watchdogSuite) TestConfigureWatchdogAll(c *C) {
 	c.Check(s.mockEtcEnvironment, testutil.FileEquals, "[Manager]\n"+
 		fmt.Sprintf("RuntimeWatchdogSec=%d\n", times[0])+
 		fmt.Sprintf("ShutdownWatchdogSec=%d\n", times[1]))
+
+	c.Check(s.systemctlArgs, DeepEquals, [][]string{
+		{"daemon-reexec"},
+	})
 }
 
 func (s *watchdogSuite) TestConfigureWatchdogAllConfDirExistsAlready(c *C) {
@@ -143,6 +147,10 @@ func (s *watchdogSuite) TestConfigureWatchdogAllConfDirExistsAlready(c *C) {
 	c.Check(s.mockEtcEnvironment, testutil.FileEquals, "[Manager]\n"+
 		fmt.Sprintf("RuntimeWatchdogSec=%d\n", times[0])+
 		fmt.Sprintf("ShutdownWatchdogSec=%d\n", times[1]))
+
+	c.Check(s.systemctlArgs, DeepEquals, [][]string{
+		{"daemon-reexec"},
+	})
 }
 
 func (s *watchdogSuite) TestConfigureWatchdogBadFormat(c *C) {
@@ -164,6 +172,8 @@ func (s *watchdogSuite) TestConfigureWatchdogBadFormat(c *C) {
 		})
 		c.Assert(err, ErrorMatches, badVal.err)
 	}
+
+	c.Check(s.systemctlArgs, HasLen, 0)
 }
 
 func (s *watchdogSuite) TestConfigureWatchdogNoFileUpdate(c *C) {
@@ -200,6 +210,8 @@ func (s *watchdogSuite) TestConfigureWatchdogNoFileUpdate(c *C) {
 	info, err = os.Stat(s.mockEtcEnvironment)
 	c.Assert(err, IsNil)
 	c.Assert(info.ModTime(), Equals, fileModTime)
+
+	c.Check(s.systemctlArgs, HasLen, 0)
 }
 
 func (s *watchdogSuite) TestConfigureWatchdogRemovesIfEmpty(c *C) {
@@ -233,31 +245,30 @@ ShutdownWatchdogSec=20
 	c.Check(osutil.FileExists(s.mockEtcEnvironment), Equals, false)
 	// but the canary is still here
 	c.Check(osutil.FileExists(canary), Equals, true)
+
+	// apply defaults
+	c.Check(s.systemctlArgs, DeepEquals, [][]string{
+		{"daemon-reexec"},
+	})
 }
 
 func (s *watchdogSuite) TestFilesystemOnlyApply(c *C) {
-	restorer := release.MockOnClassic(false)
-	defer restorer()
-
 	conf := configcore.PlainCoreConfig(map[string]interface{}{
 		"watchdog.runtime-timeout": "4s",
 	})
 
 	tmpDir := c.MkDir()
-	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf), IsNil)
+	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf, nil), IsNil)
 
 	watchdogCfg := filepath.Join(tmpDir, "/etc/systemd/system.conf.d/10-snapd-watchdog.conf")
 	c.Check(watchdogCfg, testutil.FileEquals, "[Manager]\nRuntimeWatchdogSec=4\n")
 }
 
 func (s *watchdogSuite) TestFilesystemOnlyApplyValidationFails(c *C) {
-	restorer := release.MockOnClassic(false)
-	defer restorer()
-
 	conf := configcore.PlainCoreConfig(map[string]interface{}{
 		"watchdog.runtime-timeout": "foo",
 	})
 
 	tmpDir := c.MkDir()
-	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf), ErrorMatches, `cannot parse "foo": time: invalid duration \"?foo\"?`)
+	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf, nil), ErrorMatches, `cannot parse "foo": time: invalid duration \"?foo\"?`)
 }

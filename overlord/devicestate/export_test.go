@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -232,5 +233,13 @@ func MockSysconfigConfigureRunSystem(f func(opts *sysconfig.Options) error) (res
 	sysconfigConfigureRunSystem = f
 	return func() {
 		sysconfigConfigureRunSystem = old
+	}
+}
+
+func MockInstallRun(f func(gadgetRoot, device string, options install.Options) error) (restore func()) {
+	old := installRun
+	installRun = f
+	return func() {
+		installRun = old
 	}
 }

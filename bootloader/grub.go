@@ -24,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/bootloader/grubenv"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
@@ -35,6 +36,7 @@ var (
 	_ installableBootloader             = (*grub)(nil)
 	_ RecoveryAwareBootloader           = (*grub)(nil)
 	_ ExtractedRunKernelImageBootloader = (*grub)(nil)
+	_ ManagedAssetsBootloader           = (*grub)(nil)
 )
 
 type grub struct {
@@ -78,12 +80,26 @@ func (g *grub) dir() string {
 	return filepath.Join(g.rootdir, g.basedir)
 }
 
+func (g *grub) installRecoveryBootConfig(gadgetDir string) (bool, error) {
+	gadgetGrubCfg := filepath.Join(gadgetDir, g.Name()+".conf")
+	if !osutil.FileExists(gadgetGrubCfg) {
+		// gadget does not use grub bootloader
+		return false, nil
+	}
+	assetName := g.Name() + "-recovery.cfg"
+	bootConfig := assets.Internal(assetName)
+	if bootConfig == nil {
+		return true, fmt.Errorf("internal error: no boot asset for %q", assetName)
+	}
+	systemFile := filepath.Join(g.rootdir, "/EFI/ubuntu/grub.cfg")
+	return genericSetBootConfig(systemFile, bootConfig)
+}
+
 func (g *grub) InstallBootConfig(gadgetDir string, opts *Options) (bool, error) {
 	if opts != nil && opts.Recovery {
-		recoveryGrubCfg := filepath.Join(gadgetDir, g.Name()+"-recovery.conf")
-		systemFile := filepath.Join(g.rootdir, "/EFI/ubuntu/grub.cfg")
-		return genericInstallBootConfig(recoveryGrubCfg, systemFile)
+		return g.installRecoveryBootConfig(gadgetDir)
 	}
+
 	gadgetFile := filepath.Join(gadgetDir, g.Name()+".conf")
 	systemFile := filepath.Join(g.rootdir, "/boot/grub/grub.cfg")
 	return genericInstallBootConfig(gadgetFile, systemFile)
@@ -299,4 +315,40 @@ func (g *grub) TryKernel() (snap.PlaceInfo, error) {
 		return p, nil
 	}
 	return nil, ErrNoTryKernelRef
+}
+
+// UpdateBootConfig updates the grub boot config only if it is already managed
+// and has a lower edition.
+//
+// Implements ManagedAssetsBootloader for the grub bootloader.
+func (g *grub) UpdateBootConfig(opts *Options) error {
+	bootScriptName := "grub.cfg"
+	currentBootConfig := filepath.Join(g.dir(), "grub.cfg")
+	if opts != nil && opts.Recovery {
+		// use the recovery asset when asked to do so
+		bootScriptName = "grub-recovery.cfg"
+	}
+	return genericUpdateBootConfigFromAssets(currentBootConfig, bootScriptName)
+}
+
+// IsCurrentlyManaged returns true when the boot config is managed by snapd.
+//
+// Implements ManagedBootloader for the grub bootloader.
+func (g *grub) IsCurrentlyManaged() (bool, error) {
+	currentBootScript := filepath.Join(g.dir(), "grub.cfg")
+	_, err := editionFromDiskConfigAsset(currentBootScript)
+	if err != nil && err != errNoEdition {
+		return false, err
+	}
+	return err != errNoEdition, nil
+}
+
+// ManagedAssets returns a list relative paths to boot assets inside the root
+// directory of the filesystem.
+//
+// Implements ManagedAssetsBootloader for the grub bootloader.
+func (g *grub) ManagedAssets() []string {
+	return []string{
+		filepath.Join(g.basedir, "grub.cfg"),
+	}
 }

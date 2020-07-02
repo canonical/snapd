@@ -501,6 +501,15 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		logger.Debugf("Connect handler: skipping setupSnapSecurity for snaps %q and %q", plug.Snap.InstanceName(), slot.Snap.InstanceName())
 	}
 
+	// For undo handler. We need to remember old state of the connection only
+	// if undesired flag is set because that means there was a remembered
+	// inactive connection already and we should restore its properties
+	// in case of undo. Otherwise we don't have to keep old-conn because undo
+	// can simply delete any trace of the connection.
+	if old, ok := conns[connRef.ID()]; ok && old.Undesired {
+		task.Set("old-conn", old)
+	}
+
 	conns[connRef.ID()] = &connState{
 		Interface:        conn.Interface(),
 		StaticPlugAttrs:  conn.Plug.StaticAttrs(),
@@ -720,9 +729,20 @@ func (m *InterfaceManager) undoConnect(task *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	delete(conns, connRef.ID())
+
+	var old connState
+	err = task.Get("old-conn", &old)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	if err == nil {
+		conns[connRef.ID()] = &old
+	} else {
+		delete(conns, connRef.ID())
+	}
 	setConns(st, conns)
-	return nil
+
+	return m.repo.Disconnect(connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
 }
 
 // timeout for shared content retry
@@ -1005,7 +1025,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// The previous task (link-snap) may have triggered a restart,
-	// if this is the case we can only procceed once the restart
+	// if this is the case we can only proceed once the restart
 	// has happened or we may not have all the interfaces of the
 	// new core/base snap.
 	if err := snapstate.WaitRestart(task, snapsup); err != nil {

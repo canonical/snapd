@@ -158,9 +158,18 @@ apps:
   home:
     command: bin/run
     plugs: [ home ]
+  system-packages-doc:
+    command: bin/run
+    plugs: [ system-packages-doc ]
+  system-source-code:
+    command: bin/run
+    plugs: [ system-source-code ]
   hostname-control:
     command: bin/run
     plugs: [ hostname-control ]
+  hugepages-control:
+    command: bin/run
+    plugs: [ hugepages-control ]
   intel-mei:
     command: bin/run
     plugs: [ intel-mei ]

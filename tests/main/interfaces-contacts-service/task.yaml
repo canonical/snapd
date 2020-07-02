@@ -1,13 +1,19 @@
 summary: Ensure that the contacts-service interface works
 
-# Only test on classic systems.  Don't test on Ubuntu 14.04, which
-# does not ship a new enough evolution-data-server.
-# amazon: no need to run this on amazon
-# ubuntu-19.10+: test-snapd-eds is incompatible with eds shipped with the distro
-# arch-linux: test-snapd-eds is incompatible with eds version shipped with the distro
-# opensuse-tumbleweed: test-snapd-eds is incompatible with eds version shipped with the distro
-# fedora-31: test-snapd-eds is incompatible with eds version shipped with the distro
-systems: [-ubuntu-core-*, -ubuntu-14.04-*, -amazon-*, -centos-*, -ubuntu-19.10-*, -ubuntu-20.04-*, -arch-linux-*, -debian-sid-*, -opensuse-tumbleweed-*, -fedora-31-*]
+# TODO: teach snapd about host's EDS support so that the interface can be
+# genuinely unsupported or versioned and tested appropriately.
+systems:
+    - -amazon-*  # no need to run this on amazon
+    - -arch-linux-*  # test-snapd-eds is incompatible with eds version shipped with the distro
+    - -centos-*
+    - -debian-sid-*
+    - -fedora-31-*  # test-snapd-eds is incompatible with eds version shipped with the distro
+    - -fedora-32-*  # test-snapd-eds is incompatible with eds version shipped with the distro
+    - -opensuse-tumbleweed-*  # test-snapd-eds is incompatible with eds version shipped with the distro
+    - -ubuntu-14.04-*  # no tests.session support, eds is too old
+    - -ubuntu-19.10-*  # test-snapd-eds is incompatible with eds shipped with the distro
+    - -ubuntu-2*
+    - -ubuntu-core-*  # EDS is unsupported on core systems
 
 # fails in autopkgtest environment with:
 # [Wed Aug 15 16:08:23 2018] audit: type=1400
@@ -18,27 +24,11 @@ systems: [-ubuntu-core-*, -ubuntu-14.04-*, -amazon-*, -centos-*, -ubuntu-19.10-*
 # peer_addr="@/tmp/dbus-GZTRALrYYm" peer="unconfined"
 backends: [-autopkgtest]
 
-environment:
-    XDG: /tmp/xdg
-    XDG_CONFIG_HOME: $XDG/config
-    XDG_DATA_HOME: $XDG/share
-    XDG_CACHE_HOME: $XDG/cache
-
-debug: |
-    echo "Output process to see what might write to $XDG"
-    ps uafx
-    echo "Output dbus-session"
-    systemctl status dbus-session || true
-    echo "Show what is in $XDG"
-    ls -alR "$XDG"
-
+prepare: |
+    tests.session -u test prepare
 restore: |
-    echo "Stop dbus session bus and all its children"
-    if systemctl is-active dbus-session; then
-        systemctl stop dbus-session
-    fi
-    rm -rf "$XDG"
-
+    snap remove --purge test-snapd-eds
+    tests.session -u test restore
 execute: |
     if ! snap install --edge test-snapd-eds ; then
         if [ "$SPREAD_SYSTEM" = ubuntu-16.04-64 ]; then
@@ -48,22 +38,16 @@ execute: |
         echo "SKIP: test-snapd-eds not available"
         exit 0
     fi
-    mkdir -p "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_CACHE_HOME"
-
-    echo "Setting up D-Bus session bus in a systemd unit"
-    systemd-run --unit=dbus-session --property=Type=forking -r /bin/sh -c "XDG_CONFIG_HOME=$XDG_CONFIG_HOME XDG_DATA_HOME=$XDG_DATA_HOME XDG_CACHE_HOME=$XDG_CACHE_HOME dbus-launch --sh-syntax > /tmp/dbus-sh"
-    retry-tool -n 20 test -e /tmp/dbus-sh
-    eval "$(cat /tmp/dbus-sh)"
 
     echo "The interface is initially disconnected"
     snap interfaces -i contacts-service | MATCH -- '- +test-snapd-eds:contacts-service'
     if [ "$(snap debug confinement)" = strict ]; then
-      not test-snapd-eds.contacts list test-address-book
+      not tests.session -u test exec test-snapd-eds.contacts list test-address-book
     fi
 
     echo "When the plug is connected, we can add contacts to address books"
     snap connect test-snapd-eds:contacts-service
-    test-snapd-eds.contacts load test-address-book << EOF
+    tests.session -u test exec test-snapd-eds.contacts load test-address-book << EOF
     BEGIN:VCARD
     VERSION:3.0
     FN:Fred Smith
@@ -74,7 +58,7 @@ execute: |
 
     echo "We can also retrieve those contacts"
     # Filter out ID and revision, which are unpredictable
-    test-snapd-eds.contacts list test-address-book | sed -E 's/^(UID|REV):.*/\1:.../' > /tmp/contacts.vcf
+    tests.session -u test exec test-snapd-eds.contacts list test-address-book | sed -E 's/^(UID|REV):.*/\1:.../' > /tmp/contacts.vcf
     diff -uw - /tmp/contacts.vcf << EOF
     BEGIN:VCARD
     VERSION:3.0
@@ -87,4 +71,4 @@ execute: |
     EOF
 
     echo "Finally, remove the address book we created"
-    test-snapd-eds.contacts remove test-address-book
+    tests.session -u test exec test-snapd-eds.contacts remove test-address-book

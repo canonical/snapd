@@ -18,5 +18,7 @@ jobs:
           # The cla_check script reads git commit history, so can't
           # use a shallow checkout.
           fetch-depth: 0
+      - name: Fetching base ref ${{ github.base_ref }}
+        run: git fetch origin ${{ github.base_ref }}:${{ github.base_ref }}
       - name: CLA check
-        run: ./tests/lib/cla_check.py
+        run: ./tests/lib/cla_check.py "${{ github.base_ref }}..HEAD"

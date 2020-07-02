@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2019 Canonical Ltd
+ * Copyright (C) 2016-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,25 +20,16 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"time"
 
-	"github.com/snapcore/secboot"
-
-	"github.com/snapcore/snapd/cmd/snap-bootstrap/bootstrap"
+	"github.com/snapcore/snapd/asserts"
 )
 
 var (
 	Parser = parser
 )
-
-func MockBootstrapRun(f func(string, string, bootstrap.Options) error) (restore func()) {
-	oldBootstrapRun := bootstrapRun
-	bootstrapRun = f
-	return func() {
-		bootstrapRun = oldBootstrapRun
-	}
-}
 
 func MockStdout(newStdout io.Writer) (restore func()) {
 	oldStdout := stdout
@@ -55,6 +46,10 @@ func MockOsutilIsMounted(f func(path string) (bool, error)) (restore func()) {
 		osutilIsMounted = oldOsutilIsMounted
 	}
 }
+
+type InitramfsMountsState = initramfsMountsState
+
+var NewInitramfsMountsState = newInitramfsMountsState
 
 func MockTriggerwatchWait(f func(_ time.Duration) error) (restore func()) {
 	oldTriggerwatchWait := triggerwatchWait
@@ -74,37 +69,41 @@ func MockDefaultMarkerFile(p string) (restore func()) {
 	}
 }
 
-var UnlockEncryptedPartition = unlockEncryptedPartition
-
-func MockSecbootConnectToDefaultTPM(f func() (*secboot.TPMConnection, error)) (restore func()) {
-	oldSecbootConnectToDefaultTPM := secbootConnectToDefaultTPM
-	secbootConnectToDefaultTPM = f
+func MockSecbootUnlockVolumeIfEncrypted(f func(name string, lockKeysOnFinish bool) (string, error)) (restore func()) {
+	old := secbootUnlockVolumeIfEncrypted
+	secbootUnlockVolumeIfEncrypted = f
 	return func() {
-		secbootConnectToDefaultTPM = oldSecbootConnectToDefaultTPM
+		secbootUnlockVolumeIfEncrypted = old
 	}
 }
 
-func MockSecbootSecureConnectToDefaultTPM(f func(ekCertDataReader io.Reader,
-	endorsementAuth []byte) (*secboot.TPMConnection, error)) (restore func()) {
-	oldSecbootSecureConnectToDefaultTPM := secbootSecureConnectToDefaultTPM
-	secbootSecureConnectToDefaultTPM = f
+func MockSecbootMeasureSnapSystemEpochWhenPossible(f func() error) (restore func()) {
+	old := secbootMeasureSnapSystemEpochWhenPossible
+	secbootMeasureSnapSystemEpochWhenPossible = f
 	return func() {
-		secbootSecureConnectToDefaultTPM = oldSecbootSecureConnectToDefaultTPM
+		secbootMeasureSnapSystemEpochWhenPossible = old
 	}
 }
 
-func MockSecbootActivateVolumeWithTPMSealedKey(f func(tpm *secboot.TPMConnection, volumeName, sourceDevicePath, keyPath string, pinReader io.Reader, options *secboot.ActivateWithTPMSealedKeyOptions) (bool, error)) (restore func()) {
-	oldSecbootActivateVolumeWithTPMSealedKey := secbootActivateVolumeWithTPMSealedKey
-	secbootActivateVolumeWithTPMSealedKey = f
+func MockSecbootMeasureSnapModelWhenPossible(f func(findModel func() (*asserts.Model, error)) error) (restore func()) {
+	old := secbootMeasureSnapModelWhenPossible
+	secbootMeasureSnapModelWhenPossible = f
 	return func() {
-		secbootActivateVolumeWithTPMSealedKey = oldSecbootActivateVolumeWithTPMSealedKey
+		secbootMeasureSnapModelWhenPossible = old
 	}
 }
 
-func MockDevDiskByLabelDir(new string) (restore func()) {
-	old := devDiskByLabelDir
-	devDiskByLabelDir = new
+func MockPartitionUUIDForBootedKernelDisk(uuid string) (restore func()) {
+	old := bootFindPartitionUUIDForBootedKernelDisk
+	bootFindPartitionUUIDForBootedKernelDisk = func() (string, error) {
+		if uuid == "" {
+			// mock error
+			return "", fmt.Errorf("mocked error")
+		}
+		return uuid, nil
+	}
+
 	return func() {
-		devDiskByLabelDir = old
+		bootFindPartitionUUIDForBootedKernelDisk = old
 	}
 }

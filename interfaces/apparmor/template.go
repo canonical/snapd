@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -19,15 +19,49 @@
 
 package apparmor
 
-// defaultTemplate contains default apparmor template.
+// Rules for app snaps are comprised of:
 //
-// It can be overridden for testing using MockTemplate().
+// - preamble and rules common regardless of base runtime
+// - base-specific runtime rules
+// - snippet rules from interfaces, etc, regardless of base runtime
 //
-// http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/templates/ubuntu-core/16.04/default
-var defaultTemplate = `
-# Description: Allows access to app-specific directories and basic runtime
-# Usage: common
-
+// As part of the mount namespace setup, some directories from the host will be
+// bind mounted onto the base snap (these are defined by snap-confine). The
+// locations of the target mounts that the snap sees at runtime are (for
+// clarity, not all subdirectories are listed (eg, /var/lib/snapd/hostfs is not
+// listed since /var/lib/snapd is)):
+//
+// - /dev
+// - /etc
+// - /home
+// - /lib/modules and /usr/lib/modules
+// - /lib/firmware and /usr/lib/firmware
+// - /mnt, /media and /run/media
+// - /proc
+// - /root
+// - /run
+// - /snap and /var/snap
+// - /sys
+// - /usr/lib/snapd
+// - /usr/src
+// - /var/lib/dhcp
+// - /var/lib/extrausers
+// - /var/lib/jenkins
+// - /var/lib/snapd
+// - /var/log
+// - /var/tmp
+//
+// For files coming from the host in this manner, accesses should be common to
+// all bases, either via the template or interface rules (eg, given the same
+// connected interfaces, access to devices in /dev should generally be the
+// same, regardless of whether the snap specifies 'base: core18' or
+// 'base: other').
+//
+// The preamble and default accesses common to all bases go in templateCommon.
+// These rules include the aformentioned host file rules as well as non-file
+// rules (eg signal, dbus, unix, etc).
+//
+var templateCommon = `
 # vim:syntax=apparmor
 
 #include <tunables/global>
@@ -56,9 +90,6 @@ var defaultTemplate = `
 
   # The base abstraction doesn't yet have this
   /etc/sysconfig/clock r,
-  /lib/terminfo/** rk,
-  /usr/share/terminfo/** k,
-  /usr/share/zoneinfo/** k,
   owner @{PROC}/@{pid}/maps k,
   # While the base abstraction has rules for encryptfs encrypted home and
   # private directories, it is missing rules for directory read on the toplevel
@@ -68,14 +99,7 @@ var defaultTemplate = `
 
   # for python apps/services
   #include <abstractions/python>
-  /usr/bin/python{,2,2.[0-9]*,3,3.[0-9]*} ixr,
-  # additional accesses needed for newer pythons in later bases
-  /usr/lib{,32,64}/python3.[0-9]/**.{pyc,so}           mr,
-  /usr/lib{,32,64}/python3.[0-9]/**.{egg,py,pth}       r,
-  /usr/lib{,32,64}/python3.[0-9]/{site,dist}-packages/ r,
-  /usr/lib{,32,64}/python3.[0-9]/lib-dynload/*.so      mr,
   /etc/python3.[0-9]/**                                r,
-  /usr/include/python3.[0-9]*/pyconfig.h               r,
 
   # explicitly deny noisy denials to read-only filesystems (see LP: #1496895
   # for details)
@@ -87,10 +111,6 @@ var defaultTemplate = `
 
   # for perl apps/services
   #include <abstractions/perl>
-  /usr/bin/perl{,5*} ixr,
-  # AppArmor <2.12 doesn't have rules for perl-base, so add them here
-  /usr/lib/@{multiarch}/perl{,5,-base}/**            r,
-  /usr/lib/@{multiarch}/perl{,5,-base}/[0-9]*/**.so* mr,
 
   # Note: the following dangerous accesses should not be allowed in most
   # policy, but we cannot explicitly deny since other trusted interfaces might
@@ -117,9 +137,10 @@ var defaultTemplate = `
 
   # for bash 'binaries' (do *not* use abstractions/bash)
   # user-specific bash files
-  /{,usr/}bin/bash ixr,
-  /{,usr/}bin/dash ixr,
   /etc/bash.bashrc r,
+  /etc/inputrc r,
+  /etc/environment r,
+  /etc/profile r,
 
   # user/group/seat lookups
   /etc/{passwd,group,nsswitch.conf} r,  # very common
@@ -142,154 +163,22 @@ var defaultTemplate = `
   /run/systemd/userdb/io.systemd.NameServiceSwitch rw,  # UNIX/glibc NSS
 
   /etc/libnl-3/{classid,pktloc} r,      # apps that use libnl
-  /etc/profile r,
-  /etc/environment r,
-  /usr/share/terminfo/** r,
-  /etc/inputrc r,
-  # Common utilities for shell scripts
-  /{,usr/}bin/arch ixr,
-  /{,usr/}bin/{,g,m}awk ixr,
-  /{,usr/}bin/base32 ixr,
-  /{,usr/}bin/base64 ixr,
-  /{,usr/}bin/basename ixr,
-  /{,usr/}bin/bunzip2 ixr,
-  /{,usr/}bin/bzcat ixr,
-  /{,usr/}bin/bzdiff ixr,
-  /{,usr/}bin/bzgrep ixr,
-  /{,usr/}bin/bzip2 ixr,
-  /{,usr/}bin/cat ixr,
-  /{,usr/}bin/chgrp ixr,
-  /{,usr/}bin/chmod ixr,
-  /{,usr/}bin/chown ixr,
-  /{,usr/}bin/clear ixr,
-  /{,usr/}bin/cmp ixr,
-  /{,usr/}bin/cp ixr,
-  /{,usr/}bin/cpio ixr,
-  /{,usr/}bin/cut ixr,
-  /{,usr/}bin/date ixr,
-  /{,usr/}bin/dbus-daemon ixr,
-  /{,usr/}bin/dbus-run-session ixr,
-  /{,usr/}bin/dbus-send ixr,
-  /{,usr/}bin/dd ixr,
-  /{,usr/}bin/diff{,3} ixr,
-  /{,usr/}bin/dir ixr,
-  /{,usr/}bin/dirname ixr,
-  /{,usr/}bin/du ixr,
-  /{,usr/}bin/echo ixr,
-  /{,usr/}bin/{,e,f,r}grep ixr,
-  /{,usr/}bin/env ixr,
-  /{,usr/}bin/expr ixr,
-  /{,usr/}bin/false ixr,
-  /{,usr/}bin/find ixr,
-  /{,usr/}bin/flock ixr,
-  /{,usr/}bin/fmt ixr,
-  /{,usr/}bin/fold ixr,
-  /{,usr/}bin/getconf ixr,
-  /{,usr/}bin/getent ixr,
-  /{,usr/}bin/getopt ixr,
-  /{,usr/}bin/groups ixr,
-  /{,usr/}bin/gzip ixr,
-  /{,usr/}bin/head ixr,
-  /{,usr/}bin/hostname ixr,
-  /{,usr/}bin/id ixr,
-  /{,usr/}bin/igawk ixr,
-  /{,usr/}bin/infocmp ixr,
-  /{,usr/}bin/kill ixr,
-  /{,usr/}bin/ldd ixr,
-  /{usr/,}lib{,32,64}/ld{,32,64}-*.so ix,
-  /{usr/,}lib/@{multiarch}/ld{,32,64}-*.so ix,
-  /{,usr/}bin/less{,file,pipe} ixr,
-  /{,usr/}bin/ln ixr,
-  /{,usr/}bin/line ixr,
-  /{,usr/}bin/link ixr,
-  /{,usr/}bin/locale ixr,
-  /{,usr/}bin/logger ixr,
-  /{,usr/}bin/ls ixr,
-  /{,usr/}bin/md5sum ixr,
-  /{,usr/}bin/mkdir ixr,
-  /{,usr/}bin/mkfifo ixr,
-  /{,usr/}bin/mknod ixr,
-  /{,usr/}bin/mktemp ixr,
-  /{,usr/}bin/more ixr,
-  /{,usr/}bin/mv ixr,
-  /{,usr/}bin/nice ixr,
-  /{,usr/}bin/nohup ixr,
-  /{,usr/}bin/od ixr,
-  /{,usr/}bin/openssl ixr, # may cause harmless capability block_suspend denial
-  /{,usr/}bin/paste ixr,
-  /{,usr/}bin/pgrep ixr,
-  /{,usr/}bin/printenv ixr,
-  /{,usr/}bin/printf ixr,
-  /{,usr/}bin/ps ixr,
-  /{,usr/}bin/pwd ixr,
-  /{,usr/}bin/readlink ixr,
-  /{,usr/}bin/realpath ixr,
-  /{,usr/}bin/rev ixr,
-  /{,usr/}bin/rm ixr,
-  /{,usr/}bin/rmdir ixr,
-  /{,usr/}bin/run-parts ixr,
-  /{,usr/}bin/sed ixr,
-  /{,usr/}bin/seq ixr,
-  /{,usr/}bin/sha{1,224,256,384,512}sum ixr,
-  /{,usr/}bin/shuf ixr,
-  /{,usr/}bin/sleep ixr,
-  /{,usr/}bin/sort ixr,
-  /{,usr/}bin/stat ixr,
-  /{,usr/}bin/stdbuf ixr,
-  /{,usr/}bin/stty ixr,
-  /{,usr/}bin/sync ixr,
-  /{,usr/}bin/systemd-cat ixr,
-  /{,usr/}bin/tac ixr,
-  /{,usr/}bin/tail ixr,
-  /{,usr/}bin/tar ixr,
-  /{,usr/}bin/tee ixr,
-  /{,usr/}bin/test ixr,
-  /{,usr/}bin/tempfile ixr,
-  /{,usr/}bin/tset ixr,
-  /{,usr/}bin/touch ixr,
-  /{,usr/}bin/tput ixr,
-  /{,usr/}bin/tr ixr,
-  /{,usr/}bin/true ixr,
-  /{,usr/}bin/tty ixr,
-  /{,usr/}bin/uname ixr,
-  /{,usr/}bin/uniq ixr,
-  /{,usr/}bin/unlink ixr,
-  /{,usr/}bin/unxz ixr,
-  /{,usr/}bin/unzip ixr,
-  /{,usr/}bin/vdir ixr,
-  /{,usr/}bin/wc ixr,
-  /{,usr/}bin/which ixr,
-  /{,usr/}bin/xargs ixr,
-  /{,usr/}bin/xz ixr,
-  /{,usr/}bin/yes ixr,
-  /{,usr/}bin/zcat ixr,
-  /{,usr/}bin/z{,e,f}grep ixr,
-  /{,usr/}bin/zip ixr,
-  /{,usr/}bin/zipgrep ixr,
 
   # For snappy reexec on 4.8+ kernels
   /usr/lib/snapd/snap-exec m,
 
   # For gdb support
   /usr/lib/snapd/snap-gdb-shim ixr,
+  /usr/lib/snapd/snap-gdbserver-shim ixr,
 
   # For in-snap tab completion
   /etc/bash_completion.d/{,*} r,
   /usr/lib/snapd/etelpmoc.sh ixr,               # marshaller (see complete.sh for out-of-snap unmarshal)
   /usr/share/bash-completion/bash_completion r, # user-provided completions (run in-snap) may use functions from here
 
-  # For printing the cache (we don't allow updating the cache)
-  /{,usr/}sbin/ldconfig{,.real} ixr,
-
   # uptime
-  /{,usr/}bin/uptime ixr,
   @{PROC}/uptime r,
   @{PROC}/loadavg r,
-
-  # lsb-release
-  /usr/bin/lsb_release ixr,
-  /usr/bin/ r,
-  /usr/share/distro-info/*.csv r,
 
   # Allow reading /etc/os-release. On Ubuntu 16.04+ it is a symlink to /usr/lib
   # which is allowed by the base abstraction, but on 14.04 it is an actual file
@@ -377,6 +266,7 @@ var defaultTemplate = `
   @{PROC}/sys/kernel/yama/ptrace_scope r,
   @{PROC}/sys/kernel/shmmax r,
   @{PROC}/sys/fs/file-max r,
+  @{PROC}/sys/fs/file-nr r,
   @{PROC}/sys/fs/inotify/max_* r,
   @{PROC}/sys/kernel/pid_max r,
   @{PROC}/sys/kernel/random/boot_id r,
@@ -387,7 +277,7 @@ var defaultTemplate = `
   /run/uuidd/request rw,
   /sys/devices/virtual/tty/{console,tty*}/active r,
   /sys/fs/cgroup/memory/memory.limit_in_bytes r,
-  /sys/fs/cgroup/memory/snap.@{SNAP_INSTANCE_NAME}{,.*}/memory.limit_in_bytes r,
+  /sys/fs/cgroup/memory/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/memory.limit_in_bytes r,
   /sys/kernel/mm/transparent_hugepage/hpage_pmd_size r,
   /sys/module/apparmor/parameters/enabled r,
   /{,usr/}lib/ r,
@@ -531,7 +421,6 @@ var defaultTemplate = `
 
   # Allow all snaps to chroot
   capability sys_chroot,
-  /{,usr/}sbin/chroot ixr,
 
   # Lttng tracing is very noisy and should not be allowed by confined apps. Can
   # safely deny for the normal case (LP: #1260491). If/when an lttng-trace
@@ -551,9 +440,296 @@ var defaultTemplate = `
   /run/snap.@{SNAP_INSTANCE_NAME}/ rw,
   /run/snap.@{SNAP_INSTANCE_NAME}/** mrwklix,
 
+  # Snap-specific lock directory and prerequisite navigation permissions.
+  /run/lock/ r,
+  /run/lock/snap.@{SNAP_INSTANCE_NAME}/ rw,
+  /run/lock/snap.@{SNAP_INSTANCE_NAME}/** mrwklix,
+`
+
+var templateFooter = `
 ###SNIPPETS###
 }
 `
+
+// defaultCoreRuntimeTemplateRules contains core* runtime-specific rules. In general,
+// binaries exposed here declare what the core runtime has historically been
+// expected to support.
+var defaultCoreRuntimeTemplateRules = `
+  # Default rules for core base runtimes
+
+  # The base abstraction doesn't yet have this
+  /lib/terminfo/** rk,
+  /usr/share/terminfo/** k,
+  /usr/share/zoneinfo/** k,
+
+  # for python apps/services
+  /usr/bin/python{,2,2.[0-9]*,3,3.[0-9]*} ixr,
+  # additional accesses needed for newer pythons in later bases
+  /usr/lib{,32,64}/python3.[0-9]/**.{pyc,so}           mr,
+  /usr/lib{,32,64}/python3.[0-9]/**.{egg,py,pth}       r,
+  /usr/lib{,32,64}/python3.[0-9]/{site,dist}-packages/ r,
+  /usr/lib{,32,64}/python3.[0-9]/lib-dynload/*.so      mr,
+  /usr/include/python3.[0-9]*/pyconfig.h               r,
+
+  # for perl apps/services
+  /usr/bin/perl{,5*} ixr,
+  # AppArmor <2.12 doesn't have rules for perl-base, so add them here
+  /usr/lib/@{multiarch}/perl{,5,-base}/**            r,
+  /usr/lib/@{multiarch}/perl{,5,-base}/[0-9]*/**.so* mr,
+
+  # for bash 'binaries' (do *not* use abstractions/bash)
+  # user-specific bash files
+  /{,usr/}bin/bash ixr,
+  /{,usr/}bin/dash ixr,
+  /usr/share/terminfo/** r,
+
+  # Common utilities for shell scripts
+  /{,usr/}bin/arch ixr,
+  /{,usr/}bin/{,g,m}awk ixr,
+  /{,usr/}bin/base32 ixr,
+  /{,usr/}bin/base64 ixr,
+  /{,usr/}bin/basename ixr,
+  /{,usr/}bin/bunzip2 ixr,
+  /{,usr/}bin/bzcat ixr,
+  /{,usr/}bin/bzdiff ixr,
+  /{,usr/}bin/bzgrep ixr,
+  /{,usr/}bin/bzip2 ixr,
+  /{,usr/}bin/cat ixr,
+  /{,usr/}bin/chgrp ixr,
+  /{,usr/}bin/chmod ixr,
+  /{,usr/}bin/chown ixr,
+  /{,usr/}bin/clear ixr,
+  /{,usr/}bin/cmp ixr,
+  /{,usr/}bin/cp ixr,
+  /{,usr/}bin/cpio ixr,
+  /{,usr/}bin/cut ixr,
+  /{,usr/}bin/date ixr,
+  /{,usr/}bin/dbus-daemon ixr,
+  /{,usr/}bin/dbus-run-session ixr,
+  /{,usr/}bin/dbus-send ixr,
+  /{,usr/}bin/dd ixr,
+  /{,usr/}bin/diff{,3} ixr,
+  /{,usr/}bin/dir ixr,
+  /{,usr/}bin/dirname ixr,
+  /{,usr/}bin/du ixr,
+  /{,usr/}bin/echo ixr,
+  /{,usr/}bin/{,e,f,r}grep ixr,
+  /{,usr/}bin/env ixr,
+  /{,usr/}bin/expr ixr,
+  /{,usr/}bin/false ixr,
+  /{,usr/}bin/find ixr,
+  /{,usr/}bin/flock ixr,
+  /{,usr/}bin/fmt ixr,
+  /{,usr/}bin/fold ixr,
+  /{,usr/}bin/getconf ixr,
+  /{,usr/}bin/getent ixr,
+  /{,usr/}bin/getopt ixr,
+  /{,usr/}bin/groups ixr,
+  /{,usr/}bin/gzip ixr,
+  /{,usr/}bin/head ixr,
+  /{,usr/}bin/hostname ixr,
+  /{,usr/}bin/id ixr,
+  /{,usr/}bin/igawk ixr,
+  /{,usr/}bin/infocmp ixr,
+  /{,usr/}bin/kill ixr,
+  /{,usr/}bin/ldd ixr,
+  /{usr/,}lib{,32,64}/ld{,32,64}-*.so ix,
+  /{usr/,}lib/@{multiarch}/ld{,32,64}-*.so ix,
+  /{,usr/}bin/less{,file,pipe} ixr,
+  /{,usr/}bin/ln ixr,
+  /{,usr/}bin/line ixr,
+  /{,usr/}bin/link ixr,
+  /{,usr/}bin/locale ixr,
+  /{,usr/}bin/logger ixr,
+  /{,usr/}bin/ls ixr,
+  /{,usr/}bin/md5sum ixr,
+  /{,usr/}bin/mkdir ixr,
+  /{,usr/}bin/mkfifo ixr,
+  /{,usr/}bin/mknod ixr,
+  /{,usr/}bin/mktemp ixr,
+  /{,usr/}bin/more ixr,
+  /{,usr/}bin/mv ixr,
+  /{,usr/}bin/nice ixr,
+  /{,usr/}bin/nohup ixr,
+  /{,usr/}bin/od ixr,
+  /{,usr/}bin/openssl ixr, # may cause harmless capability block_suspend denial
+  /{,usr/}bin/paste ixr,
+  /{,usr/}bin/pgrep ixr,
+  /{,usr/}bin/printenv ixr,
+  /{,usr/}bin/printf ixr,
+  /{,usr/}bin/ps ixr,
+  /{,usr/}bin/pwd ixr,
+  /{,usr/}bin/readlink ixr,
+  /{,usr/}bin/realpath ixr,
+  /{,usr/}bin/rev ixr,
+  /{,usr/}bin/rm ixr,
+  /{,usr/}bin/rmdir ixr,
+  /{,usr/}bin/run-parts ixr,
+  /{,usr/}bin/sed ixr,
+  /{,usr/}bin/seq ixr,
+  /{,usr/}bin/sha{1,224,256,384,512}sum ixr,
+  /{,usr/}bin/shuf ixr,
+  /{,usr/}bin/sleep ixr,
+  /{,usr/}bin/sort ixr,
+  /{,usr/}bin/stat ixr,
+  /{,usr/}bin/stdbuf ixr,
+  /{,usr/}bin/stty ixr,
+  /{,usr/}bin/sync ixr,
+  /{,usr/}bin/systemd-cat ixr,
+  /{,usr/}bin/tac ixr,
+  /{,usr/}bin/tail ixr,
+  /{,usr/}bin/tar ixr,
+  /{,usr/}bin/tee ixr,
+  /{,usr/}bin/test ixr,
+  /{,usr/}bin/tempfile ixr,
+  /{,usr/}bin/tset ixr,
+  /{,usr/}bin/touch ixr,
+  /{,usr/}bin/tput ixr,
+  /{,usr/}bin/tr ixr,
+  /{,usr/}bin/true ixr,
+  /{,usr/}bin/tty ixr,
+  /{,usr/}bin/uname ixr,
+  /{,usr/}bin/uniq ixr,
+  /{,usr/}bin/unlink ixr,
+  /{,usr/}bin/unxz ixr,
+  /{,usr/}bin/unzip ixr,
+  /{,usr/}bin/uptime ixr,
+  /{,usr/}bin/vdir ixr,
+  /{,usr/}bin/wc ixr,
+  /{,usr/}bin/which ixr,
+  /{,usr/}bin/xargs ixr,
+  /{,usr/}bin/xz ixr,
+  /{,usr/}bin/yes ixr,
+  /{,usr/}bin/zcat ixr,
+  /{,usr/}bin/z{,e,f}grep ixr,
+  /{,usr/}bin/zip ixr,
+  /{,usr/}bin/zipgrep ixr,
+
+  # lsb-release
+  /usr/bin/lsb_release ixr,
+  /usr/bin/ r,
+  /usr/share/distro-info/*.csv r,
+
+  # For printing the cache (we don't allow updating the cache)
+  /{,usr/}sbin/ldconfig{,.real} ixr,
+
+  # Allow all snaps to chroot
+  /{,usr/}sbin/chroot ixr,
+`
+
+// defaultCoreRuntimeTemplate contains the default apparmor template for core* bases. It
+// can be overridden for testing using MockTemplate().
+var defaultCoreRuntimeTemplate = templateCommon + defaultCoreRuntimeTemplateRules + templateFooter
+
+// defaultOtherBaseTemplateRules for non-core* bases. When a snap specifies an
+// alternative base to core*, it is allowed read-only access to all files
+// within the base, but all other accesses (eg, host file rules, signal, dbus,
+// unix, etc rules) should be the same as the default template.
+//
+// For clarity and ease of maintenance, we will whitelist top-level directories
+// here instead of using glob rules (we can add more if specific bases
+// dictate).
+var defaultOtherBaseTemplateRules = `
+  # Default rules for non-core base runtimes
+
+  # /bin and /sbin (/usr/{,local/}{s,bin} handled in /usr)
+  /{,s}bin/ r,
+  /{,s}bin/** mrklix,
+
+  # /lib - the mount setup may bind mount to:
+  #
+  # - /lib/firmware
+  # - /lib/modules
+  #
+  # Everything but /lib/firmware and /lib/modules
+  /lib/ r,
+  /lib/[^fm]** mrklix,
+  /lib/{f[^i],m[^o]}** mrklix,
+  /lib/{fi[^r],mo[^d]}** mrklix,
+  /lib/{fir[^m],mod[^u]}** mrklix,
+  /lib/{firm[^w],modu[^l]}** mrklix,
+  /lib/{firmw[^a],modul[^e]}** mrklix,
+  /lib/{firmwa[^r],module[^s]}** mrklix,
+  /lib/modules[^/]** mrklix,
+  /lib/firmwar[^e]** mrklix,
+  /lib/firmware[^/]** mrklix,
+
+  # /lib64, etc
+  /lib[^/]** mrklix,
+
+  # /opt
+  /opt/ r,
+  /opt/** mrklix,
+
+  # /usr - the mount setup may bind mount to:
+  #
+  # - /usr/lib/modules
+  # - /usr/lib/firmware
+  # - /usr/lib/snapd
+  # - /usr/src
+  #
+  # Everything but /usr/lib and /usr/src, which are handled elsewhere.
+  /usr/ r,
+  /usr/[^ls]** mrklix,
+  /usr/{l[^i],s[^r]}** mrklix,
+  /usr/{li[^b],sr[^c]}** mrklix,
+  /usr/{lib,src}[^/]** mrklix,
+  # Everything in /usr/lib except /usr/lib/firmware, /usr/lib/modules and
+  # /usr/lib/snapd, which are handled elsewhere.
+  /usr/lib/ r,
+  /usr/lib/[^fms]** mrklix,
+  /usr/lib/{f[^i],m[^o],s[^n]}** mrklix,
+  /usr/lib/{fi[^r],mo[^d],sn[^a]}** mrklix,
+  /usr/lib/{fir[^m],mod[^u],sna[^p]}** mrklix,
+  /usr/lib/{firm[^w],modu[^l],snap[^d]}** mrklix,
+  /usr/lib/snapd[^/]** mrklix,
+  /usr/lib/{firmw[^a],modul[^e]}** mrklix,
+  /usr/lib/{firmwa[^r],module[^s]}** mrklix,
+  /usr/lib/modules[^/]** mrklix,
+  /usr/lib/firmwar[^e]** mrklix,
+  /usr/lib/firmware[^/]** mrklix,
+
+  # /var - the mount setup may bind mount in:
+  #
+  # - /var/lib/dhcp
+  # - /var/lib/extrausers
+  # - /var/lib/jenkins
+  # - /var/lib/snapd
+  # - /var/log
+  # - /var/snap
+  # - /var/tmp
+  #
+  # Everything but /var/lib, /var/log, /var/snap and /var/tmp, which are
+  # handled elsewhere.
+  /var/ r,
+  /var/[^lst]** mrklix,
+  /var/{l[^io],s[^n],t[^m]}** mrklix,
+  /var/{li[^b],lo[^g],sn[^a],tm[^p]}** mrklix,
+  /var/{lib,log,tmp}[^/]** mrklix,
+  /var/sna[^p]** mrklix,
+  /var/snap[^/]** mrklix,
+  # Everything in /var/lib except /var/lib/dhcp, /var/lib/extrausers,
+  # /var/lib/jenkins and /var/lib/snapd which are handled elsewhere.
+  /var/lib/ r,
+  /var/lib/[^dejs]** mrklix,
+  /var/lib/{d[^h],e[^x],j[^e],s[^n]}** mrklix,
+  /var/lib/{dh[^c],ex[^t],je[^n],sn[^a]}** mrklix,
+  /var/lib/{dhc[^p],ext[^r],jen[^k],sna[^p]}** mrklix,
+  /var/lib/dhcp[^/]** mrklix,
+  /var/lib/{extr[^a],jenk[^i],snap[^d]}** mrklix,
+  /var/lib/snapd[^/]** mrklix,
+  /var/lib/{extra[^u],jenki[^n]}** mrklix,
+  /var/lib/{extrau[^s],jenkin[^s]}** mrklix,
+  /var/lib/jenkins[^/]** mrklix,
+  /var/lib/extraus[^e]** mrklix,
+  /var/lib/extrause[^r]** mrklix,
+  /var/lib/extrauser[^s]** mrklix,
+  /var/lib/extrausers[^/]** mrklix,
+`
+
+// defaultOtherBaseTemplate contains the default apparmor template for non-core
+// bases
+var defaultOtherBaseTemplate = templateCommon + defaultOtherBaseTemplateRules + templateFooter
 
 // Template for privilege drop and chown operations. The specific setuid,
 // setgid and chown operations are controlled via seccomp.
@@ -732,11 +908,11 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
   # Allow reading the dynamic linker cache.
   /etc/ld.so.cache r,
   # Allow reading, mapping and executing the dynamic linker.
-  /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}ld-*.so mrix,
+  /{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}ld-*.so mrix,
   # Allow reading and mapping various parts of the standard library and
   # dynamically loaded nss modules and what not.
-  /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libc{,-[0-9]*}.so* mr,
-  /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpthread{,-[0-9]*}.so* mr,
+  /{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}libc{,-[0-9]*}.so* mr,
+  /{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}libpthread{,-[0-9]*}.so* mr,
 
   # Common devices accesses
   /dev/null rw,

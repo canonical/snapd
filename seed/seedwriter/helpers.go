@@ -107,15 +107,15 @@ func checkType(sn *SeedSnap, model *asserts.Model) error {
 		// ModelSnap for Core 16/18 "required-snaps" have
 		// SnapType not set given the model assertion does not
 		// have the information
-		typ := sn.Info.GetType()
+		typ := sn.Info.Type()
 		if typ == snap.TypeKernel || typ == snap.TypeGadget {
 			return fmt.Errorf("snap %q has unexpected type: %s", sn.SnapName(), typ)
 		}
 		return nil
 	}
-	if sn.Info.GetType() != expectedType {
+	if sn.Info.Type() != expectedType {
 		what := whichModelSnap(sn.modelSnap, model)
-		return fmt.Errorf("%s has unexpected type: %s", what, sn.Info.GetType())
+		return fmt.Errorf("%s has unexpected type: %s", what, sn.Info.Type())
 	}
 	return nil
 }
@@ -125,7 +125,7 @@ type seedSnapsByType []*SeedSnap
 func (s seedSnapsByType) Len() int      { return len(s) }
 func (s seedSnapsByType) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 func (s seedSnapsByType) Less(i, j int) bool {
-	return s[i].Info.GetType().SortsBefore(s[j].Info.GetType())
+	return s[i].Info.Type().SortsBefore(s[j].Info.Type())
 }
 
 // finderFromFetcher exposes an assertion Finder interface out of a Fetcher.

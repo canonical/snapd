@@ -3,11 +3,12 @@ summary: Run a smoke test on UC20 with encryption enabled
 description: |
     This test checks basic snapd commands on UC20 with secure boot and encryption enabled
 
-systems: [ubuntu-20.04-*]
-
 execute: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
+
+    # wait for the system to be seeded first
+    execute_remote "sudo snap wait system seed.loaded"
 
     echo "Ensure 'snap install' works"
     # The install command could cause a ssh break, so || true is used
@@ -29,4 +30,4 @@ execute: |
     execute_remote "sudo snap remove test-snapd-sh" || true
 
     echo "Ensure 'snap list' works and test-snapd-sh snap is removed"
-    execute_remote "snap list" | NOMATCH test-snapd-sh
+    not execute_remote "snap list test-snapd-sh"

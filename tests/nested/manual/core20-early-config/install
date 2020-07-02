@@ -1,0 +1,6 @@
+#!/bin/sh
+
+# rsyslog.service is expected to be a symlink at this point, and apparmor
+# doesn't control readlink, so this should work even without devmode or
+# system-files plug.
+readlink /etc/systemd/system/rsyslog.service > "$SNAP_COMMON"/debug.txt 2>&1 || true

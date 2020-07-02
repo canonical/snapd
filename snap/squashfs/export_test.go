@@ -32,7 +32,10 @@ var (
 	NewUnsquashfsStderrWriter = newUnsquashfsStderrWriter
 )
 
-const MaxErrPaths = maxErrPaths
+const (
+	SuperblockSize = superblockSize
+	MaxErrPaths    = maxErrPaths
+)
 
 func (s stat) User() string  { return s.user }
 func (s stat) Group() string { return s.group }
@@ -46,10 +49,10 @@ func MockLink(newLink func(string, string) error) (restore func()) {
 }
 
 func MockCommandFromSystemSnap(f func(string, ...string) (*exec.Cmd, error)) (restore func()) {
-	oldCommandFromSystemSnap := cmdutilCommandFromSystemSnap
-	cmdutilCommandFromSystemSnap = f
+	oldCommandFromSystemSnap := snapdtoolCommandFromSystemSnap
+	snapdtoolCommandFromSystemSnap = f
 	return func() {
-		cmdutilCommandFromSystemSnap = oldCommandFromSystemSnap
+		snapdtoolCommandFromSystemSnap = oldCommandFromSystemSnap
 	}
 }
 

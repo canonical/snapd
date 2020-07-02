@@ -338,13 +338,13 @@ func init() {
 			"users": i18n.G("Restore data of only specific users (comma-separated) (default: all users)"),
 		}), []argDesc{
 			{
-				name: "<snap>",
-				// TRANSLATORS: This should not start with a lowercase letter.
-				desc: i18n.G("The snap for which data will be restored"),
-			}, {
 				name: "<id>",
 				// TRANSLATORS: This should not start with a lowercase letter.
 				desc: i18n.G("Set id of snapshot to restore (see 'snap help saved')"),
+			}, {
+				name: "<snap>",
+				// TRANSLATORS: This should not start with a lowercase letter.
+				desc: i18n.G("The snap for which data will be restored"),
 			},
 		})
 

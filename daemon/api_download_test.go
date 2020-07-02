@@ -125,7 +125,10 @@ var storeSnaps = map[string]*snap.Info{
 	},
 }
 
-func (s *snapDownloadSuite) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, error) {
+func (s *snapDownloadSuite) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
+	if assertQuery != nil {
+		panic("no assertion query support")
+	}
 	if len(actions) != 1 {
 		panic(fmt.Sprintf("unexpected amount of actions: %v", len(actions)))
 	}
@@ -135,7 +138,7 @@ func (s *snapDownloadSuite) SnapAction(ctx context.Context, currentSnaps []*stor
 	}
 	info, ok := storeSnaps[action.InstanceName]
 	if !ok {
-		return nil, store.ErrSnapNotFound
+		return nil, nil, store.ErrSnapNotFound
 	}
 	if action.Channel != info.Channel {
 		panic(fmt.Sprintf("unexpected channel %q for %v snap", action.Channel, action.InstanceName))
@@ -143,7 +146,7 @@ func (s *snapDownloadSuite) SnapAction(ctx context.Context, currentSnaps []*stor
 	if !action.Revision.Unset() && action.Revision != info.Revision {
 		panic(fmt.Sprintf("unexpected revision %q for %s snap", action.Revision, action.InstanceName))
 	}
-	return []store.SnapActionResult{{Info: info}}, nil
+	return []store.SnapActionResult{{Info: info}}, nil, nil
 }
 
 func (s *snapDownloadSuite) DownloadStream(ctx context.Context, name string, downloadInfo *snap.DownloadInfo, resume int64, user *auth.UserState) (io.ReadCloser, int, error) {

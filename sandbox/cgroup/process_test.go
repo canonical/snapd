@@ -29,44 +29,47 @@ import (
 	"github.com/snapcore/snapd/sandbox/cgroup"
 )
 
-func (s *cgroupSuite) TestSnapNameFromPidHappy(c *C) {
-	err := os.MkdirAll(filepath.Join(s.rootDir, "proc/333"), 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(s.rootDir, "proc/333/cgroup"), mockCgroup, 0755)
-	c.Assert(err, IsNil)
+func (s *cgroupSuite) mockPidCgroup(c *C, text string) int {
+	f := filepath.Join(s.rootDir, "proc/333/cgroup")
+	c.Assert(os.MkdirAll(filepath.Dir(f), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(f, []byte(text), 0755), IsNil)
+	return 333
+}
 
-	name, err := cgroup.SnapNameFromPid(333)
+func (s *cgroupSuite) TestSnapNameFromPidHappy(c *C) {
+	pid := s.mockPidCgroup(c, string(mockCgroup)) // defined in cgroup_test.go
+	name, err := cgroup.SnapNameFromPid(pid)
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "hello-world")
 }
 
 func (s *cgroupSuite) TestSnapNameFromPidUnhappy(c *C) {
-	err := os.MkdirAll(filepath.Join(s.rootDir, "proc/333"), 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(s.rootDir, "proc/333/cgroup"), []byte("1:freezer:/\n"), 0755)
-	c.Assert(err, IsNil)
-
-	name, err := cgroup.SnapNameFromPid(333)
-	c.Assert(err, ErrorMatches, "cannot find a snap for pid 333")
+	pid := s.mockPidCgroup(c, "1:freezer:/\n")
+	name, err := cgroup.SnapNameFromPid(pid)
+	c.Assert(err, ErrorMatches, "cannot find a snap for pid .*")
 	c.Check(name, Equals, "")
 }
 
 func (s *cgroupSuite) TestSnapNameFromPidEmptyName(c *C) {
-	err := os.MkdirAll(filepath.Join(s.rootDir, "proc/333"), 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(s.rootDir, "proc/333/cgroup"), []byte("1:freezer:/snap./\n"), 0755)
-	c.Assert(err, IsNil)
-
-	name, err := cgroup.SnapNameFromPid(333)
+	pid := s.mockPidCgroup(c, "1:freezer:/snap./\n")
+	name, err := cgroup.SnapNameFromPid(pid)
 	c.Assert(err, ErrorMatches, "snap name in cgroup path is empty")
 	c.Check(name, Equals, "")
 }
 
-func (s *cgroupSuite) TestSnapNameFromPidCgroupV2(c *C) {
+func (s *cgroupSuite) TestSnapNameFromPidTracking(c *C) {
+	pid := s.mockPidCgroup(c, "1:name=systemd:/user.slice/user-1000.slice/user@1000.service/apps.slice/snap.foo.bar.00000-1111-3333.service\n")
+	name, err := cgroup.SnapNameFromPid(pid)
+	c.Assert(err, IsNil)
+	c.Check(name, Equals, "foo")
+}
+
+func (s *cgroupSuite) TestSnapNameFromPidWithoutSources(c *C) {
 	restore := cgroup.MockVersion(cgroup.V2, nil)
 	defer restore()
 
-	name, err := cgroup.SnapNameFromPid(333)
+	pid := s.mockPidCgroup(c, "")
+	name, err := cgroup.SnapNameFromPid(pid)
 	c.Assert(err, ErrorMatches, "not supported")
 	c.Check(name, Equals, "")
 }

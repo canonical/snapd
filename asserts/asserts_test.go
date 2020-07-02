@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2016 Canonical Ltd
+ * Copyright (C) 2015-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -65,10 +65,33 @@ func (as *assertsSuite) TestTypeNames(c *C) {
 		"system-user",
 		"test-only",
 		"test-only-2",
+		"test-only-decl",
 		"test-only-no-authority",
 		"test-only-no-authority-pk",
+		"test-only-rev",
 		"validation",
+		"validation-set",
 	})
+}
+
+func (as *assertsSuite) TestMaxSupportedFormats(c *C) {
+	snapDeclMaxFormat := asserts.SnapDeclarationType.MaxSupportedFormat()
+	systemUserMaxFormat := asserts.SystemUserType.MaxSupportedFormat()
+	// sanity
+	c.Check(snapDeclMaxFormat >= 4, Equals, true)
+	c.Check(systemUserMaxFormat >= 1, Equals, true)
+	c.Check(asserts.MaxSupportedFormats(1), DeepEquals, map[string]int{
+		"snap-declaration": snapDeclMaxFormat,
+		"system-user":      systemUserMaxFormat,
+		"test-only":        1,
+	})
+
+	// all
+	maxFormats := asserts.MaxSupportedFormats(0)
+	c.Assert(maxFormats, HasLen, len(asserts.TypeNames()))
+	c.Check(maxFormats["test-only"], Equals, 1)
+	c.Check(maxFormats["test-only-2"], Equals, 0)
+	c.Check(maxFormats["snap-declaration"], Equals, snapDeclMaxFormat)
 }
 
 func (as *assertsSuite) TestSuggestFormat(c *C) {
@@ -161,6 +184,24 @@ func (as *assertsSuite) TestRefResolveError(c *C) {
 	}
 	_, err := ref.Resolve(nil)
 	c.Check(err, ErrorMatches, `"test-only-2" assertion reference primary key has the wrong length \(expected \[pk1 pk2\]\): \[abc\]`)
+}
+
+func (as *assertsSuite) TestAtRevisionString(c *C) {
+	ref := asserts.Ref{
+		Type:       asserts.AccountType,
+		PrimaryKey: []string{"canonical"},
+	}
+
+	at := &asserts.AtRevision{
+		Ref: ref,
+	}
+	c.Check(at.String(), Equals, "account (canonical) at revision 0")
+
+	at = &asserts.AtRevision{
+		Ref:      ref,
+		Revision: asserts.RevisionNotKnown,
+	}
+	c.Check(at.String(), Equals, "account (canonical)")
 }
 
 const exKeyID = "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij"
@@ -821,10 +862,19 @@ func (as *assertsSuite) TestSelfRef(c *C) {
 		PrimaryKey: []string{"0"},
 	})
 
+	c.Check(a1.At(), DeepEquals, &asserts.AtRevision{
+		Ref: asserts.Ref{
+			Type:       asserts.TestOnlyType,
+			PrimaryKey: []string{"0"},
+		},
+		Revision: 0,
+	})
+
 	headers = map[string]interface{}{
 		"authority-id": "auth-id1",
 		"pk1":          "a",
 		"pk2":          "b",
+		"revision":     "1",
 	}
 	a2, err := asserts.AssembleAndSignInTest(asserts.TestOnly2Type, headers, nil, testPrivKey1)
 	c.Assert(err, IsNil)
@@ -832,6 +882,14 @@ func (as *assertsSuite) TestSelfRef(c *C) {
 	c.Check(a2.Ref(), DeepEquals, &asserts.Ref{
 		Type:       asserts.TestOnly2Type,
 		PrimaryKey: []string{"a", "b"},
+	})
+
+	c.Check(a2.At(), DeepEquals, &asserts.AtRevision{
+		Ref: asserts.Ref{
+			Type:       asserts.TestOnly2Type,
+			PrimaryKey: []string{"a", "b"},
+		},
+		Revision: 1,
 	})
 }
 
@@ -888,6 +946,7 @@ func (as *assertsSuite) TestWithAuthority(c *C) {
 		"serial",
 		"system-user",
 		"validation",
+		"validation-set",
 		"repair",
 	}
 	c.Check(withAuthority, HasLen, asserts.NumAssertionType-3) // excluding device-session-request, serial-request, account-key-request
@@ -896,4 +955,17 @@ func (as *assertsSuite) TestWithAuthority(c *C) {
 		_, err := asserts.AssembleAndSignInTest(typ, nil, nil, testPrivKey1)
 		c.Check(err, ErrorMatches, `"authority-id" header is mandatory`)
 	}
+}
+
+func (as *assertsSuite) TestSequenceForming(c *C) {
+	sequenceForming := []string{
+		"repair",
+		"validation-set",
+	}
+	for _, name := range sequenceForming {
+		typ := asserts.Type(name)
+		c.Check(typ.SequenceForming(), Equals, true)
+	}
+
+	c.Check(asserts.SnapDeclarationType.SequenceForming(), Equals, false)
 }

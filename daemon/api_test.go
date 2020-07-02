@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2018 Canonical Ltd
+ * Copyright (C) 2014-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -49,6 +49,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
@@ -103,9 +104,7 @@ type apiBaseSuite struct {
 	brands            *assertstest.SigningAccounts
 
 	systemctlRestorer func()
-	sysctlArgses      [][]string
 	sysctlBufs        [][]byte
-	sysctlErrs        []error
 
 	journalctlRestorer func()
 	jctlSvcses         [][]string
@@ -113,6 +112,9 @@ type apiBaseSuite struct {
 	jctlFollows        []bool
 	jctlRCs            []io.ReadCloser
 	jctlErrs           []error
+
+	serviceControlError error
+	serviceControlCalls []serviceControlArgs
 
 	connectivityResult     map[string]bool
 	loginUserStoreMacaroon string
@@ -123,6 +125,12 @@ type apiBaseSuite struct {
 	restoreSanitize func()
 
 	testutil.BaseTest
+}
+
+type serviceControlArgs struct {
+	action  string
+	options string
+	names   []string
 }
 
 func (s *apiBaseSuite) pokeStateLock() {
@@ -153,8 +161,11 @@ func (s *apiBaseSuite) Find(ctx context.Context, search *store.Search, user *aut
 	return s.rsnaps, s.err
 }
 
-func (s *apiBaseSuite) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, error) {
+func (s *apiBaseSuite) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
 	s.pokeStateLock()
+	if assertQuery != nil {
+		panic("no assertion query support")
+	}
 
 	if ctx == nil {
 		panic("context required")
@@ -167,7 +178,7 @@ func (s *apiBaseSuite) SnapAction(ctx context.Context, currentSnaps []*store.Cur
 	for i, rsnap := range s.rsnaps {
 		sars[i] = store.SnapActionResult{Info: rsnap}
 	}
-	return sars, s.err
+	return sars, nil, s.err
 }
 
 func (s *apiBaseSuite) SuggestedCurrency() string {
@@ -233,22 +244,6 @@ func (s *apiBaseSuite) TearDownSuite(c *check.C) {
 }
 
 func (s *apiBaseSuite) systemctl(args ...string) (buf []byte, err error) {
-	s.sysctlArgses = append(s.sysctlArgses, args)
-
-	if len(args) > 2 && args[0] == "--root" && args[2] == "is-enabled" {
-		// drop the first 2 args which are "--root some-dir"
-		args = args[2:]
-	}
-
-	switch args[0] {
-	case "show", "start", "stop", "restart", "is-enabled":
-	default:
-		panic(fmt.Sprintf("unexpected systemctl call: %v", args))
-	}
-
-	if len(s.sysctlErrs) > 0 {
-		err, s.sysctlErrs = s.sysctlErrs[0], s.sysctlErrs[1:]
-	}
 	if len(s.sysctlBufs) > 0 {
 		buf, s.sysctlBufs = s.sysctlBufs[0], s.sysctlBufs[1:]
 	}
@@ -272,9 +267,7 @@ func (s *apiBaseSuite) journalctl(svcs []string, n int, follow bool) (rc io.Read
 }
 
 func (s *apiBaseSuite) SetUpTest(c *check.C) {
-	s.sysctlArgses = nil
 	s.sysctlBufs = nil
-	s.sysctlErrs = nil
 	s.jctlSvcses = nil
 	s.jctlNs = nil
 	s.jctlFollows = nil
@@ -325,6 +318,11 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 	snapstateSwitch = nil
 
 	devicestateRemodel = nil
+
+	s.serviceControlCalls = nil
+	s.serviceControlError = nil
+	restoreServicestateCtrl := MockServicestateControl(s.fakeServiceControl)
+	s.AddCleanup(restoreServicestateCtrl)
 }
 
 func (s *apiBaseSuite) TearDownTest(c *check.C) {
@@ -354,6 +352,36 @@ var modelDefaults = map[string]interface{}{
 	"architecture": "amd64",
 	"gadget":       "gadget",
 	"kernel":       "kernel",
+}
+
+func (s *apiBaseSuite) fakeServiceControl(st *state.State, appInfos []*snap.AppInfo, inst *servicestate.Instruction, context *hookstate.Context) ([]*state.TaskSet, error) {
+	st.Lock()
+	defer st.Unlock()
+
+	if s.serviceControlError != nil {
+		return nil, s.serviceControlError
+	}
+
+	serviceCommand := serviceControlArgs{action: inst.Action}
+	if inst.RestartOptions.Reload {
+		serviceCommand.options = "reload"
+	}
+	// only one flag should ever be set (depending on Action), but appending
+	// them below acts as an extra sanity check.
+	if inst.StartOptions.Enable {
+		serviceCommand.options += "enable"
+	}
+	if inst.StopOptions.Disable {
+		serviceCommand.options += "disable"
+	}
+	for _, app := range appInfos {
+		serviceCommand.names = append(serviceCommand.names, fmt.Sprintf("%s.%s", app.Snap.InstanceName(), app.Name))
+	}
+	s.serviceControlCalls = append(s.serviceControlCalls, serviceCommand)
+
+	t := st.NewTask("dummy", "")
+	ts := state.NewTaskSet(t)
+	return []*state.TaskSet{ts}, nil
 }
 
 func (s *apiBaseSuite) mockModel(c *check.C, st *state.State, model *asserts.Model) {
@@ -1092,6 +1120,7 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 		"sandbox-features": map[string]interface{}{"confinement-options": []interface{}{"classic", "devmode"}},
 		"architecture":     arch.DpkgArchitecture(),
 		"virtualization":   "magic",
+		"system-mode":      "run",
 	}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
@@ -1170,6 +1199,7 @@ func (s *apiSuite) TestSysInfoLegacyRefresh(c *check.C) {
 		},
 		"architecture":   arch.DpkgArchitecture(),
 		"virtualization": "kvm",
+		"system-mode":    "run",
 	}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
@@ -1178,6 +1208,94 @@ func (s *apiSuite) TestSysInfoLegacyRefresh(c *check.C) {
 	const kernelVersionKey = "kernel-version"
 	delete(rsp.Result.(map[string]interface{}), kernelVersionKey)
 	c.Check(rsp.Result, check.DeepEquals, expected)
+}
+
+func (s *apiSuite) testSysInfoSystemMode(c *check.C, mode string) {
+	c.Assert(mode != "", check.Equals, true, check.Commentf("mode is unset for the test"))
+	rec := httptest.NewRecorder()
+
+	restore := release.MockReleaseInfo(&release.OS{ID: "distro-id", VersionID: "1.2"})
+	defer restore()
+	restore = release.MockOnClassic(false)
+	defer restore()
+	restore = sandbox.MockForceDevMode(false)
+	defer restore()
+	restore = mockSystemdVirt("")
+	defer restore()
+
+	// reload dirs for release info to have effect on paths
+	dirs.SetRootDir(dirs.GlobalRootDir)
+
+	// mock the modeenv file
+	m := boot.Modeenv{
+		Mode:           mode,
+		RecoverySystem: "20191127",
+	}
+	err := m.WriteTo("")
+	c.Assert(err, check.IsNil)
+
+	d := s.daemon(c)
+	d.Version = "42b1"
+
+	// add a test security backend
+	err = d.overlord.InterfaceManager().Repository().AddBackend(&ifacetest.TestSecurityBackend{
+		BackendName:             "apparmor",
+		SandboxFeaturesCallback: func() []string { return []string{"feature-1", "feature-2"} },
+	})
+	c.Assert(err, check.IsNil)
+
+	buildID := "this-is-my-build-id"
+	restore = MockBuildID(buildID)
+	defer restore()
+
+	sysInfoCmd.GET(sysInfoCmd, nil, nil).ServeHTTP(rec, nil)
+	c.Check(rec.Code, check.Equals, 200)
+	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json")
+
+	expected := map[string]interface{}{
+		"series":  "16",
+		"version": "42b1",
+		"os-release": map[string]interface{}{
+			"id":         "distro-id",
+			"version-id": "1.2",
+		},
+		"build-id":   buildID,
+		"on-classic": false,
+		"managed":    false,
+		"locations": map[string]interface{}{
+			"snap-mount-dir": dirs.SnapMountDir,
+			"snap-bin-dir":   dirs.SnapBinariesDir,
+		},
+		"refresh": map[string]interface{}{
+			"timer": "00:00~24:00/4",
+		},
+		"confinement": "strict",
+		"sandbox-features": map[string]interface{}{
+			"apparmor":            []interface{}{"feature-1", "feature-2"},
+			"confinement-options": []interface{}{"devmode", "strict"}, // we know it's this because of the release.Mock... calls above
+		},
+		"architecture": arch.DpkgArchitecture(),
+		"system-mode":  mode,
+	}
+	var rsp resp
+	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	const kernelVersionKey = "kernel-version"
+	delete(rsp.Result.(map[string]interface{}), kernelVersionKey)
+	c.Check(rsp.Result, check.DeepEquals, expected)
+}
+
+func (s *apiSuite) TestSysInfoSystemModeRun(c *check.C) {
+	s.testSysInfoSystemMode(c, "run")
+}
+
+func (s *apiSuite) TestSysInfoSystemModeRecover(c *check.C) {
+	s.testSysInfoSystemMode(c, "recover")
+}
+
+func (s *apiSuite) TestSysInfoSystemModeInstall(c *check.C) {
+	s.testSysInfoSystemMode(c, "install")
 }
 
 func (s *apiSuite) TestLoginUser(c *check.C) {
@@ -5636,6 +5754,41 @@ func (s *apiSuite) TestStateChangesForSnapName(c *check.C) {
 	c.Assert(err, check.IsNil)
 }
 
+func (s *apiSuite) TestStateChangesForSnapNameWithApp(c *check.C) {
+	restore := state.MockTime(time.Date(2016, 04, 21, 1, 2, 3, 0, time.UTC))
+	defer restore()
+
+	// Setup
+	d := newTestDaemon(c)
+	st := d.overlord.State()
+	st.Lock()
+	chg1 := st.NewChange("service-control", "install...")
+	// as triggered by snap restart lxd.daemon
+	chg1.Set("snap-names", []string{"lxd.daemon"})
+	t1 := st.NewTask("exec-command", "1...")
+	chg1.AddAll(state.NewTaskSet(t1))
+	t1.Logf("foobar")
+
+	st.Unlock()
+
+	// Execute
+	req, err := http.NewRequest("GET", "/v2/changes?for=lxd&select=all", nil)
+	c.Assert(err, check.IsNil)
+	rsp := getChanges(stateChangesCmd, req, nil).(*resp)
+
+	// Verify
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Assert(rsp.Result, check.FitsTypeOf, []*changeInfo(nil))
+
+	res := rsp.Result.([]*changeInfo)
+	c.Assert(res, check.HasLen, 1)
+	c.Check(res[0].Kind, check.Equals, `service-control`)
+
+	_, err = rsp.MarshalJSON()
+	c.Assert(err, check.IsNil)
+}
+
 func (s *apiSuite) TestStateChange(c *check.C) {
 	restore := state.MockTime(time.Date(2016, 04, 21, 1, 2, 3, 0, time.UTC))
 	defer restore()
@@ -7088,7 +7241,7 @@ func (s *appSuite) TestLogsSad(c *check.C) {
 	c.Assert(rsp.Type, check.Equals, ResponseTypeError)
 }
 
-func (s *appSuite) testPostApps(c *check.C, inst servicestate.Instruction, systemctlCall [][]string) *state.Change {
+func (s *appSuite) testPostApps(c *check.C, inst servicestate.Instruction, servicecmds []serviceControlArgs) *state.Change {
 	postBody, err := json.Marshal(inst)
 	c.Assert(err, check.IsNil)
 
@@ -7105,74 +7258,104 @@ func (s *appSuite) testPostApps(c *check.C, inst servicestate.Instruction, syste
 	defer st.Unlock()
 	chg := st.Change(rsp.Change)
 	c.Assert(chg, check.NotNil)
-	c.Check(chg.Tasks(), check.HasLen, len(systemctlCall))
+	c.Check(chg.Tasks(), check.HasLen, len(servicecmds))
 
 	st.Unlock()
 	<-chg.Ready()
 	st.Lock()
 
-	c.Check(s.cmd.Calls(), check.DeepEquals, systemctlCall)
+	c.Check(s.serviceControlCalls, check.DeepEquals, servicecmds)
 	return chg
 }
 
 func (s *appSuite) TestPostAppsStartOne(c *check.C) {
 	inst := servicestate.Instruction{Action: "start", Names: []string{"snap-a.svc2"}}
-	expected := [][]string{{"systemctl", "start", "snap.snap-a.svc2.service"}}
-	s.testPostApps(c, inst, expected)
+	expected := []serviceControlArgs{
+		{action: "start", names: []string{"snap-a.svc2"}},
+	}
+	chg := s.testPostApps(c, inst, expected)
+	chg.State().Lock()
+	defer chg.State().Unlock()
+
+	var names []string
+	err := chg.Get("snap-names", &names)
+	c.Assert(err, check.IsNil)
+	c.Assert(names, check.DeepEquals, []string{"snap-a"})
 }
 
 func (s *appSuite) TestPostAppsStartTwo(c *check.C) {
 	inst := servicestate.Instruction{Action: "start", Names: []string{"snap-a"}}
-	expected := [][]string{{"systemctl", "start", "snap.snap-a.svc1.service", "snap.snap-a.svc2.service"}}
+	expected := []serviceControlArgs{
+		{action: "start", names: []string{"snap-a.svc1", "snap-a.svc2"}},
+	}
 	chg := s.testPostApps(c, inst, expected)
+
 	chg.State().Lock()
 	defer chg.State().Unlock()
-	// check the summary expands the snap into actual apps
-	c.Check(chg.Summary(), check.Equals, "Running service command")
-	c.Check(chg.Tasks()[0].Summary(), check.Equals, "start of [snap-a.svc1 snap-a.svc2]")
+
+	var names []string
+	err := chg.Get("snap-names", &names)
+	c.Assert(err, check.IsNil)
+	c.Assert(names, check.DeepEquals, []string{"snap-a"})
 }
 
 func (s *appSuite) TestPostAppsStartThree(c *check.C) {
 	inst := servicestate.Instruction{Action: "start", Names: []string{"snap-a", "snap-b"}}
-	expected := [][]string{{"systemctl", "start", "snap.snap-a.svc1.service", "snap.snap-a.svc2.service", "snap.snap-b.svc3.service"}}
+	expected := []serviceControlArgs{
+		{action: "start", names: []string{"snap-a.svc1", "snap-a.svc2", "snap-b.svc3"}},
+	}
 	chg := s.testPostApps(c, inst, expected)
 	// check the summary expands the snap into actual apps
 	c.Check(chg.Summary(), check.Equals, "Running service command")
 	chg.State().Lock()
 	defer chg.State().Unlock()
-	c.Check(chg.Tasks()[0].Summary(), check.Equals, "start of [snap-a.svc1 snap-a.svc2 snap-b.svc3]")
+
+	var names []string
+	err := chg.Get("snap-names", &names)
+	c.Assert(err, check.IsNil)
+	c.Assert(names, check.DeepEquals, []string{"snap-a", "snap-b"})
 }
 
-func (s *appSuite) TestPosetAppsStop(c *check.C) {
+func (s *appSuite) TestPostAppsStop(c *check.C) {
 	inst := servicestate.Instruction{Action: "stop", Names: []string{"snap-a.svc2"}}
-	expected := [][]string{{"systemctl", "stop", "snap.snap-a.svc2.service"}}
+	expected := []serviceControlArgs{
+		{action: "stop", names: []string{"snap-a.svc2"}},
+	}
 	s.testPostApps(c, inst, expected)
 }
 
-func (s *appSuite) TestPosetAppsRestart(c *check.C) {
+func (s *appSuite) TestPostAppsRestart(c *check.C) {
 	inst := servicestate.Instruction{Action: "restart", Names: []string{"snap-a.svc2"}}
-	expected := [][]string{{"systemctl", "restart", "snap.snap-a.svc2.service"}}
+	expected := []serviceControlArgs{
+		{action: "restart", names: []string{"snap-a.svc2"}},
+	}
 	s.testPostApps(c, inst, expected)
 }
 
-func (s *appSuite) TestPosetAppsReload(c *check.C) {
+func (s *appSuite) TestPostAppsReload(c *check.C) {
 	inst := servicestate.Instruction{Action: "restart", Names: []string{"snap-a.svc2"}}
 	inst.Reload = true
-	expected := [][]string{{"systemctl", "reload-or-restart", "snap.snap-a.svc2.service"}}
+	expected := []serviceControlArgs{
+		{action: "restart", options: "reload", names: []string{"snap-a.svc2"}},
+	}
 	s.testPostApps(c, inst, expected)
 }
 
-func (s *appSuite) TestPosetAppsEnableNow(c *check.C) {
+func (s *appSuite) TestPostAppsEnableNow(c *check.C) {
 	inst := servicestate.Instruction{Action: "start", Names: []string{"snap-a.svc2"}}
 	inst.Enable = true
-	expected := [][]string{{"systemctl", "enable", "snap.snap-a.svc2.service"}, {"systemctl", "start", "snap.snap-a.svc2.service"}}
+	expected := []serviceControlArgs{
+		{action: "start", options: "enable", names: []string{"snap-a.svc2"}},
+	}
 	s.testPostApps(c, inst, expected)
 }
 
-func (s *appSuite) TestPosetAppsDisableNow(c *check.C) {
+func (s *appSuite) TestPostAppsDisableNow(c *check.C) {
 	inst := servicestate.Instruction{Action: "stop", Names: []string{"snap-a.svc2"}}
 	inst.Disable = true
-	expected := [][]string{{"systemctl", "disable", "snap.snap-a.svc2.service"}, {"systemctl", "stop", "snap.snap-a.svc2.service"}}
+	expected := []serviceControlArgs{
+		{action: "stop", options: "disable", names: []string{"snap-a.svc2"}},
+	}
 	s.testPostApps(c, inst, expected)
 }
 
@@ -7212,34 +7395,20 @@ func (s *appSuite) TestPostAppsBadApp(c *check.C) {
 	c.Check(rsp.Result.(*errorResult).Message, check.Equals, `snap "snap-a" has no service "what"`)
 }
 
-func (s *appSuite) TestPostAppsBadAction(c *check.C) {
-	req, err := http.NewRequest("POST", "/v2/apps", bytes.NewBufferString(`{"action": "discombobulate", "names": ["snap-a.svc1"]}`))
+func (s *appSuite) TestPostAppsServiceControlError(c *check.C) {
+	req, err := http.NewRequest("POST", "/v2/apps", bytes.NewBufferString(`{"action": "start", "names": ["snap-a.svc1"]}`))
 	c.Assert(err, check.IsNil)
+	s.serviceControlError = fmt.Errorf("total failure")
 	rsp := postApps(appsCmd, req, nil).(*resp)
 	c.Check(rsp.Status, check.Equals, 400)
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
-	c.Check(rsp.Result.(*errorResult).Message, check.Equals, `unknown action "discombobulate"`)
+	c.Check(rsp.Result.(*errorResult).Message, check.Equals, `total failure`)
 }
 
 func (s *appSuite) TestPostAppsConflict(c *check.C) {
-	st := s.d.overlord.State()
-	st.Lock()
-	locked := true
-	defer func() {
-		if locked {
-			st.Unlock()
-		}
-	}()
-
-	ts, err := snapstate.Remove(st, "snap-a", snap.R(0), nil)
-	c.Assert(err, check.IsNil)
-	// need a change to make the tasks visible
-	st.NewChange("enable", "...").AddAll(ts)
-	st.Unlock()
-	locked = false
-
 	req, err := http.NewRequest("POST", "/v2/apps", bytes.NewBufferString(`{"action": "start", "names": ["snap-a.svc1"]}`))
 	c.Assert(err, check.IsNil)
+	s.serviceControlError = &snapstate.ChangeConflictError{Snap: "snap-a", ChangeKind: "enable"}
 	rsp := postApps(appsCmd, req, nil).(*resp)
 	c.Check(rsp.Status, check.Equals, 400)
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)

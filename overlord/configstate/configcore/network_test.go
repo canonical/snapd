@@ -36,7 +36,6 @@ type networkSuite struct {
 	configcoreSuite
 
 	mockNetworkSysctlPath string
-	restores              []func()
 	mockSysctl            *testutil.MockCmd
 }
 
@@ -44,21 +43,13 @@ var _ = Suite(&networkSuite{})
 
 func (s *networkSuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
-	dirs.SetRootDir(c.MkDir())
-	s.restores = append(s.restores, release.MockOnClassic(false))
+	s.AddCleanup(release.MockOnClassic(false))
 
 	s.mockSysctl = testutil.MockCommand(c, "sysctl", "")
-	s.restores = append(s.restores, func() { s.mockSysctl.Restore() })
+	s.AddCleanup(s.mockSysctl.Restore)
 
 	s.mockNetworkSysctlPath = filepath.Join(dirs.GlobalRootDir, "/etc/sysctl.d/10-snapd-network.conf")
 	c.Assert(os.MkdirAll(filepath.Dir(s.mockNetworkSysctlPath), 0755), IsNil)
-}
-
-func (s *networkSuite) TearDownTest(c *C) {
-	dirs.SetRootDir("/")
-	for _, f := range s.restores {
-		f()
-	}
 }
 
 func (s *networkSuite) TestConfigureNetworkIntegrationIPv6(c *C) {
@@ -117,16 +108,13 @@ func (s *networkSuite) TestConfigureNetworkIntegrationNoSetting(c *C) {
 }
 
 func (s *networkSuite) TestFilesystemOnlyApply(c *C) {
-	restorer := release.MockOnClassic(false)
-	defer restorer()
-
 	conf := configcore.PlainCoreConfig(map[string]interface{}{
 		"network.disable-ipv6": true,
 	})
 
 	tmpDir := c.MkDir()
 	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "/etc/sysctl.d/"), 0755), IsNil)
-	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf), IsNil)
+	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf, nil), IsNil)
 
 	networkSysctlPath := filepath.Join(tmpDir, "/etc/sysctl.d/10-snapd-network.conf")
 	c.Check(networkSysctlPath, testutil.FileEquals, "net.ipv6.conf.all.disable_ipv6=1\n")
@@ -136,13 +124,10 @@ func (s *networkSuite) TestFilesystemOnlyApply(c *C) {
 }
 
 func (s *networkSuite) TestFilesystemOnlyApplyValidationFails(c *C) {
-	restorer := release.MockOnClassic(false)
-	defer restorer()
-
 	conf := configcore.PlainCoreConfig(map[string]interface{}{
 		"network.disable-ipv6": "0",
 	})
 
 	tmpDir := c.MkDir()
-	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf), ErrorMatches, `network.disable-ipv6 can only be set to 'true' or 'false'`)
+	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf, nil), ErrorMatches, `network.disable-ipv6 can only be set to 'true' or 'false'`)
 }

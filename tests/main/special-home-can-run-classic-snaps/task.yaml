@@ -2,9 +2,6 @@ summary: Check that users with homes in /var/lib can run *classic* snaps
 
 systems: [ubuntu-16.04-64]
 
-# XXX: disabled for now due to an issue with jenkins repo auth key
-manual: true
-
 environment:
     SPECIAL_USER_NAME/jenkins: jenkins
     SPECIAL_USER_NAME/postgres: postgres
@@ -19,7 +16,7 @@ prepare: |
         jenkins)
             # Jenkins depends on java but not in the Debian sense.
             apt-get install -y default-jre-headless
-            wget -q -O - https://pkg.jenkins.io/debian/jenkins.io.key | apt-key add -
+            wget -q -O - https://pkg.jenkins.io/debian-stable/jenkins.io.key | apt-key add -
             echo 'deb http://pkg.jenkins.io/debian-stable binary/' > /etc/apt/sources.list.d/jenkins.list
             apt-get update
             apt-get install -y jenkins

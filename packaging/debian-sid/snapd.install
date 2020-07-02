@@ -7,9 +7,11 @@ usr/bin/snapd /usr/lib/snapd/
 usr/bin/snap-seccomp /usr/lib/snapd/
 
 # bash completion
-data/completion/snap /usr/share/bash-completion/completions
-data/completion/complete.sh /usr/lib/snapd/
-data/completion/etelpmoc.sh /usr/lib/snapd/
+data/completion/bash/snap /usr/share/bash-completion/completions
+data/completion/bash/complete.sh /usr/lib/snapd/
+data/completion/bash/etelpmoc.sh /usr/lib/snapd/
+# zsh completion
+data/completion/zsh/_snap /usr/share/zsh/vendor-completions
 # snap/snapd version information
 data/info /usr/lib/snapd/
 # polkit actions
@@ -30,6 +32,7 @@ usr/bin/ubuntu-core-launcher
 
 # gdb helper
 usr/lib/snapd/snap-gdb-shim
+usr/lib/snapd/snap-gdbserver-shim
 
 # use "usr/lib" here because apparently systemd looks only there
 usr/lib/systemd/system-environment-generators

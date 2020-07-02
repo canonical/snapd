@@ -142,4 +142,43 @@ const (
 	StopReasonRefresh ServiceStopReason = "refresh"
 	StopReasonRemove  ServiceStopReason = "remove"
 	StopReasonDisable ServiceStopReason = "disable"
+	StopReasonOther   ServiceStopReason = ""
 )
+
+// DaemonScope represents the scope of the daemon running under systemd
+type DaemonScope string
+
+const (
+	SystemDaemon DaemonScope = "system"
+	UserDaemon   DaemonScope = "user"
+)
+
+// UnmarshalJSON sets *daemonScope to a copy of data, assuming validation passes
+func (daemonScope *DaemonScope) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+
+	return daemonScope.fromString(s)
+}
+
+// UnmarshalYAML so DaemonScope implements yaml's Unmarshaler interface
+func (daemonScope *DaemonScope) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var s string
+	if err := unmarshal(&s); err != nil {
+		return err
+	}
+
+	return daemonScope.fromString(s)
+}
+
+func (daemonScope *DaemonScope) fromString(str string) error {
+	d := DaemonScope(str)
+	if d != SystemDaemon && d != UserDaemon {
+		return fmt.Errorf("invalid daemon scope: %q", str)
+	}
+
+	*daemonScope = d
+	return nil
+}

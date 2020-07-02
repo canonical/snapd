@@ -1,9 +1,5 @@
 summary: Check that the system is not in "degraded" state
 
-# TODO:UC20: e2scrub_reap.service is failing on uc20 as of 20200109, enable
-#            once foundations fixes it
-systems: [-ubuntu-core-20-*]
-
 # run this early to ensure no test created failed units yet
 priority: 500
 
@@ -21,6 +17,13 @@ execute: |
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB"/systemd.sh
     wait_for_service "multi-user.target"
+
+    case "$SPREAD_SYSTEM" in
+        opensuse-tumbleweed-*)
+            systemctl mask systemd-vconsole-setup.service
+            systemctl reset-failed systemd-vconsole-setup.service
+            ;;
+    esac
 
     if systemctl status | grep "State: [d]egraded"; then
         echo "systemctl reports the system is in degraded mode"
