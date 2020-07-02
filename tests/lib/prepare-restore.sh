@@ -597,7 +597,7 @@ restore_suite_each() {
     # random failures in the mount leak detector. Give it a moment but don't
     # clean it up ourselves, this should report actual test errors, if any.
     for i in $(seq 10); do
-        if not mountinfo-tool /run/user/12345 .fs_type=tmpfs; then
+        if not mountinfo.query /run/user/12345 .fs_type=tmpfs; then
             break
         fi
         sleep 1

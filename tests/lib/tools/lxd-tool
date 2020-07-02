@@ -8,7 +8,7 @@ case "${1:-}" in
         # +37 32 0:32 / /sys/fs/cgroup/cpuset rw,nosuid,nodev,noexec,relatime shared:15 - cgroup cgroup rw,cpuset,clone_children
         #
         # To restore vanilla state, disable the option now.
-        if [ "$(mountinfo-tool /sys/fs/cgroup/cpuset .fs_type)" = cgroup ]; then
+        if [ "$(mountinfo.query /sys/fs/cgroup/cpuset .fs_type)" = cgroup ]; then
             echo 0 > /sys/fs/cgroup/cpuset/cgroup.clone_children
         fi
 
@@ -24,7 +24,7 @@ case "${1:-}" in
         # https://github.com/systemd/systemd/commit/4095205ecccdfddb822ee8fdc44d11f2ded9be24
         # The kernel version must be made compatible with the strict version
         # comparison. I chose to cut at the "-" and take the stuff before it.
-        if [ "$(mountinfo-tool /sys/fs/cgroup/unified .fs_type)" = cgroup2 ] && "$TESTSTOOLS"/version-compare --strict "$(uname -r | cut -d- -f 1)" -ge 4.13; then
+        if [ "$(mountinfo.query /sys/fs/cgroup/unified .fs_type)" = cgroup2 ] && "$TESTSTOOLS"/version-compare --strict "$(uname -r | cut -d- -f 1)" -ge 4.13; then
             mount -o remount,nsdelegate /sys/fs/cgroup/unified
         fi
         ;;
