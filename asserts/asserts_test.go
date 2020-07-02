@@ -956,3 +956,16 @@ func (as *assertsSuite) TestWithAuthority(c *C) {
 		c.Check(err, ErrorMatches, `"authority-id" header is mandatory`)
 	}
 }
+
+func (as *assertsSuite) TestSequenceForming(c *C) {
+	sequenceForming := []string{
+		"repair",
+		"validation-set",
+	}
+	for _, name := range sequenceForming {
+		typ := asserts.Type(name)
+		c.Check(typ.SequenceForming(), Equals, true)
+	}
+
+	c.Check(asserts.SnapDeclarationType.SequenceForming(), Equals, false)
+}

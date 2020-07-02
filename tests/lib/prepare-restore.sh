@@ -560,7 +560,7 @@ prepare_suite_each() {
     if [[ "$variant" = full ]]; then
         "$TESTSTOOLS"/cleanup-state pre-invariant
     fi
-    invariant-tool check
+    tests.invariant check
 }
 
 restore_suite_each() {
@@ -627,7 +627,7 @@ restore_suite() {
 restore_project_each() {
     "$TESTSTOOLS"/cleanup-state pre-invariant
     # Check for invariants early, in order not to mask bugs in tests.
-    invariant-tool check
+    tests.invariant check
     "$TESTSTOOLS"/cleanup-state post-invariant
 
     # TODO: move this to tests.cleanup.
