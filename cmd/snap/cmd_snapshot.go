@@ -414,8 +414,8 @@ type exportSnapshotCmd struct {
 	clientMixin
 	durationMixin
 	Positional struct {
-		ID        snapshotID `positional-arg-name:"<id>"`
-		TargetDir string     `long:"dir"`
+		ID       snapshotID `positional-arg-name:"<id>"`
+		Filename string     `long:"filename"`
 	} `positional-args:"yes" required:"yes"`
 }
 
@@ -425,11 +425,10 @@ func (x *exportSnapshotCmd) Execute([]string) error {
 		return err
 	}
 
-	snapshotFiles, err := x.client.SnapshotExport(setID, x.Positional.TargetDir)
-	if err != nil {
+	if err := x.client.SnapshotExport(setID, x.Positional.Filename); err != nil {
 		return err
 	}
-	fmt.Fprintf(Stdout, "Exported %v snapshot files into %q\n", len(snapshotFiles), x.Positional.TargetDir)
+	fmt.Fprintf(Stdout, "Exported snapshot into %q\n", x.Positional.Filename)
 
 	return nil
 }

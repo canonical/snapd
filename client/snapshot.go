@@ -20,17 +20,15 @@
 package client
 
 import (
+	"archive/tar"
 	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"mime"
-	"mime/multipart"
 	"net/url"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -183,47 +181,49 @@ func (client *Client) snapshotAction(action *snapshotAction) (changeID string, e
 	return client.doAsync("POST", "/v2/snapshots", nil, headers, bytes.NewBuffer(data))
 }
 
-func (client *Client) SnapshotExport(setID uint64, targetDir string) ([]string, error) {
-	var snapshotFiles []string
-
+func (client *Client) SnapshotExport(setID uint64, filename string) error {
 	rsp, err := client.raw(context.Background(), "GET", fmt.Sprintf("/v2/snapshots/%v/export", setID), nil, nil, nil)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	if rsp.StatusCode != 200 {
-		return nil, fmt.Errorf("unexpected status code: %v", rsp.StatusCode)
+		var r response
+		return r.err(client, rsp.StatusCode)
 	}
-	v := rsp.Header.Get("Content-Type")
-	d, params, err := mime.ParseMediaType(v)
+
+	// XXX: wrong layer?
+	f, err := os.Create(filename)
 	if err != nil {
-		return nil, fmt.Errorf("cannot get snapshot: %v", err)
+		return err
 	}
-	if d != "multipart/form-data" {
-		return nil, fmt.Errorf("cannot use content-type: %v", d)
+	defer f.Close()
+	if _, err := io.Copy(f, rsp.Body); err != nil {
+		return err
 	}
-	boundary, ok := params["boundary"]
-	if !ok {
-		return nil, fmt.Errorf("missing boundary parameter")
+
+	// validate
+	r, err := os.Open(filename)
+	if err != nil {
+		return err
 	}
-	mpr := multipart.NewReader(rsp.Body, boundary)
+	defer r.Close()
+	tr := tar.NewReader(r)
+
+	var lastHdr *tar.Header
 	for {
-		p, err := mpr.NextPart()
+		hdr, err := tr.Next()
+		if err != nil && err != io.EOF {
+			return err
+		}
+		// XXX: is this really the best we can do?
+		if err == io.EOF && lastHdr.Name != "export.json" {
+			return fmt.Errorf("incomplete snapshot data")
+		}
 		if err == io.EOF {
 			break
 		}
-		if err != nil {
-			return nil, fmt.Errorf("cannot read snapshot: %v", err)
-		}
-		f, err := os.Create(filepath.Join(targetDir, p.FileName()))
-		if err != nil {
-			return nil, fmt.Errorf("cannot create file: %v", err)
-		}
-		defer f.Close()
-		if _, err := io.Copy(f, p); err != nil {
-			return nil, fmt.Errorf("cannot read snapshot: %v", err)
-		}
-		snapshotFiles = append(snapshotFiles, p.FileName())
+		lastHdr = hdr
 	}
 
-	return snapshotFiles, nil
+	return nil
 }

@@ -143,6 +143,13 @@ func changeSnapshots(c *Command, r *http.Request, user *auth.UserState) Response
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
 }
 
+type snapshotExportResponse uint64
+
+func (setID snapshotExportResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// XXX: error handling?
+	snapshotExport(context.TODO(), uint64(setID), w)
+}
+
 func getSnapshotExport(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
 	sid := vars["id"]
@@ -151,14 +158,13 @@ func getSnapshotExport(c *Command, r *http.Request, user *auth.UserState) Respon
 		return BadRequest("'id' must be a positive base 10 number; got %q", sid)
 	}
 
-	parts, err := snapshotExport(context.TODO(), setID)
+	sl, err := snapshotList(context.Background(), setID, nil)
 	if err != nil {
-		return InternalError("%v", err)
+		return InternalError("cannot read %s: %v", setID)
 	}
-	var l []string
-	for _, p := range parts {
-		l = append(l, p.Name())
+	if len(sl) == 0 {
+		return BadRequest("no snapshot %s", setID)
 	}
 
-	return multiFileResponse(l)
+	return snapshotExportResponse(setID)
 }
