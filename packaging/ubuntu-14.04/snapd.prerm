@@ -36,6 +36,9 @@ if [ -d /run/systemd/system ]; then
         done
     fi
 
-    systemctl stop snapd.autoimport.service snapd.socket snapd.service
+    # the wrapper makes sure that the service is stopped
+    systemctl_stop snapd.autoimport.service || true
+    systemctl_stop snapd.socket || true
+    systemctl_stop snapd.service || true
     systemctl disable snapd.autoimport.service snapd.socket snapd.service
 fi

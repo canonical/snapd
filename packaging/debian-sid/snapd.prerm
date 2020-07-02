@@ -32,6 +32,10 @@ if [ "$1" = "remove" ]; then
         echo "Stopping $unit"
         systemctl_stop "$unit"
     done
+
+    # the wrapper makes sure that the service is stopped
+    systemctl_stop snapd.socket || true
+    systemctl_stop snapd.service || true
 fi
 
 #DEBHELPER#
