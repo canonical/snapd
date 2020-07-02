@@ -317,7 +317,9 @@ distro_purge_package() {
 
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
-            quiet eatmydata apt-get remove -y --purge -y "$@"
+            # TODO reenable quiet once we have dealt with files being left
+            # behind while purging in prepare
+            eatmydata apt-get remove -y --purge -y "$@"
             ;;
         amazon-*|centos-7-*)
             quiet yum -y remove "$@"
