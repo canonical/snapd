@@ -294,7 +294,8 @@ create_nested_core_vm(){
                 if [ -d extra-snaps ]; then
                     GADGET_SNAP=$(find extra-snaps -name 'pc_*.snap')
                 fi
-                if [ -z "$GADGET_SNAP" ] && [ "$ENABLE_SECURE_BOOT" != "true" ] && [ "$ENABLE_TPM" != "true" ]; then
+                # XXX: deal with [ "$ENABLE_SECURE_BOOT" != "true" ] && [ "$ENABLE_TPM" != "true" ]
+                if [ -z "$GADGET_SNAP" ]; then
                     snap download --basename=pc --channel="20/edge" pc
                     unsquashfs -d pc-gadget pc.snap
                     secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
