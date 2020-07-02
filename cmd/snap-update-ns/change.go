@@ -376,7 +376,7 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 					// We didn't find a mount point at the location we tried to
 					// unmount. The EINVAL we observed indicates that the mount
 					// profile no longer agrees with reality. The mount point
-					// longer exists. As such, consume the error and carry on.
+					// no longer exists. As such, consume the error and carry on.
 					logger.Debugf("ignoring EINVAL from unmount, %q is not mounted", c.Entry.Dir)
 					err = nil
 				}
