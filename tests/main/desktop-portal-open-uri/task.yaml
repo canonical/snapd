@@ -51,7 +51,7 @@ execute: |
     tests.session -u test exec test-snapd-portal-client open-uri http://www.example.org
 
     echo "The test-browser process was invoked with the URL"
-    "$TESTSTOOLS"/fs-tool wait-for-file "$BROWSER_HISTORY" 4 .5
+    "$TESTSTOOLS"/fs-state wait-for-file "$BROWSER_HISTORY" 4 .5
     MATCH http://www.example.org < "$BROWSER_HISTORY"
 
 debug: |

@@ -1,12 +1,12 @@
 #!/bin/bash
 
 show_help() {
-	echo "usage: fs-tool wait-for-file [filename] [iterations] [sleep-time]"
-	echo "usage: fs-tool ensure-dir-exists [direname]"
-	echo "usage: fs-tool ensure-dir-exists-backup-real [direname]"
-	echo "usage: fs-tool clean-dir [direname]"
-	echo "usage: fs-tool ensure-file-exists [filename]"
-	echo "usage: fs-tool clean-file [filename]"
+	echo "usage: fs-state wait-for-file [filename] [iterations] [sleep-time]"
+	echo "usage: fs-state ensure-dir-exists [direname]"
+	echo "usage: fs-state ensure-dir-exists-backup-real [direname]"
+	echo "usage: fs-state clean-dir [direname]"
+	echo "usage: fs-state ensure-file-exists [filename]"
+	echo "usage: fs-state clean-file [filename]"
 }
 
 wait_for_file() {
@@ -76,7 +76,7 @@ ensure_file_exists_backup_real() {
     if [ ! -d "$(dirname "$file")" ]; then
         mkdir -p "$(dirname "$file")"
     fi
-    fs-tool ensure-file-exists "$file"
+    fs-state ensure-file-exists "$file"
 }
 
 clean_file() {
