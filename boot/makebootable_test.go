@@ -176,6 +176,8 @@ func (s *makeBootable20Suite) SetUpTest(c *C) {
 
 	s.bootloader = bootloadertest.Mock("mock", c.MkDir()).RecoveryAware()
 	s.forceBootloader(s.bootloader)
+
+	dirs.SetRootDir("")
 }
 
 func (s *makeBootable20UbootSuite) SetUpTest(c *C) {
@@ -183,6 +185,8 @@ func (s *makeBootable20UbootSuite) SetUpTest(c *C) {
 
 	s.bootloader = bootloadertest.Mock("mock", c.MkDir()).ExtractedRecoveryKernelImage()
 	s.forceBootloader(s.bootloader)
+
+	dirs.SetRootDir("")
 }
 
 func makeMockUC20Model() *asserts.Model {
@@ -214,8 +218,6 @@ func makeMockUC20Model() *asserts.Model {
 }
 
 func (s *makeBootable20Suite) TestMakeBootable20(c *C) {
-	dirs.SetRootDir("")
-
 	model := makeMockUC20Model()
 
 	unpackedGadgetDir := c.MkDir()
@@ -291,8 +293,6 @@ version: 5.0
 }
 
 func (s *makeBootable20Suite) TestMakeBootable20UnsetRecoverySystemLabelError(c *C) {
-	dirs.SetRootDir("")
-
 	model := makeMockUC20Model()
 
 	unpackedGadgetDir := c.MkDir()
@@ -318,8 +318,6 @@ func (s *makeBootable20Suite) TestMakeBootable20UnsetRecoverySystemLabelError(c 
 }
 
 func (s *makeBootable20Suite) TestMakeBootable20MultipleRecoverySystemsError(c *C) {
-	dirs.SetRootDir("")
-
 	model := makeMockUC20Model()
 
 	bootWith := &boot.BootableSet{Recovery: true}
@@ -334,7 +332,6 @@ func (s *makeBootable20Suite) TestMakeBootable20MultipleRecoverySystemsError(c *
 }
 
 func (s *makeBootable20Suite) TestMakeBootable20RunMode(c *C) {
-	dirs.SetRootDir("")
 	bootloader.Force(nil)
 
 	model := makeMockUC20Model()
@@ -453,7 +450,6 @@ grade=dangerous
 }
 
 func (s *makeBootable20Suite) TestMakeBootable20RunModeInstallBootConfigErr(c *C) {
-	dirs.SetRootDir("")
 	bootloader.Force(nil)
 
 	model := makeMockUC20Model()
@@ -527,8 +523,6 @@ version: 5.0
 }
 
 func (s *makeBootable20UbootSuite) TestUbootMakeBootable20TraditionalUbootenvFails(c *C) {
-	dirs.SetRootDir("")
-
 	model := makeMockUC20Model()
 
 	unpackedGadgetDir := c.MkDir()
@@ -581,8 +575,6 @@ version: 5.0
 }
 
 func (s *makeBootable20UbootSuite) TestUbootMakeBootable20BootScr(c *C) {
-	dirs.SetRootDir("")
-
 	model := makeMockUC20Model()
 
 	unpackedGadgetDir := c.MkDir()
@@ -653,7 +645,6 @@ version: 5.0
 }
 
 func (s *makeBootable20UbootSuite) TestUbootMakeBootable20RunModeBootScr(c *C) {
-	dirs.SetRootDir("")
 	bootloader.Force(nil)
 
 	model := makeMockUC20Model()
