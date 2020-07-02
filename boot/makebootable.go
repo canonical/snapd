@@ -333,14 +333,14 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 	if ok {
 		// the bootloader can manage its boot config
 
-		// XXX: this must be performed after the boot partition has been
-		// populated with gadget data
+		// installing boot config must be performed after the boot
+		// partition has been populated with gadget data
 		ok, err := bl.InstallBootConfig(bootWith.UnpackedGadgetDir, opts)
 		if err != nil {
 			return fmt.Errorf("cannot install managed bootloader assets: %v", err)
 		}
 		if !ok {
-			return fmt.Errorf("cannot install boot config with mismatched gadget")
+			return fmt.Errorf("cannot install boot config with a mismatched gadget")
 		}
 	}
 

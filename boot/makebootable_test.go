@@ -512,7 +512,7 @@ version: 5.0
 
 	// no grub cfg in gadget directory raises an error
 	err = boot.MakeBootable(model, rootdir, bootWith)
-	c.Assert(err, ErrorMatches, "cannot install boot config with mismatched gadget")
+	c.Assert(err, ErrorMatches, "cannot install boot config with a mismatched gadget")
 
 	// set up grub.cfg in gadget
 	grubCfg := []byte("#grub cfg")
