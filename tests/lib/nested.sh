@@ -359,43 +359,6 @@ create_nested_core_vm(){
                 echo "unknown nested core system (host is $(lsb_release -cs) )"
                 exit 1
             fi
-
-            snap download --basename=pc-kernel --channel="20/edge" pc-kernel
-            uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$WORK_DIR/image"
-
-            # Get the snakeoil key and cert
-            KEY_NAME=$(get_snakeoil_key)
-            SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
-            SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
-
-            # Prepare the pc kernel snap
-            KERNEL_SNAP=$(ls "$WORK_DIR"/image/pc-kernel_*.snap)
-            KERNEL_UNPACKED="$WORK_DIR"/image/kernel-unpacked
-            unsquashfs -d "$KERNEL_UNPACKED" "$KERNEL_SNAP"
-            sbattach --remove "$KERNEL_UNPACKED/kernel.efi"
-            sbsign --key "$SNAKEOIL_KEY" --cert "$SNAKEOIL_CERT" "$KERNEL_UNPACKED/kernel.efi"  --output "$KERNEL_UNPACKED/kernel.efi"
-            snap pack "$KERNEL_UNPACKED" "$WORK_DIR/image"
-
-            chmod 0600 "$KERNEL_SNAP"
-            rm -f "$PWD/pc-kernel.snap"
-            rm -rf "$KERNEL_UNPACKED"
-            EXTRA_FUNDAMENTAL="--snap $KERNEL_SNAP"
-
-            # Prepare the pc gadget snap (unless provided by extra-snaps)
-            GADGET_SNAP=""
-            if [ -d extra-snaps ]; then
-                GADGET_SNAP=$(find extra-snaps -name 'pc_*.snap')
-            fi
-            if [ -z "$GADGET_SNAP" ]; then
-                snap download --basename=pc --channel="20/edge" pc
-                unsquashfs -d pc-gadget pc.snap
-                secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
-                snap pack pc-gadget/ "$WORK_DIR/image"
-
-                GADGET_SNAP=$(ls "$WORK_DIR"/image/pc_*.snap)
-                rm -f "$PWD/pc.snap" "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
-                EXTRA_FUNDAMENTAL="--snap $GADGET_SNAP"
-            fi
         fi
 
         "$UBUNTU_IMAGE" --image-size 10G "$NESTED_MODEL" \
