@@ -31,8 +31,6 @@ func snapNameFromPidUsingTrackingCgroup(pid int) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	// TODO: this could return the parsed tag already, as it's doing all the
-	// work and discarding the parsed result. Make it so.
 	if parsedTag := securityTagFromCgroupPath(path); parsedTag != nil {
 		return parsedTag.InstanceName(), nil
 	}
