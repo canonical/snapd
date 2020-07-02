@@ -49,6 +49,8 @@ restore: |
         lxd.lxc stop $cont_name --force
         lxd.lxc delete $cont_name
     done
+    snap remove --purge lxd
+    snap remove --purge lxd-demo-server
 
     lxd-tool undo-lxd-mount-changes
     snap unset system experimental.refresh-app-awareness
