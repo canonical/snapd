@@ -65,7 +65,7 @@ tests/bin/tests.session -> tests/lib/tools/tests.session (was session-tool)
   [done] convert --ACTION into subcommands
   [done] require "exec" subcommand to execute a command
 
-tests/lib/tools/memory-observe-do (was memory-tool)
+[done] tests/lib/tools/memory-observe-do (was memory-tool)
 tests/lib/tools/version-compare (was version-tool)
 
 tests/bin/mountinfo.query -> tests/lib/tools/mountinfo.query (was mountinfo-tool)
