@@ -112,7 +112,7 @@ func setupHostDBusConf(snapInfo *snap.Info) error {
 	}
 
 	// We don't use `dirs.SnapDBusSessionPolicyDir because we want
-	// to match the path the package on the host sytem uses.
+	// to match the path the package on the host system uses.
 	dest := filepath.Join(dirs.GlobalRootDir, "/usr/share/dbus-1/session.d")
 	if err = os.MkdirAll(dest, 0755); err != nil {
 		return err
