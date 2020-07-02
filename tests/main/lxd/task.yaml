@@ -54,6 +54,7 @@ restore: |
 
     lxd-tool undo-lxd-mount-changes
     snap unset system experimental.refresh-app-awareness
+    systemctl --user stop dbus.service || true
 
 debug: |
     # shellcheck source=tests/lib/journalctl.sh
