@@ -88,7 +88,7 @@ user-tool -> test/lib/tools/user-state
   fix with no args
   fix -h help
 
-apt-tool -> tests/lib/tools/apt-state
+[done] apt-tool -> tests/lib/tools/apt-state
   use any-python?
   fix no args
   fix to have -h
@@ -97,8 +97,8 @@ lxd-tool -> tests/lib/tools/lxd-state
   fix no args
   fix to have -h
 
-invariant-tool -> tests/lib/tools/tests.invariant? then it could also live in /bin
-  fix to have -h
+[done] invariant-tool -> tests/lib/tools/tests.invariant? then it could also live in /bin
+  [done] fix to have -h
 
 * more complicated option, have a tests.state trampoline command in tests/bin
   that given `tests.state WHAT ARGS` invokes `tests/lib/tools/state-WHAT ARGS`
