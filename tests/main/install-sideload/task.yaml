@@ -46,7 +46,7 @@ execute: |
 
     echo "Sideload devmode snap fails without flags"
     expected="requires devmode or confinement override"
-    str-tool to-one-line "$( snap install --dangerous ./test-snapd-devmode_1.0_all.snap 2>&1 )" | MATCH "$expected"
+    "$TESTSTOOLS"/str-tool to-one-line "$( snap install --dangerous ./test-snapd-devmode_1.0_all.snap 2>&1 )" | MATCH "$expected"
 
     echo "Sideload devmode snap succeeds with --devmode"
     expected="test-snapd-devmode 1.0 installed"
