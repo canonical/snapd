@@ -32,6 +32,8 @@ var (
 	ErrDBusUnknownMethod    = errDBusUnknownMethod
 	ErrDBusNameHasNoOwner   = errDBusNameHasNoOwner
 	ErrDBusSpawnChildExited = errDBusSpawnChildExited
+
+	SecurityTagFromCgroupPath = securityTagFromCgroupPath
 )
 
 func MockFsTypeForPath(mock func(string) (int64, error)) (restore func()) {

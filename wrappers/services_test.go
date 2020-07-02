@@ -725,8 +725,6 @@ func (s *servicesTestSuite) TestAddSnapMultiServicesFailCreateCleanup(c *C) {
 	if len(s.sysdLog) > 0 {
 		// the second service failed validation
 		c.Check(s.sysdLog, DeepEquals, [][]string{
-			{"--root", dirs.GlobalRootDir, "enable", "snap.hello-snap.svc1.service"},
-			{"--root", dirs.GlobalRootDir, "disable", "snap.hello-snap.svc1.service"},
 			{"daemon-reload"},
 		})
 	}

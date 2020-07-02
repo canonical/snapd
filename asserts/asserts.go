@@ -67,7 +67,7 @@ func (at *AssertionType) MaxSupportedFormat() int {
 }
 
 // SequencingForming returns true if the assertion type has a positive
-// intenger >= 1 as the last component (preferably called "sequence")
+// integer >= 1 as the last component (preferably called "sequence")
 // of its primary key over which the assertions of the type form
 // sequences, usually without gaps, one sequence per sequence key (the
 // primary key prefix omitting the sequence number).

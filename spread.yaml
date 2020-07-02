@@ -265,6 +265,9 @@ backends:
             - centos-7-64:
                   username: centos
                   password: centos
+            - amazon-linux-2-64:
+                  username: ec2-user
+                  password: ec2-user
     autopkgtest:
         type: adhoc
         allocate: |
@@ -486,8 +489,8 @@ debug-each: |
         
         if is_nested_system; then
             echo '# nested VM status'
-            systemctl status nested-vm
-            journalctl -e --no-pager -u nested-vm
+            systemctl status nested-vm || true
+            journalctl -e --no-pager -u nested-vm || true
 
             if [ -f "${WORK_DIR}/serial-log.txt" ]; then
                 echo '# nested VM serial boot log'
