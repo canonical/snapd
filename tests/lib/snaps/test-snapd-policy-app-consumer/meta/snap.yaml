@@ -161,6 +161,9 @@ apps:
   system-packages-doc:
     command: bin/run
     plugs: [ system-packages-doc ]
+  system-source-code:
+    command: bin/run
+    plugs: [ system-source-code ]
   hostname-control:
     command: bin/run
     plugs: [ hostname-control ]
