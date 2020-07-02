@@ -513,7 +513,7 @@ func (s *snapmgrTestSuite) TestInstallSnapWithDefaultTrack(c *C) {
 	defer s.state.Unlock()
 
 	opts := &snapstate.RevisionOptions{Channel: "candidate"}
-	ts, err := snapstate.Install(context.Background(), s.state, "some-snap-with-default-track", opts, s.user.ID, snapstate.Flags{Classic: true})
+	ts, err := snapstate.Install(context.Background(), s.state, "some-snap-with-default-track", opts, s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
 	chg := s.state.NewChange("install", "install snap")
@@ -2893,6 +2893,10 @@ func (s *snapmgrTestSuite) TestInstallLayoutsChecksFeatureFlag(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestInstallUserDaemonsChecksFeatureFlag(c *C) {
+	if release.ReleaseInfo.ID == "ubuntu" && release.ReleaseInfo.VersionID == "14.04" {
+		c.Skip("Ubuntu 14.04 does not support user daemons")
+	}
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -2928,6 +2932,23 @@ func (s *snapmgrTestSuite) TestInstallUserDaemonsChecksFeatureFlag(c *C) {
 	tr.Commit()
 	_, err = snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
 	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.user-daemons' to true")
+}
+
+func (s *snapmgrTestSuite) TestInstallUserDaemonsUsupportedOnTrusty(c *C) {
+	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer restore()
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.user-daemons", true)
+	tr.Commit()
+
+	// Even with the experimental.user-daemons flag set, user
+	// daemons are not supported on Trusty
+	opts := &snapstate.RevisionOptions{Channel: "channel-for-user-daemon"}
+	_, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, "user session daemons are not supported on this release")
 }
 
 func (s *snapmgrTestSuite) TestInstallDbusActivationChecksFeatureFlag(c *C) {

@@ -5016,7 +5016,7 @@ func makeAutoConnectChange(st *state.State, plugSnap, plug, slotSnap, slot strin
 	return chg
 }
 
-func (s *interfaceManagerSuite) TestUndoConnect(c *C) {
+func (s *interfaceManagerSuite) mockConnectForUndo(c *C, conns map[string]interface{}) *state.Change {
 	s.MockModel(c, nil)
 
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
@@ -5039,13 +5039,7 @@ func (s *interfaceManagerSuite) TestUndoConnect(c *C) {
 	c.Assert(err, IsNil)
 
 	s.state.Lock()
-
-	// "consumer:plug producer:slot" wouldn't normally be present in conns when connecting because
-	// ifacestate.Connect() checks for existing connection; it's used here to test removal on undo.
-	s.state.Set("conns", map[string]interface{}{
-		"snap1:plug snap2:slot":       map[string]interface{}{},
-		"consumer:plug producer:slot": map[string]interface{}{},
-	})
+	s.state.Set("conns", conns)
 
 	chg := makeAutoConnectChange(s.state, "consumer", "plug", "producer", "slot")
 	terr := s.state.NewTask("error-trigger", "provoking undo")
@@ -5053,22 +5047,91 @@ func (s *interfaceManagerSuite) TestUndoConnect(c *C) {
 	terr.WaitAll(state.NewTaskSet(connTasks...))
 	chg.AddTask(terr)
 
+	return chg
+}
+
+func (s *interfaceManagerSuite) TestUndoConnect(c *C) {
+	// "consumer:plug producer:slot" wouldn't normally be present in conns when connecting because
+	// ifacestate.Connect() checks for existing connection; it's used here to test removal on undo.
+	conns := map[string]interface{}{
+		"snap1:plug snap2:slot":       map[string]interface{}{},
+		"consumer:plug producer:slot": map[string]interface{}{},
+	}
+	chg := s.mockConnectForUndo(c, conns)
+
 	s.state.Unlock()
 	s.settle(c)
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	c.Assert(chg.Status().Ready(), Equals, true)
-	for _, t := range connTasks {
-		c.Assert(t.Status(), Equals, state.UndoneStatus)
+	for _, t := range chg.Tasks() {
+		if t.Kind() != "error-trigger" {
+			c.Assert(t.Status(), Equals, state.UndoneStatus)
+			var old interface{}
+			c.Assert(t.Get("old-conn", &old), NotNil)
+		}
 	}
 
 	// connection is removed from conns, other connection is left intact
-	var conns map[string]interface{}
-	c.Assert(s.state.Get("conns", &conns), IsNil)
-	c.Check(conns, DeepEquals, map[string]interface{}{
+	var realConns map[string]interface{}
+	c.Assert(s.state.Get("conns", &realConns), IsNil)
+	c.Check(realConns, DeepEquals, map[string]interface{}{
 		"snap1:plug snap2:slot": map[string]interface{}{},
 	})
+
+	cref := &interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
+	}
+	// and it's not in the repo
+	_, err := s.manager(c).Repository().Connection(cref)
+	notConnected, _ := err.(*interfaces.NotConnectedError)
+	c.Check(notConnected, NotNil)
+}
+
+func (s *interfaceManagerSuite) TestUndoConnectUndesired(c *C) {
+	// "consumer:plug producer:slot" wouldn't normally be present in conns when connecting because
+	// ifacestate.Connect() checks for existing connection; it's used here to test removal on undo.
+	conns := map[string]interface{}{
+		"snap1:plug snap2:slot":       map[string]interface{}{},
+		"consumer:plug producer:slot": map[string]interface{}{"undesired": true},
+	}
+	chg := s.mockConnectForUndo(c, conns)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Assert(chg.Status().Ready(), Equals, true)
+	for _, t := range chg.Tasks() {
+		if t.Kind() != "error-trigger" {
+			c.Assert(t.Status(), Equals, state.UndoneStatus)
+			if t.Kind() == "connect" {
+				var old interface{}
+				c.Assert(t.Get("old-conn", &old), IsNil)
+				c.Check(old, DeepEquals, map[string]interface{}{"undesired": true})
+			}
+		}
+	}
+
+	// connection is left in conns because of undesired flag
+	var realConns map[string]interface{}
+	c.Assert(s.state.Get("conns", &realConns), IsNil)
+	c.Check(realConns, DeepEquals, map[string]interface{}{
+		"snap1:plug snap2:slot":       map[string]interface{}{},
+		"consumer:plug producer:slot": map[string]interface{}{"undesired": true},
+	})
+
+	// but it's not in the repo
+	cref := &interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
+	}
+	_, err := s.manager(c).Repository().Connection(cref)
+	notConnected, _ := err.(*interfaces.NotConnectedError)
+	c.Check(notConnected, NotNil)
 }
 
 func (s *interfaceManagerSuite) TestConnectErrorMissingSlotSnapOnAutoConnect(c *C) {

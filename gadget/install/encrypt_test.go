@@ -17,24 +17,21 @@
  *
  */
 
-package partition_test
+package install_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
-	"testing"
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/cmd/snap-bootstrap/partition"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/install"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/testutil"
 )
-
-func TestPartition(t *testing.T) { TestingT(t) }
 
 type encryptSuite struct {
 	testutil.BaseTest
@@ -66,8 +63,8 @@ func (s *encryptSuite) TestEncryptHappy(c *C) {
 	s.AddCleanup(s.mockCryptsetup.Restore)
 
 	// create empty key to prevent blocking on lack of system entropy
-	key := partition.EncryptionKey{}
-	dev, err := partition.NewEncryptedDevice(&mockDeviceStructure, key, "some-label")
+	key := secboot.EncryptionKey{}
+	dev, err := install.NewEncryptedDevice(&mockDeviceStructure, key, "some-label")
 	c.Assert(err, IsNil)
 	c.Assert(dev.Node, Equals, "/dev/mapper/some-label")
 
@@ -90,8 +87,8 @@ func (s *encryptSuite) TestEncryptFormatError(c *C) {
 	s.mockCryptsetup = testutil.MockCommand(c, "cryptsetup", `[ "$2" == "luksFormat" ] && exit 127 || exit 0`)
 	s.AddCleanup(s.mockCryptsetup.Restore)
 
-	key := partition.EncryptionKey{}
-	_, err := partition.NewEncryptedDevice(&mockDeviceStructure, key, "some-label")
+	key := secboot.EncryptionKey{}
+	_, err := install.NewEncryptedDevice(&mockDeviceStructure, key, "some-label")
 	c.Assert(err, ErrorMatches, "cannot format encrypted device:.*")
 }
 
@@ -99,8 +96,8 @@ func (s *encryptSuite) TestEncryptOpenError(c *C) {
 	s.mockCryptsetup = testutil.MockCommand(c, "cryptsetup", `[ "$1" == "open" ] && exit 127 || exit 0`)
 	s.AddCleanup(s.mockCryptsetup.Restore)
 
-	key := partition.EncryptionKey{}
-	_, err := partition.NewEncryptedDevice(&mockDeviceStructure, key, "some-label")
+	key := secboot.EncryptionKey{}
+	_, err := install.NewEncryptedDevice(&mockDeviceStructure, key, "some-label")
 	c.Assert(err, ErrorMatches, "cannot open encrypted device on /dev/node1:.*")
 }
 
@@ -109,11 +106,11 @@ func (s *encryptSuite) TestEncryptAddKey(c *C) {
 	s.mockCryptsetup = testutil.MockCommand(c, "cryptsetup", fmt.Sprintf(`[ "$1" == "luksAddKey" ] && cat %s/tmp-rkey > %s || exit 0`, dirs.SnapRunDir, capturedFifo))
 	s.AddCleanup(s.mockCryptsetup.Restore)
 
-	key := partition.EncryptionKey{}
-	dev, err := partition.NewEncryptedDevice(&mockDeviceStructure, key, "some-label")
+	key := secboot.EncryptionKey{}
+	dev, err := install.NewEncryptedDevice(&mockDeviceStructure, key, "some-label")
 	c.Assert(err, IsNil)
 
-	rkey := partition.RecoveryKey{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
+	rkey := secboot.RecoveryKey{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
 	err = dev.AddRecoveryKey(key, rkey)
 	c.Assert(err, IsNil)
 
@@ -135,17 +132,4 @@ func (s *encryptSuite) TestEncryptAddKey(c *C) {
 
 	err = dev.Close()
 	c.Assert(err, IsNil)
-}
-
-func (s *encryptSuite) TestRecoveryKeySave(c *C) {
-	rkey := partition.RecoveryKey{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 255}
-	err := rkey.Save("test-key")
-	c.Assert(err, IsNil)
-	fileInfo, err := os.Stat("test-key")
-	c.Assert(err, IsNil)
-	c.Assert(fileInfo.Mode(), Equals, os.FileMode(0600))
-	data, err := ioutil.ReadFile("test-key")
-	c.Assert(err, IsNil)
-	c.Assert(data, DeepEquals, rkey[:])
-	os.Remove("test-key")
 }

@@ -21,13 +21,18 @@ package gadget_test
 
 import (
 	"errors"
+	"fmt"
+	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -1340,8 +1345,27 @@ func (u *updateTestSuite) TestUpdateApplyBadUpdater(c *C) {
 }
 
 func (u *updateTestSuite) TestUpdaterForStructure(c *C) {
-	rootDir := c.MkDir()
+	gadgetRootDir := c.MkDir()
 	rollbackDir := c.MkDir()
+	rootDir := c.MkDir()
+
+	dirs.SetRootDir(rootDir)
+	defer dirs.SetRootDir("/")
+
+	// prepare some state for mocked mount point lookup
+	err := os.MkdirAll(filepath.Join(rootDir, "/dev"), 0755)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(filepath.Join(rootDir, "/dev/disk/by-label"), 0755)
+	c.Assert(err, IsNil)
+	fakedevice := filepath.Join(rootDir, "/dev/sdxxx2")
+	err = ioutil.WriteFile(fakedevice, []byte(""), 0644)
+	c.Assert(err, IsNil)
+	err = os.Symlink(fakedevice, filepath.Join(rootDir, "/dev/disk/by-label/writable"))
+	c.Assert(err, IsNil)
+	mountInfo := `170 27 8:2 / /some/mount/point rw,relatime shared:58 - ext4 %s/dev/sdxxx2 rw
+`
+	restore := osutil.MockMountInfo(fmt.Sprintf(mountInfo, rootDir))
+	defer restore()
 
 	psBare := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
@@ -1350,7 +1374,7 @@ func (u *updateTestSuite) TestUpdaterForStructure(c *C) {
 		},
 		StartOffset: 1 * gadget.SizeMiB,
 	}
-	updater, err := gadget.UpdaterForStructure(psBare, rootDir, rollbackDir)
+	updater, err := gadget.UpdaterForStructure(psBare, gadgetRootDir, rollbackDir)
 	c.Assert(err, IsNil)
 	c.Assert(updater, FitsTypeOf, &gadget.RawStructureUpdater{})
 
@@ -1358,15 +1382,16 @@ func (u *updateTestSuite) TestUpdaterForStructure(c *C) {
 		VolumeStructure: &gadget.VolumeStructure{
 			Filesystem: "ext4",
 			Size:       10 * gadget.SizeMiB,
+			Label:      "writable",
 		},
 		StartOffset: 1 * gadget.SizeMiB,
 	}
-	updater, err = gadget.UpdaterForStructure(psFs, rootDir, rollbackDir)
+	updater, err = gadget.UpdaterForStructure(psFs, gadgetRootDir, rollbackDir)
 	c.Assert(err, IsNil)
 	c.Assert(updater, FitsTypeOf, &gadget.MountedFilesystemUpdater{})
 
 	// trigger errors
-	updater, err = gadget.UpdaterForStructure(psBare, rootDir, "")
+	updater, err = gadget.UpdaterForStructure(psBare, gadgetRootDir, "")
 	c.Assert(err, ErrorMatches, "internal error: backup directory cannot be unset")
 	c.Assert(updater, IsNil)
 

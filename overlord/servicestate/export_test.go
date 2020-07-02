@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,19 +17,8 @@
  *
  */
 
-package internal
+package servicestate
 
-import (
-	"os/exec"
-
-	"github.com/snapcore/snapd/osutil"
+var (
+	UpdateSnapstateServices = updateSnapstateServices
 )
-
-// UdevTrigger triggers udev for the specified device and waits until
-// all events in the udev queue are handled.
-func UdevTrigger(device string) error {
-	if output, err := exec.Command("udevadm", "trigger", "--settle", device).CombinedOutput(); err != nil {
-		return osutil.OutputErr(output, err)
-	}
-	return nil
-}

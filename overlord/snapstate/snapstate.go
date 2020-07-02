@@ -582,6 +582,9 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 		if !flag {
 			return fmt.Errorf("experimental feature disabled - test it by setting 'experimental.user-daemons' to true")
 		}
+		if !release.SystemctlSupportsUserUnits() {
+			return fmt.Errorf("user session daemons are not supported on this release")
+		}
 	}
 
 	if usesDbusActivation {
@@ -597,14 +600,19 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 	return nil
 }
 
-func checkInstallPreconditions(st *state.State, info *snap.Info, flags Flags, snapst *SnapState, deviceCtx DeviceContext) error {
+func ensureInstallPreconditions(st *state.State, info *snap.Info, flags Flags, snapst *SnapState, deviceCtx DeviceContext) (Flags, error) {
+	if flags.Classic && !info.NeedsClassic() {
+		// snap does not require classic confinement, silently drop the flag
+		flags.Classic = false
+	}
+
 	if err := validateInfoAndFlags(info, snapst, flags); err != nil {
-		return err
+		return flags, err
 	}
 	if err := validateFeatureFlags(st, info); err != nil {
-		return err
+		return flags, err
 	}
-	return nil
+	return flags, nil
 }
 
 // InstallPath returns a set of tasks for installing a snap from a file path
@@ -672,12 +680,8 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 	}
 	info.InstanceKey = instanceKey
 
-	if flags.Classic && !info.NeedsClassic() {
-		// snap does not require classic confinement, silently drop the flag
-		flags.Classic = false
-	}
-	// TODO: integrate classic override with the helper
-	if err := checkInstallPreconditions(st, info, flags, &snapst, deviceCtx); err != nil {
+	flags, err = ensureInstallPreconditions(st, info, flags, &snapst, deviceCtx)
+	if err != nil {
 		return nil, nil, err
 	}
 	// this might be a refresh; check the epoch before proceeding
@@ -763,12 +767,8 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 		return nil, fmt.Errorf("unexpected snap type %q, instead of 'base'", info.Type())
 	}
 
-	if flags.Classic && !info.NeedsClassic() {
-		// snap does not require classic confinement, silently drop the flag
-		flags.Classic = false
-	}
-	// TODO: integrate classic override with the helper
-	if err := checkInstallPreconditions(st, info, flags, &snapst, deviceCtx); err != nil {
+	flags, err = ensureInstallPreconditions(st, info, flags, &snapst, deviceCtx)
+	if err != nil {
 		return nil, err
 	}
 
@@ -840,7 +840,8 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 		var snapst SnapState
 		var flags Flags
 
-		if err := checkInstallPreconditions(st, info, flags, &snapst, deviceCtx); err != nil {
+		flags, err := ensureInstallPreconditions(st, info, flags, &snapst, deviceCtx)
+		if err != nil {
 			return nil, nil, err
 		}
 
@@ -943,11 +944,6 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, us
 
 	params := func(update *snap.Info) (*RevisionOptions, Flags, *SnapState) {
 		snapst := stateByInstanceName[update.InstanceName()]
-		updateFlags := snapst.Flags
-		if !update.NeedsClassic() && updateFlags.Classic {
-			// allow updating from classic to strict
-			updateFlags.Classic = false
-		}
 		// setting options to what's in state as multi-refresh doesn't let you change these
 		opts := &RevisionOptions{
 			Channel:   snapst.TrackingChannel,
@@ -1026,7 +1022,8 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 		revnoOpts, flags, snapst := params(update)
 		flags.IsAutoRefresh = globalFlags.IsAutoRefresh
 
-		if err := checkInstallPreconditions(st, update, flags, snapst, deviceCtx); err != nil {
+		flags, err := ensureInstallPreconditions(st, update, flags, snapst, deviceCtx)
+		if err != nil {
 			if refreshAll {
 				logger.Noticef("cannot update %q: %v", update.InstanceName(), err)
 				continue
@@ -1486,12 +1483,7 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 	}
 
 	params := func(update *snap.Info) (*RevisionOptions, Flags, *SnapState) {
-		updateFlags := flags
-		if !update.NeedsClassic() && updateFlags.Classic {
-			// allow updating from classic to strict
-			updateFlags.Classic = false
-		}
-		return opts, updateFlags, &snapst
+		return opts, flags, &snapst
 	}
 
 	_, tts, err := doUpdate(context.TODO(), st, []string{name}, updates, params, userID, &flags, deviceCtx, fromChange)
