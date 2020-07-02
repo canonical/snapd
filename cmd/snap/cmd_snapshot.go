@@ -21,6 +21,8 @@ package main
 
 import (
 	"fmt"
+	"io"
+	"os"
 	"strconv"
 	"strings"
 
@@ -402,9 +404,9 @@ func init() {
 				desc: i18n.G("Set id of snapshot to export"),
 			},
 			{
-				name: "<target-dir>",
+				name: "<filename>",
 				// TRANSLATORS: This should not start with a lowercase letter.
-				desc: i18n.G("The directory to export the files to"),
+				desc: i18n.G("The filename of the export"),
 			},
 		})
 	cmd.hidden = true
@@ -425,9 +427,31 @@ func (x *exportSnapshotCmd) Execute([]string) error {
 		return err
 	}
 
-	if err := x.client.SnapshotExport(setID, x.Positional.Filename); err != nil {
+	r, expectedSize, err := x.client.SnapshotExport(setID)
+	if err != nil {
 		return err
 	}
+
+	filename := x.Positional.Filename
+	f, err := os.Create(filename + ".part")
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	defer func() { os.Remove(filename + ".part") }()
+
+	n, err := io.Copy(f, r)
+	if err != nil {
+		return err
+	}
+	if n != expectedSize {
+		return fmt.Errorf("unexpected size, got: %v but wanted %v", n, expectedSize)
+	}
+
+	if err := os.Rename(filename+".part", filename); err != nil {
+		return err
+	}
+
 	fmt.Fprintf(Stdout, "Exported snapshot into %q\n", x.Positional.Filename)
 
 	return nil
