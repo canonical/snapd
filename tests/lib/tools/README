@@ -90,8 +90,8 @@ user-tool -> test/lib/tools/user-state
 
 [done] apt-tool -> tests/lib/tools/apt-state
   use any-python?
-  fix no args
-  fix to have -h
+  [done] fix no args
+  [done] fix to have -h
 
 lxd-tool -> tests/lib/tools/lxd-state
   fix no args
