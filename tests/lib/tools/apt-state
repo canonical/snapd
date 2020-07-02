@@ -25,7 +25,7 @@ def restore(fname):
             pkg.mark_delete(auto_fix=False)
         if not pkg.is_installed and pkg.name in desired:
             print("installing", pkg)
-            pkg.mark_install(auto_fix=False, auto_install=False)
+            pkg.mark_install(auto_fix=False, auto_inst=False)
     cache.commit()
 
 

@@ -70,11 +70,3 @@ func MockEnsureNodesExist(f func(dss []gadget.OnDiskStructure, timeout time.Dura
 		ensureNodesExist = old
 	}
 }
-
-func MockInternalUdevTrigger(f func(node string) error) (restore func()) {
-	old := internalUdevTrigger
-	internalUdevTrigger = f
-	return func() {
-		internalUdevTrigger = old
-	}
-}
