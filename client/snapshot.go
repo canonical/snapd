@@ -20,7 +20,6 @@
 package client
 
 import (
-	"archive/tar"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -191,38 +190,20 @@ func (client *Client) SnapshotExport(setID uint64, filename string) error {
 		return r.err(client, rsp.StatusCode)
 	}
 
-	// XXX: wrong layer?
-	f, err := os.Create(filename)
+	f, err := os.Create(filename + ".part")
 	if err != nil {
 		return err
 	}
 	defer f.Close()
+	defer func() { os.Remove(filename + ".part") }()
+
+	// XXX: double check that content-length mismatches are handled
+	// correctly by go http internally
 	if _, err := io.Copy(f, rsp.Body); err != nil {
 		return err
 	}
-
-	// validate
-	r, err := os.Open(filename)
-	if err != nil {
+	if err := os.Rename(filename+".part", filename); err != nil {
 		return err
-	}
-	defer r.Close()
-	tr := tar.NewReader(r)
-
-	var lastHdr *tar.Header
-	for {
-		hdr, err := tr.Next()
-		if err != nil && err != io.EOF {
-			return err
-		}
-		// XXX: is this really the best we can do?
-		if err == io.EOF && lastHdr.Name != "export.json" {
-			return fmt.Errorf("incomplete snapshot data")
-		}
-		if err == io.EOF {
-			break
-		}
-		lastHdr = hdr
 	}
 
 	return nil
