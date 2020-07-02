@@ -179,14 +179,58 @@ jobs:
           # Register a problem matcher to highlight spread failures
           echo "::add-matcher::.github/spread-problem-matcher.json"
           spread -abend google:${{ matrix.system }}:tests/...
-    - name: Run spread nested tests
+    - name: Cache successful run
+      run: |
+        mkdir -p $(dirname "$CACHE_RESULT_STAMP")
+        touch "$CACHE_RESULT_STAMP"
+    - name: Discard spread workers
+      if: always()
+      run: |
+        shopt -s nullglob;
+        for r in .spread-reuse.*.yaml; do
+          spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
+        done
+
+  spread-nested:
+    needs: [unit-tests]
+    runs-on: self-hosted
+    strategy:
+      # FIXME: enable fail-fast mode once spread can cancel an executing job.
+      # Disable fail-fast mode as it doesn't function with spread. It seems
+      # that cancelling tasks requires short, interruptible actions and
+      # interrupting spread, notably, does not work today. As such disable
+      # fail-fast while we tackle that problem upstream.
+      fail-fast: false
+      matrix:
+        system:
+        - ubuntu-16.04-64
+        - ubuntu-18.04-64
+        - ubuntu-20.04-64
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+    - name: Cache snapd test results
+      id: cache-snapd-test-results
+      uses: actions/cache@v1
+      with:
+        path: "${{ github.workspace }}/.test-results"
+        key: "${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-nested-results"
+    - name: Check cached test results
+      id: cached-results
+      run: |
+          CACHE_RESULT_STAMP="${{ github.workspace }}/.test-results/${{ matrix.system }}-nested-success"
+          echo "::set-env name=CACHE_RESULT_STAMP::$CACHE_RESULT_STAMP"
+          if [ -e "$CACHE_RESULT_STAMP" ]; then
+              echo "::set-output name=already-ran::true"
+          fi
+    - name: Run spread tests
       env:
           SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
       if: "contains(github.event.pull_request.labels.*.name, 'Run nested') && steps.cached-results.outputs.already-ran != 'true'"
       run: |
           # Register a problem matcher to highlight spread failures
           echo "::add-matcher::.github/spread-problem-matcher.json"
-          spread -abend google-nested:tests/nested/
+          spread -abend google-nested:${{ matrix.system }}:tests/nested/...
     - name: Cache successful run
       run: |
         mkdir -p $(dirname "$CACHE_RESULT_STAMP")
