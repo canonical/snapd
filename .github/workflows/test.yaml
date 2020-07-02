@@ -230,6 +230,8 @@ jobs:
       run: |
           # Register a problem matcher to highlight spread failures
           echo "::add-matcher::.github/spread-problem-matcher.json"
+          export CORE_CHANNEL=edge
+          export BUILD_SNAPD_FROM_CURRENT=true
           spread -abend google-nested:${{ matrix.system }}:tests/nested/...
     - name: Cache successful run
       run: |
