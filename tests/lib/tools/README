@@ -88,7 +88,7 @@ user-tool -> test/lib/tools/user-state
   fix with no args
   fix -h help
 
-apt-tool -> tests/lib/tools/apt-state
+[done] apt-tool -> tests/lib/tools/apt-state
   use any-python?
   fix no args
   fix to have -h
