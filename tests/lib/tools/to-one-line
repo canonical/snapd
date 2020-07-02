@@ -1,0 +1,21 @@
+#!/bin/sh
+
+show_help() {
+    echo "usage: to-one-line [string]"
+}
+
+to_one_line(){
+    echo "$1" | tr '\r\n' ' ' | tr -s ' '
+}
+
+if [ $# -eq 0 ]; then
+    show_help
+    exit 1
+fi
+
+action=
+if [ $# -eq 1 ] && [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+    show_help
+else
+    to_one_line "$1"
+fi

@@ -1,8 +1,0 @@
-summary: integration tests for str-tool
-execute: |
-    # Check help
-    "$TESTSTOOLS"/str-tool -h | MATCH "usage: str-tool to-one-line"
-    "$TESTSTOOLS"/str-tool --help | MATCH "usage: str-tool to-one-line"
-
-    # Check to-one-line command
-    "$TESTSTOOLS"/str-tool to-one-line $(echo -e "test1 \n test2") | MATCH "test1 test2"
