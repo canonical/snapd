@@ -143,11 +143,24 @@ func changeSnapshots(c *Command, r *http.Request, user *auth.UserState) Response
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
 }
 
-type snapshotExportResponse uint64
+type snapshotExportResponse struct {
+	setID      uint64
+	exportSize uint64
+}
 
-func (setID snapshotExportResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// XXX: error handling?
-	snapshotExport(context.TODO(), uint64(setID), w)
+func (s snapshotExportResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Content-Length", strconv.FormatUint(s.exportSize, 10))
+
+	snapshotExport(context.TODO(), uint64(s.setID), w)
+}
+
+type countingOnlyWriter struct {
+	total uint64
+}
+
+func (w *countingOnlyWriter) Write(p []byte) (n int, err error) {
+	w.total += uint64(len(p))
+	return len(p), nil
 }
 
 func getSnapshotExport(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -158,13 +171,20 @@ func getSnapshotExport(c *Command, r *http.Request, user *auth.UserState) Respon
 		return BadRequest("'id' must be a positive base 10 number; got %q", sid)
 	}
 
-	sl, err := snapshotList(context.Background(), setID, nil)
-	if err != nil {
-		return InternalError("cannot read %s: %v", setID)
-	}
-	if len(sl) == 0 {
-		return BadRequest("no snapshot %s", setID)
+	// Export into /dev/null once to get the size of the tar so that
+	// we can set the Content-Length in the reponse
+	//
+	// XXX: too naive? i.e. calling snapshotExport() twice will lead to
+	// slightly different results (different timestamps) but tar headers
+	// are fixed size so the result should be the same? what about the
+	// time data in the export.json ?
+	var cw countingOnlyWriter
+	if err := snapshotExport(context.TODO(), uint64(setID), &cw); err != nil {
+		return BadRequest("cannot export %v", setID)
 	}
 
-	return snapshotExportResponse(setID)
+	return snapshotExportResponse{
+		setID:      setID,
+		exportSize: cw.total,
+	}
 }

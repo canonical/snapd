@@ -338,6 +338,7 @@ func Export(ctx context.Context, setID uint64, w io.Writer) error {
 	defer tw.Close()
 
 	// write the archives
+	n := 0
 	err := Iter(ctx, func(reader *Reader) error {
 		if reader.SetID == setID {
 			stat, err := reader.Stat()
@@ -369,11 +370,15 @@ func Export(ctx context.Context, setID uint64, w io.Writer) error {
 			if _, err := io.Copy(tw, f); err != nil {
 				return err
 			}
+			n++
 		}
 		return nil
 	})
 	if err != nil {
 		return err
+	}
+	if n == 0 {
+		return fmt.Errorf("no snapshot data found for %v", setID)
 	}
 
 	// write the metadata last, the client can validate with that
