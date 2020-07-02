@@ -317,6 +317,8 @@ type multiFileResponse []string
 func (f multiFileResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	mpw := multipart.NewWriter(w)
 	defer mpw.Close()
+	w.Header().Add("Content-Type", mpw.FormDataContentType())
+
 	for _, p := range f {
 		f, err := os.Open(p)
 		if err != nil {

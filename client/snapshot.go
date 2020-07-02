@@ -21,10 +21,16 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"mime"
+	"mime/multipart"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -175,4 +181,49 @@ func (client *Client) snapshotAction(action *snapshotAction) (changeID string, e
 	}
 
 	return client.doAsync("POST", "/v2/snapshots", nil, headers, bytes.NewBuffer(data))
+}
+
+func (client *Client) SnapshotExport(setID uint64, targetDir string) ([]string, error) {
+	var snapshotFiles []string
+
+	rsp, err := client.raw(context.Background(), "GET", fmt.Sprintf("/v2/snapshots/%v/export", setID), nil, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	if rsp.StatusCode != 200 {
+		return nil, fmt.Errorf("unexpected status code: %v", rsp.StatusCode)
+	}
+	v := rsp.Header.Get("Content-Type")
+	d, params, err := mime.ParseMediaType(v)
+	if err != nil {
+		return nil, fmt.Errorf("cannot get snapshot: %v", err)
+	}
+	if d != "multipart/form-data" {
+		return nil, fmt.Errorf("cannot use content-type: %v", d)
+	}
+	boundary, ok := params["boundary"]
+	if !ok {
+		return nil, fmt.Errorf("missing boundary parameter")
+	}
+	mpr := multipart.NewReader(rsp.Body, boundary)
+	for {
+		p, err := mpr.NextPart()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("cannot read snapshot: %v", err)
+		}
+		f, err := os.Create(filepath.Join(targetDir, p.FileName()))
+		if err != nil {
+			return nil, fmt.Errorf("cannot create file: %v", err)
+		}
+		defer f.Close()
+		if _, err := io.Copy(f, p); err != nil {
+			return nil, fmt.Errorf("cannot read snapshot: %v", err)
+		}
+		snapshotFiles = append(snapshotFiles, p.FileName())
+	}
+
+	return snapshotFiles, nil
 }

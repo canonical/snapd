@@ -36,11 +36,12 @@ func fmtSize(size int64) string {
 }
 
 var (
-	shortSavedHelp   = i18n.G("List currently stored snapshots")
-	shortSaveHelp    = i18n.G("Save a snapshot of the current data")
-	shortForgetHelp  = i18n.G("Delete a snapshot")
-	shortCheckHelp   = i18n.G("Check a snapshot")
-	shortRestoreHelp = i18n.G("Restore a snapshot")
+	shortSavedHelp          = i18n.G("List currently stored snapshots")
+	shortSaveHelp           = i18n.G("Save a snapshot of the current data")
+	shortForgetHelp         = i18n.G("Delete a snapshot")
+	shortCheckHelp          = i18n.G("Check a snapshot")
+	shortRestoreHelp        = i18n.G("Restore a snapshot")
+	shortExportSnapshotHelp = i18n.G("Export a snapshot")
 )
 
 var longSavedHelp = i18n.G(`
@@ -96,6 +97,10 @@ for which users, or a combination of these.
 If a snap is included in a restore operation, excluding its system and
 configuration data from the restore is not currently possible. This
 restriction may be lifted in the future.
+`)
+
+var longExportSnapshotHelp = i18n.G(`
+Export a snapshot into the target directory.
 `)
 
 type savedCmd struct {
@@ -384,4 +389,47 @@ func init() {
 				desc: i18n.G("The snap for which data will be verified"),
 			},
 		})
+
+	cmd := addCommand("export-snapshot",
+		shortExportSnapshotHelp,
+		longExportSnapshotHelp,
+		func() flags.Commander {
+			return &exportSnapshotCmd{}
+		}, nil, []argDesc{
+			{
+				name: "<id>",
+				// TRANSLATORS: This should not start with a lowercase letter.
+				desc: i18n.G("Set id of snapshot to export"),
+			},
+			{
+				name: "<target-dir>",
+				// TRANSLATORS: This should not start with a lowercase letter.
+				desc: i18n.G("The directory to export the files to"),
+			},
+		})
+	cmd.hidden = true
+}
+
+type exportSnapshotCmd struct {
+	clientMixin
+	durationMixin
+	Positional struct {
+		ID        snapshotID `positional-arg-name:"<id>"`
+		TargetDir string     `long:"dir"`
+	} `positional-args:"yes" required:"yes"`
+}
+
+func (x *exportSnapshotCmd) Execute([]string) error {
+	setID, err := x.Positional.ID.ToUint()
+	if err != nil {
+		return err
+	}
+
+	snapshotFiles, err := x.client.SnapshotExport(setID, x.Positional.TargetDir)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(Stdout, "Exported %v snapshot files into %q\n", len(snapshotFiles), x.Positional.TargetDir)
+
+	return nil
 }
