@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 show_help() {
     echo "usage: fs-state wait-for-file [filename] [iterations] [sleep-time]"
@@ -45,7 +45,7 @@ restore_dir() {
     local dir="$1"
 
     echo "Cleaning dir: $dir"
-    if [ -f "$dir.fake" ]; then
+    if [ -e "$dir.fake" ]; then
         rm -rf "$dir"
         rm -f "$dir.fake"
     else
