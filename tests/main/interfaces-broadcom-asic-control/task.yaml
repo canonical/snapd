@@ -15,18 +15,18 @@ prepare: |
     . "$TESTSLIB"/snaps.sh
     install_local test-snapd-sh
 
-    "$TESTSTOOLS"/fs-state ensure-file-exists-backup-real /dev/linux-user-bde
-    "$TESTSTOOLS"/fs-state ensure-file-exists-backup-real /dev/linux-kernel-bde
-    "$TESTSTOOLS"/fs-state ensure-file-exists-backup-real /dev/linux-bcm-knet
+    "$TESTSTOOLS"/fs-state mock-file-backup-real /dev/linux-user-bde
+    "$TESTSTOOLS"/fs-state mock-file-backup-real /dev/linux-kernel-bde
+    "$TESTSTOOLS"/fs-state mock-file-backup-real /dev/linux-bcm-knet
 
-    "$TESTSTOOLS"/fs-state ensure-file-exists /run/udev/data/+pci:0test
+    "$TESTSTOOLS"/fs-state mock-file /run/udev/data/+pci:0test
 
 restore: |
-    "$TESTSTOOLS"/fs-state clean-file /dev/linux-user-bde
-    "$TESTSTOOLS"/fs-state clean-file /dev/linux-kernel-bde
-    "$TESTSTOOLS"/fs-state clean-file /dev/linux-bcm-knet
+    "$TESTSTOOLS"/fs-state restore-file /dev/linux-user-bde
+    "$TESTSTOOLS"/fs-state restore-file /dev/linux-kernel-bde
+    "$TESTSTOOLS"/fs-state restore-file /dev/linux-bcm-knet
 
-    "$TESTSTOOLS"/fs-state clean-file "/run/udev/data/+pci:0test"
+    "$TESTSTOOLS"/fs-state restore-file "/run/udev/data/+pci:0test"
 
 execute: |
     echo "When the interface is connected"

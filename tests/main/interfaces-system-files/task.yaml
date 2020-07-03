@@ -13,25 +13,25 @@ prepare: |
     install_local test-snapd-sh
 
     # Fist layer of dirs and files
-    "$TESTSTOOLS"/fs-state ensure-dir-exists-backup-real "$TESTDIR"
-    "$TESTSTOOLS"/fs-state ensure-file-exists-backup-real "$TESTDIR"/.testfile1
-    "$TESTSTOOLS"/fs-state ensure-file-exists-backup-real "$TESTDIR"/readonly_file1
-    "$TESTSTOOLS"/fs-state ensure-dir-exists-backup-real "$TESTDIR"/.testdir1
-    "$TESTSTOOLS"/fs-state ensure-dir-exists-backup-real "$TESTDIR"/testdir1
+    "$TESTSTOOLS"/fs-state mock-dir-backup-real "$TESTDIR"
+    "$TESTSTOOLS"/fs-state mock-file-backup-real "$TESTDIR"/.testfile1
+    "$TESTSTOOLS"/fs-state mock-file-backup-real "$TESTDIR"/readonly_file1
+    "$TESTSTOOLS"/fs-state mock-dir-backup-real "$TESTDIR"/.testdir1
+    "$TESTSTOOLS"/fs-state mock-dir-backup-real "$TESTDIR"/testdir1
 
     # Second layer of dirs and files
-    "$TESTSTOOLS"/fs-state ensure-file-exists-backup-real "$TESTDIR"/.testdir1/.testfilé2
-    "$TESTSTOOLS"/fs-state ensure-file-exists-backup-real "$TESTDIR/.testdir1/test file2"
-    "$TESTSTOOLS"/fs-state ensure-dir-exists-backup-real "$TESTDIR"/root
+    "$TESTSTOOLS"/fs-state mock-file-backup-real "$TESTDIR"/.testdir1/.testfilé2
+    "$TESTSTOOLS"/fs-state mock-file-backup-real "$TESTDIR/.testdir1/test file2"
+    "$TESTSTOOLS"/fs-state mock-dir-backup-real "$TESTDIR"/root
 
     # Not accessible dirs and files
-    "$TESTSTOOLS"/fs-state ensure-dir-exists-backup-real /root/.testdir1
-    "$TESTSTOOLS"/fs-state ensure-file-exists-backup-real /root/.testfile1
+    "$TESTSTOOLS"/fs-state mock-dir-backup-real /root/.testdir1
+    "$TESTSTOOLS"/fs-state mock-file-backup-real /root/.testfile1
 
 restore: |
-    "$TESTSTOOLS"/fs-state clean-dir "$TESTDIR"
-    "$TESTSTOOLS"/fs-state clean-dir /root/.testdira1
-    "$TESTSTOOLS"/fs-state clean-dir /root/.testfile1
+    "$TESTSTOOLS"/fs-state restore-dir "$TESTDIR"
+    "$TESTSTOOLS"/fs-state restore-dir /root/.testdira1
+    "$TESTSTOOLS"/fs-state restore-dir /root/.testfile1
 
 execute: |
     echo "The interface is not connected by default"

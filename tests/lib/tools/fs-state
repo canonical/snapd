@@ -1,12 +1,13 @@
 #!/bin/bash
 
 show_help() {
-	echo "usage: fs-state wait-for-file [filename] [iterations] [sleep-time]"
-	echo "usage: fs-state ensure-dir-exists [direname]"
-	echo "usage: fs-state ensure-dir-exists-backup-real [direname]"
-	echo "usage: fs-state clean-dir [direname]"
-	echo "usage: fs-state ensure-file-exists [filename]"
-	echo "usage: fs-state clean-file [filename]"
+    echo "usage: fs-state wait-for-file [filename] [iterations] [sleep-time]"
+    echo "usage: fs-state mock-dir [direname]"
+    echo "usage: fs-state mock-dir-backup-real [direname]"
+    echo "usage: fs-state restore-dir [direname]"
+    echo "usage: fs-state mock-file [filename]"
+    echo "usage: fs-state mock-file-backup-real [filename]"
+    echo "usage: fs-state restore-file [filename]"
 }
 
 wait_for_file() {
@@ -16,7 +17,7 @@ wait_for_file() {
 
     for _ in $(seq "$iters"); do
         if [ -e "$file" ]; then
-        	echo "File exists: $file"
+            echo "File exists: $file"
             return 0
         fi
         sleep "$sleep_time"
@@ -25,16 +26,16 @@ wait_for_file() {
     return 1
 }
 
-ensure_dir_exists() {
+mock_dir() {
     local dir="$1"
     if ! [ -d "$dir" ]; then
-    	echo "Creating dir: $dir"
+        echo "Creating dir: $dir"
         mkdir -p "$dir"
         touch "$dir.fake"
     fi
 }
 
-ensure_dir_exists_backup_real() {
+mock_dir_backup_real() {
     local dir="$1"
     if [ -d "$dir" ]; then
         mv "$dir" "$dir.back"
@@ -44,7 +45,7 @@ ensure_dir_exists_backup_real() {
     touch "$dir.fake"
 }
 
-clean_dir() {
+restore_dir() {
     local dir="$1"
 
     echo "Cleaning dir: $dir"
@@ -57,29 +58,29 @@ clean_dir() {
     fi
 }
 
-ensure_file_exists() {
+mock_file() {
     local file="$1"
     if ! [ -e "$file" ]; then
-    	echo "Creating file: $file"
+        echo "Creating file: $file"
         echo "content for $file" > "$file"
         echo "content for fake $file" > "$file.fake"
     fi
 }
 
-ensure_file_exists_backup_real() {
+mock_file_backup_real() {
     local file="$1"
     if [ -e "$file" ]; then
-    	echo "Backuping file: $file"
+        echo "Backuping file: $file"
         mv "$file" "$file.back"
     fi
     # ensure the parent dir is available
     if [ ! -d "$(dirname "$file")" ]; then
         mkdir -p "$(dirname "$file")"
     fi
-    fs-state ensure-file-exists "$file"
+    fs-state mock-file "$file"
 }
 
-clean_file() {
+restore_file() {
     local file="$1"
     echo "Cleaning file: $file"
     if [ -e "$file.fake" ]; then
@@ -92,23 +93,23 @@ clean_file() {
 }
 
 if [ $# -eq 0 ]; then
-	show_help
-	exit 1
+    show_help
+    exit 0
 fi
 
 action=
 while [ $# -gt 0 ]; do
-	case "$1" in
-		-h|--help)
-			show_help
-			exit 0
-			;;
-		*)
-			action=$(echo "$1" | tr '-' '_')
-			shift
-			break
-			;;
-	esac
+    case "$1" in
+        -h|--help|'')
+            show_help
+            exit 0
+            ;;
+        *)
+            action=$(echo "$1" | tr '-' '_')
+            shift
+            break
+            ;;
+    esac
 done
 
 "$action" "$@"
