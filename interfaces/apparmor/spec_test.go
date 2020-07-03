@@ -128,6 +128,7 @@ func (s *specSuite) TestAddSnippet(c *C) {
 		"snap.demo.command": {"snippet 1", "snippet 2"},
 		"snap.demo.service": {"snippet 1", "snippet 2"},
 	})
+	c.Assert(s.spec.SnippetsForTag("snap.demo.command"), DeepEquals, []string{"snippet 1", "snippet 2"})
 	c.Assert(s.spec.SnippetForTag("snap.demo.command"), Equals, "snippet 1\nsnippet 2")
 	c.Assert(s.spec.SecurityTags(), DeepEquals, []string{"snap.demo.command", "snap.demo.service"})
 }
@@ -149,27 +150,90 @@ func (s *specSuite) TestAddDeduplicatedSnippet(c *C) {
 		"snap.demo.command": {"dedup snippet 1", "dedup snippet 2"},
 		"snap.demo.service": {"dedup snippet 1", "dedup snippet 2"},
 	})
+	c.Assert(s.spec.SnippetsForTag("snap.demo.command"), DeepEquals, []string{"dedup snippet 1", "dedup snippet 2"})
 	c.Assert(s.spec.SnippetForTag("snap.demo.command"), Equals, "dedup snippet 1\ndedup snippet 2")
 	c.Assert(s.spec.SecurityTags(), DeepEquals, []string{"snap.demo.command", "snap.demo.service"})
 }
 
-// Both AddSnippet and AddDeduplicatedSnippet work correctly together.
-func (s *specSuite) TestAddSnippetAndAddDeduplicatedSnippet(c *C) {
+func (s *specSuite) TestAddParametricSnippet(c *C) {
 	restore := apparmor.SetSpecScope(s.spec, []string{"snap.demo.command", "snap.demo.service"})
 	defer restore()
 
-	// Add two snippets in the context we are in.
+	s.spec.AddParametricSnippet([]string{"prefix ", " postfix"}, "param1")
+	s.spec.AddParametricSnippet([]string{"prefix ", " postfix"}, "param1")
+	s.spec.AddParametricSnippet([]string{"prefix ", " postfix"}, "param2")
+	s.spec.AddParametricSnippet([]string{"prefix ", " postfix"}, "param2")
+	s.spec.AddParametricSnippet([]string{"other "}, "param")
+	c.Assert(s.spec.SnippetsForTag("snap.demo.command"), DeepEquals, []string{
+		"other param",
+		"prefix {param1,param2} postfix",
+	})
+	c.Assert(s.spec.SnippetForTag("snap.demo.command"), Equals, "other param\nprefix {param1,param2} postfix")
+	c.Assert(s.spec.Snippets(), DeepEquals, map[string][]string{
+		"snap.demo.command": {"other param", "prefix {param1,param2} postfix"},
+		"snap.demo.service": {"other param", "prefix {param1,param2} postfix"},
+	})
+}
+
+// All of AddSnippet, AddDeduplicatedSnippet, AddParameticSnippet work correctly together.
+func (s *specSuite) TestAddSnippetAndAddDeduplicatedAndParamSnippet(c *C) {
+	restore := apparmor.SetSpecScope(s.spec, []string{"snap.demo.command", "snap.demo.service"})
+	defer restore()
+
+	// Add three snippets in the context we are in.
 	s.spec.AddSnippet("normal")
 	s.spec.AddDeduplicatedSnippet("dedup")
+	s.spec.AddParametricSnippet([]string{""}, "param")
 
 	// The snippets were recorded correctly.
 	c.Assert(s.spec.UpdateNS(), HasLen, 0)
 	c.Assert(s.spec.Snippets(), DeepEquals, map[string][]string{
-		"snap.demo.command": {"normal", "dedup"},
-		"snap.demo.service": {"normal", "dedup"},
+		"snap.demo.command": {"normal", "dedup", "param"},
+		"snap.demo.service": {"normal", "dedup", "param"},
 	})
-	c.Assert(s.spec.SnippetForTag("snap.demo.command"), Equals, "normal\ndedup")
+	c.Assert(s.spec.SnippetsForTag("snap.demo.command"), DeepEquals, []string{"normal", "dedup", "param"})
+	c.Assert(s.spec.SnippetForTag("snap.demo.command"), Equals, "normal\ndedup\nparam")
 	c.Assert(s.spec.SecurityTags(), DeepEquals, []string{"snap.demo.command", "snap.demo.service"})
+}
+
+// Define tags but don't add any snippets.
+func (s *specSuite) TestTagsButNoSnippets(c *C) {
+	restore := apparmor.SetSpecScope(s.spec, []string{"snap.demo.command", "snap.demo.service"})
+	defer restore()
+
+	c.Assert(s.spec.UpdateNS(), HasLen, 0)
+	c.Assert(s.spec.Snippets(), DeepEquals, map[string][]string{})
+	c.Assert(s.spec.SnippetsForTag("snap.demo.command"), DeepEquals, []string(nil))
+	c.Assert(s.spec.SnippetForTag("snap.demo.command"), Equals, "")
+	c.Assert(s.spec.SecurityTags(), DeepEquals, []string(nil))
+}
+
+// Don't define any tags but add snippets.
+func (s *specSuite) TestNoTagsButWithSnippets(c *C) {
+	restore := apparmor.SetSpecScope(s.spec, []string{})
+	defer restore()
+
+	s.spec.AddSnippet("normal")
+	s.spec.AddDeduplicatedSnippet("dedup")
+	s.spec.AddParametricSnippet([]string{""}, "param")
+
+	c.Assert(s.spec.UpdateNS(), HasLen, 0)
+	c.Assert(s.spec.Snippets(), DeepEquals, map[string][]string{})
+	c.Assert(s.spec.SnippetsForTag("snap.demo.command"), DeepEquals, []string(nil))
+	c.Assert(s.spec.SnippetForTag("snap.demo.command"), Equals, "")
+	c.Assert(s.spec.SecurityTags(), DeepEquals, []string(nil))
+}
+
+// Don't define any tags or snippets.
+func (s *specSuite) TestsNoTagsOrSnippets(c *C) {
+	restore := apparmor.SetSpecScope(s.spec, []string{})
+	defer restore()
+
+	c.Assert(s.spec.UpdateNS(), HasLen, 0)
+	c.Assert(s.spec.Snippets(), DeepEquals, map[string][]string{})
+	c.Assert(s.spec.SnippetsForTag("snap.demo.command"), DeepEquals, []string(nil))
+	c.Assert(s.spec.SnippetForTag("snap.demo.command"), Equals, "")
+	c.Assert(s.spec.SecurityTags(), DeepEquals, []string(nil))
 }
 
 // AddUpdateNS adds a snippet for the snap-update-ns profile for a given snap.

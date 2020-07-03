@@ -65,7 +65,7 @@ func (r *refreshHints) needsUpdate() (bool, error) {
 
 func (r *refreshHints) refresh() error {
 	var refreshManaged bool
-	refreshManaged, _ = refreshScheduleManaged(r.state)
+	refreshManaged, _, _ = refreshScheduleManaged(r.state)
 
 	var err error
 	perfTimings := timings.New(map[string]string{"ensure": "refresh-hints"})

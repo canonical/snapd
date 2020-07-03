@@ -26,14 +26,10 @@ import (
 
 	"gopkg.in/tomb.v2"
 
-	// TODO:UC20 look into merging
-	// snap-bootstrap/bootstrap|partition into gadget or
-	// subpackages there cleanly
-	"github.com/snapcore/snapd/cmd/snap-bootstrap/bootstrap"
-
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -45,7 +41,7 @@ import (
 var (
 	bootMakeBootable            = boot.MakeBootable
 	sysconfigConfigureRunSystem = sysconfig.ConfigureRunSystem
-	bootstrapRun                = bootstrap.Run
+	installRun                  = install.Run
 )
 
 func setSysconfigCloudOptions(opts *sysconfig.Options, gadgetDir string, model *asserts.Model) {
@@ -108,7 +104,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// bootstrap
-	bopts := bootstrap.Options{
+	bopts := install.Options{
 		Mount: true,
 	}
 	useEncryption, err := checkEncryption(deviceCtx.Model())
@@ -139,7 +135,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	func() {
 		st.Unlock()
 		defer st.Lock()
-		err = bootstrapRun(gadgetDir, "", bopts)
+		err = installRun(gadgetDir, "", bopts)
 	}()
 	if err != nil {
 		return fmt.Errorf("cannot create partitions: %v", err)
@@ -172,6 +168,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		Kernel:            kernelInfo,
 		KernelPath:        kernelInfo.MountFile(),
 		RecoverySystemDir: recoverySystemDir,
+		UnpackedGadgetDir: gadgetDir,
 	}
 	rootdir := dirs.GlobalRootDir
 	if err := bootMakeBootable(deviceCtx.Model(), rootdir, bootWith); err != nil {

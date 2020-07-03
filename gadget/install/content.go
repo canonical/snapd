@@ -36,23 +36,23 @@ func init() {
 	contentMountpoint = filepath.Join(dirs.SnapRunDir, "gadget-install")
 }
 
-// MakeFilesystem creates a filesystem on the on-disk structure, according
+// makeFilesystem creates a filesystem on the on-disk structure, according
 // to the filesystem type defined in the gadget.
-func MakeFilesystem(ds *gadget.OnDiskStructure) error {
+func makeFilesystem(ds *gadget.OnDiskStructure) error {
 	if ds.HasFilesystem() {
 		if err := internal.Mkfs(ds.VolumeStructure.Filesystem, ds.Node, ds.VolumeStructure.Label); err != nil {
 			return err
 		}
-		if err := internal.UdevTrigger(ds.Node); err != nil {
+		if err := udevTrigger(ds.Node); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// WriteContent populates the given on-disk structure, according to the contents
+// writeContent populates the given on-disk structure, according to the contents
 // defined in the gadget.
-func WriteContent(ds *gadget.OnDiskStructure, gadgetRoot string) error {
+func writeContent(ds *gadget.OnDiskStructure, gadgetRoot string) error {
 	switch {
 	case !ds.IsPartition():
 		return fmt.Errorf("cannot write non-partitions yet")
@@ -69,9 +69,9 @@ func WriteContent(ds *gadget.OnDiskStructure, gadgetRoot string) error {
 	return nil
 }
 
-// MountFilesystem mounts the on-disk structure filesystem under the given base
+// mountFilesystem mounts the on-disk structure filesystem under the given base
 // directory, using the label defined in the gadget as the mount point name.
-func MountFilesystem(ds *gadget.OnDiskStructure, baseMntPoint string) error {
+func mountFilesystem(ds *gadget.OnDiskStructure, baseMntPoint string) error {
 	if !ds.HasFilesystem() {
 		return fmt.Errorf("cannot mount a partition with no filesystem")
 	}

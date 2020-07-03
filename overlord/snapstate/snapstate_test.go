@@ -83,7 +83,7 @@ type snapmgrTestSuite struct {
 }
 
 func (s *snapmgrTestSuite) settle(c *C) {
-	err := s.o.Settle(5 * time.Second)
+	err := s.o.Settle(testutil.HostScaledTimeout(5 * time.Second))
 	c.Assert(err, IsNil)
 }
 
@@ -4538,7 +4538,7 @@ version: v1
 	c.Check(info.InstanceName(), Equals, "gadget")
 	c.Check(info.Revision, Equals, snap.R(2))
 	c.Check(info.Version, Equals, "v1")
-	c.Check(info.GetType(), Equals, snap.TypeGadget)
+	c.Check(info.Type(), Equals, snap.TypeGadget)
 }
 
 func (s *snapmgrQuerySuite) TestKernelInfo(c *C) {
@@ -4583,7 +4583,7 @@ version: v2
 	c.Check(info.InstanceName(), Equals, "pc-kernel")
 	c.Check(info.Revision, Equals, snap.R(3))
 	c.Check(info.Version, Equals, "v2")
-	c.Check(info.GetType(), Equals, snap.TypeKernel)
+	c.Check(info.Type(), Equals, snap.TypeKernel)
 }
 
 func (s *snapmgrQuerySuite) TestBootBaseInfo(c *C) {
@@ -4640,7 +4640,7 @@ version: v20
 	c.Check(info.InstanceName(), Equals, "core20")
 	c.Check(info.Revision, Equals, snap.R(4))
 	c.Check(info.Version, Equals, "v20")
-	c.Check(info.GetType(), Equals, snap.TypeBase)
+	c.Check(info.Type(), Equals, snap.TypeBase)
 }
 
 func (s *snapmgrQuerySuite) TestCoreInfoInternal(c *C) {
@@ -4697,7 +4697,7 @@ func (s *snapmgrQuerySuite) TestCoreInfoInternal(c *C) {
 		} else {
 			c.Assert(info, NotNil)
 			c.Check(info.InstanceName(), Equals, t.expectedSnap, Commentf("(%d) test %q %v", testNr, t.expectedSnap, t.snapNames))
-			c.Check(info.GetType(), Equals, snap.TypeOS)
+			c.Check(info.Type(), Equals, snap.TypeOS)
 		}
 	}
 }

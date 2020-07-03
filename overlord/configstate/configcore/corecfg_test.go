@@ -123,22 +123,10 @@ type configcoreSuite struct {
 	state *state.State
 
 	systemctlArgs     [][]string
-	systemctlRestorer func()
+	systemdSysctlArgs [][]string
 }
 
 var _ = Suite(&configcoreSuite{})
-
-func (s *configcoreSuite) SetUpSuite(c *C) {
-	s.systemctlRestorer = systemd.MockSystemctl(func(args ...string) ([]byte, error) {
-		s.systemctlArgs = append(s.systemctlArgs, args[:])
-		output := []byte("ActiveState=inactive")
-		return output, nil
-	})
-}
-
-func (s *configcoreSuite) TearDownSuite(c *C) {
-	s.systemctlRestorer()
-}
 
 func (s *configcoreSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
@@ -146,11 +134,22 @@ func (s *configcoreSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() { dirs.SetRootDir("") })
 
+	s.AddCleanup(systemd.MockSystemctl(func(args ...string) ([]byte, error) {
+		s.systemctlArgs = append(s.systemctlArgs, args[:])
+		output := []byte("ActiveState=inactive")
+		return output, nil
+	}))
+	s.systemctlArgs = nil
+	s.AddCleanup(systemd.MockSystemdSysctl(func(args ...string) error {
+		s.systemdSysctlArgs = append(s.systemdSysctlArgs, args[:])
+		return nil
+	}))
+	s.systemdSysctlArgs = nil
+
 	s.state = state.New(nil)
 
 	restore := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 	s.AddCleanup(restore)
-	s.systemctlArgs = nil
 }
 
 // runCfgSuite tests configcore.Run()
