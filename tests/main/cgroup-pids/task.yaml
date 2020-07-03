@@ -17,10 +17,8 @@ prepare: |
 
 restore: |
     rmdir /sys/fs/cgroup/pids/snap.test-snapd-sh.sh || true
-
-    # TODO: There is currently no way to unset configuration options.
-    # Once this is fixed please uncomment this line:
-    # snap unset core experimental.refresh-app-awareness
+    snap unset core experimental.refresh-app-awareness
+    systemctl --user stop dbus.service || true
 
 execute: |
     trap 'killall test-snapd-sh || true' EXIT

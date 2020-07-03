@@ -21,9 +21,8 @@ restore: |
     rm -f test-snapd-refresh.*/meta/snap.yaml
     rmdir /sys/fs/cgroup/pids/snap.test-snapd-refresh.sh || true
     rmdir /sys/fs/cgroup/pids/snap.test-snapd-refresh.version || true
-    # TODO: There is currently no way to unset configuration options.
-    # Once this is fixed please uncomment this line:
-    # snap unset core experimental.refresh-app-awareness
+    systemctl --user stop dbus.service || true
+    snap unset core experimental.refresh-app-awareness
     rm -f install.log
 execute: |
     if ! snap debug sandbox-features --required "confinement-options:$CONFINEMENT"; then
