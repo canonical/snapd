@@ -2,7 +2,7 @@
 
 echo "App launched"
 
-cat << EOF > $SNAP_USER_DATA/launch-data.txt
+cat << EOF > "$SNAP_USER_DATA"/launch-data.txt
 args=$*
 DISPLAY=${DISPLAY}
 WAYLAND_DISPLAY=${WAYLAND_DISPLAY}
