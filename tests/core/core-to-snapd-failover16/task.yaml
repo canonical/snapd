@@ -15,6 +15,9 @@ restore: |
   systemctl --user daemon-reload
 
 execute: |
+  # shellcheck source=tests/lib/journalctl.sh
+  . "$TESTSLIB/journalctl.sh"
+
   echo "Re-pack snapd with broken snapd"
   unsquashfs -d ./snapd-broken snapd-from-core.snap
   echo "" > ./snapd-broken/usr/lib/snapd/snapd
@@ -28,7 +31,7 @@ execute: |
   for _ in $(seq 1 2); do
     # get the number of times that snapd.failure was started before we do 
     # anything
-    started_before="$("$TESTSTOOLS"/journal-state get-journalctl-log -u snapd.failure | grep -c 'Started Failure handling of the snapd snap.' || true)"
+    started_before="$(get_journalctl_log -u snapd.failure | grep -c 'Started Failure handling of the snapd snap.' || true)"
 
     echo "Now install the broken snapd"
     if snap install --dangerous ./snapd-broken/snapd_*.snap; then
@@ -40,7 +43,7 @@ execute: |
     #shellcheck disable=SC2165
     for _ in $(seq 60); do
         # get the number of times that snapd.failure was started
-        started_after="$("$TESTSTOOLS"/journal-state get-journalctl-log -u snapd.failure | grep -c 'Started Failure handling of the snapd snap.' || true)"
+        started_after="$(get_journalctl_log -u snapd.failure | grep -c 'Started Failure handling of the snapd snap.' || true)"
         if [ "$started_after" -gt "$started_before" ] ; then
             break
         fi

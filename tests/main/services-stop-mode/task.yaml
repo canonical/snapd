@@ -21,6 +21,8 @@ debug: |
 execute: |
     # shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
+    # shellcheck source=tests/lib/journalctl.sh
+    . "$TESTSLIB/journalctl.sh"
 
     echo "When the service snap is installed"
     install_local test-snapd-service
@@ -53,7 +55,7 @@ execute: |
     done
 
     echo "Regular services are restarted normally"
-    "$TESTSTOOLS"/journal-state get-journalctl-log -u snap.test-snapd-service.test-snapd-service | MATCH "stop service"
+    get_journalctl_log -u snap.test-snapd-service.test-snapd-service | MATCH "stop service"
     systemctl show -p MainPID snap.test-snapd-service.test-snapd-service > new-main.pid
     test -e new-main.pid && test -e old-main.pid
     test "$(cat new-main.pid)" != "$(cat old-main.pid)"
@@ -61,7 +63,7 @@ execute: |
     echo "Once the snap is removed, all services are stopped"
     snap remove --purge test-snapd-service
     for s in $stop_modes; do
-        "$TESTSTOOLS"/journal-state get-journalctl-log | MATCH "stop ${s}"
+        get_journalctl_log | MATCH "stop ${s}"
     done
 
     rm -f /var/snap/test-snapd-service/common/*

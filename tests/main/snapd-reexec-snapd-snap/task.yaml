@@ -19,11 +19,13 @@ execute: |
     retry -n 30 snap watch --last=transition-to-snapd-snap
     snap list snapd
 
+    # shellcheck source=tests/lib/journalctl.sh
+    . "$TESTSLIB/journalctl.sh"
     # installing the snapd snap should result in a daemon restart so that
     # the snapd from the snap can be used. It won't be used in this test
     # because the version of the snapd from the store is lower than the
     # version of the installed snapd.
-    "$TESTSTOOLS"/journal-state check-journalctl-log "Requested daemon restart."
+    check_journalctl_log "Requested daemon restart."
 
     # We need to pretend the version of snapd in the snapd snap is the same
     # as the installed one so that it re-execs. We use a higher version in

@@ -50,7 +50,7 @@ restore: |
     umount /sys/class/gpio || true
 
 debug: |
-    "$TESTSTOOLS"/journal-state get-journalctl-log -u fake-gpio.service
+    journalctl -u fake-gpio.service
 
 execute: |
     # Core image that were created using spread will have a fake "gpio-pin".

@@ -28,7 +28,9 @@ restore: |
     rm -f profiles.out
 
 debug: |
-    "$TESTSTOOLS"/journal-state get-journalctl-log -a | grep apparmor_parser.fake
+    #shellcheck source=tests/lib/journalctl.sh
+    . "$TESTSLIB"/journalctl.sh
+    get_journalctl_log -a | grep apparmor_parser.fake
 
 execute: |
     systemctl stop snapd.{service,socket}
@@ -88,9 +90,12 @@ execute: |
         retry=$(( retry - 1 ))
     done
 
+    #shellcheck source=tests/lib/journalctl.sh
+    . "$TESTSLIB"/journalctl.sh
+
     echo "Check log notification about failed batch-reload"
     # grep by "fail" to reduce log/debug noise in case of a match failure below
-    log="$("$TESTSTOOLS"/journal-state get-journalctl-log -a -u snapd|grep -i fail)"
+    log="$(get_journalctl_log -a -u snapd|grep -i fail)"
     echo "$log" | MATCH "failed to batch-reload $VARIANT profiles: cannot load apparmor profiles"
     # we're matching a single long log line (the invocation of apparmor_parser for batch-reload of
     # multiple profiles) where the order of arguments is not deterministic, therefore it's split

@@ -5,6 +5,9 @@ STORE_CONFIG=/etc/systemd/system/snapd.service.d/store.conf
 # shellcheck source=tests/lib/systemd.sh
 . "$TESTSLIB/systemd.sh"
 
+# shellcheck source=tests/lib/journalctl.sh
+. "$TESTSLIB/journalctl.sh"
+
 _configure_store_backends(){
     systemctl stop snapd.service snapd.socket
     mkdir -p "$(dirname $STORE_CONFIG)"
@@ -94,7 +97,7 @@ setup_fake_store(){
 
     echo "fakestore service not started properly"
     ss -ntlp | grep "127.0.0.1:$PORT" || true
-    "$TESTSTOOLS"/journal-state get-journalctl-log -u fakestore || true
+    get_journalctl_log -u fakestore || true
     systemctl status fakestore || true
     exit 1
 }

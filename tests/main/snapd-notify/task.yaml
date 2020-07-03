@@ -5,6 +5,9 @@ summary: Ensure snapd notify feature is working
 backends: [-external]
 
 execute: |
+    # shellcheck source=tests/lib/journalctl.sh
+    . "$TESTSLIB/journalctl.sh"
+
     echo "Check that snapd uses notifications"
     systemctl show -p Type snapd.service | MATCH Type=notify
 
