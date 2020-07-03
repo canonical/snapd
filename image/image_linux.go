@@ -397,7 +397,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 	// that boot.MakeBootable can DTRT
 	gadgetFname := ""
 	for _, sn := range bootSnaps {
-		switch sn.Info.GetType() {
+		switch sn.Info.Type() {
 		case snap.TypeGadget:
 			gadgetFname = sn.Path
 		case snap.TypeOS, snap.TypeBase:

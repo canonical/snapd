@@ -48,6 +48,7 @@ import (
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/timings"
 )
 
 func TestOverlord(t *testing.T) { TestingT(t) }
@@ -151,6 +152,12 @@ func (ovs *overlordSuite) TestNewStore(c *C) {
 }
 
 func (ovs *overlordSuite) TestNewWithGoodState(c *C) {
+	// ensure we don't write state load timing in the state on really
+	// slow architectures (e.g. risc-v)
+	oldDurationThreshold := timings.DurationThreshold
+	timings.DurationThreshold = time.Second * 30
+	defer func() { timings.DurationThreshold = oldDurationThreshold }()
+
 	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":%d,"patch-sublevel":%d,"patch-sublevel-last-version":%q,"some":"data","refresh-privacy-key":"0123456789ABCDEF"},"changes":null,"tasks":null,"last-change-id":0,"last-task-id":0,"last-lane-id":0}`, patch.Level, patch.Sublevel, snapdtool.Version))
 	err := ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
 	c.Assert(err, IsNil)
