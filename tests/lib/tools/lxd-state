@@ -1,9 +1,9 @@
 #!/bin/sh -e
 case "${1:-}" in
     -h|--help|'')
-        echo "usage: lxd-state [-h] {undo-lxd-mount-changes} ..."
+        echo "usage: lxd-state [-h] {undo-mount-changes} ..."
         ;;
-    undo-lxd-mount-changes)
+    undo-mount-changes)
         # Vanilla systems have /sys/fs/cgroup/cpuset without clone_children option.
         # Using LXD to create a container enables this option, as can be seen here:
         #

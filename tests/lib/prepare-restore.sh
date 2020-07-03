@@ -223,7 +223,7 @@ prepare_project() {
     if [[ "$SPREAD_SYSTEM" == ubuntu-* ]] && [[ "$SPREAD_SYSTEM" != ubuntu-core-* ]]; then
         apt-get remove --purge -y lxd lxcfs || true
         apt-get autoremove --purge -y
-        "$TESTSTOOLS"/lxd-state undo-lxd-mount-changes
+        "$TESTSTOOLS"/lxd-state undo-mount-changes
     fi
 
     # Check if running inside a container.
