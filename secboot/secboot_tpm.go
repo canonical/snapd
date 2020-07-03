@@ -304,6 +304,9 @@ func SealKey(key EncryptionKey, params *SealKeyParams) error {
 	if err != nil {
 		return fmt.Errorf("cannot connect to TPM: %v", err)
 	}
+	if !isTPMEnabled(tpm) {
+		return fmt.Errorf("TPM device is not enabled")
+	}
 
 	modelPCRProfiles := make([]*sb.PCRProtectionProfile, 0, numModels)
 

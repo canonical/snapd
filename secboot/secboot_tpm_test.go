@@ -492,12 +492,14 @@ func (s *secbootSuite) TestSealKey(c *C) {
 
 	for _, tc := range []struct {
 		tpmErr               error
+		tpmEnabled           bool
 		addProfileCallNum    int
 		provisionSealCallNum int
 		err                  string
 	}{
 		{tpmErr: errors.New("tpm error"), addProfileCallNum: 0, provisionSealCallNum: 0, err: "cannot connect to TPM: tpm error"},
-		{tpmErr: nil, addProfileCallNum: 2, provisionSealCallNum: 1, err: ""},
+		{tpmErr: nil, tpmEnabled: false, addProfileCallNum: 0, provisionSealCallNum: 0, err: "TPM device is not enabled"},
+		{tpmErr: nil, tpmEnabled: true, addProfileCallNum: 2, provisionSealCallNum: 1, err: ""},
 	} {
 		tpm, restore := mockSbTPMConnection(c, tc.tpmErr)
 		defer restore()
@@ -581,6 +583,12 @@ func (s *secbootSuite) TestSealKey(c *C) {
 			c.Assert(params.PINHandle, Equals, tpm2.Handle(0x01880000))
 
 			return nil
+		})
+		defer restore()
+
+		// mock TPM enabled check
+		restore = secboot.MockIsTPMEnabled(func(t *sb.TPMConnection) bool {
+			return tc.tpmEnabled
 		})
 		defer restore()
 
