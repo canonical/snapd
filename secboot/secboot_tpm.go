@@ -75,14 +75,21 @@ func CheckKeySealingSupported() error {
 	logger.Noticef("secure boot is enabled")
 
 	logger.Noticef("checking if TPM device is available...")
-	tconn, err := sbConnectToDefaultTPM()
+	tpm, err := sbConnectToDefaultTPM()
 	if err != nil {
 		err = fmt.Errorf("cannot connect to TPM device: %v", err)
 		logger.Noticef("%v", err)
 		return err
 	}
-	logger.Noticef("TPM device detected")
-	return tconn.Close()
+
+	if !isTPMEnabled(tpm) {
+		logger.Noticef("TPM device detected but not enabled")
+		return fmt.Errorf("TPM device is not enabled")
+	}
+
+	logger.Noticef("TPM device detected and enabled")
+
+	return tpm.Close()
 }
 
 func checkSecureBootEnabled() error {

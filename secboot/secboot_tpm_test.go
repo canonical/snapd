@@ -59,48 +59,50 @@ func (s *secbootSuite) TestCheckKeySealingSupported(c *C) {
 	sbEnabled := []uint8{1}
 	sbDisabled := []uint8{0}
 	efiNotSupported := []uint8(nil)
+	tpmErr := errors.New("TPM error")
 
 	type testCase struct {
-		hasTPM bool
-		sbData []uint8
-		errStr string
+		tpmErr     error
+		tpmEnabled bool
+		sbData     []uint8
+		err        string
 	}
-	for _, t := range []testCase{
-		{true, sbEnabled, ""},
-		{true, sbEmpty, "secure boot variable does not exist"},
-		{false, sbEmpty, "secure boot variable does not exist"},
-		{true, sbDisabled, "secure boot is disabled"},
-		{false, sbEnabled, "cannot connect to TPM device: TPM not available"},
-		{false, sbDisabled, "secure boot is disabled"},
-		{true, efiNotSupported, "not a supported EFI system"},
+	for i, tc := range []testCase{
+		// happy case
+		{tpmErr: nil, tpmEnabled: true, sbData: sbEnabled, err: ""},
+		// secure boot EFI var is empty
+		{tpmErr: nil, tpmEnabled: true, sbData: sbEmpty, err: "secure boot variable does not exist"},
+		// secure boot is disabled
+		{tpmErr: nil, tpmEnabled: true, sbData: sbDisabled, err: "secure boot is disabled"},
+		// EFI not supported
+		{tpmErr: nil, tpmEnabled: true, sbData: efiNotSupported, err: "not a supported EFI system"},
+		// TPM connection error
+		{tpmErr: tpmErr, sbData: sbEnabled, err: "cannot connect to TPM device: TPM error"},
+		// TPM was detected but it's not enabled
+		{tpmErr: nil, tpmEnabled: false, sbData: sbEnabled, err: "TPM device is not enabled"},
 	} {
-		c.Logf("t: %v %v %q", t.hasTPM, t.sbData, t.errStr)
+		c.Logf("%d: %v %v %v %q", i, tc.tpmErr, tc.tpmEnabled, tc.sbData, tc.err)
 
-		restore := secboot.MockSbConnectToDefaultTPM(func() (*sb.TPMConnection, error) {
-			if !t.hasTPM {
-				return nil, errors.New("TPM not available")
-			}
-			tcti, err := os.Open("/dev/null")
-			c.Assert(err, IsNil)
-			tpm, err := tpm2.NewTPMContext(tcti)
-			c.Assert(err, IsNil)
-			mockTPM := &sb.TPMConnection{TPMContext: tpm}
-			return mockTPM, nil
+		_, restore := mockSbTPMConnection(c, tc.tpmErr)
+		defer restore()
+
+		restore = secboot.MockIsTPMEnabled(func(tpm *sb.TPMConnection) bool {
+			return tc.tpmEnabled
 		})
 		defer restore()
 
 		var vars map[string][]byte
-		if t.sbData != nil {
-			vars = map[string][]byte{"SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c": t.sbData}
+		if tc.sbData != nil {
+			vars = map[string][]byte{"SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c": tc.sbData}
 		}
 		restoreEfiVars := efi.MockVars(vars, nil)
 		defer restoreEfiVars()
 
 		err := secboot.CheckKeySealingSupported()
-		if t.errStr == "" {
+		if tc.err == "" {
 			c.Assert(err, IsNil)
 		} else {
-			c.Assert(err, ErrorMatches, t.errStr)
+			c.Assert(err, ErrorMatches, tc.err)
 		}
 	}
 }
