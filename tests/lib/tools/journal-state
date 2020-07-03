@@ -1,17 +1,23 @@
 #!/bin/bash
 
-# shellcheck source=tests/lib/state.sh
-. "$TESTSLIB/state.sh"
-
 # This file contains all the cursors used for the different tests
-JOURNALCTL_CURSOR_FILE="$RUNTIME_STATE_PATH"/journalctl_cursor
+JOURNALCTL_CURSOR_FILE="$SPREAD_PATH"/tests/runtime-state/journalctl_cursor
+
+show_help() {
+    echo "usage: journal-state start-new-journalctl-log"
+    echo "usage: journal-state check-journalctl-ready"
+    echo "usage: journal-state get-last-journalctl-cursor"
+    echo "usage: journal-state check-journalctl-log [expression]"
+    echo "usage: journal-state get-journalctl-log"
+    echo "usage: journal-state get-journalctl-log-from-cursor"
+}
 
 get_last_journalctl_cursor(){
     journalctl --output=export -n1 | grep --binary-files=text -o '__CURSOR=.*' | sed -e 's/^__CURSOR=//'
 }
 
 start_new_journalctl_log(){
-    sync_journalctl_log
+    _sync_journalctl_log
     echo "New test starts here - $SPREAD_JOB" | systemd-cat -t snapd-test
     cursor=$(get_last_journalctl_cursor)
     if [ -z "$cursor" ]; then
@@ -59,7 +65,7 @@ get_journalctl_log(){
     if [ -f "$JOURNALCTL_CURSOR_FILE" ]; then
         cursor=$(tail -n1 "$JOURNALCTL_CURSOR_FILE")
     fi
-    sync_journalctl_log
+    _sync_journalctl_log
     get_journalctl_log_from_cursor "$cursor" "$@"
 }
 
@@ -73,7 +79,29 @@ get_journalctl_log_from_cursor(){
     fi
 }
 
-sync_journalctl_log(){
+_sync_journalctl_log(){
     journalctl --flush || true
     journalctl --sync || true
 }
+
+if [ $# -eq 0 ]; then
+    show_help
+    exit 1
+fi
+
+action=
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -h|--help)
+            show_help
+            exit 0
+            ;;
+        *)
+            action=$(echo "$1" | tr '-' '_')
+            shift
+            break
+            ;;
+    esac
+done
+
+"$action" "$@"
