@@ -22,7 +22,7 @@ prepare: |
     # Not accessible dirs and files
     "$TESTSTOOLS"/fs-state mock-dir /var/tmp/.testdir1
     "$TESTSTOOLS"/fs-state mock-file /var/tmp/.testfile1
-    "$TESTSTOOLS"/fs-state mock-dir /var/tmp/root/
+    "$TESTSTOOLS"/fs-state mock-dir /var/tmp/root
     "$TESTSTOOLS"/fs-state mock-file /var/tmp/root/testfile2
     "$TESTSTOOLS"/fs-state mock-file /var/tmp/root/.testfile2
 
