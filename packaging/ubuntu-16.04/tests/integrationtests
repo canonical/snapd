@@ -65,7 +65,7 @@ environment:
     TESTSLIB: $PROJECT_PATH/tests/lib
     TESTSTOOLS: $PROJECT_PATH/tests/lib/tools
     SNAPPY_TESTING: 1
-    PATH: $PATH:$PROJECT_PATH/tests/bin:$PROJECT_PATH/tests/lib/tools
+    PATH: $PATH:$PROJECT_PATH/tests/bin
 backends:
     autopkgtest:
         type: adhoc
