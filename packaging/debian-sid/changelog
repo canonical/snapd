@@ -3,7 +3,7 @@ snapd (2.45.1-1) unstable; urgency=medium
   * New upstream release, LP: #1875071
     - data/selinux: allow checking /var/cache/app-info
     - cmd/snap-confine: add support for libc6-lse
-    - interfaces: miscellanious policy updates xlv
+    - interfaces: miscellaneous policy updates xlv
     - snap-bootstrap: remove sealed key file on reinstall
     - interfaces-ssh-keys: Support reading /etc/ssh/ssh_config.d/
     - gadget: make ext4 filesystems with or without metadata checksum
