@@ -28,6 +28,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/sandbox/cgroup"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -45,20 +46,28 @@ func (s *scanningSuite) SetUpTest(c *C) {
 	s.AddCleanup(cgroup.MockFsRootPath(s.rootDir))
 }
 
+func mustParseTag(tag string) naming.SecurityTag {
+	parsedTag, err := naming.ParseSecurityTag(tag)
+	if err != nil {
+		panic(err)
+	}
+	return parsedTag
+}
+
 func (s *scanningSuite) TestSecurityTagFromCgroupPath(c *C) {
-	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snap.foo.foo.service"), Equals, "snap.foo.foo")
-	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snap.foo.bar.service"), Equals, "snap.foo.bar")
-	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snap.foo.bar.$RANDOM.scope"), Equals, "snap.foo.bar")
-	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snap.foo.hook.bar.$RANDOM.scope"), Equals, "snap.foo.hook.bar")
+	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snap.foo.foo.service"), DeepEquals, mustParseTag("snap.foo.foo"))
+	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snap.foo.bar.service"), DeepEquals, mustParseTag("snap.foo.bar"))
+	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snap.foo.bar.$RANDOM.scope"), DeepEquals, mustParseTag("snap.foo.bar"))
+	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snap.foo.hook.bar.$RANDOM.scope"), DeepEquals, mustParseTag("snap.foo.hook.bar"))
 	// We are not confused by snapd things.
-	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snap.service"), Equals, "")
-	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snapd.service"), Equals, "")
-	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snap.foo.mount"), Equals, "")
+	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snap.service"), IsNil)
+	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snapd.service"), IsNil)
+	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snap.foo.mount"), IsNil)
 	// Real data looks like this.
-	c.Check(cgroup.SecurityTagFromCgroupPath("snap.test-snapd-refresh.sh.d854bd35-2457-4ac8-b494-06061d74df33.scope"), Equals, "snap.test-snapd-refresh.sh")
-	c.Check(cgroup.SecurityTagFromCgroupPath("snap.test-snapd-refresh.hook.configure.d854bd35-2457-4ac8-b494-06061d74df33.scope"), Equals, "snap.test-snapd-refresh.hook.configure")
+	c.Check(cgroup.SecurityTagFromCgroupPath("snap.test-snapd-refresh.sh.d854bd35-2457-4ac8-b494-06061d74df33.scope"), DeepEquals, mustParseTag("snap.test-snapd-refresh.sh"))
+	c.Check(cgroup.SecurityTagFromCgroupPath("snap.test-snapd-refresh.hook.configure.d854bd35-2457-4ac8-b494-06061d74df33.scope"), DeepEquals, mustParseTag("snap.test-snapd-refresh.hook.configure"))
 	// Trailing slashes are automatically handled.
-	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snap.foo.foo.service/"), Equals, "snap.foo.foo")
+	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snap.foo.foo.service/"), DeepEquals, mustParseTag("snap.foo.foo"))
 }
 
 func (s *scanningSuite) writePids(c *C, dir string, pids []int) {
