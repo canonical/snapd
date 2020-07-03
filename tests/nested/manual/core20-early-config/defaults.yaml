@@ -3,3 +3,11 @@ defaults:
     service:
       rsyslog:
         disable: true
+    watchdog:
+      runtime-timeout: 13m
+    system:
+      power-key-action: ignore
+      disable-backlight-service: true
+
+
+
