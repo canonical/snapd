@@ -8,9 +8,9 @@ prepare: |
     . "$TESTSLIB/snaps.sh"
     install_local test-snapd-sh
 
-    "$TESTSTOOLS"/fs-state mock-dir-backup-real /dev/dvb/adapter9
-    "$TESTSTOOLS"/fs-state mock-file-backup-real /dev/dvb/adapter9/video9
-    "$TESTSTOOLS"/fs-state mock-file-backup-real /run/udev/data/c212:9
+    "$TESTSTOOLS"/fs-state mock-dir /dev/dvb/adapter9
+    "$TESTSTOOLS"/fs-state mock-file /dev/dvb/adapter9/video9
+    "$TESTSTOOLS"/fs-state mock-file /run/udev/data/c212:9
 
 restore: |
     # Delete the created device files and restore backed up files

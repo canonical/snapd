@@ -42,12 +42,12 @@ execute: |
     snap ack ./ubuntu-core_*.assert
     snap install ./ubuntu-core_*.snap
 
-    "$TESTSTOOLS"/fs-state mock-dir-backup-real /root/.snap
-    "$TESTSTOOLS"/fs-state mock-file-backup-real /root/.snap/auth.json
+    "$TESTSTOOLS"/fs-state mock-dir /root/.snap
+    "$TESTSTOOLS"/fs-state mock-file /root/.snap/auth.json
     echo '{}' > /root/.snap/auth.json
 
-    "$TESTSTOOLS"/fs-state mock-dir-backup-real /home/test/.snap
-    "$TESTSTOOLS"/fs-state mock-file-backup-real /home/test/.snap/auth.json
+    "$TESTSTOOLS"/fs-state mock-dir /home/test/.snap
+    "$TESTSTOOLS"/fs-state mock-file /home/test/.snap/auth.json
     echo '{}' > /home/test/.snap/auth.json
 
     echo "Ensure transition is triggered"

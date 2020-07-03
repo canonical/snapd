@@ -9,22 +9,22 @@ prepare: |
     install_local test-snapd-sh
 
     # Fist layer of dirs and files
-    "$TESTSTOOLS"/fs-state mock-file-backup-real /root/.testfile1
-    "$TESTSTOOLS"/fs-state mock-file-backup-real /root/testfile1
-    "$TESTSTOOLS"/fs-state mock-dir-backup-real /root/.testdir1
-    "$TESTSTOOLS"/fs-state mock-dir-backup-real /root/testdir1
+    "$TESTSTOOLS"/fs-state mock-file /root/.testfile1
+    "$TESTSTOOLS"/fs-state mock-file /root/testfile1
+    "$TESTSTOOLS"/fs-state mock-dir /root/.testdir1
+    "$TESTSTOOLS"/fs-state mock-dir /root/testdir1
 
     # Second layer of dirs and files
-    "$TESTSTOOLS"/fs-state mock-file-backup-real /root/.testdir1/.testfilé2
-    "$TESTSTOOLS"/fs-state mock-file-backup-real "/root/.testdir1/test file2"
-    "$TESTSTOOLS"/fs-state mock-dir-backup-real /root/.testdir1/.testdir2
+    "$TESTSTOOLS"/fs-state mock-file /root/.testdir1/.testfilé2
+    "$TESTSTOOLS"/fs-state mock-file "/root/.testdir1/test file2"
+    "$TESTSTOOLS"/fs-state mock-dir /root/.testdir1/.testdir2
 
     # Not accessible dirs and files
-    "$TESTSTOOLS"/fs-state mock-dir-backup-real /var/tmp/.testdir1
-    "$TESTSTOOLS"/fs-state mock-file-backup-real /var/tmp/.testfile1
-    "$TESTSTOOLS"/fs-state mock-dir-backup-real /var/tmp/root/
-    "$TESTSTOOLS"/fs-state mock-file-backup-real /var/tmp/root/testfile2
-    "$TESTSTOOLS"/fs-state mock-file-backup-real /var/tmp/root/.testfile2
+    "$TESTSTOOLS"/fs-state mock-dir /var/tmp/.testdir1
+    "$TESTSTOOLS"/fs-state mock-file /var/tmp/.testfile1
+    "$TESTSTOOLS"/fs-state mock-dir /var/tmp/root/
+    "$TESTSTOOLS"/fs-state mock-file /var/tmp/root/testfile2
+    "$TESTSTOOLS"/fs-state mock-file /var/tmp/root/.testfile2
 
 restore: |
     "$TESTSTOOLS"/fs-state restore-file /root/.testfile1

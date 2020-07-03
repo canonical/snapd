@@ -1,4 +1,4 @@
-summary: smoke test for the fs test tool
+summary: smoke test for the fs-state tool
 execute: |
     # Check help
     "$TESTSTOOLS"/fs-state -h | MATCH "usage: fs-state wait-for-file"
@@ -6,41 +6,51 @@ execute: |
     "$TESTSTOOLS"/fs-state | MATCH "usage: fs-state wait-for-file"
 
     # Check non existing directory
-    "$TESTSTOOLS"/fs-state mock-dir "$PWD"/mytestdir
-    test -d "$PWD"/mytestdir
-    test -f "$PWD"/mytestdir.fake
+    "$TESTSTOOLS"/fs-state mock-dir mytestdir
+    test -d mytestdir
+    test -f mytestdir.fake
+    not test -d mytestdir.back
 
-    "$TESTSTOOLS"/fs-state restore-dir "$PWD"/mytestdir
-    not test -d "$PWD"/mytestdir
+    "$TESTSTOOLS"/fs-state restore-dir mytestdir
+    not test -d mytestdir
 
     # Check existing directory
-    mkdir "$PWD"/mytestdir
-    "$TESTSTOOLS"/fs-state mock-dir-backup-real "$PWD"/mytestdir
-    test -d "$PWD"/mytestdir
-    test -f "$PWD"/mytestdir.fake
-    test -d "$PWD"/mytestdir.back
-    "$TESTSTOOLS"/fs-state restore-dir "$PWD"/mytestdir
-    test -d "$PWD"/mytestdir
-    rm -r "$PWD"/mytestdir
+    mkdir mytestdir
+    "$TESTSTOOLS"/fs-state mock-dir mytestdir
+    test -d mytestdir
+    test -f mytestdir.fake
+    test -d mytestdir.back
+    "$TESTSTOOLS"/fs-state restore-dir mytestdir
+    test -d mytestdir
+    rm -r mytestdir
+
+    # Restoring a dir which is not mocked is not allowed
+    mkdir mytestdir
+    not "$TESTSTOOLS"/fs-state restore-dir mytestdir
 
     # Check non existing file
-    "$TESTSTOOLS"/fs-state mock-file "$PWD"/mytestfile
-    test -f "$PWD"/mytestfile
-    test -f "$PWD"/mytestfile.fake
+    "$TESTSTOOLS"/fs-state mock-file mytestfile
+    test -f mytestfile
+    test -f mytestfile.fake
+    not test -f mytestfile.back
 
-    "$TESTSTOOLS"/fs-state restore-file "$PWD"/mytestfile
-    not test -f "$PWD"/mytestfile
+    "$TESTSTOOLS"/fs-state restore-file mytestfile
+    not test -f mytestfile
 
     # Check existing file
-    touch "$PWD"/mytestfile
-    "$TESTSTOOLS"/fs-state mock-file-backup-real "$PWD"/mytestfile
-    test -f "$PWD"/mytestfile
-    test -f "$PWD"/mytestfile.fake
-    test -f "$PWD"/mytestfile.back
-    "$TESTSTOOLS"/fs-state restore-file "$PWD"/mytestfile
-    test -f "$PWD"/mytestfile
+    touch mytestfile
+    "$TESTSTOOLS"/fs-state mock-file mytestfile
+    test -f mytestfile
+    test -f mytestfile.fake
+    test -f mytestfile.back
+    "$TESTSTOOLS"/fs-state restore-file mytestfile
+    test -f mytestfile
 
     # Check wait for file
-    "$TESTSTOOLS"/fs-state wait-for-file "$PWD"/mytestfile 2 .5
-    rm "$PWD"/mytestfile
-    not "$TESTSTOOLS"/fs-state wait-for-file "$PWD"/mytestfile 2 .5
+    "$TESTSTOOLS"/fs-state wait-for-file mytestfile 2 .5
+    rm mytestfile
+    not "$TESTSTOOLS"/fs-state wait-for-file mytestfile 2 .5
+
+    # Restoring a file which is not mocked is not allowed
+    touch mytestfile
+    not "$TESTSTOOLS"/fs-state restore-file mytestfile

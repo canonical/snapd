@@ -2,11 +2,9 @@
 
 show_help() {
     echo "usage: fs-state wait-for-file [filename] [iterations] [sleep-time]"
-    echo "usage: fs-state mock-dir [direname]"
-    echo "usage: fs-state mock-dir-backup-real [direname]"
-    echo "usage: fs-state restore-dir [direname]"
+    echo "usage: fs-state mock-dir [dirname]"
+    echo "usage: fs-state restore-dir [dirname]"
     echo "usage: fs-state mock-file [filename]"
-    echo "usage: fs-state mock-file-backup-real [filename]"
     echo "usage: fs-state restore-file [filename]"
 }
 
@@ -22,11 +20,11 @@ wait_for_file() {
         fi
         sleep "$sleep_time"
     done
-    echo "File does not exists: $file"
+    echo "File does not exist: $file"
     return 1
 }
 
-mock_dir() {
+_mock_dir() {
     local dir="$1"
     if ! [ -d "$dir" ]; then
         echo "Creating dir: $dir"
@@ -35,14 +33,12 @@ mock_dir() {
     fi
 }
 
-mock_dir_backup_real() {
+mock_dir() {
     local dir="$1"
     if [ -d "$dir" ]; then
         mv "$dir" "$dir.back"
     fi
-    echo "Creating dir: $dir"
-    mkdir -p "$dir"
-    touch "$dir.fake"
+    _mock_dir "$dir"
 }
 
 restore_dir() {
@@ -52,13 +48,16 @@ restore_dir() {
     if [ -f "$dir.fake" ]; then
         rm -rf "$dir"
         rm -f "$dir.fake"
+    else
+        echo "The directory $dir is not mocked"
+        exit 1
     fi
     if [ -d "$dir.back" ]; then
         mv "$dir.back" "$dir"
     fi
 }
 
-mock_file() {
+_mock_file() {
     local file="$1"
     if ! [ -e "$file" ]; then
         echo "Creating file: $file"
@@ -67,7 +66,7 @@ mock_file() {
     fi
 }
 
-mock_file_backup_real() {
+mock_file() {
     local file="$1"
     if [ -e "$file" ]; then
         echo "Backuping file: $file"
@@ -77,7 +76,7 @@ mock_file_backup_real() {
     if [ ! -d "$(dirname "$file")" ]; then
         mkdir -p "$(dirname "$file")"
     fi
-    fs-state mock-file "$file"
+    _mock_file "$file"
 }
 
 restore_file() {
@@ -86,6 +85,9 @@ restore_file() {
     if [ -e "$file.fake" ]; then
         rm -f "$file"
         rm -f "$file.fake"
+    else
+        echo "The file $file is not mocked"
+        exit 1
     fi
     if [ -e "$file.back" ]; then
         mv "$file.back" "$file"

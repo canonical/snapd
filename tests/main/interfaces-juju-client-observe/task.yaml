@@ -11,8 +11,8 @@ prepare: |
     . "$TESTSLIB/snaps.sh"
     install_local test-snapd-sh
 
-    "$TESTSTOOLS"/fs-state mock-dir-backup-real "$HOME"/.local/share/juju
-    "$TESTSTOOLS"/fs-state mock-file-backup-real "$HOME"/.local/share/juju/juju.conf
+    "$TESTSTOOLS"/fs-state mock-dir "$HOME"/.local/share/juju
+    "$TESTSTOOLS"/fs-state mock-file "$HOME"/.local/share/juju/juju.conf
 
 restore: |
     # Delete the created juju dir and configuration files
