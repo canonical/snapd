@@ -84,9 +84,9 @@ subcommands dealing with system state:
 
 * simple option rename them with a -state suffix in most cases:
 
-user-tool -> test/lib/tools/user-state
-  fix with no args
-  fix -h help
+[done] user-tool -> test/lib/tools/user-state
+  [done] fix with no args
+  [done] fix -h help
 
 [done] apt-tool -> tests/lib/tools/apt-state
   use any-python?
