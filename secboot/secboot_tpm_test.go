@@ -107,13 +107,14 @@ func (s *secbootSuite) TestCheckKeySealingSupported(c *C) {
 
 func (s *secbootSuite) TestMeasureSnapSystemEpochWhenPossible(c *C) {
 	for _, tc := range []struct {
-		tpmErr  error
-		callNum int
-		err     string
+		tpmErr     error
+		tpmEnabled bool
+		callNum    int
+		err        string
 	}{
 		{
 			// normal connection to the TPM device
-			tpmErr: nil, callNum: 1, err: "",
+			tpmErr: nil, tpmEnabled: true, callNum: 1, err: "",
 		},
 		{
 			// TPM device exists but returns error
@@ -121,11 +122,20 @@ func (s *secbootSuite) TestMeasureSnapSystemEpochWhenPossible(c *C) {
 			err: "cannot measure snap system epoch: cannot open TPM connection: tpm error",
 		},
 		{
+			// TPM device exists but is disabled
+			tpmErr: nil, tpmEnabled: false,
+		},
+		{
 			// TPM device does not exist
-			tpmErr: &os.PathError{Op: "open", Path: "path", Err: errors.New("enoent")}, callNum: 0, err: "",
+			tpmErr: sb.ErrNoTPM2Device,
 		},
 	} {
 		mockTpm, restore := mockSbTPMConnection(c, tc.tpmErr)
+		defer restore()
+
+		restore = secboot.MockIsTPMEnabled(func(tpm *sb.TPMConnection) bool {
+			return tc.tpmEnabled
+		})
 		defer restore()
 
 		calls := 0
@@ -148,19 +158,20 @@ func (s *secbootSuite) TestMeasureSnapSystemEpochWhenPossible(c *C) {
 }
 
 func (s *secbootSuite) TestMeasureSnapModelWhenPossible(c *C) {
-	for _, tc := range []struct {
-		tpmErr   error
-		modelErr error
-		callNum  int
-		err      string
+	for i, tc := range []struct {
+		tpmErr     error
+		tpmEnabled bool
+		modelErr   error
+		callNum    int
+		err        string
 	}{
 		{
 			// normal connection to the TPM device
-			tpmErr: nil, modelErr: nil, callNum: 1, err: "",
+			tpmErr: nil, tpmEnabled: true, modelErr: nil, callNum: 1, err: "",
 		},
 		{
 			// normal connection to the TPM device with model error
-			tpmErr: nil, modelErr: errors.New("model error"), callNum: 0,
+			tpmErr: nil, tpmEnabled: true, modelErr: errors.New("model error"), callNum: 0,
 			err: "cannot measure snap model: model error",
 		},
 		{
@@ -169,13 +180,23 @@ func (s *secbootSuite) TestMeasureSnapModelWhenPossible(c *C) {
 			err: "cannot measure snap model: cannot open TPM connection: tpm error",
 		},
 		{
+			// TPM device exists but is disabled
+			tpmErr: nil, tpmEnabled: false,
+		},
+		{
 			// TPM device does not exist
-			tpmErr: &os.PathError{Op: "open", Path: "path", Err: errors.New("enoent")}, callNum: 0, err: "",
+			tpmErr: sb.ErrNoTPM2Device,
 		},
 	} {
+		c.Logf("%d: tpmErr:%v tpmEnabled:%v", i, tc.tpmErr, tc.tpmEnabled)
 		mockModel := &asserts.Model{}
 
 		mockTpm, restore := mockSbTPMConnection(c, tc.tpmErr)
+		defer restore()
+
+		restore = secboot.MockIsTPMEnabled(func(tpm *sb.TPMConnection) bool {
+			return tc.tpmEnabled
+		})
 		defer restore()
 
 		calls := 0
@@ -206,81 +227,93 @@ func (s *secbootSuite) TestMeasureSnapModelWhenPossible(c *C) {
 }
 
 func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
-	noTPMDeviceErr := &os.PathError{Op: "open", Path: "path", Err: errors.New("no tpm")}
-
 	for idx, tc := range []struct {
-		tpmErr    error
-		hasEncdev bool
-		rkErr     error // recovery key unlock error, only relevant if TPM not available
-		last      bool
-		lockOk    bool
-		activated bool
-		device    string
-		err       string
+		tpmErr      error
+		tpmEnabled  bool  // TPM storage and endorsement hierarchies disabled, only relevant if TPM available
+		hasEncdev   bool  // an encrypted device exists
+		rkErr       error // recovery key unlock error, only relevant if TPM not available
+		lockRequest bool  // request to lock access to the sealed key, only relevant if TPM available
+		lockOk      bool  // the lock operation succeeded
+		activated   bool  // the activation operation succeeded
+		device      string
+		err         string
 	}{
-		// TODO: verify which cases are possible
 		{
-			hasEncdev: true, last: true, lockOk: true,
+			// happy case with tpm and encrypted device (lock requested)
+			tpmEnabled: true, hasEncdev: true, lockRequest: true, lockOk: true,
 			activated: true, device: "name",
 		}, {
-			hasEncdev: true, last: true, lockOk: true,
+			// device activation fails (lock requested)
+			tpmEnabled: true, hasEncdev: true, lockRequest: true, lockOk: true,
 			err: "cannot activate encrypted device .*: activation error",
 		}, {
-			hasEncdev: true, last: true, activated: true,
+			// activation works but lock fails (lock requested)
+			tpmEnabled: true, hasEncdev: true, lockRequest: true, activated: true,
 			err: "cannot lock access to sealed keys: lock failed",
 		}, {
-			hasEncdev: true, lockOk: true, activated: true,
+			// happy case with tpm and encrypted device
+			tpmEnabled: true, hasEncdev: true, lockOk: true, activated: true,
 			device: "name",
 		}, {
-			hasEncdev: true, lockOk: true,
+			// device activation fails
+			tpmEnabled: true, hasEncdev: true,
 			err: "cannot activate encrypted device .*: activation error",
 		}, {
-			hasEncdev: true, activated: true, device: "name",
+			// activation works but lock fails
+			tpmEnabled: true, hasEncdev: true, activated: true, device: "name",
 		}, {
-			hasEncdev: true,
-			err:       "cannot activate encrypted device .*: activation error",
-		}, {
-			last: true, lockOk: true, activated: true,
+			// happy case without encrypted device (lock requested)
+			tpmEnabled: true, lockRequest: true, lockOk: true, activated: true,
 			device: "name",
 		}, {
-			last: true, activated: true,
+			// activation works but lock fails, without encrypted device (lock requested)
+			tpmEnabled: true, lockRequest: true, activated: true,
 			err: "cannot lock access to sealed keys: lock failed",
 		}, {
-			lockOk: true, activated: true, device: "name",
+			// happy case without encrypted device
+			tpmEnabled: true, lockOk: true, activated: true, device: "name",
 		}, {
-			activated: true, device: "name",
+			// activation works but lock fails, no encrypted device
+			tpmEnabled: true, activated: true, device: "name",
 		}, {
+			// tpm error, no encrypted device
 			tpmErr: errors.New("tpm error"),
 			err:    `cannot unlock encrypted device "name": tpm error`,
 		}, {
-			tpmErr: errors.New("tpm error"), hasEncdev: true, last: true,
-			err: `cannot unlock encrypted device "name": tpm error`,
-		}, {
+			// tpm error, has encrypted device
 			tpmErr: errors.New("tpm error"), hasEncdev: true,
 			err: `cannot unlock encrypted device "name": tpm error`,
 		}, {
-			tpmErr: errors.New("tpm error"), last: true,
-			err: `cannot unlock encrypted device "name": tpm error`,
-		}, {
-			// has encrypted device and no tpm, unlocked using the recovery key (last device)
-			tpmErr: noTPMDeviceErr, hasEncdev: true, last: true,
+			// tpm disabled, no encrypted device
 			device: "name",
 		}, {
-			// has encrypted device and no tpm, recovery key unlocking fails
-			rkErr:  errors.New("cannot unlock with recovery key"),
-			tpmErr: noTPMDeviceErr, hasEncdev: true, last: true,
+			// tpm disabled, has encrypted device, unlocked using the recovery key
+			hasEncdev: true,
+			device:    "name",
+		}, {
+			// tpm disabled, has encrypted device, recovery key unlocking fails
+			hasEncdev: true, rkErr: errors.New("cannot unlock with recovery key"),
 			err: `cannot unlock encrypted device ".*/name-enc": cannot unlock with recovery key`,
 		}, {
-			// has encrypted device and no tpm, unlocked using the recovery key
-			tpmErr: noTPMDeviceErr, hasEncdev: true,
+			// no tpm, has encrypted device, unlocked using the recovery key (lock requested)
+			tpmErr: sb.ErrNoTPM2Device, hasEncdev: true, lockRequest: true,
 			device: "name",
 		}, {
-			// no tpm, no encrypted device (last device)
-			tpmErr: noTPMDeviceErr, last: true,
+			// no tpm, has encrypted device, recovery key unlocking fails
+			rkErr:  errors.New("cannot unlock with recovery key"),
+			tpmErr: sb.ErrNoTPM2Device, hasEncdev: true, lockRequest: true,
+			err: `cannot unlock encrypted device ".*/name-enc": cannot unlock with recovery key`,
+		}, {
+			// no tpm, has encrypted device, unlocked using the recovery key
+			tpmErr: sb.ErrNoTPM2Device, hasEncdev: true,
+			device: "name",
+		}, {
+			// no tpm, no encrypted device (lock requested)
+			tpmErr: sb.ErrNoTPM2Device, lockRequest: true,
 			device: "name",
 		}, {
 			// no tpm, no encrypted device
-			tpmErr: noTPMDeviceErr,
+			tpmErr: sb.ErrNoTPM2Device,
 			device: "name",
 		},
 	} {
@@ -293,6 +326,11 @@ func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
 		c.Logf("tc %v: %+v", idx, tc)
 		mockSbTPM, restoreConnect := mockSbTPMConnection(c, tc.tpmErr)
 		defer restoreConnect()
+
+		restore = secboot.MockIsTPMEnabled(func(tpm *sb.TPMConnection) bool {
+			return tc.tpmEnabled
+		})
+		defer restore()
 
 		n := 0
 		restore = secboot.MockSbLockAccessToSealedKeys(func(tpm *sb.TPMConnection) error {
@@ -320,7 +358,7 @@ func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
 			c.Assert(*options, DeepEquals, sb.ActivateWithTPMSealedKeyOptions{
 				PINTries:            1,
 				RecoveryKeyTries:    3,
-				LockSealedKeyAccess: tc.last,
+				LockSealedKeyAccess: tc.lockRequest,
 			})
 			if !tc.activated {
 				return false, errors.New("activation error")
@@ -335,7 +373,7 @@ func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
 		})
 		defer restore()
 
-		device, err := secboot.UnlockVolumeIfEncrypted("name", tc.last)
+		device, err := secboot.UnlockVolumeIfEncrypted("name", tc.lockRequest)
 		if tc.err == "" {
 			c.Assert(err, IsNil)
 		} else {
@@ -354,7 +392,7 @@ func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
 		// detected, regardless of whether secure boot is enabled or there is an
 		// encrypted volume to unlock. If we have multiple encrypted volumes, we
 		// should call it after the last one is unlocked.
-		if tc.tpmErr == nil && tc.last {
+		if tc.tpmErr == nil && tc.lockRequest {
 			c.Assert(n, Equals, 1)
 		} else {
 			c.Assert(n, Equals, 0)
