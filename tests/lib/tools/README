@@ -90,8 +90,8 @@ subcommands dealing with system state:
 
 [done] apt-tool -> tests/lib/tools/apt-state
   use any-python?
-  fix no args
-  fix to have -h
+  [done] fix no args
+  [done] fix to have -h
 
 [done] lxd-tool -> tests/lib/tools/lxd-state
   [done] fix no args
