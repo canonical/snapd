@@ -53,4 +53,4 @@ execute: |
 restore: |
     lxc delete --force my-ubuntu
     snap remove ---purge lxd
-    "$TESTSTOOLS"/lxd-state undo-lxd-mount-changes
+    "$TESTSTOOLS"/lxd-state undo-mount-changes

@@ -57,7 +57,7 @@ restore: |
     lxc delete --force xenial || true
 
     snap remove --purge lxd
-    "$TESTSTOOLS"/lxd-state undo-lxd-mount-changes
+    "$TESTSTOOLS"/lxd-state undo-mount-changes
 
 execute: |
     # Run python0 with a hello.py script and redirect the logs to /var/lib/test/hello.log
