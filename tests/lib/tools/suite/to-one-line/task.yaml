@@ -5,4 +5,4 @@ execute: |
     "$TESTSTOOLS"/to-one-line --help | MATCH "usage: to-one-line \[string\]"
 
     # Check to-one-line command
-    "$TESTSTOOLS"/to-one-line $(echo -e "test1 \n test2") | MATCH "test1 test2"
+    "$TESTSTOOLS"/to-one-line "$(echo -e 'test1 \n test2')" | MATCH "test1 test2"
