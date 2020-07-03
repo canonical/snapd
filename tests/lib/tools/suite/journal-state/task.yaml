@@ -19,6 +19,7 @@ execute: |
     retry --wait 1 --attempts 30 sh -c "test $($TESTSTOOLS/journal-state get-journalctl-log | grep -c TEST-XX1) -eq 1"
 
     # Check the subcommand get-last-journalctl-cursor works
+    echo "TEST-XX2" | systemd-cat -t snapd-test
     cursor2=$("$TESTSTOOLS"/journal-state get-last-journalctl-cursor)
     test $("$TESTSTOOLS"/journal-state get-journalctl-log-from-cursor "$cursor2" | grep -c "TEST-XX1") -eq 0
 
