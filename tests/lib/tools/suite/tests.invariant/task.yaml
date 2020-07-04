@@ -1,4 +1,4 @@
-summary: invariant-tool is detecting problems
+summary: tests.invariant is detecting problems
 prepare: |
     truncate --size=0 defer.sh
     chmod +x defer.sh
@@ -9,31 +9,34 @@ restore: |
     sh -xe refed.sh && rm -f {defer,refed}.sh
 execute: |
     # Invariant tool presents the usage screen when invoked without arguments
-    invariant-tool | MATCH 'usage: invariant-tool check \[INVARIANT...\]'
+    # or with the -h or --help options.
+    tests.invariant | MATCH 'usage: tests.invariant check \[INVARIANT...\]'
+    tests.invariant -h | MATCH 'usage: tests.invariant check \[INVARIANT...\]'
+    tests.invariant --help | MATCH 'usage: tests.invariant check \[INVARIANT...\]'
 
     # When invoked with "check" argument, it runs either all invariants
     # or the specified set of invariants.
-    invariant-tool check | MATCH 'invariant-tool: root-files-in-home ok'
-    invariant-tool check root-files-in-home | MATCH 'invariant-tool: root-files-in-home ok'
+    tests.invariant check | MATCH 'tests.invariant: root-files-in-home ok'
+    tests.invariant check root-files-in-home | MATCH 'tests.invariant: root-files-in-home ok'
 
     # Unknown invariant names are reported.
-    invariant-tool check foo 2>&1 | MATCH 'invariant-tool: unknown invariant foo'
-    not invariant-tool check foo 2>/dev/null
+    tests.invariant check foo 2>&1 | MATCH 'tests.invariant: unknown invariant foo'
+    not tests.invariant check foo 2>/dev/null
 
     # The root-files-in-home invariant detects files owned by root anywhere in /home/
-    invariant-tool check root-files-in-home | MATCH 'invariant-tool: root-files-in-home ok'
+    tests.invariant check root-files-in-home | MATCH 'tests.invariant: root-files-in-home ok'
     touch /home/test/invariant-canary
     echo 'rm -f /home/test/invariant-canary' >> defer.sh
     chown root /home/test/invariant-canary
-    invariant-tool check root-files-in-home 2>&1 | MATCH 'invariant-tool: root-files-in-home not-ok'
-    invariant-tool check root-files-in-home 2>&1 | MATCH 'invariant-tool: the following files should not be owned by root'
-    invariant-tool check root-files-in-home 2>&1 | MATCH '/home/test/invariant-canary'
-    invariant-tool check root-files-in-home 2>&1 | MATCH 'invariant-tool: system is corrupted'
-    not invariant-tool check root-files-in-home 2>/dev/null
+    tests.invariant check root-files-in-home 2>&1 | MATCH 'tests.invariant: root-files-in-home not-ok'
+    tests.invariant check root-files-in-home 2>&1 | MATCH 'tests.invariant: the following files should not be owned by root'
+    tests.invariant check root-files-in-home 2>&1 | MATCH '/home/test/invariant-canary'
+    tests.invariant check root-files-in-home 2>&1 | MATCH 'tests.invariant: system is corrupted'
+    not tests.invariant check root-files-in-home 2>/dev/null
 
     # Chown is the solution.
     chown test /home/test/invariant-canary
-    invariant-tool check root-files-in-home | MATCH 'invariant-tool: root-files-in-home ok'
+    tests.invariant check root-files-in-home | MATCH 'tests.invariant: root-files-in-home ok'
 
     # The root-files-in-home invariant ignores /home/gopath which comes from spread.yaml
     test -d /home/gopath
@@ -50,13 +53,13 @@ execute: |
         echo 'rmdir /home/ubuntu' >> defer.sh
         chown root /home/ubuntu
     fi
-    invariant-tool check root-files-in-home | MATCH 'invariant-tool: root-files-in-home ok'
+    tests.invariant check root-files-in-home | MATCH 'tests.invariant: root-files-in-home ok'
 
     # Invariant tool detects leftovers from crashed snap-confine.
-    mkdir /tmp/snap.rootfs_invariant-tool
-    invariant-tool check crashed-snap-confine 2>&1 | MATCH 'invariant-tool: crashed-snap-confine not-ok'
-    invariant-tool check crashed-snap-confine 2>&1 | MATCH 'invariant-tool: it seems snap-confine has crashed'
-    rmdir /tmp/snap.rootfs_invariant-tool
+    mkdir /tmp/snap.rootfs_tests.invariant
+    tests.invariant check crashed-snap-confine 2>&1 | MATCH 'tests.invariant: crashed-snap-confine not-ok'
+    tests.invariant check crashed-snap-confine 2>&1 | MATCH 'tests.invariant: it seems snap-confine has crashed'
+    rmdir /tmp/snap.rootfs_tests.invariant
 
     # This filters out 14.04 and ubuntu-core, respectively.
     if [ "$(command -v systemd-run)" != "" ] && [ "$(command -v dbus-launch)" != "" ]; then
@@ -64,7 +67,7 @@ execute: |
         systemd-run --service-type=forking --unit superfluous-dbus.service dbus-launch --sh-syntax
         # shellcheck disable=SC2016
         retry sh -c 'test "$(systemctl is-active superfluous-dbus.service)" = active'
-        invariant-tool check stray-dbus-daemon 2>&1 | MATCH 'invariant-tool: stray-dbus-daemon not-ok'
+        tests.invariant check stray-dbus-daemon 2>&1 | MATCH 'tests.invariant: stray-dbus-daemon not-ok'
         systemctl stop superfluous-dbus.service
-        invariant-tool check stray-dbus-daemon 2>&1 | MATCH 'invariant-tool: stray-dbus-daemon ok'
+        tests.invariant check stray-dbus-daemon 2>&1 | MATCH 'tests.invariant: stray-dbus-daemon ok'
     fi

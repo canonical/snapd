@@ -31,6 +31,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/strutil"
@@ -109,6 +110,7 @@ func (m *MountedFilesystemWriter) Write(whereDir string, preserve []string) erro
 		return fmt.Errorf("internal error: destination directory cannot be unset")
 	}
 
+	// TODO:UC20: preserve managed boot assets
 	preserveInDst, err := mapPreserve(whereDir, preserve)
 	if err != nil {
 		return fmt.Errorf("cannot map preserve entries for destination %q: %v", whereDir, err)
@@ -263,8 +265,9 @@ type mountLookupFunc func(ps *LaidOutStructure) (string, error)
 // backup copies of files, newly created directories are removed
 type mountedFilesystemUpdater struct {
 	*MountedFilesystemWriter
-	backupDir  string
-	mountPoint string
+	backupDir         string
+	mountPoint        string
+	managedBootAssets []string
 }
 
 // newMountedFilesystemUpdater returns an updater for given filesystem
@@ -286,17 +289,60 @@ func newMountedFilesystemUpdater(rootDir string, ps *LaidOutStructure, backupDir
 	if err != nil {
 		return nil, fmt.Errorf("cannot find mount location of structure %v: %v", ps, err)
 	}
+	// find out if we need to preserve any boot assets
+	bootAssets, err := maybePreserveManagedBootAssets(mount, ps)
+	if err != nil {
+		return nil, fmt.Errorf("cannot preserve managed boot assets: %v", err)
+	}
 
 	fu := &mountedFilesystemUpdater{
 		MountedFilesystemWriter: fw,
 		backupDir:               backupDir,
 		mountPoint:              mount,
+		managedBootAssets:       bootAssets,
 	}
 	return fu, nil
 }
 
 func fsStructBackupPath(backupDir string, ps *LaidOutStructure) string {
 	return filepath.Join(backupDir, fmt.Sprintf("struct-%v", ps.Index))
+}
+
+func maybePreserveManagedBootAssets(mountPoint string, ps *LaidOutStructure) ([]string, error) {
+	if ps.Role != SystemSeed && ps.Role != SystemBoot {
+		return nil, nil
+	}
+	// the assets are within the system-boot or system-seed partition, set
+	// the right flags so that files are looked for using their paths inside
+	// the partition
+	opts := &bootloader.Options{
+		Recovery:    ps.Role == SystemSeed,
+		NoSlashBoot: ps.Role == SystemBoot,
+	}
+	bl, err := bootloader.Find(mountPoint, opts)
+	if err != nil {
+		if err == bootloader.ErrBootloader {
+			// no bootloader in the partition?
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	mbl, ok := bl.(bootloader.ManagedAssetsBootloader)
+	if !ok {
+		// bootloader implementation does not support managing its
+		// assets
+		return nil, nil
+	}
+	managed, err := mbl.IsCurrentlyManaged()
+	if err != nil {
+		return nil, err
+	}
+	if !managed {
+		// assets are not managed
+		return nil, nil
+	}
+	return mbl.ManagedAssets(), nil
 }
 
 // entryDestPaths resolves destination and backup paths for given
@@ -332,7 +378,8 @@ func (f *mountedFilesystemUpdater) entrySourcePath(source string) string {
 // Update applies an update to a mounted filesystem. The caller must have
 // executed a Backup() before, to prepare a data set for rollback purpose.
 func (f *mountedFilesystemUpdater) Update() error {
-	preserveInDst, err := mapPreserve(f.mountPoint, f.ps.Update.Preserve)
+	preserveInDst, err := mapPreserve(f.mountPoint,
+		append(f.ps.Update.Preserve, f.managedBootAssets...))
 	if err != nil {
 		return fmt.Errorf("cannot map preserve entries for mount location %q: %v", f.mountPoint, err)
 	}
@@ -506,7 +553,8 @@ func (f *mountedFilesystemUpdater) Backup() error {
 		return fmt.Errorf("cannot create backup directory: %v", err)
 	}
 
-	preserveInDst, err := mapPreserve(f.mountPoint, f.ps.Update.Preserve)
+	preserveInDst, err := mapPreserve(f.mountPoint,
+		append(f.ps.Update.Preserve, f.managedBootAssets...))
 	if err != nil {
 		return fmt.Errorf("cannot map preserve entries for mount location %q: %v", f.mountPoint, err)
 	}
@@ -703,7 +751,8 @@ func (f *mountedFilesystemUpdater) backupVolumeContent(volumeRoot string, conten
 func (f *mountedFilesystemUpdater) Rollback() error {
 	backupRoot := fsStructBackupPath(f.backupDir, f.ps)
 
-	preserveInDst, err := mapPreserve(f.mountPoint, f.ps.Update.Preserve)
+	preserveInDst, err := mapPreserve(f.mountPoint,
+		append(f.ps.Update.Preserve, f.managedBootAssets...))
 	if err != nil {
 		return fmt.Errorf("cannot map preserve entries for mount location %q: %v", f.mountPoint, err)
 	}
