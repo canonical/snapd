@@ -67,6 +67,8 @@ func (vss *validationSetSuite) TestDecodeOK(c *C) {
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.ValidationSetType)
+	_, ok := a.(asserts.SequenceMember)
+	c.Assert(ok, Equals, true)
 	valset := a.(*asserts.ValidationSet)
 	c.Check(valset.AuthorityID(), Equals, "brand-id1")
 	c.Check(valset.Timestamp(), Equals, vss.ts)

@@ -32,7 +32,7 @@ var mockTesting *bool
 // is this a testing binary? (see withtestkeys.go)
 var testingBinary = false
 
-// Testing returns whether snapd compontents are under testing.
+// Testing returns whether snapd components are under testing.
 func Testing() bool {
 	if mockTesting != nil {
 		return *mockTesting

@@ -74,7 +74,7 @@ case "$action" in
 			fi
 			# XXX: if there's a way to check if an unit exists but is stopped,
 			# use it here to avoid starting a non-existing unit.
-			systemctl --user start restart snapd.session-agent.socket || true
+			systemctl --user start snapd.session-agent.socket || true
 		fi
 		;;
 	post-invariant)

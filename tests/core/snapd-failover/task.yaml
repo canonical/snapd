@@ -13,7 +13,7 @@ prepare: |
     # snapd snap
     if is_core16_system; then
         # rebuild the core snap into the snapd snap and install it
-        repack_core_snap_into_snapd_snap
+        repack_installed_core_snap_into_snapd_snap
         snap install --dangerous snapd-from-core.snap
     fi
     # ensure we are in snapd snap world

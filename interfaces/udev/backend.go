@@ -61,7 +61,7 @@ func snapRulesFilePath(snapName string) string {
 // Setup creates udev rules specific to a given snap.
 // If any of the rules are changed or removed then udev database is reloaded.
 //
-// UDev has no concept of a complain mode so confinment options are ignored.
+// UDev has no concept of a complain mode so confinement options are ignored.
 //
 // If the method fails it should be re-tried (with a sensible strategy) by the caller.
 func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {

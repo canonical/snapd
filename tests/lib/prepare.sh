@@ -285,11 +285,15 @@ prepare_classic() {
             cache_snaps test-snapd-profiler
         fi
 
-        snap list | not grep core || exit 1
-        # use parameterized core channel (defaults to edge) instead
+        # now use parameterized core channel (defaults to edge) instead
         # of a fixed one and close to stable in order to detect defects
         # earlier
-        snap install --"$CORE_CHANNEL" core
+        if snap list core ; then
+            snap refresh --"$CORE_CHANNEL" core
+        else
+            snap install --"$CORE_CHANNEL" core
+        fi
+
         snap list | grep core
 
         systemctl stop snapd.{service,socket}
