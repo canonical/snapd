@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 show_help() {
     echo "usage: fs-state wait-for-file [filename] [iterations] [sleep-time]"
