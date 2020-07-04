@@ -84,18 +84,18 @@ subcommands dealing with system state:
 
 * simple option rename them with a -state suffix in most cases:
 
-user-tool -> test/lib/tools/user-state
-  fix with no args
-  fix -h help
+[done] user-tool -> test/lib/tools/user-state
+  [done] fix with no args
+  [done] fix -h help
 
 [done] apt-tool -> tests/lib/tools/apt-state
   use any-python?
-  fix no args
-  fix to have -h
+  [done] fix no args
+  [done] fix to have -h
 
-lxd-tool -> tests/lib/tools/lxd-state
-  fix no args
-  fix to have -h
+[done] lxd-tool -> tests/lib/tools/lxd-state
+  [done] fix no args
+  [done] fix to have -h
 
 [done] invariant-tool -> tests/lib/tools/tests.invariant? then it could also live in /bin
   [done] fix to have -h

@@ -35,7 +35,7 @@ restore: |
         lxd.lxc delete $cont_name
     done
 
-    lxd-tool undo-lxd-mount-changes
+    "$TESTSTOOLS"/lxd-state undo-mount-changes
 
 debug: |
     # debug output from lxd
