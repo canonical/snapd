@@ -497,7 +497,7 @@ debug-each: |
         fi
 
         echo '# journal messages for snapd'
-        $TESTSTOOLS"/journal-state get-journalctl-log -u snapd
+        "$TESTSTOOLS"/journal-state get-journalctl-log -u snapd
         case "$SPREAD_SYSTEM" in
             fedora-*|centos-*|amazon-*)
                 if [ -e "$RUNTIME_STATE_PATH/audit-stamp" ]; then

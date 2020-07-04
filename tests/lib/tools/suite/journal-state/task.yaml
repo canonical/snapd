@@ -5,23 +5,23 @@ execute: |
     "$TESTSTOOLS"/journal-state --help | MATCH "usage: journal-state start-new-journalctl-log"
 
     cursor1=$("$TESTSTOOLS"/journal-state get-last-journalctl-cursor)
-    test $(journalctl --cursor "$cursor1" | grep -c "$SPREAD_JOB") -eq 0
+    test "$(journalctl --cursor "$cursor1" | grep -c "$SPREAD_JOB")" -eq 0
 
     # Check the test is correctly started in the journal log
     "$TESTSTOOLS"/journal-state start-new-journalctl-log
-    retry --wait 1 --attempts 30 sh -c "test $(journalctl --cursor $cursor1 | grep -c $SPREAD_JOB) -eq 1"
+    retry --wait 1 --attempts 30 sh -c "test $(journalctl --cursor "$cursor1" | grep -c "$SPREAD_JOB") -eq 1"
 
     # check the subcommand check-journalctl-ready works well
     "$TESTSTOOLS"/journal-state check-journalctl-ready
 
     # Check the subcommand get-journalctl-log works well
     echo "TEST-XX1" | systemd-cat -t snapd-test
-    retry --wait 1 --attempts 30 sh -c "test $($TESTSTOOLS/journal-state get-journalctl-log | grep -c TEST-XX1) -eq 1"
+    retry --wait 1 --attempts 30 sh -c "test $("$TESTSTOOLS"/journal-state get-journalctl-log | grep -c TEST-XX1) -eq 1"
 
     # Check the subcommand get-last-journalctl-cursor works
     echo "TEST-XX2" | systemd-cat -t snapd-test
     cursor2=$("$TESTSTOOLS"/journal-state get-last-journalctl-cursor)
-    test $("$TESTSTOOLS"/journal-state get-journalctl-log-from-cursor "$cursor2" | grep -c "TEST-XX1") -eq 0
+    test "$("$TESTSTOOLS"/journal-state get-journalctl-log-from-cursor "$cursor2" | grep -c "TEST-XX1")" -eq 0
 
     # Check the subcommand check-journalctl-log works well
     "$TESTSTOOLS"/journal-state check-journalctl-log TEST-XX1
