@@ -21,7 +21,6 @@ package install_test
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
@@ -304,26 +303,22 @@ func (s *partitionTestSuite) TestRemovePartitionsError(c *C) {
 }
 
 func (s *partitionTestSuite) TestEnsureNodesExist(c *C) {
+	const mockUdevadmScript = `err=%q; echo "$err"; [ -n "$err" ] && exit 1 || exit 0`
 	for _, tc := range []struct {
-		utErr error
+		utErr string
 		err   string
 	}{
-		{utErr: nil, err: ""},
-		{utErr: errors.New("some error"), err: "some error"},
+		{utErr: "", err: ""},
+		{utErr: "some error", err: "some error"},
 	} {
-		c.Logf("utErr:%v err:%q", tc.utErr, tc.err)
+		c.Logf("utErr:%q err:%q", tc.utErr, tc.err)
 
 		node := filepath.Join(c.MkDir(), "node")
 		err := ioutil.WriteFile(node, nil, 0644)
 		c.Assert(err, IsNil)
 
-		calls := 0
-		restore := install.MockInternalUdevTrigger(func(node string) error {
-			calls++
-			c.Assert(node, Equals, node)
-			return tc.utErr
-		})
-		defer restore()
+		cmdUdevadm := testutil.MockCommand(c, "udevadm", fmt.Sprintf(mockUdevadmScript, tc.utErr))
+		defer cmdUdevadm.Restore()
 
 		ds := []gadget.OnDiskStructure{{Node: node}}
 		err = install.EnsureNodesExist(ds, 10*time.Millisecond)
@@ -332,7 +327,10 @@ func (s *partitionTestSuite) TestEnsureNodesExist(c *C) {
 		} else {
 			c.Assert(err, ErrorMatches, tc.err)
 		}
-		c.Assert(calls, Equals, 1)
+
+		c.Assert(cmdUdevadm.Calls(), DeepEquals, [][]string{
+			{"udevadm", "trigger", "--settle", node},
+		})
 	}
 }
 

@@ -24,7 +24,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/bootloader/grubenv"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
@@ -80,24 +79,36 @@ func (g *grub) dir() string {
 	return filepath.Join(g.rootdir, g.basedir)
 }
 
-func (g *grub) installRecoveryBootConfig(gadgetDir string) (bool, error) {
+func (g *grub) installManagedRecoveryBootConfig(gadgetDir string) (bool, error) {
 	gadgetGrubCfg := filepath.Join(gadgetDir, g.Name()+".conf")
 	if !osutil.FileExists(gadgetGrubCfg) {
 		// gadget does not use grub bootloader
 		return false, nil
 	}
 	assetName := g.Name() + "-recovery.cfg"
-	bootConfig := assets.Internal(assetName)
-	if bootConfig == nil {
-		return true, fmt.Errorf("internal error: no boot asset for %q", assetName)
-	}
 	systemFile := filepath.Join(g.rootdir, "/EFI/ubuntu/grub.cfg")
-	return genericSetBootConfig(systemFile, bootConfig)
+	return genericSetBootConfigFromAsset(systemFile, assetName)
+}
+
+func (g *grub) installManagedBootConfig(gadgetDir string) (bool, error) {
+	gadgetGrubCfg := filepath.Join(gadgetDir, g.Name()+".conf")
+	if !osutil.FileExists(gadgetGrubCfg) {
+		// gadget does not use grub bootloader
+		return false, nil
+	}
+	assetName := g.Name() + ".cfg"
+	systemFile := filepath.Join(g.rootdir, "/EFI/ubuntu/grub.cfg")
+	return genericSetBootConfigFromAsset(systemFile, assetName)
 }
 
 func (g *grub) InstallBootConfig(gadgetDir string, opts *Options) (bool, error) {
 	if opts != nil && opts.Recovery {
-		return g.installRecoveryBootConfig(gadgetDir)
+		// install managed config for the recovery partition
+		return g.installManagedRecoveryBootConfig(gadgetDir)
+	}
+	if opts != nil && opts.ExtractedRunKernelImage {
+		// install managed boot config that can handle kernel.efi
+		return g.installManagedBootConfig(gadgetDir)
 	}
 
 	gadgetFile := filepath.Join(gadgetDir, g.Name()+".conf")
@@ -341,4 +352,14 @@ func (g *grub) IsCurrentlyManaged() (bool, error) {
 		return false, err
 	}
 	return err != errNoEdition, nil
+}
+
+// ManagedAssets returns a list relative paths to boot assets inside the root
+// directory of the filesystem.
+//
+// Implements ManagedAssetsBootloader for the grub bootloader.
+func (g *grub) ManagedAssets() []string {
+	return []string{
+		filepath.Join(g.basedir, "grub.cfg"),
+	}
 }

@@ -223,7 +223,7 @@ prepare_project() {
     if [[ "$SPREAD_SYSTEM" == ubuntu-* ]] && [[ "$SPREAD_SYSTEM" != ubuntu-core-* ]]; then
         apt-get remove --purge -y lxd lxcfs || true
         apt-get autoremove --purge -y
-        lxd-tool undo-lxd-mount-changes
+        "$TESTSTOOLS"/lxd-state undo-mount-changes
     fi
 
     # Check if running inside a container.
@@ -560,7 +560,7 @@ prepare_suite_each() {
     if [[ "$variant" = full ]]; then
         "$TESTSTOOLS"/cleanup-state pre-invariant
     fi
-    invariant-tool check
+    tests.invariant check
 }
 
 restore_suite_each() {
@@ -597,7 +597,7 @@ restore_suite_each() {
     # random failures in the mount leak detector. Give it a moment but don't
     # clean it up ourselves, this should report actual test errors, if any.
     for i in $(seq 10); do
-        if not mountinfo-tool /run/user/12345 .fs_type=tmpfs; then
+        if not mountinfo.query /run/user/12345 .fs_type=tmpfs; then
             break
         fi
         sleep 1
@@ -627,7 +627,7 @@ restore_suite() {
 restore_project_each() {
     "$TESTSTOOLS"/cleanup-state pre-invariant
     # Check for invariants early, in order not to mask bugs in tests.
-    invariant-tool check
+    tests.invariant check
     "$TESTSTOOLS"/cleanup-state post-invariant
 
     # TODO: move this to tests.cleanup.
