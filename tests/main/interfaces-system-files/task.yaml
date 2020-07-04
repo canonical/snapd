@@ -30,7 +30,7 @@ prepare: |
 
 restore: |
     "$TESTSTOOLS"/fs-state restore-dir "$TESTDIR"
-    "$TESTSTOOLS"/fs-state restore-dir /root/.testdira1
+    "$TESTSTOOLS"/fs-state restore-dir /root/.testdir1
     "$TESTSTOOLS"/fs-state restore-dir /root/.testfile1
 
 execute: |
