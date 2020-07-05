@@ -32,6 +32,10 @@ import (
 )
 
 func generateDBusActivationFile(app *snap.AppInfo, busName string) ([]byte, error) {
+	// The D-Bus serice activation file format is defined as part
+	// of the protocol specification:
+	//
+	// https://dbus.freedesktop.org/doc/dbus-specification.html#message-bus-starting-services
 	serviceTemplate := `[D-BUS Service]
 Name={{.BusName}}
 Comment=Bus name for snap application {{.App.Snap.InstanceName}}.{{.App.Name}}
