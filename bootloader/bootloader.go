@@ -51,6 +51,8 @@ type Options struct {
 	// UC16/18 do not have a recovery partition.
 	Recovery bool
 
+	// TODO:UC20 consider different/better names for flags that follow
+
 	// NoSlashBoot indicates to use the run mode bootloader but
 	// under the native layout and not the /boot mount.
 	NoSlashBoot bool
@@ -162,11 +164,15 @@ func genericInstallBootConfig(gadgetFile, systemFile string) (bool, error) {
 	return true, osutil.CopyFile(gadgetFile, systemFile, osutil.CopyFlagOverwrite)
 }
 
-func genericSetBootConfig(systemFile string, content []byte) (bool, error) {
+func genericSetBootConfigFromAsset(systemFile, assetName string) (bool, error) {
+	bootConfig := assets.Internal(assetName)
+	if bootConfig == nil {
+		return true, fmt.Errorf("internal error: no boot asset for %q", assetName)
+	}
 	if err := os.MkdirAll(filepath.Dir(systemFile), 0755); err != nil {
 		return true, err
 	}
-	return true, osutil.AtomicWriteFile(systemFile, content, 0644, 0)
+	return true, osutil.AtomicWriteFile(systemFile, bootConfig, 0644, 0)
 }
 
 func genericUpdateBootConfigFromAssets(systemFile string, assetName string) error {
