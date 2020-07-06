@@ -1337,6 +1337,9 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleErrors(c *C) {
     slots-per-plug: 00`, `slots-per-plug in allow-auto-connection in plug rule for interface "iface" has invalid prefix zeros: 00`},
 		{`iface:
   allow-auto-connection:
+    slots-per-plug: 99999999999999999999`, `slots-per-plug in allow-auto-connection in plug rule for interface "iface" is out of range: 99999999999999999999`},
+		{`iface:
+  allow-auto-connection:
     slots-per-plug: 0`, `slots-per-plug in allow-auto-connection in plug rule for interface "iface" must be an integer >=1 or \*`},
 		{`iface:
   allow-auto-connection:
@@ -2169,6 +2172,9 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleErrors(c *C) {
 		{`iface:
   allow-auto-connection:
     slots-per-plug: 00`, `slots-per-plug in allow-auto-connection in slot rule for interface "iface" has invalid prefix zeros: 00`},
+		{`iface:
+  allow-auto-connection:
+    slots-per-plug: 99999999999999999999`, `slots-per-plug in allow-auto-connection in slot rule for interface "iface" is out of range: 99999999999999999999`},
 		{`iface:
   allow-auto-connection:
     slots-per-plug: 0`, `slots-per-plug in allow-auto-connection in slot rule for interface "iface" must be an integer >=1 or \*`},

@@ -720,6 +720,7 @@ func (sbs *snapBuildSuite) TestDecodeInvalid(c *C) {
 		{"snap-size: 10000\n", "snap-size: -1\n", `"snap-size" header is not an unsigned integer: -1`},
 		{"snap-size: 10000\n", "snap-size: zzz\n", `"snap-size" header is not an unsigned integer: zzz`},
 		{"snap-size: 10000\n", "snap-size: 010\n", `"snap-size" header has invalid prefix zeros: 010`},
+		{"snap-size: 10000\n", "snap-size: 99999999999999999999\n", `"snap-size" header is out of range: 99999999999999999999`},
 		{"grade: stable\n", "", `"grade" header is mandatory`},
 		{"grade: stable\n", "grade: \n", `"grade" header should not be empty`},
 		{sbs.tsLine, "", `"timestamp" header is mandatory`},
