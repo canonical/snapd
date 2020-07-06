@@ -69,6 +69,7 @@ func (as *assertsSuite) TestTypeNames(c *C) {
 		"test-only-no-authority",
 		"test-only-no-authority-pk",
 		"test-only-rev",
+		"test-only-seq",
 		"validation",
 		"validation-set",
 	})
@@ -84,6 +85,7 @@ func (as *assertsSuite) TestMaxSupportedFormats(c *C) {
 		"snap-declaration": snapDeclMaxFormat,
 		"system-user":      systemUserMaxFormat,
 		"test-only":        1,
+		"test-only-seq":    2,
 	})
 
 	// all
@@ -955,4 +957,17 @@ func (as *assertsSuite) TestWithAuthority(c *C) {
 		_, err := asserts.AssembleAndSignInTest(typ, nil, nil, testPrivKey1)
 		c.Check(err, ErrorMatches, `"authority-id" header is mandatory`)
 	}
+}
+
+func (as *assertsSuite) TestSequenceForming(c *C) {
+	sequenceForming := []string{
+		"repair",
+		"validation-set",
+	}
+	for _, name := range sequenceForming {
+		typ := asserts.Type(name)
+		c.Check(typ.SequenceForming(), Equals, true)
+	}
+
+	c.Check(asserts.SnapDeclarationType.SequenceForming(), Equals, false)
 }
