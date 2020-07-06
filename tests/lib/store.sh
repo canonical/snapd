@@ -94,7 +94,7 @@ setup_fake_store(){
 
     echo "fakestore service not started properly"
     ss -ntlp | grep "127.0.0.1:$PORT" || true
-    "$TESTSTOOLS"/journal-state get-journalctl-log -u fakestore || true
+    "$TESTSTOOLS"/journal-state get-log -u fakestore || true
     systemctl status fakestore || true
     exit 1
 }

@@ -23,7 +23,7 @@ execute: |
     # the snapd from the snap can be used. It won't be used in this test
     # because the version of the snapd from the store is lower than the
     # version of the installed snapd.
-    "$TESTSTOOLS"/journal-state check-journalctl-log "Requested daemon restart."
+    "$TESTSTOOLS"/journal-state match-log "Requested daemon restart."
 
     # We need to pretend the version of snapd in the snapd snap is the same
     # as the installed one so that it re-execs. We use a higher version in

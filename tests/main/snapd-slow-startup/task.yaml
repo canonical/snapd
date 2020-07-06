@@ -38,4 +38,4 @@ execute: |
     # startup timeout will be adjusted by 30s + 7 * 5s and this will succeed
     systemctl start snapd.service snapd.socket
 
-    "$TESTSTOOLS"/journal-state check-journalctl-log "adjusting startup timeout by 1m5s"
+    "$TESTSTOOLS"/journal-state match-log "adjusting startup timeout by 1m5s"

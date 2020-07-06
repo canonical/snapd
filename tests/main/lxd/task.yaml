@@ -39,7 +39,7 @@ restore: |
 
 debug: |
     # debug output from lxd
-    "$TESTSTOOLS"/journal-state get-journalctl-log -u snap.lxd.daemon.service
+    "$TESTSTOOLS"/journal-state get-log -u snap.lxd.daemon.service
 
 execute: |
     if  [[ "$(find "$GOHOME" -name 'snapd_*.deb' | wc -l || echo 0)" -eq 0 ]]; then

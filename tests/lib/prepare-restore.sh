@@ -532,7 +532,7 @@ prepare_suite_each() {
         echo "Failed to restart systemd-journald.service, exiting..."
         exit 1
     fi
-    "$TESTSTOOLS"/journal-state start-new-journalctl-log
+    "$TESTSTOOLS"/journal-state start-new-log
 
     if [[ "$variant" = full ]]; then
         echo "Install the snaps profiler snap"
@@ -545,7 +545,7 @@ prepare_suite_each() {
         fi
     fi
     # Check if journalctl is ready to run the test
-    "$TESTSTOOLS"/journal-state check-journalctl-ready
+    "$TESTSTOOLS"/journal-state check-ready
 
     case "$SPREAD_SYSTEM" in
         fedora-*|centos-*|amazon-*)
@@ -585,7 +585,7 @@ restore_suite_each() {
         if [ -e "/var/snap/${profiler_snap}/common/profiler.log" ]; then
             cp -f "/var/snap/${profiler_snap}/common/profiler.log" "${logs_dir}/${logs_file}.profiler.log"
         fi
-        "$TESTSTOOLS"/journal-state get-journalctl-log > "${logs_dir}/${logs_file}.journal.log"
+        "$TESTSTOOLS"/journal-state get-log > "${logs_dir}/${logs_file}.journal.log"
     fi
 
     # On Arch it seems that using sudo / su for working with the test user

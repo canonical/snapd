@@ -30,4 +30,4 @@ execute: |
     snap find test-snapd-tools | MATCH test-snapd-tools
 
     # check unit output
-    "$TESTSTOOLS"/journal-state check-journalctl-log 'CONNECT api.snapcraft.io' -u tinyproxy
+    "$TESTSTOOLS"/journal-state match-log 'CONNECT api.snapcraft.io' -u tinyproxy

@@ -4,4 +4,4 @@ execute: |
     snap install test-snapd-sh
     snap remove --purge test-snapd-sh
     snap install test-snapd-sh
-    "$TESTSTOOLS"/journal-state check-journalctl-log 'using cache for .*/test-snapd-sh.*\.snap' -u snapd
+    "$TESTSTOOLS"/journal-state match-log 'using cache for .*/test-snapd-sh.*\.snap' -u snapd

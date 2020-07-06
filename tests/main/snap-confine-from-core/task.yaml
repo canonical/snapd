@@ -25,7 +25,7 @@ execute: |
     echo "Ensure we re-exec by default"
     snap list
 
-    "$TESTSTOOLS"/journal-state check-journalctl-log "DEBUG: restarting into"
+    "$TESTSTOOLS"/journal-state match-log "DEBUG: restarting into"
 
     echo "Ensure snap-confine from the core snap is run"
     test-snapd-sh.sh -c 'echo hello'

@@ -30,7 +30,7 @@ environment:
 debug: |
     # get the full journal to see any out-of-memory errors
     # shellcheck disable=SC2119
-    "$TESTSTOOLS"/journal-state get-journalctl-log
+    "$TESTSTOOLS"/journal-state get-log
 
 prepare: |
     #shellcheck source=tests/lib/snaps.sh

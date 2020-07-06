@@ -75,7 +75,7 @@ execute: |
 
     echo "Then the core refresh.schedule can be set to 'managed'"
     snap set core refresh.schedule=managed
-    if "$TESTSTOOLS"/journal-state get-journalctl-log -u snapd |grep 'cannot parse "managed"'; then
+    if "$TESTSTOOLS"/journal-state get-log -u snapd |grep 'cannot parse "managed"'; then
         echo "refresh.schedule=managed was not accepted as it should be"
         exit 1
     fi

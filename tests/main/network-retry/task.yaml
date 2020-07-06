@@ -36,4 +36,4 @@ execute: |
     fi
 
     echo "Ensure we tried to retry this operation"
-    "$TESTSTOOLS"/journal-state check-journalctl-log 'Retrying because of temporary net error'
+    "$TESTSTOOLS"/journal-state match-log 'Retrying because of temporary net error'

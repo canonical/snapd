@@ -50,4 +50,4 @@ execute: |
     echo "Ensure that snap install works even without an installed core to install core"
     snap install core
 
-    "$TESTSTOOLS"/journal-state check-journalctl-log 'CONNECT (.*.cdn.snapcraft.io|.*.cdn.snapcraftcontent.com)' -u tinyproxy
+    "$TESTSTOOLS"/journal-state match-log 'CONNECT (.*.cdn.snapcraft.io|.*.cdn.snapcraftcontent.com)' -u tinyproxy

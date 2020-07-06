@@ -1,28 +1,38 @@
 summary: smoke test for the journal-state tool
+prepare: |
+    apt-get install -y shellcheck
+restore: |
+    apt-get remove --purge -y shellcheck
 execute: |
-    # Check help
-    "$TESTSTOOLS"/journal-state -h | MATCH "usage: journal-state start-new-journalctl-log"
-    "$TESTSTOOLS"/journal-state --help | MATCH "usage: journal-state start-new-journalctl-log"
+    # Run shellcheck for to-one-line script
+    shellcheck "$TESTSTOOLS"/journal-state
 
-    cursor1=$("$TESTSTOOLS"/journal-state get-last-journalctl-cursor)
+    # Check help
+    "$TESTSTOOLS"/journal-state | MATCH "usage: journal-state start-new-log"
+    "$TESTSTOOLS"/journal-state -h | MATCH "usage: journal-state start-new-log"
+    "$TESTSTOOLS"/journal-state --help | MATCH "usage: journal-state start-new-log"
+
+    # Check that using the last cursor the lines saved during prepare are not considered
+    cursor1=$("$TESTSTOOLS"/journal-state get-last-cursor)
     test "$(journalctl --cursor "$cursor1" | grep -c "$SPREAD_JOB")" -eq 0
 
     # Check the test is correctly started in the journal log
-    "$TESTSTOOLS"/journal-state start-new-journalctl-log
+    "$TESTSTOOLS"/journal-state start-new-log
     retry --wait 1 --attempts 30 sh -c "test $(journalctl --cursor "$cursor1" | grep -c "$SPREAD_JOB") -eq 1"
 
-    # check the subcommand check-journalctl-ready works well
-    "$TESTSTOOLS"/journal-state check-journalctl-ready
+    # Check the subcommand check-ready works well
+    # The subcommand check-ready could fail if the log does not contain the current SPREAD_JOB information
+    "$TESTSTOOLS"/journal-state check-ready
 
     # Check the subcommand get-journalctl-log works well
     echo "TEST-XX1" | systemd-cat -t snapd-test
-    retry --wait 1 --attempts 30 sh -c "test $("$TESTSTOOLS"/journal-state get-journalctl-log | grep -c TEST-XX1) -eq 1"
+    retry --wait 1 --attempts 30 sh -c "test $("$TESTSTOOLS"/journal-state get-log | grep -c TEST-XX1) -eq 1"
 
     # Check the subcommand get-last-journalctl-cursor works
     echo "TEST-XX2" | systemd-cat -t snapd-test
-    cursor2=$("$TESTSTOOLS"/journal-state get-last-journalctl-cursor)
-    test "$("$TESTSTOOLS"/journal-state get-journalctl-log-from-cursor "$cursor2" | grep -c "TEST-XX1")" -eq 0
+    cursor2=$("$TESTSTOOLS"/journal-state get-last-cursor)
+    test "$("$TESTSTOOLS"/journal-state get-log-from-cursor "$cursor2" | grep -c "TEST-XX1")" -eq 0
 
     # Check the subcommand check-journalctl-log works well
-    "$TESTSTOOLS"/journal-state check-journalctl-log TEST-XX1
-    not "$TESTSTOOLS"/journal-state check-journalctl-log TEST-XX1 -u testservice
+    "$TESTSTOOLS"/journal-state match-log TEST-XX1
+    not "$TESTSTOOLS"/journal-state match-log TEST-XX1 -u testservice

@@ -19,7 +19,7 @@ prepare: |
     snap pack "$TESTSLIB/snaps/$SNAP_NAME_BAD"
 
 debug: |
-    "$TESTSTOOLS"/journal-state get-journalctl-log -u snap.test-snapd-service.service.service
+    "$TESTSTOOLS"/journal-state get-log -u snap.test-snapd-service.service.service
 
 execute: |
     wait_for_service_status() {
