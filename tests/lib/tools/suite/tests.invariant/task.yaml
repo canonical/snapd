@@ -1,12 +1,8 @@
 summary: tests.invariant is detecting problems
 prepare: |
-    truncate --size=0 defer.sh
-    chmod +x defer.sh
+    tests.cleanup prepare
 restore: |
-    # Restore system to the previous state by running deferred commands in
-    # reverse order.
-    tac defer.sh > refed.sh
-    sh -xe refed.sh && rm -f {defer,refed}.sh
+    tests.cleanup restore
 execute: |
     # Invariant tool presents the usage screen when invoked without arguments
     # or with the -h or --help options.
@@ -26,7 +22,7 @@ execute: |
     # The root-files-in-home invariant detects files owned by root anywhere in /home/
     tests.invariant check root-files-in-home | MATCH 'tests.invariant: root-files-in-home ok'
     touch /home/test/invariant-canary
-    echo 'rm -f /home/test/invariant-canary' >> defer.sh
+    tests.cleanup defer rm -f /home/test/invariant-canary
     chown root /home/test/invariant-canary
     tests.invariant check root-files-in-home 2>&1 | MATCH 'tests.invariant: root-files-in-home not-ok'
     tests.invariant check root-files-in-home 2>&1 | MATCH 'tests.invariant: the following files should not be owned by root'
@@ -47,10 +43,10 @@ execute: |
     if [ -d /home/ubuntu ]; then
         old_uid="$(stat -c %u /home/ubuntu)"
         chown root /home/ubuntu
-        echo "chown $old_uid /home/ubuntu" >> defer.sh
+        tests.cleanup defer chown "$old_uid" /home/ubuntu
     else
         mkdir -p /home/ubuntu
-        echo 'rmdir /home/ubuntu' >> defer.sh
+        tests.cleanup defer rmdir /home/ubuntu
         chown root /home/ubuntu
     fi
     tests.invariant check root-files-in-home | MATCH 'tests.invariant: root-files-in-home ok'
