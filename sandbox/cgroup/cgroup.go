@@ -39,7 +39,7 @@ const (
 	// The only cgroup path we expect, for v2 this is where the unified
 	// hierarchy is mounted, for v1 this is usually a tmpfs mount, under
 	// which the controller-hierarchies are mounted
-	expectedMountPoint = "/sys/fs/cgroup"
+	cgroupMountPoint = "/sys/fs/cgroup"
 )
 
 var (
@@ -85,11 +85,11 @@ func ProcPidPath(pid int) string {
 // ControllerPathV1 returns the path to given controller assuming cgroup v1
 // hierarchy
 func ControllerPathV1(controller string) string {
-	return filepath.Join(rootPath, expectedMountPoint, controller)
+	return filepath.Join(rootPath, cgroupMountPoint, controller)
 }
 
 func probeCgroupVersion() (version int, err error) {
-	cgroupMount := filepath.Join(rootPath, expectedMountPoint)
+	cgroupMount := filepath.Join(rootPath, cgroupMountPoint)
 	typ, err := fsTypeForPath(cgroupMount)
 	if err != nil {
 		return Unknown, fmt.Errorf("cannot determine filesystem type: %v", err)

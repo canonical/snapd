@@ -930,7 +930,7 @@ The exit code indicates if any mount point matched the query.
             "--one requires exactly one match, found {}".format(num_matched)
         )
     # Return with an exit code indicating if anything matched.
-    # This allows mountinfo-tool to be used in scripts.
+    # This allows mountinfo.query to be used in scripts.
     if num_matched == 0:
         raise SystemExit(1)
 

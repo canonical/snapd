@@ -43,12 +43,17 @@ def main():
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers()
     cmd = sub.add_parser(
-        "remove-with-group", description="Remove system user and group, if present"
+        "remove-with-group",
+        description="Remove system user and group, if present",
+        help="remove system user and group, if present",
     )
     cmd.set_defaults(func=lambda ns: remove_user_with_group(ns.user))
     cmd.add_argument("user", help="name of the user and group to remove")
     ns = parser.parse_args()
-    ns.func(ns)
+    if hasattr(ns, "func"):
+        ns.func(ns)
+    else:
+        parser.print_help()
 
 
 if __name__ == "__main__":

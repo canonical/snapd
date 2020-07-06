@@ -45,7 +45,7 @@ def _make_parser():
     # type: () -> argparse.ArgumentParser
     parser = argparse.ArgumentParser(
         description="""
-Memory-tool executes COMMAND and stores the maximum size of RSS
+This program executes COMMAND and stores the maximum size of RSS
 into the specified file. The exit status of COMMAND is preserved.
 """
     )

@@ -254,6 +254,7 @@ func (fs *findWildcardSuite) TestFindWildcardSequenceSomeErrors(c *check.C) {
 		"s1/1/active",
 		"s2/a/active.1",
 		"s3/-9/active.1",
+		"s4/01/active",
 	}
 	for _, fn := range files {
 		err := os.MkdirAll(filepath.Dir(filepath.Join(top, fn)), os.ModePerm)
@@ -276,4 +277,8 @@ func (fs *findWildcardSuite) TestFindWildcardSequenceSomeErrors(c *check.C) {
 	err = findWildcard(top, []string{"s3", "#>", "active*"}, -1, foundCb)
 	c.Assert(err, check.ErrorMatches, `cannot parse ".*/top-errors/s3/-9" name as a sequence number`)
 
+	// FIXME: this should produce an error as well, but need to be
+	// consistent about refusing prefix zeros
+	err = findWildcard(top, []string{"s4", "#>", "active*"}, -1, foundCb)
+	c.Assert(err, check.IsNil)
 }
