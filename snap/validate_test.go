@@ -1210,7 +1210,7 @@ layout:
 	err = ValidateLayoutAll(info)
 	c.Assert(err, IsNil)
 
-	// Layout replacing files in another snap's mount p oit
+	// Layout replacing files in another snap's mount point
 	const yaml12 = `
 name: this-snap
 layout:
