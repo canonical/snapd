@@ -22,6 +22,7 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 
 	"gopkg.in/check.v1"
@@ -44,6 +45,14 @@ func MockSnapshotList(newList func(context.Context, uint64, []string) ([]client.
 	snapshotList = newList
 	return func() {
 		snapshotList = oldList
+	}
+}
+
+func MockSnapshotExport(newExport func(context.Context, uint64, io.Writer) error) (restore func()) {
+	oldExport := snapshotExport
+	snapshotExport = newExport
+	return func() {
+		snapshotExport = oldExport
 	}
 }
 
@@ -99,7 +108,13 @@ func ChangeSnapshots(c *Command, r *http.Request, user *auth.UserState) *resp {
 	return changeSnapshots(c, r, user).(*resp)
 }
 
+func ExportSnapshot(c *Command, r *http.Request, user *auth.UserState) *snapshotExportResponse {
+	return getSnapshotExport(c, r, user).(*snapshotExportResponse)
+}
+
 var (
-	SnapshotMany = snapshotMany
-	SnapshotCmd  = snapshotCmd
+	SnapshotMany       = snapshotMany
+	SnapshotCmd        = snapshotCmd
+	SnapshotExportCmd  = snapshotExportCmd
+	CountingOnlyWriter countingOnlyWriter
 )

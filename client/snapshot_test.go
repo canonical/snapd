@@ -20,6 +20,7 @@
 package client_test
 
 import (
+	"io/ioutil"
 	"net/url"
 	"time"
 
@@ -136,4 +137,41 @@ func (cs *clientSuite) TestClientCheckSnapshots(c *check.C) {
 
 func (cs *clientSuite) TestClientRestoreSnapshots(c *check.C) {
 	cs.testClientSnapshotAction(c, "restore", cs.cli.RestoreSnapshots)
+}
+
+func (cs *clientSuite) TestClientExportSnapshot(c *check.C) {
+
+	type tableT struct {
+		content string
+		size    int
+		status  int
+	}
+
+	table := []tableT{
+		{"Hello World!", 12, 200},
+		{"", 0, 400},
+	}
+
+	for i, t := range table {
+		comm := check.Commentf("%d: %d", i, t.content)
+
+		cs.contentLength = int64(t.size)
+		cs.rsp = t.content
+		cs.status = t.status
+
+		r, size, err := cs.cli.SnapshotExport(42)
+		if t.status == 200 {
+			c.Assert(err, check.IsNil, comm)
+		} else {
+			c.Assert(err.Error(), check.Equals, "unexpected status code: ")
+		}
+		c.Assert(size, check.Equals, int64(t.size), comm)
+
+		if t.status == 200 {
+			buf, err := ioutil.ReadAll(r)
+			c.Assert(err, check.IsNil)
+			c.Assert(len(buf), check.Equals, t.size)
+			c.Assert(string(buf), check.Equals, t.content)
+		}
+	}
 }

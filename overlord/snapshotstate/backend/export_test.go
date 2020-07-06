@@ -95,3 +95,12 @@ func SetUserWrapper(newUserWrapper string) (restore func()) {
 		userWrapper = oldUserWrapper
 	}
 }
+
+type MockWriter struct {
+	Total uint64
+}
+
+func (w *MockWriter) Write(p []byte) (n int, err error) {
+	w.Total += uint64(len(p))
+	return len(p), nil
+}

@@ -22,12 +22,13 @@ package main_test
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/cmd/snap"
+	main "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -64,7 +65,22 @@ var snapshotsTests = []getCmdArgs{{
 }, {
 	args:   "check-snapshot 4 snap1 snap2",
 	stdout: "Snapshot #4 of snaps \"snap1\", \"snap2\" verified successfully.\n",
+}, {
+	args:   "export-snapshot 1 snapshot-export.tar",
+	stdout: "Exported snapshot into \"snapshot-export.tar\"\n",
+}, {
+	args:  "export-snapshot x snapshot-export.tar",
+	error: `invalid argument for snapshot set id: expected a non-negative integer argument \(see 'snap help saved'\)`,
+}, {
+	args:  "export-snapshot 1",
+	error: "the required argument `<filename>` was not provided",
 }}
+
+func (s *SnapSuite) TearDownSuite(c *C) {
+	if _, err := os.Stat("snapshot-export.tar"); err == nil {
+		os.Remove("snapshot-export.tar")
+	}
+}
 
 func (s *SnapSuite) TestSnapSnaphotsTest(c *C) {
 	s.mockSnapshotsServer(c)
@@ -107,6 +123,8 @@ func (s *SnapSuite) mockSnapshotsServer(c *C) {
 			}
 		case "/v2/changes/9":
 			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {}}}`)
+		case "/v2/snapshots/1/export":
+			fmt.Fprint(w, "Hello World!")
 		default:
 			c.Errorf("unexpected path %q", r.URL.Path)
 		}

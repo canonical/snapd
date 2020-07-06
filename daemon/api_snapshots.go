@@ -144,14 +144,14 @@ func changeSnapshots(c *Command, r *http.Request, user *auth.UserState) Response
 }
 
 type snapshotExportResponse struct {
-	setID      uint64
-	exportSize uint64
+	SetID      uint64
+	ExportSize uint64
 }
 
 func (s snapshotExportResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("Content-Length", strconv.FormatUint(s.exportSize, 10))
+	w.Header().Add("Content-Length", strconv.FormatUint(s.ExportSize, 10))
 
-	snapshotExport(context.TODO(), uint64(s.setID), w)
+	snapshotExport(context.TODO(), uint64(s.SetID), w)
 }
 
 type countingOnlyWriter struct {
@@ -172,7 +172,7 @@ func getSnapshotExport(c *Command, r *http.Request, user *auth.UserState) Respon
 	}
 
 	// Export into /dev/null once to get the size of the tar so that
-	// we can set the Content-Length in the reponse
+	// we can set the Content-Length in the response
 	//
 	// XXX: too naive? i.e. calling snapshotExport() twice will lead to
 	// slightly different results (different timestamps) but tar headers
@@ -183,8 +183,8 @@ func getSnapshotExport(c *Command, r *http.Request, user *auth.UserState) Respon
 		return BadRequest("cannot export %v", setID)
 	}
 
-	return snapshotExportResponse{
-		setID:      setID,
-		exportSize: cw.total,
+	return &snapshotExportResponse{
+		SetID:      setID,
+		ExportSize: cw.total,
 	}
 }

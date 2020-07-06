@@ -718,3 +718,71 @@ func (s *snapshotSuite) TestMaybeRunuserNoHappy(c *check.C) {
 	})
 	c.Check(strings.TrimSpace(logbuf.String()), check.Matches, ".* No user wrapper found.*")
 }
+
+func (s *snapshotSuite) TestExport(c *check.C) {
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+	defer backend.MockOsOpen(func(string) (*os.File, error) { return new(os.File), nil })()
+	readNames := 0
+	defer backend.MockDirNames(func(*os.File, int) ([]string, error) {
+		readNames++
+		if readNames > 4 {
+			return nil, io.EOF
+		}
+		return []string{
+			fmt.Sprintf("%d_foo", readNames),
+			fmt.Sprintf("%d_bar", readNames),
+			fmt.Sprintf("%d_baz", readNames),
+		}, nil
+	})()
+	defer backend.MockOpen(func(fn string) (*backend.Reader, error) {
+		var id uint64
+		var snapname string
+		fn = filepath.Base(fn)
+		_, err := fmt.Sscanf(fn, "%d_%s", &id, &snapname)
+		c.Assert(err, check.IsNil, check.Commentf(fn))
+		f, err := os.Open(os.DevNull)
+		c.Assert(err, check.IsNil, check.Commentf(fn))
+		return &backend.Reader{
+			File: f,
+			Snapshot: client.Snapshot{
+				SetID:    id,
+				Snap:     snapname,
+				SnapID:   "id-for-" + snapname,
+				Version:  "v1.0-" + snapname,
+				Revision: snap.R(int(id)),
+			},
+		}, nil
+	})()
+
+	type tableT struct {
+		setID uint64
+		total uint64
+		error string
+	}
+
+	table := []tableT{
+
+		{1, 3*512 + 1024 + 2*512, ""}, // num_files + export.json + footer
+		{2, 3*512 + 1024 + 2*512, ""},
+		{5, 0, "no snapshot data found for 5"},
+	}
+
+	for i, t := range table {
+		comm := check.Commentf("%d: %d", i, t.setID)
+		// reset
+		readNames = 0
+		logbuf.Reset()
+
+		w := &backend.MockWriter{Total: 0}
+
+		err := backend.Export(context.Background(), t.setID, w)
+		if t.error != "" {
+			c.Check(err, check.NotNil, comm)
+			c.Check(err.Error(), check.Equals, t.error, comm)
+			continue
+		}
+		c.Check(err, check.IsNil, comm)
+		c.Check(w.Total, check.Equals, t.total, comm)
+	}
+}

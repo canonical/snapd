@@ -20,9 +20,11 @@
 package daemon_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 
@@ -320,4 +322,22 @@ func (s *snapshotSuite) TestChangeSnapshot(c *check.C) {
 		})
 
 	}
+}
+
+func (s *snapshotSuite) TestExportSnapshots(c *check.C) {
+	defer daemon.MockMuxVars(func(*http.Request) map[string]string {
+		return map[string]string{"id": "1"}
+	})()
+	defer daemon.MockSnapshotExport(func(ctx context.Context, id uint64, w io.Writer) error {
+		io.Copy(w, bytes.NewBufferString("Hello World!"))
+		return nil
+	})()
+
+	c.Check(daemon.SnapshotExportCmd.Path, check.Equals, "/v2/snapshots/{id}/export")
+	req, err := http.NewRequest("GET", "/v2/snapshots/1/export", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := daemon.ExportSnapshot(daemon.SnapshotExportCmd, req, nil)
+	c.Check(rsp.SetID, check.Equals, uint64(1))
+	c.Check(rsp.ExportSize, check.Equals, uint64(12))
 }
