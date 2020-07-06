@@ -335,6 +335,14 @@ func MockCreateTransientScopeForTracking(fn func(securityTag string) error) (res
 	}
 }
 
+func MockConfirmSystemdServiceTracking(fn func(securityTag string) error) (restore func()) {
+	old := cgroupConfirmSystemdServiceTracking
+	cgroupConfirmSystemdServiceTracking = fn
+	return func() {
+		cgroupConfirmSystemdServiceTracking = old
+	}
+}
+
 func MockApparmorSnapAppFromPid(f func(pid int) (string, string, string, error)) (restore func()) {
 	old := apparmorSnapAppFromPid
 	apparmorSnapAppFromPid = f
