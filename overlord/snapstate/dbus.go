@@ -32,6 +32,8 @@ func getActivatableDBusServices(info *snap.Info) (session, system map[string]boo
 	for _, app := range info.Apps {
 		for _, slot := range app.ActivatesOn {
 			busName, ok := slot.Attrs["name"].(string)
+			// Should not fail for info that has passed
+			// validation
 			if !ok {
 				continue
 			}
@@ -54,14 +56,11 @@ func checkDBusServiceConflicts(st *state.State, info *snap.Info) error {
 		return nil
 	}
 
-	var stateMap map[string]*SnapState
-	if err := st.Get("snaps", &stateMap); err != nil && err != state.ErrNoState {
+	stateMap, err := All(st)
+	if err != nil {
 		return err
 	}
 	for instanceName, snapst := range stateMap {
-		if !snapst.IsInstalled() {
-			continue
-		}
 		if instanceName == info.InstanceName() {
 			continue
 		}
@@ -74,12 +73,12 @@ func checkDBusServiceConflicts(st *state.State, info *snap.Info) error {
 		otherSessionServices, otherSystemServices := getActivatableDBusServices(otherInfo)
 		for svc := range sessionServices {
 			if otherSessionServices[svc] {
-				return fmt.Errorf("session bus name %q already activates snap %q", svc, instanceName)
+				return fmt.Errorf("snap %q requesting to activate on session bus name %q conflicts with snap %q use", info.InstanceName(), svc, instanceName)
 			}
 		}
 		for svc := range systemServices {
 			if otherSystemServices[svc] {
-				return fmt.Errorf("system bus name %q already activates snap %q", svc, instanceName)
+				return fmt.Errorf("snap %q requesting to activate on system bus name %q conflicts with snap %q use", info.InstanceName(), svc, instanceName)
 			}
 		}
 	}

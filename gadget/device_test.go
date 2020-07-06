@@ -458,45 +458,6 @@ func (d *deviceSuite) TestDeviceFindFallbackPassThrough(c *C) {
 	c.Check(offs, Equals, gadget.Size(0))
 }
 
-func (d *deviceSuite) TestDeviceEncodeLabel(c *C) {
-	// Test output obtained with the following program:
-	//
-	// #include <string.h>
-	// #include <stdio.h>
-	// #include <blkid/blkid.h>
-	// int main(int argc, char *argv[]) {
-	//   char out[2048] = {0};
-	//   if (blkid_encode_string(argv[1], out, sizeof(out)) != 0) {
-	//     fprintf(stderr, "failed to encode string\n");
-	//     return 1;
-	//   }
-	//   fprintf(stdout, out);
-	//   return 0;
-	// }
-	for i, tc := range []struct {
-		what string
-		exp  string
-	}{
-		{"foo", "foo"},
-		{"foo bar", `foo\x20bar`},
-		{"foo/bar", `foo\x2fbar`},
-		{"foo:#.@bar", `foo:#.@bar`},
-		{"foo..bar", `foo..bar`},
-		{"foo/../bar", `foo\x2f..\x2fbar`},
-		{"foo\\bar", `foo\x5cbar`},
-		{"Новый_том", "Новый_том"},
-		{"befs_test", "befs_test"},
-		{"P01_S16A", "P01_S16A"},
-		{"pinkié pie", `pinkié\x20pie`},
-		{"(EFI Boot)", `\x28EFI\x20Boot\x29`},
-		{"[System Boot]", `\x5bSystem\x20Boot\x5d`},
-	} {
-		c.Logf("tc: %v %q", i, tc)
-		res := gadget.EncodeLabel(tc.what)
-		c.Check(res, Equals, tc.exp)
-	}
-}
-
 func (d *deviceSuite) TestDeviceFindMountPointErrorsWithBare(c *C) {
 	p, err := gadget.FindMountPointForStructure(&gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{

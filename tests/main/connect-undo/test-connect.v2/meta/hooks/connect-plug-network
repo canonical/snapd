@@ -1,0 +1,3 @@
+#!/bin/sh
+echo "failure of connect hook"
+exit 1

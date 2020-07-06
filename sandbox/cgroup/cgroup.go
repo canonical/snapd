@@ -39,7 +39,7 @@ const (
 	// The only cgroup path we expect, for v2 this is where the unified
 	// hierarchy is mounted, for v1 this is usually a tmpfs mount, under
 	// which the controller-hierarchies are mounted
-	expectedMountPoint = "/sys/fs/cgroup"
+	cgroupMountPoint = "/sys/fs/cgroup"
 )
 
 var (
@@ -85,11 +85,11 @@ func ProcPidPath(pid int) string {
 // ControllerPathV1 returns the path to given controller assuming cgroup v1
 // hierarchy
 func ControllerPathV1(controller string) string {
-	return filepath.Join(rootPath, expectedMountPoint, controller)
+	return filepath.Join(rootPath, cgroupMountPoint, controller)
 }
 
 func probeCgroupVersion() (version int, err error) {
-	cgroupMount := filepath.Join(rootPath, expectedMountPoint)
+	cgroupMount := filepath.Join(rootPath, cgroupMountPoint)
 	typ, err := fsTypeForPath(cgroupMount)
 	if err != nil {
 		return Unknown, fmt.Errorf("cannot determine filesystem type: %v", err)
@@ -206,49 +206,6 @@ func ProcGroup(pid int, matcher GroupMatcher) (string, error) {
 	}
 
 	return "", fmt.Errorf("cannot find %s cgroup path for pid %v", matcher, pid)
-}
-
-// PidsInGroup returns the list of process ID currently registered in a given cgroup
-func PidsInGroup(hierarchyMount, groupPath string) ([]int, error) {
-	// TODO: check whether hierarchyMount looks like a valid cgroup root
-	// (i.e. at cgroup.procs exists)
-	fname := filepath.Join(hierarchyMount, groupPath, "cgroup.procs")
-	file, err := os.Open(fname)
-	if os.IsNotExist(err) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-	return parsePids(bufio.NewReader(file))
-}
-
-// parsePid parses a string as a process identifier.
-func parsePid(text string) (int, error) {
-	pid, err := strconv.Atoi(text)
-	if err != nil || (err == nil && pid <= 0) {
-		return 0, fmt.Errorf("cannot parse pid %q", text)
-	}
-	return pid, err
-}
-
-// parsePids parses a list of pids, one per line, from a reader.
-func parsePids(reader io.Reader) ([]int, error) {
-	scanner := bufio.NewScanner(reader)
-	var pids []int
-	for scanner.Scan() {
-		s := scanner.Text()
-		pid, err := parsePid(s)
-		if err != nil {
-			return nil, err
-		}
-		pids = append(pids, pid)
-	}
-	if err := scanner.Err(); err != nil {
-		return nil, err
-	}
-	return pids, nil
 }
 
 // MockVersion sets the reported version of cgroup support. For use in testing only

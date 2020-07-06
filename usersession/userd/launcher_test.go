@@ -75,7 +75,7 @@ func (s *launcherSuite) TestOpenURLWithNotAllowedScheme(c *C) {
 }
 
 func (s *launcherSuite) TestOpenURLWithAllowedSchemeHappy(c *C) {
-	for _, schema := range []string{"http", "https", "mailto", "snap", "help", "apt", "zoommtg", "slack"} {
+	for _, schema := range []string{"http", "https", "mailto", "snap", "help", "apt", "zoommtg", "zoomus", "zoomphonecall", "slack", "msteams"} {
 		err := s.launcher.OpenURL(schema+"://snapcraft.io", ":some-dbus-sender")
 		c.Assert(err, IsNil)
 		c.Assert(s.mockXdgOpen.Calls(), DeepEquals, [][]string{

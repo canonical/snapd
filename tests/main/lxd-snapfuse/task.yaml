@@ -4,7 +4,9 @@ summary: Check snapfuse works
 systems: [ubuntu-18.04-64]
 
 restore: |
-    lxd-tool undo-lxd-mount-changes
+    lxc delete --force my-ubuntu
+    snap remove ---purge lxd
+    "$TESTSTOOLS"/lxd-state undo-mount-changes
 
 execute: |
     echo "Ensure we use the snap"

@@ -20,12 +20,12 @@ prepare: |
     install_local test-snapd-sh
 
     # If /proc/fs/nfsd is not initially mounted then ask the test to unmount it later.
-    if not mountinfo-tool /proc/fs/nfsd .fs_type=nfsd; then
+    if not mountinfo.query /proc/fs/nfsd .fs_type=nfsd; then
         touch /tmp/please-unmount-nfsd
         echo "the test needs to unmount /proc/fs/nfsd if it becomes mounted"
     fi
     # If /var/lib/nfs/rpc_pipefs is not initially mounted then ask the test to unmount it later.
-    if not mountinfo-tool /var/lib/nfs/rpc_pipefs .fs_type=rpc_pipefs; then
+    if not mountinfo.query /var/lib/nfs/rpc_pipefs .fs_type=rpc_pipefs; then
         touch /tmp/please-unmount-rpc-pipefs
         echo "the test needs to unmount /var/lib/nfs/rpc_pipefs if it becomes mounted"
     fi
@@ -35,7 +35,7 @@ restore: |
     . "$TESTSLIB/pkgdb.sh"
 
     # Unmount NFS mount over /home if one exists.
-    if mountinfo-tool /home; then
+    if mountinfo.query /home; then
         umount /home
     fi
 
@@ -75,13 +75,13 @@ restore: |
             ;;
     esac
     if [ -e /tmp/please-unmount-nfsd ]; then
-        if mountinfo-tool /proc/fs/nfsd .fs_type=nfsd; then
+        if mountinfo.query /proc/fs/nfsd .fs_type=nfsd; then
             umount /proc/fs/nfsd
         fi
         rm -f /tmp/please-unmount-nfsd
     fi
     if [ -e /tmp/please-unmount-rpc-pipefs ]; then
-        if mountinfo-tool /var/lib/nfs/rpc_pipefs .fs_type=rpc_pipefs; then
+        if mountinfo.query /var/lib/nfs/rpc_pipefs .fs_type=rpc_pipefs; then
             umount /var/lib/nfs/rpc_pipefs
         fi
         rm -f /tmp/please-unmount-rpc-pipefs
