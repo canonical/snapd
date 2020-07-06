@@ -8,6 +8,3 @@ defaults:
     system:
       power-key-action: ignore
       disable-backlight-service: true
-
-
-
