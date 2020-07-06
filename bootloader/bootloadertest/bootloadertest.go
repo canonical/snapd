@@ -22,6 +22,7 @@ package bootloadertest
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/snap"
@@ -367,12 +368,14 @@ func (b *MockExtractedRunKernelImageBootloader) DisableTryKernel() error {
 type MockManagedAssetsBootloader struct {
 	*MockBootloader
 
-	IsManaged    bool
-	IsManagedErr error
-	UpdateErr    error
-	Updated      bool
-	UpdateCalls  int
-	Assets       []string
+	IsManaged         bool
+	IsManagedErr      error
+	UpdateErr         error
+	Updated           bool
+	UpdateCalls       int
+	Assets            []string
+	StaticCommandLine string
+	CommandLineErr    error
 }
 
 func (b *MockBootloader) WithManagedAssets() *MockManagedAssetsBootloader {
@@ -392,4 +395,12 @@ func (b *MockManagedAssetsBootloader) BootAssets() []string {
 func (b *MockManagedAssetsBootloader) UpdateBootConfig(opts *bootloader.Options) (bool, error) {
 	b.UpdateCalls++
 	return b.Updated, b.UpdateErr
+}
+
+func (b *MockManagedAssetsBootloader) CommandLine(args []string) (string, error) {
+	if b.CommandLineErr != nil {
+		return "", b.CommandLineErr
+	}
+	line := strings.Join(append([]string{b.StaticCommandLine}, args...), " ")
+	return strings.TrimSpace(line), nil
 }
