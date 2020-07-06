@@ -327,7 +327,7 @@ func MockSignalNotify(newSignalNotify func(sig ...os.Signal) (chan os.Signal, fu
 
 type ServiceName = serviceName
 
-func MockCreateTransientScopeForTracking(fn func(securitTag string) error) func() {
+func MockCreateTransientScopeForTracking(fn func(securityTag string) error) (restore func()) {
 	old := cgroupCreateTransientScopeForTracking
 	cgroupCreateTransientScopeForTracking = fn
 	return func() {
