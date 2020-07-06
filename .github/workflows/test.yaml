@@ -172,9 +172,9 @@ jobs:
               echo "::set-output name=already-ran::true"
           fi
     - name: Run spread tests
+      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread') && steps.cached-results.outputs.already-ran != 'true'"
       env:
           SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
-      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread') && steps.cached-results.outputs.already-ran != 'true'"
       run: |
           # Register a problem matcher to highlight spread failures
           echo "::add-matcher::.github/spread-problem-matcher.json"
@@ -224,9 +224,9 @@ jobs:
               echo "::set-output name=already-ran::true"
           fi
     - name: Run spread tests
+      if: "contains(github.event.pull_request.labels.*.name, 'Run nested') && steps.cached-results.outputs.already-ran != 'true'"
       env:
           SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
-      if: "contains(github.event.pull_request.labels.*.name, 'Run nested') && steps.cached-results.outputs.already-ran != 'true'"
       run: |
           # Register a problem matcher to highlight spread failures
           echo "::add-matcher::.github/spread-problem-matcher.json"
