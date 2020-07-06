@@ -26,6 +26,8 @@ import (
 	"io/ioutil"
 	"strings"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -107,4 +109,71 @@ func MockProcCmdline(newPath string) (restore func()) {
 	return func() {
 		procCmdline = oldProcCmdline
 	}
+}
+
+func getBootloaderManagingItsAssets(where string, opts *bootloader.Options) (bootloader.ManagedAssetsBootloader, error) {
+	bl, err := bootloader.Find(where, opts)
+	if err != nil {
+		return nil, fmt.Errorf("internal error: cannot find managed assets bootloader under %q: %v", where, err)
+	}
+	mbl, ok := bl.(bootloader.ManagedAssetsBootloader)
+	if !ok {
+		// the bootloader cannot manage its scripts
+		return nil, nil
+	}
+	managed, err := mbl.IsCurrentlyManaged()
+	if err != nil {
+		return nil, err
+	}
+	if !managed {
+		return nil, nil
+	}
+	return mbl, nil
+}
+
+// RecoveryCommandLine returns the kernel command line used when booting a given
+// recovery mode system.
+func RecoveryCommandLine(model *asserts.Model, system string) (string, error) {
+	if model.Grade() == asserts.ModelGradeUnset {
+		return "", nil
+	}
+
+	// get the ubuntu-seed bootloader
+	opts := &bootloader.Options{
+		NoSlashBoot: true,
+		// Looking for recovery system bootloader
+		Recovery: true,
+	}
+	mbl, err := getBootloaderManagingItsAssets(InitramfsUbuntuSeedDir, opts)
+	if err != nil {
+		return "", err
+	}
+	if mbl == nil {
+		return "", nil
+	}
+	modeArgs := []string{
+		"snapd_recovery_mode=recover",
+		fmt.Sprintf("snapd_recovery_system=%v", system),
+	}
+	return mbl.CommandLine(modeArgs)
+}
+
+// CommandLine returns the kernel command line used when booting the system in
+// run mode.
+func CommandLine(model *asserts.Model) (string, error) {
+	if model.Grade() == asserts.ModelGradeUnset {
+		return "", nil
+	}
+	// get the ubuntu-boot bootloader
+	opts := &bootloader.Options{
+		NoSlashBoot: true,
+	}
+	mbl, err := getBootloaderManagingItsAssets(InitramfsUbuntuBootDir, opts)
+	if err != nil {
+		return "", err
+	}
+	if mbl == nil {
+		return "", nil
+	}
+	return mbl.CommandLine(nil)
 }
