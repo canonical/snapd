@@ -106,6 +106,13 @@ func checkAssertType(assertType *AssertionType) error {
 	}
 }
 
+func noPrefixZeros(s string, isZero bool) bool {
+	if strings.HasPrefix(s, "0") {
+		return isZero && s == "0"
+	}
+	return true
+}
+
 // use 'defl' default if missing
 func checkIntWithDefault(headers map[string]interface{}, name string, defl int) (int, error) {
 	value, ok := headers[name]
@@ -119,6 +126,9 @@ func checkIntWithDefault(headers map[string]interface{}, name string, defl int) 
 	m, err := strconv.Atoi(s)
 	if err != nil {
 		return -1, fmt.Errorf("%q header is not an integer: %v", name, s)
+	}
+	if !noPrefixZeros(s, m == 0) {
+		return -1, fmt.Errorf("%q header has invalid prefix zeros: %s", name, s)
 	}
 	return m, nil
 }
@@ -135,6 +145,9 @@ func checkIntWhat(headers map[string]interface{}, name, what string) (int, error
 	value, err := strconv.Atoi(valueStr)
 	if err != nil {
 		return -1, fmt.Errorf("%q %s is not an integer: %v", name, what, valueStr)
+	}
+	if !noPrefixZeros(valueStr, value == 0) {
+		return -1, fmt.Errorf("%q %s has invalid prefix zeros: %s", name, what, valueStr)
 	}
 	return value, nil
 }
@@ -184,6 +197,9 @@ func checkUint(headers map[string]interface{}, name string, bitSize int) (uint64
 	value, err := strconv.ParseUint(valueStr, 10, bitSize)
 	if err != nil {
 		return 0, fmt.Errorf("%q header is not an unsigned integer: %v", name, valueStr)
+	}
+	if !noPrefixZeros(valueStr, value == 0) {
+		return 0, fmt.Errorf("%q header has invalid prefix zeros: %s", name, valueStr)
 	}
 	return value, nil
 }
