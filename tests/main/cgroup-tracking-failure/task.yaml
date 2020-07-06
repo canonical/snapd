@@ -10,10 +10,10 @@ systems:
     - ubuntu-14.04-*
     - ubuntu-16.04-*
     - ubuntu-18.04-*
-    - ubuntu-20.04-*
+    - ubuntu-20.04-*  # tracking works correctly, for completness
     - ubuntu-core-16-*
     - ubuntu-core-18-*
-    - ubuntu-core-20-*
+    - ubuntu-core-20-*  # tracking works correctly, for completness
 prepare: |
     truncate --size=0 defer.sh
     chmod +x defer.sh
