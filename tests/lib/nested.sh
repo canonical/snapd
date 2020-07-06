@@ -322,13 +322,15 @@ download_nested_image(){
     local IMAGE_PATH
     IMAGE_PATH="$(get_image_path)"
 
+    curl -L -o "${IMAGE_PATH}/${IMAGE_NAME}" "$IMAGE_URL"
+
     if [[ "$IMAGE_URL" == *.img.xz ]]; then
-        curl -L -o "${IMAGE_PATH}/${IMAGE_NAME}.xz" "$IMAGE_URL"
+        mv "${IMAGE_PATH}/${IMAGE_NAME}" "${IMAGE_PATH}/${IMAGE_NAME}.xz"
         unxz "${IMAGE_PATH}/${IMAGE_NAME}.xz"
     elif [[ "$IMAGE_URL" == *.img ]]; then
-        curl -L -o "${IMAGE_PATH}/${IMAGE_NAME}" "$IMAGE_URL"
+        echo "Image doesn't need to be decompressed"
     else
-        echo "Image extension not supported, exiting..."
+        echo "Image extension not supported for image $IMAGE_URL, exiting..."
         exit 1
     fi
 }
