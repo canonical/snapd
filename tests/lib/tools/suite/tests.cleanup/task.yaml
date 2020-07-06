@@ -65,3 +65,10 @@ execute: |
     not tests.cleanup restore
     tests.cleanup restore 2>&1 | MATCH 'tests.cleanup: deferred command "false" failed with exit code 1'
     test -e defer.sh
+
+    # Leftover defer.sh scripts are detected by the invariant checker.
+    # This also detects forgotten tests.cleanup calls.
+    not tests.invariant check leftover-defer-sh
+    tests.invariant check leftover-defer-sh 2>&1 | MATCH "tests.invariant: leftover defer.sh script"
+    rm -f defer.sh
+    tests.invariant check leftover-defer-sh
