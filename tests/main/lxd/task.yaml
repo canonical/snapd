@@ -52,7 +52,7 @@ restore: |
     snap remove --purge lxd
     snap remove --purge lxd-demo-server
 
-    "$TESTSTOOLS"/lxd-state undo-lxd-mount-changes
+    "$TESTSTOOLS"/lxd-state undo-mount-changes
     snap unset system experimental.refresh-app-awareness
     systemctl --user stop dbus.service || true
 
