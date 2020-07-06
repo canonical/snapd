@@ -399,6 +399,9 @@ func compileSideArityConstraint(context *subruleContext, which string, v interfa
 		return SideArityConstraint{N: -1}, nil
 	}
 	n, err := strconv.Atoi(x)
+	if err == nil && !noPrefixZeros(x, n == 0) {
+		return a, fmt.Errorf("%s in %s has invalid prefix zeros: %s", which, context, x)
+	}
 	if err != nil || n < 1 {
 		return a, fmt.Errorf("%s in %s must be an integer >=1 or *", which, context)
 	}
