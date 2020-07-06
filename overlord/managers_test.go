@@ -350,6 +350,14 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 		return errors.New("error out")
 	}
 	s.o.TaskRunner().AddHandler("error-trigger", erroringHandler, nil)
+
+	// setup cloud-init as restricted so that tests by default don't run the
+	// full EnsureCloudInitRestricted logic in the devicestate mgr
+	snapdCloudInitRestrictedFile := filepath.Join(dirs.GlobalRootDir, "etc/cloud/cloud.cfg.d/zzzz_snapd.cfg")
+	err = os.MkdirAll(filepath.Dir(snapdCloudInitRestrictedFile), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(snapdCloudInitRestrictedFile, nil, 0644)
+	c.Assert(err, IsNil)
 }
 
 type mgrsSuite struct {

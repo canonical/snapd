@@ -56,6 +56,7 @@ import (
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store/storetest"
+	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
@@ -86,6 +87,11 @@ type deviceMgrBaseSuite struct {
 	restoreSanitize          func()
 
 	newFakeStore func(storecontext.DeviceBackend) snapstate.StoreService
+
+	// saved so that if a derived suite wants to undo the cloud-init mocking to
+	// test the actual functions, it can just call this in it's SetUpTest, see
+	// devicestate_cloudinit_test.go for details
+	restoreCloudInitStatusRestore func()
 }
 
 type deviceMgrSuite struct {
@@ -194,6 +200,10 @@ func (s *deviceMgrBaseSuite) SetUpTest(c *C) {
 		db:    s.storeSigning,
 	})
 	s.state.Unlock()
+
+	s.restoreCloudInitStatusRestore = devicestate.MockCloudInitStatus(func() (sysconfig.CloudInitState, error) {
+		return sysconfig.CloudInitRestrictedBySnapd, nil
+	})
 }
 
 func (s *deviceMgrBaseSuite) newStore(devBE storecontext.DeviceBackend) snapstate.StoreService {
@@ -210,6 +220,7 @@ func (s *deviceMgrBaseSuite) TearDownTest(c *C) {
 	s.restoreGenericClassicMod()
 	s.restoreOnClassic()
 	s.restoreSanitize()
+	s.restoreCloudInitStatusRestore()
 }
 
 var settleTimeout = 15 * time.Second

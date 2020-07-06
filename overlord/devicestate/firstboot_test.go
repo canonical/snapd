@@ -55,6 +55,7 @@ import (
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
@@ -108,6 +109,11 @@ func (t *firstBootBaseTest) setupBaseTest(c *C, s *seedtest.SeedSnaps) {
 	t.AddCleanup(ifacestate.MockSecurityBackends(nil))
 
 	t.perfTimings = timings.New(nil)
+
+	r := devicestate.MockCloudInitStatus(func() (sysconfig.CloudInitState, error) {
+		return sysconfig.CloudInitRestrictedBySnapd, nil
+	})
+	t.AddCleanup(r)
 }
 
 // startOverlord will setup and create a new overlord, note that it will not
