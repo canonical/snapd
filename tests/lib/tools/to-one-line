@@ -10,10 +10,10 @@ to_one_line(){
 
 if [ $# -eq 0 ]; then
     show_help
-    exit 1
+    exit
 fi
 
-if [ $# -eq 1 ] && [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
     show_help
 else
     to_one_line "$1"

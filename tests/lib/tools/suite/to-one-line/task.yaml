@@ -1,6 +1,14 @@
 summary: integration tests for str-tool
+prepare: |
+    apt-get install -y shellcheck
+restore: |
+    apt-get remove --purge -y shellcheck
 execute: |
+    # Run shellcheck for to-one-line script
+    shellcheck "$TESTSTOOLS"/to-one-line
+
     # Check help
+    "$TESTSTOOLS"/to-one-line | MATCH "usage: to-one-line \[string\]"
     "$TESTSTOOLS"/to-one-line -h | MATCH "usage: to-one-line \[string\]"
     "$TESTSTOOLS"/to-one-line --help | MATCH "usage: to-one-line \[string\]"
 
