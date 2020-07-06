@@ -1112,8 +1112,9 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	//
 	// For more information about systemd cgroups, including unit types, see:
 	// https://www.freedesktop.org/wiki/Software/systemd/ControlGroupInterface/
+	_, appName := snap.SplitSnapApp(snapApp)
 	needsTracking := true
-	if app := info.Apps[snapApp]; hook == "" && app != nil && app.IsService() {
+	if app := info.Apps[appName]; hook == "" && app != nil && app.IsService() {
 		// If we are not running a service app then we do not need to use
 		// application tracking. Services, both in the system and user scope,
 		// do not need tracking because systemd already places them in a
