@@ -97,6 +97,8 @@ func findWildcardDescend(top, current string, descendantWithWildcard []string, s
 	}
 
 	d, err := os.Open(current)
+	// ignore missing directory, higher level will produce
+	// NotFoundError as needed
 	if os.IsNotExist(err) {
 		return nil
 	}
@@ -131,12 +133,14 @@ func findWildcardSequence(top, current, seqWildcard string, descendantWithWildca
 	if seqnum != -1 {
 		if seqWildcard == "#>" {
 			filter = func(i int) bool { return i > seqnum }
-		} else {
+		} else { // "#<", guaranteed by the caller
 			filter = func(i int) bool { return i < seqnum }
 		}
 	}
 
 	d, err := os.Open(current)
+	// ignore missing directory, higher level will produce
+	// NotFoundError as needed
 	if os.IsNotExist(err) {
 		return nil
 	}
@@ -165,15 +169,15 @@ func findWildcardSequence(top, current, seqWildcard string, descendantWithWildca
 	}
 	sort.Ints(seq)
 
-	var start, dir int
+	var start, direction int
 	if seqWildcard == "#>" {
 		start = 0
-		dir = 1
+		direction = 1
 	} else {
 		start = len(seq) - 1
-		dir = -1
+		direction = -1
 	}
-	for i := start; i >= 0 && i < len(seq); i += dir {
+	for i := start; i >= 0 && i < len(seq); i += direction {
 		err = findWildcardDescend(top, filepath.Join(current, strconv.Itoa(seq[i])), descendantWithWildcard, -1, foundCb)
 		if err != nil {
 			return err
