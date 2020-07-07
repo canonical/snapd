@@ -1,11 +1,10 @@
 summary: smoke test for the journal-state tool
-prepare: |
-    snap install shellcheck
-restore: |
-    snap remove shellcheck
+
 execute: |
-    # Run shellcheck for to-one-line script
-    shellcheck "$TESTSTOOLS"/journal-state
+    # Run shellcheck for journal-state script
+    if [ "$SPREAD_SYSTEM" = "ubuntu-18.04-64" ]; then
+        shellcheck "$TESTSTOOLS"/journal-state
+    fi
 
     # Check help
     "$TESTSTOOLS"/journal-state | MATCH "usage: journal-state start-new-log"
