@@ -34,11 +34,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/snapcore/snapd/cmd/cmdutil"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -87,7 +87,7 @@ func New(snapPath string) *Snap {
 }
 
 var osLink = os.Link
-var cmdutilCommandFromSystemSnap = cmdutil.CommandFromSystemSnap
+var snapdtoolCommandFromSystemSnap = snapdtool.CommandFromSystemSnap
 
 // Install installs a squashfs snap file through an appropriate method.
 func (s *Snap) Install(targetPath, mountDir string, opts *snap.InstallOptions) (bool, error) {
@@ -499,7 +499,7 @@ func (s *Snap) Build(sourceDir string, opts *BuildOpts) error {
 		// https://forum.snapcraft.io/t/squashfs-performance-effect-on-snap-startup-time/13920
 		compression = "xz"
 	}
-	cmd, err := cmdutilCommandFromSystemSnap("/usr/bin/mksquashfs")
+	cmd, err := snapdtoolCommandFromSystemSnap("/usr/bin/mksquashfs")
 	if err != nil {
 		cmd = exec.Command("mksquashfs")
 	}

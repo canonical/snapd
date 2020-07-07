@@ -33,7 +33,6 @@ import (
 	. "gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
 
-	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
@@ -46,8 +45,10 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snapdenv"
+	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/timings"
 )
 
 func TestOverlord(t *testing.T) { TestingT(t) }
@@ -151,7 +152,13 @@ func (ovs *overlordSuite) TestNewStore(c *C) {
 }
 
 func (ovs *overlordSuite) TestNewWithGoodState(c *C) {
-	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":%d,"patch-sublevel":%d,"patch-sublevel-last-version":%q,"some":"data","refresh-privacy-key":"0123456789ABCDEF"},"changes":null,"tasks":null,"last-change-id":0,"last-task-id":0,"last-lane-id":0}`, patch.Level, patch.Sublevel, cmd.Version))
+	// ensure we don't write state load timing in the state on really
+	// slow architectures (e.g. risc-v)
+	oldDurationThreshold := timings.DurationThreshold
+	timings.DurationThreshold = time.Second * 30
+	defer func() { timings.DurationThreshold = oldDurationThreshold }()
+
+	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":%d,"patch-sublevel":%d,"patch-sublevel-last-version":%q,"some":"data","refresh-privacy-key":"0123456789ABCDEF"},"changes":null,"tasks":null,"last-change-id":0,"last-task-id":0,"last-lane-id":0}`, patch.Level, patch.Sublevel, snapdtool.Version))
 	err := ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
 	c.Assert(err, IsNil)
 

@@ -32,6 +32,8 @@ restore: |
     rm -f stamp enforcing.mode
 
     tests.session -u test restore
+    # Stop dbus activated by test-snapd-desktop snap.
+    systemctl --user stop dbus.service || true
 
 execute: |
     systemctl restart snapd.socket
@@ -51,6 +53,10 @@ execute: |
     ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
     # removal triggers cleanups
     snap remove test-snapd-desktop
+    ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
+
+    install_local test-snapd-appstream-metadata
+    snap connect test-snapd-appstream-metadata:appstream-metadata
     ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
 
     install_local test-snapd-service

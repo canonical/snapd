@@ -121,7 +121,7 @@ func handleVitalityConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 			return err
 		}
 		tm := timings.New(nil)
-		if err = wrappers.StartServices(startupOrdered, progress.Null, tm); err != nil {
+		if err = wrappers.StartServices(startupOrdered, nil, nil, progress.Null, tm); err != nil {
 			return err
 		}
 	}

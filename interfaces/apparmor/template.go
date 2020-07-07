@@ -169,6 +169,7 @@ var templateCommon = `
 
   # For gdb support
   /usr/lib/snapd/snap-gdb-shim ixr,
+  /usr/lib/snapd/snap-gdbserver-shim ixr,
 
   # For in-snap tab completion
   /etc/bash_completion.d/{,*} r,
@@ -265,6 +266,7 @@ var templateCommon = `
   @{PROC}/sys/kernel/yama/ptrace_scope r,
   @{PROC}/sys/kernel/shmmax r,
   @{PROC}/sys/fs/file-max r,
+  @{PROC}/sys/fs/file-nr r,
   @{PROC}/sys/fs/inotify/max_* r,
   @{PROC}/sys/kernel/pid_max r,
   @{PROC}/sys/kernel/random/boot_id r,
@@ -275,7 +277,7 @@ var templateCommon = `
   /run/uuidd/request rw,
   /sys/devices/virtual/tty/{console,tty*}/active r,
   /sys/fs/cgroup/memory/memory.limit_in_bytes r,
-  /sys/fs/cgroup/memory/snap.@{SNAP_INSTANCE_NAME}{,.*}/memory.limit_in_bytes r,
+  /sys/fs/cgroup/memory/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/memory.limit_in_bytes r,
   /sys/kernel/mm/transparent_hugepage/hpage_pmd_size r,
   /sys/module/apparmor/parameters/enabled r,
   /{,usr/}lib/ r,
@@ -437,6 +439,11 @@ var templateCommon = `
   # (see 'parallel installs', above)
   /run/snap.@{SNAP_INSTANCE_NAME}/ rw,
   /run/snap.@{SNAP_INSTANCE_NAME}/** mrwklix,
+
+  # Snap-specific lock directory and prerequisite navigation permissions.
+  /run/lock/ r,
+  /run/lock/snap.@{SNAP_INSTANCE_NAME}/ rw,
+  /run/lock/snap.@{SNAP_INSTANCE_NAME}/** mrwklix,
 `
 
 var templateFooter = `
@@ -901,11 +908,11 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
   # Allow reading the dynamic linker cache.
   /etc/ld.so.cache r,
   # Allow reading, mapping and executing the dynamic linker.
-  /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}ld-*.so mrix,
+  /{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}ld-*.so mrix,
   # Allow reading and mapping various parts of the standard library and
   # dynamically loaded nss modules and what not.
-  /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libc{,-[0-9]*}.so* mr,
-  /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpthread{,-[0-9]*}.so* mr,
+  /{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}libc{,-[0-9]*}.so* mr,
+  /{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}libpthread{,-[0-9]*}.so* mr,
 
   # Common devices accesses
   /dev/null rw,

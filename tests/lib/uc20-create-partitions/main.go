@@ -26,10 +26,10 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/cmd/snap-bootstrap/bootstrap"
+	"github.com/snapcore/snapd/gadget/install"
 )
 
-var bootstrapRun = bootstrap.Run
+var installRun = install.Run
 
 type cmdCreatePartitions struct {
 	Mount                bool   `short:"m" long:"mount" description:"Also mount filesystems after creation"`
@@ -84,17 +84,17 @@ func main() {
 			panic(fmt.Sprintf("cannot load model: %v", err))
 		}
 	}
-	options := bootstrap.Options{
-		Mount:                args.Mount,
-		Encrypt:              args.Encrypt,
-		KeyFile:              args.KeyFile,
-		RecoveryKeyFile:      args.RecoveryKeyFile,
-		TPMLockoutAuthFile:   args.TPMLockoutAuthFile,
-		PolicyUpdateDataFile: args.PolicyUpdateDataFile,
-		KernelPath:           args.KernelPath,
-		Model:                model,
+	options := install.Options{
+		Mount:                   args.Mount,
+		Encrypt:                 args.Encrypt,
+		KeyFile:                 args.KeyFile,
+		RecoveryKeyFile:         args.RecoveryKeyFile,
+		TPMLockoutAuthFile:      args.TPMLockoutAuthFile,
+		TPMPolicyUpdateDataFile: args.PolicyUpdateDataFile,
+		KernelPath:              args.KernelPath,
+		Model:                   model,
 	}
-	err = bootstrapRun(args.Positional.GadgetRoot, args.Positional.Device, options)
+	err = installRun(args.Positional.GadgetRoot, args.Positional.Device, options)
 	if err != nil {
 		panic(err)
 	}

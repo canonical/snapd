@@ -8,7 +8,6 @@ details: |
     reconnected.
     The snap is also declaring a plug on this interface must be able to ask for its properties.
 
-# dbus-launch not supported in ubuntu-core
 # s390x does not support locationd
 systems:
     - -amazon-linux-2-* # no session services
@@ -40,7 +39,7 @@ execute: |
     snap connect test-snapd-location-control-provider:location-control test-snapd-location-control-provider:location-control-test
 
     echo "Then wait until the dbus name is properly reserved"
-    retry-tool -n 10 --wait 1 sh -c 'tests.session -u test exec test-snapd-location-control-provider.consumer Get | MATCH "location-provider-added"'
+    retry -n 10 --wait 1 sh -c 'tests.session -u test exec test-snapd-location-control-provider.consumer Get | MATCH "location-provider-added"'
 
     echo "Check the location-control is working from the consumer app in the snap"
     tests.session -u test exec test-snapd-location-control-provider.consumer Get | MATCH "location-provider-added"

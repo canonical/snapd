@@ -61,7 +61,7 @@ execute: |
     . "$TESTSLIB"/dirs.sh
 
     echo "A purge will really purge things"
-    $LIBEXECDIR/snapd/snap-mgmt --purge
+    snapd.tool exec snap-mgmt --purge
 
     echo "Data directories are empty"
     emptydirs="${SNAP_MOUNT_DIR} \

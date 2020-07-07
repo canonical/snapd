@@ -51,4 +51,6 @@ execute: |
     MATCH 'The "fuse" filesystem is required' < err.txt
 
 restore: |
-    lxd-tool undo-lxd-mount-changes
+    lxc delete --force my-ubuntu
+    snap remove ---purge lxd
+    "$TESTSTOOLS"/lxd-state undo-mount-changes

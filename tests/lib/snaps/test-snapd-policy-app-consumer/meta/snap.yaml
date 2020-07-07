@@ -128,6 +128,9 @@ apps:
   accounts-service:
     command: bin/run
     plugs: [ accounts-service ]
+  gconf:
+    command: bin/run
+    plugs: [ gconf ]
   gpg-keys:
     command: bin/run
     plugs: [ gpg-keys ]
@@ -161,6 +164,9 @@ apps:
   system-packages-doc:
     command: bin/run
     plugs: [ system-packages-doc ]
+  system-source-code:
+    command: bin/run
+    plugs: [ system-source-code ]
   hostname-control:
     command: bin/run
     plugs: [ hostname-control ]

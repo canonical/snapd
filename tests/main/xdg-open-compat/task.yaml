@@ -24,10 +24,20 @@ restore: |
     rm -f /usr/share/applications/defaults.list
     rm -f /usr/share/applications/xdg-open.desktop
 
+    # restore original xdg-open
+    if [ -e /usr/bin/xdg-open.orig ]; then
+        mv /usr/bin/xdg-open.orig /usr/bin/xdg-open
+    fi
+
 prepare: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
     install_local test-snapd-desktop
+
+    # make a backup of the original xdg-open
+    if [ -e /usr/bin/xdg-open ]; then
+        mv /usr/bin/xdg-open /usr/bin/xdg-open.orig
+    fi
 
     # download from LP, it is not available in the archive anymore
     wget https://launchpad.net/ubuntu/+source/snapd-xdg-open/0.0.0~16.04/+build/10503735/+files/snapd-xdg-open_0.0.0~16.04_amd64.deb
@@ -57,7 +67,7 @@ prepare: |
     tests.session -u test prepare
 
     # wait for session to be ready
-    tests.session -u test exec env "PATH=$PATH" retry-tool -n 5 --wait 0.5 dbus-send \
+    tests.session -u test exec env "PATH=$PATH" retry -n 5 --wait 0.5 dbus-send \
             --session                                         \
             --dest=com.canonical.SafeLauncher                 \
             --type=method_call                                \
@@ -89,7 +99,7 @@ execute: |
         rm -f "$XDG_OPEN_OUTPUT"
         xdg_open_url "$1"
         # xdg-open is async so we need to give it a little bit of time
-        retry-tool -n 10 --wait 0.5 test -e "$XDG_OPEN_OUTPUT"
+        retry -n 10 --wait 0.5 test -e "$XDG_OPEN_OUTPUT"
         test "$(cat "$XDG_OPEN_OUTPUT")" = "$1"
     }
 

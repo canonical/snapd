@@ -53,7 +53,7 @@ summary: Check that disabled snap services stay disabled across happy refreshes,
 #     => the new service is disabled
 
 prepare: |
-  snap install jq
+  snap install --edge jq
   # keep more revisions to simplify switching around between revisions in the 
   # test
   snap set system refresh.retain=5
@@ -115,7 +115,7 @@ execute: |
   snap stop --disable disabled-svcs-kept.svc
 
   echo "Check that it was actually disabled"
-  retry-tool -n 10 --wait 1 snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc\\s+disabled\\s+inactive"
+  retry -n 10 --wait 1 snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc\\s+disabled\\s+inactive"
 
   echo "Check that state.json still doesn't contain last-active-disabled-services"
   check_state_json_no_disabled_svcs

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2016 Canonical Ltd
+ * Copyright (C) 2015-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -69,17 +69,23 @@ func (as *assertsSuite) TestTypeNames(c *C) {
 		"test-only-no-authority",
 		"test-only-no-authority-pk",
 		"test-only-rev",
+		"test-only-seq",
 		"validation",
+		"validation-set",
 	})
 }
 
 func (as *assertsSuite) TestMaxSupportedFormats(c *C) {
 	snapDeclMaxFormat := asserts.SnapDeclarationType.MaxSupportedFormat()
+	systemUserMaxFormat := asserts.SystemUserType.MaxSupportedFormat()
 	// sanity
 	c.Check(snapDeclMaxFormat >= 4, Equals, true)
+	c.Check(systemUserMaxFormat >= 1, Equals, true)
 	c.Check(asserts.MaxSupportedFormats(1), DeepEquals, map[string]int{
 		"snap-declaration": snapDeclMaxFormat,
+		"system-user":      systemUserMaxFormat,
 		"test-only":        1,
+		"test-only-seq":    2,
 	})
 
 	// all
@@ -942,6 +948,7 @@ func (as *assertsSuite) TestWithAuthority(c *C) {
 		"serial",
 		"system-user",
 		"validation",
+		"validation-set",
 		"repair",
 	}
 	c.Check(withAuthority, HasLen, asserts.NumAssertionType-3) // excluding device-session-request, serial-request, account-key-request
@@ -950,4 +957,17 @@ func (as *assertsSuite) TestWithAuthority(c *C) {
 		_, err := asserts.AssembleAndSignInTest(typ, nil, nil, testPrivKey1)
 		c.Check(err, ErrorMatches, `"authority-id" header is mandatory`)
 	}
+}
+
+func (as *assertsSuite) TestSequenceForming(c *C) {
+	sequenceForming := []string{
+		"repair",
+		"validation-set",
+	}
+	for _, name := range sequenceForming {
+		typ := asserts.Type(name)
+		c.Check(typ.SequenceForming(), Equals, true)
+	}
+
+	c.Check(asserts.SnapDeclarationType.SequenceForming(), Equals, false)
 }

@@ -30,8 +30,8 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
-	"github.com/snapcore/snapd/cmd/snap-bootstrap/bootstrap"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
@@ -84,7 +84,7 @@ func (s *deviceMgrInstallModeSuite) SetUpTest(c *C) {
 	s.state.Set("seeded", true)
 }
 
-func (s *deviceMgrInstallModeSuite) makeMockInstalledPcGadget(c *C, grade string) *asserts.Model {
+func (s *deviceMgrInstallModeSuite) makeMockInstalledPcGadget(c *C, grade, gadgetDefaultsYaml string) *asserts.Model {
 	const (
 		pcSnapID       = "pcididididididididididididididid"
 		pcKernelSnapID = "pckernelidididididididididididid"
@@ -118,7 +118,7 @@ func (s *deviceMgrInstallModeSuite) makeMockInstalledPcGadget(c *C, grade string
 		Active:   true,
 	})
 	snaptest.MockSnapWithFiles(c, "name: pc\ntype: gadget", si, [][]string{
-		{"meta/gadget.yaml", gadgetYaml},
+		{"meta/gadget.yaml", gadgetYaml + gadgetDefaultsYaml},
 	})
 
 	si = &snap.SideInfo{
@@ -173,9 +173,9 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	defer restore()
 
 	var brGadgetRoot, brDevice string
-	var brOpts bootstrap.Options
-	var bootstrapRunCalled int
-	restore = devicestate.MockBootstrapRun(func(gadgetRoot, device string, options bootstrap.Options) error {
+	var brOpts install.Options
+	var installRunCalled int
+	restore = devicestate.MockInstallRun(func(gadgetRoot, device string, options install.Options) error {
 		// ensure we can grab the lock here, i.e. that it's not taken
 		s.state.Lock()
 		s.state.Unlock()
@@ -183,7 +183,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 		brGadgetRoot = gadgetRoot
 		brDevice = device
 		brOpts = options
-		bootstrapRunCalled++
+		installRunCalled++
 		return nil
 	})
 	defer restore()
@@ -198,7 +198,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	defer restore()
 
 	s.state.Lock()
-	mockModel := s.makeMockInstalledPcGadget(c, grade)
+	mockModel := s.makeMockInstalledPcGadget(c, grade, "")
 	s.state.Unlock()
 
 	bypassEncryptionPath := filepath.Join(boot.InitramfsUbuntuSeedDir, ".force-unencrypted")
@@ -219,6 +219,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 		c.Check(bootWith.KernelPath, Matches, ".*/var/lib/snapd/snaps/pc-kernel_1.snap")
 		c.Check(bootWith.BasePath, Matches, ".*/var/lib/snapd/snaps/core20_2.snap")
 		c.Check(bootWith.RecoverySystemDir, Matches, "/systems/20191218")
+		c.Check(bootWith.UnpackedGadgetDir, Equals, filepath.Join(dirs.SnapMountDir, "pc/1"))
 		bootMakeBootableCalled++
 		return nil
 	})
@@ -255,16 +256,16 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	if tc.encrypt {
 		c.Assert(brGadgetRoot, Equals, filepath.Join(dirs.SnapMountDir, "/pc/1"))
 		c.Assert(brDevice, Equals, "")
-		c.Assert(brOpts, DeepEquals, bootstrap.Options{
-			Mount:                true,
-			Encrypt:              true,
-			KeyFile:              filepath.Join(boot.InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key"),
-			RecoveryKeyFile:      filepath.Join(boot.InstallHostWritableDir, "var/lib/snapd/device/fde/recovery.key"),
-			TPMLockoutAuthFile:   filepath.Join(boot.InstallHostWritableDir, "var/lib/snapd/device/fde/tpm-lockout-auth"),
-			PolicyUpdateDataFile: filepath.Join(boot.InstallHostWritableDir, "var/lib/snapd/device/fde/policy-update-data"),
-			KernelPath:           filepath.Join(dirs.SnapMountDir, "pc-kernel/1/kernel.efi"),
-			Model:                mockModel,
-			SystemLabel:          "20191218",
+		c.Assert(brOpts, DeepEquals, install.Options{
+			Mount:                   true,
+			Encrypt:                 true,
+			KeyFile:                 filepath.Join(boot.InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key"),
+			RecoveryKeyFile:         filepath.Join(boot.InstallHostWritableDir, "var/lib/snapd/device/fde/recovery.key"),
+			TPMLockoutAuthFile:      filepath.Join(boot.InstallHostWritableDir, "var/lib/snapd/device/fde/tpm-lockout-auth"),
+			TPMPolicyUpdateDataFile: filepath.Join(boot.InstallHostWritableDir, "var/lib/snapd/device/fde/policy-update-data"),
+			KernelPath:              filepath.Join(dirs.SnapMountDir, "pc-kernel/1/kernel.efi"),
+			Model:                   mockModel,
+			SystemLabel:             "20191218",
 		})
 
 		// directories were ensured
@@ -273,11 +274,11 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	} else {
 		c.Assert(brGadgetRoot, Equals, filepath.Join(dirs.SnapMountDir, "/pc/1"))
 		c.Assert(brDevice, Equals, "")
-		c.Assert(brOpts, DeepEquals, bootstrap.Options{
+		c.Assert(brOpts, DeepEquals, install.Options{
 			Mount: true,
 		})
 	}
-	c.Assert(bootstrapRunCalled, Equals, 1)
+	c.Assert(installRunCalled, Equals, 1)
 	c.Assert(bootMakeBootableCalled, Equals, 1)
 	c.Assert(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
 
@@ -288,7 +289,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallTaskErrors(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	restore = devicestate.MockBootstrapRun(func(gadgetRoot, device string, options bootstrap.Options) error {
+	restore = devicestate.MockInstallRun(func(gadgetRoot, device string, options install.Options) error {
 		return fmt.Errorf("The horror, The horror")
 	})
 	defer restore()
@@ -298,7 +299,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallTaskErrors(c *C) {
 	c.Assert(err, IsNil)
 
 	s.state.Lock()
-	s.makeMockInstalledPcGadget(c, "dangerous")
+	s.makeMockInstalledPcGadget(c, "dangerous", "")
 	devicestate.SetSystemMode(s.mgr, "install")
 	s.state.Unlock()
 
@@ -400,17 +401,17 @@ func (s *deviceMgrInstallModeSuite) TestInstallSecuredBypassEncryption(c *C) {
 	c.Assert(err, ErrorMatches, "(?s).*cannot encrypt secured device: TPM not available.*")
 }
 
-func (s *deviceMgrInstallModeSuite) mockInstallModeChange(c *C, modelGrade string) *asserts.Model {
+func (s *deviceMgrInstallModeSuite) mockInstallModeChange(c *C, modelGrade, gadgetDefaultsYaml string) *asserts.Model {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	restore = devicestate.MockBootstrapRun(func(gadgetRoot, device string, options bootstrap.Options) error {
+	restore = devicestate.MockInstallRun(func(gadgetRoot, device string, options install.Options) error {
 		return nil
 	})
 	defer restore()
 
 	s.state.Lock()
-	mockModel := s.makeMockInstalledPcGadget(c, modelGrade)
+	mockModel := s.makeMockInstalledPcGadget(c, modelGrade, gadgetDefaultsYaml)
 	s.state.Unlock()
 	c.Check(mockModel.Grade(), Equals, asserts.ModelGrade(modelGrade))
 
@@ -436,7 +437,7 @@ func (s *deviceMgrInstallModeSuite) mockInstallModeChange(c *C, modelGrade strin
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallModeRunSysconfig(c *C) {
-	s.mockInstallModeChange(c, "dangerous")
+	s.mockInstallModeChange(c, "dangerous", "")
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -451,13 +452,16 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeRunSysconfig(c *C) {
 
 	// and sysconfig.ConfigureRunSystem was run exactly once
 	c.Assert(s.configureRunSystemOptsPassed, DeepEquals, []*sysconfig.Options{
-		{TargetRootDir: boot.InstallHostWritableDir},
+		{
+			TargetRootDir: boot.InstallHostWritableDir,
+			GadgetDir:     filepath.Join(dirs.SnapMountDir, "pc/1/"),
+		},
 	})
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallModeRunSysconfigErr(c *C) {
 	s.configureRunSystemErr = fmt.Errorf("error from sysconfig.ConfigureRunSystem")
-	s.mockInstallModeChange(c, "dangerous")
+	s.mockInstallModeChange(c, "dangerous", "")
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -468,7 +472,10 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeRunSysconfigErr(c *C) {
 - Setup system for run mode \(error from sysconfig.ConfigureRunSystem\)`)
 	// and sysconfig.ConfigureRunSystem was run exactly once
 	c.Assert(s.configureRunSystemOptsPassed, DeepEquals, []*sysconfig.Options{
-		{TargetRootDir: boot.InstallHostWritableDir},
+		{
+			TargetRootDir: boot.InstallHostWritableDir,
+			GadgetDir:     filepath.Join(dirs.SnapMountDir, "pc/1/"),
+		},
 	})
 }
 
@@ -482,13 +489,14 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeSupportsCloudInitInDangerous(
 		c.Assert(err, IsNil)
 	}
 
-	s.mockInstallModeChange(c, "dangerous")
+	s.mockInstallModeChange(c, "dangerous", "")
 
 	// and did tell sysconfig about the cloud-init files
 	c.Assert(s.configureRunSystemOptsPassed, DeepEquals, []*sysconfig.Options{
 		{
 			CloudInitSrcDir: filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d"),
 			TargetRootDir:   boot.InstallHostWritableDir,
+			GadgetDir:       filepath.Join(dirs.SnapMountDir, "pc/1/"),
 		},
 	})
 }
@@ -504,11 +512,14 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeNoCloudInitForSigned(c *C) {
 	}
 
 	// but it is signed
-	s.mockInstallModeChange(c, "signed")
+	s.mockInstallModeChange(c, "signed", "")
 
 	// so no cloud-init src dir is passed
 	c.Assert(s.configureRunSystemOptsPassed, DeepEquals, []*sysconfig.Options{
-		{TargetRootDir: boot.InstallHostWritableDir},
+		{
+			TargetRootDir: boot.InstallHostWritableDir,
+			GadgetDir:     filepath.Join(dirs.SnapMountDir, "pc/1/"),
+		},
 	})
 }
 
@@ -529,7 +540,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeSupportsCloudInitFromGadgetNo
 	}
 
 	// cloud init config from gadget works for signed models too
-	s.mockInstallModeChange(c, "signed")
+	s.mockInstallModeChange(c, "signed", "")
 
 	// nothing about cloud-init got passed to sysconf, we don't
 	// support cloud.cfg.d anymore
@@ -538,12 +549,13 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeSupportsCloudInitFromGadgetNo
 		TargetRootDir: boot.InstallHostWritableDir,
 		// not set
 		CloudInitSrcDir: "",
+		GadgetDir:       filepath.Join(dirs.SnapMountDir, "pc/1/"),
 	})
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallModeWritesModel(c *C) {
 	// pretend we have a cloud-init config on the seed partition
-	model := s.mockInstallModeChange(c, "dangerous")
+	model := s.mockInstallModeChange(c, "dangerous", "")
 
 	var buf bytes.Buffer
 	err := asserts.NewEncoder(&buf).Encode(model)

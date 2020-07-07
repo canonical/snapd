@@ -18,7 +18,7 @@ details: |
     simple snap using classic confinement.
 
     The mount tables are obtained from /proc/pid/mountinfo interface. They are
-    then fed to mountinfo-tool with various determinism adjustment options and
+    then fed to mountinfo.query with various determinism adjustment options and
     compared to stock tables created when the test was first made.
 
     Naturally occurring mount tables will differ from invocation to invocation
@@ -30,7 +30,7 @@ details: |
     created based on the amount of available memory. Some mount entries may
     contain numeric IDs that are allocated and are hard to predict. Block
     devices backing actual file systems may be on various disks, for instance
-    on /dev/vda or /dev/sdb. All of those are handled by mountinfo-tool
+    on /dev/vda or /dev/sdb. All of those are handled by mountinfo.query
     --rename and --renumber, along with sorting options that combat
     non-deterministic mount order.
 
@@ -68,7 +68,7 @@ prepare: |
             # and released this test can be allowed to run on bash 4.3. Without
             # the workaround for a bug in bash REBOOT causes the spread test to
             # fail instead of asking spread to reboot the machine.
-            if version-tool --strict "$(echo "$BASH_VERSION" | cut -d. -f 1-2)" -eq 4.3; then
+            if "$TESTSTOOLS"/version-compare --strict "$(echo "$BASH_VERSION" | cut -d. -f 1-2)" -eq 4.3; then
                 echo "SKIP: this test cannot operate on bash 4.3.x"
                 touch please-skip-this-test
                 exit 0
@@ -105,8 +105,8 @@ prepare: |
     # order is deterministic. The use of filesystem field is there so that
     # autofs mounted filesystems (like binfmt_misc) don't have random ordering
     # between the real thing and the automount entry.
-    deterministic-mountinfo-tool() {
-        mountinfo-tool \
+    deterministic-mountinfo-query() {
+        mountinfo.query \
             --renumber \
             --rename \
             --ref-x1000 \
@@ -141,7 +141,7 @@ prepare: |
 
     echo "Collect mountinfo from the host before running apps"
     # "make sure that persistent mount namespaces don't clobber the output"
-    if mountinfo-tool /run/snapd/ns; then
+    if mountinfo.query /run/snapd/ns; then
         umount /run/snapd/ns
     fi
     cat /proc/self/mountinfo >HOST.raw.txt
@@ -162,23 +162,23 @@ prepare: |
 
     echo "Collect mountinfo from the host after running apps"
     # "make sure that persistent mount namespaces don't clobber the output"
-    snap-tool snap-discard-ns test-snapd-mountinfo-classic
-    snap-tool snap-discard-ns test-snapd-mountinfo-core16
-    snap-tool snap-discard-ns test-snapd-mountinfo-core18
+    snapd.tool exec snap-discard-ns test-snapd-mountinfo-classic
+    snapd.tool exec snap-discard-ns test-snapd-mountinfo-core16
+    snapd.tool exec snap-discard-ns test-snapd-mountinfo-core18
     umount /run/snapd/ns
     cat /proc/self/mountinfo >HOST-AFTER.raw.txt
 
     echo "Transform mountinfo tables to make them deterministic"
-    deterministic-mountinfo-tool                                              -f HOST.raw.txt        >HOST.deterministic.txt
-    deterministic-mountinfo-tool --ref HOST.raw.txt                           -f PER-SNAP-16.raw.txt >PER-SNAP-16.deterministic.txt
-    deterministic-mountinfo-tool --ref HOST.raw.txt --ref PER-SNAP-16.raw.txt -f PER-USER-16.raw.txt >PER-USER-16.deterministic.txt
-    deterministic-mountinfo-tool --ref HOST.raw.txt                           -f PER-SNAP-18.raw.txt >PER-SNAP-18.deterministic.txt
-    deterministic-mountinfo-tool --ref HOST.raw.txt --ref PER-SNAP-18.raw.txt -f PER-USER-18.raw.txt >PER-USER-18.deterministic.txt
+    deterministic-mountinfo-query                                              -f HOST.raw.txt        >HOST.deterministic.txt
+    deterministic-mountinfo-query --ref HOST.raw.txt                           -f PER-SNAP-16.raw.txt >PER-SNAP-16.deterministic.txt
+    deterministic-mountinfo-query --ref HOST.raw.txt --ref PER-SNAP-16.raw.txt -f PER-USER-16.raw.txt >PER-USER-16.deterministic.txt
+    deterministic-mountinfo-query --ref HOST.raw.txt                           -f PER-SNAP-18.raw.txt >PER-SNAP-18.deterministic.txt
+    deterministic-mountinfo-query --ref HOST.raw.txt --ref PER-SNAP-18.raw.txt -f PER-USER-18.raw.txt >PER-USER-18.deterministic.txt
     if snap debug sandbox-features --required confinement-options:classic; then
-        deterministic-mountinfo-tool --ref HOST.raw.txt                           -f PER-SNAP-C7.raw.txt >PER-SNAP-C7.deterministic.txt
-        deterministic-mountinfo-tool --ref HOST.raw.txt --ref PER-SNAP-C7.raw.txt -f PER-USER-C7.raw.txt >PER-USER-C7.deterministic.txt
+        deterministic-mountinfo-query --ref HOST.raw.txt                           -f PER-SNAP-C7.raw.txt >PER-SNAP-C7.deterministic.txt
+        deterministic-mountinfo-query --ref HOST.raw.txt --ref PER-SNAP-C7.raw.txt -f PER-USER-C7.raw.txt >PER-USER-C7.deterministic.txt
     fi
-    deterministic-mountinfo-tool                                              -f HOST-AFTER.raw.txt  >HOST-AFTER.deterministic.txt
+    deterministic-mountinfo-query                                              -f HOST-AFTER.raw.txt  >HOST-AFTER.deterministic.txt
 
     if snap debug sandbox-features --required confinement-options:classic; then
         snap remove --purge test-snapd-mountinfo-classic

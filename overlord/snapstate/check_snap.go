@@ -27,7 +27,6 @@ import (
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
@@ -35,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	seccomp_compiler "github.com/snapcore/snapd/sandbox/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snapdtool"
 )
 
 // featureSet contains the flag values that can be listed in assumes entries
@@ -205,7 +205,7 @@ func checkVersion(version string) bool {
 		return false
 	}
 
-	if cmd.Version == "unknown" {
+	if snapdtool.Version == "unknown" {
 		return true // Development tree.
 	}
 
@@ -213,7 +213,7 @@ func checkVersion(version string) bool {
 	// this code (see PR#7344). However this would change current
 	// behavior, i.e. "2.41~pre1" would *not* match [snapd2.41] anymore
 	// (which the code below does).
-	cur := versionExp.FindStringSubmatch(cmd.Version)
+	cur := versionExp.FindStringSubmatch(snapdtool.Version)
 	if cur == nil {
 		return false
 	}
@@ -405,7 +405,7 @@ func MockCheckSnapCallbacks(checks []CheckSnapCallback) (restore func()) {
 }
 
 func checkSnapdName(st *state.State, snapInfo, curInfo *snap.Info, _ snap.Container, flags Flags, deviceCtx DeviceContext) error {
-	if snapInfo.GetType() != snap.TypeSnapd {
+	if snapInfo.Type() != snap.TypeSnapd {
 		// not a relevant check
 		return nil
 	}
@@ -417,7 +417,7 @@ func checkSnapdName(st *state.State, snapInfo, curInfo *snap.Info, _ snap.Contai
 }
 
 func checkCoreName(st *state.State, snapInfo, curInfo *snap.Info, _ snap.Container, flags Flags, deviceCtx DeviceContext) error {
-	if snapInfo.GetType() != snap.TypeOS {
+	if snapInfo.Type() != snap.TypeOS {
 		// not a relevant check
 		return nil
 	}
@@ -453,7 +453,7 @@ func checkCoreName(st *state.State, snapInfo, curInfo *snap.Info, _ snap.Contain
 }
 
 func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, snapf snap.Container, flags Flags, deviceCtx DeviceContext) error {
-	typ := snapInfo.GetType()
+	typ := snapInfo.Type()
 	kind := ""
 	var whichName func(*asserts.Model) string
 	switch typ {
@@ -513,7 +513,7 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, snapf sn
 
 func checkBases(st *state.State, snapInfo, curInfo *snap.Info, _ snap.Container, flags Flags, deviceCtx DeviceContext) error {
 	// check if this is relevant
-	if snapInfo.GetType() != snap.TypeApp && snapInfo.GetType() != snap.TypeGadget {
+	if snapInfo.Type() != snap.TypeApp && snapInfo.Type() != snap.TypeGadget {
 		return nil
 	}
 	if snapInfo.Base == "" {
@@ -608,7 +608,7 @@ func checkAndCreateSystemUsernames(si *snap.Info) error {
 	}
 
 	// Run /.../snap-seccomp version-info
-	vi, err := seccomp_compiler.CompilerVersionInfo(cmd.InternalToolPath)
+	vi, err := seccomp_compiler.CompilerVersionInfo(snapdtool.InternalToolPath)
 	if err != nil {
 		return fmt.Errorf("cannot obtain seccomp compiler information: %v", err)
 	}

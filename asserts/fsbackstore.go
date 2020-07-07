@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2016 Canonical Ltd
+ * Copyright (C) 2015-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,6 +20,7 @@
 package asserts
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -123,7 +124,7 @@ func (fsbs *filesystemBackstore) currentAssertion(assertType *AssertionType, pri
 
 	comps := diskPrimaryPathComps(primaryPath, "active*")
 	assertTypeTop := filepath.Join(fsbs.top, assertType.Name)
-	err := findWildcard(assertTypeTop, comps, namesCb)
+	err := findWildcard(assertTypeTop, comps, 0, namesCb)
 	if err != nil {
 		return nil, fmt.Errorf("broken assertion storage, looking for %s: %v", assertType.Name, err)
 	}
@@ -189,7 +190,7 @@ func (fsbs *filesystemBackstore) search(assertType *AssertionType, diskPattern [
 		foundCb(a)
 		return nil
 	}
-	err := findWildcard(assertTypeTop, diskPattern, candCb)
+	err := findWildcard(assertTypeTop, diskPattern, 0, candCb)
 	if err != nil {
 		return fmt.Errorf("broken assertion storage, searching for %s: %v", assertType.Name, err)
 	}
@@ -218,4 +219,57 @@ func (fsbs *filesystemBackstore) Search(assertType *AssertionType, headers map[s
 		}
 	}
 	return fsbs.search(assertType, diskPattern, candCb, maxFormat)
+}
+
+// errFound marks the case an assertion was found
+var errFound = errors.New("found")
+
+func (fsbs *filesystemBackstore) SequenceMemberAfter(assertType *AssertionType, sequenceKey []string, after, maxFormat int) (SequenceMember, error) {
+	if !assertType.SequenceForming() {
+		panic(fmt.Sprintf("internal error: SequenceMemberAfter on not sequence-forming assertion type %s", assertType.Name))
+	}
+	if len(sequenceKey) != len(assertType.PrimaryKey)-1 {
+		return nil, fmt.Errorf("internal error: SequenceMemberAfter's sequence key argument length must be exactly 1 less than the assertion type primary key")
+	}
+
+	fsbs.mu.RLock()
+	defer fsbs.mu.RUnlock()
+
+	n := len(assertType.PrimaryKey)
+	diskPattern := make([]string, n+1)
+	for i, k := range sequenceKey {
+		diskPattern[i] = url.QueryEscape(k)
+	}
+	seqWildcard := "#>" // ascending sequence wildcard
+	if after == -1 {
+		// find the latest in sequence
+		// use descending sequence wildcard
+		seqWildcard = "#<"
+	}
+	diskPattern[n-1] = seqWildcard
+	diskPattern[n] = "active*"
+
+	var a Assertion
+	candCb := func(diskPrimaryPaths []string) error {
+		var err error
+		a, err = fsbs.pickLatestAssertion(assertType, diskPrimaryPaths, maxFormat)
+		if err == errNotFound {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		return errFound
+	}
+
+	assertTypeTop := filepath.Join(fsbs.top, assertType.Name)
+	err := findWildcard(assertTypeTop, diskPattern, after, candCb)
+	if err == errFound {
+		return a.(SequenceMember), nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("broken assertion storage, searching for %s: %v", assertType.Name, err)
+	}
+
+	return nil, &NotFoundError{Type: assertType}
 }

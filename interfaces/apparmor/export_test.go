@@ -114,3 +114,7 @@ func MockParserFeatures(f func() ([]string, error)) (resture func()) {
 func (b *Backend) SetupSnapConfineReexec(info *snap.Info) error {
 	return b.setupSnapConfineReexec(info)
 }
+
+func (s *Specification) SnippetsForTag(tag string) []string {
+	return s.snippetsForTag(tag)
+}
