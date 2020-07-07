@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/timings"
@@ -998,6 +999,44 @@ func batchConnectTasks(st *state.State, snapsup *snapstate.SnapSetup, conns map[
 	return ts, hasHooks, nil
 }
 
+// firstTaskAfterBootWhenPreseeding finds the first task to be run for thisSnap
+// on first boot after mark-preseeded task, this is normally install hook or
+// start-snap-services.
+func firstTaskAfterBootWhenPreseeding(thisSnap string, markPreseeded *state.Task) (*state.Task, error) {
+	var firstTaskAfterBoot *state.Task
+	if markPreseeded.Change() == nil {
+		return nil, fmt.Errorf("internal error: %s task not in change", markPreseeded.Kind())
+	}
+	for _, ht := range markPreseeded.Change().Tasks() {
+		switch ht.Kind() {
+		case "start-snap-services":
+			htsup, err := snapstate.TaskSnapSetup(ht)
+			if err != nil {
+				return nil, fmt.Errorf("internal error: cannot get snap setup for task %q: %v", ht.Kind(), err)
+			}
+			if htsup.InstanceName() == thisSnap {
+				firstTaskAfterBoot = ht
+				// we may still find install hook, continue looping
+			}
+		case "run-hook":
+			var hs hookstate.HookSetup
+			if err := ht.Get("hook-setup", &hs); err != nil {
+				return nil, fmt.Errorf("internal error: cannot get hook setup: %v", err)
+			}
+			if hs.Hook == "install" && hs.Snap == thisSnap {
+				firstTaskAfterBoot = ht
+				// install hooks comes before start-snap-services,
+				// interrupt the loop if found.
+				break
+			}
+		}
+	}
+	if firstTaskAfterBoot == nil {
+		return nil, fmt.Errorf("internal error: cannot find start-setup-profiles or install hook for snap %q", thisSnap)
+	}
+	return firstTaskAfterBoot, nil
+}
+
 func filterForSlot(slot *snap.SlotInfo) func(candSlots []*snap.SlotInfo) []*snap.SlotInfo {
 	return func(candSlots []*snap.SlotInfo) []*snap.SlotInfo {
 		for _, candSlot := range candSlots {
@@ -1143,18 +1182,23 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 	if m.preseed && hasHooks {
 		for _, t := range st.Tasks() {
 			if t.Kind() == "mark-preseeded" {
+				markPreseeded := t
 				// consistency check
-				if t.Status() != state.DoStatus {
-					return fmt.Errorf("internal error: unexpected state of mark-preseeded task: %s", t.Status())
+				if markPreseeded.Status() != state.DoStatus {
+					return fmt.Errorf("internal error: unexpected state of mark-preseeded task: %s", markPreseeded.Status())
 				}
 
-				// XXX: should we do something about joining lanes?
-				// Preseeding fails entirely if any task fails, on the other
-				// hand connects with hooks will run on first boot.
+				firstTaskAfterBoot, err := firstTaskAfterBootWhenPreseeding(snapsup.InstanceName(), markPreseeded)
+				if err != nil {
+					return err
+				}
+				// first task of the snap that normally runs on first boot
+				// needs to wait on connects & interface hooks.
+				firstTaskAfterBoot.WaitAll(autots)
 
 				// connect tasks and interface hooks need to wait for end of preseeding
 				// (they will run on first boot).
-				autots.WaitFor(t)
+				autots.WaitFor(markPreseeded)
 				t.Change().AddAll(autots)
 				task.SetStatus(state.DoneStatus)
 				st.EnsureBefore(0)

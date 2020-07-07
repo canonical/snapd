@@ -8130,10 +8130,22 @@ func (s *interfaceManagerSuite) autoconnectChangeForPreseeding(c *C, skipMarkPre
 		markPreseededTask.WaitFor(autoconnectTask)
 		change.AddTask(markPreseededTask)
 	}
+	installHook := s.state.NewTask("run-hook", "")
+	hsup := &hookstate.HookSetup{
+		Snap: snapInfo.InstanceName(),
+		Hook: "install",
+	}
+	installHook.Set("hook-setup", &hsup)
+	if markPreseededTask != nil {
+		installHook.WaitFor(markPreseededTask)
+	} else {
+		installHook.WaitFor(autoconnectTask)
+	}
+	change.AddTask(installHook)
 	return autoconnectTask, markPreseededTask
 }
 
-func (s *interfaceManagerSuite) TestPreseedAutoConnectErrorWithInterfaceHooks(c *C) {
+func (s *interfaceManagerSuite) TestPreseedAutoConnectWithInterfaceHooks(c *C) {
 	restore := snapdenv.MockPreseeding(true)
 	defer restore()
 
@@ -8149,18 +8161,36 @@ func (s *interfaceManagerSuite) TestPreseedAutoConnectErrorWithInterfaceHooks(c 
 	c.Check(autoConnectTask.Status(), Equals, state.DoneStatus)
 	c.Check(markPreseededTask.Status(), Equals, state.DoStatus)
 
-	var setupProfilesCount, connectCount, hookCount int
+	checkWaitsForMarkPreseeded := func(t *state.Task) {
+		var foundMarkPreseeded bool
+		for _, wt := range t.WaitTasks() {
+			if wt.Kind() == "mark-preseeded" {
+				foundMarkPreseeded = true
+				break
+			}
+		}
+		c.Check(foundMarkPreseeded, Equals, true)
+	}
 
+	var setupProfilesCount, connectCount, hookCount, installHook int
 	for _, t := range change.Tasks() {
 		switch t.Kind() {
 		case "setup-profiles":
 			c.Check(ifacestate.InSameChangeWaitChain(markPreseededTask, t), Equals, true)
+			checkWaitsForMarkPreseeded(t)
 			setupProfilesCount++
 		case "connect":
 			c.Check(ifacestate.InSameChangeWaitChain(markPreseededTask, t), Equals, true)
+			checkWaitsForMarkPreseeded(t)
 			connectCount++
 		case "run-hook":
 			c.Check(ifacestate.InSameChangeWaitChain(markPreseededTask, t), Equals, true)
+			var hsup hookstate.HookSetup
+			c.Assert(t.Get("hook-setup", &hsup), IsNil)
+			if hsup.Hook == "install" {
+				installHook++
+				checkWaitsForMarkPreseeded(t)
+			}
 			hookCount++
 		case "auto-connect":
 		case "mark-preseeded":
@@ -8170,8 +8200,9 @@ func (s *interfaceManagerSuite) TestPreseedAutoConnectErrorWithInterfaceHooks(c 
 	}
 
 	c.Check(setupProfilesCount, Equals, 1)
-	c.Check(hookCount, Equals, 4)
+	c.Check(hookCount, Equals, 5)
 	c.Check(connectCount, Equals, 1)
+	c.Check(installHook, Equals, 1)
 }
 
 func (s *interfaceManagerSuite) TestPreseedAutoConnectInternalErrorOnMarkPreseededState(c *C) {
@@ -8209,6 +8240,60 @@ func (s *interfaceManagerSuite) TestPreseedAutoConnectInternalErrorMarkPreseeded
 	s.state.Lock()
 
 	c.Check(strings.Join(autoConnectTask.Log(), ""), Matches, `.* internal error: mark-preseeded task not found in preseeding mode`)
+}
+
+func (s *interfaceManagerSuite) TestFirstTaskAfterBootWhenPreseedingErrors(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("change", "")
+
+	setupTask := st.NewTask("some-task", "")
+	setupTask.Set("snap-setup", &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "test-snap"}})
+	chg.AddTask(setupTask)
+
+	markPreseeded := st.NewTask("fake-mark-preseeded", "")
+	markPreseeded.WaitFor(setupTask)
+	_, err := ifacestate.FirstTaskAfterBootWhenPreseeding("test-snap", markPreseeded)
+	c.Check(err, ErrorMatches, `internal error: fake-mark-preseeded task not in change`)
+
+	chg.AddTask(markPreseeded)
+
+	_, err = ifacestate.FirstTaskAfterBootWhenPreseeding("test-snap", markPreseeded)
+	c.Check(err, ErrorMatches, `internal error: cannot find start-setup-profiles or install hook for snap "test-snap"`)
+
+	task1 := st.NewTask("some-task", "")
+	task1.WaitFor(markPreseeded)
+	chg.AddTask(task1)
+
+	_, err = ifacestate.FirstTaskAfterBootWhenPreseeding("test-snap", markPreseeded)
+	c.Check(err, ErrorMatches, `internal error: cannot find start-setup-profiles or install hook for snap "test-snap"`)
+
+	task2 := st.NewTask("run-hook", "")
+	hsup := hookstate.HookSetup{Hook: "install", Snap: "other-snap"}
+	task2.Set("hook-setup", &hsup)
+	task2.WaitFor(task1)
+	chg.AddTask(task2)
+	_, err = ifacestate.FirstTaskAfterBootWhenPreseeding("test-snap", markPreseeded)
+	c.Check(err, ErrorMatches, `internal error: cannot find start-setup-profiles or install hook for snap "test-snap"`)
+
+	task3 := st.NewTask("start-snap-services", "")
+	task3.Set("snap-setup-task", setupTask.ID())
+	task2.WaitFor(task2)
+	chg.AddTask(task3)
+	tsk, err := ifacestate.FirstTaskAfterBootWhenPreseeding("test-snap", markPreseeded)
+	c.Assert(err, IsNil)
+	c.Check(tsk.ID(), Equals, task3.ID())
+
+	task4 := st.NewTask("run-hook", "")
+	hsup = hookstate.HookSetup{Hook: "install", Snap: "test-snap"}
+	task4.Set("hook-setup", &hsup)
+	task4.WaitFor(task3)
+	chg.AddTask(task4)
+	hooktask, err := ifacestate.FirstTaskAfterBootWhenPreseeding("test-snap", markPreseeded)
+	c.Assert(err, IsNil)
+	c.Check(hooktask.ID(), Equals, task4.ID())
 }
 
 // Tests for ResolveDisconnect()

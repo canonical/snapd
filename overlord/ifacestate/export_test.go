@@ -59,6 +59,7 @@ var (
 	AddHotplugSlot               = addHotplugSlot
 
 	BatchConnectTasks = batchConnectTasks
+	FirstTaskAfterBootWhenPreseeding = firstTaskAfterBootWhenPreseeding
 )
 
 type ConnectOpts = connectOpts
