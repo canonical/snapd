@@ -1,8 +1,8 @@
 summary: integration tests for str-tool
 prepare: |
-    apt-get install -y shellcheck
+    snap install shellcheck
 restore: |
-    apt-get remove --purge -y shellcheck
+    snap remove shellcheck
 execute: |
     # Run shellcheck for to-one-line script
     shellcheck "$TESTSTOOLS"/to-one-line
