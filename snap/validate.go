@@ -401,8 +401,8 @@ func ValidateLayoutAll(info *Info) error {
 	sort.Strings(paths)
 
 	// Validate that each source path is not a new top-level directory
-	for pathSrc := range info.Layout {
-		cleanPathSrc := info.ExpandSnapVariables(filepath.Clean(pathSrc))
+	for _, layout := range info.Layout {
+		cleanPathSrc := info.ExpandSnapVariables(filepath.Clean(layout.Path))
 		elems := strings.SplitN(cleanPathSrc, string(os.PathSeparator), 3)
 		switch len(elems) {
 		// len(1) is either relative path or empty string, will be validated
@@ -413,7 +413,7 @@ func ValidateLayoutAll(info *Info) error {
 			if elems[0] != "" {
 				// not the empty string which means this was a relative
 				// specification, i.e. usr/src/doc
-				return fmt.Errorf("layout %q is a relative filename", pathSrc)
+				return fmt.Errorf("layout %q is a relative filename", layout.Path)
 			}
 			if elems[1] != "" {
 				// verify that the top-level directory is a supported one
@@ -426,7 +426,7 @@ func ValidateLayoutAll(info *Info) error {
 				// denied top-level directories
 				case "bin", "etc", "lib", "lib64", "meta", "mnt", "opt", "root", "sbin", "snap", "srv", "usr", "var", "writable":
 				default:
-					return fmt.Errorf("layout %q defines a new top-level directory %q", pathSrc, "/"+elems[1])
+					return fmt.Errorf("layout %q defines a new top-level directory %q", layout.Path, "/"+elems[1])
 				}
 			}
 		}
