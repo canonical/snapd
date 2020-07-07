@@ -1,11 +1,10 @@
 summary: smoke test for the fs-state tool
-prepare: |
-    snap install shellcheck
-restore: |
-    snap remove shellcheck
+
 execute: |
     # Run shellcheck for fs-state script
-    shellcheck "$TESTSTOOLS"/fs-state
+    if [ "$SPREAD_SYSTEM" = "ubuntu-18.04-64" ]; then
+        shellcheck "$TESTSTOOLS"/fs-state
+    fi
 
     # Check help
     "$TESTSTOOLS"/fs-state -h | MATCH "usage: fs-state wait-for-file"
