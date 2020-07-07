@@ -1,5 +1,12 @@
 summary: smoke test for the fs-state tool
+prepare: |
+    snap install shellcheck
+restore: |
+    snap remove shellcheck
 execute: |
+    # Run shellcheck for fs-state script
+    shellcheck "$TESTSTOOLS"/fs-state
+
     # Check help
     "$TESTSTOOLS"/fs-state -h | MATCH "usage: fs-state wait-for-file"
     "$TESTSTOOLS"/fs-state --help | MATCH "usage: fs-state wait-for-file"
