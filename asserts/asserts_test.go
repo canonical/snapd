@@ -69,6 +69,7 @@ func (as *assertsSuite) TestTypeNames(c *C) {
 		"test-only-no-authority",
 		"test-only-no-authority-pk",
 		"test-only-rev",
+		"test-only-seq",
 		"validation",
 		"validation-set",
 	})
@@ -84,6 +85,7 @@ func (as *assertsSuite) TestMaxSupportedFormats(c *C) {
 		"snap-declaration": snapDeclMaxFormat,
 		"system-user":      systemUserMaxFormat,
 		"test-only":        1,
+		"test-only-seq":    2,
 	})
 
 	// all
