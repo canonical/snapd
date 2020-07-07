@@ -176,12 +176,18 @@ func Run(gadgetRoot, device string, options Options) error {
 		loadChain = append(loadChain, options.KernelPath)
 	}
 
-	// TODO:UC20: get cmdline definition from bootloaders
+	// Get kernel command lines
+	cmdline, err := boot.ComposeCommandLine(options.Model)
+	if err != nil {
+		return fmt.Errorf("cannot obtain kernel command line: %v", err)
+	}
+	recoveryCmdline, err := boot.ComposeRecoveryCommandLine(options.Model, options.SystemLabel)
+	if err != nil {
+		return fmt.Errorf("cannot obtain recovery kernel command line: %v", err)
+	}
 	kernelCmdlines := []string{
-		// run mode
-		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
-		// recover mode
-		fmt.Sprintf("snapd_recovery_mode=recover snapd_recovery_system=%s console=ttyS0 console=tty1 panic=-1", options.SystemLabel),
+		cmdline,
+		recoveryCmdline,
 	}
 
 	sealKeyParams := secboot.SealKeyParams{
