@@ -545,7 +545,7 @@ prepare_suite_each() {
         fi
     fi
     # Check if journalctl is ready to run the test
-    "$TESTSTOOLS"/journal-state check-ready
+    "$TESTSTOOLS"/journal-state check-log-started
 
     case "$SPREAD_SYSTEM" in
         fedora-*|centos-*|amazon-*)

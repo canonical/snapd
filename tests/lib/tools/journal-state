@@ -5,7 +5,7 @@ JOURNALCTL_CURSOR_FILE="$SPREAD_PATH"/tests/runtime-state/journalctl_cursor
 
 show_help() {
     echo "usage: journal-state start-new-log"
-    echo "usage: journal-state check-ready"
+    echo "usage: journal-state check-log-started"
     echo "usage: journal-state get-last-cursor"
     echo "usage: journal-state match-log [expression]"
     echo "usage: journal-state get-log"
@@ -29,7 +29,7 @@ start_new_log(){
     fi
 }
 
-check_ready(){
+check_log_started(){
     marker="test-${RANDOM}${RANDOM}"
     echo "Running test: $marker" | systemd-cat -t snapd-test
     if match_log "$marker"; then
