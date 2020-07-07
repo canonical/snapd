@@ -1,8 +1,8 @@
 summary: smoke test for the journal-state tool
 prepare: |
-    apt-get install -y shellcheck
+    snap install shellcheck
 restore: |
-    apt-get remove --purge -y shellcheck
+    snap remove shellcheck
 execute: |
     # Run shellcheck for to-one-line script
     shellcheck "$TESTSTOOLS"/journal-state
