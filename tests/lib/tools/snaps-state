@@ -1,0 +1,90 @@
+#!/bin/bash
+
+show_help() {
+    echo "usage: make-snap [snap-name]"
+    echo "usage: install-local [snap-name]"
+    echo "usage: install-local-as [snap-name] [dest-name]"
+    echo "usage: install-local-devmode [snap-name]"
+    echo "usage: install-local-classic [snap-name]"
+    echo "usage: install-local-jailmode [snap-name]"
+}
+
+make_snap() {
+    local SNAP_NAME="$1"
+    local SNAP_DIR="$TESTSLIB/snaps/${SNAP_NAME}"
+    if [ $# -gt 1 ]; then
+        SNAP_DIR="$2"
+    fi
+    local SNAP_FILE="${SNAP_DIR}/${SNAP_NAME}_1.0_all.snap"
+    # assigned in a separate step to avoid hiding a failure
+    if [ ! -f "$SNAP_FILE" ]; then
+        snap pack "$SNAP_DIR" "$SNAP_DIR" >/dev/null || return 1
+    fi
+    # echo the snap name
+    if [ -f "$SNAP_FILE" ]; then
+        echo "$SNAP_FILE"
+    else
+        find "$SNAP_DIR" -name '*.snap' | head -n1
+    fi
+}
+
+install_local() {
+    local SNAP_NAME="$1"
+    local SNAP_DIR="$TESTSLIB/snaps/${SNAP_NAME}"
+    shift
+
+    if [ -d "$SNAP_NAME" ]; then
+        SNAP_DIR="$PWD/$SNAP_NAME"
+    fi
+    SNAP_FILE=$(make_snap "$SNAP_NAME" "$SNAP_DIR")
+
+    snap install --dangerous "$@" "$SNAP_FILE"
+}
+
+install_local_as() {
+    local snap="$1"
+    local name="$2"
+    shift 2
+    install_local "$snap" --name "$name" "$@"
+}
+
+install_local_devmode() {
+    install_local "$1" --devmode
+}
+
+install_local_classic() {
+    install_local "$1" --classic
+}
+
+install_local_jailmode() {
+    install_local "$1" --jailmode
+}
+
+if [ $# -eq 0 ]; then
+    show_help
+    exit 0
+fi
+
+subcommand=$1
+action=
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -h|--help)
+            show_help
+            exit 0
+            ;;
+        *)
+            action=$(echo "$subcommand" | tr '-' '_')
+            shift
+            break
+            ;;
+    esac
+done
+
+if [ -z "$(declare -f "$action")" ]; then
+    echo "Subcommand $subcommand not supported."
+    show_help
+    exit 1
+fi
+
+"$action" "$@"

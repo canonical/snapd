@@ -1,0 +1,67 @@
+summary: smoke test for the snaps-state tool
+prepare: |
+    apt-get install -y shellcheck
+restore: |
+    apt-get remove --purge -y shellcheck
+execute: |
+    # Run shellcheck for to-one-line script
+    shellcheck "$TESTSTOOLS"/snaps-state
+
+    SNAP_NAME=test-snapd-tools
+
+    # Check help
+    "$TESTSTOOLS"/snaps-state | MATCH "usage: make-snap \[snap-name\]"
+    "$TESTSTOOLS"/snaps-state -h | MATCH "usage: make-snap \[snap-name\]"
+    "$TESTSTOOLS"/snaps-state --help | MATCH "usage: make-snap \[snap-name\]"
+
+    # Make a snap by using the make-snap subcommand
+    snap_path=$("$TESTSTOOLS"/snaps-state make-snap "$SNAP_NAME")
+    snap install --dangerous "${snap_path}"
+    test-snapd-tools.echo test123 | MATCH "test123"
+    snap remove "$SNAP_NAME"
+
+    # Check the local snap file is already created
+    test -f "$TESTSLIB/snaps/${SNAP_NAME}/${SNAP_NAME}_1.0_all.snap"
+    rm -f "$TESTSLIB/snaps/${SNAP_NAME}/${SNAP_NAME}_1.0_all.snap"
+
+    # Make and install a snap by using the install-local subcommand
+    snap_path=$("$TESTSTOOLS"/snaps-state install-local "$SNAP_NAME")
+    test-snapd-tools.echo test123 | MATCH "test123"
+    snap remove "$SNAP_NAME"
+
+    # Check the local snap file is already created
+    test -f "$TESTSLIB/snaps/${SNAP_NAME}/${SNAP_NAME}_1.0_all.snap"
+
+    # Make and install a snap when snap file is already created
+    snap_path=$("$TESTSTOOLS"/snaps-state install-local "$SNAP_NAME")
+    test-snapd-tools.echo test123 | MATCH "test123"
+    snap remove "$SNAP_NAME"
+
+    # Check the local snap file is already created
+    test -f "$TESTSLIB/snaps/${SNAP_NAME}/${SNAP_NAME}_1.0_all.snap"
+    rm -f "$TESTSLIB/snaps/${SNAP_NAME}/${SNAP_NAME}_1.0_all.snap"
+
+    # Make and install a snap by using the install-local-as subcommand
+    snap_path=$("$TESTSTOOLS"/snaps-state install-local-as "$SNAP_NAME" "$SNAP_NAME"_test)
+    test-snapd-tools_test.echo test123 | MATCH "test123"
+    snap remove "$SNAP_NAME"_test
+    rm -f "$TESTSLIB/snaps/${SNAP_NAME}/${SNAP_NAME}_test_1.0_all.snap"
+
+    # Make and install a snap by using the install-local-devmode subcommand
+    snap_path=$("$TESTSTOOLS"/snaps-state install-local-devmode "$SNAP_NAME")
+    test-snapd-tools.echo test123 | MATCH "test123"
+    snap remove "$SNAP_NAME"
+    rm -f "$TESTSLIB/snaps/${SNAP_NAME}/${SNAP_NAME}_1.0_all.snap"
+
+    # Make and install a snap by using the install-local-classic subcommand
+    snap_path=$("$TESTSTOOLS"/snaps-state install-local-classic "$SNAP_NAME")
+    test-snapd-tools.echo test123 | MATCH "test123"
+    snap list test-snapd-tools | MATCH "classic$"
+    snap remove "$SNAP_NAME"
+    rm -f "$TESTSLIB/snaps/${SNAP_NAME}/${SNAP_NAME}_1.0_all.snap"
+
+    # Make and install a snap by using the install-local-jailmode subcommand
+    snap_path=$("$TESTSTOOLS"/snaps-state install-local-jailmode "$SNAP_NAME")
+    test-snapd-tools.echo test123 | MATCH "test123"
+    snap remove "$SNAP_NAME"
+    rm -f "$TESTSLIB/snaps/${SNAP_NAME}/${SNAP_NAME}_1.0_all.snap"
