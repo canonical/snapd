@@ -46,6 +46,12 @@ const kvmConnectedPlugAppArmor = `
 # See 'man kvm' for details.
 
 /dev/kvm rw,
+
+# Allow nested virtualization checks for different CPU models and architectures (where it is supported).
+/sys/module/kvm_intel/parameters/nested r,
+/sys/module/kvm_amd/parameters/nested r,
+/sys/module/kvm_hv/parameters/nested r, # PPC64.
+/sys/module/kvm/parameters/nested r, # S390.
 `
 
 var kvmConnectedPlugUDev = []string{`KERNEL=="kvm"`}
