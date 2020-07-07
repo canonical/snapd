@@ -350,16 +350,22 @@ func Export(ctx context.Context, setID uint64, w io.Writer) error {
 				return fmt.Errorf("unexported directory in snapshot: %v", stat.Name())
 			}
 
-			hdr := &tar.Header{
-				Typeflag: tar.TypeReg,
-				Name:     filepath.Base(reader.Name()),
-				Size:     stat.Size(),
-				Mode:     int64(stat.Mode()),
-				ModTime:  stat.ModTime(),
+			// Go1.9 needs the actual file for symlinks (like /dev/null)
+			var link string
+			if stat.Mode()&os.ModeSymlink == os.ModeSymlink {
+				if link, err = os.Readlink(reader.Name()); err != nil {
+					return fmt.Errorf("symlink: %v", stat.Name())
+				}
+			}
+
+			hdr, err := tar.FileInfoHeader(stat, link)
+			if err != nil {
+				return fmt.Errorf("symlink: %v", stat.Name())
 			}
 			if err = tw.WriteHeader(hdr); err != nil {
 				return err
 			}
+
 			// open the file
 			f, err := os.Open(reader.Name())
 			if err != nil {
@@ -367,6 +373,7 @@ func Export(ctx context.Context, setID uint64, w io.Writer) error {
 			}
 			defer f.Close()
 
+			// TODO: add `memory-observe-do` spread test to check memory usage
 			if _, err := io.Copy(tw, f); err != nil {
 				return err
 			}
