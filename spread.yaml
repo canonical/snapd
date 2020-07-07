@@ -7,7 +7,7 @@ environment:
     PROJECT_PATH: $GOHOME/src/github.com/snapcore/snapd
     # /usr/lib/go-1.6/bin for trusty (needs to be last as we use
     # a different go in gccgo tests)
-    PATH: $GOHOME/bin:/snap/bin:$PATH:/usr/lib/go-1.6/bin:/var/lib/snapd/snap/bin:$PROJECT_PATH/tests/bin:$PROJECT_PATH/tests/lib/tools
+    PATH: $GOHOME/bin:/snap/bin:$PATH:/usr/lib/go-1.6/bin:/var/lib/snapd/snap/bin:$PROJECT_PATH/tests/bin
     TESTSLIB: $PROJECT_PATH/tests/lib
     TESTSTOOLS: $PROJECT_PATH/tests/lib/tools
     SNAPPY_TESTING: 1
@@ -489,8 +489,8 @@ debug-each: |
         
         if is_nested_system; then
             echo '# nested VM status'
-            systemctl status nested-vm
-            journalctl -e --no-pager -u nested-vm
+            systemctl status nested-vm || true
+            journalctl -e --no-pager -u nested-vm || true
 
             if [ -f "${WORK_DIR}/serial-log.txt" ]; then
                 echo '# nested VM serial boot log'

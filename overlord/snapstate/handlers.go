@@ -1196,6 +1196,12 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 
 	pb := NewTaskProgressAdapterLocked(t)
 
+	// Check for D-Bus service conflicts a second time to detect
+	// conflicts within a transaction.
+	if err := checkDBusServiceConflicts(st, newInfo); err != nil {
+		return err
+	}
+
 	// get the services which LinkSnap should disable when generating wrappers,
 	// as well as the services which are not present in this revision, but were
 	// present and disabled in a previous one and as such should be kept inside
