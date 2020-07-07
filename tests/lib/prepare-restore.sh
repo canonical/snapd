@@ -370,7 +370,10 @@ prepare_project() {
     rm -rf /var/cache/snapd/aux
     case "$SPREAD_SYSTEM" in
         ubuntu-*)
-            # Ubuntu is the only system where snapd is preinstalled
+            # Ubuntu is the only system where snapd is preinstalled. However the
+            # prerm shipped with distro package is known to have been buggy, so
+            # call the one we have in the tree
+            sh -x "${SPREAD_PATH}/debian/snapd.prerm" remove
             distro_purge_package snapd
             # XXX: the original package's purge may have left socket units behind
             find /etc/systemd/system -name "snap.*.socket" | while read -r f; do
