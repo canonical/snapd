@@ -615,6 +615,8 @@ func (db *Database) FindSequence(assertType *AssertionType, sequenceHeaders map[
 		}
 	}
 
+	// form the sequence key using all keys but the last one which
+	// is the sequence number
 	seqKey, err := keysFromHeaders(assertType.PrimaryKey[:len(assertType.PrimaryKey)-1], sequenceHeaders)
 	if err != nil {
 		return nil, err
