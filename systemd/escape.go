@@ -34,6 +34,11 @@ const allowed = `:_.abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567
 //
 //        But thats not in the archive and it won't work with go1.3
 func EscapeUnitNamePath(in string) string {
+	// "" is the same as "/" which corresponds to ""
+	// the filepath.Clean will turn "" into "." and make this incorrect
+	if len(in) == 0 {
+		return "-"
+	}
 	buf := bytes.NewBuffer(nil)
 
 	// clean and trim leading/trailing "/"
@@ -58,7 +63,7 @@ func EscapeUnitNamePath(in string) string {
 		} else if strings.IndexByte(allowed, c) >= 0 {
 			buf.WriteByte(c)
 		} else {
-			fmt.Fprintf(buf, `\x%x`, in[i])
+			fmt.Fprintf(buf, `\x%x`, []byte{in[i]})
 		}
 	}
 
