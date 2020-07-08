@@ -1,7 +1,15 @@
 summary: smoke test for the snaps-state tool
 
+prepare: |
+    snap set system experimental.parallel-instances=true
+
+restore: |
+    snap set system experimental.parallel-instances=null
+
 execute: |
     SNAP_NAME=test-snapd-tools
+    SNAP_CLASSIC=test-snapd-classic-confinement
+    SNAP_DEVMODE=test-snapd-devmode
 
     # Check help
     "$TESTSTOOLS"/snaps-state | MATCH "usage: make-snap \[snap-name\]"
@@ -42,20 +50,19 @@ execute: |
     rm -f "$TESTSLIB/snaps/${SNAP_NAME}/${SNAP_NAME}_test_1.0_all.snap"
 
     # Make and install a snap by using the install-local-devmode subcommand
-    snap_path=$("$TESTSTOOLS"/snaps-state install-local-devmode "$SNAP_NAME")
-    test-snapd-tools.echo test123 | MATCH "test123"
-    snap remove "$SNAP_NAME"
-    rm -f "$TESTSLIB/snaps/${SNAP_NAME}/${SNAP_NAME}_1.0_all.snap"
+    snap_path=$("$TESTSTOOLS"/snaps-state install-local-devmode "$SNAP_DEVMODE")
+    snap list "$SNAP_DEVMODE"
+    snap remove "$SNAP_DEVMODE"
+    rm -f "$TESTSLIB/snaps/${SNAP_DEVMODE}/${SNAP_DEVMODE}_1.0_all.snap"
 
     # Make and install a snap by using the install-local-classic subcommand
-    snap_path=$("$TESTSTOOLS"/snaps-state install-local-classic "$SNAP_NAME")
-    test-snapd-tools.echo test123 | MATCH "test123"
-    snap list test-snapd-tools | MATCH "classic$"
-    snap remove "$SNAP_NAME"
-    rm -f "$TESTSLIB/snaps/${SNAP_NAME}/${SNAP_NAME}_1.0_all.snap"
+    snap_path=$("$TESTSTOOLS"/snaps-state install-local-classic "$SNAP_CLASSIC")
+    snap list "$SNAP_CLASSIC" | MATCH "classic$"
+    snap remove "$SNAP_CLASSIC"
+    rm -f "$TESTSLIB/snaps/${SNAP_CLASSIC}/${SNAP_CLASSIC}_1.0_all.snap"
 
     # Make and install a snap by using the install-local-jailmode subcommand
-    snap_path=$("$TESTSTOOLS"/snaps-state install-local-jailmode "$SNAP_NAME")
-    test-snapd-tools.echo test123 | MATCH "test123"
-    snap remove "$SNAP_NAME"
-    rm -f "$TESTSLIB/snaps/${SNAP_NAME}/${SNAP_NAME}_1.0_all.snap"
+    snap_path=$("$TESTSTOOLS"/snaps-state install-local-jailmode "$SNAP_DEVMODE")
+    snap list "$SNAP_DEVMODE" | MATCH "jailmode$"
+    snap remove "$SNAP_DEVMODE"
+    rm -f "$TESTSLIB/snaps/${SNAP_DEVMODE}/${SNAP_DEVMODE}_1.0_all.snap"
