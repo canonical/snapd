@@ -22,6 +22,7 @@ package bootloadertest
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/snap"
@@ -56,6 +57,7 @@ var _ bootloader.Bootloader = (*MockBootloader)(nil)
 var _ bootloader.RecoveryAwareBootloader = (*MockRecoveryAwareBootloader)(nil)
 var _ bootloader.ExtractedRunKernelImageBootloader = (*MockExtractedRunKernelImageBootloader)(nil)
 var _ bootloader.ExtractedRecoveryKernelImageBootloader = (*MockExtractedRecoveryKernelImageBootloader)(nil)
+var _ bootloader.ManagedAssetsBootloader = (*MockManagedAssetsBootloader)(nil)
 
 func Mock(name, bootdir string) *MockBootloader {
 	return &MockBootloader{
@@ -359,4 +361,45 @@ func (b *MockExtractedRunKernelImageBootloader) DisableTryKernel() error {
 	b.runKernelImageMockedNumCalls["DisableTryKernel"]++
 	b.runKernelImageEnabledTryKernel = nil
 	return b.runKernelImageMockedErrs["DisableTryKernel"]
+}
+
+// MockManagedAssetsBootloader mocks a bootloader implementing the
+// bootloader.ManagedAssetsBootloader interface.
+type MockManagedAssetsBootloader struct {
+	*MockBootloader
+
+	IsManaged         bool
+	IsManagedErr      error
+	UpdateErr         error
+	UpdateCalls       int
+	Assets            []string
+	StaticCommandLine string
+	CommandLineErr    error
+}
+
+func (b *MockBootloader) WithManagedAssets() *MockManagedAssetsBootloader {
+	return &MockManagedAssetsBootloader{
+		MockBootloader: b,
+	}
+}
+
+func (b *MockManagedAssetsBootloader) IsCurrentlyManaged() (bool, error) {
+	return b.IsManaged, b.IsManagedErr
+}
+
+func (b *MockManagedAssetsBootloader) ManagedAssets() []string {
+	return b.Assets
+}
+
+func (b *MockManagedAssetsBootloader) UpdateBootConfig(opts *bootloader.Options) error {
+	b.UpdateCalls++
+	return b.UpdateErr
+}
+
+func (b *MockManagedAssetsBootloader) CommandLine(args []string) (string, error) {
+	if b.CommandLineErr != nil {
+		return "", b.CommandLineErr
+	}
+	line := strings.Join(append([]string{b.StaticCommandLine}, args...), " ")
+	return strings.TrimSpace(line), nil
 }
