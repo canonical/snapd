@@ -164,6 +164,7 @@ get_nested_snap_channel(){
 
 get_image_url_for_nested_vm(){
     if [[ "$SPREAD_BACKEND" == google* ]]; then
+        #shellcheck disable=SC2119
         get_google_image_url_for_nested_vm
     else
         get_ubuntu_image_url_for_nested_vm
