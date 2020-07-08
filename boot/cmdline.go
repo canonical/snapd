@@ -22,6 +22,7 @@ package boot
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"strings"
@@ -111,6 +112,8 @@ func MockProcCmdline(newPath string) (restore func()) {
 	}
 }
 
+var errBootConfigNotManaged = errors.New("boot config is not managed")
+
 func getBootloaderManagingItsAssets(where string, opts *bootloader.Options) (bootloader.ManagedAssetsBootloader, error) {
 	bl, err := bootloader.Find(where, opts)
 	if err != nil {
@@ -119,14 +122,14 @@ func getBootloaderManagingItsAssets(where string, opts *bootloader.Options) (boo
 	mbl, ok := bl.(bootloader.ManagedAssetsBootloader)
 	if !ok {
 		// the bootloader cannot manage its scripts
-		return nil, nil
+		return nil, errBootConfigNotManaged
 	}
 	managed, err := mbl.IsCurrentlyManaged()
 	if err != nil {
 		return nil, err
 	}
 	if !managed {
-		return nil, nil
+		return nil, errBootConfigNotManaged
 	}
 	return mbl, nil
 }
@@ -146,10 +149,10 @@ func RecoveryCommandLine(model *asserts.Model, system string) (string, error) {
 	}
 	mbl, err := getBootloaderManagingItsAssets(InitramfsUbuntuSeedDir, opts)
 	if err != nil {
+		if err == errBootConfigNotManaged {
+			return "", nil
+		}
 		return "", err
-	}
-	if mbl == nil {
-		return "", nil
 	}
 	modeArgs := []string{
 		"snapd_recovery_mode=recover",
@@ -170,10 +173,10 @@ func CommandLine(model *asserts.Model) (string, error) {
 	}
 	mbl, err := getBootloaderManagingItsAssets(InitramfsUbuntuBootDir, opts)
 	if err != nil {
+		if err == errBootConfigNotManaged {
+			return "", nil
+		}
 		return "", err
-	}
-	if mbl == nil {
-		return "", nil
 	}
 	return mbl.CommandLine(nil)
 }
