@@ -791,3 +791,125 @@ this is updated grub.cfg
 	c.Assert(err, ErrorMatches, `open .*/EFI/ubuntu/grub.cfg\..+: permission denied`)
 	c.Assert(filepath.Join(s.grubEFINativeDir(), "grub.cfg"), testutil.FileEquals, oldConfig)
 }
+
+func (s *grubTestSuite) TestStaticCmdlineFromDiskAsset(c *C) {
+	grubCfg := assets.Internal("grub.cfg")
+	c.Assert(grubCfg, NotNil)
+	grubRecoveryCfg := assets.Internal("grub-recovery.cfg")
+	c.Assert(grubRecoveryCfg, NotNil)
+
+	longBootConfig := `# Snapd-Boot-Config-Edition: 2
+this is a long boot config
+set snapd_static_cmdline_args='foo bar baz'
+`
+
+	for idx, tc := range []struct {
+		content string
+		cmdline string
+		errStr  string
+	}{
+		{content: string(grubCfg), cmdline: "console=ttyS0 console=tty1 panic=-1"},
+		{content: string(grubRecoveryCfg), cmdline: "console=ttyS0 console=tty1 panic=-1"},
+		{
+			content: "set snapd_static_cmdline_args='foo=1 bar=2 baz=0x123'\n",
+			cmdline: "foo=1 bar=2 baz=0x123",
+		},
+		{
+			content: `set snapd_static_cmdline_args='foo=BIOS\x20Boot'`,
+			cmdline: `foo=BIOS\x20Boot`,
+		},
+		{
+			content: `set snapd_static_cmdline_args='addr=1$123'`,
+			cmdline: `addr=1$123`,
+		},
+		{
+			content: longBootConfig, cmdline: "foo bar baz",
+		},
+		// no static args
+		{content: "set snapd_static_cmdline_args=''\n", cmdline: ""},
+		{content: "some random script", cmdline: ""},
+		// malformed
+		{
+			content: "set snapd_static_cmdline_args=\n",
+			errStr:  "incorrect static command line format: \"set snapd.*\"",
+		},
+		{
+			content: "set snapd_static_cmdline_args='\n",
+			errStr:  "incorrect static command line format: \"set snapd.*\"",
+		},
+	} {
+		c.Logf("tc: %v", idx)
+		restore := assets.MockInternal("asset", []byte(tc.content))
+		cmdline, err := bootloader.StaticCommandLineFromGrubAsset("asset")
+		restore()
+		if tc.errStr != "" {
+			c.Assert(err, ErrorMatches, tc.errStr)
+		} else {
+			c.Assert(err, IsNil)
+			c.Check(cmdline, Equals, tc.cmdline)
+		}
+	}
+}
+
+func (s *grubTestSuite) TestCommandLineHappy(c *C) {
+	// pretend there's more than one space between arguments
+	grubCfg := `# Snapd-Boot-Config-Edition: 2
+set snapd_static_cmdline_args='arg1   foo=123 panic=-1 arg2="with spaces "'
+boot script
+`
+	restore := assets.MockInternal("grub.cfg", []byte(grubCfg))
+	defer restore()
+	grubRecoveryCfg := `# Snapd-Boot-Config-Edition: 2
+set snapd_static_cmdline_args='recovery config panic=-1 '
+boot script
+`
+	restore = assets.MockInternal("grub-recovery.cfg", []byte(grubRecoveryCfg))
+	defer restore()
+
+	// native EFI/ubuntu setup
+	s.makeFakeGrubEFINativeEnv(c, []byte(grubCfg))
+
+	opts := &bootloader.Options{NoSlashBoot: true}
+	g := bootloader.NewGrub(s.rootdir, opts)
+	c.Assert(g, NotNil)
+	mg, ok := g.(bootloader.ManagedAssetsBootloader)
+	c.Assert(ok, Equals, true)
+
+	c.Check(filepath.Join(s.grubEFINativeDir(), "grubenv"), testutil.FileAbsent)
+	err := g.SetBootVars(map[string]string{
+		// more than one space in between the arguments
+		"snapd_extra_cmdline_args": `extra_arg=1  extra_foo=-1   panic=3 baz="more  spaces"`,
+	})
+	c.Assert(err, IsNil)
+
+	args, err := mg.CommandLine(nil)
+	c.Assert(err, IsNil)
+
+	c.Check(args, Equals, `arg1 foo=123 panic=-1 arg2="with spaces " extra_arg=1 extra_foo=-1 panic=3 baz="more  spaces"`)
+
+	args, err = mg.CommandLine([]string{"snapd_recovery_mode=recover", "snapd_recovery_system=20200202"})
+	c.Assert(err, IsNil)
+	c.Check(args, Equals, `arg1 foo=123 panic=-1 arg2="with spaces " extra_arg=1 extra_foo=-1 panic=3 baz="more  spaces" snapd_recovery_mode=recover snapd_recovery_system=20200202`)
+
+	// now check the recovery bootloader
+	opts = &bootloader.Options{NoSlashBoot: true, Recovery: true}
+	mrg := bootloader.NewGrub(s.rootdir, opts).(bootloader.ManagedAssetsBootloader)
+	args, err = mrg.CommandLine([]string{"snapd_recovery_mode=recover", "snapd_recovery_system=20200202"})
+	c.Assert(err, IsNil)
+	// static command line from recovery asset
+	c.Check(args, Equals, `recovery config panic=-1 extra_arg=1 extra_foo=-1 panic=3 baz="more  spaces" snapd_recovery_mode=recover snapd_recovery_system=20200202`)
+}
+
+func (s *grubTestSuite) TestSortArgsForGrub(c *C) {
+	out := bootloader.SortSnapdKernelCommandLineArgsForGrub([]string{"foo", "bar", "snapd_recovery_mode=run", "panic=-1"})
+	c.Assert(out, DeepEquals, []string{"foo", "bar", "panic=-1", "snapd_recovery_mode=run"})
+	// recovery mode
+	out = bootloader.SortSnapdKernelCommandLineArgsForGrub([]string{
+		"snapd_recovery_system=1234", "foo",
+		"snapd_recovery_mode=recover", "panic=-1",
+	})
+	c.Assert(out, DeepEquals, []string{
+		"foo", "panic=-1",
+		"snapd_recovery_mode=recover", "snapd_recovery_system=1234",
+	})
+}

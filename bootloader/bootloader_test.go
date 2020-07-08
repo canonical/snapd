@@ -229,3 +229,34 @@ func (s *bootenvTestSuite) TestInstallBootloaderConfigFromAssets(c *C) {
 		}
 	}
 }
+
+func (s *bootenvTestSuite) TestSplitKernelCommandLine(c *C) {
+	for idx, tc := range []struct {
+		cmd    string
+		exp    []string
+		errStr string
+	}{
+		{cmd: `foo bar baz`, exp: []string{"foo", "bar", "baz"}},
+		{cmd: `foo=" many   spaces  " bar`, exp: []string{`foo=" many   spaces  "`, "bar"}},
+		{cmd: `foo="1$2"`, exp: []string{`foo="1$2"`}},
+		{cmd: `foo=1$2`, exp: []string{`foo=1$2`}},
+		{cmd: `foo= bar`, exp: []string{"foo=", "bar"}},
+		{cmd: `   cpu=1,2,3   mem=0x2000;0x4000:$2  `, exp: []string{"cpu=1,2,3", "mem=0x2000;0x4000:$2"}},
+		{cmd: "isolcpus=1,2,10-20,100-2000:2/25", exp: []string{"isolcpus=1,2,10-20,100-2000:2/25"}},
+		// bad quoting
+		{cmd: `foo="1$2`, errStr: "unbalanced quoting"},
+		{cmd: `"foo"`, errStr: "unexpected quoting"},
+		{cmd: `="foo"`, errStr: "unexpected quoting"},
+		{cmd: `foo"foo"`, errStr: "unexpected quoting"},
+	} {
+		c.Logf("%v: cmd: %q", idx, tc.cmd)
+		out, err := bootloader.KernelCommandLineSplit(tc.cmd)
+		if tc.errStr != "" {
+			c.Assert(err, ErrorMatches, tc.errStr)
+			c.Check(out, IsNil)
+		} else {
+			c.Assert(err, IsNil)
+			c.Check(out, DeepEquals, tc.exp)
+		}
+	}
+}

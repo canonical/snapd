@@ -20,10 +20,14 @@
 package bootloader
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
+	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/bootloader/grubenv"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
@@ -372,5 +376,97 @@ func (g *grub) ManagedAssets() []string {
 //
 // Implements ManagedAssetsBootloader for the grub bootloader.
 func (g *grub) CommandLine(extra []string) (string, error) {
-	return "", fmt.Errorf("not implemented")
+	// we do not trust the on disk asset, use the built-in one
+	assetName := "grub.cfg"
+	if g.recovery {
+		assetName = "grub-recovery.cfg"
+	}
+	staticCmdline, err := staticCommandLineFromGrubAsset(assetName)
+	if err != nil {
+		return "", fmt.Errorf("cannot extract static command line element: %v", err)
+	}
+	bv, err := g.GetBootVars("snapd_extra_cmdline_args")
+	if err != nil {
+		return "", fmt.Errorf("cannot load command line arguments from boot environment: %v", err)
+	}
+	args, err := kernelCommandLineSplit(staticCmdline + " " + bv["snapd_extra_cmdline_args"])
+	if err != nil {
+		return "", err
+	}
+	args = append(args, extra...)
+	// sort arguments so that they match their positions
+	args = sortSnapdKernelCommandLineArgsForGrub(args)
+	// join all argument with a single space, see
+	// grub-core/lib/cmdline.c:grub_create_loader_cmdline() for reference,
+	// arguments are separated by a single space, the space after last is
+	// replaced with terminating NULL
+	return strings.Join(args, " "), nil
+}
+
+// static command line is defined as:
+//     set snapd_static_cmdline_args='arg arg arg'\n
+// or
+//     set snapd_static_cmdline_args='arg'\n
+const grubStaticCmdlinePrefix = `set snapd_static_cmdline_args=`
+const grubStaticCmdlineQuote = `'`
+
+// staticCommandLineFromGrubAsset extracts the static command line element from
+// grub boot config asset on disk.
+func staticCommandLineFromGrubAsset(asset string) (string, error) {
+	gbc := assets.Internal(asset)
+	if gbc == nil {
+		return "", fmt.Errorf("internal error: asset %q not found", asset)
+	}
+	scanner := bufio.NewScanner(bytes.NewReader(gbc))
+	for scanner.Scan() {
+		line := scanner.Text()
+		if !strings.HasPrefix(line, grubStaticCmdlinePrefix) {
+			continue
+		}
+		// minimal length is the prefix + suffix with no content
+		minLength := len(grubStaticCmdlinePrefix) + len(grubStaticCmdlineQuote)*2
+		if !strings.HasPrefix(line, grubStaticCmdlinePrefix+grubStaticCmdlineQuote) ||
+			!strings.HasSuffix(line, grubStaticCmdlineQuote) ||
+			len(line) < minLength {
+
+			return "", fmt.Errorf("incorrect static command line format: %q", line)
+		}
+		cmdline := line[len(grubStaticCmdlinePrefix+grubStaticCmdlineQuote) : len(line)-len(grubStaticCmdlineQuote)]
+		return cmdline, nil
+	}
+	if err := scanner.Err(); err != nil {
+		return "", err
+	}
+	return "", nil
+}
+
+// sortSnapdKernelCommandLineArgsForGrub sorts the command line arguments so
+// that the snapd_recovery_mode/system arguments are placed at the location that
+// matches the built-in grub boot config assets. Other arguments remain in the order
+// they appear.
+func sortSnapdKernelCommandLineArgsForGrub(args []string) []string {
+	out := make([]string, 0, len(args))
+	modeArgs := []string(nil)
+
+	for _, arg := range args {
+		if strings.HasPrefix(arg, "snapd_recovery_") {
+			modeArgs = append(modeArgs, arg)
+		} else {
+			out = append(out, arg)
+		}
+	}
+	// see grub.cfg and grub-recovery.cfg assets, the order is:
+	//      for run mode: <args> snapd_recovery_mode=run
+	// for recovery mode: <args> snapd_recovery_mode=recover snapd_recovery_system=<label>
+
+	for _, prefixOrder := range []string{"snapd_recovery_mode=", "snapd_recovery_system="} {
+		for i, marg := range modeArgs {
+			if strings.HasPrefix(marg, prefixOrder) {
+				modeArgs = append(modeArgs[:i], modeArgs[i+1:]...)
+				modeArgs = append(modeArgs, marg)
+				break
+			}
+		}
+	}
+	return append(out, modeArgs...)
 }
