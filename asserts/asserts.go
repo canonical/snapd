@@ -223,15 +223,19 @@ func HeadersFromPrimaryKey(assertType *AssertionType, primaryKey []string) (head
 // corresponding to a primary key under the assertion type, it errors
 // if there are missing primary key headers.
 func PrimaryKeyFromHeaders(assertType *AssertionType, headers map[string]string) (primaryKey []string, err error) {
-	primaryKey = make([]string, len(assertType.PrimaryKey))
-	for i, k := range assertType.PrimaryKey {
+	return keysFromHeaders(assertType.PrimaryKey, headers)
+}
+
+func keysFromHeaders(keys []string, headers map[string]string) (keyValues []string, err error) {
+	keyValues = make([]string, len(keys))
+	for i, k := range keys {
 		keyVal := headers[k]
 		if keyVal == "" {
 			return nil, fmt.Errorf("must provide primary key: %v", k)
 		}
-		primaryKey[i] = keyVal
+		keyValues[i] = keyVal
 	}
-	return primaryKey, nil
+	return keyValues, nil
 }
 
 // Ref expresses a reference to an assertion.

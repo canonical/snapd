@@ -272,10 +272,6 @@ get_image_path(){
     echo "$WORK_DIR/image"
 }
 
-get_classic_image_name(){
-    get_image_name classic
-}
-
 get_image_name(){
     local TYPE="$1"
     local SOURCE="${CORE_CHANNEL}"
@@ -354,6 +350,11 @@ get_nested_model(){
 }
 
 create_nested_core_vm(){
+    # shellcheck source=tests/lib/prepare.sh
+    . "$TESTSLIB"/prepare.sh
+    # shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+
     local IMAGE_PATH
     IMAGE_PATH="$(get_image_path)"
     local IMAGE_NAME
@@ -376,52 +377,58 @@ create_nested_core_vm(){
 
             if [ "$BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
                 if is_core_16_nested_system; then
-                    echo "Build from current branch is not supported yet for uc16"
+                    repack_snapd_deb_into_core_snap "$WORK_DIR"
+                    EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $WORK_DIR/core-from-snapd-deb.snap"
+
+                elif is_core_18_nested_system; then
+                    repack_snapd_deb_into_snapd_snap "$WORK_DIR"
+                    EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $WORK_DIR/snapd-from-deb.snap"
+
+                elif is_core_20_nested_system; then
+                    snap download --basename=pc-kernel --channel="20/edge" pc-kernel
+                    uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$WORK_DIR/image"
+
+                    # Get the snakeoil key and cert
+                    KEY_NAME=$(get_snakeoil_key)
+                    SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
+                    SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
+
+                    # Prepare the pc kernel snap
+                    KERNEL_SNAP=$(ls "$IMAGE_PATH"/pc-kernel_*.snap)
+                    KERNEL_UNPACKED="$IMAGE_PATH"/kernel-unpacked
+                    unsquashfs -d "$KERNEL_UNPACKED" "$KERNEL_SNAP"
+                    sbattach --remove "$KERNEL_UNPACKED/kernel.efi"
+                    sbsign --key "$SNAKEOIL_KEY" --cert "$SNAKEOIL_CERT" "$KERNEL_UNPACKED/kernel.efi"  --output "$KERNEL_UNPACKED/kernel.efi"
+                    snap pack "$KERNEL_UNPACKED" "$WORK_DIR/image"
+
+                    chmod 0600 "$KERNEL_SNAP"
+                    rm -f "$PWD/pc-kernel.snap"
+                    rm -rf "$KERNEL_UNPACKED"
+                    EXTRA_FUNDAMENTAL="--snap $KERNEL_SNAP"
+
+                    # Prepare the pc gadget snap (unless provided by extra-snaps)
+                    GADGET_SNAP=""
+                    if [ -d "$(get_extra_snaps_path)" ]; then
+                        GADGET_SNAP=$(find extra-snaps -name 'pc_*.snap')
+                    fi
+                    # XXX: deal with [ "$ENABLE_SECURE_BOOT" != "true" ] && [ "$ENABLE_TPM" != "true" ]
+                    if [ -z "$GADGET_SNAP" ]; then
+                        snap download --basename=pc --channel="20/edge" pc
+                        unsquashfs -d pc-gadget pc.snap
+                        secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+                        snap pack pc-gadget/ "$IMAGE_PATH"
+
+                        GADGET_SNAP=$(ls "$IMAGE_PATH"/pc_*.snap)
+                        rm -f "$PWD/pc.snap" "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+                        EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $GADGET_SNAP"
+                    fi
+                    snap download --channel="latest/edge" snapd
+                    repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$PWD/new-snapd" "false"
+                    EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-snapd/snapd_*.snap"
+                else
+                    echo "unknown nested core system (host is $(lsb_release -cs) )"
                     exit 1
                 fi
-                # shellcheck source=tests/lib/prepare.sh
-                . "$TESTSLIB"/prepare.sh
-
-                snap download --basename=pc-kernel --channel="20/edge" pc-kernel
-                uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$IMAGE_PATH"
-
-                # Get the snakeoil key and cert
-                KEY_NAME=$(get_snakeoil_key)
-                SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
-                SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
-
-                # Prepare the pc kernel snap
-                KERNEL_SNAP=$(ls "$IMAGE_PATH"/pc-kernel_*.snap)
-                KERNEL_UNPACKED="$IMAGE_PATH"/kernel-unpacked
-                unsquashfs -d "$KERNEL_UNPACKED" "$KERNEL_SNAP"
-                sbattach --remove "$KERNEL_UNPACKED/kernel.efi"
-                sbsign --key "$SNAKEOIL_KEY" --cert "$SNAKEOIL_CERT" "$KERNEL_UNPACKED/kernel.efi"  --output "$KERNEL_UNPACKED/kernel.efi"
-                snap pack "$KERNEL_UNPACKED" "$WORK_DIR/image"
-
-                chmod 0600 "$KERNEL_SNAP"
-                rm -f "$PWD/pc-kernel.snap"
-                rm -rf "$KERNEL_UNPACKED"
-                EXTRA_FUNDAMENTAL="--snap $KERNEL_SNAP"
-
-                # Prepare the pc gadget snap (unless provided by extra-snaps)
-                GADGET_SNAP=""
-                if [ -d "$(get_extra_snaps_path)" ]; then
-                    GADGET_SNAP=$(find extra-snaps -name 'pc_*.snap')
-                fi
-                if [ -z "$GADGET_SNAP" ]; then
-                    snap download --basename=pc --channel="20/edge" pc
-                    unsquashfs -d pc-gadget pc.snap
-                    secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
-                    snap pack pc-gadget/ "$IMAGE_PATH"
-
-                    GADGET_SNAP=$(ls "$IMAGE_PATH"/pc_*.snap)
-                    rm -f "$PWD/pc.snap" "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
-                    EXTRA_FUNDAMENTAL="--snap $GADGET_SNAP"
-                fi
-
-                snap download --channel="latest/edge" snapd
-                repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$PWD/new-snapd" "false"
-                EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-snapd/snapd_*.snap"
             fi
 
             # Invoke ubuntu image
@@ -520,17 +527,25 @@ configure_cloud_init_nested_core_vm_uc20(){
     umount "$tmp"
 }
 
-start_nested_core_vm(){
-    local IMAGE QEMU
-    QEMU="$(get_qemu_for_nested_vm)"
-    # As core18 systems use to fail to start the assertion disk when using the
-    # snapshot feature, we copy the original image and use that copy to start
-    # the VM.
+force_stop_nested_vm(){
+    systemctl stop nested-vm
+}
+
+start_nested_core_vm_unit(){
+    local IMAGE_FILE QEMU
     local CURRENT_IMAGE="$WORK_DIR/image/ubuntu-core-current.img"
+    QEMU=$(get_qemu_for_nested_vm)
     local IMAGE_PATH
     IMAGE_PATH="$(get_image_path)"
     local IMAGE_NAME
     IMAGE_NAME="$(get_image_name core)"
+
+    # As core18 systems use to fail to start the assertion disk when using the
+    # snapshot feature, we copy the original image and use that copy to start
+    # the VM.
+    # Some tests however need to force stop and restart the VM with different
+    # options, so if that env var is set, we will reuse the existing file if it
+    # exists
     cp "$IMAGE_PATH/$IMAGE_NAME" "$CURRENT_IMAGE"
 
     # Now qemu parameters are defined
@@ -552,6 +567,7 @@ start_nested_core_vm(){
     PARAM_NETWORK="-net nic,model=virtio -net user,hostfwd=tcp::$SSH_PORT-:22"
     PARAM_MONITOR="-monitor tcp:127.0.0.1:$MON_PORT,server,nowait"
     PARAM_USB="-usb"
+    PARAM_CD="${PARAM_CD:-}"
 
     # with qemu-nested, we can't use kvm acceleration
     if [ "$SPREAD_BACKEND" = "google-nested" ]; then
@@ -616,16 +632,22 @@ start_nested_core_vm(){
         ${PARAM_ASSERTIONS} \
         ${PARAM_SERIAL} \
         ${PARAM_MONITOR} \
-        ${PARAM_USB} "
+        ${PARAM_USB} \
+        ${PARAM_CD} "
 
-    # Wait until ssh is ready and configure ssh
-    if wait_for_ssh; then
-        prepare_ssh
-    else
-        echo "ssh not established, exiting..."
-        journalctl -u "$NESTED_VM" -n 150
-        exit 1
-    fi
+    # wait for the nested-vm service to appear active
+    wait_for_service "$NESTED_VM"
+
+    # Wait until ssh is ready
+    wait_for_ssh
+}
+
+start_nested_core_vm(){
+    # Start the nested core vm
+    start_nested_core_vm_unit
+
+    # configure ssh for first time
+    prepare_ssh
 }
 
 create_nested_classic_vm(){
