@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/godbus/dbus"
 
@@ -68,6 +69,11 @@ func CreateTransientScopeForTracking(securityTag string) error {
 	unitName := fmt.Sprintf("%s.%s.scope", securityTag, uuid)
 
 	pid := osGetpid()
+	// XXX: see the other XXX below.
+	pathBefore, err := cgroupProcessPathInTrackingCgroup(pid)
+	if err != nil {
+		return err
+	}
 tryAgain:
 	// Create a transient scope by talking to systemd over DBus.
 	if err := doCreateTransientScope(conn, unitName, pid); err != nil {
@@ -108,11 +114,26 @@ tryAgain:
 	//
 	// Verify the effective tracking cgroup and check that our scope name is
 	// contained therein.
-	path, err := cgroupProcessPathInTrackingCgroup(pid)
-	if err != nil {
-		return err
+	var pathAfter string
+	// XXX: It seems that systemd is racy and can not actually complete the
+	// request after returning from StartTransientUnit. Iterate for up to 500ms
+	// to see systemd perform the move. This is inherently racy.
+	// TODO: After pid-based tracking is removed, remove this spin logic as
+	// synchronicity is no longer relevant. It is only relevant during the
+	// transition period while both snap run and snap-confine manipulate
+	// cgroups.
+	for i := 0; i < 50; i++ {
+		pathAfter, err = cgroupProcessPathInTrackingCgroup(pid)
+		if err != nil {
+			return err
+		}
+		if pathBefore != pathAfter {
+			// Stop waiting as soon as the location in the cgroup hierarchy has changed.
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
-	if !strings.HasSuffix(path, unitName) {
+	if !strings.HasSuffix(pathAfter, unitName) {
 		logger.Debugf("systemd could not associate process %d with transient scope %s", pid, unitName)
 		return ErrCannotTrackProcess
 	}

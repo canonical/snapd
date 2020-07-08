@@ -1080,8 +1080,8 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	}
 
 	// Systemd automatically places services under a unique cgroup encoding the
-	// security tag but for apps and hooks we need to create a transient scope
-	// with similar purpose.
+	// security tag, but for apps and hooks we need to create a transient scope
+	// with similar purpose ourselves.
 	//
 	// The way this happens is as follows:
 	//
@@ -1113,9 +1113,10 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	//
 	// For more information about systemd cgroups, including unit types, see:
 	// https://www.freedesktop.org/wiki/Software/systemd/ControlGroupInterface/
+	_, appName := snap.SplitSnapApp(snapApp)
 	needsTracking := true
-	if app := info.Apps[snapApp]; hook == "" && app != nil && app.IsService() {
-		// If we are not running a service app then we do not need to use
+	if app := info.Apps[appName]; hook == "" && app != nil && app.IsService() {
+		// If we are running a service app then we do not need to use
 		// application tracking. Services, both in the system and user scope,
 		// do not need tracking because systemd already places them in a
 		// tracking cgroup, named after the systemd unit name, and those are
