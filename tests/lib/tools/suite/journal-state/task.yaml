@@ -1,11 +1,6 @@
 summary: smoke test for the journal-state tool
 
 execute: |
-    # Run shellcheck for journal-state script
-    if [ "$SPREAD_SYSTEM" = "ubuntu-18.04-64" ]; then
-        shellcheck "$TESTSTOOLS"/journal-state
-    fi
-
     # Check help
     "$TESTSTOOLS"/journal-state | MATCH "usage: journal-state start-new-log"
     "$TESTSTOOLS"/journal-state -h | MATCH "usage: journal-state start-new-log"
