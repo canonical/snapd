@@ -637,7 +637,6 @@ pkg_dependencies_ubuntu_classic(){
                 fwupd
                 packagekit
                 qemu-utils
-                shellcheck
                 "
             ;;
         ubuntu-19.10-64)
@@ -654,6 +653,7 @@ pkg_dependencies_ubuntu_classic(){
                 gccgo-9
                 packagekit
                 qemu-utils
+                shellcheck
                 "
             ;;
         ubuntu-20.10-64)
