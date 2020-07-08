@@ -532,12 +532,10 @@ force_stop_nested_vm(){
 }
 
 start_nested_core_vm_unit(){
-    local IMAGE_FILE QEMU
-    local CURRENT_IMAGE="$WORK_DIR/image/ubuntu-core-current.img"
+    local QEMU IMAGE_PATH IMAGE_NAME CURRENT_IMAGE
+    CURRENT_IMAGE="$WORK_DIR/image/ubuntu-core-current.img"
     QEMU=$(get_qemu_for_nested_vm)
-    local IMAGE_PATH
     IMAGE_PATH="$(get_image_path)"
-    local IMAGE_NAME
     IMAGE_NAME="$(get_image_name core)"
 
     # As core18 systems use to fail to start the assertion disk when using the
