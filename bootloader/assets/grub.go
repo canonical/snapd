@@ -41,7 +41,7 @@ set timeout_style=hidden
 # load only kernel_status from the bootenv
 load_env --file /EFI/ubuntu/grubenv kernel_status
 
-set cmdline="console=ttyS0 console=tty1 panic=-1"
+set snapd_static_cmdline_args='console=ttyS0 console=tty1 panic=-1'
 
 set kernel=kernel.efi
 
@@ -70,7 +70,7 @@ menuentry "Run Ubuntu Core 20" {
     # use $prefix because the symlink manipulation at runtime for kernel snap
     # upgrades, etc. should only need the /boot/grub/ directory, not the
     # /EFI/ubuntu/ directory
-    chainloader $prefix/$kernel snapd_recovery_mode=run $cmdline
+    chainloader $prefix/$kernel $snapd_static_cmdline_args snapd_recovery_mode=run
 }
 else
     # nothing to boot :-/
@@ -89,7 +89,7 @@ if [ -e /EFI/ubuntu/grubenv ]; then
 fi
 
 # standard cmdline params
-set cmdline="console=ttyS0 console=tty1 panic=-1"
+set snapd_static_cmdline_args='console=ttyS0 console=tty1 panic=-1'
 
 # if no default boot mode set, pick one
 if [ -z "$snapd_recovery_mode" ]; then
@@ -130,11 +130,11 @@ for label in /systems/*; do
     # We could "source /systems/$snapd_recovery_system/grub.cfg" here as well
     menuentry "Recover using $label" --hotkey=r --id=recover-$label $snapd_recovery_kernel recover $label {
         loopback loop $2
-        chainloader (loop)/kernel.efi snapd_recovery_mode=$3 snapd_recovery_system=$4 $cmdline
+        chainloader (loop)/kernel.efi $snapd_static_cmdline_args snapd_recovery_mode=$3 snapd_recovery_system=$4
     }
     menuentry "Install using $label" --hotkey=i --id=install-$label $snapd_recovery_kernel install $label {
         loopback loop $2
-        chainloader (loop)/kernel.efi snapd_recovery_mode=$3 snapd_recovery_system=$4 $cmdline
+        chainloader (loop)/kernel.efi $snapd_static_cmdline_args snapd_recovery_mode=$3 snapd_recovery_system=$4
     }
 done
 
