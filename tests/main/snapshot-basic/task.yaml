@@ -3,6 +3,7 @@ summary: Check that the basic snapshots functionality is ok
 prepare: |
     snap install test-snapd-sh
     snap install --edge test-snapd-just-edge
+    snap install --edge test-snapd-huge
 
 debug: |
     snap list || true
@@ -29,8 +30,16 @@ execute: |
     # and is valid
     snap check-snapshot "$SET_ID"
 
+    # and is exportable
+    snap export-snapshot "$SET_ID" "${SET_ID}_snapshot_export.tar"
+    test -e "${SET_ID}_snapshot_export.tar"
+    test "$( tar -tvf "${SET_ID}_snapshot_export.tar" | wc -l )" = "3"
+
     # remove the canaries
     rm ~/snap/*/{current,common}/canary.txt
+
+    # remove the export
+    rm "${SET_ID}_snapshot_export.tar"
 
     # restore one of them
     snap restore "$SET_ID" test-snapd-sh
@@ -84,3 +93,17 @@ execute: |
     # check that expiration can be read back
     snap get core snapshots.automatic.retention | MATCH "30h"
     snap get core -d snapshots.automatic | MATCH '"retention"'
+
+    # check memory usage for larger snaps...
+    # create snapshot, grab its id
+    SET_ID=$( snap save test-snapd-huge | cut -d\  -f1 | tail -n1 )
+    snap saved --id="$SET_ID" | grep test-snapd-huge
+    snap check-snapshot "$SET_ID"
+    # export the large snap and record memory usage
+    "$TESTSTOOLS"/memory-observe-do -o memory-kb.txt snap export-snapshot \
+    "$SET_ID" "${SET_ID}_snapshot_export.tar"
+    test -e "${SET_ID}_snapshot_export.tar"
+    # the io.Copy uses a 32k buffer, so extra memory usage should be limited.
+    # The threshold in this test is set to about 40Mb
+    test "$(cat memory-kb.txt)" -lt 40000
+    rm "${SET_ID}_snapshot_export.tar"

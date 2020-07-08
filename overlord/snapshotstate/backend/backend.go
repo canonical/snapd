@@ -373,7 +373,6 @@ func Export(ctx context.Context, setID uint64, w io.Writer) error {
 			}
 			defer f.Close()
 
-			// TODO: add `memory-observe-do` spread test to check memory usage
 			if _, err := io.Copy(tw, f); err != nil {
 				return err
 			}
