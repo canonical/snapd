@@ -604,7 +604,7 @@ func (db *Database) FindSequence(assertType *AssertionType, sequenceHeaders map[
 		return nil, err
 	}
 	if !assertType.SequenceForming() {
-		return nil, fmt.Errorf("cannot use FindSequence with not sequence-forming assertion type %q", assertType.Name)
+		return nil, fmt.Errorf("cannot use FindSequence with non sequence-forming assertion type %q", assertType.Name)
 	}
 	maxSupp := assertType.MaxSupportedFormat()
 	if maxFormat == -1 {
