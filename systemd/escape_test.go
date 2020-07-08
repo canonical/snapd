@@ -52,6 +52,16 @@ func (ts *SystemdTestSuite) TestEscapePath(c *C) {
 			`leading dot escaped differently (without leading slash)`,
 		},
 		{
+			// TODO: this case shouldn't work it should cause an error to be
+			// fully compatible with systemd-escape(1), but it's not documented
+			// how or why systemd-escape considers this kind of path to be
+			// invalid, so for now we just process it in an expected and
+			// deterministic way
+			`/top_level_1/../top_level_2/`,
+			`top_level_2`,
+			`invalid path`,
+		},
+		{
 			``,
 			`-`,
 			`empty string`,

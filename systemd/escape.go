@@ -34,7 +34,7 @@ const allowed = `:_.abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567
 //
 //        But thats not in the archive and it won't work with go1.3
 func EscapeUnitNamePath(in string) string {
-	// "" is the same as "/" which corresponds to ""
+	// "" is the same as "/" which is escaped to "-"
 	// the filepath.Clean will turn "" into "." and make this incorrect
 	if len(in) == 0 {
 		return "-"
