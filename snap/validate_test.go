@@ -1210,7 +1210,7 @@ layout:
 	err = ValidateLayoutAll(info)
 	c.Assert(err, IsNil)
 
-	// Layout replacing files in another snap's mount p oit
+	// Layout replacing files in another snap's mount point
 	const yaml12 = `
 name: this-snap
 layout:
@@ -1224,6 +1224,47 @@ layout:
 	c.Assert(info.Layout, HasLen, 1)
 	err = ValidateLayoutAll(info)
 	c.Assert(err, ErrorMatches, `layout "/snap/that-snap/current/stuff" defines a layout in space belonging to another snap`)
+
+	const yaml13 = `
+name: this-snap
+layout:
+  $SNAP/relative:
+    symlink: $SNAP/existent-dir
+`
+
+	// Layout using $SNAP/... as source
+	strk = NewScopedTracker()
+	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml13), &SideInfo{Revision: R(42)}, strk)
+	c.Assert(err, IsNil)
+	c.Assert(info.Layout, HasLen, 1)
+	err = ValidateLayoutAll(info)
+	c.Assert(err, IsNil)
+
+	var yaml14Pattern = `
+name: this-snap
+layout:
+  %s:
+    symlink: $SNAP/existent-dir
+`
+
+	for _, testCase := range []struct {
+		str         string
+		topLevelDir string
+	}{
+		{"/nonexistent-dir", "/nonexistent-dir"},
+		{"/nonexistent-dir/subdir", "/nonexistent-dir"},
+		{"///////unclean-absolute-dir", "/unclean-absolute-dir"},
+	} {
+		// Layout adding a new top-level directory
+		strk = NewScopedTracker()
+		yaml14 := fmt.Sprintf(yaml14Pattern, testCase.str)
+		info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml14), &SideInfo{Revision: R(42)}, strk)
+		c.Assert(err, IsNil)
+		c.Assert(info.Layout, HasLen, 1)
+		err = ValidateLayoutAll(info)
+		c.Assert(err, ErrorMatches, fmt.Sprintf(`layout %q defines a new top-level directory %q`, testCase.str, testCase.topLevelDir))
+	}
+
 }
 
 func (s *YamlSuite) TestValidateAppStartupOrder(c *C) {
