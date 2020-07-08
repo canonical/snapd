@@ -1,11 +1,6 @@
 summary: integration tests for str-tool
 
 execute: |
-    # Run shellcheck for to-one-line script
-    if [ "$SPREAD_SYSTEM" = "ubuntu-18.04-64" ]; then
-        shellcheck "$TESTSTOOLS"/to-one-line
-    fi
-
     # Check help
     "$TESTSTOOLS"/to-one-line | MATCH "usage: to-one-line \[string\]"
     "$TESTSTOOLS"/to-one-line -h | MATCH "usage: to-one-line \[string\]"
