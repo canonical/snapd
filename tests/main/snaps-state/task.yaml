@@ -1,12 +1,6 @@
 summary: smoke test for the snaps-state tool
-prepare: |
-    apt-get install -y shellcheck
-restore: |
-    apt-get remove --purge -y shellcheck
-execute: |
-    # Run shellcheck for to-one-line script
-    shellcheck "$TESTSTOOLS"/snaps-state
 
+execute: |
     SNAP_NAME=test-snapd-tools
 
     # Check help
