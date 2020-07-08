@@ -141,4 +141,7 @@ if [ "$1" = "purge" ]; then
 
     echo "Removing snapd state"
     rm -rf /var/lib/snapd
+
+    # lastly, reload the daemon
+    systemctl daemon-reload || true
 fi
