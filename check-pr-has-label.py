@@ -6,8 +6,12 @@ import logging
 
 from html.parser import HTMLParser
 
-# PR label indicating that spread job should be skipped
-LABEL_SKIP_SPREAD_JOB = "Skip spread"
+LABELS = {
+    # PR label indicating that spread job should be skipped
+    'LABEL_SKIP_SPREAD_JOB': "Skip spread",
+    # PR label indicating that nested tests need to be executed
+    'LABEL_RUN_SPREAD_NESTED': "Run nested"
+    }
 
 
 class GithubLabelsParser(HTMLParser):
@@ -76,7 +80,15 @@ def grab_pr_labels(pr_number: int):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "pr_number", metavar="PR number", help="the github PR number to check"
+        "pr_number", 
+        metavar="PR number", 
+        help="the github PR number to check"
+    )
+    parser.add_argument(
+        "label", 
+        metavar="Label name", 
+        choices=LABELS.keys(), 
+        help="the github PR label to check"
     )
     parser.add_argument(
         "-d", "--debug", help="enable debug logging", action="store_true"
@@ -88,13 +100,14 @@ def main():
         lvl = logging.DEBUG
     logging.basicConfig(level=lvl)
 
-    labels = grab_pr_labels(args.pr_number)
-    print("labels:", labels)
+    pr_labels = grab_pr_labels(args.pr_number)
+    print("pr labels:", pr_labels)
 
-    if LABEL_SKIP_SPREAD_JOB not in labels:
+    if LABELS.get(args.label) not in pr_labels:
         raise SystemExit(1)
 
-    print("requested to skip the spread job")
+    print("Label: '{}' found in PR: '{}'".format(
+        LABELS.get(args.label), args.pr_number))
 
 
 if __name__ == "__main__":

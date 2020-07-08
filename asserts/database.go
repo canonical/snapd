@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2016 Canonical Ltd
+ * Copyright (C) 2015-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -65,6 +65,14 @@ type Backstore interface {
 	// Search returns assertions matching the given headers.
 	// It invokes foundCb for each found assertion.
 	Search(assertType *AssertionType, headers map[string]string, foundCb func(Assertion), maxFormat int) error
+	// SequenceMemberAfter returns for a sequence-forming assertType the
+	// first assertion in the sequence under the given sequenceKey
+	// with sequence number larger than after. If after==-1 it
+	// returns the assertion with largest sequence number. If none
+	// exists it returns a NotFoundError, usually with omitted
+	// Headers. If assertType is not sequence-forming it can
+	// panic.
+	SequenceMemberAfter(assertType *AssertionType, sequenceKey []string, after, maxFormat int) (SequenceMember, error)
 }
 
 type nullBackstore struct{}
@@ -79,6 +87,10 @@ func (nbs nullBackstore) Get(t *AssertionType, k []string, maxFormat int) (Asser
 
 func (nbs nullBackstore) Search(t *AssertionType, h map[string]string, f func(Assertion), maxFormat int) error {
 	return nil
+}
+
+func (nbs nullBackstore) SequenceMemberAfter(t *AssertionType, kp []string, after, maxFormat int) (SequenceMember, error) {
+	return nil, &NotFoundError{Type: t}
 }
 
 // A KeypairManager is a manager and backstore for private/public key pairs.
@@ -572,6 +584,78 @@ func (db *Database) FindMany(assertionType *AssertionType, headers map[string]st
 // no assertion can be found.
 func (db *Database) FindManyPredefined(assertionType *AssertionType, headers map[string]string) ([]Assertion, error) {
 	return db.findMany([]Backstore{db.trusted, db.predefined}, assertionType, headers)
+}
+
+// FindSequence finds an assertion for the given headers and after for
+// a sequence-forming type.
+// The provided headers must contain a sequence key, i.e. a prefix of
+// the primary key for the assertion type except for the sequence
+// number header.
+// The assertion is the first in the sequence under the sequence key
+// with sequence number > after.
+// If after is -1 it returns instead the assertion with the largest
+// sequence number.
+// It will constraint itself to assertions with format <= maxFormat
+// unless maxFormat is -1.
+// It returns a NotFoundError if the assertion cannot be found.
+func (db *Database) FindSequence(assertType *AssertionType, sequenceHeaders map[string]string, after, maxFormat int) (SequenceMember, error) {
+	err := checkAssertType(assertType)
+	if err != nil {
+		return nil, err
+	}
+	if !assertType.SequenceForming() {
+		return nil, fmt.Errorf("cannot use FindSequence with not sequence-forming assertion type %q", assertType.Name)
+	}
+	maxSupp := assertType.MaxSupportedFormat()
+	if maxFormat == -1 {
+		maxFormat = maxSupp
+	} else {
+		if maxFormat > maxSupp {
+			return nil, fmt.Errorf("cannot find %q assertions for format %d higher than supported format %d", assertType.Name, maxFormat, maxSupp)
+		}
+	}
+
+	seqKey, err := keysFromHeaders(assertType.PrimaryKey[:len(assertType.PrimaryKey)-1], sequenceHeaders)
+	if err != nil {
+		return nil, err
+	}
+
+	// find the better result across backstores' results
+	better := func(cur, a SequenceMember) SequenceMember {
+		if cur == nil {
+			return a
+		}
+		curSeq := cur.Sequence()
+		aSeq := a.Sequence()
+		if after == -1 {
+			if aSeq > curSeq {
+				return a
+			}
+		} else {
+			if aSeq < curSeq {
+				return a
+			}
+		}
+		return cur
+	}
+
+	var assert SequenceMember
+	for _, bs := range db.backstores {
+		a, err := bs.SequenceMemberAfter(assertType, seqKey, after, maxFormat)
+		if err == nil {
+			assert = better(assert, a)
+			continue
+		}
+		if !IsNotFound(err) {
+			return nil, err
+		}
+	}
+
+	if assert != nil {
+		return assert, nil
+	}
+
+	return nil, &NotFoundError{Type: assertType, Headers: sequenceHeaders}
 }
 
 // assertion checkers
