@@ -178,5 +178,8 @@ func CommandLine(model *asserts.Model) (string, error) {
 		}
 		return "", err
 	}
-	return mbl.CommandLine(nil)
+	modeArgs := []string{
+		"snapd_recovery_mode=run",
+	}
+	return mbl.CommandLine(modeArgs)
 }
