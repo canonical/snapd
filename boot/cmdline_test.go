@@ -109,18 +109,18 @@ func (s *kernelCommandLineSuite) TestModeAndLabel(c *C) {
 	}
 }
 
-func (s *kernelCommandLineSuite) TestCommandLineNotManagedHappy(c *C) {
+func (s *kernelCommandLineSuite) TestComposeCommandLineNotManagedHappy(c *C) {
 	model := makeMockUC20Model()
 
 	bl := bootloadertest.Mock("btloader", c.MkDir())
 	bootloader.Force(bl)
 	defer bootloader.Force(nil)
 
-	cmdline, err := boot.RecoveryCommandLine(model, "20200314")
+	cmdline, err := boot.ComposeRecoveryCommandLine(model, "20200314")
 	c.Assert(err, IsNil)
 	c.Assert(cmdline, Equals, "")
 
-	cmdline, err = boot.CommandLine(model)
+	cmdline, err = boot.ComposeCommandLine(model)
 	c.Assert(err, IsNil)
 	c.Assert(cmdline, Equals, "")
 
@@ -128,16 +128,16 @@ func (s *kernelCommandLineSuite) TestCommandLineNotManagedHappy(c *C) {
 	bootloader.Force(mbl)
 	mbl.IsManaged = false
 
-	cmdline, err = boot.RecoveryCommandLine(model, "20200314")
+	cmdline, err = boot.ComposeRecoveryCommandLine(model, "20200314")
 	c.Assert(err, IsNil)
 	c.Assert(cmdline, Equals, "")
 
-	cmdline, err = boot.CommandLine(model)
+	cmdline, err = boot.ComposeCommandLine(model)
 	c.Assert(err, IsNil)
 	c.Assert(cmdline, Equals, "")
 }
 
-func (s *kernelCommandLineSuite) TestCommandLineNotUC20(c *C) {
+func (s *kernelCommandLineSuite) TestComposeCommandLineNotUC20(c *C) {
 	headers := map[string]interface{}{
 		"type":         "model",
 		"authority-id": "my-brand",
@@ -156,16 +156,16 @@ func (s *kernelCommandLineSuite) TestCommandLineNotUC20(c *C) {
 	bl := bootloadertest.Mock("btloader", c.MkDir())
 	bootloader.Force(bl)
 	defer bootloader.Force(nil)
-	cmdline, err := boot.RecoveryCommandLine(model, "20200314")
+	cmdline, err := boot.ComposeRecoveryCommandLine(model, "20200314")
 	c.Assert(err, IsNil)
 	c.Check(cmdline, Equals, "")
 
-	cmdline, err = boot.CommandLine(model)
+	cmdline, err = boot.ComposeCommandLine(model)
 	c.Assert(err, IsNil)
 	c.Check(cmdline, Equals, "")
 }
 
-func (s *kernelCommandLineSuite) TestComamndLineSystemManagedErr(c *C) {
+func (s *kernelCommandLineSuite) TestComposeComamndLineSystemManagedErr(c *C) {
 	model := makeMockUC20Model()
 
 	mbl := bootloadertest.Mock("btloader", c.MkDir()).WithManagedAssets()
@@ -175,10 +175,10 @@ func (s *kernelCommandLineSuite) TestComamndLineSystemManagedErr(c *C) {
 	errFail := errors.New("is managed fail")
 	mbl.IsManagedErr = errFail
 
-	cmdline, err := boot.RecoveryCommandLine(model, "20200314")
+	cmdline, err := boot.ComposeRecoveryCommandLine(model, "20200314")
 	c.Assert(err, ErrorMatches, "is managed fail")
 	c.Assert(cmdline, Equals, "")
-	cmdline, err = boot.CommandLine(model)
+	cmdline, err = boot.ComposeCommandLine(model)
 	c.Assert(err, ErrorMatches, "is managed fail")
 	c.Assert(cmdline, Equals, "")
 
@@ -186,15 +186,15 @@ func (s *kernelCommandLineSuite) TestComamndLineSystemManagedErr(c *C) {
 	mbl.IsManaged = true
 	mbl.CommandLineErr = errors.New("kernel command line fail")
 
-	cmdline, err = boot.RecoveryCommandLine(model, "20200314")
+	cmdline, err = boot.ComposeRecoveryCommandLine(model, "20200314")
 	c.Assert(err, ErrorMatches, "kernel command line fail")
 	c.Assert(cmdline, Equals, "")
-	cmdline, err = boot.CommandLine(model)
+	cmdline, err = boot.ComposeCommandLine(model)
 	c.Assert(err, ErrorMatches, "kernel command line fail")
 	c.Assert(cmdline, Equals, "")
 }
 
-func (s *kernelCommandLineSuite) TestCommandLineManagedHappy(c *C) {
+func (s *kernelCommandLineSuite) TestComposeCommandLineManagedHappy(c *C) {
 	model := makeMockUC20Model()
 
 	mbl := bootloadertest.Mock("btloader", c.MkDir()).WithManagedAssets()
@@ -204,10 +204,10 @@ func (s *kernelCommandLineSuite) TestCommandLineManagedHappy(c *C) {
 	mbl.IsManaged = true
 	mbl.StaticCommandLine = "panic=-1"
 
-	cmdline, err := boot.RecoveryCommandLine(model, "20200314")
+	cmdline, err := boot.ComposeRecoveryCommandLine(model, "20200314")
 	c.Assert(err, IsNil)
 	c.Assert(cmdline, Equals, "panic=-1 snapd_recovery_mode=recover snapd_recovery_system=20200314")
-	cmdline, err = boot.CommandLine(model)
+	cmdline, err = boot.ComposeCommandLine(model)
 	c.Assert(err, IsNil)
 	c.Assert(cmdline, Equals, "panic=-1")
 }
