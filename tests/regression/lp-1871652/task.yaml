@@ -60,4 +60,4 @@ restore: |
     lxc exec bionic -- chmod -x /usr/local/bin/systemctl
     lxc stop --force bionic
     snap remove --purge lxd
-    lxd-tool undo-lxd-mount-changes
+    "$TESTSTOOLS"/lxd-state undo-mount-changes

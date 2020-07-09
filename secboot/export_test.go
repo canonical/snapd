@@ -149,3 +149,11 @@ func MockSbAddRecoveryKeyToLUKS2Container(f func(devicePath string, key []byte, 
 		sbAddRecoveryKeyToLUKS2Container = old
 	}
 }
+
+func MockIsTPMEnabled(f func(tpm *sb.TPMConnection) bool) (restore func()) {
+	old := isTPMEnabled
+	isTPMEnabled = f
+	return func() {
+		isTPMEnabled = old
+	}
+}

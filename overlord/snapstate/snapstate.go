@@ -612,6 +612,9 @@ func ensureInstallPreconditions(st *state.State, info *snap.Info, flags Flags, s
 	if err := validateFeatureFlags(st, info); err != nil {
 		return flags, err
 	}
+	if err := checkDBusServiceConflicts(st, info); err != nil {
+		return flags, err
+	}
 	return flags, nil
 }
 

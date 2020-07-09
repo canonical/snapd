@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2016 Canonical Ltd
+ * Copyright (C) 2015-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -1236,6 +1236,117 @@ func (safs *signAddFindSuite) TestWithStackedBackstoreSafety(c *C) {
 		Used:    0,
 		Current: 1,
 	})
+}
+
+func (safs *signAddFindSuite) TestFindSequence(c *C) {
+	headers := map[string]interface{}{
+		"authority-id": "canonical",
+		"n":            "s1",
+		"sequence":     "1",
+	}
+	sq1f0, err := safs.signingDB.Sign(asserts.TestOnlySeqType, headers, nil, safs.signingKeyID)
+	c.Assert(err, IsNil)
+
+	headers = map[string]interface{}{
+		"authority-id": "canonical",
+		"n":            "s1",
+		"sequence":     "2",
+	}
+	sq2f0, err := safs.signingDB.Sign(asserts.TestOnlySeqType, headers, nil, safs.signingKeyID)
+	c.Assert(err, IsNil)
+
+	headers = map[string]interface{}{
+		"authority-id": "canonical",
+		"format":       "1",
+		"n":            "s1",
+		"sequence":     "2",
+		"revision":     "1",
+	}
+	sq2f1, err := safs.signingDB.Sign(asserts.TestOnlySeqType, headers, nil, safs.signingKeyID)
+	c.Assert(err, IsNil)
+
+	headers = map[string]interface{}{
+		"authority-id": "canonical",
+		"format":       "1",
+		"n":            "s1",
+		"sequence":     "3",
+	}
+	sq3f1, err := safs.signingDB.Sign(asserts.TestOnlySeqType, headers, nil, safs.signingKeyID)
+	c.Assert(err, IsNil)
+
+	headers = map[string]interface{}{
+		"authority-id": "canonical",
+		"format":       "2",
+		"n":            "s1",
+		"sequence":     "3",
+		"revision":     "1",
+	}
+	sq3f2, err := safs.signingDB.Sign(asserts.TestOnlySeqType, headers, nil, safs.signingKeyID)
+	c.Assert(err, IsNil)
+
+	for _, a := range []asserts.Assertion{sq1f0, sq2f0, sq2f1, sq3f1} {
+
+		err = safs.db.Add(a)
+		c.Assert(err, IsNil)
+	}
+
+	// stack a backstore, for test completeness, this is an unlikely
+	// scenario atm
+	bs := asserts.NewMemoryBackstore()
+	db := safs.db.WithStackedBackstore(bs)
+	err = db.Add(sq3f2)
+	c.Assert(err, IsNil)
+
+	seqHeaders := map[string]string{
+		"n": "s1",
+	}
+	tests := []struct {
+		after     int
+		maxFormat int
+		sequence  int
+		format    int
+		revision  int
+	}{
+		{after: 0, maxFormat: 0, sequence: 1, format: 0, revision: 0},
+		{after: 0, maxFormat: 2, sequence: 1, format: 0, revision: 0},
+		{after: 1, maxFormat: 0, sequence: 2, format: 0, revision: 0},
+		{after: 1, maxFormat: 1, sequence: 2, format: 1, revision: 1},
+		{after: 1, maxFormat: 2, sequence: 2, format: 1, revision: 1},
+		{after: 2, maxFormat: 0, sequence: -1},
+		{after: 2, maxFormat: 1, sequence: 3, format: 1, revision: 0},
+		{after: 2, maxFormat: 2, sequence: 3, format: 2, revision: 1},
+		{after: 3, maxFormat: 0, sequence: -1},
+		{after: 3, maxFormat: 2, sequence: -1},
+		{after: 4, maxFormat: 2, sequence: -1},
+		{after: -1, maxFormat: 0, sequence: 2, format: 0, revision: 0},
+		{after: -1, maxFormat: 1, sequence: 3, format: 1, revision: 0},
+		{after: -1, maxFormat: 2, sequence: 3, format: 2, revision: 1},
+	}
+
+	for _, t := range tests {
+		a, err := db.FindSequence(asserts.TestOnlySeqType, seqHeaders, t.after, t.maxFormat)
+		if t.sequence == -1 {
+			c.Check(err, DeepEquals, &asserts.NotFoundError{
+				Type:    asserts.TestOnlySeqType,
+				Headers: seqHeaders,
+			})
+		} else {
+			c.Assert(err, IsNil)
+			c.Assert(a.HeaderString("n"), Equals, "s1")
+			c.Check(a.Sequence(), Equals, t.sequence)
+			c.Check(a.Format(), Equals, t.format)
+			c.Check(a.Revision(), Equals, t.revision)
+		}
+	}
+
+	seqHeaders = map[string]string{
+		"n": "s2",
+	}
+	_, err = db.FindSequence(asserts.TestOnlySeqType, seqHeaders, -1, 2)
+	c.Check(err, DeepEquals, &asserts.NotFoundError{
+		Type: asserts.TestOnlySeqType, Headers: seqHeaders,
+	})
+
 }
 
 type revisionErrorSuite struct{}
