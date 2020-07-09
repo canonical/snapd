@@ -143,10 +143,10 @@ version: 0
 layout:
   /usr:
     bind: $SNAP/usr
-  /mytmp:
+  /lib/mytmp:
     type: tmpfs
     mode: 1777
-  /mylink:
+  /lib/mylink:
     symlink: $SNAP/link/target
   /etc/foo.conf:
     bind-file: $SNAP/foo.conf
@@ -158,8 +158,8 @@ func (s *specSuite) TestMountEntryFromLayout(c *C) {
 	c.Assert(s.spec.MountEntries(), DeepEquals, []osutil.MountEntry{
 		// Layout result is sorted by mount path.
 		{Dir: "/etc/foo.conf", Name: "/snap/vanguard/42/foo.conf", Options: []string{"bind", "rw", "x-snapd.kind=file", "x-snapd.origin=layout"}},
-		{Dir: "/mylink", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=/snap/vanguard/42/link/target", "x-snapd.origin=layout"}},
-		{Dir: "/mytmp", Name: "tmpfs", Type: "tmpfs", Options: []string{"x-snapd.mode=01777", "x-snapd.origin=layout"}},
+		{Dir: "/lib/mylink", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=/snap/vanguard/42/link/target", "x-snapd.origin=layout"}},
+		{Dir: "/lib/mytmp", Name: "tmpfs", Type: "tmpfs", Options: []string{"x-snapd.mode=01777", "x-snapd.origin=layout"}},
 		{Dir: "/usr", Name: "/snap/vanguard/42/usr", Options: []string{"rbind", "rw", "x-snapd.origin=layout"}},
 	})
 }
@@ -175,34 +175,34 @@ func (s *specSuite) TestParallelInstanceMountEntryFromLayout(c *C) {
 		{Dir: "/var/snap/vanguard", Name: "/var/snap/vanguard_instance", Options: []string{"rbind", "x-snapd.origin=overname"}},
 		// Layout result is sorted by mount path.
 		{Dir: "/etc/foo.conf", Name: "/snap/vanguard/42/foo.conf", Options: []string{"bind", "rw", "x-snapd.kind=file", "x-snapd.origin=layout"}},
-		{Dir: "/mylink", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=/snap/vanguard/42/link/target", "x-snapd.origin=layout"}},
-		{Dir: "/mytmp", Name: "tmpfs", Type: "tmpfs", Options: []string{"x-snapd.mode=01777", "x-snapd.origin=layout"}},
+		{Dir: "/lib/mylink", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=/snap/vanguard/42/link/target", "x-snapd.origin=layout"}},
+		{Dir: "/lib/mytmp", Name: "tmpfs", Type: "tmpfs", Options: []string{"x-snapd.mode=01777", "x-snapd.origin=layout"}},
 		{Dir: "/usr", Name: "/snap/vanguard/42/usr", Options: []string{"rbind", "rw", "x-snapd.origin=layout"}},
 	})
 }
 
 func (s *specSuite) TestSpecificationUberclash(c *C) {
-	// When everything clashes for access to /foo, what happens?
+	// When everything clashes for access to /usr/foo, what happens?
 	const uberclashYaml = `name: uberclash
 version: 0
 layout:
-  /foo:
+  /usr/foo:
     type: tmpfs
 `
 	snapInfo := snaptest.MockInfo(c, uberclashYaml, &snap.SideInfo{Revision: snap.R(42)})
-	entry := osutil.MountEntry{Dir: "/foo", Type: "tmpfs", Name: "tmpfs"}
+	entry := osutil.MountEntry{Dir: "/usr/foo", Type: "tmpfs", Name: "tmpfs"}
 	s.spec.AddMountEntry(entry)
 	s.spec.AddUserMountEntry(entry)
 	s.spec.AddLayout(snapInfo)
 	c.Assert(s.spec.MountEntries(), DeepEquals, []osutil.MountEntry{
-		{Dir: "/foo", Type: "tmpfs", Name: "tmpfs", Options: []string{"x-snapd.origin=layout"}},
+		{Dir: "/usr/foo", Type: "tmpfs", Name: "tmpfs", Options: []string{"x-snapd.origin=layout"}},
 		// This is the non-layout entry, it was renamed to "foo-2"
-		{Dir: "/foo-2", Type: "tmpfs", Name: "tmpfs"},
+		{Dir: "/usr/foo-2", Type: "tmpfs", Name: "tmpfs"},
 	})
 	c.Assert(s.spec.UserMountEntries(), DeepEquals, []osutil.MountEntry{
 		// This is the user entry, it was _not_ renamed and it would clash with
 		// /foo but there is no way to request things like that for now.
-		{Dir: "/foo", Type: "tmpfs", Name: "tmpfs"},
+		{Dir: "/usr/foo", Type: "tmpfs", Name: "tmpfs"},
 	})
 }
 

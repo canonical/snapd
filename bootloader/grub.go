@@ -363,3 +363,12 @@ func (g *grub) ManagedAssets() []string {
 		filepath.Join(g.basedir, "grub.cfg"),
 	}
 }
+
+// CommandLine returns the kernel command line composed of the built-in
+// list and extra arguments passed in arguments. The command line may be
+// different when using a bootloader in the recovery partition.
+//
+// Implements ManagedAssetsBootloader for the grub bootloader.
+func (g *grub) CommandLine(extra []string) (string, error) {
+	return "", fmt.Errorf("not implemented")
+}

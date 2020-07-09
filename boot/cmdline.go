@@ -22,10 +22,13 @@ package boot
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"strings"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -107,4 +110,73 @@ func MockProcCmdline(newPath string) (restore func()) {
 	return func() {
 		procCmdline = oldProcCmdline
 	}
+}
+
+var errBootConfigNotManaged = errors.New("boot config is not managed")
+
+func getBootloaderManagingItsAssets(where string, opts *bootloader.Options) (bootloader.ManagedAssetsBootloader, error) {
+	bl, err := bootloader.Find(where, opts)
+	if err != nil {
+		return nil, fmt.Errorf("internal error: cannot find managed assets bootloader under %q: %v", where, err)
+	}
+	mbl, ok := bl.(bootloader.ManagedAssetsBootloader)
+	if !ok {
+		// the bootloader cannot manage its scripts
+		return nil, errBootConfigNotManaged
+	}
+	managed, err := mbl.IsCurrentlyManaged()
+	if err != nil {
+		return nil, err
+	}
+	if !managed {
+		return nil, errBootConfigNotManaged
+	}
+	return mbl, nil
+}
+
+// ComposeRecoveryCommandLine composes the kernel command line used when booting
+// a given recovery mode system.
+func ComposeRecoveryCommandLine(model *asserts.Model, system string) (string, error) {
+	if model.Grade() == asserts.ModelGradeUnset {
+		return "", nil
+	}
+
+	// get the ubuntu-seed bootloader
+	opts := &bootloader.Options{
+		NoSlashBoot: true,
+		// Looking for recovery system bootloader
+		Recovery: true,
+	}
+	mbl, err := getBootloaderManagingItsAssets(InitramfsUbuntuSeedDir, opts)
+	if err != nil {
+		if err == errBootConfigNotManaged {
+			return "", nil
+		}
+		return "", err
+	}
+	modeArgs := []string{
+		"snapd_recovery_mode=recover",
+		fmt.Sprintf("snapd_recovery_system=%v", system),
+	}
+	return mbl.CommandLine(modeArgs)
+}
+
+// ComposeCommandLine composes the kernel command line used when booting the
+// system in run mode.
+func ComposeCommandLine(model *asserts.Model) (string, error) {
+	if model.Grade() == asserts.ModelGradeUnset {
+		return "", nil
+	}
+	// get the ubuntu-boot bootloader
+	opts := &bootloader.Options{
+		NoSlashBoot: true,
+	}
+	mbl, err := getBootloaderManagingItsAssets(InitramfsUbuntuBootDir, opts)
+	if err != nil {
+		if err == errBootConfigNotManaged {
+			return "", nil
+		}
+		return "", err
+	}
+	return mbl.CommandLine(nil)
 }
