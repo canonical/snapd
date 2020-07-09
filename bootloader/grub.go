@@ -44,6 +44,7 @@ type grub struct {
 	basedir string
 
 	uefiRunKernelExtraction bool
+	recovery                bool
 }
 
 // newGrub create a new Grub bootloader object
@@ -59,6 +60,7 @@ func newGrub(rootdir string, opts *Options) RecoveryAwareBootloader {
 	}
 	if opts != nil {
 		g.uefiRunKernelExtraction = opts.ExtractedRunKernelImage
+		g.recovery = opts.Recovery
 	}
 
 	return g
