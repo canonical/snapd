@@ -22,7 +22,7 @@ package progress
 import (
 	"fmt"
 	"os"
-	"strings"
+	"regexp"
 
 	"golang.org/x/crypto/ssh/terminal"
 )
@@ -82,7 +82,8 @@ func MockMeter(meter Meter) func() {
 	}
 }
 
-var inTesting bool = len(os.Args) > 0 && strings.HasSuffix(os.Args[0], ".test") || os.Getenv("SPREAD_SYSTEM") != ""
+var goTestExeRe = regexp.MustCompile(`^.*/.*go-build.*/.*\.test$`)
+var inTesting bool = (len(os.Args) > 0 && goTestExeRe.MatchString(os.Args[0])) || os.Getenv("SPREAD_SYSTEM") != ""
 
 // MakeProgressBar creates an appropriate progress.Meter for the environ in
 // which it is called:
