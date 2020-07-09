@@ -24,14 +24,11 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
-	"path/filepath"
-	"strings"
 	"syscall"
 	"time"
 
 	"github.com/godbus/dbus"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/strutil"
@@ -148,22 +145,7 @@ func (s *Launcher) OpenURL(addr string, sender dbus.Sender) *dbus.Error {
 		return makeAccessDeniedError(fmt.Errorf("Supplied URL scheme %q is not allowed", u.Scheme))
 	}
 
-	snap, err := snapFromSender(s.conn, sender)
-	if err != nil {
-		return dbus.MakeFailedError(err)
-	}
-
-	xdg_data_dirs := []string{}
-	xdg_data_dirs = append(xdg_data_dirs, fmt.Sprintf(filepath.Join(dirs.SnapMountDir, snap, "current/usr/share")))
-	for _, dir := range strings.Split(os.Getenv("XDG_DATA_DIRS"), ":") {
-		xdg_data_dirs = append(xdg_data_dirs, dir)
-	}
-
-	cmd := exec.Command("xdg-open", addr)
-	cmd.Env = os.Environ()
-	cmd.Env = append(cmd.Env, fmt.Sprintf("XDG_DATA_DIRS=%s", strings.Join(xdg_data_dirs, ":")))
-
-	if err := cmd.Run(); err != nil {
+	if err := exec.Command("xdg-open", addr).Run(); err != nil {
 		return dbus.MakeFailedError(fmt.Errorf("cannot open supplied URL"))
 	}
 
