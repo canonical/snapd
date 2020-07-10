@@ -20,6 +20,7 @@
 package backend
 
 import (
+	"archive/tar"
 	"archive/zip"
 	"context"
 	"crypto"
@@ -28,8 +29,10 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/client"
@@ -155,6 +158,26 @@ func List(ctx context.Context, setID uint64, snapNames []string) ([]client.Snaps
 func Filename(snapshot *client.Snapshot) string {
 	// this _needs_ the snap name and version to be valid
 	return filepath.Join(dirs.SnapshotsDir, fmt.Sprintf("%d_%s_%s_%s.zip", snapshot.SetID, snapshot.Snap, snapshot.Version, snapshot.Revision))
+}
+
+func snapshotFromFilename(f string) (*client.Snapshot, error) {
+	var setID uint64
+	var revision int
+	var snapName, version string
+	parseF := strings.Replace(f, "_", " ", 3)
+	parseF = strings.Replace(parseF, ".zip", "", 1)
+	if _, err := fmt.Sscanf(parseF, "%d %s %s %d", &setID, &snapName, &version, &revision); err != nil {
+		return nil, fmt.Errorf("unexpected filename format: %v", err)
+	}
+
+	snapshot := &client.Snapshot{
+		SetID:    setID,
+		Time:     time.Time{},
+		Snap:     snapName,
+		Revision: snap.Revision{N: revision},
+		Version:  version,
+	}
+	return snapshot, nil
 }
 
 // Save a snapshot
@@ -321,5 +344,124 @@ func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, 
 	snapshot.SHA3_384[entry] = fmt.Sprintf("%x", hasher.Sum(nil))
 	snapshot.Size += sz.size
 
+	return nil
+}
+
+// Import a snapshot from the export file format
+func Import(ctx context.Context, id uint64, filepath string) error {
+	_, err := os.Stat(filepath)
+	if os.IsNotExist(err) {
+		return fmt.Errorf("snapshot import failed: %v", err)
+	}
+
+	// XXX: check that we have enough space to import the compressed snapshots
+
+	// Open it for reading
+	f, err := osOpen(filepath)
+	if err != nil {
+		return fmt.Errorf("open snapshot import failed: %v", err)
+	}
+	defer f.Close()
+
+	// prepare cache location to unpack the import file
+	p := path.Join(dirs.SnapCacheDir, "snapshots", string(id))
+	if _, err := os.Stat(p); !os.IsNotExist(err) {
+		return fmt.Errorf("snapshot import already in progress for ID `%d`", id)
+	}
+	if err := os.MkdirAll(p, 0755); err != nil {
+		return fmt.Errorf("failed creating import cache: %v", err)
+	}
+	defer os.RemoveAll(p)
+
+	// unpack the tar file to a temporary location (so the contents can be validated)
+	exportFound, err := unpackSnapshotImport(f, p)
+	if err != nil {
+		return err
+	}
+
+	if !exportFound {
+		return fmt.Errorf("snapshot import file incomplete: no export.json file")
+	}
+
+	// XXX: check the snapshot hashes (these are not in export.json at present)
+
+	// walk the cache directory to store the files
+	dir, err := osOpen(p)
+	if err != nil {
+		return fmt.Errorf("failed opening import cache: %v", f)
+	}
+	defer dir.Close()
+	names, err := dirNames(dir, 100)
+	if err != nil {
+		return fmt.Errorf("failed read from import cache: %v", f)
+	}
+
+	// move the files into place with the new local set ID
+	return moveCachedSnapshots(names, id, p)
+}
+
+func unpackSnapshotImport(f *os.File, p string) (bool, error) {
+	tr := tar.NewReader(f)
+	var tarErr error
+	var header *tar.Header
+	var exportFound bool
+	for tarErr == nil {
+		var skip bool
+		header, tarErr = tr.Next()
+		switch {
+		case tarErr == io.EOF:
+			skip = true
+		case tarErr != nil:
+			return false, fmt.Errorf("failed reading snapshot import: %v", tarErr)
+		case header == nil:
+			// should not happen
+			skip = true
+		case header.Typeflag == tar.TypeDir:
+			// should not happen, but ignore directories
+			skip = true
+		}
+
+		if skip {
+			continue
+		}
+
+		if header.Name == "export.json" {
+			exportFound = true
+		}
+
+		target := path.Join(p, header.Name)
+		t, err := os.OpenFile(target, os.O_CREATE|os.O_RDWR, os.FileMode(header.Mode))
+		if err != nil {
+			return false, fmt.Errorf("failed creating file `%s`: %v", target, err)
+		}
+		if _, err := io.Copy(t, tr); err != nil {
+			return false, fmt.Errorf("failed copying file `%s`: %v", target, err)
+		}
+
+		t.Close()
+	}
+	return exportFound, nil
+}
+
+func moveCachedSnapshots(names []string, id uint64, p string) error {
+	for _, name := range names {
+		if name == "export.json" {
+			// ignore metadata file
+			continue
+		}
+		snapshot, err := snapshotFromFilename(name)
+		if err != nil {
+			return err
+		}
+
+		// set the new setID and get the new filename
+		snapshot.SetID = id
+		new := Filename(snapshot)
+		old := path.Join(p, name)
+
+		if err := os.Rename(old, new); err != nil {
+			return err
+		}
+	}
 	return nil
 }

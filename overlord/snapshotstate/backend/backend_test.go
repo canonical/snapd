@@ -25,24 +25,23 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
-	"io/ioutil"
-	"os"
-	"os/exec"
-	"os/user"
-	"path/filepath"
-	"sort"
-	"strings"
-	"testing"
-
-	"gopkg.in/check.v1"
-
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
 	"github.com/snapcore/snapd/snap"
+	"gopkg.in/check.v1"
+	"io"
+	"io/ioutil"
+	"os"
+	"os/exec"
+	"os/user"
+	"path"
+	"path/filepath"
+	"sort"
+	"strings"
+	"testing"
 )
 
 type snapshotSuite struct {
@@ -717,4 +716,76 @@ func (s *snapshotSuite) TestMaybeRunuserNoHappy(c *check.C) {
 		Args: []string{"tar", "--bar"},
 	})
 	c.Check(strings.TrimSpace(logbuf.String()), check.Matches, ".* No user wrapper found.*")
+}
+
+func (s *snapshotSuite) TestImport(c *check.C) {
+	tempdir := c.MkDir()
+
+	// create snapshot export file
+	tarFile1 := path.Join(tempdir, "exported1.snapshot")
+	err := backend.MockCreateExportFile(tarFile1, true, false)
+	c.Check(err, check.IsNil)
+
+	// create an exported snapshot with missing export.json
+	tarFile2 := path.Join(tempdir, "exported2.snapshot")
+	err = backend.MockCreateExportFile(tarFile2, false, false)
+	c.Check(err, check.IsNil)
+
+	// create invalid exported file
+	tarFile3 := path.Join(tempdir, "exported3.snapshot")
+	err = ioutil.WriteFile(tarFile3, []byte("invalid"), 0755)
+	c.Check(err, check.IsNil)
+
+	// create an exported snapshot with a directory
+	tarFile4 := path.Join(tempdir, "exported4.snapshot")
+	err = backend.MockCreateExportFile(tarFile4, true, true)
+	c.Check(err, check.IsNil)
+
+	type tableT struct {
+		setID      uint64
+		filename   string
+		inProgress bool
+		error      string
+	}
+
+	table := []tableT{
+		{14, tarFile1, false, ""},
+		{14, tarFile2, false, "snapshot import file incomplete: no export.json file"},
+		{14, "does-not-exist", false, "snapshot import failed: stat does-not-exist: no such file or directory"},
+		{14, tarFile1, true, "snapshot import already in progress for ID `14`"},
+		{14, tarFile3, false, "failed reading snapshot import: unexpected EOF"},
+		{14, tarFile4, false, ""},
+	}
+
+	for i, t := range table {
+		comm := check.Commentf("%d: %d %s", i, t.setID, t.filename)
+
+		// reset
+		err = os.RemoveAll(dirs.SnapshotsDir)
+		c.Check(err, check.IsNil, comm)
+		err := os.MkdirAll(dirs.SnapshotsDir, 0755)
+		c.Check(err, check.IsNil, comm)
+		cache := path.Join(dirs.SnapCacheDir, "snapshots", string(t.setID))
+		if t.inProgress {
+			// create the cache directory the set ID
+			err = os.MkdirAll(cache, 0755)
+			c.Check(err, check.IsNil, comm)
+		} else {
+			err = os.RemoveAll(cache)
+			c.Check(err, check.IsNil, comm)
+		}
+
+		err = backend.Import(context.Background(), t.setID, t.filename)
+		if t.error != "" {
+			c.Check(err.Error(), check.Equals, t.error, comm)
+			continue
+		}
+		c.Check(err, check.IsNil)
+
+		dir, err := os.Open(dirs.SnapshotsDir)
+		c.Check(err, check.IsNil, comm)
+		names, err := dir.Readdirnames(100)
+		c.Check(err, check.IsNil, comm)
+		c.Check(len(names), check.Equals, 3, comm)
+	}
 }
