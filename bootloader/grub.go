@@ -456,17 +456,16 @@ func sortSnapdKernelCommandLineArgsForGrub(args []string) []string {
 		}
 	}
 	// see grub.cfg and grub-recovery.cfg assets, the order is:
-	//      for run mode: <args> snapd_recovery_mode=run
-	// for recovery mode: <args> snapd_recovery_mode=recover snapd_recovery_system=<label>
-
-	for _, prefixOrder := range []string{"snapd_recovery_mode=", "snapd_recovery_system="} {
+	//      for run mode: snapd_recovery_mode=run <args>
+	// for recovery mode: snapd_recovery_mode=recover snapd_recovery_system=<label> <args>
+	for _, prefixOrder := range []string{"snapd_recovery_system=", "snapd_recovery_mode="} {
 		for i, marg := range modeArgs {
 			if strings.HasPrefix(marg, prefixOrder) {
 				modeArgs = append(modeArgs[:i], modeArgs[i+1:]...)
-				modeArgs = append(modeArgs, marg)
+				modeArgs = append([]string{marg}, modeArgs...)
 				break
 			}
 		}
 	}
-	return append(out, modeArgs...)
+	return append(modeArgs, out...)
 }

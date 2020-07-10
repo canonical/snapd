@@ -884,12 +884,15 @@ boot script
 
 	args, err := mg.CommandLine(nil)
 	c.Assert(err, IsNil)
-
 	c.Check(args, Equals, `arg1 foo=123 panic=-1 arg2="with spaces " extra_arg=1 extra_foo=-1 panic=3 baz="more  spaces"`)
 
-	args, err = mg.CommandLine([]string{"snapd_recovery_mode=recover", "snapd_recovery_system=20200202"})
+	args, err = mg.CommandLine([]string{"snapd_recovery_mode=run"})
 	c.Assert(err, IsNil)
-	c.Check(args, Equals, `arg1 foo=123 panic=-1 arg2="with spaces " extra_arg=1 extra_foo=-1 panic=3 baz="more  spaces" snapd_recovery_mode=recover snapd_recovery_system=20200202`)
+	c.Check(args, Equals, `snapd_recovery_mode=run arg1 foo=123 panic=-1 arg2="with spaces " extra_arg=1 extra_foo=-1 panic=3 baz="more  spaces"`)
+
+	args, err = mg.CommandLine([]string{"snapd_recovery_system=20200202", "snapd_recovery_mode=recover"})
+	c.Assert(err, IsNil)
+	c.Check(args, Equals, `snapd_recovery_mode=recover snapd_recovery_system=20200202 arg1 foo=123 panic=-1 arg2="with spaces " extra_arg=1 extra_foo=-1 panic=3 baz="more  spaces"`)
 
 	// now check the recovery bootloader
 	opts = &bootloader.Options{NoSlashBoot: true, Recovery: true}
@@ -897,19 +900,19 @@ boot script
 	args, err = mrg.CommandLine([]string{"snapd_recovery_mode=recover", "snapd_recovery_system=20200202"})
 	c.Assert(err, IsNil)
 	// static command line from recovery asset
-	c.Check(args, Equals, `recovery config panic=-1 extra_arg=1 extra_foo=-1 panic=3 baz="more  spaces" snapd_recovery_mode=recover snapd_recovery_system=20200202`)
+	c.Check(args, Equals, `snapd_recovery_mode=recover snapd_recovery_system=20200202 recovery config panic=-1 extra_arg=1 extra_foo=-1 panic=3 baz="more  spaces"`)
 }
 
 func (s *grubTestSuite) TestSortArgsForGrub(c *C) {
 	out := bootloader.SortSnapdKernelCommandLineArgsForGrub([]string{"foo", "bar", "snapd_recovery_mode=run", "panic=-1"})
-	c.Assert(out, DeepEquals, []string{"foo", "bar", "panic=-1", "snapd_recovery_mode=run"})
+	c.Assert(out, DeepEquals, []string{"snapd_recovery_mode=run", "foo", "bar", "panic=-1"})
 	// recovery mode
 	out = bootloader.SortSnapdKernelCommandLineArgsForGrub([]string{
 		"snapd_recovery_system=1234", "foo",
 		"snapd_recovery_mode=recover", "panic=-1",
 	})
 	c.Assert(out, DeepEquals, []string{
-		"foo", "panic=-1",
 		"snapd_recovery_mode=recover", "snapd_recovery_system=1234",
+		"foo", "panic=-1",
 	})
 }
