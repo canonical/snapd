@@ -48,12 +48,17 @@ func (s *cmdlineTestSuite) TestSplitKernelCommandLine(c *C) {
 		// bad quoting, or otherwise malformed command line
 		{cmd: `foo="1$2`, errStr: "unbalanced quoting"},
 		{cmd: `"foo"`, errStr: "unexpected quoting"},
-		{cmd: `="foo"`, errStr: "unexpected quoting"},
 		{cmd: `foo"foo"`, errStr: "unexpected quoting"},
 		{cmd: `foo=foo"`, errStr: "unexpected quoting"},
 		{cmd: `foo="a""b"`, errStr: "unexpected quoting"},
 		{cmd: `foo="a foo="b`, errStr: "unexpected argument"},
 		{cmd: `foo="a"="b"`, errStr: "unexpected assignment"},
+		{cmd: `=`, errStr: "unexpected assignment"},
+		{cmd: `a =`, errStr: "unexpected assignment"},
+		{cmd: `a=b=`, errStr: "unexpected assignment"},
+		{cmd: `="foo"`, errStr: "unexpected assignment"},
+		{cmd: `a==`, errStr: "unexpected assignment"},
+		{cmd: `foo ==a`, errStr: "unexpected assignment"},
 	} {
 		c.Logf("%v: cmd: %q", idx, tc.cmd)
 		out, err := strutil.KernelCommandLineSplit(tc.cmd)

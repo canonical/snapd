@@ -56,6 +56,8 @@ func KernelCommandLineSplit(s string) (out []string, err error) {
 			switch r {
 			case '"':
 				return nil, errUnexpectedQuote
+			case '=':
+				return nil, errUnexpectedAssignment
 			case ' ':
 				maybeSplit = true
 			default:
@@ -64,11 +66,11 @@ func KernelCommandLineSplit(s string) (out []string, err error) {
 			}
 		case argName:
 			switch r {
+			case '"':
+				return nil, errUnexpectedQuote
 			case ' ':
 				maybeSplit = true
 				state = argNone
-			case '"':
-				return nil, errUnexpectedQuote
 			case '=':
 				state = argAssign
 				fallthrough
@@ -77,6 +79,8 @@ func KernelCommandLineSplit(s string) (out []string, err error) {
 			}
 		case argAssign:
 			switch r {
+			case '=':
+				return nil, errUnexpectedAssignment
 			case ' ':
 				// no value: arg=
 				maybeSplit = true
@@ -92,12 +96,14 @@ func KernelCommandLineSplit(s string) (out []string, err error) {
 			}
 		case argValue:
 			switch r {
-			case ' ':
-				state = argNone
-				maybeSplit = true
 			case '"':
 				// arg=foo"
 				return nil, errUnexpectedQuote
+			case '=':
+				return nil, errUnexpectedAssignment
+			case ' ':
+				state = argNone
+				maybeSplit = true
 			default:
 				// arg=value...
 				b.WriteRune(r)
@@ -123,14 +129,14 @@ func KernelCommandLineSplit(s string) (out []string, err error) {
 			}
 		case argValueQuoteEnd:
 			switch r {
-			case '"':
-				// arg="foo""
-				return nil, errUnexpectedQuote
 			case ' ':
 				maybeSplit = true
 				state = argNone
+			case '"':
+				// arg="foo""
+				return nil, errUnexpectedQuote
 			case '=':
-				// arg="foo"bar
+				// arg="foo"=
 				return nil, errUnexpectedAssignment
 			default:
 				// arg="foo"bar
