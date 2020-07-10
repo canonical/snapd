@@ -8,7 +8,7 @@ show_help() {
 	echo "    crashed-snap-confine: /tmp/snap.rootfs_* does not exist"
 	echo "    lxcfs-mounted: /var/lib/lxcfs is a mount point"
 	echo "    stray-dbus-daemon: at most one dbus-daemon is running"
-
+	echo "    leftover-defer-sh: defer.sh must not be left over by tests"
 }
 
 if [ $# -eq 0 ]; then
@@ -104,6 +104,18 @@ check_stray_dbus_daemon() {
 	fi
 }
 
+check_leftover_defer_sh() {
+	n="$1" # invariant name
+	(
+		find "$PROJECT_PATH" -name defer.sh > "/tmp/tests.invariant.$n"
+	) > "/tmp/tests.invariant.$n"
+	if [ -s "/tmp/tests.invariant.$n" ]; then
+		echo "tests.invariant: leftover defer.sh script" >&2
+		cat "/tmp/tests.invariant.$n" >&2
+		return 1
+	fi
+}
+
 check_invariant() {
 	case "$1" in
 		root-files-in-home)
@@ -118,6 +130,9 @@ check_invariant() {
 		stray-dbus-daemon)
 			check_stray_dbus_daemon "$1"
 			;;
+		leftover-defer-sh)
+			check_leftover_defer_sh "$1"
+			;;
 		*)
 			echo "tests.invariant: unknown invariant $1" >&2
 			exit 1
@@ -125,7 +140,7 @@ check_invariant() {
 	esac
 }
 
-ALL_INVARIANTS="root-files-in-home crashed-snap-confine lxcfs-mounted stray-dbus-daemon"
+ALL_INVARIANTS="root-files-in-home crashed-snap-confine lxcfs-mounted stray-dbus-daemon leftover-defer-sh"
 
 case "$action" in
 	check)
