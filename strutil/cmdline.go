@@ -29,38 +29,113 @@ import (
 //
 // See https://www.kernel.org/doc/html/latest/admin-guide/kernel-parameters.html for details.
 func KernelCommandLineSplit(s string) (out []string, err error) {
-	var quoting bool
+	const (
+		argNone            int = iota // initial state
+		argName                       // looking at argument name
+		argAssign                     // looking at =
+		argValue                      // looking at unquoted value
+		argValueQuoteStart            // looking at start of quoted value
+		argValueQuoted                // looking at quoted value
+		argValueQuoteEnd              // looking at end of quoted value
+	)
 	var b bytes.Buffer
 	var rs = []rune(s)
 	var last = len(rs) - 1
+	var errUnexpectedQuote = fmt.Errorf("unexpected quoting")
+	var errUnbalancedQUote = fmt.Errorf("unbalanced quoting")
+	var errUnexpectedArgument = fmt.Errorf("unexpected argument")
+	var errUnexpectedAssignment = fmt.Errorf("unexpected assignment")
 	// arguments are:
 	// - arg
 	// - arg=value, where value can be any string, spaces are preserve when quoting ".."
+	var state = argNone
 	for idx, r := range rs {
 		maybeSplit := false
-		switch r {
-		case '"':
-			if !quoting {
-				if b.Len() < 2 || idx == 0 || (idx > 0 && rs[idx-1] != '=') {
-					// either:
-					// - the whole input starts with "
-					// - preceding character is not =
-					// - there's no at least `a=` collected so far
-					return nil, fmt.Errorf("unexpected quoting")
-				}
-				quoting = true
-			} else {
-				quoting = false
-			}
-			b.WriteRune(r)
-		case ' ':
-			if quoting {
-				b.WriteRune(r)
-			} else {
+		switch state {
+		case argNone:
+			switch r {
+			case '"':
+				return nil, errUnexpectedQuote
+			case ' ':
 				maybeSplit = true
+			default:
+				state = argName
+				b.WriteRune(r)
 			}
-		default:
-			b.WriteRune(r)
+		case argName:
+			switch r {
+			case ' ':
+				maybeSplit = true
+				state = argNone
+			case '"':
+				return nil, errUnexpectedQuote
+			case '=':
+				state = argAssign
+				fallthrough
+			default:
+				b.WriteRune(r)
+			}
+		case argAssign:
+			switch r {
+			case ' ':
+				// no value: arg=
+				maybeSplit = true
+				state = argNone
+			case '"':
+				// arg="..
+				state = argValueQuoteStart
+				b.WriteRune(r)
+			default:
+				// arg=v..
+				state = argValue
+				b.WriteRune(r)
+			}
+		case argValue:
+			switch r {
+			case ' ':
+				state = argNone
+				maybeSplit = true
+			case '"':
+				// arg=foo"
+				return nil, errUnexpectedQuote
+			default:
+				// arg=value...
+				b.WriteRune(r)
+			}
+		case argValueQuoteStart:
+			switch r {
+			case '"':
+				// closing quote: arg=""
+				state = argValueQuoteEnd
+				b.WriteRune(r)
+			default:
+				state = argValueQuoted
+				b.WriteRune(r)
+			}
+		case argValueQuoted:
+			switch r {
+			case '"':
+				// closing quote: arg="foo"
+				state = argValueQuoteEnd
+				fallthrough
+			default:
+				b.WriteRune(r)
+			}
+		case argValueQuoteEnd:
+			switch r {
+			case '"':
+				// arg="foo""
+				return nil, errUnexpectedQuote
+			case ' ':
+				maybeSplit = true
+				state = argNone
+			case '=':
+				// arg="foo"bar
+				return nil, errUnexpectedAssignment
+			default:
+				// arg="foo"bar
+				return nil, errUnexpectedArgument
+			}
 		}
 		if maybeSplit || idx == last {
 			// split now
@@ -68,11 +143,12 @@ func KernelCommandLineSplit(s string) (out []string, err error) {
 				out = append(out, b.String())
 				b.Reset()
 			}
-			continue
 		}
 	}
-	if quoting {
-		return nil, fmt.Errorf("unbalanced quoting")
+	switch state {
+	case argValueQuoteStart, argValueQuoted:
+		// ended at arg=" or arg="foo
+		return nil, errUnbalancedQUote
 	}
 	return out, nil
 }
