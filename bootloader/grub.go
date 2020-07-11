@@ -379,11 +379,12 @@ func (g *grub) ManagedAssets() []string {
 	}
 }
 
-// CommandLine returns the kernel command line composed of the built-in
-// list and extra arguments passed in arguments. The command line may be
-// different when using a bootloader in the recovery partition.
+// CommandLine returns the kernel command line composed system run mode
+// arguments, extra arguments (configured by snapd) and the built-in
+// bootloader specific arguments. The command line may be different when
+// using a bootloader in the recovery partition.
 //
 // Implements ManagedAssetsBootloader for the grub bootloader.
-func (g *grub) CommandLine(extra []string) (string, error) {
+func (g *grub) CommandLine(modeArgs, extraArgs string) (string, error) {
 	return "", fmt.Errorf("not implemented")
 }
