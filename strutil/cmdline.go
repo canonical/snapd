@@ -100,8 +100,6 @@ func KernelCommandLineSplit(s string) (out []string, err error) {
 			case '"':
 				// arg=foo"
 				return nil, errUnexpectedQuote
-			case '=':
-				return nil, errUnexpectedAssignment
 			case ' ':
 				state = argNone
 				maybeSplit = true

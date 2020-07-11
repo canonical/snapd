@@ -45,6 +45,26 @@ func (s *cmdlineTestSuite) TestSplitKernelCommandLine(c *C) {
 		{cmd: `foo=""`, exp: []string{`foo=""`}},
 		{cmd: `   cpu=1,2,3   mem=0x2000;0x4000:$2  `, exp: []string{"cpu=1,2,3", "mem=0x2000;0x4000:$2"}},
 		{cmd: "isolcpus=1,2,10-20,100-2000:2/25", exp: []string{"isolcpus=1,2,10-20,100-2000:2/25"}},
+		// something more realistic
+		{
+			cmd: `BOOT_IMAGE=/vmlinuz-linux root=/dev/mapper/linux-root rw quiet loglevel=3 rd.udev.log_priority=3 vt.global_cursor_default=0 rd.luks.uuid=1a273f76-3118-434b-8597-a3b12a59e017 rd.luks.uuid=775e4582-33c1-423b-ac19-f734e0d5e21c rd.luks.options=discard,timeout=0 root=/dev/mapper/linux-root apparmor=1 security=apparmor`,
+			exp: []string{
+				"BOOT_IMAGE=/vmlinuz-linux",
+				"root=/dev/mapper/linux-root",
+				"rw", "quiet",
+				"loglevel=3",
+				"rd.udev.log_priority=3",
+				"vt.global_cursor_default=0",
+				"rd.luks.uuid=1a273f76-3118-434b-8597-a3b12a59e017",
+				"rd.luks.uuid=775e4582-33c1-423b-ac19-f734e0d5e21c",
+				"rd.luks.options=discard,timeout=0",
+				"root=/dev/mapper/linux-root",
+				"apparmor=1",
+				"security=apparmor",
+			},
+		},
+		// this is actually ok, eg. rd.luks.options=discard,timeout=0
+		{cmd: `a=b=`, exp: []string{"a=b="}},
 		// bad quoting, or otherwise malformed command line
 		{cmd: `foo="1$2`, errStr: "unbalanced quoting"},
 		{cmd: `"foo"`, errStr: "unexpected quoting"},
@@ -55,7 +75,6 @@ func (s *cmdlineTestSuite) TestSplitKernelCommandLine(c *C) {
 		{cmd: `foo="a"="b"`, errStr: "unexpected assignment"},
 		{cmd: `=`, errStr: "unexpected assignment"},
 		{cmd: `a =`, errStr: "unexpected assignment"},
-		{cmd: `a=b=`, errStr: "unexpected assignment"},
 		{cmd: `="foo"`, errStr: "unexpected assignment"},
 		{cmd: `a==`, errStr: "unexpected assignment"},
 		{cmd: `foo ==a`, errStr: "unexpected assignment"},
