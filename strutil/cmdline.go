@@ -24,8 +24,9 @@ import (
 	"fmt"
 )
 
-// KernelCommandLineSplit tries to split the string into a list of elements that
-// would be passed by the bootloader as the kernel command arguments.
+// KernelCommandLineSplit tries to split the string comprising full or a part
+// of a kernel command line into a list of individual arguments. Returns an
+// error when the input string is incorrectly formatted.
 //
 // See https://www.kernel.org/doc/html/latest/admin-guide/kernel-parameters.html for details.
 func KernelCommandLineSplit(s string) (out []string, err error) {
