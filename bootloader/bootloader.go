@@ -146,6 +146,8 @@ type ExtractedRunKernelImageBootloader interface {
 // ManagedAssetsBootloader has its boot assets (typically boot config) managed
 // by snapd.
 type ManagedAssetsBootloader interface {
+	Bootloader
+
 	// IsCurrentlyManaged returns true when the on disk boot assets are managed.
 	IsCurrentlyManaged() (bool, error)
 	// ManagedAssets returns a list of boot assets managed by the bootloader
