@@ -168,12 +168,12 @@ func (s *kernelCommandLineSuite) TestComposeCommandLineNotUC20(c *C) {
 func (s *kernelCommandLineSuite) TestComposeComamndLineSystemManagedErr(c *C) {
 	model := makeMockUC20Model()
 
-	mbl := bootloadertest.Mock("btloader", c.MkDir()).WithManagedAssets()
-	bootloader.Force(mbl)
+	mrebl := bootloadertest.Mock("btloader", c.MkDir()).WithManagedAssetsRecoveryAware()
+	bootloader.Force(mrebl)
 	defer bootloader.Force(nil)
 
 	errFail := errors.New("is managed fail")
-	mbl.IsManagedErr = errFail
+	mrebl.IsManagedErr = errFail
 
 	cmdline, err := boot.ComposeRecoveryCommandLine(model, "20200314")
 	c.Assert(err, ErrorMatches, "is managed fail")
@@ -182,9 +182,9 @@ func (s *kernelCommandLineSuite) TestComposeComamndLineSystemManagedErr(c *C) {
 	c.Assert(err, ErrorMatches, "is managed fail")
 	c.Assert(cmdline, Equals, "")
 
-	mbl.IsManagedErr = nil
-	mbl.IsManaged = true
-	mbl.CommandLineErr = errors.New("kernel command line fail")
+	mrebl.IsManagedErr = nil
+	mrebl.IsManaged = true
+	mrebl.CommandLineErr = errors.New("kernel command line fail")
 
 	cmdline, err = boot.ComposeRecoveryCommandLine(model, "20200314")
 	c.Assert(err, ErrorMatches, "kernel command line fail")
@@ -197,6 +197,27 @@ func (s *kernelCommandLineSuite) TestComposeComamndLineSystemManagedErr(c *C) {
 func (s *kernelCommandLineSuite) TestComposeCommandLineManagedHappy(c *C) {
 	model := makeMockUC20Model()
 
+	mrebl := bootloadertest.Mock("btloader", c.MkDir()).WithManagedAssetsRecoveryAware()
+	bootloader.Force(mrebl)
+	defer bootloader.Force(nil)
+
+	mrebl.IsManaged = true
+	mrebl.StaticCommandLine = "panic=-1"
+
+	mrebl.EnvVars = map[string]string{
+		"snapd_extra_cmdline_args": "extra arg=1",
+	}
+	cmdline, err := boot.ComposeRecoveryCommandLine(model, "20200314")
+	c.Assert(err, IsNil)
+	c.Assert(cmdline, Equals, "panic=-1 extra arg=1 snapd_recovery_mode=recover snapd_recovery_system=20200314")
+	cmdline, err = boot.ComposeCommandLine(model)
+	c.Assert(err, IsNil)
+	c.Assert(cmdline, Equals, "panic=-1 snapd_recovery_mode=run")
+}
+
+func (s *kernelCommandLineSuite) TestSetExtraCommandLineArgsHappy(c *C) {
+	model := makeMockUC20Model()
+
 	mbl := bootloadertest.Mock("btloader", c.MkDir()).WithManagedAssets()
 	bootloader.Force(mbl)
 	defer bootloader.Force(nil)
@@ -204,10 +225,10 @@ func (s *kernelCommandLineSuite) TestComposeCommandLineManagedHappy(c *C) {
 	mbl.IsManaged = true
 	mbl.StaticCommandLine = "panic=-1"
 
-	cmdline, err := boot.ComposeRecoveryCommandLine(model, "20200314")
+	err := boot.SetExtraCommandLineArgs(model, "foo=bar baz panic=1")
 	c.Assert(err, IsNil)
-	c.Assert(cmdline, Equals, "panic=-1 snapd_recovery_mode=recover snapd_recovery_system=20200314")
-	cmdline, err = boot.ComposeCommandLine(model)
-	c.Assert(err, IsNil)
-	c.Assert(cmdline, Equals, "panic=-1 snapd_recovery_mode=run")
+	c.Check(mbl.SetBootVarsCalls, Equals, 1)
+	c.Check(mbl.BootVars, DeepEquals, map[string]string{
+		"snapd_extra_cmdline_args": "foo=bar baz panic=1",
+	})
 }

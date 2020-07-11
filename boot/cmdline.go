@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"path/filepath"
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
@@ -154,10 +155,17 @@ func ComposeRecoveryCommandLine(model *asserts.Model, system string) (string, er
 		}
 		return "", err
 	}
+	reb, ok := mbl.(bootloader.RecoveryAwareBootloader)
+	if !ok {
+		return "", nil
+	}
+	recoverySystemDir := filepath.Join(InitramfsUbuntuSeedDir, "systems", system)
+	extraArgs, err := reb.GetRecoverySystemEnv(recoverySystemDir, "snapd_extra_cmdline_args")
+	if err != nil {
+		return "", fmt.Errorf("cannot load command line arguments from boot environment: %v", err)
+	}
 	modeArgs := fmt.Sprintf("snapd_recovery_mode=recover snapd_recovery_system=%v", system)
-	// TODO:UC20: fetch extra args from recovery system bootenv
-	extraArgs := ""
-	return mbl.CommandLine(modeArgs, extraArgs)
+	return mbl.CommandLine(extraArgs, modeArgs)
 }
 
 // ComposeCommandLine composes the kernel command line used when booting the
@@ -177,8 +185,31 @@ func ComposeCommandLine(model *asserts.Model) (string, error) {
 		}
 		return "", err
 	}
+	bv, err := mbl.GetBootVars("snapd_extra_cmdline_args")
+	if err != nil {
+		return "", fmt.Errorf("cannot load command line arguments from boot environment: %v", err)
+	}
 	modeArgs := "snapd_recovery_mode=run"
-	// TODO:UC20: fetch extra args from bootenv
-	extraArgs := ""
-	return mbl.CommandLine(modeArgs, extraArgs)
+	return mbl.CommandLine(bv["snapd_extra_cmdline_args"], modeArgs)
+}
+
+func SetExtraCommandLineArgs(model *asserts.Model, args string) error {
+	if model.Grade() == asserts.ModelGradeUnset {
+		return nil
+	}
+	// get the ubuntu-boot bootloader
+	opts := &bootloader.Options{
+		NoSlashBoot: true,
+	}
+	mbl, err := getBootloaderManagingItsAssets(InitramfsUbuntuBootDir, opts)
+	if err != nil {
+		if err == errBootConfigNotManaged {
+			return nil
+		}
+		return err
+	}
+	bv := map[string]string{
+		"snapd_extra_cmdline_args": args,
+	}
+	return mbl.SetBootVars(bv)
 }
