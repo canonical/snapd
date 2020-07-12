@@ -218,6 +218,7 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet)
 	}
 	recoveryBlVars := map[string]string{
 		"snapd_recovery_kernel": filepath.Join("/", kernelPath),
+		// TODO:UC20: add recovery system extra command line arguments
 	}
 	if err := rbl.SetRecoverySystemEnv(bootWith.RecoverySystemDir, recoveryBlVars); err != nil {
 		return fmt.Errorf("cannot set recovery system environment: %v", err)
