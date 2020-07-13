@@ -130,13 +130,12 @@ func (s *encryptSuite) TestNewEncryptedDevice(c *C) {
 
 func (s *encryptSuite) TestAddRecoveryKey(c *C) {
 	for _, tc := range []struct {
-		addErr error
-		err    string
+		mockedAddErr error
+		expectedErr  string
 	}{
-		{addErr: nil, err: ""},
-		{addErr: errors.New("add key error"), err: "add key error"},
+		{mockedAddErr: nil, expectedErr: ""},
+		{mockedAddErr: errors.New("add key error"), expectedErr: "add key error"},
 	} {
-
 		s.mockCryptsetup = testutil.MockCommand(c, "cryptsetup", "")
 		s.AddCleanup(s.mockCryptsetup.Restore)
 
@@ -151,7 +150,7 @@ func (s *encryptSuite) TestAddRecoveryKey(c *C) {
 			c.Assert(key, DeepEquals, s.mockedEncryptionKey)
 			c.Assert(rkey, DeepEquals, s.mockedRecoveryKey)
 			c.Assert(node, Equals, "/dev/node1")
-			return tc.addErr
+			return tc.mockedAddErr
 		})
 		defer restore()
 
@@ -160,10 +159,10 @@ func (s *encryptSuite) TestAddRecoveryKey(c *C) {
 
 		err = dev.AddRecoveryKey(s.mockedEncryptionKey, s.mockedRecoveryKey)
 		c.Assert(calls, Equals, 1)
-		if tc.err == "" {
+		if tc.expectedErr == "" {
 			c.Assert(err, IsNil)
 		} else {
-			c.Assert(err, ErrorMatches, tc.err)
+			c.Assert(err, ErrorMatches, tc.expectedErr)
 			continue
 		}
 
