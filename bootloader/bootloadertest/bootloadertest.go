@@ -205,6 +205,16 @@ func (b *MockRecoveryAwareBootloader) SetRecoverySystemEnv(recoverySystemDir str
 	return nil
 }
 
+// GetRecoverySystemEnv gets the recovery system environment bootloader
+// variables; part of RecoveryAwareBootloader.
+func (b *MockRecoveryAwareBootloader) GetRecoverySystemEnv(recoverySystemDir, key string) (string, error) {
+	if recoverySystemDir == "" {
+		panic("MockBootloader.GetRecoverySystemEnv called without recoverySystemDir")
+	}
+	b.RecoverySystemDir = recoverySystemDir
+	return b.RecoverySystemBootVars[key], nil
+}
+
 // MockExtractedRunKernelImageBootloader mocks a bootloader
 // implementing the ExtractedRunKernelImageBootloader interface.
 type MockExtractedRunKernelImageBootloader struct {
