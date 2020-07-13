@@ -37,6 +37,9 @@ type encryptSuite struct {
 	testutil.BaseTest
 
 	mockCryptsetup *testutil.MockCmd
+
+	mockedEncryptionKey secboot.EncryptionKey
+	mockedRecoveryKey   secboot.RecoveryKey
 }
 
 var _ = Suite(&encryptSuite{})
@@ -56,6 +59,13 @@ var mockDeviceStructure = gadget.OnDiskStructure{
 func (s *encryptSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	c.Assert(os.MkdirAll(dirs.SnapRunDir, 0755), IsNil)
+
+	// create empty key to prevent blocking on lack of system entropy
+	s.mockedEncryptionKey = secboot.EncryptionKey{}
+	for i := range s.mockedEncryptionKey {
+		s.mockedEncryptionKey[i] = byte(i)
+	}
+	s.mockedRecoveryKey = secboot.RecoveryKey{15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0}
 }
 
 func (s *encryptSuite) TestNewEncryptedDevice(c *C) {
@@ -88,23 +98,17 @@ func (s *encryptSuite) TestNewEncryptedDevice(c *C) {
 		s.mockCryptsetup = testutil.MockCommand(c, "cryptsetup", script)
 		s.AddCleanup(s.mockCryptsetup.Restore)
 
-		// create empty key to prevent blocking on lack of system entropy
-		myKey := secboot.EncryptionKey{}
-		for i := range myKey {
-			myKey[i] = byte(i)
-		}
-
 		calls := 0
 		restore := install.MockSecbootFormatEncryptedDevice(func(key secboot.EncryptionKey, label, node string) error {
 			calls++
-			c.Assert(key, DeepEquals, myKey)
+			c.Assert(key, DeepEquals, s.mockedEncryptionKey)
 			c.Assert(label, Equals, "some-label-enc")
 			c.Assert(node, Equals, "/dev/node1")
 			return tc.mockedFormatErr
 		})
 		defer restore()
 
-		dev, err := install.NewEncryptedDevice(&mockDeviceStructure, myKey, "some-label")
+		dev, err := install.NewEncryptedDevice(&mockDeviceStructure, s.mockedEncryptionKey, "some-label")
 		c.Assert(calls, Equals, 1)
 		if tc.expectedErr == "" {
 			c.Assert(err, IsNil)
@@ -136,13 +140,6 @@ func (s *encryptSuite) TestAddRecoveryKey(c *C) {
 		s.mockCryptsetup = testutil.MockCommand(c, "cryptsetup", "")
 		s.AddCleanup(s.mockCryptsetup.Restore)
 
-		// create empty key to prevent blocking on lack of system entropy
-		myKey := secboot.EncryptionKey{}
-		for i := range myKey {
-			myKey[i] = byte(i)
-		}
-		myRKey := secboot.RecoveryKey{15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0}
-
 		restore := install.MockSecbootFormatEncryptedDevice(func(key secboot.EncryptionKey, label, node string) error {
 			return nil
 		})
@@ -151,17 +148,17 @@ func (s *encryptSuite) TestAddRecoveryKey(c *C) {
 		calls := 0
 		restore = install.MockSecbootAddRecoveryKey(func(key secboot.EncryptionKey, rkey secboot.RecoveryKey, node string) error {
 			calls++
-			c.Assert(key, DeepEquals, myKey)
-			c.Assert(rkey, DeepEquals, myRKey)
+			c.Assert(key, DeepEquals, s.mockedEncryptionKey)
+			c.Assert(rkey, DeepEquals, s.mockedRecoveryKey)
 			c.Assert(node, Equals, "/dev/node1")
 			return tc.addErr
 		})
 		defer restore()
 
-		dev, err := install.NewEncryptedDevice(&mockDeviceStructure, myKey, "some-label")
+		dev, err := install.NewEncryptedDevice(&mockDeviceStructure, s.mockedEncryptionKey, "some-label")
 		c.Assert(err, IsNil)
 
-		err = dev.AddRecoveryKey(myKey, myRKey)
+		err = dev.AddRecoveryKey(s.mockedEncryptionKey, s.mockedRecoveryKey)
 		c.Assert(calls, Equals, 1)
 		if tc.err == "" {
 			c.Assert(err, IsNil)
