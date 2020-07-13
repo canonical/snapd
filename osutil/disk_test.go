@@ -34,7 +34,7 @@ var _ = Suite(&DiskSuite{})
 
 func (s *DiskSuite) TestCheckFreeSpaceHappy(c *C) {
 	var called bool
-	restore := osutil.MockSyscalStatfs(func(path string, st *syscall.Statfs_t) error {
+	restore := osutil.MockSyscallStatfs(func(path string, st *syscall.Statfs_t) error {
 		c.Assert(path, Equals, "/path")
 		st.Bsize = 4096
 		st.Bavail = 2
@@ -48,7 +48,7 @@ func (s *DiskSuite) TestCheckFreeSpaceHappy(c *C) {
 }
 
 func (s *DiskSuite) TestCheckFreeSpaceUnhappy(c *C) {
-	restore := osutil.MockSyscalStatfs(func(path string, st *syscall.Statfs_t) error {
+	restore := osutil.MockSyscallStatfs(func(path string, st *syscall.Statfs_t) error {
 		c.Assert(path, Equals, "/path")
 		st.Bsize = 4096
 		st.Bavail = 2
@@ -57,7 +57,7 @@ func (s *DiskSuite) TestCheckFreeSpaceUnhappy(c *C) {
 	defer restore()
 
 	err := osutil.CheckFreeSpace("/path", 8193)
-	c.Assert(err, ErrorMatches, "not enough free space in /path, requires 1B")
+	c.Assert(err, ErrorMatches, "not enough free space in /path, requires 1B more")
 	diskSpaceErr, ok := err.(*osutil.NotEnoughDiskSpaceError)
 	c.Assert(ok, Equals, true)
 	c.Check(diskSpaceErr.Path, Equals, "/path")

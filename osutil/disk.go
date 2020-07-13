@@ -26,7 +26,7 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
-var syscalStatfs = syscall.Statfs
+var syscallStatfs = syscall.Statfs
 
 type NotEnoughDiskSpaceError struct {
 	Path string
@@ -34,13 +34,13 @@ type NotEnoughDiskSpaceError struct {
 }
 
 func (e *NotEnoughDiskSpaceError) Error() string {
-	return fmt.Sprintf("not enough free space in %s, requires %s", e.Path, strutil.SizeToStr(e.Delta))
+	return fmt.Sprintf("not enough free space in %s, requires %s more", e.Path, strutil.SizeToStr(e.Delta))
 }
 
 // diskFree returns free disk space for the given path
 func diskFree(path string) (uint64, error) {
 	var st syscall.Statfs_t
-	if err := syscalStatfs(path, &st); err != nil {
+	if err := syscallStatfs(path, &st); err != nil {
 		return 0, err
 	}
 	// available blocks * block size
@@ -55,7 +55,7 @@ func CheckFreeSpace(path string, minSize uint64) error {
 	}
 	if free < minSize {
 		delta := int64(minSize - free)
-		return &NotEnoughDiskSpaceError{Path: path, Delta: int64(delta)}
+		return &NotEnoughDiskSpaceError{Path: path, Delta: delta}
 	}
 	return nil
 }

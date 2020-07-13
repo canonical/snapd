@@ -68,11 +68,11 @@ func MockSyscallKill(f func(int, syscall.Signal) error) func() {
 	}
 }
 
-func MockSyscalStatfs(f func(string, *syscall.Statfs_t) error) func() {
-	oldSyscallStatfs := syscalStatfs
-	syscalStatfs = f
+func MockSyscallStatfs(f func(string, *syscall.Statfs_t) error) func() {
+	oldSyscallStatfs := syscallStatfs
+	syscallStatfs = f
 	return func() {
-		syscalStatfs = oldSyscallStatfs
+		syscallStatfs = oldSyscallStatfs
 	}
 }
 
