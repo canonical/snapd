@@ -118,18 +118,26 @@ func MockSbMeasureSnapModelToTPM(f func(tpm *sb.TPMConnection, pcrIndex int, mod
 	}
 }
 
-func MockDevDiskByLabelDir(new string) (restore func()) {
+func MockDevDiskByLabelDir(f string) (restore func()) {
 	old := devDiskByLabelDir
-	devDiskByLabelDir = new
+	devDiskByLabelDir = f
 	return func() {
 		devDiskByLabelDir = old
 	}
 }
 
-func MockRandomKernelUUID(new func() string) (restore func()) {
+func MockRandomKernelUUID(f func() string) (restore func()) {
 	old := randutilRandomKernelUUID
-	randutilRandomKernelUUID = new
+	randutilRandomKernelUUID = f
 	return func() {
 		randutilRandomKernelUUID = old
+	}
+}
+
+func MockIsTPMEnabled(f func(tpm *sb.TPMConnection) bool) (restore func()) {
+	old := isTPMEnabled
+	isTPMEnabled = f
+	return func() {
+		isTPMEnabled = old
 	}
 }
