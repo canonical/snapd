@@ -28,11 +28,11 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-type DiskSuite struct{}
+type diskSuite struct{}
 
-var _ = Suite(&DiskSuite{})
+var _ = Suite(&diskSuite{})
 
-func (s *DiskSuite) TestCheckFreeSpaceHappy(c *C) {
+func (s *diskSuite) TestCheckFreeSpaceHappy(c *C) {
 	var called bool
 	restore := osutil.MockSyscallStatfs(func(path string, st *syscall.Statfs_t) error {
 		c.Assert(path, Equals, "/path")
@@ -47,7 +47,7 @@ func (s *DiskSuite) TestCheckFreeSpaceHappy(c *C) {
 	c.Assert(called, Equals, true)
 }
 
-func (s *DiskSuite) TestCheckFreeSpaceUnhappy(c *C) {
+func (s *diskSuite) TestCheckFreeSpaceUnhappy(c *C) {
 	restore := osutil.MockSyscallStatfs(func(path string, st *syscall.Statfs_t) error {
 		c.Assert(path, Equals, "/path")
 		st.Bsize = 4096
@@ -57,14 +57,14 @@ func (s *DiskSuite) TestCheckFreeSpaceUnhappy(c *C) {
 	defer restore()
 
 	err := osutil.CheckFreeSpace("/path", 8193)
-	c.Assert(err, ErrorMatches, "not enough free space in /path, requires 1B more")
+	c.Assert(err, ErrorMatches, `insufficient space in "/path", at least 1B more is required`)
 	diskSpaceErr, ok := err.(*osutil.NotEnoughDiskSpaceError)
 	c.Assert(ok, Equals, true)
 	c.Check(diskSpaceErr.Path, Equals, "/path")
 	c.Check(diskSpaceErr.Delta, Equals, int64(1))
 }
 
-func (s *DiskSuite) TestCheckFreeSpacePathError(c *C) {
-	err := osutil.CheckFreeSpace("/path", 8193)
+func (s *diskSuite) TestCheckFreeSpacePathError(c *C) {
+	err := osutil.CheckFreeSpace("/does/not/exist/path", 8193)
 	c.Assert(os.IsNotExist(err), Equals, true)
 }
