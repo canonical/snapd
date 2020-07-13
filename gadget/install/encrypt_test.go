@@ -99,6 +99,7 @@ func (s *encryptSuite) TestNewEncryptedDevice(c *C) {
 			calls++
 			c.Assert(key, DeepEquals, myKey)
 			c.Assert(label, Equals, "some-label-enc")
+			c.Assert(node, Equals, "/dev/node1")
 			return tc.mockedFormatErr
 		})
 		defer restore()
