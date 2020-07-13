@@ -11,19 +11,34 @@ restore: |
     fi
 
 prepare: |
+    # TODO: unify this with tests/main/snap-mgmt/task.yaml
     echo "When some snaps are installed"
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-tools
-    # services shall be stopped, even when using stop-command
-    install_local test-snapd-service
-    # socket units shall be cleaned up
-    install_local socket-activation
-    # as well as timers
-    install_local test-snapd-timer-service
-    # regular snaps and aliases too
-    snap install test-snapd-control-consumer
-    snap install test-snapd-auto-aliases
+
+    # Install a number of snaps that contain various features that have
+    # representation in the file system.
+    for name in test-snapd-service test-snapd-timer-service socket-activation \
+            test-snapd-tools \
+            test-snapd-control-consumer test-snapd-auto-aliases \
+            test-snapd-kvm ; do
+        install_local "$name"
+        snap list | MATCH "$name"
+    done
+
+    # kvm interface needs manual connection
+    snap connect test-snapd-kvm:kvm
+
+    snap install --edge test-snapd-dbus-provider
+    snap list | MATCH test-snapd-dbus-provider
+
+    # expecting to find various files that snap installation produced
+    test "$(find /etc/udev/rules.d -name '*-snap.*.rules' | wc -l)" -gt 0
+    test "$(find /etc/dbus-1/system.d -name 'snap.*.conf' | wc -l)" -gt 0
+    test "$(find /etc/modules-load.d/ -name 'snap.*.conf' | wc -l)" -gt 0
+    test "$(find /etc/systemd/system -name 'snap.*.service' | wc -l)" -gt 0
+    test "$(find /etc/systemd/system -name 'snap.*.timer' | wc -l)" -gt 0
+    test "$(find /etc/systemd/system -name 'snap.*.socket' | wc -l)" -gt 0
 
 debug: |
     systemctl --no-legend --full | grep -E 'snap\..*\.(service|timer|socket)'
@@ -65,3 +80,15 @@ execute: |
         echo "found unexpected leftovers"
         exit 1
     fi
+
+    echo "No dangling service symlinks are left behind"
+    test -z "$(find /etc/systemd/system/multi-user.target.wants/ -name 'snap.test-snapd-service.*')"
+    test -z "$(find /etc/systemd/system/sockets.target.wants/ -name 'snap.*')"
+    test -z "$(find /etc/systemd/system/timers.target.wants/ -name 'snap.*')"
+
+    test "$(find /etc/udev/rules.d -name '*-snap.*.rules' | wc -l)" -eq 0
+    test "$(find /etc/dbus-1/system.d -name 'snap.*.conf' | wc -l)" -eq 0
+    test "$(find /etc/modules-load.d/ -name 'snap.*.conf' | wc -l)" -eq 0
+    test "$(find /etc/systemd/system -name 'snap.*.service' -a ! -name "snap.mount.service" | wc -l)" -eq 0
+    test "$(find /etc/systemd/system -name 'snap.*.timer' | wc -l)" -eq 0
+    test "$(find /etc/systemd/system -name 'snap.*.socket' | wc -l)" -eq 0

@@ -7,28 +7,27 @@ systems: [-ubuntu-core-*]
 backends: [-autopkgtest]
 
 prepare: |
+    # TODO: unify this with tests/main/postrm-purge/task.yaml
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB"/dirs.sh
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
 
-    snap install test-snapd-sh
-    snap list | MATCH test-snapd-sh
+    # Install a number of snaps that contain various features that have
+    # representation in the file system.
+    for name in test-snapd-service test-snapd-timer-service socket-activation \
+            test-snapd-tools \
+            test-snapd-control-consumer test-snapd-auto-aliases \
+            test-snapd-kvm ; do
+        install_local "$name"
+        snap list | MATCH test-snapd-service
+    done
 
-    # a snap with services
-    install_local test-snapd-service
-    snap list | MATCH test-snapd-service
+    # kvm interface needs manual connection
+    snap connect test-snapd-kvm:kvm
 
-    # a snap with timers
-    install_local test-snapd-timer-service
-    snap list | MATCH test-snapd-timer-service
-
-    # a snap with DBus policy files
     snap install --edge test-snapd-dbus-provider
     snap list | MATCH test-snapd-dbus-provider
-
-    # with socket activation
-    install_local socket-activation
 
     before=$(find ${SNAP_MOUNT_DIR} -type d | wc -l)
     if [ "$before" -lt 2 ]; then
@@ -42,6 +41,8 @@ prepare: |
     # expecting to find various files that snap installation produced
     test "$(find /etc/udev/rules.d -name '*-snap.*.rules' | wc -l)" -gt 0
     test "$(find /etc/dbus-1/system.d -name 'snap.*.conf' | wc -l)" -gt 0
+    test "$(find /etc/modules-load.d/ -name 'snap.*.conf' | wc -l)" -gt 0
+    test "$(find /etc/systemd/system -name 'snap.*.service' | wc -l)" -gt 0
     test "$(find /etc/systemd/system -name 'snap.*.timer' | wc -l)" -gt 0
     test "$(find /etc/systemd/system -name 'snap.*.socket' | wc -l)" -gt 0
 
@@ -91,5 +92,7 @@ execute: |
 
     test "$(find /etc/udev/rules.d -name '*-snap.*.rules' | wc -l)" -eq 0
     test "$(find /etc/dbus-1/system.d -name 'snap.*.conf' | wc -l)" -eq 0
+    test "$(find /etc/modules-load.d/ -name 'snap.*.conf' | wc -l)" -eq 0
+    test "$(find /etc/systemd/system -name 'snap.*.service' -a ! -name "snap.mount.service" | wc -l)" -eq 0
     test "$(find /etc/systemd/system -name 'snap.*.timer' | wc -l)" -eq 0
     test "$(find /etc/systemd/system -name 'snap.*.socket' | wc -l)" -eq 0
