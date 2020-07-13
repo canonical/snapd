@@ -100,6 +100,9 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
+	restoreCheckFreeSpace := snapstate.MockOsutilCheckFreeSpace(func(string, uint64) error { return nil })
+	s.AddCleanup(restoreCheckFreeSpace)
+
 	s.fakeBackend = &fakeSnappyBackend{}
 	s.fakeBackend.emptyContainer = emptyContainer(c)
 	s.fakeStore = &fakeStore{
@@ -161,6 +164,10 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 		return nil, nil, nil
 	}))
 
+	oldEstimateSnapshotSize := snapstate.EstimateSnapshotSize
+	snapstate.EstimateSnapshotSize = func(st *state.State, instanceName string) (int64, error) {
+		return 1, nil
+	}
 	oldAutomaticSnapshot := snapstate.AutomaticSnapshot
 	snapstate.AutomaticSnapshot = func(st *state.State, instanceName string) (ts *state.TaskSet, err error) {
 		task := st.NewTask("save-snapshot", "...")
@@ -171,6 +178,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	oldAutomaticSnapshotExpiration := snapstate.AutomaticSnapshotExpiration
 	snapstate.AutomaticSnapshotExpiration = func(st *state.State) (time.Duration, error) { return 1, nil }
 	s.BaseTest.AddCleanup(func() {
+		snapstate.EstimateSnapshotSize = oldEstimateSnapshotSize
 		snapstate.AutomaticSnapshot = oldAutomaticSnapshot
 		snapstate.AutomaticSnapshotExpiration = oldAutomaticSnapshotExpiration
 	})

@@ -209,6 +209,11 @@ func isInsideBaseSnap() (bool, error) {
 	return err == nil, err
 }
 
+// SnapdVarDir returns the path to /var/lib/snapd dir under rootdir.
+func SnapdVarDir(rootdir string) string {
+	return filepath.Join(rootdir, snappyDir)
+}
+
 // SnapBlobDirUnder returns the path to the snap blob dir under rootdir.
 func SnapBlobDirUnder(rootdir string) string {
 	return filepath.Join(rootdir, snappyDir, "snaps")

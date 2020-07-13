@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -381,7 +382,8 @@ func (s *snapmgrTestSuite) TestInstallDespiteBusySnap(c *C) {
 
 	// Attempt to install revision 2 of the snap.
 	snapsup := &snapstate.SnapSetup{
-		SideInfo: &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(2)},
+		SideInfo:     &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(2)},
+		DownloadInfo: &snap.DownloadInfo{Size: 1},
 	}
 
 	// And observe that refresh occurred regardless of the running process.
@@ -397,6 +399,19 @@ func (s *snapmgrTestSuite) TestInstallFailsOnSystem(c *C) {
 	_, err := snapstate.DoInstall(s.state, nil, snapsup, 0, "", nil)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `cannot install reserved snap name 'system'`)
+}
+
+func (s *snapmgrTestSuite) TestInstallFailsOnLowDiskSpace(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	restore := snapstate.MockOsutilCheckFreeSpace(func(string, uint64) error { return &osutil.NotEnoughDiskSpaceError{} })
+	defer restore()
+
+	opts := &snapstate.RevisionOptions{Channel: "some-channel", Revision: snap.R(42)}
+	_, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, 0, snapstate.Flags{})
+	_, ok := err.(*osutil.NotEnoughDiskSpaceError)
+	c.Assert(ok, Equals, true)
 }
 
 func (s *snapmgrTestSuite) TestDoInstallChannelDefault(c *C) {

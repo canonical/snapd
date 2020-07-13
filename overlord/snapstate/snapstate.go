@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
@@ -69,6 +70,8 @@ const (
 )
 
 var ErrNothingToDo = errors.New("nothing to do")
+
+var osutilCheckFreeSpace = osutil.CheckFreeSpace
 
 func isParallelInstallable(snapsup *SnapSetup) error {
 	if snapsup.InstanceKey == "" {
@@ -166,10 +169,19 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 
 	var prepare, prev *state.Task
 	fromStore := false
+
 	// if we have a local revision here we go back to that
 	if snapsup.SnapPath != "" || revisionIsLocal {
 		prepare = st.NewTask("prepare-snap", fmt.Sprintf(i18n.G("Prepare snap %q%s"), snapsup.SnapPath, revisionStr))
 	} else {
+		// XXX: DownloadInfo should never be nil, except for missing mocking in tests?
+		if snapsup.DownloadInfo != nil {
+			// require 10% extra + 1Mb
+			requiredSpace := uint64(snapsup.DownloadInfo.Size) + uint64(0.1 * float64(snapsup.DownloadInfo.Size)) + 1024*1024
+			if err := osutilCheckFreeSpace(dirs.SnapdVarDir(dirs.GlobalRootDir), requiredSpace); err != nil {
+				return nil, err
+			}
+		}
 		fromStore = true
 		prepare = st.NewTask("download-snap", fmt.Sprintf(i18n.G("Download snap %q%s from channel %q"), snapsup.InstanceName(), revisionStr, snapsup.Channel))
 	}
@@ -1907,6 +1919,15 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 	// 'purge' flag disables automatic snapshot for given remove op
 	if flags == nil || !flags.Purge {
 		if tp, _ := snapst.Type(); tp == snap.TypeApp && removeAll {
+			if sz, err := EstimateSnapshotSize(st, name); err == nil {
+				if err := osutilCheckFreeSpace(dirs.SnapdVarDir(dirs.GlobalRootDir), uint64(sz)); err != nil {
+					if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
+						return nil, fmt.Errorf("cannot create automatic snapshot when removing last revision of the snap: %v", err)
+					}
+					return nil, err
+				}
+			} // XXX: should we fail if esitmation fails?
+
 			ts, err := AutomaticSnapshot(st, name)
 			if err == nil {
 				addNext(ts)
