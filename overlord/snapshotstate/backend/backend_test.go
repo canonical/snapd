@@ -25,13 +25,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/snapcore/snapd/client"
-	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil/sys"
-	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
-	"github.com/snapcore/snapd/snap"
-	"gopkg.in/check.v1"
 	"io"
 	"io/ioutil"
 	"os"
@@ -42,6 +35,14 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil/sys"
+	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
+	"github.com/snapcore/snapd/snap"
+	"gopkg.in/check.v1"
 )
 
 type snapshotSuite struct {
@@ -751,7 +752,7 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 	table := []tableT{
 		{14, tarFile1, false, ""},
 		{14, tarFile2, false, "snapshot import file incomplete: no export.json file"},
-		{14, "does-not-exist", false, "snapshot import failed: stat does-not-exist: no such file or directory"},
+		//{14, "does-not-exist", false, "snapshot import failed: stat does-not-exist: no such file or directory"},
 		{14, tarFile1, true, "snapshot import already in progress for ID `14`"},
 		{14, tarFile3, false, "failed reading snapshot import: unexpected EOF"},
 		{14, tarFile4, false, ""},
@@ -775,9 +776,13 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 			c.Check(err, check.IsNil, comm)
 		}
 
-		err = backend.Import(context.Background(), t.setID, t.filename)
+		f, err := os.Open(t.filename)
+		c.Check(err, check.IsNil, comm)
+
+		err = backend.Import(context.Background(), t.setID, f)
 		if t.error != "" {
 			c.Check(err.Error(), check.Equals, t.error, comm)
+			f.Close()
 			continue
 		}
 		c.Check(err, check.IsNil)
@@ -787,5 +792,7 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 		names, err := dir.Readdirnames(100)
 		c.Check(err, check.IsNil, comm)
 		c.Check(len(names), check.Equals, 3, comm)
+
+		f.Close()
 	}
 }

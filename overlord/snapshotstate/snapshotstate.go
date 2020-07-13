@@ -256,6 +256,9 @@ func checkSnapshotTaskConflict(st *state.State, setID uint64, conflictingKinds .
 // Note that the state must be locked by the caller.
 var List = backend.List
 
+// Import a given snapshot ID from an exported snapshot
+var Import = backend.Import
+
 // Save creates a taskset for taking snapshots of snaps' data.
 // Note that the state must be locked by the caller.
 func Save(st *state.State, instanceNames []string, users []string) (setID uint64, snapsSaved []string, ts *state.TaskSet, err error) {

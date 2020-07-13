@@ -348,20 +348,8 @@ func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, 
 }
 
 // Import a snapshot from the export file format
-func Import(ctx context.Context, id uint64, filepath string) error {
-	_, err := os.Stat(filepath)
-	if os.IsNotExist(err) {
-		return fmt.Errorf("snapshot import failed: %v", err)
-	}
-
-	// XXX: check that we have enough space to import the compressed snapshots
-
-	// Open it for reading
-	f, err := osOpen(filepath)
-	if err != nil {
-		return fmt.Errorf("open snapshot import failed: %v", err)
-	}
-	defer f.Close()
+func Import(ctx context.Context, id uint64, r io.Reader) error {
+	comment := fmt.Sprintf("snapshot %d", id)
 
 	// prepare cache location to unpack the import file
 	p := path.Join(dirs.SnapCacheDir, "snapshots", string(id))
@@ -374,7 +362,7 @@ func Import(ctx context.Context, id uint64, filepath string) error {
 	defer os.RemoveAll(p)
 
 	// unpack the tar file to a temporary location (so the contents can be validated)
-	exportFound, err := unpackSnapshotImport(f, p)
+	exportFound, err := unpackSnapshotImport(r, p)
 	if err != nil {
 		return err
 	}
@@ -388,20 +376,20 @@ func Import(ctx context.Context, id uint64, filepath string) error {
 	// walk the cache directory to store the files
 	dir, err := osOpen(p)
 	if err != nil {
-		return fmt.Errorf("failed opening import cache: %v", f)
+		return fmt.Errorf("failed opening import cache: %v", comment)
 	}
 	defer dir.Close()
 	names, err := dirNames(dir, 100)
 	if err != nil {
-		return fmt.Errorf("failed read from import cache: %v", f)
+		return fmt.Errorf("failed read from import cache: %v", comment)
 	}
 
 	// move the files into place with the new local set ID
 	return moveCachedSnapshots(names, id, p)
 }
 
-func unpackSnapshotImport(f *os.File, p string) (bool, error) {
-	tr := tar.NewReader(f)
+func unpackSnapshotImport(r io.Reader, p string) (bool, error) {
+	tr := tar.NewReader(r)
 	var tarErr error
 	var header *tar.Header
 	var exportFound bool

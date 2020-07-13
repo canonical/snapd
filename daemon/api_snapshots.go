@@ -137,3 +137,22 @@ func changeSnapshots(c *Command, r *http.Request, user *auth.UserState) Response
 
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
 }
+
+var snapshotImportCmd = &Command{
+	Path: "/v2/snapshots/import",
+	GET:  postSnapshotImport,
+}
+
+func postSnapshotImport(c *Command, r *http.Request, user *auth.UserState) Response {
+	// XXX: check that we have enough space to import the compressed snapshots
+
+	// XXX: allocate a snapshot ID
+	setID := uint64(99)
+
+	defer r.Body.Close()
+	if err := snapshotImport(context.TODO(), setID, r.Body); err != nil {
+		return BadRequest(err.Error())
+	}
+
+	return SyncResponse(setID, nil)
+}
