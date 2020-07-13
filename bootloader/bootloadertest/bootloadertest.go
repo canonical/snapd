@@ -413,3 +413,30 @@ func (b *MockManagedAssetsBootloader) CommandLine(args []string) (string, error)
 	line := strings.Join(append([]string{b.StaticCommandLine}, args...), " ")
 	return strings.TrimSpace(line), nil
 }
+
+// MockManagedAssetsRecoveryAwreBootloader mocks a bootloader implementing the
+// bootloader.ManagedAssetsBootloader and bootloader.RecoveryAwareBootloader
+// interfaces.
+type MockManagedAssetsRecoveryAwareBootloader struct {
+	*MockManagedAssetsBootloader
+
+	EnvVars map[string]string
+}
+
+func (b *MockBootloader) WithManagedAssetsRecoveryAware() *MockManagedAssetsRecoveryAwareBootloader {
+	return &MockManagedAssetsRecoveryAwareBootloader{
+		MockManagedAssetsBootloader: &MockManagedAssetsBootloader{
+			MockBootloader: b,
+		},
+		EnvVars: make(map[string]string),
+	}
+}
+
+func (b *MockManagedAssetsRecoveryAwareBootloader) SetRecoverySystemEnv(systemDir string, env map[string]string) error {
+	b.EnvVars = env
+	return nil
+}
+
+func (b *MockManagedAssetsRecoveryAwareBootloader) GetRecoverySystemEnv(systemDir, key string) (string, error) {
+	return b.EnvVars[key], nil
+}
