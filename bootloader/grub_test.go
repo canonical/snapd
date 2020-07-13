@@ -301,6 +301,36 @@ func (s *grubTestSuite) TestGrubSetRecoverySystemEnv(c *C) {
 	c.Check(genv.Get("other_options"), Equals, "are-supported")
 }
 
+func (s *grubTestSuite) TestGetRecoverySystemEnv(c *C) {
+	s.makeFakeGrubEFINativeEnv(c, nil)
+	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Recovery: true})
+
+	err := os.MkdirAll(filepath.Join(s.rootdir, "/systems/20191209"), 0755)
+	c.Assert(err, IsNil)
+	recoverySystemGrubenv := filepath.Join(s.rootdir, "/systems/20191209/grubenv")
+
+	// does not fail when there is no recovery env
+	value, err := g.GetRecoverySystemEnv("/systems/20191209", "no_file")
+	c.Assert(err, IsNil)
+	c.Check(value, Equals, "")
+
+	genv := grubenv.NewEnv(recoverySystemGrubenv)
+	genv.Set("snapd_extra_cmdline_args", "foo bar baz")
+	genv.Set("random_option", `has "some spaces"`)
+	err = genv.Save()
+	c.Assert(err, IsNil)
+
+	value, err = g.GetRecoverySystemEnv("/systems/20191209", "snapd_extra_cmdline_args")
+	c.Assert(err, IsNil)
+	c.Check(value, Equals, "foo bar baz")
+	value, err = g.GetRecoverySystemEnv("/systems/20191209", "random_option")
+	c.Assert(err, IsNil)
+	c.Check(value, Equals, `has "some spaces"`)
+	value, err = g.GetRecoverySystemEnv("/systems/20191209", "not_set")
+	c.Assert(err, IsNil)
+	c.Check(value, Equals, ``)
+}
+
 func (s *grubTestSuite) makeKernelAssetSnap(c *C, snapFileName string) snap.PlaceInfo {
 	kernelSnap, err := snap.ParsePlaceInfoFromSnapFileName(snapFileName)
 	c.Assert(err, IsNil)
