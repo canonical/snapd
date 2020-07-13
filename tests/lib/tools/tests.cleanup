@@ -1,0 +1,79 @@
+#!/bin/sh -e
+
+show_help() {
+    echo "usage: tests.cleanup prepare"
+    echo "       tests.cleanup defer <cmd> [args]"
+    echo "       tests.cleanup restore"
+}
+
+cmd_prepare() {
+    if [ -e defer.sh ]; then
+        echo "tests.cleanup: cannot prepare, already prepared" >&2
+        exit 1
+    fi
+    truncate --size=0 defer.sh
+    chmod +x defer.sh
+}
+
+cmd_defer() {
+    if [ ! -e defer.sh ]; then
+        echo "tests.cleanup: cannot defer, must call tests.prepare first" >&2
+        exit 1
+    fi
+    echo "$*" >> defer.sh
+}
+
+cmd_restore() {
+    if [ ! -e defer.sh ]; then
+        echo "tests.cleanup: cannot restore, must call tests.prepare first" >&2
+        exit 1
+    fi
+    tac defer.sh | while read -r CMD; do
+        set +e
+        sh -ec "$CMD"
+        RET=$?
+        set -e
+        if [ $RET -ne 0 ]; then
+            echo "tests.cleanup: deferred command \"$CMD\" failed with exit code $RET"
+            exit $RET
+        fi
+    done
+    rm -f defer.sh
+}
+
+if [ $# -eq 0 ]; then
+    show_help
+    exit
+fi
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -h|--help)
+            show_help
+            exit
+            ;;
+        prepare)
+            shift
+            cmd_prepare
+            exit
+            ;;
+        defer)
+            shift
+            cmd_defer "$@"
+            exit
+            ;;
+        restore)
+            shift
+            cmd_restore
+            exit
+            ;;
+        -*)
+            echo "tests.cleanup: unknown option $1" >&2
+            exit 1
+            ;;
+        *)
+            echo "tests.cleanup: unknown command $1" >&2
+            exit 1
+            ;;
+    esac
+done

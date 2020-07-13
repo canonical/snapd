@@ -22,7 +22,7 @@ package assets
 import (
 	"fmt"
 	"os"
-	"strings"
+	"regexp"
 )
 
 var registeredAssets = map[string][]byte{}
@@ -43,7 +43,8 @@ func Internal(name string) []byte {
 
 // MockInternal mocks the contents of an internal asset for use in testing.
 func MockInternal(name string, data []byte) (restore func()) {
-	var isSnapdTest = len(os.Args) > 0 && strings.HasSuffix(os.Args[0], ".test")
+	var goTestExeRe = regexp.MustCompile(`^.*/.*go-build.*/.*\.test$`)
+	var isSnapdTest = len(os.Args) > 0 && goTestExeRe.MatchString(os.Args[0])
 	if !isSnapdTest {
 		panic("mocking can be done only in tests")
 	}
