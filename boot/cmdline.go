@@ -134,9 +134,9 @@ func getBootloaderManagingItsAssets(where string, opts *bootloader.Options) (boo
 	return mbl, nil
 }
 
-// RecoveryCommandLine returns the kernel command line used when booting a given
-// recovery mode system.
-func RecoveryCommandLine(model *asserts.Model, system string) (string, error) {
+// ComposeRecoveryCommandLine composes the kernel command line used when booting
+// a given recovery mode system.
+func ComposeRecoveryCommandLine(model *asserts.Model, system string) (string, error) {
 	if model.Grade() == asserts.ModelGradeUnset {
 		return "", nil
 	}
@@ -161,9 +161,9 @@ func RecoveryCommandLine(model *asserts.Model, system string) (string, error) {
 	return mbl.CommandLine(modeArgs)
 }
 
-// CommandLine returns the kernel command line used when booting the system in
-// run mode.
-func CommandLine(model *asserts.Model) (string, error) {
+// ComposeCommandLine composes the kernel command line used when booting the
+// system in run mode.
+func ComposeCommandLine(model *asserts.Model) (string, error) {
 	if model.Grade() == asserts.ModelGradeUnset {
 		return "", nil
 	}
