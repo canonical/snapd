@@ -157,6 +157,63 @@ func Filename(snapshot *client.Snapshot) string {
 	return filepath.Join(dirs.SnapshotsDir, fmt.Sprintf("%d_%s_%s_%s.zip", snapshot.SetID, snapshot.Snap, snapshot.Version, snapshot.Revision))
 }
 
+// EstimateSnapshotSize calculates estimated size of the snapshot.
+// XXX: this doesn't take users into account yet, because it is used only
+// for automatic snapshots at the moment.
+func EstimateSnapshotSize(si *snap.Info) (int64, error) {
+	var total int64
+	calculateSize := func(path string, finfo os.FileInfo, err error) error {
+		if finfo.Mode().IsRegular() {
+			total += finfo.Size()
+		}
+		return err
+	}
+
+	// helper function for visiting revisionDir and common dir that is
+	// at the same level as revisionDir.
+	visitDataDir := func(revisionDir string) error {
+		parent := filepath.Dir(revisionDir)
+		exists, isDir, err := osutil.DirExists(parent)
+		if err != nil {
+			return err
+		}
+		if exists && !isDir {
+			return nil
+		}
+		if !exists {
+			return nil
+		}
+
+		exists, isDir, err = osutil.DirExists(revisionDir)
+		if err != nil {
+			return err
+		}
+		if exists && isDir {
+			filepath.Walk(revisionDir, calculateSize)
+		}
+
+		common := filepath.Join(parent, "common")
+		exists, isDir, err = osutil.DirExists(common)
+		if err != nil {
+			return err
+		}
+		if exists && isDir {
+			filepath.Walk(common, calculateSize)
+		}
+		return nil
+	}
+
+	if err := visitDataDir(si.DataDir()); err != nil {
+		return 0, err
+	}
+
+	// XXX: if we want to support users, then we need to iterate over them,
+	// similarly to Save() below.
+
+	// XXX: we could use a typical compression factor here
+	return total, nil
+}
+
 // Save a snapshot
 func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, flags *Flags) (*client.Snapshot, error) {
 	if err := os.MkdirAll(dirs.SnapshotsDir, 0700); err != nil {
