@@ -414,7 +414,7 @@ func (b *MockManagedAssetsBootloader) CommandLine(args []string) (string, error)
 	return strings.TrimSpace(line), nil
 }
 
-// MockManagedAssetsRecoveryAwreBootloader mocks a bootloader implementing the
+// MockManagedAssetsRecoveryAwareBootloader mocks a bootloader implementing the
 // bootloader.ManagedAssetsBootloader and bootloader.RecoveryAwareBootloader
 // interfaces.
 type MockManagedAssetsRecoveryAwareBootloader struct {
