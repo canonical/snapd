@@ -22,7 +22,7 @@ package main_test
 import (
 	"fmt"
 	"net/http"
-	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -66,21 +66,12 @@ var snapshotsTests = []getCmdArgs{{
 	args:   "check-snapshot 4 snap1 snap2",
 	stdout: "Snapshot #4 of snaps \"snap1\", \"snap2\" verified successfully.\n",
 }, {
-	args:   "export-snapshot 1 snapshot-export.tar",
-	stdout: "Exported snapshot into \"snapshot-export.tar\"\n",
-}, {
-	args:  "export-snapshot x snapshot-export.tar",
+	args:  "export-snapshot x snapshot-export.snapshot",
 	error: `invalid argument for snapshot set id: expected a non-negative integer argument \(see 'snap help saved'\)`,
 }, {
 	args:  "export-snapshot 1",
 	error: "the required argument `<filename>` was not provided",
 }}
-
-func (s *SnapSuite) TearDownSuite(c *C) {
-	if _, err := os.Stat("snapshot-export.tar"); err == nil {
-		os.Remove("snapshot-export.tar")
-	}
-}
 
 func (s *SnapSuite) TestSnapSnaphotsTest(c *C) {
 	s.mockSnapshotsServer(c)
@@ -102,7 +93,21 @@ func (s *SnapSuite) TestSnapSnaphotsTest(c *C) {
 			c.Check(s.Stderr(), testutil.EqualsWrapped, test.stderr)
 			c.Check(s.Stdout(), testutil.MatchesWrapped, test.stdout)
 		}
+		c.Check("snapshot-export.snapshot", testutil.FileAbsent)
+		c.Check("snapshot-export.snapshot.part", testutil.FileAbsent)
 	}
+}
+
+func (s *SnapSuite) TestSnapshotExportHappy(c *C) {
+	s.mockSnapshotsServer(c)
+
+	exportedSnapshotPath := filepath.Join(c.MkDir(), "export-snapshot.snapshot")
+	_, err := main.Parser(main.Client()).ParseArgs([]string{"export-snapshot", "1", exportedSnapshotPath})
+	c.Check(err, IsNil)
+	c.Check(s.Stderr(), testutil.EqualsWrapped, "")
+	c.Check(s.Stdout(), testutil.MatchesWrapped, `Exported snapshot into ".*/export-snapshot.snapshot"`)
+	c.Check(exportedSnapshotPath, testutil.FilePresent)
+	c.Check(exportedSnapshotPath+".part", testutil.FileAbsent)
 }
 
 func (s *SnapSuite) mockSnapshotsServer(c *C) {
