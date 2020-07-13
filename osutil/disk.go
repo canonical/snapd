@@ -29,7 +29,7 @@ import (
 var syscallStatfs = syscall.Statfs
 
 type NotEnoughDiskSpaceError struct {
-	Path string
+	Path  string
 	Delta int64
 }
 
