@@ -106,7 +106,7 @@ func (s *SnapSuite) TestSnapshotExportHappy(c *C) {
 	c.Check(err, IsNil)
 	c.Check(s.Stderr(), testutil.EqualsWrapped, "")
 	c.Check(s.Stdout(), testutil.MatchesWrapped, `Exported snapshot into ".*/export-snapshot.snapshot"`)
-	c.Check(exportedSnapshotPath, testutil.FilePresent)
+	c.Check(exportedSnapshotPath, testutil.FileEquals, "Hello World!")
 	c.Check(exportedSnapshotPath+".part", testutil.FileAbsent)
 }
 
