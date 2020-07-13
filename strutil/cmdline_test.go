@@ -41,7 +41,6 @@ func (s *cmdlineTestSuite) TestSplitKernelCommandLine(c *C) {
 		{cmd: `foo="1$2"`, exp: []string{`foo="1$2"`}},
 		{cmd: `foo=1$2`, exp: []string{`foo=1$2`}},
 		{cmd: `foo= bar`, exp: []string{"foo=", "bar"}},
-		{cmd: `foo= bar`, exp: []string{"foo=", "bar"}},
 		{cmd: `foo=""`, exp: []string{`foo=""`}},
 		{cmd: `   cpu=1,2,3   mem=0x2000;0x4000:$2  `, exp: []string{"cpu=1,2,3", "mem=0x2000;0x4000:$2"}},
 		{cmd: "isolcpus=1,2,10-20,100-2000:2/25", exp: []string{"isolcpus=1,2,10-20,100-2000:2/25"}},
