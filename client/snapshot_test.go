@@ -162,8 +162,10 @@ func (cs *clientSuite) TestClientExportSnapshot(c *check.C) {
 		r, size, err := cs.cli.SnapshotExport(42)
 		if t.status == 200 {
 			c.Assert(err, check.IsNil, comm)
+			c.Assert(cs.countingCloser.closeCalled, check.Equals, 0)
 		} else {
 			c.Assert(err.Error(), check.Equals, "unexpected status code: ")
+			c.Assert(cs.countingCloser.closeCalled, check.Equals, 1)
 		}
 		c.Assert(size, check.Equals, int64(t.size), comm)
 

@@ -22,6 +22,7 @@ package client_test
 import (
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -53,7 +54,10 @@ type clientSuite struct {
 	header        http.Header
 	status        int
 	contentLength int64
-	restore       func()
+
+	countingCloser *countingCloser
+
+	restore func()
 }
 
 var _ = Suite(&clientSuite{})
@@ -72,6 +76,7 @@ func (cs *clientSuite) SetUpTest(c *C) {
 	cs.status = 200
 	cs.doCalls = 0
 	cs.contentLength = 0
+	cs.countingCloser = nil
 
 	dirs.SetRootDir(c.MkDir())
 
@@ -83,6 +88,16 @@ func (cs *clientSuite) TearDownTest(c *C) {
 	cs.restore()
 }
 
+type countingCloser struct {
+	io.Reader
+	closeCalled int
+}
+
+func (n *countingCloser) Close() error {
+	n.closeCalled++
+	return nil
+}
+
 func (cs *clientSuite) Do(req *http.Request) (*http.Response, error) {
 	cs.req = req
 	cs.reqs = append(cs.reqs, req)
@@ -90,8 +105,9 @@ func (cs *clientSuite) Do(req *http.Request) (*http.Response, error) {
 	if cs.doCalls < len(cs.rsps) {
 		body = cs.rsps[cs.doCalls]
 	}
+	cs.countingCloser = &countingCloser{strings.NewReader(body), 0}
 	rsp := &http.Response{
-		Body:          ioutil.NopCloser(strings.NewReader(body)),
+		Body:          cs.countingCloser,
 		Header:        cs.header,
 		StatusCode:    cs.status,
 		ContentLength: cs.contentLength,

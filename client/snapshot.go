@@ -188,6 +188,8 @@ func (client *Client) SnapshotExport(setID uint64) (io.ReadCloser, int64, error)
 		return nil, 0, err
 	}
 	if rsp.StatusCode != 200 {
+		defer rsp.Body.Close()
+
 		var r response
 		specificErr := r.err(client, rsp.StatusCode)
 		if err != nil {
