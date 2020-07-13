@@ -60,29 +60,29 @@ func (s *encryptSuite) SetUpTest(c *C) {
 
 func (s *encryptSuite) TestNewEncryptedDevice(c *C) {
 	for _, tc := range []struct {
-		formatErr error
-		openErr   string
-		err       string
+		mockedFormatErr error
+		mockedOpenErr   string
+		expectedErr     string
 	}{
 		{
-			formatErr: nil,
-			openErr:   "",
-			err:       "",
+			mockedFormatErr: nil,
+			mockedOpenErr:   "",
+			expectedErr:     "",
 		},
 		{
-			formatErr: errors.New("format error"),
-			openErr:   "",
-			err:       "cannot format encrypted device: format error",
+			mockedFormatErr: errors.New("format error"),
+			mockedOpenErr:   "",
+			expectedErr:     "cannot format encrypted device: format error",
 		},
 		{
-			formatErr: nil,
-			openErr:   "open error",
-			err:       "cannot open encrypted device on /dev/node1: open error",
+			mockedFormatErr: nil,
+			mockedOpenErr:   "open error",
+			expectedErr:     "cannot open encrypted device on /dev/node1: open error",
 		},
 	} {
 		script := ""
-		if tc.openErr != "" {
-			script = fmt.Sprintf("echo '%s'>&2; exit 1", tc.openErr)
+		if tc.mockedOpenErr != "" {
+			script = fmt.Sprintf("echo '%s'>&2; exit 1", tc.mockedOpenErr)
 
 		}
 		s.mockCryptsetup = testutil.MockCommand(c, "cryptsetup", script)
@@ -99,16 +99,16 @@ func (s *encryptSuite) TestNewEncryptedDevice(c *C) {
 			calls++
 			c.Assert(key, DeepEquals, myKey)
 			c.Assert(label, Equals, "some-label-enc")
-			return tc.formatErr
+			return tc.mockedFormatErr
 		})
 		defer restore()
 
 		dev, err := install.NewEncryptedDevice(&mockDeviceStructure, myKey, "some-label")
 		c.Assert(calls, Equals, 1)
-		if tc.err == "" {
+		if tc.expectedErr == "" {
 			c.Assert(err, IsNil)
 		} else {
-			c.Assert(err, ErrorMatches, tc.err)
+			c.Assert(err, ErrorMatches, tc.expectedErr)
 			continue
 		}
 		c.Assert(dev.Node, Equals, "/dev/mapper/some-label")
