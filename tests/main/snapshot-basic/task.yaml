@@ -3,7 +3,10 @@ summary: Check that the basic snapshots functionality is ok
 prepare: |
     snap install test-snapd-sh
     snap install --edge test-snapd-just-edge
-    snap install --edge test-snapd-huge
+    snap install --edge test-snapd-tools
+
+restore: |
+    rm -f /var/snap/test-snapd-tools/common/huge
 
 debug: |
     snap list || true
@@ -94,16 +97,21 @@ execute: |
     snap get core snapshots.automatic.retention | MATCH "30h"
     snap get core -d snapshots.automatic | MATCH '"retention"'
 
-    # check memory usage for larger snaps...
+    # check memory usage for larger snap snapshot data exporting
+    mkdir -p /var/snap/test-snapd-tools/common/
+    dd if=/dev/urandom of=/var/snap/test-snapd-tools/common/huge bs=1M count=100
     # create snapshot, grab its id
-    SET_ID=$( snap save test-snapd-huge | cut -d\  -f1 | tail -n1 )
-    snap saved --id="$SET_ID" | grep test-snapd-huge
+    SET_ID=$( snap save test-snapd-tools | cut -d\  -f1 | tail -n1 )
+    snap saved --id="$SET_ID" | grep test-snapd-tools
     snap check-snapshot "$SET_ID"
     # export the large snap and record memory usage
     "$TESTSTOOLS"/memory-observe-do -o memory-kb.txt snap export-snapshot \
-    "$SET_ID" "${SET_ID}_snapshot_export.tar"
-    test -e "${SET_ID}_snapshot_export.tar"
+    "$SET_ID" "${SET_ID}_snapshot_export.snapshot"
+    test -e "${SET_ID}_snapshot_export.snapshot"
+    # Ensure our snapshot export file is at least 50Mb. The data we created
+    # is 100Mb of randomness so even with amazing compression we should never
+    # have a smaller file
+    test "$(stat -c%s "${SET_ID}_snapshot_export.snapshot")" -gt 50000000
     # the io.Copy uses a 32k buffer, so extra memory usage should be limited.
     # The threshold in this test is set to about 40Mb
     test "$(cat memory-kb.txt)" -lt 40000
-    rm "${SET_ID}_snapshot_export.tar"
