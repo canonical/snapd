@@ -10,6 +10,7 @@ execute: |
     SNAP_NAME=test-snapd-tools
     SNAP_CLASSIC=test-snapd-classic-confinement
     SNAP_DEVMODE=test-snapd-devmode
+    SNAP_JAILMODE=test-devmode-cgroup
 
     # Check help
     "$TESTSTOOLS"/snaps-state | MATCH "usage: make-snap \[snap-name\]"
@@ -62,7 +63,7 @@ execute: |
     rm -f "$TESTSLIB/snaps/${SNAP_CLASSIC}/${SNAP_CLASSIC}_1.0_all.snap"
 
     # Make and install a snap by using the install-local-jailmode subcommand
-    snap_path=$("$TESTSTOOLS"/snaps-state install-local-jailmode "$SNAP_DEVMODE")
-    snap list "$SNAP_DEVMODE" | MATCH "jailmode$"
-    snap remove "$SNAP_DEVMODE"
-    rm -f "$TESTSLIB/snaps/${SNAP_DEVMODE}/${SNAP_DEVMODE}_1.0_all.snap"
+    snap_path=$("$TESTSTOOLS"/snaps-state install-local-jailmode "$SNAP_JAILMODE")
+    snap list "$SNAP_JAILMODE" | MATCH "jailmode$"
+    snap remove "$SNAP_JAILMODE"
+    rm -f "$TESTSLIB/snaps/${SNAP_JAILMODE}/${SNAP_JAILMODE}_1.0_all.snap"
