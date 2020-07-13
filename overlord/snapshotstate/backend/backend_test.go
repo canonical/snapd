@@ -719,6 +719,15 @@ func (s *snapshotSuite) TestMaybeRunuserNoHappy(c *check.C) {
 	c.Check(strings.TrimSpace(logbuf.String()), check.Matches, ".* No user wrapper found.*")
 }
 
+type mockWriter struct {
+	Total uint64
+}
+
+func (w *mockWriter) Write(p []byte) (n int, err error) {
+	w.Total += uint64(len(p))
+	return len(p), nil
+}
+
 func (s *snapshotSuite) TestExport(c *check.C) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
@@ -774,8 +783,7 @@ func (s *snapshotSuite) TestExport(c *check.C) {
 		readNames = 0
 		logbuf.Reset()
 
-		w := &backend.MockWriter{Total: 0}
-
+		w := &mockWriter{Total: 0}
 		err := backend.Export(context.Background(), t.setID, w)
 		if t.error != "" {
 			c.Check(err, check.NotNil, comm)
