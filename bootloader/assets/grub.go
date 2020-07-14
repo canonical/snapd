@@ -70,7 +70,7 @@ menuentry "Run Ubuntu Core 20" {
     # use $prefix because the symlink manipulation at runtime for kernel snap
     # upgrades, etc. should only need the /boot/grub/ directory, not the
     # /EFI/ubuntu/ directory
-    chainloader $prefix/$kernel $snapd_static_cmdline_args snapd_recovery_mode=run
+    chainloader $prefix/$kernel snapd_recovery_mode=run $snapd_static_cmdline_args
 }
 else
     # nothing to boot :-/
@@ -130,11 +130,11 @@ for label in /systems/*; do
     # We could "source /systems/$snapd_recovery_system/grub.cfg" here as well
     menuentry "Recover using $label" --hotkey=r --id=recover-$label $snapd_recovery_kernel recover $label {
         loopback loop $2
-        chainloader (loop)/kernel.efi $snapd_static_cmdline_args snapd_recovery_mode=$3 snapd_recovery_system=$4
+        chainloader (loop)/kernel.efi snapd_recovery_mode=$3 snapd_recovery_system=$4 $snapd_static_cmdline_args
     }
     menuentry "Install using $label" --hotkey=i --id=install-$label $snapd_recovery_kernel install $label {
         loopback loop $2
-        chainloader (loop)/kernel.efi $snapd_static_cmdline_args snapd_recovery_mode=$3 snapd_recovery_system=$4
+        chainloader (loop)/kernel.efi snapd_recovery_mode=$3 snapd_recovery_system=$4 $snapd_static_cmdline_args
     }
 done
 
