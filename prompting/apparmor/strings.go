@@ -14,7 +14,7 @@ type stringPacker struct {
 }
 
 // PackString computes the layout of a string encoded in an apparmor message.
-// The return value is the offset of the beggining of the string relative to
+// The return value is the offset of the beginning of the string relative to
 // the start of the fixed portion of the structure, captured by BaseOffset.
 //
 // Empty strings use a special encoding that requires no space and used a fixed
