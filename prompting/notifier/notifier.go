@@ -6,7 +6,6 @@ package notifier
 import (
 	"errors"
 	"fmt"
-	"log"
 	"os"
 
 	"github.com/snapcore/cerberus/apparmor"
@@ -126,7 +125,7 @@ func (n *Notifier) decodeAndDispatchRequest(buf []byte) error {
 			if err := fmsg.UnmarshalBinary(buf); err != nil {
 				return err
 			}
-			log.Printf("notification request: %#v\n", fmsg)
+			// log.Printf("notification request: %#v\n", fmsg)
 			req := newRequest(n, &fmsg)
 			n.R <- req
 			go n.waitAndRespond(req, &fmsg)
@@ -152,7 +151,7 @@ func (n *Notifier) waitAndRespond(req *Request, msg *apparmor.MsgNotificationFil
 		resp.Deny = msg.Deny
 		resp.Error = msg.Error
 	}
-	log.Printf("notification response: %#v\n", resp)
+	//log.Printf("notification response: %#v\n", resp)
 	if err := n.encodeAndSendResponse(&resp); err != nil {
 		n.fail(err)
 	}
