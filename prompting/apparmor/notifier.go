@@ -73,7 +73,8 @@ func RegisterNotifier() (*Notifier, error) {
 		notify.Close()
 		return nil, err
 	}
-	if err := poll.Register(int(notify.Fd()), epoll.Readable|epoll.Writable); err != nil {
+	// XXX: Do we need a notification for Writable, to send responses back?
+	if err := poll.Register(int(notify.Fd()), epoll.Readable); err != nil {
 		notify.Close()
 		poll.Close()
 		return nil, err
@@ -161,17 +162,19 @@ func (n *Notifier) runOnce() error {
 	for _, event := range events {
 		switch event.Fd {
 		case int(n.notify.Fd()):
-			// Prepare a receive buffer for incoming request. The buffer is of the
-			// maximum allowed size and will contain one kernel request upon return.
-			// Note that the actually occupied buffer is indicated by the Length field
-			// in the header.
-			buf := RequestBuffer()
-			size, err := NotifyIoctl(n.notify.Fd(), IoctlReceive, buf)
-			if err != nil {
-				return err
-			}
-			if err := n.decodeAndDispatchRequest(buf[:size]); err != nil {
-				return err
+			if event.Readiness&epoll.Readable != 0 {
+				// Prepare a receive buffer for incoming request. The buffer is of the
+				// maximum allowed size and will contain one kernel request upon return.
+				// Note that the actually occupied buffer is indicated by the Length field
+				// in the header.
+				buf := RequestBuffer()
+				size, err := NotifyIoctl(n.notify.Fd(), IoctlReceive, buf)
+				if err != nil {
+					return err
+				}
+				if err := n.decodeAndDispatchRequest(buf[:size]); err != nil {
+					return err
+				}
 			}
 		}
 	}
