@@ -4,7 +4,7 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/snapcore/prompter/epoll"
+	"github.com/snapcore/cerberus/epoll"
 
 	. "gopkg.in/check.v1"
 )
