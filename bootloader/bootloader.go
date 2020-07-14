@@ -96,6 +96,7 @@ type installableBootloader interface {
 type RecoveryAwareBootloader interface {
 	Bootloader
 	SetRecoverySystemEnv(recoverySystemDir string, values map[string]string) error
+	GetRecoverySystemEnv(recoverySystemDir string, key string) (string, error)
 }
 
 type ExtractedRecoveryKernelImageBootloader interface {
@@ -153,6 +154,10 @@ type ManagedAssetsBootloader interface {
 	// UpdateBootConfig attempts to update the boot config assets used by
 	// the bootloader. Returns true when assets were updated.
 	UpdateBootConfig(*Options) (bool, error)
+	// CommandLine returns the kernel command line composed of the built-in
+	// list and extra arguments passed in arguments. The command line may be
+	// different when using a bootloader in the recovery partition.
+	CommandLine(extra []string) (string, error)
 }
 
 func genericInstallBootConfig(gadgetFile, systemFile string) (bool, error) {

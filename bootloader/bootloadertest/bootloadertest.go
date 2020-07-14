@@ -22,6 +22,7 @@ package bootloadertest
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/snap"
@@ -204,6 +205,16 @@ func (b *MockRecoveryAwareBootloader) SetRecoverySystemEnv(recoverySystemDir str
 	return nil
 }
 
+// GetRecoverySystemEnv gets the recovery system environment bootloader
+// variables; part of RecoveryAwareBootloader.
+func (b *MockRecoveryAwareBootloader) GetRecoverySystemEnv(recoverySystemDir, key string) (string, error) {
+	if recoverySystemDir == "" {
+		panic("MockBootloader.GetRecoverySystemEnv called without recoverySystemDir")
+	}
+	b.RecoverySystemDir = recoverySystemDir
+	return b.RecoverySystemBootVars[key], nil
+}
+
 // MockExtractedRunKernelImageBootloader mocks a bootloader
 // implementing the ExtractedRunKernelImageBootloader interface.
 type MockExtractedRunKernelImageBootloader struct {
@@ -367,12 +378,14 @@ func (b *MockExtractedRunKernelImageBootloader) DisableTryKernel() error {
 type MockManagedAssetsBootloader struct {
 	*MockBootloader
 
-	IsManaged    bool
-	IsManagedErr error
-	UpdateErr    error
-	Updated      bool
-	UpdateCalls  int
-	Assets       []string
+	IsManaged         bool
+	IsManagedErr      error
+	UpdateErr         error
+	Updated           bool
+	UpdateCalls       int
+	Assets            []string
+	StaticCommandLine string
+	CommandLineErr    error
 }
 
 func (b *MockBootloader) WithManagedAssets() *MockManagedAssetsBootloader {
@@ -392,4 +405,39 @@ func (b *MockManagedAssetsBootloader) ManagedAssets() []string {
 func (b *MockManagedAssetsBootloader) UpdateBootConfig(opts *bootloader.Options) (bool, error) {
 	b.UpdateCalls++
 	return b.Updated, b.UpdateErr
+}
+
+func (b *MockManagedAssetsBootloader) CommandLine(args []string) (string, error) {
+	if b.CommandLineErr != nil {
+		return "", b.CommandLineErr
+	}
+	line := strings.Join(append([]string{b.StaticCommandLine}, args...), " ")
+	return strings.TrimSpace(line), nil
+}
+
+// MockManagedAssetsRecoveryAwareBootloader mocks a bootloader implementing the
+// bootloader.ManagedAssetsBootloader and bootloader.RecoveryAwareBootloader
+// interfaces.
+type MockManagedAssetsRecoveryAwareBootloader struct {
+	*MockManagedAssetsBootloader
+
+	EnvVars map[string]string
+}
+
+func (b *MockBootloader) WithManagedAssetsRecoveryAware() *MockManagedAssetsRecoveryAwareBootloader {
+	return &MockManagedAssetsRecoveryAwareBootloader{
+		MockManagedAssetsBootloader: &MockManagedAssetsBootloader{
+			MockBootloader: b,
+		},
+		EnvVars: make(map[string]string),
+	}
+}
+
+func (b *MockManagedAssetsRecoveryAwareBootloader) SetRecoverySystemEnv(systemDir string, env map[string]string) error {
+	b.EnvVars = env
+	return nil
+}
+
+func (b *MockManagedAssetsRecoveryAwareBootloader) GetRecoverySystemEnv(systemDir, key string) (string, error) {
+	return b.EnvVars[key], nil
 }
