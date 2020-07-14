@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"syscall"
 	"unsafe"
+
+	"golang.org/x/xerrors"
 )
 
 var doSyscall = func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err syscall.Errno) {
@@ -37,7 +39,7 @@ func NotifyIoctl(fd uintptr, req IoctlRequest, msg []byte) (int, error) {
 	//	log.Printf("%v\n", hexBuf(msg[:int(ret)]))
 	//}
 	if errno != 0 {
-		return 0, syscall.Errno(errno)
+		return 0, xerrors.Errorf("cannot perform IOCTL request %v: %v", req, syscall.Errno(errno))
 	}
 	return int(ret), nil
 }
