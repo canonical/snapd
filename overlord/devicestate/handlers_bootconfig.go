@@ -57,8 +57,8 @@ func (m *DeviceManager) doUpdateManagedBootConfig(t *state.Task, _ *tomb.Tomb) e
 		return nil
 	}
 	if devCtx.ForRemodeling() {
-		// nothing to do, the managed boot config comes from snapd which
-		// stays around during remodels
+		// TODO:UC20: we may need to update the boot config when snapd
+		// channel is changed during remodel
 		return nil
 	}
 	// TODO:UC20 update recovery boot config
