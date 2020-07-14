@@ -485,7 +485,7 @@ func (s *initramfsSuite) TestInitramfsRunModeChooseSnapsToMount(c *C) {
 		for _, t := range tt {
 			var cleanups []func()
 
-			comment := Commentf(fmt.Sprintf("[%s] %s", tbl.name, t.comment))
+			comment := Commentf("[%s] %s", tbl.name, t.comment)
 
 			bootloader.Force(bl)
 			cleanups = append(cleanups, func() { bootloader.Force(nil) })
