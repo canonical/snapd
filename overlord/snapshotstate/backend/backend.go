@@ -58,6 +58,7 @@ var (
 	osOpen      = os.Open
 	dirNames    = (*os.File).Readdirnames
 	backendOpen = Open
+	timeNow     = time.Now
 )
 
 // Flags encompasses extra flags for snapshots backend Save.
@@ -176,7 +177,7 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 		Revision: si.Revision,
 		Version:  si.Version,
 		Epoch:    si.Epoch,
-		Time:     time.Now(),
+		Time:     timeNow(),
 		SHA3_384: make(map[string]string),
 		Size:     0,
 		Conf:     cfg,
@@ -393,7 +394,7 @@ func Export(ctx context.Context, setID uint64, w io.Writer) error {
 	// XXX: add hashes of the individual files to the metadata?
 	meta := exportMetadata{
 		Format: 1,
-		Date:   time.Now(),
+		Date:   timeNow(),
 	}
 	metaDataBuf, err := json.Marshal(&meta)
 	if err != nil {
@@ -404,7 +405,7 @@ func Export(ctx context.Context, setID uint64, w io.Writer) error {
 		Name:     "export.json",
 		Size:     int64(len(metaDataBuf)),
 		Mode:     0640,
-		ModTime:  time.Now(),
+		ModTime:  timeNow(),
 	}
 	if err := tw.WriteHeader(hdr); err != nil {
 		return err

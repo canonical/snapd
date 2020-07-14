@@ -171,13 +171,13 @@ func getSnapshotExport(c *Command, r *http.Request, user *auth.UserState) Respon
 		return BadRequest("'id' must be a positive base 10 number; got %q", sid)
 	}
 
-	// Export into /dev/null once to get the size of the tar so that
-	// we can set the Content-Length in the response
+	// Export once into a dummy writer so that we can set the
+	// Content-Length in the response correctly.
 	//
-	// XXX: too naive? i.e. calling snapshotExport() twice will lead to
-	// slightly different results (different timestamps) but tar headers
-	// are fixed size so the result should be the same? what about the
-	// time data in the export.json ?
+	// Note that the size of the generated tar could change if the
+	// time switches between this export and the export we stream
+	// to the client to a time after the year 2242. This is unlikely
+	// but a known issue with this approach here.
 	var cw countingOnlyWriter
 	if err := snapshotExport(context.TODO(), uint64(setID), &cw); err != nil {
 		return BadRequest("cannot export %v", setID)

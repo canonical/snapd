@@ -22,6 +22,7 @@ package backend
 import (
 	"os"
 	"os/user"
+	"time"
 
 	"github.com/snapcore/snapd/osutil/sys"
 )
@@ -93,5 +94,13 @@ func SetUserWrapper(newUserWrapper string) (restore func()) {
 	userWrapper = newUserWrapper
 	return func() {
 		userWrapper = oldUserWrapper
+	}
+}
+
+func MockTimeNow(f func() time.Time) (restore func()) {
+	oldTimeNow := timeNow
+	timeNow = f
+	return func() {
+		timeNow = oldTimeNow
 	}
 }

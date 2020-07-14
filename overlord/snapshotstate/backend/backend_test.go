@@ -34,6 +34,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"gopkg.in/check.v1"
 
@@ -729,8 +730,6 @@ func (w *mockWriter) Write(p []byte) (n int, err error) {
 }
 
 func (s *snapshotSuite) TestExport(c *check.C) {
-	logbuf, restore := logger.MockLogger()
-	defer restore()
 	defer backend.MockOsOpen(func(string) (*os.File, error) { return new(os.File), nil })()
 	readNames := 0
 	defer backend.MockDirNames(func(*os.File, int) ([]string, error) {
@@ -781,7 +780,6 @@ func (s *snapshotSuite) TestExport(c *check.C) {
 		comm := check.Commentf("%d: %d", i, t.setID)
 		// reset
 		readNames = 0
-		logbuf.Reset()
 
 		w := &mockWriter{Total: 0}
 		err := backend.Export(context.Background(), t.setID, w)
@@ -793,4 +791,42 @@ func (s *snapshotSuite) TestExport(c *check.C) {
 		c.Check(err, check.IsNil, comm)
 		c.Check(w.Total, check.Equals, t.total, comm)
 	}
+}
+
+func (s *snapshotSuite) TestExportTwice(c *check.C) {
+	// use mocking done in snapshotSuite.SetUpTest
+	info := &snap.Info{
+		SideInfo: snap.SideInfo{
+			RealName: "hello-snap",
+			Revision: snap.R(42),
+			SnapID:   "hello-id",
+		},
+		Version: "v1.33",
+	}
+	// create a snapshot
+	shID := uint64(12)
+	_, err := backend.Save(context.TODO(), shID, info, nil, []string{"snapuser"}, &backend.Flags{})
+
+	// num_files + export.json + footer
+	expectedSize := uint64(4*512 + 1024 + 2*512)
+	// do on export at the start of the epoch
+	restore := backend.MockTimeNow(func() time.Time { return time.Time{} })
+	defer restore()
+	// export once
+	w := &mockWriter{Total: 0}
+	err = backend.Export(context.Background(), shID, w)
+	c.Check(err, check.IsNil)
+	c.Check(w.Total, check.Equals, expectedSize)
+
+	// and again to ensure size does not change when exported again
+	//
+	// Note that moving beyond year 2242 will change the tar format
+	// used by the go internal tar and that will make the size actually
+	// change.
+	restore = backend.MockTimeNow(func() time.Time { return time.Date(2242, 1, 1, 12, 0, 0, 0, time.UTC) })
+	defer restore()
+	w.Total = 0
+	err = backend.Export(context.Background(), shID, w)
+	c.Check(err, check.IsNil)
+	c.Check(w.Total, check.Equals, expectedSize)
 }
