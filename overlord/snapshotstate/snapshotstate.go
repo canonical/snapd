@@ -23,6 +23,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"sort"
 	"time"
 
@@ -257,7 +258,18 @@ func checkSnapshotTaskConflict(st *state.State, setID uint64, conflictingKinds .
 var List = backend.List
 
 // Import a given snapshot ID from an exported snapshot
-var Import = backend.Import
+func Import(ctx context.Context, st *state.State, r io.Reader) (uint64, error) {
+	st.Lock()
+	setID, err := newSnapshotSetID(st)
+	st.Unlock()
+	if err != nil {
+		return 0, err
+	}
+	if err := backend.Import(ctx, setID, r); err != nil {
+		return 0, err
+	}
+	return setID, nil
+}
 
 // Save creates a taskset for taking snapshots of snaps' data.
 // Note that the state must be locked by the caller.
