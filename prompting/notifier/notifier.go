@@ -1,4 +1,7 @@
-package apparmor
+// Package notifier implements a high-level interface to the apparmor
+// notification mechanism. It can be used to build userspace applications
+// which respond to apparmor prompting profiles.
+package notifier
 
 import (
 	"errors"
@@ -6,28 +9,42 @@ import (
 	"log"
 	"os"
 
+	"github.com/snapcore/cerberus/apparmor"
 	"github.com/snapcore/cerberus/epoll"
 )
 
+// Notifier contains low-level components for receiving notification requests
+// and responding with notification responses.
 type Notifier struct {
+	// R is a channel with incoming requests. Each request is asynchronous
+	// and needs to be replied to.
 	R chan *Request
+	// E is a channel for receiving asynchronous error messages from
+	// concurrently running parts of the notifier system.
 	E chan error
 
 	notify *os.File
 	poll   *epoll.Epoll
 }
 
+// Request is a high-level representation of an apparmor prompting message.
+//
+// Each request must be replied to by writing a boolean to the YesNo channel.
 type Request struct {
 	n *Notifier
 
-	Pid   uint32
+	// Pid is the identifier of the process triggering the request.
+	Pid uint32
+	// Label is the apparmor label on the process triggering the request.
 	Label string
-	Path  string
+	// Path is the path of the file, as seen by the process triggering the request.
+	Path string
 
+	// YesNo is a channel for writing the response.
 	YesNo chan bool
 }
 
-func NewRequest(n *Notifier, msg *MsgNotificationFile) *Request {
+func newRequest(n *Notifier, msg *apparmor.MsgNotificationFile) *Request {
 	return &Request{
 		n: n,
 
@@ -44,10 +61,10 @@ var (
 	ErrNotifierNotSupported = errors.New("kernel does not support apparmor notifications")
 )
 
-// RegisterNotifier returns a new listener talking to the kernel apparmor notification interface.
+// Register opens and configures the apparmor notification interface.
 //
 // If the kernel does not support the notification mechanism the error is ErrNotSupported.
-func RegisterNotifier() (*Notifier, error) {
+func Register() (*Notifier, error) {
 	notify, err := os.Open("/sys/kernel/security/apparmor/.notify")
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -55,13 +72,13 @@ func RegisterNotifier() (*Notifier, error) {
 		}
 		return nil, err
 	}
-	msg := MsgNotificationFilter{ModeSet: ModeSetUser}
+	msg := apparmor.MsgNotificationFilter{ModeSet: apparmor.ModeSetUser}
 	data, err := msg.MarshalBinary()
 	if err != nil {
 		notify.Close()
 		return nil, err
 	}
-	_, err = NotifyIoctl(notify.Fd(), IoctlSetFilter, data)
+	_, err = apparmor.NotifyIoctl(notify.Fd(), apparmor.IoctlSetFilter, data)
 	// TODO: check ioctl return size
 	if err != nil {
 		notify.Close()
@@ -91,26 +108,26 @@ func RegisterNotifier() (*Notifier, error) {
 }
 
 func (n *Notifier) decodeAndDispatchRequest(buf []byte) error {
-	var nmsg MsgNotification
+	var nmsg apparmor.MsgNotification
 	if err := nmsg.UnmarshalBinary(buf); err != nil {
 		return err
 	}
 	// What kind of notification message did we get?
 	switch nmsg.NotificationType {
-	case Operation:
-		var omsg MsgNotificationOp
+	case apparmor.Operation:
+		var omsg apparmor.MsgNotificationOp
 		if err := omsg.UnmarshalBinary(buf); err != nil {
 			return err
 		}
 		// What kind of operation notification did we get?
 		switch omsg.Class {
-		case MediationClassFile:
-			var fmsg MsgNotificationFile
+		case apparmor.MediationClassFile:
+			var fmsg apparmor.MsgNotificationFile
 			if err := fmsg.UnmarshalBinary(buf); err != nil {
 				return err
 			}
 			log.Printf("notification request: %#v\n", fmsg)
-			req := NewRequest(n, &fmsg)
+			req := newRequest(n, &fmsg)
 			n.R <- req
 			go n.waitAndRespond(req, &fmsg)
 		default:
@@ -122,8 +139,8 @@ func (n *Notifier) decodeAndDispatchRequest(buf []byte) error {
 	return nil
 }
 
-func (n *Notifier) waitAndRespond(req *Request, msg *MsgNotificationFile) {
-	resp := ResponseForRequest(&msg.MsgNotification)
+func (n *Notifier) waitAndRespond(req *Request, msg *apparmor.MsgNotificationFile) {
+	resp := apparmor.ResponseForRequest(&msg.MsgNotification)
 	// XXX: should both error fields be zeroed?
 	resp.MsgNotification.Error = 0
 	if allow := <-req.YesNo; allow {
@@ -141,12 +158,12 @@ func (n *Notifier) waitAndRespond(req *Request, msg *MsgNotificationFile) {
 	}
 }
 
-func (n *Notifier) encodeAndSendResponse(resp *MsgNotificationResponse) error {
+func (n *Notifier) encodeAndSendResponse(resp *apparmor.MsgNotificationResponse) error {
 	buf, err := resp.MarshalBinary()
 	if err != nil {
 		return err
 	}
-	_, err = NotifyIoctl(n.notify.Fd(), IoctlSend, buf)
+	_, err = apparmor.NotifyIoctl(n.notify.Fd(), apparmor.IoctlSend, buf)
 	return err
 }
 
@@ -164,8 +181,8 @@ func (n *Notifier) runOnce() error {
 				// maximum allowed size and will contain one kernel request upon return.
 				// Note that the actually occupied buffer is indicated by the Length field
 				// in the header.
-				buf := RequestBuffer()
-				size, err := NotifyIoctl(n.notify.Fd(), IoctlReceive, buf)
+				buf := apparmor.RequestBuffer()
+				size, err := apparmor.NotifyIoctl(n.notify.Fd(), apparmor.IoctlReceive, buf)
 				if err != nil {
 					return err
 				}
