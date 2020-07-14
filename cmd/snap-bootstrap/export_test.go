@@ -39,17 +39,13 @@ func MockStdout(newStdout io.Writer) (restore func()) {
 	}
 }
 
-func MockOsutilIsMounted(f func(path string) (bool, error)) (restore func()) {
-	oldOsutilIsMounted := osutilIsMounted
-	osutilIsMounted = f
+func MockSystemdMount(f func(_, _ string, opts *SystemdMountOptions) error) (restore func()) {
+	old := doSystemdMount
+	doSystemdMount = f
 	return func() {
-		osutilIsMounted = oldOsutilIsMounted
+		doSystemdMount = old
 	}
 }
-
-type InitramfsMountsState = initramfsMountsState
-
-var NewInitramfsMountsState = newInitramfsMountsState
 
 func MockTriggerwatchWait(f func(_ time.Duration) error) (restore func()) {
 	oldTriggerwatchWait := triggerwatchWait
