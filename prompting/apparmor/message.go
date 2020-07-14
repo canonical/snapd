@@ -6,8 +6,6 @@ import (
 	"fmt"
 
 	"golang.org/x/xerrors"
-
-	"github.com/snapcore/cerberus/apparmor/raw"
 )
 
 // overwrite implements io.Writer that writes over an existing buffer.
@@ -26,6 +24,10 @@ func (o *overwrite) Write(p []byte) (n int, err error) {
 	}
 	return 0, fmt.Errorf("insufficient space to write")
 }
+
+// Message fields are defined as raw sized integer types as the same type may be
+// packed as 16 bit or 32 bit integer, to accommodate other fields in the
+// structure.
 
 // MsgHeader is the header of all apparmor notification messages.
 //
@@ -49,22 +51,17 @@ func (msg *MsgHeader) UnmarshalBinary(data []byte) error {
 	// Unpack fixed-size elements.
 	order := binary.LittleEndian
 	buf := bytes.NewBuffer(data)
-	var raw raw.MsgHeader
-	if err := binary.Read(buf, order, &raw); err != nil {
+	if err := binary.Read(buf, order, msg); err != nil {
 		return xerrors.Errorf("%s: %s", prefix, err)
 	}
 
-	if raw.Version != 2 {
-		return xerrors.Errorf("%s: unsupported version: %d", prefix, raw.Version)
+	if msg.Version != 2 {
+		return xerrors.Errorf("%s: unsupported version: %d", prefix, msg.Version)
 	}
-	if int(raw.Length) != len(data) {
+	if int(msg.Length) != len(data) {
 		return xerrors.Errorf("%s: length mismatch %d != %d",
-			prefix, raw.Length, len(data))
+			prefix, msg.Length, len(data))
 	}
-
-	// Put everything together.
-	msg.Length = raw.Length
-	msg.Version = raw.Version
 
 	return nil
 }
@@ -78,10 +75,31 @@ func RequestBuffer() []byte {
 	return buf
 }
 
-// MsgNotificationFilter represents the high-level get/set filter request/response.
+// msgNotificationFilter describes the configuration of kernel-side message filtering.
 //
-// This structure corresponds to struct apparmor_notif_filter. It can be
-// marshaled and unmarshaled to binary form and transmitted to the kernel.
+// This structure corresponds to the kernel type struct apparmor_notif_filter
+// described below. This type is only used for message marshaling and
+// unmarshaling. Application code should use MsgNotificationFilter instead.
+//
+// struct apparmor_notif_filter {
+//   struct apparmor_notif_common base;
+//   __u32 modeset;      /* which notification mode */
+//   __u32 ns;           /* offset into data, relative to start of the structure */
+//   __u32 filter;       /* offset into data, relative to start of the structure */
+//   __u8 data[];
+// } __attribute__((packed));
+type msgNotificationFilter struct {
+	MsgHeader
+	ModeSet uint32
+	NS      uint32
+	Filter  uint32
+}
+
+// MsgNotificationFilter describes the configuration of kernel-side message filtering.
+//
+// This structure can be marshaled and unmarshaled to binary form and
+// transmitted to the kernel using NotifyIoctl along with IoctlGetFilter and
+// IoctlSetFilter.
 type MsgNotificationFilter struct {
 	MsgHeader
 	// ModeSet is a bitmask. Specifying ModeSetUser allows to receive notification
@@ -105,7 +123,7 @@ func (msg *MsgNotificationFilter) UnmarshalBinary(data []byte) error {
 	// Unpack fixed-size elements.
 	order := binary.LittleEndian
 	buf := bytes.NewBuffer(data)
-	var raw raw.MsgNotificationFilter
+	var raw msgNotificationFilter
 	if err := binary.Read(buf, order, &raw); err != nil {
 		return xerrors.Errorf("%s: cannot unpack: %s", prefix, err)
 	}
@@ -131,7 +149,7 @@ func (msg *MsgNotificationFilter) UnmarshalBinary(data []byte) error {
 
 // MarshalBinary marshals the message into binary form.
 func (msg *MsgNotificationFilter) MarshalBinary() (data []byte, err error) {
-	var raw raw.MsgNotificationFilter
+	var raw msgNotificationFilter
 	var packer StringPacker
 	packer.BaseOffset = uint16(binary.Size(raw))
 	raw.Length = packer.BaseOffset
@@ -160,20 +178,32 @@ func (msg *MsgNotificationFilter) Validate() error {
 }
 
 // MsgNotification describes a kernel notification message.
+//
+// This structure corresponds to the kernel type struct apparmor_notif
+// described below.
+//
+// struct apparmor_notif {
+//   struct apparmor_notif_common base;
+//   __u16 ntype;        /* notify type */
+//   __u8 signalled;
+//   __u8 reserved;
+//   __u64 id;           /* unique id, not globally unique*/
+//   __s32 error;        /* error if unchanged */
+// } __attribute__((packed));
 type MsgNotification struct {
 	MsgHeader
 	// NotificationType describes the kind of notification message used.
 	// Currently the kernel only sends Operation messages.
 	NotificationType NotificationType
-	// XXX: This is unused.
+	// XXX: Signaled seems to be unused.
 	Signalled uint8
-	// XXX: This is unused.
+	// XXX: Reserved seems to be unused.
 	Reserved uint8
 	// ID is an opaque kernel identifier of the notification message. It must be
 	// repeated in the MsgNotificationResponse if one is sent back.
 	ID uint64
-	// XXX: This is unused and clashes with identical field in MsgNotificationOp
-	// that the kernel actually sends.
+	// XXX: This seems to be unused and clashes with identical field in
+	// MsgNotificationOp.
 	Error int32
 }
 
@@ -181,43 +211,23 @@ type MsgNotification struct {
 func (msg *MsgNotification) UnmarshalBinary(data []byte) error {
 	const prefix = "cannot unmarshal apparmor notification message"
 
-	// Unpack the base structure.
-	if err := msg.MsgHeader.UnmarshalBinary(data); err != nil {
-		return err
-	}
-
 	// Unpack fixed-size elements.
 	order := binary.LittleEndian
 	buf := bytes.NewBuffer(data)
-	var raw raw.MsgNotification
-	if err := binary.Read(buf, order, &raw); err != nil {
+	if err := binary.Read(buf, order, msg); err != nil {
 		return xerrors.Errorf("%s: cannot unpack: %s", prefix, err)
 	}
-
-	// Put everything together.
-	ntype := NotificationType(raw.NotificationType)
-	msg.NotificationType = ntype
-	msg.Signalled = raw.Signalled
-	msg.Reserved = raw.Reserved
-	msg.ID = raw.ID
-	msg.Error = raw.Error
 
 	return nil
 }
 
 // MarshalBinary marshals the message into binary form.
 func (msg *MsgNotification) MarshalBinary() ([]byte, error) {
-	var raw raw.MsgNotification
-	raw.Version = 2
-	raw.Length = uint16(binary.Size(raw))
-	raw.NotificationType = uint16(msg.NotificationType)
-	raw.Signalled = msg.Signalled
-	raw.Reserved = msg.Reserved
-	raw.ID = msg.ID
-	raw.Error = msg.Error
-	buf := bytes.NewBuffer(make([]byte, 0, raw.Length))
+	msg.Version = 2
+	msg.Length = uint16(binary.Size(*msg))
+	buf := bytes.NewBuffer(make([]byte, 0, msg.Length))
 	// FIXME: encoding should be native
-	if err := binary.Write(buf, binary.LittleEndian, raw); err != nil {
+	if err := binary.Write(buf, binary.LittleEndian, msg); err != nil {
 		return nil, err
 	}
 	return buf.Bytes(), nil
@@ -231,10 +241,91 @@ func (msg *MsgNotification) Validate() error {
 	return nil
 }
 
+// MsgNotificationUpdate (TBD, document me)
+//
+// struct apparmor_notif_update {
+//   struct apparmor_notif base;
+//   __u16 ttl;          /* max keep alives left */
+// } __attribute__((packed));
+type MsgNotificationUpdate struct {
+	MsgNotification
+	TTL uint16
+}
+
+// MsgNotificationResponse describes a response to a MsgNotification.
+//
+// This structure corresponds to the kernel type struct apparmor_notif
+// described below.
+//
+// struct apparmor_notif_resp {
+//   struct apparmor_notif base;
+//   __s32 error;        /* error if unchanged */
+//   __u32 allow;
+//   __u32 deny;
+// } __attribute__((packed));
+type MsgNotificationResponse struct {
+	MsgNotification
+	// XXX: The embedded MsgNotification also has an Error field, why?
+	Error int32
+	// Allow somehow encodes the allowed operation mask.
+	Allow uint32
+	// Deny somehow encodes the denied operation mask.
+	Deny uint32
+}
+
+// ResponseForRequest returns a response message for a given request.
+func ResponseForRequest(req *MsgNotification) MsgNotificationResponse {
+	return MsgNotificationResponse{
+		MsgNotification: MsgNotification{
+			NotificationType: Response,
+			// XXX: should Signalled be copied?
+			Signalled: req.Signalled,
+			// XXX: should Reserved be copied?
+			Reserved: req.Reserved,
+			ID:       req.ID,
+			// XXX: should Error be copied?
+			Error: req.Error,
+		},
+	}
+}
+
+// MarshalBinary marshals the message into binary form.
+func (msg *MsgNotificationResponse) MarshalBinary() ([]byte, error) {
+	msg.Version = 2
+	msg.Length = uint16(binary.Size(*msg))
+	buf := bytes.NewBuffer(make([]byte, 0, msg.Length))
+	// FIXME: encoding should be native
+	if err := binary.Write(buf, binary.LittleEndian, msg); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+// MsgNotificationOp (TBD, document me).
+//
+// struct apparmor_notif_op {
+//   struct apparmor_notif base;
+//   __u32 allow;
+//   __u32 deny;
+//   pid_t pid;          /* pid of task causing notification */
+//   __u32 label;        /* offset into data */
+//   __u16 class;
+//   __u16 op;
+// } __attribute__((packed));
+type msgNotificationOp struct {
+	MsgNotification
+	Allow uint32
+	Deny  uint32
+	Pid   uint32
+	Label uint32
+	Class uint16
+	Op    uint16
+}
+
 // MsgNotificationOp describes a prompt request.
 //
 // The actual information about the prompted object is not encoded here.
-// The mediation class can be used to deduce the message that was actually sent
+// The mediation class can be used to deduce the type message that was actually sent
 // and decode.
 type MsgNotificationOp struct {
 	MsgNotification
@@ -243,7 +334,7 @@ type MsgNotificationOp struct {
 	Deny  uint32
 	// Pid of the process triggering the notification.
 	Pid uint32
-	// Apparmor label of the process triggering the notification.
+	// Label is the apparmor label of the process triggering the notification.
 	Label string
 	// Class of the mediation operation.
 	// Currently only MediationClassFile is implemented in the kernel.
@@ -264,7 +355,7 @@ func (msg *MsgNotificationOp) UnmarshalBinary(data []byte) error {
 	// Unpack fixed-size elements.
 	order := binary.LittleEndian
 	buf := bytes.NewBuffer(data)
-	var raw raw.MsgNotificationOp
+	var raw msgNotificationOp
 	if err := binary.Read(buf, order, &raw); err != nil {
 		return xerrors.Errorf("%s: cannot unpack: %s", prefix, err)
 	}
@@ -285,6 +376,21 @@ func (msg *MsgNotificationOp) UnmarshalBinary(data []byte) error {
 	msg.Op = raw.Op
 
 	return nil
+}
+
+// msgNotificationFile (TBD, document me).
+//
+// struct apparmor_notif_file {
+//   struct apparmor_notif_op base;
+//   uid_t suid, ouid;
+//   __u32 name;         /* offset into data */
+//   __u8 data[];
+// } __attribute__((packed));
+type msgNotificationFile struct {
+	msgNotificationOp
+	SUID uint32
+	OUID uint32
+	Name uint32
 }
 
 // MsgNotificationFile describes a prompt to a specific file.
@@ -311,7 +417,7 @@ func (msg *MsgNotificationFile) UnmarshalBinary(data []byte) error {
 	// Unpack fixed-size elements.
 	order := binary.LittleEndian
 	buf := bytes.NewBuffer(data)
-	var raw raw.MsgNotificationFile
+	var raw msgNotificationFile
 	if err := binary.Read(buf, order, &raw); err != nil {
 		return xerrors.Errorf("%s: cannot unpack: %s", prefix, err)
 	}
@@ -329,52 +435,4 @@ func (msg *MsgNotificationFile) UnmarshalBinary(data []byte) error {
 	msg.Name = name
 
 	return nil
-}
-
-// MsgNotificationResponse describes a response to a MsgNotification.
-//
-// The field are not documented yet.
-type MsgNotificationResponse struct {
-	MsgNotification
-	Error int32
-	Allow uint32
-	Deny  uint32
-}
-
-// ResponseForRequest returns a response message for a given request.
-func ResponseForRequest(req *MsgNotification) MsgNotificationResponse {
-	return MsgNotificationResponse{
-		MsgNotification: MsgNotification{
-			NotificationType: Response,
-			// XXX: should Signalled be copied?
-			Signalled: req.Signalled,
-			// XXX: should Reserved be copied?
-			Reserved: req.Reserved,
-			ID:       req.ID,
-			// XXX: should Error be copied?
-			Error: req.Error,
-		},
-	}
-}
-
-// MarshalBinary marshals the message into binary form.
-func (msg *MsgNotificationResponse) MarshalBinary() ([]byte, error) {
-	var raw raw.MsgNotificationResponse
-	raw.Version = 2
-	raw.Length = uint16(binary.Size(raw))
-	raw.NotificationType = uint16(msg.NotificationType)
-	raw.Signalled = msg.Signalled
-	raw.Reserved = msg.Reserved
-	raw.ID = msg.ID
-	// XXX: There are two distinct fields called Error, why?
-	raw.MsgNotification.Error = msg.MsgNotification.Error
-	raw.Error = msg.Error
-	raw.Allow = msg.Allow
-	raw.Deny = msg.Deny
-	buf := bytes.NewBuffer(make([]byte, 0, raw.Length))
-	// FIXME: encoding should be native
-	if err := binary.Write(buf, binary.LittleEndian, raw); err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
 }
