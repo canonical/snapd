@@ -146,11 +146,12 @@ var snapshotImportCmd = &Command{
 func postSnapshotImport(c *Command, r *http.Request, user *auth.UserState) Response {
 	// XXX: check that we have enough space to import the compressed snapshots
 
-	// XXX: allocate a snapshot ID
-	setID := uint64(99)
-
+	// XXX: is this the right layer?
 	defer r.Body.Close()
-	if err := snapshotImport(context.TODO(), setID, r.Body); err != nil {
+
+	st := c.d.overlord.State()
+	setID, err := snapshotImport(context.TODO(), st, r.Body)
+	if err != nil {
 		return BadRequest(err.Error())
 	}
 
