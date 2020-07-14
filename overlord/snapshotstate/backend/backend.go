@@ -177,10 +177,7 @@ func EstimateSnapshotSize(si *snap.Info) (int64, error) {
 		if err != nil {
 			return err
 		}
-		if exists && !isDir {
-			return nil
-		}
-		if !exists {
+		if !(exists && isDir) {
 			return nil
 		}
 
