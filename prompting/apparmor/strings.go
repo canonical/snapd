@@ -30,14 +30,14 @@ func (sp *stringPacker) PackString(s string) uint32 {
 	return offset + uint32(sp.BaseOffset)
 }
 
-// StringUnpacker assists in unpacking apparmor data structures with
+// stringUnpacker assists in unpacking apparmor data structures with
 // variable length string elements.
-type StringUnpacker struct {
+type stringUnpacker struct {
 	Bytes []byte
 }
 
 // UnpackString unpacks NUL-terminated string at a given offset into the buffer.
-func (su *StringUnpacker) UnpackString(offset uint32) (string, error) {
+func (su *stringUnpacker) UnpackString(offset uint32) (string, error) {
 	if offset == 0 {
 		return "", nil
 	}

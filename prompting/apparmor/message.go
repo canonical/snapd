@@ -129,7 +129,7 @@ func (msg *MsgNotificationFilter) UnmarshalBinary(data []byte) error {
 	}
 
 	// Unpack variable length elements.
-	unpacker := StringUnpacker{Bytes: data}
+	unpacker := stringUnpacker{Bytes: data}
 	ns, err := unpacker.UnpackString(raw.NS)
 	if err != nil {
 		return xerrors.Errorf("%s: cannot unpack namespace: %v", prefix, err)
@@ -361,7 +361,7 @@ func (msg *MsgNotificationOp) UnmarshalBinary(data []byte) error {
 	}
 
 	// Unpack variable length elements.
-	unpacker := StringUnpacker{Bytes: data}
+	unpacker := stringUnpacker{Bytes: data}
 	label, err := unpacker.UnpackString(raw.Label)
 	if err != nil {
 		return xerrors.Errorf("%s: cannot unpack label: %v", prefix, err)
@@ -423,7 +423,7 @@ func (msg *MsgNotificationFile) UnmarshalBinary(data []byte) error {
 	}
 
 	// Unpack variable length elements.
-	unpacker := StringUnpacker{Bytes: data}
+	unpacker := stringUnpacker{Bytes: data}
 	name, err := unpacker.UnpackString(raw.Name)
 	if err != nil {
 		return xerrors.Errorf("%s: cannot unpack file name: %v", prefix, err)
