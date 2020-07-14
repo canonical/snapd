@@ -56,14 +56,25 @@ execute: |
     snap remove "$SNAP_DEVMODE"
     rm -f "$TESTSLIB/snaps/${SNAP_DEVMODE}/${SNAP_DEVMODE}_1.0_all.snap"
 
+    # check the command is-classic-confinement-supported works
+    if [[ "$SPREAD_SYSTEM" == fedora-* ]]; then
+        not "$TESTSTOOLS"/snaps-state is-classic-confinement-supported
+    elif [[ "$SPREAD_SYSTEM" == ubuntu-1* ]]; then
+        "$TESTSTOOLS"/snaps-state is-classic-confinement-supported
+    fi
+
     # Make and install a snap by using the install-local subcommand with --classic
-    snap_path=$("$TESTSTOOLS"/snaps-state install-local "$SNAP_CLASSIC" --classic)
-    snap list "$SNAP_CLASSIC" | MATCH "classic$"
-    snap remove "$SNAP_CLASSIC"
-    rm -f "$TESTSLIB/snaps/${SNAP_CLASSIC}/${SNAP_CLASSIC}_1.0_all.snap"
+    if $("$TESTSTOOLS"/snaps-state is-classic-confinement-supported); then
+        snap_path=$("$TESTSTOOLS"/snaps-state install-local "$SNAP_CLASSIC" --classic)
+        snap list "$SNAP_CLASSIC" | MATCH "classic$"
+        snap remove "$SNAP_CLASSIC"
+        rm -f "$TESTSLIB/snaps/${SNAP_CLASSIC}/${SNAP_CLASSIC}_1.0_all.snap"
+    fi
 
     # Make and install a snap by using the install-local subcommand with --jailmode
-    snap_path=$("$TESTSTOOLS"/snaps-state install-local "$SNAP_JAILMODE" --jailmode)
-    snap list "$SNAP_JAILMODE" | MATCH "jailmode$"
-    snap remove "$SNAP_JAILMODE"
-    rm -f "$TESTSLIB/snaps/${SNAP_JAILMODE}/${SNAP_JAILMODE}_1.0_all.snap"
+    if [ "$(snap debug confinement)" = strict ] ; then
+        snap_path=$("$TESTSTOOLS"/snaps-state install-local "$SNAP_JAILMODE" --jailmode)
+        snap list "$SNAP_JAILMODE" | MATCH "jailmode$"
+        snap remove "$SNAP_JAILMODE"
+        rm -f "$TESTSLIB/snaps/${SNAP_JAILMODE}/${SNAP_JAILMODE}_1.0_all.snap"
+    fi

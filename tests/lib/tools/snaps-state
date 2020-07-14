@@ -4,6 +4,7 @@ show_help() {
     echo "usage: pack-local <snap-name>"
     echo "       install-local <snap-name> [OPTIONS]"
     echo "       install-local-as <snap-name> <dest-name> [OPTIONS]"
+    echo "       is-classic-confinement-supported"
     echo ""
     echo "Available options:"
     echo "  --devmode --jailmode --classic"
@@ -51,6 +52,13 @@ install_local_as() {
     local name="$2"
     shift 2
     install_local "$snap" --name "$name" "$@"
+}
+
+is_classic_confinement_supported() {
+    if snap debug sandbox-features --required=confinement-options:classic; then
+        return 0
+    fi
+    return 1
 }
 
 if [ $# -eq 0 ]; then
