@@ -154,11 +154,10 @@ func ComposeRecoveryCommandLine(model *asserts.Model, system string) (string, er
 		}
 		return "", err
 	}
-	modeArgs := []string{
-		"snapd_recovery_mode=recover",
-		fmt.Sprintf("snapd_recovery_system=%v", system),
-	}
-	return mbl.CommandLine(modeArgs)
+	modeArgs := fmt.Sprintf("snapd_recovery_mode=recover snapd_recovery_system=%v", system)
+	// TODO:UC20: fetch extra args from recovery system bootenv
+	extraArgs := ""
+	return mbl.CommandLine(modeArgs, extraArgs)
 }
 
 // ComposeCommandLine composes the kernel command line used when booting the
@@ -178,5 +177,8 @@ func ComposeCommandLine(model *asserts.Model) (string, error) {
 		}
 		return "", err
 	}
-	return mbl.CommandLine(nil)
+	modeArgs := "snapd_recovery_mode=run"
+	// TODO:UC20: fetch extra args from bootenv
+	extraArgs := ""
+	return mbl.CommandLine(modeArgs, extraArgs)
 }

@@ -209,5 +209,5 @@ func (s *kernelCommandLineSuite) TestComposeCommandLineManagedHappy(c *C) {
 	c.Assert(cmdline, Equals, "panic=-1 snapd_recovery_mode=recover snapd_recovery_system=20200314")
 	cmdline, err = boot.ComposeCommandLine(model)
 	c.Assert(err, IsNil)
-	c.Assert(cmdline, Equals, "panic=-1")
+	c.Assert(cmdline, Equals, "panic=-1 snapd_recovery_mode=run")
 }
