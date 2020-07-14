@@ -150,7 +150,7 @@ func (msg *MsgNotificationFilter) UnmarshalBinary(data []byte) error {
 // MarshalBinary marshals the message into binary form.
 func (msg *MsgNotificationFilter) MarshalBinary() (data []byte, err error) {
 	var raw msgNotificationFilter
-	var packer StringPacker
+	var packer stringPacker
 	packer.BaseOffset = uint16(binary.Size(raw))
 	raw.Length = packer.BaseOffset
 	raw.Version = 2

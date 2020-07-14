@@ -5,10 +5,10 @@ import (
 	"fmt"
 )
 
-// StringPacker assists in packing apparmor data structures with
+// stringPacker assists in packing apparmor data structures with
 // variable length string elements. It implements the static offset
 // and ensures that non-empty strings are properly terminated.
-type StringPacker struct {
+type stringPacker struct {
 	BaseOffset uint16
 	Buffer     bytes.Buffer
 }
@@ -20,7 +20,7 @@ type StringPacker struct {
 // Empty strings use a special encoding that requires no space and used a fixed
 // dummy offset of zero. The actual string is always nil-terminated, for
 // compatibility with C.
-func (sp *StringPacker) PackString(s string) uint32 {
+func (sp *stringPacker) PackString(s string) uint32 {
 	if s == "" {
 		return 0
 	}
