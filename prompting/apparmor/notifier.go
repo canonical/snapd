@@ -112,10 +112,7 @@ func (n *Notifier) decodeAndDispatchRequest(buf []byte) error {
 			log.Printf("notification request: %#v\n", fmsg)
 			req := NewRequest(n, &fmsg)
 			n.R <- req
-			// XXX: The request interface is synchronous. Attempting to wait for
-			// another request before this one is replied to causes ioctl to
-			// return ENOENT.
-			n.waitAndRespond(req, &fmsg)
+			go n.waitAndRespond(req, &fmsg)
 		default:
 			return fmt.Errorf("unsupported mediation class : %v", omsg.Class)
 		}
