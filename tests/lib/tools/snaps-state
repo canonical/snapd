@@ -1,15 +1,20 @@
-#!/bin/bash
+#!/bin/bash -e
 
 show_help() {
-    echo "usage: make-snap [snap-name]"
-    echo "usage: install-local [snap-name]"
-    echo "usage: install-local-as [snap-name] [dest-name]"
-    echo "usage: install-local-devmode [snap-name]"
-    echo "usage: install-local-classic [snap-name]"
-    echo "usage: install-local-jailmode [snap-name]"
+    echo "usage: pack-local <snap-name>"
+    echo "       install-local <snap-name> [OPTIONS]"
+    echo "       install-local-as <snap-name> <dest-name> [OPTIONS]"
+    echo ""
+    echo "Available options:"
+    echo "  --devmode --jailmode --classic"
+    echo ""
+    echo "Pack and install commands save the packed snap for future uses,"
+    echo "which is reused on the following calls."
+    echo "The paths for locating the sources of the snaps to either pack or"
+    echo "install are the local path and then 'tests/lib/snaps/'"
 }
 
-make_snap() {
+pack_local() {
     local SNAP_NAME="$1"
     local SNAP_DIR="$TESTSLIB/snaps/${SNAP_NAME}"
     if [ $# -gt 1 ]; then
@@ -36,7 +41,7 @@ install_local() {
     if [ -d "$SNAP_NAME" ]; then
         SNAP_DIR="$PWD/$SNAP_NAME"
     fi
-    SNAP_FILE=$(make_snap "$SNAP_NAME" "$SNAP_DIR")
+    SNAP_FILE=$(pack_local "$SNAP_NAME" "$SNAP_DIR")
 
     snap install --dangerous "$@" "$SNAP_FILE"
 }
@@ -46,18 +51,6 @@ install_local_as() {
     local name="$2"
     shift 2
     install_local "$snap" --name "$name" "$@"
-}
-
-install_local_devmode() {
-    install_local "$1" --devmode
-}
-
-install_local_classic() {
-    install_local "$1" --classic
-}
-
-install_local_jailmode() {
-    install_local "$1" --jailmode
 }
 
 if [ $# -eq 0 ]; then

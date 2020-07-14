@@ -13,12 +13,12 @@ execute: |
     SNAP_JAILMODE=test-devmode-cgroup
 
     # Check help
-    "$TESTSTOOLS"/snaps-state | MATCH "usage: make-snap \[snap-name\]"
-    "$TESTSTOOLS"/snaps-state -h | MATCH "usage: make-snap \[snap-name\]"
-    "$TESTSTOOLS"/snaps-state --help | MATCH "usage: make-snap \[snap-name\]"
+    "$TESTSTOOLS"/snaps-state | MATCH "usage: pack-local <snap-name>"
+    "$TESTSTOOLS"/snaps-state -h | MATCH "usage: pack-local <snap-name>"
+    "$TESTSTOOLS"/snaps-state --help | MATCH "usage: pack-local <snap-name>"
 
-    # Make a snap by using the make-snap subcommand
-    snap_path=$("$TESTSTOOLS"/snaps-state make-snap "$SNAP_NAME")
+    # Pack a local snap by using the pack-local subcommand
+    snap_path=$("$TESTSTOOLS"/snaps-state pack-local "$SNAP_NAME")
     snap install --dangerous "${snap_path}"
     test-snapd-tools.echo test123 | MATCH "test123"
     snap remove "$SNAP_NAME"
@@ -50,20 +50,20 @@ execute: |
     snap remove "$SNAP_NAME"_test
     rm -f "$TESTSLIB/snaps/${SNAP_NAME}/${SNAP_NAME}_test_1.0_all.snap"
 
-    # Make and install a snap by using the install-local-devmode subcommand
-    snap_path=$("$TESTSTOOLS"/snaps-state install-local-devmode "$SNAP_DEVMODE")
+    # Make and install a snap by using the install-local subcommand with --devmode
+    snap_path=$("$TESTSTOOLS"/snaps-state install-local "$SNAP_DEVMODE" --devmode)
     snap list "$SNAP_DEVMODE"
     snap remove "$SNAP_DEVMODE"
     rm -f "$TESTSLIB/snaps/${SNAP_DEVMODE}/${SNAP_DEVMODE}_1.0_all.snap"
 
-    # Make and install a snap by using the install-local-classic subcommand
-    snap_path=$("$TESTSTOOLS"/snaps-state install-local-classic "$SNAP_CLASSIC")
+    # Make and install a snap by using the install-local subcommand with --classic
+    snap_path=$("$TESTSTOOLS"/snaps-state install-local "$SNAP_CLASSIC" --classic)
     snap list "$SNAP_CLASSIC" | MATCH "classic$"
     snap remove "$SNAP_CLASSIC"
     rm -f "$TESTSLIB/snaps/${SNAP_CLASSIC}/${SNAP_CLASSIC}_1.0_all.snap"
 
-    # Make and install a snap by using the install-local-jailmode subcommand
-    snap_path=$("$TESTSTOOLS"/snaps-state install-local-jailmode "$SNAP_JAILMODE")
+    # Make and install a snap by using the install-local subcommand with --jailmode
+    snap_path=$("$TESTSTOOLS"/snaps-state install-local "$SNAP_JAILMODE" --jailmode)
     snap list "$SNAP_JAILMODE" | MATCH "jailmode$"
     snap remove "$SNAP_JAILMODE"
     rm -f "$TESTSLIB/snaps/${SNAP_JAILMODE}/${SNAP_JAILMODE}_1.0_all.snap"
