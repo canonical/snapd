@@ -59,3 +59,20 @@ const (
 	// IoctlSend is the ioctl request for APPARMOR_NOTIF_SEND.
 	IoctlSend IoctlRequest = 0xC008F805
 )
+
+func (req IoctlRequest) String() string {
+	switch req {
+	case IoctlSetFilter:
+		return "IoctlSetFilter"
+	case IoctlGetFilter:
+		return "IoctlGetFilter"
+	case IoctlIsIDValid:
+		return "IoctlIsIDValid"
+	case IoctlReceive:
+		return "IoctlReceive"
+	case IoctlSend:
+		return "IoctlSend"
+	default:
+		return fmt.Sprintf("IoctlRequest(%x)", uintptr(req))
+	}
+}
