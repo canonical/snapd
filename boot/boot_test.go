@@ -1482,20 +1482,20 @@ func (s *bootConfigSuite) TestBootConfigUpdateHappy(c *C) {
 	// pretend the boot config is managed
 	s.bootloader.IsManaged = true
 
-	updated, err := boot.UpdateManagedBootConfig(coreDev)
+	updated, err := boot.UpdateManagedBootConfigs(coreDev)
 	c.Assert(err, IsNil)
 	c.Check(updated, Equals, false)
 	c.Check(s.bootloader.UpdateCalls, Equals, 1)
 
 	s.bootloader.Updated = true
-	updated, err = boot.UpdateManagedBootConfig(coreDev)
+	updated, err = boot.UpdateManagedBootConfigs(coreDev)
 	c.Assert(err, IsNil)
 	c.Check(updated, Equals, true)
 	c.Check(s.bootloader.UpdateCalls, Equals, 2)
 
 	// no longer managed
 	s.bootloader.IsManaged = false
-	updated, err = boot.UpdateManagedBootConfig(coreDev)
+	updated, err = boot.UpdateManagedBootConfigs(coreDev)
 	c.Assert(err, IsNil)
 	c.Check(updated, Equals, false)
 	c.Check(s.bootloader.UpdateCalls, Equals, 2)
@@ -1508,13 +1508,13 @@ func (s *bootConfigSuite) TestBootConfigUpdateErrors(c *C) {
 	nonUC20coreDev := boottest.MockDevice("pc-kernel")
 	c.Assert(nonUC20coreDev.HasModeenv(), Equals, false)
 
-	updated, err := boot.UpdateManagedBootConfig(nonUC20coreDev)
+	updated, err := boot.UpdateManagedBootConfigs(nonUC20coreDev)
 	c.Assert(err, Equals, boot.ErrUnsupportedSystemMode)
 	c.Check(updated, Equals, false)
 	c.Check(s.bootloader.UpdateCalls, Equals, 0)
 
 	s.bootloader.IsManagedErr = errors.New("foo")
-	updated, err = boot.UpdateManagedBootConfig(coreDev)
+	updated, err = boot.UpdateManagedBootConfigs(coreDev)
 	c.Assert(err, ErrorMatches, "foo")
 	c.Check(updated, Equals, false)
 	c.Check(s.bootloader.UpdateCalls, Equals, 0)
@@ -1522,7 +1522,7 @@ func (s *bootConfigSuite) TestBootConfigUpdateErrors(c *C) {
 	s.bootloader.IsManagedErr = nil
 	s.bootloader.IsManaged = true
 	s.bootloader.UpdateErr = errors.New("update fail")
-	updated, err = boot.UpdateManagedBootConfig(coreDev)
+	updated, err = boot.UpdateManagedBootConfigs(coreDev)
 	c.Assert(err, ErrorMatches, "update fail")
 	c.Check(updated, Equals, false)
 	c.Check(s.bootloader.UpdateCalls, Equals, 1)
