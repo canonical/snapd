@@ -29,7 +29,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
+	"regexp"
 	"unicode/utf16"
 
 	"github.com/snapcore/snapd/dirs"
@@ -48,8 +48,10 @@ const (
 )
 
 var (
-	isSnapdTest = len(os.Args) > 0 && strings.HasSuffix(os.Args[0], ".test")
-	openEFIVar  = openEFIVarImpl
+	goTestExeRe = regexp.MustCompile(`^.*/.*go-build.*/.*\.test$`)
+	isSnapdTest = len(os.Args) > 0 && goTestExeRe.MatchString(os.Args[0])
+
+	openEFIVar = openEFIVarImpl
 )
 
 const expectedEFIvarfsDir = "/sys/firmware/efi/efivars"

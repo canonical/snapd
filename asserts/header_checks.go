@@ -154,17 +154,14 @@ func atoi(valueStr, whichFmt string, whichArgs ...interface{}) (int, error) {
 		}
 		return -1, intSyntaxError(fmt.Sprintf("%s is not an integer: %v", which, valueStr))
 	}
-	if !noPrefixZeros(valueStr, value == 0) {
+	if prefixZeros(valueStr) {
 		return -1, fmt.Errorf("%s has invalid prefix zeros: %s", fmt.Sprintf(whichFmt, whichArgs...), valueStr)
 	}
 	return value, nil
 }
 
-func noPrefixZeros(s string, isZero bool) bool {
-	if strings.HasPrefix(s, "0") {
-		return isZero && s == "0"
-	}
-	return true
+func prefixZeros(s string) bool {
+	return strings.HasPrefix(s, "0") && s != "0"
 }
 
 func checkRFC3339Date(headers map[string]interface{}, name string) (time.Time, error) {
@@ -215,7 +212,7 @@ func checkUint(headers map[string]interface{}, name string, bitSize int) (uint64
 		}
 		return 0, fmt.Errorf("%q header is not an unsigned integer: %v", name, valueStr)
 	}
-	if !noPrefixZeros(valueStr, value == 0) {
+	if prefixZeros(valueStr) {
 		return 0, fmt.Errorf("%q header has invalid prefix zeros: %s", name, valueStr)
 	}
 	return value, nil

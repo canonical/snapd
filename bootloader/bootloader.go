@@ -96,6 +96,7 @@ type installableBootloader interface {
 type RecoveryAwareBootloader interface {
 	Bootloader
 	SetRecoverySystemEnv(recoverySystemDir string, values map[string]string) error
+	GetRecoverySystemEnv(recoverySystemDir string, key string) (string, error)
 }
 
 type ExtractedRecoveryKernelImageBootloader interface {
