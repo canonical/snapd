@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/snapcore/snapd/bootloader/assets"
@@ -399,10 +398,12 @@ func (g *grub) CommandLine(modeArgs, extraArgs string) (string, error) {
 		assetName = "grub-recovery.cfg"
 		isRecovery = true
 	}
-	staticCmdline, err := staticCommandLineFromGrubAsset(assetName)
+	currentBootConfig := filepath.Join(g.dir(), "grub.cfg")
+	edition, err := editionFromDiskConfigAsset(currentBootConfig)
 	if err != nil {
-		return "", fmt.Errorf("cannot extract static command line element: %v", err)
+		return "", fmt.Errorf("cannot obtain edition number of current boot config: %v", err)
 	}
+	staticCmdline := staticCommandLineForGrubAssetEdition(assetName, edition)
 	// split the mode arguments and make sure they are sane for given
 	// run/recovery mode
 	mode, err := modeArgsForGrub(modeArgs, isRecovery)
@@ -420,34 +421,14 @@ func (g *grub) CommandLine(modeArgs, extraArgs string) (string, error) {
 	return strings.Join(append(mode, args...), " "), nil
 }
 
-// static command line is defined as:
-//     set snapd_static_cmdline_args='arg arg arg'\n
-// or
-//     set snapd_static_cmdline_args='arg'\n
-// or (empty static command line)
-//     set snapd_static_cmdline_args=''\n
-//     set snapd_static_cmdline_args=\n
-var grubStaticCmdlineArgsRE = regexp.MustCompile(`(?m)^set snapd_static_cmdline_args=(.*)$`)
-
-// staticCommandLineFromGrubAsset extracts the static command line element from
-// grub boot config asset on disk.
-func staticCommandLineFromGrubAsset(asset string) (string, error) {
-	gbc := assets.Internal(asset)
-	if gbc == nil {
-		return "", fmt.Errorf("internal error: asset %q not found", asset)
+// staticCommandLineForGrubAssetEdition fetches a static command line for given
+// grub asset edition
+func staticCommandLineForGrubAssetEdition(asset string, edition uint) string {
+	cmdline := assets.Internal(fmt.Sprintf("%s:edition=%v:static_cmdline", asset, edition))
+	if cmdline == nil {
+		return ""
 	}
-	m := grubStaticCmdlineArgsRE.FindSubmatch(gbc)
-	if len(m) == 2 {
-		cmdline := string(m[1])
-		if cmdline == "" || cmdline == "''" {
-			return "", nil
-		}
-		if len(cmdline) < 2 || cmdline[0] != '\'' || cmdline[len(cmdline)-1] != '\'' {
-			return "", fmt.Errorf("incorrect static command line format: %q", m[0])
-		}
-		return cmdline[1 : len(cmdline)-1], nil
-	}
-	return "", nil
+	return string(cmdline)
 }
 
 // modeArgsForGrub validates the snapd mode arguments for the kernel command

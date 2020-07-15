@@ -822,92 +822,49 @@ this is updated grub.cfg
 	c.Assert(filepath.Join(s.grubEFINativeDir(), "grub.cfg"), testutil.FileEquals, oldConfig)
 }
 
-func (s *grubTestSuite) TestStaticCmdlineFromDiskAsset(c *C) {
-	grubCfg := assets.Internal("grub.cfg")
-	c.Assert(grubCfg, NotNil)
-	grubRecoveryCfg := assets.Internal("grub-recovery.cfg")
-	c.Assert(grubRecoveryCfg, NotNil)
+func (s *grubTestSuite) TestStaticCmdlineForGrubAsset(c *C) {
+	restore := assets.MockInternal("asset:edition=1:static_cmdline", []byte(`static cmdline "with spaces"`))
+	defer restore()
+	cmdline := bootloader.StaticCommandLineForGrubAssetEdition("asset", 1)
+	c.Check(cmdline, Equals, `static cmdline "with spaces"`)
 
-	longBootConfig := `# Snapd-Boot-Config-Edition: 2
-this is a long boot config
-set snapd_static_cmdline_args='foo bar baz'
-`
-
-	for idx, tc := range []struct {
-		content string
-		cmdline string
-		errStr  string
-	}{
-		{content: string(grubCfg), cmdline: "console=ttyS0 console=tty1 panic=-1"},
-		{content: string(grubRecoveryCfg), cmdline: "console=ttyS0 console=tty1 panic=-1"},
-		{
-			content: "set snapd_static_cmdline_args='foo=1 bar=2 baz=0x123'\n",
-			cmdline: "foo=1 bar=2 baz=0x123",
-		},
-		{
-			content: `set snapd_static_cmdline_args='foo=BIOS\x20Boot'`,
-			cmdline: `foo=BIOS\x20Boot`,
-		},
-		{
-			content: `set snapd_static_cmdline_args='addr=1$123'`,
-			cmdline: `addr=1$123`,
-		},
-		{
-			content: longBootConfig, cmdline: "foo bar baz",
-		},
-		{
-			content: "set snapd_static_cmdline_args=\n", cmdline: "",
-		},
-		// no static args
-		{content: "set snapd_static_cmdline_args=''\n", cmdline: ""},
-		{content: "some random script", cmdline: ""},
-		// malformed
-		{
-			content: "set snapd_static_cmdline_args='\n",
-			errStr:  "incorrect static command line format: \"set snapd.*\"",
-		},
-		{
-			content: "set snapd_static_cmdline_args='a\n",
-			errStr:  "incorrect static command line format: \"set snapd.*\"",
-		},
-		{
-			content: "set snapd_static_cmdline_args=b'\n",
-			errStr:  "incorrect static command line format: \"set snapd.*\"",
-		},
-	} {
-		c.Logf("tc: %v", idx)
-		restore := assets.MockInternal("asset", []byte(tc.content))
-		cmdline, err := bootloader.StaticCommandLineFromGrubAsset("asset")
-		restore()
-		if tc.errStr != "" {
-			c.Assert(err, ErrorMatches, tc.errStr)
-		} else {
-			c.Assert(err, IsNil)
-			c.Check(cmdline, Equals, tc.cmdline)
-		}
-	}
+	cmdline = bootloader.StaticCommandLineForGrubAssetEdition("asset", 2)
+	c.Check(cmdline, Equals, "")
 }
 
-func (s *grubTestSuite) TestCommandLine(c *C) {
-	// pretend there's more than one space between arguments
-	grubCfg := `# Snapd-Boot-Config-Edition: 2
-set snapd_static_cmdline_args='arg1   foo=123 panic=-1 arg2="with spaces "'
-boot script
-`
-	restore := assets.MockInternal("grub.cfg", []byte(grubCfg))
-	defer restore()
-	grubRecoveryCfg := `# Snapd-Boot-Config-Edition: 2
-set snapd_static_cmdline_args='recovery config panic=-1 '
-boot script
-`
-	restore = assets.MockInternal("grub-recovery.cfg", []byte(grubRecoveryCfg))
-	defer restore()
+func (s *grubTestSuite) TestCommandLineNotManaged(c *C) {
+	grubCfg := "boot script\n"
 
 	// native EFI/ubuntu setup
 	s.makeFakeGrubEFINativeEnv(c, []byte(grubCfg))
 
 	opts := &bootloader.Options{NoSlashBoot: true}
 	g := bootloader.NewGrub(s.rootdir, opts)
+	c.Assert(g, NotNil)
+	mg, ok := g.(bootloader.ManagedAssetsBootloader)
+	c.Assert(ok, Equals, true)
+
+	args, err := mg.CommandLine("", "")
+	c.Assert(err, ErrorMatches, "cannot obtain edition number of current boot config: no edition")
+	c.Check(args, Equals, "")
+}
+
+func (s *grubTestSuite) TestCommandLineMocked(c *C) {
+	grubCfg := `# Snapd-Boot-Config-Edition: 2
+boot script
+`
+	staticCmdline := `arg1   foo=123 panic=-1 arg2="with spaces "`
+	restore := assets.MockInternal("grub.cfg:edition=2:static_cmdline", []byte(staticCmdline))
+	defer restore()
+	staticCmdlineRecovery := `recovery config panic=-1`
+	restore = assets.MockInternal("grub-recovery.cfg:edition=2:static_cmdline", []byte(staticCmdlineRecovery))
+	defer restore()
+
+	// native EFI/ubuntu setup
+	s.makeFakeGrubEFINativeEnv(c, []byte(grubCfg))
+
+	optsNoSlashBoot := &bootloader.Options{NoSlashBoot: true}
+	g := bootloader.NewGrub(s.rootdir, optsNoSlashBoot)
 	c.Assert(g, NotNil)
 	mg, ok := g.(bootloader.ManagedAssetsBootloader)
 	c.Assert(ok, Equals, true)
@@ -930,8 +887,8 @@ boot script
 	c.Assert(args, Equals, "")
 
 	// now check the recovery bootloader
-	opts = &bootloader.Options{NoSlashBoot: true, Recovery: true}
-	mrg := bootloader.NewGrub(s.rootdir, opts).(bootloader.ManagedAssetsBootloader)
+	optsRecovery := &bootloader.Options{NoSlashBoot: true, Recovery: true}
+	mrg := bootloader.NewGrub(s.rootdir, optsRecovery).(bootloader.ManagedAssetsBootloader)
 	args, err = mrg.CommandLine(modeArgs, extraArgs)
 	c.Assert(err, IsNil)
 	// static command line from recovery asset
@@ -942,6 +899,51 @@ boot script
 	args, err = mrg.CommandLine(modeArgs, extraArgs)
 	c.Assert(err, ErrorMatches, `unexpected recovery asset mode arguments: "snapd_recovery_mode=run"`)
 	c.Assert(args, Equals, "")
+
+	// try with a different edition
+	grubCfg3 := `# Snapd-Boot-Config-Edition: 3
+boot script
+`
+	staticCmdlineEdition3 := `edition=3 static args`
+	restore = assets.MockInternal("grub.cfg:edition=3:static_cmdline", []byte(staticCmdlineEdition3))
+	defer restore()
+	s.makeFakeGrubEFINativeEnv(c, []byte(grubCfg3))
+	mg = bootloader.NewGrub(s.rootdir, optsNoSlashBoot).(bootloader.ManagedAssetsBootloader)
+	c.Assert(g, NotNil)
+	modeArgs = "snapd_recovery_mode=run"
+	extraArgs = `extra_arg=1`
+	args, err = mg.CommandLine(modeArgs, extraArgs)
+	c.Assert(err, IsNil)
+	c.Check(args, Equals, `snapd_recovery_mode=run edition=3 static args extra_arg=1`)
+}
+
+func (s *grubTestSuite) TestCommandLineReal(c *C) {
+	grubCfg := `# Snapd-Boot-Config-Edition: 1
+boot script
+`
+	// native EFI/ubuntu setup
+	s.makeFakeGrubEFINativeEnv(c, []byte(grubCfg))
+
+	opts := &bootloader.Options{NoSlashBoot: true}
+	g := bootloader.NewGrub(s.rootdir, opts)
+	c.Assert(g, NotNil)
+	mg, ok := g.(bootloader.ManagedAssetsBootloader)
+	c.Assert(ok, Equals, true)
+
+	modeArgs := "snapd_recovery_mode=run"
+	extraArgs := "foo bar baz=1"
+	args, err := mg.CommandLine(modeArgs, extraArgs)
+	c.Assert(err, IsNil)
+	c.Check(args, Equals, `snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 foo bar baz=1`)
+
+	// now check the recovery bootloader
+	opts = &bootloader.Options{NoSlashBoot: true, Recovery: true}
+	mrg := bootloader.NewGrub(s.rootdir, opts).(bootloader.ManagedAssetsBootloader)
+	modeArgs = "snapd_recovery_mode=recover snapd_recovery_system=20200202"
+	args, err = mrg.CommandLine(modeArgs, extraArgs)
+	c.Assert(err, IsNil)
+	// static command line from recovery asset
+	c.Check(args, Equals, `snapd_recovery_mode=recover snapd_recovery_system=20200202 console=ttyS0 console=tty1 panic=-1 foo bar baz=1`)
 }
 
 func (s *grubTestSuite) TestModeArgsForGrub(c *C) {
