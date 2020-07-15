@@ -20,11 +20,10 @@
 package bootloader
 
 import (
-	"bufio"
-	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/snapcore/snapd/bootloader/assets"
@@ -404,7 +403,8 @@ func (g *grub) CommandLine(modeArgs, extraArgs string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("cannot extract static command line element: %v", err)
 	}
-	// sort arguments so that they match their positions
+	// split the mode arguments and make sure they are sane for given
+	// run/recovery mode
 	mode, err := modeArgsForGrub(modeArgs, isRecovery)
 	if err != nil {
 		return "", err
@@ -424,8 +424,10 @@ func (g *grub) CommandLine(modeArgs, extraArgs string) (string, error) {
 //     set snapd_static_cmdline_args='arg arg arg'\n
 // or
 //     set snapd_static_cmdline_args='arg'\n
-const grubStaticCmdlinePrefix = `set snapd_static_cmdline_args=`
-const grubStaticCmdlineQuote = `'`
+// or (empty static command line)
+//     set snapd_static_cmdline_args=''\n
+//     set snapd_static_cmdline_args=\n
+var grubStaticCmdlineArgsRE = regexp.MustCompile(`(?m)^set snapd_static_cmdline_args=(.*)$`)
 
 // staticCommandLineFromGrubAsset extracts the static command line element from
 // grub boot config asset on disk.
@@ -434,25 +436,16 @@ func staticCommandLineFromGrubAsset(asset string) (string, error) {
 	if gbc == nil {
 		return "", fmt.Errorf("internal error: asset %q not found", asset)
 	}
-	scanner := bufio.NewScanner(bytes.NewReader(gbc))
-	for scanner.Scan() {
-		line := scanner.Text()
-		if !strings.HasPrefix(line, grubStaticCmdlinePrefix) {
-			continue
+	m := grubStaticCmdlineArgsRE.FindSubmatch(gbc)
+	if len(m) == 2 {
+		cmdline := string(m[1])
+		if cmdline == "" || cmdline == "''" {
+			return "", nil
 		}
-		// minimal length is the prefix + suffix with no content
-		minLength := len(grubStaticCmdlinePrefix) + len(grubStaticCmdlineQuote)*2
-		if !strings.HasPrefix(line, grubStaticCmdlinePrefix+grubStaticCmdlineQuote) ||
-			!strings.HasSuffix(line, grubStaticCmdlineQuote) ||
-			len(line) < minLength {
-
-			return "", fmt.Errorf("incorrect static command line format: %q", line)
+		if len(cmdline) < 2 || cmdline[0] != '\'' || cmdline[len(cmdline)-1] != '\'' {
+			return "", fmt.Errorf("incorrect static command line format: %q", m[0])
 		}
-		cmdline := line[len(grubStaticCmdlinePrefix+grubStaticCmdlineQuote) : len(line)-len(grubStaticCmdlineQuote)]
-		return cmdline, nil
-	}
-	if err := scanner.Err(); err != nil {
-		return "", err
+		return cmdline[1 : len(cmdline)-1], nil
 	}
 	return "", nil
 }

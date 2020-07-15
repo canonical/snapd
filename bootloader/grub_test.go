@@ -855,16 +855,23 @@ set snapd_static_cmdline_args='foo bar baz'
 		{
 			content: longBootConfig, cmdline: "foo bar baz",
 		},
+		{
+			content: "set snapd_static_cmdline_args=\n", cmdline: "",
+		},
 		// no static args
 		{content: "set snapd_static_cmdline_args=''\n", cmdline: ""},
 		{content: "some random script", cmdline: ""},
 		// malformed
 		{
-			content: "set snapd_static_cmdline_args=\n",
+			content: "set snapd_static_cmdline_args='\n",
 			errStr:  "incorrect static command line format: \"set snapd.*\"",
 		},
 		{
-			content: "set snapd_static_cmdline_args='\n",
+			content: "set snapd_static_cmdline_args='a\n",
+			errStr:  "incorrect static command line format: \"set snapd.*\"",
+		},
+		{
+			content: "set snapd_static_cmdline_args=b'\n",
 			errStr:  "incorrect static command line format: \"set snapd.*\"",
 		},
 	} {
