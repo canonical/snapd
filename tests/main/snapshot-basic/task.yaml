@@ -34,15 +34,20 @@ execute: |
     snap check-snapshot "$SET_ID"
 
     # and is exportable
-    snap export-snapshot "$SET_ID" "${SET_ID}_snapshot_export.tar"
-    test -e "${SET_ID}_snapshot_export.tar"
-    test "$( tar -tvf "${SET_ID}_snapshot_export.tar" | wc -l )" = "3"
+    snap export-snapshot "$SET_ID" "${SET_ID}_export.snapshot"
+    test -e "${SET_ID}_export.snapshot
+    test "$( tar -tvf "${SET_ID}_export.snapshot | wc -l )" = "3"
+    # do it again and ensure it has the files have the same size
+    snap export-snapshot "$SET_ID" "${SET_ID}_export-2.snapshot"
+    s1="$(stat -c%s "${SET_ID}_export.snapshot" )"
+    s2="$(stat -c%s "${SET_ID}_export-2.snapshot" )"
+    test $s1 = $s2
 
     # remove the canaries
     rm ~/snap/*/{current,common}/canary.txt
 
-    # remove the export
-    rm "${SET_ID}_snapshot_export.tar"
+    # remove the exports
+    rm "${SET_ID}_export*.snapshot
 
     # restore one of them
     snap restore "$SET_ID" test-snapd-sh
@@ -106,12 +111,12 @@ execute: |
     snap check-snapshot "$SET_ID"
     # export the large snap and record memory usage
     "$TESTSTOOLS"/memory-observe-do -o memory-kb.txt snap export-snapshot \
-    "$SET_ID" "${SET_ID}_snapshot_export.snapshot"
-    test -e "${SET_ID}_snapshot_export.snapshot"
+    "$SET_ID" "${SET_ID}_export.snapshot"
+    test -e "${SET_ID}_export.snapshot"
     # Ensure our snapshot export file is at least 50Mb. The data we created
     # is 100Mb of randomness so even with amazing compression we should never
     # have a smaller file
-    test "$(stat -c%s "${SET_ID}_snapshot_export.snapshot")" -gt 50000000
+    test "$(stat -c%s "${SET_ID}_export.snapshot")" -gt 50000000
     # the io.Copy uses a 32k buffer, so extra memory usage should be limited.
     # The threshold in this test is set to about 40Mb
     test "$(cat memory-kb.txt)" -lt 40000
