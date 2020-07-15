@@ -19,6 +19,10 @@
 
 package assets
 
+import (
+	"strings"
+)
+
 // TODO:UC20 extract common and template parts of command line
 
 // scripts content from https://github.com/snapcore/pc-amd64-gadget, commit:
@@ -32,7 +36,10 @@ package assets
 //
 //     gadget: bump edition to 2, using production signing keys for everything.
 
-const grubBootConfig = `# Snapd-Boot-Config-Edition: 1
+const grubBootConfigStaticCmdline = "console=ttyS0 console=tty1 panic=-1"
+
+// TODO:UC20: generate boot config from a template filling static command line
+const grubBootConfigTemplate = `# Snapd-Boot-Config-Edition: 1
 
 set default=0
 set timeout=3
@@ -41,7 +48,7 @@ set timeout_style=hidden
 # load only kernel_status from the bootenv
 load_env --file /EFI/ubuntu/grubenv kernel_status snapd_extra_cmdline_args
 
-set snapd_static_cmdline_args='console=ttyS0 console=tty1 panic=-1'
+set snapd_static_cmdline_args='####STATIC_CMDLINE####'
 
 set kernel=kernel.efi
 
@@ -78,7 +85,7 @@ else
 fi
 `
 
-const grubRecoveryConfig = `# Snapd-Boot-Config-Edition: 1
+const grubRecoveryConfigTemplate = `# Snapd-Boot-Config-Edition: 1
 
 set default=0
 set timeout=3
@@ -89,7 +96,7 @@ if [ -e /EFI/ubuntu/grubenv ]; then
 fi
 
 # standard cmdline params
-set snapd_static_cmdline_args='console=ttyS0 console=tty1 panic=-1'
+set snapd_static_cmdline_args='####STATIC_CMDLINE####'
 
 # if no default boot mode set, pick one
 if [ -z "$snapd_recovery_mode" ]; then
@@ -144,6 +151,15 @@ menuentry 'System setup' --hotkey=f 'uefi-firmware' {
 `
 
 func init() {
-	registerInternal("grub.cfg", []byte(grubBootConfig))
-	registerInternal("grub-recovery.cfg", []byte(grubRecoveryConfig))
+	// static command line for edition 1 of grub config
+	registerInternal("grub.cfg:edition=1:static_cmdline", []byte(grubBootConfigStaticCmdline))
+	registerInternal("grub.cfg",
+		[]byte(strings.Replace(grubBootConfigTemplate,
+			"####STATIC_CMDLINE####", grubBootConfigStaticCmdline, 1)))
+
+	registerInternal("grub-recovery.cfg",
+		[]byte(strings.Replace(grubRecoveryConfigTemplate,
+			"####STATIC_CMDLINE####", grubBootConfigStaticCmdline, 1)))
+	// static command line for edition 1 of grub recovery config
+	registerInternal("grub-recovery.cfg:edition=1:static_cmdline", []byte(grubBootConfigStaticCmdline))
 }

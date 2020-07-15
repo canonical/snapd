@@ -49,12 +49,26 @@ func (s *grubAssetsTestSuite) testGrubConfigContains(c *C, name string, keys ...
 }
 
 func (s *grubAssetsTestSuite) TestGrubConf(c *C) {
-	s.testGrubConfigContains(c, "grub.cfg", "snapd_recovery_mode")
+	s.testGrubConfigContains(c, "grub.cfg",
+		"snapd_recovery_mode",
+		"set snapd_static_cmdline_args='console=ttyS0 console=tty1 panic=-1'",
+	)
 }
 
 func (s *grubAssetsTestSuite) TestGrubRecoveryConf(c *C) {
 	s.testGrubConfigContains(c, "grub-recovery.cfg",
 		"snapd_recovery_mode",
 		"snapd_recovery_system",
+		"set snapd_static_cmdline_args='console=ttyS0 console=tty1 panic=-1'",
 	)
+}
+
+func (s *grubAssetsTestSuite) TestGrubStaticCmdline(c *C) {
+	cmdline := assets.Internal("grub.cfg:edition=1:static_cmdline")
+	c.Assert(cmdline, NotNil)
+	c.Check(string(cmdline), DeepEquals, "console=ttyS0 console=tty1 panic=-1")
+
+	cmdline = assets.Internal("grub-recovery.cfg:edition=1:static_cmdline")
+	c.Assert(cmdline, NotNil)
+	c.Check(string(cmdline), DeepEquals, "console=ttyS0 console=tty1 panic=-1")
 }
