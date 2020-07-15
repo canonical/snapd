@@ -70,8 +70,9 @@ func (s *deviceMgrBootconfigSuite) SetUpTest(c *C) {
 
 func (s *deviceMgrBootconfigSuite) setupUC20Model(c *C) *asserts.Model {
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
-		Brand: "canonical",
-		Model: "pc-model-20",
+		Brand:  "canonical",
+		Model:  "pc-model-20",
+		Serial: "didididi",
 	})
 	return s.makeModelAssertionInState(c, "canonical", "pc-model-20", mockCore20ModelHeaders)
 }
@@ -181,8 +182,9 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateUpdateErr(c *C) {
 func (s *deviceMgrBootconfigSuite) TestBootConfigNoUC20(c *C) {
 	s.state.Lock()
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
-		Brand: "canonical",
-		Model: "pc-model",
+		Brand:  "canonical",
+		Model:  "pc-model",
+		Serial: "didididi",
 	})
 	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
 		"architecture": "amd64",
@@ -202,6 +204,12 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigRemodelDoNothing(c *C) {
 	defer restore()
 
 	s.state.Lock()
+
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc-model-20",
+		Serial: "didididi",
+	})
 
 	uc20Model := s.setupUC20Model(c)
 	// save the hassle and try a trivial remodel
