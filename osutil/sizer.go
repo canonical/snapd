@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2018-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,18 +17,24 @@
  *
  */
 
-package backend
+// XXX: not a great fit for osutil but we have no ioutil and even if we
+// did the name ioutil is taken so we would need something else.
+package osutil
 
-type sizer struct {
+type Sizer struct {
 	size int64
 }
 
-func (sz *sizer) Write(data []byte) (n int, err error) {
+func (sz *Sizer) Write(data []byte) (n int, err error) {
 	n = len(data)
 	sz.size += int64(n)
 	return
 }
 
-func (sz *sizer) Reset() {
+func (sz *Sizer) Reset() {
 	sz.size = 0
+}
+
+func (sz *Sizer) Size() int64 {
+	return sz.size
 }
