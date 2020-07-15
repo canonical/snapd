@@ -21,7 +21,6 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -64,9 +63,6 @@ func (c *cmdInitramfsMounts) Execute(args []string) error {
 }
 
 var (
-	// Stdout - can be overridden in tests
-	stdout io.Writer = os.Stdout
-
 	snapTypeToMountDir = map[snap.Type]string{
 		snap.TypeBase:   "base",
 		snap.TypeKernel: "kernel",
