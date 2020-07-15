@@ -31,9 +31,6 @@ execute: |
     #shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB"/systems.sh
 
-    # this will be later used by userd
-    export XDG_DATA_DIRS=/usr/share
-
     dbus-launch > dbus.env
     #shellcheck disable=SC2046
     export $(xargs < dbus.env)
@@ -55,8 +52,7 @@ execute: |
     # the URL correctly to the right handler
     cat << 'EOF' > /tmp/xdg-open
     #!/bin/sh
-    echo "$@" > /tmp/xdg-open-output
-    echo "XDG_DATA_DIRS=$XDG_DATA_DIRS" >> /tmp/xdg-open-output
+    echo "$*" > /tmp/xdg-open-output
     EOF
     chmod +x /tmp/xdg-open
     if [ -e /usr/bin/xdg-open ]; then
@@ -92,9 +88,6 @@ execute: |
     ensure_xdg_open_output "help:snapcraft"
     ensure_xdg_open_output "apt:snapcraft"
     ensure_xdg_open_output "zoommtg://snapcraft.io"
-    ensure_xdg_open_output "slack://5NAPPY111/magic-login/bcaf81ee-07b1-4362-9c09-ff46bd6e1bb9"
-    # Ensure XDG_DATA_DIRS was prefixed with snap specific location
-    test "$(tail -1 /tmp/xdg-open-output)" = "XDG_DATA_DIRS=$SNAP_MOUNT_DIR/test-snapd-desktop/current/usr/share:/usr/share"
 
     # Ensure other schemes are not passed through
     rm /tmp/xdg-open-output
