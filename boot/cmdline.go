@@ -193,6 +193,10 @@ func ComposeCommandLine(model *asserts.Model) (string, error) {
 	return mbl.CommandLine(bv["snapd_extra_cmdline_args"], modeArgs)
 }
 
+// SetExtraCommandLineArgs sets the value of extra command line parameters
+// passed to the kernel during boot by the ubuntu-boot bootloader. The previous
+// setting is overwritten. Does nothing when the system does not support managed
+// bootloader assets.
 func SetExtraCommandLineArgs(model *asserts.Model, args string) error {
 	if model.Grade() == asserts.ModelGradeUnset {
 		return nil
