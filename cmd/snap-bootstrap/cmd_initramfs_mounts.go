@@ -196,6 +196,7 @@ func doSystemdMountImpl(what, where string, opts *SystemdMountOptions) error {
 			"initrd.target",
 			"initrd-fs.target",
 			"initrd-switch-root.target",
+			"local-fs.target",
 		} {
 			targetDir := filepath.Join("/run/systemd/system", initrdUnit+".d")
 			err := os.MkdirAll(targetDir, 0755)
