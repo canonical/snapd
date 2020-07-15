@@ -4,21 +4,38 @@ description: |
   Check that operations such as snap installation or snap removal (with an
   automatic snapshot) error out early if there is not enough disk space.
 
+# excluded on core16 because installing hello-world as part of the test would
+# not pull core as a base, which makes it tricky to resize tmpfs properly to
+# trigger error condition.
+systems: [-ubuntu-core-16-*]
+
 environment:
   TMPFSMOUNT: /var/lib/snapd
 
 prepare: |
+  # wait for first boot to be done
+  snap wait system seed.loaded
+
   systemctl stop snapd.{socket,service}
 
-  # mount /var/lib/snapd on a tmpfs
+  # mount /var/lib/snapd on a tmpfs and copy original contents there.
+  cp -ar /var/lib/snapd ./snapd.real
   mount -t tmpfs tmpfs -o size=500M,mode=0755 "$TMPFSMOUNT"
+  cp -ar ./snapd.real/* /var/lib/snapd/
 
   systemctl start snapd.{socket,service}
 
 restore: |
+  rm -rf ./snapd.real
   systemctl stop snapd.{socket,service}
   umount -l "$TMPFSMOUNT"
   systemctl start snapd.{socket,service}
+  if ! snap list | grep -q "core "; then
+    for mnt in $(ls /snap/core); do
+      umount "/snap/core/$mnt" || true
+    done
+    rm -rf /snap/core
+  fi
 
 execute: |
   resize() {
@@ -35,27 +52,35 @@ execute: |
   echo "Snap download fails with little disk space"
   NEWSIZE=$(expr $(get_disk_usage) + 1)
   resize "${NEWSIZE}M"
-  snap install hello-world 2>&1 | MATCH "Ensure prerequisites for \"hello-world\" are available \(cannot install snap base \"core\": insufficient space in \"/var/lib/snapd\", at least .* more is required\)"
+  dd if=/dev/zero of=/var/lib/snapd/filler bs=1024 count=1023
+  # note, the error differs slightly depending on the test system, e.g. on core18
+  # it fails on prerequisites when trying to download "core" base snap.
+  snap install hello-world 2>&1 | MATCH ".*cannot install .*: insufficient space in \"/var/lib/snapd\""
+  rm /var/lib/snapd/filler
 
-  # note, installing hello-world also pulls core snap.
   echo "And succeeds with enough space"
-  resize 600M
+  NEWSIZE=$(expr $(get_disk_usage) + 200)
+  resize "${NEWSIZE}M"
   snap install hello-world
 
-  # run the snap once to have data dirs created
-  hello-world
+  # automatic snapshots are not created on core systems, so skip remove test there
+  if [[ "$SPREAD_SYSTEM" != ubuntu-core-* ]]; then
+    # run the snap once to have data dirs created
+    hello-world
 
-  # create 4M filler in common directory to inflate backup size
-  dd if=/dev/zero of=/var/snap/hello-world/common/filler bs=1024 count=4096
+    # create 4M filler in common directory to inflate backup size
+    dd if=/dev/zero of=/var/snap/hello-world/common/filler bs=1024 count=4096
 
-  echo "Resizing the disk down with just 1MB extra"
-  NEWSIZE=$(expr $(get_disk_usage) + 1)
-  resize "${NEWSIZE}M"
+    echo "Resizing the disk down with just 1MB extra"
+    NEWSIZE=$(expr $(get_disk_usage) + 1)
+    resize "${NEWSIZE}M"
 
-  if snap remove hello-world > error.txt 2>&1; then
-    echo "expected snap remove hello-world to fail"
-    exit 1
+    if snap remove hello-world > error.txt 2>&1; then
+      echo "expected snap remove hello-world to fail"
+      exit 1
+    fi
+
+    MATCH "error: cannot remove \"hello-world\": cannot create automatic snapshot when" < error.txt
+    MATCH "removing last revision of the snap: insufficient space in" < error.txt
   fi
-  
-  MATCH "error: cannot remove \"hello-world\": cannot create automatic snapshot when" < error.txt
-  MATCH "removing last revision of the snap: insufficient space in" < error.txt
+
