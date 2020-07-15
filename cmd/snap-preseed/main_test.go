@@ -184,6 +184,16 @@ func (s *startPreseedSuite) TestRunPreseedHappy(c *C) {
 
 	c.Assert(mockTargetSnapd.Calls(), HasLen, 1)
 	c.Check(mockTargetSnapd.Calls()[0], DeepEquals, []string{"snapd"})
+
+	// relative chroot path works too
+	tmpDirPath, relativeChroot := filepath.Split(tmpDir)
+	pwd, err := os.Getwd()
+	c.Assert(err, IsNil)
+	defer func() {
+		os.Chdir(pwd)
+	}()
+	c.Assert(os.Chdir(tmpDirPath), IsNil)
+	c.Check(main.Run(parser, []string{relativeChroot}), IsNil)
 }
 
 type Fake16Seed struct {

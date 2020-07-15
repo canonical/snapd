@@ -67,3 +67,7 @@ execute: |
   echo "Running preseeeding again should succeed"
   /usr/lib/snapd/snap-preseed "$IMAGE_MOUNTPOINT"
 
+  echo "And running snap-preseed with a relative path works"
+  cd /mnt
+  /usr/lib/snapd/snap-preseed --reset cloudimg
+  /usr/lib/snapd/snap-preseed cloudimg
