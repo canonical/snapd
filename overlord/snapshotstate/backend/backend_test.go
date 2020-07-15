@@ -745,7 +745,7 @@ func (s *snapshotSuite) TestEstimateSnapshotSize(c *check.C) {
 
 	sz, err := backend.EstimateSnapshotSize(info)
 	c.Assert(err, check.IsNil)
-	c.Check(sz, check.Equals, int64(expected))
+	c.Check(sz, check.Equals, uint64(expected))
 }
 
 func (s *snapshotSuite) TestEstimateSnapshotSizeEmpty(c *check.C) {
@@ -766,7 +766,7 @@ func (s *snapshotSuite) TestEstimateSnapshotSizeEmpty(c *check.C) {
 
 	sz, err := backend.EstimateSnapshotSize(info)
 	c.Assert(err, check.IsNil)
-	c.Check(sz, check.Equals, int64(0))
+	c.Check(sz, check.Equals, uint64(0))
 }
 
 
@@ -778,5 +778,5 @@ func (s *snapshotSuite) TestEstimateSnapshotSizeNotDataDirs(c *check.C) {
 
 	sz, err := backend.EstimateSnapshotSize(info)
 	c.Assert(err, check.IsNil)
-	c.Check(sz, check.Equals, int64(0))
+	c.Check(sz, check.Equals, uint64(0))
 }

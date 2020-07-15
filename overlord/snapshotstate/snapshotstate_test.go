@@ -1492,13 +1492,13 @@ func (snapshotSuite) TestEstimateSnapshotSize(c *check.C) {
 		Current:  sideInfo.Revision,
 	})
 
-	defer snapshotstate.MockBackendEstimateSnapshotSize(func(info *snap.Info) (int64, error) {
+	defer snapshotstate.MockBackendEstimateSnapshotSize(func(info *snap.Info) (uint64, error) {
 		return 123, nil
 	})()
 
 	sz, err := snapshotstate.EstimateSnapshotSize(st, "some-snap")
 	c.Assert(err, check.IsNil)
-	c.Check(sz, check.Equals, int64(123))
+	c.Check(sz, check.Equals, uint64(123))
 }
 
 
@@ -1514,7 +1514,7 @@ func (snapshotSuite) TestEstimateSnapshotSizeWithConfig(c *check.C) {
 		Current:  sideInfo.Revision,
 	})
 
-	defer snapshotstate.MockBackendEstimateSnapshotSize(func(info *snap.Info) (int64, error) {
+	defer snapshotstate.MockBackendEstimateSnapshotSize(func(info *snap.Info) (uint64, error) {
 		return 100, nil
 	})()
 
@@ -1527,7 +1527,7 @@ func (snapshotSuite) TestEstimateSnapshotSizeWithConfig(c *check.C) {
 	sz, err := snapshotstate.EstimateSnapshotSize(st, "some-snap")
 	c.Assert(err, check.IsNil)
 	// size is 100 + 18
-	c.Check(sz, check.Equals, int64(118))
+	c.Check(sz, check.Equals, uint64(118))
 }
 
 
@@ -1543,7 +1543,7 @@ func (snapshotSuite) TestEstimateSnapshotSizeError(c *check.C) {
 		Current:  sideInfo.Revision,
 	})
 
-	defer snapshotstate.MockBackendEstimateSnapshotSize(func(info *snap.Info) (int64, error) {
+	defer snapshotstate.MockBackendEstimateSnapshotSize(func(info *snap.Info) (uint64, error) {
 		return 0, fmt.Errorf("an error")
 	})()
 

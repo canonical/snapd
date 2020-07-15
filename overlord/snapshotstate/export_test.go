@@ -142,7 +142,7 @@ func MockBackendCleanup(f func(*backend.RestoreState)) (restore func()) {
 	}
 }
 
-func MockBackendEstimateSnapshotSize(f func(*snap.Info) (int64, error)) (restore func()) {
+func MockBackendEstimateSnapshotSize(f func(*snap.Info) (uint64, error)) (restore func()) {
 	old := backendEstimateSnapshotSize
 	backendEstimateSnapshotSize = f
 	return func() {

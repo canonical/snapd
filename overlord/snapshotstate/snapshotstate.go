@@ -82,7 +82,7 @@ func allActiveSnapNames(st *state.State) ([]string, error) {
 	return names, nil
 }
 
-func EstimateSnapshotSize(st *state.State, instanceName string) (int64, error) {
+func EstimateSnapshotSize(st *state.State, instanceName string) (uint64, error) {
 	cur, err := snapstateCurrentInfo(st, instanceName)
 	if err != nil {
 		return 0, err
@@ -96,7 +96,7 @@ func EstimateSnapshotSize(st *state.State, instanceName string) (int64, error) {
 		return 0, err
 	}
 	if rawCfg != nil {
-		sz += int64(len([]byte(*rawCfg)))
+		sz += uint64(len([]byte(*rawCfg)))
 	}
 	return sz, nil
 }
