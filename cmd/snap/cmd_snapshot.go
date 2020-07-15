@@ -102,7 +102,7 @@ restriction may be lifted in the future.
 `)
 
 var longExportSnapshotHelp = i18n.G(`
-Export a snapshot into the target directory.
+Export a snapshot to the given filename.
 `)
 
 type savedCmd struct {
