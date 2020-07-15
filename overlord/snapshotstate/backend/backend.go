@@ -31,6 +31,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"syscall"
 	"time"
 
 	"github.com/snapcore/snapd/client"
@@ -332,60 +333,63 @@ type exportMetadata struct {
 }
 
 // Export allows exporting a given snapshot set to the given writer.
-//
-// XXX: locking? i.e. avoid being able to remove a snapshot while in use
 func Export(ctx context.Context, setID uint64, w io.Writer) error {
-	tw := tar.NewWriter(w)
-	defer tw.Close()
-
-	// write the archives
-	n := 0
+	// Open all files first and keep the file descriptors open.
+	//
+	// This ensures that even if a snapshot is removed we can
+	// still serve the data. Hence no need for locking.
+	var snapshotFiles []*os.File
+	defer func() {
+		for _, f := range snapshotFiles {
+			f.Close()
+		}
+	}()
 	err := Iter(ctx, func(reader *Reader) error {
 		if reader.SetID == setID {
-			stat, err := reader.Stat()
+			// dup() the file descriptor
+			fd, err := syscall.Dup(int(reader.Fd()))
 			if err != nil {
-				return err
+				return fmt.Errorf("cannot dup %v", reader.Name())
 			}
-			// should never happen
-			if stat.IsDir() {
-				return fmt.Errorf("unexported directory in snapshot: %v", stat.Name())
+			f := os.NewFile(uintptr(fd), reader.Name())
+			if f == nil {
+				return fmt.Errorf("cannot handle for %v from fd %v", reader.Name(), fd)
 			}
-
-			// Go1.9 needs the actual file for symlinks (like /dev/null)
-			var link string
-			if stat.Mode()&os.ModeSymlink == os.ModeSymlink {
-				if link, err = os.Readlink(reader.Name()); err != nil {
-					return fmt.Errorf("symlink: %v", stat.Name())
-				}
-			}
-
-			hdr, err := tar.FileInfoHeader(stat, link)
-			if err != nil {
-				return fmt.Errorf("symlink: %v", stat.Name())
-			}
-			if err = tw.WriteHeader(hdr); err != nil {
-				return err
-			}
-
-			// open the file
-			f, err := os.Open(reader.Name())
-			if err != nil {
-				return err
-			}
-			defer f.Close()
-
-			if _, err := io.Copy(tw, f); err != nil {
-				return err
-			}
-			n++
+			snapshotFiles = append(snapshotFiles, f)
 		}
 		return nil
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot export snapshot %v: %v", setID, err)
 	}
-	if n == 0 {
+	if len(snapshotFiles) == 0 {
 		return fmt.Errorf("no snapshot data found for %v", setID)
+	}
+
+	// write out a tar
+	tw := tar.NewWriter(w)
+	defer tw.Close()
+	for _, snapshotFd := range snapshotFiles {
+		stat, err := snapshotFd.Stat()
+		if err != nil {
+			return err
+		}
+		// should never happen
+		if !stat.Mode().IsRegular() {
+			return fmt.Errorf("unexported special file %q in snapshot: %s", stat.Name(), stat.Mode())
+		}
+		hdr, err := tar.FileInfoHeader(stat, "")
+		if err != nil {
+			return fmt.Errorf("symlink: %v", stat.Name())
+		}
+		if err = tw.WriteHeader(hdr); err != nil {
+			return err
+		}
+
+		// open the file
+		if _, err := io.Copy(tw, snapshotFd); err != nil {
+			return err
+		}
 	}
 
 	// write the metadata last, the client can validate with that

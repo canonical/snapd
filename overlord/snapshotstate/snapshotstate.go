@@ -257,7 +257,6 @@ func checkSnapshotTaskConflict(st *state.State, setID uint64, conflictingKinds .
 var List = backend.List
 
 // Export a given snapshot ID.
-// XXX: locking? streaming this out is a slow operation
 var Export = backend.Export
 
 // Save creates a taskset for taking snapshots of snaps' data.
