@@ -31,15 +31,16 @@ prepare: |
 
     # Modify seed to use devmode for pc gadget snap. This is needed for the
     # install hook to have access to /etc/systemd. Ideally we would use
-    # system-files plug, but it wouldn't get autoconnected due to assertions. 
-    IMAGE_PATH="$(get_nested_core_image_path)"
-    loops=$(kpartx -avs "$IMAGE_PATH"  | cut -d' ' -f 3)
+    # system-files plug, but it wouldn't get autoconnected due to assertions.
+    IMAGE_DIR="$(get_image_dir)"
+    IMAGE_NAME="$(get_image_name core)"
+    loops=$(kpartx -avs "$IMAGE_DIR/$IMAGE_NAME"  | cut -d' ' -f 3)
     part=$(echo "$loops" | tail -1)
     tmp=$(mktemp -d)
     mount "/dev/mapper/$part" "$tmp"
     sed -i "$tmp/system-data/var/lib/snapd/seed/seed.yaml" -E -e 's/^(\s+)file: pc_x1.snap/\1file: pc_x1.snap\n\1devmode: true\n/'
     umount "$tmp"
-    kpartx -d "$IMAGE_PATH"
+    kpartx -d "$IMAGE_DIR/$IMAGE_NAME"
     rmdir "$tmp"
 
     start_nested_core_vm

@@ -268,7 +268,7 @@ cleanup_nested_env(){
     rm -rf "$WORK_DIR"
 }
 
-get_image_path(){
+get_image_dir(){
     echo "$WORK_DIR/image"
 }
 
@@ -292,12 +292,12 @@ get_image_name(){
     echo "ubuntu-${TYPE}-${VERSION}-${SOURCE}.img"
 }
 
-prepare_image_dir(){
-    mkdir -p "$(get_image_path)"
+get_image_path(){
+    echo "$WORK_DIR/image"
 }
 
-get_extra_snaps_path(){
-    echo "${PWD}/extra-snaps"
+prepare_image_dir(){
+    mkdir -p "$(get_image_dir)"
 }
 
 get_extra_snaps(){
@@ -315,14 +315,14 @@ get_extra_snaps(){
 download_nested_image(){
     local IMAGE_URL=$1
     local IMAGE_NAME=$2
-    local IMAGE_PATH
-    IMAGE_PATH="$(get_image_path)"
+    local IMAGE_DIR
+    IMAGE_DIR="$(get_image_dir)"
 
-    curl -L -o "${IMAGE_PATH}/${IMAGE_NAME}" "$IMAGE_URL"
+    curl -L -o "${IMAGE_DIR}/${IMAGE_NAME}" "$IMAGE_URL"
 
     if [[ "$IMAGE_URL" == *.img.xz ]]; then
-        mv "${IMAGE_PATH}/${IMAGE_NAME}" "${IMAGE_PATH}/${IMAGE_NAME}.xz"
-        unxz "${IMAGE_PATH}/${IMAGE_NAME}.xz"
+        mv "${IMAGE_DIR}/${IMAGE_NAME}" "${IMAGE_DIR}/${IMAGE_NAME}.xz"
+        unxz "${IMAGE_DIR}/${IMAGE_NAME}.xz"
     elif [[ "$IMAGE_URL" == *.img ]]; then
         echo "Image doesn't need to be decompressed"
     else
@@ -355,13 +355,12 @@ create_nested_core_vm(){
     # shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
 
-    local IMAGE_PATH
-    IMAGE_PATH="$(get_image_path)"
-    local IMAGE_NAME
+    local IMAGE_DIR, IMAGE_NAME
+    IMAGE_DIR="$(get_image_dir)"
     IMAGE_NAME="$(get_image_name core)"
 
     prepare_image_dir
-    if [ ! -f "$IMAGE_PATH/$IMAGE_NAME" ]; then
+    if [ ! -f "$IMAGE_DIR/$IMAGE_NAME" ]; then
 
         if [ -n "$CUSTOM_IMAGE_URL" ]; then
             # download the ubuntu-core image from $CUSTOM_IMAGE_URL
@@ -394,8 +393,8 @@ create_nested_core_vm(){
                     SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
 
                     # Prepare the pc kernel snap
-                    KERNEL_SNAP=$(ls "$IMAGE_PATH"/pc-kernel_*.snap)
-                    KERNEL_UNPACKED="$IMAGE_PATH"/kernel-unpacked
+                    KERNEL_SNAP=$(ls "$IMAGE_DIR"/pc-kernel_*.snap)
+                    KERNEL_UNPACKED="$IMAGE_DIR"/kernel-unpacked
                     unsquashfs -d "$KERNEL_UNPACKED" "$KERNEL_SNAP"
                     sbattach --remove "$KERNEL_UNPACKED/kernel.efi"
                     sbsign --key "$SNAKEOIL_KEY" --cert "$SNAKEOIL_CERT" "$KERNEL_UNPACKED/kernel.efi"  --output "$KERNEL_UNPACKED/kernel.efi"
@@ -416,9 +415,9 @@ create_nested_core_vm(){
                         snap download --basename=pc --channel="20/edge" pc
                         unsquashfs -d pc-gadget pc.snap
                         secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
-                        snap pack pc-gadget/ "$IMAGE_PATH"
+                        snap pack pc-gadget/ "$IMAGE_DIR"
 
-                        GADGET_SNAP=$(ls "$IMAGE_PATH"/pc_*.snap)
+                        GADGET_SNAP=$(ls "$IMAGE_DIR"/pc_*.snap)
                         rm -f "$PWD/pc.snap" "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
                         EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $GADGET_SNAP"
                     fi
@@ -436,7 +435,7 @@ create_nested_core_vm(){
             NESTED_MODEL="$(get_nested_model)"
             "$UBUNTU_IMAGE" --image-size 10G "$NESTED_MODEL" \
                 --channel "$CORE_CHANNEL" \
-                --output "$IMAGE_PATH/$IMAGE_NAME" \
+                --output "$IMAGE_DIR/$IMAGE_NAME" \
                 "$EXTRA_FUNDAMENTAL" \
                 "$EXTRA_SNAPS"
         fi
@@ -444,9 +443,9 @@ create_nested_core_vm(){
         # Configure the user for the vm
         if [ "$USE_CLOUD_INIT" = "true" ]; then
             if is_core_20_nested_system; then
-                configure_cloud_init_nested_core_vm_uc20 "$IMAGE_PATH/$IMAGE_NAME"
+                configure_cloud_init_nested_core_vm_uc20 "$IMAGE_DIR/$IMAGE_NAME"
             else
-                configure_cloud_init_nested_core_vm "$IMAGE_PATH/$IMAGE_NAME"
+                configure_cloud_init_nested_core_vm "$IMAGE_DIR/$IMAGE_NAME"
             fi
         else
             create_assertions_disk
@@ -532,10 +531,10 @@ force_stop_nested_vm(){
 }
 
 start_nested_core_vm_unit(){
-    local QEMU IMAGE_PATH IMAGE_NAME CURRENT_IMAGE
+    local QEMU IMAGE_DIR IMAGE_NAME CURRENT_IMAGE
     CURRENT_IMAGE="$WORK_DIR/image/ubuntu-core-current.img"
     QEMU=$(get_qemu_for_nested_vm)
-    IMAGE_PATH="$(get_image_path)"
+    IMAGE_DIR="$(get_image_dir)"
     IMAGE_NAME="$(get_image_name core)"
 
     # As core18 systems use to fail to start the assertion disk when using the
@@ -544,7 +543,7 @@ start_nested_core_vm_unit(){
     # Some tests however need to force stop and restart the VM with different
     # options, so if that env var is set, we will reuse the existing file if it
     # exists
-    cp "$IMAGE_PATH/$IMAGE_NAME" "$CURRENT_IMAGE"
+    cp "$IMAGE_DIR/$IMAGE_NAME" "$CURRENT_IMAGE"
 
     # Now qemu parameters are defined
     # Increase the number of cpus used once the issue related to kvm and ovmf is fixed
@@ -649,17 +648,16 @@ start_nested_core_vm(){
 }
 
 create_nested_classic_vm(){
-    local IMAGE_PATH
-    IMAGE_PATH="$(get_image_path)"
-    local IMAGE_NAME
+    local IMAGE_DIR, IMAGE_NAME
+    IMAGE_DIR="$(get_image_dir)"
     IMAGE_NAME="$(get_image_name classic)"
 
     prepare_image_dir
-    if [ ! -f "$IMAGE_PATH/$IMAGE_NAME" ]; then
+    if [ ! -f "$IMAGE_DIR/$IMAGE_NAME" ]; then
         # Get the cloud image
         local IMAGE_URL
         IMAGE_URL="$(get_image_url_for_nested_vm)"
-        wget -P "$IMAGE_PATH" "$IMAGE_URL"
+        wget -P "$IMAGE_DIR" "$IMAGE_URL"
         download_nested_image "$IMAGE_URL" "$IMAGE_NAME"
 
         # Prepare the cloud-init configuration and configure image
@@ -669,9 +667,9 @@ create_nested_classic_vm(){
 }
 
 start_nested_classic_vm(){
-    local IMAGE QEMU IMAGE_PATH IMAGE_NAME
+    local IMAGE QEMU IMAGE_DIR IMAGE_NAME
     QEMU="$(get_qemu_for_nested_vm)"
-    IMAGE_PATH="$(get_image_path)"
+    IMAGE_DIR="$(get_image_dir)"
     IMAGE_NAME="$(get_image_name classic)"
 
     # Now qemu parameters are defined
@@ -701,7 +699,7 @@ start_nested_classic_vm(){
         exit 1
     fi
 
-    PARAM_IMAGE="-drive file=$IMAGE_PATH/$IMAGE_NAME,if=virtio"
+    PARAM_IMAGE="-drive file=$IMAGE_DIR/$IMAGE_NAME,if=virtio"
     PARAM_SEED="-drive file=$WORK_DIR/seed.img,if=virtio"
     PARAM_SERIAL="-serial file:${WORK_DIR}/serial-log.txt"
     PARAM_BIOS=""
