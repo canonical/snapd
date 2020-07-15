@@ -179,9 +179,7 @@ func (client *Client) snapshotAction(action *snapshotAction) (changeID string, e
 	return client.doAsync("POST", "/v2/snapshots", nil, headers, bytes.NewBuffer(data))
 }
 
-// XXX: or should we just pass a filename in here ? this is how it was
-// done in 6ae9f7554fd5491468b1e148b45e483a084ea7b5 but it feels nicer to
-// leave that to the API user.
+// SnapshotExport streams the requested snapshot set
 func (client *Client) SnapshotExport(setID uint64) (io.ReadCloser, int64, error) {
 	rsp, err := client.raw(context.Background(), "GET", fmt.Sprintf("/v2/snapshots/%v/export", setID), nil, nil, nil)
 	if err != nil {

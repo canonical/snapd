@@ -151,7 +151,7 @@ type snapshotExportResponse struct {
 func (s snapshotExportResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Length", strconv.FormatUint(s.ExportSize, 10))
 
-	snapshotExport(context.TODO(), uint64(s.SetID), w)
+	snapshotExport(context.TODO(), s.SetID, w)
 }
 
 type countingOnlyWriter struct {
@@ -179,7 +179,7 @@ func getSnapshotExport(c *Command, r *http.Request, user *auth.UserState) Respon
 	// to the client to a time after the year 2242. This is unlikely
 	// but a known issue with this approach here.
 	var cw countingOnlyWriter
-	if err := snapshotExport(context.TODO(), uint64(setID), &cw); err != nil {
+	if err := snapshotExport(context.TODO(), setID, &cw); err != nil {
 		return BadRequest("cannot export %v", setID)
 	}
 
