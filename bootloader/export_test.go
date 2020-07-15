@@ -104,9 +104,9 @@ func LkRuntimeMode(b Bootloader) bool {
 }
 
 var (
-	EditionFromDiskConfigAsset            = editionFromDiskConfigAsset
-	EditionFromConfigAsset                = editionFromConfigAsset
-	ConfigAssetFrom                       = configAssetFrom
-	StaticCommandLineFromGrubAsset        = staticCommandLineFromGrubAsset
-	SortSnapdKernelCommandLineArgsForGrub = sortSnapdKernelCommandLineArgsForGrub
+	EditionFromDiskConfigAsset     = editionFromDiskConfigAsset
+	EditionFromConfigAsset         = editionFromConfigAsset
+	ConfigAssetFrom                = configAssetFrom
+	StaticCommandLineFromGrubAsset = staticCommandLineFromGrubAsset
+	ModeArgsForGrub                = modeArgsForGrub
 )

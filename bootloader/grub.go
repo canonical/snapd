@@ -395,24 +395,29 @@ func (g *grub) ManagedAssets() []string {
 func (g *grub) CommandLine(modeArgs, extraArgs string) (string, error) {
 	// we do not trust the on disk asset, use the built-in one
 	assetName := "grub.cfg"
+	isRecovery := false
 	if g.recovery {
 		assetName = "grub-recovery.cfg"
+		isRecovery = true
 	}
 	staticCmdline, err := staticCommandLineFromGrubAsset(assetName)
 	if err != nil {
 		return "", fmt.Errorf("cannot extract static command line element: %v", err)
 	}
-	args, err := strutil.KernelCommandLineSplit(modeArgs + " " + staticCmdline + " " + extraArgs)
+	// sort arguments so that they match their positions
+	mode, err := modeArgsForGrub(modeArgs, isRecovery)
+	if err != nil {
+		return "", err
+	}
+	args, err := strutil.KernelCommandLineSplit(staticCmdline + " " + extraArgs)
 	if err != nil {
 		return "", fmt.Errorf("cannot use badly formatted kernel command line: %v", err)
 	}
-	// sort arguments so that they match their positions
-	args = sortSnapdKernelCommandLineArgsForGrub(args)
 	// join all argument with a single space, see
 	// grub-core/lib/cmdline.c:grub_create_loader_cmdline() for reference,
 	// arguments are separated by a single space, the space after last is
 	// replaced with terminating NULL
-	return strings.Join(args, " "), nil
+	return strings.Join(append(mode, args...), " "), nil
 }
 
 // static command line is defined as:
@@ -452,32 +457,32 @@ func staticCommandLineFromGrubAsset(asset string) (string, error) {
 	return "", nil
 }
 
-// sortSnapdKernelCommandLineArgsForGrub sorts the command line arguments so
-// that the snapd_recovery_mode/system arguments are placed at the location that
-// matches the built-in grub boot config assets. Other arguments remain in the order
-// they appear.
-func sortSnapdKernelCommandLineArgsForGrub(args []string) []string {
-	out := make([]string, 0, len(args))
-	modeArgs := []string(nil)
-
-	for _, arg := range args {
-		if strings.HasPrefix(arg, "snapd_recovery_") {
-			modeArgs = append(modeArgs, arg)
-		} else {
-			out = append(out, arg)
-		}
+// modeArgsForGrub validates the snapd mode arguments for the kernel command
+// line and splits them into individual arguments.
+func modeArgsForGrub(modeArgs string, recoveryAsset bool) ([]string, error) {
+	args, err := strutil.KernelCommandLineSplit(modeArgs)
+	if err != nil {
+		return nil, err
 	}
 	// see grub.cfg and grub-recovery.cfg assets, the order is:
 	//      for run mode: snapd_recovery_mode=run <args>
 	// for recovery mode: snapd_recovery_mode=recover snapd_recovery_system=<label> <args>
-	for _, prefixOrder := range []string{"snapd_recovery_system=", "snapd_recovery_mode="} {
-		for i, marg := range modeArgs {
-			if strings.HasPrefix(marg, prefixOrder) {
-				modeArgs = append(modeArgs[:i], modeArgs[i+1:]...)
-				modeArgs = append([]string{marg}, modeArgs...)
-				break
-			}
+	if !recoveryAsset {
+		if len(args) != 1 || args[0] != "snapd_recovery_mode=run" {
+			return nil, fmt.Errorf("unexpected run asset mode arguments: %q", modeArgs)
 		}
+		return args[:1], nil
+	} else {
+		if len(args) != 2 {
+			return nil, fmt.Errorf("unexpected recovery asset mode arguments: %q", modeArgs)
+		}
+		recover, system := args[0], args[1]
+		if args[0] != "snapd_recovery_mode=recover" {
+			system, recover = recover, system
+		}
+		if recover != "snapd_recovery_mode=recover" || !strings.HasPrefix(system, "snapd_recovery_system=") {
+			return nil, fmt.Errorf("unexpected recovery asset mode arguments: %q", modeArgs)
+		}
+		return []string{recover, system}, nil
 	}
-	return append(modeArgs, out...)
 }

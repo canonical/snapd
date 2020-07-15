@@ -881,7 +881,7 @@ set snapd_static_cmdline_args='foo bar baz'
 	}
 }
 
-func (s *grubTestSuite) TestCommandLineHappy(c *C) {
+func (s *grubTestSuite) TestCommandLine(c *C) {
 	// pretend there's more than one space between arguments
 	grubCfg := `# Snapd-Boot-Config-Edition: 2
 set snapd_static_cmdline_args='arg1   foo=123 panic=-1 arg2="with spaces "'
@@ -905,11 +905,11 @@ boot script
 	mg, ok := g.(bootloader.ManagedAssetsBootloader)
 	c.Assert(ok, Equals, true)
 
-	modeArgs := ""
+	modeArgs := "snapd_recovery_mode=run"
 	extraArgs := `extra_arg=1  extra_foo=-1   panic=3 baz="more  spaces"`
 	args, err := mg.CommandLine(modeArgs, extraArgs)
 	c.Assert(err, IsNil)
-	c.Check(args, Equals, `arg1 foo=123 panic=-1 arg2="with spaces " extra_arg=1 extra_foo=-1 panic=3 baz="more  spaces"`)
+	c.Check(args, Equals, `snapd_recovery_mode=run arg1 foo=123 panic=-1 arg2="with spaces " extra_arg=1 extra_foo=-1 panic=3 baz="more  spaces"`)
 
 	modeArgs = "snapd_recovery_mode=run"
 	args, err = mg.CommandLine(modeArgs, extraArgs)
@@ -917,9 +917,10 @@ boot script
 	c.Check(args, Equals, `snapd_recovery_mode=run arg1 foo=123 panic=-1 arg2="with spaces " extra_arg=1 extra_foo=-1 panic=3 baz="more  spaces"`)
 
 	modeArgs = "snapd_recovery_system=20200202 snapd_recovery_mode=recover"
+	// non recovery bootloader is unhappy with recovery mode arguments
 	args, err = mg.CommandLine(modeArgs, extraArgs)
-	c.Assert(err, IsNil)
-	c.Check(args, Equals, `snapd_recovery_mode=recover snapd_recovery_system=20200202 arg1 foo=123 panic=-1 arg2="with spaces " extra_arg=1 extra_foo=-1 panic=3 baz="more  spaces"`)
+	c.Assert(err, ErrorMatches, `unexpected run asset mode arguments: "snapd_recovery_system=20200202 snapd_recovery_mode=recover"`)
+	c.Assert(args, Equals, "")
 
 	// now check the recovery bootloader
 	opts = &bootloader.Options{NoSlashBoot: true, Recovery: true}
@@ -928,18 +929,64 @@ boot script
 	c.Assert(err, IsNil)
 	// static command line from recovery asset
 	c.Check(args, Equals, `snapd_recovery_mode=recover snapd_recovery_system=20200202 recovery config panic=-1 extra_arg=1 extra_foo=-1 panic=3 baz="more  spaces"`)
+
+	modeArgs = "snapd_recovery_mode=run"
+	// recovery bootloader is unhappy with run mode arguments
+	args, err = mrg.CommandLine(modeArgs, extraArgs)
+	c.Assert(err, ErrorMatches, `unexpected recovery asset mode arguments: "snapd_recovery_mode=run"`)
+	c.Assert(args, Equals, "")
 }
 
-func (s *grubTestSuite) TestSortArgsForGrub(c *C) {
-	out := bootloader.SortSnapdKernelCommandLineArgsForGrub([]string{"foo", "bar", "snapd_recovery_mode=run", "panic=-1"})
-	c.Assert(out, DeepEquals, []string{"snapd_recovery_mode=run", "foo", "bar", "panic=-1"})
-	// recovery mode
-	out = bootloader.SortSnapdKernelCommandLineArgsForGrub([]string{
-		"snapd_recovery_system=1234", "foo",
-		"snapd_recovery_mode=recover", "panic=-1",
-	})
-	c.Assert(out, DeepEquals, []string{
-		"snapd_recovery_mode=recover", "snapd_recovery_system=1234",
-		"foo", "panic=-1",
-	})
+func (s *grubTestSuite) TestModeArgsForGrub(c *C) {
+	for idx, tc := range []struct {
+		recovery bool
+		args     string
+		exp      []string
+		errStr   string
+	}{
+		{recovery: false, args: "snapd_recovery_mode=run", exp: []string{"snapd_recovery_mode=run"}},
+		{
+			recovery: true,
+			args:     "snapd_recovery_mode=recover snapd_recovery_system=1234",
+			exp:      []string{"snapd_recovery_mode=recover", "snapd_recovery_system=1234"},
+		},
+		{
+			recovery: true,
+			// opposite order
+			args: "snapd_recovery_system=label snapd_recovery_mode=recover",
+			exp:  []string{"snapd_recovery_mode=recover", "snapd_recovery_system=label"},
+		},
+		// error cases
+		{
+			recovery: false, args: "snapd_recovery_mode=funky",
+			errStr: `unexpected run asset mode arguments: "snapd_recovery_mode=funky"`,
+		},
+		{recovery: false, args: "bogus", errStr: `unexpected run asset mode arguments: "bogus"`},
+		{recovery: true, args: "bogus", errStr: `unexpected recovery asset mode arguments: "bogus"`},
+		{
+			// unexpected mode
+			recovery: true, args: "snapd_recovery_mode=install snapd_recovery_system=label",
+			errStr: `unexpected recovery asset mode arguments: "snapd_recovery_mode=install snapd_recovery_system=label"`,
+		},
+		{
+			// too many mode arguments
+			recovery: true, args: "extra snapd_recovery_mode=recover snapd_recovery_system=label",
+			errStr: `unexpected recovery asset mode arguments: "extra snapd_recovery_mode=recover snapd_recovery_system=label"`,
+		},
+		{
+			recovery: false, args: "snapd_recovery_mode=run extra",
+			errStr: `unexpected run asset mode arguments: "snapd_recovery_mode=run extra"`,
+		},
+		{recovery: false, args: "", errStr: `unexpected run asset mode arguments: ""`},
+		{recovery: true, args: "", errStr: `unexpected recovery asset mode arguments: ""`},
+	} {
+		c.Logf("tc: %v recovery: %v args: %q", idx, tc.recovery, tc.args)
+		out, err := bootloader.ModeArgsForGrub(tc.args, tc.recovery)
+		if tc.errStr == "" {
+			c.Assert(err, IsNil)
+			c.Check(out, DeepEquals, tc.exp)
+		} else {
+			c.Assert(err, ErrorMatches, tc.errStr)
+		}
+	}
 }
