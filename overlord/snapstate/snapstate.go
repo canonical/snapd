@@ -83,6 +83,11 @@ func isParallelInstallable(snapsup *SnapSetup) error {
 	return fmt.Errorf("cannot install snap of type %v as %q", snapsup.Type, snapsup.InstanceName())
 }
 
+func requiredSpaceWithMargin(minSize uint64) uint64 {
+	// 10% extra + 1Mb
+	return minSize + uint64(0.1 * float64(minSize)) + 1024*1024
+}
+
 func optedIntoSnapdSnap(st *state.State) (bool, error) {
 	tr := config.NewTransaction(st)
 	experimentalAllowSnapd, err := features.Flag(tr, features.SnapdSnap)
@@ -176,9 +181,8 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	} else {
 		// XXX: DownloadInfo should never be nil, except for missing mocking in tests?
 		if snapsup.DownloadInfo != nil {
-			// require 10% extra + 1Mb
-			requiredSpace := uint64(snapsup.DownloadInfo.Size) + uint64(0.1 * float64(snapsup.DownloadInfo.Size)) + 1024*1024
-			if err := osutilCheckFreeSpace(dirs.SnapdVarDir(dirs.GlobalRootDir), requiredSpace); err != nil {
+			requiredSpace := requiredSpaceWithMargin(uint64(snapsup.DownloadInfo.Size))
+			if err := osutilCheckFreeSpace(dirs.SnapdStateDir(dirs.GlobalRootDir), requiredSpace); err != nil {
 				return nil, err
 			}
 		}
@@ -1919,17 +1923,18 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 	// 'purge' flag disables automatic snapshot for given remove op
 	if flags == nil || !flags.Purge {
 		if tp, _ := snapst.Type(); tp == snap.TypeApp && removeAll {
-			if sz, err := EstimateSnapshotSize(st, name); err == nil {
-				if err := osutilCheckFreeSpace(dirs.SnapdVarDir(dirs.GlobalRootDir), uint64(sz)); err != nil {
-					if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
-						return nil, fmt.Errorf("cannot create automatic snapshot when removing last revision of the snap: %v", err)
-					}
-					return nil, err
-				}
-			} // XXX: should we fail if esitmation fails?
-
 			ts, err := AutomaticSnapshot(st, name)
 			if err == nil {
+				if sz, err := EstimateSnapshotSize(st, name); err == nil {
+					requiredSpace := requiredSpaceWithMargin(uint64(sz))
+					if err := osutilCheckFreeSpace(dirs.SnapdStateDir(dirs.GlobalRootDir), requiredSpace); err != nil {
+						if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
+							return nil, fmt.Errorf("cannot create automatic snapshot when removing last revision of the snap: %v", err)
+						}
+						return nil, err
+					}
+				} // XXX: should we fail if esitmation fails?
+
 				addNext(ts)
 			} else {
 				if err != ErrNothingToDo {

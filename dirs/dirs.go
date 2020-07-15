@@ -209,8 +209,8 @@ func isInsideBaseSnap() (bool, error) {
 	return err == nil, err
 }
 
-// SnapdVarDir returns the path to /var/lib/snapd dir under rootdir.
-func SnapdVarDir(rootdir string) string {
+// SnapdStateDir returns the path to /var/lib/snapd dir under rootdir.
+func SnapdStateDir(rootdir string) string {
 	return filepath.Join(rootdir, snappyDir)
 }
 
