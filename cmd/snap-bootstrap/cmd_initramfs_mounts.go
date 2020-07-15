@@ -150,10 +150,28 @@ func doSystemdMountImpl(what, where string, opts *SystemdMountOptions) error {
 	}
 
 	if opts.NeedsFsck {
+		// note that with the --fsck=yes argument, systemd will block starting
+		// the mount unit on a new systemd-fsck@<what> unit that will run the
+		// fsck, so we don't need to worry about waiting for that to finish in
+		// the case where we are supposed to wait (which is the default for this
+		// function)
 		args = append(args, "--fsck=yes")
 	}
 
-	// TODO: do we really need this? unclear why we would need to ever not block
+	// Under all circumstances that we use systemd-mount here from
+	// snap-bootstrap, it is expected to be okay to block waiting for the unit
+	// to be started and become active, because snap-bootstrap is, by design,
+	// expected to run as late as possible in the initramfs, and so any
+	// dependencies there might be in systemd creating and starting these mount
+	// units should already be ready and so we will not block forever. If
+	// however there was something going on in systemd at the same time that the
+	// mount unit depended on, we could hit a deadlock blocking as systemd will
+	// not enqueue this job until it's dependencies are ready, and so if those
+	// things depend on this mount unit we are stuck. The solution to this
+	// situation is to make snap-bootstrap run as late as possible before
+	// mounting things.
+	// However, we leave in the option to not block if there is ever a reason
+	// we need to do so.
 	if opts.NoWait {
 		args = append(args, "--no-block")
 	}
