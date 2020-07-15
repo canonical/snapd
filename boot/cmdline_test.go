@@ -110,17 +110,18 @@ func (s *kernelCommandLineSuite) TestModeAndLabel(c *C) {
 }
 
 func (s *kernelCommandLineSuite) TestComposeCommandLineNotManagedHappy(c *C) {
+	gadgetDir := c.MkDir()
 	model := makeMockUC20Model()
 
 	bl := bootloadertest.Mock("btloader", c.MkDir())
 	bootloader.Force(bl)
 	defer bootloader.Force(nil)
 
-	cmdline, err := boot.ComposeRecoveryCommandLine(model, "20200314")
+	cmdline, err := boot.ComposeRecoveryCommandLine(model, "20200314", gadgetDir)
 	c.Assert(err, IsNil)
 	c.Assert(cmdline, Equals, "")
 
-	cmdline, err = boot.ComposeCommandLine(model)
+	cmdline, err = boot.ComposeCommandLine(model, gadgetDir)
 	c.Assert(err, IsNil)
 	c.Assert(cmdline, Equals, "")
 
@@ -128,16 +129,17 @@ func (s *kernelCommandLineSuite) TestComposeCommandLineNotManagedHappy(c *C) {
 	bootloader.Force(mbl)
 	mbl.IsManaged = false
 
-	cmdline, err = boot.ComposeRecoveryCommandLine(model, "20200314")
+	cmdline, err = boot.ComposeRecoveryCommandLine(model, "20200314", gadgetDir)
 	c.Assert(err, IsNil)
 	c.Assert(cmdline, Equals, "")
 
-	cmdline, err = boot.ComposeCommandLine(model)
+	cmdline, err = boot.ComposeCommandLine(model, gadgetDir)
 	c.Assert(err, IsNil)
 	c.Assert(cmdline, Equals, "")
 }
 
 func (s *kernelCommandLineSuite) TestComposeCommandLineNotUC20(c *C) {
+	gadgetDir := c.MkDir()
 	headers := map[string]interface{}{
 		"type":         "model",
 		"authority-id": "my-brand",
@@ -156,16 +158,17 @@ func (s *kernelCommandLineSuite) TestComposeCommandLineNotUC20(c *C) {
 	bl := bootloadertest.Mock("btloader", c.MkDir())
 	bootloader.Force(bl)
 	defer bootloader.Force(nil)
-	cmdline, err := boot.ComposeRecoveryCommandLine(model, "20200314")
+	cmdline, err := boot.ComposeRecoveryCommandLine(model, "20200314", gadgetDir)
 	c.Assert(err, IsNil)
 	c.Check(cmdline, Equals, "")
 
-	cmdline, err = boot.ComposeCommandLine(model)
+	cmdline, err = boot.ComposeCommandLine(model, gadgetDir)
 	c.Assert(err, IsNil)
 	c.Check(cmdline, Equals, "")
 }
 
 func (s *kernelCommandLineSuite) TestComposeComamndLineSystemManagedErr(c *C) {
+	gadgetDir := c.MkDir()
 	model := makeMockUC20Model()
 
 	mrebl := bootloadertest.Mock("btloader", c.MkDir()).WithManagedAssetsRecoveryAware()
@@ -175,10 +178,10 @@ func (s *kernelCommandLineSuite) TestComposeComamndLineSystemManagedErr(c *C) {
 	errFail := errors.New("is managed fail")
 	mrebl.IsManagedErr = errFail
 
-	cmdline, err := boot.ComposeRecoveryCommandLine(model, "20200314")
+	cmdline, err := boot.ComposeRecoveryCommandLine(model, "20200314", gadgetDir)
 	c.Assert(err, ErrorMatches, "is managed fail")
 	c.Assert(cmdline, Equals, "")
-	cmdline, err = boot.ComposeCommandLine(model)
+	cmdline, err = boot.ComposeCommandLine(model, gadgetDir)
 	c.Assert(err, ErrorMatches, "is managed fail")
 	c.Assert(cmdline, Equals, "")
 
@@ -186,15 +189,16 @@ func (s *kernelCommandLineSuite) TestComposeComamndLineSystemManagedErr(c *C) {
 	mrebl.IsManaged = true
 	mrebl.CommandLineErr = errors.New("kernel command line fail")
 
-	cmdline, err = boot.ComposeRecoveryCommandLine(model, "20200314")
+	cmdline, err = boot.ComposeRecoveryCommandLine(model, "20200314", gadgetDir)
 	c.Assert(err, ErrorMatches, "kernel command line fail")
 	c.Assert(cmdline, Equals, "")
-	cmdline, err = boot.ComposeCommandLine(model)
+	cmdline, err = boot.ComposeCommandLine(model, gadgetDir)
 	c.Assert(err, ErrorMatches, "kernel command line fail")
 	c.Assert(cmdline, Equals, "")
 }
 
 func (s *kernelCommandLineSuite) TestComposeCommandLineManagedHappy(c *C) {
+	gadgetDir := c.MkDir()
 	model := makeMockUC20Model()
 
 	mrebl := bootloadertest.Mock("btloader", c.MkDir()).WithManagedAssetsRecoveryAware()
@@ -203,16 +207,12 @@ func (s *kernelCommandLineSuite) TestComposeCommandLineManagedHappy(c *C) {
 
 	mrebl.IsManaged = true
 	mrebl.StaticCommandLine = "panic=-1"
-
-	mrebl.EnvVars = map[string]string{
-		"snapd_extra_cmdline_args": "extra arg=1",
-	}
-	cmdline, err := boot.ComposeRecoveryCommandLine(model, "20200314")
+	cmdline, err := boot.ComposeRecoveryCommandLine(model, "20200314", gadgetDir)
 	c.Assert(err, IsNil)
-	c.Assert(cmdline, Equals, "panic=-1 extra arg=1 snapd_recovery_mode=recover snapd_recovery_system=20200314")
-	cmdline, err = boot.ComposeCommandLine(model)
+	c.Assert(cmdline, Equals, "snapd_recovery_mode=recover snapd_recovery_system=20200314 panic=-1")
+	cmdline, err = boot.ComposeCommandLine(model, gadgetDir)
 	c.Assert(err, IsNil)
-	c.Assert(cmdline, Equals, "panic=-1 snapd_recovery_mode=run")
+	c.Assert(cmdline, Equals, "snapd_recovery_mode=run panic=-1")
 }
 
 func (s *kernelCommandLineSuite) TestSetExtraCommandLineArgsHappy(c *C) {
