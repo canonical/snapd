@@ -189,7 +189,9 @@ build_arch_pkg() {
     chown -R test:test /tmp/pkg
     su -l -c "cd /tmp/pkg && WITH_TEST_KEYS=1 makepkg -f --nocheck" test
 
-    cp /tmp/pkg/snapd*.pkg.tar.xz "${GOPATH%%:*}"
+    # /etc/makepkg.conf defines PKGEXT which drives the compression alg and sets
+    # the package file name extension, keep it simple and try a glob instead
+    cp /tmp/pkg/snapd*.pkg.tar.* "${GOPATH%%:*}"
 }
 
 download_from_published(){
