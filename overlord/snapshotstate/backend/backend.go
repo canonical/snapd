@@ -392,8 +392,8 @@ func Export(ctx context.Context, setID uint64, w io.Writer) error {
 		}
 	}
 
-	// write the metadata last, the client can validate with that
-	// that the archive is complete
+	// write the metadata last, then the client can use that to 
+	// validate the archive is complete
 	//
 	// XXX: add hashes of the individual files to the metadata?
 	meta := exportMetadata{
