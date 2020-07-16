@@ -355,7 +355,7 @@ create_nested_core_vm(){
     # shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
 
-    local IMAGE_DIR, IMAGE_NAME
+    local IMAGE_DIR IMAGE_NAME
     IMAGE_DIR="$(get_image_dir)"
     IMAGE_NAME="$(get_image_name core)"
 
@@ -648,7 +648,7 @@ start_nested_core_vm(){
 }
 
 create_nested_classic_vm(){
-    local IMAGE_DIR, IMAGE_NAME
+    local IMAGE_DIR IMAGE_NAME
     IMAGE_DIR="$(get_image_dir)"
     IMAGE_NAME="$(get_image_name classic)"
 
