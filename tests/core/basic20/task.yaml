@@ -58,4 +58,4 @@ execute: |
     done
 
     # ensure the "snap recovery" command works
-    snap recovery | MATCH '[0-9]+\ +Canonical\ +ubuntu-core-20-[^ ]+\ +current'
+    snap recovery | MATCH '[0-9]+\ +canonical\*\ +ubuntu-core-20-[^ ]+\ +current'

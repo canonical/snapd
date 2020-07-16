@@ -30,9 +30,13 @@ import (
 
 func (s *SnapSuite) TestRecoveryHelp(c *C) {
 	msg := `Usage:
-  snap.test recovery
+  snap.test recovery [recovery-OPTIONS]
 
 The recovery command lists the available recovery systems.
+
+[recovery command options]
+      --color=[auto|never|always]
+      --unicode=[auto|never|always]
 `
 	s.testSubCommandHelp(c, "recovery", msg)
 }
@@ -51,13 +55,13 @@ func (s *SnapSuite) TestRecovery(c *C) {
                 "current": true,
                 "label": "20200101",
                 "model": {
-                    "model": "this-is-model-id",
+                    "model": "model-id-1",
                     "brand-id": "brand-id-1",
                     "display-name": "Wonky Model"
                 },
                 "brand": {
                     "id": "brand-id-1",
-                    "username": "brand",
+                    "username": "brand-1",
                     "display-name": "Wonky Publishing"
                 },
                 "actions": [
@@ -68,13 +72,13 @@ func (s *SnapSuite) TestRecovery(c *C) {
            {
                 "label": "20200802",
                 "model": {
-                    "model": "this-is-model-id",
+                    "model": "model-id-2",
                     "brand-id": "brand-id-1",
                     "display-name": "Other Model"
                 },
                 "brand": {
-                    "id": "brand-id-1",
-                    "username": "brand",
+                    "id": "brand-id-2",
+                    "username": "brand-2",
                     "display-name": "Other Publishing"
                 },
                 "actions": [
@@ -94,9 +98,9 @@ func (s *SnapSuite) TestRecovery(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Equals, `
-Label     Brand             Model        Notes
-20200101  Wonky Publishing  Wonky Model  current
-20200802  Other Publishing  Other Model  -
+Label     Brand    Model       Notes
+20200101  brand-1  model-id-1  current
+20200802  brand-2  model-id-2  -
 `[1:])
 	c.Check(s.Stderr(), Equals, "")
 }

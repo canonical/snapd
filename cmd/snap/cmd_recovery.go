@@ -31,6 +31,7 @@ import (
 
 type cmdRecovery struct {
 	clientMixin
+	colorMixin
 }
 
 var shortRecoveryHelp = i18n.G("List available recovery systems")
@@ -65,6 +66,7 @@ func (x *cmdRecovery) Execute(args []string) error {
 		return nil
 	}
 
+	esc := x.getEscapes()
 	w := tabWriter()
 	defer w.Flush()
 	fmt.Fprintf(w, i18n.G("Label\tBrand\tModel\tNotes\n"))
@@ -72,8 +74,8 @@ func (x *cmdRecovery) Execute(args []string) error {
 		// doing it this way because otherwise it's a sea of %s\t%s\t%s
 		line := []string{
 			sys.Label,
-			sys.Brand.DisplayName,
-			sys.Model.DisplayName,
+			shortPublisher(esc, &sys.Brand),
+			sys.Model.Model,
 			notesForSystem(&sys),
 		}
 		fmt.Fprintln(w, strings.Join(line, "\t"))
