@@ -56,3 +56,6 @@ execute: |
             exit 1
         fi
     done
+
+    # ensure the "snap recovery" command works
+    snap recovery | MATCH '[0-9]+\ +Canonical\ +ubuntu-core-20-[^ ]+\ +current'
