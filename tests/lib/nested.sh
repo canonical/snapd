@@ -468,15 +468,18 @@ start_nested_core_vm_unit(){
     # Increase the number of cpus used once the issue related to kvm and ovmf is fixed
     # https://bugs.launchpad.net/ubuntu/+source/kvm/+bug/1872803
     PARAM_CPU="-smp 1"
-    
+
     # use only 2G of RAM for qemu-nested
-    if [ "$SPREAD_BACKEND" = "google-nested" ]; then
-        PARAM_MEM="-m 4096"
-    elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
-        PARAM_MEM="-m 2048"
-    else
-        echo "unknown spread backend $SPREAD_BACKEND"
-        exit 1
+    # the caller can override PARAM_MEM
+    if [ -z "$PARAM_MEM" ]; then
+        if [ "$SPREAD_BACKEND" = "google-nested" ]; then
+            PARAM_MEM="-m 4096"
+        elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
+            PARAM_MEM="-m 2048"
+        else
+            echo "unknown spread backend $SPREAD_BACKEND"
+            exit 1
+        fi
     fi
 
     PARAM_DISPLAY="-nographic"
