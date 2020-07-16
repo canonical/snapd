@@ -875,11 +875,6 @@ boot script
 	c.Assert(err, IsNil)
 	c.Check(args, Equals, `snapd_recovery_mode=run arg1 foo=123 panic=-1 arg2="with spaces " extra_arg=1 extra_foo=-1 panic=3 baz="more  spaces"`)
 
-	modeArgs = "snapd_recovery_mode=run"
-	args, err = mg.CommandLine(modeArgs, extraArgs)
-	c.Assert(err, IsNil)
-	c.Check(args, Equals, `snapd_recovery_mode=run arg1 foo=123 panic=-1 arg2="with spaces " extra_arg=1 extra_foo=-1 panic=3 baz="more  spaces"`)
-
 	modeArgs = "snapd_recovery_system=20200202 snapd_recovery_mode=recover"
 	// non recovery bootloader is unhappy with recovery mode arguments
 	args, err = mg.CommandLine(modeArgs, extraArgs)

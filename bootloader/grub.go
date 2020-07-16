@@ -384,10 +384,10 @@ func (g *grub) ManagedAssets() []string {
 	}
 }
 
-// CommandLine returns the kernel command line composed of system run mode
-// arguments, extra arguments (configured by snapd) and the built-in bootloader
-// specific arguments. The command line may be different when using a bootloader
-// in the recovery partition.
+// CommandLine returns the kernel command line composed of system run
+// mode arguments, built-in bootloader specific static arguments
+// followed by any extra arguments configured by snapd. The command line
+// may be different when using a bootloader in the recovery partition.
 //
 // Implements ManagedAssetsBootloader for the grub bootloader.
 func (g *grub) CommandLine(modeArgs, extraArgs string) (string, error) {
@@ -447,14 +447,15 @@ func modeArgsForGrub(modeArgs string, recoveryAsset bool) ([]string, error) {
 		}
 		return args[:1], nil
 	} else {
+		const recoverMode = "snapd_recovery_mode=recover"
 		if len(args) != 2 {
 			return nil, fmt.Errorf("unexpected recovery asset mode arguments: %q", modeArgs)
 		}
 		recover, system := args[0], args[1]
-		if args[0] != "snapd_recovery_mode=recover" {
+		if args[0] != recoverMode {
 			system, recover = recover, system
 		}
-		if recover != "snapd_recovery_mode=recover" || !strings.HasPrefix(system, "snapd_recovery_system=") {
+		if recover != recoverMode || !strings.HasPrefix(system, "snapd_recovery_system=") {
 			return nil, fmt.Errorf("unexpected recovery asset mode arguments: %q", modeArgs)
 		}
 		return []string{recover, system}, nil

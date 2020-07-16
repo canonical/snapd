@@ -155,10 +155,10 @@ type ManagedAssetsBootloader interface {
 	ManagedAssets() []string
 	// UpdateBootConfig updates the boot config assets used by the bootloader.
 	UpdateBootConfig(*Options) error
-	// CommandLine returns the kernel command line composed system run mode
-	// arguments, extra arguments (configured by snapd) and the built-in
-	// bootloader specific arguments. The command line may be different when
-	// using a bootloader in the recovery partition.
+	// CommandLine returns the kernel command line composed of system run
+	// mode arguments, built-in bootloader specific static arguments
+	// followed by any extra arguments configured by snapd. The command line
+	// may be different when using a bootloader in the recovery partition.
 	CommandLine(modeArgs, extraArgs string) (string, error)
 }
 
