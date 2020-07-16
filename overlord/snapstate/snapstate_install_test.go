@@ -80,7 +80,6 @@ func verifyInstallTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.S
 		"setup-aliases")
 	if opts&updatesBootConfig != 0 {
 		expected = append(expected, "update-managed-boot-config")
-
 	}
 	expected = append(expected,
 		"run-hook[install]",
