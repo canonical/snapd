@@ -43,14 +43,7 @@ prepare: |
         exit
     fi
 
-    mkdir -p "$WORK_DIR/image"
-    rm -f "$WORK_DIR/image/ubuntu-core.img"
-
-    URL="$(get_cdimage_current_image_url 20 dangerous-$CORE_CHANNEL amd64)"
-    wget -O "$WORK_DIR/image/ubuntu-core.img.xz" "$URL"
-    unxz "$WORK_DIR/image/ubuntu-core.img.xz"
-
-    configure_cloud_init_nested_core_vm_uc20
+    create_nested_core_vm
     start_nested_core_vm
 
 restore: |
@@ -75,7 +68,10 @@ execute: |
         exit
     fi
 
-    execute_remote "snap list $SNAP" | MATCH "^$SNAP .* $BRANCH/$CORE_CHANNEL .*"
+    FROM_REV="$(get_snap_rev_for_channel "$SNAP" $BRANCH/$CORE_CHANNEL)"
+    TO_REV="$(get_snap_rev_for_channel "$SNAP" $BRANCH/$CORE_REFRESH_CHANNEL)"
+
+    execute_remote "snap list $SNAP" | MATCH "^${SNAP}.*${FROM_REV}.*${BRANCH}/${CORE_CHANNEL}.*"
     # The snap is refreshed
     execute_remote "sudo snap refresh --channel $CORE_REFRESH_CHANNEL $SNAP" || true
 
@@ -86,7 +82,7 @@ execute: |
     fi
 
     # Check the new version of the snaps is correct after the system reboot
-    execute_remote "snap list $SNAP" | MATCH "^$SNAP .* $BRANCH/$CORE_REFRESH_CHANNEL .*"
+    execute_remote "snap list $SNAP" | MATCH "^${SNAP}.*${TO_REV}.*${BRANCH}/${CORE_REFRESH_CHANNEL}.*"
 
     # The snap is reverted
     execute_remote "sudo snap revert $SNAP" || true
@@ -98,4 +94,4 @@ execute: |
     fi
 
     # Check the version of the snaps after the revert is correct
-    execute_remote "snap list $SNAP" | MATCH "^$SNAP .* $BRANCH/$CORE_CHANNEL .*"
+    execute_remote "snap list $SNAP" | MATCH "^${SNAP}.*${FROM_REV}.*${BRANCH}/${CORE_REFRESH_CHANNEL}.*"
