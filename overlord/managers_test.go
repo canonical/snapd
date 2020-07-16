@@ -5874,20 +5874,21 @@ func (s *mgrsSuite) testUC20RunUpdateManagedBootConfig(c *C, snapPath string, si
 	err = assertstate.Add(st, model)
 	c.Assert(err, IsNil)
 
-	ts, _, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "snapd"}, snapPath, "", "", snapstate.Flags{})
+	ts, _, err := snapstate.InstallPath(st, si, snapPath, "", "", snapstate.Flags{})
 	c.Assert(err, IsNil)
 
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts)
 
-	// run, this will trigger a wait for the restart
+	// run, this will trigger wait for restart with snapd snap (or be done
+	// with core)
 	st.Unlock()
 	err = s.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
 	if si.RealName == "core" {
-		// core is done at this point
+		// core on UC20 is done at this point
 		c.Assert(chg.Status(), Equals, state.DoneStatus)
 		c.Assert(chg.Err(), IsNil)
 	} else {
@@ -5961,5 +5962,129 @@ type: base`
 	si := &snap.SideInfo{RealName: "core"}
 
 	s.testUC20RunUpdateManagedBootConfig(c, snapPath, si, mabloader)
+	c.Check(mabloader.UpdateCalls, Equals, 0)
+}
+
+func (s *mgrsSuite) testNonUC20RunUpdateManagedBootConfig(c *C, snapPath string, si *snap.SideInfo, bl bootloader.Bootloader) {
+	// non UC20 device model
+
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	// pretend we booted with the right kernel & base
+	bl.SetBootVars(map[string]string{
+		"snap_core":   "core_1.snap",
+		"snap_kernel": "pc-kernel_1.snap",
+	})
+
+	model := s.brands.Model("my-brand", "my-model", modelDefaults)
+
+	st := s.o.State()
+	st.Lock()
+	// defer st.Unlock()
+	st.Set("seeded", true)
+
+	si1 := &snap.SideInfo{RealName: "snapd", Revision: snap.R(1)}
+	snapstate.Set(st, "snapd", &snapstate.SnapState{
+		SnapType: "snapd",
+		Active:   true,
+		Sequence: []*snap.SideInfo{si1},
+		Current:  si1.Revision,
+	})
+	si2 := &snap.SideInfo{RealName: "core", Revision: snap.R(1)}
+	snapstate.Set(st, "core", &snapstate.SnapState{
+		SnapType: "base",
+		Active:   true,
+		Sequence: []*snap.SideInfo{si2},
+		Current:  si2.Revision,
+	})
+	si3 := &snap.SideInfo{RealName: "pc-kernel", Revision: snap.R(1)}
+	snapstate.Set(st, "pc-kernel", &snapstate.SnapState{
+		SnapType: "kernel",
+		Active:   true,
+		Sequence: []*snap.SideInfo{si3},
+		Current:  si3.Revision,
+	})
+
+	// setup model assertion
+	assertstatetest.AddMany(st, s.brands.AccountsAndKeys("my-brand")...)
+	devicestatetest.SetDevice(st, &auth.DeviceState{
+		Brand:  "my-brand",
+		Model:  "my-model",
+		Serial: "serialserialserial",
+	})
+	err := assertstate.Add(st, model)
+	c.Assert(err, IsNil)
+
+	ts, _, err := snapstate.InstallPath(st, si, snapPath, "", "", snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	chg := st.NewChange("install-snap", "...")
+	chg.AddAll(ts)
+
+	// run, this will trigger a wait for the restart
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Check(chg.Status(), Equals, state.DoingStatus)
+	restarting, _ := st.Restarting()
+	c.Check(restarting, Equals, true)
+
+	// simulate successful restart happened
+	state.MockRestarting(st, state.RestartUnset)
+	if si.RealName == "core" {
+		// pretend we switched to a new core
+		bl.SetBootVars(map[string]string{
+			"snap_core":   "core_x1.snap",
+			"snap_kernel": "pc-kernel_1.snap",
+		})
+	}
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
+	c.Assert(chg.Err(), IsNil)
+}
+
+func (s *mgrsSuite) TestNonUC20DoesNotUpdateManagedBootConfig(c *C) {
+	mabloader := bootloadertest.Mock("mock", c.MkDir()).WithManagedAssets()
+	bootloader.Force(mabloader)
+	defer bootloader.Force(nil)
+
+	// managed
+	mabloader.IsManaged = true
+
+	const coreSnap = `
+name: core
+version: 1.0
+type: base`
+	snapPath := snaptest.MakeTestSnapWithFiles(c, coreSnap, nil)
+	si := &snap.SideInfo{RealName: "core"}
+
+	s.testNonUC20RunUpdateManagedBootConfig(c, snapPath, si, mabloader)
+	c.Check(mabloader.UpdateCalls, Equals, 0)
+}
+
+func (s *mgrsSuite) TestNonUC20SnapdNoUpdateNotManagedBootConfig(c *C) {
+	mabloader := bootloadertest.Mock("mock", c.MkDir()).WithManagedAssets()
+	bootloader.Force(mabloader)
+	defer bootloader.Force(nil)
+
+	// managed
+	mabloader.IsManaged = true
+
+	const snapdSnap = `
+name: snapd
+version: 1.0
+type: snapd`
+	snapPath := snaptest.MakeTestSnapWithFiles(c, snapdSnap, nil)
+	si := &snap.SideInfo{RealName: "snapd"}
+
+	s.testNonUC20RunUpdateManagedBootConfig(c, snapPath, si, mabloader)
 	c.Check(mabloader.UpdateCalls, Equals, 0)
 }
