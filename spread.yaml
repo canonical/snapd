@@ -1074,48 +1074,4 @@ suites:
             . "$TESTSLIB"/pkgdb.sh
             distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils
 
-    tests/nested/minimal/:
-        summary: Tests for Ubuntu Core using VMs that meet minimal requirements
-        backends: [google-nested]
-        systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64]
-        environment:
-            NESTED_TYPE: "core"
-            # Channel used to create the nested vm
-            CORE_CHANNEL: '$(HOST: echo "${SPREAD_CORE_CHANNEL:-stable}")'
-            # Channel used to refresh when testing refresh and revert
-            CORE_REFRESH_CHANNEL: '$(HOST: echo "${SPREAD_CORE_REFRESH_CHANNEL:-edge}")'
-            # Channel used to update the core/snapd snaps on some tests
-            NEW_CORE_CHANNEL: '$(HOST: echo "${SPREAD_NEW_CORE_CHANNEL:-edge}")'
-            # Use cloud init to make initial system configuration instead of user assertion
-            USE_CLOUD_INIT: '$(HOST: echo "${SPREAD_USE_CLOUD_INIT:-true}")'
-            # Enable tpm in the nested vm in case it is supported
-            ENABLE_TPM: '$(HOST: echo "${SPREAD_ENABLE_TPM:-false}")'
-            # Enable secure boot in the nested vm in case it is supported
-            ENABLE_SECURE_BOOT: '$(HOST: echo "${SPREAD_ENABLE_SECURE_BOOT:-false}")'
-            # Build and use snapd from current branch
-            BUILD_SNAPD_FROM_CURRENT: '$(HOST: echo "${SPREAD_BUILD_SNAPD_FROM_CURRENT:-false}")'
-        manual: true
-        prepare: |
-            #shellcheck source=tests/lib/pkgdb.sh
-            . "$TESTSLIB"/pkgdb.sh
-            distro_update_package_db
-            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx
-            snap install ubuntu-image --classic
-
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            create_nested_core_vm
-        restore-each: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            destroy_nested_vm
-        restore: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            cleanup_nested_env
-
-            #shellcheck source=tests/lib/pkgdb.sh
-            . "$TESTSLIB"/pkgdb.sh
-            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils
-
 # vim:ts=4:sw=4:et
