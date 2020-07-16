@@ -288,6 +288,8 @@ func getDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		startupTag := query.Get("startup")
 		all := query.Get("all")
 		return getChangeTimings(st, chgID, ensureTag, startupTag, all == "true")
+	case "seeding-info":
+		return getSeedingInfo(st)
 	default:
 		return BadRequest("unknown debug aspect %q", aspect)
 	}
