@@ -155,7 +155,7 @@ func ComposeRecoveryCommandLine(model *asserts.Model, system string) (string, er
 		return "", err
 	}
 	modeArgs := fmt.Sprintf("snapd_recovery_mode=recover snapd_recovery_system=%v", system)
-	// TODO:UC20: fetch extra args from recovery system bootenv
+	// TODO:UC20: fetch extra args from gadget
 	extraArgs := ""
 	return mbl.CommandLine(modeArgs, extraArgs)
 }
@@ -178,7 +178,7 @@ func ComposeCommandLine(model *asserts.Model) (string, error) {
 		return "", err
 	}
 	modeArgs := "snapd_recovery_mode=run"
-	// TODO:UC20: fetch extra args from bootenv
+	// TODO:UC20: fetch extra args from gadget
 	extraArgs := ""
 	return mbl.CommandLine(modeArgs, extraArgs)
 }
