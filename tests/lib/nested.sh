@@ -522,12 +522,13 @@ start_nested_core_vm_unit(){
             mv /etc/apt/sources.list.back /etc/apt/sources.list
             apt update
         fi
-
+        # use a bundle EFI bios by default
+        PARAM_BIOS="-bios /usr/share/ovmf/OVMF.fd"
         OVMF_CODE="secboot"
         OVMF_VARS="ms"
         # In this case the kernel.efi is unsigned and signed with snaleoil certs
         if [ "$BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
-            OVMF_VARS="snakeoil"            
+            OVMF_VARS="snakeoil"
         fi
 
         if [ "$ENABLE_SECURE_BOOT" = "true" ]; then
