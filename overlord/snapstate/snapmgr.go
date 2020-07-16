@@ -44,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var (
@@ -780,6 +781,26 @@ func (m *SnapManager) atSeed() error {
 	return nil
 }
 
+func (m *SnapManager) ensureDiskSpace() error {
+	// Require at least 100Mb; core16 snap takes 97Mb, so this should allow
+	// for core snap refresh. Newer cores are smaller.
+	// XXX: we could try to be smarter here and require a minimum size
+	// needed for particular core version?
+	const requiredSpace = 100 * 1024 * 1024
+	path := dirs.SnapdStateDir(dirs.GlobalRootDir)
+	err := osutilCheckFreeSpace(path, requiredSpace)
+	if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
+		m.state.Lock()
+		defer m.state.Unlock()
+		// TODO: clean download cache and re-try osutilCheckFreeSpace before
+		// reporting the error.
+		m.state.Warnf(i18n.G("the available disk space at %q is less than %s, this may prevent refreshes and proper functioning of snapd"),
+			path, strutil.SizeToStr(requiredSpace))
+		return nil
+	}
+	return err
+}
+
 var (
 	localInstallCleanupWait = time.Duration(24 * time.Hour)
 	localInstallLastCleanup time.Time
@@ -855,6 +876,8 @@ func (m *SnapManager) Ensure() error {
 		m.refreshHints.Ensure(),
 		m.catalogRefresh.Ensure(),
 		m.localInstallCleanup(),
+		// run disk check last (after localInstallCleanup)
+		m.ensureDiskSpace(),
 	}
 
 	//FIXME: use firstErr helper

@@ -3787,7 +3787,7 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesAtSeedPolicy(c *C) {
 	c.Check(err, IsNil)
 }
 
-func (s *snapmgrTestSuite) TestEsnureCleansOldSideloads(c *C) {
+func (s *snapmgrTestSuite) TestEnsureCleansOldSideloads(c *C) {
 	filenames := func() []string {
 		filenames, _ := filepath.Glob(filepath.Join(dirs.SnapBlobDir, "*"))
 		return filenames
@@ -3835,6 +3835,21 @@ func (s *snapmgrTestSuite) TestEsnureCleansOldSideloads(c *C) {
 	// all sideloads gone
 	c.Assert(filenames(), DeepEquals, []string{s0})
 
+}
+
+func (s *snapmgrTestSuite) TestEnsureDiskSpace(c *C) {
+	restore := snapstate.MockOsutilCheckFreeSpace(func(string, uint64) error { return &osutil.NotEnoughDiskSpaceError{} })
+	defer restore()
+
+	c.Assert(s.snapmgr.Ensure(), IsNil)
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	warns := st.AllWarnings()
+	c.Assert(warns, HasLen, 1)
+	c.Check(warns[0].String(), Matches, fmt.Sprintf(`the available disk space at "%s/var/lib/snapd" is less than 104MB, this may prevent refreshes and proper functioning of snapd`, dirs.GlobalRootDir))
 }
 
 func (s *snapmgrTestSuite) verifyRefreshLast(c *C) {

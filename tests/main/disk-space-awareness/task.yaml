@@ -84,3 +84,8 @@ execute: |
     MATCH "removing last revision of the snap: insufficient space in" < error.txt
   fi
 
+  echo "Ensure we get a warning message"
+  NEWSIZE=$(expr $(get_disk_usage) + 50)
+  resize "${NEWSIZE}M"
+  systemctl restart snapd.{socket,service}
+  retry -n 60 --wait 5 sh -c 'snap warnings | MATCH "the available disk space at \"/var/lib/snapd\" is less than"'
