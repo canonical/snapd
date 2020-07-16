@@ -491,4 +491,12 @@ func (s *startPreseedSuite) TestReset(c *C) {
 	// running reset again is ok
 	parser = testParser(c)
 	c.Assert(main.Run(parser, []string{"--reset", tmpDir}), IsNil)
+
+	// reset complains if target directory doesn't exist
+	c.Assert(main.Run(parser, []string{"--reset", "/non/existing/chrootpath"}), ErrorMatches, `cannot reset non-existing directory "/non/existing/chrootpath"`)
+
+	// reset complains if target is not a directory
+	dummyFile := filepath.Join(tmpDir, "foo")
+	c.Assert(ioutil.WriteFile(dummyFile, nil, os.ModePerm), IsNil)
+	c.Assert(main.Run(parser, []string{"--reset", dummyFile}), ErrorMatches, fmt.Sprintf(`cannot reset %q, it is not a directory`, dummyFile))
 }
