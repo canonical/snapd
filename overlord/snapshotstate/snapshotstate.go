@@ -265,7 +265,7 @@ func Import(ctx context.Context, st *state.State, r io.Reader) (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-	if err := backend.Import(ctx, setID, r); err != nil {
+	if err := backendImport(ctx, setID, r); err != nil {
 		return 0, err
 	}
 	return setID, nil

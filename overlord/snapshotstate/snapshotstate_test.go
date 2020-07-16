@@ -23,6 +23,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"os/user"
@@ -1477,4 +1478,39 @@ func (snapshotSuite) TestAutomaticSnapshotDefaultUbuntuCore(c *check.C) {
 	du, err := snapshotstate.AutomaticSnapshotExpiration(st)
 	c.Assert(err, check.IsNil)
 	c.Assert(du, check.Equals, time.Duration(0))
+}
+
+func (snapshotSuite) TestImportSnapshot(c *check.C) {
+	st := state.New(nil)
+
+	fakeImport := func(ctx context.Context, id uint64, r io.Reader) error {
+		return nil
+	}
+
+	defer snapshotstate.MockBackendImport(fakeImport)()
+
+	r, err := snapshotstate.MockCreateExportStream(true)
+	c.Assert(err, check.IsNil)
+
+	sid, err := snapshotstate.Import(context.TODO(), st, r)
+	c.Assert(err, check.IsNil)
+	c.Check(sid, check.Equals, uint64(1))
+}
+
+func (snapshotSuite) TestImportSnapshotImportError(c *check.C) {
+	st := state.New(nil)
+
+	fakeImport := func(ctx context.Context, id uint64, r io.Reader) error {
+		return errors.New("no")
+	}
+
+	defer snapshotstate.MockBackendImport(fakeImport)()
+
+	r, err := snapshotstate.MockCreateExportStream(true)
+	c.Assert(err, check.IsNil)
+
+	sid, err := snapshotstate.Import(context.TODO(), st, r)
+	c.Assert(err, check.NotNil)
+	c.Assert(err.Error(), check.Equals, "no")
+	c.Check(sid, check.Equals, uint64(0))
 }

@@ -20,8 +20,12 @@
 package snapshotstate
 
 import (
+	"archive/tar"
+	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
 	"time"
 
 	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
@@ -142,6 +146,14 @@ func MockBackendCleanup(f func(*backend.RestoreState)) (restore func()) {
 	}
 }
 
+func MockBackendImport(f func(context.Context, uint64, io.Reader) error) (restore func()) {
+	old := backendImport
+	backendImport = f
+	return func() {
+		backendImport = old
+	}
+}
+
 func MockConfigGetSnapConfig(f func(*state.State, string) (*json.RawMessage, error)) (restore func()) {
 	old := configGetSnapConfig
 	configGetSnapConfig = f
@@ -156,6 +168,44 @@ func MockConfigSetSnapConfig(f func(*state.State, string, *json.RawMessage) erro
 	return func() {
 		configSetSnapConfig = old
 	}
+}
+
+func MockCreateExportStream(exportJSON bool) (io.Reader, error) {
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+
+	for _, s := range []string{"foo", "bar", "baz"} {
+		f := fmt.Sprintf("5_%s_1.0_199.zip", s)
+
+		hdr := &tar.Header{
+			Name: f,
+			Mode: 0644,
+			Size: int64(len(s)),
+		}
+		if err := tw.WriteHeader(hdr); err != nil {
+			return &buf, err
+		}
+		if _, err := tw.Write([]byte(s)); err != nil {
+			return &buf, err
+		}
+	}
+
+	if exportJSON {
+		exp := fmt.Sprintf(`{"format":1, "date":"%s"}`, time.Now().Format(time.RFC3339))
+		hdr := &tar.Header{
+			Name: "export.json",
+			Mode: 0644,
+			Size: int64(len(exp)),
+		}
+		if err := tw.WriteHeader(hdr); err != nil {
+			return &buf, err
+		}
+		if _, err := tw.Write([]byte(exp)); err != nil {
+			return &buf, err
+		}
+	}
+
+	return &buf, nil
 }
 
 // For testing only

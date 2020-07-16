@@ -140,7 +140,7 @@ func changeSnapshots(c *Command, r *http.Request, user *auth.UserState) Response
 
 var snapshotImportCmd = &Command{
 	Path: "/v2/snapshots/import",
-	GET:  postSnapshotImport,
+	POST: postSnapshotImport,
 }
 
 func postSnapshotImport(c *Command, r *http.Request, user *auth.UserState) Response {
