@@ -2,6 +2,11 @@ summary: execute smoke tests in a nested Ubuntu Core VM that meets the minimal r
 
 systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64]
 
+prepare: |
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+    create_nested_core_vm
+
 execute: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
