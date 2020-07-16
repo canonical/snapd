@@ -343,6 +343,9 @@ func ResealKey(params *ResealKeyParams) error {
 	if err != nil {
 		return fmt.Errorf("cannot connect to TPM: %v", err)
 	}
+	if !isTPMEnabled(tpm) {
+		return fmt.Errorf("TPM device is not enabled")
+	}
 
 	pcrProfile, err := buildPCRProtectionProfile(numModels, params.ModelParams)
 	if err != nil {
@@ -350,7 +353,7 @@ func ResealKey(params *ResealKeyParams) error {
 	}
 
 	if err := sbUpdateKeyPCRProtectionPolicy(tpm, params.KeyFile, params.TPMPolicyUpdateDataFile, pcrProfile); err != nil {
-		return fmt.Errorf("cannot reseal key: %v", err)
+		return err
 	}
 
 	return nil
