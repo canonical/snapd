@@ -18,9 +18,6 @@ prepare: |
     create_nested_core_vm
     start_nested_core_vm
 
-    # to build the cloud-init NoCloud cdrom drive
-    apt install -yqq genisoimage
-
     # build the cloud-init NoCloud cdrom drive
     cd seed
     genisoimage -output ../seed1.iso -volid cidata -joliet -rock user-data meta-data
@@ -30,8 +27,6 @@ restore: |
     . "$TESTSLIB/nested.sh"
     destroy_nested_vm
     cleanup_nested_env
-
-    apt remove -yqq genisoimage || true
 
 debug: |
     if [ -f snapd-before-reboot.logs ]; then
