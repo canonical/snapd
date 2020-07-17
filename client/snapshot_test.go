@@ -21,6 +21,7 @@ package client_test
 
 import (
 	"net/url"
+	"strings"
 	"time"
 
 	"gopkg.in/check.v1"
@@ -136,4 +137,35 @@ func (cs *clientSuite) TestClientCheckSnapshots(c *check.C) {
 
 func (cs *clientSuite) TestClientRestoreSnapshots(c *check.C) {
 	cs.testClientSnapshotAction(c, "restore", cs.cli.RestoreSnapshots)
+}
+
+func (cs *clientSuite) TestClientSnapshotImport(c *check.C) {
+	type tableT struct {
+		rsp    string
+		status int
+		setID  uint64
+		error  string
+	}
+	table := []tableT{
+		{`{"type": "sync", "result": {"set-id": 42, "snaps": ["baz", "bar", "foo"]}}`, 200, 42, ""},
+		{`{"type": "error"}`, 400, 0, "server error: \"Bad Request\""},
+	}
+
+	for i, t := range table {
+		comm := check.Commentf("%d: %s", i, t.rsp)
+
+		cs.rsp = t.rsp
+		cs.status = t.status
+
+		r := strings.NewReader("Hello World!")
+		importSet, err := cs.cli.SnapshotImport(r)
+		if t.error != "" {
+			c.Assert(err, check.NotNil, comm)
+			c.Check(err.Error(), check.Equals, t.error, comm)
+			continue
+		}
+		c.Assert(err, check.IsNil, comm)
+		c.Check(importSet.ID, check.Equals, t.setID, comm)
+		c.Check(importSet.Snaps, check.DeepEquals, []string{"baz", "bar", "foo"}, comm)
+	}
 }

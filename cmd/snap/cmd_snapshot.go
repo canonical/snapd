@@ -21,6 +21,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 
@@ -36,11 +37,12 @@ func fmtSize(size int64) string {
 }
 
 var (
-	shortSavedHelp   = i18n.G("List currently stored snapshots")
-	shortSaveHelp    = i18n.G("Save a snapshot of the current data")
-	shortForgetHelp  = i18n.G("Delete a snapshot")
-	shortCheckHelp   = i18n.G("Check a snapshot")
-	shortRestoreHelp = i18n.G("Restore a snapshot")
+	shortSavedHelp          = i18n.G("List currently stored snapshots")
+	shortSaveHelp           = i18n.G("Save a snapshot of the current data")
+	shortForgetHelp         = i18n.G("Delete a snapshot")
+	shortCheckHelp          = i18n.G("Check a snapshot")
+	shortRestoreHelp        = i18n.G("Restore a snapshot")
+	shortImportSnapshotHelp = i18n.G("Import a snapshot")
 )
 
 var longSavedHelp = i18n.G(`
@@ -96,6 +98,10 @@ for which users, or a combination of these.
 If a snap is included in a restore operation, excluding its system and
 configuration data from the restore is not currently possible. This
 restriction may be lifted in the future.
+`)
+var longImportSnapshotHelp = i18n.G(`
+Import an exported snapshot file to the system. The snapshot is imported
+with a new snapshot ID and can be restored using the restore command.
 `)
 
 type savedCmd struct {
@@ -384,4 +390,44 @@ func init() {
 				desc: i18n.G("The snap for which data will be verified"),
 			},
 		})
+
+	cmdImport := addCommand("import-snapshot",
+		shortImportSnapshotHelp,
+		longImportSnapshotHelp,
+		func() flags.Commander {
+			return &importSnapshotCmd{}
+		}, nil, []argDesc{
+			{
+				name: "<filename>",
+				// TRANSLATORS: This should not start with a lowercase letter.
+				desc: i18n.G("The filename of the snapshot set to import"),
+			},
+		})
+	cmdImport.hidden = true
+}
+
+type importSnapshotCmd struct {
+	clientMixin
+	durationMixin
+	Positional struct {
+		Filename string `long:"filename"`
+	} `positional-args:"yes" required:"yes"`
+}
+
+func (x *importSnapshotCmd) Execute([]string) error {
+	filename := x.Positional.Filename
+	f, err := os.Open(filename)
+	if err != nil {
+		return fmt.Errorf("error accessing file: %v", err)
+	}
+	defer f.Close()
+
+	importSet, err := x.client.SnapshotImport(f)
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprintf(Stdout, "Imported snapshot with %d snaps as snapshot ID %d\n", len(importSet.Snaps), importSet.ID)
+
+	return nil
 }

@@ -139,7 +139,7 @@ func changeSnapshots(c *Command, r *http.Request, user *auth.UserState) Response
 }
 
 var snapshotImportCmd = &Command{
-	Path: "/v2/snapshots/import",
+	Path: "/v2/snapshot/import",
 	POST: postSnapshotImport,
 }
 
@@ -150,10 +150,11 @@ func postSnapshotImport(c *Command, r *http.Request, user *auth.UserState) Respo
 	defer r.Body.Close()
 
 	st := c.d.overlord.State()
-	setID, err := snapshotImport(context.TODO(), st, r.Body)
+	setID, snapNames, err := snapshotImport(context.TODO(), st, r.Body)
 	if err != nil {
 		return BadRequest(err.Error())
 	}
 
-	return SyncResponse(setID, nil)
+	result := map[string]interface{}{"set-id": setID, "snaps": snapNames}
+	return SyncResponse(result, nil)
 }

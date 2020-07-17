@@ -779,13 +779,14 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 		f, err := os.Open(t.filename)
 		c.Check(err, check.IsNil, comm)
 
-		err = backend.Import(context.Background(), t.setID, f)
+		snapNames, err := backend.Import(context.Background(), t.setID, f)
 		if t.error != "" {
 			c.Check(err.Error(), check.Equals, t.error, comm)
 			f.Close()
 			continue
 		}
 		c.Check(err, check.IsNil)
+		c.Check(snapNames, check.DeepEquals, []string{"baz", "bar", "foo"})
 
 		dir, err := os.Open(dirs.SnapshotsDir)
 		c.Check(err, check.IsNil, comm)

@@ -1482,9 +1482,10 @@ func (snapshotSuite) TestAutomaticSnapshotDefaultUbuntuCore(c *check.C) {
 
 func (snapshotSuite) TestImportSnapshot(c *check.C) {
 	st := state.New(nil)
+	snapNames := []string{"baz", "bar", "foo"}
 
-	fakeImport := func(ctx context.Context, id uint64, r io.Reader) error {
-		return nil
+	fakeImport := func(ctx context.Context, id uint64, r io.Reader) ([]string, error) {
+		return snapNames, nil
 	}
 
 	defer snapshotstate.MockBackendImport(fakeImport)()
@@ -1492,16 +1493,17 @@ func (snapshotSuite) TestImportSnapshot(c *check.C) {
 	r, err := snapshotstate.MockCreateExportStream(true)
 	c.Assert(err, check.IsNil)
 
-	sid, err := snapshotstate.Import(context.TODO(), st, r)
+	sid, names, err := snapshotstate.Import(context.TODO(), st, r)
 	c.Assert(err, check.IsNil)
 	c.Check(sid, check.Equals, uint64(1))
+	c.Check(names, check.DeepEquals, snapNames)
 }
 
 func (snapshotSuite) TestImportSnapshotImportError(c *check.C) {
 	st := state.New(nil)
 
-	fakeImport := func(ctx context.Context, id uint64, r io.Reader) error {
-		return errors.New("no")
+	fakeImport := func(ctx context.Context, id uint64, r io.Reader) ([]string, error) {
+		return nil, errors.New("no")
 	}
 
 	defer snapshotstate.MockBackendImport(fakeImport)()
@@ -1509,7 +1511,7 @@ func (snapshotSuite) TestImportSnapshotImportError(c *check.C) {
 	r, err := snapshotstate.MockCreateExportStream(true)
 	c.Assert(err, check.IsNil)
 
-	sid, err := snapshotstate.Import(context.TODO(), st, r)
+	sid, _, err := snapshotstate.Import(context.TODO(), st, r)
 	c.Assert(err, check.NotNil)
 	c.Assert(err.Error(), check.Equals, "no")
 	c.Check(sid, check.Equals, uint64(0))

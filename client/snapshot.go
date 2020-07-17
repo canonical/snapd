@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"strconv"
 	"strings"
@@ -175,4 +176,20 @@ func (client *Client) snapshotAction(action *snapshotAction) (changeID string, e
 	}
 
 	return client.doAsync("POST", "/v2/snapshots", nil, headers, bytes.NewBuffer(data))
+}
+
+// SnapshotImportSet is a snapshot import created by a "snap import-snapshot".
+type SnapshotImportSet struct {
+	ID    uint64   `json:"set-id"`
+	Snaps []string `json:"snaps"`
+}
+
+// SnapshotImport imports an exported snapshot set.
+func (client *Client) SnapshotImport(body io.Reader) (SnapshotImportSet, error) {
+	var importSet SnapshotImportSet
+	if _, err := client.doSync("POST", "/v2/snapshot/import", nil, nil, body, &importSet); err != nil {
+		return importSet, err
+	}
+
+	return importSet, nil
 }

@@ -21,7 +21,9 @@ package main_test
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -89,6 +91,18 @@ func (s *SnapSuite) TestSnapSnaphotsTest(c *C) {
 	}
 }
 
+func (s *SnapSuite) TestSnapshotImportHappy(c *C) {
+	s.mockSnapshotsServer(c)
+
+	exportedSnapshotPath := filepath.Join(c.MkDir(), "export-snapshot.snapshot")
+	ioutil.WriteFile(exportedSnapshotPath, []byte("Hello World!"), 0644)
+
+	_, err := main.Parser(main.Client()).ParseArgs([]string{"import-snapshot", exportedSnapshotPath})
+	c.Check(err, IsNil)
+	c.Check(s.Stderr(), testutil.EqualsWrapped, "")
+	c.Check(s.Stdout(), testutil.MatchesWrapped, "Imported snapshot with 3 snaps as snapshot ID 42")
+}
+
 func (s *SnapSuite) mockSnapshotsServer(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -107,6 +121,8 @@ func (s *SnapSuite) mockSnapshotsServer(c *C) {
 			}
 		case "/v2/changes/9":
 			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {}}}`)
+		case "/v2/snapshot/import":
+			fmt.Fprintln(w, `{"type": "sync", "result": {"set-id": 42, "snaps": ["baz", "bar", "foo"]}}`)
 		default:
 			c.Errorf("unexpected path %q", r.URL.Path)
 		}
