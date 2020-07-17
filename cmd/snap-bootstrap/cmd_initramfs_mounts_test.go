@@ -25,6 +25,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -40,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -61,6 +63,7 @@ type initramfsMountsSuite struct {
 	kernelr2 snap.PlaceInfo
 	core20   snap.PlaceInfo
 	core20r2 snap.PlaceInfo
+	snapd    snap.PlaceInfo
 }
 
 var _ = Suite(&initramfsMountsSuite{})
@@ -180,6 +183,9 @@ func (s *initramfsMountsSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	s.core20r2, err = snap.ParsePlaceInfoFromSnapFileName("core20_2.snap")
+	c.Assert(err, IsNil)
+
+	s.snapd, err = snap.ParsePlaceInfoFromSnapFileName("snapd_1.snap")
 	c.Assert(err, IsNil)
 
 	// by default mock that we don't have UEFI vars, etc. to get the booted
@@ -352,7 +358,6 @@ recovery_system=20191118
 `)
 	cloudInitDisable := filepath.Join(boot.InitramfsWritableDir, "_writable_defaults/etc/cloud/cloud-init.disabled")
 	c.Check(cloudInitDisable, testutil.FilePresent)
-
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeHappy(c *C) {
@@ -389,6 +394,466 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeHappy(c *C) {
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeRealSystemdMountTimesOutNoMount(c *C) {
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install snapd_recovery_system="+s.sysLabel)
+
+	testStart := time.Now()
+	timeCalls := 0
+	restore := main.MockTimeNow(func() time.Time {
+		timeCalls++
+		switch timeCalls {
+		case 1, 2:
+			return testStart
+		case 3:
+			// 1:31 later, we should time out
+			return testStart.Add(1*time.Minute + 31*time.Second)
+		default:
+			c.Errorf("unexpected time.Now() call (%d)", timeCalls)
+			// we want the test to fail at some point and not run forever, so
+			// move time way forward to make it for sure time out
+			return testStart.Add(10000 * time.Hour)
+		}
+	})
+	defer restore()
+
+	cmd := testutil.MockCommand(c, "systemd-mount", ``)
+	defer cmd.Restore()
+
+	isMountedCalls := 0
+	restore = main.MockIsMounted(func(where string) (bool, error) {
+		isMountedCalls++
+		switch isMountedCalls {
+		// always return false for the mount
+		case 1, 2:
+			c.Assert(where, Equals, boot.InitramfsUbuntuSeedDir)
+			return false, nil
+		default:
+			// shouldn't be called more than twice due to the time.Now() mocking
+			c.Errorf("test broken, IsMounted called too many (%d) times", isMountedCalls)
+			return false, fmt.Errorf("test broken, IsMounted called too many (%d) times", isMountedCalls)
+		}
+	})
+	defer restore()
+
+	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, ErrorMatches, fmt.Sprintf("timed out after 1:30 waiting for mount %s on %s", "/dev/disk/by-label/ubuntu-seed", boot.InitramfsUbuntuSeedDir))
+	c.Check(s.Stdout.String(), Equals, "")
+
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeHappyRealSystemdMount(c *C) {
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install snapd_recovery_system="+s.sysLabel)
+
+	baseMnt := filepath.Join(boot.InitramfsRunMntDir, "base")
+	kernelMnt := filepath.Join(boot.InitramfsRunMntDir, "kernel")
+	snapdMnt := filepath.Join(boot.InitramfsRunMntDir, "snapd")
+
+	// don't do anything from systemd-mount, we verify the arguments passed at
+	// the end with cmd.Calls
+	cmd := testutil.MockCommand(c, "systemd-mount", ``)
+	defer cmd.Restore()
+
+	// mock that in turn, /run/mnt/ubuntu-boot, /run/mnt/ubuntu-seed, etc. are
+	// mounted
+	n := 0
+	restore := main.MockIsMounted(func(where string) (bool, error) {
+		n++
+		switch n {
+		// first call for each mount returns false, then returns true, this
+		// tests in the case where systemd is racy / inconsistent and things
+		// aren't mounted by the time systemd-mount returns
+		case 1, 2:
+			c.Assert(where, Equals, boot.InitramfsUbuntuSeedDir)
+			return n%2 == 0, nil
+		case 3, 4:
+			c.Assert(where, Equals, snapdMnt)
+			return n%2 == 0, nil
+		case 5, 6:
+			c.Assert(where, Equals, kernelMnt)
+			return n%2 == 0, nil
+		case 7, 8:
+			c.Assert(where, Equals, baseMnt)
+			return n%2 == 0, nil
+		case 9, 10:
+			c.Assert(where, Equals, boot.InitramfsDataDir)
+			return n%2 == 0, nil
+		default:
+			c.Errorf("unexpected IsMounted check on %s", where)
+			return false, fmt.Errorf("unexpected IsMounted check on %s", where)
+		}
+	})
+	defer restore()
+
+	// mock a bootloader
+	bloader := boottest.MockUC20RunBootenv(bootloadertest.Mock("mock", c.MkDir()))
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	// set the current kernel
+	restore = bloader.SetEnabledKernel(s.kernel)
+	defer restore()
+
+	makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20)
+
+	// write modeenv
+	modeEnv := boot.Modeenv{
+		Mode:           "run",
+		Base:           s.core20.Filename(),
+		CurrentKernels: []string{s.kernel.Filename()},
+	}
+	err := modeEnv.WriteTo(boot.InitramfsWritableDir)
+	c.Assert(err, IsNil)
+
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+	c.Check(s.Stdout.String(), Equals, "")
+
+	// check that all of the override files are present
+	for _, initrdUnit := range []string{
+		"initrd.target",
+		"initrd-fs.target",
+		"initrd-switch-root.target",
+		"local-fs.target",
+	} {
+		for _, mountUnit := range []string{
+			systemd.EscapeUnitNamePath(boot.InitramfsUbuntuSeedDir),
+			systemd.EscapeUnitNamePath(snapdMnt),
+			systemd.EscapeUnitNamePath(kernelMnt),
+			systemd.EscapeUnitNamePath(baseMnt),
+			systemd.EscapeUnitNamePath(boot.InitramfsDataDir),
+		} {
+			fname := fmt.Sprintf("snap_bootstrap_%s.conf", mountUnit)
+			unitFile := filepath.Join(dirs.GlobalRootDir, "/run/systemd/system", initrdUnit+".d", fname)
+			c.Assert(unitFile, testutil.FileEquals, fmt.Sprintf(`[Unit]
+Requires=%[1]s
+After=%[1]s
+`, mountUnit+".mount"))
+		}
+	}
+
+	// 2 IsMounted calls per mount point, so 10 total IsMounted calls
+	c.Assert(n, Equals, 10)
+
+	c.Assert(cmd.Calls(), DeepEquals, [][]string{
+		{
+			"systemd-mount",
+			"/dev/disk/by-label/ubuntu-seed",
+			boot.InitramfsUbuntuSeedDir,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=yes",
+		},
+		{
+			"systemd-mount",
+			filepath.Join(s.seedDir, "snaps", s.snapd.Filename()),
+			snapdMnt,
+			"--no-pager",
+			"--no-ask-password",
+		},
+		{
+			"systemd-mount",
+			filepath.Join(s.seedDir, "snaps", s.kernel.Filename()),
+			kernelMnt,
+			"--no-pager",
+			"--no-ask-password",
+		},
+		{
+			"systemd-mount",
+			filepath.Join(s.seedDir, "snaps", s.core20.Filename()),
+			baseMnt,
+			"--no-pager",
+			"--no-ask-password",
+		},
+		{
+			"systemd-mount",
+			"tmpfs",
+			boot.InitramfsDataDir,
+			"--no-pager",
+			"--no-ask-password",
+			"--type=tmpfs",
+		},
+	})
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyRealSystemdMount(c *C) {
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover snapd_recovery_system="+s.sysLabel)
+
+	baseMnt := filepath.Join(boot.InitramfsRunMntDir, "base")
+	kernelMnt := filepath.Join(boot.InitramfsRunMntDir, "kernel")
+	snapdMnt := filepath.Join(boot.InitramfsRunMntDir, "snapd")
+
+	// don't do anything from systemd-mount, we verify the arguments passed at
+	// the end with cmd.Calls
+	cmd := testutil.MockCommand(c, "systemd-mount", ``)
+	defer cmd.Restore()
+
+	// mock that in turn, /run/mnt/ubuntu-boot, /run/mnt/ubuntu-seed, etc. are
+	// mounted
+	n := 0
+	restore := main.MockIsMounted(func(where string) (bool, error) {
+		n++
+		switch n {
+		// first call for each mount returns false, then returns true, this
+		// tests in the case where systemd is racy / inconsistent and things
+		// aren't mounted by the time systemd-mount returns
+		case 1, 2:
+			c.Assert(where, Equals, boot.InitramfsUbuntuSeedDir)
+			return n%2 == 0, nil
+		case 3, 4:
+			c.Assert(where, Equals, snapdMnt)
+			return n%2 == 0, nil
+		case 5, 6:
+			c.Assert(where, Equals, kernelMnt)
+			return n%2 == 0, nil
+		case 7, 8:
+			c.Assert(where, Equals, baseMnt)
+			return n%2 == 0, nil
+		case 9, 10:
+			c.Assert(where, Equals, boot.InitramfsDataDir)
+			return n%2 == 0, nil
+		case 11, 12:
+			c.Assert(where, Equals, boot.InitramfsHostUbuntuDataDir)
+			return n%2 == 0, nil
+		default:
+			c.Errorf("unexpected IsMounted check on %s", where)
+			return false, fmt.Errorf("unexpected IsMounted check on %s", where)
+		}
+	})
+	defer restore()
+
+	// mock a bootloader
+	bloader := boottest.MockUC20RunBootenv(bootloadertest.Mock("mock", c.MkDir()))
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	// set the current kernel
+	restore = bloader.SetEnabledKernel(s.kernel)
+	defer restore()
+
+	makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20)
+
+	// write modeenv
+	modeEnv := boot.Modeenv{
+		Mode:           "run",
+		Base:           s.core20.Filename(),
+		CurrentKernels: []string{s.kernel.Filename()},
+	}
+	err := modeEnv.WriteTo(boot.InitramfsWritableDir)
+	c.Assert(err, IsNil)
+
+	s.testRecoverModeHappy(c)
+
+	c.Check(s.Stdout.String(), Equals, "")
+
+	// check that all of the override files are present
+	for _, initrdUnit := range []string{
+		"initrd.target",
+		"initrd-fs.target",
+		"initrd-switch-root.target",
+		"local-fs.target",
+	} {
+		for _, mountUnit := range []string{
+			systemd.EscapeUnitNamePath(boot.InitramfsUbuntuSeedDir),
+			systemd.EscapeUnitNamePath(snapdMnt),
+			systemd.EscapeUnitNamePath(kernelMnt),
+			systemd.EscapeUnitNamePath(baseMnt),
+			systemd.EscapeUnitNamePath(boot.InitramfsDataDir),
+			systemd.EscapeUnitNamePath(boot.InitramfsHostUbuntuDataDir),
+		} {
+			fname := fmt.Sprintf("snap_bootstrap_%s.conf", mountUnit)
+			unitFile := filepath.Join(dirs.GlobalRootDir, "/run/systemd/system", initrdUnit+".d", fname)
+			c.Assert(unitFile, testutil.FileEquals, fmt.Sprintf(`[Unit]
+Requires=%[1]s
+After=%[1]s
+`, mountUnit+".mount"))
+		}
+	}
+
+	// 2 IsMounted calls per mount point, so 12 total IsMounted calls
+	c.Assert(n, Equals, 12)
+
+	c.Assert(cmd.Calls(), DeepEquals, [][]string{
+		{
+			"systemd-mount",
+			"/dev/disk/by-label/ubuntu-seed",
+			boot.InitramfsUbuntuSeedDir,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=yes",
+		},
+		{
+			"systemd-mount",
+			filepath.Join(s.seedDir, "snaps", s.snapd.Filename()),
+			snapdMnt,
+			"--no-pager",
+			"--no-ask-password",
+		},
+		{
+			"systemd-mount",
+			filepath.Join(s.seedDir, "snaps", s.kernel.Filename()),
+			kernelMnt,
+			"--no-pager",
+			"--no-ask-password",
+		},
+		{
+			"systemd-mount",
+			filepath.Join(s.seedDir, "snaps", s.core20.Filename()),
+			baseMnt,
+			"--no-pager",
+			"--no-ask-password",
+		},
+		{
+			"systemd-mount",
+			"tmpfs",
+			boot.InitramfsDataDir,
+			"--no-pager",
+			"--no-ask-password",
+			"--type=tmpfs",
+		},
+		{
+			"systemd-mount",
+			"/dev/disk/by-label/ubuntu-data",
+			boot.InitramfsHostUbuntuDataDir,
+			"--no-pager",
+			"--no-ask-password",
+		},
+	})
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeHappyRealSystemdMount(c *C) {
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	baseMnt := filepath.Join(boot.InitramfsRunMntDir, "base")
+	kernelMnt := filepath.Join(boot.InitramfsRunMntDir, "kernel")
+
+	// don't do anything from systemd-mount, we verify the arguments passed at
+	// the end with cmd.Calls
+	cmd := testutil.MockCommand(c, "systemd-mount", ``)
+	defer cmd.Restore()
+
+	// mock that in turn, /run/mnt/ubuntu-boot, /run/mnt/ubuntu-seed, etc. are
+	// mounted
+	n := 0
+	restore := main.MockIsMounted(func(where string) (bool, error) {
+		n++
+		switch n {
+		// first call for each mount returns false, then returns true, this
+		// tests in the case where systemd is racy / inconsistent and things
+		// aren't mounted by the time systemd-mount returns
+		case 1, 2:
+			c.Assert(where, Equals, boot.InitramfsUbuntuBootDir)
+			return n%2 == 0, nil
+		case 3, 4:
+			c.Assert(where, Equals, boot.InitramfsUbuntuSeedDir)
+			return n%2 == 0, nil
+		case 5, 6:
+			c.Assert(where, Equals, boot.InitramfsDataDir)
+			return n%2 == 0, nil
+		case 7, 8:
+			c.Assert(where, Equals, baseMnt)
+			return n%2 == 0, nil
+		case 9, 10:
+			c.Assert(where, Equals, kernelMnt)
+			return n%2 == 0, nil
+		default:
+			c.Errorf("unexpected IsMounted check on %s", where)
+			return false, fmt.Errorf("unexpected IsMounted check on %s", where)
+		}
+	})
+	defer restore()
+
+	// mock a bootloader
+	bloader := boottest.MockUC20RunBootenv(bootloadertest.Mock("mock", c.MkDir()))
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	// set the current kernel
+	restore = bloader.SetEnabledKernel(s.kernel)
+	defer restore()
+
+	makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20)
+
+	// write modeenv
+	modeEnv := boot.Modeenv{
+		Mode:           "run",
+		Base:           s.core20.Filename(),
+		CurrentKernels: []string{s.kernel.Filename()},
+	}
+	err := modeEnv.WriteTo(boot.InitramfsWritableDir)
+	c.Assert(err, IsNil)
+
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+	c.Check(s.Stdout.String(), Equals, "")
+
+	// check that all of the override files are present
+	for _, initrdUnit := range []string{
+		"initrd.target",
+		"initrd-fs.target",
+		"initrd-switch-root.target",
+		"local-fs.target",
+	} {
+		for _, mountUnit := range []string{
+			systemd.EscapeUnitNamePath(boot.InitramfsUbuntuBootDir),
+			systemd.EscapeUnitNamePath(boot.InitramfsUbuntuSeedDir),
+			systemd.EscapeUnitNamePath(boot.InitramfsDataDir),
+			systemd.EscapeUnitNamePath(baseMnt),
+			systemd.EscapeUnitNamePath(kernelMnt),
+		} {
+			fname := fmt.Sprintf("snap_bootstrap_%s.conf", mountUnit)
+			unitFile := filepath.Join(dirs.GlobalRootDir, "/run/systemd/system", initrdUnit+".d", fname)
+			c.Assert(unitFile, testutil.FileEquals, fmt.Sprintf(`[Unit]
+Requires=%[1]s
+After=%[1]s
+`, mountUnit+".mount"))
+		}
+	}
+
+	// 2 IsMounted calls per mount point, so 10 total IsMounted calls
+	c.Assert(n, Equals, 10)
+
+	c.Assert(cmd.Calls(), DeepEquals, [][]string{
+		{
+			"systemd-mount",
+			"/dev/disk/by-label/ubuntu-boot",
+			boot.InitramfsUbuntuBootDir,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=yes",
+		},
+		{
+			"systemd-mount",
+			"/dev/disk/by-label/ubuntu-seed",
+			boot.InitramfsUbuntuSeedDir,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=yes",
+		},
+		{
+			"systemd-mount",
+			"/dev/disk/by-label/ubuntu-data",
+			boot.InitramfsDataDir,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=yes",
+		},
+		{
+			"systemd-mount",
+			filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), s.core20.Filename()),
+			baseMnt,
+			"--no-pager",
+			"--no-ask-password",
+		},
+		{
+			"systemd-mount",
+			filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), s.kernel.Filename()),
+			kernelMnt,
+			"--no-pager",
+			"--no-ask-password",
+		},
+	})
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeFirstBootRecoverySystemSetHappy(c *C) {
@@ -940,10 +1405,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 	}
 }
 
-func (s *initramfsMountsSuite) testRecoverModeHappy(c *C, mounts []systemdMount) {
-	restore := s.mockSystemdMounts(c, mounts)
-	defer restore()
-
+func (s *initramfsMountsSuite) testRecoverModeHappy(c *C) {
 	// mock various files that are copied around during recover mode (and files
 	// that shouldn't be copied around)
 	ephemeralUbuntuData := filepath.Join(boot.InitramfsRunMntDir, "data/")
@@ -1031,7 +1493,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappy(c *C) {
 	restore := main.MockPartitionUUIDForBootedKernelDisk("")
 	defer restore()
 
-	mounts := []systemdMount{
+	restore = s.mockSystemdMounts(c, []systemdMount{
 		ubuntuLabelMount("ubuntu-seed"),
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
@@ -1046,9 +1508,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappy(c *C) {
 			boot.InitramfsHostUbuntuDataDir,
 			diskMountOpts,
 		},
-	}
+	})
+	defer restore()
 
-	s.testRecoverModeHappy(c, mounts)
+	s.testRecoverModeHappy(c)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyBootedKernelPartitionUUID(c *C) {
@@ -1057,7 +1520,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyBootedKernelPa
 	restore := main.MockPartitionUUIDForBootedKernelDisk("specific-ubuntu-seed-partuuid")
 	defer restore()
 
-	mounts := []systemdMount{
+	restore = s.mockSystemdMounts(c, []systemdMount{
 		{
 			"/dev/disk/by-partuuid/specific-ubuntu-seed-partuuid",
 			boot.InitramfsUbuntuSeedDir,
@@ -1076,9 +1539,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyBootedKernelPa
 			boot.InitramfsHostUbuntuDataDir,
 			diskMountOpts,
 		},
-	}
+	})
+	defer restore()
 
-	s.testRecoverModeHappy(c, mounts)
+	s.testRecoverModeHappy(c)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyEncrypted(c *C) {
@@ -1116,7 +1580,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyEncrypted(c *C
 	})
 	defer restore()
 
-	mounts := []systemdMount{
+	restore = s.mockSystemdMounts(c, []systemdMount{
 		ubuntuLabelMount("ubuntu-seed"),
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
@@ -1131,9 +1595,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyEncrypted(c *C
 			boot.InitramfsHostUbuntuDataDir,
 			diskMountOpts,
 		},
-	}
+	})
+	defer restore()
 
-	s.testRecoverModeHappy(c, mounts)
+	s.testRecoverModeHappy(c)
 
 	c.Check(activated, Equals, true)
 	c.Check(measureEpochCalls, Equals, 1)
@@ -1187,14 +1652,13 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallRecoverModeMeasure(c *C
 	})
 	defer restore()
 
+	restore = s.mockSystemdMounts(c, modeMnts)
+	defer restore()
+
 	if mode == "recover" {
 		// use the helper
-		s.testRecoverModeHappy(c, modeMnts)
+		s.testRecoverModeHappy(c)
 	} else {
-		// no helper for install mode, so mock the mounts manually
-		restore = s.mockSystemdMounts(c, modeMnts)
-		defer restore()
-
 		_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
 		c.Assert(err, IsNil)
 
