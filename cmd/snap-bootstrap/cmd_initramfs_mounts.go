@@ -63,6 +63,10 @@ func (c *cmdInitramfsMounts) Execute(args []string) error {
 }
 
 var (
+	osutilIsMounted = osutil.IsMounted
+
+	timeNow = time.Now
+
 	snapTypeToMountDir = map[snap.Type]string{
 		snap.TypeBase:   "base",
 		snap.TypeKernel: "kernel",
@@ -223,15 +227,20 @@ func doSystemdMountImpl(what, where string, opts *SystemdMountOptions) error {
 		// see systemd-mount(1)
 
 		// wait for the mount to exist
-		start := time.Now()
-		for time.Now().Sub(start) < defaultMountUnitWaitTimeout {
-			mounted, err := osutil.IsMounted(where)
+		start := timeNow()
+		var now time.Time
+		for now = timeNow(); now.Sub(start) < defaultMountUnitWaitTimeout; now = timeNow() {
+			mounted, err := osutilIsMounted(where)
 			if mounted {
 				break
 			}
 			if err != nil {
 				return err
 			}
+		}
+
+		if now.Sub(start) > defaultMountUnitWaitTimeout {
+			return fmt.Errorf("timed out after 1:30 waiting for mount %s on %s", what, where)
 		}
 	}
 

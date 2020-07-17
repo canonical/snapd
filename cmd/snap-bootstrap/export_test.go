@@ -21,7 +21,6 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
@@ -31,11 +30,19 @@ var (
 	Parser = parser
 )
 
-func MockStdout(newStdout io.Writer) (restore func()) {
-	oldStdout := stdout
-	stdout = newStdout
+func MockTimeNow(f func() time.Time) (restore func()) {
+	old := timeNow
+	timeNow = f
 	return func() {
-		stdout = oldStdout
+		timeNow = old
+	}
+}
+
+func MockIsMounted(f func(string) (bool, error)) (restore func()) {
+	old := osutilIsMounted
+	osutilIsMounted = f
+	return func() {
+		osutilIsMounted = old
 	}
 }
 
