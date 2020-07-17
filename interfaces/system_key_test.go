@@ -321,7 +321,7 @@ func (s *systemKeySuite) TestCurrentSystemKey(c *C) {
 
 func (s *systemKeySuite) TestMatchSystemKeys(c *C) {
 	_, err := interfaces.MatchSystemKeys(nil, nil)
-	c.Check(err, ErrorMatches, `internal error: cannot compare system keys`)
+	c.Check(err, ErrorMatches, `MatchSystemKeys: arguments are not system keys`)
 
 	restore := interfaces.MockSystemKey(`{"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0"}`)
 	defer restore()
@@ -330,10 +330,10 @@ func (s *systemKeySuite) TestMatchSystemKeys(c *C) {
 	c.Assert(err, IsNil)
 
 	_, err = interfaces.MatchSystemKeys(key1, nil)
-	c.Check(err, ErrorMatches, `internal error: cannot compare system keys`)
+	c.Check(err, ErrorMatches, `MatchSystemKeys: arguments are not system keys`)
 
 	_, err = interfaces.MatchSystemKeys(nil, key1)
-	c.Check(err, ErrorMatches, `internal error: cannot compare system keys`)
+	c.Check(err, ErrorMatches, `MatchSystemKeys: arguments are not system keys`)
 
 	interfaces.MockSystemKey(`{"build-id": "8888e9736c091b3984bd63f5aebfc883c4d85988"}`)
 	key2, err := interfaces.CurrentSystemKey()
