@@ -77,6 +77,7 @@ execute: |
 
     if [ "$REBOOTS" = "true" ]; then
         # Wait for system reboot
+        execute_remote "sudo reboot" || true
         wait_for_no_ssh
         wait_for_ssh
     fi
@@ -89,6 +90,7 @@ execute: |
 
     if [ "$REBOOTS" = "true" ]; then
         # Wait for system reboot
+        execute_remote "sudo reboot" || true
         wait_for_no_ssh
         wait_for_ssh
     fi
