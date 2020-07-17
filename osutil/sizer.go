@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019-2020 Canonical Ltd
+ * Copyright (C) 2018-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,30 +17,24 @@
  *
  */
 
-package secboot_test
+// XXX: not a great fit for osutil but we have no ioutil and even if we
+// did the name ioutil is taken so we would need something else.
+package osutil
 
-import (
-	"io/ioutil"
-	"os"
+type Sizer struct {
+	size int64
+}
 
-	. "gopkg.in/check.v1"
+func (sz *Sizer) Write(data []byte) (n int, err error) {
+	n = len(data)
+	sz.size += int64(n)
+	return
+}
 
-	"github.com/snapcore/snapd/secboot"
-)
+func (sz *Sizer) Reset() {
+	sz.size = 0
+}
 
-type encryptSuite struct{}
-
-var _ = Suite(&encryptSuite{})
-
-func (s *encryptSuite) TestRecoveryKeySave(c *C) {
-	rkey := secboot.RecoveryKey{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 255}
-	err := rkey.Save("test-key")
-	c.Assert(err, IsNil)
-	fileInfo, err := os.Stat("test-key")
-	c.Assert(err, IsNil)
-	c.Assert(fileInfo.Mode(), Equals, os.FileMode(0600))
-	data, err := ioutil.ReadFile("test-key")
-	c.Assert(err, IsNil)
-	c.Assert(data, DeepEquals, rkey[:])
-	os.Remove("test-key")
+func (sz *Sizer) Size() int64 {
+	return sz.size
 }
