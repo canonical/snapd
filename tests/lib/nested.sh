@@ -714,3 +714,11 @@ get_nested_core_revision_for_channel(){
 get_nested_core_revision_installed(){
     execute_remote "snap info core" | awk "/installed: / {print(\$3)}" | sed -e 's/(\(.*\))/\1/'
 }
+
+fetch_spread() {
+    mkdir -p "$WORK_DIR"
+    curl https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz | tar -xzv -C "$WORK_DIR"
+    # make sure spread really exists
+    test -x "$WORK_DIR/spread"
+    echo "$WORK_DIR/spread"
+}
