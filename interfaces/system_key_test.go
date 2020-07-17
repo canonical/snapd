@@ -342,4 +342,11 @@ func (s *systemKeySuite) TestMatchSystemKeys(c *C) {
 	ok, err := interfaces.MatchSystemKeys(key1, key2)
 	c.Assert(err, IsNil)
 	c.Check(ok, Equals, false)
+
+	key3, err := interfaces.CurrentSystemKey()
+	c.Assert(err, IsNil)
+
+	ok, err = interfaces.MatchSystemKeys(key2, key3)
+	c.Assert(err, IsNil)
+	c.Check(ok, Equals, true)
 }
