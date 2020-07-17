@@ -145,12 +145,12 @@ menuentry 'System setup' --hotkey=f 'uefi-firmware' {
 
 func init() {
 	registerInternal("grub.cfg", []byte(grubBootConfig))
-	registerSnippetForEditions("grub.cfg:static-cmdline", []forEditions{
+	registerSnippetForEditions("grub.cfg:static-cmdline", []ForEditions{
 		{FirstEdition: 1, Snippet: []byte("console=ttyS0 console=tty1 panic=-1")},
 	})
 
 	registerInternal("grub-recovery.cfg", []byte(grubRecoveryConfig))
-	registerSnippetForEditions("grub-recovery.cfg:static-cmdline", []forEditions{
+	registerSnippetForEditions("grub-recovery.cfg:static-cmdline", []ForEditions{
 		{FirstEdition: 1, Snippet: []byte("console=ttyS0 console=tty1 panic=-1")},
 	})
 }

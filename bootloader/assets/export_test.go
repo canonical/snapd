@@ -19,8 +19,6 @@
 
 package assets
 
-type ForEditions = forEditions
-
 var (
 	RegisterInternal           = registerInternal
 	RegisterSnippetForEditions = registerSnippetForEditions
@@ -30,7 +28,7 @@ func MockCleanState() (restore func()) {
 	oldRegisteredAssets := registeredAssets
 	oldRegisteredEditionAssets := registeredEditionAssets
 	registeredAssets = map[string][]byte{}
-	registeredEditionAssets = map[string][]forEditions{}
+	registeredEditionAssets = map[string][]ForEditions{}
 	return func() {
 		registeredAssets = oldRegisteredAssets
 		registeredEditionAssets = oldRegisteredEditionAssets
