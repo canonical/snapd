@@ -119,10 +119,8 @@ func (s *initramfsMountsSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
 	s.Stdout = bytes.NewBuffer(nil)
-	restore := main.MockStdout(s.Stdout)
-	s.AddCleanup(restore)
 
-	_, restore = logger.MockLogger()
+	_, restore := logger.MockLogger()
 	s.AddCleanup(restore)
 
 	// mock /run/mnt
@@ -391,7 +389,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeHappy(c *C) {
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
-	c.Check(s.Stdout.String(), Equals, "")
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeFirstBootRecoverySystemSetHappy(c *C) {
@@ -431,7 +428,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeFirstBootRecoverySystem
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
-	c.Check(s.Stdout.String(), Equals, "")
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithBootedKernelPartUUIDHappy(c *C) {
@@ -475,7 +471,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithBootedKernelPartUUI
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
-	c.Check(s.Stdout.String(), Equals, "")
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappy(c *C) {
@@ -554,7 +549,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappy(c *C
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
-	c.Check(s.Stdout.String(), Equals, "")
 	c.Check(activated, Equals, true)
 	c.Check(measureEpochCalls, Equals, 1)
 	c.Check(measureModelCalls, Equals, 1)
@@ -1007,7 +1001,6 @@ func (s *initramfsMountsSuite) testRecoverModeHappy(c *C, mounts []systemdMount)
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
-	c.Check(s.Stdout.String(), Equals, "")
 
 	modeEnv := filepath.Join(ephemeralUbuntuData, "/system-data/var/lib/snapd/modeenv")
 	c.Check(modeEnv, testutil.FileEquals, `mode=recover
@@ -1204,7 +1197,6 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallRecoverModeMeasure(c *C
 
 		_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
 		c.Assert(err, IsNil)
-		c.Check(s.Stdout.String(), Equals, "")
 
 		modeEnv := filepath.Join(boot.InitramfsDataDir, "/system-data/var/lib/snapd/modeenv")
 		c.Check(modeEnv, testutil.FileEquals, `mode=install
