@@ -7,6 +7,11 @@ prepare: |
     . "$TESTSLIB/nested.sh"
     create_nested_core_vm
 
+restore: |
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+    destroy_nested_vm
+
 execute: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
