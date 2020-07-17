@@ -144,7 +144,7 @@ func doSystemdMountImpl(what, where string, opts *SystemdMountOptions) error {
 	whereEscaped := systemd.EscapeUnitNamePath(where)
 	unitName := whereEscaped + ".mount"
 
-	args := []string{"--no-pager", "--no-ask-password", what, where}
+	args := []string{what, where, "--no-pager", "--no-ask-password"}
 	if opts.IsTmpfs {
 		args = append(args, "--type=tmpfs")
 	}
@@ -202,7 +202,7 @@ func doSystemdMountImpl(what, where string, opts *SystemdMountOptions) error {
 			"initrd-switch-root.target",
 			"local-fs.target",
 		} {
-			targetDir := filepath.Join("/run/systemd/system", initrdUnit+".d")
+			targetDir := filepath.Join(dirs.GlobalRootDir, "/run/systemd/system", initrdUnit+".d")
 			err := os.MkdirAll(targetDir, 0755)
 			if err != nil {
 				return err
