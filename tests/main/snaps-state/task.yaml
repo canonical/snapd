@@ -64,7 +64,7 @@ execute: |
     fi
 
     # Make and install a snap by using the install-local subcommand with --classic
-    if $("$TESTSTOOLS"/snaps-state is-classic-confinement-supported); then
+    if "$TESTSTOOLS"/snaps-state is-classic-confinement-supported; then
         snap_path=$("$TESTSTOOLS"/snaps-state install-local "$SNAP_CLASSIC" --classic)
         snap list "$SNAP_CLASSIC" | MATCH "classic$"
         snap remove "$SNAP_CLASSIC"
