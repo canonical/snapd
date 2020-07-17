@@ -261,14 +261,14 @@ func RecordedSystemKey() (interface{}, error) {
 	raw, err := ioutil.ReadFile(dirs.SnapSystemKeyFile)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return false, ErrSystemKeyMissing
+			return nil, ErrSystemKeyMissing
 		}
 		return nil, err
 	}
 
 	var diskSystemKey systemKey
 	if err := json.Unmarshal(raw, &diskSystemKey); err != nil {
-		return false, err
+		return nil, err
 	}
 
 	return &diskSystemKey, nil
@@ -286,7 +286,7 @@ func MatchSystemKeys(systemKey1, systemKey2 interface{}) (bool, error) {
 	_, ok1 := systemKey1.(*systemKey)
 	_, ok2 := systemKey2.(*systemKey)
 	if !(ok1 && ok2) {
-		return false, fmt.Errorf("internal error: cannot compare system keys")
+		return false, fmt.Errorf("MatchSystemKeys: arguments are not system keys")
 	}
 
 	// TODO: write custom struct compare
