@@ -28,6 +28,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/strutil"
@@ -154,15 +155,6 @@ func (s snapshotExportResponse) ServeHTTP(w http.ResponseWriter, r *http.Request
 	snapshotExport(context.TODO(), s.SetID, w)
 }
 
-type countingOnlyWriter struct {
-	total uint64
-}
-
-func (w *countingOnlyWriter) Write(p []byte) (n int, err error) {
-	w.total += uint64(len(p))
-	return len(p), nil
-}
-
 func getSnapshotExport(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
 	sid := vars["id"]
@@ -178,13 +170,13 @@ func getSnapshotExport(c *Command, r *http.Request, user *auth.UserState) Respon
 	// time switches between this export and the export we stream
 	// to the client to a time after the year 2242. This is unlikely
 	// but a known issue with this approach here.
-	var cw countingOnlyWriter
-	if err := snapshotExport(context.TODO(), setID, &cw); err != nil {
+	var sz osutil.Sizer
+	if err := snapshotExport(context.TODO(), setID, &sz); err != nil {
 		return BadRequest("cannot export %v", setID)
 	}
 
 	return &snapshotExportResponse{
 		SetID:      setID,
-		ExportSize: cw.total,
+		ExportSize: uint64(sz.Size()),
 	}
 }

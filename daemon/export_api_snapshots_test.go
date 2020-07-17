@@ -113,8 +113,7 @@ func ExportSnapshot(c *Command, r *http.Request, user *auth.UserState) *snapshot
 }
 
 var (
-	SnapshotMany       = snapshotMany
-	SnapshotCmd        = snapshotCmd
-	SnapshotExportCmd  = snapshotExportCmd
-	CountingOnlyWriter countingOnlyWriter
+	SnapshotMany      = snapshotMany
+	SnapshotCmd       = snapshotCmd
+	SnapshotExportCmd = snapshotExportCmd
 )

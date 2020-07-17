@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
 	"github.com/snapcore/snapd/snap"
@@ -720,15 +721,6 @@ func (s *snapshotSuite) TestMaybeRunuserNoHappy(c *check.C) {
 	c.Check(strings.TrimSpace(logbuf.String()), check.Matches, ".* No user wrapper found.*")
 }
 
-type mockWriter struct {
-	Total uint64
-}
-
-func (w *mockWriter) Write(p []byte) (n int, err error) {
-	w.Total += uint64(len(p))
-	return len(p), nil
-}
-
 func (s *snapshotSuite) TestExportTwice(c *check.C) {
 	// use mocking done in snapshotSuite.SetUpTest
 	info := &snap.Info{
@@ -744,15 +736,15 @@ func (s *snapshotSuite) TestExportTwice(c *check.C) {
 	_, err := backend.Save(context.TODO(), shID, info, nil, []string{"snapuser"}, &backend.Flags{})
 
 	// num_files + export.json + footer
-	expectedSize := uint64(4*512 + 1024 + 2*512)
+	expectedSize := int64(4*512 + 1024 + 2*512)
 	// do on export at the start of the epoch
 	restore := backend.MockTimeNow(func() time.Time { return time.Time{} })
 	defer restore()
 	// export once
-	w := &mockWriter{Total: 0}
-	err = backend.Export(context.Background(), shID, w)
+	var sz osutil.Sizer
+	err = backend.Export(context.Background(), shID, &sz)
 	c.Check(err, check.IsNil)
-	c.Check(w.Total, check.Equals, expectedSize)
+	c.Check(sz.Size(), check.Equals, expectedSize)
 
 	// and again to ensure size does not change when exported again
 	//
@@ -761,15 +753,15 @@ func (s *snapshotSuite) TestExportTwice(c *check.C) {
 	// change.
 	restore = backend.MockTimeNow(func() time.Time { return time.Date(2242, 1, 1, 12, 0, 0, 0, time.UTC) })
 	defer restore()
-	w.Total = 0
-	err = backend.Export(context.Background(), shID, w)
+	sz.Reset()
+	err = backend.Export(context.Background(), shID, &sz)
 	c.Check(err, check.IsNil)
-	c.Check(w.Total, check.Equals, expectedSize)
+	c.Check(sz.Size(), check.Equals, expectedSize)
 }
 
 func (s *snapshotSuite) TestExportUnhappy(c *check.C) {
-	w := &mockWriter{Total: 0}
-	err := backend.Export(context.Background(), 5, w)
+	var sz osutil.Sizer
+	err := backend.Export(context.Background(), 5, &sz)
 	c.Assert(err, check.ErrorMatches, "no snapshot data found for 5")
-	c.Assert(w.Total, check.Equals, uint64(0))
+	c.Assert(sz.Size(), check.Equals, int64(0))
 }
