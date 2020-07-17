@@ -823,13 +823,16 @@ this is updated grub.cfg
 }
 
 func (s *grubTestSuite) TestStaticCmdlineForGrubAsset(c *C) {
-	restore := assets.MockInternal("asset:edition=1:static_cmdline", []byte(`static cmdline "with spaces"`))
+	restore := assets.MockSnippetsForEdition("grub-asset:static-cmdline", []assets.ForEditions{
+		{FirstEdition: 2, Snippet: []byte(`static cmdline "with spaces"`)},
+	})
 	defer restore()
-	cmdline := bootloader.StaticCommandLineForGrubAssetEdition("asset", 1)
+	cmdline := bootloader.StaticCommandLineForGrubAssetEdition("grub-asset", 1)
+	c.Check(cmdline, Equals, ``)
+	cmdline = bootloader.StaticCommandLineForGrubAssetEdition("grub-asset", 2)
 	c.Check(cmdline, Equals, `static cmdline "with spaces"`)
-
-	cmdline = bootloader.StaticCommandLineForGrubAssetEdition("asset", 2)
-	c.Check(cmdline, Equals, "")
+	cmdline = bootloader.StaticCommandLineForGrubAssetEdition("grub-asset", 4)
+	c.Check(cmdline, Equals, `static cmdline "with spaces"`)
 }
 
 func (s *grubTestSuite) TestCommandLineNotManaged(c *C) {
@@ -854,10 +857,16 @@ func (s *grubTestSuite) TestCommandLineMocked(c *C) {
 boot script
 `
 	staticCmdline := `arg1   foo=123 panic=-1 arg2="with spaces "`
-	restore := assets.MockInternal("grub.cfg:edition=2:static_cmdline", []byte(staticCmdline))
+	staticCmdlineEdition3 := `edition=3 static args`
+	restore := assets.MockSnippetsForEdition("grub.cfg:static-cmdline", []assets.ForEditions{
+		{FirstEdition: 1, Snippet: []byte(staticCmdline)},
+		{FirstEdition: 3, Snippet: []byte(staticCmdlineEdition3)},
+	})
 	defer restore()
 	staticCmdlineRecovery := `recovery config panic=-1`
-	restore = assets.MockInternal("grub-recovery.cfg:edition=2:static_cmdline", []byte(staticCmdlineRecovery))
+	restore = assets.MockSnippetsForEdition("grub-recovery.cfg:static-cmdline", []assets.ForEditions{
+		{FirstEdition: 1, Snippet: []byte(staticCmdlineRecovery)},
+	})
 	defer restore()
 
 	// native EFI/ubuntu setup
@@ -899,9 +908,6 @@ boot script
 	grubCfg3 := `# Snapd-Boot-Config-Edition: 3
 boot script
 `
-	staticCmdlineEdition3 := `edition=3 static args`
-	restore = assets.MockInternal("grub.cfg:edition=3:static_cmdline", []byte(staticCmdlineEdition3))
-	defer restore()
 	s.makeFakeGrubEFINativeEnv(c, []byte(grubCfg3))
 	mg = bootloader.NewGrub(s.rootdir, optsNoSlashBoot).(bootloader.ManagedAssetsBootloader)
 	c.Assert(g, NotNil)

@@ -424,7 +424,7 @@ func (g *grub) CommandLine(modeArgs, extraArgs string) (string, error) {
 // staticCommandLineForGrubAssetEdition fetches a static command line for given
 // grub asset edition
 func staticCommandLineForGrubAssetEdition(asset string, edition uint) string {
-	cmdline := assets.Internal(fmt.Sprintf("%s:edition=%v:static_cmdline", asset, edition))
+	cmdline := assets.SnippetForEdition(fmt.Sprintf("%s:static-cmdline", asset), edition)
 	if cmdline == nil {
 		return ""
 	}
