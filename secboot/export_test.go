@@ -134,6 +134,22 @@ func MockRandomKernelUUID(f func() string) (restore func()) {
 	}
 }
 
+func MockSbInitializeLUKS2Container(f func(devicePath, label string, key []byte) error) (restore func()) {
+	old := sbInitializeLUKS2Container
+	sbInitializeLUKS2Container = f
+	return func() {
+		sbInitializeLUKS2Container = old
+	}
+}
+
+func MockSbAddRecoveryKeyToLUKS2Container(f func(devicePath string, key []byte, recoveryKey [16]byte) error) (restore func()) {
+	old := sbAddRecoveryKeyToLUKS2Container
+	sbAddRecoveryKeyToLUKS2Container = f
+	return func() {
+		sbAddRecoveryKeyToLUKS2Container = old
+	}
+}
+
 func MockIsTPMEnabled(f func(tpm *sb.TPMConnection) bool) (restore func()) {
 	old := isTPMEnabled
 	isTPMEnabled = f
