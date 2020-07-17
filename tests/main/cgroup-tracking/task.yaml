@@ -34,8 +34,9 @@ execute: |
         echo "Systemd running as user session manager cannot start transient units"
         echo "that cross ownership boundary. This test effectively runs through root"
         echo "that is using ssh to connect to a test machine. Crossing the boundary"
-        echo "of cgroup ownership is allowed by systemd 238 or newer, with a new"
-        echo "dbus API offered by systemd running as system manager, which allows"
+        echo "of cgroup ownership is allowed by systemd 238 or newer, thanks to"
+        echo "org.freedesktop.systemd1.Manager.AttachProcessesToUnit method,"
+        echo "offered by systemd running as system manager, which allows"
         echo "overcoming this kernel limitation".
         echo "SKIP: systemd is too old to perform this test as user"
 
