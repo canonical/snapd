@@ -68,6 +68,7 @@ func (m *DeviceManager) doMarkPreseeded(t *state.Task, _ *tomb.Tomb) error {
 
 			// do not mark this task done as this makes it racy against taskrunner tear down (the next task
 			// could start). Let this task finish after snapd restart when preseed mode is off.
+			t.Set("preseeded-time", time.Now())
 			st.RequestRestart(state.StopDaemon)
 		}
 
@@ -75,6 +76,10 @@ func (m *DeviceManager) doMarkPreseeded(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// normal snapd run after snapd restart (not in preseed mode anymore)
+
+	if err := m.setTimeOnce("seed-restart-time", startTime); err != nil {
+		return err
+	}
 
 	// enable all services generated as part of preseeding, but not enabled
 	// XXX: this should go away once the problem of install & services is fixed.
