@@ -322,7 +322,7 @@ func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, 
 		return err
 	}
 
-	var sz sizer
+	var sz osutil.Sizer
 	hasher := crypto.SHA3_384.New()
 
 	cmd := tarAsUser(username, tarArgs...)
@@ -342,7 +342,7 @@ func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, 
 	}
 
 	snapshot.SHA3_384[entry] = fmt.Sprintf("%x", hasher.Sum(nil))
-	snapshot.Size += sz.size
+	snapshot.Size += sz.Size()
 
 	return nil
 }

@@ -5,15 +5,14 @@ details: |
     can access timeserver information and update it.
 
 prepare: |
-    truncate --size=0 defer.sh
-    chmod +x defer.sh
+    tests.cleanup prepare
 
     # This test requires busctl but on 14.04 we don't have one.
     # Let's pick the one from the core snap in such case.
     if [ -z "$(command -v busctl 2>/dev/null)" ]; then
         ln -s /snap/core/current/usr/bin/busctl /usr/local/bin/busctl
         hash -r
-        echo "rm -f /usr/local/bin/busctl" >> defer.sh
+        tests.cleanup defer rm -f /usr/local/bin/busctl
     fi
 
     # Technically the interface may be implemented by many things but in
@@ -24,19 +23,19 @@ prepare: |
     case "$SPREAD_SYSTEM" in
         debian-sid-*)
             apt-get remove -y ntp
-            echo 'apt-get install -y ntp' >> defer.sh
+            tests.cleanup defer apt-get install -y ntp
             ;;
         ubuntu-19.10-*)
             apt-get remove -y chrony
-            echo 'apt-get install -y chrony' >> defer.sh
+            tests.cleanup defer apt-get install -y chrony
             ;;
         *)
             case "$(busctl get-property org.freedesktop.timedate1 /org/freedesktop/timedate1 org.freedesktop.timedate1 NTP)" in
                 "b true")
-                    echo "busctl call org.freedesktop.timedate1 /org/freedesktop/timedate1 org.freedesktop.timedate1 SetNTP bb true false" >> defer.sh
+                    tests.cleanup defer busctl call org.freedesktop.timedate1 /org/freedesktop/timedate1 org.freedesktop.timedate1 SetNTP bb true false
                     ;;
                 "b false")
-                    echo "busctl call org.freedesktop.timedate1 /org/freedesktop/timedate1 org.freedesktop.timedate1 SetNTP bb false false" >> defer.sh
+                    tests.cleanup defer busctl call org.freedesktop.timedate1 /org/freedesktop/timedate1 org.freedesktop.timedate1 SetNTP bb false false
                     ;;
                 *)
                     echo "Unexpected value of NTP property"
@@ -50,13 +49,10 @@ prepare: |
     # shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
     install_local test-snapd-timedate-control-consumer
-    echo "snap remove --purge test-snapd-timedate-control-consumer" >> defer.sh
+    tests.cleanup defer snap remove --purge test-snapd-timedate-control-consumer
 
 restore: |
-    # Restore system to the previous state by running deferred commands in
-    # reverse order.
-    tac defer.sh > refed.sh
-    sh -xe refed.sh && rm -f {defer,refed}.sh
+    tests.cleanup restore
 
 execute: |
     # If we cannot use network time protocol then the test is meaningless.

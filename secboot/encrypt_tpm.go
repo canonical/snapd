@@ -1,7 +1,8 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build !nosecboot
 
 /*
- * Copyright (C) 2019-2020 Canonical Ltd
+ * Copyright (C) 2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,30 +18,23 @@
  *
  */
 
-package secboot_test
+package secboot
 
 import (
-	"io/ioutil"
-	"os"
-
-	. "gopkg.in/check.v1"
-
-	"github.com/snapcore/snapd/secboot"
+	sb "github.com/snapcore/secboot"
 )
 
-type encryptSuite struct{}
+var (
+	sbInitializeLUKS2Container       = sb.InitializeLUKS2Container
+	sbAddRecoveryKeyToLUKS2Container = sb.AddRecoveryKeyToLUKS2Container
+)
 
-var _ = Suite(&encryptSuite{})
+// FormatEncryptedDevice
+func FormatEncryptedDevice(key EncryptionKey, label, node string) error {
+	return sbInitializeLUKS2Container(node, label, key[:])
+}
 
-func (s *encryptSuite) TestRecoveryKeySave(c *C) {
-	rkey := secboot.RecoveryKey{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 255}
-	err := rkey.Save("test-key")
-	c.Assert(err, IsNil)
-	fileInfo, err := os.Stat("test-key")
-	c.Assert(err, IsNil)
-	c.Assert(fileInfo.Mode(), Equals, os.FileMode(0600))
-	data, err := ioutil.ReadFile("test-key")
-	c.Assert(err, IsNil)
-	c.Assert(data, DeepEquals, rkey[:])
-	os.Remove("test-key")
+// AddRecoveryKey
+func AddRecoveryKey(key EncryptionKey, rkey RecoveryKey, node string) error {
+	return sbAddRecoveryKeyToLUKS2Container(node, key[:], rkey)
 }

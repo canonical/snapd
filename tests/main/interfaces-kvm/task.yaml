@@ -6,7 +6,7 @@ details: |
 prepare: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-sh
+    install_local test-snapd-kvm
 
     if [ -e /dev/kvm ]; then
         mv /dev/kvm /dev/kvm.bak
@@ -26,24 +26,27 @@ restore: |
 
 execute: |
     echo "The interface is not connected by default"
-    snap interfaces -i kvm | MATCH '^- +test-snapd-sh:kvm'
+    snap interfaces -i kvm | MATCH '^- +test-snapd-kvm:kvm'
 
     echo "When the interface is connected"
-    snap connect test-snapd-sh:kvm
+    snap connect test-snapd-kvm:kvm
+
+    echo "The module file is present"
+    test -s /etc/modules-load.d/snap.test-snapd-kvm.conf
 
     echo "Then the snap is able to read/write on /dev/kvm"
-    test-snapd-sh.with-kvm-plug -c "cat /dev/kvm"
-    test-snapd-sh.with-kvm-plug -c "echo 'test' >> /dev/kvm"
+    test-snapd-kvm.with-kvm-plug -c "cat /dev/kvm"
+    test-snapd-kvm.with-kvm-plug -c "echo 'test' >> /dev/kvm"
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
     fi
 
     echo "When the plug is disconnected"
-    snap disconnect test-snapd-sh:kvm
+    snap disconnect test-snapd-kvm:kvm
 
     echo "Then the snap is not able to read the kvm device"
-    if test-snapd-sh.with-kvm-plug -c "cat /dev/kvm" 2> call.error; then
+    if test-snapd-kvm.with-kvm-plug -c "cat /dev/kvm" 2> call.error; then
         echo "Expected permission error accessing to kvm device"
         exit 1
     fi
