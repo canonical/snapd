@@ -294,6 +294,10 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededHappy(c *C) {
 	defer s.state.Unlock()
 
 	c.Check(s.state.Changes(), HasLen, 1)
+
+	var seedStartTime time.Time
+	c.Assert(s.state.Get("seed-start-time", &seedStartTime), IsNil)
+	c.Check(seedStartTime.Equal(devicestate.StartTime()), Equals, true)
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkSkippedOnClassic(c *C) {

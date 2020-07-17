@@ -472,7 +472,7 @@ func (m *DeviceManager) ensureSeeded() error {
 	var start time.Time
 	if m.preseed {
 		recordedStart = "preseed-start-time"
-		start = time.Now()
+		start = timeNow()
 	} else {
 		recordedStart = "seed-start-time"
 		start = startTime
