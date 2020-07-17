@@ -106,7 +106,7 @@ while [ $# -gt 0 ]; do
 done
 
 if [ -z "$(declare -f "$action")" ]; then
-    echo "Subcommand $subcommand not supported."
+    echo "journal-state: no such command $subcommand" >&2
     show_help
     exit 1
 fi
