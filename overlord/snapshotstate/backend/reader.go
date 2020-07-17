@@ -72,7 +72,7 @@ func Open(fn string) (reader *Reader, e error) {
 	}
 
 	// first try to load the metadata itself
-	var sz sizer
+	var sz osutil.Sizer
 	hasher := crypto.SHA3_384.New()
 	metaReader, metaSize, err := zipMember(f, metadataName)
 	if err != nil {
@@ -91,8 +91,8 @@ func Open(fn string) (reader *Reader, e error) {
 		return reader, errors.New(reader.Broken)
 	}
 
-	if sz.size != metaSize {
-		reader.Broken = fmt.Sprintf("declared metadata size (%d) does not match actual (%d)", metaSize, sz.size)
+	if sz.Size() != metaSize {
+		reader.Broken = fmt.Sprintf("declared metadata size (%d) does not match actual (%d)", metaSize, sz.Size())
 		return reader, errors.New(reader.Broken)
 	}
 
@@ -110,8 +110,8 @@ func Open(fn string) (reader *Reader, e error) {
 		reader.Broken = err.Error()
 		return reader, err
 	}
-	if sz.size != metaHashSize {
-		reader.Broken = fmt.Sprintf("declared hash size (%d) does not match actual (%d)", metaHashSize, sz.size)
+	if sz.Size() != metaHashSize {
+		reader.Broken = fmt.Sprintf("declared hash size (%d) does not match actual (%d)", metaHashSize, sz.Size())
 		return reader, errors.New(reader.Broken)
 	}
 	if expectedMetaHash := string(bytes.TrimSpace(metaHashBuf)); actualMetaHash != expectedMetaHash {
@@ -190,7 +190,7 @@ func (r *Reader) Restore(ctx context.Context, current snap.Revision, usernames [
 	isRoot := sys.Geteuid() == 0
 	si := snap.MinimalPlaceInfo(r.Snap, r.Revision)
 	hasher := crypto.SHA3_384.New()
-	var sz sizer
+	var sz osutil.Sizer
 
 	var curdir string
 	if !current.Unset() {
@@ -324,9 +324,9 @@ func (r *Reader) Restore(ctx context.Context, current snap.Revision, usernames [
 			return rs, fmt.Errorf("tar failed: %v", err)
 		}
 
-		if sz.size != expectedSize {
+		if sz.Size() != expectedSize {
 			return rs, fmt.Errorf("snapshot %q entry %q expected size (%d) does not match actual (%d)",
-				r.Name(), entry, expectedSize, sz.size)
+				r.Name(), entry, expectedSize, sz.Size())
 		}
 
 		if actualHash := fmt.Sprintf("%x", hasher.Sum(nil)); actualHash != expectedHash {
