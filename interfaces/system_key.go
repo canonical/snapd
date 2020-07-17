@@ -214,17 +214,11 @@ func SystemKeyMismatch() (bool, error) {
 		return false, err
 	}
 
-	raw, err := ioutil.ReadFile(dirs.SnapSystemKeyFile)
-	if err != nil && os.IsNotExist(err) {
-		return false, ErrSystemKeyMissing
-	}
+	diskSystemKey, err := readSystemKey()
 	if err != nil {
 		return false, err
 	}
-	var diskSystemKey systemKey
-	if err := json.Unmarshal(raw, &diskSystemKey); err != nil {
-		return false, err
-	}
+
 	// deal with the race that "snap run" may start, then snapd
 	// is upgraded and generates a new system-key with different
 	// inputs than the "snap run" in memory. In this case we
@@ -252,26 +246,32 @@ func SystemKeyMismatch() (bool, error) {
 	diskSystemKey.AppArmorParserFeatures = nil
 	mySystemKey.AppArmorParserFeatures = nil
 
-	ok, err := MatchSystemKeys(mySystemKey, &diskSystemKey)
+	ok, err := MatchSystemKeys(mySystemKey, diskSystemKey)
 	return !ok, err
+}
+
+func readSystemKey() (*systemKey, error) {
+	raw, err := ioutil.ReadFile(dirs.SnapSystemKeyFile)
+	if err != nil && os.IsNotExist(err) {
+		return nil, ErrSystemKeyMissing
+	}
+	if err != nil {
+		return nil, err
+	}
+	var diskSystemKey systemKey
+	if err := json.Unmarshal(raw, &diskSystemKey); err != nil {
+			return nil, err
+	}
+	return &diskSystemKey, nil
 }
 
 // RecordedSystemKey returns opaque system key read from the disk.
 func RecordedSystemKey() (interface{}, error) {
-	raw, err := ioutil.ReadFile(dirs.SnapSystemKeyFile)
+	diskSystemKey, err := readSystemKey()
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, ErrSystemKeyMissing
-		}
 		return nil, err
 	}
-
-	var diskSystemKey systemKey
-	if err := json.Unmarshal(raw, &diskSystemKey); err != nil {
-		return nil, err
-	}
-
-	return &diskSystemKey, nil
+	return diskSystemKey, nil
 }
 
 // CurrentSystemKey calculates and returns opaque system key.
