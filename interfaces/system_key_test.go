@@ -282,3 +282,64 @@ func (s *systemKeySuite) TestStaticVersion(c *C) {
 		"CgroupVersion:",
 	}, " ")+"}")
 }
+
+func (s *systemKeySuite) TestRecordedSystemKey(c *C) {
+	_, err := interfaces.RecordedSystemKey()
+	c.Check(err, Equals, interfaces.ErrSystemKeyMissing)
+
+	restore := interfaces.MockSystemKey(`
+{
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
+"apparmor-features": ["caps"]
+}
+`)
+	defer restore()
+
+	c.Assert(interfaces.WriteSystemKey(), IsNil)
+
+	// just to ensure we really re-read it from the disk with RecordedSystemKey
+	interfaces.MockSystemKey(`{"build-id":"foo"}`)
+
+	key, err := interfaces.RecordedSystemKey()
+	c.Assert(err, IsNil)
+
+	sysKey, ok := key.(*interfaces.SystemKey)
+	c.Assert(ok, Equals, true)
+	c.Check(sysKey.BuildID, Equals, "7a94e9736c091b3984bd63f5aebfc883c4d859e0")
+}
+
+func (s *systemKeySuite) TestCurrentSystemKey(c *C) {
+	restore := interfaces.MockSystemKey(`{"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0"}`)
+	defer restore()
+
+	key, err := interfaces.CurrentSystemKey()
+	c.Assert(err, IsNil)
+	sysKey, ok := key.(*interfaces.SystemKey)
+	c.Assert(ok, Equals, true)
+	c.Check(sysKey.BuildID, Equals, "7a94e9736c091b3984bd63f5aebfc883c4d859e0")
+}
+
+func (s *systemKeySuite) TestMatchSystemKeys(c *C) {
+	_, err := interfaces.MatchSystemKeys(nil, nil)
+	c.Check(err, ErrorMatches, `internal error: cannot compare system keys`)
+
+	restore := interfaces.MockSystemKey(`{"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0"}`)
+	defer restore()
+
+	key1, err := interfaces.CurrentSystemKey()
+	c.Assert(err, IsNil)
+
+	_, err = interfaces.MatchSystemKeys(key1, nil)
+	c.Check(err, ErrorMatches, `internal error: cannot compare system keys`)
+
+	_, err = interfaces.MatchSystemKeys(nil, key1)
+	c.Check(err, ErrorMatches, `internal error: cannot compare system keys`)
+
+	interfaces.MockSystemKey(`{"build-id": "8888e9736c091b3984bd63f5aebfc883c4d85988"}`)
+	key2, err := interfaces.CurrentSystemKey()
+	c.Assert(err, IsNil)
+
+	ok, err := interfaces.MatchSystemKeys(key1, key2)
+	c.Assert(err, IsNil)
+	c.Check(ok, Equals, false)
+}

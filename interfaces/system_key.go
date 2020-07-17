@@ -22,6 +22,7 @@ package interfaces
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -251,8 +252,45 @@ func SystemKeyMismatch() (bool, error) {
 	diskSystemKey.AppArmorParserFeatures = nil
 	mySystemKey.AppArmorParserFeatures = nil
 
+	ok, err := MatchSystemKeys(mySystemKey, &diskSystemKey)
+	return !ok, err
+}
+
+// RecordedSystemKey returns opaque system key read from the disk.
+func RecordedSystemKey() (interface{}, error) {
+	raw, err := ioutil.ReadFile(dirs.SnapSystemKeyFile)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, ErrSystemKeyMissing
+		}
+		return nil, err
+	}
+
+	var diskSystemKey systemKey
+	if err := json.Unmarshal(raw, &diskSystemKey); err != nil {
+		return false, err
+	}
+
+	return &diskSystemKey, nil
+}
+
+// CurrentSystemKey calculates and returns opaque system key.
+func CurrentSystemKey() (interface{}, error) {
+	currentSystemKey, err := generateSystemKey()
+	return currentSystemKey, err
+}
+
+// MatchSystemKeys compares opaque system keys
+func MatchSystemKeys(systemKey1, systemKey2 interface{}) (bool, error) {
+	// sanity check
+	_, ok1 := systemKey1.(*systemKey)
+	_, ok2 := systemKey2.(*systemKey)
+	if !(ok1 && ok2) {
+		return false, fmt.Errorf("internal error: cannot compare system keys")
+	}
+
 	// TODO: write custom struct compare
-	return !reflect.DeepEqual(mySystemKey, &diskSystemKey), nil
+	return reflect.DeepEqual(systemKey1, systemKey2), nil
 }
 
 func MockSystemKey(s string) func() {
