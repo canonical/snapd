@@ -109,6 +109,11 @@ var (
 	SwitchSummary         = switchSummary
 )
 
+// dbus
+var (
+	CheckDBusServiceConflicts = checkDBusServiceConflicts
+)
+
 // readme files
 var (
 	WriteSnapReadme = writeSnapReadme

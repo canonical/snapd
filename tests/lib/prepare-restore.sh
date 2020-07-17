@@ -189,7 +189,9 @@ build_arch_pkg() {
     chown -R test:test /tmp/pkg
     su -l -c "cd /tmp/pkg && WITH_TEST_KEYS=1 makepkg -f --nocheck" test
 
-    cp /tmp/pkg/snapd*.pkg.tar.xz "${GOPATH%%:*}"
+    # /etc/makepkg.conf defines PKGEXT which drives the compression alg and sets
+    # the package file name extension, keep it simple and try a glob instead
+    cp /tmp/pkg/snapd*.pkg.tar.* "${GOPATH%%:*}"
 }
 
 download_from_published(){
@@ -223,7 +225,7 @@ prepare_project() {
     if [[ "$SPREAD_SYSTEM" == ubuntu-* ]] && [[ "$SPREAD_SYSTEM" != ubuntu-core-* ]]; then
         apt-get remove --purge -y lxd lxcfs || true
         apt-get autoremove --purge -y
-        "$TESTSTOOLS"/lxd-state undo-lxd-mount-changes
+        "$TESTSTOOLS"/lxd-state undo-mount-changes
     fi
 
     # Check if running inside a container.
