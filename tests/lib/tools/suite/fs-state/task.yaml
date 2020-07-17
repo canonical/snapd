@@ -14,15 +14,19 @@ execute: |
 
     "$TESTSTOOLS"/fs-state restore-dir mytestdir
     not test -d mytestdir
+    not test -f mytestdir.fake
 
     # Check existing directory
     mkdir mytestdir
+    touch mytestdir/mytestfile
     "$TESTSTOOLS"/fs-state mock-dir mytestdir
     test -d mytestdir
     test -f mytestdir.fake
     test -d mytestdir.back
+    not test -f mytestdir/mytestfile
     "$TESTSTOOLS"/fs-state restore-dir mytestdir
     test -d mytestdir
+    test -f mytestdir/mytestfile
     rm -r mytestdir
 
     # Restoring a dir which is not mocked is not allowed
