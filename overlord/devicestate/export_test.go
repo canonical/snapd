@@ -152,6 +152,10 @@ func SetBootOkRan(m *DeviceManager, b bool) {
 	m.bootOkRan = b
 }
 
+func StartTime() time.Time {
+	return startTime
+}
+
 type (
 	RegistrationContext = registrationContext
 	RemodelContext      = remodelContext
