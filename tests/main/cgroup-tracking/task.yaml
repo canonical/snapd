@@ -38,6 +38,13 @@ execute: |
         echo "dbus API offered by systemd running as system manager, which allows"
         echo "overcoming this kernel limitation".
         echo "SKIP: systemd is too old to perform this test as user"
+
+        # This effectively can run starting with Ubuntu 19.10, Fedora 30,
+        # Debian 10 (but no version of openSUSE Leap yet) - older versions will
+        # not perform in this unique environment that spread provides for us.
+        # In typical desktop environment going all the way back to 16.04 should
+        # work fine, as far as the intended use-case is concerned.
+
         exit 0
     fi
     if [ "$USER" = test ]; then
