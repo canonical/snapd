@@ -23,7 +23,8 @@ prepare: |
     for name in test-snapd-service test-snapd-timer-service socket-activation \
             test-snapd-user-service test-snapd-user-service-sockets \
             test-snapd-user-timer-service test-snapd-tools \
-            test-snapd-control-consumer test-snapd-auto-aliases; do
+            test-snapd-control-consumer test-snapd-auto-aliases \
+            test-snapd-kvm ; do
         if echo "$name" | grep -q user && echo "$SPREAD_SYSTEM" | grep -qF ubuntu-14.04; then
             # None of the "user" snaps work on 14.04
             continue
@@ -32,12 +33,16 @@ prepare: |
         snap list | MATCH "$name"
     done
 
+    # kvm interface needs manual connection
+    snap connect test-snapd-kvm:kvm
+
     snap install --edge test-snapd-dbus-provider
     snap list | MATCH test-snapd-dbus-provider
 
     # expecting to find various files that snap installation produced
     test "$(find /etc/udev/rules.d -name '*-snap.*.rules' | wc -l)" -gt 0
     test "$(find /etc/dbus-1/system.d -name 'snap.*.conf' | wc -l)" -gt 0
+    test "$(find /etc/modules-load.d/ -name 'snap.*.conf' | wc -l)" -gt 0
     test "$(find /etc/systemd/system -name 'snap.*.service' | wc -l)" -gt 0
     test "$(find /etc/systemd/system -name 'snap.*.timer' | wc -l)" -gt 0
     test "$(find /etc/systemd/system -name 'snap.*.socket' | wc -l)" -gt 0
@@ -100,6 +105,7 @@ execute: |
 
     test "$(find /etc/udev/rules.d -name '*-snap.*.rules' | wc -l)" -eq 0
     test "$(find /etc/dbus-1/system.d -name 'snap.*.conf' | wc -l)" -eq 0
+    test "$(find /etc/modules-load.d/ -name 'snap.*.conf' | wc -l)" -eq 0
     test "$(find /etc/systemd/system -name 'snap.*.service' -a ! -name "snap.mount.service" | wc -l)" -eq 0
     test "$(find /etc/systemd/system -name 'snap.*.timer' | wc -l)" -eq 0
     test "$(find /etc/systemd/system -name 'snap.*.socket' | wc -l)" -eq 0

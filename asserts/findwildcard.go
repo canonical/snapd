@@ -159,7 +159,7 @@ func findWildcardSequence(top, current, seqWildcard string, descendantWithWildca
 		}
 		for _, n := range names {
 			sqn, err := strconv.Atoi(n)
-			if err != nil || sqn < 0 || !noPrefixZeros(n, sqn == 0) {
+			if err != nil || sqn < 0 || prefixZeros(n) {
 				return fmt.Errorf("cannot parse %q name as a valid sequence number", filepath.Join(current, n))
 			}
 			if filter(sqn) {

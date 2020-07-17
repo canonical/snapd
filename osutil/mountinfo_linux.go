@@ -48,7 +48,7 @@ type MountInfoEntry struct {
 	SuperOptions   map[string]string
 }
 
-var isSnapdTest = len(os.Args) > 0 && strings.HasSuffix(os.Args[0], ".test")
+var isSnapdTest = len(os.Args) > 0 && goTestExeRe.MatchString(os.Args[0])
 
 func flattenMap(m map[string]string) string {
 	keys := make([]string, 0, len(m))

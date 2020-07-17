@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,18 +17,31 @@
  *
  */
 
-package backend
+package osutil_test
 
-type sizer struct {
-	size int64
-}
+import (
+	"io"
 
-func (sz *sizer) Write(data []byte) (n int, err error) {
-	n = len(data)
-	sz.size += int64(n)
-	return
-}
+	. "gopkg.in/check.v1"
 
-func (sz *sizer) Reset() {
-	sz.size = 0
+	"github.com/snapcore/snapd/osutil"
+)
+
+type sizerTestSuite struct{}
+
+var _ = Suite(&sizerTestSuite{})
+
+func (s *sizerTestSuite) TestSizer(c *C) {
+	sz := &osutil.Sizer{}
+	c.Check(sz.Size(), Equals, int64(0))
+
+	io.WriteString(sz, "12345")
+	c.Check(sz.Size(), Equals, int64(5))
+	io.WriteString(sz, "12345")
+	c.Check(sz.Size(), Equals, int64(10))
+
+	sz.Reset()
+	c.Check(sz.Size(), Equals, int64(0))
+	io.WriteString(sz, "12345")
+	c.Check(sz.Size(), Equals, int64(5))
 }
