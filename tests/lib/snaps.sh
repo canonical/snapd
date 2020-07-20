@@ -84,6 +84,35 @@ is_classic_confinement_supported() {
     return 1
 }
 
+# repack_snapd_deb_into_snapd_snap will re-pack a snapd snap using the assets 
+# from the snapd deb installed on the system
+repack_snapd_deb_into_snapd_snap() {
+    # use snapd from edge as a recent snap that should be close to what we will
+    # have in the snapd deb
+    snap download snapd --basename=snapd --edge
+    unsquashfs -d ./snapd-unpacked snapd.snap
+    
+    # extract all the files from the snapd deb
+    dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb ./snapd-unpacked
+
+    # repack into the target dir specified
+    snap pack --filename=snapd-from-deb.snap  snapd-unpacked "$1"
+}
+
+# repack_snapd_deb_into_core_snap will re-pack a core snap using the assets 
+# from the snapd deb installed on the system
+repack_snapd_deb_into_core_snap() {
+    # use snapd from edge as a recent snap that should be close to what we will
+    # have in the snapd deb
+    snap download core --basename=core --edge
+    unsquashfs -d ./core-unpacked core.snap
+    
+    # extract all the files from the snapd deb
+    dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb ./core-unpacked
+
+    # repack into the target dir specified
+    snap pack --filename=core-from-snapd-deb.snap  core-unpacked "$1"
+}
 
 # repack_installed_core_snap_into_snapd_snap will re-pack the core snap as the snapd snap,
 # using the snapd snap from edge as the set of files to use from the core snap.

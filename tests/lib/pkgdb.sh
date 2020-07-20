@@ -479,7 +479,7 @@ distro_install_build_snapd(){
                 ;;
             arch-*)
                 # shellcheck disable=SC2125
-                packages="${GOHOME}"/snapd*.pkg.tar.xz
+                packages="${GOHOME}"/snapd*.pkg.tar.*
                 ;;
             *)
                 exit 1
@@ -653,6 +653,7 @@ pkg_dependencies_ubuntu_classic(){
                 gccgo-9
                 packagekit
                 qemu-utils
+                shellcheck
                 "
             ;;
         ubuntu-20.10-64)

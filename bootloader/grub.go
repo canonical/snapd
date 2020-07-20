@@ -131,6 +131,21 @@ func (g *grub) SetRecoverySystemEnv(recoverySystemDir string, values map[string]
 	return genv.Save()
 }
 
+func (g *grub) GetRecoverySystemEnv(recoverySystemDir string, key string) (string, error) {
+	if recoverySystemDir == "" {
+		return "", fmt.Errorf("internal error: recoverySystemDir unset")
+	}
+	recoverySystemGrubEnv := filepath.Join(g.rootdir, recoverySystemDir, "grubenv")
+	genv := grubenv.NewEnv(recoverySystemGrubEnv)
+	if err := genv.Load(); err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", err
+	}
+	return genv.Get(key), nil
+}
+
 func (g *grub) ConfigFile() string {
 	return filepath.Join(g.dir(), "grub.cfg")
 }
@@ -362,4 +377,13 @@ func (g *grub) ManagedAssets() []string {
 	return []string{
 		filepath.Join(g.basedir, "grub.cfg"),
 	}
+}
+
+// CommandLine returns the kernel command line composed of the built-in
+// list and extra arguments passed in arguments. The command line may be
+// different when using a bootloader in the recovery partition.
+//
+// Implements ManagedAssetsBootloader for the grub bootloader.
+func (g *grub) CommandLine(extra []string) (string, error) {
+	return "", fmt.Errorf("not implemented")
 }
