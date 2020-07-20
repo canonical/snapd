@@ -471,7 +471,7 @@ start_nested_core_vm_unit(){
 
     # use only 2G of RAM for qemu-nested
     # the caller can override PARAM_MEM
-    if [ -z "$PARAM_MEM" ]; then
+    if [ -z "${PARAM_MEM:-}" ]; then
         if [ "$SPREAD_BACKEND" = "google-nested" ]; then
             PARAM_MEM="-m 4096"
         elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
