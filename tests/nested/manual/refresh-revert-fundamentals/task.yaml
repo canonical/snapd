@@ -16,19 +16,15 @@ environment:
 
     SNAP/kernel: pc-kernel
     BRANCH/kernel: 20
-    REBOOTS/kernel: true
 
     SNAP/gadget: pc    
     BRANCH/gadget: 20
-    REBOOTS/gadget: true
 
     SNAP/snapd: snapd
     BRANCH/snapd: latest
-    REBOOTS/snapd: false
 
     SNAP/base: core20
     BRANCH/base: latest
-    REBOOTS/base: true
 
 prepare: |
     #shellcheck source=tests/lib/nested.sh
@@ -75,12 +71,10 @@ execute: |
     # The snap is refreshed
     execute_remote "sudo snap refresh --channel $CORE_REFRESH_CHANNEL $SNAP" || true
 
-    if [ "$REBOOTS" = "true" ]; then
-        # Wait for system reboot
-        execute_remote "sudo reboot" || true
-        wait_for_no_ssh
-        wait_for_ssh
-    fi
+    # Reboot and wait for the system is ready again
+    execute_remote "sudo reboot" || true
+    wait_for_no_ssh
+    wait_for_ssh
 
     # Check the new version of the snaps is correct after the system reboot
     execute_remote "snap list $SNAP" | MATCH "^${SNAP}.*${TO_REV}.*${BRANCH}/${CORE_REFRESH_CHANNEL}.*"
@@ -88,12 +82,10 @@ execute: |
     # The snap is reverted
     execute_remote "sudo snap revert $SNAP" || true
 
-    if [ "$REBOOTS" = "true" ]; then
-        # Wait for system reboot
-        execute_remote "sudo reboot" || true
-        wait_for_no_ssh
-        wait_for_ssh
-    fi
+    # Reboot and wait for the system is ready again
+    execute_remote "sudo reboot" || true
+    wait_for_no_ssh
+    wait_for_ssh
 
     # Check the version of the snaps after the revert is correct
     execute_remote "snap list $SNAP" | MATCH "^${SNAP}.*${FROM_REV}.*${BRANCH}/${CORE_REFRESH_CHANNEL}.*"
