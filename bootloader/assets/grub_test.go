@@ -21,6 +21,7 @@ package assets_test
 
 import (
 	"bytes"
+	"fmt"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -59,21 +60,48 @@ func (s *grubAssetsTestSuite) TestGrubRecoveryConf(c *C) {
 	)
 }
 
-func (s *grubAssetsTestSuite) TestGrubCmdlineSnippet(c *C) {
-	grubCfg := assets.Internal("grub.cfg")
-	c.Assert(grubCfg, NotNil)
-	c.Assert(bytes.HasPrefix(grubCfg, []byte("# Snapd-Boot-Config-Edition: 1")), Equals, true)
-	// get a matching snippet
-	snip := assets.SnippetForEdition("grub.cfg:static-cmdline", 1)
-	c.Assert(snip, DeepEquals, []byte("console=ttyS0 console=tty1 panic=-1"))
-	c.Assert(string(grubCfg), testutil.Contains, string(snip))
+func (s *grubAssetsTestSuite) TestGrubCmdlineSnippetEditions(c *C) {
+	for _, tc := range []struct {
+		asset   string
+		edition uint
+		snip    []byte
+	}{
+		{"grub.cfg:static-cmdline", 1, []byte("console=ttyS0 console=tty1 panic=-1")},
+		{"grub-recovery.cfg:static-cmdline", 1, []byte("console=ttyS0 console=tty1 panic=-1")},
+	} {
+		snip := assets.SnippetForEdition(tc.asset, tc.edition)
+		c.Assert(snip, NotNil)
+		c.Check(snip, DeepEquals, tc.snip)
+	}
+}
 
-	// check recovery
-	grubRecoveryCfg := assets.Internal("grub-recovery.cfg")
-	c.Assert(grubRecoveryCfg, NotNil)
-	c.Assert(bytes.HasPrefix(grubCfg, []byte("# Snapd-Boot-Config-Edition: 1")), Equals, true)
-	recoverySnip := assets.SnippetForEdition("grub-recovery.cfg:static-cmdline", 1)
-	c.Assert(snip, DeepEquals, []byte("console=ttyS0 console=tty1 panic=-1"))
-	c.Assert(string(grubRecoveryCfg), testutil.Contains, string(recoverySnip))
-
+func (s *grubAssetsTestSuite) TestGrubCmdlineSnippetCrossCheck(c *C) {
+	for _, tc := range []struct {
+		asset   string
+		snippet string
+		edition uint
+		content []byte
+		pattern string
+	}{
+		{
+			asset: "grub.cfg", snippet: "grub.cfg:static-cmdline", edition: 1,
+			content: []byte("console=ttyS0 console=tty1 panic=-1"),
+			pattern: "set cmdline=\"%s\"\n",
+		},
+		{
+			asset: "grub-recovery.cfg", snippet: "grub-recovery.cfg:static-cmdline", edition: 1,
+			content: []byte("console=ttyS0 console=tty1 panic=-1"),
+			pattern: "set cmdline=\"%s\"\n",
+		},
+	} {
+		grubCfg := assets.Internal(tc.asset)
+		c.Assert(grubCfg, NotNil)
+		prefix := fmt.Sprintf("# Snapd-Boot-Config-Edition: %d", tc.edition)
+		c.Assert(bytes.HasPrefix(grubCfg, []byte(prefix)), Equals, true)
+		// get a matching snippet
+		snip := assets.SnippetForEdition(tc.snippet, tc.edition)
+		c.Assert(snip, NotNil)
+		c.Assert(snip, DeepEquals, tc.content)
+		c.Assert(string(grubCfg), testutil.Contains, fmt.Sprintf(tc.pattern, string(snip)))
+	}
 }
