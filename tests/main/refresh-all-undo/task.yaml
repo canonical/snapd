@@ -48,9 +48,9 @@ execute: |
     #shellcheck source=tests/lib/store.sh
     . "$TESTSLIB"/store.sh
     init_fake_refreshes "$BLOB_DIR" "$GOOD_SNAP"
-    "$TESTSTOOLS"/fs-state wait-for-file "$BLOB_DIR/${GOOD_SNAP}"*fake1*.snap 4 .5
+    retry test -e "$BLOB_DIR/${GOOD_SNAP}"*fake1*.snap -n 4 --wait .5
     init_fake_refreshes "$BLOB_DIR" "$BAD_SNAP"
-    "$TESTSTOOLS"/fs-state wait-for-file "$BLOB_DIR/${BAD_SNAP}"*fake1*.snap 4 .5
+    retry test -e "$BLOB_DIR/${BAD_SNAP}"*fake1*.snap -n 4 --wait .5
 
     echo "When a snap is broken"
     echo "i-am-broken-now" >> "$BLOB_DIR/${BAD_SNAP}"*fake1*.snap

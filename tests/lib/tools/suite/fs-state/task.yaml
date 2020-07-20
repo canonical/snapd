@@ -2,11 +2,12 @@ summary: smoke test for the fs-state tool
 
 execute: |
     # Check help
-    "$TESTSTOOLS"/fs-state -h | MATCH "usage: fs-state wait-for-file"
-    "$TESTSTOOLS"/fs-state --help | MATCH "usage: fs-state wait-for-file"
-    "$TESTSTOOLS"/fs-state | MATCH "usage: fs-state wait-for-file"
+    "$TESTSTOOLS"/fs-state -h | MATCH "usage: fs-state mock-dir"
+    "$TESTSTOOLS"/fs-state --help | MATCH "usage: fs-state mock-dir"
+    "$TESTSTOOLS"/fs-state | MATCH "usage: fs-state mock-dir"
 
     # Check non existing directory
+    not test -e mytestdir
     "$TESTSTOOLS"/fs-state mock-dir mytestdir
     test -d mytestdir
     test -f mytestdir.fake
@@ -31,7 +32,8 @@ execute: |
 
     # Restoring a dir which is not mocked is not allowed
     mkdir mytestdir
-    not "$TESTSTOOLS"/fs-state restore-dir mytestdir
+    not "$TESTSTOOLS"/fs-state restore-dir mytestdir | MATCH "The directory mytestdir is not mocked"
+    rm -r mytestdir
 
     # Check non existing file
     "$TESTSTOOLS"/fs-state mock-file mytestfile
@@ -43,18 +45,14 @@ execute: |
     not test -f mytestfile
 
     # Check existing file
-    touch mytestfile
+    echo test > mytestfile
     "$TESTSTOOLS"/fs-state mock-file mytestfile
-    test -f mytestfile
+    test -f mytestfile    
     test -f mytestfile.fake
     test -f mytestfile.back
+    not diff mytestfile mytestfile.back
     "$TESTSTOOLS"/fs-state restore-file mytestfile
     test -f mytestfile
-
-    # Check wait for file
-    "$TESTSTOOLS"/fs-state wait-for-file mytestfile 2 .5
-    rm mytestfile
-    not "$TESTSTOOLS"/fs-state wait-for-file mytestfile 2 .5
 
     # Restoring a file which is not mocked is not allowed
     touch mytestfile

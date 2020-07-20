@@ -61,7 +61,7 @@ execute: |
     tests.session -u test exec test-snapd-portal-client launch-file "$testfile"
 
     echo "The test-browser process was invoked with the URL"
-    "$TESTSTOOLS"/fs-state wait-for-file "$EDITOR_HISTORY" 4 .5
+    retry test -e "$EDITOR_HISTORY" -n 4 --wait .5
     MATCH "$testfile" < "$EDITOR_HISTORY"
 
 debug: |
