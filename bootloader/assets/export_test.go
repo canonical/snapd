@@ -28,11 +28,11 @@ var (
 
 func MockCleanState() (restore func()) {
 	oldRegisteredAssets := registeredAssets
-	oldRegisteredEditionAssets := registeredEditionAssets
+	oldRegisteredEditionAssets := registeredEditionSnippets
 	registeredAssets = map[string][]byte{}
-	registeredEditionAssets = map[string][]forEditions{}
+	registeredEditionSnippets = map[string][]forEditions{}
 	return func() {
 		registeredAssets = oldRegisteredAssets
-		registeredEditionAssets = oldRegisteredEditionAssets
+		registeredEditionSnippets = oldRegisteredEditionAssets
 	}
 }
