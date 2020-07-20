@@ -326,9 +326,10 @@ func (s *snapshotSuite) TestChangeSnapshot(c *check.C) {
 
 func (s *snapshotSuite) TestImportSnapshot(c *check.C) {
 	setID := uint64(3)
+	size := int64(len("Hello world!"))
 	snapNames := []string{"baz", "bar", "foo"}
-	defer daemon.MockSnapshotImport(func(context.Context, *state.State, io.Reader) (uint64, []string, error) {
-		return setID, snapNames, nil
+	defer daemon.MockSnapshotImport(func(context.Context, *state.State, io.Reader) (uint64, []string, int64, error) {
+		return setID, snapNames, size, nil
 	})()
 
 	// mock snapshot export file
@@ -344,8 +345,8 @@ func (s *snapshotSuite) TestImportSnapshot(c *check.C) {
 }
 
 func (s *snapshotSuite) TestImportSnapshotError(c *check.C) {
-	defer daemon.MockSnapshotImport(func(context.Context, *state.State, io.Reader) (uint64, []string, error) {
-		return uint64(0), nil, errors.New("no")
+	defer daemon.MockSnapshotImport(func(context.Context, *state.State, io.Reader) (uint64, []string, int64, error) {
+		return uint64(0), nil, 0, errors.New("no")
 	})()
 
 	// mock snapshot export file
@@ -358,4 +359,21 @@ func (s *snapshotSuite) TestImportSnapshotError(c *check.C) {
 	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, 400)
 	c.Check(rsp.ErrorResult().Message, check.Equals, "no")
+}
+
+func (s *snapshotSuite) TestImportSnapshotErrorSize(c *check.C) {
+	defer daemon.MockSnapshotImport(func(context.Context, *state.State, io.Reader) (uint64, []string, int64, error) {
+		return uint64(1), nil, 999, nil
+	})()
+
+	// mock snapshot export file
+	data := []byte("Hello world!")
+
+	req, err := http.NewRequest("POST", "/v2/snapshot/import", bytes.NewReader(data))
+	c.Assert(err, check.IsNil)
+
+	rsp := daemon.ImportSnapshot(daemon.SnapshotImportCmd, req, nil)
+	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, 400)
+	c.Check(rsp.ErrorResult().Message, check.Equals, "content-length does not match the written size: 12 is not 999")
 }

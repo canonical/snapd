@@ -752,7 +752,6 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 	table := []tableT{
 		{14, tarFile1, false, ""},
 		{14, tarFile2, false, "snapshot import file incomplete: no export.json file"},
-		//{14, "does-not-exist", false, "snapshot import failed: stat does-not-exist: no such file or directory"},
 		{14, tarFile1, true, "snapshot import already in progress for ID `14`"},
 		{14, tarFile3, false, "failed reading snapshot import: unexpected EOF"},
 		{14, tarFile4, false, ""},
@@ -779,14 +778,16 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 		f, err := os.Open(t.filename)
 		c.Check(err, check.IsNil, comm)
 
-		snapNames, err := backend.Import(context.Background(), t.setID, f)
+		size, snapNames, err := backend.Import(context.Background(), t.setID, f)
 		if t.error != "" {
 			c.Check(err.Error(), check.Equals, t.error, comm)
+			c.Check(size, check.Equals, int64(0), comm)
 			f.Close()
 			continue
 		}
 		c.Check(err, check.IsNil)
-		c.Check(snapNames, check.DeepEquals, []string{"baz", "bar", "foo"})
+		sort.Strings(snapNames)
+		c.Check(snapNames, check.DeepEquals, []string{"bar", "baz", "foo"})
 
 		dir, err := os.Open(dirs.SnapshotsDir)
 		c.Check(err, check.IsNil, comm)

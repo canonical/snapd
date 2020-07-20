@@ -348,27 +348,27 @@ func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, 
 }
 
 // Import a snapshot from the export file format
-func Import(ctx context.Context, id uint64, r io.Reader) ([]string, error) {
+func Import(ctx context.Context, id uint64, r io.Reader) (int64, []string, error) {
 	comment := fmt.Sprintf("snapshot %d", id)
 
 	// prepare cache location to unpack the import file
 	p := path.Join(dirs.SnapCacheDir, "snapshots", string(id))
 	if _, err := os.Stat(p); !os.IsNotExist(err) {
-		return nil, fmt.Errorf("snapshot import already in progress for ID `%d`", id)
+		return 0, nil, fmt.Errorf("snapshot import already in progress for ID `%d`", id)
 	}
 	if err := os.MkdirAll(p, 0755); err != nil {
-		return nil, fmt.Errorf("failed creating import cache: %v", err)
+		return 0, nil, fmt.Errorf("failed creating import cache: %v", err)
 	}
 	defer os.RemoveAll(p)
 
 	// unpack the tar file to a temporary location (so the contents can be validated)
-	exportFound, err := unpackSnapshotImport(r, p)
+	exportFound, size, err := unpackSnapshotImport(r, p)
 	if err != nil {
-		return nil, err
+		return 0, nil, err
 	}
 
 	if !exportFound {
-		return nil, fmt.Errorf("snapshot import file incomplete: no export.json file")
+		return 0, nil, fmt.Errorf("snapshot import file incomplete: no export.json file")
 	}
 
 	// XXX: check the snapshot hashes (these are not in export.json at present)
@@ -376,20 +376,22 @@ func Import(ctx context.Context, id uint64, r io.Reader) ([]string, error) {
 	// walk the cache directory to store the files
 	dir, err := osOpen(p)
 	if err != nil {
-		return nil, fmt.Errorf("failed opening import cache: %v", comment)
+		return 0, nil, fmt.Errorf("failed opening import cache: %v", comment)
 	}
 	defer dir.Close()
 	names, err := dirNames(dir, 100)
 	if err != nil {
-		return nil, fmt.Errorf("failed read from import cache: %v", comment)
+		return 0, nil, fmt.Errorf("failed read from import cache: %v", comment)
 	}
 
 	// move the files into place with the new local set ID
-	return moveCachedSnapshots(names, id, p)
+	snapNames, err := moveCachedSnapshots(names, id, p)
+	return size, snapNames, err
 }
 
-func unpackSnapshotImport(r io.Reader, p string) (bool, error) {
+func unpackSnapshotImport(r io.Reader, p string) (bool, int64, error) {
 	tr := tar.NewReader(r)
+	size := int64(0)
 	var tarErr error
 	var header *tar.Header
 	var exportFound bool
@@ -400,7 +402,7 @@ func unpackSnapshotImport(r io.Reader, p string) (bool, error) {
 		case tarErr == io.EOF:
 			skip = true
 		case tarErr != nil:
-			return false, fmt.Errorf("failed reading snapshot import: %v", tarErr)
+			return false, 0, fmt.Errorf("failed reading snapshot import: %v", tarErr)
 		case header == nil:
 			// should not happen
 			skip = true
@@ -420,15 +422,17 @@ func unpackSnapshotImport(r io.Reader, p string) (bool, error) {
 		target := path.Join(p, header.Name)
 		t, err := os.OpenFile(target, os.O_CREATE|os.O_RDWR, os.FileMode(header.Mode))
 		if err != nil {
-			return false, fmt.Errorf("failed creating file `%s`: %v", target, err)
+			return false, 0, fmt.Errorf("failed creating file `%s`: %v", target, err)
 		}
-		if _, err := io.Copy(t, tr); err != nil {
-			return false, fmt.Errorf("failed copying file `%s`: %v", target, err)
+		writtenSize, err := io.Copy(t, tr)
+		if err != nil {
+			return false, 0, fmt.Errorf("failed copying file `%s`: %v", target, err)
 		}
+		size += writtenSize
 
 		t.Close()
 	}
-	return exportFound, nil
+	return exportFound, size, nil
 }
 
 func moveCachedSnapshots(names []string, id uint64, p string) ([]string, error) {
