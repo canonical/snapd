@@ -41,12 +41,12 @@ execute: |
     snap connect test-snapd-sh:personal-files
 
     echo "Then the snap is able to access all the files and dirs in $HOME"
-    test-snapd-sh.with-personal-files-plug -c "cat /root/.testfile1" | MATCH "content for /root/.testfile1"
-    test-snapd-sh.with-personal-files-plug -c "cat /root/testfile1" | MATCH "content for /root/testfile1"
+    test-snapd-sh.with-personal-files-plug -c "cat /root/.testfile1" | MATCH "mock file"
+    test-snapd-sh.with-personal-files-plug -c "cat /root/testfile1" | MATCH "mock file"
     test-snapd-sh.with-personal-files-plug -c "ls /root/.testdir1"
     test-snapd-sh.with-personal-files-plug -c "ls /root/testdir1"
-    test-snapd-sh.with-personal-files-plug -c "cat /root/.testdir1/.testfilé2" | MATCH "content for /root/.testdir1/.testfilé2"
-    test-snapd-sh.with-personal-files-plug -c "cat '/root/.testdir1/test file2'" | MATCH "content for /root/.testdir1/test file2"
+    test-snapd-sh.with-personal-files-plug -c "cat /root/.testdir1/.testfilé2" | MATCH "mock file"
+    test-snapd-sh.with-personal-files-plug -c "cat '/root/.testdir1/test file2'" | MATCH "mock file"
     test-snapd-sh.with-personal-files-plug -c "ls  /root/.testdir1/.testdir2/"
 
     echo "Then the snap is able to write on /root/.testdir1 and /root/.testfile1"

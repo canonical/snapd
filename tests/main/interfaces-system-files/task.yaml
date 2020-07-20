@@ -41,12 +41,12 @@ execute: |
     snap connect test-snapd-sh:system-files
 
     echo "Then the snap is able to access all the files and dirs in /testdir"
-    test-snapd-sh.with-system-files-plug -c "cat $TESTDIR/.testfile1" | MATCH "content for $TESTDIR/.testfile1"
-    test-snapd-sh.with-system-files-plug -c "cat $TESTDIR/readonly_file1" MATCH "content for $TESTDIR/readonly_file1"
+    test-snapd-sh.with-system-files-plug -c "cat $TESTDIR/.testfile1" | MATCH "mock file"
+    test-snapd-sh.with-system-files-plug -c "cat $TESTDIR/readonly_file1" MATCH "mock file"
     test-snapd-sh.with-system-files-plug -c "ls $TESTDIR/.testdir1"
     test-snapd-sh.with-system-files-plug -c "ls $TESTDIR/testdir1"
-    test-snapd-sh.with-system-files-plug -c "cat $TESTDIR/.testdir1/.testfilé2" | MATCH "content for $TESTDIR/.testdir1/.testfilé2"
-    test-snapd-sh.with-system-files-plug -c "cat $TESTDIR'/.testdir1/test file2'" | MATCH "content for $TESTDIR/.testdir1/test file2"
+    test-snapd-sh.with-system-files-plug -c "cat $TESTDIR/.testdir1/.testfilé2" | MATCH "mock file"
+    test-snapd-sh.with-system-files-plug -c "cat $TESTDIR'/.testdir1/test file2'" | MATCH "mock file"
     test-snapd-sh.with-system-files-plug -c "ls $TESTDIR/root/"
 
     echo "Then the snap is able to write just $TESTDIR/.testdir1 and $TESTDIR/.testfile1"

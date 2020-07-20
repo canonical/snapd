@@ -89,13 +89,13 @@ execute: |
 
     echo "Access the file via URI handler"
     tests.session -u test exec test-snapd-desktop.cmd xdg-open file:///home/test/snap/test-snapd-desktop/common/test.txt
-    retry test -e "$EDITOR_HISTORY" -n 4 --wait .5
+    retry test -e "$EDITOR_HISTORY" -n 4 --wait 0.5
     MATCH /home/test/snap/test-snapd-desktop/common/test.txt < "$EDITOR_HISTORY"
     rm -f "$EDITOR_HISTORY"
 
     echo "Access the file directly"
     tests.session -u test exec test-snapd-desktop.cmd xdg-open /home/test/snap/test-snapd-desktop/common/test.txt
-    retry test -e "$EDITOR_HISTORY" -n 4 --wait .5
+    retry test -e "$EDITOR_HISTORY" -n 4 --wait 0.5
     MATCH /home/test/snap/test-snapd-desktop/common/test.txt < "$EDITOR_HISTORY"
 
 debug: |
