@@ -140,16 +140,14 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) accessResult 
 		return accessOK
 	}
 
-	// isUser means we have a UID for the request
-	isUser := false
-	pid, uid, socket, err := ucrednetGet(r.RemoteAddr)
-	if err == nil {
-		isUser = true
-	} else if err != errNoID {
+	ucred, err := ucrednetGet(r.RemoteAddr)
+	if err != nil && err != errNoID {
 		logger.Noticef("unexpected error when attempting to get UID: %s", err)
 		return accessForbidden
 	}
-	isSnap := (socket == dirs.SnapSocket)
+	// isUser means we have a UID for the request
+	isUser := ucred != nil
+	isSnap := (isUser && ucred.socket == dirs.SnapSocket)
 
 	// ensure that snaps can only access SnapOK things
 	if isSnap {
@@ -176,7 +174,7 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) accessResult 
 		return accessUnauthorized
 	}
 
-	if uid == 0 {
+	if ucred.uid == 0 {
 		// Superuser does anything.
 		return accessOK
 	}
@@ -196,7 +194,7 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) accessResult 
 			}
 		}
 		// Pass both pid and uid from the peer ucred to avoid pid race
-		if authorized, err := polkitCheckAuthorization(pid, uid, c.PolkitOK, nil, flags); err == nil {
+		if authorized, err := polkitCheckAuthorization(ucred.pid, ucred.uid, c.PolkitOK, nil, flags); err == nil {
 			if authorized {
 				// polkit says user is authorised
 				return accessOK

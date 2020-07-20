@@ -74,10 +74,10 @@ func (s *ucrednetSuite) TestAcceptConnRemoteAddrString(c *check.C) {
 
 	remoteAddr := conn.RemoteAddr().String()
 	c.Check(remoteAddr, check.Matches, "pid=100;uid=42;.*")
-	pid, uid, _, err := ucrednetGet(remoteAddr)
-	c.Check(pid, check.Equals, int32(100))
-	c.Check(uid, check.Equals, uint32(42))
-	c.Check(err, check.IsNil)
+	u, err := ucrednetGet(remoteAddr)
+	c.Assert(err, check.IsNil)
+	c.Check(u.pid, check.Equals, int32(100))
+	c.Check(u.uid, check.Equals, uint32(42))
 }
 
 func (s *ucrednetSuite) TestNonUnix(c *check.C) {
@@ -101,9 +101,8 @@ func (s *ucrednetSuite) TestNonUnix(c *check.C) {
 
 	remoteAddr := conn.RemoteAddr().String()
 	c.Check(remoteAddr, check.Matches, "pid=;uid=;.*")
-	pid, uid, _, err := ucrednetGet(remoteAddr)
-	c.Check(pid, check.Equals, ucrednetNoProcess)
-	c.Check(uid, check.Equals, ucrednetNobody)
+	u, err := ucrednetGet(remoteAddr)
+	c.Check(u, check.IsNil)
 	c.Check(err, check.Equals, errNoID)
 }
 
@@ -157,45 +156,39 @@ func (s *ucrednetSuite) TestIdempotentClose(c *check.C) {
 }
 
 func (s *ucrednetSuite) TestGetNoUid(c *check.C) {
-	pid, uid, _, err := ucrednetGet("pid=100;uid=;socket=;")
+	u, err := ucrednetGet("pid=100;uid=;socket=;")
 	c.Check(err, check.Equals, errNoID)
-	c.Check(pid, check.Equals, ucrednetNoProcess)
-	c.Check(uid, check.Equals, ucrednetNobody)
+	c.Check(u, check.IsNil)
 }
 
 func (s *ucrednetSuite) TestGetBadUid(c *check.C) {
-	pid, uid, _, err := ucrednetGet("pid=100;uid=4294967296;socket=;")
-	c.Check(err, check.NotNil)
-	c.Check(pid, check.Equals, int32(100))
-	c.Check(uid, check.Equals, ucrednetNobody)
+	u, err := ucrednetGet("pid=100;uid=4294967296;socket=;")
+	c.Check(err, check.Equals, errNoID)
+	c.Check(u, check.IsNil)
 }
 
 func (s *ucrednetSuite) TestGetNonUcrednet(c *check.C) {
-	pid, uid, _, err := ucrednetGet("hello")
+	u, err := ucrednetGet("hello")
 	c.Check(err, check.Equals, errNoID)
-	c.Check(pid, check.Equals, ucrednetNoProcess)
-	c.Check(uid, check.Equals, ucrednetNobody)
+	c.Check(u, check.IsNil)
 }
 
 func (s *ucrednetSuite) TestGetNothing(c *check.C) {
-	pid, uid, _, err := ucrednetGet("")
+	u, err := ucrednetGet("")
 	c.Check(err, check.Equals, errNoID)
-	c.Check(pid, check.Equals, ucrednetNoProcess)
-	c.Check(uid, check.Equals, ucrednetNobody)
+	c.Check(u, check.IsNil)
 }
 
 func (s *ucrednetSuite) TestGet(c *check.C) {
-	pid, uid, socket, err := ucrednetGet("pid=100;uid=42;socket=/run/snap.socket;")
-	c.Check(err, check.IsNil)
-	c.Check(pid, check.Equals, int32(100))
-	c.Check(uid, check.Equals, uint32(42))
-	c.Check(socket, check.Equals, "/run/snap.socket")
+	u, err := ucrednetGet("pid=100;uid=42;socket=/run/snap.socket;")
+	c.Assert(err, check.IsNil)
+	c.Check(u.pid, check.Equals, int32(100))
+	c.Check(u.uid, check.Equals, uint32(42))
+	c.Check(u.socket, check.Equals, "/run/snap.socket")
 }
 
 func (s *ucrednetSuite) TestGetSneak(c *check.C) {
-	pid, uid, socket, err := ucrednetGet("pid=100;uid=42;socket=/run/snap.socket;pid=0;uid=0;socket=/tmp/my.socket")
+	u, err := ucrednetGet("pid=100;uid=42;socket=/run/snap.socket;pid=0;uid=0;socket=/tmp/my.socket")
 	c.Check(err, check.Equals, errNoID)
-	c.Check(pid, check.Equals, ucrednetNoProcess)
-	c.Check(uid, check.Equals, ucrednetNobody)
-	c.Check(socket, check.Equals, "")
+	c.Check(u, check.IsNil)
 }

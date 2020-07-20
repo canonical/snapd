@@ -2146,7 +2146,7 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("snapctl cannot run without args")
 	}
 
-	_, uid, _, err := runSnapctlUcrednetGet(r.RemoteAddr)
+	ucred, err := runSnapctlUcrednetGet(r.RemoteAddr)
 	if err != nil {
 		return Forbidden("cannot get remote user: %s", err)
 	}
@@ -2154,7 +2154,7 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 	// Ignore missing context error to allow 'snapctl -h' without a context;
 	// Actual context is validated later by get/set.
 	context, _ := c.d.overlord.HookManager().Context(snapctlOptions.ContextID)
-	stdout, stderr, err := ctlcmdRun(context, snapctlOptions.Args, uid)
+	stdout, stderr, err := ctlcmdRun(context, snapctlOptions.Args, ucred.uid)
 	if err != nil {
 		if e, ok := err.(*ctlcmd.UnsuccessfulError); ok {
 			result := map[string]interface{}{

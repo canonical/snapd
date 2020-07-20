@@ -6759,8 +6759,8 @@ func (s *apiSuite) TestSnapctlGetNoUID(c *check.C) {
 func (s *apiSuite) TestSnapctlForbiddenError(c *check.C) {
 	_ = s.daemon(c)
 
-	runSnapctlUcrednetGet = func(string) (int32, uint32, string, error) {
-		return 100, 9999, dirs.SnapSocket, nil
+	runSnapctlUcrednetGet = func(string) (*ucrednet, error) {
+		return &ucrednet{100, 9999, dirs.SnapSocket}, nil
 	}
 	defer func() { runSnapctlUcrednetGet = ucrednetGet }()
 	ctlcmdRun = func(ctx *hookstate.Context, arg []string, uid uint32) ([]byte, []byte, error) {
@@ -6778,8 +6778,8 @@ func (s *apiSuite) TestSnapctlForbiddenError(c *check.C) {
 func (s *apiSuite) TestSnapctlUnsuccesfulError(c *check.C) {
 	_ = s.daemon(c)
 
-	runSnapctlUcrednetGet = func(string) (int32, uint32, string, error) {
-		return 100, 9999, dirs.SnapSocket, nil
+	runSnapctlUcrednetGet = func(string) (*ucrednet, error) {
+		return &ucrednet{100, 9999, dirs.SnapSocket}, nil
 	}
 	defer func() { runSnapctlUcrednetGet = ucrednetGet }()
 

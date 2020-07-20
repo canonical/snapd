@@ -38,27 +38,29 @@ const (
 
 var raddrRegexp = regexp.MustCompile(`^pid=(\d+);uid=(\d+);socket=([^;]*);$`)
 
-func ucrednetGet(remoteAddr string) (pid int32, uid uint32, socket string, err error) {
+func ucrednetGet(remoteAddr string) (*ucrednet, error) {
 	// NOTE treat remoteAddr at one point included a user-controlled
 	// string. In case that happens again by accident, treat it as tainted,
 	// and be very suspicious of it.
-	pid = ucrednetNoProcess
-	uid = ucrednetNobody
+	u := &ucrednet{
+		pid: ucrednetNoProcess,
+		uid: ucrednetNobody,
+	}
 	subs := raddrRegexp.FindStringSubmatch(remoteAddr)
 	if subs != nil {
 		if v, err := strconv.ParseInt(subs[1], 10, 32); err == nil {
-			pid = int32(v)
+			u.pid = int32(v)
 		}
 		if v, err := strconv.ParseUint(subs[2], 10, 32); err == nil {
-			uid = uint32(v)
+			u.uid = uint32(v)
 		}
-		socket = subs[3]
+		u.socket = subs[3]
 	}
-	if pid == ucrednetNoProcess || uid == ucrednetNobody {
-		err = errNoID
+	if u.pid == ucrednetNoProcess || u.uid == ucrednetNobody {
+		return nil, errNoID
 	}
 
-	return pid, uid, socket, err
+	return u, nil
 }
 
 type ucrednet struct {
