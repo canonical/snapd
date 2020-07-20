@@ -2,15 +2,15 @@
 
 show_help() {
     echo "usage: fs-state mock-dir [dirname]"
-    echo "usage: fs-state restore-dir [dirname]"
-    echo "usage: fs-state mock-file [filename]"
-    echo "usage: fs-state restore-file [filename]"
+    echo "       fs-state restore-dir [dirname]"
+    echo "       fs-state mock-file [filename]"
+    echo "       fs-state restore-file [filename]"
 }
 
 _mock_dir() {
     local dir="$1"
     if ! [ -d "$dir" ]; then
-        echo "Creating dir: $dir"
+        echo "fs-state: created mock directory: $dir"
         mkdir -p "$dir"
         touch "$dir.fake"
     fi
@@ -27,12 +27,12 @@ mock_dir() {
 restore_dir() {
     local dir="$1"
 
-    echo "Cleaning dir: $dir"
+    echo "fs-state: restoring mocked directory: $dir"
     if [ -e "$dir.fake" ]; then
         rm -rf "$dir"
         rm -f "$dir.fake"
     else
-        echo "The directory $dir is not mocked"
+        echo "fs-state: cannot restore non-mocked directory: $dir" >&2
         exit 1
     fi
     if [ -d "$dir.back" ]; then
@@ -43,7 +43,7 @@ restore_dir() {
 _mock_file() {
     local file="$1"
     if ! [ -e "$file" ]; then
-        echo "Creating file: $file"
+        echo "fs-state: creating file: $file"
         echo "The file is a mock file used by fs-state." > "$file"
         echo "The .fake file is a marker file used by fs-state." > "$file.fake"
     fi
