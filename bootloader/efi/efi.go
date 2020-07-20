@@ -29,7 +29,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"regexp"
 	"unicode/utf16"
 
 	"github.com/snapcore/snapd/dirs"
@@ -48,9 +47,6 @@ const (
 )
 
 var (
-	goTestExeRe = regexp.MustCompile(`^.*/.*go-build.*/.*\.test$`)
-	isSnapdTest = len(os.Args) > 0 && goTestExeRe.MatchString(os.Args[0])
-
 	openEFIVar = openEFIVarImpl
 )
 
@@ -166,9 +162,7 @@ func ReadVarString(name string) (string, VariableAttr, error) {
 // MockVars mocks EFI variables as read by ReadVar*, only to be used
 // from tests. Set vars to nil to mock a non-EFI system.
 func MockVars(vars map[string][]byte, attrs map[string]VariableAttr) (restore func()) {
-	if !isSnapdTest {
-		panic("MockVars only to be used from tests")
-	}
+	osutil.MustBeTestBinary("MockVars only to be used from tests")
 	old := openEFIVar
 	openEFIVar = func(name string) (io.ReadCloser, VariableAttr, int64, error) {
 		if vars == nil {
