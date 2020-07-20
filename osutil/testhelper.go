@@ -31,9 +31,9 @@ func IsTestBinary() bool {
 	return len(os.Args) > 0 && goTestExeRe.MatchString(os.Args[0])
 }
 
-// MustTestBinary checks whether the executing process is a go test binary,
+// MustBeTestBinary checks whether the executing process is a go test binary,
 // panics otherwise.
-func MustTestBinary(panicMsg string) {
+func MustBeTestBinary(panicMsg string) {
 	if !IsTestBinary() {
 		panic(panicMsg)
 	}

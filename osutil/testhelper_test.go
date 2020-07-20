@@ -47,10 +47,10 @@ func (s *testhelperSuite) TestIsTestBinary(c *C) {
 	c.Assert(osutil.IsTestBinary(), Equals, false)
 }
 
-func (s *testhelperSuite) TestMustTestBinary(c *C) {
+func (s *testhelperSuite) TestMustBeTestBinary(c *C) {
 	// obvious case
-	osutil.MustTestBinary("unexpected panic")
+	osutil.MustBeTestBinary("unexpected panic")
 
 	defer mockOsArgs([]string{"foo", "bar", "baz"})()
-	c.Assert(func() { osutil.MustTestBinary("panic message") }, PanicMatches, "panic message")
+	c.Assert(func() { osutil.MustBeTestBinary("panic message") }, PanicMatches, "panic message")
 }

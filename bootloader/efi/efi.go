@@ -162,7 +162,7 @@ func ReadVarString(name string) (string, VariableAttr, error) {
 // MockVars mocks EFI variables as read by ReadVar*, only to be used
 // from tests. Set vars to nil to mock a non-EFI system.
 func MockVars(vars map[string][]byte, attrs map[string]VariableAttr) (restore func()) {
-	osutil.MustTestBinary("MockVars only to be used from tests")
+	osutil.MustBeTestBinary("MockVars only to be used from tests")
 	old := openEFIVar
 	openEFIVar = func(name string) (io.ReadCloser, VariableAttr, int64, error) {
 		if vars == nil {
