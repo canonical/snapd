@@ -63,7 +63,7 @@ execute: |
             ps aux | MATCH 'systemd --system'
             MATCH 'DEBUG: session bus is not available: cannot find session bus' <debug.txt
             MATCH 'DEBUG: using system bus now, session bus was not available' <debug.txt
-            # NOTE: the dots before and after StartTransientUnit repsent single quotes, it's just easier to write this way.
+            # NOTE: the dots before and after StartTransientUnit represent single quotes, it's just easier to write this way.
             MATCH 'DEBUG: StartTransientUnit failed with "org.freedesktop.DBus.Error.UnknownMethod": \[No such method .StartTransientUnit.\]' <debug.txt
             MATCH 'DEBUG: snapd cannot track the started application' <debug.txt
 
