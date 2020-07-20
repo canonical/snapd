@@ -54,3 +54,13 @@ func (s *testhelperSuite) TestMustBeTestBinary(c *C) {
 	defer mockOsArgs([]string{"foo", "bar", "baz"})()
 	c.Assert(func() { osutil.MustBeTestBinary("panic message") }, PanicMatches, "panic message")
 }
+
+func (s *testhelperSuite) TestBinaryNoRegressionWithValidApp(c *C) {
+	// a snap app named 'test' is valid, we must not be confused here
+	defer mockOsArgs([]string{"/snap/bin/some-snap.test", "bar", "baz"})()
+	// must not be considered a test binary
+	c.Assert(osutil.IsTestBinary(), Equals, false)
+	// must panic since binary is a non-test one
+	c.Assert(func() { osutil.MustBeTestBinary("non test binary, expecting a panic") },
+		PanicMatches, "non test binary, expecting a panic")
+}
