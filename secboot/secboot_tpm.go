@@ -324,11 +324,7 @@ func SealKey(key EncryptionKey, params *SealKeyParams) error {
 		PCRProfile: pcrProfile,
 		PINHandle:  pinHandle,
 	}
-	if err := sbSealKeyToTPM(tpm, key[:], params.KeyFile, params.TPMPolicyUpdateDataFile, &creationParams); err != nil {
-		return err
-	}
-
-	return nil
+	return sbSealKeyToTPM(tpm, key[:], params.KeyFile, params.TPMPolicyUpdateDataFile, &creationParams)
 }
 
 // ResealKey updates the PCR protection policy for the sealed encryption key according to
@@ -352,11 +348,7 @@ func ResealKey(params *ResealKeyParams) error {
 		return err
 	}
 
-	if err := sbUpdateKeyPCRProtectionPolicy(tpm, params.KeyFile, params.TPMPolicyUpdateDataFile, pcrProfile); err != nil {
-		return err
-	}
-
-	return nil
+	return sbUpdateKeyPCRProtectionPolicy(tpm, params.KeyFile, params.TPMPolicyUpdateDataFile, pcrProfile)
 }
 
 func buildPCRProtectionProfile(numModels int, modelParams []*SealKeyModelParams) (*sb.PCRProtectionProfile, error) {
