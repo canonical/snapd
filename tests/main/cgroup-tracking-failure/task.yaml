@@ -15,18 +15,16 @@ systems:
     - ubuntu-core-18-*
     - ubuntu-core-20-*  # tracking works correctly, for completeness
 prepare: |
-    truncate --size=0 defer.sh
-    chmod +x defer.sh
+    tests.cleanup prepare
     # This feature depends on the release-app-awareness feature
     snap set core experimental.refresh-app-awareness=true
-    echo 'snap unset core experimental.refresh-app-awareness' >> defer.sh
+    tests.cleanup defer snap unset core experimental.refresh-app-awareness
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
     install_local test-snapd-sh
-    echo 'snap remove --purge test-snapd-sh' >> defer.sh
+    tests.cleanup defer snap remove --purge test-snapd-sh
 restore: |
-    tac defer.sh > refed.sh
-    sh -xe refed.sh && rm -f {defer,refed}.sh
+    tests.cleanup restore
     rm -f phase.txt debug.txt cgroup.txt ps.txt run.txt
     systemctl --user stop dbus.service || true
 execute: |
