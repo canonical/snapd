@@ -246,7 +246,7 @@ func SystemKeyMismatch() (bool, error) {
 	diskSystemKey.AppArmorParserFeatures = nil
 	mySystemKey.AppArmorParserFeatures = nil
 
-	ok, err := MatchSystemKeys(mySystemKey, diskSystemKey)
+	ok, err := SystemKeysMatch(mySystemKey, diskSystemKey)
 	return !ok, err
 }
 
@@ -260,12 +260,12 @@ func readSystemKey() (*systemKey, error) {
 	}
 	var diskSystemKey systemKey
 	if err := json.Unmarshal(raw, &diskSystemKey); err != nil {
-			return nil, err
+		return nil, err
 	}
 	return &diskSystemKey, nil
 }
 
-// RecordedSystemKey returns opaque system key read from the disk.
+// RecordedSystemKey returns the system key read from the disk as opaque interface{}.
 func RecordedSystemKey() (interface{}, error) {
 	diskSystemKey, err := readSystemKey()
 	if err != nil {
@@ -274,19 +274,19 @@ func RecordedSystemKey() (interface{}, error) {
 	return diskSystemKey, nil
 }
 
-// CurrentSystemKey calculates and returns opaque system key.
+// CurrentSystemKey calculates and returns the current system key as opaque interface{}.
 func CurrentSystemKey() (interface{}, error) {
 	currentSystemKey, err := generateSystemKey()
 	return currentSystemKey, err
 }
 
-// MatchSystemKeys compares opaque system keys
-func MatchSystemKeys(systemKey1, systemKey2 interface{}) (bool, error) {
+// SystemKeysMatch returns whether the given system keys match.
+func SystemKeysMatch(systemKey1, systemKey2 interface{}) (bool, error) {
 	// sanity check
 	_, ok1 := systemKey1.(*systemKey)
 	_, ok2 := systemKey2.(*systemKey)
 	if !(ok1 && ok2) {
-		return false, fmt.Errorf("MatchSystemKeys: arguments are not system keys")
+		return false, fmt.Errorf("SystemKeysMatch: arguments are not system keys")
 	}
 
 	// TODO: write custom struct compare
