@@ -51,7 +51,7 @@ execute: |
     tests.session -u test exec test-snapd-portal-client open-uri http://www.example.org
 
     echo "The test-browser process was invoked with the URL"
-    retry test -e "$BROWSER_HISTORY" -n 4 --wait 0.5
+    retry -n 4 --wait 0.5 test -e "$BROWSER_HISTORY"
     MATCH http://www.example.org < "$BROWSER_HISTORY"
 
 debug: |
