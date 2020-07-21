@@ -392,7 +392,7 @@ func Export(ctx context.Context, setID uint64, w io.Writer) error {
 		}
 	}
 
-	// write the metadata last, then the client can use that to 
+	// write the metadata last, then the client can use that to
 	// validate the archive is complete
 	//
 	// XXX: add hashes of the individual files to the metadata?
