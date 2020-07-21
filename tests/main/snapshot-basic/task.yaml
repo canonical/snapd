@@ -35,19 +35,19 @@ execute: |
 
     # and is exportable
     snap export-snapshot "$SET_ID" "${SET_ID}_export.snapshot"
-    test -e "${SET_ID}_export.snapshot
-    test "$( tar -tvf "${SET_ID}_export.snapshot | wc -l )" = "3"
+    test -e "${SET_ID}_export.snapshot"
+    test "$( tar -tvf "${SET_ID}_export.snapshot" | wc -l )" = "3"
     # do it again and ensure it has the files have the same size
     snap export-snapshot "$SET_ID" "${SET_ID}_export-2.snapshot"
     s1="$(stat -c%s "${SET_ID}_export.snapshot" )"
     s2="$(stat -c%s "${SET_ID}_export-2.snapshot" )"
-    test $s1 = $s2
+    test "$s1" = "$s2"
 
     # remove the canaries
     rm ~/snap/*/{current,common}/canary.txt
 
     # remove the exports
-    rm "${SET_ID}_export*.snapshot
+    rm "${SET_ID}"_export*.snapshot
 
     # restore one of them
     snap restore "$SET_ID" test-snapd-sh
