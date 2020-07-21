@@ -5,11 +5,11 @@ JOURNALCTL_CURSOR_FILE="$SPREAD_PATH"/tests/runtime-state/journalctl_cursor
 
 show_help() {
     echo "usage: journal-state start-new-log"
-    echo "usage: journal-state check-log-started"
-    echo "usage: journal-state get-last-cursor"
-    echo "usage: journal-state match-log [expression]"
-    echo "usage: journal-state get-log"
-    echo "usage: journal-state get-log-from-cursor"
+    echo "       journal-state check-log-started"
+    echo "       journal-state get-last-cursor"
+    echo "       journal-state match-log [expression]"
+    echo "       journal-state get-log"
+    echo "       journal-state get-log-from-cursor"
 }
 
 get_last_cursor(){
