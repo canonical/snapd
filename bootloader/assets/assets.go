@@ -21,9 +21,9 @@ package assets
 
 import (
 	"fmt"
-	"os"
-	"regexp"
 	"sort"
+
+	"github.com/snapcore/snapd/osutil"
 )
 
 var registeredAssets = map[string][]byte{}
@@ -100,11 +100,7 @@ func SnippetForEdition(name string, edition uint) []byte {
 
 // MockInternal mocks the contents of an internal asset for use in testing.
 func MockInternal(name string, data []byte) (restore func()) {
-	var goTestExeRe = regexp.MustCompile(`^.*/.*go-build.*/.*\.test$`)
-	var isSnapdTest = len(os.Args) > 0 && goTestExeRe.MatchString(os.Args[0])
-	if !isSnapdTest {
-		panic("mocking can be done only in tests")
-	}
+	osutil.MustBeTestBinary("mocking can be done only in tests")
 
 	old, ok := registeredAssets[name]
 	registeredAssets[name] = data
