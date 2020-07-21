@@ -271,6 +271,9 @@ backends:
             - opensuse-15.2-64:
                   username: opensuse
                   password: opensuse
+            - opensuse-tumbleweed-64:
+                  username: opensuse
+                  password: opensuse
     autopkgtest:
         type: adhoc
         allocate: |
