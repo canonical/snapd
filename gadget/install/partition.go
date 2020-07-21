@@ -69,7 +69,7 @@ func createMissingPartitions(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume) 
 
 // removeCreatedPartitions removes partitions added during a previous install.
 func removeCreatedPartitions(dl *gadget.OnDiskVolume) error {
-	indexes := make([]string, 0, len(dl.PartitionTable.Partitions))
+	indexes := make([]string, 0, len(dl.Structure))
 	for i, s := range dl.Structure {
 		if s.CreatedDuringInstall {
 			logger.Noticef("partition %s was created during previous install", s.Node)
@@ -92,18 +92,12 @@ func removeCreatedPartitions(dl *gadget.OnDiskVolume) error {
 	}
 
 	// Re-read the partition table from the device to update our partition list
-	layout, err := gadget.OnDiskVolumeFromDevice(dl.Device)
-	if err != nil {
-		return fmt.Errorf("cannot read disk layout: %v", err)
+	if err := gadget.UpdatePartitionList(dl); err != nil {
+		return err
 	}
-	if dl.ID != layout.ID {
-		return fmt.Errorf("partition table IDs don't match")
-	}
-	dl.Structure = layout.Structure
-	dl.PartitionTable = layout.PartitionTable
 
 	// Ensure all created partitions were removed
-	if remaining := gadget.CreatedDuringInstall(layout); len(remaining) > 0 {
+	if remaining := gadget.CreatedDuringInstall(dl); len(remaining) > 0 {
 		return fmt.Errorf("cannot remove partitions: %s", strings.Join(remaining, ", "))
 	}
 
