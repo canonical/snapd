@@ -734,6 +734,7 @@ func (s *snapshotSuite) TestExportTwice(c *check.C) {
 	// create a snapshot
 	shID := uint64(12)
 	_, err := backend.Save(context.TODO(), shID, info, nil, []string{"snapuser"}, &backend.Flags{})
+	c.Check(err, check.IsNil)
 
 	// num_files + export.json + footer
 	expectedSize := int64(4*512 + 1024 + 2*512)
