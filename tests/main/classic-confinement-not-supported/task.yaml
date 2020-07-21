@@ -12,9 +12,6 @@ prepare: |
     snap pack "$TESTSLIB/snaps/$CLASSIC_SNAP/"
 
 execute: |
-    #shellcheck source=tests/lib/strings.sh
-    . "$TESTSLIB"/strings.sh
-
     echo "Check that classic snaps work only with --classic"
     if snap install --dangerous "${CLASSIC_SNAP}_1.0_all.snap"; then
         echo "snap install needs --classic to install local snaps with classic confinment"
@@ -31,10 +28,10 @@ execute: |
     if [[ "$SPREAD_SYSTEM" = fedora-* ]]; then
         EXPECTED_TEXT="classic confinement requires snaps under /snap or symlink from /snap to /var/lib/snapd/snap"
     fi
-    str_to_one_line "$( snap install --dangerous --classic "${CLASSIC_SNAP}_1.0_all.snap" 2>&1 )" | MATCH "$EXPECTED_TEXT"
+    "$TESTSTOOLS"/to-one-line "$( snap install --dangerous --classic "${CLASSIC_SNAP}_1.0_all.snap" 2>&1 )" | MATCH "$EXPECTED_TEXT"
 
     echo "Not from the store either"
     if [[ "$SPREAD_SYSTEM" = fedora-* ]]; then
         EXPECTED_TEXT="cannot install \"$CLASSIC_SNAP\": classic confinement requires snaps under /snap or symlink from /snap to /var/lib/snapd/snap"
     fi
-    str_to_one_line "$( snap install --classic "$CLASSIC_SNAP" 2>&1 )" | MATCH "$EXPECTED_TEXT"
+    "$TESTSTOOLS"/to-one-line "$( snap install --classic "$CLASSIC_SNAP" 2>&1 )" | MATCH "$EXPECTED_TEXT"
