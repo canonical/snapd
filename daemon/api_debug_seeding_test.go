@@ -60,7 +60,7 @@ func (s *seedingDebugSuite) TestSeedingDebug(c *C) {
 
 	preseedStartTime, err := time.Parse(time.RFC3339, "2020-01-01T10:00:00Z")
 	c.Assert(err, IsNil)
-	preseededTime, err := time.Parse(time.RFC3339, "2020-01-01T10:00:01Z")
+	preseedTime, err := time.Parse(time.RFC3339, "2020-01-01T10:00:01Z")
 	c.Assert(err, IsNil)
 	seedRestartTime, err := time.Parse(time.RFC3339, "2020-01-01T10:00:03Z")
 	c.Assert(err, IsNil)
@@ -69,26 +69,30 @@ func (s *seedingDebugSuite) TestSeedingDebug(c *C) {
 
 	st := s.d.overlord.State()
 	st.Lock()
-	st.Set("seeded", seeded)
+
 	st.Set("preseeded", preseeded)
+	st.Set("seeded", seeded)
+
 	st.Set("preseed-system-key", key1)
-	st.Set("restart-system-key", key2)
+	st.Set("seed-restart-system-key", key2)
 
 	st.Set("preseed-start-time", preseedStartTime)
-	st.Set("preseeded-time", preseededTime)
 	st.Set("seed-restart-time", seedRestartTime)
+
+	st.Set("preseed-time", preseedTime)
 	st.Set("seed-time", seedTime)
+
 	st.Unlock()
 
 	data := s.getSeedingDebug(c)
 	c.Check(data, DeepEquals, &seedingInfo{
-		Seeded:           true,
-		Preseeded:        true,
-		PreseedSystemKey: "foo",
-		RestartSystemKey: "bar",
-		PreseedStartTime: preseedStartTime,
-		PreseededTime:    preseededTime,
-		SeedRestartTime:  seedRestartTime,
-		SeedTime:         seedTime,
+		Seeded:               true,
+		Preseeded:            true,
+		PreseedSystemKey:     "foo",
+		SeedRestartSystemKey: "bar",
+		PreseedStartTime:     preseedStartTime,
+		PreseedTime:          preseedTime,
+		SeedRestartTime:      seedRestartTime,
+		SeedTime:             seedTime,
 	})
 }
