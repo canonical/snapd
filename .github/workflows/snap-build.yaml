@@ -11,11 +11,8 @@ jobs:
         uses: actions/checkout@v2
       - name: Build the snapd snap
         uses: snapcore/action-build@v1
-      - name: Rename built snap file
-        run: |
-          sudo mv snapd*.snap snapd.snap
       - name: Uploading snap artifact
-        uses: actions/upload-artifact@v1
+        uses: actions/upload-artifact@v2
         with:
-          name: snapd.snap
-          path: snapd.snap
+          name: snap-files
+          path: "*.snap"
