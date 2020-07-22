@@ -201,3 +201,201 @@ fi
 		cmd.Restore()
 	}
 }
+
+var gceCloudInitStatusJSON = `{
+	"v1": {
+	 "datasource": "DataSourceGCE",
+	 "init": {
+	  "errors": [],
+	  "finished": 1591751113.4536479,
+	  "start": 1591751112.130069
+	 },
+	 "stage": null
+	}
+}
+`
+
+var multipassNoCloudCloudInitStatusJSON = `{
+ "v1": {
+  "datasource": "DataSourceNoCloud [seed=/dev/sr0][dsmode=net]",
+  "init": {
+   "errors": [],
+   "finished": 1591788514.4656117,
+   "start": 1591788514.2607572
+  },
+  "stage": null
+ }
+}`
+
+var lxdNoCloudCloudInitStatusJSON = `{
+ "v1": {
+  "datasource": "DataSourceNoCloud [seed=/var/lib/cloud/seed/nocloud-net][dsmode=net]",
+  "init": {
+   "errors": [],
+   "finished": 1591788737.3982718,
+   "start": 1591788736.9015596
+  },
+  "stage": null
+ }
+}`
+
+var restrictNoCloudYaml = `datasource_list: [NoCloud]
+datasource:
+  NoCloud:
+    fs_label: null`
+
+func (s *sysconfigSuite) TestRestrictCloudInit(c *C) {
+	tt := []struct {
+		comment                string
+		state                  sysconfig.CloudInitState
+		sysconfOpts            *sysconfig.CloudInitRestrictOptions
+		cloudInitStatusJSON    string
+		expError               string
+		expRestrictYamlWritten string
+		expDatasource          string
+		expAction              string
+		expDisableFile         bool
+	}{
+		{
+			comment:  "already disabled",
+			state:    sysconfig.CloudInitDisabledPermanently,
+			expError: "cannot restrict cloud-init: already disabled",
+		},
+		{
+			comment:  "already restricted",
+			state:    sysconfig.CloudInitRestrictedBySnapd,
+			expError: "cannot restrict cloud-init: already restricted",
+		},
+		{
+			comment:  "errored",
+			state:    sysconfig.CloudInitErrored,
+			expError: "cannot restrict cloud-init in error or enabled state",
+		},
+		{
+			comment:  "enable (not running)",
+			state:    sysconfig.CloudInitEnabled,
+			expError: "cannot restrict cloud-init in error or enabled state",
+		},
+		{
+			comment: "errored w/ force disable",
+			state:   sysconfig.CloudInitErrored,
+			sysconfOpts: &sysconfig.CloudInitRestrictOptions{
+				ForceDisable: true,
+			},
+			expAction:      "disable",
+			expDisableFile: true,
+		},
+		{
+			comment: "enable (not running) w/ force disable",
+			state:   sysconfig.CloudInitEnabled,
+			sysconfOpts: &sysconfig.CloudInitRestrictOptions{
+				ForceDisable: true,
+			},
+			expAction:      "disable",
+			expDisableFile: true,
+		},
+		{
+			comment:        "untriggered",
+			state:          sysconfig.CloudInitUntriggered,
+			expAction:      "disable",
+			expDisableFile: true,
+		},
+		{
+			comment:        "unknown status",
+			state:          -1,
+			expAction:      "disable",
+			expDisableFile: true,
+		},
+		{
+			comment:                "gce done",
+			state:                  sysconfig.CloudInitDone,
+			cloudInitStatusJSON:    gceCloudInitStatusJSON,
+			expDatasource:          "GCE",
+			expAction:              "restrict",
+			expRestrictYamlWritten: "datasource_list: [GCE]",
+		},
+		{
+			comment:                "nocloud done",
+			state:                  sysconfig.CloudInitDone,
+			cloudInitStatusJSON:    multipassNoCloudCloudInitStatusJSON,
+			expDatasource:          "NoCloud",
+			expAction:              "restrict",
+			expRestrictYamlWritten: restrictNoCloudYaml,
+		},
+		// the two cases for lxd and multipass are effectively the same, but as
+		// the largest known users of cloud-init w/ UC, we leave them as
+		// separate test cases for their different cloud-init status.json
+		// content
+		{
+			comment:                "nocloud multipass done",
+			state:                  sysconfig.CloudInitDone,
+			cloudInitStatusJSON:    multipassNoCloudCloudInitStatusJSON,
+			expDatasource:          "NoCloud",
+			expAction:              "restrict",
+			expRestrictYamlWritten: restrictNoCloudYaml,
+		},
+		{
+			comment:                "nocloud seed lxd done",
+			state:                  sysconfig.CloudInitDone,
+			cloudInitStatusJSON:    lxdNoCloudCloudInitStatusJSON,
+			expDatasource:          "NoCloud",
+			expAction:              "restrict",
+			expRestrictYamlWritten: restrictNoCloudYaml,
+		},
+	}
+
+	for _, t := range tt {
+		// setup status.json
+		old := dirs.GlobalRootDir
+		dirs.SetRootDir(c.MkDir())
+		defer func() { dirs.SetRootDir(old) }()
+		statusJSONFile := filepath.Join(dirs.GlobalRootDir, "/run/cloud-init/status.json")
+		if t.cloudInitStatusJSON != "" {
+			err := os.MkdirAll(filepath.Dir(statusJSONFile), 0755)
+			c.Assert(err, IsNil, Commentf(t.comment))
+			err = ioutil.WriteFile(statusJSONFile, []byte(t.cloudInitStatusJSON), 0644)
+			c.Assert(err, IsNil, Commentf(t.comment))
+		}
+
+		// if we expect snapd to write a yaml config file for cloud-init, ensure
+		// the dir exists before hand
+		if t.expRestrictYamlWritten != "" {
+			err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/cloud/cloud.cfg.d"), 0755)
+			c.Assert(err, IsNil, Commentf(t.comment))
+		}
+
+		res, err := sysconfig.RestrictCloudInit(t.state, t.sysconfOpts)
+		if t.expError == "" {
+			c.Assert(err, IsNil, Commentf(t.comment))
+			c.Assert(res.Datasource, Equals, t.expDatasource, Commentf(t.comment))
+			c.Assert(res.Action, Equals, t.expAction, Commentf(t.comment))
+			if t.expRestrictYamlWritten != "" {
+				// check the snapd restrict yaml file that should have been written
+				c.Assert(
+					filepath.Join(dirs.GlobalRootDir, "/etc/cloud/cloud.cfg.d/zzzz_snapd.cfg"),
+					testutil.FileEquals,
+					t.expRestrictYamlWritten,
+					Commentf(t.comment),
+				)
+			}
+
+			// if we expect the disable file to be written then check for it
+			// otherwise ensure it was not written accidentally
+			var fileCheck Checker
+			if t.expDisableFile {
+				fileCheck = testutil.FilePresent
+			} else {
+				fileCheck = testutil.FileAbsent
+			}
+
+			c.Assert(
+				filepath.Join(dirs.GlobalRootDir, "/etc/cloud/cloud-init.disabled"),
+				fileCheck,
+				Commentf(t.comment),
+			)
+
+		} else {
+			c.Assert(err, ErrorMatches, t.expError, Commentf(t.comment))
+		}
+	}
+}
