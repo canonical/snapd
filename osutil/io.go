@@ -25,7 +25,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 	"syscall"
 
 	"github.com/snapcore/snapd/osutil/sys"
@@ -43,8 +42,7 @@ const (
 // Allow disabling sync for testing. This brings massive improvements on
 // certain filesystems (like btrfs) and very much noticeable improvements in
 // all unit tests in genreal.
-var goTestExeRe = regexp.MustCompile(`^.*/.*go-build.*/.*\.test$`)
-var snapdUnsafeIO bool = len(os.Args) > 0 && goTestExeRe.MatchString(os.Args[0]) && GetenvBool("SNAPD_UNSAFE_IO", true)
+var snapdUnsafeIO bool = IsTestBinary() && GetenvBool("SNAPD_UNSAFE_IO", true)
 
 // An AtomicFile is similar to an os.File but it has an additional
 // Commit() method that does whatever needs to be done so the

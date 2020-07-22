@@ -214,11 +214,11 @@ func ParseRawExpandableEnv(entries []string) (ExpandableEnv, error) {
 // this is weird to use in a test, but it is so that we can test the actual
 // implementation of LoadMountInfo, which normally panics during tests if not
 // properly mocked
-func MockIsSnapdTest(new bool) (restore func()) {
-	old := isSnapdTest
-	isSnapdTest = new
+func MountInfoMustMock(new bool) (restore func()) {
+	old := mountInfoMustMockInTests
+	mountInfoMustMockInTests = new
 	return func() {
-		isSnapdTest = old
+		mountInfoMustMockInTests = old
 	}
 }
 
