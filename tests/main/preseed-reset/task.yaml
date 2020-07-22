@@ -4,7 +4,7 @@ description: |
   can be undone with --reset flag.
 
 # TODO: reenable for ubuntu-20.04-*, that now uses the snapd snap
-systems: [ubuntu-19.10-*]
+systems: [ubuntu-19.10-*, ubuntu-20.04-*]
 
 environment:
   IMAGE_MOUNTPOINT: /mnt/cloudimg
@@ -17,13 +17,17 @@ prepare: |
   wget "$(get_image_url_for_nested_vm)" -O cloudimg.img
   mkdir -p "$IMAGE_MOUNTPOINT"
 
+  #shellcheck source=tests/lib/preseed.sh
+  . "$TESTSLIB/preseed.sh"
+  mount_ubuntu_image "$(pwd)/cloudimg.img" "$IMAGE_MOUNTPOINT"
+
 restore: |
   rm -f before-preseeding.txt
   rm -f after-reset.txt
 
-  # any of the restore commands can fail depending on where execute part stopped,
-  # account for that with ||true.
-  umount_ubuntu_image "$IMAGE_MOUNTPOINT" || true
+  #shellcheck source=tests/lib/preseed.sh
+  . "$TESTSLIB/preseed.sh"
+  umount_ubuntu_image "$IMAGE_MOUNTPOINT"
 
 execute: |
   find_files() {
@@ -35,11 +39,6 @@ execute: |
       find "$IMAGE_MOUNTPOINT/etc/" "$IMAGE_MOUNTPOINT/usr/" "$IMAGE_MOUNTPOINT/var/"
     fi
   }
-
-  #shellcheck source=tests/lib/preseed.sh
-  . "$TESTSLIB/preseed.sh"
-  mount_ubuntu_image cloudimg.img "$IMAGE_MOUNTPOINT"
-  setup_preseeding "$IMAGE_MOUNTPOINT"
 
   find_files > before-preseeding.txt
 
@@ -68,6 +67,3 @@ execute: |
   echo "Running preseeeding again should succeed"
   /usr/lib/snapd/snap-preseed "$IMAGE_MOUNTPOINT"
 
-  #shellcheck source=tests/lib/preseed.sh
-  . "$TESTSLIB/preseed.sh"
-  umount_ubuntu_image "$IMAGE_MOUNTPOINT"
