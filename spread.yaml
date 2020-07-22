@@ -268,6 +268,12 @@ backends:
             - amazon-linux-2-64:
                   username: ec2-user
                   password: ec2-user
+            - opensuse-15.2-64:
+                  username: opensuse
+                  password: opensuse
+            - opensuse-tumbleweed-64:
+                  username: opensuse
+                  password: opensuse
     autopkgtest:
         type: adhoc
         allocate: |
