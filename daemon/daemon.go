@@ -107,17 +107,6 @@ type Command struct {
 	d *Daemon
 }
 
-type accessResult int
-
-const (
-	accessOK accessResult = iota
-	accessUnauthorized
-	accessForbidden
-	accessCancelled
-)
-
-var polkitCheckAuthorization = polkit.CheckAuthorization
-
 // canAccess checks the following properties:
 //
 // - if the user is `root` everything is allowed
