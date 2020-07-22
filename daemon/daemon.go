@@ -27,7 +27,6 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -35,7 +34,6 @@ import (
 	"github.com/gorilla/mux"
 	"gopkg.in/tomb.v2"
 
-	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
@@ -45,7 +43,6 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/standby"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/polkit"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/systemd"
@@ -107,6 +104,37 @@ type Command struct {
 	d *Daemon
 }
 
+func (c *Command) accessRules() []accessChecker {
+	if c.RootOnly {
+		if c.UserOK || c.GuestOK || c.SnapOK {
+			// programming error
+			logger.Panicf("Command can't have RootOnly together with any *OK flag")
+		}
+		return []accessChecker{
+			rejectSnapSocket{},
+			allowRoot{},
+		}
+	}
+	rules := []accessChecker{
+		allowSnapUser{},
+	}
+	if c.SnapOK {
+		rules = append(rules, allowSnapSocket{})
+	} else {
+		rules = append(rules, rejectSnapSocket{})
+	}
+	if c.GuestOK {
+		rules = append(rules, allowGetByGuest{})
+	} else if c.UserOK {
+		rules = append(rules, allowGetByUser{})
+	}
+	rules = append(rules, allowRoot{})
+	if c.PolkitOK != "" {
+		rules = append(rules, polkitCheck{c.PolkitOK})
+	}
+	return rules
+}
+
 // canAccess checks the following properties:
 //
 // - if the user is `root` everything is allowed
@@ -119,82 +147,17 @@ type Command struct {
 // - RootOnly: only root can access this
 // - SnapOK: a snap can access this via `snapctl`
 func (c *Command) canAccess(r *http.Request, user *auth.UserState) accessResult {
-	if c.RootOnly && (c.UserOK || c.GuestOK || c.SnapOK) {
-		// programming error
-		logger.Panicf("Command can't have RootOnly together with any *OK flag")
-	}
-
-	if user != nil && !c.RootOnly {
-		// Authenticated users do anything not requiring explicit root.
-		return accessOK
-	}
-
 	ucred, err := ucrednetGet(r.RemoteAddr)
 	if err != nil && err != errNoID {
 		logger.Noticef("unexpected error when attempting to get UID: %s", err)
 		return accessForbidden
 	}
-	// isUser means we have a UID for the request
-	isUser := ucred != nil
-	isSnap := (isUser && ucred.socket == dirs.SnapSocket)
 
-	// ensure that snaps can only access SnapOK things
-	if isSnap {
-		if c.SnapOK {
-			return accessOK
-		}
-		return accessUnauthorized
-	}
-
-	// the !RootOnly check is redundant, but belt-and-suspenders
-	if r.Method == "GET" && !c.RootOnly {
-		// Guest and user access restricted to GET requests
-		if c.GuestOK {
-			return accessOK
-		}
-
-		if isUser && c.UserOK {
-			return accessOK
+	for _, rule := range c.accessRules() {
+		if access := rule.canAccess(r, ucred, user); access != accessUnknown {
+			return access
 		}
 	}
-
-	// Remaining admin checks rely on identifying peer uid
-	if !isUser {
-		return accessUnauthorized
-	}
-
-	if ucred.uid == 0 {
-		// Superuser does anything.
-		return accessOK
-	}
-
-	if c.RootOnly {
-		return accessUnauthorized
-	}
-
-	if c.PolkitOK != "" {
-		var flags polkit.CheckFlags
-		allowHeader := r.Header.Get(client.AllowInteractionHeader)
-		if allowHeader != "" {
-			if allow, err := strconv.ParseBool(allowHeader); err != nil {
-				logger.Noticef("error parsing %s header: %s", client.AllowInteractionHeader, err)
-			} else if allow {
-				flags |= polkit.CheckAllowInteraction
-			}
-		}
-		// Pass both pid and uid from the peer ucred to avoid pid race
-		if authorized, err := polkitCheckAuthorization(ucred.pid, ucred.uid, c.PolkitOK, nil, flags); err == nil {
-			if authorized {
-				// polkit says user is authorised
-				return accessOK
-			}
-		} else if err == polkit.ErrDismissed {
-			return accessCancelled
-		} else {
-			logger.Noticef("polkit error: %s", err)
-		}
-	}
-
 	return accessUnauthorized
 }
 
