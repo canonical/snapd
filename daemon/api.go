@@ -70,6 +70,7 @@ import (
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
@@ -112,6 +113,8 @@ var api = []*Command{
 	systemsCmd,
 	systemsActionCmd,
 }
+
+var servicestateControl = servicestate.Control
 
 var (
 	// see daemon.go:canAccess for details how the access is controlled
@@ -1545,7 +1548,7 @@ out:
 
 func unsafeReadSnapInfoImpl(snapPath string) (*snap.Info, error) {
 	// Condider using DeriveSideInfo before falling back to this!
-	snapf, err := snap.Open(snapPath)
+	snapf, err := snapfile.Open(snapPath)
 	if err != nil {
 		return nil, err
 	}
@@ -1987,12 +1990,16 @@ func getChanges(c *Command, r *http.Request, user *auth.UserState) Response {
 				return false
 			}
 
-			for _, snapName := range snapNames {
+			for _, name := range snapNames {
+				// due to
+				// https://bugs.launchpad.net/snapd/+bug/1880560
+				// the snap-names in service-control changes
+				// could have included <snap>.<app>
+				snapName, _ := snap.SplitSnapApp(name)
 				if snapName == wantedName {
 					return true
 				}
 			}
-
 			return false
 		}
 	}
@@ -2393,6 +2400,21 @@ func getLogs(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 }
 
+func namesToSnapNames(inst *servicestate.Instruction) []string {
+	seen := make(map[string]struct{}, len(inst.Names))
+	for _, snapOrSnapDotApp := range inst.Names {
+		snapName, _ := snap.SplitSnapApp(snapOrSnapDotApp)
+		seen[snapName] = struct{}{}
+	}
+	names := make([]string, 0, len(seen))
+	for k := range seen {
+		names = append(names, k)
+	}
+	// keep stable ordering
+	sort.Strings(names)
+	return names
+}
+
 func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 	var inst servicestate.Instruction
 	decoder := json.NewDecoder(r.Body)
@@ -2416,7 +2438,7 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("no services found")
 	}
 
-	tss, err := servicestate.Control(st, appInfos, &inst, nil)
+	tss, err := servicestateControl(st, appInfos, &inst, nil)
 	if err != nil {
 		// TODO: use errToResponse here too and introduce a proper error kind ?
 		if _, ok := err.(servicestate.ServiceActionConflictError); ok {
@@ -2426,7 +2448,9 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 	st.Lock()
 	defer st.Unlock()
-	chg := newChange(st, "service-control", fmt.Sprintf("Running service command"), tss, inst.Names)
+	// names received in the request can be snap or snap.app, we need to
+	// extract the actual snap names before associating them with a change
+	chg := newChange(st, "service-control", fmt.Sprintf("Running service command"), tss, namesToSnapNames(&inst))
 	st.EnsureBefore(0)
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
 }

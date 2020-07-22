@@ -35,6 +35,7 @@ var (
 	_ installableBootloader             = (*grub)(nil)
 	_ RecoveryAwareBootloader           = (*grub)(nil)
 	_ ExtractedRunKernelImageBootloader = (*grub)(nil)
+	_ ManagedAssetsBootloader           = (*grub)(nil)
 )
 
 type grub struct {
@@ -78,12 +79,38 @@ func (g *grub) dir() string {
 	return filepath.Join(g.rootdir, g.basedir)
 }
 
+func (g *grub) installManagedRecoveryBootConfig(gadgetDir string) (bool, error) {
+	gadgetGrubCfg := filepath.Join(gadgetDir, g.Name()+".conf")
+	if !osutil.FileExists(gadgetGrubCfg) {
+		// gadget does not use grub bootloader
+		return false, nil
+	}
+	assetName := g.Name() + "-recovery.cfg"
+	systemFile := filepath.Join(g.rootdir, "/EFI/ubuntu/grub.cfg")
+	return genericSetBootConfigFromAsset(systemFile, assetName)
+}
+
+func (g *grub) installManagedBootConfig(gadgetDir string) (bool, error) {
+	gadgetGrubCfg := filepath.Join(gadgetDir, g.Name()+".conf")
+	if !osutil.FileExists(gadgetGrubCfg) {
+		// gadget does not use grub bootloader
+		return false, nil
+	}
+	assetName := g.Name() + ".cfg"
+	systemFile := filepath.Join(g.rootdir, "/EFI/ubuntu/grub.cfg")
+	return genericSetBootConfigFromAsset(systemFile, assetName)
+}
+
 func (g *grub) InstallBootConfig(gadgetDir string, opts *Options) (bool, error) {
 	if opts != nil && opts.Recovery {
-		recoveryGrubCfg := filepath.Join(gadgetDir, g.Name()+"-recovery.conf")
-		systemFile := filepath.Join(g.rootdir, "/EFI/ubuntu/grub.cfg")
-		return genericInstallBootConfig(recoveryGrubCfg, systemFile)
+		// install managed config for the recovery partition
+		return g.installManagedRecoveryBootConfig(gadgetDir)
 	}
+	if opts != nil && opts.ExtractedRunKernelImage {
+		// install managed boot config that can handle kernel.efi
+		return g.installManagedBootConfig(gadgetDir)
+	}
+
 	gadgetFile := filepath.Join(gadgetDir, g.Name()+".conf")
 	systemFile := filepath.Join(g.rootdir, "/boot/grub/grub.cfg")
 	return genericInstallBootConfig(gadgetFile, systemFile)
@@ -102,6 +129,21 @@ func (g *grub) SetRecoverySystemEnv(recoverySystemDir string, values map[string]
 		genv.Set(k, v)
 	}
 	return genv.Save()
+}
+
+func (g *grub) GetRecoverySystemEnv(recoverySystemDir string, key string) (string, error) {
+	if recoverySystemDir == "" {
+		return "", fmt.Errorf("internal error: recoverySystemDir unset")
+	}
+	recoverySystemGrubEnv := filepath.Join(g.rootdir, recoverySystemDir, "grubenv")
+	genv := grubenv.NewEnv(recoverySystemGrubEnv)
+	if err := genv.Load(); err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", err
+	}
+	return genv.Get(key), nil
 }
 
 func (g *grub) ConfigFile() string {
@@ -299,4 +341,49 @@ func (g *grub) TryKernel() (snap.PlaceInfo, error) {
 		return p, nil
 	}
 	return nil, ErrNoTryKernelRef
+}
+
+// UpdateBootConfig updates the grub boot config only if it is already managed
+// and has a lower edition.
+//
+// Implements ManagedAssetsBootloader for the grub bootloader.
+func (g *grub) UpdateBootConfig(opts *Options) error {
+	bootScriptName := "grub.cfg"
+	currentBootConfig := filepath.Join(g.dir(), "grub.cfg")
+	if opts != nil && opts.Recovery {
+		// use the recovery asset when asked to do so
+		bootScriptName = "grub-recovery.cfg"
+	}
+	return genericUpdateBootConfigFromAssets(currentBootConfig, bootScriptName)
+}
+
+// IsCurrentlyManaged returns true when the boot config is managed by snapd.
+//
+// Implements ManagedBootloader for the grub bootloader.
+func (g *grub) IsCurrentlyManaged() (bool, error) {
+	currentBootScript := filepath.Join(g.dir(), "grub.cfg")
+	_, err := editionFromDiskConfigAsset(currentBootScript)
+	if err != nil && err != errNoEdition {
+		return false, err
+	}
+	return err != errNoEdition, nil
+}
+
+// ManagedAssets returns a list relative paths to boot assets inside the root
+// directory of the filesystem.
+//
+// Implements ManagedAssetsBootloader for the grub bootloader.
+func (g *grub) ManagedAssets() []string {
+	return []string{
+		filepath.Join(g.basedir, "grub.cfg"),
+	}
+}
+
+// CommandLine returns the kernel command line composed of the built-in
+// list and extra arguments passed in arguments. The command line may be
+// different when using a bootloader in the recovery partition.
+//
+// Implements ManagedAssetsBootloader for the grub bootloader.
+func (g *grub) CommandLine(extra []string) (string, error) {
+	return "", fmt.Errorf("not implemented")
 }

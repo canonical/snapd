@@ -22,10 +22,10 @@ package patch
 import (
 	"fmt"
 
-	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snapdtool"
 )
 
 // Level is the current implemented patch level of the state format and content.
@@ -103,7 +103,7 @@ func maybeResetSublevelForLevel60(s *state.State, sublevel *int) error {
 	if err != nil && err != state.ErrNoState {
 		return err
 	}
-	if err == state.ErrNoState || lastVersion != cmd.Version {
+	if err == state.ErrNoState || lastVersion != snapdtool.Version {
 		*sublevel = 0
 		s.Set("patch-sublevel", *sublevel)
 		// unset old reset key in case of revert into old version.
@@ -176,7 +176,7 @@ func Apply(s *state.State) error {
 
 	s.Lock()
 	// store last snapd version last in case system is restarted before patches are applied
-	s.Set("patch-sublevel-last-version", cmd.Version)
+	s.Set("patch-sublevel-last-version", snapdtool.Version)
 	s.Unlock()
 
 	return nil

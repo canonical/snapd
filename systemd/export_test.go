@@ -55,11 +55,19 @@ func MockOsutilIsMounted(f func(path string) (bool, error)) func() {
 	}
 }
 
-func MockSquashFsType(f func() (string, []string, error)) func() {
+func MockSquashFsType(f func() (string, []string)) func() {
 	old := squashfsFsType
 	squashfsFsType = f
 	return func() {
 		squashfsFsType = old
+	}
+}
+
+func MockSystemdSysctlPath(p string) (restore func()) {
+	old := systemdSysctlPath
+	systemdSysctlPath = p
+	return func() {
+		systemdSysctlPath = old
 	}
 }
 

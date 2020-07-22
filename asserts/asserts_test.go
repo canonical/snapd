@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2016 Canonical Ltd
+ * Copyright (C) 2015-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -69,17 +69,23 @@ func (as *assertsSuite) TestTypeNames(c *C) {
 		"test-only-no-authority",
 		"test-only-no-authority-pk",
 		"test-only-rev",
+		"test-only-seq",
 		"validation",
+		"validation-set",
 	})
 }
 
 func (as *assertsSuite) TestMaxSupportedFormats(c *C) {
 	snapDeclMaxFormat := asserts.SnapDeclarationType.MaxSupportedFormat()
+	systemUserMaxFormat := asserts.SystemUserType.MaxSupportedFormat()
 	// sanity
 	c.Check(snapDeclMaxFormat >= 4, Equals, true)
+	c.Check(systemUserMaxFormat >= 1, Equals, true)
 	c.Check(asserts.MaxSupportedFormats(1), DeepEquals, map[string]int{
 		"snap-declaration": snapDeclMaxFormat,
+		"system-user":      systemUserMaxFormat,
 		"test-only":        1,
+		"test-only-seq":    2,
 	})
 
 	// all
@@ -368,7 +374,9 @@ func (as *assertsSuite) TestDecodeInvalid(c *C) {
 		{"type: test-only\n", "type: unknown\n", `unknown assertion type: "unknown"`},
 		{"revision: 0\n", "revision: Z\n", `assertion: "revision" header is not an integer: Z`},
 		{"revision: 0\n", "revision:\n  - 1\n", `assertion: "revision" header is not an integer: \[1\]`},
+		{"revision: 0\n", "revision: 00\n", `assertion: "revision" header has invalid prefix zeros: 00`},
 		{"revision: 0\n", "revision: -10\n", "assertion: revision should be positive: -10"},
+		{"revision: 0\n", "revision: 99999999999999999999\n", `assertion: "revision" header is out of range: 99999999999999999999`},
 		{"format: 0\n", "format: Z\n", `assertion: "format" header is not an integer: Z`},
 		{"format: 0\n", "format: -10\n", "assertion: format should be positive: -10"},
 		{"primary-key: abc\n", "", `assertion test-only: "primary-key" header is mandatory`},
@@ -942,6 +950,7 @@ func (as *assertsSuite) TestWithAuthority(c *C) {
 		"serial",
 		"system-user",
 		"validation",
+		"validation-set",
 		"repair",
 	}
 	c.Check(withAuthority, HasLen, asserts.NumAssertionType-3) // excluding device-session-request, serial-request, account-key-request
@@ -950,4 +959,17 @@ func (as *assertsSuite) TestWithAuthority(c *C) {
 		_, err := asserts.AssembleAndSignInTest(typ, nil, nil, testPrivKey1)
 		c.Check(err, ErrorMatches, `"authority-id" header is mandatory`)
 	}
+}
+
+func (as *assertsSuite) TestSequenceForming(c *C) {
+	sequenceForming := []string{
+		"repair",
+		"validation-set",
+	}
+	for _, name := range sequenceForming {
+		typ := asserts.Type(name)
+		c.Check(typ.SequenceForming(), Equals, true)
+	}
+
+	c.Check(asserts.SnapDeclarationType.SequenceForming(), Equals, false)
 }

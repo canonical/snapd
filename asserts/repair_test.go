@@ -95,10 +95,13 @@ func (s *repairSuite) TestDecodeOK(c *C) {
 	a, err := asserts.Decode([]byte(s.repairStr))
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.RepairType)
+	_, ok := a.(asserts.SequenceMember)
+	c.Assert(ok, Equals, true)
 	repair := a.(*asserts.Repair)
 	c.Check(repair.Timestamp(), Equals, s.ts)
 	c.Check(repair.BrandID(), Equals, "acme")
 	c.Check(repair.RepairID(), Equals, 42)
+	c.Check(repair.Sequence(), Equals, 42)
 	c.Check(repair.Summary(), Equals, "example repair")
 	c.Check(repair.Series(), DeepEquals, []string{"16"})
 	c.Check(repair.Architectures(), DeepEquals, []string{"amd64", "arm64"})
@@ -142,10 +145,10 @@ func (s *repairSuite) TestDecodeInvalid(c *C) {
 		{"architectures:\n  - amd64\n  - arm64\n", "architectures: foo\n", `"architectures" header must be a list of strings`},
 		{"models:\n  - acme/frobinator\n", "models: \n", `"models" header must be a list of strings`},
 		{"models:\n  - acme/frobinator\n", "models: something\n", `"models" header must be a list of strings`},
-		{"repair-id: 42\n", "repair-id: no-number\n", `"repair-id" header contains invalid characters: "no-number"`},
-		{"repair-id: 42\n", "repair-id: 0\n", `"repair-id" header contains invalid characters: "0"`},
-		{"repair-id: 42\n", "repair-id: 01\n", `"repair-id" header contains invalid characters: "01"`},
-		{"repair-id: 42\n", "repair-id: 99999999999999999999\n", `repair-id too large:.*`},
+		{"repair-id: 42\n", "repair-id: no-number\n", `"repair-id" header is not an integer: no-number`},
+		{"repair-id: 42\n", "repair-id: 0\n", `"repair-id" must be >=1: 0`},
+		{"repair-id: 42\n", "repair-id: 01\n", `"repair-id" header has invalid prefix zeros: 01`},
+		{"repair-id: 42\n", "repair-id: 99999999999999999999\n", `"repair-id" header is out of range: 99999999999999999999`},
 		{"brand-id: acme\n", "brand-id: brand-id-not-eq-authority-id\n", `authority-id and brand-id must match, repair assertions are expected to be signed by the brand: "acme" != "brand-id-not-eq-authority-id"`},
 		{"summary: example repair\n", "", `"summary" header is mandatory`},
 		{"summary: example repair\n", "summary: \n", `"summary" header should not be empty`},

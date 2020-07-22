@@ -16,7 +16,7 @@ execute: |
     snap set core experimental.snapd-snap=true
     # give the state time to create the change and then start watching
     # it
-    retry-tool -n 30 snap watch --last=transition-to-snapd-snap
+    retry -n 30 snap watch --last=transition-to-snapd-snap
     snap list snapd
 
     # shellcheck source=tests/lib/journalctl.sh

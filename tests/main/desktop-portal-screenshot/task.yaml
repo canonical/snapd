@@ -20,18 +20,16 @@ description: |
 
 # Only enable the test on systems we know portals to function on.
 # Expand as needed.
-systems: [ubuntu-18.04-*, ubuntu-19.10-*, ubuntu-20.04-*]
+systems: [ubuntu-18.04-*, ubuntu-19.10-*, ubuntu-2*]
 
 prepare: |
-    session-tool -u test --prepare
-
     #shellcheck source=tests/lib/desktop-portal.sh
     . "$TESTSLIB"/desktop-portal.sh
     setup_portals
+    tests.session -u test prepare
 
 restore: |
-    session-tool -u test --restore
-
+    tests.session -u test restore
     #shellcheck source=tests/lib/desktop-portal.sh
     . "$TESTSLIB"/desktop-portal.sh
     teardown_portals
@@ -47,7 +45,7 @@ execute: |
     # file ownership is exposed through the document portal, and our
     # AppArmor policy uses the @owner restriction.
     chown test:test /tmp/screenshot.txt
-    session-tool -u test test-snapd-portal-client screenshot | MATCH "my screenshot"
+    tests.session -u test exec test-snapd-portal-client screenshot | MATCH "my screenshot"
 
 debug: |
     #shellcheck source=tests/lib/desktop-portal.sh

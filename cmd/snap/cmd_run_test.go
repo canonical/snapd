@@ -559,6 +559,9 @@ func (s *RunSuite) TestSnapRunSaneEnvironmentHandling(c *check.C) {
 }
 
 func (s *RunSuite) TestSnapRunSnapdHelperPath(c *check.C) {
+	_, r := logger.MockLogger()
+	defer r()
+
 	var osReadlinkResult string
 	restore := snaprun.MockOsReadlink(func(name string) (string, error) {
 		return osReadlinkResult, nil
@@ -580,6 +583,15 @@ func (s *RunSuite) TestSnapRunSnapdHelperPath(c *check.C) {
 		},
 		{
 			filepath.Join("/usr/bin/snap"),
+			filepath.Join(dirs.DistroLibExecDir, tool),
+		},
+		{
+			filepath.Join("/home/foo/ws/snapd/snap"),
+			filepath.Join(dirs.DistroLibExecDir, tool),
+		},
+		// unexpected case
+		{
+			filepath.Join(dirs.SnapMountDir, "snapd2/current/bin/snap"),
 			filepath.Join(dirs.DistroLibExecDir, tool),
 		},
 	} {
@@ -1011,6 +1023,9 @@ func (s *RunSuite) TestSnapRunAppTimer(c *check.C) {
 }
 
 func (s *RunSuite) TestRunCmdWithTraceExecUnhappy(c *check.C) {
+	_, r := logger.MockLogger()
+	defer r()
+
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	// mock installed snap

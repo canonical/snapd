@@ -22,6 +22,7 @@ package backend
 
 import (
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapfile"
 )
 
 // Backend exposes all the low-level primitives to manage snaps and their installation on disk.
@@ -39,7 +40,7 @@ func (b Backend) CurrentInfo(*snap.Info) {}
 // with sideInfo (if not nil) and a corresponding snap.Container.
 // Assumes the file was verified beforehand or the user asked for --dangerous.
 func OpenSnapFile(snapPath string, sideInfo *snap.SideInfo) (*snap.Info, snap.Container, error) {
-	snapf, err := snap.Open(snapPath)
+	snapf, err := snapfile.Open(snapPath)
 	if err != nil {
 		return nil, nil, err
 	}

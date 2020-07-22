@@ -206,8 +206,8 @@ storage_getattr_fuse_dev(snappy_t)
 miscfiles_read_localization(snappy_t)
 
 # Allow snapd to read its run files, those files are managed elsewhere
-read_files_pattern(snappy_t, snappy_var_run_t, snappy_var_run_t)
-getattr_files_pattern(snappy_t, snappy_var_run_t, snappy_var_run_t)
+manage_files_pattern(snappy_t, snappy_var_run_t, snappy_var_run_t)
+manage_sock_files_pattern(snappy_t, snappy_var_run_t, snappy_var_run_t)
 
 gen_require(`
 	type user_tmp_t;
@@ -261,8 +261,10 @@ allow snappy_t usr_t:lnk_file { create unlink };
 # Allow snapd to use ssh-keygen
 ssh_exec_keygen(snappy_t)
 
-# Allow snapd to access passwd file for lookup
+# Allow snapd to access passwd file for trivial user lookup
 auth_read_passwd(snappy_t)
+# also via nsswitch if called via libc
+auth_use_nsswitch(snappy_t)
 
 # because /run/snapd/ns/*.mnt gets a label of the process context
 gen_require(` type unconfined_t; ')
@@ -280,7 +282,7 @@ allow snappy_t self:netlink_route_socket create_netlink_socket_perms;
 allow snappy_t self:unix_stream_socket create_stream_socket_perms;
 allow snappy_t self:tcp_socket create_stream_socket_perms;
 allow snappy_t self:udp_socket create_stream_socket_perms;
-allow snappy_t self:unix_dgram_socket create_socket_perms;
+allow snappy_t self:unix_dgram_socket { create_socket_perms sendto };
 allow snappy_t self:capability2 block_suspend;
 
 # snapd needs to check for ipv6 support
@@ -395,6 +397,15 @@ logging_send_audit_msgs(snappy_t)
 gnome_manage_home_config(snappy_t)
 gnome_manage_home_config_dirs(snappy_t)
 userdom_manage_user_tmp_symlinks(snappy_t)
+
+# appstream-metadata interface checks whether /var/cache/app-info (labeled
+# fwupd_cache_t) exists
+# RHEL7: fwupd.if is not defined in the policy
+ifndef(`distro_rhel7',`
+	optional_policy(`
+	  fwupd_search_cache(snappy_t)
+  ')
+')
 
 ########################################
 #
@@ -511,6 +522,15 @@ mmap_read_files_pattern(snappy_mount_t, tmpfs_t, tmpfs_t)
 # with robust mount namespace update snap-update-ns can remount filesystems that
 # were mounted from the host when updating the ns
 fs_remount_xattr_fs(snappy_mount_t)
+
+# when applying update due to appstream-metadata interface, snap-update-ns ns
+# whether /var/cache/app-info (labeled fwupd_cache_t) exists
+# RHEL7: fwupd.if is not defined in the policy
+ifndef(`distro_rhel7',`
+	optional_policy(`
+		fwupd_search_cache(snappy_mount_t)
+	')
+')
 
 ########################################
 #

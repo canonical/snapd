@@ -29,6 +29,11 @@ type Options struct {
 	Snaps        []string
 	SnapChannels map[string]string
 
+	// WideCohortKey can be used to supply a cohort covering all
+	// the snaps in the image, there is no generally suppported API
+	// to create such a cohort key.
+	WideCohortKey string
+
 	PrepareDir string
 
 	// Architecture to use if none is specified by the model,

@@ -317,7 +317,9 @@ distro_purge_package() {
 
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
-            quiet eatmydata apt-get remove -y --purge -y "$@"
+            # TODO reenable quiet once we have dealt with files being left
+            # behind while purging in prepare
+            eatmydata apt-get remove -y --purge -y "$@"
             ;;
         amazon-*|centos-7-*)
             quiet yum -y remove "$@"
@@ -477,7 +479,7 @@ distro_install_build_snapd(){
                 ;;
             arch-*)
                 # shellcheck disable=SC2125
-                packages="${GOHOME}"/snapd*.pkg.tar.xz
+                packages="${GOHOME}"/snapd*.pkg.tar.*
                 ;;
             *)
                 exit 1
@@ -634,6 +636,7 @@ pkg_dependencies_ubuntu_classic(){
                 evolution-data-server
                 fwupd
                 packagekit
+                qemu-utils
                 "
             ;;
         ubuntu-19.10-64)
@@ -650,6 +653,12 @@ pkg_dependencies_ubuntu_classic(){
                 gccgo-9
                 packagekit
                 qemu-utils
+                shellcheck
+                "
+            ;;
+        ubuntu-20.10-64)
+            echo "
+                qemu-utils
                 "
             ;;
         ubuntu-*)
@@ -659,6 +668,9 @@ pkg_dependencies_ubuntu_classic(){
             ;;
         debian-*)
             echo "
+                autopkgtest
+                debootstrap
+                dbus-user-session
                 eatmydata
                 evolution-data-server
                 fwupd
@@ -668,7 +680,7 @@ pkg_dependencies_ubuntu_classic(){
                 net-tools
                 packagekit
                 sbuild
-                dbus-user-session
+                schroot
                 "
             ;;
     esac

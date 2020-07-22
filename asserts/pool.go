@@ -58,8 +58,13 @@ type Grouping string
 //        |             V
 //        \ __________ Add
 //
-//  * TODO: AddToUpdate is not implemented yet
-//  * TODO: document Add*Error, CommitTo
+//
+// If errors prevent from fulfilling assertions from a ToResolve,
+// AddError and AddGroupingError can be used to report the errors so
+// that they can be associated with groups.
+//
+// All the resolved assertions in a Pool from groups not in error can
+// be committed to a destination database with CommitTo.
 type Pool struct {
 	groundDB RODatabase
 
@@ -289,11 +294,15 @@ func (p *Pool) addUnresolved(unresolved *AtRevision, gnum uint16) error {
 		return err
 	}
 	if ok {
-		// do nothing
-		// TODO: we actually need to mark this as resolved
-		// anyway, this is not really visible until
-		// we implement committing though, and is more
-		// typical when updating and fetching are mixed
+		// We assume that either the resolving of
+		// prerequisites for the already resolved assertion in
+		// progress has succeeded or will. If that's not the
+		// case we will fail at CommitTo time. We could
+		// instead recurse into its prerequisites again but the
+		// complexity isn't clearly worth it.
+		// See TestParallelPartialResolutionFailure
+		// Mark this as resolved in the group.
+		p.groups[gnum].markResolved(&unresolved.Ref)
 		return nil
 	}
 	uniq := unresolved.Ref.Unique()
@@ -311,9 +320,12 @@ func (p *Pool) addUnresolved(unresolved *AtRevision, gnum uint16) error {
 // ToResolve returns all the currently unresolved assertions in the
 // Pool, organized in opaque groupings based on which set of groups
 // requires each of them.
-// At the next ToResolve any unresolved assertion that was not added
-// via Add or AddBatch will result in all groups requiring it being in
-// error with ErrUnresolved.
+// At the next ToResolve any unresolved assertion with not known
+// revision that was not added via Add or AddBatch will result in all
+// groups requiring it being in error with ErrUnresolved.
+// Conversely, the remaining unresolved assertions originally added
+// via AddToUpdate will be assumed to still be at their current
+// revisions.
 func (p *Pool) ToResolve() (map[Grouping][]*AtRevision, error) {
 	if p.curPhase == poolPhaseAdd {
 		p.unresolvedBookkeeping()
@@ -556,4 +568,112 @@ func (p *Pool) Err(group string) error {
 		return ErrUnknownPoolGroup
 	}
 	return gRec.err
+}
+
+// AddError associates error e with the unresolved assertion.
+// The error will be propagated to all the affected groups at
+// the next ToResolve.
+func (p *Pool) AddError(e error, ref *Ref) error {
+	if err := p.phase(poolPhaseAdd); err != nil {
+		return err
+	}
+	uniq := ref.Unique()
+	if u := p.unresolved[uniq]; u != nil && u.err == nil {
+		u.err = e
+	}
+	return nil
+}
+
+// AddGroupingError puts all the groups of grouping in error, with error e.
+func (p *Pool) AddGroupingError(e error, grouping Grouping) error {
+	if err := p.phase(poolPhaseAdd); err != nil {
+		return err
+	}
+
+	g, err := p.groupings.Deserialize(string(grouping))
+	if err != nil {
+		return err
+	}
+
+	p.setErr(g, e)
+	return nil
+}
+
+// AddToUpdate adds the assertion referenced by toUpdate and all its
+// prerequisites to the Pool as unresolved and as required by the
+// given group. It is assumed that the assertion is currently in the
+// ground database of the Pool, otherwise this will error.
+// The current revisions of the assertion and its prerequisites will
+// be recorded and only higher revisions will then resolve them,
+// otherwise if ultimately unresolved they will be assumed to still be
+// at their current ones.
+func (p *Pool) AddToUpdate(toUpdate *Ref, group string) error {
+	if err := p.phase(poolPhaseAddUnresolved); err != nil {
+		return err
+	}
+	gnum, err := p.ensureGroup(group)
+	if err != nil {
+		return err
+	}
+	retrieve := func(ref *Ref) (Assertion, error) {
+		return ref.Resolve(p.groundDB.Find)
+	}
+	add := func(a Assertion) error {
+		return p.addUnresolved(a.At(), gnum)
+	}
+	f := NewFetcher(p.groundDB, retrieve, add)
+	if err := f.Fetch(toUpdate); err != nil {
+		return err
+	}
+	return nil
+}
+
+// CommitTo adds the assertions from groups without errors to the
+// given assertion database. Commit errors can be retrieved via Err
+// per group.
+func (p *Pool) CommitTo(db *Database) error {
+	if p.curPhase == poolPhaseAddUnresolved {
+		return fmt.Errorf("internal error: cannot commit Pool during add unresolved phase")
+	}
+	p.unresolvedBookkeeping()
+
+	retrieve := func(ref *Ref) (Assertion, error) {
+		a, err := p.bs.Get(ref.Type, ref.PrimaryKey, ref.Type.MaxSupportedFormat())
+		if IsNotFound(err) {
+			// fallback to pre-existing assertions
+			a, err = ref.Resolve(db.Find)
+		}
+		if err != nil {
+			return nil, resolveError("cannot resolve prerequisite assertion: %s", ref, err)
+		}
+		return a, nil
+	}
+	save := func(a Assertion) error {
+		err := db.Add(a)
+		if IsUnaccceptedUpdate(err) {
+			// unsupported format case is handled before.
+			// be idempotent, db has already the same or
+			// newer.
+			return nil
+		}
+		return err
+	}
+
+NextGroup:
+	for _, gRec := range p.groups {
+		if gRec.hasErr() {
+			// already in error, ignore
+			continue
+		}
+		// TODO: try to reuse fetcher
+		f := NewFetcher(db, retrieve, save)
+		for i := range gRec.resolved {
+			if err := f.Fetch(&gRec.resolved[i]); err != nil {
+				gRec.setErr(err)
+				continue NextGroup
+			}
+		}
+	}
+
+	return nil
 }

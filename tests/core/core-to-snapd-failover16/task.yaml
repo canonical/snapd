@@ -6,7 +6,7 @@ systems: [ubuntu-core-16-*]
 prepare: |
   # shellcheck source=tests/lib/snaps.sh
   . "$TESTSLIB/snaps.sh"
-  repack_core_snap_into_snapd_snap
+  repack_installed_core_snap_into_snapd_snap
 
 restore: |
   rm -f /etc/systemd/user/snapd.session-agent.service

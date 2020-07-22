@@ -24,9 +24,9 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snapdtool"
 )
 
 // mountNsPath returns path of the mount namespace file of a given snap
@@ -39,7 +39,7 @@ func mountNsPath(snapName string) string {
 func runNamespaceTool(toolName, snapName string) ([]byte, error) {
 	mntFile := mountNsPath(snapName)
 	if osutil.FileExists(mntFile) {
-		toolPath, err := cmd.InternalToolPath(toolName)
+		toolPath, err := snapdtool.InternalToolPath(toolName)
 		if err != nil {
 			return nil, err
 		}

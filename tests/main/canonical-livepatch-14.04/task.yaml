@@ -35,7 +35,7 @@ execute: |
     snap install canonical-livepatch
 
     echo "Wait for it to respond"
-    retry-tool -n30 sh -c 'canonical-livepatch status 2>&1 | grep "Machine is not enabled"'
+    retry -n30 sh -c 'canonical-livepatch status 2>&1 | grep "Machine is not enabled"'
 
     echo "And ensure we get the expected status"
     canonical-livepatch status 2>&1 | MATCH "Machine is not enabled"

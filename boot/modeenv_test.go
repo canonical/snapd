@@ -68,11 +68,8 @@ func (s *modeenvSuite) TestReadEmpty(c *C) {
 	s.makeMockModeenvFile(c, "")
 
 	modeenv, err := boot.ReadModeenv(s.tmpdir)
-	c.Assert(err, IsNil)
-	c.Check(modeenv.Mode, Equals, "")
-	c.Check(modeenv.RecoverySystem, Equals, "")
-	// an empty modeenv still means the modeenv was set
-	c.Check(modeenv.WasRead(), Equals, true)
+	c.Assert(err, ErrorMatches, "internal error: mode is unset")
+	c.Assert(modeenv, IsNil)
 }
 
 func (s *modeenvSuite) TestReadMode(c *C) {

@@ -20,19 +20,22 @@
 package main_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
 	"gopkg.in/check.v1"
 
-	snap "github.com/snapcore/snapd/cmd/snap"
+	snapCmd "github.com/snapcore/snapd/cmd/snap"
+	"github.com/snapcore/snapd/image"
+	"github.com/snapcore/snapd/snap"
 )
 
 // these only cover errors that happen before hitting the network,
 // because we're not (yet!) mocking the tooling store
 
 func (s *SnapSuite) TestDownloadBadBasename(c *check.C) {
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{
+	_, err := snapCmd.Parser(snapCmd.Client()).ParseArgs([]string{
 		"download", "--basename=/foo", "a-snap",
 	})
 
@@ -40,7 +43,7 @@ func (s *SnapSuite) TestDownloadBadBasename(c *check.C) {
 }
 
 func (s *SnapSuite) TestDownloadBadChannelCombo(c *check.C) {
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{
+	_, err := snapCmd.Parser(snapCmd.Client()).ParseArgs([]string{
 		"download", "--beta", "--channel=foo", "a-snap",
 	})
 
@@ -48,7 +51,7 @@ func (s *SnapSuite) TestDownloadBadChannelCombo(c *check.C) {
 }
 
 func (s *SnapSuite) TestDownloadCohortAndRevision(c *check.C) {
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{
+	_, err := snapCmd.Parser(snapCmd.Client()).ParseArgs([]string{
 		"download", "--cohort=what", "--revision=1234", "a-snap",
 	})
 
@@ -56,7 +59,7 @@ func (s *SnapSuite) TestDownloadCohortAndRevision(c *check.C) {
 }
 
 func (s *SnapSuite) TestDownloadChannelAndRevision(c *check.C) {
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{
+	_, err := snapCmd.Parser(snapCmd.Client()).ParseArgs([]string{
 		"download", "--beta", "--revision=1234", "a-snap",
 	})
 
@@ -64,7 +67,7 @@ func (s *SnapSuite) TestDownloadChannelAndRevision(c *check.C) {
 }
 
 func (s *SnapSuite) TestPrintInstalHint(c *check.C) {
-	snap.PrintInstallHint("foo_1.assert", "foo_1.snap")
+	snapCmd.PrintInstallHint("foo_1.assert", "foo_1.snap")
 	c.Check(s.Stdout(), check.Equals, `Install the snap with:
    snap ack foo_1.assert
    snap install foo_1.snap
@@ -75,10 +78,53 @@ func (s *SnapSuite) TestPrintInstalHint(c *check.C) {
 	c.Assert(err, check.IsNil)
 	as := filepath.Join(cwd, "some-dir/foo_1.assert")
 	sn := filepath.Join(cwd, "some-dir/foo_1.snap")
-	snap.PrintInstallHint(as, sn)
+	snapCmd.PrintInstallHint(as, sn)
 	c.Check(s.Stdout(), check.Equals, `Install the snap with:
    snap ack some-dir/foo_1.assert
    snap install some-dir/foo_1.snap
 `)
+}
 
+func (s *SnapSuite) TestDownloadDirect(c *check.C) {
+	var n int
+	restore := snapCmd.MockDownloadDirect(func(snapName string, revision snap.Revision, dlOpts image.DownloadOptions) error {
+		c.Check(snapName, check.Equals, "a-snap")
+		c.Check(revision, check.Equals, snap.R(0))
+		c.Check(dlOpts.Basename, check.Equals, "some-base-name")
+		c.Check(dlOpts.TargetDir, check.Equals, "some-target-dir")
+		c.Check(dlOpts.Channel, check.Equals, "some-channel")
+		c.Check(dlOpts.CohortKey, check.Equals, "some-cohort")
+		n++
+		return nil
+	})
+	defer restore()
+
+	// check that a direct download got issued
+	_, err := snapCmd.Parser(snapCmd.Client()).ParseArgs([]string{
+		"download",
+		"--target-directory=some-target-dir",
+		"--basename=some-base-name",
+		"--channel=some-channel",
+		"--cohort=some-cohort",
+		"a-snap"},
+	)
+	c.Assert(err, check.IsNil)
+	c.Check(n, check.Equals, 1)
+}
+
+func (s *SnapSuite) TestDownloadDirectErrors(c *check.C) {
+	var n int
+	restore := snapCmd.MockDownloadDirect(func(snapName string, revision snap.Revision, dlOpts image.DownloadOptions) error {
+		n++
+		return fmt.Errorf("some-error")
+	})
+	defer restore()
+
+	// check that a direct download got issued
+	_, err := snapCmd.Parser(snapCmd.Client()).ParseArgs([]string{
+		"download",
+		"a-snap"},
+	)
+	c.Assert(err, check.ErrorMatches, "some-error")
+	c.Check(n, check.Equals, 1)
 }

@@ -42,14 +42,9 @@ var _ = Suite(&powerbtnSuite{})
 
 func (s *powerbtnSuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
-	dirs.SetRootDir(c.MkDir())
 	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc"), 0755), IsNil)
 
 	s.mockPowerBtnCfg = filepath.Join(dirs.GlobalRootDir, "/etc/systemd/logind.conf.d/00-snap-core.conf")
-}
-
-func (s *powerbtnSuite) TearDownTest(c *C) {
-	dirs.SetRootDir("/")
 }
 
 func (s *powerbtnSuite) TestConfigurePowerButtonInvalid(c *C) {

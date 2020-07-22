@@ -94,7 +94,7 @@ func (pol *policy20) extraSnapDefaultChannel() string {
 func (pol *policy20) checkBase(info *snap.Info, availableSnaps *naming.SnapSet) error {
 	base := info.Base
 	if base == "" {
-		if info.GetType() != snap.TypeGadget && info.GetType() != snap.TypeApp {
+		if info.Type() != snap.TypeGadget && info.Type() != snap.TypeApp {
 			return nil
 		}
 		base = "core"

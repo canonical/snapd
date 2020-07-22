@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -76,7 +77,7 @@ func (s *bootenvSuite) TestSetNextBootForCore(c *C) {
 	info.RealName = "core"
 	info.Revision = snap.R(100)
 
-	bs := boot.NewCoreBootParticipant(info, info.GetType(), coreDev)
+	bs := boot.NewCoreBootParticipant(info, info.Type(), coreDev)
 	reboot, err := bs.SetNextBoot()
 	c.Assert(err, IsNil)
 
@@ -98,7 +99,7 @@ func (s *bootenvSuite) TestSetNextBootWithBaseForCore(c *C) {
 	info.RealName = "core18"
 	info.Revision = snap.R(1818)
 
-	bs := boot.NewCoreBootParticipant(info, info.GetType(), coreDev)
+	bs := boot.NewCoreBootParticipant(info, info.Type(), coreDev)
 	reboot, err := bs.SetNextBoot()
 	c.Assert(err, IsNil)
 
@@ -542,7 +543,7 @@ func (s *ubootSuite) TestExtractKernelAssetsAndRemoveOnUboot(c *C) {
 			Revision: snap.R(42),
 		}
 		fn := snaptest.MakeTestSnapWithFiles(c, packageKernel, files)
-		snapf, err := snap.Open(fn)
+		snapf, err := snapfile.Open(fn)
 		c.Assert(err, IsNil)
 
 		info, err := snap.ReadInfoFromSnapFile(snapf, si)
@@ -626,7 +627,7 @@ func (s *grubSuite) TestExtractKernelAssetsNoUnpacksKernelForGrub(c *C) {
 		Revision: snap.R(42),
 	}
 	fn := snaptest.MakeTestSnapWithFiles(c, packageKernel, files)
-	snapf, err := snap.Open(fn)
+	snapf, err := snapfile.Open(fn)
 	c.Assert(err, IsNil)
 
 	info, err := snap.ReadInfoFromSnapFile(snapf, si)
@@ -657,7 +658,7 @@ func (s *grubSuite) TestExtractKernelForceWorks(c *C) {
 		Revision: snap.R(42),
 	}
 	fn := snaptest.MakeTestSnapWithFiles(c, packageKernel, files)
-	snapf, err := snap.Open(fn)
+	snapf, err := snapfile.Open(fn)
 	c.Assert(err, IsNil)
 
 	info, err := snap.ReadInfoFromSnapFile(snapf, si)

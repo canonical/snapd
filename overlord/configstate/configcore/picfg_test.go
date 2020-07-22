@@ -54,17 +54,12 @@ unrelated_options=are-kept
 
 func (s *piCfgSuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
-	dirs.SetRootDir(c.MkDir())
 	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc"), 0755), IsNil)
 
 	s.mockConfigPath = filepath.Join(dirs.GlobalRootDir, "/boot/uboot/config.txt")
 	err := os.MkdirAll(filepath.Dir(s.mockConfigPath), 0755)
 	c.Assert(err, IsNil)
 	s.mockConfig(c, mockConfigTxt)
-}
-
-func (s *piCfgSuite) TearDownTest(c *C) {
-	dirs.SetRootDir("/")
 }
 
 func (s *piCfgSuite) mockConfig(c *C, txt string) {

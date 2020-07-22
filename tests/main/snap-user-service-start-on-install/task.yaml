@@ -20,11 +20,11 @@ prepare: |
         touch agent-was-enabled
     fi
     snap set system experimental.user-daemons=true
-    session-tool --kill-leaked
-    session-tool -u test --prepare
+    tests.session kill-leaked
+    tests.session -u test prepare
 
 restore: |
-    session-tool -u test --restore
+    tests.session -u test restore
     snap unset system experimental.user-daemons
     if [ -f agent-was-enabled ]; then
         systemctl --user --global disable snapd.session-agent.socket
@@ -33,7 +33,7 @@ restore: |
 
 execute: |
     function systemctl_user() {
-      session-tool -u test systemctl --user "$@"
+      tests.session -u test exec systemctl --user "$@"
     }
 
     echo "Install the a snap with user services while a user session is active"
@@ -54,6 +54,6 @@ execute: |
     fi
 
 debug: |
-    session-tool --dump
-    session-tool -u test systemctl --user status snapd.session-agent.service || true
-    session-tool -u test journalctl --user || true
+    tests.session dump
+    tests.session -u test exec systemctl --user status snapd.session-agent.service || true
+    tests.session -u test exec journalctl --user || true

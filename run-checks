@@ -150,6 +150,8 @@ if [ "$STATIC" = 1 ]; then
     echo Checking docs
     ./mdlint.py ./*.md docs/*.md
 
+    # XXX: remove once we can use an action, see workflows/test.yaml for
+    #      details why we still use this script
     if [ -n "${TRAVIS_PULL_REQUEST:-}" ] && [ "${TRAVIS_PULL_REQUEST:-}" != "false" ]; then
         echo Checking pull request summary
         ./check-pr-title.py "$TRAVIS_PULL_REQUEST"
@@ -214,7 +216,7 @@ if [ "$STATIC" = 1 ]; then
                 find . \( -name .git -o -name vendor \) -prune -o -print0 ) |
             xargs -0 file -N |
             awk -F": " '$2~/shell.script/{print $1}' |
-            xargs shellcheck
+            xargs shellcheck -x
         regexp='GOPATH(?!%%:\*)(?!:)[^= ]*/'
         if  grep -qPr                   --exclude HACKING.md --exclude 'Makefile.*' --exclude-dir .git --exclude-dir vendor "$regexp"; then
             echo "Using GOPATH as if it were a single entry and not a list:"
@@ -318,17 +320,17 @@ if [ "$UNIT" = 1 ]; then
         fi
     fi
 
-    # python unit test for mountinfo-tool and version-tool
-    command -v python2 && python2 ./tests/lib/bin/mountinfo-tool --run-unit-tests
-    command -v python3 && python3 ./tests/lib/bin/mountinfo-tool --run-unit-tests
-    command -v python2 && python2 ./tests/lib/bin/version-tool --run-unit-tests
-    command -v python3 && python3 ./tests/lib/bin/version-tool --run-unit-tests
+    # python unit test for mountinfo.query and version-compare
+    command -v python2 && python2 ./tests/lib/tools/mountinfo.query --run-unit-tests
+    command -v python3 && python3 ./tests/lib/tools/mountinfo.query --run-unit-tests
+    command -v python2 && python2 ./tests/lib/tools/version-compare --run-unit-tests
+    command -v python3 && python3 ./tests/lib/tools/version-compare --run-unit-tests
 fi
 
 if [ -n "$SPREAD" ]; then
     if [ -n "${TRAVIS_PULL_REQUEST:-}" ] && [ "${TRAVIS_PULL_REQUEST:-}" != "false" ]; then
         echo "Checking whether PR author requested to skip spread"
-        if ./check-pr-skip-spread.py "$TRAVIS_PULL_REQUEST"; then
+        if ./check-pr-has-label.py "$TRAVIS_PULL_REQUEST" "LABEL_SKIP_SPREAD_JOB"; then
             echo "Skipping spread job on request"
             exit 0
         fi
@@ -362,6 +364,20 @@ if [ -n "$SPREAD" ]; then
             echo "Spread parameter $SPREAD not supported"
             exit 1
     esac
+
+    if ./check-pr-has-label.py "$TRAVIS_PULL_REQUEST" "LABEL_RUN_SPREAD_NESTED"; then
+        case "$SPREAD" in
+            full)
+                spread "google-nested:tests/nested/"
+            ;;
+            ubuntu-only)
+                spread "google-nested:[u]...:tests/nested/"
+            ;;
+            *)
+                echo "Spread parameter $SPREAD not supported"
+                exit 1
+        esac
+    fi
 
     # cleanup the debian-ubuntu-14.04
     rm -rf debian-ubuntu-14.04

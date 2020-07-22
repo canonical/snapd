@@ -43,9 +43,14 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snapdenv"
+	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/timings"
+)
+
+var (
+	cloudInitStatus   = sysconfig.CloudInitStatus
+	restrictCloudInit = sysconfig.RestrictCloudInit
 )
 
 // DeviceManager is responsible for managing the device identity and device
@@ -65,6 +70,10 @@ type DeviceManager struct {
 	ensureSeedInConfigRan bool
 
 	ensureInstalledRan bool
+
+	cloudInitAlreadyRestricted           bool
+	cloudInitErrorAttemptStart           *time.Time
+	cloudInitEnabledInactiveAttemptStart *time.Time
 
 	lastBecomeOperationalAttempt time.Time
 	becomeOperationalBackoff     time.Duration
@@ -91,7 +100,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		preseed:    snapdenv.Preseeding(),
 	}
 
-	modeEnv, err := m.maybeReadModeenv()
+	modeEnv, err := maybeReadModeenv()
 	if err != nil {
 		return nil, err
 	}
@@ -132,7 +141,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	return m, nil
 }
 
-func (m *DeviceManager) maybeReadModeenv() (*boot.Modeenv, error) {
+func maybeReadModeenv() (*boot.Modeenv, error) {
 	modeEnv, err := boot.ReadModeenv("")
 	if err != nil && !os.IsNotExist(err) {
 		return nil, fmt.Errorf("cannot read modeenv: %v", err)
@@ -453,7 +462,7 @@ func (m *DeviceManager) ensureSeeded() error {
 	if m.preseed {
 		opts = &populateStateFromSeedOptions{Preseed: true}
 	} else {
-		modeEnv, err := m.maybeReadModeenv()
+		modeEnv, err := maybeReadModeenv()
 		if err != nil {
 			return err
 		}
@@ -529,6 +538,143 @@ func (m *DeviceManager) ensureBootOk() error {
 	return nil
 }
 
+func (m *DeviceManager) ensureCloudInitRestricted() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	if m.cloudInitAlreadyRestricted {
+		return nil
+	}
+
+	var seeded bool
+	err := m.state.Get("seeded", &seeded)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+
+	// On Ubuntu Core devices that have been seeded, we want to restrict
+	// cloud-init so that its more dangerous (for an IoT device at least)
+	// features are not exploitable after a device has been seeded. This allows
+	// device administrators and other tools (such as multipass) to still
+	// configure an Ubuntu Core device on first boot, and also allows cloud
+	// vendors to run cloud-init with only a specific data-source on subsequent
+	// boots but disallows arbitrary cloud-init {user,meta,vendor}-data to be
+	// attached to a device via a USB drive and inject code onto the device.
+
+	// TODO: expand the scope to run on any device with a gadget, so i.e.
+	//       classic devices connected to a brand store also have this run?
+	if seeded && !release.OnClassic {
+		opts := &sysconfig.CloudInitRestrictOptions{}
+
+		// check the current state of cloud-init, if it is disabled or already
+		// restricted then we have nothing to do
+		cloudInitStatus, err := cloudInitStatus()
+		if err != nil {
+			return err
+		}
+		statusMsg := ""
+
+		switch cloudInitStatus {
+		case sysconfig.CloudInitDisabledPermanently, sysconfig.CloudInitRestrictedBySnapd:
+			// already been permanently disabled, nothing to do
+			m.cloudInitAlreadyRestricted = true
+			return nil
+		case sysconfig.CloudInitUntriggered:
+			// hasn't been used
+			statusMsg = "reported to be in disabled state"
+		case sysconfig.CloudInitDone:
+			// is done being used
+			statusMsg = "reported to be done"
+		case sysconfig.CloudInitErrored:
+			// cloud-init errored, so we give the device admin / developer a few
+			// minutes to reboot the machine to re-run cloud-init and try again,
+			// otherwise we will disable cloud-init permanently
+			// initialize
+			if m.cloudInitErrorAttemptStart == nil {
+				// save the time we started the attempt to restrict
+				now := timeNow()
+				m.cloudInitErrorAttemptStart = &now
+				logger.Noticef("System initialized, cloud-init reported to be in error state, will disable in 3 minutes")
+			}
+
+			// check if 3 minutes have elapsed since we first saw cloud-init in
+			// error state
+			timeSinceFirstAttempt := timeNow().Sub(*m.cloudInitErrorAttemptStart)
+			if timeSinceFirstAttempt <= 3*time.Minute {
+				// we need to keep waiting for cloud-init, up to 3 minutes
+				nextCheck := 3*time.Minute - timeSinceFirstAttempt
+				m.state.EnsureBefore(nextCheck)
+				return nil
+			}
+			// otherwise, we timed out waiting for cloud-init to be fixed or
+			// rebooted and should restrict cloud-init
+			// we will restrict cloud-init below, but we need to force the
+			// disable, as by default RestrictCloudInit will error on state
+			// CloudInitErrored
+			opts.ForceDisable = true
+			statusMsg = "reported to be in error state after 3 minutes"
+		default:
+			// in unknown states we are conservative and let the device run for
+			// a while to see if it transitions to a known state, but eventually
+			// will disable anyways
+			fallthrough
+		case sysconfig.CloudInitEnabled:
+			// we will give cloud-init up to 5 minutes to try and run, if it
+			// still has not transitioned to some other known state, then we
+			// will give up waiting for it and disable it anyways
+
+			// initialize the first time we saw cloud-init in enabled state
+			if m.cloudInitEnabledInactiveAttemptStart == nil {
+				// save the time we started the attempt to restrict
+				now := timeNow()
+				m.cloudInitEnabledInactiveAttemptStart = &now
+			}
+
+			// keep re-scheduling again in 10 seconds until we hit 5 minutes
+			timeSinceFirstAttempt := timeNow().Sub(*m.cloudInitEnabledInactiveAttemptStart)
+			if timeSinceFirstAttempt <= 5*time.Minute {
+				// TODO: should we log a message here about waiting for cloud-init
+				//       to be in a "known state"?
+				m.state.EnsureBefore(10 * time.Second)
+				return nil
+			}
+
+			// otherwise, we gave cloud-init 5 minutes to run, if it's still not
+			// done disable it anyways
+			// note we we need to force the disable, as by default
+			// RestrictCloudInit will error on state CloudInitEnabled
+			opts.ForceDisable = true
+			statusMsg = "failed to transition to done or error state after 5 minutes"
+		}
+
+		// now restrict/disable cloud-init
+		res, err := restrictCloudInit(cloudInitStatus, opts)
+		if err != nil {
+			return err
+		}
+
+		// log a message about what we did
+		actionMsg := ""
+		switch res.Action {
+		case "disable":
+			actionMsg = "disabled permanently"
+		case "restrict":
+			// log different messages depending on what datasource was used
+			if res.Datasource == "NoCloud" {
+				actionMsg = "set datasource_list to [ NoCloud ] and disabled auto-import by filesystem label"
+			} else {
+				// all other datasources just log that we limited it to that datasource
+				actionMsg = fmt.Sprintf("set datasource_list to [ %s ]", res.Datasource)
+			}
+		}
+		logger.Noticef("System initialized, cloud-init %s, %s", statusMsg, actionMsg)
+
+		m.cloudInitAlreadyRestricted = true
+	}
+
+	return nil
+}
+
 func (m *DeviceManager) ensureInstalled() error {
 	m.state.Lock()
 	defer m.state.Unlock()
@@ -547,7 +693,7 @@ func (m *DeviceManager) ensureInstalled() error {
 
 	var seeded bool
 	err := m.state.Get("seeded", &seeded)
-	if err != nil {
+	if err != nil && err != state.ErrNoState {
 		return err
 	}
 	if !seeded {
@@ -679,6 +825,10 @@ func (m *DeviceManager) Ensure() error {
 	}
 
 	if !m.preseed {
+		if err := m.ensureCloudInitRestricted(); err != nil {
+			errs = append(errs, err)
+		}
+
 		if err := m.ensureOperational(); err != nil {
 			errs = append(errs, err)
 		}
@@ -772,66 +922,19 @@ var currentSystemActions = []SystemAction{
 	{Title: "Recover", Mode: "recover"},
 	{Title: "Run normally", Mode: "run"},
 }
-
-func systemFromSeed(label string, current *seededSystem) (*System, error) {
-	s, err := seed.Open(dirs.SnapSeedDir, label)
-	if err != nil {
-		return nil, fmt.Errorf("cannot open: %v", err)
-	}
-	if err := s.LoadAssertions(nil, nil); err != nil {
-		return nil, fmt.Errorf("cannot load assertions: %v", err)
-	}
-	// get the model
-	model, err := s.Model()
-	if err != nil {
-		return nil, fmt.Errorf("cannot obtain model: %v", err)
-	}
-	brand, err := s.Brand()
-	if err != nil {
-		return nil, fmt.Errorf("cannot obtain brand: %v", err)
-	}
-	system := System{
-		Current: false,
-		Label:   label,
-		Model:   model,
-		Brand:   brand,
-		Actions: defaultSystemActions,
-	}
-	if current != nil && isCurrentSystem(current, &system) {
-		system.Current = true
-		system.Actions = currentSystemActions
-	}
-	return &system, nil
+var recoverSystemActions = []SystemAction{
+	{Title: "Reinstall", Mode: "install"},
+	{Title: "Run normally", Mode: "run"},
 }
 
 var ErrNoSystems = errors.New("no systems seeds")
-
-func currentSeedSystem(st *state.State) (*seededSystem, error) {
-	st.Lock()
-	defer st.Unlock()
-
-	var whatseeded []seededSystem
-	if err := st.Get("seeded-systems", &whatseeded); err != nil {
-		return nil, err
-	}
-	if len(whatseeded) == 0 {
-		// unexpected
-		return nil, state.ErrNoState
-	}
-	return &whatseeded[0], nil
-}
-
-func isCurrentSystem(current *seededSystem, other *System) bool {
-	return current.System == other.Label &&
-		current.Model == other.Model.Model() &&
-		current.BrandID == other.Brand.AccountID()
-}
 
 // Systems list the available recovery/seeding systems. Returns the list of
 // systems, ErrNoSystems when no systems seeds were found or other error.
 func (m *DeviceManager) Systems() ([]*System, error) {
 	// it's tough luck when we cannot determine the current system seed
-	currentSys, _ := currentSeedSystem(m.state)
+	systemMode := m.SystemMode()
+	currentSys, _ := currentSystemForMode(m.state, systemMode)
 
 	systemLabels, err := filepath.Glob(filepath.Join(dirs.SnapSeedDir, "systems", "*"))
 	if err != nil && !os.IsNotExist(err) {
@@ -863,7 +966,16 @@ var ErrUnsupportedAction = errors.New("unsupported action")
 // system reboot will be requested when the request can be successfully carried
 // out.
 func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAction) error {
-	currentSys, _ := currentSeedSystem(m.state)
+	if systemLabel == "" {
+		return fmt.Errorf("internal error: system label is unset")
+	}
+
+	if err := checkSystemRequestConflict(m.state, systemLabel); err != nil {
+		return err
+	}
+
+	systemMode := m.SystemMode()
+	currentSys, _ := currentSystemForMode(m.state, systemMode)
 
 	systemSeedDir := filepath.Join(dirs.SnapSeedDir, "systems", systemLabel)
 	if _, err := os.Stat(systemSeedDir); err != nil {
@@ -888,11 +1000,11 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 	// XXX: requested mode is valid; only current system has 'run' and
 	// recover 'actions'
 
-	switch m.systemMode {
+	switch systemMode {
 	case "recover", "run":
 		// if going from recover to recover or from run to run and the systems
 		// are the same do nothing
-		if m.systemMode == sysAction.Mode && systemLabel == currentSys.System {
+		if systemMode == sysAction.Mode && systemLabel == currentSys.System {
 			return nil
 		}
 	case "install":
@@ -904,7 +1016,7 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 	default:
 		// probably test device manager mocking problem, or also potentially
 		// missing modeenv
-		return fmt.Errorf("internal error: unexpected manager system mode %q", m.systemMode)
+		return fmt.Errorf("internal error: unexpected manager system mode %q", systemMode)
 	}
 
 	m.state.Lock()

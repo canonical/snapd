@@ -35,16 +35,6 @@ type certsSuite struct {
 
 var _ = Suite(&certsSuite{})
 
-func (s *certsSuite) SetUpTest(c *C) {
-	s.configcoreSuite.SetUpTest(c)
-
-	dirs.SetRootDir(c.MkDir())
-}
-
-func (s *certsSuite) TearDownTest(c *C) {
-	dirs.SetRootDir("/")
-}
-
 func (s *certsSuite) TestConfigureCertsUnhappyName(c *C) {
 	err := configcore.Run(&mockConf{
 		state: s.state,

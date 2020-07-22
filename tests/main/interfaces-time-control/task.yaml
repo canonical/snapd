@@ -15,11 +15,15 @@ prepare: |
     # Install a snap declaring a plug on time-control
     install_local test-snapd-timedate-control-consumer
 
+    date +'%m%d%H%M.%y' > now.txt
+
 restore: |
     # Restore the initial rtc configuration
     if [ -f rtc.txt ]; then
         timedatectl set-local-rtc "$(cat rtc.txt)"
     fi
+
+    date "$(cat now.txt)"
 
 execute: |
     # hwclock with libaudit (ie, core 16) also needs netlink-audit connected.
@@ -51,6 +55,10 @@ execute: |
     test-snapd-timedate-control-consumer.timedatectl-time set-local-rtc no
     [ "$(test-snapd-timedate-control-consumer.timedatectl-time status | grep -oP 'RTC in local TZ: \K(.*)')" = "no" ]
 
+    echo "And direct setting via date"
+    nice_when="$(date -d 'tomorrow' +'%m%d%H%M.%y')"
+    test-snapd-timedate-control-consumer.date "$nice_when"
+
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
     fi
@@ -64,3 +72,8 @@ execute: |
         exit 1
     fi
     MATCH "Permission denied" < call.error
+
+    now="$(cat now.txt)"
+    not test-snapd-timedate-control-consumer.date "$now" 2> call.error
+    # EPERM because date gets blocked by the seccomp profile
+    MATCH "cannot set date: Operation not permitted" < call.error

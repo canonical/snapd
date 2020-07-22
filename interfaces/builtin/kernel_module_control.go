@@ -42,7 +42,8 @@ capability sys_module,
 @{PROC}/modules r,
 /{,usr/}bin/kmod ixr,
 
-# FIXME: moved to physical-memory-observe (remove this in series 20)
+# FIXME: moved to physical-memory-observe (will be removed when using different
+# policies for different bases)
 /dev/mem r,
 
 # Required to use SYSLOG_ACTION_READ_ALL and SYSLOG_ACTION_SIZE_BUFFER when

@@ -1,34 +1,37 @@
 summary: Ensure that the pulseaudio interface works
 
 # Only classic Ubuntu has the pulseaudio mediation patches. Ubuntu 14.04 is unsupported on the desktop.
-# TODO: extend session-tool and run this test on 14.04 as well.
-systems: [ubuntu-16.04-*, ubuntu-18.04-*, ubuntu-19.10-*, ubuntu-20.04-*]
+# TODO: extend tests.session and run this test on 14.04 as well.
+systems: [ubuntu-16.04-*, ubuntu-18.04-*, ubuntu-19.10-*, ubuntu-2*]
 
 environment:
     PLAY_FILE: "/snap/test-snapd-pulseaudio/current/usr/share/sounds/alsa/Noise.wav"
 
 prepare: |
-    truncate --size=0 defer.sh
-    chmod +x defer.sh
+    tests.cleanup prepare
 
     # Install pulseaudio.
     apt-get update
     apt-get install -y pulseaudio pulseaudio-utils
-    echo "apt-get autoremove --purge -y pulseaudio pulseaudio-utils" >>defer.sh
+    # Remove the package and reload systemd later, when we are restoring. This
+    # is important because of rtkit-daemon.service that gets pulled by
+    # pulseaudio and that is subsequently removed.
+    tests.cleanup defer systemctl daemon-reload
+    tests.cleanup defer apt-get autoremove --purge -y pulseaudio pulseaudio-utils
 
     # Make sure the socket and the server is available in the user session.
     if [ "$(systemctl --user --global is-enabled pulseaudio.socket)" != enabled ]; then
         systemctl --user --global enable pulseaudio.socket
-        echo "systemctl --user --global disable pulseaudio.socket" >>defer.sh
+        tests.cleanup defer systemctl --user --global disable pulseaudio.socket
     fi
     if [ "$(systemctl --user --global is-enabled pulseaudio.service)" != enabled ]; then
         systemctl --user --global enable pulseaudio.service
-        echo "systemctl --user --global disable pulseaudio.service" >>defer.sh
+        tests.cleanup defer systemctl --user --global disable pulseaudio.service
     fi
 
     # Install a snap that uses the pulseaudio interface.
     snap install --edge test-snapd-pulseaudio
-    echo "snap remove --purge test-snapd-pulseaudio" >>defer.sh
+    tests.cleanup defer snap remove --purge test-snapd-pulseaudio
 
     # TODO: move this to the test that is responsible for creating this data.
     # Remove potentially large go build cache that makes the debug section more
@@ -40,8 +43,8 @@ prepare: |
     chown -R test ~test
 
     # Prepare a session for the user.
-    session-tool -u test --prepare
-    echo "session-tool -u test --restore" >>defer.sh
+    tests.session -u test prepare
+    tests.cleanup defer tests.session -u test restore
 
     # Ensure that the socket is active but do not check the service. In user
     # mode pulseaudio is documented to quit when there are no active logind
@@ -49,22 +52,22 @@ prepare: |
     #
     # User session services do not posses a logind session session so
     # pulseaudio immediately quits, and remains inactive outside of the moments
-    # we execute paplay through session-tool.
-    session-tool -u test systemctl --user is-active pulseaudio.socket | MATCH active
+    # we execute paplay through tests.session.
+    tests.session -u test exec systemctl --user is-active pulseaudio.socket | MATCH active
 
     # Start pulseaudio to give it a chance to write the pulseaudio cookie file.
     # Otherwise paplay invocation will race with pulse startup, and will race
     # with cookie file being available.
-    if not session-tool -u test systemctl --user start pulseaudio.service; then
+    if not tests.session -u test exec systemctl --user start pulseaudio.service; then
         echo "cannot start pulseaudio server"
-        session-tool -u test systemctl --user status pulseaudio.service || true
-        session-tool -u test journalctl --user -u pulseaudio.service || true
+        tests.session -u test exec systemctl --user status pulseaudio.service || true
+        tests.session -u test exec journalctl --user -u pulseaudio.service || true
         exit 1
     fi
 
     # Ensure, that the cookie file is present.
     test -e ~test/.config/pulse/cookie || test -e ~test/.config/pulse/.pulse-cookie
-    echo "rm -rf ~test/.config/pulse" >>defer.sh
+    tests.cleanup defer rm -rf ~test/.config/pulse
 
 debug: |
     echo "Files present in the test user's home directory"
@@ -77,17 +80,14 @@ debug: |
     ps -u test
 
 restore: |
-    # Restore system to the previous state by running deferred commands in
-    # reverse order.
-    tac defer.sh > refed.sh
-    sh -xe refed.sh && rm -f {defer,refed}.sh
+    tests.cleanup restore
 
 execute: |
     echo "The unconfined user can play audio"
-    session-tool -u test /usr/bin/paplay "$PLAY_FILE"
+    tests.session -u test exec /usr/bin/paplay "$PLAY_FILE"
 
     echo "The unconfined user can record audio"
-    session-tool -u test /snap/test-snapd-pulseaudio/current/bin/parec-simple
+    tests.session -u test exec /snap/test-snapd-pulseaudio/current/bin/parec-simple
 
     echo "The interface is disconnected by default"
     snap connections test-snapd-pulseaudio | MATCH "pulseaudio +test-snapd-pulseaudio:pulseaudio +- +-"
@@ -96,10 +96,10 @@ execute: |
     snap connect test-snapd-pulseaudio:pulseaudio
 
     echo "Then the snap can play audio"
-    session-tool -u test test-snapd-pulseaudio.play "$PLAY_FILE"
+    tests.session -u test exec test-snapd-pulseaudio.play "$PLAY_FILE"
 
     echo "Then the snap can record audio"
-    session-tool -u test test-snapd-pulseaudio.recsimple
+    tests.session -u test exec test-snapd-pulseaudio.recsimple
 
     if [ "$(snap debug confinement)" = "partial" ] ; then
         exit 0
@@ -109,7 +109,7 @@ execute: |
     snap disconnect test-snapd-pulseaudio:pulseaudio
 
     echo "Then the snap command is not able to connect to the pulseaudio socket"
-    if session-tool -u test test-snapd-pulseaudio.play "$PLAY_FILE"; then
+    if tests.session -u test exec test-snapd-pulseaudio.play "$PLAY_FILE"; then
         echo "Expected error with plug disconnected"
         exit 1
     fi

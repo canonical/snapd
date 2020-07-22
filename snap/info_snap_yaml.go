@@ -90,8 +90,9 @@ type appYaml struct {
 	SlotNames    []string         `yaml:"slots,omitempty"`
 	PlugNames    []string         `yaml:"plugs,omitempty"`
 
-	BusName  string `yaml:"bus-name,omitempty"`
-	CommonID string `yaml:"common-id,omitempty"`
+	BusName     string   `yaml:"bus-name,omitempty"`
+	ActivatesOn []string `yaml:"activates-on,omitempty"`
+	CommonID    string   `yaml:"common-id,omitempty"`
 
 	Environment strutil.OrderedMap `yaml:"environment,omitempty"`
 
@@ -377,6 +378,9 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info, strk *scopedTracker) error {
 		if len(yApp.Sockets) > 0 {
 			app.Sockets = make(map[string]*SocketInfo, len(yApp.Sockets))
 		}
+		if len(yApp.ActivatesOn) > 0 {
+			app.ActivatesOn = make([]*SlotInfo, 0, len(yApp.ActivatesOn))
+		}
 		// Daemons default to being system daemons
 		if app.Daemon != "" && app.DaemonScope == "" {
 			app.DaemonScope = SystemDaemon
@@ -419,6 +423,17 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info, strk *scopedTracker) error {
 				snap.Slots[slotName] = slot
 			}
 			// Mark the slot as scoped.
+			strk.markSlot(slot)
+			app.Slots[slotName] = slot
+			slot.Apps[appName] = app
+		}
+		for _, slotName := range yApp.ActivatesOn {
+			slot, ok := snap.Slots[slotName]
+			if !ok {
+				return fmt.Errorf("invalid activates-on value %q on app %q: slot not found", slotName, appName)
+			}
+			app.ActivatesOn = append(app.ActivatesOn, slot)
+			// Implicitly add the slot to the app
 			strk.markSlot(slot)
 			app.Slots[slotName] = slot
 			slot.Apps[appName] = app

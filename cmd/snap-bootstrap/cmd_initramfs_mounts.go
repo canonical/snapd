@@ -31,9 +31,7 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/boot"
-	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot"
@@ -65,6 +63,12 @@ func (c *cmdInitramfsMounts) Execute(args []string) error {
 var (
 	// Stdout - can be overridden in tests
 	stdout io.Writer = os.Stdout
+
+	snapTypeToMountDir = map[snap.Type]string{
+		snap.TypeBase:   "base",
+		snap.TypeKernel: "kernel",
+		snap.TypeSnapd:  "snapd",
+	}
 
 	secbootMeasureSnapSystemEpochWhenPossible = secboot.MeasureSnapSystemEpochWhenPossible
 	secbootMeasureSnapModelWhenPossible       = secboot.MeasureSnapModelWhenPossible
@@ -138,12 +142,37 @@ func generateMountsModeInstall(mst *initramfsMountsState, recoverySystem string)
 	if err := modeEnv.WriteTo(boot.InitramfsWritableDir); err != nil {
 		return err
 	}
-	if err := sysconfig.DisableCloudInit(boot.InitramfsWritableDir); err != nil {
+	// we need to put the file to disable cloud-init in the
+	// _writable_defaults dir for writable-paths(5) to install it properly
+	writableDefaultsDir := sysconfig.WritableDefaultsDir(boot.InitramfsWritableDir)
+	if err := sysconfig.DisableCloudInit(writableDefaultsDir); err != nil {
 		return err
 	}
 
 	// done, no output, no error indicates to initramfs we are done with
 	// mounting stuff
+	return nil
+}
+
+// copyNetworkConfig copies the network configuration to the target
+// directory. This is used to copy the network configuration
+// data from a real uc20 ubuntu-data partition into a ephemeral one.
+func copyNetworkConfig(src, dst string) error {
+	for _, globEx := range []string{
+		// for network configuration setup by console-conf, etc.
+		// TODO:UC20: we want some way to "try" or "verify" the network
+		//            configuration or to only use known-to-be-good network
+		//            configuration i.e. from ubuntu-save before installing it
+		//            onto recover mode, because the network configuration could
+		//            have been what was broken so we don't want to break
+		//            network configuration for recover mode as well, but for
+		//            now this is fine
+		"system-data/etc/netplan/*",
+	} {
+		if err := copyFromGlobHelper(src, dst, globEx); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -166,36 +195,16 @@ func copyUbuntuDataAuth(src, dst string) error {
 		// so that users have proper perms, i.e. console-conf added users are
 		// sudoers
 		"system-data/etc/sudoers.d/*",
+		// so that the time in recover mode moves forward to what it was in run
+		// mode
+		// NOTE: we don't sync back the time movement from recover mode to run
+		// mode currently, unclear how/when we could do this, but recover mode
+		// isn't meant to be long lasting and as such it's probably not a big
+		// problem to "lose" the time spent in recover mode
+		"system-data/var/lib/systemd/timesync/clock",
 	} {
-		matches, err := filepath.Glob(filepath.Join(src, globEx))
-		if err != nil {
+		if err := copyFromGlobHelper(src, dst, globEx); err != nil {
 			return err
-		}
-		for _, p := range matches {
-			comps := strings.Split(strings.TrimPrefix(p, src), "/")
-			for i := range comps {
-				part := filepath.Join(comps[0 : i+1]...)
-				fi, err := os.Stat(filepath.Join(src, part))
-				if err != nil {
-					return err
-				}
-				if fi.IsDir() {
-					if err := os.Mkdir(filepath.Join(dst, part), fi.Mode()); err != nil && !os.IsExist(err) {
-						return err
-					}
-					st, ok := fi.Sys().(*syscall.Stat_t)
-					if !ok {
-						return fmt.Errorf("cannot get stat data: %v", err)
-					}
-					if err := os.Chown(filepath.Join(dst, part), int(st.Uid), int(st.Gid)); err != nil {
-						return err
-					}
-				} else {
-					if err := osutil.CopyFile(p, filepath.Join(dst, part), osutil.CopyFlagPreserveAll); err != nil {
-						return err
-					}
-				}
-			}
 		}
 	}
 
@@ -205,6 +214,41 @@ func copyUbuntuDataAuth(src, dst string) error {
 	err := state.CopyState(srcState, dstState, []string{"auth.users", "auth.macaroon-key", "auth.last-id"})
 	if err != nil && err != state.ErrNoState {
 		return fmt.Errorf("cannot copy user state: %v", err)
+	}
+
+	return nil
+}
+
+func copyFromGlobHelper(src, dst, globEx string) error {
+	matches, err := filepath.Glob(filepath.Join(src, globEx))
+	if err != nil {
+		return err
+	}
+	for _, p := range matches {
+		comps := strings.Split(strings.TrimPrefix(p, src), "/")
+		for i := range comps {
+			part := filepath.Join(comps[0 : i+1]...)
+			fi, err := os.Stat(filepath.Join(src, part))
+			if err != nil {
+				return err
+			}
+			if fi.IsDir() {
+				if err := os.Mkdir(filepath.Join(dst, part), fi.Mode()); err != nil && !os.IsExist(err) {
+					return err
+				}
+				st, ok := fi.Sys().(*syscall.Stat_t)
+				if !ok {
+					return fmt.Errorf("cannot get stat data: %v", err)
+				}
+				if err := os.Chown(filepath.Join(dst, part), int(st.Uid), int(st.Gid)); err != nil {
+					return err
+				}
+			} else {
+				if err := osutil.CopyFile(p, filepath.Join(dst, part), osutil.CopyFlagPreserveAll); err != nil {
+					return err
+				}
+			}
+		}
 	}
 
 	return nil
@@ -236,12 +280,17 @@ func generateMountsModeRecover(mst *initramfsMountsState, recoverySystem string)
 		return nil
 	}
 
-	// 4. final step: copy the auth data from the real ubuntu-data dir to the
-	//    ephemeral ubuntu-data dir, write the modeenv to the tmpfs data, and
-	//    disable cloud-init in recover mode
+	// 4. final step: copy the auth data and network config from
+	//    the real ubuntu-data dir to the ephemeral ubuntu-data
+	//    dir, write the modeenv to the tmpfs data, and disable
+	//    cloud-init in recover mode
 	if err := copyUbuntuDataAuth(boot.InitramfsHostUbuntuDataDir, boot.InitramfsDataDir); err != nil {
 		return err
 	}
+	if err := copyNetworkConfig(boot.InitramfsHostUbuntuDataDir, boot.InitramfsDataDir); err != nil {
+		return err
+	}
+
 	modeEnv := &boot.Modeenv{
 		Mode:           "recover",
 		RecoverySystem: recoverySystem,
@@ -249,7 +298,10 @@ func generateMountsModeRecover(mst *initramfsMountsState, recoverySystem string)
 	if err := modeEnv.WriteTo(boot.InitramfsWritableDir); err != nil {
 		return err
 	}
-	if err := sysconfig.DisableCloudInit(boot.InitramfsWritableDir); err != nil {
+	// we need to put the file to disable cloud-init in the
+	// _writable_defaults dir for writable-paths(5) to install it properly
+	writableDefaultsDir := sysconfig.WritableDefaultsDir(boot.InitramfsWritableDir)
+	if err := sysconfig.DisableCloudInit(writableDefaultsDir); err != nil {
 		return err
 	}
 
@@ -409,150 +461,41 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		return err
 	}
 
-	// 4.2. check if base is mounted
-	isBaseMounted, err := mst.IsMounted(filepath.Join(boot.InitramfsRunMntDir, "base"))
-	if err != nil {
-		return err
-	}
-	if !isBaseMounted {
-		// 4.3. use modeenv base_status and try_base to see if we are trying
-		//      an update to the base snap
-		base := modeEnv.Base
-		if base == "" {
-			// we have no fallback base!
-			return fmt.Errorf("modeenv corrupt: missing base setting")
-		}
-		if modeEnv.BaseStatus == boot.TryStatus {
-			// then we are trying a base snap update and there should be a
-			// try_base set in the modeenv too
-			if modeEnv.TryBase != "" {
-				// check that the TryBase exists in ubuntu-data
-				tryBaseSnapPath := filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), modeEnv.TryBase)
-				if osutil.FileExists(tryBaseSnapPath) {
-					// set the TryBase and have the initramfs mount this base
-					// snap
-					modeEnv.BaseStatus = boot.TryingStatus
-					base = modeEnv.TryBase
-				} else {
-					logger.Noticef("try-base snap %q does not exist", modeEnv.TryBase)
-				}
-			} else {
-				logger.Noticef("try-base snap is empty, but \"base_status\" is \"trying\"")
-			}
-		} else if modeEnv.BaseStatus == boot.TryingStatus {
-			// snapd failed to start with the base snap update, so we need to
-			// fallback to the old base snap and clear base_status
-			modeEnv.BaseStatus = boot.DefaultStatus
-		} else if modeEnv.BaseStatus != boot.DefaultStatus {
-			logger.Noticef("\"base_status\" has an invalid setting: %q", modeEnv.BaseStatus)
-		}
-
-		baseSnapPath := filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), base)
-		fmt.Fprintf(stdout, "%s %s\n", baseSnapPath, filepath.Join(boot.InitramfsRunMntDir, "base"))
-	}
-
-	// 4.5 check if the kernel is mounted
-	isKernelMounted, err := mst.IsMounted(filepath.Join(boot.InitramfsRunMntDir, "kernel"))
-	if err != nil {
-		return err
-	}
-	if !isKernelMounted {
-		// 4.6. use bootloader boot env to see if we are trying an update to the
-		//      kernel snap
-		// make a map to easily check if a kernel snap is valid or not
-		validKernels := make(map[string]bool, len(modeEnv.CurrentKernels))
-		for _, validKernel := range modeEnv.CurrentKernels {
-			validKernels[validKernel] = true
-		}
-
-		// find ubuntu-boot bootloader to get the kernel_status and kernel.efi
-		// status so we can determine the right kernel snap to have mounted
-
-		// TODO:UC20: should all this logic move to boot package? feels awfully
-		// similar to the logic in revisions() for bootState20
-
-		// At this point the run mode bootloader is under the native
-		// layout, no /boot mount.
-		opts := &bootloader.Options{NoSlashBoot: true}
-		bl, err := bootloader.Find(boot.InitramfsUbuntuBootDir, opts)
+	// 4.2 check if base is mounted
+	// 4.3 check if kernel is mounted
+	var whichTypes []snap.Type
+	for _, typ := range []snap.Type{snap.TypeBase, snap.TypeKernel} {
+		dir := snapTypeToMountDir[typ]
+		isMounted, err := mst.IsMounted(filepath.Join(boot.InitramfsRunMntDir, dir))
 		if err != nil {
-			return fmt.Errorf("internal error: cannot find run system bootloader: %v", err)
+			return err
 		}
-
-		var kern, tryKern snap.PlaceInfo
-		var kernStatus string
-
-		ebl, ok := bl.(bootloader.ExtractedRunKernelImageBootloader)
-		if ok {
-			// use ebl methods
-			kern, err = ebl.Kernel()
-			if err != nil {
-				return fmt.Errorf("no fallback kernel snap: %v", err)
-			}
-
-			tryKern, err = ebl.TryKernel()
-			if err != nil && err != bootloader.ErrNoTryKernelRef {
-				return err
-			}
-
-			m, err := ebl.GetBootVars("kernel_status")
-			if err != nil {
-				return fmt.Errorf("cannot get kernel_status from bootloader %s", ebl.Name())
-			}
-
-			kernStatus = m["kernel_status"]
-		} else {
-			// use the bootenv
-			m, err := bl.GetBootVars("snap_kernel", "snap_try_kernel", "kernel_status")
-			if err != nil {
-				return err
-			}
-			kern, err = snap.ParsePlaceInfoFromSnapFileName(m["snap_kernel"])
-			if err != nil {
-				return fmt.Errorf("no fallback kernel snap: %v", err)
-			}
-
-			// only try to parse snap_try_kernel if it is set
-			if m["snap_try_kernel"] != "" {
-				tryKern, err = snap.ParsePlaceInfoFromSnapFileName(m["snap_try_kernel"])
-				if err != nil {
-					logger.Noticef("try-kernel setting is invalid: %v", err)
-				}
-			}
-
-			kernStatus = m["kernel_status"]
+		if !isMounted {
+			whichTypes = append(whichTypes, typ)
 		}
-
-		kernelFile := kern.Filename()
-		if !validKernels[kernelFile] {
-			// we don't trust the fallback kernel!
-			return fmt.Errorf("fallback kernel snap %q is not trusted in the modeenv", kernelFile)
-		}
-
-		if kernStatus == boot.TryingStatus {
-			// check for the try kernel
-			if tryKern != nil {
-				tryKernelFile := tryKern.Filename()
-				if validKernels[tryKernelFile] {
-					kernelFile = tryKernelFile
-				} else {
-					logger.Noticef("try-kernel %q is not trusted in the modeenv", tryKernelFile)
-				}
-			} else {
-				logger.Noticef("missing try-kernel, even though \"kernel_status\" is \"trying\"")
-			}
-
-			// TODO:UC20: actually we really shouldn't be falling back here at
-			//            all - if the kernel we booted isn't mountable in the
-			//            initramfs, we should trigger a reboot so that we boot
-			//            the fallback kernel and then mount that one
-		}
-
-		kernelPath := filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), kernelFile)
-		fmt.Fprintf(stdout, "%s %s\n", kernelPath, filepath.Join(boot.InitramfsRunMntDir, "kernel"))
 	}
 
-	// 4.7. Maybe mount the snapd snap on first boot of run-mode
+	// 4.4 choose and mount base and kernel snaps (this includes updating modeenv
+	//    if needed to try the base snap)
+	mounts, err := boot.InitramfsRunModeSelectSnapsToMount(whichTypes, modeEnv)
+	if err != nil {
+		return err
+	}
+
+	// make sure this is a deterministic order
+	// TODO:UC20: with grade > dangerous, verify the kernel snap hash against
+	//            what we booted using the tpm log, this may need to be passed
+	//            to the function above to make decisions there, or perhaps this
+	//            code actually belongs in the bootloader implementation itself
+	for _, typ := range []snap.Type{snap.TypeBase, snap.TypeKernel} {
+		if sn, ok := mounts[typ]; ok {
+			dir := snapTypeToMountDir[typ]
+			snapPath := filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), sn.Filename())
+			fmt.Fprintf(stdout, "%s %s\n", snapPath, filepath.Join(boot.InitramfsRunMntDir, dir))
+		}
+	}
+
+	// 4.5 check if snapd is mounted (only on first-boot will we mount it)
 	if modeEnv.RecoverySystem != "" {
 		isSnapdMounted, err := mst.IsMounted(filepath.Join(boot.InitramfsRunMntDir, "snapd"))
 		if err != nil {
@@ -569,6 +512,5 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		}
 	}
 
-	// 4.8. Write the modeenv out again
-	return modeEnv.Write()
+	return nil
 }

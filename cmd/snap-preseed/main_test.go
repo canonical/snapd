@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"testing"
 
@@ -35,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/cmd/snap-preseed"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/squashfs"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
@@ -52,6 +54,8 @@ type startPreseedSuite struct {
 
 func (s *startPreseedSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
+	restore := squashfs.MockNeedsFuse(false)
+	s.BaseTest.AddCleanup(restore)
 }
 
 func (s *startPreseedSuite) TearDownTest(c *C) {
@@ -66,10 +70,15 @@ func testParser(c *C) *flags.Parser {
 	return parser
 }
 
-func mockChrootDirs(c *C, rootDir string) {
-	c.Assert(os.MkdirAll(filepath.Join(rootDir, "/sys/kernel/security/apparmor"), 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(rootDir, "/proc/self"), 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(rootDir, "/dev/mem"), 0755), IsNil)
+func mockChrootDirs(c *C, rootDir string, apparmorDir bool) func() {
+	if apparmorDir {
+		c.Assert(os.MkdirAll(filepath.Join(rootDir, "/sys/kernel/security/apparmor"), 0755), IsNil)
+	}
+	mockMountInfo := `912 920 0:57 / ${rootDir}/proc rw,nosuid,nodev,noexec,relatime - proc proc rw
+914 913 0:7 / ${rootDir}/sys/kernel/security rw,nosuid,nodev,noexec,relatime master:8 - securityfs securityfs rw
+915 920 0:58 / ${rootDir}/dev rw,relatime - tmpfs none rw,size=492k,mode=755,uid=100000,gid=100000
+`
+	return osutil.MockMountInfo(strings.Replace(mockMountInfo, "${rootDir}", rootDir, -1))
 }
 
 func (s *startPreseedSuite) TestRequiresRoot(c *C) {
@@ -105,9 +114,21 @@ func (s *startPreseedSuite) TestChrootValidationUnhappy(c *C) {
 	defer restore()
 
 	tmpDir := c.MkDir()
+	defer osutil.MockMountInfo("")()
 
 	parser := testParser(c)
-	c.Check(main.Run(parser, []string{tmpDir}), ErrorMatches, `cannot pre-seed without access to ".*sys/kernel/security/apparmor"`)
+	c.Check(main.Run(parser, []string{tmpDir}), ErrorMatches, "cannot preseed without the following mountpoints:\n - .*/dev\n - .*/proc\n - .*/sys/kernel/security")
+}
+
+func (s *startPreseedSuite) TestChrootValidationUnhappyNoApparmor(c *C) {
+	restore := main.MockOsGetuid(func() int { return 0 })
+	defer restore()
+
+	tmpDir := c.MkDir()
+	defer mockChrootDirs(c, tmpDir, false)()
+
+	parser := testParser(c)
+	c.Check(main.Run(parser, []string{tmpDir}), ErrorMatches, `cannot preseed without access to ".*sys/kernel/security/apparmor"`)
 }
 
 func (s *startPreseedSuite) TestChrootValidationAlreadyPreseeded(c *C) {
@@ -133,7 +154,7 @@ func (s *startPreseedSuite) TestChrootFailure(c *C) {
 	defer restoreSyscallChroot()
 
 	tmpDir := c.MkDir()
-	mockChrootDirs(c, tmpDir)
+	defer mockChrootDirs(c, tmpDir, true)()
 
 	parser := testParser(c)
 	c.Check(main.Run(parser, []string{tmpDir}), ErrorMatches, fmt.Sprintf("cannot chroot into %s: FAIL: %s", tmpDir, tmpDir))
@@ -142,7 +163,7 @@ func (s *startPreseedSuite) TestChrootFailure(c *C) {
 func (s *startPreseedSuite) TestRunPreseedHappy(c *C) {
 	tmpDir := c.MkDir()
 	dirs.SetRootDir(tmpDir)
-	mockChrootDirs(c, tmpDir)
+	defer mockChrootDirs(c, tmpDir, true)()
 
 	restoreOsGuid := main.MockOsGetuid(func() int { return 0 })
 	defer restoreOsGuid()
@@ -180,10 +201,20 @@ func (s *startPreseedSuite) TestRunPreseedHappy(c *C) {
 	c.Assert(mockMountCmd.Calls(), HasLen, 1)
 	// note, tmpDir, targetSnapdRoot are contactenated again cause we're not really chrooting in the test
 	// and mocking dirs.RootDir
-	c.Check(mockMountCmd.Calls()[0], DeepEquals, []string{"mount", "-t", "squashfs", "/a/core.snap", filepath.Join(tmpDir, targetSnapdRoot)})
+	c.Check(mockMountCmd.Calls()[0], DeepEquals, []string{"mount", "-t", "squashfs", "-o", "ro,x-gdu.hide", "/a/core.snap", filepath.Join(tmpDir, targetSnapdRoot)})
 
 	c.Assert(mockTargetSnapd.Calls(), HasLen, 1)
 	c.Check(mockTargetSnapd.Calls()[0], DeepEquals, []string{"snapd"})
+
+	// relative chroot path works too
+	tmpDirPath, relativeChroot := filepath.Split(tmpDir)
+	pwd, err := os.Getwd()
+	c.Assert(err, IsNil)
+	defer func() {
+		os.Chdir(pwd)
+	}()
+	c.Assert(os.Chdir(tmpDirPath), IsNil)
+	c.Check(main.Run(parser, []string{relativeChroot}), IsNil)
 }
 
 type Fake16Seed struct {
@@ -342,7 +373,7 @@ func (s *startPreseedSuite) TestClassicRequired(c *C) {
 func (s *startPreseedSuite) TestRunPreseedUnsupportedVersion(c *C) {
 	tmpDir := c.MkDir()
 	dirs.SetRootDir(tmpDir)
-	mockChrootDirs(c, tmpDir)
+	defer mockChrootDirs(c, tmpDir, true)()
 
 	restoreOsGuid := main.MockOsGetuid(func() int { return 0 })
 	defer restoreOsGuid()
@@ -394,80 +425,111 @@ func (s *startPreseedSuite) TestReset(c *C) {
 	restore := main.MockOsGetuid(func() int { return 0 })
 	defer restore()
 
-	tmpDir := c.MkDir()
+	startDir, err := os.Getwd()
+	c.Assert(err, IsNil)
+	defer func() {
+		os.Chdir(startDir)
+	}()
 
-	// mock some preseeding artifacts
-	artifacts := []struct {
-		path string
-		// if symlinkTarget is not empty, then a path -> symlinkTarget symlink
-		// will be created instead of a regular file.
-		symlinkTarget string
-	}{
-		{dirs.SnapStateFile, ""},
-		{dirs.SnapSystemKeyFile, ""},
-		{filepath.Join(dirs.SnapDesktopFilesDir, "foo.desktop"), ""},
-		{filepath.Join(dirs.SnapDesktopIconsDir, "foo.png"), ""},
-		{filepath.Join(dirs.SnapMountPolicyDir, "foo.fstab"), ""},
-		{filepath.Join(dirs.SnapBlobDir, "foo.snap"), ""},
-		{filepath.Join(dirs.SnapUdevRulesDir, "foo-snap.bar.rules"), ""},
-		{filepath.Join(dirs.SnapBusPolicyDir, "snap.foo.bar.conf"), ""},
-		{filepath.Join(dirs.SnapServicesDir, "snap.foo.service"), ""},
-		{filepath.Join(dirs.SnapServicesDir, "snap.foo.timer"), ""},
-		{filepath.Join(dirs.SnapServicesDir, "snap.foo.socket"), ""},
-		{filepath.Join(dirs.SnapServicesDir, "snap-foo.mount"), ""},
-		{filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", "snap-foo.mount"), ""},
-		{filepath.Join(dirs.SnapDataDir, "foo", "bar"), ""},
-		{filepath.Join(dirs.SnapCacheDir, "foocache", "bar"), ""},
-		{filepath.Join(apparmor_sandbox.CacheDir, "foo", "bar"), ""},
-		{filepath.Join(dirs.SnapAppArmorDir, "foo"), ""},
-		{filepath.Join(dirs.SnapAssertsDBDir, "foo"), ""},
-		{filepath.Join(dirs.FeaturesDir, "foo"), ""},
-		{filepath.Join(dirs.SnapDeviceDir, "foo-1", "bar"), ""},
-		{filepath.Join(dirs.SnapCookieDir, "foo"), ""},
-		{filepath.Join(dirs.SnapSeqDir, "foo.json"), ""},
-		{filepath.Join(dirs.SnapMountDir, "foo", "bin"), ""},
-		{filepath.Join(dirs.SnapSeccompDir, "foo.bin"), ""},
-		// bash-completion symlinks
-		{filepath.Join(dirs.CompletersDir, "foo.bar"), "/a/snapd/complete.sh"},
-		{filepath.Join(dirs.CompletersDir, "foo"), "foo.bar"},
-	}
-
-	for _, art := range artifacts {
-		fullPath := filepath.Join(tmpDir, art.path)
-		// create parent dir
-		c.Assert(os.MkdirAll(filepath.Dir(fullPath), 0755), IsNil)
-		if art.symlinkTarget != "" {
-			// note, symlinkTarget is not relative to tmpDir
-			c.Assert(os.Symlink(art.symlinkTarget, fullPath), IsNil)
-		} else {
-			c.Assert(ioutil.WriteFile(fullPath, nil, os.ModePerm), IsNil)
+	for _, isRelative := range []bool{false, true} {
+		tmpDir := c.MkDir()
+		resetDirArg := tmpDir
+		if isRelative {
+			var parentDir string
+			parentDir, resetDirArg = filepath.Split(tmpDir)
+			os.Chdir(parentDir)
 		}
-	}
 
-	checkArtifacts := func(exists bool) {
+		// mock some preseeding artifacts
+		artifacts := []struct {
+			path string
+			// if symlinkTarget is not empty, then a path -> symlinkTarget symlink
+			// will be created instead of a regular file.
+			symlinkTarget string
+		}{
+			{dirs.SnapStateFile, ""},
+			{dirs.SnapSystemKeyFile, ""},
+			{filepath.Join(dirs.SnapDesktopFilesDir, "foo.desktop"), ""},
+			{filepath.Join(dirs.SnapDesktopIconsDir, "foo.png"), ""},
+			{filepath.Join(dirs.SnapMountPolicyDir, "foo.fstab"), ""},
+			{filepath.Join(dirs.SnapBlobDir, "foo.snap"), ""},
+			{filepath.Join(dirs.SnapUdevRulesDir, "foo-snap.bar.rules"), ""},
+			{filepath.Join(dirs.SnapBusPolicyDir, "snap.foo.bar.conf"), ""},
+			{filepath.Join(dirs.SnapServicesDir, "snap.foo.service"), ""},
+			{filepath.Join(dirs.SnapServicesDir, "snap.foo.timer"), ""},
+			{filepath.Join(dirs.SnapServicesDir, "snap.foo.socket"), ""},
+			{filepath.Join(dirs.SnapServicesDir, "snap-foo.mount"), ""},
+			{filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", "snap-foo.mount"), ""},
+			{filepath.Join(dirs.SnapDataDir, "foo", "bar"), ""},
+			{filepath.Join(dirs.SnapCacheDir, "foocache", "bar"), ""},
+			{filepath.Join(apparmor_sandbox.CacheDir, "foo", "bar"), ""},
+			{filepath.Join(dirs.SnapAppArmorDir, "foo"), ""},
+			{filepath.Join(dirs.SnapAssertsDBDir, "foo"), ""},
+			{filepath.Join(dirs.FeaturesDir, "foo"), ""},
+			{filepath.Join(dirs.SnapDeviceDir, "foo-1", "bar"), ""},
+			{filepath.Join(dirs.SnapCookieDir, "foo"), ""},
+			{filepath.Join(dirs.SnapSeqDir, "foo.json"), ""},
+			{filepath.Join(dirs.SnapMountDir, "foo", "bin"), ""},
+			{filepath.Join(dirs.SnapSeccompDir, "foo.bin"), ""},
+			// bash-completion symlinks
+			{filepath.Join(dirs.CompletersDir, "foo.bar"), "/a/snapd/complete.sh"},
+			{filepath.Join(dirs.CompletersDir, "foo"), "foo.bar"},
+		}
+
 		for _, art := range artifacts {
 			fullPath := filepath.Join(tmpDir, art.path)
+			// create parent dir
+			c.Assert(os.MkdirAll(filepath.Dir(fullPath), 0755), IsNil)
 			if art.symlinkTarget != "" {
-				c.Check(osutil.IsSymlink(fullPath), Equals, exists, Commentf("offending symlink: %s", fullPath))
+				// note, symlinkTarget is not relative to tmpDir
+				c.Assert(os.Symlink(art.symlinkTarget, fullPath), IsNil)
 			} else {
-				c.Check(osutil.FileExists(fullPath), Equals, exists, Commentf("offending file: %s", fullPath))
+				c.Assert(ioutil.WriteFile(fullPath, nil, os.ModePerm), IsNil)
 			}
 		}
+
+		checkArtifacts := func(exists bool) {
+			for _, art := range artifacts {
+				fullPath := filepath.Join(tmpDir, art.path)
+				if art.symlinkTarget != "" {
+					c.Check(osutil.IsSymlink(fullPath), Equals, exists, Commentf("offending symlink: %s", fullPath))
+				} else {
+					c.Check(osutil.FileExists(fullPath), Equals, exists, Commentf("offending file: %s", fullPath))
+				}
+			}
+		}
+
+		// sanity
+		checkArtifacts(true)
+
+		snapdDir := filepath.Dir(dirs.SnapStateFile)
+		c.Assert(os.MkdirAll(filepath.Join(tmpDir, snapdDir), 0755), IsNil)
+		c.Assert(ioutil.WriteFile(filepath.Join(tmpDir, dirs.SnapStateFile), nil, os.ModePerm), IsNil)
+
+		parser := testParser(c)
+		c.Assert(main.Run(parser, []string{"--reset", resetDirArg}), IsNil)
+
+		checkArtifacts(false)
+
+		// running reset again is ok
+		parser = testParser(c)
+		c.Assert(main.Run(parser, []string{"--reset", resetDirArg}), IsNil)
+
+		// reset complains if target directory doesn't exist
+		c.Assert(main.Run(parser, []string{"--reset", "/non/existing/chrootpath"}), ErrorMatches, `cannot reset non-existing directory "/non/existing/chrootpath"`)
+
+		// reset complains if target is not a directory
+		dummyFile := filepath.Join(resetDirArg, "foo")
+		c.Assert(ioutil.WriteFile(dummyFile, nil, os.ModePerm), IsNil)
+		err = main.Run(parser, []string{"--reset", dummyFile})
+		// the error message is always with an absolute file, so make the path
+		// absolute if we are running the relative test to properly match
+		if isRelative {
+			var err2 error
+			dummyFile, err2 = filepath.Abs(dummyFile)
+			c.Assert(err2, IsNil)
+		}
+		c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot reset %q, it is not a directory`, dummyFile))
 	}
 
-	// sanity
-	checkArtifacts(true)
-
-	snapdDir := filepath.Dir(dirs.SnapStateFile)
-	c.Assert(os.MkdirAll(filepath.Join(tmpDir, snapdDir), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(tmpDir, dirs.SnapStateFile), nil, os.ModePerm), IsNil)
-
-	parser := testParser(c)
-	c.Assert(main.Run(parser, []string{"--reset", tmpDir}), IsNil)
-
-	checkArtifacts(false)
-
-	// running reset again is ok
-	parser = testParser(c)
-	c.Assert(main.Run(parser, []string{"--reset", tmpDir}), IsNil)
 }

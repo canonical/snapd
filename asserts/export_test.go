@@ -171,6 +171,33 @@ func assembleTestOnlyRev(assert assertionBase) (Assertion, error) {
 
 var TestOnlyRevType = &AssertionType{"test-only-rev", []string{"h"}, assembleTestOnlyRev, 0}
 
+// TestOnlySeq is a test-only assertion that is sequence-forming.
+type TestOnlySeq struct {
+	assertionBase
+	seq int
+}
+
+func (seq *TestOnlyRev) N() string {
+	return seq.HeaderString("n")
+}
+
+func (seq *TestOnlySeq) Sequence() int {
+	return seq.seq
+}
+
+func assembleTestOnlySeq(assert assertionBase) (Assertion, error) {
+	seq, err := checkSequence(assert.headers, "sequence")
+	if err != nil {
+		return nil, err
+	}
+	return &TestOnlySeq{
+		assertionBase: assert,
+		seq:           seq,
+	}, nil
+}
+
+var TestOnlySeqType = &AssertionType{"test-only-seq", []string{"n", "sequence"}, assembleTestOnlySeq, sequenceForming}
+
 type TestOnlyNoAuthority struct {
 	assertionBase
 }
@@ -208,6 +235,8 @@ func init() {
 	}
 	typeRegistry[TestOnlyDeclType.Name] = TestOnlyDeclType
 	typeRegistry[TestOnlyRevType.Name] = TestOnlyRevType
+	typeRegistry[TestOnlySeqType.Name] = TestOnlySeqType
+	maxSupportedFormat[TestOnlySeqType.Name] = 2
 }
 
 // AccountKeyIsKeyValidAt exposes isKeyValidAt on AccountKey for tests

@@ -72,7 +72,9 @@ new_format = \
 	 snap-confine/snap-confine-invocation-test.c \
 	 snap-confine/snap-confine-invocation.c \
 	 snap-confine/snap-confine-invocation.h \
-	 snap-discard-ns/snap-discard-ns.c
+	 snap-discard-ns/snap-discard-ns.c \
+	 snap-gdb-shim/snap-gdb-shim.c \
+	 snap-gdb-shim/snap-gdbserver-shim.c
 
 # NOTE: clang-format is using project-wide .clang-format file.
 .PHONY: fmt
@@ -489,6 +491,17 @@ snap_gdb_shim_snap_gdb_shim_SOURCES = \
 	snap-gdb-shim/snap-gdb-shim.c
 
 snap_gdb_shim_snap_gdb_shim_LDADD = libsnap-confine-private.a
+
+##
+## snap-gdbserver-shim
+##
+
+libexec_PROGRAMS += snap-gdb-shim/snap-gdbserver-shim
+
+snap_gdb_shim_snap_gdb_shim_SOURCES = \
+	snap-gdb-shim/snap-gdbserver-shim.c
+
+snap_gdb_shim_snap_gdbserver_shim_LDADD = libsnap-confine-private.a
 
 ##
 ## snapd-generator

@@ -110,7 +110,7 @@ slots:
     path: /dev/i2c-1
   test-udev-2:
     interface: i2c
-    path: /dev/i2c-11
+    path: /dev/i2c-2
   test-udev-3:
     interface: i2c
     path: /dev/i2c-0
@@ -246,7 +246,18 @@ func (s *I2cInterfaceSuite) TestAppArmorSpecPath(c *C) {
 	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev1), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-1-port"})
 	c.Assert(spec.SnippetForTag("snap.client-snap.app-accessing-1-port"), testutil.Contains, `/dev/i2c-1 rw,`)
-	c.Assert(spec.SnippetForTag("snap.client-snap.app-accessing-1-port"), testutil.Contains, `/sys/devices/platform/{*,**.i2c}/i2c-1/** rw,`)
+	c.Assert(spec.SnippetForTag("snap.client-snap.app-accessing-1-port"), testutil.Contains, `/sys/devices/platform/{*,**.i2c}/i2c-1/** rw,  # Add any condensed parametric rules`)
+}
+
+func (s *I2cInterfaceSuite) TestAppArmorSpecPathMany(c *C) {
+	spec := &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev1), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev2), IsNil)
+	// NOTE: the snap name is misleading.
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-1-port"})
+	c.Assert(spec.SnippetForTag("snap.client-snap.app-accessing-1-port"), testutil.Contains, `/dev/i2c-1 rw,`)
+	c.Assert(spec.SnippetForTag("snap.client-snap.app-accessing-1-port"), testutil.Contains, `/dev/i2c-2 rw,`)
+	c.Assert(spec.SnippetForTag("snap.client-snap.app-accessing-1-port"), testutil.Contains, `/sys/devices/platform/{*,**.i2c}/i2c-{1,2}/** rw,  # Add any condensed parametric rules`)
 }
 
 func (s *I2cInterfaceSuite) TestAppArmorSpecSysfsName(c *C) {

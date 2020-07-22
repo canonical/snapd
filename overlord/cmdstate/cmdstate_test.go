@@ -112,6 +112,28 @@ func (s *cmdSuite) TestExecHappy(c *check.C) {
 	c.Check(chg.Status(), check.Equals, state.DoneStatus)
 }
 
+func (s *cmdSuite) TestExecIgnore(c *check.C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	fn := filepath.Join(s.rootdir, "flag")
+	ts := cmdstate.ExecWithTimeout(s.state, "Doing the thing", []string{"touch", fn}, time.Second/10)
+	c.Assert(ts.Tasks(), check.HasLen, 1)
+	ignore := true
+	ts.Tasks()[0].Set("ignore", ignore)
+
+	chg := s.state.NewChange("do-the-thing", "Doing the thing")
+	chg.AddAll(ts)
+
+	s.waitfor(chg)
+
+	// file not created
+	c.Check(osutil.FileExists(fn), check.Equals, false)
+	c.Check(chg.Status(), check.Equals, state.DoneStatus)
+
+	c.Check(strings.Join(ts.Tasks()[0].Log(), ""), check.Matches, `.*task ignored`)
+}
+
 func (s *cmdSuite) TestExecSad(c *check.C) {
 	s.state.Lock()
 	defer s.state.Unlock()

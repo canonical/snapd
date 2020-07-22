@@ -26,14 +26,10 @@ import (
 
 	"gopkg.in/tomb.v2"
 
-	// TODO:UC20 look into merging
-	// snap-bootstrap/bootstrap|partition into gadget or
-	// subpackages there cleanly
-	"github.com/snapcore/snapd/cmd/snap-bootstrap/bootstrap"
-
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -45,28 +41,20 @@ import (
 var (
 	bootMakeBootable            = boot.MakeBootable
 	sysconfigConfigureRunSystem = sysconfig.ConfigureRunSystem
-	bootstrapRun                = bootstrap.Run
+	installRun                  = install.Run
 )
 
 func setSysconfigCloudOptions(opts *sysconfig.Options, gadgetDir string, model *asserts.Model) {
-	// TODO: Decide what to do when both gadget and ubuntu-seed have
-	//       cloud.cfg.d/ directories.
+	// TODO: add support for a single cloud-init `cloud.conf` file
+	//       that is then passed to sysconfig
 
-	// 1. check cloud.cfg.d in the gadget snap, this is always ok regardless
-	//    of grade
-	cloudCfg := filepath.Join(gadgetDir, "cloud.cfg.d")
-	if osutil.IsDirectory(cloudCfg) {
-		opts.CloudInitSrcDir = cloudCfg
-		return
-	}
-
-	// 2. check cloud.cfg.d on the ubuntu-seed partition
+	// check cloud.cfg.d on the ubuntu-seed partition
 	//
 	// Support custom cloud.cfg.d/*.cfg files on the ubuntu-seed partition
 	// during install when in grade "dangerous".
 	//
 	// XXX: maybe move policy decision into configureRunSystem later?
-	cloudCfg = filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d")
+	cloudCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d")
 	if osutil.IsDirectory(cloudCfg) && model.Grade() == asserts.ModelDangerous {
 		opts.CloudInitSrcDir = cloudCfg
 		return
@@ -107,7 +95,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 	kernelDir := kernelInfo.MountDir()
 
-	modeEnv, err := m.maybeReadModeenv()
+	modeEnv, err := maybeReadModeenv()
 	if err != nil {
 		return err
 	}
@@ -116,7 +104,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// bootstrap
-	bopts := bootstrap.Options{
+	bopts := install.Options{
 		Mount: true,
 	}
 	useEncryption, err := checkEncryption(deviceCtx.Model())
@@ -136,7 +124,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		bopts.KeyFile = filepath.Join(boot.InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key")
 		bopts.RecoveryKeyFile = filepath.Join(boot.InstallHostWritableDir, fdeDir, "recovery.key")
 		bopts.TPMLockoutAuthFile = filepath.Join(boot.InstallHostWritableDir, fdeDir, "tpm-lockout-auth")
-		bopts.PolicyUpdateDataFile = filepath.Join(boot.InstallHostWritableDir, fdeDir, "policy-update-data")
+		bopts.TPMPolicyUpdateDataFile = filepath.Join(boot.InstallHostWritableDir, fdeDir, "policy-update-data")
 		bopts.KernelPath = filepath.Join(kernelDir, "kernel.efi")
 		bopts.Model = deviceCtx.Model()
 		bopts.SystemLabel = modeEnv.RecoverySystem
@@ -147,7 +135,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	func() {
 		st.Unlock()
 		defer st.Lock()
-		err = bootstrapRun(gadgetDir, "", bopts)
+		err = installRun(gadgetDir, "", bopts)
 	}()
 	if err != nil {
 		return fmt.Errorf("cannot create partitions: %v", err)
@@ -160,7 +148,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// configure the run system
-	opts := &sysconfig.Options{TargetRootDir: boot.InstallHostWritableDir}
+	opts := &sysconfig.Options{TargetRootDir: boot.InstallHostWritableDir, GadgetDir: gadgetDir}
 	// configure cloud init
 	setSysconfigCloudOptions(opts, gadgetDir, deviceCtx.Model())
 	if err := sysconfigConfigureRunSystem(opts); err != nil {
@@ -180,6 +168,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		Kernel:            kernelInfo,
 		KernelPath:        kernelInfo.MountFile(),
 		RecoverySystemDir: recoverySystemDir,
+		UnpackedGadgetDir: gadgetDir,
 	}
 	rootdir := dirs.GlobalRootDir
 	if err := bootMakeBootable(deviceCtx.Model(), rootdir, bootWith); err != nil {

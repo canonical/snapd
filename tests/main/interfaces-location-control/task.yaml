@@ -8,25 +8,28 @@ details: |
     reconnected.
     The snap is also declaring a plug on this interface must be able to ask for its properties.
 
-# dbus-launch not supported in ubuntu-core
 # s390x does not support locationd
-systems: [-ubuntu-core-*, -ubuntu-*-s390x]
+systems:
+    - -amazon-linux-2-* # no session services
+    - -centos-7-* # no session services
+    - -ubuntu-*-s390x # no support for locationd
+    - -ubuntu-14.04-* # no tests.session support
+    - -ubuntu-core-* # no session services (except for core20+)
 
 prepare: |
-    #shellcheck source=tests/lib/dbus.sh
-    . "$TESTSLIB/dbus.sh"
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB/dirs.sh"
     echo "Given a snap declaring a plug on the location-control interface is installed"
     snap install test-snapd-location-control-provider
 
     echo "And the provider dbus loop is started"
-    start_dbus_unit $SNAP_MOUNT_DIR/bin/test-snapd-location-control-provider.provider
+    # XXX: The provider is not a service so we have to start it manually.  It
+    # attaches to the system bus so it just goes into a systemd service and not
+    # via tests.session.
+    systemd-run --unit test-snapd-location-control-provider.service test-snapd-location-control-provider.provider
+    tests.session -u test prepare
 
 restore: |
-    #shellcheck source=tests/lib/dbus.sh
-    . "$TESTSLIB/dbus.sh"
-    stop_dbus_unit
+    systemctl stop test-snapd-location-control-provider.service
+    tests.session -u test restore
 
 execute: |
     echo "The interface is not connected by default"
@@ -36,16 +39,10 @@ execute: |
     snap connect test-snapd-location-control-provider:location-control test-snapd-location-control-provider:location-control-test
 
     echo "Then wait until the dbus name is properly reserved"
-    for _ in $(seq 10); do
-        if test-snapd-location-control-provider.consumer Get | MATCH "location-provider-added"; then
-            break
-        else
-            sleep 1
-        fi
-    done
+    retry -n 10 --wait 1 sh -c 'tests.session -u test exec test-snapd-location-control-provider.consumer Get | MATCH "location-provider-added"'
 
     echo "Check the location-control is working from the consumer app in the snap"
-    test-snapd-location-control-provider.consumer Get | MATCH "location-provider-added"
+    tests.session -u test exec test-snapd-location-control-provider.consumer Get | MATCH "location-provider-added"
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
@@ -55,7 +52,7 @@ execute: |
     snap disconnect test-snapd-location-control-provider:location-control test-snapd-location-control-provider:location-control-test
 
     echo "And the location provider props cannot be accessed"
-    if test-snapd-location-control-provider.consumer Get 2> getprop.error; then
+    if tests.session -u test exec test-snapd-location-control-provider.consumer Get 2> getprop.error; then
         echo "Expected permission error trying to get props with disconnected plug"
         exit 1
     fi

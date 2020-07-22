@@ -29,16 +29,22 @@ import (
 	"syscall"
 	"time"
 
+	// to set sysconfig.ApplyFilesystemOnlyDefaults hook
+	_ "github.com/snapcore/snapd/overlord/configstate/configcore"
+
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/sysconfig"
 )
 
 var (
@@ -261,7 +267,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 			return err
 		}
 
-		snapFile, err := snap.Open(sn.Path)
+		snapFile, err := snapfile.Open(sn.Path)
 		if err != nil {
 			return err
 		}
@@ -299,6 +305,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 			dlOpts := DownloadOptions{
 				TargetPathFunc: targetPathFunc,
 				Channel:        sn.Channel,
+				CohortKey:      opts.WideCohortKey,
 			}
 			fn, info, redirectChannel, err := tsto.DownloadSnap(sn.SnapName(), dlOpts) // TODO|XXX make this take the SnapRef really
 			if err != nil {
@@ -390,7 +397,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 	// that boot.MakeBootable can DTRT
 	gadgetFname := ""
 	for _, sn := range bootSnaps {
-		switch sn.Info.GetType() {
+		switch sn.Info.Type() {
 		case snap.TypeGadget:
 			gadgetFname = sn.Path
 		case snap.TypeOS, snap.TypeBase:
@@ -411,11 +418,26 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 		return err
 	}
 
-	// cloud-init config (done at install for Core 20)
+	// early config & cloud-init config (done at install for Core 20)
 	if !core20 {
 		// and the cloud-init things
 		if err := installCloudConfig(rootDir, gadgetUnpackDir); err != nil {
 			return err
+		}
+
+		gadgetInfo, err := gadget.ReadInfo(gadgetUnpackDir, model)
+		if err != nil {
+			return err
+		}
+
+		defaultsDir := sysconfig.WritableDefaultsDir(rootDir)
+		defaults := gadget.SystemDefaults(gadgetInfo.Defaults)
+		if len(defaults) > 0 {
+			if err := os.MkdirAll(sysconfig.WritableDefaultsDir(rootDir, "/etc"), 0755); err != nil {
+				return err
+			}
+			applyOpts := &sysconfig.FilesystemOnlyApplyOptions{Classic: opts.Classic}
+			return sysconfig.ApplyFilesystemOnlyDefaults(defaultsDir, defaults, applyOpts)
 		}
 	}
 

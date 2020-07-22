@@ -19,12 +19,21 @@
 package cgroup
 
 import (
-	. "gopkg.in/check.v1"
+	"github.com/godbus/dbus"
 )
 
 var (
 	Cgroup2SuperMagic  = cgroup2SuperMagic
 	ProbeCgroupVersion = probeCgroupVersion
+	ParsePid           = parsePid
+
+	DoCreateTransientScope  = doCreateTransientScope
+	SessionOrMaybeSystemBus = sessionOrMaybeSystemBus
+	ErrDBusUnknownMethod    = errDBusUnknownMethod
+	ErrDBusNameHasNoOwner   = errDBusNameHasNoOwner
+	ErrDBusSpawnChildExited = errDBusSpawnChildExited
+
+	SecurityTagFromCgroupPath = securityTagFromCgroupPath
 )
 
 func MockFsTypeForPath(mock func(string) (int64, error)) (restore func()) {
@@ -43,14 +52,48 @@ func MockFsRootPath(p string) (restore func()) {
 	}
 }
 
-func MockFreezerCgroupDir(c *C) (restore func()) {
-	old := freezerCgroupDir
-	freezerCgroupDir = c.MkDir()
+func MockRandomUUID(uuid string) func() {
+	old := randomUUID
+	randomUUID = func() (string, error) {
+		return uuid, nil
+	}
 	return func() {
-		freezerCgroupDir = old
+		randomUUID = old
 	}
 }
 
-func FreezerCgroupDir() string {
-	return freezerCgroupDir
+func MockOsGetuid(uid int) func() {
+	old := osGetuid
+	osGetuid = func() int {
+		return uid
+	}
+	return func() {
+		osGetuid = old
+	}
+}
+
+func MockOsGetpid(pid int) func() {
+	old := osGetpid
+	osGetpid = func() int {
+		return pid
+	}
+	return func() {
+		osGetpid = old
+	}
+}
+
+func MockCgroupProcessPathInTrackingCgroup(fn func(pid int) (string, error)) func() {
+	old := cgroupProcessPathInTrackingCgroup
+	cgroupProcessPathInTrackingCgroup = fn
+	return func() {
+		cgroupProcessPathInTrackingCgroup = old
+	}
+}
+
+func MockDoCreateTransientScope(fn func(conn *dbus.Conn, unitName string, pid int) error) func() {
+	old := doCreateTransientScope
+	doCreateTransientScope = fn
+	return func() {
+		doCreateTransientScope = old
+	}
 }

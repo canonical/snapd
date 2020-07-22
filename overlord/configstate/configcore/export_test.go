@@ -28,7 +28,10 @@ var (
 	UpdateKeyValueStream = updateKeyValueStream
 	AddFSOnlyHandler     = addFSOnlyHandler
 	AddWithStateHandler  = addWithStateHandler
+	FilesystemOnlyApply  = filesystemOnlyApply
 )
+
+type PlainCoreConfig = plainCoreConfig
 
 func MockFindGid(f func(string) (uint64, error)) func() {
 	old := osutilFindGid

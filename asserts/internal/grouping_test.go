@@ -108,7 +108,7 @@ func (s *groupingsSuite) TestOutsideRange(c *C) {
 func (s *groupingsSuite) TestSerializeLabel(c *C) {
 	var g internal.Grouping
 
-	gr, err := internal.NewGroupings(16)
+	gr, err := internal.NewGroupings(128)
 	c.Assert(err, IsNil)
 
 	err = gr.AddTo(&g, 1)
@@ -133,7 +133,7 @@ func (s *groupingsSuite) TestSerializeLabel(c *C) {
 func (s *groupingsSuite) TestDeserializeLabelErrors(c *C) {
 	var g internal.Grouping
 
-	gr, err := internal.NewGroupings(16)
+	gr, err := internal.NewGroupings(64)
 	c.Assert(err, IsNil)
 
 	err = gr.AddTo(&g, 0)
@@ -142,28 +142,44 @@ func (s *groupingsSuite) TestDeserializeLabelErrors(c *C) {
 	c.Assert(err, IsNil)
 	err = gr.AddTo(&g, 2)
 	c.Assert(err, IsNil)
+	err = gr.AddTo(&g, 3)
+	c.Assert(err, IsNil)
+	err = gr.AddTo(&g, 4)
+	c.Assert(err, IsNil)
 
-	invalidLabels := []string{
+	const errPrefix = "invalid serialized grouping label: "
+
+	invalidLabels := []struct {
+		invalid, errSuffix string
+	}{
 		// not base64
-		"\x0a\x02\xf4",
+		{"\x0a\x02\xf4", `illegal base64 data.*`},
 		// wrong length
-		base64.RawURLEncoding.EncodeToString([]byte{1}),
+		{base64.RawURLEncoding.EncodeToString([]byte{1}), `not divisible into 16-bits words`},
 		// not a known group
-		internal.Serialize([]uint16{3}),
+		{internal.Serialize([]uint16{5}), `element larger than maximum group`},
 		// not in order
-		internal.Serialize([]uint16{0, 2, 1}),
+		{internal.Serialize([]uint16{0, 2, 1}), `not sorted`},
+		// bitset: too many words
+		{internal.Serialize([]uint16{0, 0, 0, 0, 0, 0}), `too large`},
+		// bitset: larger than maxgroup
+		{internal.Serialize([]uint16{6, 0, 0, 0, 0}), `bitset size cannot be possibly larger than maximum group plus 1`},
+		// bitset: grouping size is too small
+		{internal.Serialize([]uint16{0, 0, 0, 0, 0}), `bitset for too few elements`},
+		{internal.Serialize([]uint16{1, 0, 0, 0, 0}), `bitset for too few elements`},
+		{internal.Serialize([]uint16{4, 0, 0, 0, 0}), `bitset for too few elements`},
 	}
 
 	for _, il := range invalidLabels {
-		_, err := gr.Deserialize(il)
-		c.Check(err, ErrorMatches, "invalid serialized grouping label")
+		_, err := gr.Deserialize(il.invalid)
+		c.Check(err, ErrorMatches, errPrefix+il.errSuffix)
 	}
 }
 
 func (s *groupingsSuite) TestIter(c *C) {
 	var g internal.Grouping
 
-	gr, err := internal.NewGroupings(16)
+	gr, err := internal.NewGroupings(128)
 	c.Assert(err, IsNil)
 
 	err = gr.AddTo(&g, 1)
@@ -191,7 +207,7 @@ func (s *groupingsSuite) TestIter(c *C) {
 func (s *groupingsSuite) TestIterError(c *C) {
 	var g internal.Grouping
 
-	gr, err := internal.NewGroupings(16)
+	gr, err := internal.NewGroupings(32)
 	c.Assert(err, IsNil)
 
 	err = gr.AddTo(&g, 1)
@@ -214,7 +230,7 @@ func (s *groupingsSuite) TestIterError(c *C) {
 func (s *groupingsSuite) TestRepeated(c *C) {
 	var g internal.Grouping
 
-	gr, err := internal.NewGroupings(16)
+	gr, err := internal.NewGroupings(64)
 	c.Assert(err, IsNil)
 
 	err = gr.AddTo(&g, 1)
@@ -267,4 +283,430 @@ func (s *groupingsSuite) TestCopy(c *C) {
 	c.Check(gr.Contains(&g2, 7), Equals, true)
 
 	c.Check(g2, Not(DeepEquals), g)
+}
+func (s *groupingsSuite) TestBitsetSerializeAndIterSimple(c *C) {
+	gr, err := internal.NewGroupings(32)
+	c.Assert(err, IsNil)
+
+	var elems []uint16
+	f := func(group uint16) error {
+		elems = append(elems, group)
+		return nil
+	}
+
+	var g internal.Grouping
+	err = gr.AddTo(&g, 1)
+	c.Assert(err, IsNil)
+	err = gr.AddTo(&g, 5)
+	c.Assert(err, IsNil)
+	err = gr.AddTo(&g, 17)
+	c.Assert(err, IsNil)
+	err = gr.AddTo(&g, 24)
+	c.Assert(err, IsNil)
+
+	l := gr.Serialize(&g)
+	c.Check(l, DeepEquals,
+		internal.Serialize([]uint16{4,
+			uint16(1<<1 | 1<<5),
+			uint16(1<<(17-16) | 1<<(24-16)),
+		}))
+
+	err = gr.Iter(&g, f)
+	c.Assert(err, IsNil)
+	c.Check(elems, DeepEquals, []uint16{1, 5, 17, 24})
+}
+
+func (s *groupingsSuite) TestBitSet(c *C) {
+	var g internal.Grouping
+
+	gr, err := internal.NewGroupings(64)
+	c.Assert(err, IsNil)
+
+	for i := uint16(0); i < 64; i++ {
+		err := gr.AddTo(&g, i)
+		c.Assert(err, IsNil)
+		c.Check(gr.Contains(&g, i), Equals, true)
+
+		l := gr.Serialize(&g)
+
+		switch i {
+		case 4:
+			c.Check(l, Equals, internal.Serialize([]uint16{5, 0x1f, 0, 0, 0}))
+		case 15:
+			c.Check(l, Equals, internal.Serialize([]uint16{16, 0xffff, 0, 0, 0}))
+		case 16:
+			c.Check(l, Equals, internal.Serialize([]uint16{17, 0xffff, 0x1, 0, 0}))
+		case 63:
+			c.Check(l, Equals, internal.Serialize([]uint16{64, 0xffff, 0xffff, 0xffff, 0xffff}))
+		}
+
+		g1, err := gr.Deserialize(l)
+		c.Check(err, IsNil)
+
+		c.Check(g1, DeepEquals, &g)
+	}
+
+	for i := uint16(63); ; i-- {
+		err := gr.AddTo(&g, i)
+		c.Assert(err, IsNil)
+		c.Check(gr.Contains(&g, i), Equals, true)
+		if i == 0 {
+			break
+		}
+
+		l := gr.Serialize(&g)
+
+		g1, err := gr.Deserialize(l)
+		c.Check(err, IsNil)
+
+		c.Check(g1, DeepEquals, &g)
+	}
+}
+
+func (s *groupingsSuite) TestBitsetIter(c *C) {
+	gr, err := internal.NewGroupings(32)
+	c.Assert(err, IsNil)
+
+	var elems []uint16
+	f := func(group uint16) error {
+		elems = append(elems, group)
+		return nil
+	}
+
+	for i := uint16(2); i < 32; i++ {
+		var g internal.Grouping
+
+		err := gr.AddTo(&g, i-2)
+		c.Assert(err, IsNil)
+		err = gr.AddTo(&g, i-1)
+		c.Assert(err, IsNil)
+		err = gr.AddTo(&g, i)
+		c.Assert(err, IsNil)
+
+		err = gr.Iter(&g, f)
+		c.Assert(err, IsNil)
+		c.Check(elems, DeepEquals, []uint16{i - 2, i - 1, i})
+
+		elems = nil
+	}
+
+	var g internal.Grouping
+	for i := uint16(0); i < 32; i++ {
+		err = gr.AddTo(&g, i)
+		c.Assert(err, IsNil)
+	}
+
+	err = gr.Iter(&g, f)
+	c.Assert(err, IsNil)
+	c.Check(elems, HasLen, 32)
+}
+
+func (s *groupingsSuite) TestBitsetIterError(c *C) {
+	gr, err := internal.NewGroupings(16)
+	c.Assert(err, IsNil)
+
+	var g internal.Grouping
+
+	err = gr.AddTo(&g, 0)
+	c.Assert(err, IsNil)
+	err = gr.AddTo(&g, 1)
+	c.Assert(err, IsNil)
+
+	errBoom := errors.New("boom")
+	n := 0
+	f := func(group uint16) error {
+		n++
+		return errBoom
+	}
+
+	err = gr.Iter(&g, f)
+	c.Check(err, Equals, errBoom)
+	c.Check(n, Equals, 1)
+}
+
+func BenchmarkIterBaseline(b *testing.B) {
+	b.StopTimer()
+
+	n := 0
+	f := func(group uint16) error {
+		n++
+		return nil
+	}
+
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		n = 0
+		for j := uint16(0); j < 64; j++ {
+			f(j)
+		}
+		if n != 64 {
+			b.FailNow()
+		}
+	}
+}
+
+func BenchmarkIter4Elems(b *testing.B) {
+	b.StopTimer()
+
+	gr, err := internal.NewGroupings(64)
+	if err != nil {
+		b.FailNow()
+	}
+
+	n := 0
+	f := func(group uint16) error {
+		n++
+		return nil
+	}
+
+	var g internal.Grouping
+	gr.AddTo(&g, 1)
+	gr.AddTo(&g, 5)
+	gr.AddTo(&g, 17)
+	gr.AddTo(&g, 24)
+
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		n = 0
+		gr.Iter(&g, f)
+		if n != 4 {
+			b.FailNow()
+		}
+	}
+}
+
+func BenchmarkIterBitset5Elems(b *testing.B) {
+	b.StopTimer()
+
+	gr, err := internal.NewGroupings(64)
+	if err != nil {
+		b.FailNow()
+	}
+
+	n := 0
+	f := func(group uint16) error {
+		n++
+		return nil
+	}
+
+	var g internal.Grouping
+	gr.AddTo(&g, 1)
+	gr.AddTo(&g, 5)
+	gr.AddTo(&g, 17)
+	gr.AddTo(&g, 24)
+	gr.AddTo(&g, 33)
+
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		n = 0
+		gr.Iter(&g, f)
+		if n != 5 {
+			b.FailNow()
+		}
+	}
+}
+
+func BenchmarkIterBitsetEmptyStretches(b *testing.B) {
+	b.StopTimer()
+
+	gr, err := internal.NewGroupings(64)
+	if err != nil {
+		b.FailNow()
+	}
+
+	n := 0
+	f := func(group uint16) error {
+		n++
+		return nil
+	}
+
+	var g internal.Grouping
+	gr.AddTo(&g, 0)
+	gr.AddTo(&g, 15)
+	gr.AddTo(&g, 16)
+	gr.AddTo(&g, 31)
+	gr.AddTo(&g, 32)
+
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		n = 0
+		gr.Iter(&g, f)
+		if n != 5 {
+			b.FailNow()
+		}
+	}
+}
+
+func BenchmarkIterBitsetEven(b *testing.B) {
+	b.StopTimer()
+
+	gr, err := internal.NewGroupings(64)
+	if err != nil {
+		b.FailNow()
+	}
+
+	n := 0
+	f := func(group uint16) error {
+		n++
+		return nil
+	}
+
+	var g internal.Grouping
+	for i := 0; i <= 63; i += 2 {
+		gr.AddTo(&g, uint16(i))
+	}
+
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		n = 0
+		gr.Iter(&g, f)
+		if n != 32 {
+			b.FailNow()
+		}
+	}
+}
+
+func BenchmarkIterBitsetOdd(b *testing.B) {
+	b.StopTimer()
+
+	gr, err := internal.NewGroupings(64)
+	if err != nil {
+		b.FailNow()
+	}
+
+	n := 0
+	f := func(group uint16) error {
+		n++
+		return nil
+	}
+
+	var g internal.Grouping
+	for i := 1; i <= 63; i += 2 {
+		gr.AddTo(&g, uint16(i))
+	}
+
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		n = 0
+		gr.Iter(&g, f)
+		if n != 32 {
+			b.FailNow()
+		}
+	}
+}
+
+func BenchmarkIterBitset0Inc3(b *testing.B) {
+	b.StopTimer()
+
+	gr, err := internal.NewGroupings(64)
+	if err != nil {
+		b.FailNow()
+	}
+
+	n := 0
+	f := func(group uint16) error {
+		n++
+		return nil
+	}
+
+	var g internal.Grouping
+	for i := 0; i <= 63; i += 3 {
+		gr.AddTo(&g, uint16(i))
+	}
+
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		n = 0
+		gr.Iter(&g, f)
+		if n != 22 {
+			b.FailNow()
+		}
+	}
+}
+
+func BenchmarkIterBitset1Inc3(b *testing.B) {
+	b.StopTimer()
+
+	gr, err := internal.NewGroupings(64)
+	if err != nil {
+		b.FailNow()
+	}
+
+	n := 0
+	f := func(group uint16) error {
+		n++
+		return nil
+	}
+
+	var g internal.Grouping
+	for i := 1; i <= 63; i += 3 {
+		gr.AddTo(&g, uint16(i))
+	}
+
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		n = 0
+		gr.Iter(&g, f)
+		if n != 21 {
+			b.FailNow()
+		}
+	}
+}
+
+func BenchmarkIterBitset0Inc4(b *testing.B) {
+	b.StopTimer()
+
+	gr, err := internal.NewGroupings(64)
+	if err != nil {
+		b.FailNow()
+	}
+
+	n := 0
+	f := func(group uint16) error {
+		n++
+		return nil
+	}
+
+	var g internal.Grouping
+	for i := 0; i <= 63; i += 4 {
+		gr.AddTo(&g, uint16(i))
+	}
+
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		n = 0
+		gr.Iter(&g, f)
+		if n != 16 {
+			b.FailNow()
+		}
+	}
+}
+
+func BenchmarkIterBitsetComplete(b *testing.B) {
+	b.StopTimer()
+
+	gr, err := internal.NewGroupings(64)
+	if err != nil {
+		b.FailNow()
+	}
+
+	n := 0
+	f := func(group uint16) error {
+		n++
+		return nil
+	}
+
+	var g internal.Grouping
+	for i := 0; i <= 63; i++ {
+		gr.AddTo(&g, uint16(i))
+	}
+
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		n = 0
+		gr.Iter(&g, f)
+		if n != 64 {
+			b.FailNow()
+		}
+	}
 }

@@ -116,7 +116,7 @@ func (s *imageSuite) TestDownloadSnap(c *check.C) {
 
 	s.setupSnaps(c, map[string]string{
 		"core": "canonical",
-	})
+	}, "")
 
 	dlDir := c.MkDir()
 	opts := image.DownloadOptions{

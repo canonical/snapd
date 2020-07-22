@@ -8,6 +8,9 @@ restore: |
     echo "Restore fstab copy"
     cp /tmp/fstab.save /etc/fstab
     rm -f /tmp/fstab.save
+    # Systemd detects changes to fstab and complains that the -.mount unit has
+    # changed on disk.
+    systemctl daemon-reload
 
 execute: |
     stop_snapd() {

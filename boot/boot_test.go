@@ -130,6 +130,8 @@ func (s *baseBootenv20Suite) SetUpTest(c *C) {
 	// state for after trying a new kernel for robustness tests, etc.
 	s.normalTryingKernelState = &bootenv20Setup{
 		modeenv: &boot.Modeenv{
+			// operating mode is run
+			Mode: "run",
 			// base is base1
 			Base: s.base1.Filename(),
 			// no try base
@@ -197,8 +199,8 @@ func setupUC20Bootenv(c *C, bl bootloader.Bootloader, opts *bootenv20Setup) (res
 		// multiple modeenvs from a single test and just call the restore
 		// function in between the parts of the test that use different modeenvs
 		r := func() {
-			emptyModeenv := &boot.Modeenv{}
-			c.Assert(emptyModeenv.WriteTo(""), IsNil)
+			defaultModeenv := &boot.Modeenv{Mode: "run"}
+			c.Assert(defaultModeenv.WriteTo(""), IsNil)
 		}
 		cleanups = append(cleanups, r)
 	}
@@ -220,12 +222,12 @@ func setupUC20Bootenv(c *C, bl bootloader.Bootloader, opts *bootenv20Setup) (res
 	case *bootloadertest.MockExtractedRunKernelImageBootloader:
 		// then we can use the advanced methods on it
 		if opts.kern != nil {
-			r := vbl.SetRunKernelImageEnabledKernel(opts.kern)
+			r := vbl.SetEnabledKernel(opts.kern)
 			cleanups = append(cleanups, r)
 		}
 
 		if opts.tryKern != nil {
-			r := vbl.SetRunKernelImageEnabledTryKernel(opts.tryKern)
+			r := vbl.SetEnabledTryKernel(opts.tryKern)
 			cleanups = append(cleanups, r)
 		}
 
@@ -527,10 +529,10 @@ func (s *bootenvSuite) TestParticipantBaseWithModel(c *C) {
 
 	for i, t := range table {
 		dev := boottest.MockDevice(t.model)
-		bp := boot.Participant(t.with, t.with.GetType(), dev)
+		bp := boot.Participant(t.with, t.with.Type(), dev)
 		c.Check(bp.IsTrivial(), Equals, t.nop, Commentf("%d", i))
 		if !t.nop {
-			c.Check(bp, DeepEquals, boot.NewCoreBootParticipant(t.with, t.with.GetType(), dev))
+			c.Check(bp, DeepEquals, boot.NewCoreBootParticipant(t.with, t.with.Type(), dev))
 		}
 	}
 }
@@ -571,6 +573,73 @@ func (s *bootenvSuite) TestKernelWithModel(c *C) {
 		c.Check(krn.IsTrivial(), Equals, t.nop)
 		c.Check(krn, DeepEquals, t.krn)
 	}
+}
+
+func (s *bootenvSuite) TestMarkBootSuccessfulKernelStatusTryingNoTryKernelSnapCleansUp(c *C) {
+	coreDev := boottest.MockDevice("some-snap")
+
+	// set all the same vars as if we were doing trying, except don't set a try
+	// kernel
+
+	err := s.bootloader.SetBootVars(map[string]string{
+		"snap_kernel": "kernel_41.snap",
+		"snap_mode":   boot.TryingStatus,
+	})
+	c.Assert(err, IsNil)
+
+	// mark successful
+	err = boot.MarkBootSuccessful(coreDev)
+	c.Assert(err, IsNil)
+
+	// check that the bootloader variables were cleaned
+	expected := map[string]string{
+		"snap_mode":       boot.DefaultStatus,
+		"snap_kernel":     "kernel_41.snap",
+		"snap_try_kernel": "",
+	}
+	m, err := s.bootloader.GetBootVars("snap_mode", "snap_try_kernel", "snap_kernel")
+	c.Assert(err, IsNil)
+	c.Assert(m, DeepEquals, expected)
+
+	// do it again, verify it's still okay
+	err = boot.MarkBootSuccessful(coreDev)
+	c.Assert(err, IsNil)
+	m2, err := s.bootloader.GetBootVars("snap_mode", "snap_try_kernel", "snap_kernel")
+	c.Assert(err, IsNil)
+	c.Assert(m2, DeepEquals, expected)
+}
+
+func (s *bootenvSuite) TestMarkBootSuccessfulTryKernelKernelStatusDefaultCleansUp(c *C) {
+	coreDev := boottest.MockDevice("some-snap")
+
+	// set an errant snap_try_kernel
+	err := s.bootloader.SetBootVars(map[string]string{
+		"snap_kernel":     "kernel_41.snap",
+		"snap_try_kernel": "kernel_42.snap",
+		"snap_mode":       boot.DefaultStatus,
+	})
+	c.Assert(err, IsNil)
+
+	// mark successful
+	err = boot.MarkBootSuccessful(coreDev)
+	c.Assert(err, IsNil)
+
+	// check that the bootloader variables were cleaned
+	expected := map[string]string{
+		"snap_mode":       boot.DefaultStatus,
+		"snap_kernel":     "kernel_41.snap",
+		"snap_try_kernel": "",
+	}
+	m, err := s.bootloader.GetBootVars("snap_mode", "snap_try_kernel", "snap_kernel")
+	c.Assert(err, IsNil)
+	c.Assert(m, DeepEquals, expected)
+
+	// do it again, verify it's still okay
+	err = boot.MarkBootSuccessful(coreDev)
+	c.Assert(err, IsNil)
+	m2, err := s.bootloader.GetBootVars("snap_mode", "snap_try_kernel", "snap_kernel")
+	c.Assert(err, IsNil)
+	c.Assert(m2, DeepEquals, expected)
 }
 
 func (s *bootenv20Suite) TestCoreKernel20(c *C) {

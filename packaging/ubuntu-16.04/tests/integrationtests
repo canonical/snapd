@@ -63,8 +63,9 @@ path: /home/gopath/src/github.com/snapcore/snapd
 environment:
     PROJECT_PATH: /home/gopath/src/github.com/snapcore/snapd
     TESTSLIB: $PROJECT_PATH/tests/lib
+    TESTSTOOLS: $PROJECT_PATH/tests/lib/tools
     SNAPPY_TESTING: 1
-    PATH: $PATH:$PROJECT_PATH/tests/lib/bin
+    PATH: $PATH:$PROJECT_PATH/tests/bin
 backends:
     autopkgtest:
         type: adhoc

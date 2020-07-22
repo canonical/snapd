@@ -17,10 +17,10 @@ prepare: |
 
     getenforce > enforcing.mode
 
-    # NOTE: Enable linger (what effectively happens in session-tool --prepare)
+    # NOTE: Enable linger (what effectively happens in tests.session prepare)
     # before we enable enforcing mode, as otherwise the remote ssh session
     # won't have access to this.
-    session-tool -u test --prepare
+    tests.session -u test prepare
 
     # Enable enforcing mode, our policy is already marked as permissive, so we
     # will get audit entries but the program will not be stopped by SELinux
@@ -31,23 +31,32 @@ restore: |
     setenforce "$(cat enforcing.mode)"
     rm -f stamp enforcing.mode
 
-    session-tool -u test --restore
+    tests.session -u test restore
+    # Stop dbus activated by test-snapd-desktop snap.
+    systemctl --user stop dbus.service || true
 
 execute: |
+    systemctl restart snapd.socket
+    ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
+
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
 
     install_local test-snapd-desktop
     test-snapd-desktop.sh -c echo 'hello world'
-    session-tool -u test test-snapd-desktop.sh -c 'echo hello world'
-    session-tool -u test test-snapd-desktop.sh -c 'mkdir /home/test/foo'
-    session-tool -u test test-snapd-desktop.sh -c 'echo foo >/home/test/foo/bar'
+    tests.session -u test exec test-snapd-desktop.sh -c 'echo hello world'
+    tests.session -u test exec test-snapd-desktop.sh -c 'mkdir /home/test/foo'
+    tests.session -u test exec test-snapd-desktop.sh -c 'echo foo >/home/test/foo/bar'
     ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
     # another revision triggers copy of snap data
     install_local test-snapd-desktop
     ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
     # removal triggers cleanups
     snap remove test-snapd-desktop
+    ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
+
+    install_local test-snapd-appstream-metadata
+    snap connect test-snapd-appstream-metadata:appstream-metadata
     ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
 
     install_local test-snapd-service
@@ -82,7 +91,7 @@ execute: |
     ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
     # we are likely running without a display, so this will likely fail,
     # hopefully triggering enough of earlier setup to catch any relevant denials
-    session-tool -u test snap run snap-store || true
+    tests.session -u test exec snap run snap-store || true
     # removal triggers cleanups
     snap remove snap-store
     ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'

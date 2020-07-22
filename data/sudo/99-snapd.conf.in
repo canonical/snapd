@@ -1,3 +1,0 @@
-# Allow snap-provided applications to work with sudo
-
-Defaults    secure_path += @SNAP_MOUNT_DIR@/bin

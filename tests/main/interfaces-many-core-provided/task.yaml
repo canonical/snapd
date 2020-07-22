@@ -35,18 +35,27 @@ debug: |
     # shellcheck disable=SC2119
     get_journalctl_log
 
+prepare: |
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+
+    echo "Given a snap is installed"
+    install_local "$CONSUMER_SNAP"
+
+    # If possible, prepare a session for the test user. On many systems this
+    # will allow running all tests as the unprivileged user. This shields us
+    # from accidentally triggering any additional processes from run in the
+    # session of the root user and stay behind after this test terminates.
+    if tests.session has-session-systemd-and-dbus; then
+        tests.session -u test prepare
+    fi
+
 execute: |
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB"/dirs.sh
 
     # shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB/systems.sh"
-    
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-
-    echo "Given a snap is installed"
-    install_local "$CONSUMER_SNAP"
 
     echo "For each core-provided slot"
     for plugcmd in "$SNAP_MOUNT_DIR"/bin/"$CONSUMER_SNAP".* ; do
@@ -82,9 +91,28 @@ execute: |
         snap interfaces | MATCH "$CONNECTED_PATTERN"
 
         echo "Then $plugcmd should succeed"
-        "$plugcmd" | MATCH PASS
+        if tests.session has-session-systemd-and-dbus; then
+            tests.session -u test exec "$plugcmd" | MATCH PASS
+        else
+            # If we cannot run the plug command as the test user, in the
+            # relative safety of the user session which gets torn down, then
+            # run the test directly EXCEPT when testing the desktop interface.
+            #
+            # The desktop interface causes, at minimum, XDG document portal to
+            # activate in the root users's session, which is not cleaned up.
+            # Since that interface will only be used in a real session, leaving
+            # it out is acceptable.
+            if [ "$plugcmd" != "${CONSUMER_SNAP}.desktop" ]; then
+                "$plugcmd" | MATCH PASS
+            else
+                echo "skipping $plugcmd on an unsupported system"
+            fi
+        fi
     done
 
 restore: |
     # Remove the snaps to avoid timeout in next test
     snap remove --purge "$CONSUMER_SNAP"
+    if tests.session has-session-systemd-and-dbus; then
+        tests.session -u test restore
+    fi

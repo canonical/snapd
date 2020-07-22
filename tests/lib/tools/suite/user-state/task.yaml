@@ -1,0 +1,4 @@
+summary: help test for the user-state tool
+execute: |
+    "$TESTSTOOLS"/user-state --help | grep -qFx 'usage: user-state [-h] {remove-with-group} ...'
+    "$TESTSTOOLS"/user-state remove-with-group --help | grep -qFx 'usage: user-state remove-with-group [-h] user'

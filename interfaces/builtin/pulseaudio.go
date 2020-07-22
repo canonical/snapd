@@ -48,8 +48,9 @@ const pulseaudioConnectedPlugAppArmor = `
 
 owner /{,var/}run/pulse/ r,
 owner /{,var/}run/pulse/native rwk,
-owner /run/user/[0-9]*/ r,
-owner /run/user/[0-9]*/pulse/ rw,
+owner /{,var/}run/pulse/pid r,
+owner /{,var/}run/user/[0-9]*/ r,
+owner /{,var/}run/user/[0-9]*/pulse/ rw,
 
 /run/udev/data/c116:[0-9]* r,
 /run/udev/data/+sound:card[0-9]* r,
@@ -65,6 +66,7 @@ owner @{HOME}/.pulse-cookie rk,
 owner @{HOME}/.config/pulse/cookie rk,
 owner /{,var/}run/user/*/pulse/ rwk,
 owner /{,var/}run/user/*/pulse/native rwk,
+owner /{,var/}run/user/*/pulse/pid r,
 `
 
 const pulseaudioConnectedPlugSecComp = `

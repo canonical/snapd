@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2016 Canonical Ltd
+ * Copyright (C) 2015-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -481,6 +481,17 @@ func (snaprev *SnapRevision) Prerequisites() []*Ref {
 	}
 }
 
+func checkSnapRevisionWhat(headers map[string]interface{}, name, what string) (snapRevision int, err error) {
+	snapRevision, err = checkIntWhat(headers, name, what)
+	if err != nil {
+		return 0, err
+	}
+	if snapRevision < 1 {
+		return 0, fmt.Errorf(`%q %s must be >=1: %d`, name, what, snapRevision)
+	}
+	return snapRevision, nil
+}
+
 func assembleSnapRevision(assert assertionBase) (Assertion, error) {
 	_, err := checkDigest(assert.headers, "snap-sha3-384", crypto.SHA3_384)
 	if err != nil {
@@ -497,12 +508,9 @@ func assembleSnapRevision(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
-	snapRevision, err := checkInt(assert.headers, "snap-revision")
+	snapRevision, err := checkSnapRevisionWhat(assert.headers, "snap-revision", "header")
 	if err != nil {
 		return nil, err
-	}
-	if snapRevision < 1 {
-		return nil, fmt.Errorf(`"snap-revision" header must be >=1: %d`, snapRevision)
 	}
 
 	_, err = checkNotEmptyString(assert.headers, "developer-id")
@@ -607,12 +615,9 @@ func (validation *Validation) Prerequisites() []*Ref {
 }
 
 func assembleValidation(assert assertionBase) (Assertion, error) {
-	approvedSnapRevision, err := checkInt(assert.headers, "approved-snap-revision")
+	approvedSnapRevision, err := checkSnapRevisionWhat(assert.headers, "approved-snap-revision", "header")
 	if err != nil {
 		return nil, err
-	}
-	if approvedSnapRevision < 1 {
-		return nil, fmt.Errorf(`"approved-snap-revision" header must be >=1: %d`, approvedSnapRevision)
 	}
 
 	revoked, err := checkOptionalBool(assert.headers, "revoked")

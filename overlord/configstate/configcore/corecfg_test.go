@@ -30,7 +30,9 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func Test(t *testing.T) { TestingT(t) }
@@ -116,33 +118,38 @@ func (cfg *mockConf) State() *state.State {
 
 // configcoreSuite is the base for all the configcore tests
 type configcoreSuite struct {
+	testutil.BaseTest
+
 	state *state.State
 
 	systemctlArgs     [][]string
-	systemctlRestorer func()
+	systemdSysctlArgs [][]string
 }
 
 var _ = Suite(&configcoreSuite{})
 
-func (s *configcoreSuite) SetUpSuite(c *C) {
-	s.systemctlRestorer = systemd.MockSystemctl(func(args ...string) ([]byte, error) {
+func (s *configcoreSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+
+	dirs.SetRootDir(c.MkDir())
+	s.AddCleanup(func() { dirs.SetRootDir("") })
+
+	s.AddCleanup(systemd.MockSystemctl(func(args ...string) ([]byte, error) {
 		s.systemctlArgs = append(s.systemctlArgs, args[:])
 		output := []byte("ActiveState=inactive")
 		return output, nil
-	})
-}
+	}))
+	s.systemctlArgs = nil
+	s.AddCleanup(systemd.MockSystemdSysctl(func(args ...string) error {
+		s.systemdSysctlArgs = append(s.systemdSysctlArgs, args[:])
+		return nil
+	}))
+	s.systemdSysctlArgs = nil
 
-func (s *configcoreSuite) TearDownSuite(c *C) {
-	s.systemctlRestorer()
-}
-
-func (s *configcoreSuite) SetUpTest(c *C) {
-	dirs.SetRootDir(c.MkDir())
 	s.state = state.New(nil)
-}
 
-func (s *configcoreSuite) TearDownTest(c *C) {
-	dirs.SetRootDir("")
+	restore := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
+	s.AddCleanup(restore)
 }
 
 // runCfgSuite tests configcore.Run()

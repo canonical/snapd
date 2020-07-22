@@ -20,12 +20,16 @@
 package builtin
 
 import (
+	"path/filepath"
 	"strings"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/dbus"
+	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -67,6 +71,8 @@ const fwupdPermanentSlotAppArmor = `
   /sys/firmware/efi/efivars/** rw,
 
   # Allow write access for efi firmware updater
+  /boot/efi/{,**/} r,
+  /boot/efi/EFI/ubuntu/fwupd*.efi* rw,
   /boot/efi/EFI/ubuntu/fw/** rw,
 
   # Allow access from efivar library
@@ -125,11 +131,11 @@ const fwupdConnectedPlugAppArmor = `
   #   https://www.freedesktop.org/software/systemd/man/nss-resolve.html
   #
   dbus send
-       bus=system
-       path="/org/freedesktop/resolve1"
-       interface="org.freedesktop.resolve1.Manager"
-       member="Resolve{Address,Hostname,Record,Service}"
-       peer=(name="org.freedesktop.resolve1"),
+      bus=system
+      path="/org/freedesktop/resolve1"
+      interface="org.freedesktop.resolve1.Manager"
+      member="Resolve{Address,Hostname,Record,Service}"
+      peer=(name="org.freedesktop.resolve1"),
 
   # Allow access to fwupd service
   dbus (receive, send)
@@ -254,6 +260,28 @@ func (iface *fwupdInterface) AppArmorPermanentSlot(spec *apparmor.Specification,
 	// classic, slot side can be system or application
 	if !implicitSystemPermanentSlot(slot) {
 		spec.AddSnippet(fwupdPermanentSlotAppArmor)
+
+		// Allow mounting boot partition to snap-update-ns
+		emit := spec.AddUpdateNSf
+		target := "/boot"
+		source := "/var/lib/snapd/hostfs" + target
+		emit("  # Read-write access to %s\n", target)
+		emit("  mount options=(rbind) %s/ -> %s/,\n", source, target)
+		emit("  umount %s/,\n\n", target)
+	}
+	return nil
+}
+
+func (iface *fwupdInterface) MountPermanentSlot(spec *mount.Specification, slot *snap.SlotInfo) error {
+	if !implicitSystemPermanentSlot(slot) {
+		dir := filepath.Join(dirs.GlobalRootDir, "/boot")
+		if osutil.IsDirectory(dir) {
+			spec.AddMountEntry(osutil.MountEntry{
+				Name:    "/var/lib/snapd/hostfs" + dir,
+				Dir:     dirs.StripRootDir(dir),
+				Options: []string{"rbind", "rw"},
+			})
+		}
 	}
 	return nil
 }

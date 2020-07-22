@@ -31,7 +31,9 @@ const gsettingsBaseDeclarationSlots = `
 const gsettingsConnectedPlugAppArmor = `
 # Description: Can access global gsettings of the user's session. Restricted
 # because this gives privileged access to sensitive information stored in
-# gsettings and allows adjusting settings of other applications.
+# gsettings and allows adjusting settings of other applications. Future GLib
+# will not require plugging the interface and will instead probe if running
+# under confinement and use a private data store in $SNAP_USER_DATA).
 
 #include <abstractions/dbus-session-strict>
 

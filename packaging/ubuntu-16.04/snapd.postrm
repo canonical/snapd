@@ -82,9 +82,17 @@ if [ "$1" = "purge" ]; then
             if [ -d /etc/dbus-1/system.d ]; then
                 find /etc/dbus-1/system.d -name "snap.${snap}.*.conf" -execdir rm -f "{}" \;
             fi
+            # modules
+            rm -f "/etc/modules-load.d/snap.${snap}.conf"
             # timer and socket units
             find /etc/systemd/system -name "snap.${snap}.*.timer" -o -name "snap.${snap}.*.socket" | while read -r f; do
                 systemctl_stop "$(basename "$f")"
+                rm -f "$f"
+            done
+            # user services, sockets, and timers - we make no attempt to stop any of them.
+            # TODO: ask snapd to ask each snapd.session-agent.service to stop snaps
+            # user-session services and stop itself.
+            find /etc/systemd/user -name "snap.${snap}.*.timer" -o -name "snap.${snap}.*.socket" -o -name "snap.${snap}.*.service" | while read -r f; do
                 rm -f "$f"
             done
         fi
@@ -93,6 +101,11 @@ if [ "$1" = "purge" ]; then
         rm -f "/etc/systemd/system/$unit"
         rm -f "/etc/systemd/system/multi-user.target.wants/$unit"
     done
+
+    # snapd session-agent
+    rm -f /etc/systemd/user/snapd.session-agent.socket
+    rm -f /etc/systemd/user/snapd.session-agent.service
+    rm -f /etc/systemd/user/sockets.target.wants/snapd.session-agent.socket
 
     # generated readme files
     rm -f "/snap/README"

@@ -79,8 +79,6 @@ execute: |
 
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
-    #shellcheck source=tests/lib/strings.sh
-    . "$TESTSLIB"/strings.sh
 
     if is_classic_confinement_supported ; then
         echo "Installing a strict snap in classic works but --classic is ignored"

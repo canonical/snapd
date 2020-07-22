@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
 
@@ -267,7 +268,7 @@ func (s *TestingSeed20) MakeSeed(c *C, label, brandID, modelID string, modelHead
 		if !asserts.IsNotFound(err) {
 			c.Assert(err, IsNil)
 		}
-		f, err := snap.Open(sn.Path)
+		f, err := snapfile.Open(sn.Path)
 		c.Assert(err, IsNil)
 		info, err := snap.ReadInfoFromSnapFile(f, si)
 		c.Assert(err, IsNil)

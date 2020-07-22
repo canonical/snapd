@@ -27,6 +27,7 @@ import (
 	"sort"
 
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -114,7 +115,7 @@ func ValidateFromYaml(seedYamlFile string) error {
 	// read the snap infos
 	snapInfos := make([]*snap.Info, 0, seed16.NumSnaps())
 	seed16.Iter(func(sn *Snap) error {
-		snapf, err := snap.Open(sn.Path)
+		snapf, err := snapfile.Open(sn.Path)
 		if err != nil {
 			ve.addErr("", err)
 		} else {

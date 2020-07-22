@@ -1,7 +1,7 @@
 summary: Check that health works
 
 prepare: |
-    snap install jq
+    snap install --edge jq
 
 execute: |
     echo "Test that 'try'ing a snap with a set-health hook sets health in state:"

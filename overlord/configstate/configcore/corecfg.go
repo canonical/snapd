@@ -67,12 +67,12 @@ func validateBoolFlag(tr config.ConfGetter, flag string) error {
 	return nil
 }
 
-// PlainCoreConfig carries a read-only copy of core config and implements
+// plainCoreConfig carries a read-only copy of core config and implements
 // config.ConfGetter interface.
-type PlainCoreConfig map[string]interface{}
+type plainCoreConfig map[string]interface{}
 
 // Get implements config.ConfGetter interface.
-func (cfg PlainCoreConfig) Get(snapName, key string, result interface{}) error {
+func (cfg plainCoreConfig) Get(snapName, key string, result interface{}) error {
 	if snapName != "core" {
 		return fmt.Errorf("internal error: expected core snap in Get(), %q was requested", snapName)
 	}
@@ -88,7 +88,7 @@ func (cfg PlainCoreConfig) Get(snapName, key string, result interface{}) error {
 }
 
 // GetMaybe implements config.ConfGetter interface.
-func (cfg PlainCoreConfig) GetMaybe(instanceName, key string, result interface{}) error {
+func (cfg plainCoreConfig) GetMaybe(instanceName, key string, result interface{}) error {
 	err := cfg.Get(instanceName, key, result)
 	if err != nil && !config.IsNoOption(err) {
 		return err

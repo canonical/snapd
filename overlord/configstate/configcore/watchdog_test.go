@@ -46,14 +46,7 @@ var _ = Suite(&watchdogSuite{})
 func (s *watchdogSuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
 
-	dirs.SetRootDir(c.MkDir())
 	s.mockEtcEnvironment = filepath.Join(dirs.SnapSystemdConfDir, "10-snapd-watchdog.conf")
-
-	s.systemctlArgs = nil
-}
-
-func (s *watchdogSuite) TearDownTest(c *C) {
-	dirs.SetRootDir("/")
 }
 
 func (s *watchdogSuite) TestConfigureWatchdog(c *C) {

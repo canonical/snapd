@@ -45,7 +45,7 @@ import (
 
 func (m *InterfaceManager) selectInterfaceMapper(snaps []*snap.Info) {
 	for _, snapInfo := range snaps {
-		if snapInfo.GetType() == snap.TypeSnapd {
+		if snapInfo.Type() == snap.TypeSnapd {
 			mapper = &CoreSnapdSystemMapper{}
 			break
 		}

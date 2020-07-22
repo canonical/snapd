@@ -5,10 +5,7 @@ details: |
     a reboot is triggered and the command would exit after the first phase of the installation
     reporting "snapd is about to reboot the system"
 
-# the test is only meaningful on core devices
-# TODO:UC20: enable for UC20
-systems: [ubuntu-core-1*]
-
+systems: [ubuntu-core-*]
 
 restore: |
     #shellcheck source=tests/lib/systems.sh
@@ -16,6 +13,8 @@ restore: |
     TARGET_SNAP_NAME=core
     if is_core18_system; then
         TARGET_SNAP_NAME=core18
+    elif is_core20_system; then
+        TARGET_SNAP_NAME=core20
     fi
 
     if not snap remove "$TARGET_SNAP_NAME" --revision=x2; then
@@ -32,6 +31,8 @@ execute: |
     TARGET_SNAP_NAME=core
     if is_core18_system; then
         TARGET_SNAP_NAME=core18
+    elif is_core20_system; then
+        TARGET_SNAP_NAME=core20
     fi    
 
     # After installing a new version of the core/core18 snap the system is rebooted

@@ -370,9 +370,9 @@ func Validate(info *Info) error {
 // ValidateBase validates the base field.
 func ValidateBase(info *Info) error {
 	// validate that bases do not have base fields
-	if info.GetType() == TypeOS || info.GetType() == TypeBase {
+	if info.Type() == TypeOS || info.Type() == TypeBase {
 		if info.Base != "" && info.Base != "none" {
-			return fmt.Errorf(`cannot have "base" field on %q snap %q`, info.GetType(), info.InstanceName())
+			return fmt.Errorf(`cannot have "base" field on %q snap %q`, info.Type(), info.InstanceName())
 		}
 	}
 
@@ -399,6 +399,38 @@ func ValidateLayoutAll(info *Info) error {
 		paths = append(paths, layout.Path)
 	}
 	sort.Strings(paths)
+
+	// Validate that each source path is not a new top-level directory
+	for _, layout := range info.Layout {
+		cleanPathSrc := info.ExpandSnapVariables(filepath.Clean(layout.Path))
+		elems := strings.SplitN(cleanPathSrc, string(os.PathSeparator), 3)
+		switch len(elems) {
+		// len(1) is either relative path or empty string, will be validated
+		// elsewhere
+		case 2, 3:
+			// if the first string is the empty string, then we have a top-level
+			// directory to check
+			if elems[0] != "" {
+				// not the empty string which means this was a relative
+				// specification, i.e. usr/src/doc
+				return fmt.Errorf("layout %q is a relative filename", layout.Path)
+			}
+			if elems[1] != "" {
+				// verify that the top-level directory is a supported one
+				// we can't create new top-level directories because that would
+				// require creating a mimic on top of "/" which we don't
+				// currently support
+				switch elems[1] {
+				// this list was produced by taking all of the top level
+				// directories in the core snap and removing the explicitly
+				// denied top-level directories
+				case "bin", "etc", "lib", "lib64", "meta", "mnt", "opt", "root", "sbin", "snap", "srv", "usr", "var", "writable":
+				default:
+					return fmt.Errorf("layout %q defines a new top-level directory %q", layout.Path, "/"+elems[1])
+				}
+			}
+		}
+	}
 
 	// Validate that each source path is used consistently as a file or as a directory.
 	sourceKindMap := make(map[string]string)
@@ -592,6 +624,43 @@ func validateAppRestart(app *AppInfo) error {
 	return nil
 }
 
+func validateAppActivatesOn(app *AppInfo) error {
+	if len(app.ActivatesOn) == 0 {
+		return nil
+	}
+
+	if !app.IsService() {
+		return errors.New("activates-on is only applicable to services")
+	}
+
+	for _, slot := range app.ActivatesOn {
+		// ActivatesOn slots must use the "dbus" interface
+		if slot.Interface != "dbus" {
+			return fmt.Errorf("invalid activates-on value %q: slot does not use dbus interface", slot.Name)
+		}
+
+		// D-Bus slots must match the daemon scope
+		bus := slot.Attrs["bus"]
+		if app.DaemonScope == SystemDaemon && bus != "system" || app.DaemonScope == UserDaemon && bus != "session" {
+			return fmt.Errorf("invalid activates-on value %q: bus %q does not match daemon-scope %q", slot.Name, bus, app.DaemonScope)
+		}
+
+		// Slots must only be activatable on a single app
+		for _, otherApp := range slot.Apps {
+			if otherApp == app {
+				continue
+			}
+			for _, otherSlot := range otherApp.ActivatesOn {
+				if otherSlot == slot {
+					return fmt.Errorf("invalid activates-on value %q: slot is also activatable on app %q", slot.Name, otherApp.Name)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
 // appContentWhitelist is the whitelist of legal chars in the "apps"
 // section of snap.yaml. Do not allow any of [',",`] here or snap-exec
 // will get confused. chainContentWhitelist is the same, but for the
@@ -664,6 +733,10 @@ func ValidateApp(app *AppInfo) error {
 		if err := validateAppSocket(socket); err != nil {
 			return fmt.Errorf("invalid definition of socket %q: %v", socket.Name, err)
 		}
+	}
+
+	if err := validateAppActivatesOn(app); err != nil {
+		return err
 	}
 
 	if err := validateAppRestart(app); err != nil {
