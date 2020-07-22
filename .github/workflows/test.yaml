@@ -134,7 +134,6 @@ jobs:
         - debian-9-64
         - debian-sid-64
         - fedora-31-64
-        - fedora-32-64
         - opensuse-15.1-64
         - opensuse-tumbleweed-64
         - ubuntu-14.04-64
@@ -146,7 +145,6 @@ jobs:
         - ubuntu-core-16-64
         - ubuntu-core-18-64
         - ubuntu-core-20-64
-        - ubuntu-secboot-20.04-64
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
