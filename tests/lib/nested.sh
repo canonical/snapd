@@ -46,9 +46,28 @@ prepare_ssh(){
 
 create_assertions_disk(){
     mkdir -p "$WORK_DIR"
-    dd if=/dev/null of="$WORK_DIR/assertions.disk" bs=1M seek=1
-    mkfs.ext4 -F "$WORK_DIR/assertions.disk"
-    debugfs -w -R "write $TESTSLIB/assertions/auto-import.assert auto-import.assert" "$WORK_DIR/assertions.disk"
+    ASSERTIONS_DISK="$WORK_DIR/assertions.disk"
+    # make an image
+    dd if=/dev/null of="$ASSERTIONS_DISK" bs=1M seek=1
+    # format it as dos with a vfat partition
+    # TODO: can we do this more programmatically without printing into fdisk ?
+    printf 'o\nn\np\n1\n\n\nt\nc\nw\n' | fdisk "$ASSERTIONS_DISK"
+    # mount the disk image
+    kpartx -av "$ASSERTIONS_DISK"
+    # find the loopback device for the partition
+    LOOP_DEV=$(losetup --list | grep "$ASSERTIONS_DISK" | awk '{print $1}' | grep -Po "/dev/loop\K([0-9]*)")
+    # wait for the loop device to show up
+    retry-tool -n 3 --wait 1 test -e "/dev/mapper/loop${LOOP_DEV}p1"
+    # make a vfat partition
+    mkfs.vfat -n SYSUSER "/dev/mapper/loop${LOOP_DEV}p1"
+    # mount the partition and copy the files 
+    mkdir -p "$WORK_DIR/sys-user-partition"
+    mount "/dev/mapper/loop${LOOP_DEV}p1" "$WORK_DIR/sys-user-partition"
+    sudo cp "$TESTSLIB/assertions/auto-import.assert" "$WORK_DIR/sys-user-partition"
+
+    # unmount the partition and the image disk
+    sudo umount "$WORK_DIR/sys-user-partition"
+    sudo kpartx -d "$ASSERTIONS_DISK"
 }
 
 get_qemu_for_nested_vm(){
@@ -113,6 +132,14 @@ get_image_url_for_nested_vm(){
         get_google_image_url_for_nested_vm
     else
         get_ubuntu_image_url_for_nested_vm
+    fi
+}
+
+is_nested_system(){
+    if is_core_nested_system || is_classic_nested_system ; then
+        return 0
+    else 
+        return 1
     fi
 }
 
@@ -187,6 +214,12 @@ cleanup_nested_env(){
 }
 
 create_nested_core_vm(){
+    # shellcheck source=tests/lib/prepare.sh
+    . "$TESTSLIB"/prepare.sh
+
+    # shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+
     mkdir -p "$WORK_DIR/image"
     if [ ! -f "$WORK_DIR/image/ubuntu-core.img" ]; then
         local UBUNTU_IMAGE
@@ -212,8 +245,6 @@ create_nested_core_vm(){
         ubuntu-20.04-64)
             NESTED_MODEL="$TESTSLIB/assertions/nested-20-amd64.model"
 
-            # shellcheck source=tests/lib/prepare.sh
-            . "$TESTSLIB"/prepare.sh
             snap download --basename=pc-kernel --channel="20/edge" pc-kernel
             uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$WORK_DIR/image"
 
@@ -229,14 +260,59 @@ create_nested_core_vm(){
 
         if [ "$BUILD_FROM_CURRENT" = "true" ]; then
             if is_core_16_nested_system; then
-                echo "Build from current branch is not supported yet for uc16"
+                repack_snapd_deb_into_core_snap "$WORK_DIR"
+                EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $WORK_DIR/core-from-snapd-deb.snap"
+
+            elif is_core_18_nested_system; then
+                repack_snapd_deb_into_snapd_snap "$WORK_DIR"
+                EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $WORK_DIR/snapd-from-deb.snap"
+
+            elif is_core_20_nested_system; then
+                snap download --basename=pc-kernel --channel="20/edge" pc-kernel
+                uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$WORK_DIR/image"
+
+                # Get the snakeoil key and cert
+                KEY_NAME=$(get_snakeoil_key)
+                SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
+                SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
+
+                # Prepare the pc kernel snap
+                KERNEL_SNAP=$(ls "$WORK_DIR"/image/pc-kernel_*.snap)
+                KERNEL_UNPACKED="$WORK_DIR"/image/kernel-unpacked
+                unsquashfs -d "$KERNEL_UNPACKED" "$KERNEL_SNAP"
+                sbattach --remove "$KERNEL_UNPACKED/kernel.efi"
+                sbsign --key "$SNAKEOIL_KEY" --cert "$SNAKEOIL_CERT" "$KERNEL_UNPACKED/kernel.efi"  --output "$KERNEL_UNPACKED/kernel.efi"
+                snap pack "$KERNEL_UNPACKED" "$WORK_DIR/image"
+
+                chmod 0600 "$KERNEL_SNAP"
+                rm -f "$PWD/pc-kernel.snap"
+                rm -rf "$KERNEL_UNPACKED"
+                EXTRA_FUNDAMENTAL="--snap $KERNEL_SNAP"
+
+                # Prepare the pc gadget snap (unless provided by extra-snaps)
+                GADGET_SNAP=""
+                if [ -d extra-snaps ]; then
+                    GADGET_SNAP=$(find extra-snaps -name 'pc_*.snap')
+                fi
+                # XXX: deal with [ "$ENABLE_SECURE_BOOT" != "true" ] && [ "$ENABLE_TPM" != "true" ]
+                if [ -z "$GADGET_SNAP" ]; then
+                    snap download --basename=pc --channel="20/edge" pc
+                    unsquashfs -d pc-gadget pc.snap
+                    secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+                    snap pack pc-gadget/ "$WORK_DIR/image"
+
+                    GADGET_SNAP=$(ls "$WORK_DIR"/image/pc_*.snap)
+                    rm -f "$PWD/pc.snap" "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+                    EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $GADGET_SNAP"
+                fi
+
+                snap download --channel="latest/edge" snapd
+                repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$PWD/new-snapd" "false"
+                EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-snapd/snapd_*.snap"
+            else
+                echo "unknown nested core system (host is $(lsb_release -cs) )"
                 exit 1
             fi
-            # shellcheck source=tests/lib/prepare.sh
-            . "$TESTSLIB"/prepare.sh
-            snap download --channel="latest/edge" snapd
-            repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$PWD/new-snapd" "false"
-            EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-snapd/snapd_*.snap"
         fi
 
         "$UBUNTU_IMAGE" --image-size 10G "$NESTED_MODEL" \
@@ -328,29 +404,60 @@ configure_cloud_init_nested_core_vm_uc20(){
     umount "$tmp"
 }
 
-start_nested_core_vm(){
-    local IMAGE QEMU
-    QEMU=$(get_qemu_for_nested_vm)
-    # As core18 systems use to fail to start the assetion disk when using the
-    # snapshot feature, we copy the original image and use that copy to start
-    # the VM.
+force_stop_nested_vm(){
+    systemctl stop nested-vm
+}
+
+start_nested_core_vm_unit() {
+    local IMAGE_FILE QEMU
     IMAGE_FILE="$WORK_DIR/image/ubuntu-core-new.img"
-    cp -f "$WORK_DIR/image/ubuntu-core.img" "$IMAGE_FILE"
+    QEMU=$(get_qemu_for_nested_vm)
 
     # Now qemu parameters are defined
     # Increase the number of cpus used once the issue related to kvm and ovmf is fixed
     # https://bugs.launchpad.net/ubuntu/+source/kvm/+bug/1872803
     PARAM_CPU="-smp 1"
-    PARAM_MEM="-m 4096"
+    
+    # use only 2G of RAM for qemu-nested
+    if [ "$SPREAD_BACKEND" = "google-nested" ]; then
+        PARAM_MEM="-m 4096"
+    elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
+        PARAM_MEM="-m 2048"
+    else
+        echo "unknown spread backend $SPREAD_BACKEND"
+        exit 1
+    fi
+
     PARAM_DISPLAY="-nographic"
     PARAM_NETWORK="-net nic,model=virtio -net user,hostfwd=tcp::$SSH_PORT-:22"
-    PARAM_MONITOR="-monitor tcp:127.0.0.1:$MON_PORT,server,nowait -usb"
-    PARAM_MACHINE="-machine ubuntu,accel=kvm"
+    PARAM_MONITOR="-monitor tcp:127.0.0.1:$MON_PORT,server,nowait"
+    PARAM_USB="-usb"
+    PARAM_CD="${PARAM_CD:-}"
+
+    # with qemu-nested, we can't use kvm acceleration
+    if [ "$SPREAD_BACKEND" = "google-nested" ]; then
+        PARAM_MACHINE="-machine ubuntu,accel=kvm"
+    elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
+        PARAM_MACHINE=""
+    else
+        echo "unknown spread backend $SPREAD_BACKEND"
+        exit 1
+    fi
+    
     PARAM_ASSERTIONS=""
+    PARAM_SERIAL="-serial file:${WORK_DIR}/serial-log.txt"
     PARAM_BIOS=""
     PARAM_TPM=""
     if [ "$USE_CLOUD_INIT" != "true" ]; then
-        PARAM_ASSERTIONS="-drive file=$WORK_DIR/assertions.disk,cache=none,format=raw"
+        # TODO: fix using the old way of an ext4 formatted drive w/o partitions
+        #       as this used to work but has since regressed
+        
+        # this simulates a usb drive attached to the device, the removable=true
+        # is necessary otherwise snapd will not import it, as snapd only 
+        # considers removable devices for cold-plug first-boot runs
+        # the nec-usb-xhci device is necessary to create the bus we attach the
+        # storage to
+        PARAM_ASSERTIONS="-drive if=none,id=stick,format=raw,file=$WORK_DIR/assertions.disk,cache=none,format=raw -device nec-usb-xhci,id=xhci -device usb-storage,bus=xhci.0,removable=true,drive=stick"
     fi
     if is_core_20_nested_system; then
         if ! is_focal_system; then
@@ -390,15 +497,33 @@ start_nested_core_vm(){
         ${PARAM_TPM} \
         ${PARAM_IMAGE} \
         ${PARAM_ASSERTIONS} \
-        ${PARAM_MONITOR} "
+        ${PARAM_SERIAL} \
+        ${PARAM_MONITOR} \
+        ${PARAM_USB} \
+        ${PARAM_CD} "
 
-    # Wait until ssh is ready and configure ssh
-    if wait_for_ssh; then
-        prepare_ssh
-    else
-        echo "ssh not established, exiting..."
-        exit 1
-    fi
+    # wait for the nested-vm service to appear active
+    wait_for_service "$NESTED_VM"
+
+    # Wait until ssh is ready
+    wait_for_ssh
+}
+
+start_nested_core_vm(){
+    local IMAGE_FILE
+    # As core18 systems use to fail to start the assertion disk when using the
+    # snapshot feature, we copy the original image and use that copy to start
+    # the VM.
+    # Some tests however need to force stop and restart the VM with different
+    # options, so if that env var is set, we will reuse the existing file if it
+    # exists
+    IMAGE_FILE="$WORK_DIR/image/ubuntu-core-new.img"
+    cp -f "$WORK_DIR/image/ubuntu-core.img" "$IMAGE_FILE"
+
+    start_nested_core_vm_unit
+
+    # configure ssh for first time
+    prepare_ssh
 }
 
 create_nested_classic_vm(){
@@ -431,14 +556,34 @@ start_nested_classic_vm(){
 
     # Now qemu parameters are defined
     PARAM_CPU="-smp 1"
-    PARAM_MEM="-m 4096"
+    # use only 2G of RAM for qemu-nested
+    if [ "$SPREAD_BACKEND" = "google-nested" ]; then
+        PARAM_MEM="-m 4096"
+    elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
+        PARAM_MEM="-m 2048"
+    else
+        echo "unknown spread backend $SPREAD_BACKEND"
+        exit 1
+    fi
     PARAM_DISPLAY="-nographic"
     PARAM_NETWORK="-net nic,model=virtio -net user,hostfwd=tcp::$SSH_PORT-:22"
-    PARAM_MONITOR="-monitor tcp:127.0.0.1:$MON_PORT,server,nowait -usb"
+    PARAM_MONITOR="-monitor tcp:127.0.0.1:$MON_PORT,server,nowait"
+    PARAM_USB="-usb"
     PARAM_SNAPSHOT="-snapshot"
-    PARAM_MACHINE="-machine ubuntu,accel=kvm"
+
+    # with qemu-nested, we can't use kvm acceleration
+    if [ "$SPREAD_BACKEND" = "google-nested" ]; then
+        PARAM_MACHINE="-machine ubuntu,accel=kvm"
+    elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
+        PARAM_MACHINE=""
+    else
+        echo "unknown spread backend $SPREAD_BACKEND"
+        exit 1
+    fi
+
     PARAM_IMAGE="-drive file=$IMAGE,if=virtio"
     PARAM_SEED="-drive file=$WORK_DIR/seed.img,if=virtio"
+    PARAM_SERIAL="-serial file:${WORK_DIR}/serial-log.txt"
     PARAM_BIOS=""
     PARAM_TPM=""
 
@@ -465,7 +610,10 @@ start_nested_classic_vm(){
         ${PARAM_TPM} \
         ${PARAM_IMAGE} \
         ${PARAM_SEED} \
-        ${PARAM_MONITOR} "
+        ${PARAM_SERIAL} \
+        ${PARAM_MONITOR} \
+        ${PARAM_USB} "
+
     wait_for_ssh
 }
 
