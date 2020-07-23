@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/godbus/dbus"
 	. "gopkg.in/check.v1"
@@ -580,4 +581,50 @@ func (s *trackingSuite) TestConfirmSystemdServiceTrackingSad(c *C) {
 	// With the cgroup path faked as above, tracking is not effective.
 	err := cgroup.ConfirmSystemdServiceTracking("snap.pkg.app")
 	c.Assert(err, Equals, cgroup.ErrCannotTrackProcess)
+}
+
+func (s *trackingSuite) TestCreateTransientScopeForTrackingDelayedBehavior(c *C) {
+	// Pretend that refresh app awareness is enabled
+	enableFeatures(c, features.RefreshAppAwareness)
+	c.Assert(features.RefreshAppAwareness.IsEnabled(), Equals, true)
+	// Pretend we are a non-root user so that session bus is used.
+	restore := cgroup.MockOsGetuid(12345)
+	defer restore()
+	// Pretend our PID is this value.
+	restore = cgroup.MockOsGetpid(312123)
+	defer restore()
+	// Rig the random UUID generator to return this value.
+	uuid := "cc98cd01-6a25-46bd-b71b-82069b71b770"
+	restore = cgroup.MockRandomUUID(uuid)
+	defer restore()
+	// Replace interactions with DBus so that only session bus is available and responds with our logic.
+	conn, err := dbustest.Connection(func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
+		switch n {
+		case 0:
+			return []*dbus.Message{checkAndRespondToStartTransientUnit(c, msg, "snap.pkg.app."+uuid+".scope", 312123)}, nil
+		}
+		return nil, fmt.Errorf("unexpected message #%d: %s", n, msg)
+	})
+	c.Assert(err, IsNil)
+	restore = dbusutil.MockOnlySessionBusAvailable(conn)
+	defer restore()
+
+	// Replace the time.Sleep() function. It will count elapsed time without really sleeping.
+	var sleepDuration time.Duration
+	restore = cgroup.MockTimeSleep(func(d time.Duration) {
+		sleepDuration += d
+	})
+	defer restore()
+
+	// Replace the cgroup analyzer function.
+	restore = cgroup.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
+		if sleepDuration < 50*time.Millisecond {
+			return "/unrelated", nil
+		}
+		return "/user.slice/user-12345.slice/user@12345.service/snap.pkg.app." + uuid + ".scope", nil
+	})
+	defer restore()
+
+	err = cgroup.CreateTransientScopeForTracking("snap.pkg.app")
+	c.Check(err, IsNil)
 }
