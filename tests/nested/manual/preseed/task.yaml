@@ -13,11 +13,20 @@ environment:
 prepare: |
   #shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB/nested.sh"
-  dpkg -i "$SPREAD_PATH"/../snapd_*.deb
-  create_nested_classic_vm
-  mkdir -p "$IMAGE_MOUNTPOINT"
+
+  #shellcheck source=tests/lib/snaps.sh
+  . "$TESTSLIB"/snaps.sh
+
   #shellcheck source=tests/lib/preseed.sh
   . "$TESTSLIB/preseed.sh"
+
+  # install the snapd deb from spread so we are using the same version to 
+  # validate the seed as well as call preseed, etc. 
+  dpkg -i "$SPREAD_PATH"/../snapd_*.deb
+
+  # create a VM and mount a cloud image
+  create_nested_classic_vm
+  mkdir -p "$IMAGE_MOUNTPOINT"
   CLOUD_IMAGE=$(get_nested_classic_image_path)
   mount_ubuntu_image "$CLOUD_IMAGE" "$IMAGE_MOUNTPOINT"
 
@@ -26,7 +35,8 @@ prepare: |
   # we're cheating and preseeding images that were not meant to be
   # preseeded in their current state, we need to inject newer snapd
   # into seeds/ to make snap-preseed and the test happy.
-  inject_snapd_into_seeds "$IMAGE_MOUNTPOINT"
+  snap download --basename=snapd snapd --edge
+  inject_snap_into_seed "$IMAGE_MOUNTPOINT" snapd
 
   # for images that are already preseeded, we need to undo the preseeding there
   echo "Running preseed --reset for already preseeded cloud images"
