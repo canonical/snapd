@@ -38,7 +38,7 @@ func (s *seedingDebugSuite) SetUpTest(c *C) {
 }
 
 func (s *seedingDebugSuite) getSeedingDebug(c *C) interface{} {
-	req, err := http.NewRequest("GET", "/v2/debug?aspect=seeding-info", nil)
+	req, err := http.NewRequest("GET", "/v2/debug?aspect=seeding", nil)
 	c.Assert(err, IsNil)
 
 	rsp := getDebug(debugCmd, req, nil).(*resp)
