@@ -48,8 +48,6 @@ const iioConnectedPlugAppArmor = `
 ###IIO_DEVICE_PATH### rw,
 /sys/bus/iio/devices/###IIO_DEVICE_NAME###/ r,
 /sys/bus/iio/devices/###IIO_DEVICE_NAME###/** rwk,
-/sys/devices/**/###IIO_DEVICE_NAME###/ r,
-/sys/devices/**/###IIO_DEVICE_NAME###/** rwk,
 `
 
 // The type for iio interface
@@ -113,7 +111,24 @@ func (iface *iioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 	deviceName := strings.TrimPrefix(path, "/dev/")
 	snippet = strings.Replace(snippet, "###IIO_DEVICE_NAME###", deviceName, -1)
 
+	// Add a snippet for various device specific rules, except for sysfs write
+	// access that are specialized below.
 	spec.AddSnippet(snippet)
+
+	// Because all deviceName values have the prefix of "iio:device" enforced
+	// by the sanitization logic above, we can trim that prefix and provide a
+	// shorter expansion expression.
+	deviceNum := strings.TrimPrefix(deviceName, "iio:device")
+
+	// Use parametric snippets to avoid no-expr-simplify side-effects.
+	spec.AddParametricSnippet([]string{
+		"/sys/devices/**/iio:device" /* ###PARAM### */, "/** rwk,  # Add any condensed parametric rules",
+	}, deviceNum)
+	// For consistency, not an efficiency problem.
+	spec.AddParametricSnippet([]string{
+		"/sys/devices/**/iio:device" /* ###PARAM### */, "/ r,  # Add any condensed parametric rules",
+	}, deviceNum)
+
 	return nil
 }
 
