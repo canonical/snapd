@@ -25,17 +25,17 @@ prepare: |
     tests.cleanup defer snap remove --purge test-snapd-sh
 restore: |
     tests.cleanup restore
-    rm -f phase.txt debug.txt cgroup.txt ps.txt run.txt
+    rm -f scenario.txt debug.txt cgroup.txt ps.txt run.txt
     systemctl --user stop dbus.service || true
 execute: |
-    ## Phase 1: user is root.
+    ## Scenario 1: user is root.
     # Note that the images we are working with have the dbus-session-bus
     # package pre-installed. To exercise the case that is similar to real
     # systems, where snapd does not depend on this package and it is not
     # pre-installed on standard images, we mask the dbus.socket for the user
     # session. This is done for Ubuntu 16.04 and 18.04, because only 19.10
     # started shipping dbus-user-session in all the images.
-    echo "run a snap app as a root user, without session bus" >phase.txt
+    echo "run a snap app as a root user, without session bus" >scenario.txt
     find /run/user/0 >run.txt
     case "$SPREAD_SYSTEM" in
         ubuntu-1[68].04-*)
@@ -140,8 +140,8 @@ execute: |
         esac
     fi
 
-    ## Phase 2: user is root.
-    echo "run a snap app as a root user, with session bus" >phase.txt
+    ## Scenario 2: user is root.
+    echo "run a snap app as a root user, with session bus" >scenario.txt
     tests.session -u root prepare
     test -S /run/user/0/bus
     SNAPD_DEBUG=1 tests.session -u root exec snap run test-snapd-sh.sh -c 'exec cat /proc/self/cgroup' >cgroup.txt 2>debug.txt
@@ -150,8 +150,8 @@ execute: |
     MATCH 'DEBUG: created transient scope as object: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt
     MATCH '1:name=systemd:/user.slice/user-0.slice/user@0.service/snap.test-snapd-sh.sh.[0-9a-f-]+.scope' <cgroup.txt
 
-    ## Phase 3: user is non-root, dbus user session is installed
-    echo "run a snap app as a test user, having the session bus installed" >phase.txt
+    ## Scenario 3: user is non-root, dbus user session is installed
+    echo "run a snap app as a test user, having the session bus installed" >scenario.txt
     tests.session -u test prepare
     find /run/user/12345 >run.txt
     ps -u test >ps.txt
@@ -188,7 +188,7 @@ execute: |
 
 debug: |
     set +e  # any of the files below may not exist and this causes the command to be indicated as failure
-    test -e phase.txt && cat phase.txt
+    test -e scenario.txt && cat scenario.txt
     test -e run.txt && cat run.txt
     test -e debug.txt && head -n 10 debug.txt
     test -e cgroup.txt && cat cgroup.txt
