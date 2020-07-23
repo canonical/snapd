@@ -74,6 +74,14 @@ prepare: |
     echo 'log-level = debug' >> /etc/pulse/daemon.conf
     tests.cleanup defer mv /etc/pulse/daemon.conf.backup /etc/pulse/daemon.conf
 
+    # disable start limit checking for pulseaudio service
+    mkdir -p /etc/systemd/user/pulseaudio.service.d
+    cat <<-EOF > /etc/systemd/user/pulseaudio.service.d/no-start-limit.conf
+    [Unit]
+    StartLimitBurst=0
+    EOF
+    tests.cleanup defer rm /etc/systemd/user/pulseaudio.service.d/no-start-limit.conf
+
 debug: |
     echo "Files present in the test user's home directory"
     test -d /home/test && find /home/test
