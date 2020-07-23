@@ -131,7 +131,7 @@ tryAgain:
 			// Stop waiting as soon as the location in the cgroup hierarchy has changed.
 			break
 		}
-		time.Sleep(10 * time.Millisecond)
+		timeSleep(10 * time.Millisecond)
 	}
 	if !strings.HasSuffix(pathAfter, unitName) {
 		logger.Debugf("systemd could not associate process %d with transient scope %s", pid, unitName)
@@ -139,6 +139,9 @@ tryAgain:
 	}
 	return nil
 }
+
+// timeSleep is time.Sleep which can be mocked for testing.
+var timeSleep = time.Sleep
 
 // ConfirmSystemdServiceTracking checks if systemd tracks this process as a snap service.
 //
