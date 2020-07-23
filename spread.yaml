@@ -485,8 +485,6 @@ exclude:
 
 debug-each: |
     if [ "$SPREAD_DEBUG_EACH" = 1 ]; then
-        # shellcheck source=tests/lib/journalctl.sh
-        . "$TESTSLIB/journalctl.sh"
         #shellcheck source=tests/lib/state.sh
         . "$TESTSLIB/state.sh"
         #shellcheck source=tests/lib/nested.sh
@@ -505,7 +503,7 @@ debug-each: |
         fi
 
         echo '# journal messages for snapd'
-        get_journalctl_log -u snapd
+        "$TESTSTOOLS"/journal-state get-log -u snapd
         case "$SPREAD_SYSTEM" in
             fedora-*|centos-*|amazon-*)
                 if [ -e "$RUNTIME_STATE_PATH/audit-stamp" ]; then
