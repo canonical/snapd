@@ -21,6 +21,10 @@ prepare: |
   . "$TESTSLIB/preseed.sh"
   mount_ubuntu_image "$(pwd)/cloudimg.img" "$IMAGE_MOUNTPOINT"
 
+  # for images that are already preseeded, we need to undo the preseeding there
+  echo "Running preseed --reset for already preseeded cloud images"
+  SNAPD_DEBUG=1 /usr/lib/snapd/snap-preseed --reset "$IMAGE_MOUNTPOINT"
+
 restore: |
   #shellcheck source=tests/lib/preseed.sh
   . "$TESTSLIB/preseed.sh"
