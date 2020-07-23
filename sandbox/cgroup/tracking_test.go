@@ -122,7 +122,7 @@ func (s *trackingSuite) TestCreateTransientScopeForTrackingUnhappyNotRootGeneric
 	restore = cgroup.MockOsGetpid(312123)
 	defer restore()
 
-	// Rig the cgorup analyzer to return an answer not related to the snap name.
+	// Rig the cgroup analyzer to return an answer not related to the snap name.
 	restore = cgroup.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
 		return "foo", nil
 	})
@@ -246,7 +246,7 @@ func (s *trackingSuite) TestCreateTransientScopeForTrackingUnhappyRootFailedFall
 	})
 	defer restore()
 
-	// Rig the cgorup analyzer to return an answer not related to the snap name.
+	// Rig the cgroup analyzer to return an answer not related to the snap name.
 	restore = cgroup.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
 		return "foo", nil
 	})
