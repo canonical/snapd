@@ -35,6 +35,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
@@ -722,6 +723,26 @@ func (s *snapshotSuite) TestMaybeRunuserNoHappy(c *check.C) {
 func (s *snapshotSuite) TestImport(c *check.C) {
 	tempdir := c.MkDir()
 
+	defer backend.MockBackendSnapshot(func(f string) (*client.Snapshot, error) {
+		var sid uint64
+		var revision int
+		var snapName, version string
+		filename := path.Base(f)
+		parseF := strings.Replace(filename, "_", " ", 3)
+		parseF = strings.Replace(parseF, ".zip", "", 1)
+		if _, err := fmt.Sscanf(parseF, "%d %s %s %d", &sid, &snapName, &version, &revision); err != nil {
+			return nil, fmt.Errorf("unexpected filename format: %v", err)
+		}
+		snapshot := &client.Snapshot{
+			SetID:    sid,
+			Time:     time.Time{},
+			Snap:     snapName,
+			Revision: snap.Revision{N: revision},
+			Version:  version,
+		}
+		return snapshot, nil
+	})()
+
 	// create snapshot export file
 	tarFile1 := path.Join(tempdir, "exported1.snapshot")
 	err := backend.MockCreateExportFile(tarFile1, true, false)
@@ -754,7 +775,7 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 		{14, tarFile2, false, "snapshot import file incomplete: no export.json file"},
 		{14, tarFile1, true, "snapshot import already in progress for ID `14`"},
 		{14, tarFile3, false, "failed reading snapshot import: unexpected EOF"},
-		{14, tarFile4, false, ""},
+		{14, tarFile4, false, "unexpected directory in import file"},
 	}
 
 	for i, t := range table {
@@ -765,7 +786,7 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 		c.Check(err, check.IsNil, comm)
 		err := os.MkdirAll(dirs.SnapshotsDir, 0755)
 		c.Check(err, check.IsNil, comm)
-		cache := path.Join(dirs.SnapCacheDir, "snapshots", string(t.setID))
+		cache := path.Join(dirs.SnapCacheDir, "snapshots", fmt.Sprintf("import-%d", t.setID))
 		if t.inProgress {
 			// create the cache directory the set ID
 			err = os.MkdirAll(cache, 0755)
@@ -785,7 +806,7 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 			f.Close()
 			continue
 		}
-		c.Check(err, check.IsNil)
+		c.Check(err, check.IsNil, comm)
 		sort.Strings(snapNames)
 		c.Check(snapNames, check.DeepEquals, []string{"bar", "baz", "foo"})
 

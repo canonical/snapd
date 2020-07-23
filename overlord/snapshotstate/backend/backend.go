@@ -32,7 +32,6 @@ import (
 	"path"
 	"path/filepath"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/client"
@@ -57,9 +56,10 @@ var (
 	// Stop is used to ask Iter to stop iteration, without it being an error.
 	Stop = errors.New("stop iteration")
 
-	osOpen      = os.Open
-	dirNames    = (*os.File).Readdirnames
-	backendOpen = Open
+	osOpen                  = os.Open
+	dirNames                = (*os.File).Readdirnames
+	backendOpen             = Open
+	backendSnapshotFromFile = snapshotFromFilename
 )
 
 // Flags encompasses extra flags for snapshots backend Save.
@@ -161,23 +161,12 @@ func Filename(snapshot *client.Snapshot) string {
 }
 
 func snapshotFromFilename(f string) (*client.Snapshot, error) {
-	var setID uint64
-	var revision int
-	var snapName, version string
-	parseF := strings.Replace(f, "_", " ", 3)
-	parseF = strings.Replace(parseF, ".zip", "", 1)
-	if _, err := fmt.Sscanf(parseF, "%d %s %s %d", &setID, &snapName, &version, &revision); err != nil {
-		return nil, fmt.Errorf("unexpected filename format: %v", err)
+	r, err := Open(f)
+	if err != nil {
+		return nil, fmt.Errorf("cannot open snapshot: %v", err)
 	}
-
-	snapshot := &client.Snapshot{
-		SetID:    setID,
-		Time:     time.Time{},
-		Snap:     snapName,
-		Revision: snap.Revision{N: revision},
-		Version:  version,
-	}
-	return snapshot, nil
+	defer r.Close()
+	return &r.Snapshot, nil
 }
 
 // Save a snapshot
@@ -352,11 +341,14 @@ func Import(ctx context.Context, id uint64, r io.Reader) (int64, []string, error
 	comment := fmt.Sprintf("snapshot %d", id)
 
 	// prepare cache location to unpack the import file
-	p := path.Join(dirs.SnapCacheDir, "snapshots", string(id))
-	if _, err := os.Stat(p); !os.IsNotExist(err) {
-		return 0, nil, fmt.Errorf("snapshot import already in progress for ID `%d`", id)
+	p := path.Join(dirs.SnapCacheDir, "snapshots", fmt.Sprintf("import-%d", id))
+	if err := os.MkdirAll(path.Join(dirs.SnapCacheDir, "snapshots"), 0755); err != nil {
+		return 0, nil, fmt.Errorf("cannot create snapshots directory")
 	}
-	if err := os.MkdirAll(p, 0755); err != nil {
+	if err := os.Mkdir(p, 0755); err != nil {
+		if os.IsExist(err) {
+			return 0, nil, fmt.Errorf("snapshot import already in progress for ID `%d`", id)
+		}
 		return 0, nil, fmt.Errorf("failed creating import cache: %v", err)
 	}
 	defer os.RemoveAll(p)
@@ -366,7 +358,6 @@ func Import(ctx context.Context, id uint64, r io.Reader) (int64, []string, error
 	if err != nil {
 		return 0, nil, err
 	}
-
 	if !exportFound {
 		return 0, nil, fmt.Errorf("snapshot import file incomplete: no export.json file")
 	}
@@ -389,12 +380,10 @@ func Import(ctx context.Context, id uint64, r io.Reader) (int64, []string, error
 	return size, snapNames, err
 }
 
-func unpackSnapshotImport(r io.Reader, p string) (bool, int64, error) {
+func unpackSnapshotImport(r io.Reader, p string) (exportFound bool, size int64, err error) {
 	tr := tar.NewReader(r)
-	size := int64(0)
 	var tarErr error
 	var header *tar.Header
-	var exportFound bool
 	for tarErr == nil {
 		var skip bool
 		header, tarErr = tr.Next()
@@ -407,8 +396,7 @@ func unpackSnapshotImport(r io.Reader, p string) (bool, int64, error) {
 			// should not happen
 			skip = true
 		case header.Typeflag == tar.TypeDir:
-			// should not happen, but ignore directories
-			skip = true
+			return false, 0, errors.New("unexpected directory in import file")
 		}
 
 		if skip {
@@ -442,7 +430,8 @@ func moveCachedSnapshots(names []string, id uint64, p string) ([]string, error) 
 			// ignore metadata file
 			continue
 		}
-		snapshot, err := snapshotFromFilename(name)
+		old := path.Join(p, name)
+		snapshot, err := backendSnapshotFromFile(old)
 		if err != nil {
 			return nil, err
 		}
@@ -451,7 +440,6 @@ func moveCachedSnapshots(names []string, id uint64, p string) ([]string, error) 
 		// set the new setID and get the new filename
 		snapshot.SetID = id
 		new := Filename(snapshot)
-		old := path.Join(p, name)
 
 		if err := os.Rename(old, new); err != nil {
 			return nil, err

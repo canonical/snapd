@@ -22,6 +22,7 @@ package backend
 import (
 	"archive/tar"
 	"fmt"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"os"
 	"os/user"
@@ -97,6 +98,14 @@ func SetUserWrapper(newUserWrapper string) (restore func()) {
 	userWrapper = newUserWrapper
 	return func() {
 		userWrapper = oldUserWrapper
+	}
+}
+
+func MockBackendSnapshot(newSnapshot func(string) (*client.Snapshot, error)) func() {
+	oldSnapshot := backendSnapshotFromFile
+	backendSnapshotFromFile = newSnapshot
+	return func() {
+		backendSnapshotFromFile = oldSnapshot
 	}
 }
 
