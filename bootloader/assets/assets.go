@@ -117,24 +117,19 @@ func MockInternal(name string, data []byte) (restore func()) {
 
 // MockSnippetsForEdition mocks the contents of per-edition snippets.
 func MockSnippetsForEdition(name string, snippets []ForEditions) (restore func()) {
-	old, ok := registeredEditionAssets[name]
+	osutil.MustBeTestBinary("mocking can be done only in tests")
 
-	// TODO: this should be a helper in testutil
-	var goTestExeRe = regexp.MustCompile(`^.*/.*go-build.*/.*\.test$`)
-	var isSnapdTest = len(os.Args) > 0 && goTestExeRe.MatchString(os.Args[0])
-	if !isSnapdTest {
-		panic("mocking can be done only in tests")
-	}
+	old, ok := registeredEditionSnippets[name]
 	snippetsCopy := make([]ForEditions, len(snippets))
 	copy(snippetsCopy, snippets)
 	if ok {
-		delete(registeredEditionAssets, name)
+		delete(registeredEditionSnippets, name)
 	}
 	registerSnippetForEditions(name, snippetsCopy)
 
 	return func() {
 		if ok {
-			registeredEditionAssets[name] = old
+			registeredEditionSnippets[name] = old
 		} else {
 			delete(registeredAssets, name)
 		}

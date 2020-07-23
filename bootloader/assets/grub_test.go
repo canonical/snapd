@@ -90,12 +90,12 @@ func (s *grubAssetsTestSuite) TestGrubCmdlineSnippetCrossCheck(c *C) {
 		{
 			asset: "grub.cfg", snippet: "grub.cfg:static-cmdline", edition: 1,
 			content: []byte("console=ttyS0 console=tty1 panic=-1"),
-			pattern: "set cmdline=\"%s\"\n",
+			pattern: "set snapd_static_cmdline_args='%s'\n",
 		},
 		{
 			asset: "grub-recovery.cfg", snippet: "grub-recovery.cfg:static-cmdline", edition: 1,
 			content: []byte("console=ttyS0 console=tty1 panic=-1"),
-			pattern: "set cmdline=\"%s\"\n",
+			pattern: "set snapd_static_cmdline_args='%s'\n",
 		},
 	} {
 		grubCfg := assets.Internal(tc.asset)
