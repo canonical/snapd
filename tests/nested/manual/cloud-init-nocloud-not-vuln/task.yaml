@@ -19,10 +19,6 @@ prepare: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
 
-
-    # to build the cloud-init NoCloud cdrom drive
-    apt install -yqq genisoimage
-
     # build the cloud-init NoCloud cdrom drives
     (
         # for first-boot
@@ -48,8 +44,6 @@ restore: |
     . "$TESTSLIB/nested.sh"
     destroy_nested_vm
     cleanup_nested_env
-
-    apt remove -yqq genisoimage || true
 
 debug: |
     if [ -f snapd-before-reboot.logs ]; then

@@ -22,6 +22,7 @@ package interfaces
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -213,17 +214,11 @@ func SystemKeyMismatch() (bool, error) {
 		return false, err
 	}
 
-	raw, err := ioutil.ReadFile(dirs.SnapSystemKeyFile)
-	if err != nil && os.IsNotExist(err) {
-		return false, ErrSystemKeyMissing
-	}
+	diskSystemKey, err := readSystemKey()
 	if err != nil {
 		return false, err
 	}
-	var diskSystemKey systemKey
-	if err := json.Unmarshal(raw, &diskSystemKey); err != nil {
-		return false, err
-	}
+
 	// deal with the race that "snap run" may start, then snapd
 	// is upgraded and generates a new system-key with different
 	// inputs than the "snap run" in memory. In this case we
@@ -251,8 +246,51 @@ func SystemKeyMismatch() (bool, error) {
 	diskSystemKey.AppArmorParserFeatures = nil
 	mySystemKey.AppArmorParserFeatures = nil
 
+	ok, err := SystemKeysMatch(mySystemKey, diskSystemKey)
+	return !ok, err
+}
+
+func readSystemKey() (*systemKey, error) {
+	raw, err := ioutil.ReadFile(dirs.SnapSystemKeyFile)
+	if err != nil && os.IsNotExist(err) {
+		return nil, ErrSystemKeyMissing
+	}
+	if err != nil {
+		return nil, err
+	}
+	var diskSystemKey systemKey
+	if err := json.Unmarshal(raw, &diskSystemKey); err != nil {
+		return nil, err
+	}
+	return &diskSystemKey, nil
+}
+
+// RecordedSystemKey returns the system key read from the disk as opaque interface{}.
+func RecordedSystemKey() (interface{}, error) {
+	diskSystemKey, err := readSystemKey()
+	if err != nil {
+		return nil, err
+	}
+	return diskSystemKey, nil
+}
+
+// CurrentSystemKey calculates and returns the current system key as opaque interface{}.
+func CurrentSystemKey() (interface{}, error) {
+	currentSystemKey, err := generateSystemKey()
+	return currentSystemKey, err
+}
+
+// SystemKeysMatch returns whether the given system keys match.
+func SystemKeysMatch(systemKey1, systemKey2 interface{}) (bool, error) {
+	// sanity check
+	_, ok1 := systemKey1.(*systemKey)
+	_, ok2 := systemKey2.(*systemKey)
+	if !(ok1 && ok2) {
+		return false, fmt.Errorf("SystemKeysMatch: arguments are not system keys")
+	}
+
 	// TODO: write custom struct compare
-	return !reflect.DeepEqual(mySystemKey, &diskSystemKey), nil
+	return reflect.DeepEqual(systemKey1, systemKey2), nil
 }
 
 func MockSystemKey(s string) func() {

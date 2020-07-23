@@ -52,7 +52,7 @@ var (
 	Flatten = flatten
 
 	FilesystemInfo                 = filesystemInfo
-	DeviceLayoutFromPartitionTable = deviceLayoutFromPartitionTable
+	OnDiskVolumeFromPartitionTable = onDiskVolumeFromPartitionTable
 
 	NewRawStructureUpdater      = newRawStructureUpdater
 	NewMountedFilesystemUpdater = newMountedFilesystemUpdater

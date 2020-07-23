@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019-2020 Canonical Ltd
+ * Copyright (C) 2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,30 +17,31 @@
  *
  */
 
-package secboot_test
+package osutil_test
 
 import (
-	"io/ioutil"
-	"os"
+	"io"
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/osutil"
 )
 
-type encryptSuite struct{}
+type sizerTestSuite struct{}
 
-var _ = Suite(&encryptSuite{})
+var _ = Suite(&sizerTestSuite{})
 
-func (s *encryptSuite) TestRecoveryKeySave(c *C) {
-	rkey := secboot.RecoveryKey{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 255}
-	err := rkey.Save("test-key")
-	c.Assert(err, IsNil)
-	fileInfo, err := os.Stat("test-key")
-	c.Assert(err, IsNil)
-	c.Assert(fileInfo.Mode(), Equals, os.FileMode(0600))
-	data, err := ioutil.ReadFile("test-key")
-	c.Assert(err, IsNil)
-	c.Assert(data, DeepEquals, rkey[:])
-	os.Remove("test-key")
+func (s *sizerTestSuite) TestSizer(c *C) {
+	sz := &osutil.Sizer{}
+	c.Check(sz.Size(), Equals, int64(0))
+
+	io.WriteString(sz, "12345")
+	c.Check(sz.Size(), Equals, int64(5))
+	io.WriteString(sz, "12345")
+	c.Check(sz.Size(), Equals, int64(10))
+
+	sz.Reset()
+	c.Check(sz.Size(), Equals, int64(0))
+	io.WriteString(sz, "12345")
+	c.Check(sz.Size(), Equals, int64(5))
 }

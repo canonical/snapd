@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019-2020 Canonical Ltd
+ * Copyright (C) 2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,30 +17,24 @@
  *
  */
 
-package secboot_test
+package osutil
 
 import (
-	"io/ioutil"
 	"os"
-
-	. "gopkg.in/check.v1"
-
-	"github.com/snapcore/snapd/secboot"
+	"regexp"
 )
 
-type encryptSuite struct{}
+var goTestExeRe = regexp.MustCompile(`^.*/.*go-build.*/.*\.test$`)
 
-var _ = Suite(&encryptSuite{})
+// IsTestBinary checks whether the current process is a go test binary.
+func IsTestBinary() bool {
+	return len(os.Args) > 0 && goTestExeRe.MatchString(os.Args[0])
+}
 
-func (s *encryptSuite) TestRecoveryKeySave(c *C) {
-	rkey := secboot.RecoveryKey{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 255}
-	err := rkey.Save("test-key")
-	c.Assert(err, IsNil)
-	fileInfo, err := os.Stat("test-key")
-	c.Assert(err, IsNil)
-	c.Assert(fileInfo.Mode(), Equals, os.FileMode(0600))
-	data, err := ioutil.ReadFile("test-key")
-	c.Assert(err, IsNil)
-	c.Assert(data, DeepEquals, rkey[:])
-	os.Remove("test-key")
+// MustBeTestBinary checks whether the executing process is a go test binary,
+// panics otherwise.
+func MustBeTestBinary(panicMsg string) {
+	if !IsTestBinary() {
+		panic(panicMsg)
+	}
 }
