@@ -45,16 +45,20 @@ func enableFeatures(c *C, ff ...features.SnapdFeature) {
 	}
 }
 
-type trackingSuite struct{}
+type trackingSuite struct {
+	restoreTimeSleep func()
+}
 
 var _ = Suite(&trackingSuite{})
 
 func (s *trackingSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
+	s.restoreTimeSleep = cgroup.MockTimeSleep(func(d time.Duration) {})
 }
 
 func (s *trackingSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
+	s.restoreTimeSleep()
 }
 
 // CreateTransientScopeForTracking is a no-op when refresh app awareness is off
