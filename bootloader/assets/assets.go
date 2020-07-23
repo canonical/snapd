@@ -21,8 +21,8 @@ package assets
 
 import (
 	"fmt"
-	"os"
-	"strings"
+
+	"github.com/snapcore/snapd/osutil"
 )
 
 var registeredAssets = map[string][]byte{}
@@ -43,10 +43,7 @@ func Internal(name string) []byte {
 
 // MockInternal mocks the contents of an internal asset for use in testing.
 func MockInternal(name string, data []byte) (restore func()) {
-	var isSnapdTest = len(os.Args) > 0 && strings.HasSuffix(os.Args[0], ".test")
-	if !isSnapdTest {
-		panic("mocking can be done only in tests")
-	}
+	osutil.MustBeTestBinary("mocking can be done only in tests")
 
 	old, ok := registeredAssets[name]
 	registeredAssets[name] = data

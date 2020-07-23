@@ -92,8 +92,8 @@ var (
 	SnapDesktopFilesDir string
 	SnapDesktopIconsDir string
 
-	SnapBusPolicyDir           string
-	SnapBusSessionPolicyDir    string
+	SnapDBusSessionPolicyDir   string
+	SnapDBusSystemPolicyDir    string
 	SnapDBusSessionServicesDir string
 	SnapDBusSystemServicesDir  string
 
@@ -291,10 +291,6 @@ func SetRootDir(rootdir string) {
 	// freedesktop.org specifications
 	SnapDesktopFilesDir = filepath.Join(rootdir, snappyDir, "desktop", "applications")
 	SnapDesktopIconsDir = filepath.Join(rootdir, snappyDir, "desktop", "icons")
-	// Use 'dbus/services' and `dbus/system-services' to mirror
-	// '/usr/share/dbus-1' hierarchy.
-	SnapDBusSessionServicesDir = filepath.Join(rootdir, snappyDir, "dbus", "services")
-	SnapDBusSystemServicesDir = filepath.Join(rootdir, snappyDir, "dbus", "system-services")
 	SnapRunDir = filepath.Join(rootdir, "/run/snapd")
 	SnapRunNsDir = filepath.Join(SnapRunDir, "/ns")
 	SnapRunLockDir = filepath.Join(SnapRunDir, "/lock")
@@ -338,8 +334,13 @@ func SetRootDir(rootdir string) {
 	SnapServicesDir = filepath.Join(rootdir, "/etc/systemd/system")
 	SnapUserServicesDir = filepath.Join(rootdir, "/etc/systemd/user")
 	SnapSystemdConfDir = SnapSystemdConfDirUnder(rootdir)
-	SnapBusPolicyDir = filepath.Join(rootdir, "/etc/dbus-1/system.d")
-	SnapBusSessionPolicyDir = filepath.Join(rootdir, "/etc/dbus-1/session.d")
+
+	SnapDBusSystemPolicyDir = filepath.Join(rootdir, "/etc/dbus-1/system.d")
+	SnapDBusSessionPolicyDir = filepath.Join(rootdir, "/etc/dbus-1/session.d")
+	// Use 'dbus-1/services' and `dbus-1/system-services' to mirror
+	// '/usr/share/dbus-1' hierarchy.
+	SnapDBusSessionServicesDir = filepath.Join(rootdir, snappyDir, "dbus-1", "services")
+	SnapDBusSystemServicesDir = filepath.Join(rootdir, snappyDir, "dbus-1", "system-services")
 
 	CloudInstanceDataFile = filepath.Join(rootdir, "/run/cloud-init/instance-data.json")
 

@@ -264,7 +264,7 @@ epoch: 1*
 	})
 }
 
-func (s snapmgrTestSuite) TestInstallFailsOnDisabledSnap(c *C) {
+func (s *snapmgrTestSuite) TestInstallFailsOnDisabledSnap(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -287,7 +287,7 @@ func dummyInUseCheck(snap.Type) (boot.InUseFunc, error) {
 	}, nil
 }
 
-func (s snapmgrTestSuite) TestInstallFailsOnBusySnap(c *C) {
+func (s *snapmgrTestSuite) TestInstallFailsOnBusySnap(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -340,7 +340,7 @@ func (s snapmgrTestSuite) TestInstallFailsOnBusySnap(c *C) {
 	c.Check(snapst.RefreshInhibitedTime, NotNil)
 }
 
-func (s snapmgrTestSuite) TestInstallDespiteBusySnap(c *C) {
+func (s *snapmgrTestSuite) TestInstallDespiteBusySnap(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -389,7 +389,7 @@ func (s snapmgrTestSuite) TestInstallDespiteBusySnap(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s snapmgrTestSuite) TestInstallFailsOnSystem(c *C) {
+func (s *snapmgrTestSuite) TestInstallFailsOnSystem(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
