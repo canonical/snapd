@@ -631,4 +631,7 @@ func (s *trackingSuite) TestCreateTransientScopeForTrackingDelayedBehavior(c *C)
 
 	err = cgroup.CreateTransientScopeForTracking("snap.pkg.app")
 	c.Check(err, IsNil)
+
+	// Ensure we virtually slept for a while.
+	c.Assert(sleepDuration >= 50*time.Millisecond, Equals, true)
 }
