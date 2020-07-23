@@ -166,7 +166,7 @@ func (s *mountinfoSuite) TestLoadMountInfo1(c *C) {
 	fname := filepath.Join(c.MkDir(), "mountinfo")
 	err := ioutil.WriteFile(fname, []byte(mountInfoSample), 0644)
 	c.Assert(err, IsNil)
-	restore := osutil.MockIsSnapdTest(false)
+	restore := osutil.MountInfoMustMock(false)
 	defer restore()
 	restore = osutil.MockProcSelfMountInfoLocation(fname)
 	defer restore()
@@ -178,7 +178,7 @@ func (s *mountinfoSuite) TestLoadMountInfo1(c *C) {
 // Test that loading mountinfo from a missing file reports an error.
 func (s *mountinfoSuite) TestLoadMountInfo2(c *C) {
 	fname := filepath.Join(c.MkDir(), "mountinfo")
-	restore := osutil.MockIsSnapdTest(false)
+	restore := osutil.MountInfoMustMock(false)
 	defer restore()
 	restore = osutil.MockProcSelfMountInfoLocation(fname)
 	defer restore()
@@ -193,7 +193,7 @@ func (s *mountinfoSuite) TestLoadMountInfo3(c *C) {
 	c.Assert(err, IsNil)
 	err = os.Chmod(fname, 0000)
 	c.Assert(err, IsNil)
-	restore := osutil.MockIsSnapdTest(false)
+	restore := osutil.MountInfoMustMock(false)
 	defer restore()
 	restore = osutil.MockProcSelfMountInfoLocation(fname)
 	defer restore()

@@ -71,31 +71,48 @@ func (s *assetsTestSuite) TestRegisterSnippetPanics(c *C) {
 		assets.RegisterSnippetForEditions("foo", []assets.ForEditions{
 			{FirstEdition: 2, Snippet: []byte("bar")},
 		})
-	}, PanicMatches, `edition asset "foo" is already registered`)
+	}, PanicMatches, `edition snippets "foo" are already registered`)
+	// panics when snippets aren't sorted
+	c.Assert(func() {
+		assets.RegisterSnippetForEditions("unsorted", []assets.ForEditions{
+			{FirstEdition: 2, Snippet: []byte("two")},
+			{FirstEdition: 1, Snippet: []byte("one")},
+		})
+	}, PanicMatches, `edition snippets "unsorted" must be sorted in ascending edition number order`)
 	// panics when edition is repeated
 	c.Assert(func() {
 		assets.RegisterSnippetForEditions("doubled edition", []assets.ForEditions{
-			{FirstEdition: 3, Snippet: []byte("three")},
-			{FirstEdition: 2, Snippet: []byte("two")},
-			{FirstEdition: 4, Snippet: []byte("four")},
-			{FirstEdition: 3, Snippet: []byte("more tree")},
 			{FirstEdition: 1, Snippet: []byte("one")},
+			{FirstEdition: 2, Snippet: []byte("two")},
+			{FirstEdition: 3, Snippet: []byte("three")},
+			{FirstEdition: 3, Snippet: []byte("more tree")},
+			{FirstEdition: 4, Snippet: []byte("four")},
 		})
-	}, PanicMatches, `first edition 3 repeated in edition asset "doubled edition"`)
+	}, PanicMatches, `first edition 3 repeated in edition snippets "doubled edition"`)
+	// mix unsorted with duplicate edition
+	c.Assert(func() {
+		assets.RegisterSnippetForEditions("unsorted and doubled edition", []assets.ForEditions{
+			{FirstEdition: 1, Snippet: []byte("one")},
+			{FirstEdition: 2, Snippet: []byte("two")},
+			{FirstEdition: 1, Snippet: []byte("one again")},
+			{FirstEdition: 3, Snippet: []byte("more tree")},
+			{FirstEdition: 4, Snippet: []byte("four")},
+		})
+	}, PanicMatches, `edition snippets "unsorted and doubled edition" must be sorted in ascending edition number order`)
 }
 
 func (s *assetsTestSuite) TestEditionSnippets(c *C) {
 	assets.RegisterSnippetForEditions("foo", []assets.ForEditions{
-		{FirstEdition: 3, Snippet: []byte("three")},
-		{FirstEdition: 2, Snippet: []byte("two")},
-		{FirstEdition: 20, Snippet: []byte("twenty")},
-		{FirstEdition: 4, Snippet: []byte("four")},
 		{FirstEdition: 1, Snippet: []byte("one")},
+		{FirstEdition: 2, Snippet: []byte("two")},
+		{FirstEdition: 3, Snippet: []byte("three")},
+		{FirstEdition: 4, Snippet: []byte("four")},
 		{FirstEdition: 10, Snippet: []byte("ten")},
+		{FirstEdition: 20, Snippet: []byte("twenty")},
 	})
 	assets.RegisterSnippetForEditions("bar", []assets.ForEditions{
-		{FirstEdition: 3, Snippet: []byte("bar three")},
 		{FirstEdition: 1, Snippet: []byte("bar one")},
+		{FirstEdition: 3, Snippet: []byte("bar three")},
 		// same as 3
 		{FirstEdition: 5, Snippet: []byte("bar three")},
 	})

@@ -17,20 +17,24 @@
  *
  */
 
-package assets
+package osutil
 
-var (
-	RegisterInternal           = registerInternal
-	RegisterSnippetForEditions = registerSnippetForEditions
+import (
+	"os"
+	"regexp"
 )
 
-func MockCleanState() (restore func()) {
-	oldRegisteredAssets := registeredAssets
-	oldRegisteredEditionAssets := registeredEditionSnippets
-	registeredAssets = map[string][]byte{}
-	registeredEditionSnippets = map[string][]ForEditions{}
-	return func() {
-		registeredAssets = oldRegisteredAssets
-		registeredEditionSnippets = oldRegisteredEditionAssets
+var goTestExeRe = regexp.MustCompile(`^.*/.*go-build.*/.*\.test$`)
+
+// IsTestBinary checks whether the current process is a go test binary.
+func IsTestBinary() bool {
+	return len(os.Args) > 0 && goTestExeRe.MatchString(os.Args[0])
+}
+
+// MustBeTestBinary checks whether the executing process is a go test binary,
+// panics otherwise.
+func MustBeTestBinary(panicMsg string) {
+	if !IsTestBinary() {
+		panic(panicMsg)
 	}
 }

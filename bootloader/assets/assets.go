@@ -21,9 +21,9 @@ package assets
 
 import (
 	"fmt"
-	"os"
-	"regexp"
 	"sort"
+
+	"github.com/snapcore/snapd/osutil"
 )
 
 var registeredAssets = map[string][]byte{}
@@ -37,7 +37,7 @@ type ForEditions struct {
 	Snippet []byte
 }
 
-var registeredEditionAssets = map[string][]ForEditions{}
+var registeredEditionSnippets = map[string][]ForEditions{}
 
 // registerInternal registers an internal asset under the given name.
 func registerInternal(name string, data []byte) {
@@ -62,27 +62,29 @@ func (b byFirstEdition) Less(i, j int) bool { return b[i].FirstEdition < b[j].Fi
 // registerSnippetForEditions register a set of snippets, each carrying the
 // first edition number it applies to, under a given key.
 func registerSnippetForEditions(name string, snippets []ForEditions) {
-	if _, ok := registeredEditionAssets[name]; ok {
-		panic(fmt.Sprintf("edition asset %q is already registered", name))
+	if _, ok := registeredEditionSnippets[name]; ok {
+		panic(fmt.Sprintf("edition snippets %q are already registered", name))
 	}
 
-	sort.Sort(byFirstEdition(snippets))
+	if !sort.IsSorted(byFirstEdition(snippets)) {
+		panic(fmt.Sprintf("edition snippets %q must be sorted in ascending edition number order", name))
+	}
 	for i := range snippets {
 		if i == 0 {
 			continue
 		}
 		if snippets[i-1].FirstEdition == snippets[i].FirstEdition {
-			panic(fmt.Sprintf(`first edition %v repeated in edition asset %q`,
+			panic(fmt.Sprintf(`first edition %v repeated in edition snippets %q`,
 				snippets[i].FirstEdition, name))
 		}
 	}
-	registeredEditionAssets[name] = snippets
+	registeredEditionSnippets[name] = snippets
 }
 
 // SnippetForEdition returns a snippet registered under given name,
 // applicable for the provided edition number.
 func SnippetForEdition(name string, edition uint) []byte {
-	snippets := registeredEditionAssets[name]
+	snippets := registeredEditionSnippets[name]
 	if snippets == nil {
 		return nil
 	}
@@ -100,11 +102,7 @@ func SnippetForEdition(name string, edition uint) []byte {
 
 // MockInternal mocks the contents of an internal asset for use in testing.
 func MockInternal(name string, data []byte) (restore func()) {
-	var goTestExeRe = regexp.MustCompile(`^.*/.*go-build.*/.*\.test$`)
-	var isSnapdTest = len(os.Args) > 0 && goTestExeRe.MatchString(os.Args[0])
-	if !isSnapdTest {
-		panic("mocking can be done only in tests")
-	}
+	osutil.MustBeTestBinary("mocking can be done only in tests")
 
 	old, ok := registeredAssets[name]
 	registeredAssets[name] = data
