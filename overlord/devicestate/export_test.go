@@ -128,6 +128,10 @@ func EnsureSeeded(m *DeviceManager) error {
 	return m.ensureSeeded()
 }
 
+func EnsureCloudInitRestricted(m *DeviceManager) error {
+	return m.ensureCloudInitRestricted()
+}
+
 var PopulateStateFromSeedImpl = populateStateFromSeedImpl
 
 type PopulateStateFromSeedOptions = populateStateFromSeedOptions
@@ -245,5 +249,21 @@ func MockInstallRun(f func(gadgetRoot, device string, options install.Options) e
 	installRun = f
 	return func() {
 		installRun = old
+	}
+}
+
+func MockCloudInitStatus(f func() (sysconfig.CloudInitState, error)) (restore func()) {
+	old := cloudInitStatus
+	cloudInitStatus = f
+	return func() {
+		cloudInitStatus = old
+	}
+}
+
+func MockRestrictCloudInit(f func(sysconfig.CloudInitState, *sysconfig.CloudInitRestrictOptions) (sysconfig.CloudInitRestrictionResult, error)) (restore func()) {
+	old := restrictCloudInit
+	restrictCloudInit = f
+	return func() {
+		restrictCloudInit = old
 	}
 }

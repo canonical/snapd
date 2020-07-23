@@ -417,7 +417,7 @@ func (s *ondiskTestSuite) TestBuildPartitionList(c *C) {
 	pv, err := gadget.PositionedVolumeFromGadget(s.gadgetRoot)
 	c.Assert(err, IsNil)
 
-	dl, err := gadget.DeviceLayoutFromPartitionTable(ptable)
+	dl, err := gadget.OnDiskVolumeFromPartitionTable(ptable)
 	c.Assert(err, IsNil)
 
 	// the expected expanded writable partition size is:
@@ -426,6 +426,65 @@ func (s *ondiskTestSuite) TestBuildPartitionList(c *C) {
 	c.Assert(sfdiskInput.String(), Equals, `/dev/node3 : start=     2461696, size=     5926879, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Writable", attrs="GUID:59"
 `)
 	c.Assert(create, DeepEquals, []gadget.OnDiskStructure{mockOnDiskStructureWritable})
+}
+
+func (s *ondiskTestSuite) TestUpdatePartitionList(c *C) {
+	const mockSfdiskScriptBios = `
+>&2 echo "Some warning from sfdisk"
+echo '{
+  "partitiontable": {
+    "label": "gpt",
+    "id": "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA",
+    "device": "/dev/node",
+    "unit": "sectors",
+    "firstlba": 34,
+    "lastlba": 8388574,
+    "partitions": [
+      {
+        "node": "/dev/node1",
+        "start": 2048,
+        "size": 2048,
+        "type": "21686148-6449-6E6F-744E-656564454649",
+        "uuid": "2E59D969-52AB-430B-88AC-F83873519F6F",
+        "name": "BIOS Boot"
+      }
+    ]
+  }
+}'`
+
+	const mockLsblkScriptBios = `
+[ "$3" == "/dev/node1" ] && echo '{
+    "blockdevices": [ {"name": "node1", "fstype": null, "label": null, "uuid": null, "mountpoint": null} ]
+}'
+exit 0`
+
+	// start with a single partition
+	cmdSfdisk := testutil.MockCommand(c, "sfdisk", mockSfdiskScriptBios)
+	defer cmdSfdisk.Restore()
+
+	cmdLsblk := testutil.MockCommand(c, "lsblk", mockLsblkScriptBios)
+	defer cmdLsblk.Restore()
+
+	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
+	c.Assert(err, IsNil)
+	c.Assert(len(dl.Structure), Equals, 1)
+	c.Assert(dl.Structure[0].Node, Equals, "/dev/node1")
+
+	// add a partition
+	cmdSfdisk = testutil.MockCommand(c, "sfdisk", mockSfdiskScriptBiosSeed)
+	defer cmdSfdisk.Restore()
+
+	cmdLsblk = testutil.MockCommand(c, "lsblk", mockLsblkScriptBiosSeed)
+	defer cmdLsblk.Restore()
+
+	// update the partition list
+	err = gadget.UpdatePartitionList(dl)
+	c.Assert(err, IsNil)
+
+	// check if the partition list was updated
+	c.Assert(len(dl.Structure), Equals, 2)
+	c.Assert(dl.Structure[0].Node, Equals, "/dev/node1")
+	c.Assert(dl.Structure[1].Node, Equals, "/dev/node2")
 }
 
 func (s *ondiskTestSuite) TestCreatedDuringInstallGPT(c *C) {
@@ -474,7 +533,7 @@ func (s *ondiskTestSuite) TestCreatedDuringInstallGPT(c *C) {
 			},
 		},
 	}
-	dl, err := gadget.DeviceLayoutFromPartitionTable(ptable)
+	dl, err := gadget.OnDiskVolumeFromPartitionTable(ptable)
 	c.Assert(err, IsNil)
 	list := gadget.CreatedDuringInstall(dl)
 	c.Assert(list, HasLen, 0)
@@ -484,7 +543,7 @@ func (s *ondiskTestSuite) TestCreatedDuringInstallGPT(c *C) {
 		ptable.Partitions[i].Attrs = "RequiredPartition LegacyBIOSBootable GUID:58,59"
 	}
 
-	dl, err = gadget.DeviceLayoutFromPartitionTable(ptable)
+	dl, err = gadget.OnDiskVolumeFromPartitionTable(ptable)
 	c.Assert(err, IsNil)
 	list = gadget.CreatedDuringInstall(dl)
 	c.Assert(list, DeepEquals, []string{"/dev/node1", "/dev/node2"})
@@ -558,7 +617,7 @@ EOF`)
 			},
 		},
 	}
-	dl, err := gadget.DeviceLayoutFromPartitionTable(ptable)
+	dl, err := gadget.OnDiskVolumeFromPartitionTable(ptable)
 	c.Assert(err, IsNil)
 	list := gadget.CreatedDuringInstall(dl)
 	c.Assert(list, DeepEquals, []string{"/dev/node2", "/dev/node4"})

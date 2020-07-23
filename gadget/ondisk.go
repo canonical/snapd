@@ -139,7 +139,7 @@ type OnDiskVolume struct {
 	Size Size
 	// sector size in bytes
 	SectorSize     Size
-	PartitionTable *sfdiskPartitionTable
+	partitionTable *sfdiskPartitionTable
 }
 
 // OnDiskVolumeFromDevice obtains the partitioning and filesystem information from
@@ -155,7 +155,7 @@ func OnDiskVolumeFromDevice(device string) (*OnDiskVolume, error) {
 		return nil, fmt.Errorf("cannot parse sfdisk output: %v", err)
 	}
 
-	dl, err := deviceLayoutFromPartitionTable(dump.PartitionTable)
+	dl, err := onDiskVolumeFromPartitionTable(dump.PartitionTable)
 	if err != nil {
 		return nil, err
 	}
@@ -196,9 +196,9 @@ func blockDeviceSizeInSectors(devpath string) (Size, error) {
 	return Size(sz), nil
 }
 
-// deviceLayoutFromPartitionTable takes an sfdisk dump partition table and returns
-// the partitioning information as a device layout.
-func deviceLayoutFromPartitionTable(ptable sfdiskPartitionTable) (*OnDiskVolume, error) {
+// onDiskVolumeFromPartitionTable takes an sfdisk dump partition table and returns
+// the partitioning information as an on-disk volume.
+func onDiskVolumeFromPartitionTable(ptable sfdiskPartitionTable) (*OnDiskVolume, error) {
 	if ptable.Unit != "sectors" {
 		return nil, fmt.Errorf("cannot position partitions: unknown unit %q", ptable.Unit)
 	}
@@ -265,7 +265,7 @@ func deviceLayoutFromPartitionTable(ptable sfdiskPartitionTable) (*OnDiskVolume,
 		Schema:         ptable.Label,
 		Size:           numSectors * sectorSize,
 		SectorSize:     sectorSize,
-		PartitionTable: &ptable,
+		partitionTable: &ptable,
 	}
 
 	return dl, nil
@@ -286,7 +286,7 @@ func deviceName(name string, index int) string {
 // returns a partitioning description suitable for sfdisk input and a
 // list of the partitions to be created.
 func BuildPartitionList(dl *OnDiskVolume, pv *LaidOutVolume) (sfdiskInput *bytes.Buffer, toBeCreated []OnDiskStructure) {
-	ptable := dl.PartitionTable
+	ptable := dl.partitionTable
 
 	// Keep track what partitions we already have on disk
 	seen := map[uint64]bool{}
@@ -361,6 +361,23 @@ func BuildPartitionList(dl *OnDiskVolume, pv *LaidOutVolume) (sfdiskInput *bytes
 	}
 
 	return buf, toBeCreated
+}
+
+// UpdatePartitionList re-reads the partitioning data from the device and
+// updates the partition list in the specified volume.
+func UpdatePartitionList(dl *OnDiskVolume) error {
+	layout, err := OnDiskVolumeFromDevice(dl.Device)
+	if err != nil {
+		return fmt.Errorf("cannot read disk layout: %v", err)
+	}
+	if dl.ID != layout.ID {
+		return fmt.Errorf("partition table IDs don't match")
+	}
+
+	dl.Structure = layout.Structure
+	dl.partitionTable = layout.partitionTable
+
+	return nil
 }
 
 // CreatedDuringInstall returns a list of partitions created during the
