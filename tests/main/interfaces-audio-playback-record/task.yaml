@@ -83,6 +83,8 @@ prepare: |
     StartLimitBurst=0
     EOF
     tests.cleanup defer rm /etc/systemd/user/pulseaudio.service.d/no-start-limit.conf
+    # reload user's systemd instance
+    tests.session -u test exec systemctl daemon-reload --user
 
 debug: |
     echo "Files present in the test user's home directory"
