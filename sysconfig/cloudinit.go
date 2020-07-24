@@ -32,8 +32,18 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-func DisableCloudInit(targetdir string) error {
-	ubuntuDataCloud := filepath.Join(targetdir, "etc/cloud/")
+func ubuntuDataCloudDir(rootdir string) string {
+	return filepath.Join(rootdir, "etc/cloud/")
+}
+
+// DisableCloudInit will disable cloud-init permanently by writing a
+// cloud-init.disabled config file in etc/cloud under the target dir, which
+// instructs cloud-init-generator to not trigger new cloud-init invocations.
+// Note that even with this disabled file, a root user could still manually run
+// cloud-init, but this capability is not provided to any strictly confined
+// snap.
+func DisableCloudInit(rootDir string) error {
+	ubuntuDataCloud := ubuntuDataCloudDir(rootDir)
 	if err := os.MkdirAll(ubuntuDataCloud, 0755); err != nil {
 		return fmt.Errorf("cannot make cloud config dir: %v", err)
 	}
@@ -53,7 +63,7 @@ func installCloudInitCfg(src, targetdir string) error {
 		return nil
 	}
 
-	ubuntuDataCloudCfgDir := filepath.Join(targetdir, "etc/cloud/cloud.cfg.d/")
+	ubuntuDataCloudCfgDir := filepath.Join(ubuntuDataCloudDir(targetdir), "cloud.cfg.d/")
 	if err := os.MkdirAll(ubuntuDataCloudCfgDir, 0755); err != nil {
 		return fmt.Errorf("cannot make cloud config dir: %v", err)
 	}
@@ -75,10 +85,10 @@ func configureCloudInit(opts *Options) (err error) {
 
 	switch opts.CloudInitSrcDir {
 	case "":
-		// disable cloud-init by default (as it's not confined)
-		err = DisableCloudInit(opts.TargetRootDir)
+		// disable cloud-init by default using the writable dir
+		err = DisableCloudInit(WritableDefaultsDir(opts.TargetRootDir))
 	default:
-		err = installCloudInitCfg(opts.CloudInitSrcDir, opts.TargetRootDir)
+		err = installCloudInitCfg(opts.CloudInitSrcDir, WritableDefaultsDir(opts.TargetRootDir))
 	}
 	return err
 }
