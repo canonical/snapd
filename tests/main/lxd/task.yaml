@@ -83,7 +83,7 @@ execute: |
 
     # The snapd package we build as part of the tests will only run on the
     # distro we build on. So we need to launch the right ubuntu version.
-    # prep two containers, the my-ubuntu normal container and the 
+    # prep two containers, the my-ubuntu normal container and the
     # my-nesting-ubuntu nesting container
 
     lxd.lxc launch --quiet "ubuntu:${VERSION_ID:-}" my-ubuntu
@@ -114,7 +114,7 @@ execute: |
         if [ -n "${https_proxy:-}" ]; then
             lxd.lxc exec $cont_name -- sh -c "echo https_proxy=$https_proxy >> /etc/environment"
         fi
-        
+
         echo "Install snapd in container"
         lxd.lxc exec $cont_name -- /bin/bash /root/prep-snapd-in-lxd.sh
         lxd.lxc exec $cont_name -- snap set system experimental.refresh-app-awareness=$REFRESH_APP_AWARENESS_INNER
@@ -148,7 +148,7 @@ execute: |
     lxd.lxc exec my-nesting-ubuntu -- lxd.lxc launch "ubuntu:${VERSION_ID:-}" my-inner-ubuntu
     lxd.lxc exec my-nesting-ubuntu -- lxd.lxc exec my-inner-ubuntu -- echo "from-the-INSIDE-inside" | MATCH from-the-INSIDE-inside
 
-    # finally check that we can't run snapd inside a nested lxd container as 
+    # finally check that we can't run snapd inside a nested lxd container as
     # current apparmor does not support this, so if this works it is probably a
     # confinement bug
     lxd.lxc exec my-nesting-ubuntu -- lxd.lxc file push --quiet prep-snapd-in-lxd.sh my-inner-ubuntu/root/
@@ -173,7 +173,7 @@ execute: |
         lxd.lxc exec my-inner-ubuntu -- \
             snap install test-snapd-sh 2>stderr.log
     # replace newlines with spaces to get one long line
-    tr '\n' ' ' < stderr.log | MATCH "error:\s+system\s+does\s+not\s+fully\s+support\s+snapd:\s+apparmor\s+detected\s+but\s+insufficient\s+permissions\s+to\s+use\s+it" 
+    tr '\n' ' ' < stderr.log | MATCH "error:\s+system\s+does\s+not\s+fully\s+support\s+snapd:\s+apparmor\s+detected\s+but\s+insufficient\s+permissions\s+to\s+use\s+it"
 
     echo "Install lxd-demo server to exercise the lxd interface"
     snap install lxd-demo-server
