@@ -30,7 +30,6 @@ prepare: |
   echo "Running preseed --reset for already preseeded cloud images"
   SNAPD_DEBUG=1 /usr/lib/snapd/snap-preseed --reset "$IMAGE_MOUNTPOINT"
 
-
   # Inject current snapd into seeds
   #shellcheck source=tests/lib/snaps.sh
   . "$TESTSLIB"/snaps.sh
