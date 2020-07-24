@@ -1418,7 +1418,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep3Encrypted(c *C
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, fmt.Sprintf("%s-model-measured", s.sysLabel)), testutil.FilePresent)
 }
 
-var mockStateContent = `{"data":{"auth":{"users":[{"name":"mvo"}]}},"some":{"other":"stuff"}}`
+var mockStateContent = `{"data":{"auth":{"users":[{"id":1,"name":"mvo"}],"macaroon-key":"not-a-cookie","last-id":1}},"some":{"other":"stuff"}}`
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep4(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover snapd_recovery_system="+s.sysLabel)
@@ -1441,7 +1441,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep4(c *C) {
 	hostUbuntuData := filepath.Join(boot.InitramfsRunMntDir, "host/ubuntu-data/")
 	err = os.MkdirAll(hostUbuntuData, 0755)
 	c.Assert(err, IsNil)
-	mockAuthFiles := []string{
+	mockCopiedFiles := []string{
 		// extrausers
 		"system-data/var/lib/extrausers/passwd",
 		"system-data/var/lib/extrausers/shadow",
@@ -1453,20 +1453,30 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep4(c *C) {
 		// user ssh
 		"user-data/user1/.ssh/authorized_keys",
 		"user-data/user2/.ssh/authorized_keys",
+		// user snap authentication
+		"user-data/user1/.snap/auth.json",
 		// sudoers
 		"system-data/etc/sudoers.d/create-user-test",
+		// netplan networking
+		"system-data/etc/netplan/00-snapd-config.yaml", // example console-conf filename
+		"system-data/etc/netplan/50-cloud-init.yaml",   // example cloud-init filename
+		// systemd clock file
+		"system-data/var/lib/systemd/timesync/clock",
 	}
 	mockUnrelatedFiles := []string{
 		"system-data/var/lib/foo",
 		"system-data/etc/passwd",
 		"user-data/user1/some-random-data",
 		"user-data/user2/other-random-data",
+		"user-data/user2/.snap/sneaky-not-auth.json",
+		"system-data/etc/not-networking/netplan",
+		"system-data/var/lib/systemd/timesync/clock-not-the-clock",
 	}
-	for _, mockAuthFile := range append(mockAuthFiles, mockUnrelatedFiles...) {
-		p := filepath.Join(hostUbuntuData, mockAuthFile)
+	for _, mockFile := range append(mockCopiedFiles, mockUnrelatedFiles...) {
+		p := filepath.Join(hostUbuntuData, mockFile)
 		err = os.MkdirAll(filepath.Dir(p), 0750)
 		c.Assert(err, IsNil)
-		mockContent := fmt.Sprintf("content of %s", filepath.Base(mockAuthFile))
+		mockContent := fmt.Sprintf("content of %s", filepath.Base(mockFile))
 		err = ioutil.WriteFile(p, []byte(mockContent), 0640)
 		c.Assert(err, IsNil)
 	}
@@ -1489,7 +1499,7 @@ recovery_system=20191118
 	for _, p := range mockUnrelatedFiles {
 		c.Check(filepath.Join(ephemeralUbuntuData, p), testutil.FileAbsent)
 	}
-	for _, p := range mockAuthFiles {
+	for _, p := range mockCopiedFiles {
 		c.Check(filepath.Join(ephemeralUbuntuData, p), testutil.FilePresent)
 		fi, err := os.Stat(filepath.Join(ephemeralUbuntuData, p))
 		// check file mode is set
@@ -1501,7 +1511,7 @@ recovery_system=20191118
 		c.Check(fiParent.Mode(), Equals, os.FileMode(os.ModeDir|0750))
 	}
 
-	c.Check(filepath.Join(ephemeralUbuntuData, "system-data/var/lib/snapd/state.json"), testutil.FileEquals, `{"data":{"auth":{"users":[{"name":"mvo"}]}},"changes":{},"tasks":{},"last-change-id":0,"last-task-id":0,"last-lane-id":0}`)
+	c.Check(filepath.Join(ephemeralUbuntuData, "system-data/var/lib/snapd/state.json"), testutil.FileEquals, `{"data":{"auth":{"last-id":1,"macaroon-key":"not-a-cookie","users":[{"id":1,"name":"mvo"}]}},"changes":{},"tasks":{},"last-change-id":0,"last-task-id":0,"last-lane-id":0}`)
 }
 
 func mockSecbootTPM(c *C) (tpm *secboot.TPMConnection, restore func()) {
