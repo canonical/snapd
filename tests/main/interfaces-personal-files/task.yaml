@@ -15,7 +15,7 @@ prepare: |
     "$TESTSTOOLS"/fs-state mock-dir /root/testdir1
 
     # Second layer of dirs and files
-    "$TESTSTOOLS"/fs-state mock-file /root/.testdir1/.testfilé2
+    "$TESTSTOOLS"/fs-state mock-file /root/.testdir1/.testfile2
     "$TESTSTOOLS"/fs-state mock-file "/root/.testdir1/test file2"
     "$TESTSTOOLS"/fs-state mock-dir /root/.testdir1/.testdir2
 
@@ -45,13 +45,13 @@ execute: |
     test-snapd-sh.with-personal-files-plug -c "cat /root/testfile1" | MATCH "mock file"
     test-snapd-sh.with-personal-files-plug -c "ls /root/.testdir1"
     test-snapd-sh.with-personal-files-plug -c "ls /root/testdir1"
-    test-snapd-sh.with-personal-files-plug -c "cat /root/.testdir1/.testfilé2" | MATCH "mock file"
+    test-snapd-sh.with-personal-files-plug -c "cat /root/.testdir1/.testfile2" | MATCH "mock file"
     test-snapd-sh.with-personal-files-plug -c "cat '/root/.testdir1/test file2'" | MATCH "mock file"
     test-snapd-sh.with-personal-files-plug -c "ls  /root/.testdir1/.testdir2/"
 
     echo "Then the snap is able to write on /root/.testdir1 and /root/.testfile1"
     test-snapd-sh.with-personal-files-plug -c "echo test >> /root/.testfile1"
-    test-snapd-sh.with-personal-files-plug -c "touch /root/.testdir1/testfilé2"
+    test-snapd-sh.with-personal-files-plug -c "touch /root/.testdir1/testfile2"
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
