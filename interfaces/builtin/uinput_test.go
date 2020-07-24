@@ -102,6 +102,7 @@ func (s *uinputInterfaceSuite) TestStaticInfo(c *C) {
 	c.Assert(si.Summary, Equals, `allows access to the uinput device`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "uinput")
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "deny-auto-connection: true")
+	c.Assert(si.BaseDeclarationPlugs, testutil.Contains, "allow-installation: false")
 }
 
 func (s *uinputInterfaceSuite) TestInterfaces(c *C) {

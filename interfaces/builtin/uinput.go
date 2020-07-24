@@ -23,6 +23,19 @@ package builtin
 // because this interface allows for arbitrary input injection.
 const uinputSummary = `allows access to the uinput device`
 
+// While this interface grants precisely what it says it does, there is known
+// popular software that uses the uinput device and recommends modifying the
+// permissions to be 0666 (see below). Require an installation constraint to
+// require vetting of snap publishers in an effort to protect existing systems
+// with lax permissions and to protect users from arbitrary publishers who
+// document to both manually connect and to change the permissions on the
+// device.
+const uinputBaseDeclarationPlugs = `
+  uinput:
+    allow-installation: false
+    deny-auto-connection: true
+`
+
 const uinputBaseDeclarationSlots = `
   uinput:
     allow-installation:
@@ -60,6 +73,7 @@ func init() {
 		summary:               uinputSummary,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
+		baseDeclarationPlugs:  uinputBaseDeclarationPlugs,
 		baseDeclarationSlots:  uinputBaseDeclarationSlots,
 		connectedPlugAppArmor: uinputConnectedPlugAppArmor,
 		connectedPlugUDev:     uinputConnectedPlugUDev,
