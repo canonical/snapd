@@ -8,36 +8,30 @@ prepare: |
     . "$TESTSLIB/snaps.sh"
     install_local test-snapd-sh
 
-    # shellcheck source=tests/lib/files.sh
-    . "$TESTSLIB/files.sh"
-
     # Fist layer of dirs and files
-    ensure_file_exists_backup_real /root/.testfile1
-    ensure_file_exists_backup_real /root/testfile1
-    ensure_dir_exists_backup_real /root/.testdir1
-    ensure_dir_exists_backup_real /root/testdir1
+    "$TESTSTOOLS"/fs-state mock-file /root/.testfile1
+    "$TESTSTOOLS"/fs-state mock-file /root/testfile1
+    "$TESTSTOOLS"/fs-state mock-dir /root/.testdir1
+    "$TESTSTOOLS"/fs-state mock-dir /root/testdir1
 
     # Second layer of dirs and files
-    ensure_file_exists_backup_real /root/.testdir1/.testfilé2
-    ensure_file_exists_backup_real "/root/.testdir1/test file2"
-    ensure_dir_exists_backup_real /root/.testdir1/.testdir2
+    "$TESTSTOOLS"/fs-state mock-file /root/.testdir1/.testfilé2
+    "$TESTSTOOLS"/fs-state mock-file "/root/.testdir1/test file2"
+    "$TESTSTOOLS"/fs-state mock-dir /root/.testdir1/.testdir2
 
     # Not accessible dirs and files
-    ensure_dir_exists_backup_real /var/tmp/.testdir1
-    ensure_file_exists_backup_real /var/tmp/.testfile1
-    ensure_dir_exists_backup_real /var/tmp/root/
-    ensure_file_exists_backup_real /var/tmp/root/testfile2
-    ensure_file_exists_backup_real /var/tmp/root/.testfile2
+    "$TESTSTOOLS"/fs-state mock-dir /var/tmp/.testdir1
+    "$TESTSTOOLS"/fs-state mock-file /var/tmp/.testfile1
+    "$TESTSTOOLS"/fs-state mock-dir /var/tmp/root
+    "$TESTSTOOLS"/fs-state mock-file /var/tmp/root/testfile2
+    "$TESTSTOOLS"/fs-state mock-file /var/tmp/root/.testfile2
 
 restore: |
-    # shellcheck source=tests/lib/files.sh
-    . "$TESTSLIB/files.sh"
-
-    clean_file /root/.testfile1
-    clean_file /root/testfile1
-    clean_dir /root/.testdir1
-    clean_dir /root/testdir1
-    clean_dir /var/tmp/root
+    "$TESTSTOOLS"/fs-state restore-file /root/.testfile1
+    "$TESTSTOOLS"/fs-state restore-file /root/testfile1
+    "$TESTSTOOLS"/fs-state restore-dir /root/.testdir1
+    "$TESTSTOOLS"/fs-state restore-dir /root/testdir1
+    "$TESTSTOOLS"/fs-state restore-dir /var/tmp/root
 
 execute: |
     echo "The interface is not connected by default"
@@ -47,12 +41,12 @@ execute: |
     snap connect test-snapd-sh:personal-files
 
     echo "Then the snap is able to access all the files and dirs in $HOME"
-    test-snapd-sh.with-personal-files-plug -c "cat /root/.testfile1" | MATCH "content for /root/.testfile1"
-    test-snapd-sh.with-personal-files-plug -c "cat /root/testfile1" | MATCH "content for /root/testfile1"
+    test-snapd-sh.with-personal-files-plug -c "cat /root/.testfile1" | MATCH "mock file"
+    test-snapd-sh.with-personal-files-plug -c "cat /root/testfile1" | MATCH "mock file"
     test-snapd-sh.with-personal-files-plug -c "ls /root/.testdir1"
     test-snapd-sh.with-personal-files-plug -c "ls /root/testdir1"
-    test-snapd-sh.with-personal-files-plug -c "cat /root/.testdir1/.testfilé2" | MATCH "content for /root/.testdir1/.testfilé2"
-    test-snapd-sh.with-personal-files-plug -c "cat '/root/.testdir1/test file2'" | MATCH "content for /root/.testdir1/test file2"
+    test-snapd-sh.with-personal-files-plug -c "cat /root/.testdir1/.testfilé2" | MATCH "mock file"
+    test-snapd-sh.with-personal-files-plug -c "cat '/root/.testdir1/test file2'" | MATCH "mock file"
     test-snapd-sh.with-personal-files-plug -c "ls  /root/.testdir1/.testdir2/"
 
     echo "Then the snap is able to write on /root/.testdir1 and /root/.testfile1"

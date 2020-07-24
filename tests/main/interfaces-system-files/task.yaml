@@ -12,32 +12,26 @@ prepare: |
     . "$TESTSLIB/snaps.sh"
     install_local test-snapd-sh
 
-    # shellcheck source=tests/lib/files.sh
-    . "$TESTSLIB/files.sh"
-
     # Fist layer of dirs and files
-    ensure_dir_exists_backup_real "$TESTDIR"
-    ensure_file_exists_backup_real "$TESTDIR"/.testfile1
-    ensure_file_exists_backup_real "$TESTDIR"/readonly_file1
-    ensure_dir_exists_backup_real "$TESTDIR"/.testdir1
-    ensure_dir_exists_backup_real "$TESTDIR"/testdir1
+    "$TESTSTOOLS"/fs-state mock-dir "$TESTDIR"
+    "$TESTSTOOLS"/fs-state mock-file "$TESTDIR"/.testfile1
+    "$TESTSTOOLS"/fs-state mock-file "$TESTDIR"/readonly_file1
+    "$TESTSTOOLS"/fs-state mock-dir "$TESTDIR"/.testdir1
+    "$TESTSTOOLS"/fs-state mock-dir "$TESTDIR"/testdir1
 
     # Second layer of dirs and files
-    ensure_file_exists_backup_real "$TESTDIR"/.testdir1/.testfilé2
-    ensure_file_exists_backup_real "$TESTDIR/.testdir1/test file2"
-    ensure_dir_exists_backup_real "$TESTDIR"/root
+    "$TESTSTOOLS"/fs-state mock-file "$TESTDIR"/.testdir1/.testfilé2
+    "$TESTSTOOLS"/fs-state mock-file "$TESTDIR/.testdir1/test file2"
+    "$TESTSTOOLS"/fs-state mock-dir "$TESTDIR"/root
 
     # Not accessible dirs and files
-    ensure_dir_exists_backup_real /root/.testdir1
-    ensure_file_exists_backup_real /root/.testfile1
+    "$TESTSTOOLS"/fs-state mock-dir /root/.testdir1
+    "$TESTSTOOLS"/fs-state mock-file /root/.testfile1
 
 restore: |
-    # shellcheck source=tests/lib/files.sh
-    . "$TESTSLIB/files.sh"
-
-    clean_dir "$TESTDIR"
-    clean_dir /root/.testdira1
-    clean_dir /root/.testfile1
+    "$TESTSTOOLS"/fs-state restore-dir "$TESTDIR"
+    "$TESTSTOOLS"/fs-state restore-dir /root/.testdir1
+    "$TESTSTOOLS"/fs-state restore-dir /root/.testfile1
 
 execute: |
     echo "The interface is not connected by default"
@@ -47,12 +41,12 @@ execute: |
     snap connect test-snapd-sh:system-files
 
     echo "Then the snap is able to access all the files and dirs in /testdir"
-    test-snapd-sh.with-system-files-plug -c "cat $TESTDIR/.testfile1" | MATCH "content for $TESTDIR/.testfile1"
-    test-snapd-sh.with-system-files-plug -c "cat $TESTDIR/readonly_file1" MATCH "content for $TESTDIR/readonly_file1"
+    test-snapd-sh.with-system-files-plug -c "cat $TESTDIR/.testfile1" | MATCH "mock file"
+    test-snapd-sh.with-system-files-plug -c "cat $TESTDIR/readonly_file1" MATCH "mock file"
     test-snapd-sh.with-system-files-plug -c "ls $TESTDIR/.testdir1"
     test-snapd-sh.with-system-files-plug -c "ls $TESTDIR/testdir1"
-    test-snapd-sh.with-system-files-plug -c "cat $TESTDIR/.testdir1/.testfilé2" | MATCH "content for $TESTDIR/.testdir1/.testfilé2"
-    test-snapd-sh.with-system-files-plug -c "cat $TESTDIR'/.testdir1/test file2'" | MATCH "content for $TESTDIR/.testdir1/test file2"
+    test-snapd-sh.with-system-files-plug -c "cat $TESTDIR/.testdir1/.testfilé2" | MATCH "mock file"
+    test-snapd-sh.with-system-files-plug -c "cat $TESTDIR'/.testdir1/test file2'" | MATCH "mock file"
     test-snapd-sh.with-system-files-plug -c "ls $TESTDIR/root/"
 
     echo "Then the snap is able to write just $TESTDIR/.testdir1 and $TESTDIR/.testfile1"
