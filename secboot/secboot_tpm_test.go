@@ -405,7 +405,6 @@ func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
 }
 
 func (s *secbootSuite) TestSealKey(c *C) {
-	tmpDir := c.MkDir()
 	mockErr := errors.New("some error")
 
 	for _, tc := range []struct {
@@ -431,6 +430,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		{tpmEnabled: true, sealErr: mockErr, provisioningCalls: 1, sealCalls: 1, expectedErr: "some error"},
 		{tpmEnabled: true, provisioningCalls: 1, sealCalls: 1, expectedErr: ""},
 	} {
+		tmpDir := c.MkDir()
 		var mockEFI []string
 		for _, name := range []string{"a", "b", "c", "d", "e", "f"} {
 			mockFileName := filepath.Join(tmpDir, name)
