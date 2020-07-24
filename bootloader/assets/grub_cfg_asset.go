@@ -19,7 +19,7 @@
 
 package assets
 
-// Code generated from data/grub.cfg DO NOT EDIT
+// Code generated from ./data/grub.cfg DO NOT EDIT
 
 func init() {
 	registerInternal("grub.cfg", []byte{

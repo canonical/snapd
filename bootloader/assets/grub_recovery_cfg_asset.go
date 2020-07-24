@@ -19,7 +19,7 @@
 
 package assets
 
-// Code generated from data/grub-recovery.cfg DO NOT EDIT
+// Code generated from ./data/grub-recovery.cfg DO NOT EDIT
 
 func init() {
 	registerInternal("grub-recovery.cfg", []byte{
