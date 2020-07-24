@@ -132,6 +132,10 @@ purge() {
     rm -f /etc/systemd/user/snapd.session-agent.service
     rm -f /etc/systemd/user/sockets.target.wants/snapd.session-agent.socket
 
+    # dbus activation configuration
+    rm -f /etc/dbus-1/session.d/snapd.session-services.conf
+    rm -f /etc/dbus-1/system.d/snapd.system-services.conf
+
     echo "Discarding preserved snap namespaces"
     # opportunistic as those might not be actually mounted
     if [ -d /run/snapd/ns ]; then
