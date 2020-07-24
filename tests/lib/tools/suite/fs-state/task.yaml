@@ -47,7 +47,7 @@ execute: |
     # Check existing file
     echo test > mytestfile
     "$TESTSTOOLS"/fs-state mock-file mytestfile
-    test -f mytestfile    
+    test -f mytestfile
     test -f mytestfile.fake
     test -f mytestfile.back
     not diff mytestfile mytestfile.back
