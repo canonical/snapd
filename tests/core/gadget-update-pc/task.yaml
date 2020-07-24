@@ -7,8 +7,7 @@ environment:
     START_REVISION: 1000
 
 # the test is only meaningful on core devices
-# TODO:UC20: enable for UC20
-systems: [ubuntu-core-1*]
+systems: [ubuntu-core-*]
 
 prepare: |
     # external backends do not enable test keys
@@ -36,6 +35,9 @@ prepare: |
     . "$TESTSLIB"/store.sh
     setup_fake_store "$BLOB_DIR"
 
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+
     cp /var/lib/snapd/snaps/pc_*.snap gadget.snap
     unsquashfs -d pc-snap gadget.snap
 
@@ -56,11 +58,19 @@ prepare: |
 
     cp pc-snap/meta/gadget.yaml gadget.yaml.orig
 
+    system_seed=""
+    if is_core20_system ; then
+        system_seed="--system-seed"
+    fi
+
     # prepare first update
-    python3 ./generate.py ./gadget.yaml.orig v1 > pc-snap/meta/gadget.yaml
+    python3 ./generate.py ./gadget.yaml.orig v1 $system_seed > pc-snap/meta/gadget.yaml
     echo 'this is foo-x2' > foo-x2.img
     cp foo-x2.img pc-snap/foo.img
     echo 'this is foo.cfg' > pc-snap/foo.cfg
+    if is_core20_system; then
+        echo 'this is foo-seed.cfg' > pc-snap/foo-seed.cfg
+    fi
     sed -i -e 's/^version: \(.*\)-1/version: \1-2/' pc-snap/meta/snap.yaml
     snap pack pc-snap --filename=pc_x2.snap
     cat <<EOF > rev-headers-2.json
@@ -68,10 +78,13 @@ prepare: |
     EOF
 
     # prepare second update
-    python3 ./generate.py ./gadget.yaml.orig v2 > pc-snap/meta/gadget.yaml
+    python3 ./generate.py ./gadget.yaml.orig v2 $system_seed > pc-snap/meta/gadget.yaml
     echo 'this is updated foo-x3' > foo-x3.img
     cp foo-x3.img pc-snap/foo.img
     echo 'this is updated foo.cfg' > pc-snap/foo.cfg
+    if is_core20_system; then
+        echo 'this is updated foo-seed.cfg' > pc-snap/foo-seed.cfg
+    fi
     echo 'this is bar.cfg' > pc-snap/bar.cfg
     sed -i -e 's/^version: \(.*\)-2/version: \1-3/' pc-snap/meta/snap.yaml
     snap pack pc-snap --filename=pc_x3.snap
@@ -121,10 +134,18 @@ execute: |
 
     #shellcheck source=tests/lib/store.sh
     . "$TESTSLIB"/store.sh
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
 
     # XXX: the test hardcodes a bunch of locations
     # - 'BIOS Boot' and 'EFI System' are modified during the update
     # - 'EFI System' is mounted at /boot/efi
+
+    bootdir=/boot/efi
+    if is_core20_system; then
+        # /boot/efi is not mounted on UC20, so use the /run/mnt hierarchy
+        bootdir=/run/mnt/ubuntu-boot
+    fi
 
     if [[ "$SPREAD_REBOOT" == 0 ]]; then
 
@@ -143,7 +164,7 @@ execute: |
         # verify the update
 
         # a filesystem structure entry was copied to the right place
-        test "$(cat /boot/efi/foo.cfg)" = 'this is foo.cfg'
+        test "$(cat "$bootdir"/foo.cfg)" = 'this is foo.cfg'
 
         szimg=$(stat -c '%s' /snap/pc/current/pc-core.img)
         # using foo.img from x2
@@ -151,6 +172,15 @@ execute: |
         # a raw content was written
         dd if='/dev/disk/by-partlabel/BIOS\x20Boot' skip="$szimg" bs=1 count="$szfoo" of=foo-written.img
         test "$(cat foo-written.img)" = 'this is foo-x2'
+
+        if is_core20_system; then
+            # a filesystem structure entry was copied to the right place
+            test "$(cat /run/mnt/ubuntu-seed/foo-seed.cfg)" = 'this is foo-seed.cfg'
+
+            # managed boot config was preserved for boot and seed partitions
+            MATCH '# Snapd-Boot-Config-Edition: [0-9]+' < /boot/grub/grub.cfg
+            MATCH '# Snapd-Boot-Config-Edition: [0-9]+' < /run/mnt/ubuntu-seed/EFI/ubuntu/grub.cfg
+        fi
 
         # prepare & install the next update
         new_snap_declaration "$BLOB_DIR" pc_x3.snap --snap-decl-json decl-headers.json
@@ -168,9 +198,9 @@ execute: |
         # verify the update
 
         # a new filesystem structure entry was copied to the right place
-        test "$(cat /boot/efi/bar.cfg)" = 'this is bar.cfg'
+        test "$(cat "$bootdir"/bar.cfg)" = 'this is bar.cfg'
         # this one was preserved
-        test "$(cat /boot/efi/foo.cfg)" = 'this is foo.cfg'
+        test "$(cat "$bootdir"/foo.cfg)" = 'this is foo.cfg'
 
         # raw content was updated
         szimg=$(stat -c '%s' /snap/pc/current/pc-core.img)
@@ -180,4 +210,12 @@ execute: |
         dd if='/dev/disk/by-partlabel/BIOS\x20Boot' skip="$szimg" bs=1 count="$szfoo" of=foo-updated-written.img
         test "$(cat foo-updated-written.img)" = 'this is updated foo-x3'
 
+        if is_core20_system; then
+            # a filesystem structure entry was copied to the right place
+            test "$(cat /run/mnt/ubuntu-seed/foo-seed.cfg)" = 'this is updated foo-seed.cfg'
+
+            # managed boot config was preserved for boot and seed partitions
+            MATCH '# Snapd-Boot-Config-Edition: [0-9]+' < /boot/grub/grub.cfg
+            MATCH '# Snapd-Boot-Config-Edition: [0-9]+' < /run/mnt/ubuntu-seed/EFI/ubuntu/grub.cfg
+        fi
     fi

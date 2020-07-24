@@ -272,13 +272,11 @@ func (fs *findWildcardSuite) TestFindWildcardSequenceSomeErrors(c *check.C) {
 	c.Assert(err, check.Equals, myErr)
 
 	err = findWildcard(top, []string{"s2", "#>", "active*"}, -1, foundCb)
-	c.Assert(err, check.ErrorMatches, `cannot parse ".*/top-errors/s2/a" name as a sequence number`)
+	c.Assert(err, check.ErrorMatches, `cannot parse ".*/top-errors/s2/a" name as a valid sequence number`)
 
 	err = findWildcard(top, []string{"s3", "#>", "active*"}, -1, foundCb)
-	c.Assert(err, check.ErrorMatches, `cannot parse ".*/top-errors/s3/-9" name as a sequence number`)
+	c.Assert(err, check.ErrorMatches, `cannot parse ".*/top-errors/s3/-9" name as a valid sequence number`)
 
-	// FIXME: this should produce an error as well, but need to be
-	// consistent about refusing prefix zeros
 	err = findWildcard(top, []string{"s4", "#>", "active*"}, -1, foundCb)
-	c.Assert(err, check.IsNil)
+	c.Assert(err, check.ErrorMatches, `cannot parse ".*/top-errors/s4/01" name as a valid sequence number`)
 }
