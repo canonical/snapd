@@ -53,7 +53,7 @@ summary: Check that disabled snap services stay disabled across happy refreshes,
 #     => the new service is disabled
 
 prepare: |
-  snap install jq
+  snap install --edge jq
   # keep more revisions to simplify switching around between revisions in the 
   # test
   snap set system refresh.retain=5

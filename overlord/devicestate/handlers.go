@@ -1,6 +1,6 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -162,6 +162,8 @@ func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
 	}
 	st.Set("seed-time", now)
 	st.Set("seeded", true)
+	// avoid possibly recording the same system multiple times etc.
+	t.SetStatus(state.DoneStatus)
 	// make sure we setup a fallback model/consider the next phase
 	// (registration) timely
 	st.EnsureBefore(0)

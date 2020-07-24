@@ -58,7 +58,7 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 		}
 
 		// this may remove the snap from /var/lib/snapd/snaps depending on installRecord
-		if e := b.RemoveSnapFiles(s, s.GetType(), installRecord, dev, meter); e != nil {
+		if e := b.RemoveSnapFiles(s, s.Type(), installRecord, dev, meter); e != nil {
 			meter.Notify(fmt.Sprintf("while trying to clean up due to previous failure: %v", e))
 		}
 	}()
@@ -90,7 +90,7 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 		return snapType, nil, err
 	}
 
-	t := s.GetType()
+	t := s.Type()
 	if err := boot.Kernel(s, t, dev).ExtractKernelAssets(snapf); err != nil {
 		return snapType, nil, fmt.Errorf("cannot install kernel: %s", err)
 	}

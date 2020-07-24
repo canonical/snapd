@@ -40,8 +40,6 @@ execute: |
 
     # shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
-    # shellcheck source=tests/lib/journalctl.sh
-    . "$TESTSLIB/journalctl.sh"
 
     echo "When the service snap is installed"
     install_local test-snapd-service
@@ -83,7 +81,7 @@ execute: |
     snap set test-snapd-service command=restart
     install_local test-snapd-service
     # shellcheck disable=SC2119
-    if get_journalctl_log | MATCH "error running snapctl"; then
+    if "$TESTSTOOLS"/journal-state get-log | MATCH "error running snapctl"; then
         echo "snapctl should not report errors"
         exit 1
     fi

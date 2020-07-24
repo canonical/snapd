@@ -27,8 +27,6 @@ prepare: |
     install_local test-snapd-desktop
 
     tests.session -u test prepare
-    # this will be later used by userd
-    tests.session -u test exec systemctl --user set-environment XDG_DATA_DIRS=/usr/share
 
     # wait for session to be ready
     tests.session -u test exec env "PATH=$PATH" retry -n 5 --wait 0.5 dbus-send \
@@ -44,7 +42,6 @@ prepare: |
     cat << 'EOF' > /tmp/xdg-open
     #!/bin/sh
     echo "$*" > /tmp/xdg-open-output
-    echo "XDG_DATA_DIRS=$XDG_DATA_DIRS" >> /tmp/xdg-open-output
     EOF
     chmod +x /tmp/xdg-open
     if [ -e /usr/bin/xdg-open ]; then
@@ -66,17 +63,6 @@ execute: |
         test "$(head -1 /tmp/xdg-open-output)" = "$1"
     }
 
-    if is_cgroupv2 ; then
-        # we are expecting the test to fail on a cgroup v2 system
-        if ensure_xdg_open_output "http://smoke-test-cgroupv2.com" 2> stderr.log ; then
-            echo "expected failure, but none happened"
-            exit 1
-        fi
-        MATCH 'WARNING: cgroup v2 is not fully supported yet, proceeding with partial confinement' < stderr.log
-        MATCH 'cannot find snap for connection: not supported' < stderr.log
-        exit 0
-    fi
-
     # Ensure http, https, mailto, snap and help work
     ensure_xdg_open_output "https://snapcraft.io"
     ensure_xdg_open_output "http://snapcraft.io"
@@ -86,9 +72,7 @@ execute: |
     ensure_xdg_open_output "apt:snapcraft"
     ensure_xdg_open_output "zoommtg://snapcraft.io"
     ensure_xdg_open_output "slack://5NAPPY111/magic-login/bcaf81ee-07b1-4362-9c09-ff46bd6e1bb9"
-
-    # Ensure XDG_DATA_DIRS was prefixed with snap specific location
-    test "$(tail -1 /tmp/xdg-open-output)" = "XDG_DATA_DIRS=$SNAP_MOUNT_DIR/test-snapd-desktop/current/usr/share:/usr/share"
+    ensure_xdg_open_output "msteams://snapcraft.io"
 
     # Ensure other schemes are not passed through
     rm /tmp/xdg-open-output

@@ -5,7 +5,7 @@ summary: |
     and nice.
 
     A snap which defines the process-control plug must be shown in the interfaces list.
-    The plug must not be autoconnected on install and, as usual, must be able to be
+    The plug must not be auto-connected on install and, as usual, must be able to be
     reconnected.
 
     A snap declaring a plug on this interface must be able to kill other processes. Currently
@@ -27,31 +27,27 @@ execute: |
     snap connect process-control-consumer:process-control
 
     echo "Then the snap is able to kill an existing process"
-    while :; do sleep 1; done &
+    sleep 5m &
     pid=$!
-    #shellcheck disable=SC2009
-    ps ax | grep -Pq "^ *$pid"
-    process-control-consumer.signal "SIGTERM" $pid
-    #shellcheck disable=SC2009
-    ps ax | not grep -Pq "^ *$pid"
+    kill -s 0 "$pid"
+    process-control-consumer.signal SIGTERM "$pid"
+    not kill -s 0 "$pid"
 
     if [ "$(snap debug confinement)" = partial ] ; then
-        exit 0
+        exit
     fi
 
     echo "When the plug is disconnected"
     snap disconnect process-control-consumer:process-control
 
     echo "Then the snap is not able to kill an existing process"
-    while :; do sleep 1; done &
+    sleep 5m &
     pid=$!
-    if process-control-consumer.signal SIGTERM $pid 2> process-kill.error; then
+    if process-control-consumer.signal SIGTERM "$pid" 2> process-kill.error; then
         echo "Expected permission error accessing killing a process with disconnected plug"
         exit 1
     fi
     grep -q "Permission denied" process-kill.error
-    #shellcheck disable=SC2009
-    ps ax | grep -Pq "^ *$pid"
-    kill -9 $pid
-    #shellcheck disable=SC2009
-    ps ax | not grep -Pq "^ *$pid"
+    kill -s 0 "$pid"
+    kill "$pid"
+    not kill -s 0 "$pid"

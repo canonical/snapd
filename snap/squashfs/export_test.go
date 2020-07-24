@@ -49,10 +49,10 @@ func MockLink(newLink func(string, string) error) (restore func()) {
 }
 
 func MockCommandFromSystemSnap(f func(string, ...string) (*exec.Cmd, error)) (restore func()) {
-	oldCommandFromSystemSnap := cmdutilCommandFromSystemSnap
-	cmdutilCommandFromSystemSnap = f
+	oldCommandFromSystemSnap := snapdtoolCommandFromSystemSnap
+	snapdtoolCommandFromSystemSnap = f
 	return func() {
-		cmdutilCommandFromSystemSnap = oldCommandFromSystemSnap
+		snapdtoolCommandFromSystemSnap = oldCommandFromSystemSnap
 	}
 }
 

@@ -77,7 +77,7 @@ func (s *bootenvSuite) TestSetNextBootForCore(c *C) {
 	info.RealName = "core"
 	info.Revision = snap.R(100)
 
-	bs := boot.NewCoreBootParticipant(info, info.GetType(), coreDev)
+	bs := boot.NewCoreBootParticipant(info, info.Type(), coreDev)
 	reboot, err := bs.SetNextBoot()
 	c.Assert(err, IsNil)
 
@@ -99,7 +99,7 @@ func (s *bootenvSuite) TestSetNextBootWithBaseForCore(c *C) {
 	info.RealName = "core18"
 	info.Revision = snap.R(1818)
 
-	bs := boot.NewCoreBootParticipant(info, info.GetType(), coreDev)
+	bs := boot.NewCoreBootParticipant(info, info.Type(), coreDev)
 	reboot, err := bs.SetNextBoot()
 	c.Assert(err, IsNil)
 

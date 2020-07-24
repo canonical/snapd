@@ -56,7 +56,7 @@ restore: |
   # reporting it's still in use.
   retry -n 5 --wait 1 qemu-nbd -d /dev/nbd0
 
-  lxd-tool undo-lxd-mount-changes
+  "$TESTSTOOLS"/lxd-state undo-mount-changes
 
 execute: |
   echo "Create a trivial container using the lxd snap"

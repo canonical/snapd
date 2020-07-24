@@ -1192,9 +1192,15 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	}
 
 	// record type
-	snapst.SetType(newInfo.GetType())
+	snapst.SetType(newInfo.Type())
 
 	pb := NewTaskProgressAdapterLocked(t)
+
+	// Check for D-Bus service conflicts a second time to detect
+	// conflicts within a transaction.
+	if err := checkDBusServiceConflicts(st, newInfo); err != nil {
+		return err
+	}
 
 	// get the services which LinkSnap should disable when generating wrappers,
 	// as well as the services which are not present in this revision, but were
@@ -1305,7 +1311,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 
 	// Compatibility with old snapd: check if we have auto-connect task and
 	// if not, inject it after self (link-snap) for snaps that are not core
-	if newInfo.GetType() != snap.TypeOS {
+	if newInfo.Type() != snap.TypeOS {
 		var hasAutoConnect, hasSetupProfiles bool
 		for _, other := range t.Change().Tasks() {
 			// Check if this is auto-connect task for same snap and we it's part of the change with setup-profiles task
@@ -1355,7 +1361,7 @@ func (m *SnapManager) maybeRestart(t *state.Task, info *snap.Info, rebootRequire
 		return
 	}
 
-	typ := info.GetType()
+	typ := info.Type()
 
 	// if bp is non-trivial then either we're not on classic, or the snap is
 	// snapd. So daemonRestartReason will always return "" which is what we
@@ -1447,7 +1453,7 @@ func (m *SnapManager) maybeUndoRemodelBootChanges(t *state.Task) error {
 	if err != nil && err != ErrNoCurrent {
 		return err
 	}
-	bp := boot.Participant(info, info.GetType(), groundDeviceCtx)
+	bp := boot.Participant(info, info.Type(), groundDeviceCtx)
 	reboot, err := bp.SetNextBoot()
 	if err != nil {
 		return err
@@ -1634,7 +1640,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	// the cleanup is performed by snapd from core;
 	// when reverting a subsequent snapd revision, the restart happens in
 	// undoLinkCurrentSnap() instead
-	if linkCtx.FirstInstall && newInfo.GetType() == snap.TypeSnapd {
+	if linkCtx.FirstInstall && newInfo.Type() == snap.TypeSnapd {
 		// only way to get
 		deviceCtx, err := DeviceCtx(st, t, nil)
 		if err != nil {
@@ -1658,7 +1664,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	// snap. We need to undo that restart here. Instead of in
 	// doUnlinkCurrentSnap() like we usually do when going from
 	// core snap -> next core snap
-	if release.OnClassic && newInfo.GetType() == snap.TypeOS && oldCurrent.Unset() {
+	if release.OnClassic && newInfo.Type() == snap.TypeOS && oldCurrent.Unset() {
 		t.Logf("Requested daemon restart (undo classic initial core install)")
 		st.RequestRestart(state.RestartDaemon)
 	}
@@ -1792,7 +1798,7 @@ func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	defer st.Lock()
 
 	// stop the services
-	err = m.backend.StopServices(svcs, nil, stopReason, pb, perfTimings)
+	err = m.backend.StopServices(svcs, stopReason, pb, perfTimings)
 	if err != nil {
 		return err
 	}

@@ -28,11 +28,11 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/snapcore/snapd/cmd/cmdutil"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
 	"github.com/snapcore/snapd/seed"
+	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
 )
@@ -151,7 +151,7 @@ var systemSnapFromSeed = func(rootDir string) (string, error) {
 const snapdPreseedSupportVer = `2.43.3+`
 
 func checkTargetSnapdVersion(infoPath string) error {
-	ver, err := cmdutil.SnapdVersionFromInfoFile(infoPath)
+	ver, err := snapdtool.SnapdVersionFromInfoFile(infoPath)
 	if err != nil {
 		return err
 	}

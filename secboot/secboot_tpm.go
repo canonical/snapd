@@ -34,8 +34,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader/efi"
-	// TODO: UC20: move/merge partition with gadget
-	"github.com/snapcore/snapd/cmd/snap-bootstrap/partition"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/randutil"
@@ -58,7 +56,15 @@ var (
 	sbAddSnapModelProfile            = sb.AddSnapModelProfile
 	sbProvisionTPM                   = sb.ProvisionTPM
 	sbSealKeyToTPM                   = sb.SealKeyToTPM
+
+	randutilRandomKernelUUID = randutil.RandomKernelUUID
+
+	isTPMEnabled = isTPMEnabledImpl
 )
+
+func isTPMEnabledImpl(tpm *sb.TPMConnection) bool {
+	return tpm.IsEnabled()
+}
 
 func CheckKeySealingSupported() error {
 	logger.Noticef("checking if secure boot is enabled...")
@@ -69,14 +75,21 @@ func CheckKeySealingSupported() error {
 	logger.Noticef("secure boot is enabled")
 
 	logger.Noticef("checking if TPM device is available...")
-	tconn, err := sbConnectToDefaultTPM()
+	tpm, err := sbConnectToDefaultTPM()
 	if err != nil {
 		err = fmt.Errorf("cannot connect to TPM device: %v", err)
 		logger.Noticef("%v", err)
 		return err
 	}
-	logger.Noticef("TPM device detected")
-	return tconn.Close()
+
+	if !isTPMEnabled(tpm) {
+		logger.Noticef("TPM device detected but not enabled")
+		return fmt.Errorf("TPM device is not enabled")
+	}
+
+	logger.Noticef("TPM device detected and enabled")
+
+	return tpm.Close()
 }
 
 func checkSecureBootEnabled() error {
@@ -118,15 +131,16 @@ func measureWhenPossible(whatHow func(tpm *sb.TPMConnection) error) error {
 	// the model is ready, we're good to try measuring it now
 	tpm, err := insecureConnectToTPM()
 	if err != nil {
-		var perr *os.PathError
-		// XXX: xerrors.Is() does not work with PathErrors?
-		if xerrors.As(err, &perr) {
-			// no TPM
+		if xerrors.Is(err, sb.ErrNoTPM2Device) {
 			return nil
 		}
 		return fmt.Errorf("cannot open TPM connection: %v", err)
 	}
 	defer tpm.Close()
+
+	if !isTPMEnabled(tpm) {
+		return nil
+	}
 
 	return whatHow(tpm)
 }
@@ -163,10 +177,6 @@ func MeasureSnapModelWhenPossible(findModel func() (*asserts.Model, error)) erro
 	return nil
 }
 
-var (
-	randutilRandomKernelUUID = randutil.RandomKernelUUID
-)
-
 // UnlockVolumeIfEncrypted verifies whether an encrypted volume with the specified
 // name exists and unlocks it. With lockKeysOnFinish set, access to the sealed
 // keys will be locked when this function completes. The path to the unencrypted
@@ -178,10 +188,7 @@ func UnlockVolumeIfEncrypted(name string, lockKeysOnFinish bool) (string, error)
 	//            intermediate certs from the manufacturer.
 	tpm, tpmErr := sbConnectToDefaultTPM()
 	if tpmErr != nil {
-		// if tpmErr is a *os.PathError returned from go-tpm2 then this is an indicator that
-		// there is no TPM device, but other errors shouldn't be ignored.
-		var perr *os.PathError
-		if !xerrors.As(tpmErr, &perr) {
+		if !xerrors.Is(tpmErr, sb.ErrNoTPM2Device) {
 			return "", fmt.Errorf("cannot unlock encrypted device %q: %v", name, tpmErr)
 		}
 		logger.Noticef("cannot open TPM connection: %v", tpmErr)
@@ -189,7 +196,9 @@ func UnlockVolumeIfEncrypted(name string, lockKeysOnFinish bool) (string, error)
 		defer tpm.Close()
 	}
 
-	tpmDeviceAvailable := tpmErr == nil
+	// Also check if the TPM device is enabled. The platform firmware may disable the storage
+	// and endorsement hierarchies, but the device will remain visible to the operating system.
+	tpmDeviceAvailable := tpmErr == nil && isTPMEnabled(tpm)
 
 	var lockErr error
 	var mapperName string
@@ -285,7 +294,7 @@ func unlockEncryptedPartitionWithSealedKey(tpm *sb.TPMConnection, name, device, 
 // SealKey provisions the TPM and seals a partition encryption key according to the
 // specified parameters. If the TPM is already provisioned, or a sealed key already
 // exists, SealKey will fail and return an error.
-func SealKey(key partition.EncryptionKey, params *SealKeyParams) error {
+func SealKey(key EncryptionKey, params *SealKeyParams) error {
 	numModels := len(params.ModelParams)
 	if numModels < 1 {
 		return fmt.Errorf("at least one set of model-specific parameters is required")
@@ -294,6 +303,9 @@ func SealKey(key partition.EncryptionKey, params *SealKeyParams) error {
 	tpm, err := sbConnectToDefaultTPM()
 	if err != nil {
 		return fmt.Errorf("cannot connect to TPM: %v", err)
+	}
+	if !isTPMEnabled(tpm) {
+		return fmt.Errorf("TPM device is not enabled")
 	}
 
 	modelPCRProfiles := make([]*sb.PCRProtectionProfile, 0, numModels)

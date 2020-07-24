@@ -30,8 +30,8 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
-	"github.com/snapcore/snapd/cmd/snap-bootstrap/bootstrap"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
@@ -173,9 +173,9 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	defer restore()
 
 	var brGadgetRoot, brDevice string
-	var brOpts bootstrap.Options
-	var bootstrapRunCalled int
-	restore = devicestate.MockBootstrapRun(func(gadgetRoot, device string, options bootstrap.Options) error {
+	var brOpts install.Options
+	var installRunCalled int
+	restore = devicestate.MockInstallRun(func(gadgetRoot, device string, options install.Options) error {
 		// ensure we can grab the lock here, i.e. that it's not taken
 		s.state.Lock()
 		s.state.Unlock()
@@ -183,7 +183,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 		brGadgetRoot = gadgetRoot
 		brDevice = device
 		brOpts = options
-		bootstrapRunCalled++
+		installRunCalled++
 		return nil
 	})
 	defer restore()
@@ -219,6 +219,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 		c.Check(bootWith.KernelPath, Matches, ".*/var/lib/snapd/snaps/pc-kernel_1.snap")
 		c.Check(bootWith.BasePath, Matches, ".*/var/lib/snapd/snaps/core20_2.snap")
 		c.Check(bootWith.RecoverySystemDir, Matches, "/systems/20191218")
+		c.Check(bootWith.UnpackedGadgetDir, Equals, filepath.Join(dirs.SnapMountDir, "pc/1"))
 		bootMakeBootableCalled++
 		return nil
 	})
@@ -255,7 +256,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	if tc.encrypt {
 		c.Assert(brGadgetRoot, Equals, filepath.Join(dirs.SnapMountDir, "/pc/1"))
 		c.Assert(brDevice, Equals, "")
-		c.Assert(brOpts, DeepEquals, bootstrap.Options{
+		c.Assert(brOpts, DeepEquals, install.Options{
 			Mount:                   true,
 			Encrypt:                 true,
 			KeyFile:                 filepath.Join(boot.InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key"),
@@ -273,11 +274,11 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	} else {
 		c.Assert(brGadgetRoot, Equals, filepath.Join(dirs.SnapMountDir, "/pc/1"))
 		c.Assert(brDevice, Equals, "")
-		c.Assert(brOpts, DeepEquals, bootstrap.Options{
+		c.Assert(brOpts, DeepEquals, install.Options{
 			Mount: true,
 		})
 	}
-	c.Assert(bootstrapRunCalled, Equals, 1)
+	c.Assert(installRunCalled, Equals, 1)
 	c.Assert(bootMakeBootableCalled, Equals, 1)
 	c.Assert(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
 
@@ -288,7 +289,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallTaskErrors(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	restore = devicestate.MockBootstrapRun(func(gadgetRoot, device string, options bootstrap.Options) error {
+	restore = devicestate.MockInstallRun(func(gadgetRoot, device string, options install.Options) error {
 		return fmt.Errorf("The horror, The horror")
 	})
 	defer restore()
@@ -404,7 +405,7 @@ func (s *deviceMgrInstallModeSuite) mockInstallModeChange(c *C, modelGrade, gadg
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	restore = devicestate.MockBootstrapRun(func(gadgetRoot, device string, options bootstrap.Options) error {
+	restore = devicestate.MockInstallRun(func(gadgetRoot, device string, options install.Options) error {
 		return nil
 	})
 	defer restore()

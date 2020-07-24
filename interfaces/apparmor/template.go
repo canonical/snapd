@@ -266,6 +266,7 @@ var templateCommon = `
   @{PROC}/sys/kernel/yama/ptrace_scope r,
   @{PROC}/sys/kernel/shmmax r,
   @{PROC}/sys/fs/file-max r,
+  @{PROC}/sys/fs/file-nr r,
   @{PROC}/sys/fs/inotify/max_* r,
   @{PROC}/sys/kernel/pid_max r,
   @{PROC}/sys/kernel/random/boot_id r,
@@ -438,6 +439,11 @@ var templateCommon = `
   # (see 'parallel installs', above)
   /run/snap.@{SNAP_INSTANCE_NAME}/ rw,
   /run/snap.@{SNAP_INSTANCE_NAME}/** mrwklix,
+
+  # Snap-specific lock directory and prerequisite navigation permissions.
+  /run/lock/ r,
+  /run/lock/snap.@{SNAP_INSTANCE_NAME}/ rw,
+  /run/lock/snap.@{SNAP_INSTANCE_NAME}/** mrwklix,
 `
 
 var templateFooter = `

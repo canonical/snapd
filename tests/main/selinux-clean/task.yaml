@@ -32,6 +32,8 @@ restore: |
     rm -f stamp enforcing.mode
 
     tests.session -u test restore
+    # Stop dbus activated by test-snapd-desktop snap.
+    systemctl --user stop dbus.service || true
 
 execute: |
     systemctl restart snapd.socket

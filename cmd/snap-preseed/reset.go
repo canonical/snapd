@@ -26,17 +26,29 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 )
 
 func resetPreseededChroot(preseedChroot string) error {
+	exists, isDir, err := osutil.DirExists(preseedChroot)
+	if err != nil {
+		return fmt.Errorf("cannot reset %q: %v", preseedChroot, err)
+	}
+	if !exists {
+		return fmt.Errorf("cannot reset non-existing directory %q", preseedChroot)
+	}
+	if !isDir {
+		return fmt.Errorf("cannot reset %q, it is not a directory", preseedChroot)
+	}
+
 	// globs that yield individual files
 	globs := []string{
 		dirs.SnapStateFile,
 		dirs.SnapSystemKeyFile,
 		filepath.Join(dirs.SnapBlobDir, "*.snap"),
 		filepath.Join(dirs.SnapUdevRulesDir, "*-snap.*.rules"),
-		filepath.Join(dirs.SnapBusPolicyDir, "snap.*.*.conf"),
+		filepath.Join(dirs.SnapDBusSystemPolicyDir, "snap.*.*.conf"),
 		filepath.Join(dirs.SnapServicesDir, "snap.*.service"),
 		filepath.Join(dirs.SnapServicesDir, "snap.*.timer"),
 		filepath.Join(dirs.SnapServicesDir, "snap.*.socket"),

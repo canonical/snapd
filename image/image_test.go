@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/bootloader/ubootenv"
 	"github.com/snapcore/snapd/image"
@@ -606,7 +607,7 @@ func (s *imageSuite) TestSetupSeed(c *C) {
 
 			SideInfo: &info.SideInfo,
 
-			EssentialType: info.GetType(),
+			EssentialType: info.Type(),
 			Essential:     true,
 			Required:      true,
 
@@ -741,7 +742,7 @@ func (s *imageSuite) TestSetupSeedLocalCoreBrandKernel(c *C) {
 			}
 		} else {
 			sideInfo = &info.SideInfo
-			snapType = info.GetType()
+			snapType = info.Type()
 		}
 
 		fn := pinfo.Filename()
@@ -869,7 +870,7 @@ func (s *imageSuite) TestSetupSeedDevmodeSnap(c *C) {
 		c.Check(essSnaps[i], DeepEquals, &seed.Snap{
 			Path:          filepath.Join(seedsnapsdir, info.Filename()),
 			SideInfo:      &info.SideInfo,
-			EssentialType: info.GetType(),
+			EssentialType: info.Type(),
 			Essential:     true,
 			Required:      true,
 			Channel:       "beta",
@@ -978,7 +979,7 @@ func (s *imageSuite) TestSetupSeedWithBase(c *C) {
 		c.Check(essSnaps[i], DeepEquals, &seed.Snap{
 			Path:          p,
 			SideInfo:      &info.SideInfo,
-			EssentialType: info.GetType(),
+			EssentialType: info.Type(),
 			Essential:     true,
 			Required:      true,
 			Channel:       stableChannel,
@@ -1139,7 +1140,7 @@ func (s *imageSuite) TestSetupSeedWithBaseLegacySnap(c *C) {
 		c.Check(essSnaps[i], DeepEquals, &seed.Snap{
 			Path:          p,
 			SideInfo:      &info.SideInfo,
-			EssentialType: info.GetType(),
+			EssentialType: info.Type(),
 			Essential:     true,
 			Required:      true,
 			Channel:       stableChannel,
@@ -1234,7 +1235,7 @@ func (s *imageSuite) TestSetupSeedWithBaseDefaultTrackSnap(c *C) {
 		c.Check(essSnaps[i], DeepEquals, &seed.Snap{
 			Path:          p,
 			SideInfo:      &info.SideInfo,
-			EssentialType: info.GetType(),
+			EssentialType: info.Type(),
 			Essential:     true,
 			Required:      true,
 			Channel:       stableChannel,
@@ -1387,7 +1388,7 @@ func (s *imageSuite) TestSetupSeedLocalSnapsWithStoreAsserts(c *C) {
 		c.Check(essSnaps[i], DeepEquals, &seed.Snap{
 			Path:          p,
 			SideInfo:      &info.SideInfo,
-			EssentialType: info.GetType(),
+			EssentialType: info.Type(),
 			Essential:     true,
 			Required:      true,
 			Channel:       stableChannel,
@@ -1484,7 +1485,7 @@ func (s *imageSuite) TestSetupSeedLocalSnapsWithChannels(c *C) {
 		c.Check(essSnaps[i], DeepEquals, &seed.Snap{
 			Path:          p,
 			SideInfo:      &info.SideInfo,
-			EssentialType: info.GetType(),
+			EssentialType: info.Type(),
 			Essential:     true,
 			Required:      true,
 			Channel:       channel,
@@ -2389,7 +2390,7 @@ func (s *imageSuite) TestSetupSeedClassicSnapdOnly(c *C) {
 		c.Check(essSnaps[i], DeepEquals, &seed.Snap{
 			Path:          p,
 			SideInfo:      &info.SideInfo,
-			EssentialType: info.GetType(),
+			EssentialType: info.Type(),
 			Essential:     true,
 			Required:      true,
 			Channel:       stableChannel,
@@ -2584,9 +2585,9 @@ func (s *imageSuite) TestSetupSeedCore20(c *C) {
 	s.makeSnap(c, "pc-kernel=20", nil, snap.R(1), "")
 	gadgetContent := [][]string{
 		{"grub-recovery.conf", "# recovery grub.cfg"},
-		{"grub.cfg", "boot grub.cfg"},
+		{"grub.conf", "# boot grub.cfg"},
 	}
-	s.makeSnap(c, "pc=20", gadgetContent, snap.R(22), "") // XXX likely don't need grub.cfg there
+	s.makeSnap(c, "pc=20", gadgetContent, snap.R(22), "")
 	s.makeSnap(c, "required20", nil, snap.R(21), "other")
 
 	opts := &image.Options{
@@ -2621,7 +2622,7 @@ func (s *imageSuite) TestSetupSeedCore20(c *C) {
 		c.Check(essSnaps[i], DeepEquals, &seed.Snap{
 			Path:          p,
 			SideInfo:      &info.SideInfo,
-			EssentialType: info.GetType(),
+			EssentialType: info.Type(),
 			Essential:     true,
 			Required:      true,
 			Channel:       channel,
@@ -2641,7 +2642,13 @@ func (s *imageSuite) TestSetupSeedCore20(c *C) {
 
 	// check boot config
 	grubCfg := filepath.Join(prepareDir, "system-seed", "EFI/ubuntu/grub.cfg")
-	c.Check(grubCfg, testutil.FileMatches, "# recovery grub.cfg")
+	grubRecoveryCfgAsset := assets.Internal("grub-recovery.cfg")
+	c.Assert(grubRecoveryCfgAsset, NotNil)
+	c.Check(grubCfg, testutil.FileEquals, string(grubRecoveryCfgAsset))
+	// make sure that grub.cfg is the only file present inside the directory
+	gl, err := filepath.Glob(filepath.Join(prepareDir, "system-seed/EFI/ubuntu/*"))
+	c.Assert(err, IsNil)
+	c.Check(gl, DeepEquals, []string{grubCfg})
 
 	c.Check(s.stderr.String(), Equals, "")
 

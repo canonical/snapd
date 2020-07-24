@@ -114,6 +114,8 @@ var api = []*Command{
 	systemsActionCmd,
 }
 
+var servicestateControl = servicestate.Control
+
 var (
 	// see daemon.go:canAccess for details how the access is controlled
 	rootCmd = &Command{
@@ -2436,7 +2438,7 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("no services found")
 	}
 
-	tss, err := servicestate.Control(st, appInfos, &inst, nil)
+	tss, err := servicestateControl(st, appInfos, &inst, nil)
 	if err != nil {
 		// TODO: use errToResponse here too and introduce a proper error kind ?
 		if _, ok := err.(servicestate.ServiceActionConflictError); ok {

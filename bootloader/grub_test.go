@@ -30,6 +30,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/bootloader/grubenv"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -233,15 +234,15 @@ func (s *grubTestSuite) grubEFINativeDir() string {
 	return filepath.Join(s.rootdir, "EFI/ubuntu")
 }
 
-func (s *grubTestSuite) makeFakeGrubEFINativeEnv(c *C) {
+func (s *grubTestSuite) makeFakeGrubEFINativeEnv(c *C, content []byte) {
 	err := os.MkdirAll(s.grubEFINativeDir(), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(s.grubEFINativeDir(), "grub.cfg"), nil, 0644)
+	err = ioutil.WriteFile(filepath.Join(s.grubEFINativeDir(), "grub.cfg"), content, 0644)
 	c.Assert(err, IsNil)
 }
 
 func (s *grubTestSuite) TestNewGrubWithOptionRecovery(c *C) {
-	s.makeFakeGrubEFINativeEnv(c)
+	s.makeFakeGrubEFINativeEnv(c, nil)
 
 	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Recovery: true})
 	c.Assert(g, NotNil)
@@ -249,7 +250,7 @@ func (s *grubTestSuite) TestNewGrubWithOptionRecovery(c *C) {
 }
 
 func (s *grubTestSuite) TestNewGrubWithOptionRecoveryBootEnv(c *C) {
-	s.makeFakeGrubEFINativeEnv(c)
+	s.makeFakeGrubEFINativeEnv(c, nil)
 	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Recovery: true})
 
 	// check that setting vars goes to the right place
@@ -279,7 +280,7 @@ func (s *grubTestSuite) TestNewGrubWithOptionRecoveryNoEnv(c *C) {
 }
 
 func (s *grubTestSuite) TestGrubSetRecoverySystemEnv(c *C) {
-	s.makeFakeGrubEFINativeEnv(c)
+	s.makeFakeGrubEFINativeEnv(c, nil)
 	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Recovery: true})
 
 	// check that we can set a recovery system specific bootenv
@@ -298,6 +299,36 @@ func (s *grubTestSuite) TestGrubSetRecoverySystemEnv(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(genv.Get("snapd_recovery_kernel"), Equals, "/snaps/pc-kernel_1.snap")
 	c.Check(genv.Get("other_options"), Equals, "are-supported")
+}
+
+func (s *grubTestSuite) TestGetRecoverySystemEnv(c *C) {
+	s.makeFakeGrubEFINativeEnv(c, nil)
+	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Recovery: true})
+
+	err := os.MkdirAll(filepath.Join(s.rootdir, "/systems/20191209"), 0755)
+	c.Assert(err, IsNil)
+	recoverySystemGrubenv := filepath.Join(s.rootdir, "/systems/20191209/grubenv")
+
+	// does not fail when there is no recovery env
+	value, err := g.GetRecoverySystemEnv("/systems/20191209", "no_file")
+	c.Assert(err, IsNil)
+	c.Check(value, Equals, "")
+
+	genv := grubenv.NewEnv(recoverySystemGrubenv)
+	genv.Set("snapd_extra_cmdline_args", "foo bar baz")
+	genv.Set("random_option", `has "some spaces"`)
+	err = genv.Save()
+	c.Assert(err, IsNil)
+
+	value, err = g.GetRecoverySystemEnv("/systems/20191209", "snapd_extra_cmdline_args")
+	c.Assert(err, IsNil)
+	c.Check(value, Equals, "foo bar baz")
+	value, err = g.GetRecoverySystemEnv("/systems/20191209", "random_option")
+	c.Assert(err, IsNil)
+	c.Check(value, Equals, `has "some spaces"`)
+	value, err = g.GetRecoverySystemEnv("/systems/20191209", "not_set")
+	c.Assert(err, IsNil)
+	c.Check(value, Equals, ``)
 }
 
 func (s *grubTestSuite) makeKernelAssetSnap(c *C, snapFileName string) snap.PlaceInfo {
@@ -519,7 +550,7 @@ func (s *grubTestSuite) TestKernelExtractionRunImageKernel(c *C) {
 func (s *grubTestSuite) TestKernelExtractionRunImageKernelNoSlashBoot(c *C) {
 	// this is ubuntu-boot but during install we use the native EFI/ubuntu
 	// layout, same as Recovery, without the /boot mount
-	s.makeFakeGrubEFINativeEnv(c)
+	s.makeFakeGrubEFINativeEnv(c, nil)
 
 	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{ExtractedRunKernelImage: true, NoSlashBoot: true})
 	c.Assert(g, NotNil)
@@ -568,4 +599,225 @@ func (s *grubTestSuite) TestKernelExtractionRunImageKernelNoSlashBoot(c *C) {
 	exists, _, err := osutil.DirExists(filepath.Dir(kernefi))
 	c.Assert(err, IsNil)
 	c.Check(exists, Equals, false)
+}
+
+func (s *grubTestSuite) TestIsCurrentlyManaged(c *C) {
+	// native EFI/ubuntu setup, as we're using NoSlashBoot
+	s.makeFakeGrubEFINativeEnv(c, []byte(`this is
+some random boot config`))
+
+	opts := &bootloader.Options{NoSlashBoot: true}
+	g := bootloader.NewGrub(s.rootdir, opts)
+	c.Assert(g, NotNil)
+	mg, ok := g.(bootloader.ManagedAssetsBootloader)
+	c.Assert(ok, Equals, true)
+
+	// native EFI/ubuntu setup, as we're using NoSlashBoot
+	s.makeFakeGrubEFINativeEnv(c, []byte(`this is
+some random boot config`))
+
+	is, err := mg.IsCurrentlyManaged()
+	c.Assert(err, IsNil)
+	c.Assert(is, Equals, false)
+
+	// try with real snap managed config
+	s.makeFakeGrubEFINativeEnv(c, []byte(`# Snapd-Boot-Config-Edition: 5
+managed by snapd`))
+
+	is, err = mg.IsCurrentlyManaged()
+	c.Assert(err, IsNil)
+	c.Assert(is, Equals, true)
+
+	// break boot config
+	err = os.Chmod(s.grubEFINativeDir(), 0000)
+	defer os.Chmod(s.grubEFINativeDir(), 0755)
+	c.Assert(err, IsNil)
+	is, err = mg.IsCurrentlyManaged()
+	c.Assert(err, ErrorMatches, "cannot load existing config asset: .*/grub.cfg: permission denied")
+	c.Assert(is, Equals, false)
+}
+
+func (s *grubTestSuite) TestListManagedAssets(c *C) {
+	s.makeFakeGrubEFINativeEnv(c, []byte(`this is
+some random boot config`))
+
+	opts := &bootloader.Options{NoSlashBoot: true}
+	g := bootloader.NewGrub(s.rootdir, opts)
+	c.Assert(g, NotNil)
+
+	mg, ok := g.(bootloader.ManagedAssetsBootloader)
+	c.Assert(ok, Equals, true)
+
+	c.Check(mg.ManagedAssets(), DeepEquals, []string{
+		"EFI/ubuntu/grub.cfg",
+	})
+
+	opts = &bootloader.Options{Recovery: true}
+	mg = bootloader.NewGrub(s.rootdir, opts).(bootloader.ManagedAssetsBootloader)
+	c.Check(mg.ManagedAssets(), DeepEquals, []string{
+		"EFI/ubuntu/grub.cfg",
+	})
+
+	// as it called for the root fs rather than a mount point of a partition
+	// with boot assets
+	mg = bootloader.NewGrub(s.rootdir, nil).(bootloader.ManagedAssetsBootloader)
+	c.Check(mg.ManagedAssets(), DeepEquals, []string{
+		"boot/grub/grub.cfg",
+	})
+}
+
+func (s *grubTestSuite) TestRecoveryUpdateBootConfigNoEdition(c *C) {
+	// native EFI/ubuntu setup
+	s.makeFakeGrubEFINativeEnv(c, []byte("recovery boot script"))
+
+	opts := &bootloader.Options{Recovery: true}
+	g := bootloader.NewGrub(s.rootdir, opts)
+	c.Assert(g, NotNil)
+
+	restore := assets.MockInternal("grub-recovery.cfg", []byte(`# Snapd-Boot-Config-Edition: 5
+this is mocked grub-recovery.conf
+`))
+	defer restore()
+
+	eg, ok := g.(bootloader.ManagedAssetsBootloader)
+	c.Assert(ok, Equals, true)
+	// install the recovery boot script
+	err := eg.UpdateBootConfig(opts)
+	c.Assert(err, IsNil)
+
+	c.Assert(filepath.Join(s.grubEFINativeDir(), "grub.cfg"), testutil.FileEquals, `recovery boot script`)
+}
+
+func (s *grubTestSuite) TestRecoveryUpdateBootConfigUpdates(c *C) {
+	// native EFI/ubuntu setup
+	s.makeFakeGrubEFINativeEnv(c, []byte(`# Snapd-Boot-Config-Edition: 1
+recovery boot script`))
+
+	opts := &bootloader.Options{Recovery: true}
+	g := bootloader.NewGrub(s.rootdir, opts)
+	c.Assert(g, NotNil)
+
+	restore := assets.MockInternal("grub-recovery.cfg", []byte(`# Snapd-Boot-Config-Edition: 3
+this is mocked grub-recovery.conf
+`))
+	defer restore()
+	restore = assets.MockInternal("grub.cfg", []byte(`# Snapd-Boot-Config-Edition: 4
+this is mocked grub.conf
+`))
+	defer restore()
+	eg, ok := g.(bootloader.ManagedAssetsBootloader)
+	c.Assert(ok, Equals, true)
+	// install the recovery boot script
+	err := eg.UpdateBootConfig(opts)
+	c.Assert(err, IsNil)
+	// the recovery boot asset was picked
+	c.Assert(filepath.Join(s.grubEFINativeDir(), "grub.cfg"), testutil.FileEquals, `# Snapd-Boot-Config-Edition: 3
+this is mocked grub-recovery.conf
+`)
+}
+
+func (s *grubTestSuite) testBootUpdateBootConfigUpdates(c *C, oldConfig, newConfig string, update bool) {
+	// native EFI/ubuntu setup
+	s.makeFakeGrubEFINativeEnv(c, []byte(oldConfig))
+
+	opts := &bootloader.Options{NoSlashBoot: true}
+	g := bootloader.NewGrub(s.rootdir, opts)
+	c.Assert(g, NotNil)
+
+	restore := assets.MockInternal("grub.cfg", []byte(newConfig))
+	defer restore()
+
+	eg, ok := g.(bootloader.ManagedAssetsBootloader)
+	c.Assert(ok, Equals, true)
+	err := eg.UpdateBootConfig(opts)
+	c.Assert(err, IsNil)
+	if update {
+		c.Assert(filepath.Join(s.grubEFINativeDir(), "grub.cfg"), testutil.FileEquals, newConfig)
+	} else {
+		c.Assert(filepath.Join(s.grubEFINativeDir(), "grub.cfg"), testutil.FileEquals, oldConfig)
+	}
+}
+
+func (s *grubTestSuite) TestNoSlashBootUpdateBootConfigNoUpdateWhenNotManaged(c *C) {
+	oldConfig := `not managed`
+	newConfig := `# Snapd-Boot-Config-Edition: 3
+this update is not applied
+`
+	// the current boot config is not managed, no update applied
+	const updateApplied = false
+	s.testBootUpdateBootConfigUpdates(c, oldConfig, newConfig, updateApplied)
+}
+
+func (s *grubTestSuite) TestNoSlashBootUpdateBootConfigUpdates(c *C) {
+	oldConfig := `# Snapd-Boot-Config-Edition: 2
+boot script
+`
+	// edition is higher, update is applied
+	newConfig := `# Snapd-Boot-Config-Edition: 3
+this is updated grub.cfg
+`
+	const updateApplied = true
+	s.testBootUpdateBootConfigUpdates(c, oldConfig, newConfig, updateApplied)
+}
+
+func (s *grubTestSuite) TestNoSlashBootUpdateBootConfigNoUpdate(c *C) {
+	oldConfig := `# Snapd-Boot-Config-Edition: 2
+boot script
+`
+	// edition is lower, no update is applied
+	newConfig := `# Snapd-Boot-Config-Edition: 1
+this is updated grub.cfg
+`
+	const updateApplied = false
+	s.testBootUpdateBootConfigUpdates(c, oldConfig, newConfig, updateApplied)
+}
+
+func (s *grubTestSuite) TestNoSlashBootUpdateBootConfigSameEdition(c *C) {
+	oldConfig := `# Snapd-Boot-Config-Edition: 1
+boot script
+`
+	// edition is equal, no update is applied
+	newConfig := `# Snapd-Boot-Config-Edition: 1
+this is updated grub.cfg
+`
+	const updateApplied = false
+	s.testBootUpdateBootConfigUpdates(c, oldConfig, newConfig, updateApplied)
+}
+
+func (s *grubTestSuite) TestBootUpdateBootConfigTrivialErr(c *C) {
+	oldConfig := `# Snapd-Boot-Config-Edition: 2
+boot script
+`
+	// edition is higher, update is applied
+	newConfig := `# Snapd-Boot-Config-Edition: 3
+this is updated grub.cfg
+`
+	// native EFI/ubuntu setup
+	s.makeFakeGrubEFINativeEnv(c, []byte(oldConfig))
+	restore := assets.MockInternal("grub.cfg", []byte(newConfig))
+	defer restore()
+
+	opts := &bootloader.Options{NoSlashBoot: true}
+	g := bootloader.NewGrub(s.rootdir, opts)
+	c.Assert(g, NotNil)
+	eg, ok := g.(bootloader.ManagedAssetsBootloader)
+	c.Assert(ok, Equals, true)
+
+	err := os.Chmod(s.grubEFINativeDir(), 0000)
+	c.Assert(err, IsNil)
+	defer os.Chmod(s.grubEFINativeDir(), 0755)
+
+	err = eg.UpdateBootConfig(opts)
+	c.Assert(err, ErrorMatches, "cannot load existing config asset: .*/EFI/ubuntu/grub.cfg: permission denied")
+	err = os.Chmod(s.grubEFINativeDir(), 0555)
+	c.Assert(err, IsNil)
+
+	c.Assert(filepath.Join(s.grubEFINativeDir(), "grub.cfg"), testutil.FileEquals, oldConfig)
+
+	// writing out new config fails
+	err = os.Chmod(s.grubEFINativeDir(), 0111)
+	c.Assert(err, IsNil)
+	err = eg.UpdateBootConfig(opts)
+	c.Assert(err, ErrorMatches, `open .*/EFI/ubuntu/grub.cfg\..+: permission denied`)
+	c.Assert(filepath.Join(s.grubEFINativeDir(), "grub.cfg"), testutil.FileEquals, oldConfig)
 }
