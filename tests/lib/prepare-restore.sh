@@ -375,6 +375,7 @@ prepare_project() {
             # call the one we have in the tree
             if dpkg -l snapd ; then
                 # only when the package is actually installed
+                # TODO: SRU a fixed snapd and drop this line.
                 sh -x "${SPREAD_PATH}/debian/snapd.prerm" remove
             fi
             distro_purge_package snapd
