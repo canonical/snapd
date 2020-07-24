@@ -248,7 +248,7 @@ override_dh_install:
 	# chrorder generator
 	rm -f ${CURDIR}/debian/tmp/usr/bin/chrorder
 	# bootloader assets generator
-	rm -f ${CURDIR}/debian/tmp/usr/bin/generateasset
+	rm -f ${CURDIR}/debian/tmp/usr/bin/genasset
 
 	# Install snapd's systemd units / upstart jobs, done
 	# here instead of debian/snapd.install because the

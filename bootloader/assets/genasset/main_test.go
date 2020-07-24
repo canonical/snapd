@@ -31,7 +31,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	generate "github.com/snapcore/snapd/bootloader/assets/generateasset"
+	generate "github.com/snapcore/snapd/bootloader/assets/genasset"
 	"github.com/snapcore/snapd/testutil"
 )
 
