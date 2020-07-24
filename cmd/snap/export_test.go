@@ -20,17 +20,13 @@
 package main
 
 import (
-	"io/ioutil"
 	"os"
 	"os/user"
 	"time"
 
 	"github.com/jessevdk/go-flags"
-	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
-	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/image"
 	"github.com/snapcore/snapd/sandbox/selinux"
 	"github.com/snapcore/snapd/snap"
@@ -360,13 +356,6 @@ func MockCgroupSnapNameFromPid(f func(pid int) (string, error)) (restore func())
 	cgroupSnapNameFromPid = f
 	return func() {
 		cgroupSnapNameFromPid = old
-	}
-}
-
-func EnableFeatures(c *C, ff ...features.SnapdFeature) {
-	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), IsNil)
-	for _, f := range ff {
-		c.Assert(ioutil.WriteFile(f.ControlFile(), nil, 0755), IsNil)
 	}
 }
 
