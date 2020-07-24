@@ -27,8 +27,8 @@ mock_dir() {
 restore_dir() {
     local dir="$1"
 
-    echo "fs-state: restoring mocked directory: $dir"
     if [ -e "$dir.fake" ]; then
+        echo "fs-state: restoring mocked directory: $dir"
         rm -rf "$dir"
         rm -f "$dir.fake"
     else
@@ -64,12 +64,12 @@ mock_file() {
 
 restore_file() {
     local file="$1"
-    echo "fs-state: restoring mocked file: $file"
     if [ -e "$file.fake" ]; then
+        echo "fs-state: restoring mocked file: $file"
         rm -f "$file"
         rm -f "$file.fake"
     else
-        echo "fs-state: cannot restore file non-mocked file: $file" >&2
+        echo "fs-state: cannot restore non-mocked file: $file" >&2
         exit 1
     fi
     if [ -e "$file.back" ]; then
