@@ -540,7 +540,7 @@ func (s *preseedModeSuite) TestDoMarkPreseeded(c *C) {
 	c.Check(systemKey["build-id"], Equals, "abcde")
 
 	var preseededTime time.Time
-	c.Assert(st.Get("preseeded-time", &preseededTime), IsNil)
+	c.Assert(st.Get("preseed-time", &preseededTime), IsNil)
 	c.Check(preseededTime.Equal(now), Equals, true)
 
 	// core snap was "manually" unmounted
@@ -629,7 +629,7 @@ func (s *preseedDoneSuite) TestDoMarkPreseededAfterFirstboot(c *C) {
 	// we mark-preseeded would twice (before & after preseeding); this is not
 	// the case in this test.
 	c.Assert(st.Get("preseed-system-key", &systemKey), Equals, state.ErrNoState)
-	c.Assert(st.Get("restart-system-key", &systemKey), IsNil)
+	c.Assert(st.Get("seed-restart-system-key", &systemKey), IsNil)
 	c.Check(systemKey["build-id"], Equals, "abcde")
 
 	var seedRestartTime time.Time

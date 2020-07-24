@@ -76,7 +76,7 @@ func (m *DeviceManager) doMarkPreseeded(t *state.Task, _ *tomb.Tomb) error {
 
 			st.Set("preseeded", preseeded)
 			st.Set("preseed-system-key", systemKey)
-			st.Set("preseeded-time", timeNow())
+			st.Set("preseed-time", timeNow())
 
 			// do not mark this task done as this makes it racy against taskrunner tear down (the next task
 			// could start). Let this task finish after snapd restart when preseed mode is off.
@@ -88,7 +88,7 @@ func (m *DeviceManager) doMarkPreseeded(t *state.Task, _ *tomb.Tomb) error {
 
 	// normal snapd run after snapd restart (not in preseed mode anymore)
 
-	st.Set("restart-system-key", systemKey)
+	st.Set("seed-restart-system-key", systemKey)
 	if err := m.setTimeOnce("seed-restart-time", startTime); err != nil {
 		return err
 	}
