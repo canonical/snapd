@@ -94,15 +94,6 @@ var (
 	userLookupId = user.LookupId
 )
 
-func isUnknownUser(err error) bool {
-	switch err.(type) {
-	case user.UnknownUserError, user.UnknownUserIdError:
-		return true
-	default:
-		return false
-	}
-}
-
 func usersForUsernames(usernames []string) ([]*user.User, error) {
 	if len(usernames) == 0 {
 		return allUsers()
@@ -111,9 +102,23 @@ func usersForUsernames(usernames []string) ([]*user.User, error) {
 	for _, username := range usernames {
 		usr, err := userLookup(username)
 		if err != nil {
-			if !isUnknownUser(err) {
-				return nil, err
-			}
+			// Treat all non-nil errors as user.Unknown{User,Group}Error's, as
+			// currently Go's handling of returned errno from get{pw,gr}nam_r
+			// in the cgo implementation of user.Lookup is lacking, and thus
+			// user.Unknown{User,Group}Error is returned only when errno is 0
+			// and the list of users/groups is empty, but as per the man page
+			// for get{pw,gr}nam_r, there are many other errno's that typical
+			// systems could return to indicate that the user/group wasn't
+			// found, however unfortunately the POSIX standard does not actually
+			// dictate what errno should be used to indicate "user/group not
+			// found", and so even if Go is more robust, it may not ever be
+			// fully robust. See from the man page:
+			//
+			// > It [POSIX.1-2001] does not call "not found" an error, hence
+			// > does not specify what value errno might have in this situation.
+			// > But that makes it impossible to recognize errors.
+			//
+			// See upstream Go issue: https://github.com/golang/go/issues/40334
 			u, e := userLookupId(username)
 			if e != nil {
 				// return first error, as it's usually clearer
@@ -154,9 +159,24 @@ func allUsers() ([]*user.User, error) {
 		seen[st.Uid] = true
 		usr, err := userLookupId(strconv.FormatUint(uint64(st.Uid), 10))
 		if err != nil {
-			if !isUnknownUser(err) {
-				return nil, err
-			}
+			// Treat all non-nil errors as user.Unknown{User,Group}Error's, as
+			// currently Go's handling of returned errno from get{pw,gr}nam_r
+			// in the cgo implementation of user.Lookup is lacking, and thus
+			// user.Unknown{User,Group}Error is returned only when errno is 0
+			// and the list of users/groups is empty, but as per the man page
+			// for get{pw,gr}nam_r, there are many other errno's that typical
+			// systems could return to indicate that the user/group wasn't
+			// found, however unfortunately the POSIX standard does not actually
+			// dictate what errno should be used to indicate "user/group not
+			// found", and so even if Go is more robust, it may not ever be
+			// fully robust. See from the man page:
+			//
+			// > It [POSIX.1-2001] does not call "not found" an error, hence
+			// > does not specify what value errno might have in this situation.
+			// > But that makes it impossible to recognize errors.
+			//
+			// See upstream Go issue: https://github.com/golang/go/issues/40334
+			continue
 		} else {
 			users = append(users, usr)
 		}
