@@ -26,7 +26,6 @@ environment:
     REFRESH_APP_AWARENESS_INNER/snapd_cgroup_both: true
     REFRESH_APP_AWARENESS_OUTER/snapd_cgroup_neither: false
     REFRESH_APP_AWARENESS_INNER/snapd_cgroup_neither: false
-    LXD_CHANNEL: candidate
 
 
 prepare: |
