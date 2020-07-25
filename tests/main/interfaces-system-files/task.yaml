@@ -20,7 +20,7 @@ prepare: |
     "$TESTSTOOLS"/fs-state mock-dir "$TESTDIR"/testdir1
 
     # Second layer of dirs and files
-    "$TESTSTOOLS"/fs-state mock-file "$TESTDIR"/.testdir1/.testfilé2
+    "$TESTSTOOLS"/fs-state mock-file "$TESTDIR"/.testdir1/.testfile2
     "$TESTSTOOLS"/fs-state mock-file "$TESTDIR/.testdir1/test file2"
     "$TESTSTOOLS"/fs-state mock-dir "$TESTDIR"/root
 
@@ -45,13 +45,13 @@ execute: |
     test-snapd-sh.with-system-files-plug -c "cat $TESTDIR/readonly_file1" MATCH "mock file"
     test-snapd-sh.with-system-files-plug -c "ls $TESTDIR/.testdir1"
     test-snapd-sh.with-system-files-plug -c "ls $TESTDIR/testdir1"
-    test-snapd-sh.with-system-files-plug -c "cat $TESTDIR/.testdir1/.testfilé2" | MATCH "mock file"
+    test-snapd-sh.with-system-files-plug -c "cat $TESTDIR/.testdir1/.testfile2" | MATCH "mock file"
     test-snapd-sh.with-system-files-plug -c "cat $TESTDIR'/.testdir1/test file2'" | MATCH "mock file"
     test-snapd-sh.with-system-files-plug -c "ls $TESTDIR/root/"
 
     echo "Then the snap is able to write just $TESTDIR/.testdir1 and $TESTDIR/.testfile1"
     test-snapd-sh.with-system-files-plug -c "echo test >> $TESTDIR/.testfile1"
-    test-snapd-sh.with-system-files-plug -c "touch $TESTDIR/.testdir1/testfilé2"
+    test-snapd-sh.with-system-files-plug -c "touch $TESTDIR/.testdir1/testfile2"
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
