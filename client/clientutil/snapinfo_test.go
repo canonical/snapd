@@ -17,7 +17,7 @@
  *
  */
 
-package cmd_test
+package clientutil_test
 
 import (
 	"io/ioutil"
@@ -29,7 +29,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
-	"github.com/snapcore/snapd/cmd"
+	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
@@ -94,7 +94,7 @@ func (*cmdSuite) TestClientSnapFromSnapInfo(c *C) {
 	err = os.Symlink(si.Revision.String(), filepath.Join(filepath.Dir(si.MountDir()), "current"))
 	c.Assert(err, IsNil)
 
-	ci, err := cmd.ClientSnapFromSnapInfo(si)
+	ci, err := clientutil.ClientSnapFromSnapInfo(si, nil)
 	c.Check(err, IsNil)
 
 	// check that fields are filled
@@ -152,6 +152,17 @@ func (*cmdSuite) TestClientSnapFromSnapInfo(c *C) {
 	c.Check(ci.Publisher, DeepEquals, &si.Publisher)
 }
 
+type testStatusDecorator struct{}
+
+func (sd *testStatusDecorator) DecorateWithStatus(appInfo *client.AppInfo, app *snap.AppInfo) error {
+	if appInfo.Snap != app.Snap.InstanceName() || appInfo.Name != app.Name {
+		panic("mismatched")
+	}
+	appInfo.Enabled = true
+	appInfo.Active = true
+	return nil
+}
+
 func (*cmdSuite) TestClientSnapFromSnapInfoApps(c *C) {
 	si := &snap.Info{
 		SnapType:      snap.TypeApp,
@@ -176,7 +187,7 @@ func (*cmdSuite) TestClientSnapFromSnapInfoApps(c *C) {
 	err = ioutil.WriteFile(df, nil, 0644)
 	c.Assert(err, IsNil)
 
-	ci, err := cmd.ClientSnapFromSnapInfo(si)
+	ci, err := clientutil.ClientSnapFromSnapInfo(si, &testStatusDecorator{})
 	c.Check(err, IsNil)
 
 	c.Check(ci.Name, Equals, "the-snap_insta")
@@ -212,26 +223,24 @@ func (*cmdSuite) TestClientSnapFromSnapInfoAppsActive(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(si.IsActive(), Equals, true)
 
-	c.Skip("NOT YET")
-
-	ci, err := cmd.ClientSnapFromSnapInfo(si)
+	ci, err := clientutil.ClientSnapFromSnapInfo(si, &testStatusDecorator{})
 	c.Check(err, IsNil)
 	// ... service status
 	c.Check(ci.Name, Equals, "the-snap_insta")
 	c.Check(ci.Apps, DeepEquals, []client.AppInfo{
-		{Snap: "the-snap_insta", Name: "svc", Daemon: "simple"},
+		{Snap: "the-snap_insta", Name: "svc", Daemon: "simple", Enabled: true, Active: true},
 	})
 
 }
 
 func (*cmdSuite) TestAppStatusNotes(c *C) {
 	ai := client.AppInfo{}
-	c.Check(cmd.ClientAppInfoNotes(&ai), Equals, "-")
+	c.Check(clientutil.ClientAppInfoNotes(&ai), Equals, "-")
 
 	ai = client.AppInfo{
 		Daemon: "oneshot",
 	}
-	c.Check(cmd.ClientAppInfoNotes(&ai), Equals, "-")
+	c.Check(clientutil.ClientAppInfoNotes(&ai), Equals, "-")
 
 	ai = client.AppInfo{
 		Daemon: "oneshot",
@@ -239,7 +248,7 @@ func (*cmdSuite) TestAppStatusNotes(c *C) {
 			{Type: "timer"},
 		},
 	}
-	c.Check(cmd.ClientAppInfoNotes(&ai), Equals, "timer-activated")
+	c.Check(clientutil.ClientAppInfoNotes(&ai), Equals, "timer-activated")
 
 	ai = client.AppInfo{
 		Daemon: "oneshot",
@@ -247,7 +256,7 @@ func (*cmdSuite) TestAppStatusNotes(c *C) {
 			{Type: "socket"},
 		},
 	}
-	c.Check(cmd.ClientAppInfoNotes(&ai), Equals, "socket-activated")
+	c.Check(clientutil.ClientAppInfoNotes(&ai), Equals, "socket-activated")
 
 	// check that the output is stable regardless of the order of activators
 	ai = client.AppInfo{
@@ -257,7 +266,7 @@ func (*cmdSuite) TestAppStatusNotes(c *C) {
 			{Type: "socket"},
 		},
 	}
-	c.Check(cmd.ClientAppInfoNotes(&ai), Equals, "timer-activated,socket-activated")
+	c.Check(clientutil.ClientAppInfoNotes(&ai), Equals, "timer-activated,socket-activated")
 	ai = client.AppInfo{
 		Daemon: "oneshot",
 		Activators: []client.AppActivator{
@@ -265,5 +274,5 @@ func (*cmdSuite) TestAppStatusNotes(c *C) {
 			{Type: "timer"},
 		},
 	}
-	c.Check(cmd.ClientAppInfoNotes(&ai), Equals, "timer-activated,socket-activated")
+	c.Check(clientutil.ClientAppInfoNotes(&ai), Equals, "timer-activated,socket-activated")
 }
