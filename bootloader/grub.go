@@ -393,10 +393,8 @@ func (g *grub) ManagedAssets() []string {
 func (g *grub) CommandLine(modeArg, systemArg, extraArgs string) (string, error) {
 	// we do not trust the on disk asset, use the built-in one
 	assetName := "grub.cfg"
-	isRecovery := false
 	if g.recovery {
 		assetName = "grub-recovery.cfg"
-		isRecovery = true
 	}
 	currentBootConfig := filepath.Join(g.dir(), "grub.cfg")
 	edition, err := editionFromDiskConfigAsset(currentBootConfig)
@@ -404,10 +402,6 @@ func (g *grub) CommandLine(modeArg, systemArg, extraArgs string) (string, error)
 		return "", fmt.Errorf("cannot obtain edition number of current boot config: %v", err)
 	}
 	staticCmdline := staticCommandLineForGrubAssetEdition(assetName, edition)
-	// make sure that mode and system args look sane
-	if err := validateModeArgsForGrub(modeArg, systemArg, isRecovery); err != nil {
-		return "", err
-	}
 	args, err := strutil.KernelCommandLineSplit(staticCmdline + " " + extraArgs)
 	if err != nil {
 		return "", fmt.Errorf("cannot use badly formatted kernel command line: %v", err)
@@ -416,7 +410,10 @@ func (g *grub) CommandLine(modeArg, systemArg, extraArgs string) (string, error)
 	// grub-core/lib/cmdline.c:grub_create_loader_cmdline() for reference,
 	// arguments are separated by a single space, the space after last is
 	// replaced with terminating NULL
-	snapdArgs := []string{modeArg}
+	snapdArgs := make([]string, 0, 2)
+	if modeArg != "" {
+		snapdArgs = append(snapdArgs, modeArg)
+	}
 	if systemArg != "" {
 		snapdArgs = append(snapdArgs, systemArg)
 	}
@@ -431,30 +428,4 @@ func staticCommandLineForGrubAssetEdition(asset string, edition uint) string {
 		return ""
 	}
 	return string(cmdline)
-}
-
-// validateModeArgsForGrub validates the snapd mode arguments for the kernel
-// command line.
-func validateModeArgsForGrub(modeArg, systemArg string, recoveryAsset bool) error {
-	// see grub.cfg and grub-recovery.cfg assets, expecting:
-	//      for run mode: snapd_recovery_mode=run
-	// for recovery mode: snapd_recovery_mode=recover snapd_recovery_system=<label>
-	const recoverMode = "snapd_recovery_mode=recover"
-	const runMode = "snapd_recovery_mode=run"
-	if !recoveryAsset {
-		if modeArg != runMode {
-			return fmt.Errorf("unexpected run asset mode argument: %q", modeArg)
-		}
-		if systemArg != "" {
-			return fmt.Errorf("unexpected run asset system argument: %q", systemArg)
-		}
-	} else {
-		if modeArg != recoverMode {
-			return fmt.Errorf("unexpected recovery asset mode argument: %q", modeArg)
-		}
-		if !strings.HasPrefix(systemArg, "snapd_recovery_system=") {
-			return fmt.Errorf("unexpected recovery asset system argument: %q", systemArg)
-		}
-	}
-	return nil
 }

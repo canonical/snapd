@@ -883,10 +883,10 @@ boot script
 	c.Assert(err, IsNil)
 	c.Check(args, Equals, `snapd_recovery_mode=run arg1 foo=123 panic=-1 arg2="with spaces " extra_arg=1 extra_foo=-1 panic=3 baz="more  spaces"`)
 
-	// non recovery bootloader is unhappy with recovery mode arguments
-	args, err = mg.CommandLine("snapd_recovery_mode=recover", "snapd_recovery_system=20200202", extraArgs)
-	c.Assert(err, ErrorMatches, `unexpected run asset mode argument: "snapd_recovery_mode=recover"`)
-	c.Assert(args, Equals, "")
+	// empty mode/system do not produce confusing results
+	args, err = mg.CommandLine("", "", extraArgs)
+	c.Assert(err, IsNil)
+	c.Check(args, Equals, `arg1 foo=123 panic=-1 arg2="with spaces " extra_arg=1 extra_foo=-1 panic=3 baz="more  spaces"`)
 
 	// now check the recovery bootloader
 	optsRecovery := &bootloader.Options{NoSlashBoot: true, Recovery: true}
@@ -895,11 +895,6 @@ boot script
 	c.Assert(err, IsNil)
 	// static command line from recovery asset
 	c.Check(args, Equals, `snapd_recovery_mode=recover snapd_recovery_system=20200202 recovery config panic=-1 extra_arg=1 extra_foo=-1 panic=3 baz="more  spaces"`)
-
-	// recovery bootloader is unhappy with run mode arguments
-	args, err = mrg.CommandLine("snapd_recovery_mode=run", "snapd_recovery_system=20200202", extraArgs)
-	c.Assert(err, ErrorMatches, `unexpected recovery asset mode argument: "snapd_recovery_mode=run"`)
-	c.Assert(args, Equals, "")
 
 	// try with a different edition
 	grubCfg3 := `# Snapd-Boot-Config-Edition: 3
@@ -939,57 +934,4 @@ boot script
 	c.Assert(err, IsNil)
 	// static command line from recovery asset
 	c.Check(args, Equals, `snapd_recovery_mode=recover snapd_recovery_system=20200202 console=ttyS0 console=tty1 panic=-1 foo bar baz=1`)
-}
-
-func (s *grubTestSuite) TestModeArgsForGrub(c *C) {
-	for idx, tc := range []struct {
-		recovery  bool
-		mode, sys string
-		exp       []string
-		errStr    string
-	}{
-		{recovery: false, mode: "snapd_recovery_mode=run", exp: []string{"snapd_recovery_mode=run"}},
-		{
-			recovery: true,
-			mode:     "snapd_recovery_mode=recover", sys: "snapd_recovery_system=1234",
-			exp: []string{"snapd_recovery_mode=recover", "snapd_recovery_system=1234"},
-		},
-		{
-			recovery: true,
-			mode:     "snapd_recovery_mode=recover", sys: "snapd_recovery_system=label",
-			exp: []string{"snapd_recovery_mode=recover", "snapd_recovery_system=label"},
-		},
-		// error cases
-		{
-			recovery: false, mode: "snapd_recovery_mode=funky",
-			errStr: `unexpected run asset mode argument: "snapd_recovery_mode=funky"`,
-		},
-		{recovery: false, mode: "bogus", errStr: `unexpected run asset mode argument: "bogus"`},
-		{recovery: true, mode: "bogus", errStr: `unexpected recovery asset mode argument: "bogus"`},
-		{
-			recovery: true,
-			mode:     "snapd_recovery_mode=recover", sys: "foo",
-			errStr: `unexpected recovery asset system argument: "foo"`,
-		},
-		{
-			mode: "snapd_recovery_mode=run", sys: "snapd_recovery_system=1234",
-			errStr: `unexpected run asset system argument: "snapd_recovery_system=1234"`,
-		},
-		{
-			// unexpected mode
-			recovery: true,
-			mode:     "snapd_recovery_mode=install", sys: "snapd_recovery_system=label",
-			errStr: `unexpected recovery asset mode argument: "snapd_recovery_mode=install"`,
-		},
-		{recovery: false, mode: "foo", errStr: `unexpected run asset mode argument: "foo"`},
-		{recovery: true, mode: "foo", errStr: `unexpected recovery asset mode argument: "foo"`},
-	} {
-		c.Logf("tc: %v recovery: %v mode: %q sys: %q", idx, tc.recovery, tc.mode, tc.sys)
-		err := bootloader.ValidateModeArgsForGrub(tc.mode, tc.sys, tc.recovery)
-		if tc.errStr == "" {
-			c.Assert(err, IsNil)
-		} else {
-			c.Check(err, ErrorMatches, tc.errStr)
-		}
-	}
 }
