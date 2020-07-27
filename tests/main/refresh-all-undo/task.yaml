@@ -45,14 +45,12 @@ execute: |
     snap refresh 2>&1 | MATCH "All snaps up to date"
 
     echo "When the store is configured to make them refreshable"
-    #shellcheck source=tests/lib/files.sh
-    . "$TESTSLIB"/files.sh
     #shellcheck source=tests/lib/store.sh
     . "$TESTSLIB"/store.sh
     init_fake_refreshes "$BLOB_DIR" "$GOOD_SNAP"
-    wait_for_file "$BLOB_DIR/${GOOD_SNAP}"*fake1*.snap 4 .5
+    retry -n 4 --wait 0.5 test -e "$BLOB_DIR/${GOOD_SNAP}"*fake1*.snap
     init_fake_refreshes "$BLOB_DIR" "$BAD_SNAP"
-    wait_for_file "$BLOB_DIR/${BAD_SNAP}"*fake1*.snap 4 .5
+    retry -n 4 --wait 0.5 test -e "$BLOB_DIR/${BAD_SNAP}"*fake1*.snap
 
     echo "When a snap is broken"
     echo "i-am-broken-now" >> "$BLOB_DIR/${BAD_SNAP}"*fake1*.snap
