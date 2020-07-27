@@ -5,10 +5,7 @@ prepare: |
     snap set system experimental.dbus-activation=true
 
 restore: |
-    if systemctl cat private-session-bus.service >/dev/null; then
-        # This will stop dbus-daemon and any processes it has spawned
-        systemctl stop private-session-bus.service
-    fi
+    systemctl stop private-session-bus.service || true
     rm -f dbus-launch.env run-session-bus.sh
     snap unset system experimental.dbus-activation
     snap unset system experimental.user-daemons
