@@ -485,6 +485,8 @@ start_nested_core_vm_unit(){
     PARAM_MONITOR="-monitor tcp:127.0.0.1:$MON_PORT,server,nowait"
     PARAM_USB="-usb"
     PARAM_CD="${PARAM_CD:-}"
+    PARAM_RANDOM="-object rng-random,id=rng0,filename=/dev/urandom -device virtio-rng-pci,rng=rng0"
+    PARAM_CPU="-cpu host"
 
     # with qemu-nested, we can't use kvm acceleration
     if [ "$SPREAD_BACKEND" = "google-nested" ]; then
@@ -554,6 +556,8 @@ start_nested_core_vm_unit(){
         ${PARAM_NETWORK} \
         ${PARAM_BIOS} \
         ${PARAM_TPM} \
+        ${PARAM_CPU} \
+        ${PARAM_RANDOM} \
         ${PARAM_IMAGE} \
         ${PARAM_ASSERTIONS} \
         ${PARAM_SERIAL} \
