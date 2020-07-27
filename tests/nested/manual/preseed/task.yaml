@@ -91,6 +91,19 @@ execute: |
   execute_remote "cat /var/lib/snapd/system-key" > system-key.real
   diff -u -w system-key.real system-key.preseeded
 
+  execute_remote "snap debug seeding" | MATCH "preseeded:\s+true"
+  execute_remote "snap debug seeding" | MATCH "seeded:\s+true"
+  # FIXME: this just checks that the time is of the form "xxx.xxxs", which could
+  # break if the preseeding takes more than 60s and golang formats the 
+  # time.Duration as "1m2.03s", etc. but for now this should be good enough
+  execute_remote "snap debug seeding" | MATCH "image-preseeding:\s+[0-9]+\.[0-9]+s"
+  execute_remote "snap debug seeding" | MATCH "seed-completion:\s+[0-9]+\.[0-9]+s"
+
+  # we should not have had any system-key difference as per above, so we 
+  # shouldn't output the preseed system-key or the seed-restart-system-key
+  execute_remote "snap debug seeding" | NOMATCH "preseed-system-key:"
+  execute_remote "snap debug seeding" | NOMATCH "seed-restart-system-key:"
+
   echo "Checking that lxd snap is operational"
   execute_remote "snap list" | not MATCH "broken"
   execute_remote "snap services" | MATCH "lxd.activate +enabled +inactive"
