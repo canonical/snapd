@@ -40,8 +40,8 @@ import (
 
 func init() {
 	const (
-		short = "Generate initramfs mount tuples"
-		long  = "Generate mount tuples for the initramfs until nothing more can be done"
+		short = "Generate mounts for the initramfs"
+		long  = "Generate and perform all mounts for the initramfs before transitioning to userspace"
 	)
 
 	addCommandBuilder(func(parser *flags.Parser) {
