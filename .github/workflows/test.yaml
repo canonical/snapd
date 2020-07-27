@@ -3,6 +3,33 @@ on:
   pull_request:
     branches: [ "master", "release/**" ]
 jobs:
+  snap-builds:
+    runs-on: ubuntu-16.04
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+    - name: Check cached snap build
+      id: cached-results
+      run: |
+          CACHE_RESULT_STAMP="${{ github.workspace }}/.test-results/snap-build-success"
+          echo "::set-env name=CACHE_RESULT_STAMP::$CACHE_RESULT_STAMP"
+          if [ -e "$CACHE_RESULT_STAMP" ]; then
+              echo "::set-output name=already-ran::true"
+          fi
+    - name: Build snapd snap
+      if: steps.cached-results.outputs.already-ran != 'true'
+      uses: snapcore/action-build@v1
+    - name: Uploading snapd snap snap artifact
+      if: steps.cached-results.outputs.already-ran != 'true'
+      uses: actions/upload-artifact@v2
+      with:
+        name: snap-files
+        path: "*.snap"
+    - name: Cache successful snap build
+      run: |
+        mkdir -p $(dirname "$CACHE_RESULT_STAMP")
+        touch "$CACHE_RESULT_STAMP"
+
   unit-tests:
     runs-on: ubuntu-16.04
     env:
