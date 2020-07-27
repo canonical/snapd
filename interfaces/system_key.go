@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -155,6 +156,17 @@ func generateSystemKey() (*systemKey, error) {
 	}
 	sk.CgroupVersion = strconv.FormatInt(int64(cgv), 10)
 
+	return sk, nil
+}
+
+// UnmarshalJSONSystemKey unmarshalls the data from the reader as JSON into a
+// system key usable with SystemKeysMatch.
+func UnmarshalJSONSystemKey(r io.Reader) (interface{}, error) {
+	sk := &systemKey{}
+	err := json.NewDecoder(r).Decode(sk)
+	if err != nil {
+		return nil, err
+	}
 	return sk, nil
 }
 
