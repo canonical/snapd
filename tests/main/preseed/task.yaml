@@ -21,6 +21,10 @@ prepare: |
   . "$TESTSLIB/preseed.sh"
   mount_ubuntu_image "$(pwd)/cloudimg.img" "$IMAGE_MOUNTPOINT"
 
+  # for images that are already preseeded, we need to undo the preseeding there
+  echo "Running preseed --reset for already preseeded cloud images"
+  SNAPD_DEBUG=1 /usr/lib/snapd/snap-preseed --reset "$IMAGE_MOUNTPOINT"
+
 restore: |
   #shellcheck source=tests/lib/preseed.sh
   . "$TESTSLIB/preseed.sh"
@@ -30,7 +34,7 @@ execute: |
   echo "Checking missing chroot path arg error"
   /usr/lib/snapd/snap-preseed 2>&1 | MATCH "error: need chroot path as argument"
 
-  echo "Running pre-seeeding"
+  echo "Running pre-seeding"
   SNAPD_DEBUG=1 /usr/lib/snapd/snap-preseed "$IMAGE_MOUNTPOINT"
 
   # sanity, core snap mounted by snap-preseed got unmounted
@@ -42,7 +46,7 @@ execute: |
   # Note, these checks match statuses, but not the order
   # mark-preseeded task is where snap-preseed stopped, therefore it's in Doing.
   MATCH "Doing .+ mark-preseeded +Mark system pre-seeded" < tasks.log
- 
+
   MATCH "Done .+ prerequisites +Ensure prerequisites for \"snapd\" are available" < tasks.log
   MATCH "Done .+ prepare-snap +Prepare snap \"/var/lib/snapd/seed/snaps/snapd_[0-9]+.snap" < tasks.log
   MATCH "Done .+ mount-snap +Mount snap \"snapd\" \([0-9]+\)" < tasks.log

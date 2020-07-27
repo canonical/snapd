@@ -272,3 +272,42 @@ interface(`snappy_mount_domtrans',`
 	corecmd_search_bin($1)
 	domtrans_pattern($1, snappy_mount_exec_t, snappy_mount_t)
 ')
+
+########################################
+## <summary>
+##	Search snapd state directories.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`snappy_search_lib',`
+	gen_require(`
+		type snappy_var_lib_t;
+	')
+
+	allow $1 snappy_var_lib_t:dir search_dir_perms;
+	files_search_var_lib($1)
+')
+
+########################################
+## <summary>
+##	Read snapd state files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`snappy_read_lib',`
+	gen_require(`
+		type snappy_var_lib_t;
+	')
+
+	snappy_search_lib($1)
+	list_dirs_pattern($1, snappy_var_lib_t, snappy_var_lib_t)
+	read_files_pattern($1, snappy_var_lib_t, snappy_var_lib_t)
+')
