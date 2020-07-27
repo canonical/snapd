@@ -19,6 +19,8 @@
 package cgroup
 
 import (
+	"time"
+
 	"github.com/godbus/dbus"
 )
 
@@ -95,5 +97,13 @@ func MockDoCreateTransientScope(fn func(conn *dbus.Conn, unitName string, pid in
 	doCreateTransientScope = fn
 	return func() {
 		doCreateTransientScope = old
+	}
+}
+
+func MockTimeSleep(fn func(time.Duration)) (restore func()) {
+	old := timeSleep
+	timeSleep = fn
+	return func() {
+		timeSleep = old
 	}
 }
