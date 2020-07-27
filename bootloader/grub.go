@@ -384,13 +384,13 @@ func (g *grub) ManagedAssets() []string {
 	}
 }
 
-// CommandLine returns the kernel command line composed of system run
-// mode arguments, built-in bootloader specific static arguments
-// followed by any extra arguments configured by snapd. The command line
-// may be different when using a bootloader in the recovery partition.
+// CommandLine returns the kernel command line composed of mode and
+// system arguments, built-in bootloader specific static arguments
+// followed by any extra arguments. The command line may be different
+// when using a recovery bootloader.
 //
 // Implements ManagedAssetsBootloader for the grub bootloader.
-func (g *grub) CommandLine(modeArgs, extraArgs string) (string, error) {
+func (g *grub) CommandLine(modeArg, systemArg, extraArgs string) (string, error) {
 	// we do not trust the on disk asset, use the built-in one
 	assetName := "grub.cfg"
 	isRecovery := false
@@ -404,10 +404,8 @@ func (g *grub) CommandLine(modeArgs, extraArgs string) (string, error) {
 		return "", fmt.Errorf("cannot obtain edition number of current boot config: %v", err)
 	}
 	staticCmdline := staticCommandLineForGrubAssetEdition(assetName, edition)
-	// split the mode arguments and make sure they are sane for given
-	// run/recovery mode
-	mode, err := modeArgsForGrub(modeArgs, isRecovery)
-	if err != nil {
+	// make sure that mode and system args look sane
+	if err := validateModeArgsForGrub(modeArg, systemArg, isRecovery); err != nil {
 		return "", err
 	}
 	args, err := strutil.KernelCommandLineSplit(staticCmdline + " " + extraArgs)
@@ -418,7 +416,11 @@ func (g *grub) CommandLine(modeArgs, extraArgs string) (string, error) {
 	// grub-core/lib/cmdline.c:grub_create_loader_cmdline() for reference,
 	// arguments are separated by a single space, the space after last is
 	// replaced with terminating NULL
-	return strings.Join(append(mode, args...), " "), nil
+	snapdArgs := []string{modeArg}
+	if systemArg != "" {
+		snapdArgs = append(snapdArgs, systemArg)
+	}
+	return strings.Join(append(snapdArgs, args...), " "), nil
 }
 
 // staticCommandLineForGrubAssetEdition fetches a static command line for given
@@ -431,33 +433,28 @@ func staticCommandLineForGrubAssetEdition(asset string, edition uint) string {
 	return string(cmdline)
 }
 
-// modeArgsForGrub validates the snapd mode arguments for the kernel command
-// line and splits them into individual arguments.
-func modeArgsForGrub(modeArgs string, recoveryAsset bool) ([]string, error) {
-	args, err := strutil.KernelCommandLineSplit(modeArgs)
-	if err != nil {
-		return nil, err
-	}
-	// see grub.cfg and grub-recovery.cfg assets, the order is:
-	//      for run mode: snapd_recovery_mode=run <args>
-	// for recovery mode: snapd_recovery_mode=recover snapd_recovery_system=<label> <args>
+// validateModeArgsForGrub validates the snapd mode arguments for the kernel
+// command line.
+func validateModeArgsForGrub(modeArg, systemArg string, recoveryAsset bool) error {
+	// see grub.cfg and grub-recovery.cfg assets, expecting:
+	//      for run mode: snapd_recovery_mode=run
+	// for recovery mode: snapd_recovery_mode=recover snapd_recovery_system=<label>
+	const recoverMode = "snapd_recovery_mode=recover"
+	const runMode = "snapd_recovery_mode=run"
 	if !recoveryAsset {
-		if len(args) != 1 || args[0] != "snapd_recovery_mode=run" {
-			return nil, fmt.Errorf("unexpected run asset mode arguments: %q", modeArgs)
+		if modeArg != runMode {
+			return fmt.Errorf("unexpected run asset mode argument: %q", modeArg)
 		}
-		return args[:1], nil
+		if systemArg != "" {
+			return fmt.Errorf("unexpected run asset system argument: %q", systemArg)
+		}
 	} else {
-		const recoverMode = "snapd_recovery_mode=recover"
-		if len(args) != 2 {
-			return nil, fmt.Errorf("unexpected recovery asset mode arguments: %q", modeArgs)
+		if modeArg != recoverMode {
+			return fmt.Errorf("unexpected recovery asset mode argument: %q", modeArg)
 		}
-		recover, system := args[0], args[1]
-		if args[0] != recoverMode {
-			system, recover = recover, system
+		if !strings.HasPrefix(systemArg, "snapd_recovery_system=") {
+			return fmt.Errorf("unexpected recovery asset system argument: %q", systemArg)
 		}
-		if recover != recoverMode || !strings.HasPrefix(system, "snapd_recovery_system=") {
-			return nil, fmt.Errorf("unexpected recovery asset mode arguments: %q", modeArgs)
-		}
-		return []string{recover, system}, nil
 	}
+	return nil
 }

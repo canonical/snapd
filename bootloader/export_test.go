@@ -108,5 +108,5 @@ var (
 	EditionFromConfigAsset               = editionFromConfigAsset
 	ConfigAssetFrom                      = configAssetFrom
 	StaticCommandLineForGrubAssetEdition = staticCommandLineForGrubAssetEdition
-	ModeArgsForGrub                      = modeArgsForGrub
+	ValidateModeArgsForGrub              = validateModeArgsForGrub
 )
