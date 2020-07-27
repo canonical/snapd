@@ -22,6 +22,7 @@ package assets_test
 import (
 	"bytes"
 	"fmt"
+	"io/ioutil"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -107,5 +108,21 @@ func (s *grubAssetsTestSuite) TestGrubCmdlineSnippetCrossCheck(c *C) {
 		c.Assert(snip, NotNil)
 		c.Assert(snip, DeepEquals, tc.content)
 		c.Assert(string(grubCfg), testutil.Contains, fmt.Sprintf(tc.pattern, string(snip)))
+	}
+}
+
+func (s *grubAssetsTestSuite) TestGrubAssetsWereRegenerated(c *C) {
+	for _, tc := range []struct {
+		asset string
+		file  string
+	}{
+		{"grub.cfg", "data/grub.cfg"},
+		{"grub-recovery.cfg", "data/grub-recovery.cfg"},
+	} {
+		assetData := assets.Internal(tc.asset)
+		c.Assert(assetData, NotNil)
+		data, err := ioutil.ReadFile(tc.file)
+		c.Assert(err, IsNil)
+		c.Check(assetData, DeepEquals, data, Commentf("asset %q has not been updated", tc.asset))
 	}
 }
