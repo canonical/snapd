@@ -1,3 +1,26 @@
+snapd (2.45.3) xenial; urgency=medium
+
+  * New upstream release, LP: #1875071
+    - many: backport _writable_defaults dir changes
+    - tests: fix incorrect check in smoke/remove test
+    - cmd/snap-bootstrap,seed: backport of uc20 PRs
+    - tests: avoid exit when nested type var is not defined
+    - cmd/snap-preseed: backport fixes
+    - interfaces: optimize rules of multiple connected iio/i2c/spi plugs
+    - many: cherry-picks for 2.45, gh-action, test fixes
+    - tests/lib: account for changes in arch package file name extension
+    - postrm, snap-mgmt: cleanup modules and other cherry-picks
+    - snap-confine: don't die if a device from sysfs path cannot be
+      found by udev
+    - data/selinux: update policy to allow forked processes to call
+      getpw*()
+    - tests/main/interfaces-time-control: exercise setting time via date
+    - interfaces/builtin/time-control: allow POSIX clock API
+    - usersession/userd: add "slack" to the white list of URL schemes
+      handled by xdg-open
+
+ -- Zygmunt Krynicki <me@zygoon.pl>  Mon, 27 Jul 2020 12:01:14 +0200
+
 snapd (2.45.2) xenial; urgency=medium
 
   * SECURITY UPDATE: sandbox escape vulnerability on snapctl xdg-open
