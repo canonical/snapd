@@ -35,7 +35,10 @@ prepare: |
   # we're cheating and preseeding images that were not meant to be
   # preseeded in their current state, we need to inject newer snapd
   # into seeds/ to make snap-preseed and the test happy.
-  snap download --basename=snapd snapd --edge
+
+  # add snapd from this branch into the seed
+  repack_snapd_deb_into_snapd_snap "$PWD"
+  mv snapd-from-deb.snap snapd.snap
   inject_snap_into_seed "$IMAGE_MOUNTPOINT" snapd
 
   # for images that are already preseeded, we need to undo the preseeding there
@@ -59,7 +62,7 @@ execute: |
   #shellcheck source=tests/lib/preseed.sh
   . "$TESTSLIB/preseed.sh"
 
-  echo "Running pre-seeeding"
+  echo "Running pre-seeding"
   /usr/lib/snapd/snap-preseed "$IMAGE_MOUNTPOINT"
 
   # mark-preseeded task is where snap-preseed stopped, therefore it's in Doing.
