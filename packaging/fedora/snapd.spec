@@ -97,7 +97,7 @@
 %endif
 
 Name:           snapd
-Version:        2.45.1
+Version:        2.45.2
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -915,6 +915,21 @@ fi
 
 
 %changelog
+* Fri Jul 10 2020 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.45.2
+ - SECURITY UPDATE: sandbox escape vulnerability on snapctl xdg-open
+   implementation
+   - usersession/userd/launcher.go: remove XDG_DATA_DIRS environment
+     variable modification when calling the system xdg-open. Patch
+     thanks to James Henstridge
+   - packaging/ubuntu-16.04/snapd.postinst: ensure "snap userd" is
+     restarted. Patch thanks to Michael Vogt
+   - CVE-2020-11934
+ - SECURITY UPDATE: arbitrary code execution vulnerability on core
+   devices with access to physical removable media
+   - devicestate: Disable/restrict cloud-init after seeding.
+   - CVE-2020-11933
+
 * Fri Jun 05 2020 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.45.1
  - data/selinux: allow checking /var/cache/app-info
