@@ -104,6 +104,18 @@ type Command struct {
 	d *Daemon
 }
 
+// accessRules returns a list of access checkers for the command.
+// It checks the following properties:
+//
+// - if the user is `root` everything is allowed
+// - if a user is logged in (via `snap login`) and the command doesn't have RootOnly, everything is allowed
+// - POST/PUT all require `root`, or just `snap login` if not RootOnly
+//
+// Otherwise for GET requests the following parameters are honored:
+// - GuestOK: anyone can access GET
+// - UserOK: any uid on the local system can access GET
+// - RootOnly: only root can access this
+// - SnapOK: a snap can access this via `snapctl`
 func (c *Command) accessRules() []accessChecker {
 	if c.RootOnly {
 		if c.UserOK || c.GuestOK || c.SnapOK {
@@ -111,7 +123,7 @@ func (c *Command) accessRules() []accessChecker {
 			logger.Panicf("Command can't have RootOnly together with any *OK flag")
 		}
 		return []accessChecker{
-			rejectSnapSocket{},
+			denySnapSocket{},
 			allowRoot{},
 		}
 	}
@@ -121,7 +133,7 @@ func (c *Command) accessRules() []accessChecker {
 	if c.SnapOK {
 		rules = append(rules, allowSnapSocket{})
 	} else {
-		rules = append(rules, rejectSnapSocket{})
+		rules = append(rules, denySnapSocket{})
 	}
 	if c.GuestOK {
 		rules = append(rules, allowGetByGuest{})
@@ -135,17 +147,7 @@ func (c *Command) accessRules() []accessChecker {
 	return rules
 }
 
-// canAccess checks the following properties:
-//
-// - if the user is `root` everything is allowed
-// - if a user is logged in (via `snap login`) and the command doesn't have RootOnly, everything is allowed
-// - POST/PUT all require `root`, or just `snap login` if not RootOnly
-//
-// Otherwise for GET requests the following parameters are honored:
-// - GuestOK: anyone can access GET
-// - UserOK: any uid on the local system can access GET
-// - RootOnly: only root can access this
-// - SnapOK: a snap can access this via `snapctl`
+// canAccess checks if the command allows the given request.
 func (c *Command) canAccess(r *http.Request, user *auth.UserState) accessResult {
 	ucred, err := ucrednetGet(r.RemoteAddr)
 	if err != nil && err != errNoID {

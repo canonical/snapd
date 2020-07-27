@@ -42,10 +42,17 @@ const (
 
 var polkitCheckAuthorization = polkit.CheckAuthorization
 
+// accessChecker checks whether a particular request is allowed.
+//
+// An access checker will either allow a request, deny it, or return
+// accessUnknown, which indicates the decision should be delegated to
+// the next access checker.
 type accessChecker interface {
 	canAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult
 }
 
+// allowSnapSocket is an access checker that allows requests received
+// from the snapd-snap.socket socket.
 type allowSnapSocket struct{}
 
 func (c allowSnapSocket) canAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
@@ -55,15 +62,18 @@ func (c allowSnapSocket) canAccess(r *http.Request, ucred *ucrednet, user *auth.
 	return accessUnknown
 }
 
-type rejectSnapSocket struct{}
+// denySnapSocket is an access checker that denies requests received
+// from the snapd-snap.socket socket.
+type denySnapSocket struct{}
 
-func (c rejectSnapSocket) canAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
+func (c denySnapSocket) canAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
 	if ucred != nil && ucred.socket == dirs.SnapSocket {
 		return accessUnauthorized
 	}
 	return accessUnknown
 }
 
+// allowGetByGuest is an access checker that allows GET requests from anyone.
 type allowGetByGuest struct{}
 
 func (c allowGetByGuest) canAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
@@ -73,6 +83,7 @@ func (c allowGetByGuest) canAccess(r *http.Request, ucred *ucrednet, user *auth.
 	return accessUnknown
 }
 
+// allowGetByUser is an access checker that allows GET requests from any user.
 type allowGetByUser struct{}
 
 func (c allowGetByUser) canAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
@@ -82,6 +93,8 @@ func (c allowGetByUser) canAccess(r *http.Request, ucred *ucrednet, user *auth.U
 	return accessUnknown
 }
 
+// allowSnapUser is an access checker that allows requests from
+// authorised users.
 type allowSnapUser struct{}
 
 func (c allowSnapUser) canAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
@@ -91,6 +104,7 @@ func (c allowSnapUser) canAccess(r *http.Request, ucred *ucrednet, user *auth.Us
 	return accessUnknown
 }
 
+// allowRoot is an access checker that allows requests from root (uid 0).
 type allowRoot struct{}
 
 func (c allowRoot) canAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
@@ -100,6 +114,7 @@ func (c allowRoot) canAccess(r *http.Request, ucred *ucrednet, user *auth.UserSt
 	return accessUnknown
 }
 
+// polkitCheck is an access checker that delegates the decision to polkitd.
 type polkitCheck struct {
 	actionID string
 }
