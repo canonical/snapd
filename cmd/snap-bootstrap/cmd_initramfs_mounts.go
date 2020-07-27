@@ -300,14 +300,12 @@ func generateMountsModeRecover(mst *initramfsMountsState, recoverySystem string)
 	return nil
 }
 
-// TODO:UC20: move all of this to a helper in boot?
-// selectPartitionToMount will select the partition to mount at dir, preferring
-// to use efi variables to determine which partition matches the disk we booted
-// the kernel from. If it can't figure out which disk the kernel came from, then
-// it will fallback to mounting via the specified label
-func selectPartitionMatchingKernelDisk(dir, fallbacklabel string) error {
-	// TODO:UC20: should this only run on grade > dangerous? where do we
-	//            get the model at this point?
+// mountPartitionMatchingKernelDisk will select the partition to mount at dir,
+// using the boot package function FindPartitionUUIDForBootedKernelDisk to
+// determine what partition the booted kernel came from. If which disk the
+// kernel came from cannot be deteremined, then it will fallback to mounting via
+// the specified disk label.
+func mountPartitionMatchingKernelDisk(dir, fallbacklabel string) error {
 	partuuid, err := bootFindPartitionUUIDForBootedKernelDisk()
 	// TODO: the by-partuuid is only available on gpt disks, on mbr we need
 	//       to use by-uuid or by-id
@@ -318,9 +316,9 @@ func selectPartitionMatchingKernelDisk(dir, fallbacklabel string) error {
 	}
 
 	opts := &systemdMountOptions{
-		// always fsck the partition when we are mounting it, as this is the first
-		// partition we will be mounting, we can't know if anything is  corrupted
-		// yet
+		// always fsck the partition when we are mounting it, as this is the
+		// first partition we will be mounting, we can't know if anything is
+		// corrupted yet
 		NeedsFsck: true,
 	}
 	return doSystemdMount(partSrc, dir, opts)
@@ -329,7 +327,7 @@ func selectPartitionMatchingKernelDisk(dir, fallbacklabel string) error {
 func generateMountsCommonInstallRecover(mst *initramfsMountsState, recoverySystem string) error {
 	// 1. always ensure seed partition is mounted first before the others,
 	//      since the seed partition is needed to mount the snap files there
-	err := selectPartitionMatchingKernelDisk(boot.InitramfsUbuntuSeedDir, "ubuntu-seed")
+	err := mountPartitionMatchingKernelDisk(boot.InitramfsUbuntuSeedDir, "ubuntu-seed")
 	if err != nil {
 		return err
 	}
@@ -373,7 +371,7 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState, recoverySyste
 
 func generateMountsModeRun(mst *initramfsMountsState) error {
 	// 1. mount ubuntu-boot
-	err := selectPartitionMatchingKernelDisk(boot.InitramfsUbuntuBootDir, "ubuntu-boot")
+	err := mountPartitionMatchingKernelDisk(boot.InitramfsUbuntuBootDir, "ubuntu-boot")
 	if err != nil {
 		return err
 	}
