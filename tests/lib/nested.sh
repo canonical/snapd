@@ -347,6 +347,14 @@ create_nested_core_vm(){
                 if [ -z "$GADGET_SNAP" ]; then
                     snap download --basename=pc --channel="20/edge" pc
                     unsquashfs -d pc-gadget pc.snap
+                    
+                    # replace the kernel cmdline to output systemd to serial for
+                    # debugging failed boots where we never can ssh to the
+                    # nested VM to get journal output there
+                    newCmdline="set cmdline=\"console=tty1 console=ttyS0 rd.systemd.journald.forward_to_console=1 systemd.journald.forward_to_console=1 panic=-1\""
+                    sed -i pc-gadget/grub.conf -e "s@set cmdline=.*@$newCmdline@"
+                    sed -i pc-gadget/grub-recovery.conf -e "s@set cmdline=.*@$newCmdline@"
+
                     secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
                     snap pack pc-gadget/ "$WORK_DIR/image"
 

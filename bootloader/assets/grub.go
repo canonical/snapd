@@ -21,9 +21,9 @@ package assets
 
 func init() {
 	registerSnippetForEditions("grub.cfg:static-cmdline", []ForEditions{
-		{FirstEdition: 1, Snippet: []byte("console=ttyS0 console=tty1 panic=-1")},
+		{FirstEdition: 1, Snippet: []byte("console=tty1 console=ttyS0 rd.systemd.journald.forward_to_console=1 systemd.journald.forward_to_console=1 panic=-1")},
 	})
 	registerSnippetForEditions("grub-recovery.cfg:static-cmdline", []ForEditions{
-		{FirstEdition: 1, Snippet: []byte("console=ttyS0 console=tty1 panic=-1")},
+		{FirstEdition: 1, Snippet: []byte("console=tty1 console=ttyS0 rd.systemd.journald.forward_to_console=1 systemd.journald.forward_to_console=1 panic=-1")},
 	})
 }

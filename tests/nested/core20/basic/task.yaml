@@ -31,3 +31,6 @@ execute: |
 
     echo "Ensure 'snap list' works and test-snapd-sh snap is removed"
     not execute_remote "snap list test-snapd-sh"
+
+    # make us fail so we get the boot logs for random reboot debugging
+    exit 1
