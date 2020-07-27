@@ -100,6 +100,10 @@ func SetSystemMode(m *DeviceManager, mode string) {
 	m.systemMode = mode
 }
 
+func SetTimeOnce(m *DeviceManager, name string, t time.Time) error {
+	return m.setTimeOnce(name, t)
+}
+
 func MockRepeatRequestSerial(label string) (restore func()) {
 	old := repeatRequestSerial
 	repeatRequestSerial = label
