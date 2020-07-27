@@ -1,19 +1,25 @@
 #!/bin/bash
 
-# shellcheck source=tests/lib/state.sh
-. "$TESTSLIB/state.sh"
-
 # This file contains all the cursors used for the different tests
-JOURNALCTL_CURSOR_FILE="$RUNTIME_STATE_PATH"/journalctl_cursor
+JOURNALCTL_CURSOR_FILE="$SPREAD_PATH"/tests/runtime-state/journalctl_cursor
 
-get_last_journalctl_cursor(){
+show_help() {
+    echo "usage: journal-state start-new-log"
+    echo "       journal-state check-log-started"
+    echo "       journal-state get-last-cursor"
+    echo "       journal-state match-log [expression]"
+    echo "       journal-state get-log"
+    echo "       journal-state get-log-from-cursor"
+}
+
+get_last_cursor(){
     journalctl --output=export -n1 | grep --binary-files=text -o '__CURSOR=.*' | sed -e 's/^__CURSOR=//'
 }
 
-start_new_journalctl_log(){
-    sync_journalctl_log
+start_new_log(){
+    _sync_log
     echo "New test starts here - $SPREAD_JOB" | systemd-cat -t snapd-test
-    cursor=$(get_last_journalctl_cursor)
+    cursor=$(get_last_cursor)
     if [ -z "$cursor" ]; then
         echo "Empty journalctl cursor, exiting..."
         exit 1
@@ -23,17 +29,17 @@ start_new_journalctl_log(){
     fi
 }
 
-check_journalctl_ready(){
+check_log_started(){
     marker="test-${RANDOM}${RANDOM}"
     echo "Running test: $marker" | systemd-cat -t snapd-test
-    if check_journalctl_log "$marker"; then
+    if match_log "$marker"; then
         return 0
     fi
     echo "Test id not found in journalctl, exiting..."
     exit 1
 }
 
-check_journalctl_log(){
+match_log(){
     expression=$1
     shift
     for _ in $(seq 10); do
@@ -43,7 +49,7 @@ check_journalctl_log(){
         # check the journal once at the end of this loop, likely in the debug 
         # section
         set +x
-        log=$(get_journalctl_log "$@")
+        log=$(get_log "$@")
         if echo "$log" | grep -q -E "$expression"; then
             return 0
         fi
@@ -54,16 +60,16 @@ check_journalctl_log(){
     return 1
 }
 
-get_journalctl_log(){
+get_log(){
     cursor=""
     if [ -f "$JOURNALCTL_CURSOR_FILE" ]; then
         cursor=$(tail -n1 "$JOURNALCTL_CURSOR_FILE")
     fi
-    sync_journalctl_log
-    get_journalctl_log_from_cursor "$cursor" "$@"
+    _sync_log
+    get_log_from_cursor "$cursor" "$@"
 }
 
-get_journalctl_log_from_cursor(){
+get_log_from_cursor(){
     cursor=$1
     shift
     if [ -z "$cursor" ]; then
@@ -73,7 +79,36 @@ get_journalctl_log_from_cursor(){
     fi
 }
 
-sync_journalctl_log(){
+_sync_log(){
     journalctl --flush || true
     journalctl --sync || true
 }
+
+if [ $# -eq 0 ]; then
+    show_help
+    exit 0
+fi
+
+subcommand=$1
+action=
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -h|--help)
+            show_help
+            exit 0
+            ;;
+        *)
+            action=$(echo "$subcommand" | tr '-' '_')
+            shift
+            break
+            ;;
+    esac
+done
+
+if [ -z "$(declare -f "$action")" ]; then
+    echo "journal-state: no such command $subcommand" >&2
+    show_help
+    exit 1
+fi
+
+"$action" "$@"
