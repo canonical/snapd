@@ -626,8 +626,8 @@ func (s *preseedDoneSuite) TestDoMarkPreseededAfterFirstboot(c *C) {
 
 	var systemKey map[string]interface{}
 	// in real world preseed-system-key would be present at this point because
-	// we mark-preseeded would twice (before & after preseeding); this is not
-	// the case in this test.
+	// mark-preseeded would be run twice (before & after preseeding); this is
+	// not the case in this test.
 	c.Assert(st.Get("preseed-system-key", &systemKey), Equals, state.ErrNoState)
 	c.Assert(st.Get("seed-restart-system-key", &systemKey), IsNil)
 	c.Check(systemKey["build-id"], Equals, "abcde")
