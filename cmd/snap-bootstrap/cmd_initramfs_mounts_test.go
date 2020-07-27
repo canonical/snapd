@@ -207,7 +207,7 @@ type systemdMount struct {
 
 // this is a function so we evaluate InitramfsUbuntuBootDir, etc at the time of
 // the test to pick up test-specific dirs.GlobalRootDir
-func ubuntuLabelMount(label string) systemdMount {
+func ubuntuLabelMount(label string, mode string) systemdMount {
 	mnt := systemdMount{
 		opts: needsFsckDiskMountOpts,
 	}
@@ -218,6 +218,9 @@ func ubuntuLabelMount(label string) systemdMount {
 	case "ubuntu-seed":
 		mnt.what = "/dev/disk/by-label/ubuntu-seed"
 		mnt.where = boot.InitramfsUbuntuSeedDir
+		if mode == "run" {
+			mnt.opts = nil
+		}
 	case "ubuntu-data":
 		mnt.what = "/dev/disk/by-label/ubuntu-data"
 		mnt.where = boot.InitramfsDataDir
@@ -264,12 +267,15 @@ func (s *initramfsMountsSuite) makeRunSnapSystemdMount(typ snap.Type, sn snap.Pl
 	return mnt
 }
 
-func (s *initramfsMountsSuite) mockSystemdMounts(c *C, mounts []systemdMount) (restore func()) {
+func (s *initramfsMountsSuite) mockSystemdMounts(c *C, mounts []systemdMount, comment CommentInterface) (restore func()) {
 	n := 0
+	if comment == nil {
+		comment = Commentf("")
+	}
 	s.AddCleanup(func() {
 		// make sure that after the test is done, we had as many mount calls as
 		// mocked mounts
-		c.Assert(n, Equals, len(mounts))
+		c.Assert(n, Equals, len(mounts), comment)
 	})
 	return main.MockSystemdMount(func(what, where string, opts *main.SystemdMountOptions) error {
 		n++
@@ -278,9 +284,9 @@ func (s *initramfsMountsSuite) mockSystemdMounts(c *C, mounts []systemdMount) (r
 			return fmt.Errorf("unexpected systemd-mount call: %s, %s, %+v", what, where, opts)
 		}
 		mnt := mounts[n-1]
-		c.Assert(what, Equals, mnt.what)
-		c.Assert(where, Equals, mnt.where)
-		c.Assert(opts, DeepEquals, mnt.opts)
+		c.Assert(what, Equals, mnt.what, comment)
+		c.Assert(where, Equals, mnt.where, comment)
+		c.Assert(opts, DeepEquals, mnt.opts, comment)
 		return nil
 	})
 }
@@ -291,7 +297,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeHappy(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install snapd_recovery_system="+s.sysLabel)
 
 	restore := s.mockSystemdMounts(c, []systemdMount{
-		ubuntuLabelMount("ubuntu-seed"),
+		ubuntuLabelMount("ubuntu-seed", "install"),
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
@@ -300,7 +306,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeHappy(c *C) {
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
 		},
-	})
+	}, nil)
 	defer restore()
 
 	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
@@ -334,7 +340,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeBootedKernelPartiti
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
 		},
-	})
+	}, nil)
 	defer restore()
 
 	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
@@ -352,12 +358,12 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeHappy(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
 	restore := s.mockSystemdMounts(c, []systemdMount{
-		ubuntuLabelMount("ubuntu-boot"),
-		ubuntuLabelMount("ubuntu-seed"),
-		ubuntuLabelMount("ubuntu-data"),
+		ubuntuLabelMount("ubuntu-boot", "run"),
+		ubuntuLabelMount("ubuntu-seed", "run"),
+		ubuntuLabelMount("ubuntu-data", "run"),
 		s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
 		s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
-	})
+	}, nil)
 	defer restore()
 
 	// mock a bootloader
@@ -817,7 +823,6 @@ After=%[1]s
 			boot.InitramfsUbuntuSeedDir,
 			"--no-pager",
 			"--no-ask-password",
-			"--fsck=yes",
 		},
 		{
 			"systemd-mount",
@@ -848,14 +853,14 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeFirstBootRecoverySystem
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
 	restore := s.mockSystemdMounts(c, []systemdMount{
-		ubuntuLabelMount("ubuntu-boot"),
-		ubuntuLabelMount("ubuntu-seed"),
-		ubuntuLabelMount("ubuntu-data"),
+		ubuntuLabelMount("ubuntu-boot", "run"),
+		ubuntuLabelMount("ubuntu-seed", "run"),
+		ubuntuLabelMount("ubuntu-data", "run"),
 		s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
 		s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
 		// RecoverySystem set makes us mount the snapd snap here
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
-	})
+	}, nil)
 	defer restore()
 
 	// mock a bootloader
@@ -895,11 +900,11 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithBootedKernelPartUUI
 			boot.InitramfsUbuntuBootDir,
 			needsFsckDiskMountOpts,
 		},
-		ubuntuLabelMount("ubuntu-seed"),
-		ubuntuLabelMount("ubuntu-data"),
+		ubuntuLabelMount("ubuntu-seed", "run"),
+		ubuntuLabelMount("ubuntu-data", "run"),
 		s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
 		s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
-	})
+	}, nil)
 	defer restore()
 
 	// mock a bootloader
@@ -930,8 +935,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappy(c *C
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
 	restore := s.mockSystemdMounts(c, []systemdMount{
-		ubuntuLabelMount("ubuntu-boot"),
-		ubuntuLabelMount("ubuntu-seed"),
+		ubuntuLabelMount("ubuntu-boot", "run"),
+		ubuntuLabelMount("ubuntu-seed", "run"),
 		{
 			"path-to-device",
 			boot.InitramfsDataDir,
@@ -939,7 +944,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappy(c *C
 		},
 		s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
 		s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
-	})
+	}, nil)
 	defer restore()
 
 	// write the installed model like makebootable does it
@@ -1031,13 +1036,13 @@ func (s *initramfsMountsSuite) testInitramfsMountsEncryptedNoModel(c *C, mode, l
 	if mode == "run" {
 		// run mode will mount ubuntu-boot and ubuntu-seed
 		restore = s.mockSystemdMounts(c, []systemdMount{
-			ubuntuLabelMount("ubuntu-boot"),
-			ubuntuLabelMount("ubuntu-seed"),
-		})
+			ubuntuLabelMount("ubuntu-boot", mode),
+			ubuntuLabelMount("ubuntu-seed", mode),
+		}, nil)
 	} else {
 		restore = s.mockSystemdMounts(c, []systemdMount{
-			ubuntuLabelMount("ubuntu-seed"),
-		})
+			ubuntuLabelMount("ubuntu-seed", mode),
+		}, nil)
 	}
 	defer restore()
 
@@ -1333,14 +1338,14 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 		// ubuntu-seed and ubuntu-data mounts because all those mounts happen
 		// before any boot logic
 		mnts := []systemdMount{
-			ubuntuLabelMount("ubuntu-boot"),
-			ubuntuLabelMount("ubuntu-seed"),
-			ubuntuLabelMount("ubuntu-data"),
+			ubuntuLabelMount("ubuntu-boot", "run"),
+			ubuntuLabelMount("ubuntu-seed", "run"),
+			ubuntuLabelMount("ubuntu-data", "run"),
 		}
 		if t.additionalMountsFunc != nil {
 			mnts = append(mnts, t.additionalMountsFunc()...)
 		}
-		cleanups = append(cleanups, s.mockSystemdMounts(c, mnts))
+		cleanups = append(cleanups, s.mockSystemdMounts(c, mnts, comment))
 
 		// mock a bootloader
 		bloader := boottest.MockUC20RunBootenv(bootloadertest.Mock("mock", c.MkDir()))
@@ -1482,7 +1487,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappy(c *C) {
 	defer restore()
 
 	restore = s.mockSystemdMounts(c, []systemdMount{
-		ubuntuLabelMount("ubuntu-seed"),
+		ubuntuLabelMount("ubuntu-seed", "recover"),
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
@@ -1496,7 +1501,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappy(c *C) {
 			boot.InitramfsHostUbuntuDataDir,
 			nil,
 		},
-	})
+	}, nil)
 	defer restore()
 
 	s.testRecoverModeHappy(c)
@@ -1527,7 +1532,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyBootedKernelPa
 			boot.InitramfsHostUbuntuDataDir,
 			nil,
 		},
-	})
+	}, nil)
 	defer restore()
 
 	s.testRecoverModeHappy(c)
@@ -1569,7 +1574,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyEncrypted(c *C
 	defer restore()
 
 	restore = s.mockSystemdMounts(c, []systemdMount{
-		ubuntuLabelMount("ubuntu-seed"),
+		ubuntuLabelMount("ubuntu-seed", "recover"),
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
@@ -1583,7 +1588,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyEncrypted(c *C
 			boot.InitramfsHostUbuntuDataDir,
 			nil,
 		},
-	})
+	}, nil)
 	defer restore()
 
 	s.testRecoverModeHappy(c)
@@ -1601,7 +1606,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallRecoverModeMeasure(c *C
 	s.mockProcCmdlineContent(c, fmt.Sprintf("snapd_recovery_mode=%s snapd_recovery_system=%s", mode, s.sysLabel))
 
 	modeMnts := []systemdMount{
-		ubuntuLabelMount("ubuntu-seed"),
+		ubuntuLabelMount("ubuntu-seed", mode),
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
 		s.makeSeedSnapSystemdMount(snap.TypeBase),
@@ -1640,7 +1645,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallRecoverModeMeasure(c *C
 	})
 	defer restore()
 
-	restore = s.mockSystemdMounts(c, modeMnts)
+	restore = s.mockSystemdMounts(c, modeMnts, nil)
 	defer restore()
 
 	if mode == "recover" {

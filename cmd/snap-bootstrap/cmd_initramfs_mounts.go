@@ -381,12 +381,9 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	// 2. mount ubuntu-seed
 	// TODO:UC20: use the ubuntu-boot partition as a reference for what
 	//            partition to mount for ubuntu-seed
-	opts := &systemdMountOptions{
-		// TODO: do we need to always run fsck on ubuntu-seed in run mode?
-		//       would it be safer to not touch ubuntu-seed at all for boot?
-		NeedsFsck: true,
-	}
-	err = doSystemdMount("/dev/disk/by-label/ubuntu-seed", boot.InitramfsUbuntuSeedDir, opts)
+	// don't run fsck on ubuntu-seed in run mode so we minimize chance of
+	// corruption
+	err = doSystemdMount("/dev/disk/by-label/ubuntu-seed", boot.InitramfsUbuntuSeedDir, nil)
 	if err != nil {
 		return err
 	}
@@ -408,7 +405,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		return err
 	}
 
-	opts = &systemdMountOptions{
+	opts := &systemdMountOptions{
 		// TODO: do we actually need fsck if we are mounting a mapper device?
 		// probably not?
 		NeedsFsck: true,
