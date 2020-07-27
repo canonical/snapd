@@ -9,6 +9,11 @@ restore: |
     snap unset system experimental.user-daemons
 
 execute: |
+    if ! tests.session has-system-systemd-and-dbus; then
+        echo "System does not have a systemd managed D-Bus system bus"
+        exit 0
+    fi
+
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
 
