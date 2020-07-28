@@ -8,6 +8,12 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
+    - name: Cache snapd snap build status
+      id: cache-snapd-build-status
+      uses: actions/cache@v1
+      with:
+        path: "${{ github.workspace }}/.test-results"
+        key: "${{ github.run_id }}-${{ github.job }}-results"
     - name: Check cached snap build
       id: cached-results
       run: |
@@ -25,7 +31,7 @@ jobs:
       with:
         name: snap-files
         path: "*.snap"
-    - name: Cache successful snap build
+    - name: Mark successful snap build
       run: |
         mkdir -p $(dirname "$CACHE_RESULT_STAMP")
         touch "$CACHE_RESULT_STAMP"
