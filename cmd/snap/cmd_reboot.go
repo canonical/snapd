@@ -39,9 +39,9 @@ type cmdReboot struct {
 	RecoverMode bool `long:"recover"`
 }
 
-var shortRebootHelp = i18n.G("Reboot into select recovery mode")
+var shortRebootHelp = i18n.G("Reboot into selected system and mode")
 var longRebootHelp = i18n.G(`
-The reboot command reboots the system into a special mode of the selected
+The reboot command reboots the system into a particular mode of the selected
 recovery system.
 `)
 
@@ -102,7 +102,7 @@ func (x *cmdReboot) Execute(args []string) error {
 	}
 
 	if err := x.client.DoSystemAction(x.Positional.Label, action); err != nil {
-		return fmt.Errorf("cannot reboot: %v", err)
+		return fmt.Errorf("cannot reboot into system %q: %v", x.Positional.Label, err)
 	}
 
 	fmt.Fprintf(Stdout, "Reboot into %q with mode %q scheduled.\n", x.Positional.Label, action.Mode)

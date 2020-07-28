@@ -33,7 +33,7 @@ func (s *SnapSuite) TestRebootHelp(c *C) {
 	msg := `Usage:
   snap.test reboot [reboot-OPTIONS] <label>
 
-The reboot command reboots the system into a special mode of the selected
+The reboot command reboots the system into a particular mode of the selected
 recovery system.
 
 [reboot command options]
@@ -97,4 +97,26 @@ func (s *SnapSuite) TestRebootUnhappy(c *C) {
 		_, err := snap.Parser(snap.Client()).ParseArgs(t.args)
 		c.Check(err, ErrorMatches, t.errStr, Commentf(strings.Join(t.args, " ")))
 	}
+}
+
+func (s *SnapSuite) TestRebootAPIFail(c *C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, Equals, "POST")
+			c.Check(r.URL.Path, Equals, "/v2/systems/20200101")
+			c.Check(r.URL.RawQuery, Equals, "")
+			w.WriteHeader(404)
+			fmt.Fprintln(w, `{"type": "error", "status-code":404, "result": {"message":"requested system does not exist"}}`)
+		default:
+			c.Fatalf("expected to get 1 requests, now on %d", n+1)
+		}
+
+		n++
+	})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"reboot", "--recover", "20200101"})
+	c.Assert(err, ErrorMatches, `cannot reboot into system "20200101": cannot request system action: requested system does not exist`)
+	c.Check(s.Stdout(), Equals, "")
+	c.Check(s.Stderr(), Equals, "")
 }
