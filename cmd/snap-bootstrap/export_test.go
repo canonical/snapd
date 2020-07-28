@@ -33,6 +33,8 @@ var (
 	DoSystemdMount = doSystemdMountImpl
 )
 
+type SystemdMountOptions = systemdMountOptions
+
 func MockTimeNow(f func() time.Time) (restore func()) {
 	old := timeNow
 	timeNow = f

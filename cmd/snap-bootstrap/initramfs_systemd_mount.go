@@ -47,9 +47,9 @@ After=%[1]s
 	doSystemdMount = doSystemdMountImpl
 )
 
-// SystemdMountOptions reflects the set of options for mounting something using
+// systemdMountOptions reflects the set of options for mounting something using
 // systemd-mount(1)
-type SystemdMountOptions struct {
+type systemdMountOptions struct {
 	// IsTmpfs indicates that "what" should be ignored and a new tmpfs should
 	// be mounted at the location.
 	IsTmpfs bool
@@ -69,10 +69,13 @@ type SystemdMountOptions struct {
 }
 
 // doSystemdMount will mount "what" at "where" using systemd-mount(1) with
-// various options
-func doSystemdMountImpl(what, where string, opts *SystemdMountOptions) error {
+// various options. Note that in some error cases, the mount unit may have
+// already been created and it will not be deleted here, if that is the case
+// callers should check manually if the unit needs to be removed on error
+// conditions.
+func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 	if opts == nil {
-		opts = &SystemdMountOptions{}
+		opts = &systemdMountOptions{}
 	}
 
 	// doesn't make sense to fsck a tmpfs
