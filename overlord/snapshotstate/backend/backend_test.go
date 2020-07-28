@@ -743,7 +743,9 @@ func (s *snapshotSuite) TestExportTwice(c *check.C) {
 	defer restore()
 	// export once
 	var sz osutil.Sizer
-	err = backend.Export(context.Background(), shID, &sz)
+	snapshotFiles, err := backend.PrepareExport(context.Background(), shID)
+	c.Check(err, check.IsNil)
+	err = backend.Export(snapshotFiles, &sz)
 	c.Check(err, check.IsNil)
 	c.Check(sz.Size(), check.Equals, expectedSize)
 
@@ -755,14 +757,15 @@ func (s *snapshotSuite) TestExportTwice(c *check.C) {
 	restore = backend.MockTimeNow(func() time.Time { return time.Date(2242, 1, 1, 12, 0, 0, 0, time.UTC) })
 	defer restore()
 	sz.Reset()
-	err = backend.Export(context.Background(), shID, &sz)
+	snapshotFiles, err = backend.PrepareExport(context.Background(), shID)
+	c.Check(err, check.IsNil)
+	err = backend.Export(snapshotFiles, &sz)
 	c.Check(err, check.IsNil)
 	c.Check(sz.Size(), check.Equals, expectedSize)
 }
 
 func (s *snapshotSuite) TestExportUnhappy(c *check.C) {
-	var sz osutil.Sizer
-	err := backend.Export(context.Background(), 5, &sz)
+	snapshotFiles, err := backend.PrepareExport(context.Background(), 5)
 	c.Assert(err, check.ErrorMatches, "no snapshot data found for 5")
-	c.Assert(sz.Size(), check.Equals, int64(0))
+	c.Assert(len(snapshotFiles), check.Equals, 0)
 }

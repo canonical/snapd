@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"os"
 
 	"gopkg.in/check.v1"
 
@@ -48,7 +49,15 @@ func MockSnapshotList(newList func(context.Context, uint64, []string) ([]client.
 	}
 }
 
-func MockSnapshotExport(newExport func(context.Context, uint64, io.Writer) error) (restore func()) {
+func MockSnapshotPrepareExport(newPrepare func(context.Context, uint64) ([]*os.File, error)) (restore func()) {
+	oldPrepare := snapshotPrepareExport
+	snapshotPrepareExport = newPrepare
+	return func() {
+		snapshotPrepareExport = oldPrepare
+	}
+}
+
+func MockSnapshotExport(newExport func([]*os.File, io.Writer) error) (restore func()) {
 	oldExport := snapshotExport
 	snapshotExport = newExport
 	return func() {

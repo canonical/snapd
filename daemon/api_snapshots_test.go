@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 
 	"gopkg.in/check.v1"
@@ -328,7 +329,10 @@ func (s *snapshotSuite) TestExportSnapshots(c *check.C) {
 	defer daemon.MockMuxVars(func(*http.Request) map[string]string {
 		return map[string]string{"id": "1"}
 	})()
-	defer daemon.MockSnapshotExport(func(ctx context.Context, id uint64, w io.Writer) error {
+	defer daemon.MockSnapshotPrepareExport(func(ctx context.Context, id uint64) (snapshotFiles []*os.File, err error) {
+		return nil, nil
+	})()
+	defer daemon.MockSnapshotExport(func(snapshotFiles []*os.File, w io.Writer) error {
 		io.Copy(w, bytes.NewBufferString("Hello World!"))
 		return nil
 	})()

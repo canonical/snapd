@@ -256,8 +256,11 @@ func checkSnapshotTaskConflict(st *state.State, setID uint64, conflictingKinds .
 // Note that the state must be locked by the caller.
 var List = backend.List
 
-// Export a given snapshot ID.
+// Export a set of opened snapshot files.
 var Export = backend.Export
+
+// PrepareExport for a given snapshot ID.
+var PrepareExport = backend.PrepareExport
 
 // Save creates a taskset for taking snapshots of snaps' data.
 // Note that the state must be locked by the caller.

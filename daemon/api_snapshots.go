@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 
@@ -144,23 +145,18 @@ func changeSnapshots(c *Command, r *http.Request, user *auth.UserState) Response
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
 }
 
-type snapshotExportResponse struct {
-	SetID      uint64
-	ExportSize uint64
-}
-
-func (s snapshotExportResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("Content-Length", strconv.FormatUint(s.ExportSize, 10))
-
-	snapshotExport(context.TODO(), s.SetID, w)
-}
-
 func getSnapshotExport(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
 	sid := vars["id"]
 	setID, err := strconv.ParseUint(sid, 10, 64)
 	if err != nil {
 		return BadRequest("'id' must be a positive base 10 number; got %q", sid)
+	}
+
+	// lock while opening the snapshot file descriptors
+	snapshotFiles, err := prepareExport(c, setID)
+	if err != nil {
+		return BadRequest("cannot prepare export %v", setID)
 	}
 
 	// Export once into a dummy writer so that we can set the
@@ -171,7 +167,7 @@ func getSnapshotExport(c *Command, r *http.Request, user *auth.UserState) Respon
 	// to the client to a time after the year 2242. This is unlikely
 	// but a known issue with this approach here.
 	var sz osutil.Sizer
-	if err := snapshotExport(context.TODO(), setID, &sz); err != nil {
+	if err := snapshotExport(snapshotFiles, &sz); err != nil {
 		return BadRequest("cannot export %v", setID)
 	}
 
@@ -179,4 +175,12 @@ func getSnapshotExport(c *Command, r *http.Request, user *auth.UserState) Respon
 		SetID:      setID,
 		ExportSize: uint64(sz.Size()),
 	}
+}
+
+func prepareExport(c *Command, setID uint64) ([]*os.File, error) {
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	return snapshotPrepareExport(context.TODO(), setID)
 }

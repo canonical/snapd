@@ -21,6 +21,7 @@ package daemon
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -296,6 +297,23 @@ func (s *snapStream) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 		logger.Noticef("cannot copy snap %s (%#v) to the stream: bytes copied=%d, expected=%d", s.SnapName, s.Info, bytesCopied, s.Info.Size)
 		http.Error(w, io.EOF.Error(), 502)
 	}
+}
+
+type snapshotExportResponse struct {
+	SetID      uint64
+	ExportSize uint64
+}
+
+func (s snapshotExportResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Content-Length", strconv.FormatUint(s.ExportSize, 10))
+
+	snapshotFiles, err := snapshotPrepareExport(context.TODO(), s.SetID)
+	if err != nil {
+		logger.Noticef("cannot prepare export %v", s.SetID)
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	snapshotExport(snapshotFiles, w)
 }
 
 // A fileResponse 's ServeHTTP method serves the file

@@ -452,7 +452,7 @@ func (x *exportSnapshotCmd) Execute([]string) error {
 		return err
 	}
 
-	fmt.Fprintf(Stdout, "Exported snapshot into %q\n", x.Positional.Filename)
+	fmt.Fprintf(Stdout, "Exported snapshot #%s into %q\n", x.Positional.ID, x.Positional.Filename)
 
 	return nil
 }

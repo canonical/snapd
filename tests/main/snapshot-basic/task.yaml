@@ -22,7 +22,7 @@ execute: |
        echo "hello versioned $snap"  > ~/snap/$snap/current/canary.txt
        echo "hello common $snap" > ~/snap/$snap/common/canary.txt
     done
-    # create snapshot, grab its id
+    # create snapshot, grab its ID
     SET_ID=$( snap save test-snapd-sh test-snapd-just-edge | cut -d\  -f1 | tail -n1 )
 
     # check it includes both snaps
@@ -113,10 +113,10 @@ execute: |
     "$TESTSTOOLS"/memory-observe-do -o memory-kb.txt snap export-snapshot \
     "$SET_ID" "${SET_ID}_export.snapshot"
     test -e "${SET_ID}_export.snapshot"
-    # Ensure our snapshot export file is at least 50Mb. The data we created
-    # is 100Mb of randomness so even with amazing compression we should never
+    # Ensure our snapshot export file is at least 50MB. The data we created
+    # is 100MB of randomness so even with amazing compression we should never
     # have a smaller file
     test "$(stat -c%s "${SET_ID}_export.snapshot")" -gt 50000000
     # the io.Copy uses a 32k buffer, so extra memory usage should be limited.
-    # The threshold in this test is set to about 40Mb
+    # The threshold in this test is set to about 40MB
     test "$(cat memory-kb.txt)" -lt 40000

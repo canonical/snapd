@@ -105,7 +105,7 @@ func (s *SnapSuite) TestSnapshotExportHappy(c *C) {
 	_, err := main.Parser(main.Client()).ParseArgs([]string{"export-snapshot", "1", exportedSnapshotPath})
 	c.Check(err, IsNil)
 	c.Check(s.Stderr(), testutil.EqualsWrapped, "")
-	c.Check(s.Stdout(), testutil.MatchesWrapped, `Exported snapshot into ".*/export-snapshot.snapshot"`)
+	c.Check(s.Stdout(), testutil.MatchesWrapped, `Exported snapshot #1 into ".*/export-snapshot.snapshot"`)
 	c.Check(exportedSnapshotPath, testutil.FileEquals, "Hello World!")
 	c.Check(exportedSnapshotPath+".part", testutil.FileAbsent)
 }

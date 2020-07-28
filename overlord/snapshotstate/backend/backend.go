@@ -29,6 +29,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"syscall"
@@ -330,43 +331,19 @@ func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, 
 type exportMetadata struct {
 	Format int       `json:"format"`
 	Date   time.Time `json:"date"`
+	Files  []string  `json:"files"`
 }
 
 // Export allows exporting a given snapshot set to the given writer.
-func Export(ctx context.Context, setID uint64, w io.Writer) error {
-	// Open all files first and keep the file descriptors open.
-	//
-	// This ensures that even if a snapshot is removed we can
-	// still serve the data. Hence no need for locking.
-	var snapshotFiles []*os.File
+func Export(snapshotFiles []*os.File, w io.Writer) error {
 	defer func() {
 		for _, f := range snapshotFiles {
 			f.Close()
 		}
 	}()
-	err := Iter(ctx, func(reader *Reader) error {
-		if reader.SetID == setID {
-			// dup() the file descriptor
-			fd, err := syscall.Dup(int(reader.Fd()))
-			if err != nil {
-				return fmt.Errorf("cannot dup %v", reader.Name())
-			}
-			f := os.NewFile(uintptr(fd), reader.Name())
-			if f == nil {
-				return fmt.Errorf("cannot handle for %v from fd %v", reader.Name(), fd)
-			}
-			snapshotFiles = append(snapshotFiles, f)
-		}
-		return nil
-	})
-	if err != nil {
-		return fmt.Errorf("cannot export snapshot %v: %v", setID, err)
-	}
-	if len(snapshotFiles) == 0 {
-		return fmt.Errorf("no snapshot data found for %v", setID)
-	}
 
 	// write out a tar
+	var files []string
 	tw := tar.NewWriter(w)
 	defer tw.Close()
 	for _, snapshotFd := range snapshotFiles {
@@ -374,8 +351,8 @@ func Export(ctx context.Context, setID uint64, w io.Writer) error {
 		if err != nil {
 			return err
 		}
-		// should never happen
 		if !stat.Mode().IsRegular() {
+			// should never happen
 			return fmt.Errorf("unexported special file %q in snapshot: %s", stat.Name(), stat.Mode())
 		}
 		hdr, err := tar.FileInfoHeader(stat, "")
@@ -390,15 +367,16 @@ func Export(ctx context.Context, setID uint64, w io.Writer) error {
 		if _, err := io.Copy(tw, snapshotFd); err != nil {
 			return err
 		}
+
+		files = append(files, path.Base(snapshotFd.Name()))
 	}
 
 	// write the metadata last, then the client can use that to
 	// validate the archive is complete
-	//
-	// XXX: add hashes of the individual files to the metadata?
 	meta := exportMetadata{
 		Format: 1,
 		Date:   timeNow(),
+		Files:  files,
 	}
 	metaDataBuf, err := json.Marshal(&meta)
 	if err != nil {
@@ -419,4 +397,31 @@ func Export(ctx context.Context, setID uint64, w io.Writer) error {
 	}
 
 	return nil
+}
+
+// PrepareExport opens the files in preparation for the export
+func PrepareExport(ctx context.Context, setID uint64) (snapshotFiles []*os.File, err error) {
+	// Open all files first and keep the file descriptors open
+	err = Iter(ctx, func(reader *Reader) error {
+		if reader.SetID == setID {
+			// dup() the file descriptor
+			fd, err := syscall.Dup(int(reader.Fd()))
+			if err != nil {
+				return fmt.Errorf("cannot dup %v", reader.Name())
+			}
+			f := os.NewFile(uintptr(fd), reader.Name())
+			if f == nil {
+				return fmt.Errorf("invalid fd %v for %v", fd, reader.Name())
+			}
+			snapshotFiles = append(snapshotFiles, f)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("cannot export snapshot %v: %v", setID, err)
+	}
+	if len(snapshotFiles) == 0 {
+		return nil, fmt.Errorf("no snapshot data found for %v", setID)
+	}
+	return snapshotFiles, err
 }
