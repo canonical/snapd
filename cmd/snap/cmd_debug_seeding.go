@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/jessevdk/go-flags"
+
 	"github.com/snapcore/snapd/interfaces"
 )
 
@@ -48,13 +49,13 @@ func (x *cmdSeeding) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 	var resp struct {
-		Seeded           bool      `json:"seeded,omitempty"`
-		Preseeded        bool      `json:"preseeded,omitempty"`
-		PreseedStartTime time.Time `json:"preseed-start-time,omitempty"`
-		PreseedTime      time.Time `json:"preseed-time,omitempty"`
-		SeedStartTime    time.Time `json:"seed-start-time,omitempty"`
-		SeedRestartTime  time.Time `json:"seed-restart-time,omitempty"`
-		SeedTime         time.Time `json:"seed-time,omitempty"`
+		Seeded           bool       `json:"seeded,omitempty"`
+		Preseeded        bool       `json:"preseeded,omitempty"`
+		PreseedStartTime *time.Time `json:"preseed-start-time,omitempty"`
+		PreseedTime      *time.Time `json:"preseed-time,omitempty"`
+		SeedStartTime    *time.Time `json:"seed-start-time,omitempty"`
+		SeedRestartTime  *time.Time `json:"seed-restart-time,omitempty"`
+		SeedTime         *time.Time `json:"seed-time,omitempty"`
 		// use json.RawMessage to delay unmarshal'ing to the interfaces pkg
 		PreseedSystemKey     *json.RawMessage `json:"preseed-system-key,omitempty"`
 		SeedRestartSystemKey *json.RawMessage `json:"seed-restart-system-key,omitempty"`
@@ -72,15 +73,25 @@ func (x *cmdSeeding) Execute(args []string) error {
 	// calculate the time spent preseeding (if preseeded) and seeding
 	// for the preseeded case, we use the seed-restart-time as the start time
 	// to show how long we spent only after booting the preseeded image
-	var seedDuration time.Duration
+
+	// if we are missing time values, we will default to showing "-" for the
+	// duration
+	seedDuration := "-"
 	if resp.Preseeded {
-		preseedDuration := resp.PreseedTime.Sub(resp.PreseedStartTime)
-		fmt.Fprintf(w, "image-preseeding:\t%v\n", preseedDuration)
-		seedDuration = resp.SeedTime.Sub(resp.SeedRestartTime)
-	} else {
-		seedDuration = resp.SeedTime.Sub(resp.SeedStartTime)
+		if resp.PreseedTime != nil && resp.PreseedStartTime != nil {
+			preseedDuration := resp.PreseedTime.Sub(*resp.PreseedStartTime).Round(time.Millisecond)
+			fmt.Fprintf(w, "image-preseeding:\t%v\n", preseedDuration)
+		} else {
+			fmt.Fprintf(w, "image-preseeding:\t-\n")
+		}
+
+		if resp.SeedTime != nil && resp.SeedRestartTime != nil {
+			seedDuration = fmt.Sprintf("%v", resp.SeedTime.Sub(*resp.SeedRestartTime).Round(time.Millisecond))
+		}
+	} else if resp.SeedTime != nil && resp.SeedStartTime != nil {
+		seedDuration = fmt.Sprintf("%v", resp.SeedTime.Sub(*resp.SeedStartTime).Round(time.Millisecond))
 	}
-	fmt.Fprintf(w, "seed-completion:\t%v\n", seedDuration)
+	fmt.Fprintf(w, "seed-completion:\t%s\n", seedDuration)
 
 	// we flush the tabwriter now because if we have more output, it will be
 	// the system keys, which are JSON and thus will never display cleanly in
