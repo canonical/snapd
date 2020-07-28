@@ -12,67 +12,69 @@ prepare: |
         echo "This test needs test keys to be trusted"
         exit
     fi
+    #shellcheck source=tests/lib/core-config.sh
+    . "$TESTSLIB"/core-config.sh
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB"/systemd.sh
     #shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB"/systems.sh
 
     systemctl stop snapd.service snapd.socket
-    rm -rf /var/lib/snapd/assertions/*
-    rm -rf /var/lib/snapd/device
-    rm -rf /var/lib/snapd/state.json
-    unsquashfs -no-progress /var/lib/snapd/snaps/pc_*.snap
+    clean_snapd_lib
+
+    # Configure the pc snap
+    unpack_pc_snap
+
     mkdir -p squashfs-root/meta/hooks
     cp prepare-device squashfs-root/meta/hooks
-    mksquashfs squashfs-root pc_x1.snap -comp xz -no-fragments -no-progress
-    rm -rf squashfs-root
-    cp pc_x1.snap /var/lib/snapd/seed/snaps/
-    mv /var/lib/snapd/seed/assertions/model model.bak
-    cp /var/lib/snapd/seed/seed.yaml seed.yaml.bak
-    python3 ./manip_seed.py /var/lib/snapd/seed/seed.yaml
-    cp "$TESTSLIB"/assertions/developer1.account /var/lib/snapd/seed/assertions
-    cp "$TESTSLIB"/assertions/developer1.account-key /var/lib/snapd/seed/assertions
-    if is_core18_system; then
-        cp "$TESTSLIB"/assertions/developer1-pc-18.model /var/lib/snapd/seed/assertions/developer1-pc.model
-    else
-        cp "$TESTSLIB"/assertions/developer1-pc.model /var/lib/snapd/seed/assertions
-    fi
-    cp "$TESTSLIB"/assertions/testrootorg-store.account-key /var/lib/snapd/seed/assertions
+
+    pack_pc_snap
+
+    # Generic setup for test account
+    prepare_core_model
+    # shellcheck disable=SC2119
+    prepare_and_manip_seed
+    prepare_test_account developer1
+    prepare_test_model developer1-pc
+    prepare_testrootorg_store
+
     # start fake device svc
     systemd_create_and_start_unit fakedevicesvc "$(command -v fakedevicesvc) localhost:11029"
+
     # kick first boot again
     systemctl start snapd.service snapd.socket
+
+    # wait for first boot to be done
+    wait_for_first_boot_change
 
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
         exit
     fi
+    #shellcheck source=tests/lib/core-config.sh
+    . "$TESTSLIB"/core-config.sh
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB"/systemd.sh
     systemctl stop snapd.service snapd.socket
     systemd_stop_and_destroy_unit fakedevicesvc
-    rm -rf /var/lib/snapd/assertions/*
-    rm -rf /var/lib/snapd/device
-    rm -rf /var/lib/snapd/state.json
-    if systemctl status snap-pc-x1.mount ; then
-       systemctl stop snap-pc-x1.mount
-       rm -f /etc/systemd/system/snap-pc-x1.mount
-       rm -f /etc/systemd/system/multi-user.target.wants/snap-pc-x1.mount
-       rm -f /var/lib/snapd/snaps/pc_x1.snap
-       systemctl daemon-reload
-    fi
-    rm -f /var/lib/snapd/seed/snaps/pc_x1.snap
-    cp seed.yaml.bak /var/lib/snapd/seed/seed.yaml
-    rm -f /var/lib/snapd/seed/assertions/developer1.account
-    rm -f /var/lib/snapd/seed/assertions/developer1.account-key
-    rm -f /var/lib/snapd/seed/assertions/developer1-pc.model
-    rm -f /var/lib/snapd/seed/assertions/testrootorg-store.account-key
-    cp model.bak /var/lib/snapd/seed/assertions/model
+    clean_snapd_lib
+
+    # Restore pc snap configuration
+    restore_pc_snap
+
+    # Generic restore for test account
+    restore_updated_seed
+    restore_test_account developer1
+    restore_test_model developer1-pc
+    restore_testrootorg_store
+    restore_core_model
+
     # kick first boot again
     systemctl start snapd.service snapd.socket
+
     # wait for first boot to be done
-    while ! snap changes | grep -q "Done.*Initialize system state"; do sleep 1; done
+    wait_for_first_boot_change
 
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
