@@ -211,10 +211,6 @@ var newPreseedNewSnapdDiffSysKey = `
 var noPreseedingJSON = `
 {
     "result": {
-        "preseed-start-time": "0001-01-01T00:00:00Z",
-        "preseed-time": "0001-01-01T00:00:00Z",
-        "seed-restart-time": "0001-01-01T00:00:00Z",
-        "seed-start-time": "0001-01-01T00:00:00Z",
         "seed-time": "2019-07-04T19:16:10.548793375-05:00",
         "seeded": true
     },
@@ -234,9 +230,27 @@ var oldPreseedingJSON = `{
         "seed-restart-time": "2019-07-04T19:14:10.548793375-05:00",
         "seed-start-time": "0001-01-01T00:00:00Z",
         "seed-time": "2019-07-04T19:16:10.548793375-05:00",
-		"seeded": true,
-		"preseeded": true
+        "seeded": true,
+        "preseeded": true
     },
+    "status": "OK",
+    "status-code": 200,
+    "type": "sync"
+}`
+
+var stillSeeding = `{
+    "result": {
+        "preseed-start-time": "2020-07-24T21:41:33.838194712Z",
+        "preseed-time": "2020-07-24T21:41:43.156401424Z",
+        "preseeded": true
+    },
+    "status": "OK",
+    "status-code": 200,
+    "type": "sync"
+}`
+
+var stillSeedingNoPreseed = `{
+    "result": {},
     "status": "OK",
     "status-code": 200,
     "type": "sync"
@@ -255,8 +269,8 @@ func (s *SnapSuite) TestDebugSeeding(c *C) {
 			expStdout: `
 seeded:            true
 preseeded:         true
-image-preseeding:  9.318206712s
-seed-completion:   3.872508077s
+image-preseeding:  9.318s
+seed-completion:   3.873s
 `[1:],
 			comment: "new preseed keys, same system-key",
 		},
@@ -265,8 +279,8 @@ seed-completion:   3.872508077s
 			expStdout: `
 seeded:            true
 preseeded:         true
-image-preseeding:  9.318206712s
-seed-completion:   3.872508077s
+image-preseeding:  9.318s
+seed-completion:   3.873s
 preseed-system-key: {
   "apparmor-features": [
     "caps",
@@ -347,7 +361,7 @@ seed-restart-system-key: {
 			expStdout: `
 seeded:           true
 preseeded:        false
-seed-completion:  2562047h47m16.854775807s
+seed-completion:  -
 `[1:],
 			comment: "not preseeded",
 		},
@@ -360,6 +374,25 @@ image-preseeding:  0s
 seed-completion:   2m0s
 `[1:],
 			comment: "old preseeded json",
+		},
+		{
+			jsonResp: stillSeeding,
+			expStdout: `
+seeded:            false
+preseeded:         true
+image-preseeding:  9.318s
+seed-completion:   -
+`[1:],
+			comment: "preseeded, still seeding",
+		},
+		{
+			jsonResp: stillSeedingNoPreseed,
+			expStdout: `
+seeded:           false
+preseeded:        false
+seed-completion:  -
+`[1:],
+			comment: "not preseeded, still seeding",
 		},
 	}
 
