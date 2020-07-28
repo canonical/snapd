@@ -48,15 +48,16 @@ func (x *cmdSeeding) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 	var resp struct {
-		Seeded               bool        `json:"seeded,omitempty"`
-		Preseeded            bool        `json:"preseeded,omitempty"`
-		PreseedStartTime     time.Time   `json:"preseed-start-time,omitempty"`
-		PreseedTime          time.Time   `json:"preseed-time,omitempty"`
-		SeedStartTime        time.Time   `json:"seed-start-time,omitempty"`
-		SeedRestartTime      time.Time   `json:"seed-restart-time,omitempty"`
-		SeedTime             time.Time   `json:"seed-time,omitempty"`
-		PreseedSystemKey     interface{} `json:"preseed-system-key,omitempty"`
-		SeedRestartSystemKey interface{} `json:"seed-restart-system-key,omitempty"`
+		Seeded           bool      `json:"seeded,omitempty"`
+		Preseeded        bool      `json:"preseeded,omitempty"`
+		PreseedStartTime time.Time `json:"preseed-start-time,omitempty"`
+		PreseedTime      time.Time `json:"preseed-time,omitempty"`
+		SeedStartTime    time.Time `json:"seed-start-time,omitempty"`
+		SeedRestartTime  time.Time `json:"seed-restart-time,omitempty"`
+		SeedTime         time.Time `json:"seed-time,omitempty"`
+		// use json.RawMessage to delay unmarshal'ing to the interfaces pkg
+		PreseedSystemKey     *json.RawMessage `json:"preseed-system-key,omitempty"`
+		SeedRestartSystemKey *json.RawMessage `json:"seed-restart-system-key,omitempty"`
 	}
 	if err := x.client.DebugGet("seeding", &resp, nil); err != nil {
 		return err
@@ -92,31 +93,20 @@ func (x *cmdSeeding) Execute(args []string) error {
 	// being rolled out, we may be preseeding images via old snapd deb, but with
 	// new snapd snap
 	if resp.Preseeded && resp.SeedRestartSystemKey != nil && resp.PreseedSystemKey != nil {
-		// only show them if they don't match
+		// only show them if they don't match, so first unmarshal them so we can
+		// properly compare them
 
-		// we have to play a bit of a dance here, first marshalling the
-		// interface{} we got over JSON, which will basically just be a
-		// map[string]interface{} into bytes, then having the interfaces pkg
-		// decode those bytes into a proper interfaces.systemKey (which is not
-		// exported) and return that back to us as an interface{} again, which
-		// we can then use to compare the two system keys, and then finally
-		// display the originally marshalled json
-		seedRestartSkJSON, err := json.MarshalIndent(resp.SeedRestartSystemKey, "", "  ")
+		// we use raw json messages here so that the interfaces pkg can do the
+		// real unmarshalling to a real systemKey interface{} that can be
+		// compared with SystemKeysMatch, if we had instead unmarshalled here,
+		// we would have to remarshal the map[string]interface{} we got above
+		// and then pass those bytes back to the interfaces pkg which is awkward
+		seedSk, err := interfaces.UnmarshalJSONSystemKey(bytes.NewReader(*resp.SeedRestartSystemKey))
 		if err != nil {
 			return err
 		}
 
-		seedSk, err := interfaces.UnmarshalJSONSystemKey(bytes.NewReader(seedRestartSkJSON))
-		if err != nil {
-			return err
-		}
-
-		preseedSkJSON, err := json.MarshalIndent(resp.PreseedSystemKey, "", "  ")
-		if err != nil {
-			return err
-		}
-
-		preseedSk, err := interfaces.UnmarshalJSONSystemKey(bytes.NewReader(preseedSkJSON))
+		preseedSk, err := interfaces.UnmarshalJSONSystemKey(bytes.NewReader(*resp.PreseedSystemKey))
 		if err != nil {
 			return err
 		}
@@ -127,8 +117,16 @@ func (x *cmdSeeding) Execute(args []string) error {
 		}
 		if !match {
 			// mismatch, display the different keys
-			fmt.Fprintf(Stdout, "preseed-system-key: %s\n", string(preseedSkJSON))
-			fmt.Fprintf(Stdout, "seed-restart-system-key: %s\n", string(seedRestartSkJSON))
+			var preseedSkJSON, seedRestartSkJSON bytes.Buffer
+			json.Indent(&preseedSkJSON, *resp.PreseedSystemKey, "", "  ")
+			fmt.Fprintf(Stdout, "preseed-system-key: ")
+			preseedSkJSON.WriteTo(Stdout)
+			fmt.Fprintln(Stdout, "")
+
+			json.Indent(&seedRestartSkJSON, *resp.SeedRestartSystemKey, "", "  ")
+			fmt.Fprintf(Stdout, "seed-restart-system-key: ")
+			seedRestartSkJSON.WriteTo(Stdout)
+			fmt.Fprintln(Stdout, "")
 		}
 	}
 
