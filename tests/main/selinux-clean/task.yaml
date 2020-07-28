@@ -42,7 +42,26 @@ execute: |
     session-tool -u test test-snapd-desktop.sh -c 'echo hello world'
     session-tool -u test test-snapd-desktop.sh -c 'mkdir /home/test/foo'
     session-tool -u test test-snapd-desktop.sh -c 'echo foo >/home/test/foo/bar'
-    ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
+    # the way we set up linger makes systemd and SELinux unhappy and may trigger
+    # a denials like this:
+    # type=AVC msg=audit(07/27/20 14:52:25.845:3443) : avc: denied { setattr }
+    #     for pid=96609 comm=(d-logind) name=linger dev="sda2" ino=1437682
+    #     scontext=system_u:system_r:init_t:s0
+    #     tcontext=unconfined_u:object_r:systemd_logind_var_lib_t:s0 tclass=dir
+    #     permissive=1
+    # type=AVC msg=audit(07/27/20 14:52:25.845:3444) : avc: denied { read } for
+    #     pid=96609 comm=(d-logind) name=linger dev="sda2" ino=1437682
+    #     scontext=system_u:system_r:init_t:s0
+    #     tcontext=unconfined_u:object_r:systemd_logind_var_lib_t:s0 tclass=dir
+    #     permissive=1
+    #
+    # This is a first checkpoint after the session was started, so if denials
+    # were logged, they it will show up now, but not for subsequent checkpoints.
+    # XXX ausearch exits with 1 when there are denials
+    ausearch --checkpoint stamp --start checkpoint -m AVC > avc-after 2>&1 || true
+    grep -v -E 'avc:  denied  { (setattr|read) } .* tcontext=unconfined_u:object_r:systemd_logind_var_lib_t:s0' < avc-after | \
+        not MATCH 'type=AVC'
+
     # another revision triggers copy of snap data
     install_local test-snapd-desktop
     ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
