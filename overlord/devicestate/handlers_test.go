@@ -535,7 +535,7 @@ func (s *preseedModeSuite) TestDoMarkPreseeded(c *C) {
 	c.Check(preseeded, Equals, true)
 
 	var systemKey map[string]interface{}
-	c.Assert(st.Get("restart-system-key", &systemKey), Equals, state.ErrNoState)
+	c.Assert(st.Get("seed-restart-system-key", &systemKey), Equals, state.ErrNoState)
 	c.Assert(st.Get("preseed-system-key", &systemKey), IsNil)
 	c.Check(systemKey["build-id"], Equals, "abcde")
 
