@@ -53,13 +53,13 @@ type systemdMountOptions struct {
 	// IsTmpfs indicates that "what" should be ignored and a new tmpfs should
 	// be mounted at the location.
 	IsTmpfs bool
-	// EphemeralInitramfsMount indicates that the mount should not persist from
-	// the initramfs to after the pivot_root to normal userspace. The default
-	// value, false, means that the mount will persist across the transition,
-	// this is done by creating systemd unit overrides for various initrd
-	// targets in /run that systemd understands when it isolates to the
-	// initrd-cleanup.target when the pivot_root is performed.
-	EphemeralInitramfsMount bool
+	// Ephemeral indicates that the mount should not persist from the initramfs
+	// to after the pivot_root to normal userspace. The default value, false,
+	// means that the mount will persist across the transition, this is done by
+	// creating systemd unit overrides for various initrd targets in /run that
+	// systemd understands when it isolates to the initrd-cleanup.target when
+	// the pivot_root is performed.
+	Ephemeral bool
 	// NeedsFsck indicates that before returning to the caller, an fsck check
 	// should be performed on the thing being mounted.
 	NeedsFsck bool
@@ -130,7 +130,7 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 
 	// if it should survive pivot_root() then we need to add overrides for this
 	// unit to /run/systemd units
-	if !opts.EphemeralInitramfsMount {
+	if !opts.Ephemeral {
 		// to survive the pivot_root, we need to make the mount units depend on
 		// all of the various initrd special targets by adding runtime conf
 		// files there

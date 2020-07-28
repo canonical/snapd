@@ -87,7 +87,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			what:  "tmpfs",
 			where: "/run/mnt/data",
 			opts: &main.SystemdMountOptions{
-				EphemeralInitramfsMount: true,
+				Ephemeral: true,
 			},
 			timeNowTimes:     []time.Time{testStart, testStart},
 			isMountedReturns: []bool{true},
@@ -193,8 +193,8 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			}
 			c.Assert(cmd.Calls(), DeepEquals, [][]string{args})
 
-			// check the mount units being there if opts.EphemeralInitramfsMount is
-			// false
+			// check that the overrides are present if opts.Ephemeral is false,
+			// or check the overrides are not present if opts.Ephemeral is true
 			for _, initrdUnit := range []string{
 				"initrd.target",
 				"initrd-fs.target",
@@ -204,7 +204,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 				mountUnit := systemd.EscapeUnitNamePath(t.where)
 				fname := fmt.Sprintf("snap_bootstrap_%s.conf", mountUnit)
 				unitFile := filepath.Join(dirs.GlobalRootDir, "/run/systemd/system", initrdUnit+".d", fname)
-				if opts.EphemeralInitramfsMount {
+				if opts.Ephemeral {
 					c.Assert(unitFile, testutil.FileAbsent)
 				} else {
 					c.Assert(unitFile, testutil.FileEquals, fmt.Sprintf(`[Unit]
