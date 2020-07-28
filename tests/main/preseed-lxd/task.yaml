@@ -1,7 +1,7 @@
 summary: Check that preseeding of current ubuntu cloud image works under lxd.
 description: |
   This test checks that preseeding of Ubuntu cloud images with snap-preseed
-  command works in lxc container. 
+  command works in lxc container.
 
 # this test works only on 18.04 because it requires lxd from deb (lxd snap
 # as it wouldn't allow mount) and tries to replicate launchpad builder setup.
@@ -25,6 +25,10 @@ prepare: |
   retry -n 5 --wait 1 test -e /dev/nbd0p1
   mkdir -p "$IMAGE_MOUNTPOINT"
   mount /dev/nbd0p1 "$IMAGE_MOUNTPOINT"
+
+  # for images that are already preseeded, we need to undo the preseeding there
+  echo "Running preseed --reset for already preseeded cloud images"
+  SNAPD_DEBUG=1 /usr/lib/snapd/snap-preseed --reset "$IMAGE_MOUNTPOINT"
 
   # Inject current snapd into seeds
   #shellcheck source=tests/lib/snaps.sh

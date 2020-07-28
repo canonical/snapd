@@ -26,22 +26,8 @@ execute: |
         done
     }
 
-    wait_for_file_change() {
-        retry=5
-        while ! MATCH "$2" < "$1"  ; do
-            retry=$(( retry - 1 ))
-            if [ $retry -le 0 ]; then
-                echo "Failed to match the content of file $1, expected: $2"
-                exit 1
-            fi
-            sleep 1
-        done
-    }
-
     # shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
-    # shellcheck source=tests/lib/journalctl.sh
-    . "$TESTSLIB/journalctl.sh"
 
     echo "When the service snap is installed"
     install_local test-snapd-service
@@ -77,13 +63,13 @@ execute: |
     snap tasks --last=configure|MATCH -z "restart of .test-snapd-service.test-snapd-service.+restart of .test-snapd-service.test-snapd-other-service"
 
     echo "And service could get the new service-option set from the hook"
-    wait_for_file_change "$SERVICEOPTIONFILE" "^foo$"
+    retry -n 5 --wait 1 MATCH '^foo$' "$SERVICEOPTIONFILE"
 
     echo "Reinstalling the snap with configure hook calling snapctl restart works"
     snap set test-snapd-service command=restart
     install_local test-snapd-service
     # shellcheck disable=SC2119
-    if get_journalctl_log | MATCH "error running snapctl"; then
+    if "$TESTSTOOLS"/journal-state get-log | MATCH "error running snapctl"; then
         echo "snapctl should not report errors"
         exit 1
     fi

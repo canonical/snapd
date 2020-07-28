@@ -376,7 +376,7 @@ busctl \
 		Environment as 1 TERM=xterm-256color \
 		$selinux_context_arg \
 		ExecStart "a(sasb)" 1 \
-			"$(command -v runuser)" 6 "$(command -v runuser)" -l "$user" - -c "exec $tmp_dir/exec <$tmp_dir/stdin.pipe >$tmp_dir/stdout.pipe 2>$tmp_dir/stderr.pipe" false \
+			"$(command -v runuser)" 6 "$(command -v runuser)" -l "$user" - -c "SNAPD_DEBUG=$SNAPD_DEBUG SNAP_CONFINE_DEBUG=$SNAP_CONFINE_DEBUG exec $tmp_dir/exec <$tmp_dir/stdin.pipe >$tmp_dir/stdout.pipe 2>$tmp_dir/stderr.pipe" false \
 	0
 # This is done so that we can configure file redirects. Once Ubuntu 16.04 is no
 # longer supported we can use Standard{Input,Output,Error}=file:path property
