@@ -1,3 +1,12 @@
+snapd (2.45.3.1~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1875071
+    - o/ifacestate: fix bug in snapsWithSecurityProfiles
+    - tests/main/selinux-clean: workaround SELinux denials triggered by
+      linger setup on Centos8
+
+ -- Samuele Pedroni <pedronis@lucediurna.net>  Tue, 28 Jul 2020 21:43:38 +0200
+
 snapd (2.45.3~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #1875071

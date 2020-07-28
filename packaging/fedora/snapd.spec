@@ -97,7 +97,7 @@
 %endif
 
 Name:           snapd
-Version:        2.45.3
+Version:        2.45.3.1
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -907,6 +907,12 @@ fi
 
 
 %changelog
+* Tue Jul 28 2020 Samuele Pedroni <pedronis@lucediurna.net>
+- New upstream release, LP: #1875071
+  - o/ifacestate: fix bug in snapsWithSecurityProfiles
+  - tests/main/selinux-clean: workaround SELinux denials triggered by
+    linger setup on Centos8
+
 * Mon Jul 27 2020 Zygmunt Krynicki <me@zygoon.pl>
 - New upstream release, LP: #1875071
   - many: backport _writable_defaults dir changes
