@@ -384,23 +384,10 @@ func (g *grub) ManagedAssets() []string {
 	}
 }
 
-// CommandLine returns the kernel command line composed of mode and
-// system arguments, built-in bootloader specific static arguments
-// corresponding to the on-disk boot asset edition, followed by any
-// extra arguments. The command line may be different when using a
-// recovery bootloader.
-//
-// Implements ManagedAssetsBootloader for the grub bootloader.
-func (g *grub) CommandLine(modeArg, systemArg, extraArgs string) (string, error) {
-	// we do not trust the on disk asset, use the built-in one
+func (g *grub) commandLineForEdition(edition uint, modeArg, systemArg, extraArgs string) (string, error) {
 	assetName := "grub.cfg"
 	if g.recovery {
 		assetName = "grub-recovery.cfg"
-	}
-	currentBootConfig := filepath.Join(g.dir(), "grub.cfg")
-	edition, err := editionFromDiskConfigAsset(currentBootConfig)
-	if err != nil {
-		return "", fmt.Errorf("cannot obtain edition number of current boot config: %v", err)
 	}
 	staticCmdline := staticCommandLineForGrubAssetEdition(assetName, edition)
 	args, err := strutil.KernelCommandLineSplit(staticCmdline + " " + extraArgs)
@@ -419,6 +406,38 @@ func (g *grub) CommandLine(modeArg, systemArg, extraArgs string) (string, error)
 		snapdArgs = append(snapdArgs, systemArg)
 	}
 	return strings.Join(append(snapdArgs, args...), " "), nil
+}
+
+// CommandLine returns the kernel command line composed of mode and
+// system arguments, built-in bootloader specific static arguments
+// corresponding to the on-disk boot asset edition, followed by any
+// extra arguments. The command line may be different when using a
+// recovery bootloader.
+//
+// Implements ManagedAssetsBootloader for the grub bootloader.
+func (g *grub) CommandLine(modeArg, systemArg, extraArgs string) (string, error) {
+	currentBootConfig := filepath.Join(g.dir(), "grub.cfg")
+	edition, err := editionFromDiskConfigAsset(currentBootConfig)
+	if err != nil {
+		return "", fmt.Errorf("cannot obtain edition number of current boot config: %v", err)
+	}
+	return g.commandLineForEdition(edition, modeArg, systemArg, extraArgs)
+}
+
+// CandidateCommandLine is similar to CommandLine, but uses the current
+// edition of managed built-in boot assets as reference.
+//
+// Implements ManagedAssetsBootloader for the grub bootloader.
+func (g *grub) CandidateCommandLine(modeArg, systemArg, extraArgs string) (string, error) {
+	assetName := "grub.cfg"
+	if g.recovery {
+		assetName = "grub-recovery.cfg"
+	}
+	edition, err := editionFromInternalConfigAsset(assetName)
+	if err != nil {
+		return "", err
+	}
+	return g.commandLineForEdition(edition, modeArg, systemArg, extraArgs)
 }
 
 // staticCommandLineForGrubAssetEdition fetches a static command line for given

@@ -378,13 +378,14 @@ func (b *MockExtractedRunKernelImageBootloader) DisableTryKernel() error {
 type MockManagedAssetsBootloader struct {
 	*MockBootloader
 
-	IsManaged         bool
-	IsManagedErr      error
-	UpdateErr         error
-	UpdateCalls       int
-	Assets            []string
-	StaticCommandLine string
-	CommandLineErr    error
+	IsManaged                  bool
+	IsManagedErr               error
+	UpdateErr                  error
+	UpdateCalls                int
+	Assets                     []string
+	StaticCommandLine          string
+	CandidateStaticCommandLine string
+	CommandLineErr             error
 }
 
 func (b *MockBootloader) WithManagedAssets() *MockManagedAssetsBootloader {
@@ -406,18 +407,29 @@ func (b *MockManagedAssetsBootloader) UpdateBootConfig(opts *bootloader.Options)
 	return b.UpdateErr
 }
 
-func (b *MockManagedAssetsBootloader) CommandLine(modeArg, systemArg, extraArgs string) (string, error) {
-	if b.CommandLineErr != nil {
-		return "", b.CommandLineErr
-	}
+func glueCommandLine(modeArg, systemArg, staticArgs, extraArgs string) string {
 	args := []string(nil)
-	for _, argSet := range []string{modeArg, systemArg, b.StaticCommandLine, extraArgs} {
+	for _, argSet := range []string{modeArg, systemArg, staticArgs, extraArgs} {
 		if argSet != "" {
 			args = append(args, argSet)
 		}
 	}
 	line := strings.Join(args, " ")
-	return strings.TrimSpace(line), nil
+	return strings.TrimSpace(line)
+}
+
+func (b *MockManagedAssetsBootloader) CommandLine(modeArg, systemArg, extraArgs string) (string, error) {
+	if b.CommandLineErr != nil {
+		return "", b.CommandLineErr
+	}
+	return glueCommandLine(modeArg, systemArg, b.StaticCommandLine, extraArgs), nil
+}
+
+func (b *MockManagedAssetsBootloader) CandidateCommandLine(modeArg, systemArg, extraArgs string) (string, error) {
+	if b.CommandLineErr != nil {
+		return "", b.CommandLineErr
+	}
+	return glueCommandLine(modeArg, systemArg, b.CandidateStaticCommandLine, extraArgs), nil
 }
 
 // MockManagedAssetsRecoveryAwareBootloader mocks a bootloader implementing the
