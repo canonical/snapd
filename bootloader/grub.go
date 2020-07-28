@@ -386,8 +386,9 @@ func (g *grub) ManagedAssets() []string {
 
 // CommandLine returns the kernel command line composed of mode and
 // system arguments, built-in bootloader specific static arguments
-// followed by any extra arguments. The command line may be different
-// when using a recovery bootloader.
+// corresponding to the on-disk boot asset edition, followed by any
+// extra arguments. The command line may be different when using a
+// recovery bootloader.
 //
 // Implements ManagedAssetsBootloader for the grub bootloader.
 func (g *grub) CommandLine(modeArg, systemArg, extraArgs string) (string, error) {
