@@ -45,7 +45,7 @@ func (m *DeviceManager) doMarkPreseeded(t *state.Task, _ *tomb.Tomb) error {
 
 	systemKey, err := interfaces.RecordedSystemKey()
 	if err != nil {
-		return fmt.Errorf("internal error: cannot get recorded system key: %v", err)
+		return fmt.Errorf("cannot get recorded system key: %v", err)
 	}
 
 	if m.preseed {
