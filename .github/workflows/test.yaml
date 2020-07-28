@@ -25,8 +25,7 @@ jobs:
     - name: Build snapd snap
       if: steps.cached-results.outputs.already-ran != 'true'
       uses: snapcore/action-build@v1
-    - name: Uploading snapd snap snap artifact
-      if: steps.cached-results.outputs.already-ran != 'true'
+    - name: Uploading snapd snap artifact
       uses: actions/upload-artifact@v2
       with:
         name: snap-files
