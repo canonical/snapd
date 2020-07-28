@@ -43,6 +43,17 @@ func (s *doSystemdMountSuite) SetUpTest(c *C) {
 	s.AddCleanup(func() { dirs.SetRootDir("") })
 }
 
+func (s *doSystemdMountSuite) TestDoSystemdMountUnhappy(c *C) {
+	cmd := testutil.MockCommand(c, "systemd-mount", `
+echo "mocked error"
+exit 1
+`)
+	defer cmd.Restore()
+
+	err := main.DoSystemdMount("something", "somewhere only we know", nil)
+	c.Assert(err, ErrorMatches, "mocked error")
+}
+
 func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 
 	testStart := time.Now()
