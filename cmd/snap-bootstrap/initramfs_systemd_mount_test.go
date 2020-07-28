@@ -67,7 +67,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			what:  "tmpfs",
 			where: "/run/mnt/data",
 			opts: &main.SystemdMountOptions{
-				IsTmpfs: true,
+				Tmpfs: true,
 			},
 			timeNowTimes:     []time.Time{testStart, testStart},
 			isMountedReturns: []bool{true},
@@ -113,7 +113,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			what:  "what",
 			where: "where",
 			opts: &main.SystemdMountOptions{
-				IsTmpfs:   true,
+				Tmpfs:     true,
 				NeedsFsck: true,
 			},
 			expErr:  "cannot mount \"what\" at \"where\": impossible to fsck a tmpfs",
@@ -185,7 +185,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			if opts.NoWait {
 				args = append(args, "--no-block")
 			}
-			if opts.IsTmpfs {
+			if opts.Tmpfs {
 				args = append(args, "--type=tmpfs")
 			}
 			if opts.NeedsFsck {

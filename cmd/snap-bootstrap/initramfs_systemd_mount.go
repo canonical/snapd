@@ -50,9 +50,9 @@ After=%[1]s
 // systemdMountOptions reflects the set of options for mounting something using
 // systemd-mount(1)
 type systemdMountOptions struct {
-	// IsTmpfs indicates that "what" should be ignored and a new tmpfs should
-	// be mounted at the location.
-	IsTmpfs bool
+	// Tmpfs indicates that "what" should be ignored and a new tmpfs should be
+	// mounted at the location.
+	Tmpfs bool
 	// Ephemeral indicates that the mount should not persist from the initramfs
 	// to after the pivot_root to normal userspace. The default value, false,
 	// means that the mount will persist across the transition, this is done by
@@ -79,7 +79,7 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 	}
 
 	// doesn't make sense to fsck a tmpfs
-	if opts.NeedsFsck && opts.IsTmpfs {
+	if opts.NeedsFsck && opts.Tmpfs {
 		return fmt.Errorf("cannot mount %q at %q: impossible to fsck a tmpfs", what, where)
 	}
 
@@ -87,7 +87,7 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 	unitName := whereEscaped + ".mount"
 
 	args := []string{what, where, "--no-pager", "--no-ask-password"}
-	if opts.IsTmpfs {
+	if opts.Tmpfs {
 		args = append(args, "--type=tmpfs")
 	}
 
