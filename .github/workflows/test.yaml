@@ -20,11 +20,24 @@ jobs:
           CACHE_RESULT_STAMP="${{ github.workspace }}/.test-results/snap-build-success"
           echo "::set-env name=CACHE_RESULT_STAMP::$CACHE_RESULT_STAMP"
           if [ -e "$CACHE_RESULT_STAMP" ]; then
-              echo "::set-output name=already-ran::true"
+              has_cached_snap=0
+              while read name; do
+                  has_cached_snap=1
+                  # bring back artifacts from the cache
+                  cp -v "$name" "${{ github.workspace }}"
+              done < <(find "$(dirname $CACHE_RESULT_STAMP)" -name "*.snap")
+              if [ "$has_cached_snap" = "1" ]; then
+                  # we have restored an artifact from the cache
+                  echo "::set-output name=already-ran::true"
+              fi
           fi
     - name: Build snapd snap
       if: steps.cached-results.outputs.already-ran != 'true'
       uses: snapcore/action-build@v1
+    - name: Cache built artifact
+      run: |
+        mkdir -p $(dirname "$CACHE_RESULT_STAMP")
+        cp -v *.snap "$(dirname $CACHE_RESULT_STAMP)/"
     - name: Uploading snapd snap artifact
       uses: actions/upload-artifact@v2
       with:
