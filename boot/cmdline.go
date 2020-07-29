@@ -134,50 +134,64 @@ func getBootloaderManagingItsAssets(where string, opts *bootloader.Options) (boo
 	return mbl, nil
 }
 
-// ComposeRecoveryCommandLine composes the kernel command line used when booting
-// a given recovery mode system.
-func ComposeRecoveryCommandLine(model *asserts.Model, system string) (string, error) {
+const (
+	currentEdition = iota
+	candidateEdition
+
+	runBootloader = iota
+	recoveryBootloader
+)
+
+func composeCommandLine(model *asserts.Model, currentOrCandidate, runOrRecovery int, system string) (string, error) {
 	if model.Grade() == asserts.ModelGradeUnset {
 		return "", nil
 	}
-
 	// get the ubuntu-seed bootloader
 	opts := &bootloader.Options{
 		NoSlashBoot: true,
-		// Looking for recovery system bootloader
-		Recovery: true,
 	}
-	mbl, err := getBootloaderManagingItsAssets(InitramfsUbuntuSeedDir, opts)
+	bootloaderRootDir := InitramfsUbuntuBootDir
+	modeArg := "snapd_recovery_mode=run"
+	systemArg := ""
+	if runOrRecovery == recoveryBootloader {
+		// dealing with recovery system bootloader
+		opts.Recovery = true
+		bootloaderRootDir = InitramfsUbuntuSeedDir
+		// recovery mode & system command line arguments
+		modeArg = "snapd_recovery_mode=recover"
+		systemArg = fmt.Sprintf("snapd_recovery_system=%v", system)
+	}
+	mbl, err := getBootloaderManagingItsAssets(bootloaderRootDir, opts)
 	if err != nil {
 		if err == errBootConfigNotManaged {
 			return "", nil
 		}
 		return "", err
 	}
-	systemArg := fmt.Sprintf("snapd_recovery_system=%v", system)
 	// TODO:UC20: fetch extra args from gadget
 	extraArgs := ""
-	return mbl.CommandLine("snapd_recovery_mode=recover", systemArg, extraArgs)
+	if currentOrCandidate == currentEdition {
+		return mbl.CommandLine(modeArg, systemArg, extraArgs)
+	} else {
+		return mbl.CandidateCommandLine(modeArg, systemArg, extraArgs)
+	}
+}
+
+// ComposeRecoveryCommandLine composes the kernel command line used when booting
+// a given recovery mode system.
+func ComposeRecoveryCommandLine(model *asserts.Model, system string) (string, error) {
+	return composeCommandLine(model, currentEdition, recoveryBootloader, system)
 }
 
 // ComposeCommandLine composes the kernel command line used when booting the
 // system in run mode.
 func ComposeCommandLine(model *asserts.Model) (string, error) {
-	if model.Grade() == asserts.ModelGradeUnset {
-		return "", nil
-	}
-	// get the ubuntu-boot bootloader
-	opts := &bootloader.Options{
-		NoSlashBoot: true,
-	}
-	mbl, err := getBootloaderManagingItsAssets(InitramfsUbuntuBootDir, opts)
-	if err != nil {
-		if err == errBootConfigNotManaged {
-			return "", nil
-		}
-		return "", err
-	}
-	// TODO:UC20: fetch extra args from gadget
-	extraArgs := ""
-	return mbl.CommandLine("snapd_recovery_mode=run", "", extraArgs)
+	return composeCommandLine(model, currentEdition, runBootloader, "")
+}
+
+// ComposeCandidateCommandLine composes the kernel command line used when
+// booting the system in run mode with the current built-in edition of managed
+// boot assets.
+func ComposeCandidateCommandLine(model *asserts.Model) (string, error) {
+	return composeCommandLine(model, candidateEdition, runBootloader, "")
 }

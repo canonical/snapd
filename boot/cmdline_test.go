@@ -211,3 +211,19 @@ func (s *kernelCommandLineSuite) TestComposeCommandLineManagedHappy(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(cmdline, Equals, "snapd_recovery_mode=run panic=-1")
 }
+
+func (s *kernelCommandLineSuite) TestComposeCandidateCommandLineManagedHappy(c *C) {
+	model := makeMockUC20Model()
+
+	mbl := bootloadertest.Mock("btloader", c.MkDir()).WithManagedAssets()
+	bootloader.Force(mbl)
+	defer bootloader.Force(nil)
+
+	mbl.IsManaged = true
+	mbl.StaticCommandLine = "panic=-1"
+	mbl.CandidateStaticCommandLine = "candidate panic=-1"
+
+	cmdline, err := boot.ComposeCandidateCommandLine(model)
+	c.Assert(err, IsNil)
+	c.Assert(cmdline, Equals, "snapd_recovery_mode=run candidate panic=-1")
+}
