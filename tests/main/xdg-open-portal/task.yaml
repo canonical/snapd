@@ -79,25 +79,23 @@ restore: |
 execute: |
     #shellcheck source=tests/lib/desktop-portal.sh
     . "$TESTSLIB"/desktop-portal.sh
-    #shellcheck source=tests/lib/files.sh
-    . "$TESTSLIB"/files.sh
 
     echo "Request is forwarded to the default browser"
     tests.session -u test exec test-snapd-desktop.cmd xdg-open http://www.example.org
 
     echo "The test-browser process was invoked with the URL"
-    wait_for_file "$BROWSER_HISTORY" 4 .5
+    retry -n 4 --wait 0.5 test -e "$BROWSER_HISTORY"
     MATCH http://www.example.org < "$BROWSER_HISTORY"
 
     echo "Access the file via URI handler"
     tests.session -u test exec test-snapd-desktop.cmd xdg-open file:///home/test/snap/test-snapd-desktop/common/test.txt
-    wait_for_file "$EDITOR_HISTORY" 4 .5
+    retry -n 4 --wait 0.5 test -e "$EDITOR_HISTORY"
     MATCH /home/test/snap/test-snapd-desktop/common/test.txt < "$EDITOR_HISTORY"
     rm -f "$EDITOR_HISTORY"
 
     echo "Access the file directly"
     tests.session -u test exec test-snapd-desktop.cmd xdg-open /home/test/snap/test-snapd-desktop/common/test.txt
-    wait_for_file "$EDITOR_HISTORY" 4 .5
+    retry -n 4 --wait 0.5 test -e "$EDITOR_HISTORY"
     MATCH /home/test/snap/test-snapd-desktop/common/test.txt < "$EDITOR_HISTORY"
 
 debug: |

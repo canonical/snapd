@@ -69,44 +69,15 @@ type initramfsMountsSuite struct {
 var _ = Suite(&initramfsMountsSuite{})
 
 var (
-	snapMountOpts = &main.SystemdMountOptions{
-		SurvivesPivotRoot: true,
-	}
 	tmpfsMountOpts = &main.SystemdMountOptions{
-		SurvivesPivotRoot: true,
-		IsTmpfs:           true,
+		Tmpfs: true,
 	}
 	needsFsckDiskMountOpts = &main.SystemdMountOptions{
-		NeedsFsck:         true,
-		SurvivesPivotRoot: true,
-	}
-	diskMountOpts = &main.SystemdMountOptions{
-		SurvivesPivotRoot: true,
+		NeedsFsck: true,
 	}
 
 	mockStateContent = `{"data":{"auth":{"users":[{"id":1,"name":"mvo"}],"macaroon-key":"not-a-cookie","last-id":1}},"some":{"other":"stuff"}}`
 )
-
-// this is a function so we evaluate InitramfsUbuntuBootDir, etc at the time of
-// the test to pick up test-specific dirs.GlobalRootDir
-func ubuntuLabelMount(label string) systemdMount {
-	mnt := systemdMount{
-		opts: needsFsckDiskMountOpts,
-	}
-	switch label {
-	case "ubuntu-boot":
-		mnt.what = "/dev/disk/by-label/ubuntu-boot"
-		mnt.where = boot.InitramfsUbuntuBootDir
-	case "ubuntu-seed":
-		mnt.what = "/dev/disk/by-label/ubuntu-seed"
-		mnt.where = boot.InitramfsUbuntuSeedDir
-	case "ubuntu-data":
-		mnt.what = "/dev/disk/by-label/ubuntu-data"
-		mnt.where = boot.InitramfsDataDir
-	}
-
-	return mnt
-}
 
 // because 1.9 vet does not like xerrors.Errorf(".. %w")
 type mockedWrappedError struct {
@@ -234,10 +205,29 @@ type systemdMount struct {
 	opts  *main.SystemdMountOptions
 }
 
-func (s *initramfsMountsSuite) makeSeedSnapSystemdMount(typ snap.Type) systemdMount {
+// this is a function so we evaluate InitramfsUbuntuBootDir, etc at the time of
+// the test to pick up test-specific dirs.GlobalRootDir
+func ubuntuLabelMount(label string) systemdMount {
 	mnt := systemdMount{
-		opts: snapMountOpts,
+		opts: needsFsckDiskMountOpts,
 	}
+	switch label {
+	case "ubuntu-boot":
+		mnt.what = "/dev/disk/by-label/ubuntu-boot"
+		mnt.where = boot.InitramfsUbuntuBootDir
+	case "ubuntu-seed":
+		mnt.what = "/dev/disk/by-label/ubuntu-seed"
+		mnt.where = boot.InitramfsUbuntuSeedDir
+	case "ubuntu-data":
+		mnt.what = "/dev/disk/by-label/ubuntu-data"
+		mnt.where = boot.InitramfsDataDir
+	}
+
+	return mnt
+}
+
+func (s *initramfsMountsSuite) makeSeedSnapSystemdMount(typ snap.Type) systemdMount {
+	mnt := systemdMount{}
 	var name, dir string
 	switch typ {
 	case snap.TypeSnapd:
@@ -257,9 +247,7 @@ func (s *initramfsMountsSuite) makeSeedSnapSystemdMount(typ snap.Type) systemdMo
 }
 
 func (s *initramfsMountsSuite) makeRunSnapSystemdMount(typ snap.Type, sn snap.PlaceInfo) systemdMount {
-	mnt := systemdMount{
-		opts: snapMountOpts,
-	}
+	mnt := systemdMount{}
 	var dir string
 	switch typ {
 	case snap.TypeSnapd:
@@ -422,7 +410,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeRealSystemdMountTim
 	defer cmd.Restore()
 
 	isMountedCalls := 0
-	restore = main.MockIsMounted(func(where string) (bool, error) {
+	restore = main.MockOsutilIsMounted(func(where string) (bool, error) {
 		isMountedCalls++
 		switch isMountedCalls {
 		// always return false for the mount
@@ -438,7 +426,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeRealSystemdMountTim
 	defer restore()
 
 	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
-	c.Assert(err, ErrorMatches, fmt.Sprintf("timed out after 1:30 waiting for mount %s on %s", "/dev/disk/by-label/ubuntu-seed", boot.InitramfsUbuntuSeedDir))
+	c.Assert(err, ErrorMatches, fmt.Sprintf("timed out after 1m30s waiting for mount %s on %s", "/dev/disk/by-label/ubuntu-seed", boot.InitramfsUbuntuSeedDir))
 	c.Check(s.Stdout.String(), Equals, "")
 
 }
@@ -458,7 +446,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeHappyRealSystemdMou
 	// mock that in turn, /run/mnt/ubuntu-boot, /run/mnt/ubuntu-seed, etc. are
 	// mounted
 	n := 0
-	restore := main.MockIsMounted(func(where string) (bool, error) {
+	restore := main.MockOsutilIsMounted(func(where string) (bool, error) {
 		n++
 		switch n {
 		// first call for each mount returns false, then returns true, this
@@ -592,7 +580,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyRealSystemdMou
 	// mock that in turn, /run/mnt/ubuntu-boot, /run/mnt/ubuntu-seed, etc. are
 	// mounted
 	n := 0
-	restore := main.MockIsMounted(func(where string) (bool, error) {
+	restore := main.MockOsutilIsMounted(func(where string) (bool, error) {
 		n++
 		switch n {
 		// first call for each mount returns false, then returns true, this
@@ -736,7 +724,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeHappyRealSystemdMount(c
 	// mock that in turn, /run/mnt/ubuntu-boot, /run/mnt/ubuntu-seed, etc. are
 	// mounted
 	n := 0
-	restore := main.MockIsMounted(func(where string) (bool, error) {
+	restore := main.MockOsutilIsMounted(func(where string) (bool, error) {
 		n++
 		switch n {
 		// first call for each mount returns false, then returns true, this
@@ -1506,7 +1494,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappy(c *C) {
 		{
 			"/dev/disk/by-label/ubuntu-data",
 			boot.InitramfsHostUbuntuDataDir,
-			diskMountOpts,
+			nil,
 		},
 	})
 	defer restore()
@@ -1537,7 +1525,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyBootedKernelPa
 		{
 			"/dev/disk/by-label/ubuntu-data",
 			boot.InitramfsHostUbuntuDataDir,
-			diskMountOpts,
+			nil,
 		},
 	})
 	defer restore()
@@ -1593,7 +1581,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyEncrypted(c *C
 		{
 			"path-to-device",
 			boot.InitramfsHostUbuntuDataDir,
-			diskMountOpts,
+			nil,
 		},
 	})
 	defer restore()
@@ -1628,7 +1616,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallRecoverModeMeasure(c *C
 		modeMnts = append(modeMnts, systemdMount{
 			"/dev/disk/by-label/ubuntu-data",
 			boot.InitramfsHostUbuntuDataDir,
-			diskMountOpts,
+			nil,
 		})
 	}
 

@@ -23,10 +23,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
+	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/bootloader/grubenv"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // sanity - grub implements the required interfaces
@@ -44,6 +47,7 @@ type grub struct {
 	basedir string
 
 	uefiRunKernelExtraction bool
+	recovery                bool
 }
 
 // newGrub create a new Grub bootloader object
@@ -59,6 +63,7 @@ func newGrub(rootdir string, opts *Options) RecoveryAwareBootloader {
 	}
 	if opts != nil {
 		g.uefiRunKernelExtraction = opts.ExtractedRunKernelImage
+		g.recovery = opts.Recovery
 	}
 
 	return g
@@ -379,11 +384,49 @@ func (g *grub) ManagedAssets() []string {
 	}
 }
 
-// CommandLine returns the kernel command line composed of the built-in
-// list and extra arguments passed in arguments. The command line may be
-// different when using a bootloader in the recovery partition.
+// CommandLine returns the kernel command line composed of mode and
+// system arguments, built-in bootloader specific static arguments
+// corresponding to the on-disk boot asset edition, followed by any
+// extra arguments. The command line may be different when using a
+// recovery bootloader.
 //
 // Implements ManagedAssetsBootloader for the grub bootloader.
-func (g *grub) CommandLine(extra []string) (string, error) {
-	return "", fmt.Errorf("not implemented")
+func (g *grub) CommandLine(modeArg, systemArg, extraArgs string) (string, error) {
+	// we do not trust the on disk asset, use the built-in one
+	assetName := "grub.cfg"
+	if g.recovery {
+		assetName = "grub-recovery.cfg"
+	}
+	currentBootConfig := filepath.Join(g.dir(), "grub.cfg")
+	edition, err := editionFromDiskConfigAsset(currentBootConfig)
+	if err != nil {
+		return "", fmt.Errorf("cannot obtain edition number of current boot config: %v", err)
+	}
+	staticCmdline := staticCommandLineForGrubAssetEdition(assetName, edition)
+	args, err := strutil.KernelCommandLineSplit(staticCmdline + " " + extraArgs)
+	if err != nil {
+		return "", fmt.Errorf("cannot use badly formatted kernel command line: %v", err)
+	}
+	// join all argument with a single space, see
+	// grub-core/lib/cmdline.c:grub_create_loader_cmdline() for reference,
+	// arguments are separated by a single space, the space after last is
+	// replaced with terminating NULL
+	snapdArgs := make([]string, 0, 2)
+	if modeArg != "" {
+		snapdArgs = append(snapdArgs, modeArg)
+	}
+	if systemArg != "" {
+		snapdArgs = append(snapdArgs, systemArg)
+	}
+	return strings.Join(append(snapdArgs, args...), " "), nil
+}
+
+// staticCommandLineForGrubAssetEdition fetches a static command line for given
+// grub asset edition
+func staticCommandLineForGrubAssetEdition(asset string, edition uint) string {
+	cmdline := assets.SnippetForEdition(fmt.Sprintf("%s:static-cmdline", asset), edition)
+	if cmdline == nil {
+		return ""
+	}
+	return string(cmdline)
 }

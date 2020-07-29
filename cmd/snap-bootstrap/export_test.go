@@ -28,7 +28,11 @@ import (
 
 var (
 	Parser = parser
+
+	DoSystemdMount = doSystemdMountImpl
 )
+
+type SystemdMountOptions = systemdMountOptions
 
 func MockTimeNow(f func() time.Time) (restore func()) {
 	old := timeNow
@@ -38,7 +42,7 @@ func MockTimeNow(f func() time.Time) (restore func()) {
 	}
 }
 
-func MockIsMounted(f func(string) (bool, error)) (restore func()) {
+func MockOsutilIsMounted(f func(string) (bool, error)) (restore func()) {
 	old := osutilIsMounted
 	osutilIsMounted = f
 	return func() {

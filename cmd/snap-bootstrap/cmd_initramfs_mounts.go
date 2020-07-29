@@ -23,11 +23,9 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"syscall"
-	"time"
 
 	"github.com/jessevdk/go-flags"
 
@@ -38,7 +36,6 @@ import (
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/sysconfig"
-	"github.com/snapcore/snapd/systemd"
 )
 
 func init() {
@@ -65,8 +62,6 @@ func (c *cmdInitramfsMounts) Execute(args []string) error {
 var (
 	osutilIsMounted = osutil.IsMounted
 
-	timeNow = time.Now
-
 	snapTypeToMountDir = map[snap.Type]string{
 		snap.TypeBase:   "base",
 		snap.TypeKernel: "kernel",
@@ -78,15 +73,6 @@ var (
 	secbootUnlockVolumeIfEncrypted            = secboot.UnlockVolumeIfEncrypted
 
 	bootFindPartitionUUIDForBootedKernelDisk = boot.FindPartitionUUIDForBootedKernelDisk
-
-	// default 1:30, as that is how long systemd will wait for services by
-	// default so seems a sensible default
-	defaultMountUnitWaitTimeout = time.Minute + 30*time.Second
-
-	unitFileDependOverride = `[Unit]
-Requires=%[1]s
-After=%[1]s
-`
 )
 
 func stampedAction(stamp string, action func() error) error {
@@ -101,150 +87,6 @@ func stampedAction(stamp string, action func() error) error {
 		return err
 	}
 	return ioutil.WriteFile(stampFile, nil, 0644)
-}
-
-// SystemdMountOptions reflects the set of options for mounting something using
-// systemd-mount(1)
-type SystemdMountOptions struct {
-	// is tmpfs indicates that "what" should be ignored and a new tmpfs should
-	// be mounted at the location
-	IsTmpfs bool
-	// SurvivesPivotRoot indicates that the mount should persist from the
-	// initramfs to after the pivot_root to normal userspace
-	// this is done by creating systemd unit .wants symlinks on
-	// initrd-device.target in /run
-	// TODO: all current instances of doSystemdMount set this to true, should we
-	// invert or just drop the option and make it the default behavior ?
-	SurvivesPivotRoot bool
-	// NeedsFsck indicates that before returning to the caller, an fsck check
-	// should be performed on the thing being mounted
-	NeedsFsck bool
-	// NoWait will not wait until the systemd unit is active and running, which
-	// is the default behavior
-	NoWait bool
-}
-
-var (
-	doSystemdMount = doSystemdMountImpl
-	counter        = 1
-)
-
-// doSystemdMount will mount "what" at "where" using systemd-mount(1) with
-// various options
-func doSystemdMountImpl(what, where string, opts *SystemdMountOptions) error {
-	if opts == nil {
-		opts = &SystemdMountOptions{}
-	}
-
-	// doesn't make sense to fsck a tmpfs
-	if opts.NeedsFsck && opts.IsTmpfs {
-		return fmt.Errorf("cannot mount %q at %q: impossible to fsck a tmpfs", what, where)
-	}
-
-	whereEscaped := systemd.EscapeUnitNamePath(where)
-	unitName := whereEscaped + ".mount"
-
-	args := []string{what, where, "--no-pager", "--no-ask-password"}
-	if opts.IsTmpfs {
-		args = append(args, "--type=tmpfs")
-	}
-
-	if opts.NeedsFsck {
-		// note that with the --fsck=yes argument, systemd will block starting
-		// the mount unit on a new systemd-fsck@<what> unit that will run the
-		// fsck, so we don't need to worry about waiting for that to finish in
-		// the case where we are supposed to wait (which is the default for this
-		// function)
-		args = append(args, "--fsck=yes")
-	}
-
-	// Under all circumstances that we use systemd-mount here from
-	// snap-bootstrap, it is expected to be okay to block waiting for the unit
-	// to be started and become active, because snap-bootstrap is, by design,
-	// expected to run as late as possible in the initramfs, and so any
-	// dependencies there might be in systemd creating and starting these mount
-	// units should already be ready and so we will not block forever. If
-	// however there was something going on in systemd at the same time that the
-	// mount unit depended on, we could hit a deadlock blocking as systemd will
-	// not enqueue this job until it's dependencies are ready, and so if those
-	// things depend on this mount unit we are stuck. The solution to this
-	// situation is to make snap-bootstrap run as late as possible before
-	// mounting things.
-	// However, we leave in the option to not block if there is ever a reason
-	// we need to do so.
-	if opts.NoWait {
-		args = append(args, "--no-block")
-	}
-
-	// note that we do not currently parse any output from systemd-mount, but if
-	// we ever do, take special care surrounding the debug output that systemd
-	// outputs with the "debug" kernel command line present (or equivalently the
-	// SYSTEMD_LOG_LEVEL=debug env var) which will add lots of additional output
-	// to stderr from systemd commands
-	out, err := exec.Command("systemd-mount", args...).CombinedOutput()
-	if err != nil {
-		return osutil.OutputErr(out, err)
-	}
-
-	// finally if it should survive pivot_root() then we need to add symlinks
-	// to /run/systemd
-	if opts.SurvivesPivotRoot {
-		// to survive the pivot_root, we need to make the mount units depend on
-		// all of the various initrd special targets by adding runtime conf
-		// files there
-		// note we could do this statically in the initramfs main filesystem
-		// layout, but that means that changes to snap-bootstrap would block on
-		// waiting for those files to be added before things works here, this is
-		// a more flexible strategy that puts snap-bootstrap in control
-		for _, initrdUnit := range []string{
-			"initrd.target",
-			"initrd-fs.target",
-			"initrd-switch-root.target",
-			"local-fs.target",
-		} {
-			targetDir := filepath.Join(dirs.GlobalRootDir, "/run/systemd/system", initrdUnit+".d")
-			err := os.MkdirAll(targetDir, 0755)
-			if err != nil {
-				return err
-			}
-
-			// add an override file for the initrd unit to depend on this mount
-			// unit so that when we isolate to the initrd unit, it does not get
-			// unmounted
-			fname := fmt.Sprintf("snap_bootstrap_%s.conf", whereEscaped)
-			content := []byte(fmt.Sprintf(unitFileDependOverride, unitName))
-			err = ioutil.WriteFile(filepath.Join(targetDir, fname), content, 0644)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	if !opts.NoWait {
-		// TODO: is this necessary, systemd-mount seems to only return when the
-		// unit is active and the mount is there, but perhaps we should be a bit
-		// paranoid here and wait anyways?
-		// see systemd-mount(1)
-
-		// wait for the mount to exist
-		start := timeNow()
-		var now time.Time
-		for now = timeNow(); now.Sub(start) < defaultMountUnitWaitTimeout; now = timeNow() {
-			mounted, err := osutilIsMounted(where)
-			if mounted {
-				break
-			}
-			if err != nil {
-				return err
-			}
-		}
-
-		if now.Sub(start) > defaultMountUnitWaitTimeout {
-			return fmt.Errorf("timed out after 1:30 waiting for mount %s on %s", what, where)
-		}
-	}
-
-	return nil
 }
 
 func generateInitramfsMounts() error {
@@ -422,14 +264,8 @@ func generateMountsModeRecover(mst *initramfsMountsState, recoverySystem string)
 
 	}
 
-	opts := &SystemdMountOptions{
-		// don't do fsck on the data partition, it could be corrupted
-
-		// always persist /host the mount
-		SurvivesPivotRoot: true,
-	}
-
-	err = doSystemdMount(device, boot.InitramfsHostUbuntuDataDir, opts)
+	// don't do fsck on the data partition, it could be corrupted
+	err = doSystemdMount(device, boot.InitramfsHostUbuntuDataDir, nil)
 	if err != nil {
 		return err
 	}
@@ -481,13 +317,11 @@ func selectPartitionMatchingKernelDisk(dir, fallbacklabel string) error {
 		partSrc = filepath.Join("/dev/disk/by-label", fallbacklabel)
 	}
 
-	opts := &SystemdMountOptions{
+	opts := &systemdMountOptions{
 		// always fsck the partition when we are mounting it, as this is the first
 		// partition we will be mounting, we can't know if anything is  corrupted
 		// yet
 		NeedsFsck: true,
-		// always persist the mount
-		SurvivesPivotRoot: true,
 	}
 	return doSystemdMount(partSrc, dir, opts)
 }
@@ -519,11 +353,7 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState, recoverySyste
 	for _, essentialSnap := range essSnaps {
 		dir := snapTypeToMountDir[essentialSnap.EssentialType]
 		// TODO:UC20: we need to cross-check the kernel path with snapd_recovery_kernel used by grub
-		opts := &SystemdMountOptions{
-			// always persist the snaps mount
-			SurvivesPivotRoot: true,
-		}
-		err := doSystemdMount(essentialSnap.Path, filepath.Join(boot.InitramfsRunMntDir, dir), opts)
+		err := doSystemdMount(essentialSnap.Path, filepath.Join(boot.InitramfsRunMntDir, dir), nil)
 		if err != nil {
 			return err
 		}
@@ -535,10 +365,8 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState, recoverySyste
 	//            initramfs layout
 
 	// 2.3. mount "ubuntu-data" on a tmpfs
-	opts := &SystemdMountOptions{
-		// always persist the tmpfs ubuntu-data mount
-		SurvivesPivotRoot: true,
-		IsTmpfs:           true,
+	opts := &systemdMountOptions{
+		Tmpfs: true,
 	}
 	return doSystemdMount("tmpfs", boot.InitramfsDataDir, opts)
 }
@@ -553,11 +381,10 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	// 2. mount ubuntu-seed
 	// TODO:UC20: use the ubuntu-boot partition as a reference for what
 	//            partition to mount for ubuntu-seed
-	opts := &SystemdMountOptions{
+	opts := &systemdMountOptions{
 		// TODO: do we need to always run fsck on ubuntu-seed in run mode?
 		//       would it be safer to not touch ubuntu-seed at all for boot?
-		NeedsFsck:         true,
-		SurvivesPivotRoot: true,
+		NeedsFsck: true,
 	}
 	err = doSystemdMount("/dev/disk/by-label/ubuntu-seed", boot.InitramfsUbuntuSeedDir, opts)
 	if err != nil {
@@ -581,11 +408,10 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		return err
 	}
 
-	opts = &SystemdMountOptions{
+	opts = &systemdMountOptions{
 		// TODO: do we actually need fsck if we are mounting a mapper device?
 		// probably not?
-		NeedsFsck:         true,
-		SurvivesPivotRoot: true,
+		NeedsFsck: true,
 	}
 	err = doSystemdMount(device, boot.InitramfsDataDir, opts)
 	if err != nil {
@@ -618,10 +444,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		if sn, ok := mounts[typ]; ok {
 			dir := snapTypeToMountDir[typ]
 			snapPath := filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), sn.Filename())
-			opts := &SystemdMountOptions{
-				SurvivesPivotRoot: true,
-			}
-			err := doSystemdMount(snapPath, filepath.Join(boot.InitramfsRunMntDir, dir), opts)
+			err := doSystemdMount(snapPath, filepath.Join(boot.InitramfsRunMntDir, dir), nil)
 			if err != nil {
 				return err
 			}
@@ -636,10 +459,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 			return fmt.Errorf("cannot load metadata and verify snapd snap: %v", err)
 		}
 
-		opts := &SystemdMountOptions{
-			SurvivesPivotRoot: true,
-		}
-		return doSystemdMount(essSnaps[0].Path, filepath.Join(boot.InitramfsRunMntDir, "snapd"), opts)
+		return doSystemdMount(essSnaps[0].Path, filepath.Join(boot.InitramfsRunMntDir, "snapd"), nil)
 	}
 
 	return nil
