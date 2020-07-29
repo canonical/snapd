@@ -154,10 +154,10 @@ func ComposeRecoveryCommandLine(model *asserts.Model, system, gadgetDir string) 
 		}
 		return "", err
 	}
-	// TODO:UC20: obtain extra args from the gadget
+	systemArg := fmt.Sprintf("snapd_recovery_system=%v", system)
+	// TODO:UC20: fetch extra args from gadget
 	extraArgs := ""
-	modeArgs := fmt.Sprintf("snapd_recovery_mode=recover snapd_recovery_system=%v", system)
-	return mbl.CommandLine(modeArgs, extraArgs)
+	return mbl.CommandLine("snapd_recovery_mode=recover", systemArg, extraArgs)
 }
 
 // ComposeCommandLine composes the kernel command line used when booting the
@@ -177,10 +177,9 @@ func ComposeCommandLine(model *asserts.Model, gadgetDir string) (string, error) 
 		}
 		return "", err
 	}
-	modeArgs := "snapd_recovery_mode=run"
-	// TODO:UC20: obtain extra args from the gadget
+	// TODO:UC20: fetch extra args from gadget
 	extraArgs := ""
-	return mbl.CommandLine(modeArgs, extraArgs)
+	return mbl.CommandLine("snapd_recovery_mode=run", "", extraArgs)
 }
 
 // SetExtraCommandLineArgs sets the value of extra command line parameters
