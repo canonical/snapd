@@ -64,7 +64,7 @@ execute: |
     # were logged, they it will show up now, but not for subsequent checkpoints.
     # XXX ausearch exits with 1 when there are denials
     ausearch --checkpoint stamp --start checkpoint -m AVC > avc-after 2>&1 || true
-    grep -v -E 'avc:  denied  { (setattr|read) } .* tcontext=unconfined_u:object_r:systemd_logind_var_lib_t:s0' < avc-after | \
+    grep -v -E 'avc:  denied  { (setattr|read) } .* name=linger .* scontext=system_u:system_r:init_t:s0 tcontext=unconfined_u:object_r:systemd_logind_var_lib_t:s0' < avc-after | \
         not MATCH 'type=AVC'
 
     # another revision triggers copy of snap data
