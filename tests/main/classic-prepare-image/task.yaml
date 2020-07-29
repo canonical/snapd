@@ -90,3 +90,9 @@ execute: |
     test -f "$SEED_DIR/snaps/basic_"*.snap
     snap list | MATCH "^classic-gadget"
     test -f "$SEED_DIR/snaps/classic-gadget_"*.snap
+
+    # test regression
+    if journalctl -u snapd | MATCH "missing file /snap/classic-gadget/unset/meta/snap.yaml"; then
+         echo "snapd is still reading the gadget too early"
+         exit 1
+    fi

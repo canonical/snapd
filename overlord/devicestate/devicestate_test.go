@@ -238,6 +238,26 @@ func (s *deviceMgrBaseSuite) seeding() {
 	chg.SetStatus(state.DoingStatus)
 }
 
+func (s *deviceMgrSuite) TestDeviceManagerSetTimeOnce(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// set first time
+	now := time.Now()
+	err := devicestate.SetTimeOnce(s.mgr, "key-name", now)
+	c.Assert(err, IsNil)
+
+	later := now.Add(1 * time.Minute)
+	// setting again doesn't change value
+	err = devicestate.SetTimeOnce(s.mgr, "key-name", later)
+	c.Assert(err, IsNil)
+
+	var t time.Time
+	s.state.Get("key-name", &t)
+
+	c.Assert(t.Equal(now), Equals, true)
+}
+
 func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededAlreadySeeded(c *C) {
 	s.state.Lock()
 	s.state.Set("seeded", true)
@@ -305,6 +325,10 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededHappy(c *C) {
 	defer s.state.Unlock()
 
 	c.Check(s.state.Changes(), HasLen, 1)
+
+	var seedStartTime time.Time
+	c.Assert(s.state.Get("seed-start-time", &seedStartTime), IsNil)
+	c.Check(seedStartTime.Equal(devicestate.StartTime()), Equals, true)
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkSkippedOnClassic(c *C) {

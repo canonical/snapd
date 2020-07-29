@@ -406,11 +406,17 @@ func (b *MockManagedAssetsBootloader) UpdateBootConfig(opts *bootloader.Options)
 	return b.UpdateErr
 }
 
-func (b *MockManagedAssetsBootloader) CommandLine(args []string) (string, error) {
+func (b *MockManagedAssetsBootloader) CommandLine(modeArg, systemArg, extraArgs string) (string, error) {
 	if b.CommandLineErr != nil {
 		return "", b.CommandLineErr
 	}
-	line := strings.Join(append([]string{b.StaticCommandLine}, args...), " ")
+	args := []string(nil)
+	for _, argSet := range []string{modeArg, systemArg, b.StaticCommandLine, extraArgs} {
+		if argSet != "" {
+			args = append(args, argSet)
+		}
+	}
+	line := strings.Join(args, " ")
 	return strings.TrimSpace(line), nil
 }
 
