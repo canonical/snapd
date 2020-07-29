@@ -5702,6 +5702,78 @@ func (s *interfaceManagerSuite) TestSnapsWithSecurityProfiles(c *C) {
 	})
 }
 
+func (s *interfaceManagerSuite) TestSnapsWithSecurityProfilesMiddleOfFirstBoot(c *C) {
+	// make sure snapsWithSecurityProfiles does the right thing
+	// if invoked after a restart in the middle of first boot
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si0 := &snap.SideInfo{
+		RealName: "snap0",
+		Revision: snap.R(10),
+	}
+	snaptest.MockSnap(c, `name: snap0`, si0)
+	snapstate.Set(s.state, "snap0", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si0},
+		Current:  si0.Revision,
+	})
+
+	si1 := &snap.SideInfo{
+		RealName: "snap1",
+		Revision: snap.R(11),
+	}
+	snaptest.MockSnap(c, `name: snap1`, si1)
+	snapstate.Set(s.state, "snap1", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si1},
+		Current:  si1.Revision,
+	})
+
+	chg := s.state.NewChange("linking", "linking")
+
+	snaps := []struct {
+		name        string
+		setupStatus state.Status
+		linkStatus  state.Status
+		si          *snap.SideInfo
+	}{
+		{"snap0", state.DoneStatus, state.DoneStatus, si0},
+		{"snap1", state.DoStatus, state.DoStatus, si1},
+	}
+
+	var tsPrev *state.TaskSet
+	for i, snp := range snaps {
+		t1 := s.state.NewTask("setup-profiles", fmt.Sprintf("setup profiles %d", i))
+		t1.Set("snap-setup", &snapstate.SnapSetup{
+			SideInfo: snp.si,
+		})
+		t1.SetStatus(snp.setupStatus)
+		t2 := s.state.NewTask("link-snap", fmt.Sprintf("link snap %d", i))
+		t2.Set("snap-setup", &snapstate.SnapSetup{
+			SideInfo: snp.si,
+		})
+		t2.WaitFor(t1)
+		t2.SetStatus(snp.linkStatus)
+		chg.AddTask(t1)
+		chg.AddTask(t2)
+
+		// this is the kind of wait chain used by first boot
+		ts := state.NewTaskSet(t1, t2)
+		if tsPrev != nil {
+			ts.WaitAll(tsPrev)
+		}
+		tsPrev = ts
+	}
+
+	infos, err := ifacestate.SnapsWithSecurityProfiles(s.state)
+	c.Assert(err, IsNil)
+	// snap1 link-snap waiting on snap0 setup-profiles didn't confuse
+	// snapsWithSecurityProfiles
+	c.Check(infos, HasLen, 1)
+	c.Check(infos[0].InstanceName(), Equals, "snap0")
+}
+
 func (s *interfaceManagerSuite) TestDisconnectInterfaces(c *C) {
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	_ = s.manager(c)

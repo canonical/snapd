@@ -46,7 +46,22 @@ execute: |
 
     execute_remote "sudo snap wait system seed.loaded"
 
-    echo "Test that rsyslog was disabled early."
-    # early config is witnessed by install hook of the pc gadget
-    execute_remote "cat /var/snap/pc/common/debug.txt" | MATCH "/dev/null"
+    # sanity - check that defaults were applied; note this doesn't guarantee
+    # that defaults were applied early - that is checked further down.
+    echo "Sanity check of the gadget defaults"
+    execute_remote "sudo snap get system service.rsyslog.disable" | MATCH "true"
+    execute_remote "sudo snap get system watchdog.runtime-timeout" | MATCH "13m"
+    execute_remote "sudo snap get system system.power-key-action" | MATCH "ignore"
+    execute_remote "sudo snap get system system.disable-backlight-service" | MATCH "true"
+
     execute_remote "test -L /etc/systemd/system/rsyslog.service"
+    execute_remote "cat /etc/systemd/logind.conf.d/00-snap-core.conf" | MATCH "HandlePowerKey=ignore"
+    execute_remote "cat /etc/systemd/system.conf.d/10-snapd-watchdog.conf" | MATCH "RuntimeWatchdogSec=780"
+    execute_remote "test -L /etc/systemd/system/systemd-backlight@.service"
+
+    echo "Test that defaults were applied early."
+    # early config is witnessed by install hook of the pc gadget. Note we can
+    # only check rsyslog/backlight symlinks as other core settings cannot be
+    # inspected from install hook of the gadget.
+    execute_remote "cat /var/snap/pc/common/debug.txt" | MATCH "rsyslog symlink: /dev/null"
+    execute_remote "cat /var/snap/pc/common/debug.txt" | MATCH "backlight symlink: /dev/null"

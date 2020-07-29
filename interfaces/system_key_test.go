@@ -20,6 +20,7 @@
 package interfaces_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -281,4 +282,135 @@ func (s *systemKeySuite) TestStaticVersion(c *C) {
 		"SeccompCompilerVersion:",
 		"CgroupVersion:",
 	}, " ")+"}")
+}
+
+func (s *systemKeySuite) TestRecordedSystemKey(c *C) {
+	_, err := interfaces.RecordedSystemKey()
+	c.Check(err, Equals, interfaces.ErrSystemKeyMissing)
+
+	restore := interfaces.MockSystemKey(`
+{
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
+"apparmor-features": ["caps"]
+}
+`)
+	defer restore()
+
+	c.Assert(interfaces.WriteSystemKey(), IsNil)
+
+	// just to ensure we really re-read it from the disk with RecordedSystemKey
+	interfaces.MockSystemKey(`{"build-id":"foo"}`)
+
+	key, err := interfaces.RecordedSystemKey()
+	c.Assert(err, IsNil)
+
+	sysKey, ok := key.(*interfaces.SystemKey)
+	c.Assert(ok, Equals, true)
+	c.Check(sysKey.BuildID, Equals, "7a94e9736c091b3984bd63f5aebfc883c4d859e0")
+}
+
+func (s *systemKeySuite) TestCurrentSystemKey(c *C) {
+	restore := interfaces.MockSystemKey(`{"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0"}`)
+	defer restore()
+
+	key, err := interfaces.CurrentSystemKey()
+	c.Assert(err, IsNil)
+	sysKey, ok := key.(*interfaces.SystemKey)
+	c.Assert(ok, Equals, true)
+	c.Check(sysKey.BuildID, Equals, "7a94e9736c091b3984bd63f5aebfc883c4d859e0")
+}
+
+func (s *systemKeySuite) TestSystemKeysMatch(c *C) {
+	_, err := interfaces.SystemKeysMatch(nil, nil)
+	c.Check(err, ErrorMatches, `SystemKeysMatch: arguments are not system keys`)
+
+	restore := interfaces.MockSystemKey(`{"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0"}`)
+	defer restore()
+
+	key1, err := interfaces.CurrentSystemKey()
+	c.Assert(err, IsNil)
+
+	_, err = interfaces.SystemKeysMatch(key1, nil)
+	c.Check(err, ErrorMatches, `SystemKeysMatch: arguments are not system keys`)
+
+	_, err = interfaces.SystemKeysMatch(nil, key1)
+	c.Check(err, ErrorMatches, `SystemKeysMatch: arguments are not system keys`)
+
+	interfaces.MockSystemKey(`{"build-id": "8888e9736c091b3984bd63f5aebfc883c4d85988"}`)
+	key2, err := interfaces.CurrentSystemKey()
+	c.Assert(err, IsNil)
+
+	ok, err := interfaces.SystemKeysMatch(key1, key2)
+	c.Assert(err, IsNil)
+	c.Check(ok, Equals, false)
+
+	key3, err := interfaces.CurrentSystemKey()
+	c.Assert(err, IsNil)
+
+	ok, err = interfaces.SystemKeysMatch(key2, key3)
+	c.Assert(err, IsNil)
+	c.Check(ok, Equals, true)
+}
+
+func (s *systemKeySuite) TestSystemKeysUnmarshalSame(c *C) {
+	// whitespace here simulates the serialization across HTTP, etc. that should
+	// not trigger any differences
+	// use a full system-key to fully test serialization, etc.
+	systemKeyJSON := `
+	{
+		"apparmor-features": [
+			"caps",
+			"dbus",
+			"domain",
+			"file",
+			"mount",
+			"namespaces",
+			"network",
+			"network_v8",
+			"policy",
+			"ptrace",
+			"query",
+			"rlimit",
+			"signal"
+		],
+		"apparmor-parser-features": [
+			"unsafe"
+		],
+		"apparmor-parser-mtime": 1589907589,
+		"build-id": "cb94e5eeee4cf7ecda53f8308a984cb155b55732",
+		"cgroup-version": "1",
+		"nfs-home": false,
+		"overlay-root": "",
+		"seccomp-compiler-version": "e6e309ad8aee052e5aa695dfaa040328ae1559c5 2.4.3 9b218ef9a4e508dd8a7f848095cb8875d10a4bf28428ad81fdc3f8dac89108f7 bpf-actlog",
+		"seccomp-features": [
+			"allow",
+			"errno",
+			"kill_process",
+			"kill_thread",
+			"log",
+			"trace",
+			"trap",
+			"user_notif"
+		],
+		"version": 10
+	}`
+
+	// write the mocked system key to disk
+	restore := interfaces.MockSystemKey(systemKeyJSON)
+	defer restore()
+	err := interfaces.WriteSystemKey()
+	c.Assert(err, IsNil)
+
+	// now unmarshal the specific json to a system key object
+	key1, err := interfaces.UnmarshalJSONSystemKey(bytes.NewBuffer([]byte(systemKeyJSON)))
+	c.Assert(err, IsNil)
+
+	// now read the system key from disk
+	key2, err := interfaces.CurrentSystemKey()
+	c.Assert(err, IsNil)
+
+	// the two system-keys should be the same
+	ok, err := interfaces.SystemKeysMatch(key1, key2)
+	c.Assert(err, IsNil)
+	c.Check(ok, Equals, true)
 }

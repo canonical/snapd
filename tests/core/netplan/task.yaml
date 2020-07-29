@@ -15,9 +15,6 @@ prepare: |
     snap install test-snapd-netplan-apply --edge
 
 execute: |
-    # shellcheck source=tests/lib/journalctl.sh
-    . "$TESTSLIB/journalctl.sh"
-
     # shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB/systems.sh"
 
@@ -31,8 +28,8 @@ execute: |
     fi
 
     echo "Count how many network service restarts happened before calling netplan apply"
-    stopped_before="$(get_journalctl_log -u systemd-networkd | grep -c 'Stopped Network Service.' || true)"
-    started_before="$(get_journalctl_log -u systemd-networkd | grep -c 'Started Network Service.' || true)"
+    stopped_before="$("$TESTSTOOLS"/journal-state get-log -u systemd-networkd | grep -c 'Stopped Network Service.' || true)"
+    started_before="$("$TESTSTOOLS"/journal-state get-log -u systemd-networkd | grep -c 'Started Network Service.' || true)"
 
     echo "When the interface is connected"
     snap connect test-snapd-netplan-apply:network-setup-control
@@ -45,8 +42,8 @@ execute: |
 
     echo "Ensure that network config was stopped and restarted from netplan"
     for _ in $(seq 60); do
-        stopped_after="$(get_journalctl_log -u systemd-networkd | grep -c 'Stopped Network Service.' || true)"
-        started_after="$(get_journalctl_log -u systemd-networkd | grep -c 'Started Network Service.' || true)"
+        stopped_after="$("$TESTSTOOLS"/journal-state get-log -u systemd-networkd | grep -c 'Stopped Network Service.' || true)"
+        started_after="$("$TESTSTOOLS"/journal-state get-log -u systemd-networkd | grep -c 'Started Network Service.' || true)"
         if [ "$stopped_after" -gt "$stopped_before" ] && \
            [ "$started_after" -gt "$started_before" ] ; then
             break

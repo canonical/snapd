@@ -269,7 +269,7 @@ func (mbs *memoryBackstore) Search(assertType *AssertionType, headers map[string
 
 func (mbs *memoryBackstore) SequenceMemberAfter(assertType *AssertionType, sequenceKey []string, after, maxFormat int) (SequenceMember, error) {
 	if !assertType.SequenceForming() {
-		panic(fmt.Sprintf("internal error: SequenceMemberAfter on not sequence-forming assertion type %q", assertType.Name))
+		panic(fmt.Sprintf("internal error: SequenceMemberAfter on non sequence-forming assertion type %q", assertType.Name))
 	}
 	if len(sequenceKey) != len(assertType.PrimaryKey)-1 {
 		return nil, fmt.Errorf("internal error: SequenceMemberAfter's sequence key argument length must be exactly 1 less than the assertion type primary key")

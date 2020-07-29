@@ -96,6 +96,7 @@ type installableBootloader interface {
 type RecoveryAwareBootloader interface {
 	Bootloader
 	SetRecoverySystemEnv(recoverySystemDir string, values map[string]string) error
+	GetRecoverySystemEnv(recoverySystemDir string, key string) (string, error)
 }
 
 type ExtractedRecoveryKernelImageBootloader interface {
@@ -145,6 +146,8 @@ type ExtractedRunKernelImageBootloader interface {
 // ManagedAssetsBootloader has its boot assets (typically boot config) managed
 // by snapd.
 type ManagedAssetsBootloader interface {
+	Bootloader
+
 	// IsCurrentlyManaged returns true when the on disk boot assets are managed.
 	IsCurrentlyManaged() (bool, error)
 	// ManagedAssets returns a list of boot assets managed by the bootloader
@@ -152,6 +155,12 @@ type ManagedAssetsBootloader interface {
 	ManagedAssets() []string
 	// UpdateBootConfig updates the boot config assets used by the bootloader.
 	UpdateBootConfig(*Options) error
+	// CommandLine returns the kernel command line composed of mode and
+	// system arguments, built-in bootloader specific static arguments
+	// corresponding to the on-disk boot asset edition, followed by any
+	// extra arguments. The command line may be different when using a
+	// recovery bootloader.
+	CommandLine(modeArg, systemArg, extraArgs string) (string, error)
 }
 
 func genericInstallBootConfig(gadgetFile, systemFile string) (bool, error) {
