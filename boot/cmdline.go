@@ -137,14 +137,14 @@ func getBootloaderManagingItsAssets(where string, opts *bootloader.Options) (boo
 const (
 	currentEdition = iota
 	candidateEdition
-
-	runBootloader = iota
-	recoveryBootloader
 )
 
-func composeCommandLine(model *asserts.Model, currentOrCandidate, runOrRecovery int, system string) (string, error) {
+func composeCommandLine(model *asserts.Model, currentOrCandidate int, mode, system string) (string, error) {
 	if model.Grade() == asserts.ModelGradeUnset {
 		return "", nil
+	}
+	if mode != ModeRun && mode != ModeRecover {
+		return "", fmt.Errorf("internal error: unsupported command line mode %q", mode)
 	}
 	// get the ubuntu-seed bootloader
 	opts := &bootloader.Options{
@@ -153,7 +153,7 @@ func composeCommandLine(model *asserts.Model, currentOrCandidate, runOrRecovery 
 	bootloaderRootDir := InitramfsUbuntuBootDir
 	modeArg := "snapd_recovery_mode=run"
 	systemArg := ""
-	if runOrRecovery == recoveryBootloader {
+	if mode == ModeRecover {
 		// dealing with recovery system bootloader
 		opts.Recovery = true
 		bootloaderRootDir = InitramfsUbuntuSeedDir
@@ -178,20 +178,20 @@ func composeCommandLine(model *asserts.Model, currentOrCandidate, runOrRecovery 
 }
 
 // ComposeRecoveryCommandLine composes the kernel command line used when booting
-// a given recovery mode system.
+// a given system in recover mode.
 func ComposeRecoveryCommandLine(model *asserts.Model, system string) (string, error) {
-	return composeCommandLine(model, currentEdition, recoveryBootloader, system)
+	return composeCommandLine(model, currentEdition, ModeRecover, system)
 }
 
 // ComposeCommandLine composes the kernel command line used when booting the
 // system in run mode.
 func ComposeCommandLine(model *asserts.Model) (string, error) {
-	return composeCommandLine(model, currentEdition, runBootloader, "")
+	return composeCommandLine(model, currentEdition, ModeRun, "")
 }
 
 // ComposeCandidateCommandLine composes the kernel command line used when
 // booting the system in run mode with the current built-in edition of managed
 // boot assets.
 func ComposeCandidateCommandLine(model *asserts.Model) (string, error) {
-	return composeCommandLine(model, candidateEdition, runBootloader, "")
+	return composeCommandLine(model, candidateEdition, ModeRun, "")
 }
