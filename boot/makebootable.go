@@ -262,11 +262,12 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 		RecoverySystem: recoverySystemLabel,
 		// default to the system we were installed from
 		CurrentRecoverySystems: []string{recoverySystemLabel},
-		Base:                   filepath.Base(bootWith.BasePath),
-		CurrentKernels:         []string{bootWith.Kernel.Filename()},
-		BrandID:                model.BrandID(),
-		Model:                  model.Model(),
-		Grade:                  string(model.Grade()),
+		// keep this comment to make gofmt 1.9 happy
+		Base:           filepath.Base(bootWith.BasePath),
+		CurrentKernels: []string{bootWith.Kernel.Filename()},
+		BrandID:        model.BrandID(),
+		Model:          model.Model(),
+		Grade:          string(model.Grade()),
 	}
 	if err := modeenv.WriteTo(InstallHostWritableDir); err != nil {
 		return fmt.Errorf("cannot write modeenv: %v", err)

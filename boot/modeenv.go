@@ -101,15 +101,16 @@ func ReadModeenv(rootdir string) (*Modeenv, error) {
 		Mode:                   mode,
 		RecoverySystem:         recoverySystem,
 		CurrentRecoverySystems: currentRecoverySystems,
-		Base:                   base,
-		TryBase:                tryBase,
-		BaseStatus:             baseStatus,
-		CurrentKernels:         kernels,
-		BrandID:                brand,
-		Grade:                  grade,
-		Model:                  model,
-		read:                   true,
-		originRootdir:          rootdir,
+		// keep this comment to make gofmt 1.9 happy
+		Base:           base,
+		TryBase:        tryBase,
+		BaseStatus:     baseStatus,
+		CurrentKernels: kernels,
+		BrandID:        brand,
+		Grade:          grade,
+		Model:          model,
+		read:           true,
+		originRootdir:  rootdir,
 	}, nil
 }
 

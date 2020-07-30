@@ -254,10 +254,11 @@ func (s *modeenvSuite) TestWriteToNonExistingFull(c *C) {
 		Mode:                   "run",
 		RecoverySystem:         "20191128",
 		CurrentRecoverySystems: []string{"20191128", "2020-02-03", "20240101-FOO"},
-		Base:                   "core20_321.snap",
-		TryBase:                "core20_322.snap",
-		BaseStatus:             boot.TryStatus,
-		CurrentKernels:         []string{"pc-kernel_1.snap", "pc-kernel_2.snap"},
+		// keep this comment to make gofmt 1.9 happy
+		Base:           "core20_321.snap",
+		TryBase:        "core20_322.snap",
+		BaseStatus:     boot.TryStatus,
+		CurrentKernels: []string{"pc-kernel_1.snap", "pc-kernel_2.snap"},
 	}
 	err := modeenv.WriteTo(s.tmpdir)
 	c.Assert(err, IsNil)
