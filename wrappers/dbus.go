@@ -161,7 +161,7 @@ func AddSnapDBusActivationFiles(s *snap.Info) error {
 
 	_, _, err = osutil.EnsureDirStateGlobs(dirs.SnapDBusSystemServicesDir, systemServices, systemContent)
 	if err != nil {
-		// Clean up files installed by first invocation
+		// On error, remove files installed by first invocation
 		osutil.EnsureDirStateGlobs(dirs.SnapDBusSessionServicesDir, sessionServices, nil)
 	}
 	return err

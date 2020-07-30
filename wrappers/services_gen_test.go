@@ -281,6 +281,33 @@ apps:
 	c.Assert(string(generatedWrapper), Equals, expectedDbusService)
 }
 
+func (s *servicesWrapperGenSuite) TestGenServiceFileWithBusNameOnly(c *C) {
+
+	yamlText := `
+name: snap
+version: 1.0
+apps:
+    app:
+        command: bin/start
+        stop-command: bin/stop
+        reload-command: bin/reload
+        post-stop-command: bin/stop --post
+        stop-timeout: 10s
+        bus-name: foo.bar.baz
+        daemon: dbus
+`
+
+	info, err := snap.InfoFromSnapYaml([]byte(yamlText))
+	c.Assert(err, IsNil)
+	info.Revision = snap.R(44)
+	app := info.Apps["app"]
+
+	generatedWrapper, err := wrappers.GenerateSnapServiceFile(app, nil)
+	c.Assert(err, IsNil)
+
+	c.Assert(string(generatedWrapper), Equals, expectedDbusService)
+}
+
 func (s *servicesWrapperGenSuite) TestGenServiceFileWithBusNameFromSlot(c *C) {
 
 	yamlText := `
