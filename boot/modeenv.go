@@ -22,6 +22,7 @@ package boot
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -70,54 +71,29 @@ func ReadModeenv(rootdir string) (*Modeenv, error) {
 		return nil, err
 	}
 	// TODO:UC20: should we check these errors and try to do something?
-	recoverySystem, _ := cfg.Get("", "recovery_system")
-	mode, _ := cfg.Get("", "mode")
-	if mode == "" {
+	m := Modeenv{
+		read:          true,
+		originRootdir: rootdir,
+	}
+	unmarshalModeenvValueFromCfg(cfg, "recovery_system", &m.RecoverySystem)
+	unmarshalModeenvValueFromCfg(cfg, "mode", &m.Mode)
+	if m.Mode == "" {
 		return nil, fmt.Errorf("internal error: mode is unset")
 	}
-	base, _ := cfg.Get("", "base")
-	baseStatus, _ := cfg.Get("", "base_status")
-	tryBase, _ := cfg.Get("", "try_base")
+	unmarshalModeenvValueFromCfg(cfg, "base", &m.Base)
+	unmarshalModeenvValueFromCfg(cfg, "base_status", &m.BaseStatus)
+	unmarshalModeenvValueFromCfg(cfg, "try_base", &m.TryBase)
 
 	// current_kernels is a comma-delimited list in a string
-	kernelsString, _ := cfg.Get("", "current_kernels")
-	var kernels []string
-	if kernelsString != "" {
-		kernels = strings.Split(kernelsString, ",")
-		// drop empty strings
-		nonEmptyKernels := make([]string, 0, len(kernels))
-		for _, kernel := range kernels {
-			if kernel != "" {
-				nonEmptyKernels = append(nonEmptyKernels, kernel)
-			}
-		}
-		kernels = nonEmptyKernels
-	}
-	brand := ""
-	model := ""
-	brandSlashModel, _ := cfg.Get("", "model")
-	if bsmSplit := strings.SplitN(brandSlashModel, "/", 2); len(bsmSplit) == 2 {
-		if bsmSplit[0] != "" && bsmSplit[1] != "" {
-			brand = bsmSplit[0]
-			model = bsmSplit[1]
-		}
-	}
+	unmarshalModeenvValueFromCfg(cfg, "current_kernels", &m.CurrentKernels)
+	var bm modeenvModel
+	unmarshalModeenvValueFromCfg(cfg, "model", &bm)
+	m.BrandID = bm.brandID
+	m.Model = bm.model
 	// expect the caller to validate the grade
-	grade, _ := cfg.Get("", "grade")
+	unmarshalModeenvValueFromCfg(cfg, "grade", &m.Grade)
 
-	return &Modeenv{
-		Mode:           mode,
-		RecoverySystem: recoverySystem,
-		Base:           base,
-		TryBase:        tryBase,
-		BaseStatus:     baseStatus,
-		CurrentKernels: kernels,
-		BrandID:        brand,
-		Grade:          grade,
-		Model:          model,
-		read:           true,
-		originRootdir:  rootdir,
-	}, nil
+	return &m, nil
 }
 
 // Write outputs the modeenv to the file where it was read, only valid on
@@ -140,23 +116,12 @@ func (m *Modeenv) WriteTo(rootdir string) error {
 	if m.Mode == "" {
 		return fmt.Errorf("internal error: mode is unset")
 	}
-	fmt.Fprintf(buf, "mode=%s\n", m.Mode)
-
-	if m.RecoverySystem != "" {
-		fmt.Fprintf(buf, "recovery_system=%s\n", m.RecoverySystem)
-	}
-	if m.Base != "" {
-		fmt.Fprintf(buf, "base=%s\n", m.Base)
-	}
-	if m.TryBase != "" {
-		fmt.Fprintf(buf, "try_base=%s\n", m.TryBase)
-	}
-	if m.BaseStatus != "" {
-		fmt.Fprintf(buf, "base_status=%s\n", m.BaseStatus)
-	}
-	if len(m.CurrentKernels) != 0 {
-		fmt.Fprintf(buf, "current_kernels=%s\n", strings.Join(m.CurrentKernels, ","))
-	}
+	marshalNonEmptyForModeenvEntry(buf, "mode", m.Mode)
+	marshalNonEmptyForModeenvEntry(buf, "recovery_system", m.RecoverySystem)
+	marshalNonEmptyForModeenvEntry(buf, "base", m.Base)
+	marshalNonEmptyForModeenvEntry(buf, "try_base", m.TryBase)
+	marshalNonEmptyForModeenvEntry(buf, "base_status", m.BaseStatus)
+	marshalNonEmptyForModeenvEntry(buf, "current_kernels", strings.Join(m.CurrentKernels, ","))
 	if m.Model != "" || m.Grade != "" {
 		if m.Model == "" {
 			return fmt.Errorf("internal error: model is unset")
@@ -164,14 +129,111 @@ func (m *Modeenv) WriteTo(rootdir string) error {
 		if m.BrandID == "" {
 			return fmt.Errorf("internal error: brand is unset")
 		}
-		fmt.Fprintf(buf, "model=%s/%s\n", m.BrandID, m.Model)
+		marshalNonEmptyForModeenvEntry(buf, "model", &modeenvModel{brandID: m.BrandID, model: m.Model})
 	}
-	if m.Grade != "" {
-		fmt.Fprintf(buf, "grade=%s\n", m.Grade)
-	}
+	marshalNonEmptyForModeenvEntry(buf, "grade", m.Grade)
 
 	if err := osutil.AtomicWriteFile(modeenvPath, buf.Bytes(), 0644, 0); err != nil {
 		return err
+	}
+	return nil
+}
+
+type modeenvValueMarshaller interface {
+	MarshalModeenvValue() (string, error)
+}
+
+type modeenvValueUnmarshaller interface {
+	UnmarshalModeenvValue(value string) error
+}
+
+func marshalNonEmptyForModeenvEntry(out io.Writer, key string, what interface{}) error {
+	var asString string
+	switch v := what.(type) {
+	case string:
+		if v == "" {
+			return nil
+		}
+		asString = v
+	case []string:
+		if len(v) == 0 {
+			return nil
+		}
+		asString = asModeenvStringList(v)
+	default:
+		vm, ok := what.(modeenvValueMarshaller)
+		if !ok {
+			return fmt.Errorf("internal error: cannot marshal value %+v for key %q", what, key)
+		}
+		marshalled, err := vm.MarshalModeenvValue()
+		if err != nil {
+			return fmt.Errorf("cannot marshal value for key %q: %v", key, err)
+		}
+		asString = marshalled
+	}
+	_, err := fmt.Fprintf(out, "%s=%s\n", key, asString)
+	return err
+}
+
+func unmarshalModeenvValueFromCfg(cfg *goconfigparser.ConfigParser, key string, where interface{}) error {
+	if where == nil {
+		return fmt.Errorf("internal error: cannot unmarshal to nil")
+	}
+	kv, _ := cfg.Get("", key)
+
+	switch v := where.(type) {
+	case *string:
+		*v = kv
+	case *[]string:
+		*v = splitModeenvStringList(kv)
+	default:
+		vm, ok := v.(modeenvValueUnmarshaller)
+		if !ok {
+			return fmt.Errorf("internal error: cannot unmarshal value %q for unsupported type %T", kv, where)
+		}
+		if err := vm.UnmarshalModeenvValue(kv); err != nil {
+			return fmt.Errorf("cannot unmarshal value %q to %T: %v", kv, where, err)
+		}
+	}
+	return nil
+}
+
+func splitModeenvStringList(v string) []string {
+	if v == "" {
+		return nil
+	}
+	split := strings.Split(v, ",")
+	// drop empty strings
+	nonEmpty := make([]string, 0, len(split))
+	for _, one := range split {
+		if one != "" {
+			nonEmpty = append(nonEmpty, one)
+		}
+	}
+	if len(nonEmpty) == 0 {
+		return nil
+	}
+	return nonEmpty
+}
+
+func asModeenvStringList(v []string) string {
+	return strings.Join(v, ",")
+}
+
+type modeenvModel struct {
+	brandID, model string
+}
+
+func (m *modeenvModel) MarshalModeenvValue() (string, error) {
+	return fmt.Sprintf("%s/%s", m.brandID, m.model), nil
+}
+
+func (m *modeenvModel) UnmarshalModeenvValue(brandSlashModel string) error {
+	if bsmSplit := strings.SplitN(brandSlashModel, "/", 2); len(bsmSplit) == 2 {
+		if bsmSplit[0] != "" && bsmSplit[1] != "" {
+			m.brandID = bsmSplit[0]
+			m.model = bsmSplit[1]
+		}
 	}
 	return nil
 }
