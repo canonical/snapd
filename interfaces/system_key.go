@@ -177,10 +177,15 @@ func WriteSystemKey() error {
 		return err
 	}
 
-	// We only want to calculate this when the mtime of the parser changes.
-	// Since we calculate the mtime() as part of generateSystemKey, we can
-	// simply unconditionally write this out here.
-	sk.AppArmorParserFeatures, _ = apparmor.ParserFeatures()
+	// only fix AppArmorParserFeatures if we didn't already mock a system-key
+	// if we mocked a system-key we are running a test and don't want to use
+	// the real host system's parser features
+	if mockedSystemKey == nil {
+		// We only want to calculate this when the mtime of the parser changes.
+		// Since we calculate the mtime() as part of generateSystemKey, we can
+		// simply unconditionally write this out here.
+		sk.AppArmorParserFeatures, _ = apparmor.ParserFeatures()
+	}
 
 	sks, err := json.Marshal(sk)
 	if err != nil {
