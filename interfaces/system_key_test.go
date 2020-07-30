@@ -406,11 +406,11 @@ func (s *systemKeySuite) TestSystemKeysUnmarshalSame(c *C) {
 	c.Assert(err, IsNil)
 
 	// now read the system key from disk
-	key2, err := interfaces.CurrentSystemKey()
+	key2, err := interfaces.RecordedSystemKey()
 	c.Assert(err, IsNil)
 
 	// the two system-keys should be the same
 	ok, err := interfaces.SystemKeysMatch(key1, key2)
 	c.Assert(err, IsNil)
-	c.Check(ok, Equals, true)
+	c.Check(ok, Equals, true, Commentf("key1:%#v key2:%#v", key1, key2))
 }
