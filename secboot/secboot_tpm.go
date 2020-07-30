@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/efi"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/randutil"
 )
 
@@ -180,7 +181,7 @@ func MeasureSnapModelWhenPossible(findModel func() (*asserts.Model, error)) erro
 // name exists and unlocks it. With lockKeysOnFinish set, access to the sealed
 // keys will be locked when this function completes. The path to the unencrypted
 // device node is returned.
-func UnlockVolumeIfEncrypted(name, encryptionKeyDir string, lockKeysOnFinish bool) (string, error) {
+func UnlockVolumeIfEncrypted(disk disks.Disk, name string, encryptionKeyDir string, lockKeysOnFinish bool) (string, error) {
 	// TODO:UC20: use sb.SecureConnectToDefaultTPM() if we decide there's benefit in doing that or
 	//            we have a hard requirement for a valid EK cert chain for every boot (ie, panic
 	//            if there isn't one). But we can't do that as long as we need to download
@@ -215,10 +216,22 @@ func UnlockVolumeIfEncrypted(name, encryptionKeyDir string, lockKeysOnFinish boo
 			}
 		}()
 
-		ok, encdev := isDeviceEncrypted(name)
-		if !ok {
+		// find the encrypted device using the disk we were provided - note that
+		// we do not specify IsDecryptedDevice in opts because here we are
+		// looking for the encrypted device to unlock, later on in the boot
+		// process we will look for the decrypted device to ensure it matches
+		// what we expected
+		partUUID, err := disk.FindMatchingPartitionUUID(name + "-enc")
+		var errNotFound disks.FilesystemLabelNotFoundError
+		if xerrors.As(err, &errNotFound) {
+			// didn't find the encrypted label, so return nil to try the
+			// decrypted label again
 			return nil
 		}
+		if err != nil {
+			return err
+		}
+		encdev := filepath.Join("/dev/disk/by-partuuid", partUUID)
 
 		mapperName = name + "-" + randutilRandomKernelUUID()
 		if !tpmDeviceAvailable {
@@ -244,11 +257,12 @@ func UnlockVolumeIfEncrypted(name, encryptionKeyDir string, lockKeysOnFinish boo
 		return filepath.Join("/dev/mapper", mapperName), nil
 	}
 
-	// otherwise use the device from /dev/disk/by-label
-	// TODO:UC20: we want to always determine the ubuntu-data partition by
-	//            referencing the ubuntu-boot or ubuntu-seed partitions and not
-	//            by using labels
-	return filepath.Join(devDiskByLabelDir, name), nil
+	// otherwise find the device from the disk
+	partUUID, err := disk.FindMatchingPartitionUUID(name)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join("/dev/disk/by-partuuid", partUUID), nil
 }
 
 // unlockEncryptedPartitionWithRecoveryKey prompts for the recovery key and use
