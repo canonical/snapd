@@ -35,15 +35,16 @@ import (
 // Modeenv is a file on UC20 that provides additional information
 // about the current mode (run,recover,install)
 type Modeenv struct {
-	Mode           string
-	RecoverySystem string
-	Base           string
-	TryBase        string
-	BaseStatus     string
-	CurrentKernels []string
-	Model          string
-	BrandID        string
-	Grade          string
+	Mode                   string
+	RecoverySystem         string
+	CurrentRecoverySystems []string
+	Base                   string
+	TryBase                string
+	BaseStatus             string
+	CurrentKernels         []string
+	Model                  string
+	BrandID                string
+	Grade                  string
 
 	// read is set to true when a modenv was read successfully
 	read bool
@@ -71,6 +72,8 @@ func ReadModeenv(rootdir string) (*Modeenv, error) {
 	}
 	// TODO:UC20: should we check these errors and try to do something?
 	recoverySystem, _ := cfg.Get("", "recovery_system")
+	currentRecoverySystemsString, _ := cfg.Get("", "current_recovery_systems")
+	currentRecoverySystems := splitModeenvStringList(currentRecoverySystemsString)
 	mode, _ := cfg.Get("", "mode")
 	if mode == "" {
 		return nil, fmt.Errorf("internal error: mode is unset")
@@ -81,18 +84,7 @@ func ReadModeenv(rootdir string) (*Modeenv, error) {
 
 	// current_kernels is a comma-delimited list in a string
 	kernelsString, _ := cfg.Get("", "current_kernels")
-	var kernels []string
-	if kernelsString != "" {
-		kernels = strings.Split(kernelsString, ",")
-		// drop empty strings
-		nonEmptyKernels := make([]string, 0, len(kernels))
-		for _, kernel := range kernels {
-			if kernel != "" {
-				nonEmptyKernels = append(nonEmptyKernels, kernel)
-			}
-		}
-		kernels = nonEmptyKernels
-	}
+	kernels := splitModeenvStringList(kernelsString)
 	brand := ""
 	model := ""
 	brandSlashModel, _ := cfg.Get("", "model")
@@ -106,17 +98,18 @@ func ReadModeenv(rootdir string) (*Modeenv, error) {
 	grade, _ := cfg.Get("", "grade")
 
 	return &Modeenv{
-		Mode:           mode,
-		RecoverySystem: recoverySystem,
-		Base:           base,
-		TryBase:        tryBase,
-		BaseStatus:     baseStatus,
-		CurrentKernels: kernels,
-		BrandID:        brand,
-		Grade:          grade,
-		Model:          model,
-		read:           true,
-		originRootdir:  rootdir,
+		Mode:                   mode,
+		RecoverySystem:         recoverySystem,
+		CurrentRecoverySystems: currentRecoverySystems,
+		Base:                   base,
+		TryBase:                tryBase,
+		BaseStatus:             baseStatus,
+		CurrentKernels:         kernels,
+		BrandID:                brand,
+		Grade:                  grade,
+		Model:                  model,
+		read:                   true,
+		originRootdir:          rootdir,
 	}, nil
 }
 
@@ -145,6 +138,10 @@ func (m *Modeenv) WriteTo(rootdir string) error {
 	if m.RecoverySystem != "" {
 		fmt.Fprintf(buf, "recovery_system=%s\n", m.RecoverySystem)
 	}
+	if len(m.CurrentRecoverySystems) != 0 {
+		// recovery system label is composed of letters, numbers and dashes
+		fmt.Fprintf(buf, "current_recovery_systems=%s\n", asModeenvStringList(m.CurrentRecoverySystems))
+	}
 	if m.Base != "" {
 		fmt.Fprintf(buf, "base=%s\n", m.Base)
 	}
@@ -155,7 +152,7 @@ func (m *Modeenv) WriteTo(rootdir string) error {
 		fmt.Fprintf(buf, "base_status=%s\n", m.BaseStatus)
 	}
 	if len(m.CurrentKernels) != 0 {
-		fmt.Fprintf(buf, "current_kernels=%s\n", strings.Join(m.CurrentKernels, ","))
+		fmt.Fprintf(buf, "current_kernels=%s\n", asModeenvStringList(m.CurrentKernels))
 	}
 	if m.Model != "" || m.Grade != "" {
 		if m.Model == "" {
@@ -174,4 +171,26 @@ func (m *Modeenv) WriteTo(rootdir string) error {
 		return err
 	}
 	return nil
+}
+
+func splitModeenvStringList(v string) []string {
+	if v == "" {
+		return nil
+	}
+	split := strings.Split(v, ",")
+	// drop empty strings
+	nonEmpty := make([]string, 0, len(split))
+	for _, one := range split {
+		if one != "" {
+			nonEmpty = append(nonEmpty, one)
+		}
+	}
+	if len(nonEmpty) == 0 {
+		return nil
+	}
+	return nonEmpty
+}
+
+func asModeenvStringList(v []string) string {
+	return strings.Join(v, ",")
 }
