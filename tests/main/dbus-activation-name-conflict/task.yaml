@@ -7,6 +7,7 @@ prepare: |
 restore: |
     snap unset system experimental.dbus-activation
     snap unset system experimental.user-daemons
+    rm -f error.txt
 
 execute: |
     if ! tests.session has-system-systemd-and-dbus; then
@@ -22,10 +23,11 @@ execute: |
     [ -f /var/lib/snapd/dbus-1/services/io.snapcraft.SnapDbusService.service ]
 
     echo "Installing a second snap that tries to provide the name fails"
-    if install_local test-snapd-dbus-service-conflicting; then
+    if install_local test-snapd-dbus-service-conflicting 2> error.txt; then
         echo "Installation of conflicting snap should have failed"
         exit 1
     fi
+    MATCH '"io.snapcraft.SnapDbusService" conflicts with snap' < error.txt
 
     echo "But refreshing a snap providing a name should work"
     snap install --dangerous /var/lib/snapd/snaps/test-snapd-dbus-service_*.snap
