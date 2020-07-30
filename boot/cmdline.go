@@ -139,7 +139,7 @@ func composeCommandLine(model *asserts.Model, currentOrCandidate int, mode, syst
 	if mode != ModeRun && mode != ModeRecover {
 		return "", fmt.Errorf("internal error: unsupported command line mode %q", mode)
 	}
-	// get the ubuntu-seed bootloader
+	// get a bootloader under a native root directory
 	opts := &bootloader.Options{
 		NoSlashBoot: true,
 	}
@@ -181,6 +181,8 @@ func ComposeRecoveryCommandLine(model *asserts.Model, system string) (string, er
 func ComposeCommandLine(model *asserts.Model) (string, error) {
 	return composeCommandLine(model, currentEdition, ModeRun, "")
 }
+
+// TODO:UC20: add helper to compose candidate command line for a recovery system
 
 // ComposeCandidateCommandLine composes the kernel command line used when
 // booting the system in run mode with the current built-in edition of managed
