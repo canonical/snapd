@@ -22,6 +22,7 @@ package disks
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -30,6 +31,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"golang.org/x/xerrors"
 
 	"github.com/snapcore/snapd/osutil"
 )
@@ -309,6 +312,8 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 	return nil, fmt.Errorf("cannot find disk for partition %s, incomplete udev output", partMountPointSource)
 }
 
+var FilesystemLabelNotFound = errors.New("filesystem label not found")
+
 func (d *disk) FindMatchingPartitionUUID(label string) (string, error) {
 	encodedLabel := BlkIDEncodeLabel(label)
 	// if we haven't found the partitions for this disk yet, do that now
@@ -379,7 +384,7 @@ func (d *disk) FindMatchingPartitionUUID(label string) (string, error) {
 		return partuuid, nil
 	}
 
-	return "", fmt.Errorf("couldn't find label %q", label)
+	return "", xerrors.Errorf("could not find label %q: %w", label, FilesystemLabelNotFound)
 }
 
 func (d *disk) MountPointIsFromDisk(mountpoint string, opts *Options) (bool, error) {
