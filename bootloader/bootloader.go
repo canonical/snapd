@@ -161,6 +161,9 @@ type ManagedAssetsBootloader interface {
 	// extra arguments. The command line may be different when using a
 	// recovery bootloader.
 	CommandLine(modeArg, systemArg, extraArgs string) (string, error)
+	// CandidateCommandLine is similar to CommandLine, but uses the current
+	// edition of managed built-in boot assets as reference.
+	CandidateCommandLine(modeArg, systemArg, extraArgs string) (string, error)
 }
 
 func genericInstallBootConfig(gadgetFile, systemFile string) (bool, error) {
