@@ -841,15 +841,30 @@ func (s *grubTestSuite) TestCommandLineNotManaged(c *C) {
 	// native EFI/ubuntu setup
 	s.makeFakeGrubEFINativeEnv(c, []byte(grubCfg))
 
-	opts := &bootloader.Options{NoSlashBoot: true}
-	g := bootloader.NewGrub(s.rootdir, opts)
-	c.Assert(g, NotNil)
-	mg, ok := g.(bootloader.ManagedAssetsBootloader)
-	c.Assert(ok, Equals, true)
+	restore := assets.MockSnippetsForEdition("grub.cfg:static-cmdline", []assets.ForEditions{
+		{FirstEdition: 1, Snippet: []byte(`static=1`)},
+		{FirstEdition: 2, Snippet: []byte(`static=2`)},
+	})
+	defer restore()
+	restore = assets.MockSnippetsForEdition("grub-recovery.cfg:static-cmdline", []assets.ForEditions{
+		{FirstEdition: 1, Snippet: []byte(`static=1 recovery`)},
+		{FirstEdition: 2, Snippet: []byte(`static=2 recovery`)},
+	})
+	defer restore()
 
-	args, err := mg.CommandLine("", "", "")
-	c.Assert(err, ErrorMatches, "cannot obtain edition number of current boot config: no edition")
-	c.Check(args, Equals, "")
+	opts := &bootloader.Options{NoSlashBoot: true}
+	mg := bootloader.NewGrub(s.rootdir, opts).(bootloader.ManagedAssetsBootloader)
+
+	args, err := mg.CommandLine("snapd_recovery_mode=run", "", "extra")
+	c.Assert(err, IsNil)
+	c.Check(args, Equals, "snapd_recovery_mode=run static=1 extra")
+
+	optsRecovery := &bootloader.Options{NoSlashBoot: true, Recovery: true}
+	mgr := bootloader.NewGrub(s.rootdir, optsRecovery).(bootloader.ManagedAssetsBootloader)
+
+	args, err = mgr.CommandLine("snapd_recovery_mode=recover", "snapd_recovery_system=1234", "extra")
+	c.Assert(err, IsNil)
+	c.Check(args, Equals, "snapd_recovery_mode=recover snapd_recovery_system=1234 static=1 recovery extra")
 }
 
 func (s *grubTestSuite) TestCommandLineMocked(c *C) {

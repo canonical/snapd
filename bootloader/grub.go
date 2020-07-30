@@ -419,7 +419,15 @@ func (g *grub) CommandLine(modeArg, systemArg, extraArgs string) (string, error)
 	currentBootConfig := filepath.Join(g.dir(), "grub.cfg")
 	edition, err := editionFromDiskConfigAsset(currentBootConfig)
 	if err != nil {
-		return "", fmt.Errorf("cannot obtain edition number of current boot config: %v", err)
+		if err != errNoEdition {
+			return "", fmt.Errorf("cannot obtain edition number of current boot config: %v", err)
+		}
+		// we were called using the ManagedAssetsBootloader interface
+		// meaning the caller expects to us to use the managed assets,
+		// since one on disk is not managed, use the initial edition of
+		// the internal boot asset which is compatible with grub.cfg
+		// used before we started writing out the files ourselves
+		edition = 1
 	}
 	return g.commandLineForEdition(edition, modeArg, systemArg, extraArgs)
 }
