@@ -124,13 +124,6 @@ func getBootloaderManagingItsAssets(where string, opts *bootloader.Options) (boo
 		// the bootloader cannot manage its scripts
 		return nil, errBootConfigNotManaged
 	}
-	managed, err := mbl.IsCurrentlyManaged()
-	if err != nil {
-		return nil, err
-	}
-	if !managed {
-		return nil, errBootConfigNotManaged
-	}
 	return mbl, nil
 }
 
