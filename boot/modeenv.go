@@ -21,6 +21,7 @@ package boot
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -164,15 +165,21 @@ func marshalNonEmptyForModeenvEntry(out io.Writer, key string, what interface{})
 		}
 		asString = asModeenvStringList(v)
 	default:
-		vm, ok := what.(modeenvValueMarshaller)
-		if !ok {
-			return fmt.Errorf("internal error: cannot marshal value %+v for key %q", what, key)
+		if vm, ok := what.(modeenvValueMarshaller); ok {
+			marshalled, err := vm.MarshalModeenvValue()
+			if err != nil {
+				return fmt.Errorf("cannot marshal value for key %q: %v", key, err)
+			}
+			asString = marshalled
+		} else if jm, ok := what.(json.Marshaler); ok {
+			marshalled, err := jm.MarshalJSON()
+			if err != nil {
+				return fmt.Errorf("cannot marshal value for key %q as JSON: %v", key, err)
+			}
+			asString = string(marshalled)
+		} else {
+			return fmt.Errorf("internal error: cannot marshal unsupported type %T value %+v for key %q", what, what, key)
 		}
-		marshalled, err := vm.MarshalModeenvValue()
-		if err != nil {
-			return fmt.Errorf("cannot marshal value for key %q: %v", key, err)
-		}
-		asString = marshalled
 	}
 	_, err := fmt.Fprintf(out, "%s=%s\n", key, asString)
 	return err
@@ -190,13 +197,18 @@ func unmarshalModeenvValueFromCfg(cfg *goconfigparser.ConfigParser, key string, 
 	case *[]string:
 		*v = splitModeenvStringList(kv)
 	default:
-		vm, ok := v.(modeenvValueUnmarshaller)
-		if !ok {
-			return fmt.Errorf("internal error: cannot unmarshal value %q for unsupported type %T", kv, where)
+		if vm, ok := v.(modeenvValueUnmarshaller); ok {
+			if err := vm.UnmarshalModeenvValue(kv); err != nil {
+				return fmt.Errorf("cannot unmarshal modeenv value %q to %T: %v", kv, where, err)
+			}
+			return nil
+		} else if jm, ok := v.(json.Unmarshaler); ok {
+			if err := jm.UnmarshalJSON([]byte(kv)); err != nil {
+				return fmt.Errorf("cannot unmarshal modeenv value %q as JSON to %T: %v", kv, where, err)
+			}
+			return nil
 		}
-		if err := vm.UnmarshalModeenvValue(kv); err != nil {
-			return fmt.Errorf("cannot unmarshal value %q to %T: %v", kv, where, err)
-		}
+		return fmt.Errorf("internal error: cannot unmarshal value %q for unsupported type %T", kv, where)
 	}
 	return nil
 }

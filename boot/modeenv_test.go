@@ -20,10 +20,15 @@
 package boot_test
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
+	"github.com/mvo5/goconfigparser"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/boot"
@@ -301,4 +306,69 @@ current_recovery_systems=`+t.systemsString+"\n")
 		c.Check(modeenv.RecoverySystem, Equals, "20191126")
 		c.Check(modeenv.CurrentRecoverySystems, DeepEquals, t.expectedSystems)
 	}
+}
+
+type fancyDataBothMarshallers struct {
+	Foo []string
+}
+
+func (f *fancyDataBothMarshallers) MarshalModeenvValue() (string, error) {
+	return strings.Join(f.Foo, "#"), nil
+}
+
+func (f *fancyDataBothMarshallers) UnmarshalModeenvValue(v string) error {
+	f.Foo = strings.Split(v, "#")
+	return nil
+}
+
+func (f *fancyDataBothMarshallers) MarshalJSON() ([]byte, error) {
+	return nil, fmt.Errorf("unexpected call to JSON marshaller")
+}
+
+func (f *fancyDataBothMarshallers) UnmarshalJSON(data []byte) error {
+	return fmt.Errorf("unexpected call to JSON unmarshaller")
+}
+
+type fancyDataJSONONly struct {
+	Foo []string
+}
+
+func (f *fancyDataJSONONly) MarshalJSON() ([]byte, error) {
+	return json.Marshal(f.Foo)
+}
+
+func (f *fancyDataJSONONly) UnmarshalJSON(data []byte) error {
+	return json.Unmarshal(data, &f.Foo)
+}
+
+func (s *modeenvSuite) TestFancyMarshalUnmarshal(c *C) {
+	var buf bytes.Buffer
+
+	dboth := fancyDataBothMarshallers{Foo: []string{"1", "two"}}
+	err := boot.MarshalNonEmptyForModeenvEntry(&buf, "fancy", &dboth)
+	c.Assert(err, IsNil)
+	c.Check(buf.String(), Equals, `fancy=1#two
+`)
+
+	djson := fancyDataJSONONly{Foo: []string{"1", "two", "with\nnewline"}}
+	err = boot.MarshalNonEmptyForModeenvEntry(&buf, "fancy_json", &djson)
+	c.Assert(err, IsNil)
+	c.Check(buf.String(), Equals, `fancy=1#two
+fancy_json=["1","two","with\nnewline"]
+`)
+
+	cfg := goconfigparser.New()
+	cfg.AllowNoSectionHeader = true
+	err = cfg.Read(&buf)
+	c.Assert(err, IsNil)
+
+	var dbothRev fancyDataBothMarshallers
+	err = boot.UnmarshalModeenvValueFromCfg(cfg, "fancy", &dbothRev)
+	c.Assert(err, IsNil)
+	c.Check(dbothRev, DeepEquals, dboth)
+
+	var djsonRev fancyDataJSONONly
+	err = boot.UnmarshalModeenvValueFromCfg(cfg, "fancy_json", &djsonRev)
+	c.Assert(err, IsNil)
+	c.Check(djsonRev, DeepEquals, djson)
 }

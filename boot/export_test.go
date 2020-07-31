@@ -40,3 +40,8 @@ type Trivial = trivial
 func (m *Modeenv) WasRead() bool {
 	return m.read
 }
+
+var (
+	MarshalNonEmptyForModeenvEntry = marshalNonEmptyForModeenvEntry
+	UnmarshalModeenvValueFromCfg   = unmarshalModeenvValueFromCfg
+)
