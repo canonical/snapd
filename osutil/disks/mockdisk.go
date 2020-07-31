@@ -50,7 +50,6 @@ func (d *MockDiskMapping) FindMatchingPartitionUUID(label string) (string, error
 // HasPartitions returns if the mock disk has partitions or not. Part of the
 // Disk interface.
 func (d *MockDiskMapping) HasPartitions() bool {
-	osutil.MustBeTestBinary("mock disks only to be used in tests")
 	return d.DiskHasPartitions
 }
 
@@ -76,7 +75,6 @@ func (d *MockDiskMapping) MountPointIsFromDisk(mountpoint string, opts *Options)
 // Dev returns a unique representation of the mock disk, it is a hash of the
 // mock disk struct string representation. Part of the Disk interface.
 func (d *MockDiskMapping) Dev() string {
-	osutil.MustBeTestBinary("mock disks only to be used in tests")
 	return d.DevNum
 }
 
