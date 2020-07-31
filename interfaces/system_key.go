@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -158,6 +159,17 @@ func generateSystemKey() (*systemKey, error) {
 	return sk, nil
 }
 
+// UnmarshalJSONSystemKey unmarshalls the data from the reader as JSON into a
+// system key usable with SystemKeysMatch.
+func UnmarshalJSONSystemKey(r io.Reader) (interface{}, error) {
+	sk := &systemKey{}
+	err := json.NewDecoder(r).Decode(sk)
+	if err != nil {
+		return nil, err
+	}
+	return sk, nil
+}
+
 // WriteSystemKey will write the current system-key to disk
 func WriteSystemKey() error {
 	sk, err := generateSystemKey()
@@ -165,10 +177,15 @@ func WriteSystemKey() error {
 		return err
 	}
 
-	// We only want to calculate this when the mtime of the parser changes.
-	// Since we calculate the mtime() as part of generateSystemKey, we can
-	// simply unconditionally write this out here.
-	sk.AppArmorParserFeatures, _ = apparmor.ParserFeatures()
+	// only fix AppArmorParserFeatures if we didn't already mock a system-key
+	// if we mocked a system-key we are running a test and don't want to use
+	// the real host system's parser features
+	if mockedSystemKey == nil {
+		// We only want to calculate this when the mtime of the parser changes.
+		// Since we calculate the mtime() as part of generateSystemKey, we can
+		// simply unconditionally write this out here.
+		sk.AppArmorParserFeatures, _ = apparmor.ParserFeatures()
+	}
 
 	sks, err := json.Marshal(sk)
 	if err != nil {

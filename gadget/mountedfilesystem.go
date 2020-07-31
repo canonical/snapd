@@ -334,6 +334,8 @@ func maybePreserveManagedBootAssets(mountPoint string, ps *LaidOutStructure) ([]
 		// assets
 		return nil, nil
 	}
+	// TODO:UC20: this should no longer be checked when we use the updater
+	// interface from boot
 	managed, err := mbl.IsCurrentlyManaged()
 	if err != nil {
 		return nil, err
