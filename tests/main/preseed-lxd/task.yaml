@@ -13,6 +13,13 @@ environment:
 prepare: |
   #shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB/nested.sh"
+
+  #shellcheck source=tests/lib/snaps.sh
+  . "$TESTSLIB/snaps.sh"
+
+  #shellcheck source=tests/lib/preseed.sh
+  . "$TESTSLIB/preseed.sh"
+
   IMGURL=$(get_google_image_url_for_nested_vm ubuntu-20.04-64)
   wget --quiet "$IMGURL" -O cloudimg.img
 
@@ -26,24 +33,19 @@ prepare: |
   mkdir -p "$IMAGE_MOUNTPOINT"
   mount /dev/nbd0p1 "$IMAGE_MOUNTPOINT"
 
-  # for images that are already preseeded, we need to undo the preseeding there
-  echo "Running preseed --reset for already preseeded cloud images"
-  SNAPD_DEBUG=1 /usr/lib/snapd/snap-preseed --reset "$IMAGE_MOUNTPOINT"
-
-  # Inject current snapd into seeds
-  #shellcheck source=tests/lib/snaps.sh
-  . "$TESTSLIB"/snaps.sh
-  SNAP_IMAGE=$(ls "$IMAGE_MOUNTPOINT"/var/lib/snapd/seed/snaps/snapd_*.snap)
-  unsquashfs "$SNAP_IMAGE"
-  cp /usr/lib/snapd/snapd squashfs-root/usr/lib/snapd/snapd
-  rm "$SNAP_IMAGE"
-  mksnap_fast squashfs-root "$SNAP_IMAGE"
-  sed -i "$IMAGE_MOUNTPOINT/var/lib/snapd/seed/seed.yaml" -E -e "s/^(\\s+)name: snapd/\\1name: snapd\\n\\1unasserted: true/"
+  # add snapd from this branch into the seed
+  repack_snapd_deb_into_snapd_snap "$PWD"
+  mv snapd-from-deb.snap snapd.snap
+  inject_snap_into_seed "$IMAGE_MOUNTPOINT" snapd
 
   if [ ! -x /usr/bin/lxc ]; then
     apt install -y lxd
     touch remove-lxd
   fi
+
+  # for images that are already preseeded, we need to undo the preseeding there
+  echo "Running preseed --reset for already preseeded cloud images"
+  SNAPD_DEBUG=1 /usr/lib/snapd/snap-preseed --reset "$IMAGE_MOUNTPOINT"
 
 restore: |
   if [ -f remove-lxd ]; then
@@ -92,7 +94,7 @@ execute: |
   lxc file push cloudimg.img "my-ubuntu/$GOHOME/"
   lxc file push preseed-prepare.sh "my-ubuntu/$GOHOME/"
 
-  echo "Running preseeeding in the lxd container"
+  echo "Running preseeding in the lxd container"
   # mount /dev, /proc, /sys under mounted ubuntu image in the container.
   lxc exec my-ubuntu -- "$GOHOME"/preseed-prepare.sh "$IMAGE_MOUNTPOINT"
   lxc exec my-ubuntu -- "$GOHOME"/snap-preseed "$IMAGE_MOUNTPOINT"

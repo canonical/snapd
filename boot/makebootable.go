@@ -255,10 +255,14 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 		}
 	}
 
+	recoverySystemLabel := filepath.Base(bootWith.RecoverySystemDir)
 	// write modeenv on the ubuntu-data partition
 	modeenv := &Modeenv{
 		Mode:           "run",
-		RecoverySystem: filepath.Base(bootWith.RecoverySystemDir),
+		RecoverySystem: recoverySystemLabel,
+		// default to the system we were installed from
+		CurrentRecoverySystems: []string{recoverySystemLabel},
+		// keep this comment to make gofmt 1.9 happy
 		Base:           filepath.Base(bootWith.BasePath),
 		CurrentKernels: []string{bootWith.Kernel.Filename()},
 		BrandID:        model.BrandID(),

@@ -442,6 +442,7 @@ version: 5.0
 	ubuntuDataModeEnvPath := filepath.Join(rootdir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/modeenv")
 	c.Check(ubuntuDataModeEnvPath, testutil.FileEquals, `mode=run
 recovery_system=20191216
+current_recovery_systems=20191216
 base=core20_3.snap
 current_kernels=pc-kernel_5.snap
 model=my-brand/my-model-uc20
@@ -732,6 +733,7 @@ version: 5.0
 	ubuntuDataModeEnvPath := filepath.Join(rootdir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/modeenv")
 	c.Check(ubuntuDataModeEnvPath, testutil.FileEquals, `mode=run
 recovery_system=20191216
+current_recovery_systems=20191216
 base=core20_3.snap
 current_kernels=arm-kernel_5.snap
 model=my-brand/my-model-uc20
