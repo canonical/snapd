@@ -233,8 +233,8 @@ jobs:
           export CORE_CHANNEL=edge
           export BUILD_SNAPD_FROM_CURRENT=true
           export SPREAD_ENABLE_KVM=true
-          if [ ${{ matrix.system }} = ubuntu-20.04-64 ]; then
-            export SPREAD_ENABLE_KVM=false
+          if [ "${{ matrix.system }}" = "ubuntu-20.04-64" ]; then
+              export SPREAD_ENABLE_KVM=false
           fi
           spread -abend google-nested:${{ matrix.system }}:tests/nested/...
     - name: Cache successful run
