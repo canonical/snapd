@@ -176,15 +176,18 @@ func Run(gadgetRoot, device string, options Options) error {
 		loadChain = append(loadChain, options.KernelPath)
 	}
 
-	// Get kernel command lines
-	cmdline, err := boot.ComposeCommandLine(options.Model)
+	// Get the expected kernel command line for the system that is currently being installed
+	cmdline, err := boot.ComposeCandidateCommandLine(options.Model)
 	if err != nil {
 		return fmt.Errorf("cannot obtain kernel command line: %v", err)
 	}
+
+	// Get the expected kernel command line of the recovery system we're installing from
 	recoveryCmdline, err := boot.ComposeRecoveryCommandLine(options.Model, options.SystemLabel)
 	if err != nil {
 		return fmt.Errorf("cannot obtain recovery kernel command line: %v", err)
 	}
+
 	kernelCmdlines := []string{
 		cmdline,
 		recoveryCmdline,
