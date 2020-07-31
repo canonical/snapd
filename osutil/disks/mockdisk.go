@@ -94,8 +94,41 @@ type Mountpoint struct {
 // map are mountpoints, and the values for those keys are the disks that will
 // be returned from DiskFromMountPoint or used internally in
 // MountPointIsFromDisk.
-func MockMountPointDisksToPartionMapping(mockedMountPoints map[Mountpoint]MockDiskMapping) (restore func()) {
+func MockMountPointDisksToPartionMapping(mockedMountPoints map[Mountpoint]*MockDiskMapping) (restore func()) {
 	osutil.MustBeTestBinary("mock disks only to be used in tests")
+
+	// verify that all unique MockDiskMapping's have unique DevNum's
+	alreadySeen := make(map[string]*MockDiskMapping, len(mockedMountPoints))
+	for _, mockDisk := range mockedMountPoints {
+		if old, ok := alreadySeen[mockDisk.DevNum]; ok {
+			if mockDisk != old {
+				// we already saw a disk with this DevNum as a different pointer
+				// so verify that the disk's are the same
+				msg := "mocked disks %+v and %+v have the same DevNum but different %s values, mocking broken"
+				if old.DiskHasPartitions != mockDisk.DiskHasPartitions {
+					panic(fmt.Sprintf(msg, old, mockDisk, "DiskHasPartitions"))
+				}
+				// verify that all the keys in the old one are in this one
+				for k, v := range old.FilesystemLabelToPartUUID {
+					v2 := mockDisk.FilesystemLabelToPartUUID[k]
+					if v2 != v {
+						panic(fmt.Sprintf(msg, old, mockDisk, "FilesystemLabelToPartUUID"))
+					}
+				}
+				// verify that all the keys in this one are in the old one
+				for k, v := range mockDisk.FilesystemLabelToPartUUID {
+					v2 := old.FilesystemLabelToPartUUID[k]
+					if v2 != v {
+						panic(fmt.Sprintf(msg, old, mockDisk, "FilesystemLabelToPartUUID"))
+					}
+				}
+			}
+			// otherwise same ptr, no point in comparing them
+		} else {
+			// didn't see it before, save it now
+			alreadySeen[mockDisk.DevNum] = mockDisk
+		}
+	}
 
 	old := diskFromMountPoint
 
@@ -105,7 +138,7 @@ func MockMountPointDisksToPartionMapping(mockedMountPoints map[Mountpoint]MockDi
 		}
 		m := Mountpoint{mountpoint, opts.IsDecryptedDevice}
 		if mockedDisk, ok := mockedMountPoints[m]; ok {
-			return &mockedDisk, nil
+			return mockedDisk, nil
 		}
 		return nil, fmt.Errorf("mountpoint %s not mocked", mountpoint)
 	}

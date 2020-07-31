@@ -39,8 +39,8 @@ func (s *mockDiskSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 }
 
-func (s *mockDiskSuite) TestMockMountPointDisksToPartionMapping(c *C) {
-	d1 := disks.MockDiskMapping{
+func (s *mockDiskSuite) TestMockMountPointDisksToPartionMappingVerifiesUniqueness(c *C) {
+	d1 := &disks.MockDiskMapping{
 		FilesystemLabelToPartUUID: map[string]string{
 			"label1": "part1",
 		},
@@ -48,7 +48,68 @@ func (s *mockDiskSuite) TestMockMountPointDisksToPartionMapping(c *C) {
 		DevNum:            "d1",
 	}
 
-	d2 := disks.MockDiskMapping{
+	d2 := &disks.MockDiskMapping{
+		FilesystemLabelToPartUUID: map[string]string{
+			"label1": "part1",
+		},
+		DiskHasPartitions: false,
+		DevNum:            "d1",
+	}
+
+	// the pointers are different, and they are not the same
+	c.Assert(d1, Not(Equals), d2)
+	c.Assert(d1, Not(DeepEquals), d2)
+
+	m := map[disks.Mountpoint]*disks.MockDiskMapping{
+		{Mountpoint: "mount1"}: d1,
+		{Mountpoint: "mount2"}: d1,
+		{Mountpoint: "mount3"}: d2,
+	}
+
+	// mocking panics because the mocked disks are different but have the same
+	// DevNum
+	c.Assert(func() { disks.MockMountPointDisksToPartionMapping(m) }, PanicMatches, "mocked disks .* have the same DevNum but different DiskHasPartitions values, mocking broken")
+
+	// changing them to be the same now makes the mocking work
+	d2.DiskHasPartitions = true
+	c.Assert(d1, DeepEquals, d2)
+
+	// mocking works now because the two objects are the same
+	r := disks.MockMountPointDisksToPartionMapping(m)
+	defer r()
+
+	// adding to map values works to break the mocking too
+	d2.FilesystemLabelToPartUUID["label2"] = "part2"
+	c.Assert(func() { disks.MockMountPointDisksToPartionMapping(m) }, PanicMatches, "mocked disks .* have the same DevNum but different FilesystemLabelToPartUUID values, mocking broken")
+
+	// adding to d1 makes it work again
+	d1.FilesystemLabelToPartUUID["label2"] = "part2"
+	r = disks.MockMountPointDisksToPartionMapping(m)
+	defer r()
+
+	// but deleting label1 from d1 breaks again
+	delete(d1.FilesystemLabelToPartUUID, "label1")
+	c.Assert(func() { disks.MockMountPointDisksToPartionMapping(m) }, PanicMatches, "mocked disks .* have the same DevNum but different FilesystemLabelToPartUUID values, mocking broken")
+
+	// mocking with just one disk at multiple mount points works too
+	m2 := map[disks.Mountpoint]*disks.MockDiskMapping{
+		{Mountpoint: "mount1"}: d1,
+		{Mountpoint: "mount2"}: d1,
+	}
+	r = disks.MockMountPointDisksToPartionMapping(m2)
+	defer r()
+}
+
+func (s *mockDiskSuite) TestMockMountPointDisksToPartionMapping(c *C) {
+	d1 := &disks.MockDiskMapping{
+		FilesystemLabelToPartUUID: map[string]string{
+			"label1": "part1",
+		},
+		DiskHasPartitions: true,
+		DevNum:            "d1",
+	}
+
+	d2 := &disks.MockDiskMapping{
 		FilesystemLabelToPartUUID: map[string]string{
 			"label2": "part2",
 		},
@@ -57,7 +118,7 @@ func (s *mockDiskSuite) TestMockMountPointDisksToPartionMapping(c *C) {
 	}
 
 	r := disks.MockMountPointDisksToPartionMapping(
-		map[disks.Mountpoint]disks.MockDiskMapping{
+		map[disks.Mountpoint]*disks.MockDiskMapping{
 			{Mountpoint: "mount1"}: d1,
 			{Mountpoint: "mount2"}: d1,
 			{Mountpoint: "mount3"}: d2,
@@ -114,7 +175,7 @@ func (s *mockDiskSuite) TestMockMountPointDisksToPartionMapping(c *C) {
 }
 
 func (s *mockDiskSuite) TestMockMountPointDisksToPartionMappingDecryptedDevices(c *C) {
-	d1 := disks.MockDiskMapping{
+	d1 := &disks.MockDiskMapping{
 		FilesystemLabelToPartUUID: map[string]string{
 			"ubuntu-seed":     "ubuntu-seed-part",
 			"ubuntu-boot":     "ubuntu-boot-part",
@@ -125,7 +186,7 @@ func (s *mockDiskSuite) TestMockMountPointDisksToPartionMappingDecryptedDevices(
 	}
 
 	r := disks.MockMountPointDisksToPartionMapping(
-		map[disks.Mountpoint]disks.MockDiskMapping{
+		map[disks.Mountpoint]*disks.MockDiskMapping{
 			{Mountpoint: "/run/mnt/ubuntu-boot"}: d1,
 			{Mountpoint: "/run/mnt/ubuntu-seed"}: d1,
 			{
