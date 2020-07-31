@@ -509,11 +509,6 @@ debug-each: |
             echo '# nested VM status'
             systemctl status nested-vm || true
             journalctl -e --no-pager -u nested-vm || true
-
-            if [ -f "${WORK_DIR}/serial-log.txt" ]; then
-                echo '# nested VM serial boot log'
-                cat "${WORK_DIR}/serial-log.txt"
-            fi
         fi
 
         echo '# journal messages for snapd'

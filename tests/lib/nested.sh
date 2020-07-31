@@ -505,7 +505,7 @@ start_nested_core_vm_unit(){
     fi
     
     PARAM_ASSERTIONS=""
-    PARAM_SERIAL="-serial file:${WORK_DIR}/serial-log.txt"
+    PARAM_SERIAL="-serial stdio"
     PARAM_BIOS=""
     PARAM_TPM=""
     if [ "$USE_CLOUD_INIT" != "true" ]; then
@@ -553,8 +553,19 @@ start_nested_core_vm_unit(){
         PARAM_IMAGE="-drive file=$IMAGE_FILE,cache=none,format=raw"
     fi
 
+    sudo apt update 
+    sudo apt install -yqq moreutils
+
     # Systemd unit is created, it is important to respect the qemu parameters order
-    systemd_create_and_start_unit "$NESTED_VM" "${QEMU} \
+    # also note that we use "-serial stdio" so that serial output from the VM is
+    # directed to stdout of the qemu process which is run by systemd, so serial
+    # logs are available from journalctl -u "$NESTED_VM". 
+    # To help debug VM hangs, we also pipe the output from qemu through ts, 
+    # which adds timestamps so if a VM hangs we will see the hang in the time
+    # difference output between when the nested VM hung and when it was forcibly
+    # rebooted by the hypervisor as happens on GCE for example
+    systemd_create_and_start_unit "$NESTED_VM" "/bin/bash -c \
+        \"${QEMU} \
         ${PARAM_CPU} \
         ${PARAM_MEM} \
         ${PARAM_MACHINE} \
@@ -567,7 +578,8 @@ start_nested_core_vm_unit(){
         ${PARAM_SERIAL} \
         ${PARAM_MONITOR} \
         ${PARAM_USB} \
-        ${PARAM_CD} "
+        ${PARAM_CD} | ts\"
+    "
 
     # wait for the nested-vm service to appear active
     wait_for_service "$NESTED_VM"
@@ -650,7 +662,7 @@ start_nested_classic_vm(){
 
     PARAM_IMAGE="-drive file=$IMAGE,if=virtio"
     PARAM_SEED="-drive file=$WORK_DIR/seed.img,if=virtio"
-    PARAM_SERIAL="-serial file:${WORK_DIR}/serial-log.txt"
+    PARAM_SERIAL="-serial stdio"
     PARAM_BIOS=""
     PARAM_TPM=""
 
@@ -667,7 +679,7 @@ start_nested_classic_vm(){
         ${PARAM_SEED} \
         ${PARAM_SERIAL} \
         ${PARAM_MONITOR} \
-        ${PARAM_USB} "
+        ${PARAM_USB} | ts"
 
     wait_for_ssh
 }
