@@ -626,13 +626,12 @@ start_nested_classic_vm(){
     QEMU=$(get_qemu_for_nested_vm)
 
     # Now qemu parameters are defined
+    PARAM_SMP="-smp 1"
     # use only 2G of RAM for qemu-nested
     if [ "$SPREAD_BACKEND" = "google-nested" ]; then
         PARAM_MEM="-m 4096"
-        PARAM_SMP="-smp 2"
     elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
         PARAM_MEM="-m 2048"
-        PARAM_SMP="-smp 1"
     else
         echo "unknown spread backend $SPREAD_BACKEND"
         exit 1
@@ -645,16 +644,10 @@ start_nested_classic_vm(){
     PARAM_RANDOM="-object rng-random,id=rng0,filename=/dev/urandom -device virtio-rng-pci,rng=rng0"
     PARAM_SNAPSHOT="-snapshot"
 
-    # Set kvm attribute
-    ATTR_KVM=""
-    if [ "$ENABLE_KVM" = "true" ]; then
-        ATTR_KVM=",accel=kvm"
-        PARAM_CPU="-cpu host"
-    fi
-
     # with qemu-nested, we can't use kvm acceleration
     if [ "$SPREAD_BACKEND" = "google-nested" ]; then
-        PARAM_MACHINE="-machine ubuntu${ATTR_KVM}"
+        PARAM_MACHINE="-machine ubuntu,accel=kvm"
+        PARAM_CPU="-cpu host"
     elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
         PARAM_MACHINE=""
     else
