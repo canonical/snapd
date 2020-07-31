@@ -101,25 +101,9 @@ func MockMountPointDisksToPartionMapping(mockedMountPoints map[Mountpoint]*MockD
 		if old, ok := alreadySeen[mockDisk.DevNum]; ok {
 			if mockDisk != old {
 				// we already saw a disk with this DevNum as a different pointer
-				// so verify that the disk's are the same
-				msg := "mocked disks %+v and %+v have the same DevNum but different %s values, mocking broken"
-				if old.DiskHasPartitions != mockDisk.DiskHasPartitions {
-					panic(fmt.Sprintf(msg, old, mockDisk, "DiskHasPartitions"))
-				}
-				// verify that all the keys in the old one are in this one
-				for k, v := range old.FilesystemLabelToPartUUID {
-					v2 := mockDisk.FilesystemLabelToPartUUID[k]
-					if v2 != v {
-						panic(fmt.Sprintf(msg, old, mockDisk, "FilesystemLabelToPartUUID"))
-					}
-				}
-				// verify that all the keys in this one are in the old one
-				for k, v := range mockDisk.FilesystemLabelToPartUUID {
-					v2 := old.FilesystemLabelToPartUUID[k]
-					if v2 != v {
-						panic(fmt.Sprintf(msg, old, mockDisk, "FilesystemLabelToPartUUID"))
-					}
-				}
+				// so just assume it's different
+				msg := fmt.Sprintf("mocked disks %+v and %+v have the same DevNum (%s) but are not the same object", old, mockDisk, mockDisk.DevNum)
+				panic(msg)
 			}
 			// otherwise same ptr, no point in comparing them
 		} else {
