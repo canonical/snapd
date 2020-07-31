@@ -44,7 +44,7 @@ func (d *MockDiskMapping) FindMatchingPartitionUUID(label string) (string, error
 	if partuuid, ok := d.FilesystemLabelToPartUUID[label]; ok {
 		return partuuid, nil
 	}
-	return "", ErrFilesystemLabelNotFound{Label: label}
+	return "", FilesystemLabelNotFoundError{Label: label}
 }
 
 // HasPartitions returns if the mock disk has partitions or not. Part of the

@@ -162,7 +162,7 @@ func (s *mockDiskSuite) TestMockMountPointDisksToPartionMapping(c *C) {
 	// we can't find label1 from mount1's or mount2's disk
 	_, err = foundDisk2.FindMatchingPartitionUUID("label1")
 	c.Assert(err, ErrorMatches, "filesystem label \"label1\" not found")
-	var errNotFound disks.ErrFilesystemLabelNotFound
+	var errNotFound disks.FilesystemLabelNotFoundError
 	c.Assert(xerrors.As(err, &errNotFound), Equals, true)
 
 	// mount1 and mount2 do not match mount3 disk
