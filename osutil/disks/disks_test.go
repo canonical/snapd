@@ -418,11 +418,11 @@ func (s *diskSuite) TestDiskFromMountPointPartitionsHappy(c *C) {
 	// finally we can't find the bios-boot partition because it has no label
 	_, err = ubuntuBootDisk.FindMatchingPartitionUUID("bios-boot")
 	c.Assert(err, ErrorMatches, "could not find label \"bios-boot\": filesystem label not found")
-	c.Assert(xerrors.Is(err, disks.FilesystemLabelNotFound), Equals, true)
+	c.Assert(xerrors.Is(err, disks.ErrFilesystemLabelNotFound), Equals, true)
 
 	_, err = ubuntuDataDisk.FindMatchingPartitionUUID("bios-boot")
 	c.Assert(err, ErrorMatches, "could not find label \"bios-boot\": filesystem label not found")
-	c.Assert(xerrors.Is(err, disks.FilesystemLabelNotFound), Equals, true)
+	c.Assert(xerrors.Is(err, disks.ErrFilesystemLabelNotFound), Equals, true)
 }
 
 func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
