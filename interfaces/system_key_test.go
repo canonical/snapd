@@ -373,9 +373,7 @@ func (s *systemKeySuite) TestSystemKeysUnmarshalSame(c *C) {
 			"rlimit",
 			"signal"
 		],
-		"apparmor-parser-features": [
-			"unsafe"
-		],
+		"apparmor-parser-features": [],
 		"apparmor-parser-mtime": 1589907589,
 		"build-id": "cb94e5eeee4cf7ecda53f8308a984cb155b55732",
 		"cgroup-version": "1",
