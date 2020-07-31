@@ -3,7 +3,7 @@
 # shellcheck source=tests/lib/systemd.sh
 . "$TESTSLIB"/systemd.sh
 
-WORK_DIR=/tmp/work-dir
+WORK_DIR="${WORK_DIR:-/tmp/work-dir}"
 NESTED_VM=nested-vm
 SSH_PORT=8022
 MON_PORT=8888
