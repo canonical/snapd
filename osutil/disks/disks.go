@@ -22,7 +22,6 @@ package disks
 import (
 	"bufio"
 	"bytes"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -31,8 +30,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-
-	"golang.org/x/xerrors"
 
 	"github.com/snapcore/snapd/osutil"
 )
@@ -76,8 +73,7 @@ type Disk interface {
 	// non-ascii labels like "Some label", the label will be encoded using
 	// \x<hex> for potentially non-safe characters like in "Some\x20Label".
 	// If the filesystem label was not found on the disk, and no other errors
-	// were encountered, an error wrapping ErrFilesystemLabelNotFound will be
-	// returned.
+	// were encountered, ErrFilesystemLabelNotFound will be returned.
 	FindMatchingPartitionUUID(string) (string, error)
 
 	// MountPointIsFromDisk returns whether the specified mountpoint corresponds
@@ -317,7 +313,17 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 
 // ErrFilesystemLabelNotFound is an error where the specified label was not
 // found on the disk.
-var ErrFilesystemLabelNotFound = errors.New("filesystem label not found")
+type ErrFilesystemLabelNotFound struct {
+	Label string
+}
+
+var (
+	_ = error(ErrFilesystemLabelNotFound{})
+)
+
+func (e ErrFilesystemLabelNotFound) Error() string {
+	return fmt.Sprintf("filesystem label %q not found", e.Label)
+}
 
 func (d *disk) FindMatchingPartitionUUID(label string) (string, error) {
 	encodedLabel := BlkIDEncodeLabel(label)
@@ -389,8 +395,7 @@ func (d *disk) FindMatchingPartitionUUID(label string) (string, error) {
 		return partuuid, nil
 	}
 
-	fmt := "could not find label %q: %w"
-	return "", xerrors.Errorf(fmt, label, ErrFilesystemLabelNotFound)
+	return "", ErrFilesystemLabelNotFound{Label: label}
 }
 
 func (d *disk) MountPointIsFromDisk(mountpoint string, opts *Options) (bool, error) {
