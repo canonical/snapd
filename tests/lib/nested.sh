@@ -462,10 +462,9 @@ start_nested_core_vm_unit(){
     QEMU=$(get_qemu_for_nested_vm)
     # Now qemu parameters are defined
     # Increase the number of cpus used once the issue related to kvm and ovmf is fixed
-    # https://bugs.launchpad.net/ubuntu/+source/kvm/+bug/187280
+    # https://bugs.launchpad.net/ubuntu/+source/kvm/+bug/1872803
     PARAM_SMP="-smp 1"
 
-    # Now qemu parameters are defined
     # use only 2G of RAM for qemu-nested
     if [ "$SPREAD_BACKEND" = "google-nested" ]; then
         PARAM_MEM="-m 4096"
