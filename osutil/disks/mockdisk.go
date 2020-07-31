@@ -22,8 +22,6 @@ package disks
 import (
 	"fmt"
 
-	"golang.org/x/xerrors"
-
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -46,8 +44,7 @@ func (d *MockDiskMapping) FindMatchingPartitionUUID(label string) (string, error
 	if partuuid, ok := d.FilesystemLabelToPartUUID[label]; ok {
 		return partuuid, nil
 	}
-	fmt := "could not find label %q: %w"
-	return "", xerrors.Errorf(fmt, label, ErrFilesystemLabelNotFound)
+	return "", ErrFilesystemLabelNotFound{Label: label}
 }
 
 // HasPartitions returns if the mock disk has partitions or not. Part of the
