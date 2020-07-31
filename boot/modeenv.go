@@ -36,15 +36,16 @@ import (
 // Modeenv is a file on UC20 that provides additional information
 // about the current mode (run,recover,install)
 type Modeenv struct {
-	Mode           string
-	RecoverySystem string
-	Base           string
-	TryBase        string
-	BaseStatus     string
-	CurrentKernels []string
-	Model          string
-	BrandID        string
-	Grade          string
+	Mode                   string
+	RecoverySystem         string
+	CurrentRecoverySystems []string
+	Base                   string
+	TryBase                string
+	BaseStatus             string
+	CurrentKernels         []string
+	Model                  string
+	BrandID                string
+	Grade                  string
 
 	// read is set to true when a modenv was read successfully
 	read bool
@@ -76,6 +77,7 @@ func ReadModeenv(rootdir string) (*Modeenv, error) {
 		originRootdir: rootdir,
 	}
 	unmarshalModeenvValueFromCfg(cfg, "recovery_system", &m.RecoverySystem)
+	unmarshalModeenvValueFromCfg(cfg, "current_recovery_systems", &m.CurrentRecoverySystems)
 	unmarshalModeenvValueFromCfg(cfg, "mode", &m.Mode)
 	if m.Mode == "" {
 		return nil, fmt.Errorf("internal error: mode is unset")
@@ -118,6 +120,7 @@ func (m *Modeenv) WriteTo(rootdir string) error {
 	}
 	marshalNonEmptyForModeenvEntry(buf, "mode", m.Mode)
 	marshalNonEmptyForModeenvEntry(buf, "recovery_system", m.RecoverySystem)
+	marshalNonEmptyForModeenvEntry(buf, "current_recovery_systems", m.CurrentRecoverySystems)
 	marshalNonEmptyForModeenvEntry(buf, "base", m.Base)
 	marshalNonEmptyForModeenvEntry(buf, "try_base", m.TryBase)
 	marshalNonEmptyForModeenvEntry(buf, "base_status", m.BaseStatus)
