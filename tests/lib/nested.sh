@@ -34,10 +34,6 @@ wait_for_no_ssh(){
     done
 }
 
-test_ssh(){
-    sshpass -p ubuntu ssh -p 8022 -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no user1@localhost true
-}
-
 prepare_ssh(){
     execute_remote "sudo adduser --uid 12345 --extrausers --quiet --disabled-password --gecos '' test"
     execute_remote "echo test:ubuntu | sudo chpasswd"
@@ -464,12 +460,12 @@ start_nested_core_vm_unit(){
     local IMAGE_FILE QEMU
     IMAGE_FILE="$WORK_DIR/image/ubuntu-core-new.img"
     QEMU=$(get_qemu_for_nested_vm)
-
     # Now qemu parameters are defined
     # Increase the number of cpus used once the issue related to kvm and ovmf is fixed
-    # https://bugs.launchpad.net/ubuntu/+source/kvm/+bug/1872803
-    PARAM_CPU="-smp 1"
-    
+    # https://bugs.launchpad.net/ubuntu/+source/kvm/+bug/187280
+    PARAM_SMP="-smp 1"
+
+    # Now qemu parameters are defined
     # use only 2G of RAM for qemu-nested
     if [ "$SPREAD_BACKEND" = "google-nested" ]; then
         PARAM_MEM="-m 4096"
@@ -487,6 +483,8 @@ start_nested_core_vm_unit(){
     PARAM_CD="${PARAM_CD:-}"
     PARAM_RANDOM="-object rng-random,id=rng0,filename=/dev/urandom -device virtio-rng-pci,rng=rng0"
     PARAM_CPU="-cpu host"
+    PARAM_TRACE=""
+    PARAM_LOG="-D $WORK_DIR/qemu.log"
 
     # with qemu-nested, we can't use kvm acceleration
     if [ "$SPREAD_BACKEND" = "google-nested" ]; then
@@ -522,7 +520,7 @@ start_nested_core_vm_unit(){
             mv /etc/apt/sources.list.back /etc/apt/sources.list
             apt update
         fi
-
+        PARAM_TRACE="-d out_asm,in_asm,op,op_opt,op_ind,int,exec,cpu,fpu,mmu,pcall,cpu_reset,unimp,guest_errors,page,nochain"
         OVMF_CODE="secboot"
         OVMF_VARS="ms"
         # In this case the kernel.efi is unsigned and signed with snaleoil certs
@@ -532,8 +530,8 @@ start_nested_core_vm_unit(){
 
         if [ "$ENABLE_SECURE_BOOT" = "true" ]; then
             cp -f "/usr/share/OVMF/OVMF_VARS.$OVMF_VARS.fd" "$WORK_DIR/image/OVMF_VARS.$OVMF_VARS.fd"
-            PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE.$OVMF_CODE.fd,if=pflash,format=raw,unit=0,readonly=on -drive file=$WORK_DIR/image/OVMF_VARS.$OVMF_VARS.fd,if=pflash,format=raw,unit=1"
-            PARAM_MACHINE="-machine ubuntu-q35,accel=kvm -global ICH9-LPC.disable_s3=1"
+            PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE.$OVMF_CODE.fd,if=pflash,format=raw,unit=0,readonly -drive file=$WORK_DIR/image/OVMF_VARS.$OVMF_VARS.fd,if=pflash,format=raw"
+            PARAM_MACHINE="-machine q35,vmport=off,accel=kvm -global ICH9-LPC.disable_s3=1"
         fi
 
         if [ "$ENABLE_TPM" = "true" ]; then
@@ -549,14 +547,16 @@ start_nested_core_vm_unit(){
 
     # Systemd unit is created, it is important to respect the qemu parameters order
     systemd_create_and_start_unit "$NESTED_VM" "${QEMU} \
+        ${PARAM_SMP} \
         ${PARAM_CPU} \
         ${PARAM_MEM} \
+        ${PARAM_TRACE} \
+        ${PARAM_LOG} \
         ${PARAM_MACHINE} \
         ${PARAM_DISPLAY} \
         ${PARAM_NETWORK} \
         ${PARAM_BIOS} \
         ${PARAM_TPM} \
-        ${PARAM_CPU} \
         ${PARAM_RANDOM} \
         ${PARAM_IMAGE} \
         ${PARAM_ASSERTIONS} \
