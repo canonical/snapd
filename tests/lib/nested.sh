@@ -9,7 +9,7 @@ SSH_PORT=8022
 MON_PORT=8888
 
 wait_for_ssh(){
-    retry=300
+    retry=400
     wait=1
     while ! execute_remote true; do
         retry=$(( retry - 1 ))
@@ -22,7 +22,7 @@ wait_for_ssh(){
 }
 
 wait_for_no_ssh(){
-    retry=150
+    retry=200
     wait=1
     while execute_remote true; do
         retry=$(( retry - 1 ))
@@ -461,15 +461,14 @@ start_nested_core_vm_unit(){
     IMAGE_FILE="$WORK_DIR/image/ubuntu-core-new.img"
     QEMU=$(get_qemu_for_nested_vm)
     # Now qemu parameters are defined
-    # Increase the number of cpus used once the issue related to kvm and ovmf is fixed
-    # https://bugs.launchpad.net/ubuntu/+source/kvm/+bug/1872803
-    PARAM_SMP="-smp 1"
 
     # use only 2G of RAM for qemu-nested
     if [ "$SPREAD_BACKEND" = "google-nested" ]; then
         PARAM_MEM="-m 4096"
+        PARAM_SMP="-smp 2"
     elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
         PARAM_MEM="-m 2048"
+        PARAM_SMP="-smp 1"
     else
         echo "unknown spread backend $SPREAD_BACKEND"
         exit 1
@@ -481,13 +480,25 @@ start_nested_core_vm_unit(){
     PARAM_USB="-usb"
     PARAM_CD="${PARAM_CD:-}"
     PARAM_RANDOM="-object rng-random,id=rng0,filename=/dev/urandom -device virtio-rng-pci,rng=rng0"
-    PARAM_CPU="-cpu host"
-    PARAM_TRACE=""
+    PARAM_CPU=""
+    PARAM_TRACE="-d cpu_reset"
     PARAM_LOG="-D $WORK_DIR/qemu.log"
+    PARAM_SERIAL="-serial file:${WORK_DIR}/serial.log"
+
+    # Set kvm attribute
+    ATTR_KVM=""
+    if [ "$ENABLE_KVM" = "true" ]; then
+        ATTR_KVM=",accel=kvm"
+        # CPU can be defined just when kvm is enabled
+        PARAM_CPU="-cpu host"
+        # Increase the number of cpus used once the issue related to kvm and ovmf is fixed
+        # https://bugs.launchpad.net/ubuntu/+source/kvm/+bug/1872803
+        PARAM_SMP="-smp 1"
+    fi
 
     # with qemu-nested, we can't use kvm acceleration
     if [ "$SPREAD_BACKEND" = "google-nested" ]; then
-        PARAM_MACHINE="-machine ubuntu,accel=kvm"
+        PARAM_MACHINE="-machine ubuntu${ATTR_KVM}"
     elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
         PARAM_MACHINE=""
     else
@@ -496,7 +507,6 @@ start_nested_core_vm_unit(){
     fi
     
     PARAM_ASSERTIONS=""
-    PARAM_SERIAL="-serial file:${WORK_DIR}/serial-log.txt"
     PARAM_BIOS=""
     PARAM_TPM=""
     if [ "$USE_CLOUD_INIT" != "true" ]; then
@@ -519,7 +529,6 @@ start_nested_core_vm_unit(){
             mv /etc/apt/sources.list.back /etc/apt/sources.list
             apt update
         fi
-        PARAM_TRACE="-d out_asm,in_asm,op,op_opt,op_ind,int,exec,cpu,fpu,mmu,pcall,cpu_reset,unimp,guest_errors,page,nochain"
         OVMF_CODE="secboot"
         OVMF_VARS="ms"
         # In this case the kernel.efi is unsigned and signed with snaleoil certs
@@ -530,7 +539,7 @@ start_nested_core_vm_unit(){
         if [ "$ENABLE_SECURE_BOOT" = "true" ]; then
             cp -f "/usr/share/OVMF/OVMF_VARS.$OVMF_VARS.fd" "$WORK_DIR/image/OVMF_VARS.$OVMF_VARS.fd"
             PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE.$OVMF_CODE.fd,if=pflash,format=raw,unit=0,readonly -drive file=$WORK_DIR/image/OVMF_VARS.$OVMF_VARS.fd,if=pflash,format=raw"
-            PARAM_MACHINE="-machine q35,vmport=off,accel=kvm -global ICH9-LPC.disable_s3=1"
+            PARAM_MACHINE="-machine pc-q35-2.10,vmport=off${ATTR_KVM} -global ICH9-LPC.disable_s3=1"
         fi
 
         if [ "$ENABLE_TPM" = "true" ]; then
@@ -617,12 +626,13 @@ start_nested_classic_vm(){
     QEMU=$(get_qemu_for_nested_vm)
 
     # Now qemu parameters are defined
-    PARAM_CPU="-smp 1"
     # use only 2G of RAM for qemu-nested
     if [ "$SPREAD_BACKEND" = "google-nested" ]; then
         PARAM_MEM="-m 4096"
+        PARAM_SMP="-smp 2"
     elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
         PARAM_MEM="-m 2048"
+        PARAM_SMP="-smp 1"
     else
         echo "unknown spread backend $SPREAD_BACKEND"
         exit 1
@@ -631,11 +641,20 @@ start_nested_classic_vm(){
     PARAM_NETWORK="-net nic,model=virtio -net user,hostfwd=tcp::$SSH_PORT-:22"
     PARAM_MONITOR="-monitor tcp:127.0.0.1:$MON_PORT,server,nowait"
     PARAM_USB="-usb"
+    PARAM_CPU=""
+    PARAM_RANDOM="-object rng-random,id=rng0,filename=/dev/urandom -device virtio-rng-pci,rng=rng0"
     PARAM_SNAPSHOT="-snapshot"
+
+    # Set kvm attribute
+    ATTR_KVM=""
+    if [ "$ENABLE_KVM" = "true" ]; then
+        ATTR_KVM=",accel=kvm"
+        PARAM_CPU="-cpu host"
+    fi
 
     # with qemu-nested, we can't use kvm acceleration
     if [ "$SPREAD_BACKEND" = "google-nested" ]; then
-        PARAM_MACHINE="-machine ubuntu,accel=kvm"
+        PARAM_MACHINE="-machine ubuntu${ATTR_KVM}"
     elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
         PARAM_MACHINE=""
     else
@@ -650,6 +669,7 @@ start_nested_classic_vm(){
     PARAM_TPM=""
 
     systemd_create_and_start_unit "$NESTED_VM" "${QEMU}  \
+        ${PARAM_SMP} \
         ${PARAM_CPU} \
         ${PARAM_MEM} \
         ${PARAM_SNAPSHOT} \
@@ -658,6 +678,7 @@ start_nested_classic_vm(){
         ${PARAM_NETWORK} \
         ${PARAM_BIOS} \
         ${PARAM_TPM} \
+        ${PARAM_RANDOM} \
         ${PARAM_IMAGE} \
         ${PARAM_SEED} \
         ${PARAM_SERIAL} \
