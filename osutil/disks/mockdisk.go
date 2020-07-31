@@ -72,8 +72,9 @@ func (d *MockDiskMapping) MountPointIsFromDisk(mountpoint string, opts *Options)
 	return false, nil
 }
 
-// Dev returns a unique representation of the mock disk, it is a hash of the
-// mock disk struct string representation. Part of the Disk interface.
+// Dev returns a unique representation of the mock disk that is suitable for
+// comparing two mock disks to see if they are the same. Part of the Disk
+// interface.
 func (d *MockDiskMapping) Dev() string {
 	return d.DevNum
 }
