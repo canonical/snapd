@@ -419,22 +419,22 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		return err
 	}
 
-	// 4.2 check if base is mounted
-	// 4.3 check if kernel is mounted
 	typs := []snap.Type{snap.TypeBase, snap.TypeKernel}
 
-	// 4.4 choose and mount base and kernel snaps (this includes updating modeenv
-	//    if needed to try the base snap)
+	// 4.2 choose base and kernel snaps (this includes updating modeenv if
+	//     needed to try the base snap)
 	mounts, err := boot.InitramfsRunModeSelectSnapsToMount(typs, modeEnv)
 	if err != nil {
 		return err
 	}
 
-	// make sure this is a deterministic order
 	// TODO:UC20: with grade > dangerous, verify the kernel snap hash against
 	//            what we booted using the tpm log, this may need to be passed
 	//            to the function above to make decisions there, or perhaps this
 	//            code actually belongs in the bootloader implementation itself
+
+	// 4.3 mount base and kernel snaps
+	// make sure this is a deterministic order
 	for _, typ := range []snap.Type{snap.TypeBase, snap.TypeKernel} {
 		if sn, ok := mounts[typ]; ok {
 			dir := snapTypeToMountDir[typ]
@@ -446,7 +446,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		}
 	}
 
-	// 4.5 check if snapd is mounted (only on first-boot will we mount it)
+	// 4.4 mount snapd snap only on first boot
 	if modeEnv.RecoverySystem != "" {
 		// load the recovery system and generate mount for snapd
 		essSnaps, err := mst.RecoverySystemEssentialSnaps(modeEnv.RecoverySystem, []snap.Type{snap.TypeSnapd})
