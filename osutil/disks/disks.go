@@ -73,7 +73,7 @@ type Disk interface {
 	// non-ascii labels like "Some label", the label will be encoded using
 	// \x<hex> for potentially non-safe characters like in "Some\x20Label".
 	// If the filesystem label was not found on the disk, and no other errors
-	// were encountered, ErrFilesystemLabelNotFound will be returned.
+	// were encountered, a FilesystemLabelNotFoundError will be returned.
 	FindMatchingPartitionUUID(string) (string, error)
 
 	// MountPointIsFromDisk returns whether the specified mountpoint corresponds
@@ -311,17 +311,17 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 	return nil, fmt.Errorf("cannot find disk for partition %s, incomplete udev output", partMountPointSource)
 }
 
-// ErrFilesystemLabelNotFound is an error where the specified label was not
+// FilesystemLabelNotFoundError is an error where the specified label was not
 // found on the disk.
-type ErrFilesystemLabelNotFound struct {
+type FilesystemLabelNotFoundError struct {
 	Label string
 }
 
 var (
-	_ = error(ErrFilesystemLabelNotFound{})
+	_ = error(FilesystemLabelNotFoundError{})
 )
 
-func (e ErrFilesystemLabelNotFound) Error() string {
+func (e FilesystemLabelNotFoundError) Error() string {
 	return fmt.Sprintf("filesystem label %q not found", e.Label)
 }
 
@@ -395,7 +395,7 @@ func (d *disk) FindMatchingPartitionUUID(label string) (string, error) {
 		return partuuid, nil
 	}
 
-	return "", ErrFilesystemLabelNotFound{Label: label}
+	return "", FilesystemLabelNotFoundError{Label: label}
 }
 
 func (d *disk) MountPointIsFromDisk(mountpoint string, opts *Options) (bool, error) {
