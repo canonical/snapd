@@ -27,6 +27,8 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"golang.org/x/xerrors"
+
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
@@ -415,10 +417,13 @@ func (s *diskSuite) TestDiskFromMountPointPartitionsHappy(c *C) {
 
 	// finally we can't find the bios-boot partition because it has no label
 	_, err = ubuntuBootDisk.FindMatchingPartitionUUID("bios-boot")
-	c.Assert(err, ErrorMatches, "couldn't find label \"bios-boot\"")
+	c.Assert(err, ErrorMatches, "filesystem label \"bios-boot\" not found")
+	var notFoundErr disks.FilesystemLabelNotFoundError
+	c.Assert(xerrors.As(err, &notFoundErr), Equals, true)
 
 	_, err = ubuntuDataDisk.FindMatchingPartitionUUID("bios-boot")
-	c.Assert(err, ErrorMatches, "couldn't find label \"bios-boot\"")
+	c.Assert(err, ErrorMatches, "filesystem label \"bios-boot\" not found")
+	c.Assert(xerrors.As(err, &notFoundErr), Equals, true)
 }
 
 func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
