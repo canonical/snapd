@@ -474,7 +474,7 @@ type response struct {
 
 // Error is the real value of response.Result when an error occurs.
 type Error struct {
-	Kind    string      `json:"kind"`
+	Kind    ErrorKind   `json:"kind"`
 	Value   interface{} `json:"value"`
 	Message string      `json:"message"`
 

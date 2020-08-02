@@ -239,7 +239,7 @@ If you understand and want to proceed repeat the command including --classic.
 	return msg, nil
 }
 
-func snapRevisionNotAvailableMessage(kind, snapName, action, arch, snapChannel string, releases []interface{}) string {
+func snapRevisionNotAvailableMessage(kind client.ErrorKind, snapName, action, arch, snapChannel string, releases []interface{}) string {
 	// releases contains all available (arch x channel)
 	// as reported by the store through the daemon
 	req, err := channel.Parse(snapChannel, arch)
