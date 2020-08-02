@@ -7,7 +7,7 @@ environment:
     PROJECT_PATH: $GOHOME/src/github.com/snapcore/snapd
     # /usr/lib/go-1.6/bin for trusty (needs to be last as we use
     # a different go in gccgo tests)
-    PATH: $GOHOME/bin:/snap/bin:$PATH:/usr/lib/go-1.6/bin:/var/lib/snapd/snap/bin:$PROJECT_PATH/tests/bin:$PROJECT_PATH/tests/lib/tools
+    PATH: $GOHOME/bin:/snap/bin:$PATH:/usr/lib/go-1.6/bin:/var/lib/snapd/snap/bin:$PROJECT_PATH/tests/bin
     TESTSLIB: $PROJECT_PATH/tests/lib
     TESTSTOOLS: $PROJECT_PATH/tests/lib/tools
     SNAPPY_TESTING: 1
@@ -182,6 +182,20 @@ backends:
                   username: ubuntu
                   password: ubuntu
 
+    qemu-nested:
+        memory: 4G
+        type: qemu
+        systems:
+            - ubuntu-16.04-64:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-18.04-64:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-20.04-64:
+                  username: ubuntu
+                  password: ubuntu
+
     qemu:
         # TODO:UC20: uc20 needs 2G or grub will not loopback the kernel snap
         memory: 2G
@@ -268,6 +282,12 @@ backends:
             - amazon-linux-2-64:
                   username: ec2-user
                   password: ec2-user
+            - opensuse-15.2-64:
+                  username: opensuse
+                  password: opensuse
+            - opensuse-tumbleweed-64:
+                  username: opensuse
+                  password: opensuse
     autopkgtest:
         type: adhoc
         allocate: |
@@ -479,8 +499,6 @@ exclude:
 
 debug-each: |
     if [ "$SPREAD_DEBUG_EACH" = 1 ]; then
-        # shellcheck source=tests/lib/journalctl.sh
-        . "$TESTSLIB/journalctl.sh"
         #shellcheck source=tests/lib/state.sh
         . "$TESTSLIB/state.sh"
         #shellcheck source=tests/lib/nested.sh
@@ -489,8 +507,8 @@ debug-each: |
         
         if is_nested_system; then
             echo '# nested VM status'
-            systemctl status nested-vm
-            journalctl -e --no-pager -u nested-vm
+            systemctl status nested-vm || true
+            journalctl -e --no-pager -u nested-vm || true
 
             if [ -f "${WORK_DIR}/serial-log.txt" ]; then
                 echo '# nested VM serial boot log'
@@ -499,7 +517,7 @@ debug-each: |
         fi
 
         echo '# journal messages for snapd'
-        get_journalctl_log -u snapd
+        "$TESTSTOOLS"/journal-state get-log -u snapd
         case "$SPREAD_SYSTEM" in
             fedora-*|centos-*|amazon-*)
                 if [ -e "$RUNTIME_STATE_PATH/audit-stamp" ]; then

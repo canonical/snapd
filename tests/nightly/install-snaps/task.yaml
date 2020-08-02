@@ -89,7 +89,7 @@ restore: |
     fi
 
     if [ "$SNAP" = lxd ]; then
-        lxd-tool undo-lxd-mount-changes
+        "$TESTSTOOLS"/lxd-state undo-mount-changes
     fi
 
 execute: |

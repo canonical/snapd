@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/gadget"
-	"github.com/snapcore/snapd/gadget/internal"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 )
@@ -70,7 +69,7 @@ func createMissingPartitions(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume) 
 
 // removeCreatedPartitions removes partitions added during a previous install.
 func removeCreatedPartitions(dl *gadget.OnDiskVolume) error {
-	indexes := make([]string, 0, len(dl.PartitionTable.Partitions))
+	indexes := make([]string, 0, len(dl.Structure))
 	for i, s := range dl.Structure {
 		if s.CreatedDuringInstall {
 			logger.Noticef("partition %s was created during previous install", s.Node)
@@ -93,25 +92,17 @@ func removeCreatedPartitions(dl *gadget.OnDiskVolume) error {
 	}
 
 	// Re-read the partition table from the device to update our partition list
-	layout, err := gadget.OnDiskVolumeFromDevice(dl.Device)
-	if err != nil {
-		return fmt.Errorf("cannot read disk layout: %v", err)
+	if err := gadget.UpdatePartitionList(dl); err != nil {
+		return err
 	}
-	if dl.ID != layout.ID {
-		return fmt.Errorf("partition table IDs don't match")
-	}
-	dl.Structure = layout.Structure
-	dl.PartitionTable = layout.PartitionTable
 
 	// Ensure all created partitions were removed
-	if remaining := gadget.CreatedDuringInstall(layout); len(remaining) > 0 {
+	if remaining := gadget.CreatedDuringInstall(dl); len(remaining) > 0 {
 		return fmt.Errorf("cannot remove partitions: %s", strings.Join(remaining, ", "))
 	}
 
 	return nil
 }
-
-var internalUdevTrigger = internal.UdevTrigger
 
 // ensureNodeExists makes sure the device nodes for all device structures are
 // available and notified to udev, within a specified amount of time.
@@ -127,7 +118,7 @@ func ensureNodesExistImpl(dss []gadget.OnDiskStructure, timeout time.Duration) e
 			time.Sleep(100 * time.Millisecond)
 		}
 		if found {
-			if err := internalUdevTrigger(ds.Node); err != nil {
+			if err := udevTrigger(ds.Node); err != nil {
 				return err
 			}
 		} else {
@@ -146,6 +137,15 @@ func reloadPartitionTable(device string) error {
 	// userspace we're safe.
 	output, err := exec.Command("partx", "-u", device).CombinedOutput()
 	if err != nil {
+		return osutil.OutputErr(output, err)
+	}
+	return nil
+}
+
+// udevTrigger triggers udev for the specified device and waits until
+// all events in the udev queue are handled.
+func udevTrigger(device string) error {
+	if output, err := exec.Command("udevadm", "trigger", "--settle", device).CombinedOutput(); err != nil {
 		return osutil.OutputErr(output, err)
 	}
 	return nil

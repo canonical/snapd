@@ -81,7 +81,9 @@ disable_refreshes() {
     snap refresh --time --abs-time | MATCH "last: 2[0-9]{3}"
 
     echo "Ensure jq is gone"
-    snap remove --purge jq jq-core18 jq-core20
+    snap remove --purge jq
+    snap remove --purge jq-core18
+    snap remove --purge jq-core20
 }
 
 setup_systemd_snapd_overrides() {
@@ -285,11 +287,15 @@ prepare_classic() {
             cache_snaps test-snapd-profiler
         fi
 
-        snap list | not grep core || exit 1
-        # use parameterized core channel (defaults to edge) instead
+        # now use parameterized core channel (defaults to edge) instead
         # of a fixed one and close to stable in order to detect defects
         # earlier
-        snap install --"$CORE_CHANNEL" core
+        if snap list core ; then
+            snap refresh --"$CORE_CHANNEL" core
+        else
+            snap install --"$CORE_CHANNEL" core
+        fi
+
         snap list | grep core
 
         systemctl stop snapd.{service,socket}

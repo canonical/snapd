@@ -97,7 +97,7 @@
 %endif
 
 Name:           snapd
-Version:        2.45.1
+Version:        2.45.3.1
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -566,6 +566,8 @@ install -d -p %{buildroot}%{_sysconfdir}/profile.d
 install -d -p %{buildroot}%{_sysconfdir}/sysconfig
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/assertions
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/cookie
+install -d -p %{buildroot}%{_sharedstatedir}/snapd/dbus-1/services
+install -d -p %{buildroot}%{_sharedstatedir}/snapd/dbus-1/system-services
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/desktop/applications
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/device
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/hostfs
@@ -764,12 +766,17 @@ popd
 %{_userunitdir}/snapd.session-agent.socket
 %{_datadir}/dbus-1/services/io.snapcraft.Launcher.service
 %{_datadir}/dbus-1/services/io.snapcraft.Settings.service
+%{_datadir}/dbus-1/session.d/snapd.session-services.conf
+%{_datadir}/dbus-1/system.d/snapd.system-services.conf
 %{_datadir}/polkit-1/actions/io.snapcraft.snapd.policy
 %{_sysconfdir}/xdg/autostart/snap-userd-autostart.desktop
 %config(noreplace) %{_sysconfdir}/sysconfig/snapd
 %dir %{_sharedstatedir}/snapd
 %dir %{_sharedstatedir}/snapd/assertions
 %dir %{_sharedstatedir}/snapd/cookie
+%dir %{_sharedstatedir}/snapd/dbus-1
+%dir %{_sharedstatedir}/snapd/dbus-1/services
+%dir %{_sharedstatedir}/snapd/dbus-1/system-services
 %dir %{_sharedstatedir}/snapd/desktop
 %dir %{_sharedstatedir}/snapd/desktop/applications
 %dir %{_sharedstatedir}/snapd/device
@@ -908,6 +915,47 @@ fi
 
 
 %changelog
+* Tue Jul 28 2020 Samuele Pedroni <pedronis@lucediurna.net>
+- New upstream release, LP: #1875071
+  - o/ifacestate: fix bug in snapsWithSecurityProfiles
+  - tests/main/selinux-clean: workaround SELinux denials triggered by
+    linger setup on Centos8
+
+* Mon Jul 27 2020 Zygmunt Krynicki <me@zygoon.pl>
+- New upstream release, LP: #1875071
+  - many: backport _writable_defaults dir changes
+  - tests: fix incorrect check in smoke/remove test
+  - cmd/snap-bootstrap,seed: backport of uc20 PRs
+  - tests: avoid exit when nested type var is not defined
+  - cmd/snap-preseed: backport fixes
+  - interfaces: optimize rules of multiple connected iio/i2c/spi plugs
+  - many: cherry-picks for 2.45, gh-action, test fixes
+  - tests/lib: account for changes in arch package file name extension
+  - postrm, snap-mgmt: cleanup modules and other cherry-picks
+  - snap-confine: don't die if a device from sysfs path cannot be
+    found by udev
+  - data/selinux: update policy to allow forked processes to call
+    getpw*()
+  - tests/main/interfaces-time-control: exercise setting time via date
+  - interfaces/builtin/time-control: allow POSIX clock API
+  - usersession/userd: add "slack" to the white list of URL schemes
+    handled by xdg-open
+
+* Fri Jul 10 2020 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.45.2
+ - SECURITY UPDATE: sandbox escape vulnerability on snapctl xdg-open
+   implementation
+   - usersession/userd/launcher.go: remove XDG_DATA_DIRS environment
+     variable modification when calling the system xdg-open. Patch
+     thanks to James Henstridge
+   - packaging/ubuntu-16.04/snapd.postinst: ensure "snap userd" is
+     restarted. Patch thanks to Michael Vogt
+   - CVE-2020-11934
+ - SECURITY UPDATE: arbitrary code execution vulnerability on core
+   devices with access to physical removable media
+   - devicestate: Disable/restrict cloud-init after seeding.
+   - CVE-2020-11933
+
 * Fri Jun 05 2020 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.45.1
  - data/selinux: allow checking /var/cache/app-info

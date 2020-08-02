@@ -21,8 +21,6 @@ package asserts
 
 import (
 	"fmt"
-	"regexp"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -53,6 +51,11 @@ func (r *Repair) BrandID() string {
 // (e.g. the snapcraft forum).
 func (r *Repair) RepairID() int {
 	return r.id
+}
+
+// Sequence implements SequenceMember, it returns the same as RepairID.
+func (r *Repair) Sequence() int {
+	return r.RepairID()
 }
 
 // Summary returns the mandatory summary description of the repair.
@@ -97,23 +100,15 @@ func (r *Repair) checkConsistency(db RODatabase, acck *AccountKey) error {
 // sanity
 var _ consistencyChecker = (*Repair)(nil)
 
-// the repair-id can for now be a sequential number starting with 1
-var validRepairID = regexp.MustCompile("^[1-9][0-9]*$")
-
 func assembleRepair(assert assertionBase) (Assertion, error) {
 	err := checkAuthorityMatchesBrand(&assert)
 	if err != nil {
 		return nil, err
 	}
 
-	repairID, err := checkStringMatches(assert.headers, "repair-id", validRepairID)
+	repairID, err := checkSequence(assert.headers, "repair-id")
 	if err != nil {
 		return nil, err
-	}
-	id, err := strconv.Atoi(repairID)
-	if err != nil {
-		// given it matched it can likely only be too large
-		return nil, fmt.Errorf("repair-id too large: %s", repairID)
 	}
 
 	summary, err := checkNotEmptyString(assert.headers, "summary")
@@ -152,7 +147,7 @@ func assembleRepair(assert assertionBase) (Assertion, error) {
 		series:        series,
 		architectures: architectures,
 		models:        models,
-		id:            id,
+		id:            repairID,
 		disabled:      disabled,
 		timestamp:     timestamp,
 	}, nil

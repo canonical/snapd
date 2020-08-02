@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/secboot"
 )
 
 var (
@@ -71,10 +72,18 @@ func MockEnsureNodesExist(f func(dss []gadget.OnDiskStructure, timeout time.Dura
 	}
 }
 
-func MockInternalUdevTrigger(f func(node string) error) (restore func()) {
-	old := internalUdevTrigger
-	internalUdevTrigger = f
+func MockSecbootFormatEncryptedDevice(f func(key secboot.EncryptionKey, label, node string) error) (restore func()) {
+	old := secbootFormatEncryptedDevice
+	secbootFormatEncryptedDevice = f
 	return func() {
-		internalUdevTrigger = old
+		secbootFormatEncryptedDevice = old
+	}
+}
+
+func MockSecbootAddRecoveryKey(f func(key secboot.EncryptionKey, rkey secboot.RecoveryKey, node string) error) (restore func()) {
+	old := secbootAddRecoveryKey
+	secbootAddRecoveryKey = f
+	return func() {
+		secbootAddRecoveryKey = old
 	}
 }

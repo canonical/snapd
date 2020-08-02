@@ -107,13 +107,24 @@ void run_snappy_app_dev_add(struct snappy_udev *udev_s, const char *path)
 
 	struct udev_device *d =
 	    udev_device_new_from_syspath(udev_s->udev, path);
-	if (d == NULL)
-		die("cannot find device from syspath %s", path);
+	// udev may be late with registering the device, e.g. under high load, and
+	// udev lookup will fail.
+	if (d == NULL) {
+		debug("cannot find device from syspath %s", path);
+		return;
+	}
 	dev_t devnum = udev_device_get_devnum(d);
 	udev_device_unref(d);
 
-	_run_snappy_app_dev_add_majmin(udev_s, path, major(devnum),
-				       minor(devnum));
+	unsigned int devmaj = major(devnum);
+	unsigned int devmin = minor(devnum);
+	// per udev_device_get_devnum man page, on failure a device type with minor
+	// and major number set to 0 is returned.
+	if (devmaj == 0 && devmin == 0) {
+		debug("cannot get major/minor numbers for %s", path);
+	} else {
+		_run_snappy_app_dev_add_majmin(udev_s, path, devmaj, devmin);
+	}
 }
 
 /*
@@ -169,17 +180,21 @@ void snappy_udev_cleanup(struct snappy_udev *udev_s)
 void setup_devices_cgroup(const char *security_tag, struct snappy_udev *udev_s)
 {
 	debug("%s", __func__);
-	// Devices that must always be present
-	const char *static_devices[] = {
-		"/sys/class/mem/null",
-		"/sys/class/mem/full",
-		"/sys/class/mem/zero",
-		"/sys/class/mem/random",
-		"/sys/class/mem/urandom",
-		"/sys/class/tty/tty",
-		"/sys/class/tty/console",
-		"/sys/class/tty/ptmx",
-		NULL,
+	// Hardcode major/minor for common sysfs devices to avoid udev lookup
+	struct {
+		char *name;
+		unsigned int maj;
+		unsigned int min;
+	} static_devices[] = {
+		{.name="/sys/class/mem/null", .maj=1, .min=3},
+		{.name="/sys/class/mem/full", .maj=1, .min=7},
+		{.name="/sys/class/mem/zero", .maj=1, .min=5},
+		{.name="/sys/class/mem/random", .maj=1, .min=8},
+		{.name="/sys/class/mem/urandom", .maj=1, .min=9},
+		{.name="/sys/class/tty/tty", .maj=5, .min=0},
+		{.name="/sys/class/tty/console", .maj=5, .min=1},
+		{.name="/sys/class/tty/ptmx", .maj=5, .min=2},
+		{.name=NULL, .maj=0, .min=0}
 	};
 
 	if (udev_s == NULL)
@@ -224,8 +239,9 @@ void setup_devices_cgroup(const char *security_tag, struct snappy_udev *udev_s)
 	write_string_to_file(cgroup_file, "a");
 
 	// add the common devices
-	for (int i = 0; static_devices[i] != NULL; i++)
-		run_snappy_app_dev_add(udev_s, static_devices[i]);
+	for (int i = 0; static_devices[i].name != NULL; i++)
+		_run_snappy_app_dev_add_majmin(udev_s, static_devices[i].name,
+				static_devices[i].maj, static_devices[i].min);
 
 	// add glob for current and future PTY slaves. We unconditionally add
 	// them since we use a devpts newinstance. Unix98 PTY slaves major

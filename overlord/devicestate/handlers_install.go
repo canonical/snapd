@@ -168,6 +168,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		Kernel:            kernelInfo,
 		KernelPath:        kernelInfo.MountFile(),
 		RecoverySystemDir: recoverySystemDir,
+		UnpackedGadgetDir: gadgetDir,
 	}
 	rootdir := dirs.GlobalRootDir
 	if err := bootMakeBootable(deviceCtx.Model(), rootdir, bootWith); err != nil {
