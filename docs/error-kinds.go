@@ -40,7 +40,7 @@ func main() {
 				fmt.Println()
 				fmt.Println(maintErrorKindsHdr)
 			} else {
-				fmt.Println("Unknown error kind groups: %v", c.Doc)
+				fmt.Fprintf(os.Stderr, "unexpected error kind group: %v\n", c.Doc)
 				continue
 			}
 			fmt.Println()
