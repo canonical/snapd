@@ -58,14 +58,13 @@ const (
 	// ErrorKindSnapAlreadyInstalled: the requested snap is
 	// already installed
 	ErrorKindSnapAlreadyInstalled = "snap-already-installed"
-	// ErrorKindSnapNotInstalled:  the requested snap is not installed
+	// ErrorKindSnapNotInstalled: the requested snap is not installed
 	ErrorKindSnapNotInstalled = "snap-not-installed"
 	// ErrorKindSnapNotFound: the requested snap couldn't be found
 	ErrorKindSnapNotFound = "snap-not-found"
 	// ErrorKindAppNotFound: the requested app couldn't be found
 	ErrorKindAppNotFound = "app-not-found"
-	// ErrorKindSnapLocal: the requested snap couldn't be found in
-	// the store
+	// ErrorKindSnapLocal: cannot perform operation on local snap
 	ErrorKindSnapLocal = "snap-local"
 	// ErrorKindSnapNeedsDevMode: the requested snap needs devmode
 	// to be installed
