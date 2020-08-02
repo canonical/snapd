@@ -45,15 +45,18 @@ const (
 	// `value` of the error is an object with a key per failed field
 	// and a list of the failures on each field.
 	ErrorKindInvalidAuthData ErrorKind = "invalid-auth-data"
+	// ErrorKindPasswordPolicy: provided password doesn't meet
+	// system policy
+	ErrorKindPasswordPolicy ErrorKind = "password-policy"
+	// ErrorKindAuthCancelled: authentication was cancelled by the user
+	ErrorKindAuthCancelled ErrorKind = "auth-cancelled"
+
 	// ErrorKindTermsNotAccepted: deprecated, do not document
 	ErrorKindTermsNotAccepted ErrorKind = "terms-not-accepted"
 	// ErrorKindNoPaymentMethods: deprecated, do not document
 	ErrorKindNoPaymentMethods ErrorKind = "no-payment-methods"
 	// ErrorKindPaymentDeclined: deprecated, do not document
 	ErrorKindPaymentDeclined ErrorKind = "payment-declined"
-	// ErrorKindPasswordPolicy: provided password doesn't meet
-	// system policy
-	ErrorKindPasswordPolicy ErrorKind = "password-policy"
 
 	// ErrorKindSnapAlreadyInstalled: the requested snap is
 	// already installed
@@ -77,39 +80,33 @@ const (
 	ErrorKindSnapNeedsClassicSystem ErrorKind = "snap-needs-classic-system"
 	// ErrorKindSnapNotClassic: snap not compatible with classic mode
 	ErrorKindSnapNotClassic ErrorKind = "snap-not-classic"
-	// ErrorKindNoUpdateAvailable: the requested snap does not
+	// ErrorKindSnapNoUpdateAvailable: the requested snap does not
 	// have an update available
-	ErrorKindNoUpdateAvailable ErrorKind = "snap-no-update-available"
+	ErrorKindSnapNoUpdateAvailable ErrorKind = "snap-no-update-available"
 
-	// ErrorKindRevisionNotAvailable: no snap revision available
+	// ErrorKindSnapRevisionNotAvailable: no snap revision available
 	// as specified
-	ErrorKindRevisionNotAvailable ErrorKind = "snap-revision-not-available"
-	// ErrorKindChannelNotAvailable: no snap revision on specified
+	ErrorKindSnapRevisionNotAvailable ErrorKind = "snap-revision-not-available"
+	// ErrorKindSnapChannelNotAvailable: no snap revision on specified
 	// channel. The `value` of the error is a rich object with
 	// requested `snap-name`, `action`, `channel`, `architecture`, and
 	// actually available `releases` as list of
 	// `{"architecture":... , "channel": ...}` objects.
-	ErrorKindChannelNotAvailable ErrorKind = "snap-channel-not-available"
-	// ErrorKindArchitectureNotAvailable: no snap revision on
+	ErrorKindSnapChannelNotAvailable ErrorKind = "snap-channel-not-available"
+	// ErrorKindSnapArchitectureNotAvailable: no snap revision on
 	// specified architecture. Value has the same format as for
 	// `snap-channel-not-available`.
-	ErrorKindArchitectureNotAvailable ErrorKind = "snap-architecture-not-available"
+	ErrorKindSnapArchitectureNotAvailable ErrorKind = "snap-architecture-not-available"
 
-	// ErrorKindChangeConflict: the requested operation would
+	// ErrorKindSnapChangeConflict: the requested operation would
 	// conflict with currently ongoing change. This is a temporary
 	// error. The error `value` is an object with optional fields
 	// `snap-name`, `change-kind` of the ongoing change.
-	ErrorKindChangeConflict ErrorKind = "snap-change-conflict"
+	ErrorKindSnapChangeConflict ErrorKind = "snap-change-conflict"
 
 	// ErrorKindNotSnap: the given snap or directory does not
 	// look like a snap
 	ErrorKindNotSnap ErrorKind = "snap-not-a-snap"
-
-	// ErrorKindNetworkTimeout: a timeout occurred during the request
-	ErrorKindNetworkTimeout ErrorKind = "network-timeout"
-
-	// ErrorKindDNSFailure: DNS not responding
-	ErrorKindDNSFailure ErrorKind = "dns-failure"
 
 	// ErrorKindInterfacesUnchanged: the requested interfaces'
 	// operation would have no effect
@@ -127,8 +124,11 @@ const (
 	// ErrorKindUnsuccessful: snapctl command was unsuccessful
 	ErrorKindUnsuccessful ErrorKind = "unsuccessful"
 
-	// ErrorKindAuthCancelled: authentication was cancelled by the user
-	ErrorKindAuthCancelled ErrorKind = "auth-cancelled"
+	// ErrorKindNetworkTimeout: a timeout occurred during the request
+	ErrorKindNetworkTimeout ErrorKind = "network-timeout"
+
+	// ErrorKindDNSFailure: DNS not responding
+	ErrorKindDNSFailure ErrorKind = "dns-failure"
 )
 
 // Maintenance error kinds.

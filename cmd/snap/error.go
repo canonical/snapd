@@ -125,8 +125,8 @@ Try 'snapcraft prime' in your project directory, then 'snap try' again.`)
 				snapName = errValStr
 			}
 		}
-	case client.ErrorKindChannelNotAvailable,
-		client.ErrorKindArchitectureNotAvailable:
+	case client.ErrorKindSnapChannelNotAvailable,
+		client.ErrorKindSnapArchitectureNotAvailable:
 		values, ok := err.Value.(map[string]interface{})
 		if ok {
 			candName, _ := values["snap-name"].(string)
@@ -144,7 +144,7 @@ Try 'snapcraft prime' in your project directory, then 'snap try' again.`)
 			}
 		}
 		fallthrough
-	case client.ErrorKindRevisionNotAvailable:
+	case client.ErrorKindSnapRevisionNotAvailable:
 		if snapName == "" {
 			errValStr, ok := err.Value.(string)
 			if ok && errValStr != "" {
@@ -207,7 +207,7 @@ If you understand and want to proceed repeat the command including --classic.
 		}
 	case client.ErrorKindSnapLocal:
 		msg = i18n.G("local snap %q is unknown to the store, use --amend to proceed anyway")
-	case client.ErrorKindNoUpdateAvailable:
+	case client.ErrorKindSnapNoUpdateAvailable:
 		isError = false
 		msg = i18n.G("snap %q has no updates available")
 	case client.ErrorKindSnapNotInstalled:
@@ -276,7 +276,7 @@ func snapRevisionNotAvailableMessage(kind client.ErrorKind, snapName, action, ar
 	}
 
 	// no release is for this architecture
-	if kind == client.ErrorKindArchitectureNotAvailable {
+	if kind == client.ErrorKindSnapArchitectureNotAvailable {
 		// TODO: add "Get more information..." hints once snap info
 		// support showing multiple/all archs
 

@@ -490,7 +490,7 @@ func (e *Error) Error() string {
 func IsRetryable(err error) bool {
 	switch e := err.(type) {
 	case *Error:
-		return e.Kind == ErrorKindChangeConflict
+		return e.Kind == ErrorKindSnapChangeConflict
 	}
 	return false
 }
