@@ -20,7 +20,6 @@
 package boot_test
 
 import (
-	"errors"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -128,13 +127,16 @@ func (s *kernelCommandLineSuite) TestComposeCommandLineNotManagedHappy(c *C) {
 	bootloader.Force(mbl)
 	mbl.IsManaged = false
 
+	// TODO:UC20: remove is managed checks
+
+	// is-managed is ignored with the right model and bootloader interface
 	cmdline, err = boot.ComposeRecoveryCommandLine(model, "20200314")
 	c.Assert(err, IsNil)
-	c.Assert(cmdline, Equals, "")
+	c.Assert(cmdline, Equals, "snapd_recovery_mode=recover snapd_recovery_system=20200314")
 
 	cmdline, err = boot.ComposeCommandLine(model)
 	c.Assert(err, IsNil)
-	c.Assert(cmdline, Equals, "")
+	c.Assert(cmdline, Equals, "snapd_recovery_mode=run")
 }
 
 func (s *kernelCommandLineSuite) TestComposeCommandLineNotUC20(c *C) {
@@ -165,35 +167,6 @@ func (s *kernelCommandLineSuite) TestComposeCommandLineNotUC20(c *C) {
 	c.Check(cmdline, Equals, "")
 }
 
-func (s *kernelCommandLineSuite) TestComposeComamndLineSystemManagedErr(c *C) {
-	model := makeMockUC20Model()
-
-	mbl := bootloadertest.Mock("btloader", c.MkDir()).WithManagedAssets()
-	bootloader.Force(mbl)
-	defer bootloader.Force(nil)
-
-	errFail := errors.New("is managed fail")
-	mbl.IsManagedErr = errFail
-
-	cmdline, err := boot.ComposeRecoveryCommandLine(model, "20200314")
-	c.Assert(err, ErrorMatches, "is managed fail")
-	c.Assert(cmdline, Equals, "")
-	cmdline, err = boot.ComposeCommandLine(model)
-	c.Assert(err, ErrorMatches, "is managed fail")
-	c.Assert(cmdline, Equals, "")
-
-	mbl.IsManagedErr = nil
-	mbl.IsManaged = true
-	mbl.CommandLineErr = errors.New("kernel command line fail")
-
-	cmdline, err = boot.ComposeRecoveryCommandLine(model, "20200314")
-	c.Assert(err, ErrorMatches, "kernel command line fail")
-	c.Assert(cmdline, Equals, "")
-	cmdline, err = boot.ComposeCommandLine(model)
-	c.Assert(err, ErrorMatches, "kernel command line fail")
-	c.Assert(cmdline, Equals, "")
-}
-
 func (s *kernelCommandLineSuite) TestComposeCommandLineManagedHappy(c *C) {
 	model := makeMockUC20Model()
 
@@ -206,8 +179,40 @@ func (s *kernelCommandLineSuite) TestComposeCommandLineManagedHappy(c *C) {
 
 	cmdline, err := boot.ComposeRecoveryCommandLine(model, "20200314")
 	c.Assert(err, IsNil)
-	c.Assert(cmdline, Equals, "panic=-1 snapd_recovery_mode=recover snapd_recovery_system=20200314")
+	c.Assert(cmdline, Equals, "snapd_recovery_mode=recover snapd_recovery_system=20200314 panic=-1")
 	cmdline, err = boot.ComposeCommandLine(model)
 	c.Assert(err, IsNil)
-	c.Assert(cmdline, Equals, "panic=-1")
+	c.Assert(cmdline, Equals, "snapd_recovery_mode=run panic=-1")
+
+	// managed status is effectively ignored
+	mbl.IsManaged = false
+
+	cmdline, err = boot.ComposeRecoveryCommandLine(model, "20200314")
+	c.Assert(err, IsNil)
+	c.Assert(cmdline, Equals, "snapd_recovery_mode=recover snapd_recovery_system=20200314 panic=-1")
+	cmdline, err = boot.ComposeCommandLine(model)
+	c.Assert(err, IsNil)
+	c.Assert(cmdline, Equals, "snapd_recovery_mode=run panic=-1")
+}
+
+func (s *kernelCommandLineSuite) TestComposeCandidateCommandLineManagedHappy(c *C) {
+	model := makeMockUC20Model()
+
+	mbl := bootloadertest.Mock("btloader", c.MkDir()).WithManagedAssets()
+	bootloader.Force(mbl)
+	defer bootloader.Force(nil)
+
+	mbl.IsManaged = true
+	mbl.StaticCommandLine = "panic=-1"
+	mbl.CandidateStaticCommandLine = "candidate panic=-1"
+
+	cmdline, err := boot.ComposeCandidateCommandLine(model)
+	c.Assert(err, IsNil)
+	c.Assert(cmdline, Equals, "snapd_recovery_mode=run candidate panic=-1")
+
+	// managed status is effectively ignored
+	mbl.IsManaged = false
+	cmdline, err = boot.ComposeCandidateCommandLine(model)
+	c.Assert(err, IsNil)
+	c.Assert(cmdline, Equals, "snapd_recovery_mode=run candidate panic=-1")
 }

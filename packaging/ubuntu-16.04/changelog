@@ -1,8 +1,53 @@
-snapd (2.45.2) UNRELEASED; urgency=medium
+snapd (2.45.3.1) xenial; urgency=medium
 
-  * placeholder changelog
+  * New upstream release, LP: #1875071
+    - o/ifacestate: fix bug in snapsWithSecurityProfiles
+    - tests/main/selinux-clean: workaround SELinux denials triggered by
+      linger setup on Centos8
 
- -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 15 Jul 2020 16:43:03 +0200
+ -- Samuele Pedroni <pedronis@lucediurna.net>  Tue, 28 Jul 2020 21:43:38 +0200
+
+snapd (2.45.3) xenial; urgency=medium
+
+  * New upstream release, LP: #1875071
+    - many: backport _writable_defaults dir changes
+    - tests: fix incorrect check in smoke/remove test
+    - cmd/snap-bootstrap,seed: backport of uc20 PRs
+    - tests: avoid exit when nested type var is not defined
+    - cmd/snap-preseed: backport fixes
+    - interfaces: optimize rules of multiple connected iio/i2c/spi plugs
+    - many: cherry-picks for 2.45, gh-action, test fixes
+    - tests/lib: account for changes in arch package file name extension
+    - postrm, snap-mgmt: cleanup modules and other cherry-picks
+    - snap-confine: don't die if a device from sysfs path cannot be
+      found by udev
+    - data/selinux: update policy to allow forked processes to call
+      getpw*()
+    - tests/main/interfaces-time-control: exercise setting time via date
+    - interfaces/builtin/time-control: allow POSIX clock API
+    - usersession/userd: add "slack" to the white list of URL schemes
+      handled by xdg-open
+
+ -- Zygmunt Krynicki <me@zygoon.pl>  Mon, 27 Jul 2020 12:01:14 +0200
+
+snapd (2.45.2) xenial; urgency=medium
+
+  * SECURITY UPDATE: sandbox escape vulnerability on snapctl xdg-open
+    implementation
+    - usersession/userd/launcher.go: remove XDG_DATA_DIRS environment
+      variable modification when calling the system xdg-open. Patch
+      thanks to James Henstridge
+    - packaging/ubuntu-16.04/snapd.postinst: ensure "snap userd" is
+      restarted. Patch thanks to Michael Vogt
+    - CVE-2020-11934
+    - LP: #1880085
+  * SECURITY UPDATE: arbitrary code execution vulnerability on core
+    devices with access to physical removable media
+    - devicestate: Disable/restrict cloud-init after seeding.
+    - CVE-2020-11933
+    - LP: #1879530
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 10 Jul 2020 20:06:29 +0200
 
 snapd (2.45.1) xenial; urgency=medium
 
