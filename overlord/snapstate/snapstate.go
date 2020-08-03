@@ -85,7 +85,7 @@ func isParallelInstallable(snapsup *SnapSetup) error {
 
 func requiredSpaceWithMargin(minSize uint64) uint64 {
 	// 10% extra + 1Mb
-	return minSize + uint64(0.1 * float64(minSize)) + 1024*1024
+	return minSize + minSize/10 + 1024*1024
 }
 
 func optedIntoSnapdSnap(st *state.State) (bool, error) {
