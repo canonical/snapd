@@ -150,21 +150,52 @@ var systemSnapFromSeed = func(rootDir string) (string, error) {
 
 const snapdPreseedSupportVer = `2.43.3+`
 
-func checkTargetSnapdVersion(infoPath string) error {
-	ver, err := snapdtool.SnapdVersionFromInfoFile(infoPath)
+// checkTargetSnapdVersion checks if the version of snapd under chroot env
+// is good enough for preseeding. It checks both the snapd from the deb
+// and from the seeded snap mounted under snapdMountPath and returns the
+// full path of snapd to execute as part of preseeding (whichever version is
+// newer).
+// The function must be called after syscall.Chroot(..).
+func checkTargetSnapdVersion() (snapdPath string, whichVer string, err error) {
+	// read snapd version from the mounted core/snapd snap
+	infoPath := filepath.Join(snapdMountPath, dirs.CoreLibExecDir, "info")
+	ver1, err := snapdtool.SnapdVersionFromInfoFile(infoPath)
 	if err != nil {
-		return err
+		return "", "", err
 	}
 
-	res, err := strutil.VersionCompare(ver, snapdPreseedSupportVer)
+	// read snapd version from the main fs under chroot (snapd from the deb);
+	// assumes running under chroot already.
+	infoPath = filepath.Join(dirs.GlobalRootDir, dirs.CoreLibExecDir, "info")
+	ver2, err := snapdtool.SnapdVersionFromInfoFile(infoPath)
 	if err != nil {
-		return err
+		return "", "", err
+	}
+
+	res, err := strutil.VersionCompare(ver1, ver2)
+	if err != nil {
+		return "", "", err
 	}
 	if res < 0 {
-		return fmt.Errorf("snapd %s from the target system does not support preseeding, the minimum required version is %s",
-			ver, snapdPreseedSupportVer)
+		// snapd from the deb under chroot is the candidate to run
+		whichVer = ver2
+		snapdPath = filepath.Join(dirs.GlobalRootDir, dirs.CoreLibExecDir, "snapd")
+	} else {
+		// snapd from the mounted core/snapd snap is the candidate to run
+		whichVer = ver1
+		snapdPath = filepath.Join(snapdMountPath, dirs.CoreLibExecDir, "snapd")
 	}
-	return nil
+
+	res, err = strutil.VersionCompare(whichVer, snapdPreseedSupportVer)
+	if err != nil {
+		return "", "", err
+	}
+	if res < 0 {
+		return "", "", fmt.Errorf("snapd %s from the target system does not support preseeding, the minimum required version is %s",
+			whichVer, snapdPreseedSupportVer)
+	}
+
+	return snapdPath, whichVer, nil
 }
 
 func prepareChroot(preseedChroot string) (func(), error) {
@@ -215,14 +246,6 @@ func prepareChroot(preseedChroot string) (func(), error) {
 		}
 	}
 
-	// read version from the mounted core snap
-	infoPath := filepath.Join(snapdMountPath, dirs.CoreLibExecDir, "info")
-	if err := checkTargetSnapdVersion(infoPath); err != nil {
-		unmount()
-		removeMountpoint()
-		return nil, err
-	}
-
 	return func() {
 		unmount()
 		removeMountpoint()
@@ -232,17 +255,20 @@ func prepareChroot(preseedChroot string) (func(), error) {
 // runPreseedMode runs snapd in a preseed mode. It assumes running in a chroot.
 // The chroot is expected to be set-up and ready to use (critical system directories mounted).
 func runPreseedMode(preseedChroot string) error {
-	// exec snapd relative to new chroot, e.g. /snapd-preseed/usr/lib/snapd/snapd
-	path := filepath.Join(snapdMountPath, dirs.CoreLibExecDir, "snapd")
+	snapdPath, version, err := checkTargetSnapdVersion()
+	if err != nil {
+		return err
+	}
 
 	// run snapd in preseed mode
-	cmd := exec.Command(path)
+	cmd := exec.Command(snapdPath)
 	cmd.Env = os.Environ()
 	cmd.Env = append(cmd.Env, "SNAPD_PRESEED=1")
 	cmd.Stderr = Stderr
 	cmd.Stdout = Stdout
 
-	fmt.Fprintf(Stdout, "starting to preseed root: %s\n", preseedChroot)
+	// note, snapdPath is relative to preseedChroot
+	fmt.Fprintf(Stdout, "starting to preseed root: %s\nusing snapd binary: %s (%s)\n", preseedChroot, snapdPath, version)
 
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("error running snapd in preseed mode: %v\n", err)
