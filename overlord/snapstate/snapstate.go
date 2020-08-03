@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
@@ -70,6 +71,8 @@ const (
 
 var ErrNothingToDo = errors.New("nothing to do")
 
+var osutilCheckFreeSpace = osutil.CheckFreeSpace
+
 func isParallelInstallable(snapsup *SnapSetup) error {
 	if snapsup.InstanceKey == "" {
 		return nil
@@ -78,6 +81,11 @@ func isParallelInstallable(snapsup *SnapSetup) error {
 		return nil
 	}
 	return fmt.Errorf("cannot install snap of type %v as %q", snapsup.Type, snapsup.InstanceName())
+}
+
+func requiredSpaceWithMargin(minSize uint64) uint64 {
+	// 10% extra + 1Mb
+	return minSize + uint64(0.1*float64(minSize)) + 1024*1024
 }
 
 func optedIntoSnapdSnap(st *state.State) (bool, error) {
@@ -166,10 +174,18 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 
 	var prepare, prev *state.Task
 	fromStore := false
+
 	// if we have a local revision here we go back to that
 	if snapsup.SnapPath != "" || revisionIsLocal {
 		prepare = st.NewTask("prepare-snap", fmt.Sprintf(i18n.G("Prepare snap %q%s"), snapsup.SnapPath, revisionStr))
 	} else {
+		// XXX: DownloadInfo should never be nil, except for missing mocking in tests?
+		if snapsup.DownloadInfo != nil {
+			requiredSpace := requiredSpaceWithMargin(uint64(snapsup.DownloadInfo.Size))
+			if err := osutilCheckFreeSpace(dirs.SnapdStateDir(dirs.GlobalRootDir), requiredSpace); err != nil {
+				return nil, err
+			}
+		}
 		fromStore = true
 		prepare = st.NewTask("download-snap", fmt.Sprintf(i18n.G("Download snap %q%s from channel %q"), snapsup.InstanceName(), revisionStr, snapsup.Channel))
 	}

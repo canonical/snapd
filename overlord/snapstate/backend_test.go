@@ -236,6 +236,9 @@ func (f *fakeStore) snap(spec snapSpec, user *auth.UserState) (*snap.Info, error
 		SnapType:    typ,
 		Epoch:       epoch,
 	}
+	if spec.Name == "some-snap-with-base" {
+		info.Base = "core18"
+	}
 	switch spec.Channel {
 	case "channel-no-revision":
 		return nil, &store.RevisionNotAvailableError{}

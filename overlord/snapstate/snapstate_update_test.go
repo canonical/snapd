@@ -5334,3 +5334,30 @@ func (s *snapmgrTestSuite) TestEmptyUpdateWithChannelChangeAndAutoAlias(c *C) {
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(chg.IsReady(), Equals, true)
 }
+
+func (s *snapmgrTestSuite) TestUpdateToLocalRevisionNoLowDiskSpaceCheck(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", Revision: snap.R(1)},
+			{RealName: "some-snap", Revision: snap.R(2)},
+		},
+		Current: snap.R(1),
+		Active:  true,
+		SnapType: "app",
+	})
+
+	var diskCheck bool
+	restore := snapstate.MockOsutilCheckFreeSpace(func(string, uint64) error {
+		diskCheck = true
+		return fmt.Errorf("not expected")
+	})
+	defer restore()
+
+	opts := &snapstate.RevisionOptions{Channel: "some-channel", Revision: snap.R(2)}
+	_, err := snapstate.Update(s.state, "some-snap", opts, 0, snapstate.Flags{})
+	c.Check(diskCheck, Equals, false)
+	c.Assert(err, IsNil)
+}

@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -381,7 +382,8 @@ func (s *snapmgrTestSuite) TestInstallDespiteBusySnap(c *C) {
 
 	// Attempt to install revision 2 of the snap.
 	snapsup := &snapstate.SnapSetup{
-		SideInfo: &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(2)},
+		SideInfo:     &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(2)},
+		DownloadInfo: &snap.DownloadInfo{Size: 1},
 	}
 
 	// And observe that refresh occurred regardless of the running process.
@@ -397,6 +399,85 @@ func (s *snapmgrTestSuite) TestInstallFailsOnSystem(c *C) {
 	_, err := snapstate.DoInstall(s.state, nil, snapsup, 0, "", nil)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `cannot install reserved snap name 'system'`)
+}
+
+func (s *snapmgrTestSuite) TestInstallFailsOnLowDiskSpace(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	restore := snapstate.MockOsutilCheckFreeSpace(func(string, uint64) error { return &osutil.NotEnoughDiskSpaceError{} })
+	defer restore()
+
+	opts := &snapstate.RevisionOptions{Channel: "some-channel", Revision: snap.R(42)}
+	_, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, 0, snapstate.Flags{})
+	_, ok := err.(*osutil.NotEnoughDiskSpaceError)
+	c.Assert(ok, Equals, true)
+}
+
+func failNthDiskCheck(count *int, failOn int) (func(string, uint64) error) {
+	return func(string, uint64) error {
+		*count++
+		if *count == failOn {
+			return &osutil.NotEnoughDiskSpaceError{}
+		}
+		return nil
+	}
+}
+
+func (s *snapmgrTestSuite) TestInstallWithDefaultProviderFailsOnLowDiskSpace(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	diskSpaceCheckCnt := 0
+	restore := snapstate.MockOsutilCheckFreeSpace(failNthDiskCheck(&diskSpaceCheckCnt, 2))
+	defer restore()
+
+	snapstate.ReplaceStore(s.state, contentStore{fakeStore: s.fakeStore, state: s.state})
+
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(s.state, repo)
+
+	chg := s.state.NewChange("install", "install a snap")
+	opts := &snapstate.RevisionOptions{Channel: "stable", Revision: snap.R(42)}
+	ts, err := snapstate.Install(context.Background(), s.state, "snap-content-plug", opts, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Check(chg.Err(), ErrorMatches, `.*cannot perform the following tasks:\n.*Ensure prerequisites.*cannot install prerequisite "snap-content-slot": insufficient space.*`)
+	c.Check(diskSpaceCheckCnt, Equals, 2)
+}
+
+func (s *snapmgrTestSuite) TestInstallWithBaseFailsOnLowDiskSpace(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	diskSpaceCheckCnt := 0
+	restore := snapstate.MockOsutilCheckFreeSpace(failNthDiskCheck(&diskSpaceCheckCnt, 2))
+	defer restore()
+
+	snapstate.ReplaceStore(s.state, contentStore{fakeStore: s.fakeStore, state: s.state})
+
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(s.state, repo)
+
+	chg := s.state.NewChange("install", "install a snap")
+	opts := &snapstate.RevisionOptions{}
+	ts, err := snapstate.Install(context.Background(), s.state, "some-snap-with-base", opts, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Check(chg.Err(), ErrorMatches, `.*cannot perform the following tasks:\n.* for "some-snap-with-base" are available \(cannot install snap base "core18": insufficient space.*`)
+	c.Check(diskSpaceCheckCnt, Equals, 2)
 }
 
 func (s *snapmgrTestSuite) TestDoInstallChannelDefault(c *C) {
