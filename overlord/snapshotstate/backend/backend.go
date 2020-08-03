@@ -169,39 +169,21 @@ func EstimateSnapshotSize(si *snap.Info) (uint64, error) {
 		return err
 	}
 
-	// helper function for visiting revisionDir and common dir that is
-	// at the same level as revisionDir.
-	visitDataDir := func(revisionDir string) error {
-		parent := filepath.Dir(revisionDir)
-		exists, isDir, err := osutil.DirExists(parent)
+	visitDir := func(dir string) error {
+		exists, isDir, err := osutil.DirExists(dir)
 		if err != nil {
 			return err
 		}
 		if !(exists && isDir) {
 			return nil
 		}
-
-		exists, isDir, err = osutil.DirExists(revisionDir)
-		if err != nil {
-			return err
-		}
-		if exists && isDir {
-			filepath.Walk(revisionDir, calculateSize)
-		}
-
-		common := filepath.Join(parent, "common")
-		exists, isDir, err = osutil.DirExists(common)
-		if err != nil {
-			return err
-		}
-		if exists && isDir {
-			filepath.Walk(common, calculateSize)
-		}
-		return nil
+		return filepath.Walk(dir, calculateSize)
 	}
 
-	if err := visitDataDir(si.DataDir()); err != nil {
-		return 0, err
+	for _, dir := range []string{si.DataDir(), si.CommonDataDir()} {
+		if err := visitDir(dir); err != nil {
+			return 0, err
+		}
 	}
 
 	// XXX: if we want to support users, then we need to iterate over them,
