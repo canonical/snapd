@@ -36,6 +36,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
@@ -100,6 +101,9 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
+	restoreCheckFreeSpace := snapstate.MockOsutilCheckFreeSpace(func(string, uint64) error { return nil })
+	s.AddCleanup(restoreCheckFreeSpace)
+
 	s.fakeBackend = &fakeSnappyBackend{}
 	s.fakeBackend.emptyContainer = emptyContainer(c)
 	s.fakeStore = &fakeStore{
@@ -161,6 +165,10 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 		return nil, nil, nil
 	}))
 
+	oldEstimateSnapshotSize := snapstate.EstimateSnapshotSize
+	snapstate.EstimateSnapshotSize = func(st *state.State, instanceName string) (uint64, error) {
+		return 1, nil
+	}
 	oldAutomaticSnapshot := snapstate.AutomaticSnapshot
 	snapstate.AutomaticSnapshot = func(st *state.State, instanceName string) (ts *state.TaskSet, err error) {
 		task := st.NewTask("save-snapshot", "...")
@@ -171,6 +179,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	oldAutomaticSnapshotExpiration := snapstate.AutomaticSnapshotExpiration
 	snapstate.AutomaticSnapshotExpiration = func(st *state.State) (time.Duration, error) { return 1, nil }
 	s.BaseTest.AddCleanup(func() {
+		snapstate.EstimateSnapshotSize = oldEstimateSnapshotSize
 		snapstate.AutomaticSnapshot = oldAutomaticSnapshot
 		snapstate.AutomaticSnapshotExpiration = oldAutomaticSnapshotExpiration
 	})
@@ -1063,6 +1072,51 @@ func (s *snapmgrTestSuite) TestRemoveConflict(c *C) {
 
 	_, err = snapstate.Remove(s.state, "some-snap", snap.R(0), nil)
 	c.Assert(err, ErrorMatches, `snap "some-snap" has "remove" change in progress`)
+}
+
+func (s *snapmgrTestSuite) TestRemoveDiskSpaceForSnapshotError(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	restore := snapstate.MockOsutilCheckFreeSpace(func(string, uint64) error { return &osutil.NotEnoughDiskSpaceError{} })
+	defer restore()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "some-snap", Revision: snap.R(11)}},
+		Current:  snap.R(11),
+		SnapType: "app",
+	})
+
+	_, err := snapstate.Remove(s.state, "some-snap", snap.R(0), nil)
+	c.Assert(err, ErrorMatches, `cannot create automatic snapshot when removing last revision of the snap: insufficient space.*`)
+}
+
+
+func (s *snapmgrTestSuite) TestRemoveDiskSpaceForSnapshotNotCheckedWhenSnapshotsDisabled(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	restore := snapstate.MockOsutilCheckFreeSpace(func(string, uint64) error { return &osutil.NotEnoughDiskSpaceError{} })
+	defer restore()
+
+	var automaticSnapshotCalled bool
+	snapstate.AutomaticSnapshot = func(st *state.State, instanceName string) (ts *state.TaskSet, err error) {
+		automaticSnapshotCalled = true
+		// ErrNothingToDo is returned if automatic snapshots are disabled
+		return nil, snapstate.ErrNothingToDo
+	}
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "some-snap", Revision: snap.R(11)}},
+		Current:  snap.R(11),
+		SnapType: "app",
+	})
+
+	_, err := snapstate.Remove(s.state, "some-snap", snap.R(0), nil)
+	c.Assert(err, IsNil)
+	c.Assert(automaticSnapshotCalled, Equals, true)
 }
 
 func (s *snapmgrTestSuite) TestDisableSnapDisabledServicesSaved(c *C) {

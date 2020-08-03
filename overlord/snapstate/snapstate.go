@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
@@ -70,6 +71,8 @@ const (
 
 var ErrNothingToDo = errors.New("nothing to do")
 
+var osutilCheckFreeSpace = osutil.CheckFreeSpace
+
 func isParallelInstallable(snapsup *SnapSetup) error {
 	if snapsup.InstanceKey == "" {
 		return nil
@@ -78,6 +81,11 @@ func isParallelInstallable(snapsup *SnapSetup) error {
 		return nil
 	}
 	return fmt.Errorf("cannot install snap of type %v as %q", snapsup.Type, snapsup.InstanceName())
+}
+
+func requiredSpaceWithMargin(minSize uint64) uint64 {
+	// 10% extra + 1Mb
+	return minSize + uint64(0.1 * float64(minSize)) + 1024*1024
 }
 
 func optedIntoSnapdSnap(st *state.State) (bool, error) {
@@ -1909,6 +1917,16 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 		if tp, _ := snapst.Type(); tp == snap.TypeApp && removeAll {
 			ts, err := AutomaticSnapshot(st, name)
 			if err == nil {
+				if sz, err := EstimateSnapshotSize(st, name); err == nil {
+					requiredSpace := requiredSpaceWithMargin(uint64(sz))
+					if err := osutilCheckFreeSpace(dirs.SnapdStateDir(dirs.GlobalRootDir), requiredSpace); err != nil {
+						if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
+							return nil, fmt.Errorf("cannot create automatic snapshot when removing last revision of the snap: %v", err)
+						}
+						return nil, err
+					}
+				} // XXX: should we fail if estimation fails?
+
 				addNext(ts)
 			} else {
 				if err != ErrNothingToDo {
