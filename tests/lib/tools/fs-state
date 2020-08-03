@@ -1,0 +1,100 @@
+#!/bin/bash
+
+show_help() {
+    echo "usage: fs-state mock-dir [dirname]"
+    echo "       fs-state restore-dir [dirname]"
+    echo "       fs-state mock-file [filename]"
+    echo "       fs-state restore-file [filename]"
+}
+
+_mock_dir() {
+    local dir="$1"
+    if [ ! -d "$dir" ]; then
+        echo "fs-state: created mock directory: $dir"
+        mkdir -p "$dir"
+        touch "$dir.fake"
+    fi
+}
+
+mock_dir() {
+    local dir="$1"
+    if [ -d "$dir" ]; then
+        mv "$dir" "$dir.back"
+    fi
+    _mock_dir "$dir"
+}
+
+restore_dir() {
+    local dir="$1"
+
+    if [ -e "$dir.fake" ]; then
+        echo "fs-state: restoring mocked directory: $dir"
+        rm -rf "$dir"
+        rm -f "$dir.fake"
+    else
+        echo "fs-state: cannot restore non-mocked directory: $dir" >&2
+        exit 1
+    fi
+    if [ -d "$dir.back" ]; then
+        mv "$dir.back" "$dir"
+    fi
+}
+
+_mock_file() {
+    local file="$1"
+    if [ ! -e "$file" ]; then
+        echo "fs-state: creating file: $file"
+        echo "The file is a mock file used by fs-state." > "$file"
+        echo "The .fake file is a marker file used by fs-state." > "$file.fake"
+    fi
+}
+
+mock_file() {
+    local file="$1"
+    if [ -e "$file" ]; then
+        echo "fs-state: backing up original file: $file"
+        mv "$file" "$file.back"
+    fi
+    # ensure the parent dir is available
+    if [ ! -d "$(dirname "$file")" ]; then
+        mkdir -p "$(dirname "$file")"
+    fi
+    _mock_file "$file"
+}
+
+restore_file() {
+    local file="$1"
+    if [ -e "$file.fake" ]; then
+        echo "fs-state: restoring mocked file: $file"
+        rm -f "$file"
+        rm -f "$file.fake"
+    else
+        echo "fs-state: cannot restore non-mocked file: $file" >&2
+        exit 1
+    fi
+    if [ -e "$file.back" ]; then
+        mv "$file.back" "$file"
+    fi
+}
+
+if [ $# -eq 0 ]; then
+    show_help
+    exit 0
+fi
+
+action=
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -h|--help|'')
+            show_help
+            exit 0
+            ;;
+        *)
+            action=$(echo "$1" | tr '-' '_')
+            shift
+            break
+            ;;
+    esac
+done
+
+"$action" "$@"

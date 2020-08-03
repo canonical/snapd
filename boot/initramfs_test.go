@@ -45,22 +45,22 @@ func (s *initramfsSuite) SetUpTest(c *C) {
 	s.baseBootenvSuite.SetUpTest(c)
 }
 
-func makeSnapFilesOnInitramfsUbuntuData(c *C, comment string, snaps ...snap.PlaceInfo) (restore func()) {
+func makeSnapFilesOnInitramfsUbuntuData(c *C, comment CommentInterface, snaps ...snap.PlaceInfo) (restore func()) {
 	// also make sure the snaps also exist on ubuntu-data
 	snapDir := dirs.SnapBlobDirUnder(boot.InitramfsWritableDir)
 	err := os.MkdirAll(snapDir, 0755)
-	c.Assert(err, IsNil)
+	c.Assert(err, IsNil, comment)
 	paths := make([]string, 0, len(snaps))
 	for _, sn := range snaps {
 		snPath := filepath.Join(snapDir, sn.Filename())
 		paths = append(paths, snPath)
 		err = ioutil.WriteFile(snPath, nil, 0644)
-		c.Assert(err, IsNil, Commentf(comment))
+		c.Assert(err, IsNil, comment)
 	}
 	return func() {
 		for _, path := range paths {
 			err := os.Remove(path)
-			c.Assert(err, IsNil, Commentf(comment))
+			c.Assert(err, IsNil, comment)
 		}
 	}
 }
@@ -485,7 +485,7 @@ func (s *initramfsSuite) TestInitramfsRunModeChooseSnapsToMount(c *C) {
 		for _, t := range tt {
 			var cleanups []func()
 
-			comment := fmt.Sprintf("[%s] %s", tbl.name, t.comment)
+			comment := Commentf("[%s] %s", tbl.name, t.comment)
 
 			bootloader.Force(bl)
 			cleanups = append(cleanups, func() { bootloader.Force(nil) })
@@ -500,7 +500,7 @@ func (s *initramfsSuite) TestInitramfsRunModeChooseSnapsToMount(c *C) {
 			}
 
 			if t.blvars != nil {
-				c.Assert(bl.SetBootVars(t.blvars), IsNil)
+				c.Assert(bl.SetBootVars(t.blvars), IsNil, comment)
 			}
 
 			if len(t.snapsToMake) != 0 {
@@ -515,29 +515,29 @@ func (s *initramfsSuite) TestInitramfsRunModeChooseSnapsToMount(c *C) {
 			cleanups = append(cleanups, func() {
 				c.Assert(os.Remove(dirs.SnapModeenvFileUnder(boot.InitramfsWritableDir)), IsNil, Commentf(t.comment))
 			})
-			c.Assert(err, IsNil)
+			c.Assert(err, IsNil, comment)
 
 			m, err := boot.ReadModeenv(boot.InitramfsWritableDir)
-			c.Assert(err, IsNil)
+			c.Assert(err, IsNil, comment)
 
 			mountSnaps, err := boot.InitramfsRunModeSelectSnapsToMount(t.typs, m)
 			if t.errPattern != "" {
-				c.Assert(err, ErrorMatches, t.errPattern, Commentf(comment))
+				c.Assert(err, ErrorMatches, t.errPattern, comment)
 			} else {
-				c.Assert(err, IsNil, Commentf(comment))
-				c.Assert(mountSnaps, DeepEquals, t.expected, Commentf(comment))
+				c.Assert(err, IsNil, comment)
+				c.Assert(mountSnaps, DeepEquals, t.expected, comment)
 			}
 
 			// check that the modeenv changed as expected
 			if t.expectedM != nil {
 				newM, err := boot.ReadModeenv(boot.InitramfsWritableDir)
-				c.Assert(err, IsNil, Commentf(comment))
-				c.Assert(newM.Base, Equals, t.expectedM.Base, Commentf(comment))
-				c.Assert(newM.BaseStatus, Equals, t.expectedM.BaseStatus, Commentf(comment))
-				c.Assert(newM.TryBase, Equals, t.expectedM.TryBase, Commentf(comment))
+				c.Assert(err, IsNil, comment)
+				c.Assert(newM.Base, Equals, t.expectedM.Base, comment)
+				c.Assert(newM.BaseStatus, Equals, t.expectedM.BaseStatus, comment)
+				c.Assert(newM.TryBase, Equals, t.expectedM.TryBase, comment)
 
 				// shouldn't be changing in the initramfs, but be safe
-				c.Assert(newM.CurrentKernels, DeepEquals, t.expectedM.CurrentKernels, Commentf(comment))
+				c.Assert(newM.CurrentKernels, DeepEquals, t.expectedM.CurrentKernels, comment)
 			}
 
 			// clean up

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,18 +17,16 @@
  *
  */
 
-package backend
+package main
 
-type sizer struct {
-	size int64
-}
+var (
+	ParseArgs   = parseArgs
+	Run         = run
+	FormatLines = formatLines
+)
 
-func (sz *sizer) Write(data []byte) (n int, err error) {
-	n = len(data)
-	sz.size += int64(n)
-	return
-}
-
-func (sz *sizer) Reset() {
-	sz.size = 0
+func ResetArgs() {
+	*inFile = ""
+	*outFile = ""
+	*assetName = ""
 }

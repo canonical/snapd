@@ -205,6 +205,16 @@ func (b *MockRecoveryAwareBootloader) SetRecoverySystemEnv(recoverySystemDir str
 	return nil
 }
 
+// GetRecoverySystemEnv gets the recovery system environment bootloader
+// variables; part of RecoveryAwareBootloader.
+func (b *MockRecoveryAwareBootloader) GetRecoverySystemEnv(recoverySystemDir, key string) (string, error) {
+	if recoverySystemDir == "" {
+		panic("MockBootloader.GetRecoverySystemEnv called without recoverySystemDir")
+	}
+	b.RecoverySystemDir = recoverySystemDir
+	return b.RecoverySystemBootVars[key], nil
+}
+
 // MockExtractedRunKernelImageBootloader mocks a bootloader
 // implementing the ExtractedRunKernelImageBootloader interface.
 type MockExtractedRunKernelImageBootloader struct {
@@ -368,13 +378,14 @@ func (b *MockExtractedRunKernelImageBootloader) DisableTryKernel() error {
 type MockManagedAssetsBootloader struct {
 	*MockBootloader
 
-	IsManaged         bool
-	IsManagedErr      error
-	UpdateErr         error
-	UpdateCalls       int
-	Assets            []string
-	StaticCommandLine string
-	CommandLineErr    error
+	IsManaged                  bool
+	IsManagedErr               error
+	UpdateErr                  error
+	UpdateCalls                int
+	Assets                     []string
+	StaticCommandLine          string
+	CandidateStaticCommandLine string
+	CommandLineErr             error
 }
 
 func (b *MockBootloader) WithManagedAssets() *MockManagedAssetsBootloader {
@@ -396,10 +407,54 @@ func (b *MockManagedAssetsBootloader) UpdateBootConfig(opts *bootloader.Options)
 	return b.UpdateErr
 }
 
-func (b *MockManagedAssetsBootloader) CommandLine(args []string) (string, error) {
+func glueCommandLine(modeArg, systemArg, staticArgs, extraArgs string) string {
+	args := []string(nil)
+	for _, argSet := range []string{modeArg, systemArg, staticArgs, extraArgs} {
+		if argSet != "" {
+			args = append(args, argSet)
+		}
+	}
+	line := strings.Join(args, " ")
+	return strings.TrimSpace(line)
+}
+
+func (b *MockManagedAssetsBootloader) CommandLine(modeArg, systemArg, extraArgs string) (string, error) {
 	if b.CommandLineErr != nil {
 		return "", b.CommandLineErr
 	}
-	line := strings.Join(append([]string{b.StaticCommandLine}, args...), " ")
-	return strings.TrimSpace(line), nil
+	return glueCommandLine(modeArg, systemArg, b.StaticCommandLine, extraArgs), nil
+}
+
+func (b *MockManagedAssetsBootloader) CandidateCommandLine(modeArg, systemArg, extraArgs string) (string, error) {
+	if b.CommandLineErr != nil {
+		return "", b.CommandLineErr
+	}
+	return glueCommandLine(modeArg, systemArg, b.CandidateStaticCommandLine, extraArgs), nil
+}
+
+// MockManagedAssetsRecoveryAwareBootloader mocks a bootloader implementing the
+// bootloader.ManagedAssetsBootloader and bootloader.RecoveryAwareBootloader
+// interfaces.
+type MockManagedAssetsRecoveryAwareBootloader struct {
+	*MockManagedAssetsBootloader
+
+	EnvVars map[string]string
+}
+
+func (b *MockBootloader) WithManagedAssetsRecoveryAware() *MockManagedAssetsRecoveryAwareBootloader {
+	return &MockManagedAssetsRecoveryAwareBootloader{
+		MockManagedAssetsBootloader: &MockManagedAssetsBootloader{
+			MockBootloader: b,
+		},
+		EnvVars: make(map[string]string),
+	}
+}
+
+func (b *MockManagedAssetsRecoveryAwareBootloader) SetRecoverySystemEnv(systemDir string, env map[string]string) error {
+	b.EnvVars = env
+	return nil
+}
+
+func (b *MockManagedAssetsRecoveryAwareBootloader) GetRecoverySystemEnv(systemDir, key string) (string, error) {
+	return b.EnvVars[key], nil
 }

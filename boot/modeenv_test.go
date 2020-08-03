@@ -251,8 +251,10 @@ func (s *modeenvSuite) TestWriteToNonExistingFull(c *C) {
 	c.Assert(s.mockModeenvPath, testutil.FileAbsent)
 
 	modeenv := &boot.Modeenv{
-		Mode:           "run",
-		RecoverySystem: "20191128",
+		Mode:                   "run",
+		RecoverySystem:         "20191128",
+		CurrentRecoverySystems: []string{"20191128", "2020-02-03", "20240101-FOO"},
+		// keep this comment to make gofmt 1.9 happy
 		Base:           "core20_321.snap",
 		TryBase:        "core20_322.snap",
 		BaseStatus:     boot.TryStatus,
@@ -263,9 +265,40 @@ func (s *modeenvSuite) TestWriteToNonExistingFull(c *C) {
 
 	c.Assert(s.mockModeenvPath, testutil.FileEquals, `mode=run
 recovery_system=20191128
+current_recovery_systems=20191128,2020-02-03,20240101-FOO
 base=core20_321.snap
 try_base=core20_322.snap
 base_status=try
 current_kernels=pc-kernel_1.snap,pc-kernel_2.snap
 `)
+}
+
+func (s *modeenvSuite) TestReadRecoverySystems(c *C) {
+	tt := []struct {
+		systemsString   string
+		expectedSystems []string
+	}{
+		{
+			"20191126",
+			[]string{"20191126"},
+		}, {
+			"20191128,2020-02-03,20240101-FOO",
+			[]string{"20191128", "2020-02-03", "20240101-FOO"},
+		},
+		{",,,", nil},
+		{"", nil},
+	}
+
+	for _, t := range tt {
+		c.Logf("tc: %q", t.systemsString)
+		s.makeMockModeenvFile(c, `mode=recovery
+recovery_system=20191126
+current_recovery_systems=`+t.systemsString+"\n")
+
+		modeenv, err := boot.ReadModeenv(s.tmpdir)
+		c.Assert(err, IsNil)
+		c.Check(modeenv.Mode, Equals, "recovery")
+		c.Check(modeenv.RecoverySystem, Equals, "20191126")
+		c.Check(modeenv.CurrentRecoverySystems, DeepEquals, t.expectedSystems)
+	}
 }
