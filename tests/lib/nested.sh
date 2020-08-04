@@ -539,7 +539,7 @@ start_nested_core_vm_unit(){
         if [ "$ENABLE_SECURE_BOOT" = "true" ]; then
             cp -f "/usr/share/OVMF/OVMF_VARS.$OVMF_VARS.fd" "$WORK_DIR/image/OVMF_VARS.$OVMF_VARS.fd"
             PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE.$OVMF_CODE.fd,if=pflash,format=raw,unit=0,readonly -drive file=$WORK_DIR/image/OVMF_VARS.$OVMF_VARS.fd,if=pflash,format=raw"
-            PARAM_MACHINE="-machine pc-q35-2.10,vmport=off${ATTR_KVM} -global ICH9-LPC.disable_s3=1"
+            PARAM_MACHINE="-machine q35${ATTR_KVM} -global ICH9-LPC.disable_s3=1"
         fi
 
         if [ "$ENABLE_TPM" = "true" ]; then
