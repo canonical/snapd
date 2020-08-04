@@ -1682,6 +1682,14 @@ recovery_system=20191118
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeMeasure(c *C) {
+	s.testInitramfsMountsInstallRecoverModeMeasure(c, "install")
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeUnsetMeasure(c *C) {
+	// TODO:UC20: eventually we should require snapd_recovery_mode to be set to
+	// explicitly "install" for install mode, but we originally allowed
+	// snapd_recovery_mode="" and interpreted it as install mode, so test that
+	// case too
 	s.testInitramfsMountsInstallRecoverModeMeasure(c, "")
 }
 
