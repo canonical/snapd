@@ -424,47 +424,47 @@ func (s *startPreseedSuite) TestCheckTargetSnapdVersion(c *C) {
 	restoreMountPath := main.MockSnapdMountPath(targetSnapdRoot)
 	defer restoreMountPath()
 
-	var versions = []struct{
-		fromSnap string
-		fromDeb string
-		expectedPath string
+	var versions = []struct {
+		fromSnap        string
+		fromDeb         string
+		expectedPath    string
 		expectedVersion string
-		expectedErr string
+		expectedErr     string
 	}{
 		{
-			fromDeb: "2.44.0",
+			fromDeb:  "2.44.0",
 			fromSnap: "2.45.3+git123",
 			// snap version wins
 			expectedVersion: "2.45.3+git123",
-			expectedPath: filepath.Join(tmpDir, "target-core-mounted-here/usr/lib/snapd/snapd"),
+			expectedPath:    filepath.Join(tmpDir, "target-core-mounted-here/usr/lib/snapd/snapd"),
 		},
 		{
-			fromDeb: "2.44.0",
+			fromDeb:  "2.44.0",
 			fromSnap: "2.44.0",
 			// snap version wins
 			expectedVersion: "2.44.0",
-			expectedPath: filepath.Join(tmpDir, "target-core-mounted-here/usr/lib/snapd/snapd"),
+			expectedPath:    filepath.Join(tmpDir, "target-core-mounted-here/usr/lib/snapd/snapd"),
 		},
 		{
-			fromDeb: "2.45.1+20.04",
+			fromDeb:  "2.45.1+20.04",
 			fromSnap: "2.45.1",
 			// deb version wins
 			expectedVersion: "2.45.1+20.04",
-			expectedPath: filepath.Join(tmpDir, "usr/lib/snapd/snapd"),
+			expectedPath:    filepath.Join(tmpDir, "usr/lib/snapd/snapd"),
 		},
 		{
-			fromDeb: "2.45.2",
+			fromDeb:  "2.45.2",
 			fromSnap: "2.45.1",
 			// deb version wins
 			expectedVersion: "2.45.2",
-			expectedPath: filepath.Join(tmpDir, "usr/lib/snapd/snapd"),
+			expectedPath:    filepath.Join(tmpDir, "usr/lib/snapd/snapd"),
 		},
 		{
-			fromSnap: "2.45.1",
+			fromSnap:    "2.45.1",
 			expectedErr: fmt.Sprintf("cannot open snapd info file %q.*", filepath.Join(tmpDir, "usr/lib/snapd/info")),
 		},
 		{
-			fromDeb: "2.45.1",
+			fromDeb:     "2.45.1",
 			expectedErr: fmt.Sprintf("cannot open snapd info file %q.*", filepath.Join(tmpDir, "target-core-mounted-here/usr/lib/snapd/info")),
 		},
 	}
