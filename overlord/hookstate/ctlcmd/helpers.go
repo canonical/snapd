@@ -156,7 +156,6 @@ func runServiceCommand(context *hookstate.Context, inst *servicestate.Instructio
 
 	st.Lock()
 	chg := st.NewChange("service-control", fmt.Sprintf("Running service command for snap %q", context.InstanceName()))
-	// add all exec-command tasks for compatibility with old snapd
 	for _, ts := range tts {
 		chg.AddAll(ts)
 	}

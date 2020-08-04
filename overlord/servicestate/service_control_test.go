@@ -115,7 +115,7 @@ func (s *serviceControlSuite) mockTestSnap(c *C) *snap.Info {
 	return info
 }
 
-func verifyControlTasks(c *C, tasks []*state.Task, expectedAction, supportAction string, expectedServices ...string) {
+func verifyControlTasks(c *C, tasks []*state.Task, expectedAction, actionModifier string, expectedServices ...string) {
 	// sanity, ensures test checks below are hit
 	c.Assert(len(tasks) > 0, Equals, true)
 
@@ -146,9 +146,9 @@ func verifyControlTasks(c *C, tasks []*state.Task, expectedAction, supportAction
 			c.Check(ignore, Equals, true)
 			switch expectedAction {
 			case "start":
-				if supportAction != "" {
+				if actionModifier != "" {
 					c.Assert(tasks[i].Get("argv", &argv), IsNil)
-					c.Check(argv, DeepEquals, append([]string{"systemctl", supportAction}, expectedServices...))
+					c.Check(argv, DeepEquals, append([]string{"systemctl", actionModifier}, expectedServices...))
 					i++
 					wt := tasks[i].WaitTasks()
 					c.Assert(wt, HasLen, 1)
@@ -157,9 +157,9 @@ func verifyControlTasks(c *C, tasks []*state.Task, expectedAction, supportAction
 				c.Assert(tasks[i].Get("argv", &argv), IsNil)
 				c.Check(argv, DeepEquals, append([]string{"systemctl", "start"}, expectedServices...))
 			case "stop":
-				if supportAction != "" {
+				if actionModifier != "" {
 					c.Assert(tasks[i].Get("argv", &argv), IsNil)
-					c.Check(argv, DeepEquals, append([]string{"systemctl", supportAction}, expectedServices...))
+					c.Check(argv, DeepEquals, append([]string{"systemctl", actionModifier}, expectedServices...))
 					i++
 					wt := tasks[i].WaitTasks()
 					c.Assert(wt, HasLen, 1)
@@ -168,7 +168,7 @@ func verifyControlTasks(c *C, tasks []*state.Task, expectedAction, supportAction
 				c.Assert(tasks[i].Get("argv", &argv), IsNil)
 				c.Check(argv, DeepEquals, append([]string{"systemctl", "stop"}, expectedServices...))
 			case "restart":
-				if supportAction != "" {
+				if actionModifier != "" {
 					c.Assert(tasks[i].Get("argv", &argv), IsNil)
 					c.Check(argv, DeepEquals, append([]string{"systemctl", "reload-or-restart"}, expectedServices...))
 				} else {
@@ -185,16 +185,16 @@ func verifyControlTasks(c *C, tasks []*state.Task, expectedAction, supportAction
 			switch expectedAction {
 			case "start":
 				c.Check(sa.Action, Equals, "start")
-				if supportAction != "" {
-					c.Check(sa.ActionModifier, Equals, supportAction)
+				if actionModifier != "" {
+					c.Check(sa.ActionModifier, Equals, actionModifier)
 				}
 			case "stop":
 				c.Check(sa.Action, Equals, "stop")
-				if supportAction != "" {
-					c.Check(sa.ActionModifier, Equals, supportAction)
+				if actionModifier != "" {
+					c.Check(sa.ActionModifier, Equals, actionModifier)
 				}
 			case "restart":
-				if supportAction == "reload" {
+				if actionModifier == "reload" {
 					c.Check(sa.Action, Equals, "reload-or-restart")
 				} else {
 					c.Check(sa.Action, Equals, "restart")
