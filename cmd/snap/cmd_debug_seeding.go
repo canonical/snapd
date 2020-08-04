@@ -32,6 +32,7 @@ import (
 
 type cmdSeeding struct {
 	clientMixin
+	unicodeMixin
 }
 
 func init() {
@@ -45,6 +46,8 @@ func init() {
 }
 
 func (x *cmdSeeding) Execute(args []string) error {
+	esc := x.getEscapes()
+
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
@@ -76,13 +79,13 @@ func (x *cmdSeeding) Execute(args []string) error {
 
 	// if we are missing time values, we will default to showing "-" for the
 	// duration
-	seedDuration := "-"
+	seedDuration := esc.dash
 	if resp.Preseeded {
 		if resp.PreseedTime != nil && resp.PreseedStartTime != nil {
 			preseedDuration := resp.PreseedTime.Sub(*resp.PreseedStartTime).Round(time.Millisecond)
 			fmt.Fprintf(w, "image-preseeding:\t%v\n", preseedDuration)
 		} else {
-			fmt.Fprintf(w, "image-preseeding:\t-\n")
+			fmt.Fprintf(w, "image-preseeding:\t%s\n", esc.dash)
 		}
 
 		if resp.SeedTime != nil && resp.SeedRestartTime != nil {
