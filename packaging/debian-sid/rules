@@ -222,6 +222,9 @@ override_dh_install-indep:
 	rm -f ${CURDIR}/debian/tmp/usr/bin/snappy
 	# chrorder generator
 	rm -f ${CURDIR}/debian/tmp/usr/bin/chrorder
+	# docs generator
+	rm -f ${CURDIR}/debian/tmp/usr/bin/docs
+
 	dh_install
 
 override_dh_install-arch:
