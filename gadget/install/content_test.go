@@ -172,26 +172,49 @@ const gadgetContent = `volumes:
         size: 1200M
 `
 
+type mockWriteObserver struct {
+	content     map[string][][]string
+	applyErr    error
+	applyCalled int
+	c           *C
+}
+
+func (m *mockWriteObserver) Observe(op gadget.ObserveAction, sourceStruct *gadget.LaidOutStructure,
+	targetRootDir, sourcePath, relativeTargetPath string) (gadget.ObserveResult, error) {
+	if m.content == nil {
+		m.content = make(map[string][][]string)
+	}
+	m.content[targetRootDir] = append(m.content[targetRootDir], []string{sourcePath, relativeTargetPath})
+	return gadget.ObserveResultNoted, nil
+}
+
+func (m *mockWriteObserver) Apply() error {
+	m.applyCalled++
+	return m.applyErr
+}
+
 func (s *contentTestSuite) TestWriteFilesystemContent(c *C) {
 	for _, tc := range []struct {
 		mountErr   error
 		unmountErr error
+		applyErr   error
 		err        string
 	}{
 		{
 			mountErr:   nil,
 			unmountErr: nil,
 			err:        "",
-		},
-		{
+		}, {
 			mountErr:   errors.New("mount error"),
 			unmountErr: nil,
 			err:        "cannot mount filesystem .*: mount error",
-		},
-		{
+		}, {
 			mountErr:   nil,
 			unmountErr: errors.New("unmount error"),
 			err:        "unmount error",
+		}, {
+			applyErr: errors.New("apply/seal error"),
+			err:      "cannot create filesystem image: cannot apply observed write actions: apply/seal error",
 		},
 	} {
 		mockMountpoint := c.MkDir()
@@ -219,8 +242,11 @@ func (s *contentTestSuite) TestWriteFilesystemContent(c *C) {
 				},
 			},
 		}
-
-		err := install.WriteContent(&m, s.gadgetRoot)
+		obs := &mockWriteObserver{
+			c:        c,
+			applyErr: tc.applyErr,
+		}
+		err := install.WriteContent(&m, s.gadgetRoot, obs)
 		if tc.err == "" {
 			c.Assert(err, IsNil)
 		} else {
@@ -232,6 +258,12 @@ func (s *contentTestSuite) TestWriteFilesystemContent(c *C) {
 			content, err := ioutil.ReadFile(filepath.Join(mockMountpoint, "2", "EFI/boot/grubx64.efi"))
 			c.Assert(err, IsNil)
 			c.Check(string(content), Equals, "grubx64.efi content")
+			c.Assert(obs.content, DeepEquals, map[string][][]string{
+				filepath.Join(mockMountpoint, "2"): {
+					{filepath.Join(s.gadgetRoot, "grubx64.efi"), "EFI/boot/grubx64.efi"},
+				},
+			})
+			c.Assert(obs.applyCalled, Equals, 1)
 		}
 	}
 }
@@ -254,7 +286,7 @@ func (s *contentTestSuite) TestWriteRawContent(c *C) {
 		},
 	}
 
-	err = install.WriteContent(&m, s.gadgetRoot)
+	err = install.WriteContent(&m, s.gadgetRoot, nil)
 	c.Assert(err, IsNil)
 
 	content, err := ioutil.ReadFile(m.Node)

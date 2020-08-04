@@ -51,7 +51,7 @@ func deviceFromRole(lv *gadget.LaidOutVolume, role string) (device string, err e
 
 // Run bootstraps the partitions of a device, by either creating
 // missing ones or recreating installed ones.
-func Run(gadgetRoot, device string, options Options) error {
+func Run(gadgetRoot, device string, options Options, observer gadget.ContentWriteObserver) error {
 	if options.Encrypt && (options.KeyFile == "" || options.RecoveryKeyFile == "") {
 		return fmt.Errorf("key file and recovery key file must be specified when encrypting")
 	}
@@ -142,7 +142,7 @@ func Run(gadgetRoot, device string, options Options) error {
 			return err
 		}
 
-		if err := writeContent(&part, gadgetRoot); err != nil {
+		if err := writeContent(&part, gadgetRoot, observer); err != nil {
 			return err
 		}
 
