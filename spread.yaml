@@ -154,11 +154,11 @@ backends:
             - ubuntu-16.04-64:
                   image: ubuntu-1604-64-virt-enabled
                   storage: 20G
-                  workers: 1
+                  workers: 2
             - ubuntu-18.04-64:
                   image: ubuntu-1804-64-virt-enabled
                   storage: 20G
-                  workers: 1
+                  workers: 2
             - ubuntu-19.10-64:
                   image: ubuntu-1910-64-virt-enabled
                   storage: 20G
