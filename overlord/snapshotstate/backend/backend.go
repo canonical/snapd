@@ -430,17 +430,18 @@ func (se *SnapshotExport) StreamTo(w io.Writer) error {
 			// should never happen
 			return fmt.Errorf("unexported special file %q in snapshot: %s", stat.Name(), stat.Mode())
 		}
+		if _, err := snapshotFd.Seek(0, 0); err != nil {
+			return fmt.Errorf("cannot seek on %v: %v", stat.Name(), err)
+		}
 		hdr, err := tar.FileInfoHeader(stat, "")
 		if err != nil {
 			return fmt.Errorf("symlink: %v", stat.Name())
 		}
 		if err = tw.WriteHeader(hdr); err != nil {
-			return err
+			return fmt.Errorf("cannot write header for %v: %v", stat.Name(), err)
 		}
-
-		// open the file
 		if _, err := io.Copy(tw, snapshotFd); err != nil {
-			return err
+			return fmt.Errorf("cannot write data for %v: %v", stat.Name(), err)
 		}
 
 		files = append(files, path.Base(snapshotFd.Name()))

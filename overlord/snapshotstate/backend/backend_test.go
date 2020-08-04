@@ -741,10 +741,15 @@ func (s *snapshotSuite) TestExportTwice(c *check.C) {
 	restore := backend.MockTimeNow(func() time.Time { return time.Time{} })
 	defer restore()
 	// export once
+	buf := bytes.NewBuffer(nil)
 	ctx := context.Background()
 	se, err := backend.Export(ctx, shID)
 	c.Check(err, check.IsNil)
 	c.Check(se.Size(), check.Equals, expectedSize)
+	// and we can stream the data
+	err = se.StreamTo(buf)
+	c.Assert(err, check.IsNil)
+	c.Check(buf.Len(), check.Equals, int(expectedSize))
 
 	// and again to ensure size does not change when exported again
 	//
@@ -756,6 +761,11 @@ func (s *snapshotSuite) TestExportTwice(c *check.C) {
 	se2, err := backend.Export(ctx, shID)
 	c.Check(err, check.IsNil)
 	c.Check(se2.Size(), check.Equals, expectedSize)
+	// and we can stream the data
+	buf.Reset()
+	err = se2.StreamTo(buf)
+	c.Assert(err, check.IsNil)
+	c.Check(buf.Len(), check.Equals, int(expectedSize))
 }
 
 func (s *snapshotSuite) TestExportUnhappy(c *check.C) {

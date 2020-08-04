@@ -307,7 +307,9 @@ type snapshotExportResponse struct {
 // ServeHTTP from the Response interface
 func (s snapshotExportResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Length", strconv.FormatInt(s.Size(), 10))
-	s.StreamTo(w)
+	if err := s.StreamTo(w); err != nil {
+		logger.Debugf("cannot export snapshot: %v", err)
+	}
 	s.Close()
 }
 
