@@ -373,9 +373,7 @@ func (s *systemKeySuite) TestSystemKeysUnmarshalSame(c *C) {
 			"rlimit",
 			"signal"
 		],
-		"apparmor-parser-features": [
-			"unsafe"
-		],
+		"apparmor-parser-features": [],
 		"apparmor-parser-mtime": 1589907589,
 		"build-id": "cb94e5eeee4cf7ecda53f8308a984cb155b55732",
 		"cgroup-version": "1",
@@ -406,11 +404,11 @@ func (s *systemKeySuite) TestSystemKeysUnmarshalSame(c *C) {
 	c.Assert(err, IsNil)
 
 	// now read the system key from disk
-	key2, err := interfaces.CurrentSystemKey()
+	key2, err := interfaces.RecordedSystemKey()
 	c.Assert(err, IsNil)
 
 	// the two system-keys should be the same
 	ok, err := interfaces.SystemKeysMatch(key1, key2)
 	c.Assert(err, IsNil)
-	c.Check(ok, Equals, true)
+	c.Check(ok, Equals, true, Commentf("key1:%#v key2:%#v", key1, key2))
 }
