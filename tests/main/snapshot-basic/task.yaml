@@ -105,7 +105,7 @@ execute: |
     # check memory usage for larger snap snapshot data exporting
     mkdir -p /var/snap/test-snapd-tools/common/
     dd if=/dev/urandom of=/var/snap/test-snapd-tools/common/huge bs=1M count=100
-    # create snapshot, grab its id
+    # create snapshot, grab its ID
     SET_ID=$( snap save test-snapd-tools | cut -d\  -f1 | tail -n1 )
     snap saved --id="$SET_ID" | grep test-snapd-tools
     snap check-snapshot "$SET_ID"

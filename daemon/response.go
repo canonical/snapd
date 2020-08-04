@@ -299,11 +299,13 @@ func (s *snapStream) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	}
 }
 
+// A snapshotExportResponse 's ServeHTTP method serves a specific snapshot ID
 type snapshotExportResponse struct {
 	SetID      uint64
 	ExportSize uint64
 }
 
+// ServeHTTP from the Response interface
 func (s snapshotExportResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Length", strconv.FormatUint(s.ExportSize, 10))
 
