@@ -150,7 +150,7 @@ get_nested_snap_rev(){
 get_snap_rev_for_channel(){
     SNAP=$1
     CHANNEL=$2
-    execute_remote "snap info $SNAP" | grep "$CHANNEL" | awk '{ print $4 }' | sed 's/.*(\(.*\))/\1/' | tr -d '\n'
+    snap info "$SNAP" | grep "$CHANNEL" | awk '{ print $4 }' | sed 's/.*(\(.*\))/\1/' | tr -d '\n'
 }
 
 get_nested_snap_channel(){
