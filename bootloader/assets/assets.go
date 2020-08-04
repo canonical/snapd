@@ -28,14 +28,16 @@ import (
 
 var registeredAssets = map[string][]byte{}
 
-type forEditions struct {
+// ForEditions wraps a snippet that is used in editions starting with
+// FirstEdition.
+type ForEditions struct {
 	// First edition this snippet is used in
 	FirstEdition uint
 	// Snippet data
 	Snippet []byte
 }
 
-var registeredEditionSnippets = map[string][]forEditions{}
+var registeredEditionSnippets = map[string][]ForEditions{}
 
 // registerInternal registers an internal asset under the given name.
 func registerInternal(name string, data []byte) {
@@ -51,7 +53,7 @@ func Internal(name string) []byte {
 	return registeredAssets[name]
 }
 
-type byFirstEdition []forEditions
+type byFirstEdition []ForEditions
 
 func (b byFirstEdition) Len() int           { return len(b) }
 func (b byFirstEdition) Swap(i, j int)      { b[i], b[j] = b[j], b[i] }
@@ -59,7 +61,7 @@ func (b byFirstEdition) Less(i, j int) bool { return b[i].FirstEdition < b[j].Fi
 
 // registerSnippetForEditions register a set of snippets, each carrying the
 // first edition number it applies to, under a given key.
-func registerSnippetForEditions(name string, snippets []forEditions) {
+func registerSnippetForEditions(name string, snippets []ForEditions) {
 	if _, ok := registeredEditionSnippets[name]; ok {
 		panic(fmt.Sprintf("edition snippets %q are already registered", name))
 	}
@@ -107,6 +109,27 @@ func MockInternal(name string, data []byte) (restore func()) {
 	return func() {
 		if ok {
 			registeredAssets[name] = old
+		} else {
+			delete(registeredAssets, name)
+		}
+	}
+}
+
+// MockSnippetsForEdition mocks the contents of per-edition snippets.
+func MockSnippetsForEdition(name string, snippets []ForEditions) (restore func()) {
+	osutil.MustBeTestBinary("mocking can be done only in tests")
+
+	old, ok := registeredEditionSnippets[name]
+	snippetsCopy := make([]ForEditions, len(snippets))
+	copy(snippetsCopy, snippets)
+	if ok {
+		delete(registeredEditionSnippets, name)
+	}
+	registerSnippetForEditions(name, snippetsCopy)
+
+	return func() {
+		if ok {
+			registeredEditionSnippets[name] = old
 		} else {
 			delete(registeredAssets, name)
 		}

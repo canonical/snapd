@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -214,6 +215,9 @@ func (s *firstbootPreseed16Suite) SetUpTest(c *C) {
 
 	err := os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "assertions"), 0755)
 	c.Assert(err, IsNil)
+
+	s.AddCleanup(interfaces.MockSystemKey(`{"core": "123"}`))
+	c.Assert(interfaces.WriteSystemKey(), IsNil)
 }
 
 func (s *firstbootPreseed16Suite) TestPreseedHappy(c *C) {

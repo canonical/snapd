@@ -196,8 +196,8 @@ func (x *cmdRemove) Execute([]string) error {
 		return x.removeOne(opts)
 	}
 
-	if x.Revision != "" {
-		return errors.New(i18n.G("a single snap name is needed to specify the revision"))
+	if x.Purge || x.Revision != "" {
+		return errors.New(i18n.G("a single snap name is needed to specify options"))
 	}
 	return x.removeMany(nil)
 }

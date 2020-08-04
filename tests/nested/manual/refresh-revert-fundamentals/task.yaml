@@ -1,0 +1,137 @@
+summary: Refresh and revert the fundamental snaps for uc20
+
+description: |
+    This test validates the fundamental snaps can be refreshed
+    and reverted to the new snaps published to edge channel.
+
+systems: [ubuntu-20.04-*]
+
+environment:
+    CORE_CHANNEL: beta
+    CORE_REFRESH_CHANNEL: edge
+    BUILD_SNAPD_FROM_CURRENT: false
+    USE_CLOUD_INIT: true
+    ENABLE_SECURE_BOOT: true
+    ENABLE_TPM: true
+
+    SNAP/kernel: pc-kernel
+    TRACK/kernel: 20
+
+    SNAP/gadget: pc    
+    TRACK/gadget: 20
+
+    SNAP/snapd: snapd
+    TRACK/snapd: latest
+
+    SNAP/base: core20
+    TRACK/base: latest
+
+prepare: |
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+    
+    FROM_REV="$(get_snap_rev_for_channel "$SNAP" $TRACK/$CORE_CHANNEL)"
+    TO_REV="$(get_snap_rev_for_channel "$SNAP" $TRACK/$CORE_REFRESH_CHANNEL)"
+
+    if [ "$FROM_REV" = "$TO_REV" ]; then
+        echo "Initial and target revisions are the same, skipping..."
+        touch skip.test
+        exit
+    fi
+
+    create_nested_core_vm
+    start_nested_core_vm
+
+restore: |
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+
+    if [ -f skip.test ]; then
+        rm -f skip.test
+        exit
+    fi
+
+    destroy_nested_vm
+    cleanup_nested_env
+
+    rm -f "$WORK_DIR/image/ubuntu-core.img"
+
+execute: |
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+
+    if [ -f skip.test ]; then
+        exit
+    fi
+
+    FROM_REV="$(get_snap_rev_for_channel "$SNAP" $TRACK/$CORE_CHANNEL)"
+    TO_REV="$(get_snap_rev_for_channel "$SNAP" $TRACK/$CORE_REFRESH_CHANNEL)"
+
+    execute_remote "snap list $SNAP" | MATCH "^${SNAP}.*${FROM_REV}.*${TRACK}/${CORE_CHANNEL}.*"
+    # The snap is refreshed
+    REFRESH_ID=$(execute_remote "sudo snap refresh --no-wait --channel $CORE_REFRESH_CHANNEL $SNAP")
+
+    case "$SNAP" in
+        snapd|pc)
+            # we manually reboot even after snapd refresh to ensure that if
+            # resealing took place we are still able to boot
+            execute_remote "snap watch $REFRESH_ID"
+            execute_remote "snap changes" | MATCH "$REFRESH_ID\s+Done\s+.*"
+            execute_remote "sudo reboot"
+            ;;
+        pc-kernel|core20)
+            # don't manually reboot, wait for automatic snapd reboot
+            ;;
+    esac
+    wait_for_no_ssh
+    wait_for_ssh
+
+    # Check the new version of the snaps is correct after the system reboot
+    execute_remote "snap list $SNAP" | MATCH "^${SNAP}.*${TO_REV}.*${TRACK}/${CORE_REFRESH_CHANNEL}.*"
+
+    # We check the change is completed
+    case "$SNAP" in
+        pc-kernel|core20)
+            for _ in $(seq 10); do
+                if execute_remote "snap changes" | MATCH "$REFRESH_ID\s+Done\s+.*"; then
+                    break
+                fi
+                sleep 1
+            done
+            execute_remote "snap changes" | MATCH "$REFRESH_ID\s+Done\s+.*"
+            ;;
+    esac
+
+    # The snap is reverted
+    REVERT_ID=$(execute_remote "sudo snap revert --no-wait $SNAP")
+
+    case "$SNAP" in
+        snapd|pc)
+            # we manually reboot even after snapd refresh to ensure that if
+            # resealing took place we are still able to boot
+            execute_remote "snap watch $REVERT_ID"
+            execute_remote "snap changes" | MATCH "$REVERT_ID\s+Done\s+.*"
+            execute_remote "sudo reboot"
+            ;;
+        pc-kernel|core20)
+            # don't manually reboot, wait for automatic snapd reboot
+            ;;
+    esac
+    wait_for_no_ssh
+    wait_for_ssh
+
+    # Check the version of the snaps after the revert is correct
+    execute_remote "snap list $SNAP" | MATCH "^${SNAP}.*${FROM_REV}.*${TRACK}/${CORE_REFRESH_CHANNEL}.*"
+
+    # We check the change is completed
+    case "$SNAP" in
+        pc-kernel|core20)
+            for _ in $(seq 10); do
+                if execute_remote "snap changes" | MATCH "$REVERT_ID\s+Done\s+.*"; then
+                    break
+                fi
+                sleep 1
+            done
+            execute_remote "snap changes" | MATCH "$REVERT_ID\s+Done\s+.*"
+            ;;
+    esac

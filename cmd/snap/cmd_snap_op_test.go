@@ -1662,10 +1662,12 @@ func (s *SnapOpSuite) TestRemoveRevision(c *check.C) {
 	c.Check(s.srv.n, check.Equals, s.srv.total)
 }
 
-func (s *SnapOpSuite) TestRemoveManyRevision(c *check.C) {
+func (s *SnapOpSuite) TestRemoveManyOptions(c *check.C) {
 	s.RedirectClientToTestServer(nil)
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"remove", "--revision=17", "one", "two"})
-	c.Assert(err, check.ErrorMatches, `a single snap name is needed to specify the revision`)
+	c.Assert(err, check.ErrorMatches, `a single snap name is needed to specify options`)
+	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"remove", "--purge", "one", "two"})
+	c.Assert(err, check.ErrorMatches, `a single snap name is needed to specify options`)
 }
 
 func (s *SnapOpSuite) TestRemoveMany(c *check.C) {
