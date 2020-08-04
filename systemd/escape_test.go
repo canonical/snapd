@@ -22,16 +22,133 @@ package systemd_test
 import (
 	. "gopkg.in/check.v1"
 
-	. "github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/systemd"
 )
 
-func (s *SystemdTestSuite) TestEscape(c *C) {
-	c.Check(EscapeUnitNamePath("Hallöchen, Meister"), Equals, `Hall\xc3\xb6chen\x2c\x20Meister`)
+func (ts *SystemdTestSuite) TestEscapePath(c *C) {
+	tt := []struct {
+		in      string
+		out     string
+		comment string
+	}{
+		{
+			`Hallöchen, Meister`,
+			`Hall\xc3\xb6chen\x2c\x20Meister`,
+			`utf-8 char and spaces`,
+		},
+		{
+			`/tmp//waldi/foobar/`,
+			`tmp-waldi-foobar`,
+			`unclean path`,
+		},
+		{
+			`/.foo/.bar`,
+			`\x2efoo-.bar`,
+			`leading dot escaped differently`,
+		},
+		{
+			`.foo/.bar`,
+			`\x2efoo-.bar`,
+			`leading dot escaped differently (without leading slash)`,
+		},
+		{
+			// TODO: this case shouldn't work it should cause an error to be
+			// fully compatible with systemd-escape(1), but it's not documented
+			// how or why systemd-escape considers this kind of path to be
+			// invalid, so for now we just process it in an expected and
+			// deterministic way
+			`/top_level_1/../top_level_2/`,
+			`top_level_2`,
+			`invalid path`,
+		},
+		{
+			``,
+			`-`,
+			`empty string`,
+		},
+		{
+			`/`,
+			`-`,
+			`root /`,
+		},
+		{
+			`////////`,
+			`-`,
+			`root / unclean`,
+		},
+		{
+			`-`,
+			`\x2d`,
+			`just dash`,
+		},
+		{
+			`/run/ubuntu------data`,
+			`run-ubuntu\x2d\x2d\x2d\x2d\x2d\x2ddata`,
+			`consecutive dashes`,
+		},
+		{
+			`/path-with-forward-slash\`,
+			`path\x2dwith\x2dforward\x2dslash\x5c`,
+			`forward slash in path element`,
+		},
+		{
+			`/run/1000/numbers`,
+			`run-1000-numbers`,
+			`numbers`,
+		},
+		{
+			`/silly/path/,!@#$%^&*()`,
+			`silly-path-\x2c\x21\x40\x23\x24\x25\x5e\x26\x2a\x28\x29`,
+			`ascii punctuation`,
+		},
+		{
+			`/run/mnt/data`,
+			`run-mnt-data`,
+			`typical data initramfs mount`,
+		},
+		{
+			`run/mnt/data`,
+			`run-mnt-data`,
+			`typical data initramfs mount w/o leading slash`,
+		},
+		{
+			`/run/mnt/ubuntu-seed`,
+			`run-mnt-ubuntu\x2dseed`,
+			`typical ubuntu-seed initramfs mount`,
+		},
+		{
+			`/run/mnt/ubuntu data`,
+			`run-mnt-ubuntu\x20data`,
+			`path with space in it`,
+		},
+		{
+			`/run/mnt/ubuntu_data`,
+			`run-mnt-ubuntu_data`,
+			`path with underscore in it`,
+		},
+		{
+			` `,
+			`\x20`,
+			"space character",
+		},
+		{
+			`	`,
+			`\x09`,
+			`tab character`,
+		},
+		{
+			`/home/日本語`,
+			`home-\xe6\x97\xa5\xe6\x9c\xac\xe8\xaa\x9e`,
+			`utf-8 characters`,
+		},
+		{
+			`/path⌘place-of-interest/hello`,
+			`path\xe2\x8c\x98place\x2dof\x2dinterest-hello`,
+			`utf-8 character embedded in ascii path element`,
+		},
+	}
 
-	c.Check(EscapeUnitNamePath("/tmp//waldi/foobar/"), Equals, `tmp-waldi-foobar`)
-	c.Check(EscapeUnitNamePath("/.foo/.bar"), Equals, `\x2efoo-.bar`)
-	c.Check(EscapeUnitNamePath("////"), Equals, `-`)
-	c.Check(EscapeUnitNamePath("."), Equals, `\x2e`)
-	c.Check(EscapeUnitNamePath("/foo/bar-baz"), Equals, `foo-bar\x2dbaz`)
-	c.Check(EscapeUnitNamePath("/foo/bar--baz"), Equals, `foo-bar\x2d\x2dbaz`)
+	for _, t := range tt {
+		c.Assert(systemd.EscapeUnitNamePath(t.in), Equals, t.out, Commentf(t.comment+" (with input %q)", t.in))
+	}
 }

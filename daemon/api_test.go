@@ -2770,6 +2770,7 @@ func (s *apiSuite) TestPostSnapsNoWeirdses(c *check.C) {
 			"jailmode":     "true",
 			"cohort-key":   `"what"`,
 			"leave-cohort": "true",
+			"purge":        "true",
 		} {
 			buf := strings.NewReader(fmt.Sprintf(`{"action": "%s","snaps":["foo","bar"], "%s": %s}`, action, weird, v))
 			req, err := http.NewRequest("POST", "/v2/snaps", buf)

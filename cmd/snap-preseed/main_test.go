@@ -205,6 +205,16 @@ func (s *startPreseedSuite) TestRunPreseedHappy(c *C) {
 
 	c.Assert(mockTargetSnapd.Calls(), HasLen, 1)
 	c.Check(mockTargetSnapd.Calls()[0], DeepEquals, []string{"snapd"})
+
+	// relative chroot path works too
+	tmpDirPath, relativeChroot := filepath.Split(tmpDir)
+	pwd, err := os.Getwd()
+	c.Assert(err, IsNil)
+	defer func() {
+		os.Chdir(pwd)
+	}()
+	c.Assert(os.Chdir(tmpDirPath), IsNil)
+	c.Check(main.Run(parser, []string{relativeChroot}), IsNil)
 }
 
 type Fake16Seed struct {
@@ -415,80 +425,111 @@ func (s *startPreseedSuite) TestReset(c *C) {
 	restore := main.MockOsGetuid(func() int { return 0 })
 	defer restore()
 
-	tmpDir := c.MkDir()
+	startDir, err := os.Getwd()
+	c.Assert(err, IsNil)
+	defer func() {
+		os.Chdir(startDir)
+	}()
 
-	// mock some preseeding artifacts
-	artifacts := []struct {
-		path string
-		// if symlinkTarget is not empty, then a path -> symlinkTarget symlink
-		// will be created instead of a regular file.
-		symlinkTarget string
-	}{
-		{dirs.SnapStateFile, ""},
-		{dirs.SnapSystemKeyFile, ""},
-		{filepath.Join(dirs.SnapDesktopFilesDir, "foo.desktop"), ""},
-		{filepath.Join(dirs.SnapDesktopIconsDir, "foo.png"), ""},
-		{filepath.Join(dirs.SnapMountPolicyDir, "foo.fstab"), ""},
-		{filepath.Join(dirs.SnapBlobDir, "foo.snap"), ""},
-		{filepath.Join(dirs.SnapUdevRulesDir, "foo-snap.bar.rules"), ""},
-		{filepath.Join(dirs.SnapBusPolicyDir, "snap.foo.bar.conf"), ""},
-		{filepath.Join(dirs.SnapServicesDir, "snap.foo.service"), ""},
-		{filepath.Join(dirs.SnapServicesDir, "snap.foo.timer"), ""},
-		{filepath.Join(dirs.SnapServicesDir, "snap.foo.socket"), ""},
-		{filepath.Join(dirs.SnapServicesDir, "snap-foo.mount"), ""},
-		{filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", "snap-foo.mount"), ""},
-		{filepath.Join(dirs.SnapDataDir, "foo", "bar"), ""},
-		{filepath.Join(dirs.SnapCacheDir, "foocache", "bar"), ""},
-		{filepath.Join(apparmor_sandbox.CacheDir, "foo", "bar"), ""},
-		{filepath.Join(dirs.SnapAppArmorDir, "foo"), ""},
-		{filepath.Join(dirs.SnapAssertsDBDir, "foo"), ""},
-		{filepath.Join(dirs.FeaturesDir, "foo"), ""},
-		{filepath.Join(dirs.SnapDeviceDir, "foo-1", "bar"), ""},
-		{filepath.Join(dirs.SnapCookieDir, "foo"), ""},
-		{filepath.Join(dirs.SnapSeqDir, "foo.json"), ""},
-		{filepath.Join(dirs.SnapMountDir, "foo", "bin"), ""},
-		{filepath.Join(dirs.SnapSeccompDir, "foo.bin"), ""},
-		// bash-completion symlinks
-		{filepath.Join(dirs.CompletersDir, "foo.bar"), "/a/snapd/complete.sh"},
-		{filepath.Join(dirs.CompletersDir, "foo"), "foo.bar"},
-	}
-
-	for _, art := range artifacts {
-		fullPath := filepath.Join(tmpDir, art.path)
-		// create parent dir
-		c.Assert(os.MkdirAll(filepath.Dir(fullPath), 0755), IsNil)
-		if art.symlinkTarget != "" {
-			// note, symlinkTarget is not relative to tmpDir
-			c.Assert(os.Symlink(art.symlinkTarget, fullPath), IsNil)
-		} else {
-			c.Assert(ioutil.WriteFile(fullPath, nil, os.ModePerm), IsNil)
+	for _, isRelative := range []bool{false, true} {
+		tmpDir := c.MkDir()
+		resetDirArg := tmpDir
+		if isRelative {
+			var parentDir string
+			parentDir, resetDirArg = filepath.Split(tmpDir)
+			os.Chdir(parentDir)
 		}
-	}
 
-	checkArtifacts := func(exists bool) {
+		// mock some preseeding artifacts
+		artifacts := []struct {
+			path string
+			// if symlinkTarget is not empty, then a path -> symlinkTarget symlink
+			// will be created instead of a regular file.
+			symlinkTarget string
+		}{
+			{dirs.SnapStateFile, ""},
+			{dirs.SnapSystemKeyFile, ""},
+			{filepath.Join(dirs.SnapDesktopFilesDir, "foo.desktop"), ""},
+			{filepath.Join(dirs.SnapDesktopIconsDir, "foo.png"), ""},
+			{filepath.Join(dirs.SnapMountPolicyDir, "foo.fstab"), ""},
+			{filepath.Join(dirs.SnapBlobDir, "foo.snap"), ""},
+			{filepath.Join(dirs.SnapUdevRulesDir, "foo-snap.bar.rules"), ""},
+			{filepath.Join(dirs.SnapDBusSystemPolicyDir, "snap.foo.bar.conf"), ""},
+			{filepath.Join(dirs.SnapServicesDir, "snap.foo.service"), ""},
+			{filepath.Join(dirs.SnapServicesDir, "snap.foo.timer"), ""},
+			{filepath.Join(dirs.SnapServicesDir, "snap.foo.socket"), ""},
+			{filepath.Join(dirs.SnapServicesDir, "snap-foo.mount"), ""},
+			{filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", "snap-foo.mount"), ""},
+			{filepath.Join(dirs.SnapDataDir, "foo", "bar"), ""},
+			{filepath.Join(dirs.SnapCacheDir, "foocache", "bar"), ""},
+			{filepath.Join(apparmor_sandbox.CacheDir, "foo", "bar"), ""},
+			{filepath.Join(dirs.SnapAppArmorDir, "foo"), ""},
+			{filepath.Join(dirs.SnapAssertsDBDir, "foo"), ""},
+			{filepath.Join(dirs.FeaturesDir, "foo"), ""},
+			{filepath.Join(dirs.SnapDeviceDir, "foo-1", "bar"), ""},
+			{filepath.Join(dirs.SnapCookieDir, "foo"), ""},
+			{filepath.Join(dirs.SnapSeqDir, "foo.json"), ""},
+			{filepath.Join(dirs.SnapMountDir, "foo", "bin"), ""},
+			{filepath.Join(dirs.SnapSeccompDir, "foo.bin"), ""},
+			// bash-completion symlinks
+			{filepath.Join(dirs.CompletersDir, "foo.bar"), "/a/snapd/complete.sh"},
+			{filepath.Join(dirs.CompletersDir, "foo"), "foo.bar"},
+		}
+
 		for _, art := range artifacts {
 			fullPath := filepath.Join(tmpDir, art.path)
+			// create parent dir
+			c.Assert(os.MkdirAll(filepath.Dir(fullPath), 0755), IsNil)
 			if art.symlinkTarget != "" {
-				c.Check(osutil.IsSymlink(fullPath), Equals, exists, Commentf("offending symlink: %s", fullPath))
+				// note, symlinkTarget is not relative to tmpDir
+				c.Assert(os.Symlink(art.symlinkTarget, fullPath), IsNil)
 			} else {
-				c.Check(osutil.FileExists(fullPath), Equals, exists, Commentf("offending file: %s", fullPath))
+				c.Assert(ioutil.WriteFile(fullPath, nil, os.ModePerm), IsNil)
 			}
 		}
+
+		checkArtifacts := func(exists bool) {
+			for _, art := range artifacts {
+				fullPath := filepath.Join(tmpDir, art.path)
+				if art.symlinkTarget != "" {
+					c.Check(osutil.IsSymlink(fullPath), Equals, exists, Commentf("offending symlink: %s", fullPath))
+				} else {
+					c.Check(osutil.FileExists(fullPath), Equals, exists, Commentf("offending file: %s", fullPath))
+				}
+			}
+		}
+
+		// sanity
+		checkArtifacts(true)
+
+		snapdDir := filepath.Dir(dirs.SnapStateFile)
+		c.Assert(os.MkdirAll(filepath.Join(tmpDir, snapdDir), 0755), IsNil)
+		c.Assert(ioutil.WriteFile(filepath.Join(tmpDir, dirs.SnapStateFile), nil, os.ModePerm), IsNil)
+
+		parser := testParser(c)
+		c.Assert(main.Run(parser, []string{"--reset", resetDirArg}), IsNil)
+
+		checkArtifacts(false)
+
+		// running reset again is ok
+		parser = testParser(c)
+		c.Assert(main.Run(parser, []string{"--reset", resetDirArg}), IsNil)
+
+		// reset complains if target directory doesn't exist
+		c.Assert(main.Run(parser, []string{"--reset", "/non/existing/chrootpath"}), ErrorMatches, `cannot reset non-existing directory "/non/existing/chrootpath"`)
+
+		// reset complains if target is not a directory
+		dummyFile := filepath.Join(resetDirArg, "foo")
+		c.Assert(ioutil.WriteFile(dummyFile, nil, os.ModePerm), IsNil)
+		err = main.Run(parser, []string{"--reset", dummyFile})
+		// the error message is always with an absolute file, so make the path
+		// absolute if we are running the relative test to properly match
+		if isRelative {
+			var err2 error
+			dummyFile, err2 = filepath.Abs(dummyFile)
+			c.Assert(err2, IsNil)
+		}
+		c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot reset %q, it is not a directory`, dummyFile))
 	}
 
-	// sanity
-	checkArtifacts(true)
-
-	snapdDir := filepath.Dir(dirs.SnapStateFile)
-	c.Assert(os.MkdirAll(filepath.Join(tmpDir, snapdDir), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(tmpDir, dirs.SnapStateFile), nil, os.ModePerm), IsNil)
-
-	parser := testParser(c)
-	c.Assert(main.Run(parser, []string{"--reset", tmpDir}), IsNil)
-
-	checkArtifacts(false)
-
-	// running reset again is ok
-	parser = testParser(c)
-	c.Assert(main.Run(parser, []string{"--reset", tmpDir}), IsNil)
 }

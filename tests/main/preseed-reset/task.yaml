@@ -20,6 +20,10 @@ prepare: |
   . "$TESTSLIB/preseed.sh"
   mount_ubuntu_image "$(pwd)/cloudimg.img" "$IMAGE_MOUNTPOINT"
 
+  # for images that are already preseeded, we need to undo the preseeding there
+  echo "Running preseed --reset for already preseeded cloud images"
+  SNAPD_DEBUG=1 /usr/lib/snapd/snap-preseed --reset "$IMAGE_MOUNTPOINT"
+
 restore: |
   rm -f before-preseeding.txt
   rm -f after-reset.txt
@@ -41,10 +45,10 @@ execute: |
 
   find_files > before-preseeding.txt
 
-  echo "Running pre-seeeding"
+  echo "Running pre-seeding"
   /usr/lib/snapd/snap-preseed "$IMAGE_MOUNTPOINT"
 
-  echo "Running preseeeding again should fail"
+  echo "Running preseeding again should fail"
   if OUT=$(/usr/lib/snapd/snap-preseed "$IMAGE_MOUNTPOINT" 2>&1); then
     echo "Expected snap-preseed to fail"
     exit 1
@@ -63,6 +67,10 @@ execute: |
     exit 1
   fi
 
-  echo "Running preseeeding again should succeed"
+  echo "Running preseeding again should succeed"
   /usr/lib/snapd/snap-preseed "$IMAGE_MOUNTPOINT"
 
+  echo "And running snap-preseed with a relative path works"
+  cd /mnt
+  /usr/lib/snapd/snap-preseed --reset cloudimg
+  /usr/lib/snapd/snap-preseed cloudimg

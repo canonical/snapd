@@ -100,6 +100,10 @@ func SetSystemMode(m *DeviceManager, mode string) {
 	m.systemMode = mode
 }
 
+func SetTimeOnce(m *DeviceManager, name string, t time.Time) error {
+	return m.setTimeOnce(name, t)
+}
+
 func MockRepeatRequestSerial(label string) (restore func()) {
 	old := repeatRequestSerial
 	repeatRequestSerial = label
@@ -128,6 +132,10 @@ func EnsureSeeded(m *DeviceManager) error {
 	return m.ensureSeeded()
 }
 
+func EnsureCloudInitRestricted(m *DeviceManager) error {
+	return m.ensureCloudInitRestricted()
+}
+
 var PopulateStateFromSeedImpl = populateStateFromSeedImpl
 
 type PopulateStateFromSeedOptions = populateStateFromSeedOptions
@@ -146,6 +154,10 @@ func EnsureBootOk(m *DeviceManager) error {
 
 func SetBootOkRan(m *DeviceManager, b bool) {
 	m.bootOkRan = b
+}
+
+func StartTime() time.Time {
+	return startTime
 }
 
 type (
@@ -241,5 +253,21 @@ func MockInstallRun(f func(gadgetRoot, device string, options install.Options) e
 	installRun = f
 	return func() {
 		installRun = old
+	}
+}
+
+func MockCloudInitStatus(f func() (sysconfig.CloudInitState, error)) (restore func()) {
+	old := cloudInitStatus
+	cloudInitStatus = f
+	return func() {
+		cloudInitStatus = old
+	}
+}
+
+func MockRestrictCloudInit(f func(sysconfig.CloudInitState, *sysconfig.CloudInitRestrictOptions) (sysconfig.CloudInitRestrictionResult, error)) (restore func()) {
+	old := restrictCloudInit
+	restrictCloudInit = f
+	return func() {
+		restrictCloudInit = old
 	}
 }

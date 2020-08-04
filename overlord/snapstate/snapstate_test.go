@@ -6917,7 +6917,7 @@ func (s *snapmgrTestSuite) TestNoConfigureForSnapdSnap(c *C) {
 
 }
 
-func (s snapmgrTestSuite) TestCanLoadOldSnapSetupWithoutType(c *C) {
+func (s *snapmgrTestSuite) TestCanLoadOldSnapSetupWithoutType(c *C) {
 	// ensure we don't crash when loading a SnapSetup json without
 	// a type set
 	oldSnapSetup := []byte(`{
@@ -6942,7 +6942,7 @@ func (s snapmgrTestSuite) TestCanLoadOldSnapSetupWithoutType(c *C) {
 	c.Check(snapsup.Type, Equals, snap.Type(""))
 }
 
-func (s snapmgrTestSuite) TestHasOtherInstances(c *C) {
+func (s *snapmgrTestSuite) TestHasOtherInstances(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 

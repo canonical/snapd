@@ -400,6 +400,38 @@ func ValidateLayoutAll(info *Info) error {
 	}
 	sort.Strings(paths)
 
+	// Validate that each source path is not a new top-level directory
+	for _, layout := range info.Layout {
+		cleanPathSrc := info.ExpandSnapVariables(filepath.Clean(layout.Path))
+		elems := strings.SplitN(cleanPathSrc, string(os.PathSeparator), 3)
+		switch len(elems) {
+		// len(1) is either relative path or empty string, will be validated
+		// elsewhere
+		case 2, 3:
+			// if the first string is the empty string, then we have a top-level
+			// directory to check
+			if elems[0] != "" {
+				// not the empty string which means this was a relative
+				// specification, i.e. usr/src/doc
+				return fmt.Errorf("layout %q is a relative filename", layout.Path)
+			}
+			if elems[1] != "" {
+				// verify that the top-level directory is a supported one
+				// we can't create new top-level directories because that would
+				// require creating a mimic on top of "/" which we don't
+				// currently support
+				switch elems[1] {
+				// this list was produced by taking all of the top level
+				// directories in the core snap and removing the explicitly
+				// denied top-level directories
+				case "bin", "etc", "lib", "lib64", "meta", "mnt", "opt", "root", "sbin", "snap", "srv", "usr", "var", "writable":
+				default:
+					return fmt.Errorf("layout %q defines a new top-level directory %q", layout.Path, "/"+elems[1])
+				}
+			}
+		}
+	}
+
 	// Validate that each source path is used consistently as a file or as a directory.
 	sourceKindMap := make(map[string]string)
 	for _, path := range paths {
