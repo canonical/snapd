@@ -24,12 +24,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 
 	"github.com/snapcore/snapd/client"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/strutil"
@@ -146,6 +144,10 @@ func changeSnapshots(c *Command, r *http.Request, user *auth.UserState) Response
 }
 
 func getSnapshotExport(c *Command, r *http.Request, user *auth.UserState) Response {
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
 	vars := muxVars(r)
 	sid := vars["id"]
 	setID, err := strconv.ParseUint(sid, 10, 64)
@@ -153,34 +155,10 @@ func getSnapshotExport(c *Command, r *http.Request, user *auth.UserState) Respon
 		return BadRequest("'id' must be a positive base 10 number; got %q", sid)
 	}
 
-	// lock while opening the snapshot file descriptors
-	snapshotFiles, err := prepareExport(c, setID)
+	se, err := snapshotExport(context.TODO(), setID)
 	if err != nil {
-		return BadRequest("cannot prepare export %v", setID)
-	}
-
-	// Export once into a dummy writer so that we can set the
-	// Content-Length in the response correctly.
-	//
-	// Note that the size of the generated tar could change if the
-	// time switches between this export and the export we stream
-	// to the client to a time after the year 2242. This is unlikely
-	// but a known issue with this approach here.
-	var sz osutil.Sizer
-	if err := snapshotExport(snapshotFiles, &sz); err != nil {
 		return BadRequest("cannot export %v", setID)
 	}
 
-	return &snapshotExportResponse{
-		SetID:      setID,
-		ExportSize: uint64(sz.Size()),
-	}
-}
-
-func prepareExport(c *Command, setID uint64) ([]*os.File, error) {
-	st := c.d.overlord.State()
-	st.Lock()
-	defer st.Unlock()
-
-	return snapshotPrepareExport(context.TODO(), setID)
+	return &snapshotExportResponse{se}
 }

@@ -256,12 +256,6 @@ func checkSnapshotTaskConflict(st *state.State, setID uint64, conflictingKinds .
 // Note that the state must be locked by the caller.
 var List = backend.List
 
-// Export a set of opened snapshot files.
-var Export = backend.Export
-
-// PrepareExport for a given snapshot ID.
-var PrepareExport = backend.PrepareExport
-
 // Save creates a taskset for taking snapshots of snaps' data.
 // Note that the state must be locked by the caller.
 func Save(st *state.State, instanceNames []string, users []string) (setID uint64, snapsSaved []string, ts *state.TaskSet, err error) {
@@ -457,3 +451,10 @@ func Forget(st *state.State, setID uint64, snapNames []string) (snapsFound []str
 
 	return summaries.snapNames(), ts, nil
 }
+
+// Export exports a given snapshot ID
+// Note that the state much be locked by the caller.
+var Export = backend.NewSnapshotExport
+
+// SnapshotExport provides a snapshot export that can be streamed out
+type SnapshotExport = backend.SnapshotExport

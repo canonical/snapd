@@ -41,7 +41,6 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
 	"github.com/snapcore/snapd/snap"
@@ -742,12 +741,10 @@ func (s *snapshotSuite) TestExportTwice(c *check.C) {
 	restore := backend.MockTimeNow(func() time.Time { return time.Time{} })
 	defer restore()
 	// export once
-	var sz osutil.Sizer
-	snapshotFiles, err := backend.PrepareExport(context.Background(), shID)
+	ctx := context.Background()
+	se, err := backend.Export(ctx, shID)
 	c.Check(err, check.IsNil)
-	err = backend.Export(snapshotFiles, &sz)
-	c.Check(err, check.IsNil)
-	c.Check(sz.Size(), check.Equals, expectedSize)
+	c.Check(se.Size(), check.Equals, expectedSize)
 
 	// and again to ensure size does not change when exported again
 	//
@@ -756,16 +753,13 @@ func (s *snapshotSuite) TestExportTwice(c *check.C) {
 	// change.
 	restore = backend.MockTimeNow(func() time.Time { return time.Date(2242, 1, 1, 12, 0, 0, 0, time.UTC) })
 	defer restore()
-	sz.Reset()
-	snapshotFiles, err = backend.PrepareExport(context.Background(), shID)
+	se2, err := backend.Export(ctx, shID)
 	c.Check(err, check.IsNil)
-	err = backend.Export(snapshotFiles, &sz)
-	c.Check(err, check.IsNil)
-	c.Check(sz.Size(), check.Equals, expectedSize)
+	c.Check(se2.Size(), check.Equals, expectedSize)
 }
 
 func (s *snapshotSuite) TestExportUnhappy(c *check.C) {
-	snapshotFiles, err := backend.PrepareExport(context.Background(), 5)
+	se, err := backend.Export(context.Background(), 5)
 	c.Assert(err, check.ErrorMatches, "no snapshot data found for 5")
-	c.Assert(len(snapshotFiles), check.Equals, 0)
+	c.Assert(se, check.IsNil)
 }

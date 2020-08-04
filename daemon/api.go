@@ -875,13 +875,12 @@ var (
 	snapstateRevertToRevision  = snapstate.RevertToRevision
 	snapstateSwitch            = snapstate.Switch
 
-	snapshotList          = snapshotstate.List
-	snapshotCheck         = snapshotstate.Check
-	snapshotForget        = snapshotstate.Forget
-	snapshotRestore       = snapshotstate.Restore
-	snapshotSave          = snapshotstate.Save
-	snapshotPrepareExport = snapshotstate.PrepareExport
-	snapshotExport        = snapshotstate.Export
+	snapshotList    = snapshotstate.List
+	snapshotCheck   = snapshotstate.Check
+	snapshotForget  = snapshotstate.Forget
+	snapshotRestore = snapshotstate.Restore
+	snapshotSave    = snapshotstate.Save
+	snapshotExport  = snapshotstate.Export
 
 	assertstateRefreshSnapDeclarations = assertstate.RefreshSnapDeclarations
 )

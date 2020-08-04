@@ -22,14 +22,13 @@ package daemon
 import (
 	"context"
 	"encoding/json"
-	"io"
 	"net/http"
-	"os"
 
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -49,15 +48,7 @@ func MockSnapshotList(newList func(context.Context, uint64, []string) ([]client.
 	}
 }
 
-func MockSnapshotPrepareExport(newPrepare func(context.Context, uint64) ([]*os.File, error)) (restore func()) {
-	oldPrepare := snapshotPrepareExport
-	snapshotPrepareExport = newPrepare
-	return func() {
-		snapshotPrepareExport = oldPrepare
-	}
-}
-
-func MockSnapshotExport(newExport func([]*os.File, io.Writer) error) (restore func()) {
+func MockSnapshotExport(newExport func(context.Context, uint64) (*snapshotstate.SnapshotExport, error)) (restore func()) {
 	oldExport := snapshotExport
 	snapshotExport = newExport
 	return func() {
@@ -126,3 +117,5 @@ var (
 	SnapshotCmd       = snapshotCmd
 	SnapshotExportCmd = snapshotExportCmd
 )
+
+type SnapshotExportResponse = snapshotExportResponse

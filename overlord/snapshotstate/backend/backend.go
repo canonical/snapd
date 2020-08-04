@@ -334,19 +334,94 @@ type exportMetadata struct {
 	Files  []string  `json:"files"`
 }
 
-// Export allows exporting a given snapshot set to the given writer.
-func Export(snapshotFiles []*os.File, w io.Writer) error {
+// Export allows exporting a given snapshot set
+func Export(ctx context.Context, setID uint64) (*SnapshotExport, error) {
+	return NewSnapshotExport(ctx, setID)
+}
+
+type SnapshotExport struct {
+	// open snapshot files
+	snapshotFiles []*os.File
+
+	// size
+	size int64
+}
+
+// NewSnapshotExport will return a SnapshotExport structure. It must be
+// Close()ed after use to avoid leaking file descriptors.
+func NewSnapshotExport(ctx context.Context, setID uint64) (se *SnapshotExport, err error) {
+	var snapshotFiles []*os.File
+
 	defer func() {
-		for _, f := range snapshotFiles {
-			f.Close()
+		// cleanup any open FDs if anything goes wrong
+		if err != nil {
+			for _, f := range snapshotFiles {
+				f.Close()
+			}
 		}
 	}()
 
+	// Open all files first and keep the file descriptors
+	// open. The caller should have locked the state so that no
+	// delete/change snapshot operations can happen while the
+	// files are getting opened.
+	err = Iter(ctx, func(reader *Reader) error {
+		if reader.SetID == setID {
+			// dup() the file descriptor
+			fd, err := syscall.Dup(int(reader.Fd()))
+			if err != nil {
+				return fmt.Errorf("cannot dup %v", reader.Name())
+			}
+			f := os.NewFile(uintptr(fd), reader.Name())
+			if f == nil {
+				return fmt.Errorf("invalid fd %v for %v", fd, reader.Name())
+			}
+			snapshotFiles = append(snapshotFiles, f)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("cannot export snapshot %v: %v", setID, err)
+	}
+	if len(snapshotFiles) == 0 {
+		return nil, fmt.Errorf("no snapshot data found for %v", setID)
+	}
+
+	// Export once into a dummy writer so that we can set the size
+	// of the export. This is then used to set the Content-Length
+	// in the response correctly.
+	//
+	// Note that the size of the generated tar could change if the
+	// time switches between this export and the export we stream
+	// to the client to a time after the year 2242. This is unlikely
+	// but a known issue with this approach here.
+	var sz osutil.Sizer
+	se = &SnapshotExport{snapshotFiles: snapshotFiles}
+	if err = se.StreamTo(&sz); err != nil {
+		return nil, fmt.Errorf("cannot calculcate the size for %v: %s", setID, err)
+	}
+	se.size = sz.Size()
+
+	return se, nil
+}
+
+func (se *SnapshotExport) Size() int64 {
+	return se.size
+}
+
+func (se *SnapshotExport) Close() {
+	for _, f := range se.snapshotFiles {
+		f.Close()
+	}
+	se.snapshotFiles = nil
+}
+
+func (se *SnapshotExport) StreamTo(w io.Writer) error {
 	// write out a tar
 	var files []string
 	tw := tar.NewWriter(w)
 	defer tw.Close()
-	for _, snapshotFd := range snapshotFiles {
+	for _, snapshotFd := range se.snapshotFiles {
 		stat, err := snapshotFd.Stat()
 		if err != nil {
 			return err
@@ -397,31 +472,4 @@ func Export(snapshotFiles []*os.File, w io.Writer) error {
 	}
 
 	return nil
-}
-
-// PrepareExport opens the files in preparation for the export
-func PrepareExport(ctx context.Context, setID uint64) (snapshotFiles []*os.File, err error) {
-	// Open all files first and keep the file descriptors open
-	err = Iter(ctx, func(reader *Reader) error {
-		if reader.SetID == setID {
-			// dup() the file descriptor
-			fd, err := syscall.Dup(int(reader.Fd()))
-			if err != nil {
-				return fmt.Errorf("cannot dup %v", reader.Name())
-			}
-			f := os.NewFile(uintptr(fd), reader.Name())
-			if f == nil {
-				return fmt.Errorf("invalid fd %v for %v", fd, reader.Name())
-			}
-			snapshotFiles = append(snapshotFiles, f)
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, fmt.Errorf("cannot export snapshot %v: %v", setID, err)
-	}
-	if len(snapshotFiles) == 0 {
-		return nil, fmt.Errorf("no snapshot data found for %v", setID)
-	}
-	return snapshotFiles, err
 }

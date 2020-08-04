@@ -20,13 +20,10 @@
 package daemon_test
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
-	"os"
 	"strings"
 
 	"gopkg.in/check.v1"
@@ -36,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/store/storetest"
@@ -326,15 +324,15 @@ func (s *snapshotSuite) TestChangeSnapshot(c *check.C) {
 }
 
 func (s *snapshotSuite) TestExportSnapshots(c *check.C) {
+	var snapshotExportCalled int
+
 	defer daemon.MockMuxVars(func(*http.Request) map[string]string {
 		return map[string]string{"id": "1"}
 	})()
-	defer daemon.MockSnapshotPrepareExport(func(ctx context.Context, id uint64) (snapshotFiles []*os.File, err error) {
-		return nil, nil
-	})()
-	defer daemon.MockSnapshotExport(func(snapshotFiles []*os.File, w io.Writer) error {
-		io.Copy(w, bytes.NewBufferString("Hello World!"))
-		return nil
+	defer daemon.MockSnapshotExport(func(ctx context.Context, setID uint64) (*snapshotstate.SnapshotExport, error) {
+		snapshotExportCalled++
+		c.Check(setID, check.Equals, uint64(1))
+		return &snapshotstate.SnapshotExport{}, nil
 	})()
 
 	c.Check(daemon.SnapshotExportCmd.Path, check.Equals, "/v2/snapshots/{id}/export")
@@ -342,6 +340,6 @@ func (s *snapshotSuite) TestExportSnapshots(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	rsp := daemon.ExportSnapshot(daemon.SnapshotExportCmd, req, nil)
-	c.Check(rsp.SetID, check.Equals, uint64(1))
-	c.Check(rsp.ExportSize, check.Equals, uint64(12))
+	c.Check(rsp, check.FitsTypeOf, &daemon.SnapshotExportResponse{})
+	c.Check(snapshotExportCalled, check.Equals, 1)
 }

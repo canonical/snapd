@@ -21,7 +21,6 @@ package daemon
 
 import (
 	"bufio"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -36,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
@@ -301,21 +301,14 @@ func (s *snapStream) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 
 // A snapshotExportResponse 's ServeHTTP method serves a specific snapshot ID
 type snapshotExportResponse struct {
-	SetID      uint64
-	ExportSize uint64
+	*snapshotstate.SnapshotExport
 }
 
 // ServeHTTP from the Response interface
 func (s snapshotExportResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("Content-Length", strconv.FormatUint(s.ExportSize, 10))
-
-	snapshotFiles, err := snapshotPrepareExport(context.TODO(), s.SetID)
-	if err != nil {
-		logger.Noticef("cannot prepare export %v", s.SetID)
-		http.Error(w, err.Error(), 500)
-		return
-	}
-	snapshotExport(snapshotFiles, w)
+	w.Header().Add("Content-Length", strconv.FormatInt(s.Size(), 10))
+	s.StreamTo(w)
+	s.Close()
 }
 
 // A fileResponse 's ServeHTTP method serves the file
