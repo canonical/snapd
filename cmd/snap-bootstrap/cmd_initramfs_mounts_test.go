@@ -545,6 +545,7 @@ After=%[1]s
 			snapdMnt,
 			"--no-pager",
 			"--no-ask-password",
+			"--fsck=no",
 		},
 		{
 			"systemd-mount",
@@ -552,6 +553,7 @@ After=%[1]s
 			kernelMnt,
 			"--no-pager",
 			"--no-ask-password",
+			"--fsck=no",
 		},
 		{
 			"systemd-mount",
@@ -559,6 +561,7 @@ After=%[1]s
 			baseMnt,
 			"--no-pager",
 			"--no-ask-password",
+			"--fsck=no",
 		},
 		{
 			"systemd-mount",
@@ -567,6 +570,7 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--type=tmpfs",
+			"--fsck=no",
 		},
 	})
 }
@@ -683,6 +687,7 @@ After=%[1]s
 			snapdMnt,
 			"--no-pager",
 			"--no-ask-password",
+			"--fsck=no",
 		},
 		{
 			"systemd-mount",
@@ -690,6 +695,7 @@ After=%[1]s
 			kernelMnt,
 			"--no-pager",
 			"--no-ask-password",
+			"--fsck=no",
 		},
 		{
 			"systemd-mount",
@@ -697,6 +703,7 @@ After=%[1]s
 			baseMnt,
 			"--no-pager",
 			"--no-ask-password",
+			"--fsck=no",
 		},
 		{
 			"systemd-mount",
@@ -705,6 +712,7 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--type=tmpfs",
+			"--fsck=no",
 		},
 		{
 			"systemd-mount",
@@ -712,6 +720,7 @@ After=%[1]s
 			boot.InitramfsHostUbuntuDataDir,
 			"--no-pager",
 			"--no-ask-password",
+			"--fsck=no",
 		},
 	})
 }
@@ -823,6 +832,7 @@ After=%[1]s
 			boot.InitramfsUbuntuSeedDir,
 			"--no-pager",
 			"--no-ask-password",
+			"--fsck=no",
 		},
 		{
 			"systemd-mount",
@@ -838,6 +848,7 @@ After=%[1]s
 			baseMnt,
 			"--no-pager",
 			"--no-ask-password",
+			"--fsck=no",
 		},
 		{
 			"systemd-mount",
@@ -845,6 +856,7 @@ After=%[1]s
 			kernelMnt,
 			"--no-pager",
 			"--no-ask-password",
+			"--fsck=no",
 		},
 	})
 }
