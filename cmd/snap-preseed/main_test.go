@@ -414,7 +414,7 @@ func (s *startPreseedSuite) TestRunPreseedUnsupportedVersion(c *C) {
 		`snapd 2.43.0 from the target system does not support preseeding, the minimum required version is 2.43.3\+`)
 }
 
-func (s *startPreseedSuite) TestCheckTargetSnapdVersion(c *C) {
+func (s *startPreseedSuite) TestChooseTargetSnapdVersion(c *C) {
 	tmpDir := c.MkDir()
 	dirs.SetRootDir(tmpDir)
 	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "usr/lib/snapd/"), 0755), IsNil)
@@ -481,7 +481,7 @@ func (s *startPreseedSuite) TestCheckTargetSnapdVersion(c *C) {
 			c.Assert(ioutil.WriteFile(infoFile, []byte(fmt.Sprintf("VERSION=%s", test.fromSnap)), 0644), IsNil)
 		}
 
-		path, version, err := main.CheckTargetSnapdVersion()
+		path, version, err := main.ChooseTargetSnapdVersion()
 		if test.expectedErr != "" {
 			c.Assert(err, ErrorMatches, test.expectedErr)
 		} else {

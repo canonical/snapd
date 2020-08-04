@@ -26,7 +26,7 @@ import (
 var (
 	Run                     = run
 	SystemSnapFromSeed      = systemSnapFromSeed
-	CheckTargetSnapdVersion = checkTargetSnapdVersion
+	ChooseTargetSnapdVersion = chooseTargetSnapdVersion
 )
 
 func MockOsGetuid(f func() int) (restore func()) {

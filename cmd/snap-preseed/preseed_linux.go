@@ -150,13 +150,13 @@ var systemSnapFromSeed = func(rootDir string) (string, error) {
 
 const snapdPreseedSupportVer = `2.43.3+`
 
-// checkTargetSnapdVersion checks if the version of snapd under chroot env
+// chooseTargetSnapdVersion checks if the version of snapd under chroot env
 // is good enough for preseeding. It checks both the snapd from the deb
 // and from the seeded snap mounted under snapdMountPath and returns the
 // full path of snapd to execute as part of preseeding (whichever version is
 // newer).
 // The function must be called after syscall.Chroot(..).
-func checkTargetSnapdVersion() (snapdPath string, whichVer string, err error) {
+func chooseTargetSnapdVersion() (snapdPath string, whichVer string, err error) {
 	// read snapd version from the mounted core/snapd snap
 	infoPath := filepath.Join(snapdMountPath, dirs.CoreLibExecDir, "info")
 	ver1, err := snapdtool.SnapdVersionFromInfoFile(infoPath)
@@ -255,7 +255,7 @@ func prepareChroot(preseedChroot string) (func(), error) {
 // runPreseedMode runs snapd in a preseed mode. It assumes running in a chroot.
 // The chroot is expected to be set-up and ready to use (critical system directories mounted).
 func runPreseedMode(preseedChroot string) error {
-	snapdPath, version, err := checkTargetSnapdVersion()
+	snapdPath, version, err := chooseTargetSnapdVersion()
 	if err != nil {
 		return err
 	}
