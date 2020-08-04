@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -175,7 +176,8 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	var brGadgetRoot, brDevice string
 	var brOpts install.Options
 	var installRunCalled int
-	restore = devicestate.MockInstallRun(func(gadgetRoot, device string, options install.Options) error {
+	var sealingObserver gadget.ContentWriteObserver
+	restore = devicestate.MockInstallRun(func(gadgetRoot, device string, options install.Options, obs gadget.ContentWriteObserver) error {
 		// ensure we can grab the lock here, i.e. that it's not taken
 		s.state.Lock()
 		s.state.Unlock()
@@ -183,6 +185,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 		brGadgetRoot = gadgetRoot
 		brDevice = device
 		brOpts = options
+		sealingObserver = obs
 		installRunCalled++
 		return nil
 	})
@@ -271,6 +274,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 		// directories were ensured
 		c.Assert(osutil.IsDirectory(boot.InitramfsEncryptionKeyDir), Equals, true)
 		c.Assert(osutil.IsDirectory(filepath.Join(boot.InstallHostWritableDir, "var/lib/snapd/device/fde")), Equals, true)
+		c.Assert(sealingObserver, NotNil)
 	} else {
 		c.Assert(brGadgetRoot, Equals, filepath.Join(dirs.SnapMountDir, "/pc/1"))
 		c.Assert(brDevice, Equals, "")
@@ -289,7 +293,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallTaskErrors(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	restore = devicestate.MockInstallRun(func(gadgetRoot, device string, options install.Options) error {
+	restore = devicestate.MockInstallRun(func(gadgetRoot, device string, options install.Options, _ gadget.ContentWriteObserver) error {
 		return fmt.Errorf("The horror, The horror")
 	})
 	defer restore()
@@ -405,7 +409,7 @@ func (s *deviceMgrInstallModeSuite) mockInstallModeChange(c *C, modelGrade, gadg
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	restore = devicestate.MockInstallRun(func(gadgetRoot, device string, options install.Options) error {
+	restore = devicestate.MockInstallRun(func(gadgetRoot, device string, options install.Options, _ gadget.ContentWriteObserver) error {
 		return nil
 	})
 	defer restore()

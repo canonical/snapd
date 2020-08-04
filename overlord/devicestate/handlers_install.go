@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -111,6 +112,8 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
+
+	var sealComponentObserver gadget.ContentWriteObserver
 	if useEncryption {
 		fdeDir := "var/lib/snapd/device/fde"
 		// ensure directories
@@ -128,6 +131,8 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		bopts.KernelPath = filepath.Join(kernelDir, "kernel.efi")
 		bopts.Model = deviceCtx.Model()
 		bopts.SystemLabel = modeEnv.RecoverySystem
+
+		sealComponentObserver = boot.InitialSealObserver(deviceCtx.Model())
 	}
 
 	// run the create partition code
@@ -135,7 +140,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	func() {
 		st.Unlock()
 		defer st.Lock()
-		err = installRun(gadgetDir, "", bopts)
+		err = installRun(gadgetDir, "", bopts, sealComponentObserver)
 	}()
 	if err != nil {
 		return fmt.Errorf("cannot create partitions: %v", err)
