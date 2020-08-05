@@ -225,3 +225,67 @@ func (strutilSuite) TestEllipt(c *check.C) {
 		c.Check(strutil.ElliptLeft(t.in, t.n), check.Equals, t.left, check.Commentf("%q[-%d:] -> %q", t.in, t.n, t.left))
 	}
 }
+
+func (strutilSuite) TestListsSame(c *check.C) {
+	tt := []struct {
+		l1  []string
+		l2  []string
+		exp bool
+	}{
+		{
+			[]string{},
+			[]string{},
+			true,
+		},
+		{
+			[]string{},
+			nil,
+			true,
+		},
+		{
+			[]string{"a"},
+			nil,
+			false,
+		},
+		{
+			[]string{"a"},
+			[]string{},
+			false,
+		},
+		{
+			[]string{"a"},
+			[]string{"a"},
+			true,
+		},
+		{
+			[]string{"a"},
+			[]string{"A"},
+			false,
+		},
+		{
+			[]string{"a"},
+			[]string{"b"},
+			false,
+		},
+		{
+			[]string{"aaa", "b"},
+			[]string{"aaa"},
+			false,
+		},
+		{
+			[]string{"aaa", "b"},
+			[]string{"aaa", "b"},
+			true,
+		},
+		{
+			[]string{"b", "aaa"},
+			[]string{"aaa", "b"},
+			false,
+		},
+	}
+
+	for _, t := range tt {
+		c.Check(strutil.ListsSame(t.l1, t.l2), check.Equals, t.exp, check.Commentf("l1: %v, l2: %v", t.l1, t.l2))
+		c.Check(strutil.ListsSame(t.l2, t.l1), check.Equals, t.exp, check.Commentf("l1: %v, l2: %v", t.l2, t.l1))
+	}
+}

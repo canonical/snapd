@@ -203,3 +203,19 @@ func ElliptLeft(str string, n int) string {
 
 	return "…" + string(rstr[len(rstr)-n+1:])
 }
+
+// ListsSame verifies that two lists of strings have strictly the same strings,
+// in the same order.
+func ListsSame(l1, l2 []string) bool {
+	if len(l1) != len(l2) {
+		return false
+	}
+
+	for i, s := range l1 {
+		if s != l2[i] {
+			return false
+		}
+	}
+
+	return true
+}
