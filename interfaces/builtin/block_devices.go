@@ -53,6 +53,9 @@ const blockDevicesConnectedPlugAppArmor = `
 /run/udev/data/b[0-9]*:[0-9]* r,
 /sys/block/ r,
 /sys/devices/**/block/** r,
+/sys/dev/block/ r,
+# Allow reading major and minor numbers for block special files of NVMe namespaces.
+/sys/devices/**/nvme/**/dev r,
 
 # Access to raw devices, not individual partitions
 /dev/hd[a-t] rw,                                          # IDE, MFM, RLL

@@ -60,8 +60,9 @@ const microStackSupportConnectedPlugAppArmor = `
 # Used by Nova for mounting images via qemu-nbd.
 /dev/nbd* rw,
 
-# Allow issuing ioctls to the Device Mapper for LVM tools.
-/dev/mapper/control rw,
+# Allow creating dm-* devices, /dev/<vg-name> directories, /dev/mapper directory and symlinks under it.
+# Allow issuing ioctls to the Device Mapper for LVM tools via /dev/mapper/control.
+/dev/** rw,
 # Allow access to loop devices and loop-control to be able to associate a file with a loop device
 # for the purpose of using a file-backed LVM setup.
 /dev/loop-control rw,
@@ -83,19 +84,11 @@ const microStackSupportConnectedPlugAppArmor = `
 /dev/hugepages/libvirt/ rw,
 /dev/hugepages/libvirt/** mrwklix,
 
-# Used by libvirt to read information about available CPU and memory resources of a host.
-# TODO(dmitriis): return this back in case libvirt fails.
-# /sys/devices/system/cpu/ r,
-
 # Used by QEMU to get the maximum number of memory regions allowed in the vhost kernel module.
 /sys/module/vhost/parameters/max_mem_regions r,
 
 # Used by libvirt (cgroup-related):
 /sys/fs/cgroup/unified/cgroup.controllers r,
-
-# TODO(dmitriis): Remove this.
-# /sys/fs/cgroup/** rw,
-# /sys/fs/cgroup/*/machine.slice/machine-qemu*/{,**} rw,
 
 # Non-systemd layout: https://libvirt.org/cgroups.html#currentLayoutGeneric
 /sys/fs/cgroup/*/ r,
@@ -117,38 +110,9 @@ const microStackSupportConnectedPlugAppArmor = `
 @{PROC}/@{pids}/sched r,
 
 @{PROC}/*/status r,
-# TODO: remove if not used.
-# @{PROC}/*/ns/net r,
-
-# TODO(dmitriis): Remove since it was moved to network-control with a modification.
-# Used by libvirt to work with network devices created for VMs.
-# E.g. getting operational state and speed of tap devices.
-# /sys/class/net/tap*/* rw,
-
-# TODO(dmitriis): Remove since the raw-usb interface covers that.
-# For hostdev access. The actual devices will be added dynamically
-# /sys/bus/usb/devices/ r,
-# /sys/devices/**/usb[0-9]*/** r,
-# libusb needs udev data about usb devices (~equal to content of lsusb -v)
-# /run/udev/data/+usb* r,
-# /run/udev/data/c16[6,7]* r,
-# /run/udev/data/c18[0,8,9]* r,
 
 # Libvirt needs access to the PCI config space in order to be able to reset devices.
 /sys/devices/pci*/**/config rw,
-
-# TODO(dmitriis) remove this
-#required by libpmem init to fts_open()/fts_read() the symlinks in
-# /sys/bus/nd/devices
-# / r, # harmless on any lsb compliant system
-/sys/bus/nd/devices/{,**/} r,
-# # For ppc device-tree access by Libvirt.
-# @{PROC}/device-tree/ r,
-# @{PROC}/device-tree/** r,
-# /sys/firmware/devicetree/** r,
-
-# "virsh console" support
-# /dev/pts/* rw,
 
 # Used by libvirt.
 /dev/ptmx rw,
@@ -161,7 +125,12 @@ owner /{dev,run}/shm/spice.* rw,
 /run/lock/LCK.._pts_* rwk,
 
 # Used by LVM tools.
+/run/lock/lvm/ rw,
 /run/lock/lvm/** rwk,
+# Files like /run/lvm/pvs_online, /run/lvm/vgs_online, /run/lvm/hints
+/run/lvm/ rw,
+/run/lvm/** rwk,
+/run/dmeventd-client rw,
 
 # Allow running utility processes under the specialized AppArmor profiles.
 # These profiles will prevent utility processes escaping confinement.
@@ -194,7 +163,6 @@ ptrace (read, trace) peer=@{profile_name},
 ptrace (read, trace) peer=libvirt-*,
 
 # Used by neutron-ovn-agent.
-# /run/netns/ r,  # TODO(dmitriis) remove this
 unmount /run/netns/ovnmeta-*,
 `
 
@@ -205,6 +173,8 @@ const microStackSupportConnectedPlugSecComp = `
 # Note that this profile necessarily contains the union of all the syscalls each of the
 # utilities requires. We rely on MicroStack to generate specific AppArmor profiles
 # for each child process, to further restrict their abilities.
+mknod - |S_IFBLK -
+mknodat - - |S_IFBLK -
 `
 var microStackConnectedPlugUDev = []string{
 	`KERNEL=="vhost-net"`,
@@ -216,13 +186,14 @@ var microStackConnectedPlugUDev = []string{
 	`SUBSYSTEM=="block", KERNEL=="loop[0-9]*"`,
 	`SUBSYSTEM=="misc", KERNEL=="loop-control"`,
 	`SUBSYSTEM=="misc", KERNEL=="device-mapper"`,
+	`SUBSYSTEM=="block", KERNEL=="dm-[0-9]*"`,
 }
 
 type microStackInterface struct {
 	commonInterface
 }
 
-var microStackSupportConnectedPlugKmod = []string{`vhost`, `vhost-net`, `vhost-scsi`, `vhost-vsock`, `pci-stub`, `vfio`, `nbd`, `dm-mod`}
+var microStackSupportConnectedPlugKmod = []string{`vhost`, `vhost-net`, `vhost-scsi`, `vhost-vsock`, `pci-stub`, `vfio`, `nbd`, `dm-mod`, `dm-thin-pool`, `dm-snapshot`}
 
 func init() {
 	registerIface(&microStackInterface{commonInterface{

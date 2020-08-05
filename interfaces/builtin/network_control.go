@@ -189,6 +189,9 @@ capability setuid,
 /run/network/ifup-* rw,
 /run/network/ifdown-* rw,
 
+# iptables
+/run/xtables.lock rwk,
+
 # route
 /etc/networks r,
 /etc/ethers r,
