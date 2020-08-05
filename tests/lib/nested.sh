@@ -305,7 +305,7 @@ get_extra_snaps(){
     if [ -d "$EXTRA_SNAPS_PATH" ]; then
         while IFS= read -r mysnap; do
             echo "$mysnap"
-        done <   <(find "$EXTRA_SNAPS_PATH" -name '*.snap')
+        done < <(find "$EXTRA_SNAPS_PATH" -name '*.snap')
     fi
 }
 
@@ -528,21 +528,10 @@ force_stop_nested_vm(){
 }
 
 start_nested_core_vm_unit(){
-    local QEMU IMAGE_DIR IMAGE_NAME CURRENT_IMAGE
-    CURRENT_IMAGE="$WORK_DIR/image/ubuntu-core-current.img"
+    local QEMU CURRENT_IMAGE
+    CURRENT_IMAGE=$1
     QEMU=$(get_qemu_for_nested_vm)
-    IMAGE_DIR="$(get_image_dir)"
-    IMAGE_NAME="$(get_image_name core)"
 
-    if [ ! -f "$CURRENT_IMAGE" ]; then
-        # As core18 systems use to fail to start the assertion disk when using the
-        # snapshot feature, we copy the original image and use that copy to start
-        # the VM.
-        # Some tests however need to force stop and restart the VM with different
-        # options, so if that env var is set, we will reuse the existing file if it
-        # exists
-        cp "$IMAGE_DIR/$IMAGE_NAME" "$CURRENT_IMAGE"
-    fi
     # Now qemu parameters are defined
 
     # use only 2G of RAM for qemu-nested
@@ -656,11 +645,31 @@ start_nested_core_vm_unit(){
 }
 
 start_nested_core_vm(){
-    # Start the nested core vm
-    start_nested_core_vm_unit
+    CURRENT_IMAGE="$WORK_DIR/image/ubuntu-core-current.img"
 
-    # configure ssh for first time
-    prepare_ssh
+    # In case the current image already exists, it needs to be reused and in that
+    # case is neither required to copy the base image nor prepare the ssh
+    if [ ! -f "$CURRENT_IMAGE" ]; then
+        # As core18 systems use to fail to start the assertion disk when using the
+        # snapshot feature, we copy the original image and use that copy to start
+        # the VM.
+        # Some tests however need to force stop and restart the VM with different
+        # options, so if that env var is set, we will reuse the existing file if it
+        # exists
+        IMAGE_NAME="$(get_image_name core)"
+        cp "$IMAGE_DIR/$IMAGE_NAME" "$CURRENT_IMAGE"
+
+        # Start the nested core vm
+        start_nested_core_vm_unit "$CURRENT_IMAGE"
+
+        # configure ssh for first time
+        prepare_ssh
+    else
+        # Start the nested core vm
+        start_nested_core_vm_unit "$CURRENT_IMAGE"
+    fi
+
+
 }
 
 create_nested_classic_vm(){
