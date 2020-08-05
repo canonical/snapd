@@ -26,6 +26,6 @@ import (
 	"github.com/snapcore/snapd/gadget"
 )
 
-func Run(gadgetRoot, device string, options Options, _ gadget.ContentWriteObserver) error {
+func Run(gadgetRoot, device string, options Options, _ gadget.ContentObserver) error {
 	return fmt.Errorf("build without secboot support")
 }
