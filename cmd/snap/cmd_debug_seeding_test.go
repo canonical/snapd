@@ -447,7 +447,7 @@ seed-error: |
   - xxx
 preseeded:         true
 image-preseeding:  9.318s
-seed-completion:   -
+seed-completion:   --
 `[1:],
 			comment: "preseeded, error during seeding",
 		},
