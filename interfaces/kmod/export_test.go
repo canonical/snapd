@@ -19,6 +19,6 @@
 
 package kmod
 
-var (
-	LoadModules = loadModules
-)
+func (b *Backend) LoadModules(modules []string) {
+	b.loadModules(modules)
+}
