@@ -68,12 +68,8 @@ func main() {
 				doc = strings.Replace(doc, "\n", " ", -1)
 				doc = strings.Replace(doc, "  ", " ", -1)
 				doc = strings.TrimSpace(doc)
-				doc1 := strings.TrimSuffix(doc, ".")
-				if doc1 != doc {
-					if strings.Index(doc1, ". ") == -1 {
-						fmt.Fprintf(os.Stderr, "unexpected dot at the end %q for %s\n", doc, name)
-					}
-					doc = doc1
+				if !strings.HasSuffix(doc, ".") {
+					fmt.Fprintf(os.Stderr, "expected dot at the end %q for %s\n", doc, name)
 				}
 				if strings.HasPrefix(doc, "deprecated") {
 					// skip
