@@ -922,10 +922,13 @@ suites:
             ENABLE_SECURE_BOOT: '$(HOST: echo "${SPREAD_ENABLE_SECURE_BOOT:-false}")'
             # Build and use snapd from current branch
             BUILD_SNAPD_FROM_CURRENT: '$(HOST: echo "${SPREAD_BUILD_SNAPD_FROM_CURRENT:-false}")'
+<<<<<<< HEAD
             # Download and use an custom image from this url
             CUSTOM_IMAGE_URL: '$(HOST: echo "${SPREAD_CUSTOM_IMAGE_URL:-}")'
+=======
             # Directory where the images and test assets are stored
             WORK_DIR: '/tmp/work-dir'
+>>>>>>> upstream/master
         manual: true
         debug: |
             if [ -f "${WORK_DIR}/serial.log" ]; then
@@ -972,10 +975,13 @@ suites:
             ENABLE_SECURE_BOOT: '$(HOST: echo "${SPREAD_ENABLE_SECURE_BOOT:-false}")'
             # Build and use snapd from current branch
             BUILD_SNAPD_FROM_CURRENT: '$(HOST: echo "${SPREAD_BUILD_SNAPD_FROM_CURRENT:-false}")'
+<<<<<<< HEAD
             # Download and use an custom image from this url
             CUSTOM_IMAGE_URL: '$(HOST: echo "${SPREAD_CUSTOM_IMAGE_URL:-}")'
+=======
             # Directory where the images and test assets are stored
             WORK_DIR: '/tmp/work-dir'
+>>>>>>> upstream/master
         manual: true
         debug: |
             if [ -f "${WORK_DIR}/serial.log" ]; then
@@ -1030,10 +1036,13 @@ suites:
             ENABLE_SECURE_BOOT: '$(HOST: echo "${SPREAD_ENABLE_SECURE_BOOT:-false}")'
             # Build and use snapd from current branch
             BUILD_SNAPD_FROM_CURRENT: '$(HOST: echo "${SPREAD_BUILD_SNAPD_FROM_CURRENT:-false}")'
+<<<<<<< HEAD
             # Download and use an custom image from this url
             CUSTOM_IMAGE_URL: '$(HOST: echo "${SPREAD_CUSTOM_IMAGE_URL:-}")'
+=======
             # Directory where the images and test assets are stored
             WORK_DIR: '/tmp/work-dir'
+>>>>>>> upstream/master
         manual: true
         debug: |
             if [ -f "${WORK_DIR}/serial.log" ]; then
@@ -1084,10 +1093,13 @@ suites:
             ENABLE_SECURE_BOOT: '$(HOST: echo "${SPREAD_ENABLE_SECURE_BOOT:-true}")'
             # Build and use snapd from current branch
             BUILD_SNAPD_FROM_CURRENT: '$(HOST: echo "${SPREAD_BUILD_SNAPD_FROM_CURRENT:-true}")'
+<<<<<<< HEAD
             # Download and use an custom image from this url
             CUSTOM_IMAGE_URL: '$(HOST: echo "${SPREAD_CUSTOM_IMAGE_URL:-}")'
+=======
             # Directory where the images and test assets are stored
             WORK_DIR: '/tmp/work-dir'
+>>>>>>> upstream/master
         manual: true
         kill-timeout: 90m
         debug: |

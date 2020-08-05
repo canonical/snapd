@@ -485,51 +485,6 @@ func (e *Error) Error() string {
 	return e.Message
 }
 
-const (
-	ErrorKindTwoFactorRequired = "two-factor-required"
-	ErrorKindTwoFactorFailed   = "two-factor-failed"
-	ErrorKindLoginRequired     = "login-required"
-	ErrorKindInvalidAuthData   = "invalid-auth-data"
-	ErrorKindTermsNotAccepted  = "terms-not-accepted"
-	ErrorKindNoPaymentMethods  = "no-payment-methods"
-	ErrorKindPaymentDeclined   = "payment-declined"
-	ErrorKindPasswordPolicy    = "password-policy"
-
-	ErrorKindSnapAlreadyInstalled   = "snap-already-installed"
-	ErrorKindSnapNotInstalled       = "snap-not-installed"
-	ErrorKindSnapNotFound           = "snap-not-found"
-	ErrorKindAppNotFound            = "app-not-found"
-	ErrorKindSnapLocal              = "snap-local"
-	ErrorKindSnapNeedsDevMode       = "snap-needs-devmode"
-	ErrorKindSnapNeedsClassic       = "snap-needs-classic"
-	ErrorKindSnapNeedsClassicSystem = "snap-needs-classic-system"
-	ErrorKindSnapNotClassic         = "snap-not-classic"
-	ErrorKindNoUpdateAvailable      = "snap-no-update-available"
-
-	ErrorKindRevisionNotAvailable     = "snap-revision-not-available"
-	ErrorKindChannelNotAvailable      = "snap-channel-not-available"
-	ErrorKindArchitectureNotAvailable = "snap-architecture-not-available"
-
-	ErrorKindChangeConflict = "snap-change-conflict"
-
-	ErrorKindNotSnap = "snap-not-a-snap"
-
-	ErrorKindNetworkTimeout = "network-timeout"
-	ErrorKindDNSFailure     = "dns-failure"
-
-	ErrorKindInterfacesUnchanged = "interfaces-unchanged"
-
-	ErrorKindBadQuery           = "bad-query"
-	ErrorKindConfigNoSuchOption = "option-not-found"
-
-	ErrorKindSystemRestart = "system-restart"
-	ErrorKindDaemonRestart = "daemon-restart"
-
-	ErrorKindAssertionNotFound = "assertion-not-found"
-
-	ErrorKindUnsuccessful = "unsuccessful"
-)
-
 // IsRetryable returns true if the given error is an error
 // that can be retried later.
 func IsRetryable(err error) bool {

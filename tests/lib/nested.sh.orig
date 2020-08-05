@@ -531,6 +531,7 @@ start_nested_core_vm_unit(){
     local QEMU IMAGE_DIR IMAGE_NAME CURRENT_IMAGE
     CURRENT_IMAGE="$WORK_DIR/image/ubuntu-core-current.img"
     QEMU=$(get_qemu_for_nested_vm)
+<<<<<<< HEAD
     IMAGE_DIR="$(get_image_dir)"
     IMAGE_NAME="$(get_image_name core)"
 
@@ -541,6 +542,9 @@ start_nested_core_vm_unit(){
     # options, so if that env var is set, we will reuse the existing file if it
     # exists
     cp "$IMAGE_DIR/$IMAGE_NAME" "$CURRENT_IMAGE"
+
+=======
+>>>>>>> upstream/master
     # Now qemu parameters are defined
 
     # use only 2G of RAM for qemu-nested
@@ -602,6 +606,17 @@ start_nested_core_vm_unit(){
         PARAM_ASSERTIONS="-drive if=none,id=stick,format=raw,file=$WORK_DIR/assertions.disk,cache=none,format=raw -device nec-usb-xhci,id=xhci -device usb-storage,bus=xhci.0,removable=true,drive=stick"
     fi
     if is_core_20_nested_system; then
+<<<<<<< HEAD
+=======
+        if ! is_focal_system; then
+            cp /etc/apt/sources.list /etc/apt/sources.list.back
+            echo "deb http://us-east1.gce.archive.ubuntu.com/ubuntu/ focal main restricted" >> /etc/apt/sources.list
+            apt update
+            apt install -y ovmf
+            mv /etc/apt/sources.list.back /etc/apt/sources.list
+            apt update
+        fi
+>>>>>>> upstream/master
         OVMF_CODE="secboot"
         OVMF_VARS="ms"
         # In this case the kernel.efi is unsigned and signed with snaleoil certs
