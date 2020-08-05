@@ -173,9 +173,10 @@ const gadgetContent = `volumes:
 `
 
 type mockWriteObserver struct {
-	content    map[string][][]string
-	observeErr error
-	c          *C
+	content        map[string][][]string
+	observeErr     error
+	expectedStruct *gadget.LaidOutStructure
+	c              *C
 }
 
 func (m *mockWriteObserver) Observe(op gadget.ContentOperation, sourceStruct *gadget.LaidOutStructure,
@@ -184,6 +185,8 @@ func (m *mockWriteObserver) Observe(op gadget.ContentOperation, sourceStruct *ga
 		m.content = make(map[string][][]string)
 	}
 	m.content[targetRootDir] = append(m.content[targetRootDir], []string{sourcePath, relativeTargetPath})
+	m.c.Assert(sourceStruct, NotNil)
+	m.c.Check(sourceStruct, DeepEquals, m.expectedStruct)
 	return true, m.observeErr
 }
 
@@ -237,8 +240,9 @@ func (s *contentTestSuite) TestWriteFilesystemContent(c *C) {
 			},
 		}
 		obs := &mockWriteObserver{
-			c:          c,
-			observeErr: tc.observeErr,
+			c:              c,
+			observeErr:     tc.observeErr,
+			expectedStruct: &m.LaidOutStructure,
 		}
 		err := install.WriteContent(&m, s.gadgetRoot, obs)
 		if tc.err == "" {

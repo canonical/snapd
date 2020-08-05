@@ -245,9 +245,10 @@ func (s *mountedfilesystemTestSuite) TestWriteNonDirectory(c *C) {
 }
 
 type mockWriteObserver struct {
-	content    map[string][][]string
-	observeErr error
-	c          *C
+	content        map[string][][]string
+	observeErr     error
+	expectedStruct *gadget.LaidOutStructure
+	c              *C
 }
 
 func (m *mockWriteObserver) Observe(op gadget.ContentOperation, sourceStruct *gadget.LaidOutStructure,
@@ -261,6 +262,8 @@ func (m *mockWriteObserver) Observe(op gadget.ContentOperation, sourceStruct *ga
 		Commentf("target path %q is absolute", relativeTargetPath))
 
 	m.content[targetRootDir] = append(m.content[targetRootDir], []string{sourcePath, relativeTargetPath})
+	m.c.Assert(sourceStruct, NotNil)
+	m.c.Check(m.expectedStruct, DeepEquals, sourceStruct)
 	return true, m.observeErr
 }
 
@@ -282,6 +285,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterHappy(c *C) {
 
 	ps := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
+			Name:       "hello",
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
@@ -316,7 +320,10 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterHappy(c *C) {
 
 	outDir := c.MkDir()
 
-	obs := &mockWriteObserver{c: c}
+	obs := &mockWriteObserver{
+		c:              c,
+		expectedStruct: ps,
+	}
 	rw, err := gadget.NewMountedFilesystemWriter(s.dir, ps, obs)
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
@@ -896,8 +903,9 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterObserverErr(c *C) {
 
 	outDir := c.MkDir()
 	obs := &mockWriteObserver{
-		c:          c,
-		observeErr: errors.New("observe fail"),
+		c:              c,
+		observeErr:     errors.New("observe fail"),
+		expectedStruct: ps,
 	}
 	rw, err := gadget.NewMountedFilesystemWriter(s.dir, ps, obs)
 	c.Assert(err, IsNil)
