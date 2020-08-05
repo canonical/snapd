@@ -3,3 +3,5 @@ defaults:
     service:
       rsyslog:
         disable: true
+    system:
+      hostname: foo

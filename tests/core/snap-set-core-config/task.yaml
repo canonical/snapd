@@ -29,6 +29,9 @@ restore: |
         systemctl enable rsyslog.service
         systemctl start rsyslog.service
     fi
+    if [ -e current-hostname ]; then
+        hostnamectl set-hostname "$(cat current-hostname)"
+    fi
 
     rm -f /etc/systemd/login.conf.d/00-snap-core.conf
 
@@ -134,3 +137,8 @@ execute: |
     snap unset system system.kernel.printk.console-loglevel
     not test -e /etc/sysctl.d/99-snapd.conf
     sysctl -n kernel.printk|MATCH "^4\s+"
+
+    echo "setting the hostname works"
+    hostname > current-hostname
+    snap set system system.hostname=foo
+    hostname | MATCH foo

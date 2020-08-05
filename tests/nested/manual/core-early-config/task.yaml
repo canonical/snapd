@@ -61,3 +61,6 @@ execute: |
     # early config is witnessed by install hook of the pc gadget
     execute_remote "cat /var/snap/pc/common/debug.txt" | MATCH "/dev/null"
     execute_remote "test -L /etc/systemd/system/rsyslog.service"
+
+    # hostname is set
+    execute_remote "cat /etc/hostname" | MATCH "foo"
