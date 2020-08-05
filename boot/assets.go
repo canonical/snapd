@@ -39,7 +39,7 @@ type initialSealObserver struct {
 	model *asserts.Model
 }
 
-// Implements gadget.FileWriteObserver.
+// Implements gadget.ContentWriteObserver.
 func (o *initialSealObserver) Observe(op gadget.ObserveAction, affectedStruct *gadget.LaidOutStructure, root, realSource, relativeTarget string) (gadget.ObserveResult, error) {
 	// TODO:UC20:
 	// steps on write action:
@@ -51,7 +51,7 @@ func (o *initialSealObserver) Observe(op gadget.ObserveAction, affectedStruct *g
 	return gadget.ObserveResultNoted, nil
 }
 
-// Implements gadget.FileWriteObserver.
+// Implements gadget.ContentWriteObserver.
 func (o *initialSealObserver) Apply() error {
 	// TODO:UC20: steps:
 	// - reseal
