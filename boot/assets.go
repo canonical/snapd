@@ -24,23 +24,23 @@ import (
 	"github.com/snapcore/snapd/gadget"
 )
 
-func InitialSealObserver(model *asserts.Model) gadget.ContentObserver {
+func NewTrustedAssetsInstallObserver(model *asserts.Model) *TrustedAssetsInstallObserver {
 	if model.Grade() == asserts.ModelGradeUnset {
 		// no need to observe updates when assets are not managed
 		return nil
 	}
 
-	return &initialSealObserver{
+	return &TrustedAssetsInstallObserver{
 		model: model,
 	}
 }
 
-type initialSealObserver struct {
+type TrustedAssetsInstallObserver struct {
 	model *asserts.Model
 }
 
 // Implements gadget.ContentObserver.
-func (o *initialSealObserver) Observe(op gadget.ContentOperation, affectedStruct *gadget.LaidOutStructure, root, realSource, relativeTarget string) (bool, error) {
+func (o *TrustedAssetsInstallObserver) Observe(op gadget.ContentOperation, affectedStruct *gadget.LaidOutStructure, root, realSource, relativeTarget string) (bool, error) {
 	// TODO:UC20:
 	// steps on write action:
 	// - copy new asset to assets cache
@@ -51,9 +51,8 @@ func (o *initialSealObserver) Observe(op gadget.ContentOperation, affectedStruct
 	return true, nil
 }
 
-// Implements gadget.ContentWriteObserver.
-func (o *initialSealObserver) Apply() error {
+func (o *TrustedAssetsInstallObserver) Seal() error {
 	// TODO:UC20: steps:
-	// - reseal
+	// - initial seal
 	return nil
 }

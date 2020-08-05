@@ -113,7 +113,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	var sealComponentObserver gadget.ContentObserver
+	var sealingContentObserver gadget.ContentObserver
 	if useEncryption {
 		fdeDir := "var/lib/snapd/device/fde"
 		// ensure directories
@@ -132,7 +132,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		bopts.Model = deviceCtx.Model()
 		bopts.SystemLabel = modeEnv.RecoverySystem
 
-		sealComponentObserver = boot.InitialSealObserver(deviceCtx.Model())
+		sealingContentObserver = boot.NewTrustedAssetsInstallObserver(deviceCtx.Model())
 	}
 
 	// run the create partition code
@@ -140,7 +140,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	func() {
 		st.Unlock()
 		defer st.Lock()
-		err = installRun(gadgetDir, "", bopts, sealComponentObserver)
+		err = installRun(gadgetDir, "", bopts, sealingContentObserver)
 	}()
 	if err != nil {
 		return fmt.Errorf("cannot create partitions: %v", err)
