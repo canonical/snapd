@@ -534,13 +534,15 @@ start_nested_core_vm_unit(){
     IMAGE_DIR="$(get_image_dir)"
     IMAGE_NAME="$(get_image_name core)"
 
-    # As core18 systems use to fail to start the assertion disk when using the
-    # snapshot feature, we copy the original image and use that copy to start
-    # the VM.
-    # Some tests however need to force stop and restart the VM with different
-    # options, so if that env var is set, we will reuse the existing file if it
-    # exists
-    cp "$IMAGE_DIR/$IMAGE_NAME" "$CURRENT_IMAGE"
+    if [ ! -f "$CURRENT_IMAGE" ]; then
+        # As core18 systems use to fail to start the assertion disk when using the
+        # snapshot feature, we copy the original image and use that copy to start
+        # the VM.
+        # Some tests however need to force stop and restart the VM with different
+        # options, so if that env var is set, we will reuse the existing file if it
+        # exists
+        cp "$IMAGE_DIR/$IMAGE_NAME" "$CURRENT_IMAGE"
+    fi
     # Now qemu parameters are defined
 
     # use only 2G of RAM for qemu-nested
