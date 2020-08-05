@@ -32,60 +32,69 @@ func main() {
 	}
 
 	p := doc.New(pkgs["client"], "github.com/snapcore/snapd/client", 0)
-	for _, c := range p.Consts {
-		if strings.HasPrefix(c.Names[0], "ErrorKind") {
-			if strings.HasPrefix(c.Doc, "Error kinds.") {
-				fmt.Println(errorKindsHdr)
-			} else if strings.HasPrefix(c.Doc, "Maintenance error kinds") {
-				fmt.Println()
-				fmt.Println(maintErrorKindsHdr)
-			} else {
-				fmt.Fprintf(os.Stderr, "unexpected error kind group: %v\n", c.Doc)
+	var errorKindT *doc.Type
+	for _, t := range p.Types {
+		if t.Name == "ErrorKind" {
+			errorKindT = t
+			break
+		}
+	}
+	if errorKindT == nil {
+		fail(fmt.Errorf("expected ErrorKind type not defined"))
+	}
+	for _, c := range errorKindT.Consts {
+		if strings.HasPrefix(c.Doc, "Error kinds.") {
+			fmt.Println(errorKindsHdr)
+		} else if strings.HasPrefix(c.Doc, "Maintenance error kinds") {
+			fmt.Println()
+			fmt.Println(maintErrorKindsHdr)
+		} else {
+			fmt.Fprintf(os.Stderr, "unexpected error kind group: %v\n", c.Doc)
+			continue
+		}
+		fmt.Println()
+
+		kinds := make([]string, 0, len(c.Decl.Specs))
+		docs := make(map[string]string, len(c.Decl.Specs))
+		for _, spec := range c.Decl.Specs {
+			vs, ok := spec.(*ast.ValueSpec)
+			if !ok {
+				fmt.Printf("%#v\n", spec)
 				continue
 			}
-			fmt.Println()
-
-			kinds := make([]string, 0, len(c.Decl.Specs))
-			docs := make(map[string]string, len(c.Decl.Specs))
-			for _, spec := range c.Decl.Specs {
-				vs, ok := spec.(*ast.ValueSpec)
-				if !ok {
-					continue
-				}
-				kind, err := strconv.Unquote(vs.Values[0].(*ast.BasicLit).Value)
-				if err != nil {
-					// unexpected
-					fail(err)
-				}
-				doc := vs.Doc.Text()
-				name := vs.Names[0]
-				pfx := name.String() + ":"
-				if !strings.HasPrefix(doc, pfx) {
-					fmt.Fprintf(os.Stderr, "expected %s: doc string prefix, got %q\n", name, doc)
-				} else {
-					doc = doc[len(pfx):]
-				}
-				doc = strings.Replace(doc, "\n", " ", -1)
-				doc = strings.Replace(doc, "  ", " ", -1)
-				doc = strings.TrimSpace(doc)
-				if !strings.HasSuffix(doc, ".") {
-					fmt.Fprintf(os.Stderr, "expected dot at the end %q for %s\n", doc, name)
-				}
-				if strings.HasPrefix(doc, "deprecated") {
-					// skip
-					continue
-				}
-				if doc == "" {
-					doc = name.String() + "..."
-				}
-				kinds = append(kinds, kind)
-				docs[kind] = doc
+			kind, err := strconv.Unquote(vs.Values[0].(*ast.BasicLit).Value)
+			if err != nil {
+				// unexpected
+				fail(err)
 			}
-
-			sort.Strings(kinds)
-			for _, kind := range kinds {
-				fmt.Printf("* `%s`: %s\n", kind, docs[kind])
+			doc := vs.Doc.Text()
+			name := vs.Names[0]
+			pfx := name.String() + ":"
+			if !strings.HasPrefix(doc, pfx) {
+				fmt.Fprintf(os.Stderr, "expected %s: doc string prefix, got %q\n", name, doc)
+			} else {
+				doc = doc[len(pfx):]
 			}
+			doc = strings.Replace(doc, "\n", " ", -1)
+			doc = strings.Replace(doc, "  ", " ", -1)
+			doc = strings.TrimSpace(doc)
+			if !strings.HasSuffix(doc, ".") {
+				fmt.Fprintf(os.Stderr, "expected dot at the end %q for %s\n", doc, name)
+			}
+			if strings.HasPrefix(doc, "deprecated") {
+				// skip
+				continue
+			}
+			if doc == "" {
+				doc = name.String() + "..."
+			}
+			kinds = append(kinds, kind)
+			docs[kind] = doc
+		}
+
+		sort.Strings(kinds)
+		for _, kind := range kinds {
+			fmt.Printf("* `%s`: %s\n", kind, docs[kind])
 		}
 	}
 }

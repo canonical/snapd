@@ -24,6 +24,7 @@ import (
 	"net/http"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -108,7 +109,7 @@ func getModel(c *Command, r *http.Request, _ *auth.UserState) Response {
 	if err == state.ErrNoState {
 		res := &errorResult{
 			Message: "no model assertion yet",
-			Kind:    errorKindAssertionNotFound,
+			Kind:    client.ErrorKindAssertionNotFound,
 			Value:   "model",
 		}
 
@@ -153,7 +154,7 @@ func getSerial(c *Command, r *http.Request, _ *auth.UserState) Response {
 	if err == state.ErrNoState {
 		res := &errorResult{
 			Message: "no serial assertion yet",
-			Kind:    errorKindAssertionNotFound,
+			Kind:    client.ErrorKindAssertionNotFound,
 			Value:   "serial",
 		}
 
