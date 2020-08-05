@@ -297,6 +297,10 @@ prepare_image_dir(){
     mkdir -p "$(get_image_dir)"
 }
 
+get_extra_snaps_path(){
+    echo "${PWD}/extra-snaps"
+}
+
 get_extra_snaps(){
     local EXTRA_SNAPS=""
     local EXTRA_SNAPS_PATH
