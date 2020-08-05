@@ -305,7 +305,7 @@ get_extra_snaps(){
     if [ -d "$EXTRA_SNAPS_PATH" ]; then
         while IFS= read -r mysnap; do
             echo "$mysnap"
-        done <   <(find "$EXTRA_SNAPS_PATH" -name '*.snap')
+        done < <(find "$EXTRA_SNAPS_PATH" -name '*.snap')
     fi
 }
 
