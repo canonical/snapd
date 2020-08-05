@@ -173,31 +173,25 @@ const gadgetContent = `volumes:
 `
 
 type mockWriteObserver struct {
-	content     map[string][][]string
-	applyErr    error
-	applyCalled int
-	c           *C
+	content    map[string][][]string
+	observeErr error
+	c          *C
 }
 
-func (m *mockWriteObserver) Observe(op gadget.ObserveAction, sourceStruct *gadget.LaidOutStructure,
-	targetRootDir, sourcePath, relativeTargetPath string) (gadget.ObserveResult, error) {
+func (m *mockWriteObserver) Observe(op gadget.ContentOperation, sourceStruct *gadget.LaidOutStructure,
+	targetRootDir, sourcePath, relativeTargetPath string) (bool, error) {
 	if m.content == nil {
 		m.content = make(map[string][][]string)
 	}
 	m.content[targetRootDir] = append(m.content[targetRootDir], []string{sourcePath, relativeTargetPath})
-	return gadget.ObserveResultNoted, nil
-}
-
-func (m *mockWriteObserver) Apply() error {
-	m.applyCalled++
-	return m.applyErr
+	return true, m.observeErr
 }
 
 func (s *contentTestSuite) TestWriteFilesystemContent(c *C) {
 	for _, tc := range []struct {
 		mountErr   error
 		unmountErr error
-		applyErr   error
+		observeErr error
 		err        string
 	}{
 		{
@@ -213,8 +207,8 @@ func (s *contentTestSuite) TestWriteFilesystemContent(c *C) {
 			unmountErr: errors.New("unmount error"),
 			err:        "unmount error",
 		}, {
-			applyErr: errors.New("apply/seal error"),
-			err:      "cannot create filesystem image: cannot apply observed write actions: apply/seal error",
+			observeErr: errors.New("observe error"),
+			err:        "cannot create filesystem image: cannot write filesystem content of source:grubx64.efi: cannot observe file write: observe error",
 		},
 	} {
 		mockMountpoint := c.MkDir()
@@ -243,8 +237,8 @@ func (s *contentTestSuite) TestWriteFilesystemContent(c *C) {
 			},
 		}
 		obs := &mockWriteObserver{
-			c:        c,
-			applyErr: tc.applyErr,
+			c:          c,
+			observeErr: tc.observeErr,
 		}
 		err := install.WriteContent(&m, s.gadgetRoot, obs)
 		if tc.err == "" {
@@ -263,7 +257,6 @@ func (s *contentTestSuite) TestWriteFilesystemContent(c *C) {
 					{filepath.Join(s.gadgetRoot, "grubx64.efi"), "EFI/boot/grubx64.efi"},
 				},
 			})
-			c.Assert(obs.applyCalled, Equals, 1)
 		}
 	}
 }

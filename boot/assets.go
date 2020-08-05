@@ -24,7 +24,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 )
 
-func InitialSealObserver(model *asserts.Model) gadget.ContentWriteObserver {
+func InitialSealObserver(model *asserts.Model) gadget.ContentObserver {
 	if model.Grade() == asserts.ModelGradeUnset {
 		// no need to observe updates when assets are not managed
 		return nil
@@ -39,8 +39,8 @@ type initialSealObserver struct {
 	model *asserts.Model
 }
 
-// Implements gadget.ContentWriteObserver.
-func (o *initialSealObserver) Observe(op gadget.ObserveAction, affectedStruct *gadget.LaidOutStructure, root, realSource, relativeTarget string) (gadget.ObserveResult, error) {
+// Implements gadget.ContentObserver.
+func (o *initialSealObserver) Observe(op gadget.ContentOperation, affectedStruct *gadget.LaidOutStructure, root, realSource, relativeTarget string) (bool, error) {
 	// TODO:UC20:
 	// steps on write action:
 	// - copy new asset to assets cache
@@ -48,7 +48,7 @@ func (o *initialSealObserver) Observe(op gadget.ObserveAction, affectedStruct *g
 	// steps on rollback action:
 	// - drop file from cache if no longer referenced
 	// - update modeenv
-	return gadget.ObserveResultNoted, nil
+	return true, nil
 }
 
 // Implements gadget.ContentWriteObserver.

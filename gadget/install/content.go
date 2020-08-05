@@ -52,7 +52,7 @@ func makeFilesystem(ds *gadget.OnDiskStructure) error {
 
 // writeContent populates the given on-disk structure, according to the contents
 // defined in the gadget.
-func writeContent(ds *gadget.OnDiskStructure, gadgetRoot string, observer gadget.ContentWriteObserver) error {
+func writeContent(ds *gadget.OnDiskStructure, gadgetRoot string, observer gadget.ContentObserver) error {
 	switch {
 	case !ds.IsPartition():
 		return fmt.Errorf("cannot write non-partitions yet")
@@ -90,7 +90,7 @@ func mountFilesystem(ds *gadget.OnDiskStructure, baseMntPoint string) error {
 	return nil
 }
 
-func writeFilesystemContent(ds *gadget.OnDiskStructure, gadgetRoot string, observer gadget.ContentWriteObserver) (err error) {
+func writeFilesystemContent(ds *gadget.OnDiskStructure, gadgetRoot string, observer gadget.ContentObserver) (err error) {
 	mountpoint := filepath.Join(contentMountpoint, strconv.Itoa(ds.Index))
 	if err := os.MkdirAll(mountpoint, 0755); err != nil {
 		return err

@@ -245,15 +245,13 @@ func (s *mountedfilesystemTestSuite) TestWriteNonDirectory(c *C) {
 }
 
 type mockWriteObserver struct {
-	content     map[string][][]string
-	observeErr  error
-	applyErr    error
-	applyCalled int
-	c           *C
+	content    map[string][][]string
+	observeErr error
+	c          *C
 }
 
-func (m *mockWriteObserver) Observe(op gadget.ObserveAction, sourceStruct *gadget.LaidOutStructure,
-	targetRootDir, sourcePath, relativeTargetPath string) (gadget.ObserveResult, error) {
+func (m *mockWriteObserver) Observe(op gadget.ContentOperation, sourceStruct *gadget.LaidOutStructure,
+	targetRootDir, sourcePath, relativeTargetPath string) (bool, error) {
 	if m.content == nil {
 		m.content = make(map[string][][]string)
 	}
@@ -263,12 +261,7 @@ func (m *mockWriteObserver) Observe(op gadget.ObserveAction, sourceStruct *gadge
 		Commentf("target path %q is absolute", relativeTargetPath))
 
 	m.content[targetRootDir] = append(m.content[targetRootDir], []string{sourcePath, relativeTargetPath})
-	return gadget.ObserveResultNoted, m.observeErr
-}
-
-func (m *mockWriteObserver) Apply() error {
-	m.applyCalled++
-	return m.applyErr
+	return true, m.observeErr
 }
 
 func (s *mountedfilesystemTestSuite) TestMountedWriterHappy(c *C) {
@@ -354,7 +347,6 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterHappy(c *C) {
 			{filepath.Join(s.dir, "baz"), "baz"},
 		},
 	})
-	c.Assert(obs.applyCalled, Equals, 1)
 }
 
 func (s *mountedfilesystemTestSuite) TestMountedWriterNonDirectory(c *C) {
@@ -906,7 +898,6 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterObserverErr(c *C) {
 	obs := &mockWriteObserver{
 		c:          c,
 		observeErr: errors.New("observe fail"),
-		applyErr:   errors.New("apply fail"),
 	}
 	rw, err := gadget.NewMountedFilesystemWriter(s.dir, ps, obs)
 	c.Assert(err, IsNil)
@@ -914,12 +905,6 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterObserverErr(c *C) {
 
 	err = rw.Write(outDir, nil)
 	c.Assert(err, ErrorMatches, "cannot write filesystem content of source:/: cannot observe file write: observe fail")
-
-	// try again, have apply fail
-	obs.observeErr = nil
-	outDir2 := c.MkDir()
-	err = rw.Write(outDir2, nil)
-	c.Assert(err, ErrorMatches, "cannot apply observed write actions: apply fail")
 }
 
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupWithDirectories(c *C) {

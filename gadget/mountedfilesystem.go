@@ -64,12 +64,12 @@ func checkContent(content *VolumeContent) error {
 type MountedFilesystemWriter struct {
 	contentDir string
 	ps         *LaidOutStructure
-	observer   ContentWriteObserver
+	observer   ContentObserver
 }
 
 // NewMountedFilesystemWriter returns a writer capable of writing provided
 // structure, with content of the structure stored in the given root directory.
-func NewMountedFilesystemWriter(contentDir string, ps *LaidOutStructure, observer ContentWriteObserver) (*MountedFilesystemWriter, error) {
+func NewMountedFilesystemWriter(contentDir string, ps *LaidOutStructure, observer ContentObserver) (*MountedFilesystemWriter, error) {
 	if ps == nil {
 		return nil, fmt.Errorf("internal error: *LaidOutStructure is nil")
 	}
@@ -123,14 +123,6 @@ func (m *MountedFilesystemWriter) Write(whereDir string, preserve []string) erro
 			return fmt.Errorf("cannot write filesystem content of %s: %v", c, err)
 		}
 	}
-
-	// TODO:UC20: should this be called externally?
-	if m.observer != nil {
-		if err := m.observer.Apply(); err != nil {
-			return fmt.Errorf("cannot apply observed write actions: %v", err)
-		}
-	}
-
 	return nil
 }
 
@@ -187,7 +179,7 @@ func (m *MountedFilesystemWriter) observedWriteFileOrSymlink(volumeRoot, src, ds
 		if err != nil {
 			return err
 		}
-		_, err = m.observer.Observe(FileAssetWrite, m.ps, volumeRoot, src, relativeDst)
+		_, err = m.observer.Observe(ContentWrite, m.ps, volumeRoot, src, relativeDst)
 		if err != nil {
 			return fmt.Errorf("cannot observe file write: %v", err)
 		}

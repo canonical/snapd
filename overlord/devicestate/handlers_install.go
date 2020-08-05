@@ -113,7 +113,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	var sealComponentObserver gadget.ContentWriteObserver
+	var sealComponentObserver gadget.ContentObserver
 	if useEncryption {
 		fdeDir := "var/lib/snapd/device/fde"
 		// ensure directories
