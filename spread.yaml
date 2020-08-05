@@ -947,6 +947,9 @@ suites:
             # TODO: replace with distro package once 2.45 is in stable
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
 
+            . "$TESTSLIB/nested.sh"
+            prepare_nested_env
+
         restore: |
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
@@ -988,6 +991,7 @@ suites:
 
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
+            prepare_nested_env
             create_nested_classic_vm
         prepare-each: |
             #shellcheck source=tests/lib/nested.sh
@@ -1038,6 +1042,7 @@ suites:
 
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
+            prepare_nested_env
             create_nested_core_vm
         prepare-each: |
             #shellcheck source=tests/lib/nested.sh
@@ -1088,6 +1093,7 @@ suites:
 
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
+            prepare_nested_env
             create_nested_core_vm
             start_nested_core_vm
         restore: |
