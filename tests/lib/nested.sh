@@ -299,6 +299,10 @@ get_image_name(){
     echo "ubuntu-${TYPE}-${VERSION}-${SOURCE}.img"
 }
 
+get_extra_snaps_path(){
+    echo "${PWD}/extra-snaps"
+}
+
 get_extra_snaps(){
     local EXTRA_SNAPS=""
     local EXTRA_SNAPS_PATH
@@ -389,8 +393,8 @@ create_nested_core_vm(){
                     SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
 
                     # Prepare the pc kernel snap
-                    KERNEL_SNAP=$(ls "$IMAGES_DIR"/pc-kernel_*.snap)
-                    KERNEL_UNPACKED="$IMAGES_DIR"/kernel-unpacked
+                    KERNEL_SNAP=$(ls "$ASSETS_DIR"/pc-kernel_*.snap)
+                    KERNEL_UNPACKED="$ASSETS_DIR"/kernel-unpacked
                     unsquashfs -d "$KERNEL_UNPACKED" "$KERNEL_SNAP"
                     sbattach --remove "$KERNEL_UNPACKED/kernel.efi"
                     sbsign --key "$SNAKEOIL_KEY" --cert "$SNAKEOIL_CERT" "$KERNEL_UNPACKED/kernel.efi"  --output "$KERNEL_UNPACKED/kernel.efi"
@@ -657,7 +661,7 @@ start_nested_core_vm(){
         # options, so if that env var is set, we will reuse the existing file if it
         # exists
         IMAGE_NAME="$(get_image_name core)"
-        cp "$IMAGE_DIR/$IMAGE_NAME" "$CURRENT_IMAGE"
+        cp "$IMAGES_DIR/$IMAGE_NAME" "$CURRENT_IMAGE"
 
         # Start the nested core vm
         start_nested_core_vm_unit "$CURRENT_IMAGE"
