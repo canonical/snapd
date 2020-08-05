@@ -62,6 +62,8 @@ func (x *cmdSeeding) Execute(args []string) error {
 		// use json.RawMessage to delay unmarshal'ing to the interfaces pkg
 		PreseedSystemKey     *json.RawMessage `json:"preseed-system-key,omitempty"`
 		SeedRestartSystemKey *json.RawMessage `json:"seed-restart-system-key,omitempty"`
+
+		SeedError string `json:"seed-error,omitempty"`
 	}
 	if err := x.client.DebugGet("seeding", &resp, nil); err != nil {
 		return err
@@ -71,6 +73,19 @@ func (x *cmdSeeding) Execute(args []string) error {
 
 	// show seeded and preseeded keys
 	fmt.Fprintf(w, "seeded:\t%v\n", resp.Seeded)
+	if resp.SeedError != "" {
+		// print seed-error
+		termWidth, _ := termSize()
+		termWidth -= 3
+		if termWidth > 100 {
+			// any wider than this and it gets hard to read
+			termWidth = 100
+		}
+		fmt.Fprintln(w, "seed-error: |")
+		// XXX: reuse/abuse
+		printDescr(w, resp.SeedError, termWidth)
+	}
+
 	fmt.Fprintf(w, "preseeded:\t%v\n", resp.Preseeded)
 
 	// calculate the time spent preseeding (if preseeded) and seeding
