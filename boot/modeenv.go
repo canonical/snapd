@@ -21,6 +21,7 @@ package boot
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -194,4 +195,20 @@ func splitModeenvStringList(v string) []string {
 
 func asModeenvStringList(v []string) string {
 	return strings.Join(v, ",")
+}
+
+// deepEqual compares two modeenvs to ensure they are textually the same. It
+// does not consider whether the modeenvs were read from disk or created purely
+// in memory. It also does not sort or otherwise mutate any sub-objects,
+// performing simple strict verification of sub-objects.
+func (m *Modeenv) deepEqual(m2 *Modeenv) bool {
+	b, err := json.Marshal(m)
+	if err != nil {
+		return false
+	}
+	b2, err := json.Marshal(m2)
+	if err != nil {
+		return false
+	}
+	return bytes.Equal(b, b2)
 }

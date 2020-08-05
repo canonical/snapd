@@ -20,6 +20,7 @@
 package boot_test
 
 import (
+	"encoding/json"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -28,6 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -80,6 +82,82 @@ func (s *modeenvSuite) TestReadMode(c *C) {
 	c.Check(modeenv.Mode, Equals, "run")
 	c.Check(modeenv.RecoverySystem, Equals, "")
 	c.Check(modeenv.Base, Equals, "")
+}
+
+func (s *modeenvSuite) TestDeepEqualDiskVsMemoryInvariant(c *C) {
+	s.makeMockModeenvFile(c, `mode=recovery
+recovery_system=20191126
+base=core20_123.snap
+try_base=core20_124.snap
+base_status=try
+`)
+
+	diskModeenv, err := boot.ReadModeenv(s.tmpdir)
+	c.Assert(err, IsNil)
+	inMemoryModeenv := &boot.Modeenv{
+		Mode:           "recovery",
+		RecoverySystem: "20191126",
+		Base:           "core20_123.snap",
+		TryBase:        "core20_124.snap",
+		BaseStatus:     "try",
+	}
+	c.Assert(inMemoryModeenv.DeepEqual(diskModeenv), Equals, true)
+	c.Assert(diskModeenv.DeepEqual(inMemoryModeenv), Equals, true)
+}
+
+func (s *modeenvSuite) TestDeepEquals(c *C) {
+	// start with two identical modeenvs
+	modeenv1 := &boot.Modeenv{
+		Mode:                   "recovery",
+		RecoverySystem:         "20191126",
+		CurrentRecoverySystems: []string{"1", "2"},
+
+		Base:           "core20_123.snap",
+		TryBase:        "core20_124.snap",
+		BaseStatus:     "try",
+		CurrentKernels: []string{"k1", "k2"},
+
+		Model:   "model",
+		BrandID: "brand",
+		Grade:   "secured",
+	}
+
+	modeenv2 := &boot.Modeenv{
+		Mode:                   "recovery",
+		RecoverySystem:         "20191126",
+		CurrentRecoverySystems: []string{"1", "2"},
+
+		Base:           "core20_123.snap",
+		TryBase:        "core20_124.snap",
+		BaseStatus:     "try",
+		CurrentKernels: []string{"k1", "k2"},
+
+		Model:   "model",
+		BrandID: "brand",
+		Grade:   "secured",
+	}
+
+	// same object should be the same
+	c.Assert(modeenv1.DeepEqual(modeenv1), Equals, true)
+
+	// no difference should be the same at the start
+	c.Assert(modeenv1.DeepEqual(modeenv2), Equals, true)
+	c.Assert(modeenv2.DeepEqual(modeenv1), Equals, true)
+
+	// invert CurrentKernels
+	modeenv2.CurrentKernels = []string{"k2", "k1"}
+	c.Assert(modeenv1.DeepEqual(modeenv2), Equals, false)
+	c.Assert(modeenv2.DeepEqual(modeenv1), Equals, false)
+
+	// make CurrentKernels capitalized
+	modeenv2.CurrentKernels = []string{"K1", "k2"}
+	c.Assert(modeenv1.DeepEqual(modeenv2), Equals, false)
+	c.Assert(modeenv2.DeepEqual(modeenv1), Equals, false)
+
+	// make CurrentKernels disappear
+	modeenv2.CurrentKernels = nil
+	c.Assert(modeenv1.DeepEqual(modeenv2), Equals, false)
+	c.Assert(modeenv2.DeepEqual(modeenv1), Equals, false)
 }
 
 func (s *modeenvSuite) TestReadModeWithRecoverySystem(c *C) {
