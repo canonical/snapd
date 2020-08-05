@@ -29,7 +29,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -113,7 +112,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	var sealingContentObserver gadget.ContentObserver
+	var sealingContentObserver *boot.TrustedAssetsInstallObserver
 	if useEncryption {
 		fdeDir := "var/lib/snapd/device/fde"
 		// ensure directories
@@ -176,7 +175,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		UnpackedGadgetDir: gadgetDir,
 	}
 	rootdir := dirs.GlobalRootDir
-	if err := bootMakeBootable(deviceCtx.Model(), rootdir, bootWith); err != nil {
+	if err := bootMakeBootable(deviceCtx.Model(), rootdir, bootWith, sealingContentObserver); err != nil {
 		return fmt.Errorf("cannot make run system bootable: %v", err)
 	}
 
