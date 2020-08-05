@@ -39,6 +39,11 @@ type TrustedAssetsInstallObserver struct {
 	model *asserts.Model
 }
 
+// Observe observes the operation related to the content of a given gadget
+// structure. In particular, the TrustedAssetsInstallObserver tracks writing of
+// managed boot assets, such as the bootloader binary which is measured as part
+// of the secure boot.
+//
 // Implements gadget.ContentObserver.
 func (o *TrustedAssetsInstallObserver) Observe(op gadget.ContentOperation, affectedStruct *gadget.LaidOutStructure, root, realSource, relativeTarget string) (bool, error) {
 	// TODO:UC20:
@@ -51,6 +56,8 @@ func (o *TrustedAssetsInstallObserver) Observe(op gadget.ContentOperation, affec
 	return true, nil
 }
 
+// Seal performs the initial sealing of encryption key to the TPM device
+// available in the system.
 func (o *TrustedAssetsInstallObserver) Seal() error {
 	// TODO:UC20: steps:
 	// - initial seal
