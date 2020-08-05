@@ -329,15 +329,15 @@ func (f *fancyDataBothMarshallers) UnmarshalJSON(data []byte) error {
 	return fmt.Errorf("unexpected call to JSON unmarshaller")
 }
 
-type fancyDataJSONONly struct {
+type fancyDataJSONOnly struct {
 	Foo []string
 }
 
-func (f *fancyDataJSONONly) MarshalJSON() ([]byte, error) {
+func (f *fancyDataJSONOnly) MarshalJSON() ([]byte, error) {
 	return json.Marshal(f.Foo)
 }
 
-func (f *fancyDataJSONONly) UnmarshalJSON(data []byte) error {
+func (f *fancyDataJSONOnly) UnmarshalJSON(data []byte) error {
 	return json.Unmarshal(data, &f.Foo)
 }
 
@@ -350,7 +350,7 @@ func (s *modeenvSuite) TestFancyMarshalUnmarshal(c *C) {
 	c.Check(buf.String(), Equals, `fancy=1#two
 `)
 
-	djson := fancyDataJSONONly{Foo: []string{"1", "two", "with\nnewline"}}
+	djson := fancyDataJSONOnly{Foo: []string{"1", "two", "with\nnewline"}}
 	err = boot.MarshalNonEmptyForModeenvEntry(&buf, "fancy_json", &djson)
 	c.Assert(err, IsNil)
 	c.Check(buf.String(), Equals, `fancy=1#two
@@ -367,7 +367,7 @@ fancy_json=["1","two","with\nnewline"]
 	c.Assert(err, IsNil)
 	c.Check(dbothRev, DeepEquals, dboth)
 
-	var djsonRev fancyDataJSONONly
+	var djsonRev fancyDataJSONOnly
 	err = boot.UnmarshalModeenvValueFromCfg(cfg, "fancy_json", &djsonRev)
 	c.Assert(err, IsNil)
 	c.Check(djsonRev, DeepEquals, djson)
