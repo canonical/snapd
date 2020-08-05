@@ -24,7 +24,7 @@ import (
 	"os/exec"
 )
 
-// ReloadRules runs three commands that reload udev rule database.
+// reloadRules runs three commands that reload udev rule database.
 //
 // The commands are: udevadm control --reload-rules
 //                   udevadm trigger --subsystem-nomatch=input
@@ -32,7 +32,11 @@ import (
 // and optionally trigger other subsystems as defined in the interfaces. Eg:
 //                   udevadm trigger --subsystem-match=input
 //                   udevadm trigger --property-match=ID_INPUT_JOYSTICK=1
-func ReloadRules(subsystemTriggers []string) error {
+func (b *Backend) reloadRules(subsystemTriggers []string) error {
+	if b.preseed {
+		return nil
+	}
+
 	output, err := exec.Command("udevadm", "control", "--reload-rules").CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("cannot reload udev rules: %s\nudev output:\n%s", err, string(output))
