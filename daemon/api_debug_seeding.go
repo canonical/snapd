@@ -56,6 +56,11 @@ type seedingInfo struct {
 	// SeedRestartSystemKey is the system-key that was created on first boot of the
 	// preseeded image.
 	SeedRestartSystemKey interface{} `json:"seed-restart-system-key,omitempty"`
+
+	// SeedError is set if no seed change succeeded yet and at
+	// least one was in error. It is set to the error of the
+	// oldest known in error one.
+	SeedError string `json:"seed-error,omitempty"`
 }
 
 func getSeedingInfo(st *state.State) Response {
@@ -76,8 +81,25 @@ func getSeedingInfo(st *state.State) Response {
 		return InternalError(err.Error())
 	}
 
+	var seedError string
+	var seedErrorChangeTime time.Time
+	if !seeded {
+		for _, chg := range st.Changes() {
+			if chg.Kind() != "seed" && !chg.IsReady() {
+				continue
+			}
+			if err := chg.Err(); err != nil {
+				if seedErrorChangeTime.IsZero() || chg.SpawnTime().Before(seedErrorChangeTime) {
+					seedError = chg.Err().Error()
+					seedErrorChangeTime = chg.SpawnTime()
+				}
+			}
+		}
+	}
+
 	data := &seedingInfo{
 		Seeded:               seeded,
+		SeedError:            seedError,
 		Preseeded:            preseeded,
 		PreseedSystemKey:     preseedSysKey,
 		SeedRestartSystemKey: seedRestartSysKey,
