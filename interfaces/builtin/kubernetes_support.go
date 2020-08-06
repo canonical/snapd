@@ -144,6 +144,11 @@ mount options=(rw, rshared) -> /var/snap/@{SNAP_INSTANCE_NAME}/common/{,**},
 /{,usr/}bin/umount ixr,
 deny /run/mount/utab{,.lock} rw,
 umount /var/snap/@{SNAP_INSTANCE_NAME}/common/**,
+
+# When fsGroup is set, the pod's volume will be recursively chowned with the
+# setgid bit set on directories so new files will be owned by the fsGroup. See
+# kubernetes pkg/volume/volume_linux.go:changeFilePermission()
+capability fsetid,
 `
 
 const kubernetesSupportConnectedPlugAppArmorKubeletSystemdRun = `
@@ -197,6 +202,11 @@ umount2
 
 unshare
 setns - CLONE_NEWNET
+
+# When fsGroup is set, the pod's volume will be recursively chowned with the
+# setgid bit set on directories so new files will be owned by the fsGroup. See
+# kubernetes pkg/volume/volume_linux.go:changeFilePermission()
+fchownat
 `
 
 var kubernetesSupportConnectedPlugUDevKubelet = []string{
