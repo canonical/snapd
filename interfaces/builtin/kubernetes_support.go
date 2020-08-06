@@ -63,7 +63,7 @@ capability sys_resource,
 
 capability dac_override,
 
-/usr/bin/systemd-run Cxr -> systemd_run,
+/{,usr/}bin/systemd-run Cxr -> systemd_run,
 /run/systemd/private r,
 profile systemd_run (attach_disconnected,mediate_deleted) {
   # Common rules for kubernetes use of systemd_run
