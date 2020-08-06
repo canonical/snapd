@@ -14,8 +14,6 @@ jobs:
       # version of go.
       PATH: /snap/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games
       GOROOT: ""
-      # XXX: only skip format checks on 1.13+
-      SKIP_GOFMT: 1
       # XXX: compat env for "check-pr-title.py" in "run-checks", can go
       #      once we switch away from that. Note that we cannot currently
       #      use a github action check (like deepakputhraya/action-pr-title)
@@ -96,6 +94,12 @@ jobs:
       if: steps.cached-results.outputs.already-ran != 'true'
       run: |
           cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
+          # run gofmt checks only with Go 1.9 and 1.10
+          if ! echo "${{ matrix.gochannel }}" | grep -E '1\.(9|10)' ; then
+              # and skip with other versions
+              export SKIP_GOFMT=1
+              echo "Formatting checks will be skipped due to the use of Go version ${{ matrix.gochannel }}"
+          fi
           ./run-checks --static
     - name: Build C
       if: steps.cached-results.outputs.already-ran != 'true'
