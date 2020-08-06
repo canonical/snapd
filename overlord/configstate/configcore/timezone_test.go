@@ -46,7 +46,7 @@ func (s *timezoneSuite) SetUpTest(c *C) {
 
 func (s *timezoneSuite) TestConfigureTimezoneInvalid(c *C) {
 	invalidTimezones := []string{
-		"no-#", "no-ä", "no/double/slash",
+		"no-#", "no-ä", "no/tripple/slash/",
 	}
 
 	for _, tz := range invalidTimezones {
@@ -68,7 +68,8 @@ func (s *timezoneSuite) TestConfigureTimezoneIntegration(c *C) {
 	defer mockedTimedatectl.Restore()
 
 	validTimezones := []string{
-		"UTC", "Europe/Malta", "US/Indiana-Starke",
+		"UTC", "Europe/Malta", "US/Indiana-Starke", "Africa/Sao_Tome",
+		"America/Argentina/Cordoba", "America/Argentina/La_Rioja",
 		"Etc/GMT+1", "CST6CDT", "GMT0", "GMT-0", "PST8PDT",
 	}
 

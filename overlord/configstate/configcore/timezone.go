@@ -35,7 +35,7 @@ func init() {
 	supportedConfigurations["core.system.timezone"] = true
 }
 
-var validTimezone = regexp.MustCompile(`^[a-zA-Z0-9+-]+(/[a-zA-Z0-9+-]+)?$`).MatchString
+var validTimezone = regexp.MustCompile(`^[a-zA-Z0-9+_-]+(/[a-zA-Z0-9+_-]+)?(/[a-zA-Z0-9+_-]+)?$`).MatchString
 
 func validateTimezoneSettings(tr config.ConfGetter) error {
 	timezone, err := coreCfg(tr, "system.timezone")
