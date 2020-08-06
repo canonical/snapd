@@ -53,17 +53,32 @@ func (s *sysconfigSuite) SetUpTest(c *C) {
 	s.AddCleanup(func() { dirs.SetRootDir("/") })
 }
 
-func (s *sysconfigSuite) TestCloudInitDisablesByDefault(c *C) {
+// this test is for initramfs calls that disable cloud-init for the ephemeral
+// writable partition that is used while running during install or recover mode
+func (s *sysconfigSuite) TestEphemeralModeInitramfsCloudInitDisables(c *C) {
+	writableDefaultsDir := sysconfig.WritableDefaultsDir(boot.InitramfsWritableDir)
+	err := sysconfig.DisableCloudInit(writableDefaultsDir)
+	c.Assert(err, IsNil)
+
+	ubuntuDataCloudDisabled := filepath.Join(boot.InitramfsWritableDir, "_writable_defaults/etc/cloud/cloud-init.disabled")
+	c.Check(ubuntuDataCloudDisabled, testutil.FilePresent)
+}
+
+func (s *sysconfigSuite) TestInstallModeCloudInitDisablesByDefaultRunMode(c *C) {
 	err := sysconfig.ConfigureRunSystem(&sysconfig.Options{
 		TargetRootDir: boot.InstallHostWritableDir,
 	})
 	c.Assert(err, IsNil)
 
-	ubuntuDataCloudDisabled := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud-init.disabled/")
+	ubuntuDataCloudDisabled := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud-init.disabled")
 	c.Check(ubuntuDataCloudDisabled, testutil.FilePresent)
 }
 
-func (s *sysconfigSuite) TestCloudInitInstalls(c *C) {
+// this test is the same as the logic from install mode devicestate, where we
+// want to install cloud-init configuration not onto the running, ephemeral
+// writable, but rather the host writable partition that will be used upon
+// reboot into run mode
+func (s *sysconfigSuite) TestInstallModeCloudInitInstallsOntoHostRunMode(c *C) {
 	cloudCfgSrcDir := c.MkDir()
 	for _, mockCfg := range []string{"foo.cfg", "bar.cfg"} {
 		err := ioutil.WriteFile(filepath.Join(cloudCfgSrcDir, mockCfg), []byte(fmt.Sprintf("%s config", mockCfg)), 0644)
