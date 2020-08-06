@@ -405,104 +405,121 @@ func (s *secbootSuite) TestUnlockIfEncrypted(c *C) {
 }
 
 func (s *secbootSuite) TestSealKey(c *C) {
-	tmpDir := c.MkDir()
+	mockErr := errors.New("some error")
 
-	var mockEFI []string
-	for _, name := range []string{"a", "b", "c", "d", "e", "f"} {
-		mockFileName := filepath.Join(tmpDir, name)
-		err := ioutil.WriteFile(mockFileName, nil, 0644)
-		c.Assert(err, IsNil)
-		mockEFI = append(mockEFI, mockFileName)
-	}
+	for _, tc := range []struct {
+		tpmErr               error
+		tpmEnabled           bool
+		missingFile          bool
+		addEFISbPolicyErr    error
+		addSystemdEFIStubErr error
+		addSnapModelErr      error
+		provisioningErr      error
+		sealErr              error
+		provisioningCalls    int
+		sealCalls            int
+		expectedErr          string
+	}{
+		{tpmErr: mockErr, expectedErr: "cannot connect to TPM: some error"},
+		{tpmEnabled: false, expectedErr: "TPM device is not enabled"},
+		{tpmEnabled: true, missingFile: true, expectedErr: "file /does/not/exist does not exist"},
+		{tpmEnabled: true, addEFISbPolicyErr: mockErr, expectedErr: "cannot add EFI secure boot policy profile: some error"},
+		{tpmEnabled: true, addSystemdEFIStubErr: mockErr, expectedErr: "cannot add systemd EFI stub profile: some error"},
+		{tpmEnabled: true, addSnapModelErr: mockErr, expectedErr: "cannot add snap model profile: some error"},
+		{tpmEnabled: true, provisioningErr: mockErr, provisioningCalls: 1, expectedErr: "cannot provision TPM: some error"},
+		{tpmEnabled: true, sealErr: mockErr, provisioningCalls: 1, sealCalls: 1, expectedErr: "some error"},
+		{tpmEnabled: true, provisioningCalls: 1, sealCalls: 1, expectedErr: ""},
+	} {
+		tmpDir := c.MkDir()
+		var mockEFI []string
+		for _, name := range []string{"a", "b", "c", "d", "e", "f"} {
+			mockFileName := filepath.Join(tmpDir, name)
+			err := ioutil.WriteFile(mockFileName, nil, 0644)
+			c.Assert(err, IsNil)
+			mockEFI = append(mockEFI, mockFileName)
+		}
 
-	myParams := secboot.SealKeyParams{
-		ModelParams: []*secboot.SealKeyModelParams{
-			{
-				EFILoadChains:  [][]string{{mockEFI[0], mockEFI[1], mockEFI[2], mockEFI[3]}},
-				KernelCmdlines: []string{"cmdline1"},
-				Model:          &asserts.Model{},
-			},
-			{
-				EFILoadChains:  [][]string{{mockEFI[0], mockEFI[1], mockEFI[2]}, {mockEFI[3], mockEFI[4]}},
-				KernelCmdlines: []string{"cmdline2", "cmdline3"},
-				Model:          &asserts.Model{},
-			},
-		},
-		KeyFile:                 "keyfile",
-		TPMPolicyUpdateDataFile: "policy-update-data-file",
-		TPMLockoutAuthFile:      filepath.Join(tmpDir, "lockout-auth-file"),
-	}
+		if tc.missingFile {
+			mockEFI[0] = "/does/not/exist"
+		}
 
-	myKey := secboot.EncryptionKey{}
-	for i := range myKey {
-		myKey[i] = byte(i)
-	}
-
-	sequences1 := []*sb.EFIImageLoadEvent{
-		{
-			Source: sb.Firmware,
-			Image:  sb.FileEFIImage(mockEFI[0]),
-			Next: []*sb.EFIImageLoadEvent{
+		myParams := secboot.SealKeyParams{
+			ModelParams: []*secboot.SealKeyModelParams{
 				{
-					Source: sb.Shim,
-					Image:  sb.FileEFIImage(mockEFI[1]),
-					Next: []*sb.EFIImageLoadEvent{
-						{
-							Source: sb.Shim,
-							Image:  sb.FileEFIImage(mockEFI[2]),
-							Next: []*sb.EFIImageLoadEvent{
-								{
-									Source: sb.Shim,
-									Image:  sb.FileEFIImage(mockEFI[3]),
+					EFILoadChains:  [][]string{{mockEFI[0], mockEFI[1], mockEFI[2], mockEFI[3]}},
+					KernelCmdlines: []string{"cmdline1"},
+					Model:          &asserts.Model{},
+				},
+				{
+					EFILoadChains:  [][]string{{mockEFI[0], mockEFI[1], mockEFI[2]}, {mockEFI[3], mockEFI[4]}},
+					KernelCmdlines: []string{"cmdline2", "cmdline3"},
+					Model:          &asserts.Model{},
+				},
+			},
+			KeyFile:                 "keyfile",
+			TPMPolicyUpdateDataFile: "policy-update-data-file",
+			TPMLockoutAuthFile:      filepath.Join(tmpDir, "lockout-auth-file"),
+		}
+
+		myKey := secboot.EncryptionKey{}
+		for i := range myKey {
+			myKey[i] = byte(i)
+		}
+
+		sequences1 := []*sb.EFIImageLoadEvent{
+			{
+				Source: sb.Firmware,
+				Image:  sb.FileEFIImage(mockEFI[0]),
+				Next: []*sb.EFIImageLoadEvent{
+					{
+						Source: sb.Shim,
+						Image:  sb.FileEFIImage(mockEFI[1]),
+						Next: []*sb.EFIImageLoadEvent{
+							{
+								Source: sb.Shim,
+								Image:  sb.FileEFIImage(mockEFI[2]),
+								Next: []*sb.EFIImageLoadEvent{
+									{
+										Source: sb.Shim,
+										Image:  sb.FileEFIImage(mockEFI[3]),
+									},
 								},
 							},
 						},
 					},
 				},
 			},
-		},
-	}
+		}
 
-	sequences2 := []*sb.EFIImageLoadEvent{
-		{
-			Source: sb.Firmware,
-			Image:  sb.FileEFIImage(mockEFI[0]),
-			Next: []*sb.EFIImageLoadEvent{
-				{
-					Source: sb.Shim,
-					Image:  sb.FileEFIImage(mockEFI[1]),
-					Next: []*sb.EFIImageLoadEvent{
-						{
-							Source: sb.Shim,
-							Image:  sb.FileEFIImage(mockEFI[2]),
+		sequences2 := []*sb.EFIImageLoadEvent{
+			{
+				Source: sb.Firmware,
+				Image:  sb.FileEFIImage(mockEFI[0]),
+				Next: []*sb.EFIImageLoadEvent{
+					{
+						Source: sb.Shim,
+						Image:  sb.FileEFIImage(mockEFI[1]),
+						Next: []*sb.EFIImageLoadEvent{
+							{
+								Source: sb.Shim,
+								Image:  sb.FileEFIImage(mockEFI[2]),
+							},
 						},
 					},
 				},
 			},
-		},
-		{
-			Source: sb.Firmware,
-			Image:  sb.FileEFIImage(mockEFI[3]),
-			Next: []*sb.EFIImageLoadEvent{
-				{
-					Source: sb.Shim,
-					Image:  sb.FileEFIImage(mockEFI[4]),
+			{
+				Source: sb.Firmware,
+				Image:  sb.FileEFIImage(mockEFI[3]),
+				Next: []*sb.EFIImageLoadEvent{
+					{
+						Source: sb.Shim,
+						Image:  sb.FileEFIImage(mockEFI[4]),
+					},
 				},
 			},
-		},
-	}
+		}
 
-	for _, tc := range []struct {
-		tpmErr               error
-		tpmEnabled           bool
-		addProfileCallNum    int
-		provisionSealCallNum int
-		err                  string
-	}{
-		{tpmErr: errors.New("tpm error"), addProfileCallNum: 0, provisionSealCallNum: 0, err: "cannot connect to TPM: tpm error"},
-		{tpmErr: nil, tpmEnabled: false, addProfileCallNum: 0, provisionSealCallNum: 0, err: "TPM device is not enabled"},
-		{tpmErr: nil, tpmEnabled: true, addProfileCallNum: 2, provisionSealCallNum: 1, err: ""},
-	} {
 		tpm, restore := mockSbTPMConnection(c, tc.tpmErr)
 		defer restore()
 
@@ -521,7 +538,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 			default:
 				c.Error("AddEFISecureBootPolicyProfile shouldn't be called a third time")
 			}
-			return nil
+			return tc.addEFISbPolicyErr
 		})
 		defer restore()
 
@@ -540,7 +557,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 			default:
 				c.Error("AddSystemdEFIStubProfile shouldn't be called a third time")
 			}
-			return nil
+			return tc.addSystemdEFIStubErr
 		})
 		defer restore()
 
@@ -559,7 +576,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 			default:
 				c.Error("AddSnapModelProfile shouldn't be called a third time")
 			}
-			return nil
+			return tc.addSnapModelErr
 		})
 		defer restore()
 
@@ -570,7 +587,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 			c.Assert(t, Equals, tpm)
 			c.Assert(mode, Equals, sb.ProvisionModeFull)
 			c.Assert(myParams.TPMLockoutAuthFile, testutil.FilePresent)
-			return nil
+			return tc.provisioningErr
 		})
 		defer restore()
 
@@ -583,8 +600,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 			c.Assert(keyPath, Equals, myParams.KeyFile)
 			c.Assert(policyUpdatePath, Equals, myParams.TPMPolicyUpdateDataFile)
 			c.Assert(params.PINHandle, Equals, tpm2.Handle(0x01880000))
-
-			return nil
+			return tc.sealErr
 		})
 		defer restore()
 
@@ -595,16 +611,16 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		defer restore()
 
 		err := secboot.SealKey(myKey, &myParams)
-		if tc.err == "" {
+		if tc.expectedErr == "" {
 			c.Assert(err, IsNil)
+			c.Assert(addEFISbPolicyCalls, Equals, 2)
+			c.Assert(addSystemdEfiStubCalls, Equals, 2)
+			c.Assert(addSnapModelCalls, Equals, 2)
 		} else {
-			c.Assert(err, ErrorMatches, tc.err)
+			c.Assert(err, ErrorMatches, tc.expectedErr)
 		}
-		c.Assert(addEFISbPolicyCalls, Equals, tc.addProfileCallNum)
-		c.Assert(addSystemdEfiStubCalls, Equals, tc.addProfileCallNum)
-		c.Assert(addSnapModelCalls, Equals, tc.addProfileCallNum)
-		c.Assert(provisioningCalls, Equals, tc.provisionSealCallNum)
-		c.Assert(sealCalls, Equals, tc.provisionSealCallNum)
+		c.Assert(provisioningCalls, Equals, tc.provisioningCalls)
+		c.Assert(sealCalls, Equals, tc.sealCalls)
 
 	}
 }

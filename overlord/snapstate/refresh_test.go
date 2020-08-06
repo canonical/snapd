@@ -27,13 +27,14 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type refreshSuite struct {
-	state   *state.State
-	info    *snap.Info
-	pids    map[string][]int
-	restore func()
+	testutil.BaseTest
+	state *state.State
+	info  *snap.Info
+	pids  map[string][]int
 }
 
 var _ = Suite(&refreshSuite{})
@@ -54,15 +55,12 @@ hooks:
 `
 	s.info = snaptest.MockInfo(c, yamlText, nil)
 	s.pids = nil
-	s.restore = snapstate.MockPidsOfSnap(func(instanceName string) (map[string][]int, error) {
+	restore := snapstate.MockPidsOfSnap(func(instanceName string) (map[string][]int, error) {
 		c.Assert(instanceName, Equals, s.info.InstanceName())
 		return s.pids, nil
 	})
-}
-
-func (s *refreshSuite) TearDownTest(c *C) {
-	dirs.SetRootDir("")
-	s.restore()
+	s.AddCleanup(restore)
+	s.AddCleanup(func() { dirs.SetRootDir("") })
 }
 
 func (s *refreshSuite) TestSoftNothingRunningRefreshCheck(c *C) {
@@ -132,6 +130,7 @@ func (s *refreshSuite) TestHardNothingRunningRefreshCheck(c *C) {
 	err = snapstate.HardNothingRunningRefreshCheck(s.info)
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, `snap "pkg" has running apps (app)`)
+	c.Assert(err, FitsTypeOf, &snapstate.BusySnapError{})
 	c.Check(err.(*snapstate.BusySnapError).Pids(), DeepEquals, []int{101})
 
 	// Hooks are equally blocking hard refresh check.

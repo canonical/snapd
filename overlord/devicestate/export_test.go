@@ -100,6 +100,10 @@ func SetSystemMode(m *DeviceManager, mode string) {
 	m.systemMode = mode
 }
 
+func SetTimeOnce(m *DeviceManager, name string, t time.Time) error {
+	return m.setTimeOnce(name, t)
+}
+
 func MockRepeatRequestSerial(label string) (restore func()) {
 	old := repeatRequestSerial
 	repeatRequestSerial = label
@@ -150,6 +154,10 @@ func EnsureBootOk(m *DeviceManager) error {
 
 func SetBootOkRan(m *DeviceManager, b bool) {
 	m.bootOkRan = b
+}
+
+func StartTime() time.Time {
+	return startTime
 }
 
 type (
@@ -208,7 +216,7 @@ func MockGadgetIsCompatible(mock func(current, update *gadget.Info) error) (rest
 	}
 }
 
-func MockBootMakeBootable(f func(model *asserts.Model, rootdir string, bootWith *boot.BootableSet) error) (restore func()) {
+func MockBootMakeBootable(f func(model *asserts.Model, rootdir string, bootWith *boot.BootableSet, seal *boot.TrustedAssetsInstallObserver) error) (restore func()) {
 	old := bootMakeBootable
 	bootMakeBootable = f
 	return func() {
@@ -240,7 +248,7 @@ func MockSysconfigConfigureRunSystem(f func(opts *sysconfig.Options) error) (res
 	}
 }
 
-func MockInstallRun(f func(gadgetRoot, device string, options install.Options) error) (restore func()) {
+func MockInstallRun(f func(gadgetRoot, device string, options install.Options, observer gadget.ContentObserver) error) (restore func()) {
 	old := installRun
 	installRun = f
 	return func() {
