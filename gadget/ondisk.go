@@ -198,8 +198,10 @@ func onDiskVolumeFromPartitionTable(ptable sfdiskPartitionTable) (*OnDiskVolume,
 		return nil, fmt.Errorf("cannot position partitions: unknown unit %q", ptable.Unit)
 	}
 
-	structure := make([]VolumeStructure, len(ptable.Partitions))
-	ds := make([]OnDiskStructure, len(ptable.Partitions))
+	num := len(ptable.Partitions)
+	structure := make([]VolumeStructure, num)
+	ls := make([]LaidOutStructure, num)
+	ds := make([]OnDiskStructure, num)
 
 	for i, p := range ptable.Partitions {
 		info, err := filesystemInfo(p.Node)
@@ -227,12 +229,14 @@ func onDiskVolumeFromPartitionTable(ptable sfdiskPartitionTable) (*OnDiskVolume,
 			Filesystem: bd.FSType,
 		}
 
+		ls[i] = LaidOutStructure{
+			VolumeStructure: &structure[i],
+			StartOffset:     Size(p.Start) * sectorSize,
+			Index:           i + 1,
+		}
+
 		ds[i] = OnDiskStructure{
-			LaidOutStructure: LaidOutStructure{
-				VolumeStructure: &structure[i],
-				StartOffset:     Size(p.Start) * sectorSize,
-				Index:           i + 1,
-			},
+			LaidOutStructure:     ls[i],
 			Node:                 p.Node,
 			CreatedDuringInstall: isCreatedDuringInstall(&p, &bd, ptable.Label),
 		}
@@ -259,12 +263,12 @@ func onDiskVolumeFromPartitionTable(ptable sfdiskPartitionTable) (*OnDiskVolume,
 				ID:     ptable.ID,
 				Schema: ptable.Label,
 			},
-			Size:       numSectors * sectorSize,
-			SectorSize: sectorSize,
+			Size:             numSectors * sectorSize,
+			SectorSize:       sectorSize,
+			LaidOutStructure: ls,
 		},
 		Structure: ds,
 		Device:    ptable.Device,
-		//partitionTable: &ptable,
 	}
 
 	return dl, nil
