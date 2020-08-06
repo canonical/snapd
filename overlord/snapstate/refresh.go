@@ -164,7 +164,7 @@ func (err BusySnapError) Pids() []int {
 // with two locks - the snap lock, shared by snap-confine and snapd and the
 // snap run inhibition lock, shared by snapd and snap run.
 //
-// On success function returns a locked lock, allowing the caller to
+// On success this function returns a locked lock, allowing the caller to
 // atomically, with regards to snap-confine, finish any action that required
 // the check.
 //
