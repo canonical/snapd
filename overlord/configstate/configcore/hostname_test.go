@@ -51,11 +51,11 @@ func (s *hostnameSuite) TestConfigureHostnameInvalid(c *C) {
 		strings.Repeat("x", 64),
 	}
 
-	for _, tz := range invalidHostnames {
+	for _, name := range invalidHostnames {
 		err := configcore.Run(&mockConf{
 			state: s.state,
 			conf: map[string]interface{}{
-				"system.hostname": tz,
+				"system.hostname": name,
 			},
 		})
 		c.Assert(err, ErrorMatches, `cannot set hostname.*`)
