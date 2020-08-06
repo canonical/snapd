@@ -313,22 +313,6 @@ func verifyDesktopFileLocation(desktopFile string) error {
 		return fmt.Errorf("desktop file has unclean path: %q", desktopFile)
 	}
 
-	// When running in a test environment dirs.SnapDesktopFilesDir is under /tmp/ and
-	// cannot pass these checks. Unless there's a way to subvert dirs.SnapDesktopFilesDir
-	// this hack should be harmless. Maybe there's a better way to fake it?
-	if !strings.HasPrefix(dirs.SnapDesktopFilesDir, "/tmp/") {
-
-		last := "/"
-		for _, val := range strings.Split(desktopFile, "/") {
-			checkPath := filepath.Join(last, val) // val is "" for root ('/')
-			fileStat, err := os.Stat(checkPath)
-			if err != nil || !(fileStat.Mode().IsDir() || fileStat.Mode().IsRegular()) || (fileStat.Mode().Perm()&0022) != 0 || fileStat.Sys().(*syscall.Stat_t).Uid != 0 {
-				return fmt.Errorf("cannot verify path %q", checkPath)
-			}
-			last = checkPath
-		}
-	}
-
 	return nil
 }
 
