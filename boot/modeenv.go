@@ -212,3 +212,24 @@ func (m *Modeenv) deepEqual(m2 *Modeenv) bool {
 	}
 	return bytes.Equal(b, b2)
 }
+
+// Copy will make a deep copy of a Modeenv.
+func (m *Modeenv) Copy() (*Modeenv, error) {
+	// to avoid hard-coding all fields here and manually copying everything, we
+	// take the easy way out and serialize to json then re-import into a
+	// empty Modeenv
+	b, err := json.Marshal(m)
+	if err != nil {
+		return nil, err
+	}
+	m2 := &Modeenv{}
+	err = json.Unmarshal(b, m2)
+	if err != nil {
+		return nil, err
+	}
+
+	// manually copy the unexported fields as they won't be in the JSON
+	m2.read = m.read
+	m2.originRootdir = m.originRootdir
+	return m2, nil
+}
