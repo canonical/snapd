@@ -31,6 +31,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/cmd/snaplock"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/gadget"
@@ -142,9 +143,28 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		snapsup.PlugsOnly = snapsup.PlugsOnly && (len(info.Slots) == 0)
 
 		if experimentalRefreshAppAwareness {
+			// Grab per-snap lock to prevent new processes from starting. This is
+			// sufficient to perform the check, even though individual processes
+			// may fork or exit, we will have per-security-tag information about
+			// what is running.
+			lock, err := snaplock.OpenLock(info.InstanceName())
+			if err != nil {
+				return nil, err
+			}
+			// Closing the lock also unlocks it, if locked.
+			defer lock.Close()
+			if err := lock.Lock(); err != nil {
+				return nil, err
+			}
+
 			// Note that because we are modifying the snap state this block
 			// must be located after the conflict check done above.
 			if err := inhibitRefresh(st, snapst, info, SoftNothingRunningRefreshCheck); err != nil {
+				return nil, err
+			}
+			// Unlock the snap lock file, minimising pause times and allowing
+			// snap-confine to continue while the rest of this function executes.
+			if err := lock.Unlock(); err != nil {
 				return nil, err
 			}
 		}

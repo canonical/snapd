@@ -24,7 +24,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/snapcore/snapd/cmd/snaplock"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/snap"
 )
@@ -34,20 +33,6 @@ var (
 )
 
 func genericRefreshCheck(info *snap.Info, canAppRunDuringRefresh func(app *snap.AppInfo) bool) error {
-	// Grab per-snap lock to prevent new processes from starting. This is
-	// sufficient to perform the check, even though individual processes
-	// may fork or exit, we will have per-security-tag information about
-	// what is running.
-	lock, err := snaplock.OpenLock(info.SnapName())
-	if err != nil {
-		return err
-	}
-	// Closing the lock also unlocks it, if locked.
-	defer lock.Close()
-	if err := lock.Lock(); err != nil {
-		return err
-	}
-
 	var busyAppNames []string
 	var busyHookNames []string
 	var busyPIDs []int

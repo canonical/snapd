@@ -33,6 +33,8 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/cmd/snaplock"
+	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
@@ -837,13 +839,44 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 		// A process may be created after the soft refresh done upon
 		// the request to refresh a snap. If such process is alive by
 		// the time this code is reached the refresh process is stopped.
-		// In case of failure the snap state is modified to indicate
-		// when the refresh was first inhibited. If the first
-		// inhibition is outside of a grace period then refresh
-		// proceeds regardless of the existing processes.
-		if err := inhibitRefresh(st, snapst, oldInfo, HardNothingRunningRefreshCheck); err != nil {
+
+		// Grab per-snap lock to prevent new processes from starting. This is
+		// sufficient to perform the check, even though individual processes
+		// may fork or exit, we will have per-security-tag information about
+		// what is running.
+		lock, err := snaplock.OpenLock(oldInfo.InstanceName())
+		if err != nil {
 			return err
 		}
+		// Closing the lock also unlocks it, if locked.
+		defer lock.Close()
+		if err := lock.Lock(); err != nil {
+			return err
+		}
+
+		if err := inhibitRefresh(st, snapst, oldInfo, HardNothingRunningRefreshCheck); err != nil {
+			// In case of successful inhibition the snap state is modified to
+			// indicate when the refresh was first inhibited. If the first
+			// inhibition is outside of a grace period then refresh proceeds
+			// regardless of the existing processes.
+			return err
+		}
+
+		// Snap was not busy so we can refresh now. While we are still holding
+		// the snap lock, obtain the run inhibition lock with a hint indicating
+		// that refresh is in progress.
+
+		// XXX: should we move this logic to the place that calls the "soft"
+		// check instead? Doing so would somewhat change the semantic of soft
+		// and hard checks, as it would effectively make hard check a no-op,
+		// but it might provide a nicer user experience.
+		if err := runinhibit.LockWithHint(oldInfo.InstanceName(), runinhibit.HintInhibitedForRefresh); err != nil {
+			return err
+		}
+
+		// The subsequent call to UnlinkSnap is performed while still holding
+		// the lock, allowing us to atomically, with regards to snap startup,
+		// remove the current symlink.
 	}
 
 	snapst.Active = false
