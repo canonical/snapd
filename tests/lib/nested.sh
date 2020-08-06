@@ -648,10 +648,14 @@ start_nested_core_vm_unit(){
     wait_for_ssh
 }
 
+get_current_image(){
+    echo "$RUNTIME_DIR/ubuntu-core-current.img"
+}
+
 start_nested_core_vm(){
     local IMAGE_DIR CURRENT_IMAGE
     IMAGE_DIR="$(get_image_dir)"
-    CURRENT_IMAGE="$IMAGE_DIR/ubuntu-core-current.img"
+    CURRENT_IMAGE="$(get_current_image)"
 
     # In case the current image already exists, it needs to be reused and in that
     # case is neither required to copy the base image nor prepare the ssh
