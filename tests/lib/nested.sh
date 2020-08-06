@@ -649,7 +649,9 @@ start_nested_core_vm_unit(){
 }
 
 start_nested_core_vm(){
-    CURRENT_IMAGE="$WORK_DIR/image/ubuntu-core-current.img"
+    local IMAGE_DIR CURRENT_IMAGE
+    IMAGE_DIR="$(get_image_dir)"
+    CURRENT_IMAGE="$IMAGE_DIR/ubuntu-core-current.img"
 
     # In case the current image already exists, it needs to be reused and in that
     # case is neither required to copy the base image nor prepare the ssh
