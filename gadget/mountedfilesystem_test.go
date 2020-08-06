@@ -2021,8 +2021,8 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackRestoreFails(c *C
 		{target: "foo", content: "written"},
 		{target: "some-dir/foo", content: "written"},
 	})
-	// the file exists, rollback will try to restore it, but make the file
-	// non-modifiable directly
+	// the file exists, and cannot be modified directly, rollback will still
+	// restore the backup as we atomically swap copies with rename()
 	err := os.Chmod(filepath.Join(outDir, "foo"), 0000)
 	c.Assert(err, IsNil)
 

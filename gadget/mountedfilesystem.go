@@ -219,7 +219,8 @@ func writeFileOrSymlink(src, dst string, preserveInDst []string) error {
 	} else {
 		// TODO try to preserve ownership and permission bits
 
-		// dst is a reflection of src, no additional flags are needed
+		// do not follow sylimks, dst is a reflection of the src which
+		// is a file
 		if err := osutil.CopyFileAtomic(src, dst, 0); err != nil {
 			return fmt.Errorf("cannot copy %s: %v", src, err)
 		}
