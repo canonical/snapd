@@ -63,17 +63,17 @@ func handleHostnameConfiguration(tr config.ConfGetter, opts *fsOnlyContext) erro
 	//
 	// It will also override any hostname on the next `snap set` run
 	// that was written not using `snap set system system.hostname`.
-	output, err := coreCfg(tr, "system.hostname")
+	hostname, err := coreCfg(tr, "system.hostname")
 	if err != nil {
 		return nil
 	}
 	// nothing to do
-	if output == "" {
+	if hostname == "" {
 		return nil
 	}
 	// runtime system
 	if opts == nil {
-		output, err := exec.Command("hostnamectl", "set-hostname", output).CombinedOutput()
+		output, err := exec.Command("hostnamectl", "set-hostname", hostname).CombinedOutput()
 		if err != nil {
 			return fmt.Errorf("cannot set hostname: %v", osutil.OutputErr(output, err))
 		}
@@ -83,7 +83,7 @@ func handleHostnameConfiguration(tr config.ConfGetter, opts *fsOnlyContext) erro
 		if err := os.MkdirAll(filepath.Dir(hostnamePath), 0755); err != nil {
 			return err
 		}
-		if err := osutil.AtomicWriteFile(hostnamePath, []byte(output+"\n"), 0644, 0); err != nil {
+		if err := osutil.AtomicWriteFile(hostnamePath, []byte(hostname+"\n"), 0644, 0); err != nil {
 			return fmt.Errorf("cannot write hostname: %v", err)
 		}
 	}
