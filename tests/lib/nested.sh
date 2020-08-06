@@ -649,7 +649,8 @@ start_nested_core_vm_unit(){
 }
 
 get_current_image(){
-    echo "$RUNTIME_DIR/ubuntu-core-current.img"
+    IMAGE_DIR="$(get_image_dir)"
+    echo "$IMAGE_DIR/ubuntu-core-current.img"
 }
 
 start_nested_core_vm(){
