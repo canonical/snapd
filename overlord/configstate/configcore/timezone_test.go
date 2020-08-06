@@ -46,7 +46,7 @@ func (s *timezoneSuite) SetUpTest(c *C) {
 
 func (s *timezoneSuite) TestConfigureTimezoneInvalid(c *C) {
 	invalidTimezones := []string{
-		"no-#", "no-ä", "no/tripple/slash/",
+		"no-#", "no-ä", "no/triple/slash/",
 	}
 
 	for _, tz := range invalidTimezones {
