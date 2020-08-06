@@ -104,3 +104,25 @@ Label     Brand    Model       Notes
 `[1:])
 	c.Check(s.Stderr(), Equals, "")
 }
+
+func (s *SnapSuite) TestNoRecoverySystems(c *C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, Equals, "GET")
+			c.Check(r.URL.Path, Equals, "/v2/systems")
+			c.Check(r.URL.RawQuery, Equals, "")
+			fmt.Fprintln(w, `{"type": "sync", "result": {}}`)
+		default:
+			c.Fatalf("expected to get 1 requests, now on %d", n+1)
+		}
+
+		n++
+	})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"recovery"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	c.Check(s.Stdout(), Equals, "")
+	c.Check(s.Stderr(), Equals, "No recovery systems available.\n")
+}
