@@ -740,7 +740,7 @@ start_nested_classic_vm(){
 
     PARAM_IMAGE="-drive file=$IMAGE_DIR/$IMAGE_NAME,if=virtio"
     PARAM_SEED="-drive file=$WORK_DIR/seed.img,if=virtio"
-    PARAM_SERIAL="-serial file:${WORK_DIR}/serial-log.txt"
+    PARAM_SERIAL="-serial file:${WORK_DIR}/serial.log"
     PARAM_BIOS=""
     PARAM_TPM=""
 
