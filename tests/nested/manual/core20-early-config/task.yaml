@@ -65,3 +65,6 @@ execute: |
     # inspected from install hook of the gadget.
     execute_remote "cat /var/snap/pc/common/debug.txt" | MATCH "rsyslog symlink: /dev/null"
     execute_remote "cat /var/snap/pc/common/debug.txt" | MATCH "backlight symlink: /dev/null"
+
+    # hostname is set
+    execute_remote "cat /etc/hostname" | MATCH "foo"
