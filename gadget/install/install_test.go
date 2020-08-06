@@ -85,6 +85,14 @@ const mockExtraStructure = `
 `
 
 var mockDeviceLayout = gadget.OnDiskVolume{
+	LaidOutVolume: gadget.LaidOutVolume{
+		Volume: &gadget.Volume{
+			ID:     "anything",
+			Schema: "gpt",
+		},
+		Size:       2 * gadget.SizeGiB,
+		SectorSize: 512,
+	},
 	Structure: []gadget.OnDiskStructure{
 		{
 			LaidOutStructure: gadget.LaidOutStructure{
@@ -107,11 +115,7 @@ var mockDeviceLayout = gadget.OnDiskVolume{
 			Node: "/dev/node2",
 		},
 	},
-	ID:         "anything",
-	Device:     "/dev/node",
-	Schema:     "gpt",
-	Size:       2 * gadget.SizeGiB,
-	SectorSize: 512,
+	Device: "/dev/node",
 }
 
 func (s *installSuite) TestLayoutCompatibility(c *C) {
@@ -168,6 +172,14 @@ func (s *installSuite) TestMBRLayoutCompatibility(c *C) {
         offset-write: mbr+92
 `
 	var mockMBRDeviceLayout = gadget.OnDiskVolume{
+		LaidOutVolume: gadget.LaidOutVolume{
+			Volume: &gadget.Volume{
+				ID:     "anything",
+				Schema: "dos",
+			},
+			Size:       2 * gadget.SizeGiB,
+			SectorSize: 512,
+		},
 		Structure: []gadget.OnDiskStructure{
 			{
 				LaidOutStructure: gadget.LaidOutStructure{
@@ -194,11 +206,7 @@ func (s *installSuite) TestMBRLayoutCompatibility(c *C) {
 				Node: "/dev/node2",
 			},
 		},
-		ID:         "anything",
-		Device:     "/dev/node",
-		Schema:     "dos",
-		Size:       2 * gadget.SizeGiB,
-		SectorSize: 512,
+		Device: "/dev/node",
 	}
 	gadgetLayout := layoutFromYaml(c, mockMBRGadgetYaml)
 	err := install.EnsureLayoutCompatibility(gadgetLayout, &mockMBRDeviceLayout)
