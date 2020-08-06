@@ -24,6 +24,10 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/snapcore/snapd/cmd/snaplock"
+	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/snap"
 )
@@ -155,4 +159,88 @@ func (err *BusySnapError) Error() string {
 // refresh scenario.
 func (err BusySnapError) Pids() []int {
 	return err.pids
+}
+
+// doHardRefreshCheck performs the complete hard refresh check interaction.
+//
+// This check embeds HardNothingRunningRefreshCheck along with interaction
+// with two locks - the snap lock, shared by snap-confine and snapd and the
+// snap run inhibition lock, shared by snapd and snap run.
+//
+// On success function returns a locked lock, allowing the caller to
+// atomically, with regards to snap-confine, finish any action that required
+// the check.
+//
+// In practice this is used to unlink the snap from disk. Once snap-confine
+// resumes, the snap is no longer linked and normal startup is inhibited. In
+// consequence "snap run foo" will block and snap-confine will fail with
+// unlinked snap error.
+func doHardRefreshCheck(st *state.State, snapst *SnapState, info *snap.Info) (lock *osutil.FileLock, err error) {
+	// A process may be created after the soft refresh done upon
+	// the request to refresh a snap. If such process is alive by
+	// the time this code is reached the refresh process is stopped.
+
+	// Grab per-snap lock to prevent new processes from starting. This is
+	// sufficient to perform the check, even though individual processes
+	// may fork or exit, we will have per-security-tag information about
+	// what is running.
+	lock, err = snaplock.OpenLock(info.InstanceName())
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		// If we have a lock but we are returning an error then unlock the lock
+		// by closing it.
+		if lock != nil && err != nil {
+			lock.Close()
+		}
+	}()
+	if err := lock.Lock(); err != nil {
+		return nil, err
+	}
+
+	if err := inhibitRefresh(st, snapst, info, HardNothingRunningRefreshCheck); err != nil {
+		// In case of successful inhibition the snap state is modified to
+		// indicate when the refresh was first inhibited. If the first
+		// inhibition is outside of a grace period then refresh proceeds
+		// regardless of the existing processes.
+		return nil, err
+	}
+
+	// Snap was not busy so we can refresh now. While we are still holding
+	// the snap lock, obtain the run inhibition lock with a hint indicating
+	// that refresh is in progress.
+
+	// XXX: should we move this logic to the place that calls the "soft"
+	// check instead? Doing so would somewhat change the semantic of soft
+	// and hard checks, as it would effectively make hard check a no-op,
+	// but it might provide a nicer user experience.
+	if err := runinhibit.LockWithHint(info.InstanceName(), runinhibit.HintInhibitedForRefresh); err != nil {
+		return nil, err
+	}
+
+	return lock, nil
+}
+
+// doSoftRefreshCheck performs the complete soft refresh check interaction.
+//
+// This check embeds SoftNothingRunningRefreshCheck along with interaction with
+// the snap lock, shared by snap-confine and snapd.
+func doSoftRefreshCheck(st *state.State, snapst *SnapState, info *snap.Info) error {
+	// Grab per-snap lock to prevent new processes from starting. This is
+	// sufficient to perform the check, even though individual processes may
+	// fork or exit, we will have per-security-tag information about what is
+	// running.
+	lock, err := snaplock.OpenLock(info.InstanceName())
+	if err != nil {
+		return err
+	}
+	// Closing the lock also unlocks it, if locked.
+	defer lock.Close()
+	if err := lock.Lock(); err != nil {
+		return err
+	}
+	// Perform the soft refresh viability check, possibly writing to the state
+	// on failure.
+	return inhibitRefresh(st, snapst, info, SoftNothingRunningRefreshCheck)
 }

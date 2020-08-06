@@ -31,7 +31,6 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
-	"github.com/snapcore/snapd/cmd/snaplock"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/gadget"
@@ -88,25 +87,6 @@ func optedIntoSnapdSnap(st *state.State) (bool, error) {
 		return false, err
 	}
 	return experimentalAllowSnapd, nil
-}
-
-func doSoftRefreshCheck(st *state.State, snapst *SnapState, info *snap.Info) error {
-	// Grab per-snap lock to prevent new processes from starting. This is
-	// sufficient to perform the check, even though individual processes may
-	// fork or exit, we will have per-security-tag information about what is
-	// running.
-	lock, err := snaplock.OpenLock(info.InstanceName())
-	if err != nil {
-		return err
-	}
-	// Closing the lock also unlocks it, if locked.
-	defer lock.Close()
-	if err := lock.Lock(); err != nil {
-		return err
-	}
-	// Perform the soft refresh viability check, possibly writing to the state
-	// on failure.
-	return inhibitRefresh(st, snapst, info, SoftNothingRunningRefreshCheck)
 }
 
 func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int, fromChange string, inUseCheck func(snap.Type) (boot.InUseFunc, error)) (*state.TaskSet, error) {
