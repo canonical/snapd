@@ -260,8 +260,9 @@ func onDiskVolumeFromPartitionTable(ptable sfdiskPartitionTable) (*OnDiskVolume,
 	dl := &OnDiskVolume{
 		LaidOutVolume: LaidOutVolume{
 			Volume: &Volume{
-				ID:     ptable.ID,
-				Schema: ptable.Label,
+				ID:        ptable.ID,
+				Schema:    ptable.Label,
+				Structure: structure,
 			},
 			Size:             numSectors * sectorSize,
 			SectorSize:       sectorSize,
