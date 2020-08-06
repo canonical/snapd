@@ -151,7 +151,7 @@ var systemSnapFromSeed = func(rootDir string) (string, error) {
 const snapdPreseedSupportVer = `2.43.3+`
 
 type targetSnapdInfo struct {
-	path string
+	path    string
 	version string
 }
 
