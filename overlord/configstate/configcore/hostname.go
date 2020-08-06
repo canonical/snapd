@@ -78,7 +78,10 @@ func handleHostnameConfiguration(tr config.ConfGetter, opts *fsOnlyContext) erro
 			return fmt.Errorf("cannot set hostname: %v", osutil.OutputErr(output, err))
 		}
 	} else {
-		// important that it's /etc/writable/hostname
+		// On the UC16/UC18/UC20 images the file /etc/hostname is a
+		// symlink to /etc/writable/hostname. The /etc/hostname is
+		// not part of the "writable-path" so we must set the file
+		// in /etc/writable here for this to work.
 		hostnamePath := filepath.Join(opts.RootDir, "/etc/writable/hostname")
 		if err := os.MkdirAll(filepath.Dir(hostnamePath), 0755); err != nil {
 			return err
