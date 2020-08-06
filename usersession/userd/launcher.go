@@ -373,7 +373,12 @@ func parseExecCommand(exec_command string) ([]string, error) {
 			args[i] = strings.TrimPrefix(args[i], "%")
 			i++
 		} else if strings.HasPrefix(args[i], "%") {
-			args = append(args[:i], args[i+1:]...)
+		    switch args[i] {
+		    case "%f", "%F", "%u", "%U":
+                args = append(args[:i], args[i+1:]...)
+            default:
+                return []string{}, fmt.Errorf("cannot run %q", exec_command)
+		    }
 		} else {
 			i++
 		}
