@@ -97,7 +97,7 @@
 %endif
 
 Name:           snapd
-Version:        2.45.2
+Version:        2.45.3.1
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -915,6 +915,32 @@ fi
 
 
 %changelog
+* Tue Jul 28 2020 Samuele Pedroni <pedronis@lucediurna.net>
+- New upstream release, LP: #1875071
+  - o/ifacestate: fix bug in snapsWithSecurityProfiles
+  - tests/main/selinux-clean: workaround SELinux denials triggered by
+    linger setup on Centos8
+
+* Mon Jul 27 2020 Zygmunt Krynicki <me@zygoon.pl>
+- New upstream release, LP: #1875071
+  - many: backport _writable_defaults dir changes
+  - tests: fix incorrect check in smoke/remove test
+  - cmd/snap-bootstrap,seed: backport of uc20 PRs
+  - tests: avoid exit when nested type var is not defined
+  - cmd/snap-preseed: backport fixes
+  - interfaces: optimize rules of multiple connected iio/i2c/spi plugs
+  - many: cherry-picks for 2.45, gh-action, test fixes
+  - tests/lib: account for changes in arch package file name extension
+  - postrm, snap-mgmt: cleanup modules and other cherry-picks
+  - snap-confine: don't die if a device from sysfs path cannot be
+    found by udev
+  - data/selinux: update policy to allow forked processes to call
+    getpw*()
+  - tests/main/interfaces-time-control: exercise setting time via date
+  - interfaces/builtin/time-control: allow POSIX clock API
+  - usersession/userd: add "slack" to the white list of URL schemes
+    handled by xdg-open
+
 * Fri Jul 10 2020 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.45.2
  - SECURITY UPDATE: sandbox escape vulnerability on snapctl xdg-open

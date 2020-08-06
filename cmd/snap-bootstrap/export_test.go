@@ -29,7 +29,19 @@ import (
 
 var (
 	Parser = parser
+
+	DoSystemdMount = doSystemdMountImpl
 )
+
+type SystemdMountOptions = systemdMountOptions
+
+func MockTimeNow(f func() time.Time) (restore func()) {
+	old := timeNow
+	timeNow = f
+	return func() {
+		timeNow = old
+	}
+}
 
 func MockStdout(newStdout io.Writer) (restore func()) {
 	oldStdout := stdout

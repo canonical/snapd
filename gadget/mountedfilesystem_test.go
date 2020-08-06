@@ -180,9 +180,17 @@ func (s *mountedfilesystemTestSuite) TestWriteDirectoryContents(c *C) {
 	}
 	makeGadgetData(c, s.dir, gd)
 
+	ps := &gadget.LaidOutStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Filesystem: "ext4",
+		},
+	}
+	rw, err := gadget.NewMountedFilesystemWriter(s.dir, ps, nil)
+	c.Assert(err, IsNil)
+
 	outDir := c.MkDir()
 	// boot-assets/ -> / (contents of boot assets under /)
-	err := gadget.WriteDirectory(filepath.Join(s.dir, "boot-assets")+"/", outDir+"/", nil)
+	err = rw.WriteDirectory(outDir, filepath.Join(s.dir, "boot-assets")+"/", outDir+"/", nil)
 	c.Assert(err, IsNil)
 
 	verifyWrittenGadgetData(c, outDir, gd)
@@ -198,9 +206,17 @@ func (s *mountedfilesystemTestSuite) TestWriteDirectoryWhole(c *C) {
 	}
 	makeGadgetData(c, s.dir, gd)
 
+	ps := &gadget.LaidOutStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Filesystem: "ext4",
+		},
+	}
+	rw, err := gadget.NewMountedFilesystemWriter(s.dir, ps, nil)
+	c.Assert(err, IsNil)
+
 	outDir := c.MkDir()
 	// boot-assets -> / (boot-assets and children under /)
-	err := gadget.WriteDirectory(filepath.Join(s.dir, "boot-assets"), outDir+"/", nil)
+	err = rw.WriteDirectory(outDir, filepath.Join(s.dir, "boot-assets"), outDir+"/", nil)
 	c.Assert(err, IsNil)
 
 	verifyWrittenGadgetData(c, outDir, gd)
@@ -211,14 +227,44 @@ func (s *mountedfilesystemTestSuite) TestWriteNonDirectory(c *C) {
 		{name: "foo", content: "nested"},
 	}
 	makeGadgetData(c, s.dir, gd)
+	ps := &gadget.LaidOutStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Filesystem: "ext4",
+		},
+	}
+	rw, err := gadget.NewMountedFilesystemWriter(s.dir, ps, nil)
+	c.Assert(err, IsNil)
 
 	outDir := c.MkDir()
 
-	err := gadget.WriteDirectory(filepath.Join(s.dir, "foo")+"/", outDir, nil)
+	err = rw.WriteDirectory(outDir, filepath.Join(s.dir, "foo")+"/", outDir, nil)
 	c.Assert(err, ErrorMatches, `cannot specify trailing / for a source which is not a directory`)
 
-	err = gadget.WriteDirectory(filepath.Join(s.dir, "foo"), outDir, nil)
+	err = rw.WriteDirectory(outDir, filepath.Join(s.dir, "foo"), outDir, nil)
 	c.Assert(err, ErrorMatches, `source is not a directory`)
+}
+
+type mockWriteObserver struct {
+	content        map[string][][]string
+	observeErr     error
+	expectedStruct *gadget.LaidOutStructure
+	c              *C
+}
+
+func (m *mockWriteObserver) Observe(op gadget.ContentOperation, sourceStruct *gadget.LaidOutStructure,
+	targetRootDir, sourcePath, relativeTargetPath string) (bool, error) {
+	if m.content == nil {
+		m.content = make(map[string][][]string)
+	}
+	m.c.Check(osutil.FileExists(sourcePath) && !osutil.IsDirectory(sourcePath), Equals, true,
+		Commentf("path %q does not exist or is not a directory", sourcePath))
+	m.c.Check(filepath.IsAbs(relativeTargetPath), Equals, false,
+		Commentf("target path %q is absolute", relativeTargetPath))
+
+	m.content[targetRootDir] = append(m.content[targetRootDir], []string{sourcePath, relativeTargetPath})
+	m.c.Assert(sourceStruct, NotNil)
+	m.c.Check(m.expectedStruct, DeepEquals, sourceStruct)
+	return true, m.observeErr
 }
 
 func (s *mountedfilesystemTestSuite) TestMountedWriterHappy(c *C) {
@@ -231,6 +277,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterHappy(c *C) {
 		{name: "boot-assets/some-dir/empty-file", target: "some-dir/empty-file"},
 		{name: "boot-assets/nested-dir/nested", target: "/nested-copy/nested", content: "nested"},
 		{name: "boot-assets/nested-dir/more-nested/more", target: "/nested-copy/more-nested/more", content: "more"},
+		{name: "baz", target: "/baz", content: "baz"},
 	}
 	makeGadgetData(c, s.dir, gd)
 	err := os.MkdirAll(filepath.Join(s.dir, "boot-assets/empty-dir"), 0755)
@@ -238,6 +285,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterHappy(c *C) {
 
 	ps := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
+			Name:       "hello",
 			Size:       2048,
 			Filesystem: "ext4",
 			Content: []gadget.VolumeContent{
@@ -261,6 +309,10 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterHappy(c *C) {
 					// contents of nested directory under new target directory
 					Source: "boot-assets/nested-dir/",
 					Target: "/nested-copy/",
+				}, {
+					// contents of nested directory under new target directory
+					Source: "baz",
+					Target: "baz",
 				},
 			},
 		},
@@ -268,7 +320,11 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterHappy(c *C) {
 
 	outDir := c.MkDir()
 
-	rw, err := gadget.NewMountedFilesystemWriter(s.dir, ps)
+	obs := &mockWriteObserver{
+		c:              c,
+		expectedStruct: ps,
+	}
+	rw, err := gadget.NewMountedFilesystemWriter(s.dir, ps, obs)
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
 
@@ -277,6 +333,27 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterHappy(c *C) {
 
 	verifyWrittenGadgetData(c, outDir, gd)
 	c.Assert(osutil.IsDirectory(filepath.Join(outDir, "empty-dir")), Equals, true)
+
+	// verify observer was notified of writes for files only
+	c.Assert(obs.content, DeepEquals, map[string][][]string{
+		outDir: {
+			{filepath.Join(s.dir, "foo"), "foo-dir/foo"},
+			{filepath.Join(s.dir, "bar"), "bar-name"},
+
+			{filepath.Join(s.dir, "boot-assets/nested-dir/more-nested/more"), "nested-dir/more-nested/more"},
+			{filepath.Join(s.dir, "boot-assets/nested-dir/nested"), "nested-dir/nested"},
+			{filepath.Join(s.dir, "boot-assets/some-dir/data"), "some-dir/data"},
+			{filepath.Join(s.dir, "boot-assets/some-dir/empty-file"), "some-dir/empty-file"},
+			{filepath.Join(s.dir, "boot-assets/splash"), "splash"},
+
+			{filepath.Join(s.dir, "boot-assets/some-dir/data"), "data-copy"},
+
+			{filepath.Join(s.dir, "boot-assets/nested-dir/more-nested/more"), "nested-copy/more-nested/more"},
+			{filepath.Join(s.dir, "boot-assets/nested-dir/nested"), "nested-copy/nested"},
+
+			{filepath.Join(s.dir, "baz"), "baz"},
+		},
+	})
 }
 
 func (s *mountedfilesystemTestSuite) TestMountedWriterNonDirectory(c *C) {
@@ -301,7 +378,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterNonDirectory(c *C) {
 
 	outDir := c.MkDir()
 
-	rw, err := gadget.NewMountedFilesystemWriter(s.dir, ps)
+	rw, err := gadget.NewMountedFilesystemWriter(s.dir, ps, nil)
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
 
@@ -326,7 +403,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterErrorMissingSource(c *C) {
 
 	outDir := c.MkDir()
 
-	rw, err := gadget.NewMountedFilesystemWriter(s.dir, ps)
+	rw, err := gadget.NewMountedFilesystemWriter(s.dir, ps, nil)
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
 
@@ -356,7 +433,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterErrorBadDestination(c *C) 
 	err := os.Chmod(outDir, 0000)
 	c.Assert(err, IsNil)
 
-	rw, err := gadget.NewMountedFilesystemWriter(s.dir, ps)
+	rw, err := gadget.NewMountedFilesystemWriter(s.dir, ps, nil)
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
 
@@ -390,7 +467,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterConflictingDestinationDire
 
 	outDir := c.MkDir()
 
-	rw, err := gadget.NewMountedFilesystemWriter(s.dir, psOverwritesDirectoryWithFile)
+	rw, err := gadget.NewMountedFilesystemWriter(s.dir, psOverwritesDirectoryWithFile, nil)
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
 
@@ -424,7 +501,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterConflictingDestinationFile
 
 	outDir := c.MkDir()
 
-	rw, err := gadget.NewMountedFilesystemWriter(s.dir, psOverwritesFile)
+	rw, err := gadget.NewMountedFilesystemWriter(s.dir, psOverwritesFile, nil)
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
 
@@ -460,7 +537,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterErrorNested(c *C) {
 
 	makeSizedFile(c, filepath.Join(outDir, "/foo-dir/foo/bar"), 0, nil)
 
-	rw, err := gadget.NewMountedFilesystemWriter(s.dir, ps)
+	rw, err := gadget.NewMountedFilesystemWriter(s.dir, ps, nil)
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
 
@@ -541,7 +618,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterPreserve(c *C) {
 		},
 	}
 
-	rw, err := gadget.NewMountedFilesystemWriter(s.dir, ps)
+	rw, err := gadget.NewMountedFilesystemWriter(s.dir, ps, nil)
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
 
@@ -586,7 +663,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterNonFilePreserveError(c *C)
 		},
 	}
 
-	rw, err := gadget.NewMountedFilesystemWriter(s.dir, ps)
+	rw, err := gadget.NewMountedFilesystemWriter(s.dir, ps, nil)
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
 
@@ -617,7 +694,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterImplicitDir(c *C) {
 
 	outDir := c.MkDir()
 
-	rw, err := gadget.NewMountedFilesystemWriter(s.dir, ps)
+	rw, err := gadget.NewMountedFilesystemWriter(s.dir, ps, nil)
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
 
@@ -642,13 +719,13 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterNoFs(c *C) {
 		},
 	}
 
-	rw, err := gadget.NewMountedFilesystemWriter(s.dir, ps)
+	rw, err := gadget.NewMountedFilesystemWriter(s.dir, ps, nil)
 	c.Assert(err, ErrorMatches, "structure #0 has no filesystem")
 	c.Assert(rw, IsNil)
 }
 
 func (s *mountedfilesystemTestSuite) TestMountedWriterTrivialValidation(c *C) {
-	rw, err := gadget.NewMountedFilesystemWriter(s.dir, nil)
+	rw, err := gadget.NewMountedFilesystemWriter(s.dir, nil, nil)
 	c.Assert(err, ErrorMatches, `internal error: \*LaidOutStructure.*`)
 	c.Assert(rw, IsNil)
 
@@ -666,11 +743,11 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterTrivialValidation(c *C) {
 		},
 	}
 
-	rw, err = gadget.NewMountedFilesystemWriter("", ps)
+	rw, err = gadget.NewMountedFilesystemWriter("", ps, nil)
 	c.Assert(err, ErrorMatches, `internal error: gadget content directory cannot be unset`)
 	c.Assert(rw, IsNil)
 
-	rw, err = gadget.NewMountedFilesystemWriter(s.dir, ps)
+	rw, err = gadget.NewMountedFilesystemWriter(s.dir, ps, nil)
 	c.Assert(err, IsNil)
 
 	err = rw.Write("", nil)
@@ -707,7 +784,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterSymlinks(c *C) {
 		},
 	}
 
-	rw, err := gadget.NewMountedFilesystemWriter(s.dir, ps)
+	rw, err := gadget.NewMountedFilesystemWriter(s.dir, ps, nil)
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
 
@@ -807,6 +884,35 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupSimple(c *C) {
 	// running backup again does not error out
 	err = rw.Backup()
 	c.Assert(err, IsNil)
+}
+
+func (s *mountedfilesystemTestSuite) TestMountedWriterObserverErr(c *C) {
+	makeGadgetData(c, s.dir, []gadgetData{
+		{name: "foo", content: "data"},
+	})
+
+	ps := &gadget.LaidOutStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Size:       2048,
+			Filesystem: "ext4",
+			Content: []gadget.VolumeContent{
+				{Source: "/", Target: "/"},
+			},
+		},
+	}
+
+	outDir := c.MkDir()
+	obs := &mockWriteObserver{
+		c:              c,
+		observeErr:     errors.New("observe fail"),
+		expectedStruct: ps,
+	}
+	rw, err := gadget.NewMountedFilesystemWriter(s.dir, ps, obs)
+	c.Assert(err, IsNil)
+	c.Assert(rw, NotNil)
+
+	err = rw.Write(outDir, nil)
+	c.Assert(err, ErrorMatches, "cannot write filesystem content of source:/: cannot observe file write: observe fail")
 }
 
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupWithDirectories(c *C) {

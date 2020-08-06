@@ -435,6 +435,26 @@ func (m *DeviceManager) ensureOperational() error {
 	return nil
 }
 
+var startTime time.Time
+
+func init() {
+	startTime = time.Now()
+}
+
+func (m *DeviceManager) setTimeOnce(name string, t time.Time) error {
+	var prev time.Time
+	err := m.state.Get(name, &prev)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	if !prev.IsZero() {
+		// already set
+		return nil
+	}
+	m.state.Set(name, t)
+	return nil
+}
+
 var populateStateFromSeed = populateStateFromSeedImpl
 
 // ensureSeeded makes sure that the snaps from seed.yaml get installed
@@ -456,6 +476,19 @@ func (m *DeviceManager) ensureSeeded() error {
 
 	if m.changeInFlight("seed") {
 		return nil
+	}
+
+	var recordedStart string
+	var start time.Time
+	if m.preseed {
+		recordedStart = "preseed-start-time"
+		start = timeNow()
+	} else {
+		recordedStart = "seed-start-time"
+		start = startTime
+	}
+	if err := m.setTimeOnce(recordedStart, start); err != nil {
+		return err
 	}
 
 	var opts *populateStateFromSeedOptions
