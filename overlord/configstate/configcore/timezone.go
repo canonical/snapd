@@ -60,17 +60,17 @@ func handleTimezoneConfiguration(tr config.ConfGetter, opts *fsOnlyContext) erro
 	//
 	// It will also override any hostname on the next `snap set` run
 	// that was written not using `snap set system system.hostname`.
-	output, err := coreCfg(tr, "system.timezone")
+	timezone, err := coreCfg(tr, "system.timezone")
 	if err != nil {
 		return nil
 	}
 	// nothing to do
-	if output == "" {
+	if timezone == "" {
 		return nil
 	}
 	// runtime system
 	if opts == nil {
-		output, err := exec.Command("timedatectl", "set-timezone", output).CombinedOutput()
+		output, err := exec.Command("timedatectl", "set-timezone", timezone).CombinedOutput()
 		if err != nil {
 			return fmt.Errorf("cannot set timezone: %v", osutil.OutputErr(output, err))
 		}
@@ -80,11 +80,11 @@ func handleTimezoneConfiguration(tr config.ConfGetter, opts *fsOnlyContext) erro
 		if err := os.MkdirAll(filepath.Dir(localtimePath), 0755); err != nil {
 			return err
 		}
-		if err := os.Symlink(filepath.Join("/usr/share/zoneinfo", output), localtimePath); err != nil {
+		if err := os.Symlink(filepath.Join("/usr/share/zoneinfo", timezone), localtimePath); err != nil {
 			return err
 		}
 		timezonePath := filepath.Join(opts.RootDir, "/etc/writable/timezone")
-		if err := osutil.AtomicWriteFile(timezonePath, []byte(output+"\n"), 0644, 0); err != nil {
+		if err := osutil.AtomicWriteFile(timezonePath, []byte(timezone+"\n"), 0644, 0); err != nil {
 			return fmt.Errorf("cannot write timezone: %v", err)
 		}
 	}
