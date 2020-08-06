@@ -42,6 +42,6 @@ func (m *Modeenv) WasRead() bool {
 }
 
 var (
-	MarshalNonEmptyForModeenvEntry = marshalNonEmptyForModeenvEntry
-	UnmarshalModeenvValueFromCfg   = unmarshalModeenvValueFromCfg
+	MarshalModeenvEntryTo        = marshalModeenvEntryTo
+	UnmarshalModeenvValueFromCfg = unmarshalModeenvValueFromCfg
 )

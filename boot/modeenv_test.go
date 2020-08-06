@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -345,13 +345,13 @@ func (s *modeenvSuite) TestFancyMarshalUnmarshal(c *C) {
 	var buf bytes.Buffer
 
 	dboth := fancyDataBothMarshallers{Foo: []string{"1", "two"}}
-	err := boot.MarshalNonEmptyForModeenvEntry(&buf, "fancy", &dboth)
+	err := boot.MarshalModeenvEntryTo(&buf, "fancy", &dboth)
 	c.Assert(err, IsNil)
 	c.Check(buf.String(), Equals, `fancy=1#two
 `)
 
 	djson := fancyDataJSONOnly{Foo: []string{"1", "two", "with\nnewline"}}
-	err = boot.MarshalNonEmptyForModeenvEntry(&buf, "fancy_json", &djson)
+	err = boot.MarshalModeenvEntryTo(&buf, "fancy_json", &djson)
 	c.Assert(err, IsNil)
 	c.Check(buf.String(), Equals, `fancy=1#two
 fancy_json=["1","two","with\nnewline"]
@@ -371,4 +371,18 @@ fancy_json=["1","two","with\nnewline"]
 	err = boot.UnmarshalModeenvValueFromCfg(cfg, "fancy_json", &djsonRev)
 	c.Assert(err, IsNil)
 	c.Check(djsonRev, DeepEquals, djson)
+}
+
+func (s *modeenvSuite) TestFancyUnmarshalJSONEmpty(c *C) {
+	var buf bytes.Buffer
+
+	cfg := goconfigparser.New()
+	cfg.AllowNoSectionHeader = true
+	err := cfg.Read(&buf)
+	c.Assert(err, IsNil)
+
+	var djsonRev fancyDataJSONOnly
+	err = boot.UnmarshalModeenvValueFromCfg(cfg, "fancy_json", &djsonRev)
+	c.Assert(err, IsNil)
+	c.Check(djsonRev.Foo, IsNil)
 }

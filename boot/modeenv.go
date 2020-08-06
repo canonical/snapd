@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -119,13 +119,13 @@ func (m *Modeenv) WriteTo(rootdir string) error {
 	if m.Mode == "" {
 		return fmt.Errorf("internal error: mode is unset")
 	}
-	marshalNonEmptyForModeenvEntry(buf, "mode", m.Mode)
-	marshalNonEmptyForModeenvEntry(buf, "recovery_system", m.RecoverySystem)
-	marshalNonEmptyForModeenvEntry(buf, "current_recovery_systems", m.CurrentRecoverySystems)
-	marshalNonEmptyForModeenvEntry(buf, "base", m.Base)
-	marshalNonEmptyForModeenvEntry(buf, "try_base", m.TryBase)
-	marshalNonEmptyForModeenvEntry(buf, "base_status", m.BaseStatus)
-	marshalNonEmptyForModeenvEntry(buf, "current_kernels", strings.Join(m.CurrentKernels, ","))
+	marshalModeenvEntryTo(buf, "mode", m.Mode)
+	marshalModeenvEntryTo(buf, "recovery_system", m.RecoverySystem)
+	marshalModeenvEntryTo(buf, "current_recovery_systems", m.CurrentRecoverySystems)
+	marshalModeenvEntryTo(buf, "base", m.Base)
+	marshalModeenvEntryTo(buf, "try_base", m.TryBase)
+	marshalModeenvEntryTo(buf, "base_status", m.BaseStatus)
+	marshalModeenvEntryTo(buf, "current_kernels", strings.Join(m.CurrentKernels, ","))
 	if m.Model != "" || m.Grade != "" {
 		if m.Model == "" {
 			return fmt.Errorf("internal error: model is unset")
@@ -133,9 +133,9 @@ func (m *Modeenv) WriteTo(rootdir string) error {
 		if m.BrandID == "" {
 			return fmt.Errorf("internal error: brand is unset")
 		}
-		marshalNonEmptyForModeenvEntry(buf, "model", &modeenvModel{brandID: m.BrandID, model: m.Model})
+		marshalModeenvEntryTo(buf, "model", &modeenvModel{brandID: m.BrandID, model: m.Model})
 	}
-	marshalNonEmptyForModeenvEntry(buf, "grade", m.Grade)
+	marshalModeenvEntryTo(buf, "grade", m.Grade)
 
 	if err := osutil.AtomicWriteFile(modeenvPath, buf.Bytes(), 0644, 0); err != nil {
 		return err
@@ -151,7 +151,9 @@ type modeenvValueUnmarshaller interface {
 	UnmarshalModeenvValue(value string) error
 }
 
-func marshalNonEmptyForModeenvEntry(out io.Writer, key string, what interface{}) error {
+// marshalModeenvEntryTo marshals to out what as value for an entry
+// with the given key. If what is empty this is a no-op.
+func marshalModeenvEntryTo(out io.Writer, key string, what interface{}) error {
 	var asString string
 	switch v := what.(type) {
 	case string:
@@ -178,20 +180,23 @@ func marshalNonEmptyForModeenvEntry(out io.Writer, key string, what interface{})
 			}
 			asString = string(marshalled)
 		} else {
-			return fmt.Errorf("internal error: cannot marshal unsupported type %T value %+v for key %q", what, what, key)
+			return fmt.Errorf("internal error: cannot marshal unsupported type %T value %v for key %q", what, what, key)
 		}
 	}
 	_, err := fmt.Fprintf(out, "%s=%s\n", key, asString)
 	return err
 }
 
-func unmarshalModeenvValueFromCfg(cfg *goconfigparser.ConfigParser, key string, where interface{}) error {
-	if where == nil {
+// unmarshalModeenvValueFromCfg unmarshals the value of the entry with
+// th given key to dest. If there's no such entry dest might be left
+// empty.
+func unmarshalModeenvValueFromCfg(cfg *goconfigparser.ConfigParser, key string, dest interface{}) error {
+	if dest == nil {
 		return fmt.Errorf("internal error: cannot unmarshal to nil")
 	}
 	kv, _ := cfg.Get("", key)
 
-	switch v := where.(type) {
+	switch v := dest.(type) {
 	case *string:
 		*v = kv
 	case *[]string:
@@ -199,16 +204,20 @@ func unmarshalModeenvValueFromCfg(cfg *goconfigparser.ConfigParser, key string, 
 	default:
 		if vm, ok := v.(modeenvValueUnmarshaller); ok {
 			if err := vm.UnmarshalModeenvValue(kv); err != nil {
-				return fmt.Errorf("cannot unmarshal modeenv value %q to %T: %v", kv, where, err)
+				return fmt.Errorf("cannot unmarshal modeenv value %q to %T: %v", kv, dest, err)
 			}
 			return nil
 		} else if jm, ok := v.(json.Unmarshaler); ok {
+			if len(kv) == 0 {
+				// leave jm empty
+				return nil
+			}
 			if err := jm.UnmarshalJSON([]byte(kv)); err != nil {
-				return fmt.Errorf("cannot unmarshal modeenv value %q as JSON to %T: %v", kv, where, err)
+				return fmt.Errorf("cannot unmarshal modeenv value %q as JSON to %T: %v", kv, dest, err)
 			}
 			return nil
 		}
-		return fmt.Errorf("internal error: cannot unmarshal value %q for unsupported type %T", kv, where)
+		return fmt.Errorf("internal error: cannot unmarshal value %q for unsupported type %T", kv, dest)
 	}
 	return nil
 }
