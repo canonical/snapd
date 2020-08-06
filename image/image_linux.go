@@ -414,7 +414,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 		return err
 	}
 
-	if err := boot.MakeBootable(model, bootRootDir, bootWith); err != nil {
+	if err := boot.MakeBootable(model, bootRootDir, bootWith, nil); err != nil {
 		return err
 	}
 
