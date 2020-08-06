@@ -124,3 +124,10 @@ func DirExists(fn string) (exists bool, isDir bool, err error) {
 	}
 	return true, st.IsDir(), nil
 }
+
+// RegularFileExists checks whether a given path exists, and if so whether it is a regular file.
+func RegularFileExists(desktopFile string) bool {
+	fileStat, err := os.Stat(desktopFile)
+
+	return err == nil && fileStat.Mode().IsRegular()
+}

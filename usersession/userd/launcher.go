@@ -34,6 +34,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/strutil/shlex"
@@ -202,7 +203,7 @@ func (s *Launcher) OpenURL(addr string, sender dbus.Sender) *dbus.Error {
 // DBus interface. The desktopFileID is described here:
 // https://standards.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#desktop-file-id
 func (s *Launcher) OpenDesktopEntryEnv(desktopFileID string, env []string, sender dbus.Sender) *dbus.Error {
-	desktopFile, err := desktopFileIDToFilename(existsOnFileSystem, desktopFileID)
+	desktopFile, err := desktopFileIDToFilename(osutil.RegularFileExists, desktopFileID)
 	if err != nil {
 		return dbus.MakeFailedError(err)
 	}
@@ -245,14 +246,6 @@ func (s *Launcher) OpenDesktopEntryEnv(desktopFileID string, env []string, sende
 }
 
 type fileExists func(string) bool
-
-func existsOnFileSystem(desktopFile string) bool {
-	fileStat, err := os.Stat(desktopFile)
-
-	// We only support files in /var/lib/snapd/desktop/applications and they should
-	// all be regular files.
-	return err == nil && fileStat.Mode().IsRegular()
-}
 
 // findDesktopFile recursively tries each subdirectory that can be formed from the (split) desktop file ID.
 // Per https://standards.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#desktop-file-id,
