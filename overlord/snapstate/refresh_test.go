@@ -32,9 +32,9 @@ import (
 
 type refreshSuite struct {
 	testutil.BaseTest
-	state   *state.State
-	info    *snap.Info
-	pids    map[string][]int
+	state *state.State
+	info  *snap.Info
+	pids  map[string][]int
 }
 
 var _ = Suite(&refreshSuite{})
@@ -60,7 +60,7 @@ hooks:
 		return s.pids, nil
 	})
 	s.AddCleanup(restore)
-	s.AddCleanup(func() { dirs.SetRootDir("")})
+	s.AddCleanup(func() { dirs.SetRootDir("") })
 }
 
 func (s *refreshSuite) TestSoftNothingRunningRefreshCheck(c *C) {
