@@ -41,6 +41,7 @@ The recovery command lists the available recovery systems.
 
 func init() {
 	addCommand("recovery", shortRecoveryHelp, longRecoveryHelp, func() flags.Commander {
+		// XXX: if we want more/nicer details we can add `snap recovery <system>` later
 		return &cmdRecovery{}
 	}, nil, nil)
 }
