@@ -130,6 +130,7 @@ func (s *refreshSuite) TestHardNothingRunningRefreshCheck(c *C) {
 	err = snapstate.HardNothingRunningRefreshCheck(s.info)
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, `snap "pkg" has running apps (app)`)
+	c.Assert(err, FitsTypeOf, &snapstate.BusySnapError{})
 	c.Check(err.(*snapstate.BusySnapError).Pids(), DeepEquals, []int{101})
 
 	// Hooks are equally blocking hard refresh check.
