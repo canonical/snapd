@@ -481,11 +481,13 @@ func (s *startPreseedSuite) TestChooseTargetSnapdVersion(c *C) {
 			c.Assert(ioutil.WriteFile(infoFile, []byte(fmt.Sprintf("VERSION=%s", test.fromSnap)), 0644), IsNil)
 		}
 
-		path, version, err := main.ChooseTargetSnapdVersion()
+		targetSnapd, err := main.ChooseTargetSnapdVersion()
 		if test.expectedErr != "" {
 			c.Assert(err, ErrorMatches, test.expectedErr)
 		} else {
 			c.Assert(err, IsNil)
+			c.Assert(targetSnapd, NotNil)
+			path, version := main.SnapdPathAndVersion(targetSnapd)
 			c.Check(path, Equals, test.expectedPath)
 			c.Check(version, Equals, test.expectedVersion)
 		}

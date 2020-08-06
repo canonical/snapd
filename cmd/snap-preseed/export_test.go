@@ -60,3 +60,7 @@ func MockSeedOpen(f func(rootDir, label string) (seed.Seed, error)) (restore fun
 		seedOpen = oldSeedOpen
 	}
 }
+
+func SnapdPathAndVersion(targetSnapd *targetSnapdInfo) (string, string) {
+	return targetSnapd.path, targetSnapd.version
+}
