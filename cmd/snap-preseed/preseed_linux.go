@@ -158,8 +158,8 @@ type targetSnapdInfo struct {
 // chooseTargetSnapdVersion checks if the version of snapd under chroot env
 // is good enough for preseeding. It checks both the snapd from the deb
 // and from the seeded snap mounted under snapdMountPath and returns the
-// full path of snapd to execute as part of preseeding (whichever version is
-// newer).
+// information (path, version) about snapd to execute as part of preseeding
+// (it picks the newer version of the two).
 // The function must be called after syscall.Chroot(..).
 func chooseTargetSnapdVersion() (*targetSnapdInfo, error) {
 	// read snapd version from the mounted core/snapd snap
