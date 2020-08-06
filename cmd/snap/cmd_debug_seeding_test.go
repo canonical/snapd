@@ -219,6 +219,18 @@ var noPreseedingJSON = `
     "type": "sync"
 }`
 
+var seedingError = `{
+    "result": {
+        "preseed-start-time": "2020-07-24T21:41:33.838194712Z",
+        "preseed-time": "2020-07-24T21:41:43.156401424Z",
+        "preseeded": true,
+        "seed-error": "cannot perform the following tasks:\n- xxx"
+    },
+    "status": "OK",
+    "status-code": 200,
+    "type": "sync"
+}`
+
 // a system that was preseeded, but didn't record the new keys
 // this is the case for a system that was preseeded and then seeded with an old
 // snapd, but then is refreshed to a version of snapd that supports snap debug
@@ -425,6 +437,19 @@ seed-completion:  –
 `[1:],
 			hasUnicode: true,
 			comment:    "not preseeded, still seeding",
+		},
+		{
+			jsonResp: seedingError,
+			expStdout: `
+seeded:  false
+seed-error: |
+  cannot perform the following tasks:
+  - xxx
+preseeded:         true
+image-preseeding:  9.318s
+seed-completion:   --
+`[1:],
+			comment: "preseeded, error during seeding",
 		},
 	}
 
