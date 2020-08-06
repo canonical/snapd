@@ -142,7 +142,7 @@ mount options=(rw, rshared) -> /var/snap/@{SNAP_INSTANCE_NAME}/common/{,**},
 
 /{,usr/}bin/mount ixr,
 /{,usr/}bin/umount ixr,
-deny /run/mount/utab rw,
+deny /run/mount/utab{,.lock} rw,
 umount /var/snap/@{SNAP_INSTANCE_NAME}/common/**,
 `
 
@@ -151,7 +151,7 @@ const kubernetesSupportConnectedPlugAppArmorKubeletSystemdRun = `
   capability sys_admin,
   /{,usr/}bin/mount ixr,
   mount fstype="tmpfs" tmpfs -> /var/snap/@{SNAP_INSTANCE_NAME}/common/**,
-  deny /run/mount/utab rw,
+  deny /run/mount/utab{,.lock} rw,
 
   # For mounting volume subPaths
   mount /var/snap/@{SNAP_INSTANCE_NAME}/common/{,**} -> /var/snap/@{SNAP_INSTANCE_NAME}/common/{,**},
