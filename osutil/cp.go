@@ -117,6 +117,46 @@ func CopyFile(src, dst string, flags CopyFlag) (err error) {
 	return nil
 }
 
+// CopyFileAtomic copies src to dst using AtomicFile internally to create the
+// destination. The destination path is always overwritten. The destination and
+// the owning directory are synced after copy completes. Pass additional flags
+// for AtomicFile wrapping the destination.
+func CopyFileAtomic(src, dst string, flags AtomicWriteFlags) (err error) {
+	fin, err := openfile(src, os.O_RDONLY, 0)
+	if err != nil {
+		return fmt.Errorf("unable to open source file %s: %v", src, err)
+	}
+	defer func() {
+		if cerr := fin.Close(); cerr != nil && err == nil {
+			err = fmt.Errorf("when closing %s: %v", src, cerr)
+		}
+	}()
+
+	fi, err := fin.Stat()
+	if err != nil {
+		return fmt.Errorf("unable to stat %s: %v", src, err)
+	}
+
+	fout, err := NewAtomicFile(dst, fi.Mode(), flags, NoChown, NoChown)
+	if err != nil {
+		return fmt.Errorf("cannot create atomic file: %v", err)
+	}
+	defer func() {
+		if cerr := fout.Cancel(); cerr != ErrCannotCancel && err == nil {
+			err = fmt.Errorf("cannot cancel temporary file copy %s: %v", fout.Name(), cerr)
+		}
+	}()
+
+	if err := copyfile(fin, fout, fi); err != nil {
+		return fmt.Errorf("unable to copy %s to %s: %v", src, fout.Name(), err)
+	}
+
+	if err := fout.Commit(); err != nil {
+		return fmt.Errorf("cannot commit atomic file copy: %v", err)
+	}
+	return nil
+}
+
 func runCmd(cmd *exec.Cmd, errdesc string) error {
 	if output, err := cmd.CombinedOutput(); err != nil {
 		output = bytes.TrimSpace(output)
