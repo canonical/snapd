@@ -697,12 +697,6 @@ create_nested_classic_vm(){
     fi
 }
 
-get_nested_classic_image_path() {
-    local IMAGE_DIR
-    IMAGE_DIR="$(get_image_dir)"
-    ls "$IMAGE_DIR"/*.img
-}
-
 start_nested_classic_vm(){
     local IMAGE QEMU IMAGE_DIR IMAGE_NAME
     QEMU="$(get_qemu_for_nested_vm)"
