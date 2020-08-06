@@ -230,3 +230,15 @@ var (
 	InhibitRefresh = inhibitRefresh
 	MaxInhibition  = maxInhibition
 )
+
+// refresh
+var (
+	DoSoftRefreshCheck = doSoftRefreshCheck
+	DoHardRefreshCheck = doHardRefreshCheck
+)
+
+func MockGenericRefreshCheck(fn func(info *snap.Info, canAppRunDuringRefresh func(app *snap.AppInfo) bool) error) (restore func()) {
+	old := genericRefreshCheck
+	genericRefreshCheck = fn
+	return func() { genericRefreshCheck = old }
+}

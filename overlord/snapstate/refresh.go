@@ -36,7 +36,7 @@ var (
 	pidsCgroupDir = cgroup.ControllerPathV1("pids")
 )
 
-func genericRefreshCheck(info *snap.Info, canAppRunDuringRefresh func(app *snap.AppInfo) bool) error {
+var genericRefreshCheck = func(info *snap.Info, canAppRunDuringRefresh func(app *snap.AppInfo) bool) error {
 	var busyAppNames []string
 	var busyHookNames []string
 	var busyPIDs []int
