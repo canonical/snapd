@@ -90,6 +90,25 @@ func optedIntoSnapdSnap(st *state.State) (bool, error) {
 	return experimentalAllowSnapd, nil
 }
 
+func doSoftRefreshCheck(st *state.State, snapst *SnapState, info *snap.Info) error {
+	// Grab per-snap lock to prevent new processes from starting. This is
+	// sufficient to perform the check, even though individual processes may
+	// fork or exit, we will have per-security-tag information about what is
+	// running.
+	lock, err := snaplock.OpenLock(info.InstanceName())
+	if err != nil {
+		return err
+	}
+	// Closing the lock also unlocks it, if locked.
+	defer lock.Close()
+	if err := lock.Lock(); err != nil {
+		return err
+	}
+	// Perform the soft refresh viability check, possibly writing to the state
+	// on failure.
+	return inhibitRefresh(st, snapst, info, SoftNothingRunningRefreshCheck)
+}
+
 func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int, fromChange string, inUseCheck func(snap.Type) (boot.InUseFunc, error)) (*state.TaskSet, error) {
 	// NB: we should strive not to need or propagate deviceCtx
 	// here, the resulting effects/changes were not pleasant at
@@ -143,28 +162,10 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		snapsup.PlugsOnly = snapsup.PlugsOnly && (len(info.Slots) == 0)
 
 		if experimentalRefreshAppAwareness {
-			// Grab per-snap lock to prevent new processes from starting. This is
-			// sufficient to perform the check, even though individual processes
-			// may fork or exit, we will have per-security-tag information about
-			// what is running.
-			lock, err := snaplock.OpenLock(info.InstanceName())
-			if err != nil {
-				return nil, err
-			}
-			// Closing the lock also unlocks it, if locked.
-			defer lock.Close()
-			if err := lock.Lock(); err != nil {
-				return nil, err
-			}
-
-			// Note that because we are modifying the snap state this block
-			// must be located after the conflict check done above.
-			if err := inhibitRefresh(st, snapst, info, SoftNothingRunningRefreshCheck); err != nil {
-				return nil, err
-			}
-			// Unlock the snap lock file, minimising pause times and allowing
-			// snap-confine to continue while the rest of this function executes.
-			if err := lock.Unlock(); err != nil {
+			// Note that because we are modifying the snap state inside
+			// doSoftRefreshCheck, this block must be located after the
+			// conflict check done above.
+			if err := doSoftRefreshCheck(st, snapst, info); err != nil {
 				return nil, err
 			}
 		}
