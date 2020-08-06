@@ -301,7 +301,7 @@ func desktopFileIDToFilename(desktopFileExists fileExists, desktopFileID string)
 // 2. the desktop file itself and all directories above it are root owned without group/other write
 // 3. the Exec line has an expected prefix
 func verifyDesktopFileLocation(desktopFile string) error {
-	if !strings.HasPrefix(desktopFile, dirs.SnapDesktopFilesDir) {
+	if !strings.HasPrefix(desktopFile, dirs.SnapDesktopFilesDir + "/") {
 		// We currently only support launching snap applications from desktop files in
 		// /var/lib/snapd/desktop/applications and these desktop files are written by snapd and
 		// considered safe for userd to process. If other directories are added in the future,
