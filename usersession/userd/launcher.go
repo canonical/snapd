@@ -265,8 +265,8 @@ func findDesktopFile(desktopFileExists fileExists, baseDir string, splitFileId [
 
 	// Iterate through the potential subdirectories formed by the first i elements of the desktop file ID.
 	// Maybe this is overkill: At the time of writing, the only use is in desktopFileIDToFilename() and there
-	// we're only checking dirs.SnapDesktopFilesDir (and not all entries in $XDG_DATA_DIRS).
-	// For dirs.SnapDesktopFilesDir snapd will not create any subdirectories.
+	// we're only checking dirs.SnapDesktopFilesDir (not all entries in $XDG_DATA_DIRS) and we know that snapd
+	// does not create subdirectories in that location.
 	for i := 1; i != len(splitFileId); i++ {
 		desktopFile, err := findDesktopFile(desktopFileExists, filepath.Join(baseDir, strings.Join(splitFileId[:i], "-")), splitFileId[i:])
 		if err == nil {
