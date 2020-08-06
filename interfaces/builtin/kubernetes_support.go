@@ -79,12 +79,22 @@ profile systemd_run (attach_disconnected,mediate_deleted) {
   # setsockopt()
   capability net_admin,
 
-  # ptrace 'trace' is coarse and not required for using the systemd private
-  # socket, and while the child profile omits 'capability sys_ptrace', skip
-  # for now since it isn't strictly required.
-  ptrace read peer=unconfined,
-  deny ptrace trace peer=unconfined,
+  # kubelet calls 'systemd-run --scope true' to determine if systemd is
+  # available and usable for calling certain mount commands under transient
+  # units as part of its lifecycle management. This requires ptrace 'read' on
+  # unconfined since systemd-run will call its detect_container() which will
+  # try to read /proc/1/environ. This is mediated via PTRACE_MODE_READ when
+  # run within kubelet's namespace.
+  ptrace (read) peer=unconfined,
   /run/systemd/private rw,
+
+  # Ubuntu's ptrace patchset before (at least) 20.04 did not correctly evaluate
+  # PTRACE_MODE_READ and policy required 'trace' instead of 'read'.
+  # (LP: #1890848). This child profile doesn't have 'capability sys_ptrace', so
+  # continue to allow this historic 'trace' rule on unconfined (which systemd
+  # runs as) since systemd-run won't be able to ptrace this snap's processes.
+  # This can be dropped once LP: #1890848 is fixed.
+  ptrace (trace) peer=unconfined,
 
   /{,usr/}bin/true ixr,
   @{INSTALL_DIR}/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/@{SNAP_REVISION}/{,usr/}bin/true ixr,
