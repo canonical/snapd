@@ -27,9 +27,8 @@ prepare: |
   # create a VM and mount a cloud image
   create_nested_classic_vm
   mkdir -p "$IMAGE_MOUNTPOINT"
-  IMAGE_DIR="$(get_image_dir)"
   IMAGE_NAME=$(get_image_name classic)
-  mount_ubuntu_image "$IMAGE_DIR/$IMAGE_NAME" "$IMAGE_MOUNTPOINT"
+  mount_ubuntu_image "$IMAGES_DIR/$IMAGE_NAME" "$IMAGE_MOUNTPOINT"
 
   # on 20.04 snapd from the deb is newer than snapd from seeds;
   # this is not a sensible scenario for preseeding but since
