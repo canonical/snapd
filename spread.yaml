@@ -496,9 +496,9 @@ debug-each: |
             systemctl status nested-vm || true
             journalctl -e --no-pager -u nested-vm || true
 
-            if [ -f "${WORK_DIR}/serial-log.txt" ]; then
+            if [ -f "${WORK_DIR}/serial.log" ]; then
                 echo '# nested VM serial boot log'
-                cat "${WORK_DIR}/serial-log.txt"
+                cat "${WORK_DIR}/serial.log"
             fi
         fi
 
@@ -927,10 +927,6 @@ suites:
             # Directory where the images and test assets are stored
             WORK_DIR: '/tmp/work-dir'
         manual: true
-        debug: |
-            if [ -f "${WORK_DIR}/serial.log" ]; then
-                cat "${WORK_DIR}/serial.log"
-            fi
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
@@ -977,10 +973,6 @@ suites:
             # Directory where the images and test assets are stored
             WORK_DIR: '/tmp/work-dir'
         manual: true
-        debug: |
-            if [ -f "${WORK_DIR}/serial.log" ]; then
-                cat "${WORK_DIR}/serial.log"
-            fi
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
@@ -1035,10 +1027,6 @@ suites:
             # Directory where the images and test assets are stored
             WORK_DIR: '/tmp/work-dir'
         manual: true
-        debug: |
-            if [ -f "${WORK_DIR}/serial.log" ]; then
-                cat "${WORK_DIR}/serial.log"
-            fi
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
@@ -1090,10 +1078,6 @@ suites:
             WORK_DIR: '/tmp/work-dir'
         manual: true
         kill-timeout: 90m
-        debug: |
-            if [ -f "${WORK_DIR}/serial.log" ]; then
-                cat "${WORK_DIR}/serial.log"
-            fi
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
