@@ -374,7 +374,7 @@ func parseExecCommand(exec_command string) ([]string, error) {
 			i++
 		} else if strings.HasPrefix(args[i], "%") {
 		    switch args[i] {
-		    case "%f", "%F", "%u", "%U":
+		    case "%f", "%F", "%u", "%U", "%i":
                 args = append(args[:i], args[i+1:]...)
             default:
                 return []string{}, fmt.Errorf("cannot run %q", exec_command)
@@ -395,7 +395,7 @@ func parseExecCommand(exec_command string) ([]string, error) {
 // The file descriptor cannot be opened using O_PATH and must refer to
 // a regular file or to a directory. The symlink at /proc/self/fd/<fd>
 // is read to determine the filename. The descriptor is also fstat'ed
-// and the resulting device number and inode number are compared to
+// and the resulting device number and inode number are compared to, "%d", "%D", "%n", "%N",
 // stat on the path determined earlier. The numbers must match.
 func fdToFilename(fd int) (string, error) {
 	flags, err := sys.FcntlGetFl(fd)

@@ -406,14 +406,14 @@ func (s *launcherInternalSuite) TestParseExecCommandSucceedsWithValidEntry(c *C)
 		{"/snap/bin/foo '\"-f bar\"'", []string{"/snap/bin/foo", "\"-f bar\""}},
 		// valid with exec variables stripped out
 		{"/snap/bin/foo -f %U", []string{"/snap/bin/foo", "-f"}},
-		{"/snap/bin/foo -f %U %Y", []string{"/snap/bin/foo", "-f"}},
+		{"/snap/bin/foo -f %U %i", []string{"/snap/bin/foo", "-f"}},
 		{"/snap/bin/foo -f %U bar", []string{"/snap/bin/foo", "-f", "bar"}},
-		{"/snap/bin/foo -f %U bar %Y", []string{"/snap/bin/foo", "-f", "bar"}},
+		{"/snap/bin/foo -f %U bar %i", []string{"/snap/bin/foo", "-f", "bar"}},
 		// valid with mixture of literal '%' and exec variables
 		{"/snap/bin/foo -f %U %%bar", []string{"/snap/bin/foo", "-f", "%bar"}},
-		{"/snap/bin/foo -f %U %Y %%bar", []string{"/snap/bin/foo", "-f", "%bar"}},
-		{"/snap/bin/foo -f %U %%bar %Y", []string{"/snap/bin/foo", "-f", "%bar"}},
-		{"/snap/bin/foo -f %%bar %U %Y", []string{"/snap/bin/foo", "-f", "%bar"}},
+		{"/snap/bin/foo -f %U %i %%bar", []string{"/snap/bin/foo", "-f", "%bar"}},
+		{"/snap/bin/foo -f %U %%bar %i", []string{"/snap/bin/foo", "-f", "%bar"}},
+		{"/snap/bin/foo -f %%bar %U %i", []string{"/snap/bin/foo", "-f", "%bar"}},
 	}
 
 	for _, test := range exec_command {
