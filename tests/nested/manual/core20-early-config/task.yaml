@@ -69,3 +69,4 @@ execute: |
     # timezone is set
     execute_remote "cat /etc/timezone" | MATCH "Europe/Malta"
     execute_remote "readlink -f /etc/localtime" | MATCH "Europe/Malta"
+    execute_remote "cat /var/snap/pc/common/debug.txt" | MATCH "localtime symlink: /usr/share/zoneinfo/Europe/Malta"
