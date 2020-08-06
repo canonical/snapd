@@ -35,11 +35,11 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/testutil"
 
 	snap "github.com/snapcore/snapd/cmd/snap"
@@ -174,12 +174,6 @@ func mockArgs(args ...string) (restore func()) {
 	return func() { os.Args = old }
 }
 
-func mockVersion(v string) (restore func()) {
-	old := cmd.Version
-	cmd.Version = v
-	return func() { cmd.Version = old }
-}
-
 func mockSnapConfine(libExecDir string) func() {
 	snapConfine := filepath.Join(libExecDir, "snap-confine")
 	if err := os.MkdirAll(libExecDir, 0755); err != nil {
@@ -237,7 +231,7 @@ func (s *SnapSuite) TestVersionOnClassic(c *C) {
 	})
 	restore := mockArgs("snap", "--version")
 	defer restore()
-	restore = mockVersion("4.56")
+	restore = snapdtool.MockVersion("4.56")
 	defer restore()
 
 	c.Assert(func() { snap.RunMain() }, PanicMatches, `internal error: exitStatus\{0\} .*`)
@@ -251,7 +245,7 @@ func (s *SnapSuite) TestVersionOnAllSnap(c *C) {
 	})
 	restore := mockArgs("snap", "--version")
 	defer restore()
-	restore = mockVersion("4.56")
+	restore = snapdtool.MockVersion("4.56")
 	defer restore()
 
 	c.Assert(func() { snap.RunMain() }, PanicMatches, `internal error: exitStatus\{0\} .*`)

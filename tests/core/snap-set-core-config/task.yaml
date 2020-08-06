@@ -89,6 +89,8 @@ execute: |
         exit 1
     fi
 
+
+    rm -f /var/lib/console-conf/complete
     echo "Check that 'service.console-conf.disable' handling works"
     # start some instances of console-conf
     systemctl start console-conf@tty1
@@ -123,3 +125,12 @@ execute: |
     systemctl status getty@tty1 | MATCH "Active: (inactive|failed)"
     systemctl status getty@tty2 | MATCH "Active: (inactive|failed)"
     systemctl status serial-getty@ttyS0 | MATCH "Active: (inactive|failed)"
+
+    echo "Check that 'system.kernel.printk.console-loglevel' handling works"
+    snap set system system.kernel.printk.console-loglevel=7
+    test -e /etc/sysctl.d/99-snapd.conf
+    sysctl -n kernel.printk|MATCH "^7\s+"
+
+    snap unset system system.kernel.printk.console-loglevel
+    not test -e /etc/sysctl.d/99-snapd.conf
+    sysctl -n kernel.printk|MATCH "^4\s+"

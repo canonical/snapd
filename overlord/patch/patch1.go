@@ -56,7 +56,7 @@ var patch1ReadType = func(name string, rev snap.Revision) (snap.Type, error) {
 		return snap.TypeApp, err
 	}
 
-	return info.GetType(), nil
+	return info.Type(), nil
 }
 
 type patch1Flags int

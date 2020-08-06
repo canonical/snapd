@@ -27,10 +27,10 @@ import (
 	// TODO: consider not using go-flags at all
 	"github.com/jessevdk/go-flags"
 
-	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snapdenv"
+	"github.com/snapcore/snapd/snapdtool"
 )
 
 var (
@@ -76,7 +76,7 @@ func run() error {
 	if osGetuid() != 0 {
 		return fmt.Errorf("must be run as root")
 	}
-	snapdenv.SetUserAgentFromVersion(cmd.Version, nil, "snap-repair")
+	snapdenv.SetUserAgentFromVersion(snapdtool.Version, nil, "snap-repair")
 
 	if err := parseArgs(os.Args[1:]); err != nil {
 		return err

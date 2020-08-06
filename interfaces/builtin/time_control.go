@@ -110,6 +110,11 @@ const timeControlConnectedPlugSecComp = `
 
 settimeofday
 adjtimex
+# direct manipulation through POSIX clock time API
+clock_adjtime
+clock_adjtime64
+clock_settime
+clock_settime64
 
 # util-linux built with libaudit tries to write to the audit subsystem. We
 # allow the socket call here to avoid seccomp kill, but omit the AppArmor

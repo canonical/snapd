@@ -1,33 +1,34 @@
 summary: Ensure the "snap handle-link" command works
 
-# We don't run on ubuntu-core, since we are testing the behaviour of
-# xdg-open on the host system.
-systems: [-ubuntu-core-*]
-
-# xdg-open doesn't seem to check desktop files if it doesn't think it
-# has a display.
-environment:
-    DISPLAY: :placeholder
+systems:
+    - -amazon-linux-2-*  # does not support systemd --user
+    - -centos-7-*  # does not support systemd --user
+    - -ubuntu-14.04-*  # not supported as desktop OS, systemd too old for tests.session
+    - -ubuntu-core-*  # test exercises regular xdg-open, not the custom one in ubuntu-core
 
 prepare: |
     touch /usr/bin/zenity
+    tests.session -u test prepare
+
+    # Make sure there is a default handler to open a snap package
+    tests.session -u test exec mkdir -p /home/test/.config
+    tests.session -u test exec mv /home/test/.config /home/test/.config.bak
+    tests.session -u test exec mkdir -p /home/test/.config
+    tests.session -u test exec xdg-mime default snap-handle-link.desktop x-scheme-handler/snap
 
 restore: |
     umount -f /usr/bin/zenity || :
+    tests.session -u test exec rm -rf /home/test/.config
+    tests.session -u test exec mv /home/test/.config.bak /home/test/.config
+    tests.session -u test restore
 
 execute: |
-    #shellcheck source=tests/lib/pkgdb.sh
-    . "$TESTSLIB/pkgdb.sh"
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
 
-    # Make sure there is a default handler to open a snap package
-    mkdir -p ~/.config
-    xdg-mime default snap-handle-link.desktop x-scheme-handler/snap
-
     echo "URI Handler fails if snap-store is not installed and user refuses to install it"
     mount --bind /bin/false /usr/bin/zenity
-    if snap handle-link snap://package 2>errors.log; then
+    if tests.session -u test exec snap handle-link snap://package 2>errors.log; then
         cat errors.log >&2
         echo "Expected URI handler to fail"
         exit 1
@@ -36,13 +37,8 @@ execute: |
 
     echo "Now with snap-store installed"
     install_local snap-store
-    snap handle-link snap://package | MATCH "Fake snap got snap://package"
+    tests.session -u test exec snap handle-link snap://package | MATCH "Fake snap got snap://package"
 
-    if [[ "$SPREAD_SYSTEM" != ubuntu-1[46].04-* ]]; then
-        # Ubuntu 14.04 ships with an ancient xdg-open shell script
-        # that doesn't look up scheme handlers.  Other xdg-mime
-        # implementations on the system (e.g. GLib) should be fine
-        # though.
-        echo "The same should work with xdg-open"
-        xdg-open snap://package | MATCH "Fake snap got snap://package"
-    fi
+    echo "The same should work with xdg-open"
+    # xdg-open doesn't check desktop files if it thinks there is no display around
+    tests.session -u test exec env DISPLAY=:placeholder xdg-open snap://package | MATCH "Fake snap got snap://package"

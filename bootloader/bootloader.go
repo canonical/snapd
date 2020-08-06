@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
@@ -49,6 +50,8 @@ type Options struct {
 	// Recovery indicates to use the recovery bootloader. Note that
 	// UC16/18 do not have a recovery partition.
 	Recovery bool
+
+	// TODO:UC20 consider different/better names for flags that follow
 
 	// NoSlashBoot indicates to use the run mode bootloader but
 	// under the native layout and not the /boot mount.
@@ -93,6 +96,7 @@ type installableBootloader interface {
 type RecoveryAwareBootloader interface {
 	Bootloader
 	SetRecoverySystemEnv(recoverySystemDir string, values map[string]string) error
+	GetRecoverySystemEnv(recoverySystemDir string, key string) (string, error)
 }
 
 type ExtractedRecoveryKernelImageBootloader interface {
@@ -139,6 +143,29 @@ type ExtractedRunKernelImageBootloader interface {
 	DisableTryKernel() error
 }
 
+// ManagedAssetsBootloader has its boot assets (typically boot config) managed
+// by snapd.
+type ManagedAssetsBootloader interface {
+	Bootloader
+
+	// IsCurrentlyManaged returns true when the on disk boot assets are managed.
+	IsCurrentlyManaged() (bool, error)
+	// ManagedAssets returns a list of boot assets managed by the bootloader
+	// in the boot filesystem.
+	ManagedAssets() []string
+	// UpdateBootConfig updates the boot config assets used by the bootloader.
+	UpdateBootConfig(*Options) error
+	// CommandLine returns the kernel command line composed of mode and
+	// system arguments, built-in bootloader specific static arguments
+	// corresponding to the on-disk boot asset edition, followed by any
+	// extra arguments. The command line may be different when using a
+	// recovery bootloader.
+	CommandLine(modeArg, systemArg, extraArgs string) (string, error)
+	// CandidateCommandLine is similar to CommandLine, but uses the current
+	// edition of managed built-in boot assets as reference.
+	CandidateCommandLine(modeArg, systemArg, extraArgs string) (string, error)
+}
+
 func genericInstallBootConfig(gadgetFile, systemFile string) (bool, error) {
 	if !osutil.FileExists(gadgetFile) {
 		return false, nil
@@ -147,6 +174,41 @@ func genericInstallBootConfig(gadgetFile, systemFile string) (bool, error) {
 		return true, err
 	}
 	return true, osutil.CopyFile(gadgetFile, systemFile, osutil.CopyFlagOverwrite)
+}
+
+func genericSetBootConfigFromAsset(systemFile, assetName string) (bool, error) {
+	bootConfig := assets.Internal(assetName)
+	if bootConfig == nil {
+		return true, fmt.Errorf("internal error: no boot asset for %q", assetName)
+	}
+	if err := os.MkdirAll(filepath.Dir(systemFile), 0755); err != nil {
+		return true, err
+	}
+	return true, osutil.AtomicWriteFile(systemFile, bootConfig, 0644, 0)
+}
+
+func genericUpdateBootConfigFromAssets(systemFile string, assetName string) error {
+	currentBootConfigEdition, err := editionFromDiskConfigAsset(systemFile)
+	if err != nil && err != errNoEdition {
+		return err
+	}
+	if err == errNoEdition {
+		return nil
+	}
+	newBootConfig := assets.Internal(assetName)
+	if len(newBootConfig) == 0 {
+		return fmt.Errorf("no boot config asset with name %q", assetName)
+	}
+	bc, err := configAssetFrom(newBootConfig)
+	if err != nil {
+		return err
+	}
+	if bc.Edition() <= currentBootConfigEdition {
+		// edition of the candidate boot config is lower than or equal
+		// to one currently installed
+		return nil
+	}
+	return osutil.AtomicWriteFile(systemFile, bc.Raw(), 0644, 0)
 }
 
 // InstallBootConfig installs the bootloader config from the gadget

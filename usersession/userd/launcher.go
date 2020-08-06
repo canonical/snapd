@@ -24,14 +24,11 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
-	"path/filepath"
-	"strings"
 	"syscall"
 	"time"
 
 	"github.com/godbus/dbus"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/strutil"
@@ -74,37 +71,50 @@ const launcherIntrospectionXML = `
 // This code uses golang's net/url.Parse() which will help ensure the url is
 // ok before passing to xdg-open. xdg-open itself properly quotes the url so
 // shell metacharacters are blocked.
-//
-// apt: the scheme allows specifying a package for xdg-open to pass to an
-//   apt-handling application, like gnome-software, apturl, etc which are all
-//   protected by policykit
-//   - scheme: apt:<name of package>
-//   - https://github.com/snapcore/snapd/pull/7731
-//
-// help: the scheme allows for specifying a help URL. This code ensures that
-//   the url is parseable
-//   - scheme: help://topic
-//   - https://github.com/snapcore/snapd/pull/6493
-//
-// http/https: the scheme allows specifying a web URL. This code ensures that
-//   the url is parseable
-//   - scheme: http(s)://example.com
-//
-// mailto: the scheme allows for specifying an email address
-//   - scheme: mailto:foo@example.com
-//
-// snap: the scheme allows specifying a package for xdg-open to pass to a
-//   snap-handling installer application, like snap-store, etc which are
-//   protected by policykit/snap login
-//   - https://github.com/snapcore/snapd/pull/5181
-//
-// zoommtg: the scheme is a modified web url scheme
-//   - scheme: https://medium.com/zoom-developer-blog/zoom-url-schemes-748b95fd9205
-//     (eg, zoommtg://zoom.us/...)
-//   - https://github.com/snapcore/snapd/pull/8304
-
 var (
-	allowedURLSchemes = []string{"http", "https", "mailto", "snap", "help", "apt", "zoommtg"}
+	allowedURLSchemes = []string{
+		// apt: the scheme allows specifying a package for xdg-open to pass to an
+		//   apt-handling application, like gnome-software, apturl, etc which are all
+		//   protected by policykit
+		//   - scheme: apt:<name of package>
+		//   - https://github.com/snapcore/snapd/pull/7731
+		"apt",
+		// help: the scheme allows for specifying a help URL. This code ensures that
+		//   the url is parseable
+		//   - scheme: help://topic
+		//   - https://github.com/snapcore/snapd/pull/6493
+		"help",
+		// http/https: the scheme allows specifying a web URL. This code ensures that
+		//   the url is parseable
+		//   - scheme: http(s)://example.com
+		"http",
+		"https",
+		// mailto: the scheme allows for specifying an email address
+		//   - scheme: mailto:foo@example.com
+		"mailto",
+		// msteams: the scheme is a thin wrapper around https.
+		//   - scheme: msteams:...
+		//   - https://github.com/snapcore/snapd/pull/8761
+		"msteams",
+		// TODO: document slack URL scheme.
+		"slack",
+		// snap: the scheme allows specifying a package for xdg-open to pass to a
+		//   snap-handling installer application, like snap-store, etc which are
+		//   protected by policykit/snap login
+		//   - https://github.com/snapcore/snapd/pull/5181
+		"snap",
+		// zoommtg: the scheme is a modified web url scheme
+		//   - scheme: https://medium.com/zoom-developer-blog/zoom-url-schemes-748b95fd9205
+		//     (eg, zoommtg://zoom.us/...)
+		//   - https://github.com/snapcore/snapd/pull/8304
+		"zoommtg",
+		// zoomphonecall: another zoom URL scheme, for dialing phone numbers
+		//   - https://github.com/snapcore/snapd/pull/8910
+		"zoomphonecall",
+		// zoomus: alternative name for zoommtg
+		//   - https://github.com/snapcore/snapd/pull/8910
+		"zoomus",
+	}
 )
 
 // Launcher implements the 'io.snapcraft.Launcher' DBus interface.
@@ -148,22 +158,7 @@ func (s *Launcher) OpenURL(addr string, sender dbus.Sender) *dbus.Error {
 		return makeAccessDeniedError(fmt.Errorf("Supplied URL scheme %q is not allowed", u.Scheme))
 	}
 
-	snap, err := snapFromSender(s.conn, sender)
-	if err != nil {
-		return dbus.MakeFailedError(err)
-	}
-
-	xdg_data_dirs := []string{}
-	xdg_data_dirs = append(xdg_data_dirs, fmt.Sprintf(filepath.Join(dirs.SnapMountDir, snap, "current/usr/share")))
-	for _, dir := range strings.Split(os.Getenv("XDG_DATA_DIRS"), ":") {
-		xdg_data_dirs = append(xdg_data_dirs, dir)
-	}
-
-	cmd := exec.Command("xdg-open", addr)
-	cmd.Env = os.Environ()
-	cmd.Env = append(cmd.Env, fmt.Sprintf("XDG_DATA_DIRS=%s", strings.Join(xdg_data_dirs, ":")))
-
-	if err := cmd.Run(); err != nil {
+	if err := exec.Command("xdg-open", addr).Run(); err != nil {
 		return dbus.MakeFailedError(fmt.Errorf("cannot open supplied URL"))
 	}
 

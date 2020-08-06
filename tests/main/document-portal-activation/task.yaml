@@ -84,7 +84,7 @@ execute: |
     echo "Remove the .portals-unavailable file to force a recheck"
     rm /run/user/12345/.portals-unavailable
 
-    echo "No output on stderr when running with a session bus and xdg-document-portal is present".
+    echo "No output on stderr when running with a session bus and xdg-document-portal is present."
     tests.session -u test exec test-snapd-desktop.check-dirs /home/test/snap/test-snapd-desktop/current 2>stderr.log
     MATCH "GetMountPoint called" < doc-portal.log
     check_stderr stderr.log

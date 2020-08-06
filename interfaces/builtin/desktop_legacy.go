@@ -241,6 +241,15 @@ dbus (send)
 # parallel-installs: this leaks read access to desktop files owned by keyed
 # instances of @{SNAP_NAME} to @{SNAP_NAME} snap
 /var/lib/snapd/desktop/applications/@{SNAP_INSTANCE_NAME}_*.desktop r,
+
+# glib-networking's GLib proxy (different than the portal's proxy service
+# org.freedesktop.portal.ProxyResolver)
+dbus (send)
+    bus=session
+    path=/org/gtk/GLib/PACRunner
+    interface=org.gtk.GLib.PACRunner
+    member=Lookup
+    peer=(label=unconfined),
 `
 
 const desktopLegacyConnectedPlugSecComp = `

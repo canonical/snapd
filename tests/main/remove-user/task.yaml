@@ -1,8 +1,6 @@
 summary: Ensure remove-user functionality
 
-# TODO:UC20: enable for uc20, userdel --extrausers "$USER" is failing
-# right now with: "user $USER does not exist'
-systems: [ubuntu-core-1*]
+systems: [ubuntu-core-*]
 
 environment:
     # Note that any valid sso account will work for this test

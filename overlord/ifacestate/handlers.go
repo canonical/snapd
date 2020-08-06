@@ -501,6 +501,15 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		logger.Debugf("Connect handler: skipping setupSnapSecurity for snaps %q and %q", plug.Snap.InstanceName(), slot.Snap.InstanceName())
 	}
 
+	// For undo handler. We need to remember old state of the connection only
+	// if undesired flag is set because that means there was a remembered
+	// inactive connection already and we should restore its properties
+	// in case of undo. Otherwise we don't have to keep old-conn because undo
+	// can simply delete any trace of the connection.
+	if old, ok := conns[connRef.ID()]; ok && old.Undesired {
+		task.Set("old-conn", old)
+	}
+
 	conns[connRef.ID()] = &connState{
 		Interface:        conn.Interface(),
 		StaticPlugAttrs:  conn.Plug.StaticAttrs(),
@@ -711,6 +720,9 @@ func (m *InterfaceManager) undoConnect(task *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
+	perfTimings := state.TimingsForTask(task)
+	defer perfTimings.Save(st)
+
 	plugRef, slotRef, err := getPlugAndSlotRefs(task)
 	if err != nil {
 		return err
@@ -720,8 +732,66 @@ func (m *InterfaceManager) undoConnect(task *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	delete(conns, connRef.ID())
+
+	var old connState
+	err = task.Get("old-conn", &old)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	if err == nil {
+		conns[connRef.ID()] = &old
+	} else {
+		delete(conns, connRef.ID())
+	}
 	setConns(st, conns)
+
+	if err := m.repo.Disconnect(connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name); err != nil {
+		return err
+	}
+
+	var delayedSetupProfiles bool
+	if err := task.Get("delayed-setup-profiles", &delayedSetupProfiles); err != nil && err != state.ErrNoState {
+		return err
+	}
+	if delayedSetupProfiles {
+		logger.Debugf("Connect undo handler: skipping setupSnapSecurity for snaps %q and %q", connRef.PlugRef.Snap, connRef.SlotRef.Snap)
+		return nil
+	}
+
+	plug := m.repo.Plug(connRef.PlugRef.Snap, connRef.PlugRef.Name)
+	if plug == nil {
+		return fmt.Errorf("internal error: snap %q has no %q plug", connRef.PlugRef.Snap, connRef.PlugRef.Name)
+	}
+	slot := m.repo.Slot(connRef.SlotRef.Snap, connRef.SlotRef.Name)
+	if slot == nil {
+		return fmt.Errorf("internal error: snap %q has no %q slot", connRef.SlotRef.Snap, connRef.SlotRef.Name)
+	}
+
+	var plugSnapst snapstate.SnapState
+	err = snapstate.Get(st, plugRef.Snap, &plugSnapst)
+	if err == state.ErrNoState {
+		return fmt.Errorf("internal error: snap %q is no longer available", plugRef.Snap)
+	}
+	if err != nil {
+		return err
+	}
+	var slotSnapst snapstate.SnapState
+	err = snapstate.Get(st, slotRef.Snap, &slotSnapst)
+	if err == state.ErrNoState {
+		return fmt.Errorf("internal error: snap %q is no longer available", slotRef.Snap)
+	}
+	if err != nil {
+		return err
+	}
+	slotOpts := confinementOptions(slotSnapst.Flags)
+	if err := m.setupSnapSecurity(task, slot.Snap, slotOpts, perfTimings); err != nil {
+		return err
+	}
+	plugOpts := confinementOptions(plugSnapst.Flags)
+	if err := m.setupSnapSecurity(task, plug.Snap, plugOpts, perfTimings); err != nil {
+		return err
+	}
+
 	return nil
 }
 

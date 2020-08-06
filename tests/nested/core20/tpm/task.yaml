@@ -3,25 +3,20 @@ summary: Check that tpm works properly on UC20
 description: |
     This test check UC20 can boot with secure boot successfully
 
-systems: [ubuntu-20.04-*]
-
-prepare: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-
-    execute_remote "sudo snap install --beta --devmode test-snapd-mokutil" || true
-
-restore: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-
-    execute_remote "sudo snap remove test-snapd-mokutil" || true
-
 execute: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
 
-    # Check tpm status on the nested vm
+    echo "Verifying tpm working on the nested vm"
     execute_remote "dmesg | grep -i tpm" | MATCH "efi: +SMBIOS=.* +TPMFinalLog=.*"
     execute_remote "test -e /sys/kernel/security/tpm0/binary_bios_measurements"
-    execute_remote "test-snapd-mokutil --sb-state" | MATCH "SecureBoot enabled"
+
+    echo "and secure boot is enabled on the nested vm"
+    execute_remote "xxd /sys/firmware/efi/efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c" | MATCH "00000000: 0600 0000 01\s+....."
+
+    echo "and the recovery key is available"
+    execute_remote "test -e /var/lib/snapd/device/fde/recovery.key"
+    echo "and has the expected size"
+    execute_remote "stat --printf=%s /var/lib/snapd/device/fde/recovery.key" | MATCH '^16$'
+    echo "and has the expected owner and permissions"
+    execute_remote "stat --printf='%u:%g %a' /var/lib/snapd/device/fde/recovery.key" | MATCH '^0:0 600$' 

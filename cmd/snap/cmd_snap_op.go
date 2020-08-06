@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -195,8 +196,8 @@ func (x *cmdRemove) Execute([]string) error {
 		return x.removeOne(opts)
 	}
 
-	if x.Revision != "" {
-		return errors.New(i18n.G("a single snap name is needed to specify the revision"))
+	if x.Purge || x.Revision != "" {
+		return errors.New(i18n.G("a single snap name is needed to specify options"))
 	}
 	return x.removeMany(nil)
 }
@@ -312,6 +313,18 @@ func isSameRisk(tracking, current string) (bool, error) {
 	return trackingRisk == currentRisk, nil
 }
 
+func maybeWithSudoSecurePath() bool {
+	// Some distributions set secure_path to a known list of paths in
+	// /etc/sudoers. The snapd package currently has no means of overwriting
+	// or extending that setting.
+	if _, isSet := os.LookupEnv("SUDO_UID"); !isSet {
+		return false
+	}
+	// Known distros setting secure_path that does not include
+	// $SNAP_MOUNT_DIR/bin:
+	return release.DistroLike("fedora", "opensuse", "debian")
+}
+
 // show what has been done
 func showDone(cli *client.Client, names []string, op string, opts *client.SnapOptions, esc *escapes) error {
 	snaps, err := cli.List(names, nil)
@@ -319,7 +332,7 @@ func showDone(cli *client.Client, names []string, op string, opts *client.SnapOp
 		return err
 	}
 
-	needsPathWarning := !isSnapInPath()
+	needsPathWarning := !isSnapInPath() && !maybeWithSudoSecurePath()
 	for _, snap := range snaps {
 		channelStr := ""
 		if snap.Channel != "" {

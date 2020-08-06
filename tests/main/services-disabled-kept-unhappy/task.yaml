@@ -35,7 +35,7 @@ summary: Check that disabled snap services stay disabled across unhappy
 #    => state.json has the old service saved in last-active-disabled-services
 
 prepare: |
-  snap install jq
+  snap install --edge jq
   rm -f /root/disabled-svcs-kept-fail
   rm -rf disabled-svcs-kept*
 

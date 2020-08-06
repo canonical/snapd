@@ -36,6 +36,10 @@ import (
 	"github.com/snapcore/snapd/usersession/client"
 )
 
+var (
+	timeout = testutil.HostScaledTimeout(80 * time.Millisecond)
+)
+
 func Test(t *testing.T) { TestingT(t) }
 
 type clientSuite struct {
@@ -120,7 +124,7 @@ func (s *clientSuite) TestAgentTimeout(c *C) {
 }`))
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 80*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	si, err := s.cli.SessionInfo(ctx)
 

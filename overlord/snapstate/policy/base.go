@@ -102,7 +102,7 @@ func baseUsedBy(st *state.State, baseName string) ([]string, error) {
 		for _, si := range snapst.Sequence {
 			snapInfo, err := snap.ReadInfo(name, si)
 			if err == nil {
-				if typ := snapInfo.GetType(); typ != snap.TypeApp && typ != snap.TypeGadget {
+				if typ := snapInfo.Type(); typ != snap.TypeApp && typ != snap.TypeGadget {
 					continue
 				}
 				if !(baseName == snapInfo.Base || (alsoCore16 && snapInfo.Base == "core16")) {

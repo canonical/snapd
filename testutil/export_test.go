@@ -34,3 +34,11 @@ func MockShellcheckPath(p string) (restore func()) {
 		shellcheckPath = old
 	}
 }
+
+func MockRuntimeARCH(new string) (restore func()) {
+	old := runtimeGOARCH
+	runtimeGOARCH = new
+	return func() {
+		runtimeGOARCH = old
+	}
+}

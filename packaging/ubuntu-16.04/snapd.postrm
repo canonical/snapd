@@ -82,6 +82,8 @@ if [ "$1" = "purge" ]; then
             if [ -d /etc/dbus-1/system.d ]; then
                 find /etc/dbus-1/system.d -name "snap.${snap}.*.conf" -execdir rm -f "{}" \;
             fi
+            # modules
+            rm -f "/etc/modules-load.d/snap.${snap}.conf"
             # timer and socket units
             find /etc/systemd/system -name "snap.${snap}.*.timer" -o -name "snap.${snap}.*.socket" | while read -r f; do
                 systemctl_stop "$(basename "$f")"
@@ -104,6 +106,10 @@ if [ "$1" = "purge" ]; then
     rm -f /etc/systemd/user/snapd.session-agent.socket
     rm -f /etc/systemd/user/snapd.session-agent.service
     rm -f /etc/systemd/user/sockets.target.wants/snapd.session-agent.socket
+
+    # dbus activation configuration
+    rm -f /etc/dbus-1/session.d/snapd.session-services.conf
+    rm -f /etc/dbus-1/system.d/snapd.system-services.conf
 
     # generated readme files
     rm -f "/snap/README"

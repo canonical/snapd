@@ -51,7 +51,6 @@ var _ = Suite(&proxySuite{})
 func (s *proxySuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
 
-	dirs.SetRootDir(c.MkDir())
 	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0755)
 	c.Assert(err, IsNil)
 	s.mockEtcEnvironment = filepath.Join(dirs.GlobalRootDir, "/etc/environment")
@@ -71,10 +70,6 @@ func (s *proxySuite) SetUpTest(c *C) {
 
 	err = db.Add(s.storeSigning.StoreAccountKey(""))
 	c.Assert(err, IsNil)
-}
-
-func (s *proxySuite) TearDownTest(c *C) {
-	dirs.SetRootDir("/")
 }
 
 func (s *proxySuite) makeMockEtcEnvironment(c *C) {

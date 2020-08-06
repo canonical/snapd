@@ -454,7 +454,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
 		},
 		Volumes: map[string]gadget.Volume{
 			"volumename": {
-				Schema:     gadget.MBR,
+				Schema:     "mbr",
 				Bootloader: "u-boot",
 				ID:         "0C",
 				Structure: []gadget.VolumeStructure{
@@ -494,7 +494,7 @@ func (s *gadgetYamlTestSuite) TestReadMultiVolumeGadgetYamlValid(c *C) {
 	c.Assert(ginfo, DeepEquals, &gadget.Info{
 		Volumes: map[string]gadget.Volume{
 			"frobinator-image": {
-				Schema:     gadget.MBR,
+				Schema:     "mbr",
 				Bootloader: "u-boot",
 				Structure: []gadget.VolumeStructure{
 					{
@@ -627,7 +627,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlVolumeUpdate(c *C) {
 	c.Assert(ginfo, DeepEquals, &gadget.Info{
 		Volumes: map[string]gadget.Volume{
 			"bootloader": {
-				Schema:     gadget.MBR,
+				Schema:     "mbr",
 				Bootloader: "u-boot",
 				ID:         "0C",
 				Structure: []gadget.VolumeStructure{
@@ -718,7 +718,7 @@ func (s *gadgetYamlTestSuite) TestUnmarshalGadgetRelativeOffset(c *C) {
 		{"1234M", &gadget.RelativeOffset{Offset: 1234 * gadget.SizeMiB}, ""},
 		{"4096M", &gadget.RelativeOffset{Offset: 4096 * gadget.SizeMiB}, ""},
 		{"0", &gadget.RelativeOffset{}, ""},
-		{"mbr+0", &gadget.RelativeOffset{RelativeTo: gadget.MBR}, ""},
+		{"mbr+0", &gadget.RelativeOffset{RelativeTo: "mbr"}, ""},
 		{"foo+1234M", &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1234 * gadget.SizeMiB}, ""},
 		{"foo+1G", &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1 * gadget.SizeGiB}, ""},
 		{"foo+1G", &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1 * gadget.SizeGiB}, ""},
@@ -801,11 +801,11 @@ func (s *gadgetYamlTestSuite) TestValidateStructureType(c *C) {
 		// special case
 		{"bare", "", ""},
 		// plain MBR type
-		{"0C", "", gadget.MBR},
+		{"0C", "", "mbr"},
 		// GPT UUID
-		{"21686148-6449-6E6F-744E-656564454649", "", gadget.GPT},
+		{"21686148-6449-6E6F-744E-656564454649", "", "gpt"},
 		// GPT UUID (lowercase)
-		{"21686148-6449-6e6f-744e-656564454649", "", gadget.GPT},
+		{"21686148-6449-6e6f-744e-656564454649", "", "gpt"},
 		// hybrid ID
 		{"EF,21686148-6449-6E6F-744E-656564454649", "", ""},
 		// hybrid ID (UUID lowercase)
@@ -819,7 +819,7 @@ func (s *gadgetYamlTestSuite) TestValidateStructureType(c *C) {
 		// plain MBR type without mbr schema
 		{"0C", `invalid type "0C": MBR structure type with non-MBR schema ""`, ""},
 		// GPT UUID with non GPT schema
-		{"21686148-6449-6E6F-744E-656564454649", `invalid type "21686148-6449-6E6F-744E-656564454649": GUID structure type with non-GPT schema "mbr"`, gadget.MBR},
+		{"21686148-6449-6E6F-744E-656564454649", `invalid type "21686148-6449-6E6F-744E-656564454649": GUID structure type with non-GPT schema "mbr"`, "mbr"},
 		// invalid
 		{"1234", `invalid type "1234": invalid format`, ""},
 		// outside of hex range
@@ -836,7 +836,7 @@ func (s *gadgetYamlTestSuite) TestValidateStructureType(c *C) {
 		// hybrid, GPT UUID too long
 		{"EF,AAAA686148-6449-6E6F-744E-656564454649", `invalid type "EF,AAAA686148-6449-6E6F-744E-656564454649": invalid format of hybrid type`, ""},
 		// GPT schema with non GPT type
-		{"EF,AAAA686148-6449-6E6F-744E-656564454649", `invalid type "EF,AAAA686148-6449-6E6F-744E-656564454649": invalid format of hybrid type`, gadget.GPT},
+		{"EF,AAAA686148-6449-6E6F-744E-656564454649", `invalid type "EF,AAAA686148-6449-6E6F-744E-656564454649": invalid format of hybrid type`, "gpt"},
 	} {
 		c.Logf("tc: %v %q", i, tc.s)
 
@@ -917,7 +917,7 @@ size: 446`
 type: mbr
 size: 447`
 	vol := &gadget.Volume{}
-	mbrVol := &gadget.Volume{Schema: gadget.MBR}
+	mbrVol := &gadget.Volume{Schema: "mbr"}
 	for i, tc := range []struct {
 		s   *gadget.VolumeStructure
 		v   *gadget.Volume
@@ -984,8 +984,8 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeSchema(c *C) {
 		s   string
 		err string
 	}{
-		{gadget.GPT, ""},
-		{gadget.MBR, ""},
+		{"gpt", ""},
+		{"mbr", ""},
 		// implicit GPT
 		{"", ""},
 		// invalid
@@ -1425,16 +1425,16 @@ func (s *gadgetTestSuite) TestEffectiveRole(c *C) {
 	c.Check(vs.EffectiveRole(), Equals, "")
 
 	// explicitly set role trumps all
-	vs = gadget.VolumeStructure{Role: "foobar", Type: gadget.MBR, Label: gadget.SystemBoot}
+	vs = gadget.VolumeStructure{Role: "foobar", Type: "mbr", Label: gadget.SystemBoot}
 
 	c.Check(vs.EffectiveRole(), Equals, "foobar")
 
-	vs = gadget.VolumeStructure{Role: gadget.MBR}
-	c.Check(vs.EffectiveRole(), Equals, gadget.MBR)
+	vs = gadget.VolumeStructure{Role: "mbr"}
+	c.Check(vs.EffectiveRole(), Equals, "mbr")
 
 	// legacy fallback
-	vs = gadget.VolumeStructure{Role: "", Type: gadget.MBR}
-	c.Check(vs.EffectiveRole(), Equals, gadget.MBR)
+	vs = gadget.VolumeStructure{Role: "", Type: "mbr"}
+	c.Check(vs.EffectiveRole(), Equals, "mbr")
 
 	// fallback role based on fs label applies only to system-boot
 	vs = gadget.VolumeStructure{Role: "", Label: gadget.SystemBoot}
@@ -1456,9 +1456,9 @@ func (s *gadgetTestSuite) TestEffectiveFilesystemLabel(c *C) {
 
 	// inferred based on role
 	vs = gadget.VolumeStructure{Role: gadget.SystemData, Label: "unused-label"}
-	c.Check(vs.EffectiveFilesystemLabel(), Equals, gadget.ImplicitSystemDataLabel)
+	c.Check(vs.EffectiveFilesystemLabel(), Equals, "writable")
 	vs = gadget.VolumeStructure{Role: gadget.SystemData}
-	c.Check(vs.EffectiveFilesystemLabel(), Equals, gadget.ImplicitSystemDataLabel)
+	c.Check(vs.EffectiveFilesystemLabel(), Equals, "writable")
 
 	// only system-data role is special
 	vs = gadget.VolumeStructure{Role: gadget.SystemBoot}

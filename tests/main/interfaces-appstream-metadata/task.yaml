@@ -16,7 +16,7 @@ systems: [-ubuntu-core-*]
 prepare: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-sh
+    install_local test-snapd-appstream-metadata
 
     # Set up some dummy Appstream metadata on the host system
     mkdir -p /usr/share/metainfo
@@ -44,17 +44,17 @@ restore: |
 
 execute: |
     echo "The plug is disconnected by default"
-    snap connections test-snapd-sh | MATCH "appstream-metadata +test-snapd-sh:appstream-metadata +- +-"
+    snap connections test-snapd-appstream-metadata | MATCH "appstream-metadata +test-snapd-appstream-metadata:appstream-metadata +- +-"
 
     echo "The plug can be connected"
-    snap connect test-snapd-sh:appstream-metadata
-    snap connections test-snapd-sh | MATCH "appstream-metadata +test-snapd-sh:appstream-metadata +:appstream-metadata +manual"
+    snap connect test-snapd-appstream-metadata:appstream-metadata
+    snap connections test-snapd-appstream-metadata | MATCH "appstream-metadata +test-snapd-appstream-metadata:appstream-metadata +:appstream-metadata +manual"
 
     echo "Appstream metadata is now available from the sandbox"
-    test-snapd-sh.with-appstream-metadata-plug -c "cat /usr/share/metainfo/test1.metainfo.xml" | MATCH "Appstream metainfo 1"
-    test-snapd-sh.with-appstream-metadata-plug -c "cat /usr/share/appdata/test2.metainfo.xml" | MATCH "Appstream metainfo 2"
+    test-snapd-appstream-metadata.sh -c "cat /usr/share/metainfo/test1.metainfo.xml" | MATCH "Appstream metainfo 1"
+    test-snapd-appstream-metadata.sh -c "cat /usr/share/appdata/test2.metainfo.xml" | MATCH "Appstream metainfo 2"
 
-    test-snapd-sh.with-appstream-metadata-plug -c "cat /usr/share/app-info/xmls/test1.xml" | MATCH "Appstream app-info 1"
-    test-snapd-sh.with-appstream-metadata-plug -c "cat /var/cache/app-info/xmls/test2.xml" | MATCH "Appstream app-info 2"
+    test-snapd-appstream-metadata.sh -c "cat /usr/share/app-info/xmls/test1.xml" | MATCH "Appstream app-info 1"
+    test-snapd-appstream-metadata.sh -c "cat /var/cache/app-info/xmls/test2.xml" | MATCH "Appstream app-info 2"
 
-    test-snapd-sh.with-appstream-metadata-plug -c "cat /var/lib/app-info/yaml/test3.yml.gz" | gunzip -c | MATCH "Appstream app-info 3"
+    test-snapd-appstream-metadata.sh -c "cat /var/lib/app-info/yaml/test3.yml.gz" | gunzip -c | MATCH "Appstream app-info 3"

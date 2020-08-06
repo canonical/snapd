@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"os"
 	"os/exec"
 	"os/user"
@@ -44,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/strace"
+	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/sandbox/selinux"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapenv"
@@ -74,6 +76,7 @@ type cmdRun struct {
 	// "default" and "optional-value" to distinguish this.
 	Strace    string `long:"strace" optional:"true" optional-value:"with-strace" default:"no-strace" default-mask:"-"`
 	Gdb       bool   `long:"gdb"`
+	Gdbserver string `long:"experimental-gdbserver" default:"no-gdbserver" optional-value:":0" optional:"true"`
 	TraceExec bool   `long:"trace-exec"`
 
 	// not a real option, used to check if cmdRun is initialized by
@@ -104,6 +107,8 @@ and environment.
 			"strace": i18n.G("Run the command under strace (useful for debugging). Extra strace options can be specified as well here. Pass --raw to strace early snap helpers."),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"gdb": i18n.G("Run the command with gdb"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"experimental-gdbserver": i18n.G("Run the command with gdbserver (experimental)"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"timer": i18n.G("Run as a timer service with given schedule"),
 			// TRANSLATORS: This should not start with a lowercase letter.
@@ -415,6 +420,7 @@ func maybeRestoreSecurityContext(usr *user.User) error {
 }
 
 func (x *cmdRun) useStrace() bool {
+	// make sure the go-flag parser ran and assigned default values
 	return x.ParserRan == 1 && x.Strace != "no-strace"
 }
 
@@ -748,7 +754,73 @@ func activateXdgDocumentPortal(info *snap.Info, snapApp, hook string) error {
 
 type envForExecFunc func(extra map[string]string) []string
 
+var gdbServerWelcomeFmt = `
+Welcome to "snap run --gdbserver".
+You are right before your application is run.
+Please open a different terminal and run:
+
+gdb -ex="target remote %[1]s" -ex=continue -ex="signal SIGCONT"
+(gdb) continue
+
+or use your favorite gdb frontend and connect to %[1]s
+`
+
+func racyFindFreePort() (int, error) {
+	l, err := net.Listen("tcp", ":0")
+	if err != nil {
+		return 0, err
+	}
+	defer l.Close()
+	return l.Addr().(*net.TCPAddr).Port, nil
+}
+
+func (x *cmdRun) useGdbserver() bool {
+	// make sure the go-flag parser ran and assigned default values
+	return x.ParserRan == 1 && x.Gdbserver != "no-gdbserver"
+}
+
+func (x *cmdRun) runCmdUnderGdbserver(origCmd []string, envForExec envForExecFunc) error {
+	gcmd := exec.Command(origCmd[0], origCmd[1:]...)
+	gcmd.Stdin = os.Stdin
+	gcmd.Stdout = os.Stdout
+	gcmd.Stderr = os.Stderr
+	gcmd.Env = envForExec(map[string]string{"SNAP_CONFINE_RUN_UNDER_GDBSERVER": "1"})
+	if err := gcmd.Start(); err != nil {
+		return err
+	}
+	// wait for the child process executing gdb helper to raise SIGSTOP
+	// signalling readiness to attach a gdbserver process
+	var status syscall.WaitStatus
+	_, err := syscall.Wait4(gcmd.Process.Pid, &status, syscall.WSTOPPED, nil)
+	if err != nil {
+		return err
+	}
+
+	addr := x.Gdbserver
+	if addr == ":0" {
+		// XXX: run "gdbserver :0" instead and parse "Listening on port 45971"
+		//      on stderr instead?
+		port, err := racyFindFreePort()
+		if err != nil {
+			return fmt.Errorf("cannot find free port: %v", err)
+		}
+		addr = fmt.Sprintf(":%v", port)
+	}
+	// XXX: should we provide a helper here instead? something like
+	//      `snap run --attach-debugger` or similar? The downside
+	//      is that attaching a gdb frontend is harder?
+	fmt.Fprintf(Stdout, fmt.Sprintf(gdbServerWelcomeFmt, addr))
+	// note that only gdbserver needs to run as root, the application
+	// keeps running as the user
+	gdbSrvCmd := exec.Command("sudo", "-E", "gdbserver", "--attach", addr, strconv.Itoa(gcmd.Process.Pid))
+	if output, err := gdbSrvCmd.CombinedOutput(); err != nil {
+		return osutil.OutputErr(output, err)
+	}
+	return nil
+}
+
 func (x *cmdRun) runCmdUnderGdb(origCmd []string, envForExec envForExecFunc) error {
+	// the resulting application process runs as root
 	cmd := []string{"sudo", "-E", "gdb", "-ex=run", "-ex=catch exec", "-ex=continue", "--args"}
 	cmd = append(cmd, origCmd...)
 
@@ -960,6 +1032,9 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	if x.Gdb {
 		cmd = append(cmd, "--command=gdb")
 	}
+	if x.useGdbserver() {
+		cmd = append(cmd, "--command=gdbserver")
+	}
 	if x.Command != "" {
 		cmd = append(cmd, "--command="+x.Command)
 	}
@@ -1003,13 +1078,79 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 		return env.ForExecEscapeUnsafe(snapenv.PreservedUnsafePrefix)
 	}
 
+	// Systemd automatically places services under a unique cgroup encoding the
+	// security tag, but for apps and hooks we need to create a transient scope
+	// with similar purpose ourselves.
+	//
+	// The way this happens is as follows:
+	//
+	// 1) Services are implemented using systemd service units. Starting a
+	// unit automatically places it in a cgroup named after the service unit
+	// name. Snapd controls the name of the service units thus indirectly
+	// controls the cgroup name.
+	//
+	// 2) Non-services, including hooks, are started inside systemd
+	// transient scopes. Scopes are a systemd unit type that are defined
+	// programmatically and are meant for groups of processes started and
+	// stopped by an _arbitrary process_ (ie, not systemd). Systemd
+	// requires that each scope is given a unique name. We employ a scheme
+	// where random UUID is combined with the name of the security tag
+	// derived from snap application or hook name. Multiple concurrent
+	// invocations of "snap run" will use distinct UUIDs.
+	//
+	// Transient scopes allow launched snaps to integrate into
+	// the systemd design. See:
+	// https://www.freedesktop.org/wiki/Software/systemd/ControlGroupInterface/
+	//
+	// Programs running as root, like system-wide services and programs invoked
+	// using tools like sudo are placed under system.slice. Programs running as
+	// a non-root user are placed under user.slice, specifically in a scope
+	// specific to a logind session.
+	//
+	// This arrangement allows for proper accounting and control of resources
+	// used by snap application processes of each type.
+	//
+	// For more information about systemd cgroups, including unit types, see:
+	// https://www.freedesktop.org/wiki/Software/systemd/ControlGroupInterface/
+	_, appName := snap.SplitSnapApp(snapApp)
+	needsTracking := true
+	if app := info.Apps[appName]; hook == "" && app != nil && app.IsService() {
+		// If we are running a service app then we do not need to use
+		// application tracking. Services, both in the system and user scope,
+		// do not need tracking because systemd already places them in a
+		// tracking cgroup, named after the systemd unit name, and those are
+		// sufficient to identify both the snap name and the app name.
+		needsTracking = false
+	}
+	// Track, or confirm existing tracking from systemd.
+	var trackingErr error
+	if needsTracking {
+		trackingErr = cgroupCreateTransientScopeForTracking(securityTag)
+	} else {
+		trackingErr = cgroupConfirmSystemdServiceTracking(securityTag)
+	}
+	if trackingErr != nil {
+		if trackingErr != cgroup.ErrCannotTrackProcess {
+			return trackingErr
+		}
+		// If we cannot track the process then log a debug message.
+		// TODO: if we could, create a warning. Currently this is not possible
+		// because only snapd can create warnings, internally.
+		logger.Debugf("snapd cannot track the started application")
+		logger.Debugf("snap refreshes will not be postponed by this process")
+	}
 	if x.TraceExec {
 		return x.runCmdWithTraceExec(cmd, envForExec)
 	} else if x.Gdb {
 		return x.runCmdUnderGdb(cmd, envForExec)
+	} else if x.useGdbserver() {
+		return x.runCmdUnderGdbserver(cmd, envForExec)
 	} else if x.useStrace() {
 		return x.runCmdUnderStrace(cmd, envForExec)
 	} else {
 		return syscallExec(cmd[0], cmd, envForExec(nil))
 	}
 }
+
+var cgroupCreateTransientScopeForTracking = cgroup.CreateTransientScopeForTracking
+var cgroupConfirmSystemdServiceTracking = cgroup.ConfirmSystemdServiceTracking

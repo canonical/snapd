@@ -26,6 +26,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -37,8 +38,8 @@ import (
 	snap "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/progress/progresstest"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/testutil"
-	"os"
 )
 
 type snapOpTestServer struct {
@@ -224,6 +225,34 @@ func (s *SnapOpSuite) TestInstallNoPATH(c *check.C) {
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(candidate\) 1.0 from Bar installed`)
 	c.Check(s.Stderr(), testutil.MatchesWrapped, `Warning: \S+/bin was not found in your \$PATH.*`)
+	// ensure that the fake server api was actually hit
+	c.Check(s.srv.n, check.Equals, s.srv.total)
+}
+
+func (s *SnapOpSuite) TestInstallNoPATHMaybeResetBySudo(c *check.C) {
+	// PATH restored by test tear down
+	os.Setenv("PATH", "/bin:/usr/bin:/sbin:/usr/sbin")
+	if old, isset := os.LookupEnv("SUDO_UID"); isset {
+		defer os.Setenv("SUDO_UID", old)
+	}
+	os.Setenv("SUDO_UID", "1234")
+	restore := release.MockReleaseInfo(&release.OS{ID: "fedora"})
+	defer restore()
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action":  "install",
+			"channel": "candidate",
+		})
+		s.srv.channel = "candidate"
+	}
+
+	s.RedirectClientToTestServer(s.srv.handle)
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--channel", "candidate", "foo"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(candidate\) 1.0 from Bar installed`)
+	c.Check(s.Stderr(), check.HasLen, 0)
 	// ensure that the fake server api was actually hit
 	c.Check(s.srv.n, check.Equals, s.srv.total)
 }
@@ -1633,10 +1662,12 @@ func (s *SnapOpSuite) TestRemoveRevision(c *check.C) {
 	c.Check(s.srv.n, check.Equals, s.srv.total)
 }
 
-func (s *SnapOpSuite) TestRemoveManyRevision(c *check.C) {
+func (s *SnapOpSuite) TestRemoveManyOptions(c *check.C) {
 	s.RedirectClientToTestServer(nil)
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"remove", "--revision=17", "one", "two"})
-	c.Assert(err, check.ErrorMatches, `a single snap name is needed to specify the revision`)
+	c.Assert(err, check.ErrorMatches, `a single snap name is needed to specify options`)
+	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"remove", "--purge", "one", "two"})
+	c.Assert(err, check.ErrorMatches, `a single snap name is needed to specify options`)
 }
 
 func (s *SnapOpSuite) TestRemoveMany(c *check.C) {

@@ -7,6 +7,7 @@ from __future__ import print_function
 import os
 import re
 import sys
+import argparse
 from subprocess import check_call, check_output
 
 
@@ -20,30 +21,6 @@ shortlog_email_rx = re.compile("^\s*\d+\s+.*<(\S+)>$", re.M)
 
 is_travis = os.getenv("TRAVIS", "") == "true"
 is_github_actions = os.getenv("GITHUB_ACTIONS", "") == "true"
-
-
-def get_commit_range():
-    # Sanity check to ensure we are running from a pull request check job
-    if is_travis:
-        if os.getenv("TRAVIS_PULL_REQUEST", "false") == "false":
-            raise RuntimeError("called from a non-pull request Travis job")
-    elif is_github_actions:
-        if os.getenv("GITHUB_EVENT_NAME", "") != "pull_request":
-            raise RuntimeError("called from a non-pull request Github Actions job")
-    else:
-        raise RuntimeError("unknown CI system.")
-
-    # The head revision is a synthesised merge commit, merging the
-    # proposed branch into the destination branch.  So the first
-    # parent is our destination, and the second is our proposal.
-    lines = check_output(["git", "cat-file", "-p", "@"]).splitlines()
-    parents = [line[len("parent "):].strip() for line in lines
-               if line.startswith("parent ")]
-    if len(parents) != 2:
-        raise RuntimeError("expected two parents, but got {}".format(parents))
-    dest, proposed = parents
-
-    return dest, proposed
 
 
 def get_emails_for_range(r):
@@ -137,14 +114,13 @@ def print_checkout_info(travis_commit_range):
 
 
 def main():
-    try:
-        master, proposed = get_commit_range()
-    except Exception as exc:
-        sys.exit("Could not determine commit range: {}".format(exc))
-    commit_range = "{}..{}".format(master, proposed)
-    print_checkout_info(commit_range)
-
-    emails = get_emails_for_range(commit_range)
+    parser = argparse.ArgumentParser(description='')
+    parser.add_argument('commit_range',
+                        help='Commit range in format <upstream-head>..<fork-head>')
+    opts = parser.parse_args()
+    master, proposed = opts.commit_range.split('..')
+    print_checkout_info(opts.commit_range)
+    emails = get_emails_for_range(opts.commit_range)
     if len(emails) == 0:
         sys.exit("No emails found in in the given commit range.")
 

@@ -29,10 +29,10 @@ func FindDeviceForStructure(ps *LaidOutStructure) (string, error) {
 	return "", errNotImplemented
 }
 
-func FindDeviceForStructureWithFallback(ps *LaidOutStructure) (string, Size, error) {
+func findDeviceForStructureWithFallback(ps *LaidOutStructure) (string, Size, error) {
 	return "", 0, errNotImplemented
 }
 
-func FindMountPointForStructure(ps *LaidOutStructure) (string, error) {
+func findMountPointForStructure(ps *LaidOutStructure) (string, error) {
 	return "", errNotImplemented
 }

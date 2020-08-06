@@ -37,7 +37,6 @@ import (
 	"github.com/juju/ratelimit"
 	"gopkg.in/retry.v1"
 
-	"github.com/snapcore/snapd/cmd/cmdutil"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n"
@@ -46,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snapdtool"
 )
 
 var downloadRetryStrategy = retry.LimitCount(7, retry.LimitTime(90*time.Second,
@@ -479,7 +479,7 @@ func getXdelta3Cmd(args ...string) (*exec.Cmd, error) {
 	if osutil.ExecutableExists("xdelta3") {
 		return exec.Command("xdelta3", args...), nil
 	}
-	return cmdutil.CommandFromSystemSnap("/usr/bin/xdelta3", args...)
+	return snapdtool.CommandFromSystemSnap("/usr/bin/xdelta3", args...)
 }
 
 // applyDelta generates a target snap from a previously downloaded snap and a downloaded delta.

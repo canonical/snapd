@@ -36,23 +36,15 @@ import (
 
 type servicesSuite struct {
 	configcoreSuite
-	testutil.BaseTest
 }
 
 var _ = Suite(&servicesSuite{})
 
 func (s *servicesSuite) SetUpTest(c *C) {
-	s.BaseTest.SetUpTest(c)
 	s.configcoreSuite.SetUpTest(c)
-	dirs.SetRootDir(c.MkDir())
 	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc"), 0755), IsNil)
 	s.systemctlArgs = nil
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
-}
-
-func (s *servicesSuite) TearDownTest(c *C) {
-	dirs.SetRootDir("/")
-	s.BaseTest.TearDownTest(c)
 }
 
 func (s *servicesSuite) TestConfigureServiceInvalidValue(c *C) {

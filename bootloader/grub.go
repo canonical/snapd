@@ -23,10 +23,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
+	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/bootloader/grubenv"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // sanity - grub implements the required interfaces
@@ -35,6 +38,7 @@ var (
 	_ installableBootloader             = (*grub)(nil)
 	_ RecoveryAwareBootloader           = (*grub)(nil)
 	_ ExtractedRunKernelImageBootloader = (*grub)(nil)
+	_ ManagedAssetsBootloader           = (*grub)(nil)
 )
 
 type grub struct {
@@ -43,6 +47,7 @@ type grub struct {
 	basedir string
 
 	uefiRunKernelExtraction bool
+	recovery                bool
 }
 
 // newGrub create a new Grub bootloader object
@@ -58,6 +63,7 @@ func newGrub(rootdir string, opts *Options) RecoveryAwareBootloader {
 	}
 	if opts != nil {
 		g.uefiRunKernelExtraction = opts.ExtractedRunKernelImage
+		g.recovery = opts.Recovery
 	}
 
 	return g
@@ -78,12 +84,38 @@ func (g *grub) dir() string {
 	return filepath.Join(g.rootdir, g.basedir)
 }
 
+func (g *grub) installManagedRecoveryBootConfig(gadgetDir string) (bool, error) {
+	gadgetGrubCfg := filepath.Join(gadgetDir, g.Name()+".conf")
+	if !osutil.FileExists(gadgetGrubCfg) {
+		// gadget does not use grub bootloader
+		return false, nil
+	}
+	assetName := g.Name() + "-recovery.cfg"
+	systemFile := filepath.Join(g.rootdir, "/EFI/ubuntu/grub.cfg")
+	return genericSetBootConfigFromAsset(systemFile, assetName)
+}
+
+func (g *grub) installManagedBootConfig(gadgetDir string) (bool, error) {
+	gadgetGrubCfg := filepath.Join(gadgetDir, g.Name()+".conf")
+	if !osutil.FileExists(gadgetGrubCfg) {
+		// gadget does not use grub bootloader
+		return false, nil
+	}
+	assetName := g.Name() + ".cfg"
+	systemFile := filepath.Join(g.rootdir, "/EFI/ubuntu/grub.cfg")
+	return genericSetBootConfigFromAsset(systemFile, assetName)
+}
+
 func (g *grub) InstallBootConfig(gadgetDir string, opts *Options) (bool, error) {
 	if opts != nil && opts.Recovery {
-		recoveryGrubCfg := filepath.Join(gadgetDir, g.Name()+"-recovery.conf")
-		systemFile := filepath.Join(g.rootdir, "/EFI/ubuntu/grub.cfg")
-		return genericInstallBootConfig(recoveryGrubCfg, systemFile)
+		// install managed config for the recovery partition
+		return g.installManagedRecoveryBootConfig(gadgetDir)
 	}
+	if opts != nil && opts.ExtractedRunKernelImage {
+		// install managed boot config that can handle kernel.efi
+		return g.installManagedBootConfig(gadgetDir)
+	}
+
 	gadgetFile := filepath.Join(gadgetDir, g.Name()+".conf")
 	systemFile := filepath.Join(g.rootdir, "/boot/grub/grub.cfg")
 	return genericInstallBootConfig(gadgetFile, systemFile)
@@ -102,6 +134,21 @@ func (g *grub) SetRecoverySystemEnv(recoverySystemDir string, values map[string]
 		genv.Set(k, v)
 	}
 	return genv.Save()
+}
+
+func (g *grub) GetRecoverySystemEnv(recoverySystemDir string, key string) (string, error) {
+	if recoverySystemDir == "" {
+		return "", fmt.Errorf("internal error: recoverySystemDir unset")
+	}
+	recoverySystemGrubEnv := filepath.Join(g.rootdir, recoverySystemDir, "grubenv")
+	genv := grubenv.NewEnv(recoverySystemGrubEnv)
+	if err := genv.Load(); err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", err
+	}
+	return genv.Get(key), nil
 }
 
 func (g *grub) ConfigFile() string {
@@ -299,4 +346,114 @@ func (g *grub) TryKernel() (snap.PlaceInfo, error) {
 		return p, nil
 	}
 	return nil, ErrNoTryKernelRef
+}
+
+// UpdateBootConfig updates the grub boot config only if it is already managed
+// and has a lower edition.
+//
+// Implements ManagedAssetsBootloader for the grub bootloader.
+func (g *grub) UpdateBootConfig(opts *Options) error {
+	bootScriptName := "grub.cfg"
+	currentBootConfig := filepath.Join(g.dir(), "grub.cfg")
+	if opts != nil && opts.Recovery {
+		// use the recovery asset when asked to do so
+		bootScriptName = "grub-recovery.cfg"
+	}
+	return genericUpdateBootConfigFromAssets(currentBootConfig, bootScriptName)
+}
+
+// IsCurrentlyManaged returns true when the boot config is managed by snapd.
+//
+// Implements ManagedBootloader for the grub bootloader.
+func (g *grub) IsCurrentlyManaged() (bool, error) {
+	currentBootScript := filepath.Join(g.dir(), "grub.cfg")
+	_, err := editionFromDiskConfigAsset(currentBootScript)
+	if err != nil && err != errNoEdition {
+		return false, err
+	}
+	return err != errNoEdition, nil
+}
+
+// ManagedAssets returns a list relative paths to boot assets inside the root
+// directory of the filesystem.
+//
+// Implements ManagedAssetsBootloader for the grub bootloader.
+func (g *grub) ManagedAssets() []string {
+	return []string{
+		filepath.Join(g.basedir, "grub.cfg"),
+	}
+}
+
+func (g *grub) commandLineForEdition(edition uint, modeArg, systemArg, extraArgs string) (string, error) {
+	assetName := "grub.cfg"
+	if g.recovery {
+		assetName = "grub-recovery.cfg"
+	}
+	staticCmdline := staticCommandLineForGrubAssetEdition(assetName, edition)
+	args, err := strutil.KernelCommandLineSplit(staticCmdline + " " + extraArgs)
+	if err != nil {
+		return "", fmt.Errorf("cannot use badly formatted kernel command line: %v", err)
+	}
+	// join all argument with a single space, see
+	// grub-core/lib/cmdline.c:grub_create_loader_cmdline() for reference,
+	// arguments are separated by a single space, the space after last is
+	// replaced with terminating NULL
+	snapdArgs := make([]string, 0, 2)
+	if modeArg != "" {
+		snapdArgs = append(snapdArgs, modeArg)
+	}
+	if systemArg != "" {
+		snapdArgs = append(snapdArgs, systemArg)
+	}
+	return strings.Join(append(snapdArgs, args...), " "), nil
+}
+
+// CommandLine returns the kernel command line composed of mode and
+// system arguments, built-in bootloader specific static arguments
+// corresponding to the on-disk boot asset edition, followed by any
+// extra arguments. The command line may be different when using a
+// recovery bootloader.
+//
+// Implements ManagedAssetsBootloader for the grub bootloader.
+func (g *grub) CommandLine(modeArg, systemArg, extraArgs string) (string, error) {
+	currentBootConfig := filepath.Join(g.dir(), "grub.cfg")
+	edition, err := editionFromDiskConfigAsset(currentBootConfig)
+	if err != nil {
+		if err != errNoEdition {
+			return "", fmt.Errorf("cannot obtain edition number of current boot config: %v", err)
+		}
+		// we were called using the ManagedAssetsBootloader interface
+		// meaning the caller expects to us to use the managed assets,
+		// since one on disk is not managed, use the initial edition of
+		// the internal boot asset which is compatible with grub.cfg
+		// used before we started writing out the files ourselves
+		edition = 1
+	}
+	return g.commandLineForEdition(edition, modeArg, systemArg, extraArgs)
+}
+
+// CandidateCommandLine is similar to CommandLine, but uses the current
+// edition of managed built-in boot assets as reference.
+//
+// Implements ManagedAssetsBootloader for the grub bootloader.
+func (g *grub) CandidateCommandLine(modeArg, systemArg, extraArgs string) (string, error) {
+	assetName := "grub.cfg"
+	if g.recovery {
+		assetName = "grub-recovery.cfg"
+	}
+	edition, err := editionFromInternalConfigAsset(assetName)
+	if err != nil {
+		return "", err
+	}
+	return g.commandLineForEdition(edition, modeArg, systemArg, extraArgs)
+}
+
+// staticCommandLineForGrubAssetEdition fetches a static command line for given
+// grub asset edition
+func staticCommandLineForGrubAssetEdition(asset string, edition uint) string {
+	cmdline := assets.SnippetForEdition(fmt.Sprintf("%s:static-cmdline", asset), edition)
+	if cmdline == nil {
+		return ""
+	}
+	return string(cmdline)
 }

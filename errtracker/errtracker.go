@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snapdenv"
+	"github.com/snapcore/snapd/snapdtool"
 )
 
 var (
@@ -216,12 +217,11 @@ func snapConfineProfileDigest(suffix string) string {
 }
 
 var didSnapdReExec = func() string {
-	// TODO: move this into osutil.Reexeced() ?
-	exe, err := os.Readlink(procSelfExe)
+	didReexec, err := snapdtool.IsReexecd()
 	if err != nil {
 		return "unknown"
 	}
-	if strings.HasPrefix(exe, dirs.SnapMountDir) {
+	if didReexec {
 		return "yes"
 	}
 	return "no"

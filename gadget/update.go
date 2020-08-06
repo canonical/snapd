@@ -50,6 +50,26 @@ type GadgetData struct {
 // and returns true when the pair should be part of an update.
 type UpdatePolicyFunc func(from, to *LaidOutStructure) bool
 
+type ContentOperation int
+
+const (
+	ContentWrite ContentOperation = iota
+)
+
+// ContentObserver allows for observing operations on the content of the gadget
+// structures.
+type ContentObserver interface {
+	// TODO:UC20: add Observe() result value indicating that a file should
+	// be preserved
+
+	// Observe is called to observe a pending action, typically a file
+	// write, from source path to the relative path under a given target
+	// root directory. When called during rollback, the source path points
+	// to the backup copy of the original file.
+	Observe(op ContentOperation, sourceStruct *LaidOutStructure,
+		targetRootDir, sourcePath, relativeTargetPath string) (bool, error)
+}
+
 // Update applies the gadget update given the gadget information and data from
 // old and new revisions. It errors out when the update is not possible or
 // illegal, or a failure occurs at any of the steps. When there is no update, a
@@ -162,11 +182,11 @@ func isSameRelativeOffset(one *RelativeOffset, two *RelativeOffset) bool {
 func isLegacyMBRTransition(from *LaidOutStructure, to *LaidOutStructure) bool {
 	// legacy MBR could have been specified by setting type: mbr, with no
 	// role
-	return from.Type == MBR && to.EffectiveRole() == MBR
+	return from.Type == schemaMBR && to.EffectiveRole() == schemaMBR
 }
 
 func canUpdateStructure(from *LaidOutStructure, to *LaidOutStructure, schema string) error {
-	if schema == GPT && from.Name != to.Name {
+	if schema == schemaGPT && from.Name != to.Name {
 		// partition names are only effective when GPT is used
 		return fmt.Errorf("cannot change structure name from %q to %q", from.Name, to.Name)
 	}
@@ -240,7 +260,7 @@ func defaultPolicy(from, to *LaidOutStructure) bool {
 // RemodelUpdatePolicy implements the update policy of a remodel scenario. The
 // policy selects all non-MBR structures for the update.
 func RemodelUpdatePolicy(from, _ *LaidOutStructure) bool {
-	if from.EffectiveRole() == MBR {
+	if from.EffectiveRole() == schemaMBR {
 		return false
 	}
 	return true
@@ -338,9 +358,9 @@ func updaterForStructureImpl(ps *LaidOutStructure, newRootDir, rollbackDir strin
 	var updater Updater
 	var err error
 	if !ps.HasFilesystem() {
-		updater, err = NewRawStructureUpdater(newRootDir, ps, rollbackDir, FindDeviceForStructureWithFallback)
+		updater, err = newRawStructureUpdater(newRootDir, ps, rollbackDir, findDeviceForStructureWithFallback)
 	} else {
-		updater, err = NewMountedFilesystemUpdater(newRootDir, ps, rollbackDir, FindMountPointForStructure)
+		updater, err = newMountedFilesystemUpdater(newRootDir, ps, rollbackDir, findMountPointForStructure)
 	}
 	return updater, err
 }

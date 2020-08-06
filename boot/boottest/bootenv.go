@@ -109,14 +109,9 @@ func (b16 Bootenv16) SetRollbackAcrossReboot(which []snap.Type) error {
 	if rollbackKernel && b16.BootVars["snap_kernel"] == "" {
 		return fmt.Errorf("kernel rollback can only be simulated if snap_kernel is set")
 	}
-	// clean try bootvars and statusVar
+	// clean only statusVar - the try vars will be cleaned by snapd NOT by the
+	// bootloader
 	b16.BootVars[b16.statusVar] = ""
-	if rollbackBase {
-		b16.BootVars["snap_try_core"] = ""
-	}
-	if rollbackKernel {
-		b16.BootVars["snap_try_kernel"] = ""
-	}
 	return nil
 }
 

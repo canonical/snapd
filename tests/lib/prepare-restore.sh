@@ -22,9 +22,6 @@ set -e
 # shellcheck source=tests/lib/random.sh
 . "$TESTSLIB/random.sh"
 
-# shellcheck source=tests/lib/journalctl.sh
-. "$TESTSLIB/journalctl.sh"
-
 # shellcheck source=tests/lib/state.sh
 . "$TESTSLIB/state.sh"
 
@@ -189,7 +186,9 @@ build_arch_pkg() {
     chown -R test:test /tmp/pkg
     su -l -c "cd /tmp/pkg && WITH_TEST_KEYS=1 makepkg -f --nocheck" test
 
-    cp /tmp/pkg/snapd*.pkg.tar.xz "${GOPATH%%:*}"
+    # /etc/makepkg.conf defines PKGEXT which drives the compression alg and sets
+    # the package file name extension, keep it simple and try a glob instead
+    cp /tmp/pkg/snapd*.pkg.tar.* "${GOPATH%%:*}"
 }
 
 download_from_published(){
@@ -223,7 +222,7 @@ prepare_project() {
     if [[ "$SPREAD_SYSTEM" == ubuntu-* ]] && [[ "$SPREAD_SYSTEM" != ubuntu-core-* ]]; then
         apt-get remove --purge -y lxd lxcfs || true
         apt-get autoremove --purge -y
-        lxd-tool undo-lxd-mount-changes
+        "$TESTSTOOLS"/lxd-state undo-mount-changes
     fi
 
     # Check if running inside a container.
@@ -377,11 +376,23 @@ prepare_project() {
                 systemctl stop "$(basename "$f")" || true
                 rm -f "$f"
             done
+            # double check that purge really worked
+            if [ -d /var/lib/snapd ]; then
+                echo "# /var/lib/snapd"
+                ls -lR /var/lib/snapd || true
+                journalctl -b | tail -100 || true
+                cat /var/lib/snapd/state.json || true
+                exit 1
+            fi
             ;;
         *)
             # snapd state directory must not exist when the package is not
             # installed
-            test ! -d /var/lib/snapd
+            if [ -d /var/lib/snapd ]; then
+                echo "# /var/lib/snapd"
+                ls -lR /var/lib/snapd || true
+                exit 1
+            fi
             ;;
     esac
 
@@ -517,12 +528,13 @@ prepare_suite_each() {
         "$TESTSLIB"/reset.sh --reuse-core
     fi
     # Restart journal log and reset systemd journal cursor.
+    systemctl reset-failed systemd-journald.service
     if ! systemctl restart systemd-journald.service; then
         systemctl status systemd-journald.service || true
         echo "Failed to restart systemd-journald.service, exiting..."
         exit 1
     fi
-    start_new_journalctl_log
+    "$TESTSTOOLS"/journal-state start-new-log
 
     if [[ "$variant" = full ]]; then
         echo "Install the snaps profiler snap"
@@ -535,7 +547,7 @@ prepare_suite_each() {
         fi
     fi
     # Check if journalctl is ready to run the test
-    check_journalctl_ready
+    "$TESTSTOOLS"/journal-state check-log-started
 
     case "$SPREAD_SYSTEM" in
         fedora-*|centos-*|amazon-*)
@@ -547,7 +559,7 @@ prepare_suite_each() {
     if [[ "$variant" = full ]]; then
         "$TESTSTOOLS"/cleanup-state pre-invariant
     fi
-    invariant-tool check
+    tests.invariant check
 }
 
 restore_suite_each() {
@@ -575,7 +587,7 @@ restore_suite_each() {
         if [ -e "/var/snap/${profiler_snap}/common/profiler.log" ]; then
             cp -f "/var/snap/${profiler_snap}/common/profiler.log" "${logs_dir}/${logs_file}.profiler.log"
         fi
-        get_journalctl_log > "${logs_dir}/${logs_file}.journal.log"
+        "$TESTSTOOLS"/journal-state get-log > "${logs_dir}/${logs_file}.journal.log"
     fi
 
     # On Arch it seems that using sudo / su for working with the test user
@@ -584,7 +596,7 @@ restore_suite_each() {
     # random failures in the mount leak detector. Give it a moment but don't
     # clean it up ourselves, this should report actual test errors, if any.
     for i in $(seq 10); do
-        if not mountinfo-tool /run/user/12345 .fs_type=tmpfs; then
+        if not mountinfo.query /run/user/12345 .fs_type=tmpfs; then
             break
         fi
         sleep 1
@@ -614,7 +626,7 @@ restore_suite() {
 restore_project_each() {
     "$TESTSTOOLS"/cleanup-state pre-invariant
     # Check for invariants early, in order not to mask bugs in tests.
-    invariant-tool check
+    tests.invariant check
     "$TESTSTOOLS"/cleanup-state post-invariant
 
     # TODO: move this to tests.cleanup.

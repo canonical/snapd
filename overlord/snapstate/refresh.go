@@ -32,11 +32,16 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-var (
-	pidsCgroupDir = cgroup.ControllerPathV1("pids")
-)
+// pidsOfSnap is a mockable version of PidsOfSnap
+var pidsOfSnap = cgroup.PidsOfSnap
 
 var genericRefreshCheck = func(info *snap.Info, canAppRunDuringRefresh func(app *snap.AppInfo) bool) error {
+	knownPids, err := pidsOfSnap(info.InstanceName())
+	if err != nil {
+		return err
+	}
+
+	// Due to specific of the interaction with locking, all locking is performed by the caller.
 	var busyAppNames []string
 	var busyHookNames []string
 	var busyPIDs []int
@@ -52,11 +57,7 @@ var genericRefreshCheck = func(info *snap.Info, canAppRunDuringRefresh func(app 
 		if canAppRunDuringRefresh(app) {
 			continue
 		}
-		PIDs, err := cgroup.PidsInGroup(pidsCgroupDir, app.SecurityTag())
-		if err != nil {
-			return err
-		}
-		if len(PIDs) > 0 {
+		if PIDs := knownPids[app.SecurityTag()]; len(PIDs) > 0 {
 			busyAppNames = append(busyAppNames, name)
 			busyPIDs = append(busyPIDs, PIDs...)
 		}
@@ -66,11 +67,7 @@ var genericRefreshCheck = func(info *snap.Info, canAppRunDuringRefresh func(app 
 		if canHookRunDuringRefresh(hook) {
 			continue
 		}
-		PIDs, err := cgroup.PidsInGroup(pidsCgroupDir, hook.SecurityTag())
-		if err != nil {
-			return err
-		}
-		if len(PIDs) > 0 {
+		if PIDs := knownPids[hook.SecurityTag()]; len(PIDs) > 0 {
 			busyHookNames = append(busyHookNames, name)
 			busyPIDs = append(busyPIDs, PIDs...)
 		}

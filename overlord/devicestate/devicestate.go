@@ -144,7 +144,7 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, _ snap.C
 	kind := ""
 	var snapType snap.Type
 	var getName func(*asserts.Model) string
-	switch snapInfo.GetType() {
+	switch snapInfo.Type() {
 	case snap.TypeGadget:
 		kind = "gadget"
 		snapType = snap.TypeGadget
@@ -204,7 +204,7 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, _ snap.C
 }
 
 func checkGadgetValid(st *state.State, snapInfo, _ *snap.Info, snapf snap.Container, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) error {
-	if snapInfo.GetType() != snap.TypeGadget {
+	if snapInfo.Type() != snap.TypeGadget {
 		// not a gadget, nothing to do
 		return nil
 	}

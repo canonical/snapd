@@ -19,7 +19,16 @@
 
 package gadget
 
-type ValidationState = validationState
+type (
+	ValidationState          = validationState
+	MountedFilesystemUpdater = mountedFilesystemUpdater
+	RawStructureUpdater      = rawStructureUpdater
+)
+
+type LsblkFilesystemInfo = lsblkFilesystemInfo
+type LsblkBlockDevice = lsblkBlockDevice
+type SFDiskPartitionTable = sfdiskPartitionTable
+type SFDiskPartition = sfdiskPartition
 
 var (
 	ValidateStructureType   = validateStructureType
@@ -31,10 +40,7 @@ var (
 	CanUpdateStructure = canUpdateStructure
 	CanUpdateVolume    = canUpdateVolume
 
-	EncodeLabel = encodeLabel
-
-	WriteFile      = writeFileOrSymlink
-	WriteDirectory = writeDirectory
+	WriteFile = writeFileOrSymlink
 
 	RawContentBackupPath = rawContentBackupPath
 
@@ -43,6 +49,18 @@ var (
 	EnsureVolumeConsistency = ensureVolumeConsistency
 
 	Flatten = flatten
+
+	FilesystemInfo                 = filesystemInfo
+	OnDiskVolumeFromPartitionTable = onDiskVolumeFromPartitionTable
+
+	NewRawStructureUpdater      = newRawStructureUpdater
+	NewMountedFilesystemUpdater = newMountedFilesystemUpdater
+
+	FindDeviceForStructureWithFallback = findDeviceForStructureWithFallback
+	FindMountPointForStructure         = findMountPointForStructure
+
+	ParseSize           = parseSize
+	ParseRelativeOffset = parseRelativeOffset
 )
 
 func MockEvalSymlinks(mock func(path string) (string, error)) (restore func()) {
@@ -53,10 +71,6 @@ func MockEvalSymlinks(mock func(path string) (string, error)) (restore func()) {
 	}
 }
 
-func MockMkfsHandlers(mock map[string]MkfsFunc) (restore func()) {
-	old := mkfsHandlers
-	mkfsHandlers = mock
-	return func() {
-		mkfsHandlers = old
-	}
+func (m *MountedFilesystemWriter) WriteDirectory(volumeRoot, src, dst string, preserveInDst []string) error {
+	return m.writeDirectory(volumeRoot, src, dst, preserveInDst)
 }

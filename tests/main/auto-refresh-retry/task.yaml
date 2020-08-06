@@ -1,8 +1,6 @@
 summary: Check that auto-refresh is retried after a permanent network error
 
-# TODO:UC20: enable once we have a real model assertion, currently fails with:
-#   v2/snaps/refresh -> "cannot set device session: no device serial yet"
-systems: [-ubuntu-core-20-*, -ubuntu-14.04-*]
+systems: [-ubuntu-14.04-*]
 
 prepare: |
     snap install --devmode jq
@@ -18,9 +16,6 @@ debug: |
     ip netns pids testns || true
 
 execute: |
-    # shellcheck source=tests/lib/journalctl.sh
-    . "$TESTSLIB/journalctl.sh"
-
     echo "Install a snap from stable"
     snap install test-snapd-tools
   
@@ -45,7 +40,7 @@ execute: |
 
     echo "wait for auto-refresh to happen and fail"
     for _ in $(seq 120); do
-        if get_journalctl_log | MATCH "state ensure error: persistent network error"; then
+        if "$TESTSTOOLS"/journal-state get-log | MATCH "state ensure error: persistent network error"; then
             break
         fi
         echo "Ensure refresh"
@@ -53,7 +48,7 @@ execute: |
         sleep 5
     done
 
-    get_journalctl_log | MATCH "state ensure error: persistent network error"
+    "$TESTSTOOLS"/journal-state get-log | MATCH "state ensure error: persistent network error"
 
     # restart snapd with network access back
     systemctl stop snapd.{service,socket}

@@ -7,7 +7,7 @@ environment:
     PROJECT_PATH: $GOHOME/src/github.com/snapcore/snapd
     # /usr/lib/go-1.6/bin for trusty (needs to be last as we use
     # a different go in gccgo tests)
-    PATH: $GOHOME/bin:/snap/bin:$PATH:/usr/lib/go-1.6/bin:/var/lib/snapd/snap/bin:$PROJECT_PATH/tests/bin:$PROJECT_PATH/tests/lib/tools
+    PATH: $GOHOME/bin:/snap/bin:$PATH:/usr/lib/go-1.6/bin:/var/lib/snapd/snap/bin:$PROJECT_PATH/tests/bin
     TESTSLIB: $PROJECT_PATH/tests/lib
     TESTSTOOLS: $PROJECT_PATH/tests/lib/tools
     SNAPPY_TESTING: 1
@@ -85,6 +85,8 @@ backends:
             - ubuntu-secboot-20.04-64:
                   image: ubuntu-20.04-64
                   workers: 1
+                  secure-boot: true
+                  # XXX: old name, remove once new spread is deployed
                   secureboot: true
 
             - debian-9-64:
@@ -137,9 +139,9 @@ backends:
                   workers: 6
             - ubuntu-18.04-64:
                   workers: 6
-            - ubuntu-19.04-64:
-                  workers: 6
             - ubuntu-19.10-64:
+                  workers: 6
+            - ubuntu-20.04-64:
                   workers: 6
 
     google-nested:
@@ -152,11 +154,11 @@ backends:
             - ubuntu-16.04-64:
                   image: ubuntu-1604-64-virt-enabled
                   storage: 20G
-                  workers: 1
+                  workers: 2
             - ubuntu-18.04-64:
                   image: ubuntu-1804-64-virt-enabled
                   storage: 20G
-                  workers: 1
+                  workers: 2
             - ubuntu-19.10-64:
                   image: ubuntu-1910-64-virt-enabled
                   storage: 20G
@@ -164,7 +166,21 @@ backends:
             - ubuntu-20.04-64:
                   image: ubuntu-2004-64-virt-enabled
                   storage: 20G
-                  workers: 1
+                  workers: 6
+
+    qemu-nested:
+        memory: 4G
+        type: qemu
+        systems:
+            - ubuntu-16.04-64:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-18.04-64:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-20.04-64:
+                  username: ubuntu
+                  password: ubuntu
 
     qemu:
         # TODO:UC20: uc20 needs 2G or grub will not loopback the kernel snap
@@ -249,6 +265,15 @@ backends:
             - centos-7-64:
                   username: centos
                   password: centos
+            - amazon-linux-2-64:
+                  username: ec2-user
+                  password: ec2-user
+            - opensuse-15.2-64:
+                  username: opensuse
+                  password: opensuse
+            - opensuse-tumbleweed-64:
+                  username: opensuse
+                  password: opensuse
     autopkgtest:
         type: adhoc
         allocate: |
@@ -460,13 +485,25 @@ exclude:
 
 debug-each: |
     if [ "$SPREAD_DEBUG_EACH" = 1 ]; then
-        # shellcheck source=tests/lib/journalctl.sh
-        . "$TESTSLIB/journalctl.sh"
         #shellcheck source=tests/lib/state.sh
         . "$TESTSLIB/state.sh"
+        #shellcheck source=tests/lib/nested.sh
+        . "$TESTSLIB/nested.sh"
+
+        
+        if is_nested_system; then
+            echo '# nested VM status'
+            systemctl status nested-vm || true
+            journalctl -e --no-pager -u nested-vm || true
+
+            if [ -f "${WORK_DIR}/serial-log.txt" ]; then
+                echo '# nested VM serial boot log'
+                cat "${WORK_DIR}/serial-log.txt"
+            fi
+        fi
 
         echo '# journal messages for snapd'
-        get_journalctl_log -u snapd
+        "$TESTSTOOLS"/journal-state get-log -u snapd
         case "$SPREAD_SYSTEM" in
             fedora-*|centos-*|amazon-*)
                 if [ -e "$RUNTIME_STATE_PATH/audit-stamp" ]; then
@@ -499,7 +536,7 @@ debug-each: |
         echo "# processes"
         ps aux
         echo "# /var/lib/snapd"
-        ls -lR /var/lib/snapd || true
+        find /var/lib/snapd/ -not -path '/var/lib/snapd/snap/*' -ls || true
     fi
 
 rename:
@@ -861,8 +898,12 @@ suites:
 
     tests/nested/manual/:
         summary: Tests for nested images controlled manually from the tests
-        backends: [google-nested]
-        systems: [ubuntu-19.10-64, ubuntu-18.04-64, ubuntu-20.04-64]
+        backends: [google-nested, qemu-nested]
+        systems:
+            - ubuntu-16.04-64
+            - ubuntu-18.04-64
+            - ubuntu-19.10-64
+            - ubuntu-20.04-64
         environment:
             NESTED_TYPE: "classic"
             # Channel used to create the nested vm
@@ -873,13 +914,21 @@ suites:
             NEW_CORE_CHANNEL: '$(HOST: echo "${SPREAD_NEW_CORE_CHANNEL:-edge}")'
             # Use cloud init to make initial system configuration instead of user assertion
             USE_CLOUD_INIT: '$(HOST: echo "${SPREAD_USE_CLOUD_INIT:-true}")'
+            # Enable kvm in the qemu command line
+            ENABLE_KVM: '$(HOST: echo "${SPREAD_ENABLE_KVM:-true}")'
             # Enable tpm in the nested vm in case it is supported
             ENABLE_TPM: '$(HOST: echo "${SPREAD_ENABLE_TPM:-false}")'
             # Enable secure boot in the nested vm in case it is supported
             ENABLE_SECURE_BOOT: '$(HOST: echo "${SPREAD_ENABLE_SECURE_BOOT:-false}")'
             # Build and use snapd from current branch
             BUILD_SNAPD_FROM_CURRENT: '$(HOST: echo "${SPREAD_BUILD_SNAPD_FROM_CURRENT:-false}")'
+            # Directory where the images and test assets are stored
+            WORK_DIR: '/tmp/work-dir'
         manual: true
+        debug: |
+            if [ -f "${WORK_DIR}/serial.log" ]; then
+                cat "${WORK_DIR}/serial.log"
+            fi
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
@@ -901,7 +950,7 @@ suites:
 
     tests/nested/classic/:
         summary: Tests for nested images
-        backends: [google-nested]
+        backends: [google-nested, qemu-nested]
         systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64]
         environment:
             NESTED_TYPE: "classic"
@@ -913,13 +962,21 @@ suites:
             NEW_CORE_CHANNEL: '$(HOST: echo "${SPREAD_NEW_CORE_CHANNEL:-edge}")'
             # Use cloud init to make initial system configuration instead of user assertion
             USE_CLOUD_INIT: '$(HOST: echo "${SPREAD_USE_CLOUD_INIT:-true}")'
+            # Enable kvm in the qemu command line
+            ENABLE_KVM: '$(HOST: echo "${SPREAD_ENABLE_KVM:-true}")'
             # Enable tpm in the nested vm in case it is supported
             ENABLE_TPM: '$(HOST: echo "${SPREAD_ENABLE_TPM:-false}")'
             # Enable secure boot in the nested vm in case it is supported
             ENABLE_SECURE_BOOT: '$(HOST: echo "${SPREAD_ENABLE_SECURE_BOOT:-false}")'
             # Build and use snapd from current branch
             BUILD_SNAPD_FROM_CURRENT: '$(HOST: echo "${SPREAD_BUILD_SNAPD_FROM_CURRENT:-false}")'
+            # Directory where the images and test assets are stored
+            WORK_DIR: '/tmp/work-dir'
         manual: true
+        debug: |
+            if [ -f "${WORK_DIR}/serial.log" ]; then
+                cat "${WORK_DIR}/serial.log"
+            fi
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
@@ -949,7 +1006,7 @@ suites:
 
     tests/nested/core/:
         summary: Tests for nested images
-        backends: [google-nested]
+        backends: [google-nested, qemu-nested]
         systems: [ubuntu-16.04-64, ubuntu-18.04-64]
         environment:
             NESTED_TYPE: "core"
@@ -961,13 +1018,21 @@ suites:
             NEW_CORE_CHANNEL: '$(HOST: echo "${SPREAD_NEW_CORE_CHANNEL:-edge}")'
             # Use cloud init to make initial system configuration instead of user assertion
             USE_CLOUD_INIT: '$(HOST: echo "${SPREAD_USE_CLOUD_INIT:-true}")'
+            # Enable kvm in the qemu command line
+            ENABLE_KVM: '$(HOST: echo "${SPREAD_ENABLE_KVM:-true}")'
             # Enable tpm in the nested vm in case it is supported
             ENABLE_TPM: '$(HOST: echo "${SPREAD_ENABLE_TPM:-false}")'
             # Enable secure boot in the nested vm in case it is supported
             ENABLE_SECURE_BOOT: '$(HOST: echo "${SPREAD_ENABLE_SECURE_BOOT:-false}")'
             # Build and use snapd from current branch
             BUILD_SNAPD_FROM_CURRENT: '$(HOST: echo "${SPREAD_BUILD_SNAPD_FROM_CURRENT:-false}")'
+            # Directory where the images and test assets are stored
+            WORK_DIR: '/tmp/work-dir'
         manual: true
+        debug: |
+            if [ -f "${WORK_DIR}/serial.log" ]; then
+                cat "${WORK_DIR}/serial.log"
+            fi
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
@@ -997,7 +1062,7 @@ suites:
 
     tests/nested/core20/:
         summary: Tests for nested uc20 images
-        backends: [google-nested]
+        backends: [google-nested, qemu-nested]
         systems: [ubuntu-20.04-64]
         environment:
             NESTED_TYPE: "core"
@@ -1005,13 +1070,22 @@ suites:
             CORE_CHANNEL: '$(HOST: echo "${SPREAD_CORE_CHANNEL:-edge}")'
             # Use cloud init to make initial system configuration instead of user assertion
             USE_CLOUD_INIT: '$(HOST: echo "${SPREAD_USE_CLOUD_INIT:-true}")'
-            # Enable tpm in the nested vm in case it is supported
+            # Enable kvm in the qemu command line
+            ENABLE_KVM: '$(HOST: echo "${SPREAD_ENABLE_KVM:-true}")'
+            # Enable secure boot in the nested vm in case it is supported
             ENABLE_TPM: '$(HOST: echo "${SPREAD_ENABLE_TPM:-true}")'
             # Enable secure boot in the nested vm in case it is supported
             ENABLE_SECURE_BOOT: '$(HOST: echo "${SPREAD_ENABLE_SECURE_BOOT:-true}")'
             # Build and use snapd from current branch
             BUILD_SNAPD_FROM_CURRENT: '$(HOST: echo "${SPREAD_BUILD_SNAPD_FROM_CURRENT:-true}")'
+            # Directory where the images and test assets are stored
+            WORK_DIR: '/tmp/work-dir'
         manual: true
+        kill-timeout: 90m
+        debug: |
+            if [ -f "${WORK_DIR}/serial.log" ]; then
+                cat "${WORK_DIR}/serial.log"
+            fi
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh

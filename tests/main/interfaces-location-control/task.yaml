@@ -8,7 +8,6 @@ details: |
     reconnected.
     The snap is also declaring a plug on this interface must be able to ask for its properties.
 
-# dbus-launch not supported in ubuntu-core
 # s390x does not support locationd
 systems:
     - -amazon-linux-2-* # no session services
