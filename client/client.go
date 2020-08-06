@@ -474,7 +474,7 @@ type response struct {
 
 // Error is the real value of response.Result when an error occurs.
 type Error struct {
-	Kind    string      `json:"kind"`
+	Kind    ErrorKind   `json:"kind"`
 	Value   interface{} `json:"value"`
 	Message string      `json:"message"`
 
@@ -490,7 +490,7 @@ func (e *Error) Error() string {
 func IsRetryable(err error) bool {
 	switch e := err.(type) {
 	case *Error:
-		return e.Kind == ErrorKindChangeConflict
+		return e.Kind == ErrorKindSnapChangeConflict
 	}
 	return false
 }
