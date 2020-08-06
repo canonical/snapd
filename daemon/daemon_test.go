@@ -259,13 +259,13 @@ func (s *daemonSuite) TestGuestAccess(c *check.C) {
 	c.Check(cmd.canAccess(del, nil), check.Equals, accessUnauthorized)
 
 	cmd = &Command{d: newTestDaemon(c), RootOnly: true}
-	c.Check(cmd.canAccess(get, nil), check.Equals, accessUnauthorized)
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessUnauthorized)
-	c.Check(cmd.canAccess(pst, nil), check.Equals, accessUnauthorized)
-	c.Check(cmd.canAccess(del, nil), check.Equals, accessUnauthorized)
+	c.Check(cmd.canAccess(get, nil), check.Equals, accessForbidden)
+	c.Check(cmd.canAccess(put, nil), check.Equals, accessForbidden)
+	c.Check(cmd.canAccess(pst, nil), check.Equals, accessForbidden)
+	c.Check(cmd.canAccess(del, nil), check.Equals, accessForbidden)
 
 	cmd = &Command{d: newTestDaemon(c), UserOK: true}
-	c.Check(cmd.canAccess(get, nil), check.Equals, accessUnauthorized)
+	c.Check(cmd.canAccess(get, nil), check.Equals, accessOK)
 	c.Check(cmd.canAccess(put, nil), check.Equals, accessUnauthorized)
 	c.Check(cmd.canAccess(pst, nil), check.Equals, accessUnauthorized)
 	c.Check(cmd.canAccess(del, nil), check.Equals, accessUnauthorized)
@@ -314,8 +314,8 @@ func (s *daemonSuite) TestUserAccess(c *check.C) {
 	c.Check(cmd.canAccess(put, nil), check.Equals, accessUnauthorized)
 
 	cmd = &Command{d: newTestDaemon(c), RootOnly: true}
-	c.Check(cmd.canAccess(get, nil), check.Equals, accessUnauthorized)
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessUnauthorized)
+	c.Check(cmd.canAccess(get, nil), check.Equals, accessForbidden)
+	c.Check(cmd.canAccess(put, nil), check.Equals, accessForbidden)
 
 	cmd = &Command{d: newTestDaemon(c), UserOK: true}
 	c.Check(cmd.canAccess(get, nil), check.Equals, accessOK)
@@ -329,8 +329,8 @@ func (s *daemonSuite) TestUserAccess(c *check.C) {
 	// socket instead of the snap one. In that case, SnapOK should have no
 	// bearing on the default behavior, which is to deny access.
 	cmd = &Command{d: newTestDaemon(c), SnapOK: true}
-	c.Check(cmd.canAccess(get, nil), check.Equals, accessUnauthorized)
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessUnauthorized)
+	c.Check(cmd.canAccess(get, nil), check.Equals, accessOK)
+	c.Check(cmd.canAccess(put, nil), check.Equals, accessOK)
 }
 
 func (s *daemonSuite) TestLoggedInUserAccess(c *check.C) {
@@ -343,8 +343,8 @@ func (s *daemonSuite) TestLoggedInUserAccess(c *check.C) {
 	c.Check(cmd.canAccess(put, user), check.Equals, accessOK)
 
 	cmd = &Command{d: newTestDaemon(c), RootOnly: true}
-	c.Check(cmd.canAccess(get, user), check.Equals, accessUnauthorized)
-	c.Check(cmd.canAccess(put, user), check.Equals, accessUnauthorized)
+	c.Check(cmd.canAccess(get, user), check.Equals, accessForbidden)
+	c.Check(cmd.canAccess(put, user), check.Equals, accessForbidden)
 
 	cmd = &Command{d: newTestDaemon(c), UserOK: true}
 	c.Check(cmd.canAccess(get, user), check.Equals, accessOK)

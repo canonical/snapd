@@ -33,8 +33,7 @@ import (
 type accessResult int
 
 const (
-	accessUnknown accessResult = iota
-	accessOK
+	accessOK accessResult = iota
 	accessUnauthorized
 	accessForbidden
 	accessCancelled
@@ -42,89 +41,7 @@ const (
 
 var polkitCheckAuthorization = polkit.CheckAuthorization
 
-// accessChecker checks whether a particular request is allowed.
-//
-// An access checker will either allow a request, deny it, or return
-// accessUnknown, which indicates the decision should be delegated to
-// the next access checker.
-type accessChecker interface {
-	canAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult
-}
-
-// allowSnapSocket is an access checker that allows requests received
-// from the snapd-snap.socket socket.
-type allowSnapSocket struct{}
-
-func (c allowSnapSocket) canAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
-	if ucred != nil && ucred.socket == dirs.SnapSocket {
-		return accessOK
-	}
-	return accessUnknown
-}
-
-// denySnapSocket is an access checker that denies requests received
-// from the snapd-snap.socket socket.
-type denySnapSocket struct{}
-
-func (c denySnapSocket) canAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
-	if ucred != nil && ucred.socket == dirs.SnapSocket {
-		return accessUnauthorized
-	}
-	return accessUnknown
-}
-
-// allowGetByGuest is an access checker that allows GET requests from anyone.
-type allowGetByGuest struct{}
-
-func (c allowGetByGuest) canAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
-	if r.Method == "GET" {
-		return accessOK
-	}
-	return accessUnknown
-}
-
-// allowGetByUser is an access checker that allows GET requests from any user.
-type allowGetByUser struct{}
-
-func (c allowGetByUser) canAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
-	if r.Method == "GET" && ucred != nil {
-		return accessOK
-	}
-	return accessUnknown
-}
-
-// allowSnapUser is an access checker that allows requests from
-// authorised users.
-type allowSnapUser struct{}
-
-func (c allowSnapUser) canAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
-	if user != nil {
-		return accessOK
-	}
-	return accessUnknown
-}
-
-// allowRoot is an access checker that allows requests from root (uid 0).
-type allowRoot struct{}
-
-func (c allowRoot) canAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
-	if ucred != nil && ucred.uid == 0 {
-		return accessOK
-	}
-	return accessUnknown
-}
-
-// polkitCheck is an access checker that delegates the decision to polkitd.
-type polkitCheck struct {
-	actionID string
-}
-
-func (c polkitCheck) canAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
-	// Can not perform Polkit authorization without peer credentials
-	if ucred == nil {
-		return accessUnknown
-	}
-
+func checkPolkitAction(r *http.Request, ucred *ucrednet, action string) accessResult {
 	var flags polkit.CheckFlags
 	allowHeader := r.Header.Get(client.AllowInteractionHeader)
 	if allowHeader != "" {
@@ -135,7 +52,7 @@ func (c polkitCheck) canAccess(r *http.Request, ucred *ucrednet, user *auth.User
 		}
 	}
 	// Pass both pid and uid from the peer ucred to avoid pid race
-	if authorized, err := polkitCheckAuthorization(ucred.pid, ucred.uid, c.actionID, nil, flags); err == nil {
+	if authorized, err := polkitCheckAuthorization(ucred.pid, ucred.uid, action, nil, flags); err == nil {
 		if authorized {
 			// polkit says user is authorised
 			return accessOK
@@ -145,5 +62,82 @@ func (c polkitCheck) canAccess(r *http.Request, ucred *ucrednet, user *auth.User
 	} else {
 		logger.Noticef("polkit error: %s", err)
 	}
-	return accessUnknown
+	return accessUnauthorized
+}
+
+// accessChecker checks whether a particular request is allowed.
+//
+// An access checker will either allow a request, deny it, or return
+// accessUnknown, which indicates the decision should be delegated to
+// the next access checker.
+type accessChecker interface {
+	checkAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult
+}
+
+type OpenAccess struct{}
+
+func (ac OpenAccess) checkAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
+	// Forbid access from snapd-snap.socket
+	if ucred != nil && ucred.socket == dirs.SnapSocket {
+		return accessForbidden
+	}
+
+	return accessOK
+}
+
+// AuthenticatedAccess allows requests from authenticated users.
+//
+// A user is considered authenticated if they provide a macaroon, are
+// the root user according to peer credentials, or granted access by
+// Polkit.
+type AuthenticatedAccess struct {
+	Polkit string
+}
+
+func (ac AuthenticatedAccess) checkAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
+	// Forbid access from snapd-snap.socket
+	if ucred != nil && ucred.socket == dirs.SnapSocket {
+		return accessForbidden
+	}
+
+	if user != nil {
+		return accessOK
+	}
+
+	// Next checks require ucred
+	if ucred == nil {
+		return accessUnauthorized
+	}
+
+	if ucred.uid == 0 {
+		return accessOK
+	}
+
+	if ac.Polkit != "" {
+		return checkPolkitAction(r, ucred, ac.Polkit)
+	}
+
+	return accessUnauthorized
+}
+
+// RootOnlyAccess allows requests from the root uid, provided they
+// were not received on snapd-snap.socket
+type RootOnlyAccess struct{}
+
+func (ac RootOnlyAccess) checkAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
+	if ucred != nil && ucred.uid == 0 && ucred.socket != dirs.SnapSocket {
+		return accessOK
+	}
+	return accessForbidden
+}
+
+// SnapAccess allows requests from the snapd-snap.socket
+type SnapAccess struct{}
+
+func (ac SnapAccess) checkAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
+	if ucred != nil && ucred.socket == dirs.SnapSocket {
+		return accessOK
+	}
+	// FIXME: should this be allowed?
+	return accessOK
 }

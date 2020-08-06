@@ -104,8 +104,7 @@ type Command struct {
 	d *Daemon
 }
 
-// accessRules returns a list of access checkers for the command.
-// It checks the following properties:
+// canAccess checks the following properties:
 //
 // - if the user is `root` everything is allowed
 // - if a user is logged in (via `snap login`) and the command doesn't have RootOnly, everything is allowed
@@ -116,51 +115,29 @@ type Command struct {
 // - UserOK: any uid on the local system can access GET
 // - RootOnly: only root can access this
 // - SnapOK: a snap can access this via `snapctl`
-func (c *Command) accessRules() []accessChecker {
-	if c.RootOnly {
-		if c.UserOK || c.GuestOK || c.SnapOK {
-			// programming error
-			logger.Panicf("Command can't have RootOnly together with any *OK flag")
-		}
-		return []accessChecker{
-			denySnapSocket{},
-			allowRoot{},
-		}
-	}
-	rules := []accessChecker{
-		allowSnapUser{},
-	}
-	if c.SnapOK {
-		rules = append(rules, allowSnapSocket{})
-	} else {
-		rules = append(rules, denySnapSocket{})
-	}
-	if c.GuestOK {
-		rules = append(rules, allowGetByGuest{})
-	} else if c.UserOK {
-		rules = append(rules, allowGetByUser{})
-	}
-	rules = append(rules, allowRoot{})
-	if c.PolkitOK != "" {
-		rules = append(rules, polkitCheck{c.PolkitOK})
-	}
-	return rules
-}
-
-// canAccess checks if the command allows the given request.
 func (c *Command) canAccess(r *http.Request, user *auth.UserState) accessResult {
+	if c.RootOnly && (c.UserOK || c.GuestOK || c.SnapOK) {
+		// programming error
+		logger.Panicf("Command can't have RootOnly together with any *OK flag")
+	}
+
 	ucred, err := ucrednetGet(r.RemoteAddr)
 	if err != nil && err != errNoID {
 		logger.Noticef("unexpected error when attempting to get UID: %s", err)
 		return accessForbidden
 	}
-
-	for _, rule := range c.accessRules() {
-		if access := rule.canAccess(r, ucred, user); access != accessUnknown {
-			return access
-		}
+	var checker accessChecker
+	if c.RootOnly {
+		checker = RootOnlyAccess{}
+	} else if c.SnapOK {
+		checker = SnapAccess{}
+	} else if r.Method == "GET" && (c.GuestOK || c.UserOK) {
+		checker = OpenAccess{}
+	} else {
+		checker = AuthenticatedAccess{Polkit: c.PolkitOK}
 	}
-	return accessUnauthorized
+
+	return checker.checkAccess(r, ucred, user)
 }
 
 func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {

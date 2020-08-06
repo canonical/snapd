@@ -34,95 +34,70 @@ type accessSuite struct{}
 
 var _ = Suite(&accessSuite{})
 
-func (s *accessSuite) TestAllowSnapSocket(c *C) {
-	var ac accessChecker = allowSnapSocket{}
+func (s *accessSuite) TestOpenAccess(c *C) {
+	var ac accessChecker = OpenAccess{}
 
-	// checker allows requests from snapd-snap.socket
+	// OpenAccess denies access from snapd-snap.socket
 	ucred := &ucrednet{uid: 42, pid: 100, socket: dirs.SnapSocket}
-	c.Check(ac.canAccess(nil, ucred, nil), Equals, accessOK)
+	c.Check(ac.checkAccess(nil, ucred, nil), Equals, accessForbidden)
 
-	// no decision made about other sockets
+	// Access allowed from other sockets, or without peer credentials
 	ucred.socket = dirs.SnapdSocket
-	c.Check(ac.canAccess(nil, ucred, nil), Equals, accessUnknown)
+	c.Check(ac.checkAccess(nil, ucred, nil), Equals, accessOK)
+	c.Check(ac.checkAccess(nil, nil, nil), Equals, accessOK)
 }
 
-func (s *accessSuite) TestDenySnapSocket(c *C) {
-	var ac accessChecker = denySnapSocket{}
-
-	// checker denies requests from snapd-snap.socket
-	ucred := &ucrednet{uid: 42, pid: 100, socket: dirs.SnapSocket}
-	c.Check(ac.canAccess(nil, ucred, nil), Equals, accessUnauthorized)
-
-	// no decision made about other sockets
-	ucred.socket = dirs.SnapdSocket
-	c.Check(ac.canAccess(nil, ucred, nil), Equals, accessUnknown)
-}
-
-func (s *accessSuite) TestAllowByGuest(c *C) {
-	var ac accessChecker = allowGetByGuest{}
+func (s *accessSuite) TestAuthenticatedAccess(c *C) {
+	var ac accessChecker = AuthenticatedAccess{}
 
 	req := httptest.NewRequest("GET", "/", nil)
-	ucred := &ucrednet{uid: 42, pid: 100}
-	// checker allows GET requests with or without ucred info
-	c.Check(ac.canAccess(req, nil, nil), Equals, accessOK)
-	c.Check(ac.canAccess(req, ucred, nil), Equals, accessOK)
-
-	// no decision made about other HTTP methods
-	req = httptest.NewRequest("POST", "/", nil)
-	c.Check(ac.canAccess(req, nil, nil), Equals, accessUnknown)
-	c.Check(ac.canAccess(req, ucred, nil), Equals, accessUnknown)
-}
-
-func (s *accessSuite) TestAllowByUser(c *C) {
-	var ac accessChecker = allowGetByUser{}
-
-	req := httptest.NewRequest("GET", "/", nil)
-	ucred := &ucrednet{uid: 42, pid: 100}
-	// checker allows GET requests from requests with uid credentials
-	c.Check(ac.canAccess(req, ucred, nil), Equals, accessOK)
-
-	// no decision made if ucred is missing
-	c.Check(ac.canAccess(req, nil, nil), Equals, accessUnknown)
-
-	// or for other HTTP methods
-	req = httptest.NewRequest("POST", "/", nil)
-	c.Check(ac.canAccess(req, ucred, nil), Equals, accessUnknown)
-}
-
-func (s *accessSuite) TestAllowSnapUser(c *C) {
-	var ac accessChecker = allowSnapUser{}
-
-	// checker allow requests that provide macaroon user auth
 	user := &auth.UserState{}
-	c.Check(ac.canAccess(nil, nil, user), Equals, accessOK)
 
-	// no decision made for unauthenticated requests
-	c.Check(ac.canAccess(nil, nil, nil), Equals, accessUnknown)
+	// AuthenticatedAccess denies access from snapd-snap.socket
+	ucred := &ucrednet{uid: 0, pid: 100, socket: dirs.SnapSocket}
+	c.Check(ac.checkAccess(req, ucred, nil), Equals, accessForbidden)
+	c.Check(ac.checkAccess(req, ucred, user), Equals, accessForbidden)
+
+	// With macaroon auth, a normal user is granted access
+	ucred = &ucrednet{uid: 42, pid: 100}
+	c.Check(ac.checkAccess(req, ucred, user), Equals, accessOK)
+
+	// Macaroon access is also possible without peer credentials
+	c.Check(ac.checkAccess(req, nil, user), Equals, accessOK)
+
+	// Without macaroon auth, normal users are unauthorized
+	c.Check(ac.checkAccess(req, ucred, nil), Equals, accessUnauthorized)
+
+	// The root user is granted access without a macaroon
+	ucred = &ucrednet{uid: 0, pid: 100}
+	c.Check(ac.checkAccess(req, ucred, nil), Equals, accessOK)
 }
 
-func (s *accessSuite) TestAllowRoot(c *C) {
-	var ac accessChecker = allowRoot{}
-
-	// checker allows requests from uid=0
-	ucred := &ucrednet{uid: 0, pid: 1000}
-	c.Check(ac.canAccess(nil, ucred, nil), Equals, accessOK)
-
-	// no decision made for other user IDs or no ucred
-	ucred.uid = 42
-	c.Check(ac.canAccess(nil, ucred, nil), Equals, accessUnknown)
-	c.Check(ac.canAccess(nil, nil, nil), Equals, accessUnknown)
-}
-
-func (s *accessSuite) TestPolkitCheck(c *C) {
+func (s *accessSuite) TestAuthenticatedAccessPolkit(c *C) {
 	defer func() {
 		polkitCheckAuthorization = polkit.CheckAuthorization
 	}()
 
-	var ac accessChecker = polkitCheck{"action-id"}
+	var ac accessChecker = AuthenticatedAccess{Polkit: "action-id"}
 
-	// checker grants access if polkitd says it is okay
 	req := httptest.NewRequest("GET", "/", nil)
-	ucred := &ucrednet{uid: 42, pid: 1000}
+	user := &auth.UserState{}
+	ucred := &ucrednet{uid: 0, pid: 100}
+
+	// polkit is not checked if any of:
+	//   * ucred is missing
+	//   * macaroon auth is provided
+	//   * user is root
+	polkitCheckAuthorization = func(pid int32, uid uint32, actionId string, details map[string]string, flags polkit.CheckFlags) (bool, error) {
+		c.Fail()
+		return true, nil
+	}
+	c.Check(ac.checkAccess(req, nil, nil), Equals, accessUnauthorized)
+	c.Check(ac.checkAccess(req, nil, user), Equals, accessOK)
+	c.Check(ac.checkAccess(req, ucred, nil), Equals, accessOK)
+
+	// Access granted if polkit authorizes the request
+	ucred = &ucrednet{uid: 42, pid: 1000}
 	polkitCheckAuthorization = func(pid int32, uid uint32, actionId string, details map[string]string, flags polkit.CheckFlags) (bool, error) {
 		c.Check(pid, Equals, int32(1000))
 		c.Check(uid, Equals, uint32(42))
@@ -131,19 +106,19 @@ func (s *accessSuite) TestPolkitCheck(c *C) {
 		c.Check(flags, Equals, polkit.CheckFlags(0))
 		return true, nil
 	}
-	c.Check(ac.canAccess(req, ucred, nil), Equals, accessOK)
+	c.Check(ac.checkAccess(req, ucred, nil), Equals, accessOK)
 
-	// no decision made if polkitd does not authorise the request
+	// Unauthorized if polkit denies the request
 	polkitCheckAuthorization = func(pid int32, uid uint32, actionId string, details map[string]string, flags polkit.CheckFlags) (bool, error) {
 		return false, nil
 	}
-	c.Check(ac.canAccess(req, ucred, nil), Equals, accessUnknown)
+	c.Check(ac.checkAccess(req, ucred, nil), Equals, accessUnauthorized)
 
-	// mark request as cancelled if the user dismisses the auth check
+	// Cancelled if the user dismisses the auth check
 	polkitCheckAuthorization = func(pid int32, uid uint32, actionId string, details map[string]string, flags polkit.CheckFlags) (bool, error) {
 		return false, polkit.ErrDismissed
 	}
-	c.Check(ac.canAccess(req, ucred, nil), Equals, accessCancelled)
+	c.Check(ac.checkAccess(req, ucred, nil), Equals, accessCancelled)
 
 	// The X-Allow-Interaction header can be set to tell polkitd
 	// that interaction with the user is allowed.
@@ -152,11 +127,38 @@ func (s *accessSuite) TestPolkitCheck(c *C) {
 		c.Check(flags, Equals, polkit.CheckFlags(polkit.CheckAllowInteraction))
 		return true, nil
 	}
+	c.Check(ac.checkAccess(req, ucred, nil), Equals, accessOK)
+}
 
-	// if ucred is missing, polkitd is not consulted and no decision made
-	polkitCheckAuthorization = func(pid int32, uid uint32, actionId string, details map[string]string, flags polkit.CheckFlags) (bool, error) {
-		c.Fail()
-		return true, nil
-	}
-	c.Check(ac.canAccess(req, nil, nil), Equals, accessUnknown)
+func (s *accessSuite) TestRootOnlyAccess(c *C) {
+	var ac accessChecker = RootOnlyAccess{}
+
+	user := &auth.UserState{}
+
+	// RootOnlyAccess denies access from snapd-snap.socket
+	ucred := &ucrednet{uid: 0, pid: 100, socket: dirs.SnapSocket}
+	c.Check(ac.checkAccess(nil, ucred, nil), Equals, accessForbidden)
+	c.Check(ac.checkAccess(nil, ucred, user), Equals, accessForbidden)
+
+	// Non-root users are forbidden, even with macaroon auth
+	ucred = &ucrednet{uid: 42, pid: 100}
+	c.Check(ac.checkAccess(nil, ucred, nil), Equals, accessForbidden)
+	c.Check(ac.checkAccess(nil, ucred, user), Equals, accessForbidden)
+
+	// Root is granted access
+	ucred = &ucrednet{uid: 0, pid: 100}
+	c.Check(ac.checkAccess(nil, ucred, nil), Equals, accessOK)
+}
+
+func (s *accessSuite) TestSnapAccess(c *C) {
+	var ac accessChecker = SnapAccess{}
+
+	// SnapAccess allows access from snapd-snap.socket
+	ucred := &ucrednet{uid: 42, pid: 100, socket: dirs.SnapSocket}
+	c.Check(ac.checkAccess(nil, ucred, nil), Equals, accessOK)
+
+	// access is also allowed for non-snaps
+	ucred.socket = dirs.SnapdSocket
+	c.Check(ac.checkAccess(nil, ucred, nil), Equals, accessOK)
+	c.Check(ac.checkAccess(nil, nil, nil), Equals, accessOK)
 }

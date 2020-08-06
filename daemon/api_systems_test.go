@@ -559,18 +559,17 @@ func (s *apiSuite) TestSystemActionNonRoot(c *check.C) {
 
 	rec := httptest.NewRecorder()
 	systemsActionCmd.ServeHTTP(rec, req)
-	c.Assert(rec.Code, check.Equals, 401)
+	c.Assert(rec.Code, check.Equals, 403)
 
 	var rspBody map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &rspBody)
 	c.Check(err, check.IsNil)
 	c.Check(rspBody, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
-			"message": "access denied",
-			"kind":    "login-required",
+			"message": "forbidden",
 		},
-		"status":      "Unauthorized",
-		"status-code": 401.0,
+		"status":      "Forbidden",
+		"status-code": 403.0,
 		"type":        "error",
 	})
 }
