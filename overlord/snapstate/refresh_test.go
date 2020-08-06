@@ -27,13 +27,14 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type refreshSuite struct {
+	testutil.BaseTest
 	state   *state.State
 	info    *snap.Info
 	pids    map[string][]int
-	restore func()
 }
 
 var _ = Suite(&refreshSuite{})
@@ -54,15 +55,12 @@ hooks:
 `
 	s.info = snaptest.MockInfo(c, yamlText, nil)
 	s.pids = nil
-	s.restore = snapstate.MockPidsOfSnap(func(instanceName string) (map[string][]int, error) {
+	restore := snapstate.MockPidsOfSnap(func(instanceName string) (map[string][]int, error) {
 		c.Assert(instanceName, Equals, s.info.InstanceName())
 		return s.pids, nil
 	})
-}
-
-func (s *refreshSuite) TearDownTest(c *C) {
-	dirs.SetRootDir("")
-	s.restore()
+	s.AddCleanup(restore)
+	s.AddCleanup(func() { dirs.SetRootDir("")})
 }
 
 func (s *refreshSuite) TestSoftNothingRunningRefreshCheck(c *C) {
