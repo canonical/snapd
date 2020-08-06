@@ -20,9 +20,13 @@ restore: |
     rm -f test-snapd-refresh.*/meta/snap.yaml
     snap unset core experimental.refresh-app-awareness
     rm -f install.log
-    if [ "$USER" = root ]; then
-        systemctl --user stop dbus.service || true
-    fi
+    # Stop the dbus.service of the user session of the root user. This test
+    # runs in several configurations, not all of which have this capability.
+    # Where supported the test code below causes socket activation, through the
+    # refresh-app-awareness application tracking mechanism built into snap
+    # run. This session-level dbus daemon is detected as spurious by the
+    # invariant checker.
+    systemctl --user stop dbus.service || true
 execute: |
     if ! snap debug sandbox-features --required "confinement-options:$CONFINEMENT"; then
         echo "SKIP: unsupported confinement variant"
