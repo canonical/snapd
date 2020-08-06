@@ -24,8 +24,8 @@ import (
 )
 
 var (
-	Run                     = run
-	SystemSnapFromSeed      = systemSnapFromSeed
+	Run                      = run
+	SystemSnapFromSeed       = systemSnapFromSeed
 	ChooseTargetSnapdVersion = chooseTargetSnapdVersion
 )
 
