@@ -117,11 +117,12 @@ func CopyFile(src, dst string, flags CopyFlag) (err error) {
 	return nil
 }
 
-// CopyFileAtomic copies src to dst using AtomicFile internally to create the
-// destination. The destination path is always overwritten. The destination and
+// AtomicWriteFileCopy writes to dst a copy of src using AtomicFile
+// internally to create the destination.
+// The destination path is always overwritten. The destination and
 // the owning directory are synced after copy completes. Pass additional flags
 // for AtomicFile wrapping the destination.
-func CopyFileAtomic(src, dst string, flags AtomicWriteFlags) (err error) {
+func AtomicWriteFileCopy(dst, src string, flags AtomicWriteFlags) (err error) {
 	fin, err := openfile(src, os.O_RDONLY, 0)
 	if err != nil {
 		return fmt.Errorf("unable to open source file %s: %v", src, err)

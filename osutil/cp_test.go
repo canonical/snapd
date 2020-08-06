@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -301,23 +301,23 @@ func (s *cpSuite) TestCopyPreserveAllSyncSyncFailure(c *C) {
 	})
 }
 
-func (s *cpSuite) TestCopyAtomicSimple(c *C) {
-	err := CopyFileAtomic(s.f1, s.f2, 0)
+func (s *cpSuite) TestAtomicWriteFileCopySimple(c *C) {
+	err := AtomicWriteFileCopy(s.f2, s.f1, 0)
 	c.Assert(err, IsNil)
 	c.Assert(s.f2, testutil.FileEquals, s.data)
 
 }
 
-func (s *cpSuite) TestCopyAtomicOverwrites(c *C) {
+func (s *cpSuite) TestAtomicWriteFileCopyOverwrites(c *C) {
 	err := ioutil.WriteFile(s.f2, []byte("this is f2 content"), 0644)
 	c.Assert(err, IsNil)
 
-	err = CopyFileAtomic(s.f1, s.f2, 0)
+	err = AtomicWriteFileCopy(s.f2, s.f1, 0)
 	c.Assert(err, IsNil)
 	c.Assert(s.f2, testutil.FileEquals, s.data)
 }
 
-func (s *cpSuite) TestCopyAtomicSymlinks(c *C) {
+func (s *cpSuite) TestAtomicWriteFileCopySymlinks(c *C) {
 	f2Symlink := filepath.Join(s.dir, "f2-symlink")
 	err := os.Symlink(s.f2, f2Symlink)
 	c.Assert(err, IsNil)
@@ -327,35 +327,35 @@ func (s *cpSuite) TestCopyAtomicSymlinks(c *C) {
 	c.Assert(err, IsNil)
 
 	// follows symlink, dst is f2
-	err = CopyFileAtomic(s.f1, f2Symlink, AtomicWriteFollow)
+	err = AtomicWriteFileCopy(f2Symlink, s.f1, AtomicWriteFollow)
 	c.Assert(err, IsNil)
 	c.Check(IsSymlink(f2Symlink), Equals, true, Commentf("%q is not a symlink", f2Symlink))
 	c.Check(s.f2, testutil.FileEquals, s.data)
 	c.Check(f2SymlinkNoFollow, testutil.FileEquals, s.data)
 
 	// when not following, copy overwrites the symlink
-	err = CopyFileAtomic(s.f1, f2SymlinkNoFollow, 0)
+	err = AtomicWriteFileCopy(f2SymlinkNoFollow, s.f1, 0)
 	c.Assert(err, IsNil)
 	c.Check(IsSymlink(f2SymlinkNoFollow), Equals, false, Commentf("%q is not a file", f2SymlinkNoFollow))
 	c.Check(f2SymlinkNoFollow, testutil.FileEquals, s.data)
 }
 
-func (s *cpSuite) TestCopyAtomicErrReal(c *C) {
-	err := CopyFileAtomic(filepath.Join(s.dir, "random-file"), s.f2, 0)
+func (s *cpSuite) TestAtomicWriteFileCopyErrReal(c *C) {
+	err := AtomicWriteFileCopy(s.f2, filepath.Join(s.dir, "random-file"), 0)
 	c.Assert(err, ErrorMatches, "unable to open source file .*/random-file: open .* no such file or directory")
 
 	dir := c.MkDir()
 
-	err = CopyFileAtomic(s.f1, filepath.Join(dir, "random-dir", "f3"), 0)
+	err = AtomicWriteFileCopy(filepath.Join(dir, "random-dir", "f3"), s.f1, 0)
 	c.Assert(err, ErrorMatches, `cannot create atomic file: open .*/random-dir/f3\.[a-zA-Z0-9]+~: no such file or directory`)
 
 	err = os.MkdirAll(filepath.Join(dir, "read-only"), 0000)
 	c.Assert(err, IsNil)
-	err = CopyFileAtomic(s.f1, filepath.Join(dir, "read-only", "f3"), 0)
+	err = AtomicWriteFileCopy(filepath.Join(dir, "read-only", "f3"), s.f1, 0)
 	c.Assert(err, ErrorMatches, `cannot create atomic file: open .*/read-only/f3\.[a-zA-Z0-9]+~: permission denied`)
 }
 
-func (s *cpSuite) TestCopyAtomicErrMockedCopy(c *C) {
+func (s *cpSuite) TestAtomicWriteFileCopyErrMockedCopy(c *C) {
 	s.mock()
 	s.errs = []error{
 		nil, // openFile
@@ -363,7 +363,7 @@ func (s *cpSuite) TestCopyAtomicErrMockedCopy(c *C) {
 		errors.New("copy fail"),
 	}
 
-	err := CopyFileAtomic(s.f1, s.f2, 0)
+	err := AtomicWriteFileCopy(s.f2, s.f1, 0)
 	c.Assert(err, ErrorMatches, `unable to copy .*/f1 to .*/f2\.[a-zA-Z0-9]+~: copy fail`)
 	entries, err := filepath.Glob(filepath.Join(s.dir, "*"))
 	c.Assert(err, IsNil)
