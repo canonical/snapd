@@ -75,7 +75,10 @@ func handleTimezoneConfiguration(tr config.ConfGetter, opts *fsOnlyContext) erro
 			return fmt.Errorf("cannot set timezone: %v", osutil.OutputErr(output, err))
 		}
 	} else {
-		// important to use /etc/writable/
+		// On the UC16/UC18/UC20 images the file /etc/hostname is a
+		// symlink to /etc/writable/hostname. The /etc/hostname is
+		// not part of the "writable-path" so we must set the file
+		// in /etc/writable here for this to work.
 		localtimePath := filepath.Join(opts.RootDir, "/etc/writable/localtime")
 		if err := os.MkdirAll(filepath.Dir(localtimePath), 0755); err != nil {
 			return err
