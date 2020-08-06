@@ -217,12 +217,10 @@ func writeFileOrSymlink(src, dst string, preserveInDst []string) error {
 			return fmt.Errorf("cannot write a symlink: %v", err)
 		}
 	} else {
-		// overwrite & sync by default
-		copyFlags := osutil.CopyFlagOverwrite | osutil.CopyFlagSync
-
-		// TODO use osutil.AtomicFile
 		// TODO try to preserve ownership and permission bits
-		if err := osutil.CopyFile(src, dst, copyFlags); err != nil {
+
+		// dst is a reflection of src, no additional flags are needed
+		if err := osutil.CopyFileAtomic(src, dst, 0); err != nil {
 			return fmt.Errorf("cannot copy %s: %v", src, err)
 		}
 	}

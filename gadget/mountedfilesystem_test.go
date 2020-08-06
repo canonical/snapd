@@ -473,7 +473,7 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterConflictingDestinationDire
 
 	// can't overwrite a directory with a file
 	err = rw.Write(outDir, nil)
-	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot write filesystem content of source:foo-dir: cannot copy .*: unable to create %s/foo-dir: .* is a directory", outDir))
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot write filesystem content of source:foo-dir: cannot copy .*: cannot commit atomic file copy: rename %[1]s/foo-dir\.[a-zA-Z0-9]+~ %[1]s/foo-dir: file exists`, outDir))
 
 }
 
@@ -2021,7 +2021,8 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackRestoreFails(c *C
 		{target: "foo", content: "written"},
 		{target: "some-dir/foo", content: "written"},
 	})
-	// make rollback fail when restoring
+	// the file exists, rollback will try to restore it, but make the file
+	// non-modifiable directly
 	err := os.Chmod(filepath.Join(outDir, "foo"), 0000)
 	c.Assert(err, IsNil)
 
@@ -2055,12 +2056,19 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackRestoreFails(c *C
 	makeSizedFile(c, filepath.Join(s.backup, "struct-0/foo.backup"), 0, []byte("backup"))
 
 	err = rw.Rollback()
-	c.Assert(err, ErrorMatches, "cannot rollback content: cannot copy .*: unable to create .*/out-dir/foo: permission denied")
+	c.Assert(err, IsNil)
+	// the file was restored
+	c.Check(filepath.Join(outDir, "foo"), testutil.FileEquals, "backup")
+	// directory was removed
+	c.Check(osutil.IsDirectory(filepath.Join(outDir, "some-dir")), Equals, false)
 
-	// remove offending file
-	c.Assert(os.Remove(filepath.Join(outDir, "foo")), IsNil)
+	// mock the data again
+	makeExistingData(c, outDir, []gadgetData{
+		{target: "foo", content: "written"},
+		{target: "some-dir/foo", content: "written"},
+	})
 
-	// make destination dir non-writable
+	// make the directory non-writable
 	err = os.Chmod(filepath.Join(outDir, "some-dir"), 0555)
 	c.Assert(err, IsNil)
 	// restore permissions later, otherwise test suite cleanup complains
