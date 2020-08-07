@@ -99,13 +99,13 @@ func run(parser *flags.Parser, args []string) error {
 		return err
 	}
 
-	cleanup, err := prepareChroot(chrootDir)
+	targetSnapd, cleanup, err := prepareChroot(chrootDir)
 	if err != nil {
 		return err
 	}
 
 	// executing inside the chroot
-	err = runPreseedMode(chrootDir)
+	err = runPreseedMode(chrootDir, targetSnapd)
 	cleanup()
 	return err
 }

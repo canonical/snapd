@@ -157,3 +157,53 @@ func (s *backendSuite) TestSettingUpSecurityWithFewerServices(c *C) {
 func (s *backendSuite) TestSandboxFeatures(c *C) {
 	c.Assert(s.Backend.SandboxFeatures(), IsNil)
 }
+
+func (s *backendSuite) TestInstallingSnapWhenPreseeding(c *C) {
+	s.Backend = &systemd.Backend{}
+	opts := &interfaces.SecurityBackendOptions{Preseed: true}
+	s.Backend.Initialize(opts)
+
+	var sysdLog [][]string
+	r := sysd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		sysdLog = append(sysdLog, cmd)
+		return []byte{}, nil
+	})
+	defer r()
+
+	s.Iface.SystemdPermanentSlotCallback = func(spec *systemd.Specification, slot *snap.SlotInfo) error {
+		return spec.AddService("snap.samba.interface.foo.service", &systemd.Service{ExecStart: "/bin/true"})
+	}
+	s.InstallSnap(c, interfaces.ConfinementOptions{}, "", ifacetest.SambaYamlV1, 1)
+	service := filepath.Join(dirs.SnapServicesDir, "snap.samba.interface.foo.service")
+	// the service file was created
+	_, err := os.Stat(service)
+	c.Check(err, IsNil)
+	// the service was enabled but not started
+	c.Check(sysdLog, DeepEquals, [][]string{
+		{"--root", dirs.GlobalRootDir, "enable", "snap.samba.interface.foo.service"},
+	})
+}
+
+// not a viable scenario, but tested for completness
+func (s *backendSuite) TestRemovingSnapWhenPreseeding(c *C) {
+	s.Backend = &systemd.Backend{}
+	opts := &interfaces.SecurityBackendOptions{Preseed: true}
+	s.Backend.Initialize(opts)
+
+	s.Iface.SystemdPermanentSlotCallback = func(spec *systemd.Specification, slot *snap.SlotInfo) error {
+		return spec.AddService("snap.samba.interface.foo.service", &systemd.Service{ExecStart: "/bin/true"})
+	}
+	for _, opts := range testedConfinementOpts {
+		snapInfo := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 1)
+		s.systemctlArgs = nil
+		s.RemoveSnap(c, snapInfo)
+		service := filepath.Join(dirs.SnapServicesDir, "snap.samba.interface.foo.service")
+		// the service file was removed
+		_, err := os.Stat(service)
+		c.Check(os.IsNotExist(err), Equals, true)
+		// the service was disabled (but no other systemctl calls)
+		c.Check(s.systemctlArgs, DeepEquals, [][]string{
+			{"systemctl", "--root", dirs.GlobalRootDir, "disable", "snap.samba.interface.foo.service"},
+		})
+	}
+}
