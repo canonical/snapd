@@ -131,10 +131,14 @@ type OnDiskStructure struct {
 // OnDiskVolume holds information about the disk device including its partitioning
 // schema, the partition table, and the structure layout it contains.
 type OnDiskVolume struct {
-	LaidOutVolume
-
 	Structure []OnDiskStructure
+	ID        string
 	Device    string
+	Schema    string
+	// size in bytes
+	Size Size
+	// sector size in bytes
+	SectorSize Size
 }
 
 // OnDiskVolumeFromDevice obtains the partitioning and filesystem information from
@@ -198,10 +202,8 @@ func onDiskVolumeFromPartitionTable(ptable sfdiskPartitionTable) (*OnDiskVolume,
 		return nil, fmt.Errorf("cannot position partitions: unknown unit %q", ptable.Unit)
 	}
 
-	num := len(ptable.Partitions)
-	structure := make([]VolumeStructure, num)
-	ls := make([]LaidOutStructure, num)
-	ds := make([]OnDiskStructure, num)
+	structure := make([]VolumeStructure, len(ptable.Partitions))
+	ds := make([]OnDiskStructure, len(ptable.Partitions))
 
 	for i, p := range ptable.Partitions {
 		info, err := filesystemInfo(p.Node)
@@ -229,14 +231,12 @@ func onDiskVolumeFromPartitionTable(ptable sfdiskPartitionTable) (*OnDiskVolume,
 			Filesystem: bd.FSType,
 		}
 
-		ls[i] = LaidOutStructure{
-			VolumeStructure: &structure[i],
-			StartOffset:     Size(p.Start) * sectorSize,
-			Index:           i + 1,
-		}
-
 		ds[i] = OnDiskStructure{
-			LaidOutStructure:     ls[i],
+			LaidOutStructure: LaidOutStructure{
+				VolumeStructure: &structure[i],
+				StartOffset:     Size(p.Start) * sectorSize,
+				Index:           i + 1,
+			},
 			Node:                 p.Node,
 			CreatedDuringInstall: isCreatedDuringInstall(&p, &bd, ptable.Label),
 		}
@@ -258,18 +258,12 @@ func onDiskVolumeFromPartitionTable(ptable sfdiskPartitionTable) (*OnDiskVolume,
 	}
 
 	dl := &OnDiskVolume{
-		LaidOutVolume: LaidOutVolume{
-			Volume: &Volume{
-				ID:        ptable.ID,
-				Schema:    ptable.Label,
-				Structure: structure,
-			},
-			Size:             numSectors * sectorSize,
-			SectorSize:       sectorSize,
-			LaidOutStructure: ls,
-		},
-		Structure: ds,
-		Device:    ptable.Device,
+		Structure:  ds,
+		ID:         ptable.ID,
+		Device:     ptable.Device,
+		Schema:     ptable.Label,
+		Size:       numSectors * sectorSize,
+		SectorSize: sectorSize,
 	}
 
 	return dl, nil
@@ -292,7 +286,7 @@ func deviceName(name string, index int) string {
 func BuildPartitionList(dl *OnDiskVolume, pv *LaidOutVolume) (sfdiskInput *bytes.Buffer, toBeCreated []OnDiskStructure) {
 	// Keep track what partitions we already have on disk
 	seen := map[Size]bool{}
-	for _, p := range dl.LaidOutStructure {
+	for _, p := range dl.Structure {
 		start := p.StartOffset / sectorSize
 		seen[start] = true
 	}
