@@ -361,7 +361,7 @@ func (envbks *envRefExtractedKernelBootloaderKernelState) setNextKernel(sn snap.
 
 type bootCommitTask func() error
 
-// bootState20Kernel implements the bootStateUpdate interface for both kernel
+// bootStateUpdate20 implements the bootStateUpdate interface for both kernel
 // and base snaps on UC20.
 type bootStateUpdate20 struct {
 	// tasks to run before the modeenv has been written
@@ -574,7 +574,7 @@ func (ks20 *bootState20Kernel) setNext(next snap.PlaceInfo) (rebootRequired bool
 
 	currentKernel := ks20.bks.kernel()
 	if next.Filename() != currentKernel.Filename() {
-		// add the kernel to the write modeenv
+		// on commit, add this kernel to the modeenv
 		u20.writeModeenv.CurrentKernels = append(
 			u20.writeModeenv.CurrentKernels,
 			next.Filename(),
@@ -637,10 +637,9 @@ func (ks20 *bootState20Kernel) selectAndCommitSnapInitramfsMount() (sn snap.Plac
 // base snap methods
 //
 
-// bootState20Kernel implements the bootState and bootStateUpdate interfaces for
-// base snaps on UC20. It is used for setNext() and markSuccessful() - though
-// note that for markSuccessful() a different bootStateUpdate implementation is
-// returned, see bootState20MarkSuccessful
+// bootState20Kernel implements the bootState interface for base snaps on UC20.
+// It is used for both setNext() and markSuccessful(), with both of those
+// methods returning bootStateUpdate20 to be used with bootStateUpdate.
 type bootState20Base struct {
 	bootState20Modeenv
 }
@@ -680,9 +679,10 @@ func (bs20 *bootState20Base) markSuccessful(update bootStateUpdate) (bootStateUp
 		return nil, err
 	}
 
-	// always clear the base_status and try_base when marking successful, this
-	// has the useful side-effect of cleaning up if we have base_status=trying
-	// but no try_base set, or if we had an issue with try_base being invalid
+	// on commit, always clear the base_status and try_base when marking
+	// successful, this has the useful side-effect of cleaning up if we have
+	// base_status=trying but no try_base set, or if we had an issue with
+	// try_base being invalid
 	u20.writeModeenv.BaseStatus = DefaultStatus
 	u20.writeModeenv.TryBase = ""
 
