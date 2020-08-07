@@ -74,6 +74,8 @@ type accessChecker interface {
 	checkAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult
 }
 
+// openAccess allows requests without authentication, provided they
+// were not received on snapd-snap.socket
 type openAccess struct{}
 
 func (ac openAccess) checkAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
@@ -85,7 +87,8 @@ func (ac openAccess) checkAccess(r *http.Request, ucred *ucrednet, user *auth.Us
 	return accessOK
 }
 
-// authenticatedAccess allows requests from authenticated users.
+// authenticatedAccess allows requests from authenticated users,
+// provided they were not received on snapd-snap.socket
 //
 // A user is considered authenticated if they provide a macaroon, are
 // the root user according to peer credentials, or granted access by
