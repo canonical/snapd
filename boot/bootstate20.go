@@ -367,7 +367,7 @@ type bootStateUpdate20 struct {
 	// tasks to run before the modeenv has been written
 	preModeenvTasks []bootCommitTask
 
-	// the modeenv that was read from the state
+	// the modeenv that was read from disk
 	modeenv *Modeenv
 
 	// the modeenv that will be written out in commit
@@ -425,14 +425,16 @@ func (u20 *bootStateUpdate20) commit() error {
 		}
 	}
 
+	// TODO:UC20: reseal against the TPM here with the updated modeenv written
+	//            but before doing any post-modeenv tasks so if we got rebooted
+	//            in between, we are still able to boot properly
+
 	// finally handle any post-modeenv writing tasks
 	for _, t := range u20.postModeenvTasks {
 		if err := t(); err != nil {
 			return err
 		}
 	}
-
-	// TODO:UC20: reseal against the TPM here with the updated modeenv written
 
 	return nil
 }
@@ -447,10 +449,6 @@ func (u20 *bootStateUpdate20) commit() error {
 type bootState20Kernel struct {
 	bks bootloaderKernelState20
 
-	// don't embed this struct - it will conflict with embedding
-	// bootState20Modeenv in bootState20Base when both bootState20Base and
-	// bootState20Kernel are embedded in bootState20MarkSuccessful
-	// also we only need to use it with setNext()
 	bootState20Modeenv
 
 	// used to find the bootloader to manipulate the enabled kernel, etc.
@@ -535,16 +533,16 @@ func (ks20 *bootState20Kernel) markSuccessful(update bootStateUpdate) (bootState
 	// details and just operating on the base snap but this situation would
 	// never happen in reality
 	if sn != nil {
-		// mark the kernel successful before rewriting the modeenv because if
-		// we first rewrote the modeenv then got rebooted before marking the
-		// kernel successful, the bootloader would see that the boot failed to
-		// mark it successful and then fall back to the original kernel, but
-		// that kernel would no longer be in the modeenv, so we would die in the
-		// initramfs
+		// On commit, mark the kernel successful before rewriting the modeenv
+		// because if we first rewrote the modeenv then got rebooted before
+		// marking the kernel successful, the bootloader would see that the boot
+		// failed to mark it successful and then fall back to the original
+		// kernel, but that kernel would no longer be in the modeenv, so we
+		// would die in the initramfs
 		u20.preModeenv(func() error { return ks20.bks.markSuccessfulKernel(sn) })
 
-		// set CurrentKernels as just this kernel because that is the successful
-		// kernel we booted
+		// On commit, set CurrentKernels as just this kernel because that is the
+		// successful kernel we booted
 		u20.writeModeenv.CurrentKernels = []string{sn.Filename()}
 	}
 
@@ -583,11 +581,11 @@ func (ks20 *bootState20Kernel) setNext(next snap.PlaceInfo) (rebootRequired bool
 		)
 	}
 
-	// If we are about to try an update, and need to add set the next kernel
-	// before rebooting, we need to do that after updating the modeenv, because
-	// if we did it before and got rebooted in between setting the next kernel
-	// and updating the modeenv, the initramfs would fail the boot because the
-	// modeenv doesn't "trust" or expect the new kernel that booted.
+	// On commit, if we are about to try an update, and need to set the next
+	// kernel before rebooting, we need to do that after updating the modeenv,
+	// because if we did it before and got rebooted in between setting the next
+	// kernel and updating the modeenv, the initramfs would fail the boot
+	// because the modeenv doesn't "trust" or expect the new kernel that booted.
 	// As such, set the next kernel as a post modeenv task.
 	u20.postModeenv(func() error { return ks20.bks.setNextKernel(next, nextStatus) })
 
