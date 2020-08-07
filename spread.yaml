@@ -100,10 +100,6 @@ backends:
             - fedora-32-64:
                   workers: 6
 
-            - opensuse-15.0-64:
-                  workers: 6
-                  manual: true
-
             - arch-linux-64:
                   workers: 6
             - amazon-linux-2-64:
@@ -224,15 +220,6 @@ backends:
             - debian-sid-64:
                   username: debian
                   password: debian
-            - fedora-27-64:
-                  username: fedora
-                  password: fedora
-            - fedora-28-64:
-                  username: fedora
-                  password: fedora
-            - fedora-29-64:
-                  username: fedora
-                  password: fedora
             - centos-7-64:
                   username: centos
                   password: centos
