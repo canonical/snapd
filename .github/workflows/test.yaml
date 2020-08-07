@@ -230,8 +230,8 @@ jobs:
       run: |
           # Register a problem matcher to highlight spread failures
           echo "::add-matcher::.github/spread-problem-matcher.json"
-          export CORE_CHANNEL=edge
-          export BUILD_SNAPD_FROM_CURRENT=true
+          export SPREAD_CORE_CHANNEL=edge
+          export SPREAD_BUILD_SNAPD_FROM_CURRENT=true
           export SPREAD_ENABLE_KVM=true
           if [ "${{ matrix.system }}" = "ubuntu-20.04-64" ]; then
               export SPREAD_ENABLE_KVM=false
