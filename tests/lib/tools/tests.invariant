@@ -9,6 +9,7 @@ show_help() {
 	echo "    lxcfs-mounted: /var/lib/lxcfs is a mount point"
 	echo "    stray-dbus-daemon: at most one dbus-daemon is running"
 	echo "    leftover-defer-sh: defer.sh must not be left over by tests"
+	echo "    unexpected-kernel: system must be running a reasonable kernel"
 }
 
 if [ $# -eq 0 ]; then
@@ -116,6 +117,35 @@ check_leftover_defer_sh() {
 	fi
 }
 
+check_unexpected_kernel() {
+	n="$1" # invariant name
+	(
+		case "${SPREAD_SYSTEM:-}" in
+			ubuntu-16.04-*)
+				case "$(uname -r)" in
+					4.4.*)
+						# Supported release kernel
+						;;
+					4.15.*)
+						# Supported GCE kernel
+						;;
+					*)
+						echo "unexpected kernel kernel $(uname -a) on ${SPREAD_SYSTEM:-}"
+						;;
+					esac
+				;;
+			*)
+				# Unsupported and unverified
+				;;
+		esac
+	) > "/tmp/tests.invariant.$n"
+	if [ -s "/tmp/tests.invariant.$n" ]; then
+		echo "tests.invariant: unexpected kernel version" >&2
+		cat "/tmp/tests.invariant.$n" >&2
+		return 1
+	fi
+}
+
 check_invariant() {
 	case "$1" in
 		root-files-in-home)
@@ -133,6 +163,9 @@ check_invariant() {
 		leftover-defer-sh)
 			check_leftover_defer_sh "$1"
 			;;
+		unexpected-kernel)
+			check_unexpected_kernel "$1"
+			;;
 		*)
 			echo "tests.invariant: unknown invariant $1" >&2
 			exit 1
@@ -140,7 +173,7 @@ check_invariant() {
 	esac
 }
 
-ALL_INVARIANTS="root-files-in-home crashed-snap-confine lxcfs-mounted stray-dbus-daemon leftover-defer-sh"
+ALL_INVARIANTS="root-files-in-home crashed-snap-confine lxcfs-mounted stray-dbus-daemon leftover-defer-sh unexpected-kernel"
 
 case "$action" in
 	check)
