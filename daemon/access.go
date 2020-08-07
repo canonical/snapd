@@ -74,9 +74,9 @@ type accessChecker interface {
 	checkAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult
 }
 
-type OpenAccess struct{}
+type openAccess struct{}
 
-func (ac OpenAccess) checkAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
+func (ac openAccess) checkAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
 	// Forbid access from snapd-snap.socket
 	if ucred != nil && ucred.socket == dirs.SnapSocket {
 		return accessForbidden
@@ -85,16 +85,16 @@ func (ac OpenAccess) checkAccess(r *http.Request, ucred *ucrednet, user *auth.Us
 	return accessOK
 }
 
-// AuthenticatedAccess allows requests from authenticated users.
+// authenticatedAccess allows requests from authenticated users.
 //
 // A user is considered authenticated if they provide a macaroon, are
 // the root user according to peer credentials, or granted access by
 // Polkit.
-type AuthenticatedAccess struct {
+type authenticatedAccess struct {
 	Polkit string
 }
 
-func (ac AuthenticatedAccess) checkAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
+func (ac authenticatedAccess) checkAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
 	// Forbid access from snapd-snap.socket
 	if ucred != nil && ucred.socket == dirs.SnapSocket {
 		return accessForbidden
@@ -120,24 +120,24 @@ func (ac AuthenticatedAccess) checkAccess(r *http.Request, ucred *ucrednet, user
 	return accessUnauthorized
 }
 
-// RootOnlyAccess allows requests from the root uid, provided they
+// rootAccess allows requests from the root uid, provided they
 // were not received on snapd-snap.socket
-type RootOnlyAccess struct{}
+type rootAccess struct{}
 
-func (ac RootOnlyAccess) checkAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
+func (ac rootAccess) checkAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
 	if ucred != nil && ucred.uid == 0 && ucred.socket != dirs.SnapSocket {
 		return accessOK
 	}
 	return accessForbidden
 }
 
-// SnapAccess allows requests from the snapd-snap.socket
-type SnapAccess struct{}
+// snapAccess allows requests from the snapd-snap.socket
+type snapAccess struct{}
 
-func (ac SnapAccess) checkAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
+func (ac snapAccess) checkAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
 	if ucred != nil && ucred.socket == dirs.SnapSocket {
 		return accessOK
 	}
-	// FIXME: should this be allowed?
-	return accessOK
+	// FIXME: should snapctl access be allowed on the main socket?
+	return accessForbidden
 }

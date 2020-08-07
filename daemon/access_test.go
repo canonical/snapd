@@ -38,9 +38,9 @@ type accessSuite struct{}
 var _ = Suite(&accessSuite{})
 
 func (s *accessSuite) TestOpenAccess(c *C) {
-	var ac accessChecker = OpenAccess{}
+	var ac accessChecker = openAccess{}
 
-	// OpenAccess denies access from snapd-snap.socket
+	// openAccess denies access from snapd-snap.socket
 	ucred := &ucrednet{uid: 42, pid: 100, socket: dirs.SnapSocket}
 	c.Check(ac.checkAccess(nil, ucred, nil), Equals, accessForbidden)
 
@@ -51,12 +51,12 @@ func (s *accessSuite) TestOpenAccess(c *C) {
 }
 
 func (s *accessSuite) TestAuthenticatedAccess(c *C) {
-	var ac accessChecker = AuthenticatedAccess{}
+	var ac accessChecker = authenticatedAccess{}
 
 	req := httptest.NewRequest("GET", "/", nil)
 	user := &auth.UserState{}
 
-	// AuthenticatedAccess denies access from snapd-snap.socket
+	// authenticatedAccess denies access from snapd-snap.socket
 	ucred := &ucrednet{uid: 0, pid: 100, socket: dirs.SnapSocket}
 	c.Check(ac.checkAccess(req, ucred, nil), Equals, accessForbidden)
 	c.Check(ac.checkAccess(req, ucred, user), Equals, accessForbidden)
@@ -82,7 +82,7 @@ func (s *accessSuite) TestAuthenticatedAccessPolkit(c *C) {
 		logger.SetLogger(logger.NullLogger)
 	}()
 
-	var ac accessChecker = AuthenticatedAccess{Polkit: "action-id"}
+	var ac accessChecker = authenticatedAccess{Polkit: "action-id"}
 
 	var logbuf bytes.Buffer
 	log, err := logger.New(&logbuf, logger.DefaultFlags)
@@ -152,12 +152,12 @@ func (s *accessSuite) TestAuthenticatedAccessPolkit(c *C) {
 	c.Check(logbuf.String(), testutil.Contains, "error parsing X-Allow-Interaction header:")
 }
 
-func (s *accessSuite) TestRootOnlyAccess(c *C) {
-	var ac accessChecker = RootOnlyAccess{}
+func (s *accessSuite) TestRootAccess(c *C) {
+	var ac accessChecker = rootAccess{}
 
 	user := &auth.UserState{}
 
-	// RootOnlyAccess denies access from snapd-snap.socket
+	// rootAccess denies access from snapd-snap.socket
 	ucred := &ucrednet{uid: 0, pid: 100, socket: dirs.SnapSocket}
 	c.Check(ac.checkAccess(nil, ucred, nil), Equals, accessForbidden)
 	c.Check(ac.checkAccess(nil, ucred, user), Equals, accessForbidden)
@@ -173,14 +173,14 @@ func (s *accessSuite) TestRootOnlyAccess(c *C) {
 }
 
 func (s *accessSuite) TestSnapAccess(c *C) {
-	var ac accessChecker = SnapAccess{}
+	var ac accessChecker = snapAccess{}
 
-	// SnapAccess allows access from snapd-snap.socket
+	// snapAccess allows access from snapd-snap.socket
 	ucred := &ucrednet{uid: 42, pid: 100, socket: dirs.SnapSocket}
 	c.Check(ac.checkAccess(nil, ucred, nil), Equals, accessOK)
 
-	// access is also allowed for non-snaps
+	// access is forbidden on the main socket or without peer creds
 	ucred.socket = dirs.SnapdSocket
-	c.Check(ac.checkAccess(nil, ucred, nil), Equals, accessOK)
-	c.Check(ac.checkAccess(nil, nil, nil), Equals, accessOK)
+	c.Check(ac.checkAccess(nil, ucred, nil), Equals, accessForbidden)
+	c.Check(ac.checkAccess(nil, nil, nil), Equals, accessForbidden)
 }

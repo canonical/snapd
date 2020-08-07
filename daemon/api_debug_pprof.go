@@ -30,7 +30,7 @@ import (
 
 var debugPprofCmd = &Command{
 	PathPrefix: "/v2/debug/pprof/",
-	ReadAccess: RootOnlyAccess{},
+	ReadAccess: rootAccess{},
 	GET:        getPprof,
 }
 

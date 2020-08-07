@@ -120,124 +120,124 @@ var (
 	// see daemon.go:canAccess for details how the access is controlled
 	rootCmd = &Command{
 		Path:       "/",
-		ReadAccess: OpenAccess{},
+		ReadAccess: openAccess{},
 		GET:        tbd,
 	}
 
 	sysInfoCmd = &Command{
 		Path:       "/v2/system-info",
-		ReadAccess: OpenAccess{},
+		ReadAccess: openAccess{},
 		GET:        sysInfo,
 	}
 
 	appIconCmd = &Command{
 		Path:       "/v2/icons/{name}/icon",
-		ReadAccess: OpenAccess{},
+		ReadAccess: openAccess{},
 		GET:        appIconGet,
 	}
 
 	findCmd = &Command{
 		Path:       "/v2/find",
-		ReadAccess: OpenAccess{},
+		ReadAccess: openAccess{},
 		GET:        searchStore,
 	}
 
 	snapsCmd = &Command{
 		Path:        "/v2/snaps",
-		ReadAccess:  OpenAccess{},
-		WriteAccess: AuthenticatedAccess{Polkit: "io.snapcraft.snapd.manage"},
+		ReadAccess:  openAccess{},
+		WriteAccess: authenticatedAccess{Polkit: "io.snapcraft.snapd.manage"},
 		GET:         getSnapsInfo,
 		POST:        postSnaps,
 	}
 
 	snapCmd = &Command{
 		Path:        "/v2/snaps/{name}",
-		ReadAccess:  OpenAccess{},
-		WriteAccess: AuthenticatedAccess{Polkit: "io.snapcraft.snapd.manage"},
+		ReadAccess:  openAccess{},
+		WriteAccess: authenticatedAccess{Polkit: "io.snapcraft.snapd.manage"},
 		GET:         getSnapInfo,
 		POST:        postSnap,
 	}
 
 	appsCmd = &Command{
 		Path:        "/v2/apps",
-		ReadAccess:  OpenAccess{},
-		WriteAccess: AuthenticatedAccess{},
+		ReadAccess:  openAccess{},
+		WriteAccess: authenticatedAccess{},
 		GET:         getAppsInfo,
 		POST:        postApps,
 	}
 
 	logsCmd = &Command{
 		Path:       "/v2/logs",
-		ReadAccess: AuthenticatedAccess{Polkit: "io.snapcraft.snapd.manage"},
+		ReadAccess: authenticatedAccess{Polkit: "io.snapcraft.snapd.manage"},
 		GET:        getLogs,
 	}
 
 	snapConfCmd = &Command{
 		Path:        "/v2/snaps/{name}/conf",
-		ReadAccess:  AuthenticatedAccess{},
-		WriteAccess: AuthenticatedAccess{},
+		ReadAccess:  authenticatedAccess{},
+		WriteAccess: authenticatedAccess{},
 		GET:         getSnapConf,
 		PUT:         setSnapConf,
 	}
 
 	interfacesCmd = &Command{
 		Path:        "/v2/interfaces",
-		ReadAccess:  OpenAccess{},
-		WriteAccess: AuthenticatedAccess{Polkit: "io.snapcraft.snapd.manage-interfaces"},
+		ReadAccess:  openAccess{},
+		WriteAccess: authenticatedAccess{Polkit: "io.snapcraft.snapd.manage-interfaces"},
 		GET:         interfacesConnectionsMultiplexer,
 		POST:        changeInterfaces,
 	}
 
 	stateChangeCmd = &Command{
 		Path:        "/v2/changes/{id}",
-		ReadAccess:  OpenAccess{},
-		WriteAccess: AuthenticatedAccess{Polkit: "io.snapcraft.snapd.manage"},
+		ReadAccess:  openAccess{},
+		WriteAccess: authenticatedAccess{Polkit: "io.snapcraft.snapd.manage"},
 		GET:         getChange,
 		POST:        abortChange,
 	}
 
 	stateChangesCmd = &Command{
 		Path:       "/v2/changes",
-		ReadAccess: OpenAccess{},
+		ReadAccess: openAccess{},
 		GET:        getChanges,
 	}
 
 	buyCmd = &Command{
 		Path:        "/v2/buy",
-		WriteAccess: AuthenticatedAccess{},
+		WriteAccess: authenticatedAccess{},
 		POST:        postBuy,
 	}
 
 	readyToBuyCmd = &Command{
 		Path:       "/v2/buy/ready",
-		ReadAccess: AuthenticatedAccess{},
+		ReadAccess: authenticatedAccess{},
 		GET:        readyToBuy,
 	}
 
 	snapctlCmd = &Command{
 		Path:        "/v2/snapctl",
-		WriteAccess: SnapAccess{},
+		WriteAccess: snapAccess{},
 		POST:        runSnapctl,
 	}
 
 	sectionsCmd = &Command{
 		Path:       "/v2/sections",
-		ReadAccess: OpenAccess{},
+		ReadAccess: openAccess{},
 		GET:        getSections,
 	}
 
 	aliasesCmd = &Command{
 		Path:        "/v2/aliases",
-		ReadAccess:  OpenAccess{},
-		WriteAccess: AuthenticatedAccess{},
+		ReadAccess:  openAccess{},
+		WriteAccess: authenticatedAccess{},
 		GET:         getAliases,
 		POST:        changeAliases,
 	}
 
 	warningsCmd = &Command{
 		Path:        "/v2/warnings",
-		ReadAccess:  OpenAccess{},
-		WriteAccess: AuthenticatedAccess{Polkit: "io.snapcraft.snapd.manage"},
+		ReadAccess:  openAccess{},
+		WriteAccess: authenticatedAccess{Polkit: "io.snapcraft.snapd.manage"},
 		GET:         getWarnings,
 		POST:        ackWarnings,
 	}

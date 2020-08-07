@@ -32,13 +32,13 @@ import (
 var (
 	serialModelCmd = &Command{
 		Path:       "/v2/model/serial",
-		ReadAccess: OpenAccess{},
+		ReadAccess: openAccess{},
 		GET:        getSerial,
 	}
 	modelCmd = &Command{
 		Path:        "/v2/model",
-		ReadAccess:  OpenAccess{},
-		WriteAccess: AuthenticatedAccess{},
+		ReadAccess:  openAccess{},
+		WriteAccess: authenticatedAccess{},
 		POST:        postModel,
 		GET:         getModel,
 	}

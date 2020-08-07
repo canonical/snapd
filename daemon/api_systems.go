@@ -32,13 +32,13 @@ import (
 
 var systemsCmd = &Command{
 	Path:       "/v2/systems",
-	ReadAccess: AuthenticatedAccess{},
+	ReadAccess: authenticatedAccess{},
 	GET:        getSystems,
 }
 
 var systemsActionCmd = &Command{
 	Path:        "/v2/systems/{label}",
-	WriteAccess: RootOnlyAccess{},
+	WriteAccess: rootAccess{},
 	POST:        postSystemsAction,
 }
 

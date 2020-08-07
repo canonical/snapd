@@ -30,7 +30,7 @@ import (
 
 var cohortsCmd = &Command{
 	Path:        "/v2/cohorts",
-	WriteAccess: AuthenticatedAccess{},
+	WriteAccess: authenticatedAccess{},
 	POST:        postCohorts,
 }
 

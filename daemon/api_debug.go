@@ -37,8 +37,8 @@ import (
 
 var debugCmd = &Command{
 	Path:        "/v2/debug",
-	ReadAccess:  OpenAccess{},
-	WriteAccess: AuthenticatedAccess{},
+	ReadAccess:  openAccess{},
+	WriteAccess: authenticatedAccess{},
 	GET:         getDebug,
 	POST:        postDebug,
 }

@@ -30,7 +30,7 @@ import (
 
 var snapFileCmd = &Command{
 	Path:       "/v2/snaps/{name}/file",
-	ReadAccess: OpenAccess{},
+	ReadAccess: openAccess{},
 	GET:        getSnapFile,
 }
 

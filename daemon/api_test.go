@@ -606,10 +606,10 @@ func (s *apiSuite) TestUsersOnlyRoot(c *check.C) {
 	for _, cmd := range api {
 		if strings.Contains(cmd.Path, "user") {
 			if cmd.ReadAccess != nil {
-				c.Check(cmd.ReadAccess, check.Equals, RootOnlyAccess{}, check.Commentf(cmd.Path))
+				c.Check(cmd.ReadAccess, check.Equals, rootAccess{}, check.Commentf(cmd.Path))
 			}
 			if cmd.WriteAccess != nil {
-				c.Check(cmd.WriteAccess, check.Equals, RootOnlyAccess{}, check.Commentf(cmd.Path))
+				c.Check(cmd.WriteAccess, check.Equals, rootAccess{}, check.Commentf(cmd.Path))
 			}
 		}
 	}

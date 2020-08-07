@@ -117,8 +117,8 @@ func (s *daemonSuite) TestCommandMethodDispatch(c *check.C) {
 	cmd.GET = rf
 	cmd.PUT = rf
 	cmd.POST = rf
-	cmd.ReadAccess = AuthenticatedAccess{}
-	cmd.WriteAccess = AuthenticatedAccess{}
+	cmd.ReadAccess = authenticatedAccess{}
+	cmd.WriteAccess = authenticatedAccess{}
 
 	for _, method := range []string{"GET", "POST", "PUT"} {
 		req, err := http.NewRequest(method, "", nil)
@@ -153,7 +153,7 @@ func (s *daemonSuite) TestCommandRestartingState(c *check.C) {
 	cmd.GET = func(*Command, *http.Request, *auth.UserState) Response {
 		return SyncResponse(nil, nil)
 	}
-	cmd.ReadAccess = OpenAccess{}
+	cmd.ReadAccess = openAccess{}
 	req, err := http.NewRequest("GET", "", nil)
 	c.Assert(err, check.IsNil)
 	req.RemoteAddr = "pid=100;uid=0;socket=;"
@@ -198,7 +198,7 @@ func (s *daemonSuite) TestFillsWarnings(c *check.C) {
 	cmd.GET = func(*Command, *http.Request, *auth.UserState) Response {
 		return SyncResponse(nil, nil)
 	}
-	cmd.ReadAccess = OpenAccess{}
+	cmd.ReadAccess = openAccess{}
 	req, err := http.NewRequest("GET", "", nil)
 	c.Assert(err, check.IsNil)
 	req.RemoteAddr = "pid=100;uid=0;socket=;"
@@ -1105,8 +1105,8 @@ func (s *daemonSuite) TestDegradedModeReply(c *check.C) {
 	cmd.POST = func(*Command, *http.Request, *auth.UserState) Response {
 		return SyncResponse(nil, nil)
 	}
-	cmd.ReadAccess = AuthenticatedAccess{}
-	cmd.WriteAccess = AuthenticatedAccess{}
+	cmd.ReadAccess = authenticatedAccess{}
+	cmd.WriteAccess = authenticatedAccess{}
 
 	// pretend we are in degraded mode
 	d.SetDegradedMode(fmt.Errorf("foo error"))

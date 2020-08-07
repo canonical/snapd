@@ -32,7 +32,7 @@ import (
 
 var connectionsCmd = &Command{
 	Path:       "/v2/connections",
-	ReadAccess: OpenAccess{},
+	ReadAccess: openAccess{},
 	GET:        getConnections,
 }
 
