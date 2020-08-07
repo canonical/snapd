@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -217,12 +217,11 @@ func writeFileOrSymlink(src, dst string, preserveInDst []string) error {
 			return fmt.Errorf("cannot write a symlink: %v", err)
 		}
 	} else {
-		// overwrite & sync by default
-		copyFlags := osutil.CopyFlagOverwrite | osutil.CopyFlagSync
-
-		// TODO use osutil.AtomicFile
 		// TODO try to preserve ownership and permission bits
-		if err := osutil.CopyFile(src, dst, copyFlags); err != nil {
+
+		// do not follow sylimks, dst is a reflection of the src which
+		// is a file
+		if err := osutil.AtomicWriteFileCopy(dst, src, 0); err != nil {
 			return fmt.Errorf("cannot copy %s: %v", src, err)
 		}
 	}

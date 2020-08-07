@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,8 +17,8 @@
  *
  */
 
-package kmod
+package udev
 
-func (b *Backend) LoadModules(modules []string) {
-	b.loadModules(modules)
+func (b *Backend) ReloadRules(subsystemTriggers []string) error {
+	return b.reloadRules(subsystemTriggers)
 }
