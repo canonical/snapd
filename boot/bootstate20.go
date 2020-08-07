@@ -377,6 +377,14 @@ type bootStateUpdate20 struct {
 	postModeenvTasks []bootCommitTask
 }
 
+func (u20 *bootStateUpdate20) preModeenv(task bootCommitTask) {
+	u20.preModeenvTasks = append(u20.preModeenvTasks, task)
+}
+
+func (u20 *bootStateUpdate20) postModeenv(task bootCommitTask) {
+	u20.postModeenvTasks = append(u20.postModeenvTasks, task)
+}
+
 func newBootStateUpdate20(m *Modeenv) (*bootStateUpdate20, error) {
 	u20 := &bootStateUpdate20{}
 	// copy the modeenv for the write object
@@ -533,9 +541,7 @@ func (ks20 *bootState20Kernel) markSuccessful(update bootStateUpdate) (bootState
 		// mark it successful and then fall back to the original kernel, but
 		// that kernel would no longer be in the modeenv, so we would die in the
 		// initramfs
-		u20.preModeenvTasks = append(u20.preModeenvTasks, func() error {
-			return ks20.bks.markSuccessfulKernel(sn)
-		})
+		u20.preModeenv(func() error { return ks20.bks.markSuccessfulKernel(sn) })
 
 		// set CurrentKernels as just this kernel because that is the successful
 		// kernel we booted
@@ -583,9 +589,7 @@ func (ks20 *bootState20Kernel) setNext(next snap.PlaceInfo) (rebootRequired bool
 	// and updating the modeenv, the initramfs would fail the boot because the
 	// modeenv doesn't "trust" or expect the new kernel that booted.
 	// As such, set the next kernel as a post modeenv task.
-	u20.postModeenvTasks = append(u20.postModeenvTasks, func() error {
-		return ks20.bks.setNextKernel(next, nextStatus)
-	})
+	u20.postModeenv(func() error { return ks20.bks.setNextKernel(next, nextStatus) })
 
 	return rebootRequired, u20, nil
 }
