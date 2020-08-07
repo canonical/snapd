@@ -34,6 +34,7 @@ import (
 	"github.com/gorilla/mux"
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
@@ -160,11 +161,11 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		_, rst := st.Restarting()
 		switch rst {
 		case state.RestartSystem, state.RestartSystemNow:
-			rsp.transmitMaintenance(errorKindSystemRestart, "system is restarting")
+			rsp.transmitMaintenance(client.ErrorKindSystemRestart, "system is restarting")
 		case state.RestartDaemon:
-			rsp.transmitMaintenance(errorKindDaemonRestart, "daemon is restarting")
+			rsp.transmitMaintenance(client.ErrorKindDaemonRestart, "daemon is restarting")
 		case state.RestartSocket:
-			rsp.transmitMaintenance(errorKindDaemonRestart, "daemon is stopping to wait for socket activation")
+			rsp.transmitMaintenance(client.ErrorKindDaemonRestart, "daemon is stopping to wait for socket activation")
 		}
 		if rsp.Type != ResponseTypeError {
 			st.Lock()

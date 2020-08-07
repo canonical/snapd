@@ -126,7 +126,7 @@ version: 4.0
 		UnpackedGadgetDir: unpackedGadgetDir,
 	}
 
-	err = boot.MakeBootable(model, rootdir, bootWith)
+	err = boot.MakeBootable(model, rootdir, bootWith, nil)
 	c.Assert(err, IsNil)
 
 	// check the bootloader config
@@ -268,7 +268,7 @@ version: 5.0
 		Recovery:            true,
 	}
 
-	err = boot.MakeBootable(model, rootdir, bootWith)
+	err = boot.MakeBootable(model, rootdir, bootWith, nil)
 	c.Assert(err, IsNil)
 
 	// ensure only a single file got copied (the grub.cfg)
@@ -313,7 +313,7 @@ func (s *makeBootable20Suite) TestMakeBootable20UnsetRecoverySystemLabelError(c 
 		Recovery:          true,
 	}
 
-	err = boot.MakeBootable(model, rootdir, bootWith)
+	err = boot.MakeBootable(model, rootdir, bootWith, nil)
 	c.Assert(err, ErrorMatches, "internal error: recovery system label unset")
 }
 
@@ -327,7 +327,7 @@ func (s *makeBootable20Suite) TestMakeBootable20MultipleRecoverySystemsError(c *
 	err = os.MkdirAll(filepath.Join(rootdir, "systems/20191205"), 0755)
 	c.Assert(err, IsNil)
 
-	err = boot.MakeBootable(model, rootdir, bootWith)
+	err = boot.MakeBootable(model, rootdir, bootWith, nil)
 	c.Assert(err, ErrorMatches, "cannot make multiple recovery systems bootable yet")
 }
 
@@ -402,7 +402,7 @@ version: 5.0
 		UnpackedGadgetDir: unpackedGadgetDir,
 	}
 
-	err = boot.MakeBootable(model, rootdir, bootWith)
+	err = boot.MakeBootable(model, rootdir, bootWith, nil)
 	c.Assert(err, IsNil)
 
 	// ensure grub.cfg in boot was installed from internal assets
@@ -442,6 +442,7 @@ version: 5.0
 	ubuntuDataModeEnvPath := filepath.Join(rootdir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/modeenv")
 	c.Check(ubuntuDataModeEnvPath, testutil.FileEquals, `mode=run
 recovery_system=20191216
+current_recovery_systems=20191216
 base=core20_3.snap
 current_kernels=pc-kernel_5.snap
 model=my-brand/my-model-uc20
@@ -507,7 +508,7 @@ version: 5.0
 	}
 
 	// no grub cfg in gadget directory raises an error
-	err = boot.MakeBootable(model, rootdir, bootWith)
+	err = boot.MakeBootable(model, rootdir, bootWith, nil)
 	c.Assert(err, ErrorMatches, "cannot install boot config with a mismatched gadget")
 
 	// set up grub.cfg in gadget
@@ -518,7 +519,7 @@ version: 5.0
 	// no write access to destination directory
 	restore := assets.MockInternal("grub.cfg", nil)
 	defer restore()
-	err = boot.MakeBootable(model, rootdir, bootWith)
+	err = boot.MakeBootable(model, rootdir, bootWith, nil)
 	c.Assert(err, ErrorMatches, `cannot install managed bootloader assets: internal error: no boot asset for "grub.cfg"`)
 }
 
@@ -570,7 +571,7 @@ version: 5.0
 	}
 
 	// TODO:UC20: enable this use case
-	err = boot.MakeBootable(model, rootdir, bootWith)
+	err = boot.MakeBootable(model, rootdir, bootWith, nil)
 	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find boot config in %q", unpackedGadgetDir))
 }
 
@@ -621,7 +622,7 @@ version: 5.0
 		Recovery:            true,
 	}
 
-	err = boot.MakeBootable(model, rootdir, bootWith)
+	err = boot.MakeBootable(model, rootdir, bootWith, nil)
 	c.Assert(err, IsNil)
 
 	// since uboot.conf was absent, we won't have installed the uboot.env, as
@@ -700,7 +701,7 @@ version: 5.0
 		Recovery:          false,
 	}
 
-	err = boot.MakeBootable(model, rootdir, bootWith)
+	err = boot.MakeBootable(model, rootdir, bootWith, nil)
 	c.Assert(err, IsNil)
 
 	// ensure base/kernel got copied to /var/lib/snapd/snaps
@@ -732,6 +733,7 @@ version: 5.0
 	ubuntuDataModeEnvPath := filepath.Join(rootdir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/modeenv")
 	c.Check(ubuntuDataModeEnvPath, testutil.FileEquals, `mode=run
 recovery_system=20191216
+current_recovery_systems=20191216
 base=core20_3.snap
 current_kernels=arm-kernel_5.snap
 model=my-brand/my-model-uc20

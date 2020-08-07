@@ -37,6 +37,7 @@ import (
 	"github.com/gorilla/mux"
 	"gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -175,7 +176,7 @@ func (s *daemonSuite) TestCommandRestartingState(c *check.C) {
 	err = json.Unmarshal(rec.Body.Bytes(), &rst)
 	c.Assert(err, check.IsNil)
 	c.Check(rst.Maintenance, check.DeepEquals, &errorResult{
-		Kind:    errorKindSystemRestart,
+		Kind:    client.ErrorKindSystemRestart,
 		Message: "system is restarting",
 	})
 
@@ -186,7 +187,7 @@ func (s *daemonSuite) TestCommandRestartingState(c *check.C) {
 	err = json.Unmarshal(rec.Body.Bytes(), &rst)
 	c.Assert(err, check.IsNil)
 	c.Check(rst.Maintenance, check.DeepEquals, &errorResult{
-		Kind:    errorKindDaemonRestart,
+		Kind:    client.ErrorKindDaemonRestart,
 		Message: "daemon is restarting",
 	})
 }
