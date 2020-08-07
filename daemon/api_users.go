@@ -44,13 +44,13 @@ import (
 var (
 	loginCmd = &Command{
 		Path:        "/v2/login",
-		WriteAccess: authenticatedAccess{Polkit: "io.snapcraft.snapd.login"},
+		WriteAccess: authenticatedAccess{Polkit: polkitActionLogin},
 		POST:        loginUser,
 	}
 
 	logoutCmd = &Command{
 		Path:        "/v2/logout",
-		WriteAccess: authenticatedAccess{Polkit: "io.snapcraft.snapd.login"},
+		WriteAccess: authenticatedAccess{Polkit: polkitActionLogin},
 		POST:        logoutUser,
 	}
 

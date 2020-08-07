@@ -37,7 +37,7 @@ var snapshotCmd = &Command{
 	// TODO: also support /v2/snapshots/<id>
 	Path:        "/v2/snapshots",
 	ReadAccess:  openAccess{},
-	WriteAccess: authenticatedAccess{Polkit: "io.snapcraft.snapd.manage"},
+	WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 	GET:         listSnapshots,
 	POST:        changeSnapshots,
 }

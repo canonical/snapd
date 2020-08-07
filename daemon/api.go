@@ -116,6 +116,12 @@ var api = []*Command{
 
 var servicestateControl = servicestate.Control
 
+const (
+	polkitActionLogin            = "io.snapcraft.snapd.login"
+	polkitActionManage           = "io.snapcraft.snapd.manage"
+	polkitActionManageInterfaces = "io.snapcraft.snapd.manage-interfaces"
+)
+
 var (
 	// see access.go for details how the access is controlled
 	rootCmd = &Command{
@@ -145,7 +151,7 @@ var (
 	snapsCmd = &Command{
 		Path:        "/v2/snaps",
 		ReadAccess:  openAccess{},
-		WriteAccess: authenticatedAccess{Polkit: "io.snapcraft.snapd.manage"},
+		WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 		GET:         getSnapsInfo,
 		POST:        postSnaps,
 	}
@@ -153,7 +159,7 @@ var (
 	snapCmd = &Command{
 		Path:        "/v2/snaps/{name}",
 		ReadAccess:  openAccess{},
-		WriteAccess: authenticatedAccess{Polkit: "io.snapcraft.snapd.manage"},
+		WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 		GET:         getSnapInfo,
 		POST:        postSnap,
 	}
@@ -168,7 +174,7 @@ var (
 
 	logsCmd = &Command{
 		Path:       "/v2/logs",
-		ReadAccess: authenticatedAccess{Polkit: "io.snapcraft.snapd.manage"},
+		ReadAccess: authenticatedAccess{Polkit: polkitActionManage},
 		GET:        getLogs,
 	}
 
@@ -183,7 +189,7 @@ var (
 	interfacesCmd = &Command{
 		Path:        "/v2/interfaces",
 		ReadAccess:  openAccess{},
-		WriteAccess: authenticatedAccess{Polkit: "io.snapcraft.snapd.manage-interfaces"},
+		WriteAccess: authenticatedAccess{Polkit: polkitActionManageInterfaces},
 		GET:         interfacesConnectionsMultiplexer,
 		POST:        changeInterfaces,
 	}
@@ -191,7 +197,7 @@ var (
 	stateChangeCmd = &Command{
 		Path:        "/v2/changes/{id}",
 		ReadAccess:  openAccess{},
-		WriteAccess: authenticatedAccess{Polkit: "io.snapcraft.snapd.manage"},
+		WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 		GET:         getChange,
 		POST:        abortChange,
 	}
@@ -237,7 +243,7 @@ var (
 	warningsCmd = &Command{
 		Path:        "/v2/warnings",
 		ReadAccess:  openAccess{},
-		WriteAccess: authenticatedAccess{Polkit: "io.snapcraft.snapd.manage"},
+		WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 		GET:         getWarnings,
 		POST:        ackWarnings,
 	}

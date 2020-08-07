@@ -43,7 +43,7 @@ import (
 
 var snapDownloadCmd = &Command{
 	Path:        "/v2/download",
-	WriteAccess: authenticatedAccess{Polkit: "io.snapcraft.snapd.manage"},
+	WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 	POST:        postSnapDownload,
 }
 
