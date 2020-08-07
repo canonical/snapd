@@ -44,7 +44,7 @@ execute: |
         exit 1
     fi
 
-    if ! printf 'GET /v2/snaps HTTP/1.0\r\n\r\n' | nc -U -w 1 /run/snapd-snap.socket | grep '401 Unauthorized'; then
-        echo "Expected snapd API to be unauthorized on the snap socket"
+    if ! printf 'GET /v2/snaps HTTP/1.0\r\n\r\n' | nc -U -w 1 /run/snapd-snap.socket | grep '403 Forbidden'; then
+        echo "Expected snapd API to be forbidden on the snap socket"
         exit 1
     fi

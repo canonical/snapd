@@ -10,7 +10,7 @@ restore: |
 execute: |
     # endpoints are accessible only for the root user
     su -c 'curl -s --unix-socket /run/snapd.socket http://localhost/v2/debug/pprof/cmdline' test > unauthorized
-    MATCH '"kind":"login-required"' < unauthorized
+    MATCH '"status":"Forbidden"' < unauthorized
 
     # one of pprof endpoints exposes a cmdline of the process
     curl -s --unix-socket /run/snapd.socket -o reported-cmdline http://localhost/v2/debug/pprof/cmdline
