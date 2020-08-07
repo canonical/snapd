@@ -1,3 +1,9 @@
+snapd (2.46~pre1.gitaf15176) groovy; urgency=medium
+
+  * New git snapshot for the upcoming 2.46 release
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 07 Aug 2020 09:15:31 +0200
+
 snapd (2.45.3.1) xenial; urgency=medium
 
   * New upstream release, LP: #1875071
