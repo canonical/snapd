@@ -566,7 +566,8 @@ func (s *apiSuite) TestSystemActionNonRoot(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(rspBody, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
-			"message": "forbidden",
+			"message": "access denied",
+			"kind":    "login-required",
 		},
 		"status":      "Forbidden",
 		"status-code": 403.0,

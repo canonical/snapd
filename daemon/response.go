@@ -191,7 +191,8 @@ func makeErrorResponder(status int) errorResponder {
 		} else {
 			res.Message = fmt.Sprintf(format, v...)
 		}
-		if status == 401 {
+		// FIXME: forbidden should use a different kind.
+		if status == 401 || status == 403 {
 			res.Kind = client.ErrorKindLoginRequired
 		}
 		return &resp{

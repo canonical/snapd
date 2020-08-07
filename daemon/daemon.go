@@ -148,7 +148,7 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Unauthorized("access denied").ServeHTTP(w, r)
 		return
 	case accessForbidden:
-		Forbidden("forbidden").ServeHTTP(w, r)
+		Forbidden("access denied").ServeHTTP(w, r)
 		return
 	case accessCancelled:
 		AuthCancelled("cancelled").ServeHTTP(w, r)
