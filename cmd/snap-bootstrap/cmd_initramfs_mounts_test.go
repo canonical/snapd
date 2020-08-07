@@ -1183,6 +1183,14 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallRecoverModeStep2Measure
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep2Measure(c *C) {
+	s.testInitramfsMountsInstallRecoverModeStep2Measure(c, "install")
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeUnsetStep2Measure(c *C) {
+	// TODO:UC20: eventually we should require snapd_recovery_mode to be set to
+	// explicitly "install" for install mode, but we originally allowed
+	// snapd_recovery_mode="" and interpreted it as install mode, so test that
+	// case too
 	s.testInitramfsMountsInstallRecoverModeStep2Measure(c, "")
 }
 

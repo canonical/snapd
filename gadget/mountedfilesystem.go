@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -64,11 +64,12 @@ func checkContent(content *VolumeContent) error {
 type MountedFilesystemWriter struct {
 	contentDir string
 	ps         *LaidOutStructure
+	observer   ContentObserver
 }
 
 // NewMountedFilesystemWriter returns a writer capable of writing provided
 // structure, with content of the structure stored in the given root directory.
-func NewMountedFilesystemWriter(contentDir string, ps *LaidOutStructure) (*MountedFilesystemWriter, error) {
+func NewMountedFilesystemWriter(contentDir string, ps *LaidOutStructure, observer ContentObserver) (*MountedFilesystemWriter, error) {
 	if ps == nil {
 		return nil, fmt.Errorf("internal error: *LaidOutStructure is nil")
 	}
@@ -81,6 +82,7 @@ func NewMountedFilesystemWriter(contentDir string, ps *LaidOutStructure) (*Mount
 	fw := &MountedFilesystemWriter{
 		contentDir: contentDir,
 		ps:         ps,
+		observer:   observer,
 	}
 	return fw, nil
 }
@@ -128,7 +130,7 @@ func (m *MountedFilesystemWriter) Write(whereDir string, preserve []string) erro
 // location dst. Follows rsync like semantics, that is:
 //   /foo/ -> /bar - writes contents of foo under /bar
 //   /foo  -> /bar - writes foo and its subtree under /bar
-func writeDirectory(src, dst string, preserveInDst []string) error {
+func (m *MountedFilesystemWriter) writeDirectory(volumeRoot, src, dst string, preserveInDst []string) error {
 	hasDirSourceSlash := strings.HasSuffix(src, "/")
 
 	if err := checkSourceIsDir(src); err != nil {
@@ -149,21 +151,40 @@ func writeDirectory(src, dst string, preserveInDst []string) error {
 		pSrc := filepath.Join(src, fi.Name())
 		pDst := filepath.Join(dst, fi.Name())
 
-		write := writeFileOrSymlink
+		write := m.observedWriteFileOrSymlink
 		if fi.IsDir() {
 			if err := os.MkdirAll(pDst, 0755); err != nil {
 				return fmt.Errorf("cannot create directory prefix: %v", err)
 			}
 
-			write = writeDirectory
+			write = m.writeDirectory
 			pSrc += "/"
 		}
-		if err := write(pSrc, pDst, preserveInDst); err != nil {
+		if err := write(volumeRoot, pSrc, pDst, preserveInDst); err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+func (m *MountedFilesystemWriter) observedWriteFileOrSymlink(volumeRoot, src, dst string, preserveInDst []string) error {
+	if strings.HasSuffix(dst, "/") {
+		// write to directory
+		dst = filepath.Join(dst, filepath.Base(src))
+	}
+
+	if m.observer != nil {
+		relativeDst, err := filepath.Rel(volumeRoot, dst)
+		if err != nil {
+			return err
+		}
+		_, err = m.observer.Observe(ContentWrite, m.ps, volumeRoot, src, relativeDst)
+		if err != nil {
+			return fmt.Errorf("cannot observe file write: %v", err)
+		}
+	}
+	return writeFileOrSymlink(src, dst, preserveInDst)
 }
 
 // writeFileOrSymlink writes the source file or a symlink at given location or
@@ -196,12 +217,11 @@ func writeFileOrSymlink(src, dst string, preserveInDst []string) error {
 			return fmt.Errorf("cannot write a symlink: %v", err)
 		}
 	} else {
-		// overwrite & sync by default
-		copyFlags := osutil.CopyFlagOverwrite | osutil.CopyFlagSync
-
-		// TODO use osutil.AtomicFile
 		// TODO try to preserve ownership and permission bits
-		if err := osutil.CopyFile(src, dst, copyFlags); err != nil {
+
+		// do not follow sylimks, dst is a reflection of the src which
+		// is a file
+		if err := osutil.AtomicWriteFileCopy(dst, src, 0); err != nil {
 			return fmt.Errorf("cannot copy %s: %v", src, err)
 		}
 	}
@@ -225,10 +245,10 @@ func (m *MountedFilesystemWriter) writeVolumeContent(volumeRoot string, content 
 
 	if osutil.IsDirectory(realSource) || strings.HasSuffix(content.Source, "/") {
 		// write a directory
-		return writeDirectory(realSource, realTarget, preserveInDst)
+		return m.writeDirectory(volumeRoot, realSource, realTarget, preserveInDst)
 	} else {
 		// write a file
-		return writeFileOrSymlink(realSource, realTarget, preserveInDst)
+		return m.observedWriteFileOrSymlink(volumeRoot, realSource, realTarget, preserveInDst)
 	}
 }
 
@@ -275,7 +295,7 @@ type mountedFilesystemUpdater struct {
 // mount is located by calling a mount lookup helper. The backup directory
 // contains backup state information for use during rollback.
 func newMountedFilesystemUpdater(rootDir string, ps *LaidOutStructure, backupDir string, mountLookup mountLookupFunc) (*mountedFilesystemUpdater, error) {
-	fw, err := NewMountedFilesystemWriter(rootDir, ps)
+	fw, err := NewMountedFilesystemWriter(rootDir, ps, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -658,7 +678,6 @@ func (f *mountedFilesystemUpdater) backupOrCheckpointFile(dstRoot, source, targe
 
 	if strutil.SortedListContains(preserveInDst, dstPath) {
 		// file is to be preserved, create a relevant stamp
-
 		if !osutil.FileExists(dstPath) {
 			// preserve, but does not exist, will be written anyway
 			return nil
