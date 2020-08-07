@@ -34,7 +34,9 @@ execute: |
     . "$TESTSLIB/hotplug.sh"
 
     echo "Refresh core snap to desired channel"
-    refresh_to_new_core "$NEW_CORE_CHANNEL"
+    if [ "$BUILD_SNAPD_FROM_CURRENT" != "true" ]; then
+        refresh_to_new_core "$NEW_CORE_CHANNEL"
+    fi
 
     if execute_remote "udevadm info -e" | MATCH "ID_MODEL=QEMU_USB_SERIAL"; then
         echo "USB serial already registered, exiting..."
