@@ -39,20 +39,26 @@ func (s *statusDecoratorSuite) TestDecorateWithStatus(c *C) {
 	snp := &snap.Info{
 		SuggestedName: "foo",
 	}
+	disabled := false
 	r := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
 		c.Assert(args[0], Equals, "show")
 		unit := args[2]
+		activeState, unitState := "active", "enabled"
+		if disabled {
+			activeState = "inactive"
+			unitState = "disabled"
+		}
 		if strings.HasSuffix(unit, ".timer") || strings.HasSuffix(unit, ".socket") {
 			return []byte(fmt.Sprintf(`Id=%s
-ActiveState=active
-UnitFileState=enabled
-`, args[2])), nil
+ActiveState=%s
+UnitFileState=%s
+`, args[2], activeState, unitState)), nil
 		} else {
 			return []byte(fmt.Sprintf(`Id=%s
 Type=simple
-ActiveState=active
-UnitFileState=enabled
-`, args[2])), nil
+ActiveState=%s
+UnitFileState=%s
+`, args[2], activeState, unitState)), nil
 		}
 	})
 	defer r()
@@ -69,74 +75,78 @@ UnitFileState=enabled
 	err := sd.DecorateWithStatus(app, snapApp)
 	c.Assert(err, IsNil)
 
-	// service only
-	app = &client.AppInfo{
-		Snap:   "foo",
-		Name:   "svc",
-		Daemon: "simple",
-	}
-	snapApp = &snap.AppInfo{
-		Snap:   snp,
-		Name:   "svc",
-		Daemon: "simple",
-	}
+	for _, enabled := range []bool{true, false} {
+		disabled = !enabled
 
-	err = sd.DecorateWithStatus(app, snapApp)
-	c.Assert(err, IsNil)
-	c.Check(app.Active, Equals, true)
-	c.Check(app.Enabled, Equals, true)
+		// service only
+		app = &client.AppInfo{
+			Snap:   snp.InstanceName(),
+			Name:   "svc",
+			Daemon: "simple",
+		}
+		snapApp = &snap.AppInfo{
+			Snap:   snp,
+			Name:   "svc",
+			Daemon: "simple",
+		}
 
-	// service  + timer
-	app = &client.AppInfo{
-		Snap:   "foo",
-		Name:   "svc",
-		Daemon: "simple",
-	}
-	snapApp = &snap.AppInfo{
-		Snap:        snp,
-		Name:        "svc",
-		Daemon:      "simple",
-		DaemonScope: snap.SystemDaemon,
-	}
-	snapApp.Timer = &snap.TimerInfo{
-		App:   snapApp,
-		Timer: "10:00",
-	}
+		err = sd.DecorateWithStatus(app, snapApp)
+		c.Assert(err, IsNil)
+		c.Check(app.Active, Equals, enabled)
+		c.Check(app.Enabled, Equals, enabled)
 
-	err = sd.DecorateWithStatus(app, snapApp)
-	c.Assert(err, IsNil)
-	c.Check(app.Active, Equals, true)
-	c.Check(app.Enabled, Equals, true)
-	c.Check(app.Activators, DeepEquals, []client.AppActivator{
-		{Name: "svc", Type: "timer", Active: true, Enabled: true},
-	})
+		// service  + timer
+		app = &client.AppInfo{
+			Snap:   snp.InstanceName(),
+			Name:   "svc",
+			Daemon: "simple",
+		}
+		snapApp = &snap.AppInfo{
+			Snap:        snp,
+			Name:        "svc",
+			Daemon:      "simple",
+			DaemonScope: snap.SystemDaemon,
+		}
+		snapApp.Timer = &snap.TimerInfo{
+			App:   snapApp,
+			Timer: "10:00",
+		}
 
-	// service with socket
-	app = &client.AppInfo{
-		Snap:   "foo",
-		Name:   "svc",
-		Daemon: "simple",
-	}
-	snapApp = &snap.AppInfo{
-		Snap:        snp,
-		Name:        "svc",
-		Daemon:      "simple",
-		DaemonScope: snap.SystemDaemon,
-	}
-	snapApp.Sockets = map[string]*snap.SocketInfo{
-		"socket1": {
-			App:          snapApp,
-			Name:         "socket1",
-			ListenStream: "a.socket",
-		},
-	}
+		err = sd.DecorateWithStatus(app, snapApp)
+		c.Assert(err, IsNil)
+		c.Check(app.Active, Equals, enabled)
+		c.Check(app.Enabled, Equals, enabled)
+		c.Check(app.Activators, DeepEquals, []client.AppActivator{
+			{Name: "svc", Type: "timer", Active: enabled, Enabled: enabled},
+		})
 
-	err = sd.DecorateWithStatus(app, snapApp)
-	c.Assert(err, IsNil)
-	c.Check(app.Active, Equals, true)
-	c.Check(app.Enabled, Equals, true)
-	c.Check(app.Activators, DeepEquals, []client.AppActivator{
-		{Name: "socket1", Type: "socket", Active: true, Enabled: true},
-	})
+		// service with socket
+		app = &client.AppInfo{
+			Snap:   snp.InstanceName(),
+			Name:   "svc",
+			Daemon: "simple",
+		}
+		snapApp = &snap.AppInfo{
+			Snap:        snp,
+			Name:        "svc",
+			Daemon:      "simple",
+			DaemonScope: snap.SystemDaemon,
+		}
+		snapApp.Sockets = map[string]*snap.SocketInfo{
+			"socket1": {
+				App:          snapApp,
+				Name:         "socket1",
+				ListenStream: "a.socket",
+			},
+		}
 
+		err = sd.DecorateWithStatus(app, snapApp)
+		c.Assert(err, IsNil)
+		c.Check(app.Active, Equals, enabled)
+		c.Check(app.Enabled, Equals, enabled)
+		c.Check(app.Activators, DeepEquals, []client.AppActivator{
+			{Name: "socket1", Type: "socket", Active: enabled, Enabled: enabled},
+		})
+
+	}
 }

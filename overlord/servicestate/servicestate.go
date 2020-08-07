@@ -140,7 +140,7 @@ func NewStatusDecorator(rep interface {
 // DecorateWithStatus adds service status information to the given client.AppInfo associated with the given snap.AppInfo.
 func (sd *StatusDecorator) DecorateWithStatus(appInfo *client.AppInfo, snapApp *snap.AppInfo) error {
 	if appInfo.Snap != snapApp.Snap.InstanceName() || appInfo.Name != snapApp.Name {
-		return fmt.Errorf("misassociated app info %v and client app info %s.%s", snapApp, appInfo.Snap, appInfo.Name)
+		return fmt.Errorf("internal error: misassociated app info %v and client app info %s.%s", snapApp, appInfo.Snap, appInfo.Name)
 	}
 	if !snapApp.IsService() {
 		// nothing to do
@@ -148,7 +148,11 @@ func (sd *StatusDecorator) DecorateWithStatus(appInfo *client.AppInfo, snapApp *
 	}
 
 	// collect all services for a single call to systemctl
-	serviceNames := make([]string, 0, 1)
+	extra := len(snapApp.Sockets)
+	if snapApp.Timer != nil {
+		extra++
+	}
+	serviceNames := make([]string, 0, 1+extra)
 	serviceNames = append(serviceNames, snapApp.ServiceName())
 
 	sockSvcFileToName := make(map[string]string, len(snapApp.Sockets))
