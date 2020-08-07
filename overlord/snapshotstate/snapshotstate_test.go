@@ -21,6 +21,7 @@ package snapshotstate_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -31,7 +32,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-	"encoding/json"
 
 	"gopkg.in/check.v1"
 
@@ -1492,15 +1492,14 @@ func (snapshotSuite) TestEstimateSnapshotSize(c *check.C) {
 		Current:  sideInfo.Revision,
 	})
 
-	defer snapshotstate.MockBackendEstimateSnapshotSize(func(info *snap.Info) (uint64, error) {
+	defer snapshotstate.MockBackendEstimateSnapshotSize(func(info *snap.Info, users []string) (uint64, error) {
 		return 123, nil
 	})()
 
-	sz, err := snapshotstate.EstimateSnapshotSize(st, "some-snap")
+	sz, err := snapshotstate.EstimateSnapshotSize(st, "some-snap", nil)
 	c.Assert(err, check.IsNil)
 	c.Check(sz, check.Equals, uint64(123))
 }
-
 
 func (snapshotSuite) TestEstimateSnapshotSizeWithConfig(c *check.C) {
 	st := state.New(nil)
@@ -1514,7 +1513,7 @@ func (snapshotSuite) TestEstimateSnapshotSizeWithConfig(c *check.C) {
 		Current:  sideInfo.Revision,
 	})
 
-	defer snapshotstate.MockBackendEstimateSnapshotSize(func(info *snap.Info) (uint64, error) {
+	defer snapshotstate.MockBackendEstimateSnapshotSize(func(info *snap.Info, users []string) (uint64, error) {
 		return 100, nil
 	})()
 
@@ -1524,12 +1523,11 @@ func (snapshotSuite) TestEstimateSnapshotSizeWithConfig(c *check.C) {
 		return &buf, nil
 	})()
 
-	sz, err := snapshotstate.EstimateSnapshotSize(st, "some-snap")
+	sz, err := snapshotstate.EstimateSnapshotSize(st, "some-snap", nil)
 	c.Assert(err, check.IsNil)
 	// size is 100 + 18
 	c.Check(sz, check.Equals, uint64(118))
 }
-
 
 func (snapshotSuite) TestEstimateSnapshotSizeError(c *check.C) {
 	st := state.New(nil)
@@ -1543,10 +1541,10 @@ func (snapshotSuite) TestEstimateSnapshotSizeError(c *check.C) {
 		Current:  sideInfo.Revision,
 	})
 
-	defer snapshotstate.MockBackendEstimateSnapshotSize(func(info *snap.Info) (uint64, error) {
+	defer snapshotstate.MockBackendEstimateSnapshotSize(func(info *snap.Info, users []string) (uint64, error) {
 		return 0, fmt.Errorf("an error")
 	})()
 
-	_, err := snapshotstate.EstimateSnapshotSize(st, "some-snap")
+	_, err := snapshotstate.EstimateSnapshotSize(st, "some-snap", nil)
 	c.Assert(err, check.ErrorMatches, `an error`)
 }
