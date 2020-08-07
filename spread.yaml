@@ -927,6 +927,10 @@ suites:
             # Directory where the images and test assets are stored
             WORK_DIR: '/tmp/work-dir'
         manual: true
+        debug: |
+            if [ -f "${WORK_DIR}/serial.log" ]; then
+                cat "${WORK_DIR}/serial.log"
+            fi
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
@@ -973,6 +977,10 @@ suites:
             # Directory where the images and test assets are stored
             WORK_DIR: '/tmp/work-dir'
         manual: true
+        debug: |
+            if [ -f "${WORK_DIR}/serial.log" ]; then
+                cat "${WORK_DIR}/serial.log"
+            fi
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
@@ -1027,6 +1035,10 @@ suites:
             # Directory where the images and test assets are stored
             WORK_DIR: '/tmp/work-dir'
         manual: true
+        debug: |
+            if [ -f "${WORK_DIR}/serial.log" ]; then
+                cat "${WORK_DIR}/serial.log"
+            fi
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
@@ -1077,6 +1089,10 @@ suites:
             # Directory where the images and test assets are stored
             WORK_DIR: '/tmp/work-dir'
         manual: true
+        debug: |
+            if [ -f "${WORK_DIR}/serial.log" ]; then
+                cat "${WORK_DIR}/serial.log"
+            fi
         kill-timeout: 90m
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
