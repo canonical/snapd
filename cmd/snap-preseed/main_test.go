@@ -70,6 +70,15 @@ func testParser(c *C) *flags.Parser {
 	return parser
 }
 
+func mockVersionFiles(c *C, rootDir1, version1, rootDir2, version2 string) {
+	versions := []string{version1, version2}
+	for i, root := range []string{rootDir1, rootDir2} {
+		c.Assert(os.MkdirAll(filepath.Join(root, dirs.CoreLibExecDir), 0755), IsNil)
+		infoFile := filepath.Join(root, dirs.CoreLibExecDir, "info")
+		c.Assert(ioutil.WriteFile(infoFile, []byte(fmt.Sprintf("VERSION=%s", versions[i])), 0644), IsNil)
+	}
+}
+
 func mockChrootDirs(c *C, rootDir string, apparmorDir bool) func() {
 	if apparmorDir {
 		c.Assert(os.MkdirAll(filepath.Join(rootDir, "/sys/kernel/security/apparmor"), 0755), IsNil)
@@ -184,7 +193,6 @@ func (s *startPreseedSuite) TestRunPreseedHappy(c *C) {
 	restoreSystemSnapFromSeed := main.MockSystemSnapFromSeed(func(string) (string, error) { return "/a/core.snap", nil })
 	defer restoreSystemSnapFromSeed()
 
-	c.Assert(os.MkdirAll(filepath.Join(targetSnapdRoot, "usr/lib/snapd/"), 0755), IsNil)
 	mockTargetSnapd := testutil.MockCommand(c, filepath.Join(targetSnapdRoot, "usr/lib/snapd/snapd"), `#!/bin/sh
 	if [ "$SNAPD_PRESEED" != "1" ]; then
 		exit 1
@@ -192,8 +200,13 @@ func (s *startPreseedSuite) TestRunPreseedHappy(c *C) {
 `)
 	defer mockTargetSnapd.Restore()
 
-	infoFile := filepath.Join(filepath.Join(targetSnapdRoot, dirs.CoreLibExecDir, "info"))
-	c.Assert(ioutil.WriteFile(infoFile, []byte("VERSION=2.44.0"), 0644), IsNil)
+	mockSnapdFromDeb := testutil.MockCommand(c, filepath.Join(tmpDir, "usr/lib/snapd/snapd"), `#!/bin/sh
+	exit 1
+`)
+	defer mockSnapdFromDeb.Restore()
+
+	// snapd from the snap is newer than deb
+	mockVersionFiles(c, targetSnapdRoot, "2.44.0", tmpDir, "2.41.0")
 
 	parser := testParser(c)
 	c.Check(main.Run(parser, []string{tmpDir}), IsNil)
@@ -206,6 +219,8 @@ func (s *startPreseedSuite) TestRunPreseedHappy(c *C) {
 	c.Assert(mockTargetSnapd.Calls(), HasLen, 1)
 	c.Check(mockTargetSnapd.Calls()[0], DeepEquals, []string{"snapd"})
 
+	c.Assert(mockSnapdFromDeb.Calls(), HasLen, 0)
+
 	// relative chroot path works too
 	tmpDirPath, relativeChroot := filepath.Split(tmpDir)
 	pwd, err := os.Getwd()
@@ -215,6 +230,59 @@ func (s *startPreseedSuite) TestRunPreseedHappy(c *C) {
 	}()
 	c.Assert(os.Chdir(tmpDirPath), IsNil)
 	c.Check(main.Run(parser, []string{relativeChroot}), IsNil)
+}
+
+func (s *startPreseedSuite) TestRunPreseedHappyDebVersionIsNewer(c *C) {
+	tmpDir := c.MkDir()
+	dirs.SetRootDir(tmpDir)
+	defer mockChrootDirs(c, tmpDir, true)()
+
+	restoreOsGuid := main.MockOsGetuid(func() int { return 0 })
+	defer restoreOsGuid()
+
+	restoreSyscallChroot := main.MockSyscallChroot(func(path string) error { return nil })
+	defer restoreSyscallChroot()
+
+	mockMountCmd := testutil.MockCommand(c, "mount", "")
+	defer mockMountCmd.Restore()
+
+	mockUmountCmd := testutil.MockCommand(c, "umount", "")
+	defer mockUmountCmd.Restore()
+
+	targetSnapdRoot := filepath.Join(tmpDir, "target-core-mounted-here")
+	restoreMountPath := main.MockSnapdMountPath(targetSnapdRoot)
+	defer restoreMountPath()
+
+	restoreSystemSnapFromSeed := main.MockSystemSnapFromSeed(func(string) (string, error) { return "/a/core.snap", nil })
+	defer restoreSystemSnapFromSeed()
+
+	c.Assert(os.MkdirAll(filepath.Join(targetSnapdRoot, "usr/lib/snapd/"), 0755), IsNil)
+	mockSnapdFromSnap := testutil.MockCommand(c, filepath.Join(targetSnapdRoot, "usr/lib/snapd/snapd"), `#!/bin/sh
+	exit 1
+`)
+	defer mockSnapdFromSnap.Restore()
+
+	mockSnapdFromDeb := testutil.MockCommand(c, filepath.Join(tmpDir, "usr/lib/snapd/snapd"), `#!/bin/sh
+	if [ "$SNAPD_PRESEED" != "1" ]; then
+		exit 1
+	fi
+`)
+	defer mockSnapdFromDeb.Restore()
+
+	// snapd from the deb is newer than snap
+	mockVersionFiles(c, targetSnapdRoot, "2.44.0", tmpDir, "2.45.0")
+
+	parser := testParser(c)
+	c.Check(main.Run(parser, []string{tmpDir}), IsNil)
+
+	c.Assert(mockMountCmd.Calls(), HasLen, 1)
+	// note, tmpDir, targetSnapdRoot are contactenated again cause we're not really chrooting in the test
+	// and mocking dirs.RootDir
+	c.Check(mockMountCmd.Calls()[0], DeepEquals, []string{"mount", "-t", "squashfs", "-o", "ro,x-gdu.hide", "/a/core.snap", filepath.Join(tmpDir, targetSnapdRoot)})
+
+	c.Assert(mockSnapdFromDeb.Calls(), HasLen, 1)
+	c.Check(mockSnapdFromDeb.Calls()[0], DeepEquals, []string{"snapd"})
+	c.Assert(mockSnapdFromSnap.Calls(), HasLen, 0)
 }
 
 type Fake16Seed struct {
@@ -373,6 +441,7 @@ func (s *startPreseedSuite) TestClassicRequired(c *C) {
 func (s *startPreseedSuite) TestRunPreseedUnsupportedVersion(c *C) {
 	tmpDir := c.MkDir()
 	dirs.SetRootDir(tmpDir)
+	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "usr/lib/snapd/"), 0755), IsNil)
 	defer mockChrootDirs(c, tmpDir, true)()
 
 	restoreOsGuid := main.MockOsGetuid(func() int { return 0 })
@@ -398,19 +467,93 @@ func (s *startPreseedSuite) TestRunPreseedUnsupportedVersion(c *C) {
 	infoFile := filepath.Join(targetSnapdRoot, dirs.CoreLibExecDir, "info")
 	c.Assert(ioutil.WriteFile(infoFile, []byte("VERSION=2.43.0"), 0644), IsNil)
 
+	// simulate snapd version from the deb
+	infoFile = filepath.Join(filepath.Join(tmpDir, dirs.CoreLibExecDir, "info"))
+	c.Assert(ioutil.WriteFile(infoFile, []byte("VERSION=2.41.0"), 0644), IsNil)
+
 	parser := testParser(c)
 	c.Check(main.Run(parser, []string{tmpDir}), ErrorMatches,
 		`snapd 2.43.0 from the target system does not support preseeding, the minimum required version is 2.43.3\+`)
 }
 
-func (s *startPreseedSuite) TestVersionCheckWithGitVer(c *C) {
+func (s *startPreseedSuite) TestChooseTargetSnapdVersion(c *C) {
 	tmpDir := c.MkDir()
 	dirs.SetRootDir(tmpDir)
+	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "usr/lib/snapd/"), 0755), IsNil)
 
-	infoFile := filepath.Join(tmpDir, "info")
-	c.Assert(ioutil.WriteFile(infoFile, []byte("VERSION=2.43.3+git123"), 0644), IsNil)
+	targetSnapdRoot := filepath.Join(tmpDir, "target-core-mounted-here")
+	c.Assert(os.MkdirAll(filepath.Join(targetSnapdRoot, "usr/lib/snapd/"), 0755), IsNil)
+	restoreMountPath := main.MockSnapdMountPath(targetSnapdRoot)
+	defer restoreMountPath()
 
-	c.Check(main.CheckTargetSnapdVersion(infoFile), IsNil)
+	var versions = []struct {
+		fromSnap        string
+		fromDeb         string
+		expectedPath    string
+		expectedVersion string
+		expectedErr     string
+	}{
+		{
+			fromDeb:  "2.44.0",
+			fromSnap: "2.45.3+git123",
+			// snap version wins
+			expectedVersion: "2.45.3+git123",
+			expectedPath:    filepath.Join(tmpDir, "target-core-mounted-here/usr/lib/snapd/snapd"),
+		},
+		{
+			fromDeb:  "2.44.0",
+			fromSnap: "2.44.0",
+			// snap version wins
+			expectedVersion: "2.44.0",
+			expectedPath:    filepath.Join(tmpDir, "target-core-mounted-here/usr/lib/snapd/snapd"),
+		},
+		{
+			fromDeb:  "2.45.1+20.04",
+			fromSnap: "2.45.1",
+			// deb version wins
+			expectedVersion: "2.45.1+20.04",
+			expectedPath:    filepath.Join(tmpDir, "usr/lib/snapd/snapd"),
+		},
+		{
+			fromDeb:  "2.45.2",
+			fromSnap: "2.45.1",
+			// deb version wins
+			expectedVersion: "2.45.2",
+			expectedPath:    filepath.Join(tmpDir, "usr/lib/snapd/snapd"),
+		},
+		{
+			fromSnap:    "2.45.1",
+			expectedErr: fmt.Sprintf("cannot open snapd info file %q.*", filepath.Join(tmpDir, "usr/lib/snapd/info")),
+		},
+		{
+			fromDeb:     "2.45.1",
+			expectedErr: fmt.Sprintf("cannot open snapd info file %q.*", filepath.Join(tmpDir, "target-core-mounted-here/usr/lib/snapd/info")),
+		},
+	}
+
+	for _, test := range versions {
+		infoFile := filepath.Join(tmpDir, "usr/lib/snapd/info")
+		os.Remove(infoFile)
+		if test.fromDeb != "" {
+			c.Assert(ioutil.WriteFile(infoFile, []byte(fmt.Sprintf("VERSION=%s", test.fromDeb)), 0644), IsNil)
+		}
+		infoFile = filepath.Join(targetSnapdRoot, "usr/lib/snapd/info")
+		os.Remove(infoFile)
+		if test.fromSnap != "" {
+			c.Assert(ioutil.WriteFile(infoFile, []byte(fmt.Sprintf("VERSION=%s", test.fromSnap)), 0644), IsNil)
+		}
+
+		targetSnapd, err := main.ChooseTargetSnapdVersion()
+		if test.expectedErr != "" {
+			c.Assert(err, ErrorMatches, test.expectedErr)
+		} else {
+			c.Assert(err, IsNil)
+			c.Assert(targetSnapd, NotNil)
+			path, version := main.SnapdPathAndVersion(targetSnapd)
+			c.Check(path, Equals, test.expectedPath)
+			c.Check(version, Equals, test.expectedVersion)
+		}
+	}
 }
 
 func (s *startPreseedSuite) TestRunPreseedAgainstFilesystemRoot(c *C) {
