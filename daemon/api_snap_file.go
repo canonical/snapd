@@ -29,10 +29,9 @@ import (
 )
 
 var snapFileCmd = &Command{
-	Path:     "/v2/snaps/{name}/file",
-	UserOK:   true,
-	PolkitOK: "io.snapcraft.snapd.manage",
-	GET:      getSnapFile,
+	Path:       "/v2/snaps/{name}/file",
+	ReadAccess: OpenAccess{},
+	GET:        getSnapFile,
 }
 
 func getSnapFile(c *Command, r *http.Request, user *auth.UserState) Response {

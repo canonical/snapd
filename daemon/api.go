@@ -119,121 +119,127 @@ var servicestateControl = servicestate.Control
 var (
 	// see daemon.go:canAccess for details how the access is controlled
 	rootCmd = &Command{
-		Path:    "/",
-		GuestOK: true,
-		GET:     tbd,
+		Path:       "/",
+		ReadAccess: OpenAccess{},
+		GET:        tbd,
 	}
 
 	sysInfoCmd = &Command{
-		Path:    "/v2/system-info",
-		GuestOK: true,
-		GET:     sysInfo,
+		Path:       "/v2/system-info",
+		ReadAccess: OpenAccess{},
+		GET:        sysInfo,
 	}
 
 	appIconCmd = &Command{
-		Path:   "/v2/icons/{name}/icon",
-		UserOK: true,
-		GET:    appIconGet,
+		Path:       "/v2/icons/{name}/icon",
+		ReadAccess: OpenAccess{},
+		GET:        appIconGet,
 	}
 
 	findCmd = &Command{
-		Path:   "/v2/find",
-		UserOK: true,
-		GET:    searchStore,
+		Path:       "/v2/find",
+		ReadAccess: OpenAccess{},
+		GET:        searchStore,
 	}
 
 	snapsCmd = &Command{
-		Path:     "/v2/snaps",
-		UserOK:   true,
-		PolkitOK: "io.snapcraft.snapd.manage",
-		GET:      getSnapsInfo,
-		POST:     postSnaps,
+		Path:        "/v2/snaps",
+		ReadAccess:  OpenAccess{},
+		WriteAccess: AuthenticatedAccess{Polkit: "io.snapcraft.snapd.manage"},
+		GET:         getSnapsInfo,
+		POST:        postSnaps,
 	}
 
 	snapCmd = &Command{
-		Path:     "/v2/snaps/{name}",
-		UserOK:   true,
-		PolkitOK: "io.snapcraft.snapd.manage",
-		GET:      getSnapInfo,
-		POST:     postSnap,
+		Path:        "/v2/snaps/{name}",
+		ReadAccess:  OpenAccess{},
+		WriteAccess: AuthenticatedAccess{Polkit: "io.snapcraft.snapd.manage"},
+		GET:         getSnapInfo,
+		POST:        postSnap,
 	}
 
 	appsCmd = &Command{
-		Path:   "/v2/apps",
-		UserOK: true,
-		GET:    getAppsInfo,
-		POST:   postApps,
+		Path:        "/v2/apps",
+		ReadAccess:  OpenAccess{},
+		WriteAccess: AuthenticatedAccess{},
+		GET:         getAppsInfo,
+		POST:        postApps,
 	}
 
 	logsCmd = &Command{
-		Path:     "/v2/logs",
-		PolkitOK: "io.snapcraft.snapd.manage",
-		GET:      getLogs,
+		Path:       "/v2/logs",
+		ReadAccess: AuthenticatedAccess{Polkit: "io.snapcraft.snapd.manage"},
+		GET:        getLogs,
 	}
 
 	snapConfCmd = &Command{
-		Path: "/v2/snaps/{name}/conf",
-		GET:  getSnapConf,
-		PUT:  setSnapConf,
+		Path:        "/v2/snaps/{name}/conf",
+		ReadAccess:  AuthenticatedAccess{},
+		WriteAccess: AuthenticatedAccess{},
+		GET:         getSnapConf,
+		PUT:         setSnapConf,
 	}
 
 	interfacesCmd = &Command{
-		Path:     "/v2/interfaces",
-		UserOK:   true,
-		PolkitOK: "io.snapcraft.snapd.manage-interfaces",
-		GET:      interfacesConnectionsMultiplexer,
-		POST:     changeInterfaces,
+		Path:        "/v2/interfaces",
+		ReadAccess:  OpenAccess{},
+		WriteAccess: AuthenticatedAccess{Polkit: "io.snapcraft.snapd.manage-interfaces"},
+		GET:         interfacesConnectionsMultiplexer,
+		POST:        changeInterfaces,
 	}
 
 	stateChangeCmd = &Command{
-		Path:     "/v2/changes/{id}",
-		UserOK:   true,
-		PolkitOK: "io.snapcraft.snapd.manage",
-		GET:      getChange,
-		POST:     abortChange,
+		Path:        "/v2/changes/{id}",
+		ReadAccess:  OpenAccess{},
+		WriteAccess: AuthenticatedAccess{Polkit: "io.snapcraft.snapd.manage"},
+		GET:         getChange,
+		POST:        abortChange,
 	}
 
 	stateChangesCmd = &Command{
-		Path:   "/v2/changes",
-		UserOK: true,
-		GET:    getChanges,
+		Path:       "/v2/changes",
+		ReadAccess: OpenAccess{},
+		GET:        getChanges,
 	}
 
 	buyCmd = &Command{
-		Path: "/v2/buy",
-		POST: postBuy,
+		Path:        "/v2/buy",
+		WriteAccess: AuthenticatedAccess{},
+		POST:        postBuy,
 	}
 
 	readyToBuyCmd = &Command{
-		Path: "/v2/buy/ready",
-		GET:  readyToBuy,
+		Path:       "/v2/buy/ready",
+		ReadAccess: AuthenticatedAccess{},
+		GET:        readyToBuy,
 	}
 
 	snapctlCmd = &Command{
-		Path:   "/v2/snapctl",
-		SnapOK: true,
-		POST:   runSnapctl,
+		Path:        "/v2/snapctl",
+		WriteAccess: SnapAccess{},
+		POST:        runSnapctl,
 	}
 
 	sectionsCmd = &Command{
-		Path:   "/v2/sections",
-		UserOK: true,
-		GET:    getSections,
+		Path:       "/v2/sections",
+		ReadAccess: OpenAccess{},
+		GET:        getSections,
 	}
 
 	aliasesCmd = &Command{
-		Path:   "/v2/aliases",
-		UserOK: true,
-		GET:    getAliases,
-		POST:   changeAliases,
+		Path:        "/v2/aliases",
+		ReadAccess:  OpenAccess{},
+		WriteAccess: AuthenticatedAccess{},
+		GET:         getAliases,
+		POST:        changeAliases,
 	}
 
 	warningsCmd = &Command{
-		Path:     "/v2/warnings",
-		UserOK:   true,
-		PolkitOK: "io.snapcraft.snapd.manage",
-		GET:      getWarnings,
-		POST:     ackWarnings,
+		Path:        "/v2/warnings",
+		ReadAccess:  OpenAccess{},
+		WriteAccess: AuthenticatedAccess{Polkit: "io.snapcraft.snapd.manage"},
+		GET:         getWarnings,
+		POST:        ackWarnings,
 	}
 
 	buildID = "unknown"

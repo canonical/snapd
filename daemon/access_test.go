@@ -20,14 +20,17 @@
 package daemon
 
 import (
+	"bytes"
 	"net/http/httptest"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/polkit"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type accessSuite struct{}
@@ -76,9 +79,15 @@ func (s *accessSuite) TestAuthenticatedAccess(c *C) {
 func (s *accessSuite) TestAuthenticatedAccessPolkit(c *C) {
 	defer func() {
 		polkitCheckAuthorization = polkit.CheckAuthorization
+		logger.SetLogger(logger.NullLogger)
 	}()
 
 	var ac accessChecker = AuthenticatedAccess{Polkit: "action-id"}
+
+	var logbuf bytes.Buffer
+	log, err := logger.New(&logbuf, logger.DefaultFlags)
+	c.Assert(err, IsNil)
+	logger.SetLogger(log)
 
 	req := httptest.NewRequest("GET", "/", nil)
 	user := &auth.UserState{}
@@ -107,18 +116,21 @@ func (s *accessSuite) TestAuthenticatedAccessPolkit(c *C) {
 		return true, nil
 	}
 	c.Check(ac.checkAccess(req, ucred, nil), Equals, accessOK)
+	c.Check(logbuf.String(), Equals, "")
 
 	// Unauthorized if polkit denies the request
 	polkitCheckAuthorization = func(pid int32, uid uint32, actionId string, details map[string]string, flags polkit.CheckFlags) (bool, error) {
 		return false, nil
 	}
 	c.Check(ac.checkAccess(req, ucred, nil), Equals, accessUnauthorized)
+	c.Check(logbuf.String(), Equals, "")
 
 	// Cancelled if the user dismisses the auth check
 	polkitCheckAuthorization = func(pid int32, uid uint32, actionId string, details map[string]string, flags polkit.CheckFlags) (bool, error) {
 		return false, polkit.ErrDismissed
 	}
 	c.Check(ac.checkAccess(req, ucred, nil), Equals, accessCancelled)
+	c.Check(logbuf.String(), Equals, "")
 
 	// The X-Allow-Interaction header can be set to tell polkitd
 	// that interaction with the user is allowed.
@@ -128,6 +140,16 @@ func (s *accessSuite) TestAuthenticatedAccessPolkit(c *C) {
 		return true, nil
 	}
 	c.Check(ac.checkAccess(req, ucred, nil), Equals, accessOK)
+	c.Check(logbuf.String(), Equals, "")
+
+	// Bad values in the request header are logged
+	req.Header.Set(client.AllowInteractionHeader, "garbage")
+	polkitCheckAuthorization = func(pid int32, uid uint32, actionId string, details map[string]string, flags polkit.CheckFlags) (bool, error) {
+		c.Check(flags, Equals, polkit.CheckFlags(0))
+		return true, nil
+	}
+	c.Check(ac.checkAccess(req, ucred, nil), Equals, accessOK)
+	c.Check(logbuf.String(), testutil.Contains, "error parsing X-Allow-Interaction header:")
 }
 
 func (s *accessSuite) TestRootOnlyAccess(c *C) {

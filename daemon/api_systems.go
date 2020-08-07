@@ -31,14 +31,15 @@ import (
 )
 
 var systemsCmd = &Command{
-	Path: "/v2/systems",
-	GET:  getSystems,
+	Path:       "/v2/systems",
+	ReadAccess: AuthenticatedAccess{},
+	GET:        getSystems,
 }
 
 var systemsActionCmd = &Command{
-	Path:     "/v2/systems/{label}",
-	POST:     postSystemsAction,
-	RootOnly: true,
+	Path:        "/v2/systems/{label}",
+	WriteAccess: RootOnlyAccess{},
+	POST:        postSystemsAction,
 }
 
 type systemsResponse struct {

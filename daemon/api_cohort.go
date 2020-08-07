@@ -29,8 +29,9 @@ import (
 )
 
 var cohortsCmd = &Command{
-	Path: "/v2/cohorts",
-	POST: postCohorts,
+	Path:        "/v2/cohorts",
+	WriteAccess: AuthenticatedAccess{},
+	POST:        postCohorts,
 }
 
 func postCohorts(c *Command, r *http.Request, user *auth.UserState) Response {

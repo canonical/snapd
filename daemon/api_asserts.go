@@ -34,16 +34,17 @@ import (
 var (
 	// TODO: allow to post assertions for UserOK? they are verified anyway
 	assertsCmd = &Command{
-		Path:   "/v2/assertions",
-		UserOK: true,
-		GET:    getAssertTypeNames,
-		POST:   doAssert,
+		Path:        "/v2/assertions",
+		ReadAccess:  OpenAccess{},
+		WriteAccess: AuthenticatedAccess{},
+		GET:         getAssertTypeNames,
+		POST:        doAssert,
 	}
 
 	assertsFindManyCmd = &Command{
-		Path:   "/v2/assertions/{assertType}",
-		UserOK: true,
-		GET:    assertsFindMany,
+		Path:       "/v2/assertions/{assertType}",
+		ReadAccess: OpenAccess{},
+		GET:        assertsFindMany,
 	}
 )
 

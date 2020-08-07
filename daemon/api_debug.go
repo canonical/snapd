@@ -36,10 +36,11 @@ import (
 )
 
 var debugCmd = &Command{
-	Path:   "/v2/debug",
-	UserOK: true,
-	GET:    getDebug,
-	POST:   postDebug,
+	Path:        "/v2/debug",
+	ReadAccess:  OpenAccess{},
+	WriteAccess: AuthenticatedAccess{},
+	GET:         getDebug,
+	POST:        postDebug,
 }
 
 type debugAction struct {

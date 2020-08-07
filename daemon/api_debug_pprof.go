@@ -30,8 +30,8 @@ import (
 
 var debugPprofCmd = &Command{
 	PathPrefix: "/v2/debug/pprof/",
+	ReadAccess: RootOnlyAccess{},
 	GET:        getPprof,
-	RootOnly:   true,
 }
 
 func getPprof(c *Command, r *http.Request, user *auth.UserState) Response {

@@ -89,55 +89,12 @@ type Command struct {
 	GET  ResponseFunc
 	PUT  ResponseFunc
 	POST ResponseFunc
-	// can guest GET?
-	GuestOK bool
-	// can non-admin GET?
-	UserOK bool
-	// is this path accessible on the snapd-snap socket?
-	SnapOK bool
-	// this path is only accessible to root
-	RootOnly bool
 
-	// can polkit grant access? set to polkit action ID if so
-	PolkitOK string
+	// Access control.
+	ReadAccess  accessChecker
+	WriteAccess accessChecker
 
 	d *Daemon
-}
-
-// canAccess checks the following properties:
-//
-// - if the user is `root` everything is allowed
-// - if a user is logged in (via `snap login`) and the command doesn't have RootOnly, everything is allowed
-// - POST/PUT all require `root`, or just `snap login` if not RootOnly
-//
-// Otherwise for GET requests the following parameters are honored:
-// - GuestOK: anyone can access GET
-// - UserOK: any uid on the local system can access GET
-// - RootOnly: only root can access this
-// - SnapOK: a snap can access this via `snapctl`
-func (c *Command) canAccess(r *http.Request, user *auth.UserState) accessResult {
-	if c.RootOnly && (c.UserOK || c.GuestOK || c.SnapOK) {
-		// programming error
-		logger.Panicf("Command can't have RootOnly together with any *OK flag")
-	}
-
-	ucred, err := ucrednetGet(r.RemoteAddr)
-	if err != nil && err != errNoID {
-		logger.Noticef("unexpected error when attempting to get UID: %s", err)
-		return accessForbidden
-	}
-	var checker accessChecker
-	if c.RootOnly {
-		checker = RootOnlyAccess{}
-	} else if c.SnapOK {
-		checker = SnapAccess{}
-	} else if r.Method == "GET" && (c.GuestOK || c.UserOK) {
-		checker = OpenAccess{}
-	} else {
-		checker = AuthenticatedAccess{Polkit: c.PolkitOK}
-	}
-
-	return checker.checkAccess(r, ucred, user)
 }
 
 func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -153,7 +110,37 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	switch c.canAccess(r, user) {
+	ucred, err := ucrednetGet(r.RemoteAddr)
+	if err != nil && err != errNoID {
+		logger.Noticef("unexpected error when attempting to get UID: %s", err)
+		InternalError(err.Error()).ServeHTTP(w, r)
+		return
+	}
+
+	ctx := store.WithClientUserAgent(r.Context(), r)
+	r = r.WithContext(ctx)
+
+	var rspf ResponseFunc
+	var access accessChecker
+
+	switch r.Method {
+	case "GET":
+		rspf = c.GET
+		access = c.ReadAccess
+	case "PUT":
+		rspf = c.PUT
+		access = c.WriteAccess
+	case "POST":
+		rspf = c.POST
+		access = c.WriteAccess
+	}
+
+	if rspf == nil {
+		MethodNotAllowed("method %q not allowed", r.Method).ServeHTTP(w, r)
+		return
+	}
+
+	switch access.checkAccess(r, ucred, user) {
 	case accessOK:
 		// nothing
 	case accessUnauthorized:
@@ -167,24 +154,7 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx := store.WithClientUserAgent(r.Context(), r)
-	r = r.WithContext(ctx)
-
-	var rspf ResponseFunc
-	var rsp = MethodNotAllowed("method %q not allowed", r.Method)
-
-	switch r.Method {
-	case "GET":
-		rspf = c.GET
-	case "PUT":
-		rspf = c.PUT
-	case "POST":
-		rspf = c.POST
-	}
-
-	if rspf != nil {
-		rsp = rspf(c, r, user)
-	}
+	rsp := rspf(c, r, user)
 
 	if rsp, ok := rsp.(*resp); ok {
 		_, rst := st.Restarting()

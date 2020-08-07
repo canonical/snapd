@@ -31,9 +31,9 @@ import (
 )
 
 var connectionsCmd = &Command{
-	Path:   "/v2/connections",
-	UserOK: true,
-	GET:    getConnections,
+	Path:       "/v2/connections",
+	ReadAccess: OpenAccess{},
+	GET:        getConnections,
 }
 
 type collectFilter struct {

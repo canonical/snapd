@@ -22,9 +22,7 @@ package daemon
 import (
 	"fmt"
 
-	"bytes"
 	"encoding/json"
-	"errors"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -39,9 +37,7 @@ import (
 	"github.com/gorilla/mux"
 	"gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
@@ -50,7 +46,6 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/standby"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/polkit"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/systemd"
@@ -61,19 +56,11 @@ import (
 func Test(t *testing.T) { check.TestingT(t) }
 
 type daemonSuite struct {
-	authorized      bool
-	err             error
-	lastPolkitFlags polkit.CheckFlags
 	notified        []string
 	restoreBackends func()
 }
 
 var _ = check.Suite(&daemonSuite{})
-
-func (s *daemonSuite) checkAuthorization(pid int32, uid uint32, actionId string, details map[string]string, flags polkit.CheckFlags) (bool, error) {
-	s.lastPolkitFlags = flags
-	return s.authorized, s.err
-}
 
 func (s *daemonSuite) SetUpTest(c *check.C) {
 	dirs.SetRootDir(c.MkDir())
@@ -84,21 +71,13 @@ func (s *daemonSuite) SetUpTest(c *check.C) {
 		return nil
 	}
 	s.notified = nil
-	polkitCheckAuthorization = s.checkAuthorization
 	s.restoreBackends = ifacestate.MockSecurityBackends(nil)
 }
 
 func (s *daemonSuite) TearDownTest(c *check.C) {
 	systemdSdNotify = systemd.SdNotify
 	dirs.SetRootDir("")
-	s.authorized = false
-	s.err = nil
-	logger.SetLogger(logger.NullLogger)
 	s.restoreBackends()
-}
-
-func (s *daemonSuite) TearDownSuite(c *check.C) {
-	polkitCheckAuthorization = polkit.CheckAuthorization
 }
 
 // build a new daemon, with only a little of Init(), suitable for the tests
@@ -138,6 +117,8 @@ func (s *daemonSuite) TestCommandMethodDispatch(c *check.C) {
 	cmd.GET = rf
 	cmd.PUT = rf
 	cmd.POST = rf
+	cmd.ReadAccess = AuthenticatedAccess{}
+	cmd.WriteAccess = AuthenticatedAccess{}
 
 	for _, method := range []string{"GET", "POST", "PUT"} {
 		req, err := http.NewRequest(method, "", nil)
@@ -172,6 +153,7 @@ func (s *daemonSuite) TestCommandRestartingState(c *check.C) {
 	cmd.GET = func(*Command, *http.Request, *auth.UserState) Response {
 		return SyncResponse(nil, nil)
 	}
+	cmd.ReadAccess = OpenAccess{}
 	req, err := http.NewRequest("GET", "", nil)
 	c.Assert(err, check.IsNil)
 	req.RemoteAddr = "pid=100;uid=0;socket=;"
@@ -216,6 +198,7 @@ func (s *daemonSuite) TestFillsWarnings(c *check.C) {
 	cmd.GET = func(*Command, *http.Request, *auth.UserState) Response {
 		return SyncResponse(nil, nil)
 	}
+	cmd.ReadAccess = OpenAccess{}
 	req, err := http.NewRequest("GET", "", nil)
 	c.Assert(err, check.IsNil)
 	req.RemoteAddr = "pid=100;uid=0;socket=;"
@@ -246,205 +229,88 @@ func (s *daemonSuite) TestFillsWarnings(c *check.C) {
 	c.Check(rst.WarningTimestamp, check.NotNil)
 }
 
-func (s *daemonSuite) TestGuestAccess(c *check.C) {
-	get := &http.Request{Method: "GET"}
-	put := &http.Request{Method: "PUT"}
-	pst := &http.Request{Method: "POST"}
-	del := &http.Request{Method: "DELETE"}
+type accessCheckFunc func(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult
 
+func (f accessCheckFunc) checkAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
+	return f(r, ucred, user)
+}
+
+func (s *daemonSuite) TestReadAccess(c *check.C) {
 	cmd := &Command{d: newTestDaemon(c)}
-	c.Check(cmd.canAccess(get, nil), check.Equals, accessUnauthorized)
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessUnauthorized)
-	c.Check(cmd.canAccess(pst, nil), check.Equals, accessUnauthorized)
-	c.Check(cmd.canAccess(del, nil), check.Equals, accessUnauthorized)
-
-	cmd = &Command{d: newTestDaemon(c), RootOnly: true}
-	c.Check(cmd.canAccess(get, nil), check.Equals, accessForbidden)
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessForbidden)
-	c.Check(cmd.canAccess(pst, nil), check.Equals, accessForbidden)
-	c.Check(cmd.canAccess(del, nil), check.Equals, accessForbidden)
-
-	cmd = &Command{d: newTestDaemon(c), UserOK: true}
-	c.Check(cmd.canAccess(get, nil), check.Equals, accessOK)
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessUnauthorized)
-	c.Check(cmd.canAccess(pst, nil), check.Equals, accessUnauthorized)
-	c.Check(cmd.canAccess(del, nil), check.Equals, accessUnauthorized)
-
-	cmd = &Command{d: newTestDaemon(c), GuestOK: true}
-	c.Check(cmd.canAccess(get, nil), check.Equals, accessOK)
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessUnauthorized)
-	c.Check(cmd.canAccess(pst, nil), check.Equals, accessUnauthorized)
-	c.Check(cmd.canAccess(del, nil), check.Equals, accessUnauthorized)
-}
-
-func (s *daemonSuite) TestSnapctlAccessSnapOKWithUser(c *check.C) {
-	remoteAddr := "pid=100;uid=1000;socket=" + dirs.SnapSocket + ";"
-	get := &http.Request{Method: "GET", RemoteAddr: remoteAddr}
-	put := &http.Request{Method: "PUT", RemoteAddr: remoteAddr}
-	pst := &http.Request{Method: "POST", RemoteAddr: remoteAddr}
-	del := &http.Request{Method: "DELETE", RemoteAddr: remoteAddr}
-
-	cmd := &Command{d: newTestDaemon(c), SnapOK: true}
-	c.Check(cmd.canAccess(get, nil), check.Equals, accessOK)
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessOK)
-	c.Check(cmd.canAccess(pst, nil), check.Equals, accessOK)
-	c.Check(cmd.canAccess(del, nil), check.Equals, accessOK)
-}
-
-func (s *daemonSuite) TestSnapctlAccessSnapOKWithRoot(c *check.C) {
-	remoteAddr := "pid=100;uid=0;socket=" + dirs.SnapSocket + ";"
-	get := &http.Request{Method: "GET", RemoteAddr: remoteAddr}
-	put := &http.Request{Method: "PUT", RemoteAddr: remoteAddr}
-	pst := &http.Request{Method: "POST", RemoteAddr: remoteAddr}
-	del := &http.Request{Method: "DELETE", RemoteAddr: remoteAddr}
-
-	cmd := &Command{d: newTestDaemon(c), SnapOK: true}
-	c.Check(cmd.canAccess(get, nil), check.Equals, accessOK)
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessOK)
-	c.Check(cmd.canAccess(pst, nil), check.Equals, accessOK)
-	c.Check(cmd.canAccess(del, nil), check.Equals, accessOK)
-}
-
-func (s *daemonSuite) TestUserAccess(c *check.C) {
-	get := &http.Request{Method: "GET", RemoteAddr: "pid=100;uid=42;socket=;"}
-	put := &http.Request{Method: "PUT", RemoteAddr: "pid=100;uid=42;socket=;"}
-
-	cmd := &Command{d: newTestDaemon(c)}
-	c.Check(cmd.canAccess(get, nil), check.Equals, accessUnauthorized)
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessUnauthorized)
-
-	cmd = &Command{d: newTestDaemon(c), RootOnly: true}
-	c.Check(cmd.canAccess(get, nil), check.Equals, accessForbidden)
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessForbidden)
-
-	cmd = &Command{d: newTestDaemon(c), UserOK: true}
-	c.Check(cmd.canAccess(get, nil), check.Equals, accessOK)
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessUnauthorized)
-
-	cmd = &Command{d: newTestDaemon(c), GuestOK: true}
-	c.Check(cmd.canAccess(get, nil), check.Equals, accessOK)
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessUnauthorized)
-
-	// Since this request has a RemoteAddr, it must be coming from the snapd
-	// socket instead of the snap one. In that case, SnapOK should have no
-	// bearing on the default behavior, which is to deny access.
-	cmd = &Command{d: newTestDaemon(c), SnapOK: true}
-	c.Check(cmd.canAccess(get, nil), check.Equals, accessOK)
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessOK)
-}
-
-func (s *daemonSuite) TestLoggedInUserAccess(c *check.C) {
-	user := &auth.UserState{}
-	get := &http.Request{Method: "GET", RemoteAddr: "pid=100;uid=42;socket=;"}
-	put := &http.Request{Method: "PUT", RemoteAddr: "pid=100;uid=42;socket=;"}
-
-	cmd := &Command{d: newTestDaemon(c)}
-	c.Check(cmd.canAccess(get, user), check.Equals, accessOK)
-	c.Check(cmd.canAccess(put, user), check.Equals, accessOK)
-
-	cmd = &Command{d: newTestDaemon(c), RootOnly: true}
-	c.Check(cmd.canAccess(get, user), check.Equals, accessForbidden)
-	c.Check(cmd.canAccess(put, user), check.Equals, accessForbidden)
-
-	cmd = &Command{d: newTestDaemon(c), UserOK: true}
-	c.Check(cmd.canAccess(get, user), check.Equals, accessOK)
-	c.Check(cmd.canAccess(put, user), check.Equals, accessOK)
-
-	cmd = &Command{d: newTestDaemon(c), GuestOK: true}
-	c.Check(cmd.canAccess(get, user), check.Equals, accessOK)
-	c.Check(cmd.canAccess(put, user), check.Equals, accessOK)
-
-	cmd = &Command{d: newTestDaemon(c), SnapOK: true}
-	c.Check(cmd.canAccess(get, user), check.Equals, accessOK)
-	c.Check(cmd.canAccess(put, user), check.Equals, accessOK)
-}
-
-func (s *daemonSuite) TestSuperAccess(c *check.C) {
-	get := &http.Request{Method: "GET", RemoteAddr: "pid=100;uid=0;socket=;"}
-	put := &http.Request{Method: "PUT", RemoteAddr: "pid=100;uid=0;socket=;"}
-
-	cmd := &Command{d: newTestDaemon(c)}
-	c.Check(cmd.canAccess(get, nil), check.Equals, accessOK)
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessOK)
-
-	cmd = &Command{d: newTestDaemon(c), RootOnly: true}
-	c.Check(cmd.canAccess(get, nil), check.Equals, accessOK)
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessOK)
-
-	cmd = &Command{d: newTestDaemon(c), UserOK: true}
-	c.Check(cmd.canAccess(get, nil), check.Equals, accessOK)
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessOK)
-
-	cmd = &Command{d: newTestDaemon(c), GuestOK: true}
-	c.Check(cmd.canAccess(get, nil), check.Equals, accessOK)
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessOK)
-
-	cmd = &Command{d: newTestDaemon(c), SnapOK: true}
-	c.Check(cmd.canAccess(get, nil), check.Equals, accessOK)
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessOK)
-}
-
-func (s *daemonSuite) TestPolkitAccess(c *check.C) {
-	put := &http.Request{Method: "PUT", RemoteAddr: "pid=100;uid=42;socket=;"}
-	cmd := &Command{d: newTestDaemon(c), PolkitOK: "polkit.action"}
-
-	// polkit says user is not authorised
-	s.authorized = false
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessUnauthorized)
-
-	// polkit grants authorisation
-	s.authorized = true
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessOK)
-
-	// an error occurs communicating with polkit
-	s.err = errors.New("error")
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessUnauthorized)
-
-	// if the user dismisses the auth request, forbid access
-	s.err = polkit.ErrDismissed
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessCancelled)
-}
-
-func (s *daemonSuite) TestPolkitAccessForGet(c *check.C) {
-	get := &http.Request{Method: "GET", RemoteAddr: "pid=100;uid=42;socket=;"}
-	cmd := &Command{d: newTestDaemon(c), PolkitOK: "polkit.action"}
-
-	// polkit can grant authorisation for GET requests
-	s.authorized = true
-	c.Check(cmd.canAccess(get, nil), check.Equals, accessOK)
-
-	// for UserOK commands, polkit is not consulted
-	cmd.UserOK = true
-	polkitCheckAuthorization = func(pid int32, uid uint32, actionId string, details map[string]string, flags polkit.CheckFlags) (bool, error) {
-		panic("polkit.CheckAuthorization called")
+	cmd.GET = func(*Command, *http.Request, *auth.UserState) Response {
+		return SyncResponse(nil, nil)
 	}
-	c.Check(cmd.canAccess(get, nil), check.Equals, accessOK)
+	var accessCalled bool
+	cmd.ReadAccess = accessCheckFunc(func(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
+		accessCalled = true
+		c.Check(r, check.NotNil)
+		c.Assert(ucred, check.NotNil)
+		c.Check(ucred.uid, check.Equals, uint32(42))
+		c.Check(ucred.pid, check.Equals, int32(100))
+		c.Check(ucred.socket, check.Equals, "xyz")
+		c.Check(user, check.IsNil)
+		return accessOK
+	})
+	cmd.WriteAccess = accessCheckFunc(func(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
+		c.Fail()
+		return accessForbidden
+	})
+
+	req := httptest.NewRequest("GET", "/", nil)
+	req.RemoteAddr = "pid=100;uid=42;socket=xyz;"
+	rec := httptest.NewRecorder()
+	cmd.ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 200)
+	c.Check(accessCalled, check.Equals, true)
 }
 
-func (s *daemonSuite) TestPolkitInteractivity(c *check.C) {
-	put := &http.Request{Method: "PUT", RemoteAddr: "pid=100;uid=42;socket=;", Header: make(http.Header)}
-	cmd := &Command{d: newTestDaemon(c), PolkitOK: "polkit.action"}
-	s.authorized = true
+func (s *daemonSuite) TestWriteAccess(c *check.C) {
+	cmd := &Command{d: newTestDaemon(c)}
+	cmd.PUT = func(*Command, *http.Request, *auth.UserState) Response {
+		return SyncResponse(nil, nil)
+	}
+	cmd.POST = func(*Command, *http.Request, *auth.UserState) Response {
+		return SyncResponse(nil, nil)
+	}
+	cmd.ReadAccess = accessCheckFunc(func(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
+		c.Fail()
+		return accessForbidden
+	})
+	var accessCalled bool
+	cmd.WriteAccess = accessCheckFunc(func(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
+		accessCalled = true
+		c.Check(r, check.NotNil)
+		c.Assert(ucred, check.NotNil)
+		c.Check(ucred.uid, check.Equals, uint32(42))
+		c.Check(ucred.pid, check.Equals, int32(100))
+		c.Check(ucred.socket, check.Equals, "xyz")
+		c.Check(user, check.IsNil)
+		return accessOK
+	})
 
-	var logbuf bytes.Buffer
-	log, err := logger.New(&logbuf, logger.DefaultFlags)
-	c.Assert(err, check.IsNil)
-	logger.SetLogger(log)
+	req := httptest.NewRequest("PUT", "/", nil)
+	req.RemoteAddr = "pid=100;uid=42;socket=xyz;"
+	rec := httptest.NewRecorder()
+	cmd.ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 200)
+	c.Check(accessCalled, check.Equals, true)
 
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessOK)
-	c.Check(s.lastPolkitFlags, check.Equals, polkit.CheckNone)
-	c.Check(logbuf.String(), check.Equals, "")
+	accessCalled = false
+	req = httptest.NewRequest("POST", "/", nil)
+	req.RemoteAddr = "pid=100;uid=42;socket=xyz;"
+	rec = httptest.NewRecorder()
+	cmd.ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 200)
+	c.Check(accessCalled, check.Equals, true)
+}
 
-	put.Header.Set(client.AllowInteractionHeader, "true")
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessOK)
-	c.Check(s.lastPolkitFlags, check.Equals, polkit.CheckAllowInteraction)
-	c.Check(logbuf.String(), check.Equals, "")
-
-	// bad values are logged and treated as false
-	put.Header.Set(client.AllowInteractionHeader, "garbage")
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessOK)
-	c.Check(s.lastPolkitFlags, check.Equals, polkit.CheckNone)
-	c.Check(logbuf.String(), testutil.Contains, "error parsing X-Allow-Interaction header:")
+func (s *daemonSuite) TestCommandAccessSane(c *check.C) {
+	for _, cmd := range api {
+		// If Command.GET is set, ReadAccess must be set
+		c.Check(cmd.GET != nil, check.Equals, cmd.ReadAccess != nil, check.Commentf("%q ReadAccess", cmd.Path))
+		// If Command.PUT or POST are set, WriteAccess must be set
+		c.Check(cmd.PUT != nil || cmd.POST != nil, check.Equals, cmd.WriteAccess != nil, check.Commentf("%q WriteAccess", cmd.Path))
+	}
 }
 
 func (s *daemonSuite) TestAddRoutes(c *check.C) {
@@ -1239,6 +1105,8 @@ func (s *daemonSuite) TestDegradedModeReply(c *check.C) {
 	cmd.POST = func(*Command, *http.Request, *auth.UserState) Response {
 		return SyncResponse(nil, nil)
 	}
+	cmd.ReadAccess = AuthenticatedAccess{}
+	cmd.WriteAccess = AuthenticatedAccess{}
 
 	// pretend we are in degraded mode
 	d.SetDegradedMode(fmt.Errorf("foo error"))

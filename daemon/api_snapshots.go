@@ -35,11 +35,11 @@ import (
 
 var snapshotCmd = &Command{
 	// TODO: also support /v2/snapshots/<id>
-	Path:     "/v2/snapshots",
-	UserOK:   true,
-	PolkitOK: "io.snapcraft.snapd.manage",
-	GET:      listSnapshots,
-	POST:     changeSnapshots,
+	Path:        "/v2/snapshots",
+	ReadAccess:  OpenAccess{},
+	WriteAccess: AuthenticatedAccess{Polkit: "io.snapcraft.snapd.manage"},
+	GET:         listSnapshots,
+	POST:        changeSnapshots,
 }
 
 func listSnapshots(c *Command, r *http.Request, user *auth.UserState) Response {

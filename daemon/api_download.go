@@ -42,9 +42,9 @@ import (
 )
 
 var snapDownloadCmd = &Command{
-	Path:     "/v2/download",
-	PolkitOK: "io.snapcraft.snapd.manage",
-	POST:     postSnapDownload,
+	Path:        "/v2/download",
+	WriteAccess: AuthenticatedAccess{Polkit: "io.snapcraft.snapd.manage"},
+	POST:        postSnapDownload,
 }
 
 var validRangeRegexp = regexp.MustCompile(`^\s*bytes=(\d+)-\s*$`)
