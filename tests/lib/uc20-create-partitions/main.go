@@ -43,6 +43,7 @@ type cmdCreatePartitions struct {
 
 	Positional struct {
 		GadgetRoot string `positional-arg-name:"<gadget-root>"`
+		KernelRoot string `positional-arg-name:"<kernel-root>"`
 		Device     string `positional-arg-name:"<device>"`
 	} `positional-args:"yes"`
 }
@@ -94,7 +95,7 @@ func main() {
 		KernelPath:              args.KernelPath,
 		Model:                   model,
 	}
-	err = installRun(args.Positional.GadgetRoot, args.Positional.Device, options, nil)
+	err = installRun(args.Positional.GadgetRoot, args.Positional.KernelRoot, args.Positional.Device, options, nil)
 	if err != nil {
 		panic(err)
 	}

@@ -24,6 +24,9 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
+
+	"github.com/snapcore/snapd/strutil"
 )
 
 // LayoutConstraints defines the constraints for arranging structures within a
@@ -187,6 +190,69 @@ func LayoutVolumePartially(volume *Volume, constraints LayoutConstraints) (*Part
 		LaidOutStructure: structures,
 	}
 	return vol, nil
+}
+
+func resolveOne(gadgetRootDir, kernelRootDir string, kernelInfo *KernelInfo, pathOrRef string) (string, error) {
+	// content may refer to "$kernel:<name>/<content>"
+	if strings.HasPrefix(pathOrRef, "$kernel:") {
+		kernelRef := strings.SplitN(pathOrRef, ":", 2)[1]
+		l := strings.SplitN(kernelRef, "/", 2)
+		wantedAsset := l[0]
+		wantedContent := l[1]
+		kernelAsset, ok := kernelInfo.Assets[wantedAsset]
+		if !ok {
+			return "", fmt.Errorf("cannot find %q in kernel info from %q", wantedAsset, kernelRootDir)
+		}
+		if !strutil.ListContains(kernelAsset.Content, wantedContent) {
+			return "", fmt.Errorf("cannot find wanted kernel content %q in %q", wantedContent, kernelRootDir)
+		}
+		return filepath.Join(kernelRootDir, wantedContent), nil
+	}
+
+	return filepath.Join(gadgetRootDir, pathOrRef), nil
+}
+
+// ResolveContentPaths resolves any "$kernel:" refs in the gadget
+// content and populates VolumeContent.resolvedSource with absolute
+// paths.
+//
+// XXX: move into LayoutVolume(), operator on *Volume and make private?
+func ResolveContentPaths(gadgetRootDir, kernelRootDir string, lv *LaidOutVolume) error {
+	var kernelInfo *KernelInfo = &KernelInfo{}
+	if kernelRootDir != "" {
+		ki, err := ReadKernelInfo(kernelRootDir)
+		if err != nil {
+			return err
+		}
+		kernelInfo = ki
+	}
+
+	for i := range lv.Volume.Structure {
+		if err := resolveContentPathsForStructure(gadgetRootDir, kernelRootDir, kernelInfo, &lv.Volume.Structure[i]); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func resolveContentPathsForStructure(gadgetRootDir, kernelRootDir string, kernelInfo *KernelInfo, ps *VolumeStructure) error {
+	for i := range ps.Content {
+		source := ps.Content[i].Source
+		if source != "" {
+			newSource, err := resolveOne(gadgetRootDir, kernelRootDir, kernelInfo, source)
+			if err != nil {
+				return err
+			}
+			if strings.HasSuffix(source, "/") {
+				// restore trailing / if one was there
+				newSource += "/"
+			}
+			ps.Content[i].ResolvedSource = newSource
+		}
+	}
+
+	return nil
 }
 
 // LayoutVolume attempts to completely lay out the volume, that is the
