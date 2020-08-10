@@ -241,7 +241,7 @@ func makeControlChange(c *C, st *state.State, inst *servicestate.Instruction, in
 	return chg
 }
 
-func (s *serviceControlSuite) TestControlDoesntCreateExecCommandTasks(c *C) {
+func (s *serviceControlSuite) TestControlDoesntCreateExecCommandTasksIfNoFlags(c *C) {
 	st := s.state
 	st.Lock()
 	defer st.Unlock()

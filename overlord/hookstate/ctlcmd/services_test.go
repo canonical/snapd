@@ -416,35 +416,62 @@ func (s *servicectlSuite) testQueueCommandsOrdering(c *C, finalTaskKind string) 
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	finalTaskWt := finalTask.WaitTasks()
-	c.Assert(finalTaskWt, HasLen, 4)
+	var finalWaitTasks []string
+	for _, t := range finalTask.WaitTasks() {
+		taskInfo := fmt.Sprintf("%s:%s", t.Kind(), t.Summary())
+		finalWaitTasks = append(finalWaitTasks, taskInfo)
 
-	for _, t := range finalTaskWt {
-		// mark-seeded tasks should wait for both exec-command tasks
+		var wait []string
+		hasRunHook := 0
+		for _, wt := range t.WaitTasks() {
+			if wt.Kind() != "run-hook" {
+				taskInfo = fmt.Sprintf("%s:%s", wt.Kind(), wt.Summary())
+				wait = append(wait, taskInfo)
+			} else {
+				hasRunHook++
+			}
+		}
+		c.Assert(hasRunHook, Equals, 1)
+
 		switch t.Kind() {
 		case "exec-command":
 			var argv []string
 			c.Assert(t.Get("argv", &argv), IsNil)
 			c.Check(argv, HasLen, 3)
-			commandWt := make(map[string]bool)
-			for _, wt := range t.WaitTasks() {
-				commandWt[wt.Kind()] = true
-			}
-			// exec-command for "stop" should wait for configure hook task, "start" should wait for "stop" and "configure" hook task.
 			switch argv[1] {
 			case "stop":
-				c.Check(commandWt, DeepEquals, map[string]bool{"run-hook": true})
+				c.Check(wait, HasLen, 0)
 			case "start":
-				c.Check(commandWt, DeepEquals, map[string]bool{"run-hook": true, "exec-command": true, "service-control": true})
+				c.Check(wait, DeepEquals, []string{
+					`exec-command:stop of [test-snap.test-service]`,
+					`service-control:Run service command "stop" for services ["test-service"] of snap "test-snap"`})
 			default:
 				c.Fatalf("unexpected command: %q", argv[1])
 			}
 		case "service-control":
+			var sa servicestate.ServiceAction
+			c.Assert(t.Get("service-action", &sa), IsNil)
+			c.Check(sa.Services, DeepEquals, []string{"test-service"})
+			switch sa.Action {
+			case "stop":
+				c.Check(wait, DeepEquals, []string{
+					"exec-command:stop of [test-snap.test-service]"})
+			case "start":
+				c.Check(wait, DeepEquals, []string{
+					"exec-command:start of [test-snap.test-service]",
+					"exec-command:stop of [test-snap.test-service]",
+					`service-control:Run service command "stop" for services ["test-service"] of snap "test-snap"`})
+			}
 		default:
 			c.Fatalf("unexpected task: %s", t.Kind())
 		}
 
 	}
+	c.Check(finalWaitTasks, DeepEquals, []string{
+		`exec-command:stop of [test-snap.test-service]`,
+		`service-control:Run service command "stop" for services ["test-service"] of snap "test-snap"`,
+		`exec-command:start of [test-snap.test-service]`,
+		`service-control:Run service command "start" for services ["test-service"] of snap "test-snap"`})
 	c.Check(finalTask.HaltTasks(), HasLen, 0)
 }
 
