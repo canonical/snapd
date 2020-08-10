@@ -8380,37 +8380,24 @@ func (s *interfaceManagerSuite) TestFirstTaskAfterBootWhenPreseeding(c *C) {
 	_, err = ifacestate.FirstTaskAfterBootWhenPreseeding("test-snap", markPreseeded)
 	c.Check(err, ErrorMatches, `internal error: cannot find start-setup-profiles or install hook for snap "test-snap"`)
 
-	task1 := st.NewTask("some-task", "")
+	// install hook of another snap
+	task1 := st.NewTask("run-hook", "")
+	hsup := hookstate.HookSetup{Hook: "install", Snap: "other-snap"}
+	task1.Set("hook-setup", &hsup)
 	task1.WaitFor(markPreseeded)
 	chg.AddTask(task1)
-
 	_, err = ifacestate.FirstTaskAfterBootWhenPreseeding("test-snap", markPreseeded)
 	c.Check(err, ErrorMatches, `internal error: cannot find start-setup-profiles or install hook for snap "test-snap"`)
 
+	// add install hook for the correct snap
 	task2 := st.NewTask("run-hook", "")
-	hsup := hookstate.HookSetup{Hook: "install", Snap: "other-snap"}
-	task2.Set("hook-setup", &hsup)
-	task2.WaitFor(task1)
-	chg.AddTask(task2)
-	_, err = ifacestate.FirstTaskAfterBootWhenPreseeding("test-snap", markPreseeded)
-	c.Check(err, ErrorMatches, `internal error: cannot find start-setup-profiles or install hook for snap "test-snap"`)
-
-	task3 := st.NewTask("start-snap-services", "")
-	task3.Set("snap-setup-task", setupTask.ID())
-	task3.WaitFor(task2)
-	chg.AddTask(task3)
-	tsk, err := ifacestate.FirstTaskAfterBootWhenPreseeding("test-snap", markPreseeded)
-	c.Assert(err, IsNil)
-	c.Check(tsk.ID(), Equals, task3.ID())
-
-	task4 := st.NewTask("run-hook", "")
 	hsup = hookstate.HookSetup{Hook: "install", Snap: "test-snap"}
-	task4.Set("hook-setup", &hsup)
-	task4.WaitFor(task3)
-	chg.AddTask(task4)
+	task2.Set("hook-setup", &hsup)
+	task2.WaitFor(markPreseeded)
+	chg.AddTask(task2)
 	hooktask, err := ifacestate.FirstTaskAfterBootWhenPreseeding("test-snap", markPreseeded)
 	c.Assert(err, IsNil)
-	c.Check(hooktask.ID(), Equals, task4.ID())
+	c.Check(hooktask.ID(), Equals, task2.ID())
 }
 
 // Tests for ResolveDisconnect()

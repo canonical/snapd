@@ -1055,26 +1055,14 @@ func firstTaskAfterBootWhenPreseeding(thisSnap string, markPreseeded *state.Task
 	if markPreseeded.Change() == nil {
 		return nil, fmt.Errorf("internal error: %s task not in change", markPreseeded.Kind())
 	}
-	for _, ht := range markPreseeded.Change().Tasks() {
-		switch ht.Kind() {
-		case "start-snap-services":
-			htsup, err := snapstate.TaskSnapSetup(ht)
-			if err != nil {
-				return nil, fmt.Errorf("internal error: cannot get snap setup for task %q: %v", ht.Kind(), err)
-			}
-			if htsup.InstanceName() == thisSnap {
-				firstTaskAfterBoot = ht
-				// we may still find install hook, continue looping
-			}
-		case "run-hook":
+	for _, ht := range markPreseeded.HaltTasks() {
+		if ht.Kind() == "run-hook" {
 			var hs hookstate.HookSetup
 			if err := ht.Get("hook-setup", &hs); err != nil {
 				return nil, fmt.Errorf("internal error: cannot get hook setup: %v", err)
 			}
 			if hs.Hook == "install" && hs.Snap == thisSnap {
 				firstTaskAfterBoot = ht
-				// install hooks comes before start-snap-services,
-				// interrupt the loop if found.
 				break
 			}
 		}
