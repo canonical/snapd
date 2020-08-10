@@ -637,7 +637,7 @@ func (ks20 *bootState20Kernel) selectAndCommitSnapInitramfsMount() (sn snap.Plac
 // base snap methods
 //
 
-// bootState20Kernel implements the bootState interface for base snaps on UC20.
+// bootState20Base implements the bootState interface for base snaps on UC20.
 // It is used for both setNext() and markSuccessful(), with both of those
 // methods returning bootStateUpdate20 to be used with bootStateUpdate.
 type bootState20Base struct {
