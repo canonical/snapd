@@ -461,7 +461,7 @@ func (cs *clientSuite) TestIsRetryable(c *C) {
 	c.Check(client.IsRetryable(errors.New("some-error")), Equals, false)
 	c.Check(client.IsRetryable(&client.Error{Kind: "something-else"}), Equals, false)
 	// happy
-	c.Check(client.IsRetryable(&client.Error{Kind: client.ErrorKindChangeConflict}), Equals, true)
+	c.Check(client.IsRetryable(&client.Error{Kind: client.ErrorKindSnapChangeConflict}), Equals, true)
 }
 
 func (cs *clientSuite) TestUserAgent(c *C) {

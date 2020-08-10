@@ -34,7 +34,6 @@
 
 #include "../libsnap-confine-private/apparmor-support.h"
 #include "../libsnap-confine-private/cgroup-freezer-support.h"
-#include "../libsnap-confine-private/cgroup-pids-support.h"
 #include "../libsnap-confine-private/cgroup-support.h"
 #include "../libsnap-confine-private/classic.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
@@ -305,9 +304,6 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 						    gid_t real_gid,
 						    gid_t saved_gid);
 
-static void maybe_join_tracking_cgroup(const sc_invocation * inv,
-				       gid_t real_gid, gid_t saved_gid);
-
 int main(int argc, char **argv)
 {
 	// Use our super-defensive parser to figure out what we've been asked to do.
@@ -563,11 +559,6 @@ static void enter_classic_execution_environment(const sc_invocation * inv,
 	 */
 	debug("preparing classic execution environment");
 
-	/* Join a tracking cgroup if appropriate feature is enabled. */
-	int snap_lock_fd = sc_lock_snap(inv->snap_instance);
-	maybe_join_tracking_cgroup(inv, real_gid, saved_gid);
-	sc_unlock(snap_lock_fd);
-
 	if (!sc_feature_enabled(SC_FEATURE_PARALLEL_INSTANCES)) {
 		return;
 	}
@@ -740,8 +731,6 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 		sc_cgroup_freezer_join(inv->snap_instance, getpid());
 	}
 
-	maybe_join_tracking_cgroup(inv, real_gid, saved_gid);
-
 	sc_unlock(snap_lock_fd);
 
 	sc_close_mount_ns(group);
@@ -767,16 +756,6 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 	for (i = 0; tmpd[i] != NULL; i++) {
 		if (setenv(tmpd[i], "/tmp", 1) != 0) {
 			die("cannot set environment variable '%s'", tmpd[i]);
-		}
-	}
-}
-
-static void maybe_join_tracking_cgroup(const sc_invocation * inv,
-				       gid_t real_gid, gid_t saved_gid)
-{
-	if (!sc_cgroup_is_v2()) {
-		if (sc_feature_enabled(SC_FEATURE_REFRESH_APP_AWARENESS)) {
-			sc_cgroup_pids_join(inv->security_tag, getpid());
 		}
 	}
 }
