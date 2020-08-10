@@ -44,10 +44,13 @@ func (s *accessSuite) TestOpenAccess(c *C) {
 	ucred := &ucrednet{uid: 42, pid: 100, socket: dirs.SnapSocket}
 	c.Check(ac.checkAccess(nil, ucred, nil), Equals, accessForbidden)
 
-	// Access allowed from other sockets, or without peer credentials
+	// Access allowed from other sockets
 	ucred.socket = dirs.SnapdSocket
 	c.Check(ac.checkAccess(nil, ucred, nil), Equals, accessOK)
-	c.Check(ac.checkAccess(nil, nil, nil), Equals, accessOK)
+
+	// Access forbidden without peer credentials.  This will need
+	// to be revisited if the API is ever exposed over TCP.
+	c.Check(ac.checkAccess(nil, nil, nil), Equals, accessForbidden)
 }
 
 func (s *accessSuite) TestAuthenticatedAccess(c *C) {

@@ -75,12 +75,15 @@ type accessChecker interface {
 }
 
 // openAccess allows requests without authentication, provided they
-// were not received on snapd-snap.socket
+// have peer credentials and were not received on snapd-snap.socket
 type openAccess struct{}
 
 func (ac openAccess) checkAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
+	if ucred == nil {
+		return accessForbidden
+	}
 	// Forbid access from snapd-snap.socket
-	if ucred != nil && ucred.socket == dirs.SnapSocket {
+	if ucred.socket == dirs.SnapSocket {
 		return accessForbidden
 	}
 
