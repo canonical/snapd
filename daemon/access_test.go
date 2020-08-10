@@ -20,7 +20,7 @@
 package daemon
 
 import (
-	"bytes"
+	"net/http"
 	"net/http/httptest"
 
 	. "gopkg.in/check.v1"
@@ -54,6 +54,15 @@ func (s *accessSuite) TestOpenAccess(c *C) {
 }
 
 func (s *accessSuite) TestAuthenticatedAccess(c *C) {
+	defer func() {
+		checkPolkitAction = checkPolkitActionImpl
+	}()
+	checkPolkitAction = func(r *http.Request, ucred *ucrednet, action string) accessResult {
+		// Polkit is not consulted if no action is specified
+		c.Fail()
+		return accessForbidden
+	}
+
 	var ac accessChecker = authenticatedAccess{}
 
 	req := httptest.NewRequest("GET", "/", nil)
@@ -65,7 +74,7 @@ func (s *accessSuite) TestAuthenticatedAccess(c *C) {
 	c.Check(ac.checkAccess(req, ucred, user), Equals, accessForbidden)
 
 	// With macaroon auth, a normal user is granted access
-	ucred = &ucrednet{uid: 42, pid: 100}
+	ucred = &ucrednet{uid: 42, pid: 100, socket: dirs.SnapdSocket}
 	c.Check(ac.checkAccess(req, ucred, user), Equals, accessOK)
 
 	// Macaroon access requires peer credentials
@@ -75,41 +84,56 @@ func (s *accessSuite) TestAuthenticatedAccess(c *C) {
 	c.Check(ac.checkAccess(req, ucred, nil), Equals, accessUnauthorized)
 
 	// The root user is granted access without a macaroon
-	ucred = &ucrednet{uid: 0, pid: 100}
+	ucred = &ucrednet{uid: 0, pid: 100, socket: dirs.SnapdSocket}
 	c.Check(ac.checkAccess(req, ucred, nil), Equals, accessOK)
 }
 
 func (s *accessSuite) TestAuthenticatedAccessPolkit(c *C) {
 	defer func() {
-		polkitCheckAuthorization = polkit.CheckAuthorization
-		logger.SetLogger(logger.NullLogger)
+		checkPolkitAction = checkPolkitActionImpl
 	}()
 
 	var ac accessChecker = authenticatedAccess{Polkit: "action-id"}
 
-	var logbuf bytes.Buffer
-	log, err := logger.New(&logbuf, logger.DefaultFlags)
-	c.Assert(err, IsNil)
-	logger.SetLogger(log)
-
 	req := httptest.NewRequest("GET", "/", nil)
 	user := &auth.UserState{}
-	ucred := &ucrednet{uid: 0, pid: 100}
+	ucred := &ucrednet{uid: 0, pid: 100, socket: dirs.SnapdSocket}
 
 	// polkit is not checked if any of:
 	//   * ucred is missing
 	//   * macaroon auth is provided
 	//   * user is root
-	polkitCheckAuthorization = func(pid int32, uid uint32, actionId string, details map[string]string, flags polkit.CheckFlags) (bool, error) {
+	checkPolkitAction = func(r *http.Request, ucred *ucrednet, action string) accessResult {
 		c.Fail()
-		return true, nil
+		return accessForbidden
 	}
 	c.Check(ac.checkAccess(req, nil, nil), Equals, accessForbidden)
 	c.Check(ac.checkAccess(req, nil, user), Equals, accessForbidden)
 	c.Check(ac.checkAccess(req, ucred, nil), Equals, accessOK)
 
+	// polkit is checked for regular users without macaroon auth
+	checkPolkitAction = func(r *http.Request, u *ucrednet, action string) accessResult {
+		c.Check(r, Equals, req)
+		c.Check(u, Equals, ucred)
+		c.Check(action, Equals, "action-id")
+		return accessOK
+	}
+	ucred = &ucrednet{uid: 42, pid: 100, socket: dirs.SnapdSocket}
+	c.Check(ac.checkAccess(req, ucred, nil), Equals, accessOK)
+}
+
+func (s *accessSuite) TestCheckPolkitActionImpl(c *C) {
+	defer func() {
+		polkitCheckAuthorization = polkit.CheckAuthorization
+	}()
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	req := httptest.NewRequest("GET", "/", nil)
+	ucred := &ucrednet{uid: 42, pid: 1000, socket: dirs.SnapdSocket}
+
 	// Access granted if polkit authorizes the request
-	ucred = &ucrednet{uid: 42, pid: 1000}
 	polkitCheckAuthorization = func(pid int32, uid uint32, actionId string, details map[string]string, flags polkit.CheckFlags) (bool, error) {
 		c.Check(pid, Equals, int32(1000))
 		c.Check(uid, Equals, uint32(42))
@@ -118,21 +142,21 @@ func (s *accessSuite) TestAuthenticatedAccessPolkit(c *C) {
 		c.Check(flags, Equals, polkit.CheckFlags(0))
 		return true, nil
 	}
-	c.Check(ac.checkAccess(req, ucred, nil), Equals, accessOK)
+	c.Check(checkPolkitActionImpl(req, ucred, "action-id"), Equals, accessOK)
 	c.Check(logbuf.String(), Equals, "")
 
 	// Unauthorized if polkit denies the request
 	polkitCheckAuthorization = func(pid int32, uid uint32, actionId string, details map[string]string, flags polkit.CheckFlags) (bool, error) {
 		return false, nil
 	}
-	c.Check(ac.checkAccess(req, ucred, nil), Equals, accessUnauthorized)
+	c.Check(checkPolkitActionImpl(req, ucred, "action-id"), Equals, accessUnauthorized)
 	c.Check(logbuf.String(), Equals, "")
 
 	// Cancelled if the user dismisses the auth check
 	polkitCheckAuthorization = func(pid int32, uid uint32, actionId string, details map[string]string, flags polkit.CheckFlags) (bool, error) {
 		return false, polkit.ErrDismissed
 	}
-	c.Check(ac.checkAccess(req, ucred, nil), Equals, accessCancelled)
+	c.Check(checkPolkitActionImpl(req, ucred, "action-id"), Equals, accessCancelled)
 	c.Check(logbuf.String(), Equals, "")
 
 	// The X-Allow-Interaction header can be set to tell polkitd
@@ -142,7 +166,7 @@ func (s *accessSuite) TestAuthenticatedAccessPolkit(c *C) {
 		c.Check(flags, Equals, polkit.CheckFlags(polkit.CheckAllowInteraction))
 		return true, nil
 	}
-	c.Check(ac.checkAccess(req, ucred, nil), Equals, accessOK)
+	c.Check(checkPolkitActionImpl(req, ucred, "action-id"), Equals, accessOK)
 	c.Check(logbuf.String(), Equals, "")
 
 	// Bad values in the request header are logged
@@ -151,7 +175,7 @@ func (s *accessSuite) TestAuthenticatedAccessPolkit(c *C) {
 		c.Check(flags, Equals, polkit.CheckFlags(0))
 		return true, nil
 	}
-	c.Check(ac.checkAccess(req, ucred, nil), Equals, accessOK)
+	c.Check(checkPolkitActionImpl(req, ucred, "action-id"), Equals, accessOK)
 	c.Check(logbuf.String(), testutil.Contains, "error parsing X-Allow-Interaction header:")
 }
 
@@ -166,12 +190,12 @@ func (s *accessSuite) TestRootAccess(c *C) {
 	c.Check(ac.checkAccess(nil, ucred, user), Equals, accessForbidden)
 
 	// Non-root users are forbidden, even with macaroon auth
-	ucred = &ucrednet{uid: 42, pid: 100}
+	ucred = &ucrednet{uid: 42, pid: 100, socket: dirs.SnapdSocket}
 	c.Check(ac.checkAccess(nil, ucred, nil), Equals, accessForbidden)
 	c.Check(ac.checkAccess(nil, ucred, user), Equals, accessForbidden)
 
 	// Root is granted access
-	ucred = &ucrednet{uid: 0, pid: 100}
+	ucred = &ucrednet{uid: 0, pid: 100, socket: dirs.SnapdSocket}
 	c.Check(ac.checkAccess(nil, ucred, nil), Equals, accessOK)
 }
 

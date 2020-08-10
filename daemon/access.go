@@ -39,9 +39,12 @@ const (
 	accessCancelled
 )
 
-var polkitCheckAuthorization = polkit.CheckAuthorization
+var (
+	polkitCheckAuthorization = polkit.CheckAuthorization
+	checkPolkitAction        = checkPolkitActionImpl
+)
 
-func checkPolkitAction(r *http.Request, ucred *ucrednet, action string) accessResult {
+func checkPolkitActionImpl(r *http.Request, ucred *ucrednet, action string) accessResult {
 	var flags polkit.CheckFlags
 	allowHeader := r.Header.Get(client.AllowInteractionHeader)
 	if allowHeader != "" {
@@ -52,14 +55,15 @@ func checkPolkitAction(r *http.Request, ucred *ucrednet, action string) accessRe
 		}
 	}
 	// Pass both pid and uid from the peer ucred to avoid pid race
-	if authorized, err := polkitCheckAuthorization(ucred.pid, ucred.uid, action, nil, flags); err == nil {
+	switch authorized, err := polkitCheckAuthorization(ucred.pid, ucred.uid, action, nil, flags); err {
+	case nil:
 		if authorized {
 			// polkit says user is authorised
 			return accessOK
 		}
-	} else if err == polkit.ErrDismissed {
+	case polkit.ErrDismissed:
 		return accessCancelled
-	} else {
+	default:
 		logger.Noticef("polkit error: %s", err)
 	}
 	return accessUnauthorized
@@ -119,6 +123,9 @@ func (ac authenticatedAccess) checkAccess(r *http.Request, ucred *ucrednet, user
 		return accessOK
 	}
 
+	// We check polkit last because it may result in the user
+	// being prompted for authorisation.  This should be avoided
+	// if access is otherwise granted.
 	if ac.Polkit != "" {
 		return checkPolkitAction(r, ucred, ac.Polkit)
 	}
@@ -131,7 +138,11 @@ func (ac authenticatedAccess) checkAccess(r *http.Request, ucred *ucrednet, user
 type rootAccess struct{}
 
 func (ac rootAccess) checkAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
-	if ucred != nil && ucred.uid == 0 && ucred.socket != dirs.SnapSocket {
+	if ucred == nil {
+		return accessForbidden
+	}
+
+	if ucred.uid == 0 && ucred.socket != dirs.SnapSocket {
 		return accessOK
 	}
 	return accessForbidden
@@ -141,7 +152,11 @@ func (ac rootAccess) checkAccess(r *http.Request, ucred *ucrednet, user *auth.Us
 type snapAccess struct{}
 
 func (ac snapAccess) checkAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
-	if ucred != nil && ucred.socket == dirs.SnapSocket {
+	if ucred == nil {
+		return accessForbidden
+	}
+
+	if ucred.socket == dirs.SnapSocket {
 		return accessOK
 	}
 	// FIXME: should snapctl access be allowed on the main socket?

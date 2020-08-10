@@ -2160,7 +2160,7 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	ucred, err := runSnapctlUcrednetGet(r.RemoteAddr)
 	if err != nil {
-		return Forbidden("cannot get remote user: %s", err)
+		return Forbidden("cannot get requesting user: %s", err)
 	}
 
 	// Ignore missing context error to allow 'snapctl -h' without a context;
