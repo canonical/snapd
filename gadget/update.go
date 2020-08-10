@@ -342,11 +342,10 @@ func applyUpdates(new GadgetData, updates []updatePair, rollbackDir string, obse
 			}
 		}
 		return backupErr
-	} else {
-		if observer != nil {
-			if err := observer.BeforeWrite(); err != nil {
-				return fmt.Errorf("cannot observe prepared update: %v", err)
-			}
+	}
+	if observer != nil {
+		if err := observer.BeforeWrite(); err != nil {
+			return fmt.Errorf("cannot observe prepared update: %v", err)
 		}
 	}
 
