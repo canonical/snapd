@@ -101,18 +101,18 @@ type authenticatedAccess struct {
 }
 
 func (ac authenticatedAccess) checkAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
+	// Require peer credentials
+	if ucred == nil {
+		return accessForbidden
+	}
+
 	// Forbid access from snapd-snap.socket
-	if ucred != nil && ucred.socket == dirs.SnapSocket {
+	if ucred.socket == dirs.SnapSocket {
 		return accessForbidden
 	}
 
 	if user != nil {
 		return accessOK
-	}
-
-	// Next checks require ucred
-	if ucred == nil {
-		return accessUnauthorized
 	}
 
 	if ucred.uid == 0 {

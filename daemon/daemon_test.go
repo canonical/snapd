@@ -128,7 +128,7 @@ func (s *daemonSuite) TestCommandMethodDispatch(c *check.C) {
 
 		rec := httptest.NewRecorder()
 		cmd.ServeHTTP(rec, req)
-		c.Check(rec.Code, check.Equals, 401, check.Commentf(method))
+		c.Check(rec.Code, check.Equals, 403, check.Commentf(method))
 
 		rec = httptest.NewRecorder()
 		req.RemoteAddr = "pid=100;uid=0;socket=;"

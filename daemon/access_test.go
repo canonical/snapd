@@ -68,8 +68,8 @@ func (s *accessSuite) TestAuthenticatedAccess(c *C) {
 	ucred = &ucrednet{uid: 42, pid: 100}
 	c.Check(ac.checkAccess(req, ucred, user), Equals, accessOK)
 
-	// Macaroon access is also possible without peer credentials
-	c.Check(ac.checkAccess(req, nil, user), Equals, accessOK)
+	// Macaroon access requires peer credentials
+	c.Check(ac.checkAccess(req, nil, user), Equals, accessForbidden)
 
 	// Without macaroon auth, normal users are unauthorized
 	c.Check(ac.checkAccess(req, ucred, nil), Equals, accessUnauthorized)
@@ -104,8 +104,8 @@ func (s *accessSuite) TestAuthenticatedAccessPolkit(c *C) {
 		c.Fail()
 		return true, nil
 	}
-	c.Check(ac.checkAccess(req, nil, nil), Equals, accessUnauthorized)
-	c.Check(ac.checkAccess(req, nil, user), Equals, accessOK)
+	c.Check(ac.checkAccess(req, nil, nil), Equals, accessForbidden)
+	c.Check(ac.checkAccess(req, nil, user), Equals, accessForbidden)
 	c.Check(ac.checkAccess(req, ucred, nil), Equals, accessOK)
 
 	// Access granted if polkit authorizes the request
