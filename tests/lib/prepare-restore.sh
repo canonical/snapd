@@ -458,8 +458,8 @@ prepare_project() {
     #   systemctl restart systemd-logind.service
     # But due to this issue, restarting systemd-logind is unsafe.
     # https://github.com/systemd/systemd/issues/16685#issuecomment-671239737
-    echo "logind upgraded, reboot required"
     if [ "$restart_logind" = yes ]; then
+        echo "logind upgraded, reboot required"
         REBOOT
     fi
 
