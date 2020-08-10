@@ -178,11 +178,20 @@ const kubernetesSupportConnectedPlugAppArmorKubeletSystemdRun = `
   # virtio vda-vdz, 1-63 partitions
   mount /dev/vd[a-z]{[1-9],[1-5][0-9],6[0-3]} -> /var/snap/@{SNAP_INSTANCE_NAME}/common/**,
   umount /var/snap/@{SNAP_INSTANCE_NAME}/common/**,
+
   # When mounting a volume subPath, kubelet binds mounts on an open fd (eg,
-  # /proc/.../fd/N) which triggers a ptrace 'trace' denial on the parent
-  # kubelet peer process from this child profile. Note, this child profile
-  # doesn't have 'capability sys_ptrace', so systemd-run is still not able to
-  # ptrace this snap's processes.
+  # /proc/.../fd/N) which triggers a ptrace 'read' denial on the parent
+  # kubelet peer process from this child profile due to PTRACE_MODE_READ (man
+  # ptrace) checks.
+  ptrace (read) peer=snap.@{SNAP_INSTANCE_NAME}.@{SNAP_COMMAND_NAME},
+
+  # Ubuntu's ptrace patchset before (at least) 20.04 did not correctly evaluate
+  # PTRACE_MODE_READ and policy required 'trace' instead of 'read'.
+  # (LP: #1890848). This child profile doesn't have 'capability sys_ptrace', so
+  # continue to allow this historic 'trace' rule on kubelet (our parent peer)
+  # since systemd-run won't be able to ptrace this snap's processes (kubelet
+  # would also need a corresponding tracedby rule). This can be dropped once
+  # LP: #1890848 is fixed.
   ptrace (trace) peer=snap.@{SNAP_INSTANCE_NAME}.@{SNAP_COMMAND_NAME},
 `
 
