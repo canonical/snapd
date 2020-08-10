@@ -33,8 +33,8 @@ execute: |
     #shellcheck source=tests/lib/hotplug.sh
     . "$TESTSLIB/hotplug.sh"
 
-    echo "Refresh core snap to desired channel"
     if [ "$BUILD_SNAPD_FROM_CURRENT" != "true" ]; then
+        echo "Refresh core snap to desired channel"
         refresh_to_new_core "$NEW_CORE_CHANNEL"
     fi
 
