@@ -8397,7 +8397,7 @@ func (s *interfaceManagerSuite) TestFirstTaskAfterBootWhenPreseedingErrors(c *C)
 
 	task3 := st.NewTask("start-snap-services", "")
 	task3.Set("snap-setup-task", setupTask.ID())
-	task2.WaitFor(task2)
+	task3.WaitFor(task2)
 	chg.AddTask(task3)
 	tsk, err := ifacestate.FirstTaskAfterBootWhenPreseeding("test-snap", markPreseeded)
 	c.Assert(err, IsNil)
