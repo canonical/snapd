@@ -6,12 +6,14 @@ on:
 
 jobs:
   cla-check:
-    runs-on: ubuntu-16.04
+    runs-on: self-hosted
     steps:
       - name: Install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install python-launchpadlib
+          # sudo apt-get update
+          # sudo apt-get install python-launchpadlib
+          # TODO: make this conditional on self-hosted or not
+          echo "dependencies are baked into unprivileged test containers"
       - name: Checkout code
         uses: actions/checkout@v2
         with:

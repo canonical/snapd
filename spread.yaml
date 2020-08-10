@@ -68,8 +68,6 @@ backends:
                   workers: 8
             - ubuntu-18.04-64:
                   workers: 8
-            - ubuntu-19.10-64:
-                  workers: 6
             - ubuntu-20.04-64:
                   workers: 8
             - ubuntu-core-16-64:
@@ -101,10 +99,6 @@ backends:
                   workers: 6
             - fedora-32-64:
                   workers: 6
-
-            - opensuse-15.0-64:
-                  workers: 6
-                  manual: true
 
             - arch-linux-64:
                   workers: 6
@@ -139,8 +133,6 @@ backends:
                   workers: 6
             - ubuntu-18.04-64:
                   workers: 6
-            - ubuntu-19.10-64:
-                  workers: 6
             - ubuntu-20.04-64:
                   workers: 6
 
@@ -159,10 +151,6 @@ backends:
                   image: ubuntu-1804-64-virt-enabled
                   storage: 20G
                   workers: 2
-            - ubuntu-19.10-64:
-                  image: ubuntu-1910-64-virt-enabled
-                  storage: 20G
-                  workers: 1
             - ubuntu-20.04-64:
                   image: ubuntu-2004-64-virt-enabled
                   storage: 20G
@@ -211,31 +199,10 @@ backends:
                   username: ubuntu
                   password: ubuntu
                   flags: [virtio]
-            - ubuntu-17.10-64:
-                  username: ubuntu
-                  password: ubuntu
             - ubuntu-18.04-64:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-18.04-32:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-18.10-64:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-18.10-32:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-19.04-64:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-19.04-32:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-19.10-64:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-19.10-32:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-20.04-64:
@@ -253,15 +220,6 @@ backends:
             - debian-sid-64:
                   username: debian
                   password: debian
-            - fedora-27-64:
-                  username: fedora
-                  password: fedora
-            - fedora-28-64:
-                  username: fedora
-                  password: fedora
-            - fedora-29-64:
-                  username: fedora
-                  password: fedora
             - centos-7-64:
                   username: centos
                   password: centos
@@ -343,63 +301,6 @@ backends:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-18.04-arm64:
-                  username: ubuntu
-                  password: ubuntu
-            # Cosmic
-            - ubuntu-18.10-amd64:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-18.10-i386:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-18.10-ppc64el:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-18.10-armhf:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-18.10-s390x:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-18.10-arm64:
-                  username: ubuntu
-                  password: ubuntu
-            # Disco
-            - ubuntu-19.04-amd64:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-19.04-i386:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-19.04-ppc64el:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-19.04-armhf:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-19.04-s390x:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-19.04-arm64:
-                  username: ubuntu
-                  password: ubuntu
-            # Eoan
-            - ubuntu-19.10-amd64:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-19.10-i386:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-19.10-ppc64el:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-19.10-armhf:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-19.10-s390x:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-19.10-arm64:
                   username: ubuntu
                   password: ubuntu
             # Focal
@@ -902,7 +803,6 @@ suites:
         systems:
             - ubuntu-16.04-64
             - ubuntu-18.04-64
-            - ubuntu-19.10-64
             - ubuntu-20.04-64
         environment:
             NESTED_TYPE: "classic"
