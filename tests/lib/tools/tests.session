@@ -122,33 +122,14 @@ case "$action" in
 		esac
 
 		# Try to enable linger for the selected user(s).
-		needs_linger_workaround=
 		for u in $(echo "$user" | tr ',' ' '); do
 			if ! loginctl enable-linger "$u"; then
-				needs_linger_workaround=true
+				echo "tests.session requires external fix for //github.com/systemd/systemd/issues/12401" >&2
+				exit 1
 			fi
 		done
 
-		# Work around https://github.com/systemd/systemd/issues/12401 fixed in
-		# systemd v243.
-		if [ "$needs_linger_workaround" = "true" ] && systemctl cat systemd-logind.service | not grep -q StateDirectory; then
-			mkdir -p /etc/systemd/system/systemd-logind.service.d
-			(
-				echo "[Service]"
-				echo "StateDirectory=systemd/linger"
-			) > /etc/systemd/system/systemd-logind.service.d/linger.conf
-			mkdir -p /var/lib/systemd/linger
-			test "$(command -v restorecon)" != "" && restorecon /var/lib/systemd/linger
-
-			systemctl daemon-reload
-			systemctl restart systemd-logind.service
-
-			touch /run/tests.session-systemd-issue-12401.workaround
-		fi
-
-		# Enable linger for the selected user(s).
 		for u in $(echo "$user" | tr ',' ' '); do
-			loginctl enable-linger "$u"
 			# We've enabled linger, now let's explicitly start the
 			# default.target. This ensures that test code does not need to pay
 			# extra attention to synchronization.
@@ -166,6 +147,7 @@ case "$action" in
 	restore)
 		# Disable linger for the selected user(s).
 		for u in $(echo "$user" | tr ',' ' '); do
+
 			loginctl disable-linger "$u"
 			# If the user is not root, also stop their user slice and ensure
 			# their XDG_RUNTIME_DIR goes away. Currently doing this for root is
@@ -202,17 +184,6 @@ case "$action" in
 			rm  /run/tests.session-core16.workaround
 			# Undo changes to make /var/lib/systemd/ writable.
 			umount -l /var/lib/systemd
-		fi
-
-		if [ -e /run/tests.session-systemd-issue-12401.workaround ]; then
-			rm  /run/tests.session-systemd-issue-12401.workaround
-
-			# Remove the logind customizations we (may have) done above.
-			rm -rf /etc/systemd/system/systemd-logind.service.d
-
-			# Reload systemd and restart logind.
-			systemctl daemon-reload
-			systemctl restart systemd-logind.service
 		fi
 
 		exit 0
