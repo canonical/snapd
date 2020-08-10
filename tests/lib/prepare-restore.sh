@@ -396,7 +396,20 @@ prepare_project() {
             ;;
     esac
 
+    restart_logind=
+    if [ "$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }')" -lt 246 ]; then
+        restart_logind=maybe
+    fi
+
     install_pkg_dependencies
+
+    if [ "$restart_logind" = maybe ]; then
+        if [ "$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }')" -ge 246 ]; then
+            restart_logind=yes
+        else
+            restart_logind=
+        fi
+    fi
 
     # Work around systemd / Debian bug interaction. We are installing
     # libsystemd-dev which upgrades systemd to 246-2 (from 245-*) leaving
@@ -423,6 +436,7 @@ prepare_project() {
         ) > /etc/systemd/system/systemd-logind.service.d/linger.conf
         mkdir -p /var/lib/systemd/linger
         test "$(command -v restorecon)" != "" && restorecon /var/lib/systemd/linger
+        restart_logind=yes
     fi
 
     # FIXME: In an ideal world we'd just do this:
@@ -431,7 +445,9 @@ prepare_project() {
     # But due to this issue, restarting systemd-logind is unsafe.
     # https://github.com/systemd/systemd/issues/16685#issuecomment-671239737
     echo "logind upgraded, reboot required"
-    REBOOT
+    if [ "$restart_logind" = yes ]; then
+        REBOOT
+    fi
 
     # We take a special case for Debian/Ubuntu where we install additional build deps
     # base on the packaging. In Fedora/Suse this is handled via mock/osc
