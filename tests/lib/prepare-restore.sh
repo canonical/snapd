@@ -442,16 +442,19 @@ prepare_project() {
     # another is coalesced below and ends with REBOOT. This ensures that after
     # rebooting, we have an up-to-date, working logind and that the initial
     # session used by spread is tracked.
-    if systemctl cat systemd-logind.service | not grep -q StateDirectory; then
-        mkdir -p /etc/systemd/system/systemd-logind.service.d
-        (
-        echo "[Service]"
-        echo "StateDirectory=systemd/linger"
-        ) > /etc/systemd/system/systemd-logind.service.d/linger.conf
-        mkdir -p /var/lib/systemd/linger
-        test "$(command -v restorecon)" != "" && restorecon /var/lib/systemd/linger
-        restart_logind=yes
+    if ! loginctl enable-linger test; then
+        if systemctl cat systemd-logind.service | not grep -q StateDirectory; then
+            mkdir -p /etc/systemd/system/systemd-logind.service.d
+            (
+            echo "[Service]"
+            echo "StateDirectory=systemd/linger"
+            ) > /etc/systemd/system/systemd-logind.service.d/linger.conf
+            mkdir -p /var/lib/systemd/linger
+            test "$(command -v restorecon)" != "" && restorecon /var/lib/systemd/linger
+            restart_logind=yes
+        fi
     fi
+    loginctl disable-linger test || true
 
     # FIXME: In an ideal world we'd just do this:
     #   systemctl daemon-reload
