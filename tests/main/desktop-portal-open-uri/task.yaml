@@ -44,9 +44,6 @@ restore: |
     rm -f "$BROWSER_HISTORY"
 
 execute: |
-    #shellcheck source=tests/lib/files.sh
-    . "$TESTSLIB"/files.sh
-
     echo "Install the portals test client"
     snap install --edge test-snapd-portal-client
 
@@ -54,7 +51,7 @@ execute: |
     tests.session -u test exec test-snapd-portal-client open-uri http://www.example.org
 
     echo "The test-browser process was invoked with the URL"
-    wait_for_file "$BROWSER_HISTORY" 4 .5
+    retry -n 4 --wait 0.5 test -e "$BROWSER_HISTORY"
     MATCH http://www.example.org < "$BROWSER_HISTORY"
 
 debug: |

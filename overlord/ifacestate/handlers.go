@@ -721,6 +721,9 @@ func (m *InterfaceManager) undoConnect(task *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
+	perfTimings := state.TimingsForTask(task)
+	defer perfTimings.Save(st)
+
 	plugRef, slotRef, err := getPlugAndSlotRefs(task)
 	if err != nil {
 		return err
@@ -743,7 +746,54 @@ func (m *InterfaceManager) undoConnect(task *state.Task, _ *tomb.Tomb) error {
 	}
 	setConns(st, conns)
 
-	return m.repo.Disconnect(connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
+	if err := m.repo.Disconnect(connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name); err != nil {
+		return err
+	}
+
+	var delayedSetupProfiles bool
+	if err := task.Get("delayed-setup-profiles", &delayedSetupProfiles); err != nil && err != state.ErrNoState {
+		return err
+	}
+	if delayedSetupProfiles {
+		logger.Debugf("Connect undo handler: skipping setupSnapSecurity for snaps %q and %q", connRef.PlugRef.Snap, connRef.SlotRef.Snap)
+		return nil
+	}
+
+	plug := m.repo.Plug(connRef.PlugRef.Snap, connRef.PlugRef.Name)
+	if plug == nil {
+		return fmt.Errorf("internal error: snap %q has no %q plug", connRef.PlugRef.Snap, connRef.PlugRef.Name)
+	}
+	slot := m.repo.Slot(connRef.SlotRef.Snap, connRef.SlotRef.Name)
+	if slot == nil {
+		return fmt.Errorf("internal error: snap %q has no %q slot", connRef.SlotRef.Snap, connRef.SlotRef.Name)
+	}
+
+	var plugSnapst snapstate.SnapState
+	err = snapstate.Get(st, plugRef.Snap, &plugSnapst)
+	if err == state.ErrNoState {
+		return fmt.Errorf("internal error: snap %q is no longer available", plugRef.Snap)
+	}
+	if err != nil {
+		return err
+	}
+	var slotSnapst snapstate.SnapState
+	err = snapstate.Get(st, slotRef.Snap, &slotSnapst)
+	if err == state.ErrNoState {
+		return fmt.Errorf("internal error: snap %q is no longer available", slotRef.Snap)
+	}
+	if err != nil {
+		return err
+	}
+	slotOpts := confinementOptions(slotSnapst.Flags)
+	if err := m.setupSnapSecurity(task, slot.Snap, slotOpts, perfTimings); err != nil {
+		return err
+	}
+	plugOpts := confinementOptions(plugSnapst.Flags)
+	if err := m.setupSnapSecurity(task, plug.Snap, plugOpts, perfTimings); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // timeout for shared content retry

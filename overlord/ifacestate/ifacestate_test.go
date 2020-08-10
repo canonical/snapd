@@ -248,6 +248,7 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 	// just load the test backend here and this is nicely integrated with
 	// extraBackends above.
 	s.BaseTest.AddCleanup(ifacestate.MockSecurityBackends([]interfaces.SecurityBackend{s.secBackend}))
+	s.secBackend.SetupCalls = nil
 
 	buf, restore := logger.MockLogger()
 	s.BaseTest.AddCleanup(restore)
@@ -5009,7 +5010,7 @@ func (s *interfaceManagerSuite) TestAutoConnectDuringCoreTransition(c *C) {
 		SlotRef: interfaces.SlotRef{Snap: "core", Name: "network"}}})
 }
 
-func makeAutoConnectChange(st *state.State, plugSnap, plug, slotSnap, slot string) *state.Change {
+func makeAutoConnectChange(st *state.State, plugSnap, plug, slotSnap, slot string, delayedSetupProfiles bool) *state.Change {
 	chg := st.NewChange("connect...", "...")
 
 	t := st.NewTask("connect", "other connect task")
@@ -5019,6 +5020,7 @@ func makeAutoConnectChange(st *state.State, plugSnap, plug, slotSnap, slot strin
 	t.Set("plug-dynamic", plugAttrs)
 	t.Set("slot-dynamic", slotAttrs)
 	t.Set("auto", true)
+	t.Set("delayed-setup-profiles", delayedSetupProfiles)
 
 	// two fake tasks for connect-plug-/slot- hooks
 	hs1 := hookstate.HookSetup{
@@ -5043,7 +5045,7 @@ func makeAutoConnectChange(st *state.State, plugSnap, plug, slotSnap, slot strin
 	return chg
 }
 
-func (s *interfaceManagerSuite) mockConnectForUndo(c *C, conns map[string]interface{}) *state.Change {
+func (s *interfaceManagerSuite) mockConnectForUndo(c *C, conns map[string]interface{}, delayedSetupProfiles bool) *state.Change {
 	s.MockModel(c, nil)
 
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
@@ -5068,7 +5070,7 @@ func (s *interfaceManagerSuite) mockConnectForUndo(c *C, conns map[string]interf
 	s.state.Lock()
 	s.state.Set("conns", conns)
 
-	chg := makeAutoConnectChange(s.state, "consumer", "plug", "producer", "slot")
+	chg := makeAutoConnectChange(s.state, "consumer", "plug", "producer", "slot", delayedSetupProfiles)
 	terr := s.state.NewTask("error-trigger", "provoking undo")
 	connTasks := chg.Tasks()
 	terr.WaitAll(state.NewTaskSet(connTasks...))
@@ -5084,7 +5086,7 @@ func (s *interfaceManagerSuite) TestUndoConnect(c *C) {
 		"snap1:plug snap2:slot":       map[string]interface{}{},
 		"consumer:plug producer:slot": map[string]interface{}{},
 	}
-	chg := s.mockConnectForUndo(c, conns)
+	chg := s.mockConnectForUndo(c, conns, false)
 
 	s.state.Unlock()
 	s.settle(c)
@@ -5115,6 +5117,18 @@ func (s *interfaceManagerSuite) TestUndoConnect(c *C) {
 	_, err := s.manager(c).Repository().Connection(cref)
 	notConnected, _ := err.(*interfaces.NotConnectedError)
 	c.Check(notConnected, NotNil)
+
+	c.Assert(s.secBackend.SetupCalls, HasLen, 4)
+	c.Check(s.secBackend.SetupCalls[0].SnapInfo.InstanceName(), Equals, "producer")
+	c.Check(s.secBackend.SetupCalls[1].SnapInfo.InstanceName(), Equals, "consumer")
+	c.Check(s.secBackend.SetupCalls[0].Options, Equals, interfaces.ConfinementOptions{})
+	c.Check(s.secBackend.SetupCalls[1].Options, Equals, interfaces.ConfinementOptions{})
+
+	// by undo
+	c.Check(s.secBackend.SetupCalls[2].SnapInfo.InstanceName(), Equals, "producer")
+	c.Check(s.secBackend.SetupCalls[3].SnapInfo.InstanceName(), Equals, "consumer")
+	c.Check(s.secBackend.SetupCalls[2].Options, Equals, interfaces.ConfinementOptions{})
+	c.Check(s.secBackend.SetupCalls[3].Options, Equals, interfaces.ConfinementOptions{})
 }
 
 func (s *interfaceManagerSuite) TestUndoConnectUndesired(c *C) {
@@ -5124,7 +5138,7 @@ func (s *interfaceManagerSuite) TestUndoConnectUndesired(c *C) {
 		"snap1:plug snap2:slot":       map[string]interface{}{},
 		"consumer:plug producer:slot": map[string]interface{}{"undesired": true},
 	}
-	chg := s.mockConnectForUndo(c, conns)
+	chg := s.mockConnectForUndo(c, conns, false)
 
 	s.state.Unlock()
 	s.settle(c)
@@ -5161,6 +5175,37 @@ func (s *interfaceManagerSuite) TestUndoConnectUndesired(c *C) {
 	c.Check(notConnected, NotNil)
 }
 
+func (s *interfaceManagerSuite) TestUndoConnectNoSetupProfilesWithDelayedSetupProfiles(c *C) {
+	conns := map[string]interface{}{"consumer:plug producer:slot": map[string]interface{}{}}
+
+	delayedSetupProfiles := true
+	chg := s.mockConnectForUndo(c, conns, delayedSetupProfiles)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Assert(chg.Status().Ready(), Equals, true)
+
+	// connection is removed from conns
+	var realConns map[string]interface{}
+	c.Assert(s.state.Get("conns", &realConns), IsNil)
+	c.Check(realConns, HasLen, 0)
+
+	cref := &interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
+	}
+	// and it's not in the repo
+	_, err := s.manager(c).Repository().Connection(cref)
+	notConnected, _ := err.(*interfaces.NotConnectedError)
+	c.Check(notConnected, NotNil)
+
+	// no backend calls because of delayed-setup-profiles flag
+	c.Assert(s.secBackend.SetupCalls, HasLen, 0)
+}
+
 func (s *interfaceManagerSuite) TestConnectErrorMissingSlotSnapOnAutoConnect(c *C) {
 	s.MockModel(c, nil)
 
@@ -5170,7 +5215,7 @@ func (s *interfaceManagerSuite) TestConnectErrorMissingSlotSnapOnAutoConnect(c *
 
 	s.state.Lock()
 
-	chg := makeAutoConnectChange(s.state, "consumer", "plug", "producer", "slot")
+	chg := makeAutoConnectChange(s.state, "consumer", "plug", "producer", "slot", false)
 	// remove producer snap from the state, doConnect should complain
 	snapstate.Set(s.state, "producer", nil)
 
@@ -5196,7 +5241,7 @@ func (s *interfaceManagerSuite) TestConnectErrorMissingPlugSnapOnAutoConnect(c *
 	s.mockSnap(c, consumerYaml)
 
 	s.state.Lock()
-	chg := makeAutoConnectChange(s.state, "consumer", "plug", "producer", "slot")
+	chg := makeAutoConnectChange(s.state, "consumer", "plug", "producer", "slot", false)
 	// remove consumer snap from the state, doConnect should complain
 	snapstate.Set(s.state, "consumer", nil)
 
@@ -5233,7 +5278,7 @@ func (s *interfaceManagerSuite) TestConnectErrorMissingPlugOnAutoConnect(c *C) {
 
 	s.state.Lock()
 
-	chg := makeAutoConnectChange(s.state, "consumer", "plug", "producer", "slot")
+	chg := makeAutoConnectChange(s.state, "consumer", "plug", "producer", "slot", false)
 	s.state.Unlock()
 
 	s.settle(c)
@@ -5268,7 +5313,7 @@ func (s *interfaceManagerSuite) TestConnectErrorMissingSlotOnAutoConnect(c *C) {
 
 	s.state.Lock()
 
-	chg := makeAutoConnectChange(s.state, "consumer", "plug", "producer", "slot")
+	chg := makeAutoConnectChange(s.state, "consumer", "plug", "producer", "slot", false)
 	s.state.Unlock()
 
 	s.settle(c)
@@ -5308,7 +5353,7 @@ func (s *interfaceManagerSuite) TestConnectHandlesAutoconnect(c *C) {
 
 	s.state.Lock()
 
-	chg := makeAutoConnectChange(s.state, "consumer", "plug", "producer", "slot")
+	chg := makeAutoConnectChange(s.state, "consumer", "plug", "producer", "slot", false)
 	s.state.Unlock()
 
 	s.settle(c)
@@ -5682,6 +5727,78 @@ func (s *interfaceManagerSuite) TestSnapsWithSecurityProfiles(c *C) {
 		"snap1": snap.R(1),
 		"snap3": snap.R(3),
 	})
+}
+
+func (s *interfaceManagerSuite) TestSnapsWithSecurityProfilesMiddleOfFirstBoot(c *C) {
+	// make sure snapsWithSecurityProfiles does the right thing
+	// if invoked after a restart in the middle of first boot
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si0 := &snap.SideInfo{
+		RealName: "snap0",
+		Revision: snap.R(10),
+	}
+	snaptest.MockSnap(c, `name: snap0`, si0)
+	snapstate.Set(s.state, "snap0", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si0},
+		Current:  si0.Revision,
+	})
+
+	si1 := &snap.SideInfo{
+		RealName: "snap1",
+		Revision: snap.R(11),
+	}
+	snaptest.MockSnap(c, `name: snap1`, si1)
+	snapstate.Set(s.state, "snap1", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si1},
+		Current:  si1.Revision,
+	})
+
+	chg := s.state.NewChange("linking", "linking")
+
+	snaps := []struct {
+		name        string
+		setupStatus state.Status
+		linkStatus  state.Status
+		si          *snap.SideInfo
+	}{
+		{"snap0", state.DoneStatus, state.DoneStatus, si0},
+		{"snap1", state.DoStatus, state.DoStatus, si1},
+	}
+
+	var tsPrev *state.TaskSet
+	for i, snp := range snaps {
+		t1 := s.state.NewTask("setup-profiles", fmt.Sprintf("setup profiles %d", i))
+		t1.Set("snap-setup", &snapstate.SnapSetup{
+			SideInfo: snp.si,
+		})
+		t1.SetStatus(snp.setupStatus)
+		t2 := s.state.NewTask("link-snap", fmt.Sprintf("link snap %d", i))
+		t2.Set("snap-setup", &snapstate.SnapSetup{
+			SideInfo: snp.si,
+		})
+		t2.WaitFor(t1)
+		t2.SetStatus(snp.linkStatus)
+		chg.AddTask(t1)
+		chg.AddTask(t2)
+
+		// this is the kind of wait chain used by first boot
+		ts := state.NewTaskSet(t1, t2)
+		if tsPrev != nil {
+			ts.WaitAll(tsPrev)
+		}
+		tsPrev = ts
+	}
+
+	infos, err := ifacestate.SnapsWithSecurityProfiles(s.state)
+	c.Assert(err, IsNil)
+	// snap1 link-snap waiting on snap0 setup-profiles didn't confuse
+	// snapsWithSecurityProfiles
+	c.Check(infos, HasLen, 1)
+	c.Check(infos[0].InstanceName(), Equals, "snap0")
 }
 
 func (s *interfaceManagerSuite) TestDisconnectInterfaces(c *C) {

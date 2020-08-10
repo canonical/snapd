@@ -461,7 +461,7 @@ func getSections(c *Command, r *http.Request, user *auth.UserState) Response {
 	case store.ErrBadQuery:
 		return SyncResponse(&resp{
 			Type:   ResponseTypeError,
-			Result: &errorResult{Message: err.Error(), Kind: errorKindBadQuery},
+			Result: &errorResult{Message: err.Error(), Kind: client.ErrorKindBadQuery},
 			Status: 400,
 		}, nil)
 	case store.ErrUnauthenticated, store.ErrInvalidCredentials:
@@ -542,7 +542,7 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	case store.ErrBadQuery:
 		return SyncResponse(&resp{
 			Type:   ResponseTypeError,
-			Result: &errorResult{Message: err.Error(), Kind: errorKindBadQuery},
+			Result: &errorResult{Message: err.Error(), Kind: client.ErrorKindBadQuery},
 			Status: 400,
 		}, nil)
 	case store.ErrUnauthenticated, store.ErrInvalidCredentials:
@@ -553,7 +553,7 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 				if dnserr, ok := neterr.Err.(*net.DNSError); ok {
 					return SyncResponse(&resp{
 						Type:   ResponseTypeError,
-						Result: &errorResult{Message: dnserr.Error(), Kind: errorKindDNSFailure},
+						Result: &errorResult{Message: dnserr.Error(), Kind: client.ErrorKindDNSFailure},
 						Status: 400,
 					}, nil)
 				}
@@ -562,14 +562,14 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 		if e, ok := err.(net.Error); ok && e.Timeout() {
 			return SyncResponse(&resp{
 				Type:   ResponseTypeError,
-				Result: &errorResult{Message: err.Error(), Kind: errorKindNetworkTimeout},
+				Result: &errorResult{Message: err.Error(), Kind: client.ErrorKindNetworkTimeout},
 				Status: 400,
 			}, nil)
 		}
 		if e, ok := err.(*httputil.PerstistentNetworkError); ok {
 			return SyncResponse(&resp{
 				Type:   ResponseTypeError,
-				Result: &errorResult{Message: e.Error(), Kind: errorKindDNSFailure},
+				Result: &errorResult{Message: e.Error(), Kind: client.ErrorKindDNSFailure},
 				Status: 400,
 			}, nil)
 		}
@@ -1275,7 +1275,7 @@ func trySnap(c *Command, r *http.Request, user *auth.UserState, trydir string, f
 			Type: ResponseTypeError,
 			Result: &errorResult{
 				Message: err.Error(),
-				Kind:    errorKindNotSnap,
+				Kind:    client.ErrorKindNotSnap,
 			},
 			Status: 400,
 		}, nil)
@@ -1324,7 +1324,7 @@ func snapsOp(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	// TODO: inst.Amend, etc?
-	if inst.Channel != "" || !inst.Revision.Unset() || inst.DevMode || inst.JailMode || inst.CohortKey != "" || inst.LeaveCohort {
+	if inst.Channel != "" || !inst.Revision.Unset() || inst.DevMode || inst.JailMode || inst.CohortKey != "" || inst.LeaveCohort || inst.Purge {
 		return BadRequest("unsupported option provided for multi-snap operation")
 	}
 	if err := inst.validate(); err != nil {
@@ -1619,7 +1619,7 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 					Type: ResponseTypeError,
 					Result: &errorResult{
 						Message: err.Error(),
-						Kind:    errorKindConfigNoSuchOption,
+						Kind:    client.ErrorKindConfigNoSuchOption,
 						Value:   err,
 					},
 					Status: 400,
@@ -2070,7 +2070,7 @@ func convertBuyError(err error) Response {
 			Type: ResponseTypeError,
 			Result: &errorResult{
 				Message: err.Error(),
-				Kind:    errorKindLoginRequired,
+				Kind:    client.ErrorKindLoginRequired,
 			},
 			Status: 400,
 		}, nil)
@@ -2079,7 +2079,7 @@ func convertBuyError(err error) Response {
 			Type: ResponseTypeError,
 			Result: &errorResult{
 				Message: err.Error(),
-				Kind:    errorKindTermsNotAccepted,
+				Kind:    client.ErrorKindTermsNotAccepted,
 			},
 			Status: 400,
 		}, nil)
@@ -2088,7 +2088,7 @@ func convertBuyError(err error) Response {
 			Type: ResponseTypeError,
 			Result: &errorResult{
 				Message: err.Error(),
-				Kind:    errorKindNoPaymentMethods,
+				Kind:    client.ErrorKindNoPaymentMethods,
 			},
 			Status: 400,
 		}, nil)
@@ -2097,7 +2097,7 @@ func convertBuyError(err error) Response {
 			Type: ResponseTypeError,
 			Result: &errorResult{
 				Message: err.Error(),
-				Kind:    errorKindPaymentDeclined,
+				Kind:    client.ErrorKindPaymentDeclined,
 			},
 			Status: 400,
 		}, nil)
@@ -2166,7 +2166,7 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 				Type: ResponseTypeError,
 				Result: &errorResult{
 					Message: e.Error(),
-					Kind:    errorKindUnsuccessful,
+					Kind:    client.ErrorKindUnsuccessful,
 					Value:   result,
 				},
 				Status: 200,

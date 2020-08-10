@@ -3,13 +3,13 @@
 # shellcheck source=tests/lib/systemd.sh
 . "$TESTSLIB"/systemd.sh
 
-WORK_DIR=/tmp/work-dir
+WORK_DIR="${WORK_DIR:-/tmp/work-dir}"
 NESTED_VM=nested-vm
 SSH_PORT=8022
 MON_PORT=8888
 
 wait_for_ssh(){
-    retry=300
+    retry=400
     wait=1
     while ! execute_remote true; do
         retry=$(( retry - 1 ))
@@ -22,7 +22,7 @@ wait_for_ssh(){
 }
 
 wait_for_no_ssh(){
-    retry=150
+    retry=200
     wait=1
     while execute_remote true; do
         retry=$(( retry - 1 ))
@@ -32,10 +32,6 @@ wait_for_no_ssh(){
         fi
         sleep "$wait"
     done
-}
-
-test_ssh(){
-    sshpass -p ubuntu ssh -p 8022 -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no user1@localhost true
 }
 
 prepare_ssh(){
@@ -154,7 +150,7 @@ get_nested_snap_rev(){
 get_snap_rev_for_channel(){
     SNAP=$1
     CHANNEL=$2
-    execute_remote "snap info $SNAP" | grep "$CHANNEL" | awk '{ print $4 }' | sed 's/.*(\(.*\))/\1/' | tr -d '\n'
+    snap info "$SNAP" | grep "$CHANNEL" | awk '{ print $4 }' | sed 's/.*(\(.*\))/\1/' | tr -d '\n'
 }
 
 get_nested_snap_channel(){
@@ -164,6 +160,7 @@ get_nested_snap_channel(){
 
 get_image_url_for_nested_vm(){
     if [[ "$SPREAD_BACKEND" == google* ]]; then
+        #shellcheck disable=SC2119
         get_google_image_url_for_nested_vm
     else
         get_ubuntu_image_url_for_nested_vm
@@ -269,6 +266,12 @@ cleanup_nested_env(){
 }
 
 create_nested_core_vm(){
+    # shellcheck source=tests/lib/prepare.sh
+    . "$TESTSLIB"/prepare.sh
+
+    # shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+
     mkdir -p "$WORK_DIR/image"
     if [ ! -f "$WORK_DIR/image/ubuntu-core.img" ]; then
         local UBUNTU_IMAGE
@@ -302,52 +305,58 @@ create_nested_core_vm(){
 
         if [ "$BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
             if is_core_16_nested_system; then
-                echo "Build from current branch is not supported yet for uc16"
+                repack_snapd_deb_into_core_snap "$WORK_DIR"
+                EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $WORK_DIR/core-from-snapd-deb.snap"
+
+            elif is_core_18_nested_system; then
+                repack_snapd_deb_into_snapd_snap "$WORK_DIR"
+                EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $WORK_DIR/snapd-from-deb.snap"
+
+            elif is_core_20_nested_system; then
+                snap download --basename=pc-kernel --channel="20/edge" pc-kernel
+                uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$WORK_DIR/image"
+
+                # Get the snakeoil key and cert
+                KEY_NAME=$(get_snakeoil_key)
+                SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
+                SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
+
+                # Prepare the pc kernel snap
+                KERNEL_SNAP=$(ls "$WORK_DIR"/image/pc-kernel_*.snap)
+                KERNEL_UNPACKED="$WORK_DIR"/image/kernel-unpacked
+                unsquashfs -d "$KERNEL_UNPACKED" "$KERNEL_SNAP"
+                sbattach --remove "$KERNEL_UNPACKED/kernel.efi"
+                sbsign --key "$SNAKEOIL_KEY" --cert "$SNAKEOIL_CERT" "$KERNEL_UNPACKED/kernel.efi"  --output "$KERNEL_UNPACKED/kernel.efi"
+                snap pack "$KERNEL_UNPACKED" "$WORK_DIR/image"
+
+                chmod 0600 "$KERNEL_SNAP"
+                rm -f "$PWD/pc-kernel.snap"
+                rm -rf "$KERNEL_UNPACKED"
+                EXTRA_FUNDAMENTAL="--snap $KERNEL_SNAP"
+
+                # Prepare the pc gadget snap (unless provided by extra-snaps)
+                GADGET_SNAP=""
+                if [ -d extra-snaps ]; then
+                    GADGET_SNAP=$(find extra-snaps -name 'pc_*.snap')
+                fi
+                # XXX: deal with [ "$ENABLE_SECURE_BOOT" != "true" ] && [ "$ENABLE_TPM" != "true" ]
+                if [ -z "$GADGET_SNAP" ]; then
+                    snap download --basename=pc --channel="20/edge" pc
+                    unsquashfs -d pc-gadget pc.snap
+                    secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+                    snap pack pc-gadget/ "$WORK_DIR/image"
+
+                    GADGET_SNAP=$(ls "$WORK_DIR"/image/pc_*.snap)
+                    rm -f "$PWD/pc.snap" "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+                    EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $GADGET_SNAP"
+                fi
+                snap download --channel="latest/edge" snapd
+                repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$PWD/new-snapd" "false"
+                EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-snapd/snapd_*.snap"
+            else
+                echo "unknown nested core system (host is $(lsb_release -cs) )"
                 exit 1
             fi
-            # shellcheck source=tests/lib/prepare.sh
-            . "$TESTSLIB"/prepare.sh
-
-            snap download --basename=pc-kernel --channel="20/edge" pc-kernel
-            uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$WORK_DIR/image"
-
-            # Get the snakeoil key and cert
-            KEY_NAME=$(get_snakeoil_key)
-            SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
-            SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
-
-            # Prepare the pc kernel snap
-            KERNEL_SNAP=$(ls "$WORK_DIR"/image/pc-kernel_*.snap)
-            KERNEL_UNPACKED="$WORK_DIR"/image/kernel-unpacked
-            unsquashfs -d "$KERNEL_UNPACKED" "$KERNEL_SNAP"
-            sbattach --remove "$KERNEL_UNPACKED/kernel.efi"
-            sbsign --key "$SNAKEOIL_KEY" --cert "$SNAKEOIL_CERT" "$KERNEL_UNPACKED/kernel.efi"  --output "$KERNEL_UNPACKED/kernel.efi"
-            snap pack "$KERNEL_UNPACKED" "$WORK_DIR/image"
-
-            chmod 0600 "$KERNEL_SNAP"
-            rm -f "$PWD/pc-kernel.snap"
-            rm -rf "$KERNEL_UNPACKED"
-            EXTRA_FUNDAMENTAL="--snap $KERNEL_SNAP"
-
-            # Prepare the pc gadget snap (unless provided by extra-snaps)
-            GADGET_SNAP=""
-            if [ -d extra-snaps ]; then
-                GADGET_SNAP=$(find extra-snaps -name 'pc_*.snap')
-            fi
-            if [ -z "$GADGET_SNAP" ]; then
-                snap download --basename=pc --channel="20/edge" pc
-                unsquashfs -d pc-gadget pc.snap
-                secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
-                snap pack pc-gadget/ "$WORK_DIR/image"
-
-                GADGET_SNAP=$(ls "$WORK_DIR"/image/pc_*.snap)
-                rm -f "$PWD/pc.snap" "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
-                EXTRA_FUNDAMENTAL="--snap $GADGET_SNAP"
-            fi
-
-            snap download --channel="latest/edge" snapd
-            repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$PWD/new-snapd" "false"
-            EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-snapd/snapd_*.snap"
         fi
 
         "$UBUNTU_IMAGE" --image-size 10G "$NESTED_MODEL" \
@@ -443,25 +452,23 @@ get_nested_core_image_path(){
     echo "$WORK_DIR/image/ubuntu-core.img"
 }
 
-start_nested_core_vm(){
-    local IMAGE QEMU
-    QEMU=$(get_qemu_for_nested_vm)
-    # As core18 systems use to fail to start the assertion disk when using the
-    # snapshot feature, we copy the original image and use that copy to start
-    # the VM.
-    IMAGE_FILE="$WORK_DIR/image/ubuntu-core-new.img"
-    cp -f "$WORK_DIR/image/ubuntu-core.img" "$IMAGE_FILE"
+force_stop_nested_vm(){
+    systemctl stop nested-vm
+}
 
+start_nested_core_vm_unit(){
+    local IMAGE_FILE QEMU
+    IMAGE_FILE="$WORK_DIR/image/ubuntu-core-new.img"
+    QEMU=$(get_qemu_for_nested_vm)
     # Now qemu parameters are defined
-    # Increase the number of cpus used once the issue related to kvm and ovmf is fixed
-    # https://bugs.launchpad.net/ubuntu/+source/kvm/+bug/1872803
-    PARAM_CPU="-smp 1"
-    
+
     # use only 2G of RAM for qemu-nested
     if [ "$SPREAD_BACKEND" = "google-nested" ]; then
         PARAM_MEM="-m 4096"
+        PARAM_SMP="-smp 2"
     elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
         PARAM_MEM="-m 2048"
+        PARAM_SMP="-smp 1"
     else
         echo "unknown spread backend $SPREAD_BACKEND"
         exit 1
@@ -471,10 +478,27 @@ start_nested_core_vm(){
     PARAM_NETWORK="-net nic,model=virtio -net user,hostfwd=tcp::$SSH_PORT-:22"
     PARAM_MONITOR="-monitor tcp:127.0.0.1:$MON_PORT,server,nowait"
     PARAM_USB="-usb"
+    PARAM_CD="${PARAM_CD:-}"
+    PARAM_RANDOM="-object rng-random,id=rng0,filename=/dev/urandom -device virtio-rng-pci,rng=rng0"
+    PARAM_CPU=""
+    PARAM_TRACE="-d cpu_reset"
+    PARAM_LOG="-D $WORK_DIR/qemu.log"
+    PARAM_SERIAL="-serial file:${WORK_DIR}/serial.log"
+
+    # Set kvm attribute
+    ATTR_KVM=""
+    if [ "$ENABLE_KVM" = "true" ]; then
+        ATTR_KVM=",accel=kvm"
+        # CPU can be defined just when kvm is enabled
+        PARAM_CPU="-cpu host"
+        # Increase the number of cpus used once the issue related to kvm and ovmf is fixed
+        # https://bugs.launchpad.net/ubuntu/+source/kvm/+bug/1872803
+        PARAM_SMP="-smp 1"
+    fi
 
     # with qemu-nested, we can't use kvm acceleration
     if [ "$SPREAD_BACKEND" = "google-nested" ]; then
-        PARAM_MACHINE="-machine ubuntu,accel=kvm"
+        PARAM_MACHINE="-machine ubuntu${ATTR_KVM}"
     elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
         PARAM_MACHINE=""
     else
@@ -483,7 +507,6 @@ start_nested_core_vm(){
     fi
     
     PARAM_ASSERTIONS=""
-    PARAM_SERIAL="-serial file:${WORK_DIR}/serial-log.txt"
     PARAM_BIOS=""
     PARAM_TPM=""
     if [ "$USE_CLOUD_INIT" != "true" ]; then
@@ -506,7 +529,6 @@ start_nested_core_vm(){
             mv /etc/apt/sources.list.back /etc/apt/sources.list
             apt update
         fi
-
         OVMF_CODE="secboot"
         OVMF_VARS="ms"
         # In this case the kernel.efi is unsigned and signed with snaleoil certs
@@ -516,8 +538,8 @@ start_nested_core_vm(){
 
         if [ "$ENABLE_SECURE_BOOT" = "true" ]; then
             cp -f "/usr/share/OVMF/OVMF_VARS.$OVMF_VARS.fd" "$WORK_DIR/image/OVMF_VARS.$OVMF_VARS.fd"
-            PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE.$OVMF_CODE.fd,if=pflash,format=raw,unit=0,readonly=on -drive file=$WORK_DIR/image/OVMF_VARS.$OVMF_VARS.fd,if=pflash,format=raw,unit=1"
-            PARAM_MACHINE="-machine ubuntu-q35,accel=kvm -global ICH9-LPC.disable_s3=1"
+            PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE.$OVMF_CODE.fd,if=pflash,format=raw,unit=0,readonly -drive file=$WORK_DIR/image/OVMF_VARS.$OVMF_VARS.fd,if=pflash,format=raw"
+            PARAM_MACHINE="-machine q35${ATTR_KVM} -global ICH9-LPC.disable_s3=1"
         fi
 
         if [ "$ENABLE_TPM" = "true" ]; then
@@ -533,27 +555,46 @@ start_nested_core_vm(){
 
     # Systemd unit is created, it is important to respect the qemu parameters order
     systemd_create_and_start_unit "$NESTED_VM" "${QEMU} \
+        ${PARAM_SMP} \
         ${PARAM_CPU} \
         ${PARAM_MEM} \
+        ${PARAM_TRACE} \
+        ${PARAM_LOG} \
         ${PARAM_MACHINE} \
         ${PARAM_DISPLAY} \
         ${PARAM_NETWORK} \
         ${PARAM_BIOS} \
         ${PARAM_TPM} \
+        ${PARAM_RANDOM} \
         ${PARAM_IMAGE} \
         ${PARAM_ASSERTIONS} \
         ${PARAM_SERIAL} \
         ${PARAM_MONITOR} \
-        ${PARAM_USB} "
+        ${PARAM_USB} \
+        ${PARAM_CD} "
 
-    # Wait until ssh is ready and configure ssh
-    if wait_for_ssh; then
-        prepare_ssh
-    else
-        echo "ssh not established, exiting..."
-        journalctl -u "$NESTED_VM" -n 150
-        exit 1
-    fi
+    # wait for the nested-vm service to appear active
+    wait_for_service "$NESTED_VM"
+
+    # Wait until ssh is ready
+    wait_for_ssh
+}
+
+start_nested_core_vm(){
+    local IMAGE_FILE
+    # As core18 systems use to fail to start the assertion disk when using the
+    # snapshot feature, we copy the original image and use that copy to start
+    # the VM.
+    # Some tests however need to force stop and restart the VM with different
+    # options, so if that env var is set, we will reuse the existing file if it
+    # exists
+    IMAGE_FILE="$WORK_DIR/image/ubuntu-core-new.img"
+    cp -f "$WORK_DIR/image/ubuntu-core.img" "$IMAGE_FILE"
+
+    start_nested_core_vm_unit
+
+    # configure ssh for first time
+    prepare_ssh
 }
 
 create_nested_classic_vm(){
@@ -585,7 +626,7 @@ start_nested_classic_vm(){
     QEMU=$(get_qemu_for_nested_vm)
 
     # Now qemu parameters are defined
-    PARAM_CPU="-smp 1"
+    PARAM_SMP="-smp 1"
     # use only 2G of RAM for qemu-nested
     if [ "$SPREAD_BACKEND" = "google-nested" ]; then
         PARAM_MEM="-m 4096"
@@ -599,11 +640,14 @@ start_nested_classic_vm(){
     PARAM_NETWORK="-net nic,model=virtio -net user,hostfwd=tcp::$SSH_PORT-:22"
     PARAM_MONITOR="-monitor tcp:127.0.0.1:$MON_PORT,server,nowait"
     PARAM_USB="-usb"
+    PARAM_CPU=""
+    PARAM_RANDOM="-object rng-random,id=rng0,filename=/dev/urandom -device virtio-rng-pci,rng=rng0"
     PARAM_SNAPSHOT="-snapshot"
 
     # with qemu-nested, we can't use kvm acceleration
     if [ "$SPREAD_BACKEND" = "google-nested" ]; then
         PARAM_MACHINE="-machine ubuntu,accel=kvm"
+        PARAM_CPU="-cpu host"
     elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
         PARAM_MACHINE=""
     else
@@ -618,6 +662,7 @@ start_nested_classic_vm(){
     PARAM_TPM=""
 
     systemd_create_and_start_unit "$NESTED_VM" "${QEMU}  \
+        ${PARAM_SMP} \
         ${PARAM_CPU} \
         ${PARAM_MEM} \
         ${PARAM_SNAPSHOT} \
@@ -626,6 +671,7 @@ start_nested_classic_vm(){
         ${PARAM_NETWORK} \
         ${PARAM_BIOS} \
         ${PARAM_TPM} \
+        ${PARAM_RANDOM} \
         ${PARAM_IMAGE} \
         ${PARAM_SEED} \
         ${PARAM_SERIAL} \

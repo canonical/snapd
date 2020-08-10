@@ -22,9 +22,10 @@ package progress
 import (
 	"fmt"
 	"os"
-	"strings"
 
 	"golang.org/x/crypto/ssh/terminal"
+
+	"github.com/snapcore/snapd/osutil"
 )
 
 // Meter is an interface to show progress to the user
@@ -82,7 +83,7 @@ func MockMeter(meter Meter) func() {
 	}
 }
 
-var inTesting bool = len(os.Args) > 0 && strings.HasSuffix(os.Args[0], ".test") || os.Getenv("SPREAD_SYSTEM") != ""
+var inTesting bool = (osutil.IsTestBinary()) || os.Getenv("SPREAD_SYSTEM") != ""
 
 // MakeProgressBar creates an appropriate progress.Meter for the environ in
 // which it is called:

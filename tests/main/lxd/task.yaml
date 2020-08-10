@@ -17,6 +17,17 @@ kill-timeout: 25m
 # Start before anything else as it can take a really long time.
 priority: 1000
 
+environment:
+    REFRESH_APP_AWARENESS_OUTER/snapd_cgroup_just_inside: false
+    REFRESH_APP_AWARENESS_INNER/snapd_cgroup_just_inside: true
+    REFRESH_APP_AWARENESS_OUTER/snapd_cgroup_just_outside: true
+    REFRESH_APP_AWARENESS_INNER/snapd_cgroup_just_outside: false
+    REFRESH_APP_AWARENESS_OUTER/snapd_cgroup_both: true
+    REFRESH_APP_AWARENESS_INNER/snapd_cgroup_both: true
+    REFRESH_APP_AWARENESS_OUTER/snapd_cgroup_neither: false
+    REFRESH_APP_AWARENESS_INNER/snapd_cgroup_neither: false
+
+
 prepare: |
     # using apt here is ok because this test only runs on ubuntu
     echo "Remove any installed debs (some images carry them) to ensure we test the snap"
@@ -24,6 +35,9 @@ prepare: |
     if command -v apt && apt -v; then
         apt autoremove -y lxd
     fi
+    # Depending on test variant, enable refresh-app-awareness outside to test
+    # the interaction between lxd and cgroup-based application tracking.
+    snap set system experimental.refresh-app-awareness=$REFRESH_APP_AWARENESS_OUTER
 
 restore: |
     if  [[ "$(find "$GOHOME" -name 'snapd_*.deb' | wc -l || echo 0)" -eq 0 ]]; then
@@ -34,15 +48,22 @@ restore: |
         lxd.lxc stop $cont_name --force
         lxd.lxc delete $cont_name
     done
+    snap remove --purge lxd
+    snap remove --purge lxd-demo-server
 
     "$TESTSTOOLS"/lxd-state undo-mount-changes
+    snap unset system experimental.refresh-app-awareness
+    # Stop the dbus.service of the user session of the root user. This test
+    # runs in several configurations, not all of which have this capability.
+    # Where supported the test code below causes socket activation, through the
+    # refresh-app-awareness application tracking mechanism built into snap
+    # run. This session-level dbus daemon is detected as spurious by the
+    # invariant checker.
+    systemctl --user stop dbus.service || true
 
 debug: |
-    # shellcheck source=tests/lib/journalctl.sh
-    . "$TESTSLIB/journalctl.sh"
-
     # debug output from lxd
-    get_journalctl_log -u snap.lxd.daemon.service
+    "$TESTSTOOLS"/journal-state get-log -u snap.lxd.daemon.service
 
 execute: |
     if  [[ "$(find "$GOHOME" -name 'snapd_*.deb' | wc -l || echo 0)" -eq 0 ]]; then
@@ -68,7 +89,7 @@ execute: |
 
     # The snapd package we build as part of the tests will only run on the
     # distro we build on. So we need to launch the right ubuntu version.
-    # prep two containers, the my-ubuntu normal container and the 
+    # prep two containers, the my-ubuntu normal container and the
     # my-nesting-ubuntu nesting container
 
     lxd.lxc launch --quiet "ubuntu:${VERSION_ID:-}" my-ubuntu
@@ -99,9 +120,10 @@ execute: |
         if [ -n "${https_proxy:-}" ]; then
             lxd.lxc exec $cont_name -- sh -c "echo https_proxy=$https_proxy >> /etc/environment"
         fi
-        
+
         echo "Install snapd in container"
         lxd.lxc exec $cont_name -- /bin/bash /root/prep-snapd-in-lxd.sh
+        lxd.lxc exec $cont_name -- snap set system experimental.refresh-app-awareness=$REFRESH_APP_AWARENESS_INNER
     done
 
     # FIXME: ensure that the kernel running is recent enough, this
@@ -109,8 +131,11 @@ execute: |
 
     echo "Ensure we can use snapd inside lxd"
     lxd.lxc exec my-ubuntu snap install test-snapd-sh
-    echo "And we can run snaps as regular users"
-    lxd.lxc exec my-ubuntu -- su -c "/snap/bin/test-snapd-sh.sh -c 'echo from-the-inside'" ubuntu | MATCH from-the-inside
+    echo "And we can run snaps as regular users, assuming session bus is available"
+    lxd.lxc exec my-ubuntu -- apt-get update
+    lxd.lxc exec my-ubuntu -- apt-get install -y dbus-user-session
+    lxd.lxc exec my-ubuntu -- su -l ubuntu -c "systemctl --user enable dbus.socket"
+    lxd.lxc exec my-ubuntu -- su -l ubuntu -c "/snap/bin/test-snapd-sh.sh -c 'echo from-the-inside'" | MATCH from-the-inside
     echo "And as root"
     lxd.lxc exec my-ubuntu -- test-snapd-sh.sh -c 'echo from-the-inside' | MATCH from-the-inside
     echo "We can also remove snaps successfully"
@@ -129,7 +154,7 @@ execute: |
     lxd.lxc exec my-nesting-ubuntu -- lxd.lxc launch "ubuntu:${VERSION_ID:-}" my-inner-ubuntu
     lxd.lxc exec my-nesting-ubuntu -- lxd.lxc exec my-inner-ubuntu -- echo "from-the-INSIDE-inside" | MATCH from-the-INSIDE-inside
 
-    # finally check that we can't run snapd inside a nested lxd container as 
+    # finally check that we can't run snapd inside a nested lxd container as
     # current apparmor does not support this, so if this works it is probably a
     # confinement bug
     lxd.lxc exec my-nesting-ubuntu -- lxd.lxc file push --quiet prep-snapd-in-lxd.sh my-inner-ubuntu/root/
@@ -154,7 +179,7 @@ execute: |
         lxd.lxc exec my-inner-ubuntu -- \
             snap install test-snapd-sh 2>stderr.log
     # replace newlines with spaces to get one long line
-    tr '\n' ' ' < stderr.log | MATCH "error:\s+system\s+does\s+not\s+fully\s+support\s+snapd:\s+apparmor\s+detected\s+but\s+insufficient\s+permissions\s+to\s+use\s+it" 
+    tr '\n' ' ' < stderr.log | MATCH "error:\s+system\s+does\s+not\s+fully\s+support\s+snapd:\s+apparmor\s+detected\s+but\s+insufficient\s+permissions\s+to\s+use\s+it"
 
     echo "Install lxd-demo server to exercise the lxd interface"
     snap install lxd-demo-server

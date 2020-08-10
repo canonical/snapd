@@ -14,8 +14,6 @@ jobs:
       # version of go.
       PATH: /snap/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games
       GOROOT: ""
-      # XXX: only skip format checks on 1.13+
-      SKIP_GOFMT: 1
       # XXX: compat env for "check-pr-title.py" in "run-checks", can go
       #      once we switch away from that. Note that we cannot currently
       #      use a github action check (like deepakputhraya/action-pr-title)
@@ -96,6 +94,12 @@ jobs:
       if: steps.cached-results.outputs.already-ran != 'true'
       run: |
           cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
+          # run gofmt checks only with Go 1.9 and 1.10
+          if ! echo "${{ matrix.gochannel }}" | grep -E '1\.(9|10)' ; then
+              # and skip with other versions
+              export SKIP_GOFMT=1
+              echo "Formatting checks will be skipped due to the use of Go version ${{ matrix.gochannel }}"
+          fi
           ./run-checks --static
     - name: Build C
       if: steps.cached-results.outputs.already-ran != 'true'
@@ -147,7 +151,6 @@ jobs:
         - ubuntu-16.04-32
         - ubuntu-16.04-64
         - ubuntu-18.04-64
-        - ubuntu-19.10-64
         - ubuntu-20.04-64
         - ubuntu-20.10-64
         - ubuntu-core-16-64
@@ -172,13 +175,71 @@ jobs:
               echo "::set-output name=already-ran::true"
           fi
     - name: Run spread tests
+      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread') && steps.cached-results.outputs.already-ran != 'true'"
       env:
           SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
-      if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread') && steps.cached-results.outputs.already-ran != 'true'"
       run: |
           # Register a problem matcher to highlight spread failures
           echo "::add-matcher::.github/spread-problem-matcher.json"
           spread -abend google:${{ matrix.system }}:tests/...
+    - name: Cache successful run
+      run: |
+        mkdir -p $(dirname "$CACHE_RESULT_STAMP")
+        touch "$CACHE_RESULT_STAMP"
+    - name: Discard spread workers
+      if: always()
+      run: |
+        shopt -s nullglob;
+        for r in .spread-reuse.*.yaml; do
+          spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
+        done
+
+  spread-nested:
+    needs: [unit-tests]
+    runs-on: self-hosted
+    strategy:
+      # FIXME: enable fail-fast mode once spread can cancel an executing job.
+      # Disable fail-fast mode as it doesn't function with spread. It seems
+      # that cancelling tasks requires short, interruptible actions and
+      # interrupting spread, notably, does not work today. As such disable
+      # fail-fast while we tackle that problem upstream.
+      fail-fast: false
+      matrix:
+        system:
+        - ubuntu-16.04-64
+        - ubuntu-18.04-64
+        - ubuntu-20.04-64
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+    - name: Cache snapd test results
+      id: cache-snapd-test-results
+      uses: actions/cache@v1
+      with:
+        path: "${{ github.workspace }}/.test-results"
+        key: "${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-nested-results"
+    - name: Check cached test results
+      id: cached-results
+      run: |
+          CACHE_RESULT_STAMP="${{ github.workspace }}/.test-results/${{ matrix.system }}-nested-success"
+          echo "::set-env name=CACHE_RESULT_STAMP::$CACHE_RESULT_STAMP"
+          if [ -e "$CACHE_RESULT_STAMP" ]; then
+              echo "::set-output name=already-ran::true"
+          fi
+    - name: Run spread tests
+      if: "contains(github.event.pull_request.labels.*.name, 'Run nested') && steps.cached-results.outputs.already-ran != 'true'"
+      env:
+          SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
+      run: |
+          # Register a problem matcher to highlight spread failures
+          echo "::add-matcher::.github/spread-problem-matcher.json"
+          export CORE_CHANNEL=edge
+          export BUILD_SNAPD_FROM_CURRENT=true
+          export SPREAD_ENABLE_KVM=true
+          if [ "${{ matrix.system }}" = "ubuntu-20.04-64" ]; then
+              export SPREAD_ENABLE_KVM=false
+          fi
+          spread -abend google-nested:${{ matrix.system }}:tests/nested/...
     - name: Cache successful run
       run: |
         mkdir -p $(dirname "$CACHE_RESULT_STAMP")
