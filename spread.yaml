@@ -491,7 +491,7 @@ debug-each: |
         . "$TESTSLIB/nested.sh"
 
         echo '# System information'
-        lsb_release -a || true
+        cat /etc/os-release || true
 
         echo '# Kernel information'
         uname -a
