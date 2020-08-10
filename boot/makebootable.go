@@ -255,24 +255,30 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 		}
 	}
 
+	var currentTrustedBootAssets bootAssetsMap
+	if sealer != nil {
+		currentTrustedBootAssets = sealer.currentTrustedBootAssetsMap()
+	}
 	recoverySystemLabel := filepath.Base(bootWith.RecoverySystemDir)
 	// write modeenv on the ubuntu-data partition
 	modeenv := &Modeenv{
 		Mode:           "run",
 		RecoverySystem: recoverySystemLabel,
 		// default to the system we were installed from
-		CurrentRecoverySystems: []string{recoverySystemLabel},
+		CurrentRecoverySystems:   []string{recoverySystemLabel},
+		CurrentTrustedBootAssets: currentTrustedBootAssets,
+		// TODO:UC20: set current boot assets for recovery
 		// keep this comment to make gofmt 1.9 happy
 		Base:           filepath.Base(bootWith.BasePath),
 		CurrentKernels: []string{bootWith.Kernel.Filename()},
 		BrandID:        model.BrandID(),
 		Model:          model.Model(),
 		Grade:          string(model.Grade()),
-		// TODO:UC20: set current boot assets for run and recovery
 	}
 	if err := modeenv.WriteTo(InstallHostWritableDir); err != nil {
 		return fmt.Errorf("cannot write modeenv: %v", err)
 	}
+	// TODO:UC20: replicate the boot assets cache in host's writable
 
 	// get the ubuntu-boot bootloader and extract the kernel there
 	opts := &bootloader.Options{
