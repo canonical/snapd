@@ -89,7 +89,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 	}
 	changed, removed, errEnsure := osutil.EnsureDirState(dir, glob, content)
 	// Reload systemd whenever something is added or removed
-	if (len(changed) > 0 || len(removed) > 0) && !b.preseed {
+	if !b.preseed && (len(changed) > 0 || len(removed) > 0) {
 		err := systemd.DaemonReload()
 		if err != nil {
 			logger.Noticef("cannot reload systemd state: %s", err)
@@ -128,7 +128,7 @@ func (b *Backend) Remove(snapName string) error {
 		}
 	}
 	// Reload systemd whenever something is removed
-	if len(removed) > 0 && !b.preseed {
+	if !b.preseed && len(removed) > 0 {
 		err := systemd.DaemonReload()
 		if err != nil {
 			logger.Noticef("cannot reload systemd state: %s", err)

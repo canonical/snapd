@@ -87,6 +87,163 @@ func (s *modeenvSuite) TestReadMode(c *C) {
 	c.Check(modeenv.Base, Equals, "")
 }
 
+func (s *modeenvSuite) TestDeepEqualDiskVsMemoryInvariant(c *C) {
+	s.makeMockModeenvFile(c, `mode=recovery
+recovery_system=20191126
+base=core20_123.snap
+try_base=core20_124.snap
+base_status=try
+`)
+
+	diskModeenv, err := boot.ReadModeenv(s.tmpdir)
+	c.Assert(err, IsNil)
+	inMemoryModeenv := &boot.Modeenv{
+		Mode:           "recovery",
+		RecoverySystem: "20191126",
+		Base:           "core20_123.snap",
+		TryBase:        "core20_124.snap",
+		BaseStatus:     "try",
+	}
+	c.Assert(inMemoryModeenv.DeepEqual(diskModeenv), Equals, true)
+	c.Assert(diskModeenv.DeepEqual(inMemoryModeenv), Equals, true)
+}
+
+func (s *modeenvSuite) TestCopyDeepEquals(c *C) {
+	s.makeMockModeenvFile(c, `mode=recovery
+recovery_system=20191126
+base=core20_123.snap
+try_base=core20_124.snap
+base_status=try
+`)
+
+	diskModeenv, err := boot.ReadModeenv(s.tmpdir)
+	c.Assert(err, IsNil)
+	inMemoryModeenv := &boot.Modeenv{
+		Mode:           "recovery",
+		RecoverySystem: "20191126",
+		Base:           "core20_123.snap",
+		TryBase:        "core20_124.snap",
+		BaseStatus:     "try",
+	}
+
+	c.Assert(inMemoryModeenv.DeepEqual(diskModeenv), Equals, true)
+	c.Assert(diskModeenv.DeepEqual(inMemoryModeenv), Equals, true)
+
+	diskModeenv2, err := diskModeenv.Copy()
+	c.Assert(err, IsNil)
+	c.Assert(diskModeenv.DeepEqual(diskModeenv2), Equals, true)
+	c.Assert(diskModeenv2.DeepEqual(diskModeenv), Equals, true)
+	c.Assert(inMemoryModeenv.DeepEqual(diskModeenv2), Equals, true)
+	c.Assert(diskModeenv2.DeepEqual(inMemoryModeenv), Equals, true)
+
+	inMemoryModeenv2, err := inMemoryModeenv.Copy()
+	c.Assert(err, IsNil)
+	c.Assert(inMemoryModeenv.DeepEqual(inMemoryModeenv2), Equals, true)
+	c.Assert(inMemoryModeenv2.DeepEqual(inMemoryModeenv), Equals, true)
+	c.Assert(inMemoryModeenv2.DeepEqual(diskModeenv), Equals, true)
+	c.Assert(diskModeenv.DeepEqual(inMemoryModeenv2), Equals, true)
+}
+
+func (s *modeenvSuite) TestCopyDiskWriteWorks(c *C) {
+	s.makeMockModeenvFile(c, `mode=recovery
+recovery_system=20191126
+base=core20_123.snap
+try_base=core20_124.snap
+base_status=try
+`)
+
+	diskModeenv, err := boot.ReadModeenv(s.tmpdir)
+	c.Assert(err, IsNil)
+	dupDiskModeenv, err := diskModeenv.Copy()
+	c.Assert(err, IsNil)
+
+	// move the original file out of the way
+	err = os.Rename(dirs.SnapModeenvFileUnder(s.tmpdir), dirs.SnapModeenvFileUnder(s.tmpdir)+".orig")
+	c.Assert(err, IsNil)
+	c.Assert(dirs.SnapModeenvFileUnder(s.tmpdir), testutil.FileAbsent)
+
+	// write the duplicate, it should write to the same original location and it
+	// should be the same content
+	err = dupDiskModeenv.Write()
+	c.Assert(err, IsNil)
+	c.Assert(dirs.SnapModeenvFileUnder(s.tmpdir), testutil.FilePresent)
+	origBytes, err := ioutil.ReadFile(dirs.SnapModeenvFileUnder(s.tmpdir) + ".orig")
+	c.Assert(err, IsNil)
+	// the files should be the same
+	c.Assert(dirs.SnapModeenvFileUnder(s.tmpdir), testutil.FileEquals, string(origBytes))
+}
+
+func (s *modeenvSuite) TestCopyMemoryWriteFails(c *C) {
+	inMemoryModeenv := &boot.Modeenv{
+		Mode:           "recovery",
+		RecoverySystem: "20191126",
+		Base:           "core20_123.snap",
+		TryBase:        "core20_124.snap",
+		BaseStatus:     "try",
+	}
+	dupInMemoryModeenv, err := inMemoryModeenv.Copy()
+	c.Assert(err, IsNil)
+
+	// write the duplicate, it should fail
+	err = dupInMemoryModeenv.Write()
+	c.Assert(err, ErrorMatches, "internal error: must use WriteTo with modeenv not read from disk")
+}
+
+func (s *modeenvSuite) TestDeepEquals(c *C) {
+	// start with two identical modeenvs
+	modeenv1 := &boot.Modeenv{
+		Mode:                   "recovery",
+		RecoverySystem:         "20191126",
+		CurrentRecoverySystems: []string{"1", "2"},
+
+		Base:           "core20_123.snap",
+		TryBase:        "core20_124.snap",
+		BaseStatus:     "try",
+		CurrentKernels: []string{"k1", "k2"},
+
+		Model:   "model",
+		BrandID: "brand",
+		Grade:   "secured",
+	}
+
+	modeenv2 := &boot.Modeenv{
+		Mode:                   "recovery",
+		RecoverySystem:         "20191126",
+		CurrentRecoverySystems: []string{"1", "2"},
+
+		Base:           "core20_123.snap",
+		TryBase:        "core20_124.snap",
+		BaseStatus:     "try",
+		CurrentKernels: []string{"k1", "k2"},
+
+		Model:   "model",
+		BrandID: "brand",
+		Grade:   "secured",
+	}
+
+	// same object should be the same
+	c.Assert(modeenv1.DeepEqual(modeenv1), Equals, true)
+
+	// no difference should be the same at the start
+	c.Assert(modeenv1.DeepEqual(modeenv2), Equals, true)
+	c.Assert(modeenv2.DeepEqual(modeenv1), Equals, true)
+
+	// invert CurrentKernels
+	modeenv2.CurrentKernels = []string{"k2", "k1"}
+	c.Assert(modeenv1.DeepEqual(modeenv2), Equals, false)
+	c.Assert(modeenv2.DeepEqual(modeenv1), Equals, false)
+
+	// make CurrentKernels capitalized
+	modeenv2.CurrentKernels = []string{"K1", "k2"}
+	c.Assert(modeenv1.DeepEqual(modeenv2), Equals, false)
+	c.Assert(modeenv2.DeepEqual(modeenv1), Equals, false)
+
+	// make CurrentKernels disappear
+	modeenv2.CurrentKernels = nil
+	c.Assert(modeenv1.DeepEqual(modeenv2), Equals, false)
+	c.Assert(modeenv2.DeepEqual(modeenv1), Equals, false)
+}
+
 func (s *modeenvSuite) TestReadModeWithRecoverySystem(c *C) {
 	s.makeMockModeenvFile(c, `mode=recovery
 recovery_system=20191126

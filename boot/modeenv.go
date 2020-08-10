@@ -99,6 +99,43 @@ func ReadModeenv(rootdir string) (*Modeenv, error) {
 	return &m, nil
 }
 
+// deepEqual compares two modeenvs to ensure they are textually the same. It
+// does not consider whether the modeenvs were read from disk or created purely
+// in memory. It also does not sort or otherwise mutate any sub-objects,
+// performing simple strict verification of sub-objects.
+func (m *Modeenv) deepEqual(m2 *Modeenv) bool {
+	b, err := json.Marshal(m)
+	if err != nil {
+		return false
+	}
+	b2, err := json.Marshal(m2)
+	if err != nil {
+		return false
+	}
+	return bytes.Equal(b, b2)
+}
+
+// Copy will make a deep copy of a Modeenv.
+func (m *Modeenv) Copy() (*Modeenv, error) {
+	// to avoid hard-coding all fields here and manually copying everything, we
+	// take the easy way out and serialize to json then re-import into a
+	// empty Modeenv
+	b, err := json.Marshal(m)
+	if err != nil {
+		return nil, err
+	}
+	m2 := &Modeenv{}
+	err = json.Unmarshal(b, m2)
+	if err != nil {
+		return nil, err
+	}
+
+	// manually copy the unexported fields as they won't be in the JSON
+	m2.read = m.read
+	m2.originRootdir = m.originRootdir
+	return m2, nil
+}
+
 // Write outputs the modeenv to the file where it was read, only valid on
 // modeenv that has been read.
 func (m *Modeenv) Write() error {

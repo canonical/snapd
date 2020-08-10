@@ -1,20 +1,24 @@
 summary: Check that the refresh data copy works.
 
-systems: [-ubuntu-core-*]
+systems:
+    - -ubuntu-14.04-*  # no support for tests.session
+    - -ubuntu-core-*  # no support for useradd
 
 environment:
     # an empty $topsrcdir/tests/go.mod seems to break importing or building go
     # packages referenced by their import paths while under the tests directory,
-    # need to disable go modules supportfor this test
+    # need to disable go modules support for this test
     GO111MODULE: off
 
 prepare: |
+    "$(command -v go)" build -o hightest test.go
     useradd --uid "$(( (1<<32)-2 ))" --shell /bin/sh hightest
+    tests.session -u hightest prepare
 
 restore: |
+    tests.session -u hightest restore
     userdel hightest
     rm -f hightest
 
 execute: |
-    "$(command -v go)" build -o hightest test.go
-    sudo -E -u hightest ./hightest
+    tests.session -u hightest exec "$(pwd)/hightest"

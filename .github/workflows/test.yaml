@@ -151,7 +151,6 @@ jobs:
         - ubuntu-16.04-32
         - ubuntu-16.04-64
         - ubuntu-18.04-64
-        - ubuntu-19.10-64
         - ubuntu-20.04-64
         - ubuntu-20.10-64
         - ubuntu-core-16-64
