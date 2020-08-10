@@ -417,11 +417,26 @@ prepare_project() {
     case "$SPREAD_SYSTEM" in
         ubuntu-core-16-*)
             mount tmpfs -t tmpfs /var/lib/systemd/
-            mkdir /var/lib/systemd/{catalog,coredump,deb-systemd-helper-enabled,rfkill}
+            mkdir -p /var/lib/systemd/{catalog,coredump,deb-systemd-helper-enabled,rfkill}
+            mkdir -p /writable/system-data/var/lib/systemd/{catalog,coredump,deb-systemd-helper-enabled,rfkill}
             touch /var/lib/systemd/random-seed
-            mount --bind /writable/system-data/var/lib/systemd/rfkill /var/lib/systemd/rfkill
-            mount --bind /writable/system-data/var/lib/systemd/random-seed /var/lib/systemd/random-seed
-            touch /run/tests.session-core16.workaround
+            touch /writable/system-data/var/lib/systemd/random-seed
+            # NOTE: The here-doc below must use tabs for proper operation.
+            cat >/etc/systemd/system/var-lib-systemd-rfkill.mount <<-UNIT
+			[Mount]
+			What=/writable/system-data/var/lib/systemd/rfkill
+			Where=/var/lib/systemd/rfkill
+			Options=bind
+			UNIT
+            systemctl enable --now var-lib-systemd-rfkill.mount
+            # NOTE: The here-doc below must use tabs for proper operation.
+            cat >/etc/systemd/system/var-lib-systemd-random\\x2dseed.mount <<-UNIT
+			[Mount]
+			What=/writable/system-data/var/lib/systemd/random-seed
+			Where=/var/lib/systemd/random-seed
+			Options=bind
+			UNIT
+            systemctl enable --now var-lib-systemd-random\\x2dseed.mount
             ;;
     esac
 
