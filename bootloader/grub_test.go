@@ -1026,7 +1026,9 @@ func (s *grubTestSuite) TestTrustedAssetsNative(c *C) {
 	tab, ok := g.(bootloader.TrustedAssetsBootloader)
 	c.Assert(ok, Equals, true)
 
-	c.Check(tab.TrustedAssetsChain(), DeepEquals, []string{
+	ta, err := tab.TrustedAssetsChain()
+	c.Assert(err, IsNil)
+	c.Check(ta, DeepEquals, []string{
 		"EFI/boot/grubx64.efi",
 	})
 
@@ -1035,7 +1037,9 @@ func (s *grubTestSuite) TestTrustedAssetsNative(c *C) {
 	tarb := bootloader.NewGrub(s.rootdir, recoveryOpts).(bootloader.TrustedAssetsBootloader)
 	c.Assert(tarb, NotNil)
 
-	c.Check(tarb.TrustedAssetsChain(), DeepEquals, []string{
+	ta, err = tarb.TrustedAssetsChain()
+	c.Assert(err, IsNil)
+	c.Check(ta, DeepEquals, []string{
 		"EFI/boot/bootx64.efi",
 		"EFI/boot/grubx64.efi",
 	})
@@ -1048,5 +1052,7 @@ func (s *grubTestSuite) TestTrustedAssetsRoot(c *C) {
 	tab, ok := g.(bootloader.TrustedAssetsBootloader)
 	c.Assert(ok, Equals, true)
 
-	c.Check(tab.TrustedAssetsChain(), IsNil)
+	ta, err := tab.TrustedAssetsChain()
+	c.Assert(err, ErrorMatches, "internal error: trusted assets called without native hierarchy")
+	c.Check(ta, IsNil)
 }

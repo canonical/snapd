@@ -464,21 +464,20 @@ func staticCommandLineForGrubAssetEdition(asset string, edition uint) string {
 // TrustedAssetsChain returns the list of relative paths to files inside
 // the bootloader's rootdir that are measured in the boot process in the
 // order of loading during the boot.
-func (g *grub) TrustedAssetsChain() []string {
-	if g.native {
-		if g.recovery {
-			return []string{
-				// recovery mode shim EFI binary
-				"EFI/boot/bootx64.efi",
-				// recovery mode grub EFI binary
-				"EFI/boot/grubx64.efi",
-			}
-		} else {
-			return []string{
-				// run mode grub EFI binary
-				"EFI/boot/grubx64.efi",
-			}
-		}
+func (g *grub) TrustedAssetsChain() ([]string, error) {
+	if !g.native {
+		return nil, fmt.Errorf("internal error: trusted assets called without native hierarchy")
 	}
-	return nil
+	if g.recovery {
+		return []string{
+			// recovery mode shim EFI binary
+			"EFI/boot/bootx64.efi",
+			// recovery mode grub EFI binary
+			"EFI/boot/grubx64.efi",
+		}, nil
+	}
+	return []string{
+		// run mode grub EFI binary
+		"EFI/boot/grubx64.efi",
+	}, nil
 }
