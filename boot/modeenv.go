@@ -39,18 +39,18 @@ type bootAssetsMap map[string][]string
 // Modeenv is a file on UC20 that provides additional information
 // about the current mode (run,recover,install)
 type Modeenv struct {
-	Mode                      string
-	RecoverySystem            string
-	CurrentRecoverySystems    []string
-	Base                      string
-	TryBase                   string
-	BaseStatus                string
-	CurrentKernels            []string
-	Model                     string
-	BrandID                   string
-	Grade                     string
-	CurrentBootAssets         bootAssetsMap
-	CurrentRecoveryBootAssets bootAssetsMap
+	Mode                             string
+	RecoverySystem                   string
+	CurrentRecoverySystems           []string
+	Base                             string
+	TryBase                          string
+	BaseStatus                       string
+	CurrentKernels                   []string
+	Model                            string
+	BrandID                          string
+	Grade                            string
+	CurrentTrustedBootAssets         bootAssetsMap
+	CurrentTrustedRecoveryBootAssets bootAssetsMap
 
 	// read is set to true when a modenv was read successfully
 	read bool
@@ -99,8 +99,8 @@ func ReadModeenv(rootdir string) (*Modeenv, error) {
 	m.Model = bm.model
 	// expect the caller to validate the grade
 	unmarshalModeenvValueFromCfg(cfg, "grade", &m.Grade)
-	unmarshalModeenvValueFromCfg(cfg, "current_boot_assets", &m.CurrentBootAssets)
-	unmarshalModeenvValueFromCfg(cfg, "current_recovery_boot_assets", &m.CurrentRecoveryBootAssets)
+	unmarshalModeenvValueFromCfg(cfg, "current_trusted_boot_assets", &m.CurrentTrustedBootAssets)
+	unmarshalModeenvValueFromCfg(cfg, "current_trusted_recovery_boot_assets", &m.CurrentTrustedRecoveryBootAssets)
 
 	return &m, nil
 }
@@ -179,8 +179,8 @@ func (m *Modeenv) WriteTo(rootdir string) error {
 		marshalModeenvEntryTo(buf, "model", &modeenvModel{brandID: m.BrandID, model: m.Model})
 	}
 	marshalModeenvEntryTo(buf, "grade", m.Grade)
-	marshalModeenvEntryTo(buf, "current_boot_assets", m.CurrentBootAssets)
-	marshalModeenvEntryTo(buf, "current_recovery_boot_assets", m.CurrentRecoveryBootAssets)
+	marshalModeenvEntryTo(buf, "current_trusted_boot_assets", m.CurrentTrustedBootAssets)
+	marshalModeenvEntryTo(buf, "current_trusted_recovery_boot_assets", m.CurrentTrustedRecoveryBootAssets)
 
 	if err := osutil.AtomicWriteFile(modeenvPath, buf.Bytes(), 0644, 0); err != nil {
 		return err

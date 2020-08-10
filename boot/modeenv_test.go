@@ -114,7 +114,7 @@ recovery_system=20191126
 base=core20_123.snap
 try_base=core20_124.snap
 base_status=try
-current_boot_assets={"thing1":["hash1","hash2"],"thing2":["hash3"]}
+current_trusted_boot_assets={"thing1":["hash1","hash2"],"thing2":["hash3"]}
 `)
 
 	diskModeenv, err := boot.ReadModeenv(s.tmpdir)
@@ -125,7 +125,7 @@ current_boot_assets={"thing1":["hash1","hash2"],"thing2":["hash3"]}
 		Base:           "core20_123.snap",
 		TryBase:        "core20_124.snap",
 		BaseStatus:     "try",
-		CurrentBootAssets: boot.BootAssetsMap{
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
 			"thing1": {"hash1", "hash2"},
 			"thing2": {"hash3"},
 		},
@@ -210,7 +210,7 @@ func (s *modeenvSuite) TestDeepEquals(c *C) {
 		BrandID: "brand",
 		Grade:   "secured",
 
-		CurrentBootAssets: boot.BootAssetsMap{
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
 			"thing1": {"hash1", "hash2"},
 			"thing2": {"hash3"},
 		},
@@ -230,7 +230,7 @@ func (s *modeenvSuite) TestDeepEquals(c *C) {
 		BrandID: "brand",
 		Grade:   "secured",
 
-		CurrentBootAssets: boot.BootAssetsMap{
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
 			"thing1": {"hash1", "hash2"},
 			"thing2": {"hash3"},
 		},
@@ -559,16 +559,16 @@ func (s *modeenvSuite) TestFancyUnmarshalJSONEmpty(c *C) {
 	c.Check(djsonRev.Foo, IsNil)
 }
 
-func (s *modeenvSuite) TestMarshalCurrentBootAssets(c *C) {
+func (s *modeenvSuite) TestMarshalCurrentTrustedBootAssets(c *C) {
 	c.Assert(s.mockModeenvPath, testutil.FileAbsent)
 
 	modeenv := &boot.Modeenv{
 		Mode:           "run",
 		RecoverySystem: "20191128",
-		CurrentBootAssets: boot.BootAssetsMap{
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
 			"grubx64.efi": []string{"hash1", "hash2"},
 		},
-		CurrentRecoveryBootAssets: boot.BootAssetsMap{
+		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
 			"grubx64.efi": []string{"recovery-hash1"},
 			"bootx64.efi": []string{"shimhash1", "shimhash2"},
 		},
@@ -578,16 +578,16 @@ func (s *modeenvSuite) TestMarshalCurrentBootAssets(c *C) {
 
 	c.Assert(s.mockModeenvPath, testutil.FileEquals, `mode=run
 recovery_system=20191128
-current_boot_assets={"grubx64.efi":["hash1","hash2"]}
-current_recovery_boot_assets={"bootx64.efi":["shimhash1","shimhash2"],"grubx64.efi":["recovery-hash1"]}
+current_trusted_boot_assets={"grubx64.efi":["hash1","hash2"]}
+current_trusted_recovery_boot_assets={"bootx64.efi":["shimhash1","shimhash2"],"grubx64.efi":["recovery-hash1"]}
 `)
 
 	modeenvRead, err := boot.ReadModeenv(s.tmpdir)
 	c.Assert(err, IsNil)
-	c.Assert(modeenvRead.CurrentBootAssets, DeepEquals, boot.BootAssetsMap{
+	c.Assert(modeenvRead.CurrentTrustedBootAssets, DeepEquals, boot.BootAssetsMap{
 		"grubx64.efi": []string{"hash1", "hash2"},
 	})
-	c.Assert(modeenvRead.CurrentRecoveryBootAssets, DeepEquals, boot.BootAssetsMap{
+	c.Assert(modeenvRead.CurrentTrustedRecoveryBootAssets, DeepEquals, boot.BootAssetsMap{
 		"grubx64.efi": []string{"recovery-hash1"},
 		"bootx64.efi": []string{"shimhash1", "shimhash2"},
 	})
