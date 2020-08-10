@@ -1578,7 +1578,7 @@ func (s *apiSuite) TestLoginUserTwoFactorRequiredError(c *check.C) {
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, 401)
-	c.Check(rsp.Result.(*errorResult).Kind, check.Equals, errorKindTwoFactorRequired)
+	c.Check(rsp.Result.(*errorResult).Kind, check.Equals, client.ErrorKindTwoFactorRequired)
 }
 
 func (s *apiSuite) TestLoginUserTwoFactorFailedError(c *check.C) {
@@ -1593,7 +1593,7 @@ func (s *apiSuite) TestLoginUserTwoFactorFailedError(c *check.C) {
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, 401)
-	c.Check(rsp.Result.(*errorResult).Kind, check.Equals, errorKindTwoFactorFailed)
+	c.Check(rsp.Result.(*errorResult).Kind, check.Equals, client.ErrorKindTwoFactorFailed)
 }
 
 func (s *apiSuite) TestLoginUserInvalidCredentialsError(c *check.C) {
@@ -2248,7 +2248,7 @@ func (s *apiSuite) TestFindBadQueryReturnsCorrectErrorKind(c *check.C) {
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, 400)
 	c.Check(rsp.Result.(*errorResult).Message, check.Matches, "bad query")
-	c.Check(rsp.Result.(*errorResult).Kind, check.Equals, errorKindBadQuery)
+	c.Check(rsp.Result.(*errorResult).Kind, check.Equals, client.ErrorKindBadQuery)
 }
 
 func (s *apiSuite) TestFindPriced(c *check.C) {
@@ -3214,7 +3214,7 @@ func (s *apiSuite) TestSideloadSnapChangeConflict(c *check.C) {
 
 	rsp := postSnaps(snapsCmd, req, nil).(*resp)
 	c.Assert(rsp.Type, check.Equals, ResponseTypeError)
-	c.Check(rsp.Result.(*errorResult).Kind, check.Equals, errorKindSnapChangeConflict)
+	c.Check(rsp.Result.(*errorResult).Kind, check.Equals, client.ErrorKindSnapChangeConflict)
 }
 
 func (s *apiSuite) TestSideloadSnapInstanceName(c *check.C) {
@@ -3417,7 +3417,7 @@ func (s *apiSuite) TestTryChangeConflict(c *check.C) {
 
 	rsp := trySnap(snapsCmd, req, nil, tryDir, snapstate.Flags{}).(*resp)
 	c.Assert(rsp.Type, check.Equals, ResponseTypeError)
-	c.Check(rsp.Result.(*errorResult).Kind, check.Equals, errorKindSnapChangeConflict)
+	c.Check(rsp.Result.(*errorResult).Kind, check.Equals, client.ErrorKindSnapChangeConflict)
 }
 
 func (s *apiSuite) runGetConf(c *check.C, snapName string, keys []string, statusCode int) map[string]interface{} {
@@ -6125,7 +6125,7 @@ var readyToBuyTests = []struct {
 		respType: ResponseTypeError,
 		response: &errorResult{
 			Message: "terms of service not accepted",
-			Kind:    errorKindTermsNotAccepted,
+			Kind:    client.ErrorKindTermsNotAccepted,
 		},
 	},
 	{
@@ -6135,7 +6135,7 @@ var readyToBuyTests = []struct {
 		respType: ResponseTypeError,
 		response: &errorResult{
 			Message: "no payment methods",
-			Kind:    errorKindNoPaymentMethods,
+			Kind:    client.ErrorKindNoPaymentMethods,
 		},
 	},
 }
@@ -6795,7 +6795,7 @@ func (s *apiSuite) TestSnapctlUnsuccesfulError(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rsp := runSnapctl(snapctlCmd, req, nil).(*resp)
 	c.Check(rsp.Status, check.Equals, 200)
-	c.Check(rsp.Result.(*errorResult).Kind, check.Equals, errorKindUnsuccessful)
+	c.Check(rsp.Result.(*errorResult).Kind, check.Equals, client.ErrorKindUnsuccessful)
 	c.Check(rsp.Result.(*errorResult).Value, check.DeepEquals, map[string]interface{}{
 		"stdout":    "",
 		"stderr":    "",
@@ -7087,7 +7087,7 @@ func (s *appSuite) TestAppInfosForAppless(c *check.C) {
 	appInfos, rsp := appInfosFor(st, []string{"snap-c"}, appInfoOptions{service: true})
 	c.Assert(rsp, check.FitsTypeOf, &resp{})
 	c.Check(rsp.(*resp).Status, check.Equals, 404)
-	c.Check(rsp.(*resp).Result.(*errorResult).Kind, check.Equals, errorKindAppNotFound)
+	c.Check(rsp.(*resp).Result.(*errorResult).Kind, check.Equals, client.ErrorKindAppNotFound)
 	c.Assert(appInfos, check.IsNil)
 }
 
@@ -7096,7 +7096,7 @@ func (s *appSuite) TestAppInfosForMissingApp(c *check.C) {
 	appInfos, rsp := appInfosFor(st, []string{"snap-c.whatever"}, appInfoOptions{service: true})
 	c.Assert(rsp, check.FitsTypeOf, &resp{})
 	c.Check(rsp.(*resp).Status, check.Equals, 404)
-	c.Check(rsp.(*resp).Result.(*errorResult).Kind, check.Equals, errorKindAppNotFound)
+	c.Check(rsp.(*resp).Result.(*errorResult).Kind, check.Equals, client.ErrorKindAppNotFound)
 	c.Assert(appInfos, check.IsNil)
 }
 
@@ -7105,7 +7105,7 @@ func (s *appSuite) TestAppInfosForMissingSnap(c *check.C) {
 	appInfos, rsp := appInfosFor(st, []string{"snap-x"}, appInfoOptions{service: true})
 	c.Assert(rsp, check.FitsTypeOf, &resp{})
 	c.Check(rsp.(*resp).Status, check.Equals, 404)
-	c.Check(rsp.(*resp).Result.(*errorResult).Kind, check.Equals, errorKindSnapNotFound)
+	c.Check(rsp.(*resp).Result.(*errorResult).Kind, check.Equals, client.ErrorKindSnapNotFound)
 	c.Assert(appInfos, check.IsNil)
 }
 
@@ -7472,7 +7472,7 @@ func (s *apiSuite) TestErrToResponseForRevisionNotAvailable(c *check.C) {
 		Type:   ResponseTypeError,
 		Result: &errorResult{
 			Message: "no snap revision on specified channel",
-			Kind:    errorKindSnapChannelNotAvailable,
+			Kind:    client.ErrorKindSnapChannelNotAvailable,
 			Value: map[string]interface{}{
 				"snap-name":    "foo",
 				"action":       "install",
@@ -7498,7 +7498,7 @@ func (s *apiSuite) TestErrToResponseForRevisionNotAvailable(c *check.C) {
 		Type:   ResponseTypeError,
 		Result: &errorResult{
 			Message: "no snap revision on specified architecture",
-			Kind:    errorKindSnapArchitectureNotAvailable,
+			Kind:    client.ErrorKindSnapArchitectureNotAvailable,
 			Value: map[string]interface{}{
 				"snap-name":    "foo",
 				"action":       "install",
@@ -7518,7 +7518,7 @@ func (s *apiSuite) TestErrToResponseForRevisionNotAvailable(c *check.C) {
 		Type:   ResponseTypeError,
 		Result: &errorResult{
 			Message: "no snap revision available as specified",
-			Kind:    errorKindSnapRevisionNotAvailable,
+			Kind:    client.ErrorKindSnapRevisionNotAvailable,
 			Value:   "foo",
 		},
 	})
@@ -7589,7 +7589,7 @@ func (s *apiSuite) TestErrToResponseForChangeConflict(c *check.C) {
 		Type:   ResponseTypeError,
 		Result: &errorResult{
 			Message: `snap "foo" has "install" change in progress`,
-			Kind:    errorKindSnapChangeConflict,
+			Kind:    client.ErrorKindSnapChangeConflict,
 			Value: map[string]interface{}{
 				"snap-name":   "foo",
 				"change-kind": "install",
@@ -7605,7 +7605,7 @@ func (s *apiSuite) TestErrToResponseForChangeConflict(c *check.C) {
 		Type:   ResponseTypeError,
 		Result: &errorResult{
 			Message: `snap "foo" has changes in progress`,
-			Kind:    errorKindSnapChangeConflict,
+			Kind:    client.ErrorKindSnapChangeConflict,
 			Value: map[string]interface{}{
 				"snap-name": "foo",
 			},
@@ -7620,7 +7620,7 @@ func (s *apiSuite) TestErrToResponseForChangeConflict(c *check.C) {
 		Type:   ResponseTypeError,
 		Result: &errorResult{
 			Message: "specific error msg",
-			Kind:    errorKindSnapChangeConflict,
+			Kind:    client.ErrorKindSnapChangeConflict,
 			Value: map[string]interface{}{
 				"change-kind": "some-global-op",
 			},
@@ -7651,7 +7651,7 @@ func (s *apiSuite) TestErrToResponse(c *check.C) {
 	// this one can't happen (but fun to test):
 	saXe := &store.SnapActionError{Refresh: map[string]error{"foo": sa1e}}
 
-	makeErrorRsp := func(kind errorKind, err error, value interface{}) Response {
+	makeErrorRsp := func(kind client.ErrorKind, err error, value interface{}) Response {
 		return SyncResponse(&resp{
 			Type:   ResponseTypeError,
 			Result: &errorResult{Message: err.Error(), Kind: kind, Value: value},
@@ -7664,16 +7664,16 @@ func (s *apiSuite) TestErrToResponse(c *check.C) {
 		expectedRsp Response
 	}{
 		{store.ErrSnapNotFound, SnapNotFound("foo", store.ErrSnapNotFound)},
-		{store.ErrNoUpdateAvailable, makeErrorRsp(errorKindSnapNoUpdateAvailable, store.ErrNoUpdateAvailable, "")},
-		{store.ErrLocalSnap, makeErrorRsp(errorKindSnapLocal, store.ErrLocalSnap, "")},
-		{aie, makeErrorRsp(errorKindSnapAlreadyInstalled, aie, "foo")},
-		{nie, makeErrorRsp(errorKindSnapNotInstalled, nie, "foo")},
-		{ndme, makeErrorRsp(errorKindSnapNeedsDevMode, ndme, "foo")},
-		{nc, makeErrorRsp(errorKindSnapNotClassic, nc, "foo")},
-		{nce, makeErrorRsp(errorKindSnapNeedsClassic, nce, "foo")},
-		{ncse, makeErrorRsp(errorKindSnapNeedsClassicSystem, ncse, "foo")},
+		{store.ErrNoUpdateAvailable, makeErrorRsp(client.ErrorKindSnapNoUpdateAvailable, store.ErrNoUpdateAvailable, "")},
+		{store.ErrLocalSnap, makeErrorRsp(client.ErrorKindSnapLocal, store.ErrLocalSnap, "")},
+		{aie, makeErrorRsp(client.ErrorKindSnapAlreadyInstalled, aie, "foo")},
+		{nie, makeErrorRsp(client.ErrorKindSnapNotInstalled, nie, "foo")},
+		{ndme, makeErrorRsp(client.ErrorKindSnapNeedsDevMode, ndme, "foo")},
+		{nc, makeErrorRsp(client.ErrorKindSnapNotClassic, nc, "foo")},
+		{nce, makeErrorRsp(client.ErrorKindSnapNeedsClassic, nce, "foo")},
+		{ncse, makeErrorRsp(client.ErrorKindSnapNeedsClassicSystem, ncse, "foo")},
 		{cce, SnapChangeConflict(cce)},
-		{nettoute, makeErrorRsp(errorKindNetworkTimeout, nettoute, "")},
+		{nettoute, makeErrorRsp(client.ErrorKindNetworkTimeout, nettoute, "")},
 		{netoe, BadRequest("ERR: %v", netoe)},
 		{nettmpe, BadRequest("ERR: %v", nettmpe)},
 		{e, BadRequest("ERR: %v", e)},

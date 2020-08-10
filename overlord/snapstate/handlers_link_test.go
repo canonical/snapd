@@ -1322,12 +1322,10 @@ func (s *linkSnapSuite) TestDoUnlinkSnapRefreshHardCheckOff(c *C) {
 func (s *linkSnapSuite) testDoUnlinkSnapRefreshAwareness(c *C) *state.Change {
 	restore := release.MockOnClassic(true)
 	defer restore()
-	mockPidsCgroupDir := c.MkDir()
-	restore = snapstate.MockPidsCgroupDir(mockPidsCgroupDir)
-	defer restore()
 
-	// mock that "some-snap" has an app and that this app has pids running
-	writePids(c, filepath.Join(mockPidsCgroupDir, "snap.some-snap.some-app"), []int{1234})
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("/")
+
 	snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
 		info := &snap.Info{SuggestedName: name, SideInfo: *si, SnapType: snap.TypeApp}
 		info.Apps = map[string]*snap.AppInfo{
@@ -1335,6 +1333,14 @@ func (s *linkSnapSuite) testDoUnlinkSnapRefreshAwareness(c *C) *state.Change {
 		}
 		return info, nil
 	})
+	// mock that "some-snap" has an app and that this app has pids running
+	restore = snapstate.MockPidsOfSnap(func(instanceName string) (map[string][]int, error) {
+		c.Assert(instanceName, Equals, "some-snap")
+		return map[string][]int{
+			"snap.some-snap.some-app": {1234},
+		}, nil
+	})
+	defer restore()
 
 	si1 := &snap.SideInfo{
 		RealName: "some-snap",

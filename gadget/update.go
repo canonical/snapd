@@ -50,6 +50,26 @@ type GadgetData struct {
 // and returns true when the pair should be part of an update.
 type UpdatePolicyFunc func(from, to *LaidOutStructure) bool
 
+type ContentOperation int
+
+const (
+	ContentWrite ContentOperation = iota
+)
+
+// ContentObserver allows for observing operations on the content of the gadget
+// structures.
+type ContentObserver interface {
+	// TODO:UC20: add Observe() result value indicating that a file should
+	// be preserved
+
+	// Observe is called to observe a pending action, typically a file
+	// write, from source path to the relative path under a given target
+	// root directory. When called during rollback, the source path points
+	// to the backup copy of the original file.
+	Observe(op ContentOperation, sourceStruct *LaidOutStructure,
+		targetRootDir, sourcePath, relativeTargetPath string) (bool, error)
+}
+
 // Update applies the gadget update given the gadget information and data from
 // old and new revisions. It errors out when the update is not possible or
 // illegal, or a failure occurs at any of the steps. When there is no update, a
