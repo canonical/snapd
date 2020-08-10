@@ -1048,8 +1048,7 @@ func batchConnectTasks(st *state.State, snapsup *snapstate.SnapSetup, conns map[
 }
 
 // firstTaskAfterBootWhenPreseeding finds the first task to be run for thisSnap
-// on first boot after mark-preseeded task, this is normally install hook or
-// start-snap-services.
+// on first boot after mark-preseeded task, this is normally install hook.
 func firstTaskAfterBootWhenPreseeding(thisSnap string, markPreseeded *state.Task) (*state.Task, error) {
 	var firstTaskAfterBoot *state.Task
 	if markPreseeded.Change() == nil {
