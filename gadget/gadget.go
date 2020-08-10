@@ -196,6 +196,14 @@ type VolumeContent struct {
 	Size Size `yaml:"size"`
 
 	Unpack bool `yaml:"unpack"`
+
+	// XXX: we could mutate Source instead of having an extra field
+	//      but doing that leads to ugly output
+	//
+	// ResolvedSource is the absolute path of the Source after resolving
+	// any references (e.g. to a "$kernel:" snap)
+	ResolvedSource string
+	// XXX: provide resolvedImage too
 }
 
 func (vc VolumeContent) String() string {

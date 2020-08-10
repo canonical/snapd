@@ -248,7 +248,7 @@ func MockSysconfigConfigureRunSystem(f func(opts *sysconfig.Options) error) (res
 	}
 }
 
-func MockInstallRun(f func(gadgetRoot, device string, options install.Options, observer gadget.ContentObserver) error) (restore func()) {
+func MockInstallRun(f func(gadgetRoot, kernelRoot, device string, options install.Options, observer gadget.ContentObserver) error) (restore func()) {
 	old := installRun
 	installRun = f
 	return func() {
