@@ -28,6 +28,11 @@ restore: |
         systemctl --user stop dbus.service || true
     fi
 
+debug: |
+    cat /proc/self/cgroup
+    systemctl --version || true
+    cat /proc/cmdline
+
 execute: |
     # TODO: add a variant that uses a service
     if [ "$USER" = test ] && "$TESTSTOOLS"/version-compare --strict "$(systemctl --version | head -n 1 | cut -d ' ' -f 2)" -lt 238; then
