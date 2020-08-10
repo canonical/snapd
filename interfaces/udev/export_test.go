@@ -1,5 +1,7 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -15,12 +17,8 @@
  *
  */
 
-#include "cgroup-pids-support.h"
+package udev
 
-#include "cgroup-support.h"
-
-static const char *pids_cgroup_dir = "/sys/fs/cgroup/pids";
-
-void sc_cgroup_pids_join(const char *snap_security_tag, pid_t pid) {
-    sc_cgroup_create_and_join(pids_cgroup_dir, snap_security_tag, pid);
+func (b *Backend) ReloadRules(subsystemTriggers []string) error {
+	return b.reloadRules(subsystemTriggers)
 }

@@ -219,6 +219,18 @@ var noPreseedingJSON = `
     "type": "sync"
 }`
 
+var seedingError = `{
+    "result": {
+        "preseed-start-time": "2020-07-24T21:41:33.838194712Z",
+        "preseed-time": "2020-07-24T21:41:43.156401424Z",
+        "preseeded": true,
+        "seed-error": "cannot perform the following tasks:\n- xxx"
+    },
+    "status": "OK",
+    "status-code": 200,
+    "type": "sync"
+}`
+
 // a system that was preseeded, but didn't record the new keys
 // this is the case for a system that was preseeded and then seeded with an old
 // snapd, but then is refreshed to a version of snapd that supports snap debug
@@ -258,11 +270,12 @@ var stillSeedingNoPreseed = `{
 
 func (s *SnapSuite) TestDebugSeeding(c *C) {
 	tt := []struct {
-		jsonResp  string
-		expStdout string
-		expStderr string
-		expErr    string
-		comment   string
+		jsonResp   string
+		expStdout  string
+		expStderr  string
+		expErr     string
+		comment    string
+		hasUnicode bool
 	}{
 		{
 			jsonResp: newPreseedNewSnapdSameSysKey,
@@ -361,9 +374,19 @@ seed-restart-system-key: {
 			expStdout: `
 seeded:           true
 preseeded:        false
-seed-completion:  -
+seed-completion:  --
 `[1:],
-			comment: "not preseeded",
+			comment: "not preseeded no unicode",
+		},
+		{
+			jsonResp: noPreseedingJSON,
+			expStdout: `
+seeded:           true
+preseeded:        false
+seed-completion:  –
+`[1:],
+			comment:    "not preseeded",
+			hasUnicode: true,
 		},
 		{
 			jsonResp: oldPreseedingJSON,
@@ -381,18 +404,52 @@ seed-completion:   2m0s
 seeded:            false
 preseeded:         true
 image-preseeding:  9.318s
-seed-completion:   -
+seed-completion:   --
 `[1:],
-			comment: "preseeded, still seeding",
+			comment: "preseeded, still seeding no unicode",
+		},
+		{
+			jsonResp: stillSeeding,
+			expStdout: `
+seeded:            false
+preseeded:         true
+image-preseeding:  9.318s
+seed-completion:   –
+`[1:],
+			hasUnicode: true,
+			comment:    "preseeded, still seeding",
 		},
 		{
 			jsonResp: stillSeedingNoPreseed,
 			expStdout: `
 seeded:           false
 preseeded:        false
-seed-completion:  -
+seed-completion:  --
 `[1:],
-			comment: "not preseeded, still seeding",
+			comment: "not preseeded, still seeding no unicode",
+		},
+		{
+			jsonResp: stillSeedingNoPreseed,
+			expStdout: `
+seeded:           false
+preseeded:        false
+seed-completion:  –
+`[1:],
+			hasUnicode: true,
+			comment:    "not preseeded, still seeding",
+		},
+		{
+			jsonResp: seedingError,
+			expStdout: `
+seeded:  false
+seed-error: |
+  cannot perform the following tasks:
+  - xxx
+preseeded:         true
+image-preseeding:  9.318s
+seed-completion:   --
+`[1:],
+			comment: "preseeded, error during seeding",
 		},
 	}
 
@@ -414,7 +471,11 @@ seed-completion:  -
 				c.Fatalf("expected to get 1 request, now on %d", n)
 			}
 		})
-		rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "seeding"})
+		args := []string{"debug", "seeding"}
+		if t.hasUnicode {
+			args = append(args, "--unicode=always")
+		}
+		rest, err := snap.Parser(snap.Client()).ParseArgs(args)
 		if t.expErr != "" {
 			c.Assert(err, ErrorMatches, t.expErr, comment)
 			c.Assert(s.Stdout(), Equals, "", comment)

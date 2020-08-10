@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,10 +20,15 @@
 package boot_test
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
+	"github.com/mvo5/goconfigparser"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/boot"
@@ -80,6 +85,163 @@ func (s *modeenvSuite) TestReadMode(c *C) {
 	c.Check(modeenv.Mode, Equals, "run")
 	c.Check(modeenv.RecoverySystem, Equals, "")
 	c.Check(modeenv.Base, Equals, "")
+}
+
+func (s *modeenvSuite) TestDeepEqualDiskVsMemoryInvariant(c *C) {
+	s.makeMockModeenvFile(c, `mode=recovery
+recovery_system=20191126
+base=core20_123.snap
+try_base=core20_124.snap
+base_status=try
+`)
+
+	diskModeenv, err := boot.ReadModeenv(s.tmpdir)
+	c.Assert(err, IsNil)
+	inMemoryModeenv := &boot.Modeenv{
+		Mode:           "recovery",
+		RecoverySystem: "20191126",
+		Base:           "core20_123.snap",
+		TryBase:        "core20_124.snap",
+		BaseStatus:     "try",
+	}
+	c.Assert(inMemoryModeenv.DeepEqual(diskModeenv), Equals, true)
+	c.Assert(diskModeenv.DeepEqual(inMemoryModeenv), Equals, true)
+}
+
+func (s *modeenvSuite) TestCopyDeepEquals(c *C) {
+	s.makeMockModeenvFile(c, `mode=recovery
+recovery_system=20191126
+base=core20_123.snap
+try_base=core20_124.snap
+base_status=try
+`)
+
+	diskModeenv, err := boot.ReadModeenv(s.tmpdir)
+	c.Assert(err, IsNil)
+	inMemoryModeenv := &boot.Modeenv{
+		Mode:           "recovery",
+		RecoverySystem: "20191126",
+		Base:           "core20_123.snap",
+		TryBase:        "core20_124.snap",
+		BaseStatus:     "try",
+	}
+
+	c.Assert(inMemoryModeenv.DeepEqual(diskModeenv), Equals, true)
+	c.Assert(diskModeenv.DeepEqual(inMemoryModeenv), Equals, true)
+
+	diskModeenv2, err := diskModeenv.Copy()
+	c.Assert(err, IsNil)
+	c.Assert(diskModeenv.DeepEqual(diskModeenv2), Equals, true)
+	c.Assert(diskModeenv2.DeepEqual(diskModeenv), Equals, true)
+	c.Assert(inMemoryModeenv.DeepEqual(diskModeenv2), Equals, true)
+	c.Assert(diskModeenv2.DeepEqual(inMemoryModeenv), Equals, true)
+
+	inMemoryModeenv2, err := inMemoryModeenv.Copy()
+	c.Assert(err, IsNil)
+	c.Assert(inMemoryModeenv.DeepEqual(inMemoryModeenv2), Equals, true)
+	c.Assert(inMemoryModeenv2.DeepEqual(inMemoryModeenv), Equals, true)
+	c.Assert(inMemoryModeenv2.DeepEqual(diskModeenv), Equals, true)
+	c.Assert(diskModeenv.DeepEqual(inMemoryModeenv2), Equals, true)
+}
+
+func (s *modeenvSuite) TestCopyDiskWriteWorks(c *C) {
+	s.makeMockModeenvFile(c, `mode=recovery
+recovery_system=20191126
+base=core20_123.snap
+try_base=core20_124.snap
+base_status=try
+`)
+
+	diskModeenv, err := boot.ReadModeenv(s.tmpdir)
+	c.Assert(err, IsNil)
+	dupDiskModeenv, err := diskModeenv.Copy()
+	c.Assert(err, IsNil)
+
+	// move the original file out of the way
+	err = os.Rename(dirs.SnapModeenvFileUnder(s.tmpdir), dirs.SnapModeenvFileUnder(s.tmpdir)+".orig")
+	c.Assert(err, IsNil)
+	c.Assert(dirs.SnapModeenvFileUnder(s.tmpdir), testutil.FileAbsent)
+
+	// write the duplicate, it should write to the same original location and it
+	// should be the same content
+	err = dupDiskModeenv.Write()
+	c.Assert(err, IsNil)
+	c.Assert(dirs.SnapModeenvFileUnder(s.tmpdir), testutil.FilePresent)
+	origBytes, err := ioutil.ReadFile(dirs.SnapModeenvFileUnder(s.tmpdir) + ".orig")
+	c.Assert(err, IsNil)
+	// the files should be the same
+	c.Assert(dirs.SnapModeenvFileUnder(s.tmpdir), testutil.FileEquals, string(origBytes))
+}
+
+func (s *modeenvSuite) TestCopyMemoryWriteFails(c *C) {
+	inMemoryModeenv := &boot.Modeenv{
+		Mode:           "recovery",
+		RecoverySystem: "20191126",
+		Base:           "core20_123.snap",
+		TryBase:        "core20_124.snap",
+		BaseStatus:     "try",
+	}
+	dupInMemoryModeenv, err := inMemoryModeenv.Copy()
+	c.Assert(err, IsNil)
+
+	// write the duplicate, it should fail
+	err = dupInMemoryModeenv.Write()
+	c.Assert(err, ErrorMatches, "internal error: must use WriteTo with modeenv not read from disk")
+}
+
+func (s *modeenvSuite) TestDeepEquals(c *C) {
+	// start with two identical modeenvs
+	modeenv1 := &boot.Modeenv{
+		Mode:                   "recovery",
+		RecoverySystem:         "20191126",
+		CurrentRecoverySystems: []string{"1", "2"},
+
+		Base:           "core20_123.snap",
+		TryBase:        "core20_124.snap",
+		BaseStatus:     "try",
+		CurrentKernels: []string{"k1", "k2"},
+
+		Model:   "model",
+		BrandID: "brand",
+		Grade:   "secured",
+	}
+
+	modeenv2 := &boot.Modeenv{
+		Mode:                   "recovery",
+		RecoverySystem:         "20191126",
+		CurrentRecoverySystems: []string{"1", "2"},
+
+		Base:           "core20_123.snap",
+		TryBase:        "core20_124.snap",
+		BaseStatus:     "try",
+		CurrentKernels: []string{"k1", "k2"},
+
+		Model:   "model",
+		BrandID: "brand",
+		Grade:   "secured",
+	}
+
+	// same object should be the same
+	c.Assert(modeenv1.DeepEqual(modeenv1), Equals, true)
+
+	// no difference should be the same at the start
+	c.Assert(modeenv1.DeepEqual(modeenv2), Equals, true)
+	c.Assert(modeenv2.DeepEqual(modeenv1), Equals, true)
+
+	// invert CurrentKernels
+	modeenv2.CurrentKernels = []string{"k2", "k1"}
+	c.Assert(modeenv1.DeepEqual(modeenv2), Equals, false)
+	c.Assert(modeenv2.DeepEqual(modeenv1), Equals, false)
+
+	// make CurrentKernels capitalized
+	modeenv2.CurrentKernels = []string{"K1", "k2"}
+	c.Assert(modeenv1.DeepEqual(modeenv2), Equals, false)
+	c.Assert(modeenv2.DeepEqual(modeenv1), Equals, false)
+
+	// make CurrentKernels disappear
+	modeenv2.CurrentKernels = nil
+	c.Assert(modeenv1.DeepEqual(modeenv2), Equals, false)
+	c.Assert(modeenv2.DeepEqual(modeenv1), Equals, false)
 }
 
 func (s *modeenvSuite) TestReadModeWithRecoverySystem(c *C) {
@@ -301,4 +463,83 @@ current_recovery_systems=`+t.systemsString+"\n")
 		c.Check(modeenv.RecoverySystem, Equals, "20191126")
 		c.Check(modeenv.CurrentRecoverySystems, DeepEquals, t.expectedSystems)
 	}
+}
+
+type fancyDataBothMarshallers struct {
+	Foo []string
+}
+
+func (f *fancyDataBothMarshallers) MarshalModeenvValue() (string, error) {
+	return strings.Join(f.Foo, "#"), nil
+}
+
+func (f *fancyDataBothMarshallers) UnmarshalModeenvValue(v string) error {
+	f.Foo = strings.Split(v, "#")
+	return nil
+}
+
+func (f *fancyDataBothMarshallers) MarshalJSON() ([]byte, error) {
+	return nil, fmt.Errorf("unexpected call to JSON marshaller")
+}
+
+func (f *fancyDataBothMarshallers) UnmarshalJSON(data []byte) error {
+	return fmt.Errorf("unexpected call to JSON unmarshaller")
+}
+
+type fancyDataJSONOnly struct {
+	Foo []string
+}
+
+func (f *fancyDataJSONOnly) MarshalJSON() ([]byte, error) {
+	return json.Marshal(f.Foo)
+}
+
+func (f *fancyDataJSONOnly) UnmarshalJSON(data []byte) error {
+	return json.Unmarshal(data, &f.Foo)
+}
+
+func (s *modeenvSuite) TestFancyMarshalUnmarshal(c *C) {
+	var buf bytes.Buffer
+
+	dboth := fancyDataBothMarshallers{Foo: []string{"1", "two"}}
+	err := boot.MarshalModeenvEntryTo(&buf, "fancy", &dboth)
+	c.Assert(err, IsNil)
+	c.Check(buf.String(), Equals, `fancy=1#two
+`)
+
+	djson := fancyDataJSONOnly{Foo: []string{"1", "two", "with\nnewline"}}
+	err = boot.MarshalModeenvEntryTo(&buf, "fancy_json", &djson)
+	c.Assert(err, IsNil)
+	c.Check(buf.String(), Equals, `fancy=1#two
+fancy_json=["1","two","with\nnewline"]
+`)
+
+	cfg := goconfigparser.New()
+	cfg.AllowNoSectionHeader = true
+	err = cfg.Read(&buf)
+	c.Assert(err, IsNil)
+
+	var dbothRev fancyDataBothMarshallers
+	err = boot.UnmarshalModeenvValueFromCfg(cfg, "fancy", &dbothRev)
+	c.Assert(err, IsNil)
+	c.Check(dbothRev, DeepEquals, dboth)
+
+	var djsonRev fancyDataJSONOnly
+	err = boot.UnmarshalModeenvValueFromCfg(cfg, "fancy_json", &djsonRev)
+	c.Assert(err, IsNil)
+	c.Check(djsonRev, DeepEquals, djson)
+}
+
+func (s *modeenvSuite) TestFancyUnmarshalJSONEmpty(c *C) {
+	var buf bytes.Buffer
+
+	cfg := goconfigparser.New()
+	cfg.AllowNoSectionHeader = true
+	err := cfg.Read(&buf)
+	c.Assert(err, IsNil)
+
+	var djsonRev fancyDataJSONOnly
+	err = boot.UnmarshalModeenvValueFromCfg(cfg, "fancy_json", &djsonRev)
+	c.Assert(err, IsNil)
+	c.Check(djsonRev.Foo, IsNil)
 }

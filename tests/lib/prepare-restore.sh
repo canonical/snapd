@@ -398,6 +398,16 @@ prepare_project() {
 
     install_pkg_dependencies
 
+    # Work around systemd / Debian bug interaction. We are installing
+    # libsystemd-dev which upgrades systemd to 246-2 (from 245-*) leaving
+    # behind systemd-logind.service from the old version. This is tracked as
+    # Debian bug https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=919509 and
+    # it really affects Desktop systems where Wayland/X don't like logind from
+    # ever being restarted. As a workaround, restart logind ourselves once
+    # here. This change is generic, as it may happen on any distribution that
+    # undergoes a similar transition.
+    systemctl restart systemd-logind.service || true
+
     # We take a special case for Debian/Ubuntu where we install additional build deps
     # base on the packaging. In Fedora/Suse this is handled via mock/osc
     case "$SPREAD_SYSTEM" in

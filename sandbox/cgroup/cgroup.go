@@ -82,12 +82,6 @@ func ProcPidPath(pid int) string {
 	return filepath.Join(rootPath, fmt.Sprintf("proc/%v/cgroup", pid))
 }
 
-// ControllerPathV1 returns the path to given controller assuming cgroup v1
-// hierarchy
-func ControllerPathV1(controller string) string {
-	return filepath.Join(rootPath, cgroupMountPoint, controller)
-}
-
 func probeCgroupVersion() (version int, err error) {
 	cgroupMount := filepath.Join(rootPath, cgroupMountPoint)
 	typ, err := fsTypeForPath(cgroupMount)

@@ -94,7 +94,7 @@ func main() {
 		KernelPath:              args.KernelPath,
 		Model:                   model,
 	}
-	err = installRun(args.Positional.GadgetRoot, args.Positional.Device, options)
+	err = installRun(args.Positional.GadgetRoot, args.Positional.Device, options, nil)
 	if err != nil {
 		panic(err)
 	}

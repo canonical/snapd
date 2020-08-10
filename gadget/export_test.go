@@ -40,8 +40,7 @@ var (
 	CanUpdateStructure = canUpdateStructure
 	CanUpdateVolume    = canUpdateVolume
 
-	WriteFile      = writeFileOrSymlink
-	WriteDirectory = writeDirectory
+	WriteFile = writeFileOrSymlink
 
 	RawContentBackupPath = rawContentBackupPath
 
@@ -70,4 +69,8 @@ func MockEvalSymlinks(mock func(path string) (string, error)) (restore func()) {
 	return func() {
 		evalSymlinks = oldEvalSymlinks
 	}
+}
+
+func (m *MountedFilesystemWriter) WriteDirectory(volumeRoot, src, dst string, preserveInDst []string) error {
+	return m.writeDirectory(volumeRoot, src, dst, preserveInDst)
 }
