@@ -1015,3 +1015,38 @@ boot script
 	// static command line from recovery asset
 	c.Check(args, Equals, `snapd_recovery_mode=recover snapd_recovery_system=20200202 console=ttyS0 console=tty1 panic=-1 foo bar baz=1`)
 }
+
+func (s *grubTestSuite) TestTrustedAssetsNative(c *C) {
+	// native EFI/ubuntu setup
+	s.makeFakeGrubEFINativeEnv(c, []byte("grub.cfg"))
+	opts := &bootloader.Options{NoSlashBoot: true}
+	g := bootloader.NewGrub(s.rootdir, opts)
+	c.Assert(g, NotNil)
+
+	tab, ok := g.(bootloader.TrustedAssetsBootloader)
+	c.Assert(ok, Equals, true)
+
+	c.Check(tab.TrustedAssetsChain(), DeepEquals, []string{
+		"EFI/boot/grubx64.efi",
+	})
+
+	// recovery bootloader
+	recoveryOpts := &bootloader.Options{NoSlashBoot: true, Recovery: true}
+	tarb := bootloader.NewGrub(s.rootdir, recoveryOpts).(bootloader.TrustedAssetsBootloader)
+	c.Assert(tarb, NotNil)
+
+	c.Check(tarb.TrustedAssetsChain(), DeepEquals, []string{
+		"EFI/boot/bootx64.efi",
+		"EFI/boot/grubx64.efi",
+	})
+
+}
+
+func (s *grubTestSuite) TestTrustedAssetsRoot(c *C) {
+	s.makeFakeGrubEnv(c)
+	g := bootloader.NewGrub(s.rootdir, nil)
+	tab, ok := g.(bootloader.TrustedAssetsBootloader)
+	c.Assert(ok, Equals, true)
+
+	c.Check(tab.TrustedAssetsChain(), IsNil)
+}
