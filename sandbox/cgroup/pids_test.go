@@ -19,10 +19,6 @@
 package cgroup_test
 
 import (
-	"io/ioutil"
-	"os"
-	"path/filepath"
-
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/sandbox/cgroup"
@@ -48,46 +44,4 @@ func (s *pidsSuite) TestParsePid(c *C) {
 	c.Assert(err, ErrorMatches, `cannot parse pid "ł"`)
 	_, err = cgroup.ParsePid("1000000000000000000000000000000000000000000000")
 	c.Assert(err, ErrorMatches, `cannot parse pid "1000000000000000000000000000000000000000000000"`)
-}
-
-func (s *cgroupSuite) TestPidsHappy(c *C) {
-	err := os.MkdirAll(filepath.Join(s.rootDir, "group1/group2"), 0755)
-	c.Assert(err, IsNil)
-	g2Pids := []byte(`123
-234
-567
-`)
-	allPids := append(g2Pids, []byte(`999
-`)...)
-	err = ioutil.WriteFile(filepath.Join(s.rootDir, "group1/cgroup.procs"), allPids, 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(s.rootDir, "group1/group2/cgroup.procs"), g2Pids, 0755)
-	c.Assert(err, IsNil)
-
-	pids, err := cgroup.PidsInGroup(s.rootDir, "group1")
-	c.Assert(err, IsNil)
-	c.Assert(pids, DeepEquals, []int{123, 234, 567, 999})
-
-	pids, err = cgroup.PidsInGroup(s.rootDir, "group1/group2")
-	c.Assert(err, IsNil)
-	c.Assert(pids, DeepEquals, []int{123, 234, 567})
-
-	pids, err = cgroup.PidsInGroup(s.rootDir, "group.does.not.exist")
-	c.Assert(err, IsNil)
-	c.Assert(pids, IsNil)
-}
-
-func (s *cgroupSuite) TestPidsBadInput(c *C) {
-	err := os.MkdirAll(filepath.Join(s.rootDir, "group1"), 0755)
-	c.Assert(err, IsNil)
-	gPids := []byte(`123
-zebra
-567
-`)
-	err = ioutil.WriteFile(filepath.Join(s.rootDir, "group1/cgroup.procs"), gPids, 0755)
-	c.Assert(err, IsNil)
-
-	pids, err := cgroup.PidsInGroup(s.rootDir, "group1")
-	c.Assert(err, ErrorMatches, `cannot parse pid "zebra"`)
-	c.Assert(pids, IsNil)
 }

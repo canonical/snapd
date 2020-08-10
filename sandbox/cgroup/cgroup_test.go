@@ -126,11 +126,6 @@ func (s *cgroupSuite) TestProcPidPath(c *C) {
 	c.Assert(cgroup.ProcPidPath(1234), Equals, filepath.Join(s.rootDir, "/proc/1234/cgroup"))
 }
 
-func (s *cgroupSuite) TestControllerPathV1(c *C) {
-	c.Assert(cgroup.ControllerPathV1("freezer"), Equals, filepath.Join(s.rootDir, "/sys/fs/cgroup/freezer"))
-	c.Assert(cgroup.ControllerPathV1("memory"), Equals, filepath.Join(s.rootDir, "/sys/fs/cgroup/memory"))
-}
-
 var mockCgroup = []byte(`
 10:devices:/user.slice
 9:cpuset:/
