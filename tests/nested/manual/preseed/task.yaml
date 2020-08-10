@@ -64,7 +64,7 @@ execute: |
   . "$TESTSLIB/preseed.sh"
 
   echo "Running pre-seeding"
-  /usr/lib/snapd/snap-preseed "$IMAGE_MOUNTPOINT"
+  /usr/lib/snapd/snap-preseed "$IMAGE_MOUNTPOINT" | MATCH "using snapd binary: /tmp/snapd-preseed/usr/lib/snapd/snapd"
 
   # mark-preseeded task is where snap-preseed stopped, therefore it's in Doing.
   snap debug state "$IMAGE_MOUNTPOINT"/var/lib/snapd/state.json --change=1 | MATCH "Doing .+ mark-preseeded +Mark system pre-seeded"
