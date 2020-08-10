@@ -783,6 +783,26 @@ func (s *snapshotSuite) TestEstimateSnapshotSizeEmpty(c *check.C) {
 	c.Check(sz, check.Equals, uint64(0))
 }
 
+func (s *snapshotSuite) TestEstimateSnapshotPassesUsernames(c *check.C) {
+	var gotUsernames []string
+	restore := backend.MockUsersForUsernames(func(usernames []string) ([]*user.User, error) {
+		gotUsernames = usernames
+		return nil, nil
+	})
+	defer restore()
+
+	var info = &snap.Info{
+		SuggestedName: "foo",
+		SideInfo: snap.SideInfo{
+			Revision: snap.R(7),
+		},
+	}
+
+	_, err := backend.EstimateSnapshotSize(info, []string{"user1", "user2"})
+	c.Assert(err, check.IsNil)
+	c.Check(gotUsernames, check.DeepEquals, []string{"user1", "user2"})
+}
+
 func (s *snapshotSuite) TestEstimateSnapshotSizeNotDataDirs(c *check.C) {
 	restore := backend.MockUsersForUsernames(func(usernames []string) ([]*user.User, error) {
 		return []*user.User{{HomeDir: filepath.Join(s.root, "home/user1")}}, nil

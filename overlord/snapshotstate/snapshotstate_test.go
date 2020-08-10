@@ -1548,3 +1548,26 @@ func (snapshotSuite) TestEstimateSnapshotSizeError(c *check.C) {
 	_, err := snapshotstate.EstimateSnapshotSize(st, "some-snap", nil)
 	c.Assert(err, check.ErrorMatches, `an error`)
 }
+
+func (snapshotSuite) TestEstimateSnapshotSizeWithUsers(c *check.C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	sideInfo := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(2)}
+	snapstate.Set(st, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{sideInfo},
+		Current:  sideInfo.Revision,
+	})
+
+	var gotUsers []string
+	defer snapshotstate.MockBackendEstimateSnapshotSize(func(info *snap.Info, users []string) (uint64, error) {
+		gotUsers = users
+		return 0, nil
+	})()
+
+	_, err := snapshotstate.EstimateSnapshotSize(st, "some-snap", []string{"user1", "user2"})
+	c.Assert(err, check.IsNil)
+	c.Check(gotUsers, check.DeepEquals, []string{"user1", "user2"})
+}
