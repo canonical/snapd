@@ -8359,7 +8359,7 @@ func (s *interfaceManagerSuite) TestPreseedAutoConnectInternalErrorMarkPreseeded
 	c.Check(strings.Join(autoConnectTask.Log(), ""), Matches, `.* internal error: mark-preseeded task not found in preseeding mode`)
 }
 
-func (s *interfaceManagerSuite) TestFirstTaskAfterBootWhenPreseedingErrors(c *C) {
+func (s *interfaceManagerSuite) TestFirstTaskAfterBootWhenPreseeding(c *C) {
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
