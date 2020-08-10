@@ -411,6 +411,20 @@ prepare_project() {
         fi
     fi
 
+    # Make /var/lib/systemd writable so that we can get linger enabled.
+    # This only applies to Ubuntu Core 16 where individual directories were
+    # writable. In Core 18 and beyond all of /var/lib/systemd is writable.
+    case "$SPREAD_SYSTEM" in
+        ubuntu-core-16-*)
+            mount tmpfs -t tmpfs /var/lib/systemd/
+            mkdir /var/lib/systemd/{catalog,coredump,deb-systemd-helper-enabled,rfkill}
+            touch /var/lib/systemd/random-seed
+            mount --bind /writable/system-data/var/lib/systemd/rfkill /var/lib/systemd/rfkill
+            mount --bind /writable/system-data/var/lib/systemd/random-seed /var/lib/systemd/random-seed
+            touch /run/tests.session-core16.workaround
+            ;;
+    esac
+
     # Work around systemd / Debian bug interaction. We are installing
     # libsystemd-dev which upgrades systemd to 246-2 (from 245-*) leaving
     # behind systemd-logind.service from the old version. This is tracked as

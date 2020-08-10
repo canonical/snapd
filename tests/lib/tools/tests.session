@@ -106,21 +106,6 @@ case "$action" in
 		exit 0
 		;;
 	prepare)
-		# Make /var/lib/systemd writable so that we can get linger enabled.
-		# This only applies to Ubuntu Core 16 where individual directories were
-		# writable. In Core 18 and beyond all of /var/lib/systemd is writable.
-		case "$SPREAD_SYSTEM" in
-			ubuntu-core-16-*)
-				mount tmpfs -t tmpfs /var/lib/systemd/
-				mkdir /var/lib/systemd/{catalog,coredump,deb-systemd-helper-enabled,rfkill}
-				touch /var/lib/systemd/random-seed
-				mount --bind /writable/system-data/var/lib/systemd/rfkill /var/lib/systemd/rfkill
-				mount --bind /writable/system-data/var/lib/systemd/random-seed /var/lib/systemd/random-seed
-
-				touch /run/tests.session-core16.workaround
-				;;
-		esac
-
 		# Try to enable linger for the selected user(s).
 		for u in $(echo "$user" | tr ',' ' '); do
 			if ! loginctl enable-linger "$u"; then
