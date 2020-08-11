@@ -137,12 +137,14 @@ func NewStatusDecorator(rep interface {
 	}
 }
 
-// DecorateWithStatus adds service status information to the given client.AppInfo associated with the given snap.AppInfo.
+// DecorateWithStatus adds service status information to the given
+// client.AppInfo associated with the given snap.AppInfo.
+// If the snap is inactive or the app is not service it does nothing.
 func (sd *StatusDecorator) DecorateWithStatus(appInfo *client.AppInfo, snapApp *snap.AppInfo) error {
 	if appInfo.Snap != snapApp.Snap.InstanceName() || appInfo.Name != snapApp.Name {
 		return fmt.Errorf("internal error: misassociated app info %v and client app info %s.%s", snapApp, appInfo.Snap, appInfo.Name)
 	}
-	if !snapApp.IsService() {
+	if !snapApp.Snap.IsActive() || !snapApp.IsService() {
 		// nothing to do
 		return nil
 	}

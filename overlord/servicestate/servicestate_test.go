@@ -21,11 +21,14 @@ package servicestate_test
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/systemd"
@@ -36,9 +39,19 @@ type statusDecoratorSuite struct{}
 var _ = Suite(&statusDecoratorSuite{})
 
 func (s *statusDecoratorSuite) TestDecorateWithStatus(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
 	snp := &snap.Info{
-		SuggestedName: "foo",
+		SideInfo: snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(1),
+		},
 	}
+	err := os.MkdirAll(snp.MountDir(), 0755)
+	c.Assert(err, IsNil)
+	err = os.Symlink(snp.Revision.String(), filepath.Join(filepath.Dir(snp.MountDir()), "current"))
+	c.Assert(err, IsNil)
+
 	disabled := false
 	r := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
 		c.Assert(args[0], Equals, "show")
@@ -72,7 +85,7 @@ UnitFileState=%s
 	}
 	snapApp := &snap.AppInfo{Snap: snp, Name: "app"}
 
-	err := sd.DecorateWithStatus(app, snapApp)
+	err = sd.DecorateWithStatus(app, snapApp)
 	c.Assert(err, IsNil)
 
 	for _, enabled := range []bool{true, false} {

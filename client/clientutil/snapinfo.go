@@ -119,7 +119,8 @@ func ClientAppInfoNotes(app *client.AppInfo) string {
 // ClientAppInfosFromSnapAppInfos returns client.AppInfos derived from
 // the given snap.AppInfos.
 // If an optional StatusDecorator is provided it will be used to add
-// service status information as well.
+// service status information as well, this will be done only if the
+// snap is active and when the app is a service.
 func ClientAppInfosFromSnapAppInfos(apps []*snap.AppInfo, decorator StatusDecorator) ([]client.AppInfo, error) {
 	out := make([]client.AppInfo, 0, len(apps))
 	for _, app := range apps {

@@ -152,9 +152,12 @@ func (*cmdSuite) TestClientSnapFromSnapInfo(c *C) {
 	c.Check(ci.Publisher, DeepEquals, &si.Publisher)
 }
 
-type testStatusDecorator struct{}
+type testStatusDecorator struct {
+	calls int
+}
 
 func (sd *testStatusDecorator) DecorateWithStatus(appInfo *client.AppInfo, app *snap.AppInfo) error {
+	sd.calls++
 	if appInfo.Snap != app.Snap.InstanceName() || appInfo.Name != app.Name {
 		panic("mismatched")
 	}
@@ -187,7 +190,8 @@ func (*cmdSuite) TestClientSnapFromSnapInfoAppsInactive(c *C) {
 	err = ioutil.WriteFile(df, nil, 0644)
 	c.Assert(err, IsNil)
 
-	ci, err := clientutil.ClientSnapFromSnapInfo(si, &testStatusDecorator{})
+	sd := &testStatusDecorator{}
+	ci, err := clientutil.ClientSnapFromSnapInfo(si, sd)
 	c.Check(err, IsNil)
 
 	c.Check(ci.Name, Equals, "the-snap_insta")
@@ -200,6 +204,8 @@ func (*cmdSuite) TestClientSnapFromSnapInfoAppsInactive(c *C) {
 		},
 		{Snap: "the-snap_insta", Name: "svc", Daemon: "simple"},
 	})
+	// not called on inactive snaps
+	c.Check(sd.calls, Equals, 0)
 }
 
 func (*cmdSuite) TestClientSnapFromSnapInfoAppsActive(c *C) {
@@ -223,7 +229,8 @@ func (*cmdSuite) TestClientSnapFromSnapInfoAppsActive(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(si.IsActive(), Equals, true)
 
-	ci, err := clientutil.ClientSnapFromSnapInfo(si, &testStatusDecorator{})
+	sd := &testStatusDecorator{}
+	ci, err := clientutil.ClientSnapFromSnapInfo(si, sd)
 	c.Check(err, IsNil)
 	// ... service status
 	c.Check(ci.Name, Equals, "the-snap_insta")
@@ -231,6 +238,7 @@ func (*cmdSuite) TestClientSnapFromSnapInfoAppsActive(c *C) {
 		{Snap: "the-snap_insta", Name: "svc", Daemon: "simple", Enabled: true, Active: true},
 	})
 
+	c.Check(sd.calls, Equals, 1)
 }
 
 func (*cmdSuite) TestAppStatusNotes(c *C) {
