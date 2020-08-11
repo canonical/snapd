@@ -461,10 +461,10 @@ func staticCommandLineForGrubAssetEdition(asset string, edition uint) string {
 	return string(cmdline)
 }
 
-// TrustedAssetsChain returns the list of relative paths to files inside
+// TrustedAssets returns the list of relative paths to assets inside
 // the bootloader's rootdir that are measured in the boot process in the
 // order of loading during the boot.
-func (g *grub) TrustedAssetsChain() ([]string, error) {
+func (g *grub) TrustedAssets() ([]string, error) {
 	if !g.native {
 		return nil, fmt.Errorf("internal error: trusted assets called without native hierarchy")
 	}
