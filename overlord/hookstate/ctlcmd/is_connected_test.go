@@ -20,6 +20,8 @@
 package ctlcmd_test
 
 import (
+	"fmt"
+
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
@@ -74,6 +76,28 @@ var isConnectedTests = []struct {
 }, {
 	args: []string{"is-connected", "foo"},
 	err:  `snap "snap1" has no plug or slot named "foo"`,
+}, {
+	// snap1:plug1 is connected to snap2
+	args: []string{"is-connected", "--pid", "1002", "plug1"},
+}, {
+	// snap1:plug1 is not connected to snap3
+	args:     []string{"is-connected", "--pid", "1003", "plug1"},
+	exitCode: 1,
+}, {
+	// snap1:plug1 is not connected to a non-snap pid
+	args: []string{"is-connected", "--pid", "42", "plug1"},
+	err:  "internal error: cannot get snap name for pid 42: Not a snap",
+}, {
+	// snap1:slot1 is connected to snap3
+	args: []string{"is-connected", "--pid", "1003", "slot1"},
+}, {
+	// snap1:slot1 is not connected to snap2
+	args:     []string{"is-connected", "--pid", "1002", "slot1"},
+	exitCode: 1,
+}, {
+	// snap1:slot1 is not connected to a non-snap pid
+	args: []string{"is-connected", "--pid", "42", "slot1"},
+	err:  "internal error: cannot get snap name for pid 42: Not a snap",
 }}
 
 func mockInstalledSnap(c *C, st *state.State, snapYaml string) {
@@ -103,6 +127,15 @@ plugs:
 slots:
   slot1:
     interface: x11`)
+	restore := ctlcmd.MockCgroupSnapNameFromPid(func(pid int) (string, error) {
+		switch {
+		case 1000 < pid && pid < 1100:
+			return fmt.Sprintf("snap%d", pid-1000), nil
+		default:
+			return "", fmt.Errorf("Not a snap")
+		}
+	})
+	defer restore()
 
 	s.st.Set("conns", map[string]interface{}{
 		"snap1:plug1 snap2:slot2": map[string]interface{}{},

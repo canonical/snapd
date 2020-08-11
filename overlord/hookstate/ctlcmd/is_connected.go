@@ -26,7 +26,10 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/sandbox/cgroup"
 )
+
+var cgroupSnapNameFromPid = cgroup.SnapNameFromPid
 
 type isConnectedCommand struct {
 	baseCommand
@@ -34,6 +37,7 @@ type isConnectedCommand struct {
 	Positional struct {
 		PlugOrSlotSpec string `positional-args:"true" positional-arg-name:"<plug|slot>"`
 	} `positional-args:"true" required:"true"`
+	Pid int `long:"pid" description:"Process ID for a connected process"`
 }
 
 var shortIsConnectedHelp = i18n.G(`Return success if the given plug or slot is connected, and failure otherwise`)
@@ -87,6 +91,15 @@ func (c *isConnectedCommand) Execute(args []string) error {
 		return fmt.Errorf("internal error: cannot get connections: %s", err)
 	}
 
+	var otherSnapName string
+	if c.Pid != 0 {
+		otherSnapName, err = cgroupSnapNameFromPid(c.Pid)
+		// FIXME: should we treat non-snap processes as connected?
+		if err != nil {
+			return fmt.Errorf("internal error: cannot get snap name for pid %d: %s", c.Pid, err)
+		}
+	}
+
 	// snapName is the name of the snap executing snapctl command, it's
 	// obtained from the context (ephemeral if run by apps, or full if run by
 	// hooks). plug and slot names are unique within a snap, so there is no
@@ -102,8 +115,14 @@ func (c *isConnectedCommand) Execute(args []string) error {
 
 		matchingPlug := connRef.PlugRef.Snap == snapName && connRef.PlugRef.Name == plugOrSlot
 		matchingSlot := connRef.SlotRef.Snap == snapName && connRef.SlotRef.Name == plugOrSlot
-		if matchingPlug || matchingSlot {
-			return nil
+		if otherSnapName != "" {
+			if matchingPlug && connRef.SlotRef.Snap == otherSnapName || matchingSlot && connRef.PlugRef.Snap == otherSnapName {
+				return nil
+			}
+		} else {
+			if matchingPlug || matchingSlot {
+				return nil
+			}
 		}
 	}
 

@@ -88,3 +88,11 @@ func (c *MockCommand) Execute(args []string) error {
 
 	return nil
 }
+
+func MockCgroupSnapNameFromPid(f func(int) (string, error)) (restore func()) {
+	old := cgroupSnapNameFromPid
+	cgroupSnapNameFromPid = f
+	return func() {
+		cgroupSnapNameFromPid = old
+	}
+}
