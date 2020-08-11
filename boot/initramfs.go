@@ -38,20 +38,16 @@ func InitramfsRunModeSelectSnapsToMount(
 		switch typ {
 		case snap.TypeBase:
 			bs := &bootState20Base{
-				bootState20Modeenv: bootState20Modeenv{
-					modeenv: modeenv,
-				},
+				modeenv: modeenv,
 			}
 			selectSnapFn = bs.selectAndCommitSnapInitramfsMount
 		case snap.TypeKernel:
 			blOpts := &bootloader.Options{NoSlashBoot: true}
 			blDir := InitramfsUbuntuBootDir
 			bs := &bootState20Kernel{
-				blDir:  blDir,
-				blOpts: blOpts,
-				bootState20Modeenv: bootState20Modeenv{
-					modeenv: modeenv,
-				},
+				blDir:   blDir,
+				blOpts:  blOpts,
+				modeenv: modeenv,
 			}
 			selectSnapFn = bs.selectAndCommitSnapInitramfsMount
 		}
