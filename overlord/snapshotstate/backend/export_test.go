@@ -95,3 +95,11 @@ func SetUserWrapper(newUserWrapper string) (restore func()) {
 		userWrapper = oldUserWrapper
 	}
 }
+
+func MockUsersForUsernames(f func(usernames []string) ([]*user.User, error)) (restore func()) {
+	old := usersForUsernames
+	usersForUsernames = f
+	return func() {
+		usersForUsernames = old
+	}
+}

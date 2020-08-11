@@ -166,6 +166,15 @@ type ManagedAssetsBootloader interface {
 	CandidateCommandLine(modeArg, systemArg, extraArgs string) (string, error)
 }
 
+// TrustedAssetsBootloader has boot assets that take part in secure boot
+// process.
+type TrustedAssetsBootloader interface {
+	// TrustedAssets returns the list of relative paths to assets inside
+	// the bootloader's rootdir that are measured in the boot process in the
+	// order of loading during the boot.
+	TrustedAssets() ([]string, error)
+}
+
 func genericInstallBootConfig(gadgetFile, systemFile string) (bool, error) {
 	if !osutil.FileExists(gadgetFile) {
 		return false, nil
