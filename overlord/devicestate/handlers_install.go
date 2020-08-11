@@ -114,19 +114,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 
 	var sealingContentObserver *boot.TrustedAssetsInstallObserver
 	if useEncryption {
-		fdeDir := "var/lib/snapd/device/fde"
-		// ensure directories
-		for _, p := range []string{boot.InitramfsEncryptionKeyDir, filepath.Join(boot.InstallHostWritableDir, fdeDir)} {
-			if err := os.MkdirAll(p, 0755); err != nil {
-				return err
-			}
-		}
-
 		bopts.Encrypt = true
-		bopts.KeyFile = filepath.Join(boot.InitramfsEncryptionKeyDir, "ubuntu-data.sealed-key")
-		bopts.RecoveryKeyFile = filepath.Join(boot.InstallHostWritableDir, fdeDir, "recovery.key")
-		bopts.TPMLockoutAuthFile = filepath.Join(boot.InstallHostWritableDir, fdeDir, "tpm-lockout-auth")
-		bopts.TPMPolicyUpdateDataFile = filepath.Join(boot.InstallHostWritableDir, fdeDir, "policy-update-data")
 		bopts.KernelPath = filepath.Join(kernelDir, "kernel.efi")
 		bopts.Model = deviceCtx.Model()
 		bopts.SystemLabel = modeEnv.RecoverySystem
