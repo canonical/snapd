@@ -1,0 +1,21 @@
+name: test-snap1
+version: 1
+summary: First test snap
+
+plugs:
+  foo-plug:
+    interface: content
+    content: foo
+    target: $SNAP_COMMON/foo
+
+slots:
+  bar-slot:
+    interface: content
+    content: bar
+    read:
+      - $SNAP
+
+apps:
+  svc:
+    command: bin/service.sh
+    daemon: simple

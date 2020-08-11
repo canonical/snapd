@@ -1,0 +1,37 @@
+summary: Ensure that "snapctl is-connected --pid" works.
+
+prepare: |
+  #shellcheck source=tests/lib/snaps.sh
+  . "$TESTSLIB"/snaps.sh
+  install_local test-snap1
+  install_local test-snap2
+
+execute: |
+  echo "The test-snap1 service is running"
+  systemctl is-active snap.test-snap1.svc.service
+
+  svc_pid=$(systemctl show --property=MainPID snap.test-snap1.svc.service | cut -d = -f 2)
+
+  echo "Plugs and slots are initially disconnected"
+  not test-snap2.snapctl is-connected bar-plug
+  not test-snap2.snapctl is-connected foo-slot
+
+  echo "Disconnected interfaces are not connected to a snap process"
+  not test-snap2.snapctl is-connected --pid "$svc_pid" bar-plug
+  not test-snap2.snapctl is-connected --pid "$svc_pid" foo-slot
+
+  echo "Disconnected interfaces are not connected to non-snap process"
+  not test-snap2.snapctl is-connected --pid 1 bar-plug
+  not test-snap2.snapctl is-connected --pid 1 foo-slot
+
+  echo "Connect interfaces"
+  snap connect test-snap1:foo-plug test-snap2:foo-slot
+  snap connect test-snap2:bar-plug test-snap1:bar-slot
+
+  echo "Connected interfaces report as connected to snap process"
+  test-snap2.snapctl is-connected --pid "$svc_pid" bar-plug
+  test-snap2.snapctl is-connected --pid "$svc_pid" foo-slot
+
+  echo "Interfaces still not connected to non-snap process"
+  not test-snap2.snapctl is-connected --pid 1 bar-plug
+  not test-snap2.snapctl is-connected --pid 1 foo-slot

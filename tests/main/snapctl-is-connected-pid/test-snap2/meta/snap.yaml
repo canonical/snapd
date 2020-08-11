@@ -1,0 +1,20 @@
+name: test-snap2
+version: 1
+summary: Second test snap
+
+plugs:
+  bar-plug:
+    interface: content
+    content: bar
+    target: $SNAP_COMMON/bar
+
+slots:
+  foo-slot:
+    interface: content
+    content: foo
+    read:
+      - $SNAP
+
+apps:
+  snapctl:
+    command: bin/run-snapctl.sh
