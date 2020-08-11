@@ -176,12 +176,21 @@ func Run(gadgetRoot, device string, options Options, observer gadget.ContentObse
 		loadChain = append(loadChain, options.KernelPath)
 	}
 
-	// TODO:UC20: get cmdline definition from bootloaders
+	// Get the expected kernel command line for the system that is currently being installed
+	cmdline, err := boot.ComposeCandidateCommandLine(options.Model)
+	if err != nil {
+		return fmt.Errorf("cannot obtain kernel command line: %v", err)
+	}
+
+	// Get the expected kernel command line of the recovery system we're installing from
+	recoveryCmdline, err := boot.ComposeRecoveryCommandLine(options.Model, options.SystemLabel)
+	if err != nil {
+		return fmt.Errorf("cannot obtain recovery kernel command line: %v", err)
+	}
+
 	kernelCmdlines := []string{
-		// run mode
-		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
-		// recover mode
-		fmt.Sprintf("snapd_recovery_mode=recover snapd_recovery_system=%s console=ttyS0 console=tty1 panic=-1", options.SystemLabel),
+		cmdline,
+		recoveryCmdline,
 	}
 
 	sealKeyParams := secboot.SealKeyParams{
