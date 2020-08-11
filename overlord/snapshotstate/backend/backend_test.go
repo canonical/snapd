@@ -720,6 +720,11 @@ func (s *snapshotSuite) TestMaybeRunuserNoHappy(c *check.C) {
 }
 
 func (s *snapshotSuite) TestEstimateSnapshotSize(c *check.C) {
+	restore := backend.MockUsersForUsernames(func(usernames []string) ([]*user.User, error) {
+		return []*user.User{{HomeDir: filepath.Join(s.root, "home/user1")}}, nil
+	})
+	defer restore()
+
 	var info = &snap.Info{
 		SuggestedName: "foo",
 		SideInfo: snap.SideInfo{
@@ -733,6 +738,8 @@ func (s *snapshotSuite) TestEstimateSnapshotSize(c *check.C) {
 		"/var/snap/foo/7",
 		"/var/snap/foo/common",
 		"/var/snap/foo/common/a",
+		"/home/user1/snap/foo/7/somedata",
+		"/home/user1/snap/foo/common",
 	}
 	var data []byte
 	var expected int
@@ -743,12 +750,17 @@ func (s *snapshotSuite) TestEstimateSnapshotSize(c *check.C) {
 		c.Assert(ioutil.WriteFile(filepath.Join(s.root, d, "somfile"), data, 0644), check.IsNil)
 	}
 
-	sz, err := backend.EstimateSnapshotSize(info)
+	sz, err := backend.EstimateSnapshotSize(info, nil)
 	c.Assert(err, check.IsNil)
 	c.Check(sz, check.Equals, uint64(expected))
 }
 
 func (s *snapshotSuite) TestEstimateSnapshotSizeEmpty(c *check.C) {
+	restore := backend.MockUsersForUsernames(func(usernames []string) ([]*user.User, error) {
+		return []*user.User{{HomeDir: filepath.Join(s.root, "home/user1")}}, nil
+	})
+	defer restore()
+
 	var info = &snap.Info{
 		SuggestedName: "foo",
 		SideInfo: snap.SideInfo{
@@ -759,24 +771,50 @@ func (s *snapshotSuite) TestEstimateSnapshotSizeEmpty(c *check.C) {
 	snapData := []string{
 		"/var/snap/foo/common",
 		"/var/snap/foo/7",
+		"/home/user1/snap/foo/7",
+		"/home/user1/snap/foo/common",
 	}
 	for _, d := range snapData {
 		c.Assert(os.MkdirAll(filepath.Join(s.root, d), 0755), check.IsNil)
 	}
 
-	sz, err := backend.EstimateSnapshotSize(info)
+	sz, err := backend.EstimateSnapshotSize(info, nil)
 	c.Assert(err, check.IsNil)
 	c.Check(sz, check.Equals, uint64(0))
 }
 
+func (s *snapshotSuite) TestEstimateSnapshotPassesUsernames(c *check.C) {
+	var gotUsernames []string
+	restore := backend.MockUsersForUsernames(func(usernames []string) ([]*user.User, error) {
+		gotUsernames = usernames
+		return nil, nil
+	})
+	defer restore()
 
-func (s *snapshotSuite) TestEstimateSnapshotSizeNotDataDirs(c *check.C) {
 	var info = &snap.Info{
 		SuggestedName: "foo",
-		SideInfo: snap.SideInfo{Revision: snap.R(7)},
+		SideInfo: snap.SideInfo{
+			Revision: snap.R(7),
+		},
 	}
 
-	sz, err := backend.EstimateSnapshotSize(info)
+	_, err := backend.EstimateSnapshotSize(info, []string{"user1", "user2"})
+	c.Assert(err, check.IsNil)
+	c.Check(gotUsernames, check.DeepEquals, []string{"user1", "user2"})
+}
+
+func (s *snapshotSuite) TestEstimateSnapshotSizeNotDataDirs(c *check.C) {
+	restore := backend.MockUsersForUsernames(func(usernames []string) ([]*user.User, error) {
+		return []*user.User{{HomeDir: filepath.Join(s.root, "home/user1")}}, nil
+	})
+	defer restore()
+
+	var info = &snap.Info{
+		SuggestedName: "foo",
+		SideInfo:      snap.SideInfo{Revision: snap.R(7)},
+	}
+
+	sz, err := backend.EstimateSnapshotSize(info, nil)
 	c.Assert(err, check.IsNil)
 	c.Check(sz, check.Equals, uint64(0))
 }

@@ -50,6 +50,45 @@ type GadgetData struct {
 // and returns true when the pair should be part of an update.
 type UpdatePolicyFunc func(from, to *LaidOutStructure) bool
 
+type ContentOperation int
+
+const (
+	ContentWrite ContentOperation = iota
+	ContentUpdate
+	ContentRollback
+)
+
+// ContentObserver allows for observing operations on the content of the gadget
+// structures.
+type ContentObserver interface {
+	// TODO:UC20: add Observe() result value indicating that a file should
+	// be preserved
+
+	// Observe is called to observe an pending or completed action, related
+	// to content being written, updated or being rolled back. In each of
+	// the scenarios, the target path is relative under the root.
+	//
+	// For a file write or update, the source path points to the content
+	// that will be written. When called during rollback, observe call
+	// happens after the original file has been restored (or removed if the
+	// file was added during the update), the source path is empty.
+	Observe(op ContentOperation, sourceStruct *LaidOutStructure,
+		targetRootDir, sourcePath, relativeTargetPath string) (bool, error)
+}
+
+// ContentUpdateObserver allows for observing update (and potentially a
+// rollback) of the gadget structure content.
+type ContentUpdateObserver interface {
+	ContentObserver
+	// BeforeWrite is called when the backups of content that will get
+	// modified during the update are complete and update is ready to be
+	// applied.
+	BeforeWrite() error
+	// Canceled is called when the update has been canceled, or if changes
+	// were written and the update has been reverted.
+	Canceled() error
+}
+
 // Update applies the gadget update given the gadget information and data from
 // old and new revisions. It errors out when the update is not possible or
 // illegal, or a failure occurs at any of the steps. When there is no update, a
@@ -63,7 +102,7 @@ type UpdatePolicyFunc func(from, to *LaidOutStructure) bool
 // Data that would be modified during the update is first backed up inside the
 // rollback directory. Should the apply step fail, the modified data is
 // recovered.
-func Update(old, new GadgetData, rollbackDirPath string, updatePolicy UpdatePolicyFunc) error {
+func Update(old, new GadgetData, rollbackDirPath string, updatePolicy UpdatePolicyFunc, observer ContentUpdateObserver) error {
 	// TODO: support multi-volume gadgets. But for now we simply
 	//       do not do any gadget updates on those. We cannot error
 	//       here because this would break refreshes of gadgets even
@@ -115,7 +154,7 @@ func Update(old, new GadgetData, rollbackDirPath string, updatePolicy UpdatePoli
 		}
 	}
 
-	return applyUpdates(new, updates, rollbackDirPath)
+	return applyUpdates(new, updates, rollbackDirPath, observer)
 }
 
 func resolveVolume(old *Info, new *Info) (oldVol, newVol *Volume, err error) {
@@ -278,20 +317,35 @@ type Updater interface {
 	Rollback() error
 }
 
-func applyUpdates(new GadgetData, updates []updatePair, rollbackDir string) error {
+func applyUpdates(new GadgetData, updates []updatePair, rollbackDir string, observer ContentUpdateObserver) error {
 	updaters := make([]Updater, len(updates))
 
 	for i, one := range updates {
-		up, err := updaterForStructure(one.to, new.RootDir, rollbackDir)
+		up, err := updaterForStructure(one.to, new.RootDir, rollbackDir, observer)
 		if err != nil {
 			return fmt.Errorf("cannot prepare update for volume structure %v: %v", one.to, err)
 		}
 		updaters[i] = up
 	}
 
+	var backupErr error
 	for i, one := range updaters {
 		if err := one.Backup(); err != nil {
-			return fmt.Errorf("cannot backup volume structure %v: %v", updates[i].to, err)
+			backupErr = fmt.Errorf("cannot backup volume structure %v: %v", updates[i].to, err)
+			break
+		}
+	}
+	if backupErr != nil {
+		if observer != nil {
+			if err := observer.Canceled(); err != nil {
+				logger.Noticef("cannot observe canceled prepare update: %v", err)
+			}
+		}
+		return backupErr
+	}
+	if observer != nil {
+		if err := observer.BeforeWrite(); err != nil {
+			return fmt.Errorf("cannot observe prepared update: %v", err)
 		}
 	}
 
@@ -329,24 +383,30 @@ func applyUpdates(new GadgetData, updates []updatePair, rollbackDir string) erro
 		}
 	}
 
+	if observer != nil {
+		if err := observer.Canceled(); err != nil {
+			logger.Noticef("cannot observe canceled update: %v", err)
+		}
+	}
+
 	return updateErr
 }
 
 var updaterForStructure = updaterForStructureImpl
 
-func updaterForStructureImpl(ps *LaidOutStructure, newRootDir, rollbackDir string) (Updater, error) {
+func updaterForStructureImpl(ps *LaidOutStructure, newRootDir, rollbackDir string, observer ContentUpdateObserver) (Updater, error) {
 	var updater Updater
 	var err error
 	if !ps.HasFilesystem() {
 		updater, err = newRawStructureUpdater(newRootDir, ps, rollbackDir, findDeviceForStructureWithFallback)
 	} else {
-		updater, err = newMountedFilesystemUpdater(newRootDir, ps, rollbackDir, findMountPointForStructure)
+		updater, err = newMountedFilesystemUpdater(newRootDir, ps, rollbackDir, findMountPointForStructure, observer)
 	}
 	return updater, err
 }
 
 // MockUpdaterForStructure replace internal call with a mocked one, for use in tests only
-func MockUpdaterForStructure(mock func(ps *LaidOutStructure, rootDir, rollbackDir string) (Updater, error)) (restore func()) {
+func MockUpdaterForStructure(mock func(ps *LaidOutStructure, rootDir, rollbackDir string, observer ContentUpdateObserver) (Updater, error)) (restore func()) {
 	old := updaterForStructure
 	updaterForStructure = mock
 	return func() {

@@ -39,6 +39,7 @@ var (
 	_ RecoveryAwareBootloader           = (*grub)(nil)
 	_ ExtractedRunKernelImageBootloader = (*grub)(nil)
 	_ ManagedAssetsBootloader           = (*grub)(nil)
+	_ TrustedAssetsBootloader           = (*grub)(nil)
 )
 
 type grub struct {
@@ -48,6 +49,7 @@ type grub struct {
 
 	uefiRunKernelExtraction bool
 	recovery                bool
+	native                  bool
 }
 
 // newGrub create a new Grub bootloader object
@@ -64,6 +66,7 @@ func newGrub(rootdir string, opts *Options) RecoveryAwareBootloader {
 	if opts != nil {
 		g.uefiRunKernelExtraction = opts.ExtractedRunKernelImage
 		g.recovery = opts.Recovery
+		g.native = opts.NoSlashBoot
 	}
 
 	return g
@@ -456,4 +459,25 @@ func staticCommandLineForGrubAssetEdition(asset string, edition uint) string {
 		return ""
 	}
 	return string(cmdline)
+}
+
+// TrustedAssets returns the list of relative paths to assets inside
+// the bootloader's rootdir that are measured in the boot process in the
+// order of loading during the boot.
+func (g *grub) TrustedAssets() ([]string, error) {
+	if !g.native {
+		return nil, fmt.Errorf("internal error: trusted assets called without native hierarchy")
+	}
+	if g.recovery {
+		return []string{
+			// recovery mode shim EFI binary
+			"EFI/boot/bootx64.efi",
+			// recovery mode grub EFI binary
+			"EFI/boot/grubx64.efi",
+		}, nil
+	}
+	return []string{
+		// run mode grub EFI binary
+		"EFI/boot/grubx64.efi",
+	}, nil
 }

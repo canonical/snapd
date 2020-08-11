@@ -57,6 +57,8 @@ var (
 	osOpen      = os.Open
 	dirNames    = (*os.File).Readdirnames
 	backendOpen = Open
+
+	usersForUsernames = usersForUsernamesImpl
 )
 
 // Flags encompasses extra flags for snapshots backend Save.
@@ -158,9 +160,7 @@ func Filename(snapshot *client.Snapshot) string {
 }
 
 // EstimateSnapshotSize calculates estimated size of the snapshot.
-// XXX: this doesn't take users into account yet, because it is used only
-// for automatic snapshots at the moment.
-func EstimateSnapshotSize(si *snap.Info) (uint64, error) {
+func EstimateSnapshotSize(si *snap.Info, usernames []string) (uint64, error) {
 	var total uint64
 	calculateSize := func(path string, finfo os.FileInfo, err error) error {
 		if finfo.Mode().IsRegular() {
@@ -186,8 +186,18 @@ func EstimateSnapshotSize(si *snap.Info) (uint64, error) {
 		}
 	}
 
-	// XXX: if we want to support users, then we need to iterate over them,
-	// similarly to Save() below.
+	users, err := usersForUsernames(usernames)
+	if err != nil {
+		return 0, err
+	}
+	for _, usr := range users {
+		if err := visitDir(si.UserDataDir(usr.HomeDir)); err != nil {
+			return 0, err
+		}
+		if err := visitDir(si.UserCommonDataDir(usr.HomeDir)); err != nil {
+			return 0, err
+		}
+	}
 
 	// XXX: we could use a typical compression factor here
 	return total, nil

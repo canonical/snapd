@@ -68,13 +68,6 @@
     /sys/fs/cgroup/freezer/snap.*/ w,
     /sys/fs/cgroup/freezer/snap.*/cgroup.procs rw,
 
-    # cgroup: pids
-    # allow creating per snap-security-tag hierarchy and adding snap command (task)
-    # invocations to the controller.
-    /sys/fs/cgroup/pids/ r,
-    /sys/fs/cgroup/pids/snap.*/ w,
-    /sys/fs/cgroup/pids/snap.*/cgroup.procs w,
-
     # querying udev
     /etc/udev/udev.conf r,
     /sys/**/uevent r,
