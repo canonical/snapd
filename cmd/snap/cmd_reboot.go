@@ -83,7 +83,6 @@ func (x *cmdReboot) modeFromCommandline() (*client.SystemAction, error) {
 		}
 		action.Mode = arg.mode
 	}
-	// XXX: should we have a default here?
 	if action.Mode == "" {
 		return nil, fmt.Errorf("Please specify a mode, see --help")
 	}
