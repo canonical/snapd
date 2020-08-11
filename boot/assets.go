@@ -24,7 +24,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 )
 
-func NewTrustedAssetsInstallObserver(model *asserts.Model) *TrustedAssetsInstallObserver {
+func TrustedAssetsInstallObserverForModel(model *asserts.Model) *TrustedAssetsInstallObserver {
 	if model.Grade() == asserts.ModelGradeUnset {
 		// no need to observe updates when assets are not managed
 		return nil
@@ -61,7 +61,7 @@ func (o *TrustedAssetsInstallObserver) Seal() error {
 	return nil
 }
 
-func NewTrustedAssetsUpdateObserver(model *asserts.Model) *TrustedAssetsUpdateObserver {
+func TrustedAssetsUpdateObserverForModel(model *asserts.Model) *TrustedAssetsUpdateObserver {
 	if model.Grade() == asserts.ModelGradeUnset {
 		// no need to observe updates when assets are not managed
 		return nil
@@ -102,6 +102,7 @@ func (o *TrustedAssetsUpdateObserver) BeforeWrite() error {
 // were written and the update has been reverted.
 func (o *TrustedAssetsUpdateObserver) Canceled() error {
 	// TODO:UC20:
+	// - drop unused assets and update modeenv if needed
 	// - reseal with a given state of modeenv
 	return nil
 }

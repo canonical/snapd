@@ -138,7 +138,7 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 		updatePolicy = gadget.RemodelUpdatePolicy
 	}
 
-	observeTrustedBootAssets := boot.NewTrustedAssetsUpdateObserver(model)
+	observeTrustedBootAssets := boot.TrustedAssetsUpdateObserverForModel(model)
 	st.Unlock()
 	err = gadgetUpdate(*currentData, *updateData, snapRollbackDir, updatePolicy, observeTrustedBootAssets)
 	st.Lock()
