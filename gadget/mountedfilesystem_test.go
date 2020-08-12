@@ -253,6 +253,7 @@ type mockWriteObserver struct {
 
 func (m *mockWriteObserver) Observe(op gadget.ContentOperation, sourceStruct *gadget.LaidOutStructure,
 	targetRootDir, sourcePath, relativeTargetPath string) (bool, error) {
+	m.c.Assert(op, Equals, gadget.ContentWrite, Commentf("unexpected operation %v", op))
 	if m.content == nil {
 		m.content = make(map[string][][]string)
 	}
@@ -802,6 +803,45 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterSymlinks(c *C) {
 	})
 }
 
+type mockContentUpdateObserver struct {
+	contentUpdate   map[string][][]string
+	contentRollback map[string][][]string
+	observeErr      error
+	expectedStruct  *gadget.LaidOutStructure
+	c               *C
+}
+
+func (m *mockContentUpdateObserver) Observe(op gadget.ContentOperation, sourceStruct *gadget.LaidOutStructure,
+	targetRootDir, sourcePath, relativeTargetPath string) (bool, error) {
+	if m.contentUpdate == nil {
+		m.contentUpdate = make(map[string][][]string)
+	}
+	if m.contentRollback == nil {
+		m.contentRollback = make(map[string][][]string)
+	}
+
+	if op != gadget.ContentRollback || sourcePath != "" {
+		m.c.Check(osutil.FileExists(sourcePath) && !osutil.IsDirectory(sourcePath), Equals, true,
+			Commentf("path %q does not exist or is not a directory", sourcePath))
+	}
+	m.c.Check(filepath.IsAbs(relativeTargetPath), Equals, false,
+		Commentf("target path %q is absolute", relativeTargetPath))
+
+	opData := []string{sourcePath, relativeTargetPath}
+	switch op {
+	case gadget.ContentUpdate:
+		m.contentUpdate[targetRootDir] = append(m.contentUpdate[targetRootDir], opData)
+	case gadget.ContentRollback:
+		m.contentRollback[targetRootDir] = append(m.contentRollback[targetRootDir], opData)
+	default:
+		m.c.Fatalf("unexpected observe operation %v", op)
+	}
+
+	m.c.Assert(sourceStruct, NotNil)
+	m.c.Check(m.expectedStruct, DeepEquals, sourceStruct)
+	return true, m.observeErr
+}
+
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupSimple(c *C) {
 	// some data for the gadget
 	gdWritten := []gadgetData{
@@ -856,10 +896,14 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupSimple(c *C) {
 		},
 	}
 
+	muo := &mockContentUpdateObserver{
+		c:              c,
+		expectedStruct: ps,
+	}
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
 		return outDir, nil
-	})
+	}, muo)
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
 
@@ -880,10 +924,32 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupSimple(c *C) {
 			c.Check(backup, testutil.FileEquals, "can't touch this")
 		}
 	}
+	// notified for both updated and new content
+	c.Check(muo.contentUpdate, DeepEquals, map[string][][]string{
+		outDir: {
+			// new file
+			{filepath.Join(s.dir, "bar"), "bar-name"},
+			// updates
+			{filepath.Join(s.dir, "foo"), "foo"},
+			{filepath.Join(s.dir, "foo"), "nested/foo"},
+		},
+	})
 
-	// running backup again does not error out
+	// running backup again (eg. after a reboot) does not error out
 	err = rw.Backup()
 	c.Assert(err, IsNil)
+	// we are notified of all files again
+	c.Check(muo.contentUpdate, DeepEquals, map[string][][]string{
+		outDir: {
+			{filepath.Join(s.dir, "bar"), "bar-name"},
+			{filepath.Join(s.dir, "foo"), "foo"},
+			{filepath.Join(s.dir, "foo"), "nested/foo"},
+			// same set of calls once more
+			{filepath.Join(s.dir, "bar"), "bar-name"},
+			{filepath.Join(s.dir, "foo"), "foo"},
+			{filepath.Join(s.dir, "foo"), "nested/foo"},
+		},
+	})
 }
 
 func (s *mountedfilesystemTestSuite) TestMountedWriterObserverErr(c *C) {
@@ -967,7 +1033,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupWithDirectories(c *
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
 		return outDir, nil
-	})
+	}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
 
@@ -1021,7 +1087,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupNonexistent(c *C) {
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
 		return outDir, nil
-	})
+	}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
 
@@ -1055,7 +1121,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupFailsOnBackupDirErr
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
 		return outDir, nil
-	})
+	}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
 
@@ -1101,7 +1167,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupFailsOnDestinationE
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
 		return outDir, nil
-	})
+	}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
 
@@ -1142,7 +1208,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupFailsOnBadSrcCompar
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
 		return outDir, nil
-	})
+	}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
 
@@ -1208,7 +1274,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupFunnyNamesConflictB
 		rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, tc.backupDir, func(to *gadget.LaidOutStructure) (string, error) {
 			c.Check(to, DeepEquals, ps)
 			return tc.outDir, nil
-		})
+		}, nil)
 		c.Assert(err, IsNil)
 		c.Assert(rw, NotNil)
 
@@ -1256,7 +1322,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupFunnyNamesOk(c *C) 
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
 		return outDir, nil
-	})
+	}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
 
@@ -1302,7 +1368,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupErrorOnSymlinkFile(
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
 		return outDir, nil
-	})
+	}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
 
@@ -1339,7 +1405,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupErrorOnSymlinkInPre
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
 		return outDir, nil
-	})
+	}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
 
@@ -1440,10 +1506,14 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterUpdate(c *C) {
 		},
 	}
 
+	muo := &mockContentUpdateObserver{
+		c:              c,
+		expectedStruct: ps,
+	}
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
 		return outDir, nil
-	})
+	}, muo)
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
 
@@ -1454,6 +1524,40 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterUpdate(c *C) {
 	for _, en := range gdIdentical {
 		c.Check(filepath.Join(s.backup, "struct-0", en.target)+".same", testutil.FilePresent)
 	}
+
+	// only notified about content getting updated
+	c.Check(muo.contentUpdate, DeepEquals, map[string][][]string{
+		outDir: {
+			// the following files were not observed because they
+			// are the same as the ones on disk:
+			// - nested-copy/more-nested/identical
+			// - nested-copy/same-as-target-dir/identical
+			//
+			// we still get notified about new files:
+			{filepath.Join(s.dir, "foo"), "foo-dir/foo"},
+			// in the preserve list but not present
+			{filepath.Join(s.dir, "bar"), "bar-name"},
+			// boot-assets/ -> /
+			{filepath.Join(s.dir, "boot-assets/nested-dir/more-nested/identical"), "nested-dir/more-nested/identical"},
+			{filepath.Join(s.dir, "boot-assets/nested-dir/more-nested/more"), "nested-dir/more-nested/more"},
+			{filepath.Join(s.dir, "boot-assets/nested-dir/nested"), "nested-dir/nested"},
+			{filepath.Join(s.dir, "boot-assets/nested-dir/same-as-target-dir/identical"), "nested-dir/same-as-target-dir/identical"},
+			// in the preserve list but not present
+			{filepath.Join(s.dir, "boot-assets/some-dir/data"), "some-dir/data"},
+			{filepath.Join(s.dir, "boot-assets/some-dir/empty-file"), "some-dir/empty-file"},
+			{filepath.Join(s.dir, "boot-assets/splash"), "splash"},
+			// boot-assets/nested-dir/ -> /nested-copy/
+			{filepath.Join(s.dir, "boot-assets/nested-dir/more-nested/more"), "nested-copy/more-nested/more"},
+			// boot-assets -> /boot-assets-copy/
+			{filepath.Join(s.dir, "boot-assets/nested-dir/more-nested/identical"), "boot-assets-copy/boot-assets/nested-dir/more-nested/identical"},
+			{filepath.Join(s.dir, "boot-assets/nested-dir/more-nested/more"), "boot-assets-copy/boot-assets/nested-dir/more-nested/more"},
+			{filepath.Join(s.dir, "boot-assets/nested-dir/nested"), "boot-assets-copy/boot-assets/nested-dir/nested"},
+			{filepath.Join(s.dir, "boot-assets/nested-dir/same-as-target-dir/identical"), "boot-assets-copy/boot-assets/nested-dir/same-as-target-dir/identical"},
+			{filepath.Join(s.dir, "boot-assets/some-dir/data"), "boot-assets-copy/boot-assets/some-dir/data"},
+			{filepath.Join(s.dir, "boot-assets/some-dir/empty-file"), "boot-assets-copy/boot-assets/some-dir/empty-file"},
+			{filepath.Join(s.dir, "boot-assets/splash"), "boot-assets-copy/boot-assets/splash"},
+		},
+	})
 
 	err = rw.Update()
 	c.Assert(err, IsNil)
@@ -1508,7 +1612,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterDirContents(c *C) {
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
 		return outDir, nil
-	})
+	}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
 
@@ -1563,7 +1667,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterExpectsBackup(c *C) {
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
 		return outDir, nil
-	})
+	}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
 
@@ -1621,7 +1725,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterEmptyDir(c *C) {
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
 		return outDir, nil
-	})
+	}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
 
@@ -1678,7 +1782,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterSameFileSkipped(c *C) {
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
 		return outDir, nil
-	})
+	}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
 
@@ -1731,7 +1835,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterLonePrefix(c *C) {
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
 		return outDir, nil
-	})
+	}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
 
@@ -1767,7 +1871,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterUpdateErrorOnSymlinkToFil
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
 		return outDir, nil
-	})
+	}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
 
@@ -1805,7 +1909,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupErrorOnSymlinkToDir
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
 		return outDir, nil
-	})
+	}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
 
@@ -1850,10 +1954,14 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackFromBackup(c *C) 
 		},
 	}
 
+	muo := &mockContentUpdateObserver{
+		c:              c,
+		expectedStruct: ps,
+	}
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
 		return outDir, nil
-	})
+	}, muo)
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
 
@@ -1867,6 +1975,15 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackFromBackup(c *C) 
 	verifyWrittenGadgetData(c, outDir, []gadgetData{
 		{target: "foo", content: "backup"},
 		{target: "some-dir/foo", content: "backup"},
+	})
+
+	// only notified about content getting updated
+	c.Check(muo.contentRollback, DeepEquals, map[string][][]string{
+		outDir: {
+			// rollback restores from the backups
+			{"", "foo"},
+			{"", "some-dir/foo"},
+		},
 	})
 }
 
@@ -1898,10 +2015,14 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackSkipSame(c *C) {
 		},
 	}
 
+	muo := &mockContentUpdateObserver{
+		c:              c,
+		expectedStruct: ps,
+	}
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
 		return outDir, nil
-	})
+	}, muo)
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
 
@@ -1914,6 +2035,8 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackSkipSame(c *C) {
 	verifyWrittenGadgetData(c, outDir, []gadgetData{
 		{target: "foo", content: "same"},
 	})
+	// identical content did not need a rollback, no notifications
+	c.Check(muo.contentRollback, HasLen, 0)
 }
 
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackSkipPreserved(c *C) {
@@ -1945,10 +2068,14 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackSkipPreserved(c *
 		},
 	}
 
+	muo := &mockContentUpdateObserver{
+		c:              c,
+		expectedStruct: ps,
+	}
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
 		return outDir, nil
-	})
+	}, muo)
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
 
@@ -1961,6 +2088,8 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackSkipPreserved(c *
 	verifyWrittenGadgetData(c, outDir, []gadgetData{
 		{target: "foo", content: "preserved"},
 	})
+	// preserved content did not need a rollback, no notifications
+	c.Check(muo.contentRollback, HasLen, 0)
 }
 
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackNewFiles(c *C) {
@@ -1997,10 +2126,14 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackNewFiles(c *C) {
 		},
 	}
 
+	muo := &mockContentUpdateObserver{
+		c:              c,
+		expectedStruct: ps,
+	}
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
 		return outDir, nil
-	})
+	}, muo)
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
 
@@ -2009,6 +2142,15 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackNewFiles(c *C) {
 	c.Assert(err, IsNil)
 	// everything was removed
 	verifyDirContents(c, outDir, map[string]contentType{})
+	// new files were rolled back
+	c.Check(muo.contentRollback, DeepEquals, map[string][][]string{
+		outDir: {
+			// rollback restores from the backups
+			{"", "foo"},
+			{"", "some-dir/bar"},
+			{"", "this/is/some/deep/nesting/bar"},
+		},
+	})
 }
 
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackRestoreFails(c *C) {
@@ -2048,7 +2190,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackRestoreFails(c *C
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
 		return outDir, nil
-	})
+	}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
 
@@ -2104,16 +2246,29 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackNotWritten(c *C) 
 		},
 	}
 
+	muo := &mockContentUpdateObserver{
+		c:              c,
+		expectedStruct: ps,
+	}
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
 		return outDir, nil
-	})
+	}, muo)
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
 
 	// rollback does not error out if files were not written
 	err = rw.Rollback()
 	c.Assert(err, IsNil)
+	// observer would be notified that files were to be written, and so it
+	// must be notified when they would be rolled back
+	c.Check(muo.contentRollback, DeepEquals, map[string][][]string{
+		outDir: {
+			// rollback restores from the backups
+			{"", "foo"},
+			{"", "some-dir/foo"},
+		},
+	})
 }
 
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackDirectory(c *C) {
@@ -2169,10 +2324,14 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackDirectory(c *C) {
 		},
 	}
 
+	muo := &mockContentUpdateObserver{
+		c:              c,
+		expectedStruct: ps,
+	}
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
 		return outDir, nil
-	})
+	}, muo)
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
 
@@ -2196,6 +2355,21 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackDirectory(c *C) {
 	// this one got restored
 	c.Check(filepath.Join(outDir, "foo"), testutil.FileEquals, "backup")
 
+	c.Check(muo.contentRollback, DeepEquals, map[string][][]string{
+		outDir: {
+			// a new file
+			{"", "bar"},
+			// this file was restored from backup
+			{"", "foo"},
+			// new files till the end
+			{"", "nested/nested-foo"},
+			{"", "other-dir/bar"},
+			{"", "other-dir/foo"},
+			{"", "other-dir/nested/nested-foo"},
+			{"", "other-dir/nested/nested/nested-foo"},
+			{"", "this/is/some/deep/nesting/bar"},
+		},
+	})
 }
 
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterEndToEndOne(c *C) {
@@ -2204,6 +2378,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterEndToEndOne(c *C) {
 		{name: "foo", target: "foo-dir/foo", content: "data"},
 		{name: "bar", target: "bar-name", content: "data"},
 		{name: "boot-assets/splash", target: "splash", content: "data"},
+		{name: "boot-assets/dtb", target: "dtb", content: "data"},
 		{name: "boot-assets/some-dir/data", target: "some-dir/data", content: "data"},
 		{name: "boot-assets/some-dir/empty-file", target: "some-dir/empty-file", content: ""},
 		{name: "boot-assets/nested-dir/more-nested/more", target: "/nested-copy/more-nested/more", content: "data"},
@@ -2220,6 +2395,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterEndToEndOne(c *C) {
 	outDir := filepath.Join(c.MkDir(), "out-dir")
 
 	makeExistingData(c, outDir, []gadgetData{
+		{target: "dtb", content: "updated"},
 		{target: "foo", content: "can't touch this"},
 		{target: "data-copy-preserved", content: "can't touch this"},
 		{target: "data-copy", content: "can't touch this"},
@@ -2291,15 +2467,20 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterEndToEndOne(c *C) {
 		},
 	}
 
+	muo := &mockContentUpdateObserver{
+		c:              c,
+		expectedStruct: ps,
+	}
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
 		return outDir, nil
-	})
+	}, muo)
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
 
 	originalState := map[string]contentType{
 		"foo":                     typeFile,
+		"dtb":                     typeFile,
 		"data-copy":               typeFile,
 		"not-listed":              typeFile,
 		"data-copy-preserved":     typeFile,
@@ -2320,6 +2501,33 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterEndToEndOne(c *C) {
 		"foo.preserve":                   typeFile,
 		"data-copy-preserved.preserve":   typeFile,
 		"data-copy.backup":               typeFile,
+		"dtb.backup":                     typeFile,
+	})
+
+	// observe calls happen in the order the structure content gets analyzed
+	c.Check(muo.contentUpdate, DeepEquals, map[string][][]string{
+		outDir: {
+			{filepath.Join(s.dir, "foo"), "foo-dir/foo"},
+			{filepath.Join(s.dir, "bar"), "bar-name"},
+			// update
+			{filepath.Join(s.dir, "boot-assets/dtb"), "dtb"},
+			// new files
+			{filepath.Join(s.dir, "boot-assets/nested-dir/more-nested/more"), "nested-dir/more-nested/more"},
+			{filepath.Join(s.dir, "boot-assets/nested-dir/nested"), "nested-dir/nested"},
+			// update
+			{filepath.Join(s.dir, "boot-assets/some-dir/data"), "some-dir/data"},
+			// new files
+			{filepath.Join(s.dir, "boot-assets/some-dir/empty-file"), "some-dir/empty-file"},
+			{filepath.Join(s.dir, "boot-assets/splash"), "splash"},
+			{filepath.Join(s.dir, "boot-assets/some-dir/data"), "data-copy"},
+			{filepath.Join(s.dir, "boot-assets/nested-dir/more-nested/more"), "nested-copy/more-nested/more"},
+			{filepath.Join(s.dir, "boot-assets/dtb"), "boot-assets-copy/boot-assets/dtb"},
+			{filepath.Join(s.dir, "boot-assets/nested-dir/more-nested/more"), "boot-assets-copy/boot-assets/nested-dir/more-nested/more"},
+			{filepath.Join(s.dir, "boot-assets/nested-dir/nested"), "boot-assets-copy/boot-assets/nested-dir/nested"},
+			{filepath.Join(s.dir, "boot-assets/some-dir/data"), "boot-assets-copy/boot-assets/some-dir/data"},
+			{filepath.Join(s.dir, "boot-assets/some-dir/empty-file"), "boot-assets-copy/boot-assets/some-dir/empty-file"},
+			{filepath.Join(s.dir, "boot-assets/splash"), "boot-assets-copy/boot-assets/splash"},
+		},
 	})
 
 	// run the update phase
@@ -2343,6 +2551,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterEndToEndOne(c *C) {
 		"bar-name": typeFile,
 
 		// boot-assets/ -> /
+		"dtb":                         typeFile,
 		"splash":                      typeFile,
 		"some-dir/data":               typeFile,
 		"some-dir/empty-file":         typeFile,
@@ -2351,6 +2560,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterEndToEndOne(c *C) {
 		"empty-dir":                   typeDir,
 
 		// boot-assets -> /boot-assets-copy/
+		"boot-assets-copy/boot-assets/dtb":                         typeFile,
 		"boot-assets-copy/boot-assets/splash":                      typeFile,
 		"boot-assets-copy/boot-assets/some-dir/data":               typeFile,
 		"boot-assets-copy/boot-assets/some-dir/empty-file":         typeFile,
@@ -2381,6 +2591,36 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterEndToEndOne(c *C) {
 	c.Assert(err, IsNil)
 	// back to square one
 	verifyDirContents(c, outDir, originalState)
+
+	// observed source path is always empty during rollback
+	expectedObservedRollback := map[string][][]string{
+		outDir: {
+			{"", "foo-dir/foo"},
+			{"", "bar-name"},
+			{"", "dtb"},
+			{"", "nested-dir/more-nested/more"},
+			{"", "nested-dir/nested"},
+			{"", "some-dir/data"},
+			{"", "some-dir/empty-file"},
+			{"", "splash"},
+			{"", "data-copy"},
+			{"", "nested-copy/more-nested/more"},
+			{"", "boot-assets-copy/boot-assets/dtb"},
+			{"", "boot-assets-copy/boot-assets/nested-dir/more-nested/more"},
+			{"", "boot-assets-copy/boot-assets/nested-dir/nested"},
+			{"", "boot-assets-copy/boot-assets/some-dir/data"},
+			{"", "boot-assets-copy/boot-assets/some-dir/empty-file"},
+			{"", "boot-assets-copy/boot-assets/splash"},
+		},
+	}
+	c.Check(muo.contentRollback, DeepEquals, expectedObservedRollback)
+	// call rollback once more, we should observe the same files again
+	muo.contentRollback = nil
+	err = rw.Rollback()
+	c.Assert(err, IsNil)
+	c.Check(muo.contentRollback, DeepEquals, expectedObservedRollback)
+	// file contents are unchanged
+	verifyDirContents(c, outDir, originalState)
 }
 
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterTrivialValidation(c *C) {
@@ -2397,7 +2637,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterTrivialValidation(c *C) {
 		return "", nil
 	}
 
-	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, psNoFs, s.backup, lookupFail)
+	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, psNoFs, s.backup, lookupFail, nil)
 	c.Assert(err, ErrorMatches, "structure #0 has no filesystem")
 	c.Assert(rw, IsNil)
 
@@ -2409,19 +2649,19 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterTrivialValidation(c *C) {
 		},
 	}
 
-	rw, err = gadget.NewMountedFilesystemUpdater("", ps, s.backup, lookupFail)
+	rw, err = gadget.NewMountedFilesystemUpdater("", ps, s.backup, lookupFail, nil)
 	c.Assert(err, ErrorMatches, `internal error: gadget content directory cannot be unset`)
 	c.Assert(rw, IsNil)
 
-	rw, err = gadget.NewMountedFilesystemUpdater(s.dir, ps, "", lookupFail)
+	rw, err = gadget.NewMountedFilesystemUpdater(s.dir, ps, "", lookupFail, nil)
 	c.Assert(err, ErrorMatches, `internal error: backup directory must not be unset`)
 	c.Assert(rw, IsNil)
 
-	rw, err = gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, nil)
+	rw, err = gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, nil, nil)
 	c.Assert(err, ErrorMatches, `internal error: mount lookup helper must be provided`)
 	c.Assert(rw, IsNil)
 
-	rw, err = gadget.NewMountedFilesystemUpdater(s.dir, nil, s.backup, lookupFail)
+	rw, err = gadget.NewMountedFilesystemUpdater(s.dir, nil, s.backup, lookupFail, nil)
 	c.Assert(err, ErrorMatches, `internal error: \*LaidOutStructure.*`)
 	c.Assert(rw, IsNil)
 
@@ -2444,7 +2684,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterTrivialValidation(c *C) {
 			},
 		}
 
-		rw, err := gadget.NewMountedFilesystemUpdater(s.dir, testPs, s.backup, lookupOk)
+		rw, err := gadget.NewMountedFilesystemUpdater(s.dir, testPs, s.backup, lookupOk, nil)
 		c.Assert(err, IsNil)
 		c.Assert(rw, NotNil)
 
@@ -2478,7 +2718,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterMountLookupFail(c *C) {
 		return "", errors.New("fail fail fail")
 	}
 
-	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, lookupFail)
+	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, lookupFail, nil)
 	c.Assert(err, ErrorMatches, "cannot find mount location of structure #0: fail fail fail")
 	c.Assert(rw, IsNil)
 }
@@ -2512,7 +2752,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterNonFilePreserveError(c *C
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.LaidOutStructure) (string, error) {
 		c.Check(to, DeepEquals, ps)
 		return outDir, nil
-	})
+	}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
 
@@ -2566,7 +2806,8 @@ managed grub.cfg from disk`
 		func(to *gadget.LaidOutStructure) (string, error) {
 			c.Check(to, DeepEquals, ps)
 			return outDir, nil
-		})
+		},
+		nil)
 	c.Assert(err, IsNil)
 	c.Assert(rw, NotNil)
 
@@ -2652,7 +2893,8 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBootAssetsErr(c *C) {
 	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup,
 		func(to *gadget.LaidOutStructure) (string, error) {
 			return outDir, nil
-		})
+		},
+		nil)
 	c.Assert(err, ErrorMatches, "cannot preserve managed boot assets: foo")
 	c.Assert(rw, IsNil)
 }

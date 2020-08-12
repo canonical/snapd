@@ -49,7 +49,7 @@ func InitramfsRunModeSelectSnapsToMount(
 			bs := &bootState20Kernel{
 				blDir:  blDir,
 				blOpts: blOpts,
-				kModeenv: bootState20Modeenv{
+				bootState20Modeenv: bootState20Modeenv{
 					modeenv: modeenv,
 				},
 			}

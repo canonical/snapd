@@ -391,7 +391,15 @@ debug-each: |
         #shellcheck source=tests/lib/nested.sh
         . "$TESTSLIB/nested.sh"
 
-        
+        echo '# System information'
+        cat /etc/os-release || true
+
+        echo '# Kernel information'
+        uname -a
+
+        echo '# Go information'
+        go version || true
+
         if is_nested_system; then
             echo '# nested VM status'
             systemctl status nested-vm || true
