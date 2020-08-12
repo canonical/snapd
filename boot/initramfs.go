@@ -59,3 +59,27 @@ func InitramfsRunModeSelectSnapsToMount(
 
 	return m, nil
 }
+
+// MarkRecoverModeBootSuccessful will mark the bootenv of the recovery
+// bootloader such that recover mode is now ready to leave
+func MarkRecoverModeBootSuccessful(systemLabel string) error {
+	// at the end of the initramfs we need to set the bootenv such that a reboot
+	// now at any point will rollback to run mode without additional config or
+	// actions
+
+	opts := &bootloader.Options{
+		// setup the recovery bootloader
+		Recovery: true,
+	}
+
+	bl, err := bootloader.Find(InitramfsUbuntuSeedDir, opts)
+	if err != nil {
+		return err
+	}
+
+	m := map[string]string{
+		"snapd_recovery_system": systemLabel,
+		"snapd_recovery_mode":   "run",
+	}
+	return bl.SetBootVars(m)
+}
