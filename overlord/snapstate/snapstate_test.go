@@ -36,13 +36,13 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -166,7 +166,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	}))
 
 	oldEstimateSnapshotSize := snapstate.EstimateSnapshotSize
-	snapstate.EstimateSnapshotSize = func(st *state.State, instanceName string) (uint64, error) {
+	snapstate.EstimateSnapshotSize = func(st *state.State, instanceName string, users []string) (uint64, error) {
 		return 1, nil
 	}
 	oldAutomaticSnapshot := snapstate.AutomaticSnapshot
@@ -1091,7 +1091,6 @@ func (s *snapmgrTestSuite) TestRemoveDiskSpaceForSnapshotError(c *C) {
 	_, err := snapstate.Remove(s.state, "some-snap", snap.R(0), nil)
 	c.Assert(err, ErrorMatches, `cannot create automatic snapshot when removing last revision of the snap: insufficient space.*`)
 }
-
 
 func (s *snapmgrTestSuite) TestRemoveDiskSpaceForSnapshotNotCheckedWhenSnapshotsDisabled(c *C) {
 	s.state.Lock()

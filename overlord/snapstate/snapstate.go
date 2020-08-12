@@ -83,11 +83,6 @@ func isParallelInstallable(snapsup *SnapSetup) error {
 	return fmt.Errorf("cannot install snap of type %v as %q", snapsup.Type, snapsup.InstanceName())
 }
 
-func requiredSpaceWithMargin(minSize uint64) uint64 {
-	// 10% extra + 1Mb
-	return minSize + minSize/10 + 1024*1024
-}
-
 func optedIntoSnapdSnap(st *state.State) (bool, error) {
 	tr := config.NewTransaction(st)
 	experimentalAllowSnapd, err := features.Flag(tr, features.SnapdSnap)
@@ -1917,16 +1912,16 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 		if tp, _ := snapst.Type(); tp == snap.TypeApp && removeAll {
 			ts, err := AutomaticSnapshot(st, name)
 			if err == nil {
-				if sz, err := EstimateSnapshotSize(st, name); err == nil {
-					requiredSpace := requiredSpaceWithMargin(uint64(sz))
-					if err := osutilCheckFreeSpace(dirs.SnapdStateDir(dirs.GlobalRootDir), requiredSpace); err != nil {
-						if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
-							return nil, fmt.Errorf("cannot create automatic snapshot when removing last revision of the snap: %v", err)
-						}
-						return nil, err
+				sz, err := EstimateSnapshotSize(st, name, nil)
+				if err != nil {
+					return nil, err
+				}
+				if err := osutilCheckFreeSpace(dirs.SnapdStateDir(dirs.GlobalRootDir), sz); err != nil {
+					if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
+						return nil, fmt.Errorf("cannot create automatic snapshot when removing last revision of the snap: %v", err)
 					}
-				} // XXX: should we fail if estimation fails?
-
+					return nil, err
+				}
 				addNext(ts)
 			} else {
 				if err != ErrNothingToDo {
