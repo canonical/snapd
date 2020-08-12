@@ -396,17 +396,62 @@ prepare_project() {
             ;;
     esac
 
+    restart_logind=
+    if [ "$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }')" -lt 246 ]; then
+        restart_logind=maybe
+    fi
+
     install_pkg_dependencies
+
+    if [ "$restart_logind" = maybe ]; then
+        if [ "$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }')" -ge 246 ]; then
+            restart_logind=yes
+        else
+            restart_logind=
+        fi
+    fi
 
     # Work around systemd / Debian bug interaction. We are installing
     # libsystemd-dev which upgrades systemd to 246-2 (from 245-*) leaving
     # behind systemd-logind.service from the old version. This is tracked as
     # Debian bug https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=919509 and
     # it really affects Desktop systems where Wayland/X don't like logind from
-    # ever being restarted. As a workaround, restart logind ourselves once
-    # here. This change is generic, as it may happen on any distribution that
-    # undergoes a similar transition.
-    systemctl restart systemd-logind.service || true
+    # ever being restarted.
+    #
+    # As a workaround we tried to restart logind ourselves but this caused
+    # another issue.  Restarted logind, as of systemd v245, forgets about the
+    # root session and subsequent loginctl enable-linger root, loginctl
+    # disable-linger stops the running systemd --user for the root session,
+    # along with other services like session bus.
+    #
+    # In consequence all the code that restarts logind for one reason or
+    # another is coalesced below and ends with REBOOT. This ensures that after
+    # rebooting, we have an up-to-date, working logind and that the initial
+    # session used by spread is tracked.
+    if ! loginctl enable-linger test; then
+        if systemctl cat systemd-logind.service | not grep -q StateDirectory; then
+            mkdir -p /mnt/system-data/etc/systemd/system/systemd-logind.service.d
+            # NOTE: The here-doc below must use tabs for proper operation.
+            cat >/mnt/system-data/etc/systemd/system/systemd-logind.service.d/linger.conf <<-CONF
+	[Service]
+	StateDirectory=systemd/linger
+	CONF
+            mkdir -p /var/lib/systemd/linger
+            test "$(command -v restorecon)" != "" && restorecon /var/lib/systemd/linger
+            restart_logind=yes
+        fi
+    fi
+    loginctl disable-linger test || true
+
+    # FIXME: In an ideal world we'd just do this:
+    #   systemctl daemon-reload
+    #   systemctl restart systemd-logind.service
+    # But due to this issue, restarting systemd-logind is unsafe.
+    # https://github.com/systemd/systemd/issues/16685#issuecomment-671239737
+    if [ "$restart_logind" = yes ]; then
+        echo "logind upgraded, reboot required"
+        REBOOT
+    fi
 
     # We take a special case for Debian/Ubuntu where we install additional build deps
     # base on the packaging. In Fedora/Suse this is handled via mock/osc
