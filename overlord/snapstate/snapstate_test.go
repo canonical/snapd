@@ -1089,7 +1089,8 @@ func (s *snapmgrTestSuite) TestRemoveDiskSpaceForSnapshotError(c *C) {
 	})
 
 	_, err := snapstate.Remove(s.state, "some-snap", snap.R(0), nil)
-	c.Assert(err, ErrorMatches, `cannot create automatic snapshot when removing last revision of the snap: insufficient space.*`)
+	diskSpaceErr := err.(*snapstate.ErrInsufficientSpace)
+	c.Assert(diskSpaceErr, ErrorMatches, `cannot create automatic snapshot when removing last revision of the snap: insufficient space.*`)
 }
 
 func (s *snapmgrTestSuite) TestRemoveDiskSpaceForSnapshotNotCheckedWhenSnapshotsDisabled(c *C) {

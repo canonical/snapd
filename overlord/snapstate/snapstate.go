@@ -69,6 +69,8 @@ const (
 	HooksEdge                 = state.TaskSetEdge("hooks")
 )
 
+type ErrInsufficientSpace struct{ error }
+
 var ErrNothingToDo = errors.New("nothing to do")
 
 var osutilCheckFreeSpace = osutil.CheckFreeSpace
@@ -1918,7 +1920,7 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 				}
 				if err := osutilCheckFreeSpace(dirs.SnapdStateDir(dirs.GlobalRootDir), sz); err != nil {
 					if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
-						return nil, fmt.Errorf("cannot create automatic snapshot when removing last revision of the snap: %v", err)
+						return nil, &ErrInsufficientSpace{fmt.Errorf("cannot create automatic snapshot when removing last revision of the snap: %v", err)}
 					}
 					return nil, err
 				}
