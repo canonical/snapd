@@ -24,6 +24,9 @@ import (
 	"github.com/snapcore/snapd/gadget"
 )
 
+// TrustedAssetsInstallObserverForModel returns a new trusted assets observer
+// for use during installation of the run mode system, provided the device model
+// supports secure boot. Otherwise, nil is returned.
 func TrustedAssetsInstallObserverForModel(model *asserts.Model) *TrustedAssetsInstallObserver {
 	if model.Grade() == asserts.ModelGradeUnset {
 		// no need to observe updates when assets are not managed
@@ -35,6 +38,7 @@ func TrustedAssetsInstallObserverForModel(model *asserts.Model) *TrustedAssetsIn
 	}
 }
 
+// TrustedAssetsInstallObserver tracks the installation of trusted boot assets.
 type TrustedAssetsInstallObserver struct {
 	model *asserts.Model
 }
@@ -61,6 +65,9 @@ func (o *TrustedAssetsInstallObserver) Seal() error {
 	return nil
 }
 
+// TrustedAssetsUpdateObserverForModel returns a new trusted assets observer for
+// tracking changes to the measured boot assets during gadget updates, provided
+// the device model supports secure boot. Otherwise, nil is returned.
 func TrustedAssetsUpdateObserverForModel(model *asserts.Model) *TrustedAssetsUpdateObserver {
 	if model.Grade() == asserts.ModelGradeUnset {
 		// no need to observe updates when assets are not managed
