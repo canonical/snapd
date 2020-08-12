@@ -234,9 +234,18 @@ func InstallBootConfig(gadgetDir, rootDir string, opts *Options) error {
 	return fmt.Errorf("cannot find boot config in %q", gadgetDir)
 }
 
+type bootloaderNewFunc func(rootdir string, opts *Options) Bootloader
+
 var (
 	forcedBootloader Bootloader
 	forcedError      error
+
+	bootloaders = []bootloaderNewFunc{
+		newGrub,
+		newUboot,
+		newAndroidBoot,
+		newLk,
+	}
 )
 
 // Find returns the bootloader for the system
@@ -257,26 +266,12 @@ func Find(rootdir string, opts *Options) (Bootloader, error) {
 		opts = &Options{}
 	}
 
-	// try uboot
-	if uboot := newUboot(rootdir, opts); uboot != nil {
-		return uboot, nil
+	for _, blNew := range bootloaders {
+		bl := blNew(rootdir, opts)
+		if osutil.FileExists(bl.ConfigFile()) {
+			return bl, nil
+		}
 	}
-
-	// no, try grub
-	if grub := newGrub(rootdir, opts); grub != nil {
-		return grub, nil
-	}
-
-	// no, try androidboot
-	if androidboot := newAndroidBoot(rootdir); androidboot != nil {
-		return androidboot, nil
-	}
-
-	// no, try lk
-	if lk := newLk(rootdir, opts); lk != nil {
-		return lk, nil
-	}
-
 	// no, weeeee
 	return nil, ErrBootloader
 }
@@ -326,4 +321,16 @@ func removeKernelAssetsFromBootDir(bootDir string, s snap.PlaceInfo) error {
 	}
 
 	return nil
+}
+
+// ForGadget returns a bootloader matching
+func ForGadget(gadgetDir, rootDir string, opts *Options) (Bootloader, error) {
+	for _, blNew := range bootloaders {
+		bl := blNew(rootDir, opts)
+		// do we have a marker file?
+		if osutil.FileExists(filepath.Join(gadgetDir, bl.Name()+".conf")) {
+			return bl, nil
+		}
+	}
+	return nil, ErrBootloader
 }

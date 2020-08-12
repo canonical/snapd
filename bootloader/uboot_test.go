@@ -41,11 +41,6 @@ type ubootTestSuite struct {
 
 var _ = Suite(&ubootTestSuite{})
 
-func (s *ubootTestSuite) TestNewUbootNoUbootReturnsNil(c *C) {
-	u := bootloader.NewUboot(s.rootdir, nil)
-	c.Assert(u, IsNil)
-}
-
 func (s *ubootTestSuite) TestNewUboot(c *C) {
 	bootloader.MockUbootFiles(c, s.rootdir, nil)
 	u := bootloader.NewUboot(s.rootdir, nil)
@@ -180,7 +175,7 @@ func (s *ubootTestSuite) TestExtractKernelAssetsAndRemove(c *C) {
 
 func (s *ubootTestSuite) TestExtractRecoveryKernelAssets(c *C) {
 	bootloader.MockUbootFiles(c, s.rootdir, nil)
-	u := bootloader.NewUboot(s.rootdir, nil)
+	u := bootloader.NewUboot(s.rootdir, nil).(bootloader.ExtractedRecoveryKernelImageBootloader)
 
 	files := [][]string{
 		{"kernel.img", "I'm a kernel"},
