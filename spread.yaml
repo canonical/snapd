@@ -835,6 +835,7 @@ suites:
             # Directory where the images and test assets are stored
             WORK_DIR: '/tmp/work-dir'
         manual: true
+        kill-timeout: 40m
         debug: |
             if [ -f "${WORK_DIR}/serial.log" ]; then
                 cat "${WORK_DIR}/serial.log"
@@ -1001,7 +1002,7 @@ suites:
             if [ -f "${WORK_DIR}/serial.log" ]; then
                 cat "${WORK_DIR}/serial.log"
             fi
-        kill-timeout: 90m
+        kill-timeout: 40m
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
