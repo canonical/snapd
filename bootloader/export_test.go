@@ -43,8 +43,8 @@ func MockAndroidBootFile(c *C, rootdir string, mode os.FileMode) {
 	c.Assert(err, IsNil)
 }
 
-func NewUboot(rootdir string, blOpts *Options) Bootloader {
-	return newUboot(rootdir, blOpts)
+func NewUboot(rootdir string, blOpts *Options) ExtractedRecoveryKernelImageBootloader {
+	return newUboot(rootdir, blOpts).(ExtractedRecoveryKernelImageBootloader)
 }
 
 func MockUbootFiles(c *C, rootdir string, blOpts *Options) {
@@ -61,8 +61,8 @@ func MockUbootFiles(c *C, rootdir string, blOpts *Options) {
 	c.Assert(err, IsNil)
 }
 
-func NewGrub(rootdir string, opts *Options) Bootloader {
-	return newGrub(rootdir, opts)
+func NewGrub(rootdir string, opts *Options) RecoveryAwareBootloader {
+	return newGrub(rootdir, opts).(RecoveryAwareBootloader)
 }
 
 func MockGrubFiles(c *C, rootdir string) {

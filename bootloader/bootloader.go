@@ -223,6 +223,7 @@ func genericUpdateBootConfigFromAssets(systemFile string, assetName string) erro
 // InstallBootConfig installs the bootloader config from the gadget
 // snap dir into the right place.
 func InstallBootConfig(gadgetDir, rootDir string, opts *Options) error {
+	// TODO:UC20 use ForGadget() to obtain the right bootloader
 	for _, bl := range []installableBootloader{&grub{}, &uboot{}, &androidboot{}, &lk{}} {
 		bl.setRootDir(rootDir)
 		ok, err := bl.InstallBootConfig(gadgetDir, opts)
@@ -237,15 +238,19 @@ func InstallBootConfig(gadgetDir, rootDir string, opts *Options) error {
 type bootloaderNewFunc func(rootdir string, opts *Options) Bootloader
 
 var (
-	forcedBootloader Bootloader
-	forcedError      error
-
+	//  bootloaders list all possible bootloaders by their constructor
+	//  function.
 	bootloaders = []bootloaderNewFunc{
 		newGrub,
 		newUboot,
 		newAndroidBoot,
 		newLk,
 	}
+)
+
+var (
+	forcedBootloader Bootloader
+	forcedError      error
 )
 
 // Find returns the bootloader for the system
@@ -323,7 +328,8 @@ func removeKernelAssetsFromBootDir(bootDir string, s snap.PlaceInfo) error {
 	return nil
 }
 
-// ForGadget returns a bootloader matching
+// ForGadget returns a bootloader matching a given gadget by inspecting the
+// contents of gadget directory or en error if no matching bootloader is found.
 func ForGadget(gadgetDir, rootDir string, opts *Options) (Bootloader, error) {
 	for _, blNew := range bootloaders {
 		bl := blNew(rootDir, opts)
