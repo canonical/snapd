@@ -652,7 +652,7 @@ EOF
 
     # NOTE: The here-doc below must use tabs for proper operation.
     mkdir -p /mnt/system-data/etc/systemd/system/systemd-logind.service.d
-    cat     >/mnt/system-data/etc/systemd/system/systemd-logind.service.d/linger.conf <<-CONF
+    cat >/mnt/system-data/etc/systemd/system/systemd-logind.service.d/linger.conf <<-CONF
 	[Service]
 	StateDirectory=systemd/linger
 	CONF

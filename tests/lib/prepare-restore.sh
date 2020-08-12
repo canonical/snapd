@@ -430,11 +430,12 @@ prepare_project() {
     # session used by spread is tracked.
     if ! loginctl enable-linger test; then
         if systemctl cat systemd-logind.service | not grep -q StateDirectory; then
-            mkdir -p /etc/systemd/system/systemd-logind.service.d
-            (
-            echo "[Service]"
-            echo "StateDirectory=systemd/linger"
-            ) > /etc/systemd/system/systemd-logind.service.d/linger.conf
+            mkdir -p /mnt/system-data/etc/systemd/system/systemd-logind.service.d
+            # NOTE: The here-doc below must use tabs for proper operation.
+            cat >/mnt/system-data/etc/systemd/system/systemd-logind.service.d/linger.conf <<-CONF
+	[Service]
+	StateDirectory=systemd/linger
+	CONF
             mkdir -p /var/lib/systemd/linger
             test "$(command -v restorecon)" != "" && restorecon /var/lib/systemd/linger
             restart_logind=yes
