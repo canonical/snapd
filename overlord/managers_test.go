@@ -5188,7 +5188,7 @@ volumes:
 	s.serveSnap(snapPath, "2")
 
 	updaterForStructureCalls := 0
-	restore = gadget.MockUpdaterForStructure(func(ps *gadget.LaidOutStructure, rootDir, rollbackDir string) (gadget.Updater, error) {
+	restore = gadget.MockUpdaterForStructure(func(ps *gadget.LaidOutStructure, rootDir, rollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
 		updaterForStructureCalls++
 		c.Assert(ps.Name, Equals, "foo")
 		return &mockUpdater{}, nil

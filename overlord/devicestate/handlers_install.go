@@ -112,7 +112,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	var sealingContentObserver *boot.TrustedAssetsInstallObserver
+	var installObserver *boot.TrustedAssetsInstallObserver
 	if useEncryption {
 		fdeDir := "var/lib/snapd/device/fde"
 		// ensure directories
@@ -131,7 +131,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		bopts.Model = deviceCtx.Model()
 		bopts.SystemLabel = modeEnv.RecoverySystem
 
-		sealingContentObserver = boot.NewTrustedAssetsInstallObserver(deviceCtx.Model())
+		installObserver = boot.TrustedAssetsInstallObserverForModel(deviceCtx.Model())
 	}
 
 	// run the create partition code
@@ -139,7 +139,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	func() {
 		st.Unlock()
 		defer st.Lock()
-		err = installRun(gadgetDir, "", bopts, sealingContentObserver)
+		err = installRun(gadgetDir, "", bopts, installObserver)
 	}()
 	if err != nil {
 		return fmt.Errorf("cannot create partitions: %v", err)
@@ -175,7 +175,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		UnpackedGadgetDir: gadgetDir,
 	}
 	rootdir := dirs.GlobalRootDir
-	if err := bootMakeBootable(deviceCtx.Model(), rootdir, bootWith, sealingContentObserver); err != nil {
+	if err := bootMakeBootable(deviceCtx.Model(), rootdir, bootWith, installObserver); err != nil {
 		return fmt.Errorf("cannot make run system bootable: %v", err)
 	}
 

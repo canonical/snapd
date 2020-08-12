@@ -463,11 +463,12 @@ start_nested_core_vm_unit(){
     # Now qemu parameters are defined
 
     # use only 2G of RAM for qemu-nested
+    # the caller can override PARAM_MEM
     if [ "$SPREAD_BACKEND" = "google-nested" ]; then
-        PARAM_MEM="-m 4096"
+        PARAM_MEM="${PARAM_MEM:--m 4096}"
         PARAM_SMP="-smp 2"
     elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
-        PARAM_MEM="-m 2048"
+        PARAM_MEM="${PARAM_MEM:--m 2048}"
         PARAM_SMP="-smp 1"
     else
         echo "unknown spread backend $SPREAD_BACKEND"
@@ -529,11 +530,13 @@ start_nested_core_vm_unit(){
             mv /etc/apt/sources.list.back /etc/apt/sources.list
             apt update
         fi
+        # use a bundle EFI bios by default
+        PARAM_BIOS="-bios /usr/share/ovmf/OVMF.fd"
         OVMF_CODE="secboot"
         OVMF_VARS="ms"
         # In this case the kernel.efi is unsigned and signed with snaleoil certs
         if [ "$BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
-            OVMF_VARS="snakeoil"            
+            OVMF_VARS="snakeoil"
         fi
 
         if [ "$ENABLE_SECURE_BOOT" = "true" ]; then
@@ -727,4 +730,12 @@ get_nested_core_revision_for_channel(){
 
 get_nested_core_revision_installed(){
     execute_remote "snap info core" | awk "/installed: / {print(\$3)}" | sed -e 's/(\(.*\))/\1/'
+}
+
+fetch_spread() {
+    mkdir -p "$WORK_DIR"
+    curl https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz | tar -xzv -C "$WORK_DIR"
+    # make sure spread really exists
+    test -x "$WORK_DIR/spread"
+    echo "$WORK_DIR/spread"
 }
