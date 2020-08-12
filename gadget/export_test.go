@@ -61,6 +61,8 @@ var (
 
 	ParseSize           = parseSize
 	ParseRelativeOffset = parseRelativeOffset
+
+	ResolveContentPathsForStructure = resolveContentPathsForStructure
 )
 
 func MockEvalSymlinks(mock func(path string) (string, error)) (restore func()) {

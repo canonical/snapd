@@ -111,7 +111,7 @@ func (p LaidOutContent) String() string {
 	if p.Image != "" {
 		return fmt.Sprintf("#%v (%q@%#x{%v})", p.Index, p.Image, p.StartOffset, p.Size)
 	}
-	return fmt.Sprintf("#%v (source:%q)", p.Index, p.Source)
+	return fmt.Sprintf("#%v (source:%q->%q)", p.Index, p.Source, p.ResolvedSource)
 }
 
 func layoutVolumeStructures(volume *Volume, constraints LayoutConstraints) (structures []LaidOutStructure, byName map[string]*LaidOutStructure, err error) {
@@ -251,7 +251,6 @@ func resolveContentPathsForStructure(gadgetRootDir, kernelRootDir string, kernel
 			ps.Content[i].ResolvedSource = newSource
 		}
 	}
-
 	return nil
 }
 
