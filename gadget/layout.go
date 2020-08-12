@@ -111,7 +111,7 @@ func (p LaidOutContent) String() string {
 	if p.Image != "" {
 		return fmt.Sprintf("#%v (%q@%#x{%v})", p.Index, p.Image, p.StartOffset, p.Size)
 	}
-	return fmt.Sprintf("#%v (source:%q)", p.Index, p.Source)
+	return fmt.Sprintf("#%v (source:%q->%q)", p.Index, p.Source, p.ResolvedSource)
 }
 
 func layoutVolumeStructures(volume *Volume, constraints LayoutConstraints) (structures []LaidOutStructure, byName map[string]*LaidOutStructure, err error) {
@@ -223,18 +223,29 @@ func ResolveContentPaths(gadgetRootDir, kernelRootDir string, lv *LaidOutVolume)
 		return err
 	}
 	for i := range lv.Volume.Structure {
-		for j := range lv.Volume.Structure[i].Content {
-			source := lv.Volume.Structure[i].Content[j].Source
-			if source != "" {
-				newSource, err := resolveOne(gadgetRootDir, kernelRootDir, kernelInfo, source)
-				if err != nil {
-					return err
-				}
-				lv.Volume.Structure[i].Content[j].ResolvedSource = newSource
-			}
+		if err := resolveContentPathsForStructure(gadgetRootDir, kernelRootDir, kernelInfo, &lv.Volume.Structure[i]); err != nil {
+			return err
 		}
 	}
 
+	return nil
+}
+
+func resolveContentPathsForStructure(gadgetRootDir, kernelRootDir string, kernelInfo *KernelInfo, ps *VolumeStructure) error {
+	for i := range ps.Content {
+		source := ps.Content[i].Source
+		if source != "" {
+			newSource, err := resolveOne(gadgetRootDir, kernelRootDir, kernelInfo, source)
+			if err != nil {
+				return err
+			}
+			if strings.HasSuffix(source, "/") {
+				// restore trailing / if one was there
+				newSource += "/"
+			}
+			ps.Content[i].ResolvedSource = newSource
+		}
+	}
 	return nil
 }
 

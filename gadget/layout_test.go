@@ -1194,6 +1194,6 @@ assets:
 
 	c.Assert(lv.Volume.Structure, HasLen, 1)
 	c.Assert(lv.Volume.Structure[0].Content, HasLen, 1)
-	c.Check(lv.Volume.Structure[0].Content[0].ResolvedSource, Equals, filepath.Join(kernelSnapDir, "boot-assets/"))
+	c.Check(lv.Volume.Structure[0].Content[0].ResolvedSource, Equals, filepath.Join(kernelSnapDir, "boot-assets/")+"/")
 	c.Check(lv.Volume.Structure[0].Content[0].Target, Equals, "/")
 }

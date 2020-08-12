@@ -210,6 +210,7 @@ func (vc VolumeContent) String() string {
 	if vc.Image != "" {
 		return fmt.Sprintf("image:%s", vc.Image)
 	}
+	// XXX: provide "ResolvedSource" here too?
 	return fmt.Sprintf("source:%s", vc.Source)
 }
 

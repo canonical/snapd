@@ -91,6 +91,9 @@ execute: |
     sbverify --list "$seedbootdir"/grubx64.efi
     sbverify --list "$bootdir"/grubx64.efi
 
+    # XXX: make kernel-dir non-empty once we have a gadget that has a
+    #      "$kernel:" style ref in the meta/gadget.yaml
+    mkdir -p kernel-dir
     echo "Run the snap-bootstrap tool"
     go get ../../lib/uc20-create-partitions
     uc20-create-partitions \
@@ -99,7 +102,7 @@ execute: |
         --policy-update-data-file /run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde/policy-update-data \
         --tpm-lockout-auth /run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde/tpm-lockout-auth \
         --model <(snap model --assertion) \
-        ./gadget-dir "$LOOP"
+        ./gadget-dir ./kernel-dir "$LOOP"
     # keep for later
     cp -a /run/mnt/ubuntu-seed/keyfile "/run/mnt/ubuntu-seed/keyfile.$SPREAD_REBOOT"
 
