@@ -175,7 +175,7 @@ func (s *ubootTestSuite) TestExtractKernelAssetsAndRemove(c *C) {
 
 func (s *ubootTestSuite) TestExtractRecoveryKernelAssets(c *C) {
 	bootloader.MockUbootFiles(c, s.rootdir, nil)
-	u := bootloader.NewUboot(s.rootdir, nil).(bootloader.ExtractedRecoveryKernelImageBootloader)
+	u := bootloader.NewUboot(s.rootdir, nil)
 
 	files := [][]string{
 		{"kernel.img", "I'm a kernel"},

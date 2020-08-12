@@ -277,7 +277,7 @@ func (s *grubTestSuite) TestNewGrubWithOptionRecoveryNoEnv(c *C) {
 
 func (s *grubTestSuite) TestGrubSetRecoverySystemEnv(c *C) {
 	s.makeFakeGrubEFINativeEnv(c, nil)
-	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Recovery: true}).(bootloader.RecoveryAwareBootloader)
+	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Recovery: true})
 
 	// check that we can set a recovery system specific bootenv
 	bvars := map[string]string{
@@ -299,7 +299,7 @@ func (s *grubTestSuite) TestGrubSetRecoverySystemEnv(c *C) {
 
 func (s *grubTestSuite) TestGetRecoverySystemEnv(c *C) {
 	s.makeFakeGrubEFINativeEnv(c, nil)
-	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Recovery: true}).(bootloader.RecoveryAwareBootloader)
+	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Recovery: true})
 
 	err := os.MkdirAll(filepath.Join(s.rootdir, "/systems/20191209"), 0755)
 	c.Assert(err, IsNil)
