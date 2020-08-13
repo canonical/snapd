@@ -98,7 +98,7 @@ func (s *kernelYamlTestSuite) TestReadKernelYamlHappy(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(ki, DeepEquals, &kernel.Info{
 		Assets: map[string]*kernel.Asset{
-			"dtbs": &kernel.Asset{
+			"dtbs": {
 				Edition: 1,
 				Content: []string{
 					"dtbs/bcm2711-rpi-4-b.dtb",
