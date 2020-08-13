@@ -844,7 +844,7 @@ suites:
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
-            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx
+            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils
             snap install ubuntu-image --classic
 
             # TODO: replace with distro package once 2.45 is in stable
@@ -860,7 +860,7 @@ suites:
 
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
-            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils
+            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils xz-utils
 
     tests/nested/classic/:
         summary: Tests for nested images
@@ -897,7 +897,7 @@ suites:
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
-            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx
+            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils
             snap install ubuntu-image --classic
 
             #shellcheck source=tests/lib/nested.sh
@@ -919,7 +919,7 @@ suites:
 
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
-            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils
+            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils xz-utils
 
     tests/nested/core/:
         summary: Tests for nested images
@@ -956,7 +956,7 @@ suites:
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
-            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx
+            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils
             snap install ubuntu-image --classic
 
             #shellcheck source=tests/lib/nested.sh
@@ -978,7 +978,7 @@ suites:
 
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
-            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils
+            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils xz-utils
 
     tests/nested/core20/:
         summary: Tests for nested uc20 images
@@ -1012,7 +1012,7 @@ suites:
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
-            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx
+            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils
             snap install ubuntu-image --classic
 
             # TODO: replace with distro package once 2.45 is in stable
@@ -1032,6 +1032,6 @@ suites:
 
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
-            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils
+            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils xz-utils
 
 # vim:ts=4:sw=4:et

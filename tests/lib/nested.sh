@@ -277,7 +277,8 @@ cleanup_nested_env(){
     rm -rf "$RUNTIME_DIR"
     rm -rf "$ASSETS_DIR"
     rm -rf "$LOGS_DIR"
-    rm -rf "$IMAGES_DIR"
+    rm -rf "$IMAGES_DIR"/*.img
+    rm -rf "$IMAGES_DIR/$(get_current_image).xz"
     prepare_nested_env
 }
 
@@ -367,7 +368,10 @@ create_nested_core_vm(){
     IMAGE_NAME="$(get_image_name core)"
 
     mkdir -p "$IMAGES_DIR"
-    if [ ! -f "$IMAGES_DIR/$IMAGE_NAME" ]; then
+
+    if [ -f "$IMAGES_DIR/$IMAGE_NAME".xz ]; then
+        uncompress_image "$IMAGE_NAME"
+    elif [ ! -f "$IMAGES_DIR/$IMAGE_NAME" ]; then
 
         if [ -n "$CUSTOM_IMAGE_URL" ]; then
             # download the ubuntu-core image from $CUSTOM_IMAGE_URL
@@ -445,18 +449,21 @@ create_nested_core_vm(){
                 --output "$IMAGES_DIR/$IMAGE_NAME" \
                 "$EXTRA_FUNDAMENTAL" \
                 "$EXTRA_SNAPS"
-        fi
 
-        # Configure the user for the vm
-        if [ "$USE_CLOUD_INIT" = "true" ]; then
-            if is_core_20_nested_system; then
-                configure_cloud_init_nested_core_vm_uc20 "$IMAGES_DIR/$IMAGE_NAME"
-            else
-                configure_cloud_init_nested_core_vm "$IMAGES_DIR/$IMAGE_NAME"
-            fi
-        else
-            create_assertions_disk
+            # Save a compressed copy of the image
+            compress_image "$IMAGE_NAME"
         fi
+    fi
+
+    # Configure the user for the vm
+    if [ "$USE_CLOUD_INIT" = "true" ]; then
+        if is_core_20_nested_system; then
+            configure_cloud_init_nested_core_vm_uc20 "$IMAGES_DIR/$IMAGE_NAME"
+        else
+            configure_cloud_init_nested_core_vm "$IMAGES_DIR/$IMAGE_NAME"
+        fi
+    else
+        create_assertions_disk
     fi
 }
 
@@ -590,7 +597,7 @@ start_nested_core_vm_unit(){
     fi
     
     PARAM_ASSERTIONS=""
-    PARAM_SERIAL="-serial file:${LOGS_DIR}/serial-log.txt"
+    PARAM_SERIAL="-serial file:${LOGS_DIR}/serial.log"
     PARAM_BIOS=""
     PARAM_TPM=""
     if [ "$USE_CLOUD_INIT" != "true" ]; then
@@ -658,15 +665,19 @@ start_nested_core_vm_unit(){
     wait_for_ssh
 }
 
-get_current_image(){
-    IMAGE_DIR="$(get_image_dir)"
-    echo "$IMAGE_DIR/ubuntu-core-current.img"
+get_current_image_name(){
+    echo "ubuntu-core-current.img"
 }
 
 start_nested_core_vm(){
     local CURRENT_IMAGE
-    CURRENT_IMAGE="$(get_current_image)"
-    CURRENT_IMAGE="$(get_current_image)"
+    CURRENT_IMAGE="$IMAGES_DIR/$(get_current_image_name)"
+
+    # In case there is not a current image to be started but there is a compressed
+    # one, this is uncompressed and used for the current test
+    if [ ! -f "$CURRENT_IMAGE" ] && [ -f "${CURRENT_IMAGE}.xz" ]; then
+        uncompress_image "$(get_current_image_name)"
+    fi
 
     # In case the current image already exists, it needs to be reused and in that
     # case is neither required to copy the base image nor prepare the ssh
@@ -685,12 +696,23 @@ start_nested_core_vm(){
 
         # configure ssh for first time
         prepare_ssh
+
+        # compress the current image
+        compress_image "$(get_current_image_name)"
     else
         # Start the nested core vm
         start_nested_core_vm_unit "$CURRENT_IMAGE"
     fi
+}
 
+compress_image(){
+    local IMAGE_NAME=$1
+    xz -k0 "$IMAGES_DIR/$IMAGE_NAME"
+}
 
+uncompress_image(){
+    local IMAGE_NAME=$1
+    unxz -kf "$IMAGES_DIR/$IMAGE_NAME".xz
 }
 
 create_nested_classic_vm(){
@@ -709,12 +731,19 @@ create_nested_classic_vm(){
         create_cloud_init_config "$ASSETS_DIR/seed"
         cloud-localds -H "$(hostname)" "$ASSETS_DIR/seed.img" "$ASSETS_DIR/seed"
     fi
+
+    # Save a compressed copy of the image
+    compress_image "$IMAGE_NAME"
 }
 
 start_nested_classic_vm(){
     local IMAGE QEMU IMAGE_NAME
     QEMU="$(get_qemu_for_nested_vm)"
     IMAGE_NAME="$(get_image_name classic)"
+
+    if [ -f "$IMAGES_DIR/$IMAGE_NAME.xz" ]; then
+        uncompress_image "$IMAGE_NAME"
+    fi
 
     # Now qemu parameters are defined
     PARAM_SMP="-smp 1"
@@ -774,6 +803,10 @@ start_nested_classic_vm(){
 
 destroy_nested_vm(){
     systemd_stop_and_destroy_unit "$NESTED_VM"
+
+    local CURRENT_IMAGE
+    CURRENT_IMAGE="$IMAGES_DIR/$(get_current_image_name)" 
+    rm -f "$CURRENT_IMAGE"
 }
 
 execute_remote(){
