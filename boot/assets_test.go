@@ -48,7 +48,7 @@ func checkContentGlob(c *C, glob string, expected []string) {
 	c.Check(l, DeepEquals, expected)
 }
 
-func (s *assetsSuite) TestAssetsCacheAddDrop(c *C) {
+func (s *assetsSuite) TestAssetsCacheAddRemove(c *C) {
 	cacheDir := c.MkDir()
 	d := c.MkDir()
 
@@ -346,13 +346,13 @@ func (s *assetsSuite) TestInstallObserverNonTrustedBootloader(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(osutil.IsDirectory(dirs.SnapBootAssetsDir), Equals, false,
 		Commentf("%q exists while it should not", dirs.SnapBootAssetsDir))
+	c.Check(obs.CurrentTrustedBootAssetsMap(), IsNil)
 }
 
 func (s *assetsSuite) TestInstallObserverTrustedButNoAssets(c *C) {
 	d := c.MkDir()
 
 	tab := bootloadertest.Mock("trusted-assets", "").WithTrustedAssets()
-	// MockBootloader does not implement trusted assets
 	bootloader.Force(tab)
 	defer bootloader.Force(nil)
 
@@ -373,6 +373,7 @@ func (s *assetsSuite) TestInstallObserverTrustedButNoAssets(c *C) {
 	c.Assert(err, IsNil)
 	// the list of trusted assets was asked for just once
 	c.Check(tab.TrustedAssetsCalls, Equals, 1)
+	c.Check(obs.CurrentTrustedBootAssetsMap(), IsNil)
 }
 
 func (s *assetsSuite) TestInstallObserverObserveErr(c *C) {

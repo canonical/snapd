@@ -211,6 +211,9 @@ func (o *TrustedAssetsInstallObserver) isAlreadyTracked(newAsset *trackedAsset) 
 }
 
 func (o *TrustedAssetsInstallObserver) currentTrustedBootAssetsMap() bootAssetsMap {
+	if len(o.trackedAssets) == 0 {
+		return nil
+	}
 	bm := bootAssetsMap{}
 	for _, tracked := range o.trackedAssets {
 		// we expect to have added exactly one hash per tracked asset
