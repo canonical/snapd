@@ -112,7 +112,7 @@ func serviceControlTs(st *state.State, appInfos []*snap.AppInfo, inst *Instructi
 // Flags carries extra flags for Control
 type Flags struct {
 	// CreateExecCommandTasks tells Control method to create exec-command tasks
-	// (algonside service-control tasks) for compatibility with old snapd.
+	// (alongside service-control tasks) for compatibility with old snapd.
 	CreateExecCommandTasks bool
 }
 

@@ -1700,10 +1700,13 @@ func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	// append services that were disabled by hooks (they should not get re-enabled)
 	svcsToDisable = append(svcsToDisable, snapst.ServicesDisabledByHooks...)
 
+	// save the current last-active-disabled-services before we re-write it in case we
+	// need to undo this
+	t.Set("old-last-active-disabled-services", snapst.LastActiveDisabledServices)
+
 	// commit the missing services to state so when we unlink this revision and
 	// go to a different revision with potentially different service names, the
 	// currently missing service names will be re-disabled if they exist later
-	t.Set("old-last-active-disabled-services", snapst.LastActiveDisabledServices)
 	snapst.LastActiveDisabledServices = svcsToSave
 
 	// reset services tracked by operations from hooks
