@@ -842,8 +842,10 @@ func (s *snapshotSuite) TestExportTwice(c *check.C) {
 	// export once
 	buf := bytes.NewBuffer(nil)
 	ctx := context.Background()
-	se, err := backend.Export(ctx, shID)
+	se, err := backend.NewSnapshotExport(ctx, shID)
 	c.Check(err, check.IsNil)
+	err = se.Init()
+	c.Assert(err, check.IsNil)
 	c.Check(se.Size(), check.Equals, expectedSize)
 	// and we can stream the data
 	err = se.StreamTo(buf)
@@ -857,8 +859,10 @@ func (s *snapshotSuite) TestExportTwice(c *check.C) {
 	// change.
 	restore = backend.MockTimeNow(func() time.Time { return time.Date(2242, 1, 1, 12, 0, 0, 0, time.UTC) })
 	defer restore()
-	se2, err := backend.Export(ctx, shID)
+	se2, err := backend.NewSnapshotExport(ctx, shID)
 	c.Check(err, check.IsNil)
+	err = se2.Init()
+	c.Assert(err, check.IsNil)
 	c.Check(se2.Size(), check.Equals, expectedSize)
 	// and we can stream the data
 	buf.Reset()
@@ -868,7 +872,7 @@ func (s *snapshotSuite) TestExportTwice(c *check.C) {
 }
 
 func (s *snapshotSuite) TestExportUnhappy(c *check.C) {
-	se, err := backend.Export(context.Background(), 5)
+	se, err := backend.NewSnapshotExport(context.Background(), 5)
 	c.Assert(err, check.ErrorMatches, "no snapshot data found for 5")
 	c.Assert(se, check.IsNil)
 }

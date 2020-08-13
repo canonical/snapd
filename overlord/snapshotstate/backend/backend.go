@@ -380,16 +380,14 @@ type exportMetadata struct {
 	Files  []string  `json:"files"`
 }
 
-// Export allows exporting a given snapshot set
-func Export(ctx context.Context, setID uint64) (*SnapshotExport, error) {
-	return NewSnapshotExport(ctx, setID)
-}
-
 type SnapshotExport struct {
 	// open snapshot files
 	snapshotFiles []*os.File
 
-	// size
+	// remember setID mostly for nicer errors
+	setID uint64
+
+	// cached size, needs to be calculated with CalculateSize
 	size int64
 }
 
@@ -433,6 +431,14 @@ func NewSnapshotExport(ctx context.Context, setID uint64) (se *SnapshotExport, e
 		return nil, fmt.Errorf("no snapshot data found for %v", setID)
 	}
 
+	se = &SnapshotExport{snapshotFiles: snapshotFiles, setID: setID}
+	return se, nil
+}
+
+// Init will calculate the snapshot size. This can take some time
+// so it should be called without any locks. The SnapshotExport
+// keeps the FDs open so even files moved/deleted will be found.
+func (se *SnapshotExport) Init() error {
 	// Export once into a dummy writer so that we can set the size
 	// of the export. This is then used to set the Content-Length
 	// in the response correctly.
@@ -442,13 +448,11 @@ func NewSnapshotExport(ctx context.Context, setID uint64) (se *SnapshotExport, e
 	// to the client to a time after the year 2242. This is unlikely
 	// but a known issue with this approach here.
 	var sz osutil.Sizer
-	se = &SnapshotExport{snapshotFiles: snapshotFiles}
-	if err = se.StreamTo(&sz); err != nil {
-		return nil, fmt.Errorf("cannot calculcate the size for %v: %s", setID, err)
+	if err := se.StreamTo(&sz); err != nil {
+		return fmt.Errorf("cannot calculcate the size for %v: %s", se.setID, err)
 	}
 	se.size = sz.Size()
-
-	return se, nil
+	return nil
 }
 
 func (se *SnapshotExport) Size() int64 {
