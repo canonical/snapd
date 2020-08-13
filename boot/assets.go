@@ -117,6 +117,45 @@ func (c *trustedAssetsCache) Remove(blName, assetName, hashStr string) error {
 	return nil
 }
 
+// CopyBootAssetsCacheToRoot copies the boot assets cache to a corresponding
+// location under a new root directory.
+func CopyBootAssetsCacheToRoot(dstRoot string) error {
+	if !osutil.IsDirectory(dirs.SnapBootAssetsDir) {
+		// nothing to copy
+		return nil
+	}
+
+	newCacheRoot := dirs.SnapBootAssetsDirUnder(dstRoot)
+	if err := os.MkdirAll(newCacheRoot, 0755); err != nil {
+		return fmt.Errorf("cannot create cache directory under new root: %v", err)
+	}
+	err := filepath.Walk(dirs.SnapBootAssetsDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		relPath, err := filepath.Rel(dirs.SnapBootAssetsDir, path)
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			if err := os.MkdirAll(filepath.Join(newCacheRoot, relPath), info.Mode()); err != nil {
+				return fmt.Errorf("cannot recreate cache directory %q: %v", relPath, err)
+			}
+			return nil
+		}
+		if !info.Mode().IsRegular() {
+			return fmt.Errorf("unsupported non-file entry %q mode %v", relPath, info.Mode())
+		}
+		err = osutil.CopyFile(path, filepath.Join(newCacheRoot, relPath),
+			osutil.CopyFlagPreserveAll)
+		if err != nil {
+			return fmt.Errorf("cannot copy boot asset cache file %q: %v", relPath, err)
+		}
+		return nil
+	})
+	return err
+}
+
 // ErrObserverNotApplicable indicates that observer is not applicable for use
 // with the model.
 var ErrObserverNotApplicable = errors.New("observer not applicable")
