@@ -12,6 +12,7 @@ restore: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
     destroy_nested_vm
+    cleanup_nested_env
 
 execute: |
     #shellcheck source=tests/lib/nested.sh
