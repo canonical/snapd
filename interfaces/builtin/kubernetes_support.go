@@ -72,7 +72,7 @@ profile systemd_run (attach_disconnected,mediate_deleted) {
   /{,usr/}bin/systemd-run rm,
   owner @{PROC}/@{pid}/stat r,
   owner @{PROC}/@{pid}/environ r,
-  @{PROC}/cmdline r,
+  @{PROC}/cmdline r,  # proc_cmdline()
 
   # setsockopt()
   capability net_admin,
