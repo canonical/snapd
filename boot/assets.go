@@ -20,22 +20,29 @@
 package boot
 
 import (
+	"errors"
+
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/gadget"
 )
 
+// ErrObserverNotApplicable indicates that observer is not applicable for use
+// with the model.
+var ErrObserverNotApplicable = errors.New("observer not applicable")
+
 // TrustedAssetsInstallObserverForModel returns a new trusted assets observer
 // for use during installation of the run mode system, provided the device model
-// supports secure boot. Otherwise, nil is returned.
-func TrustedAssetsInstallObserverForModel(model *asserts.Model) *TrustedAssetsInstallObserver {
+// supports secure boot. Otherwise, nil and ErrObserverNotApplicable is
+// returned.
+func TrustedAssetsInstallObserverForModel(model *asserts.Model) (*TrustedAssetsInstallObserver, error) {
 	if model.Grade() == asserts.ModelGradeUnset {
 		// no need to observe updates when assets are not managed
-		return nil
+		return nil, ErrObserverNotApplicable
 	}
 
 	return &TrustedAssetsInstallObserver{
 		model: model,
-	}
+	}, nil
 }
 
 // TrustedAssetsInstallObserver tracks the installation of trusted boot assets.
@@ -67,14 +74,15 @@ func (o *TrustedAssetsInstallObserver) Seal() error {
 
 // TrustedAssetsUpdateObserverForModel returns a new trusted assets observer for
 // tracking changes to the measured boot assets during gadget updates, provided
-// the device model supports secure boot. Otherwise, nil is returned.
-func TrustedAssetsUpdateObserverForModel(model *asserts.Model) *TrustedAssetsUpdateObserver {
+// the device model supports secure boot. Otherwise, nil and ErrObserverNotApplicable is
+// returned.
+func TrustedAssetsUpdateObserverForModel(model *asserts.Model) (*TrustedAssetsUpdateObserver, error) {
 	if model.Grade() == asserts.ModelGradeUnset {
 		// no need to observe updates when assets are not managed
-		return nil
+		return nil, ErrObserverNotApplicable
 	}
 
-	return &TrustedAssetsUpdateObserver{}
+	return &TrustedAssetsUpdateObserver{}, nil
 }
 
 // TrustedAssetsUpdateObserver tracks the updates of trusted boot assets and

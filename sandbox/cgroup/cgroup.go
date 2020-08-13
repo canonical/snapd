@@ -242,8 +242,19 @@ func ProcessPathInTrackingCgroup(pid int) (string, error) {
 	// Cgroup entries we're looking for look like this:
 	// 1:name=systemd:/user.slice/user-1000.slice/user@1000.service/tmux.slice/tmux@default.service
 	// 0::/user.slice/user-1000.slice/user@1000.service/tmux.slice/tmux@default.service
+
+	// It seems cgroupv2 can be "dangling" after being mounted and unmounted.
+	// It will forever stay present in the kernel but will not be present in
+	// the file-system. As such, allow v2 to register only if it is really
+	// mounted on the system.
+	var allowV2 bool
+	if ver, err := Version(); err != nil {
+		return "", err
+	} else if ver == V2 {
+		allowV2 = true
+	}
 	entry, err := scanProcCgroupFile(fname, func(e *procInfoEntry) bool {
-		if e.CgroupID == 0 {
+		if e.CgroupID == 0 && allowV2 {
 			return true
 		}
 		if len(e.Controllers) == 1 && e.Controllers[0] == "name=systemd" {

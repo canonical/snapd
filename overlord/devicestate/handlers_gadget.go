@@ -138,9 +138,16 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 		updatePolicy = gadget.RemodelUpdatePolicy
 	}
 
-	observeTrustedBootAssets := boot.TrustedAssetsUpdateObserverForModel(model)
+	var updateObserver gadget.ContentUpdateObserver
+	observeTrustedBootAssets, err := boot.TrustedAssetsUpdateObserverForModel(model)
+	if err != nil && err != boot.ErrObserverNotApplicable {
+		return err
+	}
+	if err == nil {
+		updateObserver = observeTrustedBootAssets
+	}
 	st.Unlock()
-	err = gadgetUpdate(*currentData, *updateData, snapRollbackDir, updatePolicy, observeTrustedBootAssets)
+	err = gadgetUpdate(*currentData, *updateData, snapRollbackDir, updatePolicy, updateObserver)
 	st.Lock()
 	if err != nil {
 		if err == gadget.ErrNoUpdate {
