@@ -21,12 +21,13 @@ package boot
 
 import (
 	"crypto"
-	_ "crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+
+	_ "golang.org/x/crypto/sha3"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
@@ -42,7 +43,7 @@ type trustedAssetsCache struct {
 }
 
 func newTrustedAssetsCache(cacheDir string) *trustedAssetsCache {
-	return &trustedAssetsCache{cacheDir: cacheDir, hash: crypto.SHA256}
+	return &trustedAssetsCache{cacheDir: cacheDir, hash: crypto.SHA3_384}
 }
 
 func (c *trustedAssetsCache) assetKey(blName, assetName, assetHash string) string {
@@ -57,22 +58,26 @@ func (c *trustedAssetsCache) pathInCache(part string) string {
 	return filepath.Join(c.cacheDir, part)
 }
 
-// Add entry for
-func (c *trustedAssetsCache) Add(assetPath, blName, assetName string) (ta *trackedAsset, added bool, err error) {
+// Add entry for a new named asset owned by a particular bootloader, with the
+// binary content of the located at a given path. The cache ensures that only
+// one entry for given tuple of (bootloader name, asset name, content-hash)
+// exists in the cache.
+func (c *trustedAssetsCache) Add(assetPath, blName, assetName string) (*trackedAsset, error) {
 	if err := os.MkdirAll(c.pathInCache(blName), 0755); err != nil {
-		return nil, false, fmt.Errorf("cannot create cache directory: %v", err)
+		return nil, fmt.Errorf("cannot create cache directory: %v", err)
 	}
 
 	// input
 	inf, err := os.Open(assetPath)
 	if err != nil {
-		return nil, false, fmt.Errorf("cannot open asset file: %v", err)
+		return nil, fmt.Errorf("cannot open asset file: %v", err)
 	}
+	defer inf.Close()
 	// temporary output
 	tempPath := c.pathInCache(c.tempAssetKey(blName, assetName))
 	outf, err := osutil.NewAtomicFile(tempPath, 0644, 0, osutil.NoChown, osutil.NoChown)
 	if err != nil {
-		return nil, false, fmt.Errorf("cannot create temporary cache file: %v", err)
+		return nil, fmt.Errorf("cannot create temporary cache file: %v", err)
 	}
 	defer outf.Cancel()
 
@@ -80,12 +85,12 @@ func (c *trustedAssetsCache) Add(assetPath, blName, assetName string) (ta *track
 	h := c.hash.New()
 	tr := io.TeeReader(inf, h)
 	if _, err := io.Copy(outf, tr); err != nil {
-		return nil, false, fmt.Errorf("cannot copy trusted asset to cache: %v", err)
+		return nil, fmt.Errorf("cannot copy trusted asset to cache: %v", err)
 	}
 	hashStr := hex.EncodeToString(h.Sum(nil))
 	cacheKey := c.assetKey(blName, assetName, hashStr)
 
-	ta = &trackedAsset{
+	ta := &trackedAsset{
 		blName: blName,
 		name:   assetName,
 		hash:   hashStr,
@@ -94,16 +99,16 @@ func (c *trustedAssetsCache) Add(assetPath, blName, assetName string) (ta *track
 	targetName := c.pathInCache(cacheKey)
 	if osutil.FileExists(targetName) {
 		// asset is already cached
-		return ta, false, nil
+		return ta, nil
 	}
 	// commit under a new name
 	if err := outf.CommitAs(targetName); err != nil {
-		return nil, false, fmt.Errorf("cannot commit file to assets cache: %v", err)
+		return nil, fmt.Errorf("cannot commit file to assets cache: %v", err)
 	}
-	return ta, true, nil
+	return ta, nil
 }
 
-func (c *trustedAssetsCache) Drop(blName, assetName, hashStr string) error {
+func (c *trustedAssetsCache) Remove(blName, assetName, hashStr string) error {
 	cacheKey := c.assetKey(blName, assetName, hashStr)
 	if err := os.Remove(c.pathInCache(cacheKey)); err != nil && !os.IsNotExist(err) {
 		return err
@@ -134,14 +139,20 @@ type trackedAsset struct {
 	blName, name, hash string
 }
 
+func (t *trackedAsset) equal(other *trackedAsset) bool {
+	return t.blName == other.blName &&
+		t.name == other.name &&
+		t.hash == other.hash
+}
+
 // TrustedAssetsInstallObserver tracks the installation of trusted boot assets.
 type TrustedAssetsInstallObserver struct {
-	model          *asserts.Model
-	gadgetDir      string
-	cache          *trustedAssetsCache
-	bl             bootloader.Bootloader
-	trustedAssets  []string
-	trackingAssets []*trackedAsset
+	model         *asserts.Model
+	gadgetDir     string
+	cache         *trustedAssetsCache
+	blName        string
+	trustedAssets []string
+	trackedAssets []*trackedAsset
 }
 
 // Observe observes the operation related to the content of a given gadget
@@ -156,7 +167,8 @@ func (o *TrustedAssetsInstallObserver) Observe(op gadget.ContentOperation, affec
 		return true, nil
 	}
 
-	if o.bl == nil {
+	if o.blName == "" {
+		// we have no information about the bootloader yet
 		bl, err := bootloader.ForGadget(o.gadgetDir, root, &bootloader.Options{NoSlashBoot: true})
 		if err != nil {
 			return false, fmt.Errorf("cannot find bootloader: %v", err)
@@ -170,25 +182,37 @@ func (o *TrustedAssetsInstallObserver) Observe(op gadget.ContentOperation, affec
 			return false, fmt.Errorf("cannot list %q bootloader trusted assets: %v", bl.Name(), err)
 		}
 		o.trustedAssets = trustedAssets
-		o.bl = bl
+		o.blName = bl.Name()
 	}
 	if len(o.trustedAssets) == 0 || !strutil.ListContains(o.trustedAssets, relativeTarget) {
 		// not one of the trusted assets
 		return true, nil
 	}
-	ta, added, err := o.cache.Add(realSource, o.bl.Name(), filepath.Base(relativeTarget))
+	ta, err := o.cache.Add(realSource, o.blName, filepath.Base(relativeTarget))
 	if err != nil {
 		return false, err
 	}
-	if added {
-		o.trackingAssets = append(o.trackingAssets, ta)
+	// during installation, modeenv is written out later, at this point we
+	// only care that the same file may appear multiple times in gadget
+	// structure content, so make sure we are not tracking it yet
+	if !o.isAlreadyTracked(ta) {
+		o.trackedAssets = append(o.trackedAssets, ta)
 	}
 	return true, nil
 }
 
+func (o *TrustedAssetsInstallObserver) isAlreadyTracked(newAsset *trackedAsset) bool {
+	for _, ta := range o.trackedAssets {
+		if newAsset.equal(ta) {
+			return true
+		}
+	}
+	return false
+}
+
 func (o *TrustedAssetsInstallObserver) currentTrustedBootAssetsMap() bootAssetsMap {
 	bm := bootAssetsMap{}
-	for _, tracked := range o.trackingAssets {
+	for _, tracked := range o.trackedAssets {
 		bm[tracked.name] = append(bm[tracked.name], tracked.hash)
 	}
 	return bm

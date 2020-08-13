@@ -471,7 +471,7 @@ base=core20_3.snap
 current_kernels=pc-kernel_5.snap
 model=my-brand/my-model-uc20
 grade=dangerous
-current_trusted_boot_assets={"grubx64.efi":["063a1db3b68b17810a4b2510eb0d32141f184a15949afe394c8875f753920a4a"]}
+current_trusted_boot_assets={"grubx64.efi":["5ee042c15e104b825d6bc15c41cdb026589f1ec57ed966dd3f29f961d4d6924efc54b187743fa3a583b62722882d405d"]}
 `)
 }
 
