@@ -274,10 +274,11 @@ prepare_nested_env(){
 }
 
 cleanup_nested_env(){
-    rm -rf "$RUNTIME_DIR"/*
-    rm -rf "$ASSETS_DIR"/*
-    rm -rf "$LOGS_DIR"/*
-    rm -rf "$IMAGES_DIR"/*
+    rm -rf "$RUNTIME_DIR"
+    rm -rf "$ASSETS_DIR"
+    rm -rf "$LOGS_DIR"
+    rm -rf "$IMAGES_DIR"
+    prepare_nested_env
 }
 
 get_image_name(){
