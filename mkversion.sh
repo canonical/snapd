@@ -39,9 +39,7 @@ fi
 
 # Let's try to derive the version from git..
 if command -v git >/dev/null; then
-    # not using "--dirty" here until the following bug is fixed:
-    # https://bugs.launchpad.net/snapcraft/+bug/1662388
-    version_from_git="$(git describe --always | sed -e 's/-/+git/;y/-/./' )"
+    version_from_git="$(git describe --dirty --always | sed -e 's/-/+git/;y/-/./' )"
 fi
 
 # at this point we maybe in _build/src/github etc where we have no
