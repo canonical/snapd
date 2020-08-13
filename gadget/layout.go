@@ -26,6 +26,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -192,7 +193,7 @@ func LayoutVolumePartially(volume *Volume, constraints LayoutConstraints) (*Part
 	return vol, nil
 }
 
-func resolveOne(gadgetRootDir, kernelRootDir string, kernelInfo *KernelInfo, pathOrRef string) (string, error) {
+func resolveOne(gadgetRootDir, kernelRootDir string, kernelInfo *kernel.Info, pathOrRef string) (string, error) {
 	// content may refer to "$kernel:<name>/<content>"
 	if strings.HasPrefix(pathOrRef, "$kernel:") {
 		kernelRef := strings.SplitN(pathOrRef, ":", 2)[1]
@@ -218,9 +219,9 @@ func resolveOne(gadgetRootDir, kernelRootDir string, kernelInfo *KernelInfo, pat
 //
 // XXX: move into LayoutVolume(), operator on *Volume and make private?
 func ResolveContentPaths(gadgetRootDir, kernelRootDir string, lv *LaidOutVolume) error {
-	var kernelInfo *KernelInfo = &KernelInfo{}
+	var kernelInfo *kernel.Info = &kernel.Info{}
 	if kernelRootDir != "" {
-		ki, err := ReadKernelInfo(kernelRootDir)
+		ki, err := kernel.ReadInfo(kernelRootDir)
 		if err != nil {
 			return err
 		}
@@ -236,7 +237,7 @@ func ResolveContentPaths(gadgetRootDir, kernelRootDir string, lv *LaidOutVolume)
 	return nil
 }
 
-func resolveContentPathsForStructure(gadgetRootDir, kernelRootDir string, kernelInfo *KernelInfo, ps *VolumeStructure) error {
+func resolveContentPathsForStructure(gadgetRootDir, kernelRootDir string, kernelInfo *kernel.Info, ps *VolumeStructure) error {
 	for i := range ps.Content {
 		source := ps.Content[i].Source
 		if source != "" {
