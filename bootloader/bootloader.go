@@ -241,8 +241,8 @@ var (
 	//  bootloaders list all possible bootloaders by their constructor
 	//  function.
 	bootloaders = []bootloaderNewFunc{
-		newGrub,
 		newUboot,
+		newGrub,
 		newAndroidBoot,
 		newLk,
 	}
@@ -329,7 +329,7 @@ func removeKernelAssetsFromBootDir(bootDir string, s snap.PlaceInfo) error {
 }
 
 // ForGadget returns a bootloader matching a given gadget by inspecting the
-// contents of gadget directory or en error if no matching bootloader is found.
+// contents of gadget directory or an error if no matching bootloader is found.
 func ForGadget(gadgetDir, rootDir string, opts *Options) (Bootloader, error) {
 	for _, blNew := range bootloaders {
 		bl := blNew(rootDir, opts)
