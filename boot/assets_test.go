@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2019 Canonical Ltd
+ * Copyright (C) 2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -186,18 +186,17 @@ func (s *assetsSuite) TestAssetsCacheRemoveErr(c *C) {
 
 func (s *assetsSuite) TestInstallObserverNew(c *C) {
 	d := c.MkDir()
-
 	// we get an observer for UC20
 	uc20Model := makeMockUC20Model()
 	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d)
-	c.Assert(obs, NotNil)
 	c.Assert(err, IsNil)
+	c.Assert(obs, NotNil)
 
 	// but nil for non UC20
 	nonUC20Model := makeMockModel()
 	nonUC20obs, err := boot.TrustedAssetsInstallObserverForModel(nonUC20Model, d)
+	c.Assert(err, Equals, boot.ErrObserverNotApplicable)
 	c.Assert(nonUC20obs, IsNil)
-	c.Assert(err, IsNil)
 }
 
 var (
@@ -405,4 +404,18 @@ func (s *assetsSuite) TestInstallObserverObserveErr(c *C) {
 	_, err = obs.Observe(gadget.ContentWrite, mockRunBootStruct, boot.InitramfsUbuntuBootDir,
 		filepath.Join(d, "foobar"), "asset")
 	c.Assert(err, ErrorMatches, `cannot list "trusted-assets" bootloader trusted assets: mocked trusted assets error`)
+}
+
+func (s *assetsSuite) TestUpdateObserverNew(c *C) {
+	// we get an observer for UC20
+	uc20Model := makeMockUC20Model()
+	obs, err := boot.TrustedAssetsUpdateObserverForModel(uc20Model)
+	c.Assert(err, IsNil)
+	c.Assert(obs, NotNil)
+
+	// but nil for non UC20
+	nonUC20Model := makeMockModel()
+	nonUC20obs, err := boot.TrustedAssetsUpdateObserverForModel(nonUC20Model)
+	c.Assert(err, Equals, boot.ErrObserverNotApplicable)
+	c.Assert(nonUC20obs, IsNil)
 }

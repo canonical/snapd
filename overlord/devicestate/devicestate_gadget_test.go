@@ -188,7 +188,9 @@ func (s *deviceMgrGadgetSuite) testUpdateGadgetOnCoreSimple(c *C, grade string) 
 		} else {
 			c.Check(observer, NotNil)
 			// expecting a very specific observer
-			c.Check(observer, FitsTypeOf, &boot.TrustedAssetsUpdateObserver{})
+			trustedUpdateObserver, ok := observer.(*boot.TrustedAssetsUpdateObserver)
+			c.Assert(ok, Equals, true, Commentf("unexpected type: %T", observer))
+			c.Assert(trustedUpdateObserver, NotNil)
 		}
 		return nil
 	})
