@@ -45,11 +45,6 @@ func (s *androidBootTestSuite) SetUpTest(c *C) {
 	bootloader.MockAndroidBootFile(c, s.rootdir, 0644)
 }
 
-func (s *androidBootTestSuite) TestNewAndroidbootNoAndroidbootReturnsNil(c *C) {
-	a := bootloader.NewAndroidBoot("/something/not/there")
-	c.Assert(a, IsNil)
-}
-
 func (s *androidBootTestSuite) TestNewAndroidboot(c *C) {
 	a := bootloader.NewAndroidBoot(s.rootdir)
 	c.Assert(a, NotNil)

@@ -268,6 +268,7 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 		BrandID:        model.BrandID(),
 		Model:          model.Model(),
 		Grade:          string(model.Grade()),
+		// TODO:UC20: set current boot assets for run and recovery
 	}
 	if err := modeenv.WriteTo(InstallHostWritableDir); err != nil {
 		return fmt.Errorf("cannot write modeenv: %v", err)

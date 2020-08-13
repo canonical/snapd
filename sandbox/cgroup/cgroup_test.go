@@ -249,6 +249,9 @@ func (s *cgroupSuite) TestProcessPathInTrackingCgroup(c *C) {
 	restore := cgroup.MockFsRootPath(d)
 	defer restore()
 
+	restore = cgroup.MockVersion(cgroup.V2, nil)
+	defer restore()
+
 	f := filepath.Join(d, "proc", "1234", "cgroup")
 	c.Assert(os.MkdirAll(filepath.Dir(f), 0755), IsNil)
 
@@ -271,5 +274,26 @@ func (s *cgroupSuite) TestProcessPathInTrackingCgroup(c *C) {
 			c.Assert(path, Equals, scenario.path)
 		}
 	}
+}
 
+func (s *cgroupSuite) TestProcessPathInTrackingCgroupV2SpecialCase(c *C) {
+	const text = `0::/
+1:name=systemd:/user.slice/user-0.slice/session-1.scope
+`
+	d := c.MkDir()
+	restore := cgroup.MockFsRootPath(d)
+	defer restore()
+
+	restore = cgroup.MockVersion(cgroup.V1, nil)
+	defer restore()
+
+	f := filepath.Join(d, "proc", "1234", "cgroup")
+	c.Assert(os.MkdirAll(filepath.Dir(f), 0755), IsNil)
+
+	c.Assert(ioutil.WriteFile(f, []byte(text), 0644), IsNil)
+	path, err := cgroup.ProcessPathInTrackingCgroup(1234)
+	c.Assert(err, IsNil)
+	// Because v2 is not really mounted, we ignore the entry 0::/
+	// and return the v1 version instead.
+	c.Assert(path, Equals, "/user.slice/user-0.slice/session-1.scope")
 }
