@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2018-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,23 +17,28 @@
  *
  */
 
-package cmd
+// Package clientutil offers utilities to turn snap.Info and related
+// structs into client structs and to work with the latter.
+package clientutil
 
 import (
-	"fmt"
-	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/snapcore/snapd/client"
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/systemd"
 )
 
-func ClientSnapFromSnapInfo(snapInfo *snap.Info) (*client.Snap, error) {
+// A StatusDecorator is able to decorate client.AppInfos with service status.
+type StatusDecorator interface {
+	DecorateWithStatus(appInfo *client.AppInfo, snapApp *snap.AppInfo) error
+}
+
+// ClientSnapFromSnapInfo returns a client.Snap derived from snap.Info.
+// If an optional StatusDecorator is provided it will be used to
+// add service status information.
+func ClientSnapFromSnapInfo(snapInfo *snap.Info, decorator StatusDecorator) (*client.Snap, error) {
 	var publisher *snap.StoreAccount
 	if snapInfo.Publisher.Username != "" {
 		publisher = &snapInfo.Publisher
@@ -48,15 +53,15 @@ func ClientSnapFromSnapInfo(snapInfo *snap.Info) (*client.Snap, error) {
 	for _, app := range snapInfo.Apps {
 		snapapps = append(snapapps, app)
 	}
-	sort.Sort(BySnapApp(snapapps))
+	sort.Sort(snap.AppInfoBySnapApp(snapapps))
 
-	apps, err := ClientAppInfosFromSnapAppInfos(snapapps)
+	apps, err := ClientAppInfosFromSnapAppInfos(snapapps, decorator)
 	result := &client.Snap{
 		Description: snapInfo.Description(),
 		Developer:   snapInfo.Publisher.Username,
 		Publisher:   publisher,
 		Icon:        snapInfo.Media.IconURL(),
-		ID:          snapInfo.SnapID,
+		ID:          snapInfo.ID(),
 		InstallDate: snapInfo.InstallDate(),
 		Name:        snapInfo.InstanceName(),
 		Revision:    snapInfo.Revision,
@@ -111,25 +116,12 @@ func ClientAppInfoNotes(app *client.AppInfo) string {
 	return strings.Join(notes, ",")
 }
 
-// BySnapApp sorts apps by (snap name, app name)
-type BySnapApp []*snap.AppInfo
-
-func (a BySnapApp) Len() int      { return len(a) }
-func (a BySnapApp) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
-func (a BySnapApp) Less(i, j int) bool {
-	iName := a[i].Snap.InstanceName()
-	jName := a[j].Snap.InstanceName()
-	if iName == jName {
-		return a[i].Name < a[j].Name
-	}
-	return iName < jName
-}
-
-func ClientAppInfosFromSnapAppInfos(apps []*snap.AppInfo) ([]client.AppInfo, error) {
-	// TODO: pass in an actual notifier here instead of null
-	//       (Status doesn't _need_ it, but benefits from it)
-	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, progress.Null)
-
+// ClientAppInfosFromSnapAppInfos returns client.AppInfos derived from
+// the given snap.AppInfos.
+// If an optional StatusDecorator is provided it will be used to add
+// service status information as well, this will be done only if the
+// snap is active and when the app is a service.
+func ClientAppInfosFromSnapAppInfos(apps []*snap.AppInfo, decorator StatusDecorator) ([]client.AppInfo, error) {
 	out := make([]client.AppInfo, 0, len(apps))
 	for _, app := range apps {
 		appInfo := client.AppInfo{
@@ -142,55 +134,13 @@ func ClientAppInfosFromSnapAppInfos(apps []*snap.AppInfo) ([]client.AppInfo, err
 		}
 
 		appInfo.Daemon = app.Daemon
-		if !app.IsService() || !app.Snap.IsActive() {
+		if !app.IsService() || decorator == nil || !app.Snap.IsActive() {
 			out = append(out, appInfo)
 			continue
 		}
 
-		// collect all services for a single call to systemctl
-		serviceNames := make([]string, 0, 1+len(app.Sockets)+1)
-		serviceNames = append(serviceNames, app.ServiceName())
-
-		sockSvcFileToName := make(map[string]string, len(app.Sockets))
-		for _, sock := range app.Sockets {
-			sockUnit := filepath.Base(sock.File())
-			sockSvcFileToName[sockUnit] = sock.Name
-			serviceNames = append(serviceNames, sockUnit)
-		}
-		if app.Timer != nil {
-			timerUnit := filepath.Base(app.Timer.File())
-			serviceNames = append(serviceNames, timerUnit)
-		}
-
-		// sysd.Status() makes sure that we get only the units we asked
-		// for and raises an error otherwise
-		sts, err := sysd.Status(serviceNames...)
-		if err != nil {
-			return nil, fmt.Errorf("cannot get status of services of app %q: %v", app.Name, err)
-		}
-		if len(sts) != len(serviceNames) {
-			return nil, fmt.Errorf("cannot get status of services of app %q: expected %v results, got %v", app.Name, len(serviceNames), len(sts))
-		}
-		for _, st := range sts {
-			switch filepath.Ext(st.UnitName) {
-			case ".service":
-				appInfo.Enabled = st.Enabled
-				appInfo.Active = st.Active
-			case ".timer":
-				appInfo.Activators = append(appInfo.Activators, client.AppActivator{
-					Name:    app.Name,
-					Enabled: st.Enabled,
-					Active:  st.Active,
-					Type:    "timer",
-				})
-			case ".socket":
-				appInfo.Activators = append(appInfo.Activators, client.AppActivator{
-					Name:    sockSvcFileToName[st.UnitName],
-					Enabled: st.Enabled,
-					Active:  st.Active,
-					Type:    "socket",
-				})
-			}
+		if err := decorator.DecorateWithStatus(&appInfo, app); err != nil {
+			return nil, err
 		}
 		out = append(out, appInfo)
 	}

@@ -1355,3 +1355,18 @@ func SortServices(apps []*AppInfo) (sorted []*AppInfo, err error) {
 	}
 	return sorted, nil
 }
+
+// AppInfoBySnapApp supports sorting the given slice of app infos by
+// (instance name, app name).
+type AppInfoBySnapApp []*AppInfo
+
+func (a AppInfoBySnapApp) Len() int      { return len(a) }
+func (a AppInfoBySnapApp) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a AppInfoBySnapApp) Less(i, j int) bool {
+	iName := a[i].Snap.InstanceName()
+	jName := a[j].Snap.InstanceName()
+	if iName == jName {
+		return a[i].Name < a[j].Name
+	}
+	return iName < jName
+}
