@@ -97,6 +97,14 @@ func SetUserWrapper(newUserWrapper string) (restore func()) {
 	}
 }
 
+func MockUsersForUsernames(f func(usernames []string) ([]*user.User, error)) (restore func()) {
+	old := usersForUsernames
+	usersForUsernames = f
+	return func() {
+		usersForUsernames = old
+	}
+}
+
 func MockTimeNow(f func() time.Time) (restore func()) {
 	oldTimeNow := timeNow
 	timeNow = f

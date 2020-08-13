@@ -61,6 +61,8 @@ var (
 	dirNames    = (*os.File).Readdirnames
 	backendOpen = Open
 	timeNow     = time.Now
+
+	usersForUsernames = usersForUsernamesImpl
 )
 
 // Flags encompasses extra flags for snapshots backend Save.
@@ -159,6 +161,50 @@ func List(ctx context.Context, setID uint64, snapNames []string) ([]client.Snaps
 func Filename(snapshot *client.Snapshot) string {
 	// this _needs_ the snap name and version to be valid
 	return filepath.Join(dirs.SnapshotsDir, fmt.Sprintf("%d_%s_%s_%s.zip", snapshot.SetID, snapshot.Snap, snapshot.Version, snapshot.Revision))
+}
+
+// EstimateSnapshotSize calculates estimated size of the snapshot.
+func EstimateSnapshotSize(si *snap.Info, usernames []string) (uint64, error) {
+	var total uint64
+	calculateSize := func(path string, finfo os.FileInfo, err error) error {
+		if finfo.Mode().IsRegular() {
+			total += uint64(finfo.Size())
+		}
+		return err
+	}
+
+	visitDir := func(dir string) error {
+		exists, isDir, err := osutil.DirExists(dir)
+		if err != nil {
+			return err
+		}
+		if !(exists && isDir) {
+			return nil
+		}
+		return filepath.Walk(dir, calculateSize)
+	}
+
+	for _, dir := range []string{si.DataDir(), si.CommonDataDir()} {
+		if err := visitDir(dir); err != nil {
+			return 0, err
+		}
+	}
+
+	users, err := usersForUsernames(usernames)
+	if err != nil {
+		return 0, err
+	}
+	for _, usr := range users {
+		if err := visitDir(si.UserDataDir(usr.HomeDir)); err != nil {
+			return 0, err
+		}
+		if err := visitDir(si.UserCommonDataDir(usr.HomeDir)); err != nil {
+			return 0, err
+		}
+	}
+
+	// XXX: we could use a typical compression factor here
+	return total, nil
 }
 
 // Save a snapshot

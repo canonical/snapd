@@ -200,7 +200,7 @@ var (
 	CriticalTaskEdges = criticalTaskEdges
 )
 
-func MockGadgetUpdate(mock func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc) error) (restore func()) {
+func MockGadgetUpdate(mock func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, observer gadget.ContentUpdateObserver) error) (restore func()) {
 	old := gadgetUpdate
 	gadgetUpdate = mock
 	return func() {
@@ -216,7 +216,7 @@ func MockGadgetIsCompatible(mock func(current, update *gadget.Info) error) (rest
 	}
 }
 
-func MockBootMakeBootable(f func(model *asserts.Model, rootdir string, bootWith *boot.BootableSet) error) (restore func()) {
+func MockBootMakeBootable(f func(model *asserts.Model, rootdir string, bootWith *boot.BootableSet, seal *boot.TrustedAssetsInstallObserver) error) (restore func()) {
 	old := bootMakeBootable
 	bootMakeBootable = f
 	return func() {
@@ -248,7 +248,7 @@ func MockSysconfigConfigureRunSystem(f func(opts *sysconfig.Options) error) (res
 	}
 }
 
-func MockInstallRun(f func(gadgetRoot, device string, options install.Options) error) (restore func()) {
+func MockInstallRun(f func(gadgetRoot, device string, options install.Options, observer gadget.ContentObserver) error) (restore func()) {
 	old := installRun
 	installRun = f
 	return func() {

@@ -41,6 +41,7 @@ var (
 	snapstateAll                     = snapstate.All
 	snapstateCheckChangeConflictMany = snapstate.CheckChangeConflictMany
 	backendIter                      = backend.Iter
+	backendEstimateSnapshotSize      = backend.EstimateSnapshotSize
 
 	// Default expiration time for automatic snapshots, if not set by the user
 	defaultAutomaticSnapshotExpiration = time.Hour * 24 * 31
@@ -79,6 +80,25 @@ func allActiveSnapNames(st *state.State) ([]string, error) {
 	sort.Strings(names)
 
 	return names, nil
+}
+
+func EstimateSnapshotSize(st *state.State, instanceName string, users []string) (uint64, error) {
+	cur, err := snapstateCurrentInfo(st, instanceName)
+	if err != nil {
+		return 0, err
+	}
+	rawCfg, err := configGetSnapConfig(st, instanceName)
+	if err != nil {
+		return 0, err
+	}
+	sz, err := backendEstimateSnapshotSize(cur, users)
+	if err != nil {
+		return 0, err
+	}
+	if rawCfg != nil {
+		sz += uint64(len([]byte(*rawCfg)))
+	}
+	return sz, nil
 }
 
 func AutomaticSnapshotExpiration(st *state.State) (time.Duration, error) {

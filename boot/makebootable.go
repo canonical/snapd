@@ -54,13 +54,13 @@ type BootableSet struct {
 // rootdir points to an image filesystem (UC 16/18), image recovery
 // filesystem (UC20 at prepare-image time) or ephemeral system (UC20
 // install mode).
-func MakeBootable(model *asserts.Model, rootdir string, bootWith *BootableSet) error {
+func MakeBootable(model *asserts.Model, rootdir string, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver) error {
 	if model.Grade() == asserts.ModelGradeUnset {
 		return makeBootable16(model, rootdir, bootWith)
 	}
 
 	if !bootWith.Recovery {
-		return makeBootable20RunMode(model, rootdir, bootWith)
+		return makeBootable20RunMode(model, rootdir, bootWith, sealer)
 	}
 	return makeBootable20(model, rootdir, bootWith)
 }
@@ -225,7 +225,7 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet)
 	return nil
 }
 
-func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *BootableSet) error {
+func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver) error {
 	// TODO:UC20:
 	// - figure out what to do for uboot gadgets, currently we require them to
 	//   install the boot.sel onto ubuntu-boot directly, but the file should be
@@ -268,6 +268,7 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 		BrandID:        model.BrandID(),
 		Model:          model.Model(),
 		Grade:          string(model.Grade()),
+		// TODO:UC20: set current boot assets for run and recovery
 	}
 	if err := modeenv.WriteTo(InstallHostWritableDir); err != nil {
 		return fmt.Errorf("cannot write modeenv: %v", err)

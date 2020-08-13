@@ -47,7 +47,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
-	"github.com/snapcore/snapd/cmd"
+	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n"
@@ -416,7 +416,9 @@ func getSnapInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("cannot build URL for %q snap: %v", name, err)
 	}
 
-	result := webify(mapLocal(about), url.String())
+	sd := servicestate.NewStatusDecorator(progress.Null)
+
+	result := webify(mapLocal(about, sd), url.String())
 
 	return SyncResponse(result, nil)
 }
@@ -462,7 +464,7 @@ func getSections(c *Command, r *http.Request, user *auth.UserState) Response {
 	case store.ErrBadQuery:
 		return SyncResponse(&resp{
 			Type:   ResponseTypeError,
-			Result: &errorResult{Message: err.Error(), Kind: errorKindBadQuery},
+			Result: &errorResult{Message: err.Error(), Kind: client.ErrorKindBadQuery},
 			Status: 400,
 		}, nil)
 	case store.ErrUnauthenticated, store.ErrInvalidCredentials:
@@ -543,7 +545,7 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	case store.ErrBadQuery:
 		return SyncResponse(&resp{
 			Type:   ResponseTypeError,
-			Result: &errorResult{Message: err.Error(), Kind: errorKindBadQuery},
+			Result: &errorResult{Message: err.Error(), Kind: client.ErrorKindBadQuery},
 			Status: 400,
 		}, nil)
 	case store.ErrUnauthenticated, store.ErrInvalidCredentials:
@@ -554,7 +556,7 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 				if dnserr, ok := neterr.Err.(*net.DNSError); ok {
 					return SyncResponse(&resp{
 						Type:   ResponseTypeError,
-						Result: &errorResult{Message: dnserr.Error(), Kind: errorKindDNSFailure},
+						Result: &errorResult{Message: dnserr.Error(), Kind: client.ErrorKindDNSFailure},
 						Status: 400,
 					}, nil)
 				}
@@ -563,14 +565,14 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 		if e, ok := err.(net.Error); ok && e.Timeout() {
 			return SyncResponse(&resp{
 				Type:   ResponseTypeError,
-				Result: &errorResult{Message: err.Error(), Kind: errorKindNetworkTimeout},
+				Result: &errorResult{Message: err.Error(), Kind: client.ErrorKindNetworkTimeout},
 				Status: 400,
 			}, nil)
 		}
 		if e, ok := err.(*httputil.PerstistentNetworkError); ok {
 			return SyncResponse(&resp{
 				Type:   ResponseTypeError,
-				Result: &errorResult{Message: e.Error(), Kind: errorKindDNSFailure},
+				Result: &errorResult{Message: e.Error(), Kind: client.ErrorKindDNSFailure},
 				Status: 400,
 			}, nil)
 		}
@@ -721,6 +723,7 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	results := make([]*json.RawMessage, len(found))
 
+	sd := servicestate.NewStatusDecorator(progress.Null)
 	for i, x := range found {
 		name := x.info.InstanceName()
 		rev := x.info.Revision
@@ -731,7 +734,7 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 			continue
 		}
 
-		data, err := json.Marshal(webify(mapLocal(x), url.String()))
+		data, err := json.Marshal(webify(mapLocal(x, sd), url.String()))
 		if err != nil {
 			return InternalError("cannot serialize snap %q revision %s: %v", name, rev, err)
 		}
@@ -1277,7 +1280,7 @@ func trySnap(c *Command, r *http.Request, user *auth.UserState, trydir string, f
 			Type: ResponseTypeError,
 			Result: &errorResult{
 				Message: err.Error(),
-				Kind:    errorKindNotSnap,
+				Kind:    client.ErrorKindNotSnap,
 			},
 			Status: 400,
 		}, nil)
@@ -1621,7 +1624,7 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 					Type: ResponseTypeError,
 					Result: &errorResult{
 						Message: err.Error(),
-						Kind:    errorKindConfigNoSuchOption,
+						Kind:    client.ErrorKindConfigNoSuchOption,
 						Value:   err,
 					},
 					Status: 400,
@@ -2072,7 +2075,7 @@ func convertBuyError(err error) Response {
 			Type: ResponseTypeError,
 			Result: &errorResult{
 				Message: err.Error(),
-				Kind:    errorKindLoginRequired,
+				Kind:    client.ErrorKindLoginRequired,
 			},
 			Status: 400,
 		}, nil)
@@ -2081,7 +2084,7 @@ func convertBuyError(err error) Response {
 			Type: ResponseTypeError,
 			Result: &errorResult{
 				Message: err.Error(),
-				Kind:    errorKindTermsNotAccepted,
+				Kind:    client.ErrorKindTermsNotAccepted,
 			},
 			Status: 400,
 		}, nil)
@@ -2090,7 +2093,7 @@ func convertBuyError(err error) Response {
 			Type: ResponseTypeError,
 			Result: &errorResult{
 				Message: err.Error(),
-				Kind:    errorKindNoPaymentMethods,
+				Kind:    client.ErrorKindNoPaymentMethods,
 			},
 			Status: 400,
 		}, nil)
@@ -2099,7 +2102,7 @@ func convertBuyError(err error) Response {
 			Type: ResponseTypeError,
 			Result: &errorResult{
 				Message: err.Error(),
-				Kind:    errorKindPaymentDeclined,
+				Kind:    client.ErrorKindPaymentDeclined,
 			},
 			Status: 400,
 		}, nil)
@@ -2168,7 +2171,7 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 				Type: ResponseTypeError,
 				Result: &errorResult{
 					Message: e.Error(),
-					Kind:    errorKindUnsuccessful,
+					Kind:    client.ErrorKindUnsuccessful,
 					Value:   result,
 				},
 				Status: 200,
@@ -2348,7 +2351,9 @@ func getAppsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		return rsp
 	}
 
-	clientAppInfos, err := cmd.ClientAppInfosFromSnapAppInfos(appInfos)
+	sd := servicestate.NewStatusDecorator(progress.Null)
+
+	clientAppInfos, err := clientutil.ClientAppInfosFromSnapAppInfos(appInfos, sd)
 	if err != nil {
 		return InternalError("%v", err)
 	}

@@ -103,7 +103,7 @@ func isUnknownUser(err error) bool {
 	}
 }
 
-func usersForUsernames(usernames []string) ([]*user.User, error) {
+func usersForUsernamesImpl(usernames []string) ([]*user.User, error) {
 	if len(usernames) == 0 {
 		return allUsers()
 	}
