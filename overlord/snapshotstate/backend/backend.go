@@ -31,6 +31,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"syscall"
 	"time"
@@ -432,6 +433,10 @@ func NewSnapshotExport(ctx context.Context, setID uint64) (se *SnapshotExport, e
 	}
 
 	se = &SnapshotExport{snapshotFiles: snapshotFiles, setID: setID}
+
+	// ensure we never leak FDs even if the user does not call close
+	runtime.SetFinalizer(se, (*SnapshotExport).Close)
+
 	return se, nil
 }
 
