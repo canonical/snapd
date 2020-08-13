@@ -74,6 +74,23 @@ func makeSnapWithFiles(c *C, name, yaml string, revno snap.Revision, files [][]s
 	return fn, info
 }
 
+func makeMockModel() *asserts.Model {
+	headers := map[string]interface{}{
+		"type":         "model",
+		"authority-id": "my-brand",
+		"series":       "16",
+		"brand-id":     "my-brand",
+		"model":        "my-model",
+		"display-name": "My Model",
+		"architecture": "amd64",
+		"base":         "core18",
+		"gadget":       "pc=18",
+		"kernel":       "pc-kernel=18",
+		"timestamp":    "2018-01-01T08:00:00+00:00",
+	}
+	return assertstest.FakeAssertion(headers).(*asserts.Model)
+}
+
 func (s *makeBootableSuite) TestMakeBootable(c *C) {
 	dirs.SetRootDir("")
 
