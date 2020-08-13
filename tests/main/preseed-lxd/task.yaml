@@ -1,7 +1,8 @@
 summary: Check that preseeding of current ubuntu cloud image works under lxd.
 description: |
   This test checks that preseeding of Ubuntu cloud images with snap-preseed
-  command works in lxc container.
+  command works in lxc container and that the resulting image can be run
+  in a container and seeding finishes successfully.
 
 # this test works only on 18.04 because it requires lxd from deb (lxd snap
 # as it wouldn't allow mount) and tries to replicate launchpad builder setup.
@@ -49,11 +50,16 @@ prepare: |
 
 restore: |
   if [ -f remove-lxd ]; then
-    lxc stop my-ubuntu --force || true
-    lxc delete my-ubuntu || true
+    for container in my-ubunt my-ubuntu-preseeded; do
+      lxc stop "$container" --force || true
+      lxc delete "$container" || true
+    done
     apt purge -y lxd
     apt autoremove --purge -y
   fi
+
+  rm -f preseeded-rootfs.tar.gz
+  rm -f overrides.log
 
   umount "$IMAGE_MOUNTPOINT"
   rmdir "$IMAGE_MOUNTPOINT"
@@ -111,3 +117,38 @@ execute: |
   echo "Checking preseeding tasks"
   MATCH "Doing .+ mark-preseeded +Mark system pre-seeded" < tasks.log
   MATCH "Do .+ mark-seeded +Mark system seeded" < tasks.log
+
+  echo "Importing resulting ubuntu image with lxd"
+  # see https://ubuntu.com/tutorials/create-custom-lxd-images#3-creating-basic-system-installation
+  # XXX: this is suboptimal, copy current snapd-generator from 18.04 build into 20.04
+  cp /lib/systemd/system-generators/snapd-generator "$IMAGE_MOUNTPOINT"/lib/systemd/system-generators/
+  sudo tar -cvzf preseeded-rootfs.tar.gz -C "$IMAGE_MOUNTPOINT" .
+  tar -cvzf metadata.tar.gz metadata.yaml
+  lxc image import metadata.tar.gz preseeded-rootfs.tar.gz --alias ubuntu-preseeded
+  rm preseeded-rootfs.tar.gz
+
+  echo "Checking that preseeded image runs with lxd"
+  lxc launch ubuntu-preseeded my-ubuntu-preseeded
+
+  # it takes quite a bit before snapd is ready
+  retry -n 50 --wait 5 sh -c 'lxc exec my-ubuntu-preseeded --  snap wait system seed.loaded'
+  # check for changes in error, those could get unnoticed if seeding succeeded
+  # after a retry.
+  if lxc exec my-ubuntu-preseeded --  snap changes | MATCH -i error; then
+    echo "Unexpected seed error:"
+    lxc exec my-ubuntu-preseeded --  snap changes
+    exit 1
+  fi
+  lxc exec my-ubuntu-preseeded -- snap debug seeding | MATCH "preseeded:\s+true"
+  lxc exec my-ubuntu-preseeded -- snap debug seeding | MATCH "seeded:\s+true"
+  if lxc exec my-ubuntu-preseeded -- snap debug seeding | MATCH "seed-error"; then
+    echo "Unexpected seed error:"
+    lxc exec my-ubuntu-preseeded -- snap debug seeding
+    exit 1
+  fi
+
+  echo "Sanity check that mount overrides were generated inside the container"
+  lxc exec my-ubuntu-preseeded -- find /var/run/systemd/generator/ -name container.conf > overrides.log
+  MATCH "/var/run/systemd/generator/snap-core18.*mount.d/container.conf" < overrides.log
+  MATCH "/var/run/systemd/generator/snap-snapd-.*mount.d/container.conf" < overrides.log
+  MATCH "/var/run/systemd/generator/snap-lxd-.*mount.d/container.conf" < overrides.log
