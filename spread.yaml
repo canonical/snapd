@@ -405,9 +405,9 @@ debug-each: |
             systemctl status nested-vm || true
             journalctl -e --no-pager -u nested-vm || true
 
-            if [ -f "${WORK_DIR}/serial-log.txt" ]; then
+            if [ -f "${WORK_DIR}/serial.log" ]; then
                 echo '# nested VM serial boot log'
-                cat "${WORK_DIR}/serial-log.txt"
+                cat "${WORK_DIR}/serial.log"
             fi
         fi
 
@@ -830,9 +830,12 @@ suites:
             ENABLE_SECURE_BOOT: '$(HOST: echo "${SPREAD_ENABLE_SECURE_BOOT:-false}")'
             # Build and use snapd from current branch
             BUILD_SNAPD_FROM_CURRENT: '$(HOST: echo "${SPREAD_BUILD_SNAPD_FROM_CURRENT:-false}")'
+            # Download and use an custom image from this url
+            CUSTOM_IMAGE_URL: '$(HOST: echo "${SPREAD_CUSTOM_IMAGE_URL:-}")'
             # Directory where the images and test assets are stored
             WORK_DIR: '/tmp/work-dir'
         manual: true
+        kill-timeout: 40m
         debug: |
             if [ -f "${WORK_DIR}/serial.log" ]; then
                 cat "${WORK_DIR}/serial.log"
@@ -878,6 +881,8 @@ suites:
             ENABLE_SECURE_BOOT: '$(HOST: echo "${SPREAD_ENABLE_SECURE_BOOT:-false}")'
             # Build and use snapd from current branch
             BUILD_SNAPD_FROM_CURRENT: '$(HOST: echo "${SPREAD_BUILD_SNAPD_FROM_CURRENT:-false}")'
+            # Download and use an custom image from this url
+            CUSTOM_IMAGE_URL: '$(HOST: echo "${SPREAD_CUSTOM_IMAGE_URL:-}")'
             # Directory where the images and test assets are stored
             WORK_DIR: '/tmp/work-dir'
         manual: true
@@ -934,6 +939,8 @@ suites:
             ENABLE_SECURE_BOOT: '$(HOST: echo "${SPREAD_ENABLE_SECURE_BOOT:-false}")'
             # Build and use snapd from current branch
             BUILD_SNAPD_FROM_CURRENT: '$(HOST: echo "${SPREAD_BUILD_SNAPD_FROM_CURRENT:-false}")'
+            # Download and use an custom image from this url
+            CUSTOM_IMAGE_URL: '$(HOST: echo "${SPREAD_CUSTOM_IMAGE_URL:-}")'
             # Directory where the images and test assets are stored
             WORK_DIR: '/tmp/work-dir'
         manual: true
@@ -979,21 +986,23 @@ suites:
             # Use cloud init to make initial system configuration instead of user assertion
             USE_CLOUD_INIT: '$(HOST: echo "${SPREAD_USE_CLOUD_INIT:-true}")'
             # Enable kvm in the qemu command line
-            ENABLE_KVM: '$(HOST: echo "${SPREAD_ENABLE_KVM:-true}")'
+            ENABLE_KVM: '$(HOST: echo "${SPREAD_ENABLE_KVM:-false}")'
             # Enable secure boot in the nested vm in case it is supported
             ENABLE_TPM: '$(HOST: echo "${SPREAD_ENABLE_TPM:-true}")'
             # Enable secure boot in the nested vm in case it is supported
             ENABLE_SECURE_BOOT: '$(HOST: echo "${SPREAD_ENABLE_SECURE_BOOT:-true}")'
             # Build and use snapd from current branch
             BUILD_SNAPD_FROM_CURRENT: '$(HOST: echo "${SPREAD_BUILD_SNAPD_FROM_CURRENT:-true}")'
+            # Download and use an custom image from this url
+            CUSTOM_IMAGE_URL: '$(HOST: echo "${SPREAD_CUSTOM_IMAGE_URL:-}")'
             # Directory where the images and test assets are stored
             WORK_DIR: '/tmp/work-dir'
         manual: true
-        kill-timeout: 90m
         debug: |
             if [ -f "${WORK_DIR}/serial.log" ]; then
                 cat "${WORK_DIR}/serial.log"
             fi
+        kill-timeout: 40m
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
