@@ -173,6 +173,7 @@ func (o *TrustedAssetsInstallObserver) Observe(op gadget.ContentOperation, affec
 		if err != nil {
 			return false, fmt.Errorf("cannot find bootloader: %v", err)
 		}
+		o.blName = bl.Name()
 		tbl, ok := bl.(bootloader.TrustedAssetsBootloader)
 		if !ok {
 			return true, nil
@@ -182,7 +183,6 @@ func (o *TrustedAssetsInstallObserver) Observe(op gadget.ContentOperation, affec
 			return false, fmt.Errorf("cannot list %q bootloader trusted assets: %v", bl.Name(), err)
 		}
 		o.trustedAssets = trustedAssets
-		o.blName = bl.Name()
 	}
 	if len(o.trustedAssets) == 0 || !strutil.ListContains(o.trustedAssets, relativeTarget) {
 		// not one of the trusted assets
@@ -213,6 +213,7 @@ func (o *TrustedAssetsInstallObserver) isAlreadyTracked(newAsset *trackedAsset) 
 func (o *TrustedAssetsInstallObserver) currentTrustedBootAssetsMap() bootAssetsMap {
 	bm := bootAssetsMap{}
 	for _, tracked := range o.trackedAssets {
+		// we expect to have added exactly one hash per tracked asset
 		bm[tracked.name] = append(bm[tracked.name], tracked.hash)
 	}
 	return bm
