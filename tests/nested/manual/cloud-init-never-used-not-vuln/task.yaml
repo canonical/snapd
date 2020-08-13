@@ -10,6 +10,7 @@ environment:
     BUILD_FROM_CURRENT/refresh: false
     BUILD_FROM_CURRENT/firstboot: true
     USE_CLOUD_INIT: false
+    IMAGE_ID: cloud-init-never
 
 prepare: |
     #shellcheck source=tests/lib/nested.sh

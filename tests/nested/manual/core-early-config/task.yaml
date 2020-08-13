@@ -3,6 +3,9 @@ summary: Test that config defaults are applied early when image is created.
 # core18 specific test (and nested vm is derived from host system)
 systems: [ubuntu-18.04-64]
 
+environment:
+    IMAGE_ID: core-early-config
+
 prepare: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"

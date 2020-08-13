@@ -277,11 +277,13 @@ cleanup_nested_env(){
     rm -rf "$RUNTIME_DIR"/*
     rm -rf "$ASSETS_DIR"/*
     rm -rf "$LOGS_DIR"/*
+    rm -rf "$IMAGES_DIR"/*
 }
 
 get_image_name(){
     local TYPE="$1"
     local SOURCE="${CORE_CHANNEL}"
+    local NAME="${IMAGE_ID:-generic}"
     local VERSION="16"
 
     if is_core_20_nested_system; then
@@ -296,7 +298,7 @@ get_image_name(){
     if [ "$(get_extra_snaps | wc -l)" != "0" ]; then
         SOURCE="custom"
     fi
-    echo "ubuntu-${TYPE}-${VERSION}-${SOURCE}.img"
+    echo "ubuntu-${TYPE}-${VERSION}-${SOURCE}-${NAME}.img"
 }
 
 get_extra_snaps_path(){
