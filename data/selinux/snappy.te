@@ -707,6 +707,10 @@ allow snappy_cli_t snappy_var_lib_t:dir { list_dir_perms };
 allow snappy_cli_t snappy_var_lib_t:file { read_file_perms };
 allow snappy_cli_t snappy_var_lib_t:lnk_file { read_lnk_file_perms };
 
+# allow talking to system and session bus for app tracking
+dbus_system_bus_client(snappy_cli_t);
+dbus_chat_system_bus(snappy_cli_t);
+
 # allow reading passwd
 auth_read_passwd(snappy_cli_t)
 # allow reading sssd files
