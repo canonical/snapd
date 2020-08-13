@@ -67,17 +67,25 @@ else
     exit 1
 fi
 
-# if we don't have a user provided versions and if the version is not
+# if we don't have a user provided version and if the version is not
 # a release (i.e. the git tag does not match the debian changelog
 # version) then we need to construct the version similar to how we do
 # it in a packaging recipe. We take the debian version from the changelog
 # and append the git revno and commit hash. A simpler approach would be
 # to git tag all pre/rc releases.
 if [ -z "$version_from_user" ] && [ "$version_from_git" != "" ] && [ "$version_from_git" != "$version_from_changelog" ]; then
-    revno=$(git describe --always --abbrev=7|cut -d- -f2)
-    commit=$(git describe --always --abbrev=7|cut -d- -f3)
-    v="${version_from_changelog}+git${revno}.${commit}"
-    o="changelog+git"
+    # if the changelog version has "git" in it and we also have a git version
+    # directly, that is a bad changelog version, so fail, otherwise the below
+    # code will produce a duplicated git info
+    if echo "$version_from_changelog" | grep -q git; then
+        echo "Cannot generate version, there is a version from git and the changelog has a git version"
+        exit 1
+    else
+        revno=$(git describe --always --abbrev=7|cut -d- -f2)
+        commit=$(git describe --always --abbrev=7|cut -d- -f3)
+        v="${version_from_changelog}+git${revno}.${commit}"
+        o="changelog+git"
+    fi
 fi
 
 
