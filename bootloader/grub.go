@@ -53,15 +53,12 @@ type grub struct {
 }
 
 // newGrub create a new Grub bootloader object
-func newGrub(rootdir string, opts *Options) RecoveryAwareBootloader {
+func newGrub(rootdir string, opts *Options) Bootloader {
 	g := &grub{rootdir: rootdir}
 	if opts != nil && (opts.Recovery || opts.NoSlashBoot) {
 		g.basedir = "EFI/ubuntu"
 	} else {
 		g.basedir = "boot/grub"
-	}
-	if !osutil.FileExists(g.ConfigFile()) {
-		return nil
 	}
 	if opts != nil {
 		g.uefiRunKernelExtraction = opts.ExtractedRunKernelImage

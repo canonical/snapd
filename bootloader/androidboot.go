@@ -24,7 +24,6 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/bootloader/androidbootenv"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -33,11 +32,8 @@ type androidboot struct {
 }
 
 // newAndroidboot creates a new Androidboot bootloader object
-func newAndroidBoot(rootdir string) Bootloader {
+func newAndroidBoot(rootdir string, _ *Options) Bootloader {
 	a := &androidboot{rootdir: rootdir}
-	if !osutil.FileExists(a.ConfigFile()) {
-		return nil
-	}
 	return a
 }
 

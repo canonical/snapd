@@ -25,7 +25,6 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/bootloader/ubootenv"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -59,16 +58,12 @@ func (u *uboot) processBlOpts(blOpts *Options) {
 }
 
 // newUboot create a new Uboot bootloader object
-func newUboot(rootdir string, blOpts *Options) ExtractedRecoveryKernelImageBootloader {
+func newUboot(rootdir string, blOpts *Options) Bootloader {
 	u := &uboot{
 		rootdir: rootdir,
 	}
 	u.setDefaults()
 	u.processBlOpts(blOpts)
-
-	if !osutil.FileExists(u.envFile()) {
-		return nil
-	}
 
 	return u
 }
