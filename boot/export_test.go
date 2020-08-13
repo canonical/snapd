@@ -49,3 +49,5 @@ var (
 	MarshalModeenvEntryTo        = marshalModeenvEntryTo
 	UnmarshalModeenvValueFromCfg = unmarshalModeenvValueFromCfg
 )
+
+type BootAssetsMap = bootAssetsMap

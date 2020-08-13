@@ -25,6 +25,7 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
@@ -233,6 +234,65 @@ func (ts *AtomicWriteTestSuite) TestAtomicFileCancel(c *C) {
 	c.Check(osutil.FileExists(fn), Equals, true)
 	c.Check(aw.Cancel(), IsNil)
 	c.Check(osutil.FileExists(fn), Equals, false)
+}
+
+func (ts *AtomicWriteTestSuite) TestAtomicFileCommitAs(c *C) {
+	d := c.MkDir()
+	initialTarget := filepath.Join(d, "foo")
+	actualTarget := filepath.Join(d, "bar")
+
+	aw, err := osutil.NewAtomicFile(initialTarget, 0644, 0, osutil.NoChown, osutil.NoChown)
+	c.Assert(err, IsNil)
+	defer aw.Cancel()
+	fn := aw.File.Name()
+	c.Check(osutil.FileExists(fn), Equals, true)
+	c.Check(strings.HasPrefix(fn, initialTarget), Equals, true, Commentf("unexpected temporary file name prefix: %q", fn))
+	_, err = aw.WriteString("this is test data")
+	c.Assert(err, IsNil)
+
+	err = aw.CommitAs(actualTarget)
+	c.Assert(err, IsNil)
+	c.Check(fn, testutil.FileAbsent)
+	c.Check(actualTarget, testutil.FileEquals, "this is test data")
+	c.Check(initialTarget, testutil.FileAbsent)
+
+	// not confused when CommitAs uses the same name as initially
+	sameNameTarget := filepath.Join(d, "baz")
+	aw, err = osutil.NewAtomicFile(sameNameTarget, 0644, 0, osutil.NoChown, osutil.NoChown)
+	c.Assert(err, IsNil)
+	defer aw.Cancel()
+	_, err = aw.WriteString("this is baz")
+	c.Assert(err, IsNil)
+	err = aw.CommitAs(sameNameTarget)
+	c.Assert(err, IsNil)
+	c.Check(sameNameTarget, testutil.FileEquals, "this is baz")
+
+	// overwrites any existing file on CommitAs (same as Commit)
+	overwrittenTarget := filepath.Join(d, "will-overwrite")
+	err = ioutil.WriteFile(overwrittenTarget, []byte("overwritten"), 0644)
+	c.Assert(err, IsNil)
+	aw, err = osutil.NewAtomicFile(filepath.Join(d, "temp-name"), 0644, 0, osutil.NoChown, osutil.NoChown)
+	c.Assert(err, IsNil)
+	defer aw.Cancel()
+	_, err = aw.WriteString("this will overwrite existing file")
+	c.Assert(err, IsNil)
+	err = aw.CommitAs(overwrittenTarget)
+	c.Assert(err, IsNil)
+	c.Check(overwrittenTarget, testutil.FileEquals, "this will overwrite existing file")
+}
+
+func (ts *AtomicWriteTestSuite) TestAtomicFileCommitAsDifferentDirErr(c *C) {
+	d := c.MkDir()
+	initialTarget := filepath.Join(d, "foo")
+	differentDirTarget := filepath.Join(c.MkDir(), "bar")
+
+	aw, err := osutil.NewAtomicFile(initialTarget, 0644, 0, osutil.NoChown, osutil.NoChown)
+	c.Assert(err, IsNil)
+	_, err = aw.WriteString("this is test data")
+	c.Assert(err, IsNil)
+
+	err = aw.CommitAs(differentDirTarget)
+	c.Assert(err, ErrorMatches, `cannot commit as "bar" to a different directory .*`)
 }
 
 type AtomicSymlinkTestSuite struct{}

@@ -99,11 +99,6 @@ func (s *grubTestSuite) makeFakeGrubEnv(c *C) {
 	s.grubEditenvSet(c, "k", "v")
 }
 
-func (s *grubTestSuite) TestNewGrubNoGrubReturnsNil(c *C) {
-	g := bootloader.NewGrub("/something/not/there", nil)
-	c.Assert(g, IsNil)
-}
-
 func (s *grubTestSuite) TestNewGrub(c *C) {
 	s.makeFakeGrubEnv(c)
 
@@ -275,8 +270,9 @@ func (s *grubTestSuite) TestNewGrubWithOptionRecoveryNoEnv(c *C) {
 	s.makeFakeGrubEnv(c)
 
 	// we can't create a recovery grub with that
-	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Recovery: true})
+	g, err := bootloader.Find(s.rootdir, &bootloader.Options{Recovery: true})
 	c.Assert(g, IsNil)
+	c.Assert(err, Equals, bootloader.ErrBootloader)
 }
 
 func (s *grubTestSuite) TestGrubSetRecoverySystemEnv(c *C) {
@@ -1014,4 +1010,45 @@ boot script
 	c.Assert(err, IsNil)
 	// static command line from recovery asset
 	c.Check(args, Equals, `snapd_recovery_mode=recover snapd_recovery_system=20200202 console=ttyS0 console=tty1 panic=-1 foo bar baz=1`)
+}
+
+func (s *grubTestSuite) TestTrustedAssetsNative(c *C) {
+	// native EFI/ubuntu setup
+	s.makeFakeGrubEFINativeEnv(c, []byte("grub.cfg"))
+	opts := &bootloader.Options{NoSlashBoot: true}
+	g := bootloader.NewGrub(s.rootdir, opts)
+	c.Assert(g, NotNil)
+
+	tab, ok := g.(bootloader.TrustedAssetsBootloader)
+	c.Assert(ok, Equals, true)
+
+	ta, err := tab.TrustedAssets()
+	c.Assert(err, IsNil)
+	c.Check(ta, DeepEquals, []string{
+		"EFI/boot/grubx64.efi",
+	})
+
+	// recovery bootloader
+	recoveryOpts := &bootloader.Options{NoSlashBoot: true, Recovery: true}
+	tarb := bootloader.NewGrub(s.rootdir, recoveryOpts).(bootloader.TrustedAssetsBootloader)
+	c.Assert(tarb, NotNil)
+
+	ta, err = tarb.TrustedAssets()
+	c.Assert(err, IsNil)
+	c.Check(ta, DeepEquals, []string{
+		"EFI/boot/bootx64.efi",
+		"EFI/boot/grubx64.efi",
+	})
+
+}
+
+func (s *grubTestSuite) TestTrustedAssetsRoot(c *C) {
+	s.makeFakeGrubEnv(c)
+	g := bootloader.NewGrub(s.rootdir, nil)
+	tab, ok := g.(bootloader.TrustedAssetsBootloader)
+	c.Assert(ok, Equals, true)
+
+	ta, err := tab.TrustedAssets()
+	c.Assert(err, ErrorMatches, "internal error: trusted assets called without native hierarchy")
+	c.Check(ta, IsNil)
 }

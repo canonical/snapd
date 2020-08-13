@@ -32,7 +32,7 @@ import (
 
 // creates a new Androidboot bootloader object
 func NewAndroidBoot(rootdir string) Bootloader {
-	return newAndroidBoot(rootdir)
+	return newAndroidBoot(rootdir, nil)
 }
 
 func MockAndroidBootFile(c *C, rootdir string, mode os.FileMode) {
@@ -44,7 +44,7 @@ func MockAndroidBootFile(c *C, rootdir string, mode os.FileMode) {
 }
 
 func NewUboot(rootdir string, blOpts *Options) ExtractedRecoveryKernelImageBootloader {
-	return newUboot(rootdir, blOpts)
+	return newUboot(rootdir, blOpts).(ExtractedRecoveryKernelImageBootloader)
 }
 
 func MockUbootFiles(c *C, rootdir string, blOpts *Options) {
@@ -62,7 +62,7 @@ func MockUbootFiles(c *C, rootdir string, blOpts *Options) {
 }
 
 func NewGrub(rootdir string, opts *Options) RecoveryAwareBootloader {
-	return newGrub(rootdir, opts)
+	return newGrub(rootdir, opts).(RecoveryAwareBootloader)
 }
 
 func MockGrubFiles(c *C, rootdir string) {
