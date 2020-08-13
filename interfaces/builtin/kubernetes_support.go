@@ -73,11 +73,15 @@ profile systemd_run (attach_disconnected,mediate_deleted) {
   owner @{PROC}/@{pid}/stat r,
   owner @{PROC}/@{pid}/environ r,
   @{PROC}/cmdline r,
-  @{PROC}/sys/kernel/osrelease r,
-  @{PROC}/1/sched r,
 
   # setsockopt()
   capability net_admin,
+
+  # systemd-run's detect_container() looks at several files to determine if it
+  # is running in a container.
+  @{PROC}/sys/kernel/osrelease r,
+  @{PROC}/1/sched r,
+  /run/systemd/container r,
 
   # kubelet calls 'systemd-run --scope true' to determine if systemd is
   # available and usable for calling certain mount commands under transient
