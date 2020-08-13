@@ -50,7 +50,7 @@ prepare: |
 
 restore: |
   if [ -f remove-lxd ]; then
-    for container in my-ubunt my-ubuntu-preseeded; do
+    for container in my-ubuntu my-ubuntu-preseeded; do
       lxc stop "$container" --force || true
       lxc delete "$container" || true
     done

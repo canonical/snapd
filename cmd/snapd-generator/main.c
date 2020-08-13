@@ -110,17 +110,17 @@ int ensure_fusesquashfs_inside_container(const char *normal_dir)
 	}
 
 	DIR *units_dir SC_CLEANUP(sc_cleanup_closedir) = NULL;
-    units_dir = opendir("/etc/systemd/system");
-    if (units_dir == NULL) {
+	units_dir = opendir("/etc/systemd/system");
+	if (units_dir == NULL) {
 		fprintf(stderr,
 			"cannot open /etc/systemd/system directory: %m\n");
-        return 2;
-    }
+		return 2;
+	}
 
 	char fname[PATH_MAX + 1] = { 0 };
 
-    struct dirent *ent;
-    while (ent = readdir(units_dir)) {
+	struct dirent *ent;
+	while (ent = readdir(units_dir)) {
 		if (!(sc_startswith(ent->d_name, "snap-") && sc_endswith(ent->d_name, ".mount"))) {
 			continue;
 		}
@@ -144,7 +144,7 @@ int ensure_fusesquashfs_inside_container(const char *normal_dir)
 		}
 		fprintf(f, "[Mount]\n");
 		fprintf(f, "Type=%s\n", fstype);
-    }
+	}
 	
 	return 0;
 }
