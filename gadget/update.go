@@ -45,7 +45,7 @@ type GadgetData struct {
 	// RootDir is the root directory of gadget snap data
 	// XXX: should be GadgetRootDir
 	RootDir string
-	// RootDir is the root directory of kernel snap data
+	// KernelRootDir is the root directory of kernel snap data
 	KernelRootDir string
 }
 
