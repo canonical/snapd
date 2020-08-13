@@ -42,11 +42,6 @@ type lkTestSuite struct {
 
 var _ = Suite(&lkTestSuite{})
 
-func (s *lkTestSuite) TestNewLkNolkReturnsNil(c *C) {
-	l := bootloader.NewLk("/does/not/exist", nil)
-	c.Assert(l, IsNil)
-}
-
 func (s *lkTestSuite) TestNewLk(c *C) {
 	bootloader.MockLkFiles(c, s.rootdir, nil)
 	l := bootloader.NewLk(s.rootdir, nil)

@@ -28,6 +28,11 @@ execute: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
 
+    if [ "$BUILD_SNAPD_FROM_CURRENT" = "true" ] || [ "$CORE_CHANNEL" == "$CORE_REFRESH_CHANNEL" ]; then
+        echo "This test need to start from beta/candidate/stable channel"
+        exit 0
+    fi
+
     execute_remote "snap info core" | MATCH "tracking: +latest/${CORE_CHANNEL}"
     execute_remote "sudo snap refresh --${CORE_REFRESH_CHANNEL} core" || true
 

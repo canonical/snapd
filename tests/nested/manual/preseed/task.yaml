@@ -27,8 +27,9 @@ prepare: |
   # create a VM and mount a cloud image
   create_nested_classic_vm
   mkdir -p "$IMAGE_MOUNTPOINT"
-  CLOUD_IMAGE=$(get_nested_classic_image_path)
-  mount_ubuntu_image "$CLOUD_IMAGE" "$IMAGE_MOUNTPOINT"
+  IMAGE_DIR="$(get_image_dir)"
+  IMAGE_NAME=$(get_image_name classic)
+  mount_ubuntu_image "$IMAGE_DIR/$IMAGE_NAME" "$IMAGE_MOUNTPOINT"
 
   # on 20.04 snapd from the deb is newer than snapd from seeds;
   # this is not a sensible scenario for preseeding but since
@@ -55,6 +56,7 @@ restore: |
   #shellcheck source=tests/lib/preseed.sh
   . "$TESTSLIB/preseed.sh"
   umount_ubuntu_image "$IMAGE_MOUNTPOINT" || true
+  cleanup_nested_env
 
 execute: |
   #shellcheck source=tests/lib/nested.sh
@@ -63,7 +65,7 @@ execute: |
   . "$TESTSLIB/preseed.sh"
 
   echo "Running pre-seeding"
-  /usr/lib/snapd/snap-preseed "$IMAGE_MOUNTPOINT"
+  /usr/lib/snapd/snap-preseed "$IMAGE_MOUNTPOINT" | MATCH "using snapd binary: /tmp/snapd-preseed/usr/lib/snapd/snapd"
 
   # mark-preseeded task is where snap-preseed stopped, therefore it's in Doing.
   snap debug state "$IMAGE_MOUNTPOINT"/var/lib/snapd/state.json --change=1 | MATCH "Doing .+ mark-preseeded +Mark system pre-seeded"
