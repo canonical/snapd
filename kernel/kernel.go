@@ -47,11 +47,13 @@ func InfoFromKernelYaml(kernelYaml []byte) (*Info, error) {
 		return nil, fmt.Errorf("cannot parse kernel metadata: %v", err)
 	}
 
+	// XXX: validate that the assets are actually there
+
 	return &ki, nil
 }
 
 // ReadInfo reads the kernel specific metadata from meta/kernel.yaml
-// in the snap root directory.
+// in the snap root directory if the file exists.
 func ReadInfo(kernelSnapRootDir string) (*Info, error) {
 	p := filepath.Join(kernelSnapRootDir, "meta", "kernel.yaml")
 	content, err := ioutil.ReadFile(p)
