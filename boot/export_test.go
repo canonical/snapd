@@ -40,3 +40,14 @@ type Trivial = trivial
 func (m *Modeenv) WasRead() bool {
 	return m.read
 }
+
+func (m *Modeenv) DeepEqual(m2 *Modeenv) bool {
+	return m.deepEqual(m2)
+}
+
+var (
+	MarshalModeenvEntryTo        = marshalModeenvEntryTo
+	UnmarshalModeenvValueFromCfg = unmarshalModeenvValueFromCfg
+)
+
+type BootAssetsMap = bootAssetsMap

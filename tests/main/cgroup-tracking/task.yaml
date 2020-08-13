@@ -28,6 +28,11 @@ restore: |
         systemctl --user stop dbus.service || true
     fi
 
+debug: |
+    cat /proc/self/cgroup
+    systemctl --version || true
+    cat /proc/cmdline
+
 execute: |
     # TODO: add a variant that uses a service
     if [ "$USER" = test ] && "$TESTSTOOLS"/version-compare --strict "$(systemctl --version | head -n 1 | cut -d ' ' -f 2)" -lt 238; then
@@ -65,18 +70,18 @@ execute: |
     # - hybrid cgroup system, like Ubuntu 18.04
     # - pure cgroup v1 system, like Ubuntu 16.04
     echo "Find the path and id of the cgroup snapd uses for tracking."
-    if grep -q -F "0::" < /proc/self/cgroup; then
-        # Hybrid or pure v2 mode available.
-        if [ "$(stat -f --print=%T /sys/fs/cgroup)" = "cgroup2fs" ]; then
-            base_cg_path=/sys/fs/cgroup
-        else
-            base_cg_path=/sys/fs/cgroup/unified
-        fi
+    if [ "$(stat -f --print=%T /sys/fs/cgroup)" = "cgroup2fs" ]; then
+        base_cg_path=/sys/fs/cgroup
         base_cg_id=0
-    else
-        # Only name=systemd available
+    elif [ "$(stat -f --print=%T /sys/fs/cgroup/unified)" = "cgroup2fs" ]; then
+        base_cg_path=/sys/fs/cgroup/unified
+        base_cg_id=0
+    elif [ "$(stat -f --print=%T /sys/fs/cgroup/systemd)" = "cgroupfs" ]; then
         base_cg_path=/sys/fs/cgroup/systemd
         base_cg_id="$(grep -F 'name=systemd' < /proc/self/cgroup | cut -d : -f 1)"
+    else
+        echo "cannot find any tracking cgroup"
+        exit 1
     fi
 
     echo "Sanity check, base directory of selected cgroup exists."

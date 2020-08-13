@@ -542,11 +542,12 @@ start_nested_core_vm_unit(){
     # Now qemu parameters are defined
 
     # use only 2G of RAM for qemu-nested
+    # the caller can override PARAM_MEM
     if [ "$SPREAD_BACKEND" = "google-nested" ]; then
-        PARAM_MEM="-m 4096"
+        PARAM_MEM="${PARAM_MEM:--m 4096}"
         PARAM_SMP="-smp 2"
     elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
-        PARAM_MEM="-m 2048"
+        PARAM_MEM="${PARAM_MEM:--m 2048}"
         PARAM_SMP="-smp 1"
     else
         echo "unknown spread backend $SPREAD_BACKEND"
@@ -601,11 +602,13 @@ start_nested_core_vm_unit(){
         PARAM_ASSERTIONS="-drive if=none,id=stick,format=raw,file=$ASSETS_DIR/assertions.disk,cache=none,format=raw -device nec-usb-xhci,id=xhci -device usb-storage,bus=xhci.0,removable=true,drive=stick"
     fi
     if is_core_20_nested_system; then
+        # use a bundle EFI bios by default
+        PARAM_BIOS="-bios /usr/share/ovmf/OVMF.fd"
         OVMF_CODE="secboot"
         OVMF_VARS="ms"
         # In this case the kernel.efi is unsigned and signed with snaleoil certs
         if [ "$BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
-            OVMF_VARS="snakeoil"            
+            OVMF_VARS="snakeoil"
         fi
 
         if [ "$ENABLE_SECURE_BOOT" = "true" ]; then
@@ -653,11 +656,13 @@ start_nested_core_vm_unit(){
 }
 
 get_current_image(){
-    echo "$RUNTIME_DIR/ubuntu-core-current.img"
+    IMAGE_DIR="$(get_image_dir)"
+    echo "$IMAGE_DIR/ubuntu-core-current.img"
 }
 
 start_nested_core_vm(){
     local CURRENT_IMAGE
+    CURRENT_IMAGE="$(get_current_image)"
     CURRENT_IMAGE="$(get_current_image)"
 
     # In case the current image already exists, it needs to be reused and in that
@@ -740,7 +745,7 @@ start_nested_classic_vm(){
 
     PARAM_IMAGE="-drive file=$IMAGES_DIR/$IMAGE_NAME,if=virtio"
     PARAM_SEED="-drive file=$ASSETS_DIR/seed.img,if=virtio"
-    PARAM_SERIAL="-serial file:${LOGS_DIR}/serial-log.txt"
+    PARAM_SERIAL="-serial file:$LOGS_DIR/serial.log"
     PARAM_BIOS=""
     PARAM_TPM=""
 
@@ -810,4 +815,12 @@ get_nested_core_revision_for_channel(){
 
 get_nested_core_revision_installed(){
     execute_remote "snap info core" | awk "/installed: / {print(\$3)}" | sed -e 's/(\(.*\))/\1/'
+}
+
+fetch_spread() {
+    mkdir -p "$WORK_DIR"
+    curl https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz | tar -xzv -C "$WORK_DIR"
+    # make sure spread really exists
+    test -x "$WORK_DIR/spread"
+    echo "$WORK_DIR/spread"
 }
