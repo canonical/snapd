@@ -196,7 +196,7 @@ func LayoutVolumePartially(volume *Volume, constraints LayoutConstraints) (*Part
 func resolveOne(gadgetRootDir, kernelRootDir string, kernelInfo *kernel.Info, pathOrRef string) (string, error) {
 	// content may refer to "$kernel:<name>/<content>"
 	if strings.HasPrefix(pathOrRef, "$kernel:") {
-		kernelRef := strings.SplitN(pathOrRef, ":", 2)[1]
+		kernelRef := pathOrRef[len("$kernel:"):]
 		l := strings.SplitN(kernelRef, "/", 2)
 		wantedAsset := l[0]
 		wantedContent := l[1]
