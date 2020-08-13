@@ -20,7 +20,6 @@
 package boot_test
 
 import (
-	"crypto"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -29,8 +28,11 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -90,8 +92,6 @@ func (s *assetsSuite) TestAssetsCacheAddDrop(c *C) {
 
 	// same source, data (new hash), existing asset name
 	newData := []byte("new foobar")
-	newH := crypto.SHA256.New()
-	newH.Write(newData)
 	newHash := "5aa87615f6613a37d63c9a29746ef57457286c37148a4ae78493b0face5976c1fea940a19486e6bef65d43aec6b8f5a2"
 	err = ioutil.WriteFile(filepath.Join(d, "foobar"), newData, 0644)
 	c.Assert(err, IsNil)
@@ -200,9 +200,18 @@ func (s *assetsSuite) TestInstallObserverNew(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *assetsSuite) TestInstallObserverObserveSystemBoot(c *C) {
+var (
+	mockRunBootStruct = &gadget.LaidOutStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Role: gadget.SystemBoot,
+		},
+	}
+)
+
+func (s *assetsSuite) TestInstallObserverObserveSystemBootRealGrub(c *C) {
 	d := c.MkDir()
 
+	// mock a bootloader that uses trusted assets
 	err := ioutil.WriteFile(filepath.Join(d, "grub.conf"), nil, 0644)
 	c.Assert(err, IsNil)
 
@@ -222,23 +231,18 @@ func (s *assetsSuite) TestInstallObserverObserveSystemBoot(c *C) {
 	err = ioutil.WriteFile(filepath.Join(d, "other-foobar"), otherData, 0644)
 	c.Assert(err, IsNil)
 
-	runBootStruct := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
-			Role: gadget.SystemBoot,
-		},
-	}
 	// only grubx64.efi gets installed to system-boot
-	_, err = obs.Observe(gadget.ContentWrite, runBootStruct, boot.InitramfsUbuntuBootDir,
+	_, err = obs.Observe(gadget.ContentWrite, mockRunBootStruct, boot.InitramfsUbuntuBootDir,
 		filepath.Join(d, "foobar"), "EFI/boot/grubx64.efi")
 	c.Assert(err, IsNil)
 	// Observe is called when populating content, but one can freely specify
 	// overlapping content entries, so a same file may be observed more than
 	// once
-	_, err = obs.Observe(gadget.ContentWrite, runBootStruct, boot.InitramfsUbuntuBootDir,
+	_, err = obs.Observe(gadget.ContentWrite, mockRunBootStruct, boot.InitramfsUbuntuBootDir,
 		filepath.Join(d, "foobar"), "EFI/boot/grubx64.efi")
 	c.Assert(err, IsNil)
 	// try with one more file, which is not a trusted asset of a run mode, so it is ignored
-	_, err = obs.Observe(gadget.ContentWrite, runBootStruct, boot.InitramfsUbuntuBootDir,
+	_, err = obs.Observe(gadget.ContentWrite, mockRunBootStruct, boot.InitramfsUbuntuBootDir,
 		filepath.Join(d, "foobar"), "EFI/boot/bootx64.efi")
 	c.Assert(err, IsNil)
 	// a single file in cache
@@ -267,9 +271,117 @@ func (s *assetsSuite) TestInstallObserverObserveSystemBoot(c *C) {
 	})
 }
 
+func (s *assetsSuite) TestInstallObserverObserveSystemBootMocked(c *C) {
+	d := c.MkDir()
+
+	tab := bootloadertest.Mock("trusted-assets", "").WithTrustedAssets()
+	// MockBootloader does not implement trusted assets
+	bootloader.Force(tab)
+	defer bootloader.Force(nil)
+	tab.TrustedAssetsList = []string{
+		"asset",
+		"nested/other-asset",
+	}
+
+	// we get an observer for UC20
+	uc20Model := makeMockUC20Model()
+	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d)
+	c.Assert(obs, NotNil)
+	c.Assert(err, IsNil)
+
+	data := []byte("foobar")
+	// SHA3-384
+	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
+	err = ioutil.WriteFile(filepath.Join(d, "foobar"), data, 0644)
+	c.Assert(err, IsNil)
+
+	_, err = obs.Observe(gadget.ContentWrite, mockRunBootStruct, boot.InitramfsUbuntuBootDir,
+		filepath.Join(d, "foobar"), "asset")
+	c.Assert(err, IsNil)
+	// observe same asset again
+	_, err = obs.Observe(gadget.ContentWrite, mockRunBootStruct, boot.InitramfsUbuntuBootDir,
+		filepath.Join(d, "foobar"), "asset")
+	c.Assert(err, IsNil)
+	// different one
+	_, err = obs.Observe(gadget.ContentWrite, mockRunBootStruct, boot.InitramfsUbuntuBootDir,
+		filepath.Join(d, "foobar"), "nested/other-asset")
+	c.Assert(err, IsNil)
+	// a non trusted asset
+	_, err = obs.Observe(gadget.ContentWrite, mockRunBootStruct, boot.InitramfsUbuntuBootDir,
+		filepath.Join(d, "foobar"), "non-trusted")
+	c.Assert(err, IsNil)
+	// a single file in cache
+	checkContentGlob(c, filepath.Join(dirs.SnapBootAssetsDir, "trusted-assets", "*"), []string{
+		filepath.Join(dirs.SnapBootAssetsDir, "trusted-assets", fmt.Sprintf("asset-%s", dataHash)),
+		filepath.Join(dirs.SnapBootAssetsDir, "trusted-assets", fmt.Sprintf("other-asset-%s", dataHash)),
+	})
+	// the list of trusted assets was asked for just once
+	c.Check(tab.TrustedAssetsCalls, Equals, 1)
+	// let's see what the observer has tracked
+	tracked := obs.CurrentTrustedBootAssetsMap()
+	c.Check(tracked, DeepEquals, boot.BootAssetsMap{
+		"asset":       []string{dataHash},
+		"other-asset": []string{dataHash},
+	})
+}
+
+func (s *assetsSuite) TestInstallObserverNonTrustedBootloader(c *C) {
+	d := c.MkDir()
+
+	// MockBootloader does not implement trusted assets
+	bootloader.Force(bootloadertest.Mock("mock", ""))
+	defer bootloader.Force(nil)
+
+	// we get an observer for UC20
+	uc20Model := makeMockUC20Model()
+	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d)
+	c.Assert(obs, NotNil)
+	c.Assert(err, IsNil)
+
+	err = ioutil.WriteFile(filepath.Join(d, "foobar"), []byte("foobar"), 0644)
+	c.Assert(err, IsNil)
+	// bootloder is found, but ignored because it does not support trusted assets
+	_, err = obs.Observe(gadget.ContentWrite, mockRunBootStruct, boot.InitramfsUbuntuBootDir,
+		filepath.Join(d, "foobar"), "asset")
+	c.Assert(err, IsNil)
+	c.Check(osutil.IsDirectory(dirs.SnapBootAssetsDir), Equals, false,
+		Commentf("%q exists while it should not", dirs.SnapBootAssetsDir))
+}
+
+func (s *assetsSuite) TestInstallObserverTrustedButNoAssets(c *C) {
+	d := c.MkDir()
+
+	tab := bootloadertest.Mock("trusted-assets", "").WithTrustedAssets()
+	// MockBootloader does not implement trusted assets
+	bootloader.Force(tab)
+	defer bootloader.Force(nil)
+
+	// we get an observer for UC20
+	uc20Model := makeMockUC20Model()
+	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d)
+	c.Assert(obs, NotNil)
+	c.Assert(err, IsNil)
+
+	err = ioutil.WriteFile(filepath.Join(d, "foobar"), []byte("foobar"), 0644)
+	c.Assert(err, IsNil)
+	// bootloder is found, but ignored because it does not support trusted assets
+	_, err = obs.Observe(gadget.ContentWrite, mockRunBootStruct, boot.InitramfsUbuntuBootDir,
+		filepath.Join(d, "foobar"), "asset")
+	c.Assert(err, IsNil)
+	_, err = obs.Observe(gadget.ContentWrite, mockRunBootStruct, boot.InitramfsUbuntuBootDir,
+		filepath.Join(d, "foobar"), "other-asset")
+	c.Assert(err, IsNil)
+	// the list of trusted assets was asked for just once
+	c.Check(tab.TrustedAssetsCalls, Equals, 1)
+}
+
 func (s *assetsSuite) TestInstallObserverObserveErr(c *C) {
 	d := c.MkDir()
 
+	tab := bootloadertest.Mock("trusted-assets", "").WithTrustedAssets()
+	tab.TrustedAssetsErr = fmt.Errorf("mocked trusted assets error")
+
+	bootloader.ForceError(fmt.Errorf("mocked bootloader error"))
 	// we get an observer for UC20
 	uc20Model := makeMockUC20Model()
 	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d)
@@ -279,27 +391,17 @@ func (s *assetsSuite) TestInstallObserverObserveErr(c *C) {
 	err = ioutil.WriteFile(filepath.Join(d, "foobar"), []byte("data"), 0644)
 	c.Assert(err, IsNil)
 
-	runBootStruct := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
-			Role: gadget.SystemBoot,
-		},
-	}
 	// there is no known bootloader in gadget
-	_, err = obs.Observe(gadget.ContentWrite, runBootStruct, boot.InitramfsUbuntuBootDir,
-		filepath.Join(d, "foobar"), "EFI/boot/grubx64.efi")
-	c.Assert(err, ErrorMatches, "cannot find bootloader: cannot determine bootloader")
+	_, err = obs.Observe(gadget.ContentWrite, mockRunBootStruct, boot.InitramfsUbuntuBootDir,
+		filepath.Join(d, "foobar"), "asset")
+	c.Assert(err, ErrorMatches, "cannot find bootloader: mocked bootloader error")
 
-	// mock the bootloader
-	err = ioutil.WriteFile(filepath.Join(d, "grub.conf"), nil, 0644)
-	c.Assert(err, IsNil)
-	// but break the cache
-	err = os.MkdirAll(dirs.SnapBootAssetsDir, 0755)
-	c.Assert(err, IsNil)
-	err = os.Chmod(dirs.SnapBootAssetsDir, 0000)
-	c.Assert(err, IsNil)
-	defer os.Chmod(dirs.SnapBootAssetsDir, 0755)
+	// force a bootloader now
+	bootloader.ForceError(nil)
+	bootloader.Force(tab)
+	defer bootloader.Force(nil)
 
-	_, err = obs.Observe(gadget.ContentWrite, runBootStruct, boot.InitramfsUbuntuBootDir,
-		filepath.Join(d, "foobar"), "EFI/boot/grubx64.efi")
-	c.Assert(err, ErrorMatches, "cannot create cache directory: mkdir .*/var/lib/snapd/boot-assets/grub: permission denied")
+	_, err = obs.Observe(gadget.ContentWrite, mockRunBootStruct, boot.InitramfsUbuntuBootDir,
+		filepath.Join(d, "foobar"), "asset")
+	c.Assert(err, ErrorMatches, `cannot list "trusted-assets" bootloader trusted assets: mocked trusted assets error`)
 }
