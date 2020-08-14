@@ -968,7 +968,7 @@ func (app *AppInfo) SecurityTag() string {
 // DesktopFile returns the path to the installed optional desktop file for the
 // application.
 func (app *AppInfo) DesktopFile() string {
-	return filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s_%s.desktop", app.Snap.InstanceName(), app.Name))
+	return filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s_%s.desktop", app.Snap.DesktopPrefix(), app.Name))
 }
 
 // WrapperPath returns the path to wrapper invoking the app binary.

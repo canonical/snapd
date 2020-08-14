@@ -1105,12 +1105,14 @@ func (s *infoSuite) TestAppDesktopFile(c *C) {
 	c.Check(snapInfo.InstanceName(), Equals, "sample")
 	c.Check(snapInfo.Apps["app"].DesktopFile(), Matches, `.*/var/lib/snapd/desktop/applications/sample_app.desktop`)
 	c.Check(snapInfo.Apps["sample"].DesktopFile(), Matches, `.*/var/lib/snapd/desktop/applications/sample_sample.desktop`)
+	c.Check(snapInfo.DesktopPrefix(), Equals, "sample")
 
 	// snap with instance key
 	snapInfo.InstanceKey = "instance"
 	c.Check(snapInfo.InstanceName(), Equals, "sample_instance")
-	c.Check(snapInfo.Apps["app"].DesktopFile(), Matches, `.*/var/lib/snapd/desktop/applications/sample_instance_app.desktop`)
-	c.Check(snapInfo.Apps["sample"].DesktopFile(), Matches, `.*/var/lib/snapd/desktop/applications/sample_instance_sample.desktop`)
+	c.Check(snapInfo.Apps["app"].DesktopFile(), Matches, `.*/var/lib/snapd/desktop/applications/sample\+instance_app.desktop`)
+	c.Check(snapInfo.Apps["sample"].DesktopFile(), Matches, `.*/var/lib/snapd/desktop/applications/sample\+instance_sample.desktop`)
+	c.Check(snapInfo.DesktopPrefix(), Equals, "sample+instance")
 }
 
 const coreSnapYaml = `name: core
