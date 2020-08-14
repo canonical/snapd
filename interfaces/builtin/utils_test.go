@@ -155,6 +155,45 @@ func (s *utilsSuite) TestAareExclusivePatterns(c *C) {
 	})
 }
 
+func (s *utilsSuite) TestAareExclusivePatternsInvalid(c *C) {
+	bad := []string{
+		// man apparmor.d: AARE = ?*[]{}^
+		"bad{",
+		"ba}d",
+		"b[ad",
+		"]bad",
+		"b^d",
+		"b*d",
+		"b?d",
+		// various other unexpected
+		"/bad",
+		"bad,",
+		".bad.",
+		"ba'd",
+		"b\"ad",
+		"=bad",
+		"b\\0d",
+		"b\ad",
+		"(bad",
+		"bad)",
+		"b<ad",
+		"b>ad",
+		"bad!",
+		"b#d",
+		":bad",
+		"b@d",
+		"@{BAD}",
+		"b**d",
+		"bad -> evil",
+		"b a d",
+	}
+
+	for _, s := range bad {
+		res := builtin.AareExclusivePatterns(s)
+		c.Check(res, DeepEquals, []string{})
+	}
+}
+
 func (s *utilsSuite) TestGetDesktopFileRules(c *C) {
 	res := builtin.GetDesktopFileRules("foo-bar")
 	c.Check(res, DeepEquals, []string{
