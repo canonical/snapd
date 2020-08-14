@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"regexp"
 
 	"gopkg.in/yaml.v2"
 
@@ -39,6 +40,9 @@ type Info struct {
 	Assets map[string]*Asset `yaml:"assets,omitempty"`
 }
 
+// XXX: should we be more liberal? start conservative
+var validAssetName = regexp.MustCompile("^[a-zA-Z0-9]+$")
+
 // InfoFromKernelYaml reads the provided kernel metadata.
 func InfoFromKernelYaml(kernelYaml []byte) (*Info, error) {
 	var ki Info
@@ -47,7 +51,11 @@ func InfoFromKernelYaml(kernelYaml []byte) (*Info, error) {
 		return nil, fmt.Errorf("cannot parse kernel metadata: %v", err)
 	}
 
-	// XXX: validate that the assets are actually there
+	for name := range ki.Assets {
+		if !validAssetName.MatchString(name) {
+			return nil, fmt.Errorf("invalid asset name %q, please use only alphanumeric charackters", name)
+		}
+	}
 
 	return &ki, nil
 }
