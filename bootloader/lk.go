@@ -28,7 +28,6 @@ import (
 
 	"github.com/snapcore/snapd/bootloader/lkenv"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -41,17 +40,15 @@ type lk struct {
 func newLk(rootdir string, opts *Options) Bootloader {
 	l := &lk{rootdir: rootdir}
 
-	// XXX: in the long run we want this to go away, we probably add
-	//      something like "boot.PrepareImage()" and add an (optional)
-	//      method "PrepareImage" to the bootloader interface that is
-	//      used to setup a bootloader from prepare-image if things
-	//      are very different from runtime vs image-building mode.
-	//
-	// determine mode we are in, runtime or image build
-	l.inRuntimeMode = !opts.PrepareImageTime
-
-	if !osutil.FileExists(l.envFile()) {
-		return nil
+	if opts != nil {
+		// XXX: in the long run we want this to go away, we probably add
+		//      something like "boot.PrepareImage()" and add an (optional)
+		//      method "PrepareImage" to the bootloader interface that is
+		//      used to setup a bootloader from prepare-image if things
+		//      are very different from runtime vs image-building mode.
+		//
+		// determine mode we are in, runtime or image build
+		l.inRuntimeMode = !opts.PrepareImageTime
 	}
 
 	return l

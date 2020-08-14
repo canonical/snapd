@@ -34,19 +34,23 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
+type bootAssetsMap map[string][]string
+
 // Modeenv is a file on UC20 that provides additional information
 // about the current mode (run,recover,install)
 type Modeenv struct {
-	Mode                   string
-	RecoverySystem         string
-	CurrentRecoverySystems []string
-	Base                   string
-	TryBase                string
-	BaseStatus             string
-	CurrentKernels         []string
-	Model                  string
-	BrandID                string
-	Grade                  string
+	Mode                             string
+	RecoverySystem                   string
+	CurrentRecoverySystems           []string
+	Base                             string
+	TryBase                          string
+	BaseStatus                       string
+	CurrentKernels                   []string
+	Model                            string
+	BrandID                          string
+	Grade                            string
+	CurrentTrustedBootAssets         bootAssetsMap
+	CurrentTrustedRecoveryBootAssets bootAssetsMap
 
 	// read is set to true when a modenv was read successfully
 	read bool
@@ -95,6 +99,8 @@ func ReadModeenv(rootdir string) (*Modeenv, error) {
 	m.Model = bm.model
 	// expect the caller to validate the grade
 	unmarshalModeenvValueFromCfg(cfg, "grade", &m.Grade)
+	unmarshalModeenvValueFromCfg(cfg, "current_trusted_boot_assets", &m.CurrentTrustedBootAssets)
+	unmarshalModeenvValueFromCfg(cfg, "current_trusted_recovery_boot_assets", &m.CurrentTrustedRecoveryBootAssets)
 
 	return &m, nil
 }
@@ -173,6 +179,8 @@ func (m *Modeenv) WriteTo(rootdir string) error {
 		marshalModeenvEntryTo(buf, "model", &modeenvModel{brandID: m.BrandID, model: m.Model})
 	}
 	marshalModeenvEntryTo(buf, "grade", m.Grade)
+	marshalModeenvEntryTo(buf, "current_trusted_boot_assets", m.CurrentTrustedBootAssets)
+	marshalModeenvEntryTo(buf, "current_trusted_recovery_boot_assets", m.CurrentTrustedRecoveryBootAssets)
 
 	if err := osutil.AtomicWriteFile(modeenvPath, buf.Bytes(), 0644, 0); err != nil {
 		return err
@@ -216,6 +224,10 @@ func marshalModeenvEntryTo(out io.Writer, key string, what interface{}) error {
 				return fmt.Errorf("cannot marshal value for key %q as JSON: %v", key, err)
 			}
 			asString = string(marshalled)
+			if asString == "null" {
+				//  no need to keep nulls in the modeenv
+				return nil
+			}
 		} else {
 			return fmt.Errorf("internal error: cannot marshal unsupported type %T value %v for key %q", what, what, key)
 		}
@@ -296,5 +308,19 @@ func (m *modeenvModel) UnmarshalModeenvValue(brandSlashModel string) error {
 			m.model = bsmSplit[1]
 		}
 	}
+	return nil
+}
+
+func (b bootAssetsMap) MarshalJSON() ([]byte, error) {
+	asMap := map[string][]string(b)
+	return json.Marshal(asMap)
+}
+
+func (b *bootAssetsMap) UnmarshalJSON(data []byte) error {
+	var asMap map[string][]string
+	if err := json.Unmarshal(data, &asMap); err != nil {
+		return err
+	}
+	*b = bootAssetsMap(asMap)
 	return nil
 }

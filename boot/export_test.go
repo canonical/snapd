@@ -48,4 +48,13 @@ func (m *Modeenv) DeepEqual(m2 *Modeenv) bool {
 var (
 	MarshalModeenvEntryTo        = marshalModeenvEntryTo
 	UnmarshalModeenvValueFromCfg = unmarshalModeenvValueFromCfg
+
+	NewTrustedAssetsCache = newTrustedAssetsCache
 )
+
+type BootAssetsMap = bootAssetsMap
+type TrackedAsset = trackedAsset
+
+func (o *TrustedAssetsInstallObserver) CurrentTrustedBootAssetsMap() BootAssetsMap {
+	return o.currentTrustedBootAssetsMap()
+}
