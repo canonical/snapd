@@ -182,8 +182,7 @@ int ensure_fusesquashfs_inside_container(const char *normal_dir)
 int main(int argc, char **argv)
 {
 	if (argc != 4) {
-		printf("usage: snapd-workaround-generator "
-		       "normal-dir early-dir late-dir\n");
+		printf("usage: snapd-generator normal-dir early-dir late-dir\n");
 		return 1;
 	}
 	const char *normal_dir = argv[1];
