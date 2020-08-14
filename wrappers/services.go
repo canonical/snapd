@@ -226,6 +226,7 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 	systemServices := make([]string, 0, len(apps))
 	userServices := make([]string, 0, len(apps))
 
+	// gather all non-sockets and non-timers services to enable first
 	for _, app := range apps {
 		// they're *supposed* to be all services, but checking doesn't hurt
 		if !app.IsService() {
@@ -254,6 +255,7 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 		return err
 	}
 
+	// handle sockets and timers
 	for _, app := range apps {
 		// they're *supposed* to be all services, but checking doesn't hurt
 		if !app.IsService() {
@@ -376,6 +378,7 @@ type AddSnapServicesOptions struct {
 }
 
 // AddSnapServices adds service units for the applications from the snap which are services.
+// Services do not get enabled nor started.
 func AddSnapServices(s *snap.Info, opts *AddSnapServicesOptions, inter interacter) (err error) {
 	if s.Type() == snap.TypeSnapd {
 		return fmt.Errorf("internal error: adding explicit services for snapd snap is unexpected")
