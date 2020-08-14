@@ -148,9 +148,7 @@ func aareExclusivePatterns(orig string) []string {
 
 	prefix := ""
 	for i, letter := range orig {
-		if i > 0 {
-			prefix = orig[:i]
-		}
+		prefix = orig[:i]
 		s[i] = fmt.Sprintf("%s[^%c]*", prefix, letter)
 	}
 	return s
