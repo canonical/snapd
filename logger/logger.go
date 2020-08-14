@@ -23,11 +23,14 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // A Logger is a fairly minimal logging tool.
@@ -121,11 +124,13 @@ func SetLogger(l Logger) {
 
 type Log struct {
 	log *log.Logger
+
+	debug bool
 }
 
 // Debug only prints if SNAPD_DEBUG is set
 func (l Log) Debug(msg string) {
-	if osutil.GetenvBool("SNAPD_DEBUG") {
+	if l.debug || osutil.GetenvBool("SNAPD_DEBUG") {
 		l.log.Output(3, "DEBUG: "+msg)
 	}
 }
@@ -137,7 +142,11 @@ func (l Log) Notice(msg string) {
 
 // New creates a log.Logger using the given io.Writer and flag.
 func New(w io.Writer, flag int) (Logger, error) {
-	return Log{log: log.New(w, "", flag)}, nil
+	logger := Log{
+		log:   log.New(w, "", flag),
+		debug: debugEnabledOnKernelCmdline(),
+	}
+	return logger, nil
 }
 
 // SimpleSetup creates the default (console) logger
@@ -152,4 +161,15 @@ func SimpleSetup() error {
 		SetLogger(l)
 	}
 	return err
+}
+
+var procCmdline = "/proc/cmdline"
+
+func debugEnabledOnKernelCmdline() bool {
+	buf, err := ioutil.ReadFile(procCmdline)
+	if err != nil {
+		return false
+	}
+	l := strings.Split(string(buf), " ")
+	return strutil.ListContains(l, "snapd.debug=1")
 }
