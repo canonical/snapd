@@ -135,12 +135,13 @@ func verifySlotPathAttribute(slotRef *interfaces.SlotRef, attrs interfaces.Attre
 //   "fo[^o]*",
 // }
 func aareExclusivePatterns(orig string) []string {
-	// This function currently is only intended to be used with snap
-	// instance names (which avoids having to worry about aare special
-	// characters, etc) so perform ValidateInstanceName() and return an
-	// empty list if invalid. If this function is modified for other input,
-	// aare, quoting, etc will have to be considered.
-	if err := snap.ValidateInstanceName(orig); err != nil {
+	// This function currently is only intended to be used with desktop
+	// prefixes as calculated by info.DesktopPrefix (the snap name and
+	// instance name, if present). This avoids having to worry about aare
+	// special characters, etc) so perform ValidateDesktopPrefix() and
+	// return an empty list if invalid. If this function is modified for
+	// other input, aare, quoting, etc will have to be considered.
+	if !snap.ValidateDesktopPrefix(orig) {
 		return make([]string, 0)
 	}
 

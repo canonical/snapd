@@ -675,8 +675,8 @@ func (iface *unity7Interface) AppArmorConnectedPlug(spec *apparmor.Specification
 	snippet := strings.Replace(unity7ConnectedPlugAppArmor, old, new, -1)
 
 	old = "###SNAP_DESKTOP_FILE_RULES###"
-	new = strings.Join(getDesktopFileRules(plug.Snap().InstanceName()), "\n")
-	snippet = strings.Replace(snippet, old, new + "\n", -1)
+	new = strings.Join(getDesktopFileRules(plug.Snap().DesktopPrefix()), "\n")
+	snippet = strings.Replace(snippet, old, new+"\n", -1)
 
 	spec.AddSnippet(snippet)
 	return nil
