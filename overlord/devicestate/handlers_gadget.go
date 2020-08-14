@@ -141,7 +141,7 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 	var updateObserver gadget.ContentUpdateObserver
 	observeTrustedBootAssets, err := boot.TrustedAssetsUpdateObserverForModel(model)
 	if err != nil && err != boot.ErrObserverNotApplicable {
-		return err
+		return fmt.Errorf("cannot setup asset update observer: %v", err)
 	}
 	if err == nil {
 		updateObserver = observeTrustedBootAssets
