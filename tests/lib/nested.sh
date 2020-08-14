@@ -707,7 +707,9 @@ start_nested_core_vm(){
 
 compress_image(){
     local IMAGE_NAME=$1
-    xz -k0 "$IMAGES_DIR/$IMAGE_NAME"
+    if [ ! -f "$IMAGES_DIR/$IMAGE_NAME".xz ]; then
+        xz -k0 "$IMAGES_DIR/$IMAGE_NAME"
+    fi
 }
 
 uncompress_image(){

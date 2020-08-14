@@ -9,7 +9,6 @@ systems: [ubuntu-19.10-*, ubuntu-2*]
 
 environment:
   IMAGE_MOUNTPOINT: /mnt/cloudimg
-  IMAGE_ID: preseed
 
 prepare: |
   #shellcheck source=tests/lib/nested.sh

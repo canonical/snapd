@@ -815,7 +815,7 @@ suites:
         environment:
             NESTED_TYPE: "classic"
             # Channel used to create the nested vm
-            CORE_CHANNEL: '$(HOST: echo "${SPREAD_CORE_CHANNEL:-stable}")'
+            CORE_CHANNEL: '$(HOST: echo "${SPREAD_CORE_CHANNEL:-edge}")'
             # Channel used to refresh when testing refresh and revert
             CORE_REFRESH_CHANNEL: '$(HOST: echo "${SPREAD_CORE_REFRESH_CHANNEL:-edge}")'
             # Channel used to update the core/snapd snaps on some tests
@@ -869,7 +869,7 @@ suites:
         environment:
             NESTED_TYPE: "classic"
             # Channel used to create the nested vm
-            CORE_CHANNEL: '$(HOST: echo "${SPREAD_CORE_CHANNEL:-stable}")'
+            CORE_CHANNEL: '$(HOST: echo "${SPREAD_CORE_CHANNEL:-edge}")'
             # Channel used to refresh when testing refresh and revert
             CORE_REFRESH_CHANNEL: '$(HOST: echo "${SPREAD_CORE_REFRESH_CHANNEL:-edge}")'
             # Channel used to update the core/snapd snaps on some tests
@@ -928,7 +928,7 @@ suites:
         environment:
             NESTED_TYPE: "core"
             # Channel used to create the nested vm
-            CORE_CHANNEL: '$(HOST: echo "${SPREAD_CORE_CHANNEL:-stable}")'
+            CORE_CHANNEL: '$(HOST: echo "${SPREAD_CORE_CHANNEL:-edge}")'
             # Channel used to refresh when testing refresh and revert
             CORE_REFRESH_CHANNEL: '$(HOST: echo "${SPREAD_CORE_REFRESH_CHANNEL:-edge}")'
             # Channel used to update the core/snapd snaps on some tests
