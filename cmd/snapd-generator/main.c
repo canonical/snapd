@@ -21,6 +21,7 @@
 #include <sys/stat.h>
 #include <dirent.h>
 #include <errno.h>
+#include <unistd.h>
 
 #include "config.h"
 
@@ -96,6 +97,29 @@ static bool file_exists(const char *path) {
 	return stat(path, &buf) == 0;
 }
 
+static bool executable_exists(const char *name) {
+	char *path = getenv("PATH");
+	if (path == NULL) {
+		return false;
+	}
+	char *path_copy SC_CLEANUP(sc_cleanup_string) = NULL;
+	path_copy = strdup(path);
+	if (path_copy == NULL) {
+		abort();
+	}
+	char *ptr = NULL;
+	char *token = strtok_r(path_copy, ":", &ptr);
+	char fname[PATH_MAX + 1] = { 0 };
+	while (token) {
+		sc_must_snprintf(fname, sizeof fname, "%s/%s", token, name);
+		if (access(fname, X_OK) == 0) {
+			return true;
+		}
+		token = strtok_r(NULL, ":", &ptr);
+	}
+	return false;
+}
+
 int ensure_fusesquashfs_inside_container(const char *normal_dir)
 {
 	// check if we are running inside a container, systemd
@@ -106,9 +130,9 @@ int ensure_fusesquashfs_inside_container(const char *normal_dir)
 	}
 
 	char *fstype = NULL;
-	if (system("which squashfuse > /dev/null") == 0) {
+	if (executable_exists("squashfuse")) {
 		fstype = "fuse.squashfuse";
-	} else if (system("which snapfuse > /dev/null") == 0) {
+	} else if (executable_exists("snapfuse")) {
 		fstype = "fuse.snapfuse";
 	} else {
 		fprintf(stderr,
