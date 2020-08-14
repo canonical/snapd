@@ -303,6 +303,10 @@ get_image_name(){
     echo "ubuntu-${TYPE}-${VERSION}-${SOURCE}-${NAME}.img"
 }
 
+is_generic_image(){
+    test -z "${IMAGE_ID:-}"
+}
+
 get_extra_snaps_path(){
     echo "${PWD}/extra-snaps"
 }
@@ -449,9 +453,6 @@ create_nested_core_vm(){
                 --output "$IMAGES_DIR/$IMAGE_NAME" \
                 "$EXTRA_FUNDAMENTAL" \
                 "$EXTRA_SNAPS"
-
-            # Save a compressed copy of the image
-            compress_image "$IMAGE_NAME"
         fi
     fi
 
@@ -465,6 +466,9 @@ create_nested_core_vm(){
     else
         create_assertions_disk
     fi
+
+    # Save a compressed copy of the image
+    compress_image "$IMAGE_NAME"
 }
 
 configure_cloud_init_nested_core_vm(){
@@ -542,6 +546,10 @@ configure_cloud_init_nested_core_vm_uc20(){
 
 force_stop_nested_vm(){
     systemctl stop nested-vm
+}
+
+force_start_nested_vm(){
+    systemctl start nested-vm
 }
 
 start_nested_core_vm_unit(){
@@ -689,6 +697,7 @@ start_nested_core_vm(){
         # options, so if that env var is set, we will reuse the existing file if it
         # exists
         IMAGE_NAME="$(get_image_name core)"
+        uncompress_image "$IMAGE_NAME"
         mv "$IMAGES_DIR/$IMAGE_NAME" "$CURRENT_IMAGE"
 
         # Start the nested core vm
@@ -697,12 +706,19 @@ start_nested_core_vm(){
         # configure ssh for first time
         prepare_ssh
 
-        # compress the current image
-        compress_image "$(get_current_image_name)"
+        # compress the current image if it a generic image
+        if is_generic_image; then
+            force_stop_nested_vm
+            wait_for_service "$NESTED_VM" inactive
+            compress_image "$(get_current_image_name)"
+            force_start_nested_vm
+            wait_for_service "$NESTED_VM"
+            wait_for_ssh
+        fi
     else
         # Start the nested core vm
         start_nested_core_vm_unit "$CURRENT_IMAGE"
-    fi
+    fi    
 }
 
 compress_image(){
