@@ -658,15 +658,16 @@ func (iface *unity7Interface) StaticInfo() interfaces.StaticInfo {
 }
 
 func (iface *unity7Interface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	// Unity7 will take the desktop filename and convert all '-' (and '.',
-	// but we don't care about that here because the rule above already
-	// does that) to '_'. Since we know that the desktop filename starts
-	// with the snap name, perform this conversion on the snap name.
+	// Unity7 will take the desktop filename and convert all '-' and '+'
+	// (and '.', but we don't care about that here because the rule above
+	// already does that) to '_'. Since we know that the desktop filename
+	// starts with the snap name, perform this conversion on the snap name.
 	//
 	// parallel-installs: UNITY_SNAP_NAME is used in the context of dbus
 	// mediation, this unintentionally opens access to dbus paths of keyed
 	// instances of @{SNAP_NAME} to @{SNAP_NAME} snap
-	new := strings.Replace(plug.Snap().InstanceName(), "-", "_", -1)
+	new := strings.Replace(plug.Snap().DesktopPrefix(), "-", "_", -1)
+	new = strings.Replace(new, "+", "_", -1)
 	old := "###UNITY_SNAP_NAME###"
 	snippet := strings.Replace(unity7ConnectedPlugAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)
