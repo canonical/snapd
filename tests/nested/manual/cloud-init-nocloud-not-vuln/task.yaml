@@ -14,7 +14,7 @@ environment:
     BUILD_FROM_CURRENT/refresh: false
     # this variant ensures that new images with the fix are not vulnerable
     BUILD_FROM_CURRENT/firstboot: true
-    IMAGE_ID: cloud-init-nocloud
+    IMAGE_ID: cloud-init-nocloud-$BUILD_FROM_CURRENT
 
 prepare: |
     #shellcheck source=tests/lib/nested.sh

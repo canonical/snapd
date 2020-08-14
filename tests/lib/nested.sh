@@ -278,7 +278,7 @@ cleanup_nested_env(){
     rm -rf "$ASSETS_DIR"
     rm -rf "$LOGS_DIR"
     rm -rf "$IMAGES_DIR"/*.img
-    rm -rf "$IMAGES_DIR/$(get_current_image).xz"
+    rm -rf "$IMAGES_DIR/$(get_current_image_name).xz"
     prepare_nested_env
 }
 
