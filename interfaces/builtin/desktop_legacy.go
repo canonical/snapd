@@ -274,11 +274,8 @@ type desktopLegacyInterface struct {
 }
 
 func (iface *desktopLegacyInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	snippet := ""
-	for _, r := range getDesktopFileRules(plug.Snap().InstanceName()) {
-		snippet += r + "\n"
-	}
-	spec.AddSnippet(strings.Replace(desktopLegacyConnectedPlugAppArmor, "###SNAP_DESKTOP_FILE_RULES###", snippet, -1))
+	snippet := strings.Join(getDesktopFileRules(plug.Snap().InstanceName()), "\n")
+	spec.AddSnippet(strings.Replace(desktopLegacyConnectedPlugAppArmor, "###SNAP_DESKTOP_FILE_RULES###", snippet + "\n", -1))
 
 	return nil
 }
