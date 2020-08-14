@@ -689,7 +689,7 @@ start_nested_core_vm(){
         # options, so if that env var is set, we will reuse the existing file if it
         # exists
         IMAGE_NAME="$(get_image_name core)"
-        cp "$IMAGES_DIR/$IMAGE_NAME" "$CURRENT_IMAGE"
+        mv "$IMAGES_DIR/$IMAGE_NAME" "$CURRENT_IMAGE"
 
         # Start the nested core vm
         start_nested_core_vm_unit "$CURRENT_IMAGE"
