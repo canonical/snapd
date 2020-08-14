@@ -112,9 +112,8 @@ int ensure_fusesquashfs_inside_container(const char *normal_dir)
 	DIR *units_dir SC_CLEANUP(sc_cleanup_closedir) = NULL;
 	units_dir = opendir("/etc/systemd/system");
 	if (units_dir == NULL) {
-		fprintf(stderr,
-			"cannot open /etc/systemd/system directory: %m\n");
-		return 2;
+		// nothing to do
+		return 0;
 	}
 
 	char fname[PATH_MAX + 1] = { 0 };
@@ -127,10 +126,11 @@ int ensure_fusesquashfs_inside_container(const char *normal_dir)
 		sc_must_snprintf(fname, sizeof fname,
 			"%s/%s.d", normal_dir, ent->d_name);
 		if (mkdir(fname, 0755) != 0) {
-			// generators are run over clean directory, no need to handle EEXIST
-			fprintf(stderr,
-				"cannot create %s directory: %m\n", fname);
-			return 2;
+			if (errno != EEXIST) {
+				fprintf(stderr,
+					"cannot create %s directory: %m\n", fname);
+				return 2;
+			}
 		}
 
 		sc_must_snprintf(fname, sizeof fname,
@@ -140,10 +140,9 @@ int ensure_fusesquashfs_inside_container(const char *normal_dir)
 		f = fopen(fname, "w");
 		if (!f) {
 			fprintf(stderr, "cannot open %s: %m\n", fname);
-			return 1;
+			return 2;
 		}
-		fprintf(f, "[Mount]\n");
-		fprintf(f, "Type=%s\n", fstype);
+		fprintf(f, "[Mount]\nType=%s\n", fstype);
 	}
 	
 	return 0;
