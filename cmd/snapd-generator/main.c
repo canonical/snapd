@@ -103,10 +103,8 @@ static bool executable_exists(const char *name) {
 		return false;
 	}
 	char *path_copy SC_CLEANUP(sc_cleanup_string) = NULL;
-	path_copy = strdup(path);
-	if (path_copy == NULL) {
-		abort();
-	}
+	path_copy = sc_strdup(path);
+
 	char *ptr = NULL;
 	char *token = strtok_r(path_copy, ":", &ptr);
 	char fname[PATH_MAX + 1] = { 0 };
