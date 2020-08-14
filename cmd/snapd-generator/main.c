@@ -91,10 +91,17 @@ int ensure_root_fs_shared(const char *normal_dir)
 	return 0;
 }
 
+static bool file_exists(const char *path) {
+	struct stat buf;
+	return stat(path, &buf) == 0;
+}
+
 int ensure_fusesquashfs_inside_container(const char *normal_dir)
 {
-	// check if we are running inside a container
-	if (system("systemd-detect-virt --container --quiet") != 0) {
+	// check if we are running inside a container, systemd
+	// provides this file all the way back to trusty if run in a
+	// container
+	if (!file_exists("/run/systemd/container")) {
 		return 0;
 	}
 
