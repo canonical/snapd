@@ -94,7 +94,9 @@ int ensure_root_fs_shared(const char *normal_dir)
 
 static bool file_exists(const char *path) {
 	struct stat buf;
-	return stat(path, &buf) == 0;
+	// Not using lstat to automatically resolve symbolic links,
+	// including handling, as an error, dangling symbolic links.
+	return stat(path, &buf) == 0 && (buf.st_mode & S_IFMT) == S_IFREG;
 }
 
 static bool executable_exists(const char *name) {
@@ -127,7 +129,7 @@ int ensure_fusesquashfs_inside_container(const char *normal_dir)
 		return 0;
 	}
 
-	char *fstype = NULL;
+	char *fstype;
 	if (executable_exists("squashfuse")) {
 		fstype = "fuse.squashfuse";
 	} else if (executable_exists("snapfuse")) {
@@ -149,7 +151,12 @@ int ensure_fusesquashfs_inside_container(const char *normal_dir)
 
 	struct dirent *ent;
 	while (ent = readdir(units_dir)) {
-		if (!(sc_startswith(ent->d_name, "snap-") && sc_endswith(ent->d_name, ".mount"))) {
+		// find snap mount units, i.e:
+		// snap-somename.mount or var-lib-snapd-snap-somename.mount
+		if (!sc_endswith(ent->d_name, ".mount")) {
+			continue;
+		}
+		if (!(sc_startswith(ent->d_name, "snap-") || sc_startswith(ent->d_name, "var-lib-snapd-snap-"))) {
 			continue;
 		}
 		sc_must_snprintf(fname, sizeof fname,
