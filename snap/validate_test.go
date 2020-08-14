@@ -1967,3 +1967,25 @@ version: 1.0`
 	errors := ValidateBasesAndProviders(infos)
 	c.Assert(errors, IsNil)
 }
+
+func (s *validateSuite) TestValidateDesktopPrefix(c *C) {
+	// these are extensively tested elsewhere, so just try some common ones
+	for i, tc := range []struct {
+		prefix string
+		exp    bool
+	}{
+		{"good", true},
+		{"also-good", true},
+		{"also-good+instance", true},
+		{"", false},
+		{"+", false},
+		{"@", false},
+		{"good+@", false},
+		{"old-style_instance", false},
+		{"bad+bad+bad", false},
+	} {
+		c.Logf("tc #%v", i)
+		res := ValidateDesktopPrefix(tc.prefix)
+		c.Check(res, Equals, tc.exp)
+	}
+}
