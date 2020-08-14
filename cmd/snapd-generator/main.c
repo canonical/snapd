@@ -129,7 +129,7 @@ int ensure_fusesquashfs_inside_container(const char *normal_dir)
 		return 0;
 	}
 
-	char *fstype;
+	const char *fstype;
 	if (executable_exists("squashfuse")) {
 		fstype = "fuse.squashfuse";
 	} else if (executable_exists("snapfuse")) {
