@@ -20,6 +20,7 @@
 package builtin
 
 // https://www.kernel.org/doc/html/latest/crypto/userspace-if.html
+// https://www.kernel.org/doc/html/latest/crypto/intro.html
 const kernelCryptoAPISummary = `allows access to the Linux kernel crypto API`
 
 // The kernel crypto API is designed to be used by any process (ie, using it
