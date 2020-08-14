@@ -92,6 +92,10 @@ profile systemd_run (attach_disconnected,mediate_deleted) {
   ptrace (read) peer=unconfined,
   /run/systemd/private rw,
 
+  # kubelet calls 'systemd-run --scope true' triggers this when kubelet is run
+  # in a nested container (eg, under lxd).
+  @{PROC}/1/cmdline r,
+
   # Ubuntu's ptrace patchset before (at least) 20.04 did not correctly evaluate
   # PTRACE_MODE_READ and policy required 'trace' instead of 'read'.
   # (LP: #1890848). This child profile doesn't have 'capability sys_ptrace', so
