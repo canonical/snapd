@@ -155,6 +155,23 @@ func (s *utilsSuite) TestAareExclusivePatterns(c *C) {
 	})
 }
 
+func (s *utilsSuite) TestAareExclusivePatternsInstance(c *C) {
+	res := builtin.AareExclusivePatterns("foo-bar+baz")
+	c.Check(res, DeepEquals, []string{
+		"[^f]*",
+		"f[^o]*",
+		"fo[^o]*",
+		"foo[^-]*",
+		"foo-[^b]*",
+		"foo-b[^a]*",
+		"foo-ba[^r]*",
+		"foo-bar[^+]*",
+		"foo-bar+[^b]*",
+		"foo-bar+b[^a]*",
+		"foo-bar+ba[^z]*",
+	})
+}
+
 func (s *utilsSuite) TestAareExclusivePatternsInvalid(c *C) {
 	bad := []string{
 		// man apparmor.d: AARE = ?*[]{}^
