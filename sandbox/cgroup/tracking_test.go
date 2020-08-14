@@ -122,10 +122,9 @@ func (s *trackingSuite) TestCreateTransientScopeForTrackingUnhappyNotRootGeneric
 	restore = cgroup.MockOsGetpid(312123)
 	defer restore()
 
-	// Disable the cgroup analyzer function as we don't expect it to be used in this test.
+	// Rig the cgroup analyzer to return an answer not related to the snap name.
 	restore = cgroup.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
-		c.Error("test sequence violated")
-		return "", fmt.Errorf("test was not expected to measure process path in the tracking cgroup")
+		return "foo", nil
 	})
 	defer restore()
 
@@ -247,10 +246,9 @@ func (s *trackingSuite) TestCreateTransientScopeForTrackingUnhappyRootFailedFall
 	})
 	defer restore()
 
-	// Disable the cgroup analyzer function as we don't expect it to be used in this test.
+	// Rig the cgroup analyzer to return an answer not related to the snap name.
 	restore = cgroup.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
-		c.Error("test sequence violated")
-		return "", fmt.Errorf("test was not expected to measure process path in the tracking cgroup")
+		return "foo", nil
 	})
 	defer restore()
 

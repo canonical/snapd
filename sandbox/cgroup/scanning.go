@@ -36,13 +36,13 @@ var (
 )
 
 // securityTagFromCgroupPath returns a security tag from cgroup path.
-func securityTagFromCgroupPath(path string) (securityTag string) {
+func securityTagFromCgroupPath(path string) naming.SecurityTag {
 	leaf := filepath.Base(filepath.Clean(path))
 
 	// If the security cgroup name doesn't start with "snap." then there is no
 	// point in doing other checks.
 	if !strings.HasPrefix(leaf, "snap.") {
-		return ""
+		return nil
 	}
 
 	// We are only interested in cgroup directory names that correspond to
@@ -53,18 +53,18 @@ func securityTagFromCgroupPath(path string) (securityTag string) {
 	//   snap.<pkg>.<app>.<uuid>.scope - transient scope for apps
 	//   snap.<pkg>.hook.<app>.<uuid>.scope - transient scope for hooks
 	if ext := filepath.Ext(leaf); ext != ".service" && ext != ".scope" {
-		return ""
+		return nil
 	}
 
 	// There are two broad forms expressed by the pair of regular expressions defined above.
 	for _, re := range []*regexp.Regexp{roughHookTagPattern, roughAppTagPattern} {
 		if maybeTag := re.FindString(leaf); maybeTag != "" {
-			if naming.ValidateSecurityTag(maybeTag) == nil {
-				return maybeTag
+			if tag, err := naming.ParseSecurityTag(maybeTag); err == nil {
+				return tag
 			}
 		}
 	}
-	return ""
+	return nil
 }
 
 // PidsOfSnap returns the association of security tags to PIDs.
@@ -87,7 +87,6 @@ func securityTagFromCgroupPath(path string) (securityTag string) {
 func PidsOfSnap(snapInstanceName string) (map[string][]int, error) {
 	// pidsByTag maps security tag to a list of pids.
 	pidsByTag := make(map[string][]int)
-	securityTagPrefix := "snap." + snapInstanceName + "."
 
 	// Walk the cgroup tree and look for "cgroup.procs" files. Having found one
 	// we try to derive the snap security tag from it. If successful and the
@@ -116,18 +115,19 @@ func PidsOfSnap(snapInstanceName string) (map[string][]int, error) {
 		// not all cgroups are related to snaps it is not an error if the
 		// cgroup path does not denote a snap.
 		cgroupPath := filepath.Dir(path)
-		securityTag := securityTagFromCgroupPath(cgroupPath)
-		if securityTag == "" {
+		parsedTag := securityTagFromCgroupPath(cgroupPath)
+		if parsedTag == nil {
 			return nil
 		}
-		if !strings.HasPrefix(securityTag, securityTagPrefix) {
+		if parsedTag.InstanceName() != snapInstanceName {
 			return nil
 		}
 		pids, err := pidsInFile(path)
 		if err != nil {
 			return err
 		}
-		pidsByTag[securityTag] = append(pidsByTag[securityTag], pids...)
+		tag := parsedTag.String()
+		pidsByTag[tag] = append(pidsByTag[tag], pids...)
 		// Since we've found the file we are looking for (cgroup.procs) we no
 		// longer need to scan the remaining files of this directory.
 		return filepath.SkipDir

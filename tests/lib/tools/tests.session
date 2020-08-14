@@ -106,49 +106,15 @@ case "$action" in
 		exit 0
 		;;
 	prepare)
-		# Make /var/lib/systemd writable so that we can get linger enabled.
-		# This only applies to Ubuntu Core 16 where individual directories were
-		# writable. In Core 18 and beyond all of /var/lib/systemd is writable.
-		case "$SPREAD_SYSTEM" in
-			ubuntu-core-16-*)
-				mount tmpfs -t tmpfs /var/lib/systemd/
-				mkdir /var/lib/systemd/{catalog,coredump,deb-systemd-helper-enabled,rfkill}
-				touch /var/lib/systemd/random-seed
-				mount --bind /writable/system-data/var/lib/systemd/rfkill /var/lib/systemd/rfkill
-				mount --bind /writable/system-data/var/lib/systemd/random-seed /var/lib/systemd/random-seed
-
-				touch /run/tests.session-core16.workaround
-				;;
-		esac
-
 		# Try to enable linger for the selected user(s).
-		needs_linger_workaround=
 		for u in $(echo "$user" | tr ',' ' '); do
 			if ! loginctl enable-linger "$u"; then
-				needs_linger_workaround=true
+				echo "tests.session requires external fix for //github.com/systemd/systemd/issues/12401" >&2
+				exit 1
 			fi
 		done
 
-		# Work around https://github.com/systemd/systemd/issues/12401 fixed in
-		# systemd v243.
-		if [ "$needs_linger_workaround" = "true" ] && systemctl cat systemd-logind.service | not grep -q StateDirectory; then
-			mkdir -p /etc/systemd/system/systemd-logind.service.d
-			(
-				echo "[Service]"
-				echo "StateDirectory=systemd/linger"
-			) > /etc/systemd/system/systemd-logind.service.d/linger.conf
-			mkdir -p /var/lib/systemd/linger
-			test "$(command -v restorecon)" != "" && restorecon /var/lib/systemd/linger
-
-			systemctl daemon-reload
-			systemctl restart systemd-logind.service
-
-			touch /run/tests.session-systemd-issue-12401.workaround
-		fi
-
-		# Enable linger for the selected user(s).
 		for u in $(echo "$user" | tr ',' ' '); do
-			loginctl enable-linger "$u"
 			# We've enabled linger, now let's explicitly start the
 			# default.target. This ensures that test code does not need to pay
 			# extra attention to synchronization.
@@ -166,6 +132,7 @@ case "$action" in
 	restore)
 		# Disable linger for the selected user(s).
 		for u in $(echo "$user" | tr ',' ' '); do
+
 			loginctl disable-linger "$u"
 			# If the user is not root, also stop their user slice and ensure
 			# their XDG_RUNTIME_DIR goes away. Currently doing this for root is
@@ -176,6 +143,14 @@ case "$action" in
 			# services, then there this condition could be removed.
 			if [ "$u" != root ]; then
 				uid="$(id -u "$u")"
+
+				# Unmount gvfs-fuse and the document portal explicitly.  FUSE
+				# file-systems can stay mounted in a broken state even if their
+				# corresponding process goes away. This can happen if we stop
+				# the slice and the cleanup is not perfectly graceful.
+				umount "/run/user/$uid/gvfs" || true
+				umount "/run/user/$uid/doc" || true
+
 				# See user@.service(5) for discussion about user-UID.slice and
 				# user@UID.service and why both are used. Here we stop the
 				# slice as that encompasses both user@UID.service and any
@@ -202,17 +177,6 @@ case "$action" in
 			rm  /run/tests.session-core16.workaround
 			# Undo changes to make /var/lib/systemd/ writable.
 			umount -l /var/lib/systemd
-		fi
-
-		if [ -e /run/tests.session-systemd-issue-12401.workaround ]; then
-			rm  /run/tests.session-systemd-issue-12401.workaround
-
-			# Remove the logind customizations we (may have) done above.
-			rm -rf /etc/systemd/system/systemd-logind.service.d
-
-			# Reload systemd and restart logind.
-			systemctl daemon-reload
-			systemctl restart systemd-logind.service
 		fi
 
 		exit 0
@@ -376,7 +340,7 @@ busctl \
 		Environment as 1 TERM=xterm-256color \
 		$selinux_context_arg \
 		ExecStart "a(sasb)" 1 \
-			"$(command -v runuser)" 6 "$(command -v runuser)" -l "$user" - -c "exec $tmp_dir/exec <$tmp_dir/stdin.pipe >$tmp_dir/stdout.pipe 2>$tmp_dir/stderr.pipe" false \
+			"$(command -v runuser)" 6 "$(command -v runuser)" -l "$user" - -c "SNAPD_DEBUG=$SNAPD_DEBUG SNAP_CONFINE_DEBUG=$SNAP_CONFINE_DEBUG exec $tmp_dir/exec <$tmp_dir/stdin.pipe >$tmp_dir/stdout.pipe 2>$tmp_dir/stderr.pipe" false \
 	0
 # This is done so that we can configure file redirects. Once Ubuntu 16.04 is no
 # longer supported we can use Standard{Input,Output,Error}=file:path property

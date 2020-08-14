@@ -81,7 +81,9 @@ disable_refreshes() {
     snap refresh --time --abs-time | MATCH "last: 2[0-9]{3}"
 
     echo "Ensure jq is gone"
-    snap remove --purge jq jq-core18 jq-core20
+    snap remove --purge jq
+    snap remove --purge jq-core18
+    snap remove --purge jq-core20
 }
 
 setup_systemd_snapd_overrides() {
@@ -639,6 +641,22 @@ EOF
 
     mkdir -p /mnt/system-data/var/lib/console-conf
 
+    # NOTE: The here-doc below must use tabs for proper operation.
+    cat >/mnt/system-data/etc/systemd/system/var-lib-systemd-linger.mount <<-UNIT
+	[Mount]
+	What=/writable/system-data/var/lib/systemd/linger
+	Where=/var/lib/systemd/linger
+	Options=bind
+	UNIT
+    ln -s /etc/systemd/system/var-lib-systemd-linger.mount /mnt/system-data/etc/systemd/system/multi-user.target.wants/var-lib-systemd-linger.mount
+
+    # NOTE: The here-doc below must use tabs for proper operation.
+    mkdir -p /mnt/system-data/etc/systemd/system/systemd-logind.service.d
+    cat >/mnt/system-data/etc/systemd/system/systemd-logind.service.d/linger.conf <<-CONF
+	[Service]
+	StateDirectory=systemd/linger
+	CONF
+
     (cd /tmp ; unsquashfs -no-progress -v  /var/lib/snapd/snaps/"$core_name"_*.snap etc/systemd/system)
     cp -avr /tmp/squashfs-root/etc/systemd/system /mnt/system-data/etc/systemd/
 }
@@ -735,6 +753,12 @@ slots:
         interface: iio
         path: /dev/iio:device0
 EOF
+
+        # Make /var/lib/systemd writable so that we can get linger enabled.
+        # This only applies to Ubuntu Core 16 where individual directories were
+        # writable. In Core 18 and beyond all of /var/lib/systemd is writable.
+        mkdir -p $UNPACK_DIR/var/lib/systemd/{catalog,coredump,deb-systemd-helper-enabled,rfkill,linger}
+        touch "$UNPACK_DIR"/var/lib/systemd/random-seed
 
         # build new core snap for the image
         snap pack "$UNPACK_DIR" "$IMAGE_HOME"

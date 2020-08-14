@@ -34,14 +34,11 @@ func InitramfsRunModeSelectSnapsToMount(
 	var err error
 	m := make(map[snap.Type]snap.PlaceInfo)
 	for _, typ := range typs {
-		var selectSnapFn func() (snap.PlaceInfo, error)
+		// TODO: consider passing a bootStateUpdate20 instead?
+		var selectSnapFn func(*Modeenv) (snap.PlaceInfo, error)
 		switch typ {
 		case snap.TypeBase:
-			bs := &bootState20Base{
-				bootState20Modeenv: bootState20Modeenv{
-					modeenv: modeenv,
-				},
-			}
+			bs := &bootState20Base{}
 			selectSnapFn = bs.selectAndCommitSnapInitramfsMount
 		case snap.TypeKernel:
 			blOpts := &bootloader.Options{NoSlashBoot: true}
@@ -49,13 +46,10 @@ func InitramfsRunModeSelectSnapsToMount(
 			bs := &bootState20Kernel{
 				blDir:  blDir,
 				blOpts: blOpts,
-				kModeenv: bootState20Modeenv{
-					modeenv: modeenv,
-				},
 			}
 			selectSnapFn = bs.selectAndCommitSnapInitramfsMount
 		}
-		sn, err = selectSnapFn()
+		sn, err = selectSnapFn(modeenv)
 		if err != nil {
 			return nil, err
 		}
