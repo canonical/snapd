@@ -499,9 +499,9 @@ dbus (receive)
 /var/lib/snapd/desktop/applications/ r,
 /var/lib/snapd/desktop/applications/mimeinfo.cache r,
 # Support BAMF_DESKTOP_FILE_HINT by allowing reading our desktop files
-# parallel-installs: when @{SNAP_INSTANCE_NAME} == @{SNAP_NAME},
+# parallel-installs: when @{SNAP_INSTANCE_DESKTOP} == @{SNAP_NAME},
 # this leaks read access to desktop files of parallel installs of the snap
-/var/lib/snapd/desktop/applications/@{SNAP_INSTANCE_NAME}_*.desktop r,
+/var/lib/snapd/desktop/applications/@{SNAP_INSTANCE_DESKTOP}_*.desktop r,
 
 # then allow talking to Unity DBus service
 dbus (send)

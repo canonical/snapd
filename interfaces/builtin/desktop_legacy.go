@@ -240,7 +240,7 @@ dbus (send)
 # Support BAMF_DESKTOP_FILE_HINT by allowing reading our desktop files
 # parallel-installs: this leaks read access to desktop files owned by keyed
 # instances of @{SNAP_NAME} to @{SNAP_NAME} snap
-/var/lib/snapd/desktop/applications/@{SNAP_INSTANCE_NAME}_*.desktop r,
+/var/lib/snapd/desktop/applications/@{SNAP_INSTANCE_DESKTOP}_*.desktop r,
 
 # glib-networking's GLib proxy (different than the portal's proxy service
 # org.freedesktop.portal.ProxyResolver)
