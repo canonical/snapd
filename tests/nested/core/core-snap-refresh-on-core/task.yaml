@@ -18,6 +18,11 @@ execute: |
     INITIAL_REV="$(get_nested_core_revision_for_channel "${CORE_CHANNEL}")"
     NEW_REV="$(get_nested_core_revision_for_channel "${NEW_CORE_CHANNEL}")"
 
+    if [ "$INITIAL_REV" = "$NEW_REV" ]; then
+        echo "Initial and target revisions are the same, skipping..."
+        exit
+    fi
+
     # Install test snap
     execute_remote "sudo snap install test-snapd-sh"
 

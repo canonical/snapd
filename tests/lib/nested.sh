@@ -743,7 +743,7 @@ start_nested_classic_vm(){
     QEMU="$(get_qemu_for_nested_vm)"
     IMAGE_NAME="$(get_image_name classic)"
 
-    if [ -f "$IMAGES_DIR/$IMAGE_NAME.xz" ]; then
+    if [ ! -f "$IMAGES_DIR/$IMAGE_NAME" ] && [ -f "$IMAGES_DIR/$IMAGE_NAME.xz" ]; then
         uncompress_image "$IMAGE_NAME"
     fi
 
