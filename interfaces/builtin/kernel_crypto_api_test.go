@@ -31,7 +31,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type kernelCryptoApiInterfaceSuite struct {
+type kernelCryptoAPIInterfaceSuite struct {
 	iface        interfaces.Interface
 	coreSlotInfo *snap.SlotInfo
 	coreSlot     *interfaces.ConnectedSlot
@@ -39,46 +39,46 @@ type kernelCryptoApiInterfaceSuite struct {
 	plug         *interfaces.ConnectedPlug
 }
 
-var _ = Suite(&kernelCryptoApiInterfaceSuite{
+var _ = Suite(&kernelCryptoAPIInterfaceSuite{
 	iface: builtin.MustInterface("kernel-crypto-api"),
 })
 
-const kernelCryptoApiConsumerYaml = `name: consumer
+const kernelCryptoAPIConsumerYaml = `name: consumer
 version: 0
 apps:
  app:
   plugs: [kernel-crypto-api]
 `
 
-const kernelCryptoApiCoreYaml = `name: core
+const kernelCryptoAPICoreYaml = `name: core
 version: 0
 type: os
 slots:
   kernel-crypto-api:
 `
 
-func (s *kernelCryptoApiInterfaceSuite) SetUpTest(c *C) {
-	s.plug, s.plugInfo = MockConnectedPlug(c, kernelCryptoApiConsumerYaml, nil, "kernel-crypto-api")
-	s.coreSlot, s.coreSlotInfo = MockConnectedSlot(c, kernelCryptoApiCoreYaml, nil, "kernel-crypto-api")
+func (s *kernelCryptoAPIInterfaceSuite) SetUpTest(c *C) {
+	s.plug, s.plugInfo = MockConnectedPlug(c, kernelCryptoAPIConsumerYaml, nil, "kernel-crypto-api")
+	s.coreSlot, s.coreSlotInfo = MockConnectedSlot(c, kernelCryptoAPICoreYaml, nil, "kernel-crypto-api")
 }
 
-func (s *kernelCryptoApiInterfaceSuite) TearDownTest(c *C) {
+func (s *kernelCryptoAPIInterfaceSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
 }
 
-func (s *kernelCryptoApiInterfaceSuite) TestName(c *C) {
+func (s *kernelCryptoAPIInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "kernel-crypto-api")
 }
 
-func (s *kernelCryptoApiInterfaceSuite) TestSanitizeSlot(c *C) {
+func (s *kernelCryptoAPIInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.coreSlotInfo), IsNil)
 }
 
-func (s *kernelCryptoApiInterfaceSuite) TestSanitizePlug(c *C) {
+func (s *kernelCryptoAPIInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
-func (s *kernelCryptoApiInterfaceSuite) TestAppArmorSpec(c *C) {
+func (s *kernelCryptoAPIInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
@@ -86,7 +86,7 @@ func (s *kernelCryptoApiInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "network alg seqpacket,")
 }
 
-func (s *kernelCryptoApiInterfaceSuite) TestSeccompSpec(c *C) {
+func (s *kernelCryptoAPIInterfaceSuite) TestSeccompSpec(c *C) {
 	spec := &seccomp.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
@@ -94,7 +94,7 @@ func (s *kernelCryptoApiInterfaceSuite) TestSeccompSpec(c *C) {
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "socket AF_NETLINK - NETLINK_CRYPTO")
 }
 
-func (s *kernelCryptoApiInterfaceSuite) TestStaticInfo(c *C) {
+func (s *kernelCryptoAPIInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, true)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
@@ -103,6 +103,6 @@ func (s *kernelCryptoApiInterfaceSuite) TestStaticInfo(c *C) {
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "deny-auto-connection: true")
 }
 
-func (s *kernelCryptoApiInterfaceSuite) TestInterfaces(c *C) {
+func (s *kernelCryptoAPIInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

@@ -20,12 +20,12 @@
 package builtin
 
 // https://www.kernel.org/doc/html/latest/crypto/userspace-if.html
-const kernelCryptoApiSummary = `allows access to the Linux kernel crypto API`
+const kernelCryptoAPISummary = `allows access to the Linux kernel crypto API`
 
 // The kernel crypto API is designed to be used by any process (ie, using it
 // requires no special privileges). Since it provides a kernel surface and
 // has a CVE history, manually connect for now.
-const kernelCryptoApiBaseDeclarationSlots = `
+const kernelCryptoAPIBaseDeclarationSlots = `
   kernel-crypto-api:
     allow-installation:
       slot-snap-type:
@@ -33,7 +33,7 @@ const kernelCryptoApiBaseDeclarationSlots = `
     deny-auto-connection: true
 `
 
-const kernelCryptoApiConnectedPlugAppArmor = `
+const kernelCryptoAPIConnectedPlugAppArmor = `
 # Description: Can access the Linux kernel crypto API
 @{PROC}/crypto r,
 
@@ -45,7 +45,7 @@ network netlink dgram,
 network netlink raw,
 `
 
-const kernelCryptoApiConnectedPlugSeccomp = `
+const kernelCryptoAPIConnectedPlugSeccomp = `
 # Description: Can access the Linux kernel crypto API
 socket AF_NETLINK - NETLINK_CRYPTO
 bind
@@ -55,11 +55,11 @@ accept
 func init() {
 	registerIface(&commonInterface{
 		name:                  "kernel-crypto-api",
-		summary:               kernelCryptoApiSummary,
+		summary:               kernelCryptoAPISummary,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
-		connectedPlugAppArmor: kernelCryptoApiConnectedPlugAppArmor,
-		connectedPlugSecComp:  kernelCryptoApiConnectedPlugSeccomp,
-		baseDeclarationSlots:  kernelCryptoApiBaseDeclarationSlots,
+		connectedPlugAppArmor: kernelCryptoAPIConnectedPlugAppArmor,
+		connectedPlugSecComp:  kernelCryptoAPIConnectedPlugSeccomp,
+		baseDeclarationSlots:  kernelCryptoAPIBaseDeclarationSlots,
 	})
 }
