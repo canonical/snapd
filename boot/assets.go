@@ -151,14 +151,36 @@ func (t *trackedAsset) equal(other *trackedAsset) bool {
 		t.hash == other.hash
 }
 
+func isAlreadyTracked(current []*trackedAsset, newAsset *trackedAsset) bool {
+	for _, ta := range current {
+		if newAsset.equal(ta) {
+			return true
+		}
+	}
+	return false
+}
+
+func trackedAssetsToBootMap(trackedAssets []*trackedAsset) bootAssetsMap {
+	if len(trackedAssets) == 0 {
+		return nil
+	}
+	bm := bootAssetsMap{}
+	for _, tracked := range trackedAssets {
+		// we expect to have added exactly one hash per tracked asset
+		bm[tracked.name] = append(bm[tracked.name], tracked.hash)
+	}
+	return bm
+}
+
 // TrustedAssetsInstallObserver tracks the installation of trusted boot assets.
 type TrustedAssetsInstallObserver struct {
-	model         *asserts.Model
-	gadgetDir     string
-	cache         *trustedAssetsCache
-	blName        string
-	trustedAssets []string
-	trackedAssets []*trackedAsset
+	model                 *asserts.Model
+	gadgetDir             string
+	cache                 *trustedAssetsCache
+	blName                string
+	trustedAssets         []string
+	trackedAssets         []*trackedAsset
+	trackedRecoveryAssets []*trackedAsset
 }
 
 // Observe observes the operation related to the content of a given gadget
@@ -201,31 +223,49 @@ func (o *TrustedAssetsInstallObserver) Observe(op gadget.ContentOperation, affec
 	// during installation, modeenv is written out later, at this point we
 	// only care that the same file may appear multiple times in gadget
 	// structure content, so make sure we are not tracking it yet
-	if !o.isAlreadyTracked(ta) {
+	if !isAlreadyTracked(o.trackedAssets, ta) {
 		o.trackedAssets = append(o.trackedAssets, ta)
 	}
 	return true, nil
 }
 
-func (o *TrustedAssetsInstallObserver) isAlreadyTracked(newAsset *trackedAsset) bool {
-	for _, ta := range o.trackedAssets {
-		if newAsset.equal(ta) {
-			return true
+// ObserveExistingTrustedRecoveryAssets observes existing trusted assets of a
+// recovery bootloader located inside a given root directory.
+func (o *TrustedAssetsInstallObserver) ObserveExistingTrustedRecoveryAssets(recoveryRootDir string) error {
+	bl, err := bootloader.Find(recoveryRootDir, &bootloader.Options{
+		NoSlashBoot: true,
+		Recovery:    true,
+	})
+	if err != nil {
+		return fmt.Errorf("cannot identify recovery system bootloader: %v", err)
+	}
+	tbl, ok := bl.(bootloader.TrustedAssetsBootloader)
+	if !ok {
+		// not a trusted assets bootloader
+		return nil
+	}
+	trustedAssets, err := tbl.TrustedAssets()
+	if err != nil {
+		return fmt.Errorf("cannot list %q recovery bootloader trusted assets: %v", bl.Name(), err)
+	}
+	for _, trustedAsset := range trustedAssets {
+		ta, err := o.cache.Add(filepath.Join(recoveryRootDir, trustedAsset), bl.Name(), filepath.Base(trustedAsset))
+		if err != nil {
+			return err
+		}
+		if !isAlreadyTracked(o.trackedRecoveryAssets, ta) {
+			o.trackedRecoveryAssets = append(o.trackedRecoveryAssets, ta)
 		}
 	}
-	return false
+	return nil
 }
 
 func (o *TrustedAssetsInstallObserver) currentTrustedBootAssetsMap() bootAssetsMap {
-	if len(o.trackedAssets) == 0 {
-		return nil
-	}
-	bm := bootAssetsMap{}
-	for _, tracked := range o.trackedAssets {
-		// we expect to have added exactly one hash per tracked asset
-		bm[tracked.name] = append(bm[tracked.name], tracked.hash)
-	}
-	return bm
+	return trackedAssetsToBootMap(o.trackedAssets)
+}
+
+func (o *TrustedAssetsInstallObserver) currentTrustedRecoveryBootAssetsMap() bootAssetsMap {
+	return trackedAssetsToBootMap(o.trackedRecoveryAssets)
 }
 
 // TrustedAssetsUpdateObserverForModel returns a new trusted assets observer for

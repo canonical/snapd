@@ -58,3 +58,7 @@ type TrackedAsset = trackedAsset
 func (o *TrustedAssetsInstallObserver) CurrentTrustedBootAssetsMap() BootAssetsMap {
 	return o.currentTrustedBootAssetsMap()
 }
+
+func (o *TrustedAssetsInstallObserver) CurrentTrustedRecoveryBootAssetsMap() BootAssetsMap {
+	return o.currentTrustedRecoveryBootAssetsMap()
+}
