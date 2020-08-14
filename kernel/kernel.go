@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"regexp"
 
 	"gopkg.in/yaml.v2"
 
@@ -39,6 +40,9 @@ type Info struct {
 	Assets map[string]*Asset `yaml:"assets,omitempty"`
 }
 
+// XXX: should we be more liberal? start conservative
+var validAssetName = regexp.MustCompile("^[a-zA-Z0-9]+$")
+
 // InfoFromKernelYaml reads the provided kernel metadata.
 func InfoFromKernelYaml(kernelYaml []byte) (*Info, error) {
 	var ki Info
@@ -47,11 +51,17 @@ func InfoFromKernelYaml(kernelYaml []byte) (*Info, error) {
 		return nil, fmt.Errorf("cannot parse kernel metadata: %v", err)
 	}
 
+	for name := range ki.Assets {
+		if !validAssetName.MatchString(name) {
+			return nil, fmt.Errorf("invalid asset name %q, please use only alphanumeric charackters", name)
+		}
+	}
+
 	return &ki, nil
 }
 
 // ReadInfo reads the kernel specific metadata from meta/kernel.yaml
-// in the snap root directory.
+// in the snap root directory if the file exists.
 func ReadInfo(kernelSnapRootDir string) (*Info, error) {
 	p := filepath.Join(kernelSnapRootDir, "meta", "kernel.yaml")
 	content, err := ioutil.ReadFile(p)

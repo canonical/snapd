@@ -45,9 +45,20 @@ assets:
       - dtbs/bcm2836-rpi-2-b.dtb
 `)
 
+var mockInvalidKernelYaml = []byte(`
+assets:
+  non-alphanumeric:
+`)
+
 func (s *kernelYamlTestSuite) TestInfoFromKernelYamlSad(c *C) {
 	ki, err := kernel.InfoFromKernelYaml([]byte("foo"))
 	c.Check(err, ErrorMatches, "(?m)cannot parse kernel metadata: .*")
+	c.Check(ki, IsNil)
+}
+
+func (s *kernelYamlTestSuite) TestInfoFromKernelYamlBadName(c *C) {
+	ki, err := kernel.InfoFromKernelYaml(mockInvalidKernelYaml)
+	c.Check(err, ErrorMatches, `invalid asset name "non-alphanumeric", please use only alphanumeric charackters`)
 	c.Check(ki, IsNil)
 }
 
@@ -56,7 +67,7 @@ func (s *kernelYamlTestSuite) TestInfoFromKernelYamlHappy(c *C) {
 	c.Check(err, IsNil)
 	c.Check(ki, DeepEquals, &kernel.Info{
 		Assets: map[string]*kernel.Asset{
-			"dtbs": &kernel.Asset{
+			"dtbs": {
 				Edition: 1,
 				Content: []string{
 					"dtbs/bcm2711-rpi-4-b.dtb",
@@ -98,7 +109,7 @@ func (s *kernelYamlTestSuite) TestReadKernelYamlHappy(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(ki, DeepEquals, &kernel.Info{
 		Assets: map[string]*kernel.Asset{
-			"dtbs": &kernel.Asset{
+			"dtbs": {
 				Edition: 1,
 				Content: []string{
 					"dtbs/bcm2711-rpi-4-b.dtb",

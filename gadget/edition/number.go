@@ -25,6 +25,9 @@ import (
 	"strconv"
 )
 
+// Number can hold (and unmarshal) an edition number, used in
+// gadget.yaml and kernel.yaml to control whether updates should be
+// applied.
 type Number uint32
 
 func (e *Number) UnmarshalYAML(unmarshal func(interface{}) error) error {
