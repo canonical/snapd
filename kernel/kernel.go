@@ -17,45 +17,61 @@
  *
  */
 
-package gadget
+package kernel
 
 import (
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
+	"regexp"
 
 	"gopkg.in/yaml.v2"
+
+	"github.com/snapcore/snapd/gadget/edition"
 )
 
-// XXX: should this be in a "gadget/kernel" or "kernel" package?
-
-type KernelAsset struct {
-	Edition editionNumber `yaml:"edition,omitempty"`
-	Content []string      `yaml:"content,omitempty"`
+type Asset struct {
+	Edition edition.Number `yaml:"edition,omitempty"`
+	Content []string       `yaml:"content,omitempty"`
 }
 
-type KernelInfo struct {
-	Assets map[string]*KernelAsset `yaml:"assets,omitempty"`
+type Info struct {
+	Assets map[string]*Asset `yaml:"assets,omitempty"`
 }
 
-// KernelInfoFromKernelYaml reads the provided kernel metadata.
-func KernelInfoFromKernelYaml(kernelYaml []byte) (*KernelInfo, error) {
-	var ki KernelInfo
+// XXX: should we be more liberal? start conservative
+var validAssetName = regexp.MustCompile("^[a-zA-Z0-9]+$")
+
+// InfoFromKernelYaml reads the provided kernel metadata.
+func InfoFromKernelYaml(kernelYaml []byte) (*Info, error) {
+	var ki Info
 
 	if err := yaml.Unmarshal(kernelYaml, &ki); err != nil {
 		return nil, fmt.Errorf("cannot parse kernel metadata: %v", err)
+	}
+
+	for name := range ki.Assets {
+		if !validAssetName.MatchString(name) {
+			return nil, fmt.Errorf("invalid asset name %q, please use only alphanumeric charackters", name)
+		}
 	}
 
 	return &ki, nil
 }
 
 // ReadInfo reads the kernel specific metadata from meta/kernel.yaml
-// in the snap root directory.
-func ReadKernelInfo(kernelSnapRootDir string) (*KernelInfo, error) {
+// in the snap root directory if the file exists.
+func ReadInfo(kernelSnapRootDir string) (*Info, error) {
 	p := filepath.Join(kernelSnapRootDir, "meta", "kernel.yaml")
 	content, err := ioutil.ReadFile(p)
+	// meta/kernel.yaml is optional so we should not error here if
+	// it is missing
+	if os.IsNotExist(err) {
+		return &Info{}, nil
+	}
 	if err != nil {
 		return nil, fmt.Errorf("cannot read kernel info: %v", err)
 	}
-	return KernelInfoFromKernelYaml(content)
+	return InfoFromKernelYaml(content)
 }
