@@ -95,8 +95,8 @@ func (s *Unity7InterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// getDesktopFileRules() rules
 	c.Assert(apparmorSpec.SnippetForTag("snap.other-snap.app2"), testutil.Contains, `# This leaks the names of snaps with desktop files`)
 	c.Assert(apparmorSpec.SnippetForTag("snap.other-snap.app2"), testutil.Contains, `/var/lib/snapd/desktop/applications/ r,`)
-	c.Assert(apparmorSpec.SnippetForTag("snap.other-snap.app2"), testutil.Contains, `/var/lib/snapd/desktop/applications/@{SNAP_INSTANCE_NAME}_*.desktop r,`)
-	c.Assert(apparmorSpec.SnippetForTag("snap.other-snap.app2"), testutil.Contains, `deny /var/lib/snapd/desktop/applications/@{SNAP_INSTANCE_NAME}[^_.]*.desktop r,`)
+	c.Assert(apparmorSpec.SnippetForTag("snap.other-snap.app2"), testutil.Contains, `/var/lib/snapd/desktop/applications/@{SNAP_INSTANCE_DESKTOP}_*.desktop r,`)
+	c.Assert(apparmorSpec.SnippetForTag("snap.other-snap.app2"), testutil.Contains, `deny /var/lib/snapd/desktop/applications/@{SNAP_INSTANCE_DESKTOP}[^_.]*.desktop r,`)
 	c.Assert(apparmorSpec.SnippetForTag("snap.other-snap.app2"), testutil.Contains, `deny /var/lib/snapd/desktop/applications/[^o]* r,`)
 	c.Assert(apparmorSpec.SnippetForTag("snap.other-snap.app2"), testutil.Contains, `deny /var/lib/snapd/desktop/applications/other-sna[^p]* r,`)
 
