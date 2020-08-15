@@ -174,7 +174,7 @@ func (s *utilsSuite) TestAareExclusivePatternsInstance(c *C) {
 
 func (s *utilsSuite) TestAareExclusivePatternsInvalid(c *C) {
 	bad := []string{
-		// man apparmor.d: AARE = ?*[]{}^
+		// AARE in name (man apparmor.d: AARE = ?*[]{}^)
 		"bad{",
 		"ba}d",
 		"b[ad",
@@ -182,7 +182,23 @@ func (s *utilsSuite) TestAareExclusivePatternsInvalid(c *C) {
 		"b^d",
 		"b*d",
 		"b?d",
-		// various other unexpected
+		"bad{+good",
+		"ba}d+good",
+		"b[ad+good",
+		"]bad+good",
+		"b^d+good",
+		"b*d+good",
+		"b?d+good",
+		// AARE in instance (man apparmor.d: AARE = ?*[]{}^)
+		"good+bad{",
+		"good+ba}d",
+		"good+b[ad",
+		"good+]bad",
+		"good+b^d",
+		"good+b*d",
+		"good+b?d",
+		// various other unexpected in name
+		"+good",
 		"/bad",
 		"bad,",
 		".bad.",
@@ -203,6 +219,27 @@ func (s *utilsSuite) TestAareExclusivePatternsInvalid(c *C) {
 		"b**d",
 		"bad -> evil",
 		"b a d",
+		// various other unexpected in instance
+		"good+",
+		"good+/bad",
+		"good+bad,",
+		"good+.bad.",
+		"good+ba'd",
+		"good+b\"ad",
+		"good+=bad",
+		"good+b\\0d",
+		"good+b\ad",
+		"good+(bad",
+		"good+bad)",
+		"good+b<ad",
+		"good+b>ad",
+		"good+bad!",
+		"good+b#d",
+		"good+:bad",
+		"good+b@d",
+		"good+@{BAD}",
+		"good+b**d",
+		"good+bad -> evil",
 	}
 
 	for _, s := range bad {
