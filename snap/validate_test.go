@@ -1980,6 +1980,8 @@ func (s *validateSuite) TestValidateDesktopPrefix(c *C) {
 		{"", false},
 		{"+", false},
 		{"@", false},
+		{"+good", false},
+		{"good+", false},
 		{"good+@", false},
 		{"old-style_instance", false},
 		{"bad+bad+bad", false},
