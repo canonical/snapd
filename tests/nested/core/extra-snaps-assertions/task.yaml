@@ -12,5 +12,10 @@ execute: |
     echo "We have a model assertion"
     execute_remote "snap known model" | MATCH "series: 16"
 
+    EXPRESSION="^core .* +latest/$CORE_CHANNEL +canonical\\* +core"
+    if [ "$BUILD_SNAPD_FROM_CURRENT" != "true" ]; then
+        EXPRESSION="^core .* +x1 .* core"
+    fi
+
     echo "Make sure core has an actual revision"
-    execute_remote "snap list --unicode=never" | MATCH "^core .* +latest/$CORE_CHANNEL +canonical\\* +core"
+    execute_remote "snap list --unicode=never" | MATCH "$EXPRESSION"
