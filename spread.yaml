@@ -850,6 +850,7 @@ suites:
             # TODO: replace with distro package once 2.45 is in stable
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
 
+            #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
             prepare_nested_env
 
