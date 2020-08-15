@@ -171,9 +171,9 @@ func getDesktopFileRules(snapInstanceName string) []string {
 		"# messaging menu).",
 		"# parallel-installs: this leaks read access to desktop files owned by keyed",
 		"# instances of @{SNAP_NAME} to @{SNAP_NAME} snap",
-		fmt.Sprintf("%s/@{SNAP_INSTANCE_NAME}_*.desktop r,", baseDir),
+		fmt.Sprintf("%s/@{SNAP_INSTANCE_DESKTOP}_*.desktop r,", baseDir),
 		"# Explicitly deny access to other snap's desktop files",
-		fmt.Sprintf("deny %s/@{SNAP_INSTANCE_NAME}[^_.]*.desktop r,", baseDir),
+		fmt.Sprintf("deny %s/@{SNAP_INSTANCE_DESKTOP}[^_.]*.desktop r,", baseDir),
 	}
 	for _, t := range aareExclusivePatterns(snapInstanceName) {
 		rules = append(rules, fmt.Sprintf("deny %s/%s r,", baseDir, t))

@@ -85,8 +85,8 @@ func (s *DesktopLegacyInterfaceSuite) TestAppArmorSpec(c *C) {
 	// getDesktopFileRules() rules
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `# This leaks the names of snaps with desktop files`)
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/var/lib/snapd/desktop/applications/ r,`)
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/var/lib/snapd/desktop/applications/@{SNAP_INSTANCE_NAME}_*.desktop r,`)
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `deny /var/lib/snapd/desktop/applications/@{SNAP_INSTANCE_NAME}[^_.]*.desktop r,`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/var/lib/snapd/desktop/applications/@{SNAP_INSTANCE_DESKTOP}_*.desktop r,`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `deny /var/lib/snapd/desktop/applications/@{SNAP_INSTANCE_DESKTOP}[^_.]*.desktop r,`)
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `deny /var/lib/snapd/desktop/applications/[^c]* r,`)
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `deny /var/lib/snapd/desktop/applications/consume[^r]* r,`)
 
