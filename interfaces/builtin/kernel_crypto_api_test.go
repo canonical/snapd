@@ -22,7 +22,6 @@ package builtin_test
 import (
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -60,10 +59,6 @@ slots:
 func (s *kernelCryptoAPIInterfaceSuite) SetUpTest(c *C) {
 	s.plug, s.plugInfo = MockConnectedPlug(c, kernelCryptoAPIConsumerYaml, nil, "kernel-crypto-api")
 	s.coreSlot, s.coreSlotInfo = MockConnectedSlot(c, kernelCryptoAPICoreYaml, nil, "kernel-crypto-api")
-}
-
-func (s *kernelCryptoAPIInterfaceSuite) TearDownTest(c *C) {
-	dirs.SetRootDir("/")
 }
 
 func (s *kernelCryptoAPIInterfaceSuite) TestName(c *C) {
