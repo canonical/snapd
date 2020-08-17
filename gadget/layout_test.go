@@ -1169,9 +1169,9 @@ var gadgetYamlWithKernelRef = `
         filesystem-label: system-boot
         size: 128M
         content:
-          - source: $kernel:pi-dtbs/boot-assets/
+          - source: $kernel:dtbs/boot-assets/
             target: /
-          - source: $kernel:pi-dtbs/some-file
+          - source: $kernel:dtbs/some-file
             target: /
 `
 
@@ -1187,13 +1187,13 @@ func (p *layoutTestSuite) TestResolveContentPathsNotInWantedeAssets(c *C) {
 	c.Assert(err, IsNil)
 
 	err = gadget.ResolveContentPaths(p.dir, kernelSnapDir, lv)
-	c.Assert(err, ErrorMatches, `cannot find "pi-dtbs" in kernel info from "/.*"`)
+	c.Assert(err, ErrorMatches, `cannot find "dtbs" in kernel info from "/.*"`)
 }
 
 func (p *layoutTestSuite) TestResolveContentPathsNotInWantedeContent(c *C) {
 	kernelYaml := `
 assets:
-  pi-dtbs:
+  dtbs:
     edition: 1
     content:
       - other-boot-assets/
@@ -1214,7 +1214,7 @@ assets:
 func (p *layoutTestSuite) TestResolveContentPaths(c *C) {
 	kernelYaml := `
 assets:
-  pi-dtbs:
+  dtbs:
     edition: 1
     content:
       - boot-assets/
@@ -1235,13 +1235,13 @@ assets:
 	c.Assert(lv.Volume.Structure, HasLen, 1)
 	c.Assert(lv.Volume.Structure[0].Content, DeepEquals, []gadget.VolumeContent{
 		{
-			Source: "$kernel:pi-dtbs/boot-assets/",
+			Source: "$kernel:dtbs/boot-assets/",
 			Target: "/",
 			// note the trailing "/" here
 			ResolvedSource: filepath.Join(kernelSnapDir, "boot-assets/") + "/",
 		},
 		{
-			Source: "$kernel:pi-dtbs/some-file",
+			Source: "$kernel:dtbs/some-file",
 			Target: "/",
 			// no trailing "/" here
 			ResolvedSource: filepath.Join(kernelSnapDir, "some-file"),
