@@ -255,8 +255,8 @@ func generateMountsModeRecover(mst *initramfsMountsState, recoverySystem string)
 	}
 
 	// 3. mount ubuntu-data for recovery
-	const lockKeysForLast = true
-	device, err := secbootUnlockVolumeIfEncrypted("ubuntu-data", lockKeysForLast)
+	const lockKeysOnFinish = true
+	device, err := secbootUnlockVolumeIfEncrypted("ubuntu-data", lockKeysOnFinish)
 	if err != nil {
 		return err
 
@@ -390,8 +390,8 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	// one recorded in ubuntu-data modeenv during install
 
 	// 3.2. mount Data
-	const lockKeysForLast = true
-	device, err := secbootUnlockVolumeIfEncrypted("ubuntu-data", lockKeysForLast)
+	const lockKeysOnFinish = true
+	device, err := secbootUnlockVolumeIfEncrypted("ubuntu-data", lockKeysOnFinish)
 	if err != nil {
 		return err
 	}
