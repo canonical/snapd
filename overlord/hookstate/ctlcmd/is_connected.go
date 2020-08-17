@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/ifacestate"
+	"github.com/snapcore/snapd/overlord/snapstate"
 )
 
 type isConnectedCommand struct {
@@ -67,6 +68,14 @@ func (c *isConnectedCommand) Execute(args []string) error {
 	st := context.State()
 	st.Lock()
 	defer st.Unlock()
+
+	info, err := snapstate.CurrentInfo(st, snapName)
+	if err != nil {
+		return fmt.Errorf("internal error: cannot get snap info: %s", err)
+	}
+	if info.Plugs[plugOrSlot] == nil && info.Slots[plugOrSlot] == nil {
+		return fmt.Errorf("snap %q has no plug or slot named %q", snapName, plugOrSlot)
+	}
 
 	conns, err := ifacestate.ConnectionStates(st)
 	if err != nil {
