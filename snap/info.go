@@ -603,7 +603,7 @@ func BadInterfacesSummary(snapInfo *Info) string {
 // separator because that is already used as the separator between snap
 // and desktop filename.
 func (s *Info) DesktopPrefix() string {
-	if s.SnapName() == s.InstanceName() {
+	if s.InstanceKey == "" {
 		return s.SnapName()
 	}
 	// we cannot use the usual "_" separator because that is also used
