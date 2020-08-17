@@ -22,7 +22,6 @@ package builtin_test
 import (
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -60,10 +59,6 @@ func (s *cupsSuite) SetUpTest(c *C) {
 	s.providerSlot, s.providerSlotInfo = MockConnectedSlot(c, cupsProviderYaml, nil, "cups")
 }
 
-func (s *cupsSuite) TearDownTest(c *C) {
-	dirs.SetRootDir("/")
-}
-
 func (s *cupsSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "cups")
 }
@@ -76,28 +71,19 @@ func (s *cupsSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
-func (s *cupsSuite) TestAppArmorSpecCore(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
+func (s *cupsSuite) TestAppArmorSpec(c *C) {
+	for _, onClassic := range []bool{true, false} {
+		restore := release.MockOnClassic(onClassic)
+		defer restore()
 
-	// consumer to provider on core for ConnectedPlug
-	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.providerSlot), IsNil)
-	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Allow communicating with the cups server")
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "#include <abstractions/cups-client>")
-}
-
-func (s *cupsSuite) TestAppArmorSpecClassic(c *C) {
-	restore := release.MockOnClassic(true)
-	defer restore()
-
-	// consumer to provider on classic for ConnectedPlug
-	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.providerSlot), IsNil)
-	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Allow communicating with the cups server")
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "#include <abstractions/cups-client>")
+		// consumer to provider on core for ConnectedPlug
+		spec := &apparmor.Specification{}
+		c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.providerSlot), IsNil)
+		c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+		c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Allow communicating with the cups server")
+		c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "#include <abstractions/cups-client>")
+		restore()
+	}
 }
 
 func (s *cupsSuite) TestStaticInfo(c *C) {
