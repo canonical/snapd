@@ -76,7 +76,7 @@ func MockDefaultMarkerFile(p string) (restore func()) {
 	}
 }
 
-func MockSecbootUnlockVolumeIfEncrypted(f func(name string, lockKeysOnFinish bool) (string, error)) (restore func()) {
+func MockSecbootUnlockVolumeIfEncrypted(f func(name, encryptionKeyDir string, lockKeysOnFinish bool) (string, error)) (restore func()) {
 	old := secbootUnlockVolumeIfEncrypted
 	secbootUnlockVolumeIfEncrypted = f
 	return func() {
