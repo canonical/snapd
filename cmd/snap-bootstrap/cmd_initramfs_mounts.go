@@ -357,6 +357,14 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState, recoverySyste
 	//            mount and delete the corresponding systemd units from the
 	//            initramfs layout
 
+	// TODO:UC20: after the kernel and base snaps are mounted, we should setup
+	//            writable here as well to take over from "the-modeenv" script
+	//            in the initrd too
+
+	// TODO:UC20: after the kernel and base snaps are mounted and writable is
+	//            mounted, we should also implement writable-paths here too as
+	//            writing it in Go instead of shellscript is desirable
+
 	// 2.3. mount "ubuntu-data" on a tmpfs
 	opts := &systemdMountOptions{
 		Tmpfs: true,
