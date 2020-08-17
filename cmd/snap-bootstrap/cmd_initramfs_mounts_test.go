@@ -1561,8 +1561,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyEncrypted(c *C
 	defer restore()
 
 	activated := false
-	restore = main.MockSecbootUnlockVolumeIfEncrypted(func(name string, lockKeysOnFinish bool) (string, error) {
+	restore = main.MockSecbootUnlockVolumeIfEncrypted(func(name, encryptionKeyDir string, lockKeysOnFinish bool) (string, error) {
 		c.Assert(name, Equals, "ubuntu-data")
+		c.Assert(encryptionKeyDir, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-seed/device/fde"))
 		c.Assert(lockKeysOnFinish, Equals, true)
 		activated = true
 		return "path-to-device", nil
