@@ -49,6 +49,9 @@ execute: |
     # plug can read from the socket
     test-snapd-provider.sh -c "echo slot > /run/cups/cups.sock"
     test-snapd-consumer.cups-control -c "cat /run/cups/cups.sock" | MATCH slot
+    # The cups-control interface can be disconnected
+    snap disconnect test-snapd-consumer:cups-control
+    not test-snapd-consumer.cups-control -c "head /run/cups/cups.sock"
 
     # The cups interface works as expected
     snap connect test-snapd-consumer:cups test-snapd-provider:cups
@@ -60,9 +63,6 @@ execute: |
     # plug can read from the socket
     test-snapd-provider.sh -c "echo slot > /run/cups/cups.sock"
     test-snapd-consumer.cups -c "cat /run/cups/cups.sock" | MATCH slot
-
-    # The interface can be disconnected
-    snap disconnect test-snapd-consumer:cups-control
-    not test-snapd-consumer.cups-control -c "head /run/cups/cups.sock"
+    # The cups interface can be disconnected
     snap disconnect test-snapd-consumer:cups
     not test-snapd-consumer.cups -c "head /run/cups/cups.sock"
