@@ -123,8 +123,7 @@ func generateInitramfsMounts() error {
 // no longer generates more mount points and just returns an empty output.
 func generateMountsModeInstall(mst *initramfsMountsState, recoverySystem string) error {
 	// steps 1 and 2 are shared with recover mode
-	err := generateMountsCommonInstallRecover(mst, recoverySystem)
-	if err != nil {
+	if err := generateMountsCommonInstallRecover(mst, recoverySystem); err != nil {
 		return err
 	}
 
@@ -251,8 +250,7 @@ func copyFromGlobHelper(src, dst, globEx string) error {
 
 func generateMountsModeRecover(mst *initramfsMountsState, recoverySystem string) error {
 	// steps 1 and 2 are shared with install mode
-	err := generateMountsCommonInstallRecover(mst, recoverySystem)
-	if err != nil {
+	if err := generateMountsCommonInstallRecover(mst, recoverySystem); err != nil {
 		return err
 	}
 
@@ -265,8 +263,7 @@ func generateMountsModeRecover(mst *initramfsMountsState, recoverySystem string)
 	}
 
 	// don't do fsck on the data partition, it could be corrupted
-	err = doSystemdMount(device, boot.InitramfsHostUbuntuDataDir, nil)
-	if err != nil {
+	if err := doSystemdMount(device, boot.InitramfsHostUbuntuDataDir, nil); err != nil {
 		return err
 	}
 
@@ -327,13 +324,12 @@ func mountPartitionMatchingKernelDisk(dir, fallbacklabel string) error {
 func generateMountsCommonInstallRecover(mst *initramfsMountsState, recoverySystem string) error {
 	// 1. always ensure seed partition is mounted first before the others,
 	//      since the seed partition is needed to mount the snap files there
-	err := mountPartitionMatchingKernelDisk(boot.InitramfsUbuntuSeedDir, "ubuntu-seed")
-	if err != nil {
+	if err := mountPartitionMatchingKernelDisk(boot.InitramfsUbuntuSeedDir, "ubuntu-seed"); err != nil {
 		return err
 	}
 
 	// 2.1. measure model
-	err = stampedAction(fmt.Sprintf("%s-model-measured", recoverySystem), func() error {
+	err := stampedAction(fmt.Sprintf("%s-model-measured", recoverySystem), func() error {
 		return secbootMeasureSnapModelWhenPossible(mst.Model)
 	})
 	if err != nil {
@@ -351,8 +347,7 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState, recoverySyste
 	for _, essentialSnap := range essSnaps {
 		dir := snapTypeToMountDir[essentialSnap.EssentialType]
 		// TODO:UC20: we need to cross-check the kernel path with snapd_recovery_kernel used by grub
-		err := doSystemdMount(essentialSnap.Path, filepath.Join(boot.InitramfsRunMntDir, dir), nil)
-		if err != nil {
+		if err := doSystemdMount(essentialSnap.Path, filepath.Join(boot.InitramfsRunMntDir, dir), nil); err != nil {
 			return err
 		}
 	}
@@ -371,8 +366,7 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState, recoverySyste
 
 func generateMountsModeRun(mst *initramfsMountsState) error {
 	// 1. mount ubuntu-boot
-	err := mountPartitionMatchingKernelDisk(boot.InitramfsUbuntuBootDir, "ubuntu-boot")
-	if err != nil {
+	if err := mountPartitionMatchingKernelDisk(boot.InitramfsUbuntuBootDir, "ubuntu-boot"); err != nil {
 		return err
 	}
 
@@ -381,13 +375,12 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	//            partition to mount for ubuntu-seed
 	// don't run fsck on ubuntu-seed in run mode so we minimize chance of
 	// corruption
-	err = doSystemdMount("/dev/disk/by-label/ubuntu-seed", boot.InitramfsUbuntuSeedDir, nil)
-	if err != nil {
+	if err := doSystemdMount("/dev/disk/by-label/ubuntu-seed", boot.InitramfsUbuntuSeedDir, nil); err != nil {
 		return err
 	}
 
 	// 3.1. measure model
-	err = stampedAction("run-model-measured", func() error {
+	err := stampedAction("run-model-measured", func() error {
 		return secbootMeasureSnapModelWhenPossible(mst.UnverifiedBootModel)
 	})
 	if err != nil {
@@ -408,8 +401,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		// probably not?
 		NeedsFsck: true,
 	}
-	err = doSystemdMount(device, boot.InitramfsDataDir, opts)
-	if err != nil {
+	if err := doSystemdMount(device, boot.InitramfsDataDir, opts); err != nil {
 		return err
 	}
 
@@ -439,8 +431,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		if sn, ok := mounts[typ]; ok {
 			dir := snapTypeToMountDir[typ]
 			snapPath := filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), sn.Filename())
-			err := doSystemdMount(snapPath, filepath.Join(boot.InitramfsRunMntDir, dir), nil)
-			if err != nil {
+			if err := doSystemdMount(snapPath, filepath.Join(boot.InitramfsRunMntDir, dir), nil); err != nil {
 				return err
 			}
 		}
