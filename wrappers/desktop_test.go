@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -181,7 +182,7 @@ func (s *desktopSuite) TestAddPackageDesktopFilesCleanup(c *C) {
 	c.Check(err, NotNil)
 	c.Check(osutil.FileExists(mockDesktopFilePath), Equals, false)
 	c.Check(s.mockUpdateDesktopDatabase.Calls(), HasLen, 0)
-	// foo_instance file was not removed by cleanup
+	// foo+instance file was not removed by cleanup
 	c.Check(osutil.FileExists(mockDesktopInstanceFilePath), Equals, true)
 }
 
@@ -577,6 +578,13 @@ func (s *desktopSuite) TestAddRemoveDesktopFiles(c *C) {
 		err = wrappers.AddSnapDesktopFiles(info)
 		c.Assert(err, IsNil)
 		c.Assert(osutil.FileExists(expectedDesktopFilePath), Equals, true)
+
+		// Ensure that the old-style parallel install desktop file was
+		// not created.
+		if t.instance != "" {
+			unexpectedOldStyleDesktopFilePath := strings.Replace(expectedDesktopFilePath, "+", "_", 1)
+			c.Assert(osutil.FileExists(unexpectedOldStyleDesktopFilePath), Equals, false)
+		}
 
 		// remove it again
 		err = wrappers.RemoveSnapDesktopFiles(info)
