@@ -56,6 +56,7 @@ type initramfsMountsSuite struct {
 	seedDir  string
 	sysLabel string
 	model    *asserts.Model
+	tmpDir   string
 }
 
 var _ = Suite(&initramfsMountsSuite{})
@@ -80,8 +81,10 @@ func (s *initramfsMountsSuite) SetUpTest(c *C) {
 	_, restore = logger.MockLogger()
 	s.AddCleanup(restore)
 
+	s.tmpDir = c.MkDir()
+
 	// mock /run/mnt
-	dirs.SetRootDir(c.MkDir())
+	dirs.SetRootDir(s.tmpDir)
 	restore = func() { dirs.SetRootDir("") }
 	s.AddCleanup(restore)
 
@@ -364,8 +367,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep3EncryptedData(c *C
 	c.Assert(err, IsNil)
 
 	activated := false
-	restore := main.MockSecbootUnlockVolumeIfEncrypted(func(name string, lockKeysOnFinish bool) (string, error) {
+	restore := main.MockSecbootUnlockVolumeIfEncrypted(func(name, encryptionKeyDir string, lockKeysOnFinish bool) (string, error) {
 		c.Assert(name, Equals, "ubuntu-data")
+		c.Assert(encryptionKeyDir, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-seed/device/fde"))
 		c.Assert(lockKeysOnFinish, Equals, true)
 		activated = true
 		return "path-to-device", nil
@@ -983,8 +987,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeStep3Encrypted(c *C
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover snapd_recovery_system="+s.sysLabel)
 
 	activated := false
-	restore := main.MockSecbootUnlockVolumeIfEncrypted(func(name string, lockKeysOnFinish bool) (string, error) {
+	restore := main.MockSecbootUnlockVolumeIfEncrypted(func(name, encryptionKeyDir string, lockKeysOnFinish bool) (string, error) {
 		c.Assert(name, Equals, "ubuntu-data")
+		c.Assert(encryptionKeyDir, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-seed/device/fde"))
 		c.Assert(lockKeysOnFinish, Equals, true)
 		activated = true
 		return "path-to-device", nil
