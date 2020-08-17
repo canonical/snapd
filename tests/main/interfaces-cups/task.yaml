@@ -1,5 +1,7 @@
 summary: Ensure that the cups interfaces work with app providers
 
+systems: [ubuntu-*]
+
 details: |
     A snap providing the cups-control and cups interfaces should be able to
     create the control socket, with connecting consuming snaps able to use it.
@@ -7,10 +9,10 @@ details: |
     server.
 
 prepare: |
-    snap pack test-snapd-provider
-    snap install --dangerous ./test-snapd-provider_1_all.snap
-    snap pack test-snapd-consumer
-    snap install --dangerous ./test-snapd-consumer_1_all.snap
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+    install_local test-snapd-provider
+    install_local test-snapd-consumer
 
     if [ -e /run/cups ]; then
         mv /run/cups /run/cups.orig
