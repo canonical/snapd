@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/bootloader/ubootenv"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
@@ -94,20 +95,7 @@ func makeMockModel() *asserts.Model {
 func (s *makeBootableSuite) TestMakeBootable(c *C) {
 	dirs.SetRootDir("")
 
-	headers := map[string]interface{}{
-		"type":         "model",
-		"authority-id": "my-brand",
-		"series":       "16",
-		"brand-id":     "my-brand",
-		"model":        "my-model",
-		"display-name": "My Model",
-		"architecture": "amd64",
-		"base":         "core18",
-		"gadget":       "pc=18",
-		"kernel":       "pc-kernel=18",
-		"timestamp":    "2018-01-01T08:00:00+00:00",
-	}
-	model := assertstest.FakeAssertion(headers).(*asserts.Model)
+	model := makeMockModel()
 
 	grubCfg := []byte("#grub cfg")
 	unpackedGadgetDir := c.MkDir()
@@ -388,6 +376,11 @@ func (s *makeBootable20Suite) TestMakeBootable20RunMode(c *C) {
 	restore = assets.MockInternal("grub.cfg", grubCfgAsset)
 	defer restore()
 
+	err = ioutil.WriteFile(filepath.Join(unpackedGadgetDir, "bootx64.efi"), []byte("shim content"), 0644)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(unpackedGadgetDir, "grubx64.efi"), []byte("grub content"), 0644)
+	c.Assert(err, IsNil)
+
 	// make the snaps symlinks so that we can ensure that makebootable follows
 	// the symlinks and copies the files and not the symlinks
 	baseFn, baseInfo := makeSnap(c, "core20", `name: core20
@@ -419,7 +412,21 @@ version: 5.0
 		UnpackedGadgetDir: unpackedGadgetDir,
 	}
 
-	err = boot.MakeBootable(model, rootdir, bootWith, nil)
+	// set up observer state
+	obs, err := boot.TrustedAssetsInstallObserverForModel(model, unpackedGadgetDir)
+	c.Assert(obs, NotNil)
+	c.Assert(err, IsNil)
+	runBootStruct := &gadget.LaidOutStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Role: gadget.SystemBoot,
+		},
+	}
+	// only grubx64.efi gets installed to system-boot
+	_, err = obs.Observe(gadget.ContentWrite, runBootStruct, boot.InitramfsUbuntuBootDir,
+		filepath.Join(unpackedGadgetDir, "grubx64.efi"), "EFI/boot/grubx64.efi")
+	c.Assert(err, IsNil)
+
+	err = boot.MakeBootable(model, rootdir, bootWith, obs)
 	c.Assert(err, IsNil)
 
 	// ensure grub.cfg in boot was installed from internal assets
@@ -464,6 +471,7 @@ base=core20_3.snap
 current_kernels=pc-kernel_5.snap
 model=my-brand/my-model-uc20
 grade=dangerous
+current_trusted_boot_assets={"grubx64.efi":["5ee042c15e104b825d6bc15c41cdb026589f1ec57ed966dd3f29f961d4d6924efc54b187743fa3a583b62722882d405d"]}
 `)
 }
 

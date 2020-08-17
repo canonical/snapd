@@ -613,9 +613,9 @@ ptrace (read, trace) peer=unconfined,
 /dev/** mrwkl,
 @{PROC}/** mrwkl,
 
-# When kubernetes drives docker, it creates files in the container at arbitrary
-# locations.
-/** wl,
+# When kubernetes drives docker/containerd, it creates and runs files in the
+# container at arbitrary locations (eg, via pivot_root).
+/** rwlix,
 `
 
 const dockerSupportPrivilegedSecComp = `

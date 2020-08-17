@@ -134,7 +134,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		bopts.Model = deviceCtx.Model()
 		bopts.SystemLabel = modeEnv.RecoverySystem
 
-		trustedInstallObserver, err = boot.TrustedAssetsInstallObserverForModel(deviceCtx.Model())
+		trustedInstallObserver, err = boot.TrustedAssetsInstallObserverForModel(deviceCtx.Model(), gadgetDir)
 		if err != nil && err != boot.ErrObserverNotApplicable {
 			return fmt.Errorf("cannot setup asset install observer: %v", err)
 		}
