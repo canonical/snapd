@@ -42,6 +42,12 @@ type Transaction struct {
 	state    *state.State
 	pristine map[string]map[string]*json.RawMessage // snap => key => value
 	changes  map[string]map[string]interface{}
+
+	// The get/set calls can be hijacked to do "virtual" configuration
+	// like e.g. getting/setting the hostname. The idea is that the
+	// data is never stored in the state but instead directly applied
+	// to the system.
+	hijackMap map[string]map[string]HijackFunc
 }
 
 // NewTransaction creates a new configuration transaction initialized with the given state.
@@ -174,9 +180,20 @@ func (t *Transaction) Get(snapName, key string, result interface{}) error {
 		return err
 	}
 
+	// first check if this is a hijacked value
+	if km, ok := t.hijackMap[snapName]; ok {
+		// check if this is a subkey of a hijacked key
+		for i := 0; i < len(subkeys); i++ {
+			k := strings.Join(subkeys[:len(subkeys)-i], ".")
+			if fn, ok := km[k]; ok {
+				return fn(snapName, key, result)
+			}
+		}
+	}
+
 	// commit changes onto a copy of pristine configuration, so that get has a complete view of the config.
 	config := t.copyPristine(snapName)
-	applyChanges(config, t.changes[snapName])
+	applyChanges(snapName, config, t.changes[snapName])
 
 	purgeNulls(config)
 	return getFromConfig(snapName, subkeys, 0, config, result)
@@ -290,7 +307,11 @@ func (t *Transaction) Commit() {
 		if !ok {
 			config = make(map[string]*json.RawMessage)
 		}
-		applyChanges(config, snapChanges)
+		applyChanges(instanceName, config, snapChanges)
+
+		// XXX: do not pass instance name
+		t.purgeHijacked(instanceName, config, nil)
+
 		purgeNulls(config)
 		t.pristine[instanceName] = config
 	}
@@ -301,7 +322,58 @@ func (t *Transaction) Commit() {
 	t.changes = make(map[string]map[string]interface{})
 }
 
-func applyChanges(config map[string]*json.RawMessage, changes map[string]interface{}) {
+// purgeHijacked removes all hijacked config and it's subtrees. E.g.
+// with system.netplan hijacked system.netplan.* is purged from the
+// config.
+func (t *Transaction) purgeHijacked(instanceName string, config interface{}, parentKeys []string) interface{} {
+	km, ok := t.hijackMap[instanceName]
+	if !ok {
+		return nil
+	}
+
+	switch config := config.(type) {
+	// entry point
+	case map[string]*json.RawMessage:
+		for k, v := range config {
+			parentKeys = append(parentKeys, k)
+			if cfg := t.purgeHijacked(instanceName, v, parentKeys); cfg != nil {
+				needle := strings.Join(parentKeys, ".")
+				if _, ok := km[needle]; ok {
+					delete(config, k)
+				} else {
+					config[k] = cfg.(*json.RawMessage)
+				}
+			}
+		}
+	case map[string]interface{}:
+		for k, v := range config {
+			parentKeys = append(parentKeys, k)
+			if cfg := t.purgeHijacked(instanceName, v, parentKeys); cfg != nil {
+				needle := strings.Join(parentKeys, ".")
+				if _, ok := km[needle]; ok {
+					delete(config, k)
+				} else {
+					config[k] = cfg
+				}
+			}
+		}
+	case *json.RawMessage:
+		if config == nil {
+			return nil
+		}
+		var configm interface{}
+		if err := jsonutil.DecodeWithNumber(bytes.NewReader(*config), &configm); err != nil {
+			panic(fmt.Errorf("internal error: cannot unmarshal configuration: %v", err))
+		}
+		if cfg := t.purgeHijacked(instanceName, configm, parentKeys); cfg != nil {
+			return jsonRaw(cfg)
+		}
+		return nil
+	}
+	return config
+}
+
+func applyChanges(instanceName string, config map[string]*json.RawMessage, changes map[string]interface{}) {
 	for k, v := range changes {
 		config[k] = commitChange(config[k], v)
 	}
@@ -354,4 +426,24 @@ func (e *NoOptionError) Error() string {
 		return fmt.Sprintf("snap %q has no configuration", e.SnapName)
 	}
 	return fmt.Sprintf("snap %q has no %q configuration option", e.SnapName, e.Key)
+}
+
+// HijackFunc can be used to hijack "transaction.Get()" calls
+type HijackFunc func(snapName, key string, result interface{}) error
+
+// RegisterHijack registers a hijacker on the given transaction
+//
+// XXX: should this be a "package" wide option so that e.g.
+//      configcore registers the hijacking once globally?
+func (t *Transaction) RegisterHijack(snapName, key string, fn HijackFunc) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	if t.hijackMap == nil {
+		t.hijackMap = make(map[string]map[string]HijackFunc)
+	}
+	if _, ok := t.hijackMap[snapName]; !ok {
+		t.hijackMap[snapName] = make(map[string]HijackFunc)
+	}
+	t.hijackMap[snapName][key] = fn
 }

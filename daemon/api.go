@@ -59,6 +59,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/servicestate"
@@ -1603,6 +1604,8 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	s.Lock()
 	tr := config.NewTransaction(s)
 	s.Unlock()
+	// ensure configcore can hijack requests to e.g. hostname
+	configcore.RegisterHijackers(tr)
 
 	currentConfValues := make(map[string]interface{})
 	// Special case - return root document

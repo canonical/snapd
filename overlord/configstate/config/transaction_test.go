@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -530,4 +531,82 @@ func (s *transactionSuite) TestPristineGet(c *C) {
 	err = tr.Get("some-snap", "opt2", &res2)
 	c.Assert(err, IsNil)
 	c.Assert(res2, Equals, "other-value")
+}
+
+func (s *transactionSuite) TestHijackedGetSimple(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("config", map[string]map[string]interface{}{
+		"some-snap": {
+			"some-key": "some-value",
+			"key":      "value",
+		},
+	})
+
+	n := 0
+	tr := config.NewTransaction(s.state)
+	tr.RegisterHijack("some-snap", "key.hijacked", func(snapName, key string, result interface{}) error {
+		c.Check(snapName, Equals, "some-snap")
+		n++
+
+		s := fmt.Sprintf("%s:%s=hijacked-value", snapName, key)
+		rv := reflect.ValueOf(result)
+		rv.Elem().Set(reflect.ValueOf(s))
+		return nil
+	})
+
+	var res string
+	// top of the hirary is not hijacked
+	err := tr.Get("some-snap", "key", &res)
+	c.Assert(err, IsNil)
+	c.Check(res, Equals, "value")
+	// the hijack function was really not called
+	c.Check(n, Equals, 0)
+
+	// subkey is hijacked
+	err = tr.Get("some-snap", "key.hijacked", &res)
+	c.Assert(err, IsNil)
+	c.Check(res, Equals, "some-snap:key.hijacked=hijacked-value")
+	c.Check(n, Equals, 1)
+
+	// hijacked deep nesting works too
+	err = tr.Get("some-snap", "key.hijacked.subkey", &res)
+	c.Assert(err, IsNil)
+	c.Check(res, Equals, "some-snap:key.hijacked.subkey=hijacked-value")
+	c.Check(n, Equals, 2)
+
+	// different (non-hijacked) query works normally
+	err = tr.Get("some-snap", "some-key", &res)
+	c.Assert(err, IsNil)
+	c.Check(res, Equals, "some-value")
+	// the hijack function was really not called
+	c.Check(n, Equals, 2)
+}
+
+func (s *transactionSuite) TestCommitHijackedValuesNotStored(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.RegisterHijack("some-snap", "key.hijacked", func(snapName, key string, result interface{}) error {
+		c.Errorf("hijack func should not get called in this test")
+		return nil
+	})
+
+	// set some values
+	c.Check(tr.Set("other-snap", "key", "value"), IsNil)
+	c.Check(tr.Set("some-snap", "key.hijacked.sub", "won't-get-set"), IsNil)
+	c.Check(tr.Set("some-snap", "key.hijacked.sub2.sub", "also-won't-get-set"), IsNil)
+	c.Check(tr.Set("some-snap", "key.not-hijacked", "value"), IsNil)
+	tr.Commit()
+
+	// and check what got stored in the state
+	var config map[string]map[string]interface{}
+	s.state.Get("config", &config)
+	c.Check(config["some-snap"]["key"], HasLen, 1)
+	c.Check(config["some-snap"]["key"], DeepEquals, map[string]interface{}{
+		"not-hijacked": "value",
+	})
+	// other-snap is unrelated
+	c.Check(config["other-snap"]["key"], Equals, "value")
 }

@@ -23,6 +23,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -48,6 +49,8 @@ func ContextTransaction(context *hookstate.Context) *config.Transaction {
 
 	// It wasn't already cached, so create and cache a new one
 	tr = config.NewTransaction(context.State())
+	// ensure configcore can hijack requests to e.g. hostname
+	configcore.RegisterHijackers(tr)
 
 	context.OnDone(func() error {
 		tr.Commit()

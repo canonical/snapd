@@ -102,3 +102,26 @@ func (cfg plainCoreConfig) GetMaybe(instanceName, key string, result interface{}
 type fsOnlyContext struct {
 	RootDir string
 }
+
+// hijackedCoreCfg is a map of all the functions that should be
+// hijacking configuration get/set and need to run custom code instead
+// of just storing the value in the state (e.g. hostname)
+var hijackedCoreCfg = map[string]config.HijackFunc{
+	"example": exampleHijackFunc,
+}
+
+func exampleHijackFunc(snapName, key string, result interface{}) error {
+	val := "foo"
+
+	// XXX: make this a helper
+	rv := reflect.ValueOf(result)
+	rv.Elem().Set(reflect.ValueOf(val))
+	return nil
+}
+
+func RegisterHijackers(tr *config.Transaction) {
+	for confKey, fn := range hijackedCoreCfg {
+		supportedConfigurations["core."+confKey] = true
+		tr.RegisterHijack("core", confKey, fn)
+	}
+}
