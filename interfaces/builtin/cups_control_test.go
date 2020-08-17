@@ -22,7 +22,6 @@ package builtin_test
 import (
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -68,10 +67,6 @@ func (s *cupsControlSuite) SetUpTest(c *C) {
 	s.plug, s.plugInfo = MockConnectedPlug(c, cupsControlConsumerYaml, nil, "cups-control")
 	s.coreSlot, s.coreSlotInfo = MockConnectedSlot(c, cupsControlCoreYaml, nil, "cups-control")
 	s.providerSlot, s.providerSlotInfo = MockConnectedSlot(c, cupsControlProviderYaml, nil, "cups-control")
-}
-
-func (s *cupsControlSuite) TearDownTest(c *C) {
-	dirs.SetRootDir("/")
 }
 
 func (s *cupsControlSuite) TestName(c *C) {
