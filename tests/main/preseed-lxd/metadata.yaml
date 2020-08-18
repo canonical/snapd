@@ -3,5 +3,5 @@ creation_date: 1597313423 # To get current date in Unix time, use `date +%s` com
 properties:
   architecture: "x86_64"
   description: "Ubuntu 20.04 preseeded for test"
-  os: "debian"
-  release: "sid"
+  os: "ubuntu"
+  release: "focal"
